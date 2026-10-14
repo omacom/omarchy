@@ -10,14 +10,24 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 # Each scenario gets its own mock PATH and call log, then runs the sleep lock
 # with a short budget so a stalled shell cannot slow the suite down.
+mock_notification_server_process() {
+  local pid=$1 start_time=$2
+  mkdir -p "$proc_root/$pid"
+  printf '%s (quickshell) S 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 %s 0\n' \
+    "$pid" "$start_time" >"$proc_root/$pid/stat"
+}
+
 setup_scenario() {
   scenario_dir="$tmpdir/$1"
   mock_bin="$scenario_dir/bin"
   call_log="$scenario_dir/calls"
   state_dir="$scenario_dir/state"
+  proc_root="$scenario_dir/proc"
   notify_log="$scenario_dir/notifications"
   journal_log="$scenario_dir/journal"
-  mkdir -p "$mock_bin" "$state_dir"
+  mkdir -p "$mock_bin" "$state_dir" "$proc_root/sys/kernel/random"
+  printf 'test-boot-id\n' >"$proc_root/sys/kernel/random/boot_id"
+  mock_notification_server_process 700 100
   : >"$notify_log"
   : >"$journal_log"
 
@@ -31,15 +41,68 @@ setup_scenario() {
 #!/bin/bash
 
 printf '%s\n' "\$*" >>"$notify_log"
+
+print_id=0
+replace_id=0
+while ((\$# > 0)); do
+  case \$1 in
+  -p | --print-id) print_id=1 ;;
+  -r | --replace-id)
+    shift
+    replace_id=\${1:-0}
+    ;;
+  esac
+  shift
+done
+
+# A stale id from an earlier notification-server generation can be replaced by
+# a fresh one, so callers must always persist the id returned by this send.
+if ((print_id)); then
+  if [[ -n \${RETURN_NOTIFICATION_ID:-} ]]; then
+    printf '%s\n' "\$RETURN_NOTIFICATION_ID"
+  elif ((replace_id > 0)); then
+    printf '%s\n' "\$replace_id"
+  else
+    printf '41\n'
+  fi
+fi
 SH
   chmod +x "$mock_bin/omarchy-notification-send"
+
+  # Production detaches warning work from logind's delay inhibitor. Execute the
+  # transient worker inline here so each scenario can assert its final effects.
+  cat >"$mock_bin/systemd-run" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$STATE_DIR/systemd-run-calls"
+while [[ ${1:-} == --* ]]; do shift; done
+"$@"
+SH
+  chmod +x "$mock_bin/systemd-run"
+
+  cat >"$mock_bin/timeout" <<'SH'
+#!/bin/bash
+if [[ $* == *systemd-run* ]]; then
+  [[ ${1:-} == --kill-after=* ]] && shift
+  shift
+  exec "$@"
+fi
+printf '%s\n' "$*" >>"$STATE_DIR/timeout-calls"
+exec /usr/bin/timeout "$@"
+SH
+  chmod +x "$mock_bin/timeout"
 }
 
 mock_logind_window() {
   cat >"$mock_bin/busctl" <<SH
 #!/bin/bash
 
-printf 't %s\n' $1
+if [[ \$* == *GetNameOwner* ]]; then
+  printf 's ":1.%s"\n' "\${NOTIFICATION_SERVER_PID:-700}"
+elif [[ \$* == *GetConnectionUnixProcessID* ]]; then
+  printf 'u %s\n' "\${NOTIFICATION_SERVER_PID:-700}"
+else
+  printf 't %s\n' $1
+fi
 SH
   chmod +x "$mock_bin/busctl"
 }
@@ -61,7 +124,8 @@ run_sleep_lock() {
 
   start_us=${EPOCHREALTIME//[!0-9]/}
   set +e
-  CALL_LOG="$call_log" STATE_DIR="$state_dir" PATH="$mock_bin:$PATH" \
+  CALL_LOG="$call_log" STATE_DIR="$state_dir" XDG_STATE_HOME="$state_dir" \
+    OMARCHY_PROC_ROOT="$proc_root" PATH="$mock_bin:$PATH" \
     "$sleep_lock" "${args[@]}" 2>"$journal_log"
   exit_status=$?
   set -e
@@ -262,10 +326,390 @@ grep -qF "did not lock before suspend" "$notify_log" ||
     "notifications: $(< "$notify_log")"
 pass "sleep lock warns that the session was left unlocked"
 
+grep -q -- '--no-block' "$state_dir/systemd-run-calls" ||
+  fail "sleep lock queues warning work outside the delay inhibitor" \
+    "systemd-run: $(< "$state_dir/systemd-run-calls")"
+grep -q -- '--property=RuntimeMaxSec=50s' "$state_dir/systemd-run-calls" ||
+  fail "sleep lock gives a waiting worker time to fall back before bounding its lifetime" \
+    "systemd-run: $(< "$state_dir/systemd-run-calls")"
+grep -q -- '--property=TimeoutStopSec=1s' "$state_dir/systemd-run-calls" ||
+  fail "sleep lock force-stops a wedged warning worker after its bounded fallback" \
+    "systemd-run: $(< "$state_dir/systemd-run-calls")"
+grep -q -- '--property=SendSIGKILL=yes' "$state_dir/systemd-run-calls" ||
+  fail "sleep lock permits the final kill required to release a wedged worker lock" \
+    "systemd-run: $(< "$state_dir/systemd-run-calls")"
+grep -q -- '--report-unsecured no lock screen is configured' "$state_dir/systemd-run-calls" ||
+  fail "sleep lock passes the failure reason to the detached warning worker" \
+    "systemd-run: $(< "$state_dir/systemd-run-calls")"
+pass "sleep lock detaches warning delivery from the delay inhibitor"
+
+# A recurring lock fault must update the same live critical card rather than
+# adding another never-expiring popup on every suspend attempt.
+run_sleep_lock 4000
+mapfile -t notifications <"$notify_log"
+notification_id_file="$state_dir/omarchy/sleep-lock-notification-id"
+
+(( exit_status != 0 )) ||
+  fail "a repeated unsecured suspend still reports failure"
+(( ${#notifications[@]} == 2 )) ||
+  fail "each unsecured suspend sends one warning" \
+    "notifications: $(< "$notify_log")"
+[[ ${notifications[0]} == *"-r 0"* && ${notifications[0]} == *"-p"* ]] ||
+  fail "the first unsecured warning requests a reusable notification id" \
+    "notification: ${notifications[0]}"
+[[ ${notifications[0]} == *"--bus-name :1.700"* ]] ||
+  fail "the warning pins Notify to the server owner whose process was validated" \
+    "notification: ${notifications[0]}"
+[[ ${notifications[1]} == *"-r 41"* && ${notifications[1]} == *"-p"* ]] ||
+  fail "a repeated unsecured warning replaces the previous notification" \
+    "notification: ${notifications[1]}"
+[[ -f $notification_id_file && $(< "$notification_id_file") == "test-boot-id-700-100 41" ]] ||
+  fail "sleep lock persists the notification id returned by the sender"
+pass "repeated unsecured warnings replace the previous notification"
+
+# A dismissed card's id is gone, so the server assigns a fresh one. Save that
+# returned id and use it next.
+export RETURN_NOTIFICATION_ID=82
+run_sleep_lock 4000
+unset RETURN_NOTIFICATION_ID
+run_sleep_lock 4000
+mapfile -t notifications <"$notify_log"
+
+[[ ${notifications[2]} == *"-r 41"* ]] ||
+  fail "a stale notification id is still offered for replacement" \
+    "notification: ${notifications[2]}"
+[[ ${notifications[3]} == *"-r 82"* ]] ||
+  fail "sleep lock reuses the notification id reassigned by the server" \
+    "notification: ${notifications[3]}"
+[[ $(< "$notification_id_file") == "test-boot-id-700-100 82" ]] ||
+  fail "sleep lock persists a reassigned notification id"
+pass "a reassigned notification id is persisted and reused"
+
+# A restarted server numbers its ids from 1 again and replaces whatever live
+# notification holds the saved id, so an id from another server is never offered.
+mock_notification_server_process 701 100
+export NOTIFICATION_SERVER_PID=701
+run_sleep_lock 4000
+unset NOTIFICATION_SERVER_PID
+mapfile -t notifications <"$notify_log"
+
+[[ ${notifications[4]} == *"-r 0"* ]] ||
+  fail "a restarted notification server is not handed the old server's id" \
+    "notification: ${notifications[4]}"
+[[ $(< "$notification_id_file") == "test-boot-id-701-100 41" ]] ||
+  fail "sleep lock saves the id with the server that issued it"
+pass "an id is only reused with the notification server that issued it"
+
+# A PID alone is not a process identity: after reuse, a new notification server
+# can own the old PID and hand the saved numeric id to an unrelated card.
+printf '%s-700-100 82\n' "$(<"$proc_root/sys/kernel/random/boot_id")" >"$notification_id_file"
+mock_notification_server_process 700 200
+run_sleep_lock 4000
+mapfile -t notifications <"$notify_log"
+
+[[ ${notifications[5]} == *"-r 0"* ]] ||
+  fail "a reused notification-server PID is not handed the old process id" \
+    "notification: ${notifications[5]}"
+[[ $(< "$notification_id_file") == "test-boot-id-700-200 41" ]] ||
+  fail "sleep lock saves the server process start time with its id"
+pass "a reused PID is distinguished by the server process start time"
+
+mock_notification_server_process 700 300
+run_sleep_lock 4000
+mapfile -t notifications <"$notify_log"
+
+[[ ${notifications[6]} == *"-r 0"* ]] ||
+  fail "a changed notification-server start time invalidates the saved id" \
+    "notification: ${notifications[6]}"
+pass "a restarted server with the same PID gets a fresh notification id"
+
+printf 'test-boot-id-700-300 99999999999\n' >"$notification_id_file"
+run_sleep_lock 4000
+mapfile -t notifications <"$notify_log"
+
+[[ ${notifications[7]} == *"-r 0"* ]] ||
+  fail "a corrupt saved id is not offered for replacement" \
+    "notification: ${notifications[7]}"
+pass "a corrupt saved id falls back to a fresh notification"
+
+# Concurrent failures must serialize the whole replace-id transaction even when
+# the first send outlasts the old 0.7-second lock timeout.
+setup_scenario concurrent_unsecured
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+[[ $* == "lock lock" ]] && printf 'missing-pam\n'
+SH
+chmod +x "$mock_bin/omarchy-shell"
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+
+printf '%s\n' "$*" >>"$NOTIFY_LOG"
+
+replace_id=0
+while (($# > 0)); do
+  case $1 in
+  -r | --replace-id)
+    shift
+    replace_id=${1:-0}
+    ;;
+  esac
+  shift
+done
+
+if ((replace_id > 0)); then
+  printf '%s\n' "$replace_id"
+else
+  while ! mkdir "$STATE_DIR/id-allocation-lock" 2>/dev/null; do
+    sleep 0.01
+  done
+  next_id=41
+  [[ -r $STATE_DIR/next-id ]] && next_id=$(( $(<"$STATE_DIR/next-id") + 1 ))
+  printf '%s\n' "$next_id" >"$STATE_DIR/next-id"
+  rmdir "$STATE_DIR/id-allocation-lock"
+  sleep 1
+  printf '%s\n' "$next_id"
+fi
+SH
+chmod +x "$mock_bin/omarchy-notification-send"
+
+pids=()
+set +e
+for _ in 1 2; do
+  CALL_LOG="$call_log" STATE_DIR="$state_dir" NOTIFY_LOG="$notify_log" \
+    XDG_STATE_HOME="$state_dir" OMARCHY_PROC_ROOT="$proc_root" PATH="$mock_bin:$PATH" \
+    "$sleep_lock" 4000 2>>"$journal_log" &
+  pids+=("$!")
+done
+concurrent_statuses=()
+for pid in "${pids[@]}"; do
+  wait "$pid"
+  concurrent_statuses+=("$?")
+done
+set -e
+mapfile -t notifications <"$notify_log"
+notification_id_file="$state_dir/omarchy/sleep-lock-notification-id"
+
+[[ ${concurrent_statuses[*]} == "1 1" ]] ||
+  fail "concurrent unsecured suspend reports still fail" \
+    "statuses: ${concurrent_statuses[*]}"
+(( ${#notifications[@]} == 2 )) ||
+  fail "concurrent unsecured suspends each send one warning" \
+    "notifications: $(< "$notify_log")"
+replace_zero_count=0
+for notification in "${notifications[@]}"; do
+  [[ $notification == *"-r 0"* ]] && (( ++replace_zero_count ))
+done
+(( replace_zero_count == 1 )) ||
+  fail "concurrent unsecured warnings reuse one notification" \
+    "notifications: $(< "$notify_log")"
+[[ ${notifications[*]} == *"-r 41"* ]] ||
+  fail "the serialized warning replaces the first concurrent notification" \
+    "notifications: $(< "$notify_log")"
+[[ -f $notification_id_file && $(< "$notification_id_file") == "test-boot-id-700-100 41" ]] ||
+  fail "concurrent warnings persist the sender's replacement id"
+pass "concurrent unsecured warnings reuse one notification"
+
+# A second reporter waits for a failed holder and runs only after the holder's
+# bounded fresh retry. Any duplicate fallback remains content-coalescible.
+setup_scenario notification_lock_handoff
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+[[ $* == "lock lock" ]] && printf 'missing-pam\n'
+SH
+chmod +x "$mock_bin/omarchy-shell"
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+
+if mkdir "$STATE_DIR/first-notification-attempt" 2>/dev/null; then
+  printf 'failed %s\n' "$*" >>"$STATE_DIR/notification-attempts"
+  sleep 1
+  exit 1
+fi
+
+printf '%s\n' "$*" >>"$NOTIFY_LOG"
+printf 'delivered %s\n' "$*" >>"$STATE_DIR/notification-attempts"
+printf '41\n'
+SH
+chmod +x "$mock_bin/omarchy-notification-send"
+
+pids=()
+set +e
+for _ in 1 2; do
+  CALL_LOG="$call_log" STATE_DIR="$state_dir" NOTIFY_LOG="$notify_log" \
+    XDG_STATE_HOME="$state_dir" OMARCHY_PROC_ROOT="$proc_root" PATH="$mock_bin:$PATH" \
+    "$sleep_lock" 4000 2>>"$journal_log" &
+  pids+=("$!")
+done
+for pid in "${pids[@]}"; do
+  wait "$pid"
+done
+set -e
+mapfile -t notifications <"$notify_log"
+mapfile -t notification_attempts <"$state_dir/notification-attempts"
+notification_id_file="$state_dir/omarchy/sleep-lock-notification-id"
+
+(( ${#notifications[@]} == 2 )) ||
+  fail "a failed lock holder and its waiting successor both deliver a recoverable warning" \
+    "notifications: $(< "$notify_log")"
+(( ${#notification_attempts[@]} == 3 )) ||
+  fail "the failed holder retries before the waiting successor takes over" \
+    "attempts: $(< "$state_dir/notification-attempts")"
+[[ ${notification_attempts[0]} == failed* ]] ||
+  fail "the first holder attempt fails before either fresh fallback delivers" \
+    "attempts: $(< "$state_dir/notification-attempts")"
+for notification in "${notifications[@]}"; do
+  [[ $notification == *"-u critical"* && $notification == *"-r 0"* ]] ||
+    fail "holder and waiting-successor fallbacks emit equivalent fresh critical warnings" \
+      "notification: $notification"
+done
+[[ -f $notification_id_file && $(< "$notification_id_file") == "test-boot-id-700-100 41" ]] ||
+  fail "the waiting successor persists state after the failed holder releases the lock"
+pass "a failed holder and waiting successor deliver coalescible warnings"
+
+# The owner can disappear after validation but before Notify. The pinned call
+# must fail closed, then retry fresh rather than hand the saved id to a new
+# server or silently lose the warning.
+setup_scenario notification_owner_restart
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+[[ $* == "lock lock" ]] && printf 'missing-pam\n'
+SH
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$STATE_DIR/notification-attempts"
+if [[ $* == *"--bus-name"* ]]; then
+  exit 1
+fi
+printf '%s\n' "$*" >>"$STATE_DIR/delivered-notifications"
+exit 0
+SH
+chmod +x "$mock_bin/omarchy-shell" "$mock_bin/omarchy-notification-send"
+mkdir -p "$state_dir/omarchy"
+printf 'test-boot-id-700-100 41\n' >"$state_dir/omarchy/sleep-lock-notification-id"
+: >"$call_log"
+
+run_sleep_lock 4000
+mapfile -t notification_attempts <"$state_dir/notification-attempts"
+mapfile -t notifications <"$state_dir/delivered-notifications"
+
+(( ${#notification_attempts[@]} == 2 && ${#notifications[@]} == 1 )) ||
+  fail "a departed pinned owner is retried with one fresh warning" \
+    "attempts: $(< "$state_dir/notification-attempts")"
+[[ ${notification_attempts[0]} == *"--bus-name :1.700"* &&
+  ${notification_attempts[0]} == *"-r 41"* ]] ||
+  fail "the first attempt remains pinned to the validated owner and id"
+[[ ${notifications[0]} != *"--bus-name"* && ${notifications[0]} == *"-r 0"* ]] ||
+  fail "the retry is fresh and cannot replace another server's notification" \
+    "notification: ${notifications[0]}"
+pass "a server restart between validation and Notify still delivers a warning"
+
+# A slow notification server may outlive one bounded attempt. Because delivery
+# runs outside logind's inhibitor, retry once fresh instead of dropping the only
+# warning when that attempt times out.
+setup_scenario notification_slow_send
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+[[ $* == "lock lock" ]] && printf 'missing-pam\n'
+SH
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$STATE_DIR/notification-attempts"
+if mkdir "$STATE_DIR/first-notification-attempt" 2>/dev/null; then
+  sleep 1
+  exit 1
+fi
+printf '%s\n' "$*" >>"$STATE_DIR/delivered-notifications"
+exit 0
+SH
+chmod +x "$mock_bin/omarchy-shell" "$mock_bin/omarchy-notification-send"
+: >"$call_log"
+export OMARCHY_NOTIFICATION_SEND_TIMEOUT=0.2
+run_sleep_lock 4000
+unset OMARCHY_NOTIFICATION_SEND_TIMEOUT
+mapfile -t notification_attempts <"$state_dir/notification-attempts"
+mapfile -t notifications <"$state_dir/delivered-notifications"
+
+(( ${#notification_attempts[@]} == 2 && ${#notifications[@]} == 1 )) ||
+  fail "a timed-out send is retried once" \
+    "attempts: $(< "$state_dir/notification-attempts")"
+[[ ${notifications[0]} == *"-r 0"* ]] ||
+  fail "the slow-send retry is a fresh warning" "notification: ${notifications[0]}"
+pass "a slow notification send still gets one fresh retry"
+
+: >"$state_dir/timeout-calls"
+export OMARCHY_NOTIFICATION_SEND_TIMEOUT=0
+run_sleep_lock 4000
+unset OMARCHY_NOTIFICATION_SEND_TIMEOUT
+validated_timeout_call=""
+while IFS= read -r timeout_call; do
+  if [[ $timeout_call == *"omarchy-notification-send"* ]]; then
+    validated_timeout_call=$timeout_call
+    break
+  fi
+done <"$state_dir/timeout-calls"
+[[ $validated_timeout_call == *" 5 omarchy-notification-send "* ]] ||
+  fail "a zero notification timeout falls back to the bounded production default" \
+    "timeout call: $validated_timeout_call"
+pass "an invalid zero notification timeout cannot make the worker unbounded"
+
 grep -qF "suspending without a secure lock" "$journal_log" ||
   fail "sleep lock records the unlocked suspend in the journal" \
     "journal: $(< "$journal_log")"
 pass "sleep lock records the unlocked suspend in the journal"
+
+# A state directory that cannot be locked at all must still warn.
+setup_scenario notification_lock_error
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+printf 'shell %s\n' "$*" >>"$CALL_LOG"
+[[ $* == "lock lock" ]] && printf 'missing-pam\n'
+exit 0
+SH
+chmod +x "$mock_bin/omarchy-shell"
+mock_clamshell
+printf '#!/bin/bash\n\nexit 64\n' >"$mock_bin/flock"
+chmod +x "$mock_bin/flock"
+
+run_sleep_lock 4000
+mapfile -t notifications <"$notify_log"
+
+(( ${#notifications[@]} == 1 )) &&
+  [[ ${notifications[0]} == *"did not lock before suspend"* ]] ||
+  fail "a state lock that errors still sends the unsecured warning" \
+    "notifications: $(< "$notify_log")"
+pass "a state lock that errors still sends the unsecured warning"
+
+# Queuing the worker, not delivering the toast, is all the delay-inhibitor path
+# waits for. A stuck notification client therefore cannot spend logind's reserve.
+setup_scenario detached_warning_delivery
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+[[ $* == "lock lock" ]] && printf 'missing-pam\n'
+SH
+cat >"$mock_bin/systemd-run" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$STATE_DIR/systemd-run-calls"
+exit 0
+SH
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+sleep 5
+SH
+chmod +x "$mock_bin/omarchy-shell" "$mock_bin/systemd-run" "$mock_bin/omarchy-notification-send"
+: >"$call_log"
+
+run_sleep_lock 4000
+
+(( exit_status != 0 )) ||
+  fail "detached warning delivery still reports the unsecured suspend"
+(( elapsed_us < 500000 )) ||
+  fail "warning delivery holds the delay inhibitor after queueing" "elapsed: ${elapsed_us}us"
+grep -q -- '--no-block' "$state_dir/systemd-run-calls" ||
+  fail "the warning worker is not queued asynchronously"
+pass "warning delivery cannot spend logind's suspend reserve"
 
 # A never-securing shell is the scenario that runs out the whole budget, so it
 # is also the one that shows which budget was derived.
