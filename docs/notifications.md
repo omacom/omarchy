@@ -224,7 +224,7 @@ timer via `systemd-run --user --collect --on-active=<minutes>m` under the
 unit name `omarchy-reminder-<minutes>m-<epoch>`; the timer's payload sends the
 reminder toast, deletes its stored record, and refreshes the bar indicator.
 Each pending reminder is recorded in `~/.local/state/omarchy/reminders/`:
-`<unit>.due` holds its absolute due time (epoch seconds) and `<unit>.message`
+`<unit>.due` holds its absolute due time (epoch seconds) and its minutes, and `<unit>.message`
 its custom message, since a unit name cannot carry arbitrary text. Transient
 timers do not survive a reboot or logout, so Hyprland's autostart runs
 `omarchy-reminder restore`, which re-arms every record without a live timer

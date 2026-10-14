@@ -6,8 +6,9 @@
 
 set -euo pipefail
 
-# Each pending reminder keeps its absolute due time (and custom message) here, so
-# the transient timer that fires it can be re-armed after a reboot or logout.
+# Each pending reminder keeps its absolute due time and minutes (and custom
+# message) here, so the transient timer that fires it can be re-armed after a
+# reboot or logout without depending on the unit name format.
 reminder_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/reminders"
 
 format_remaining() {
@@ -160,14 +161,13 @@ restore_reminders() {
     unit=$(basename "$due_file" .due)
     systemctl --user is-active --quiet "$unit.timer" && continue
 
-    due=$(<"$due_file")
-    if [[ ! $due =~ ^[0-9]+$ ]]; then
+    due="" minutes=""
+    read -r due minutes <"$due_file" || true
+    if [[ ! $due =~ ^[0-9]+$ ]] || [[ ! $minutes =~ ^[0-9]+$ ]]; then
       rm -f "$due_file" "$reminder_dir/$unit.message"
       continue
     fi
 
-    minutes=${unit#omarchy-reminder-}
-    minutes=${minutes%%m-*}
     if [[ -f $reminder_dir/$unit.message ]]; then
       message=$(<"$reminder_dir/$unit.message")
     else
@@ -249,7 +249,7 @@ confirmation=$(omarchy-i18n reminder.willRemindAt "$remind_at")
 confirmation_title=$(omarchy-i18n --count "$minutes" reminder.setForMinutes "$minutes")
 
 mkdir -p "$reminder_dir"
-echo $((set_at + minutes * 60)) >"$reminder_dir/$unit.due"
+echo "$((set_at + minutes * 60)) $minutes" >"$reminder_dir/$unit.due"
 
 if [[ -n $custom_message ]]; then
   printf "%s" "$custom_message" >"$message_file"

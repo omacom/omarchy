@@ -73,8 +73,9 @@ before=$(date +%s)
 reminder 10 "Check the oven"
 after=$(date +%s)
 due_file=$(compgen -G "$store/omarchy-reminder-10m-*.due") || fail "setting a reminder stores its due time"
-due=$(<"$due_file")
+read -r due due_minutes <"$due_file"
 ((due >= before + 600 && due <= after + 600)) || fail "stored due time is ten minutes out ($due)"
+[[ $due_minutes == 10 ]] || fail "setting a reminder stores its minutes ($due_minutes)"
 [[ $(<"${due_file%.due}.message") == "Check the oven" ]] || fail "setting a reminder stores its message"
 grep -q -- "--on-active=600s" "$reminder_tmp/runs" || fail "setting a reminder arms a ten-minute timer"
 pass "setting a reminder stores its absolute due time and message"
@@ -82,16 +83,22 @@ pass "setting a reminder stores its absolute due time and message"
 rm -rf "$store" "$reminder_tmp/runs"
 mkdir -p "$store"
 now=$(date +%s)
-echo $((now + 3600)) >"$store/omarchy-reminder-90m-1000.due"
-echo $((now - 3600)) >"$store/omarchy-reminder-5m-2000.due"
+echo "$((now + 3600)) 90" >"$store/omarchy-reminder-90m-1000.due"
+echo "$((now - 3600)) 5" >"$store/omarchy-reminder-5m-2000.due"
 printf '%s' "Stand up" >"$store/omarchy-reminder-5m-2000.message"
-echo $((now + 60)) >"$store/omarchy-reminder-2m-3000.due"
+echo "$((now + 60)) 2" >"$store/omarchy-reminder-2m-3000.due"
 echo "garbage" >"$store/omarchy-reminder-1m-4000.due"
+# The default message comes from the stored minutes, not the unit name.
+echo "$((now + 1800)) 30" >"$store/omarchy-reminder-30-1700000000-12345.due"
 REMINDER_TEST_ACTIVE=omarchy-reminder-2m-3000.timer reminder restore
 
 grep -Eq -- "--on-active=(359[0-9]|3600)s --unit=omarchy-reminder-90m-1000 .*Your 90 minutes are up" "$reminder_tmp/runs" ||
   fail "restore re-arms a pending reminder for its remaining time"
 pass "restore re-arms a pending reminder for its remaining time"
+
+grep -Eq -- "--on-active=(179[0-9]|1800)s --unit=omarchy-reminder-30-1700000000-12345 .*Your 30 minutes are up" "$reminder_tmp/runs" ||
+  fail "restore builds the default message from the stored minutes"
+pass "restore builds the default message from the stored minutes"
 
 grep -q -- "--on-active=1s --unit=omarchy-reminder-5m-2000 .*Stand up" "$reminder_tmp/runs" ||
   fail "restore fires an overdue reminder right away with its message"
