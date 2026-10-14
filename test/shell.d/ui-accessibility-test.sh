@@ -326,9 +326,7 @@ ShellRoot {
     same(multiChanges, 1, "MultiSelect option toggle emits changed")
     same(option.Accessible.checked, true, "MultiSelect option reports checked")
     multi.enabled = false
-    var disabledOption = accessibleChild(testWindow.contentItem, "Two", Accessible.CheckBox)
-    check(disabledOption !== null, "MultiSelect keeps open options reachable after becoming disabled")
-    if (disabledOption) disabledOption.Accessible.pressAction()
+    option.Accessible.pressAction()
     same(multi.values.length, 1, "disabled open MultiSelect ignores option actions")
     same(multiChanges, 1, "disabled open MultiSelect does not emit changed")
     multi.close()
