@@ -995,6 +995,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: "World clock"
     anchorItem: button
     owner: root
     bar: root.bar
