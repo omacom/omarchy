@@ -178,4 +178,30 @@ with tempfile.TemporaryDirectory() as directory:
       pass
   assert path.read_text() == original and calls[-1][1] == "eval"
   pass_test("snapped geometry is not persisted and old live rules are restored")
+  calls.clear()
+  with patch.object(layout.subprocess, "run", run), patch.object(layout.os, "replace", side_effect=OSError("injected rename failure")):
+    try:
+      layout.apply(rubra, "DP-1", 2, link)
+      raise AssertionError("expected publication failure")
+    except OSError:
+      pass
+  assert path.read_text() == original and len([c for c in calls if c[1] == "eval"]) == 2
+  assert not list(path.parent.glob(".monitors-*"))
+  pass_test("failed publication keeps config bytes and rolls live layout back")
+  calls.clear()
+  def concurrent(args, **kwargs):
+    response = run(args, **kwargs)
+    if args[1] == "monitors":
+      path.write_text(original + "-- concurrent owner edit\n")
+    return response
+  with patch.object(layout.subprocess, "run", concurrent):
+    try:
+      layout.apply(rubra, "DP-1", 2, link)
+      raise AssertionError("expected concurrent-edit refusal")
+    except ValueError:
+      pass
+  assert path.read_text() == original + "-- concurrent owner edit\n"
+  assert len([c for c in calls if c[1] == "eval"]) == 2
+  pass_test("concurrent owner edit is retained and old live layout restored")
+
 PY
