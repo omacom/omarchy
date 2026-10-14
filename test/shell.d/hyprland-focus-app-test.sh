@@ -57,3 +57,25 @@ fi
 [[ ! -e $dispatch_log ]] || fail "app focus leaves focus unchanged for unrelated title matches"
 
 pass "app focus restricts title matching to agent terminals"
+
+clients_json='[
+  {"address":"0xunnamed","class":""},
+  {"address":"0xbrowser","class":"chromium"},
+  {"address":"0xlookalike","class":"chrome-not-teams.microsoft.com__-Default"},
+  {"address":"0xteams","class":"chrome-teams.microsoft.com__-Default"}
+]'
+PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" \
+  OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" \
+  bash "$ROOT/bin/omarchy-hyprland-focus-app" Chromium teams.microsoft.com
+
+grep -F 'hl.dsp.focus({ window = "address:0xteams" })' "$dispatch_log" >/dev/null || \
+  fail "app focus prefers the web app window for the given host"
+
+PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" \
+  OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" \
+  bash "$ROOT/bin/omarchy-hyprland-focus-app" Chromium example.com
+
+grep -F 'hl.dsp.focus({ window = "address:0xbrowser" })' "$dispatch_log" >/dev/null || \
+  fail "app focus falls back to the app name when no web app window has the host"
+
+pass "app focus finds a web app window by host before the browser"

@@ -98,6 +98,14 @@ function sanitizeBody(body, app, appIcon) {
     .replace(/^\s*(?:https?:\/\/|www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/\S*)?\s+/i, "")
 }
 
+// Chromium-derived browsers lead a web notification's body with a link to the
+// sending origin; its host is what they put in a web app's window class.
+function webAppHost(app, appIcon, body) {
+  if (!isChromiumDerived(app, appIcon)) return ""
+  var match = /^\s*<a\b[^>]*\bhref="https?:\/\/([a-z0-9.-]+)[:\/"]/i.exec(String(body || ""))
+  return match ? match[1].toLowerCase() : ""
+}
+
 function summaryStartsWithGlyph(summary) {
   var text = String(summary || "").replace(/^\s+/, "")
   if (!text) return false
@@ -481,6 +489,7 @@ if (typeof module !== "undefined") {
     isChromiumDerived: isChromiumDerived,
     sanitizeBody: sanitizeBody,
     styledBody: styledBody,
+    webAppHost: webAppHost,
     summaryStartsWithGlyph: summaryStartsWithGlyph,
     shouldBypassDnd: shouldBypassDnd,
     isEphemeralApp: isEphemeralApp,
