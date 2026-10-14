@@ -2,6 +2,8 @@
 
 Omarchy offers an easy way to run Windows through a Docker VM. You can install it using _Install > Windows_ from the Omarchy menu (`Super + Space`).
 
+Windows needs KVM, TUN, and network administration access that a rootless development container cannot receive safely. Omarchy therefore keeps the Windows VM on a separate rootful Docker daemon whose socket is accessible only to root. Starting, stopping, checking, changing, or removing the VM asks for `sudo` in a terminal or shows the system authorization prompt when launched graphically. Development containers continue to use your rootless Docker daemon.
+
 Your machine needs KVM virtualization for this, which most do — but it's sometimes switched off in the BIOS, and the installer will tell you if that's the case. You'll also want the disk space: whatever you give Windows, plus about 10GB for the image itself.
 
 The installer asks how much RAM, how many CPU cores, and how much disk to hand over (64GB or more is the sensible floor), then for a Windows username and password. Leave those blank and you get `docker` / `admin`. The download takes a while — 10-15 minutes is normal — and you can follow the progress in the browser at `http://127.0.0.1:8006`. The browser prompts for the same username and password before opening the console.

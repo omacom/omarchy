@@ -1,0 +1,14 @@
+[Unit]
+Description=ONCE background updates and backups (rootless)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/python3 /usr/share/omarchy/default/once/launch.py docker background run
+Restart=on-failure
+RestartSec=10
+UMask=0077
+
+[Install]
+WantedBy=default.target
