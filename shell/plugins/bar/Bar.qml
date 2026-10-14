@@ -81,6 +81,8 @@ Item {
   property color themeForeground: Commons.Color.bar.text
   property color themeContrastForeground: Commons.Color.background
   property color transparentForeground: Commons.Color.bar.text
+  property var screenForegrounds: ({})
+  property int foregroundRevision: 0
   property color foreground: themeForeground
   property color barForeground: useTransparentForeground ? transparentForeground : themeForeground
   property bool foregroundAnimationEnabled: true
@@ -147,10 +149,10 @@ Item {
     return JSON.parse(JSON.stringify(root.layoutConfig || {}))
   }
 
-  function bindPluginBarApi(api) {
+  function bindPluginBarApi(api, screen) {
     if (!api) return
     api.foreground = Qt.binding(function() { return root.foreground })
-    api.barForeground = Qt.binding(function() { return root.barForeground })
+    api.barForeground = Qt.binding(function() { return root.foregroundForScreen(screen) })
     api.background = Qt.binding(function() { return root.background })
     api.urgent = Qt.binding(function() { return root.urgent })
     api.fontFamily = Qt.binding(function() { return root.fontFamily })
@@ -252,20 +254,27 @@ Item {
   // A plugin may read api.activePopout right after asking for its popout, so
   // its own api is brought up to date inline; everyone else waits for the
   // coalesced resync.
+  function syncPluginBarApisFor(pluginId) {
+    for (var id in pluginBarApis) {
+      var api = pluginBarApis[id]
+      if (api && api.pluginId === String(pluginId || "")) root.syncPluginBarApiObjects(api)
+    }
+  }
+
   function requestPluginPopout(pluginId, owner) {
     if (!root.markPluginObject(pluginId, owner, "popout")) return
     root.requestPopout(owner)
-    root.syncPluginBarApiObjects(pluginBarApis[String(pluginId || "")])
+    root.syncPluginBarApisFor(pluginId)
   }
 
   function releasePluginPopout(pluginId, owner) {
     if (!root.pluginOwnsBarObject(pluginId, owner)) return
     root.releasePopout(owner)
     root.unmarkPluginObject(pluginId, owner, "popout")
-    root.syncPluginBarApiObjects(pluginBarApis[String(pluginId || "")])
+    root.syncPluginBarApisFor(pluginId)
   }
 
-  function pluginBarApiFor(pluginId, moduleName, registered) {
+  function pluginBarApiFor(pluginId, moduleName, registered, screen) {
     var key = String(pluginId || "")
     if (!key) return null
 
@@ -281,15 +290,18 @@ Item {
       pluginShell = root.shell.pluginShellForBarEntry(key, moduleName)
     }
 
-    if (pluginBarApis[key]) {
-      pluginBarApis[key].shell = pluginShell
-      return pluginBarApis[key]
+    var cacheKey = key + "@" + (screen ? screen.name : "")
+    if (pluginBarApis[cacheKey]) {
+      pluginBarApis[cacheKey].shell = pluginShell
+      root.bindPluginBarApi(pluginBarApis[cacheKey], screen)
+      return pluginBarApis[cacheKey]
     }
 
     var api = pluginBarApiComponent.createObject(null, {
       pluginId: key,
       moduleName: String(moduleName || ""),
       shell: pluginShell,
+      _foregroundForItem: function(target) { return root.foregroundForItem(target) },
       _showTooltip: function(target, text) { root.showTooltip(target, text) },
       _hideTooltip: function(target) { root.hideTooltip(target) },
       _registerClickTarget: function(target) { root.registerPluginClickTarget(key, target) },
@@ -308,11 +320,11 @@ Item {
       }
     })
     if (!api) return null
-    root.bindPluginBarApi(api)
+    root.bindPluginBarApi(api, screen)
 
     var next = ({})
     for (var id in pluginBarApis) next[id] = pluginBarApis[id]
-    next[key] = api
+    next[cacheKey] = api
     pluginBarApis = next
     return api
   }
@@ -340,11 +352,11 @@ Item {
     var next = ({})
     for (var id in pluginBarApis) {
       var api = pluginBarApis[id]
-      if (root.pluginBarApiUsed(id)) {
+      if (root.pluginBarApiUsed(api.pluginId)) {
         next[id] = api
         continue
       }
-      root.releasePluginObjects(id)
+      root.releasePluginObjects(api.pluginId)
       if (api && typeof api.destroy === "function") api.destroy()
     }
     pluginBarApis = next
@@ -357,7 +369,8 @@ Item {
 
   Component.onDestruction: {
     for (var id in pluginBarApis) {
-      root.releasePluginObjects(id)
+      var api = pluginBarApis[id]
+      if (api) root.releasePluginObjects(api.pluginId)
       if (pluginBarApis[id] && typeof pluginBarApis[id].destroy === "function")
         pluginBarApis[id].destroy()
     }
@@ -1145,11 +1158,22 @@ Item {
     return "#" + hexChannel(c.r) + hexChannel(c.g) + hexChannel(c.b)
   }
 
+  function foregroundForScreen(screen) {
+    return useTransparentForeground && screen && screenForegrounds[screen.name]
+      ? screenForegrounds[screen.name] : barForeground
+  }
+
+  function foregroundForItem(target) {
+    var window = targetWindow(target)
+    return foregroundForScreen(window ? window.screen : null)
+  }
+
   function setRequestedTransparency(value) {
     var nextTransparent = value === true
     requestedTransparent = nextTransparent
     if (!nextTransparent) {
       foregroundAnimationEnabled = false
+      screenForegrounds = ({})
       useTransparentForeground = false
       transparent = false
       transparentForeground = themeForeground
@@ -1174,20 +1198,12 @@ Item {
   }
 
   function refreshTransparentForeground() {
-    if (!requestedTransparent || transparentForegroundProc.running) return
-
-    transparentForegroundProc.command = [
-      "omarchy-bar-text-color",
-      root.position,
-      String(root.barSize),
-      colorHex(root.themeForeground),
-      colorHex(root.themeContrastForeground)
-    ]
-    transparentForegroundProc.running = true
+    if (requestedTransparent) foregroundRevision += 1
   }
 
   onRequestedTransparentChanged: scheduleTransparentForegroundRefresh()
   onPositionChanged: scheduleTransparentForegroundRefresh()
+  onBarSizeChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
 
@@ -1196,24 +1212,6 @@ Item {
     interval: 120
     repeat: false
     onTriggered: root.refreshTransparentForeground()
-  }
-
-  Process {
-    id: transparentForegroundProc
-    stdout: SplitParser {
-      onRead: function(line) {
-        var value = String(line || "").trim()
-        if (!/^#[0-9A-Fa-f]{6}$/.test(value)) return
-
-        root.foregroundAnimationEnabled = false
-        root.transparentForeground = value
-        if (root.requestedTransparent) {
-          root.useTransparentForeground = true
-          root.transparent = true
-        }
-        root.restoreForegroundAnimation()
-      }
-    }
   }
 
   FileView {
@@ -1349,6 +1347,54 @@ Item {
 
   component BarPanel: PanelWindow {
     id: barWindow
+
+    readonly property string sampleScreen: screen
+      ? Math.round(screen.width * screen.devicePixelRatio) + "x" + Math.round(screen.height * screen.devicePixelRatio) : ""
+    readonly property real sampleScale: screen ? screen.devicePixelRatio : 1
+    property bool samplePending: false
+
+    function refreshForeground() {
+      if (!root.requestedTransparent || !screen || !sampleScreen) return
+      if (foregroundProc.running) {
+        samplePending = true
+        return
+      }
+      samplePending = false
+      foregroundProc.command = [
+        "omarchy-bar-text-color", root.position,
+        String(Math.ceil(root.barSize * screen.devicePixelRatio)),
+        root.colorHex(root.themeForeground), root.colorHex(root.themeContrastForeground),
+        "--screen", sampleScreen, "--scale", String(screen.devicePixelRatio)
+      ]
+      foregroundProc.running = true
+    }
+
+    onSampleScreenChanged: refreshForeground()
+    onSampleScaleChanged: refreshForeground()
+    Component.onCompleted: refreshForeground()
+    Connections {
+      target: root
+      function onForegroundRevisionChanged() { barWindow.refreshForeground() }
+    }
+
+    Process {
+      id: foregroundProc
+      stdout: SplitParser {
+        onRead: function(line) {
+          var value = String(line || "").trim()
+          if (barWindow.samplePending || !root.requestedTransparent || !/^#[0-9A-Fa-f]{6}$/.test(value)) return
+          var colors = Object.assign({}, root.screenForegrounds)
+          colors[barWindow.screen.name] = value
+          root.foregroundAnimationEnabled = false
+          root.screenForegrounds = colors
+          if (barWindow.screen === Quickshell.screens[0]) root.transparentForeground = value
+          root.useTransparentForeground = true
+          root.transparent = true
+          root.restoreForegroundAnimation()
+        }
+      }
+      onExited: if (barWindow.samplePending) barWindow.refreshForeground()
+    }
 
     // Hiding parks the bar just past its screen edge instead of unmapping it.
     // Unmapping frees the layer surface and the whole scene graph, so every
@@ -1590,7 +1636,7 @@ Item {
       BorderSurface {
         anchors.fill: parent
         color: root.transparent ? "transparent" : root.background
-        borderSpec: Border.flat(root.barForeground, 1)
+        borderSpec: Border.flat(root.foregroundForItem(this), 1)
         radius: Math.min(Style.cornerRadius, height / 2)
         opacity: root.transparent ? 0.45 : 0.94
       }
@@ -1660,7 +1706,7 @@ Item {
         width: edgeVertical ? edgeSize : parent.width
         height: edgeVertical ? parent.height : edgeSize
         color: root.transparent ? "transparent" : root.background
-        borderSpec: Border.flat(root.barForeground, 1)
+        borderSpec: Border.flat(root.foregroundForItem(this), 1)
         visible: opacity > 0
         opacity: root.barMoveCandidate === modelData ? (root.transparent ? 0.45 : 0.7) : 0
 
@@ -2034,7 +2080,7 @@ Item {
       anchors.fill: parent
       anchors.margins: Style.space(1)
       color: root.transparent ? "transparent" : root.background
-      borderSpec: Border.flat(root.barForeground, 1)
+      borderSpec: Border.flat(root.foregroundForItem(this), 1)
       radius: Math.min(Style.cornerRadius, height / 2)
       opacity: root.transparent ? 0.22 : 0.32
     }
@@ -2225,7 +2271,7 @@ Item {
       var target = activeItem
       if (!target) return
       if ("bar" in target) target.bar = firstParty
-        ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
+        ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered, root.targetWindow(target)?.screen)
       if ("moduleName" in target) target.moduleName = moduleName
       if ("settings" in target) target.settings = moduleSettings
     }

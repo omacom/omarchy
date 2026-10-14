@@ -7,6 +7,10 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
 home="$test_dir/home"
+# Exercise the historical conversion independently of later theme artwork.
+omarchy_path="$test_dir/omarchy"
+mkdir -p "$omarchy_path/themes/tokyo-night/backgrounds" "$omarchy_path/themes/catppuccin/backgrounds"
+touch "$omarchy_path/themes/tokyo-night/backgrounds/2-swirl-buck.webp" "$omarchy_path/themes/catppuccin/backgrounds/omarchy.webp"
 migration="$ROOT/migrations/1791470456.sh"
 mkdir -p "$test_dir/bin"
 call_log="$test_dir/shell-calls"
@@ -23,7 +27,7 @@ reset_home() {
 }
 
 run_migration() {
-  HOME="$home" OMARCHY_PATH="$ROOT" CALL_LOG="$call_log" PATH="$test_dir/bin:$PATH" \
+  HOME="$home" OMARCHY_PATH="$omarchy_path" CALL_LOG="$call_log" PATH="$test_dir/bin:$PATH" \
     bash -euo pipefail "$migration" >"$test_dir/output"
 }
 

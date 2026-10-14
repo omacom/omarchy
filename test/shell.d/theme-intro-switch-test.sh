@@ -47,6 +47,7 @@ STUB
 cat >"$commands/omarchy-shell" <<'STUB'
 #!/bin/bash
 printf 'shell: %s\n' "$*" >>"$TEST_LOG"
+if [[ $2 == "cancelThemeIntro" && ${TEST_NO_CANCEL:-false} == "true" ]]; then exit 1; fi
 if [[ -n ${TEST_GATE_DIR:-} ]]; then
   if [[ $2 == "themeIntroStatus" && ! -f $TEST_GATE_DIR/fade-ready ]]; then
     if [[ ! -f $TEST_GATE_DIR/fade-waited ]]; then
@@ -205,3 +206,20 @@ done
 [[ ! -f $cover ]] || fail "the superseded intro finishes cleanup"
 (( $(grep -c '^hypr-reload$' "$log") == 1 )) || fail "the superseded intro cannot reload during a newer theme"
 pass "superseded intros do not reload the compositor"
+
+# A superseding still must cancel pending intro colors without applying them.
+rm -f "$themes/alpha/backgrounds/intros/2-road.mp4"
+printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/beta"
+release="$test_tmp/ordinary-release"
+TEST_RELEASE="$release" set_theme beta
+wait_command '^owe: intro '
+set_theme alpha
+cancel_line=$(grep -n '^shell: shell cancelThemeIntro$' "$log" | head -1 | cut -d: -f1)
+transition_line=$(grep -n '^shell: background themeTransition ' "$log" | head -1 | cut -d: -f1)
+[[ -n $cancel_line && -n $transition_line ]] && (( cancel_line < transition_line )) || fail "normal transition did not supersede the previous intro palette"
+! grep -q '^shell: shell applyTheme ' "$log" || fail "supported cancellation applies the palette before the new reveal"
+touch "$release"
+pass "an intro followed by a normal still cancels old colors before the new reveal"
+TEST_NO_CANCEL=true set_theme alpha
+grep -q '^shell: shell applyTheme ' "$log" || fail "older shell cancellation fallback did not apply the current palette"
+pass "older shells supersede intro colors through the existing applyTheme interface"

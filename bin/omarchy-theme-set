@@ -151,7 +151,8 @@ choose_theme_background() {
   CHOSEN_THEME_BACKGROUND=""
   mapfile -d '' -t backgrounds < <(
     find -L "$HOME/.config/omarchy/backgrounds/$THEME_NAME/" "$theme_path/backgrounds/" -maxdepth 1 -type f \
-      \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' \
+      ! -name '*@*' \
+      \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' -o -iname '*.svg' \
          -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
       -print0 2>/dev/null | sort -z
   )
@@ -256,6 +257,10 @@ set_theme_background() {
     ) 9>&- &
     return
   fi
+  # Supersede any pending intro palette before an ordinary still transition.
+  # Older shells can cancel through applyTheme until they restart with the
+  # cancellation-only IPC method.
+  shell_ipc shell cancelThemeIntro || shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
   new_background_snapshot=""
   if [[ -n $PREPARED_BACKGROUND_SNAPSHOT && $PREPARED_BACKGROUND == "$new_background" ]]; then
     new_background_snapshot="$PREPARED_BACKGROUND_SNAPSHOT"
