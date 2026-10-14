@@ -128,6 +128,14 @@ browser_policy_install_color() {
   return 1
 }
 
+browser_policy_install_privacy() {
+  local policy_dir=$1
+  local policies=${2:-$OMARCHY_PATH/default/chromium/privacy.json}
+
+  [[ -d $policy_dir && ! -L $policy_dir ]] || return 0
+  as_root install -m 0644 -o root -g root -T "$policies" "$policy_dir/privacy.json"
+}
+
 browser_policy_firefox_policy_file_ok() {
   local file=$1
   local mode
