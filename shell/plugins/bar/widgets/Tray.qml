@@ -299,7 +299,7 @@ BarWidget {
 
         BarIconButton {
           id: expandIcon
-          accessibleName: "Tray"
+          accessibleName: I18n.t("accessibility.tray")
           bar: root.bar
           width: implicitWidth
           height: implicitHeight
@@ -394,7 +394,7 @@ BarWidget {
 
         BarIconButton {
           id: expandIcon
-          accessibleName: "Tray"
+          accessibleName: I18n.t("accessibility.tray")
           bar: root.bar
           width: implicitWidth
           height: implicitHeight

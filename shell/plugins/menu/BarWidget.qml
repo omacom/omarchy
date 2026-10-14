@@ -1,4 +1,5 @@
 import QtQuick
+import qs.Commons
 import qs.Ui
 
 BarWidget {
@@ -10,7 +11,7 @@ BarWidget {
 
   BarIconButton {
     id: button
-    accessibleName: "Omarchy menu"
+    accessibleName: I18n.t("accessibility.omarchyMenu")
     anchors.fill: parent
     bar: root.bar
     text: "\ue900"
