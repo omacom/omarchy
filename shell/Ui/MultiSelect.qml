@@ -469,7 +469,7 @@ Item {
                 radius: Style.cornerRadius
 
                 Accessible.role: Accessible.Button
-                Accessible.name: "Refresh options"
+                Accessible.name: I18n.t("accessibility.refreshOptions")
                 Accessible.onPressAction: if (refreshButton.enabled) root.refresh()
 
                 color: refreshHover.hovered

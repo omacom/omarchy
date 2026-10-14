@@ -270,7 +270,7 @@ BarWidget {
         Layout.topMargin: firstGuest && root.vertical ? Style.space(6) : 0
 
         bar: root.bar
-        accessibleName: "Workspace " + (slot === root.slots ? 0 : slot)
+        accessibleName: I18n.t("accessibility.workspace").arg(I18n.formatNumber(slot === root.slots ? 0 : slot))
         Accessible.selectable: true
         Accessible.selected: shown
         text: shown ? root.modeGlyph(root.activeMode) : (slot === root.slots ? "0" : String(slot))

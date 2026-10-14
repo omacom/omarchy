@@ -651,7 +651,7 @@ Panel {
 
   BarIconButton {
     id: button
-    accessibleName: "Bluetooth"
+    accessibleName: I18n.t("bluetooth.title")
     anchors.fill: parent
     bar: root.bar
     text: root.icon
@@ -663,7 +663,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
-    accessibleName: "Bluetooth"
+    accessibleName: I18n.t("bluetooth.title")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -717,7 +717,7 @@ Panel {
           // header's only cursor target.
           ToggleSwitch {
             id: powerSwitch
-            accessibleName: "Bluetooth"
+            accessibleName: I18n.t("bluetooth.title")
             visible: !!root.adapter
             checked: !!root.adapter && root.adapter.enabled
             hasCursor: root.headerHasCursor
@@ -910,7 +910,7 @@ Panel {
     readonly property bool forgetAvailable: (sectionName === "known" || sectionName === "connected") && !isDiscovered
     readonly property bool showForgetButton: forgetAvailable && (rowMouse.containsMouse || rowSelected)
 
-    accessibleName: dev ? (root.deviceLabel(dev) || "Device") : ""
+    accessibleName: dev ? (root.deviceLabel(dev) || I18n.t("bluetooth.device")) : ""
     Accessible.onPressAction: row.activate()
     hasCursor: rowSelected && !root.actionFocused
     current: isConnected
