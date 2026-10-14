@@ -2,13 +2,59 @@
 
 # omarchy:summary=Prompt for confirmation before starting an update
 
-gum style --border normal --padding "1 2" \
-  "Ready to update?" \
-  "" \
-  "• You cannot stop the update once you start!" \
-  "• Make sure you're connected to power or have a full battery" \
-  "" \
+# A metered link (a phone hotspot, or one the user marked as limited) gets one
+# warning per network. Confirming on it once records the NetworkManager profile,
+# so that network never asks again while a different one still does.
+metered_networks="$HOME/.local/state/omarchy/update-metered-networks"
+
+metered_uuid=""
+metered_name=""
+
+# The device traffic leaves by, then the main table's preferred default route.
+# A full-tunnel VPN (a Tailscale exit node, WARP) routes through its own device
+# with a policy rule, while the link carrying the tunnel keeps that default.
+route_device=$(ip route get 1.1.1.1 2>/dev/null | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }')
+default_device=$(ip -o route show default 2>/dev/null | awk '{
+  metric = 0
+  for (i = 1; i <= NF; i++) {
+    if ($i == "dev") dev = $(i + 1)
+    if ($i == "metric") metric = $(i + 1)
+  }
+  print metric, dev
+}' | sort -n | awk 'NR == 1 { print $2 }')
+
+for device in "$route_device" "$default_device"; do
+  [[ -n $device ]] || continue
+  [[ $(nmcli -g GENERAL.METERED device show "$device" 2>/dev/null) == yes* ]] || continue
+
+  uuid=$(nmcli -g GENERAL.CON-UUID device show "$device" 2>/dev/null)
+  if [[ -n $uuid ]] && ! grep -qxF "$uuid" "$metered_networks" 2>/dev/null; then
+    metered_uuid=$uuid
+    metered_name=$(nmcli -g GENERAL.CONNECTION device show "$device" 2>/dev/null | sed 's/\\:/:/g')
+  fi
+  break
+done
+
+lines=(
+  "Ready to update?"
+  ""
+  "• You cannot stop the update once you start!"
+  "• Make sure you're connected to power or have a full battery"
+)
+
+if [[ -n $metered_uuid ]]; then
+  lines+=(
+    "• ${metered_name:-This network} is a mobile hotspot or limited data plan."
+    "  Updates can use a lot of data. You won't be asked about this network again."
+  )
+fi
+
+lines+=(
+  ""
   "What's new: https://github.com/omacom/omarchy/releases/latest"
+)
+
+gum style --border normal --padding "1 2" "${lines[@]}"
 
 echo
 
@@ -16,3 +62,13 @@ if ! gum confirm "Continue with update?"; then
   echo "Update cancelled"
   exit 1
 fi
+
+# Remembering the network is a courtesy; failing to save it must not cancel
+# the update the user just confirmed.
+if [[ -n $metered_uuid ]]; then
+  if ! { mkdir -p "${metered_networks%/*}" && printf '%s\n' "$metered_uuid" >>"$metered_networks"; } 2>/dev/null; then
+    echo "Couldn't remember this network; you'll be asked about it again next time."
+  fi
+fi
+
+exit 0

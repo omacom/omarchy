@@ -72,6 +72,24 @@ Panel {
   readonly property var wifiNetworkObjects: wifiDevice && wifiDevice.networks ? wifiDevice.networks.values : []
   readonly property var connectedWifiNetwork: findConnectedWifiNetwork()
   property var wifiNetworks: []
+  // SSIDs whose cached beacon advertised a phone hotspot, and whether the
+  // active Wi-Fi link is one (see Model.parseHotspotScan).
+  property var hotspotSsids: ({})
+  property bool activeHotspot: false
+  // The active Wi-Fi profile, the link's live metering, and the profile's own
+  // connection.metered setting, which is what the data-limit action writes.
+  property string hotspotConnection: ""
+  property string hotspotMetered: ""
+  // The profile the panel last limited on its own, so a refused write is not
+  // retried on every refresh.
+  property string autoLimitedConnection: ""
+  // Bumped by every hotspot read request. A read started for an older request
+  // may describe the network the link just left, so its result is dropped and
+  // the read runs again.
+  property int hotspotRequest: 0
+  // The latest data-limit write asked for while another runs. It starts when
+  // that one exits, so a click during the automatic write is not lost.
+  property var pendingMetered: null
   property bool scanning: false
   property bool wifiStationAvailable: false
   property string dnsProvider: ""
@@ -131,12 +149,15 @@ Panel {
   // radio to switch. On a wired box it would otherwise sit there reading
   // "off" beside a perfectly live Ethernet connection.
   readonly property bool canToggleWifi: networkManagerAvailable && wifiStationAvailable
+  readonly property bool canLimitData: hotspot && hotspotConnection !== ""
   readonly property int qrHeaderIndex: canShareWifi ? 0 : -1
   readonly property int speedHeaderIndex: canRunSpeedTest ? (canShareWifi ? 1 : 0) : -1
-  readonly property int toggleHeaderIndex: canToggleWifi ? (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) : -1
-  readonly property int headerActionCount: (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) + (canToggleWifi ? 1 : 0)
+  readonly property int dataHeaderIndex: canLimitData ? (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) : -1
+  readonly property int toggleHeaderIndex: canToggleWifi ? (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) + (canLimitData ? 1 : 0) : -1
+  readonly property int headerActionCount: (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) + (canLimitData ? 1 : 0) + (canToggleWifi ? 1 : 0)
   readonly property bool qrHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === qrHeaderIndex
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
+  readonly property bool dataHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === dataHeaderIndex
   readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
   readonly property string toggleHint: Networking.wifiEnabled ? "Turn Wi-Fi off" : "Turn Wi-Fi on"
   readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
@@ -228,6 +249,7 @@ Panel {
   function activateHeader() {
     if (headerIndex === qrHeaderIndex) summonWifiQr()
     else if (headerIndex === speedHeaderIndex) summonSpeedTest()
+    else if (headerIndex === dataHeaderIndex) toggleDataLimit()
     else if (headerIndex === toggleHeaderIndex) toggleNetwork()
   }
 
@@ -506,7 +528,8 @@ Panel {
   }, connectivityChecksEnabled)
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
-  readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
+  readonly property bool hotspot: kind === "wifi" && activeHotspot
+  readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity, hotspot)
   // Keyed on the device rather than the SSID: on an OWE transition-mode
   // network the listed network comes and goes with every scan while the link
   // stays up, and a real network switch already passes through "disconnected".
@@ -514,7 +537,13 @@ Panel {
     ? kind + ":" + wifiDevice.name
     : (kind === "ethernet" && wiredDevice ? kind + ":" + wiredDevice.name : "")
 
-  onConnectionKeyChanged: Qt.callLater(checkConnectivity)
+  onConnectionKeyChanged: {
+    activeHotspot = false
+    hotspotConnection = ""
+    hotspotMetered = ""
+    Qt.callLater(checkConnectivity)
+    Qt.callLater(scanHotspots)
+  }
   onConnectivityChecksEnabledChanged: Qt.callLater(checkConnectivity)
   onHasCaptivePortalChanged: {
     if (hasCaptivePortal && opened && passwordSsid === "") {
@@ -592,6 +621,55 @@ Panel {
       }
     }
     syncWifiNetworks()
+    scanHotspots()
+  }
+
+  // Reads the cached beacons and NetworkManager's metered guess for the Wi-Fi
+  // interface. A failed or empty dump leaves every row as ordinary Wi-Fi.
+  function scanHotspots() {
+    hotspotRequest++
+    if (!wifiDevice || !wifiDevice.name) {
+      hotspotSsids = ({})
+      activeHotspot = false
+      hotspotConnection = ""
+      hotspotMetered = ""
+      return
+    }
+    if (hotspotProc.running) return
+    hotspotProc.command = ["bash", "-c", Model.hotspotScanScript, "omarchy-network-hotspot", wifiDevice.name]
+    hotspotProc.running = true
+  }
+
+  function updateHotspots(raw) {
+    var scan = Model.parseHotspotScan(raw)
+    hotspotSsids = scan.ssids
+    activeHotspot = scan.active
+    hotspotConnection = scan.connection
+    hotspotMetered = scan.metered
+    syncWifiNetworks()
+
+    if (Model.shouldLimitHotspot(scan) && autoLimitedConnection !== scan.connection) {
+      autoLimitedConnection = scan.connection
+      setMetered(scan.connection, "yes", true)
+    }
+  }
+
+  function setMetered(connection, value, onlyIfUnset) {
+    if (!connection || !wifiDevice) return
+    if (meteredProc.running) {
+      pendingMetered = { connection: connection, value: value, onlyIfUnset: onlyIfUnset }
+      return
+    }
+    meteredProc.command = ["bash", "-c", Model.meteredScript, "omarchy-network-metered",
+      connection, value, wifiDevice.name, onlyIfUnset ? "1" : ""]
+    meteredProc.running = true
+  }
+
+  // Sets this profile only. Other software that honors NetworkManager's flag
+  // (package managers, sync clients) follows it from there.
+  function toggleDataLimit() {
+    if (!canLimitData) return
+    setMetered(hotspotConnection, Model.isMetered(hotspotMetered) ? "no" : "yes", false)
   }
 
   function formatHeaderSpeed(mbps) {
@@ -701,7 +779,7 @@ Panel {
       var network = networks[i]
       if (!network) continue
       checkActionCompletion(network)
-      var row = Model.wifiRow(network)
+      var row = Model.wifiRow(network, Model.isHotspotSsid(hotspotSsids, network.name) || (!!network.connected && activeHotspot))
       if (row) nets.push(row)
     }
     wifiNetworks = Model.sortWifiRows(nets)
@@ -953,7 +1031,31 @@ Panel {
     id: scanDone
     interval: 1500
     repeat: false
-    onTriggered: root.syncWifiNetworks()
+    onTriggered: {
+      root.syncWifiNetworks()
+      root.scanHotspots()
+    }
+  }
+
+  Process {
+    id: meteredProc
+    onExited: {
+      var next = root.pendingMetered
+      root.pendingMetered = null
+      if (next) Qt.callLater(function() { root.setMetered(next.connection, next.value, next.onlyIfUnset) })
+      else root.scanHotspots()
+    }
+  }
+
+  Process {
+    id: hotspotProc
+    property int request: 0
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: if (hotspotProc.request === root.hotspotRequest) root.updateHotspots(text)
+    }
+    onRunningChanged: if (running) request = root.hotspotRequest
+    onExited: if (request !== root.hotspotRequest) Qt.callLater(root.scanHotspots)
   }
 
   Process {
@@ -1081,7 +1183,7 @@ Panel {
     text: root.icon
     active: root.restricted
     tooltipText: root.hasCaptivePortal ? "Sign in to this network"
-      : (root.restricted ? "Limited internet access" : "")
+      : (root.restricted ? "Limited internet access" : (root.hotspot ? "Mobile hotspot" : ""))
 
     onPressed: function(b) {
       if (root.opened) root.close()
@@ -1266,7 +1368,7 @@ Panel {
             id: speedAction
             visible: root.canRunSpeedTest
             iconText: "󰓅"
-            tooltipText: "Run a speed test"
+            tooltipText: Model.speedTestTooltip(root.hotspot)
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
             fontSize: Style.font.subtitle * 1.5
@@ -1274,6 +1376,25 @@ Panel {
             Layout.alignment: Qt.AlignVCenter
             onHovered: function(on) { if (on) root.setHeaderCursor(root.speedHeaderIndex) }
             onClicked: root.summonSpeedTest()
+          }
+
+          // nf-md-download_lock. Lit while NetworkManager treats the hotspot
+          // as metered; clicking flips this profile's own setting.
+          Button {
+            id: dataAction
+            visible: root.canLimitData
+            iconText: "󱌠"
+            tooltipText: Model.dataLimitTooltip(root.hotspotMetered)
+            active: Model.isMetered(root.hotspotMetered)
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            iconSize: Style.font.subtitle * 1.5
+            horizontalPadding: Style.space(5)
+            verticalPadding: Style.space(2)
+            hasCursor: root.dataHeaderHasCursor
+            Layout.alignment: Qt.AlignVCenter
+            onHovered: function(on) { if (on) root.setHeaderCursor(root.dataHeaderIndex) }
+            onClicked: root.toggleDataLimit()
           }
 
           ToggleSwitch {
@@ -1783,6 +1904,7 @@ Panel {
       ? (net.security === WifiSecurityType.Wpa2Eap || net.security === WifiSecurityType.WpaEap)
       : false
     readonly property bool canForget: root.canForgetNetwork(net)
+    readonly property bool isHotspot: !!(net && net.hotspot)
     readonly property bool isSelected: root.focusSection === "wifi" && root.selectedIndex === index
     readonly property bool forgetFocused: isSelected && root.wifiActionFocused && canForget
     readonly property bool forgetVisible: canForget && (!requiresCredentials || forgetFocused || rightMouse.containsMouse)
@@ -1833,6 +1955,7 @@ Panel {
       if (isBusy && root.actionKind === "forget") return "Forgetting…"
       if (isFailed) return root.failureReason || "Failed"
       if (isConnected && root.kind === "wifi" && root.hasCaptivePortal) return "Sign-in required"
+      if (isConnected && net.hotspot) return "Mobile hotspot"
       if (isConnected) return "Connected"
       return ""
     }
@@ -1895,6 +2018,8 @@ Panel {
       Text {
         id: networkIcon
         textFormat: Text.PlainText
+        // Bars stay on the left even for a hotspot, so strength stays visible;
+        // the chain goes on the right edge in the lock's place.
         text: row.net ? Model.connectionIcon("wifi", row.net.signal,
           row.isConnected && root.kind === "wifi" ? root.connectivity : "") : ""
         color: row.statusColor
@@ -1909,7 +2034,7 @@ Panel {
       // directly rather than reserving an invisible or misleading target.
       Item {
         id: rightAction
-        visible: row.requiresCredentials || row.canForget
+        visible: row.requiresCredentials || row.canForget || row.isHotspot
         width: Style.space(22)
         implicitHeight: lockIndicator.implicitHeight
         anchors.right: parent.right
@@ -1918,11 +2043,11 @@ Panel {
         Text {
           id: lockIndicator
           textFormat: Text.PlainText
-          visible: row.requiresCredentials || row.forgetVisible
+          visible: row.requiresCredentials || row.forgetVisible || row.isHotspot
           width: parent.width
           anchors.verticalCenter: parent.verticalCenter
           horizontalAlignment: Text.AlignHCenter
-          text: row.forgetVisible ? "󰅙" : "󰌾"
+          text: row.forgetVisible ? "󰅙" : (row.isHotspot ? Model.hotspotIcon : "󰌾")
           color: row.forgetVisible ? root.bar.urgent : Qt.darker(root.bar.foreground, 1.4)
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.subtitle
@@ -1950,7 +2075,7 @@ Panel {
 
         PanelToolTip {
           visible: rightMouse.containsMouse || row.forgetFocused
-          text: "Forget network"
+          text: row.canForget ? "Forget network" : "Mobile hotspot"
           fontFamily: root.bar.fontFamily
         }
       }

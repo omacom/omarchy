@@ -201,12 +201,13 @@ assertEqual(network.wifiSectionTitle(rows, 2), 'OTHER NETWORKS', 'network labels
 const wifiRow = network.wifiRow({ connected: true, known: true, name: 'Home', signalStrength: 0.8, security: 1 })
 assertDeepEqual(
   wifiRow,
-  { connected: true, known: true, ssid: 'Home', signal: 80, security: 1 },
+  { connected: true, known: true, ssid: 'Home', signal: 80, security: 1, hotspot: false },
   'network projects wifi rows with primitives so delegates never hold the live WifiNetwork object'
 )
+assertEqual(network.wifiRow({ name: 'Phone' }, true).hotspot, true, 'network carries the hotspot flag on the primitive row')
 assertDeepEqual(
   Object.keys(wifiRow).sort(),
-  ['connected', 'known', 'security', 'signal', 'ssid'],
+  ['connected', 'hotspot', 'known', 'security', 'signal', 'ssid'],
   'network wifi rows project exactly the primitive fields, so each delegate stores no live QObject'
 )
 
@@ -314,4 +315,106 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+// Hotspot detection reads `iw dev <iface> scan dump -u`. The first BSS is a
+// trimmed capture from a Redmi Note 13 hotspot: Xiaomi sends Apple's Personal
+// Hotspot element, plus Interworking "Chargeable Public", which alone is not
+// a hotspot signal.
+const bss = (bssid, ssid, lines, associated) =>
+  ['BSS ' + bssid + '(on wlo1)' + (associated ? ' -- associated' : ''), '\tfreq: 2412.0', '\tSSID: ' + ssid]
+    .concat(lines.map(line => '\t' + line))
+const scanDump = [].concat(
+  bss('72:4a:77:ed:72:e1', 'Redmi Note 13', [
+    'RSN:\t * Version: 1',
+    '802.11u Interworking:',
+    '\tNetwork Options: 0x2',
+    '\t\tNetwork Type: 2 (Chargeable Public)',
+    'Vendor specific: OUI 00:17:f2, data: 06 01 01 03 01 00 00'
+  ], true),
+  bss('aa:bb:cc:00:00:01', 'Apple TV', ['Vendor specific: OUI 00:17:f2, data: 0a 00 01 04 00 00 00']),
+  bss('aa:bb:cc:00:00:02', 'Laptop Fixed', ['MS/WiFi 0x11, data: 02 00 00 00']),
+  bss('aa:bb:cc:00:00:03', 'Laptop Variable', ['Vendor specific: OUI 00:50:f2, data: 11 04 00 00 00']),
+  bss('aa:bb:cc:00:00:04', 'Office', ['MS/WiFi 0x11, data: 01 00 00 00']),
+  bss('aa:bb:cc:00:00:05', 'Cafe', ['Vendor specific: OUI 00:10:18, data: 02 00 00 1c 00']),
+  bss('aa:bb:cc:00:00:06', 'Airport', ['802.11u Interworking:', '\tNetwork Options: 0x2', '\t\tNetwork Type: 2 (Chargeable Public)']),
+  bss('aa:bb:cc:00:00:07', 'Smile \\xf0\\x9f\\x98\\x80', ['Vendor specific: OUI 00:17:f2, data: 06 01 01'])
+).join('\n') + '\n'
+
+const scanned = network.parseIwScanDump(scanDump)
+const hotspotBySsid = Object.fromEntries(scanned.map(entry => [entry.ssid, entry.hotspot]))
+assertEqual(hotspotBySsid['Redmi Note 13'], true, 'network matches the Apple Personal Hotspot element (type 0x06)')
+assertEqual(hotspotBySsid['Apple TV'], false, 'network ignores other Apple vendor elements')
+assertEqual(hotspotBySsid['Laptop Fixed'], true, 'network matches a Microsoft Network Cost element with Fixed cost')
+assertEqual(hotspotBySsid['Laptop Variable'], true, 'network matches a Microsoft Network Cost element with Variable cost')
+assertEqual(hotspotBySsid['Office'], false, 'network ignores an Unrestricted Network Cost element')
+assertEqual(hotspotBySsid['Cafe'], false, 'network ignores ordinary vendor elements')
+assertEqual(hotspotBySsid['Airport'], false, 'network does not treat Chargeable Public interworking alone as a hotspot')
+assertEqual(hotspotBySsid['Smile 😀'], true, 'network decodes escaped hotspot SSIDs')
+assertEqual(scanned[0].bssid, '72:4a:77:ed:72:e1', 'network keeps the BSSID of each scanned BSS')
+assertEqual(scanned[0].associated, true, 'network notes the associated BSS')
+assertDeepEqual(network.parseIwScanDump(''), [], 'network treats an empty dump as no hotspots')
+
+assertEqual(network.isMetered('yes (guessed)'), true, 'network treats a guessed metered link as metered')
+assertEqual(network.isMetered('yes'), true, 'network treats an explicit metered link as metered')
+assertEqual(network.isMetered('no (guessed)'), false, 'network treats an unmetered link as unmetered')
+assertEqual(network.isMetered('unknown'), false, 'network treats unknown metering as unmetered')
+
+const hotspotScan = network.parseHotspotScan('metered\tno (guessed)\n' + scanDump)
+assertEqual(hotspotScan.active, true, 'network classifies the associated BSS on its own beacon')
+assertEqual(hotspotScan.ssids['Redmi Note 13'], true, 'network lists hotspot SSIDs for the rows')
+assertEqual(hotspotScan.ssids['Office'], undefined, 'network leaves ordinary SSIDs out of the hotspot list')
+assertEqual(
+  network.parseHotspotScan('metered\tyes (guessed)\n' + bss('aa:bb:cc:00:00:09', 'Pixel', [], true).join('\n')).active,
+  true,
+  'network treats an ANDROID_METERED link as a hotspot when its beacon says nothing'
+)
+assertEqual(
+  network.parseHotspotScan('metered\tno (guessed)\n' + bss('aa:bb:cc:00:00:09', 'Home', [], true).join('\n')).active,
+  false,
+  'network leaves an ordinary associated link alone'
+)
+assertDeepEqual(
+  network.parseHotspotScan(''),
+  { metered: '', connection: '', limit: '', ssids: {}, active: false },
+  'network falls back to ordinary Wi-Fi when the scan fails'
+)
+
+assertEqual(network.isHotspotSsid(hotspotScan.ssids, 'Redmi Note 13'), true, 'network finds a hotspot SSID')
+assertEqual(network.isHotspotSsid({}, 'constructor'), false, 'network ignores inherited keys when looking up a hotspot SSID')
+assertEqual(network.isHotspotSsid({}, 'toString'), false, 'network ignores Object.prototype methods as hotspot SSIDs')
+assertEqual(network.isHotspotSsid(null, 'Home'), false, 'network treats a missing hotspot list as none')
+
+const limitScan = network.parseHotspotScan('metered\tyes (guessed)\nconnection\tphone-uuid\nlimit\tunknown\n' + scanDump)
+assertEqual(limitScan.connection, 'phone-uuid', 'network reads the active profile ahead of the scan')
+assertEqual(limitScan.limit, 'unknown', 'network reads the profile metered setting ahead of the scan')
+assertEqual(limitScan.ssids['Redmi Note 13'], true, 'network still parses the scan after the header')
+assertEqual(network.shouldLimitHotspot(limitScan), true, 'network limits a hotspot whose profile has no metered setting')
+assertEqual(network.shouldLimitHotspot(Object.assign({}, limitScan, { limit: 'no' })), false, 'network never overrides a profile set to unlimited')
+assertEqual(network.shouldLimitHotspot(Object.assign({}, limitScan, { limit: 'yes' })), false, 'network leaves an already limited profile alone')
+assertEqual(network.shouldLimitHotspot(Object.assign({}, limitScan, { active: false })), false, 'network does not limit an ordinary network')
+assertEqual(network.shouldLimitHotspot(Object.assign({}, limitScan, { connection: '' })), false, 'network needs a profile to limit')
+assert(/connection\.metered\)?[^;]*!= unknown/.test(network.meteredScript), 'network rechecks the profile before limiting it on its own')
+assert(/nmcli device reapply "\$3"/.test(network.meteredScript), 'network reapplies the setting without reconnecting')
+assertEqual(network.dataLimitTooltip('yes (guessed)'), "Don't limit this network", 'network offers to lift the limit on a metered hotspot')
+assertEqual(network.dataLimitTooltip('no'), 'Limit data on this network', 'network offers to limit an unmetered hotspot')
+assertEqual(network.speedTestTooltip(true), 'Run a speed test (uses mobile data)', 'network warns that a speed test uses hotspot data')
+assertEqual(network.speedTestTooltip(false), 'Run a speed test', 'network keeps the plain speed test tooltip elsewhere')
+assert(/autoLimitedConnection !== scan\.connection/.test(panelSource), 'network limits a profile on its own only once')
+const hotspotProcBlock = panelSource.match(/id: hotspotProc[\s\S]*?\n {2}\}/)
+assert(hotspotProcBlock && /onStreamFinished: if \(hotspotProc\.request === root\.hotspotRequest\) root\.updateHotspots\(text\)/.test(hotspotProcBlock[0]), 'network drops a hotspot read that a newer request superseded')
+assert(hotspotProcBlock && /onExited: if \(request !== root\.hotspotRequest\) Qt\.callLater\(root\.scanHotspots\)/.test(hotspotProcBlock[0]), 'network reruns a hotspot read requested while one was running')
+const connectionKeyHandler = panelSource.match(/onConnectionKeyChanged: \{[\s\S]*?\n {2}\}/)
+assert(connectionKeyHandler && /hotspotConnection = ""/.test(connectionKeyHandler[0]), 'network forgets the old profile before the data limit can act on a new link')
+const setMeteredFn = panelSource.match(/function setMetered\([\s\S]*?\n {2}\}/)
+assert(setMeteredFn && /if \(meteredProc\.running\) \{\s*pendingMetered = /.test(setMeteredFn[0]), 'network queues a data limit write that arrives during another')
+const meteredProcBlock = panelSource.match(/id: meteredProc[\s\S]*?\n {2}\}/)
+assert(meteredProcBlock && /root\.setMetered\(next\.connection, next\.value, next\.onlyIfUnset\)/.test(meteredProcBlock[0]), 'network runs the queued data limit write once the running one exits')
+assert(/else if \(headerIndex === dataHeaderIndex\) toggleDataLimit\(\)/.test(panelSource), 'network reaches the data limit action from the keyboard')
+
+assertEqual(network.connectionIcon('wifi', 80, 'full', true), network.hotspotIcon, 'network draws the chain for a hotspot link')
+assertEqual(network.connectionIcon('wifi', 80, 'portal', true), '󰤩', 'network keeps the alert glyph for a hotspot behind a captive portal')
+assertEqual(network.connectionIcon('wifi', 80, 'limited', true), '󰤩', 'network keeps the alert glyph for a limited hotspot')
+assertEqual(network.connectionIcon('ethernet', -1, 'full', true), '󰈀', 'network ignores the hotspot flag on ethernet')
+assert(/iw dev "\$1" scan dump -u/.test(network.hotspotScanScript), 'network reads the cached scan, with unknown vendor elements, instead of starting one')
+assert(/if \(isConnected && net\.hotspot\) return "Mobile hotspot"/.test(panelSource), 'network labels a connected hotspot row')
+assert(/row\.isHotspot \? Model\.hotspotIcon : "󰌾"/.test(panelSource), 'network draws the chain in the lock slot of a hotspot row')
 JS

@@ -10,6 +10,14 @@ Rather than reading a long password out loud, run _Setup > Network > QR Code_ wh
 
 If you actually need the password itself, `omarchy network password <interface>` prints it.
 
+## Phone hotspots
+
+When a Wi-Fi network is a phone's hotspot, the network panel shows a chain-link icon next to it instead of a lock, and the bar icon turns into the chain while you're connected. Omarchy spots iPhones and many Android phones from what they broadcast, and the rest once you've joined.
+
+Since a hotspot usually burns through a data plan, Omarchy marks it as metered in NetworkManager the first time you join, and apps that respect that setting hold back on big downloads. If your plan is unlimited, click the download-lock button in the panel to say _Don't limit this network_. Omarchy never overrides a choice you've made for a network.
+
+Starting `omarchy update` on a hotspot warns you before it downloads anything. Continue once and that network won't ask again.
+
 ## DNS
 
 Omarchy uses whatever DNS your network hands out over DHCP. You can override that for the whole machine under _Setup > Network > DNS_, where Cloudflare and Google are one click away. Pick _Custom_ to type in your own servers.
