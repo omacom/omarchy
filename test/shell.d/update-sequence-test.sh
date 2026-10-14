@@ -32,6 +32,7 @@ steps=(
   omarchy-done
   omarchy-shell
   omarchy-update-available
+  omarchy-update-health
   omarchy-update-restart
 )
 
@@ -52,7 +53,13 @@ fi
 if [[ ${0##*/} == "omarchy-shell" ]]; then
   printf '%s\n' "$*" >"$STEP_LOG.shell-args"
 fi
-[[ ${FAILING_STEP:-} != "${0##*/}" ]] || exit 1
+if [[ ${0##*/} == "omarchy-update-health" ]]; then
+  baseline=${OMARCHY_UPDATE_HEALTH_BASELINE:-}
+  [[ -n $baseline && -d $baseline ]] || baseline=missing
+  printf 'snapshot=%s baseline=%s\n' "${OMARCHY_UPDATE_HEALTH_SNAPSHOT:-}" "$baseline" >"$STEP_LOG.health"
+  [[ ! -f $baseline/packages ]] || : >"$STEP_LOG.health-packages"
+fi
+[[ ${FAILING_STEP:-} != "${0##*/}" ]] || exit "${FAILING_STATUS:-1}"
 STUB
   chmod +x "$stub_bin/$step"
 done
@@ -63,6 +70,7 @@ run_update() {
   : >"$test_tmp/steps"
   STEP_LOG="$test_tmp/steps" \
     FAILING_STEP="${FAILING_STEP:-}" \
+    FAILING_STATUS="${FAILING_STATUS:-}" \
     OMARCHY_UPDATE_LOGGED=1 \
     PATH="$stub_bin:$PATH" \
     "$SUDO_TEST_ROOT/bin/omarchy-update" "$@" >"$test_tmp/out" 2>"$test_tmp/err"
@@ -99,6 +107,7 @@ expected_steps() {
     omarchy-update-aur-pkgs \
     omarchy-update-boot \
     omarchy-update-stay-awake \
+    omarchy-update-health \
     omarchy-update-restart
 }
 
@@ -111,6 +120,58 @@ pass "an unattended update approves orphan removal"
 [[ $(cat "$test_tmp/steps.shell-args") == "-q omarchy.system-update clear" ]] ||
   fail "a finished update clears the shell update indicator" "$(cat "$test_tmp/steps.shell-args")"
 pass "a finished update clears the shell update indicator without rechecking"
+
+# The health report hears which units had failed before the update, from a
+# list the update removes again, and that a snapshot was taken.
+read -r health_snapshot health_baseline <"$test_tmp/steps.health"
+[[ $health_snapshot == "snapshot=1" ]] || fail "the health report hears the update took a snapshot" "$health_snapshot"
+[[ $health_baseline == baseline=/* ]] || fail "the health report gets the units that had failed before" "$health_baseline"
+[[ -e $test_tmp/steps.health-packages ]] || fail "the health report gets the package database's problems from before the update"
+[[ ! -e ${health_baseline#baseline=} ]] || fail "the update removes its list of units that had failed before"
+pass "the health report hears what failed before the update and that a snapshot was taken"
+
+# pacman -Dk exits 1 to 3, one for each kind of problem it found. A list with
+# problems of more than one kind is still the list the report compares against.
+rm -f "$stub_bin/pacman" "$test_tmp/steps.health-packages"
+printf '%s\n' '#!/bin/bash' 'echo "error: missing '"'linux'"' dependency for '"'mkinitcpio'"'"' 'exit 2' >"$stub_bin/pacman"
+chmod +x "$stub_bin/pacman"
+run_update -y || fail "an update on a package database with problems of two kinds reports a failure"
+[[ -e $test_tmp/steps.health-packages ]] ||
+  fail "the health report gets the package database's problems when pacman found more than one kind"
+rm -f "$stub_bin/pacman"
+ln -s test-step "$stub_bin/pacman"
+pass "the package database's problems are kept when pacman found more than one kind"
+
+FAILING_STEP=omarchy-snapshot run_update -y || fail "an update without a snapshot reports a failure"
+grep -qx 'snapshot=0 .*' "$test_tmp/steps.health" ||
+  fail "the health report hears the update took no snapshot" "$(cat "$test_tmp/steps.health")"
+grep -qF 'Continuing the update without a snapshot' "$test_tmp/err" ||
+  fail "a failed snapshot is warned past, not passed off as one" "$(cat "$test_tmp/err")"
+pass "the health report hears when the update took no snapshot"
+
+# 127 is Snapper deliberately absent: the update goes on without a warning,
+# and still has no snapshot to offer.
+FAILING_STEP=omarchy-snapshot FAILING_STATUS=127 run_update -y ||
+  fail "an update without Snapper reports a failure" "$(cat "$test_tmp/err")"
+! grep -qF 'Continuing the update without a snapshot' "$test_tmp/err" ||
+  fail "an update without Snapper warns about the missing snapshot" "$(cat "$test_tmp/err")"
+grep -qx 'snapshot=0 .*' "$test_tmp/steps.health" ||
+  fail "the health report hears an update without Snapper took no snapshot" "$(cat "$test_tmp/steps.health")"
+pass "an update without Snapper goes on quietly, with no snapshot to offer"
+
+# With the boot files unverified the update says not to reboot, so the report
+# must not be told there is a snapshot to reboot into.
+FAILING_STEP=omarchy-update-boot run_update -y && fail "an update whose boot files failed verification reports success"
+grep -qx 'snapshot=0 .*' "$test_tmp/steps.health" ||
+  fail "the health report hears no snapshot when the boot files failed verification" "$(cat "$test_tmp/steps.health")"
+pass "the health report hears no snapshot when the boot files failed verification"
+
+# With no boot loader Omarchy manages, no boot menu lists the snapshot, so the
+# report must not be told there is one to reboot into.
+SUDO_TEST_BOOT_BACKEND=none run_update -y || fail "an update without a managed boot loader reports a failure"
+grep -qx 'snapshot=0 .*' "$test_tmp/steps.health" ||
+  fail "the health report hears no snapshot without a managed boot loader" "$(cat "$test_tmp/steps.health")"
+pass "the health report hears no snapshot without a managed boot loader"
 
 grep -q '^omarchy-update-system-pkgs unattended=1$' "$test_tmp/steps" ||
   fail "-y does not mark the update unattended"
@@ -148,6 +209,16 @@ diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
   fail "a failed mise update skips later update steps" "$(cat "$test_tmp/order")"
 grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
 pass "a mise failure still finishes the update, offers a reboot and explains how to retry"
+
+# The health report is information only. Whatever it finds, or however it
+# fails, the update still finishes and still offers the reboot.
+FAILING_STEP=omarchy-update-health run_update -y ||
+  fail "a failing health report fails the update" "$(cat "$test_tmp/err")"
+diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
+  fail "a failing health report changes the steps an update runs" "$(cat "$test_tmp/order")"
+! grep -q 'Something went wrong during the update' "$test_tmp/out" "$test_tmp/err" ||
+  fail "a failing health report is reported as a failed update"
+pass "a failing health report still lets the update finish and offer the reboot"
 
 # Multiple Hyprland PIDs must not break the deleted-executable reboot check.
 restart_bin="$test_tmp/restart-bin"
