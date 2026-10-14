@@ -241,11 +241,12 @@ When user requests system changes:
 
 ### Reminder Requests
 
-When the user asks to set a reminder, use `omarchy reminder <minutes> [message]` directly. Convert natural language durations to minutes and title-case short reminder labels when appropriate.
+When the user asks to set a reminder, use `omarchy reminder <minutes|time> [message]` directly. Convert natural language durations to minutes, pass times of day as `3:30pm`, `15:30`, or `"tomorrow 9am"`, and title-case short reminder labels when appropriate.
 
 ```bash
 omarchy reminder 15 "Pickup Jack"
 omarchy reminder 60 "Check laundry"
+omarchy reminder 3:30pm "Call mom"
 omarchy reminder show
 omarchy reminder clear
 ```

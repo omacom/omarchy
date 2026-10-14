@@ -181,9 +181,12 @@ Everything goes through the same sender contract, so the pieces are small:
 ## Reminders
 
 Reminders ride on notifications rather than being their own daemon.
-`bin/omarchy-reminder <minutes> [message]` creates a transient systemd user
+`bin/omarchy-reminder <minutes|time> [message]` creates a transient systemd user
 timer via `systemd-run --user --collect --on-active=<minutes>m` under the
-unit name `omarchy-reminder-<minutes>m-<epoch>`; the timer's payload sends the
+unit name `omarchy-reminder-<minutes>m-<epoch>`. A clock time (`3:30pm`,
+`15:30`, `noon`, `tomorrow 9am`) uses `--on-calendar` instead, rolls over to
+tomorrow if it has already passed, and records the minutes until it fires in
+the same unit name pattern; the timer's payload sends the
 reminder toast, deletes its message file, and refreshes the bar indicator.
 Custom messages are stashed in `$XDG_RUNTIME_DIR/omarchy-reminders/<unit>.message`
 since a unit name cannot carry arbitrary text. `--collect` means fired timers
@@ -195,5 +198,6 @@ summary toast, `show --json` as the JSON the bar's Reminder indicator polls
 (refreshed by the same `omarchy-shell -q omarchy.indicators refresh` call the
 timers and mutations make). `omarchy-reminder -i` summons the
 `omarchy.reminders` overlay (`shell/plugins/reminders/ReminderFlow.qml`), a
-two-step minutes/message prompt that shells back out to `omarchy-reminder` to
-do the setting.
+two-step when/message prompt that accepts minutes, `1h30m`-style durations, or
+a clock time, previews the resolved time, and shells back out to
+`omarchy-reminder` to do the setting.
