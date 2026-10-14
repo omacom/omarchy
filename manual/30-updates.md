@@ -32,6 +32,10 @@ Your packages aren't the only thing that goes stale. Many laptops and peripheral
 
 If you're already familiar with Arch, you might be tempted to just run `pacman -Syu` or `yay -Syu` yourself, but if you do that, you'll miss the snapshot, migrations, and configuration updates that Omarchy runs together with new packages. That's why Omarchy will actually stop a direct system upgrade and point you to `omarchy update` instead. (If you really know what you're doing, the guard will tell you how to bypass it for a single transaction.)
 
+### Checking the update landed
+
+At the end of every update that completes, Omarchy checks that Hyprland, the shell, notifications, audio and the network still answer, that no services have failed during the update, and that the package database is consistent, and lists anything that didn't pass. A service that had already failed before the update is noted rather than counted against it. The check only reports, never stops the update, and you can run it again any time with `omarchy update health`; run on its own, it can't tell which failed services predate the last update.
+
 ### Rolling back bad updates
 
 If you ever have a problem after doing an update, you can rollback your system to the snapshot taken before the update. Just restart and pick the snapshot in the boot loading menu from before you started the update.
