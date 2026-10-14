@@ -28,6 +28,8 @@ panel omarchy.network
 panel omarchy.power
 audio raise
 audio lower
+audio raise-precise
+audio lower-precise
 audio mute-toggle
 brightness raise
 brightness lower

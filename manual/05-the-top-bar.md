@@ -50,7 +50,7 @@ Clicking a bar icon opens a panel, which is a proper popup with sliders, lists, 
 
 The panels aren't read-outs. They're where you actually do the thing:
 
-- **Audio** has a master volume slider, an output-device picker, and a per-app mixer, so you can turn down that one browser tab without touching everything else.
+- **Audio** has a master volume slider, an output-device picker, and a per-app mixer, so you can turn down that one browser tab without touching everything else. Click the output readout to switch between percent and decibels: on the decibel scale the slider follows how loud things sound, from silence through −60 dB to 0 dB, and the volume keys step 2 dB (0.5 dB with Alt).
 - **Network** scans for Wi-Fi, shows signal strength, connects, and lets you pick a DNS provider.
 - **Bluetooth** lists your devices with connect/disconnect and battery levels.
 - **Power** shows battery stats, switches power profiles (it remembers a separate choice for battery and AC), and prints some system info.
