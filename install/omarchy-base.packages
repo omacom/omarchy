@@ -21,6 +21,7 @@ cups-filters
 cups-pk-helper
 ddcutil
 disktree-bin
+dnsmasq
 docker
 docker-buildx
 docker-compose
