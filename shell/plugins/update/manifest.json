@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.update",
+  "name": "Update window",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Graphical window for omarchy update and one-click installs. Open it with omarchy-launch-update or omarchy-launch-install.",
+  "kinds": [
+    "service"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml"
+  }
+}
