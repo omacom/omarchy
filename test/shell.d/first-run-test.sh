@@ -98,7 +98,7 @@ offers_update() {
   OMARCHY_PATH="$1" PATH="$mock_bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" \
     OMARCHY_TEST_OMARCHY_UPDATE="$2" OMARCHY_TEST_CHECKUPDATES="$3" \
     bash -c 'source "$1"; wait' _ "$ROOT/install/user/first-run/wifi.sh"
-  grep -Fq -- '--exec omarchy-launch-floating-terminal-with-presentation omarchy-update' "$test_tmp/calls"
+  grep -Fq -- '--exec omarchy-launch-update' "$test_tmp/calls"
 }
 
 installed=/usr/share/omarchy
