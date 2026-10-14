@@ -260,6 +260,21 @@ ShellRoot {
     same(dropdown.value, "headphones", "Dropdown option press selects its value")
     same(dropdownChanges, 1, "Dropdown option press emits changed")
 
+    var trigger = accessibleChild(testWindow.contentItem, "Output", Accessible.ComboBox)
+    trigger.Accessible.pressAction()
+    dropdown.enabled = false
+    Qt.callLater(checkDisabledDropdownOption)
+  }
+
+  function checkDisabledDropdownOption() {
+    var option = accessibleChild(testWindow.contentItem, "Speakers", Accessible.ListItem)
+    check(option !== null, "Dropdown keeps open options reachable after becoming disabled")
+    if (!option) { finishChecks(); return }
+    option.Accessible.pressAction()
+    same(dropdown.value, "headphones", "disabled open Dropdown ignores option actions")
+    same(dropdownChanges, 1, "disabled open Dropdown does not emit changed")
+    dropdown.close()
+
     var trigger = accessibleChild(testWindow.contentItem, "Country", Accessible.ComboBox)
     check(trigger !== null, "SearchableDropdown trigger is exposed as a combo box")
     if (!trigger) { finishChecks(); return }
@@ -276,6 +291,21 @@ ShellRoot {
     option.Accessible.pressAction()
     same(searchable.value, "beta", "SearchableDropdown option press selects its value")
     same(searchableChanges, 1, "SearchableDropdown option press emits changed")
+
+    var trigger = accessibleChild(testWindow.contentItem, "Country", Accessible.ComboBox)
+    trigger.Accessible.pressAction()
+    searchable.enabled = false
+    Qt.callLater(checkDisabledSearchableOption)
+  }
+
+  function checkDisabledSearchableOption() {
+    var option = accessibleChild(testWindow.contentItem, "Alpha", Accessible.ListItem)
+    check(option !== null, "SearchableDropdown keeps open options reachable after becoming disabled")
+    if (!option) { finishChecks(); return }
+    option.Accessible.pressAction()
+    same(searchable.value, "beta", "disabled open SearchableDropdown ignores option actions")
+    same(searchableChanges, 1, "disabled open SearchableDropdown does not emit changed")
+    searchable.close()
 
     var trigger = accessibleChild(testWindow.contentItem, "Tags", Accessible.ComboBox)
     check(trigger !== null, "MultiSelect trigger is exposed as a combo box")
@@ -295,6 +325,12 @@ ShellRoot {
     same(multi.values[0], "one", "MultiSelect option toggle selects its value")
     same(multiChanges, 1, "MultiSelect option toggle emits changed")
     same(option.Accessible.checked, true, "MultiSelect option reports checked")
+    multi.enabled = false
+    var disabledOption = accessibleChild(testWindow.contentItem, "Two", Accessible.CheckBox)
+    check(disabledOption !== null, "MultiSelect keeps open options reachable after becoming disabled")
+    if (disabledOption) disabledOption.Accessible.pressAction()
+    same(multi.values.length, 1, "disabled open MultiSelect ignores option actions")
+    same(multiChanges, 1, "disabled open MultiSelect does not emit changed")
     multi.close()
 
     var dialog = accessibleChild(testWindow.contentItem, "Delete this item?", Accessible.Dialog)
@@ -358,7 +394,8 @@ ShellRoot {
     same(buttonClicks, 1, "Button accessibility press follows enabled click behavior")
 
     widget.Accessible.pressAction()
-    same(widgetPresses, 1, "WidgetButton accessibility press emits a left-button press")
+    disabledWidget.Accessible.pressAction()
+    same(widgetPresses, 1, "WidgetButton accessibility press follows enabled click behavior")
 
     toggle.Accessible.toggleAction()
     same(toggleClicks, 1, "Toggle accessibility toggle emits clicked")
@@ -451,6 +488,7 @@ ShellRoot {
     BarIconButton { id: barIcon; text: "\u{F05A9}"; tooltipText: "Wi-Fi: Home" }
     BarIconButton { id: bareBarIcon; text: "\u{F05A9}" }
     WidgetButton { id: widget; text: "14:32"; tooltipText: "Calendar"; onPressed: root.widgetPresses++ }
+    WidgetButton { id: disabledWidget; text: "Disabled"; enabled: false; onPressed: root.widgetPresses++ }
     WidgetButton { id: textWidget; text: "14:32" }
     WidgetButton { id: concealedWidget; text: "\u{F0F54}"; tooltipText: "Do not disturb"; concealed: true }
     WidgetButton { id: staticWidget; text: "CPU 12%"; pressable: false }

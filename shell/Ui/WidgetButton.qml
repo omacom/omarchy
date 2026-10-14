@@ -52,6 +52,7 @@ Item {
   Accessible.onPressAction: if (root.interactive && root.pressable) root.triggerPress(Qt.LeftButton)
 
   function triggerPress(button) {
+    if (!root.enabled) return
     if (root.bar) root.bar.hideTooltip(root)
     root.pressed(button)
   }
