@@ -344,6 +344,7 @@ Item {
                 Accessible.selectable: true
                 Accessible.selected: root.optionValue(modelData) === root.value
                 Accessible.onPressAction: {
+                  if (!root.enabled) return
                   resultList.currentIndex = index
                   resultList.selectCurrent()
                 }
