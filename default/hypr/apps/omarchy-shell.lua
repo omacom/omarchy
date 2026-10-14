@@ -19,3 +19,7 @@ hl.layer_rule({ match = { namespace = "^(omarchy-background|owe-background)$" },
 -- Dev gallery is the main shell workbench; open it maximized like
 -- SUPER+ALT+F so component previews have the whole workspace.
 o.window({ class = "^org.quickshell$", title = "^Omarchy shell – dev gallery$" }, { maximize = true })
+
+-- The update window floats centered over the desktop like a dialog, at the
+-- size it asks for.
+o.window({ class = "^org.quickshell$", title = "^Omarchy (Update|Install)$" }, { float = true, center = true })

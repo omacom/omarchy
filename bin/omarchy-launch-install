@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Run a one-click install in the update window instead of a terminal
+# omarchy:args=<command>
+# omarchy:examples=omarchy launch install 'omarchy-install-browser chrome'
+
+if [[ -n ${OMARCHY_UPDATE_WINDOW:-} ]]; then
+  # An installer handing over to another one inside the window: run it right here.
+  exec bash -c "$*"
+elif ! omarchy-shell update install "$*" >/dev/null 2>&1; then
+  # Without a shell to draw the window, the install runs in a terminal as before.
+  exec omarchy-launch-floating-terminal-with-presentation "$*"
+fi

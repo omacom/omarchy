@@ -262,7 +262,17 @@ Exit codes:
 - non-zero — no Omarchy updates are available; stdout says Omarchy is up to date.
 
 The widget runs this check on shell startup and every six hours. Clicking the
-update icon launches `omarchy-update` in a floating terminal.
+update icon opens the update window.
+
+## Update window
+
+`omarchy-launch-update` opens the update window instead of a terminal; the bar's update icon, _Update > Omarchy_, and the first-run update prompt all call it. One-click installs in the menu go the same way through `omarchy-launch-install <command>`, as do `omarchy-install-app`, `omarchy-install-and-launch`, and `omarchy-install-font`. Without a running shell, both fall back to the floating terminal. The window is the first-party service `omarchy.update` in `shell/plugins/update/`.
+
+- The window lists what will update (`pending.sh`: `checkupdates` and `yay -Qua`), with app icons from each package's desktop entry, then runs `omarchy-update -y` when the user clicks _Update now_. That click is the confirmation; orphans are removed as in any unattended run, and the reboot notice `-y` prints becomes a _Restart now_ button.
+- `run.sh` runs the command detached, in its own session and pseudo-terminal, with its state in `$XDG_RUNTIME_DIR/omarchy-update-window/`. Closing the window, or the shell restart at the end of every update, never interrupts it. The window follows the transcript in `out` and answers questions through the `in` FIFO, so a password never shows in a process list. A shell that starts while `active` exists reattaches, and stays hidden if the user had sent the window to the background. Nothing is probed while idle: `active` is read only when the shell starts or the window is asked for.
+- `UpdateModel.js` reads the transcript: the step headings, pacman's progress lines, mise and AUR output, and what PAM modules print while sudo waits (face, fingerprint, security key). sudo's prompt arrives as an OSC 5150 marker through `SUDO_PROMPT`. For installs, a `gum` stand-in on `PATH` (`shims/gum`) turns `gum confirm` and `gum input` into markers as well; `omarchy update` sets its own `PATH`, so the update never meets it.
+- The full transcript stays under _Show details_, with a field for answering a prompt the window doesn't recognize.
+- Menu entries whose installers draw their own terminal interface (package pickers, the web app and TUI wizards, the theme installer, the Windows VM, Docker DBs) still open a terminal.
 
 ## Channels and versions
 

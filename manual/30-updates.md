@@ -6,6 +6,8 @@ Omarchy itself is installed as regular pacman packages from the [Omarchy Package
 
 When new releases are made, a circle arrow icon will appear to the right of your clock. Click it and the update process will start.
 
+The update runs in its own window. It shows every app about to update with its icon, checks each one off as it goes, and asks for your password, face, fingerprint, or security key in a proper dialog rather than a wall of terminal text. You can close the window while it works; it comes back when the update is done or needs you. _Show details_ reveals everything the terminal would have printed, and `omarchy update` in a terminal still works exactly as before. One-click installs from _Install_ in the Omarchy menu use the same window.
+
 ![update-available](images/update-available.webp)
 
 ### Four channels
