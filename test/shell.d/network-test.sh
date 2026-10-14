@@ -89,7 +89,51 @@ assertDeepEqual(
   { kind: 'wifi', label: 'Cafe WiFi', signalStrength: 78, frequency: '5200' },
   'network parses bar status'
 )
+assertDeepEqual(
+  network.parseNetworkStatus('vpn\tMeta\t\t\n'),
+  { kind: 'vpn', label: 'Meta', signalStrength: -1, frequency: '' },
+  'network parses vpn bar status'
+)
 assertEqual(network.connectionIcon('wifi', 80), network.wifiIconFor(80), 'network maps wifi icon from signal')
+assertEqual(network.connectionIcon('vpn', -1), '󰖂', 'network maps vpn icon')
+
+// Connection changes must refresh route details even with the panel closed.
+const routeChange = panelSource.match(/onRouteConnectionKeyChanged: \{([\s\S]*?)\n {2}\}/)
+const pollDetailsHelper = panelSource.match(/function pollDetails\(\) \{[\s\S]*?\n {2}\}/)
+assert(routeChange && pollDetailsHelper, 'network refreshes details from native device changes')
+assert(/routeConnectionKey: networkDevices\.map[\s\S]*?device\.name \+ ":" \+ device\.connected/.test(panelSource), 'route refresh observes native links rather than cached route kind')
+var detailsGeneration = 0
+var detailsRequest = 0
+var info = { type: 'wifi', iface: 'wlan0' }
+opened = false
+var detailsProc = { running: false }
+var Qt = { callLater: fn => fn() }
+eval(pollDetailsHelper[0])
+eval(routeChange[1])
+assertDeepEqual(info, {}, 'closed-panel connection change immediately invalidates cached Wi-Fi details')
+assert(detailsProc.running && detailsRequest === detailsGeneration, 'closed-panel connection change starts a fresh route sample')
+assertDeepEqual(detailsProc.command, ['omarchy-network-status', '--verbose', '--no-ping'], 'closed-panel details refresh disables pings')
+info = { type: 'ethernet', iface: 'eth0' }
+eval(routeChange[1])
+assertDeepEqual(info, {}, 'another connection change invalidates details while a sample is running')
+assert(detailsRequest !== detailsGeneration, 'in-flight route sample remains marked stale after a connection change')
+assert(/if \(root\.detailsRequest === root\.detailsGeneration\) root\.updateDetails\(text\)/.test(panelSource), 'network discards samples from before a connection change')
+assert(/if \(root\.detailsRequest !== root\.detailsGeneration\) Qt\.callLater\(root\.pollDetails\)/.test(panelSource), 'network retries after an obsolete in-flight sample exits')
+detailsProc.running = false
+pollDetails()
+assert(detailsProc.running && detailsRequest === detailsGeneration, 'replacement sample uses the latest connection generation')
+
+const detailsTimer = panelSource.match(/id: detailsPoll[\s\S]*?onTriggered: root\.pollDetails\(\)/)
+assert(detailsTimer, 'network details timer uses the guarded poll helper')
+assert(/running: true/.test(detailsTimer[0]), 'network polls route details while closed')
+assert(/interval: root\.opened \? 1500 : 30000/.test(detailsTimer[0]), 'network uses slower closed-panel polling')
+detailsRequest = -1
+pollDetails()
+assertEqual(detailsRequest, -1, 'timer polling does not start another sample while the process is running')
+detailsProc.running = false
+opened = true
+pollDetails()
+assertDeepEqual(detailsProc.command, ['omarchy-network-status', '--verbose'], 'open-panel details refresh retains ping sampling')
 
 // OWE transition mode: between scans NetworkManager files the in-use access
 // point under the hidden "_owetm_" SSID and drops the active profile from the

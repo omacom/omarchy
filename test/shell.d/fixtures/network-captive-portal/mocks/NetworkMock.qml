@@ -19,6 +19,11 @@ QtObject {
     property bool scannerEnabled: false
     property var networks: ({ values: [network] })
   }
+  property QtObject ethernet: QtObject {
+    property int type: DeviceType.Wired
+    property string name: "test-ethernet"
+    property bool connected: true
+  }
   property QtObject network: QtObject {
     property string name: "Guest Wi-Fi"
     property bool connected: true

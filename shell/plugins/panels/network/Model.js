@@ -55,6 +55,8 @@ function connectionIcon(kind, signalStrength, connectivity) {
   var restricted = connectivity === "portal" || connectivity === "limited"
   if (kind === "wifi") return restricted ? "󰤩" : wifiIconFor(signalStrength)
   if (kind === "ethernet") return restricted ? "󰈂" : "󰈀"
+  // TUN / WireGuard / Clash Meta — not the disconnected glyph (#13525).
+  if (kind === "vpn") return "󰖂"
   return "󰤮"
 }
 
