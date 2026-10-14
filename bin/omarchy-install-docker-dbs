@@ -3,26 +3,102 @@
 # omarchy:summary=Install one of the supported databases in a Docker container with the suitable development options.
 # omarchy:requires-sudo=true
 
+set -euo pipefail
+
 options=("MySQL" "PostgreSQL" "Redis" "MongoDB" "MariaDB" "MSSQL")
+CREDS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/docker-dbs"
+
+generate_secret() {
+  # URL-safe enough for DB passwords; avoid characters that complicate shell/DSN quoting.
+  openssl rand -base64 24 | tr -d '\n' | tr '+/' 'AB'
+}
+
+CRED_STAGE=""
+CRED_FILE=""
+# Docker can fail after creating a container. Keep the private candidate for
+# recovery on any failure, but never replace an existing credential record.
+trap 'if [[ -n $CRED_STAGE && -f $CRED_STAGE ]]; then
+  echo "Setup did not complete; candidate credentials retained at $CRED_STAGE (mode 600)." >&2
+fi' EXIT
+
+stage_creds() {
+  local name=$1
+  shift
+  mkdir -p -m 700 "$CREDS_DIR"
+  CRED_FILE="$CREDS_DIR/${name}.env"
+  CRED_STAGE=$(umask 077; mktemp "$CREDS_DIR/.${name}.env.XXXXXX")
+  chmod 600 "$CRED_STAGE"
+  printf '%s\n' "$@" >"$CRED_STAGE"
+}
+
+publish_creds() {
+  mv -f -- "$CRED_STAGE" "$CRED_FILE"
+  CRED_STAGE=""
+  echo "Credentials written to $CRED_FILE (mode 600)."
+}
 
 if (( $# == 0 )); then
-  choices=$(printf "%s\n" "${options[@]}" | gum choose --header "Select database (return to install, esc to cancel)") || main_menu
+  choices=$(printf "%s\n" "${options[@]}" | gum choose --header "Select database (return to install, esc to cancel)") || exit 0
 else
-  choices="$@"
+  choices="$*"
 fi
 
-if [[ -n $choices ]]; then
-  for db in $choices; do
-    echo "Installing $db..."
-    case $db in
-    MySQL) sudo docker run -d --restart unless-stopped -p "127.0.0.1:3306:3306" --name=mysql8 -e MYSQL_ROOT_PASSWORD= -e MYSQL_ALLOW_EMPTY_PASSWORD=true mysql:8.4 ;;
-    PostgreSQL) sudo docker run -d --restart unless-stopped -p "127.0.0.1:5432:5432" --name=postgres18 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:18 ;;
-    MariaDB) sudo docker run -d --restart unless-stopped -p "127.0.0.1:3306:3306" --name=mariadb11 -e MARIADB_ROOT_PASSWORD= -e MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=true mariadb:11.8 ;;
-    Redis) sudo docker run -d --restart unless-stopped -p "127.0.0.1:6379:6379" --name=redis redis:7 ;;
-    MongoDB) sudo docker run -d --restart unless-stopped -p "127.0.0.1:27017:27017" --name mongodb -e MONGO_INITDB_ROOT_USERNAME=admin -e MONGO_INITDB_ROOT_PASSWORD=admin123 mongo:noble ;;
-    MSSQL) sudo docker run -d --restart unless-stopped -p "127.0.0.1:1433:1433" --name mssql -e MSSQL_PID=Developer -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=@dmin123" mcr.microsoft.com/mssql/server:2022-CU12-ubuntu-22.04 ;;
-    esac
-  done
-else
+if [[ -z $choices ]]; then
   echo "No databases selected for installation."
+  exit 0
 fi
+
+for db in $choices; do
+  echo "Installing $db..."
+  case $db in
+  MySQL)
+    password=$(generate_secret)
+    stage_creds mysql "MYSQL_ROOT_PASSWORD=$password" "MYSQL_HOST=127.0.0.1" "MYSQL_PORT=3306"
+    sudo docker run -d --restart unless-stopped -p "127.0.0.1:3306:3306" --name=mysql8 \
+      --env-file "$CRED_STAGE" mysql:8.4
+    ;;
+  PostgreSQL)
+    password=$(generate_secret)
+    stage_creds postgres "POSTGRES_PASSWORD=$password" "POSTGRES_USER=postgres" "POSTGRES_HOST=127.0.0.1" "POSTGRES_PORT=5432"
+    sudo docker run -d --restart unless-stopped -p "127.0.0.1:5432:5432" --name=postgres18 \
+      --env-file "$CRED_STAGE" postgres:18
+    ;;
+  MariaDB)
+    password=$(generate_secret)
+    stage_creds mariadb "MARIADB_ROOT_PASSWORD=$password" "MARIADB_HOST=127.0.0.1" "MARIADB_PORT=3306"
+    sudo docker run -d --restart unless-stopped -p "127.0.0.1:3306:3306" --name=mariadb11 \
+      --env-file "$CRED_STAGE" mariadb:11.8
+    ;;
+  Redis)
+    password=$(generate_secret)
+    stage_creds redis "REDIS_PASSWORD=$password" "REDIS_HOST=127.0.0.1" "REDIS_PORT=6379"
+    sudo docker run -d --restart unless-stopped -p "127.0.0.1:6379:6379" --name=redis \
+      --env-file "$CRED_STAGE" --user redis redis:7 sh -c '
+        umask 077
+        config=$(mktemp) || exit 1
+        printf "requirepass %s\n" "$REDIS_PASSWORD" >"$config" || exit 1
+        unset REDIS_PASSWORD
+        exec redis-server "$config"
+      '
+    ;;
+  MongoDB)
+    password=$(generate_secret)
+    stage_creds mongodb "MONGO_INITDB_ROOT_USERNAME=admin" "MONGO_INITDB_ROOT_PASSWORD=$password" "MONGO_HOST=127.0.0.1" "MONGO_PORT=27017"
+    sudo docker run -d --restart unless-stopped -p "127.0.0.1:27017:27017" --name mongodb \
+      -e MONGO_INITDB_ROOT_USERNAME=admin --env-file "$CRED_STAGE" mongo:noble
+    ;;
+  MSSQL)
+    # MSSQL requires complexity: upper, lower, digit, symbol, length >= 8.
+    password="Ad$(openssl rand -hex 12)!"
+    stage_creds mssql "MSSQL_SA_PASSWORD=$password" "MSSQL_HOST=127.0.0.1" "MSSQL_PORT=1433"
+    sudo docker run -d --restart unless-stopped -p "127.0.0.1:1433:1433" --name mssql \
+      -e MSSQL_PID=Developer -e ACCEPT_EULA=Y --env-file "$CRED_STAGE" \
+      mcr.microsoft.com/mssql/server:2022-CU12-ubuntu-22.04
+    ;;
+  *)
+    echo "Unknown database: $db" >&2
+    exit 1
+    ;;
+  esac
+  publish_creds
+done
