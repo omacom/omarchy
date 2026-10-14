@@ -110,6 +110,15 @@ if [[ -z $agent ]]; then
   exit 1
 fi
 
+# omarchy-agent-crash marks a diagnosis so omarchy-crash-watch can tell the
+# crashes it causes from new ones. uwsm starts a terminal without our
+# environment, so the marker rides in every terminal command started from here,
+# as the account pin does: the relaunches below, and the agent's own.
+carry=()
+if [[ -n ${OMARCHY_CRASH_DIAGNOSIS:-} ]]; then
+  carry=(env "OMARCHY_CRASH_DIAGNOSIS=$OMARCHY_CRASH_DIAGNOSIS")
+fi
+
 # OpenClaw's launcher sets OpenClaw up when the package became the seed before
 # this user's OpenClaw moved, so with the package a missing command is its to fix.
 if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
@@ -120,7 +129,7 @@ if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg
     if [[ -t 0 ]]; then
       omarchy-install-ai-cli "$agent" || exit 1
     else
-      printf -v relaunch '%q ' omarchy-agent "${launch_args[@]}"
+      printf -v relaunch '%q ' "${carry[@]}" omarchy-agent "${launch_args[@]}"
       exec omarchy-launch-floating-terminal-with-presentation "omarchy-install-ai-cli $agent && ${relaunch% }"
     fi
   else
@@ -279,7 +288,7 @@ if [[ $use_local == "true" && $local_model != */* ]]; then
     if [[ $inline == "true" ]]; then
       omarchy-models-warmup ${local_model:+"$local_model"} || exit 1
     else
-      exec omarchy-launch-tui --app-id="$app_id" omarchy-agent --inline "${launch_args[@]}"
+      exec omarchy-launch-tui --app-id="$app_id" "${carry[@]}" omarchy-agent --inline "${launch_args[@]}"
     fi
   fi
 fi
@@ -369,6 +378,9 @@ if [[ -n $home_env ]]; then
     command=("${account_env[@]}" "${command[@]}")
   fi
 fi
+
+# The crash diagnosis marker, if any, outermost.
+command=("${carry[@]}" "${command[@]}")
 
 if [[ $inline == "true" ]]; then
   exec "${command[@]}"

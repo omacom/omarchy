@@ -90,6 +90,18 @@ reconfigure. The one thing to clean up is your own: delete the core you extracte
 above, which is a copy of the crashed process's memory. The single change a
 diagnosis may make is the mute below, and only when the user asks for it.
 
+A diagnosis started from a crash notification runs with
+`OMARCHY_CRASH_DIAGNOSIS` in its environment, and what you start directly from
+your terminal inherits it, a nested `omarchy agent` launch included. A program
+started in a `systemd-run` unit of its own (as `omarchy-launch-browser` starts a
+browser) does not, and nor does anything your harness runs from a background
+service rather than from your terminal. For an hour from the start, a crash of
+anything carrying it is announced without offering another diagnosis, so
+reproducing the crash does not chain a fresh agent. A crash without it is held
+that way only when it is of the program you are diagnosing. Anything you leave
+running holds that for the whole hour, which is one more reason to close what
+you started.
+
 ## Offer to stop the notifications for this program
 
 A crash you have explained often keeps happening anyway. Finish by offering to
