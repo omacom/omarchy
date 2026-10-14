@@ -61,7 +61,7 @@ Panel {
   //                  j/k walks each row.
   // Mouse hover on a target updates root state via the components' `hovered`
   // signal so keyboard cursor and pointer share one highlight.
-  readonly property var scalePresets: ["1", "1.25", "1.6", "2", "3", "4"]
+  readonly property var scalePresets: ["1", "1.25", "1.6", "2", "2.5", "3", "4"]
   readonly property var scaleValues: targetDisplay
     ? Model.availableScales(scalePresets, targetDisplay.width, targetDisplay.height)
     : scalePresets

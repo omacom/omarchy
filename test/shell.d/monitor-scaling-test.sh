@@ -63,22 +63,22 @@ run_scaling() {
 
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling up
-grep -F 'scale = 3' "$eval_out" >/dev/null || fail "monitor scaling up reaches 3x"
-grep -Fx 'local omarchy_monitor_scale = 3' "$monitor_lua" >/dev/null || fail "monitor scaling up persists 3x"
-grep -F $'requested=up\tcurrent=2\tnew=3\tmonitor=eDP-1' "$scale_log" >/dev/null || fail "monitor scaling up writes audit log"
-pass "monitor scaling up reaches 3x"
+grep -F 'scale = 2.5' "$eval_out" >/dev/null || fail "monitor scaling up reaches 2.5x"
+grep -Fx 'local omarchy_monitor_scale = 2.5' "$monitor_lua" >/dev/null || fail "monitor scaling up persists 2.5x"
+grep -F $'requested=up\tcurrent=2\tnew=2.5\tmonitor=eDP-1' "$scale_log" >/dev/null || fail "monitor scaling up writes audit log"
+pass "monitor scaling up reaches 2.5x"
 
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=3 run_scaling down
-grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down recovers 3x to 2x"
-grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling down persists 2x from 3x"
-pass "monitor scaling down recovers 3x to 2x"
+grep -F 'scale = 2.5' "$eval_out" >/dev/null || fail "monitor scaling down recovers 3x to 2.5x"
+grep -Fx 'local omarchy_monitor_scale = 2.5' "$monitor_lua" >/dev/null || fail "monitor scaling down persists 2.5x from 3x"
+pass "monitor scaling down recovers 3x to 2.5x"
 
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=3.0000000000000004 run_scaling down
-grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down snaps floating point 3x to 2x"
-grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling down persists 2x from floating point 3x"
-pass "monitor scaling down snaps floating point 3x to 2x"
+grep -F 'scale = 2.5' "$eval_out" >/dev/null || fail "monitor scaling down snaps floating point 3x to 2.5x"
+grep -Fx 'local omarchy_monitor_scale = 2.5' "$monitor_lua" >/dev/null || fail "monitor scaling down persists 2.5x from floating point 3x"
+pass "monitor scaling down snaps floating point 3x to 2.5x"
 
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
@@ -120,8 +120,8 @@ pass "monitor scaling approximates explicit 3x as 3.2x"
 
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITOR_HEIGHT=800 run_scaling up
-grep -F 'scale = 3.2' "$eval_out" >/dev/null || fail "monitor scaling up reaches approximated 3.2x"
-pass "monitor scaling up reaches approximated 3.2x"
+grep -F 'scale = 2.5' "$eval_out" >/dev/null || fail "monitor scaling up reaches clean 2.5x"
+pass "monitor scaling up reaches clean 2.5x"
 
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=4 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITOR_HEIGHT=800 run_scaling down
