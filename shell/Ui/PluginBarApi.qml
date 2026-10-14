@@ -24,6 +24,8 @@ QtObject {
   property bool centerSectionRevealHeld: false
   property bool traySectionDragActive: false
   property bool traySectionPopoutOpen: false
+  property bool leftSectionRevealHeld: false
+  property bool rightSectionRevealHeld: false
   property bool _centerHoverRevealSuppressed: false
   readonly property bool centerHoverRevealSuppressed: _centerHoverRevealSuppressed
   property var activePopout: null

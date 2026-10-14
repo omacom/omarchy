@@ -53,6 +53,35 @@ if ! rg -q 'sourceComponent: root\.vertical \? verticalIndicatorsTree : horizont
 fi
 pass "indicators instantiate only the tree for the current bar orientation"
 
+# Indicators moved out of the center used to open only from the center peek:
+# collapsed they have no extent to hover, and their own section opened nothing.
+if ! rg -q 'property string section: ""' "$ROOT/shell/Ui/BarWidget.qml"; then
+  fail "bar widgets declare the section they sit in"
+fi
+if ! rg -q 'if \("section" in target\) target\.section = region' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "the bar tells each widget which section it sits in"
+fi
+for section in left right; do
+  if ! rg -q "onHoveredChanged: if \(hovered\) root\.holdSideSectionReveal\(\"$section\"\)" "$ROOT/shell/plugins/bar/Bar.qml"; then
+    fail "hovering the $section section holds its indicator peek"
+  fi
+done
+if ! rg -q 'bar\[peekSection \+ "SectionRevealHeld"\] === true' "$ROOT/shell/plugins/bar/widgets/Indicators.qml"; then
+  fail "indicators follow the peek of the section they sit in"
+fi
+# A side section holding only collapsed indicators has no extent of its own, so
+# its hover needs an area that does not shrink with its widgets.
+for section in left right; do
+  if ! rg -q "SideSectionHoverFloor \{ section: \"$section\" \}" "$ROOT/shell/plugins/bar/Bar.qml"; then
+    fail "the $section section keeps a hover area when its widgets collapse"
+  fi
+done
+if ! rg -q 'readonly property real along: Math\.max\(root\.vertical \? parent\.height : parent\.width, root\.barSize\)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "a collapsed side section stays at least a bar-size square to hover"
+fi
+pass "indicators peek from the section they sit in"
+
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
@@ -121,8 +150,14 @@ assert(
 // back. Letting it assign the held state outright would then reveal indicators
 // from bar hover alone; it may only close what the center section opened.
 assert(
-  !/centerSectionRevealHeld = (?!false)/.test(revealTimerBody),
+  !/SectionRevealHeld = (?!false)/.test(revealTimerBody),
   'the delayed collapse can only close the peek, never open it'
+)
+// The side peeks have no hover state of their own to wait on: they close with
+// the bar, so sliding between sections never collapses one under the pointer.
+assert(
+  /if \(!root\.barHovered\) \{\s*root\.leftSectionRevealHeld = false\s*root\.rightSectionRevealHeld = false/.test(revealTimerBody),
+  'the side-section peeks close once the pointer has left the bar'
 )
 
 // The whole-bar hover has to come from an ancestor of the sections. A sibling
