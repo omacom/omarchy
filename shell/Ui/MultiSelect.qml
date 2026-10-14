@@ -114,6 +114,7 @@ Item {
   }
 
   function toggleValue(value) {
+    if (!root.enabled) return
     var v = String(value)
     var arr = arrayFrom(values)
     var idx = arr.indexOf(v)
