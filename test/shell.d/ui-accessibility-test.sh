@@ -584,6 +584,7 @@ ShellRoot {
       anchors.fill: parent
       opened: true
       message: "Delete this item?"
+      cancelText: "Cancel"
       confirmText: "Delete"
       onCanceled: root.dialogCancels++
       onConfirmed: root.dialogConfirms++
