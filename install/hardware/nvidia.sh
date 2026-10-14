@@ -1,4 +1,6 @@
-if lspci | grep -qi 'nvidia'; then
+# omarchy-hw-nvidia reads sysfs IDs. lspci would walk PCI config space and
+# wake a runtime-suspended GPU, and Hyprland already uses the same helper.
+if omarchy-hw-nvidia; then
   if omarchy-hw-nvidia-gsp; then
     PACKAGES=(nvidia-open-dkms nvidia-utils lib32-nvidia-utils libva-nvidia-driver)
   elif omarchy-hw-nvidia-without-gsp; then
