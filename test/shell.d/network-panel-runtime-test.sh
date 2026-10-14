@@ -51,7 +51,7 @@ fs.writeFileSync(`${stage}/network/Panel.qml`, source)
 JS
   printf '#!/bin/bash\nexit 0\n' >"$stage/bin/noop"
   chmod +x "$stage/bin/noop"
-  for command in omarchy-dns omarchy-network-band; do
+  for command in omarchy-dns omarchy-network-band nmcli mmcli; do
     ln -s noop "$stage/bin/$command"
   done
   # Preview uses only synthetic details, never the host's SSID or addresses.
@@ -82,9 +82,15 @@ pass "network portal, recovery, disabled checks, outage, disconnect, keyboard na
 
 stage_panel owe-transition
 # Answers in call order: 57, then a slow stale 11, then 33. Never touches the
-# host's NetworkManager.
+# host's NetworkManager. Replace the noop link, not the noop it points to.
+rm -f -- "$stage/bin/nmcli"
 cat >"$stage/bin/nmcli" <<'SH'
 #!/bin/bash
+# The panel's modem probe. This fixture has no modem, and the probe must not
+# shift the call-order answers below.
+if [[ $* == "-t -f DEVICE,TYPE dev" ]]; then
+  exit 0
+fi
 printf '%s\n' "$*" >> "$NETWORK_TEST_NMCLI_LOG"
 count=$(wc -l < "$NETWORK_TEST_NMCLI_LOG")
 case $count in
