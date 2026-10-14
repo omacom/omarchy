@@ -283,6 +283,7 @@ BarWidget {
         visible: root.hasDrawer
 
         HoverHandler {
+          id: drawerHover
           onHoveredChanged: root.expanded = hovered
         }
 
@@ -296,6 +297,9 @@ BarWidget {
           text: root.fixedAtStart ? "\uf054" : "\uf053"
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            // A pointer is already hovering, which keeps the drawer open; a
+            // press without one (an accessibility press) toggles it.
+            else if (button === Qt.LeftButton) root.expanded = drawerHover.hovered || !root.expanded
           }
         }
 
@@ -374,6 +378,7 @@ BarWidget {
         visible: root.hasDrawer
 
         HoverHandler {
+          id: drawerHover
           onHoveredChanged: root.expanded = hovered
         }
 
@@ -388,6 +393,9 @@ BarWidget {
           textRotation: 90
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            // A pointer is already hovering, which keeps the drawer open; a
+            // press without one (an accessibility press) toggles it.
+            else if (button === Qt.LeftButton) root.expanded = drawerHover.hovered || !root.expanded
           }
         }
 
