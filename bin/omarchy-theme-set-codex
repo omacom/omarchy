@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Configure Codex to use terminal palette colors
+# omarchy:args=[--activate]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+CODEX_CONFIG_DIR="${CODEX_HOME:-$HOME/.codex}"
+CODEX_CONFIG_PATH="${CODEX_CONFIG_PATH:-$CODEX_CONFIG_DIR/config.toml}"
+CODEX_ACTIVATE=0
+
+usage() {
+  echo "Usage: omarchy-theme-set-codex [--activate]"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --activate)
+      CODEX_ACTIVATE=1
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Activation is deliberately separate from normal theme switches. Once Codex
+# uses its built-in ANSI theme, the terminal palette follows Omarchy without
+# repeatedly overwriting a later theme selected with Codex's /theme command.
+(( CODEX_ACTIVATE == 1 )) || exit 0
+
+python3 "$OMARCHY_PATH/default/theme/activate-toml.py" "$CODEX_CONFIG_PATH" "tui" "ansi"

@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:summary=Configure Grok to use terminal palette colors
+# omarchy:args=[--activate]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+GROK_CONFIG_DIR="${GROK_CONFIG_DIR:-${GROK_HOME:-$HOME/.grok}}"
+GROK_CONFIG_PATH="${GROK_CONFIG_PATH:-$GROK_CONFIG_DIR/config.toml}"
+GROK_ACTIVATE=0
+
+usage() {
+  echo "Usage: omarchy-theme-set-grok [--activate]"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --activate)
+      GROK_ACTIVATE=1
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Grok's "minimal" color theme is independent of its screen mode and renders
+# with the terminal palette. Activate it once, then let later user choices win.
+(( GROK_ACTIVATE == 1 )) || exit 0
+
+python3 "$OMARCHY_PATH/default/theme/activate-toml.py" "$GROK_CONFIG_PATH" "ui" "minimal"
