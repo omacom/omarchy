@@ -1285,7 +1285,7 @@ Panel {
 
   BarIconButton {
     id: button
-    accessibleName: "Network"
+    accessibleName: I18n.t("accessibility.network")
     anchors.fill: parent
     bar: root.bar
     text: root.icon
@@ -1311,7 +1311,7 @@ Panel {
   // here is the wifi-specific UI inside.
   KeyboardPanel {
     id: panel
-    accessibleName: "Network"
+    accessibleName: I18n.t("accessibility.network")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -1492,7 +1492,7 @@ Panel {
 
           ToggleSwitch {
             id: powerSwitch
-            accessibleName: "Wi-Fi"
+            accessibleName: I18n.t("accessibility.wifi")
             visible: root.canToggleWifi
             checked: Networking.wifiEnabled
             hasCursor: root.toggleHeaderHasCursor
@@ -1699,7 +1699,7 @@ Panel {
             // plain verticalCenter would sit the switch visibly high.
             ToggleSwitch {
               id: bandAutoSwitch
-              accessibleName: "Automatic band"
+              accessibleName: I18n.t("accessibility.automaticBand")
               trackHeight: Math.round(bandAutoLabel.font.pixelSize * 1.2)
               cursorPad: Style.space(3)
               anchors.verticalCenter: bandAutoLabel.verticalCenter
@@ -1986,7 +1986,7 @@ Panel {
     readonly property bool forgetFocused: isSelected && root.wifiActionFocused && canForget
     readonly property bool forgetVisible: canForget && (!requiresCredentials || forgetFocused || rightMouse.containsMouse)
 
-    accessibleName: net ? (net.ssid || "Hidden") : ""
+    accessibleName: net ? (net.ssid || I18n.t("network.hidden")) : ""
     Accessible.onPressAction: row.activate()
     hasCursor: root.cursorActive && isSelected && !root.wifiActionFocused
     current: isConnected

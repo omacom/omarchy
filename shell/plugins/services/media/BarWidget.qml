@@ -199,7 +199,7 @@ BarWidget {
         LayoutMirroring.childrenInherit: true
 
         Button {
-          accessibleName: "Previous track"
+          accessibleName: I18n.t("accessibility.previousTrack")
           iconText: "󰒮"
           foreground: root.bar.foreground
           horizontalPadding: Style.spacing.controlPaddingX
@@ -210,7 +210,7 @@ BarWidget {
         }
 
         Button {
-          accessibleName: root.activePlayer && root.activePlayer.isPlaying ? "Pause" : "Play"
+          accessibleName: root.activePlayer && root.activePlayer.isPlaying ? I18n.t("media.pause") : I18n.t("media.play")
           iconText: root.activePlayer && root.activePlayer.isPlaying ? "󰏤" : "󰐊"
           foreground: root.bar.foreground
           horizontalPadding: Style.spacing.panelGap
@@ -222,7 +222,7 @@ BarWidget {
         }
 
         Button {
-          accessibleName: "Next track"
+          accessibleName: I18n.t("accessibility.nextTrack")
           iconText: "󰒭"
           foreground: root.bar.foreground
           horizontalPadding: Style.spacing.controlPaddingX
