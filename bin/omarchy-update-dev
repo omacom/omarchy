@@ -27,8 +27,8 @@ remote=$(git -C "$OMARCHY_PATH" config --get "branch.${current}.remote" 2>/dev/n
 # master was deleted when quattro became the default branch. Only a branch that
 # tracks master on a real remote is considered, and only once a pruning fetch
 # shows that master is actually gone there. A fork that still has master, or a
-# branch tracking a local master (remote = .), is left alone.
-if [[ $merge == refs/heads/master && -n $remote && $remote != "." ]]; then
+# branch tracking a local master (remote = .) or a bare URL, is left alone.
+if [[ $merge == "refs/heads/master" && -n $remote ]] && git -C "$OMARCHY_PATH" config --get "remote.$remote.url" >/dev/null; then
   if ! git -C "$OMARCHY_PATH" fetch --prune "$remote"; then
     echo "Error: could not fetch $remote to check whether its master branch still exists." >&2
     echo "Fix the remote or network, then run the update again." >&2

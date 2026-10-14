@@ -229,3 +229,12 @@ real_update "$checkout" || fail "a branch tracking a local master keeps updating
 [[ $(upstream_of "$checkout") == ./master ]] ||
   fail "a branch tracking a local master keeps its upstream" "$(upstream_of "$checkout")"
 pass "a branch tracking a local master (remote = .) is left alone"
+
+# A URL remote has no remote-tracking refs, so @{upstream} never resolves even
+# while master still exists there.
+new_scenario urlremote
+real_git -C "$checkout" config branch.master.remote "file://$remote_git"
+real_update "$checkout" || fail "a branch tracking master by URL is not taken for a deleted master" "$(cat "$checkout.err")"
+[[ $(upstream_of "$checkout") == "file://$remote_git/master" ]] ||
+  fail "a branch tracking master by URL keeps its upstream" "$(upstream_of "$checkout")"
+pass "a branch tracking master by URL is left alone"
