@@ -21,9 +21,11 @@ cups-filters
 cups-pk-helper
 ddcutil
 disktree-bin
-docker
-docker-buildx
 docker-compose
+podman
+podman-compose
+podman-desktop
+podman-tui
 dosfstools
 dotnet-runtime
 evince
@@ -144,7 +146,6 @@ ttf-jetbrains-mono-nerd-basic
 tzupdate
 udiskie
 ufw
-ufw-docker
 unzip
 usage
 uwsm

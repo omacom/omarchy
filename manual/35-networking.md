@@ -30,7 +30,7 @@ _Trigger > Speed Test > Network Speed Test_ measures your actual up and down spe
 
 The firewall is on by default and blocks all incoming traffic, with one exception: port 53317, so [LocalSend](22-guis.md) works out of the box.
 
-SSH is off until you turn it on with _Setup > Security > SSHD_, which starts the daemon, opens port 22 rate-limited against brute force, and authorizes a key. Docker is locked down too, so containers can't accidentally expose themselves to the world. See [security](48-security.md) for the whole story.
+SSH is off until you turn it on with _Setup > Security > SSHD_, which starts the daemon, opens port 22 rate-limited against brute force, and authorizes a key. Podman development containers run rootless and the firewall covers their published ports. See [security](48-security.md) for the whole story.
 
 ## Tailscale
 

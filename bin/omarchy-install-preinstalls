@@ -18,6 +18,8 @@ if gum confirm "Are you sure you want to restore all preinstalled web apps, TUI 
     pinta \
     obsidian \
     moonlight-qt \
+    podman-desktop \
+    podman-tui \
     omacut \
     monologue \
     omacalc \

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Run Podman against the local engine
+# omarchy:hidden=true
+
+# podman-compose appends --podman-args after the subcommand. Global options
+# must precede it, so use this executable adapter to pin the local engine.
+exec podman --remote=false "$@"

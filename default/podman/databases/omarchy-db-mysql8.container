@@ -1,0 +1,30 @@
+[Quadlet]
+# Local databases do not need the desktop to wait for network-online.target.
+DefaultDependencies=false
+
+[Unit]
+Description=Omarchy MySQL development database
+
+[Container]
+GlobalArgs=--remote=false
+Image=docker.io/library/mysql:8.4
+ContainerName=omarchy-db-mysql8
+PublishPort=127.0.0.1:3306:3306
+Volume=omarchy-db-mysql8-data.volume:/var/lib/mysql
+ImageVolume=ignore
+HttpProxy=false
+StopTimeout=120
+# Never replace an unrelated container that has claimed this name.
+PodmanArgs=--replace=false --cidfile=%t/%N/container.cid
+Environment=MYSQL_ROOT_PASSWORD=
+Environment=MYSQL_ALLOW_EMPTY_PASSWORD=true
+
+[Service]
+RuntimeDirectory=%N
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=900
+TimeoutStopSec=130
+
+[Install]
+WantedBy=default.target
