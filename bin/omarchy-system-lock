@@ -3,9 +3,15 @@
 # omarchy:summary=Lock the computer and turn off the display
 # omarchy:group=system
 # omarchy:name=lock
-# omarchy:examples=omarchy system lock
+# omarchy:args=[cleanup]
+# omarchy:examples=omarchy system lock | omarchy system lock cleanup
 
-omarchy-shell lock lock >/dev/null
+# Idle handoff already holds a secure lock surface. Running lock again races
+# fingerprint unlock and can re-lock a just-unlocked session; cleanup-only
+# removes the screensaver and runs the usual lock side effects.
+if [[ ${1:-} != "cleanup" ]]; then
+  omarchy-shell lock lock >/dev/null
+fi
 
 # Set keyboard layout to default (first layout)
 hyprctl switchxkblayout all 0 > /dev/null 2>&1
