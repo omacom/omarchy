@@ -21,7 +21,10 @@ terminal_log="$test_tmp/terminal"
 menu_log="$test_tmp/menu"
 muse_login_log="$test_tmp/muse-login"
 clipboard_log="$test_tmp/clipboard"
-mkdir -p "$mock_bin" "$test_home"
+scope_log="$test_tmp/scope"
+systemctl_log="$test_tmp/systemctl"
+runtime_dir="$test_tmp/runtime"
+mkdir -p "$mock_bin" "$test_home" "$runtime_dir/systemd"
 
 cat >"$mock_bin/omarchy-install-chromium-claude" <<'SH'
 #!/bin/bash
@@ -50,6 +53,19 @@ SH
 cat >"$mock_bin/omarchy-launch-tui" <<'SH'
 #!/bin/bash
 printf '%s\0' "$@" >"$OMARCHY_TEST_AGENT_LAUNCH_LOG"
+SH
+
+# Records the scope it was asked for.
+cat >"$mock_bin/systemd-run" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >>"$OMARCHY_TEST_SCOPE_LOG"
+SH
+
+# Answers for the user manager behind the socket, or fails as one that is gone.
+cat >"$mock_bin/systemctl" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >>"$OMARCHY_TEST_SYSTEMCTL_LOG"
+[[ ${OMARCHY_TEST_USER_MANAGER_DOWN:-} != "true" ]]
 SH
 
 cat >"$mock_bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
@@ -130,6 +146,11 @@ export OMARCHY_TEST_AGENT_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_TEST_CLIPBOARD="$clipboard_log"
+export OMARCHY_TEST_SCOPE_LOG="$scope_log"
+export OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log"
+# No user manager socket until the scope checks create one, so launches start
+# without a scope and the argv checks below see the agent command alone.
+export XDG_RUNTIME_DIR="$runtime_dir"
 export OMARCHY_PATH="$ROOT"
 
 # An agent in ~/.local/bin is the user's own, from its own installer, and
@@ -755,6 +776,66 @@ fi
   fail "omarchy agent prompt answers an empty prompt with its usage" "$(<"$test_tmp/empty-prompt-output")"
 [[ ! -s $launch_log ]] || fail "omarchy agent prompt starts nothing for an empty prompt"
 pass "omarchy agent keeps prompts on the prompt route"
+
+# The socket is the cheap gate: nothing asks the user manager until it exists.
+[[ ! -e $systemctl_log ]] || fail "agent launcher asks no user manager without its socket"
+
+# Stands in for the user manager's private socket, which systemd-run connects to.
+python3 -c 'import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' \
+  "$runtime_dir/systemd/private"
+
+scope_unit=""
+assert_scoped() {
+  local agent=$1
+  shift
+  local expected=(--app-id=org.omarchy.agent systemd-run --user --scope --quiet --collect --expand-environment=no
+    "--unit=omarchy-agent-$agent-+([0-9])" "--description=Omarchy agent: $agent" --slice-inherit -- "$@")
+
+  printf '%s\n' "$agent" >"$agent_file"
+  omarchy-agent
+  mapfile -d '' -t actual <"$launch_log"
+
+  (( ${#actual[@]} == ${#expected[@]} )) ||
+    fail "$agent launches in its own scope" "expected: ${expected[*]}\nactual: ${actual[*]}"
+  for ((index = 0; index < ${#expected[@]}; index++)); do
+    # Only the unit entry holds a pattern: its suffix differs on every launch, and
+    # a decimal separator in it would be mangled or refused.
+    # shellcheck disable=SC2053
+    [[ ${actual[$index]} == ${expected[$index]} ]] ||
+      fail "$agent launches in its own scope" "expected: ${expected[*]}\nactual: ${actual[*]}"
+  done
+  scope_unit=${actual[7]}
+}
+
+assert_scoped pi pi
+# The account pin stays after --, so the agent still starts as the selected
+# account whatever environment the scope inherits.
+assert_scoped claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto
+first_unit=$scope_unit
+assert_scoped claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto
+[[ $scope_unit != "$first_unit" ]] || fail "each agent session gets a scope of its own" "both: $scope_unit"
+pass "agent launcher starts each session in a scope of its own"
+
+printf '%s\n' "opencode" >"$agent_file"
+: >"$scope_log"
+omarchy-agent --inline
+mapfile -d '' -t scope_args <"$scope_log"
+[[ ${scope_args[0]} == "--user" && ${scope_args[1]} == "--scope" && ${scope_args[5]} == --unit=omarchy-agent-opencode-* &&
+  ${scope_args[*]: -3} == "-- opencode --auto" ]] ||
+  fail "inline agent launcher starts the agent in a scope" "argv: ${scope_args[*]}"
+pass "inline agent launcher starts the agent in a scope"
+
+# A socket can outlive the manager behind it, and then systemd-run fails before
+# the agent ever runs, so a manager that does not answer means no scope.
+: >"$scope_log"
+: >"$launch_log"
+OMARCHY_TEST_USER_MANAGER_DOWN=true omarchy-agent
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" && ! -s $scope_log ]] ||
+  fail "agent launcher starts without a scope when the user manager does not answer" "argv: ${launch_args[*]}"
+pass "agent launcher starts without a scope when the user manager does not answer"
+
+rm "$runtime_dir/systemd/private"
 
 printf '%s\n' "missing" >"$agent_file"
 if OMARCHY_TEST_MISSING_COMMAND=missing omarchy-agent >"$test_tmp/missing-output" 2>&1; then
