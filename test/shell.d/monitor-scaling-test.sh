@@ -16,18 +16,30 @@ scale_log="$home_dir/.local/state/omarchy/monitor-scaling.log"
 mkdir -p "$stub_bin" "$home_dir/.config/hypr"
 
 cat >"$stub_bin/hyprctl" <<'SH'
-#!/bin/bash
-
-if [[ $1 == "monitors" && $2 == "-j" && -n ${OMARCHY_TEST_MONITORS_JSON:-} ]]; then
-  printf '%s' "$OMARCHY_TEST_MONITORS_JSON"
-elif [[ $1 == "monitors" && $2 == "-j" ]]; then
-  printf '[{"name":"eDP-1","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0}]' \
-    "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
-elif [[ $1 == "eval" ]]; then
-  printf '%s\n' "$2" >"$OMARCHY_TEST_HYPRCTL_EVAL_OUT"
-else
-  exit 1
-fi
+#!/usr/bin/python3
+import json, os, re, sys
+from pathlib import Path
+out = Path(os.environ["OMARCHY_TEST_HYPRCTL_EVAL_OUT"])
+if sys.argv[1] == "monitors":
+  if out.with_suffix(".json").exists():
+    print(out.with_suffix(".json").read_text())
+  else:
+    print(os.environ.get("OMARCHY_TEST_MONITORS_JSON") or json.dumps([{
+      "name": "eDP-1", "focused": True, "x": 0, "y": 0,
+      "scale": json.loads(os.environ.get("OMARCHY_TEST_MONITOR_SCALE", "2")),
+      "width": int(os.environ.get("OMARCHY_TEST_MONITOR_WIDTH", 2880)),
+      "height": int(os.environ.get("OMARCHY_TEST_MONITOR_HEIGHT", 1800)),
+      "refreshRate": 120.0}]))
+elif sys.argv[1] == "eval":
+  out.write_text(sys.argv[2] + "\n")
+  monitors = []
+  for name, w, h, hz, x, y, scale, transform in re.findall(
+      r'output = "([^"]+)", mode = "(\d+)x(\d+)@([\d.]+)", position = "(-?\d+)x(-?\d+)", scale = ([\d.]+), transform = (\d+)', sys.argv[2]):
+    monitors.append(dict(name=name, width=int(w), height=int(h), refreshRate=float(hz),
+                         x=int(x), y=int(y), scale=float(scale), transform=int(transform)))
+  out.with_suffix(".json").write_text(json.dumps(monitors))
+else:
+  sys.exit(1)
 SH
 chmod +x "$stub_bin/hyprctl"
 
@@ -39,7 +51,9 @@ LUA
 }
 
 run_scaling() {
-  HOME="$home_dir" \
+  rm -f "$eval_out.json"
+  OMARCHY_PATH="$ROOT" \
+    HOME="$home_dir" \
     XDG_STATE_HOME="$home_dir/.local/state" \
     PATH="$stub_bin:$PATH" \
     OMARCHY_TEST_HYPRCTL_EVAL_OUT="$eval_out" \
@@ -134,7 +148,7 @@ pass "monitor scaling down skips duplicate approximation"
 
 # With several monitors, --monitor scales the named one and persists it to a
 # rule of its own, leaving the catch-all (and so the other display) alone.
-two_monitors='[{"name":"eDP-1","focused":true,"scale":2,"width":2880,"height":1800,"refreshRate":120.0},{"name":"DP-1","focused":false,"scale":2,"width":5120,"height":2880,"refreshRate":60.0}]'
+two_monitors='[{"name":"eDP-1","x":0,"y":0,"focused":true,"scale":2,"width":2880,"height":1800,"refreshRate":120.0},{"name":"DP-1","x":1440,"y":0,"focused":false,"scale":2,"width":5120,"height":2880,"refreshRate":60.0}]'
 
 write_catch_all_config() {
   cat >"$monitor_lua" <<'LUA'
@@ -152,13 +166,13 @@ grep -F 'output = "DP-1"' "$eval_out" >/dev/null || fail "monitor scaling --moni
 grep -F 'scale = 3.2' "$eval_out" >/dev/null || fail "monitor scaling --monitor cleans the scale for the named monitor"
 grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling --monitor leaves the catch-all scale alone"
 grep -Fx 'local omarchy_gdk_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling --monitor leaves GDK scale alone"
-[[ $(sed -n 6p "$monitor_lua") == 'hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", scale = 3.2 })' ]] ||
+grep -F 'output = "DP-1", mode = "preferred", position = "1440x0", scale = 3.2' "$monitor_lua" >/dev/null ||
   fail "monitor scaling --monitor adds a rule after the catch-all" "$(cat "$monitor_lua")"
 pass "monitor scaling --monitor persists a per-monitor rule"
 
 OMARCHY_TEST_MONITORS_JSON="$two_monitors" run_scaling --monitor DP-1 2
 [[ $(grep -c 'output = "DP-1"' "$monitor_lua") == 1 ]] || fail "monitor scaling updates an existing rule instead of adding another"
-grep -F 'output = "DP-1", mode = "preferred", position = "auto", scale = 2 })' "$monitor_lua" >/dev/null ||
+grep -F 'output = "DP-1", mode = "preferred", position = "1440x0", scale = 2' "$monitor_lua" >/dev/null ||
   fail "monitor scaling updates the existing rule's scale"
 pass "monitor scaling updates an existing per-monitor rule"
 
@@ -168,7 +182,7 @@ write_catch_all_config
 OMARCHY_TEST_MONITORS_JSON="$two_monitors" run_scaling 1.6
 grep -F 'output = "eDP-1"' "$eval_out" >/dev/null || fail "monitor scaling defaults to the focused monitor"
 grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling keeps the catch-all with several monitors"
-grep -F 'output = "eDP-1", mode = "preferred", position = "auto", scale = 1.6 })' "$monitor_lua" >/dev/null ||
+grep -F 'output = "eDP-1", mode = "preferred", position = "0x0", scale = 1.6' "$monitor_lua" >/dev/null ||
   fail "monitor scaling persists the focused monitor's own rule"
 pass "monitor scaling keeps multi-monitor scales independent"
 
@@ -180,3 +194,16 @@ if OMARCHY_TEST_MONITORS_JSON="$two_monitors" run_scaling --monitor 2>/dev/null;
   fail "monitor scaling rejects --monitor without a name"
 fi
 pass "monitor scaling rejects --monitor without a name"
+
+write_catch_all_config
+run_scaling --monitor eDP-1 --mode 1280x720@60 1.6
+grep -F 'mode = "1280x720@60.0"' "$eval_out" >/dev/null || fail "mode change is applied with the new scale"
+grep -F 'mode = "1280x720@60"' "$monitor_lua" >/dev/null || fail "mode change persists with the scale"
+pass "monitor mode changes use the same layout planner"
+
+before=$(cat "$monitor_lua")
+if run_scaling --mode invalid 2 >/dev/null 2>&1; then
+  fail "invalid mode must be refused"
+fi
+[[ $(cat "$monitor_lua") == "$before" ]] || fail "invalid mode leaves config untouched"
+pass "monitor scaling rejects invalid modes without changing config"

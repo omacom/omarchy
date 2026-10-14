@@ -1,16 +1,17 @@
 #!/bin/bash
 
 # omarchy:summary=Show, set, or adjust Hyprland monitor scaling
-# omarchy:args=[--monitor NAME] [up|down|SCALE]
+# omarchy:args=[--monitor NAME] [--mode WIDTHxHEIGHT@RATE] [up|down|SCALE]
 # omarchy:examples=omarchy hyprland monitor scaling | omarchy hyprland monitor scaling 1.6 | omarchy hyprland monitor scaling up | omarchy hyprland monitor scaling --monitor DP-1 2
 
 SCALES=(1 1.25 1.6 2 3 4)
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 SCALE_LOG="$STATE_DIR/monitor-scaling.log"
 TARGET_MONITOR=""
+TARGET_MODE=""
 
 usage() {
-  echo "Usage: omarchy-hyprland-monitor-scaling [--monitor NAME] [up|down|SCALE]"
+  echo "Usage: omarchy-hyprland-monitor-scaling [--monitor NAME] [--mode WIDTHxHEIGHT@RATE] [up|down|SCALE]"
 }
 
 # The monitor to act on: the one named with --monitor, else the focused one.
@@ -62,21 +63,6 @@ audit_scale_change() {
     "$grandparent_cmd" >>"$SCALE_LOG"
 }
 
-# Hyprland only accepts scales where the mode divides into whole logical
-# pixels (in 1/120 steps), so clean scales are divisors of gcd(w*120, h*120).
-# Round the requested scale up to the nearest clean value.
-clean_scale() {
-  awk -v scale="$1" -v width="$2" -v height="$3" '
-    function gcd(a, b, t) { while (b) { t = a % b; a = b; b = t } return a }
-    BEGIN {
-      g = gcd(width * 120, height * 120)
-      k = int(scale * 120 + 0.5)
-      if (k > g) k = g
-      while (g % k != 0) k++
-      printf "%g\n", k / 120
-    }'
-}
-
 normalize_scale() {
   awk 'NR == 1 { printf "%g\n", $0 }'
 }
@@ -84,65 +70,17 @@ normalize_scale() {
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
-  local monitor_info="$(target_monitor_info)"
-  local active_monitor="$(echo "$monitor_info" | jq -r '.name')"
-  local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
-  local width="$(echo "$monitor_info" | jq -r '.width')"
-  local height="$(echo "$monitor_info" | jq -r '.height')"
-  local refresh_rate="$(echo "$monitor_info" | jq -r '.refreshRate')"
+  local monitors_json monitor_info active_monitor current_scale new_scale
+  monitors_json=$(hyprctl monitors -j) || return 1
+  monitor_info=$(jq -e -c --arg name "$TARGET_MONITOR" \
+    '.[] | select(if $name == "" then .focused == true else .name == $name end)' <<<"$monitors_json") || return 1
+  active_monitor=$(jq -r '.name' <<<"$monitor_info")
+  current_scale=$(jq -r '.scale' <<<"$monitor_info")
 
-  # active_monitor is written into the Lua string eval'd below, so only a plain
-  # connector name may pass; a hostile output name could execute otherwise.
-  if [[ ! $active_monitor =~ ^[A-Za-z0-9._-]+$ ]]; then
-    echo "Refusing unsafe monitor name" >&2
-    exit 1
-  fi
-
-  local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
-  # GTK only honors integer GDK_SCALE values, so persist the nearest whole
-  # factor even when the monitor scale itself is fractional.
-  local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
-  local monitor_lua="$HOME/.config/hypr/monitors.lua"
-
-  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
+  new_scale=$(python3 "$OMARCHY_PATH/default/hypr/monitor-layout.py" \
+    "$active_monitor" "$requested_scale" "$HOME/.config/hypr/monitors.lua" "$TARGET_MODE" \
+    <<<"$monitors_json") || return 1
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
-
-  # Persist to monitors.lua so the scale survives reboots. A monitor with its
-  # own rule keeps its scale there. With several monitors connected, the scale
-  # gets a rule of its own too, so it doesn't leak through the catch-all onto
-  # the other displays on the next reload. A single monitor keeps using
-  # Omarchy's generic catch-all defaults.
-  local monitor_count="$(hyprctl monitors -j | jq -r 'length')"
-
-  if [[ -f $monitor_lua ]] && grep -Eq "^hl\.monitor\(\{ output = \"$active_monitor\",.* scale = [0-9.]+" "$monitor_lua"; then
-    sed -i -E "/^hl\.monitor\(\{ output = \"$active_monitor\",/s|( scale = )[0-9.]+|\1${new_scale}|" "$monitor_lua"
-  elif [[ -f $monitor_lua ]] && (( monitor_count > 1 )); then
-    add_monitor_rule "$monitor_lua" "hl.monitor({ output = \"$active_monitor\", mode = \"preferred\", position = \"auto\", scale = $new_scale })"
-  elif [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
-    sed -i -E \
-      -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
-      -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
-      "$monitor_lua"
-  elif [[ -f $monitor_lua ]] && grep -Eq '^hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("auto"|[0-9.]+) \}\)' "$monitor_lua"; then
-    sed -i -E \
-      -e "s|^(hl\.monitor\(\{ output = \"\", mode = \"preferred\", position = \"auto\", scale = )([^ ]+)( \}\))|\\1${new_scale}\\3|" \
-      -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
-      "$monitor_lua"
-  fi
-}
-
-# Place a per-monitor rule right after the catch-all so it overrides it, or at
-# the end when there is no catch-all.
-add_monitor_rule() {
-  local monitor_lua="$1"
-  local rule="$2"
-
-  if grep -q '^hl\.monitor({ output = "",' "$monitor_lua"; then
-    RULE="$rule" awk '{ print } !done && /^hl\.monitor\(\{ output = "",/ { print ENVIRON["RULE"]; done = 1 }' "$monitor_lua" >"$monitor_lua.tmp"
-    mv "$monitor_lua.tmp" "$monitor_lua"
-  else
-    printf '%s\n' "$rule" >>"$monitor_lua"
-  fi
 }
 
 scale_from_current() {
@@ -204,18 +142,26 @@ scale_from_current() {
     }'
 }
 
-if [[ ${1:-} == "--monitor" ]]; then
-  TARGET_MONITOR="${2:-}"
-  if [[ -z $TARGET_MONITOR ]]; then
+while [[ ${1:-} == "--monitor" || ${1:-} == "--mode" ]]; do
+  if [[ -z ${2:-} ]]; then
     usage >&2
     exit 1
   fi
+  if [[ $1 == "--monitor" ]]; then
+    TARGET_MONITOR="$2"
+  else
+    TARGET_MODE="$2"
+  fi
   shift 2
-fi
+done
 
 case "${1:-}" in
 "")
-  target_monitor_scale | normalize_scale
+  if [[ -n $TARGET_MODE ]]; then
+    set_scale "$(target_monitor_scale)"
+  else
+    target_monitor_scale | normalize_scale
+  fi
   ;;
 -h | --help)
   usage
