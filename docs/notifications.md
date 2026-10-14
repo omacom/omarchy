@@ -14,11 +14,12 @@ The end-user view (hotkey notices for time, battery, weather) is in
 
 ## Toast lifecycle
 
-A toast lives on screen for at least 5s (low), 8s (normal), or forever
-(critical), stretched up to 30s if the sender asked for a longer
-`expire_timeout`. Hovering pauses the countdown, and a content update restarts
-it — new text deserves a full look. Left-click invokes the default action,
-right-click or the hover-revealed close button dismisses.
+A toast lives on screen for at least 5s (low) or 8s (normal, and a critical
+toast whose sender asked for a timeout). A critical toast that asked for
+nothing waits for the user instead. A requested `expire_timeout` is honoured
+up to a 30s ceiling. Hovering pauses the countdown, and a content update
+restarts it - new text deserves a full look. Left-click invokes the default
+action, right-click or the hover-revealed close button dismisses.
 
 Every on-screen popup is mirrored to its own file under
 `~/.local/state/omarchy/notifications/` (one JSON line per file, named
@@ -78,6 +79,8 @@ flags map onto that call:
 | `--app-name` | `app_name` | defaults to `omarchy-action` |
 | `-u` / `--urgency` | hint `urgency` (byte) | `low`/`normal`/`critical`; defaults to `low` |
 | `-t` / `--expire-time` | `expire_timeout` | milliseconds on screen; server default otherwise |
+| `-r` / `--replace-id` | `replaces_id` | updates the notification the server already holds under that id instead of adding one. The id is the server's, so learn it with `-p` rather than inventing a number: a number nobody handed out names whichever live notification happens to hold it |
+| `-p` / `--print-id` | the `Notify` return value | prints the id the notification now holds, for the next `-r`. A replacement prints the id it replaced |
 
 Unknown flags are a hard error, not a silent pass-through: `--exec` is the only
 door to a click command, and there is no generic option pass-through to smuggle
@@ -172,7 +175,11 @@ Everything goes through the same sender contract, so the pieces are small:
   critical toast whose click runs `omarchy-agent-crash` (via `--exec`, so a
   hostile process name stays a discrete argument). It waits for the
   server first: a shell crash takes the notification server down with it, and
-  that crash is the one most worth reporting.
+  that crash is the one most worth reporting. A crash loop re-announces the
+  same program every window, so each toast is sent with the id the server gave
+  it last time (`-p`, then `-r`): the announcement updates that one toast
+  instead of adding another waiting one, which is what would otherwise pile up
+  on a machine nobody is sitting at.
 - **Pending migrations** — `omarchy-migrate-notify` (from its user service
   after `graphical-session.target`) waits for the server, then sends a
   critical toast whose click opens a terminal running `omarchy-migrate`,
