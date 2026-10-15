@@ -84,7 +84,7 @@ Adding an agent needs no QML changes: ship a collector that follows the contract
 | `vibe` | None (Mistral publishes no usage limits) | Vibe's per-session `meta.json` under `~/.vibe/logs/session` (`VIBE_HOME`), only sessions on a Mistral-served model, plus pi/omp and opencode sessions on the `mistral` provider |
 | `qwen` | None (Qwen Code reads no quota) | Session transcripts under `~/.qwen/projects/*/chats` (`QWEN_HOME`, `QWEN_RUNTIME_DIR`, `advanced.runtimeOutputDir`): billed API responses and typed prompts |
 | `opencode` | OpenCode Go's usage endpoint (rolling + weekly + monthly), with an API key or the Console session; a key without a Go plan shows local usage alone | pi and omp sessions (profiles included) on the Zen and Go providers, plus opencode's own `message` and `session_message` stores |
-| `zai` | Z.ai's coding-plan monitor endpoint (5-hour session + 7-day weekly), for keys that carry a GLM Coding Plan | pi, omp, and opencode sessions on the `zai` and `zhipu` providers (`glm-*` models) |
+| `zai` | Z.ai's coding-plan monitor endpoint (5-hour session + 7-day weekly), for keys that carry a GLM Coding Plan | pi, omp, and opencode sessions on Z.ai's and Zhipu's providers (`glm-*` models) |
 | `ollama` | Ollama Cloud's usage endpoint (5-hour session + 7-day weekly, without reset times) | pi, omp, and opencode sessions on the `ollama-cloud` provider, plus cloud-tagged models reached through the local daemon's `ollama` provider |
 | `minimax` | MiniMax Token Plan API (5-hour session + 7-day weekly) | MiniMax Code's session files under `~/.minimax/v2/sessions`, plus pi, omp, and opencode sessions on a MiniMax provider |
 | `openrouter` | Prepaid balance from `/credits`, key-limit meter from `/key`, each kept stale past a failed check | opencode and pi/omp sessions on the OpenRouter provider, with or without a key, or the `/activity` billing API with a management key |
@@ -192,7 +192,7 @@ The Go meters read `OPENCODE_API_KEY` or `OPENCODE_GO_API_KEY` first, then the k
 
 ### Z.ai
 
-Z.ai limits need a key that carries a GLM Coding Plan. A pay-as-you-go key reports "no coding plan", which is no trouble: the panel shows local stats alone. The key comes from `~/.config/omarchy/agents/zai.json`, then `ZAI_API_KEY` / `ZHIPU_API_KEY` in the environment, then pi/omp's `.env`, then the key pi or omp saved in `auth.json`. Set `platform` to `"zhipu"` in the config for the China (`open.bigmodel.cn`) host. Local stats count pi, omp, and opencode sessions on the `zai` and `zhipu` providers.
+Z.ai limits need a key that carries a GLM Coding Plan. A pay-as-you-go key reports "no coding plan", which is no trouble: the panel shows local stats alone. The key comes from `~/.config/omarchy/agents/zai.json`, then `ZAI_API_KEY` / `ZHIPU_API_KEY` in the environment, then pi/omp's `.env`, then the key pi or omp saved in `auth.json`. Set `platform` to `"zhipu"` in the config for the China (`open.bigmodel.cn`) host. Local stats count pi sessions on the `zai` and `zai-coding-cn` providers, omp sessions on `zai` and `zhipu-coding-plan`, and opencode sessions on `zai`, `zai-coding-plan`, `zhipuai`, and `zhipuai-coding-plan`.
 
 ### Ollama Cloud
 

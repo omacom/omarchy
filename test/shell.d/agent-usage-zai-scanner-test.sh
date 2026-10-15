@@ -15,7 +15,7 @@ timestamp="${today}T12:00:00Z"
 
 # One session file exercises the whole scan contract:
 #   a  zai, today, with reasoning + cache tokens        -> counted, today
-#   b  zhipu, today                                     -> counted, today
+#   b  zai-coding-cn, today                             -> counted, today
 #   c  openai provider                                  -> ignored
 #   d  zai but a user turn                              -> ignored
 #   a' a repeated message id                            -> deduped
@@ -24,7 +24,7 @@ timestamp="${today}T12:00:00Z"
 session="$TEST_HOME/.pi/agent/sessions/project/pi.jsonl"
 cat >"$session" <<EOF
 {"type":"message","id":"a","timestamp":"$timestamp","message":{"role":"assistant","provider":"zai","model":"glm-5.3","usage":{"input":10,"output":4,"reasoning":6,"cacheRead":3,"cacheWrite":2}}}
-{"type":"message","id":"b","timestamp":"$timestamp","message":{"role":"assistant","provider":"zhipu","model":"glm-4.7","usage":{"input":20,"output":5}}}
+{"type":"message","id":"b","timestamp":"$timestamp","message":{"role":"assistant","provider":"zai-coding-cn","model":"glm-4.7","usage":{"input":20,"output":5}}}
 {"type":"message","id":"c","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai","model":"gpt","usage":{"input":999,"output":999}}}
 {"type":"message","id":"d","timestamp":"$timestamp","message":{"role":"user","provider":"zai","model":"glm-5.3","usage":{"input":500,"output":500}}}
 {"type":"message","id":"a","timestamp":"$timestamp","message":{"role":"assistant","provider":"zai","model":"glm-5.3","usage":{"input":77,"output":77}}}
@@ -33,7 +33,7 @@ cat >"$session" <<EOF
 EOF
 
 run() {
-  env -u ZAI_API_KEY -u ZHIPU_API_KEY -u ZHIPUAI_API_KEY \
+  env -u ZAI_API_KEY -u ZHIPU_API_KEY -u ZHIPUAI_API_KEY -u ZAI_CODING_CN_API_KEY \
     HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_HOME/.config" XDG_CACHE_HOME="$TEST_HOME/.cache" \
     "$ROOT/bin/omarchy-agent-usage-zai" "$@"
 }
@@ -122,7 +122,7 @@ line() {
 } >"$ROOTS_HOME/.pi/profiles/home/agent/sessions/p/fork.jsonl"
 line '"id":"moved",' "\"$timestamp\"" 1000 >"$ROOTS_HOME/moved/sessions/p/m.jsonl"
 
-roots=$(env -u ZAI_API_KEY -u ZHIPU_API_KEY -u ZHIPUAI_API_KEY \
+roots=$(env -u ZAI_API_KEY -u ZHIPU_API_KEY -u ZHIPUAI_API_KEY -u ZAI_CODING_CN_API_KEY \
   HOME="$ROOTS_HOME" PI_CODING_AGENT_DIR="$ROOTS_HOME/moved" XDG_CONFIG_HOME="$ROOTS_HOME/.config" XDG_CACHE_HOME="$ROOTS_HOME/.cache" \
   "$ROOT/bin/omarchy-agent-usage-zai" --force)
 [[ $(jq -r '.todayTotalTokens' <<<"$roots") == "1112" && $(jq -r '.totalPrompts' <<<"$roots") == "5" ]] ||
@@ -170,16 +170,16 @@ PY
 OC_HOME=$(mktemp -d)
 trap 'rm -rf "$TEST_HOME" "$ROOTS_HOME" "$OC_HOME"' EXIT
 mkdir -p "$OC_HOME/.local/share/opencode"
-opencode_fixture "$OC_HOME/.local/share/opencode/opencode.db" zai glm-5.3 zhipu glm-4.7 opencode glm-5.3
+opencode_fixture "$OC_HOME/.local/share/opencode/opencode.db" zai-coding-plan glm-5.3 zhipuai-coding-plan glm-4.7 opencode glm-5.3
 oc_run() {
-  env -u ZAI_API_KEY -u ZHIPU_API_KEY -u ZHIPUAI_API_KEY -u PI_CODING_AGENT_DIR -u XDG_DATA_HOME -u OPENCODE_DB "$@" \
+  env -u ZAI_API_KEY -u ZHIPU_API_KEY -u ZHIPUAI_API_KEY -u ZAI_CODING_CN_API_KEY -u PI_CODING_AGENT_DIR -u XDG_DATA_HOME -u OPENCODE_DB "$@" \
     HOME="$OC_HOME" XDG_CONFIG_HOME="$OC_HOME/.config" XDG_CACHE_HOME="$OC_HOME/.cache" \
     "$ROOT/bin/omarchy-agent-usage-zai" --force
 }
 oc=$(oc_run)
 [[ $(jq -c '[.todayTotalTokens, .totalPrompts, .modelUsage["glm-5.3"].outputTokens, .modelUsage["glm-4.7"].inputTokens]' <<<"$oc") == "[141,4,7,80]" ]] ||
-  fail "Z.ai collector counts zai and zhipu rows from both opencode stores once, skipping fork copies" "$oc"
-pass "Z.ai collector counts zai and zhipu rows from both opencode stores once"
+  fail "Z.ai collector counts opencode's coding plan rows from both stores once, skipping fork copies" "$oc"
+pass "Z.ai collector counts opencode's coding plan rows from both stores once"
 
 # OPENCODE_DB names the database opencode reads, a relative name beside the
 # default one; opencode-v2.db is read only when opencode.db is absent.

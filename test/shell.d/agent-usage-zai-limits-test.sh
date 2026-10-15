@@ -206,7 +206,7 @@ pass "Z.ai collector does not follow a planted lock symlink"
 
 # A machine that has never used Z.ai prints the full, zeroed record the panel
 # skips, with no status to alarm anyone.
-unused=$(env -u ZAI_API_KEY -u ZHIPU_API_KEY -u ZHIPUAI_API_KEY -u PI_CODING_AGENT_DIR \
+unused=$(env -u ZAI_API_KEY -u ZHIPU_API_KEY -u ZHIPUAI_API_KEY -u ZAI_CODING_CN_API_KEY -u PI_CODING_AGENT_DIR \
   HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_HOME/.config" XDG_CACHE_HOME="$TEST_HOME/.cache" \
   "$ROOT/bin/omarchy-agent-usage-zai")
 [[ $(jq -c '{ready, usageStatusText, authHelpText, limits, limitsStale, limitsFetchedAt, totalPrompts, days: (.recentDays | length), modelUsage}' <<<"$unused") == '{"ready":false,"usageStatusText":"","authHelpText":"","limits":[],"limitsStale":false,"limitsFetchedAt":0,"totalPrompts":0,"days":7,"modelUsage":{}}' ]] ||
@@ -216,7 +216,7 @@ pass "Z.ai collector prints an empty, unready record on an unused machine"
 # A key pi saved with /login counts as a credential.
 mkdir -p "$TEST_HOME/.pi/agent"
 printf '{"zai":{"type":"api_key","key":"pi-saved"}}' >"$TEST_HOME/.pi/agent/auth.json"
-picked=$(env -u ZAI_API_KEY -u ZHIPU_API_KEY -u ZHIPUAI_API_KEY -u PI_CODING_AGENT_DIR HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_HOME/.config" \
+picked=$(env -u ZAI_API_KEY -u ZHIPU_API_KEY -u ZHIPUAI_API_KEY -u ZAI_CODING_CN_API_KEY -u PI_CODING_AGENT_DIR HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_HOME/.config" \
   COLLECTOR="$ROOT/bin/omarchy-agent-usage-zai" python3 - <<'PY'
 import importlib.machinery, importlib.util, json, os
 loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
@@ -229,3 +229,42 @@ PY
 [[ $picked == '["pi-saved", "zai"]' ]] ||
   fail "Z.ai collector reads the key pi saved in auth.json" "$picked"
 pass "Z.ai collector reads the key pi saved in auth.json"
+
+# pi saves the China coding plan's key under zai-coding-cn, on the BigModel host.
+printf '{"zai-coding-cn":{"type":"api_key","key":"pi-saved-cn"}}' >"$TEST_HOME/.pi/agent/auth.json"
+picked=$(env -u ZAI_API_KEY -u ZHIPU_API_KEY -u ZHIPUAI_API_KEY -u ZAI_CODING_CN_API_KEY -u PI_CODING_AGENT_DIR HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_HOME/.config" \
+  COLLECTOR="$ROOT/bin/omarchy-agent-usage-zai" python3 - <<'PY'
+import importlib.machinery, importlib.util, json, os
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+print(json.dumps(collector.credentials()))
+PY
+)
+[[ $picked == '["pi-saved-cn", "zhipu"]' ]] ||
+  fail "Z.ai collector reads pi's China coding plan key for the BigModel host" "$picked"
+pass "Z.ai collector reads pi's China coding plan key for the BigModel host"
+
+# omp saves it under zhipu-coding-plan, and pi also takes it from ZAI_CODING_CN_API_KEY.
+rm "$TEST_HOME/.pi/agent/auth.json"
+mkdir -p "$TEST_HOME/.omp/agent"
+printf '{"zhipu-coding-plan":{"type":"api_key","key":"omp-saved-cn"}}' >"$TEST_HOME/.omp/agent/auth.json"
+for case in "omp-saved-cn|" "env-cn|ZAI_CODING_CN_API_KEY=env-cn"; do
+  expected=${case%%|*}
+  read -ra assignment <<<"${case#*|}"
+  picked=$(env -u ZAI_API_KEY -u ZHIPU_API_KEY -u ZHIPUAI_API_KEY -u ZAI_CODING_CN_API_KEY -u PI_CODING_AGENT_DIR \
+    HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_HOME/.config" "${assignment[@]}" \
+    COLLECTOR="$ROOT/bin/omarchy-agent-usage-zai" python3 - <<'PY'
+import importlib.machinery, importlib.util, json, os
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+print(json.dumps(collector.credentials()))
+PY
+  )
+  [[ $picked == "[\"$expected\", \"zhipu\"]" ]] ||
+    fail "Z.ai collector finds the China coding plan key as $expected" "$picked"
+done
+pass "Z.ai collector finds omp's and pi's other China coding plan keys"
