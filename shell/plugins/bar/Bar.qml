@@ -156,6 +156,8 @@ Item {
   property real barDragOffsetX: 0
   property real barDragOffsetY: 0
   property bool barMoveActive: false
+  // Where the last move update left the pointer: off the bar strip or on it.
+  property bool barMovePointerOffStrip: false
   property string barMoveCandidate: ""
   property var barMoveWindow: null
   property var barMoveScreen: null
@@ -596,13 +598,31 @@ Item {
   function updateBarMove(screenPoint) {
     if (!barMoveActive || !barMoveScreen) return
     barMoveCandidate = nearestScreenEdge(screenPoint, barMoveScreen)
+    barMovePointerOffStrip = !BarModel.pointInBarStrip(screenPoint, position, barMoveScreen.width, barMoveScreen.height, thicknessFor(barMoveScreen))
   }
 
-  function clearBarMove() {
+  // Asks the moving panel's HoverHandler to give back the hover it counted.
+  signal barMoveHoverDropped(var window)
+
+  function clearBarMove(relocating) {
+    var window = barMoveWindow
+    var dropPeek = !!relocating || barMovePointerOffStrip
     barMoveActive = false
     barMoveCandidate = ""
     barMoveWindow = null
     barMoveScreen = null
+    barMovePointerOffStrip = false
+    // The expanded panel shrinks back to its strip, and a pointer it shrinks
+    // out from under may get no hover leave, which would leave barHoverCount
+    // stuck and hold the peek open. Settle it only when the bar relocates or
+    // the pointer ended off the strip; a press-and-hold released where it
+    // started keeps the hover it still has.
+    if (!dropPeek || !window) return
+    barMoveHoverDropped(window)
+    if (barHoverCount === 0) {
+      centerSectionRevealTimer.stop()
+      centerSectionRevealHeld = false
+    }
   }
 
   function finishBarMove() {
@@ -612,7 +632,7 @@ Item {
       return
     }
 
-    clearBarMove()
+    clearBarMove(true)
     setBarPosition(edge)
   }
 
@@ -1531,6 +1551,11 @@ Item {
   component BarPanel: PanelWindow {
     id: barWindow
 
+    // True while this surface owns an in-flight edge move. It then fills its
+    // output, still on the Top layer, so the gesture area that took the press
+    // keeps getting moves and the release after the pointer leaves the strip.
+    readonly property bool moveExpanded: root.barMoveActive && root.barMoveWindow === barWindow
+
     // Hiding parks the bar just past its screen edge instead of unmapping it.
     // Unmapping frees the layer surface and the whole scene graph, so every
     // reveal has to rebuild them — new surface, re-shaped glyphs, re-uploaded
@@ -1542,7 +1567,9 @@ Item {
     // instead of growing once the windows are laid out. The wait ends once, for
     // good: when the mode settles it, or after two seconds without one.
     visible: !remapGuard.remapping && (cutoutWaitOver || !cutoutPending)
-    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Auto
+    // Anchored to all four edges the zone would be ignored anyway; Ignore keeps
+    // it from reserving the whole output. Tiled clients reflow for the move.
+    exclusionMode: (root.barHidden || barWindow.moveExpanded) ? ExclusionMode.Ignore : ExclusionMode.Auto
 
     ScreenMoveRemap {
       id: remapGuard
@@ -1559,10 +1586,10 @@ Item {
     }
 
     anchors {
-      top: root.position === "top" || root.vertical
-      bottom: root.position === "bottom" || root.vertical
-      left: root.position === "left" || !root.vertical
-      right: root.position === "right" || !root.vertical
+      top: barWindow.moveExpanded || root.position === "top" || root.vertical
+      bottom: barWindow.moveExpanded || root.position === "bottom" || root.vertical
+      left: barWindow.moveExpanded || root.position === "left" || !root.vertical
+      right: barWindow.moveExpanded || root.position === "right" || !root.vertical
     }
 
     readonly property var panelMode: root.panelModeFor(screen)
@@ -1582,10 +1609,12 @@ Item {
 
     // The same thickness the bar publishes for its screen (screenBarSizes).
     readonly property int thickness: root.thicknessFor(screen)
+    readonly property color stripColor: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
 
-    implicitWidth: root.vertical ? thickness : 0
-    implicitHeight: root.vertical ? 0 : thickness
-    color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
+    implicitWidth: (!barWindow.moveExpanded && root.vertical) ? thickness : 0
+    implicitHeight: (!barWindow.moveExpanded && !root.vertical) ? thickness : 0
+    // Expanded, the panel itself is clear and the strip paints the bar.
+    color: barWindow.moveExpanded ? "transparent" : barWindow.stripColor
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
@@ -1598,10 +1627,23 @@ Item {
       // hovered while the pointer is over a widget, where a sibling would lose
       // hover to the section the pointer entered.
       HoverHandler {
-        onHoveredChanged: root.setBarHovered(hovered)
+        id: barHover
+        // What this surface has added to barHoverCount, so a move that settles
+        // the count and the leave that may still follow never both subtract.
+        property bool counted: false
+        onHoveredChanged: if (hovered !== counted) { counted = hovered; root.setBarHovered(hovered) }
         // Unplugging a monitor destroys its bar without a leave event, which
         // would strand this surface's tally and hold the peek open for good.
-        Component.onDestruction: if (hovered) root.setBarHovered(false)
+        Component.onDestruction: if (counted) root.setBarHovered(false)
+      }
+
+      Connections {
+        target: root
+        function onBarMoveHoverDropped(window) {
+          if (window !== barWindow || !barHover.counted) return
+          barHover.counted = false
+          root.setBarHovered(false)
+        }
       }
     }
 
@@ -1677,44 +1719,61 @@ Item {
 
         WidgetPool { id: horizontalPool }
 
-        CenterModules {
-          anchors.fill: parent
-          window: barWindow
-          pool: horizontalPool
-          drawn: !barWindow.centerBesideRight
-        }
+        // The one gesture area: strip-sized normally, the whole output while
+        // the panel is expanded for a move.
+        CenterGestureArea { anchors.fill: parent }
 
-        LeftModules {
-          window: barWindow
-          pool: horizontalPool
-          anchors.left: parent.left
-          anchors.leftMargin: Style.space(8)
-          anchors.verticalCenter: parent.verticalCenter
-        }
+        Item {
+          id: horizontalStrip
+          width: parent.width
+          height: barWindow.thickness
+          y: (barWindow.moveExpanded && root.position === "bottom") ? (parent.height - height) : 0
 
-        RightModules {
-          window: barWindow
-          pool: horizontalPool
-          id: rightModules
-          anchors.right: parent.right
-          anchors.rightMargin: Style.space(8)
-          anchors.verticalCenter: parent.verticalCenter
-        }
+          Rectangle {
+            anchors.fill: parent
+            visible: barWindow.moveExpanded
+            color: barWindow.stripColor
+          }
 
-        // Where a display notch covers the middle of the bar, the center
-        // sections run on just left of the right one. They keep their regions,
-        // so settings pushes, drag and drop, and panel routing still address
-        // them. The gap lets a drop at the seam land in the section the pointer
-        // is nearer to.
-        CenterSections {
-          window: barWindow
-          pool: horizontalPool
-          active: barWindow.centerBesideRight
-          besideRight: true
-          anchors.right: rightModules.left
-          anchors.rightMargin: Style.space(4)
-          anchors.top: parent.top
-          anchors.bottom: parent.bottom
+          CenterModules {
+            anchors.fill: parent
+            window: barWindow
+            pool: horizontalPool
+            drawn: !barWindow.centerBesideRight
+          }
+
+          LeftModules {
+            window: barWindow
+            pool: horizontalPool
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+          }
+
+          RightModules {
+            window: barWindow
+            pool: horizontalPool
+            id: rightModules
+            anchors.right: parent.right
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+          }
+
+          // Where a display notch covers the middle of the bar, the center
+          // sections run on just left of the right one. They keep their regions,
+          // so settings pushes, drag and drop, and panel routing still address
+          // them. The gap lets a drop at the seam land in the section the pointer
+          // is nearer to.
+          CenterSections {
+            window: barWindow
+            pool: horizontalPool
+            active: barWindow.centerBesideRight
+            besideRight: true
+            anchors.right: rightModules.left
+            anchors.rightMargin: Style.space(4)
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+          }
         }
       }
     }
@@ -1727,26 +1786,41 @@ Item {
 
         WidgetPool { id: verticalPool }
 
-        CenterModules {
-          anchors.fill: parent
-          window: barWindow
-          pool: verticalPool
-        }
+        CenterGestureArea { anchors.fill: parent }
 
-        LeftModules {
-          window: barWindow
-          pool: verticalPool
-          anchors.top: parent.top
-          anchors.topMargin: Style.space(8)
-          anchors.horizontalCenter: parent.horizontalCenter
-        }
+        Item {
+          id: verticalStrip
+          width: barWindow.thickness
+          height: parent.height
+          x: (barWindow.moveExpanded && root.position === "right") ? (parent.width - width) : 0
 
-        RightModules {
-          window: barWindow
-          pool: verticalPool
-          anchors.bottom: parent.bottom
-          anchors.bottomMargin: Style.space(8)
-          anchors.horizontalCenter: parent.horizontalCenter
+          Rectangle {
+            anchors.fill: parent
+            visible: barWindow.moveExpanded
+            color: barWindow.stripColor
+          }
+
+          CenterModules {
+            anchors.fill: parent
+            window: barWindow
+            pool: verticalPool
+          }
+
+          LeftModules {
+            window: barWindow
+            pool: verticalPool
+            anchors.top: parent.top
+            anchors.topMargin: Style.space(8)
+            anchors.horizontalCenter: parent.horizontalCenter
+          }
+
+          RightModules {
+            window: barWindow
+            pool: verticalPool
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Style.space(8)
+            anchors.horizontalCenter: parent.horizontalCenter
+          }
         }
       }
     }
@@ -1867,8 +1941,8 @@ Item {
     fixedEdge: "end"
   }
 
-  // The gesture area under the whole bar, with the center sections drawn over
-  // it in the middle of it.
+  // The center sections in the middle of the bar. The bar-move gesture area
+  // sits under the whole panel instead (BarPanel), so it can grow with it.
   component CenterModules: Item {
     id: centerRoot
 
@@ -1877,8 +1951,6 @@ Item {
     // False where a display notch has moved the center sections beside the
     // right one.
     property bool drawn: true
-
-    CenterGestureArea { anchors.fill: parent }
 
     CenterSections {
       anchors.fill: parent

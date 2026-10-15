@@ -107,7 +107,8 @@ assert(
 assert(
   /function thicknessFor\(screen\) \{\s*if \(root\.vertical \|\| !screen\) return root\.barSize\s*return Math\.max\(root\.barSize, BarModel\.notchFloor\(/.test(barSource) &&
     /readonly property int thickness: root\.thicknessFor\(screen\)/.test(barSource) &&
-    /implicitHeight: root\.vertical \? 0 : thickness/.test(barSource),
+    /implicitHeight: \(!barWindow\.moveExpanded && !root\.vertical\) \? thickness : 0/.test(barSource) &&
+    /id: horizontalStrip\s*width: parent\.width\s*height: barWindow\.thickness/.test(barSource),
   'bar height is floored at the cutout, never shrunk to it'
 )
 // A hidden bar parks by that same thickness (bar-test.sh), so a floored top
