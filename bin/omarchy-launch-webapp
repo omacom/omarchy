@@ -4,24 +4,52 @@
 # omarchy:args=<url>
 
 browser=$(omarchy-cmd-default-browser)
-
-case $browser in
-chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) browsers=("$browser") ;;
-# New installs have Chrome; older ones may only have the Chromium they shipped with.
-*) browsers=(google-chrome.desktop chromium.desktop) ;;
-esac
+chromium_browsers="chromium|chrome|brave|microsoft-edge|vivaldi|opera|helium"
 
 # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, as
 # omarchy-launch-browser does, so a browser it resolved is one this can start.
 IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+
+# Print the Exec= program of the first <desktop-file> found under <data-dir>/applications.
+desktop_exec() {
+  local desktop_file=$1 data_dir
+  shift
+  for data_dir in "$@"; do
+    if [[ -f $data_dir/applications/$desktop_file ]]; then
+      sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$data_dir/applications/$desktop_file" | head -1
+      return
+    fi
+  done
+}
+
+# A launcher of the user's own can open web apps when its Exec= runs a
+# Chromium-based browser, directly or through a wrapper script naming one.
+chromium_based() {
+  local program=$(desktop_exec "$1" "${data_dirs[@]}" ~/.nix-profile/share)
+
+  [[ -n $program ]] || return 1
+  [[ ${program##*/} =~ $chromium_browsers ]] ||
+    grep -qIE -- "--user-data-dir|$chromium_browsers" "$(type -P "$program")" 2>/dev/null
+}
+
+unsupported_default=""
+case $browser in
+chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) browsers=("$browser") ;;
+*)
+  if chromium_based "$browser"; then
+    browsers=("$browser")
+  else
+    # New installs have Chrome; older ones may only have the Chromium they shipped with.
+    browsers=(google-chrome.desktop chromium.desktop)
+    unsupported_default=${browser%.desktop}
+  fi
+  ;;
+esac
+
 browser_exec=""
 for browser in "${browsers[@]}"; do
-  for data_dir in "${data_dirs[@]}"; do
-    entry="$data_dir/applications/$browser"
-    [[ -f $entry ]] || continue
-    browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
-    break 2
-  done
+  browser_exec=$(desktop_exec "$browser" "${data_dirs[@]}")
+  [[ -z $browser_exec ]] || break
 done
 
 # Handing an empty command to uwsm-app surfaces as "Command not found: \"\"",
@@ -31,6 +59,15 @@ if [[ -z $browser_exec ]]; then
   echo "omarchy-launch-webapp: web apps need a Chromium-based browser; install Chromium with 'omarchy install browser chromium'" >&2
   omarchy-notification-send -u critical -g 󰖟 "$(omarchy-i18n browser.webappNeedsChromium)" "$(omarchy-i18n browser.webappNeedsChromiumHint)"
   exit 1
+fi
+
+if [[ -n $unsupported_default ]]; then
+  if [[ $browser == "google-chrome.desktop" ]]; then
+    fallback="Chrome"
+  else
+    fallback="Chromium"
+  fi
+  omarchy-notification-send "$(omarchy-i18n webapp.browserFallback "$unsupported_default" "$fallback")"
 fi
 
 if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then

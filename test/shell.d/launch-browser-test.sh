@@ -228,3 +228,74 @@ launch_webapp
 grep -F -- '-- google-chrome-stable --app=https://example.test/app' "$launch_log" >/dev/null ||
   fail "a web app falls back to Chrome over Chromium" "$(cat "$launch_log" 2>/dev/null)"
 pass "web app launcher falls back to Chrome, then Chromium, when the default is not Chromium-based"
+
+# A web app keeps a Chromium-based default, including a launcher of the user's
+# own whose wrapper runs Chromium, and falls back to Chrome or Chromium, saying
+# why, only when the default can't open web apps.
+cat >"$test_home/.local/share/applications/brave-browser.desktop" <<'EOF2'
+[Desktop Entry]
+Exec=brave %U
+EOF2
+cat >"$test_home/.local/share/applications/browseros.desktop" <<EOF2
+[Desktop Entry]
+Exec=$mock_bin/browseros %U
+EOF2
+cat >"$XDG_DATA_DIRS/applications/vendor-chromium.desktop" <<'EOF2'
+[Desktop Entry]
+Exec=vendor-chromium %U
+EOF2
+cat >"$mock_bin/browseros" <<'SH'
+#!/bin/bash
+exec /usr/lib/chromium/chromium --user-data-dir="$HOME/.config/browser-os" "$@"
+SH
+cat >"$mock_bin/omarchy-cmd-default-browser" <<'SH'
+#!/bin/bash
+echo "$OMARCHY_TEST_DEFAULT_BROWSER"
+SH
+cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
+#!/bin/bash
+exit 1
+SH
+cat >"$mock_bin/setsid" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+SH
+chmod +x "$mock_bin/browseros" "$mock_bin/omarchy-cmd-default-browser" "$mock_bin/omarchy-cmd-browser-handoff" "$mock_bin/setsid"
+
+launch_webapp_with_default() {
+  rm -f "$launch_log" "$notify_log"
+  HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_TEST_DEFAULT_BROWSER="$1" \
+    OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
+    bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/"
+}
+
+launch_webapp_with_default brave-browser.desktop
+[[ $(<"$launch_log") == "uwsm-app -- brave --app=https://example.test/" ]] ||
+  fail "web app opens in an allowlisted default browser" "$(<"$launch_log")"
+[[ ! -e $notify_log ]] || fail "an allowlisted default browser sends no notification"
+pass "web app opens in an allowlisted default browser"
+
+launch_webapp_with_default browseros.desktop
+[[ $(<"$launch_log") == "uwsm-app -- $mock_bin/browseros --app=https://example.test/" ]] ||
+  fail "web app opens in a default launcher wrapping Chromium" "$(<"$launch_log")"
+[[ ! -e $notify_log ]] || fail "a default launcher wrapping Chromium sends no notification"
+pass "web app keeps a default launcher whose wrapper runs Chromium"
+
+launch_webapp_with_default firefox.desktop
+[[ $(<"$launch_log") == "uwsm-app -- google-chrome-stable --app=https://example.test/" ]] ||
+  fail "web app falls back to Chrome when the default can't open web apps" "$(<"$launch_log")"
+grep -F "firefox can't open web apps, so they open in Chrome" "$notify_log" >/dev/null ||
+  fail "falling back to Chrome tells the user why" "$(cat "$notify_log" 2>/dev/null)"
+pass "web app falls back to Chrome and notifies when the default can't open web apps"
+
+launch_webapp_with_default ""
+[[ $(<"$launch_log") == "uwsm-app -- google-chrome-stable --app=https://example.test/" ]] ||
+  fail "web app opens in Chrome with no default browser" "$(<"$launch_log")"
+[[ ! -e $notify_log ]] || fail "no default browser sends no notification"
+pass "web app opens in Chrome quietly when there is no default browser"
+
+launch_webapp_with_default vendor-chromium.desktop
+[[ $(<"$launch_log") == "uwsm-app -- vendor-chromium --app=https://example.test/" ]] ||
+  fail "web app opens in a Chromium-based default found through XDG_DATA_DIRS" "$(<"$launch_log")"
+[[ ! -e $notify_log ]] || fail "a Chromium-based default from XDG_DATA_DIRS sends no notification"
+pass "web app keeps a Chromium-based default found through XDG_DATA_DIRS"
