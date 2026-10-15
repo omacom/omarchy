@@ -81,6 +81,11 @@ hl = setmetatable({
   dispatch = function() end,
   on = function() end,
   timer = function() end,
+  notification = {
+    create = function(notification)
+      print("notify\t" .. notification.text)
+    end,
+  },
   get_config = function() return nil end,
   get_active_window = function() return nil end,
 }, {
@@ -212,3 +217,30 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
 (( number_claims == 9 )) ||
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
+
+# Add-ons in ~/.config/hypr/extensions load in name order after the defaults,
+# so they can rebind them, and a broken one doesn't stop the rest.
+extensions_home="$tmpdir/extensions-home"
+extensions="$extensions_home/.config/hypr/extensions"
+mkdir -p "$extensions/nested"
+echo 'o.rebind("SUPER + W", "Extension close", "true")' >"$extensions/b-rebind.lua"
+echo 'o.bind("SUPER + F12", "Extension first", "true")' >"$extensions/a-first.lua"
+echo 'error("boom")' >"$extensions/c-broken.lua"
+echo 'o.bind("SUPER + F11", "Extension last", "true")' >"$extensions/d-last.lua"
+echo 'o.bind("SUPER + F10", "Nested extension", "true")' >"$extensions/nested/deep.lua"
+extensions_output=$(run_omarchy_bindings "$extensions_home") || fail "a config with extensions loads" "$extensions_output"
+default_close=$(grep -nxF $'SUPER + W\tClose window' <<<"$extensions_output" | cut -d: -f1)
+order=$(grep -E $'\tExtension |^notify\t' <<<"$extensions_output" | cut -f2 | cut -d" " -f1-5)
+expected=$'Extension first\nExtension close\nCould not load Hyprland extension\nExtension last'
+[[ $order == "$expected" ]] || fail "extensions load in name order, skipping a broken one" "$extensions_output"
+(( default_close < $(grep -nxF $'SUPER + W\tExtension close' <<<"$extensions_output" | cut -d: -f1) )) ||
+  fail "extensions load after Omarchy's default bindings" "$extensions_output"
+if grep -q 'Nested extension' <<<"$extensions_output"; then
+  fail "only top-level extension files load" "$extensions_output"
+fi
+pass "extensions load in name order after the defaults, and a broken one is reported and skipped"
+
+no_defaults_output=$(run_omarchy_bindings "$extensions_home" 'omarchy_default_bindings = false')
+grep -qxF $'SUPER + F12\tExtension first' <<<"$no_defaults_output" ||
+  fail "extensions load with Omarchy's default bindings off" "$no_defaults_output"
+pass "extensions load with Omarchy's default bindings off"
