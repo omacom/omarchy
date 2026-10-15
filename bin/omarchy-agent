@@ -176,7 +176,8 @@ kiro-cli)
   ;;
 vibe)
   # A positional prompt seeds the interactive session; -p would run it headless.
-  command=(vibe --auto-approve)
+  # --auto-approve covers tool calls only; the workspace trust prompt has --trust.
+  command=(vibe --auto-approve --trust)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 freebuff)

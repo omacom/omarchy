@@ -991,7 +991,7 @@ assert_launched dsh "keeps an option-like prompt literal" env DSH_PERMISSION_MOD
 assert_launch mcode mcode -- "Review this project"
 assert_launch goose env GOOSE_MODE=auto goose run --interactive "--text=Review this project"
 assert_launch kiro-cli kiro-cli chat --trust-all-tools -- "Review this project"
-assert_launch vibe vibe --auto-approve -- "Review this project"
+assert_launch vibe vibe --auto-approve --trust -- "Review this project"
 : >"$notification_history"
 assert_launch freebuff freebuff
 assert_launch zeroclaw zerocode
@@ -1037,7 +1037,7 @@ assert_bypass dsh env DSH_PERMISSION_MODE=danger-full-access dsh web
 assert_bypass mcode mcode
 assert_bypass goose env GOOSE_MODE=auto goose
 assert_bypass kiro-cli kiro-cli chat --trust-all-tools
-assert_bypass vibe vibe --auto-approve
+assert_bypass vibe vibe --auto-approve --trust
 : >"$clipboard_log"
 : >"$notification_history"
 assert_bypass freebuff freebuff
