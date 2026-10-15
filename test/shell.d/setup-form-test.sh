@@ -159,7 +159,7 @@ OMARCHY_FORM_DEFAULTS="$tmp_dir/form-defaults" OMARCHY_FORM_KEYBOARD_DEFAULT=Jap
 grep -qF -- '--selected Japanese' "$GUM_ARGS" || fail "the live installer's environment wins over the file"
 pass "a first-boot owner setup reads the media's defaults as data"
 
-for selection in 'Japanese|jp106|mozc|' 'Japanese (US keyboard)|us|mozc|' 'Korean|us|hangul|kr:kr104' 'Lao|us|none|la' 'Chinese (Simplified, Pinyin)|us|pinyin|' 'Taiwan (Zhuyin)|us|chewing|' 'Hong Kong (Cangjie)|us|cangjie5|'; do
+for selection in 'Japanese|jp106|mozc|' 'Japanese (US keyboard)|us|mozc|' 'Korean|us|hangul|kr:kr104' 'Lao|us|none|la' 'Arabic|us|none|ara' 'Bengali|us|none|bd' 'Hindi|us|none|in' 'Sinhala|us|none|lk' 'Tamil|us|none|in:tamilnet' 'Thai|us|none|th' 'Urdu|us|none|pk' 'Chinese (Simplified, Pinyin)|us|pinyin|' 'Taiwan (Zhuyin)|us|chewing|' 'Hong Kong (Cangjie)|us|cangjie5|'; do
   IFS='|' read -r label keymap method layout <<< "$selection"
   run_prompt omarchy_prompt_keyboard "0:$label"
   assert_status 0 "$label can be selected at install"
@@ -174,6 +174,15 @@ keyboard_input_method=hangul keyboard_xkb_layout=kr:kr104 omarchy_persist_input_
 [[ $(<"$tmp_dir/target/etc/omarchy/input-method") == $'INPUT_METHOD=hangul\nXKB_LAYOUT=kr:kr104' ]] || fail "first-boot setup persists the Korean Right Alt variant"
 keyboard_input_method=hangul keyboard_xkb_layout=kr:dvorak omarchy_persist_input_selection "$tmp_dir/target" && fail "an unknown desktop variant is refused"
 pass "first-boot setup persists the selection for user finalization"
+
+for layout in ara bd in in:tamilnet lk pk th; do
+  keyboard_input_method=none keyboard_xkb_layout=$layout omarchy_persist_input_selection "$tmp_dir/target" || fail "first-boot setup accepts the $layout desktop layout"
+  [[ $(<"$tmp_dir/target/etc/omarchy/input-method") == "INPUT_METHOD=none"$'\n'"XKB_LAYOUT=$layout" ]] || fail "first-boot setup persists the $layout desktop layout"
+done
+pass "first-boot setup persists the non-Latin desktop layouts"
+
+keyboard_input_method=none keyboard_xkb_layout=vn omarchy_persist_input_selection "$tmp_dir/target" && fail "first-boot setup rejects an unlisted desktop layout"
+pass "first-boot setup rejects an unlisted desktop layout"
 
 run_prompt omarchy_prompt_keyboard "1:"
 assert_status "$OMARCHY_FORM_BACK" "keyboard prompt reports Esc as back"
