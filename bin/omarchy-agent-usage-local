@@ -92,7 +92,7 @@ CLAIMED_PROVIDERS = {
   "opencode", "opencode-go",  # opencode
   "openrouter",  # openrouter
   "synthetic",  # synthetic
-  "zai", "zhipu",  # zai
+  "zai", "zai-coding-cn", "zai-coding-plan", "zhipu-coding-plan", "zhipuai", "zhipuai-coding-plan",  # zai
 }
 
 # The Codex collector counts rollouts on the built-in provider, and ones too
