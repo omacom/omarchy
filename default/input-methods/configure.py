@@ -168,7 +168,7 @@ def selection():
   preference = values(read(Path(os.environ.get("OMARCHY_INPUT_SELECTION", "/etc/omarchy/input-method"))))
   layout = vconsole.get("XKBLAYOUT", "us").split(",")[0] or "us"
   variant = vconsole.get("XKBVARIANT", "").split(",")[0]
-  if preference.get("XKB_LAYOUT") in ("ir", "kr", "kr:kr104", "la") and vconsole.get("XKBLAYOUT", "us") == "us" and not variant:
+  if preference.get("XKB_LAYOUT") in ("ir:winkeys", "kr", "kr:kr104", "la") and vconsole.get("XKBLAYOUT", "us") == "us" and not variant:
     layout, _, variant = preference["XKB_LAYOUT"].partition(":")
   method = preference.get("INPUT_METHOD", "mozc" if layout == "jp" else "none")
   if method not in PRESETS:
