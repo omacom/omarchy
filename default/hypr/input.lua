@@ -5,7 +5,7 @@ local keyboard = require("default.hypr.keyboard")
 -- Layouts that can't type Latin letters. Keep in sync with the list in
 -- etc/mkinitcpio.conf.d/omarchy_hooks.conf.
 local non_latin_layouts =
-  " af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np rs ru sy th tj ua "
+  " af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np pk rs ru sy th tj ua "
 
 local vconsole = keyboard.selected()
 

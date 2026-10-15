@@ -28,7 +28,7 @@ end
 -- Layouts that can't type Latin letters. Keep in sync with the list in
 -- etc/mkinitcpio.conf.d/omarchy_hooks.conf and default/hypr/input.lua.
 local non_latin_layouts =
-  " af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np rs ru sy th tj ua "
+  " af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np pk rs ru sy th tj ua "
 
 local vconsole = read_vconsole()
 local kb_layout = vconsole.XKBLAYOUT or "us"
