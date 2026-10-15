@@ -226,6 +226,62 @@ result=$(HOME="$V2_HOME" XDG_CACHE_HOME="$V2_HOME/.cache" XDG_DATA_HOME="$V2_HOM
   fail "OpenCode collector reads V2 records once each, without fork copies" "$result"
 pass "OpenCode collector reads V2 records once each, without fork copies"
 
+# A V1 fork, and a V1 fork migrated into V2, copy their source's messages
+# under new ids with the original creation times and no fork mark.
+V1FORK_HOME=$(mktemp -d)
+trap 'rm -rf "$PI_HOME" "$NOID_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$SESSION_HOME" "$V2_HOME" "$V1FORK_HOME"' EXIT
+python3 - "$V1FORK_HOME/.local/share/opencode/opencode.db" <<'PY'
+import json
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+db = Path(sys.argv[1])
+db.parent.mkdir(parents=True, exist_ok=True)
+conn = sqlite3.connect(db)
+conn.execute("CREATE TABLE session (id text PRIMARY KEY, parent_id text, time_created integer NOT NULL, time_updated integer NOT NULL)")
+conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+conn.execute("CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL, type text NOT NULL, time_created integer NOT NULL, data text NOT NULL)")
+conn.execute("CREATE TABLE session_v2 (id text PRIMARY KEY, fork_session_id text, time_created integer NOT NULL)")
+now_ms = int(time.time() * 1000)
+
+def data(input, created):
+  return json.dumps({
+    "role": "assistant", "providerID": "opencode-go", "modelID": "kimi-k3",
+    "tokens": {"input": input, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
+    "time": {"created": created},
+  })
+
+def v2data(input, created):
+  return json.dumps({
+    "model": {"providerID": "opencode-go", "id": "kimi-k3"},
+    "tokens": {"input": input, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
+    "time": {"created": created},
+  })
+
+# ses_a ran two turns; ses_b forked it, copying both, then ran one of its own.
+conn.executemany("INSERT INTO session VALUES (?, NULL, ?, ?)", [("ses_a", now_ms - 9000, now_ms), ("ses_b", now_ms - 3000, now_ms)])
+for id, session, input, created in [
+  ("msg_a1", "ses_a", 100, now_ms - 8000), ("msg_a2", "ses_a", 10, now_ms - 7000),
+  ("msg_b1", "ses_b", 100, now_ms - 8000), ("msg_b2", "ses_b", 10, now_ms - 7000),
+  ("msg_b3", "ses_b", 1, now_ms - 2000),
+]:
+  conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (id, session, created, created, data(input, created)))
+# ses_c was such a fork, migrated into V2 without a fork mark.
+conn.execute("INSERT INTO session_v2 VALUES ('ses_c', NULL, ?)", (now_ms - 3000,))
+for id, input, created in [("msg_c1", 100, now_ms - 8000), ("msg_c2", 1000, now_ms - 2000)]:
+  conn.execute("INSERT INTO session_message VALUES (?, 'ses_c', 'assistant', ?, ?)", (id, created, v2data(input, created)))
+conn.commit()
+conn.close()
+PY
+
+result=$(HOME="$V1FORK_HOME" XDG_CACHE_HOME="$V1FORK_HOME/.cache" XDG_DATA_HOME="$V1FORK_HOME/.local/share" \
+  "$ROOT/bin/omarchy-agent-usage-opencode")
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == 1111 ]] ||
+  fail "OpenCode collector leaves out the copies V1 and migrated forks make" "$result"
+pass "OpenCode collector leaves out the copies V1 and migrated forks make"
+
 # Valid JSON with a nested field of the wrong shape (a numeric time, a list of
 # tokens or of cache counts, a list for a pi message) costs that field or that
 # row, never the record.

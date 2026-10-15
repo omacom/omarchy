@@ -858,7 +858,10 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
   parse; `accept` stays the authority for the rows that reach it.
 
   V2's `session_message` is read first, then the original `message` store,
-  deduplicated by message id, leaving out the copies a fork makes. Read-only:
+  deduplicated by message id, leaving out the copies a fork makes. A fork
+  copies its source's messages under new ids but keeps their creation times,
+  so a message older than the session holding it is such a copy; V1 forks and
+  forks migrated into V2 carry no other mark. Read-only:
   opencode may be writing right now. A scan cut short by a database error
   still hands back what it read, but says it is incomplete, so it is never
   cached as the whole story.
@@ -894,11 +897,10 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
       created = "m.time_created" if "time_created" in columns else "NULL"
       source = "session_message m"
       fork_filter = ""
-      if "time_created" in columns and "session_v2" in tables and {"id", "fork_session_id", "time_created"} <= _table_columns(conn, "session_v2"):
-        # A fork copies its source session's messages under new ids; only
-        # what came after the fork was spent in it.
+      if "time_created" in columns and "session_v2" in tables and {"id", "time_created"} <= _table_columns(conn, "session_v2"):
+        # Only what came after a fork was spent in it.
         source += " LEFT JOIN session_v2 s ON s.id = m.session_id"
-        fork_filter = " AND (s.fork_session_id IS NULL OR m.time_created >= s.time_created)"
+        fork_filter = " AND (s.id IS NULL OR m.time_created >= s.time_created)"
       gate = " OR ".join("m.data LIKE ?" for _ in patterns)
       for message_id, session_id, row_type, time_created, raw in conn.execute(
         f"SELECT m.id, m.session_id, m.type, {created}, m.data FROM {source}"
@@ -908,11 +910,16 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
         take(message_id, session_id, raw, str(row_type or ""), time_created)
     columns = _table_columns(conn, "message") if "message" in tables else set()
     if {"session_id", "data"} <= columns and patterns:
-      row_id = "id" if "id" in columns else "rowid"
-      gate = " OR ".join("data LIKE ?" for _ in patterns)
+      row_id = "m.id" if "id" in columns else "m.rowid"
+      source = "message m"
+      fork_filter = ""
+      if "time_created" in columns and "session" in tables and {"id", "time_created"} <= _table_columns(conn, "session"):
+        source += " LEFT JOIN session s ON s.id = m.session_id"
+        fork_filter = " AND (s.id IS NULL OR m.time_created >= s.time_created)"
+      gate = " OR ".join("m.data LIKE ?" for _ in patterns)
       for message_id, session_id, raw in conn.execute(
-        f"SELECT {row_id}, session_id, data FROM message"
-        f" WHERE data LIKE '%\"role\"%:%\"assistant\"%' AND ({gate})",
+        f"SELECT {row_id}, m.session_id, m.data FROM {source}"
+        f" WHERE m.data LIKE '%\"role\"%:%\"assistant\"%' AND ({gate})" + fork_filter,
         patterns,
       ):
         take(message_id, session_id, raw, "", None)
