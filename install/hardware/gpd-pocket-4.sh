@@ -4,13 +4,11 @@
 #     (fbcon, LUKS prompt) and DRM-based renderers (plymouth)
 #   - libinput: calibration matrix for the NVTK0603 digitizer frame outside
 #     Hyprland (GDM/other clients). Hyprland replaces the matrix, so the
-#     session relies on the rotate daemon below.
-#   - session: omarchy-gpd-pocket-4-rotate.service tracks the accelerometer
-#     and keeps monitor + touch transforms in sync (the DRM panel-orientation
+#     session uses an explicit device transform in the defaults.
+#   - session: default/hypr/gpd-pocket-4.lua sets fixed landscape monitor
+#     and touch transforms (the DRM panel-orientation
 #     property is ignored by Hyprland, so there is no double rotation)
 if omarchy-hw-gpd-pocket-4; then
-  omarchy-pkg-add iio-sensor-proxy
-
   sudo mkdir -p /etc/limine-entry-tool.d
   sudo tee /etc/limine-entry-tool.d/gpd-pocket4-orientation.conf >/dev/null <<'EOF'
 # GPD Pocket 4: portrait panel mounted landscape. fbcon=rotate:1 (90 degrees
@@ -29,7 +27,7 @@ EOF
   # Rotate the raw digitizer frame into display orientation (270 degrees
   # clockwise; matrix reference in the libinput docs). Hyprland replaces
   # LIBINPUT_CALIBRATION_MATRIX, so in-session rotation comes only from the
-  # explicit device transform the rotate daemon applies.
+  # explicit device transform in the Hyprland defaults.
   sudo mkdir -p /etc/udev/rules.d
   sudo tee /etc/udev/rules.d/99-gpd-pocket4-touchscreen.rules >/dev/null <<'EOF'
 # GPD Pocket 4 (G1628-04) NVTK0603 touchscreen

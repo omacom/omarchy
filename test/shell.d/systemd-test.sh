@@ -22,13 +22,6 @@ recover="$ROOT/bin/omarchy-system-sddm-recover"
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-gpd_rotate="$ROOT/default/systemd/user/omarchy-gpd-pocket-4-rotate.service"
-grep -Fx 'ExecCondition=/usr/bin/omarchy-hw-gpd-pocket-4' "$gpd_rotate" >/dev/null ||
-  fail "the GPD rotate unit restart-loops on machines without the hardware"
-grep -F 'omarchy-gpd-pocket-4-rotate.service' "$first_run_units" >/dev/null ||
-  fail "first-run does not enable GPD Pocket 4 rotation"
-pass "first-run enables GPD Pocket 4 rotation, inert off-hardware"
-
 grep -Fx 'systemctl enable systemd-oomd.service' "$ROOT/install/config/enable-services.sh" >/dev/null ||
   fail "new installs ship the oomd drop-ins with the daemon that reads them disabled"
 pass "new installs enable systemd-oomd"
