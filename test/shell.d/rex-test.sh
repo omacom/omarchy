@@ -826,3 +826,57 @@ process.stdout.write(C.snippets("perl", "PATTERN", [], "x").find(s => s.title ==
   [[ $(perl -e 'my $text = q{a PATTERN b};'"$marker_code"' print $result') == 'a x b' ]] || fail "a Perl pattern that is the heredoc marker still works" "$marker_code"
   pass "a Perl pattern that is the heredoc marker still works"
 fi
+
+titled_snippet() {
+  ROOT="$ROOT" node -e '
+const { loadQmlJs } = require(process.env.ROOT + "/test/shell.d/fixtures/qml-js-loader.js")
+const C = loadQmlJs(process.env.ROOT + "/shell/plugins/rex/lib/Codegen.js")
+process.stdout.write(C.snippets(process.argv[1], process.argv[2], [], process.argv[4]).find(s => s.title === process.argv[3]).code)' "$@"
+}
+
+# The generated loops stop after an empty match at the end of the text,
+# reporting the same matches JavaScript does.
+if command -v gawk >/dev/null; then
+  printf 'ab\n' >"$tmpdir/file.txt"
+  found=$(cd "$tmpdir" && timeout 5 bash -c "$(titled_snippet gawk 'a*' 'Every match with its groups' '')" | tr '\n' ,) ||
+    fail "generated gawk stops after an empty match at the end" "$found"
+  [[ $found == "a,,," ]] || fail "generated gawk stops after an empty match at the end" "$found"
+  pass "generated gawk stops after an empty match at the end"
+fi
+if command -v gcc >/dev/null; then
+  {
+    printf '#include <stdio.h>\n#include <regex.h>\nint main(void) {\nconst char *text = "ab";\n'
+    titled_snippet posix-ere 'a*' 'Every match (C)' '' | grep -v '^#include' |
+      sed 's|/\* at + m\[0\].rm_so.*|printf("%d-%d,", (int)(at - text + m[0].rm_so), (int)(at - text + m[0].rm_eo));|'
+    printf 'return 0;\n}\n'
+  } >"$tmpdir/loop.c"
+  gcc -o "$tmpdir/loop" "$tmpdir/loop.c" || fail "generated POSIX C compiles" "$(cat "$tmpdir/loop.c")"
+  found=$(timeout 5 "$tmpdir/loop") || fail "generated POSIX C stops after an empty match at the end" "$found"
+  [[ $found == "0-1,1-1,2-2," ]] || fail "generated POSIX C stops after an empty match at the end" "$found"
+  pass "generated POSIX C stops after an empty match at the end"
+fi
+
+# Java has no \x escape; a control character goes out as octal.
+if command -v javac >/dev/null && command -v java >/dev/null; then
+  mkdir -p "$tmpdir/java"
+  {
+    printf 'import java.util.regex.*;\npublic class Snippet {\npublic static void main(String[] args) {\nString text = "x\\fy";\n'
+    titled_snippet java $'\f' 'Replace' $'\x01' | grep -v '^import'
+    printf '\nSystem.out.print(result.equals("x\\001y"));\n}\n}\n'
+  } >"$tmpdir/java/Snippet.java"
+  [[ $(cd "$tmpdir/java" && javac Snippet.java 2>&1 && java Snippet) == "true" ]] ||
+    fail "generated Java carries control characters" "$(cat "$tmpdir/java/Snippet.java")"
+  pass "generated Java carries control characters"
+fi
+
+# Ruby ends a regex literal at a / even inside a class; GNU sed does not,
+# and would read an escaped one there as a backslash too.
+if command -v ruby >/dev/null; then
+  [[ $(ruby -e 'text = "a/b"'$'\n'"$(snippet ruby '[/]')"$'\n''puts found' 2>&1) == "true" ]] ||
+    fail "generated Ruby keeps a / inside a class" "$(snippet ruby '[/]')"
+  pass "generated Ruby keeps a / inside a class"
+fi
+printf 'a\\b/c\n' >"$tmpdir/file.txt"
+[[ $(cd "$tmpdir" && bash -c "$(titled_snippet sed-e '[/]' 'Replace' 'X')") == 'a\bXc' ]] ||
+  fail "generated sed matches a / inside a class and nothing else" "$(titled_snippet sed-e '[/]' 'Replace' 'X')"
+pass "generated sed matches a / inside a class and nothing else"

@@ -8,7 +8,9 @@
 
 // ---- quoting ------------------------------------------------------------------
 
-function cEscape(s, quote) {
+// Control characters go out as \xHH, or as three octal digits where a \x
+// escape is not accepted (Java) or would swallow a hex digit after it (C, C++).
+function cEscape(s, quote, octal) {
   var out = ""
   for (var i = 0; i < s.length; i++) {
     var c = s.charAt(i)
@@ -18,6 +20,7 @@ function cEscape(s, quote) {
     else if (c === "\n") out += "\\n"
     else if (c === "\r") out += "\\r"
     else if (c === "\t") out += "\\t"
+    else if (code < 32 && octal) out += "\\" + ("00" + code.toString(8)).slice(-3)
     else if (code < 32) out += "\\x" + (code < 16 ? "0" : "") + code.toString(16)
     else out += c
   }
@@ -26,11 +29,15 @@ function cEscape(s, quote) {
 
 function doubleQuoted(s) { return "\"" + cEscape(s, "\"") + "\"" }
 
+function octalQuoted(s) { return "\"" + cEscape(s, "\"", true) + "\"" }
+
 function shellQuoted(s) { return "'" + s.replace(/'/g, "'\\''") + "'" }
 
 // A regex literal between slashes: a / inside must be escaped, unless it
-// already is or sits in a class.
-function slashed(pattern) {
+// already is or sits in a class. Ruby and PHP end the literal at a / even
+// in a class, so they escape that one too; GNU sed and JavaScript take it
+// as it is, and sed would read [\/] as a backslash or a slash.
+function slashed(pattern, inClassToo) {
   var out = ""
   var inClass = false
   for (var i = 0; i < pattern.length; i++) {
@@ -38,7 +45,7 @@ function slashed(pattern) {
     if (c === "\\") { out += c + pattern.charAt(i + 1); i++; continue }
     if (c === "[") inClass = true
     else if (c === "]") inClass = false
-    if (c === "/" && !inClass) out += "\\/"
+    if (c === "/" && (!inClass || inClassToo)) out += "\\/"
     else if (c === "\n") out += "\\n"
     else out += c
   }
@@ -87,7 +94,7 @@ function phpPattern(pattern, modifiers) {
   for (var i = 0; i < choices.length; i++) {
     if (pattern.indexOf(choices[i]) < 0) return phpSingle(choices[i] + pattern + choices[i] + modifiers)
   }
-  return phpSingle("/" + slashed(pattern) + "/" + modifiers)
+  return phpSingle("/" + slashed(pattern, true) + "/" + modifiers)
 }
 
 // Perl interpolates $name and @name inside m//; single quotes as the
@@ -108,7 +115,7 @@ function perlHeredoc(pattern) {
 }
 
 function rubyLiteral(pattern) {
-  return "/" + slashed(pattern).replace(/#(?=[{$@])/g, "\\#") + "/"
+  return "/" + slashed(pattern, true).replace(/#(?=[{$@])/g, "\\#") + "/"
 }
 
 function flagLetters(flags, allowed) {
@@ -141,7 +148,7 @@ function snippets(flavorId, pattern, flags, replacement) {
       { title: "Every match with its groups (PHP)", language: "php", code: "preg_match_all(" + p + ", $text, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);\nforeach ($matches as $m) {\n    [$whole, $offset] = $m[0];\n}" },
       { title: "Replace (PHP)", language: "php", code: "$result = preg_replace(" + p + ", " + phpSingle(rep) + ", $text);" },
       { title: "Split (PHP)", language: "php", code: "$parts = preg_split(" + p + ", $text);" },
-      { title: "Every match (C, libpcre2)", language: "c", code: "#define PCRE2_CODE_UNIT_WIDTH 8\n#include <pcre2.h>\n\nint error;\nPCRE2_SIZE offset;\npcre2_code *re = pcre2_compile((PCRE2_SPTR)" + doubleQuoted(pattern) + ", PCRE2_ZERO_TERMINATED,\n    " + (pcreOptions(flags) || "0") + ", &error, &offset, NULL);\npcre2_match_data *match = pcre2_match_data_create_from_pattern(re, NULL);\nPCRE2_SIZE start = 0;\nwhile (pcre2_match(re, (PCRE2_SPTR)text, length, start, 0, match, NULL) > 0) {\n    PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match);\n    /* ovector[0]..ovector[1] is the match; 2n, 2n+1 group n */\n    start = ovector[1] > ovector[0] ? ovector[1] : ovector[1] + 1;\n}\npcre2_match_data_free(match);\npcre2_code_free(re);" },
+      { title: "Every match (C, libpcre2)", language: "c", code: "#define PCRE2_CODE_UNIT_WIDTH 8\n#include <pcre2.h>\n\nint error;\nPCRE2_SIZE offset;\npcre2_code *re = pcre2_compile((PCRE2_SPTR)" + octalQuoted(pattern) + ", PCRE2_ZERO_TERMINATED,\n    " + (pcreOptions(flags) || "0") + ", &error, &offset, NULL);\npcre2_match_data *match = pcre2_match_data_create_from_pattern(re, NULL);\nPCRE2_SIZE start = 0;\nwhile (pcre2_match(re, (PCRE2_SPTR)text, length, start, 0, match, NULL) > 0) {\n    PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match);\n    /* ovector[0]..ovector[1] is the match; 2n, 2n+1 group n */\n    start = ovector[1] > ovector[0] ? ovector[1] : ovector[1] + 1;\n}\npcre2_match_data_free(match);\npcre2_code_free(re);" },
     ]
   }
   case "perl": {
@@ -196,11 +203,11 @@ function snippets(flavorId, pattern, flags, replacement) {
   case "java": {
     var jopts = { i: "CASE_INSENSITIVE", m: "MULTILINE", s: "DOTALL", x: "COMMENTS", u: "UNICODE_CASE", U: "UNICODE_CHARACTER_CLASS", d: "UNIX_LINES" }
     var jFlags = flags.filter(function(x) { return jopts[x] }).map(function(x) { return "Pattern." + jopts[x] }).join(" | ")
-    var jc = "Pattern pattern = Pattern.compile(" + doubleQuoted(pattern) + (jFlags ? ", " + jFlags : "") + ");"
+    var jc = "Pattern pattern = Pattern.compile(" + octalQuoted(pattern) + (jFlags ? ", " + jFlags : "") + ");"
     return [
       { title: "Test", language: "java", code: "import java.util.regex.*;\n\n" + jc + "\nboolean found = pattern.matcher(text).find();" },
       { title: "Every match with its groups", language: "java", code: "import java.util.regex.*;\n\n" + jc + "\nMatcher m = pattern.matcher(text);\nwhile (m.find()) {\n    System.out.println(m.start() + \": \" + m.group());\n    for (int g = 1; g <= m.groupCount(); g++) System.out.println(\"  \" + g + \" = \" + m.group(g));\n}" },
-      { title: "Replace", language: "java", code: "import java.util.regex.*;\n\n" + jc + "\nString result = pattern.matcher(text).replaceAll(" + doubleQuoted(rep) + ");" },
+      { title: "Replace", language: "java", code: "import java.util.regex.*;\n\n" + jc + "\nString result = pattern.matcher(text).replaceAll(" + octalQuoted(rep) + ");" },
       { title: "Split", language: "java", code: "import java.util.regex.*;\n\n" + jc + "\nString[] parts = pattern.split(text);" },
     ]
   }
@@ -234,14 +241,14 @@ function snippets(flavorId, pattern, flags, replacement) {
     return [
       { title: "Test", language: "cpp", code: "#include <regex>\n\n" + cc + "\nbool found = std::regex_search(text, re);" },
       { title: "Every match with its groups", language: "cpp", code: "#include <regex>\n\n" + cc + "\nfor (auto it = std::sregex_iterator(text.begin(), text.end(), re); it != std::sregex_iterator(); ++it) {\n    const std::smatch &m = *it;\n    // m.position(0), m.str(0), m[1], m[2] ...\n}" },
-      { title: "Replace", language: "cpp", code: "#include <regex>\n\n" + cc + "\nstd::string result = std::regex_replace(text, re, " + doubleQuoted(rep) + ");" },
+      { title: "Replace", language: "cpp", code: "#include <regex>\n\n" + cc + "\nstd::string result = std::regex_replace(text, re, " + octalQuoted(rep) + ");" },
     ]
   }
   case "posix-ere":
   case "posix-bre": {
     var cflags = (f.id === "posix-ere" ? "REG_EXTENDED" : "0") + (has("i") ? " | REG_ICASE" : "") + (has("n") ? " | REG_NEWLINE" : "")
     return [
-      { title: "Every match (C)", language: "c", code: "#include <regex.h>\n\nregex_t re;\nregmatch_t m[10];\nif (regcomp(&re, " + doubleQuoted(pattern) + ", " + cflags + ") == 0) {\n    const char *at = text;\n    while (regexec(&re, at, 10, m, at == text ? 0 : REG_NOTBOL) == 0) {\n        /* at + m[0].rm_so .. at + m[0].rm_eo; m[n] for group n */\n        at += m[0].rm_eo > m[0].rm_so ? m[0].rm_eo : m[0].rm_eo + 1;\n    }\n    regfree(&re);\n}" },
+      { title: "Every match (C)", language: "c", code: "#include <regex.h>\n\nregex_t re;\nregmatch_t m[10];\nif (regcomp(&re, " + octalQuoted(pattern) + ", " + cflags + ") == 0) {\n    const char *at = text;\n    while (regexec(&re, at, 10, m, at == text ? 0 : REG_NOTBOL) == 0) {\n        /* at + m[0].rm_so .. at + m[0].rm_eo; m[n] for group n */\n        if (m[0].rm_eo > m[0].rm_so) at += m[0].rm_eo;\n        else if (at[m[0].rm_eo] == '\\0') break;\n        else at += m[0].rm_eo + 1;\n    }\n    regfree(&re);\n}" },
     ]
   }
   case "grep":
@@ -267,7 +274,7 @@ function snippets(flavorId, pattern, flags, replacement) {
     var lit = "/" + slashed(pattern) + "/"
     var pre = has("i") ? "BEGIN { IGNORECASE = 1 } " : ""
     return [
-      { title: "Every match with its groups", language: "shell", code: "gawk " + shellQuoted(pre + "{ s = $0; while (match(s, " + lit + ", m)) { print m[0]; s = substr(s, RSTART + (RLENGTH ? RLENGTH : 1)) } }") + " file.txt" },
+      { title: "Every match with its groups", language: "shell", code: "gawk " + shellQuoted(pre + "{ s = $0; while (match(s, " + lit + ", m)) { print m[0]; if (RSTART > length(s)) break; s = substr(s, RSTART + (RLENGTH ? RLENGTH : 1)) } }") + " file.txt" },
       { title: "Replace", language: "shell", code: "gawk " + shellQuoted(pre + "{ gsub(" + lit + ", " + doubleQuoted(rep) + "); print }") + " file.txt" },
       { title: "Split each line", language: "shell", code: "gawk " + shellQuoted(pre + "{ n = split($0, parts, " + lit + "); for (i = 1; i <= n; i++) print parts[i] }") + " file.txt" },
     ]
@@ -317,6 +324,7 @@ if (typeof module !== "undefined") module.exports = {
   luaLong: luaLong,
   shellQuoted: shellQuoted,
   slashed: slashed,
+  octalQuoted: octalQuoted,
   perlPattern: perlPattern,
   phpPattern: phpPattern,
 }
