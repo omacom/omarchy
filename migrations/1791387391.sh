@@ -48,8 +48,12 @@ rebuild_marker=/var/lib/omarchy/migrations/1791387391
 
 # omarchy-migrate runs this file with bash -euo pipefail. A failure on the left
 # of && does not abort the script, so a failed rebuild would still be marked done.
-if (( needs_rebuild )) && [[ ! -e $rebuild_marker ]] && omarchy-cmd-present limine-mkinitcpio; then
-  sudo limine-mkinitcpio
-  sudo install -Dm644 /dev/null "$rebuild_marker"
+if (( needs_rebuild )) && omarchy-cmd-present limine-mkinitcpio; then
+  if [[ ! -e $rebuild_marker ]]; then
+    sudo limine-mkinitcpio
+    sudo install -Dm644 /dev/null "$rebuild_marker"
+  fi
+
+  # The reboot notice is kept per user, so every user who updates before the reboot needs it.
   omarchy-state set reboot-required
 fi
