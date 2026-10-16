@@ -26,6 +26,9 @@ udev_capabilities() {
   done <"$1"
 }
 
+# Every recorded answer comes first, so one node udev knows nothing about does not
+# make the guard open the cameras udev already describes.
+unknown=0
 for node in "${nodes[@]}"; do
   [[ -r $node/dev ]] || continue
   capabilities=""
@@ -33,11 +36,11 @@ for node in "${nodes[@]}"; do
   [[ -r $data ]] && capabilities=$(udev_capabilities "$data")
 
   if [[ -z $capabilities ]]; then
-    [[ -n $(omarchy-capture-webcam-list) ]]
-    exit
+    unknown=1
+  elif [[ $capabilities == *:capture:* ]]; then
+    exit 0
   fi
-
-  [[ $capabilities == *:capture:* ]] && exit 0
 done
 
-exit 1
+# No recorded capture node: ask the devices, but only if some had no record.
+((unknown)) && [[ -n $(omarchy-capture-webcam-list) ]]
