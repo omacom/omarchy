@@ -9,12 +9,13 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command python3
 
-python3 - "$ROOT" <<'PY'
+naming_lint=$(cat <<'PY'
 import pathlib
 import re
 import sys
 
 root = pathlib.Path(sys.argv[1])
+scan = pathlib.Path(sys.argv[2])
 
 
 def tokens(source):
@@ -115,15 +116,18 @@ def nonempty(properties, names):
   return any(expression_nonempty(properties.get(name, [])) for name in names)
 
 
+# Each entry lists only the properties that component's Accessible.name is
+# bound through. BarIndicator's inactiveTooltipText defaults to
+# activeTooltipText, so it alone leaves the active state unnamed.
 required_names = {
-  "BarIconButton": ("accessibleName", "tooltipText", "label"),
-  "BarIndicator": ("accessibleName", "tooltipText", "activeTooltipText", "inactiveTooltipText", "label"),
-  "ToggleSwitch": ("accessibleName", "tooltipText", "label"),
-  "PanelSlider": ("accessibleName", "tooltipText", "label"),
-  "PanelActionButton": ("accessibleName", "tooltipText", "label"),
+  "BarIconButton": ("accessibleName", "tooltipText"),
+  "BarIndicator": ("accessibleName", "tooltipText", "activeTooltipText"),
+  "ToggleSwitch": ("accessibleName",),
+  "PanelSlider": ("accessibleName",),
+  "PanelActionButton": ("accessibleName", "tooltipText"),
 }
 failures = []
-for path in sorted((root / "shell/plugins").rglob("*.qml")):
+for path in sorted(scan.rglob("*.qml")):
   source_tokens = tokens(path.read_text())
   for index, token in enumerate(source_tokens[:-1]):
     if token[0] != "IDENT" or token[1] not in set(required_names) | {"Button"} or source_tokens[index + 1][0] != "{":
@@ -133,11 +137,11 @@ for path in sorted((root / "shell/plugins").rglob("*.qml")):
     if component == "Button":
       if "iconText" not in properties or ("text" in properties and not glyph_string(properties["text"])):
         continue
-      names = ("accessibleName", "tooltipText", "label", "text")
+      names = ("accessibleName", "text", "tooltipText")
     else:
       names = required_names[component]
     if not nonempty(properties, names):
-      failures.append(f"{path.relative_to(root)}:{token[2]} {component}")
+      failures.append(f"{path.relative_to(scan)}:{token[2]} {component}")
 
 if failures:
   print("Unnamed first-party controls:", file=sys.stderr)
@@ -145,7 +149,42 @@ if failures:
     print(f"  {failure}", file=sys.stderr)
   raise SystemExit(1)
 PY
+)
+
+python3 -c "$naming_lint" "$ROOT" "$ROOT/shell/plugins"
 pass "first-party icon controls provide accessible names"
+
+# The lint must reject a control named only through a property its
+# component never reads into Accessible.name.
+LINT_FIXTURES=$(mktemp -d)
+cat >"$LINT_FIXTURES/Unnamed.qml" <<'QML'
+Item {
+  PanelSlider { tooltipText: "Volume" }
+  ToggleSwitch { label: "Wi-Fi" }
+  BarIconButton { label: "Clock" }
+  BarIndicator { inactiveTooltipText: "Idle" }
+  PanelActionButton { label: "Copy" }
+  Button { iconText: "\ue900"; label: "Menu" }
+}
+QML
+cat >"$LINT_FIXTURES/Named.qml" <<'QML'
+Item {
+  PanelSlider { accessibleName: "Volume" }
+  ToggleSwitch { accessibleName: "Wi-Fi" }
+  BarIconButton { tooltipText: "Clock" }
+  BarIndicator { activeTooltipText: "Recording" }
+  PanelActionButton { tooltipText: "Copy" }
+  Button { iconText: "\ue900"; tooltipText: "Menu" }
+}
+QML
+lint_status=0
+lint_output=$(python3 -c "$naming_lint" "$ROOT" "$LINT_FIXTURES" 2>&1) || lint_status=$?
+rm -rf "$LINT_FIXTURES"
+expected_unnamed=$'Unnamed first-party controls:\n  Unnamed.qml:2 PanelSlider\n  Unnamed.qml:3 ToggleSwitch\n  Unnamed.qml:4 BarIconButton\n  Unnamed.qml:5 BarIndicator\n  Unnamed.qml:6 PanelActionButton\n  Unnamed.qml:7 Button'
+if (( lint_status == 0 )) || [[ $lint_output != "$expected_unnamed" ]]; then
+  fail "naming lint rejects controls named only through unread properties" "$lint_output"
+fi
+pass "naming lint rejects controls named only through unread properties"
 
 require_compositor "UI kit accessibility runtime test"
 
