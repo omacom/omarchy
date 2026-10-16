@@ -388,6 +388,15 @@ QtObject {
     readonly property int iconFont:       root.barToken("icon-font",       13)
     readonly property int iconSize:       Math.min(iconCanvas, root.barToken("icon-size", 12))
     readonly property int statusSlot:     root.barToken("status-slot",     21)
+    // Pills (bar.pills in shell.json). pill-inset is the gap between a pill
+    // and the bar's edges and ends; pill-padding the space inside a pill at
+    // its ends. Radius, inset, padding and gap keep a deliberate 0; unset,
+    // the radius follows Hyprland's rounding, capped at half the pill's
+    // thickness.
+    readonly property int pillRadius:  root.barOverrides["pill-radius"] !== undefined ? root.barInsetToken("pill-radius", 0) : root.cornerRadius
+    readonly property int pillInset:   root.barOverrides["pill-inset"] !== undefined ? root.barInsetToken("pill-inset", 0) : root.space(2)
+    readonly property int pillPadding: root.barInsetToken("pill-padding", 4)
+    readonly property int pillGap:     root.barInsetToken("pill-gap",     6)
   }
 
   // Off with Hyprland's own animations, as `omarchy toggle animations` turns
@@ -464,7 +473,8 @@ QtObject {
           barOut[key] = raw
         } else if (key === "size-horizontal" || key === "size-vertical" || key === "notch-height"
           || key === "icon-slot" || key === "icon-canvas" || key === "icon-font"
-          || key === "icon-size" || key === "status-slot" || key === "radius") {
+          || key === "icon-size" || key === "status-slot" || key === "radius"
+          || key === "pill-radius" || key === "pill-inset" || key === "pill-padding" || key === "pill-gap") {
           var b = parseInt(raw, 10)
           if (isFinite(b)) barOut[key] = b
         }
