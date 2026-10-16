@@ -20,9 +20,12 @@ cat >"$tmp_dir/bin/omarchy-hw-asus-rog" <<'EOF'
 #!/bin/bash
 [[ ${STUB_ROG:-1} == "1" ]]
 EOF
+# Any model check would narrow USB-C detection below "every ROG laptop"; this
+# stub refuses every model and records being asked, so a test can prove none runs.
 cat >"$tmp_dir/bin/omarchy-hw-match" <<'EOF'
 #!/bin/bash
-[[ ${STUB_FAMILY:-Zephyrus} == *"$1"* ]]
+printf '%s\n' "$1" >>"$HW_MATCH_LOG"
+exit 1
 EOF
 cat >"$tmp_dir/bin/powerprofilesctl" <<'EOF'
 #!/bin/bash
@@ -43,6 +46,7 @@ export OMARCHY_SYS_ROOT="$sys"
 export OMARCHY_POWER_SUPPLY_PATH="$power"
 export OMARCHY_POWERPROFILES_STATE_DIR="$tmp_dir/state"
 export POWERPROFILES_LOG="$tmp_dir/calls"
+export HW_MATCH_LOG="$tmp_dir/hw-match-calls"
 # Toggle flags live under $HOME; keep the developer's own out of the test.
 export HOME="$tmp_dir/home"
 mkdir -p "$HOME"
@@ -76,8 +80,10 @@ pass "the older asus-nb-wmi attribute is read when asus-armoury is missing"
 
 charge_mode 2
 ! STUB_ROG=0 usbc || fail "a non-ROG ASUS machine is left alone"
-STUB_FAMILY="ROG Strix" usbc || fail "a ROG Strix on USB-C is detected too"
-pass "every ROG laptop is checked, not only the Zephyrus"
+: >"$HW_MATCH_LOG"
+usbc || fail "a ROG laptop on USB-C reads as USB-C power whatever its model"
+[[ ! -s $HW_MATCH_LOG ]] || fail "USB-C detection checks no model name" "$(cat "$HW_MATCH_LOG")"
+pass "USB-C detection is gated on omarchy-hw-asus-rog alone, with no model check"
 
 # On battery 0 is the answer at once; with power present the firmware gets a
 # moment to report the adapter.
