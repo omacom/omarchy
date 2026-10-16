@@ -1,20 +1,22 @@
 #!/bin/bash
 
 # omarchy:summary=Set and remember the power profile for AC or battery use
-# omarchy:args=[autodetect|ac|battery] [power-saver|balanced|performance]
+# omarchy:args=[autodetect|ac|battery|usb-c] [power-saver|balanced|performance]
 
 action="${1:-autodetect}"
 requested_profile="${2:-}"
 
 usage() {
-  echo "Usage: omarchy-powerprofiles-set [autodetect|ac|battery] [power-saver|balanced|performance]" >&2
+  echo "Usage: omarchy-powerprofiles-set [autodetect|ac|battery|usb-c] [power-saver|balanced|performance]" >&2
   exit 1
 }
 
 (( $# <= 2 )) || usage
 
+detected=0
 case "$action" in
   autodetect)
+    detected=1
     # Use the same signal as the shell (UPower.onBattery) so every entry point
     # saves and restores the profile under the same ac/battery key.
     if [[ $(busctl get-property org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower OnBattery 2>/dev/null) == "b true" ]]; then
@@ -23,9 +25,20 @@ case "$action" in
       action=ac
     fi
     ;;
-  ac | battery) ;;
+  ac | battery | usb-c) ;;
   *) usage ;;
 esac
+
+# An ASUS ROG laptop runs at full power only from its own barrel adapter. A
+# USB-C charger delivers far less (100 W, against 200-330 W from the
+# barrel), so there it saves power as on battery: balanced unless a profile was
+# picked while on USB-C, which is remembered apart from the barrel's. Only the
+# current source is resolved this way (autodetect, or a power-source change
+# naming ac without a profile); `ac <profile>` names the barrel explicitly, as
+# `battery <profile>` names battery, and `usb-c <profile>` names USB-C.
+if [[ $action == "ac" ]] && { (( detected )) || [[ -z $requested_profile ]]; } && omarchy-hw-asus-rog-usbc-power; then
+  action=usb-c
+fi
 
 mapfile -t profiles < <(omarchy-powerprofiles-list)
 
