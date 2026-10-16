@@ -237,8 +237,18 @@ noop = setmetatable({}, {
   end,
 })
 
+-- Hold helpers check these capabilities with type(...) == "function".
+-- Keep their scanner stubs inert, but preserve the factories' dispatch metadata.
+local dsp = dsp_proxy("hl.dsp")
+dsp.window = dsp_proxy("hl.dsp.window")
+for _, name in ipairs({ "resize", "drag" }) do
+  local factory = dsp.window[name]
+  dsp.window[name] = function(...) return factory(...) end
+end
+
 hl = setmetatable({
-  dsp = dsp_proxy("hl.dsp"),
+  dsp = dsp,
+  on = function() return noop end,
   bind = function(keys, bind_dispatcher, opts)
     opts = opts or {}
 
@@ -247,15 +257,16 @@ hl = setmetatable({
       local kind = ""
       local arg = ""
 
+      if o and o.bind_commands then
+        bind_dispatcher = o.bind_commands[bind_dispatcher] or bind_dispatcher
+      end
+
       if type(bind_dispatcher) == "table" and bind_dispatcher.__omarchy_dispatcher then
         kind = bind_dispatcher.kind or ""
         arg = bind_dispatcher.arg or bind_dispatcher.expr or ""
       elseif type(bind_dispatcher) == "string" and bind_dispatcher ~= "" then
         kind = "exec"
         arg = bind_dispatcher
-      elseif o and o.bind_commands and o.bind_commands[bind_dispatcher] then
-        kind = "exec"
-        arg = o.bind_commands[bind_dispatcher]
       end
 
       print(table.concat({ tostring(modmask), opts.description, key, kind, arg }, "\t"))

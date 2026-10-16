@@ -268,6 +268,50 @@ grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
 
+# A timed bind is reported as Lua even when its single action is a command or
+# native dispatcher. Menu selection must recover that action, not the timer.
+# Keep executable rows AFTER a typed hold: a scanner error at the hold used to
+# silently abort config loading while runtime rows still appeared without actions.
+cat > "$home/.config/hypr/hyprland.lua" <<'LUA'
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+require("hypr.bindings")
+LUA
+cat >> "$home/.config/hypr/bindings.lua" <<'LUA'
+o.bind("SUPER + F5", "Timed command", "single-command", { double_press = "double-command" })
+o.bind("SUPER + F6", "Timed helper", { launch = "single-helper" }, { double_press = "double-helper" })
+o.bind("SUPER + F7", "Timed dispatcher", hl.dsp.window.close(), { double_press = "double-dispatcher" })
+o.bind("SUPER + F8", "Timed function", o.launch_terminal(), { double_press = "double-function" })
+o.bind("SUPER + F9", "Timed native hold", { hold = "resize" }, { double_press = { hold = "drag" }, hold_keycode = 75 })
+o.bind("SUPER + F10", "After hold command", "after-hold-command")
+o.bind("SUPER + F11", "After hold timed command", "after-hold-single", { double_press = "after-hold-double" })
+LUA
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + F5" "Timed command")
+$(lua_bind 64 "SUPER + F6" "Timed helper")
+$(lua_bind 64 "SUPER + F7" "Timed dispatcher")
+$(lua_bind 64 "SUPER + F8" "Timed function")
+$(lua_bind 64 "SUPER + F9" "Timed native hold")
+$(lua_bind 64 "SUPER + F10" "After hold command")
+$(lua_bind 64 "SUPER + F11" "After hold timed command")
+BINDS
+rm -rf "$tmpdir/cache"
+keybindings >/dev/null
+for expected in \
+  $'→ Timed command\texec\tsingle-command' \
+  $'→ Timed helper\texec\tuwsm-app -- single-helper' \
+  $'→ Timed dispatcher\tlua\thl.dsp.window.close()' \
+  $'→ Timed function\texec\tomarchy-launch-terminal' \
+  $'→ After hold command\texec\tafter-hold-command' \
+  $'→ After hold timed command\texec\tafter-hold-single'; do
+  grep -qF "$expected" "$tmpdir"/cache/omarchy/keybindings-*.records ||
+    fail "menu selection resolves a timed binding to its single action" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+done
+pass "menu selection resolves timed commands, helpers, dispatchers and mapped functions"
+grep -qP '→ Timed native hold\t\t$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "interactive single holds have no executable menu action" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+pass "interactive single holds have no executable menu action"
+
 # Rows show their description in the Omarchy language: a numbered one
 # matches its %1 pattern, an unknown one stays as written, and the chord
 # column and what the row runs never change.

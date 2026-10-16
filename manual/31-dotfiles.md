@@ -74,8 +74,43 @@ o.rebind("SUPER + SHIFT + O", "Joplin", "joplin-desktop")
 
 `o.rebind` removes the existing binding before adding its replacement. It takes the same arguments as `o.bind`, including launch helpers and binding options. Use `o.bind` to add a binding, or `hl.unbind` to remove one without replacing it.
 
+To give a shortcut different actions for one press and two quick presses, add a `double_press` action. The first action waits 250 milliseconds. Press the shortcut again during that interval to run only the second action without waiting for the rest of the interval. Set `timeout` to change the interval in milliseconds.
+
+For example, this replaces the `Super + Backtick` scratchpad shortcut with notification history on one press and clearing notifications on two presses:
+
+```lua
+o.rebind("SUPER + grave", "Notification history (press twice to clear)",
+  "omarchy-shell notifications showHistory", {
+    double_press = "omarchy-shell notifications dismissAll && omarchy-shell notifications clear",
+    timeout = 250,
+  })
+```
+
+Both actions accept commands, launch helpers, Lua functions, and Hyprland dispatchers that work outside the original input event. Event-dependent dispatchers such as window drag/resize and forwarding the original key with `pass` cannot run correctly from these delayed callbacks. Double presses work with `o.bind` too. Holding the key does not count as pressing it twice; `repeating` and `long_press` cannot be combined with `double_press`. With `release = true`, the interval starts when the key is released. The example dismisses visible notifications and forgets their history; use just `omarchy-shell notifications dismissAll` as the second action to keep the history.
+
+For actions the keybindings menu can resolve, selecting a shortcut runs its single-press action immediately. As with ordinary bindings, arbitrary Lua callbacks need command metadata to be executable from the menu.
+
 If you insist on hacking on the internal Omarchy files, switch to the dev channel via _Update > Channel > Dev_. That links Omarchy to a git checkout of the source code in `~/omarchy`, which you're free to change to your heart's content. Ain't nobody here to tell you what to do!
 
-### Resetting any changes
+### Native window holds with a double press
 
-If you end up making a mess of the configurations, you can always revert them to the defaults via _Update > Config_ in the Omarchy menu. Or by running `omarchy reinstall configs` to reset everything.
+Stock Hyprland's interactive window actions need the physical key event. Use explicit `{ hold = "resize" }` or `{ hold = "drag" }` actions to opt into immediate native behavior. No Hyprland modification or plugin is required.
+
+```lua
+local resize_or_move = o.rebind("SUPER + ALT_L", "Resize or double-press move window", { hold = "resize" }, {
+  double_press = { hold = "drag" },
+  hold_keycode = 64, -- Alt_L XKB keycode (evdev code + 8)
+  timeout = 250,
+  mouse = true,
+})
+```
+
+Hold Super and press Alt to resize immediately. Release Alt, press it again within 250 milliseconds, and hold the second press to move the window. Releasing Alt stops either action. The first press has already entered resize mode, even when the second press selects move; moving the pointer during the first tap can resize the window. This opt-in behavior does not provide exclusive single-versus-double action execution. Ordinary command bindings still wait for the decision and run only their selected action.
+
+`hold_keycode` explicitly identifies the physical keyboard key for release tracking. It is the XKB keycode (the evdev code plus 8), not a keysym; 64 identifies Alt_L. This path supports keyboard bindings only, not mouse-button bindings. The interval starts on the first press; a second press at or after the timeout begins a new gesture. Holding a key does not count as a double press.
+
+Either action may instead be an ordinary command or launch helper. Ordinary single actions wait for the timeout, including after a released tap. Ordinary double actions remain deferred outside the input event. A typed hold action must contain only its `hold` field and requires `double_press` and `hold_keycode`. It cannot be combined with `release`, `click`, `drag`, `repeating`, or `long_press` options. Arbitrary event-dependent dispatcher objects such as `hl.dsp.window.resize()`, `drag()`, or `pass` do not become timer-safe by passing them as ordinary delayed actions; the typed path supports only resize and drag.
+
+A filtered keyboard subscription and a non-consuming release binding track modifier-key releases and end the native interaction. Hold bindings return a managed handle with `set_enabled(boolean)`, `is_enabled()`, `remove()`, and `unbind()` methods. Use that handle or `o.rebind` for changes so the helper removes its subscription immediately. Disable and removal cancel pending decisions; an owned native stop is deferred out of any key callback, and a newer managed hold cancels that stop. Release keys and buttons before changing bindings. Raw `hl.unbind(keys)` removes the bindings, but its subscription is cleaned up only on the next keyboard event. Ordinary bindings still return Hyprland's native handle.
+
+Interactive single actions cannot be launched from the keybindings menu because menu selection has no physical held key. Hyprland also stops native holds on other keyboard or mouse-button events. Suppressed release callbacks do not make the helper discard the next press: the raw keyboard release clears its held state.
