@@ -54,11 +54,47 @@ assert(!network.isMobileStatusEvent("/org/freedesktop/ModemManager1/Bearer/1: or
 assert(!network.isMobileStatusEvent('Monitoring signals from all objects owned by org.freedesktop.ModemManager1'), 'gdbus banner does not re-probe')
 JS
 
+# The probe itself, against stub nmcli/mmcli: two modems, and saved profiles
+# for each, so every value must come from the one the row shows.
+probe=$(mktemp -d)
+trap 'rm -rf -- "$probe"' EXIT
+node -e "process.stdout.write(require(process.argv[1]).mobileStatusScript)" "$ROOT/shell/plugins/panels/network/Model.js" > "$probe/probe.sh"
+cat > "$probe/nmcli" <<'SH'
+#!/bin/bash
+case $* in
+  "-t -f DEVICE,TYPE dev") printf 'ttyUSB0:gsm\ncdc-wdm1:gsm\n' ;;
+  "-e no -t -f GENERAL.STATE,GENERAL.CONNECTION,GENERAL.CON-UUID,GENERAL.IP-IFACE,GENERAL.UDI dev show ttyUSB0")
+    printf 'GENERAL.STATE:30 (disconnected)\nGENERAL.CONNECTION:\nGENERAL.CON-UUID:\nGENERAL.IP-IFACE:\nGENERAL.UDI:/org/freedesktop/ModemManager1/Modem/3\n' ;;
+  "-t radio wwan") [[ ${LC_ALL:-} == C ]] && printf 'disabled\n' || printf 'deaktiviert\n' ;;
+  "-g UUID,TYPE con show") printf 'other-uuid:gsm\nwifi-uuid:802-11-wireless\nmine-uuid:gsm\n' ;;
+  "-e no -g connection.interface-name con show uuid other-uuid") printf 'cdc-wdm1\n' ;;
+  "-e no -g connection.interface-name con show uuid mine-uuid") printf 'cdc-wdm0\n' ;;
+  "-e no -g connection.id con show uuid mine-uuid") printf 'Work:LTE\n' ;;
+  *) exit 1 ;;
+esac
+SH
+cat > "$probe/mmcli" <<'SH'
+#!/bin/bash
+[[ $* == "-m /org/freedesktop/ModemManager1/Modem/3 -K" ]] || { printf 'modem.3gpp.operator-name : Wrong Carrier\n'; exit 0; }
+printf 'modem.generic.ports.value[1]                    : cdc-wdm0 (mbim)\n'
+printf 'modem.generic.ports.value[2]                    : ttyUSB0 (at)\n'
+printf 'modem.generic.ports.value[3]                    : wwan0 (net)\n'
+printf 'modem.3gpp.operator-name                        : Right Carrier\n'
+printf 'modem.generic.signal-quality.value              : 61\n'
+SH
+chmod +x "$probe/nmcli" "$probe/mmcli"
+probed=$(LC_ALL=POSIX PATH="$probe:$PATH" bash "$probe/probe.sh")
+[[ $probed == *$'profile_uuid\tmine-uuid\n'* ]] || fail "probe skips a profile bound to the other modem and matches one bound to this modem's MBIM port" "$probed"
+[[ $probed == *$'profile\tWork:LTE'* ]] || fail "profile names are read without nmcli escapes" "$probed"
+[[ $probed == *$'radio\tdisabled'* ]] || fail "radio state is read in the C locale" "$probed"
+[[ $probed == *$'operator\tRight Carrier'* && $probed != *Wrong* ]] || fail "modem details come from this device's ModemManager object" "$probed"
+pass "mobile probe describes only the modem the row shows"
+
 require_compositor "network mobile broadband runtime test"
 require_command quickshell
 
 stage=$(mktemp -d)
-trap 'rm -rf -- "$stage"' EXIT
+trap 'rm -rf -- "$stage" "$probe"' EXIT
 fixture="$SHELL_TEST_DIR/fixtures/network-mobile"
 mkdir -p "$stage/network" "$stage/bin" "$stage/home"
 ln -s "$ROOT/shell/Ui" "$stage/Ui"
@@ -101,12 +137,13 @@ case $* in
   "-t -f DEVICE,TYPE dev")
     printf 'test-wifi:wifi\ncdc-wdm0:gsm\n'
     ;;
-  "-t -f GENERAL.STATE,GENERAL.CONNECTION,GENERAL.IP-IFACE dev show cdc-wdm0")
+  "-e no -t -f GENERAL.STATE,GENERAL.CONNECTION,GENERAL.CON-UUID,GENERAL.IP-IFACE,GENERAL.UDI dev show cdc-wdm0")
     if [[ $state == "connected" ]]; then
-      printf 'GENERAL.STATE:100 (connected)\nGENERAL.CONNECTION:Test Carrier\nGENERAL.IP-IFACE:wwan0\n'
+      printf 'GENERAL.STATE:100 (connected)\nGENERAL.CONNECTION:Test Carrier\nGENERAL.CON-UUID:mobile-uuid\nGENERAL.IP-IFACE:wwan0\n'
     else
-      printf 'GENERAL.STATE:30 (disconnected)\nGENERAL.CONNECTION:\nGENERAL.IP-IFACE:\n'
+      printf 'GENERAL.STATE:30 (disconnected)\nGENERAL.CONNECTION:\nGENERAL.CON-UUID:\nGENERAL.IP-IFACE:\n'
     fi
+    printf 'GENERAL.UDI:/org/freedesktop/ModemManager1/Modem/0\n'
     ;;
   "-t radio wwan")
     printf 'enabled\n'
@@ -114,7 +151,9 @@ case $* in
   "-g UUID,TYPE con show")
     printf 'wifi-uuid:802-11-wireless\nmobile-uuid:gsm\n'
     ;;
-  "-g connection.id con show uuid mobile-uuid")
+  "-e no -g connection.interface-name con show uuid mobile-uuid")
+    ;;
+  "-e no -g connection.id con show uuid mobile-uuid")
     printf 'Test Carrier\n'
     ;;
   "device disconnect cdc-wdm0")
@@ -122,7 +161,7 @@ case $* in
     ;;
   "radio wwan on")
     ;;
-  "--wait 45 connection up uuid mobile-uuid")
+  "--wait 45 connection up uuid mobile-uuid ifname cdc-wdm0")
     printf 'connected\n' > "$NETWORK_TEST_STATE"
     ;;
   *)
@@ -132,6 +171,7 @@ esac
 SH
 cat > "$stage/bin/mmcli" <<'SH'
 #!/bin/bash
+[[ $* == "-m /org/freedesktop/ModemManager1/Modem/0 -K" ]] || exit 1
 state=$(<"$NETWORK_TEST_STATE")
 if [[ $state != "connected" ]]; then
   state=registered
@@ -170,5 +210,5 @@ log=$(<"$stage/commands.log")
 [[ $log == *"gdbus monitor --system --dest org.freedesktop.ModemManager1"* ]] || fail "panel follows ModemManager's signals" "$log"
 (( $(grep -c '^gdbus ' <<< "$log") == 1 )) || fail "one ModemManager stream per panel" "$log"
 [[ $log == *"device disconnect cdc-wdm0"* ]] || fail "disconnect targets the modem device" "$log"
-[[ $log == *$'radio wwan on\n--wait 45 connection up uuid mobile-uuid'* ]] || fail "connect turns the radio on, then brings the profile up by UUID" "$log"
+[[ $log == *$'radio wwan on\n--wait 45 connection up uuid mobile-uuid ifname cdc-wdm0'* ]] || fail "connect turns the radio on, then brings the profile up by UUID on the modem's device" "$log"
 pass "network panel shows the modem, follows ModemManager events, and connects and disconnects it"
