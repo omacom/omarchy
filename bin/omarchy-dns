@@ -195,17 +195,35 @@ lock_dns_changes() {
 # created after the provider was chosen still take DHCP DNS, so pin the provider
 # on Wi-Fi/Ethernet ones; VPNs keep the DNS they push.
 pin_connection() {
-  local uuid="$1" device="$2" dns type ipv4_ignore ipv6_ignore
+  local uuid="$1" device="$2" dns type ipv4_method ipv4_ignore ipv6_method ipv6_ignore pinned=yes
+  local settings=()
 
   dns=$(resolved_dns)
   [[ -n $uuid && -n ${dns//[[:space:]]/} ]] || return 0
 
-  { read -r type; read -r ipv4_ignore; read -r ipv6_ignore; } < <(nmcli -g connection.type,ipv4.ignore-auto-dns,ipv6.ignore-auto-dns connection show "$uuid")
+  { read -r type; read -r ipv4_method; read -r ipv4_ignore; read -r ipv6_method; read -r ipv6_ignore; } < <(nmcli -g connection.type,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "$uuid")
   networkmanager_dns_connection "$type" || return 0
-  [[ $ipv4_ignore == "yes" && $ipv6_ignore == "yes" ]] && return 0
 
+  # nmcli rejects ipvN.dns for a method that takes no DNS (IPv6 disabled, say)
+  # and fails the whole modify, so pin only the families that can carry servers.
   split_dns_servers "$dns"
-  pin_profile_dns "$uuid" "$ipv4_dns" "$ipv6_dns"
+  case "$ipv4_method" in
+    link-local|shared|disabled) ;;
+    *)
+      settings+=(ipv4.ignore-auto-dns yes ipv4.dns "$ipv4_dns")
+      [[ $ipv4_ignore == "yes" ]] || pinned=no
+      ;;
+  esac
+  case "$ipv6_method" in
+    link-local|ignore|disabled) ;;
+    *)
+      settings+=(ipv6.ignore-auto-dns yes ipv6.dns "$ipv6_dns")
+      [[ $ipv6_ignore == "yes" ]] || pinned=no
+      ;;
+  esac
+  [[ $pinned == "no" ]] || return 0
+
+  nmcli connection modify "$uuid" "${settings[@]}" >/dev/null
   if [[ -n $device ]]; then
     nmcli device reapply "$device" >/dev/null 2>&1 || true
   fi
