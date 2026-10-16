@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import qs.Commons
+import qs.Commons as Commons
 
 // Every match with its groups: number or name, span, and the text matched.
 // A ListView, so only the rows on screen exist however many matches there
@@ -85,7 +86,7 @@ Item {
           spacing: Style.spacing.md
 
           Text {
-            text: "Match " + (row.index + 1)
+            text: Commons.I18n.t("rex.matchNumber").arg(row.index + 1)
             textFormat: Text.PlainText
             color: root.accent
             font.family: Style.font.family
@@ -133,7 +134,7 @@ Item {
             }
 
             Text {
-              text: root.groupNames[group] ? group + " " + root.groupNames[group] : "Group " + group
+              text: root.groupNames[group] ? group + " " + root.groupNames[group] : Commons.I18n.t("rex.groupNumber").arg(group)
               textFormat: Text.PlainText
               color: root.dim
               font.family: Style.font.family
@@ -152,7 +153,7 @@ Item {
             Text {
               Layout.fillWidth: true
               // -2: the engine matched the group but does not say where.
-              text: start === -2 ? root.unplaced(row.index, group) : (start < 0 ? "did not take part" : root.preview(start, end))
+              text: start === -2 ? root.unplaced(row.index, group) : (start < 0 ? Commons.I18n.t("rex.groupDidNotTakePart") : root.preview(start, end))
               color: start < 0 ? root.dim : root.foreground
               font.italic: start < 0
               elide: Text.ElideRight
@@ -169,7 +170,8 @@ Item {
   Text {
     anchors.centerIn: parent
     visible: root.count === 0
-    text: "No matches"
+    text: Commons.I18n.t("rex.noMatches")
+    textFormat: Text.PlainText
     color: root.dim
     font.family: Style.font.family
     font.pixelSize: Style.font.body

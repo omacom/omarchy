@@ -33,7 +33,7 @@ ColumnLayout {
   TextField {
     id: draftText
     Layout.fillWidth: true
-    placeholderText: "A text to test"
+    placeholderText: Commons.I18n.t("rex.testTextPlaceholder")
     onAccepted: root.add()
   }
 
@@ -61,14 +61,14 @@ ColumnLayout {
       id: draftValue
       Layout.fillWidth: true
       visible: root.draftExpect === "group"
-      placeholderText: "the text it captures"
+      placeholderText: Commons.I18n.t("rex.capturedTextPlaceholder")
       onAccepted: root.add()
     }
 
     Item { Layout.fillWidth: true; visible: root.draftExpect !== "group" }
 
     Button {
-      text: "Add test"
+      text: Commons.I18n.t("rex.addTest")
       bordered: true
       onClicked: root.add()
     }
@@ -153,13 +153,13 @@ ColumnLayout {
 
         Button {
           iconText: "󰏫"
-          tooltipText: "Put this text in the workbench"
+          tooltipText: Commons.I18n.t("rex.useTestText")
           onClicked: root.app.setTypedText(row.modelData.text)
         }
 
         Button {
           iconText: "󰆴"
-          tooltipText: "Remove the test"
+          tooltipText: Commons.I18n.t("rex.removeTest")
           onClicked: root.app.removeTest(row.index)
         }
       }
@@ -169,7 +169,8 @@ ColumnLayout {
   Text {
     Layout.fillWidth: true
     visible: root.app.tests.length === 0
-    text: "Tests pin down what the pattern must do: texts it has to match, has to reject, or has to capture from. They run on every change, and the optimizer only offers rewrites that still pass them."
+    text: Commons.I18n.t("rex.testsIntro")
+    textFormat: Text.PlainText
     color: root.dim
     wrapMode: Text.Wrap
     font.family: Style.font.family

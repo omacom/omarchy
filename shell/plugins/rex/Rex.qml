@@ -553,7 +553,7 @@ Item {
 
   FloatingWindow {
     id: window
-    title: "Rex"
+    title: "Rex" // i18n: ignore
     color: root.background
     implicitWidth: Style.space(1280)
     implicitHeight: Style.space(820)

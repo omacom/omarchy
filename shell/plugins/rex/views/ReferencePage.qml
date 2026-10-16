@@ -38,7 +38,8 @@ Item {
       spacing: Style.spacing.lg
 
       Text {
-        text: "Reference"
+        text: Commons.I18n.t("rex.reference")
+        textFormat: Text.PlainText
         color: root.foreground
         font.family: Style.font.family
         font.pixelSize: Style.font.heading
@@ -56,12 +57,12 @@ Item {
       TextField {
         id: search
         Layout.fillWidth: true
-        placeholderText: "Search: lookbehind, \\b, unicode…"
+        placeholderText: Commons.I18n.t("rex.searchReference")
       }
 
       Button {
-        text: root.onlySupported ? "Only " + root.app.flavorInfo.short : "Everything"
-        tooltipText: root.onlySupported ? "Showing what " + root.app.flavorInfo.name + " supports. Click to show the rest too." : "Showing every construct. Click to keep to what " + root.app.flavorInfo.name + " supports."
+        text: root.onlySupported ? Commons.I18n.t("rex.onlyFlavor").arg(root.app.flavorInfo.short) : Commons.I18n.t("rex.everything")
+        tooltipText: (root.onlySupported ? Commons.I18n.t("rex.showingSupported") : Commons.I18n.t("rex.showingEverything")).arg(root.app.flavorInfo.name)
         bordered: true
         selected: root.onlySupported
         onClicked: root.onlySupported = !root.onlySupported
@@ -70,7 +71,7 @@ Item {
 
     Text {
       Layout.fillWidth: true
-      text: root.app.flavorInfo.description + (root.app.flavorInfo.replace ? "  Replacements: " + Replace.SYNTAXES[root.app.flavorInfo.replace] + "." : "")
+      text: root.app.flavorInfo.description + (root.app.flavorInfo.replace ? "  " + Commons.I18n.t("rex.replacementSyntax").arg(Replace.SYNTAXES[root.app.flavorInfo.replace]) : "")
       textFormat: Text.PlainText
       color: root.dim
       wrapMode: Text.Wrap
@@ -136,7 +137,8 @@ Item {
 
           Text {
             Layout.fillWidth: true
-            text: row.modelData.meaning + (row.modelData.supported ? "" : " — not in " + root.app.flavorInfo.name)
+            // The meaning fills the last hole: it can hold a %-hole itself.
+            text: row.modelData.supported ? row.modelData.meaning : Commons.I18n.t("rex.notInFlavor").arg(root.app.flavorInfo.name).arg(row.modelData.meaning)
             color: root.foreground
             wrapMode: Text.Wrap
             font.family: Style.font.family

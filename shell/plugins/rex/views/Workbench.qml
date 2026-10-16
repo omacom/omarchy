@@ -33,7 +33,7 @@ Item {
 
   FileDialog {
     id: fileDialog
-    title: "Open a text to search"
+    title: Commons.I18n.t("rex.openTextTitle")
     onAccepted: root.app.openFile(root.localPath(selectedFile))
   }
 
@@ -75,8 +75,8 @@ Item {
         }
 
         Button {
-          text: root.app.all ? "all" : "first"
-          tooltipText: "Find every match, or stop at the first"
+          text: root.app.all ? Commons.I18n.t("rex.allMatches") : Commons.I18n.t("rex.firstMatch")
+          tooltipText: Commons.I18n.t("rex.allOrFirstTooltip")
           bordered: true
           selected: root.app.all
           onClicked: root.app.all = !root.app.all
@@ -160,8 +160,8 @@ Item {
           }
 
           Button {
-            text: "Open file…"
-            tooltipText: "Search a file; large files open read-only. You can also drop a file here."
+            text: Commons.I18n.t("rex.openFile")
+            tooltipText: Commons.I18n.t("rex.openFileTooltip")
             bordered: true
             onClicked: fileDialog.open()
           }
@@ -169,7 +169,7 @@ Item {
           Button {
             visible: root.app.textFile !== "" || root.app.largeText
             iconText: "󰅖"
-            tooltipText: "Close the text"
+            tooltipText: Commons.I18n.t("rex.closeText")
             onClicked: root.app.closeFile()
           }
         }

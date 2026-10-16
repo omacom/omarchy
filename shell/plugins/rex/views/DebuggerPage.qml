@@ -123,7 +123,8 @@ Item {
       spacing: Style.spacing.lg
 
       Text {
-        text: "Debugger"
+        text: Commons.I18n.t("rex.debugger")
+        textFormat: Text.PlainText
         color: root.foreground
         font.family: Style.font.family
         font.pixelSize: Style.font.heading
@@ -132,7 +133,7 @@ Item {
 
       Text {
         Layout.fillWidth: true
-        text: root.app.flavor === "pcre2" ? "PCRE2, step by step" : "Runs the pattern on PCRE2, which may read it differently from " + root.app.flavorInfo.name
+        text: root.app.flavor === "pcre2" ? Commons.I18n.t("rex.debuggerPcre2") : Commons.I18n.t("rex.debuggerOtherFlavor").arg(root.app.flavorInfo.name)
         textFormat: Text.PlainText
         color: root.dim
         elide: Text.ElideRight
@@ -141,10 +142,10 @@ Item {
       }
 
       Button {
-        text: root.optimize ? "Optimized" : "Unoptimized"
+        text: root.optimize ? Commons.I18n.t("rex.optimized") : Commons.I18n.t("rex.unoptimized")
         tooltipText: root.optimize
-          ? "What PCRE2 really does, skipping work it can prove pointless. Click to see every step of the plain algorithm."
-          : "The plain backtracking algorithm, every step. Click to see what PCRE2's optimizations save."
+          ? Commons.I18n.t("rex.optimizedTooltip")
+          : Commons.I18n.t("rex.unoptimizedTooltip")
         bordered: true
         selected: root.optimize
         onClicked: root.optimize = !root.optimize
@@ -154,7 +155,8 @@ Item {
     Text {
       Layout.fillWidth: true
       visible: root.app.pattern === ""
-      text: "Type a pattern on the workbench first."
+      text: Commons.I18n.t("rex.typePatternFirst")
+      textFormat: Text.PlainText
       color: root.dim
       font.family: Style.font.family
       font.pixelSize: Style.font.body
@@ -219,7 +221,7 @@ Item {
     Text {
       Layout.fillWidth: true
       visible: !!root.current
-      text: root.current ? "Step " + (root.step + 1) + " of " + root.steps.length + ": " + Debug.describe(root.current, root.app.pattern, root.app.testText) : ""
+      text: root.current ? Commons.I18n.t("rex.debugStep").arg(root.step + 1).arg(root.steps.length).arg(Debug.describe(root.current, root.app.pattern, root.app.testText)) : ""
       color: root.current && (root.current[4] & Debug.BACKTRACK) ? root.backtrackColor : root.foreground
       wrapMode: Text.Wrap
       font.family: Style.font.family
@@ -269,7 +271,7 @@ Item {
     Text {
       Layout.fillWidth: true
       visible: !!root.reply && root.reply.ok !== false
-      text: root.reply && root.reply.ok !== false ? Debug.summary(root.reply, root.steps) + (root.reply.textTruncated ? " (on the first 65,536 characters)" : "") : ""
+      text: root.reply && root.reply.ok !== false ? (root.reply.textTruncated ? Commons.I18n.t("rex.debugTruncated").arg(Debug.summary(root.reply, root.steps)) : Debug.summary(root.reply, root.steps)) : ""
       color: root.reply && (root.reply.stopped || root.reply.limit) ? root.backtrackColor : root.dim
       wrapMode: Text.Wrap
       font.family: Style.font.family
@@ -284,7 +286,8 @@ Item {
       spacing: Style.spacing.md
 
       Text {
-        text: "Busiest items:"
+        text: Commons.I18n.t("rex.busiestItems")
+        textFormat: Text.PlainText
         color: root.dim
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
@@ -295,7 +298,11 @@ Item {
 
         Text {
           required property var modelData
-          text: root.app.pattern.substr(modelData.start, modelData.length) + " at " + modelData.start + " ×" + modelData.count + (modelData.backtracks ? " (" + modelData.backtracks + " after backtracking)" : "")
+          // The pattern slice fills the last hole: it could hold a %-hole itself.
+          text: (modelData.backtracks
+            ? Commons.I18n.t("rex.busiestItemBacktracks").arg(modelData.start).arg(modelData.count).arg(modelData.backtracks)
+            : Commons.I18n.t("rex.busiestItem").arg(modelData.start).arg(modelData.count))
+            .arg(root.app.pattern.substr(modelData.start, modelData.length))
           color: root.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.caption

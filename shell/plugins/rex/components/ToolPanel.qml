@@ -47,7 +47,7 @@ ColumnLayout {
     Button {
       visible: root.app.tool !== ""
       iconText: "󰅖"
-      tooltipText: "Close the tool"
+      tooltipText: Commons.I18n.t("rex.closeTool")
       onClicked: root.app.tool = ""
     }
   }
@@ -55,7 +55,7 @@ ColumnLayout {
   TextField {
     Layout.fillWidth: true
     visible: root.app.tool === "substitute" || root.app.tool === "list"
-    placeholderText: root.app.tool === "list" ? "Template for each match, such as $1\\n" : "Replacement"
+    placeholderText: root.app.tool === "list" ? Commons.I18n.t("rex.listTemplatePlaceholder") : Commons.I18n.t("rex.replacementPlaceholder")
     text: root.app.tool === "list" ? root.app.listTemplate : root.app.replacement
     onTextEdited: {
       if (root.app.tool === "list") root.app.listTemplate = text
@@ -82,7 +82,7 @@ ColumnLayout {
     accent: root.accent
     text: root.app.tool === "list" ? root.app.listOutput : root.app.substitution.text
     spans: root.app.tool === "list" ? [] : root.app.substitution.spans
-    placeholder: root.app.tool === "list" ? "Nothing listed" : ""
+    placeholder: root.app.tool === "list" ? Commons.I18n.t("rex.nothingListed") : ""
   }
 
   ListView {

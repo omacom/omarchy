@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import qs.Commons
+import qs.Commons as Commons
 
 // The editable test text with matches and groups painted behind it. Only the
 // matches inside the visible part of the text are drawn, so a text with a
@@ -179,7 +180,8 @@ Rectangle {
     anchors.top: parent.top
     anchors.margins: Style.spacing.lg
     visible: edit.length === 0
-    text: "Paste or type the text to search"
+    text: Commons.I18n.t("rex.pasteOrTypeText")
+    textFormat: Text.PlainText
     color: Qt.darker(root.foreground, 1.8)
     font.family: Style.font.family
     font.pixelSize: Style.font.subtitle

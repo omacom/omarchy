@@ -62,6 +62,13 @@ Item {
     return root.dim
   }
 
+  // One row of a measurement: the text size and its time, or an error. The
+  // time goes in last, since an error message could hold a %-hole.
+  function measuredRow(size, time) {
+    var shown = time === null ? "…" : (typeof time === "number" ? root.app.formatMs(time) : time)
+    return Commons.I18n.tn("rex.measuredSize", size).arg(Commons.I18n.formatNumber(size)).arg(shown)
+  }
+
   // Each rewrite runs as soon as the original's result is in.
   // What the checks under way were started against: the original's result
   // and the tests, so a reply is judged by the inputs it was run on.
@@ -213,7 +220,7 @@ Item {
           spacing: Style.spacing.md
 
           Text {
-            text: { return { danger: "Danger", warning: "Warning", tip: "Tip", info: "Note" }[card.modelData.severity] }
+            text: { return { danger: Commons.I18n.t("rex.severityDanger"), warning: Commons.I18n.t("rex.severityWarning"), tip: Commons.I18n.t("rex.severityTip"), info: Commons.I18n.t("rex.severityNote") }[card.modelData.severity] }
             textFormat: Text.PlainText
             color: root.severityColor(card.modelData.severity)
             font.family: Style.font.family
@@ -270,7 +277,7 @@ Item {
           Text {
             Layout.fillWidth: true
             visible: card.modelData.rewrite !== ""
-            text: card.check ? card.check.detail : "Waiting for the original's matches…"
+            text: card.check ? card.check.detail : Commons.I18n.t("rex.waitingForOriginal")
             color: card.check && card.check.verdict === "same" ? root.accent : (card.check && card.check.verdict !== "checking" ? Commons.Color.urgent : root.dim)
             wrapMode: Text.Wrap
             font.family: Style.font.family
@@ -282,16 +289,16 @@ Item {
 
           Button {
             visible: !!card.modelData.witness
-            text: "Measure"
-            tooltipText: "Time the pattern on texts built to trigger this, of growing length"
+            text: Commons.I18n.t("rex.measure")
+            tooltipText: Commons.I18n.t("rex.measureTooltip")
             bordered: true
             onClicked: root.measure(card.index)
           }
 
           Button {
             visible: card.modelData.rewrite !== ""
-            text: "Apply"
-            tooltipText: card.check && card.check.verdict === "same" ? "Use the rewritten pattern" : "Only a rewrite that matches the same on your text can be applied"
+            text: Commons.I18n.t("rex.apply")
+            tooltipText: card.check && card.check.verdict === "same" ? Commons.I18n.t("rex.applyTooltip") : Commons.I18n.t("rex.applyUnavailable")
             bordered: true
             enabled: !!card.check && card.check.verdict === "same"
             opacity: enabled ? 1 : 0.4
@@ -310,7 +317,7 @@ Item {
             Text {
               required property int index
               readonly property var time: card.measured.times[index]
-              text: card.measured.sizes[index] + " chars: " + (time === null ? "…" : (typeof time === "number" ? root.app.formatMs(time) : time))
+              text: root.measuredRow(card.measured.sizes[index], time)
               textFormat: Text.PlainText
               color: typeof time === "string" ? Commons.Color.urgent : root.foreground
               font.family: Style.font.family
@@ -327,7 +334,7 @@ Item {
     width: parent.width - Style.spacing.xxl * 2
     horizontalAlignment: Text.AlignHCenter
     visible: root.findings.length === 0
-    text: root.app.pattern === "" ? "Type a pattern to have it reviewed" : (root.app.parsed.errors.length ? "Fix the pattern's errors first" : "Nothing to improve that Rex can see")
+    text: root.app.pattern === "" ? Commons.I18n.t("rex.typePatternToReview") : (root.app.parsed.errors.length ? Commons.I18n.t("rex.fixPatternErrors") : Commons.I18n.t("rex.nothingToImprove"))
     textFormat: Text.PlainText
     color: root.dim
     wrapMode: Text.Wrap

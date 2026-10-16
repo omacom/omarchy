@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../lib/Flavors.js" as Flavors
 import "../lib/Codegen.js" as Codegen
@@ -36,7 +37,8 @@ Item {
       spacing: Style.spacing.lg
 
       Text {
-        text: "Code"
+        text: Commons.I18n.t("rex.code")
+        textFormat: Text.PlainText
         color: root.foreground
         font.family: Style.font.family
         font.pixelSize: Style.font.heading
@@ -65,7 +67,7 @@ Item {
     Text {
       Layout.fillWidth: true
       visible: root.target !== root.app.flavor
-      text: "The workbench uses " + root.app.flavorInfo.name + "; " + Flavors.byId(root.target).name + " may read the pattern differently. Compare flavors shows how."
+      text: Commons.I18n.t("rex.flavorMismatch").arg(root.app.flavorInfo.name).arg(Flavors.byId(root.target).name)
       textFormat: Text.PlainText
       color: root.dim
       wrapMode: Text.Wrap
@@ -75,7 +77,8 @@ Item {
 
     Text {
       visible: root.app.pattern === ""
-      text: "Type a pattern on the workbench first."
+      text: Commons.I18n.t("rex.typePatternFirst")
+      textFormat: Text.PlainText
       color: root.dim
       font.family: Style.font.family
       font.pixelSize: Style.font.body
@@ -134,7 +137,7 @@ Item {
             }
 
             Button {
-              text: root.copied === card.index ? "Copied" : "Copy"
+              text: root.copied === card.index ? Commons.I18n.t("rex.copied") : Commons.I18n.t("rex.copy")
               bordered: true
               onClicked: {
                 Quickshell.execDetached(["wl-copy", "--", card.modelData.code])

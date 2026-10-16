@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import qs.Commons
+import qs.Commons as Commons
 
 // The test text when it is too large to edit: a read-only view that only
 // lays out the rows on screen, each painting just the matches inside it.
@@ -218,7 +219,8 @@ Rectangle {
   Text {
     anchors.centerIn: parent
     visible: root.indexing
-    text: "Reading the text…"
+    text: Commons.I18n.t("rex.readingText")
+    textFormat: Text.PlainText
     color: Qt.darker(root.foreground, 1.5)
     font.family: Style.font.family
     font.pixelSize: Style.font.body

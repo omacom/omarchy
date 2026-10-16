@@ -39,7 +39,8 @@ Item {
       spacing: Style.spacing.lg
 
       Text {
-        text: "Library"
+        text: Commons.I18n.t("rex.library")
+        textFormat: Text.PlainText
         color: root.foreground
         font.family: Style.font.family
         font.pixelSize: Style.font.heading
@@ -49,7 +50,7 @@ Item {
       TextField {
         id: search
         Layout.fillWidth: true
-        placeholderText: "Search saved patterns"
+        placeholderText: Commons.I18n.t("rex.searchSaved")
       }
     }
 
@@ -61,14 +62,14 @@ Item {
       TextField {
         id: saveName
         Layout.fillWidth: true
-        placeholderText: "Name for the workbench's pattern"
+        placeholderText: Commons.I18n.t("rex.saveNamePlaceholder")
         onAccepted: saveButton.save()
       }
 
       Button {
         id: saveButton
-        text: "Save"
-        tooltipText: "Save the pattern with its flavor, flags, test text, replacement and tests. A name already in use is replaced."
+        text: Commons.I18n.t("rex.save")
+        tooltipText: Commons.I18n.t("rex.saveTooltip")
         bordered: true
         enabled: root.app.pattern !== ""
         function save() {
@@ -158,9 +159,9 @@ Item {
             }
 
             Button {
-              text: root.confirmDelete === card.modelData.id ? "Delete?" : ""
+              text: root.confirmDelete === card.modelData.id ? Commons.I18n.t("rex.confirmDelete") : ""
               iconText: root.confirmDelete === card.modelData.id ? "" : "󰆴"
-              tooltipText: "Delete from the library"
+              tooltipText: Commons.I18n.t("rex.deleteFromLibrary")
               bordered: root.confirmDelete === card.modelData.id
               onClicked: {
                 if (root.confirmDelete === card.modelData.id) {
@@ -179,7 +180,7 @@ Item {
           width: parent.width - Style.spacing.xxl * 2
           horizontalAlignment: Text.AlignHCenter
           visible: root.saved.length === 0
-          text: root.app.library.length ? "Nothing saved matches" : "Saved patterns appear here, with everything needed to pick them up again."
+          text: root.app.library.length ? Commons.I18n.t("rex.nothingSavedMatches") : Commons.I18n.t("rex.libraryEmpty")
           textFormat: Text.PlainText
           color: root.dim
           wrapMode: Text.Wrap
@@ -196,7 +197,8 @@ Item {
         spacing: Style.spacing.md
 
         Text {
-          text: "Recent"
+          text: Commons.I18n.t("rex.recent")
+          textFormat: Text.PlainText
           color: root.accent
           font.family: Style.font.family
           font.pixelSize: Style.font.subtitle

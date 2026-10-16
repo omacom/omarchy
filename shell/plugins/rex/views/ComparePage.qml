@@ -124,7 +124,8 @@ Item {
     spacing: Style.spacing.lg
 
     Text {
-      text: "Compare flavors"
+      text: Commons.I18n.t("rex.compareFlavors")
+      textFormat: Text.PlainText
       color: root.foreground
       font.family: Style.font.family
       font.pixelSize: Style.font.heading
@@ -133,7 +134,7 @@ Item {
 
     Text {
       Layout.fillWidth: true
-      text: "The workbench's pattern and text on every installed engine, measured against " + root.app.flavorInfo.name + ". Each flavor gets the flags it shares with " + root.app.flavorInfo.name + "."
+      text: Commons.I18n.t("rex.compareIntro").arg(root.app.flavorInfo.name)
       textFormat: Text.PlainText
       color: root.dim
       wrapMode: Text.Wrap
@@ -143,7 +144,8 @@ Item {
 
     Text {
       visible: root.app.pattern === ""
-      text: "Type a pattern on the workbench first."
+      text: Commons.I18n.t("rex.typePatternFirst")
+      textFormat: Text.PlainText
       color: root.dim
       font.family: Style.font.family
       font.pixelSize: Style.font.body
@@ -212,7 +214,9 @@ Item {
 
             Text {
               Layout.preferredWidth: Style.space(110)
-              text: row.result && row.result.done && row.result.ok !== false ? (row.result.count === 1 ? "1 match" : row.result.count + " matches") : ""
+              text: row.result && row.result.done && row.result.ok !== false
+                ? Commons.I18n.tn("rex.matchCount", row.result.count).arg(Commons.I18n.formatNumber(row.result.count))
+                : ""
               textFormat: Text.PlainText
               color: root.foreground
               font.family: Style.font.family
@@ -241,8 +245,8 @@ Item {
 
             Button {
               visible: row.modelData !== root.app.flavor
-              text: "Use"
-              tooltipText: "Make " + row.info.name + " the workbench's flavor"
+              text: Commons.I18n.t("rex.use")
+              tooltipText: Commons.I18n.t("rex.useFlavorTooltip").arg(row.info.name)
               bordered: true
               onClicked: root.app.setFlavor(row.modelData)
             }
@@ -272,7 +276,7 @@ Item {
               Text {
                 required property var modelData
                 Layout.fillWidth: true
-                text: "Rex reads: " + modelData.message
+                text: Commons.I18n.t("rex.rexReads").arg(modelData.message)
                 color: root.dim
                 wrapMode: Text.Wrap
                 font.family: Style.font.family
@@ -283,7 +287,7 @@ Item {
 
             Text {
               visible: !!row.entry && row.entry.flags.join("") !== root.app.flags.join("")
-              text: "Ran with flags: " + (row.entry && row.entry.flags.length ? row.entry.flags.join(" ") : "none")
+              text: Commons.I18n.t("rex.ranWithFlags").arg(row.entry && row.entry.flags.length ? row.entry.flags.join(" ") : Commons.I18n.t("rex.noFlags"))
               textFormat: Text.PlainText
               color: root.dim
               font.family: Style.font.family

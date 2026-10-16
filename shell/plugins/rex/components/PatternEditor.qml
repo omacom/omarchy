@@ -22,7 +22,7 @@ Rectangle {
   property var highlight: []
   // Free-spacing mode lets Enter start a new line.
   property bool multiline: false
-  property string placeholder: "Type a regular expression"
+  property string placeholder: Commons.I18n.t("rex.typeRegex")
 
   readonly property alias cursorPosition: edit.cursorPosition
   readonly property alias editor: edit

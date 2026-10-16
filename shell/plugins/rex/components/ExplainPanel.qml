@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import qs.Commons
+import qs.Commons as Commons
 
 // The pattern explained as a tree. Hovering a row points at its part of the
 // pattern; clicking selects it there. The row under the pattern's cursor is
@@ -114,7 +115,8 @@ Item {
   Text {
     anchors.centerIn: parent
     visible: root.rows.length === 0
-    text: "Type a pattern to see it explained"
+    text: Commons.I18n.t("rex.typePatternToExplain")
+    textFormat: Text.PlainText
     color: root.dim
     font.family: Style.font.family
     font.pixelSize: Style.font.body

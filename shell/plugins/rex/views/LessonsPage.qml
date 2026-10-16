@@ -179,7 +179,7 @@ Item {
         spacing: Style.spacing.lg
 
         Text {
-          text: Lessons.LEVELS[root.lesson.level] + " · lesson " + (Lessons.index(root.current) + 1) + " of " + Lessons.LESSONS.length
+          text: Commons.I18n.t("rex.lessonOf").arg(Lessons.LEVELS[root.lesson.level]).arg(Lessons.index(root.current) + 1).arg(Lessons.LESSONS.length)
           textFormat: Text.PlainText
           color: root.dim
           font.family: Style.font.family
@@ -232,8 +232,8 @@ Item {
           }
 
           Button {
-            text: "Try it"
-            tooltipText: "Open the example on the workbench"
+            text: Commons.I18n.t("rex.tryIt")
+            tooltipText: Commons.I18n.t("rex.tryItTooltip")
             bordered: true
             onClicked: {
               var ex = root.lesson.example
@@ -265,7 +265,9 @@ Item {
             spacing: Style.spacing.md
 
             Text {
-              text: "Exercise " + (root.exercise + 1) + " of " + root.lesson.exercises.length + " · " + Flavors.byId(root.taskFlavor).name + (root.task.flags && root.task.flags.length ? " · flags " + root.task.flags.join("") : "")
+              text: (root.task.flags && root.task.flags.length
+                ? Commons.I18n.t("rex.exerciseOfFlags").arg(root.exercise + 1).arg(root.lesson.exercises.length).arg(Flavors.byId(root.taskFlavor).name).arg(root.task.flags.join(""))
+                : Commons.I18n.t("rex.exerciseOf").arg(root.exercise + 1).arg(root.lesson.exercises.length).arg(Flavors.byId(root.taskFlavor).name))
               textFormat: Text.PlainText
               color: root.dim
               font.family: Style.font.family
@@ -288,7 +290,7 @@ Item {
               Layout.fillWidth: true
               foreground: root.foreground
               accent: root.accent
-              placeholder: "Your pattern"
+              placeholder: Commons.I18n.t("rex.yourPattern")
               text: root.answer
               tokens: Explain.tokens(root.answerParsed)
               errors: root.answerParsed.errors
@@ -334,14 +336,14 @@ Item {
               spacing: Style.spacing.md
 
               Button {
-                text: "Hint"
+                text: Commons.I18n.t("rex.hint")
                 bordered: true
                 selected: root.showHint
                 onClicked: root.showHint = !root.showHint
               }
 
               Button {
-                text: "Show a solution"
+                text: Commons.I18n.t("rex.showSolution")
                 bordered: true
                 selected: root.showSolution
                 onClicked: root.showSolution = !root.showSolution
@@ -350,7 +352,8 @@ Item {
               Text {
                 Layout.fillWidth: true
                 visible: root.solved
-                text: "Solved!"
+                text: Commons.I18n.t("rex.solved")
+                textFormat: Text.PlainText
                 color: root.accent
                 horizontalAlignment: Text.AlignRight
                 font.family: Style.font.family
@@ -359,7 +362,7 @@ Item {
               }
 
               Button {
-                text: root.exercise + 1 < root.lesson.exercises.length ? "Next exercise" : "Next lesson"
+                text: root.exercise + 1 < root.lesson.exercises.length ? Commons.I18n.t("rex.nextExercise") : Commons.I18n.t("rex.nextLesson")
                 bordered: true
                 visible: root.solved
                 onClicked: root.next()
@@ -380,7 +383,7 @@ Item {
             Text {
               Layout.fillWidth: true
               visible: root.showSolution
-              text: root.task.solution + "   (one of many)"
+              text: Commons.I18n.t("rex.solutionOneOfMany").arg(root.task.solution)
               color: root.accent
               wrapMode: Text.Wrap
               font.family: Style.font.family

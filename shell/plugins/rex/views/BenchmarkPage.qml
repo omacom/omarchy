@@ -127,7 +127,8 @@ Item {
       spacing: Style.spacing.lg
 
       Text {
-        text: "Benchmark"
+        text: Commons.I18n.t("rex.benchmark")
+        textFormat: Text.PlainText
         color: root.foreground
         font.family: Style.font.family
         font.pixelSize: Style.font.heading
@@ -151,7 +152,7 @@ Item {
       }
 
       Button {
-        text: root.running ? "Stop" : "Run"
+        text: root.running ? Commons.I18n.t("rex.stop") : Commons.I18n.t("rex.run")
         bordered: true
         enabled: root.app.pattern !== ""
         onClicked: root.running ? root.stop() : root.start()
@@ -160,7 +161,11 @@ Item {
 
     Text {
       Layout.fillWidth: true
-      text: "Each engine compiles the pattern and finds every match in the test text" + (root.running && root.frozen && root.frozen.pattern !== root.app.pattern ? " (running the pattern as it was when the run started)" : "") + (root.scale > 1 ? " repeated " + root.scale + " times" : "") + ", " + root.runs + " times after a warm-up run. Engines run one at a time. Times include compiling, which interpreted engines usually cache."
+      text: (root.scale > 1
+        ? Commons.I18n.tn("rex.benchmarkRunsRepeated", root.runs).arg(Commons.I18n.formatNumber(root.runs)).arg(Commons.I18n.formatNumber(root.scale))
+        : Commons.I18n.tn("rex.benchmarkRuns", root.runs).arg(Commons.I18n.formatNumber(root.runs)))
+        + (root.running && root.frozen && root.frozen.pattern !== root.app.pattern ? " " + Commons.I18n.t("rex.benchmarkFrozen") : "")
+        + " " + Commons.I18n.t("rex.benchmarkNotes")
       textFormat: Text.PlainText
       color: root.dim
       wrapMode: Text.Wrap
