@@ -35,8 +35,8 @@ mkdir -p "$work/bin"
 cat >"$work/bin/nmcli" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$STUB_LOG"
-if [[ $* == "-g connection.type,ipv4.ignore-auto-dns,ipv6.ignore-auto-dns connection show "* ]]; then
-  printf '%s\n%s\n%s\n' "$STUB_TYPE" "$STUB_IGNORE4" "$STUB_IGNORE6"
+if [[ $* == "-g connection.type,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "* ]]; then
+  printf '%s\n%s\n%s\n%s\n%s\n' "$STUB_TYPE" "${STUB_METHOD4:-auto}" "$STUB_IGNORE4" "${STUB_METHOD6:-auto}" "$STUB_IGNORE6"
 fi
 SH
 cat >"$work/bin/systemctl" <<'SH'
@@ -58,11 +58,12 @@ DNS=1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 2606:4700:4700::1111#c
 dhcp='[Resolve]
 DNSOverTLS=no'
 
-# pin <resolved.conf body> <connection type> <ipv4.ignore-auto-dns> [ipv6.ignore-auto-dns]
+# pin <resolved.conf body> <connection type> <ipv4.ignore-auto-dns> [ipv6.ignore-auto-dns] [ipv6.method] [ipv4.method]
 pin() {
   printf '%s\n' "$1" >"$work/resolved.conf"
   : >"$work/log"
-  STUB_LOG="$work/log" STUB_TYPE="$2" STUB_IGNORE4="$3" STUB_IGNORE6="${4:-$3}" bash "$dns" --pin-connection "$uuid" wlan0
+  STUB_LOG="$work/log" STUB_TYPE="$2" STUB_IGNORE4="$3" STUB_IGNORE6="${4:-$3}" STUB_METHOD6="${5:-auto}" STUB_METHOD4="${6:-auto}" \
+    bash "$dns" --pin-connection "$uuid" wlan0
 }
 
 refute_modify() {
@@ -95,6 +96,28 @@ pass "dispatcher pins a profile whose IPv6 DNS is still automatic"
 
 pin "$cloudflare" 802-11-wireless yes
 refute_modify "dispatcher leaves an already pinned profile alone"
+
+# nmcli refuses ipv6.dns on a profile with IPv6 disabled and fails the whole
+# modify, which would leave IPv4 on DHCP DNS too.
+for method in disabled ignore link-local; do
+  pin "$cloudflare" 802-11-wireless no no "$method"
+  grep -Fx "connection modify $uuid ipv4.ignore-auto-dns yes ipv4.dns 1.1.1.1 1.0.0.1" "$work/log" >/dev/null ||
+    fail "dispatcher pins only IPv4 on a profile with ipv6.method=$method" "log: $(cat "$work/log")"
+done
+pass "dispatcher pins only IPv4 on a profile whose IPv6 takes no DNS"
+
+pin "$cloudflare" 802-11-wireless yes no disabled
+refute_modify "dispatcher leaves a profile alone once IPv4 is pinned and IPv6 is disabled"
+
+for method in disabled shared link-local; do
+  pin "$cloudflare" 802-3-ethernet no no auto "$method"
+  grep -Fx "connection modify $uuid ipv6.ignore-auto-dns yes ipv6.dns 2606:4700:4700::1111 2606:4700:4700::1001" "$work/log" >/dev/null ||
+    fail "dispatcher pins only IPv6 on a profile with ipv4.method=$method" "log: $(cat "$work/log")"
+done
+pass "dispatcher pins only IPv6 on a profile whose IPv4 takes no DNS"
+
+pin "$cloudflare" 802-3-ethernet no no disabled disabled
+refute_modify "dispatcher leaves a profile alone when neither family takes DNS"
 
 pin "$dhcp" 802-11-wireless no
 refute_modify "dispatcher does nothing while DHCP DNS is the selected provider"
