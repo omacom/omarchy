@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# omarchy:summary=Re-apply the power profile when an ASUS ROG laptop swaps between its barrel adapter and a USB-C charger
+# omarchy:hidden=true
+
+# The battery service applies the profile when UPower's OnBattery changes, which
+# covers plugging in and unplugging. Swapping one charger for another while the
+# laptop stays powered (USB-C in, then the barrel out) leaves OnBattery alone,
+# and UPower does not track the USB-C supply, so nothing else notices. The kernel
+# sends a power_supply uevent for each charger either way; follow those and act
+# only on a move between two chargers, so a plug or unplug is never applied
+# twice. Each platform-profile write can wake the NVIDIA GPU, so that matters.
+
+power_source() {
+  if ! omarchy-power-present; then
+    echo battery
+  elif omarchy-hw-asus-rog-usbc-power; then
+    echo usb-c
+  else
+    echo ac
+  fi
+}
+
+consume_power_events() {
+  local line last current
+  last=$(power_source)
+
+  while IFS= read -r line; do
+    [[ $line == *"(power_supply)"* ]] || continue
+    # The battery reports every percent; only a charger can change the source.
+    [[ $line == *"/power_supply/BAT"* ]] && continue
+
+    # One plug sends a burst of events; act once it has settled.
+    while IFS= read -r -t 1 line; do :; done
+
+    current=$(power_source)
+    if [[ $last != battery && $current != battery && $current != "$last" ]]; then
+      omarchy-powerprofiles-set ac || true
+    fi
+    last=$current
+  done
+}
+
+case ${1:-} in
+  --consume)
+    consume_power_events
+    exit 0
+    ;;
+esac
+
+udevadm monitor --udev --subsystem-match=power_supply | consume_power_events
