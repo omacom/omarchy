@@ -79,19 +79,35 @@ function mobileIconFor(strength, usable) {
 // Quickshell.Networking only models Wi-Fi and wired devices, so the first
 // mobile broadband modem is read from nmcli (state, profile) and mmcli
 // (operator, signal, access technology) instead. Prints nothing when there
-// is no modem. The profile is addressed by UUID because nmcli's terse output
-// escapes colons in names.
+// is no modem. Everything describes that one device: its active profile, or
+// else the first saved profile that is unbound or bound to one of its ports
+// (NetworkManager may name the modem by its AT port while a profile names
+// the MBIM one), and the ModemManager object NetworkManager reports for it.
+// Runs in the C locale because nmcli translates words like "disabled", and
+// without nmcli's escaping so names with colons display as typed.
 var mobileStatusScript =
-  "line=$(nmcli -t -f DEVICE,TYPE dev 2>/dev/null | awk -F: '$2 == \"gsm\" || $2 == \"cdma\" { print $1; exit }');" +
-  " [ -n \"$line\" ] || exit 0;" +
-  " printf 'device\\t%s\\n' \"$line\";" +
-  " nmcli -t -f GENERAL.STATE,GENERAL.CONNECTION,GENERAL.IP-IFACE dev show \"$line\" 2>/dev/null" +
-  "   | sed -E 's/^GENERAL\\.STATE:/state\\t/; s/^GENERAL\\.CONNECTION:/connection\\t/; s/^GENERAL\\.IP-IFACE:/iface\\t/';" +
+  "export LC_ALL=C;" +
+  " dev=$(nmcli -t -f DEVICE,TYPE dev 2>/dev/null | awk -F: '$2 == \"gsm\" || $2 == \"cdma\" { print $1; exit }');" +
+  " [ -n \"$dev\" ] || exit 0;" +
+  " printf 'device\\t%s\\n' \"$dev\";" +
+  " show=$(nmcli -e no -t -f GENERAL.STATE,GENERAL.CONNECTION,GENERAL.CON-UUID,GENERAL.IP-IFACE,GENERAL.UDI dev show \"$dev\" 2>/dev/null);" +
+  " field() { printf '%s\\n' \"$show\" | sed -n \"s/^GENERAL\\.$1://p\"; };" +
+  " printf 'state\\t%s\\nconnection\\t%s\\niface\\t%s\\n' \"$(field STATE)\" \"$(field CONNECTION)\" \"$(field IP-IFACE)\";" +
   " printf 'radio\\t%s\\n' \"$(nmcli -t radio wwan 2>/dev/null)\";" +
-  " uuid=$(nmcli -g UUID,TYPE con show 2>/dev/null | awk -F: '$2 == \"gsm\" || $2 == \"cdma\" { print $1; exit }');" +
+  " modem=$(field UDI); mm=;" +
+  " case $modem in /org/freedesktop/ModemManager1/Modem/*) mm=$(mmcli -m \"$modem\" -K 2>/dev/null) ;; esac;" +
+  " ports=\" $dev $(field IP-IFACE) $(printf '%s\\n' \"$mm\" | awk -F' *: ' '$1 ~ /^modem\\.generic\\.ports\\.value/ { split($2, p, \" \"); printf \"%s \", p[1] }')\";" +
+  " uuid=$(field CON-UUID);" +
+  " if [ -z \"$uuid\" ]; then" +
+  "   for u in $(nmcli -g UUID,TYPE con show 2>/dev/null | awk -F: '$2 == \"gsm\" || $2 == \"cdma\" { print $1 }'); do" +
+  "     bound=$(nmcli -e no -g connection.interface-name con show uuid \"$u\" 2>/dev/null);" +
+  "     if [ -z \"$bound\" ]; then uuid=$u; break; fi;" +
+  "     case $ports in *\" $bound \"*) uuid=$u; break ;; esac;" +
+  "   done;" +
+  " fi;" +
   " if [ -n \"$uuid\" ]; then printf 'profile_uuid\\t%s\\n' \"$uuid\";" +
-  "   printf 'profile\\t%s\\n' \"$(nmcli -g connection.id con show uuid \"$uuid\" 2>/dev/null)\"; fi;" +
-  " mmcli -m any -K 2>/dev/null | awk -F' *: ' '" +
+  "   printf 'profile\\t%s\\n' \"$(nmcli -e no -g connection.id con show uuid \"$uuid\" 2>/dev/null)\"; fi;" +
+  " printf '%s\\n' \"$mm\" | awk -F' *: ' '" +
   "   $1 == \"modem.3gpp.operator-name\" { print \"operator\\t\" $2 }" +
   "   $1 == \"modem.generic.signal-quality.value\" { print \"signal\\t\" $2 }" +
   "   $1 == \"modem.generic.access-technologies.value[1]\" { print \"tech\\t\" $2 }" +

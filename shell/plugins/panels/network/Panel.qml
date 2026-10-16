@@ -943,7 +943,8 @@ Panel {
   }
 
   // Row click: connected -> disconnect the device, otherwise bring up the
-  // saved mobile profile (turning the WWAN radio on first if it was off).
+  // saved mobile profile on that device (turning the WWAN radio on first if
+  // it was off).
   function toggleMobile() {
     if (!mobile.available || mobileActionKind !== "" || mobileActionProc.running) return
     mobileFailure = ""
@@ -953,7 +954,8 @@ Panel {
     } else if (mobile.profileUuid) {
       mobileActionKind = "connect"
       mobileActionProc.command = ["bash", "-c",
-        "nmcli radio wwan on && nmcli --wait 45 connection up uuid \"$1\"", "mobile-up", mobile.profileUuid]
+        "nmcli radio wwan on && nmcli --wait 45 connection up uuid \"$1\" ifname \"$2\"",
+        "mobile-up", mobile.profileUuid, mobile.device]
     } else {
       mobileFailure = Commons.I18n.t("network.noMobileConnection")
       return
