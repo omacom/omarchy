@@ -43,6 +43,11 @@ Item {
   property string lastError: ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 30, 5, 3600)
+  // Exit nodes and accounts are only shown in the open panel, while the bar
+  // icon needs status alone. Fetch them while the panel is open rather than
+  // spawning two more tailscale clients on every background poll.
+  property bool panelOpen: false
+  onPanelOpenChanged: if (panelOpen) refresh()
   readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || operatorProcess.running || exitNodeProcess.running
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
 
@@ -169,7 +174,8 @@ Item {
       statusProcess.running = true
       launched = true
     }
-    if (!mullvadExitNodesProcess.running) {
+    var panelData = panelOpen || forceAccounts === true
+    if (panelData && !mullvadExitNodesProcess.running) {
       _mullvadExitNodesOutput = ""
       _mullvadExitNodesError = ""
       mullvadExitNodesProcess.command = ["tailscale", "exit-node", "list"]
@@ -177,7 +183,7 @@ Item {
       launched = true
     }
     var now = Date.now()
-    var shouldRefreshAccounts = forceAccounts === true || accounts.length === 0 || now - _lastAccountsRefreshMs > 60000
+    var shouldRefreshAccounts = panelData && (forceAccounts === true || accounts.length === 0 || now - _lastAccountsRefreshMs > 60000)
     if (shouldRefreshAccounts && !accountsProcess.running) {
       _accountsOutput = ""
       _accountsError = ""
