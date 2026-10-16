@@ -608,10 +608,20 @@ class Posix:
 import subprocess
 
 TOOL_ENV = dict(os.environ, LC_ALL="C.UTF-8")
+WORKER_PID = os.getpid()
+
+
+# Rex stops a worker that runs past its deadline; a command it started has
+# to stop with it rather than run on.
+def die_with_parent():
+    libc = ctypes.CDLL(ctypes.util.find_library("c"))
+    libc.prctl(1, 15)  # PR_SET_PDEATHSIG, SIGTERM
+    if os.getppid() != WORKER_PID:
+        os._exit(1)
 
 
 def run_tool(command, data, env=None):
-    result = subprocess.run(command, input=data, capture_output=True, env=env or TOOL_ENV, timeout=60)
+    result = subprocess.run(command, input=data, capture_output=True, env=env or TOOL_ENV, timeout=60, preexec_fn=die_with_parent)
     return result.returncode, result.stdout, result.stderr.decode("utf-8", "replace").strip()
 
 
@@ -821,10 +831,6 @@ class Resid:
     from omarchy-rex-worker, which builds it."""
 
     def __init__(self, program):
-        def die_with_parent():
-            libc = ctypes.CDLL(ctypes.util.find_library("c"))
-            libc.prctl(1, 15)  # PR_SET_PDEATHSIG, SIGTERM
-
         self.process = subprocess.Popen([program], stdin=subprocess.PIPE, stdout=subprocess.PIPE, preexec_fn=die_with_parent)
         self.text = None
 

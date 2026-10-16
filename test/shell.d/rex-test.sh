@@ -880,3 +880,29 @@ printf 'a\\b/c\n' >"$tmpdir/file.txt"
 [[ $(cd "$tmpdir" && bash -c "$(titled_snippet sed-e '[/]' 'Replace' 'X')") == 'a\bXc' ]] ||
   fail "generated sed matches a / inside a class and nothing else" "$(titled_snippet sed-e '[/]' 'Replace' 'X')"
 pass "generated sed matches a / inside a class and nothing else"
+
+# A grep, sed, or gawk run stops with the worker that started it, so a
+# worker Rex stops past its deadline leaves nothing running.
+child_stubs="$tmpdir/child-bin"
+mkdir -p "$child_stubs"
+cat >"$child_stubs/sed" <<'SH'
+#!/bin/bash
+echo $$ >"$CHILD_PID"
+exec sleep 30
+SH
+chmod +x "$child_stubs/sed"
+export CHILD_PID="$tmpdir/child.pid"
+(PATH="$child_stubs:$PATH" OMARCHY_PATH="$ROOT" exec "$ROOT/bin/omarchy-rex-worker" python \
+  <<<'{"op":"match","id":1,"flavor":"sed-e","pattern":"a","flags":[],"text":"xa","textId":1}' >/dev/null 2>&1) &
+worker_pid=$!
+for _ in {1..50}; do [[ -s $CHILD_PID ]] && break; sleep 0.1; done
+child=$(cat "$CHILD_PID" 2>/dev/null || true)
+[[ -n $child ]] || fail "a tool run stops with its worker" "the stub sed never started"
+kill -9 "$worker_pid"
+wait "$worker_pid" 2>/dev/null || true
+for _ in {1..50}; do kill -0 "$child" 2>/dev/null || break; sleep 0.1; done
+if kill -0 "$child" 2>/dev/null; then
+  kill "$child"
+  fail "a tool run stops with its worker" "sed $child outlived the worker"
+fi
+pass "a tool run stops with its worker"
