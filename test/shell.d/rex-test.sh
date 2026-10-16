@@ -68,7 +68,7 @@ pass "launching Rex again focuses the open window"
 migration_home="$tmpdir/home"
 mkdir -p "$migration_home"
 for _ in 1 2; do
-  HOME="$migration_home" OMARCHY_PATH="$ROOT" PATH="$stubs:$PATH" bash -euo pipefail "$ROOT/migrations/1791578053.sh" >/dev/null
+  HOME="$migration_home" OMARCHY_PATH="$ROOT" PATH="$stubs:$PATH" bash -euo pipefail "$ROOT/migrations/1792187445.sh" >/dev/null
 done
 cmp -s "$migration_home/.local/share/applications/Rex.desktop" "$ROOT/applications/Rex.desktop" ||
   fail "the migration adds Rex to Apps on existing installs"
