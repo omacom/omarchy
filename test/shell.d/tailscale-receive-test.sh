@@ -44,7 +44,13 @@ receive() {
 
 printf 'png' >"$WORKDIR/outbox/photo.png"
 printf 'pdf' >"$WORKDIR/outbox/notes with space.pdf"
-receive 2 env
+# A sender picks the name and the contents, so a received .desktop is an
+# attacker-chosen application launcher: it must never be one click from running.
+printf '[Desktop Entry]\nType=Application\nExec=touch %s/pwned\n' "$WORKDIR" >"$WORKDIR/outbox/evil.desktop"
+# The launcher suffix is matched case-insensitively, so a mixed-case name hides
+# nothing: this one must be held back from the click just like evil.desktop.
+printf '[Desktop Entry]\nType=Application\nExec=touch %s/pwned2\n' "$WORKDIR" >"$WORKDIR/outbox/Trap.DESKTOP"
+receive 4 env
 
 notifications=$(<"$WORKDIR/notifications")
 
@@ -74,6 +80,25 @@ grep -qF -- "--exec xdg-open $downloads/photo.png" <<<"$notifications" ||
 grep -qF -- "--exec xdg-open $downloads/notes with space.pdf" <<<"$notifications" ||
   fail "taildrop receive carries spaced names as a literal open argument" "$notifications"
 pass "taildrop receive lets a click open the received file"
+
+# A .desktop file still gets announced, but its click must not dispatch it: on a
+# desktop that honors launchers, opening one runs its Exec line, and the sender
+# chose both the name and the contents.
+grep -q "^Received evil.desktop " <<<"$notifications" ||
+  fail "taildrop receive announces a .desktop arrival" "$notifications"
+pass "taildrop receive announces a .desktop arrival"
+
+grep -qF -- "--exec xdg-open $downloads/evil.desktop" <<<"$notifications" &&
+  fail "taildrop receive refuses to one-click launch a received .desktop file" "$notifications"
+pass "taildrop receive refuses to one-click launch a received .desktop file"
+
+# A mixed-case suffix must be held back the same way: the guard lowercases the
+# name before matching, so Trap.DESKTOP is still a launcher.
+grep -q "^Received Trap.DESKTOP " <<<"$notifications" ||
+  fail "taildrop receive announces a mixed-case .desktop arrival" "$notifications"
+grep -qF -- "--exec xdg-open $downloads/Trap.DESKTOP" <<<"$notifications" &&
+  fail "taildrop receive holds back a mixed-case .desktop name from the click" "$notifications"
+pass "taildrop receive holds back a mixed-case .desktop name from the click"
 
 grep -q "unrelated.txt" <<<"$notifications" &&
   fail "taildrop receive leaves the rest of the downloads directory alone" "$notifications"
