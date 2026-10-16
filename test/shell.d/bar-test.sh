@@ -60,6 +60,44 @@ const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
 const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
 
 assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.cycleBackground\(\)/.test(shellSource), 'shell exposes the bar background cycle over IPC')
+assert(/function toggleBarPills\(\): string \{[\s\S]*?shell\.bar\.togglePills\(\)/.test(shellSource), 'shell exposes the bar pills toggle over IPC')
+assert(/function toggleBarFloating\(\): string \{[\s\S]*?shell\.bar\.toggleFloating\(\)/.test(shellSource), 'shell exposes the bar floating toggle over IPC')
+assert(/function barPills\(\): string \{\s*return shell\.bar && typeof shell\.bar\.pillMode === "string" \? shell\.bar\.pillMode : "no-bar"/.test(shellSource), 'shell reports the running bar\'s pills mode over IPC')
+assert(/function barFloating\(\): string \{\s*return shell\.bar && typeof shell\.bar\.floating === "boolean" \? String\(shell\.bar\.floating\) : "no-bar"/.test(shellSource), 'shell reports whether the running bar floats over IPC')
+
+// A right button held past pressAndHoldInterval never reports a click, so the
+// bar options open on press.
+const gestureSource = barSource.slice(barSource.indexOf('component CenterGestureArea'))
+assert(
+  /onPressed: function\(mouse\) \{[\s\S]*?if \(mouse\.button === Qt\.RightButton\) \{\s*if \(dragging \|\| \(mouse\.buttons & Qt\.LeftButton\)\) \{\s*if \(!\(gestureArea\.pressedButtons & Qt\.LeftButton\)\) mouse\.accepted = false\s*return\s*\}\s*if \(menuOpen\) menuOpen = false\s*else if \(!openMenu\(mouse\.x, mouse\.y\)\) mouse\.accepted = false\s*return\s*\}\s*menuOpen = false\s*dragging = false/.test(gestureSource) &&
+  /onReleased: function\(mouse\) \{\s*if \(mouse\.button === Qt\.RightButton\) return\s*if \(!dragging\) return/.test(gestureSource),
+  'a right press opens or closes the bar options, does nothing during a left press or drag without taking a widget\'s grab, and passes on a press it does not use'
+)
+assert(
+  /var slot = root\.moduleSlotAtScene\(scenePoint, root\.targetWindow\(gestureArea\)\)\s*if \(slot && !root\.inPillGap\(slot, scenePoint\)\) return false/.test(gestureSource),
+  'the bar options open only off widgets, gaps between pills included'
+)
+assert(
+  /if \(slot\.region === "tray" && !traySectionShowsScene\(scenePoint, window\)\) continue/.test(barSource) &&
+  /var shown = host\.traySectionNow\(\)\s*if \(!shown\) return false/.test(barSource),
+  'a widget the closed tray drawer hides does not keep the bar options from opening'
+)
+assert(/onPositionChanged: function\(mouse\) \{\s*if \(!\(mouse\.buttons & Qt\.LeftButton\)\) return/.test(gestureSource), 'only the left button drags the bar')
+assert(/function toggleFloating\(\) \{\s*setBarOption\("floating", !floating\)/.test(barSource), 'the floating switch starts from what the bar shows, theme margin included')
+assert(/function togglePills\(\) \{\s*setBarOption\("pills", pillsOn \? "off" : lastPillMode\)/.test(barSource) && /onPillModeChanged: if \(pillMode !== "off"\) lastPillMode = pillMode/.test(barSource), 'the pills switch comes back in the last mode used')
+assert(/Component\.onCompleted: \{[^}]*if \(pillMode !== "off"\) lastPillMode = pillMode[^}]*applyBarConfig\(\)/.test(barSource), 'a theme\'s default pill mode counts as the last mode used')
+assert(/onPressAndHold: function\(mouse\) \{[^}]*?pressedButtons\s*&\s*Qt\.LeftButton[^}]*?startDrag/.test(gestureSource), 'only a left press-and-hold moves the bar')
+
+// The card's rows: Background names the look and steps it like a
+// double-click; Floating and Pills switch what the bar shows.
+const menuColumn = gestureSource.slice(gestureSource.indexOf('id: barMenuColumn'))
+assert(
+  /label: Commons\.I18n\.t\("bar\.optionBackground"\)[\s\S]*?value: root\.backgroundLook === "none" \? Commons\.I18n\.t\("bar\.backgroundClear"\) : \(root\.backgroundLook === "glassy" \? Commons\.I18n\.t\("bar\.backgroundGlassy"\) : Commons\.I18n\.t\("bar\.backgroundOpaque"\)\)\s*onActivated: root\.cycleBackground\(\)/.test(menuColumn),
+  'the Background row shows the bar background and cycles it'
+)
+assert(/readonly property string backgroundLook: requestedTransparent \? "none" : \(glassy \? "glassy" : "opaque"\)/.test(barSource), 'the card names the background the bar draws')
+assert(/label: Commons\.I18n\.t\("bar\.optionFloating"\)\s*checked: root\.floating\s*onActivated: root\.toggleFloating\(\)/.test(menuColumn), 'the Floating row switches floating')
+assert(/label: Commons\.I18n\.t\("bar\.optionPills"\)\s*checked: root\.pillsOn\s*onActivated: root\.togglePills\(\)/.test(menuColumn), 'the Pills row switches pills')
 
 // put tolerates a placement target the bar does not carry, so the IPC call
 // must reach the registry's put rather than route back through enable.

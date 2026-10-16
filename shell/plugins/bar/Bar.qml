@@ -86,6 +86,9 @@ Item {
   // background can be switched off and the widgets still sit on something.
   // shell.json wins; unset, a theme's [bar] pills sets the default.
   property string pillSetting: ""
+  // The mode the bar menu's pills toggle turns back on.
+  property string lastPillMode: "section"
+  onPillModeChanged: if (pillMode !== "off") lastPillMode = pillMode
   readonly property string pillMode: BarModel.pillMode(pillSetting !== "" ? pillSetting : Commons.Color.pick("bar.pills", ""))
   readonly property bool pillsOn: pillMode !== "off"
   // Widget text is picked against the pill. An opaque pill, or one over the
@@ -1008,7 +1011,12 @@ Item {
     return source ? Util.fileUrl(source) : ""
   }
 
-  Component.onCompleted: applyBarConfig()
+  Component.onCompleted: {
+    // pillMode reports no change for the value it starts with, so a theme's
+    // default mode is taken here.
+    if (pillMode !== "off") lastPillMode = pillMode
+    applyBarConfig()
+  }
 
   // The indicator peek opens as the pointer comes onto the bar and holds until
   // it leaves. Revealing the indicators widens their section, which can slide a
@@ -1045,6 +1053,64 @@ Item {
   // omarchy-bar, which keeps Hyprland's blur behind a glassy bar in step.
   function cycleBackground() {
     Util.execDetached("omarchy-bar background cycle")
+  }
+
+  // The bar background as the right-click card names it.
+  readonly property string backgroundLook: requestedTransparent ? "none" : (glassy ? "glassy" : "opaque")
+
+  // Bar options behind the right-click menu on empty bar space.
+  function setBarOption(key, value) {
+    if (root.shell && typeof root.shell.mutateShellConfig === "function") {
+      root.shell.mutateShellConfig(function(config) {
+        if (!Util.isPlainObject(config.bar)) config.bar = {}
+        config.bar[key] = value
+      })
+    }
+  }
+
+  function togglePills() {
+    setBarOption("pills", pillsOn ? "off" : lastPillMode)
+  }
+
+  function toggleFloating() {
+    setBarOption("floating", !floating)
+  }
+
+  // Whether a scene point in a slot falls in the pill gap at a run's end:
+  // empty bar space between two pills, not part of either.
+  function inPillGap(slot, scenePoint) {
+    var local = slot.mapFromItem(null, scenePoint.x, scenePoint.y)
+    var along = root.vertical ? local.y : local.x
+    var length = root.vertical ? slot.height : slot.width
+    return (BarModel.pillStartsRound(slot.pillRole) && along < slot.pillGapLead)
+      || (BarModel.pillEndsRound(slot.pillRole) && along >= length - slot.pillGapTrail)
+  }
+
+  // The drawn widget slot under a scene point on one bar surface, if any.
+  // A slot in the tray's drawer counts only where the drawer shows it: while
+  // the drawer is closed its slots sit clipped past the tray.
+  function moduleSlotAtScene(scenePoint, window) {
+    for (var i = 0; i < moduleSlots.length; i++) {
+      var slot = moduleSlots[i]
+      if (!BarModel.isDrawnSlot(slot) || !sameWindow(slotWindow(slot), window)) continue
+      if (slot.region === "tray" && !traySectionShowsScene(scenePoint, window)) continue
+      var local = slot.mapFromItem(null, scenePoint.x, scenePoint.y)
+      if (local.x >= 0 && local.y >= 0 && local.x < slot.width && local.y < slot.height) return slot
+    }
+    return null
+  }
+
+  // Whether the tray's drawer shows a scene point on one bar surface.
+  function traySectionShowsScene(scenePoint, window) {
+    for (var i = 0; i < moduleSlots.length; i++) {
+      var host = moduleSlots[i]
+      if (!host.hostsTraySection || !sameWindow(slotWindow(host), window)) continue
+      var shown = host.traySectionNow()
+      if (!shown) return false
+      var local = host.widgetRoom.mapFromItem(null, scenePoint.x, scenePoint.y)
+      return local.x >= shown.x && local.y >= shown.y && local.x < shown.x + shown.width && local.y < shown.y + shown.height
+    }
+    return false
   }
 
   function moduleDropAtScene(scenePoint, sourceSlot) {
@@ -2192,9 +2258,26 @@ Item {
     property real pressedY: 0
     readonly property real dragThreshold: Style.space(4)
 
-    acceptedButtons: Qt.LeftButton
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
     cursorShape: dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
     pressAndHoldInterval: 200
+
+    // Right-click on empty bar space: bar options.
+    property bool menuOpen: false
+    property real menuAt: 0
+
+    function close() { menuOpen = false }
+
+    // Opens only on empty bar space, the gaps between pills included, so
+    // widgets keep their own right-click actions.
+    function openMenu(x, y) {
+      var scenePoint = gestureArea.mapToItem(null, x, y)
+      var slot = root.moduleSlotAtScene(scenePoint, root.targetWindow(gestureArea))
+      if (slot && !root.inPillGap(slot, scenePoint)) return false
+      menuAt = root.vertical ? y : x
+      menuOpen = true
+      return true
+    }
 
     function startDrag(x, y) {
       if (dragging) return
@@ -2205,6 +2288,24 @@ Item {
     }
 
     onPressed: function(mouse) {
+      // The right button opens the bar options on press, not click: a right
+      // button held past pressAndHoldInterval never reports a click. A second
+      // right press closes them, and a press that does not open them goes to
+      // what is below. During a left press or drag it does nothing. If this
+      // area holds the left button the press is taken, since rejecting it
+      // would clear the left button's pressed state and strand the bar move.
+      // If something else holds it (a widget being dragged) the press is
+      // passed on, since taking it would take the grab and cancel that drag.
+      if (mouse.button === Qt.RightButton) {
+        if (dragging || (mouse.buttons & Qt.LeftButton)) {
+          if (!(gestureArea.pressedButtons & Qt.LeftButton)) mouse.accepted = false
+          return
+        }
+        if (menuOpen) menuOpen = false
+        else if (!openMenu(mouse.x, mouse.y)) mouse.accepted = false
+        return
+      }
+      menuOpen = false
       dragging = false
       suppressClick = false
       pressedX = mouse.x
@@ -2214,7 +2315,7 @@ Item {
     onPressAndHold: function(mouse) {
       // A widget above us propagates its composed press-and-hold down here without
       // ever handing over the grab, so we'd get no release or cancel to end the move.
-      if (!gestureArea.pressed) return
+      if (!gestureArea.pressed || !(gestureArea.pressedButtons & Qt.LeftButton)) return
       startDrag(mouse.x, mouse.y)
     }
 
@@ -2233,6 +2334,7 @@ Item {
     }
 
     onReleased: function(mouse) {
+      if (mouse.button === Qt.RightButton) return
       if (!dragging) return
       dragging = false
       suppressClick = true
@@ -2253,6 +2355,53 @@ Item {
       }
     }
 
+    Item {
+      id: menuAnchor
+      x: root.vertical ? 0 : gestureArea.menuAt
+      y: root.vertical ? gestureArea.menuAt : 0
+      width: root.vertical ? gestureArea.width : 1
+      height: root.vertical ? 1 : gestureArea.height
+    }
+
+    PopupCard {
+      id: barMenu
+      anchorItem: menuAnchor
+      owner: gestureArea
+      bar: root
+      open: gestureArea.menuOpen
+      padding: Style.space(6)
+      contentWidth: barMenu.fittedContentWidth(Style.space(190))
+      contentHeight: barMenu.fittedContentHeight(barMenuColumn.implicitHeight)
+
+      Column {
+        id: barMenuColumn
+        anchors.fill: parent
+        spacing: 0
+
+        BarMenuToggle {
+          width: barMenuColumn.width
+          label: Commons.I18n.t("bar.optionBackground")
+          // Opaque, glassy or clear, stepped like a double-click on the bar.
+          value: root.backgroundLook === "none" ? Commons.I18n.t("bar.backgroundClear") : (root.backgroundLook === "glassy" ? Commons.I18n.t("bar.backgroundGlassy") : Commons.I18n.t("bar.backgroundOpaque"))
+          onActivated: root.cycleBackground()
+        }
+
+        BarMenuToggle {
+          width: barMenuColumn.width
+          label: Commons.I18n.t("bar.optionFloating")
+          checked: root.floating
+          onActivated: root.toggleFloating()
+        }
+
+        BarMenuToggle {
+          width: barMenuColumn.width
+          label: Commons.I18n.t("bar.optionPills")
+          checked: root.pillsOn
+          onActivated: root.togglePills()
+        }
+      }
+    }
+
     onDoubleClicked: function(mouse) {
       if (suppressClick) {
         suppressClick = false
@@ -2262,6 +2411,70 @@ Item {
         root.cycleBackground()
         mouse.accepted = true
       }
+    }
+  }
+
+  // One row of the bar menu: a label and a switch, or a label and the value
+  // a click steps through; the whole row reacts.
+  component BarMenuToggle: Item {
+    id: menuRow
+
+    property string label: ""
+    property bool checked: false
+    property string value: ""
+    signal activated()
+
+    implicitHeight: Style.space(32)
+
+    Rectangle {
+      anchors.fill: parent
+      radius: Style.cornerRadius
+      color: rowMouse.containsMouse ? Style.hoverFillFor(Commons.Color.popups.text, Commons.Color.popups.text) : "transparent"
+    }
+
+    Text {
+      textFormat: Text.PlainText
+      anchors.left: parent.left
+      anchors.leftMargin: Style.space(10)
+      anchors.right: rowSwitch.left
+      anchors.verticalCenter: parent.verticalCenter
+      text: menuRow.label
+      color: Commons.Color.popups.text
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      elide: Text.ElideRight
+    }
+
+    Text {
+      textFormat: Text.PlainText
+      visible: menuRow.value !== ""
+      anchors.right: parent.right
+      anchors.rightMargin: Style.space(10)
+      anchors.verticalCenter: parent.verticalCenter
+      text: menuRow.value
+      color: Commons.Color.popups.text
+      opacity: 0.7
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+    }
+
+    ToggleSwitch {
+      id: rowSwitch
+      visible: menuRow.value === ""
+      anchors.right: parent.right
+      anchors.rightMargin: Style.space(4)
+      anchors.verticalCenter: parent.verticalCenter
+      checked: menuRow.checked
+      interactive: false
+      foreground: Commons.Color.popups.text
+    }
+
+    MouseArea {
+      id: rowMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: menuRow.activated()
     }
   }
 

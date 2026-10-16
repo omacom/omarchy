@@ -402,8 +402,10 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
 // memo never survives to the expression after it.
 var GUARD_READERS = [
   "omarchy-bar background",
+  "omarchy-bar floating",
   "omarchy-bar get omarchy.clock format",
   "omarchy-bar get omarchy.clock verticalFormat",
+  "omarchy-bar pills",
   "omarchy-bar position",
   "omarchy-channel-current",
   "omarchy-default-agent",

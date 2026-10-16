@@ -93,8 +93,8 @@ You can still install by hand: drop a plugin into
 `~/.config/omarchy/plugins/<id>/`, run `omarchy-shell shell rescanPlugins`, then
 `omarchy plugin enable <id>`. A bar widget starts in its declared default
 section; enabling a full bar replaces the one in use. `omarchy bar` drives the
-bar from the CLI — `use | reset | defaults | position | background | put |
-move | set | get`, with placement flags such as `--section` and `--index`.
+bar from the CLI — `use | reset | defaults | position | background | pills |
+floating | put | move | set | get`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
 ## Elsewhen
@@ -121,6 +121,9 @@ or `omarchy.power`. There is no `bar` target.
 | `reloadConfig`                        | reload shell.json               |
 | `applyTheme <colorsB64> <shellB64>`   | push theme colors + shell.toml  |
 | `toggleBarTransparency`               | cycle the bar background from clear to glassy to opaque |
+| `toggleBarPills`                      | turn bar pills off, or back on in the last mode used since the shell started |
+| `toggleBarFloating`                   | switch the bar between floating and flush |
+| `barPills` / `barFloating`            | the running bar's pills mode or floating state, theme defaults included; `no-bar` without a bar |
 | `cycleInput <next\|back>`             | switch to the next or previous input method or layout (Super+I, Super+Shift+I); `not running` without the input reader |
 | `setPluginEnabled <id> <"true"\|…>`   | flip enabled bit (`ok` / `unknown`) |
 | `enablePlugin <id> <placementJson>`   | enable and place in one mutation |
@@ -422,7 +425,7 @@ Until Hyprland reports a screen's mode, a top bar there waits to appear if a des
 
 A floating bar sits off the screen edge instead of flush against it. It is off unless you turn it on, so a stock bar is unchanged.
 
-Turn it on with `"floating": true` under `bar` in `shell.json`, or let a theme do it with a `[bar] margin` on an edge the bar touches. `bar.floating: false` keeps the bar flush whatever the theme says.
+Turn it on with `"floating": true` under `bar` in `shell.json` (`omarchy bar floating true`, or right-click empty bar space), or let a theme do it with a `[bar] margin` on an edge the bar touches. `bar.floating: false` keeps the bar flush whatever the theme says.
 
 ```toml
 [bar]
@@ -445,7 +448,7 @@ Theme values follow `scale-with-font` like the sizes above; the Hyprland-derived
 
 Pills give bar widgets their own background, so the bar background can be dropped (`"background": "none"`) and the widgets still sit on something. They are off unless you turn them on, so a stock bar is unchanged.
 
-Turn them on with `"pills": "section"` under `bar` in `shell.json`, or let a theme set a default with `[bar] pills`. `shell.json` wins.
+Turn them on with `"pills": "section"` under `bar` in `shell.json` (`omarchy bar pills section`, or right-click empty bar space), or let a theme set a default with `[bar] pills`. `shell.json` wins.
 
 | Mode | Effect |
 |---|---|

@@ -2,8 +2,8 @@
 
 # omarchy:summary=Configure the bar and its widget layout
 # omarchy:group=bar
-# omarchy:args=use <id> | reset | defaults | position [top|bottom|left|right] | background [opaque|glassy|none|cycle] | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement] | get <id> <key>
-# omarchy:examples=omarchy bar use local.neon-bar | omarchy bar put omarchy.keyboard-layout --after omarchy.clock | omarchy bar move omarchy.weather --section centerBegin --index 0 | omarchy bar set omarchy.clock format HH:mm
+# omarchy:args=use <id> | reset | defaults | position [top|bottom|left|right] | background [opaque|glassy|none|cycle] | pills [off|section|widget|toggle] | floating [true|false|toggle] | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement] | get <id> <key>
+# omarchy:examples=omarchy bar use local.neon-bar | omarchy bar put omarchy.keyboard-layout --after omarchy.clock | omarchy bar move omarchy.weather --section centerBegin --index 0 | omarchy bar set omarchy.clock format HH:mm | omarchy bar pills section | omarchy bar floating toggle
 
 set -euo pipefail
 
@@ -23,6 +23,13 @@ Usage: omarchy bar <command> [args...]
                                        behind the bar blurred, cycle steps
                                        none, glassy, opaque; prints the
                                        current one when given none
+  pills [off|section|widget|toggle]    Widget backgrounds: one per run of
+                                       widgets, one per widget, or none;
+                                       prints the current mode when given
+                                       none
+  floating [true|false|toggle]         Keep the bar off the screen edge;
+                                       prints whether it floats when given
+                                       none
   put <id> [placement]                 Put a widget on the bar, leaving one
                                        that is already there where it is
   move <id> [placement]                Move a widget within or between sections
@@ -290,6 +297,89 @@ sync_glass() {
   hyprctl reload >/dev/null 2>&1 || true
 }
 
+# A running bar toggles from what it shows, theme defaults and its last pill
+# mode included. Answers 0 when the bar did it and 1 when there is no bar to
+# ask, so the caller flips shell.json instead. A shell that did not answer in
+# time may still act on the call, and a second flip would undo it, so that
+# fails instead.
+toggle_in_shell() {
+  local result
+  if result=$(omarchy-shell shell "$1" 2>&1); then
+    case $result in
+      "ok") return 0 ;;
+      "no-bar") return 1 ;;
+      *) fail "the bar did not toggle: $result" ;;
+    esac
+  else
+    case $result in
+      *"is not running"* | *"is not ready"* | "Function not found." | "Target not found.")
+        return 1
+        ;;
+      *)
+        fail "the bar did not answer in time and may still toggle; check it before trying again"
+        ;;
+    esac
+  fi
+}
+
+# What the bar shows: the running bar knows theme defaults that shell.json
+# does not, so it is asked first, and shell.json read when there is none.
+current_pills() {
+  local answer
+  answer=$(omarchy-shell shell barPills 2>/dev/null) || answer=""
+  if [[ $answer =~ ^(off|section|widget)$ ]]; then
+    echo "$answer"
+  else
+    jq -r '.bar.pills // "off" | if IN("off", "section", "widget") then . else "off" end' "$(source_file)"
+  fi
+}
+
+current_floating() {
+  local answer
+  answer=$(omarchy-shell shell barFloating 2>/dev/null) || answer=""
+  if [[ $answer =~ ^(true|false)$ ]]; then
+    echo "$answer"
+  else
+    jq -r '.bar.floating == true' "$(source_file)"
+  fi
+}
+
+cmd_pills() {
+  if (( $# == 0 )); then
+    current_pills
+    return
+  fi
+
+  local pills="$1"
+  (( $# == 1 )) || fail "pills takes a single value"
+  [[ $pills =~ ^(off|section|widget|toggle)$ ]] || fail "pills must be off, section, widget, or toggle"
+  if [[ $pills == "toggle" ]]; then
+    toggle_in_shell toggleBarPills || commit "$NORMALIZE | .bar.pills = (if (.bar.pills // \"off\") == \"off\" then \"section\" else \"off\" end)"
+    echo "Bar pills toggled"
+  else
+    commit "$NORMALIZE | .bar.pills = \$pills" --arg pills "$pills"
+    echo "Bar pills set to $pills"
+  fi
+}
+
+cmd_floating() {
+  if (( $# == 0 )); then
+    current_floating
+    return
+  fi
+
+  local floating="$1"
+  (( $# == 1 )) || fail "floating takes a single value"
+  [[ $floating =~ ^(true|false|toggle)$ ]] || fail "floating must be true, false, or toggle"
+  if [[ $floating == "toggle" ]]; then
+    toggle_in_shell toggleBarFloating || commit "$NORMALIZE | .bar.floating = (.bar.floating != true)"
+    echo "Bar floating toggled"
+  else
+    commit "$NORMALIZE | .bar.floating = \$floating" --argjson floating "$floating"
+    echo "Bar floating set to $floating"
+  fi
+}
+
 bar_widget_default_section() {
   local catalog
   catalog=$(omarchy-plugin-catalog 2>/dev/null) || {
@@ -472,6 +562,12 @@ case "$command" in
     ;;
   transparent)
     cmd_transparent "$@"
+    ;;
+  pills)
+    cmd_pills "$@"
+    ;;
+  floating)
+    cmd_floating "$@"
     ;;
   background)
     cmd_background "$@"
