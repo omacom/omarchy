@@ -147,9 +147,20 @@ grep -qx 'omarchy-plugin-enable tester.bar' "$CALLS" ||
 pass "clone switches full bars"
 
 clone_plugin omarchy.background >/dev/null
+background="$TMPDIR/home/.config/omarchy/plugins/tester.background"
+[[ -f $background/Background.qml ]] ||
+  fail "background clone is missing Background.qml"
+jq -e '
+  .id == "tester.background" and
+  .kinds == ["service"] and
+  .entryPoints.service == "Background.qml" and
+  .omarchy.clonedFrom == "omarchy.background"
+' "$background/manifest.json" >/dev/null || fail "background clone manifest is incorrect"
+ep=$(jq -r '.entryPoints.service' "$background/manifest.json")
+[[ -f $background/$ep ]] || fail "background service entry point is not loadable after clone"
 grep -qx 'omarchy-plugin-enable tester.background' "$CALLS" ||
   fail "clone does not enable an ordinary cloned plugin"
-pass "clone switches ordinary plugins"
+pass "background service clone ships a loadable Background.qml"
 
 EDITOR=fake-editor clone_plugin omarchy.weather --edit >/dev/null
 grep -qx "fake-editor $TMPDIR/home/.config/omarchy/plugins/tester.weather" "$CALLS" ||
