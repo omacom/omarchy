@@ -171,6 +171,14 @@ function parseExecArgv(value) {
   if (!Array.isArray(parsed) || parsed.length === 0) return null
   for (var i = 0; i < parsed.length; i++) {
     if (typeof parsed[i] !== "string") return null
+    // argv reaches exec as C strings, so a NUL truncates the element there: the
+    // string inspected here is not the string that runs. A NUL after "mpv"
+    // leaves "mpv" as the executable while the rest of the element is invisible
+    // to exec; a leading NUL leaves an empty program, which is exactly the
+    // shape that slips the option check — charAt(0) then reads the NUL, not the
+    // dash that follows. Reject NUL anywhere so the checked argv is the
+    // executed one.
+    if (parsed[i].indexOf("\u0000") !== -1) return null
   }
   if (!parsed[0] || parsed[0].charAt(0) === "-") return null
   return parsed
