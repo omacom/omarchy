@@ -55,6 +55,8 @@ profile {
 
 Then start hyprsunset at login by adding `o.launch_on_start("hyprsunset")` to `~/.config/hypr/autostart.lua`. The 4000K/6500K pair used by the toggle is fixed, so the config file is where you go if you want a different temperature.
 
+To have it follow the sun instead of picking times yourself, run `omarchy toggle nightlight --setup` or choose _Setup > Config > Nightlight Schedule_ in the menu. It looks up today's sunrise and sunset for your weather location (see [notices](10-notices.md) for setting one; without it, your IP address places you), writes them to `hyprsunset.conf`, adds the autostart line for you, and restarts hyprsunset. A `hyprsunset.conf` you wrote yourself is saved as `hyprsunset.conf.bak.<time>` first. The times are fixed on the day you run it, so run it again once the seasons have moved them. `omarchy toggle nightlight --reset` returns to the default of no automatic tint.
+
 ### Do not disturb
 
 `Super + Ctrl + ,` silences notifications. No toasts pop up while it's on, and the crossed-out bell indicator sits in the bar to remind you why the desktop has gone quiet.
