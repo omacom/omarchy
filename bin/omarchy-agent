@@ -92,7 +92,9 @@ openclaw)
   [[ -n ${prompt:-} ]] && command+=(--message "$prompt")
   ;;
 codex)
-  command=(codex --approve-for-me)
+  # Auto-review is seeded in ~/.codex/config.toml; --approve-for-me would force
+  # embedded mode and bypass Codex's shared background server.
+  command=(codex)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 cursor-agent)
