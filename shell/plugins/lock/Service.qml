@@ -80,6 +80,8 @@ Item {
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
   readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
   readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
+  readonly property bool blankArmed: idleBlankTimer.running
+  readonly property alias activityMonitor: activityMonitor
   // A prompt clears the unavailable notice before the attempt finishes.
   readonly property bool fingerprintUnavailable: FingerprintModel.isUnavailable(fingerprintProbeStreak) || (fingerprintConfigured && (!fingerprintAttemptReachedDevice || fingerprintAttemptFastError) && FingerprintModel.isUnavailable(fingerprintUnreachedStreak))
 
@@ -389,6 +391,27 @@ Item {
     monitorDpmsKnown = true
   }
 
+  // Input the lock surface never sees still lights the display: Hyprland wakes
+  // DPMS itself on a single pointer count or key press, and no `wakeRequested`
+  // follows, so the spent one-shot blank timer stays spent and the panel is
+  // left on until someone touches the machine. The idle protocol reports every
+  // input, so re-arm from it while locked.
+  function handleActivityResumed() {
+    if (!lockRequested || authenticatingPassword) return
+    // Input the lock surface saw has re-armed the timer already; only the
+    // input it never saw is worth a line in the journal.
+    if (!idleBlankTimer.running) logEvent("blank-rearmed: activity")
+    armBlankTimer()
+  }
+
+  // Input lasting past the countdown blanks mid-burst and relights the panel
+  // while the monitor is still active, so no resume follows; re-arm once it stops.
+  function handleActivityIdle() {
+    if (!lockRequested || authenticatingPassword || idleBlankTimer.running) return
+    logEvent("blank-rearmed: input-stopped")
+    armBlankTimer()
+  }
+
   function submitPassword(value) {
     var password = String(value || "")
     if (!lockRequested || authenticatingPassword || password.length === 0) return
@@ -676,6 +699,23 @@ Item {
     onTriggered: root.startFingerprint()
   }
 
+  IdleMonitor {
+    id: activityMonitor
+    enabled: root.lockRequested
+    // Shorter than the blank countdown, so the monitor is already idle by the
+    // time the display goes dark and the next input is a transition it reports.
+    timeout: 1
+    // A monitor that respects inhibitors is paused while one is held, so it
+    // never reaches idle and never sees the next input as a transition -- and
+    // an inhibitor appearing counts as a resume in its own right. Only real
+    // input belongs here.
+    respectInhibitors: false
+    onIsIdleChanged: {
+      if (isIdle) root.handleActivityIdle()
+      else root.handleActivityResumed()
+    }
+  }
+
   // Detect resume both during an active attempt and during backoff.
   Timer {
     id: fingerprintSleepWatch
@@ -801,6 +841,7 @@ Item {
   Process {
     id: blankProcess
     command: ["bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
+    onStarted: root.logEvent("blank-started")
   }
 
   // Quickshell exposes no DPMS signal, so the panel state is polled while a
@@ -962,6 +1003,8 @@ Item {
         fingerprint: root.fingerprintConfigured,
         fingerprintUnavailable: root.fingerprintUnavailable,
         authenticating: root.authenticating,
+        blankArmed: root.blankArmed,
+        activityIdle: root.activityMonitor.isIdle,
         lastEvent: root.lastEvent,
         lastEventAt: root.lastEventAt
       })
