@@ -243,6 +243,10 @@
   "trigger.appearance.workspace-layout.floating": {
     "label": "Floating"
   },
+  "trigger.appearance.monitor-workspaces": {
+    "label": "Separate Workspaces",
+    "description": "Each monitor keeps its own workspaces, like macOS Spaces"
+  },
   "trigger.appearance.theme-sync": {
     "label": "Herdr Theme Sync"
   },

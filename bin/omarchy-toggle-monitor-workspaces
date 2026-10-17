@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Give each monitor its own workspaces, like macOS Spaces
+# omarchy:args=[on|off|toggle]
+
+set -euo pipefail
+
+action="${1:-toggle}"
+state_file="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/monitor-workspaces.json"
+
+usage() {
+  echo "Usage: omarchy-toggle-monitor-workspaces [on|off|toggle]" >&2
+}
+
+disable_state() {
+  [[ -f $state_file ]] || return 0
+  local temporary
+  temporary=$(mktemp)
+  jq '.enabled = false' "$state_file" >"$temporary"
+  mv "$temporary" "$state_file"
+}
+
+case $action in
+  on)
+    omarchy-hyprland-toggle monitor-workspaces on
+    omarchy-notification-send -g 󰍹 "$(omarchy-i18n monitorWorkspaces.separateTitle)" "$(omarchy-i18n monitorWorkspaces.separateBody)"
+    ;;
+  off)
+    disable_state
+    omarchy-hyprland-monitor-scaling --clear-separate-scales
+    omarchy-hyprland-toggle monitor-workspaces off
+    omarchy-notification-send -g 󰍹 "$(omarchy-i18n monitorWorkspaces.sharedTitle)" "$(omarchy-i18n monitorWorkspaces.sharedBody)"
+    ;;
+  toggle)
+    if omarchy-hyprland-toggle-enabled monitor-workspaces; then
+      disable_state
+      omarchy-hyprland-monitor-scaling --clear-separate-scales
+      omarchy-hyprland-toggle monitor-workspaces off
+      omarchy-notification-send -g 󰍹 "$(omarchy-i18n monitorWorkspaces.sharedTitle)" "$(omarchy-i18n monitorWorkspaces.sharedBody)"
+    else
+      omarchy-hyprland-toggle monitor-workspaces on
+      omarchy-notification-send -g 󰍹 "$(omarchy-i18n monitorWorkspaces.separateTitle)" "$(omarchy-i18n monitorWorkspaces.separateBody)"
+    fi
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

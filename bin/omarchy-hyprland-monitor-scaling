@@ -71,6 +71,111 @@ normalize_scale() {
   awk 'NR == 1 { printf "%g\n", $0 }'
 }
 
+# Separate workspaces saves a scale per screen. The shared omarchy_monitor_scale
+# line stays as the fallback for a screen that does not have its own rule.
+separate_monitor_scales() {
+  [[ -f ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr/monitor-workspaces.lua ]]
+}
+
+SCALE_BLOCK_START='-- omarchy-separate-monitor-scales: start'
+SCALE_BLOCK_END='-- omarchy-separate-monitor-scales: end'
+
+# Drop the per-screen rules separate workspaces wrote. Rules the user wrote
+# themselves, outside the block, stay.
+clear_separate_scales() {
+  local monitor_lua="$HOME/.config/hypr/monitors.lua"
+  [[ -f $monitor_lua ]] || return 0
+  # The marker starts with "--", so it must be a pattern, not a grep option.
+  grep -qF -- "$SCALE_BLOCK_START" "$monitor_lua" || return 0
+
+  local temporary
+  temporary=$(mktemp)
+  if ! awk -v start="$SCALE_BLOCK_START" -v endm="$SCALE_BLOCK_END" '
+    $0 == start { skip = 1; next }
+    skip && $0 == endm { skip = 0; next }
+    skip { next }
+    { print }
+  ' "$monitor_lua" >"$temporary"; then
+    rm -f "$temporary"
+    echo "Could not remove per-screen monitor scales" >&2
+    return 1
+  fi
+  chmod --reference="$monitor_lua" "$temporary"
+  mv "$temporary" "$monitor_lua"
+}
+
+# Remember this screen's scale inside the managed block. The built-in panel
+# anchors at 0x0 the first time it is saved; another screen is placed automatically.
+persist_separate_scale() {
+  local monitor_lua="$1"
+  local connector="$2"
+  local description="$3"
+  local scale="$4"
+  [[ -f $monitor_lua ]] || return 0
+  [[ $description != *$'\n'* ]] || {
+    echo "Refusing unsafe monitor description" >&2
+    return 1
+  }
+
+  local output position
+  if [[ -n $description ]]; then
+    output="desc:$(printf '%s' "$description" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  else
+    output=$connector
+  fi
+  if [[ $connector =~ ^(eDP|LVDS|DSI)- ]]; then
+    position="0x0"
+  else
+    position="auto"
+  fi
+
+  local temporary
+  temporary=$(mktemp)
+  OUTPUT="$output" SCALE_VALUE="$scale" SCALE_POSITION="$position" \
+    SCALE_BLOCK_START="$SCALE_BLOCK_START" SCALE_BLOCK_END="$SCALE_BLOCK_END" \
+    awk '
+    BEGIN {
+      output = ENVIRON["OUTPUT"]
+      scale = ENVIRON["SCALE_VALUE"]
+      position = ENVIRON["SCALE_POSITION"]
+      start = ENVIRON["SCALE_BLOCK_START"]
+      endm = ENVIRON["SCALE_BLOCK_END"]
+      rule = sprintf("hl.monitor({ output = \"%s\", mode = \"preferred\", position = \"%s\", scale = %s })", output, position, scale)
+      needle = "output = \"" output "\""
+    }
+    $0 == start { inblock = 1; print; next }
+    inblock && $0 == endm {
+      if (!found) print rule
+      print
+      inblock = 0
+      seen = 1
+      next
+    }
+    inblock && index($0, needle) {
+      if ($0 ~ /scale = [0-9.]+/) sub(/scale = [0-9.]+/, "scale = " scale)
+      else $0 = rule
+      found = 1
+      print
+      next
+    }
+    { print }
+    END {
+      if (!seen) {
+        print ""
+        print start
+        print rule
+        print endm
+      }
+    }
+  ' "$monitor_lua" >"$temporary" || {
+    rm -f "$temporary"
+    echo "Could not save the per-screen monitor scale" >&2
+    return 1
+  }
+  chmod --reference="$monitor_lua" "$temporary"
+  mv "$temporary" "$monitor_lua"
+}
+
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
@@ -92,10 +197,18 @@ set_scale() {
   # GTK only honors integer GDK_SCALE values, so persist the nearest whole
   # factor even when the monitor scale itself is fractional.
   local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
+  local description="$(echo "$monitor_info" | jq -r '.description // empty')"
   local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
+
+  # Separate workspaces keeps the size with the screen that was changed.
+  # The shared scale, and GDK_SCALE, stay put so the other screens do not follow.
+  if separate_monitor_scales; then
+    persist_separate_scale "$monitor_lua" "$active_monitor" "$description" "$new_scale"
+    return
+  fi
 
   # Persist to monitors.lua if the user still has Omarchy's generic catch-all
   # defaults, so the scale survives reboots.
@@ -174,6 +287,9 @@ scale_from_current() {
 case "${1:-}" in
 "")
   focused_monitor_scale | normalize_scale
+  ;;
+--clear-separate-scales)
+  clear_separate_scales
   ;;
 -h | --help)
   usage

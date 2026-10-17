@@ -107,6 +107,7 @@
   "trigger.appearance.workspace-layout.dwindle": {"icon":"󱓻","label":"Tiling","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"dwindle\" ]]","action":"omarchy-hyprland-workspace-layout-default dwindle"},
   "trigger.appearance.workspace-layout.scrolling": {"icon":"󰝥","label":"Scrolling","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"scrolling\" ]]","action":"omarchy-hyprland-workspace-layout-default scrolling"},
   "trigger.appearance.workspace-layout.floating": {"icon":"󰔶","label":"Floating","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"floating\" ]]","action":"omarchy-hyprland-workspace-layout-default floating"},
+  "trigger.appearance.monitor-workspaces": {"icon":"󰍹","label":"Separate Workspaces","description":"Each monitor keeps its own workspaces, like macOS Spaces","checked":"omarchy-hyprland-toggle-enabled monitor-workspaces","action":"omarchy-toggle-monitor-workspaces"},
   "trigger.appearance.theme-sync": {"icon":"󰸌","label":"Herdr Theme Sync","when":"omarchy-theme-set-herdr-machines --available","action":"omarchy-toggle-theme-sync"},
   "trigger.toggle": {"icon":"󰔎","label":"Toggle","aliases":["toggle","toggles"]},
   "trigger.toggle.idle-lock": {"icon":"","label":"Stay Awake","action":"omarchy-toggle-idle"},

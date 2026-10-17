@@ -59,6 +59,8 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Ctrl + Alt + Tab`| Cycle focus forward through monitors |
 | `Ctrl + Alt + Shift + Tab`| Cycle focus backwards through monitors |
 
+With separate monitor workspaces turned on (_Trigger > Appearance > Separate Workspaces_, or `omarchy toggle monitor-workspaces`), `Super + number` jumps to that workspace on the monitor you are using, and `Super + Tab` and `Super + scroll` move through the workspaces already open on that monitor. Both screens can be on workspace 1 at the same time. A three-finger swipe still walks workspace numbers on the current screen and can step past that screen's ten workspaces.
+
 ## System controls
 
 | Hotkey                  | Function              |
