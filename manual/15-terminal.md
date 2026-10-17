@@ -6,6 +6,8 @@ If you use Tmux, you may not mind, but if not, we fully support _Alacritty_, _Gh
 
 You start a new terminal using `Super + Return`. (This binding will automatically point to whichever Terminal you've installed via _Install > Terminal_, and you can switch between installed terminals under _Setup > Defaults > Terminal_.)
 
+[WezTerm](https://wezterm.org/) isn't offered under _Install > Terminal_, but it follows Omarchy's theme all the same. New installs seed a starter `~/.config/wezterm/wezterm.lua`; on an existing install, copy it from `/usr/share/omarchy/config/wezterm/`, or have your own config load `~/.local/state/omarchy/current/theme/wezterm.lua` and assign what it returns to `config.colors`. Theme changes then reach open WezTerm windows on their own.
+
 ## Tmux
 
 Tmux provides a consistent, programmable interface for panes, windows (aka tabs), and resumable sessions regardless of your terminal. It even works on remote hosts, so when you're SSH'ing into a server, you can use the same approach.
