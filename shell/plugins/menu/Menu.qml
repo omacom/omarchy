@@ -92,6 +92,16 @@ Item {
   property bool cursorActive: false
   property int requestSerial: 0
   property int applySerial: 0
+  // Completion writes share one Process, so they queue: a supersede can land
+  // while the previous write is still spawning, and reassigning a running
+  // Process would silently drop its command.
+  property var pendingDoneWrites: []
+
+  function runNextDoneWrite() {
+    if (resultProc.running || root.pendingDoneWrites.length === 0) return
+    resultProc.command = root.pendingDoneWrites.shift()
+    resultProc.running = true
+  }
   property var items: ({})
   property var itemOrder: []
   property var navStack: []
@@ -151,11 +161,11 @@ Item {
     root.doneFile = ""
 
     if (selection === null || selection === undefined) {
-      resultProc.command = ["bash", "-c", ": > " + Util.shellQuote(activeDoneFile)]
+      root.pendingDoneWrites.push(["bash", "-c", ": > " + Util.shellQuote(activeDoneFile)])
     } else {
-      resultProc.command = ["bash", "-c", "printf '%s\\n' " + Util.shellQuote(selection) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)]
+      root.pendingDoneWrites.push(["bash", "-c", "printf '%s\\n' " + Util.shellQuote(selection) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)])
     }
-    resultProc.running = true
+    root.runNextDoneWrite()
   }
 
   function runAction(action) {
@@ -941,6 +951,9 @@ Item {
   }
 
   function openExistingMenu(initialMenu) {
+    // Taking the surface over must not drop a live select/input request:
+    // its waiter polls the done file forever once these handles are cleared.
+    root.finishRequest(null)
     requestSerial += 1
     mode = "menu"
     requestActive = false
@@ -965,6 +978,9 @@ Item {
   }
 
   function openDmenu(payload) {
+    // Same contract as openExistingMenu: a request displaced by a newer one
+    // still gets its done file written, or the waiting script never exits.
+    root.finishRequest(null)
     requestSerial += 1
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? Commons.I18n.t("menu.inputPrompt") : Commons.I18n.t("menu.selectPrompt")))
@@ -1116,6 +1132,7 @@ Item {
   Process {
     id: resultProc
     onExited: {
+      root.runNextDoneWrite()
       if (root.applySerial === root.requestSerial)
         root.opened = false
     }
