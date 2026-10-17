@@ -72,6 +72,8 @@ Adding an agent needs no QML changes: ship a collector that prints the record co
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 | `kimi` | Kimi Code quotas (5-hour session, weekly, and monthly allowances) | none; quota only |
+| `cursor` | Cursor's own billing-cycle meters (included total, Auto and named models, on-demand spend), with the plan's dollar figures as detail lines | Cursor dashboard usage events, tokens by model per day for the last 7 days |
+| `grok-bot` | The weekly allowance the Grok Bot app caches locally | none; limit only |
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
 registers more than one account, the `claude`, `codex`, and `grok` records
@@ -101,6 +103,24 @@ again. Fireworks reads
 pi stores in `~/.pi/agent/auth.json` when Fireworks is signed in there
 (honoring `PI_CODING_AGENT_DIR`, and pi's literal and `$ENV_VAR` key forms),
 and finally the key opencode stores in `~/.local/share/opencode/auth.json`.
+Cursor reads `CURSOR_API_KEY` first, then the sign-in the Cursor CLI stores
+in `~/.config/cursor/auth.json` (`agent login`; `CURSOR_AUTH_PATH` overrides
+it), then the editor's own sign-in in
+`~/.config/Cursor/User/globalStorage/state.vscdb`, opened read-only, and asks
+the same dashboard RPCs the CLI calls. A failed check keeps the last limits,
+marked stale. Grok Bot signs in to nothing: it reads the weekly-usage reading
+the Grok Bot app caches under `~/.config/Grok Bot/sand-client-persistence`,
+so it is as fresh as the app's last check and shown stale past the app's own
+expiry.
+
+A collector may also attach `subLimits: [{ label, percent, resetsAt?,
+windowSeconds? }]` and `details: [{ label, value }]` to a limit; the panel
+lists them under that limit's row. Grok reports its per-product usage this
+way, and Cursor its spend. After each reset countdown the panel shows φ, the
+share of the allowance that will be used by reset if the pace so far holds
+(under 1 it lasts, over 1 it runs out first). The window comes from the
+limit's `windowSeconds`/`windowMinutes` when the collector reports one, and
+otherwise from its label.
 
 Kimi reads `KIMI_API_KEY` first, then `credentials/kimi-code.json` under an explicit `KIMI_CODE_HOME`. Without that override it prefers `~/.kimi-code/credentials/kimi-code.json`, with the legacy `~/.kimi/credentials/kimi-code.json` as a compatibility fallback. An explicit home never borrows another home's sign-in. Its record reports account quotas, without local token or prompt statistics.
 

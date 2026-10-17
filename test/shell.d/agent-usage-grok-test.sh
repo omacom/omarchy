@@ -178,3 +178,25 @@ mv "$test_tmp/stats.json" "$XDG_CACHE_HOME/omarchy/agent-usage/grok-stats.json"
 record=$(COLLECT_ARGS="--limits-only" collect)
 [[ $(jq -r '.totalSessions' <<<"$record") == 4 ]] || fail "a scan from another day is made again" "$record"
 pass "a scan from another day is made again"
+
+# The per-product breakdown and the billing figures ride along under the limit.
+limit=$(COLLECTOR="$ROOT/bin/omarchy-agent-usage-grok" python3 - <<'PY'
+import importlib.machinery, importlib.util, json, os
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+print(json.dumps(collector.credits_limit({"config": {
+  "currentPeriod": {"type": "USAGE_PERIOD_TYPE_WEEKLY", "start": "2026-01-01T00:00:00Z", "end": "2026-01-08T00:00:00Z"},
+  "creditUsagePercent": 40,
+  "productUsage": [{"product": "GrokBuild", "usagePercent": 25}, {"product": "Api"}],
+  "onDemandCap": {"val": 5000},
+  "onDemandUsed": {"val": 1250},
+}})))
+PY
+)
+[[ $(jq -c '{seconds: .windowSeconds, subLimits, details}' <<<"$limit") == '{"seconds":604800,"subLimits":[{"label":"Grok Build","percent":0.25},{"label":"Api","percent":0.0}],"details":[{"label":"On-demand","value":"used $12.50 / cap $50.00"}]}' ]] ||
+  fail "Grok's products become sub-limits and its billing figures detail lines" "$limit"
+pass "Grok's products become sub-limits and its billing figures detail lines"
