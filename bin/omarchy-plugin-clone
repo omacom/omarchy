@@ -87,7 +87,9 @@ Copies a built-in plugin into ~/.config/omarchy/plugins/<username>.<id>/ so you
 can edit it freely. The clone keeps all of the source plugin's files and kinds
 and uses "My <name>" as its display name, then replaces the built-in with the
 clone. The username prefix keeps the id yours, so a shared clone does not
-collide with anyone else's. --edit opens the clone in \$EDITOR afterwards.
+collide with anyone else's, except that a username which would land the clone in
+the reserved omarchy. namespace gets the shared local.<id> instead. --edit opens
+the clone in \$EDITOR afterwards.
 
 USAGE
 }
@@ -129,6 +131,10 @@ source_info=$(omarchy-plugin-catalog | jq -r --arg id "$source_id" '
 IFS=$'\t' read -r source_dir source_manifest source_name <<<"$source_info"
 
 new_id="${USER:-$(id -un)}.${source_id#omarchy.}"
+# A user named omarchy would put the clone back in the omarchy. namespace the shell reserves for built-ins.
+if [[ $new_id == omarchy.* ]]; then
+  new_id="local.${source_id#omarchy.}"
+fi
 display_name="My $source_name"
 target_dir="$PLUGINS_DIR/$new_id"
 [[ ! -e $target_dir && ! -L $target_dir ]] || fail "$target_dir already exists"
