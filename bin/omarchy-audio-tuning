@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Manage the speaker tuning for this laptop
-# omarchy:args=<on|off|status|match|fronted-sink> [--force]
+# omarchy:args=<on|off|status|match|fronted-sink|sink> [--force]
 # omarchy:group=audio
 # omarchy:examples=omarchy audio tuning status | omarchy audio tuning on | omarchy audio tuning off
 
@@ -185,6 +185,13 @@ case "$action" in
     tuned_hardware_sink
     ;;
 
+  sink)
+    # The tuning's own virtual sink, for callers that must hand playback to it
+    # rather than to the physical sink it fronts (see fronted-sink above).
+    tuning_present || exit 1
+    printf '%s\n' "$sink_name"
+    ;;
+
   status)
     if [[ -r $fragment ]]; then
       echo "Installed:    yes ($fragment)"
@@ -352,7 +359,7 @@ EOF
     ;;
 
   *)
-    echo "Usage: omarchy-audio-tuning <on|off|status|match|fronted-sink> [--force]" >&2
+    echo "Usage: omarchy-audio-tuning <on|off|status|match|fronted-sink|sink> [--force]" >&2
     exit 2
     ;;
 esac
