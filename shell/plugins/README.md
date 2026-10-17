@@ -92,6 +92,8 @@ The plugin sets `keepLoaded: true` so a plugin hot-reload (for example
 an installed bar widget changing on disk) does not destroy the lock
 client while Hyprland still holds the session lock.
 
+The lock service listens for logind's `Lock` signal on the current graphical session, so `loginctl lock-session` uses the same PAM-protected lock as the local lock command. A logind `Unlock` signal never unlocks the desktop.
+
 ## Polkit agent
 
 Theme-aware authentication dialog for privileged actions. It uses
