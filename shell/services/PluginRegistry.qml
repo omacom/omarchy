@@ -482,6 +482,8 @@ QtObject {
           restoredEntry.id = sourceId
           config.bar.layout[cloneLocation.section][cloneLocation.index] = restoredEntry
         }
+        for (var at = findBarLocation(config, cloneId, ""); at.found; at = findBarLocation(config, cloneId, ""))
+          config.bar.layout[at.section].splice(at.index, 1)
       } else if (cloneLocation.kind === "plugin") {
         config.plugins.splice(cloneLocation.index, 1)
       }
@@ -575,8 +577,11 @@ QtObject {
       }
 
       if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
-      else if (location.kind === "bar") config.bar.layout[location.section].splice(location.index, 1)
-      else if (location.kind === "plugin") config.plugins.splice(location.index, 1)
+      else if (location.kind === "bar") {
+        // A widget can sit in the layout more than once; every copy keeps it enabled.
+        for (var at = location; at.found; at = findBarLocation(config, key, ""))
+          config.bar.layout[at.section].splice(at.index, 1)
+      } else if (location.kind === "plugin") config.plugins.splice(location.index, 1)
 
       // Dropping the layout entry is the whole story for a widget. Anything
       // else built-in loads by default, so switching it off has to be stated.
