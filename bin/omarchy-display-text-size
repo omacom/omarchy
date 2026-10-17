@@ -174,10 +174,9 @@ set_terminal_size() {
 }
 
 # Report the current terminal point size from whichever config we find first.
+# Ghostty is skipped: its font-size is a base the GTK factor scales, not the size set here.
 term_current_pt() {
-  if [[ -f ~/.config/ghostty/config ]]; then
-    grep -oP '^font-size = \K[0-9.]+' ~/.config/ghostty/config | head -1
-  elif [[ -f ~/.config/alacritty/alacritty.toml ]]; then
+  if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
     grep -oP '^size[[:space:]]*=[[:space:]]*\K[0-9.]+' ~/.config/alacritty/alacritty.toml | head -1
   elif [[ -f ~/.config/kitty/kitty.conf ]]; then
     local pt
