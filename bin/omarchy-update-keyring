@@ -74,7 +74,9 @@ if [[ -f $platform_keyrings ]]; then
   done <"$platform_keyrings"
 fi
 echo -e "\e[32m\nUpdate Arch signing keys\e[0m"
-sudo pacman -Sy --needed --noconfirm "${keyrings[@]}" >/dev/null 2> >(grep -vE '^warning: [a-z0-9@._+-]+-keyring-[^ ]+ is up to date -- skipping$' >&2)
+# LC_ALL=C keeps pacman's messages English, so the "up to date" filter below
+# matches regardless of the user's locale (the filter is English-only).
+sudo env LC_ALL=C pacman -Sy --needed --noconfirm "${keyrings[@]}" >/dev/null 2> >(grep -vE '^warning: [a-z0-9@._+-]+-keyring-[^ ]+ is up to date -- skipping$' >&2)
 
 if omarchy-hw-aarch64 && ! alarm_key_trusted; then
   echo "Arch Linux ARM's signing key $alarm_key is still not trusted" >&2
