@@ -288,3 +288,32 @@ expected=$(printf '%s\n' \
   $'SUPER + X                           → My own thing\texec\tmy-thing')
 [[ $translated == "$expected" ]] || fail "keybinding descriptions show in the Omarchy language" "$translated"
 pass "keybinding descriptions show in the Omarchy language"
+
+# A user config can loop over what a Hyprland query returns, such as
+# ipairs(hl.get_monitors()) to place workspaces. The scan's stand-in for that
+# result has to end the loop, or the menu never opens and lua pins a core.
+# Binds declared after the loop still have to be found.
+cp "$home/.config/hypr/monitors.lua" "$tmpdir/monitors.lua.orig"
+cat >>"$home/.config/hypr/monitors.lua" <<'LUA'
+for _, monitor in ipairs(hl.get_monitors()) do
+  hl.monitor({ output = monitor.name, mode = "preferred" })
+end
+hl.bind("SUPER + J", hl.dsp.exec_cmd("my-thing"), { description = "My thing" })
+LUA
+
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + J" "My thing")
+BINDS
+
+rm -rf "$tmpdir/cache"
+# No time budget: if the loop never ended, the scan's own timeout would stop it
+# before the bind below, and the dispatcher check catches the missing bind on any
+# machine. The outer timeout only turns a hang into a failure, should that inner
+# timeout ever go too.
+timeout 60 env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+  bash "$menu" --print >/dev/null || fail "a config that loops over a Hyprland query doesn't hang the menu"
+grep -qP '→ My thing\texec\tmy-thing$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "binds after a loop over a Hyprland query are still found" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+pass "a config that loops over a Hyprland query doesn't hang the menu"
+mv "$tmpdir/monitors.lua.orig" "$home/.config/hypr/monitors.lua"

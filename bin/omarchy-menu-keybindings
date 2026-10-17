@@ -123,8 +123,9 @@ build_lua_bind_cache() {
     LUA_BIND_ARG_MAP["$cache_key"]="$arg"
   done < <(
     # -E keeps LUA_INIT and LUA_PATH from the environment out of the scan, which
-    # loads the user's config.
-    lua -E - <<'LUA'
+    # loads the user's config. A config that loops forever anyway must not hang
+    # the menu and pin a core, so the scan gets a few seconds and then gives up.
+    timeout 5 lua -E - <<'LUA'
 local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
 
 local function split_keys(keys)
@@ -267,7 +268,24 @@ hl = setmetatable({
     return nil
   end,
 }, {
-  __index = function()
+  -- Queries of Hyprland's state answer as they would with nothing open: a list
+  -- (get_monitors, get_windows) is empty and a single thing (get_workspace,
+  -- get_active_monitor) is nil. A noop here would loop forever under ipairs and
+  -- break the arithmetic and comparisons configs do on what comes back, which
+  -- stops the scan before it reaches the user's binds.
+  __index = function(_, key)
+    if type(key) == "string" and key:match("^get_") then
+      if key:match("s$") then
+        return function()
+          return {}
+        end
+      end
+
+      return function()
+        return nil
+      end
+    end
+
     return noop
   end,
 })
