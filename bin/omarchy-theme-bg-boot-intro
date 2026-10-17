@@ -11,6 +11,28 @@ current_background_link="$current_dir/background"
 marker="$state_home/omarchy/background-intro.session-id"
 toggle="$state_home/omarchy/toggles/background-intros-off"
 video_extensions=(mp4 m4v mov webm mkv avi)
+intros_commit=25d3a0f276d93db4fe84da4a376a3d21fcbafaa4
+intro_host=${OMARCHY_BACKGROUND_INTROS_URL:-https://raw.githubusercontent.com/yamz8/omarchy-intros/$intros_commit}
+intro_cache_root="$HOME/.cache/omarchy/background-intros"
+intro_cache="$intro_cache_root/${intro_host//[^A-Za-z0-9._-]/_}"
+
+# Only each theme's default intro ships with Omarchy. The others are hosted in
+# the same layout, themes/<theme>/backgrounds/intros/<name>.mp4, and are
+# downloaded on demand. Only a wallpaper that is the very file an official
+# theme ships has one, so a same-named image of the user's own never does.
+# Sets hosted to the intro's path on the host.
+hosted_intro() {
+  local name=${1##*/} official
+  hosted=""
+  for official in "$OMARCHY_PATH"/themes/*/backgrounds/"$name"; do
+    if [[ -f $official ]] && cmp -s "$official" "$1"; then
+      hosted=${official#"$OMARCHY_PATH"/}
+      hosted="${hosted%/*}/intros/${name%.*}.mp4"
+      return 0
+    fi
+  done
+  return 1
+}
 
 resolve_intro() {
   local background
@@ -34,7 +56,46 @@ resolve_intro() {
       return 0
     fi
   done
-  return 1
+
+  hosted_intro "$background" || return 1
+  intro="$intro_cache/$hosted"
+  [[ -f $intro ]] || return 1
+  printf '%s\n' "$intro"
+}
+
+# Download a chosen wallpaper's hosted intro, so it plays the next time that
+# wallpaper arrives with its theme or at login. Nothing waits for this.
+fetch_intro() {
+  local background staged code cached
+
+  [[ ! -f $toggle ]] || return 0
+  background=$(readlink -f "${1:-}" 2>/dev/null) || return 0
+  [[ -f $background ]] || return 0
+  [[ -z $(resolve_intro "$background" || true) ]] || return 0
+  hosted_intro "$background" || return 0
+  ! animations_off || return 0
+
+  # Intros cached from another host or commit are never played again.
+  for cached in "$intro_cache_root"/*/; do
+    [[ $cached == "$intro_cache/" ]] || rm -rf "$cached"
+  done
+
+  # Remember a wallpaper the host has no intro for, so it is asked only once.
+  [[ ! -e $intro_cache/$hosted.missing ]] || return 0
+  mkdir -p "$intro_cache/${hosted%/*}"
+  staged=$(mktemp "$intro_cache/${hosted%/*}/.intro.XXXXXX")
+  trap 'rm -f "$staged"' EXIT
+  if code=$(curl -fsSL --proto '=https,file' --connect-timeout 10 --max-time 600 --retry 2 \
+    --max-filesize 104857600 -w '%{http_code}' -o "$staged" "$intro_host/$hosted"); then
+    if [[ -s $staged ]]; then
+      chmod 644 "$staged"
+      mv -f "$staged" "$intro_cache/$hosted"
+    fi
+  elif (( $? == 37 )) || [[ $code == "404" ]]; then
+    touch "$intro_cache/$hosted.missing"
+  fi
+  rm -f "$staged"
+  trap - EXIT
 }
 
 # Preparation is speculative: the selected staged clip is compared again by OWE.
@@ -96,6 +157,10 @@ case ${1:-} in
     resolve_intro "${2:-}" || true
     exit 0
     ;;
+  --fetch)
+    fetch_intro "${2:-}"
+    exit 0
+    ;;
   --resolve-startup)
     if [[ ! -f $toggle ]] && ! animations_off; then
       resolve_intro || true
@@ -110,7 +175,7 @@ case ${1:-} in
     [[ -n $expected_theme ]] || exit 1
     ;;
   *)
-    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--resolve-startup|--prepare-theme theme|--theme-switch background theme-id [prepared]]" >&2
+    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--fetch background|--resolve-startup|--prepare-theme theme|--theme-switch background theme-id [prepared]]" >&2
     exit 1
     ;;
 esac

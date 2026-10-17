@@ -94,7 +94,16 @@ if [[ $1 == intro && -n ${TEST_RELEASE:-} ]]; then
   exit 1
 fi
 STUB
-chmod +x "$commands/omarchy-restart-hyprctl" "$commands/hyprctl" "$commands/omarchy-shell" "$commands/owe"
+# Downloads are only logged; everything else reaches the real command.
+cat >"$commands/omarchy-theme-bg-boot-intro" <<STUB
+#!/bin/bash
+if [[ \$1 == --fetch ]]; then
+  printf 'fetch: %s\\n' "\$2" >>"\$TEST_LOG"
+  exit 0
+fi
+exec "$ROOT/bin/omarchy-theme-bg-boot-intro" "\$@"
+STUB
+chmod +x "$commands/omarchy-restart-hyprctl" "$commands/hyprctl" "$commands/omarchy-shell" "$commands/owe" "$commands/omarchy-theme-bg-boot-intro"
 
 set_theme() {
   : >"$log"
@@ -124,9 +133,10 @@ set_theme beta
 [[ $(readlink "$state/background") == "$state/theme/backgrounds/1-sky.webp" ]] || fail "reselecting the current theme cycles its background"
 grep -q '^shell: background themeTransition ' "$log" || fail "same-theme cycling uses the normal still transition"
 ! grep -q '^owe: intro ' "$log" || fail "same-theme cycling does not play an intro"
+wait_command "^fetch: $state/theme/backgrounds/1-sky.webp\$"
 OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme alpha
 ! grep -q '^owe: intro ' "$log" || fail "theme refresh does not play an intro"
-pass "same-theme cycling and refresh keep the normal background behavior"
+pass "same-theme cycling keeps the normal background behavior and fetches the new wallpaper's intro"
 
 printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/beta"
 mkdir -p "$home/.local/state/omarchy/toggles"

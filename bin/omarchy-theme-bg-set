@@ -23,3 +23,7 @@ ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
 # Update the live shell background when it is running. Nothing watches the
 # symlink, so this is how the shell learns of the new background.
 omarchy-shell -q background set "$BACKGROUND"
+
+# Download this wallpaper's intro, if it has one, for the next time it arrives
+# with its theme or at login. Choosing a wallpaper never plays an intro.
+setsid -f omarchy-theme-bg-boot-intro --fetch "$BACKGROUND" </dev/null >/dev/null 2>&1
