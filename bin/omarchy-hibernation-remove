@@ -48,6 +48,13 @@ fi
 echo "Removing resume hook"
 sudo rm "$MKINITCPIO_CONF"
 
+UPPOWER_DROP_IN="/etc/UPower/UPower.conf.d/70-omarchy-critical-hibernate.conf"
+if [[ -f $UPPOWER_DROP_IN ]]; then
+  echo "Removing UPower critical hibernate action"
+  sudo rm -f "$UPPOWER_DROP_IN"
+  sudo systemctl try-restart upower.service >/dev/null 2>&1 || true
+fi
+
 echo "Regenerating initramfs..."
 sudo limine-mkinitcpio
 
