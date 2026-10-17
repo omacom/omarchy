@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Exit 0 when this machine is a Fujitsu LIFEBOOK P727
+# omarchy:hidden=true
+
+omarchy-hw-match "LIFEBOOK P727"
