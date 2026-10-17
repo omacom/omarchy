@@ -260,11 +260,17 @@ ShellRoot {
     source: shell.activeBarId !== shell.defaultBarId ? shell.activeBarSourceUrl : ""
     asynchronous: true
     onLoaded: shell.configureBar(item, shell.activeBarManifest)
-    onActiveChanged: if (!active) shell.bar = null
+    // The built-in bar can load before this deactivates; leave it registered.
+    onActiveChanged: if (!active && shell.bar !== defaultBarLoader.item) shell.bar = null
     onStatusChanged: {
       if (status === Loader.Error) {
         console.warn("bar option " + shell.activeBarId + " failed to load, falling back to " + shell.defaultBarId)
-        shell.failedBarId = shell.activeBarId
+        // A retry of a cached component fails inside activeBarId's own change,
+        // where setting failedBarId leaves activeBarId stale; fall back next tick.
+        var failedId = shell.activeBarId
+        Qt.callLater(function() {
+          if (shell.activeBarId === failedId && pluginBarLoader.status === Loader.Error) shell.failedBarId = failedId
+        })
       }
     }
   }
@@ -1409,11 +1415,9 @@ ShellRoot {
         }
         onStatusChanged: {
           if (status === Loader.Error) {
-            // Loader.errorString() reflects the source-load failure even when
-            // sourceComponent is null. Surface both so the user sees something
-            // actionable instead of a panel that silently refuses to open.
-            var detail = errorString && errorString() ? errorString() : ""
-            if (!detail && sourceComponent) detail = sourceComponent.errorString()
+            // Loader has no errorString(); the component it built from source
+            // carries the error, so the user sees why the panel won't open.
+            var detail = sourceComponent ? sourceComponent.errorString() : ""
             console.warn("panel plugin " + panelEntry.pluginId + " failed to load:", detail)
             shell.hide(panelEntry.pluginId)
           }
