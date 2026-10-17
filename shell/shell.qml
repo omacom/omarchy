@@ -1525,7 +1525,7 @@ ShellRoot {
       shell.pluginReloadPending = true
       return
     }
-    if (typeof Qt.clearComponentCache === "function") Qt.clearComponentCache()
+    shell.pluginRegistry.codeGeneration++
     shell.pluginRegistry.rescan()
   }
 
