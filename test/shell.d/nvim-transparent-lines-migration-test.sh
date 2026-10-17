@@ -59,6 +59,19 @@ cmp -s "$config/$transparency" "$test_dir/shipped.lua" && [[ ! -e $config/$luali
   fail "a config a dotfile manager links in is left alone"
 pass "a config a dotfile manager links in is left alone"
 
+reset_config
+mv "$package" "$test_dir/package-away"
+if output=$(HOME="$test_dir" bash -euo pipefail "$test_dir/migration.sh" 2>&1); then
+  [[ $output == *"Skipping Neovim migration: omarchy-nvim is not installed."* ]] ||
+    fail "a missing package prints the skip message"
+else
+  fail "a missing package skips the migration successfully"
+fi
+cmp -s "$config/$transparency" "$test_dir/shipped.lua" && [[ ! -e $config/$lualine ]] ||
+  fail "a missing package leaves the Neovim config unchanged"
+mv "$test_dir/package-away" "$package"
+pass "a missing package skips the migration and leaves the Neovim config unchanged"
+
 # An older package leaves the migration pending to run again after the update.
 reset_config
 mv "$package/$lualine" "$test_dir/lualine.lua"

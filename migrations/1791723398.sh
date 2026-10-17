@@ -8,6 +8,11 @@ files=(plugin/after/transparency.lua lua/plugins/lualine-transparent.lua)
 
 [[ -d $config ]] || exit 0
 
+if [[ ! -d $package ]]; then
+  echo "Skipping Neovim migration: omarchy-nvim is not installed."
+  exit 0
+fi
+
 # Dotfile managers may own a file or a parent directory through a symlink.
 # Preserve that layout rather than detaching or editing its target.
 for file in "${files[@]}"; do
