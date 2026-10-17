@@ -3,6 +3,10 @@
 # omarchy:summary=Launch the Omarchy shell with its log kept in the journal
 # omarchy:hidden=true
 
+# Drop dead Quickshell instance dirs before a new one starts writing. Stale
+# by-id logs otherwise grow without bound on the user runtime tmpfs.
+omarchy-quickshell-prune-logs >/dev/null 2>&1 || true
+
 # Quickshell only logs to its instance runtime dir (tmpfs), so when the shell
 # dies the idle/lock event trail is gone after a reboot. The journal keeps it
 # across sessions, bounded and timestamped, under the omarchy-shell tag.
