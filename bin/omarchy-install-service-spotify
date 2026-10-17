@@ -7,7 +7,7 @@ set -e
 
 if omarchy-hw-x86; then
   echo "Installing Spotify..."
-  omarchy-pkg-add spotify
+  omarchy-pkg-add spotify ffmpeg4.4 zenity
 
   echo "Opening Spotify..."
   setsid uwsm-app -- /usr/bin/spotify >/dev/null 2>&1 &
