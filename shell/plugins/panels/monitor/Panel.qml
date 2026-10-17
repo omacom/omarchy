@@ -475,6 +475,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("monitor.display")
     anchors.fill: parent
     bar: root.bar
     text: Quickshell.screens.length > 1 ? "󰍺" : "󰍹"
@@ -491,6 +492,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("monitor.display")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -638,6 +640,7 @@ Panel {
 
               PanelSlider {
                 id: brightnessSlider
+                accessibleName: I18n.t("accessibility.brightness")
                 bar: root.bar
                 anchors.fill: parent
                 anchors.leftMargin: Style.space(6)
@@ -713,6 +716,7 @@ Panel {
 
               PanelSlider {
                 id: textSizeSlider
+                accessibleName: I18n.t("accessibility.textSize")
                 bar: root.bar
                 anchors.fill: parent
                 anchors.leftMargin: Style.space(6)
@@ -874,6 +878,13 @@ Panel {
     readonly property bool isFocused: display && display.focused
     readonly property bool canToggle: display && (!display.enabled || root.enabledDisplayCount > 1)
 
+    accessibleName: display ? display.name : ""
+    Accessible.onPressAction: monitorRow.activate()
+    // Press turns the display on or off, so that is the state to announce;
+    // `current` only tracks which monitor has focus.
+    Accessible.checkable: true
+    Accessible.checked: !!display && display.enabled
+    Accessible.selected: false
     hasCursor: root.cursorActive && root.focusSection === "monitors" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(monitorRow)
     current: isFocused
@@ -882,6 +893,10 @@ Panel {
     currentFill: Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
     implicitHeight: monitorInner.implicitHeight + Style.spacing.xl
     opacity: canToggle ? 1.0 : 0.45
+
+    function activate() {
+      if (canToggle) root.toggleDisplay(display.name, display.enabled)
+    }
 
     Row {
       id: monitorInner
@@ -936,7 +951,7 @@ Panel {
         root.focusSection = "monitors"
         root.selectedIndex = monitorRow.rowIndex
       }
-      onClicked: if (monitorRow.canToggle) root.toggleDisplay(monitorRow.display.name, monitorRow.display.enabled)
+      onClicked: monitorRow.activate()
     }
   }
 }

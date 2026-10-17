@@ -28,6 +28,9 @@ WidgetButton {
   readonly property rect componentSourceBounds: customIcon.sourceBounds
 
   labelVisible: false
+  // The label is always a glyph, so only the tooltip (or an explicit
+  // accessibleName) names the button.
+  accessibleName: tooltipText
   hasVisualContent: text !== "" || iconComponent !== null || labelText !== ""
   fontSize: Style.bar.iconFont
   fixedWidth: vertical ? -1 : slotSize

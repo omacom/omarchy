@@ -61,6 +61,10 @@ PanelWindow {
   // mapped and child items have completed layout.
   property Item focusTarget: null
 
+  // Announced as the panel's title ("Network"). The layer surface itself has
+  // no title to carry it, so the card holds the name.
+  property string accessibleName: ""
+
   default property alias contentItem: contentHolder.children
 
   // Lazy content. A panel that sets `content` to a Component gets it built
@@ -410,6 +414,9 @@ PanelWindow {
     padding: root.padding
     radius: Style.cornerRadius
     opacity: root.open || root.popoutSwitching ? 1.0 : 0
+
+    Accessible.role: Accessible.Dialog
+    Accessible.name: root.accessibleName
 
     Behavior on opacity {
       enabled: !root.popoutSwitching && !root.popoutSwitchClosing
