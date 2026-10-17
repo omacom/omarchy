@@ -107,6 +107,9 @@ Item {
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
     if (!path || (!force && finalPath === currentBackground)) return
+    // A still that replaces a video shows at once: the layer may still hold
+    // the image from before the video, which must not fade back into view.
+    var leavingVideo = isVideo(currentBackground)
     if (path !== preparedBackground) preparedBackground = ""
     preparedBackgroundTimer.stop()
     lastTransitionPath = path
@@ -122,9 +125,20 @@ Item {
     revealAnimation.stop()
     finishingTransition = false
 
+    // OWE plays videos on its own layer and hides this one once the video's
+    // first frame is up. Keep the still on screen until then, so the switch
+    // never shows an empty background.
+    if (isVideo(path) && displayedBackground && !isVideo(displayedBackground)) {
+      oldBackground = ""
+      incomingBackground = ""
+      preparedBackground = ""
+      revealProgress = 1
+      return
+    }
+
     // Video frames are not fed through the image-only reveal stack. Switching
     // instantly also avoids decoding two full videos during a transition.
-    if (instant || !displayedBackground || isVideo(path) || isVideo(displayedBackground)) {
+    if (instant || !displayedBackground || leavingVideo || isVideo(path) || isVideo(displayedBackground)) {
       oldBackground = ""
       incomingBackground = ""
       preparedBackground = ""
