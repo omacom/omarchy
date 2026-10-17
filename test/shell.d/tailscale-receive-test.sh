@@ -131,3 +131,26 @@ printf 'png' >"$WORKDIR/outbox/Translated Image.png"
 receive 1 env OMARCHY_LANGUAGE_FILE="$WORKDIR/language"
 assert_notification "$downloads/Translated Image.png" "Modtaget Translated Image.png" "Gemt til $downloads"
 pass "taildrop receive preserves localized glyph notifications"
+
+# Without an explicit directory the receiver must honor a customized XDG
+# download dir instead of recreating ~/Downloads on every login.
+cat >"$WORKDIR/bin/xdg-user-dir" <<SH
+#!/bin/bash
+[[ \$1 == "DOWNLOAD" ]] || exit 1
+printf '%s\n' "$WORKDIR/mydl"
+SH
+chmod +x "$WORKDIR/bin/xdg-user-dir"
+
+xdg_home="$WORKDIR/fakehome"
+mkdir -p "$xdg_home" "$WORKDIR/mydl"
+printf 'txt' >"$WORKDIR/outbox/later.txt"
+
+XDG_DOWNLOAD_DIR= HOME="$xdg_home" OMARCHY_PATH="$ROOT" PATH="$WORKDIR/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-tailscale-receive" --once
+
+[[ -f $WORKDIR/mydl/later.txt ]] ||
+  fail "taildrop receive defaults to the xdg-user-dir download directory" "$(ls "$WORKDIR/mydl")"
+pass "taildrop receive defaults to the xdg-user-dir download directory"
+
+[[ ! -e $xdg_home/Downloads ]] ||
+  fail "taildrop receive does not recreate ~/Downloads" "$(ls "$xdg_home")"
+pass "taildrop receive does not recreate ~/Downloads"
