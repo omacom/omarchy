@@ -22,3 +22,5 @@ The clipboard history is provided by the Omarchy shell and works for both text a
 You can also search the history just by starting to type:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)
+
+`Delete` removes the highlighted entry from the history, and `Shift + Delete` clears the whole history after asking you to confirm.
