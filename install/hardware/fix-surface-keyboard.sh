@@ -20,7 +20,7 @@ if omarchy-hw-surface && omarchy-hw-x86; then
   else
     echo "Detected pinctrl module: $pinctrl_module"
     mkdir -p "$mkinitcpio_dir"
-    echo "MODULES=(${pinctrl_module} surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)" > \
+    echo "MODULES+=(${pinctrl_module} surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)" > \
       "$mkinitcpio_dir/surface_device_modules.conf"
   fi
 fi

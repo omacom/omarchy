@@ -236,8 +236,15 @@ new_etc
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 drop_in surface_device_modules.conf <<<"MODULES=(pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)"
 pci_devices 0x8086:0x030000
-assert_composed "a Surface is unchanged" x86 \
+assert_composed "a Surface with an older drop-in is unchanged" x86 \
   "$omarchy_hooks" "pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw thunderbolt" ""
+
+new_etc
+drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
+drop_in surface_device_modules.conf <<<"MODULES+=(pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)"
+pci_devices 0x8086:0x030000
+assert_composed "a Surface keeps the NVIDIA modules ahead of its own" x86 \
+  "$omarchy_hooks" "$nvidia_modules pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw thunderbolt" ""
 
 
 # Snapdragon and other aarch64 machines build the same image as x86, whatever
