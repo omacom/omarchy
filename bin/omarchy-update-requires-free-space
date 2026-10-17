@@ -12,6 +12,38 @@ elif read -r available_bytes < <(df --output=avail --block-size=1 / 2>/dev/null 
   (( available_bytes < 10 * 1024 * 1024 * 1024 )); then
   echo "You need at least 10 GiB free to safely update Omarchy."
   exit 1
-else
-  exit 0
 fi
+
+# On btrfs, every byte of df's free space can sit inside partly-used data
+# chunks, where metadata chunks may not go. Once the whole device is allocated
+# to chunks and metadata headroom is nearly gone, an update dies with ENOSPC
+# while df still shows gigabytes free (#15528).
+if [[ $(findmnt -no FSTYPE / 2>/dev/null) == btrfs ]]; then
+  btrfs_df=$(btrfs filesystem df --raw / 2>/dev/null) || exit 0
+  data_total=$(sed -n 's/^Data,.*total=\([0-9]*\),.*/\1/p' <<<"$btrfs_df")
+  metadata_total=$(sed -n 's/^Metadata,.*total=\([0-9]*\),.*/\1/p' <<<"$btrfs_df")
+  metadata_used=$(sed -n '/^Metadata,/s/.*used=\([0-9]*\).*/\1/p' <<<"$btrfs_df")
+  system_total=$(sed -n 's/^System,.*total=\([0-9]*\),.*/\1/p' <<<"$btrfs_df")
+
+  root_device=$(findmnt -no SOURCE / 2>/dev/null | sed 's/\[.*//')
+  device_bytes=$(lsblk -bno SIZE "$root_device" 2>/dev/null | head -n 1)
+
+  if [[ -n $data_total && -n $metadata_total && -n $metadata_used && -n $device_bytes ]]; then
+    allocated=$((data_total + metadata_total + ${system_total:-0}))
+    unallocated=$((device_bytes - allocated))
+    metadata_free=$((metadata_total - metadata_used))
+
+    # Allocated beyond the one device we can see means more than one device, or
+    # accounting this check does not model; either way it says nothing and the
+    # update goes on.
+    if (( allocated <= device_bytes )) &&
+      (( unallocated < 1024 ** 3 )) &&
+      (( metadata_free < 1024 ** 3 )); then
+      echo "The btrfs root has almost no unallocated device space left, so no new metadata chunks can be created and the update can fail with ENOSPC even though df still shows space free."
+      echo "Reclaim partly-used data chunks with: sudo btrfs balance start -dusage=50 /"
+      exit 1
+    fi
+  fi
+fi
+
+exit 0
