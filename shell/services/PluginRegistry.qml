@@ -713,6 +713,8 @@ QtObject {
     localPluginWatcher.running = false
   }
 
+  // Filtered in localPluginIdForPath, not with --include: inotifywait drops
+  // every directory event under --include, so a directory moved in whole is missed.
   property Process localPluginWatcher: Process {
     command: [
       "inotifywait",
@@ -722,12 +724,17 @@ QtObject {
       "-e",
       "close_write,create,delete,move",
       "--format",
-      "%w%f",
+      "%e %w%f",
       registry.pluginsDir
     ]
     stdout: SplitParser {
-      onRead: function(path) {
-        var pluginId = registry.localPluginIdForPath(path)
+      onRead: function(line) {
+        var space = line.indexOf(" ")
+        var events = line.slice(0, space)
+        var directory = events.indexOf("ISDIR") !== -1
+        var movedDirectory = directory && events.indexOf("MOVED") !== -1
+        var createdDirectory = directory && events.indexOf("CREATE") !== -1
+        var pluginId = registry.localPluginIdForPath(line.slice(space + 1), movedDirectory, createdDirectory)
         if (pluginId) registry.localPluginChanged(pluginId)
       }
     }
@@ -778,7 +785,21 @@ QtObject {
     initProcess.running = true
   }
 
-  function localPluginIdForPath(filePath) {
+  // Paths that can change loadable plugin code or metadata. Runtime state
+  // written next to the plugin (caches, data.json, downloaded binaries) must
+  // not trigger a full shell reload.
+  function isWatchedPluginPath(relative) {
+    var baseName = relative.slice(relative.lastIndexOf("/") + 1)
+    if (baseName === "manifest.json") return true
+    if (baseName.endsWith(".manifest.json")) return true
+    if (baseName.endsWith(".qml")) return true
+    if (baseName.endsWith(".js")) return true
+    return false
+  }
+
+  // A moved directory carries sources without a file event of their own, and so does a
+  // plugin copied in: its files can land before the recursive watch reaches the new directory.
+  function localPluginIdForPath(filePath, movedDirectory, createdDirectory) {
     var base = pluginsDir.replace(/\/$/, "") + "/"
     var path = String(filePath || "").trim()
     if (path.indexOf(base) !== 0) return ""
@@ -787,8 +808,10 @@ QtObject {
     // Hidden entries are not plugins: clone staging dirs, remove backups.
     if (relative.indexOf(".") === 0) return ""
     if (relative.indexOf("/.git/") !== -1 || relative.endsWith("/.git")) return ""
-
     var slash = relative.indexOf("/")
+    var copiedPlugin = createdDirectory && slash === -1
+    if (!movedDirectory && !copiedPlugin && !isWatchedPluginPath(relative)) return ""
+
     return slash === -1 ? relative : relative.slice(0, slash)
   }
 
