@@ -18,6 +18,7 @@ mkdir -p "$stub_bin"
 # sudo just drops the prefix; limine-mkinitcpio records that it ran, and fails
 # when told to.
 printf '#!/bin/bash\nexec "$@"\n' >"$stub_bin/sudo"
+printf '#!/bin/bash\n[[ ${APPLE_SILICON:-0} == "1" ]]\n' >"$stub_bin/omarchy-hw-aarch64-apple"
 # A rebuild writes the new command line into the boot menu, unless it is the
 # kind that builds nothing and still exits 0.
 cat >"$stub_bin/limine-mkinitcpio" <<'STUB'
@@ -75,6 +76,13 @@ grep -v "tty.term.console" "$ROOT/etc/limine-entry-tool.d/omarchy-defaults.conf"
 run "$old_cmdline" "$test_dir/edited.conf"
 [[ $(rebuilds) == 0 ]] || fail "a machine whose defaults leave the parameter out was rebuilt anyway"
 pass "a machine whose defaults were edited to leave the parameter out is left alone"
+
+# An Apple Silicon Mac takes its command line from /etc/default/grub, so a
+# rebuild leaves the parameter out of its boot menu.
+APPLE_SILICON=1 REBUILD_BUILDS_NOTHING=1 run "$old_cmdline" "$ROOT/etc/limine-entry-tool.d/omarchy-defaults.conf" ||
+  fail "an Apple Silicon Mac failed a migration its boot menu can never pass"
+[[ $(rebuilds) == 0 ]] || fail "an Apple Silicon Mac rebuilt for a parameter its command line leaves out"
+pass "an Apple Silicon Mac, whose command line comes from GRUB's defaults, is left alone"
 
 # No Limine: the stand-in goes, and the PATH holds only what the migration
 # needs, so a limine-mkinitcpio installed on the machine running this test is

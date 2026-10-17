@@ -8,6 +8,13 @@ echo "Stop the boot from waiting on a black screen for the console to answer"
 # time this runs; the boot image still holds the old command line until it is
 # rebuilt.
 
+# An Apple Silicon Mac never boots with omarchy-defaults.conf's command line:
+# omarchy-mac-boot derives it from /etc/default/grub and writes it to
+# /etc/default/limine as a plain assignment, which replaces the drop-in. A
+# rebuild there cannot add the parameter, and the check below failed every
+# update. A failed migration stays pending, so a Mac stuck here passes now.
+omarchy-hw-aarch64-apple && exit 0
+
 defaults_conf="${OMARCHY_LIMINE_DEFAULTS_CONF:-/etc/limine-entry-tool.d/omarchy-defaults.conf}"
 running_cmdline="${OMARCHY_RUNNING_CMDLINE:-/proc/cmdline}"
 rebuild_marker="${OMARCHY_LIMINE_REBUILD_MARKER:-/var/lib/omarchy/migrations/1791581004}"
