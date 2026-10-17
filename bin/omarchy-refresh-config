@@ -17,14 +17,40 @@ USAGE
   exit 1
 fi
 
-user_config_file="${HOME}/.config/$config_file"
-default_config_file="$OMARCHY_PATH/config/$config_file"
-backup_config_file="$user_config_file.bak.$(date +%s)"
+if [[ $config_file == /* || "/$config_file/" == *"/../"* ]]; then
+  echo "Config path must stay inside .config: $config_file" >&2
+  exit 1
+fi
 
-if [[ ! -e $default_config_file ]]; then
+config_source_root=$(realpath -e -- "$OMARCHY_PATH/config") || {
+  echo "Omarchy config directory not found: $OMARCHY_PATH/config" >&2
+  exit 1
+}
+default_config_file=$(realpath -e -- "$config_source_root/$config_file") || {
+  echo "Not a shipped user config: $config_file" >&2
+  exit 1
+}
+
+if [[ $default_config_file != "$config_source_root/"* || ! -f $default_config_file ]]; then
   echo "Not a shipped user config: $config_file" >&2
   exit 1
 fi
+
+user_config_root=$(realpath -m -- "$HOME/.config") || {
+  echo "Could not resolve user config directory: $HOME/.config" >&2
+  exit 1
+}
+user_config_file=$(realpath -m -- "$user_config_root/$config_file") || {
+  echo "Could not resolve user config path: $config_file" >&2
+  exit 1
+}
+
+if [[ $user_config_file != "$user_config_root/"* ]]; then
+  echo "Config path must stay inside .config: $config_file" >&2
+  exit 1
+fi
+
+backup_config_file="$user_config_file.bak.$(date +%s)"
 
 mkdir -p "$(dirname "$user_config_file")"
 
