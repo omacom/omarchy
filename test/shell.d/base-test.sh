@@ -16,6 +16,16 @@ export ROOT
 # this at a file of their own.
 export OMARCHY_LANGUAGE_FILE=$ROOT/test/.no-language
 
+# Commands call their sibling omarchy-* helpers by name and read their
+# defaults through $OMARCHY_PATH, which the session sets for runtime code.
+# Point both at this checkout, ahead of any installed Omarchy, so a test
+# exercises the code under test rather than whatever version the machine
+# happens to run -- or nothing, on a machine without Omarchy. Stubs a test
+# prepends to PATH, and an OMARCHY_PATH a test sets itself, still take
+# precedence.
+export OMARCHY_PATH="$ROOT"
+export PATH="$ROOT/bin:$PATH"
+
 pass() {
   printf 'ok - %s\n' "$1"
 }
