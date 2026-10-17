@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Sign in to the Cloudflare CLI and add a web app for the Cloudflare Dashboard.
+
+set -e
+
+launcher="$HOME/.local/share/applications/Cloudflare.desktop"
+if [[ -e $launcher || -L $launcher ]] && ! omarchy-installed-service-cloudflare; then
+  echo "Cloudflare.desktop belongs to another app. Rename it before setting up Cloudflare." >&2
+  exit 1
+fi
+
+# Recreate the managed wrapper and invoke it explicitly: another program named
+# cf on PATH must not receive Cloudflare authentication commands.
+omarchy-mise-install npm:cf cf
+
+# Keep a Remove route even if login is interrupted or dashboard creation fails.
+# A failed attempt remains retryable because Install checks the launcher instead.
+mkdir -p "$HOME/.local/state/omarchy"
+touch "$HOME/.local/state/omarchy/cloudflare-service"
+
+echo -e "\nSigning in to Cloudflare..."
+"$HOME/.local/bin/cf" auth login
+
+omarchy-webapp-install "Cloudflare" "https://dash.cloudflare.com" https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/cloudflare.png
+
+omarchy-plugin-enable omarchy.cloudflare
+
+echo ""
+echo "Cloudflare has been set up."

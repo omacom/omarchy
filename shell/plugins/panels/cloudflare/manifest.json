@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.cloudflare",
+  "name": "Cloudflare",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "Cloudflare domains and Workers, with dashboard and copy shortcuts, in the Omarchy bar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Cloudflare",
+    "description": "Browse your Cloudflare domains and Workers, open them in the dashboard, and copy their IDs or URLs.",
+    "category": "Network",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 300
+    },
+    "schema": [
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Refresh interval (seconds)",
+        "min": 30,
+        "max": 3600,
+        "step": 30,
+        "defaultValue": 300
+      }
+    ]
+  }
+}
