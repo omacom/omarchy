@@ -1,13 +1,25 @@
 #!/bin/bash
 
-# omarchy:summary=Launch the Omarchy screensaver in the default terminal on the system with the correct font configuration.
+# omarchy:summary=Launch the selected Omarchy screensaver
+# omarchy:args=[force] [default]
 
-# Exit early if screensaver is already running
+# Exit early if either screensaver backend is already running. The Amiga
+# controller's flock is the authority; its wrapper execs into Python.
 pgrep -f '[o]rg.omarchy.screensaver' && exit 0
+amiga_lock="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/omarchy-amiga-screensaver.lock"
+if [[ -f $amiga_lock ]] && ! flock -n "$amiga_lock" true; then
+  exit 0
+fi
 
 # Allow screensaver to be turned off but also force started
 if omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
   exit 1
+fi
+
+# Amiga owns its child session and input guard; the idle path never installs.
+if [[ ${2:-} != "text" && ${2:-} != "default" ]] && omarchy-setup-screensaver --is-amiga; then
+  omarchy-shell -q shell hide omarchy.menu || true
+  exec omarchy-screensaver-amiga
 fi
 
 focused=$(omarchy-hyprland-monitor-focused)
