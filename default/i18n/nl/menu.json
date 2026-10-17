@@ -213,7 +213,7 @@
     "label": "Ronde hoeken"
   },
   "trigger.appearance.window-transparency": {
-    "label": "Vensterdekking"
+    "label": "Venstertransparantie"
   },
   "trigger.appearance.window-transparency.opaque": {
     "label": "Ondoorzichtige vensters"
@@ -228,8 +228,8 @@
     "label": "1-venster verhouding"
   },
   "trigger.appearance.workspace-layout": {
-    "label": "Werkbladindeling",
-    "title": "Standaard werkbladindeling"
+    "label": "Werkbladlayout",
+    "title": "Standaard werkbladlayout"
   },
   "trigger.appearance.workspace-layout.dwindle": {
     "label": "Tegelen"
@@ -343,7 +343,7 @@
     "label": "Aanraakscherm"
   },
   "trigger.reminder.set": {
-    "label": "Een instellen"
+    "label": "Reminder instellen"
   },
   "trigger.reminder.show": {
     "label": "Alles tonen"
@@ -394,7 +394,7 @@
     "label": "Tekst bewerken"
   },
   "style.about.image": {
-    "label": "Uit afbeelding instellen"
+    "label": "Instellen vanuit afbeelding"
   },
   "style.about.default": {
     "label": "Standaard herstellen"
@@ -403,7 +403,7 @@
     "label": "Tekst bewerken"
   },
   "style.screensaver.image": {
-    "label": "Uit afbeelding instellen"
+    "label": "Instellen vanuit afbeelding"
   },
   "style.screensaver.default": {
     "label": "Standaard herstellen"
