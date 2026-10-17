@@ -119,6 +119,7 @@ Item {
     failedBackground = ""
     revealStartedVersion = -1
 
+    revealWaitTimer.stop()
     revealAnimation.stop()
     finishingTransition = false
 
@@ -166,11 +167,28 @@ Item {
     if (!incomingBackground || revealProgress >= 1) applyPendingTheme()
   }
 
+  // Every screen decodes its own copy of the incoming image but they share one
+  // reveal, so it waits up to revealWaitTimer for the screens still decoding.
   function startReveal(panel) {
     if (!incomingBackground) return
     panel.maskReady = true
     if (revealStartedVersion === backgroundVersion) return
+    for (var other of backgrounds.instances) {
+      if (other.maskReady) continue
+      if (!revealWaitTimer.running) {
+        revealWaitTimer.restart()
+        // Keep a pending theme's fallback from changing the colours mid-wait.
+        if (pendingThemeFallbackTimer.running) pendingThemeFallbackTimer.restart()
+      }
+      return
+    }
+    beginReveal()
+  }
+
+  function beginReveal() {
+    if (!incomingBackground || revealStartedVersion === backgroundVersion) return
     revealStartedVersion = backgroundVersion
+    revealWaitTimer.stop()
     applyPendingTheme()
     revealAnimation.restart()
   }
@@ -308,6 +326,15 @@ Item {
     onTriggered: root.preparedBackground = ""
   }
 
+  // Kept shorter than pendingThemeFallbackTimer, which startReveal restarts
+  // when the wait begins.
+  Timer {
+    id: revealWaitTimer
+    interval: 250
+    repeat: false
+    onTriggered: root.beginReveal()
+  }
+
   Timer {
     id: pendingThemeFallbackTimer
     interval: 300
@@ -387,11 +414,19 @@ Item {
         return Qt.size(decodeWidth, decodeHeight)
       }
 
+      // Every output that has decoded the incoming image joins the wipe, even
+      // one that gets there after the animation has started. Each output
+      // decodes its own copy, so requiring revealProgress to still be 0 let
+      // whichever output decoded first claim the reveal and locked the rest
+      // out of it: they kept the old wallpaper and jumped to the new one when
+      // the transition ended. startReveal still restarts the animation only
+      // once per backgroundVersion, so a late output picks up the front where
+      // it already is.
       function maybeStartReveal() {
-        if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
+        if (!root.incomingBackground || maskReady) return
         if (incomingFrame.status !== Image.Ready) return
         Qt.callLater(function() {
-          if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
+          if (!root.incomingBackground || maskReady) return
           if (incomingFrame.status !== Image.Ready) return
           root.startReveal(panel)
         })
@@ -506,6 +541,12 @@ Item {
         function onIncomingBackgroundChanged() {
           panel.maskReady = false
           panel.maybeStartReveal()
+        }
+        // A forced transition can keep the incoming path, and a panel still
+        // ready from the last one would never start or wait for this one.
+        function onBackgroundVersionChanged() {
+          panel.maskReady = false
+          Qt.callLater(panel.maybeStartReveal)
         }
       }
 
