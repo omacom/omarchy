@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import Quickshell.Services.Notifications
 import qs.Commons
 import qs.Commons as Commons
@@ -137,7 +138,15 @@ Item {
   }
 
   function snapshotOf(notification) {
-    return NotificationLogic.snapshotOf(notification, Date.now())
+    var snapshot = NotificationLogic.snapshotOf(notification, Date.now())
+    snapshot.screenName = focusedScreenName()
+    snapshot.remainingLifetime = 1.0
+    return snapshot
+  }
+
+  function focusedScreenName() {
+    var monitor = Hyprland.focusedMonitor
+    return NotificationLogic.popupScreenName(monitor ? monitor.name : "", Quickshell.screens)
   }
 
   // A notification nobody looks back at:
@@ -277,6 +286,10 @@ Item {
       var row = popupModel.get(i)
       if (!row || row.originalId !== originalId || row.timestamp !== timestamp) continue
       if (!NotificationLogic.popupRowChanged(row, updated)) return
+      updated.screenName = row.screenName
+      // New text deserves a full look; monitor changes keep the same clock.
+      if (row.summary !== updated.summary || row.body !== updated.body || row.image !== updated.image)
+        popupModel.setProperty(i, "remainingLifetime", 1.0)
       for (var r = 0; r < roles.length; r++) popupModel.setProperty(i, roles[r], updated[roles[r]])
       // The file name is the timestamp and id this popup was persisted under,
       // so the rewrite lands on the same file: a restart restores the version
@@ -356,6 +369,14 @@ Item {
 
   function expirePopup(index) {
     removePopup(index, "expire")
+  }
+
+  // The visible delegate advances the shared clock, which survives hotplug.
+  function tickPopup(index, lifetime) {
+    if (index < 0 || index >= popupModel.count || lifetime <= 0) return
+    var remaining = Math.max(0, popupModel.get(index).remainingLifetime - 50.0 / lifetime)
+    popupModel.setProperty(index, "remainingLifetime", remaining)
+    if (remaining <= 0) service.expirePopup(index)
   }
 
   function removePopup(index, reason) {
@@ -664,6 +685,7 @@ Item {
   // replayHistory archives them, but the directory read is already in flight
   // by then, so they're handed over in memory instead of being waited for.
   property var replayCarryOver: []
+  property string replayScreenName: ""
 
   // Set from the moment a read is queued until it starts, so a second
   // showHistory while one is still waiting its turn doesn't queue another.
@@ -675,6 +697,7 @@ Item {
   function showRecentHistory() {
     if (readHistoryProc.running || service.historyReadQueued) return "ok"
     service.replayCarryOver = liveRowsForReplay()
+    service.replayScreenName = focusedScreenName()
     service.historyReadQueued = true
     enqueueHistoryRead()
     return "ok"
@@ -731,6 +754,8 @@ Item {
         image: "",
         glyph: "󰂚",
         execArgv: "",
+        screenName: service.replayScreenName,
+        remainingLifetime: 1.0,
         urgency: NotificationUrgency.Low,
         expireTimeout: 0,
         timestamp: Date.now()
@@ -745,6 +770,8 @@ Item {
       // sender long ago, so they must never resolve to a live server object
       // that has since been handed their old id.
       service.restoredPopups[NotificationLogic.popupFileName(rows[i])] = true
+      rows[i].screenName = service.replayScreenName
+      rows[i].remainingLifetime = 1.0
       popupModel.append(rows[i])
     }
   }
@@ -764,6 +791,7 @@ Item {
     var live = []
     for (var i = 0; i < entries.length; i++) {
       var entry = entries[i]
+      if (!entry.screenName) entry.screenName = focusedScreenName()
       var duration = durationFor(entry.urgency, entry.expireTimeout)
       if (NotificationLogic.popupExpired(entry, duration, now)) {
         // It would have expired on screen had the shell kept running, so it
@@ -811,6 +839,7 @@ Item {
         // popups have no liveRefs entry — the server object died with the
         // old shell — so dismissal and action fallbacks degrade gracefully.
         service.restoredPopups[NotificationLogic.popupFileName(restored)] = true
+        restored.remainingLifetime = 1.0
         popupModel.append(restored)
       }
     })
@@ -993,8 +1022,8 @@ Item {
 
   // -------------------------------------------------------------- popup UI
   //
-  // One PanelWindow per output (Variants on Quickshell.screens) holding the
-  // stacked toast cards. Layer is Overlay, exclusionMode Ignore, no
+  // One PanelWindow per output holding only that output's toast cards.
+  // Layer is Overlay, exclusionMode Ignore, no
   // keyboard focus — popups are passive surfaces and must never steal input
   // from the focused application.
 
@@ -1037,9 +1066,8 @@ Item {
         Repeater {
           model: popupModel
 
-          // The delegate is a slot Item that owns lifetime timer state. The
-          // actual visuals live in NotificationCard, which the history panel
-          // also reuses.
+          // Only the visible slot advances its row's shared lifetime. The
+          // visuals live in NotificationCard, also used by the history panel.
           delegate: Item {
             id: cardSlot
             required property int index
@@ -1052,6 +1080,12 @@ Item {
             required property int urgency
             required property double expireTimeout
             required property double timestamp
+            required property string screenName
+            required property real remainingLifetime
+
+            readonly property bool onScreen: popupWindow.modelData.name ===
+              NotificationLogic.popupScreenName(screenName, Quickshell.screens)
+            visible: onScreen
 
             // Each card sizes itself based on mode (text vs media); the slot
             // tracks the card so the column auto-fits to whichever is widest.
@@ -1060,30 +1094,14 @@ Item {
             implicitHeight: card.implicitHeight
 
             readonly property real lifetime: service.durationFor(cardSlot.urgency, cardSlot.expireTimeout)
-            property real remainingLifetime: 1.0
-            readonly property bool ticking: cardSlot.lifetime > 0 && !card.hovered
-
-            // A client updating this notification in place rewrites the row
-            // under the card (see refreshPopup). New text deserves a full look,
-            // so the countdown starts over instead of running out the clock the
-            // superseded text was already most of the way through. Delegates
-            // keep their own row as the model changes around them, so only a
-            // real content change lands here.
-            onSummaryChanged: cardSlot.remainingLifetime = 1.0
-            onBodyChanged: cardSlot.remainingLifetime = 1.0
-            onImageChanged: cardSlot.remainingLifetime = 1.0
+            readonly property bool ticking: cardSlot.onScreen && cardSlot.lifetime > 0 && !card.hovered
 
             Timer {
               interval: 50
               repeat: true
               running: cardSlot.ticking
               onTriggered: {
-                if (cardSlot.lifetime <= 0) return
-                cardSlot.remainingLifetime -= 50.0 / cardSlot.lifetime
-                if (cardSlot.remainingLifetime <= 0) {
-                  cardSlot.remainingLifetime = 0
-                  service.expirePopup(cardSlot.index)
-                }
+                service.tickPopup(cardSlot.index, cardSlot.lifetime)
               }
             }
 
