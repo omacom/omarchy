@@ -1,0 +1,7 @@
+# Video wallpaper settings. Every option is in /usr/share/doc/owe/config.toml.example.
+# Run `owe reload-config` after editing.
+
+[pause]
+# On battery, hold the current frame instead of decoding the video.
+# "play" keeps the wallpaper moving; "poster" swaps in a still.
+battery_mode = "pause"
