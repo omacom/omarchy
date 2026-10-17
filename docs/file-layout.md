@@ -340,7 +340,10 @@ and/or a working user systemd instance:
 - `install/user/first-run/welcome.sh` — keybindings toast that greets the
   first login and opens the cheatsheet when clicked. The caller runs
   `omarchy-notification-wait` once before this and the Wi-Fi step, so both
-  toasts land on a live notification server.
+  toasts land on a live notification server. A platform without a
+  keyboard-first workflow skips it by marking
+  `welcome-keybindings-not-applicable` (`omarchy-done mark`) from its
+  `setup-user`, which first run calls before this step.
 - `install/user/first-run/wifi.sh` — Wi-Fi/update toasts (waits detached on
   `nm-online` so the update prompt only lands once there is a connection).
 
