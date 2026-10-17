@@ -38,8 +38,10 @@ case "${1:-}" in
     ;;
 esac
 
-cpu=$(top -bn1 | awk '/^%?Cpu/ {
-  gsub(/,/, "")
+# The C locale keeps top's labels English and its commas mere separators, never "84,3" decimals.
+# Commas become spaces because at full idle top writes "ni,100.0 id" with none.
+cpu=$(LC_ALL=C top -bn1 | awk '/^%?Cpu/ {
+  gsub(/,/, " ")
   for (i = 1; i <= NF; i++) {
     if ($(i + 1) == "id") {
       printf "%.0f%%", 100 - $i
