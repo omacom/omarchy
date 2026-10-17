@@ -34,16 +34,23 @@ printf 'user-tool:%s\n' "$1" >>"$SUDO_TEST_LOG"
 STUB
 chmod +x "$SUDO_TEST_ROOT/bin/script" "$SUDO_TEST_ROOT/bin/omarchy-update-lock" "$boundary_tmp/user commands/update-user-tool"
 
-for step in omarchy-hook omarchy-update-mise; do
-  rm "$SUDO_TEST_ROOT/bin/$step"
-  cat >"$SUDO_TEST_ROOT/bin/$step" <<'STUB'
+# The hook shares the update's authorization; mise runs cold behind the
+# no-update wrapper. Both must still see the caller's PATH.
+rm "$SUDO_TEST_ROOT/bin/omarchy-hook"
+cat >"$SUDO_TEST_ROOT/bin/omarchy-hook" <<'STUB'
 #!/bin/bash
 [[ -e $SUDO_TEST_CACHE ]] || exit 91
 [[ $(command -v sudo) != "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 92
 update-user-tool "${0##*/}"
 STUB
-  chmod +x "$SUDO_TEST_ROOT/bin/$step"
-done
+rm "$SUDO_TEST_ROOT/bin/omarchy-update-mise"
+cat >"$SUDO_TEST_ROOT/bin/omarchy-update-mise" <<'STUB'
+#!/bin/bash
+[[ ! -e $SUDO_TEST_CACHE ]] || exit 91
+[[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 92
+update-user-tool "${0##*/}"
+STUB
+chmod +x "$SUDO_TEST_ROOT/bin/omarchy-hook" "$SUDO_TEST_ROOT/bin/omarchy-update-mise"
 
 for entry in fresh logged locked; do
   reset_boundary
@@ -63,5 +70,5 @@ for entry in fresh logged locked; do
     grep -q '^locked-reexec$' "$SUDO_TEST_LOG" || fail "$entry update did not exercise the lock exec"
   fi
   assert_boundary_cold "$entry update"
-  pass "$entry update preserves the original user PATH through logging and locking and shares its authorization"
+  pass "$entry update preserves the original user PATH through logging and locking for the hook and for mise"
 done
