@@ -3,19 +3,28 @@ Description=Bluetooth pairing agent (auto-accept)
 Documentation=man:bt-agent(1)
 ConditionPathIsDirectory=/sys/class/bluetooth
 # bluez must be reachable on the system bus before we can register.
-After=dbus.socket
+# Do not add system-manager bluetooth unit deps from this user unit: the user
+# manager cannot load system units, so those deps are inert. Wait for
+# bluetoothd in ExecStart instead (see Service).
+# Order after graphical-session.target so a bluez wait cannot hold the
+# session target / uwsm-app launches open (see omarchy-migrate-notify).
+After=dbus.socket graphical-session.target
 Requires=dbus.socket
 
 [Service]
 Type=simple
-# If bluetoothd is unavailable (for example in VMs or machines without a
-# usable adapter), skip cleanly instead of entering a restart loop.
-ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service
+# Wait for bluetoothd inside ExecStart (not ExecCondition / ExecStartPre).
+# ExecCondition skip is terminal for the session across a bluez race.
+# ExecStartPre would hold graphical-session.target for the whole wait.
+# A single long-lived wait shell avoids a restart storm when bluetoothd
+# is off while /sys/class/bluetooth still exists; Restart=on-failure still
+# recovers after mid-session bluez restarts because bt-agent exits 1 when
+# released.
 # NoInputNoOutput auto-accepts pair requests. Safe because the adapter
 # is only `pairable: true` when the user explicitly opens the omarchy
 # bluetoothPanel and starts scanning; outside that window bluez refuses
 # inbound pair attempts at a lower layer.
-ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
+ExecStart=/usr/bin/bash -c 'until systemctl is-active --quiet bluetooth.service; do sleep 2; done; exec /usr/bin/bt-agent -c NoInputNoOutput'
 Restart=on-failure
 RestartSec=2
 
