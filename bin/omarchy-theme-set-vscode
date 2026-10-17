@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Sync Omarchy theme to VS Code, VSCodium, and Cursor
+# omarchy:summary=Sync Omarchy theme to VS Code, VSCodium, Cursor, and Whiteboard
 # omarchy:hidden=true
 
 VS_CODE_THEME_DESCRIPTOR="$HOME/.local/state/omarchy/current/theme/vscode.json"
@@ -56,17 +56,22 @@ register_generated_extension() {
   fi
 }
 
+# VS Code takes a theme's light or dark base from its uiTheme once, when it
+# loads the extension, and the _watch reload below refreshes only the colors.
+# A switch between a light and a dark palette would keep the old base until a
+# window reload. So the extension declares the palette once for each base, and
+# a switch selects the other label, which VS Code applies at once.
+generated_theme_label() {
+  if [[ $(jq -r '.type // "dark"' "$GENERATED_THEME") == "light" ]]; then
+    echo "Omarchy Light"
+  else
+    echo "Omarchy Dark"
+  fi
+}
+
 # Install generated theme as a local extension for a given editor
 install_generated_extension() {
   local ext_dir="$1"
-  local theme_type ui_theme
-
-  theme_type=$(jq -r '.type // "dark"' "$GENERATED_THEME")
-  if [[ $theme_type == "light" ]]; then
-    ui_theme="vs"
-  else
-    ui_theme="vs-dark"
-  fi
 
   # VS Code caches loaded color themes in memory and only rebuilds a registry
   # entry when the providing extension changes, so derive the version from the
@@ -91,8 +96,13 @@ install_generated_extension() {
     "categories": ["Themes"],
     "contributes": {
         "themes": [{
-            "label": "Omarchy",
-            "uiTheme": "$ui_theme",
+            "label": "Omarchy Dark",
+            "uiTheme": "vs-dark",
+            "path": "./themes/omarchy-color-theme.json",
+            "_watch": true
+        }, {
+            "label": "Omarchy Light",
+            "uiTheme": "vs",
             "path": "./themes/omarchy-color-theme.json",
             "_watch": true
         }]
@@ -136,6 +146,30 @@ extension_installed() {
   return 1
 }
 
+# Set a workbench.<key> string setting, and add it when it is missing.
+write_setting() {
+  local settings_path="$1"
+  local key="$2"
+  local value="$3"
+
+  mkdir -p "$(dirname "$settings_path")"
+  [[ -f $settings_path ]] || printf '{\n}\n' >"$settings_path"
+
+  # settings.json is JSONC: comments and trailing commas are legal there and
+  # common in practice, so it's edited in place rather than round-tripped
+  # through a strict JSON parser that would reject it and reformat the rest.
+  local escaped=${value//&/\\&}
+  escaped=${escaped//|/\\|}
+
+  if ! grep -q "\"workbench.$key\"" "$settings_path"; then
+    sed -i --follow-symlinks -E "0,/\{/{s/\{/{\ \"workbench.$key\": \"\",/}" "$settings_path"
+  fi
+
+  sed -i --follow-symlinks -E \
+    "s|(\"workbench.$key\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\1$escaped\2|" \
+    "$settings_path"
+}
+
 set_theme() {
   local editor_cmd="$1"
   local settings_path="$2"
@@ -165,29 +199,37 @@ set_theme() {
   elif [[ -f "$GENERATED_THEME" ]]; then
     # VS Code only discovers local color themes through an extension package.
     install_generated_extension "$ext_base/$GENERATED_EXTENSION_NAME"
-    theme_name="Omarchy"
+    theme_name=$(generated_theme_label)
   fi
 
   if [[ -n "$theme_name" ]]; then
-    mkdir -p "$(dirname "$settings_path")"
-    [[ -f $settings_path ]] || printf '{\n}\n' >"$settings_path"
-
-    # settings.json is JSONC: comments and trailing commas are legal there and
-    # common in practice, so it's edited in place rather than round-tripped
-    # through a strict JSON parser that would reject it and reformat the rest.
-    local escaped=${theme_name//&/\\&}
-    escaped=${escaped//|/\\|}
-
-    if ! grep -q '"workbench.colorTheme"' "$settings_path"; then
-      sed -i --follow-symlinks -E '0,/\{/{s/\{/{\ "workbench.colorTheme": "",/}' "$settings_path"
-    fi
-
-    sed -i --follow-symlinks -E \
-      "s|(\"workbench.colorTheme\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\1$escaped\2|" \
-      "$settings_path"
+    write_setting "$settings_path" colorTheme "$theme_name"
   elif [[ -f $settings_path ]]; then
     sed -i --follow-symlinks -E 's/\"workbench\.colorTheme\"[[:space:]]*:[^,}]*,?//' "$settings_path"
   fi
+}
+
+# Whiteboard is a Code - OSS fork without an extension marketplace, so a theme's
+# preferred extension can't be installed there and it always gets the generated
+# theme. Its System appearance setting picks the preferred dark or light theme
+# by the desktop color scheme, over colorTheme. Both get the current palette's
+# label, so the base always follows the palette, even while the color scheme
+# lags behind a theme switch.
+set_whiteboard_theme() {
+  local settings_path="$HOME/.config/Whiteboard/User/settings.json"
+  local label
+
+  omarchy-cmd-present whiteboard-desktop || return 0
+  [[ -f $GENERATED_THEME ]] || return 0
+  # On its first start Whiteboard imports the VS Code settings, but only when
+  # it has no settings.json yet. So wait until it has run once.
+  [[ -d $(dirname "$settings_path") ]] || return 0
+
+  install_generated_extension "$HOME/.dev-fast-review/extensions/$GENERATED_EXTENSION_NAME"
+  label=$(generated_theme_label)
+  write_setting "$settings_path" colorTheme "$label"
+  write_setting "$settings_path" preferredDarkColorTheme "$label"
+  write_setting "$settings_path" preferredLightColorTheme "$label"
 }
 
 if ! omarchy-toggle-enabled skip-vscode-theme-changes; then
@@ -201,4 +243,7 @@ if ! omarchy-toggle-enabled skip-codium-theme-changes; then
 fi
 if ! omarchy-toggle-enabled skip-cursor-theme-changes; then
   set_theme "/usr/bin/cursor" "$HOME/.config/Cursor/User/settings.json" "$HOME/.cursor/extensions"
+fi
+if ! omarchy-toggle-enabled skip-whiteboard-theme-changes; then
+  set_whiteboard_theme
 fi
