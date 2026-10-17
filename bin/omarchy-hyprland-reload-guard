@@ -30,10 +30,20 @@ option_bool() {
   local runtime_dir="$1"
   local signature="$2"
   local option="$3"
+  local value
 
   # A dead instance makes hyprctl print "Couldn't connect ..." on stdout, so
   # silence jq too and let the failed pipeline skip the instance.
-  hyprctl_instance "$runtime_dir" "$signature" -j getoption "$option" 2>/dev/null | jq -r '.bool' 2>/dev/null
+  value=$(hyprctl_instance "$runtime_dir" "$signature" -j getoption "$option" 2>/dev/null | jq -r '.bool' 2>/dev/null) || return 1
+
+  # Only true/false are meaningful. A getoption reply without the field (a
+  # Hyprland build that does not know the option) yields null, and a cut
+  # connection yields nothing at all; either would land raw in the state file
+  # and resume would splice it into Lua, where null is a nil global and the
+  # restore silently stops restoring. Skip the instance like a dead one.
+  [[ $value == "true" || $value == "false" ]] || return 1
+
+  printf '%s' "$value"
 }
 
 instances() {
