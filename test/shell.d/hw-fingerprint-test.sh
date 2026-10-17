@@ -74,6 +74,11 @@ assert_detects "a reader is detected by an existing product-name match"
 write_usb_devices '27c6:1234'
 assert_detects "a reader is detected by an existing vendor match"
 
+# FocalTech fingerprint readers (libfprint's focaltech_moc driver) report a
+# product string with no fingerprint token, so only the vendor ID finds them.
+write_usb_devices '2808:a57a:FocalTech FT93xx ESS'
+assert_detects "a FocalTech reader is detected by its vendor ID"
+
 bind_driver() {
   local dev="$1" driver="$2"
 
@@ -100,6 +105,12 @@ assert_rejects "a real driver alongside a usbfs claim is still rejected"
 write_usb_devices '27c6:1234:Goodix Fingerprint USB Device'
 bind_driver '1-0/1-0:1.0' uvcvideo
 assert_detects "a self-named reader is detected with a driver bound"
+
+# FocalTech touch controllers share the vendor; usbhid binds them, so the
+# kernel-driver guess keeps a vendor match from nagging those machines.
+write_usb_devices '2808:1234:FocalTech Touch Controller'
+bind_driver '1-0/1-0:1.0' usbhid
+assert_rejects "a FocalTech touch controller bound to a kernel driver is rejected"
 
 write_usb_devices '1234:5678:Generic USB Device'
 assert_rejects "a machine with no matching USB devices detects nothing"
