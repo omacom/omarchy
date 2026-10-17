@@ -29,6 +29,25 @@ const refreshFn = panelSource.match(/function refresh\(scanWifi\)[\s\S]*?\n {2}\
 assert(refreshFn, 'network has a refresh() function')
 assert(/if \(opened && wifiDevice\)/.test(refreshFn[0]), 'network only touches the scanner from refresh() while its panel is open')
 
+// After NetworkManager restarts, Quickshell NM objects can disagree with the
+// default route. Prefer omarchy-network-status for the bar icon (#13489).
+assert(/barStatus\.kind === "ethernet"/.test(panelSource), 'network bar kind prefers route-based ethernet status')
+assert(/id: barStatusPoll/.test(panelSource), 'network keeps a closed-panel status poll for the bar icon')
+
+const barPoll = panelSource.match(/Timer \{\s*id: barStatusPoll[\s\S]*?\n {2}\}/)[0]
+assert(/running: !root\.opened/.test(barPoll) && /interval: 5000/.test(barPoll) && /triggeredOnStart: true/.test(barPoll), 'closed bar polls at startup and every five seconds')
+assert(/onTriggered: if \(!root\.opened && !barStatusProc\.running\) barStatusProc\.running = true/.test(barPoll) && !/detailsProc/.test(barPoll), 'closed bar poll only launches the lightweight process')
+const barProc = panelSource.match(/Process \{\s*id: barStatusProc[\s\S]*?\n {2}\}/)[0]
+assert(/command: \["omarchy-network-status"\]/.test(barProc) && !/--verbose/.test(barProc), 'bar status command excludes verbose probes')
+assert(/waitForEnd: true[\s\S]*onStreamFinished: root\.updateBarStatus\(text\)/.test(barProc), 'bar status consumes completed output')
+assert(/if \(opened && !detailsProc\.running\) detailsProc\.running = true/.test(refreshFn[0]), 'refresh only launches verbose details while open')
+const detailPoll = panelSource.match(/Timer \{\s*id: detailsPoll[\s\S]*?\n {2}\}/)[0]
+assert(/running: root\.opened/.test(detailPoll) && /if \(root\.opened && !detailsProc\.running\)/.test(detailPoll), 'detail timer requires an open panel')
+assert(/else \{[\s\S]*?scanRestart\.stop\(\)\s*detailsProc\.running = false/.test(panelSource), 'closing stops verbose details')
+const detailsHelper = panelSource.match(/function updateDetails\(raw\) \{[\s\S]*?\n {2}\}/)[0]
+assert(/if \(!opened\) return/.test(detailsHelper), 'closed panel ignores late detail output')
+assert(/updateBarStatus\(/.test(detailsHelper), 'open details also refresh route-based bar status')
+
 // The 100ms deferral can outlive the panel: closing inside the window would
 // otherwise re-enable scanning from a timer nobody is watching.
 const scanRestart = panelSource.match(/id: scanRestart[\s\S]*?onTriggered: \{[\s\S]*?\n {4}\}/)
@@ -103,6 +122,26 @@ assert(
   kindBinding[0].indexOf('connectedWifiNetwork) return "wifi"') < kindBinding[0].indexOf('wifiDevice.connected) return "wifi"'),
   'network prefers the listed connected network before falling back to device state'
 )
+const Model = network
+var barStatus = {}
+var wiredDevice = { connected: true }
+var connectedWifiNetwork = { signalStrength: 0.8 }
+wifiDevice = { connected: true }
+eval(panelSource.match(/function updateBarStatus\(raw\) \{[\s\S]*?\n {2}\}/)[0])
+const readKind = new Function('barStatus', 'wiredDevice', 'connectedWifiNetwork', 'wifiDevice', kindBinding[0].replace(/^readonly property string kind: \{/, '').replace(/\}\s*$/, ''))
+for (const [raw, expected] of [
+  ['wifi\tCafe WiFi\t78\t5200\n', 'wifi'],
+  ['ethernet\teth0\t\t\n', 'ethernet'],
+  ['disconnected\t\t\t\n', 'disconnected'],
+  ['', 'disconnected'],
+  ['wifi\tHome\t90\t2462\n', 'wifi']
+]) {
+  updateBarStatus(raw)
+  assertDeepEqual(barStatus, network.parseNetworkStatus(raw), 'bar stores parsed status for ' + JSON.stringify(raw))
+  assertEqual(readKind(barStatus, wiredDevice, connectedWifiNetwork, wifiDevice), expected, 'route status overrides stale native state for ' + JSON.stringify(raw))
+}
+assertEqual(readKind({}, wiredDevice, connectedWifiNetwork, wifiDevice), 'ethernet', 'native fallback works before the first route sample')
+
 assertEqual(network.connectedSignalStrength(0.8, 40), 80, 'network prefers the connected network strength')
 assertEqual(network.connectedSignalStrength(0, 67), 67, 'network falls back to the in-use access point strength')
 assertEqual(network.connectedSignalStrength(0, -1), 0, 'network reports no strength when the in-use access point is unknown')
@@ -314,4 +353,63 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+JS
+
+# Redirect only the sysfs fixture path; run the real command with local stubs.
+run_node_test <<'JS'
+const fs = require('fs')
+const os = require('os')
+const { spawnSync } = require('child_process')
+const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'network-status-test-'))
+try {
+  const stubDir = path.join(fixture, 'bin')
+  const sysfs = path.join(fixture, 'net')
+  const log = path.join(fixture, 'calls')
+  fs.mkdirSync(stubDir)
+  fs.mkdirSync(path.join(sysfs, 'wlan0', 'wireless'), { recursive: true })
+  const stubs = {
+    ip: `[[ $* == "route get 1.1.1.1" ]] || exit 1
+case "$STATUS_CASE" in
+  wifi) printf '1.1.1.1 dev wlan0 src 192.0.2.2\\n' ;;
+  ethernet) printf '1.1.1.1 dev eth0 src 192.0.2.2\\n' ;;
+  disconnected) exit 0 ;;
+esac`,
+    nmcli: `case "$*" in
+  "-t -f GENERAL.STATE,GENERAL.CONNECTION dev show wlan0")
+    printf 'GENERAL.STATE:100 (connected)\\nGENERAL.CONNECTION:Cafe WiFi\\n' ;;
+  "-t -f IN-USE,SIGNAL dev wifi list ifname wlan0 --rescan no")
+    printf '*:78\\n' ;;
+  *) exit 1 ;;
+esac`,
+    iw: `[[ $* == "dev wlan0 link" ]] || exit 1
+printf 'freq: 5200\\n'`,
+    ping: 'exit 99',
+    mktemp: 'exit 99',
+    'omarchy-cmd-present': 'exit 99'
+  }
+  for (const [name, body] of Object.entries(stubs)) {
+    fs.writeFileSync(path.join(stubDir, name), '#!/bin/bash\nprintf "%s %s\\n" "' + name + '" "$*" >> "$CALL_LOG"\n' + body + '\n', { mode: 0o755 })
+  }
+  const source = fs.readFileSync(root + '/bin/omarchy-network-status', 'utf8').replaceAll('/sys/class/net/', sysfs + '/')
+  for (const [status, expected] of [
+    ['wifi', 'wifi\tCafe WiFi\t78\t5200\n'],
+    ['ethernet', 'ethernet\teth0\t\t\n'],
+    ['disconnected', 'disconnected\t\t\t\n']
+  ]) {
+    fs.writeFileSync(log, '')
+    const result = spawnSync('bash', ['-c', source], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: stubDir + ':' + process.env.PATH, CALL_LOG: log, STATUS_CASE: status }
+    })
+    assertEqual(result.status, 0, 'non-verbose status succeeds for ' + status)
+    assertEqual(result.stdout, expected, 'non-verbose status prints tab-separated ' + status)
+    const calls = fs.readFileSync(log, 'utf8').trim().split('\n')
+    assert(calls.every(call => call === 'ip route get 1.1.1.1'
+      || call === 'nmcli -t -f GENERAL.STATE,GENERAL.CONNECTION dev show wlan0'
+      || call === 'nmcli -t -f IN-USE,SIGNAL dev wifi list ifname wlan0 --rescan no'
+      || call === 'iw dev wlan0 link'), 'non-verbose ' + status + ' uses only local lookups and cached scans; no ping or mktemp')
+  }
+} finally {
+  fs.rmSync(fixture, { recursive: true, force: true })
+}
 JS
