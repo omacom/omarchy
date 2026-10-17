@@ -4,6 +4,23 @@ o = {
   launch = function(value) return value end,
 }
 local exec = hl.exec_cmd
+local timer = hl.timer
+hl.timer = function(callback, options)
+  if options.timeout == 600 and os.getenv("CURSOR_TEST_RELOAD_DURING_REVEAL") == "1" then
+    local released = io.open(os.getenv("CURSOR_TEST_STAGE") .. "/redraw-reloaded", "r")
+    if released then
+      released:close()
+    else
+      -- Hold only the first redraw so a busy runner cannot miss its window.
+      -- Reload discards this callback; the real 15s fallback resumes normally.
+      local held = assert(io.open(os.getenv("CURSOR_TEST_STAGE") .. "/redraw-held", "w"))
+      held:write("pending")
+      held:close()
+      return
+    end
+  end
+  return timer(callback, options)
+end
 hl.exec_cmd = function(command)
   if command == "omarchy-launch-shell" then
     local file = assert(io.open(os.getenv("CURSOR_TEST_STAGE") .. "/session", "w"))
