@@ -24,3 +24,6 @@ require("default.hypr.dictation-backend")
 
 -- Current theme overrides.
 require_optional.module("omarchy.current.theme.hyprland")
+
+-- Add-ons dropped into ~/.config/hypr/extensions/.
+require("default.hypr.extensions")
