@@ -65,7 +65,7 @@ SH
 
 cat >"$TMPDIR/bin/wtype" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >"$WTYPE_OUT"
+printf '%s\n' "$@" >"$WTYPE_OUT"
 SH
 
 cat >"$TMPDIR/bin/sleep" <<'SH'
@@ -84,5 +84,25 @@ pass "emoji insert helper copies emoji transiently"
 [[ $(<"$TMPDIR/emoji.args") == "--type text/plain --sensitive --foreground" ]] || fail "emoji insert helper serves sensitive transient clipboard in foreground"
 pass "emoji insert helper serves transient clipboard in foreground"
 
-[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "emoji insert helper pastes with shift insert"
+mapfile -t wtype_args <"$TMPDIR/wtype"
+
+# wtype gives each new key named by -k, -P or -p the next keycode in its keymap. GTK3 and
+# WebKitGTK never match bindings on the highest keycode, so Insert must not be the last key.
+wtype_keymap=()
+for (( i = 0; i < ${#wtype_args[@]}; i++ )); do
+  case ${wtype_args[i]} in
+    -k | -P | -p)
+      key=${wtype_args[++i]}
+      [[ " ${wtype_keymap[*]} " == *" $key "* ]] || wtype_keymap+=("$key")
+      ;;
+    -M | -m | -s | -d)
+      (( ++i ))
+      ;;
+  esac
+done
+
+[[ " ${wtype_keymap[*]} " == *" Insert "* && ${wtype_keymap[-1]} != "Insert" ]] || fail "emoji insert helper keeps Insert below the highest wtype keycode"
+pass "emoji insert helper keeps Insert below the highest wtype keycode"
+
+[[ ${wtype_args[*]} == "-M shift -k Insert -m shift -p VoidSymbol" ]] || fail "emoji insert helper pastes with shift insert"
 pass "emoji insert helper pastes with shift insert"
