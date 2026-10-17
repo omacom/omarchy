@@ -9,6 +9,7 @@ const fs = require('fs')
 const search = requireFromRoot('shell/services/AppSearch.js')
 const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
 const appLibraryQml = fs.readFileSync(path.join(root, 'shell/services/AppLibrary.qml'), 'utf8')
+const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
 
 const entries = [
   {
@@ -146,6 +147,14 @@ assert(beginLaunchMatch, 'app library beginLaunchFeedback function exists')
 assert(
   !beginLaunchMatch[1].includes('root.launchOsdOpen = false'),
   'app library keeps owning an OSD a previous launch left on screen'
+)
+
+assert(
+  !appLibraryQml.includes('"omarchy-shell", "osd"') &&
+    appLibraryQml.includes('root.host.summon("omarchy.osd"') &&
+    appLibraryQml.includes('root.host.hide("omarchy.osd")') &&
+    shellQml.includes('AppLibrary { host: shell }'),
+  'app library drives the launch OSD in process, so its close cannot overtake the show it follows'
 )
 
 const openMatch = menuQml.match(/function openExistingMenu\(initialMenu\) \{([\s\S]*?)\n  \}/)
