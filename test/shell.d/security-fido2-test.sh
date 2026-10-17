@@ -180,13 +180,13 @@ case "${1:-}" in
     exec /usr/bin/rm -f -- "$4"
     ;;
   sed)
-    if (( $# != 4 )) || [[ $2 != "-i" ]]; then
+    if (( $# != 5 )) || [[ $2 != "-i" || $3 != "--follow-symlinks" ]]; then
       reject "$@"
     fi
 
-    if [[ $3 == "1i auth    sufficient pam_u2f.so cue authfile=/etc/fido2/fido2" && $4 == "/etc/pam.d/sudo" ]]; then
+    if [[ $4 == "1i auth    sufficient pam_u2f.so cue authfile=/etc/fido2/fido2" && $5 == "/etc/pam.d/sudo" ]]; then
       exit 0
-    elif [[ $3 == "1i auth      sufficient pam_u2f.so cue authfile=/etc/fido2/fido2" && $4 == "/etc/pam.d/polkit-1" ]]; then
+    elif [[ $4 == "1i auth      sufficient pam_u2f.so cue authfile=/etc/fido2/fido2" && $5 == "/etc/pam.d/polkit-1" ]]; then
       exit 0
     else
       reject "$@"
