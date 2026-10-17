@@ -58,5 +58,9 @@ PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" \
   "$OMARCHY_PATH/bin/omarchy-hook" pre-refresh-pacman
 omarchy_security_revoke_sudo_timestamp
 
-# Reset all package DBs and then update
-omarchy-update-pacman -Syyuu --noconfirm
+# Reset all package DBs and then update. --ask 4 answers package replacement
+# prompts, which --noconfirm alone does not: switching to a channel whose
+# omarchy package replaces omarchy-dev asks exactly that, and under the
+# updater's systemd-run scope there is no TTY to answer it. The install step
+# in omarchy-channel-set already passes --ask 4 for the same replacement.
+omarchy-update-pacman -Syyuu --noconfirm --ask 4

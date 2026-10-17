@@ -147,7 +147,7 @@ expected = [
 copies = [e for e in events if e.startswith('step:cp ')]
 assert copies == expected, events
 hook = events.index('step:omarchy-hook pre-refresh-pacman')
-transaction = events.index('step:pacman -Syyuu --noconfirm')
+transaction = events.index('step:pacman -Syyuu --noconfirm --ask 4')
 assert events.index(expected[-1]) < hook < transaction, events
 PY
     assert_boundary_cold "$platform $channel"
