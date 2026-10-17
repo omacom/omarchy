@@ -39,7 +39,7 @@ PROVIDERS = {
     # Everything a session reads or writes that isn't tied to the login. A
     # missing directory is created in the primary home first; a missing file
     # is linked anyway, so whichever account writes it first writes it there.
-    "shared_dirs": ["projects", "skills", "agents", "commands", "plugins", "hooks", "themes", "output-styles", "file-history", "todos", "plans"],
+    "shared_dirs": ["projects", "skills", "agents", "commands", "plugins", "hooks", "themes", "output-styles", "file-history", "todos", "tasks", "plans"],
     "shared_files": ["settings.json", "CLAUDE.md", "history.jsonl", "keybindings.json"],
     # Keys copied from the primary's ~/.claude.json into a new account's, so a
     # second login keeps MCP servers, folder trust and onboarding choices.
