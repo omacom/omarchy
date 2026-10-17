@@ -72,6 +72,96 @@ elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
     'BEGIN { print microamps * microvolts / 1000000000000 }')
 fi
 
+read_number() {
+  local value
+  value=$(cat "$1" 2>/dev/null || true)
+  [[ $value =~ ^-?[0-9]+$ ]] && echo "$value"
+}
+
+# Some firmware reports neither power_now nor a readable current_now, which
+# leaves UPower at 0W too. Estimate the rate from how fast the stored energy
+# or charge moves instead. The open panel runs this every 5s, and each run
+# adds a sample, so the window widens and the estimate settles while it's open.
+# Samples live in XDG_RUNTIME_DIR, or else in a private per-user directory:
+# a shared /tmp name would let one user's file lock out the next user's.
+battery_status=$(cat "$battery_path/status" 2>/dev/null || true)
+samples_dir=${XDG_RUNTIME_DIR:-}
+if [[ -z $samples_dir ]]; then
+  samples_dir="${TMPDIR:-/tmp}/omarchy-battery-$UID"
+  mkdir -m 700 "$samples_dir" 2>/dev/null || true
+  [[ -d $samples_dir && ! -L $samples_dir && -O $samples_dir ]] || samples_dir=""
+fi
+samples_file=${samples_dir:+$samples_dir/omarchy-battery-samples-$native_path}
+
+if [[ -n $samples_file ]] &&
+  [[ $battery_status == "Charging" || $battery_status == "Discharging" ]] &&
+  awk -v rate="${power_rate_raw:-0}" 'BEGIN { exit !(rate > -0.05 && rate < 0.05) }'; then
+  stored=""
+  microvolts=$(read_number "$battery_path/voltage_now")
+
+  if stored=$(read_number "$battery_path/energy_now"); then
+    stored_unit="uWh"
+  elif [[ -n $microvolts ]] && stored=$(read_number "$battery_path/charge_now"); then
+    # Keep µAh per sample and convert with the current voltage at the end:
+    # converting each sample separately lets voltage noise swamp the small
+    # steps charge_now moves in.
+    stored_unit="uAh"
+  fi
+
+  if [[ -n $stored ]]; then
+    now=$(date +%s)
+
+    # Keep the last 15 minutes of samples, enough for charge_now's coarse
+    # steps to average out while still following a change in load, plus the
+    # newest older one (up to an hour), so reopening the panel shows an
+    # estimate at once instead of waiting another minute. Samples from another
+    # state are dropped, and so are samples in another unit: a switch between
+    # energy_now and charge_now restarts the window rather than comparing µWh
+    # with µAh.
+    samples=$(awk -v now="$now" -v status="$battery_status" -v unit="$stored_unit" '
+      $3 == status && $4 == unit && now > $1 && now - $1 <= 3600 { line[++n] = $0; age[n] = now - $1 }
+      END {
+        first = 1
+        for (i = 1; i <= n; i++) if (age[i] > 900) first = i
+        for (i = first; i <= n; i++) print line[i]
+      }' "$samples_file" 2>/dev/null || true)
+    samples="${samples:+$samples$'\n'}$now $stored $battery_status $stored_unit"
+
+    # Runs can overlap while the panel refreshes, so each writes its own temp
+    # file and renames it into place. A reader never sees a half-written file;
+    # an overlapping run at worst drops one sample.
+    if samples_tmp=$(mktemp "$samples_file.XXXXXX" 2>/dev/null); then
+      if ! { printf '%s\n' "$samples" >"$samples_tmp" && mv "$samples_tmp" "$samples_file"; }; then
+        rm -f "$samples_tmp"
+      fi
+    fi
+
+    # Measure from the oldest kept sample once a minute has passed, which
+    # spans a few of charge_now's steps, and only when the reading has moved
+    # the way the battery state says it should. The time left then follows
+    # from this rate like any other.
+    estimate=$(awk \
+      -v now="$now" -v stored="$stored" -v status="$battery_status" \
+      -v unit="$stored_unit" -v microvolts="${microvolts:-0}" '
+      NR == 1 { then = $1; start = $2 }
+      END {
+        elapsed = now - then
+        delta = status == "Discharging" ? start - stored : stored - start
+        if (elapsed < 60 || delta <= 0) exit
+        watts = delta * 3600 / elapsed / 1000000
+        if (unit == "uAh") watts *= microvolts / 1000000
+        print watts
+      }' <<<"$samples")
+
+    [[ -z $estimate ]] || power_rate_raw=$estimate
+  fi
+elif [[ -n $samples_file && -e $samples_file ]]; then
+  # A working rate, or a battery neither charging nor discharging, ends the
+  # history: samples kept from before would otherwise be measured against
+  # after the next unplug, mixing in the time spent charging.
+  rm -f "$samples_file"
+fi
+
 # Some kernels sign power_now by direction (negative while discharging on
 # Apple Silicon); the state field already says which way it flows.
 power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {

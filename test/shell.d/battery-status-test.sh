@@ -158,6 +158,133 @@ danish_time=$(OMARCHY_LANGUAGE_FILE="$tmp_dir/language" OMARCHY_POWER_SUPPLY_PAT
 grep -Fx $'time\t1 t 30 min' <<<"$danish_time" >/dev/null || fail "battery status durations follow the Omarchy language" "$danish_time"
 pass "battery status reads in the Omarchy language"
 
+# Some HP firmware has no power_now and a current_now whose read() fails, and
+# UPower then reports 0W as well. The rate comes from how fast charge_now
+# moves between runs instead, kept as samples under XDG_RUNTIME_DIR.
+estimate_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$hold_dir" "$estimate_dir"' EXIT
+
+mkdir -p "$estimate_dir/bin" "$estimate_dir/power/BAT0" "$estimate_dir/run"
+printf 'Discharging\n' >"$estimate_dir/power/BAT0/status"
+: >"$estimate_dir/power/BAT0/current_now"
+printf '10000000\n' >"$estimate_dir/power/BAT0/voltage_now"
+printf '900000\n' >"$estimate_dir/power/BAT0/charge_now"
+printf '3200000\n' >"$estimate_dir/power/BAT0/charge_full"
+cat >"$estimate_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  exit 0
+fi
+
+if [[ $1 == "-i" ]]; then
+  cat <<INFO
+  native-path:          BAT0
+  power supply:         yes
+  state:                ${OMARCHY_TEST_STATE:-discharging}
+  energy:               9 Wh
+  energy-full:          32 Wh
+  energy-rate:          ${OMARCHY_TEST_RATE:-0} W
+${OMARCHY_TEST_TIME_LINE:-}
+  percentage:           28%
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$estimate_dir/bin/upower"
+
+samples_file="$estimate_dir/run/omarchy-battery-samples-BAT0"
+
+estimate_status() {
+  XDG_RUNTIME_DIR="$estimate_dir/run" OMARCHY_POWER_SUPPLY_PATH="$estimate_dir/power" PATH="$estimate_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell 2>/dev/null
+}
+
+estimate_output=$(estimate_status)
+grep -Fx $'rate\t0W' <<<"$estimate_output" >/dev/null || fail "a first sample has nothing to measure against yet" "$estimate_output"
+[[ -s $samples_file ]] || fail "the first run records a sample"
+pass "battery estimate waits for a second sample"
+
+# 100 mAh over ten minutes at 10V is 6W, and 9 Wh left at that pace is 1.5h.
+# A run a second later still rounds the same way.
+printf '%s 1000000 Discharging uAh\n' "$(( $(date +%s) - 600 ))" >"$samples_file"
+estimate_output=$(estimate_status)
+grep -Fx $'rate\t6W' <<<"$estimate_output" >/dev/null || fail "the rate comes from charge_now's movement" "$estimate_output"
+grep -Fx $'time\t1h 30m' <<<"$estimate_output" >/dev/null || fail "the time left comes from the estimated rate" "$estimate_output"
+pass "battery estimate reports rate and time left while discharging"
+
+# Charging measures upwards and reports the time to full: 23 Wh to go.
+printf 'Charging\n' >"$estimate_dir/power/BAT0/status"
+printf '%s 800000 Charging uAh\n' "$(( $(date +%s) - 600 ))" >"$samples_file"
+estimate_output=$(OMARCHY_TEST_STATE=charging estimate_status)
+grep -Fx $'rate\t6W' <<<"$estimate_output" >/dev/null || fail "the rate is measured while charging" "$estimate_output"
+grep -Fx $'time\t3h 50m' <<<"$estimate_output" >/dev/null || fail "the time to full comes from the estimated rate" "$estimate_output"
+pass "battery estimate reports rate and time to full while charging"
+
+# Samples from the other direction, or a reading that moved the wrong way,
+# don't give a rate.
+printf 'Discharging\n' >"$estimate_dir/power/BAT0/status"
+printf '%s 800000 Charging uAh\n' "$(( $(date +%s) - 600 ))" >"$samples_file"
+estimate_output=$(estimate_status)
+grep -Fx $'rate\t0W' <<<"$estimate_output" >/dev/null || fail "samples from another state are ignored" "$estimate_output"
+printf '%s 800000 Discharging uAh\n' "$(( $(date +%s) - 600 ))" >"$samples_file"
+estimate_output=$(estimate_status)
+grep -Fx $'rate\t0W' <<<"$estimate_output" >/dev/null || fail "a reading that rose while discharging gives no rate" "$estimate_output"
+pass "battery estimate ignores samples that don't fit the battery state"
+
+# A working rate is never replaced. (The failing current_now read is set
+# aside here: it zeroes UPower's rate before the estimate is reached, which is
+# a separate bug.)
+mv "$estimate_dir/power/BAT0/current_now" "$estimate_dir/current_now"
+printf '%s 1000000 Discharging uAh\n' "$(( $(date +%s) - 600 ))" >"$samples_file"
+estimate_output=$(OMARCHY_TEST_RATE=7.3 estimate_status)
+grep -Fx $'rate\t7.3W' <<<"$estimate_output" >/dev/null || fail "a nonzero UPower rate is kept" "$estimate_output"
+[[ ! -e $samples_file ]] || fail "a working rate clears the kept samples"
+mv "$estimate_dir/current_now" "$estimate_dir/power/BAT0/current_now"
+pass "battery estimate only runs when no source reports a rate"
+
+# Charging with a working rate, then unplugging, must not measure against the
+# discharge samples from before the charge.
+printf '%s 1000000 Discharging uAh\n' "$(( $(date +%s) - 1200 ))" >"$samples_file"
+printf 'Full\n' >"$estimate_dir/power/BAT0/status"
+estimate_status >/dev/null
+[[ ! -e $samples_file ]] || fail "a battery that stops discharging clears the kept samples"
+printf 'Discharging\n' >"$estimate_dir/power/BAT0/status"
+estimate_output=$(estimate_status)
+grep -Fx $'rate\t0W' <<<"$estimate_output" >/dev/null || fail "samples from before a charge are not measured against" "$estimate_output"
+pass "battery estimate restarts its history when the state changes"
+
+# Without XDG_RUNTIME_DIR, samples go in a private directory of this user's
+# own, and never through a link someone else planted at that name.
+fallback_tmp="$estimate_dir/tmp"
+mkdir -p "$fallback_tmp"
+no_runtime_status() {
+  env -u XDG_RUNTIME_DIR TMPDIR="$fallback_tmp" OMARCHY_POWER_SUPPLY_PATH="$estimate_dir/power" PATH="$estimate_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell 2>/dev/null
+}
+no_runtime_status >/dev/null
+[[ -s $fallback_tmp/omarchy-battery-$UID/omarchy-battery-samples-BAT0 ]] || fail "samples fall back to a per-user directory"
+[[ $(stat -c %a "$fallback_tmp/omarchy-battery-$UID") == 700 ]] || fail "the per-user directory is private"
+rm -rf "$fallback_tmp/omarchy-battery-$UID"
+mkdir -p "$estimate_dir/elsewhere"
+ln -s "$estimate_dir/elsewhere" "$fallback_tmp/omarchy-battery-$UID"
+no_runtime_status >/dev/null
+[[ -z $(ls -A "$estimate_dir/elsewhere") ]] || fail "samples never follow a link at the per-user directory"
+pass "battery estimate keeps samples per user without XDG_RUNTIME_DIR"
+
+# The open panel's refreshes can overlap. Concurrent runs must leave a
+# well-formed samples file and no temp files behind.
+for _ in {1..20}; do
+  estimate_status >/dev/null &
+done
+wait
+malformed=$(awk 'NF != 4 || $2 !~ /^[0-9]+$/' "$samples_file")
+[[ -z $malformed ]] || fail "concurrent runs leave every sample whole" "$malformed"
+leftovers=$(find "$estimate_dir/run" -name 'omarchy-battery-samples-BAT0.*')
+[[ -z $leftovers ]] || fail "concurrent runs leave no temp files" "$leftovers"
+pass "battery estimate survives overlapping runs"
+
 if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
   fail "battery status owns capacity and remaining calculations" "$matches"
 fi
