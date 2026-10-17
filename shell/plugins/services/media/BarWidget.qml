@@ -66,9 +66,11 @@ BarWidget {
 
         NumberAnimation on x {
           id: scrollAnim
+          // A paused player holds still too: an endless marquee repaints the whole bar every frame.
           running: labelText.needsScroll && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
-          // Stopped for reduced motion, the title reads from its start again.
-          onRunningChanged: if (!running && Style.reduceMotion) labelText.x = 0
+            && !!root.activePlayer && !!root.activePlayer.isPlaying
+          // Stopped, the title reads from its start again.
+          onRunningChanged: if (!running) labelText.x = 0
           loops: Animation.Infinite
           duration: Math.max(6000, labelText.implicitWidth * 25)
           from: scrollClip.width
