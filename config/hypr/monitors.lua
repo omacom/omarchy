@@ -10,8 +10,11 @@ hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy
 -- Configure a specific monitor.
 -- hl.monitor({ output = "DP-2", mode = "2560x1440@144", position = "0x0", scale = 1 })
 
--- Portrait/rotated secondary monitor (transform: 1 = 90°, 3 = 270°).
+-- Portrait/rotated secondary monitor (transform: 1 = 90°, 2 = 180°, 3 = 270°).
+-- The Display panel in the bar (or `omarchy hyprland monitor rotation`) writes
+-- the rule for you and keeps it in sync with the live rotation.
 -- hl.monitor({ output = "DP-2", mode = "preferred", position = "auto", scale = 1, transform = 1 })
+-- hl.monitor({ output = "DP-2", transform = 1 })
 
 -- GDK scale is GDK_SCALE, the factor GTK draws its own UI at. It's what
 -- sizes X11/XWayland windows, which Omarchy leaves unscaled so they stay

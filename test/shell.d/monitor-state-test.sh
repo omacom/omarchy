@@ -109,9 +109,14 @@ assert_line 4 "" "monitor state reports no mirror while clamshelled"
 pass "monitor state separates a disabled internal monitor from a missing one"
 
 monitor_state "$extended"
-[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":true,"focused":false,"width":1920,"height":1080},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
+[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":true,"focused":false,"width":1920,"height":1080,"transform":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440,"transform":0}]' ]] ||
   fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
 monitor_state "$clamshell"
-[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
+[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0,"transform":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440,"transform":0}]' ]] ||
   fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
 pass "monitor state lists every display with its enabled and focused state"
+
+monitor_state $'[{ "name": "DP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 1080, "height": 1920, "transform": 1 }]'
+[[ ${state_lines[7]-} == '[{"name":"DP-1","enabled":true,"focused":true,"width":1080,"height":1920,"transform":1}]' ]] ||
+  fail "monitor state reports the display's rotation for the panel" "actual: ${state_lines[7]-<missing>}"
+pass "monitor state reports per-display rotation for the panel"

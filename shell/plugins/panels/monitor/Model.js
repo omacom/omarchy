@@ -94,6 +94,16 @@ function brightnessName(percent, tr) {
   return t("monitor.level.nightOwl", "Night owl")
 }
 
+// Hyprland's wl_output_transform to user-facing degrees: 1 is 90, 2 is 180,
+// 3 is 270; 0 and the flipped variants (4-7) read as 0 degrees.
+function transformToDegrees(transform) {
+  var n = Math.floor(Number(transform) || 0)
+  if (n === 1) return 90
+  if (n === 2) return 180
+  if (n === 3) return 270
+  return 0
+}
+
 function parseDisplays(raw) {
   var displays = []
   try {
@@ -122,6 +132,7 @@ if (typeof module !== "undefined") {
     matchingScaleIndex: matchingScaleIndex,
     availableScales: availableScales,
     brightnessName: brightnessName,
+    transformToDegrees: transformToDegrees,
     parseDisplays: parseDisplays
   }
 }
