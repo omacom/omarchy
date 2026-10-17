@@ -607,13 +607,14 @@ output_binding_records_uncached() {
   [[ -n $dynamic ]]
 }
 
+# Hyprland's active keymap stays out of the key: the records resolve keys through
+# the configured leading layout, and that line flips with every layout switch.
 keybindings_cache_key() {
   {
     printf 'v17\n'
     leading_keyboard
     omarchy-language 2>/dev/null
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null
-    hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     cat "$key_names_file" 2>/dev/null
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
