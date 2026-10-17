@@ -34,8 +34,21 @@ write_usb_devices() {
   done
 }
 
+write_spi_devices() {
+  rm -rf "$tmp_dir/spi"
+  mkdir -p "$tmp_dir/spi"
+
+  local modalias
+  for modalias in "$@"; do
+    local name=${modalias#acpi:}
+    mkdir -p "$tmp_dir/spi/spi-${name%%:*}:00"
+    printf '%s\n' "$modalias" >"$tmp_dir/spi/spi-${name%%:*}:00/modalias"
+  done
+}
+write_spi_devices
+
 hw_fingerprint() {
-  OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" "$ROOT/bin/omarchy-hw-fingerprint"
+  OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" OMARCHY_SPI_DEVICES_PATH="$tmp_dir/spi" "$ROOT/bin/omarchy-hw-fingerprint"
 }
 
 assert_detects() {
@@ -103,3 +116,14 @@ assert_detects "a self-named reader is detected with a driver bound"
 
 write_usb_devices '1234:5678:Generic USB Device'
 assert_rejects "a machine with no matching USB devices detects nothing"
+
+# SPI readers have no product string or vendor ID, only an ACPI ID.
+write_spi_devices 'acpi:GXFP51A7:GXFP51A7:'
+assert_detects "a Goodix SPI reader is detected by its ACPI ID"
+
+write_spi_devices 'acpi:FTE3600:'
+assert_detects "a FocalTech SPI reader is detected by its ACPI ID"
+
+# FocalTech's touchpads share the FTE prefix, so only the readers' IDs count.
+write_spi_devices 'acpi:FTE1200:' 'acpi:INT33FC:'
+assert_rejects "an SPI device that is not a reader is not detected"

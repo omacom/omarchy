@@ -53,4 +53,16 @@ for dev in "$usb_devices_path"/*; do
   fi
 done
 
+# SPI readers (Huawei MateBooks, the GPD Pocket 3) are ACPI devices with no
+# product string, so match their IDs: Goodix's fingerprint family is GXFP, and
+# FocalTech's are the four its SPI driver claims.
+spi_devices_path="${OMARCHY_SPI_DEVICES_PATH:-/sys/bus/spi/devices}"
+
+for dev in "$spi_devices_path"/*; do
+  [[ -r $dev/modalias ]] || continue
+  case $(<"$dev/modalias") in
+    acpi:GXFP* | acpi:FTE3600:* | acpi:FTE4800:* | acpi:FTE6600:* | acpi:FTE6900:*) exit 0 ;;
+  esac
+done
+
 exit 1
