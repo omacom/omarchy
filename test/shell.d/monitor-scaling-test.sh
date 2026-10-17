@@ -365,6 +365,23 @@ grep -F "$(rule_auto DP-1 2560 1440 144.0 1.25)" "$monitor_lua" >/dev/null ||
   fail "scaling DP-14 leaves the DP-1 rule alone" "$(cat "$monitor_lua")"
 pass "output names match exactly, prefix or suffix"
 
+# A symlinked monitors.lua keeps its link: writes land on the target file
+# (omarchy#7625).
+cat >"$home_dir/.config/hypr/monitors-real.lua" <<'LUA'
+local omarchy_gdk_scale = 1
+local omarchy_monitor_scale = 1.5
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
+LUA
+ln -sf monitors-real.lua "$monitor_lua"
+run_scaling 1.25
+grep -Fx 'local omarchy_monitor_scale = 1.5' "$home_dir/.config/hypr/monitors-real.lua" >/dev/null ||
+  fail "a symlinked config leaves the shared local alone" "$(cat "$home_dir/.config/hypr/monitors-real.lua")"
+grep -F "$(rule_auto eDP-1 2880 1800 120.0 1.25)" "$home_dir/.config/hypr/monitors-real.lua" >/dev/null ||
+  fail "a symlinked config lands the rule on the target" "$(cat "$home_dir/.config/hypr/monitors-real.lua")"
+[[ -L $monitor_lua ]] || fail "a symlinked config keeps its link"
+sed -i -E 's/[0-9]+\.[0-9]+/1.5/' "$home_dir/.config/hypr/monitors-real.lua"
+pass "a symlinked monitors.lua keeps its link"
+
 # No monitors.lua at all: the runtime change still lands.
 rm -f "$monitor_lua"
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.6
