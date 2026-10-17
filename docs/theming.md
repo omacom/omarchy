@@ -391,3 +391,11 @@ When changing templates or theme helpers, run focused tests such as:
 ./test/cli
 ./test/shell
 ```
+
+## mpv controls and native menus
+
+mpv reads `mpv-theme.conf` from the active theme directory once per second, including while paused. The template supplies color data for the original controller, native OSD, console selection menus, context menu and statistics. The Lua reader stays in `config/mpv/scripts/`; installed themes cannot supply executable Lua through this integration. No player restart or extra retint daemon is needed for palette changes.
+
+The palette contract is the complete set of keys in `default/themed/mpv-theme.conf.tpl`. Color values are six-digit RGB hex strings. `mode` is `light` or `dark`; older files without it use the controller's background-luminance fallback. The reader rejects unknown keys, non-color script options and incomplete files, retaining the last valid palette while theme staging replaces the directory. It preserves unrelated script options and subtitle colors. Update the reader's explicit allowlist and its regression test when changing the template contract.
+
+This integration targets mpv 0.41's native selection-menu and user-data APIs. Font, corners and opacity remain app options under `script-opts/omarchy-controls.conf`; only semantic palette colors follow theme changes. Native selection menus stay solid for readable text. mpv's internal console error/completion accents are not all exposed as theme options.
