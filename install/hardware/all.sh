@@ -41,9 +41,12 @@ run_logged "$OMARCHY_INSTALL/hardware/fix-n1x-gpu-memory.sh"
 run_logged "$OMARCHY_INSTALL/hardware/framework/qmk-hid.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-spi-keyboard.sh"
+run_logged "$OMARCHY_INSTALL/hardware/apple/fix-t1-touchbar.sh"
+run_logged "$OMARCHY_INSTALL/hardware/apple/fix-mbp133-amdgpu.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-suspend-nvme.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-t2.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-brcmfmac-supplicant.sh"
+run_logged "$OMARCHY_INSTALL/hardware/apple/fix-brcmfmac-5ghz.sh"
 
 # These write boot settings and build nothing, like n1x.sh: the installer's
 # final limine-update builds the UKIs, and an image's first boot rebuilds once
