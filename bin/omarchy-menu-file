@@ -44,5 +44,18 @@ for format in "${formats[@]}"; do
 done
 find_args+=(")" -printf '%T@\t%p\n')
 
-find "${find_args[@]}" 2>/dev/null | sort -rn | cut -f2- |
-  omarchy-menu-select "$label" -- --width 800 --maxheight 500 "$@"
+# An unreadable folder fails find without hiding the matches found elsewhere.
+search_status=0
+files=$(find "${find_args[@]}" 2>/dev/null | sort -rn | cut -f2-) || search_status=$?
+
+if [[ -z $files ]]; then
+  if (( search_status != 0 )); then
+    echo "Could not search ${paths_arg//:/ }" >&2
+    exit 1
+  fi
+
+  echo "No matching files under ${paths_arg//:/ }" >&2
+  exit 3
+fi
+
+omarchy-menu-select "$label" -- --width 800 --maxheight 500 "$@" <<<"$files"
