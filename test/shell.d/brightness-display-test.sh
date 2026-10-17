@@ -35,6 +35,11 @@ if [[ $* == *" -m"* ]]; then
 fi
 SH
 
+cat >"$mock_bin/omarchy-osd" <<'SH'
+#!/bin/bash
+printf 'omarchy-osd %s\n' "$*" >>"$CALL_LOG"
+SH
+
 cat >"$mock_bin/ddcutil" <<'SH'
 #!/bin/bash
 printf 'ddcutil %s\n' "$*" >>"$CALL_LOG"
@@ -48,7 +53,10 @@ EOF
 elif [[ $* == *" getvcp 10 "* ]]; then
   [[ ${DDC_READ_FAIL:-0} == "1" ]] && exit 1
   printf 'VCP 10 C %s %s\n' "${DDC_CURRENT:-40}" "${DDC_MAXIMUM:-80}"
+elif [[ $* == *" setvcp 10 "* ]]; then
+  [[ ${DDC_WRITE_FAIL:-0} == "1" ]] && exit 1
 fi
+exit 0
 SH
 
 chmod +x "$mock_bin"/*
@@ -78,7 +86,7 @@ run_brightness --monitor DP-1 >/dev/null
 pass "DDC bus mapping is cached"
 
 run_brightness --no-osd --monitor DP-1 25%
-grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 20' "$call_log" >/dev/null || \
+grep -F 'ddcutil --bus 7 --noverify setvcp 10 20' "$call_log" >/dev/null || \
   fail "external percentage is converted to the monitor VCP range"
 pass "external percentage is converted to the monitor VCP range"
 
@@ -86,8 +94,8 @@ get_count=$(grep -c ' getvcp 10 ' "$call_log")
 run_brightness --no-osd --monitor DP-1 30%
 (( $(grep -c ' getvcp 10 ' "$call_log") == get_count )) || \
   fail "absolute external brightness reuses the cached VCP range"
-grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 24' "$call_log" >/dev/null || \
-  fail "absolute external brightness skips write verification"
+grep -F 'ddcutil --bus 7 --noverify setvcp 10 24' "$call_log" >/dev/null || \
+  fail "absolute external brightness keeps DDC checks enabled"
 pass "absolute external brightness reuses the cached VCP range"
 
 brightness=$(run_brightness --monitor eDP-1)
@@ -129,15 +137,43 @@ get_count=$(grep -c ' getvcp 10 ' "$call_log")
 DDC_MAXIMUM=100 run_brightness --no-osd --monitor DP-1 50%
 (( $(grep -c ' getvcp 10 ' "$call_log") == get_count + 1 )) || \
   fail "expired external brightness range is refreshed"
-grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 50' "$call_log" >/dev/null || \
+grep -F 'ddcutil --bus 7 --noverify setvcp 10 50' "$call_log" >/dev/null || \
   fail "expired external brightness range uses the refreshed maximum"
 pass "expired external brightness range is refreshed"
 
 rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
 DDC_CURRENT=4 DDC_MAXIMUM=100 run_brightness --no-osd --monitor DP-1 +5%
-grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 5' "$call_log" >/dev/null || \
+grep -F 'ddcutil --bus 7 --noverify setvcp 10 5' "$call_log" >/dev/null || \
   fail "external low brightness writes the one-percent target"
 pass "external low brightness uses a one-percent step"
+
+if grep ' setvcp ' "$call_log" | grep -F -- '--skip-ddc-checks' >/dev/null; then
+  fail "DDC writes do not skip DDC checks"
+fi
+pass "DDC writes do not skip DDC checks"
+
+if grep -E ' detect | getvcp ' "$call_log" | grep -v -- '--skip-ddc-checks' >/dev/null; then
+  fail "DDC detection and reads retain skipped checks"
+fi
+pass "DDC detection and reads retain skipped checks"
+
+if brightness=$(CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  DDC_WRITE_FAIL=1 "$ROOT/bin/omarchy-brightness-display-ddc" DP-1 40%); then
+  fail "failed direct DDC write exits nonzero"
+fi
+[[ -z $brightness ]] || fail "failed direct DDC write prints no target percentage" "actual: $brightness"
+[[ ! -e $runtime_dir/omarchy-brightness-display-ddc/DP-1.bus ]] || \
+  fail "failed direct DDC write invalidates the bus cache"
+pass "failed direct DDC write exits nonzero without a percentage and invalidates the cache"
+
+if brightness=$(DDC_WRITE_FAIL=1 run_brightness --monitor DP-1 40%); then
+  fail "public brightness command propagates DDC write failure"
+fi
+[[ -z $brightness ]] || fail "failed public brightness command prints no target percentage" "actual: $brightness"
+if grep '^omarchy-osd ' "$call_log" >/dev/null; then
+  fail "failed public brightness command shows no success OSD"
+fi
+pass "public brightness command propagates DDC write failure without a success OSD"
 
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
