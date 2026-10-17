@@ -29,6 +29,7 @@ case "$*" in
     cat "$TEST_DIR/clients.json"
     ;;
   *exec_cmd*)
+    printf '%s\n' "$2" >>"$TEST_DIR/dispatched"
     count=$(($(wc -l <"$TEST_DIR/spawned") + 1))
     printf '%s\n' "$count" >>"$TEST_DIR/spawned"
     printf 'openwindow>>%s,1,org.omarchy.screensaver,foot\n' "$count" >"$TEST_DIR/events"
@@ -91,6 +92,48 @@ done
 (( $(grep -c 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls") == 3 )) ||
   fail "focus returns without waiting for a close that has already happened" "$(<"$tmpdir/calls")"
 pass "focus returns without waiting for a close that has already happened"
+
+# A screensaver plugin runs its own program in the launcher's terminals. The path comes from the
+# plugin, so it must reach the terminal as one argument through both Hyprland's Lua and bash.
+kill "$(<"$tmpdir/socat.pid")"
+plugin_dir="$tmpdir/plugin dir]]"
+mkdir -p "$plugin_dir"
+printf '#!/bin/bash\n' >"$plugin_dir/saver"
+chmod +x "$plugin_dir/saver"
+: >"$tmpdir/calls"
+: >"$tmpdir/spawned"
+: >"$tmpdir/dispatched"
+(
+  cd "$plugin_dir"
+  PATH="$tmpdir/bin:$PATH" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test \
+    timeout 10 "$ROOT/bin/omarchy-launch-screensaver" force --exec ./saver --no-boot "two words]]"
+)
+mapfile -t dispatched <"$tmpdir/dispatched"
+(( ${#dispatched[@]} == 2 )) || fail "--exec opens a screensaver on each monitor" "$(<"$tmpdir/calls")"
+command=$(lua -e 'hl = { dsp = { exec_cmd = function(command) io.write(command) end } }' -e "${dispatched[0]}") ||
+  fail "--exec keeps the dispatched command valid Lua" "${dispatched[0]}"
+command=${command#\[workspace special:screensaver-DP-1\] }
+eval "words=($command)"
+[[ ${words[-3]} == "$plugin_dir/saver" && ${words[-4]} == -e ]] ||
+  fail "--exec runs the program by absolute path as a single argument" "$command"
+pass "--exec runs the program by absolute path as a single argument"
+[[ ${words[-2]} == --no-boot && ${words[-1]} == "two words]]" ]] ||
+  fail "--exec passes the arguments after the program through intact" "$command"
+pass "--exec passes the arguments after the program through intact"
+kill "$(<"$tmpdir/socat.pid")"
+
+printf 'not executable\n' >"$plugin_dir/plain"
+: >"$tmpdir/calls"
+if PATH="$tmpdir/bin:$PATH" "$ROOT/bin/omarchy-launch-screensaver" --exec "$plugin_dir/plain" 2>/dev/null; then
+  fail "--exec refuses a program that is not executable"
+fi
+! grep -q exec_cmd "$tmpdir/calls" || fail "--exec refuses a program that is not executable" "$(<"$tmpdir/calls")"
+pass "--exec refuses a program that is not executable"
+
+if PATH="$tmpdir/bin:$PATH" "$ROOT/bin/omarchy-launch-screensaver" --exce "$plugin_dir/saver" 2>/dev/null; then
+  fail "an unknown option is refused rather than launching the built-in screensaver"
+fi
+pass "an unknown option is refused rather than launching the built-in screensaver"
 
 # The launcher's workspace only holds for the first map. A terminal mapped again as it closes falls back to
 # the class rule, which must keep it off the regular workspaces where its fullscreen rule would take over.
