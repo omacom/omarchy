@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Keep the touchpad active while typing, e.g. to aim in games while moving with WASD
+# omarchy:args=[on|off|toggle]
+
+omarchy-hyprland-toggle touchpad-while-typing "${1:-toggle}" >/dev/null || exit 1
+
+if [[ -f "$HOME/.local/state/omarchy/toggles/hypr/touchpad-while-typing.lua" ]]; then
+  omarchy-osd -i touchpad -m "$(omarchy-i18n input.touchpadWhileTypingOn)"
+else
+  omarchy-osd -i touchpad -m "$(omarchy-i18n input.touchpadWhileTypingOff)"
+fi

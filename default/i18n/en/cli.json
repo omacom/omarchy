@@ -108,6 +108,8 @@
   "input.touchpadEnabled": "Touchpad enabled",
   "input.touchscreenDisabled": "Touchscreen disabled",
   "input.touchscreenEnabled": "Touchscreen enabled",
+  "input.touchpadWhileTypingOff": "Touchpad pauses while typing",
+  "input.touchpadWhileTypingOn": "Touchpad stays active while typing",
   "keybindings.herdrTitle": "Herdr keybindings",
   "keybindings.title": "Keybindings",
   "keybindings.tmuxTitle": "Tmux keybindings",

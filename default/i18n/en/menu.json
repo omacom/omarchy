@@ -330,6 +330,9 @@
   "trigger.hardware.touchpad": {
     "label": "Touchpad"
   },
+  "trigger.hardware.touchpad-typing": {
+    "label": "Touchpad While Typing"
+  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Touchpad Haptics"
   },
