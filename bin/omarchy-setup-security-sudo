@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Pin sudo environment reset and pseudo terminal use
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+case "${1:-}" in
+  --help | -h)
+    echo "Usage: omarchy-setup-security-sudo"
+    echo "Pins env_reset and use_pty; local overrides need a later sorting sudoers drop-in."
+    exit 0
+    ;;
+  "") ;;
+  *) echo "Usage: omarchy-setup-security-sudo" >&2; exit 2 ;;
+esac
+if (( $# > 1 )); then
+  echo "Usage: omarchy-setup-security-sudo" >&2
+  exit 2
+fi
+
+echo "Pins env_reset and use_pty; local overrides need a later sorting sudoers drop-in."
+temp_sudoers=$(mktemp)
+trap 'rm -f "$temp_sudoers"' EXIT
+cat >"$temp_sudoers" <<'EOF'
+# Local overrides can use a later sorting file such as zz-local.
+Defaults env_reset
+Defaults use_pty
+EOF
+sudo visudo -cf "$temp_sudoers"
+sudo install -Dm0440 "$temp_sudoers" /etc/sudoers.d/99-omarchy-hardening
