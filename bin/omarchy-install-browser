@@ -117,7 +117,7 @@ zen)
   ;;
 helium)
   echo "Installing Helium..."
-  omarchy-pkg-aur-add helium-browser-bin || exit 1
+  omarchy-pkg-add helium-browser-bin || exit 1
 
   announce_browser_installed "Helium"
   ;;
