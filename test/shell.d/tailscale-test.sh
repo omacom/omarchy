@@ -85,6 +85,15 @@ const status = tailscale.parseStatus(JSON.stringify({
   }
 }))
 
+const exitNodeStatus = { ID: 'selected-exit', Online: true, TailscaleIPs: ['100.64.0.2'] }
+assert(tailscale.parseStatus(JSON.stringify({ BackendState: 'Running', ExitNodeStatus: exitNodeStatus })).usingExitNode, 'tailscale indicates an online selected exit node even without peer rows, including Mullvad')
+assert(!tailscale.parseStatus(JSON.stringify({ BackendState: 'Running', Peer: { available: { Online: true, ExitNodeOption: true, ExitNode: false } } })).usingExitNode, 'tailscale does not indicate an exit node merely because peers offer one')
+assert(!tailscale.parseStatus(JSON.stringify({ BackendState: 'Running', ExitNodeStatus: null })).usingExitNode, 'tailscale clears the indicator when the exit node is disabled')
+assert(!tailscale.parseStatus(JSON.stringify({ BackendState: 'Running', ExitNodeStatus: { ...exitNodeStatus, Online: false } })).usingExitNode, 'tailscale does not indicate an offline exit node as active')
+for (const BackendState of ['Stopped', 'NeedsLogin', 'Starting']) {
+  assert(!tailscale.parseStatus(JSON.stringify({ BackendState, ExitNodeStatus: exitNodeStatus })).usingExitNode, 'tailscale hides the exit node indicator while ' + BackendState)
+}
+
 assert(status.ok && status.running, 'tailscale parses running status')
 assertEqual(status.selfIp, '100.74.97.73', 'tailscale parses self IP')
 assertDeepEqual(status.peers.map(peer => peer.HostName), ['alpha', 'zed'], 'tailscale filters offline and Mullvad peers and sorts online peers')
