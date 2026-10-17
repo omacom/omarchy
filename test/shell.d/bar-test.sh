@@ -57,6 +57,7 @@ run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
 const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
+const traySource = fs.readFileSync(root + '/shell/plugins/bar/widgets/Tray.qml', 'utf8')
 const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
 
 assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.cycleBackground\(\)/.test(shellSource), 'shell exposes the bar background cycle over IPC')
@@ -667,6 +668,17 @@ for (const extent of [29, 30, 47]) {
   }
 }
 assertDeepEqual(bar.roomLengths(40, { 2: 0.5 }), { 2: 20 }, 'a half open room is half as long')
+
+assert(
+  /contentHeight: fittedMenuContentHeight\(\)/.test(traySource) &&
+    /fittedContentHeight\(desiredHeight\)/.test(traySource),
+  'tray menus grow to the card height available on screen without a fixed cap'
+)
+assert(
+  /visibleRowsHeight \+ row\.implicitHeight > availableRowsHeight/.test(traySource) &&
+    /verticalContentInset \+ menuHeaderHeight \+ visibleRowsHeight/.test(traySource),
+  'overflowing tray menus end at a complete menu row'
+)
 
 assertEqual(bar.moduleString({ id: 'custom', label: 42 }, 'label', 'fallback'), '42', 'bar stringifies module settings')
 

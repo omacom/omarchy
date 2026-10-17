@@ -586,11 +586,27 @@ BarWidget {
     padding: Style.space(8)
     borderColor: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
     contentWidth: trayMenuPopup.fittedContentWidth(Style.space(232))
-    contentHeight: trayMenuPopup.fittedContentHeight(menuHeaderHeight + trayMenuColumn.implicitHeight, Style.space(420))
+    contentHeight: fittedMenuContentHeight()
 
     // Column skips invisible children but keeps reporting their height, so
     // read the header's extent through its own visibility.
     readonly property int menuHeaderHeight: menuHeader.visible ? menuHeader.implicitHeight : 0
+
+    function fittedMenuContentHeight() {
+      var desiredHeight = menuHeaderHeight + trayMenuColumn.implicitHeight
+      var fittedHeight = trayMenuPopup.fittedContentHeight(desiredHeight)
+      if (fittedHeight >= desiredHeight + trayMenuPopup.verticalContentInset) return fittedHeight
+
+      var availableRowsHeight = fittedHeight - trayMenuPopup.verticalContentInset - menuHeaderHeight
+      var visibleRowsHeight = 0
+      for (var i = 0; i < trayMenuItems.count; i++) {
+        var row = trayMenuItems.itemAt(i)
+        if (!row || !row.visible) continue
+        if (visibleRowsHeight + row.implicitHeight > availableRowsHeight) break
+        visibleRowsHeight += row.implicitHeight
+      }
+      return Math.round(trayMenuPopup.verticalContentInset + menuHeaderHeight + visibleRowsHeight)
+    }
 
     Column {
       id: trayMenuLayout
@@ -696,6 +712,7 @@ BarWidget {
           spacing: 0
 
           Repeater {
+            id: trayMenuItems
             model: root.currentChildren
 
             delegate: Item {
