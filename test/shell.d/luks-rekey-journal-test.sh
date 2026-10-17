@@ -130,9 +130,9 @@ rekey_state_put() {
   crash_point "journal $*"
 }
 
-reset_limine_config() {
-  echo reset >>"$TMP/limine-ran"
-  crash_point "auto-unlock files removed"
+remove_previous_limine_entry() {
+  echo remove >>"$TMP/limine-ran"
+  crash_point "previous boot entry removed"
 }
 
 limine-update() {
@@ -780,8 +780,8 @@ if [[ " ${platforms[*]} " == *" apple "* ]]; then
   pass "apple: a changed keyboard layout reruns the boot package's commit once, an unchanged one never, and an older journal once"
 fi
 
-# After a factory reset left entries for another machine identity, the menu
-# starts over and limine-update rebuilds, on Apple too, and setup still
+# After a factory reset left entries for its previous machine identity, that
+# entry is removed and limine-update rebuilds, on Apple too, and setup still
 # finishes only once the boot package verifies nothing of the staged unlock
 # remains.
 for platform in "${platforms[@]}"; do
@@ -789,8 +789,8 @@ for platform in "${platforms[@]}"; do
   rm -rf "$tmp/provisioning/luks-key" "$tmp/etc" "$tmp/boot" "$tmp/limine-ran" "$tmp/mac-boot-ran"
   touch "$tmp/stale"
   run provision "$owner_password" || fail "$platform: stale boot entries are refreshed" "$(cat "$tmp/log" "$tmp/output")"
-  [[ ! -e $tmp/provisioning/pending && $(cat "$tmp/limine-ran") == $'reset\nupdate' ]] ||
-    fail "$platform: the Limine menu is reset and limine-update rebuilds" "$(cat "$tmp/limine-ran")"
+  [[ ! -e $tmp/provisioning/pending && $(cat "$tmp/limine-ran") == $'remove\nupdate' ]] ||
+    fail "$platform: the prior entry is removed and limine-update rebuilds" "$(cat "$tmp/limine-ran")"
   if [[ $platform == "x86" ]]; then
     [[ ! -e $tmp/mac-boot-ran ]] || fail "x86: no Mac entrypoint runs"
   else

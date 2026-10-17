@@ -167,7 +167,11 @@ fixture() {
   touch "$tmp/top/@/old-system" "$tmp/top/@factory/factory-system" "$tmp/esp" \
     "$tmp/top/@factory/usr/share/omarchy/install/provisioning/omarchy-provision-owner.service"
   printf '#!/bin/bash\n' >"$tmp/top/@factory/usr/bin/omarchy-provision-owner"
-  chmod +x "$tmp/top/@factory/usr/bin/omarchy-provision-owner"
+  printf '#!/bin/bash\n' >"$tmp/top/@factory/usr/bin/omarchy-limine-remove-machine-entry"
+  printf '#!/bin/bash\n' >"$tmp/top/@factory/usr/bin/omarchy-limine-default-machine-entry"
+  chmod +x "$tmp/top/@factory/usr/bin/omarchy-provision-owner" \
+    "$tmp/top/@factory/usr/bin/omarchy-limine-remove-machine-entry" \
+    "$tmp/top/@factory/usr/bin/omarchy-limine-default-machine-entry"
   printf '%s /boot vfat defaults 0 2\n' "$tmp/esp" >"$tmp/top/@factory/etc/fstab"
   : >"$device"
   printf '0 %s\n' "$current_password" >"$tmp/slots"

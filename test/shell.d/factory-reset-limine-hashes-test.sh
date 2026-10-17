@@ -4,9 +4,8 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-# Factory reset checks the hash of every boot file limine.conf names before it
-# hands over a staged reset: the UKI, or the kernel and initramfs where UKIs are
-# off. Snapshot copies under limine_history are not rebuilt, so not checked.
+# Factory reset checks this machine's boot files before activating the staged
+# reset: the UKI, or the kernel and initramfs where UKIs are off.
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
@@ -23,7 +22,7 @@ boot() {
   printf 'kernel\n' >"$case_dir/boot/abc/linux-aarch64/vmlinuz-linux-aarch64"
   printf 'initramfs\n' >"$case_dir/boot/abc/linux-aarch64/initramfs-linux-aarch64.img"
   printf 'old\n' >"$case_dir/boot/abc/limine_history/vmlinuz-linux-aarch64_1"
-  : >"$case_dir/boot/limine.conf"
+  printf '/Omarchy\n  comment: machine-id=11111111111111111111111111111111\n  //Linux\n' >"$case_dir/boot/limine.conf"
   for line in "$@"; do
     while [[ $line =~ HASH:([^[:space:]]+) ]]; do
       file=${BASH_REMATCH[1]}
@@ -32,7 +31,7 @@ boot() {
     printf '%s\n' "$line" >>"$case_dir/boot/limine.conf"
   done
 }
-verify() { (fail() { fail_reset "$@"; }; verify_limine_hashes "$scratch/$1" /boot) 2>&1; }
+verify() { (fail() { fail_reset "$@"; }; verify_limine_hashes "$scratch/$1" /boot 11111111111111111111111111111111) 2>&1; }
 
 boot uki "    path: boot():/EFI/Linux/omarchy_linux.efi#HASH:/EFI/Linux/omarchy_linux.efi"
 verify uki >/dev/null || fail "a matching UKI passes"
