@@ -2707,6 +2707,11 @@ Item {
 
         if (!root.pressModuleClickTarget(slot, mouse.button, mouse.x, mouse.y)) mouse.accepted = false
       }
+
+      // Unaccepted, a widget's double-click falls through to the empty-bar background gesture.
+      onDoubleClicked: function(mouse) {
+        mouse.accepted = root.moduleClickTargetAt(slot, mouse.x, mouse.y) !== null
+      }
     }
   }
 
