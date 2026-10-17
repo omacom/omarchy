@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Install the Hermes desktop app
+# omarchy:args=[--local|--remote]
+# omarchy:examples=omarchy install ai hermes --local | omarchy install ai hermes --remote
 # omarchy:requires-sudo=true
 
 set -e
@@ -10,8 +12,46 @@ if (( EUID == 0 )); then
   exit 1
 fi
 
-# The same install the default agent gets, plus opening the window.
-omarchy-install-hermes-cli --now
+if (( $# > 1 )); then
+  echo "Usage: omarchy-install-ai-hermes [--local|--remote]" >&2
+  exit 1
+fi
+
+mode=${1:-}
+case "$mode" in
+"")
+  if [[ ! -t 0 ]]; then
+    echo "Choose --local to set up Hermes here, or --remote to connect Desktop to an existing Hermes." >&2
+    exit 1
+  fi
+  local_option=$(omarchy-i18n hermes.installLocal)
+  remote_option=$(omarchy-i18n hermes.installRemote)
+  choice=$(gum choose --header "$(omarchy-i18n hermes.installMode)" "$local_option" "$remote_option") || exit 0
+  case "$choice" in
+  "$local_option") mode=--local ;;
+  "$remote_option") mode=--remote ;;
+  *) exit 0 ;;
+  esac
+  ;;
+--local | --remote) ;;
+*)
+  echo "Usage: omarchy-install-ai-hermes [--local|--remote]" >&2
+  exit 1
+  ;;
+esac
+
+if [[ $mode == "--local" ]]; then
+  # The same install the default agent gets, plus opening the window.
+  omarchy-install-hermes-cli --now
+else
+  # The packaged Electron app has its own first-run remote connection form.
+  # Do not bootstrap a host runtime, replace CLI commands, retire mise, or
+  # start a theme waiter that would need a local gateway to finish.
+  omarchy-pkg-add hermes-desktop
+  echo "Choose 'Connect to existing Hermes' in Desktop's first-run screen."
+  echo "If Desktop is already set up, add your existing gateway in Settings > Gateways."
+  echo "No local runtime or gateway is set up by this installation; existing ones are left alone."
+fi
 
 echo "Opening Hermes Desktop..."
 setsid uwsm-app -- /usr/bin/hermes-desktop >/dev/null 2>&1 &

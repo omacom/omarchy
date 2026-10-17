@@ -5,13 +5,14 @@
 # omarchy:examples=omarchy install hermes cli --now | omarchy install hermes cli --check
 # omarchy:requires-sudo=true
 
-# There is one Hermes on a machine, and it is the desktop app's. hermes-desktop
+# For local use, Hermes is the desktop app's runtime. hermes-desktop
 # ships upstream's installer and the release it was built from, and that
 # installer makes the only Hermes that can update itself: a checkout under
 # ~/.hermes with its own venv, which `hermes update` fast-forwards. The mise
 # build this replaced had no checkout, so nothing an update could move.
 # Choosing Hermes as the default agent therefore installs the app, the way
-# Install > AI does, short of opening its window; see omarchy-install-ai-hermes.
+# Install > AI's local choice does, short of opening its window; see
+# omarchy-install-ai-hermes. Its remote-only choice does not call this installer.
 # Hermes is only ever installed through the app: --check asks whether the
 # app's Hermes is in and its command is what omarchy-agent would run, and
 # --now installs the app whatever else answered to hermes before, saving
