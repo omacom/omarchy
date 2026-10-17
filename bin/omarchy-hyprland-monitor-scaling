@@ -137,8 +137,13 @@ set_scale() {
   local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
 
   # Apply to the focused output only, keeping its current mode and the layout's
-  # position source; a bare rule drops the display to 60Hz.
-  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"${position}\", scale = $new_scale })" >/dev/null
+  # position source; a bare rule drops the display to 60Hz. The change has to
+  # actually take effect before it is persisted, so Hyprland's state and the
+  # config never disagree.
+  if ! hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"${position}\", scale = $new_scale })" >/dev/null 2>&1; then
+    echo "Could not apply the scale change to $active_monitor" >&2
+    return 1
+  fi
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
   # Persist so the scale survives reboots, for this output only.

@@ -387,3 +387,32 @@ rm -f "$monitor_lua"
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.6
 grep -F 'scale = 1.6' "$eval_out" >/dev/null || fail "monitor scaling applies without monitors.lua"
 pass "monitor scaling applies without a config file"
+
+# A scale change Hyprland rejects must not be logged or persisted: the
+# runtime state and config have to agree.
+cat >"$stub_bin/hyprctl" <<'SH'
+#!/bin/bash
+
+if [[ $1 == "monitors" && $2 == "-j" ]]; then
+  printf '[{"name":"%s","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":%s,"x":%s,"y":%s}]' \
+    "${OMARCHY_TEST_MONITOR_NAME:-eDP-1}" \
+    "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}" \
+    "${OMARCHY_TEST_MONITOR_REFRESH:-120.0}" \
+    "${OMARCHY_TEST_MONITOR_X:-0}" "${OMARCHY_TEST_MONITOR_Y:-0}"
+elif [[ $1 == "eval" ]]; then
+  exit 1
+else
+  exit 1
+fi
+SH
+chmod +x "$stub_bin/hyprctl"
+write_monitor_config
+rm -f "$eval_out" "$scale_log"
+set +e
+out=$(OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.6 2>&1); rc=$?
+set -e
+[[ $rc -ne 0 ]] || fail "a failed scale apply reports failure" "$out"
+[[ $out == *"Could not apply the scale change"* ]] || fail "a failed scale apply names the trouble" "$out"
+grep -F 'scale = 1.6' "$monitor_lua" 2>/dev/null && fail "a failed scale apply must not persist" "$(cat "$monitor_lua")"
+[[ ! -e $scale_log ]] || fail "a failed scale apply must not audit" "$(cat "$scale_log")"
+pass "a failed scale apply neither audits nor persists"
