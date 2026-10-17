@@ -293,6 +293,78 @@ grep -Fx 'local omarchy_monitor_scale = 1.5' "$monitor_lua" >/dev/null ||
   fail "a commented-out rule does not trigger a shared-scale rewrite" "$(cat "$monitor_lua")"
 pass "a commented-out rule does not stand in for a live rule"
 
+# A non-scale argument must be rejected before hyprctl or the config is touched.
+rm -f "$eval_out"
+write_monitor_config
+set +e
+run_scaling abc; bad_status=$?
+run_scaling 0.5; bad_status=$(( bad_status + $? ))
+run_scaling 5; bad_status=$(( bad_status + $? ))
+set -e
+(( bad_status != 0 )) || fail "non-scale arguments are rejected"
+[[ ! -e $eval_out ]] || fail "rejected arguments must not reach hyprctl" "$(cat "$eval_out")"
+grep -Fx 'local omarchy_monitor_scale = 1.5' "$monitor_lua" >/dev/null ||
+  fail "rejected arguments leave the config alone" "$(cat "$monitor_lua")"
+pass "non-scale arguments are rejected"
+
+# Three-display stock layout: scaling one display leaves the other two's
+# scales and rules alone.
+write_monitor_config
+OMARCHY_TEST_MONITOR_SCALE=1 OMARCHY_TEST_MONITOR_NAME=DP-2 \
+  OMARCHY_TEST_MONITOR_WIDTH=1920 OMARCHY_TEST_MONITOR_HEIGHT=1080 OMARCHY_TEST_MONITOR_REFRESH=60.0 \
+  OMARCHY_TEST_MONITOR_X=2560 run_scaling 1.25
+grep -F "$(rule_auto DP-2 1920 1080 60.0 1.25)" "$monitor_lua" >/dev/null ||
+  fail "second display gets its own rule" "$(cat "$monitor_lua")"
+OMARCHY_TEST_MONITOR_SCALE=1 OMARCHY_TEST_MONITOR_NAME=DP-1 \
+  OMARCHY_TEST_MONITOR_WIDTH=2560 OMARCHY_TEST_MONITOR_HEIGHT=1440 OMARCHY_TEST_MONITOR_REFRESH=144.0 \
+  OMARCHY_TEST_MONITOR_X=0 run_scaling 1.6
+grep -F "$(rule_auto DP-1 2560 1440 144.0 1.6)" "$monitor_lua" >/dev/null ||
+  fail "first display gets its own rule" "$(cat "$monitor_lua")"
+grep -F "$(rule_auto DP-2 1920 1080 60.0 1.25)" "$monitor_lua" >/dev/null ||
+  fail "scaling one display leaves the other's rule alone" "$(cat "$monitor_lua")"
+OMARCHY_TEST_MONITOR_SCALE=1.25 OMARCHY_TEST_MONITOR_NAME=DP-2 \
+  OMARCHY_TEST_MONITOR_WIDTH=1920 OMARCHY_TEST_MONITOR_HEIGHT=1080 OMARCHY_TEST_MONITOR_REFRESH=60.0 \
+  OMARCHY_TEST_MONITOR_X=4096 run_scaling 1
+grep -F "$(rule_auto DP-2 1920 1080 60.0 1)" "$monitor_lua" >/dev/null ||
+  fail "rescaling updates the display's existing rule" "$(cat "$monitor_lua")"
+dp2_rules=$(grep -cF 'output = "DP-2"' "$monitor_lua")
+[[ $dp2_rules == 1 ]] || fail "rescaling does not duplicate the display's rule" "rules: $dp2_rules"
+grep -F "$(rule_auto DP-1 2560 1440 144.0 1.6)" "$monitor_lua" >/dev/null ||
+  fail "rescaling one display leaves the first display's rule alone" "$(cat "$monitor_lua")"
+pass "a three-display layout scales each output independently"
+
+# A pinned neighbor anchors the layout, so an unpinned output keeps the
+# position Hyprland gave it rather than a stale or auto re-placement.
+cat >"$monitor_lua" <<'LUA'
+local omarchy_gdk_scale = 1
+hl.monitor({ output = "DP-1", mode = "2560x1440@144", position = "1920x0", scale = 1 })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=1 OMARCHY_TEST_MONITOR_NAME=DP-2 \
+  OMARCHY_TEST_MONITOR_WIDTH=1920 OMARCHY_TEST_MONITOR_HEIGHT=1080 OMARCHY_TEST_MONITOR_REFRESH=60.0 \
+  OMARCHY_TEST_MONITOR_X=3840 OMARCHY_TEST_MONITOR_Y=0 run_scaling 1.25
+grep -F "$(rule_line DP-2 1920 1080 60.0 3840x0 1.25)" "$eval_out" >/dev/null ||
+  fail "an unpinned output keeps its current position beside a pinned neighbor" "$(cat "$eval_out")"
+pass "an unpinned output keeps its current position beside pinned neighbors"
+
+# Output names match exactly: DP-1 is inside DP-14 as a substring, not as a name.
+cat >"$monitor_lua" <<'LUA'
+local omarchy_gdk_scale = 1
+hl.monitor({ output = "DP-14", mode = "2560x1440@144", position = "auto", scale = 1 })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=1 OMARCHY_TEST_MONITOR_NAME=DP-1 \
+  OMARCHY_TEST_MONITOR_WIDTH=2560 OMARCHY_TEST_MONITOR_HEIGHT=1440 OMARCHY_TEST_MONITOR_REFRESH=144.0 run_scaling 1.25
+grep -Fx 'hl.monitor({ output = "DP-14", mode = "2560x1440@144", position = "auto", scale = 1 })' "$monitor_lua" >/dev/null ||
+  fail "scaling DP-1 leaves the DP-14 rule alone" "$(cat "$monitor_lua")"
+grep -F "$(rule_auto DP-1 2560 1440 144.0 1.25)" "$monitor_lua" >/dev/null ||
+  fail "scaling DP-1 lands a rule for DP-1" "$(cat "$monitor_lua")"
+OMARCHY_TEST_MONITOR_SCALE=1.25 OMARCHY_TEST_MONITOR_NAME=DP-14 \
+  OMARCHY_TEST_MONITOR_WIDTH=2560 OMARCHY_TEST_MONITOR_HEIGHT=1440 OMARCHY_TEST_MONITOR_REFRESH=144.0 run_scaling 1.6
+grep -Fx 'hl.monitor({ output = "DP-14", mode = "2560x1440@144", position = "auto", scale = 1.6 })' "$monitor_lua" >/dev/null ||
+  fail "scaling DP-14 updates its own rule" "$(cat "$monitor_lua")"
+grep -F "$(rule_auto DP-1 2560 1440 144.0 1.25)" "$monitor_lua" >/dev/null ||
+  fail "scaling DP-14 leaves the DP-1 rule alone" "$(cat "$monitor_lua")"
+pass "output names match exactly, prefix or suffix"
+
 # No monitors.lua at all: the runtime change still lands.
 rm -f "$monitor_lua"
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.6

@@ -62,6 +62,7 @@ clean_scale() {
       g = gcd(width * 120, height * 120)
       k = int(scale * 120 + 0.5)
       if (k > g) k = g
+      if (k < 1) k = 1
       while (g % k != 0) k++
       printf "%g\n", k / 120
     }'
@@ -102,6 +103,11 @@ set_scale() {
   # output beside the others. In a pinned layout keep the output's own
   # configured position, or its current runtime position when it has no pin.
   local monitor_lua="$HOME/.config/hypr/monitors.lua"
+  # sed -i replaces a symlink with the new file, so edit the real file and
+  # keep whatever path the user linked (omarchy#7625) intact.
+  if [[ -L $monitor_lua ]]; then
+    monitor_lua="$(readlink -f "$monitor_lua")"
+  fi
 
   local position
   if [[ -f $monitor_lua ]] &&
@@ -152,6 +158,16 @@ persist_scale() {
 
   [[ -f $monitor_lua ]] || return 0
 
+  # Two rapid clicks would otherwise check "does a rule exist" together and
+  # both append one; serialize the writes against other instances of this
+  # script. A missing flock only means the lock is skipped, not a failure.
+  local locked=0
+  if command -v flock >/dev/null 2>&1; then
+    if mkdir -p "$STATE_DIR" && exec 9>"$STATE_DIR/monitors.lua.lock" && flock 9; then
+      locked=1
+    fi
+  fi
+
   # GDK_SCALE is a process-global environment, so the shared value keeps being
   # refreshed when present; that cannot rescale a Wayland output. A grep-free
   # sed -i would still rewrite the file and fire a Hyprland reload, so each
@@ -175,6 +191,10 @@ persist_scale() {
   else
     printf '\nhl.monitor({ output = \"%s\", mode = \"%s\", position = \"%s\", scale = %s })\n' \
       "$output" "$mode" "$position" "$new_scale" >>"$monitor_lua"
+  fi
+
+  if (( locked )); then
+    flock -u 9
   fi
 }
 
