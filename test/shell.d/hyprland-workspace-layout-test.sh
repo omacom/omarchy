@@ -17,7 +17,15 @@ mkdir -p "$stub_dir" "$home_dir"
 cat >"$stub_dir/hyprctl" <<'EOF'
 #!/bin/bash
 
-if [[ $1 == "activeworkspace" && -n $HYPRCTL_BROKEN ]]; then
+# The unfocused monitor comes first with a scratchpad of its own open, so a toggle
+# that read the first monitor rather than the focused one would act on it.
+if [[ $1 == "monitors" ]]; then
+  printf '[{"focused":false,"specialWorkspace":{"id":-98,"name":"special:other"}},{"focused":true,"specialWorkspace":{"id":%s,"name":"%s"}}]\n' \
+    "$([[ -n $HYPRCTL_SPECIAL ]] && echo -97 || echo 0)" "$HYPRCTL_SPECIAL"
+elif [[ $1 == "workspaces" ]]; then
+  printf '[{"id":3,"name":"3","tiledLayout":"dwindle"},{"id":-98,"name":"special:other","tiledLayout":"dwindle"},{"id":-97,"name":"%s","tiledLayout":"%s"}]\n' \
+    "$HYPRCTL_SPECIAL" "${HYPRCTL_SPECIAL_LAYOUT:-dwindle}"
+elif [[ $1 == "activeworkspace" && -n $HYPRCTL_BROKEN ]]; then
   printf '{}\n'
 elif [[ $1 == "activeworkspace" ]]; then
   printf '{"id":%s,"tiledLayout":"%s"}\n' "${HYPRCTL_WS_ID:-3}" "${HYPRCTL_TILED_LAYOUT:-dwindle}"
@@ -183,6 +191,73 @@ if [[ -f $home_dir/.local/state/omarchy/workspace-layouts/-1337.lua ]]; then
   fail "workspace layout toggle does not persist a mode for a named workspace"
 fi
 pass "workspace layout toggle leaves a named workspace alone"
+
+# activeworkspace reports the workspace under an open scratchpad, so the toggle
+# has to find the scratchpad itself, on the focused monitor, and save it under a
+# name Lua can load back: a dot in a module name means a directory.
+special_state="$tmpdir/special-state"
+special_file="$special_state/omarchy/workspace-layouts/special_my_pad.lua"
+special_applied() {
+  grep -Fx "eval o.workspace_mode({ workspace = \"special:my.pad\", mode = \"$1\" })" "$log_file" >/dev/null
+}
+
+: >"$log_file"
+toggle XDG_STATE_HOME="$special_state" HYPRCTL_SPECIAL=special:my.pad
+grep -Fx 'o.workspace_mode({ workspace = "special:my.pad", mode = "scrolling" })' "$special_file" >/dev/null ||
+  fail "an open scratchpad's layout is saved under a loadable name" "$(ls "${special_file%/*}" 2>&1)"
+special_applied scrolling || fail "an open scratchpad's layout is applied at once" "$(cat "$log_file")"
+if grep -Eq 'workspace = "(3|special:other)"' "$log_file"; then
+  fail "the workspace under the scratchpad, or another monitor's, is left alone" "$(cat "$log_file")"
+fi
+pass "workspace layout toggle cycles an open scratchpad, not the workspace under it"
+
+# Floating only arranges numbered workspaces, so a scratchpad skips it both ways.
+: >"$log_file"
+toggle XDG_STATE_HOME="$special_state" HYPRCTL_SPECIAL=special:my.pad HYPRCTL_SPECIAL_LAYOUT=scrolling
+special_applied dwindle || fail "a scrolling scratchpad cycles to dwindle" "$(cat "$log_file")"
+[[ ! -e $special_file ]] || fail "a scratchpad cycled onto the default follows it again" "saved: $(cat "$special_file")"
+: >"$log_file"
+env HOME="$home_dir" XDG_STATE_HOME="$special_state" HYPRCTL_SPECIAL=special:my.pad \
+  HYPRCTL_LOG="$log_file" NOTIFICATION_LOG="$notification_log" \
+  PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-workspace-layout-toggle" back
+special_applied scrolling || fail "back from a dwindle scratchpad is scrolling" "$(cat "$log_file")"
+pass "a scratchpad moves between the tiled layouts only"
+
+special_probe="$tmpdir/special-probe.lua"
+cat >"$special_probe" <<'LUA'
+local applied = {}
+
+hl = {
+  workspace_rule = function(rule)
+    table.insert(applied, rule)
+  end,
+  get_workspace_windows = function()
+    return {}
+  end,
+  get_windows = function()
+    return {}
+  end,
+  dispatch = function() end,
+  dsp = { window = { float = function(spec) return spec end, tag = function(spec) return spec end } },
+  on = function() end,
+  get_active_workspace = function() return { id = 3 } end,
+  get_config = function() end,
+  config = function() end,
+}
+
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+require("default.hypr.workspace-layouts")
+
+assert(#applied == 1, "a saved scratchpad layout was not restored")
+assert(applied[1].workspace == "special:my.pad", "the restored layout named the wrong workspace")
+assert(applied[1].layout == "scrolling", "the restored layout was not the one saved")
+LUA
+
+if ! HOME="$home_dir" XDG_STATE_HOME="$special_state" OMARCHY_PATH="$ROOT" lua "$special_probe"; then
+  fail "a saved scratchpad layout is restored by name"
+fi
+pass "a saved scratchpad layout is restored by name"
 
 # The guard stops new ones being written; the ones an earlier version already
 # wrote go on reconfiguring workspace 1 at every login until they are removed.
