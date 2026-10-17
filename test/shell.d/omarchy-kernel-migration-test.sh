@@ -15,6 +15,7 @@ export INSTALLED_PACKAGES="$scratch/packages"
 export OMARCHY_KERNEL_LIMINE_CONF="$scratch/limine"
 export OMARCHY_KERNEL_LIMINE_DROP_INS="$scratch/drop-ins"
 export OMARCHY_KERNEL_REBUILD_MARKER="$scratch/state/1789325478"
+export OMARCHY_KERNEL_DMI_VENDOR="$scratch/sys_vendor"
 kernel="linux-omarchy"
 boot_order='BOOT_ORDER="linux-omarchy, linux-omarchy-*, *, *fallback, Snapshots"'
 
@@ -82,6 +83,7 @@ reset_fixture() {
   : > "$CALL_LOG"
   printf '%s\n' linux-ptl linux-ptl-headers > "$INSTALLED_PACKAGES"
   rm -f "$OMARCHY_KERNEL_REBUILD_MARKER" "$OMARCHY_KERNEL_LIMINE_DROP_INS/"*
+  printf '%s\n' 'Dell Inc.' > "$OMARCHY_KERNEL_DMI_VENDOR"
   cat > "$OMARCHY_KERNEL_LIMINE_CONF" <<'CONF'
 KERNEL_CMDLINE[default]="root=UUID=keep-me rw cryptdevice=UUID=keep-me:root"
 BOOT_ORDER="*, *fallback, Snapshots"
@@ -132,6 +134,20 @@ reset_fixture
 TEST_ARCH=aarch64 run_migration
 assert_skipped
 pass "ARM systems cannot receive an x86_64 kernel"
+
+for vendor in 'Apple Inc.' 'Apple Computer, Inc.'; do
+  reset_fixture
+  printf '%s\n' "$vendor" > "$OMARCHY_KERNEL_DMI_VENDOR"
+  run_migration
+  assert_skipped
+done
+pass "T1 and older Macs keep their kernel even without a T2 package or kernel"
+
+reset_fixture
+rm "$OMARCHY_KERNEL_DMI_VENDOR"
+run_migration
+grep -Fxq "$kernel" "$INSTALLED_PACKAGES" || fail "an unreadable DMI vendor is not treated as a Mac"
+pass "machines without DMI vendor information still receive the generic kernel"
 
 reset_fixture
 printf '%s\n' linux-omarchy-ptl-novrr-mm > "$INSTALLED_PACKAGES"
