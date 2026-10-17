@@ -35,9 +35,15 @@ wait_for_terminal_resize() {
 
 wait_for_terminal_resize
 
+# 120fps fullscreen ttfx pins a CPU core on older laptops. Cap the default and
+# allow OMARCHY_SCREENSAVER_FRAME_RATE to raise or lower it.
+frame_rate=${OMARCHY_SCREENSAVER_FRAME_RATE:-30}
+[[ $frame_rate =~ ^[1-9][0-9]*$ ]] || frame_rate=30
+(( frame_rate > 120 )) && frame_rate=120
+
 while true; do
   ttfx -i ~/.config/omarchy/branding/screensaver.txt \
-    --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
+    --frame-rate "$frame_rate" --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
     --random-effect --no-eol --no-restore-cursor &
 
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
