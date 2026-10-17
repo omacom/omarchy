@@ -106,7 +106,6 @@ Item {
   // Rows with a `alt:` stand-in show and run it while this holds.
   property bool altHeld: false
   property int requestSerial: 0
-  property int applySerial: 0
   property var items: ({})
   property var itemOrder: []
   property var navStack: []
@@ -153,6 +152,9 @@ Item {
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
     : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, panel.height - Style.gapsOut * 2)
 
+  // The pick, or the text typed in input mode, is written from inside the
+  // shell. Handed to a command, it would sit on that command line, which every
+  // user on the machine can read in /proc/<pid>/cmdline.
   function finishRequest(selection) {
     if (!root.requestActive || !root.doneFile) {
       root.opened = false
@@ -165,12 +167,21 @@ Item {
     root.selectionFile = ""
     root.doneFile = ""
 
-    if (selection === null || selection === undefined) {
-      resultProc.command = ["bash", "-c", ": > " + Util.shellQuote(activeDoneFile)]
-    } else {
-      resultProc.command = ["bash", "-c", "printf '%s\\n' " + Util.shellQuote(selection) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)]
-    }
-    resultProc.running = true
+    if (selection !== null && selection !== undefined)
+      root.writeRequestFile(activeSelectionFile, String(selection) + "\n")
+    root.writeRequestFile(activeDoneFile, "\n")
+  }
+
+  // Writes block, so the selection is complete before the done file the caller
+  // waits on appears. Nothing reads the selection before then, so it is
+  // written in place. The done file gets a newline because an empty write
+  // creates no file. A fresh writer per file never carries one request's text
+  // into the next.
+  function writeRequestFile(path, text) {
+    if (!path) return
+    var writer = requestFileWriter.createObject(root, { path: path })
+    writer.setText(text)
+    writer.destroy()
   }
 
   function runAction(action) {
@@ -901,7 +912,6 @@ Item {
       var picked = displayModel.get(index)
       if (root.mode === "keybindings") {
         var kbEntry = root.keybindingsEntries[Number(picked.itemId.substring(6))]
-        applySerial = requestSerial
         opened = false
         filterText = ""
         if (kbEntry && kbEntry.dispatcher)
@@ -935,7 +945,6 @@ Item {
     } else if (row.kind === "app") {
       var appId = row.appId
       var label = row.label
-      applySerial = requestSerial
       opened = false
       filterText = ""
       if (root.appLibrary) root.appLibrary.launch(appId, label)
@@ -981,7 +990,6 @@ Item {
   }
 
   function applyDmenuSelection(value) {
-    applySerial = requestSerial
     opened = false
     filterText = ""
     root.finishRequest(value)
@@ -990,7 +998,6 @@ Item {
   function applySelected(id, action) {
     if (!id) { cancel(); return }
 
-    applySerial = requestSerial
     opened = false
     filterText = ""
     root.runAction(action)
@@ -1233,11 +1240,12 @@ Item {
     }
   }
 
-  Process {
-    id: resultProc
-    onExited: {
-      if (root.applySerial === root.requestSerial)
-        root.opened = false
+  Component {
+    id: requestFileWriter
+    FileView {
+      atomicWrites: false
+      blockWrites: true
+      preload: false
     }
   }
 

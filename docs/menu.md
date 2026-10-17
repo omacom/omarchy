@@ -175,7 +175,7 @@ link is followed to its target. The default Hyprland bindings in
 The same plugin doubles as the system's dmenu. `omarchy-menu-select` and
 `omarchy-menu-input` summon it with a `mode: select` or `mode: input`
 payload, then block on a tempfile handshake: the shell writes the selection
-to `selectionFile` and touches `doneFile`, and cancellation (empty
+to `selectionFile` and then creates `doneFile`, and cancellation (empty
 selection) exits 1. A select option is `label`, `glyph\tlabel`, or
 `glyph\tlabel\tsubtext` — the glyph shows but never returns, the subtext
 renders under the label, filters with it, and comes back as
@@ -183,6 +183,7 @@ renders under the label, filters with it, and comes back as
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
 
+The shell writes both files itself rather than through a command, so the pick and anything typed into an input prompt never appear on a command line, where every user on the machine can read them.
 
 Pass `-- --multiple` to `omarchy-menu-select` for a multi-select request. Repeat `--selected <value>` to preselect returned values (labels plus any subtext, without icons). Clicking or pressing Enter toggles an option without closing the menu; Apply returns a JSON array in option order, including `[]` when all choices are deselected. Cancellation still exits 1. Selections survive filtering.
 
