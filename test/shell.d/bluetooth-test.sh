@@ -50,6 +50,33 @@ assert(/sibling\.owesDiscoveryStop = true/.test(stopTimer[0]), 'bluetooth moves 
 assert(/onDiscoveringChanged[\s\S]{0,120}owesDiscoveryStop = false/.test(panelSource), 'bluetooth settles the stop it owes once discovery is confirmed down')
 assert(/Component\.onDestruction: \{[\s\S]{0,400}owesDiscoveryStop = true[\s\S]{0,200}discovering = false/.test(panelSource), 'bluetooth passes the stop it owes to a sibling when an instance is destroyed')
 
+// The pairing agent auto-accepts, so pairing must only be possible while a
+// panel is open or a pairing this machine started is under way. BlueZ leaves
+// adapters pairable by default and nothing else in Omarchy writes the
+// property, so the panel owns it through PairableGate; the gate's behavior is
+// covered at runtime by bluetooth-pairable-gate-test.sh.
+const gateSource = fs.readFileSync(root + '/shell/plugins/panels/bluetooth/PairableGate.qml', 'utf8')
+const gateUse = panelSource.match(/PairableGate \{[\s\S]*?\n {2}\}/)
+assert(gateUse, 'bluetooth panel owns the adapter pairable state through PairableGate')
+assert(/Instantiator \{\s*model: Bluetooth\.adapters \? Bluetooth\.adapters\.values : \[\]\s*delegate: PairableGate \{/.test(panelSource), 'bluetooth gates every controller, not only the default adapter')
+assert(/adapter: root\.bar \? modelData : null/.test(gateUse[0]), 'bluetooth hands a gate its adapter only once the bar can list sibling widgets')
+assert(/open: root\.pairingHeld/.test(gateUse[0]), 'bluetooth holds pairing while the panel is open or a pairing is held over IPC')
+assert(/readonly property bool pairingHeld: !destroying && \(opened \|\| Commons\.BluetoothPairing\.holds > 0\)/.test(panelSource), 'bluetooth counts an open panel and the shared IPC holds alike, and drops both while being torn down')
+assert(/siblingOpen: function\(\) \{ return root\.heldSibling\(\) !== null \}/.test(gateUse[0]), 'bluetooth leaves pairing on for a sibling instance that holds it')
+assert(/function heldSibling\(\)[\s\S]*?items\[i\]\.pairingHeld === true/.test(panelSource), 'bluetooth sibling check reads the same hold the gate does')
+assert(/ShellIpc \{[\s\S]*?function holdPairing\(\): string \{ return Commons\.BluetoothPairing\.hold\(\) \}[\s\S]*?function releasePairing\(token: string\): string \{ return Commons\.BluetoothPairing\.release\(token\) \}/.test(panelSource), 'bluetooth exposes the shared pairing hold over IPC for omarchy-bluetooth-device, released by token')
+const pairingSource = fs.readFileSync(root + '/shell/Commons/BluetoothPairing.qml', 'utf8')
+assert(/^pragma Singleton/m.test(pairingSource) && /singleton BluetoothPairing 1\.0 BluetoothPairing\.qml/.test(fs.readFileSync(root + '/shell/Commons/qmldir', 'utf8')), 'the pairing holds live in a singleton that outlives any widget instance')
+assert(/readonly property int holds: tokens\.length/.test(pairingSource) && /function release\(token\) \{\s*var index = tokens\.indexOf\(String\(token \|\| ""\)\)\s*if \(index === -1\) return "unknown"/.test(pairingSource), 'each pairing hold is a token, so a command releases only the hold it took')
+assert(/Timer \{[\s\S]*?onTriggered: root\.tokens = \[\]/.test(pairingSource), 'pairing holds that are never released expire')
+assert(!/adapter\.pairable = /.test(panelSource), 'bluetooth panel writes pairable only through the gate')
+assert(/Component\.onDestruction: \{[\s\S]{0,200}pairable = false/.test(gateSource), 'a destroyed gate turns pairing off when no sibling holds it')
+
+const agentService = fs.readFileSync(root + '/default/systemd/user/bt-agent.service', 'utf8')
+assert(!/only `pairable: true` when the user/.test(agentService), 'bt-agent no longer claims a pairable gate that did not exist')
+assert(/refuses bonding while it is off/.test(agentService), 'bt-agent documents the panel-owned pairable window')
+assert(/with it removed from\s*#? ?the bar, or the shell not running/.test(agentService), 'bt-agent documents that the gate lives in the bar widget')
+
 assert(bluetooth.isUuidLike('0000110b-0000-1000-8000-00805f9b34fb'), 'bluetooth detects UUID-like names')
 assert(bluetooth.isAddressLike('AA:BB:CC:DD:EE:FF'), 'bluetooth detects address-like names')
 assertEqual(bluetooth.normalizedAddress('AA:BB_CC-dd-ee-ff'), 'aabbccddeeff', 'bluetooth normalizes BlueZ and PipeWire address formats')
@@ -151,12 +178,17 @@ trap 'rm -rf "$device_tmp"' EXIT
 mock_bin="$device_tmp/bin"
 mkdir -p "$mock_bin"
 export POWERED_FILE="$device_tmp/powered"
+export PAIRABLE_FILE="$device_tmp/pairable"
 
 cat >"$mock_bin/bluetoothctl" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$BLUETOOTHCTL_LOG"
 [[ $1 == "power" && $2 == "on" ]] && echo yes >"$POWERED_FILE"
+# bluetoothctl takes on/off and reports yes/no.
+[[ $1 == "pairable" && $2 == "on" ]] && echo yes >"$PAIRABLE_FILE"
+[[ $1 == "pairable" && $2 == "off" ]] && echo no >"$PAIRABLE_FILE"
+[[ $1 == "pair" && -n ${MOCK_PAIR_DELAY:-} ]] && sleep "$MOCK_PAIR_DELAY"
 [[ $1 == "list" ]] &&
   for c in ${MOCK_CONTROLLERS:-AA:BB:CC:DD:EE:FF}; do printf 'Controller %s mock\n' "$c"; done
 # Per-controller state where a test set it, the shared file otherwise.
@@ -164,8 +196,22 @@ if [[ $1 == "show" ]]; then
   state="$POWERED_FILE"
   [[ -n ${2:-} && -f "$POWERED_FILE.$2" ]] && state="$POWERED_FILE.$2"
   printf '\tPowered: %s\n' "$(cat "$state")"
+  printf '\tPairable: %s\n' "$(cat "$PAIRABLE_FILE" 2>/dev/null || echo yes)"
 fi
 exit 0
+SH
+
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+[[ $1 == "-q" ]] && shift
+printf 'omarchy-shell %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
+[[ -n ${SHELL_RUNNING:-} ]] || exit 1
+if [[ $* == "omarchy.bluetooth holdPairing" ]]; then
+  echo 0123456789abcdef0123456789abcdef
+else
+  echo ok
+fi
 SH
 
 cat >"$mock_bin/rfkill" <<'SH'
@@ -180,7 +226,7 @@ printf 'rfkill %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
 exit 0
 SH
 
-chmod +x "$mock_bin/bluetoothctl" "$mock_bin/rfkill"
+chmod +x "$mock_bin/bluetoothctl" "$mock_bin/rfkill" "$mock_bin/omarchy-shell"
 
 # $ROOT/bin so omarchy-bluetooth-device resolves the real omarchy-bluetooth-power.
 bluetooth_run() {
@@ -189,7 +235,7 @@ bluetooth_run() {
 
   echo "$powered" >"$POWERED_FILE"
   : >"$device_tmp/log"
-  PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" \
+  PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" XDG_RUNTIME_DIR="$device_tmp" \
     OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 "$@" ||
     fail "$* exits cleanly with Powered: $powered"
   printf '%s' "$device_tmp/log"
@@ -262,6 +308,74 @@ pass "bluetooth lifts the block before connecting"
 grep -qx "connect AA:BB:CC:DD:EE:FF" "$unpowered_log" ||
   fail "bluetooth connects once the adapter is up" "$(cat "$unpowered_log")"
 pass "bluetooth connects once the adapter is up"
+
+# The shell owns the adapter's pairable state, so a pairing this command runs
+# asks the shell to hold it for the duration, from the panel or the command
+# line alike, and the property itself is left to the shell.
+echo no >"$PAIRABLE_FILE"
+pair_log=$(SHELL_RUNNING=1 bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+pair_order=$(grep -xE 'omarchy-shell omarchy.bluetooth (holdPairing|releasePairing 0123456789abcdef0123456789abcdef)|pair AA:BB:CC:DD:EE:FF|connect AA:BB:CC:DD:EE:FF' "$pair_log" | paste -sd,)
+[[ $pair_order == "omarchy-shell omarchy.bluetooth holdPairing,pair AA:BB:CC:DD:EE:FF,connect AA:BB:CC:DD:EE:FF,omarchy-shell omarchy.bluetooth releasePairing 0123456789abcdef0123456789abcdef" ]] ||
+  fail "bluetooth asks the shell to hold pairing around its own pairing and releases that hold by its token" "$(cat "$pair_log")"
+pass "bluetooth asks the shell to hold pairing around its own pairing and releases that hold by its token"
+
+grep -q "^pairable" "$pair_log" &&
+  fail "bluetooth leaves the pairable property to a running shell" "$(cat "$pair_log")"
+pass "bluetooth leaves the pairable property to a running shell"
+
+# Without a shell (a TTY or ssh session) nothing else owns the property, so the
+# command sets it for the pairing and puts it back afterwards. A Low Energy
+# device pairs without bonding otherwise.
+echo no >"$PAIRABLE_FILE"
+tty_log=$(bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+tty_order=$(grep -xE 'pairable on|pair AA:BB:CC:DD:EE:FF|connect AA:BB:CC:DD:EE:FF|pairable off' "$tty_log" | paste -sd,)
+[[ $tty_order == "pairable on,pair AA:BB:CC:DD:EE:FF,connect AA:BB:CC:DD:EE:FF,pairable off" ]] ||
+  fail "bluetooth turns pairable on for its own pairing without a shell and back off after" "$(cat "$tty_log")"
+pass "bluetooth turns pairable on for its own pairing without a shell and back off after"
+
+# A hold request that got no token has nothing to release; a blind release
+# could take another pairing's hold, so the shell's expiry covers that case.
+grep -q "releasePairing" "$tty_log" &&
+  fail "bluetooth does not release a hold it has no token for" "$(cat "$tty_log")"
+pass "bluetooth does not release a hold it has no token for"
+
+# An adapter already pairable without a shell was made so by hand; leave it.
+echo yes >"$PAIRABLE_FILE"
+pairable_log=$(bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+grep -q "^pairable" "$pairable_log" &&
+  fail "bluetooth leaves an already pairable adapter as it found it" "$(cat "$pairable_log")"
+pass "bluetooth leaves an already pairable adapter as it found it"
+
+# Two pairings at once without a shell share the property through a lock: the
+# first to find it off turns it on and leaves a marker, and only the last one
+# out turns it back off, so neither can take bonding away from the other.
+echo no >"$PAIRABLE_FILE"
+echo yes >"$POWERED_FILE"
+: >"$device_tmp/log"
+(
+  export PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" XDG_RUNTIME_DIR="$device_tmp" OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0
+  MOCK_PAIR_DELAY=1 "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF &
+  sleep 0.3
+  MOCK_PAIR_DELAY=0 "$ROOT/bin/omarchy-bluetooth-device" pair 11:22:33:44:55:66
+  wait
+)
+concurrent_log="$device_tmp/log"
+(( $(grep -cx "pairable on" "$concurrent_log") == 1 )) ||
+  fail "bluetooth turns pairable on once for two overlapping pairings" "$(cat "$concurrent_log")"
+pass "bluetooth turns pairable on once for two overlapping pairings"
+(( $(grep -cx "pairable off" "$concurrent_log") == 1 )) && [[ $(grep -xE 'connect .*|pairable off' "$concurrent_log" | tail -n 1) == "pairable off" ]] ||
+  fail "bluetooth turns pairable off only after the last overlapping pairing" "$(cat "$concurrent_log")"
+pass "bluetooth turns pairable off only after the last overlapping pairing"
+[[ ! -e $device_tmp/omarchy-bluetooth-pairable.restore ]] ||
+  fail "bluetooth clears its restore marker once pairing is back off"
+pass "bluetooth clears its restore marker once pairing is back off"
+
+echo no >"$PAIRABLE_FILE"
+connect_log=$(bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" connect AA:BB:CC:DD:EE:FF)
+grep -q "^pairable\|holdPairing" "$connect_log" &&
+  fail "bluetooth does not make the adapter pairable to connect a known device" "$(cat "$connect_log")"
+pass "bluetooth does not make the adapter pairable to connect a known device"
+echo yes >"$PAIRABLE_FILE"
 
 # Blocking hits every radio at once, so the read has to span them too. A bare
 # bluetoothctl show reports the default controller and misses a powered dongle.
