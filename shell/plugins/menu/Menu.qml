@@ -132,7 +132,72 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font" || root.activeMenu === "style.font.cjk") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  // Advance of the widest row on screen. A closed menu grows to fit that
+  // label. Search results and provider lists stay narrow: those names are
+  // open-ended, and ellipsis is the overflow they are built for.
+  property int fittedLabelWidth: 0
+  readonly property int labelFitRevision: layoutSerial + Style.font.heading
+  onLabelFitRevisionChanged: remeasureLabels()
+
+  TextMetrics {
+    id: rowLabelMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.heading
+    font.weight: Font.Medium
+  }
+
+  // What the row delegate spends before the label: border, padding, the icon
+  // column, and the trail. A label that fits this slot is the label that paints.
+  function labelSlotChrome() {
+    return Border.left(root.borderSpec) + Border.right(root.borderSpec)
+      + root.contentMargin * 2
+      + root.rowReservedBorderLeft + root.rowReservedBorderRight
+      + Style.space(8) + Style.space(36) + Style.space(6) + Style.space(6)
+      + Style.space(14) + Style.space(8)
+  }
+
+  function remeasureLabels() {
+    // Search, providers, dmenu, and the fixed wide cards never read this,
+    // and search would otherwise measure every matching row per keystroke.
+    if (!root.cardUsesLabelWidth()) return
+    var widest = 0
+    var count = displayModel.count
+    for (var i = 0; i < count; i++) {
+      rowLabelMetrics.text = String(displayModel.get(i).label || "")
+      if (rowLabelMetrics.advanceWidth > widest) widest = rowLabelMetrics.advanceWidth
+    }
+    var next = Math.ceil(widest)
+    if (fittedLabelWidth !== next) fittedLabelWidth = next
+  }
+
+  function menuUsesWideCard() {
+    return root.activeMenu === "trigger.capture.screenrecord"
+      || root.activeMenu === "style.font"
+      || root.activeMenu === "style.font.cjk"
+  }
+
+  // cardWidth grows from the measured labels only for a closed authored menu.
+  function cardUsesLabelWidth() {
+    if (root.dmenuActive || root.menuUsesWideCard()) return false
+    var entry = root.item(root.activeMenu)
+    return !String(root.filterText || "").trim() && !(entry && entry.provider)
+  }
+
+  // Static submenus grow from the 300 floor to the 520 cap the wide menus
+  // already use, so "Reboot to Boot Menu" stays whole. Two pixels past the
+  // advance keep ElideRight from spending the last word on the ellipsis
+  // when the ink lands on the slot boundary.
+  property int cardWidth: {
+    var screenCap = Math.max(1, panel.width - Style.gapsOut * 2)
+    if (root.dmenuActive)
+      return Math.min(Style.space(root.dmenuWidth), screenCap)
+    var floor = Style.space(300)
+    var cap = Style.space(520)
+    if (!root.cardUsesLabelWidth())
+      return Math.min(root.menuUsesWideCard() ? cap : floor, screenCap)
+    var wanted = Math.max(floor, root.fittedLabelWidth + root.labelSlotChrome() + 2)
+    return Math.min(wanted, cap, screenCap)
+  }
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)

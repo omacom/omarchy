@@ -636,6 +636,12 @@ assert(
   ),
   'menu search never restarts a volatile provider'
 )
+assert(
+  /function cardUsesLabelWidth\(\) \{\s*\n\s*if \(root\.dmenuActive \|\| root\.menuUsesWideCard\(\)\) return false\s*\n\s*var entry = root\.item\(root\.activeMenu\)\s*\n\s*return !String\(root\.filterText \|\| ""\)\.trim\(\) && !\(entry && entry\.provider\)/.test(menuQml)
+    && /function remeasureLabels\(\) \{\n(?:    \/\/[^\n]*\n)*    if \(!root\.cardUsesLabelWidth\(\)\) return/.test(menuQml)
+    && /if \(!root\.cardUsesLabelWidth\(\)\)\s*\n\s*return Math\.min\(root\.menuUsesWideCard\(\) \? cap : floor, screenCap\)/.test(menuQml),
+  'menu measures row labels only when the card width uses them'
+)
 assertEqual(
   defaultById['trigger.hardware.laptop-display'].when,
   'omarchy-hw-laptop',
