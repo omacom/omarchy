@@ -94,7 +94,7 @@ assertDeepEqual(arrayLikeLists.discovered.map(bluetooth.deviceLabel), ['Gamepad'
 
 assertDeepEqual(
   bluetooth.deviceRow({ name: 'Deadbeef', address: '1', connected: false }),
-  { address: '1', name: 'Deadbeef', deviceName: '', connected: false, state: -1, batteryAvailable: false, battery: 0, pairing: false },
+  { address: '1', name: 'Deadbeef', deviceName: '', connected: false, state: -1, batteryAvailable: false, battery: 0, charging: false, pairing: false },
   'bluetooth projects device rows with primitives only'
 )
 assertEqual(
@@ -102,6 +102,35 @@ assertEqual(
   'MX Master 3S',
   'bluetooth keeps deviceName in row projections so labels survive QObject-free rows'
 )
+
+// Game controllers report charge through their kernel HID driver, not BlueZ
+// Battery1, so UPower lists them as a power supply named after the address.
+const upowerBatteries = [
+  { nativePath: 'hidpp_battery_0', percentage: 0.8, isPresent: true, charging: false },
+  { nativePath: 'ps-controller-battery-90:89:5f:e2:00:55', percentage: 0.55, isPresent: true, charging: true },
+  { nativePath: 'sony_controller_battery_11:22:33:44:55:66', percentage: 0.3, isPresent: true, charging: false },
+  { nativePath: 'nintendo_switch_controller_battery_de:ad:be:ef:00:01', percentage: 0.4, isPresent: false, charging: false }
+]
+assertDeepEqual(bluetooth.upowerBattery(upowerBatteries, '90:89:5F:E2:00:55'), { percentage: 0.55, charging: true }, 'bluetooth finds a controller battery in UPower by its address')
+assertDeepEqual(bluetooth.upowerBattery(upowerBatteries, '11:22:33:44:55:66'), { percentage: 0.3, charging: false }, 'bluetooth matches UPower addresses in any separator and case')
+assertEqual(bluetooth.upowerBattery(upowerBatteries, 'de:ad:be:ef:00:01'), null, 'bluetooth ignores a UPower battery that is not present')
+assertEqual(bluetooth.upowerBattery(upowerBatteries, '00:00:00:00:00:00'), null, 'bluetooth finds no UPower battery for an unknown address')
+assertEqual(bluetooth.upowerBattery([{ nativePath: 'battery_908955fe200550', percentage: 1, isPresent: true }], '90:89:5f:e2:00:55'), null, 'bluetooth only matches a whole address in a UPower path')
+
+const controllerRow = bluetooth.deviceRow({ name: 'Wireless Controller', address: '90:89:5F:E2:00:55', connected: true }, { percentage: 0.55, charging: true })
+assert(controllerRow.batteryAvailable && controllerRow.battery === 0.55 && controllerRow.charging, 'bluetooth rows fall back to the UPower battery')
+const headsetRow = bluetooth.deviceRow({ name: 'Headphones', address: '3', connected: true, batteryAvailable: true, battery: 0.5 }, { percentage: 0.1, charging: true })
+assert(headsetRow.battery === 0.5 && !headsetRow.charging, 'bluetooth rows prefer the BlueZ battery over UPower')
+assertEqual(bluetooth.batteryText(controllerRow), '55% · Charging', 'bluetooth shows charging next to the battery level')
+assertEqual(bluetooth.batteryText(headsetRow), '50%', 'bluetooth shows the battery level alone when not charging')
+assertEqual(bluetooth.batteryText(bluetooth.deviceRow({ name: 'Mouse', address: '4' })), '', 'bluetooth shows no battery text without a battery')
+const batteryTr = function(key, english) { return key === 'bluetooth.batteryCharging' ? 'lädt: %1' : english }
+const batteryFmt = function(value) { return '<' + value + '>' }
+assertEqual(bluetooth.batteryText(controllerRow, batteryTr, batteryFmt), 'lädt: <55>%', 'bluetooth translates the charging text and localizes the battery level')
+assertEqual(bluetooth.batteryText(headsetRow, batteryTr, batteryFmt), '<50>%', 'bluetooth localizes the battery level when not charging')
+
+assert(/import Quickshell\.Services\.UPower/.test(panelSource) && /Model\.upowerBattery\(upowerBatteries/.test(panelSource), 'bluetooth panel reads controller batteries from UPower')
+assert(/Model\.batteryText\(dev, Commons\.I18n\.t, Commons\.I18n\.formatNumber\)/.test(panelSource), 'bluetooth panel shows battery text from the model in the current language')
 
 assertDeepEqual(
   bluetooth.withPendingAction({ a: 'connecting' }, 'b', 'forgetting'),
