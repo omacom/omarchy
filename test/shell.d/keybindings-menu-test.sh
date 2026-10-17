@@ -13,6 +13,7 @@ home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
 mkdir -p "$home/.config" "$stub_bin"
 cp -r "$ROOT/config/hypr" "$home/.config/hypr"
+printf '\t\t\tactive keymap: English (US)\n' >"$tmpdir/devices"
 
 # No platform package: neither its key names nor its binds.
 menu="$tmpdir/omarchy-menu-keybindings"
@@ -38,7 +39,7 @@ stub_hyprctl() {
     cat
     echo 'BINDS'
     echo '  ;;'
-    echo '  devices) echo "active keymap: English (US)" ;;'
+    echo "  devices) cat '$tmpdir/devices' ;;"
     echo '  -j) [[ $2 == getoption ]] && cat "'"$stub_bin"'/option-${3#input:}" 2>/dev/null ;;'
     echo 'esac'
   } >"$stub_bin/hyprctl"
@@ -267,6 +268,63 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# A rebuild runs the whole Lua config, so the cache has to survive what does not
+# change the menu: another keyboard coming and going, or a layout and back.
+cached_records() {
+  # The inode tells a cache read back from one rebuilt under the same name.
+  stat -c '%i %n' "$tmpdir"/cache/omarchy/keybindings-*.records
+}
+
+first_records=$(cached_records)
+printf '\t\t\tactive keymap: English (US)\n\t\t\tactive keymap: English (US)\n' >"$tmpdir/devices"
+keybindings >/dev/null
+[[ $(cached_records) == "$first_records" ]] ||
+  fail "plugging in another keyboard on the same layout keeps the cache" "$(cached_records)"
+pass "plugging in another keyboard on the same layout keeps the cache"
+
+printf '\t\t\tactive keymap: English (US)\n\t\t\tactive keymap: none\n' >"$tmpdir/devices"
+keybindings >/dev/null
+[[ $(cached_records) == "$first_records" ]] ||
+  fail "a virtual keyboard with no keymap keeps the cache" "$(cached_records)"
+pass "a virtual keyboard with no keymap keeps the cache"
+
+printf '\t\t\tactive keymap: German\n' >"$tmpdir/devices"
+keybindings >/dev/null
+printf '\t\t\tactive keymap: English (US)\n' >"$tmpdir/devices"
+keybindings >/dev/null
+grep -qxF "$first_records" <<<"$(cached_records)" && (( $(cached_records | wc -l) == 2 )) ||
+  fail "switching layout and back keeps the cache for both" "$(cached_records)"
+pass "switching layout and back keeps the cache for both"
+
+for keymap in "Layout: One" "Layout: Two" "Layout: Three" "Layout: Four"; do
+  printf '\t\t\tactive keymap: %s\n' "$keymap" >"$tmpdir/devices"
+  keybindings >/dev/null
+done
+latest_records=$(cached_records)
+(( $(wc -l <<<"$latest_records") == 4 )) && ! grep -qxF "$first_records" <<<"$latest_records" ||
+  fail "the cache keeps the four newest and tells keymap names apart past a colon" "$latest_records"
+pass "the cache keeps the four newest and tells keymap names apart past a colon"
+
+# hyprctl binds reports a Lua bind without its command, so a command edited while
+# on another layout must not come back from the cache built before the edit.
+lua_terminal_bind() {
+  printf 'hl.bind("SUPER + RETURN", hl.dsp.exec_cmd("%s"), { description = "Terminal" })\n' "$1" >"$home/.config/hypr/hyprland.lua"
+}
+
+lua_terminal_bind old-terminal
+printf '\t\t\tactive keymap: English (US)\n' >"$tmpdir/devices"
+keybindings >/dev/null
+printf '\t\t\tactive keymap: German\n' >"$tmpdir/devices"
+keybindings >/dev/null
+lua_terminal_bind edited-terminal
+before_edit=$(ls "$tmpdir"/cache/omarchy/keybindings-*.records)
+printf '\t\t\tactive keymap: English (US)\n' >"$tmpdir/devices"
+keybindings >/dev/null
+edited_records=$(comm -13 <(sort <<<"$before_edit") <(ls "$tmpdir"/cache/omarchy/keybindings-*.records | sort))
+[[ -n $edited_records ]] && grep -qP '→ Terminal\texec\tedited-terminal$' "$edited_records" ||
+  fail "a Lua command edited on another layout is the one the menu runs on the way back" "$(cached_records)"
+pass "a Lua command edited on another layout is the one the menu runs on the way back"
 
 # Rows show their description in the Omarchy language: a numbered one
 # matches its %1 pattern, an unknown one stays as written, and the chord
