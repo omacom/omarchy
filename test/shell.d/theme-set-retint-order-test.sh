@@ -87,7 +87,7 @@ STUB
 cat >"$commands/omarchy-shell" <<'STUB'
 #!/bin/bash
 if [[ $2 == "themeIntroStatus" && -f $TEST_TMP/intro-hold ]]; then
-  if [[ $(<"$TEST_STATE/theme.name") == "beta" && $3 == "$(stat -Lc '%d:%i' "$TEST_STATE/theme")" ]]; then
+  if [[ $(<"$TEST_STATE/theme.name") == "beta" && $3 == "$(stat -Lc '%d:%i:%.9W' "$TEST_STATE/theme")" ]]; then
     echo "$3" >"$TEST_TMP/intro-hold"
   fi
   if [[ $3 == "$(<"$TEST_TMP/intro-hold")" ]]; then
