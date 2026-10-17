@@ -268,6 +268,18 @@ grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
 
+# SUPER + J is a Lua function too. Picking "Toggle window split" has to run
+# the same layout check the key does, not a bare togglesplit.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + J" "Toggle window split")
+BINDS
+
+rm -rf "$tmpdir/cache"
+keybindings >/dev/null
+grep -qP "→ Toggle window split\texec\thyprctl eval 'o.toggle_window_split\\(\\)'$" "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "picking the split toggle from the menu runs the layout check" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+pass "picking the split toggle from the menu runs the layout check"
+
 # Rows show their description in the Omarchy language: a numbered one
 # matches its %1 pattern, an unknown one stays as written, and the chord
 # column and what the row runs never change.
