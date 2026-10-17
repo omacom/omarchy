@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Install the ZeroTier mesh VPN service and start it at boot.
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Installing ZeroTier..."
+omarchy-pkg-add zerotier-one
+
+echo "Starting ZeroTier..."
+sudo systemctl enable --now zerotier-one.service
+
+echo ""
+echo "ZeroTier has been installed. Join a network with 'sudo zerotier-cli join <network-id>',"
+echo "then authorize this machine in the ZeroTier Central console."
