@@ -14,7 +14,9 @@ test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
 stub_bin="$test_dir/bin"
 mkdir -p "$stub_bin"
-printf '#!/bin/bash\n[[ ${SUDO_DENY:-} == 1 && ${1:-} == -v ]] && exit 1\n[[ ${1:-} == -v ]] && exit 0\nexec "$@"\n' >"$stub_bin/sudo"
+# Passwordless sudo under sudo's default verifypw=all: commands run, but
+# sudo -v still asks for a password, which an unattended update cannot give.
+printf '#!/bin/bash\n[[ ${1:-} == -v ]] && exit 1\n[[ ${SUDO_DENY:-} == 1 ]] && exit 1\nexec "$@"\n' >"$stub_bin/sudo"
 chmod +x "$stub_bin/sudo"
 
 conf="$test_dir/limine.conf"
@@ -58,7 +60,7 @@ pass "an already quiet fast boot is left alone"
 
 rm -f "$conf"
 run_migration
-pass "a machine without a Limine menu is left alone"
+pass "a machine without a Limine menu is left alone, even with passwordless sudo"
 
 # An unreadable menu (the ESP is often umask=0077) behind a denied sudo
 # prompt: the migration must fail, leaving itself pending, not report
