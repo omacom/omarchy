@@ -3,4 +3,14 @@
 # omarchy:summary=Returns true when Hyprland has an active external monitor
 # omarchy:hidden=true
 
-hyprctl monitors all -j | jq -e '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | select(.disabled == false)' >/dev/null 2>&1
+# Hyprland/aquamarine invents a synthetic FALLBACK headless output when every
+# real connector is gone or soft-disabled, so the compositor is never left with
+# zero monitors. That head is not an external display: if we treat it as one,
+# recover() short-circuits after unplug and the internal panel stays disabled
+# forever (issue #10584).
+hyprctl monitors all -j | jq -e '
+  .[]
+  | select(.name != "FALLBACK")
+  | select(.name | test("^(eDP|LVDS|DSI)-") | not)
+  | select(.disabled == false)
+' >/dev/null 2>&1
