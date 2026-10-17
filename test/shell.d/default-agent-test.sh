@@ -38,7 +38,7 @@ SH
 
 cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
 #!/bin/bash
-[[ $1 == ${OMARCHY_TEST_MISSING_COMMAND:-} ]]
+[[ " ${OMARCHY_TEST_MISSING_COMMAND:-} " == *" $1 "* ]]
 SH
 
 cat >"$mock_bin/omarchy-launch-tui" <<'SH'
@@ -134,6 +134,7 @@ ori_package="github:OpenRouterLabs/ori-releases"
 kimi_package="npm:@moonshot-ai/kimi-code"
 cursor_agent_package="cursor-agent"
 muse_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
+goose_package="github:aaif-goose/goose[matching=unknown-linux-gnu.tar]"
 
 assert_lazy_stub() {
   local package=$1
@@ -155,6 +156,7 @@ assert_lazy_stub "$ori_package" ori
 assert_lazy_stub "$kimi_package" kimi
 assert_lazy_stub "$cursor_agent_package" cursor-agent
 assert_lazy_stub "$muse_package" muse
+assert_lazy_stub "$goose_package" goose
 pass "custom agent lazy stubs preserve their mise packages"
 
 source "$ROOT/install/user/mise.sh"
@@ -164,6 +166,7 @@ grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null || fail "user setup crea
 grep -Fx "$omp_package omp" "$stub_log" >/dev/null || fail "user setup creates the Oh My Pi lazy stub"
 grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "user setup creates the Crush lazy stub"
 grep -Fx "$ori_package ori" "$stub_log" >/dev/null || fail "user setup creates the Ori lazy stub"
+grep -Fx "$goose_package goose" "$stub_log" >/dev/null || fail "user setup creates the Goose lazy stub"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "user setup creates the Muse lazy stub"
 grep -Fx "$kimi_package kimi" "$stub_log" >/dev/null || fail "user setup creates the Kimi lazy stub"
 pass "user setup creates the custom agent lazy stubs"
@@ -173,6 +176,7 @@ source "$ROOT/install/user/mise.sh"
 grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null || fail "user setup recreates the Cursor CLI lazy stub"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "user setup recreates the Muse lazy stub"
 grep -Fx "$kimi_package kimi" "$stub_log" >/dev/null || fail "user setup recreates the Kimi lazy stub"
+grep -Fx "$goose_package goose" "$stub_log" >/dev/null || fail "user setup recreates the Goose lazy stub"
 pass "user setup recreates wrappers even when the commands are present"
 
 : >"$stub_log"
@@ -211,6 +215,19 @@ grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null || fail "Cursor CLI migr
 source "$ROOT/migrations/1788577553.sh" >/dev/null
 [[ ! -s $stub_log ]] || fail "Cursor CLI migration reinstalls an existing cursor-agent command"
 pass "Cursor CLI migration preserves an existing Cursor CLI install"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=goose source "$ROOT/migrations/1791415665.sh" >/dev/null
+grep -Fx "$goose_package goose" "$stub_log" >/dev/null || fail "Goose migration creates a working lazy stub"
+: >"$stub_log"
+source "$ROOT/migrations/1791415665.sh" >/dev/null
+[[ ! -s $stub_log ]] || fail "Goose migration replaces an existing goose command"
+mkdir -p "$test_home/.local/state/omarchy"
+touch "$test_home/.local/state/omarchy/preinstalls-removed"
+OMARCHY_TEST_MISSING_COMMAND=goose source "$ROOT/migrations/1791415665.sh" >/dev/null
+[[ ! -s $stub_log ]] || fail "Goose migration ignores the preinstall opt-out"
+rm "$test_home/.local/state/omarchy/preinstalls-removed"
+pass "Goose migration preserves existing installs and the preinstall opt-out"
 
 : >"$stub_log"
 source "$ROOT/migrations/1785846769.sh" >/dev/null
@@ -429,9 +446,10 @@ pass "agent migrations install working wrappers without overriding the preinstal
 
 "$ROOT/bin/omarchy-mise-install" "$muse_package" muse
 "$ROOT/bin/omarchy-mise-install" "$kimi_package" kimi
+"$ROOT/bin/omarchy-mise-install" "$goose_package" goose
 touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
 omarchy-remove-preinstalls >/dev/null
-for command in agy omp ori grok crush cursor-agent muse kimi; do
+for command in agy omp ori grok crush cursor-agent muse kimi goose; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
 done
 pass "Remove Preinstalls deletes every optional agent lazy stub"
@@ -450,6 +468,12 @@ omarchy-remove-preinstalls >/dev/null
 [[ $("$test_home/.local/bin/muse") == "user-muse" ]] || fail "Remove Preinstalls deletes a user-managed Muse"
 rm "$test_home/.local/bin/muse"
 pass "Remove Preinstalls keeps a user-managed Muse install"
+printf '#!/bin/bash\necho user-goose\n' >"$test_home/.local/bin/goose"
+chmod +x "$test_home/.local/bin/goose"
+omarchy-remove-preinstalls >/dev/null
+[[ $("$test_home/.local/bin/goose") == "user-goose" ]] || fail "Remove Preinstalls deletes a user-managed Goose"
+rm "$test_home/.local/bin/goose"
+pass "Remove Preinstalls keeps a user-managed Goose install"
 
 
 [[ -z $(omarchy-default-agent) ]] || fail "default agent is unset until one is chosen"
@@ -519,6 +543,7 @@ declare -A expected_agents=(
   [muse]="muse"
   [muse-code]="muse"
   [musecode]="muse"
+  [goose]="goose"
 )
 
 declare -A expected_packages=(
@@ -535,6 +560,7 @@ declare -A expected_packages=(
   [kimi]="$kimi_package"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
+  [goose]="$goose_package"
 )
 
 for selection in "${!expected_agents[@]}"; do
@@ -747,6 +773,18 @@ omarchy-default-agent muse
 rm "$test_home/.local/bin/muse"
 pass "selecting a user-installed Muse preserves its launcher"
 
+printf '#!/bin/bash\necho user-goose\n' >"$test_home/.local/bin/goose"
+chmod +x "$test_home/.local/bin/goose"
+: >"$mise_history"
+: >"$stub_log"
+: >"$terminal_log"
+omarchy-default-agent goose
+[[ $(omarchy-default-agent) == "goose" ]] || fail "a user-installed Goose can be selected"
+[[ ! -s $mise_history && ! -s $stub_log && ! -s $terminal_log ]] || fail "a user-installed Goose skips installation and wrapper creation"
+[[ $("$test_home/.local/bin/goose") == "user-goose" ]] || fail "a user-installed Goose is preserved"
+rm "$test_home/.local/bin/goose"
+pass "selecting a user-installed Goose preserves its launcher"
+
 rm "$mock_bin/omarchy-agent"
 hash -r
 
@@ -803,6 +841,7 @@ assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--qu
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
 assert_launch copilot copilot --allow-all --interactive "Review this project"
 assert_launch kimi kimi --prompt "Review this project"
+assert_launch goose env GOOSE_MODE=auto goose run --interactive "--text=Review this project"
 pass "agent launcher adapts initial prompts for every supported agent"
 
 literal_muse_prompt=$'--disable-sandbox !Crash {$(touch must-not-run)}\ntrailing\\ '
@@ -818,6 +857,13 @@ assert_launched hermes "binds its literal initial prompt" env -u HERMES_SESSION_
   hermes chat --yolo --tui "--query=$literal_hermes_prompt"
 pass "Hermes receives prompted launches as one literal query argument"
 
+literal_goose_prompt=$'-x --help !Crash {$(touch must-not-run)}\ntrailing\\ '
+printf '%s\n' "goose" >"$agent_file"
+omarchy-agent-prompt "$literal_goose_prompt"
+assert_launched goose "binds its literal initial prompt" env GOOSE_MODE=auto \
+  goose run --interactive "--text=$literal_goose_prompt"
+pass "Goose receives option-like prompts as one literal text argument"
+
 assert_bypass pi pi
 assert_bypass omp omp --auto-approve
 assert_bypass opencode opencode --auto
@@ -832,6 +878,7 @@ assert_bypass hermes hermes --yolo
 assert_bypass agy agy --dangerously-skip-permissions
 assert_bypass copilot copilot --allow-all
 assert_bypass kimi kimi --yolo
+assert_bypass goose env GOOSE_MODE=auto goose
 pass "agent launcher skips permission prompts for every supported agent"
 
 printf '%s\n' "opencode" >"$agent_file"

@@ -22,6 +22,7 @@ omarchy-mise-install github:basecamp/basecamp-cli basecamp
 omarchy-mise-install npm:cf cf
 omarchy-mise-install github:OpenRouterLabs/ori-releases ori
 omarchy-mise-install "http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]" muse
+omarchy-mise-install "github:aaif-goose/goose[matching=unknown-linux-gnu.tar]" goose
 
 # Build the account dispatchers declared by /etc/mise/conf.d.
 mise reshim
