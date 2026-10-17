@@ -96,6 +96,10 @@
   "agents.usageUnavailable": "Usage unavailable",
   "agents.use": "Use",
   "agents.waitingForAuth": "Waiting for auth",
+  "agents.weeklyAllowanceEstimate": {
+    "one": "≈ %1 token a week, estimated from all of this week's recorded use",
+    "other": "≈ %1 tokens a week, estimated from all of this week's recorded use"
+  },
   "agents.windowLimit": "Limit",
   "agents.windowMonthly": "Monthly",
   "agents.windowSession": "Session",
