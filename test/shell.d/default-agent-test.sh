@@ -112,6 +112,8 @@ done
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
+# A run from inside an agent session must not inherit its provider homes.
+unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_TEST_NOTIFICATION_HISTORY="$notification_history"
 export OMARCHY_TEST_AGENT_OPEN_LOG="$agent_open_log"
