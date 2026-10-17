@@ -7,6 +7,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 fix_t2="$ROOT/install/hardware/apple/fix-t2.sh"
 other_packages="$ROOT/install/omarchy-other.packages"
 migration="$ROOT/migrations/1785944594.sh"
+usbc_rule="$ROOT/default/udev/t2-usbc-hotplug.rules"
+usbc_migration="$ROOT/migrations/1788103577.sh"
 
 grep -Fq 'KERNEL_CMDLINE[default]+=" intel_iommu=on iommu=pt pm_async=off mem_sleep_default=deep"' "$fix_t2" ||
   fail "T2 setup installs the suspend kernel parameters"
@@ -24,6 +26,10 @@ grep -Fq 'apple-bcm-firmware-fetcher' "$fix_t2" ||
   fail "T2 setup installs the firmware fetcher"
 grep -Fq 'apple-bcm-firmware-fetcher' "$other_packages" ||
   fail "the default package list installs the firmware fetcher"
+grep -Fq 'default/udev/t2-usbc-hotplug.rules' "$fix_t2" ||
+  fail "T2 setup installs the USB-C hot-plug udev rule"
+grep -Fxq 'ACTION=="add|bind", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x15ec", ATTR{power/control}="on"' "$usbc_rule" ||
+  fail "the USB-C rule keeps the Titan Ridge host controllers out of runtime suspend on add and on bind"
 pass "fresh T2 setup uses t2bce-compatible suspend, fan, and Touch Bar defaults"
 
 test_tmp=$(mktemp -d)
@@ -83,6 +89,14 @@ cat >"$stub_bin/limine-mkinitcpio" <<'SH'
 #!/bin/bash
 
 echo 'limine-mkinitcpio' >>"$TEST_LOG"
+SH
+
+cat >"$stub_bin/udevadm" <<'SH'
+#!/bin/bash
+
+printf 'udevadm' >>"$TEST_LOG"
+printf '\t%s' "$@" >>"$TEST_LOG"
+printf '\n' >>"$TEST_LOG"
 SH
 
 chmod +x "$stub_bin"/*
@@ -216,3 +230,54 @@ grep -Fxq 'limine-mkinitcpio' "$calls" ||
   fail "T2 rerun migration rebuilds the boot image"
 [[ -f $repair_marker ]] || fail "T2 rerun migration records the machine-wide repair"
 pass "T2 rerun migration repairs installs the broken hardware check skipped"
+
+usbc_rule_target="$test_tmp/rules.d/99-omarchy-t2-usbc-hotplug.rules"
+rm -rf "$test_tmp/rules.d"
+: >"$calls"
+
+PATH="$stub_bin:$PATH" \
+  TEST_LOG="$calls" \
+  T2_HARDWARE=1 \
+  OMARCHY_PATH="$ROOT" \
+  OMARCHY_T2_USBC_RULE="$usbc_rule_target" \
+  bash -euo pipefail "$usbc_migration" >/dev/null
+
+cmp -s "$usbc_rule" "$usbc_rule_target" ||
+  fail "T2 USB-C migration installs the shipped udev rule"
+grep -Fq $'udevadm\tcontrol\t--reload' "$calls" ||
+  fail "T2 USB-C migration reloads udev rules"
+grep -Fq $'udevadm\ttrigger\t--action=add\t--subsystem-match=pci' "$calls" ||
+  fail "T2 USB-C migration applies the rule to the running controllers"
+pass "T2 USB-C migration keeps the ports awake on existing installs"
+
+: >"$calls"
+
+PATH="$stub_bin:$PATH" \
+  TEST_LOG="$calls" \
+  T2_HARDWARE=1 \
+  OMARCHY_PATH="$ROOT" \
+  OMARCHY_T2_USBC_RULE="$usbc_rule_target" \
+  bash -euo pipefail "$usbc_migration" >/dev/null
+
+# A run that copied the rule and then failed at the reload or the trigger is
+# retried with the file in place: the copy is skipped, the live steps are not.
+! grep -q $'sudo\tinstall' "$calls" || fail "a rule already in place is not copied again" "$(cat "$calls")"
+grep -Fq $'udevadm\tcontrol\t--reload' "$calls" ||
+  fail "a retry with the rule in place still reloads udev" "$(cat "$calls")"
+grep -Fq $'udevadm\ttrigger\t--action=add\t--subsystem-match=pci' "$calls" ||
+  fail "a retry with the rule in place still applies the rule to the running controllers" "$(cat "$calls")"
+pass "T2 USB-C migration repeats the live steps on a retry and only skips the copy"
+
+rm -rf "$test_tmp/rules.d"
+: >"$calls"
+
+PATH="$stub_bin:$PATH" \
+  TEST_LOG="$calls" \
+  T2_HARDWARE=0 \
+  OMARCHY_PATH="$ROOT" \
+  OMARCHY_T2_USBC_RULE="$usbc_rule_target" \
+  bash -euo pipefail "$usbc_migration" >/dev/null
+
+[[ ! -e $usbc_rule_target ]] || fail "non-T2 systems get no USB-C udev rule"
+[[ ! -s $calls ]] || fail "non-T2 systems skip the USB-C repair" "$(cat "$calls")"
+pass "T2 USB-C migration skips unrelated hardware"
