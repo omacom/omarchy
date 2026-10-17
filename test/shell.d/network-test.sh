@@ -277,6 +277,7 @@ assertEqual(network.networkFailureReason(reasons.WifiAuthTimeout, true, reasons)
 assertEqual(network.networkFailureReason(reasons.NoSecrets, false, reasons), 'Failed to connect', 'network gives passwordless missing-secret failures generic copy')
 assertEqual(network.networkFailureReason(reasons.WifiAuthTimeout, false, reasons), 'Failed to connect', 'network gives passwordless auth timeouts generic copy')
 assertEqual(network.networkFailureReason(99, true, reasons), 'Failed to connect', 'network maps unknown failures')
+assert(/text: row\.isFailed \? root\.failureReason : Commons\.I18n\.t\("network\.connecting"\)/.test(panelSource), 'network passphrase prompt shows the failure it recorded rather than always "Wrong password"')
 
 assertEqual(network.canForgetNetwork({ known: true, connected: false, security: security.Owe }), true, 'network can forget known disconnected OWE networks')
 assertEqual(network.canForgetNetwork({ known: true, connected: false, security: security.Open }), true, 'network can forget known disconnected open networks')
