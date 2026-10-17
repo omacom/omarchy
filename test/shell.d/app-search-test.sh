@@ -148,6 +148,11 @@ assert(
   'app library keeps owning an OSD a previous launch left on screen'
 )
 
+assert(
+  /duration:\s*launchTimeout\.interval/.test(appLibraryQml),
+  'app library launch OSD carries a finite duration so a missed close cannot stick forever'
+)
+
 const openMatch = menuQml.match(/function openExistingMenu\(initialMenu\) \{([\s\S]*?)\n  \}/)
 assert(openMatch, 'menu openExistingMenu function exists')
 assert(
