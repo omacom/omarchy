@@ -296,6 +296,16 @@ focus-border-width = "2 2 2 4"
 
 Set a border width to `0` to keep the fill but remove that state border.
 
+### Lock field size
+
+The lock screen's password field is 381×67 px by default. Themes can resize it in `[lock]`:
+
+```toml
+[lock]
+field-width  = 300
+field-height = 52
+```
+
 ### Surface sections
 
 Common shell sections include:

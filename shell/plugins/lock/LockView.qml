@@ -26,8 +26,10 @@ Item {
   property bool syncingPasswordText: false
 
   readonly property string placeholderText: Commons.I18n.t("lock.enterPassword")
-  readonly property int fieldWidth: 381
-  readonly property int fieldHeight: 67
+  // Themes can size the password field with `[lock] field-width` and
+  // `field-height` in shell.toml; without them it keeps its 381x67 default.
+  readonly property int fieldWidth: lockSize("field-width", 381)
+  readonly property int fieldHeight: lockSize("field-height", 67)
   readonly property int outlineThickness: 3
   readonly property int fieldFontSize: Math.round(Style.font.heading * 1.125)
   readonly property int passwordDotFontSize: Math.round(Style.font.heading * 1.33)
@@ -48,6 +50,11 @@ Item {
 
   readonly property bool video: Util.isVideoPath(root.backgroundPath)
   readonly property bool feedActive: root.video && root.loadBackground && !root.displaysBlank && !root.powerSaverActive
+
+  function lockSize(key, fallback) {
+    var n = Number(Commons.Color.shellValues["lock." + key])
+    return (isFinite(n) && n > 0) ? Math.round(n) : fallback
+  }
 
   signal submitPassword(string password)
   signal passwordTextEdited(string password)
