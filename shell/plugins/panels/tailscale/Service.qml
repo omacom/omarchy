@@ -136,6 +136,7 @@ Item {
 
   function canSendFiles(peer) {
     if (!fileSharing || !running || !peer) return false
+    if (peer.Online !== true) return false
     return Model.isTaildropTarget(peer, selfUserId)
   }
 
