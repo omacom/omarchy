@@ -13,7 +13,7 @@ test_run_id="test-$BASHPID-$RANDOM"
 update_lock_name="omarchy-update-$test_run_id.lock"
 stay_awake_dir_name="omarchy-update-stay-awake-$test_run_id"
 trap 'rm -rf -- "$runtime_dir/$stay_awake_dir_name"; rm -f -- "$runtime_dir/$update_lock_name"; rm -rf -- "$boundary_tmp"' EXIT
-for command in omarchy-update omarchy-update-lock omarchy-update-stay-awake; do
+for command in omarchy-update omarchy-update-lock omarchy-lock-dir omarchy-update-stay-awake; do
   rm -f "$SUDO_TEST_ROOT/bin/$command"
   copy_boundary_file "bin/$command"
 done
