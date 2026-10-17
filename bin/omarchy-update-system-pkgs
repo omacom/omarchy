@@ -5,6 +5,8 @@
 
 set -e
 
+omarchy-update-verify-package-database
+
 # The conflict handler's last resort: pacman puts its questions to the person
 # running the update instead of answering them itself. Nothing here may capture
 # a stream, because an upgrade without --noconfirm prompts on stderr. The
