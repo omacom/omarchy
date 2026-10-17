@@ -149,6 +149,14 @@ assertDeepEqual(
 const defaultItems = menu.parseMenuJsonc(defaultMenuJsonc)
 const defaultById = Object.fromEntries(defaultItems.map(item => [item.id, item]))
 
+// bitwarden-cli drags in a Node.js that conflicts with an installed nodejs, so
+// it must not share a transaction with the desktop app (#12726).
+assertEqual(
+  defaultById['install.service.bitwarden'].action,
+  'omarchy-launch-floating-terminal-with-presentation omarchy-install-service-bitwarden',
+  'menu installs Bitwarden through the installer that keeps the CLI separate'
+)
+
 // Needs the real menu: app rows sort after all menu items, and only at that
 // item count does the order tiebreak alone bury an installed app.
 const rankBase = menu.mergeMenuSources(defaultItems, [])
