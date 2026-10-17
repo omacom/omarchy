@@ -52,8 +52,21 @@ fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
 # and anything resolving "monospace" all read from here. This file is loaded
-# after the package-owned default, and prepend_first puts the chosen family at
-# the head of the list so it wins over the family that default prefers.
+# after the package-owned default assigns its monospace family, so matching
+# qual=any on "monospace" also captures explicit mono-family requests once
+# 48-guessfamily.conf has appended that generic. Match the first family
+# against the packaged default instead; prepend_first then only remaps true
+# generic monospace patterns.
+default_mono_conf="${OMARCHY_PATH:-/usr/share/omarchy}/default/fontconfig/conf.avail/50-omarchy.conf"
+default_mono_family="JetBrainsMono Nerd Font"
+if [[ -r $default_mono_conf ]]; then
+  extracted=$(
+    sed -n '/<string>monospace<\/string>/,/\/match>/s|.*<string>\([^<]*\)</string>.*|\1|p' "$default_mono_conf" |
+      sed -n '2p'
+  )
+  [[ -n $extracted ]] && default_mono_family=$extracted
+fi
+
 fontconfig_file="$HOME/.config/fontconfig/fonts.conf"
 mkdir -p "$(dirname "$fontconfig_file")"
 cat >"$fontconfig_file" <<XML
@@ -61,8 +74,8 @@ cat >"$fontconfig_file" <<XML
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
   <match target="pattern">
-    <test name="family" qual="any">
-      <string>monospace</string>
+    <test name="family" qual="first" compare="eq">
+      <string>$default_mono_family</string>
     </test>
     <edit name="family" mode="prepend_first" binding="strong">
       <string>$font_name</string>
