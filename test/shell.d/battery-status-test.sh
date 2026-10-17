@@ -158,6 +158,135 @@ danish_time=$(OMARCHY_LANGUAGE_FILE="$tmp_dir/language" OMARCHY_POWER_SUPPLY_PAT
 grep -Fx $'time\t1 t 30 min' <<<"$danish_time" >/dev/null || fail "battery status durations follow the Omarchy language" "$danish_time"
 pass "battery status reads in the Omarchy language"
 
+# Several packs: UPower serves one file per device from $multi_dir/upower.
+multi_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$hold_dir" "$multi_dir"' EXIT
+mkdir -p "$multi_dir/bin" "$multi_dir/upower" "$multi_dir/power/BAT0" "$multi_dir/power/BAT1" "$multi_dir/power/ac"
+printf 'Mains\n' >"$multi_dir/power/ac/type"
+printf '1\n' >"$multi_dir/power/ac/online"
+printf '321\n' >"$multi_dir/power/BAT0/cycle_count"
+printf '27\n' >"$multi_dir/power/BAT1/cycle_count"
+cat >"$multi_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  for file in "$UPOWER_DIR"/battery_*; do echo "/org/freedesktop/UPower/devices/${file##*/}"; done
+  exit 0
+fi
+
+[[ $1 == "-i" && -r $UPOWER_DIR/${2##*/} ]] || exit 1
+
+# upower prints a decimal comma outside the C locale.
+if [[ $LC_ALL == "C" ]]; then
+  cat "$UPOWER_DIR/${2##*/}"
+else
+  sed 's/\([0-9]\)\.\([0-9]\)/\1,\2/g' "$UPOWER_DIR/${2##*/}"
+fi
+STUB
+chmod +x "$multi_dir/bin/upower"
+
+# Writes a UPower device: name, state, percentage, energy, energy-full, rate.
+upower_device() {
+  printf '  native-path:          %s\n  power supply:         yes\n  state:                %s\n  percentage:           %s%%\n  energy:               %s Wh\n  energy-full:          %s Wh\n  energy-rate:          %s W\n' "$@" >"$multi_dir/upower/battery_$1"
+}
+
+multi_status() {
+  UPOWER_DIR="$multi_dir/upower" OMARCHY_POWER_SUPPLY_PATH="$multi_dir/power" PATH="$multi_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" "$@"
+}
+
+upower_device BAT0 discharging 50 10 20 4
+upower_device BAT1 discharging 70 35 50 6
+upower_device DisplayDevice discharging 64.2 45 70 10
+printf '  time to empty:        4.2 hours\n' >>"$multi_dir/upower/battery_DisplayDevice"
+mv "$multi_dir/upower/battery_DisplayDevice" "$multi_dir/upower/DisplayDevice"
+printf '0\n' >"$multi_dir/power/ac/online"
+output=$(multi_status --shell)
+grep -Fx $'percentage\t64%' <<<"$output" >/dev/null || fail "two packs report UPower's combined charge" "$output"
+grep -Fx $'size\t70Wh' <<<"$output" >/dev/null || fail "two packs report their combined size" "$output"
+grep -Fx $'time\t4h 30m' <<<"$output" >/dev/null || fail "two packs work the time left out from the draw they show" "$output"
+grep -Fx $'rate\t10W' <<<"$output" >/dev/null || fail "two packs report the combined rate" "$output"
+grep -Fx $'pack.0.path\tBAT0' <<<"$output" >/dev/null || fail "each pack is listed" "$output"
+grep -Fx $'pack.1.cycles\t27' <<<"$output" >/dev/null || fail "each pack has its own cycle count" "$output"
+if grep -q '^cycles' <<<"$output"; then fail "two packs have no single cycle count" "$output"; fi
+[[ $(multi_status) == "Battery 64%  ·  4h 30m left  ·  "*"10W"*"/"*"70Wh" ]] || fail "two packs keep the familiar summary" "$(multi_status)"
+danish_multi=$(OMARCHY_LANGUAGE_FILE="$tmp_dir/language" multi_status --shell)
+grep -Fx $'time\t4 t 30 min' <<<"$danish_multi" >/dev/null || fail "two packs' time follows the Omarchy language" "$danish_multi"
+pass "battery status describes two packs together"
+
+# A dead pack: no energy, no flow and no cell voltage. UPower still counts it.
+upower_device BAT0 unknown 0 0 20 0
+printf '0\n' >"$multi_dir/power/BAT0/voltage_now"
+printf '11400000\n' >"$multi_dir/power/BAT1/voltage_now"
+printf '  time to empty:        5.8 hours\n' >>"$multi_dir/upower/battery_BAT1"
+upower_device DisplayDevice discharging 49 35 70 6
+mv "$multi_dir/upower/battery_DisplayDevice" "$multi_dir/upower/DisplayDevice"
+output=$(multi_status --shell)
+grep -Fx $'percentage\t70%' <<<"$output" >/dev/null || fail "a dead pack does not drag the charge down" "$output"
+grep -Fx $'size\t50Wh' <<<"$output" >/dev/null || fail "a dead pack does not add capacity" "$output"
+grep -Fx $'time\t5h 50m' <<<"$output" >/dev/null || fail "the live pack's time is used" "$output"
+pass "battery status leaves a dead pack out"
+
+# Drained flat, but the cells still show a voltage: only drained, not dead.
+printf '10900000\n' >"$multi_dir/power/BAT0/voltage_now"
+output=$(multi_status --shell)
+grep -Fx $'percentage\t49%' <<<"$output" >/dev/null || fail "a drained pack still counts" "$output"
+pass "battery status keeps a drained pack"
+
+# Both packs at their 75-80% limits on AC are holding.
+printf '1\n' >"$multi_dir/power/ac/online"
+printf '75\n' >"$multi_dir/power/BAT0/charge_control_start_threshold"
+printf '80\n' >"$multi_dir/power/BAT0/charge_control_end_threshold"
+printf '75\n' >"$multi_dir/power/BAT1/charge_control_start_threshold"
+printf '80\n' >"$multi_dir/power/BAT1/charge_control_end_threshold"
+upower_device BAT0 pending-charge 77 15.4 20 0
+upower_device BAT1 pending-charge 79 39.5 50 0
+upower_device DisplayDevice pending-charge 78.4 54.9 70 0
+mv "$multi_dir/upower/battery_DisplayDevice" "$multi_dir/upower/DisplayDevice"
+output=$(multi_status --shell)
+grep -Fx $'state\tholding' <<<"$output" >/dev/null || fail "packs at their limits are holding" "$output"
+grep -Fx $'threshold\t75-80%' <<<"$output" >/dev/null || fail "the limit is reported" "$output"
+[[ $(multi_status) == "Battery 78%  ·  Holding at 75-80%  ·  0W"*"/"*"70Wh" ]] || fail "holding keeps the familiar summary" "$(multi_status)"
+
+# Packs held at different limits share none to report.
+printf '60\n' >"$multi_dir/power/BAT1/charge_control_start_threshold"
+printf '70\n' >"$multi_dir/power/BAT1/charge_control_end_threshold"
+upower_device BAT1 pending-charge 69 34.5 50 0
+upower_device DisplayDevice pending-charge 71.3 49.9 70 0
+mv "$multi_dir/upower/battery_DisplayDevice" "$multi_dir/upower/DisplayDevice"
+output=$(multi_status --shell)
+grep -Fx $'state\tholding' <<<"$output" >/dev/null || fail "packs at different limits are holding" "$output"
+if grep -q '^threshold' <<<"$output"; then fail "different limits report no shared limit" "$output"; fi
+grep -Fx $'pack.1.thresholdEnd\t70' <<<"$output" >/dev/null || fail "each pack keeps its own limit" "$output"
+[[ $(multi_status) == "Battery 71%  ·  Holding  ·  0W"*"/"*"70Wh" ]] || fail "holding without a shared limit names none" "$(multi_status)"
+printf '75\n' >"$multi_dir/power/BAT1/charge_control_start_threshold"
+printf '80\n' >"$multi_dir/power/BAT1/charge_control_end_threshold"
+pass "battery status reports a charge limit only when the packs share one"
+
+# One pack waiting below its limit while the other charges is not holding.
+upower_device BAT0 pending-charge 60 12 20 0
+upower_device BAT1 charging 50 25 50 20
+upower_device DisplayDevice charging 52.9 37 70 20
+mv "$multi_dir/upower/battery_DisplayDevice" "$multi_dir/upower/DisplayDevice"
+output=$(multi_status --shell)
+grep -Fx $'state\tcharging' <<<"$output" >/dev/null || fail "a pack waiting for its turn is not holding" "$output"
+grep -Fx $'time\t57m' <<<"$output" >/dev/null || fail "time to full counts each pack up to its own limit" "$output"
+
+# A pack held at its limit takes no more charge while the other fills.
+upower_device BAT0 pending-charge 77 15.4 20 0
+output=$(multi_status --shell)
+grep -Fx $'state\tcharging' <<<"$output" >/dev/null || fail "a pack held at its limit beside a charging one is not holding" "$output"
+grep -Fx $'time\t45m' <<<"$output" >/dev/null || fail "time to full skips a pack already held at its limit" "$output"
+pass "battery status reports holding only when every pack is at its limit"
+
+# An empty bay lists a battery with no capacity; the machine has one pack,
+# and the headline describes it even when the bay is listed first.
+upower_device BAT0 unknown 0 0 0 0
+output=$(multi_status --shell)
+if grep -q '^pack\.' <<<"$output"; then fail "an empty bay is not a pack" "$output"; fi
+grep -Fx $'percentage\t50%' <<<"$output" >/dev/null || fail "the fitted pack supplies the headline" "$output"
+grep -Fx $'size\t50Wh' <<<"$output" >/dev/null || fail "the fitted pack supplies the size" "$output"
+pass "battery status ignores an empty bay"
+
 if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
   fail "battery status owns capacity and remaining calculations" "$matches"
 fi

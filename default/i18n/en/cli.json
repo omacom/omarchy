@@ -32,6 +32,7 @@
   "battery.durationHours": "%1h",
   "battery.durationHoursMinutes": "%1h %2m",
   "battery.durationMinutes": "%1m",
+  "battery.holding": "Holding",
   "battery.holdingAt": "Holding at %1",
   "battery.lowBody": "Battery is down to %1%",
   "battery.lowTitle": "Time to recharge!",

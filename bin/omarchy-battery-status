@@ -38,18 +38,35 @@ format_duration() {
 # UPower names the device after the sysfs entry, and only some kernels call
 # that BAT*: Apple Silicon reports battery_macsmc_battery. Match on the class,
 # then take the first one that powers the machine: a wireless mouse or keyboard
-# is a battery_ device too, and UPower marks it "power supply: no".
+# is a battery_ device too, and UPower marks it "power supply: no". Keep
+# looking past the first, because a laptop can have several packs; an empty
+# bay lists a battery with no capacity, which is not a pack, and it can come
+# first, so the headline follows the first pack that has some.
 battery=""
 battery_info=""
+fallback=""
+fallback_info=""
+pack_infos=()
 while read -r candidate; do
   [[ -n $candidate ]] || continue
-  candidate_info=$(upower -i "$candidate" 2>/dev/null) || continue
+  candidate_info=$(LC_ALL=C upower -i "$candidate" 2>/dev/null) || continue
   if grep -qE '^\s*power supply:\s+yes' <<<"$candidate_info"; then
-    battery=$candidate
-    battery_info=$candidate_info
-    break
+    if awk '/energy-full:/ { exit !($2 > 0) }' <<<"$candidate_info"; then
+      pack_infos+=("$candidate_info")
+      if [[ -z $battery ]]; then
+        battery=$candidate
+        battery_info=$candidate_info
+      fi
+    elif [[ -z $fallback ]]; then
+      fallback=$candidate
+      fallback_info=$candidate_info
+    fi
   fi
 done < <(upower -e 2>/dev/null | grep '/battery_')
+if [[ -z $battery ]]; then
+  battery=$fallback
+  battery_info=$fallback_info
+fi
 [[ -z $battery ]] && exit 0
 
 percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
@@ -138,6 +155,183 @@ if [[ $ac_online == "true" && -n $threshold_end ]]; then
   fi
 fi
 
+# With several packs, describe them together and list each one. UPower's
+# display device already sums them, but it keeps counting a dead pack's
+# capacity, so when only one pack still holds charge, describe that one.
+pack_lines=""
+if (( ${#pack_infos[@]} > 1 )); then
+  combined=$(
+    {
+      printf '@display\n'
+      LC_ALL=C upower -i /org/freedesktop/UPower/devices/DisplayDevice 2>/dev/null
+      printf '@pack\n%s\n' "${pack_infos[@]}"
+    } | awk -v supply_path="$power_supply_path" -v ac_online="$ac_online" '
+      function measure(value, parts) {
+        split(value, parts, /[ %]/)
+        return parts[1] ~ /^-?[0-9]+([.][0-9]+)?$/ ? parts[1] + 0 : ""
+      }
+
+      function read_value(path, value, result) {
+        result = (getline value < path)
+        close(path)
+        return result > 0 ? value : ""
+      }
+
+      function kernel_rate(path, power, current, voltage) {
+        power = read_value(path "power_now")
+        if (power ~ /^-?[0-9]+$/) return (power < 0 ? -power : power) / 1000000
+        current = read_value(path "current_now")
+        voltage = read_value(path "voltage_now")
+        if (current ~ /^-?[0-9]+$/ && voltage ~ /^[0-9]+$/) return (current < 0 ? -current : current) * voltage / 1000000000000
+        return ""
+      }
+
+      function upower_hours(value, parts) {
+        split(value, parts, " ")
+        if (parts[2] ~ /^minute/) return parts[1] / 60
+        if (parts[2] ~ /^hour/) return parts[1] + 0
+        return ""
+      }
+
+      # A pack that stores no energy and moves none is dead or disconnected,
+      # unless it still shows a cell voltage: then it is only drained.
+      function holds_charge(i) {
+        if (voltage[i] != "" && voltage[i] > 1) return 1
+        return !(energy[i] != "" && energy[i] <= 0 && !(rate[i] > 0))
+      }
+
+      # Firmware will not charge a pack sitting at or above its start
+      # threshold, and often stops a percent short of an end-only one. Some
+      # keeps reporting charging at a trickle once it reaches the end.
+      function at_limit(i, charging) {
+        charging = state[i] == "charging"
+        if (!charging && state[i] != "pending-charge" && state[i] != "fully-charged") return 0
+        if (rate[i] > 0.2 || !(end[i] > 0 && end[i] < 100)) return 0
+        if (state[i] == "fully-charged" && percentage[i] >= 99) return 0
+        if (charging) return percentage[i] >= end[i]
+        return percentage[i] >= (start[i] > 0 && start[i] < end[i] ? start[i] : end[i] - 1)
+      }
+
+      /^@display$/ { section = "display"; next }
+      /^@pack$/ { section = ++count; next }
+      match($0, /^[[:space:]]*[a-z -]+:/) {
+        key = substr($0, RSTART, RLENGTH - 1)
+        sub(/^[[:space:]]+/, "", key)
+        value = substr($0, RSTART + RLENGTH)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        data[section, key] = value
+      }
+
+      END {
+        for (i = 1; i <= count; i++) {
+          name[i] = data[i, "native-path"]
+          sub(/^.*\//, "", name[i])
+          path = supply_path "/" name[i] "/"
+          state[i] = data[i, "state"]
+          percentage[i] = measure(data[i, "percentage"])
+          energy[i] = measure(data[i, "energy"])
+          full[i] = measure(data[i, "energy-full"])
+          rate[i] = measure(data[i, "energy-rate"])
+          kernel[i] = kernel_rate(path)
+          voltage[i] = read_value(path "voltage_now")
+          voltage[i] = voltage[i] ~ /^[0-9]+$/ ? sprintf("%.2f", voltage[i] / 1000000) + 0 : ""
+          cycles[i] = read_value(path "cycle_count")
+          # The kernel holds the limit in force; UPower can report a preset.
+          start[i] = read_value(path "charge_control_start_threshold")
+          end[i] = read_value(path "charge_control_end_threshold")
+          if (start[i] == "") start[i] = measure(data[i, "charge-start-threshold"])
+          if (end[i] == "") end[i] = measure(data[i, "charge-end-threshold"])
+          if (holds_charge(i)) live[++live_count] = i
+        }
+
+        source = live_count == 1 ? live[1] : "display"
+        pct = measure(data[source, "percentage"])
+        size = measure(data[source, "energy-full"])
+        upower_rate = measure(data[source, "energy-rate"])
+        now = data[source, "state"]
+        if (live_count == 1) headline[headline_count = 1] = live[1]
+        else for (n = 1; n <= count; n++) headline[++headline_count] = n
+
+        # UPower lags the kernel by tens of seconds, so use the kernel readings
+        # when every pack has one.
+        watts = 0
+        for (n = 1; n <= headline_count; n++) {
+          if (kernel[headline[n]] == "") break
+          watts += kernel[headline[n]]
+        }
+        if (n <= headline_count) watts = upower_rate
+
+        # As with one pack, time left is the energy left over the draw shown
+        # beside it; charging counts each pack up to its own limit, and a pack
+        # already held at its limit takes no more. The UPower estimate stands in
+        # when a reading is missing or the draw is negligible.
+        left = 0
+        for (n = 1; n <= headline_count; n++) {
+          i = headline[n]
+          if (energy[i] == "" || full[i] == "") break
+          if (now != "charging") gap = energy[i]
+          else if (at_limit(i)) gap = 0
+          else gap = full[i] * (end[i] > 0 ? end[i] : 100) / 100 - energy[i]
+          left += gap > 0 ? gap : 0
+        }
+        if (n > headline_count && watts > 0.2) hours = left / watts
+        else hours = upower_hours(data[source, now == "charging" ? "time to full" : "time to empty"])
+
+        # One pack still filling means the machine is charging, not holding.
+        # Packs held at different limits share none worth naming; each pack
+        # line carries its own.
+        holding = "false"
+        shared = 1
+        if (ac_online == "true") {
+          for (n = 1; n <= live_count; n++) {
+            i = live[n]
+            if (at_limit(i)) {
+              if (holding == "false") limit = i
+              else if (start[i] != start[limit] || end[i] != end[limit]) shared = 0
+              holding = "true"
+            } else if (state[i] != "fully-charged") {
+              holding = "false"
+              break
+            }
+          }
+        }
+
+        rounded = sprintf("%.1f", watts)
+        sub(/\.0$/, "", rounded)
+        printf "percentage\t%s\n", pct != "" ? int(pct) : ""
+        printf "capacity\t%d\n", size
+        printf "minutes_remaining\t%s\n", (hours == "" || hours <= 0) ? "" : int(hours * 60 + 0.5)
+        printf "power_rate\t%s\n", rounded
+        printf "state\t%s\n", now
+        printf "charge_holding\t%s\n", holding
+        printf "threshold_start\t%s\n", holding == "true" && shared ? start[limit] : ""
+        printf "threshold_end\t%s\n", holding == "true" && shared ? end[limit] : ""
+        for (i = 1; i <= count; i++) {
+          printf "pack.%d.path\t%s\n", i - 1, name[i]
+          printf "pack.%d.cycles\t%s\n", i - 1, cycles[i]
+          printf "pack.%d.thresholdStart\t%s\n", i - 1, start[i]
+          printf "pack.%d.thresholdEnd\t%s\n", i - 1, end[i]
+          printf "pack.%d.voltage\t%s\n", i - 1, voltage[i]
+        }
+      }
+    '
+  )
+
+  while IFS=$'\t' read -r key value; do
+    case $key in
+      percentage) percentage=$value ;;
+      capacity) capacity=$value ;;
+      minutes_remaining) time_remaining=$(format_duration "$value") ;;
+      power_rate) power_rate=$value ;;
+      state) state=$value ;;
+      charge_holding) charge_holding=$value ;;
+      threshold_start) threshold_start=$value ;;
+      threshold_end) threshold_end=$value ;;
+      pack.*) pack_lines+="$key"$'\t'"$value"$'\n' ;;
+    esac
+  done <<<"$combined"
+fi
+
 if [[ $shell_output == "true" ]]; then
   printf 'percentage\t%s\n' "${percentage}%"
   if [[ $charge_holding == "true" ]]; then
@@ -153,6 +347,8 @@ if [[ $shell_output == "true" ]]; then
   [[ ! -r $battery_path/cycle_count ]] || cycles=$(<"$battery_path/cycle_count")
   [[ -n $cycles ]] || cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
 
+  # Each pack's count is listed below; a single number would mislead.
+  [[ -n $pack_lines ]] && cycles=""
   [[ -n $cycles ]] && printf 'cycles\t%s\n' "$cycles"
 
   if [[ -n $threshold_end ]]; then
@@ -163,6 +359,7 @@ if [[ $shell_output == "true" ]]; then
     fi
   fi
 
+  printf '%s' "$pack_lines"
   exit 0
 fi
 
@@ -170,13 +367,18 @@ fi
 power_reading="$(omarchy-i18n --number "$power_rate")W / $(omarchy-i18n --number "$capacity")Wh"
 
 if [[ $charge_holding == "true" ]]; then
-  if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then
-    threshold_label="$(omarchy-i18n --number "$threshold_start")-$(omarchy-i18n --number "$threshold_end")%"
+  if [[ -z $threshold_end ]]; then
+    holding_label=$(omarchy-i18n battery.holding)
   else
-    threshold_label="$(omarchy-i18n --number "$threshold_end")%"
+    if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then
+      threshold_label="$(omarchy-i18n --number "$threshold_start")-$(omarchy-i18n --number "$threshold_end")%"
+    else
+      threshold_label="$(omarchy-i18n --number "$threshold_end")%"
+    fi
+    holding_label=$(omarchy-i18n battery.holdingAt "$threshold_label")
   fi
 
-  echo "$(omarchy-i18n battery.statusLabel "$percentage")  ·  $(omarchy-i18n battery.holdingAt "$threshold_label")  ·  ${power_reading}"
+  echo "$(omarchy-i18n battery.statusLabel "$percentage")  ·  ${holding_label}  ·  ${power_reading}"
 elif [[ $state == "charging" ]]; then
   echo "$(omarchy-i18n battery.statusLabel "$percentage")  ·  $(omarchy-i18n battery.toFull "$time_remaining")  ·   ${power_reading}"
 else

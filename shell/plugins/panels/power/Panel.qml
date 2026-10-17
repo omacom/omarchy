@@ -20,6 +20,18 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
+  // -1 leaves the keyboard cursor on the profiles.
+  property int batteryIndex: -1
+  property string expandedBattery: ""
+  readonly property var batteryPacks: Model.laptopDevices(UPower.devices ? UPower.devices.values : [])
+  readonly property bool multiBattery: batteryPacks.length > 1
+  readonly property string batteryNames: batteryPacks.map(Model.deviceName).join(" ")
+  readonly property string batteryStates: batteryPacks.map(function(pack) { return pack.state }).join(" ")
+  readonly property var batteryMetadata: Model.parsePackMetadata(batteryInfo)
+  // UPower's display device, unless a dead pack would drag it down.
+  readonly property var device: multiBattery
+    ? Model.combinedBattery(batteryPacks, UPower.displayDevice, batteryMetadata)
+    : UPower.displayDevice
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
@@ -35,12 +47,32 @@ Panel {
       Charging: UPowerDeviceState.Charging,
       Discharging: UPowerDeviceState.Discharging,
       FullyCharged: UPowerDeviceState.FullyCharged,
-      PendingCharge: UPowerDeviceState.PendingCharge
+      PendingCharge: UPowerDeviceState.PendingCharge,
+      PendingDischarge: UPowerDeviceState.PendingDischarge,
+      Empty: UPowerDeviceState.Empty
     }
   }
 
   function selectProfileByDelta(delta) {
     profileIndex = Model.selectProfileIndex(profileIndex, delta, profiles)
+  }
+
+  // Returns false to let the profile row handle the move.
+  function moveBatteryCursor(dx, dy) {
+    if (!multiBattery) return false
+    if (batteryIndex < 0) {
+      if (dy >= 0) return false
+      batteryIndex = batteryPacks.length - 1
+    } else if (dy !== 0) {
+      var next = batteryIndex + dy
+      batteryIndex = next >= batteryPacks.length ? -1 : Math.max(0, next)
+    }
+    return true
+  }
+
+  function toggleBatteryDetails(index) {
+    var name = Model.deviceName(batteryPacks[index])
+    expandedBattery = expandedBattery === name ? "" : name
   }
 
   function activateSelectedProfile() {
@@ -49,13 +81,13 @@ Panel {
   }
 
   function batteryIcon() {
-    var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    var device = root.device
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.multiBattery ? root.chargeThresholdActive : undefined)
   }
 
   function modeLabel() {
-    var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t)
+    var device = root.device
+    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.multiBattery ? root.chargeThresholdActive : undefined)
   }
 
   function profileIcon(name) {
@@ -63,7 +95,7 @@ Panel {
   }
 
   readonly property bool fullyCharged: {
-    var device = UPower.displayDevice
+    var device = root.device
     return device && device.isPresent && device.state === UPowerDeviceState.FullyCharged && !root.chargeThresholdActive
   }
   readonly property bool discharging: {
@@ -71,6 +103,7 @@ Panel {
     return !!(device && device.isPresent && UPower.onBattery)
   }
   readonly property bool chargeThresholdActive: {
+    if (root.multiBattery) return Model.chargeThresholdActiveForPacks(root.batteryPacks, root.discharging, upowerStates(), root.batteryMetadata)
     var device = UPower.displayDevice
     return Model.chargeThresholdActive(device, root.discharging, upowerStates())
   }
@@ -79,7 +112,7 @@ Panel {
 
   // 0..1 charge level, used by the visual progress bar.
   readonly property real batteryFraction: {
-    var d = UPower.displayDevice
+    var d = root.device
     return Model.batteryFraction(d)
   }
 
@@ -206,10 +239,28 @@ Panel {
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
       cursorActive = false
+      batteryIndex = -1
+      expandedBattery = ""
     }
   }
 
   onBatteryPresentChanged: if (!batteryPresent) close()
+
+  // The bar needs each pack's cell voltage to tell a drained pack from a dead
+  // one, and its charge limits to tell holding from charging. A changed limit
+  // shows in the bar only once a pack stops or resumes charging, so reload the
+  // metadata when the packs or their states change, even while closed.
+  function loadPackMetadata() {
+    if (multiBattery && batteryPresent && !batteryProc.running) batteryProc.running = true
+  }
+
+  onBatteryNamesChanged: {
+    batteryIndex = -1
+    expandedBattery = ""
+    loadPackMetadata()
+  }
+
+  onBatteryStatesChanged: loadPackMetadata()
 
   visible: batteryPresent
   implicitWidth: batteryPresent ? button.implicitWidth : 0
@@ -315,10 +366,15 @@ Panel {
       implicitHeight: column.implicitHeight
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
+        if (root.moveBatteryCursor(dx, dy)) return
         if (dx !== 0) root.selectProfileByDelta(dx)
         else if (dy !== 0) root.selectProfileByDelta(dy)
       }
-      onActivateRequested: if (root.cursorActive) root.activateSelectedProfile()
+      onActivateRequested: {
+        if (!root.cursorActive) return
+        if (root.batteryIndex >= 0) root.toggleBatteryDetails(root.batteryIndex)
+        else root.activateSelectedProfile()
+      }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -446,7 +502,7 @@ Panel {
             width: (parent.width - parent.spacing) / 2
             spacing: Style.spacing.labelGap
             InfoPair { label: Commons.I18n.t("power.batterySize"); value: root.reading(root.batteryInfo.size) }
-            InfoPair { label: Commons.I18n.t("power.chargeCycles"); value: root.reading(root.batteryInfo.cycles) || "—" }
+            InfoPair { visible: !root.multiBattery; label: Commons.I18n.t("power.chargeCycles"); value: root.reading(root.batteryInfo.cycles) || "—" }
           }
 
           Column {
@@ -459,6 +515,78 @@ Panel {
             InfoPair {
               label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
               value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
+            }
+          }
+        }
+
+        // ---------- Batteries ----------
+        Column {
+          visible: root.multiBattery
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSeparator {
+            foreground: root.bar.foreground
+          }
+
+          PanelSectionHeader {
+            text: Commons.I18n.t("power.batteries")
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          Repeater {
+            model: root.multiBattery ? root.batteryPacks : []
+
+            Column {
+              id: batteryRow
+              required property var modelData
+              required property int index
+              readonly property string name: Model.deviceName(modelData)
+              readonly property var metadata: root.batteryMetadata[name] || ({})
+              readonly property bool expanded: root.expandedBattery === name
+              width: parent.width
+              spacing: Style.spacing.labelGap
+
+              Button {
+                width: parent.width
+                implicitHeight: summary.implicitHeight + Style.space(8)
+                foreground: root.bar.foreground
+                hasCursor: root.cursorActive && root.batteryIndex === batteryRow.index
+                onClicked: {
+                  root.batteryIndex = batteryRow.index
+                  root.toggleBatteryDetails(batteryRow.index)
+                }
+                onHovered: function(h) {
+                  if (h) {
+                    root.cursorActive = true
+                    root.batteryIndex = batteryRow.index
+                  }
+                }
+
+                InfoPair {
+                  id: summary
+                  x: Style.space(8)
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: parent.width - Style.space(16)
+                  label: (batteryRow.expanded ? "󰅀 " : (Commons.I18n.rightToLeft ? "󰅁 " : "󰅂 ")) + batteryRow.name
+                  value: Model.packSummary(batteryRow.modelData, root.discharging, root.upowerStates(), batteryRow.metadata, Commons.I18n.t, Commons.I18n.formatNumber)
+                }
+              }
+
+              Column {
+                visible: batteryRow.expanded
+                x: Style.space(8)
+                width: parent.width - Style.space(16)
+                spacing: Style.spacing.labelGap
+                InfoPair { label: Commons.I18n.t("power.batterySize"); value: Commons.I18n.formatNumber(Math.floor(batteryRow.modelData.energyCapacity)) + "Wh" }
+                InfoPair { label: Commons.I18n.t("power.chargeCycles"); value: root.reading(batteryRow.metadata.cycles) || "—" }
+                InfoPair {
+                  visible: Number(batteryRow.metadata.thresholdEnd) > 0 && Number(batteryRow.metadata.thresholdEnd) < 100
+                  label: Commons.I18n.t("power.chargeLimit")
+                  value: root.reading(Model.formatThreshold(batteryRow.metadata))
+                }
+              }
             }
           }
         }
@@ -503,11 +631,12 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
                 active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && root.profileIndex === index
+                hasCursor: root.cursorActive && root.batteryIndex < 0 && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
+                    root.batteryIndex = -1
                     root.profileIndex = index
                   }
                 }
