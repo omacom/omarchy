@@ -1432,12 +1432,16 @@ Panel {
 
           InfoLabel { text: Commons.I18n.t("network.ipAddress") }
           DetailValue {
+            Layout.columnSpan: 3
+            Layout.fillWidth: true
             text: root.info.ip || "--"
             copyable: !!root.info.ip
             tooltipText: Commons.I18n.t("network.copyIp")
           }
           InfoLabel { text: Commons.I18n.t("network.gateway") }
           DetailValue {
+            Layout.columnSpan: 3
+            Layout.fillWidth: true
             text: root.info.gateway || "--"
             copyable: !!root.info.gateway
             tooltipText: Commons.I18n.t("network.copyGateway")
