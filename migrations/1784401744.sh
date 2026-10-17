@@ -15,13 +15,13 @@ hardware_packages=()
 if lspci | grep -iE '(Multimedia audio controller|Audio device).*Intel' >/dev/null && omarchy-pkg-missing sof-firmware; then
   hardware_packages+=(sof-firmware)
 fi
-if lspci | grep -iE '(VGA|Display).*Intel' >/dev/null && omarchy-pkg-missing vulkan-intel; then
+if lspci | grep -iE '^\S+ (VGA compatible controller|Display controller): .*Intel' >/dev/null && omarchy-pkg-missing vulkan-intel; then
   hardware_packages+=(vulkan-intel)
 fi
-if lspci | grep -iE '(VGA|Display).*AMD' >/dev/null && omarchy-pkg-missing vulkan-radeon; then
+if lspci | grep -iE '^\S+ (VGA compatible controller|Display controller): .*AMD' >/dev/null && omarchy-pkg-missing vulkan-radeon; then
   hardware_packages+=(vulkan-radeon)
 fi
-if lspci | grep -iE '(VGA|Display).*Apple' >/dev/null && omarchy-pkg-missing vulkan-asahi; then
+if lspci | grep -iE '^\S+ (VGA compatible controller|Display controller): .*Apple' >/dev/null && omarchy-pkg-missing vulkan-asahi; then
   hardware_packages+=(vulkan-asahi)
 fi
 
