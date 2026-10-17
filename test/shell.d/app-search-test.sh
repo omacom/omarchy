@@ -154,4 +154,9 @@ assert(
   openMatch[1].includes('root.appLibrary.refreshIcons()'),
   'menu refreshes the shared icon index when opened'
 )
+
+assert(
+  /omarchy-shell[\s\S]*?osd[\s\S]*?show[\s\S]*?duration:\s*15000/.test(appLibraryQml),
+  'app library launch feedback OSD carries a 15-second duration backstop'
+)
 JS
