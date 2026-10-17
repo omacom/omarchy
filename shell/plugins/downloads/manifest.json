@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.downloads",
+  "name": "Video downloads",
+  "version": "1.0.0",
+  "description": "Progress and cancellation for browser video downloads.",
+  "kinds": ["panel"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "panel": "Downloads.qml"
+  }
+}
