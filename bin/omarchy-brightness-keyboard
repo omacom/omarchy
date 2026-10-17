@@ -26,7 +26,13 @@ if [[ -z $device ]]; then
 fi
 
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  # brightnessctl -s saves the current level unconditionally, so a blank that
+  # lands on an already-blanked keyboard would overwrite the saved level with
+  # 0 and keep the backlight dark on every later wake. Save only from a lit
+  # state; setting 0 on a dark keyboard changes nothing anyway.
+  if (( $(brightnessctl -d "$device" get) > 0 )); then
+    brightnessctl -sd "$device" set 0 >/dev/null
+  fi
   exit 0
 elif [[ $direction == "restore" ]]; then
   brightnessctl -rd "$device" >/dev/null
