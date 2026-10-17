@@ -97,3 +97,18 @@
 .search-result-file-title {
   color: var(--interactive-accent);
 }
+
+/* Window controls
+   Hyprland owns the window frame, so Obsidian's own minimize, maximize and
+   close buttons are dead controls next to the tab strip. */
+.titlebar-button-container.mod-right,
+.titlebar-button.mod-minimize,
+.titlebar-button.mod-maximize,
+.titlebar-button.mod-close {
+  display: none !important;
+}
+
+/* Give the tab strip back the space Obsidian reserves for those buttons */
+.mod-linux {
+  --frame-right-space: 0px;
+}
