@@ -21,7 +21,7 @@ run_migration() {
 }
 
 cp "$ROOT/config/herdr/config.toml" "$test_dir/shipped.toml"
-sed -i '/^# The tab bar sits/,/^surface_dim = "black"$/c\# The active tab is drawn as panel_bg text on an accent background\npanel_bg = "black"' "$test_dir/shipped.toml"
+sed -i '/^# The tab bar sits/,/^panel_bg = "reset"$/c\# The active tab is drawn as panel_bg text on an accent background\npanel_bg = "black"' "$test_dir/shipped.toml"
 cp "$test_dir/shipped.toml" "$config"
 
 run_migration
