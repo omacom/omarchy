@@ -4,7 +4,7 @@ set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
 require_command lua
 
-lua - <<'LUA'
+lua - <<'LUA' || fail "the first compositor frame starts blank and the reveal restores user cursor settings"
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 local events, recovery, command, imported = {}, nil, nil, false
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
