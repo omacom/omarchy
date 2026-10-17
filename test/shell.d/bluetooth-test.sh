@@ -156,6 +156,20 @@ cat >"$mock_bin/bluetoothctl" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$BLUETOOTHCTL_LOG"
+if [[ $1 == "${MOCK_DEVICE_FAIL:-}" ]]; then
+  echo "Failed to $1: org.bluez.Error.AuthenticationFailed"
+  exit "${MOCK_DEVICE_EXIT:-0}"
+fi
+if [[ $1 == "info" ]]; then
+  echo "Paired: ${MOCK_PAIRED:-yes}"
+  echo "Connected: ${MOCK_CONNECTED:-no}"
+fi
+if [[ $1 == "connect" ]]; then
+  touch "$POWERED_FILE.connected"
+fi
+if [[ $1 == "info" && -f "$POWERED_FILE.connected" ]]; then
+  echo "Connected: yes"
+fi
 [[ $1 == "power" && $2 == "on" ]] && echo yes >"$POWERED_FILE"
 [[ $1 == "list" ]] &&
   for c in ${MOCK_CONTROLLERS:-AA:BB:CC:DD:EE:FF}; do printf 'Controller %s mock\n' "$c"; done
@@ -180,6 +194,12 @@ printf 'rfkill %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
 exit 0
 SH
 
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf 'notification %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
+SH
+chmod +x "$mock_bin/omarchy-notification-send"
+
 chmod +x "$mock_bin/bluetoothctl" "$mock_bin/rfkill"
 
 # $ROOT/bin so omarchy-bluetooth-device resolves the real omarchy-bluetooth-power.
@@ -189,6 +209,7 @@ bluetooth_run() {
 
   echo "$powered" >"$POWERED_FILE"
   : >"$device_tmp/log"
+  rm -f "$POWERED_FILE.connected"
   PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" \
     OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 "$@" ||
     fail "$* exits cleanly with Powered: $powered"
@@ -280,3 +301,45 @@ pass "bluetooth counts a secondary controller as on"
 grep -q 'AutoEnable=false' "$ROOT/install/hardware/bluetooth.sh" &&
   fail "bluetooth install leaves AutoEnable at its default"
 pass "bluetooth install leaves AutoEnable at its default"
+
+# Detached panel commands must expose errors even when bluetoothctl exits zero.
+for status in 0 1 124; do
+  echo yes >"$POWERED_FILE"
+  : >"$device_tmp/log"
+  if PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" MOCK_DEVICE_FAIL=pair MOCK_DEVICE_EXIT="$status" \
+    "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF >"$device_tmp/error" 2>&1; then
+    fail "pairing failure exits nonzero (bluetoothctl status $status)"
+  fi
+  grep -q 'notification Bluetooth pairing\|notification .*Bluetooth pair failed' "$device_tmp/log" || fail "pair failure notifies"
+  if grep -Eq '^(trust|connect) ' "$device_tmp/log"; then
+    fail "pair failure must not trust or connect"
+  fi
+  pass "pair failure reports and stops (bluetoothctl status $status)"
+done
+
+paired_log=$(MOCK_CONNECTED=yes bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+grep -qx 'trust AA:BB:CC:DD:EE:FF' "$paired_log" || fail "successful pair saves trust"
+if grep -q '^connect ' "$paired_log"; then
+  fail "already connected pair skips redundant connect"
+fi
+pass "already connected pair saves trust without reconnecting"
+
+echo yes >"$POWERED_FILE"
+: >"$device_tmp/log"
+if PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" MOCK_PAIRED=no \
+  "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF >"$device_tmp/error" 2>&1; then
+  fail "pairing must verify Paired state"
+fi
+if grep -Eq '^(trust|connect) ' "$device_tmp/log"; then
+  fail "unconfirmed pairing must not trust or connect"
+fi
+pass "pairing verifies state before trusting"
+
+: >"$device_tmp/log"
+rm -f "$POWERED_FILE.connected"
+if PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" MOCK_DEVICE_FAIL=connect \
+  "$ROOT/bin/omarchy-bluetooth-device" connect AA:BB:CC:DD:EE:FF >"$device_tmp/error" 2>&1; then
+  fail "connection failure exits nonzero even when bluetoothctl exits zero"
+fi
+grep -q 'Bluetooth connect failed' "$device_tmp/log" || fail "connection failure notifies"
+pass "connection failure is reported"
