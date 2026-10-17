@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# omarchy:summary=Install and launch OrcaSlicer from Flathub
+# omarchy:requires-sudo=true
+
+set -e
+
+app_id="com.orcaslicer.OrcaSlicer"
+
+echo "Installing OrcaSlicer..."
+omarchy-pkg-add flatpak
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+flatpak install -y flathub "$app_id"
+
+echo "Opening OrcaSlicer..."
+setsid uwsm-app -- flatpak run "$app_id" >/dev/null 2>&1 &
+
+echo ""
+echo "OrcaSlicer has been installed."

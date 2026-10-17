@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the OrcaSlicer Flatpak app and its data
+
+set -e
+
+app_id="com.orcaslicer.OrcaSlicer"
+
+if omarchy-cmd-present flatpak && flatpak info "$app_id" &>/dev/null; then
+  flatpak uninstall -y --delete-data "$app_id"
+fi
+
+echo ""
+echo "OrcaSlicer has been removed."
