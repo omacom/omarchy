@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Read current state, not the environment of an event that may have queued
+# before another provider or connection was selected.
+[[ -f /etc/omarchy/dns.json ]] || exit 0
+case "${2:-}" in
+  pre-up|up|down|vpn-up|vpn-down|dns-change|dhcp4-change|dhcp6-change|reapply)
+    /usr/bin/python3 -I /usr/share/omarchy/default/dns/dns.py apply
+    ;;
+esac
