@@ -101,5 +101,20 @@ write_usb_devices '27c6:1234:Goodix Fingerprint USB Device'
 bind_driver '1-0/1-0:1.0' uvcvideo
 assert_detects "a self-named reader is detected with a driver bound"
 
+# No libfprint driver claims 06cb:009a (ThinkPad T480 Metallica MIS), so a
+# vendor guess on it only leads setup into an enrollment that cannot succeed.
+write_usb_devices '06cb:009a'
+assert_rejects "a Synaptics id libfprint does not support is not detected"
+
+write_usb_devices '06cb:00bd'
+assert_detects "a Synaptics id libfprint supports is detected"
+
+# Tudor readers have no upstream driver either, but synaTudor drives them.
+write_usb_devices '06cb:00be'
+assert_detects "a Synaptics Tudor reader stays detectable"
+
+write_usb_devices '06cb:009a' '27c6:1234'
+assert_detects "an unsupported Synaptics id does not hide another reader"
+
 write_usb_devices '1234:5678:Generic USB Device'
 assert_rejects "a machine with no matching USB devices detects nothing"

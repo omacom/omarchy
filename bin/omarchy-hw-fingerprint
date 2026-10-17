@@ -11,6 +11,12 @@
 fingerprint_vendors=" 27c6 138a 06cb 08ff 1c7a 147e "
 usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
 
+# Synaptics also makes touchpads and older Metallica/Prometheus readers that no
+# libfprint driver claims (libfprint's "Known unsupported devices"), so a vendor
+# match alone sends setup into an enrollment that can only fail. The Tudor ids
+# 00be/00da/00fd/00ff stay detectable for the synaTudor path.
+unsupported_synaptics=" 0051 0081 0088 008a 009a 009b 00a1 00a2 00a8 00b7 00bb 00bc 00c7 00c9 00cb 00d8 00dc 00e4 00e7 0102 ce67 ceef "
+
 # libfprint drives every reader it supports from userspace over libusb, so a
 # real reader sits there with no kernel driver bound to any of its interfaces.
 # The other things these vendors build — Synaptics webcam bridges (usbio-bridge
@@ -48,6 +54,9 @@ for dev in "$usb_devices_path"/*; do
 
   if [[ -r $dev/idVendor ]]; then
     vendor=$(<"$dev/idVendor")
+    product_id=""
+    [[ -r $dev/idProduct ]] && product_id=$(<"$dev/idProduct")
+    [[ $vendor == "06cb" && $unsupported_synaptics == *" $product_id "* ]] && continue
     [[ $fingerprint_vendors == *" $vendor "* ]] &&
       ! has_kernel_driver "$dev" && exit 0
   fi
