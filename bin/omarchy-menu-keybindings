@@ -229,7 +229,14 @@ end
 
 local noop
 noop = setmetatable({}, {
-  __index = function()
+  __index = function(_, key)
+    -- A numeric index has to come back nil, or ipairs() over a stubbed
+    -- getter -- hl.get_windows(), say, from a plugin's own load-time loop --
+    -- keeps reading a truthy noop and never ends.
+    if type(key) == "number" then
+      return nil
+    end
+
     return noop
   end,
   __call = function()

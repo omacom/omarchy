@@ -268,6 +268,30 @@ grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
 
+# A plugin that walks the window list while it loads must not wedge the scan.
+# The stub hl answers every call with one object, so iterating what it returns
+# has to end rather than keep reading a truthy value forever.
+# Prepend it, so it runs before anything in the config that the stub cannot
+# stand in for: a plugin loads its window walk as the config is read.
+{ printf 'for _ in ipairs(hl.get_windows()) do\n  local window = nil\nend\n'
+  cat "$home/.config/hypr/hyprland.lua"
+} >"$tmpdir/hyprland.lua"
+mv "$tmpdir/hyprland.lua" "$home/.config/hypr/hyprland.lua"
+
+rm -rf "$tmpdir/cache"
+if timeout --kill-after=1s 10s env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+     XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+     bash "$menu" --print >/dev/null 2>&1; then
+  :
+else
+  fail "a plugin iterating windows at load time does not wedge the keybindings scan"
+fi
+# Exiting 0 is not enough: pcall() swallows a scan that threw, and the records
+# then fall back to hyprctl alone. The terminal bind is recovered only from the
+# Lua source, so its record proves the walk let the scan finish.
+grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "a plugin iterating windows at load time does not wedge the keybindings scan (the scan did not finish)"
+pass "a plugin iterating windows at load time does not wedge the keybindings scan"
 # Rows show their description in the Omarchy language: a numbered one
 # matches its %1 pattern, an unknown one stays as written, and the chord
 # column and what the row runs never change.
