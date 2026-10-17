@@ -1,5 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Launch Files in the active terminal's current directory
+# omarchy:summary=Launch the default file manager in the active terminal's current directory (kept for bindings that still name Nautilus)
+# omarchy:hidden=true
 
-exec setsid uwsm-app -- nautilus --new-window "$(omarchy-cmd-terminal-cwd)"
+exec omarchy-launch-filemanager-cwd

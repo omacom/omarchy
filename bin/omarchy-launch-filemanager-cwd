@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Launch the default file manager in the active terminal's current directory
+
+exec omarchy-launch-filemanager "$(omarchy-cmd-terminal-cwd)"

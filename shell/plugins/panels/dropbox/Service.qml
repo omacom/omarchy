@@ -129,7 +129,10 @@ Item {
 
   function openFile(file) {
     if (!file || !file.path) return
-    Quickshell.execDetached(["uwsm-app", "--", "nautilus", "--select", fileUri(String(file.path))])
+    // Whichever file manager owns FileManager1 reveals the file, so this
+    // follows the default file manager instead of always opening Nautilus.
+    Quickshell.execDetached(["busctl", "--user", "call", "org.freedesktop.FileManager1", "/org/freedesktop/FileManager1",
+      "org.freedesktop.FileManager1", "ShowItems", "ass", "1", fileUri(String(file.path)), ""])
   }
 
   function fileUri(path) {

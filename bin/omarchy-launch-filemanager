@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Launch the default file manager
+# omarchy:args=[directory]
+
+# xdg-mime skips a handler that is no longer installed, falling back to the
+# shipped mimeapps.list, and uwsm-app launches a desktop entry ID the way the
+# entry's own Exec line says to.
+file_manager=$(xdg-mime query default inode/directory)
+
+exec setsid uwsm-app -- "${file_manager:-org.gnome.Nautilus.desktop}" "${1:-$HOME}"

@@ -284,7 +284,7 @@ assertDeepEqual(
 const expectedDefaults = {
   browser: ['Chromium', 'Chrome', 'Brave', 'Brave Origin', 'Edge', 'Firefox', 'Zen'],
   terminal: ['Alacritty', 'Foot', 'Ghostty', 'Kitty'],
-  editor: ['Neovim', 'VSCode', 'Cursor', 'Zed', 'Sublime Text', 'Helix', 'Vim', 'Emacs'],
+  filemanager: ['Nautilus (Files)', 'Flea', 'Dolphin', 'Thunar', 'Nemo', 'PCManFM'],
   dictation: ['Superwhisper', 'Voxtype']
 }
 assert(
@@ -293,7 +293,7 @@ assert(
     return entries.map(item => item.label).join('\0') === labels.join('\0')
       && entries.every(item => !item.when)
   }),
-  'menu always exposes every supported browser, terminal, editor, and dictation backend under Defaults'
+  'menu always exposes every supported browser, terminal, editor, file manager, and dictation backend under Defaults'
 )
 assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
 // Software you already have keeps its place in Install, dimmed rather than

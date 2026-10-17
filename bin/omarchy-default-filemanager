@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# omarchy:summary=Set the default file manager for Omarchy and XDG handlers
+# omarchy:args=[nautilus|flea|dolphin|thunar|nemo|pcmanfm]
+# omarchy:examples=omarchy default filemanager nautilus | omarchy default filemanager dolphin
+
+installing=false
+if [[ ${1:-} == "--install" ]]; then
+  installing=true
+  shift
+fi
+
+if (($# == 0)); then
+  desktop_id=$(xdg-mime query default inode/directory 2>/dev/null || true)
+  case "$desktop_id" in
+  org.gnome.Nautilus.desktop | nautilus.desktop) echo "nautilus" ;;
+  com.thisisgm.flea.desktop) echo "flea" ;;
+  org.kde.dolphin.desktop | dolphin.desktop) echo "dolphin" ;;
+  thunar.desktop) echo "thunar" ;;
+  nemo.desktop) echo "nemo" ;;
+  pcmanfm.desktop) echo "pcmanfm" ;;
+  *)
+    if [[ -n $desktop_id ]]; then
+      echo "$desktop_id"
+    else
+      echo "nautilus"
+    fi
+    ;;
+  esac
+  exit 0
+fi
+
+case "$1" in
+nautilus) filemanager="nautilus"; package="nautilus"; desktop_id="org.gnome.Nautilus.desktop"; name="Nautilus (Files)"; glyph= ;;
+flea) filemanager="flea"; package="flea"; desktop_id="com.thisisgm.flea.desktop"; name="Flea"; glyph= ;;
+dolphin) filemanager="dolphin"; package="dolphin"; desktop_id="org.kde.dolphin.desktop"; name="Dolphin"; glyph= ;;
+thunar) filemanager="thunar"; package="thunar"; desktop_id="thunar.desktop"; name="Thunar"; glyph= ;;
+nemo) filemanager="nemo"; package="nemo"; desktop_id="nemo.desktop"; name="Nemo"; glyph= ;;
+pcmanfm) filemanager="pcmanfm"; package="pcmanfm"; desktop_id="pcmanfm.desktop"; name="PCManFM"; glyph= ;;
+*)
+  echo "Usage: omarchy-default-filemanager <nautilus|flea|dolphin|thunar|nemo|pcmanfm>"
+  exit 1
+  ;;
+esac
+
+if omarchy-cmd-missing "$filemanager"; then
+  if [[ $installing == "false" ]]; then
+    exec omarchy-launch-floating-terminal-with-presentation omarchy-default-filemanager --install "$filemanager"
+  else
+    omarchy-pkg-add "$package" || exit 1
+  fi
+fi
+
+xdg-mime default "$desktop_id" inode/directory || exit 1
+
+# Browsers and GTK apps reveal files ("Show in folder") through the
+# org.freedesktop.FileManager1 D-Bus name, not inode/directory. Every file
+# manager registers that name, and D-Bus keeps the first registration it reads:
+# the user's data home, then Nautilus's in /usr/share, ignoring the rest as
+# duplicates. So point the user's registration at the chosen file manager's own,
+# and only ever rewrite or remove a registration this command wrote.
+service_dir="${XDG_DATA_HOME:-$HOME/.local/share}/dbus-1/services"
+service="$service_dir/org.freedesktop.FileManager1.service"
+marker="# Written by omarchy-default-filemanager"
+
+registration=""
+while IFS= read -r file; do
+  if [[ $file == */dbus-1/services/*.service ]] && grep -qx "Name=org.freedesktop.FileManager1" "$file"; then
+    registration=$file
+    break
+  fi
+done < <(pacman -Qql "$package" 2>/dev/null)
+
+written=""
+[[ -f $service ]] && read -r written <"$service"
+
+if [[ -f $service && $written != "$marker" ]]; then
+  echo "Leaving $service in place: it was not written by omarchy-default-filemanager" >&2
+elif [[ -n $registration && ${registration##*/} != "org.freedesktop.FileManager1.service" ]]; then
+  mkdir -p "$service_dir"
+  printf '%s\n[D-BUS Service]\nName=org.freedesktop.FileManager1\n%s\n' "$marker" "$(grep -m1 "^Exec=" "$registration")" >"$service"
+else
+  rm -f "$service"
+fi
+
+busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig >/dev/null 2>&1 || true
+
+omarchy-notification-send -g $glyph "$name is now the default file manager"
