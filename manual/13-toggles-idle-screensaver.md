@@ -83,7 +83,7 @@ If you dismiss the screensaver before the lock deadline, that counts as activity
 
 To stop locking on idle entirely, `Super + Ctrl + I` — or `omarchy toggle idle` — flips stay awake on, and the coffee cup indicator appears in the bar. That's the one to hit before a long presentation or a build you want to watch. Hit it again to go back to normal. `omarchy toggle idle status` prints the current state as JSON if you need it from a script.
 
-This is about locking and the screensaver, not power. Suspend and hibernation have their own setup in [system sleep](36-system-sleep.md).
+Stay awake registers a standard idle inhibitor, so other idle consumers — logind's automatic idle handling and idle daemons such as hypridle or swayidle — respect it too, not just Omarchy's own screensaver and lock. It is still about locking and the screensaver, not power: the inhibitor covers idle, not sleep, so suspend and hibernation keep their own setup in [system sleep](36-system-sleep.md).
 
 ### The screensaver
 
