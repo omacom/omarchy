@@ -79,4 +79,9 @@ assert(
   /id: revealAnimation[\s\S]*?duration: Style\.duration\(840\)/.test(backgroundQml),
   'background reveal takes 840ms'
 )
+
+assert(
+  /id: revealMask[\s\S]*?layer\.enabled: incomingLayer\.layer\.enabled/.test(backgroundQml),
+  'the reveal mask keeps no full-screen layer between reveals'
+)
 JS

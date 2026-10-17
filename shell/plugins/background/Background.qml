@@ -477,7 +477,9 @@ Item {
         id: revealMask
         anchors.fill: parent
         visible: false
-        layer.enabled: true
+        // Only during a reveal: a scale step-down can briefly size a full-screen
+        // layer past the GPU's texture limit, which crashes the shell on some drivers.
+        layer.enabled: incomingLayer.layer.enabled
 
         readonly property real slant: -0.18
         readonly property real centerTop: width / 2 - slant * height / 2
