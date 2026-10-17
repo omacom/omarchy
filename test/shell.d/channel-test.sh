@@ -34,6 +34,11 @@ for arg in "$@"; do printf "\t%s" "$arg" >>"$OMARCHY_CHANNEL_TEST_LOG"; done
 printf "\n" >>"$OMARCHY_CHANNEL_TEST_LOG"
 '
 
+# Sourced by omarchy-channel-set; keep the real helper's sleep loop out of tests.
+write_stub omarchy-sudo-keepalive '#!/bin/bash
+printf "keepalive\n" >>"$OMARCHY_CHANNEL_TEST_LOG"
+'
+
 write_stub sudo '#!/bin/bash
 case "${1:-}" in
   -h) echo "usage: sudo [-ABbEHkNnPS] command"; exit 0 ;;
@@ -127,6 +132,7 @@ assert_log_line() {
 }
 
 run_channel stable
+assert_log_line $'keepalive' "stable prompts for sudo once and keeps the credential alive"
 assert_log_line $'refresh\tstable' "stable refreshes the stable pacman channel"
 assert_log_line $'update-pacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy\tomarchy-settings' "stable installs stable Omarchy packages"
 assert_log_line $'unlink\t--no-reboot' "stable restores the package-backed Omarchy path without an early reboot prompt"
