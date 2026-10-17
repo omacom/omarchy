@@ -223,5 +223,16 @@ if (publicManifestMatch) {
   check(raw.__sourceDir === '/plugins/acme.demo', 'a plugin editing its manifest copy cannot move the registry entry')
 }
 
+const loadWidgetMatch = shellSource.match(/function loadPluginWidget\([\s\S]*?\n  \}/)
+check(!!loadWidgetMatch, 'loadPluginWidget is defined')
+check(
+  !!loadWidgetMatch && /Component\.PreferSynchronous/.test(loadWidgetMatch[0]),
+  'loadPluginWidget compiles bar widgets synchronously like ensureService'
+)
+check(
+  !!loadWidgetMatch && !/Component\.Asynchronous/.test(loadWidgetMatch[0]),
+  'loadPluginWidget does not use Asynchronous createComponent'
+)
+
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
 JS
