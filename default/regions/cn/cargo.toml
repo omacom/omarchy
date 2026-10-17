@@ -1,0 +1,5 @@
+[source.crates-io]
+replace-with = "omarchy-region"
+
+[source.omarchy-region]
+registry = "sparse+https://mirrors.aliyun.com/crates.io-index/"

@@ -454,6 +454,15 @@
   "setup.language": {
     "label": "Language"
   },
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.world": {
+    "label": "World"
+  },
+  "setup.region.china": {
+    "label": "China"
+  },
   "setup.network": {
     "label": "Network"
   },

@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Print where packages and developer tools download from: world or china
+
+set -euo pipefail
+
+region=
+[[ -r ${OMARCHY_REGION_FILE:-/etc/omarchy/region} ]] && read -r region <"${OMARCHY_REGION_FILE:-/etc/omarchy/region}"
+case "$region" in
+  cn) echo china ;;
+  *) echo world ;;
+esac

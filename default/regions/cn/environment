@@ -1,0 +1,14 @@
+# Developer tool registries for a China install, exported by env-bootstrap while
+# /etc/omarchy/region says cn. A value the user exported first is kept.
+export NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}"
+export PIP_INDEX_URL="${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}"
+export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-https://mirrors.aliyun.com/pypi/simple/}"
+export GOPROXY="${GOPROXY:-https://mirrors.aliyun.com/goproxy/,direct}"
+# sum.golang.org is unreachable from mainland China; this is its official
+# mirror, which Go verifies with the same key.
+export GOSUMDB="${GOSUMDB:-sum.golang.google.cn}"
+export RUSTUP_DIST_SERVER="${RUSTUP_DIST_SERVER:-https://mirrors.aliyun.com/rustup}"
+export RUSTUP_UPDATE_ROOT="${RUSTUP_UPDATE_ROOT:-https://mirrors.aliyun.com/rustup/rustup}"
+export BUNDLE_MIRROR__ALL="${BUNDLE_MIRROR__ALL:-https://mirrors.aliyun.com/rubygems/}"
+export GEMRC="${GEMRC:-$OMARCHY_PATH/default/regions/cn/gemrc}"
+export MAVEN_ARGS="${MAVEN_ARGS:---global-settings $OMARCHY_PATH/default/regions/cn/maven-settings.xml}"

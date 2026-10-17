@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# omarchy:summary=Apply a region's developer tool settings for the current user
+# omarchy:args=<global|cn>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+region=${1:-}
+case "$region" in
+  global|cn) ;;
+  *) echo "Usage: omarchy-region-user <global|cn>" >&2; exit 1 ;;
+esac
+
+# cargo has no environment setting for source replacement and `cargo install`
+# reads only $CARGO_HOME, so the region's registry goes in a marked block there.
+# The block records what it added, so removing it restores the file exactly.
+python3 - "$region" "${CARGO_HOME:-$HOME/.cargo}/config.toml" "$OMARCHY_PATH/default/regions/cn/cargo.toml" <<'PY'
+import os, sys, tomllib
+region, path, fragment = sys.argv[1:]
+BEGIN = "# BEGIN omarchy region: managed by omarchy-region, removed for World"
+END = "# END omarchy region"
+MODES = ("created", "joined", "appended")
+
+def leave(reason):
+    print(f"Leaving {path} alone: {reason}.", file=sys.stderr)
+    sys.exit(0)
+
+data = open(path, "rb").read() if os.path.exists(path) else None
+if data is not None:
+    lines = data.split(b"\n")
+    begins = [i for i, line in enumerate(lines) if line.startswith(BEGIN.encode())]
+    ends = [i for i, line in enumerate(lines) if line == END.encode()]
+    if begins or ends:
+        mode = lines[begins[0]].decode(errors="replace")[len(BEGIN) + 1:] if begins else ""
+        # One complete block, or nothing is touched: a hand-edited marker could
+        # otherwise take the user's own lines with it.
+        if len(begins) != 1 or len(ends) != 1 or ends[0] < begins[0] or mode not in MODES or ends[0] == len(lines) - 1:
+            leave("its omarchy region block has been edited")
+        # before is everything ahead of the newline that precedes BEGIN; after
+        # is everything following END's newline.
+        before = b"\n".join(lines[:begins[0]])
+        after = b"\n".join(lines[ends[0] + 1:])
+        if mode == "appended":
+            # The original ended with a newline (or was empty) and is before.
+            data = before + after
+        elif mode == "joined":
+            # The original's last line had no newline; a line added later needs one.
+            data = before + (b"\n" + after if after else b"")
+        elif begins[0] == 0:
+            # Created by the block: only lines added after it stay.
+            data = after or None
+        else:
+            # Created by the block, with lines the user added above it.
+            data = before + b"\n" + after
+
+if region == "cn":
+    try:
+        source = tomllib.loads((data or b"").decode()).get("source", {})
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError):
+        leave("it cannot be read as TOML")
+    if "crates-io" in source or "omarchy-region" in source:
+        leave("it already configures crates.io's source")
+    block = open(fragment).read()
+    if data is None:
+        data = f"{BEGIN} created\n{block}{END}\n".encode()
+    elif data and not data.endswith(b"\n"):
+        data += f"\n{BEGIN} joined\n{block}{END}\n".encode()
+    else:
+        data += f"\n{BEGIN} appended\n{block}{END}\n".encode()
+
+if data is None:
+    if os.path.exists(path):
+        os.remove(path)
+else:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(data)
+PY
+
+# New shells read the registries from the region marker (env-bootstrap). Apps
+# launched from the running session start from systemd's user environment, so
+# update it too, touching only variables that are unset or hold a region's own
+# value; terminals already open keep what they started with.
+if systemctl --user show-environment >/dev/null 2>&1; then
+  mapfile -t region_values < <(for environment in "$OMARCHY_PATH"/default/regions/*/environment; do
+    env -i OMARCHY_PATH="$OMARCHY_PATH" bash -c '. "$1"; env' bash "$environment" |
+      grep -E "^($(sed -n 's/^export \([A-Z_][A-Z0-9_]*\)=.*/\1/p' "$environment" | paste -sd'|'))="
+  done)
+  current=$(systemctl --user show-environment)
+  unset_names=() set_values=()
+  for assignment in "${region_values[@]}"; do
+    name=${assignment%%=*}
+    value=$(grep -m1 "^$name=" <<<"$current" || true)
+    if [[ -z $value ]]; then
+      [[ $region != "global" ]] && grep -qxF "$assignment" < <(env -i OMARCHY_PATH="$OMARCHY_PATH" bash -c '. "$1"; env' bash "$OMARCHY_PATH/default/regions/$region/environment") &&
+        set_values+=("$assignment")
+    elif [[ $value == "$assignment" ]]; then
+      [[ $region == "global" ]] && unset_names+=("$name")
+    fi
+  done
+  (( ${#unset_names[@]} == 0 )) || systemctl --user unset-environment "${unset_names[@]}"
+  (( ${#set_values[@]} == 0 )) || systemctl --user set-environment "${set_values[@]}"
+fi

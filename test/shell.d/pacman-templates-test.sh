@@ -82,7 +82,17 @@ for command in omarchy-pkg-add pacman-key; do
   printf '#!/bin/bash\nexit 0\n' >"$finalize_bin/$command"
 done
 chmod +x "$finalize_bin"/*
-sed "s|/etc/pacman|$work/etc/pacman|g" "$ROOT/install/post-install/pacman.sh" >"$work/finalize.sh"
+# Finalization restores the templates through omarchy-apply-pacman, whose copy
+# here writes into the test's etc rather than the host's.
+finalize_root=$work/finalize-root
+mkdir -p "$finalize_root/bin" "$finalize_root/install/post-install" "$finalize_root/default"
+cp -r "$ROOT/install/helpers" "$finalize_root/install/"
+cp -r "$ROOT/default/pacman" "$ROOT/default/regions" "$finalize_root/default/"
+cp "$ROOT/install/post-install/pacman.sh" "$work/finalize.sh"
+target_etc='etc="${2:-/}/etc"'
+grep -Fqx "  $target_etc" "$ROOT/bin/omarchy-apply-pacman" || fail "omarchy-apply-pacman still names its target etc"
+sed "s|^  $target_etc\$|  etc=\"\${2:-$work}/etc\"|" "$ROOT/bin/omarchy-apply-pacman" >"$finalize_root/bin/omarchy-apply-pacman"
+chmod +x "$finalize_root/bin/omarchy-apply-pacman"
 mkdir -p "$work/install/hardware"
 : >"$work/install/hardware/pacman.sh"
 
@@ -101,7 +111,7 @@ for platform in $platforms; do
     rm -rf "$work/etc"
     mkdir -p "$work/etc/pacman.d"
     printf 'offline\n' | tee "$work/etc/pacman.conf" >"$work/etc/pacman.d/mirrorlist"
-    OMARCHY_IMAGE_ROOT=$work OMARCHY_MIRROR=$channel PLATFORM=$platform OMARCHY_INSTALL="$work/install" PATH="$finalize_bin:$PATH" \
+    OMARCHY_PATH=$finalize_root OMARCHY_IMAGE_ROOT=$work OMARCHY_MIRROR=$channel PLATFORM=$platform OMARCHY_INSTALL="$work/install" PATH="$finalize_bin:$PATH" \
       bash -e -c 'source "$1"' bash "$work/finalize.sh" >/dev/null || fail "$platform finalization on '$channel'"
     cmp -s "$work/etc/pacman.conf" "$templates/pacman-$expected.conf" || fail "$platform '$channel': finalization copies the $expected template"
     cmp -s "$work/etc/pacman.d/mirrorlist" "$templates/mirrorlist-$expected" || fail "$platform '$channel': finalization copies the $expected mirrorlist"
@@ -115,6 +125,7 @@ fi
 rm -rf "$work"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 copy_boundary_file bin/omarchy-refresh-pacman
+copy_boundary_file bin/omarchy-apply-pacman
 
 refresh() {
   "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" "$@" >"$boundary_tmp/output" 2>&1
@@ -138,13 +149,19 @@ for platform in $platforms; do
 import sys
 events = [e for e in open(sys.argv[1]).read().splitlines() if e not in ('sudo -h', 'sudo -k')]
 templates, channel = sys.argv[2:]
+# The caller renders from the platform's templates; root backs up and copies
+# the result.
+copies = [e for e in events if e.startswith('step:cp ')]
+assert len(copies) == 6, events
+rendered = copies[0].split()[-1].rsplit('/', 1)[0]
 expected = [
+  f'step:cp {templates}/pacman-{channel}.conf {rendered}/pacman.conf',
+  f'step:cp {templates}/mirrorlist-{channel} {rendered}/mirrorlist',
   'step:cp -f /etc/pacman.conf /etc/pacman.conf.bak',
   'step:cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak',
-  f'step:cp -f {templates}/pacman-{channel}.conf /etc/pacman.conf',
-  f'step:cp -f {templates}/mirrorlist-{channel} /etc/pacman.d/mirrorlist',
+  f'step:cp -f {rendered}/pacman.conf /etc/pacman.conf',
+  f'step:cp -f {rendered}/mirrorlist /etc/pacman.d/mirrorlist',
 ]
-copies = [e for e in events if e.startswith('step:cp ')]
 assert copies == expected, events
 hook = events.index('step:omarchy-hook pre-refresh-pacman')
 transaction = events.index('step:pacman -Syyuu --noconfirm')
@@ -153,7 +170,7 @@ PY
     assert_boundary_cold "$platform $channel"
   done
 done
-pass "a refresh backs up and copies the platform's channel template and mirrorlist, or its default channel's when none is named, then runs the cold hook and the upgrade"
+pass "a refresh renders the platform's channel template and mirrorlist, backs up and copies them, or its default channel's when none is named, then runs the cold hook and the upgrade"
 
 # A channel the platform has no template for (stable or rc on aarch64), or a
 # machine whose platform can't be told, stops before anything changes.

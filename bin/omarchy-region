@@ -1,0 +1,102 @@
+#!/bin/bash -p
+
+# omarchy:summary=Set where packages and developer tools download from: world or china
+# omarchy:args=<world|china>
+# omarchy:examples=omarchy region china | omarchy region world
+# omarchy:requires-sudo=true
+
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+set -e
+omarchy_security_sanitize_bash_environment "$0" "$@"
+omarchy_security_require_source_root "$0"
+omarchy_security_install_sudo_cleanup_traps
+omarchy_security_revoke_sudo_timestamp || exit 1
+omarchy_security_enable_no_update_sudo
+
+case "${1:-}" in
+  world) region=global ;;
+  china) region=cn ;;
+  *) echo "Usage: omarchy-region <world|china>" >&2; exit 1 ;;
+esac
+
+channel=$(omarchy-channel-current)
+case "$channel" in
+  dev) channel=edge ;;
+  stable|rc|edge) ;;
+  *) echo "Cannot tell this machine's package channel. Nothing changed." >&2; exit 1 ;;
+esac
+
+# Everything is prepared as the caller. The developer tool settings change
+# first, since undoing them needs no sudo; then root copies the two finished
+# pacman files and moves the marker into place, back to back. The marker on
+# disk decides the outcome: until it names the new region, every exit,
+# including a failure, a closed terminal or Ctrl+C, puts the old region back.
+target=world
+[[ $region == "global" ]] || target=china
+previous=global
+[[ $(omarchy-region-current) == china ]] && previous=cn
+work=$(mktemp -d)
+changed=0
+finished=0
+restore_previous() {
+  omarchy-region-user "$previous" || true
+  if sudo cp -f /etc/pacman.conf.bak /etc/pacman.conf &&
+    sudo cp -f /etc/pacman.d/mirrorlist.bak /etc/pacman.d/mirrorlist; then
+    sudo rm -f /etc/omarchy/region.new || true
+    echo "Nothing changed: the region is still $(omarchy-region-current)." >&2
+  else
+    echo "The package mirrors could not be put back. Run 'omarchy-region $(omarchy-region-current)' to finish." >&2
+  fi
+}
+cleanup_region() {
+  local status=$?
+  # Reapplying the current region leaves the marker as it was, so there only
+  # reaching the end counts.
+  if (( changed && ! finished )) && [[ $previous == "$region" || $(omarchy-region-current) != "$target" ]]; then
+    restore_previous
+  fi
+  rm -rf "$work"
+  omarchy_security_exit_with_revoked_sudo "$status"
+}
+trap cleanup_region EXIT
+
+mkdir -p "$work/target/etc/omarchy" "$work/rendered"
+[[ $region == "global" ]] || printf '%s\n' "$region" >"$work/target/etc/omarchy/region"
+"$OMARCHY_PATH/bin/omarchy-apply-pacman" --render "$channel" "$work/rendered" "$work/target"
+
+# A region's first servers must answer before anything is switched to them.
+if [[ $region != "global" ]]; then
+  arch=$(uname -m)
+  omarchy_server=$(awk '$0 == "[omarchy]" { getline; sub(/^Server = /, ""); print; exit }' "$work/rendered/pacman.conf")
+  arch_server=$(sed -n '1s/^Server = //p' "$work/rendered/mirrorlist")
+  for url in "${omarchy_server//\$arch/$arch}/omarchy.db" "$(sed "s|\$repo|core|; s|\$arch|$arch|" <<<"$arch_server")/core.db"; do
+    if ! curl -fsSL --max-time 20 -o /dev/null "$url"; then
+      echo "Could not reach $url. Nothing changed." >&2
+      exit 1
+    fi
+  done
+fi
+
+sudo cp -f /etc/pacman.conf /etc/pacman.conf.bak
+sudo cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
+changed=1
+omarchy-region-user "$region"
+sudo cp -f "$work/rendered/pacman.conf" /etc/pacman.conf
+sudo cp -f "$work/rendered/mirrorlist" /etc/pacman.d/mirrorlist
+# A rename, so the marker is always either the old region or the new one.
+if [[ $region == "global" ]]; then
+  sudo rm -f /etc/omarchy/region
+else
+  sudo install -D -m 0644 "$work/target/etc/omarchy/region" /etc/omarchy/region.new
+  sudo mv -f /etc/omarchy/region.new /etc/omarchy/region
+fi
+
+finished=1
+echo "Region set to $1. New terminals and apps use its mirrors."

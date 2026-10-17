@@ -15,6 +15,16 @@ else
 fi
 export OMARCHY_PATH
 
+# A regional install (/etc/omarchy/region, written by the installer or
+# omarchy-region) points developer tools at that region's registries. Root
+# skips it: on a dev link OMARCHY_PATH is a user-writable checkout.
+omarchy_region=
+[ "$(id -u)" != 0 ] && [ -r "${OMARCHY_REGION_FILE:-/etc/omarchy/region}" ] && read -r omarchy_region <"${OMARCHY_REGION_FILE:-/etc/omarchy/region}"
+case "$omarchy_region" in
+  [a-z][a-z]) [ -r "$OMARCHY_PATH/default/regions/$omarchy_region/environment" ] && . "$OMARCHY_PATH/default/regions/$omarchy_region/environment" ;;
+esac
+unset omarchy_region
+
 # Only prepend in dev-link mode. On a production install, the binaries are
 # already on PATH as /usr/bin/omarchy-* via the omarchy package — prepending
 # /usr/share/omarchy/bin would just be noise.
