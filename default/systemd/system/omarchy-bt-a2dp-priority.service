@@ -1,0 +1,17 @@
+[Unit]
+Description=Bluetooth A2DP ACL-priority fix for Broadcom BCM43xx (hci_bcm4377)
+Documentation=https://github.com/bluez/bluez/issues/1976
+ConditionPathIsDirectory=/sys/module/hci_bcm4377
+After=bluetooth.target
+Wants=bluetooth.target
+
+[Service]
+Type=simple
+# If bluetoothd is unavailable, skip cleanly instead of entering a restart loop.
+ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service
+ExecStart=/usr/bin/omarchy-hw-apple-bt-a2dp-priority
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

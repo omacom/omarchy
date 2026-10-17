@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Send the Broadcom ACL-priority command for A2DP audio
+# omarchy:hidden=true
+
+# BlueZ never sends Broadcom's vendor-specific Write_High_Priority_Connection
+# command (OGF 0x3f / OCF 0x57) for an A2DP link. Android and macOS send it
+# automatically; without it, BCM43xx firmware treats the A2DP ACL handle as
+# no-priority, so it loses out the instant a concurrent scan/inquiry competes
+# for airtime, and audio stutters badly. See
+# https://github.com/bluez/bluez/issues/1976 and
+# https://github.com/christian-korneck/asahi-bt-a2dp-fix (same root cause,
+# reported on BCM4377/4378/4388 under Asahi).
+#
+# bluetoothctl --monitor reads its own stdin as commands and treats EOF there
+# as an implicit "quit" — under a plain systemd ExecStart, stdin is closed, so
+# it would quit immediately and the unit would sit in a restart loop. Holding
+# stdin open on a pipe that never closes keeps it running as an event feed.
+settle_seconds=${BT_A2DP_PRIORITY_CONNECT_SETTLE_SECONDS:-2}
+
+stdbuf -oL bluetoothctl --monitor < <(sleep infinity) | while read -r line; do
+  [[ $line =~ Device.*([0-9A-F:]{17}).*Connected:\ yes ]] || continue
+  mac=${BASH_REMATCH[1]}
+  sleep "$settle_seconds"
+  bluetoothctl info "$mac" | grep -q "Audio Sink" || continue
+  handle=$(hcitool con | grep -i "$mac" | grep -oP 'handle \K[0-9]+')
+  [[ -n $handle ]] && hcitool cmd 0x3f 0x57 "$(printf '0x%02X' "$handle")" 0x00 0x01
+done
