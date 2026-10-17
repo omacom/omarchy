@@ -12,6 +12,7 @@ export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
 ASSUME_YES=0
 UPDATED_ANY=0
+UPDATED_IDS=()
 
 fail() {
   echo "omarchy-plugin-update: $*" >&2
@@ -77,6 +78,7 @@ update_one() {
 
   echo "Updated $id."
   UPDATED_ANY=1
+  UPDATED_IDS+=("$id")
 }
 
 id=""
@@ -128,6 +130,6 @@ for id in "${targets[@]}"; do
 done
 
 if (( UPDATED_ANY )); then
-  omarchy-shell shell rescanPlugins >/dev/null
+  omarchy-shell shell reloadPluginsFor "${UPDATED_IDS[*]}" >/dev/null
 fi
 exit $rc

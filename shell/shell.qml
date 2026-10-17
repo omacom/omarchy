@@ -64,10 +64,18 @@ ShellRoot {
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
+  // Plugins whose files changed since the watcher last fired. Collected over the
+  // debounce so a git checkout touching many files still reloads each plugin once.
+  property var localChangedPluginIds: ({})
+
   Timer {
     id: localPluginReloadTimer
     interval: 150
-    onTriggered: shell.reloadPlugins()
+    onTriggered: {
+      var ids = Object.keys(shell.localChangedPluginIds)
+      shell.localChangedPluginIds = ({})
+      shell.reloadPlugins(ids)
+    }
   }
 
   onShellConfigChanged: {
@@ -1507,16 +1515,59 @@ ShellRoot {
     pluginWidgetComponents = ({})
   }
 
-  function reloadPlugins() {
+  // Reloading tears down every plugin panel, so adding, removing or updating
+  // one plugin closed whatever else was open — a settings window mid-edit, a
+  // plugin manager mid-install. Given the ids that changed, only their panels
+  // are torn down; every other open panel keeps its instance and its state.
+  // With no ids (a bare rescan, or a change the caller cannot name) it is the
+  // full reload it always was. Services and bar widgets still reload in full;
+  // kept panels are handed their plugin's new service once the scan finishes.
+  property var pendingReloadIds: ({})
+  property bool pendingReloadAll: false
+
+  function reloadPlugins(changedIds) {
+    var ids = Array.isArray(changedIds) ? changedIds.filter(function(id) { return !!id }) : []
     if (shell.pluginReloading || shell.pluginRegistry.scanning) {
       shell.pluginReloadPending = true
+      if (!ids.length) shell.pendingReloadAll = true
+      var merged = ({})
+      for (var k in shell.pendingReloadIds) merged[k] = true
+      for (var i = 0; i < ids.length; i++) merged[ids[i]] = true
+      shell.pendingReloadIds = merged
       return
     }
     shell.pluginReloading = true
-    shell.unloadPanels()
+    if (ids.length) shell.unloadPanelsFor(ids)
+    else shell.unloadPanels()
     shell.unloadPluginServices()
     shell.unloadPluginWidgets()
     Qt.callLater(shell.finishPluginReload)
+  }
+
+  // Tear down only these plugins' panels. syncPanelEntries brings each back
+  // from fresh code after the scan, or leaves it gone if it was removed.
+  function unloadPanelsFor(ids) {
+    var drop = ({})
+    for (var i = 0; i < ids.length; i++) drop[shell.pluginRegistry.resolveEnabledId(ids[i])] = true
+    for (var i2 = 0; i2 < ids.length; i2++) drop[ids[i2]] = true
+    for (var id in drop) if (panelLoaders[id]) hide(id)
+    for (var j = panelEntryModel.count - 1; j >= 0; j--)
+      if (drop[panelEntryModel.get(j).pluginId]) panelEntryModel.remove(j)
+    var loaders = ({}), payloads = ({}), open = ({})
+    for (var a in panelLoaders) if (!drop[a]) loaders[a] = panelLoaders[a]
+    for (var b in pendingPayloads) if (!drop[b]) payloads[b] = pendingPayloads[b]
+    for (var c in openPanelIds) if (!drop[c]) open[c] = openPanelIds[c]
+    panelLoaders = loaders
+    pendingPayloads = payloads
+    openPanelIds = open
+  }
+
+  // A kept panel still holds the service instance from before the reload.
+  function rebindPanelServices() {
+    for (var id in panelLoaders) {
+      var item = panelLoaders[id] && panelLoaders[id].item
+      if (item && ("service" in item)) item.service = shell.serviceFor(id)
+    }
   }
 
   function finishPluginReload() {
@@ -1533,18 +1584,26 @@ ShellRoot {
     target: shell.pluginRegistry
     function onLocalPluginChanged(pluginId) {
       console.log("Local plugin changed, reloading:", pluginId)
+      var next = ({})
+      for (var k in shell.localChangedPluginIds) next[k] = true
+      if (pluginId) next[pluginId] = true
+      shell.localChangedPluginIds = next
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
       if (shell.pluginReloadPending) {
+        var ids = shell.pendingReloadAll ? [] : Object.keys(shell.pendingReloadIds)
         shell.pluginReloadPending = false
+        shell.pendingReloadAll = false
+        shell.pendingReloadIds = ({})
         shell.pluginReloading = false
-        Qt.callLater(shell.reloadPlugins)
+        Qt.callLater(function() { shell.reloadPlugins(ids) })
         return
       }
       shell.pluginReloading = false
       shell._syncServices()
       shell.syncPanelEntries()
+      shell.rebindPanelServices()
       shell.syncPluginWidgets()
     }
   }
@@ -1788,6 +1847,12 @@ ShellRoot {
 
     function rescanPlugins(): void {
       shell.reloadPlugins()
+    }
+
+    // Like rescanPlugins, but only the named plugins' panels are reloaded, so
+    // other open panels stay open. Space- or comma-separated plugin ids.
+    function reloadPluginsFor(ids: string): void {
+      shell.reloadPlugins(String(ids || "").split(/[\s,]+/).filter(function(id) { return id !== "" }))
     }
 
     function reloadConfig(): string {
