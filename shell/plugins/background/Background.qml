@@ -336,7 +336,7 @@ Item {
 
   Variants {
     id: backgrounds
-    model: Quickshell.screens
+    model: Commons.Screens.real
 
     PanelWindow {
       id: panel

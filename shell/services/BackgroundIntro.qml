@@ -234,7 +234,7 @@ Item {
   // retain the current desktop and never map this startup cover.
   Variants {
     id: startupCovers
-    model: Quickshell.screens
+    model: Commons.Screens.real
 
     PanelWindow {
       required property var modelData
@@ -267,7 +267,7 @@ Item {
 
   Variants {
     id: covers
-    model: Quickshell.screens
+    model: Commons.Screens.real
 
     PanelWindow {
       id: panel

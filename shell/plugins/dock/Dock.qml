@@ -383,7 +383,7 @@ Item {
 
   Variants {
     id: docks
-    model: Quickshell.screens
+    model: Screens.real
 
     delegate: Component {
       DockWindow {

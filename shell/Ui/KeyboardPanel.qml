@@ -364,7 +364,7 @@ PanelWindow {
   // Keyboard focus is None: these must catch the pointer without taking focus
   // from the panel when the cursor merely crosses onto their output.
   Variants {
-    model: root.open ? Quickshell.screens : []
+    model: root.open ? Commons.Screens.real : []
 
     delegate: Component {
       PanelWindow {

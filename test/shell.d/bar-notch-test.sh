@@ -206,7 +206,7 @@ assertEqual(bar.barSizeFor(sizes, 'HDMI-A-1', 26), 26, 'a screen without a surfa
 assertEqual(bar.barSizeFor({}, 'eDP-1', 26), 26, 'no published sizes fall back to the configured size')
 assertEqual(bar.barSizeFor(sizes, 'constructor', 26), 26, 'inherited object keys are no screen')
 assert(
-  /readonly property var screenBarSizes: \{\s*var sizes = \(\{\}\)\s*var screens = Quickshell\.screens\s*for \(var i = 0; i < screens\.length; i\+\+\) sizes\[screens\[i\]\.name\] = root\.thicknessFor\(screens\[i\]\)\s*return sizes\s*\}/.test(barSource) &&
+  /readonly property var screenBarSizes: \{\s*var sizes = \(\{\}\)\s*var screens = Commons\.Screens\.real\s*for \(var i = 0; i < screens\.length; i\+\+\) sizes\[screens\[i\]\.name\] = root\.thicknessFor\(screens\[i\]\)\s*return sizes\s*\}/.test(barSource) &&
     /function barSizeFor\(screenName\) \{\s*return BarModel\.barSizeFor\(root\.screenBarSizes, screenName, root\.barSize\)\s*\}/.test(barSource),
   'bar publishes every screen\'s thickness from the same calculation its surfaces use'
 )

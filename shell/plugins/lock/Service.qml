@@ -84,15 +84,7 @@ Item {
   readonly property bool fingerprintUnavailable: FingerprintModel.isUnavailable(fingerprintProbeStreak) || (fingerprintConfigured && (!fingerprintAttemptReachedDevice || fingerprintAttemptFastError) && FingerprintModel.isUnavailable(fingerprintUnreachedStreak))
 
   function realScreenCount() {
-    var screens = Quickshell.screens || []
-    var count = 0
-
-    for (var i = 0; i < screens.length; i++) {
-      var screen = screens[i]
-      if (screen && screen.name && screen.width > 0 && screen.height > 0) count += 1
-    }
-
-    return count
+    return Commons.Screens.real.length
   }
 
   function hasRealScreen() {
@@ -655,7 +647,7 @@ Item {
     : ""
 
   Variants {
-    model: Quickshell.screens
+    model: Commons.Screens.real
 
     Image {
       required property var modelData

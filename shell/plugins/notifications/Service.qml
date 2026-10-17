@@ -993,13 +993,13 @@ Item {
 
   // -------------------------------------------------------------- popup UI
   //
-  // One PanelWindow per output (Variants on Quickshell.screens) holding the
+  // One PanelWindow per real output (Variants on Screens.real) holding the
   // stacked toast cards. Layer is Overlay, exclusionMode Ignore, no
   // keyboard focus — popups are passive surfaces and must never steal input
   // from the focused application.
 
   Variants {
-    model: Quickshell.screens
+    model: Screens.real
 
     PanelWindow {
       id: popupWindow

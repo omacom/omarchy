@@ -28,7 +28,7 @@ assert(
   'the lock service preloads the exact URL the lock view requests'
 )
 assert(
-  /model: Quickshell\.screens\s*Image \{\s*required property var modelData\s*visible: false\s*source: root\.lockWallpaperUrl\s*sourceSize\.width: modelData\.width\s*sourceSize\.height: modelData\.height\s*fillMode: Image\.PreserveAspectCrop\s*asynchronous: true\s*cache: true/.test(service),
+  /model: Commons\.Screens\.real\s*Image \{\s*required property var modelData\s*visible: false\s*source: root\.lockWallpaperUrl\s*sourceSize\.width: modelData\.width\s*sourceSize\.height: modelData\.height\s*fillMode: Image\.PreserveAspectCrop\s*asynchronous: true\s*cache: true/.test(service),
   'the lock service keeps each screen\'s lock wallpaper decoded at the lock\'s size and fill'
 )
 
