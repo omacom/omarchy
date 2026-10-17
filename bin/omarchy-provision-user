@@ -103,10 +103,18 @@ for skill in "$OMARCHY_PATH"/default/agents/skills/*/; do
   fi
 done
 
-mkdir -p ~/Downloads ~/Pictures ~/Videos ~/.config/gtk-3.0
+mkdir -p ~/Downloads ~/Pictures ~/Videos ~/Projects ~/.config/gtk-3.0
 xdg-user-dirs-update --set TEMPLATES "$HOME"
 xdg-user-dirs-update --set PUBLICSHARE "$HOME"
 xdg-user-dirs-update --set DESKTOP "$HOME"
+# Record every folder Omarchy creates or bookmarks, so the login-time
+# xdg-user-dirs-update has nothing left to fill in. Otherwise a non-English
+# locale gets translated duplicates (e.g. ~/다운로드 next to ~/Downloads) and
+# the XDG keys stop pointing at Omarchy's folders.
+xdg-user-dirs-update --set DOWNLOAD "$HOME/Downloads"
+xdg-user-dirs-update --set PICTURES "$HOME/Pictures"
+xdg-user-dirs-update --set VIDEOS "$HOME/Videos"
+xdg-user-dirs-update --set PROJECTS "$HOME/Projects"
 rmdir ~/Templates ~/Public ~/Desktop 2>/dev/null || true
 touch ~/.config/gtk-3.0/bookmarks
 for dir in Downloads Projects Pictures Videos; do

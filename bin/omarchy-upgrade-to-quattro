@@ -2073,6 +2073,14 @@ if command -v xdg-user-dirs-update >/dev/null 2>&1; then
   xdg-user-dirs-update --set TEMPLATES "$HOME" || true
   xdg-user-dirs-update --set PUBLICSHARE "$HOME" || true
   xdg-user-dirs-update --set DESKTOP "$HOME" || true
+  # Record every folder Omarchy creates or bookmarks, so the login-time
+  # xdg-user-dirs-update has nothing left to fill in. Otherwise a non-English
+  # locale gets translated duplicates (e.g. ~/다운로드 next to ~/Downloads) and
+  # the XDG keys stop pointing at Omarchy's folders.
+  xdg-user-dirs-update --set DOWNLOAD "$HOME/Downloads" || true
+  xdg-user-dirs-update --set PICTURES "$HOME/Pictures" || true
+  xdg-user-dirs-update --set VIDEOS "$HOME/Videos" || true
+  xdg-user-dirs-update --set PROJECTS "$HOME/Projects" || true
 fi
 rmdir "$HOME/Templates" "$HOME/Public" "$HOME/Desktop" 2>/dev/null || true
 touch "$HOME/.config/gtk-3.0/bookmarks"
