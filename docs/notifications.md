@@ -145,6 +145,42 @@ build the `omarchy-exec-argv` hint. (The leading `--` on the `busctl` call is a
 belt for `busctl`'s own getopt, which would otherwise read a dash-leading value
 as a `busctl` option; the summary/body themselves are never parsed as options.)
 
+## Startup ordering
+
+An autostart app is anything launched through `o.launch_on_start` in
+`~/.config/hypr/autostart.lua`. It fires on `hyprland.start`, the same event
+that launches the shell, and the shell needs a few seconds to load its plugins
+before `shell/plugins/notifications/Service.qml` claims
+`org.freedesktop.Notifications`. Apps that probe for that name once at process
+start (Chromium and every web app, Electron) keep a missing answer for their
+whole lifetime: Chromium draws its own bare popup windows for the rest of the
+session instead of sending toasts here.
+
+So `o.launch_on_start` routes through `bin/omarchy-launch-autostart`, which
+waits with `gdbus wait` for the notification service (up to 15 s) and then
+execs `uwsm-app -- <command>` unchanged. In the normal case the name
+is on the bus within a couple of seconds. Past the deadline the app launches
+anyway and one `omarchy-autostart` line in the journal names the missing
+service, so a disabled notifications plugin costs a slower login, never a
+missing app. Keybind launches (`o.launch`, `o.bind` with a command) run in an
+established session and stay immediate.
+
+A leading Hyprland exec rule such as `[workspace 4 silent]` stays in front of
+the helper in the exec string, where Hyprland consumes it; anywhere later it
+would reach the launched program as an argument. Hyprland keeps an exec rule
+for a minute, so the wait fits inside it.
+
+When `~/.config/omarchy/shell.json` lists `omarchy.notifications` under
+`disabledPlugins[]`, the wait adds `--activate`, which starts a
+D-Bus-activatable daemon (mako, dunst and swaync all ship a service file for
+the name) so the wait ends at once. With the plugin enabled it never
+activates anything: an installed daemon would otherwise start during the
+shell's own startup, claim the name first, and take every app's
+notifications away from the shell. A daemon started from `autostart.lua`
+instead would wait for the name it is about to claim itself, so it must use
+the no-wait form `o.exec_on_start(o.launch("mako"))`; the same form suits any
+launch that must not wait.
+
 ## Helper commands
 
 - `omarchy-notification-wait [timeout]` — polls until the shell answers IPC
