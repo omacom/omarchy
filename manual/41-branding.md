@@ -20,15 +20,16 @@ You can change the logo used for the screensaver under _Style > Screensaver_. It
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
-There are three entries in that menu:
+There are four entries in that menu:
 
+- **Paint** opens a mouse-driven editor for the same text file. Click and drag to stamp block quadrants (`▀▄▌▐█` and the 2×2 pieces), braille dots, shade (`░▒▓█`), or auto-joining single and double box-drawing. Text (`T`) clicks a cell and types a single line; Enter finishes the run. Erase takes the half under the cursor off a block cell. Each tool button shows its key (`B` `I` `S` `L` `D` `R` `F` `T` `E`; shades `1`–`4`). Top/Bottom/Left/Right `+` and `−` add or remove a row or column at that edge. Save writes the file, keeps the previous version as `*.bak`, and launches the screensaver so you can see it; the editor stays open so you can iterate. `omarchy ascii paint file.txt` is the same overlay for any other UTF-8 art file.
 - **Edit Text** opens `~/.config/omarchy/branding/screensaver.txt` in your editor. Type or paste whatever you like — ASCII art, your name, a rude word. Save and quit, and the screensaver fires up immediately so you can see it.
 - **Set From Image** opens a file picker for a png or svg, converts it to ASCII, and shows you the result. Logos with a clear silhouette work far better than photos.
 - **Restore Default** puts the Omarchy logo back.
 
 ### About screen
 
-The same three options are under _Style > About_ for the _About_ screen you get from the Omarchy menu, and they work identically — the file is `~/.config/omarchy/branding/about.txt`, and the About window pops up after each change. The About art is converted to a smaller size than the screensaver's, since it has to fit in a window rather than fill your display.
+The same four options are under _Style > About_ for the _About_ screen you get from the Omarchy menu, and they work identically — the file is `~/.config/omarchy/branding/about.txt`, and the About window pops up after each change. Paint shows a 54×26 frame on the canvas for that window. The About art is converted to a smaller size than the screensaver's, since it has to fit in a window rather than fill your display.
 
 While the window is open a glint of green leans across the art every few seconds and then leaves it still again. Your own art gets it too, as long as every character in it is one column wide — anything _Set From Image_ produces is. Art built from emoji or double-width characters stays still instead, and so does the screen if you keep a fastfetch config of your own: a still logo in those cases is the animation keeping out of the way rather than failing, since sliding a glint across them would land the rest of the line in the wrong place.
 
