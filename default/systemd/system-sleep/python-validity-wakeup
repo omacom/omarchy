@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Resume can wedge python-validity + open-fprintd; restart both after resume.
+if [[ $1 == "post" ]]; then
+  systemctl --no-block try-restart python3-validity.service open-fprintd.service 2>/dev/null || true
+fi

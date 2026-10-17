@@ -1,0 +1,210 @@
+#!/bin/bash
+set -euo pipefail
+
+if [ "${EUID}" -ne 0 ]; then
+  exec pkexec bash "$0" "$@"
+fi
+
+if ! command -v omarchy-hw-fingerprint-validity >/dev/null 2>&1 || ! omarchy-hw-fingerprint-validity; then
+  echo "No Validity fingerprint reader detected. Repair utility refused." >&2
+  exit 1
+fi
+
+echo "Omarchy Validity fingerprint repair: resetting sensor and restoring services..."
+
+service_unit=/etc/systemd/system/python3-validity.service
+service_backup_dir=""
+service_backup_path=""
+service_backup_ready=0
+service_unit_masked=0
+
+restore_service_unit() {
+  if [[ -L "$service_unit" ]]; then
+    rm -f "$service_unit"
+  fi
+  if [[ "$service_backup_ready" == 1 && "$service_unit_masked" == 1 && -n "$service_backup_path" && -f "$service_backup_path" ]]; then
+    mv "$service_backup_path" "$service_unit"
+    service_backup_ready=0
+    service_unit_masked=0
+  fi
+  if [[ -n "$service_backup_dir" && -d "$service_backup_dir" ]]; then
+    rm -rf -- "$service_backup_dir"
+    service_backup_dir=""
+    service_backup_path=""
+  fi
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl unmask python3-validity.service >/dev/null 2>&1 || true
+}
+trap restore_service_unit EXIT
+
+# Keep a root-owned private copy of the customized unit while masking it.
+if [[ -f "$service_unit" ]]; then
+  service_backup_dir="$(umask 077; mktemp -d /tmp/python-validity-service.XXXXXX)"
+  chmod 700 "$service_backup_dir"
+  service_backup_path="$service_backup_dir/python3-validity.service"
+  if ! cp -a "$service_unit" "$service_backup_path"; then
+    rm -rf -- "$service_backup_dir"
+    service_backup_dir=""
+    service_backup_path=""
+    exit 1
+  fi
+  service_backup_ready=1
+  # Mark the original as removed after a successful rm but before ln. If ln
+  # fails, the exit trap still restores the completed backup instead of
+  # silently discarding it.
+  rm -f "$service_unit"
+  service_unit_masked=1
+  ln -s /dev/null "$service_unit"
+fi
+
+systemctl daemon-reload
+systemctl stop python3-validity.service 2>/dev/null || true
+systemctl stop open-fprintd.service 2>/dev/null || true
+
+# Clean crash/backoff state.
+rm -f /var/run/python-validity/backoff /var/run/python-validity.last_start /var/run/python-validity/* 2>/dev/null || true
+
+# Reset the reader's USB power and force re-enumeration.
+for d in /sys/bus/usb/devices/*; do
+  if [ -r "$d/idVendor" ] && [ -r "$d/idProduct" ]; then
+    case "$(cat "$d/idVendor" 2>/dev/null):$(cat "$d/idProduct" 2>/dev/null)" in
+      138a:0090|138a:0097|138a:009d|06cb:009a) echo 0 > "$d/authorized" 2>/dev/null || true ;;
+    esac
+  fi
+done
+sleep 2
+for d in /sys/bus/usb/devices/*; do
+  if [ -r "$d/idVendor" ] && [ -r "$d/idProduct" ]; then
+    case "$(cat "$d/idVendor" 2>/dev/null):$(cat "$d/idProduct" 2>/dev/null)" in
+      138a:0090|138a:0097|138a:009d|06cb:009a)
+        echo 1 > "$d/authorized" 2>/dev/null || true
+        echo on > "$d/power/control" 2>/dev/null || true
+        echo -1 > "$d/power/autosuspend" 2>/dev/null || true
+        ;;
+    esac
+  fi
+done
+sleep 2
+
+if command -v usbreset >/dev/null 2>&1; then
+  for sensor_id in 138a:0090 138a:0097 138a:009d 06cb:009a; do
+    usbreset "$sensor_id" >/dev/null 2>&1 || true
+  done
+fi
+sleep 2
+for d in /sys/bus/usb/devices/*; do
+  if [ -r "$d/idVendor" ] && [ -r "$d/idProduct" ]; then
+    case "$(cat "$d/idVendor" 2>/dev/null):$(cat "$d/idProduct" 2>/dev/null)" in
+      138a:0090|138a:0097|138a:009d|06cb:009a)
+        echo on > "$d/power/control" 2>/dev/null || true
+        echo -1 > "$d/power/autosuspend" 2>/dev/null || true
+        ;;
+    esac
+  fi
+done
+
+# Wait for re-enumeration.
+for _ in $(seq 1 15); do
+  if lsusb 2>/dev/null | grep -Eq "138a:009[0-9d]|06cb:009a"; then
+    break
+  fi
+  sleep 1
+done
+
+# Refresh persistent firmware when it is missing.
+mkdir -p /var/run/python-validity /var/lib/python-validity /usr/share/python-validity
+if ! ls /var/lib/python-validity/*.xpfwext >/dev/null 2>&1; then
+  validity-sensors-firmware >/dev/null 2>&1 || true
+  cp -a /var/run/python-validity/*.xpfwext /var/lib/python-validity/ 2>/dev/null || true
+  cp -a /var/run/python-validity/*.xpfwext /usr/share/python-validity/ 2>/dev/null || true
+fi
+cp -a /var/lib/python-validity/*.xpfwext /var/run/python-validity/ 2>/dev/null || true
+cp -a /var/lib/python-validity/*.xpfwext /usr/share/python-validity/ 2>/dev/null || true
+
+# Factory reset now that the driver is not holding the device.
+python3 /usr/share/python-validity/playground/factory-reset.py
+
+restore_service_unit
+sleep 15
+trap - EXIT
+
+# Persistent udev override: never autosuspend the sensor.
+cat > /etc/udev/rules.d/60-python-validity.rules <<'EOF'
+SUBSYSTEM!="usb", GOTO="python_validity_end"
+ENV{DEVTYPE}!="usb_device", GOTO="python_validity_end"
+
+ATTRS{idVendor}=="138a", ATTRS{idProduct}=="0090", GOTO="python_validity_match"
+ATTRS{idVendor}=="138a", ATTRS{idProduct}=="0097", GOTO="python_validity_match"
+ATTRS{idVendor}=="138a", ATTRS{idProduct}=="009d", GOTO="python_validity_match"
+ATTRS{idVendor}=="06cb", ATTRS{idProduct}=="009a", GOTO="python_validity_match"
+
+GOTO="python_validity_end"
+
+LABEL="python_validity_match"
+
+ACTION=="add|change", TEST=="power/control", ATTR{power/control}="on"
+ACTION=="add|change", TEST=="power/autosuspend", ATTR{power/autosuspend}="-1"
+ACTION=="add", RUN+="/bin/systemctl --no-block start python3-validity.service"
+ACTION=="remove", RUN+="/bin/systemctl --no-block stop python3-validity.service"
+
+LABEL="python_validity_end"
+EOF
+udevadm control --reload 2>/dev/null || true
+udevadm trigger --subsystem-match=usb --action=change 2>/dev/null || true
+
+# Persistent firmware drop-in.
+mkdir -p /etc/systemd/system/python3-validity.service.d
+cat > /etc/systemd/system/python3-validity.service.d/firmware.conf <<'EOF'
+[Service]
+ExecStartPre=/usr/bin/mkdir -p /var/run/python-validity
+ExecStartPre=-/usr/bin/sh -c "cp -a /var/lib/python-validity/*.xpfwext /var/run/python-validity/ 2>/dev/null || true"
+EOF
+
+systemctl daemon-reload
+systemctl unmask python3-validity.service 2>/dev/null || true
+
+# A full override unit avoids ordering cycles and gives a defined service.
+cat > /etc/systemd/system/python3-validity.service <<'EOF'
+[Unit]
+Description=python-validity driver dbus service
+Before=open-fprintd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/python-validity/dbus-service
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+mkdir -p /etc/systemd/system/open-fprintd.service.d
+cat > /etc/systemd/system/open-fprintd.service.d/after-validity.conf <<'EOF'
+[Unit]
+After=python3-validity.service
+Requires=python3-validity.service
+EOF
+
+systemctl daemon-reload
+systemctl start python3-validity.service
+# Give the driver a moment to initialize and upload firmware.
+for _ in $(seq 1 20); do
+  if systemctl is-active --quiet python3-validity.service; then
+    sleep 4
+    if ! systemctl is-failed --quiet python3-validity.service; then
+      break
+    fi
+  fi
+  sleep 1
+done
+systemctl start open-fprintd.service || true
+
+echo
+echo "Repair finished."
+systemctl --no-pager status python3-validity.service open-fprintd.service 2>&1 | head -20
+echo
+if fprintd-list 2>/dev/null | grep -qi "found 1 devices"; then
+  echo "SUCCESS: fingerprint device restored. Test with: fprintd-enroll/fprintd-verify"
+else
+  echo "Device still unavailable. If the factory reset passed, wait a minute and rerun this script."
+fi

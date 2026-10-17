@@ -42,10 +42,24 @@ EOF
 
 # Install resume recovery alongside fingerprint PAM, so setup and upgrades
 # cannot leave one configured without the other.
-resume_hook_src="$OMARCHY_PATH/default/systemd/system-sleep/fprintd-resume"
-resume_hook_dst=/usr/lib/systemd/system-sleep/fprintd-resume
-stop_timeout_src="$OMARCHY_PATH/default/systemd/system/fprintd.service.d/10-stop-timeout.conf"
-stop_timeout_dst=/etc/systemd/system/fprintd.service.d/10-stop-timeout.conf
+validity_backend=false
+if command -v omarchy-hw-fingerprint-validity >/dev/null 2>&1 && omarchy-hw-fingerprint-validity; then
+  validity_backend=true
+elif [[ -f /etc/systemd/system/python3-validity.service || -f /etc/udev/rules.d/60-python-validity.rules ]]; then
+  validity_backend=true
+fi
+
+if [[ $validity_backend == true ]]; then
+  resume_hook_src="$OMARCHY_PATH/default/systemd/system-sleep/python-validity-wakeup"
+  resume_hook_dst=/usr/lib/systemd/system-sleep/python-validity-wakeup
+  stop_timeout_src="$OMARCHY_PATH/default/systemd/system/open-fprintd.service.d/10-stop-timeout.conf"
+  stop_timeout_dst=/etc/systemd/system/open-fprintd.service.d/10-stop-timeout.conf
+else
+  resume_hook_src="$OMARCHY_PATH/default/systemd/system-sleep/fprintd-resume"
+  resume_hook_dst=/usr/lib/systemd/system-sleep/fprintd-resume
+  stop_timeout_src="$OMARCHY_PATH/default/systemd/system/fprintd.service.d/10-stop-timeout.conf"
+  stop_timeout_dst=/etc/systemd/system/fprintd.service.d/10-stop-timeout.conf
+fi
 
 # Keep the privileged probe pinned to /usr/bin; failure is not empty enrollment.
 if [[ -x /usr/bin/fprintd-list ]]; then
@@ -65,7 +79,9 @@ auth       required                    pam_fprintd.so
 account    include                     system-local-login
 EOF
 elif [[ $fingerprint_status == "no" ]] || grep -qi 'has no fingers enrolled' <<< "$fingerprint_status"; then
-  as_root rm -f /etc/pam.d/omarchy-lock-fingerprint "$resume_hook_dst"
+  as_root rm -f /etc/pam.d/omarchy-lock-fingerprint \
+    /usr/lib/systemd/system-sleep/python-validity-wakeup \
+    /usr/lib/systemd/system-sleep/fprintd-resume
   # Only reload when something was there: this branch also runs in the
   # install chroot, where there is no systemd to reload.
   if [[ -e $stop_timeout_dst ]]; then
