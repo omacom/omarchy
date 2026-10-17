@@ -436,7 +436,8 @@ elsewhere). The module is an `Item` and receives `bar`, `moduleName`,
 `settings` properties. `bar` exposes `foreground` / `background` /
 `urgent` / `fontFamily` / `position` / `vertical` / `barSize`, plus
 `run(cmd)`, `showTooltip(t, s)` / `hideTooltip(t)`,
-`requestPopout(o)` / `releasePopout(o)`. To shell-quote arguments for
+`requestPopout(o)` / `releasePopout(o)`. A tooltip target must expose a `tooltipHovered` bool that is true while the pointer is over it, or `showTooltip` shows nothing.
+To shell-quote arguments for
 `run`, use `Util.shellQuote(v)` from `qs.Commons`.
 
 A module that declares `property string fixedEdge` also receives the edge of itself that stays put when it grows, set by how its section is anchored. Widgets that extend `BarWidget` from `qs.Ui` declare it already.
