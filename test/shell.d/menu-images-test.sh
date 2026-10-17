@@ -180,6 +180,21 @@ while IFS=$'\t' read -r row_image row_thumbnail; do
 done <<<"$rows"
 pass "image menu prints its rows for the shell to hold"
 
+# An editor saving in place changes the file but not its directory's mtime.
+[[ -f $cache_dir/$cache_key.rows && -f $cache_dir/$cache_key.fast-signature ]] ||
+  fail "image menu caches the rows it prints"
+touch -r "$images" "$tmp/images-mtime"
+printf 'image-one-saved-in-place' >"$images/one.png"
+touch -r "$tmp/images-mtime" "$images"
+signature=$(stat -Lc '%s:%Y' "$images/one.png")
+hash=$(printf '%s\t%s' "$images/one.png" "$signature" | md5sum | cut -d ' ' -f 1)
+rows=$(PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+  "$ROOT/bin/omarchy-menu-images" --print-rows "$images")
+
+grep -Fxq "$images/one.png"$'\t'"$cache_dir/$hash.jpg" <<<"$rows" ||
+  fail "image menu regenerates the thumbnail of an image overwritten in place"
+pass "image menu notices an image overwritten in place"
+
 # Block converters behind a gate: printing lazy rows must neither await them
 # nor start one process per image. Repeated refreshes share one worker pool.
 lazy_images="$tmp/lazy-images"
