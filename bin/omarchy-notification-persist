@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# omarchy:summary=Persist one notification popup or history file
+# omarchy:hidden=true
+
+# Write a single notification JSON document to disk. The document is read from
+# stdin as one line, never passed in argv: Linux caps an individual argument
+# string at MAX_ARG_STRLEN (131072 bytes), and a notification with a large body
+# would otherwise fail to spawn and wedge the shell's serialized persistence
+# queue for every job behind it. Keeping it on stdin also keeps the body out of
+# /proc/<pid>/cmdline.
+#
+# Image copies run before the JSON that references them, so a persisted entry
+# never points at a half-copied image. A copy is bounded through a validated
+# temp file because the source path is sender-controlled and may grow, block,
+# or become a FIFO mid-copy.
+#
+# Usage:
+#   omarchy-notification-persist <outdir> <imagedir> <name> [from to ...]
+#   omarchy-notification-persist --history <limit> <outdir> <imagedir> <name> [from to ...]
+#
+# The --history form trims <outdir> to its newest <limit> .json files after
+# writing, dropping each stale entry's image copies with it.
+
+limit=""
+if [[ ${1:-} == "--history" ]]; then
+  shift
+  limit="$1"
+  shift
+fi
+
+outdir="$1"
+imgs="$2"
+name="$3"
+shift 3
+
+mkdir -p "$outdir" "$imgs" || exit 0
+
+# Consume the payload before touching the filesystem: the parent is blocked on
+# the pipe only until this line reads it. JSON.stringify escapes embedded
+# newlines, so the whole document arrives as a single line.
+IFS= read -r json || exit 1
+
+while (( $# >= 2 )); do
+  if [[ -f $1 ]] && timeout 5 head -c 5242881 -- "$1" > "$2.tmp" 2>/dev/null &&
+     (( $(stat -c%s -- "$2.tmp") <= 5242880 )); then
+    mv -f -- "$2.tmp" "$2"
+  else
+    rm -f -- "$2.tmp"
+  fi
+  shift 2
+done
+
+printf '%s\n' "$json" > "$outdir/$name" || exit 0
+
+if [[ -n $limit ]]; then
+  ls -1 "$outdir" 2>/dev/null | sort -n | head -n "-$limit" | while IFS= read -r stale; do
+    rm -f "$outdir/$stale" "$imgs/${stale%.json}"-*
+  done
+fi
