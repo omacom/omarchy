@@ -67,13 +67,16 @@ BarWidget {
         NumberAnimation on x {
           id: scrollAnim
           running: labelText.needsScroll && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
-          // Stopped for reduced motion, the title reads from its start again.
-          onRunningChanged: if (!running && Style.reduceMotion) labelText.x = 0
           loops: Animation.Infinite
           duration: Math.max(6000, labelText.implicitWidth * 25)
           from: scrollClip.width
           to: -labelText.implicitWidth
           easing.type: Easing.Linear
+
+          // A stopped NumberAnimation leaves x wherever the marquee was, which
+          // parks a title that fits (or the frozen one under an open popup)
+          // outside the clip. Every stop path flips running, so reset here.
+          onRunningChanged: if (!running) labelText.x = 0
         }
       }
     }
