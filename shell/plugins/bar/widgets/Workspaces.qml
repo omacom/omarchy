@@ -56,7 +56,7 @@ BarWidget {
   }
 
   // The focused workspace shows its layout: a square tiles, a circle scrolls,
-  // and a triangle floats. Clicking it cycles to the next one, as Super + L does.
+  // and a triangle floats. A click only focuses that workspace.
   property string focusedMode: "dwindle"
   property bool modeStale: false
 
@@ -101,10 +101,6 @@ BarWidget {
     root.modeCache = ({})
     root.modeGeneration++
     readMode()
-  }
-
-  function cycleLayout() {
-    if (root.bar) root.bar.run("omarchy-hyprland-workspace-layout-toggle")
   }
 
   Component.onCompleted: refresh()
@@ -174,10 +170,7 @@ BarWidget {
         verticalPadding: 6
         fixedWidth: root.vertical ? root.barSize : Style.space(20)
         fixedHeight: root.barSize
-        onPressed: function() {
-          if (focused) root.cycleLayout()
-          else root.focusWorkspace(modelData)
-        }
+        onPressed: function() { root.focusWorkspace(modelData) }
         onWheelMoved: function(delta) { root.scrollWorkspaces(delta) }
       }
     }
