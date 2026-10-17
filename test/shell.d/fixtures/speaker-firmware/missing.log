@@ -1,0 +1,9 @@
+sof-audio-pci-intel-ptl 0000:00:1f.3: Booted firmware version: 2.14.1.1
+cs35l56 spi-cs35l56-right: DSP1: Firmware: 1a00d6 vendor: 0x2 v4.2.1, 42 algorithms
+cs35l56 spi-cs35l56-left: DSP1: Firmware: 1a00d6 vendor: 0x2 v4.2.1, 42 algorithms
+cs35l56 spi-cs35l56-right: FIRMWARE_MISSING
+cs35l56 spi-cs35l56-right: Calibration disabled due to missing firmware controls
+cs35l56 spi-cs35l56-left: FIRMWARE_MISSING
+cs35l56 spi-cs35l56-left: Calibration disabled due to missing firmware controls
+cs35l56 spi-cs35l56-right: Can't read tuning IDs
+cs35l56 spi-cs35l56-left: Can't read tuning IDs
