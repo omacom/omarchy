@@ -440,6 +440,43 @@ ShellRoot {
     registry.setEnabled("local.bar", false)
     root.assertTrue(root.config.bar.id === undefined, "disabling a cloned built-in bar restores it")
 
+    // Disabling a widget takes its slot and leaves its plugins[] entry behind.
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [], right: [] } },
+      plugins: [{ id: "third.widget", apiKey: "secret" }]
+    }
+    root.assertTrue(registry.setEnabled("third.widget", true), "enabling a widget listed only in plugins[] succeeds")
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "enabling a widget listed only in plugins[] puts it on the bar")
+    root.assertDeepEqual(root.config.plugins, [{ id: "third.widget", apiKey: "secret" }], "enabling a widget leaves its plugins[] entry alone")
+    root.assertTrue(registry.inBar("third.widget"), "a widget enabled from plugins[] is on the bar")
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [], right: [{ id: "third.widget" }] } },
+      plugins: [{ id: "third.widget", apiKey: "secret" }]
+    }
+    registry.setEnabled("third.widget", false)
+    root.assertDeepEqual(root.config.plugins, [{ id: "third.widget", apiKey: "secret" }], "disabling a widget leaves its plugins[] entry alone")
+    registry.setEnabled("third.widget", true)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "a disabled widget comes back on the bar when re-enabled")
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [], right: [] } },
+      plugins: [{ id: "third.center-widget" }]
+    }
+    root.assertEqual(registry.putBarWidget("third.center-widget", { section: "right" }), "", "put accepts a widget listed only in plugins[]")
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "third.center-widget" }], "put places a widget listed only in plugins[]")
+
+    root.config = {
+      version: 1,
+      bar: { id: "third.widget", layout: { left: [{ id: "third.widget" }], center: [], right: [] } },
+      plugins: []
+    }
+    registry.setEnabled("third.widget", true)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "a widget named as bar.id and already on the bar is not placed twice")
+
     root.config = {
       version: 1,
       bar: { layout: { left: [], center: [{ id: "third.widget", size: 4 }], right: [] } },
