@@ -55,6 +55,33 @@ BarWidget {
     if (target !== ids[index]) root.focusWorkspace(target)
   }
 
+  // Qtile/Xmonad-style tag behavior: show the workspace on the monitor whose
+  // bar was clicked, swapping it away from another monitor if needed. The
+  // dispatcher cannot combine `monitor` with `workspace`, so focus the clicked
+  // monitor first, then pull the workspace onto the now-current monitor.
+  // Middle-click is used because keyboard modifier state is not delivered to
+  // layer surfaces without keyboard focus, so shift-click cannot be detected.
+  function clickedMonitorName() {
+    var window = root.QsWindow ? root.QsWindow.window : null
+    var screen = window && window.screen ? window.screen : null
+    var hypr = screen && Hyprland.monitorFor ? Hyprland.monitorFor(screen) : null
+    return hypr && hypr.name ? String(hypr.name) : ""
+  }
+
+  function focusWorkspaceOnClickedMonitor(id) {
+    if (!root.bar) return
+    var monitor = root.clickedMonitorName()
+    if (!monitor) {
+      root.bar.run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ workspace = \"" + id + "\", on_current_monitor = true })"))
+      return
+    }
+
+    root.bar.run(
+      "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + monitor + "\" })") +
+      " && hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ workspace = \"" + id + "\", on_current_monitor = true })")
+    )
+  }
+
   // The focused workspace shows its layout: a square tiles, a circle scrolls,
   // and a triangle floats. Clicking it cycles to the next one, as Super + L does.
   property string focusedMode: "dwindle"
@@ -174,8 +201,9 @@ BarWidget {
         verticalPadding: 6
         fixedWidth: root.vertical ? root.barSize : Style.space(20)
         fixedHeight: root.barSize
-        onPressed: function() {
-          if (focused) root.cycleLayout()
+        onPressed: function(button) {
+          if (button === Qt.MiddleButton) root.focusWorkspaceOnClickedMonitor(modelData)
+          else if (focused) root.cycleLayout()
           else root.focusWorkspace(modelData)
         }
         onWheelMoved: function(delta) { root.scrollWorkspaces(delta) }
