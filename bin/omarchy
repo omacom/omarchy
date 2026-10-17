@@ -190,6 +190,7 @@ register_command() {
   local has_summary="false"
   local metadata_errors=""
 
+  local stripped="" comment="" rest=""
   while IFS= read -r line && (( line_count < METADATA_SCAN_LIMIT )); do
     line_count=$((line_count + 1))
 
@@ -197,17 +198,23 @@ register_command() {
       continue
     fi
 
-    if [[ $line =~ ^[[:space:]]*$ ]]; then
+    # Strip leading whitespace
+    stripped="${line#"${line%%[![:space:]]*}"}"
+    if [[ -z $stripped ]]; then
       continue
     fi
 
-    if [[ ! $line =~ ^[[:space:]]*# ]]; then
+    if [[ $stripped != "#"* ]]; then
       break
     fi
 
-    if [[ $line =~ ^[[:space:]]*#[[:space:]]*omarchy:([[:alnum:]_-]+)=(.*)$ ]]; then
-      metadata_key="${BASH_REMATCH[1]}"
-      metadata_value="${BASH_REMATCH[2]}"
+    comment="${stripped#"#"}"
+    comment="${comment#"${comment%%[![:space:]]*}"}"
+
+    if [[ $comment == omarchy:*=* ]]; then
+      rest="${comment#omarchy:}"
+      metadata_key="${rest%%=*}"
+      metadata_value="${rest#*=}"
       metadata_value="${metadata_value%$'\r'}"
       metadata_value="${metadata_value//$'\t'/ }"
 
@@ -243,14 +250,9 @@ register_command() {
       *)
         ;;
       esac
-    elif [[ -z $fallback_summary && $line =~ ^[[:space:]]*#[[:space:]]*(.+)$ ]]; then
-      fallback_summary="${BASH_REMATCH[1]}"
-      fallback_summary="${fallback_summary%$'\r'}"
+    elif [[ -z $fallback_summary && -n $comment && $comment != omarchy:* ]]; then
+      fallback_summary="${comment%$'\r'}"
       fallback_summary="${fallback_summary//$'\t'/ }"
-
-      if [[ -z $fallback_summary || $fallback_summary == omarchy:* ]]; then
-        fallback_summary=""
-      fi
     fi
   done <"$file"
 
