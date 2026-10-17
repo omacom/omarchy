@@ -17,6 +17,12 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
        ~/.local/bin/gh ~/.local/bin/opencode ~/.local/bin/playwright ~/.local/bin/playwright-cli ~/.local/bin/pi \
        ~/.local/bin/omp ~/.local/bin/ori ~/.local/bin/grok ~/.local/bin/crush ~/.local/bin/ghui ~/.local/bin/hunk
 
+  # Preserve a user-managed dsh launcher at the same path.
+  if [[ -f ~/.local/bin/dsh && ! -L ~/.local/bin/dsh ]] &&
+    grep -Eq '^mise use -g .*"npm:@deepseek\-ai/dsh@0\.2\.0\-rc\.2"' ~/.local/bin/dsh; then
+    rm -f ~/.local/bin/dsh
+  fi
+
   # Preserve a user-managed Kimi launcher at the same path.
   if [[ -f ~/.local/bin/kimi && ! -L ~/.local/bin/kimi ]] &&
     grep -Eq '^mise use -g .*"npm:@moonshot-ai/kimi-code"' ~/.local/bin/kimi; then

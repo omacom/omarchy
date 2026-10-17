@@ -5,6 +5,9 @@ mise settings set upgrade.auto_prune false
 omarchy-mise-install codex
 omarchy-mise-install claude
 omarchy-mise-install crush
+# Pinned: every DSH release so far is a prerelease, and mise's npm backend lists
+# only stable versions, so a bare package name resolves to nothing.
+omarchy-mise-install npm:@deepseek-ai/dsh@0.2.0-rc.2 dsh
 omarchy-mise-install antigravity-cli agy
 omarchy-mise-install gh
 omarchy-mise-install copilot

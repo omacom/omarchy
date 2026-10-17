@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi]
+# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|dsh]
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
@@ -43,8 +43,16 @@ muse | muse-code | musecode)
   ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
 kimi | kimi-code) agent="kimi"; name="Kimi"; agent_package="npm:@moonshot-ai/kimi-code" ;;
+dsh | deepseek | deepseek-harness)
+  agent="dsh"; name="DeepSeek Harness"
+  # Every release DSH has published is a prerelease, and mise's npm backend
+  # lists only stable versions, so a bare `npm:@deepseek-ai/dsh` resolves to no
+  # versions at all. Name the version here to install one; drop the pin once a
+  # stable release exists upstream.
+  agent_package="npm:@deepseek-ai/dsh@0.2.0-rc.2"
+  ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi>"
+  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|dsh>"
   exit 1
   ;;
 esac

@@ -138,6 +138,14 @@ kimi)
     command=(kimi --yolo)
   fi
   ;;
+dsh)
+  if [[ -n ${prompt:-} ]]; then
+    # The launcher consumes one separator; the profile app needs its own.
+    command=(env DSH_PERMISSION_MODE=danger-full-access dsh headless -- -- "$prompt")
+  else
+    command=(env DSH_PERMISSION_MODE=danger-full-access dsh web)
+  fi
+  ;;
 *)
   echo "Unsupported default agent: $agent" >&2
   exit 1
