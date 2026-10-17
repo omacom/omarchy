@@ -1993,7 +1993,7 @@ legacy_omarchy_backup="$HOME/.local/share/omarchy.omarchy-upgrade-to-quattro.$BA
 if [[ -d $legacy_omarchy_backup/themes && -d $legacy_omarchy_backup/.git ]]; then
   (
     cd "$legacy_omarchy_backup"
-    git ls-files --others -- 'themes/*/backgrounds/*' 2>/dev/null | while IFS= read -r bg_file; do
+    git ls-files -z --others -- 'themes/*/backgrounds/*' 2>/dev/null | while IFS= read -r -d '' bg_file; do
       theme_name=${bg_file#themes/}
       theme_name=${theme_name%%/*}
       mkdir -p "$HOME/.config/omarchy/backgrounds/$theme_name"
