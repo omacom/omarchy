@@ -201,8 +201,6 @@ run_root_transaction() {
       omarchy.plymouth
       omarchy.script
       preview-unlock.png
-      progress_bar.png
-      progress_box.png
     )
     plymouth_default_assets=("${plymouth_theme_assets[@]}" logos/oma.png)
     sddm_theme_assets=(Main.qml bullet.png entry-failed.png entry.png lock-failed.png lock.png logo.png)
@@ -287,7 +285,7 @@ run_root_transaction() {
         -e "s/^Window.SetBackgroundBottomColor.*/Window.SetBackgroundBottomColor($bg_r, $bg_g, $bg_b);/" \
         "$plymouth_stage/omarchy.script"
 
-      for asset in bullet.png entry.png lock.png progress_bar.png; do
+      for asset in bullet.png entry.png lock.png; do
         magick "$plymouth_stage/$asset" -channel RGB +level-colors "#$text_hex","#$text_hex" "$plymouth_stage/$asset"
       done
 
