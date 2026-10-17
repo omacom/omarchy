@@ -476,6 +476,10 @@ cat >"$select_tmp/bin/omarchy-shell" <<'SH'
 #!/bin/bash
 payload="$4"
 printf '%s\n' "$payload" >"$PAYLOAD_OUT"
+options_file=$(jq -r '.optionsFile // empty' <<<"$payload")
+if [[ -n $options_file ]]; then
+  cp "$options_file" "$PAYLOAD_OUT.options"
+fi
 sel_file=$(jq -r '.selectionFile' <<<"$payload")
 done_file=$(jq -r '.doneFile' <<<"$payload")
 printf '%s\n' "$FAKE_ANSWER" >"$sel_file"
@@ -488,10 +492,10 @@ select_answer=$(PATH="$select_tmp/bin:$PATH" PAYLOAD_OUT="$select_tmp/select.jso
   --multiple --selected "-dash" --selected $'Second\tsub' \
   --on-change '["apply","--set"]' --change-key "k1" --width 640 --maxheight 480)
 [[ $select_answer == "-dash" ]] || fail "omarchy-menu-select returns the selected value" "$select_answer"
-jq -e '
+jq -e --slurpfile options "$select_tmp/select.json.options" '
   .mode == "select"
   and .prompt == "Pick (æøå)"
-  and .options == ["-dash", "✓\tSecond\tsub"]
+  and $options == [["-dash", "✓\tSecond\tsub"]]
   and .multiple == true
   and .selected == ["-dash", "Second\tsub"]
   and .onChange == ["apply", "--set"]
