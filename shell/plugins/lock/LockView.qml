@@ -86,6 +86,17 @@ Item {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
 
+  // The lock surface usually isn't the active window yet when it is created
+  // (or recreated after the display wakes), so the one-shot focus above is
+  // lost and typing goes nowhere until a click. Take focus whenever the
+  // surface gains keyboard focus, and whenever the field loses it while the
+  // surface still has it.
+  readonly property bool windowActive: Window.active
+  function restorePasswordFocus() {
+    if (windowActive && inputEnabled && passwordInput.enabled && !passwordInput.activeFocus) forcePasswordFocus()
+  }
+  onWindowActiveChanged: Qt.callLater(restorePasswordFocus)
+
   // Measures the masked password at full size; passwordDotScale compares this
   // against the field width to decide how far the dots must shrink to fit.
   TextMetrics {
@@ -164,6 +175,7 @@ Item {
 
       TextInput {
         id: passwordInput
+        objectName: "lockPasswordInput"
         anchors.fill: parent
         anchors.topMargin: inputField.borderTop
         // Reserve the fingerprint icon's width on both sides so the centered
@@ -174,6 +186,10 @@ Item {
         verticalAlignment: TextInput.AlignVCenter
         horizontalAlignment: TextInput.AlignHCenter
         activeFocusOnPress: true
+        // Disabled while a password is being checked; take focus back after
+        // a failed attempt so you can retype without clicking.
+        onEnabledChanged: Qt.callLater(root.restorePasswordFocus)
+        onActiveFocusChanged: Qt.callLater(root.restorePasswordFocus)
         clip: true
         enabled: root.inputEnabled && !root.authenticatingPassword
         readOnly: root.authenticatingPassword
