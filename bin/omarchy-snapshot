@@ -37,7 +37,21 @@ create)
   echo -e "\e[32mCreate system snapshot\e[0m"
 
   for config in "${CONFIGS[@]}"; do
-    sudo snapper -c "$config" create -c number -d "$DESC"
+    if output=$(sudo snapper -c "$config" create -c number -d "$DESC" 2>&1); then
+      if [[ -n $output ]]; then
+        printf '%s\n' "$output"
+      fi
+    else
+      status=$?
+      printf '%s\n' "$output" >&2
+      if [[ $output == *".snapshots is not a btrfs subvolume"* ]]; then
+        echo "Find the affected SUBVOLUME with: sudo snapper -c \"$config\" get-config" >&2
+        echo "If its .snapshots is a regular directory, back it up and move it aside, then run:" >&2
+        echo "  sudo btrfs subvolume create <subvolume>/.snapshots" >&2
+        echo "Replace <subvolume> with SUBVOLUME, restore the directory's ownership and permissions, then retry." >&2
+      fi
+      exit "$status"
+    fi
     sudo snapper -c "$config" cleanup number
   done
 
