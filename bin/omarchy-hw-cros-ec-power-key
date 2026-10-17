@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# omarchy:summary=Detect a ChromeOS EC that reports the power key itself.
+
+# On Chromebooks the EC's cros_ec_buttons device reports KEY_POWER, and the
+# ACPI Power Button reports the same press again. The kernel only advertises
+# the buttons the EC says it supports, so this capability bit is the signal.
+input_devices_path="${OMARCHY_INPUT_DEVICES_PATH:-/sys/class/input}"
+key_power=116
+long_bits=$(getconf LONG_BIT)
+
+shopt -s nullglob
+
+for device in "$input_devices_path"/event*/device; do
+  [[ $(< "$device/name") == "cros_ec_buttons" ]] || continue
+
+  # The key bitmap is printed as hex longs, most significant first.
+  read -ra words <"$device/capabilities/key"
+  index=$((${#words[@]} - 1 - key_power / long_bits))
+  ((index >= 0)) || continue
+
+  (((16#${words[index]} >> (key_power % long_bits)) & 1)) && exit 0
+done
+
+exit 1
