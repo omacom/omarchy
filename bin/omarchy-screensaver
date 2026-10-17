@@ -2,6 +2,28 @@
 
 # omarchy:summary=Run the Omarchy screensaver using random effects from TTE.
 
+CURRENT_THEME_PATH="$HOME/.local/state/omarchy/current/theme"
+
+# A theme may ship its own screensaver.txt, taking precedence over the
+# global branding file set via `omarchy branding screensaver`.
+screensaver_input_file() {
+  if [[ -f $CURRENT_THEME_PATH/screensaver.txt ]]; then
+    echo "$CURRENT_THEME_PATH/screensaver.txt"
+  else
+    echo ~/.config/omarchy/branding/screensaver.txt
+  fi
+}
+
+# A theme may also ship screensaver.conf: extra ttfx arguments (e.g.
+# --include-effects, --exclude-effects, a slower --frame-rate, a fixed
+# --canvas-width/--canvas-height), one per line, blank lines and lines
+# starting with # ignored.
+screensaver_theme_args() {
+  local conf="$CURRENT_THEME_PATH/screensaver.conf"
+  [[ -f $conf ]] || return 0
+  grep -vE '^[[:space:]]*(#|$)' "$conf"
+}
+
 screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
 }
@@ -35,10 +57,36 @@ wait_for_terminal_resize() {
 
 wait_for_terminal_resize
 
+theme_defines_flag() {
+  local flag="$1" arg
+  for arg in "${theme_args[@]}"; do
+    [[ $arg == "$flag" || $arg == "$flag="* ]] && return 0
+  done
+  return 1
+}
+
+# ttfx (clap) errors out if a flag is passed twice, so a theme providing its
+# own value for one of these drops the built-in default instead of adding to it.
+add_default() {
+  theme_defines_flag "$1" || ttfx_args+=("$@")
+}
+
 while true; do
-  ttfx -i ~/.config/omarchy/branding/screensaver.txt \
-    --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
-    --random-effect --no-eol --no-restore-cursor &
+  mapfile -t theme_args < <(screensaver_theme_args)
+
+  ttfx_args=(-i "$(screensaver_input_file)")
+  add_default --frame-rate 120
+  add_default --canvas-width 0
+  add_default --canvas-height 0
+  add_default --anchor-canvas c
+  add_default --anchor-text c
+  add_default --reuse-canvas
+  add_default --random-effect
+  add_default --no-eol
+  add_default --no-restore-cursor
+  ttfx_args+=("${theme_args[@]}")
+
+  ttfx "${ttfx_args[@]}" &
 
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
     if read -n1 -t 1 || ! screensaver_in_focus; then
