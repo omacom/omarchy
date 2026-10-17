@@ -71,6 +71,7 @@ Adding an agent needs no QML changes: ship a collector that prints the record co
 | `codex` | The Codex app-server RPC | native Codex CLI session files on the built-in `openai` provider (plus pi and opencode sessions) |
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `devin` | Daily and weekly quota from the TUI's user-status cache (`~/.cache/devin/cli/user_status.*.bin`) | Devin CLI session database at `~/.local/share/devin/cli/sessions.db` |
 | `kimi` | Kimi Code quotas (5-hour session, weekly, and monthly allowances) | none; quota only |
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
@@ -101,6 +102,14 @@ again. Fireworks reads
 pi stores in `~/.pi/agent/auth.json` when Fireworks is signed in there
 (honoring `PI_CODING_AGENT_DIR`, and pi's literal and `$ENV_VAR` key forms),
 and finally the key opencode stores in `~/.local/share/opencode/auth.json`.
+Devin reads token stats from the CLI's own SQLite database
+(`~/.local/share/devin/cli/sessions.db`), so no credentials are needed.
+Devin's rate limits come from the user-status cache the TUI writes on every
+startup — the same data the `/usage` slash command renders — so the collector
+reads that cache instead of making its own API call. The cache is refreshed
+whenever you start a Devin session. Old cached limits remain visible with
+a last-updated warning until their reset windows pass; a missing cache
+shows token stats without limits.
 
 Kimi reads `KIMI_API_KEY` first, then `credentials/kimi-code.json` under an explicit `KIMI_CODE_HOME`. Without that override it prefers `~/.kimi-code/credentials/kimi-code.json`, with the legacy `~/.kimi/credentials/kimi-code.json` as a compatibility fallback. An explicit home never borrows another home's sign-in. Its record reports account quotas, without local token or prompt statistics.
 
