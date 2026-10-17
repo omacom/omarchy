@@ -191,7 +191,7 @@ assert(
   'a bar surface maps only once its floor is known, and still remaps on a screen move'
 )
 assert(
-  /property bool cutoutWaitOver: false\s*onCutoutPendingChanged: if \(!cutoutPending\) cutoutWaitOver = true\s*Component\.onCompleted: if \(!cutoutPending\) cutoutWaitOver = true/.test(barSource) &&
+  /property bool cutoutWaitOver: false\s*onCutoutPendingChanged: if \(!cutoutPending\) cutoutWaitOver = true\s*Component\.onCompleted: \{[^}]*if \(!cutoutPending\) cutoutWaitOver = true/.test(barSource) &&
     /Timer \{\s*interval: 2000\s*running: barWindow\.cutoutPending && !barWindow\.cutoutWaitOver\s*onTriggered: barWindow\.cutoutWaitOver = true\s*\}/.test(barSource),
   'the wait ends once, for good: when the mode settles it or after two seconds'
 )

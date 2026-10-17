@@ -115,7 +115,8 @@ assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 // Revealing the indicators can slide a neighbouring widget under a stationary
 // pointer; collapsing the peek on that un-hover re-opens it and stutters the
 // bar, so the peek stays held while the pointer is anywhere on the bar.
-const revealTimer = barSource.slice(barSource.indexOf('id: centerSectionRevealTimer'))
+const revealSource = fs.readFileSync(path.join(root, 'shell/plugins/bar/BarRevealState.qml'), 'utf8')
+const revealTimer = revealSource.slice(revealSource.indexOf('id: centerSectionRevealTimer'))
 const revealTimerBody = revealTimer.slice(0, revealTimer.indexOf('\n  }'))
 assert(
   /onTriggered: if \(!root\.barHovered\) root\.centerSectionRevealHeld = false/.test(revealTimerBody),
@@ -158,28 +159,27 @@ for (const [name, body] of [['slot', moduleSlot], ['spacer', dragSpacer]]) {
 // Unplugging a monitor tears its bar down mid-hover with no leave event, which
 // would leave that surface counted forever and the peek stuck open.
 assert(
-  /Component\.onDestruction: if \(hovered\) root\.setBarHovered\(false\)/.test(barLoaderBody),
+  /Component\.onDestruction: if \(hovered\) revealState\.setBarHovered\(false\)/.test(barLoaderBody),
   'a bar torn down while hovered gives its hover back'
 )
 
 // The helper has to record the state it is handed and re-run the collapse once
-// the pointer leaves. It counts rather than assigns because every monitor's bar
-// reports here: a slide from one bar to the next can deliver the enter before
-// the leave, and a shared bool would read as un-hovered under a live pointer.
-const setBarHovered = barSource.slice(barSource.indexOf('function setBarHovered'))
+// the pointer leaves this surface. Its tally and timer belong to that surface;
+// enter/leave events from another monitor cannot hold its reveal open.
+const setBarHovered = revealSource.slice(revealSource.indexOf('function setBarHovered'))
 const setBarHoveredBody = setBarHovered.slice(0, setBarHovered.indexOf('\n  }'))
 assert(
   /barHoverCount = Math\.max\(0, barHoverCount \+ \(hovered \? 1 : -1\)\)/.test(setBarHoveredBody),
-  'each bar surface adds to a hover tally instead of overwriting a shared flag'
+  'each bar surface counts its own hover handlers'
 )
 assert(
   /if \(barHoverCount > 0\) \{\s*centerSectionRevealTimer\.stop\(\)\s*centerSectionRevealHeld = true\s*\} else \{\s*centerSectionRevealTimer\.restart\(\)/.test(setBarHoveredBody),
-  'the pointer coming onto any bar opens the peek, and leaving the last one re-runs the collapse'
+  'the pointer coming onto this bar opens its peek, and leaving re-runs its collapse'
 )
 
 // The peek opens from anywhere on the bar, widgets included, so no narrower
 // hover area opens it as well.
-const opensPeek = barSource.split('\n').filter(line => /centerSectionRevealHeld = true/.test(line))
+const opensPeek = revealSource.split('\n').filter(line => /centerSectionRevealHeld = true/.test(line))
 assertEqual(opensPeek.length, 1, 'exactly one line in the bar opens the indicator peek')
 assert(setBarHoveredBody.includes(opensPeek[0].trim()), 'only the whole-bar hover opens the peek')
 
