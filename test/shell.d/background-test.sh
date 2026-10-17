@@ -79,4 +79,15 @@ assert(
   /id: revealAnimation[\s\S]*?duration: Style\.duration\(840\)/.test(backgroundQml),
   'background reveal takes 840ms'
 )
+
+assert(
+  backgroundQml.includes('property int readyPanels: 0') &&
+    backgroundQml.includes('id: revealWaitTimer') &&
+    /function panelReady\(panel\)[\s\S]*readyPanels \+= 1[\s\S]*if \(readyPanels >= Quickshell\.screens\.length\) startReveal\(\)/.test(backgroundQml),
+  'background waits for all screen panels to load before starting reveal animation'
+)
+assert(
+  /function maybeStartReveal\(\)[\s\S]*root\.revealProgress >= 1[\s\S]*root\.panelReady\(panel\)/.test(backgroundQml),
+  'late screens set maskReady and join running reveal animation'
+)
 JS
