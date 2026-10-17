@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Launch Bitwarden or start its installer when missing.
+
+set -e
+
+# Bitwarden reads the display scale itself, the way Electron apps do, and comes
+# up oversized next to every other window on a scaled monitor. Same treatment
+# 1Password gets for its hotkey.
+if omarchy-cmd-present bitwarden-desktop; then
+  # Detached, not exec'd: setsid only forks for process-group leaders, so a
+  # script caller (the installer, the defaults setup) would otherwise sit in
+  # the app's foreground until it quits.
+  setsid uwsm-app -- bitwarden-desktop --force-device-scale-factor=1 >/dev/null 2>&1 &
+else
+  exec omarchy-launch-floating-terminal-with-presentation omarchy-install-service-bitwarden
+fi
