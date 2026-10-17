@@ -9,7 +9,7 @@ export SUDO_TEST_LOG="$boundary_tmp/events"
 export SUDO_TEST_CACHE="$boundary_tmp/cache"
 export OMARCHY_PATH="$SUDO_TEST_ROOT"
 export SUDO_TEST_HOME="$boundary_tmp/home"
-mkdir -p "$SUDO_TEST_HOME"
+mkdir -p "$SUDO_TEST_HOME" "$SUDO_TEST_ROOT/pacman.d"
 mkdir -p "$SUDO_TEST_ROOT/bin" "$SUDO_TEST_ROOT/mock" "$SUDO_TEST_ROOT/default/omarchy/sudo-no-update"
 : >"$SUDO_TEST_LOG"
 
@@ -23,6 +23,7 @@ p.parent.mkdir(parents=True,exist_ok=True)
 s=(source/name).read_text().replace('$HOME', '$SUDO_TEST_HOME')
 for command in ['sudo','pkexec','pacman','omarchy-pkg-missing','systemd-inhibit','setpriv','snapper']:
  s=s.replace('/usr/bin/'+command, str(target/'mock'/command))
+s=s.replace('</etc/pacman.d', '<'+str(target/'pacman.d'))
 s=s.replace('PATH=/usr/bin:/usr/sbin:/bin:/sbin', 'PATH="'+str(target/'bin')+':/usr/bin:/usr/sbin:/bin:/sbin"')
 p.write_text(s)
 p.chmod((source/name).stat().st_mode & 0o777)
