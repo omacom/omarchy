@@ -9,7 +9,18 @@ MANUAL_DISABLE_FLAG="$TOGGLES_DIR/internal-monitor-disable.lua"
 SCALE_STATE="$TOGGLES_DIR/internal-monitor-scale"
 MONITOR_LUA="$HOME/.config/hypr/monitors.lua"
 
-INTERNAL=$(omarchy-hyprland-monitor-laptop)
+OMARCHY_MONITOR_SNAPSHOT=$(omarchy-hyprland-monitor-snapshot) || exit 2
+export OMARCHY_MONITOR_SNAPSHOT
+INTERNAL=$(omarchy-hyprland-monitor-laptop) || exit 2
+
+# Reloads may change the panel's enabled state or resolve an automatic scale.
+# Only those mutations need another query; an unchanged reconciliation shares
+# its original snapshot throughout the recovery and scale checks.
+refresh_monitor_snapshot() {
+  unset OMARCHY_MONITOR_SNAPSHOT
+  OMARCHY_MONITOR_SNAPSHOT=$(omarchy-hyprland-monitor-snapshot) || exit 2
+  export OMARCHY_MONITOR_SNAPSHOT
+}
 
 # INTERNAL is written into generated Lua and hyprctl eval/dispatch below, so a
 # name that is not a plain connector string could execute on the next reload.
@@ -109,7 +120,7 @@ configured_monitor_scale() {
 
 current_internal_scale() {
   [[ -n $INTERNAL ]] || return 0
-  hyprctl monitors all -j | jq -r --arg internal "$INTERNAL" '.[] | select(.name == $internal and .disabled != true) | .scale' | head -1
+  jq -r --arg internal "$INTERNAL" '[.[] | select(.name == $internal and .disabled != true)][0].scale // empty' <<<"$OMARCHY_MONITOR_SNAPSHOT"
 }
 
 store_internal_scale() {
@@ -216,6 +227,7 @@ enable_internal() {
 
   if (( changed )); then
     hyprctl reload >/dev/null 2>&1 || true
+    refresh_monitor_snapshot
   fi
 
   [[ -f $MANUAL_DISABLE_FLAG ]] && omarchy-hyprland-monitor-external-active && return 0
@@ -242,8 +254,25 @@ disable_internal() {
   fi
 }
 
-omarchy-hyprland-monitor-internal recover >/dev/null 2>&1 || true
-omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || true
+# Recovery can remove a toggle and reload the compositor. Refresh after an
+# actual removal so automatic scale recovery never relies on pre-reload state.
+recovery_changed=0
+for toggle in internal-monitor-disable internal-monitor-mirror; do
+  # Without a flag there is nothing to recover. Avoid starting both command
+  # trees on every poll just to have each discover the same absence.
+  [[ -f $TOGGLES_DIR/$toggle.lua ]] || continue
+  if [[ $toggle == "internal-monitor-disable" ]]; then
+    omarchy-hyprland-monitor-internal recover >/dev/null 2>&1 || true
+  else
+    omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || true
+  fi
+  if [[ ! -f $TOGGLES_DIR/$toggle.lua ]]; then
+    recovery_changed=1
+  fi
+done
+if (( recovery_changed )); then
+  refresh_monitor_snapshot
+fi
 
 if omarchy-hw-clamshell && omarchy-hyprland-monitor-external-active; then
   disable_internal

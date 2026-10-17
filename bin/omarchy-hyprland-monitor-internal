@@ -7,7 +7,11 @@ TOGGLE="internal-monitor-disable"
 TOGGLE_FLAG="$HOME/.local/state/omarchy/toggles/hypr/$TOGGLE.lua"
 MIRROR_TOGGLE="internal-monitor-mirror"
 
-INTERNAL=$(omarchy-hyprland-monitor-laptop)
+OMARCHY_MONITOR_SNAPSHOT=$(omarchy-hyprland-monitor-snapshot) || exit 2
+export OMARCHY_MONITOR_SNAPSHOT
+if [[ ${1:-} == "off" || ${1:-} == "toggle" ]]; then
+  INTERNAL=$(omarchy-hyprland-monitor-laptop) || exit 2
+fi
 
 wake() {
   hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1 || true

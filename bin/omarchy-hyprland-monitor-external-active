@@ -3,4 +3,5 @@
 # omarchy:summary=Returns true when Hyprland has an active external monitor
 # omarchy:hidden=true
 
-hyprctl monitors all -j | jq -e '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | select(.disabled == false)' >/dev/null 2>&1
+monitors=$(omarchy-hyprland-monitor-snapshot) || exit 2
+jq -e 'any(.[]; (.name | test("^(eDP|LVDS|DSI)-") | not) and .disabled == false)' <<<"$monitors" >/dev/null

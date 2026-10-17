@@ -50,7 +50,7 @@ run_monitor() {
     "$ROOT/bin/$command" "$@"
 }
 
-printf '[{"name":"eDP-1"},{"name":"DP-3"}]\n' >"$monitors_json"
+printf '[{"name":"eDP-1","disabled":false},{"name":"DP-3","disabled":false}]\n' >"$monitors_json"
 
 disable_flag="$flag_dir/internal-monitor-disable.lua"
 run_monitor omarchy-hyprland-monitor-internal off
@@ -76,7 +76,7 @@ grep -Fx 'hl.monitor({ output = "DP-3", mode = "preferred", position = "auto", s
 pass "mirror on accepts plain connector names"
 
 rm -f "$mirror_flag"
-printf '[{"name":"eDP-1"},{"name":"HEAD\\" })os.execute(\\"calc\\")--"}]\n' >"$monitors_json"
+printf '[{"name":"eDP-1","disabled":false},{"name":"HEAD\\" })os.execute(\\"calc\\")--","disabled":false}]\n' >"$monitors_json"
 set +e
 run_monitor omarchy-hyprland-monitor-internal-mirror on >/dev/null 2>&1
 status=$?
@@ -87,7 +87,7 @@ pass "mirror on refuses an unsafe headless output name"
 
 # The clamshell sync writes the internal-monitor name into generated Lua too.
 clamshell_flag="$flag_dir/internal-monitor-clamshell.lua"
-printf '[{"name":"eDP-1"}]\n' >"$monitors_json"
+printf '[{"name":"eDP-1","disabled":false}]\n' >"$monitors_json"
 rm -f "$clamshell_flag"
 run_monitor omarchy-hyprland-monitor-clamshell
 grep -Fx 'hl.monitor({ output = "eDP-1", disabled = true })' "$clamshell_flag" >/dev/null ||
