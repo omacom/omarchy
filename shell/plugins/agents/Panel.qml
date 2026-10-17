@@ -421,7 +421,16 @@ Panel {
 
   // A lapsed or missing sign-in is something you can fix from here; any other
   // trouble is only reported.
+  // Only the agents `omarchy-agent-account-add` signs in get the link; any
+  // other agent's sign-in trouble stays text, with its own help to follow.
+  function supportsSignIn(p) {
+    for (var i = 0; i < addProviders.length; i++)
+      if (p && addProviders[i].providerId === p.providerId) return true
+    return false
+  }
+
   function needsSignIn(item) {
+    if (item && item.providerId && !supportsSignIn(item)) return false
     var status = String(item && item.usageStatusText || "")
     return status === "Sign-in expired" || status === "Waiting for auth"
   }
@@ -438,7 +447,7 @@ Panel {
   // Sign an account that's already here in again, following along in the
   // add view just like adding one.
   function signInAgain(p, account) {
-    if (!p || addStage === "running") return
+    if (!supportsSignIn(p) || addStage === "running") return
     addProvider = p.providerId
     addPrivate = !!account && account.primary !== true
     addStatus = Commons.I18n.t("agents.starting")

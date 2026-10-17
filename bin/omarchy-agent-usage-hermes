@@ -1,0 +1,187 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Hermes Agent usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Hermes Agent usage into one display-ready JSON record.
+
+Everything the agents panel shows for Hermes is local session stats, read
+only from the state.db in Hermes' home (HERMES_HOME, else ~/.hermes) and in
+each named profile under ~/.hermes/profiles. Hermes has no subscription of
+its own, so the record has no limits.
+
+Chat sessions that arrived over messaging gateways count too: Hermes treats
+them as first-class sessions and so does this record.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sqlite3
+import sys
+from datetime import datetime
+from pathlib import Path
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  base_record,
+  cached_scan,
+  emit,
+  empty_bucket,
+  number,
+  recent_dates,
+  scan_max_age,
+)
+
+AGENT_ID = "hermes"
+AGENT_NAME = "Hermes"
+
+
+# Hermes anchors named profiles under ~/.hermes whatever HERMES_HOME says, so
+# they are looked for there. A profile linked to the home counts once.
+def state_paths():
+  home = Path(os.environ.get("HERMES_HOME") or (Path.home() / ".hermes"))
+  candidates = [home / "state.db"]
+  profiles = Path.home() / ".hermes" / "profiles"
+  if profiles.is_dir():
+    candidates.extend(sorted(path / "state.db" for path in profiles.iterdir() if path.is_dir()))
+
+  paths, seen = [], set()
+  for candidate in candidates:
+    if not candidate.is_file():
+      continue
+    resolved = candidate.resolve()
+    if resolved not in seen:
+      seen.add(resolved)
+      paths.append(candidate)
+  return paths
+
+
+def day_start(day):
+  return datetime(day.year, day.month, day.day).astimezone().timestamp()
+
+
+# One database's share of the stats, added into the running totals.
+def scan(path, totals, today):
+  conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  try:
+    today_start = day_start(today)
+    totals["sessions"] += conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+    totals["todaySessions"] += conn.execute("SELECT COUNT(*) FROM sessions WHERE started_at >= ?", (today_start,)).fetchone()[0]
+    totals["prompts"] += conn.execute("SELECT COUNT(*) FROM messages WHERE role = 'user'").fetchone()[0]
+    totals["todayPrompts"] += conn.execute("SELECT COUNT(*) FROM messages WHERE role = 'user' AND timestamp >= ?", (today_start,)).fetchone()[0]
+
+    # A start time SQLite can't read as an epoch dates to NULL and names no day.
+    for date in conn.execute("SELECT DISTINCT date(started_at, 'unixepoch', 'localtime') FROM sessions WHERE started_at > 0"):
+      if date[0]:
+        totals["dates"].add(date[0])
+
+    # Usage is kept per session and model, so a session's tokens land on the
+    # day it started.
+    for day, model, uncached, output, cache_read, cache_write in conn.execute(
+      """SELECT date(s.started_at, 'unixepoch', 'localtime'), smu.model,
+                SUM(smu.input_tokens), SUM(smu.output_tokens),
+                SUM(smu.cache_read_tokens), SUM(smu.cache_write_tokens)
+         FROM session_model_usage smu
+         JOIN sessions s ON s.id = smu.session_id
+         GROUP BY 1, 2"""
+    ):
+      # Counts from disk are untrusted: a negative, non-finite, absurdly large
+      # or non-numeric value counts as nothing.
+      counts = [number(uncached), number(output), number(cache_read), number(cache_write)]
+      total = sum(counts)
+      if not total:
+        continue
+      model = str(model or "hermes")
+      bucket = totals["models"].setdefault(model, empty_bucket())
+      for field, count in zip(("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens"), counts):
+        bucket[field] += count
+      if day in totals["byDay"]:
+        totals["byDay"][day] += total
+      if day == today.isoformat():
+        totals["todayByModel"][model] = totals["todayByModel"].get(model, 0) + total
+  finally:
+    conn.close()
+
+
+# The stats from every state.db, with the paths that couldn't be read. Hermes'
+# counts are SQL aggregates, not one reply at a time, so they are summed here
+# rather than through the shared Stats.
+def collect_stats(paths):
+  today = datetime.now().astimezone().date()
+  totals = {
+    "sessions": 0, "todaySessions": 0, "prompts": 0, "todayPrompts": 0,
+    "dates": set(), "models": {}, "todayByModel": {},
+    "byDay": {day: 0 for day in recent_dates()},
+  }
+  unreadable = []
+  for path in paths:
+    try:
+      scan(path, totals, today)
+    except sqlite3.Error as error:
+      unreadable.append(f"{path}: {error}")
+
+  dates = sorted(totals["dates"])
+  stats = {
+    "todayPrompts": totals["todayPrompts"],
+    "todaySessions": totals["todaySessions"],
+    "todayTotalTokens": sum(totals["todayByModel"].values()),
+    "todayTokensByModel": totals["todayByModel"],
+    "recentDays": [{"date": day, "messageCount": count} for day, count in totals["byDay"].items()],
+    "totalPrompts": totals["prompts"],
+    "totalSessions": totals["sessions"],
+    "activeDays": len(dates),
+    # Every date travels: merging several machines' snapshots needs their
+    # union, which a count alone cannot give.
+    "activeDates": dates,
+    "modelUsage": totals["models"],
+  }
+  return stats, unreadable
+
+
+# The scan is cached per day and per set of databases. A scan that couldn't
+# read every database isn't cached, so a scan served from the cache read them
+# all.
+def cached_stats(paths, max_age):
+  unreadable = []
+
+  def scan_all():
+    stats, missed = collect_stats(paths)
+    unreadable.extend(missed)
+    return stats, not missed
+
+  stats = cached_scan(AGENT_ID, [path.resolve() for path in paths], max_age, scan_all)
+  return stats, unreadable
+
+
+def collect(force=False, limits_only=False):
+  record = base_record(AGENT_ID, AGENT_NAME)
+
+  # No state.db: Hermes isn't used on this machine, which is not trouble --
+  # with sync on, another machine's Hermes still shows through its stats.
+  paths = state_paths()
+  if not paths:
+    return record
+
+  stats, unreadable = cached_stats(paths, scan_max_age(force, limits_only))
+  record.update(stats)
+  record["ready"] = True
+  record["hasLocalStats"] = len(unreadable) < len(paths)
+  if unreadable:
+    record["usageStatusText"] = "Hermes unavailable"
+    record["authHelpText"] = "Couldn't read Hermes' state.db (" + "; ".join(unreadable) + ")."
+  return record
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Print the Hermes Agent usage record as JSON")
+  parser.add_argument("--force", action="store_true", help="rescan every state.db, ignoring the cache")
+  parser.add_argument("--limits-only", action="store_true", help="reuse any recent scan; Hermes has no limits to probe")
+  args = parser.parse_args()
+  emit(collect(args.force, args.limits_only))
+
+
+if __name__ == "__main__":
+  main()

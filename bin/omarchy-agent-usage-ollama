@@ -1,0 +1,300 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Ollama Cloud usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Ollama Cloud usage into one display-ready JSON record.
+
+Everything the agents panel shows for Ollama Cloud comes from this one
+command: local token stats from pi and omp sessions and from opencode's
+message database that ran on the `ollama-cloud` provider (or on a cloud model
+through the local daemon), and the account's 5-hour session and 7-day weekly
+limits from Ollama's usage endpoint. The panel itself only ever reads the
+JSON this prints; it never talks to disk formats or endpoints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import math
+import os
+import sys
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  Stats,
+  base_record,
+  cached_scan as shared_cached_scan,
+  config_home,
+  emit,
+  limits_cache_path as shared_limits_cache_path,
+  open_json,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+)
+
+AGENT_ID = "ollama"
+AGENT_NAME = "Ollama Cloud"
+PROVIDER = "ollama-cloud"
+USAGE_ENDPOINT = "https://ollama.com/api/usage"
+ME_ENDPOINT = "https://ollama.com/api/me"
+AUTH_HELP_NO_KEY = "Set OLLAMA_API_KEY, or sign in to pi with an Ollama Cloud key, to show the account limits."
+AUTH_HELP_BAD_KEY = (
+  "Ollama Cloud rejected the API key. Update OLLAMA_API_KEY or ~/.config/omarchy/agents/ollama.json,"
+  " or sign in to pi again. Local stats are still shown."
+)
+# The usage endpoint reports how much of each window is used but not when it
+# resets, so the limits carry no reset time rather than a guessed one.
+
+
+def config_dir() -> Path:
+  return config_home() / "omarchy" / "agents"
+
+
+def read_config() -> dict[str, Any]:
+  return read_json(config_dir() / "ollama.json")
+
+
+def pi_agent_dir() -> Path:
+  configured = os.environ.get("PI_CODING_AGENT_DIR", "").strip()
+  return Path(os.path.expanduser(configured)) if configured else Path.home() / ".pi" / "agent"
+
+
+def api_key() -> str:
+  env = os.environ.get("OLLAMA_API_KEY", "").strip()
+  if env:
+    return env
+  configured = str(read_config().get("apiKey") or "").strip()
+  if configured:
+    return configured
+  # pi and omp store the Ollama Cloud key they signed in with; either one
+  # proves the account, and the usage endpoint accepts the same key. Only a
+  # literal key is taken: a `$VAR` or `!command` entry is resolved by pi alone.
+  for auth_path in (pi_agent_dir() / "auth.json", Path.home() / ".omp" / "agent" / "auth.json"):
+    entry = read_json(auth_path).get(PROVIDER)
+    key = str(entry.get("key") or "").strip() if isinstance(entry, dict) else ""
+    if key and not key.startswith(("!", "$")):
+      return key
+  return ""
+
+
+# ---------------------------------------------------------------- local scan
+#
+# pi and omp record every assistant message with its provider, model, and
+# token usage in JSONL session files, and opencode in its message database,
+# under the same provider ids. The `ollama-cloud` provider is the
+# Ollama Cloud API, which serves Claude models alongside the open ones. A
+# cloud-tagged model ("glm-4.6:cloud", "gpt-oss:120b-cloud") reached through
+# the local daemon's `ollama` provider runs on Ollama's servers too, so it
+# counts here; the local collector leaves exactly those out.
+
+
+def is_cloud_model(model: str) -> bool:
+  tag = model.lower().rpartition(":")[2] if ":" in model else ""
+  return tag == "cloud" or tag.endswith("-cloud")
+
+
+def billed_by_ollama_cloud(provider: str, model: str, entry: Any = None) -> bool:
+  return provider == PROVIDER or (provider == "ollama" and is_cloud_model(model))
+
+
+def scan_sessions(model_prefix: str) -> tuple[dict[str, Any], bool]:
+  stats = Stats()
+  pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"ollama(-cloud)?"', billed_by_ollama_cloud)
+  # The database's prefilter matches both provider ids.
+  db_rows, db_complete = scan_opencode(["ollama"], billed_by_ollama_cloud)
+  for row in pi_rows + db_rows:
+    # Ollama model ids carry a version tag ("deepseek-v4-pro:0813"); merge
+    # tags so the chart groups by model, not by release.
+    model = (row.model or "ollama").split(":", 1)[0]
+    if model_prefix and not model.lower().startswith(model_prefix):
+      continue
+    stats.add_row(row, model)
+  return stats.snapshot(), pi_complete and db_complete
+
+
+def cached_scan(max_age_seconds: float, model_prefix: str) -> dict[str, Any]:
+  # The digest covers every data path the scan reads: the pi/omp session
+  # roots and the opencode DB. A scan only answers for the model filter it
+  # applied.
+  return shared_cached_scan(
+    AGENT_ID,
+    [*pi_session_roots(), opencode_db()],
+    max_age_seconds,
+    lambda: scan_sessions(model_prefix),
+    match={"modelPrefix": model_prefix},
+  )
+
+
+# ------------------------------------------------------------------- limits
+
+
+def clamp_fraction(value: Any) -> float:
+  if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+    return -1.0
+  return min(1.0, float(value))
+
+
+def probe_limits(access_key: str) -> dict[str, Any]:
+  request = urllib.request.Request(
+    USAGE_ENDPOINT,
+    headers={"Authorization": "Bearer " + access_key, "Accept": "application/json"},
+  )
+  try:
+    payload = open_json(request, timeout=10)
+  except HttpError as error:
+    if error.status in (401, 403):
+      return {"ok": False, "auth": True, "helpText": AUTH_HELP_BAD_KEY}
+    if error.status:
+      return {"ok": False, "helpText": f"Ollama's usage endpoint returned status {error.status}. Local stats are still shown."}
+    if error.transport:
+      # A transport failure reached no server at all — no route, no DNS. Any
+      # real answer, including an error status, is a server we should stop
+      # pestering; this is not.
+      return {
+        "ok": False,
+        "transport": True,
+        "helpText": "Couldn't reach Ollama's usage endpoint. Retrying shortly. Local stats are still shown.",
+      }
+    return {"ok": False, "helpText": "Ollama's usage endpoint returned an invalid answer. Local stats are still shown."}
+
+  limits = payload.get("limits") if isinstance(payload, dict) else None
+  if not isinstance(limits, dict):
+    return {"ok": False, "helpText": "Ollama's usage endpoint returned no limits. Local stats are still shown."}
+
+  out = []
+  session = limits.get("session")
+  weekly = limits.get("weekly")
+  if isinstance(session, dict):
+    percent = clamp_fraction(session.get("usage"))
+    if percent >= 0:
+      out.append({"label": "Session (5-hour)", "percent": percent, "resetsAt": ""})
+  if isinstance(weekly, dict):
+    percent = clamp_fraction(weekly.get("usage"))
+    if percent >= 0:
+      out.append({"label": "Weekly (7-day)", "percent": percent, "resetsAt": ""})
+  if not out:
+    return {"ok": False, "helpText": "Ollama's usage endpoint returned no limits. Local stats are still shown."}
+  return {"ok": True, "limits": out}
+
+
+def probe_plan(access_key: str) -> str | None:
+  """The plan Ollama names for the key, "" when it names none, None when it couldn't be asked."""
+  request = urllib.request.Request(
+    ME_ENDPOINT,
+    headers={"Authorization": "Bearer " + access_key, "Accept": "application/json"},
+    method="POST",
+  )
+  try:
+    payload = open_json(request, timeout=10)
+  except Exception:
+    return None
+  plan = str(payload.get("Plan") or "").strip()[:64] if isinstance(payload, dict) else ""
+  return plan[0].upper() + plan[1:] if plan else ""
+
+
+def limits_cache_path(access_key: str) -> Path:
+  # Keyed by the credential: another key never shows this one's allowance or
+  # plan.
+  return shared_limits_cache_path(AGENT_ID, access_key)
+
+
+def collect_limits(access_key: str, force: bool) -> dict[str, Any]:
+  # `live` says whether the limits are this check's (or a probe recent enough
+  # to stand in for one), `fetchedAtMs` when they were measured, so the panel
+  # can tell kept limits from fresh ones.
+  result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0}
+
+  if access_key == "":
+    result["usageStatusText"] = "Waiting for auth"
+    result["authHelpText"] = AUTH_HELP_NO_KEY
+    return result
+
+  # A panel that is opened and shut repeatedly must not turn into a request
+  # per flick, so recent probe results are reused for a short window — and
+  # kept as the answer of record when a later probe fails. The endpoint names
+  # no reset times, so a kept window stays as it was measured.
+  cache = LimitsCache(AGENT_ID, access_key)
+  cached_plan = str(cache.data.get("plan") or "")
+
+  # --force is a person asking for fresh numbers, so it skips the reuse window
+  # entirely; the interval is there to absorb repeated panel opens, not to
+  # overrule someone who pressed refresh.
+  if cache.fresh(force):
+    result.update(limits=cache.limits, tierLabel=cached_plan, live=True, fetchedAtMs=cache.fetched_at)
+    return result
+
+  probe = probe_limits(access_key)
+  if probe["ok"]:
+    plan = probe_plan(access_key)
+    # A plan lookup that failed keeps the plan last named, rather than
+    # blanking a label the account still has.
+    plan = cached_plan if plan is None else plan
+    fetched_at = cache.save(probe["limits"], plan=plan)
+    result.update(limits=probe["limits"], tierLabel=plan, live=True, fetchedAtMs=fetched_at)
+    return result
+
+  # The first probe after login often fires before DHCP has handed out a
+  # route. Ask the shell to try again sooner than its regular interval.
+  if probe.get("transport"):
+    result["retryAdvised"] = True
+  result["authHelpText"] = probe["helpText"]
+  fallback, fetched_at = cache.kept()
+  if fallback:
+    result.update(limits=fallback, tierLabel=cached_plan, fetchedAtMs=fetched_at)
+  if probe.get("auth"):
+    result["usageStatusText"] = "Sign-in expired"
+  elif not fallback:
+    result["usageStatusText"] = "Ollama limits unavailable"
+  return result
+
+
+# -------------------------------------------------------------------- record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true", help="rescan sessions and re-probe limits, ignoring caches")
+  parser.add_argument("--limits-only", action="store_true", help="reuse any recent session scan; only the limits probe must be fresh")
+  args = parser.parse_args()
+
+  config = read_config()
+  model_prefix = str(config.get("modelPrefix") or "").strip().lower()
+  stats = cached_scan(scan_max_age(args.force, args.limits_only), model_prefix)
+  has_stats = bool(stats.get("modelUsage"))
+
+  key = api_key()
+  record = base_record(AGENT_ID, AGENT_NAME, hasLocalStats=has_stats)
+  record.update(stats)
+
+  # A machine with neither a key nor any Ollama Cloud sessions doesn't use it,
+  # and the panel skips the record; that is no trouble to report.
+  if key or has_stats:
+    limits = collect_limits(key, args.force)
+    record.update(
+      ready=True,
+      tierLabel=limits["tierLabel"],
+      usageStatusText=limits["usageStatusText"],
+      authHelpText=limits["authHelpText"],
+      limits=limits["limits"],
+      limitsStale=bool(limits["limits"]) and not limits["live"],
+      limitsFetchedAt=limits["fetchedAtMs"],
+    )
+    if limits.get("retryAdvised"):
+      record["retryAdvised"] = True
+  emit(record, sort_keys=True)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

@@ -11,6 +11,8 @@
   "agents.newSessionsUse": "New %1 sessions now use %2",
   "agents.noAccountNamed": "No %1 account named %2.",
   "agents.offerSwitch": "%1 is at %2%. Click to switch new sessions to it.",
+  "agents.promptOnClipboard": "%1 takes no starting prompt",
+  "agents.promptOnClipboardBody": "Your prompt is on the clipboard. Paste it into the session.",
   "agents.runningStayOn": "Running sessions stay on %1.",
   "agents.sameAccount": "That's %1 (already added). Try again, and sign in as the other account in the private window.",
   "agents.sameAccountEmail": "That's %1 (%2). Try again, and sign in as the other account in the private window.",

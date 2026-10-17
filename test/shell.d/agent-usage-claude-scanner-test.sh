@@ -9,6 +9,8 @@ require_command python3
 SCRATCH=$(mktemp -d)
 trap 'rm -rf "$SCRATCH"' EXIT
 TEST_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
+# pi's directory overrides would point every scan at the developer's own sessions.
+unset PI_CODING_AGENT_DIR PI_CODING_AGENT_SESSION_DIR
 
 projects="$TEST_HOME/.claude/projects/example"
 mkdir -p "$projects"
@@ -179,7 +181,7 @@ cat >>"$projects/session.jsonl" <<EOF
 {"timestamp":"$timestamp","type":"assistant","sessionId":"session-1","uuid":"event-4","message":{"id":"message-3","role":"assistant","model":"claude-test","usage":{"input_tokens":7,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":3}}}
 EOF
 cache_file=$(find "$TEST_HOME/.cache/omarchy/agent-usage" -name 'claude-scan-*.json' -print -quit)
-touch -d "@$(( $(date +%s) + 3600 ))" "$cache_file"
+jq -c --argjson at "$(( ($(date +%s) + 3600) * 1000 ))" '.scannedAtMs = $at' "$cache_file" >"$cache_file.tmp" && mv "$cache_file.tmp" "$cache_file"
 
 result=$(HOME="$TEST_HOME" XDG_CACHE_HOME="$TEST_HOME/.cache" XDG_DATA_HOME="$TEST_HOME/.local/share" \
   "$ROOT/bin/omarchy-agent-usage-claude")
@@ -311,6 +313,27 @@ pass "Claude collector counts Anthropic usage from opencode v2 sessions"
   fail "Claude collector reads the model from opencode v2's nested model" "$result"
 pass "Claude collector reads the model from opencode v2's nested model"
 
+# A migrated message sits in both stores under the same id, and counts once.
+MIGRATED_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
+mkdir -p "$MIGRATED_HOME/.local/share/opencode"
+cp "$OPENCODE_V2_HOME/.local/share/opencode/opencode.db" "$MIGRATED_HOME/.local/share/opencode/opencode.db"
+python3 - "$MIGRATED_HOME/.local/share/opencode/opencode.db" <<'PY'
+import json, sqlite3, sys, time
+conn = sqlite3.connect(sys.argv[1])
+now_ms = int(time.time() * 1000)
+conn.execute("INSERT INTO session_message VALUES ('msg_1', 'ses_1', 'assistant', 1, ?, ?, ?)", (now_ms, now_ms, json.dumps({
+  "model": {"id": "claude-opus-5", "providerID": "anthropic"},
+  "tokens": {"input": 1, "output": 1, "reasoning": 0, "cache": {"read": 0, "write": 0}},
+  "time": {"created": now_ms},
+})))
+conn.commit()
+PY
+result=$(HOME="$MIGRATED_HOME" XDG_CACHE_HOME="$MIGRATED_HOME/.cache" XDG_DATA_HOME="$MIGRATED_HOME/.local/share" \
+  "$ROOT/bin/omarchy-agent-usage-claude" --force)
+[[ $(jq -r '(.todayTotalTokens|tostring) + "/" + (.todaySessions|tostring) + "/" + (.todayPrompts|tostring)' <<<"$result") == "51057/2/2" ]] ||
+  fail "Claude collector counts a message in both opencode stores once" "$result"
+pass "Claude collector counts a message in both opencode stores once"
+
 # A fresh v2 install has no legacy message table at all.
 python3 -c 'import sqlite3, sys; c = sqlite3.connect(sys.argv[1]); c.execute("DROP TABLE message"); c.commit()' \
   "$OPENCODE_V2_HOME/.local/share/opencode/opencode.db"
@@ -350,6 +373,60 @@ result=$(HOME="$PI_HOME" XDG_CACHE_HOME="$PI_HOME/.cache" XDG_DATA_HOME="$PI_HOM
 [[ $(jq -c '.modelUsage' <<<"$result") == '{"claude-omp":{"cacheCreationInputTokens":1,"cacheReadInputTokens":4,"inputTokens":20,"outputTokens":5},"claude-omp-profile":{"cacheCreationInputTokens":1,"cacheReadInputTokens":2,"inputTokens":7,"outputTokens":3},"claude-pi":{"cacheCreationInputTokens":2,"cacheReadInputTokens":3,"inputTokens":10,"outputTokens":4}}' ]] ||
   fail "Claude collector filters pi and omp sessions to Anthropic providers" "$result"
 pass "Claude collector counts pi and omp subscription usage, profiles included"
+
+# pi moves its agent tree with PI_CODING_AGENT_DIR and its sessions alone with
+# PI_CODING_AGENT_SESSION_DIR, so usage under either must be counted, and an
+# override reaching the default root through a symlink must count it once.
+CUSTOM_PI_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
+mkdir -p "$CUSTOM_PI_HOME/.config/pi/sessions/project" "$CUSTOM_PI_HOME/pi-sessions" "$CUSTOM_PI_HOME/.pi/agent/sessions/project"
+cat >"$CUSTOM_PI_HOME/.config/pi/sessions/project/agent-dir.jsonl" <<EOF
+{"type":"message","id":"agent-dir-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"anthropic","model":"claude-agent-dir","usage":{"input":6,"output":2}}}
+EOF
+cat >"$CUSTOM_PI_HOME/pi-sessions/session-dir.jsonl" <<EOF
+{"type":"message","id":"session-dir-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"anthropic","model":"claude-session-dir","usage":{"input":3,"output":1}}}
+EOF
+cat >"$CUSTOM_PI_HOME/.pi/agent/sessions/project/default.jsonl" <<EOF
+{"type":"message","id":"default-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"anthropic","model":"claude-default","usage":{"input":5,"output":0}}}
+EOF
+ln -s "$CUSTOM_PI_HOME/.pi/agent" "$CUSTOM_PI_HOME/pi-alias"
+
+result=$(HOME="$CUSTOM_PI_HOME" CLAUDE_CONFIG_DIR="$CUSTOM_PI_HOME/.claude" XDG_CACHE_HOME="$CUSTOM_PI_HOME/.cache" \
+  XDG_DATA_HOME="$CUSTOM_PI_HOME/.local/share" XDG_STATE_HOME="$CUSTOM_PI_HOME/.local/state" \
+  PI_CODING_AGENT_DIR="~/.config/pi" PI_CODING_AGENT_SESSION_DIR="$CUSTOM_PI_HOME/pi-sessions" \
+  "$ROOT/bin/omarchy-agent-usage-claude" --force)
+
+[[ $(jq -c '[.todayTotalTokens,.totalSessions]' <<<"$result") == "[17,3]" ]] ||
+  fail "Claude collector counts pi sessions under PI_CODING_AGENT_DIR and PI_CODING_AGENT_SESSION_DIR" "$result"
+
+result=$(HOME="$CUSTOM_PI_HOME" CLAUDE_CONFIG_DIR="$CUSTOM_PI_HOME/.claude" XDG_CACHE_HOME="$CUSTOM_PI_HOME/.cache" \
+  XDG_DATA_HOME="$CUSTOM_PI_HOME/.local/share" XDG_STATE_HOME="$CUSTOM_PI_HOME/.local/state" \
+  PI_CODING_AGENT_SESSION_DIR="$CUSTOM_PI_HOME/pi-alias/sessions/project" "$ROOT/bin/omarchy-agent-usage-claude" --force)
+
+[[ $(jq -c '[.todayTotalTokens,.totalSessions]' <<<"$result") == "[5,1]" ]] ||
+  fail "Claude collector counts a default root reached through a symlinked override once" "$result"
+pass "Claude collector follows pi's agent and session directory overrides"
+
+# A fork repeats its parent's messages with their ids and timestamps, so they
+# count once; a line without an id always counts, even beside an identical one.
+FORK_PI_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
+mkdir -p "$FORK_PI_HOME/.pi/agent/sessions/project"
+cat >"$FORK_PI_HOME/.pi/agent/sessions/project/parent.jsonl" <<EOF
+{"type":"message","id":"shared-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"anthropic","model":"claude-fork","usage":{"input":6,"output":2}}}
+EOF
+cat >"$FORK_PI_HOME/.pi/agent/sessions/project/fork.jsonl" <<EOF
+{"type":"session","id":"fork","parentSession":"$FORK_PI_HOME/.pi/agent/sessions/project/parent.jsonl"}
+{"type":"message","id":"shared-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"anthropic","model":"claude-fork","usage":{"input":6,"output":2}}}
+{"type":"message","timestamp":"$timestamp","message":{"role":"assistant","provider":"anthropic","model":"claude-fork","usage":{"input":3,"output":0}}}
+{"type":"message","timestamp":"$timestamp","message":{"role":"assistant","provider":"anthropic","model":"claude-fork","usage":{"input":3,"output":0}}}
+EOF
+
+result=$(HOME="$FORK_PI_HOME" CLAUDE_CONFIG_DIR="$FORK_PI_HOME/.claude" XDG_CACHE_HOME="$FORK_PI_HOME/.cache" \
+  XDG_DATA_HOME="$FORK_PI_HOME/.local/share" XDG_STATE_HOME="$FORK_PI_HOME/.local/state" \
+  PI_CODING_AGENT_SESSION_DIR="$FORK_PI_HOME/.pi/agent/sessions/project" "$ROOT/bin/omarchy-agent-usage-claude" --force)
+
+[[ $(jq -c '[.todayTotalTokens,.todayPrompts]' <<<"$result") == "[14,3]" ]] ||
+  fail "Claude collector counts a forked pi message once and every line without an id" "$result"
+pass "Claude collector counts a forked pi message once and every line without an id"
 
 # Collectors overlap in practice: the update command backgrounds one per agent
 # while the panel refreshes on its own. Two writers aiming at one cache file
@@ -444,3 +521,20 @@ PY
 grep -q '^Ignoring 5 unreadable Claude project files' <<<"$warning" ||
   fail "Claude collector reports the unreadable transcript count" "$warning"
 pass "Claude collector bounds unreadable transcript warnings"
+
+# A machine that never ran Claude Code prints the unused record: no status,
+# no sign-in to ask for.
+EMPTY_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
+result=$(HOME="$EMPTY_HOME" XDG_CACHE_HOME="$EMPTY_HOME/.cache" XDG_DATA_HOME="$EMPTY_HOME/.local/share" CLAUDE_CONFIG_DIR= \
+  "$ROOT/bin/omarchy-agent-usage-claude" --force)
+[[ $(jq -c '{ready, limits, limitsStale, status: .usageStatusText, help: .authHelpText, totalPrompts, days: (.recentDays | length)}' <<<"$result") == '{"ready":false,"limits":[],"limitsStale":false,"status":"","help":"","totalPrompts":0,"days":7}' ]] ||
+  fail "Claude collector prints the unused record on a machine without Claude Code" "$result"
+pass "Claude collector prints the unused record on a machine without Claude Code"
+
+# A Claude Code home without a sign-in is in use, and the sign-in is missing.
+mkdir -p "$EMPTY_HOME/.claude"
+result=$(HOME="$EMPTY_HOME" XDG_CACHE_HOME="$EMPTY_HOME/.cache" XDG_DATA_HOME="$EMPTY_HOME/.local/share" CLAUDE_CONFIG_DIR= \
+  "$ROOT/bin/omarchy-agent-usage-claude" --force)
+[[ $(jq -r '.usageStatusText' <<<"$result") == "Waiting for auth" ]] ||
+  fail "Claude collector asks a signed-out Claude Code home to sign in" "$result"
+pass "Claude collector asks a signed-out Claude Code home to sign in"

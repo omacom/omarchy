@@ -17,6 +17,18 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E90C` — OpenClaw, traced from the lobster mascot the openclaw package ships as `dist/control-ui/favicon.svg`, since upstream publishes no monochrome SVG
 - `U+E90D` — Cursor, from <https://simpleicons.org/icons/cursor.svg>
 - `U+E90E` — Claude, from <https://simpleicons.org/icons/claude.svg>
+- `U+E90F` — Qwen, from <https://simpleicons.org/icons/qwen.svg>
+- `U+E910` — DeepSeek, from <https://simpleicons.org/icons/deepseek.svg>
+- `U+E911` — MiniMax, from <https://simpleicons.org/icons/minimax.svg>
+- `U+E912` — Goose, from <https://github.com/aaif-goose/goose/blob/main/documentation/static/img/goose.svg>
+- `U+E913` — Kiro, from the ghost in <https://kiro.dev/icon.svg>, with its tile dropped
+- `U+E914` — Mistral AI, from <https://simpleicons.org/icons/mistralai.svg>
+- `U+E915` — Freebuff, from <https://freebuff.com/favicon.svg>, its rects joined into one path
+- `U+E916` — Kilo, from <https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/kilocode.svg>
+- `U+E917` — Devin, from the official mark published by Cognition at <https://github.com/club-cog/built-by-devin>
+- `U+E918` — Amp, from <https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/amp.svg>, its three paths joined into one
+- `U+E919` — Command Code, from <https://commandcode.ai/favicon/2024/safari-pinned-tab.svg>, its traced paths joined into one
+- `U+E91A` — Phantombot, redrawn as a monochrome ghost silhouette from the project logo at <https://github.com/phantomyard/phantombot> (`www/assets/img/logo.png`), since upstream publishes no monochrome SVG
 
 The agent marks are monochrome so the menu can render them using the active
 theme's foreground and selection colors.

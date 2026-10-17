@@ -36,6 +36,84 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     rm -f ~/.local/bin/muse
   fi
 
+  # Preserve a user-managed Qwen Code launcher at the same path.
+  if [[ -f ~/.local/bin/qwen && ! -L ~/.local/bin/qwen ]] &&
+    grep -Eq '^mise use -g .*"npm:@qwen-code/qwen-code"' ~/.local/bin/qwen; then
+    rm -f ~/.local/bin/qwen
+  fi
+
+  # Preserve a user-managed DeepSeek Harness launcher at the same path.
+  if [[ -f ~/.local/bin/dsh && ! -L ~/.local/bin/dsh ]] &&
+    grep -Eq '^mise use -g .*"npm:@deepseek-ai/dsh(@[^"]*)?"' ~/.local/bin/dsh; then
+    rm -f ~/.local/bin/dsh
+  fi
+
+  # Preserve a user-managed MiniMax Code launcher at the same path.
+  if [[ -f ~/.local/bin/mcode && ! -L ~/.local/bin/mcode ]] &&
+    grep -Eq '^mise use -g .*"npm:@minimax-ai/code\[allow_builds=better-sqlite3\]"' ~/.local/bin/mcode; then
+    rm -f ~/.local/bin/mcode
+  fi
+
+  # Preserve a user-managed Goose launcher at the same path.
+  if [[ -f ~/.local/bin/goose && ! -L ~/.local/bin/goose ]] &&
+    grep -Eq '^mise use -g .*"aqua:aaif-goose/goose"' ~/.local/bin/goose; then
+    rm -f ~/.local/bin/goose
+  fi
+
+  # Preserve a user-managed Kiro CLI launcher at the same path.
+  if [[ -f ~/.local/bin/kiro-cli && ! -L ~/.local/bin/kiro-cli ]] &&
+    grep -Eq '^mise use -g .*"http:kiro-cli\[' ~/.local/bin/kiro-cli; then
+    rm -f ~/.local/bin/kiro-cli
+  fi
+
+  # Preserve a user-managed Mistral Vibe launcher at the same path.
+  if [[ -f ~/.local/bin/vibe && ! -L ~/.local/bin/vibe ]] &&
+    grep -Eq '^mise use -g .*"github:mistralai/mistral-vibe\[matching=vibe-linux\]"' ~/.local/bin/vibe; then
+    rm -f ~/.local/bin/vibe
+  fi
+
+  # Preserve a user-managed Freebuff launcher at the same path.
+  if [[ -f ~/.local/bin/freebuff && ! -L ~/.local/bin/freebuff ]] &&
+    grep -Eq '^mise use -g .*"npm:freebuff"' ~/.local/bin/freebuff; then
+    rm -f ~/.local/bin/freebuff
+  fi
+
+  # Preserve a user-managed ZeroClaw launcher at the same path.
+  if [[ -f ~/.local/bin/zeroclaw && ! -L ~/.local/bin/zeroclaw ]] &&
+    grep -Eq '^mise use -g .*"github:zeroclaw-labs/zeroclaw"' ~/.local/bin/zeroclaw; then
+    rm -f ~/.local/bin/zeroclaw
+  fi
+
+  # Preserve a user-managed Kilo launcher at the same path.
+  if [[ -f ~/.local/bin/kilo && ! -L ~/.local/bin/kilo ]] &&
+    grep -Eq '^mise use -g .*"npm:@kilocode/cli"' ~/.local/bin/kilo; then
+    rm -f ~/.local/bin/kilo
+  fi
+
+  # Preserve a user-managed Devin CLI launcher at the same path.
+  if [[ -f ~/.local/bin/devin && ! -L ~/.local/bin/devin ]] &&
+    grep -Eq '^mise use -g .*"http:devin\[' ~/.local/bin/devin; then
+    rm -f ~/.local/bin/devin
+  fi
+
+  # Preserve a user-managed Amp launcher at the same path.
+  if [[ -f ~/.local/bin/amp && ! -L ~/.local/bin/amp ]] &&
+    grep -Eq '^mise use -g .*"amp"' ~/.local/bin/amp; then
+    rm -f ~/.local/bin/amp
+  fi
+
+  # Preserve a user-managed Command Code launcher at the same path.
+  if [[ -f ~/.local/bin/commandcode && ! -L ~/.local/bin/commandcode ]] &&
+    grep -Eq '^mise use -g .*"npm:command-code"' ~/.local/bin/commandcode; then
+    rm -f ~/.local/bin/commandcode
+  fi
+
+  # Preserve a user-managed Phantombot launcher at the same path.
+  if [[ -f ~/.local/bin/phantombot && ! -L ~/.local/bin/phantombot ]] &&
+    grep -Eq '^mise use -g .*"github:phantomyard/phantombot"' ~/.local/bin/phantombot; then
+    rm -f ~/.local/bin/phantombot
+  fi
+
   omarchy-pkg-drop \
     aether \
     cliamp \

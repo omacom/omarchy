@@ -17,6 +17,14 @@ collector="$SCRATCH/omarchy-agent-usage-codex"
 sed 's/timeout=8/timeout=0.5/g' "$ROOT/bin/omarchy-agent-usage-codex" >"$collector"
 chmod +x "$collector"
 TEST_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
+# pi's directory overrides would point every scan at the developer's own sessions.
+unset PI_CODING_AGENT_DIR PI_CODING_AGENT_SESSION_DIR
+
+# A scan cache's age is the scannedAtMs stamp inside it, not its file time:
+# restamp it the given number of seconds from now (negative is the past).
+age_scan_cache() {
+  jq -c --argjson at "$(( ($(date +%s) + $2) * 1000 ))" '.scannedAtMs = $at' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
+}
 
 # A fixture home signed in to Codex, with an empty bin/ for its CLI.
 signed_in_home() {
@@ -172,6 +180,84 @@ result=$(HOME="$GIT_HOME" CODEX_HOME="$GIT_HOME/.codex" XDG_DATA_HOME="$GIT_HOME
   fail "Codex collector counts pi sessions when HOME is a git checkout" "$result"
 pass "Codex collector counts pi sessions when HOME is a git checkout"
 
+# pi moves its agent tree with PI_CODING_AGENT_DIR and its sessions alone with
+# PI_CODING_AGENT_SESSION_DIR, so usage under either must be counted. An
+# override reaching the default root through a symlink must count it once and
+# still match a fork whose parent is spelled through that symlink.
+CUSTOM_PI_HOME=$(signed_in_home)
+cp "$TEST_HOME/bin/codex" "$CUSTOM_PI_HOME/bin/codex"
+mkdir -p "$CUSTOM_PI_HOME/.config/pi/sessions/project" "$CUSTOM_PI_HOME/pi-sessions" "$CUSTOM_PI_HOME/.pi/agent/sessions/project"
+cat >"$CUSTOM_PI_HOME/.config/pi/sessions/project/agent-dir.jsonl" <<EOF
+{"type":"message","id":"agent-dir-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-agent-dir","usage":{"input":6,"output":2}}}
+EOF
+cat >"$CUSTOM_PI_HOME/pi-sessions/session-dir.jsonl" <<EOF
+{"type":"message","id":"session-dir-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-session-dir","usage":{"input":3,"output":1}}}
+EOF
+cat >"$CUSTOM_PI_HOME/.pi/agent/sessions/project/default.jsonl" <<EOF
+{"type":"message","id":"default-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-default","usage":{"input":5,"output":0}}}
+EOF
+ln -s "$CUSTOM_PI_HOME/.pi/agent" "$CUSTOM_PI_HOME/pi-alias"
+cat >"$CUSTOM_PI_HOME/.pi/agent/sessions/project/default-fork.jsonl" <<EOF
+{"type":"session","id":"default-fork","parentSession":"$CUSTOM_PI_HOME/pi-alias/sessions/project/default.jsonl"}
+{"type":"message","id":"default-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-default","usage":{"input":5,"output":0}}}
+EOF
+
+result=$(HOME="$CUSTOM_PI_HOME" CODEX_HOME="$CUSTOM_PI_HOME/.codex" XDG_CACHE_HOME="$CUSTOM_PI_HOME/.cache" \
+  XDG_DATA_HOME="$CUSTOM_PI_HOME/.local/share" XDG_STATE_HOME="$CUSTOM_PI_HOME/.local/state" \
+  PI_CODING_AGENT_DIR="~/.config/pi" PI_CODING_AGENT_SESSION_DIR="$CUSTOM_PI_HOME/pi-sessions" \
+  PATH="$CUSTOM_PI_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
+
+[[ $(jq -c '[.todayTotalTokens,.totalSessions]' <<<"$result") == "[17,3]" ]] ||
+  fail "Codex collector counts pi sessions under PI_CODING_AGENT_DIR and PI_CODING_AGENT_SESSION_DIR" "$result"
+
+result=$(HOME="$CUSTOM_PI_HOME" CODEX_HOME="$CUSTOM_PI_HOME/.codex" XDG_CACHE_HOME="$CUSTOM_PI_HOME/.cache" \
+  XDG_DATA_HOME="$CUSTOM_PI_HOME/.local/share" XDG_STATE_HOME="$CUSTOM_PI_HOME/.local/state" \
+  PI_CODING_AGENT_SESSION_DIR="$CUSTOM_PI_HOME/pi-alias/sessions/project" \
+  PATH="$CUSTOM_PI_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
+
+[[ $(jq -c '[.todayTotalTokens,.totalSessions]' <<<"$result") == "[5,1]" ]] ||
+  fail "Codex collector counts a default root reached through a symlinked override once" "$result"
+pass "Codex collector follows pi's agent and session directory overrides"
+
+# A line without an id always counts, even beside an identical one, and a
+# session override nested inside a default root reads it only once.
+IDLESS_PI_HOME=$(signed_in_home)
+cp "$TEST_HOME/bin/codex" "$IDLESS_PI_HOME/bin/codex"
+mkdir -p "$IDLESS_PI_HOME/.pi/agent/sessions/project"
+cat >"$IDLESS_PI_HOME/.pi/agent/sessions/project/idless.jsonl" <<EOF
+{"type":"message","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-idless","usage":{"input":4,"output":1}}}
+{"type":"message","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-idless","usage":{"input":4,"output":1}}}
+EOF
+
+result=$(HOME="$IDLESS_PI_HOME" CODEX_HOME="$IDLESS_PI_HOME/.codex" XDG_CACHE_HOME="$IDLESS_PI_HOME/.cache" \
+  XDG_DATA_HOME="$IDLESS_PI_HOME/.local/share" XDG_STATE_HOME="$IDLESS_PI_HOME/.local/state" \
+  PI_CODING_AGENT_SESSION_DIR="$IDLESS_PI_HOME/.pi/agent/sessions/project" \
+  PATH="$IDLESS_PI_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
+
+[[ $(jq -c '[.todayTotalTokens,.todayPrompts,.totalSessions]' <<<"$result") == "[10,2,1]" ]] ||
+  fail "Codex collector counts every pi line without an id, once per line" "$result"
+pass "Codex collector counts every pi line without an id, once per line"
+
+# Timestamps and token counts on disk are untrusted: a time out of range or
+# a boolean skips its row, as every collector reading pi skips it, and a
+# negative, boolean or non-numeric count is no count, without losing the rest
+# of the record.
+ODD_PI_HOME=$(signed_in_home)
+cp "$TEST_HOME/bin/codex" "$ODD_PI_HOME/bin/codex"
+mkdir -p "$ODD_PI_HOME/.pi/agent/sessions/project"
+cat >"$ODD_PI_HOME/.pi/agent/sessions/project/odd.jsonl" <<EOF
+{"type":"message","id":"odd-1","timestamp":1e300,"message":{"role":"assistant","provider":"openai-codex","model":"gpt-odd","usage":{"input":4,"output":1}}}
+{"type":"message","id":"odd-2","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-odd","usage":{"input":-50,"output":true,"cacheRead":"lots","cacheWrite":2}}}
+{"type":"message","id":"odd-3","timestamp":true,"message":{"role":"assistant","provider":"openai-codex","model":"gpt-odd","usage":{"input":3}}}
+EOF
+
+result=$(HOME="$ODD_PI_HOME" CODEX_HOME="$ODD_PI_HOME/.codex" XDG_CACHE_HOME="$ODD_PI_HOME/.cache" \
+  XDG_DATA_HOME="$ODD_PI_HOME/.local/share" PATH="$ODD_PI_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
+
+[[ $(jq -c '[.todayTotalTokens,.todayPrompts,.modelUsage["gpt-odd"]]' <<<"$result") == '[2,1,{"inputTokens":0,"outputTokens":0,"cacheReadInputTokens":0,"cacheCreationInputTokens":2}]' ]] ||
+  fail "Codex collector skips untrusted pi timestamps and counts, not the record" "$result"
+pass "Codex collector skips untrusted pi timestamps and counts, not the record"
+
 # A subscription burned entirely through opencode has no native session files;
 # usage must come from opencode's message database, filtered to OpenAI.
 OPENCODE_HOME=$(signed_in_home)
@@ -220,6 +306,60 @@ pass "Codex collector counts OpenAI usage, reasoning included, from opencode ses
 [[ $(jq -c '.modelUsage' <<<"$result") == '{"gpt-5.2-codex":{"inputTokens":80,"outputTokens":45,"cacheReadInputTokens":30,"cacheCreationInputTokens":0}}' ]] ||
   fail "Codex collector ignores prefix-colliding providers, user messages, and malformed rows" "$result"
 pass "Codex collector ignores prefix-colliding providers, user messages, and malformed rows"
+
+# OpenCode V2 nests the provider under `model` and spends tokens on
+# compactions too. A message migrated into both stores counts once, and a
+# fork's copies of its source's messages don't count again. OPENCODE_DB
+# points at the database the way opencode itself reads it.
+V2_HOME=$(signed_in_home)
+cp "$TEST_HOME/bin/codex" "$V2_HOME/bin/codex"
+
+python3 - "$V2_HOME/elsewhere/opencode-dev.db" <<'PY'
+import json
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+db = Path(sys.argv[1])
+db.parent.mkdir(parents=True, exist_ok=True)
+conn = sqlite3.connect(db)
+conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+conn.execute("CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL, type text NOT NULL, time_created integer NOT NULL, data text NOT NULL)")
+conn.execute("CREATE TABLE session_v2 (id text PRIMARY KEY, fork_session_id text, time_created integer NOT NULL)")
+now_ms = int(time.time() * 1000)
+forked_ms = now_ms - 1000
+
+def v2(id, session, kind, provider, model, input, created=now_ms):
+  return (id, session, kind, created, json.dumps({
+    "model": {"providerID": provider, "id": model},
+    "tokens": {"input": input, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
+    "time": {"created": created},
+  }))
+
+conn.executemany("INSERT INTO session_v2 VALUES (?, ?, ?)", [("ses_a", None, now_ms - 5000), ("ses_b", "ses_a", forked_ms)])
+conn.executemany("INSERT INTO session_message VALUES (?, ?, ?, ?, ?)", [
+  v2("msg_1", "ses_a", "assistant", "openai", "gpt-5.2-codex", 100, now_ms - 4000),
+  v2("msg_2", "ses_a", "compaction", "openai", "gpt-5.2-codex", 10, now_ms - 3000),
+  v2("msg_3", "ses_a", "assistant", "openai-local", "gpt-5.2-codex", 999),
+  v2("msg_4", "ses_b", "assistant", "openai", "gpt-5.2-codex", 100, forked_ms - 4000),
+  v2("msg_5", "ses_b", "assistant", "openai", "gpt-5.2-codex", 1),
+])
+conn.execute("INSERT INTO message VALUES ('msg_1', 'ses_a', ?, ?, ?)", (now_ms, now_ms, json.dumps({
+  "role": "assistant", "providerID": "openai", "modelID": "gpt-5.2-codex",
+  "tokens": {"input": 100, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
+  "time": {"created": now_ms - 4000},
+})))
+conn.commit()
+conn.close()
+PY
+
+result=$(HOME="$V2_HOME" CODEX_HOME="$V2_HOME/.codex" XDG_CACHE_HOME="$V2_HOME/.cache" XDG_DATA_HOME="$V2_HOME/.local/share" \
+  OPENCODE_DB="$V2_HOME/elsewhere/opencode-dev.db" PATH="$V2_HOME/bin:$PATH" "$collector")
+
+[[ $(jq -c '{todayTotalTokens, totalPrompts, totalSessions, models: (.modelUsage | keys)}' <<<"$result") == '{"todayTotalTokens":111,"totalPrompts":3,"totalSessions":2,"models":["gpt-5.2-codex"]}' ]] ||
+  fail "Codex collector reads opencode's V2 records once each, without fork copies" "$result"
+pass "Codex collector reads opencode's V2 records once each, without fork copies"
 
 # A warm cache makes --limits-only cheap: local stats come from the last scan
 # instead of another walk over the opencode database, and --force bypasses it.
@@ -365,7 +505,7 @@ conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
 conn.commit()
 conn.close()
 PY
-touch -d "2 hours ago" "$cache_file"
+age_scan_cache "$cache_file" -7200
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
 
@@ -408,7 +548,7 @@ result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CAC
 
 # 30 seconds is the lowest refreshIntervalSec the widget supports, so a
 # cache that old must already be past the no-flag reuse window.
-touch -d "30 seconds ago" "$cache_file"
+age_scan_cache "$cache_file" -30
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$collector")
 
@@ -440,7 +580,7 @@ conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
 conn.commit()
 conn.close()
 PY
-touch -d "10 minutes ago" "$cache_file"
+age_scan_cache "$cache_file" -600
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
 
@@ -486,7 +626,7 @@ conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
 conn.commit()
 conn.close()
 PY
-touch -d "@$(( $(date +%s) + 3600 ))" "$cache_file"
+age_scan_cache "$cache_file" 3600
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
 
@@ -628,19 +768,9 @@ pass "Codex collector still prints a complete record when the cache is unwritabl
 INTERRUPTED_HOME=$(signed_in_home)
 cp "$TEST_HOME/bin/codex" "$INTERRUPTED_HOME/bin/codex"
 
-# A database without the message table makes the scan fail mid-flight.
-python3 - "$INTERRUPTED_HOME/.local/share/opencode/opencode.db" <<'PY'
-import sqlite3
-import sys
-from pathlib import Path
-
-db = Path(sys.argv[1])
-db.parent.mkdir(parents=True, exist_ok=True)
-conn = sqlite3.connect(db)
-conn.execute("CREATE TABLE unrelated (id text PRIMARY KEY)")
-conn.commit()
-conn.close()
-PY
+# A file that isn't a database makes the scan fail mid-flight.
+mkdir -p "$INTERRUPTED_HOME/.local/share/opencode"
+printf 'not a sqlite database, just bytes in the way\n' >"$INTERRUPTED_HOME/.local/share/opencode/opencode.db"
 
 result=$(HOME="$INTERRUPTED_HOME" CODEX_HOME="$INTERRUPTED_HOME/.codex" XDG_CACHE_HOME="$INTERRUPTED_HOME/.cache" XDG_DATA_HOME="$INTERRUPTED_HOME/.local/share" \
   PATH="$INTERRUPTED_HOME/bin:$PATH" "$collector")
@@ -660,6 +790,7 @@ import time
 from pathlib import Path
 
 db = Path(sys.argv[1])
+db.unlink()
 conn = sqlite3.connect(db)
 conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
 now_ms = int(time.time() * 1000)
@@ -800,8 +931,8 @@ chmod +x "$LAUNCH_HOME/bin/mise"
 result=$(HOME="$LAUNCH_HOME" CODEX_HOME="$LAUNCH_HOME/.codex" MISE_CALLS_FILE="$LAUNCH_HOME/mise-calls" XDG_DATA_HOME="$LAUNCH_HOME/.local/share" \
   PATH="$LAUNCH_HOME/bin:$SAFE_PATH" "$collector" --limits-only)
 
-[[ $(jq -r '.usageStatusText' <<<"$result") == "Codex unavailable" ]] ||
-  fail "Codex collector reports Codex unavailable when only the launcher exists" "$result"
+[[ $(jq -r '.usageStatusText' <<<"$result") == "Codex limits unavailable" ]] ||
+  fail "Codex collector reports its limits unavailable when only the launcher exists" "$result"
 # The launcher would log `use -g ...` through the mise stub if it ever ran;
 # `which codex` is the only permitted call.
 [[ ! -s $LAUNCH_HOME/mise-calls || $(cat "$LAUNCH_HOME/mise-calls") == "which codex" ]] ||
@@ -861,8 +992,8 @@ ln -s "$SHIM_HOME/bin/mise" "$SHIM_HOME/.local/share/mise/shims/codex"
 result=$(HOME="$SHIM_HOME" CODEX_HOME="$SHIM_HOME/.codex" MISE_CALLS_FILE="$SHIM_HOME/mise-calls" XDG_DATA_HOME="$SHIM_HOME/.local/share" \
   PATH="$SHIM_HOME/bin:$SAFE_PATH" "$collector" --limits-only)
 
-[[ $(jq -r '.usageStatusText' <<<"$result") == "Codex unavailable" ]] ||
-  fail "Codex collector reports Codex unavailable when only a mise shim exists" "$result"
+[[ $(jq -r '.usageStatusText' <<<"$result") == "Codex limits unavailable" ]] ||
+  fail "Codex collector reports its limits unavailable when only a mise shim exists" "$result"
 [[ ! -s $SHIM_HOME/mise-calls || $(cat "$SHIM_HOME/mise-calls") == "which codex" ]] ||
   fail "Codex collector must not execute a mise shim" "$(cat "$SHIM_HOME/mise-calls" 2>/dev/null)"
 pass "Codex collector treats a shim symlink to mise as lazy"
@@ -1171,7 +1302,7 @@ run_incremental() {
 expire_scan_cache() {
   local cache
   for cache in "$INCREMENTAL_HOME/.cache/omarchy/agent-usage/"codex-scan-*.json; do
-    [[ -e $cache ]] && touch -d "2 hours ago" "$cache"
+    [[ -e $cache ]] && age_scan_cache "$cache" -7200
   done
 }
 

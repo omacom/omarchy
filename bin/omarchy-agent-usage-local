@@ -1,0 +1,439 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the self-hosted model usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect self-hosted model usage into one display-ready JSON record.
+
+Every other collector counts what a subscription or a provider bills. This
+one counts the turns that ran on hardware you own: Codex CLI pointed at
+Ollama, opencode on a local gateway, pi on llama.cpp, whether the endpoint is
+this machine or a box down the hall. It is the exact complement of the
+provider collectors: a provider id another collector counts is never counted
+here, and the Codex collector's own `openai` rollouts never are either.
+
+A provider is self-hosted when it is a well-known local runtime, an id named
+in ~/.config/omarchy/agents/local.json, or a Codex model_providers entry whose
+base_url is on a loopback, private, link-local or LAN address:
+
+    {"providers": ["homelab", "my-gateway"]}
+
+Ollama's cloud models (a `:cloud` or `-cloud` tag) run on Ollama's servers
+even when the local daemon fronts them, so they are never counted here, and
+nor are opencode's google rows on antigravity- models, which the agy
+collector counts. There
+are no limits and no balance: the meter on self-hosted work is the
+electricity bill. The agents panel only ever reads the JSON this prints.
+"""
+
+import argparse
+import hashlib
+import ipaddress
+import json
+import os
+import re
+import sys
+import time
+import tomllib
+from pathlib import Path
+from urllib.parse import urlparse
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  Stats,
+  base_record,
+  cache_root,
+  cached_scan,
+  config_home,
+  emit,
+  local_day,
+  number,
+  obj,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  token_count,
+  warn,
+  write_json,
+)
+
+AGENT_ID = "local"
+AGENT_NAME = "Local models"
+
+# Runtimes that serve models from your own hardware, for provider ids with no
+# URL to classify: opencode and pi record the id but not the endpoint, and
+# Codex's built-in `--oss` providers have no config.toml entry.
+KNOWN_LOCAL_PROVIDERS = {
+  "gpt4all", "jan", "koboldcpp", "llama-cpp", "llamacpp", "llamafile",
+  "lm-studio", "lmstudio", "local", "localai", "mlx", "ollama",
+  "openai-local", "oss", "sglang", "tabby", "text-generation-webui", "vllm",
+}
+
+# Provider ids the provider collectors count whole, from pi, omp and opencode,
+# each the exact id that collector's filter matches. A local.json naming one
+# of them would count its tokens twice, so they are never local, whatever the
+# configuration says. Two more are claimed only for some models, and only
+# those rows are left out: Ollama's cloud-tagged models (is_cloud_model) and
+# opencode's Antigravity plugin (antigravity_row).
+CLAIMED_PROVIDERS = {
+  "anthropic",  # claude
+  "deepseek",  # deepseek
+  "devin",  # devin
+  "google-antigravity",  # agy, pi's Antigravity sign-in
+  "meta",  # muse
+  "minimax", "minimax-cn", "minimax-coding-plan", "minimax-cn-coding-plan",  # minimax
+  "mistral",  # vibe
+  "ollama-cloud",  # ollama
+  "openai", "openai-codex",  # codex
+  "opencode", "opencode-go",  # opencode
+  "openrouter",  # openrouter
+  "synthetic",  # synthetic
+  "zai", "zhipu",  # zai
+}
+
+# The Codex collector counts rollouts on the built-in provider, and ones too
+# old to name a provider at all.
+CODEX_NATIVE_PROVIDER = "openai"
+
+# Codex rollouts are read back this far, matching the Codex collector.
+NATIVE_WINDOW_DAYS = 30
+
+# Per-file totals of Codex rollouts survive between runs, so a rescan only
+# reads the files that changed. Bumping it retires every older record.
+FILE_CACHE_SCHEMA = 1
+
+
+def model_name(raw):
+  return str(raw or "").strip() or AGENT_ID
+
+
+# --------------------------------------------------------- classification
+
+
+def config_path():
+  return config_home() / "omarchy" / "agents" / "local.json"
+
+
+def configured_providers():
+  names = read_json(config_path()).get("providers")
+  if not isinstance(names, list):
+    return set()
+  return {str(name).strip().lower() for name in names if isinstance(name, str) and name.strip()}
+
+
+def codex_home():
+  return Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
+
+
+def codex_endpoints():
+  """provider id -> base_url, from the Codex CLI's own config."""
+  try:
+    with (codex_home() / "config.toml").open("rb") as handle:
+      config = tomllib.load(handle)
+  except (OSError, tomllib.TOMLDecodeError):
+    return {}
+  providers = config.get("model_providers")
+  if not isinstance(providers, dict):
+    return {}
+  return {str(name).lower(): str(entry.get("base_url") or "") for name, entry in providers.items() if isinstance(entry, dict)}
+
+
+def is_self_hosted(url):
+  """True when a base URL points at hardware the user controls."""
+  try:
+    host = urlparse(str(url or "")).hostname
+  except ValueError:
+    return False
+  if not host:
+    return False
+  host = host.lower().rstrip(".")
+  if host == "localhost":
+    return True
+  try:
+    ip = ipaddress.ip_address(host)
+    return ip.is_loopback or ip.is_private or ip.is_link_local
+  except ValueError:
+    pass
+  # A bare hostname is a LAN name by construction; the rest are the suffixes
+  # home routers and mDNS hand out.
+  if "." not in host:
+    return True
+  return host.endswith((".home", ".lan", ".local", ".internal", ".localdomain", ".home.arpa"))
+
+
+def is_cloud_model(model):
+  # Ollama names its hosted models with a cloud tag ("gpt-oss:120b-cloud",
+  # "glm-4.6:cloud"); the local daemon only forwards them, so Ollama's
+  # servers did the work.
+  tag = str(model or "").lower().rpartition(":")[2] if ":" in str(model or "") else ""
+  return tag == "cloud" or tag.endswith("-cloud")
+
+
+def antigravity_row(provider, model):
+  # opencode's Antigravity plugin runs under a "google" provider with model
+  # ids it prefixes with antigravity-; the agy collector counts exactly
+  # those opencode rows, and every other google model stays local's to count
+  # when local.json names it.
+  return str(provider or "").strip().lower().startswith("google") and str(model or "").startswith("antigravity-")
+
+
+class Classifier:
+  def __init__(self):
+    self.configured = configured_providers()
+    self.endpoints = codex_endpoints()
+    ids = set(KNOWN_LOCAL_PROVIDERS) | self.configured
+    ids |= {pid for pid, url in self.endpoints.items() if url and is_self_hosted(url)}
+    self.local_ids = ids - CLAIMED_PROVIDERS
+
+  def provider_is_local(self, provider):
+    return str(provider or "").strip().lower() in self.local_ids
+
+  def accepts(self, provider, model):
+    return self.provider_is_local(provider) and not is_cloud_model(model)
+
+  def fingerprint(self):
+    return sorted(self.local_ids)
+
+
+CLASSIFIER = None
+
+
+def classifier():
+  global CLASSIFIER
+  if CLASSIFIER is None:
+    CLASSIFIER = Classifier()
+  return CLASSIFIER
+
+
+def pi_pattern():
+  ids = "|".join(re.escape(pid) for pid in sorted(classifier().local_ids))
+  return r'(?i)"provider"\s*:\s*"(?:' + ids + ')"'
+
+
+def accept_pi(provider, model, message):
+  # The Codex collector also counts any message on its openai-codex API,
+  # whatever the provider id says.
+  if str(message.get("api") or "").startswith("openai-codex"):
+    return False
+  return classifier().accepts(provider, model)
+
+
+def accept_opencode(provider, model, entry):
+  return classifier().accepts(provider, model) and not antigravity_row(provider, model)
+
+
+# ------------------------------------------------------------------- Codex
+
+
+def file_cache_zone():
+  # Records hold local days, so they are only true in the timezone that wrote
+  # them.
+  return [os.environ.get("TZ"), list(time.tzname), time.timezone, time.altzone]
+
+
+def file_cache_path():
+  return cache_root() / f"local-codex-files-{scan_digest()}.json"
+
+
+def valid_file_record(value):
+  try:
+    counts = [totals for models in value["days"].values() for totals in models.values()]
+    return (
+      type(value["mtime"]) in (int, float) and type(value["size"]) is int and isinstance(value["provider"], str)
+      and all(len(totals) == 5 and all(type(n) is int for n in totals) for totals in counts)
+    )
+  except Exception:
+    return False
+
+
+def read_file_cache():
+  """Per-file totals of Codex rollouts from earlier scans, keyed by path.
+
+  Rollouts are append-only, so a file whose mtime and size both match its
+  record cannot have grown a turn since. A record keeps the rollout's
+  provider and every turn whatever that provider is, so a change to which
+  providers count as local needs no rereading.
+  """
+  try:
+    payload = read_json(file_cache_path())
+  except OSError:
+    # An unusable cache root costs the reuse, never the scan.
+    return {}
+  if payload.get("schemaVersion") != FILE_CACHE_SCHEMA or payload.get("zone") != file_cache_zone():
+    return {}
+  files = obj(payload.get("files"))
+  return {path: record for path, record in files.items() if valid_file_record(record)}
+
+
+def write_file_cache(files):
+  # Only the files this scan saw are written back, so deleted rollouts and
+  # ones past the window leave the cache.
+  try:
+    write_json(file_cache_path(), {"schemaVersion": FILE_CACHE_SCHEMA, "zone": file_cache_zone(), "files": files})
+  except OSError as exc:
+    warn(f"could not write file cache ({exc})")
+
+
+def read_codex_rollout(path, stat_result):
+  """One rollout's provider and day -> model -> [input, output, cacheRead,
+  cacheWrite, prompts], counted the way the Codex collector counts its own."""
+  record = {"mtime": stat_result.st_mtime, "size": stat_result.st_size, "provider": "", "days": {}}
+  current_model = "local"
+  seen_meta = False
+  previous_total_usage = None
+  try:
+    with path.open(errors="replace") as handle:
+      for raw in handle:
+        if '"token_count"' not in raw and '"turn_context"' not in raw and '"session_meta"' not in raw:
+          continue
+        try:
+          entry = json.loads(raw)
+        except ValueError:
+          continue
+        if not isinstance(entry, dict):
+          continue
+        if entry.get("type") == "session_meta":
+          # A forked rollout copies its parent's session_meta after its own,
+          # so only the first one, as Codex reads it, says who served this.
+          if seen_meta:
+            continue
+          seen_meta = True
+          record["provider"] = str(obj(entry.get("payload")).get("model_provider") or "").strip().lower()
+          # The built-in provider, or none recorded, is the Codex
+          # collector's: nothing here can count it.
+          if record["provider"] in ("", CODEX_NATIVE_PROVIDER):
+            break
+          continue
+        if not seen_meta:
+          continue
+        if entry.get("type") == "turn_context":
+          payload = obj(entry.get("payload"))
+          current_model = str(payload.get("model") or payload.get("model_slug") or current_model)
+          continue
+        payload = entry.get("payload") or entry
+        if entry.get("type") == "response_item" and isinstance(payload, dict):
+          payload = payload.get("payload") or payload
+        if not isinstance(payload, dict) or payload.get("type") != "token_count":
+          continue
+        info = obj(payload.get("info"))
+        # total_token_usage is cumulative for the session; the last turn is
+        # what this one spent.
+        usage = obj(info.get("last_token_usage"))
+        cache_read = token_count(usage.get("cached_input_tokens"))
+        cache_write = token_count(usage.get("cache_write_input_tokens"))
+        # Cached tokens are inside input_tokens, and reasoning inside
+        # output_tokens.
+        input_tokens = max(0, token_count(usage.get("input_tokens")) - cache_read - cache_write)
+        output_tokens = token_count(usage.get("output_tokens"))
+        if not (input_tokens or output_tokens or cache_read or cache_write):
+          continue
+        # Quota updates can repeat the previous request's last_token_usage.
+        # Only an unchanged cumulative snapshot proves this is a repeat:
+        # separate requests may spend identical counts.
+        total_usage = info.get("total_token_usage")
+        if isinstance(total_usage, dict) and total_usage:
+          if total_usage == previous_total_usage:
+            continue
+          previous_total_usage = total_usage
+        # A turn with no time, or an untrusted one, is dated by the file.
+        timestamp = entry.get("timestamp")
+        day = (local_day(timestamp) if timestamp is not None else None) or local_day(stat_result.st_mtime)
+        if day is None:
+          continue
+        totals = record["days"].setdefault(day, {}).setdefault(current_model, [0, 0, 0, 0, 0])
+        totals[0] += input_tokens
+        totals[1] += output_tokens
+        totals[2] += cache_read
+        totals[3] += cache_write
+        totals[4] += 1
+  except OSError:
+    # Keep what was read, but a partial record must not be cached as the
+    # file's whole story.
+    record["mtime"] = None
+  return record
+
+
+def scan_codex(stats, use_file_cache):
+  cached_files = read_file_cache() if use_file_cache else {}
+  scanned_files = {}
+  cutoff = time.time() - NATIVE_WINDOW_DAYS * 24 * 60 * 60
+  complete = True
+  for root in (codex_home() / "sessions", codex_home() / "archived_sessions"):
+    if not root.is_dir():
+      continue
+    for path in root.rglob("*.jsonl"):
+      try:
+        stat_result = path.stat()
+      except OSError:
+        continue
+      if stat_result.st_mtime < cutoff:
+        continue
+      key = str(path)
+      record = cached_files.get(key)
+      if record is None or record["mtime"] != stat_result.st_mtime or record["size"] != stat_result.st_size:
+        record = read_codex_rollout(path, stat_result)
+      if record["mtime"] is None:
+        complete = False
+      else:
+        scanned_files[key] = record
+      if not classifier().provider_is_local(record["provider"]):
+        continue
+      for day, models in record["days"].items():
+        for model, (input_tokens, output_tokens, cache_read, cache_write, prompts) in models.items():
+          if not is_cloud_model(model):
+            # A Codex rollout's totals arrive per day and model, prompts counted.
+            stats.add(day, key, model, input_tokens, output_tokens, cache_read, cache_write, prompts=prompts)
+  write_file_cache(scanned_files)
+  return complete
+
+
+# -------------------------------------------------------------- scan cache
+
+
+def scan_sources():
+  # Every path the scan reads, and which providers it counts as local, so a
+  # changed local.json or Codex config is a new scan rather than a stale one.
+  return [Path.home(), codex_home(), opencode_db(), *pi_session_roots(), json.dumps(classifier().fingerprint())]
+
+
+def scan_digest():
+  return hashlib.sha1("\n".join(map(str, scan_sources())).encode("utf-8")).hexdigest()[:16]
+
+
+def run_local_scans(max_age):
+  stats = Stats()
+  complete = scan_codex(stats, use_file_cache=max_age > 0)
+  pi_rows, pi_complete = scan_pi_sessions(pi_pattern(), accept_pi)
+  # The closing quote makes the database's prefilter match the whole id.
+  db_rows, db_complete = scan_opencode([pid + '"' for pid in sorted(classifier().local_ids)], accept_opencode)
+  for row in pi_rows + db_rows:
+    stats.add_row(row, model_name(row.model))
+  return stats.snapshot(), complete and pi_complete and db_complete
+
+
+# ------------------------------------------------------------------ record
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Print the self-hosted model usage record as JSON")
+  # There are no limits to fetch, so --limits-only only means a redraw may
+  # reuse an older scan.
+  parser.add_argument("--force", action="store_true", help="rescan every session, ignoring caches")
+  parser.add_argument("--limits-only", action="store_true", help="reuse a recent scan")
+  args = parser.parse_args()
+
+  max_age = scan_max_age(args.force, args.limits_only)
+  stats = cached_scan(AGENT_ID, scan_sources(), max_age, lambda: run_local_scans(max_age))
+  # Self-hosted work has no plan, no limits and no balance.
+  record = base_record(AGENT_ID, AGENT_NAME, ready=number(stats.get("totalPrompts")) > 0, hasLocalStats=True)
+  record.update(stats)
+  emit(record, sort_keys=True)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

@@ -10,6 +10,11 @@ SHELL_TEST_DIR="$ROOT/test/shell.d"
 
 export ROOT
 
+# Commands under test belong to this checkout, never to the one the running
+# session points OMARCHY_PATH at; the agent usage collectors load their
+# shared module from it.
+export OMARCHY_PATH=$ROOT
+
 # Commands print user-facing text in the language picked under Setup >
 # Language, so pin tests to English (a missing file means English) rather than
 # whatever the machine running them is set to. Tests of other languages point

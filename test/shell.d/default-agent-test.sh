@@ -20,6 +20,7 @@ stub_log="$test_tmp/stubs"
 terminal_log="$test_tmp/terminal"
 menu_log="$test_tmp/menu"
 muse_login_log="$test_tmp/muse-login"
+clipboard_log="$test_tmp/clipboard"
 mkdir -p "$mock_bin" "$test_home"
 
 cat >"$mock_bin/omarchy-install-chromium-claude" <<'SH'
@@ -34,6 +35,11 @@ SH
 cat >"$mock_bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
 printf '%s\0' "$@" >>"$OMARCHY_TEST_NOTIFICATION_HISTORY"
+SH
+
+cat >"$mock_bin/wl-copy" <<'SH'
+#!/bin/bash
+cat >"$OMARCHY_TEST_CLIPBOARD"
 SH
 
 cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
@@ -123,6 +129,7 @@ export OMARCHY_TEST_STUB_LOG="$stub_log"
 export OMARCHY_TEST_AGENT_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
+export OMARCHY_TEST_CLIPBOARD="$clipboard_log"
 export OMARCHY_PATH="$ROOT"
 
 grok_package="grok"
@@ -132,6 +139,19 @@ crush_package="crush"
 agy_package="antigravity-cli"
 ori_package="github:OpenRouterLabs/ori-releases"
 kimi_package="npm:@moonshot-ai/kimi-code"
+qwen_package="npm:@qwen-code/qwen-code"
+dsh_package="npm:@deepseek-ai/dsh@0.2.0-rc.2"
+mcode_package="npm:@minimax-ai/code[allow_builds=better-sqlite3]"
+goose_package="aqua:aaif-goose/goose"
+kiro_cli_package="http:kiro-cli[platforms_linux_x64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-x86_64-linux.tar.gz,platforms_linux_arm64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-aarch64-linux.tar.gz,version_list_url=https://prod.download.cli.kiro.dev/stable/latest/manifest.json,version_json_path=.version]"
+vibe_package="github:mistralai/mistral-vibe[matching=vibe-linux]"
+freebuff_package="npm:freebuff"
+zeroclaw_package="github:zeroclaw-labs/zeroclaw"
+kilo_package="npm:@kilocode/cli"
+devin_package="http:devin[platforms_linux_x64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-x86_64-unknown-linux.tar.gz,platforms_linux_arm64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-aarch64-unknown-linux.tar.gz,bin_path=bin,version_list_url=https://static.devin.ai/cli/current/manifest.json,version_json_path=.version]"
+amp_package="amp"
+commandcode_package="npm:command-code"
+phantombot_package="github:phantomyard/phantombot"
 cursor_agent_package="cursor-agent"
 muse_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
 
@@ -153,6 +173,19 @@ assert_lazy_stub "$omp_package" omp
 assert_lazy_stub "$crush_package" crush
 assert_lazy_stub "$ori_package" ori
 assert_lazy_stub "$kimi_package" kimi
+assert_lazy_stub "$qwen_package" qwen
+assert_lazy_stub "$dsh_package" dsh
+assert_lazy_stub "$mcode_package" mcode
+assert_lazy_stub "$goose_package" goose
+assert_lazy_stub "$kiro_cli_package" kiro-cli
+assert_lazy_stub "$vibe_package" vibe
+assert_lazy_stub "$freebuff_package" freebuff
+assert_lazy_stub "$zeroclaw_package" zeroclaw
+assert_lazy_stub "$kilo_package" kilo
+assert_lazy_stub "$devin_package" devin
+assert_lazy_stub "$amp_package" amp
+assert_lazy_stub "$commandcode_package" commandcode
+assert_lazy_stub "$phantombot_package" phantombot
 assert_lazy_stub "$cursor_agent_package" cursor-agent
 assert_lazy_stub "$muse_package" muse
 pass "custom agent lazy stubs preserve their mise packages"
@@ -166,6 +199,19 @@ grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "user setup creates the
 grep -Fx "$ori_package ori" "$stub_log" >/dev/null || fail "user setup creates the Ori lazy stub"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "user setup creates the Muse lazy stub"
 grep -Fx "$kimi_package kimi" "$stub_log" >/dev/null || fail "user setup creates the Kimi lazy stub"
+grep -Fx "$qwen_package qwen" "$stub_log" >/dev/null || fail "user setup creates the Qwen Code lazy stub"
+grep -Fx "$dsh_package dsh" "$stub_log" >/dev/null || fail "user setup creates the DeepSeek Harness lazy stub"
+grep -Fx "$mcode_package mcode" "$stub_log" >/dev/null || fail "user setup creates the MiniMax Code lazy stub"
+grep -Fx "$goose_package goose" "$stub_log" >/dev/null || fail "user setup creates the Goose lazy stub"
+grep -Fx "$kiro_cli_package kiro-cli" "$stub_log" >/dev/null || fail "user setup creates the Kiro CLI lazy stub"
+grep -Fx "$vibe_package vibe" "$stub_log" >/dev/null || fail "user setup creates the Mistral Vibe lazy stub"
+grep -Fx "$freebuff_package freebuff" "$stub_log" >/dev/null || fail "user setup creates the Freebuff lazy stub"
+grep -Fx "$zeroclaw_package zeroclaw" "$stub_log" >/dev/null || fail "user setup creates the ZeroClaw lazy stub"
+grep -Fx "$kilo_package kilo" "$stub_log" >/dev/null || fail "user setup creates the Kilo lazy stub"
+grep -Fx "$devin_package devin" "$stub_log" >/dev/null || fail "user setup creates the Devin CLI lazy stub"
+grep -Fx "$commandcode_package commandcode" "$stub_log" >/dev/null || fail "user setup creates the Command Code lazy stub"
+grep -Fx "$phantombot_package phantombot" "$stub_log" >/dev/null || fail "user setup creates the Phantombot lazy stub"
+grep -Fx "$amp_package" "$stub_log" >/dev/null || fail "user setup creates the Amp lazy stub"
 pass "user setup creates the custom agent lazy stubs"
 
 : >"$stub_log"
@@ -173,6 +219,19 @@ source "$ROOT/install/user/mise.sh"
 grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null || fail "user setup recreates the Cursor CLI lazy stub"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "user setup recreates the Muse lazy stub"
 grep -Fx "$kimi_package kimi" "$stub_log" >/dev/null || fail "user setup recreates the Kimi lazy stub"
+grep -Fx "$qwen_package qwen" "$stub_log" >/dev/null || fail "user setup recreates the Qwen Code lazy stub"
+grep -Fx "$dsh_package dsh" "$stub_log" >/dev/null || fail "user setup recreates the DeepSeek Harness lazy stub"
+grep -Fx "$mcode_package mcode" "$stub_log" >/dev/null || fail "user setup recreates the MiniMax Code lazy stub"
+grep -Fx "$goose_package goose" "$stub_log" >/dev/null || fail "user setup recreates the Goose lazy stub"
+grep -Fx "$kiro_cli_package kiro-cli" "$stub_log" >/dev/null || fail "user setup recreates the Kiro CLI lazy stub"
+grep -Fx "$vibe_package vibe" "$stub_log" >/dev/null || fail "user setup recreates the Mistral Vibe lazy stub"
+grep -Fx "$freebuff_package freebuff" "$stub_log" >/dev/null || fail "user setup recreates the Freebuff lazy stub"
+grep -Fx "$zeroclaw_package zeroclaw" "$stub_log" >/dev/null || fail "user setup recreates the ZeroClaw lazy stub"
+grep -Fx "$kilo_package kilo" "$stub_log" >/dev/null || fail "user setup recreates the Kilo lazy stub"
+grep -Fx "$devin_package devin" "$stub_log" >/dev/null || fail "user setup recreates the Devin CLI lazy stub"
+grep -Fx "$commandcode_package commandcode" "$stub_log" >/dev/null || fail "user setup recreates the Command Code lazy stub"
+grep -Fx "$phantombot_package phantombot" "$stub_log" >/dev/null || fail "user setup recreates the Phantombot lazy stub"
+grep -Fx "$amp_package" "$stub_log" >/dev/null || fail "user setup recreates the Amp lazy stub"
 pass "user setup recreates wrappers even when the commands are present"
 
 : >"$stub_log"
@@ -192,6 +251,58 @@ pass "Muse migration preserves existing installs and the preinstall opt-out"
 : >"$stub_log"
 OMARCHY_TEST_MISSING_COMMAND=kimi source "$ROOT/migrations/1786967403.sh" >/dev/null
 grep -Fx "$kimi_package kimi" "$stub_log" >/dev/null || fail "Kimi migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=qwen source "$ROOT/migrations/1792032538.sh" >/dev/null
+grep -Fx "$qwen_package qwen" "$stub_log" >/dev/null || fail "Qwen Code migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=dsh source "$ROOT/migrations/1792033356.sh" >/dev/null
+grep -Fx "$dsh_package dsh" "$stub_log" >/dev/null || fail "DeepSeek Harness migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=mcode source "$ROOT/migrations/1792033557.sh" >/dev/null
+grep -Fx "$mcode_package mcode" "$stub_log" >/dev/null || fail "MiniMax Code migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=goose source "$ROOT/migrations/1792033725.sh" >/dev/null
+grep -Fx "$goose_package goose" "$stub_log" >/dev/null || fail "Goose migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=kiro-cli source "$ROOT/migrations/1792033795.sh" >/dev/null
+grep -Fx "$kiro_cli_package kiro-cli" "$stub_log" >/dev/null || fail "Kiro CLI migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=vibe source "$ROOT/migrations/1792033880.sh" >/dev/null
+grep -Fx "$vibe_package vibe" "$stub_log" >/dev/null || fail "Mistral Vibe migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=freebuff source "$ROOT/migrations/1792033907.sh" >/dev/null
+grep -Fx "$freebuff_package freebuff" "$stub_log" >/dev/null || fail "Freebuff migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=zeroclaw source "$ROOT/migrations/1792034058.sh" >/dev/null
+grep -Fx "$zeroclaw_package zeroclaw" "$stub_log" >/dev/null || fail "ZeroClaw migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=kilo source "$ROOT/migrations/1792034151.sh" >/dev/null
+grep -Fx "$kilo_package kilo" "$stub_log" >/dev/null || fail "Kilo migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=devin source "$ROOT/migrations/1792034198.sh" >/dev/null
+grep -Fx "$devin_package devin" "$stub_log" >/dev/null || fail "Devin CLI migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=commandcode source "$ROOT/migrations/1792034306.sh" >/dev/null
+grep -Fx "$commandcode_package commandcode" "$stub_log" >/dev/null || fail "Command Code migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=phantombot source "$ROOT/migrations/1792034353.sh" >/dev/null
+grep -Fx "$phantombot_package phantombot" "$stub_log" >/dev/null || fail "Phantombot migration creates its lazy stub"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=amp source "$ROOT/migrations/1792034243.sh" >/dev/null
+grep -Fx "$amp_package" "$stub_log" >/dev/null || fail "Amp migration creates its lazy stub"
 
 : >"$stub_log"
 source "$ROOT/migrations/1785617047.sh" >/dev/null
@@ -296,6 +407,19 @@ source "$ROOT/migrations/1785846769.sh" >/dev/null
 source "$ROOT/migrations/1787342993.sh" >/dev/null
 OMARCHY_TEST_MISSING_COMMAND=cursor-agent source "$ROOT/migrations/1788577553.sh" >/dev/null
 OMARCHY_TEST_MISSING_COMMAND=kimi source "$ROOT/migrations/1786967403.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=qwen source "$ROOT/migrations/1792032538.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=dsh source "$ROOT/migrations/1792033356.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=mcode source "$ROOT/migrations/1792033557.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=goose source "$ROOT/migrations/1792033725.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=kiro-cli source "$ROOT/migrations/1792033795.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=vibe source "$ROOT/migrations/1792033880.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=freebuff source "$ROOT/migrations/1792033907.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=zeroclaw source "$ROOT/migrations/1792034058.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=kilo source "$ROOT/migrations/1792034151.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=devin source "$ROOT/migrations/1792034198.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=amp source "$ROOT/migrations/1792034243.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=commandcode source "$ROOT/migrations/1792034306.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=phantombot source "$ROOT/migrations/1792034353.sh" >/dev/null
 [[ ! -s $stub_log ]] || fail "agent migrations respect the preinstall opt-out"
 [[ ! -e $test_home/.local/bin/omp ]] || fail "agent migration removes the obsolete Oh My Pi wrapper after opt-out"
 
@@ -429,9 +553,22 @@ pass "agent migrations install working wrappers without overriding the preinstal
 
 "$ROOT/bin/omarchy-mise-install" "$muse_package" muse
 "$ROOT/bin/omarchy-mise-install" "$kimi_package" kimi
+"$ROOT/bin/omarchy-mise-install" "$qwen_package" qwen
+"$ROOT/bin/omarchy-mise-install" "$dsh_package" dsh
+"$ROOT/bin/omarchy-mise-install" "$mcode_package" mcode
+"$ROOT/bin/omarchy-mise-install" "$goose_package" goose
+"$ROOT/bin/omarchy-mise-install" "$kiro_cli_package" kiro-cli
+"$ROOT/bin/omarchy-mise-install" "$vibe_package" vibe
+"$ROOT/bin/omarchy-mise-install" "$freebuff_package" freebuff
+"$ROOT/bin/omarchy-mise-install" "$zeroclaw_package" zeroclaw
+"$ROOT/bin/omarchy-mise-install" "$kilo_package" kilo
+"$ROOT/bin/omarchy-mise-install" "$devin_package" devin
+"$ROOT/bin/omarchy-mise-install" "$amp_package" amp
+"$ROOT/bin/omarchy-mise-install" "$commandcode_package" commandcode
+"$ROOT/bin/omarchy-mise-install" "$phantombot_package" phantombot
 touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
 omarchy-remove-preinstalls >/dev/null
-for command in agy omp ori grok crush cursor-agent muse kimi; do
+for command in agy omp ori grok crush cursor-agent muse kimi qwen dsh mcode goose kiro-cli vibe freebuff zeroclaw kilo devin amp commandcode phantombot; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
 done
 pass "Remove Preinstalls deletes every optional agent lazy stub"
@@ -514,6 +651,33 @@ declare -A expected_agents=(
   [github-copilot]="copilot"
   [kimi]="kimi"
   [kimi-code]="kimi"
+  [qwen]="qwen"
+  [qwen-code]="qwen"
+  [dsh]="dsh"
+  [deepseek]="dsh"
+  [deepseek-harness]="dsh"
+  [mcode]="mcode"
+  [minimax-code]="mcode"
+  [minimax]="mcode"
+  [goose]="goose"
+  [kiro-cli]="kiro-cli"
+  [kiro]="kiro-cli"
+  [vibe]="vibe"
+  [mistral]="vibe"
+  [mistral-vibe]="vibe"
+  [freebuff]="freebuff"
+  [zeroclaw]="zeroclaw"
+  [kilo]="kilo"
+  [kilocode]="kilo"
+  [kilo-code]="kilo"
+  [devin]="devin"
+  [devin-cli]="devin"
+  [amp]="amp"
+  [ampcode]="amp"
+  [commandcode]="commandcode"
+  [command-code]="commandcode"
+  [cmdc]="commandcode"
+  [phantombot]="phantombot"
   [cursor]="cursor-agent"
   [cursor-agent]="cursor-agent"
   [muse]="muse"
@@ -533,6 +697,19 @@ declare -A expected_packages=(
   [agy]="$agy_package"
   [copilot]="copilot"
   [kimi]="$kimi_package"
+  [qwen]="$qwen_package"
+  [dsh]="$dsh_package"
+  [mcode]="$mcode_package"
+  [goose]="$goose_package"
+  [kiro-cli]="$kiro_cli_package"
+  [vibe]="$vibe_package"
+  [freebuff]="$freebuff_package"
+  [zeroclaw]="$zeroclaw_package"
+  [kilo]="$kilo_package"
+  [devin]="$devin_package"
+  [amp]="$amp_package"
+  [commandcode]="$commandcode_package"
+  [phantombot]="$phantombot_package"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
 )
@@ -803,6 +980,29 @@ assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--qu
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
 assert_launch copilot copilot --allow-all --interactive "Review this project"
 assert_launch kimi kimi --prompt "Review this project"
+assert_launch qwen qwen --yolo "--prompt-interactive=Review this project"
+printf '%s\n' qwen >"$agent_file"
+omarchy-agent-prompt '-n --help; echo literal'
+assert_launched qwen "keeps an option-like prompt literal" qwen --yolo "--prompt-interactive=-n --help; echo literal"
+assert_launch dsh env DSH_PERMISSION_MODE=danger-full-access dsh headless -- -- "Review this project"
+printf '%s\n' dsh >"$agent_file"
+omarchy-agent-prompt '-n --help; echo literal'
+assert_launched dsh "keeps an option-like prompt literal" env DSH_PERMISSION_MODE=danger-full-access dsh headless -- -- '-n --help; echo literal'
+assert_launch mcode mcode -- "Review this project"
+assert_launch goose env GOOSE_MODE=auto goose run --interactive "--text=Review this project"
+assert_launch kiro-cli kiro-cli chat --trust-all-tools -- "Review this project"
+assert_launch vibe vibe --auto-approve -- "Review this project"
+: >"$notification_history"
+assert_launch freebuff freebuff
+assert_launch zeroclaw zerocode
+assert_launch kilo kilo --auto "--prompt=Review this project"
+assert_launch devin devin --permission-mode dangerous --respect-workspace-trust false -- "Review this project"
+assert_launch amp bash -c 'printf "%s\n" "$1" | exec amp --dangerously-allow-all' amp "Review this project"
+assert_launch commandcode commandcode --yolo -- "Review this project"
+assert_launch phantombot phantombot "--prompt=Review this project"
+[[ $(<"$clipboard_log") == "Review this project" ]] || fail "Freebuff launcher puts the prompt on the clipboard"
+mapfile -d '' -t notification_args <"$notification_history"
+[[ ${notification_args[*]} == *"Freebuff takes no starting prompt"* ]] || fail "Freebuff launcher says where the prompt went"
 pass "agent launcher adapts initial prompts for every supported agent"
 
 literal_muse_prompt=$'--disable-sandbox !Crash {$(touch must-not-run)}\ntrailing\\ '
@@ -832,6 +1032,22 @@ assert_bypass hermes hermes --yolo
 assert_bypass agy agy --dangerously-skip-permissions
 assert_bypass copilot copilot --allow-all
 assert_bypass kimi kimi --yolo
+assert_bypass qwen qwen --yolo
+assert_bypass dsh env DSH_PERMISSION_MODE=danger-full-access dsh web
+assert_bypass mcode mcode
+assert_bypass goose env GOOSE_MODE=auto goose
+assert_bypass kiro-cli kiro-cli chat --trust-all-tools
+assert_bypass vibe vibe --auto-approve
+: >"$clipboard_log"
+: >"$notification_history"
+assert_bypass freebuff freebuff
+assert_bypass zeroclaw zerocode
+assert_bypass kilo kilo --auto
+assert_bypass devin devin --permission-mode dangerous --respect-workspace-trust false
+assert_bypass amp amp --dangerously-allow-all
+assert_bypass commandcode commandcode --yolo
+assert_bypass phantombot phantombot
+[[ ! -s $clipboard_log && ! -s $notification_history ]] || fail "Freebuff launcher leaves the clipboard alone without a prompt"
 pass "agent launcher skips permission prompts for every supported agent"
 
 printf '%s\n' "opencode" >"$agent_file"

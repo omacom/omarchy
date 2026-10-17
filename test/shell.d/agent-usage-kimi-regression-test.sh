@@ -18,11 +18,14 @@ import time
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 requests = []
 state = {}
-payload = {"usages": {"limit_5h": {"used_ratio": 0.25, "reset_time": "2026-10-15T12:00:00Z"},
+# A day out, so the window is still open whenever the test runs.
+RESET_AT = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+payload = {"usages": {"limit_5h": {"used_ratio": 0.25, "reset_time": RESET_AT},
                       "limit_7d": {"used_ratio": "0.8"}, "limit_month_total": {"used_ratio": 1},
                       "limit_month_code": {"used_ratio": 0}}}
 
@@ -37,7 +40,11 @@ class Handler(BaseHTTPRequestHandler):
 
   def do_GET(self):
     requests.append((self.path, self.headers.get("Authorization"), None))
-    if state.get("redirect"):
+    if state.get("drop"):
+      # Hang up without an answer, the way an unreachable network looks.
+      self.close_connection = True
+      self.connection.shutdown(2)
+    elif state.get("redirect"):
       self.send_response(302)
       self.send_header("Location", "/sink")
       self.end_headers()
@@ -57,18 +64,37 @@ class Handler(BaseHTTPRequestHandler):
     else:
       self.reply(200, state.get("grant", {"access_token": "AT_new", "refresh_token": "RT_new", "expires_in": 3600}))
 
+def run(*flags):
+  saved = sys.argv
+  sys.argv = [saved[1], *flags]
+  output = io.StringIO()
+  try:
+    with contextlib.redirect_stdout(output):
+      assert scanner.main() == 0
+  finally:
+    sys.argv = saved
+  return json.loads(output.getvalue())
+
 server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
 threading.Thread(target=server.serve_forever, daemon=True).start()
 local_url = f"http://127.0.0.1:{server.server_port}"
 real_opener = urllib.request.build_opener
+
+# Hands the fixture's answer back unprocessed, so a redirect or an error
+# status is handled by the collector's own opener, not this one.
+class PassThrough(urllib.request.HTTPErrorProcessor):
+  def http_response(self, request, response):
+    return response
 
 # Keep real urllib request/redirect behavior; only TLS transport goes to the fixture.
 class LocalTLS(urllib.request.HTTPSHandler):
   def https_open(self, request):
     mapped = urllib.request.Request(local_url + urllib.parse.urlsplit(request.full_url).path,
                                    data=request.data, headers=dict(request.header_items()), method=request.get_method())
-    return real_opener(scanner.NoRedirectHandler()).open(mapped, timeout=10)
+    return real_opener(PassThrough()).open(mapped, timeout=10)
 
+# The shared module installs its redirect-refusing opener with build_opener
+# when the first collector imports it, so the fixture's transport rides in it.
 urllib.request.build_opener = lambda *handlers: real_opener(LocalTLS(), *handlers)
 
 def load(root):
@@ -90,15 +116,7 @@ def credentials(token="AT_old", expiry=None):
                              "expires_at": time.time() - 10 if expiry is None else expiry}))
 
 def record():
-  saved = sys.argv
-  sys.argv = [saved[1], "--force", "--limits-only"]
-  output = io.StringIO()
-  try:
-    with contextlib.redirect_stdout(output):
-      assert scanner.main() == 0
-  finally:
-    sys.argv = saved
-  return json.loads(output.getvalue())
+  return run("--force", "--limits-only")
 
 def destination(root):
   for url in ("https://outside.example/api/oauth/token", local_url + "/api/oauth/token"):
@@ -195,7 +213,7 @@ def modern_quota(root):
   os.environ["KIMI_API_KEY"] = "AT_env"
   data = record()
   assert [row["percent"] for row in data["limits"]] == [0.25, 0.8, 1, 0], "current CLI quota windows were dropped"
-  assert data["limits"][0]["resetsAt"] == "2026-10-15T12:00:00Z"
+  assert data["limits"][0]["resetsAt"] == RESET_AT
   assert data["limits"][-1].get("title") == "Code Monthly", "monthly code allowance lost its scope"
   assert not data["hasLocalStats"] and not data["hasPromptStats"], "quota was advertised as local history"
   scanner.USAGE_URL = "https://api.kimi.ai/coding/v1/usages"
@@ -209,6 +227,7 @@ def stale_limits(root):
   stale = record()
   assert good["limits"] and stale["limits"] == good["limits"], "failed probe hid the provider"
   assert stale["limitsStale"] and stale["limitsFetchedAt"] == good["limitsFetchedAt"]
+  assert stale["usageStatusText"] == "" and "retryAdvised" not in stale, "kept limits were flagged as trouble"
   os.environ["KIMI_API_KEY"] = "AT_other_account"
   assert record()["limits"] == [], "cached quota crossed credential identities"
 
@@ -245,7 +264,9 @@ def concurrent_signin(root):
 def concurrent_logout(root):
   credentials()
   state["token_hook"] = scanner.CREDENTIALS_PATH.unlink
-  assert not record()["ready"] and not scanner.CREDENTIALS_PATH.exists(), "refresh restored a signed-out account"
+  data = record()
+  assert not scanner.CREDENTIALS_PATH.exists(), "refresh restored a signed-out account"
+  assert data["usageStatusText"] == "Waiting for auth", "a signed-out home did not ask for a sign-in"
 
 def invalid_grant(root):
   for grant in ({"access_token": "AT_new", "expires_in": 3600},
@@ -254,7 +275,8 @@ def invalid_grant(root):
     credentials()
     before = scanner.CREDENTIALS_PATH.read_text()
     state["grant"] = grant
-    assert not record()["ready"], "invalid rotated token was accepted"
+    data = record()
+    assert data["usageStatusText"] == "Kimi limits unavailable" and not data["limits"], "invalid rotated token was accepted"
     assert scanner.CREDENTIALS_PATH.read_text() == before, "invalid grant replaced usable credentials"
 
 def key_help(root):
@@ -270,8 +292,74 @@ def error_redaction(root):
 def redirects(root):
   os.environ["KIMI_API_KEY"] = "AT_env"
   state["redirect"] = True
-  assert not record()["ready"]
+  data = record()
+  assert data["usageStatusText"] == "Kimi limits unavailable" and not data["limits"]
   assert len(requests) == 1 and requests[0][0] == "/coding/v1/usages", "usage followed a redirect"
+
+def unused(root):
+  data = run()
+  assert data["ready"] is False and data["usageStatusText"] == "" and data["authHelpText"] == "", "an unused machine was flagged"
+  assert data["limits"] == [] and not requests, "an unused machine probed"
+  today = datetime.now().astimezone().date()
+  week = [{"date": (today - timedelta(days=offset)).isoformat(), "messageCount": 0} for offset in range(6, -1, -1)]
+  assert data["recentDays"] == week, "an unused machine lacks the seven zeroed days ending today"
+
+def waiting_for_auth(root):
+  (root / "code home").mkdir()
+  data = run()
+  assert data["ready"] and data["usageStatusText"] == "Waiting for auth", "a home without a sign-in did not ask for one"
+  assert "kimi login" in data["authHelpText"] and not requests
+
+def refused(root):
+  credentials("AT_live", time.time() + 3600)
+  good = record()
+  state["usage_status"] = 401
+  data = record()
+  assert data["usageStatusText"] == "Sign-in expired" and "kimi login" in data["authHelpText"], "a refused token read as healthy"
+  assert data["limits"] == good["limits"] and data["limitsStale"], "a refused token hid the last good limits"
+
+def refused_refresh(root):
+  credentials()
+  state["token_status"] = 401
+  assert record()["usageStatusText"] == "Sign-in expired", "a lapsed refresh token did not ask for a sign-in"
+
+def elapsed_window(root):
+  os.environ["KIMI_API_KEY"] = "AT_env"
+  path = scanner.limits_cache("AT_env").path
+  path.write_text(json.dumps({"fetchedAtMs": 1_700_000_000_000, "limits": [
+    {"label": "Session (5-hour)", "percent": 0.9, "resetsAt": "2020-01-01T00:00:00Z"},
+    {"label": "Weekly limit", "percent": 0.4, "resetsAt": "2999-01-01T00:00:00Z"},
+    {"label": "Monthly total", "percent": 0.2, "resetsAt": ""}]}))
+  state["usage_status"] = 503
+  data = record()
+  assert data["limits"] == [
+    {"label": "Session (5-hour)", "percent": 0.0, "resetsAt": ""},
+    {"label": "Weekly limit", "percent": 0.4, "resetsAt": "2999-01-01T00:00:00Z"},
+    {"label": "Monthly total", "percent": 0.2, "resetsAt": ""}], "an elapsed window was not zeroed"
+  assert data["limitsStale"] and data["limitsFetchedAt"] == 1_700_000_000_000
+
+def probe_reuse(root):
+  os.environ["KIMI_API_KEY"] = "AT_env"
+  first = run()
+  second = run("--limits-only")
+  assert len(requests) == 1 and second["limits"] == first["limits"], "a recent probe was not reused"
+  assert second["limitsFetchedAt"] == first["limitsFetchedAt"] and not second["limitsStale"]
+  cache = json.loads(scanner.limits_cache("AT_env").path.read_text())
+  assert cache["fetchedAtMs"] == first["limitsFetchedAt"] and "fetchedAt" not in cache
+  run("--force")
+  assert len(requests) == 2, "--force reused a recent probe"
+  assert sys.modules["collectors"].PROBE_MIN_INTERVAL_SECONDS == 15
+
+def unreachable(root):
+  os.environ["KIMI_API_KEY"] = "AT_env"
+  good = record()
+  state["drop"] = True
+  data = record()
+  assert data.get("retryAdvised") is True, "an unreachable service did not ask for a retry"
+  assert data["limits"] == good["limits"] and data["limitsStale"] and data["usageStatusText"] == ""
+  state["drop"] = False
+  state["usage_status"] = 500
+  assert "retryAdvised" not in record(), "a server error asked for a retry"
 
 cases = {"destination": destination, "home": home_isolation, "static": static_token,
          "cli_lock": cli_lock, "lock_failure": lock_failure, "heartbeat": heartbeat,
@@ -279,7 +367,10 @@ cases = {"destination": destination, "home": home_isolation, "static": static_to
          "rotation_cache": rotated_cache, "cache_identity": cache_identity,
          "concurrent_signin": concurrent_signin, "concurrent_logout": concurrent_logout,
          "invalid_grant": invalid_grant,
-         "key_help": key_help, "redaction": error_redaction, "redirects": redirects}
+         "key_help": key_help, "redaction": error_redaction, "redirects": redirects,
+         "unused": unused, "waiting_for_auth": waiting_for_auth, "refused": refused,
+         "refused_refresh": refused_refresh, "elapsed_window": elapsed_window,
+         "probe_reuse": probe_reuse, "unreachable": unreachable}
 failed = False
 for name, check in cases.items():
   selected = os.environ.get("OMARCHY_TEST_KIMI_CASE")

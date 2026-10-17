@@ -485,11 +485,17 @@
   "setup.default.agent.agy": {
     "label": "Antigravity"
   },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
   "setup.default.agent.claude": {
     "label": "Claude"
   },
   "setup.default.agent.codex": {
     "label": "Codex"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
   },
   "setup.default.agent.copilot": {
     "label": "Copilot"
@@ -500,14 +506,35 @@
   "setup.default.agent.cursor-agent": {
     "label": "Cursor CLI"
   },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.goose": {
+    "label": "Goose"
+  },
   "setup.default.agent.grok": {
     "label": "Grok"
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
   },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
   "setup.default.agent.kimi": {
     "label": "Kimi"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -524,8 +551,20 @@
   "setup.default.agent.ori": {
     "label": "Ori"
   },
+  "setup.default.agent.phantombot": {
+    "label": "Phantombot"
+  },
   "setup.default.agent.pi": {
     "label": "Pi"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.default.agent.vibe": {
+    "label": "Mistral Vibe"
+  },
+  "setup.default.agent.zeroclaw": {
+    "label": "ZeroClaw"
   },
   "setup.default.browser": {
     "label": "Browser",

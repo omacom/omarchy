@@ -411,3 +411,23 @@ PY
 [[ $(rate_limited 1800) == '{"live": false, "percent": 0.4, "fetched": true}' ]] ||
   fail "a refused re-check of half-hour-old numbers counts as stale" "$(rate_limited 1800)"
 pass "a rate-limited check only goes stale once the numbers are old"
+
+# A rate-limited check says when to try again, as Anthropic's refusal does.
+retry_after=$(COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
+import importlib.machinery, importlib.util, json, os, urllib.error
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+def refused(request, timeout=None):
+  raise urllib.error.HTTPError(request.full_url, 429, "Too Many Requests", {"retry-after": "42"}, None)
+
+collector.urllib.request.urlopen = refused
+print(collector.probe_limits("token")["helpText"])
+PY
+)
+[[ $retry_after == *"(retry after 42s)"* ]] ||
+  fail "a rate-limited check names Anthropic's retry-after" "$retry_after"
+pass "a rate-limited check names Anthropic's retry-after"

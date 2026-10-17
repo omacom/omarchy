@@ -138,11 +138,107 @@ kimi)
     command=(kimi --yolo)
   fi
   ;;
+qwen)
+  # Bind the value so a prompt starting with a dash stays literal.
+  command=(qwen --yolo)
+  [[ -n ${prompt:-} ]] && command+=("--prompt-interactive=$prompt")
+  ;;
+dsh)
+  # The browser UI has no prompt option, so a prompt runs once through the
+  # headless profile. The launcher consumes one separator; the profile needs
+  # its own so a prompt starting with a dash stays literal.
+  if [[ -n ${prompt:-} ]]; then
+    command=(env DSH_PERMISSION_MODE=danger-full-access dsh headless -- -- "$prompt")
+  else
+    command=(env DSH_PERMISSION_MODE=danger-full-access dsh web)
+  fi
+  ;;
+mcode)
+  # The TUI has no no-approval flag; permission options belong to exec mode.
+  command=(mcode)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
+goose)
+  # Goose has no bypass flag; GOOSE_MODE outranks a configured approve mode.
+  # --text= binds a prompt that starts with a dash, and --interactive keeps
+  # the session open after the prompted turn.
+  if [[ -n ${prompt:-} ]]; then
+    command=(env GOOSE_MODE=auto goose run --interactive "--text=$prompt")
+  else
+    command=(env GOOSE_MODE=auto goose)
+  fi
+  ;;
+kiro-cli)
+  # A positional input seeds the interactive chat; -- keeps a prompt starting
+  # with a dash literal.
+  command=(kiro-cli chat --trust-all-tools)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
+vibe)
+  # A positional prompt seeds the interactive session; -p would run it headless.
+  command=(vibe --auto-approve)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
+freebuff)
+  # Freebuff takes no starting prompt and asks no tool permissions, so a
+  # prompt goes to the clipboard below instead.
+  command=(freebuff)
+  prompt_via_clipboard="Freebuff"
+  ;;
+zeroclaw)
+  # The terminal UI is zerocode, shipped in the same release. It takes no
+  # starting prompt, and autonomy is ZeroClaw configuration, not a flag.
+  command=(zerocode)
+  prompt_via_clipboard="ZeroClaw"
+  ;;
+kilo)
+  # Kilo is built on OpenCode and shares its flags. Bind the prompt so one
+  # starting with a dash stays literal.
+  command=(kilo --auto)
+  [[ -n ${prompt:-} ]] && command+=("--prompt=$prompt")
+  ;;
+devin)
+  # A bare positional is a path that opens Devin Desktop, so the prompt
+  # always follows --, which starts an interactive session with it.
+  command=(devin --permission-mode dangerous --respect-workspace-trust false)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
+amp)
+  # Amp takes its first interactive message from piped input; a positional
+  # message is for --execute, which exits after one turn.
+  if [[ -n ${prompt:-} ]]; then
+    command=(bash -c 'printf "%s\n" "$1" | exec amp --dangerously-allow-all' amp "$prompt")
+  else
+    command=(amp --dangerously-allow-all)
+  fi
+  ;;
+commandcode)
+  # --yolo skips permission prompts and implies --trust. A positional prompt
+  # seeds the interactive session; -- keeps one starting with a dash literal.
+  command=(commandcode --yolo)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
+phantombot)
+  # Permissions belong to the harness Phantombot runs underneath, so it has
+  # no bypass flag. --prompt= opens the TUI with the prompt as its first turn;
+  # the bound form is the one that keeps a leading dash literal.
+  command=(phantombot)
+  [[ -n ${prompt:-} ]] && command+=("--prompt=$prompt")
+  ;;
 *)
   echo "Unsupported default agent: $agent" >&2
   exit 1
   ;;
 esac
+
+# An agent with no way to take a starting prompt still opens, with the prompt
+# on the clipboard to paste as its first message, so a prompted launch from the
+# agents panel or a crash report is not lost.
+if [[ -n ${prompt:-} && -n ${prompt_via_clipboard:-} ]]; then
+  printf '%s' "$prompt" | wl-copy
+  omarchy-notification-send -g 󰅇 "$(omarchy-i18n agents.promptOnClipboard "$prompt_via_clipboard")" \
+    "$(omarchy-i18n agents.promptOnClipboardBody)"
+fi
 
 # A new session uses the current selection rather than its parent's account
 # pin. Explicit provider homes still override the selection. Carry the new pin
