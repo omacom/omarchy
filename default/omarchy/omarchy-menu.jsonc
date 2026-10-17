@@ -110,6 +110,7 @@
   "trigger.appearance.theme-sync": {"icon":"󰸌","label":"Herdr Theme Sync","when":"omarchy-theme-set-herdr-machines --available","action":"omarchy-toggle-theme-sync"},
   "trigger.toggle": {"icon":"󰔎","label":"Toggle","aliases":["toggle","toggles"]},
   "trigger.toggle.idle-lock": {"icon":"","label":"Stay Awake","action":"omarchy-toggle-idle"},
+  "trigger.toggle.presentation": {"icon":"󰐼","label":"Presentation","checked":"omarchy-toggle-enabled presentation","action":"omarchy-toggle-presentation"},
   "trigger.toggle.notifications": {"icon":"󰂛","label":"Notifications","action":"omarchy-toggle-notification-silencing"},
   "trigger.toggle.nightlight": {"icon":"󰔎","label":"Nightlight","action":"omarchy-toggle-nightlight"},
   "trigger.toggle.screensaver": {"icon":"󱄄","label":"Screensaver","action":"omarchy-toggle-screensaver"},

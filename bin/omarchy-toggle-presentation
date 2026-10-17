@@ -1,0 +1,160 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle presentation mode (stay awake, silence notifications, hide the bar)
+# omarchy:group=toggle
+# omarchy:args=[toggle|on|off|status]
+# omarchy:examples=omarchy toggle presentation | omarchy toggle presentation on | omarchy toggle presentation status
+
+set -euo pipefail
+
+STATE_DIR="$HOME/.local/state/omarchy/toggles"
+STATE_FILE="$STATE_DIR/presentation"
+RESTORE_FILE="$HOME/.local/state/omarchy/presentation-restore"
+STAY_AWAKE_FILE="$HOME/.local/state/omarchy/indicators/stay-awake"
+
+# Keep the snapshot and its flag atomic across concurrent CLI invocations.
+# The update helper shares this lock when handing idle ownership back to us.
+mkdir -p "$(dirname "$RESTORE_FILE")"
+exec {lock_fd}>"$HOME/.local/state/omarchy/presentation.lock"
+flock "$lock_fd"
+
+enabled() {
+  [[ -f $STATE_FILE ]]
+}
+
+dnd_state() {
+  local state
+  state=$(omarchy-shell notifications dndState 2>/dev/null || true)
+  if [[ $state == "on" ]]; then
+    printf 'on\n'
+  elif [[ $state == "off" ]]; then
+    printf 'off\n'
+  else
+    printf 'unknown\n'
+  fi
+}
+
+write_restore() {
+  local bar_off=0 stay=0 dnd
+  mkdir -p "$(dirname "$RESTORE_FILE")"
+  omarchy-toggle-enabled bar-off && bar_off=1 || true
+  [[ -f $STAY_AWAKE_FILE ]] && stay=1 || true
+  dnd=$(dnd_state)
+  if [[ $dnd == "unknown" ]]; then
+    echo "Cannot start presentation mode: notification state is unavailable." >&2
+    return 1
+  fi
+  printf 'bar_off=%s\ndnd=%s\nstay_awake=%s\n' "$bar_off" "$dnd" "$stay" >"$RESTORE_FILE"
+}
+
+step_done() {
+  [[ -f $RESTORE_FILE ]] && grep -Fxq "$1=1" "$RESTORE_FILE"
+}
+
+mark_done() {
+  printf '%s=1\n' "$1" >>"$RESTORE_FILE"
+}
+
+enable_presentation() {
+  mkdir -p "$STATE_DIR"
+  if enabled; then
+    if [[ ! -f $RESTORE_FILE ]]; then
+      echo "Cannot resume presentation mode without its snapshot; run presentation off to restore settings." >&2
+      return 1
+    fi
+    if step_done activation_complete && ! grep -Eq '^(dnd|bar|idle)_restored=1$' "$RESTORE_FILE"; then
+      return 0
+    fi
+    # Resume an interrupted activation, or reverse a partial restoration,
+    # without replacing the settings captured before presentation began.
+    sed -i '/^activation_complete=/d; /^dnd_restored=/d; /^bar_restored=/d; /^idle_restored=/d' "$RESTORE_FILE"
+  else
+    write_restore
+    # An interrupted activation must remain recoverable through `off`.
+    touch "$STATE_FILE"
+  fi
+  omarchy-toggle-bar on
+  omarchy-shell -q omarchy.bar syncHidden
+  if [[ $(omarchy-shell notifications setDnd on) != "on" ]]; then
+    echo "Could not silence notifications; run presentation off to restore settings." >&2
+    return 1
+  fi
+  omarchy-toggle-idle stay-awake >/dev/null
+  omarchy-shell -q omarchy.indicators refresh
+  mark_done activation_complete
+  omarchy-notification-send -g 󰐼 "Presentation mode on" "Stay awake, notifications silenced, bar hidden"
+}
+
+disable_presentation() {
+  if ! enabled; then
+    return 0
+  fi
+
+  local bar_off=0 stay=0 dnd=off
+  if [[ -f $RESTORE_FILE ]]; then
+    bar_off=$(awk -F= '$1 == "bar_off" { print $2 }' "$RESTORE_FILE")
+    dnd=$(awk -F= '$1 == "dnd" { print $2 }' "$RESTORE_FILE")
+    stay=$(awk -F= '$1 == "stay_awake" { print $2 }' "$RESTORE_FILE")
+  fi
+
+  # Restore the shell-dependent setting before releasing bar/idle ownership.
+  # Record completed mutations so later failures cannot replay them over new
+  # user choices when `off` is retried.
+  if ! step_done dnd_restored; then
+    if [[ $dnd == "off" ]]; then
+      if [[ $(omarchy-shell notifications setDnd off) != "off" ]]; then
+        echo "Could not restore notifications; run presentation off again when the shell is available." >&2
+        return 1
+      fi
+    fi
+    mark_done dnd_restored
+  fi
+  if [[ $bar_off != "1" ]] && ! step_done bar_restored; then
+    # The bar wrapper also syncs the shell and can fail after mutating the
+    # flag. Separate that mutation from IPC so its progress is recorded first.
+    omarchy-toggle bar-off off
+    mark_done bar_restored
+  fi
+  omarchy-shell -q omarchy.bar syncHidden
+  if [[ $stay != "1" ]] && ! step_done idle_restored; then
+    omarchy-toggle-idle allow-idle >/dev/null
+    mark_done idle_restored
+  fi
+  rm -f "$STATE_FILE" "$RESTORE_FILE"
+  omarchy-shell -q omarchy.indicators refresh
+  omarchy-notification-send -g 󰐼 "Presentation mode off"
+}
+
+print_status() {
+  if enabled; then
+    printf 'on\n'
+  else
+    printf 'off\n'
+  fi
+}
+
+case "${1:-toggle}" in
+  toggle)
+    if enabled; then
+      disable_presentation
+    else
+      enable_presentation
+    fi
+    print_status
+    ;;
+  on)
+    enable_presentation
+    print_status
+    ;;
+  off)
+    disable_presentation
+    print_status
+    ;;
+  status|--status)
+    print_status
+    ;;
+  *)
+    echo "Usage: omarchy-toggle-presentation [toggle|on|off|status]" >&2
+    exit 1
+    ;;
+esac
