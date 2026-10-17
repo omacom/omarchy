@@ -64,16 +64,24 @@ update_one() {
     }
   fi
 
+  # The palette rewrite is ours, not a local change: take it out of the way of
+  # the fast-forward and apply it again to whatever is checked out after.
+  omarchy-plugin-fix-palette --revert "$dir"
+
   if ! git -C "$dir" merge --ff-only FETCH_HEAD >/dev/null 2>&1; then
+    omarchy-plugin-fix-palette "$dir"
     echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
     return 1
   fi
 
   if ! omarchy-plugin-validate "$dir"; then
     git -C "$dir" reset --hard ORIG_HEAD >/dev/null
+    omarchy-plugin-fix-palette "$dir"
     echo "omarchy-plugin-update: update of '$id' failed validation; rolled back" >&2
     return 1
   fi
+
+  omarchy-plugin-fix-palette "$dir"
 
   echo "Updated $id."
   UPDATED_ANY=1
