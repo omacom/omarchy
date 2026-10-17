@@ -6,7 +6,16 @@
 set -e
 
 echo "Installing Lutris..."
-omarchy-pkg-add lutris umu-launcher wine-staging wine-mono wine-gecko winetricks python-protobuf
+
+# wine-staging conflicts with wine. If wine is already installed, keep it
+# and still install Lutris plus the rest of the stack. Replacing wine is a
+# decision for the person at the machine, not a silent --noconfirm swap.
+wine_pkg=wine-staging
+if pacman -Qq wine >/dev/null 2>&1 && ! pacman -Qq wine-staging >/dev/null 2>&1; then
+  wine_pkg=wine
+fi
+
+omarchy-pkg-add lutris umu-launcher "$wine_pkg" wine-mono wine-gecko winetricks python-protobuf
 omarchy-install-gaming-gpu-lib32
 
 # Lutris ships with `#!/usr/bin/env python3`, which resolves to mise's Python and
