@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# omarchy:summary=Disable uncommon protocols, FireWire and legacy filesystems
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+case "${1:-}" in
+  --help | -h)
+    echo "Usage: omarchy-setup-security-modules"
+    echo "Disables FireWire and legacy filesystems including HFS; rebuilds boot images. Reboot required."
+    exit 0
+    ;;
+  "") ;;
+  *) echo "Usage: omarchy-setup-security-modules" >&2; exit 2 ;;
+esac
+if (( $# > 1 )); then
+  echo "Usage: omarchy-setup-security-modules" >&2
+  exit 2
+fi
+
+echo "Disables FireWire and legacy filesystems including HFS; rebuilds boot images. Reboot required."
+# Require a supported boot-image builder before writing restrictions.
+if omarchy-cmd-present limine-mkinitcpio; then
+  rebuild=(limine-mkinitcpio)
+elif omarchy-cmd-present mkinitcpio; then
+  rebuild=(mkinitcpio -P)
+else
+  echo "No supported boot-image builder; no restrictions were written." >&2
+  exit 1
+fi
+
+# Blacklist uncommon network transport protocols
+sudo mkdir -p /etc/modprobe.d
+sudo tee /etc/modprobe.d/omarchy-disable-protocols.conf >/dev/null <<'EOF'
+install dccp /bin/true
+install sctp /bin/true
+install rds /bin/true
+install tipc /bin/true
+EOF
+
+# Blacklist firewire modules to prevent DMA attacks
+sudo tee /etc/modprobe.d/omarchy-disable-firewire.conf >/dev/null <<'EOF'
+blacklist firewire-core
+blacklist firewire-ohci
+blacklist firewire-sbp2
+EOF
+
+# Blacklist legacy or uncommon filesystem drivers
+sudo tee /etc/modprobe.d/omarchy-disable-legacy-fs.conf >/dev/null <<'EOF'
+blacklist cramfs
+blacklist freevxfs
+blacklist hfs
+blacklist hfsplus
+blacklist jffs2
+EOF
+sudo "${rebuild[@]}"
+echo "Reboot to apply module restrictions to the running system."
