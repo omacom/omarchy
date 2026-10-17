@@ -20,6 +20,12 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
+  // Charge limit (UPower threshold): ON = healthy limit (usually 75-80%),
+  // OFF = full 100% charge. Reflects UPower state; persisted by UPower across reboots.
+  property bool chargeLimitEnabled: true
+  property bool chargeLimitSupported: false
+  property string chargeLimitEnd: "80"
+  property bool chargeLimitBusy: false
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
@@ -145,6 +151,30 @@ Panel {
     if (!batteryProc.running) batteryProc.running = true
     if (!profilesProc.running) profilesProc.running = true
     if (!systemProc.running) systemProc.running = true
+    refreshChargeLimit()
+  }
+
+  function refreshChargeLimit() {
+    if (!batteryPresent) return
+    if (!chargeLimitProc.running) chargeLimitProc.running = true
+  }
+
+  function updateChargeLimit(raw) {
+    var next = Model.parseKeyValue(raw)
+    if (Object.keys(next).length === 0) return
+    if (next.supported !== undefined) chargeLimitSupported = (next.supported === "true")
+    if (next.enabled !== undefined) chargeLimitEnabled = (next.enabled === "true")
+    if (next.end !== undefined && next.end !== "") chargeLimitEnd = next.end
+    chargeLimitBusy = false
+  }
+
+  function setChargeLimit(enabled) {
+    if (chargeLimitBusy || chargeLimitSetProc.running) return
+    chargeLimitBusy = true
+    // Optimistic flip; corrected on refresh if the call fails.
+    chargeLimitEnabled = enabled
+    chargeLimitSetProc.command = ["omarchy-battery-charge-limit", enabled ? "80" : "full"]
+    chargeLimitSetProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -231,6 +261,20 @@ Panel {
     id: systemProc
     command: ["omarchy-system-stats"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateKeyValue(text, "system") }
+  }
+
+  Process {
+    id: chargeLimitProc
+    command: ["omarchy-battery-charge-limit", "status", "--shell"]
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateChargeLimit(text) }
+  }
+
+  Process {
+    id: chargeLimitSetProc
+    onExited: {
+      root.refreshChargeLimit()
+      root.refresh()
+    }
   }
 
   Process {
@@ -460,6 +504,35 @@ Panel {
               label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
               value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
             }
+          }
+        }
+
+        // ---------- Charge limit toggle ----------
+        Column {
+          visible: root.chargeLimitSupported
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSeparator {
+            foreground: root.bar.foreground
+          }
+
+          PanelSectionHeader {
+            text: "CHARGE LIMIT"
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          Toggle {
+            width: parent.width
+            label: "Limit charge to " + root.chargeLimitEnd + "%"
+            description: root.chargeLimitEnabled
+              ? "Healthy limit active. Turn off for a full 100% charge."
+              : "Full 100% charge. Turn on to restore the healthy limit."
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            checked: root.chargeLimitEnabled
+            onClicked: root.setChargeLimit(!root.chargeLimitEnabled)
           }
         }
 
