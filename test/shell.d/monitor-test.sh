@@ -54,6 +54,46 @@ assertDeepEqual(
   'monitor keeps presets until display dimensions are known'
 )
 
+assertDeepEqual(
+  monitor.generateScalePresets(0, 0),
+  ['1', '1.25', '1.6', '2', '3', '4'],
+  'generateScalePresets falls back when display dimensions are unknown'
+)
+assertDeepEqual(
+  monitor.generateScalePresets(1920, 1080),
+  ['1', '1.25', '1.5', '1.6667', '1.875', '2'],
+  'generateScalePresets generates clean scales for 1080p'
+)
+assertDeepEqual(
+  monitor.generateScalePresets(1920, 1080).map(s => monitor.cleanScale(s, 1920, 1080)),
+  ['1', '1.25', '1.5', '1.67', '1.88', '2'],
+  'generateScalePresets produces distinct clean effective scale labels'
+)
+assertDeepEqual(
+  monitor.generateScalePresets(1920, 1080, '1.33'),
+  ['1', '1.2', '1.3333', '1.6', '1.875', '2'],
+  'generateScalePresets includes active scale for 1080p'
+)
+assertDeepEqual(
+  monitor.generateScalePresets(2560, 1440),
+  ['1', '1.3333', '1.6667', '2', '2.1333', '2.5'],
+  'generateScalePresets generates clean scales for 1440p'
+)
+assertDeepEqual(
+  monitor.generateScalePresets(3840, 2160),
+  ['1', '1.5', '2', '2.6667', '3.3333', '4'],
+  'generateScalePresets generates clean scales for 4K'
+)
+assertDeepEqual(
+  monitor.generateScalePresets(1280, 804),
+  ['1', '1.3333', '2'],
+  'generateScalePresets yields fewer buttons when clean divisors are limited'
+)
+assert(
+  monitor.generateScalePresets(2100, 1575, '1.05').includes('1.05'),
+  'generateScalePresets anchors closest candidate when adjacent clean divisors exist'
+)
+
 assertEqual(monitor.brightnessName(96), 'Sun blast', 'monitor names very bright displays')
 assertEqual(monitor.brightnessName(12), 'Candlelit', 'monitor names dim displays')
 
