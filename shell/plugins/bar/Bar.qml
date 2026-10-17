@@ -1647,26 +1647,15 @@ Item {
         }
       }
 
-      BorderSurface {
+      ToolTipSurface {
         id: tooltipBubble
-        implicitWidth: tooltipLabel.implicitWidth + 20
-        implicitHeight: tooltipLabel.implicitHeight + 14
-        color: Commons.Color.tooltip.background
-        borderSpec: Border.surfaceSpec("tooltip", "border", Commons.Color.tooltip.border, 1)
-        radius: Style.cornerRadius
-
-        Text {
-          id: tooltipLabel
-          textFormat: Text.PlainText
-          anchors.centerIn: parent
-          text: root.tooltipText
-          color: Commons.Color.tooltip.text
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          horizontalAlignment: Text.AlignHCenter
-          verticalAlignment: Text.AlignVCenter
-        }
+        text: root.tooltipText
+        fontFamily: root.fontFamily
+        maximumWidth: Math.min(Style.space(360), Math.max(1, barWindow.screen.width - Style.spacing.sm * 2))
+        opacity: root.tooltipShown ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
       }
+
     }
 
     Component {

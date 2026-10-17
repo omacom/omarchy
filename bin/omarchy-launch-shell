@@ -17,7 +17,9 @@
 run_shell() {
   local startup_background
   startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
-  OMARCHY_STARTUP_BACKGROUND="$startup_background" QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
+  QML_IMPORT_PATH="$OMARCHY_PATH/shell/styles${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}" \
+    QT_QUICK_CONTROLS_STYLE=Omarchy QT_QUICK_CONTROLS_FALLBACK_STYLE=Fusion \
+    OMARCHY_STARTUP_BACKGROUND="$startup_background" QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
 

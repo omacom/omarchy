@@ -15,3 +15,6 @@ export EDITOR="omarchy-launch-editor --inline"
 
 # Use a custom directory for screenrecordings (remember to make the directory!)
 # export OMARCHY_SCREENRECORD_DIR="$HOME/Videos/Screencasts"
+
+# Quickshell-specific default; other Qt applications retain their system style.
+export QS_QUICK_CONTROLS_STYLE=Omarchy

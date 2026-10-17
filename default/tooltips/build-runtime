@@ -1,0 +1,42 @@
+#!/bin/bash
+set -euo pipefail
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+build_root=${TOOLTIP_BUILD_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/tooltips/runtime}
+mkdir -p "$build_root"
+
+checkout() {
+  local url=$1 commit=$2 destination=$3
+  if [[ ! -d $destination/.git ]]; then
+    git init -q "$destination"
+    git -C "$destination" fetch --depth 1 "$url" "$commit"
+    git -C "$destination" checkout -q --detach FETCH_HEAD
+  fi
+  [[ $(git -C "$destination" rev-parse HEAD) == "$commit" ]] || {
+    echo "Unexpected source revision in $destination" >&2
+    exit 1
+  }
+}
+
+# Development dependencies are installed only into this temporary prefix.
+checkout https://github.com/CLIUtils/CLI11.git bfffd37e1f804ca4fae1caae106935791696b6a9 "$build_root/cli11"
+checkout https://github.com/KhronosGroup/Vulkan-Headers.git b5c8f996196ba4aa6d8f97e52b5d3b6e70f7e4e2 "$build_root/vulkan-headers"
+checkout https://github.com/quickshell-mirror/quickshell.git 1a4716cde794a59928d9d9fc15f2afc7a95de360 "$build_root/quickshell"
+cmake -S "$build_root/cli11" -B "$build_root/cli11-build" \
+  -DCLI11_BUILD_TESTS=OFF -DCLI11_BUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX="$build_root/deps"
+cmake --install "$build_root/cli11-build"
+cmake -S "$build_root/vulkan-headers" -B "$build_root/vulkan-build" \
+  -DVULKAN_HEADERS_ENABLE_TESTS=OFF -DCMAKE_INSTALL_PREFIX="$build_root/deps"
+cmake --install "$build_root/vulkan-build"
+patch_file="$ROOT/default/tooltips/quickshell-controls-style.patch"
+if git -C "$build_root/quickshell" apply --check "$patch_file"; then
+  git -C "$build_root/quickshell" apply "$patch_file"
+else
+  # Re-running the same build is safe; unrelated local edits are not discarded.
+  git -C "$build_root/quickshell" apply --reverse --check "$patch_file"
+fi
+cmake -S "$build_root/quickshell" -B "$build_root/build" -GNinja \
+  -DCMAKE_BUILD_TYPE=Release -DDISTRIBUTOR=Omarchy-tooltip-local-test \
+  -DBUILD_TESTING=ON -DCMAKE_PREFIX_PATH="$build_root/deps" \
+  -DXCB_XCB_LIBRARY="$(pkg-config --variable=libdir xcb)/libxcb.so"
+cmake --build "$build_root/build" -j "${TOOLTIP_BUILD_JOBS:-4}"
+printf 'Runtime: %s\n' "$build_root/build/src/quickshell"
