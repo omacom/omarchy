@@ -10,6 +10,8 @@ Theme matching is offered for `VSCode`, `Cursor`, `VSCodium`, and `Helix`.
 
 You can set the system-wide default editor under `Setup > Defaults > Editor`.
 
+With Emacs as the default, the editor binding and `$EDITOR` open a new frame on the Emacs daemon that Omarchy starts on login, so windows appear instantly and share their buffers. If you've disabled `emacs.service`, a standalone Emacs starts instead.
+
 ## Environment
 
 Omarchy supports setting up a whole host of development environments through the _Install > Development_ section of the Omarchy Menu (`Super + Space`). You'll of course find _Ruby on Rails_, but also all three major runtimes for JavaScript (Node.js, Bun, Deno), as well as popular PHP frameworks like Laravel and Symfony. Oh, and there's Go, Rust, Python, Java, Elixir (with Phoenix), .NET, OCaml, Zig, Clojure, and Scala too. It's a very broad selection!
