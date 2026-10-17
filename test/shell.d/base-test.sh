@@ -135,6 +135,13 @@ find_omarchy_pkgs() {
   return 1
 }
 
+# Whether bubblewrap can make a sandbox here. Where unprivileged user
+# namespaces are off it fails with EPERM, and a sandboxed test has nothing to
+# run.
+bwrap_works() {
+  bwrap --unshare-all --ro-bind /usr /usr --symlink usr/lib /lib --symlink usr/lib /lib64 --proc /proc --dev /dev --tmpfs /tmp /usr/bin/true 2>/dev/null
+}
+
 # Fake the hardware identity omarchy-hw-platform reads: a device tree under
 # $1/proc and a uname in $1/bin reporting the platform's CPU. Run the code under
 # test with OMARCHY_PROC_ROOT="$1/proc" and PATH="$1/bin:$ROOT/bin:...", so the

@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# omarchy:summary=Type text and press keys in an agent seat window
+# omarchy:args=<window> [<text> | --key <combo>]...
+# omarchy:examples=omarchy agent seat type 1 "hello" --key enter | omarchy agent seat type 1 --key ctrl+l "omarchy.org" --key enter
+
+# Keystrokes go to the window on the agent seat only, never to whatever the
+# user has focused.
+
+if (($# < 2)); then
+  echo "Usage: omarchy agent seat type <window> [<text> | --key <combo>]..." >&2
+  exit 1
+fi
+
+window=$1
+shift
+
+while (($# > 0)); do
+  if [[ $1 == "--key" ]]; then
+    request=$(jq -cn --argjson window "$window" --arg combo "$2" '{command: "key", args: {window: $window, combo: $combo}}')
+    shift 2
+  else
+    request=$(jq -cn --argjson window "$window" --arg text "$1" '{command: "type", args: {window: $window, text: $text}}')
+    shift
+  fi
+  omarchy-agent-seat-broker call "$request" >/dev/null || exit 1
+done

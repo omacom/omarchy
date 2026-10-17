@@ -1,0 +1,2382 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Run the agent seat broker, the Wayland proxy that gives agents their own seat
+# omarchy:args=[serve | call <json>]
+# omarchy:hidden=true
+
+# Apps started with omarchy-agent-seat-run connect to this broker instead of
+# Hyprland. It forwards their windows to Hyprland untouched, so they are real
+# windows in the user's session, but it owns their input:
+#
+# - The agent gets its own pointer and keyboard, delivered by the broker, which
+#   reach nothing but agent apps. The user's own mouse and keyboard still work
+#   on agent windows too, at the same time: the broker moves each app's focus
+#   between the two as they act. Every app still sees exactly one ordinary
+#   seat, so apps that only ever bind the first seat (Chromium, Electron,
+#   Kitty) work.
+# - Only an allowlist of globals is advertised. Agent apps cannot inject
+#   input, capture the screen, list windows, draw overlays or steal focus, and
+#   binding a hidden global disconnects the app.
+# - The clipboard is the user's. An app reads it only while the user's keyboard
+#   is in it and the user acted last, and sets it only from the user's own
+#   input since the agent last acted in it, never the agent's.
+# - Every agent window gets the class "agent-<n>.<app id>", so Hyprland rules
+#   can put it on the agent seat's workspace and outline it.
+# - Apps get no GPU. They draw into shared memory, which the broker reads for
+#   screenshots.
+#
+# The agent drives the seat through a control socket that only this user can
+# reach and that is never mounted into the sandbox.
+
+import array
+import collections
+import ctypes
+import ctypes.util
+import errno
+import functools
+import glob
+import json
+import operator
+import os
+import re
+import selectors
+import socket
+import stat
+import struct
+import subprocess
+import sys
+import threading
+import time
+import weakref
+import xml.etree.ElementTree as ET
+import zlib
+
+RUNTIME_DIR = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "omarchy", "agent-seat")
+WAYLAND_SOCKET = os.path.join(RUNTIME_DIR, "wayland-0")
+CONTROL_SOCKET = os.path.join(RUNTIME_DIR, "control")
+MAX_FDS_PER_MESSAGE = 28  # libwayland's receive limit
+MAX_QUEUED_FDS = 4 * MAX_FDS_PER_MESSAGE  # received but not yet claimed by a message
+# Each connection costs the broker and Hyprland a descriptor, and each shared
+# memory pool one more in each, so both are capped per sandbox (see
+# sandbox_of) and for the whole seat, under a 1024 descriptor limit.
+MAX_CLIENTS_PER_SANDBOX = 16
+MAX_CLIENTS = 64
+MAX_POOLS_PER_SANDBOX = 256
+MAX_POOLS = 640
+# Each object an app makes costs the broker an entry in its tables (a surface
+# most, near 1 KiB), so live objects are capped per connection, per sandbox
+# and for the seat (see check_objects). A real app holds hundreds.
+MAX_APP_OBJECTS = 4096
+MAX_OBJECTS_PER_SANDBOX = 16384
+MAX_OBJECTS = 40960
+# An input region is kept as rectangles (see set_region); each costs the
+# broker memory, so they are capped in one region, and across an app's
+# regions and the input regions its surfaces keep, per app and per sandbox.
+MAX_REGION_RECTANGLES = 1024
+MAX_APP_REGION_RECTANGLES = 4096
+MAX_REGION_RECTANGLES_PER_SANDBOX = 16384
+LISTENER_PAUSE_SECONDS = 1  # how long to stop accepting when out of descriptors
+PAUSE_READING_BYTES = 256 << 10  # stop reading one side while this much waits for the other
+MAX_UNSENT_BYTES = 16 << 20  # and drop the app if its queue grows past this anyway
+MAX_REQUEST_BYTES = 1 << 20  # one control request
+REQUEST_SECONDS = 5  # to send one
+HYPRCTL_SECONDS = 5  # for Hyprland to list its windows
+DEBUG = bool(os.environ.get("OMARCHY_AGENT_SEAT_DEBUG"))
+
+# Everything an app needs to draw windows. Anything not listed is hidden,
+# including GPU buffers: agent apps draw into shared memory, which keeps the GPU
+# out of the sandbox and lets the broker read every surface for screenshots.
+ALLOWED_GLOBALS = {
+  "wl_compositor": None,
+  "wl_subcompositor": None,
+  "wl_shm": None,
+  "wl_output": None,
+  "wl_seat": 7,
+  "wl_data_device_manager": None,
+  "xdg_wm_base": None,
+  "xdg_wm_dialog_v1": None,
+  "zxdg_output_manager_v1": None,
+  "zxdg_decoration_manager_v1": None,
+  "org_kde_kwin_server_decoration_manager": None,
+  "wp_viewporter": None,
+  "wp_fractional_scale_manager_v1": None,
+  "wp_presentation": None,
+  "wp_single_pixel_buffer_manager_v1": None,
+  "wp_fifo_manager_v1": None,
+  "wp_commit_timing_manager_v1": None,
+  "wp_content_type_manager_v1": None,
+  "wp_alpha_modifier_v1": None,
+  "wp_color_manager_v1": None,
+}
+
+MAX_CAPTURE_SIZE = 4096  # pixels a side: a 4K screen, and at most 64 MiB of canvas
+RUN_GAP = 256  # buffer pixels between two needed ones that one read still spans
+MAX_CAPTURE_SCALE = 4  # screenshot pixels per surface unit, beyond any real output scale
+CAPTURE_SECONDS = 10  # to compose and write one screenshot
+MAX_CAPTURES = 2  # screenshots being taken at once
+SNAPSHOT_SECONDS = 2  # after a screenshot, how long an app's commits keep a copy of their pixels
+SNAPSHOT_BYTES = 64 << 20  # and at most how much one app keeps
+
+BUTTONS = {"left": 0x110, "right": 0x111, "middle": 0x112}
+XDG_STATE_ACTIVATED = 4
+XDG_STATE_SUSPENDED = 9
+
+
+def log(message):
+  print(f"agent-seat: {message}", file=sys.stderr, flush=True)
+
+
+# Wayland wire format ---------------------------------------------------------
+
+
+# Interfaces the broker cannot run without, and where their descriptions come
+# from: the directory under the share root and the package that installs it.
+REQUIRED_PROTOCOLS = {
+  "wl_display": ("wayland", "wayland"),
+  "xdg_wm_base": ("wayland-protocols", "wayland-protocols"),
+}
+
+
+def load_protocols(share="/usr/share"):
+  interfaces = {}
+  # Old unstable protocols reuse interface names (xdg-shell v5 has its own
+  # xdg_surface), so load them first and let staging and stable win.
+  protocols = f"{share}/wayland-protocols"
+  paths = [path for kind in ("unstable", "staging", "stable") for path in sorted(glob.glob(f"{protocols}/{kind}/**/*.xml", recursive=True))]
+  paths += glob.glob(f"{share}/wayland/*.xml")
+
+  for path in paths:
+    try:
+      root = ET.parse(path).getroot()
+    except ET.ParseError:
+      continue
+
+    for interface in root.iter("interface"):
+      interfaces[interface.get("name")] = {
+        "version": int(interface.get("version", 1)),
+        **{
+          kind: [
+            (message.get("name"), [(arg.get("type"), arg.get("interface")) for arg in message.findall("arg")], message.get("type") == "destructor")
+            for message in interface.findall(kind[:-1])
+          ]
+          for kind in ("requests", "events")
+        },
+      }
+
+  return interfaces
+
+
+PROTOCOLS = load_protocols()
+
+
+def missing_protocols(protocols, share="/usr/share"):
+  """Why the broker can't serve with these protocol descriptions, or None when it can."""
+  missing = [name for name in REQUIRED_PROTOCOLS if name not in protocols]
+  if not missing:
+    return None
+  return "The agent seat broker can't start: no Wayland protocol description of " + ", ".join(
+    f"{name} in {share}/{REQUIRED_PROTOCOLS[name][0]} (install the {REQUIRED_PROTOCOLS[name][1]} package)" for name in missing
+  )
+
+
+def fd_count(signature):
+  return sum(1 for kind, _ in signature if kind == "fd")
+
+
+def decode(signature, body, fds):
+  args, offset = [], 0
+
+  for kind, interface in signature:
+    if kind == "int":
+      args.append(struct.unpack_from("<i", body, offset)[0])
+      offset += 4
+    elif kind == "fixed":
+      args.append(struct.unpack_from("<i", body, offset)[0] / 256)
+      offset += 4
+    elif kind in ("uint", "object") or (kind == "new_id" and interface):
+      args.append(struct.unpack_from("<I", body, offset)[0])
+      offset += 4
+    elif kind == "new_id":
+      name, offset = decode_string(body, offset)
+      version, new_id = struct.unpack_from("<II", body, offset)
+      args.append((name, version, new_id))
+      offset += 8
+    elif kind == "string":
+      value, offset = decode_string(body, offset)
+      args.append(value)
+    elif kind == "array":
+      length = struct.unpack_from("<I", body, offset)[0]
+      args.append(bytes(body[offset + 4 : offset + 4 + length]))
+      offset += 4 + ((length + 3) & ~3)
+    elif kind == "fd":
+      args.append(fds.pop(0))
+
+  if offset > len(body):
+    raise ValueError("message too short")
+  return args
+
+
+def decode_string(body, offset):
+  length = struct.unpack_from("<I", body, offset)[0]
+  value = bytes(body[offset + 4 : offset + 3 + length]).decode(errors="replace") if length else None
+  return value, offset + 4 + ((length + 3) & ~3)
+
+
+def encode(object_id, opcode, signature, args):
+  body, fds = bytearray(), []
+
+  for (kind, interface), value in zip(signature, args):
+    if kind == "int":
+      body += struct.pack("<i", value)
+    elif kind == "fixed":
+      body += struct.pack("<i", round(value * 256))
+    elif kind in ("uint", "object") or (kind == "new_id" and interface):
+      body += struct.pack("<I", value or 0)
+    elif kind == "new_id":
+      body += encode_bytes(value[0].encode() + b"\0") + struct.pack("<II", value[1], value[2])
+    elif kind == "string":
+      body += encode_bytes(value.encode() + b"\0") if value is not None else struct.pack("<I", 0)
+    elif kind == "array":
+      body += encode_bytes(value)
+    elif kind == "fd":
+      fds.append(value)
+
+  return struct.pack("<II", object_id, (8 + len(body)) << 16 | opcode) + body, fds
+
+
+def encode_bytes(data):
+  return struct.pack("<I", len(data)) + data + b"\0" * (-len(data) % 4)
+
+
+def peer(sock):
+  """The pid and uid of the process at the other end of a Unix socket."""
+  return struct.unpack("3i", sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))[:2]
+
+
+def close_fds(signature, args):
+  """Close the descriptors a decoded message carried, when it goes no further."""
+  for (kind, _), value in zip(signature, args):
+    if kind == "fd":
+      os.close(value)
+
+
+class Channel:
+  """One Wayland socket with its own read buffer, fd queue and write queue."""
+
+  def __init__(self, sock):
+    self.sock = sock
+    self.sock.setblocking(False)
+    self.inbuf = bytearray()
+    self.infds = []
+    self.out = []  # [message bytes, fds] waiting to be sent
+    self.pending = 0  # bytes in out
+    self.events = 0  # what the broker's selector waits for on this socket
+
+  def receive(self):
+    data, ancillary, flags, _ = self.sock.recvmsg(65536, socket.CMSG_SPACE(4 * MAX_FDS_PER_MESSAGE))
+    for level, kind, payload in ancillary:
+      if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
+        fds = array.array("i")
+        fds.frombytes(payload[: len(payload) - len(payload) % 4])
+        self.infds.extend(fds)
+    # More descriptors at once than libwayland ever sends (the kernel closed
+    # the rest), or more piling up than messages claim: a peer trying to fill
+    # the broker's descriptor table.
+    if flags & socket.MSG_CTRUNC or len(self.infds) > MAX_QUEUED_FDS:
+      raise ValueError("too many file descriptors")
+    self.inbuf += data
+    return bool(data)
+
+  def messages(self):
+    while len(self.inbuf) >= 8:
+      object_id, word = struct.unpack_from("<II", self.inbuf)
+      size = word >> 16
+      if size < 8:
+        raise ValueError("malformed message")
+      if len(self.inbuf) < size:
+        return
+      message = bytes(self.inbuf[:size])
+      del self.inbuf[:size]
+      yield object_id, word & 0xFFFF, message
+
+  def queue(self, data, fds=()):
+    self.out.append([bytearray(data), list(fds)])
+    self.pending += len(data)
+
+  def flush(self):
+    while self.out:
+      # Send whole messages together with their fds, never more fds per send
+      # than libwayland reads at once.
+      data, fds, count = bytearray(), [], 0
+      for message, message_fds in self.out:
+        if count and len(fds) + len(message_fds) > MAX_FDS_PER_MESSAGE:
+          break
+        data += message
+        fds += message_fds
+        count += 1
+      ancillary = [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", fds))] if fds else []
+      try:
+        sent = self.sock.sendmsg([data], ancillary)
+      except BlockingIOError:
+        return False
+      self.pending -= sent
+      for fd in fds:
+        os.close(fd)
+      for item in self.out[:count]:
+        item[1] = []
+      while sent:
+        if sent >= len(self.out[0][0]):
+          sent -= len(self.out.pop(0)[0])
+        else:
+          del self.out[0][0][:sent]
+          sent = 0
+    return True
+
+  def close(self):
+    for fd in self.infds + [fd for _, fds in self.out for fd in fds]:
+      os.close(fd)
+    self.infds, self.out, self.pending = [], [], 0
+    self.sock.close()
+
+
+# Keyboard ---------------------------------------------------------------------
+
+
+class Keymap:
+  """A compiled XKB keymap plus the reverse lookup from characters to keys.
+
+  Keys are (evdev keycode, modifier mask) in this keymap's modifier indices,
+  taken from its first layout group, so AltGr and other layouts type right.
+  """
+
+  def __init__(self, text=None):
+    xkb = ctypes.CDLL(ctypes.util.find_library("xkbcommon"))
+
+    class RuleNames(ctypes.Structure):
+      _fields_ = [(name, ctypes.c_char_p) for name in ("rules", "model", "layout", "variant", "options")]
+
+    xkb.xkb_context_new.restype = ctypes.c_void_p
+    xkb.xkb_keymap_new_from_names.restype = ctypes.c_void_p
+    xkb.xkb_keymap_new_from_names.argtypes = [ctypes.c_void_p, ctypes.POINTER(RuleNames), ctypes.c_int]
+    xkb.xkb_keymap_new_from_string.restype = ctypes.c_void_p
+    xkb.xkb_keymap_new_from_string.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
+    xkb.xkb_keymap_min_keycode.argtypes = xkb.xkb_keymap_max_keycode.argtypes = xkb.xkb_keymap_num_mods.argtypes = [ctypes.c_void_p]
+    xkb.xkb_keymap_num_levels_for_key.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint]
+    xkb.xkb_keymap_key_get_syms_by_level.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.POINTER(ctypes.POINTER(ctypes.c_uint32))]
+    xkb.xkb_keymap_key_get_mods_for_level.restype = ctypes.c_size_t
+    xkb.xkb_keymap_key_get_mods_for_level.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.POINTER(ctypes.c_uint32), ctypes.c_size_t]
+    xkb.xkb_keymap_mod_get_index.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    xkb.xkb_keymap_mod_get_name.restype = ctypes.c_char_p
+    xkb.xkb_keymap_mod_get_name.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+    xkb.xkb_keysym_from_name.argtypes = [ctypes.c_char_p, ctypes.c_int]
+    xkb.xkb_utf32_to_keysym.argtypes = [ctypes.c_uint32]
+    xkb.xkb_keymap_unref.argtypes = xkb.xkb_context_unref.argtypes = [ctypes.c_void_p]
+    self.xkb = xkb
+
+    # The keymap Hyprland gives the user's keyboard, so the agent's keys mean
+    # the same thing to apps; US until Hyprland has sent one.
+    context = xkb.xkb_context_new(0)
+    keymap = xkb.xkb_keymap_new_from_string(context, text.rstrip(b"\0"), 1, 0) if text else None
+    keymap = keymap or xkb.xkb_keymap_new_from_names(context, ctypes.byref(RuleNames(b"evdev", b"pc105", b"us", b"", b"")), 0)
+    self.text = text
+
+    self.mod_names = [xkb.xkb_keymap_mod_get_name(keymap, index).decode() for index in range(xkb.xkb_keymap_num_mods(keymap))]
+    self.modifiers = {name: 1 << xkb.xkb_keymap_mod_get_index(keymap, xkb_name) for name, xkb_name in (("shift", b"Shift"), ("ctrl", b"Control"), ("alt", b"Mod1"), ("super", b"Mod4"), ("altgr", b"Mod5"))}
+    # Levels reached through Caps Lock or Num Lock are skipped: their result
+    # depends on lock state the agent does not control.
+    locked = sum(1 << index for index, name in enumerate(self.mod_names) if name in ("Lock", "Mod2"))
+    self.keys, ranks = {}, {}
+    syms = ctypes.POINTER(ctypes.c_uint32)()
+    masks = (ctypes.c_uint32 * 8)()
+    for keycode in range(xkb.xkb_keymap_min_keycode(keymap), xkb.xkb_keymap_max_keycode(keymap) + 1):
+      for level in range(xkb.xkb_keymap_num_levels_for_key(keymap, keycode, 0)):
+        usable = [mask for mask in masks[: xkb.xkb_keymap_key_get_mods_for_level(keymap, keycode, 0, level, masks, 8)] if not mask & locked]
+        if not usable:
+          continue
+        mask = min(usable, key=lambda mask: bin(mask).count("1"))
+        rank = (bin(mask).count("1"), level)
+        for index in range(xkb.xkb_keymap_key_get_syms_by_level(keymap, keycode, 0, level, ctypes.byref(syms))):
+          # Prefer the fewest modifiers, then the lowest level (Shift before
+          # AltGr), then the lowest keycode.
+          if syms[index] not in ranks or rank < ranks[syms[index]]:
+            ranks[syms[index]] = rank
+            self.keys[syms[index]] = (keycode - 8, mask)
+
+    # Everything needed is copied out; the lookups left need neither.
+    xkb.xkb_keymap_unref(keymap)
+    xkb.xkb_context_unref(context)
+
+  def for_char(self, char):
+    if char == "\n":
+      return self.for_name("Return")
+    return self.keys.get(self.xkb.xkb_utf32_to_keysym(ord(char)))
+
+  def for_name(self, name):
+    aliases = {"enter": "Return", "esc": "Escape", "pgup": "Prior", "pgdown": "Next", "pageup": "Prior", "pagedown": "Next", "del": "Delete", "bksp": "BackSpace", "backspace": "BackSpace", "space": "space", "tab": "Tab"}
+    return self.keys.get(self.xkb.xkb_keysym_from_name(aliases.get(name.lower(), name).encode(), 1))
+
+
+class Pool:
+  """A dup of an app's shared memory pool, kept while any buffer uses it.
+
+  A screenshot being composed holds it open: closed meanwhile, its
+  descriptor number could come back as another file and be read instead.
+  """
+
+  def __init__(self, fd, size):
+    self.fd, self.size = fd, size
+    self.holders, self.closing = 0, False
+
+  def hold(self):
+    self.holders += 1
+
+  def release(self):
+    self.holders -= 1
+    if self.closing:
+      self.close()
+
+  def close(self):
+    self.closing = True
+    if self.fd >= 0 and not self.holders:
+      os.close(self.fd)
+      self.fd = -1
+
+  __del__ = close
+
+
+def screenshot_path(path, caller):
+  """Where a caller may have a screenshot written: the seat's runtime directory, or under its working directory."""
+  if not os.path.isabs(path) or not path.lower().endswith(".png"):
+    raise ValueError("a screenshot needs an absolute path ending in .png")
+  folder = os.path.realpath(os.path.dirname(path))
+  roots = [os.path.realpath(RUNTIME_DIR)]
+  try:
+    roots.append(os.readlink(f"/proc/{caller}/cwd"))
+  except OSError:
+    pass
+  if not any(os.path.commonpath([folder, root]) == root for root in roots):
+    raise PermissionError("a screenshot can only go in the agent seat's runtime directory or under the current directory")
+  return os.path.join(folder, os.path.basename(path))
+
+
+def blend(canvas, target, pixels):
+  """Draw premultiplied ARGB8888 pixels over the canvas at target.
+
+  Opaque pixels, and pixels over nothing drawn yet, are copied; anything
+  else is blended a whole row at a time, so a translucent window on its own
+  costs no more than an opaque one.
+  """
+  pixels = pixels[: len(pixels) - len(pixels) % 4]
+  under = canvas[target : target + len(pixels)]
+  alphas = pixels[3::4]
+  if alphas.count(255) == len(alphas) or under.count(0) == len(under):
+    canvas[target : target + len(pixels)] = pixels
+  else:
+    canvas[target : target + len(pixels)] = over(pixels, under)
+
+
+# Each pixel's 255 - alpha, bit by bit: 0xff where the bit is set.
+UNCOVERED_BITS = [bytes(0xFF if (255 - alpha) >> bit & 1 else 0 for alpha in range(256)) for bit in range(8)]
+
+
+@functools.lru_cache(maxsize=8)
+def lane_masks(count):
+  """For count bytes spread one to a 16-bit lane: each lane's low byte, its 128 and its 1."""
+  return tuple(int.from_bytes(lane * count, "little") for lane in (b"\xff\x00", b"\x80\x00", b"\x01\x00"))
+
+
+def lanes(data):
+  """Bytes as one integer with each byte in a 16-bit lane of its own."""
+  spread = bytearray(2 * len(data))
+  spread[0::2] = data
+  return int.from_bytes(spread, "little")
+
+
+def over(pixels, under):
+  """min(255, pixel + round(under * (255 - alpha) / 255)) for every byte.
+
+  Python has no per-byte arithmetic, so each byte gets a 16-bit lane of one
+  large integer, where whole-integer sums and shifts work on every lane at
+  once. The product with each pixel's 255 - alpha is a sum over its eight
+  bits, of under masked to the pixels with that bit set, shifted by it.
+  """
+  count = len(pixels)
+  low, half, one = lane_masks(count)
+  alphas = pixels[3::4]
+  under = lanes(under)
+  mask = bytearray(2 * count)
+  product = 0
+  for bit, table in enumerate(UNCOVERED_BITS):
+    selected = alphas.translate(table)
+    if selected.count(0) == len(selected):
+      continue
+    for channel in range(4):
+      mask[2 * channel :: 8] = selected
+    product += (under & int.from_bytes(mask, "little")) << bit
+  # Divided by 255, rounded as (x + 127) // 255: (t + (t >> 8)) >> 8 with t = x + 128.
+  product += half
+  product = ((product + ((product >> 8) & low)) >> 8) & low
+  total = product + lanes(pixels)
+  total = (total | ((total >> 8) & one) * 0xFF) & low  # saturated at 255
+  return total.to_bytes(2 * count, "little")[0::2]
+
+
+def faded(pixels, alpha):
+  """round(byte * alpha / 255) for every byte of premultiplied pixels: a
+  surface's wp_alpha_modifier_v1 multiplier, as Hyprland applies it. One
+  multiplication of the bytes in their 16-bit lanes, rounded as in over()."""
+  low, half, _ = lane_masks(len(pixels))
+  product = lanes(pixels) * alpha + half
+  product = ((product + ((product >> 8) & low)) >> 8) & low
+  return product.to_bytes(2 * len(pixels), "little")[0::2]
+
+
+def buffer_pixel(transform, x, y, width, height):
+  """The pixel of a buffer shown at x, y once a wl_output transform turns
+  the buffer to width x height, as wlroots maps a surface to its buffer:
+  turned 90, the buffer's bottom left pixel is the top left one shown."""
+  if transform & 4:
+    x = width - 1 - x
+  return ((x, y), (y, width - 1 - x), (width - 1 - x, height - 1 - y), (height - 1 - y, x))[transform & 3]
+
+
+def write_png(path, canvas, width, height):
+  rows, rgb = bytearray(), bytearray(width * 3)
+  for y in range(height):
+    row = canvas[y * width * 4 : (y + 1) * width * 4]
+    rgb[0::3], rgb[1::3], rgb[2::3] = row[2::4], row[1::4], row[0::4]
+    rows += b"\0" + rgb
+
+  def chunk(kind, data):
+    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+  # Never through a symlink, into a FIFO or onto a device.
+  fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600)
+  with open(fd, "wb") as png:
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+      raise ValueError(f"{path} is not a regular file")
+    png.truncate()
+    png.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(bytes(rows), 1)) + chunk(b"IEND", b""))
+
+
+class Plan:
+  """What a screenshot draws: each layer's buffer, the part of it shown and
+  where, the screenshot's size, and its origin (left, top and scale)."""
+
+  def __init__(self, layers, origin, width, height):
+    self.layers, self.origin, self.width, self.height = layers, origin, width, height
+    self.pools = [buffer[2][0] for buffer, *_ in layers if isinstance(buffer[2], tuple) and isinstance(buffer[2][0], Pool)]
+    for pool in self.pools:
+      pool.hold()
+
+  def release(self):
+    for pool in self.pools:
+      pool.release()
+    self.pools = []
+
+
+def compose(plan, cancelled=None):
+  """Draw a screenshot's layers from their buffers, bottom to top.
+
+  It touches nothing but the plan, so it can run on a thread of its own, and
+  gives up when cancelled is set.
+  """
+  left, top, scale = plan.origin
+  width, height = plan.width, plan.height
+  canvas = bytearray(width * height * 4)
+
+  for (buffer_width, buffer_height, source), (cx, cy, right, bottom, rx, ry), x, y, gx, gy, gw, gh, transform, alpha in plan.layers:
+    solid = isinstance(source, bytes)
+    if not solid and source[3] not in (0, 1):  # ARGB8888 and XRGB8888, what apps draw with
+      continue
+    if alpha == 0:  # an alpha multiplier of 0 hides the layer on screen
+      continue
+    sx, sy = cx + gx * rx, cy + gy * ry
+    dx, dy = round((x - left) * scale), round((y - top) * scale)
+    if dx < 0 or dy < 0:
+      continue
+    # Each screenshot pixel the layer covers comes from the nearest pixel of
+    # the part of its buffer it shows, which can have another scale than the
+    # window's: a scale 1 popup over a scale 2 window is drawn twice as
+    # large, and a viewport stretches its source over its destination.
+    columns = [column for column in (int(sx + (i + 0.5) * rx / scale) for i in range(min(round(gw * scale), width - dx))) if column < right]
+    rows = [row for row in (int(sy + (i + 0.5) * ry / scale) for i in range(min(round(gh * scale), height - dy))) if row < bottom]
+    if not columns or not rows:
+      continue
+    if solid:
+      # One colour, stretched over the whole layer.
+      if alpha < 255:
+        source = faded(source, alpha)
+      for row in range(len(rows)):
+        blend(canvas, ((dy + row) * width + dx) * 4, source * len(columns))
+      continue
+    pool, offset, stride, format = source
+    # Read rather than map: the app can shrink its pool at any moment, and
+    # touching a mapping past the end of the file kills the broker with
+    # SIGBUS. Whatever is missing stays black. Translucent layers blend over
+    # what is under them; XRGB8888 has no alpha and covers it. A copy of the
+    # pixels taken when the buffer was committed stands in for the pool.
+    if isinstance(pool, Pool):
+      end = min(pool.size, os.fstat(pool.fd).st_size)
+
+      def read(length, position, fd=pool.fd):
+        return os.pread(fd, length, position)
+    else:
+      end = offset + len(pool)
+
+      def read(length, position, copy=pool, start=offset):
+        return copy[position - start : position - start + length]
+
+    if transform:
+      pixels = turned_rows(read, offset, stride, end, transform, buffer_width, buffer_height, columns, rows)
+    else:
+      pixels = straight_rows(read, offset, stride, end, columns)
+    for row, source_row in enumerate(rows):
+      if cancelled and cancelled.is_set():
+        raise TimeoutError("the screenshot was given up")
+      line = pixels(source_row)
+      if line is None:
+        continue
+      target = ((dy + row) * width + dx) * 4
+      if alpha < 255:
+        # An alpha multiplier below 1 fades the layer over what is under it,
+        # XRGB8888 too: its pixels count as opaque until the multiplier.
+        if format == 1:
+          line = bytearray(line)
+          line[3::4] = b"\xff" * (len(line) // 4)
+        blend(canvas, target, faded(line, alpha))
+      elif format == 0:
+        blend(canvas, target, line)
+      else:
+        canvas[target : target + len(line)] = line
+
+  return canvas
+
+
+def words(indices):
+  """A function picking the 4-byte pixels at these indices, past a start, out of a memoryview cast to them."""
+  pick = operator.itemgetter(*indices)
+  if len(indices) == 1:
+    return lambda view, start: array.array("I", (pick(view[start:]),)).tobytes()
+  return lambda view, start: array.array("I", pick(view[start:])).tobytes()
+
+
+def pixel_runs(xs):
+  """The buffer columns to read together for these needed ones, in order:
+  each run holds needed columns and gaps of at most RUN_GAP between them.
+
+  A read never spans a buffer's whole width: an app can make a buffer as
+  wide as it likes over a pool that costs it nothing until written, and
+  shrink it through a viewport, so a read of the width between the first
+  and last needed column would cost the broker that much memory for each
+  row of a small screenshot. A run is (start, count, indices of the needed
+  columns within it, a picker of those or None when the run is all needed).
+  """
+  runs = []
+  for x in xs:
+    if runs and x - (runs[-1][0] + runs[-1][1]) <= RUN_GAP:
+      runs[-1][1] = max(runs[-1][1], x + 1 - runs[-1][0])
+    else:
+      runs.append([x, 1])
+  picks = []
+  for start, count in runs:
+    indices = [x - start for x in xs if start <= x < start + count]
+    picks.append((start, count, indices, None if indices == list(range(count)) else words(indices)))
+  return picks
+
+
+def read_runs(read, source, end, picks, pad):
+  """The needed pixels of one buffer row starting at source, run by run.
+  Past the pool's end they are black when pad is set, and left out otherwise."""
+  pieces = []
+  for start, count, indices, pick in picks:
+    at = source + start * 4
+    data = read(min(count * 4, end - at), at) if 0 <= at < end else b""
+    if len(data) == count * 4:
+      pieces.append(pick(memoryview(data).cast("I"), 0) if pick else data)
+    elif pad:
+      data = data.ljust(count * 4, b"\0")
+      pieces.append(pick(memoryview(data).cast("I"), 0) if pick else data)
+    else:
+      have = len(data) // 4  # the pool ends within the row
+      pieces.append(b"".join(data[index * 4 : (index + 1) * 4] for index in indices if index < have))
+      break
+  return b"".join(pieces)
+
+
+def straight_rows(read, offset, stride, end, columns):
+  """For a buffer without a transform: a function from one of its rows to
+  the pixels at the columns, or None when the row is past the pool's end."""
+  first = columns[0]
+  picks = pixel_runs(columns)
+
+  def pixels(row):
+    source = offset + row * stride
+    if not 0 <= source + first * 4 < end:
+      return None
+    return read_runs(read, source, end, picks, False)
+
+  return pixels
+
+
+def turned_rows(read, offset, stride, end, transform, buffer_width, buffer_height, columns, rows):
+  """For a buffer with a transform: a function from a row of the turned
+  buffer to the pixels at its columns, read from the buffer's own rows.
+
+  The buffer's column and row each depend on only one of the turned
+  buffer's, so the first row and column of the turned part name every
+  pixel of the buffer to read, and where a pixel sits among them is a sum
+  of a part from its column and a part from its row.
+  """
+  width, height = (buffer_height, buffer_width) if transform & 1 else (buffer_width, buffer_height)
+  across = [buffer_pixel(transform, column, rows[0], width, height) for column in columns]
+  down = [buffer_pixel(transform, columns[0], row, width, height) for row in rows]
+  xs = sorted({x for x, _ in across + down})
+  ys = sorted({y for _, y in across + down})
+  picks = pixel_runs(xs)
+  # Only the pixels needed, a row of them for each buffer row: no larger
+  # than the screenshot however far a viewport shrinks the buffer, and read
+  # in runs no wider than that either. Missing ones stay black.
+  block = bytearray(len(ys) * len(xs) * 4)
+  for index, y in enumerate(ys):
+    block[index * len(xs) * 4 : (index + 1) * len(xs) * 4] = read_runs(read, offset + y * stride, end, picks, True)
+  column = {x: index for index, x in enumerate(xs)}
+  line = {y: index * len(xs) for index, y in enumerate(ys)}
+  if transform & 1:  # the buffer's column follows the turned row, its row the turned column
+    pick = words([line[y] for _, y in across])
+    starts = {row: column[x] for row, (x, _) in zip(rows, down)}
+  else:
+    pick = words([column[x] for x, _ in across])
+    starts = {row: line[y] for row, (_, y) in zip(rows, down)}
+  view = memoryview(block).cast("I")
+  return lambda row: pick(view, starts[row])
+
+
+def sandbox_of(pid):
+  """What an app's connections and pools are counted against: the agent seat
+  sandbox it runs in, or outside any, its session.
+
+  A sandbox is found by walking up the process's parents to a sandbox
+  supervisor, which omarchy-agent-seat-run records with its start time under
+  sandboxes/. No process in the sandbox can leave that ancestry, not even
+  by starting a session or a pid namespace of its own; a session is all
+  there is to go by for a process the user started outside a sandbox,
+  which could reach Hyprland directly anyway.
+  """
+  supervisors = {}
+  for record in glob.glob(os.path.join(RUNTIME_DIR, "sandboxes", "sandbox.*")):
+    try:
+      with open(record) as file:
+        fields = file.read().split()
+    except OSError:
+      continue
+    if len(fields) >= 3:
+      supervisors[(fields[0], fields[1])] = fields[2]
+  process, session = pid, None
+  for _ in range(64):
+    try:
+      with open(f"/proc/{process}/stat") as file:
+        fields = file.read().rsplit(")", 1)[1].split()  # after the command name, which may hold anything
+    except (OSError, IndexError):
+      break
+    session = session or fields[3]
+    if (str(process), fields[19]) in supervisors:  # the pid, and its start time, not a reused pid
+      return f"sandbox {supervisors[(str(process), fields[19])]}"
+    process = int(fields[1])
+    if process <= 1:
+      break
+  return f"session {session}" if session else f"pid {pid}"
+
+
+def cut_region(rectangles, hole):
+  """Disjoint (x, y, width, height) rectangles with a hole cut out of them:
+  each one the hole overlaps is split into the up to four pieces left of it
+  above, below, left and right, so they stay disjoint."""
+  hx, hy, hw, hh = hole
+  if hw <= 0 or hh <= 0:  # an empty rectangle covers nothing
+    return rectangles
+  left = []
+  for x, y, w, h in rectangles:
+    if hx >= x + w or hx + hw <= x or hy >= y + h or hy + hh <= y:
+      left.append((x, y, w, h))
+      continue
+    top, bottom = max(y, hy), min(y + h, hy + hh)
+    if y < top:
+      left.append((x, y, w, top - y))
+    if bottom < y + h:
+      left.append((x, bottom, w, y + h - bottom))
+    if x < hx:
+      left.append((x, top, hx - x, bottom - top))
+    if hx + hw < x + w:
+      left.append((hx + hw, top, x + w - hx - hw, bottom - top))
+  return tuple(left)
+
+
+# One agent app connection ------------------------------------------------------
+
+
+class Client:
+  def __init__(self, broker, sock, upstream_path):
+    self.broker = broker
+    self.allowed = ALLOWED_GLOBALS
+    self.down = Channel(sock)
+    upstream = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+      upstream.connect(upstream_path)
+    except OSError:
+      upstream.close()
+      raise
+    self.up = Channel(upstream)
+    self.objects = {1: ("wl_display", 1)}
+    self.syncs = set()  # callbacks of wl_display.sync in self.objects, see check_objects
+    self.pid, self.sandbox = 0, None  # the app's, once accepted
+    self.snapshots_until = 0  # commits copy their pixels until then (time.monotonic)
+    self.advertised = {}
+    self.pointers, self.keyboards = {}, {}  # object -> the surface this app believes it is focused on
+    self.pointer_positions = {}  # pointer -> (x, y) where this app believes it is in that surface
+    self.surfaces, self.regions, self.buffers, self.pools = {}, {}, {}, {}
+    self.region_rectangles = 0  # in all of self.regions and the surfaces' input regions, see set_region
+    self.pool_fds = weakref.WeakSet()  # every Pool still holding a descriptor, destroyed or not
+    self.roles = {}  # role object (subsurface, viewport, xdg_surface, toplevel, popup) -> surface id or xdg surface id
+    self.xdg_surfaces = {}  # xdg_surface -> {"surface", "geometry", "popups"}
+    self.toplevels = {}  # xdg_toplevel -> {"xdg", "window", "title", "app_id"}
+    self.popups = {}  # xdg_popup -> {"xdg", "parent", "position"}
+    self.user_keyboard = None  # where the user's seat has keyboard focus in this app
+    self.user_modifiers = (0, 0, 0, 0)  # depressed, latched, locked and group of the user's keyboard
+    self.user_keys = b""  # keycodes the user's keyboard holds down, as the keys array of an enter
+    self.agent_modifiers = set()  # keyboards whose modifier state the broker set rather than the user
+    self.user_pointer = None  # (surface, x, y) of the user's pointer in this app
+    self.last_actor = None  # "user" or "agent": whose input this app saw last
+    # Recent serials of the user's input to this app. Only these can set the
+    # clipboard or start a grab: Hyprland's serials are sequential, so one
+    # seen by any other app is easy to guess.
+    self.user_serials = collections.deque(maxlen=256)
+    # The part of those since the agent last acted in this app. Only these can
+    # set the clipboard: an older one would let the app replay the user's
+    # keypress from before the agent took over.
+    self.clipboard_serials = collections.deque(maxlen=256)
+
+  # Plumbing
+
+  def pump(self, channel):
+    if not channel.receive():
+      raise ConnectionError("closed")
+    for object_id, opcode, message in channel.messages():
+      if channel is self.down:
+        self.request(object_id, opcode, message)
+      else:
+        self.event(object_id, opcode, message)
+    self.flush()
+
+  def flush(self):
+    for channel in (self.up, self.down):
+      if channel.out:
+        channel.flush()
+    # Reading pauses while a side is behind, so only the broker's own events
+    # can grow a queue this far.
+    if max(self.up.pending, self.down.pending) > MAX_UNSENT_BYTES:
+      raise ConnectionError("not reading its messages")
+    self.broker.watch(self)
+
+  def send_event(self, object_id, name, *args):
+    interface = self.objects[object_id][0]
+    opcode, (_, signature, _) = next((i, m) for i, m in enumerate(PROTOCOLS[interface]["events"]) if m[0] == name)
+    self.down.queue(*encode(object_id, opcode, signature, args))
+
+  def message(self, object_id, opcode, kind, channel):
+    if object_id not in self.objects:
+      raise ValueError(f"unknown object {object_id} in {kind[:-1]} opcode {opcode}")
+    interface, version = self.objects[object_id]
+    name, signature, destructor = PROTOCOLS[interface][kind][opcode]
+    need = fd_count(signature)
+    if len(channel.infds) < need:
+      raise ValueError("missing file descriptors")
+    return interface, version, name, signature, destructor
+
+  def decode(self, channel, signature, raw):
+    """A message's arguments. A malformed one closes the descriptors it carried
+    before it fails, so they can't pile up in the broker."""
+    fds = [channel.infds.pop(0) for _ in range(fd_count(signature))]
+    try:
+      return decode(signature, raw[8:], list(fds))
+    except Exception:
+      for fd in fds:
+        os.close(fd)
+      raise ValueError("malformed message")
+
+  def kept_objects(self):
+    """The app's live objects but for its syncs' callbacks (see check_objects)."""
+    return len(self.objects) - len(self.syncs)
+
+  def check_objects(self, interface, name, signature):
+    """Refuse a request that makes an object past the app's, its sandbox's or
+    the seat's share, before it reaches Hyprland. Counted from the live
+    tables, so an object stops counting once Hyprland frees its id. Only the
+    app's requests count: an object Hyprland makes is not the app's doing.
+
+    Nor does a sync's callback, which Hyprland answers and frees at once:
+    one read can hold thousands of syncs, and while an app does not read its
+    replies the broker stops reading Hyprland's, so callbacks in flight
+    would drop an app that the read pauses hold back instead. Those pauses
+    bound them, to two socket buffers and PAUSE_READING_BYTES of 12 byte
+    requests, a few MiB. A frame callback counts: Hyprland keeps it until
+    the surface is shown, which an app need never do."""
+    if (interface, name) == ("wl_display", "sync") or not any(kind == "new_id" for kind, _ in signature):
+      return
+    clients = set(self.broker.clients) | {self}
+    if self.kept_objects() >= MAX_APP_OBJECTS:
+      raise ValueError(f"more than {MAX_APP_OBJECTS} objects")
+    if sum(client.kept_objects() for client in clients if client.sandbox == self.sandbox) >= MAX_OBJECTS_PER_SANDBOX:
+      raise ValueError(f"too many objects in {self.sandbox}")
+    if sum(client.kept_objects() for client in clients) >= MAX_OBJECTS:
+      raise ValueError("too many objects on the seat")
+
+  def track_new_objects(self, signature, args, version):
+    for (kind, interface), value in zip(signature, args):
+      if kind == "new_id" and interface:
+        self.objects[value] = (interface, version)
+      elif kind == "new_id":
+        self.objects[value[2]] = (value[0], value[1])
+
+  # Client -> Hyprland
+
+  def request(self, object_id, opcode, raw):
+    interface, version, name, signature, destructor = self.message(object_id, opcode, "requests", self.down)
+    args = self.decode(self.down, signature, raw)
+    if DEBUG:
+      log(f"-> {interface}@{object_id}.{name}{args}")
+
+    if interface == "wl_registry" and name == "bind":
+      bound, requested_version, new_id = args[1]
+      if self.advertised.get(args[0]) != bound:
+        raise PermissionError(f"tried to bind hidden global {bound}")
+      if requested_version > self.version_cap(bound):
+        args[1] = (bound, self.version_cap(bound), new_id)
+
+    try:
+      self.check_objects(interface, name, signature)
+      self.track_new_objects(signature, args, version)
+      handler = getattr(self, f"request_{interface}_{name}", None)
+      result = handler(object_id, args) if handler else True
+    except Exception:
+      close_fds(signature, args)
+      raise
+
+    if result is True:
+      self.up.queue(*encode(object_id, opcode, signature, args))
+    else:
+      close_fds(signature, args)
+
+  def request_wl_display_sync(self, _, args):
+    self.syncs.add(args[0])
+    return True
+
+  # The clipboard is the user's. An app reads it only while the user's keyboard
+  # is in it and the user acted last, so the agent can't paste it out, and it
+  # only sets it (or starts a drag) while the user acted last and from the
+  # user's input since the agent last acted, so the agent can't overwrite it.
+
+  def request_wl_data_offer_receive(self, _, args):
+    return self.user_keyboard is not None and self.last_actor == "user"
+
+  def request_wl_data_device_set_selection(self, _, args):
+    return self.user_owns(args[1])
+
+  def request_wl_data_device_start_drag(self, _, args):
+    return self.user_owns(args[3])
+
+  def user_owns(self, serial):
+    return self.last_actor == "user" and serial in self.clipboard_serials
+
+  # Focus arriving is not the user acting: with focus following the mouse, the
+  # pointer passing over an agent window, or the seat being shown, enters it.
+  # Its serial may move the cursor or start a grab, but only a key or button
+  # the user pressed lets the app at the clipboard.
+
+  def user_serial(self, serial):
+    self.user_serials.append(serial)
+
+  def user_input(self, serial):
+    self.user_serials.append(serial)
+    self.clipboard_serials.append(serial)
+    self.last_actor = "user"
+
+  def agent_acts(self):
+    """The agent takes the app over: the user's earlier input no longer sets the clipboard."""
+    self.last_actor = "agent"
+    self.clipboard_serials.clear()
+
+  def request_wl_seat_get_pointer(self, _, args):
+    self.pointers[args[0]] = None
+    return True
+
+  def request_wl_seat_get_keyboard(self, _, args):
+    keyboard = args[0]
+    self.keyboards[keyboard] = None
+    return True
+
+  def find_request(self, interface, name, object_id):
+    opcode, (_, signature, _) = next((i, m) for i, m in enumerate(PROTOCOLS[interface]["requests"]) if m[0] == name)
+    return object_id, opcode, signature
+
+  # These carry the serial of an input event. Only serials from the user's
+  # seat mean anything to Hyprland; the agent's stay with the broker (popups
+  # work without a grab).
+
+  def request_wl_pointer_set_cursor(self, _, args):
+    return args[0] in self.user_serials
+
+  def request_xdg_popup_grab(self, _, args):
+    return args[1] in self.user_serials
+
+  def request_xdg_toplevel_move(self, _, args):
+    return args[1] in self.user_serials
+
+  def request_xdg_toplevel_resize(self, _, args):
+    return args[1] in self.user_serials
+
+  def request_xdg_toplevel_show_window_menu(self, _, args):
+    return args[1] in self.user_serials
+
+  def request_xdg_toplevel_set_app_id(self, toplevel, args):
+    window = self.toplevels[toplevel]
+    window["app_id"] = args[0] or ""
+    args[0] = f"agent-{window['window']}.{window['app_id']}"
+    return True
+
+  def request_xdg_toplevel_set_title(self, toplevel, args):
+    self.toplevels[toplevel]["title"] = args[0] or ""
+    return True
+
+  def request_xdg_surface_get_toplevel(self, xdg, args):
+    window = self.broker.add_window(self, args[0])
+    self.toplevels[args[0]] = {"xdg": xdg, "window": window, "title": "", "app_id": ""}
+    # Name the window before the app can, so Hyprland's rules always see it.
+    self.up.queue(*encode(xdg, 1, [("new_id", "xdg_toplevel")], [args[0]]))
+    self.up.queue(*encode(*self.find_request("xdg_toplevel", "set_app_id", args[0]), [f"agent-{window}"]))
+    return False
+
+  def request_xdg_surface_get_popup(self, xdg, args):
+    self.popups[args[0]] = {"xdg": xdg, "parent": args[1], "position": (0, 0)}
+    return True
+
+  def request_xdg_surface_set_window_geometry(self, xdg, args):
+    # Double buffered like the rest of the surface: an app can set the
+    # geometry of a frame it has yet to commit, and until it does Hyprland
+    # still crops and places the old frame by the old geometry.
+    surface = self.xdg_surfaces[xdg]["surface"]
+    if surface in self.surfaces:
+      self.surfaces[surface]["pending"]["geometry"] = tuple(args)
+    return True
+
+  def request_xdg_wm_base_get_xdg_surface(self, _, args):
+    self.xdg_surfaces[args[0]] = {"surface": args[1], "geometry": None}
+    return True
+
+  def request_wl_compositor_create_surface(self, _, args):
+    self.surfaces[args[0]] = {
+      "buffer": None, "scale": 1, "transform": 0, "viewport": None, "source": None, "input": None, "alpha": 255,
+      "pending": {}, "cached": {}, "sync": False, "stack": [args[0]], "parent": None, "position": (0, 0), "pixels": None,
+    }
+    return True
+
+  def request_wl_compositor_create_region(self, _, args):
+    self.set_region(args[0], ())
+    return True
+
+  # A region is the disjoint rectangles it covers once each rectangle is added
+  # or cut out, not the requests that made it: kept as requests, an app adding
+  # the same rectangle over and over would grow the broker without limit.
+  # Rectangles that cut each other up can still multiply, so a region and an
+  # app's regions together are capped, and an app past that is dropped. A
+  # surface keeps its input region's rectangles after the region is gone, up
+  # to three sets of them (set, committed and shown), so those count against
+  # the app too: otherwise an app could fill a region, set it on a surface,
+  # destroy it and fill another, thousands of surfaces over.
+
+  def request_wl_region_add(self, region, args):
+    if args[2] > 0 and args[3] > 0:  # an empty rectangle adds nothing
+      self.set_region(region, cut_region(self.regions[region], args) + (tuple(args),))
+    return True
+
+  def request_wl_region_subtract(self, region, args):
+    self.set_region(region, cut_region(self.regions[region], args))
+    return True
+
+  def set_region(self, region, rectangles):
+    if len(rectangles) > MAX_REGION_RECTANGLES:
+      raise ValueError(f"more than {MAX_REGION_RECTANGLES} rectangles in one region")
+    self.count_rectangles(len(rectangles) - len(self.regions.get(region, ())))
+    self.regions[region] = rectangles
+
+  def count_rectangles(self, change):
+    """Add to the rectangles the app keeps, refusing more than its share or its sandbox's."""
+    total = self.region_rectangles + change
+    if change > 0:
+      if total > MAX_APP_REGION_RECTANGLES:
+        raise ValueError(f"more than {MAX_APP_REGION_RECTANGLES} rectangles in its regions")
+      clients = set(self.broker.clients) | {self}
+      if sum(client.region_rectangles for client in clients if client.sandbox == self.sandbox) + change > MAX_REGION_RECTANGLES_PER_SANDBOX:
+        raise ValueError(f"more than {MAX_REGION_RECTANGLES_PER_SANDBOX} rectangles in the regions of {self.sandbox}")
+    self.region_rectangles = total
+
+  def input_rectangles(self, surface):
+    """The rectangles of the input regions a surface keeps: set, committed and
+    shown, each counted once. A region set on several surfaces counts on each,
+    which only overstates."""
+    state = self.surfaces[surface]
+    kept = {id(region): len(region) for region in (state["pending"].get("input"), state["cached"].get("input"), state["input"]) if region}
+    return sum(kept.values())
+
+  # A surface's buffer, scale, transform, viewport, input region and window
+  # geometry change together when it commits, and so do where its
+  # subsurfaces sit and how they stack. A synchronized subsurface's commit
+  # only goes into a cache, shown when its parent's state is, as Hyprland
+  # shows it, so a screenshot and the agent's clicks follow the layout the
+  # user sees.
+  #
+  # The pixels are another matter: they live in the app's shared memory,
+  # which it can write again without committing, and copying every frame
+  # would cost too much. So for SNAPSHOT_SECONDS after a screenshot, and
+  # while one is being taken, each commit keeps a copy of its buffer's
+  # pixels, and the next screenshot draws those: what the app last
+  # committed. Otherwise, as for an agent's first look in a while, a
+  # screenshot reads the pool as it is then, which can hold drawing the app
+  # has not committed and the user does not see yet.
+
+  def request_wl_surface_attach(self, surface, args):
+    self.surfaces[surface]["pending"]["buffer"] = self.buffers.get(args[0], (0, 0, None)) if args[0] else None
+    return True
+
+  def request_wl_surface_commit(self, surface, _):
+    state = self.surfaces[surface]
+    kept = self.input_rectangles(surface)
+    pending = state["pending"]
+    buffer = pending["buffer"] if "buffer" in pending else state["cached"].get("buffer", state["buffer"])
+    # A copy of an earlier commit's pixels never outlives a later commit.
+    pending["pixels"] = self.snapshot(surface, buffer) if time.monotonic() < self.snapshots_until else None
+    positions = state["pending"].pop("positions", {})
+    state["cached"].update(state["pending"])
+    state["cached"].setdefault("positions", {}).update(positions)  # one commit's moves add to an earlier one's
+    state["pending"] = {}
+    self.count_rectangles(self.input_rectangles(surface) - kept)  # never more: a commit only lets go of regions
+    if not self.synchronized(surface):
+      self.apply(surface)
+    return True
+
+  def snapshot(self, surface, buffer):
+    """A copy of a shared memory buffer's pixels, or None when there is
+    nothing to copy or the app's copies would pass SNAPSHOT_BYTES."""
+    if not buffer or not isinstance(buffer[2], tuple):
+      return None
+    width, height, (pool, offset, stride, _) = buffer
+    if width <= 0 or height <= 0 or stride < 0 or offset < 0 or pool.fd < 0:
+      return None
+    length = stride * (height - 1) + width * 4
+    # Shown copies, and committed ones not shown yet but this surface's,
+    # which this one replaces.
+    kept = sum(len(state["pixels"] or b"") + (len(state["cached"].get("pixels") or b"") if other != surface else 0) for other, state in self.surfaces.items())
+    if kept + length > SNAPSHOT_BYTES:
+      return None
+    end = min(pool.size, os.fstat(pool.fd).st_size)
+    return os.pread(pool.fd, min(length, end - offset), offset) if offset < end else b""
+
+  def synchronized(self, surface):
+    """Whether a surface's commits wait for its parent's: a subsurface in sync mode, or under one."""
+    seen = set()
+    while surface in self.surfaces and surface not in seen and self.surfaces[surface]["parent"] is not None:
+      if self.surfaces[surface]["sync"]:
+        return True
+      seen.add(surface)
+      surface = self.surfaces[surface]["parent"]
+    return False
+
+  def apply(self, surface):
+    """Show a surface's committed state, and that of the synchronized subsurfaces under it."""
+    state = self.surfaces[surface]
+    kept = self.input_rectangles(surface)
+    positions = state["cached"].pop("positions", {})
+    geometry = state["cached"].pop("geometry", None)
+    state.update(state["cached"])
+    state["cached"] = {}
+    self.count_rectangles(self.input_rectangles(surface) - kept)
+    # The window geometry belongs to the xdg surface, and stays as last
+    # committed until the app sets another.
+    if geometry:
+      for xdg in self.xdg_surfaces.values():
+        if xdg["surface"] == surface:
+          xdg["geometry"] = geometry
+    for child, position in positions.items():
+      if child in self.surfaces and self.surfaces[child]["parent"] == surface:
+        self.surfaces[child]["position"] = position
+    for child in state["stack"]:
+      if child != surface and child in self.surfaces and self.synchronized(child):
+        self.apply(child)
+
+  def request_wl_subsurface_set_sync(self, subsurface, _):
+    if self.roles.get(subsurface) in self.surfaces:
+      self.surfaces[self.roles[subsurface]]["sync"] = True
+    return True
+
+  def request_wl_subsurface_set_desync(self, subsurface, _):
+    surface = self.roles.get(subsurface)
+    if surface in self.surfaces:
+      self.surfaces[surface]["sync"] = False
+      if not self.synchronized(surface):
+        self.apply(surface)  # what it committed meanwhile shows now, as in wlroots
+    return True
+
+  def request_wl_surface_set_buffer_scale(self, surface, args):
+    self.surfaces[surface]["pending"]["scale"] = max(1, args[0])
+    return True
+
+  def request_wl_surface_set_buffer_transform(self, surface, args):
+    self.surfaces[surface]["pending"]["transform"] = args[0] if 0 <= args[0] <= 7 else 0
+    return True
+
+  def request_wl_surface_set_input_region(self, surface, args):
+    # A region's rectangles are a tuple, replaced rather than changed, so the
+    # surface can share it.
+    kept = self.input_rectangles(surface)
+    self.surfaces[surface]["pending"]["input"] = self.regions.get(args[0], ()) if args[0] else None
+    self.count_rectangles(self.input_rectangles(surface) - kept)
+    return True
+
+  def request_wl_shm_create_pool(self, _, args):
+    clients = set(self.broker.clients) | {self}
+    if sum(len(client.pool_fds) for client in clients if client.sandbox == self.sandbox) >= MAX_POOLS_PER_SANDBOX:
+      raise ValueError(f"too many shared memory pools in {self.sandbox}")
+    if sum(len(client.pool_fds) for client in clients) >= MAX_POOLS:
+      raise ValueError("too many shared memory pools on the seat")
+    self.pools[args[0]] = Pool(os.dup(args[1]), args[2])
+    self.pool_fds.add(self.pools[args[0]])
+    return True
+
+  def request_wl_shm_pool_resize(self, pool, args):
+    self.pools[pool].size = args[0]
+    return True
+
+  def request_wl_shm_pool_create_buffer(self, pool, args):
+    new_id, offset, width, height, stride, format = args
+    self.buffers[new_id] = (width, height, (self.pools[pool], offset, stride, format))
+    return True
+
+  # A single pixel buffer is one colour, which the broker keeps as the
+  # premultiplied ARGB8888 pixel it draws.
+
+  def request_wp_single_pixel_buffer_manager_v1_create_u32_rgba_buffer(self, _, args):
+    red, green, blue, alpha = (round(value * 255 / 0xFFFFFFFF) for value in args[1:5])
+    self.buffers[args[0]] = (1, 1, bytes((blue, green, red, alpha)))
+    return True
+
+  def request_wp_viewporter_get_viewport(self, _, args):
+    self.roles[args[0]] = args[1]
+    return True
+
+  def request_wp_viewport_set_destination(self, viewport, args):
+    self.surfaces[self.roles[viewport]]["pending"]["viewport"] = tuple(args) if args[0] > 0 else None
+    return True
+
+  # The part of the buffer the surface shows, in surface coordinates before
+  # the destination scales it: x, y, width and height, all -1 when unset.
+
+  def request_wp_viewport_set_source(self, viewport, args):
+    self.surfaces[self.roles[viewport]]["pending"]["source"] = tuple(args) if args[2] > 0 and args[3] > 0 else None
+    return True
+
+  # A surface's stack is its subsurfaces and itself, bottom to top. A new
+  # subsurface goes on top at once, and can then move above or below any
+  # sibling or its parent: in the parent's pending stack, shown when the
+  # parent's state is.
+
+  def request_wl_subcompositor_get_subsurface(self, _, args):
+    ancestor = args[2]
+    while ancestor in self.surfaces:
+      if ancestor == args[1]:
+        raise ValueError("a surface can't be a subsurface of itself")
+      ancestor = self.surfaces[ancestor]["parent"]
+    self.roles[args[0]] = args[1]
+    for stack in self.stacks(args[2]):
+      stack.append(args[1])
+    self.surfaces[args[1]]["parent"] = args[2]
+    self.surfaces[args[1]]["sync"] = True  # until the app says otherwise
+    return True
+
+  def request_wl_subsurface_place_above(self, subsurface, args):
+    self.restack(self.roles[subsurface], args[0], 1)
+    return True
+
+  def request_wl_subsurface_place_below(self, subsurface, args):
+    self.restack(self.roles[subsurface], args[0], 0)
+    return True
+
+  def restack(self, surface, sibling, above):
+    parent = self.surfaces.get(self.surfaces.get(surface, {}).get("parent"))
+    if not parent:
+      return
+    if "stack" not in parent["pending"]:
+      parent["pending"]["stack"] = list(parent["cached"].get("stack", parent["stack"]))
+    stack = parent["pending"]["stack"]
+    if sibling != surface and sibling in stack and surface in stack:
+      stack.remove(surface)
+      stack.insert(stack.index(sibling) + above, surface)
+
+  def stacks(self, surface):
+    """A surface's stack as shown, committed and pending."""
+    state = self.surfaces[surface]
+    return [state["stack"]] + [state[kind]["stack"] for kind in ("cached", "pending") if "stack" in state[kind]]
+
+  # A destroyed subsurface leaves its parent at once, before its id can come
+  # back as an unrelated surface.
+
+  def request_wl_subsurface_destroy(self, subsurface, _):
+    self.unparent(self.roles.get(subsurface))
+    return True
+
+  def request_wl_surface_destroy(self, surface, _):
+    self.unparent(surface)
+    for child in self.surfaces.get(surface, {}).get("stack", []):
+      if child != surface and child in self.surfaces:
+        self.surfaces[child]["parent"] = None
+    return True
+
+  def request_wp_viewport_destroy(self, viewport, _):
+    if self.roles.get(viewport) in self.surfaces:
+      self.surfaces[self.roles[viewport]]["pending"].update(viewport=None, source=None)
+    return True
+
+  # An alpha multiplier fades the whole surface on screen, so screenshots
+  # fade it too. It is double buffered like the rest of the surface, kept
+  # as the 0-255 alpha a screenshot multiplies by, and back to 1 once the
+  # surface commits after its alpha modifier is destroyed.
+
+  def request_wp_alpha_modifier_v1_get_surface(self, _, args):
+    self.roles[args[0]] = args[1]
+    return True
+
+  def request_wp_alpha_modifier_surface_v1_set_multiplier(self, modifier, args):
+    if self.roles.get(modifier) in self.surfaces:
+      self.surfaces[self.roles[modifier]]["pending"]["alpha"] = round(args[0] * 255 / 0xFFFFFFFF)
+    return True
+
+  def request_wp_alpha_modifier_surface_v1_destroy(self, modifier, _):
+    if self.roles.get(modifier) in self.surfaces:
+      self.surfaces[self.roles[modifier]]["pending"]["alpha"] = 255
+    return True
+
+  def unparent(self, surface):
+    state = self.surfaces.get(surface)
+    if not state:
+      return
+    if state["parent"] in self.surfaces:
+      for stack in self.stacks(state["parent"]):
+        if surface in stack:
+          stack.remove(surface)
+      for kind in ("cached", "pending"):
+        self.surfaces[state["parent"]][kind].get("positions", {}).pop(surface, None)
+    state["parent"] = None
+    state["sync"] = False
+
+  def request_wl_subsurface_set_position(self, subsurface, args):
+    parent = self.surfaces.get(self.surfaces[self.roles[subsurface]]["parent"])
+    if parent:
+      parent["pending"].setdefault("positions", {})[self.roles[subsurface]] = tuple(args)
+    return True
+
+  # Hyprland -> client
+
+  def event(self, object_id, opcode, raw):
+    interface, version, name, signature, destructor = self.message(object_id, opcode, "events", self.up)
+    args = self.decode(self.up, signature, raw)
+    if DEBUG:
+      log(f"<- {interface}@{object_id}.{name}{args}")
+    try:
+      self.track_new_objects(signature, args, version)
+      handler = getattr(self, f"event_{interface}_{name}", None)
+      result = handler(object_id, args) if handler else True
+    except Exception:
+      close_fds(signature, args)
+      raise
+
+    if interface == "wl_pointer" and name not in ("enter", "leave", "motion") and self.user_pointer:
+      self.focus_pointer(object_id, *self.user_pointer)  # the agent may have moved this app's focus
+      if name != "frame":
+        self.restore_user_position(object_id)  # or only moved it within the user's surface
+
+    if result is True:
+      self.down.queue(*encode(object_id, opcode, signature, args))
+    else:
+      close_fds(signature, args)
+
+  def event_wl_display_delete_id(self, _, args):
+    self.forget(args[0])
+    return True
+
+  def event_wl_registry_global(self, _, args):
+    name, interface, version = args
+    if interface not in self.allowed or interface not in PROTOCOLS:
+      return False
+    self.advertised[name] = interface
+    args[2] = min(version, self.version_cap(interface))
+    return True
+
+  def version_cap(self, interface):
+    """The newest version of a global the broker lets apps use: no newer than it can decode."""
+    return min(self.allowed[interface] or PROTOCOLS[interface]["version"], PROTOCOLS[interface]["version"])
+
+  def event_wl_registry_global_remove(self, _, args):
+    return self.advertised.pop(args[0], None) is not None
+
+  def event_wl_seat_capabilities(self, _, args):
+    args[0] = 3  # pointer and keyboard, whatever the user's seat has
+    return True
+
+  def event_wl_seat_name(self, _, args):
+    args[0] = "agent"
+    return True
+
+  def event_xdg_toplevel_configure(self, _, args):
+    # Agent windows always look focused and never suspended, so apps keep
+    # rendering while the seat's workspace is hidden.
+    states = [state for state in array.array("I", args[2]) if state not in (XDG_STATE_ACTIVATED, XDG_STATE_SUSPENDED)]
+    args[2] = array.array("I", states + [XDG_STATE_ACTIVATED]).tobytes()
+    return True
+
+  # The user's seat. Events pass through, but each app's focus follows whoever
+  # acted last, so the broker re-enters the user's surface when needed.
+
+  def event_wl_keyboard_keymap(self, _, args):
+    self.broker.adopt_keymap(os.pread(args[1], args[2], 0))
+    return True
+
+  def event_wl_keyboard_enter(self, keyboard, args):
+    self.user_serial(args[0])
+    self.user_keyboard = args[1]
+    self.user_keys = args[2]
+    # The agent's enter told the app no keys were down. The user entering the
+    # same surface with keys held must enter again, or the app never sees them.
+    if args[2] and self.keyboards.get(keyboard) == args[1]:
+      self.send_event(keyboard, "leave", self.broker.next_serial(), args[1])
+      self.keyboards[keyboard] = None
+    self.focus_keyboard(keyboard, args[1], args[0], args[2])
+    return False
+
+  def event_wl_keyboard_leave(self, keyboard, args):
+    self.user_keyboard = None
+    self.user_modifiers = (0, 0, 0, 0)
+    self.user_keys = b""
+    if self.keyboards.get(keyboard) != args[1]:
+      return False
+    self.keyboards[keyboard] = None
+    return True
+
+  def event_wl_keyboard_key(self, keyboard, args):
+    self.user_input(args[0])
+    forward = self.user_keyboard_event(keyboard)
+    # As a compositor does, keep the keys the user holds for the next enter
+    # back from the agent. Only after that enter: it lists the keys held
+    # before this one, and this event then presses or releases it.
+    keys = array.array("I", self.user_keys)
+    if args[3] == 1 and args[2] not in keys:
+      keys.append(args[2])
+    elif args[3] == 0 and args[2] in keys:
+      keys.remove(args[2])
+    self.user_keys = keys.tobytes()
+    return forward
+
+  # Hyprland sends the modifiers with every enter, so they are no sign of the
+  # user acting either.
+
+  def event_wl_keyboard_modifiers(self, keyboard, args):
+    self.user_serial(args[0])
+    self.user_modifiers = tuple(args[1:5])
+    return self.user_keyboard_event(keyboard)
+
+  def user_keyboard_event(self, keyboard):
+    """Pass on an event of the user's keyboard, back in the surface it is in."""
+    if self.user_keyboard:
+      self.focus_keyboard(keyboard, self.user_keyboard, keys=self.user_keys)
+    if self.keyboards.get(keyboard) is None:
+      return False
+    # The agent's typing replaced the app's modifiers, and Hyprland only sends
+    # the user's again when they change: a Ctrl the user still holds would be
+    # lost on this key.
+    if keyboard in self.agent_modifiers:
+      self.agent_modifiers.discard(keyboard)
+      self.send_event(keyboard, "modifiers", self.broker.next_serial(), *self.user_modifiers)
+    return True
+
+  def set_modifiers(self, keyboard, depressed):
+    """Give a keyboard the agent's modifiers; the user's come back with their next key."""
+    self.send_event(keyboard, "modifiers", self.broker.next_serial(), depressed, 0, 0, 0)
+    self.agent_modifiers.add(keyboard)
+
+  def event_wl_pointer_enter(self, pointer, args):
+    self.user_serial(args[0])
+    self.user_pointer = (args[1], args[2], args[3])
+    self.focus_pointer(pointer, *self.user_pointer, args[0])
+    return False
+
+  def event_wl_pointer_leave(self, pointer, args):
+    self.user_pointer = None
+    if self.pointers.get(pointer) != args[1]:
+      return False
+    self.pointers[pointer] = None
+    return True
+
+  def event_wl_pointer_motion(self, pointer, args):
+    if self.user_pointer:
+      self.user_pointer = (self.user_pointer[0], args[1], args[2])
+      self.focus_pointer(pointer, *self.user_pointer)
+    self.pointer_positions[pointer] = (args[1], args[2])
+    return True
+
+  def event_wl_pointer_button(self, _, args):
+    self.user_input(args[0])
+    return True
+
+  # The agent's keys go down and up in one go, so its enters list none; the
+  # user's list the keys they hold.
+
+  def focus_keyboard(self, keyboard, surface, serial=None, keys=b""):
+    """Move one keyboard's focus to surface, leaving the old surface first."""
+    current = self.keyboards.get(keyboard)
+    if current == surface:
+      return
+    if current in self.surfaces:
+      self.send_event(keyboard, "leave", self.broker.next_serial(), current)
+    self.keyboards[keyboard] = surface if surface in self.surfaces else None
+    if self.keyboards[keyboard]:
+      self.send_event(keyboard, "enter", serial or self.broker.next_serial(), surface, keys)
+      self.agent_modifiers.add(keyboard)  # an enter leaves them for the app to guess
+
+  def focus_pointer(self, pointer, surface, x, y, serial=None):
+    """Move one pointer's focus to surface; True when it had to enter."""
+    current = self.pointers.get(pointer)
+    if current == surface:
+      return False
+    if current in self.surfaces:
+      self.send_event(pointer, "leave", self.broker.next_serial(), current)
+    self.pointers[pointer] = surface if surface in self.surfaces else None
+    if self.pointers[pointer]:
+      self.send_event(pointer, "enter", serial or self.broker.next_serial(), surface, x, y)
+      self.pointer_positions[pointer] = (x, y)
+    return True
+
+  def restore_user_position(self, pointer):
+    """Move a pointer the agent left elsewhere in the user's surface back under
+    the user's cursor. Hyprland sends no motion with a button or a scroll, so
+    the app would otherwise press or scroll where the agent pointed last."""
+    surface, x, y = self.user_pointer
+    if self.pointers.get(pointer) != surface or self.pointer_positions.get(pointer) == (x, y):
+      return
+    self.send_event(pointer, "motion", self.broker.now(), x, y)
+    self.pointer_positions[pointer] = (x, y)
+    # A group of its own, as the agent's motions are, ahead of the user's
+    # button or scroll and the frame Hyprland ends that with.
+    if self.objects[pointer][1] >= 5:
+      self.send_event(pointer, "frame")
+
+  def event_xdg_popup_configure(self, popup, args):
+    self.popups[popup]["position"] = (args[0], args[1])
+    return True
+
+  def forget(self, object_id):
+    self.objects.pop(object_id, None)
+    self.syncs.discard(object_id)
+    self.region_rectangles -= len(self.regions.get(object_id, ()))
+    if object_id in self.surfaces:
+      self.region_rectangles -= self.input_rectangles(object_id)
+    for table in (self.surfaces, self.regions, self.buffers, self.pools, self.roles, self.xdg_surfaces, self.popups):
+      table.pop(object_id, None)
+    self.pointers.pop(object_id, None)
+    self.pointer_positions.pop(object_id, None)
+    self.keyboards.pop(object_id, None)
+    if object_id in self.toplevels:
+      self.broker.remove_window(self.toplevels.pop(object_id)["window"])
+
+  # Hit testing
+
+  def layers(self, xdg, x, y):
+    """Surfaces of an xdg surface, its subsurfaces and its popups, bottom to top, with their origins."""
+    state = self.xdg_surfaces[xdg]
+    gx, gy = (state["geometry"] or (0, 0))[:2]
+    stack = []
+    self.subtree(state["surface"], x - gx, y - gy, stack)
+    for popup in self.popups.values():
+      if popup["parent"] == xdg and popup["xdg"] in self.xdg_surfaces:
+        stack += self.layers(popup["xdg"], x + popup["position"][0], y + popup["position"][1])
+    return stack
+
+  def subtree(self, surface, x, y, stack):
+    """A surface and its subsurfaces, bottom to top, with their origins. One
+    without a buffer is unmapped, and so is everything under it: nothing to
+    see or click there, whatever size a viewport gives it."""
+    state = self.surfaces.get(surface)
+    if not state or state["buffer"] is None:
+      return
+    for member in state["stack"]:
+      if member == surface:
+        stack.append((surface, x, y))
+      elif member in self.surfaces:
+        cx, cy = self.surfaces[member]["position"]
+        self.subtree(member, x + cx, y + cy, stack)
+
+  def size(self, surface):
+    state = self.surfaces[surface]
+    if state["viewport"]:
+      return state["viewport"]
+    if state["source"]:
+      return state["source"][2:]
+    if state["buffer"]:
+      width, height = self.turned(surface)
+      return width / state["scale"], height / state["scale"]
+    return 0, 0
+
+  def turned(self, surface):
+    """The size of a surface's buffer once its transform turns it."""
+    state = self.surfaces[surface]
+    width, height = state["buffer"][:2]
+    return (height, width) if state["transform"] & 1 else (width, height)
+
+  def geometry(self, surface):
+    """The window geometry of an xdg surface in surface coordinates, else the whole surface."""
+    for xdg in self.xdg_surfaces.values():
+      if xdg["surface"] == surface and xdg["geometry"]:
+        return xdg["geometry"]
+    return (0, 0, *self.size(surface))
+
+  def crop(self, surface):
+    """The part of its buffer a surface shows, in pixels of the buffer turned
+    by its transform: left, top, right and bottom, and pixels per surface
+    unit across and down."""
+    state = self.surfaces[surface]
+    buffer_width, buffer_height = self.turned(surface)
+    width, height = self.size(surface)
+    if state["source"]:
+      x, y, w, h = (value * state["scale"] for value in state["source"])
+    else:
+      x, y, w, h = 0, 0, buffer_width, buffer_height
+    right, bottom = min(x + w, buffer_width), min(y + h, buffer_height)
+    return x, y, right, bottom, w / (width or 1), h / (height or 1)
+
+  def scale(self, toplevel):
+    """Screenshot pixels per surface unit: the window's buffer pixels per
+    unit, or when the window is one colour stretched, the most any of its
+    other layers has. No more than MAX_CAPTURE_SCALE: a small viewport over
+    a large buffer would otherwise blow every other layer up with it."""
+    xdg = self.toplevels[toplevel]["xdg"]
+    surface = self.xdg_surfaces[xdg]["surface"]
+    if self.size(surface)[0] and self.surfaces[surface]["buffer"] and not isinstance(self.surfaces[surface]["buffer"][2], bytes):
+      return min(self.crop(surface)[4], MAX_CAPTURE_SCALE)
+    drawn = [self.crop(layer)[4] for layer, _, _ in self.layers(xdg, 0, 0) if self.size(layer)[0] and self.surfaces[layer]["buffer"] and isinstance(self.surfaces[layer]["buffer"][2], tuple)]
+    return min(max(drawn, default=1), MAX_CAPTURE_SCALE)
+
+  def capture_plan(self, toplevel):
+    """What a screenshot of the window draws, taken from the app's state now
+    so a thread can compose it while the app goes on changing that state."""
+    self.snapshots_until = time.monotonic() + SNAPSHOT_SECONDS
+    scale = self.scale(toplevel)
+    layers = []
+    for surface, x, y in self.layers(self.toplevels[toplevel]["xdg"], 0, 0):
+      buffer = self.surfaces[surface]["buffer"]
+      pixels = self.surfaces[surface]["pixels"]
+      if pixels is not None and isinstance(buffer[2], tuple):
+        buffer = (buffer[0], buffer[1], (pixels, *buffer[2][1:]))  # as committed
+      if buffer and buffer[2]:
+        # Only the part of the window geometry the surface really covers: the
+        # app declares the geometry and could make it any size.
+        sw, sh = self.size(surface)
+        gx, gy, gw, gh = self.geometry(surface)
+        x0, y0, x1, y1 = max(gx, 0), max(gy, 0), min(gx + gw, sw), min(gy + gh, sh)
+        if x1 > x0 and y1 > y0:
+          layers.append((buffer, self.crop(surface), x + x0, y + y0, x0, y0, x1 - x0, y1 - y0, self.surfaces[surface]["transform"], self.surfaces[surface]["alpha"]))
+    if not layers:
+      raise ValueError("the window has not drawn anything yet")
+
+    left, top = min(layer[2] for layer in layers), min(layer[3] for layer in layers)
+    width = round((max(layer[2] + layer[6] for layer in layers) - left) * scale)
+    height = round((max(layer[3] + layer[7] for layer in layers) - top) * scale)
+    if not (0 < width <= MAX_CAPTURE_SIZE and 0 < height <= MAX_CAPTURE_SIZE):
+      raise ValueError(f"the window is {width}x{height} pixels, more than a screenshot can hold")
+    return Plan(layers, (left, top, scale), width, height)
+
+  def capture(self, toplevel):
+    """Compose the window, its subsurfaces and its popups now: its pixels, size and origin."""
+    plan = self.capture_plan(toplevel)
+    try:
+      return compose(plan), plan.width, plan.height, plan.origin
+    finally:
+      plan.release()
+
+  def hit(self, toplevel, x, y):
+    for surface, sx, sy in reversed(self.layers(self.toplevels[toplevel]["xdg"], 0, 0)):
+      width, height = self.size(surface)
+      lx, ly = x - sx, y - sy
+      if not (0 <= lx < width and 0 <= ly < height):
+        continue
+      if self.accepts_input(self.surfaces[surface]["input"], lx, ly):
+        return surface, lx, ly
+    return None
+
+  @staticmethod
+  def accepts_input(region, x, y):
+    """Whether a point is in an input region; None is the whole surface."""
+    if region is None:
+      return True
+    return any(rx <= x < rx + rw and ry <= y < ry + rh for rx, ry, rw, rh in region)
+
+  def close(self):
+    self.down.close()
+    self.up.close()
+    for pool in list(self.pool_fds):
+      pool.close()  # now, not whenever the last buffer using it is collected
+
+
+# The broker ---------------------------------------------------------------------
+
+
+class Request:
+  """A control connection whose request is still arriving."""
+
+  def __init__(self, conn, caller):
+    self.conn, self.caller, self.data = conn, caller, bytearray()
+    self.deadline = time.monotonic() + REQUEST_SECONDS
+
+
+class Job:
+  """A helper process whose output answers a control request."""
+
+  def __init__(self, conn, argv, finish, timeout=None):
+    self.conn, self.finish, self.output = conn, finish, bytearray()
+    self.deadline = time.monotonic() + timeout if timeout else None  # then it is killed
+    self.process = subprocess.Popen(argv, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL)
+
+
+class Capture:
+  """A screenshot composed and written on a thread of its own, so every app
+  keeps being served meanwhile. The thread touches nothing but its plan and
+  the file, and says it is done through a pipe the broker waits on."""
+
+  def __init__(self, conn, window, client, toplevel, plan, path):
+    self.conn, self.window, self.client, self.toplevel, self.plan, self.path = conn, window, client, toplevel, plan, path
+    self.deadline = time.monotonic() + CAPTURE_SECONDS  # then the caller gets an error
+    self.cancelled = threading.Event()
+    self.answered = False
+    self.result = self.error = None
+    self.done, self.finished = os.pipe()
+    self.thread = threading.Thread(target=self.run, daemon=True)
+    self.thread.start()
+
+  def run(self):
+    try:
+      canvas = compose(self.plan, self.cancelled)
+      write_png(self.path, canvas, self.plan.width, self.plan.height)
+      self.result = {"path": self.path, "width": self.plan.width, "height": self.plan.height}
+    except Exception as error:
+      self.error = error
+    os.write(self.finished, b"\0")
+
+
+class Broker:
+  def __init__(self):
+    self.selector = selectors.DefaultSelector()
+    self.upstream = upstream_socket()
+    self.keymap = Keymap()
+    self.clients = []
+    self.windows = {}
+    self.next_window = 1
+    self.serial = 0x40000000  # kept apart from Hyprland's serials
+    self.stopping = False
+    self.paused = []  # (when to resume, listener, selector data) of listeners out of descriptors
+    self.captures = {}  # window -> (left, top, scale) of its last screenshot
+    self.shots = []  # screenshots being taken
+    self.refusals = [0, 0]  # when to log a refused connection again, and how many were not logged
+    self.jobs = []
+    self.requests = []
+
+  def listen(self, path, mode):
+    if os.path.exists(path):
+      os.unlink(path)
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(path)
+    os.chmod(path, mode)
+    sock.listen(16)
+    return sock
+
+  def serve(self):
+    # Checked here rather than on import, so call still works and the launcher
+    # can ask why the broker is not running.
+    problem = missing_protocols(PROTOCOLS)
+    if problem:
+      log(problem)
+      sys.exit(1)
+    # A screenshot's thread hands the interpreter back to the event loop
+    # within a millisecond rather than five, each time an app's message waits.
+    sys.setswitchinterval(0.001)
+    os.makedirs(RUNTIME_DIR, mode=0o700, exist_ok=True)
+    os.chmod(RUNTIME_DIR, 0o700)
+    self.selector.register(self.listen(WAYLAND_SOCKET, 0o600), selectors.EVENT_READ, ("wayland", None))
+    self.selector.register(self.listen(CONTROL_SOCKET, 0o600), selectors.EVENT_READ, ("control", None))
+    log(f"serving {WAYLAND_SOCKET} for {self.upstream}")
+
+    while True:
+      waiting = self.paused or self.requests or self.shots or any(job.deadline for job in self.jobs)
+      for key, events in self.selector.select(timeout=1 if waiting else 5):
+        kind, owner = key.data
+        if isinstance(owner, Client) and owner not in self.clients or isinstance(owner, Job) and owner not in self.jobs or isinstance(owner, Request) and owner not in self.requests or isinstance(owner, Capture) and owner not in self.shots:
+          continue  # dropped or finished earlier in this round
+        try:
+          if kind == "wayland":
+            self.accept_client(key.fileobj)
+          elif kind == "control":
+            self.control(key.fileobj)
+          elif kind == "request":
+            self.request_data(owner)
+          elif kind == "job":
+            self.job_output(owner)
+          elif kind == "requester":
+            self.requester_gone(owner)
+          elif kind == "shot":
+            self.shot_taken(owner)
+          elif kind == "shot-requester":
+            self.answer_shot(owner)
+          elif events & selectors.EVENT_WRITE:
+            owner.flush()
+          else:
+            owner.pump(owner.down if key.fileobj is owner.down.sock else owner.up)
+        except Exception as error:  # one bad client never takes the broker down
+          if isinstance(owner, Client):
+            log(f"dropping client: {error}")
+            self.drop(owner)
+          else:
+            log(f"error: {error}")
+      self.resume_listeners()
+      self.expire_requests()
+
+  def accept(self, listener):
+    """A new connection, or None while the broker is out of file descriptors."""
+    try:
+      return listener.accept()[0]
+    except OSError as error:
+      if error.errno not in (errno.EMFILE, errno.ENFILE, errno.ENOBUFS, errno.ENOMEM):
+        raise
+      # The connection stays queued, so the listener would wake the loop
+      # again at once: stop watching it for a moment instead of spinning.
+      log(f"out of file descriptors, not accepting for {LISTENER_PAUSE_SECONDS}s")
+      data = self.selector.unregister(listener).data
+      self.paused.append((time.monotonic() + LISTENER_PAUSE_SECONDS, listener, data))
+      return None
+
+  def resume_listeners(self):
+    now = time.monotonic()
+    for paused in [paused for paused in self.paused if paused[0] <= now]:
+      self.paused.remove(paused)
+      if paused[1].fileno() >= 0:
+        self.selector.register(paused[1], selectors.EVENT_READ, paused[2])
+
+  def accept_client(self, listener):
+    sock = self.accept(listener)
+    if not sock:
+      return
+    pid = peer(sock)[0]
+    sandbox = sandbox_of(pid)
+    if len(self.clients) >= MAX_CLIENTS:
+      self.refuse(sock, pid, f"the seat already has {MAX_CLIENTS} connections")
+      return
+    if sum(client.sandbox == sandbox for client in self.clients) >= MAX_CLIENTS_PER_SANDBOX:
+      self.refuse(sock, pid, f"{sandbox} already has {MAX_CLIENTS_PER_SANDBOX} connections")
+      return
+    try:
+      client = Client(self, sock, self.upstream)
+    except Exception:
+      sock.close()
+      raise
+    client.pid, client.sandbox = pid, sandbox  # the pid for omarchy agent seat ui
+    self.clients.append(client)
+    self.watch(client)
+
+  def refuse(self, sock, pid, reason):
+    """Hang up on a connection before it reaches Hyprland, saying why at most once a second."""
+    sock.close()
+    now = time.monotonic()
+    if now < self.refusals[0]:
+      self.refusals[1] += 1
+      return
+    more = f" ({self.refusals[1]} more refused since)" if self.refusals[1] else ""
+    log(f"refusing a connection from pid {pid}: {reason}{more}")
+    self.refusals = [now + 1, 0]
+
+  def watch(self, client):
+    """Wait to write where messages are queued, and read a side only while the other keeps up.
+
+    An app that never reads would otherwise have Hyprland's replies pile up in
+    the broker without limit; paused, they wait in Hyprland instead.
+    """
+    for channel, other in ((client.down, client.up), (client.up, client.down)):
+      events = (selectors.EVENT_READ if other.pending < PAUSE_READING_BYTES else 0) | (selectors.EVENT_WRITE if channel.out else 0)
+      if events == channel.events:
+        continue
+      if not channel.events:
+        self.selector.register(channel.sock, events, ("client", client))
+      elif not events:
+        self.selector.unregister(channel.sock)
+      else:
+        self.selector.modify(channel.sock, events, ("client", client))
+      channel.events = events
+
+  def flush_clients(self):
+    for client in list(self.clients):
+      try:
+        client.flush()
+      except Exception as error:
+        log(f"dropping client: {error}")
+        self.drop(client)
+
+  def drop(self, client):
+    if client not in self.clients:
+      return
+    for channel in (client.down, client.up):
+      try:
+        self.selector.unregister(channel.sock)
+      except (KeyError, ValueError):
+        pass
+    for window in [w for w, (c, _) in self.windows.items() if c is client]:
+      self.remove_window(window)
+    client.close()
+    self.clients.remove(client)
+
+  def add_window(self, client, toplevel):
+    window = self.next_window
+    self.next_window += 1
+    self.windows[window] = (client, toplevel)
+    return window
+
+  def remove_window(self, window):
+    self.windows.pop(window, None)
+    self.captures.pop(window, None)
+
+  # Control socket. Requests arrive alongside everything else, so a caller that
+  # is slow to send one never holds up the apps.
+
+  def control(self, listener):
+    conn = self.accept(listener)
+    if not conn:
+      return
+    caller, uid = peer(conn)
+    if uid != os.getuid():
+      conn.close()
+      return
+    conn.setblocking(False)
+    request = Request(conn, caller)
+    self.requests.append(request)
+    self.selector.register(conn, selectors.EVENT_READ, ("request", request))
+
+  def end_request(self, request):
+    self.requests.remove(request)
+    self.selector.unregister(request.conn)
+    request.conn.settimeout(2)  # for the reply
+
+  def request_data(self, request):
+    try:
+      chunk = request.conn.recv(65536)
+    except BlockingIOError:
+      return
+    except OSError:
+      chunk = b""
+    request.data += chunk
+    if chunk and b"\n" not in chunk and len(request.data) <= MAX_REQUEST_BYTES:
+      return
+    self.end_request(request)
+    if len(request.data) > MAX_REQUEST_BYTES:
+      self.reply(request.conn, error="the request is too large")
+      return
+    try:
+      message = json.loads(request.data)
+      command, args = message["command"], message.get("args", {})
+      deferred = getattr(self, f"defer_{command}", None)
+      if deferred:
+        deferred(request.conn, request.caller, **args)  # replies itself, now or once a helper answers
+      else:
+        self.reply(request.conn, getattr(self, f"do_{command}")(**args))
+    except Exception as error:
+      self.reply(request.conn, error=error)
+    self.flush_clients()
+    if self.stopping:
+      self.stop()
+
+  def expire_requests(self):
+    now = time.monotonic()
+    for request in [request for request in self.requests if request.deadline < now]:
+      self.end_request(request)
+      request.conn.close()
+    for job in self.jobs:
+      if job.deadline and job.deadline < now:
+        job.deadline = None
+        job.process.kill()  # its output ends, and the job finishes with what it had
+    for shot in self.shots:
+      if not shot.answered and shot.deadline < now:
+        self.answer_shot(shot, error=f"the screenshot took more than {CAPTURE_SECONDS}s")
+
+  def reply(self, conn, result=None, error=None):
+    reply = {"ok": False, "error": str(error)} if error else {"ok": True, **(result or {})}
+    try:
+      conn.sendall(json.dumps(reply).encode() + b"\n")
+    except OSError:
+      pass
+    conn.close()
+
+  def stop(self):
+    for shot in list(self.shots):
+      self.answer_shot(shot, error="The agent seat stopped")
+    for job in list(self.jobs):
+      self.end_job(job)
+      job.process.kill()
+      self.reply(job.conn, error="The agent seat stopped")
+    for client in list(self.clients):
+      self.drop(client)
+    for path in (WAYLAND_SOCKET, CONTROL_SOCKET):
+      os.unlink(path)
+    sys.exit(0)
+
+  # Helper processes answer requests that take a while, so the seat keeps
+  # running meanwhile. A caller that hangs up cancels its helper.
+
+  def start_job(self, conn, argv, finish, timeout=None):
+    job = Job(conn, argv, finish, timeout)
+    self.jobs.append(job)
+    self.selector.register(job.process.stdout, selectors.EVENT_READ, ("job", job))
+    self.selector.register(conn, selectors.EVENT_READ, ("requester", job))
+
+  def end_job(self, job):
+    for fileobj in (job.process.stdout, job.conn):
+      try:
+        self.selector.unregister(fileobj)
+      except (KeyError, ValueError):
+        pass
+    self.jobs.remove(job)
+
+  def job_output(self, job):
+    chunk = os.read(job.process.stdout.fileno(), 65536)
+    if chunk:
+      job.output += chunk
+      return
+    self.end_job(job)
+    code = job.process.wait()
+    job.process.stdout.close()
+    try:
+      self.reply(job.conn, job.finish(job.output.decode(errors="replace"), code))
+    except Exception as error:
+      self.reply(job.conn, error=error)
+
+  def requester_gone(self, job):
+    self.end_job(job)
+    job.process.kill()
+    job.process.wait()
+    job.process.stdout.close()
+    job.conn.close()
+    try:
+      job.finish("", -1)
+    except Exception:
+      pass
+
+  def next_serial(self):
+    self.serial += 1
+    return self.serial
+
+  @staticmethod
+  def now():
+    return int(time.monotonic() * 1000) & 0xFFFFFFFF
+
+  def window(self, window):
+    if int(window) not in self.windows:
+      raise ValueError(f"no agent window {window}")
+    return self.windows[int(window)]
+
+  @staticmethod
+  def hyprland_windows(output):
+    """Hyprland's address and workspace for each agent window, from hyprctl clients -j."""
+    try:
+      clients = json.loads(output)
+    except ValueError:
+      return {}
+    found = {}
+    for client in clients:
+      match = re.fullmatch(r"agent-([0-9]+)(\..*)?", client.get("class", ""))
+      if match:
+        found[int(match[1])] = {"address": client["address"], "workspace": client["workspace"]["id"]}
+    return found
+
+  def to_logical(self, window, *coordinates):
+    """Pixels of the window's last screenshot to its logical coordinates."""
+    client, toplevel = self.window(window)
+    left, top, scale = self.captures.get(int(window), (0, 0, client.scale(toplevel)))
+    return [value / scale + (top if index % 2 else left) for index, value in enumerate(coordinates)]
+
+  # A screenshot is composed on a thread, so a large one holds up no app. The
+  # caller gets an error past CAPTURE_SECONDS, and hanging up gives it up.
+
+  def defer_screenshot(self, conn, caller, window, path=None):
+    client, toplevel = self.window(window)
+    path = screenshot_path(path or os.path.join(RUNTIME_DIR, f"window-{int(window)}.png"), caller)
+    if len(self.shots) >= MAX_CAPTURES:
+      raise ValueError("other screenshots are still being taken; try again in a moment")
+    plan = client.capture_plan(toplevel)
+    try:
+      shot = Capture(conn, int(window), client, toplevel, plan, path)
+    except Exception:
+      plan.release()
+      raise
+    self.shots.append(shot)
+    self.selector.register(shot.done, selectors.EVENT_READ, ("shot", shot))
+    self.selector.register(conn, selectors.EVENT_READ, ("shot-requester", shot))
+
+  def answer_shot(self, shot, result=None, error=None):
+    """Answer a screenshot's caller, or with neither result nor error, let it go: it hung up."""
+    if shot.answered:
+      return
+    shot.answered = True
+    shot.cancelled.set()
+    self.selector.unregister(shot.conn)
+    if result or error:
+      self.reply(shot.conn, result, error)
+    else:
+      shot.conn.close()
+
+  def shot_taken(self, shot):
+    shot.thread.join()
+    self.selector.unregister(shot.done)
+    os.close(shot.done)
+    os.close(shot.finished)
+    self.shots.remove(shot)
+    shot.plan.release()
+    shot.client.snapshots_until = time.monotonic() + SNAPSHOT_SECONDS  # counted from the end of a long screenshot too
+    if shot.result and self.windows.get(shot.window) == (shot.client, shot.toplevel):
+      self.captures[shot.window] = shot.plan.origin
+    self.answer_shot(shot, shot.result, shot.error)
+
+  def defer_windows(self, conn, caller):
+    try:
+      self.start_job(conn, ["hyprctl", "clients", "-j"], lambda output, _: self.list_windows(self.hyprland_windows(output)), HYPRCTL_SECONDS)
+    except OSError:
+      self.reply(conn, self.list_windows({}))
+
+  def list_windows(self, hyprland):
+    windows = []
+    for window, (client, toplevel) in sorted(self.windows.items()):
+      info = client.toplevels[toplevel]
+      xdg = client.xdg_surfaces.get(info["xdg"])
+      geometry = (xdg["geometry"] or (0, 0, *client.size(xdg["surface"]))) if xdg else None
+      popups = [[round(v) for v in (x, y, *client.size(surface))] for surface, x, y in client.layers(info["xdg"], 0, 0) if client.surfaces[surface]["buffer"] and self.is_popup(client, surface)] if xdg else []
+      windows.append({"window": window, "app_id": info["app_id"], "title": info["title"], "pid": client.pid, "size": [round(v) for v in geometry[2:]] if geometry else None, "popups": popups, **hyprland.get(window, {})})
+    return {"windows": windows}
+
+  @staticmethod
+  def is_popup(client, surface):
+    return any(client.xdg_surfaces.get(popup["xdg"], {}).get("surface") == surface for popup in client.popups.values())
+
+  def do_status(self):
+    return {"pid": os.getpid(), "apps": len(self.clients), "windows": len(self.windows)}
+
+  def defer_state(self, conn, caller, window=None):
+    if window is not None:
+      self.window(window)  # an unknown window fails now, before asking Hyprland
+    try:
+      self.start_job(conn, ["hyprctl", "clients", "-j"], lambda output, _: self.state(self.hyprland_windows(output), window), HYPRCTL_SECONDS)
+    except OSError:
+      self.reply(conn, self.state({}, window))
+
+  def state(self, hyprland, window=None):
+    """Everything the seat knows about its windows: popups, focus, size, scale,
+    whether the app has drawn, and the app's pid. Origin is what pointer
+    coordinates are measured from: [left, top, scale] of the last screenshot."""
+    windows = []
+    for number, (client, toplevel) in sorted(self.windows.items()):
+      if window is not None and number != int(window):
+        continue
+      info = client.toplevels[toplevel]
+      xdg = client.xdg_surfaces.get(info["xdg"])
+      surface = xdg["surface"] if xdg else None
+      drawn = bool(surface in client.surfaces and client.surfaces[surface]["buffer"])
+      geometry = list(client.geometry(surface)) if drawn else None
+      scale = client.scale(toplevel) if drawn else None
+      popups = [{"position": [x, y], "size": list(client.size(s))} for s, x, y in client.layers(info["xdg"], 0, 0) if client.surfaces[s]["buffer"] and self.is_popup(client, s)] if xdg else []
+      windows.append({
+        "window": number, "app_id": info["app_id"], "title": info["title"], "pid": client.pid,
+        "drawn": drawn, "size": [round(v) for v in geometry[2:]] if geometry else None, "geometry": geometry,
+        "surface": list(client.size(surface)) if drawn else None, "scale": scale,
+        "origin": list(self.captures.get(number, (0, 0, scale or 1))), "popups": popups,
+        "focus": {
+          "owner": client.last_actor,  # whose input the app saw last: "user", "agent" or null
+          "keyboard": any(focused == surface for focused in client.keyboards.values()),
+          "user_keyboard": client.user_keyboard is not None and client.user_keyboard == surface,
+          "user_pointer": bool(client.user_pointer and xdg and client.user_pointer[0] in [s for s, _, _ in client.layers(info["xdg"], 0, 0)]),
+        },
+        **hyprland.get(number, {}),
+      })
+    if window is not None and not windows:
+      raise ValueError(f"no agent window {window}")
+    return {"windows": windows}
+
+  def adopt_keymap(self, text):
+    if text != self.keymap.text:
+      self.keymap = Keymap(text)
+
+  def do_stop(self):
+    self.stopping = True
+
+  def do_focus(self, window):
+    self.focus(window)
+
+  def focus(self, window):
+    client, toplevel = self.window(window)
+    client.agent_acts()
+    surface = client.xdg_surfaces[client.toplevels[toplevel]["xdg"]]["surface"]
+    for keyboard in client.keyboards:
+      if client.keyboards[keyboard] != surface:
+        client.focus_keyboard(keyboard, surface)
+        client.set_modifiers(keyboard, 0)
+    return client
+
+  def pointer_frame(self, client):
+    for pointer in client.pointers:
+      if client.objects[pointer][1] >= 5:
+        client.send_event(pointer, "frame")
+
+  # Pointer coordinates are pixels of the window's screenshot.
+
+  def do_move(self, window, x, y):
+    self.move(window, *self.to_logical(window, x, y))
+
+  def move(self, window, x, y):
+    client, toplevel = self.window(window)
+    client.agent_acts()
+    target = client.hit(toplevel, x, y)
+    if not target:
+      raise ValueError(f"nothing to point at there in window {window}")
+    surface, lx, ly = target
+
+    for pointer in client.pointers:
+      if not client.focus_pointer(pointer, surface, lx, ly):
+        client.send_event(pointer, "motion", self.now(), lx, ly)
+        client.pointer_positions[pointer] = (lx, ly)
+    self.pointer_frame(client)
+    return client
+
+  def do_click(self, window, x, y, button="left", double=False):
+    client = self.move(window, *self.to_logical(window, x, y))
+    self.focus(window)
+    for _ in range(2 if double else 1):
+      for state in (1, 0):
+        for pointer in client.pointers:
+          client.send_event(pointer, "button", self.next_serial(), self.now(), BUTTONS[button], state)
+        self.pointer_frame(client)
+
+  def do_drag(self, window, x1, y1, x2, y2, button="left", steps=12):
+    x1, y1, x2, y2 = self.to_logical(window, x1, y1, x2, y2)
+    client = self.move(window, x1, y1)
+    toplevel = self.window(window)[1]
+    surface, lx, ly = client.hit(toplevel, x1, y1)
+    left, top = x1 - lx, y1 - ly  # the pressed surface's origin in the window
+    for pointer in client.pointers:
+      client.send_event(pointer, "button", self.next_serial(), self.now(), BUTTONS[button], 1)
+    self.pointer_frame(client)
+    # As a compositor's implicit grab does, the surface that took the press
+    # keeps the pointer until the release: every motion goes to it in its own
+    # coordinates, even past its edges, and no leave ends a selection or a
+    # slider's drag early or sends the release elsewhere. The next move hit
+    # tests again and enters whatever surface is under the pointer then.
+    try:
+      for step in range(1, steps + 1):
+        x, y = x1 + (x2 - x1) * step / steps - left, y1 + (y2 - y1) * step / steps - top
+        for pointer in client.pointers:
+          if client.pointers[pointer] == surface:
+            client.send_event(pointer, "motion", self.now(), x, y)
+            client.pointer_positions[pointer] = (x, y)
+        self.pointer_frame(client)
+    finally:
+      # The button always comes up, never stuck down in the app.
+      for pointer in client.pointers:
+        client.send_event(pointer, "button", self.next_serial(), self.now(), BUTTONS[button], 0)
+      self.pointer_frame(client)
+
+  def do_scroll(self, window, x, y, dy=0, dx=0):
+    client = self.move(window, *self.to_logical(window, x, y))
+    for axis, notches in ((0, dy), (1, dx)):
+      if not notches:
+        continue
+      for pointer in client.pointers:
+        version = client.objects[pointer][1]
+        if version >= 5:
+          client.send_event(pointer, "axis_source", 0)
+          client.send_event(pointer, "axis_discrete", axis, notches)
+        client.send_event(pointer, "axis", self.now(), axis, 15.0 * notches)
+    self.pointer_frame(client)
+
+  def send_modifiers(self, client, mask):
+    for keyboard in client.keyboards:
+      client.set_modifiers(keyboard, mask)
+
+  def tap(self, client, key, mask):
+    self.send_modifiers(client, mask)
+    for state in (1, 0):
+      for keyboard in client.keyboards:
+        client.send_event(keyboard, "key", self.next_serial(), self.now(), key, state)
+    if mask:
+      self.send_modifiers(client, 0)
+
+  def do_type(self, window, text):
+    client = self.focus(window)
+    missing = [char for char in text if not self.keymap.for_char(char)]
+    if missing:
+      raise ValueError(f"cannot type {''.join(sorted(set(missing)))!r} with the agent keymap")
+    for char in text:
+      key, mask = self.keymap.for_char(char)
+      self.tap(client, key, mask)
+
+  def do_key(self, window, combo):
+    client = self.focus(window)
+    *modifiers, name = combo.split("+")
+    unknown = [m for m in modifiers if m.lower() not in self.keymap.modifiers]
+    if unknown:
+      raise ValueError(f"unknown modifier {unknown[0]}")
+    target = self.keymap.for_name(name)
+    if not target:
+      raise ValueError(f"unknown key {name}")
+    mask = sum(self.keymap.modifiers[m.lower()] for m in modifiers) | target[1]
+    self.tap(client, target[0], mask)
+
+
+def upstream_socket():
+  return os.path.join(os.environ["XDG_RUNTIME_DIR"], os.environ.get("WAYLAND_DISPLAY", "wayland-0"))
+
+
+def call(request):
+  sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+  try:
+    sock.connect(CONTROL_SOCKET)
+  except OSError:
+    print("The agent seat broker is not running", file=sys.stderr)
+    sys.exit(1)
+  sock.sendall(request.encode() + b"\n")
+  reply = b""
+  while not reply.endswith(b"\n"):
+    chunk = sock.recv(65536)
+    if not chunk:
+      break
+    reply += chunk
+  result = json.loads(reply)
+  if not result.pop("ok"):
+    print(result["error"], file=sys.stderr)
+    sys.exit(1)
+  print(json.dumps(result))
+
+
+if __name__ == "__main__":
+  if len(sys.argv) >= 2 and sys.argv[1] == "call":
+    call(sys.argv[2])
+  elif len(sys.argv) == 1 or sys.argv[1] == "serve":
+    Broker().serve()
+  else:
+    print("Usage: omarchy-agent-seat-broker [serve | call <json>]", file=sys.stderr)
+    sys.exit(1)

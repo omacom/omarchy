@@ -27,3 +27,7 @@ require("default.hypr.toggles")
 
 -- Add any other personal Hyprland configuration below.
 -- o.window("qemu", { workspace = "5" })
+
+-- Move the agent seat's workspace (10), or give every monitor its own when
+-- each monitor has its own bank of workspaces.
+-- require("default.hypr.agent-workspaces").set({ seat = 10, per_monitor = 10 })

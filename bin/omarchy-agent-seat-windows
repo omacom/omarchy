@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# omarchy:summary=List the agent seat's windows as JSON
+
+# A broker that is not running (or fails) fails the command, rather than jq
+# printing nothing and succeeding.
+set -o pipefail
+
+omarchy-agent-seat-broker call '{"command":"windows"}' | jq '.windows'

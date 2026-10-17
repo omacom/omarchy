@@ -1,0 +1,123 @@
+#!/bin/bash
+
+# omarchy:summary=Jump to the agent seat's newest window
+# omarchy:args=[--start]
+
+# Focusing a window rather than a workspace number finds the seat wherever the
+# user has moved it.
+#
+# --start opens the default browser on the seat first when nothing is on it, so
+# the menu row works whether the seat runs or not. The browser is the one
+# omarchy-launch-browser would open, but it runs sandboxed on the seat, with the
+# seat's own profile, rather than on the user's seat.
+
+# The broker gives Hyprland five seconds to list its windows, so a healthy
+# seat can take that long to answer. One that holds its socket open but never
+# answers would hang this call, and with it the hotkey and the menu row, so
+# longer than ten seconds counts as no answer, as it does for run's window
+# list; a stopped seat is an empty list.
+newest_window() {
+  local windows
+  windows=$(timeout 10 omarchy-agent-seat-windows 2>/dev/null)
+  (($? == 124)) && return 124
+  jq -r 'map(select(.address)) | last | .address // empty' <<<"$windows"
+}
+
+# A broker that did not answer is alive, only hung, and its apps stay with it.
+# Only stop ends it, so say so rather than open or focus anything.
+broker_hung() {
+  local notice="The agent seat broker is running but did not answer within 10 seconds; end it and its apps with: omarchy agent seat stop"
+  echo "$notice" >&2
+  omarchy-notification-send -g 󱚤 "Agent seat" "$notice"
+  exit 1
+}
+
+# Splits an Exec value into exec_words as the Desktop Entry spec does, so a
+# command like env FLAG=1 chromium %U keeps every argument it needs. The
+# value is file content, so it is never evaluated by the shell. The string
+# escapes come off first, then the quoting: inside double quotes a backslash
+# escapes " ` $ and \, and a % is literal. Outside them %% is a % and any
+# other field code is dropped, as there is no file or URL to open.
+split_exec() {
+  local value="" char i word="" open=false quoted=false
+
+  for ((i = 0; i < ${#1}; i++)); do
+    char=${1:i:1}
+    if [[ $char == '\' && ${1:i+1:1} == [sntr\\] ]]; then
+      ((i++))
+      case ${1:i:1} in
+        s) char=" " ;;
+        n) char=$'\n' ;;
+        t) char=$'\t' ;;
+        r) char=$'\r' ;;
+      esac
+    fi
+    value+=$char
+  done
+
+  exec_words=()
+  for ((i = 0; i < ${#value}; i++)); do
+    char=${value:i:1}
+    if $quoted; then
+      if [[ $char == '\' && ${value:i+1:1} == [\"\`\$\\] ]]; then
+        ((i++))
+        word+=${value:i:1}
+      elif [[ $char == '"' ]]; then
+        quoted=false
+      else
+        word+=$char
+      fi
+    elif [[ $char == [[:blank:]] ]]; then
+      $open && exec_words+=("$word")
+      word="" open=false
+    elif [[ $char == '"' ]]; then
+      quoted=true open=true
+    elif [[ $char == "%" ]]; then
+      ((i++))
+      [[ ${value:i:1} == "%" ]] && word+="%" open=true
+    else
+      word+=$char open=true
+    fi
+  done
+  $open && exec_words+=("$word")
+}
+
+address=$(newest_window) || broker_hung
+notice="Nothing is running on the agent seat"
+
+if [[ -z $address && $1 == "--start" ]]; then
+  default_browser=$(omarchy-cmd-default-browser)
+  exec_words=()
+
+  # Read the entry omarchy-cmd-default-browser judged installed: the first one
+  # over the same data dirs, in the same order. Its Path and Terminal keys are
+  # not honoured: a browser needs neither, and one that runs in a terminal
+  # shows no window, which the run below reports.
+  IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for data_dir in "${data_dirs[@]}"; do
+    [[ -n $default_browser && -r $data_dir/applications/$default_browser ]] || continue
+    split_exec "$(sed -n 's/^Exec=//p' "$data_dir/applications/$default_browser" | head -1)"
+    break
+  done
+
+  # The run helper reads a leading dash as one of its own options, which an
+  # entry must not be able to pass it (--share, say).
+  if [[ ${#exec_words[@]} -eq 0 || ${exec_words[0]} == -* ]]; then
+    notice="No default browser to open on the agent seat"
+  elif ! omarchy-agent-seat-run "${exec_words[@]}" >/dev/null; then
+    notice="The browser didn't open on the agent seat"
+  else
+    # Hyprland can map the window a moment after the broker has it.
+    for _ in {1..20}; do
+      address=$(newest_window) || broker_hung
+      [[ -n $address ]] && break
+      sleep 0.1
+    done
+  fi
+fi
+
+if [[ -n $address ]]; then
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$address" >/dev/null
+else
+  omarchy-notification-send -g 󱚤 "Agent seat" "$notice"
+fi

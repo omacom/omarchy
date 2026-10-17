@@ -1,0 +1,157 @@
+#!/bin/bash
+
+# omarchy:summary=Stop the agent seat, closing every app on it
+
+runtime="$XDG_RUNTIME_DIR/omarchy/agent-seat"
+sandbox_supervisor=$(realpath -e "$OMARCHY_PATH/bin/omarchy-agent-seat-sandbox")
+
+process_start_time() {
+  local stat fields
+
+  [[ -r /proc/$1/stat ]] || return 1
+  { stat=$(<"/proc/$1/stat"); } 2>/dev/null || return 1  # it may exit between the check and the read
+  stat=${stat##*) }
+  read -ra fields <<<"$stat"
+  printf '%s\n' "${fields[19]}"
+}
+
+process_has_start() {
+  local current
+
+  current=$(process_start_time "$1") || return 1
+  [[ $current == "$2" ]]
+}
+
+process_is_zombie() {
+  local stat
+
+  { stat=$(<"/proc/$1/stat"); } 2>/dev/null || return 1
+  stat=${stat##*) }
+  [[ ${stat:0:1} == "Z" ]]
+}
+
+supervisor_matches() {
+  local pid="$1" start="$2" record="$3" marker="$4"
+  local -a command
+
+  process_has_start "$pid" "$start" || return 1
+  mapfile -d '' -t command 2>/dev/null <"/proc/$pid/cmdline" || return 1
+  [[ ${command[0]:-} == "/bin/bash" && ${command[1]:-} == "$sandbox_supervisor" && ${command[2]:-} == "$record" && ${command[3]:-} == "$marker" ]]
+}
+
+# The processes listening on a Unix socket bound at a path: the socket's
+# inode from /proc/net/unix, then every descriptor open on it. Found by the
+# socket rather than by name, so a broker serving another runtime directory
+# is never touched.
+socket_listeners() {
+  local flags inode path
+
+  # Flags 00010000 marks a listening socket; accepted connections show the
+  # bound path too.
+  while read -r _ _ _ flags _ _ inode path; do
+    [[ $flags == "00010000" && $path == "$1" ]] || continue
+    find /proc/[0-9]*/fd -lname "socket:\[$inode\]" 2>/dev/null | cut -d/ -f3
+  done </proc/net/unix | sort -u
+}
+
+mkdir -p "$runtime/sandboxes"
+exec 9>"$runtime/sandboxes.lock"
+flock 9
+
+# The broker answers stop at once. One that holds its socket open but never
+# answers would hang this call with the lock held, so the sandboxes would never
+# be ended and every later launch would wait on the lock: after three seconds
+# it counts as hung and is killed, found by its control socket.
+code=0
+timeout 3 omarchy-agent-seat-broker call '{"command":"stop"}' >/dev/null 2>&1 || code=$?
+if ((code == 124)); then
+  broker_pids=() broker_starts=()
+  while read -r pid; do
+    broker_start=$(process_start_time "$pid") || continue
+    broker_pids+=("$pid")
+    broker_starts+=("$broker_start")
+  done < <(socket_listeners "$runtime/control")
+  for ((index = 0; index < ${#broker_pids[@]}; index++)); do
+    process_has_start "${broker_pids[index]}" "${broker_starts[index]}" && kill -KILL "${broker_pids[index]}" 2>/dev/null
+  done
+  # A killed broker stays a zombie until its parent reaps it, which may be
+  # never if that parent is the caller; dead is enough here.
+  for _ in {1..100}; do
+    broker_alive=false
+    for ((index = 0; index < ${#broker_pids[@]}; index++)); do
+      process_has_start "${broker_pids[index]}" "${broker_starts[index]}" && ! process_is_zombie "${broker_pids[index]}" && broker_alive=true
+    done
+    [[ $broker_alive == "false" ]] && break
+    sleep 0.01
+  done
+  if [[ $broker_alive == "true" ]]; then
+    echo "The agent seat broker did not answer and could not be ended" >&2
+    stop_failed=true
+  elif ((${#broker_pids[@]} == 0)); then
+    echo "The agent seat broker did not answer, and nothing listens on its socket any more" >&2
+  else
+    # A killed broker leaves its sockets behind; the next launch starts a new
+    # one over them.
+    echo "The agent seat broker did not answer, so it was ended" >&2
+  fi
+else
+  # The broker replies just before it drops clients. Its control socket is
+  # removed only after that work, so wait for it before ending the sandboxes.
+  for _ in {1..50}; do
+    [[ ! -S $runtime/control ]] && break
+    sleep 0.01
+  done
+fi
+
+shopt -s nullglob
+for record in "$runtime"/sandboxes/sandbox.*; do
+  # A sandbox that exits on its own removes its record, which can happen
+  # between the listing and the read; there is nothing left to stop then.
+  read -r supervisor_pid supervisor_start marker bwrap_pid bwrap_start 2>/dev/null <"$record" || continue
+  # A PID is never enough: match its kernel start time and private command-line
+  # marker as well, so a stale record cannot hit a reused PID.
+  if [[ $supervisor_pid =~ ^[0-9]+$ && $supervisor_start =~ ^[0-9]+$ && -n $marker ]] && supervisor_matches "$supervisor_pid" "$supervisor_start" "$record" "$marker"; then
+    sandbox_pids=("$supervisor_pid")
+    sandbox_starts=("$supervisor_start")
+    for ((index = 0; index < ${#sandbox_pids[@]}; index++)); do
+      while read -r child; do
+        child_start=$(process_start_time "$child") || continue
+        sandbox_pids+=("$child")
+        sandbox_starts+=("$child_start")
+      done < <(pgrep -P "${sandbox_pids[index]}" 2>/dev/null || true)
+    done
+
+    # Kill leaves first. The verified bwrap process is included, while
+    # --die-with-parent also catches anything that forked after this snapshot.
+    for ((index = ${#sandbox_pids[@]} - 1; index >= 0; index--)); do
+      if process_has_start "${sandbox_pids[index]}" "${sandbox_starts[index]}"; then
+        kill -KILL "${sandbox_pids[index]}" 2>/dev/null || true
+      fi
+    done
+
+    # A killed process stays a zombie until its parent reaps it; dead is
+    # enough here, as for the broker.
+    for _ in {1..100}; do
+      sandbox_alive=false
+      for ((index = 0; index < ${#sandbox_pids[@]}; index++)); do
+        process_has_start "${sandbox_pids[index]}" "${sandbox_starts[index]}" && ! process_is_zombie "${sandbox_pids[index]}" && sandbox_alive=true
+      done
+      [[ $sandbox_alive == "false" ]] && break
+      sleep 0.01
+    done
+    if [[ $sandbox_alive == "true" ]]; then
+      echo "Could not stop every process in agent sandbox $marker" >&2
+      stop_failed=true
+    fi
+  fi
+  unlink "$record" 2>/dev/null || true
+  [[ $marker =~ ^[[:alnum:]]+$ ]] && rm -rf -- "$runtime/sandboxes/$marker.d"
+done
+
+flock -u 9
+exec 9>&-
+if [[ ${stop_failed:-false} == "true" ]]; then
+  exit 1
+else
+  echo "Agent seat: stopped"
+fi

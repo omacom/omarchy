@@ -1,0 +1,1049 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Read the controls of an agent seat window by name, role and position
+# omarchy:args=<window> [--json] [--find <name> | --find <role>:<name>] [--exact] [--page <selector>]
+# omarchy:examples=omarchy agent seat ui 1 | omarchy agent seat ui 1 --find button:Save --json | omarchy agent seat ui 1 --page 2
+
+# Lists what an app on the agent seat shows, from its accessibility tree rather
+# than its pixels: each control's role, name, value and state, and its centre
+# in the pixels omarchy agent seat pointer takes (those of the window's last
+# screenshot). GTK and Qt apps publish the tree on their sandbox's private bus;
+# Chromium and Electron apps launched with omarchy agent seat run --cdp are read
+# over the DevTools protocol instead, which knows the page far better. When
+# several visible pages, or several windows of one app, share the window's
+# title and size and nothing else tells them apart (a window's keyboard focus
+# against the one the seat reports), it refuses with exit 1 and numbers them
+# rather than read the wrong one; --page picks one by that number, or a page
+# by part of its URL.
+#
+# A control is placed at the centre of the part of it that shows within the
+# scroll panes, viewports and tables around it, below a table's column header,
+# and in a page within every element whose overflow is not visible; one that
+# shows only a sliver is left out. In a page, --find also asks what is at that
+# centre, and marks the control covered when another element, a sticky header
+# or a dialog, would take a click there: click-ui refuses to click it.
+#
+# A browser page beside a side panel or above docked DevTools sits where
+# DevTools does not say: ui still lists it, warning that the positions are
+# unverified, and click-ui refuses to click there.
+#
+# --find resolves one control: an exact name, then a case-insensitive one, then
+# a unique substring, optionally narrowed by role ("button:Save"). Several
+# matches list the candidates and exit 1. --exact, which click-ui passes,
+# leaves out the substring: names that only contain the query are listed as
+# candidates and it exits 1.
+#
+# Exits 2 when the window has no tree to read (Wine, games, canvas apps, or an
+# Electron app without --cdp): take a screenshot instead.
+
+import base64
+import glob
+import html
+import json
+import os
+import re
+import socket
+import stat
+import struct
+import subprocess
+import sys
+import urllib.parse
+import urllib.request
+
+RUNTIME_DIR = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "omarchy", "agent-seat")
+SANDBOXES = os.path.join(RUNTIME_DIR, "sandboxes")
+MAX_NODES = 5000
+# Logical pixels of a control that must show for it to be listed.
+MIN_SHOWN = 4
+
+# Roles worth listing even without a name: what an agent can act on.
+ACTIONABLE = {
+  "push button", "toggle button", "check box", "radio button", "text", "entry", "password text", "combo box", "menu item",
+  "check menu item", "radio menu item", "link", "slider", "spin button", "page tab", "list item", "tree item", "table cell",
+  "button", "textbox", "searchbox", "checkbox", "radio", "combobox", "menuitem", "menuitemcheckbox", "menuitemradio",
+  "option", "switch", "tab", "treeitem", "spinbutton", "listbox", "textarea",
+}
+POPUP_ROLES = {"window", "menu", "popup menu", "tool tip", "tooltip", "combo box", "list"}
+# Containers that show their children only within their own bounds: what
+# scrolls past their edges is hidden. A table also hides the rows scrolled
+# under its column headers.
+CLIPPING = {"scroll pane", "viewport", "page tab list", "table", "tree table", "tree", "list", "list box"}
+HEADERS = {"table column header", "column header"}
+# GTK reports a page tab at the size of its label, with its page under it.
+LABELLED = {"page tab"}
+STATES = ("focused", "checked", "pressed", "selected", "expanded", "collapsed", "editable", "active")
+
+
+# How the AT-SPI reader says python-gobject or the Atspi typelib is missing.
+ATSPI_MISSING = 3
+
+
+def fail(message, code=1):
+  print(message, file=sys.stderr)
+  sys.exit(code)
+
+
+def broker(request):
+  result = subprocess.run(["omarchy-agent-seat-broker", "call", json.dumps(request)], capture_output=True, text=True)
+  if result.returncode != 0:
+    raise RuntimeError(result.stderr.strip() or "The agent seat broker is not running")
+  return json.loads(result.stdout)
+
+
+# The window as the broker knows it ------------------------------------------------
+
+
+def window_state(window):
+  """Geometry, scale, the last screenshot's origin and the app's pid of one seat window."""
+  try:
+    return broker({"command": "state", "args": {"window": window}})["windows"][0]
+  except RuntimeError as error:
+    if "do_state" not in str(error) and "has no attribute" not in str(error):
+      fail(str(error))
+
+  # A broker from before the state command: take its size from the window list
+  # and its scale from a fresh screenshot, whose origin is then the window's.
+  try:
+    found = [w for w in broker({"command": "windows"})["windows"] if w["window"] == window]
+  except RuntimeError as error:
+    fail(str(error))
+  if not found:
+    fail(f"no agent window {window}")
+  info = found[0]
+  path = os.path.join(RUNTIME_DIR, f"window-{window}.png")
+  shot = broker({"command": "screenshot", "args": {"window": window, "path": path}})
+  width, height = info["size"] or (shot["width"], shot["height"])
+  # A popup hanging outside the window widens the image; fractional scales
+  # are multiples of 1/120.
+  scale = round(min(shot["width"] / width, shot["height"] / height) * 120) / 120 if width and height else 1
+  popups = [{"position": popup[:2], "size": popup[2:]} for popup in info.get("popups") or []]
+  # The screenshot starts at the window's corner, or at a popup's above or left
+  # of it (off by the popup's shadow, which this broker does not report).
+  left = min([0] + [popup["position"][0] for popup in popups])
+  top = min([0] + [popup["position"][1] for popup in popups])
+  return {**info, "popups": popups, "pid": None, "geometry": [0, 0, width, height], "surface": [width, height], "scale": scale, "origin": [left, top, scale], "drawn": True}
+
+
+def process_start_time(pid):
+  try:
+    with open(f"/proc/{pid}/stat") as stat:
+      return stat.read().rsplit(") ", 1)[1].split()[19]
+  except (OSError, IndexError):
+    return None
+
+
+def parent(pid):
+  try:
+    with open(f"/proc/{pid}/stat") as stat:
+      return int(stat.read().rsplit(") ", 1)[1].split()[1])
+  except (OSError, IndexError, ValueError):
+    return 0
+
+
+def sandboxes():
+  """Live sandboxes as {supervisor pid: their directory}."""
+  found = {}
+  for record in glob.glob(os.path.join(SANDBOXES, "sandbox.*")):
+    try:
+      with open(record) as data:
+        pid, start, marker = data.read().split()[:3]
+    except (OSError, ValueError):
+      continue
+    if re.fullmatch(r"[A-Za-z0-9]+", marker) and process_start_time(pid) == start:
+      found[int(pid)] = os.path.join(SANDBOXES, f"{marker}.d")
+  return found
+
+
+def sandbox_of(pid):
+  """The directory of the sandbox an app's process runs in, found through its parents.
+
+  An app cannot change its ancestry, so it cannot point the seat at another
+  sandbox's bus.
+  """
+  supervisors = sandboxes()
+  while pid and pid > 1:
+    if pid in supervisors:
+      return supervisors[pid]
+    pid = parent(pid)
+  return None
+
+
+def bus_address(directory):
+  """The address of a sandbox's private bus and a descriptor of its socket, or (None, None).
+
+  The sandbox gets the socket alone, bound read-only, so it cannot swap a
+  link in where the socket is; should that ever change, a link to any socket
+  on the host, the user's own buses included, could appear between a check
+  of the path and a connect to it. So the socket is opened once, following no
+  link, checked to be a socket of the user's, and connected to through that
+  descriptor (/proc/self/fd/N), which no later link can redirect. The caller
+  keeps the descriptor open and passes it on to the AT-SPI reader.
+  """
+  descriptors = []
+  try:
+    descriptors.append(os.open(directory, os.O_PATH | os.O_DIRECTORY))
+    descriptors.append(os.open("bus", os.O_PATH | os.O_NOFOLLOW | os.O_DIRECTORY, dir_fd=descriptors[-1]))
+    descriptors.append(os.open("bus", os.O_PATH | os.O_NOFOLLOW, dir_fd=descriptors[-1]))
+    status = os.fstat(descriptors[-1])
+  except OSError:
+    status = None
+  socket_fd = descriptors.pop() if status and stat.S_ISSOCK(status.st_mode) and status.st_uid == os.getuid() else None
+  for descriptor in descriptors:
+    os.close(descriptor)
+  if socket_fd is None:
+    return None, None
+  return f"unix:path=/proc/self/fd/{socket_fd}", socket_fd
+
+
+def cdp_port(directory):
+  try:
+    with open(os.path.join(directory, "cdp-port")) as data:
+      return int(data.read().strip())
+  except (OSError, ValueError):
+    return None
+
+
+# Coordinates ------------------------------------------------------------------------
+
+
+class Space:
+  """Logical window coordinates (from the window geometry's corner) to screenshot pixels."""
+
+  def __init__(self, state):
+    self.left, self.top, self.scale = state["origin"]
+    # The screenshot starts above or left of the window when a popup does.
+    self.window = self.box(0, 0, *state["geometry"][2:])
+
+  def shown(self, box, bounds):
+    """The part of a box inside bounds, both in screenshot pixels, or None when
+    too little of it shows to click: trees report what is scrolled away too."""
+    left, top = max(box[0], bounds[0]), max(box[1], bounds[1])
+    right, bottom = min(box[0] + box[2], bounds[0] + bounds[2]), min(box[1] + box[3], bounds[1] + bounds[3])
+    least = MIN_SHOWN * self.scale
+    return [left, top, right - left, bottom - top] if right - left >= least and bottom - top >= least else None
+
+  def box(self, x, y, width, height):
+    return [round((x - self.left) * self.scale), round((y - self.top) * self.scale), round(width * self.scale), round(height * self.scale)]
+
+
+def intersect(a, b):
+  """The part two boxes share, empty (of no size) when they share none."""
+  left, top = max(a[0], b[0]), max(a[1], b[1])
+  return [left, top, max(0, min(a[0] + a[2], b[0] + b[2]) - left), max(0, min(a[1] + a[3], b[1] + b[3]) - top)]
+
+
+def node(role, name, value, states, box, depth, shown=None):
+  """A control at its centre, or at that of its part shown when only part is."""
+  shown = shown or box
+  return {"role": role, "name": name, "value": value, "states": states, "x": shown[0] + shown[2] // 2, "y": shown[1] + shown[3] // 2, "box": box, "depth": depth}
+
+
+# AT-SPI ----------------------------------------------------------------------------
+
+
+def atspi_dump(address):
+  """Every showing window of every app on one sandbox bus, as JSON on stdout.
+
+  Runs in a process of its own: libatspi reads its bus address once.
+  """
+  os.environ["AT_SPI_BUS_ADDRESS"] = os.environ["DBUS_SESSION_BUS_ADDRESS"] = address
+  try:
+    import gi
+
+    gi.require_version("Atspi", "2.0")
+    from gi.repository import Atspi
+  except (ImportError, ValueError):
+    sys.exit(ATSPI_MISSING)
+
+  Atspi.init()
+  Atspi.set_timeout(2000, 2000)
+  count = 0
+
+  def dump(accessible):
+    nonlocal count
+    count += 1
+    try:
+      states = accessible.get_state_set()
+      if not states.contains(Atspi.StateType.SHOWING):
+        return None
+      extents = accessible.get_extents(Atspi.CoordType.WINDOW)
+      # Relative to the window it is drawn in, and, on Wayland, to the main
+      # window: they differ for a menu the tree lists under its button.
+      screen = accessible.get_extents(Atspi.CoordType.SCREEN)
+      role = accessible.get_role_name()
+      interfaces = accessible.get_interfaces()
+      value = None
+      try:
+        if "Text" in interfaces and (states.contains(Atspi.StateType.EDITABLE) or role in ("text", "entry")) and role != "password text":
+          value = Atspi.Text.get_text(accessible, 0, min(Atspi.Text.get_character_count(accessible), 4000))
+        elif "Value" in interfaces:
+          value = Atspi.Value.get_current_value(accessible)
+      except Exception:
+        pass
+      flags = [name for name in STATES if states.contains(getattr(Atspi.StateType, name.upper()))]
+      if not states.contains(Atspi.StateType.ENABLED) and not states.contains(Atspi.StateType.SENSITIVE):
+        flags.append("disabled")
+      children = []
+      for index in range(accessible.get_child_count()):
+        if count >= MAX_NODES:
+          break
+        child = accessible.get_child_at_index(index)
+        if child:
+          dumped = dump(child)
+          if dumped:
+            children.append(dumped)
+      return {"role": role, "name": accessible.get_name() or "", "value": value, "states": flags, "extents": [extents.x, extents.y, extents.width, extents.height], "screen": [screen.x, screen.y], "children": children}
+    except Exception:
+      return None
+
+  desktop = Atspi.get_desktop(0)
+  apps = []
+  for index in range(desktop.get_child_count()):
+    app = desktop.get_child_at_index(index)
+    if not app:
+      continue
+    windows = []
+    for window in range(app.get_child_count()):
+      dumped = dump(app.get_child_at_index(window))
+      if dumped:
+        windows.append(dumped)
+    apps.append({"name": app.get_name() or "", "windows": windows})
+  print(json.dumps(apps))
+
+
+def atspi_apps(address, descriptor=None):
+  """The apps on a bus, read by a process of their own that inherits descriptor,
+  the bus socket's, when the address names it."""
+  try:
+    result = subprocess.run([sys.executable, os.path.abspath(__file__), "--atspi-dump", address], capture_output=True, text=True, timeout=30, pass_fds=() if descriptor is None else (descriptor,))
+  except subprocess.TimeoutExpired:
+    return []  # an app that stops answering has no tree to read
+  if result.returncode == ATSPI_MISSING:
+    fail("Install python-gobject and at-spi2-core to read accessibility trees", 2)
+  try:
+    return json.loads(result.stdout)
+  except ValueError:
+    return []
+
+
+def near(a, b, slack=2):
+  return abs(a[0] - b[0]) <= slack and abs(a[1] - b[1]) <= slack
+
+
+def controls(accessible, count=4):
+  """The first few named controls in a window, to tell windows apart by."""
+  found = []
+  for child in accessible["children"]:
+    if len(found) >= count:
+      break
+    if child["name"] and child["role"] in ACTIONABLE:
+      found.append(f"{child['role']} {json.dumps(child['name'])}")
+    found += controls(child, count - len(found))
+  return found[:count]
+
+
+def atspi_window(candidates, state, page=None):
+  """The one of several windows of the window's title and size that is the window.
+
+  Agent windows all look activated to their apps, but only the one the seat's
+  keyboard is in reports the active state. Raises Ambiguous when that does not
+  leave one, or when page, a number from the refusal's list, picks none.
+  """
+  title = state.get("title")
+  focus = state.get("focus") or {}
+  if len(candidates) > 1 and "keyboard" in focus:
+    focused = bool(focus["keyboard"] or focus.get("user_keyboard"))
+    candidates = [window for window in candidates if ("active" in window["states"]) == focused] or candidates
+  if len(candidates) == 1 and page is None:
+    return candidates[0]
+
+  # Numbered in the order the app lists its windows, which stays the same from
+  # one call to the next.
+  def summary(window):
+    states = f" [{', '.join(window['states'])}]" if window["states"] else ""
+    return f"{window['role']} {json.dumps(window['name'])} {window['extents'][2]}x{window['extents'][3]}{states}: {', '.join(controls(window)) or 'no named controls'}"
+
+  listing = "\n".join(f"{number}. {summary(window)}" for number, window in enumerate(candidates, 1))
+  hint = "Rerun with --page N to pick one (its number above)."
+  if page is None:
+    raise Ambiguous(f"{len(candidates)} windows titled {title!r} look alike, and the accessibility tree cannot tell which is this one:\n{listing}\n{hint}")
+  if not page.isdigit():
+    raise Ambiguous(f"--page {page!r}: a window read over the accessibility tree is picked by its number:\n{listing}\n{hint}")
+  if not 1 <= int(page) <= len(candidates):
+    only = "there is only 1 window" if len(candidates) == 1 else f"there are only {len(candidates)} windows"
+    raise Ambiguous(f"--page {page}: {only} titled {title!r}:\n{listing}\n{hint}")
+  return candidates[int(page) - 1]
+
+
+def atspi_tree(state, apps, strict, page=None):
+  """The window's nodes, or None when no app on the bus shows a matching window.
+
+  Raises Ambiguous when several windows of the bus could be the window.
+  """
+  space = Space(state)
+  gx, gy, gw, gh = state["geometry"]
+  surface = state.get("surface") or [gw, gh]
+  windows = [window for app in apps for window in app["windows"]]
+  if not windows:
+    return None
+
+  def matches(window):
+    return window["extents"][2:] and (near(window["extents"][2:], (gw, gh)) or near(window["extents"][2:], surface))
+
+  titled = [w for w in windows if w["name"] == state.get("title")]
+  candidates = [w for w in titled if matches(w)] or titled
+  if candidates:
+    main = atspi_window(candidates, state, page)
+  elif strict:
+    return None
+  else:
+    # Without the app's pid every sandbox is a candidate, so only the title
+    # counts: a window of the right size but another title is read only when
+    # it is the only one.
+    sized = [w for w in windows if matches(w)]
+    if len(sized) != 1:
+      return None
+    main = sized[0]
+
+  # Coordinates are relative to the app's own surface. Toolkits that report the
+  # window at the surface's size include the shadow around it; the geometry's
+  # corner sits inside that.
+  fx, fy, fw, fh = main["extents"]
+  offset = (gx, gy) if near((fw, fh), surface) and not near((fw, fh), (gw, gh)) else (fx, fy)
+  nodes, popups = [], state.get("popups", [])
+  claimed = set()
+  flatten(main, offset, space, space.window, nodes, 0, popups=popups, claimed=claimed)
+
+  # Menus and other popups are windows of their own, placed where the broker
+  # says a popup of their size is, and often outside the window: what they
+  # show is what lies within their own bounds.
+  for index, popup in enumerate(popups):
+    position, size = popup["position"], popup["size"]
+    for window in windows if index not in claimed else []:
+      if window is not main and window["role"] in POPUP_ROLES and near(window["extents"][2:], size):
+        flatten(window, (window["extents"][0] - position[0], window["extents"][1] - position[1]), space, space.box(*position, *size), nodes, 0)
+        break
+  return nodes
+
+
+def popup_of(accessible, popups):
+  """The popup a control of the main window's tree is drawn in, if not the main window.
+
+  GTK lists a menu's items under its button, in the menu's own coordinates;
+  their screen coordinates put the menu's corner (without its shadow) where
+  the main window's tree has it.
+  """
+  x, y = accessible["extents"][:2]
+  sx, sy = accessible.get("screen") or (x, y)
+  if (sx, sy) == (x, y) or min(x, y, sx, sy) <= -1000000:
+    return None
+  close = [index for index, popup in enumerate(popups) if near(popup["position"], (sx - x, sy - y), 64)]
+  return min(close, key=lambda index: abs(popups[index]["position"][0] - (sx - x)) + abs(popups[index]["position"][1] - (sy - y)), default=None)
+
+
+def flatten(accessible, offset, space, bounds, nodes, depth, parent_name=None, popups=(), claimed=None):
+  index = popup_of(accessible, popups) if popups else None
+  if index is not None:
+    position, size = popups[index]["position"], popups[index]["size"]
+    offset, bounds, popups = (-position[0], -position[1]), space.box(*position, *size), ()
+    claimed.add(index)
+  x, y, width, height = accessible["extents"]
+  named = (accessible["name"] and accessible["name"] != parent_name) or accessible["value"] not in (None, "")
+  shown = width > 0 and height > 0 and x > -1000000 and y > -1000000
+  box = space.box(x - offset[0], y - offset[1], width, height)
+  # A control scrolled partly out of the window or popup is clicked on the part
+  # that shows; a sliver of one is left out.
+  part = space.shown(box, bounds)
+  if shown and (named or accessible["role"] in ACTIONABLE or depth == 0) and (depth == 0 or part):
+    nodes.append(node(accessible["role"], accessible["name"], accessible["value"], accessible["states"], box, depth, part if depth else None))
+    depth += 1
+
+  # What of the children shows: a scroll pane, viewport, list or table hides
+  # what scrolls past its edges, and a table's rows what scrolls under its
+  # column headers. Any other control smaller than a child hides the rest of
+  # it too, but for a page tab, which is the size of its label.
+  role, inner, headers = accessible["role"], bounds, None
+  if shown and role in CLIPPING:
+    inner = intersect(bounds, box)
+    bands = [space.box(c["extents"][0] - offset[0], c["extents"][1] - offset[1], *c["extents"][2:]) for c in accessible["children"] if c["role"] in HEADERS and min(c["extents"][2:]) > 0 and min(c["extents"][:2]) > -1000000]
+    headers = max((band[1] + band[3] for band in bands), default=None)
+  for child in accessible["children"]:
+    clip = inner
+    if shown and role not in LABELLED and (child["extents"][2] > width or child["extents"][3] > height):
+      clip = intersect(clip, box)
+    if headers is not None and child["role"] not in HEADERS and headers > clip[1]:
+      clip = intersect(clip, [clip[0], headers, clip[2], clip[1] + clip[3] - headers])
+    flatten(child, offset, space, clip, nodes, depth, accessible["name"] or parent_name, popups, claimed)
+
+
+# Chrome DevTools protocol ---------------------------------------------------------
+
+
+class WebSocket:
+  """Just enough of RFC 6455 for one DevTools connection."""
+
+  def __init__(self, url, timeout=10):
+    parts = urllib.parse.urlsplit(url)
+    self.sock = socket.create_connection((parts.hostname, parts.port or 80), timeout)
+    key = base64.b64encode(os.urandom(16)).decode()
+    self.sock.sendall(f"GET {parts.path or '/'} HTTP/1.1\r\nHost: {parts.netloc}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n".encode())
+    self.buffer = b""
+    while b"\r\n\r\n" not in self.buffer:
+      self.buffer += self.recv()
+    head, self.buffer = self.buffer.split(b"\r\n\r\n", 1)
+    if b" 101 " not in head.split(b"\r\n")[0] + b" ":
+      raise ConnectionError(head.split(b"\r\n")[0].decode(errors="replace"))
+
+  def recv(self):
+    chunk = self.sock.recv(65536)
+    if not chunk:
+      raise ConnectionError("DevTools hung up")
+    return chunk
+
+  def read(self, count):
+    while len(self.buffer) < count:
+      self.buffer += self.recv()
+    data, self.buffer = self.buffer[:count], self.buffer[count:]
+    return data
+
+  def send(self, text):
+    data, mask = text.encode(), os.urandom(4)
+    length = len(data)
+    header = bytes([0x81]) + (bytes([0x80 | length]) if length < 126 else bytes([0xFE]) + struct.pack(">H", length) if length < 65536 else bytes([0xFF]) + struct.pack(">Q", length))
+    masked = bytes(byte ^ mask[index % 4] for index, byte in enumerate(data))
+    self.sock.sendall(header + mask + masked)
+
+  def receive(self):
+    message = b""
+    while True:
+      first, second = self.read(2)
+      length = second & 0x7F
+      if length == 126:
+        length = struct.unpack(">H", self.read(2))[0]
+      elif length == 127:
+        length = struct.unpack(">Q", self.read(8))[0]
+      mask = self.read(4) if second & 0x80 else None
+      payload = self.read(length)
+      if mask:
+        payload = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+      opcode = first & 0x0F
+      if opcode == 8:
+        raise ConnectionError("DevTools closed the connection")
+      if opcode in (0, 1, 2):
+        message += payload
+        if first & 0x80:
+          return message.decode(errors="replace")
+
+
+class DevTools:
+  def __init__(self, url, timeout=10):
+    self.socket = WebSocket(url, timeout)
+    self.next_id = 0
+
+  def close(self):
+    self.socket.sock.close()
+
+  def send(self, method, params=None):
+    self.next_id += 1
+    self.socket.send(json.dumps({"id": self.next_id, "method": method, "params": params or {}}))
+    return self.next_id
+
+  def collect(self, ids):
+    """Answers to the requests in ids, which may all be in flight at once."""
+    waiting, answers = set(ids), {}
+    while waiting:
+      message = json.loads(self.socket.receive())
+      if message.get("id") in waiting:
+        waiting.discard(message["id"])
+        answers[message["id"]] = message
+    return answers
+
+  def call(self, method, params=None):
+    request = self.send(method, params)
+    answer = self.collect([request])[request]
+    if "error" in answer:
+      raise RuntimeError(f"{method}: {answer['error'].get('message')}")
+    return answer["result"]
+
+
+class Ambiguous(Exception):
+  """Several pages could be the window, and nothing tells them apart."""
+
+
+def titled(window_title, page_title):
+  """Whether a window shows a page: a browser window is titled after its active tab."""
+  return bool(page_title and window_title and (window_title == page_title or window_title.startswith(page_title + " - ")))
+
+
+# What shown_title says of a page that did not answer.
+UNKNOWN = object()
+
+
+def shown_title(target):
+  """A page's title when it is the tab its window shows, None when it is not,
+  and UNKNOWN when the page did not say.
+
+  A browser can show several windows of many tabs, any of them titled alike,
+  so a page's title alone does not place it in a window.
+  """
+  try:
+    devtools = DevTools(target["webSocketDebuggerUrl"], timeout=3)  # a frozen or busy tab may never answer
+    try:
+      shown, title = json.loads(devtools.call("Runtime.evaluate", {"expression": "JSON.stringify([document.visibilityState, document.title])", "returnByValue": True})["result"]["value"])
+    finally:
+      devtools.close()
+  except (OSError, ValueError, RuntimeError, ConnectionError, KeyError, TypeError):
+    # A page too busy to answer may still be the one shown: it stays a
+    # candidate, for the window's size or a refusal to settle.
+    return UNKNOWN
+  return title if shown == "visible" else None
+
+
+def window_sizes(port, targets):
+  """The logical size of the browser window each target is in, where DevTools says."""
+  sizes = {}
+  try:
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=5) as response:
+      devtools = DevTools(json.load(response)["webSocketDebuggerUrl"])
+    try:
+      for target in targets:
+        bounds = devtools.call("Browser.getWindowForTarget", {"targetId": target["id"]})["bounds"]
+        sizes[target["id"]] = (bounds["width"], bounds["height"])
+    finally:
+      devtools.close()
+  except (OSError, ValueError, RuntimeError, ConnectionError, KeyError, TypeError):
+    pass
+  return sizes
+
+
+METRICS = "JSON.stringify([innerWidth, innerHeight, devicePixelRatio, outerWidth, outerHeight, document.visibilityState])"
+
+
+def docked_devtools(port, page_metrics, scale):
+  """Whether DevTools is shown docked in the window of a page with page_metrics.
+
+  Docked, its frontend has no browser window of its own and spans the page's
+  and its own part of the window, in a window as large as the page's.
+  """
+  with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=5) as response:
+    frontends = [t for t in json.load(response) if t.get("type") == "page" and t.get("webSocketDebuggerUrl") and t.get("url", "").startswith("devtools://")]
+  if not frontends:
+    return False
+  with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=5) as response:
+    browser = DevTools(json.load(response)["webSocketDebuggerUrl"])
+  docked = []
+  try:
+    for frontend in frontends:
+      try:
+        browser.call("Browser.getWindowForTarget", {"targetId": frontend["id"]})  # undocked, in a window of its own
+      except RuntimeError:
+        docked.append(frontend)
+  finally:
+    browser.close()
+
+  width, height, ratio, outer_width, outer_height, _ = page_metrics
+  for frontend in docked:
+    devtools = DevTools(frontend["webSocketDebuggerUrl"], timeout=3)
+    try:
+      own = json.loads(devtools.call("Runtime.evaluate", {"expression": METRICS, "returnByValue": True})["result"]["value"])
+    finally:
+      devtools.close()
+    if own[5] == "visible" and own[3:5] == [outer_width, outer_height] and (own[0] * own[2] > width * ratio + 2 * scale or own[1] * own[2] > height * ratio + 2 * scale):
+      return True
+  return False
+
+
+def placement_doubt(port, metrics, scale, size):
+  """Why where a page sits in its window of logical size size is unknown, or None.
+
+  DevTools tells a page's size but not where it sits in its window: on Wayland
+  screenX and screenY are 0, and no method reports the offset. A page as wide
+  as its window, with nothing docked below it, sits under the browser's
+  toolbar or fills an app's window; anything else is a guess.
+  """
+  width, height, ratio = metrics[:3]
+  zoom = ratio / scale
+  if abs(width * zoom - size[0]) > 2:
+    return "the page is narrower than its window, beside a side panel or docked DevTools"
+  if height * zoom > size[1] + 2 or size[1] - height * zoom > size[1] / 2:
+    return "the page's height does not fit under a toolbar in its window"
+  try:
+    if docked_devtools(port, metrics, scale):
+      return "DevTools is docked below the page"
+  except (OSError, ValueError, RuntimeError, ConnectionError, KeyError, TypeError, IndexError) as error:
+    return f"DevTools did not say whether it is docked below the page ({error})"
+  return None
+
+
+def cdp_target(port, title, size=None, page=None):
+  """The page the window titled title (of logical size size) shows, None when it shows none.
+
+  Raises Ambiguous when several shown pages fit the window equally well, or
+  when page, a number from the refusal's list or part of a URL, does not pick
+  exactly one of them. A number outside the list is an error, not a URL part.
+  """
+  with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=5) as response:
+    targets = [t for t in json.load(response) if t.get("type") == "page" and t.get("webSocketDebuggerUrl") and not t.get("url", "").startswith("devtools://")]
+  # DevTools reports titles HTML-escaped ("Fun &amp; games"), the window has
+  # them plain; the page's own title, read below, is plain too.
+  candidates = [t for t in targets if titled(title, html.unescape(t.get("title") or ""))]
+  # Only the active tab of each window is visible; one that does not say
+  # whether it is stays in.
+  shown = {t["id"]: shown_title(t) for t in candidates}
+  candidates = [t for t in candidates if shown[t["id"]] is UNKNOWN or titled(title, shown[t["id"]])]
+  if len(candidates) > 1 and size:
+    sizes = window_sizes(port, candidates)
+    fitting = [t for t in candidates if t["id"] in sizes and near(sizes[t["id"]], size)]
+    candidates = fitting or candidates
+  if not candidates:
+    return None
+  # Numbered by target id, which stays the same from one call to the next.
+  candidates.sort(key=lambda t: t["id"])
+  listing = "\n".join(f"{number}. {html.unescape(t.get('title') or '')} — {t.get('url', '')}{' (did not say whether it is shown)' if shown[t['id']] is UNKNOWN else ''}" for number, t in enumerate(candidates, 1))
+  hint = "Rerun with --page N to pick one (its number above, or part of its URL)."
+  chosen = candidates
+  if page is not None:
+    if page.isdigit():
+      # A number always means a place in the list, never part of a URL.
+      if not 1 <= int(page) <= len(candidates):
+        only = "there is only 1 page" if len(candidates) == 1 else f"there are only {len(candidates)} pages"
+        raise Ambiguous(f"--page {page}: {only} shown in windows titled {title!r}:\n{listing}\n{hint}")
+      chosen = [candidates[int(page) - 1]]
+    else:
+      needle = page.lower()
+      chosen = [t for t in candidates if needle in t.get("url", "").lower() or needle in urllib.parse.unquote(t.get("url", "")).lower()]
+  if len(chosen) != 1:
+    if page is None:
+      reason = f"{len(candidates)} pages are shown in windows titled {title!r}, and DevTools cannot tell which is this one:"
+    else:
+      reason = f"--page {page!r} matches {len(chosen) or 'none'} of the {len(candidates)} pages shown in windows titled {title!r}:"
+    raise Ambiguous(f"{reason}\n{listing}\n{hint}")
+  return chosen[0]
+
+
+# Where the part of a node its ancestors do not clip lies, in its frame's CSS
+# pixels, after where its own box is: [own left, own top, left, top, right,
+# bottom]. Only an ancestor that contains the node clips it, which for a node
+# placed absolutely or fixed is not its parent.
+CLIP = """function () {
+  const element = this.nodeType === 1 ? this : this.parentElement;
+  if (!element) return null;
+  let own;
+  if (this.nodeType === 1) {
+    own = this.getBoundingClientRect();
+  } else {
+    const range = element.ownerDocument.createRange();
+    range.selectNodeContents(this);
+    own = range.getBoundingClientRect();
+  }
+  const view = element.ownerDocument.defaultView;
+  const root = element.ownerDocument;
+  const up = (node) => node.parentElement || (node.parentNode && node.parentNode.host) || null;
+  const contains = (style) => style.transform !== "none" || style.perspective !== "none" || style.filter !== "none" || /paint|layout|strict|content/.test(style.contain) || /transform|perspective|filter/.test(style.willChange);
+  let [left, top, right, bottom] = [0, 0, view.innerWidth, view.innerHeight];
+  let position = view.getComputedStyle(element).position;
+  for (let node = up(element); node; node = up(node)) {
+    const style = view.getComputedStyle(node);
+    if (position === "fixed" ? !contains(style) : position === "absolute" ? style.position === "static" && !contains(style) : false) continue;
+    position = style.position;
+    if (node === root.documentElement || node === root.body) continue;
+    const clipsX = style.overflowX !== "visible", clipsY = style.overflowY !== "visible";
+    if (!clipsX && !clipsY) continue;
+    // Its box as shown, which a transform may scale, and its client sizes and
+    // borders in layout pixels, scaled to match.
+    const rect = node.getBoundingClientRect();
+    const sx = node.offsetWidth ? rect.width / node.offsetWidth : 1, sy = node.offsetHeight ? rect.height / node.offsetHeight : 1;
+    const x = rect.left + node.clientLeft * sx, y = rect.top + node.clientTop * sy;
+    if (clipsX) { left = Math.max(left, x); right = Math.min(right, x + node.clientWidth * sx); }
+    if (clipsY) { top = Math.max(top, y); bottom = Math.min(bottom, y + node.clientHeight * sy); }
+  }
+  return [own.left, own.top, left, top, right, bottom];
+}"""
+
+
+def overflow_clips(devtools, backends):
+  """What CLIP says of each node of backends ({node id: backend DOM node id}), where the page says."""
+  group = "omarchy-agent-seat-ui"
+  resolved = {devtools.send("DOM.resolveNode", {"backendNodeId": backend, "objectGroup": group}): node_id for node_id, backend in backends.items()}
+  answers = devtools.collect(resolved)
+  calls = {}
+  for request, node_id in resolved.items():
+    object_id = ((answers[request].get("result") or {}).get("object") or {}).get("objectId")
+    if object_id:
+      calls[devtools.send("Runtime.callFunctionOn", {"objectId": object_id, "functionDeclaration": CLIP, "returnByValue": True})] = node_id
+  answers = devtools.collect(calls)
+  devtools.collect([devtools.send("Runtime.releaseObjectGroup", {"objectGroup": group})])
+  clips = {}
+  for request, node_id in calls.items():
+    value = ((answers[request].get("result") or {}).get("result") or {}).get("value")
+    if isinstance(value, list) and len(value) == 6 and all(isinstance(v, (int, float)) for v in value):
+      clips[node_id] = value
+  return clips
+
+
+def covered_at(devtools, backend, x, y):
+  """Why a click at x, y, in the page's CSS pixels, would not reach the node backend, or None when it would.
+
+  It reaches the node or any node inside it, and, for text, the element the
+  text is in.
+  """
+  try:
+    at = devtools.call("DOM.getNodeForLocation", {"x": round(x), "y": round(y), "includeUserAgentShadowDOM": False}).get("backendNodeId")
+    if at is None:
+      return "DevTools did not say what is at its centre"
+    target = devtools.call("DOM.describeNode", {"backendNodeId": backend, "depth": -1, "pierce": True})["node"]
+    inside, stack = set(), [target]
+    while stack:
+      item = stack.pop()
+      inside.add(item.get("backendNodeId"))
+      stack += item.get("children", []) + item.get("shadowRoots", []) + item.get("pseudoElements", []) + ([item["contentDocument"]] if item.get("contentDocument") else [])
+    if at in inside:
+      return None
+    hit = devtools.call("DOM.describeNode", {"backendNodeId": at, "depth": 1})["node"]
+    if target.get("nodeType") == 3 and backend in [child.get("backendNodeId") for child in hit.get("children", [])]:
+      return None
+  except (OSError, ValueError, RuntimeError, ConnectionError, KeyError, TypeError) as error:
+    return f"DevTools did not say what is at its centre ({error})"
+  attributes = dict(zip(hit.get("attributes", [])[0::2], hit.get("attributes", [])[1::2]))
+  label = (hit.get("localName") or hit.get("nodeName", "")).lower() + (f"#{attributes['id']}" if attributes.get("id") else "") + "".join(f".{name}" for name in attributes.get("class", "").split()[:3])
+  return f"another element, <{label}>, is on top of it at its centre"
+
+
+class Nodes(list):
+  """A window's controls, and for a page, covered(control): what would take a click at its centre instead."""
+  covered = None
+
+
+def cdp_tree(state, port, page=None):
+  target = cdp_target(port, state.get("title", ""), state["geometry"][2:], page)
+  if not target:
+    return None
+  devtools = DevTools(target["webSocketDebuggerUrl"])
+  space = Space(state)
+  gx, gy, gw, gh = state["geometry"]
+  metrics = json.loads(devtools.call("Runtime.evaluate", {"expression": METRICS, "returnByValue": True})["result"]["value"])
+  inner_width, inner_height, ratio = metrics[:3]
+
+  # CSS pixels to logical ones, and where the page sits in the window: browser
+  # chrome goes above it, an Electron app's page fills the window. When that
+  # cannot be checked, the positions are listed as unverified. The page's
+  # devicePixelRatio is that of the window's scale now, which differs from the
+  # last screenshot's after a move to a monitor of another scale: it takes CSS
+  # pixels to logical ones, and space takes those to the screenshot's.
+  scale = state.get("scale") or space.scale or 1
+  zoom = ratio / scale
+  unverified = placement_doubt(port, metrics, scale, (gw, gh))
+  top = max(0, gh - inner_height * zoom)
+  left = max(0, (gw - inner_width * zoom) / 2)
+  viewport = space.box(left, top, inner_width * zoom, inner_height * zoom)
+
+  tree = devtools.call("Accessibility.getFullAXTree")["nodes"]
+  by_id = {n["nodeId"]: n for n in tree}
+
+  # Document order, from the root down.
+  ordered, seen = [], set()
+  stack = [n for n in reversed(tree) if not n.get("parentId") or n["parentId"] not in by_id]
+  while stack:
+    item = stack.pop()
+    if item["nodeId"] in seen:
+      continue
+    seen.add(item["nodeId"])
+    ordered.append(item)
+    stack += [by_id[child] for child in reversed(item.get("childIds", [])) if child in by_id]
+
+  wanted = []
+  for item in ordered:
+    role = (item.get("role") or {}).get("value", "")
+    name = (item.get("name") or {}).get("value", "") or ""
+    value = (item.get("value") or {}).get("value")
+    if item.get("ignored") or role in ("InlineTextBox", "none", "LineBreak") or not item.get("backendDOMNodeId"):
+      continue
+    if role == "StaticText" and (by_id.get(item.get("parentId")) or {}).get("name", {}).get("value") == name:
+      continue  # repeats its parent's name
+    if name or value not in (None, "") or role.lower() in ACTIONABLE or role == "RootWebArea":
+      wanted.append(item)
+  requests = {devtools.send("DOM.getBoxModel", {"backendNodeId": item["backendDOMNodeId"]}): item for item in wanted[:MAX_NODES]}
+  answers = devtools.collect(requests)
+
+  # The box of each control some of which lies in the viewport, in CSS pixels.
+  boxes = {}
+  for request, item in requests.items():
+    model = answers[request].get("result", {}).get("model")
+    if not model:
+      continue
+    quad = model["border"]
+    xs, ys = quad[0::2], quad[1::2]
+    x, y, width, height = min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)
+    if width > 0 and height > 0 and space.shown(space.box(left + x * zoom, top + y * zoom, width * zoom, height * zoom), viewport):
+      boxes[item["nodeId"]] = (item, (x, y, width, height))
+  clips = overflow_clips(devtools, {node_id: item["backendDOMNodeId"] for node_id, (item, _) in boxes.items()})
+
+  nodes, backends = [], {}
+  for node_id, (item, (x, y, width, height)) in boxes.items():
+    properties = {p["name"]: (p.get("value") or {}).get("value") for p in item.get("properties", [])}
+    flags = [name for name in STATES if properties.get(name) in (True, "true", "mixed")]
+    if properties.get("expanded") is False:
+      flags.append("collapsed")
+    if properties.get("disabled"):
+      flags.append("disabled")
+    role = item["role"]["value"]
+    box = space.box(left + x * zoom, top + y * zoom, width * zoom, height * zoom)
+    # A scroll pane, or any other element whose overflow is not visible, hides
+    # what lies past its edges. The clip is in the coordinates of the control's
+    # own frame, its box in the page's.
+    bounds = viewport
+    if node_id in clips:
+      own_left, own_top, clip_left, clip_top, clip_right, clip_bottom = clips[node_id]
+      dx, dy = x - own_left, y - own_top
+      bounds = intersect(viewport, space.box(left + (clip_left + dx) * zoom, top + (clip_top + dy) * zoom, max(0, clip_right - clip_left) * zoom, max(0, clip_bottom - clip_top) * zoom))
+    part = space.shown(box, bounds)
+    if not part:
+      continue  # scrolled out of view, or all but a sliver
+    value = (item.get("value") or {}).get("value")
+    nodes.append({**node(role, (item.get("name") or {}).get("value", "") or "", value if role != "textbox" or not properties.get("protected") else None, flags, box, 0, part), "id": item["nodeId"]})
+    backends[id(nodes[-1])] = item["backendDOMNodeId"]
+
+  # Indent by listed ancestors only, like the AT-SPI listing.
+  listed = {item["id"] for item in nodes}
+  for item in nodes:
+    level, parent = 0, by_id.get(by_id[item.pop("id")].get("parentId"))
+    while parent:
+      level += parent["nodeId"] in listed
+      parent = by_id.get(parent.get("parentId"))
+    item["depth"] = level
+    if unverified:
+      item["unverified"] = unverified  # click-ui refuses a control marked so
+
+  # What lies on top of a control, a sticky header or a dialog, is known only
+  # by asking the page what is at the point: the screenshot pixels back to CSS
+  # ones.
+  result = Nodes(nodes)
+  result.covered = lambda item: covered_at(devtools, backends[id(item)], ((item["x"] / (space.scale or 1) + space.left) - left) / zoom, ((item["y"] / (space.scale or 1) + space.top) - top) / zoom)
+  return result
+
+
+# Finding one control ---------------------------------------------------------------
+
+
+def find(nodes, query, substring=True):
+  role = None
+  roles = {n["role"].lower() for n in nodes}
+  if ":" in query:
+    prefix, rest = query.split(":", 1)
+    if prefix.strip().lower() in roles or any(r.split()[-1] == prefix.strip().lower() for r in roles if r):
+      role, query = prefix.strip().lower(), rest.strip()
+
+  candidates = [n for n in nodes if not role or n["role"].lower() == role or n["role"].lower().split()[-1:] == [role]]
+  if role and not query:
+    return candidates
+  tests = [lambda name: name == query, lambda name: name.lower() == query.lower()]
+  if substring:
+    tests.append(lambda name: query.lower() in name.lower())
+  for test in tests:
+    found = [n for n in candidates if n["name"] and test(n["name"])]
+    # A control nested in one of the same name and place (a menu button's
+    # toggle) is one target: click the innermost.
+    if found and all(abs(n["x"] - found[0]["x"]) <= 4 and abs(n["y"] - found[0]["y"]) <= 4 for n in found):
+      return [max(found, key=lambda n: n["depth"])]
+    if found:
+      return found
+  return []
+
+
+def describe(item):
+  value = f" = {json.dumps(item['value'])}" if item["value"] not in (None, "") else ""
+  states = f" [{', '.join(item['states'])}]" if item["states"] else ""
+  return f"{item['role']} {json.dumps(item['name'])}{value} @{item['x']},{item['y']}{states}"
+
+
+def main(args):
+  if len(args) >= 2 and args[0] == "--atspi-dump":
+    atspi_dump(args[1])
+    return
+
+  as_json, query, exact, page, positional = False, None, False, None, []
+  while args:
+    arg = args.pop(0)
+    if arg == "--json":
+      as_json = True
+    elif arg == "--exact":
+      exact = True
+    elif arg == "--find" and args:
+      query = args.pop(0)
+    elif arg == "--page" and args:
+      page = args.pop(0)
+    else:
+      positional.append(arg)
+  if len(positional) != 1 or not positional[0].isdigit():
+    fail("Usage: omarchy agent seat ui <window> [--json] [--find <name> | --find <role>:<name>] [--exact] [--page <selector>]")
+  window = int(positional[0])
+
+  state = window_state(window)
+  if not state.get("drawn"):
+    fail(f"Window {window} has not drawn anything yet", 2)
+
+  directory = sandbox_of(state["pid"]) if state.get("pid") else None
+  candidates = [directory] if directory else sorted(glob.glob(os.path.join(SANDBOXES, "*.d")))
+  found = []
+  for candidate in candidates:
+    nodes = None
+    port = cdp_port(candidate)
+    if port:
+      try:
+        nodes, source = cdp_tree(state, port, page), "cdp"
+      except Ambiguous as error:
+        fail(str(error))
+      except (OSError, ValueError, RuntimeError, ConnectionError, KeyError) as error:
+        print(f"DevTools on port {port} did not answer: {error}", file=sys.stderr)
+    address, descriptor = (None, None) if nodes else bus_address(candidate)
+    if address:
+      try:
+        nodes, source = atspi_tree(state, atspi_apps(address, descriptor), not directory, page), "atspi"
+      except Ambiguous as error:
+        fail(str(error))
+      finally:
+        os.close(descriptor)
+    if nodes:
+      found.append((nodes, source))
+
+  # Without the app's pid, two sandboxes can show windows of the same title:
+  # take the one whose size matches, or refuse to guess.
+  if len(found) > 1:
+    size = [round(value * state["scale"]) for value in state["geometry"][2:]]
+    found = [f for f in found if f[1] == "cdp" or near(f[0][0]["box"][2:], size, 3)]
+    if len(found) != 1:
+      fail(f"Several apps show a window titled {state.get('title')!r} and this broker cannot tell which is window {window}. Close the others, or use omarchy agent seat screenshot {window}.")
+  nodes, source = found[0] if found else (None, None)
+
+  if not nodes or len(nodes) < 2:
+    fail(f"Window {window} has no accessibility tree to read (an app without one, like Wine, a game or a canvas, or Electron without --cdp). Use omarchy agent seat screenshot {window}.", 2)
+
+  listed = nodes
+  if query is not None:
+    found = find(nodes, query, substring=not exact)
+    # A name that only contains the query ("Delete" in "Delete account") is
+    # a guess, never acted on: the caller reruns with the full name.
+    containing = [] if found or not exact else find(nodes, query)
+    if containing:
+      fail(f"No control is named {query!r} in window {window}; {'this one contains' if len(containing) == 1 else 'these contain'} it. Rerun with the full name:\n" + "\n".join("  " + describe(n) for n in containing))
+    if len(found) != 1:
+      fail(f"No control matches {query!r} in window {window}" if not found else f"{len(found)} controls match {query!r} in window {window}:\n" + "\n".join("  " + describe(n) for n in found))
+    nodes = found
+    covered = listed.covered(nodes[0]) if getattr(listed, "covered", None) else None
+    if covered:
+      nodes[0] = {**nodes[0], "covered": covered}  # click-ui refuses a control marked so
+
+  unverified = nodes[0].get("unverified")
+  if as_json:
+    print(json.dumps(nodes[0] if query is not None else {"window": window, "source": source, "size": [round(v * state["scale"]) for v in state["geometry"][2:]], **({"unverified": unverified} if unverified else {}), "nodes": nodes}))
+  else:
+    if unverified:
+      print(f"Window {window}: {unverified}, so where the page sits in the window, and the positions below, are a guess that click-ui will not click. Close that, or click by coordinates on omarchy agent seat screenshot {window}.", file=sys.stderr)
+    if nodes[0].get("covered"):
+      print(f"Window {window}: {nodes[0]['covered']}, so click-ui will not click it there.", file=sys.stderr)
+    for item in nodes:
+      print("  " * (0 if query is not None else item["depth"]) + describe(item))
+
+
+if __name__ == "__main__":
+  main(sys.argv[1:])

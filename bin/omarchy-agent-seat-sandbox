@@ -1,0 +1,124 @@
+#!/bin/bash
+
+# omarchy:summary=Supervise one agent seat sandbox
+# omarchy:hidden=true
+
+record="$1"
+marker="$2"
+shift 2
+
+process_start_time() {
+  local stat fields
+
+  [[ -r /proc/$1/stat ]] || return 1
+  { stat=$(<"/proc/$1/stat"); } 2>/dev/null || return 1  # it may exit between the check and the read
+  stat=${stat##*) }
+  read -ra fields <<<"$stat"
+  printf '%s\n' "${fields[19]}"
+}
+
+write_record() {
+  local temporary="$record.$$"
+
+  printf '%s %s %s %s %s\n' "$$" "$supervisor_start" "$marker" "${bwrap_pid:-0}" "${bwrap_start:-0}" >"$temporary"
+  mv -f -- "$temporary" "$record"
+}
+
+cleanup() {
+  [[ -e $record ]] && unlink "$record"
+  rm -rf -- "${record%/*}/$marker.d"
+}
+trap cleanup EXIT
+
+supervisor_start=$(process_start_time "$$") || exit 1
+write_record
+
+# The files bwrap mounts by descriptor (--bind-fd, --ro-bind-fd) are the only
+# descriptors beyond stdin, stdout and stderr that bwrap gets; it closes them
+# once mounted, so the app inherits none. Anything else inherited is closed.
+pinned=()
+previous=
+for arg in "$@"; do
+  if [[ $previous == "--bind-fd" || $previous == "--ro-bind-fd" ]] && [[ $arg =~ ^[0-9]+$ ]]; then
+    pinned+=("$arg")
+  fi
+  previous=$arg
+done
+for fd in /proc/$$/fd/*; do
+  fd=${fd##*/}
+  if ((fd > 2 && fd != 255)) && [[ " ${pinned[*]} " != *" $fd "* && -L /proc/$$/fd/$fd ]]; then
+    exec {fd}<&-
+  fi
+done
+
+# The sandbox's private session bus runs out here, so the app gets only its
+# socket, bound read-only, and nothing beside it to write in or swap for a link
+# to another bus. It activates no services, so the user's session bus, keyring
+# and portals stay out of reach. Apps publish their accessibility tree on it,
+# which omarchy agent seat ui reads. The accessibility registry runs here too,
+# as the user, with that bus alone in its environment: like the broker, it
+# serves the app's traffic from outside. Both are this supervisor's children,
+# so stop ends them with the sandbox, and the kernel kills them the moment
+# this supervisor exits (--pdeathsig), so nothing here kills them by pid,
+# which another process could have taken by then.
+session="${record%/*}/$marker.d"
+bus="$session/bus/bus"
+
+# Starts a daemon on the private bus with nothing else of this session.
+daemon() {
+  (
+    for fd in "${pinned[@]}"; do
+      exec {fd}<&-
+    done
+    cd / || exit 1
+    exec setpriv --pdeathsig KILL env -i PATH=/usr/bin DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" AT_SPI_BUS_ADDRESS="unix:path=$bus" "$@" </dev/null
+  ) &
+}
+
+if [[ -d ${bus%/*} && -x /usr/bin/dbus-daemon ]]; then
+  cat >"$session/bus.conf" <<EOF
+<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <type>session</type>
+  <listen>unix:path=$bus</listen>
+  <auth>EXTERNAL</auth>
+  <policy context="default">
+    <allow send_destination="*" eavesdrop="true"/>
+    <allow eavesdrop="true"/>
+    <allow own="*"/>
+  </policy>
+</busconfig>
+EOF
+  daemon dbus-daemon --config-file="$session/bus.conf" --nofork --nopidfile --nosyslog
+  for _ in {1..100}; do
+    [[ -S $bus ]] && break
+    sleep 0.01
+  done
+  if [[ -S $bus && -x /usr/lib/at-spi2-registryd ]]; then
+    daemon /usr/lib/at-spi2-registryd >/dev/null 2>&1
+    # Apps register with the registry as they start, so it must be up first.
+    # Each ask gives the bus 100 ms, so a bus that listens but never answers
+    # holds the launch about 5 seconds, not 25 a turn.
+    for _ in {1..50}; do
+      dbus-send --bus="unix:path=$bus" --reply-timeout=100 --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.NameHasOwner string:org.a11y.atspi.Registry 2>/dev/null | grep -q "boolean true" && break
+      sleep 0.01
+    done
+  fi
+fi
+
+# The supervisor stays above bwrap so stop has one verifiable process to kill.
+# --die-with-parent then SIGKILLs bwrap's PID-namespace init and everything in
+# that namespace when the supervisor dies, even when an app ignores SIGTERM.
+bwrap --die-with-parent --setenv OMARCHY_AGENT_SEAT_SANDBOX "$marker" "$@" &
+bwrap_pid=$!
+
+# bwrap has its own copies of the pinned files now.
+for fd in "${pinned[@]}"; do
+  if ((fd > 2)); then
+    exec {fd}<&-
+  fi
+done
+bwrap_start=$(process_start_time "$bwrap_pid") || bwrap_start=0
+write_record
+
+wait "$bwrap_pid"

@@ -28,6 +28,7 @@ matching guide before starting:
 - [`theming.md`](theming.md) - themes, backgrounds, and fonts
 - [`hooks.md`](hooks.md) - automation hooks that run on system events
 - [`capture.md`](capture.md) - screenshots, screen recordings, OCR text capture, and file sharing
+- [`agent-seat.md`](agent-seat.md) - driving GUI apps (click, type, read controls, screenshot) on the agent seat instead of the user's desktop
 - [`contributing.md`](contributing.md) - reporting Omarchy bugs and submitting fixes upstream
 
 ## Critical Safety Rules

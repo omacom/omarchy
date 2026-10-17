@@ -1,0 +1,468 @@
+#!/bin/bash
+
+# omarchy:summary=Launch a sandboxed app on the agent seat and print its agent window number
+# omarchy:args=[--no-wait] [--cdp] [--share <path>] [--share-ro <path>] <command> [args...]
+# omarchy:examples=omarchy agent seat run chromium https://omarchy.org | omarchy agent seat run foot | omarchy agent seat run --share ~/Projects/site chromium ~/Projects/site/index.html
+
+# The app runs in a bubblewrap sandbox whose only way to the desktop is the
+# agent seat broker. It gets no Hyprland IPC, no user Wayland or X11 socket, no
+# user D-Bus (only a private bus of its own, so no keyring and no portals), no
+# /dev/uinput, no GPU and its own home, so it can neither drive nor read the
+# user's seat. That home is one directory shared by every app on the seat and
+# kept across stop, so logins and cookies made in it persist.
+#
+# It does share the host's network: besides the internet it reaches every
+# service listening on the host's localhost (databases, dev servers, browser
+# debugging ports), and a port it opens is reachable from the whole machine.
+#
+# --cdp starts a Chromium or Electron app with its DevTools protocol on a free
+# localhost port, which omarchy agent seat ui reads its page through.
+#
+# --share and --share-ro hand the app one of the user's files or directories,
+# read-write or read-only, at the same path. The seat asks nothing of its own
+# here: sharing is part of the command, so the agent's own permission rules
+# decide it, like any file the agent touches itself. Shares that would undo
+# the sandbox are refused: the root, the user's home or /tmp as a whole, the
+# X11 sockets, $XDG_RUNTIME_DIR, /run/user and /run/dbus (Hyprland, D-Bus, the
+# keyring), /proc and /dev, any directory holding one of those, and what the
+# user or an agent later runs outside the sandbox: anything inside ~/.config,
+# ~/.ssh, ~/.gnupg, ~/.local/share/keyrings, ~/.local/bin, Omarchy's own
+# ~/.local/share and ~/.local/state trees, the mise shims, the user's systemd
+# units and desktop entries, and the agents' own homes (~/.claude, ~/.codex
+# and the like), the shell's startup files and ~/.gitconfig, or wherever one of
+# those links to. A read-write share of a repository keeps its top-level .git
+# read-only, so the app cannot plant hooks or config that git later runs as
+# the user; a nested repository's .git is not covered. Only a directory or a
+# regular file can be shared, and the sandbox mounts the very one that was
+# checked, by an open descriptor, never a path that could be swapped in the
+# meantime.
+
+# Whatever the caller left open would pass on to the app, so every descriptor
+# but stdin, stdout, stderr and bash's own hold on this script (255) is closed
+# before anything else is opened.
+for fd in /proc/$$/fd/*; do
+  fd=${fd##*/}
+  if ((fd > 2 && fd != 255)) && [[ -L /proc/$$/fd/$fd ]]; then
+    exec {fd}<&-
+  fi
+done
+
+home=$(realpath -m -- "$HOME")
+runtime_dir=$(realpath -m -- "$XDG_RUNTIME_DIR")
+# Refused when a path is one of these or holds one.
+broad=("$home" /tmp)
+# Refused when a path is one of these, lies inside one, or holds one: what
+# the session's sockets and the user's secrets (keys, config, the agents'
+# logins) sit in. A program run from one is refused too.
+private=(
+  "$home/.config" "$home/.ssh" "$home/.gnupg" "$home/.local/share/keyrings" "$runtime_dir" /run/user /run/dbus /tmp/.X11-unix /proc /dev
+  "$home/.claude" "$home/.claude.json" "$home/.codex" "$home/.pi" "$home/.grok" "$home/.gemini" "$home/.cursor" "$home/.local/state/omarchy"
+)
+# Shared the same way, but only shared: the user, their session or an agent
+# runs these outside the sandbox, so an app must not write them. Running a
+# program from one hands the app that file alone, read-only.
+run_outside=(
+  "$home/.local/bin" "$home/.local/share/applications" "$home/.local/share/systemd" "$home/.local/share/mise" "$home/.local/share/omarchy"
+  "$home/.profile" "$home/.bashrc" "$home/.bash_profile" "$home/.bash_login" "$home/.bash_logout" "$home/.bash_aliases"
+  "$home/.zshenv" "$home/.zprofile" "$home/.zshrc" "$home/.zlogin" "$home/.zlogout" "$home/.gitconfig"
+)
+
+# Shares are compared resolved, so a root that is a link (~/.ssh pointing into
+# ~/vault, say) is refused at its target as well as at its own path.
+for root in "${broad[@]}"; do
+  broad+=("$(realpath -m -- "$root")")
+done
+for root in "${private[@]}"; do
+  private+=("$(realpath -m -- "$root")")
+done
+for root in "${run_outside[@]}"; do
+  run_outside+=("$(realpath -m -- "$root")")
+done
+
+# Prints what a resolved path would expose to an agent app, if anything; with
+# "share", what sharing it would, which includes what runs outside the sandbox.
+exposes() {
+  local path=$1 root
+  local -a roots=("${private[@]}")
+
+  [[ ${2:-} == "share" ]] && roots+=("${run_outside[@]}")
+  if [[ $path == "/" ]]; then
+    echo "/"
+    return 0
+  fi
+  for root in "${broad[@]}"; do
+    if [[ $root == "$path" || $root == "$path"/* ]]; then
+      echo "$root"
+      return 0
+    fi
+  done
+  for root in "${roots[@]}"; do
+    if [[ $path == "$root" || $path == "$root"/* || $root == "$path"/* ]]; then
+      echo "$root"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# A directory that is plainly one app's own install: its libraries or
+# resources sit beside the executable. A bin directory never counts.
+app_bundle() {
+  local directory=$1
+
+  [[ ${directory##*/} == "bin" || ${directory##*/} == "sbin" ]] && return 1
+  [[ -d $directory/lib || -d $directory/resources || -e $directory/resources.pak || -e $directory/AppRun ]]
+}
+
+# Opens a checked directory or file and sets pinned_fd to it, so the sandbox
+# mounts what was checked even if the path is swapped (for a link into ~/.ssh,
+# say, by an app with a writable share above it) before bwrap runs. Neither
+# open can block on a FIFO swapped in after the check, which would hang the
+# launch until something wrote to it: a directory is opened through its ".",
+# and a file by a helper that opens it without blocking and keeps it open
+# while this shell opens the very same file through the helper's descriptor,
+# only once the helper found it a regular file. Fails unless the open file is
+# still the checked path and of its kind.
+pinned=()
+pin() {
+  local path=$1 fd kind opener_pid opener_out opener_in opened
+
+  if [[ -d $path ]]; then
+    kind="directory"
+    { exec {fd}<"$path/."; } 2>/dev/null || return 1
+  elif [[ -f $path ]]; then
+    kind="file"
+    coproc opener {
+      exec python3 -c '
+import os, stat, sys
+fd = os.open(sys.argv[1], os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY)
+if stat.S_ISREG(os.fstat(fd).st_mode):
+    print(fd, flush=True)
+    sys.stdin.read()
+' "$path" 2>/dev/null
+    }
+    opener_pid=$opener_PID opener_out=${opener[0]} opener_in=${opener[1]}
+    read -r -u "$opener_out" opened
+    if [[ $opened =~ ^[0-9]+$ ]] && { exec {fd}<"/proc/$opener_pid/fd/$opened"; } 2>/dev/null; then
+      opened=true
+    else
+      opened=false
+    fi
+    exec {opener_in}>&- {opener_out}<&-
+    wait "$opener_pid" 2>/dev/null
+    [[ $opened == "true" ]] || return 1
+  else
+    return 1
+  fi
+  pinned+=("$fd")
+  [[ $(readlink "/proc/self/fd/$fd") == "$path" ]] || return 1
+  if [[ $kind == "directory" ]]; then
+    [[ -d /proc/self/fd/$fd ]] || return 1
+  else
+    [[ -f /proc/self/fd/$fd ]] || return 1
+  fi
+  pinned_fd=$fd
+}
+
+# Closes every pinned file.
+unpin() {
+  local fd
+
+  for fd in "${pinned[@]}"; do
+    exec {fd}<&-
+  done
+  pinned=()
+}
+
+wait_for_window=true
+cdp=false
+shares=()
+while [[ $1 == --* ]]; do
+  case $1 in
+    --no-wait) wait_for_window=false ;;
+    --cdp) cdp=true ;;
+    --share | --share-ro)
+      if ! path=$(realpath -e -- "${2:-}" 2>/dev/null); then
+        echo "Nothing to share at ${2:-(no path given)}" >&2
+        exit 1
+      fi
+      if exposed=$(exposes "$path" share); then
+        echo "Refusing to share $path with an agent app: it would expose $exposed" >&2
+        exit 1
+      fi
+      if [[ ! -d $path && ! -f $path ]]; then
+        echo "Refusing to share $path with an agent app: only a directory or a regular file can be shared" >&2
+        exit 1
+      fi
+      if ! pin "$path"; then
+        echo "Refusing to share $path with an agent app: it changed or could not be opened once checked" >&2
+        exit 1
+      fi
+      if [[ $1 == "--share" ]]; then
+        if [[ $path/ == */.git/* ]]; then
+          echo "Refusing to share $path with an agent app read-write: it is a repository's .git, where git finds the hooks it runs" >&2
+          exit 1
+        fi
+        shares+=(--bind-fd "$pinned_fd" "$path")
+        # Bound over the share, so the app can neither write into it nor
+        # replace it: a mount point cannot be renamed or removed.
+        if [[ -d $path && ( -e $path/.git || -L $path/.git ) ]]; then
+          if [[ -L $path/.git ]] || ! pin "$path/.git"; then
+            echo "Refusing to share $path with an agent app read-write: its .git is a link, or changed once checked" >&2
+            exit 1
+          fi
+          shares+=(--ro-bind-fd "$pinned_fd" "$path/.git")
+        fi
+      else
+        shares+=(--ro-bind-fd "$pinned_fd" "$path")
+      fi
+      shift
+      ;;
+    *)
+      echo "Unknown option $1" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+if (($# == 0)); then
+  echo "Usage: omarchy agent seat run [--no-wait] [--cdp] [--share <path>] [--share-ro <path>] <command> [args...]" >&2
+  exit 1
+fi
+
+# An app installed outside /usr gets its executable read-only. Its directory
+# comes along only when it is an app bundle (under ~/.local/opt, say) that
+# exposes nothing, so running a program from $HOME or /tmp never hands the app
+# the rest of that directory.
+program=()
+executable=$(realpath -e -- "$(type -P -- "$1")" 2>/dev/null)
+if [[ -n $executable && $executable != /usr/* ]]; then
+  bundle=$(dirname -- "$executable")
+  if exposed=$(exposes "$executable"); then
+    echo "Refusing to run $executable on the agent seat: it would expose $exposed" >&2
+    exit 1
+  elif app_bundle "$bundle" && ! exposes "$bundle" >/dev/null; then
+    if ! pin "$bundle"; then
+      echo "Refusing to run $executable on the agent seat: its directory changed or could not be opened once checked" >&2
+      exit 1
+    fi
+    program=(--ro-bind-fd "$pinned_fd" "$bundle")
+  else
+    if ! pin "$executable"; then
+      echo "Refusing to run $executable on the agent seat: it changed or could not be opened once checked" >&2
+      exit 1
+    fi
+    program=(--ro-bind-fd "$pinned_fd" "$executable")
+  fi
+  set -- "$executable" "${@:2}"
+fi
+
+runtime="$XDG_RUNTIME_DIR/omarchy/agent-seat"
+# The seat's home is Omarchy state, kept beside the agent accounts. It never
+# lives under ~/.local/share/omarchy: an upgrade to Omarchy 4 turns that into a
+# link to the read-only /usr/share/omarchy, or to a shim it later removes.
+agent_home="$HOME/.local/state/omarchy/agent-seat/home"
+old_agent_home="$HOME/.local/share/omarchy/agent-seat/home"
+sandbox_supervisor=$(realpath -e "$OMARCHY_PATH/bin/omarchy-agent-seat-sandbox")
+
+# Each seat window with the pid of the app that opened it, as the broker sees
+# it: the host pid of the process inside the sandbox. The broker answers once
+# Hyprland lists its windows, which it allows five seconds; a broker that never
+# answers would otherwise hold the launch lock forever.
+windows() {
+  timeout 10 omarchy-agent-seat-broker call '{"command":"state"}' 2>/dev/null | jq -r '.windows[] | "\(.window) \(.pid // 0)"'
+}
+
+# Whether a process runs in this launch's sandbox: the supervisor is among its
+# ancestors. bwrap's PID-namespace init stays a child of the outer bwrap, which
+# is the supervisor's child, and a sandboxed process that loses its parent is
+# reparented to that init, so every chain from inside ends at the supervisor.
+# The chain holds for apps that nest their own PID namespaces (Chromium's
+# sandbox) too, where comparing namespaces would not.
+in_sandbox() {
+  local pid=$1 status
+
+  while ((pid > 1)); do
+    ((pid == sandbox_pid)) && return 0
+    { status=$(<"/proc/$pid/status"); } 2>/dev/null || return 1
+    [[ $status =~ $'\n'PPid:[[:space:]]+([0-9]+) ]] || return 1
+    pid=${BASH_REMATCH[1]}
+  done
+  return 1
+}
+
+mkdir -p "$runtime/sandboxes"
+
+# The new window is one missing from the list taken before the launch whose
+# app runs in this launch's sandbox, so another app's window that opens
+# meanwhile (a dialog, say) is never handed back. Launches still take turns
+# from that list until their window appears (or the wait times out). A
+# --no-wait launch takes its turn too, but its window may still appear while a
+# later launch waits. Stop never takes this lock.
+exec 8>"$runtime/launch.lock"
+flock 8
+
+# Serialize seat startup and shutdown so stop cannot miss a sandbox whose
+# supervisor is still being registered.
+exec 9>"$runtime/sandboxes.lock"
+flock 9
+
+# A home made before it moved comes along once, but only from a real directory:
+# behind a link to the upgrade's tree it is not the user's to move. It moves
+# under the launch lock, so two launches cannot both try, and only by rename:
+# a copy across filesystems could be cut short and leave two half homes.
+if [[ ! -e $agent_home && ! -L $HOME/.local/share/omarchy && ! -L ${old_agent_home%/*} && -d $old_agent_home && ! -L $old_agent_home ]]; then
+  if ! error=$(mkdir -p -- "${agent_home%/*}" 2>&1); then
+    echo "Could not create ${agent_home%/*} for the agent seat's home: ${error#*: }" >&2
+    exit 1
+  fi
+  if [[ $(stat -c %d -- "$old_agent_home") != $(stat -c %d -- "${agent_home%/*}") ]]; then
+    echo "The agent seat's home now lives at $agent_home, on another filesystem than the old $old_agent_home. Move it yourself, with the seat stopped: mv -T $old_agent_home $agent_home" >&2
+    exit 1
+  fi
+  if ! error=$(mv -T -- "$old_agent_home" "$agent_home" 2>&1); then
+    echo "Could not move the agent seat's home from $old_agent_home to $agent_home: ${error#*: }" >&2
+    exit 1
+  fi
+  rmdir -- "${old_agent_home%/*}" 2>/dev/null
+fi
+if ! error=$(mkdir -p -- "$agent_home" 2>&1); then
+  echo "Could not create the agent seat's home at $agent_home: ${error#*: }" >&2
+  exit 1
+fi
+
+# Status is answered at once, never after Hyprland, so a slow Hyprland cannot
+# pass for a dead broker. A broker that holds its socket open but never answers
+# would hang the call, and the deadline below with it, so a call that takes
+# longer than three seconds counts as no answer.
+broker_answers() {
+  timeout 3 omarchy-agent-seat-broker call '{"command":"status"}' >/dev/null 2>&1
+}
+
+# The processes listening on a Unix socket bound at a path: the socket's
+# inode from /proc/net/unix, then every descriptor open on it. A copy of
+# socket_listeners in omarchy-agent-seat-stop, so a broker this launch refuses
+# to replace is exactly one that stop finds and ends.
+socket_listeners() {
+  local flags inode path
+
+  # Flags 00010000 marks a listening socket; accepted connections show the
+  # bound path too.
+  while read -r _ _ _ flags _ _ inode path; do
+    [[ $flags == "00010000" && $path == "$1" ]] || continue
+    find /proc/[0-9]*/fd -lname "socket:\[$inode\]" 2>/dev/null | cut -d/ -f3
+  done </proc/net/unix | sort -u
+}
+
+# A broker that died leaves its sockets behind, so the seat is ready only once
+# a broker answers. A new broker replaces both sockets before it answers on
+# control, so the wayland-0 bound below is then its own, never a dead one.
+if ! broker_answers; then
+  # A broker that still listens but did not answer is alive, only hung or
+  # slow, and its apps stay connected to it. A new broker over its sockets
+  # would leave those apps out of every seat command and hand their window
+  # numbers to new apps, so input meant for one could reach another. Only
+  # stop ends it, together with its apps.
+  if [[ -n $(socket_listeners "$runtime/control") ]]; then
+    echo "The agent seat broker is running but did not answer within 3 seconds; end it and its apps with: omarchy agent seat stop" >&2
+    exit 1
+  fi
+  # The broker outlives this launch, so it gets none of the pinned files.
+  (
+    unpin
+    setsid -f omarchy-agent-seat-broker serve >>"$runtime/broker.log" 2>&1 8>&- 9>&-
+  )
+  deadline=$((SECONDS + 10))
+  until broker_answers; do
+    if ((SECONDS >= deadline)); then
+      echo "The agent seat broker did not start within 10 seconds (see $runtime/broker.log)" >&2
+      exit 1
+    fi
+    sleep 0.1
+  done
+fi
+
+before=$(windows)
+
+sandbox=(
+  --unshare-all --share-net --new-session
+  --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/bin /sbin --symlink usr/lib /lib --symlink usr/lib /lib64
+  --ro-bind /etc /etc --ro-bind /sys /sys --ro-bind-try /run/systemd/resolve /run/systemd/resolve
+  --proc /proc --dev /dev --tmpfs /dev/shm --tmpfs /tmp
+  --bind "$agent_home" "$HOME"
+  --ro-bind-try "$HOME/.local/share/fonts" "$HOME/.local/share/fonts"
+  --ro-bind-try "$HOME/.local/share/icons" "$HOME/.local/share/icons"
+  --ro-bind-try "$HOME/.config/fontconfig" "$HOME/.config/fontconfig"
+  --dir "$XDG_RUNTIME_DIR" --chmod 0700 "$XDG_RUNTIME_DIR"
+  --bind "$runtime/wayland-0" "$XDG_RUNTIME_DIR/wayland-0"
+  --chdir "$HOME" --clearenv
+  --setenv PATH /usr/local/bin:/usr/bin --setenv HOME "$HOME" --setenv USER "$USER" --setenv LANG "${LANG:-C.UTF-8}"
+  --setenv XDG_RUNTIME_DIR "$XDG_RUNTIME_DIR" --setenv WAYLAND_DISPLAY wayland-0 --setenv XDG_SESSION_TYPE wayland
+  --setenv GDK_BACKEND wayland --setenv QT_QPA_PLATFORM wayland --setenv ELECTRON_OZONE_PLATFORM_HINT wayland
+)
+
+sandbox+=("${program[@]}")
+
+# Last, so a share's own mode wins over the mounts above. Nothing a share can
+# name reaches the sandbox's own runtime directory or /tmp as a whole.
+sandbox+=("${shares[@]}")
+
+record=$(mktemp "$runtime/sandboxes/sandbox.XXXXXX")
+marker=${record##*.}
+
+# A private session bus, reachable only from this sandbox and the seat's own
+# commands, carries the app's accessibility tree (omarchy agent seat ui). The
+# supervisor runs it outside the sandbox, which gets its socket alone, bound
+# read-only; an app that finds no bus there still starts.
+session="$runtime/sandboxes/$marker.d"
+mkdir -p -m 0700 "$session" "$session/bus"
+bus="unix:path=$XDG_RUNTIME_DIR/agent-bus/bus"
+sandbox+=(
+  --ro-bind-try "$session/bus/bus" "$XDG_RUNTIME_DIR/agent-bus/bus"
+  --setenv DBUS_SESSION_BUS_ADDRESS "$bus" --setenv AT_SPI_BUS_ADDRESS "$bus"
+  --setenv GTK_A11Y atspi --setenv NO_AT_BRIDGE 0 --setenv QT_LINUX_ACCESSIBILITY_ALWAYS_ON 1
+)
+if [[ $cdp == "true" ]]; then
+  port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
+  echo "$port" >"$session/cdp-port"
+  set -- "$@" "--remote-debugging-port=$port"
+fi
+# The supervisor passes the pinned files on to bwrap, which mounts them and
+# closes them before the app starts; this launch needs them no longer.
+setsid "$sandbox_supervisor" "$record" "$marker" "${sandbox[@]}" -- "$@" >>"$runtime/apps.log" 2>&1 8>&- 9>&- &
+supervisor_pid=$!
+unpin
+# The supervisor starts the sandbox's bus before bwrap, which takes it up to
+# about 7 seconds when the bus or the registry does not answer; this wait
+# outlasts that, so the lock is held until bwrap is recorded.
+for _ in {1..1000}; do
+  { read -r tracked_supervisor _ _ tracked_bwrap _ <"$record"; } 2>/dev/null || true  # a sandbox that already ended took its record
+  (( ${tracked_bwrap:-0} != 0 )) && break
+  kill -0 "$supervisor_pid" 2>/dev/null || break
+  sleep 0.01
+done
+flock -u 9
+exec 9>&-
+
+# The supervisor writes its own pid to the record; $! is the same process
+# unless setsid had to fork.
+sandbox_pid=${tracked_supervisor:-$supervisor_pid}
+[[ $sandbox_pid =~ ^[0-9]+$ ]] || sandbox_pid=$supervisor_pid
+
+if [[ $wait_for_window == "true" ]]; then
+  # Counted in time, not rounds: each round asks the broker, which may be slow.
+  deadline=$((SECONDS + 15))
+  while ((SECONDS < deadline)); do
+    while read -r window pid; do
+      if in_sandbox "$pid"; then
+        echo "$window"
+        exit 0
+      fi
+    done < <(comm -13 <(sort <<<"$before") <(windows | sort) | sort -n)
+    sleep 0.1
+  done
+
+  echo "No agent window appeared within 15 seconds (see $runtime/apps.log)" >&2
+  exit 1
+fi

@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# omarchy:group=agent
+# omarchy:name=seat click-ui
+# omarchy:summary=Click a control in an agent seat window by its name
+# omarchy:args=<window> <name> | <window> <role>:<name> [--page <selector>] [--button left|right|middle] [--double]
+# omarchy:examples=omarchy agent seat click-ui 1 Save | omarchy agent seat click-ui 1 "push button:OK" | omarchy agent seat click-ui 1 link:Docs --double | omarchy agent seat click-ui 1 link:Docs --page 2
+
+# Finds the control with omarchy agent seat ui (an exact name, then a
+# case-insensitive one) and clicks its centre with the agent's own pointer, the
+# same click omarchy agent seat pointer makes, so focus moves exactly as it
+# would for a click by coordinates. It never clicks a control whose name only
+# contains the one given ("Delete" in "Delete account and data"): those are
+# listed as candidates and it exits 1, to be rerun with the full name. Several
+# matches list the candidates and exit 1; narrow them with a role. --page goes to
+# omarchy agent seat ui, to pick one of several pages a browser window could
+# show, or of several windows of an app that look alike; the other options go
+# to the pointer.
+
+usage() {
+  echo "Usage: omarchy agent seat click-ui <window> <name>|<role>:<name> [--page <selector>] [--button left|right|middle] [--double]" >&2
+  exit 1
+}
+
+(($# >= 2)) || usage
+
+window=$1
+query=$2
+shift 2
+
+page=()
+click=()
+while (($# > 0)); do
+  if [[ $1 == "--page" ]]; then
+    (($# >= 2)) || usage
+    page=(--page "$2")
+    shift 2
+  else
+    click+=("$1")
+    shift
+  fi
+done
+
+control=$(omarchy-agent-seat-ui "$window" --find "$query" --exact --json "${page[@]}") || exit
+
+# ui marks positions it could only guess, as in a browser page beside a side
+# panel or above docked DevTools.
+unverified=$(jq -r '.unverified // empty' <<<"$control")
+if [[ -n $unverified ]]; then
+  echo "Not clicking $query in window $window: $unverified, so where its controls are is a guess. Close that, or click by coordinates on omarchy agent seat screenshot $window." >&2
+  exit 1
+fi
+
+# In a browser page, ui asks what is at the control's centre: a sticky header
+# or a dialog on top of it would take the click.
+covered=$(jq -r '.covered // empty' <<<"$control")
+if [[ -n $covered ]]; then
+  echo "Not clicking $query in window $window: $covered. Close or scroll that away, or click by coordinates on omarchy agent seat screenshot $window." >&2
+  exit 1
+fi
+
+read -r x y < <(jq -r '"\(.x) \(.y)"' <<<"$control")
+omarchy-agent-seat-pointer "$window" click "$x" "$y" "${click[@]}" || exit
+jq -r '"Clicked \(.role) \(.name | @json) at \(.x),\(.y)"' <<<"$control"

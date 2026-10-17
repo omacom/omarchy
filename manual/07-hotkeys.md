@@ -80,6 +80,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Ctrl + E` | Emoji picker |
 | `Super + Ctrl + .` | Transcode media |
 | `Super + Shift + Ctrl + A` | Pick an AI agent |
+| `Super + Ctrl + Alt + A` | Jump to the agent seat |
 
 ## Adjustments
 

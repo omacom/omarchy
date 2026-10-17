@@ -535,6 +535,14 @@ assert(
   'menu leaves the appearance entries out of Trigger > Toggle'
 )
 assertEqual(triggerIds.indexOf('trigger.clipboard-history'), triggerIds.indexOf('trigger.emoji') + 1, 'menu places Clipboard History right after Emoji')
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'trigger.agents').map(item => [item.label, item.action, item.when || '']),
+  [
+    ['Agent Seat', 'omarchy-agent-seat-show --start', ''],
+    ['Stop Agent Seat', 'omarchy-agent-seat-stop', 'omarchy-agent-seat-status >/dev/null']
+  ],
+  'menu always offers the agent seat, starting it when stopped, and offers to stop it only while it runs'
+)
 assert(
   !defaultItems.some(item => item.id.startsWith('style.background-intro'))
     && defaultById['trigger.appearance.animations'].action === 'omarchy-toggle-animations',
