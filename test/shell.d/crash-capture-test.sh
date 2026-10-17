@@ -66,9 +66,20 @@ JOURNAL_ENTRIES="$TMPDIR/journal-entries"
 
 mkdir -p "$watch_bin" "$watch_home"
 
+# --output-fields is an allowlist the real journal applies silently, so the stub
+# applies it too: a field the watcher reads without asking for it arrives
+# missing here as it would on a real machine.
 cat >"$watch_bin/journalctl" <<'SH'
 #!/bin/bash
-cat "$JOURNAL_ENTRIES"
+fields=
+for arg; do
+  [[ $arg == --output-fields=* ]] && fields=${arg#--output-fields=}
+done
+if [[ -n $fields ]]; then
+  jq -c --arg f "$fields" '($f | split(",")) as $f | with_entries(select(.key | IN($f[])))' "$JOURNAL_ENTRIES"
+else
+  cat "$JOURNAL_ENTRIES"
+fi
 SH
 
 cat >"$watch_bin/omarchy-default-agent" <<'SH'
@@ -112,11 +123,21 @@ run_watch() {
 
   : >"$NOTIFY_LOG"
 
+  # Every XDG dir as well as HOME, so a desktop that exports them cannot hand
+  # the watcher its real state, none of the runner's tunables, and this tree's
+  # catalogs for the toast text rather than whichever OMARCHY_PATH it exports.
   PATH="$watch_bin:$ROOT/bin:$PATH" \
   JOURNAL_ENTRIES="$JOURNAL_ENTRIES" \
   NOTIFY_LOG="$NOTIFY_LOG" \
   HOME="$watch_home" \
-    "$ROOT/bin/omarchy-crash-watch" || status=$?
+  XDG_CONFIG_HOME="$watch_home/.config" \
+  XDG_STATE_HOME="$watch_home/.local/state" \
+  XDG_DATA_HOME="$watch_home/.local/share" \
+  XDG_CACHE_HOME="$watch_home/.cache" \
+  OMARCHY_PATH="$ROOT" \
+    env -u OMARCHY_CRASH_DIAGNOSIS_COOLDOWN_SECONDS -u OMARCHY_CRASH_DIAGNOSIS_MAX_SECONDS \
+      -u OMARCHY_CRASH_DEDUPE_SECONDS -u OMARCHY_CRASH_IGNORE \
+      "$ROOT/bin/omarchy-crash-watch" || status=$?
 
   (( status == 0 )) ||
     fail "the watcher exited $status rather than carrying on, so a mute takes the service down with it"
