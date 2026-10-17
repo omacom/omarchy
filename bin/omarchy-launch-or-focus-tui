@@ -9,6 +9,15 @@ else
   APP_ID="org.omarchy.$(basename "$1")"
 fi
 
-LAUNCH_COMMAND="omarchy-launch-tui $@"
+# The command crosses omarchy-launch-or-focus as one string and is re-parsed
+# there with eval, so each word is quoted first. An argument holding spaces or
+# shell characters would otherwise arrive as extra words or run as code.
+# printf %q with no arguments emits '', so leave the command with no extra word.
+if (($# > 0)); then
+  printf -v quoted '%q ' "$@"
+  LAUNCH_COMMAND="omarchy-launch-tui ${quoted% }"
+else
+  LAUNCH_COMMAND="omarchy-launch-tui"
+fi
 
 exec omarchy-launch-or-focus "$APP_ID" "$LAUNCH_COMMAND"
