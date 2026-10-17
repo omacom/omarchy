@@ -58,6 +58,26 @@ os.environ["KIMI_CODE_HOME"] = str(test_home / "kimi-code")
 (code_dir / "kimi-code.json").write_text("{}")
 summary["codeStorePreferred"] = scanner.credentials_dir() == code_dir
 
+# A global (kimi.ai) sign-in is filed under the slot config.toml names, not the
+# default kimi-code.json, and brings its own login and API hosts.
+del os.environ["KIMI_CODE_HOME"]
+scoped_home = test_home / "home" / ".kimi-code"
+(scoped_home / "credentials").mkdir(parents=True, exist_ok=True)
+(scoped_home / "config.toml").write_text('''
+[providers."managed:kimi-code"]
+base_url = "https://api.kimi.ai/coding/v1"
+
+[providers."managed:kimi-code".oauth]
+key = "oauth/kimi-code-env-0e4f99c69cc27850"
+oauth_host = "https://auth.kimi.ai"
+''')
+(scoped_home / "credentials" / "kimi-code-env-0e4f99c69cc27850.json").write_text("{}")
+summary["scopedSlotFound"] = scanner.credentials_dir() == scoped_home / "credentials"
+summary["scopedLogin"] = scanner.kimi_login(scoped_home)
+(scoped_home / "config.toml").write_text('[providers."managed:kimi-code".oauth]\nkey = "oauth/../../escape"\n')
+summary["slotConfined"] = scanner.kimi_login(scoped_home)["slot"]
+os.environ["KIMI_CODE_HOME"] = str(test_home / "kimi-code")
+
 # A fresh token is used as-is; an expired one is refreshed under the lock and
 # the rotated single-use refresh token is persisted back.
 scanner.CREDENTIALS_DIR = code_dir
@@ -130,6 +150,10 @@ pass "Kimi collector prefers KIMI_API_KEY over stored credentials"
 [[ $(jq -r '"\(.codeStorePreferred):\(.legacyFallback)"' <<<"$result") == "true:true" ]] ||
   fail "Kimi collector prefers the kimi-code store and falls back to legacy kimi-cli" "$result"
 pass "Kimi collector prefers the kimi-code store and falls back to legacy kimi-cli"
+
+[[ $(jq -c '[.scopedSlotFound, .scopedLogin, .slotConfined]' <<<"$result") == '[true,{"slot":"kimi-code-env-0e4f99c69cc27850","oauth_host":"https://auth.kimi.ai","base_url":"https://api.kimi.ai/coding/v1"},"kimi-code"]' ]] ||
+  fail "Kimi collector follows a global sign-in to the slot config.toml names" "$result"
+pass "Kimi collector follows a global sign-in to the slot config.toml names"
 
 [[ $(jq -r '"\(.freshTokenUsed):\(.refreshRotates)"' <<<"$result") == "true:true" ]] ||
   fail "Kimi collector refreshes expired tokens and persists the rotated pair" "$result"
