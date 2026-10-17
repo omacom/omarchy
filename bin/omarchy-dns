@@ -70,7 +70,7 @@ require_root() {
 }
 
 networkmanager_global_dns() {
-  [[ -f $NM_DNS_CONF ]] || return 0
+  [[ -r $NM_DNS_CONF ]] || return 0
 
   awk -F= '
     /^[[:space:]]*#/ { next }
