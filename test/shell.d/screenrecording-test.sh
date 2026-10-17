@@ -290,6 +290,8 @@ pass "webcam resize hotkeys are configured"
 
 grep -F -- '--wayland-app-id="WebcamOverlay-$WEBCAM_SIZE"' \
   "$ROOT/bin/omarchy-capture-screenrecording" >/dev/null || fail "webcam uses a dedicated size-specific app id"
+grep -F -- '--load-scripts=no' "$ROOT/bin/omarchy-capture-screenrecording" >/dev/null ||
+  fail "webcam overlay loads no mpv scripts, so mpv-mpris can't expose it to media pausing"
 
 webcam_rules="$ROOT/default/hypr/apps/webcam-overlay.lua"
 grep -F 'move = { "(monitor_w-monitor_h*4/25-40)", "(monitor_h-monitor_h*9/50-40)" }' "$webcam_rules" >/dev/null || \

@@ -119,7 +119,7 @@ start_webcam_overlay() {
     --demuxer-lavf-o="$capture_options" \
     '--vf=lavfi=[crop=ih*8/9:ih]' \
     --title="WebcamOverlay" --wayland-app-id="WebcamOverlay-$WEBCAM_SIZE" \
-    --no-border --no-audio --no-osc --osd-level=0 \
+    --no-border --no-audio --no-osc --osd-level=0 --load-scripts=no \
     --really-quiet 9>&- &>/dev/null &
 
   # The move has to settle before gpu-screen-recorder starts, or the camera is
