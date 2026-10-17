@@ -63,12 +63,76 @@ function screensaverWindowsAfter(windows, address, visible) {
   }
 }
 
+// Hyprland reports window addresses without the 0x prefix on socket events but
+// with it in hyprctl, so normalize to the hyprctl form before comparing or closing.
+function normalizeWindowAddress(address) {
+  var raw = String(address || "").trim()
+  var hex = raw.indexOf("0x") === 0 ? raw.slice(2) : raw
+  if (!/^[0-9a-fA-F]+$/.test(hex)) return ""
+  return "0x" + hex.toLowerCase()
+}
+
+// Windows this idle cycle opened, keyed by normalized address. Only windows
+// opened while the cycle's screensaver launch was in progress are owned; a
+// screensaver the user started themselves is never added.
+function ownedWindowsAfterOpen(owned, address, ownsWindow) {
+  var next = {}
+  for (var existing in owned || {}) {
+    if (owned[existing]) next[existing] = true
+  }
+
+  var key = normalizeWindowAddress(address)
+  if (ownsWindow && key) next[key] = true
+  return next
+}
+
+function ownedWindowsAfterClose(owned, address) {
+  var next = {}
+  var key = normalizeWindowAddress(address)
+  for (var existing in owned || {}) {
+    if (owned[existing] && existing !== key) next[existing] = true
+  }
+  return next
+}
+
+function addressesToClose(owned) {
+  var addresses = []
+  for (var existing in owned || {}) {
+    if (owned[existing]) addresses.push(existing)
+  }
+  return addresses
+}
+
+// A cancelled launch opens one window per screen. Only that many late windows
+// can belong to it; anything beyond that was started by someone else.
+function lateWindowBudget(screenCount, ownedCount) {
+  return Math.max(0, (screenCount || 0) - (ownedCount || 0))
+}
+
+// Closes by address rather than by pattern, so only the windows this cycle
+// opened are affected.
+function closeWindowsCommand(addresses) {
+  var commands = []
+  for (var i = 0; i < addresses.length; i++) {
+    var key = normalizeWindowAddress(addresses[i])
+    if (!key) continue
+    commands.push("hyprctl dispatch \"hl.dsp.window.close({ window = \\\"address:" + key + "\\\" })\" >/dev/null 2>&1")
+  }
+  return commands.length ? commands.join("; ") : "true"
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
     firstIdleTimeout: firstIdleTimeout,
     delayAfterFirstIdle: delayAfterFirstIdle,
     eventParts: eventParts,
-    screensaverWindowsAfter: screensaverWindowsAfter
+    screensaverWindowsAfter: screensaverWindowsAfter,
+    normalizeWindowAddress: normalizeWindowAddress,
+    ownedWindowsAfterOpen: ownedWindowsAfterOpen,
+    ownedWindowsAfterClose: ownedWindowsAfterClose,
+    addressesToClose: addressesToClose,
+    closeWindowsCommand: closeWindowsCommand,
+    lateWindowBudget: lateWindowBudget
   }
 }
