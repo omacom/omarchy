@@ -1,0 +1,8 @@
+[Unit]
+Description=Restore BCM4377 radios after a failed suspend unload
+Documentation=https://github.com/omacom/omarchy/issues/11264
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-t2-bcm4377-suspend recover
+TimeoutStartSec=60
