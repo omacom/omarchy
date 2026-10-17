@@ -16,6 +16,13 @@ export ROOT
 # this at a file of their own.
 export OMARCHY_LANGUAGE_FILE=$ROOT/test/.no-language
 
+# The commands under test call each other — omarchy-battery-status runs
+# omarchy-i18n, for one — so a checkout run needs the checkout's own bin/ on
+# PATH and the root it belongs to, the way an installed one has them. A test
+# that stubs a command prepends its own directory, which still wins.
+export PATH="$ROOT/bin:$PATH"
+export OMARCHY_PATH="$ROOT"
+
 pass() {
   printf 'ok - %s\n' "$1"
 }
