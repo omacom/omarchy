@@ -17,7 +17,10 @@ MODES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts"
 # saved before floating existed name no mode, and a workspace without a mode of
 # its own follows the default layout.
 if [[ $WORKSPACE_ID =~ ^[0-9]+$ ]] && (( WORKSPACE_ID >= 1 )); then
-  MODE=$(sed -n 's/.*mode = "\([a-z]*\)".*/\1/p' "$MODES_DIR/$WORKSPACE_ID.lua" 2>/dev/null)
+  # [a-z] is a locale collation range, not ASCII: under tr_TR.UTF-8 it does
+  # not match i, so a saved "floating" reads back empty and Super+L reports the
+  # wrong mode. Pin the C locale where the values are ASCII.
+  MODE=$(LC_ALL=C sed -n 's/.*mode = "\([a-z]*\)".*/\1/p' "$MODES_DIR/$WORKSPACE_ID.lua" 2>/dev/null)
 
   if [[ -z $MODE && -f $MODES_DIR/default.lua ]]; then
     MODE=$(omarchy-hyprland-workspace-layout-default)
