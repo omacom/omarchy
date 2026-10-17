@@ -1,4 +1,5 @@
 [colors-dark]
+alpha={{ terminal_opacity }}
 foreground={{ foreground_strip }}
 background={{ background_strip }}
 # Blur only applies while the background is see-through, as with Glassy windows,
