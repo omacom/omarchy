@@ -79,13 +79,32 @@ ShellRoot {
     panel.focusSection = "header"
     panel.testKeys.moveRequested(0, 1)
     check(panel.focusSection === "portal", "down from header reaches portal")
+    panel.wiredOnlyAvailable = false
     panel.testKeys.moveRequested(0, 1)
-    check(panel.focusSection === "dns", "down from portal skips absent band")
+    check(panel.focusSection === "dns", "down from portal skips absent band and wired-only")
     panel.testKeys.moveRequested(0, -1)
     check(panel.focusSection === "portal", "up from DNS reaches portal")
+    panel.wiredOnlyAvailable = true
+    panel.testKeys.moveRequested(0, 1)
+    check(panel.focusSection === "wired", "down from portal reaches the wired-only switch when shown")
+    panel.testKeys.moveRequested(0, 1)
+    check(panel.focusSection === "dns", "down from wired-only reaches DNS")
+    panel.testKeys.moveRequested(0, -1)
+    check(panel.focusSection === "wired", "up from DNS reaches the wired-only switch")
+    panel.testKeys.moveRequested(0, -1)
+    check(panel.focusSection === "portal", "up from wired-only reaches portal")
     panel.bandAvailable = ["2.4", "5"]
     panel.testKeys.moveRequested(0, 1)
     check(panel.focusSection === "band", "down from portal reaches available band")
+    panel.testKeys.moveRequested(0, 1)
+    check(panel.focusSection === "wired", "down from band reaches the wired-only switch")
+    panel.testKeys.moveRequested(0, -1)
+    check(panel.focusSection === "band", "up from wired-only reaches band")
+    panel.wiredOnlyAvailable = false
+    panel.testKeys.moveRequested(0, 1)
+    check(panel.focusSection === "dns", "down from band skips a hidden wired-only switch")
+    panel.testKeys.moveRequested(0, -1)
+    check(panel.focusSection === "band", "up from DNS reaches band")
     panel.testKeys.moveRequested(0, -1)
     check(panel.focusSection === "portal", "up from band reaches portal")
     panel.testKeys.activateRequested()

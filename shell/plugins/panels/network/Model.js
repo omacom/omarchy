@@ -140,6 +140,24 @@ function parseBandStatus(raw) {
   }
 }
 
+// `omarchy-network-wired-only` prints tab-separated key/value lines. Missing
+// or empty output reads as off and unavailable, so a machine without the
+// command's prerequisites never shows the section.
+function parseWiredOnlyStatus(raw) {
+  var next = parseKeyValue(raw)
+
+  return {
+    enabled: next.enabled === "true",
+    available: next.available === "true"
+  }
+}
+
+function wiredOnlyTooltip(enabled, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (enabled) return t("network.wiredOnlyLeaveTooltip", "Leave Wi-Fi on while Ethernet is connected")
+  return t("network.wiredOnlyTooltip", "Turn Wi-Fi off while Ethernet is connected")
+}
+
 function decodeIwSsid(value) {
   var raw = String(value || "")
 
@@ -421,6 +439,8 @@ if (typeof module !== "undefined") {
     bandSectionTitle: bandSectionTitle,
     bandTooltip: bandTooltip,
     parseBandStatus: parseBandStatus,
+    parseWiredOnlyStatus: parseWiredOnlyStatus,
+    wiredOnlyTooltip: wiredOnlyTooltip,
     decodeIwSsid: decodeIwSsid,
     parseKeyValue: parseKeyValue,
     throughputState: throughputState,

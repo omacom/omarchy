@@ -1,0 +1,344 @@
+#!/bin/bash
+
+# omarchy:summary=Turn Wi-Fi off while Ethernet is connected, and back on when it is unplugged
+# omarchy:group=network
+# omarchy:args=[on|off|toggle]
+# omarchy:examples=omarchy network wired only | omarchy network wired only on | omarchy network wired only off
+
+set -euo pipefail
+
+# Keeps a docked laptop single-homed. With Ethernet and Wi-Fi both up there are
+# two default routes and no source policy routing, so packets bound to the Wi-Fi
+# address still leave over the cable, and some networks punish that. Off by
+# default, since a cable is not always a way out.
+#
+# The setting is the per-user toggle flag. The NetworkManager dispatcher hook
+# from install/config/network-wired-only.sh runs as root with no user session,
+# so --dispatch honors the flags of logged-in users, or of every home before
+# anyone has logged in, and reconciles again on every cable event. The radio is
+# only given back when this command took it: a marker beside the flag records
+# that, so a radio the user switched off themselves stays off. The marker is
+# honored from any home, since the radio is shared and the user who was logged
+# in when it was taken may not be the one around when the cable goes.
+
+FLAG_NAME="wired-only"
+MARKER_NAME="wired-only-radio-off"
+HOME_ROOT="${OMARCHY_WIRED_ONLY_HOME_ROOT:-/home}"
+NET_CLASS_PATH="${OMARCHY_NET_CLASS_PATH:-/sys/class/net}"
+HOOK=/etc/NetworkManager/dispatcher.d/50-omarchy-wired-only
+
+# LC_ALL=C because nmcli translates state words such as "connected", which
+# would silently stop matching under a non-English session.
+nm_get() {
+  LC_ALL=C nmcli -e no -g "$@" 2>/dev/null
+}
+
+# yes, no, or unknown when NetworkManager cannot be asked. A device NetworkManager
+# did not activate itself reports "connected (externally)" and still counts.
+wired_state() {
+  local table
+
+  if ! table=$(nm_get DEVICE,TYPE,STATE device status); then
+    echo unknown
+    return
+  fi
+
+  if awk -F: '$2 == "ethernet" && $3 ~ /^connected/ { found = 1 } END { exit !found }' <<<"$table"; then
+    echo yes
+  else
+    echo no
+  fi
+}
+
+# on, off, or unknown.
+radio_state() {
+  case "$(nm_get WIFI general || true)" in
+    enabled) echo on ;;
+    disabled) echo off ;;
+    *) echo unknown ;;
+  esac
+}
+
+# Both a radio to switch and a port to plug in; without either the setting has
+# nothing to act on and the panel hides it. Devices come from /sys, which the
+# menu's guard can afford on every open (an nmcli call costs tens of ms). A
+# port that only exists while docked still counts once NetworkManager has a
+# wired profile saved for it, so the setting can be turned on before docking.
+available() {
+  local dev has_wifi=0 has_wired=0
+
+  for dev in "$NET_CLASS_PATH"/*; do
+    [[ -e $dev/device ]] || continue
+    if [[ -d $dev/wireless ]]; then
+      has_wifi=1
+    elif [[ $(<"$dev/type") == 1 ]]; then
+      has_wired=1
+    fi
+  done
+
+  ((has_wifi)) || return 1
+  ((has_wired)) && return 0
+  nm_get TYPE connection show | grep -qx 802-3-ethernet
+}
+
+enabled_for_user() {
+  omarchy-toggle-enabled "$FLAG_NAME"
+}
+
+flag_in() {
+  [[ -f $1/.local/state/omarchy/toggles/$FLAG_NAME ]]
+}
+
+# Homes of the logged-in regular users, wherever they live. Regular users
+# only: at the login screen the greeter is the one logged in, and it must not
+# stand in for the people whose setting this is.
+session_homes() {
+  local user home
+
+  # An account the directory cannot resolve is skipped, never the rest of
+  # the list with it.
+  while read -r user; do
+    home=$(getent passwd "$user" 2>/dev/null | cut -d: -f6) || home=""
+    if [[ -n $home ]]; then echo "$home"; fi
+  done < <(loginctl list-users --no-legend 2>/dev/null | awk '$1 >= 1000 && $1 < 60000 { print $2 }')
+}
+
+# The home whose flag the hook honors: a logged-in user's, or before anyone has
+# logged in any home's, so a docked boot comes up single-homed too.
+flagged_home() {
+  local home
+  local -a homes=()
+
+  mapfile -t homes < <(session_homes)
+  if ((${#homes[@]} == 0)); then homes=("$HOME_ROOT"/*); fi
+
+  for home in "${homes[@]}"; do
+    if flag_in "$home"; then
+      echo "$home"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# Runs a command as the owner of a home. The hook is root, and a path under a
+# home is the owner's to rearrange: a symlink there would send root's write or
+# delete anywhere. As the owner, the command can only touch what they can.
+as_owner() {
+  local home=$1
+  shift
+
+  if ((EUID == 0)); then
+    runuser -u "$(stat -c %U "$home")" -- "$@"
+  else
+    "$@"
+  fi
+}
+
+# The marker lives beside the flag and belongs to that user, whichever of the
+# hook or the command writes it, so either can clear it later.
+claim_marker() {
+  local home=$1
+
+  as_owner "$home" install -m 644 /dev/null "$home/.local/state/omarchy/$MARKER_NAME"
+}
+
+release_marker() {
+  local marker=$1
+
+  as_owner "${marker%/.local/state/omarchy/*}" rm -f "$marker"
+}
+
+# The markers this run may act on: the hook's every home's, a user's command
+# only their own. Another user's record is the hook's to clear, not theirs.
+# The hook runs from NetworkManager's dispatcher with no HOME at all, so the
+# caller's home is only consulted when there is one.
+MARKER_SCOPE=own
+
+markers() {
+  local home
+  local -a homes=()
+
+  # Every home under the root plus the logged-in users', so a user whose home
+  # lives elsewhere still gets their radio back.
+  if [[ $MARKER_SCOPE == "all" ]]; then
+    mapfile -t homes < <(session_homes)
+    homes+=("$HOME_ROOT"/*)
+  elif [[ -n ${HOME:-} ]]; then
+    homes=("$HOME")
+  fi
+
+  for home in "${homes[@]}"; do
+    if [[ -f $home/.local/state/omarchy/$MARKER_NAME ]]; then
+      echo "$home/.local/state/omarchy/$MARKER_NAME"
+    fi
+  done | sort -u
+}
+
+# Bring the radio in line with the setting and the cable. The radio is only
+# switched on when a marker says this command switched it off. The marker is
+# claimed before the radio goes off and dropped again if the switch is refused,
+# so there is never a radio off without the record that gives it back.
+apply() {
+  local enabled=$1 home=$2
+  local wired radio held marker
+
+  wired=$(wired_state)
+  radio=$(radio_state)
+  if [[ $wired == "unknown" || $radio == "unknown" ]]; then
+    echo "Error: could not read the network state from NetworkManager." >&2
+    return 1
+  fi
+
+  held=$(markers)
+  if [[ $enabled == "true" && $wired == "yes" ]]; then
+    if [[ $radio == "on" ]]; then
+      claim_marker "$home" || return 1
+      if ! nmcli radio wifi off; then
+        release_marker "$home/.local/state/omarchy/$MARKER_NAME"
+        return 1
+      fi
+    fi
+  elif [[ -n $held ]]; then
+    if [[ $radio == "off" ]]; then
+      nmcli radio wifi on || return 1
+    fi
+    while read -r marker; do
+      release_marker "$marker"
+    done <<<"$held"
+  fi
+}
+
+# The hook and the command both reconcile, so each takes the same lock and reads
+# the setting inside it rather than acting on a reading the other just changed.
+# flock needs only a readable file that everyone opens by the same name: the
+# installed hook is root-owned, world-readable and never moves. A checkout
+# without the hook (tests, dev) locks on a file made readable on purpose, and
+# root never opens one in /tmp, where any user could have planted it.
+take_lock() {
+  local lock=${OMARCHY_WIRED_ONLY_LOCK:-$HOOK}
+
+  if [[ ! -e $lock ]]; then
+    if ((EUID == 0)); then
+      lock=/run/lock/omarchy-wired-only.lock
+    else
+      lock=/tmp/omarchy-wired-only.lock
+    fi
+    if [[ ! -e $lock ]]; then
+      install -m 644 /dev/null "$lock" 2>/dev/null || true
+    fi
+  fi
+  exec {lock_fd}<"$lock"
+  flock -w 10 "$lock_fd"
+}
+
+print_status() {
+  local enabled=false avail=false
+
+  if enabled_for_user; then enabled=true; fi
+  if available; then avail=true; fi
+
+  printf 'enabled\t%s\n' "$enabled"
+  printf 'available\t%s\n' "$avail"
+}
+
+# Bring the radio in line with the caller's own setting. The session runs this
+# at login: a laptop shut down with its radio held and started again without
+# the dock gets no cable event, and this is what gives the radio back.
+reconcile() {
+  if enabled_for_user; then
+    apply true "$HOME"
+  else
+    apply false "$HOME"
+  fi
+}
+
+set_enabled() {
+  local before=off
+
+  take_lock
+  if enabled_for_user; then before=on; fi
+  omarchy-toggle "$FLAG_NAME" "$1"
+  reconcile && return 0
+
+  # A preference that could not be applied is not saved, so the panel's switch
+  # keeps showing what is actually in force.
+  omarchy-toggle "$FLAG_NAME" "$before"
+  return 1
+}
+
+# NetworkManager runs dispatcher hooks for every device. Only a wired link
+# coming or going changes anything here: Wi-Fi events would re-enter this on
+# the very radio change it just made, and the loopback comes up at boot before
+# the port has been found, which would give the radio back only to take it
+# again seconds later.
+dispatch() {
+  local iface=$1 action=$2
+  local type home
+
+  case "$action" in
+    up | down) ;;
+    *) return 0 ;;
+  esac
+
+  # A dock's NIC is already gone when its down event runs, so the device cannot
+  # be asked; the connection profile still can. A device that cannot be
+  # identified at all is treated as wired: the radio itself never vanishes.
+  type=$(nm_get GENERAL.TYPE device show "$iface" || true)
+  if [[ -z $type && -n ${CONNECTION_UUID:-} ]]; then
+    type=$(nm_get connection.type connection show "$CONNECTION_UUID" || true)
+  fi
+  case "$type" in
+    ethernet | 802-3-ethernet | "") ;;
+    *) return 0 ;;
+  esac
+
+  # With nobody's toggle on there is still a marker to honor when the cable
+  # goes: the radio belongs to whoever is here now, not to the user it was
+  # taken for.
+  MARKER_SCOPE=all
+  take_lock
+  if home=$(flagged_home); then
+    apply true "$home"
+  else
+    apply false ""
+  fi
+}
+
+usage() {
+  echo "Usage: omarchy-network-wired-only [on|off|toggle]" >&2
+}
+
+if (($# == 0)); then
+  print_status
+  exit 0
+fi
+
+case "$1" in
+  on | off | toggle)
+    if (($# != 1)); then
+      usage
+      exit 1
+    fi
+    set_enabled "$1"
+    ;;
+  --available)
+    available
+    ;;
+  --reconcile)
+    take_lock
+    reconcile
+    ;;
+  --dispatch)
+    if (($# != 3)); then
+      usage
+      exit 1
+    fi
+    dispatch "$2" "$3"
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

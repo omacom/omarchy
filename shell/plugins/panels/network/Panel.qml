@@ -120,9 +120,9 @@ Panel {
   property bool cursorActive: false
 
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
-  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
-  // within header actions, band pills, or DNS providers.
-  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
+  // header actions ⇄ portal ⇄ band ⇄ wired-only ⇄ DNS row ⇄ Wi-Fi networks.
+  // h/l move within header actions, band pills, or DNS providers.
+  property string focusSection: "dns"  // "header" | "portal" | "band" | "wired" | "dns" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
@@ -169,6 +169,21 @@ Panel {
   // The band section has up to two cursor rows: the Automatic switch on the
   // header line, then the pills. Same shape as wifiActionFocused.
   property bool bandAutoFocused: true
+  // Wired-only state from `omarchy-network-wired-only`: whether the toggle is
+  // on, and whether this machine has both a radio and a port for it to act on.
+  property bool wiredOnlyEnabled: false
+  property bool wiredOnlyAvailable: false
+  // True while a change is in flight. The switch shows the asked-for state at
+  // once; the status poll after the command exits confirms or corrects it.
+  property bool wiredOnlyBusy: false
+  // A poll that started before an action reports the state before it, and
+  // one started during the action may report a preference the command then
+  // took back. Each action bumps the generation when it starts and when it
+  // ends; a result from an older poll is dropped and a fresh one follows.
+  property int wiredOnlyGeneration: 0
+  property int wiredOnlyPollGeneration: 0
+  readonly property bool canToggleWiredOnly: networkManagerAvailable && wiredOnlyAvailable
+  readonly property string wiredOnlyTooltip: Model.wiredOnlyTooltip(wiredOnlyEnabled, Commons.I18n.t)
 
   onHeaderActionCountChanged: clampHeaderIndex()
 
@@ -184,6 +199,10 @@ Panel {
       focusSection = "dns"
       bandAutoFocused = true
     }
+  }
+
+  onCanToggleWiredOnlyChanged: {
+    if (!canToggleWiredOnly && focusSection === "wired") focusSection = "dns"
   }
 
   // Collapsing the pills out from under the cursor would leave it pointing at
@@ -268,6 +287,37 @@ Panel {
     }
     if (bandCurrent === "") return
     setBand(bandCurrent)
+  }
+
+  function pollWiredOnly() {
+    if (wiredOnlyProc.running) return
+    wiredOnlyPollGeneration = wiredOnlyGeneration
+    wiredOnlyProc.running = true
+  }
+
+  function updateWiredOnly(raw) {
+    // The collector waits for the exit, so a stale result can start its own
+    // replacement here rather than wait for the next tick.
+    if (wiredOnlyPollGeneration !== wiredOnlyGeneration) {
+      pollWiredOnly()
+      return
+    }
+
+    var status = Model.parseWiredOnlyStatus(raw)
+    wiredOnlyAvailable = status.available
+    if (!wiredOnlyBusy) wiredOnlyEnabled = status.enabled
+  }
+
+  // Flip the setting and let the command bring the radio in line with it. The
+  // command leaves the setting as it was when the radio cannot be switched, so
+  // the poll after it exits also undoes a switch that did not take.
+  function toggleWiredOnly() {
+    if (wiredOnlyBusy) return
+    wiredOnlyEnabled = !wiredOnlyEnabled
+    wiredOnlyBusy = true
+    wiredOnlyGeneration++
+    wiredOnlyActionProc.command = ["omarchy-network-wired-only", wiredOnlyEnabled ? "on" : "off"]
+    wiredOnlyActionProc.running = true
   }
 
   // Park the cursor on the pinned band, so opening the panel highlights the
@@ -580,6 +630,7 @@ Panel {
       bandProc.command = ["omarchy-network-band"]
       bandProc.running = true
     }
+    pollWiredOnly()
     // A closed panel has no nearby-network list to fill, and bare refresh()
     // reaches here from action completion, timeouts and construction.
     if (opened && wifiDevice) {
@@ -972,6 +1023,28 @@ Panel {
     }
   }
 
+  Process {
+    id: wiredOnlyProc
+    command: ["omarchy-network-wired-only"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.updateWiredOnly(text)
+    }
+  }
+
+  // Own runner for the wired-only switch, so it never queues behind a DNS or
+  // band change in flight on actionProc.
+  Process {
+    id: wiredOnlyActionProc
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      root.wiredOnlyBusy = false
+      root.wiredOnlyGeneration++
+      root.refresh()
+    }
+  }
+
   // Slower than detailsPoll on purpose: this shells out to nmcli several times,
   // and band availability only moves when a scan turns up a new BSSID.
   Timer {
@@ -980,6 +1053,7 @@ Panel {
     repeat: true
     running: root.opened
     onTriggered: {
+      root.pollWiredOnly()
       if (bandProc.running) return
       bandProc.command = ["omarchy-network-band"]
       bandProc.running = true
@@ -1136,7 +1210,7 @@ Panel {
                 root.focusSection = "band"
                 root.bandAutoFocused = true
               } else {
-                root.focusSection = "dns"
+                root.focusSection = root.canToggleWiredOnly ? "wired" : "dns"
               }
             }
           } else if (root.focusSection === "portal") {
@@ -1144,7 +1218,7 @@ Panel {
               root.focusSection = "header"
               root.headerIndex = 0
             } else if (dy > 0) {
-              root.focusSection = root.canSelectBand ? "band" : "dns"
+              root.focusSection = root.canSelectBand ? "band" : (root.canToggleWiredOnly ? "wired" : "dns")
               root.bandAutoFocused = true
             }
           } else if (root.focusSection === "band") {
@@ -1162,14 +1236,32 @@ Panel {
             } else if (root.bandAutoFocused && root.bandPillsVisible) {
               root.bandAutoFocused = false
             } else {
+              root.focusSection = root.canToggleWiredOnly ? "wired" : "dns"
+            }
+          } else if (root.focusSection === "wired") {
+            // One row: k climbs to whatever is above it, j drops to DNS.
+            if (dy < 0) {
+              if (root.canSelectBand) {
+                root.focusSection = "band"
+                root.bandAutoFocused = !root.bandPillsVisible
+              } else if (root.hasCaptivePortal) {
+                root.focusSection = "portal"
+              } else if (root.headerActionCount > 0) {
+                root.focusSection = "header"
+                root.headerIndex = 0
+              }
+            } else {
               root.focusSection = "dns"
             }
           } else if (root.focusSection === "dns") {
-            // k from DNS moves up into the band section when it's on screen,
-            // then the disconnect button; otherwise stays put. j drops into the
-            // wifi list if there's anywhere to land.
+            // k from DNS moves up into the wired-only switch or the band
+            // section when they're on screen, then the disconnect button;
+            // otherwise stays put. j drops into the wifi list if there's
+            // anywhere to land.
             if (dy < 0) {
-              if (root.canSelectBand) {
+              if (root.canToggleWiredOnly) {
+                root.focusSection = "wired"
+              } else if (root.canSelectBand) {
                 root.focusSection = "band"
                 root.bandAutoFocused = !root.bandPillsVisible
               } else if (root.hasCaptivePortal) {
@@ -1204,6 +1296,7 @@ Panel {
           if (root.focusSection === "header") root.activateHeader()
           else if (root.focusSection === "portal") root.openCaptivePortal()
           else if (root.focusSection === "band") root.activateBand()
+          else if (root.focusSection === "wired") root.toggleWiredOnly()
           else if (root.focusSection === "dns") root.activateDns()
           else root.activateSelected()
         }
@@ -1574,6 +1667,73 @@ Panel {
           }
         }
 
+      }
+
+      // Wi-Fi radio: off when wired. The same shape as the band section's
+      // header line, a rule on the right that qualifies the whole section.
+      // Shown whenever the machine has both a radio and a port, whichever is
+      // in use, since the setting is about what happens when the cable goes in.
+      PanelSeparator {
+        visible: root.canToggleWiredOnly
+        foreground: root.bar.foreground
+      }
+
+      Item {
+        visible: root.canToggleWiredOnly
+        width: parent.width
+        implicitHeight: Math.max(wiredOnlyHeader.implicitHeight, wiredOnlyRow.implicitHeight)
+
+        PanelSectionHeader {
+          id: wiredOnlyHeader
+          text: Commons.I18n.t("network.wifiRadio")
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+        }
+
+        Row {
+          id: wiredOnlyRow
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: Style.space(6)
+
+          PanelSectionHeader {
+            id: wiredOnlyLabel
+            text: Commons.I18n.t("network.offWhenWired")
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            anchors.verticalCenter: parent.verticalCenter
+          }
+
+          // Sized and centred like the band section's Automatic switch, for
+          // the same reason: the label's topPadding sits its text below its
+          // box centre.
+          ToggleSwitch {
+            id: wiredOnlySwitch
+            trackHeight: Math.round(wiredOnlyLabel.font.pixelSize * 1.2)
+            cursorPad: Style.space(3)
+            anchors.verticalCenter: wiredOnlyLabel.verticalCenter
+            anchors.verticalCenterOffset: Math.round(wiredOnlyLabel.topPadding / 2)
+            checked: root.wiredOnlyEnabled
+            busy: root.wiredOnlyBusy
+            hasCursor: root.cursorActive && root.focusSection === "wired"
+            foreground: root.bar.foreground
+            onToggled: root.toggleWiredOnly()
+
+            onHovered: function(isHovered) {
+              if (!isHovered) return
+              root.cursorActive = true
+              root.focusSection = "wired"
+            }
+
+            PanelToolTip {
+              visible: wiredOnlySwitch.containsMouse
+              text: root.wiredOnlyTooltip
+              fontFamily: root.bar.fontFamily
+            }
+          }
+        }
       }
 
       // DNS provider selection.

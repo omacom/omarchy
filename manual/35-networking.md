@@ -22,6 +22,10 @@ If your router puts 2.4GHz, 5GHz, and 6GHz on the same network name, your laptop
 
 This pins the band rather than a specific access point, so you keep roaming between APs normally.
 
+## Wired only
+
+With Ethernet plugged in and Wi-Fi still on, a laptop has two ways out and some of its traffic takes the wrong one, which a few networks punish. Flip _Off When Wired_ under _Wi-Fi Radio_ in the network panel (or `omarchy network wired only on`) and the Wi-Fi radio switches off whenever Ethernet is connected, then back on when you unplug. It only gives back a radio it switched off itself, so Wi-Fi you turned off on purpose stays off. It's off by default, since a cable isn't always a way to the internet.
+
 ## How fast is it?
 
 _Trigger > Speed Test > Network Speed Test_ measures your actual up and down speed with a pair of dials. From the terminal it's `omarchy network speedtest down` or `up`. (There's a disk speed test sitting next to it in that menu, if you're benchmarking the other bottleneck.)

@@ -345,6 +345,9 @@
   "trigger.hardware.touchscreen": {
     "label": "Touchscreen"
   },
+  "trigger.hardware.wired-only": {
+    "label": "Wired Only"
+  },
   "trigger.reminder.set": {
     "label": "Set one"
   },
