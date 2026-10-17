@@ -102,6 +102,7 @@
   "games.pickGame": "Retro game",
   "games.startHint": "Start it with Super + Space",
   "gpu.enableDedicated": "Enable dedicated GPU and reboot?",
+  "gpu.restoreIntegrated": "GPU mode is stuck on Vfio. Restore integrated GPU and reboot?",
   "gpu.useIntegrated": "Use only integrated GPU and reboot?",
   "hermes.deleteData": "Also delete ~/.hermes and ~/.config/Hermes (%1: chats, memories, skills, connections and tokens)?",
   "input.touchpadDisabled": "Touchpad disabled",

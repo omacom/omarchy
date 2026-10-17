@@ -55,8 +55,10 @@ case "$1" in
     # small delay so the device is fully re-enumerated
     sleep 4
 
-    # force-bind dGPU to vfio (fully detached from nvidia)
-    switch_mode Vfio
+    # force-bind dGPU to vfio (fully detached from nvidia). set -e would end
+    # the hook here on a failed confirm, and supergfxd has already persisted
+    # the Vfio request, so the restore below has to run either way.
+    switch_mode Vfio || true
 
     # then go back to Integrated, which powers it off again
     switch_mode Integrated
