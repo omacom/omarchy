@@ -268,6 +268,30 @@ grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
 
+# Hyprland can bind any of the eight modifier bits, but the menu used to
+# enumerate only SHIFT/CTRL/ALT/SUPER combinations. A Caps Lock remapped with
+# `caps:hyper` binds on Mod3, which fell through and rendered as "32 + K".
+eval "$(sed -n '/^modmask_to_text()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings")"
+
+[[ $(modmask_to_text 32) == "MOD3" ]] ||
+  fail "a Mod3 bind renders its modifier by name" "$(modmask_to_text 32)"
+[[ $(modmask_to_text 16) == "MOD2" ]] ||
+  fail "a Mod2 bind renders its modifier by name" "$(modmask_to_text 16)"
+[[ $(modmask_to_text 128) == "MOD5" ]] ||
+  fail "a Mod5 bind renders its modifier by name" "$(modmask_to_text 128)"
+[[ $(modmask_to_text 33) == "SHIFT MOD3" ]] ||
+  fail "a Mod3 bind combines with other modifiers" "$(modmask_to_text 33)"
+[[ $(modmask_to_text 66) == "SUPER CAPS" ]] ||
+  fail "a Caps bind keeps its modifier rather than rendering as the bare key" "$(modmask_to_text 66)"
+pass "every modifier Hyprland can bind renders by name"
+
+# The masks the menu already rendered keep rendering exactly as before.
+[[ $(modmask_to_text 0) == "" ]] ||
+  fail "an unmodified key renders no modifier text" "$(modmask_to_text 0)"
+[[ $(modmask_to_text 77) == "SUPER SHIFT CTRL ALT" ]] ||
+  fail "a fully modified chord keeps its established order" "$(modmask_to_text 77)"
+pass "previously rendered modifier masks are unchanged"
+
 # Rows show their description in the Omarchy language: a numbered one
 # matches its %1 pattern, an unknown one stays as written, and the chord
 # column and what the row runs never change.
