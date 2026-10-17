@@ -5,8 +5,17 @@
 # omarchy:hidden=true
 
 LOG_TYPE="${1:-install}"
-TEMP_LOG="/tmp/upload-log.txt"
-SYSTEM_INFO="/tmp/system-info.txt"
+# Assemble the upload payload inside a private temporary directory (0700) and
+# remove it on exit. These files hold system info and journal output; a
+# predictable 0644 path in shared /tmp would expose them to other local users
+# and leave them behind after the upload.
+workdir=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/omarchy-upload-log.XXXXXX") || {
+  echo "Error: could not create a temporary working directory" >&2
+  exit 1
+}
+trap 'rm -rf "$workdir"' EXIT
+TEMP_LOG="$workdir/upload-log.txt"
+SYSTEM_INFO="$workdir/system-info.txt"
 
 # Get system information if fastfetch is available
 if omarchy-cmd-present fastfetch; then
