@@ -611,11 +611,21 @@ assert(
   'plugin picker removes where the confirmation and backup path are visible'
 )
 
-// A font installed since the shell started should show up without a restart.
+// A font installed since the shell started should show up without a restart,
+// and a profile switched with powerprofilesctl from outside the shell must
+// move the ✓ on the next open — so both providers re-run like `volatile` says.
 const providerBlock = menuQml.match(/readonly property var providers: \(\{[\s\S]*?\n  \}\)/)[0]
+const providerEntries = Object.fromEntries(
+  [...providerBlock.matchAll(/\n    "([^"]+)": \{([\s\S]*?)(?=\n    "[\w-]+": \{|\n  \}\))/g)]
+    .map(match => [match[1], match[2]])
+)
 assert(
-  /"fonts": \{[\s\S]*?volatile: true/.test(providerBlock),
+  /volatile: true/.test(providerEntries.fonts || ''),
   'menu re-enumerates the font list every time it is opened'
+)
+assert(
+  /volatile: true/.test(providerEntries['power-profiles'] || ''),
+  'menu re-enumerates power profiles every time the submenu is opened'
 )
 assert(
   /function setActiveMenu\([\s\S]*?root\.invalidateVolatileProvider\(id\)\s*\n\s*root\.loadProviderForMenu\(id\)/.test(menuQml)
