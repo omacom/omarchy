@@ -2730,7 +2730,9 @@ Item {
       var data = Util.parseModuleJson(raw)
       var klass = data.class || data.alt || ""
 
-      outputText = data.text || String(raw || "").trim()
+      // An empty (or missing) "text" hides the widget, the way Waybar does;
+      // plain output already arrives as {text: raw}.
+      outputText = data.text === undefined || data.text === null ? "" : String(data.text)
       outputTooltip = data.tooltip || String(setting("tooltip", ""))
       outputActive = klass === "active" || (Array.isArray(klass) && klass.indexOf("active") !== -1)
     }
