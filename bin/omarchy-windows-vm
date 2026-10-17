@@ -1044,6 +1044,7 @@ available_storage_gb() {
 # Feed the collected settings to the elevated writer.
 write_compose() {
   local ram="$1" cores="$2" disk="$3" username="$4" password="$5" tz="$6"
+  install -d -m 0700 -- "$HOME/.windows" "$HOME/Windows" || return 1
   printf 'RAM=%s\nCORES=%s\nDISK=%s\nUSERNAME=%s\nPASSWORD=%s\nTZ=%s\n' \
     "$ram" "$cores" "$disk" "$username" "$password" "$tz" |
     priv write_compose
@@ -1115,10 +1116,6 @@ migrate_legacy_compose() {
   password=$(read_compose_value PASSWORD "$LEGACY_COMPOSE_FILE")
   tz=$(read_compose_value TZ "$LEGACY_COMPOSE_FILE")
   [[ -z $tz ]] && tz="UTC"
-  prepare_user_mount_sources || {
-    echo "Could not validate the existing Windows VM data directories." >&2
-    return 1
-  }
   write_credentials "$username" "$password" || return 1
   # The elevated writer derives both mount anchors from the authenticated uid;
   # it never consumes volume paths from this user-owned legacy file.
@@ -1169,7 +1166,6 @@ install_windows() {
   # Set up trap to handle Ctrl+C
   trap "echo ''; echo 'Installation cancelled by user'; exit 1" INT
 
-  prepare_user_mount_sources || exit 1
   check_prerequisites
 
   omarchy-pkg-add freerdp openbsd-netcat gum
@@ -1466,31 +1462,47 @@ To stop: omarchy-windows-vm stop"
   fi
   # If scale is less than 130%, don't set any scale (use default 100)
 
-  RDP_ARGS=(
-    "/u:$WIN_USER"
-    "/p:$WIN_PASS"
-    /v:127.0.0.1:3389
-    -grab-keyboard
-    /sound
-    /microphone
-    /clipboard
-    /cert:ignore
-    "/title:Windows VM - Omarchy"
-    /dynamic-resolution
-    /gfx:AVC444
-    /floatbar:sticky:off,default:visible,show:fullscreen
-  )
-  if [[ -n $RDP_SCALE ]]; then
-    RDP_ARGS+=("$RDP_SCALE")
-  fi
+  while true; do
+    RDP_ARGS=(
+      "/u:$WIN_USER"
+      "/p:$WIN_PASS"
+      /v:127.0.0.1:3389
+      -grab-keyboard
+      /sound
+      /microphone
+      /clipboard
+      /cert:ignore
+      "/title:Windows VM - Omarchy"
+      /dynamic-resolution
+      /gfx:AVC444
+      /floatbar:sticky:off,default:visible,show:fullscreen
+    )
+    if [[ -n $RDP_SCALE ]]; then
+      RDP_ARGS+=("$RDP_SCALE")
+    fi
 
-  # Connect with RDP in fullscreen (auto-detects resolution). The arguments go
-  # in over stdin rather than on the command line: /proc/<pid>/cmdline is
-  # world-readable, so passing the VM password as /p:"$WIN_PASS" would show it
-  # to every other user on the machine for as long as the session is open.
-  # /args-from must stay the only argument here — FreeRDP rejects it outright
-  # when it is combined with any other, so new flags belong in RDP_ARGS above.
-  printf '%s\n' "${RDP_ARGS[@]}" | xfreerdp3 /args-from:stdin
+    # Connect with RDP in fullscreen (auto-detects resolution). The arguments go
+    # in over stdin rather than on the command line: /proc/<pid>/cmdline is
+    # world-readable, so passing the VM password as /p:"$WIN_PASS" would show it
+    # to every other user on the machine for as long as the session is open.
+    # /args-from must stay the only argument here — FreeRDP rejects it outright
+    # when it is combined with any other, so new flags belong in RDP_ARGS above.
+    printf '%s\n' "${RDP_ARGS[@]}" | xfreerdp3 /args-from:stdin
+    RDP_STATUS=$?
+    case $RDP_STATUS in
+      132 | 134 | 154 | 159) ;;
+      *) break ;;
+    esac
+
+    echo "RDP login failed. Enter the Windows credentials again."
+    WIN_USER=$(gum input --placeholder="Windows username" --header="Enter Windows username:") || break
+    [[ -n $WIN_USER ]] || break
+    WIN_PASS=$(gum input --placeholder="Windows password" --password --header="Enter Windows password:") || break
+    [[ -n $WIN_PASS ]] || break
+    write_credentials "$WIN_USER" "$WIN_PASS" || {
+      echo "Could not save the Windows credentials; retrying without replacing the saved credentials." >&2
+    }
+  done
 
   # After RDP closes, stop the container unless --keep-alive was specified
   if [[ $KEEP_ALIVE = "false" ]]; then
