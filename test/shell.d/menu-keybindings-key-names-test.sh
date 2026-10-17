@@ -6,7 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 # A platform package names keys the way its keyboards print them. On a MacBook
 # XF86MonBrightnessUp/Down are the F2/F1 keys, so without the names the menu
-# shows rows like "SHIFT + XF86MonBrightnessUp". A cache written before the
+# shows rows like "SHIFT + BRIGHTNESS UP". A cache written before the
 # names were installed must not win over them.
 
 mock_bin=$(mktemp -d)
@@ -146,10 +146,10 @@ tr -s ' ' <<<"$output" | grep -qF 'SHIFT + F2 → Keyboard brightness up' && tr 
   fail "key names saved with CRLF line ends and blanks around them still apply" "$output"
 pass "keybindings menu reads key names saved with CRLF line ends"
 
-# Without a platform package the keys keep their own names, and a cache made
-# with the names is not reused.
+# Without a platform package the keys take the media label printed on most
+# keyboards, and a cache made with the platform names is not reused.
 output=$(PATH="$mock_bin:$PATH" XDG_CACHE_HOME="$cache_dir" "$platform/bin/without-names" --print)
-tr -s ' ' <<<"$output" | grep -qF 'SHIFT + XF86MonBrightnessUp → Keyboard brightness up' ||
-  fail "without key names the brightness key keeps its own name" "$output"
+tr -s ' ' <<<"$output" | grep -qF 'SHIFT + BRIGHTNESS UP → Keyboard brightness up' ||
+  fail "without key names the brightness key takes its media label" "$output"
 grep -qF 'SHIFT + F2' <<<"$output" && fail "without key names nothing is renamed F2" "$output"
-pass "keybindings menu keeps keysym names without a platform package"
+pass "keybindings menu uses media labels without a platform package"
