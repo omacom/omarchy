@@ -70,6 +70,34 @@ Item {
     return key !== Qt.Key_Backspace && key !== Qt.Key_Delete
   }
 
+  // A lock surface mapped under a resting pointer -- a monitor dropping out or
+  // coming back while locked -- gets a position with no motion behind it. Only
+  // motion across this surface is the user waking it; otherwise every hotplug
+  // wakes the displays, and on a monitor that drops out when blanked, the blank
+  // never holds.
+  property bool pointerSeen: false
+  property real pointerX: 0
+  property real pointerY: 0
+
+  // The reference holds until the pointer has gone a whole pixel from it, so
+  // slow motion on a scaled display adds up instead of every step being jitter.
+  function pointerMovedTo(x, y) {
+    var moved = pointerSeen && (Math.abs(x - pointerX) >= 1 || Math.abs(y - pointerY) >= 1)
+    if (pointerSeen && !moved) return false
+    pointerSeen = true
+    pointerX = x
+    pointerY = y
+    return moved
+  }
+
+  function pointerMoved(x, y) {
+    if (pointerMovedTo(x, y)) wakeRequested()
+  }
+
+  function pointerLeft() {
+    pointerSeen = false
+  }
+
   function syncPasswordText() {
     if (passwordInput.text === passwordText) return
     syncingPasswordText = true
@@ -148,8 +176,9 @@ Item {
     MouseArea {
       anchors.fill: parent
       hoverEnabled: true
+      onExited: root.pointerLeft()
       onClicked: { root.wakeRequested(); root.forcePasswordFocus() }
-      onPositionChanged: root.wakeRequested()
+      onPositionChanged: function(mouse) { root.pointerMoved(mouse.x, mouse.y) }
     }
 
     BorderSurface {
