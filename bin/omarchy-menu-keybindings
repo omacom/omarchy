@@ -14,26 +14,37 @@ declare -A LUA_BIND_ARG_MAP
 # fixed platform root, which no environment variable moves.
 key_names_file=/usr/share/omarchy-platform/key-names
 
-# The leading layout and variant, which Hyprland resolves bindings against.
-# Only names XKB could know pass, since they end up on a command line.
-leading_keyboard() {
-  local option value
-  for option in kb_layout kb_variant; do
-    value=$(hyprctl -j getoption "input:$option" 2>/dev/null | jq -r '.str // empty' 2>/dev/null)
-    value=${value%%,*}
-    [[ $value =~ ^[A-Za-z0-9_-]*$ ]] || value=""
-    printf '%s\n' "$value"
-  done
-}
-
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
 # via the compiled keymap, with a small fallback for common keys so the menu
 # remains readable if xkbcli cannot resolve a symbol.
 parse_keycodes() {
-  local layout variant
-  { read -r layout; read -r variant; } < <(leading_keyboard)
+  local field value group
+  local xkbcli_args=()
 
-  awk -v key_names="$key_names_file" -v layout="$layout" -v variant="$variant" '
+  # These are the effective per-device rules, including global defaults.
+  for field in rules model layout variant options; do
+    value=$(jq -r --arg field "$field" '.[$field] // empty' <<<"$keyboard")
+    [[ -n $value ]] && xkbcli_args+=("--$field" "$value")
+  done
+  group=$(jq -r '(.active_layout_index // 0) + 1' <<<"$keyboard")
+
+  awk -v key_names="$key_names_file" -v group="$group" '
+    # xkbcli uses a compact form for single-group keys and explicit symbols[N]
+    # for multi-group keys. Keys with fewer groups wrap to their own group count.
+    function read_symbols(block, name, parts, count, selected, symbols) {
+      count = 0
+      while (match(block, /symbols\[([0-9]+)\]\s*=\s*\[\s*([^, \]]+)/, parts)) {
+        symbols[parts[1]] = parts[2]
+        if (parts[1] > count) count = parts[1]
+        block = substr(block, RSTART + RLENGTH)
+      }
+      if (count > 0) {
+        selected = (group - 1) % count + 1
+        sym_by_name[name] = symbols[selected]
+      } else if (match(block, /\{\s*\[\s*([^, \]]+)/, parts)) {
+        sym_by_name[name] = parts[1]
+      }
+    }
     BEGIN {
       while ((getline line < key_names) > 0) {
         # Blanks around a line and a CRLF line end read the same, as in
@@ -49,21 +60,25 @@ parse_keycodes() {
         keycode_symbol[substr(fallbacks[i], 1, separator - 1)] = substr(fallbacks[i], separator + 1)
       }
 
-      # Name each key by what the leading layout prints on it: on JIS the key
-      # right of 0 is ^, not =. </dev/null keeps xkbcli from consuming the
-      # binding records on stdin.
-      keymap_cmd = "xkbcli compile-keymap"
-      if (layout != "") keymap_cmd = keymap_cmd " --layout " layout
-      if (layout != "" && variant != "") keymap_cmd = keymap_cmd " --variant " variant
-      keymap_cmd = keymap_cmd " </dev/null"
       section = ""
-      while ((keymap_cmd | getline line) > 0) {
+      while ((getline line < "/dev/fd/3") > 0) {
         if (line ~ /xkb_keycodes/) { section = "codes"; continue }
         if (line ~ /xkb_symbols/)  { section = "syms";  continue }
         if (section == "codes" && match(line, /<([A-Za-z0-9_]+)>\s*=\s*([0-9]+)\s*;/, m)) code_by_name[m[1]] = m[2]
-        if (section == "syms" && match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) sym_by_name[m[1]] = m[2]
+        if (section == "syms") {
+          if (match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{/, m)) {
+            name = m[1]
+            block = line
+          } else if (name != "") {
+            block = block " " line
+          }
+          if (name != "" && line ~ /};/) {
+            read_symbols(block, name)
+            name = ""
+          }
+        }
       }
-      close(keymap_cmd)
+      close("/dev/fd/3")
 
       for (name in code_by_name) {
         code = code_by_name[name]
@@ -104,7 +119,7 @@ parse_keycodes() {
 
       print
     }
-  '
+  ' 3< <(xkbcli compile-keymap "${xkbcli_args[@]}" </dev/null)
 }
 
 # Supplement `hyprctl binds` for Lua-only binds that Hyprland currently
@@ -609,11 +624,10 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v17\n'
-    leading_keyboard
+    printf 'v18\n'
+    printf '%s\n' "$keyboard"
     omarchy-language 2>/dev/null
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null
-    hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     cat "$key_names_file" 2>/dev/null
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
@@ -637,7 +651,20 @@ refresh_keybindings_cache() {
 }
 
 output_binding_records() {
-  local cache_dir cache_file cache_name
+  local cache_dir cache_file cache_name keyboard
+
+  # Use the same snapshot for the cache key and keycode resolution, even if
+  # the layout or main keyboard changes while the menu is being generated.
+  # Pick a keyboard someone types on, as the bar's layout widget does: fcitx5 and
+  # wtype take main with a virtual keyboard left on the first layout, and none is
+  # main before any typing. Then the furthest-advanced one is the one switched.
+  keyboard=$(hyprctl devices -j | jq -cS '
+    [.keyboards[]? | select(.name // "" | test("^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)") | not)] as $typed |
+    first($typed[] | select(.main == true)) //
+      first($typed[] | select((.active_layout_index // 0) == ([$typed[].active_layout_index // 0] | max))) //
+      first(.keyboards[]?) // {} |
+    {rules, model, layout, variant, options, active_layout_index}
+  ')
 
   cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy"
   cache_name="keybindings-$(keybindings_cache_key).records"

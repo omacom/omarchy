@@ -20,8 +20,12 @@ trap cleanup EXIT
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
 if [[ $1 == "devices" ]]; then
-  echo "Keyboards:"
-  echo "	active keymap: Apple Keyboard (apple_vndr)"
+  if [[ ${2:-} == "-j" ]]; then
+    echo '{"keyboards":[{"name":"test","main":true,"layout":"us","active_layout_index":0}]}'
+  else
+    echo "Keyboards:"
+    echo "	active keymap: Apple Keyboard (apple_vndr)"
+  fi
   exit 0
 fi
 cat <<'BINDS'

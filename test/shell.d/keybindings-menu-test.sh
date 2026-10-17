@@ -38,8 +38,10 @@ stub_hyprctl() {
     cat
     echo 'BINDS'
     echo '  ;;'
-    echo '  devices) echo "active keymap: English (US)" ;;'
-    echo '  -j) [[ $2 == getoption ]] && cat "'"$stub_bin"'/option-${3#input:}" 2>/dev/null ;;'
+    cat <<'DEVICES'
+  devices) cat "$(dirname "$0")/keyboards" 2>/dev/null ||
+    echo '{"keyboards":[{"name":"test","main":true,"layout":"us","active_layout_index":0}]}' ;;
+DEVICES
     echo 'esac'
   } >"$stub_bin/hyprctl"
   chmod +x "$stub_bin/hyprctl"
@@ -151,20 +153,107 @@ grep -q 'SUPER + ~  *→ Toggle scratchpad' <<<"$rendered" ||
   fail "a keycode resolves to the symbol printed on the key too" "$rendered"
 pass "a keycode resolves to the symbol printed on the key too"
 
-# Resize sits on the two keys right of 0, named by the leading layout rather
+# Resize sits on the two keys right of 0, named by the active layout rather
 # than by US: on JIS they print - and ^, and Shift + - is =, not +.
-echo '{"str": "jp"}' >"$stub_bin/option-kb_layout"
+echo '{"keyboards":[{"name":"test","main":true,"layout":"jp","active_layout_index":0}]}' >"$stub_bin/keyboards"
 stub_hyprctl <<BINDS
 $(lua_bind 64 "SUPER + code:20" "Expand window left")
 $(lua_bind 64 "SUPER + code:21" "Shrink window left")
 BINDS
 
 rendered=$(keybindings)
-rm "$stub_bin/option-kb_layout"
+rm "$stub_bin/keyboards"
 grep -q 'SUPER + MINUS  *→ Expand window left' <<<"$rendered" &&
   grep -q 'SUPER + ^  *→ Shrink window left' <<<"$rendered" ||
-  fail "a keycode is named by what the leading layout prints on it" "$rendered"
-pass "a keycode is named by what the leading layout prints on it"
+  fail "a keycode is named by what the active layout prints on it" "$rendered"
+pass "a keycode is named by what the active layout prints on it"
+
+# A keycode reads as the symbol the main keyboard's layout puts there, not US QWERTY's.
+keycode_bind() {
+  printf 'bind\n\tmodmask: 64\n\tsubmap: \n\tkey: \n\tkeycode: %s\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: exec\n\targ: true\n' "$1" "$2"
+}
+
+main_keyboard() {
+  printf '{"keyboards":[{"name":"usb","main":false,"layout":"us","active_layout_index":0},{"name":"%s","main":true,"layout":"%s","variant":"%s","active_layout_index":%s}]}\n' "${4:-test}" "$1" "$2" "$3" >"$stub_bin/keyboards"
+}
+
+stub_hyprctl <<BINDS
+$(keycode_bind 20 "Expand window left")
+BINDS
+
+main_keyboard be "" 0
+rendered=$(keybindings)
+grep -q 'SUPER + PARENRIGHT  *→ Expand window left' <<<"$rendered" ||
+  fail "a keycode resolves through the main keyboard's layout" "$rendered"
+pass "a keycode resolves through the main keyboard's layout"
+
+echo '{"keyboards":[{"name":"test","main":false,"layout":"be","active_layout_index":0},{"name":"usb","main":false,"layout":"us","active_layout_index":0}]}' >"$stub_bin/keyboards"
+rendered=$(keybindings)
+grep -q 'SUPER + PARENRIGHT  *→ Expand window left' <<<"$rendered" ||
+  fail "a keycode resolves through the first keyboard while none is main" "$rendered"
+pass "a keycode resolves through the first keyboard while none is main"
+
+main_keyboard us dvorak 0
+rendered=$(keybindings)
+grep -q 'SUPER + BRACKETLEFT  *→ Expand window left' <<<"$rendered" ||
+  fail "a keycode resolves through the main keyboard's variant" "$rendered"
+pass "a keycode resolves through the main keyboard's variant"
+
+# Physical keys follow the active device layout; symbolic binds keep their names.
+stub_hyprctl <<BINDS
+$(keycode_bind 20 "Expand window left")
+$(exec_bind 64 "SUPER + minus" "Symbolic minus" "true")
+BINDS
+
+main_keyboard us,de "" 1
+rendered=$(keybindings)
+grep -q 'SUPER + SSHARP  *→ Expand window left' <<<"$rendered" &&
+  grep -q 'SUPER + MINUS  *→ Symbolic minus' <<<"$rendered" ||
+  fail "physical minus follows German while symbolic minus keeps its name" "$rendered"
+pass "physical minus follows German while symbolic minus keeps its name"
+
+# Keep both devices and their rules unchanged, switching only which is main.
+jq '.keyboards[0].main = true | .keyboards[1].main = false' "$stub_bin/keyboards" >"$tmpdir/next-keyboards"
+mv "$tmpdir/next-keyboards" "$stub_bin/keyboards"
+rendered=$(keybindings)
+grep -q 'SUPER + MINUS  *→ Expand window left' <<<"$rendered" ||
+  fail "switching the main keyboard refreshes cached physical key names" "$rendered"
+pass "switching the main keyboard refreshes cached physical key names"
+
+# With several layouts each key spans lines, one per group, and the active group counts.
+stub_hyprctl <<BINDS
+$(keycode_bind 34 "Make webcam overlay smaller")
+BINDS
+
+main_keyboard us,ru , 0
+rendered=$(keybindings)
+grep -q 'SUPER + BRACKETLEFT  *→ Make webcam overlay smaller' <<<"$rendered" ||
+  fail "a keycode resolves through the first of several layouts while it is active" "$rendered"
+pass "a keycode resolves through the first of several layouts while it is active"
+
+main_keyboard us,ru , 1
+rendered=$(keybindings)
+grep -q 'SUPER + CYRILLIC_HA  *→ Make webcam overlay smaller' <<<"$rendered" ||
+  fail "a keycode resolves through the second of several layouts once it is active" "$rendered"
+pass "a keycode resolves through the second of several layouts once it is active"
+
+# fcitx5 and wtype take main with a virtual keyboard that stays on the first layout.
+echo '{"keyboards":[{"name":"test","main":false,"layout":"us,ru","variant":",","active_layout_index":1},{"name":"hl-virtual-keyboard-fcitx5","main":true,"layout":"us,ru","variant":",","active_layout_index":0}]}' >"$stub_bin/keyboards"
+rendered=$(keybindings)
+grep -q 'SUPER + CYRILLIC_HA  *→ Make webcam overlay smaller' <<<"$rendered" ||
+  fail "a keycode resolves through the typed keyboard while a virtual one is main" "$rendered"
+pass "a keycode resolves through the typed keyboard while a virtual one is main"
+
+# Typing on another keyboard with the same settings makes it main without
+# changing a label, so the cache it already built is the one read.
+cache_file=$(echo "$tmpdir"/cache/omarchy/keybindings-*.records)
+cache_inode=$(stat -c %i "$cache_file")
+main_keyboard us,ru , 1 laptop
+keybindings >/dev/null
+[[ -f $cache_file && $(stat -c %i "$cache_file") == "$cache_inode" ]] ||
+  fail "another main keyboard with the same settings reads the same cache" "$(ls "$tmpdir"/cache/omarchy)"
+rm "$stub_bin/keyboards"
+pass "another main keyboard with the same settings reads the same cache"
 
 # A chord refused for width opens a row of its own, and the next chord tries
 # that row rather than reaching back past it and printing out of order.
@@ -281,7 +370,7 @@ translated=$(printf '%s\n' \
   $'SUPER + RETURN                      → Terminal\texec\tomarchy-launch-terminal' \
   $'SUPER + 3                           → Switch to workspace 3\tworkspace\t3' \
   $'SUPER + X                           → My own thing\texec\tmy-thing' |
-  OMARCHY_PATH=$translate_root OMARCHY_LANGUAGE_FILE=$tmpdir/translate-language translate_binding_records)
+  PATH="$ROOT/bin:$PATH" OMARCHY_PATH=$translate_root OMARCHY_LANGUAGE_FILE=$tmpdir/translate-language translate_binding_records)
 expected=$(printf '%s\n' \
   $'SUPER + RETURN                      → Terminal (da)\texec\tomarchy-launch-terminal' \
   $'SUPER + 3                           → Skift til arbejdsområde 3\tworkspace\t3' \
