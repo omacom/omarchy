@@ -20,6 +20,18 @@ assertDeepEqual(
   'power parses profile output and clamps selection'
 )
 
+assertDeepEqual(power.parseChargeLimit('on 80\n'), { supported: true, enabled: true, end: 80 }, 'power parses an enabled charge limit')
+assertDeepEqual(power.parseChargeLimit('off 60'), { supported: true, enabled: false, end: 60 }, 'power parses a disabled charge limit')
+assertDeepEqual(power.parseChargeLimit('on'), { supported: true, enabled: true, end: 0 }, 'power parses a charge limit without a percentage')
+assertDeepEqual(power.parseChargeLimit('off 100'), { supported: true, enabled: false, end: 0 }, 'power ignores a stopping point of full charge')
+assertDeepEqual(power.parseChargeLimit(''), { supported: false, enabled: false, end: 0 }, 'power hides the charge limit without a supported battery')
+assertDeepEqual(power.chargeLimitOptions(80).map(o => [o.enabled, o.label]), [[true, 'Limit 80%'], [false, 'Full 100%']], 'power labels the charge limit with its percentage')
+assertDeepEqual(power.chargeLimitOptions(0).map(o => [o.enabled, o.label]), [[true, 'Limit'], [false, 'Full']], 'power labels a charging-mode limit without a percentage')
+assert(power.chargeLimitOptions(80).every(o => o.icon.length > 0), 'power maps charge limit icons')
+assert(/\["omarchy-battery-charge-limit", enabled \? "on" : "off"\]/.test(panelSource), 'power changes the charge limit through the Omarchy command')
+assert(/onExited: root\.refreshChargeLimit\(\)/.test(panelSource), 'power re-reads the charge limit after changing it')
+assert(!/function refresh\(\) \{[^}]*chargeLimit/.test(panelSource), 'power keeps the charge limit off the periodic refresh')
+
 assert(power.profileIcon('performance').length > 0, 'power maps profile icons')
 assertEqual(power.batteryFraction({ isPresent: true, percentage: 1.5 }), 1, 'power clamps battery fraction')
 
