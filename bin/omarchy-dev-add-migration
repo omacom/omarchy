@@ -31,8 +31,19 @@ done
 
 cd "${OMARCHY_PATH:-$(pwd)}"
 mkdir -p migrations
-migration_file="migrations/$(git log -1 --format=%cd --date=unix).sh"
-touch "$migration_file"
+
+# Use wall-clock time, not HEAD's committer date, so two branches cut from the
+# same commit do not mint the same migration id (#13516).
+id=$(date +%s)
+migration_file="migrations/${id}.sh"
+# noclobber creates the file with O_EXCL, so concurrent runs cannot claim one id.
+set -o noclobber
+until { : >"$migration_file"; } 2>/dev/null; do
+  [[ -e $migration_file ]] || { echo "Cannot create $PWD/$migration_file" >&2; exit 1; }
+  id=$((id + 1))
+  migration_file="migrations/${id}.sh"
+done
+set +o noclobber
 
 if (( ! no_edit )); then
   nvim "$migration_file"
