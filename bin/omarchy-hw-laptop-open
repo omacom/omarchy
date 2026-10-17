@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when the laptop lid is open
+# omarchy:hidden=true
+
+# Inverse of omarchy-hw-laptop-closed. The fingerprint PAM gate uses this so the
+# common path (lid open) exits 0 and pam_exec does not LOG_ERR on every
+# sudo/polkit auth. Callers that want "is closed?" keep using
+# omarchy-hw-laptop-closed.
+
+for state in /proc/acpi/button/lid/*/state; do
+  [[ -r $state ]] || continue
+  [[ $(<"$state") == *"closed"* ]] && exit 1
+  [[ $(<"$state") == *"open"* ]] && exit 0
+done
+
+# No lid switch (desktop): treat as open so fingerprint stays available.
+exit 0

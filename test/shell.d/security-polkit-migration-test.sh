@@ -177,3 +177,94 @@ WRITE_BREAKS=1 run_migration verify-fail "$fingerprint_stack"
 (( migrate_rc != 0 )) || fail "a failed verification exits non-zero"
 [[ "$(result verify-fail)" == "$(printf '%s' "$fingerprint_stack")" ]] || fail "a failed verification restores the original file"
 pass "migration exits non-zero and restores when the write cannot be verified"
+
+# A stack already rewritten to the lid-open gate still has the bare pam_unix
+# lines the shipped repair knows how to fix, but that repair only accepts the
+# old lid-closed gate. The later migration has to repair this shape, keep the
+# open gate verbatim, and still refuse an edited file.
+open_gate='auth      [success=ignore default=1] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-open'
+open_vulnerable="${open_gate}
+auth      sufficient pam_fprintd.so
+auth      required pam_unix.so
+
+account   required pam_unix.so
+password  required pam_unix.so
+session   required pam_unix.so
+"
+open_admin="${open_gate}
+auth      sufficient pam_fprintd.so
+auth      required pam_unix.so
+auth      optional pam_permit.so
+
+account   required pam_unix.so
+password  required pam_unix.so
+session   required pam_unix.so
+"
+later_migration="$ROOT/migrations/1791150200.sh"
+
+run_later() {
+  local scenario=$1 content=$2
+  local dir="$test_dir/$scenario"
+  local polkit="$dir/polkit-1"
+  mkdir -p "$dir"
+  printf '%s' "$content" >"$polkit"
+  : >"$test_dir/$scenario.calls"
+
+  migrate_rc=0
+  sed "s|^polkit=/etc/pam.d/polkit-1\$|polkit=$polkit|" "$later_migration" |
+    CALL_LOG="$test_dir/$scenario.calls" PATH="$stub_bin:$PATH" \
+      SUDO_ALLOWED="${SUDO_ALLOWED:-1}" WRITE_BREAKS="${WRITE_BREAKS:-0}" \
+      bash -euo pipefail >/dev/null 2>&1 || migrate_rc=$?
+}
+
+run_migration open-shipped "$open_vulnerable"
+(( migrate_rc == 0 )) || fail "the shipped repair exits cleanly on a lid-open stack"
+[[ "$(result open-shipped)" == "$(printf '%s' "$open_vulnerable")" ]] ||
+  fail "the shipped repair leaves a lid-open vulnerable stack unchanged" "$(result open-shipped)"
+pass "shipped repair does not recognize a lid-open vulnerable stack"
+
+run_later open-repaired "$open_vulnerable"
+(( migrate_rc == 0 )) || fail "the later migration repairs a lid-open vulnerable stack"
+assert_repaired open-repaired
+grep -qF "$open_gate" <<<"$(result open-repaired)" ||
+  fail "the later migration keeps the lid-open gate verbatim" "$(result open-repaired)"
+! grep -q 'omarchy-hw-laptop-closed' <<<"$(result open-repaired)" ||
+  fail "the later migration does not add the lid-closed gate"
+pass "later migration repairs a lid-open vulnerable stack and keeps that gate"
+
+run_migration open-admin-shipped "$open_admin"
+[[ "$(result open-admin-shipped)" == "$(printf '%s' "$open_admin")" ]] ||
+  fail "the shipped repair leaves an edited lid-open stack unchanged"
+run_later open-admin "$open_admin"
+[[ "$(result open-admin)" == "$(printf '%s' "$open_admin")" ]] ||
+  fail "the later migration leaves an edited lid-open stack unchanged" "$(result open-admin)"
+! grep -q '^sudo ' "$test_dir/open-admin.calls" ||
+  fail "an edited lid-open stack triggers no privileged writes"
+pass "later migration refuses a lid-open stack that carries another directive"
+
+run_migration closed-then-flip "$fingerprint_stack"
+assert_repaired closed-then-flip
+grep -qF 'omarchy-hw-laptop-closed' <<<"$(result closed-then-flip)" ||
+  fail "the shipped repair keeps the lid-closed gate"
+gate_dir="$test_dir/gate-flip"
+mkdir -p "$gate_dir"
+cp "$test_dir/closed-then-flip/polkit-1" "$gate_dir/polkit-1"
+sed -e "s|/etc/pam.d/sudo|$gate_dir/sudo|" -e "s|/etc/pam.d/polkit-1|$gate_dir/polkit-1|" \
+  "$ROOT/migrations/1789385397.sh" |
+  CALL_LOG="$test_dir/gate-flip.calls" PATH="$stub_bin:$PATH" bash -euo pipefail >/dev/null
+grep -qF "$open_gate" "$gate_dir/polkit-1" ||
+  fail "the silent-gate migration installs the lid-open gate" "$(cat "$gate_dir/polkit-1")"
+! grep -q 'omarchy-hw-laptop-closed' "$gate_dir/polkit-1" ||
+  fail "the silent-gate migration removes the lid-closed gate"
+grep -qE '^auth[[:space:]]+include[[:space:]]+system-auth' "$gate_dir/polkit-1" ||
+  fail "the silent-gate migration keeps the system-auth include"
+pass "silent-gate migration flips a repaired stack to the lid-open gate"
+
+run_later closed-by-later "$fingerprint_stack"
+(( migrate_rc == 0 )) || fail "the later migration repairs a lid-closed vulnerable stack"
+assert_repaired closed-by-later
+grep -qF "$open_gate" <<<"$(result closed-by-later)" ||
+  fail "the later migration swaps a lid-closed gate to lid-open" "$(result closed-by-later)"
+! grep -q 'omarchy-hw-laptop-closed' <<<"$(result closed-by-later)" ||
+  fail "the later migration removes the lid-closed gate from a vulnerable stack"
+pass "later migration repairs a lid-closed vulnerable stack onto the lid-open gate"
