@@ -172,10 +172,25 @@ cat >"$mock_bin/rfkill" <<'SH'
 #!/bin/bash
 
 printf 'rfkill %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
+# Named-column listing stands in for `rfkill -n -o ID,DEVICE list bluetooth`.
+# Empty by default so the type-wide fallback carries the legacy assertions.
+if [[ -n ${MOCK_RFKILL_LIST:-} ]]; then
+  for arg in "$@"; do
+    if [[ $arg == "list" ]]; then
+      printf '%s\n' "$MOCK_RFKILL_LIST"
+      break
+    fi
+  done
+fi
 # Lifting the block is normally all it takes: AutoEnable is left at its default,
 # so bluetoothd powers the adapter up on its own. RFKILL_INERT stands in for the
 # adapter that was powered down without a block, where it does not.
 [[ $1 == "unblock" && -z ${RFKILL_INERT:-} ]] && echo yes >"$POWERED_FILE"
+# RFKILL_BLOCK_FAIL stands in for an unfixable block (e.g. readable /dev/rfkill
+# without write permission): listing succeeds while blocking fails.
+[[ $1 == "block" && ${RFKILL_BLOCK_FAIL:-0} == "1" ]] && exit 1
+# RFKILL_BLOCK_FAIL_IDS fails only the listed adapter indexes.
+[[ $1 == "block" && -n ${RFKILL_BLOCK_FAIL_IDS:-} && " ${RFKILL_BLOCK_FAIL_IDS} " == *" $2 "* ]] && exit 1
 [[ $1 == "block" ]] && echo no >"$POWERED_FILE"
 exit 0
 SH
@@ -274,6 +289,83 @@ rm -f "$POWERED_FILE.11:22:33:44:55:66"
 grep -qx "rfkill block bluetooth" "$multi_log" ||
   fail "bluetooth counts a secondary controller as on" "$(cat "$multi_log")"
 pass "bluetooth counts a secondary controller as on"
+
+# A platform switch next to hci0 must never be blocked: tripping it powers the
+# radio off the USB bus instead of soft-blocking it (#7936).
+platform_rfkill_list="0 tpacpi_bluetooth_sw
+1 hci0"
+
+scoped_log=$(MOCK_RFKILL_LIST="$platform_rfkill_list" bluetooth_power yes off)
+grep -qx "rfkill block 1" "$scoped_log" ||
+  fail "bluetooth blocks only the HCI adapter" "$(cat "$scoped_log")"
+pass "bluetooth blocks only the HCI adapter"
+
+grep -q "rfkill block bluetooth" "$scoped_log" &&
+  fail "bluetooth skips the type-wide block when adapters exist" "$(cat "$scoped_log")"
+pass "bluetooth skips the type-wide block when adapters exist"
+
+grep -q "rfkill block 0" "$scoped_log" &&
+  fail "bluetooth never blocks the platform switch" "$(cat "$scoped_log")"
+pass "bluetooth never blocks the platform switch"
+
+scoped_toggle_log=$(MOCK_RFKILL_LIST="$platform_rfkill_list" bluetooth_power yes toggle)
+grep -qx "rfkill block 1" "$scoped_toggle_log" ||
+  fail "bluetooth toggles a powered adapter off by index" "$(cat "$scoped_toggle_log")"
+pass "bluetooth toggles a powered adapter off by index"
+
+# With no HCI switch in sight the type-wide block is all there is.
+platform_only_rfkill_list="0 tpacpi_bluetooth_sw"
+
+fallback_log=$(MOCK_RFKILL_LIST="$platform_only_rfkill_list" bluetooth_power yes off)
+grep -qx "rfkill block bluetooth" "$fallback_log" ||
+  fail "bluetooth falls back to the type-wide block without adapters" "$(cat "$fallback_log")"
+pass "bluetooth falls back to the type-wide block without adapters"
+
+# A block the kernel refuses must fail the command: callers otherwise take an
+# unchanged radio for a switched-off one.
+echo yes >"$POWERED_FILE"
+: >"$device_tmp/log"
+if RFKILL_BLOCK_FAIL=1 MOCK_RFKILL_LIST="$platform_rfkill_list" \
+  PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" \
+  OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 "$ROOT/bin/omarchy-bluetooth-power" off; then
+  fail "bluetooth reports a failed adapter block" "$(cat "$device_tmp/log")"
+fi
+grep -qx "rfkill block 1" "$device_tmp/log" ||
+  fail "bluetooth attempts the adapter block before failing" "$(cat "$device_tmp/log")"
+pass "bluetooth reports a failed adapter block"
+
+# A partial failure still fails the command: every adapter is attempted and no
+# type-wide escalation papers over the failure.
+two_adapter_rfkill_list="0 tpacpi_bluetooth_sw
+1 hci0
+2 hci1"
+
+echo yes >"$POWERED_FILE"
+: >"$device_tmp/log"
+if RFKILL_BLOCK_FAIL_IDS="1" MOCK_RFKILL_LIST="$two_adapter_rfkill_list" \
+  PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" \
+  OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 "$ROOT/bin/omarchy-bluetooth-power" off; then
+  fail "bluetooth reports a partially failed adapter block" "$(cat "$device_tmp/log")"
+fi
+grep -qx "rfkill block 1" "$device_tmp/log" ||
+  fail "bluetooth attempts the failing adapter" "$(cat "$device_tmp/log")"
+grep -qx "rfkill block 2" "$device_tmp/log" ||
+  fail "bluetooth attempts every adapter despite a failure" "$(cat "$device_tmp/log")"
+grep -q "rfkill block bluetooth" "$device_tmp/log" &&
+  fail "bluetooth does not escalate a partial failure to a type-wide block" "$(cat "$device_tmp/log")"
+pass "bluetooth reports a partially failed adapter block"
+
+# A failing fallback is a failure too.
+echo yes >"$POWERED_FILE"
+: >"$device_tmp/log"
+if RFKILL_BLOCK_FAIL=1 MOCK_RFKILL_LIST="$platform_only_rfkill_list" \
+  PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" \
+  OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 "$ROOT/bin/omarchy-bluetooth-power" off; then
+  fail "bluetooth reports a failed fallback block" "$(cat "$device_tmp/log")"
+fi
+grep -qx "rfkill block bluetooth" "$device_tmp/log" ||
+  fail "bluetooth attempts the fallback block before failing" "$(cat "$device_tmp/log")"
+pass "bluetooth reports a failed fallback block"
 
 # AutoEnable=false was the old attempt at persistence and never worked. Left set,
 # it would also keep bluetoothd from powering the adapter up after an unblock.
