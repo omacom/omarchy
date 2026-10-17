@@ -14,7 +14,7 @@ mkdir -p "$mock_bin" "$runtime_dir"
 
 cat >"$mock_bin/omarchy-hyprland-monitor-focused-apple" <<'SH'
 #!/bin/bash
-exit 1
+[[ ${APPLE_MONITOR:-0} == "1" ]]
 SH
 
 cat >"$mock_bin/omarchy-hyprland-monitor-focused" <<'SH'
@@ -32,6 +32,36 @@ cat >"$mock_bin/brightnessctl" <<'SH'
 printf 'brightnessctl %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == *" -m"* ]]; then
   printf 'mock_backlight,backlight,40,40%%\n'
+fi
+SH
+
+cat >"$mock_bin/sudo" <<'SH'
+#!/bin/bash
+exec "$@"
+SH
+
+cat >"$mock_bin/asdcontrol" <<'SH'
+#!/bin/bash
+printf 'asdcontrol %s\n' "$*" >>"$CALL_LOG"
+
+if [[ ${1:-} == "--detect" ]]; then
+  shift
+  for device in "$@"; do
+    case "$device" in
+    *hiddev5 | *hiddev10) printf '%s: USB Monitor - SUPPORTED.\n' "$device" ;;
+    *hiddev7) printf '%s: USB Monitor - UNSUPPORTED.\n' "$device" ;;
+    esac
+  done
+elif (( $# == 1 )); then
+  case "$1" in
+  *hiddev5) printf 'BRIGHTNESS=24000\n' ;;
+  *hiddev10) printf 'BRIGHTNESS=36000\n' ;;
+  *) exit 1 ;;
+  esac
+elif (( $# == 3 )) && [[ $2 == "--" ]]; then
+  [[ ${ASD_WRITE_FAIL_DEVICE:-} != "$1" ]]
+else
+  exit 2
 fi
 SH
 
@@ -65,8 +95,49 @@ grep -qF "$test_tmp/drm/card" "$brightness_display" || fail "omarchy-brightness-
 
 run_brightness() {
   CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" \
-    PATH="$mock_bin:$ROOT/bin:$PATH" "$brightness_display" "$@"
+    OMARCHY_BRIGHTNESS_APPLE_DEV_ROOT="$test_tmp/dev" PATH="$mock_bin:$ROOT/bin:$PATH" "$brightness_display" "$@"
 }
+
+mkdir -p "$test_tmp/dev/usb"
+touch "$test_tmp/dev/usb/hiddev5" "$test_tmp/dev/usb/hiddev7" "$test_tmp/dev/usb/hiddev10"
+
+if ! brightness=$(APPLE_MONITOR=1 run_brightness --monitor DP-1); then
+  fail "Apple displays report their group brightness"
+fi
+[[ $brightness == "50" ]] || fail "Apple displays report their group brightness" "actual: $brightness"
+APPLE_MONITOR=1 run_brightness --no-osd --monitor DP-1 +5%
+grep -F "asdcontrol $test_tmp/dev/usb/hiddev5 -- 55%" "$call_log" >/dev/null ||
+  fail "Apple brightness is written to the first display"
+grep -F "asdcontrol $test_tmp/dev/usb/hiddev10 -- 55%" "$call_log" >/dev/null ||
+  fail "Apple brightness is written to the second display"
+if grep -F "asdcontrol $test_tmp/dev/usb/hiddev7 -- 55%" "$call_log" >/dev/null; then
+  fail "unsupported HID devices are excluded from the Apple brightness group"
+fi
+pass "Apple displays share one brightness"
+
+(( $(grep -c '^asdcontrol --detect ' "$call_log") == 1 )) || fail "Apple display detection is cached"
+pass "Apple display detection is cached"
+
+apple_cache="$runtime_dir/omarchy-brightness-display-apple.devices"
+printf '%s\n' "$test_tmp/dev/usb/hiddev10 $test_tmp/dev/usb/hiddev5 $test_tmp/dev/usb/hiddev7" \
+  "$test_tmp/dev/usb/hiddev7" >"$apple_cache"
+brightness=$(APPLE_MONITOR=1 run_brightness --monitor DP-1) || fail "a stale Apple display cache is detected again"
+[[ $brightness == "50" ]] || fail "a stale Apple display cache is detected again" "actual: $brightness"
+grep -Fx "$test_tmp/dev/usb/hiddev7" "$apple_cache" >/dev/null && fail "a stale Apple display cache is replaced"
+pass "a stale Apple display cache is detected again"
+
+printf '%s\n' "$test_tmp/dev/usb/hiddev10 $test_tmp/dev/usb/hiddev5 $test_tmp/dev/usb/hiddev7" \
+  "$test_tmp/dev/sda" >"$apple_cache"
+: >"$call_log"
+APPLE_MONITOR=1 run_brightness --monitor DP-1 >/dev/null
+grep -F "asdcontrol $test_tmp/dev/sda" "$call_log" >/dev/null && fail "a cached path outside the HID nodes is not trusted"
+pass "a cached path outside the HID nodes is not trusted"
+
+if APPLE_MONITOR=1 ASD_WRITE_FAIL_DEVICE="$test_tmp/dev/usb/hiddev10" \
+  run_brightness --no-osd --monitor DP-1 55%; then
+  fail "Apple group brightness reports a partial write failure"
+fi
+pass "Apple group brightness reports a partial write failure"
 
 brightness=$(run_brightness --monitor DP-1)
 [[ $brightness == "50" ]] || fail "external brightness is converted to a percentage" "actual: $brightness"
@@ -89,6 +160,46 @@ run_brightness --no-osd --monitor DP-1 30%
 grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 24' "$call_log" >/dev/null || \
   fail "absolute external brightness skips write verification"
 pass "absolute external brightness reuses the cached VCP range"
+
+lock_file="$runtime_dir/omarchy-brightness-display.lock"
+lock_ready="$test_tmp/lock-ready"
+lock_release="$test_tmp/lock-release"
+mkfifo "$lock_release"
+(
+  exec {held_lock_fd}>"$lock_file"
+  flock "$held_lock_fd"
+  touch "$lock_ready"
+  read -r <"$lock_release"
+) &
+lock_holder_pid=$!
+while [[ ! -e $lock_ready ]]; do sleep 0.01; done
+
+if run_brightness --nonblocking --no-osd --monitor DP-1 35%; then
+  fail "nonblocking automatic writes report lock contention"
+else
+  [[ $? == 75 ]] || fail "nonblocking automatic writes use the busy exit status"
+fi
+
+if timeout 0.1 env CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-brightness-display" --no-osd --monitor DP-1 35% --nonblocking; then
+  fail "trailing nonblocking writes report lock contention"
+else
+  [[ $? == 75 ]] || fail "trailing nonblocking writes use the busy exit status"
+fi
+
+write_count=$(grep -c ' setvcp 10 ' "$call_log")
+if timeout 0.1 env CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-brightness-display" --no-osd --monitor DP-1 35%; then
+  fail "manual absolute writes wait for the brightness lock"
+else
+  [[ $? == 124 ]] || fail "manual absolute writes block during lock contention"
+fi
+printf '\n' >"$lock_release"
+wait "$lock_holder_pid"
+run_brightness --no-osd --monitor DP-1 35%
+(( $(grep -c ' setvcp 10 ' "$call_log") == write_count + 1 )) ||
+  fail "manual absolute writes wait for the brightness lock"
+pass "automatic writes yield the brightness lock to manual absolute writes"
 
 brightness=$(run_brightness --monitor eDP-1)
 [[ $brightness == "40" ]] || fail "internal monitor uses the kernel backlight" "actual: $brightness"
