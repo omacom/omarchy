@@ -5,3 +5,8 @@ zram-generator
 # Nothing pulls rtkit in on aarch64, so PipeWire gets no realtime scheduling
 # without it.
 rtkit
+# The x86_64 ISO installs these from omarchy-other.packages; ARM has no ISO.
+# pipewire-jack is the jack provider x86_64 gets, and
+# gst-plugin-pipewire gives GStreamer apps PipeWire capture and playback.
+pipewire-jack
+gst-plugin-pipewire
