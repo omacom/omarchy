@@ -200,3 +200,42 @@ jq -nc --arg later "$later" '{
 autoswitch >/dev/null
 [[ $(active) == "work" ]] || fail "a stale account with room wins over a fresh one near the limit" "$(active)"
 pass "a stale account with room wins over a fresh one near the limit"
+
+registry main auto
+record 0.97 "$soon" 0.12 "$later"
+jq '.accounts[0].stale = true' "$usage/claude.json" >"$test_tmp/record.json"
+mv "$test_tmp/record.json" "$usage/claude.json"
+[[ -z $(autoswitch) && $(active) == "main" && ! -s $notifications ]] || fail "stale active limits cannot trigger switching"
+pass "stale active limits cannot trigger switching"
+
+registry main auto
+record 0.97 "$soon" 0.98 "$later"
+jq '.accounts[0].stale = true' "$usage/claude.json" >"$test_tmp/record.json"
+mv "$test_tmp/record.json" "$usage/claude.json"
+[[ -z $(autoswitch) && $(active) == "main" && ! -s $notifications ]] || fail "stale active limits cannot trigger exhaustion"
+pass "stale active limits cannot trigger exhaustion"
+
+# A timeout after an alert must preserve its deduplication state. Fresh data
+# under the threshold still clears it, so a later crossing can notify again.
+for mode in manual auto; do
+  registry main "$mode"
+  record 0.97 "$soon" 0.98 "$later"
+  autoswitch >/dev/null
+  saved_alert=$(jq -r .alert "$accounts/claude.json")
+  [[ -n $saved_alert && -s $notifications ]] || fail "fresh exhaustion issues an alert"
+  jq '.accounts[0].stale = true' "$usage/claude.json" >"$test_tmp/record.json"
+  mv "$test_tmp/record.json" "$usage/claude.json"
+  autoswitch >/dev/null
+  [[ $(jq -r .alert "$accounts/claude.json") == "$saved_alert" && ! -s $notifications ]] ||
+    fail "stale readings preserve the existing $mode alert"
+  record 0.97 "$soon" 0.98 "$later"
+  autoswitch >/dev/null
+  [[ ! -s $notifications ]] || fail "fresh data above threshold must not repeat the $mode alert"
+  record 0.20 "$soon" 0.98 "$later"
+  autoswitch >/dev/null
+  [[ $(jq -r .alert "$accounts/claude.json") == "" ]] || fail "fresh low usage re-arms the $mode alert"
+  record 0.97 "$soon" 0.98 "$later"
+  autoswitch >/dev/null
+  [[ -s $notifications ]] || fail "a new crossing issues a new $mode alert"
+  pass "stale readings preserve $mode alerts until fresh usage re-arms them"
+done
