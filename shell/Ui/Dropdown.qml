@@ -38,6 +38,8 @@ Item {
   // Emits `hovered(bool)` on pointer enter/leave so the panel can keep
   // its cursor state in sync with the mouse.
   property bool hasCursor: false
+  // Sub-notch wheel deltas (touchpads) carried between wheel events.
+  property real wheelAccumulator: 0
 
   // popupOpen + open()/close()/toggle() let a parent panel know when the
   // dropdown owns keys (its embedded ListView is active) and suspend its
@@ -62,6 +64,26 @@ Item {
       if (optionValue(options[i]) === value) return optionLabel(options[i])
     }
     return value
+  }
+  function currentIndex() {
+    for (var i = 0; i < options.length; i++) {
+      if (optionValue(options[i]) === value) return i
+    }
+    return -1
+  }
+
+  // Moves the selection by `steps` options without opening the popup.
+  // Clamped, not wrapped — same as the rest of the kit's wheel-adjustable
+  // controls (e.g. PanelSlider). A value that matches no option lands on the
+  // first one rather than skipping past it.
+  function stepSelection(steps) {
+    if (options.length === 0 || steps === 0) return
+    var idx = currentIndex()
+    idx = idx < 0 ? 0 : Math.max(0, Math.min(options.length - 1, idx + steps))
+    var v = optionValue(options[idx])
+    if (v === value) return
+    value = v
+    changed(v)
   }
 
   implicitWidth: Style.spacing.dropdownWidth
@@ -142,6 +164,16 @@ Item {
         onClicked: {
           trigger.forceActiveFocus()
           popup.opened ? popup.close() : popup.open()
+        }
+        // Scroll over the closed trigger to cycle the selection without
+        // opening the popup. Wheel up moves toward the top of the list, like
+        // a native combo box; touchpad deltas accumulate into whole notches
+        // and horizontal scrolling is ignored.
+        onWheel: function(wheel) {
+          if (root.popupOpen || wheel.angleDelta.y === 0) return
+          var result = Util.wheelSteps(root.wheelAccumulator, wheel.angleDelta.y)
+          root.wheelAccumulator = result.remainder
+          root.stepSelection(-result.steps)
         }
       }
 
