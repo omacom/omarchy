@@ -518,7 +518,7 @@ QtObject {
         var requested = barTarget(config, placement, defaultBarWidgetSection(manifest), key)
         if (requested.error) {
           lastEnableError = requested.error
-          return
+          return false
         }
       }
 
@@ -564,8 +564,13 @@ QtObject {
           config.plugins.push(entry)
         }
 
-        if (isBarWidget && !insertedWithPlacement && placement && Object.keys(placement).length)
-          moveBarEntry(config, key, placement)
+        if (isBarWidget && !insertedWithPlacement && placement && Object.keys(placement).length) {
+          var moveError = moveBarEntry(config, key, placement)
+          if (moveError) {
+            lastEnableError = moveError
+            return false
+          }
+        }
 
         if (clonedFrom && hasNonWidgetKind && !isDisabled(config, clonedFrom)) {
           addDisabled(config, clonedFrom)
