@@ -115,3 +115,25 @@ grep -F 'id: sessionLockStabilizeTimer' "$lock_service" >/dev/null
 grep -Pzo 'function onScreensChanged\(\) \{\n(.*\n)*?\s*root\.requestSessionLock\(\)\n' "$lock_service" >/dev/null
 grep -F 'realScreens: root.realScreenCount()' "$lock_service" >/dev/null
 pass "lock service waits for stable real screens before session lock"
+
+require_command jq
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+mock_bin="$test_tmp/bin"
+mkdir -p "$mock_bin"
+
+external_active_with() {
+  printf '#!/bin/bash\nprintf %%s %q\n' "$1" >"$mock_bin/hyprctl"
+  chmod +x "$mock_bin/hyprctl"
+  PATH="$mock_bin:$PATH" "$monitor_external_active"
+}
+
+# With the lid shut and the external gone, Hyprland is left showing only its
+# placeholder, which must not keep the internal panel disabled.
+if external_active_with '[{"name":"eDP-1","width":1920,"height":1080,"disabled":true},{"name":"FALLBACK","width":1920,"height":1080,"disabled":false}]'; then
+  fail "the FALLBACK placeholder is not an active external monitor"
+fi
+external_active_with '[{"name":"eDP-1","width":1920,"height":1080,"disabled":true},{"name":"HDMI-A-1","width":2560,"height":1440,"disabled":false}]' ||
+  fail "an enabled external monitor is active"
+pass "active external monitor helper ignores Hyprland's FALLBACK placeholder"
