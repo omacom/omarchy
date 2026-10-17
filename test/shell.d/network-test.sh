@@ -314,4 +314,56 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+
+// A failed panel connect leaves its reason on the row. When NetworkManager
+// later autoconnects that network on its own, no action is in flight, so the
+// failure has to be dropped by the connected network itself. Run the panel's
+// own action functions against a stand-in network.
+;(function() {
+  const fnSource = name => {
+    const match = panelSource.match(new RegExp('function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n {2}\\}'))
+    assert(match, 'network has ' + name + '()')
+    return match[0]
+  }
+  var actionKind = 'connect'
+  var actionSsid = 'Home'
+  var passwordSsid = ''
+  var failureSsid = ''
+  var failureReason = ''
+  var failureKind = ''
+  var actionTimeout = { stop() {}, restart() {} }
+  var refresh = () => {}
+  var requiresCredentials = () => true
+  var networkFailureReason = () => 'Network lost'
+  eval(fnSource('clearNetworkAction'))
+  eval(fnSource('failNetworkAction'))
+  eval(fnSource('checkActionCompletion'))
+
+  const home = { name: 'Home', security: 'wpa2', connected: false, known: true, stateChanging: false }
+  failNetworkAction(home, 'ssid-not-found')
+  assertEqual(failureReason, 'Network lost', 'network records why a panel connect failed')
+
+  const office = { name: 'Office', connected: true, known: true, stateChanging: false }
+  checkActionCompletion(office)
+  assertEqual(failureReason, 'Network lost', 'network keeps a failure while a different network is connected')
+
+  checkActionCompletion(home)
+  assertEqual(failureReason, 'Network lost', 'network keeps a failure while that network is still down')
+
+  home.connected = true
+  checkActionCompletion(home)
+  assertEqual(failureReason, '', 'network drops a failure once NetworkManager connects that network on its own')
+  assertEqual(failureSsid, '', 'network forgets which network failed once it connects')
+  assertEqual(actionKind, '', 'network starts no action while clearing a recovered failure')
+
+  // A timed-out disconnect leaves the network connected, and refresh() runs
+  // checkActionCompletion straight away, so only a failed connect may clear.
+  const timeout = panelSource.match(/id: actionTimeout[\s\S]*?\n {2}\}/)
+  assert(timeout && /root\.failureKind = root\.actionKind/.test(timeout[0]), 'network records which action timed out')
+  failureSsid = 'Home'
+  failureReason = 'Timed out disconnecting'
+  failureKind = 'disconnect'
+  checkActionCompletion(home)
+  assertEqual(failureReason, 'Timed out disconnecting', 'network keeps a timed-out disconnect on a network that is still connected')
+})()
 JS
