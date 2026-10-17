@@ -15,9 +15,12 @@ NEXT_THEME_PATH="$HOME/.local/state/omarchy/current/next-theme"
 CURRENT_BACKGROUND_LINK="$HOME/.local/state/omarchy/current/background"
 THEME_BACKGROUND_STATE_PATH="$HOME/.local/state/omarchy/theme-backgrounds"
 BACKGROUND_TRANSITION_CACHE="$HOME/.cache/omarchy/background-transitions"
-THEME_SET_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+# Without a session runtime dir, the locks sit beside the state they guard: a
+# fixed name in /tmp can be claimed by another account, and then nothing locks.
+THEME_LOCK_DIR="${XDG_RUNTIME_DIR:-$HOME/.local/state/omarchy}"
+THEME_SET_LOCK="$THEME_LOCK_DIR/omarchy-theme-set.lock"
 THEME_SET_LOG="$HOME/.local/state/omarchy/theme-set.log"
-THEME_RETINT_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-retint.lock"
+THEME_RETINT_LOCK="$THEME_LOCK_DIR/omarchy-theme-set-retint.lock"
 THEME_GENERATION_PATH="$HOME/.local/state/omarchy/current/theme.generation"
 USER_THEMES_PATH="$HOME/.config/omarchy/themes"
 OMARCHY_THEMES_PATH="$OMARCHY_PATH/themes"
@@ -408,6 +411,13 @@ fi
 # Serialize theme changes. Theme switching rebuilds a shared next-theme staging
 # directory and updates current theme/background symlinks; concurrent calls can
 # otherwise race and make one selection appear to be ignored.
+#
+# The lock dir is private, since flock works on a read-only fd and a home may be
+# traversable.
+mkdir -p "$THEME_LOCK_DIR" || exit 1
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  chmod 700 "$THEME_LOCK_DIR" || exit 1
+fi
 exec 9>"$THEME_SET_LOCK"
 flock 9
 
