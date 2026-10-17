@@ -899,6 +899,43 @@ configure_timezone() {
       ln -sf "/usr/share/zoneinfo/$timezone" /etc/localtime 2>&1 || true
   fi
   configure_wireless_regdom
+  configure_region
+}
+
+# A deferred install from one market's media took that market's region before
+# anyone chose a timezone, and left it as REGION in the form defaults. Settle it
+# against the owner's choice: a timezone a region profile lists picks that
+# region, Hong Kong, Macau and Taiwan are always World, and any other timezone
+# keeps the media's region.
+configure_region() {
+  local defaults=${OMARCHY_FORM_DEFAULTS:-/etc/omarchy/form-defaults} marker=${OMARCHY_REGION_FILE:-/etc/omarchy/region}
+  local pacman_conf=${OMARCHY_PACMAN_CONF:-/etc/pacman.conf} key value fallback="" region current=global profile channel
+  [[ -r $defaults && -n ${timezone:-} ]] || return 0
+  while IFS='=' read -r key value; do
+    [[ $key == "REGION" ]] && fallback=$value
+  done <"$defaults"
+  [[ $fallback =~ ^[a-z]{2}$ ]] || return 0
+  case "$timezone" in
+    Asia/Hong_Kong | Hongkong | Asia/Macau | Asia/Macao | Asia/Taipei | ROC) region=global ;;
+    *)
+      region=$fallback
+      for profile in "$OMARCHY_PATH"/default/regions/*/; do
+        [[ -r $profile/timezones ]] && grep -qxF -- "$timezone" "$profile/timezones" && region=$(basename "$profile")
+      done
+      ;;
+  esac
+  [[ -r $marker ]] && read -r current <"$marker"
+  [[ $region == "$current" ]] && return 0
+  if [[ $region == "global" ]]; then
+    rm -f "$marker"
+  else
+    printf '%s\n' "$region" >"$marker"
+  fi
+  # Re-render pacman for the region with the channel this machine installed.
+  channel=$(sed -n 's|^Server = https://pkgs\.omarchy\.[a-z]*/\([a-z]*\)/.*|\1|p' "$pacman_conf" | head -1)
+  if [[ -n $channel && -x $OMARCHY_PATH/bin/omarchy-apply-pacman ]]; then
+    "$OMARCHY_PATH/bin/omarchy-apply-pacman" "$channel" "${OMARCHY_REGION_TARGET:-/}" 2>&1 || true
+  fi
 }
 
 # The install's hardware step found only the UTC placeholder, which names no
