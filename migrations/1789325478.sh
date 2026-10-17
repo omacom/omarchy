@@ -25,7 +25,7 @@ omarchy-pkg-add "$kernel" "$kernel-headers"
 sudo mkdir -p "$(dirname "$limine_conf")"
 sudo touch "$limine_conf"
 sudo sed -i -E '/^[[:space:]]*BOOT_ORDER[[:space:]]*=/d' "$limine_conf"
-printf '\n%s\n' 'BOOT_ORDER="linux-omarchy, linux-omarchy-*, *, *fallback, Snapshots"' | sudo tee -a "$limine_conf" >/dev/null
+printf '\n%s\n' 'BOOT_ORDER="linux-omarchy, linux-omarchy-bore, linux-omarchy-*, *, *fallback, Snapshots"' | sudo tee -a "$limine_conf" >/dev/null
 
 # Package hooks ran before the config repair. Rebuild the new kernel's image
 # and boot entry explicitly, including on retries after a failed rebuild.
@@ -33,7 +33,8 @@ sudo limine-mkinitcpio "$kernel"
 
 # limine-mkinitcpio can return success after skipping a failed kernel build.
 # Do not mark the migration complete unless the new kernel is in the menu.
-if ! sudo limine-entry-tool --tree | grep -E "(^|[^[:alnum:]_-])$kernel([^[:alnum:]_-]|$)" >/dev/null; then
+# linux-omarchy is a meta package for linux-omarchy-bore; allow both.
+if ! sudo limine-entry-tool --tree | grep -E "(^|[^[:alnum:]_-])$kernel(-bore)?([^[:alnum:]_-]|$)" >/dev/null; then
   echo "The Omarchy kernel has no Limine boot entry; rerun omarchy-migrate after fixing the boot image build." >&2
   exit 1
 fi

@@ -16,7 +16,7 @@ export OMARCHY_KERNEL_LIMINE_CONF="$scratch/limine"
 export OMARCHY_KERNEL_LIMINE_DROP_INS="$scratch/drop-ins"
 export OMARCHY_KERNEL_REBUILD_MARKER="$scratch/state/1789325478"
 kernel="linux-omarchy"
-boot_order='BOOT_ORDER="linux-omarchy, linux-omarchy-*, *, *fallback, Snapshots"'
+boot_order='BOOT_ORDER="linux-omarchy, linux-omarchy-bore, linux-omarchy-*, *, *fallback, Snapshots"'
 
 # Exercise the real package helpers, including their post-install queries.
 cat > "$scratch/bin/pacman" <<'SH'
@@ -51,9 +51,9 @@ SH
 cat > "$scratch/bin/limine-entry-tool" <<'SH'
 #!/bin/bash
 [[ $* == "--tree" ]] || exit 99
-printf '%s\n' 'Omarchy' '  linux-ptl' '  linux-omarchy-ptl-novrr-mm' '  linux-omarchy-bore' '  linux-omarchy-fallback' '  Snapshots'
+printf '%s\n' 'Omarchy' '  linux-ptl' '  linux-omarchy-ptl-novrr-mm' '  linux-omarchy-fallback' '  Snapshots'
 if [[ ${MISSING_ENTRY:-0} == "0" ]]; then
-  printf '%s\n' '  linux-omarchy'
+  printf '%s\n' "  ${TEST_ENTRY:-linux-omarchy-bore}"
 fi
 SH
 
@@ -216,6 +216,11 @@ run_migration
 pass "older Omarchy variants and fallback entries cannot satisfy generic kernel verification"
 
 reset_fixture
+TEST_ENTRY=linux-omarchy run_migration
+[[ -f $OMARCHY_KERNEL_REBUILD_MARKER ]] || fail "legacy linux-omarchy boot entry is accepted"
+pass "legacy linux-omarchy boot entry satisfies generic kernel verification"
+
+reset_fixture
 cat >> "$OMARCHY_KERNEL_LIMINE_CONF" <<'CONF'
 BOOT_ORDER="linux-omarchy-*, *, *fallback, Snapshots"
   BOOT_ORDER = 'linux-lts, *, *fallback, Snapshots'
@@ -234,7 +239,7 @@ printf '%s\n' 'ENABLE_SORT=yes' >> "$OMARCHY_KERNEL_LIMINE_DROP_INS/omarchy-defa
 cp "$ROOT/etc/limine-entry-tool.d/omarchy-defaults.conf" "$OMARCHY_KERNEL_LIMINE_DROP_INS/omarchy-defaults.conf.pacnew"
 run_migration
 effective_order=$(bash -c 'declare -A KERNEL_CMDLINE; for conf in "$1/"*.conf "$2"; do source "$conf"; done; printf "%s" "$BOOT_ORDER"' -- "$OMARCHY_KERNEL_LIMINE_DROP_INS" "$OMARCHY_KERNEL_LIMINE_CONF")
-[[ $effective_order == "linux-omarchy, linux-omarchy-*, *, *fallback, Snapshots" ]] || fail "the central config wins over old and customized drop-ins"
+[[ $effective_order == "linux-omarchy, linux-omarchy-bore, linux-omarchy-*, *, *fallback, Snapshots" ]] || fail "the central config wins over old and customized drop-ins"
 grep -Fxq 'ENABLE_SORT=yes' "$OMARCHY_KERNEL_LIMINE_DROP_INS/omarchy-defaults.conf" || fail "custom packaged settings survive"
 cmp -s "$ROOT/etc/limine-entry-tool.d/omarchy-defaults.conf" \
   "$OMARCHY_KERNEL_LIMINE_DROP_INS/omarchy-defaults.conf.pacnew" || fail "the pacnew is left for the administrator to merge"
