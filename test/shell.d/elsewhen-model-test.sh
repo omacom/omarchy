@@ -128,6 +128,8 @@ assert(sharing.length > 1 && new Set(sharing.map(o => o.label)).size === sharing
 assertEqual(M.addZone([], 'America/Los_Angeles', 'Oakland')[0].label, 'Oakland', 'elsewhen keeps the chosen city name')
 assertEqual(M.addZone([], 'America/Los_Angeles', '')[0].label, 'Los Angeles', 'elsewhen falls back to the zone name')
 assertEqual(M.addZone(M.addZone([], 'America/Los_Angeles', 'Oakland'), 'America/Los_Angeles', 'Las Vegas').length, 2, 'elsewhen tracks two cities in one zone')
+const zgCatalog = M.zoneOptions('Europe/Zagreb', [])
+assert(zgCatalog.some(o => o.label === 'Split') && zgCatalog.some(o => o.label === 'Dubrovnik'), 'elsewhen offers Croatian regional cities for Europe/Zagreb')
 
 const roundTrip = list => M.parseZones(M.serializeZones(list)).map(z => z.label + '@' + z.id)
 assertDeepEqual(roundTrip(M.addZone([], 'Asia/Tokyo', 'Tokyo, Japan')), ['Tokyo Japan@Asia/Tokyo'], 'elsewhen keeps a comma out of the setting')
