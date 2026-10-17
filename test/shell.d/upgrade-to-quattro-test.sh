@@ -364,6 +364,38 @@ reboot_line=$(grep -n 'Rebooting because --reboot was passed' "$upgrade_to_quatt
 (( unsafe_line < reboot_line )) || fail "an unverified kernel cmdline blocks the reboot"
 pass "Omarchy 4 upgrade verifies the UKIs and refuses to reboot unverified"
 
+# The user transition runs its heredoc in a fresh bash as the user, so none of
+# the outer script's run_as_user helpers exist there.
+user_setup=$(awk '/<<.USER_SETUP.$/ { inside = 1; next } $0 == "USER_SETUP" { exit } inside' "$upgrade_to_quattro")
+grep -F '"$root/bin/omarchy-gtk-bookmarks"' <<<"$user_setup" >/dev/null ||
+  fail "Omarchy 4 upgrade seeds GTK bookmarks in the user transition"
+if grep -E '^[^#]*run_as_user' <<<"$user_setup" >/dev/null; then
+  fail "Omarchy 4 user transition calls no run_as_user helper" "$(grep -E '^[^#]*run_as_user' <<<"$user_setup")"
+fi
+pass "Omarchy 4 user transition seeds GTK bookmarks without an undefined helper"
+
+# The packaged tree can be older than this fetched script, so the helper may not
+# exist when the upgrade runs. Extract the transition's bookmark block and run
+# its fallback against a root without the helper: an upgrade must still seed the
+# bookmarks rather than mark finalize-user done over an empty file.
+bookmark_block=$(printf '%s\n' "$user_setup" | awk '
+  /^if \[\[ -x \$root\/bin\/omarchy-gtk-bookmarks \]\]/ { inside = 1 }
+  inside { print }
+  inside && /^fi$/ { exit }
+')
+[[ -n $bookmark_block ]] || fail "Omarchy 4 user transition has a bookmark fallback block"
+bookmark_root=$(mktemp -d)
+bookmark_home=$(mktemp -d)
+mkdir -p "$bookmark_home/.config/gtk-3.0"
+HOME="$bookmark_home" root="$bookmark_root" bash -c "$bookmark_block" ||
+  fail "Omarchy 4 upgrade seeds bookmarks without the helper"
+for dir in Downloads Projects Pictures Videos; do
+  [[ $(grep -Fxc "file://$bookmark_home/$dir $dir" "$bookmark_home/.config/gtk-3.0/bookmarks") == 1 ]] ||
+    fail "Omarchy 4 fallback seeds $dir exactly once"
+done
+rm -rf "$bookmark_root" "$bookmark_home"
+pass "Omarchy 4 user transition seeds bookmarks without the packaged helper"
+
 # Lazydocker is optional on fresh installs, but a pre-quattro install keeps it.
 lazydocker_body=$(function_body migrate_lazydocker_package)
 [[ -n $lazydocker_body ]] || fail "upgrade has a Lazydocker replacement step"
