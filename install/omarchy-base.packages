@@ -52,6 +52,8 @@ gnome-keyring
 gnome-themes-extra
 grim
 gpu-screen-recorder
+gst-libav
+gst-plugins-good
 gum
 gvfs-mtp
 gvfs-nfs
