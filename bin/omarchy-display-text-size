@@ -176,21 +176,25 @@ set_terminal_size() {
   fi
 }
 
-# Report the current terminal point size from whichever config we find first.
+# Report the current point size of the default terminal. Every terminal's
+# config ships on install, so finding one says nothing about what is in use.
 term_current_pt() {
-  if [[ -f ~/.config/ghostty/config ]]; then
-    grep -oP '^font-size = \K[0-9.]+' ~/.config/ghostty/config | head -1
-  elif [[ -f ~/.config/alacritty/alacritty.toml ]]; then
-    grep -oP '^size[[:space:]]*=[[:space:]]*\K[0-9.]+' ~/.config/alacritty/alacritty.toml | head -1
-  elif [[ -f ~/.config/kitty/kitty.conf ]]; then
-    local pt
-    pt=$(grep -oP '^[[:space:]]*font_size[[:space:]]+\K[0-9.]+' ~/.config/kitty/kitty.conf | tail -1)
-    echo "${pt:-$TERM_DEFAULT_PT}"
-  elif [[ -f ~/.config/foot/foot.ini ]]; then
-    grep -oP ':size=\K[0-9.]+' ~/.config/foot/foot.ini | head -1
-  elif omarchy-cmd-present kitty; then
-    echo "$TERM_DEFAULT_PT"
-  fi
+  case "$(omarchy-default-terminal)" in
+    alacritty)
+      grep -oP '^size[[:space:]]*=[[:space:]]*\K[0-9.]+' ~/.config/alacritty/alacritty.toml 2>/dev/null | head -1
+      ;;
+    foot)
+      grep -oP ':size=\K[0-9.]+' ~/.config/foot/foot.ini 2>/dev/null | head -1
+      ;;
+    ghostty)
+      grep -oP '^font-size = \K[0-9.]+' ~/.config/ghostty/config 2>/dev/null | head -1
+      ;;
+    kitty)
+      local pt
+      pt=$(grep -oP '^[[:space:]]*font_size[[:space:]]+\K[0-9.]+' ~/.config/kitty/kitty.conf 2>/dev/null | tail -1)
+      echo "${pt:-$TERM_DEFAULT_PT}"
+      ;;
+  esac
 }
 
 case "${1:-}" in
