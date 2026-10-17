@@ -1,0 +1,142 @@
+#!/bin/bash
+
+# omarchy:summary=Save and reopen project workspaces with terminals and browser links
+# omarchy:args=[init NAME [DIR]|list|show NAME|open [NAME] [--launch]]
+# omarchy:examples=omarchy project init shop ~/Work/shop | omarchy project open shop | omarchy project
+
+exec python3 - "$@" <<'PYTHON'
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+from urllib.parse import urlsplit
+
+
+def fail(message):
+  raise ValueError(message)
+
+
+def plain(value):
+  return isinstance(value, str) and not any(ord(c) < 32 or ord(c) == 127 for c in value)
+
+
+def name(value):
+  if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,47}", value):
+    fail("Project names use 1–48 lowercase letters, numbers, or hyphens")
+  return value
+
+
+def run(argv, **kwargs):
+  return subprocess.run(argv, check=True, **kwargs)
+
+
+config = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")) / "omarchy/projects"
+parser = argparse.ArgumentParser(prog="omarchy project", description="Save a project setup and reopen it on a named Hyprland workspace")
+commands = parser.add_subparsers(dest="command")
+init = commands.add_parser("init", help="Create a recipe without overwriting an existing one")
+init.add_argument("name")
+init.add_argument("directory", nargs="?", default=os.getcwd())
+commands.add_parser("list", help="List saved project names")
+show = commands.add_parser("show", help="Print a recipe for inspection")
+show.add_argument("name")
+open_command = commands.add_parser("open", help="Focus a project, launching its recipe if the workspace is empty")
+open_command.add_argument("name", nargs="?")
+open_command.add_argument("--launch", action="store_true", help="Launch the recipe even if its workspace already has windows")
+args = parser.parse_args()
+
+try:
+  projects = sorted(p.stem for p in config.glob("*.json") if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,47}", p.stem))
+  if args.command == "list":
+    print("\n".join(projects), end="\n" if projects else "")
+    sys.exit(0)
+  if args.command == "init":
+    project = name(args.name)
+    directory = Path(args.directory).expanduser().resolve(strict=True)
+    if not directory.is_dir() or not plain(str(directory)):
+      fail("The project directory must be a directory without control characters")
+    config.mkdir(parents=True, mode=0o700, exist_ok=True)
+    recipe = {"version": 1, "directory": str(directory), "terminals": [[]], "urls": []}
+    path = config / (project + ".json")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as file:
+      json.dump(recipe, file, indent=2)
+      file.write("\n")
+    print(path)
+    sys.exit(0)
+  if args.command is None:
+    args.command, args.name, args.launch = "open", None, False
+  if args.command == "open" and args.name is None:
+    if not projects:
+      fail("No saved projects. Create one with: omarchy project init NAME DIRECTORY")
+    selection = subprocess.run(["omarchy-menu-select", "Project workspace", *projects], capture_output=True, text=True)
+    if selection.returncode or not selection.stdout.strip():
+      sys.exit(0)
+    args.name = selection.stdout.strip()
+  project = name(args.name)
+  path = config / (project + ".json")
+  if path.stat().st_size > 1048576:
+    fail("Project recipes must be smaller than 1 MiB")
+  recipe = json.loads(path.read_text())
+  if not isinstance(recipe, dict) or set(recipe) != {"version", "directory", "terminals", "urls"} or type(recipe["version"]) is not int or recipe["version"] != 1:
+    fail("Expected version 1 with directory, terminals, and urls fields")
+  directory = recipe["directory"]
+  if not plain(directory) or not Path(directory).is_absolute() or not Path(directory).is_dir():
+    fail("The saved project directory must still exist and be an absolute path")
+  terminals, urls = recipe["terminals"], recipe["urls"]
+  if not isinstance(terminals, list) or not 1 <= len(terminals) <= 16:
+    fail("A recipe needs 1–16 terminal argument arrays; [] opens your default shell")
+  for argv in terminals:
+    if not isinstance(argv, list) or not all(plain(arg) for arg in argv) or (argv and (not argv[0] or argv[0].startswith("-"))):
+      fail("Terminal commands must be argument arrays without control characters")
+  if not isinstance(urls, list) or len(urls) > 16:
+    fail("urls must be an array of at most 16 HTTP(S) links")
+  for url in urls:
+    if not plain(url) or urlsplit(url).scheme not in ("http", "https") or not urlsplit(url).hostname:
+      fail("Browser links must use HTTP(S) and include a hostname")
+  if args.command == "show":
+    print(json.dumps(recipe, indent=2))
+    sys.exit(0)
+
+  # Serialize opens of the same recipe. The compositor is the source of truth:
+  # no stale marker prevents reopening a workspace after its windows close.
+  with open(config / ("." + project + ".lock"), "a") as lock:
+    os.chmod(lock.name, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    workspace = "project-" + project
+    clients = json.loads(run(["hyprctl", "clients", "-j"], capture_output=True, text=True).stdout)
+    if not isinstance(clients, list):
+      fail("Hyprland returned an invalid client list")
+    occupied = any(client.get("workspace", {}).get("name") == workspace for client in clients)
+    launch = args.launch or not occupied
+    if launch:
+      for argv in terminals:
+        if not argv: continue
+        if "/" in argv[0]:
+          executable = Path(argv[0])
+          if not executable.is_absolute(): executable = Path(directory) / executable
+          available = executable.is_file() and os.access(executable, os.X_OK)
+        else:
+          available = shutil.which(argv[0], path=os.environ.get("PATH")) is not None
+        if not available: fail("Command is not installed: " + argv[0])
+    run(["hyprctl", "dispatch", "workspace", "name:" + workspace], stdout=subprocess.DEVNULL)
+    if launch:
+      for argv in terminals:
+        terminal = ["uwsm-app", "--", "xdg-terminal-exec", "--dir=" + directory]
+        if argv:
+          terminal += ["-e", *argv]
+        command = "[workspace name:" + workspace + " silent] " + shlex.join(terminal)
+        run(["hyprctl", "dispatch", "exec", command], stdout=subprocess.DEVNULL)
+      for url in urls:
+        run(["omarchy-launch-browser", url])
+    else:
+      print("Focused " + workspace + "; use --launch to launch the recipe again")
+except (ValueError, OSError, subprocess.CalledProcessError) as error:
+  print("omarchy-project: " + str(error), file=sys.stderr)
+  sys.exit(1)
+PYTHON
