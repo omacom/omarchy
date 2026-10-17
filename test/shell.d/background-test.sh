@@ -12,6 +12,27 @@ assert(
   'background opens the in-shell theme picker instead of spawning the switcher script'
 )
 
+// OWE tells the shell to stop painting while it plays a video background, a GIF
+// it transcoded to play, or an intro covering a still. That must not unmap the
+// panel: the desktop double-click is a MouseArea on this layer surface, so an
+// unmapped panel leaves both pickers dead for as long as an animated background
+// plays.
+const panelSource = backgroundQml.slice(backgroundQml.indexOf('Variants {'))
+assert(
+  /visible: !remapGuard\.remapping\s*$/m.test(panelSource) &&
+    !/visible:[^\n]*root\.suspended/.test(panelSource) &&
+    /MouseArea \{[\s\S]*?onDoubleClicked: function\(mouse\)/.test(panelSource),
+  'the background panel stays mapped while OWE owns the wallpaper'
+)
+assert(
+  backgroundQml.includes('readonly property string paintedBackground: suspended ? "" : displayedBackground') &&
+    backgroundQml.includes('readonly property string paintedOldBackground: suspended ? "" : oldBackground') &&
+    backgroundQml.includes('readonly property string paintedIncomingBackground: suspended ? "" : incomingBackground') &&
+    panelSource.includes('path: root.paintedBackground') &&
+    panelSource.includes('visible: root.paintedOldBackground !== ""'),
+  'a suspended background panel paints nothing, so OWE shows through unmasked'
+)
+
 assert(
   backgroundQml.includes('pendingThemeFallbackTimer.restart()') &&
     backgroundQml.includes('pendingThemeFallbackTimer.stop()') &&
@@ -26,7 +47,7 @@ const themeSet = fs.readFileSync(path.join(root, 'bin/omarchy-theme-set'), 'utf8
 // transition arrives: WebP decodes take as long at screen size as at native.
 assert(
   /function prepare\(path: string\): void \{\s*root\.prepareBackground\(path\)/.test(backgroundQml) &&
-    backgroundQml.includes('readonly property string framePath: root.incomingBackground || root.preparedBackground'),
+    backgroundQml.includes('readonly property string framePath: root.paintedIncomingBackground || root.preparedBackground'),
   'background decodes a prepared theme background in the hidden incoming frame'
 )
 assert(

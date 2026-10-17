@@ -12,7 +12,16 @@ Item {
   id: root
 
   property var shell: null
+  // OWE paints the wallpaper itself while this is true: a video background, a
+  // GIF it transcoded to play, or an intro covering a still. It says nothing
+  // about the desktop being interactive, so the window stays mapped and only
+  // stops painting — see the note on the panel's visible binding.
   property bool suspended: false
+  // What the panel is allowed to paint. A suspended panel paints nothing, so
+  // OWE's own layer is not covered by a frame of the still it already replaced.
+  readonly property string paintedBackground: suspended ? "" : displayedBackground
+  readonly property string paintedOldBackground: suspended ? "" : oldBackground
+  readonly property string paintedIncomingBackground: suspended ? "" : incomingBackground
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateHome: home + "/.local/state"
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
@@ -343,7 +352,12 @@ Item {
       required property var modelData
 
       screen: modelData
-      visible: !remapGuard.remapping && !root.suspended
+      // Suspending must not unmap this window. The double-click that opens the
+      // background and theme pickers is a MouseArea on this surface, so an
+      // unmapped panel leaves the desktop unclickable for as long as an animated
+      // background plays. The window stays mapped and transparent instead, which
+      // leaves OWE's layer visible underneath while keeping the click target.
+      visible: !remapGuard.remapping
       anchors { top: true; bottom: true; left: true; right: true }
 
       ScreenMoveRemap {
@@ -403,11 +417,13 @@ Item {
       exclusionMode: ExclusionMode.Ignore
 
       // OWE owns video backgrounds. This layer draws stills, and stays empty
-      // behind a video so OWE's own layer shows through.
+      // behind a video so OWE's own layer shows through. It stays empty while
+      // suspended too, which is what lets the panel above stay mapped for the
+      // desktop double-click without painting over what OWE is playing.
       BackgroundMedia {
         id: base
         anchors.fill: parent
-        path: root.displayedBackground
+        path: root.paintedBackground
         version: root.reloadVersion
         cached: true
         constrainDecode: true
@@ -428,8 +444,8 @@ Item {
       Image {
         id: oldFrame
         anchors.fill: parent
-        readonly property size decode: panel.decodeSize(root.oldBackground)
-        source: decode.width > 0 ? root.imageUrl(root.oldBackground) : ""
+        readonly property size decode: panel.decodeSize(root.paintedOldBackground)
+        source: decode.width > 0 ? root.imageUrl(root.paintedOldBackground) : ""
         sourceSize.width: decode.width
         sourceSize.height: decode.height
         fillMode: Image.PreserveAspectCrop
@@ -437,15 +453,15 @@ Item {
         cache: false
         smooth: true
         mipmap: true
-        visible: root.oldBackground !== "" && root.revealProgress < 1
+        visible: root.paintedOldBackground !== "" && root.revealProgress < 1
         onStatusChanged: panel.maybeStartReveal()
       }
 
       Item {
         id: incomingLayer
         anchors.fill: parent
-        visible: root.incomingBackground !== "" && incomingFrame.status === Image.Ready && (root.revealProgress >= 1 || panel.maskReady)
-        layer.enabled: root.incomingBackground !== "" && root.revealProgress < 1
+        visible: root.paintedIncomingBackground !== "" && incomingFrame.status === Image.Ready && (root.revealProgress >= 1 || panel.maskReady)
+        layer.enabled: root.paintedIncomingBackground !== "" && root.revealProgress < 1
         layer.smooth: true
         layer.effect: MultiEffect {
           maskEnabled: true
@@ -459,7 +475,7 @@ Item {
           anchors.fill: parent
           // The same URL and size as a prepared frame keeps its decoded
           // image, so a transition to it can reveal at once.
-          readonly property string framePath: root.incomingBackground || root.preparedBackground
+          readonly property string framePath: root.paintedIncomingBackground || root.preparedBackground
           readonly property size decode: panel.decodeSize(framePath)
           source: decode.width > 0 ? root.imageUrl(framePath) : ""
           sourceSize.width: decode.width
