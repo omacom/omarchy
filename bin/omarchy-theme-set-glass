@@ -104,10 +104,27 @@ glass btop.theme '' \
   '^[[:space:]]*theme\[main_bg\][[:space:]]*=[[:space:]]*""' 'theme[main_bg]=""' || status=1
 # GTK only asks Hyprland for blur under a CSS backdrop-filter, which Ghostty
 # takes as custom CSS and reloads live; its background-blur speaks only KDE's
-# blur protocol.
+# blur protocol. Honor the last theme setting, including an explicit opt-out.
+# A no-blur stylesheet also overrides the shared GTK blur below, rather than
+# merely omitting the app stylesheet and leaving that inherited blur active.
+ghostty_css="$OMARCHY_PATH/default/gtk/glass.css"
+if [[ -f $THEME_DIR/ghostty.conf ]]; then
+  ghostty_blur=$(awk '
+    /^[[:space:]]*background-blur[[:space:]]*=/ {
+      value = $0
+      sub(/^[^=]*=[[:space:]]*/, "", value)
+      sub(/#.*/, "", value)
+      sub(/[[:space:]]*$/, "", value)
+    }
+    END { print value }
+  ' "$THEME_DIR/ghostty.conf")
+  if [[ $ghostty_blur == "false" || $ghostty_blur == "0" ]]; then
+    ghostty_css="$OMARCHY_PATH/default/gtk/no-blur.css"
+  fi
+fi
 glass ghostty.conf '' \
   '^[[:space:]]*background-opacity[[:space:]]*=' 'background-opacity = 0.65' \
-  '' "gtk-custom-css = $OMARCHY_PATH/default/gtk/glass.css" || status=1
+  '' "gtk-custom-css = $ghostty_css" || status=1
 
 # Other GTK apps, such as Nautilus, read the user's gtk.css at launch, so the
 # same backdrop blur is imported there. It follows the mode alone, so a theme

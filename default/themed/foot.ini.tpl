@@ -1,9 +1,10 @@
 [colors-dark]
+{{ terminal_opacity_foot }}
 foreground={{ foreground_strip }}
 background={{ background_strip }}
-# Blur only applies while the background is see-through, as with Glassy windows,
-# and foot reads it only at launch, so it is on from the start.
-blur=yes
+# Foot reads blur only at launch. Without a theme override, keep it on from
+# the start so a running terminal is ready for Glassy windows.
+{{ terminal_blur_foot }}
 selection-foreground={{ selection_foreground_strip }}
 selection-background={{ selection_background_strip }}
 
