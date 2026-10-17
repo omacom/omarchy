@@ -1590,6 +1590,13 @@ Item {
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
 
+    // Qt synthesizes a context menu for an unclaimed right-press at window (0,0) by
+    // dereferencing the bar's null activeFocusItem (QTBUG-146671, still in 6.12); this grab skips it.
+    MouseArea {
+      anchors.fill: parent
+      acceptedButtons: Qt.RightButton
+    }
+
     Loader {
       anchors.fill: parent
       sourceComponent: root.vertical ? verticalBar : horizontalBar
