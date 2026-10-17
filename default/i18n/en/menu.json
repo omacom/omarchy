@@ -1017,6 +1017,9 @@
   "remove.browser.zen": {
     "label": "Zen"
   },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
   "remove.service.dropbox": {
     "label": "Dropbox"
   },
