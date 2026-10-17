@@ -1,10 +1,22 @@
 #!/bin/bash
 
-# omarchy:summary=Toggle bar visibility without killing the Omarchy shell (on hides the bar, off shows it)
+# omarchy:summary=Toggle bar visibility without killing the Omarchy shell (on shows the bar, off hides it)
 # omarchy:args=[toggle|on|off]
 # omarchy:examples=omarchy toggle bar | omarchy toggle bar off | omarchy toggle bar on
 
-omarchy-toggle bar-off "${1:-toggle}"
+# The flag this drives is named for the state it turns on, so bar-off is
+# enabled to hide the bar. Reject an unrecognised argument the way
+# omarchy-toggle does rather than fall through to a toggle, so a typo like
+# `omarchy toggle bar offf` fails instead of silently flipping the bar.
+case "${1:-toggle}" in
+  toggle) omarchy-toggle bar-off toggle ;;
+  on) omarchy-toggle bar-off off ;;
+  off) omarchy-toggle bar-off on ;;
+  *)
+    echo "Usage: omarchy-toggle-bar [toggle|on|off]" >&2
+    exit 1
+    ;;
+esac
 
 # The shell's watch on the toggles directory can miss flag changes that land in
 # quick succession, stranding the bar off screen until the shell restarts.

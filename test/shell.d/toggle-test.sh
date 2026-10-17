@@ -40,17 +40,26 @@ HOME="$test_home" omarchy-toggle example toggle
 [[ ! -f $flag ]] || fail "generic toggle flips enabled state off"
 pass "generic toggle flips enabled state off"
 
-HOME="$test_home" omarchy-toggle-bar on
-[[ -f $bar_flag ]] || fail "bar on enables bar-off toggle"
-pass "bar on enables bar-off toggle"
-
-HOME="$test_home" omarchy-toggle-bar on
-[[ -f $bar_flag ]] || fail "bar on is idempotent"
-pass "bar on is idempotent"
+HOME="$test_home" omarchy-toggle-bar off
+[[ -f $bar_flag ]] || fail "bar off enables bar-off toggle"
+pass "bar off enables bar-off toggle"
 
 HOME="$test_home" omarchy-toggle-bar off
-[[ ! -f $bar_flag ]] || fail "bar off disables bar-off toggle"
-pass "bar off disables bar-off toggle"
+[[ -f $bar_flag ]] || fail "bar off is idempotent"
+pass "bar off is idempotent"
+
+HOME="$test_home" omarchy-toggle-bar on
+[[ ! -f $bar_flag ]] || fail "bar on disables bar-off toggle"
+pass "bar on disables bar-off toggle"
+
+# An unrecognised argument is a typo, not a request to toggle. omarchy-toggle
+# rejects one with a usage error, so the bar wrapper must not quietly turn
+# `omarchy toggle bar offf` into a flip of whatever the bar is doing now.
+if HOME="$test_home" omarchy-toggle-bar offf 2>/dev/null; then
+  fail "bar rejects an unrecognised argument instead of toggling"
+fi
+[[ ! -f $bar_flag ]] || fail "bar leaves the flag untouched when it rejects an argument"
+pass "bar rejects an unrecognised argument instead of toggling"
 
 # The gaps half of full screen copies a flag file in and reloads Hyprland, so
 # give it this checkout to copy from and a hyprctl that answers without a
@@ -72,7 +81,7 @@ HOME="$test_home" omarchy-toggle-fullscreen-desktop
 [[ ! -f $bar_flag && ! -f $gaps_flag ]] || fail "fullscreen toggle restores the bar and the gaps together"
 pass "fullscreen toggle restores the bar and the gaps together"
 
-HOME="$test_home" omarchy-toggle-bar on
+HOME="$test_home" omarchy-toggle-bar off
 HOME="$test_home" omarchy-toggle-fullscreen-desktop
 [[ -f $bar_flag && -f $gaps_flag ]] || fail "fullscreen toggle pulls a half-hidden desktop into full screen"
 pass "fullscreen toggle pulls a half-hidden desktop into full screen"

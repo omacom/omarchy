@@ -23,5 +23,9 @@ case $ACTION in
     ;;
 esac
 
-omarchy-toggle-bar "$ACTION"
+# Full screen means "hide the bar", so bar visibility runs opposite ACTION.
+case $ACTION in
+  on) omarchy-toggle-bar off ;;
+  off) omarchy-toggle-bar on ;;
+esac
 omarchy-hyprland-toggle window-no-gaps "$ACTION"

@@ -48,6 +48,14 @@ fi
 echo "Removing resume hook"
 sudo rm "$MKINITCPIO_CONF"
 
+# Remove Limine kernel command line drop-ins added by hibernation setup
+RESUME_DROP_IN="/etc/limine-entry-tool.d/resume.conf"
+RTC_ALARM_DROP_IN="/etc/limine-entry-tool.d/rtc-alarm.conf"
+if [[ -f $RESUME_DROP_IN || -f $RTC_ALARM_DROP_IN ]]; then
+  echo "Removing resume kernel parameters"
+  sudo rm -f "$RESUME_DROP_IN" "$RTC_ALARM_DROP_IN"
+fi
+
 echo "Regenerating initramfs..."
 sudo limine-mkinitcpio
 

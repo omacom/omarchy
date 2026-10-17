@@ -92,8 +92,30 @@ o.bind("SUPER + CTRL + RIGHT", "Move grouped window focus right", hl.dsp.group.n
 o.bind("SUPER + ALT + mouse_down", "Next window in group", hl.dsp.group.next())
 o.bind("SUPER + ALT + mouse_up", "Previous window in group", hl.dsp.group.prev())
 
+-- Hyprland rejects an index past the end of the group, and a Lua bind surfaces
+-- that rejection as a "Runtime error in lua: Index out of range" notification.
+-- A group rarely holds all five bound indices, so check the focused window's
+-- group first and do nothing when it has no window at that position.
+function o.switch_group_window(index)
+  local window = hl.get_active_window()
+  local group = window and window.group
+
+  if group and index <= group.size then
+    hl.dispatch(hl.dsp.group.active({ index = index }))
+  end
+end
+
 for index = 1, 5 do
-  o.bind("SUPER + ALT + code:" .. tostring(index + 9), "Switch to group window " .. index, hl.dsp.group.active({ index = index }))
+  local function switch()
+    o.switch_group_window(index)
+  end
+
+  -- The live group size is only known at keypress time, which means a function
+  -- dispatcher, and Hyprland reports those as plain __lua without the
+  -- dispatcher behind them. Name the equivalent command so the keybindings menu
+  -- can still run the bind when it is picked from the list.
+  o.bind_commands[switch] = "hyprctl eval " .. o.shell_quote("o.switch_group_window(" .. index .. ")")
+  o.bind("SUPER + ALT + code:" .. tostring(index + 9), "Switch to group window " .. index, switch)
 end
 
 o.bind("SUPER + SLASH", "Monitor scaling up", "omarchy-hyprland-monitor-scaling up")
