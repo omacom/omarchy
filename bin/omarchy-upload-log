@@ -9,7 +9,10 @@ TEMP_LOG="/tmp/upload-log.txt"
 SYSTEM_INFO="/tmp/system-info.txt"
 
 # Get system information if fastfetch is available
-if omarchy-cmd-present fastfetch; then
+# command -v, not omarchy-cmd-present: omarchy-settings ships this script, and on the live ISO the
+# omarchy package that owns the helpers is not installed yet, so the live run logged
+# "omarchy-cmd-present: command not found" and never took the fastfetch path (#114).
+if command -v -- fastfetch &>/dev/null; then
   {
     echo "========================================="
     echo "SYSTEM INFORMATION"
