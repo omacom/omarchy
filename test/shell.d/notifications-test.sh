@@ -8,6 +8,22 @@ run_node_test <<'JS'
 const fs = require('fs')
 const notifications = requireFromRoot('shell/plugins/notifications/NotificationLogic.js')
 
+const screens = [{ name: 'DP-1' }, { name: 'DP-2' }, { name: 'HDMI-A-1' }]
+function selectedScreens(monitors) {
+  return notifications.popupScreens(screens, [{ id: 'omarchy.notifications', monitors }], 'omarchy.notifications')
+}
+assertDeepEqual(selectedScreens(undefined), screens, 'notifications default to all outputs')
+assertDeepEqual(selectedScreens([]), screens, 'an empty monitor list selects all outputs')
+assertDeepEqual(selectedScreens('DP-2'), screens, 'malformed monitor settings preserve the default')
+assertDeepEqual(selectedScreens(['DP-2']), [screens[1]], 'notifications select a named output')
+assertDeepEqual(selectedScreens(['HDMI-A-1', 'DP-1', 'DP-1']), [screens[0], screens[2]], 'notifications select multiple outputs without duplicates')
+assertDeepEqual(selectedScreens(['DP-9']), [], 'disconnected outputs do not redirect notifications')
+assertDeepEqual(selectedScreens(['dp-2']), [], 'output names match exactly')
+assertDeepEqual(notifications.popupScreens(screens, null, 'omarchy.notifications'), screens, 'missing plugin entries use all outputs')
+assertDeepEqual(notifications.popupScreens(screens, [{ id: 'other.plugin', monitors: ['DP-2'] }], 'omarchy.notifications'), screens, 'other plugin settings do not affect notifications')
+assertDeepEqual(notifications.popupScreens(screens, [{ id: 'crab.notifications', monitors: ['DP-2'] }], 'crab.notifications'), [screens[1]], 'cloned notifications use their own settings')
+assertDeepEqual(notifications.popupScreens([screens[0]], [{ id: 'omarchy.notifications', monitors: ['DP-2'] }], 'omarchy.notifications'), [], 'unplugging a selected output removes its popup window')
+
 assert(notifications.isChromiumDerived('Brave Browser', ''), 'notifications detect chromium-derived apps by name')
 assert(notifications.isChromiumDerived('', 'microsoft-edge'), 'notifications detect chromium-derived apps by icon')
 assert(!notifications.isChromiumDerived('Slack', ''), 'notifications do not treat unrelated apps as chromium-derived')
