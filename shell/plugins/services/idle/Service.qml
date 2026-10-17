@@ -29,11 +29,17 @@ Item {
   readonly property int lockDelaySeconds: IdleModel.delayAfterFirstIdle(lockTimeoutSeconds, firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property string screensaverClass: "org.omarchy.screensaver"
+  // Effective stay-awake: always on in "awake", and in "agents" only while
+  // herdr reports a working agent.
+  readonly property bool stayAwake: stayAwakeMode === "awake" || (stayAwakeMode === "agents" && agentsWorking)
 
-  property bool stayAwake: false
+  // "allow" idles normally, "awake" never idles, "agents" idles unless an
+  // agent is working.
+  property string stayAwakeMode: "allow"
+  property bool agentsWorking: false
   property bool stayAwakeStateLoaded: false
   property bool hasPendingStayAwakePersist: false
-  property bool pendingStayAwakePersist: false
+  property string pendingStayAwakePersist: "allow"
   property bool idledThisCycle: false
   property bool screensaverStartedThisCycle: false
   property string lastEvent: "starting"
@@ -198,6 +204,8 @@ Item {
     return JSON.stringify({
       enabled: root.idleEnabled,
       stayAwake: root.stayAwake,
+      stayAwakeMode: root.stayAwakeMode,
+      agentsWorking: root.agentsWorking,
       stayAwakeStateLoaded: root.stayAwakeStateLoaded,
       stayAwakeStatePath: root.stayAwakeStatePath,
       idle: idleMonitor.isIdle,
@@ -223,13 +231,13 @@ Item {
     })
   }
 
-  function persistStayAwake(value) {
-    var command = value
-      ? "mkdir -p \"$HOME/.local/state/omarchy/indicators\" && touch \"$HOME/.local/state/omarchy/indicators/stay-awake\""
-      : "rm -f \"$HOME/.local/state/omarchy/indicators/stay-awake\""
+  function persistStayAwake(mode) {
+    var command = "rm -f \"$HOME/.local/state/omarchy/indicators/stay-awake\""
+    if (mode === "awake" || mode === "agents")
+      command = "mkdir -p \"$HOME/.local/state/omarchy/indicators\" && printf '" + mode + "\\n' >\"$HOME/.local/state/omarchy/indicators/stay-awake\""
 
     if (stayAwakeStateWriter.running) {
-      root.pendingStayAwakePersist = !!value
+      root.pendingStayAwakePersist = mode
       root.hasPendingStayAwakePersist = true
       return
     }
@@ -242,26 +250,45 @@ Item {
     if (!stayAwakeStateProbe.running) stayAwakeStateProbe.running = true
   }
 
-  function applyStayAwake(value, persist, reason) {
-    var enabled = !!value
-    var changed = !root.stayAwakeStateLoaded || root.stayAwake !== enabled
+  function applyStayAwakeMode(mode, persist, reason) {
+    if (mode !== "allow" && mode !== "awake" && mode !== "agents") return root.stayAwakeMode
+    var changed = !root.stayAwakeStateLoaded || root.stayAwakeMode !== mode
 
-    if (persist) persistStayAwake(enabled)
+    if (persist) persistStayAwake(mode)
 
-    root.stayAwake = enabled
+    root.stayAwakeMode = mode
     root.stayAwakeStateLoaded = true
 
-    if (!changed) return enabled ? "disabled" : "enabled"
+    if (mode === "agents") {
+      agentsPollTimer.restart()
+      if (!agentsProbe.running) agentsProbe.running = true
+    } else {
+      agentsPollTimer.stop()
+      root.agentsWorking = false
+    }
 
-    logEvent("stay-awake", (enabled ? "enabled" : "disabled") + (reason ? " " + reason : ""))
-    if (enabled) cancelIdleCycle("stay-awake")
-    else Qt.callLater(root.handleIdleChanged)
+    if (!changed) return root.idleEnabled ? "enabled" : "disabled"
 
-    return enabled ? "disabled" : "enabled"
+    logEvent("stay-awake", mode + (reason ? " " + reason : ""))
+    return root.idleEnabled ? "enabled" : "disabled"
+  }
+
+  function setStayAwakeMode(mode) {
+    return applyStayAwakeMode(mode, true, "ipc")
+  }
+
+  function cycleStayAwakeMode() {
+    var next = IdleModel.nextStayAwakeMode(root.stayAwakeMode)
+    return applyStayAwakeMode(next, true, "cycle")
   }
 
   function setIdleEnabled(value) {
-    return applyStayAwake(!value, true, "ipc")
+    return applyStayAwakeMode(value ? "allow" : "awake", true, "ipc")
+  }
+
+  onStayAwakeChanged: {
+    if (root.stayAwake) cancelIdleCycle("stay-awake")
+    else Qt.callLater(root.handleIdleChanged)
   }
 
   // With both timeouts at 0 the monitor stops reporting, so nothing else would end a running cycle.
@@ -318,9 +345,9 @@ Item {
 
   Process {
     id: stayAwakeStateProbe
-    command: ["bash", "-c", "mkdir -p \"$HOME/.local/state/omarchy/indicators\"; if [[ -f $HOME/.local/state/omarchy/indicators/stay-awake ]]; then echo yes; else echo no; fi"]
+    command: ["bash", "-c", "f=\"$HOME/.local/state/omarchy/indicators/stay-awake\"; mkdir -p \"$HOME/.local/state/omarchy/indicators\"; if [[ ! -f $f ]]; then echo allow; elif [[ $(cat \"$f\") == agents ]]; then echo agents; else echo awake; fi"]
     stdout: SplitParser {
-      onRead: function(line) { root.applyStayAwake(String(line).trim() === "yes", false, "state-file") }
+      onRead: function(line) { root.applyStayAwakeMode(String(line).trim(), false, "state-file") }
     }
     onExited: function() { stayAwakeStateDirWatcher.reload() }
   }
@@ -345,6 +372,23 @@ Item {
     watchChanges: true
     printErrors: false
     onFileChanged: root.refreshStayAwakeState()
+  }
+
+  // In "agents" mode the shell holds idle off only while herdr reports a
+  // working agent. herdr is optional: a missing or failing probe reads as
+  // no working agents, so idle proceeds exactly as in "allow".
+  Timer {
+    id: agentsPollTimer
+    interval: 10000
+    repeat: true
+    running: root.stayAwakeMode === "agents"
+    onTriggered: if (!agentsProbe.running) agentsProbe.running = true
+  }
+
+  Process {
+    id: agentsProbe
+    command: ["omarchy-agents-working"]
+    onExited: function(exitCode, exitStatus) { root.agentsWorking = exitCode === 0 }
   }
 
   Component.onCompleted: {
@@ -372,7 +416,7 @@ Item {
     }
 
     function toggle(): string {
-      return root.setIdleEnabled(!root.idleEnabled)
+      return root.cycleStayAwakeMode()
     }
   }
 }

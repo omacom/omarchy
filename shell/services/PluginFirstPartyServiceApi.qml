@@ -7,6 +7,8 @@ QtObject {
   required property string serviceId
 
   property bool stayAwake: false
+  property string stayAwakeMode: "allow"
+  property bool agentsWorking: false
   property bool enabled: false
   property bool doNotDisturb: false
   property var activePlayer: null
@@ -15,6 +17,8 @@ QtObject {
   property var peers: []
 
   property var _setIdleEnabled: null
+  property var _setStayAwakeMode: null
+  property var _cycleStayAwakeMode: null
   property var _setNightlight: null
   property var _setDoNotDisturb: null
   property var _runAction: null
@@ -24,6 +28,14 @@ QtObject {
 
   function setIdleEnabled(value) {
     if (serviceId === "omarchy.idle" && _setIdleEnabled) _setIdleEnabled(!!value)
+  }
+
+  function setStayAwakeMode(mode) {
+    if (serviceId === "omarchy.idle" && _setStayAwakeMode) _setStayAwakeMode(String(mode || ""))
+  }
+
+  function cycleStayAwakeMode() {
+    if (serviceId === "omarchy.idle" && _cycleStayAwakeMode) _cycleStayAwakeMode()
   }
 
   function setNightlight(value) {

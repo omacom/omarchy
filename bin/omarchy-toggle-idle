@@ -2,37 +2,67 @@
 
 # omarchy:summary=Toggle idle behavior so the system either idles normally or stays awake
 # omarchy:group=toggle
-# omarchy:args=[toggle|stay-awake|allow-idle|status]
-# omarchy:examples=omarchy toggle idle | omarchy toggle idle stay-awake | omarchy-toggle-idle --status
+# omarchy:args=[toggle|stay-awake|agents|allow-idle|status]
+# omarchy:examples=omarchy toggle idle | omarchy toggle idle agents | omarchy-toggle-idle --status
 
 STATE_DIR="$HOME/.local/state/omarchy/indicators"
 STATE_FILE="$STATE_DIR/stay-awake"
 
-stay_awake_enabled() {
-  [[ -f $STATE_FILE ]]
+# Modes: allow-idle (no file), stay-awake (file with anything but "agents"),
+# agents (file containing "agents"). Legacy content (empty file, update owner
+# stamp) reads as stay-awake, so existing installs keep their behavior.
+current_mode() {
+  local content=""
+
+  if [[ ! -f $STATE_FILE ]]; then
+    printf 'allow-idle\n'
+    return 0
+  fi
+  content=$(cat "$STATE_FILE" 2>/dev/null || true)
+  if [[ $content == "agents" ]]; then
+    printf 'agents\n'
+  else
+    printf 'stay-awake\n'
+  fi
 }
 
 print_status() {
-  if stay_awake_enabled; then
-    printf '{"enabled":true,"class":"enabled","tooltip":"Allow Idle Lock & Screensaver"}\n'
-  else
-    printf '{"enabled":false,"class":"disabled","tooltip":"Stay Awake"}\n'
-  fi
+  case "$(current_mode)" in
+    stay-awake)
+      printf '{"mode":"stay-awake","enabled":true,"class":"enabled","tooltip":"Stay Awake While Agents Work"}\n'
+      ;;
+    agents)
+      printf '{"mode":"agents","enabled":true,"class":"enabled","tooltip":"Allow Idle Lock & Screensaver"}\n'
+      ;;
+    *)
+      printf '{"mode":"allow-idle","enabled":false,"class":"disabled","tooltip":"Stay Awake"}\n'
+      ;;
+  esac
 }
 
 print_idle_state() {
-  if stay_awake_enabled; then
-    printf 'disabled\n'
-  else
-    printf 'enabled\n'
-  fi
+  case "$(current_mode)" in
+    stay-awake)
+      printf 'disabled\n'
+      ;;
+    agents)
+      printf 'conditional\n'
+      ;;
+    *)
+      printf 'enabled\n'
+      ;;
+  esac
 }
 
 apply_state() {
   case "$1" in
     stay-awake)
       mkdir -p "$STATE_DIR"
-      touch "$STATE_FILE"
+      printf 'awake\n' >"$STATE_FILE"
+      ;;
+    agents)
+      mkdir -p "$STATE_DIR"
+      printf 'agents\n' >"$STATE_FILE"
       ;;
     allow-idle)
       rm -f "$STATE_FILE"
@@ -42,15 +72,25 @@ apply_state() {
 
 case "${1:-toggle}" in
   toggle)
-    if stay_awake_enabled; then
-      apply_state allow-idle
-    else
-      apply_state stay-awake
-    fi
+    case "$(current_mode)" in
+      allow-idle)
+        apply_state stay-awake
+        ;;
+      stay-awake)
+        apply_state agents
+        ;;
+      *)
+        apply_state allow-idle
+        ;;
+    esac
     print_idle_state
     ;;
   stay-awake|awake|on)
     apply_state stay-awake
+    print_idle_state
+    ;;
+  agents|auto|if-working)
+    apply_state agents
     print_idle_state
     ;;
   allow-idle|idle|off)
@@ -61,7 +101,7 @@ case "${1:-toggle}" in
     print_status
     ;;
   *)
-    echo "Usage: omarchy-toggle-idle [toggle|stay-awake|allow-idle|status]" >&2
+    echo "Usage: omarchy-toggle-idle [toggle|stay-awake|agents|allow-idle|status]" >&2
     exit 1
     ;;
 esac

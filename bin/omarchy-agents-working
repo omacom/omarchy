@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true while any coding agent is working
+# omarchy:hidden=true
+
+# herdr is the only signal: missing or unreadable means fail-open, no working
+# agents, so callers idle and suspend exactly as they would without it.
+
+set -euo pipefail
+
+omarchy-cmd-missing herdr && exit 1
+
+agents_json=$(timeout 10 herdr agent list 2>/dev/null) || exit 1
+count=$(echo "$agents_json" | jq -r '[.result.agents[]? | select(.agent_status == "working")] | length' 2>/dev/null) || exit 1
+
+(( count > 0 ))

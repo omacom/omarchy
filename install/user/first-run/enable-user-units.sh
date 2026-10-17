@@ -29,5 +29,11 @@ for unit in \
   systemctl --user enable --now "$unit" || failed=1
 done
 
+# Enabled separately so a missing unit here never blocks the list above, and
+# a failure here never aborts first-run before the hook below.
+if ! systemctl --user enable --now omarchy-lid-guard.service; then
+  echo "Warning: could not enable omarchy-lid-guard.service; continuing first-run" >&2
+fi
+
 omarchy-hook-install theme-set /usr/share/owe/10-owe-sync
 exit "$failed"
