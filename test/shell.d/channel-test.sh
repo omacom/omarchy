@@ -75,7 +75,14 @@ write_stub gum '#!/bin/bash
 printf "gum" >>"$OMARCHY_CHANNEL_TEST_LOG"
 for arg in "$@"; do printf "\t%s" "$arg" >>"$OMARCHY_CHANNEL_TEST_LOG"; done
 printf "\n" >>"$OMARCHY_CHANNEL_TEST_LOG"
-exit 0
+exit "${OMARCHY_TEST_GUM_STATUS:-0}"
+'
+
+write_stub omarchy-pkg-drop '#!/bin/bash
+printf "drop" >>"$OMARCHY_CHANNEL_TEST_LOG"
+for arg in "$@"; do printf "\t%s" "$arg" >>"$OMARCHY_CHANNEL_TEST_LOG"; done
+printf "\n" >>"$OMARCHY_CHANNEL_TEST_LOG"
+exit "${OMARCHY_TEST_DROP_STATUS:-0}"
 '
 
 write_stub git '#!/bin/bash
@@ -99,9 +106,14 @@ write_stub omarchy-version-channel '#!/bin/bash
 printf "%s\n" "${OMARCHY_TEST_VERSION_CHANNEL:-unknown}"
 '
 
+# The previous channel's Omarchy repository, and what is foreign after the switch.
 write_stub pacman '#!/bin/bash
-[[ $1 == "-Q" ]] || exit 1
-shift
+case "$1" in
+  -Slq) [[ -z ${OMARCHY_TEST_PREVIOUS_REPO:-} ]] || printf "%s\n" $OMARCHY_TEST_PREVIOUS_REPO; exit "${OMARCHY_TEST_PREVIOUS_REPO_STATUS:-0}" ;;
+  -Qmq) [[ -z ${OMARCHY_TEST_FOREIGN:-} ]] || printf "%s\n" $OMARCHY_TEST_FOREIGN; exit 0 ;;
+  -Q) shift ;;
+  *) exit 1 ;;
+esac
 case "${OMARCHY_TEST_PACKAGES:-}" in
   stable) [[ $* == "omarchy omarchy-settings" ]] ;;
   dev) [[ $* == "omarchy-dev omarchy-settings-dev" ]] ;;
@@ -153,6 +165,35 @@ assert_log_line $'update\t-y\tOMARCHY_PATH='"$package_root" "edge runs the norma
 [[ $(grep -E $'^(unlink|state|update)\t' "$log_file") == $'unlink\t--no-reboot\nstate\tset\treboot-required\nupdate\t-y\tOMARCHY_PATH='"$package_root" ]] ||
   fail "edge defers the reboot prompt until the update restart stage" "$(cat "$log_file")"
 pass "edge defers the reboot prompt until the update restart stage"
+
+OMARCHY_TEST_PREVIOUS_REPO="omarchy-dev omarchy-settings-dev edge-app edge-lib" \
+  OMARCHY_TEST_FOREIGN="edge-app edge-lib my-aur-app" run_channel stable >"$test_tmp/left-behind.out"
+assert_log_line $'gum\tconfirm\t--default=false\tRemove 2 left-behind package(s)?' "leaving edge offers to remove what only edge published"
+assert_log_line $'drop\tedge-app\tedge-lib' "leaving edge removes only the packages edge left behind"
+if grep -q 'my-aur-app' "$log_file" "$test_tmp/left-behind.out"; then
+  fail "leaving edge leaves the user's own foreign packages alone" "$(cat "$log_file" "$test_tmp/left-behind.out")"
+fi
+pass "leaving edge leaves the user's own foreign packages alone"
+[[ $(grep -E $'^(drop|update)\t' "$log_file") == $'drop\tedge-app\tedge-lib\nupdate\t-y\tOMARCHY_PATH='"$package_root" ]] ||
+  fail "left-behind packages are removed before the update reaches the AUR" "$(cat "$log_file")"
+pass "left-behind packages are removed before the update reaches the AUR"
+
+OMARCHY_TEST_GUM_STATUS=1 OMARCHY_TEST_PREVIOUS_REPO="edge-app" OMARCHY_TEST_FOREIGN="edge-app" run_channel stable >/dev/null
+if grep -q $'^drop\t' "$log_file"; then fail "declining keeps the left-behind packages" "$(cat "$log_file")"; fi
+assert_log_line $'update\t-y\tOMARCHY_PATH='"$package_root" "declining the removal still finishes the switch"
+
+OMARCHY_TEST_DROP_STATUS=1 OMARCHY_TEST_PREVIOUS_REPO="edge-app" OMARCHY_TEST_FOREIGN="edge-app" run_channel stable >/dev/null 2>&1 ||
+  fail "a failed removal does not abort the switch" "$(cat "$log_file")"
+assert_log_line $'update\t-y\tOMARCHY_PATH='"$package_root" "a failed removal still finishes the switch"
+
+OMARCHY_TEST_PREVIOUS_REPO="omarchy omarchy-settings" OMARCHY_TEST_FOREIGN="my-aur-app" run_channel stable
+if grep -qE $'^(gum|drop)\t' "$log_file"; then fail "staying on stable offers nothing to remove" "$(cat "$log_file")"; fi
+pass "staying on stable offers nothing to remove"
+
+# An unreadable previous repository is an empty list, never a match-all.
+OMARCHY_TEST_PREVIOUS_REPO_STATUS=1 OMARCHY_TEST_FOREIGN="edge-app my-aur-app" run_channel stable
+if grep -qE $'^(gum|drop)\t' "$log_file"; then fail "an unreadable previous repository offers nothing to remove" "$(cat "$log_file")"; fi
+assert_log_line $'update\t-y\tOMARCHY_PATH='"$package_root" "an unreadable previous repository still finishes the switch"
 
 checkout="$test_tmp/home/omarchy"
 mkdir -p "$checkout"

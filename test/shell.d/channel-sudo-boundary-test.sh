@@ -7,6 +7,7 @@ source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 copy_boundary_file bin/omarchy-channel-set
 copy_boundary_file bin/omarchy-refresh-pacman
 copy_boundary_file bin/omarchy-update
+copy_boundary_file bin/omarchy-pkg-drop
 export OMARCHY_UPDATE_LOGGED=1
 
 # Relocate the package root into the fixture, including the explicit handoff
@@ -53,7 +54,8 @@ assert len(hooks) == 2, events
 assert events[hooks[0]] == 'step:omarchy-hook pre-refresh-pacman', events
 assert events[hooks[1]] == 'step:omarchy-hook post-update', events
 assert events[hooks[0] - 1] == 'sudo -k' and events[hooks[0] + 1] == 'sudo -k', events
-transaction = next(i for i, event in enumerate(events) if event.startswith('step:pacman '))
+# Package queries are not transactions.
+transaction = next(i for i, event in enumerate(events) if event.startswith('step:pacman ') and not event.startswith(('step:pacman -Q', 'step:pacman -Sl')))
 assert hooks[0] < transaction < auth < hooks[1], events
 assert 'sudo -k' in events[transaction:auth], events
 PY
@@ -68,6 +70,31 @@ for channel in stable rc edge dev; do
   assert_scoped_channel "$channel"
   pass "$channel starts cold, authorizes the switch per command, runs the refresh hook cold, hands off to one update authorization and exits cold"
 done
+
+# A package only the previous channel published is foreign after the switch.
+# The real omarchy-pkg-drop removes it through the command-scoped wrapper, so the
+# removal cannot refresh a timestamp, and before the update authorizes.
+rm "$SUDO_TEST_ROOT/bin/pacman"
+cat >"$SUDO_TEST_ROOT/bin/pacman" <<'STUB'
+#!/bin/bash
+printf 'step:pacman %s\n' "$*" >>"$SUDO_TEST_LOG"
+case "$*" in
+  "-Slq omarchy" | -Qmq | -Qq) echo edge-app ;;
+esac
+STUB
+chmod +x "$SUDO_TEST_ROOT/bin/pacman"
+reset_boundary
+run_channel stable || fail "removing a left-behind package failed" "$(<"$boundary_tmp/output")"
+assert_scoped_channel "left-behind removal"
+python3 - "$SUDO_TEST_LOG" <<'PY'
+import sys
+events = open(sys.argv[1]).read().splitlines()
+removal = events.index('sudo -N pacman -Rns --noconfirm edge-app')
+assert events[removal + 1] == 'step:pacman -Rns --noconfirm edge-app', events
+assert events.index('step:gum confirm --default=false Remove 1 left-behind package(s)?') < removal < events.index('sudo /usr/bin/true'), events
+PY
+ln -sfn test-step "$SUDO_TEST_ROOT/bin/pacman"
+pass "a left-behind package is removed through the command-scoped wrapper before the update authorizes"
 
 # Every aarch64 platform switches to edge and dev, copying its own templates.
 for platform in aarch64 aarch64-apple; do
@@ -209,7 +236,7 @@ for pattern in 'pacman -Syyuu*' 'pacman -S --needed*'; do
   python3 - "$SUDO_TEST_LOG" "$pattern" <<'PY'
 import sys
 events = open(sys.argv[1]).read().splitlines()
-transactions = [e for e in events if e.startswith('step:pacman ')]
+transactions = [e for e in events if e.startswith('step:pacman ') and not e.startswith(('step:pacman -Q', 'step:pacman -Sl'))]
 assert len(transactions) == (1 if sys.argv[2].startswith('pacman -Syyuu') else 2), events
 assert all(e in ('sudo -h', 'sudo -k') or e.startswith('sudo -N ') for e in events if e.startswith('sudo ')), events
 PY

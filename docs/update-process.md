@@ -275,6 +275,7 @@ the runtime to a git checkout via the dev-link mechanism, after which
 Channel switching runs the `pre-refresh-pacman` hook once, during its refresh
 step: cold, behind the no-update wrapper, after the package config is re-synced
 and before the refresh transaction. It does not run if the switch fails earlier.
+Before handing off to the update, the switch offers to remove installed packages that only the previous channel's `[omarchy]` repository published: they are foreign once that repository is replaced, so nothing updates them and the AUR update could take an unrelated AUR package of the same name for their upgrade. Packages that were never in that repository, like the user's own AUR builds, are left alone.
 
 Every platform has its own pacman.conf and mirrorlist for each channel it
 offers (x86_64 stable, rc and edge; aarch64 edge alone, below), and a channel
