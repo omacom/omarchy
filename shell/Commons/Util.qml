@@ -86,6 +86,23 @@ QtObject {
     return String(id || "")
   }
 
+  // Manifest kinds can reach host code as an array-like QML sequence rather
+  // than a real Array (Array.isArray is false on those) after passing through
+  // a model or a QObject property, which silently failed every kind check for
+  // third-party plugins. Accept both shapes.
+  function kindsContain(kinds, kind) {
+    if (!kinds) return false
+    if (Array.isArray(kinds)) return kinds.indexOf(kind) !== -1
+    if (typeof kinds.length !== "number") return false
+    for (var i = 0; i < kinds.length; i++)
+      if (kinds[i] === kind) return true
+    return false
+  }
+
+  function manifestHasKind(manifest, kind) {
+    return !!manifest && kindsContain(manifest.kinds, kind)
+  }
+
   // Best-effort base64 decode. Returns "" on parse failure rather than
   // surfacing garbage downstream.
   function decodeBase64(value) {

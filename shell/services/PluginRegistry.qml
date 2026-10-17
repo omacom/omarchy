@@ -150,7 +150,7 @@ QtObject {
     var manifest = installedPlugins[key]
     var config = shellConfigProvider ? shellConfigProvider() : null
     if (manifest) {
-      if (Array.isArray(manifest.kinds) && manifest.kinds.indexOf("bar") !== -1) {
+      if (Util.manifestHasKind(manifest, "bar")) {
         var selectedBar = ""
         if (Util.isPlainObject(config) && Util.isPlainObject(config.bar))
           selectedBar = Util.canonicalWidgetId(String(config.bar.id || ""))
@@ -448,7 +448,7 @@ QtObject {
       var candidateMetadata = candidateManifest && Util.isPlainObject(candidateManifest.omarchy)
         ? candidateManifest.omarchy : null
       if (!candidateMetadata || String(candidateMetadata.clonedFrom || "") !== sourceId) continue
-      if (Array.isArray(candidateManifest.kinds) && candidateManifest.kinds.indexOf("bar") !== -1) {
+      if (Util.manifestHasKind(candidateManifest, "bar")) {
         if (Util.canonicalWidgetId(String(config.bar.id || "")) === candidate) return candidate
       } else if (findEntryLocation(config, candidate).found) {
         return candidate
@@ -459,8 +459,7 @@ QtObject {
 
   function restoreCloneSource(config, cloneId, sourceId) {
     var cloneManifest = installedPlugins[cloneId]
-    var isBarOption = cloneManifest && Array.isArray(cloneManifest.kinds)
-      && cloneManifest.kinds.indexOf("bar") !== -1
+    var isBarOption = cloneManifest && Util.manifestHasKind(cloneManifest, "bar")
     if (isBarOption) {
       if (sourceId === "omarchy.bar") delete config.bar.id
       else config.bar.id = sourceId
@@ -503,10 +502,16 @@ QtObject {
       console.warn("PluginRegistry.setEnabled: unknown plugin " + key)
       return false
     }
-    var isBarOption = manifest && Array.isArray(manifest.kinds) && manifest.kinds.indexOf("bar") !== -1
-    var isBarWidget = manifest && Array.isArray(manifest.kinds) && manifest.kinds.indexOf("bar-widget") !== -1
-    var hasNonWidgetKind = manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.some(function(kind) { return kind !== "bar-widget" })
+    var isBarOption = manifest && Util.manifestHasKind(manifest, "bar")
+    var isBarWidget = manifest && Util.manifestHasKind(manifest, "bar-widget")
+    var hasNonWidgetKind = false
+    if (manifest && manifest.kinds) {
+      if (Array.isArray(manifest.kinds))
+        hasNonWidgetKind = manifest.kinds.some(function(kind) { return kind !== "bar-widget" })
+      else
+        for (var kindIndex = 0; kindIndex < manifest.kinds.length; kindIndex++)
+          if (manifest.kinds[kindIndex] !== "bar-widget") { hasNonWidgetKind = true; break }
+    }
     var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
     var clonedFrom = metadata ? Util.canonicalWidgetId(String(metadata.clonedFrom || "")) : ""
     shellConfigMutator(function(config) {

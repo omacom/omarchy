@@ -204,8 +204,7 @@ ShellRoot {
 
   function isBarOptionManifest(manifest) {
     return manifest
-      && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf("bar") !== -1
+      && Util.manifestHasKind(manifest, "bar")
       && manifest.entryPoints
       && manifest.entryPoints.bar
   }
@@ -354,8 +353,7 @@ ShellRoot {
   }
 
   function manifestHasKind(manifest, kind) {
-    return !!manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf(kind) !== -1
+    return Util.manifestHasKind(manifest, kind)
   }
 
   function pluginHasBarCapabilities(manifest) {
@@ -926,7 +924,7 @@ ShellRoot {
     var manifest = pluginRegistry && pluginRegistry.installedPlugins
       ? pluginRegistry.installedPlugins[key] : null
     if (!manifest) return null
-    if (!Array.isArray(manifest.kinds) || manifest.kinds.indexOf("service") === -1) return null
+    if (!Util.manifestHasKind(manifest, "service")) return null
     if (!manifest.entryPoints || !manifest.entryPoints.service) return null
     var url = pluginRegistry.entryPointUrl(manifest, "service")
     if (!url) return null
@@ -978,7 +976,7 @@ ShellRoot {
     for (var id in plugins) {
       var m = plugins[id]
       if (!m) continue
-      if (!Array.isArray(m.kinds) || m.kinds.indexOf("service") === -1) continue
+      if (!Util.manifestHasKind(m, "service")) continue
       if (!m.entryPoints || !m.entryPoints.service) continue
       if (!pluginRegistry.isEnabled(id)) continue
       var authenticationService = shell.isAuthenticationService(m, id)
@@ -1015,8 +1013,7 @@ ShellRoot {
     // no longer declare a service entry point.
     for (var existingId in _services) {
       var stillThere = plugins[existingId]
-      var stillService = stillThere && Array.isArray(stillThere.kinds)
-        && stillThere.kinds.indexOf("service") !== -1
+      var stillService = stillThere && Util.manifestHasKind(stillThere, "service")
         && stillThere.entryPoints && stillThere.entryPoints.service
       var stillEnabled = stillThere && pluginRegistry.isEnabled(existingId)
       if (stillService && stillEnabled) continue
@@ -1033,8 +1030,7 @@ ShellRoot {
       var authenticationId = authenticationIds[ai]
       var authenticationManifest = plugins[authenticationId]
       var stillAuthenticationService = authenticationManifest
-        && Array.isArray(authenticationManifest.kinds)
-        && authenticationManifest.kinds.indexOf("service") !== -1
+        && Util.manifestHasKind(authenticationManifest, "service")
         && authenticationManifest.entryPoints
         && authenticationManifest.entryPoints.service
       if (stillAuthenticationService && pluginRegistry.isEnabled(authenticationId)
@@ -1160,13 +1156,12 @@ ShellRoot {
   function isBarWidgetPanelPlugin(pluginId) {
     var plugins = shell.pluginRegistry.installedPlugins
     var m = plugins[String(pluginId || "")]
-    if (!m || !Array.isArray(m.kinds)) return false
-    if (m.kinds.indexOf("bar-widget") === -1) return false
+    if (!m || !Util.manifestHasKind(m, "bar-widget")) return false
     // Plugins that are also panel/overlay/menu kinds are owned by the
     // panel loader (e.g. omarchy.menu); let that path handle them.
     var loaderKinds = ["panel", "overlay", "menu"]
     for (var i = 0; i < loaderKinds.length; i++) {
-      if (m.kinds.indexOf(loaderKinds[i]) !== -1) return false
+      if (Util.manifestHasKind(m, loaderKinds[i])) return false
     }
     return true
   }
@@ -1359,14 +1354,14 @@ ShellRoot {
     var panelKinds = ["panel", "overlay", "menu"]
     for (var id in plugins) {
       var m = plugins[id]
-      if (!m || !Array.isArray(m.kinds)) continue
+      if (!m) continue
       var matched = false
       for (var i = 0; i < panelKinds.length; i++)
-        if (m.kinds.indexOf(panelKinds[i]) !== -1) { matched = true; break }
+        if (Util.manifestHasKind(m, panelKinds[i])) { matched = true; break }
       if (!matched) continue
       if (!shell.pluginRegistry.isEnabled(id)) continue
-      var kind = m.kinds.indexOf("panel") !== -1 ? "panel"
-        : (m.kinds.indexOf("overlay") !== -1 ? "overlay" : "menu")
+      var kind = Util.manifestHasKind(m, "panel") ? "panel"
+        : (Util.manifestHasKind(m, "overlay") ? "overlay" : "menu")
       out.push({ id: id, manifest: m, kind: kind, keepLoaded: m.keepLoaded === true })
     }
     return out
@@ -1855,8 +1850,8 @@ ShellRoot {
       var plugins = shell.pluginRegistry.installedPlugins
       for (var id in plugins) {
         var kinds = plugins[id].kinds || []
-        var isBarOption = Array.isArray(kinds) && kinds.indexOf("bar") !== -1
-        var isBarWidget = Array.isArray(kinds) && kinds.indexOf("bar-widget") !== -1
+        var isBarOption = Util.manifestHasKind(plugins[id], "bar")
+        var isBarWidget = Util.manifestHasKind(plugins[id], "bar-widget")
         var active = isBarOption && shell.isActiveBarOption(id)
         var metadata = plugins[id].omarchy
         var clonedFrom = Util.isPlainObject(metadata) ? String(metadata.clonedFrom || "") : ""
