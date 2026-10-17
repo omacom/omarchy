@@ -150,6 +150,28 @@ unlimited_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/b
 grep -Fx $'time\t1h 30m' <<<"$unlimited_output" >/dev/null || fail "time to full ignores another battery's charge limit" "$unlimited_output"
 pass "battery status times charging to its own battery's limit"
 
+# #15373: an ACPI battery that only reports energy advertises power_now and
+# fails the read (ENODEV). A directory stands in for it here: -r says yes, the
+# read does not, and the empty result used to divide to 0 W.
+printf '900000\n' >"$hold_dir/power/BAT0/current_now"
+printf '12000000\n' >"$hold_dir/power/BAT0/voltage_now"
+rm "$hold_dir/power/BAT0/power_now"
+mkdir "$hold_dir/power/BAT0/power_now"
+unreadable_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t10.8W' <<<"$unreadable_output" >/dev/null ||
+  fail "battery status falls back to current x voltage when power_now cannot be read" "$unreadable_output"
+
+rm "$hold_dir/power/BAT0/current_now"
+no_sysfs_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t0.1W' <<<"$no_sysfs_output" >/dev/null ||
+  fail "battery status keeps UPower's rate when no sysfs reading works" "$no_sysfs_output"
+
+# Put the fixture back the way it was found: the assertions below read the same
+# directory, and a directory left where power_now was makes them read a stale
+# rate.
+rmdir "$hold_dir/power/BAT0/power_now"
+rm -f "$hold_dir/power/BAT0/voltage_now"
+printf '27800000\n' >"$hold_dir/power/BAT0/power_now"
 # The status line and its durations follow the Omarchy language.
 echo "da" >"$tmp_dir/language"
 danish_output=$(OMARCHY_LANGUAGE_FILE="$tmp_dir/language" OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
