@@ -509,6 +509,9 @@
   "setup.default.agent.kimi": {
     "label": "Kimi"
   },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro"
+  },
   "setup.default.agent.muse": {
     "label": "Muse Code"
   },

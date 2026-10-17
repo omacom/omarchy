@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# omarchy:summary=Ensure the Kiro CLI is installed for the default agent
+# omarchy:args=<--check|--now>
+# omarchy:examples=omarchy install kiro cli --check | omarchy install kiro cli --now
+
+set -euo pipefail
+
+mode=${1:-}
+
+if (( $# != 1 )) || [[ ! $mode =~ ^--(check|now)$ ]]; then
+  echo "Usage: omarchy-install-kiro-cli <--check|--now>" >&2
+  exit 1
+fi
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+installed() {
+  command -v kiro-cli &>/dev/null
+}
+
+case "$mode" in
+  --check)
+    installed
+    ;;
+  --now)
+    if installed; then
+      exit 0
+    fi
+    curl -fsSL https://cli.kiro.dev/install | bash
+    installed || {
+      echo "Kiro CLI install finished but kiro-cli is not on PATH." >&2
+      exit 1
+    }
+    ;;
+esac

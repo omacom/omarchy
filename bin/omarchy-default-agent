@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi]
+# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|kiro-cli]
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
@@ -43,19 +43,18 @@ muse | muse-code | musecode)
   ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
 kimi | kimi-code) agent="kimi"; name="Kimi"; agent_package="npm:@moonshot-ai/kimi-code" ;;
+kiro | kiro-cli) agent="kiro-cli"; name="Kiro"; agent_installer="omarchy-install-kiro-cli" ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi>"
+  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|kiro-cli>"
   exit 1
   ;;
 esac
 
 agent_package=${agent_package:-$agent}
 
-# Hermes and OpenClaw are not mise tools: each is a self-updating runtime in
-# the user's home, Hermes the desktop app's and OpenClaw the one its Control
-# UI updates. Each has its own installer with the same --check/--now contract
-# mise-backed agents get from mise; see omarchy-install-hermes-cli and
-# omarchy-install-openclaw-cli.
+# Hermes, OpenClaw, and Kiro are not mise tools. Hermes and OpenClaw are
+# self-updating runtimes in the user's home; Kiro comes from its own installer.
+# Each has the same --check/--now contract mise-backed agents get from mise.
 if [[ -n ${agent_installer:-} ]]; then
   # Not omarchy-cmd-present: a command on PATH says nothing about whether the
   # install behind it finished or runs the sessions omarchy-agent starts.

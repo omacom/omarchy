@@ -138,6 +138,10 @@ kimi)
     command=(kimi --yolo)
   fi
   ;;
+kiro-cli)
+  command=(kiro-cli chat --trust-all-tools)
+  [[ -n ${prompt:-} ]] && command+=("$prompt")
+  ;;
 *)
   echo "Unsupported default agent: $agent" >&2
   exit 1
