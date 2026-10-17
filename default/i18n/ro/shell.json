@@ -237,7 +237,6 @@
   "dropbox.monthsAgo": "acum %1 luni",
   "dropbox.noFiles": "Nu s-au găsit fișiere sincronizate.",
   "dropbox.notInstalled": "Dropbox CLI nu este instalat",
-  "dropbox.openedLogin": "S-a deschis conectarea Dropbox",
   "dropbox.pauseSyncing": "Întrerupe sincronizarea",
   "dropbox.phrase1": "Arhivez fișiere",
   "dropbox.phrase10": "Cataloghez haosul",

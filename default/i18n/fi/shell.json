@@ -229,7 +229,6 @@
   "dropbox.monthsAgo": "%1 kk sitten",
   "dropbox.noFiles": "Synkronoituja tiedostoja ei löytynyt.",
   "dropbox.notInstalled": "Dropbox CLI ei ole asennettuna",
-  "dropbox.openedLogin": "Dropbox-kirjautuminen avattu",
   "dropbox.pauseSyncing": "Keskeytä synkronointi",
   "dropbox.phrase1": "Tiedostoja arkistoimassa",
   "dropbox.phrase10": "Kaaosta luetteloimassa",

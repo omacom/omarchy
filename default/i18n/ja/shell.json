@@ -221,7 +221,6 @@
   "dropbox.monthsAgo": "%1か月前",
   "dropbox.noFiles": "同期されたファイルが見つかりません。",
   "dropbox.notInstalled": "Dropbox CLI がインストールされていません",
-  "dropbox.openedLogin": "Dropbox ログインを開きました",
   "dropbox.pauseSyncing": "同期を一時停止",
   "dropbox.phrase1": "ファイル 整理中",
   "dropbox.phrase10": "混沌 カタログ中",

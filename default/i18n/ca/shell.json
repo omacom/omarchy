@@ -237,7 +237,6 @@
   "dropbox.monthsAgo": "fa %1 mesos",
   "dropbox.noFiles": "No s'ha trobat cap fitxer sincronitzat.",
   "dropbox.notInstalled": "La CLI de Dropbox no està instal·lada",
-  "dropbox.openedLogin": "S'ha obert l'inici de sessió de Dropbox",
   "dropbox.pauseSyncing": "Pausa la sincronització",
   "dropbox.phrase1": "Arxivant fitxers",
   "dropbox.phrase10": "Catalogant caos",

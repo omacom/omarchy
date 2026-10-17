@@ -237,7 +237,6 @@
   "dropbox.monthsAgo": "před %1 měs.",
   "dropbox.noFiles": "Nenašly se žádné synchronizované soubory.",
   "dropbox.notInstalled": "Dropbox CLI není nainstalované",
-  "dropbox.openedLogin": "Otevřeno přihlášení do Dropboxu",
   "dropbox.pauseSyncing": "Pozastavit synchronizaci",
   "dropbox.phrase1": "Zakládám soubory",
   "dropbox.phrase10": "Katalogizuji chaos",
