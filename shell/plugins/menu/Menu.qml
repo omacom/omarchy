@@ -267,6 +267,10 @@ Item {
     return MenuModel.parseMenuJsonc(raw)
   }
 
+  function parseMenuOverridesJsonc(raw) {
+    return MenuModel.parseMenuOverridesJsonc(raw)
+  }
+
   function parseCatalog(raw) {
     try {
       var parsed = JSON.parse(raw || "{}")
@@ -1152,7 +1156,7 @@ Item {
     path: root.userMenuPath
     watchChanges: true
     printErrors: false
-    onLoaded: { root.userMenuItems = root.parseMenuJsonc(text()); root.userMenuSettled = true; root.rebuildItemsFromSources() }
+    onLoaded: { root.userMenuItems = root.parseMenuOverridesJsonc(text()); root.userMenuSettled = true; root.rebuildItemsFromSources() }
     onLoadFailed: { root.userMenuItems = []; root.userMenuSettled = true; root.rebuildItemsFromSources() }
     onFileChanged: reload()
   }
