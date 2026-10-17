@@ -95,34 +95,46 @@ def local_stats(home):
   for session in (Path(home) / "sessions").glob("*/*/"):
     summary = read_json(session / "summary.json")
     if isinstance(summary, dict):
-      active = parse_time(summary.get("last_active_at"))
-      if active:
-        day = active.astimezone().date().isoformat()
-        sessions += 1
-        prompts += int(summary.get("num_messages") or 0)
-        days.add(day)
-        if day == today:
-          today_sessions += 1
+      try:
+        active = parse_time(summary.get("last_active_at"))
+        day = active.astimezone().date().isoformat() if active else ""
+        message_count = int(summary.get("num_messages") or 0)
+      except Exception:
+        pass
+      else:
+        if day:
+          sessions += 1
+          prompts += message_count
+          days.add(day)
+          if day == today:
+            today_sessions += 1
 
     usage = read_json(session / "usage.json")
     turns = usage.get("turns") if isinstance(usage, dict) else None
     for turn in turns if isinstance(turns, list) else []:
-      ended = parse_time(turn.get("endedAt")) if isinstance(turn, dict) else None
-      if not ended:
+      try:
+        ended = parse_time(turn.get("endedAt")) if isinstance(turn, dict) else None
+        if not ended:
+          continue
+        day = ended.astimezone().date().isoformat()
+        turn_models = {}
+        for model, bucket in (turn.get("modelUsage") or {}).items():
+          if not isinstance(bucket, dict):
+            continue
+          # Grok's totalTokens leaves cache writes out; counting them here keeps
+          # the day's total equal to the sum of its model's buckets.
+          cached = int(bucket.get("cachedReadTokens") or 0)
+          uncached = max(0, int(bucket.get("inputTokens") or 0) - cached)
+          output = int(bucket.get("outputTokens") or 0)
+          created = int(bucket.get("cacheCreationTokens") or 0)
+          turn_models[model] = (uncached, cached, output, created)
+      except Exception:
         continue
-      day = ended.astimezone().date().isoformat()
+
       days.add(day)
       if day == today:
         today_prompts += 1
-      for model, bucket in (turn.get("modelUsage") or {}).items():
-        if not isinstance(bucket, dict):
-          continue
-        # Grok's totalTokens leaves cache writes out; counting them here keeps
-        # the day's total equal to the sum of its model's buckets.
-        cached = int(bucket.get("cachedReadTokens") or 0)
-        uncached = max(0, int(bucket.get("inputTokens") or 0) - cached)
-        output = int(bucket.get("outputTokens") or 0)
-        created = int(bucket.get("cacheCreationTokens") or 0)
+      for model, (uncached, cached, output, created) in turn_models.items():
         tokens = uncached + cached + output + created
         totals = models.setdefault(model, {"inputTokens": 0, "outputTokens": 0, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0})
         totals["inputTokens"] += uncached

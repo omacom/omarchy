@@ -321,7 +321,10 @@ def scan_pi_sessions():
       if not (input_tokens or output_tokens or cache_read or cache_write):
         continue
 
-      day = local_day(entry.get("timestamp") or message.get("timestamp"))
+      try:
+        day = local_day(entry.get("timestamp") or message.get("timestamp"))
+      except Exception:
+        continue
       session_keys.setdefault(path, set()).add(message_key)
       if day == today:
         today_session_keys.setdefault(path, set()).add(message_key)
