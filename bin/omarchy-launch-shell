@@ -15,8 +15,15 @@
 # against a half-written tree, and that failed reload leaves a second engine
 # generation behind that turns the next restart's IPC kill into a crash.
 run_shell() {
-  local startup_background
+  local startup_background still
   startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
+  # A theme loop starts again from its still, which is what an intro pairs
+  # with; the startup intro hands the desktop back to the loop.
+  if [[ $startup_background == */backgrounds/loops/* ]]; then
+    still=$(omarchy-theme-bg-loop-apply --still "$startup_background")
+    ln -nsf "$still" "$HOME/.local/state/omarchy/current/background"
+    startup_background="$still"
+  fi
   OMARCHY_STARTUP_BACKGROUND="$startup_background" QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
