@@ -77,6 +77,16 @@ transfer.write_json(codex / "auth.json", {"tokens": {"account_id": "codex-main",
 grok = state.primary_home("grok")
 transfer.write_json(grok / "auth.json", {"issuer": {"user_id": "grok-main", "email": "grok@example.com", "access_token": "fake-grok"}})
 transfer.write_json(grok / "settings_cache.json", {"payload": json.dumps({"settings": {"subscription_tier_display": "SuperGrok"}})})
+original_identity = state.identity
+state.identity = lambda provider, home: {}
+try:
+  transfer.export_accounts(["claude", "codex"])
+except state.AccountError as error:
+  assert "No signed-in" in str(error)
+else:
+  raise AssertionError("unknown identities must not export credentials")
+state.identity = original_identity
+
 payload = transfer.export_accounts(["claude", "codex", "grok"])
 transfer.validate(payload)
 encoded = json.dumps(payload)

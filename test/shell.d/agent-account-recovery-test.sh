@@ -65,6 +65,15 @@ else:
   raise AssertionError("identity without credentials must not register")
 assert not pending.exists()
 
+# A partially written credential file is an unknown identity, not a recovery error.
+for provider, credential in (("claude", ".credentials.json"), ("codex", "auth.json")):
+  pending = state.begin(provider, "Truncated")
+  (pending / credential).write_text("{")
+  assert state.recover_home(provider, pending) is None
+  state.refresh(provider)
+  assert pending.exists(), "incomplete login remains recoverable"
+  shutil.rmtree(pending)
+
 # A storage error preserves a completed login; a later refresh retries it.
 pending = state.begin("claude", "Storage failure")
 signed_in(pending, "storage", "storage@example.com")
