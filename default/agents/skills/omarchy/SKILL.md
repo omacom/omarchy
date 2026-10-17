@@ -131,6 +131,7 @@ Run `omarchy --help` for the full list. The most common groups:
 | `omarchy pkg` | Package management | `omarchy pkg add <pkg>` |
 | `omarchy setup` | Interactive setup wizards | `omarchy setup security fingerprint` |
 | `omarchy update` | System updates | `omarchy update` |
+| `omarchy transfer` | Move packages, configs and files to a new install | `omarchy transfer export --dry-run` |
 
 ## Configuration Locations
 

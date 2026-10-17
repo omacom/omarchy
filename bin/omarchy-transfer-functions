@@ -1,0 +1,364 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Provide internal helpers for the transfer export and import commands
+
+# shellcheck disable=SC2034
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "omarchy-transfer-functions is an internal function library." >&2
+  exit 64
+fi
+
+TRANSFER_CONF=${OMARCHY_TRANSFER_CONF:-$HOME/.config/omarchy/transfer.conf}
+TRANSFER_DEFAULT_CONF=${OMARCHY_PATH:-}/default/omarchy/transfer.conf
+TRANSFER_FORMAT=2
+TRANSFER_SKEL=${OMARCHY_TRANSFER_SKEL:-/etc/skel}
+TRANSFER_SECRETS=(.ssh .gnupg .password-store .local/share/keyrings)
+
+OPT_PACKAGES=yes
+OPT_WIFI=no
+OPT_ENCRYPT=yes
+INCLUDES=()
+EXCLUDES=()
+
+transfer_info() {
+  if [[ -t 2 ]]; then
+    printf '\e[32m%s\e[0m\n' "$*" >&2
+  else
+    printf '%s\n' "$*" >&2
+  fi
+}
+
+transfer_warn() {
+  if [[ -t 2 ]]; then
+    printf '\e[33mWarning: %s\e[0m\n' "$*" >&2
+  else
+    printf 'Warning: %s\n' "$*" >&2
+  fi
+}
+
+transfer_die() {
+  if [[ -t 2 ]]; then
+    printf '\e[31mError: %s\e[0m\n' "$*" >&2
+  else
+    printf 'Error: %s\n' "$*" >&2
+  fi
+  exit 1
+}
+
+transfer_human() {
+  numfmt --to=iec "${1:-0}"
+}
+
+_transfer_trim() {
+  local s=$1
+  s=${s#"${s%%[![:space:]]*}"}
+  s=${s%"${s##*[![:space:]]}"}
+  printf '%s' "$s"
+}
+
+# Fork-free trim for hot loops: result lands in $TRIMMED.
+_transfer_trim_v() {
+  TRIMMED=$1
+  TRIMMED=${TRIMMED#"${TRIMMED%%[![:space:]]*}"}
+  TRIMMED=${TRIMMED%"${TRIMMED##*[![:space:]]}"}
+}
+
+_transfer_yesno() {
+  local key=$1 value=${2,,}
+  case $value in
+    yes|true|1|on) printf 'yes' ;;
+    no|false|0|off) printf 'no' ;;
+    *) transfer_die "Invalid value for $key: $2 (use yes or no)" ;;
+  esac
+}
+
+# Normalize and validate a $HOME-relative include path; prints it or fails.
+_transfer_normalize_path() {
+  local path=$1 part
+  local -a parts
+  while [[ $path == ./* ]]; do path=${path#./}; done
+  while [[ $path == */ && $path != "/" ]]; do path=${path%/}; done
+  [[ -n $path ]] || return 1
+  [[ $path != /* ]] || return 1
+  IFS=/ read -ra parts <<<"$path"
+  for part in "${parts[@]}"; do
+    [[ $part != ".." ]] || return 1
+  done
+  printf '%s' "$path"
+}
+
+transfer_ensure_conf() {
+  [[ -f $TRANSFER_CONF ]] && return 0
+  [[ -f $TRANSFER_DEFAULT_CONF ]] || transfer_die "Default config not found: $TRANSFER_DEFAULT_CONF"
+  mkdir -p -- "$(dirname -- "$TRANSFER_CONF")"
+  cp -- "$TRANSFER_DEFAULT_CONF" "$TRANSFER_CONF"
+}
+
+transfer_load_conf() {
+  local line section="" key value path restore_glob=false
+  transfer_ensure_conf
+
+  OPT_PACKAGES=yes
+  OPT_WIFI=no
+  OPT_ENCRYPT=yes
+  INCLUDES=()
+  EXCLUDES=()
+
+  [[ $- == *f* ]] || restore_glob=true
+  set -f
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    _transfer_trim_v "$line"
+    line=$TRIMMED
+    [[ -z $line || $line == "#"* ]] && continue
+
+    if [[ $line =~ ^\[([A-Za-z]+)\]$ ]]; then
+      section=${BASH_REMATCH[1]}
+      section=${section,,}
+      case $section in
+        options|include|exclude) ;;
+        *) transfer_die "Unknown section [$section] in $TRANSFER_CONF" ;;
+      esac
+      continue
+    fi
+
+    case $section in
+      options)
+        [[ $line == *=* ]] || transfer_die "Invalid option line in $TRANSFER_CONF: $line"
+        key=$(_transfer_trim "${line%%=*}")
+        value=$(_transfer_trim "${line#*=}")
+        case ${key,,} in
+          packages) OPT_PACKAGES=$(_transfer_yesno "$key" "$value") || exit 1 ;;
+          wifi) OPT_WIFI=$(_transfer_yesno "$key" "$value") || exit 1 ;;
+          encrypt) OPT_ENCRYPT=$(_transfer_yesno "$key" "$value") || exit 1 ;;
+          *) transfer_die "Unknown option in $TRANSFER_CONF: $key" ;;
+        esac
+        ;;
+      include)
+        path=$(_transfer_normalize_path "$line") || transfer_die "Invalid include path in $TRANSFER_CONF (absolute or ..): $line"
+        INCLUDES+=("$path")
+        ;;
+      exclude)
+        EXCLUDES+=("$line")
+        ;;
+      *)
+        transfer_die "Line outside a section in $TRANSFER_CONF: $line"
+        ;;
+    esac
+  done <"$TRANSFER_CONF"
+
+  [[ $restore_glob == true ]] && set +f
+  return 0
+}
+
+# Prints "on<TAB>path" or "off<TAB>path" for each include entry, in file order.
+transfer_conf_entries() {
+  local line section="" path
+  transfer_ensure_conf
+  while IFS= read -r line || [[ -n $line ]]; do
+    _transfer_trim_v "$line"
+    line=$TRIMMED
+    [[ -z $line ]] && continue
+    if [[ $line =~ ^\[([A-Za-z]+)\]$ ]]; then
+      section=${BASH_REMATCH[1]}
+      section=${section,,}
+      continue
+    fi
+    [[ $section == include ]] || continue
+    if [[ $line =~ ^#([^[:space:]#].*)$ ]]; then
+      path=${BASH_REMATCH[1]}
+      path=${path%/}
+      printf 'off\t%s\n' "$path"
+    elif [[ $line != "#"* ]]; then
+      path=${line%/}
+      printf 'on\t%s\n' "$path"
+    fi
+  done <"$TRANSFER_CONF"
+}
+
+_transfer_write_lines() {
+  local tmp
+  tmp=$(mktemp "$TRANSFER_CONF.XXXXXX") || transfer_die "Cannot write $TRANSFER_CONF"
+  if [[ -f $TRANSFER_CONF ]]; then
+    chmod --reference="$TRANSFER_CONF" -- "$tmp" 2>/dev/null || true
+  fi
+  printf '%s\n' "$@" >"$tmp"
+  mv -f -- "$tmp" "$TRANSFER_CONF"
+}
+
+# Index (0-based, in $lines) of the line after the last non-blank line of $1's section, or -1.
+_transfer_section_end() {
+  local want=$1 i section="" trimmed found=-1 last=-1
+  for ((i = 0; i < ${#lines[@]}; i++)); do
+    _transfer_trim_v "${lines[i]}"
+    trimmed=$TRIMMED
+    if [[ $trimmed =~ ^\[([A-Za-z]+)\]$ ]]; then
+      if [[ $section == "$want" ]]; then
+        break
+      fi
+      section=${BASH_REMATCH[1]}
+      section=${section,,}
+      if [[ $section == "$want" ]]; then
+        found=$i
+        last=$i
+      fi
+      continue
+    fi
+    if [[ $section == "$want" && -n $trimmed ]]; then
+      last=$i
+    fi
+  done
+  (( found >= 0 )) || { echo -1; return; }
+  echo $((last + 1))
+}
+
+transfer_conf_set_include() {
+  local path=${1%/} state=$2 i section="" trimmed hit=false end
+  local -a lines
+  [[ $state == on || $state == off ]] || transfer_die "Invalid state: $state"
+  transfer_ensure_conf
+  mapfile -t lines <"$TRANSFER_CONF"
+
+  for ((i = 0; i < ${#lines[@]}; i++)); do
+    _transfer_trim_v "${lines[i]}"
+    trimmed=$TRIMMED
+    if [[ $trimmed =~ ^\[([A-Za-z]+)\]$ ]]; then
+      section=${BASH_REMATCH[1]}
+      section=${section,,}
+      continue
+    fi
+    [[ $section == include ]] || continue
+    if [[ $trimmed == "$path" || $trimmed == "$path/" ]]; then
+      hit=true
+      if [[ $state == off ]]; then
+        lines[i]="#$trimmed"
+      fi
+    elif [[ $trimmed == "#$path" || $trimmed == "#$path/" ]]; then
+      hit=true
+      if [[ $state == on ]]; then
+        lines[i]=${trimmed#\#}
+      fi
+    fi
+  done
+
+  if [[ $hit == false && $state == on ]]; then
+    end=$(_transfer_section_end include)
+    if (( end < 0 )); then
+      lines+=("" "[include]" "$path")
+    else
+      lines=("${lines[@]:0:end}" "$path" "${lines[@]:end}")
+    fi
+  fi
+
+  _transfer_write_lines "${lines[@]}"
+}
+
+transfer_conf_set_option() {
+  local key=$1 value=$2 i section="" trimmed hit=false end
+  local -a lines
+  case $key in
+    packages|wifi|encrypt) ;;
+    *) transfer_die "Unknown option: $key" ;;
+  esac
+  [[ $value == yes || $value == no ]] || transfer_die "Invalid value: $value"
+  transfer_ensure_conf
+  mapfile -t lines <"$TRANSFER_CONF"
+
+  for ((i = 0; i < ${#lines[@]}; i++)); do
+    _transfer_trim_v "${lines[i]}"
+    trimmed=$TRIMMED
+    if [[ $trimmed =~ ^\[([A-Za-z]+)\]$ ]]; then
+      section=${BASH_REMATCH[1]}
+      section=${section,,}
+      continue
+    fi
+    [[ $section == options ]] || continue
+    if [[ ${lines[i]} =~ ^([[:space:]]*"$key"[[:space:]]*=[[:space:]]*)[^[:space:]]* ]]; then
+      lines[i]="${BASH_REMATCH[1]}$value"
+      hit=true
+    fi
+  done
+
+  if [[ $hit == false ]]; then
+    end=$(_transfer_section_end options)
+    if (( end < 0 )); then
+      lines=("[options]" "$key = $value" "" "${lines[@]}")
+    else
+      lines=("${lines[@]:0:end}" "$key = $value" "${lines[@]:end}")
+    fi
+  fi
+
+  _transfer_write_lines "${lines[@]}"
+}
+
+transfer_is_secret() {
+  local path=${1#./} secret
+  path=${path%/}
+  for secret in "${TRANSFER_SECRETS[@]}"; do
+    [[ $path == "$secret" || $path == "$secret"/* ]] && return 0
+  done
+  return 1
+}
+
+TRANSFER_CLEANUP_PATHS=()
+TRANSFER_CLEANUP_TRAPPED=false
+
+transfer_rm_stage() {
+  local dir=$1
+  [[ -n $dir && $dir != "/" ]] || return 0
+  chmod -R u+w -- "$dir" 2>/dev/null || true
+  rm -rf -- "$dir" 2>/dev/null || true
+  return 0
+}
+
+_transfer_cleanup_run() {
+  local path
+  for path in "${TRANSFER_CLEANUP_PATHS[@]}"; do
+    if [[ -e $path || -L $path ]]; then
+      transfer_rm_stage "$path"
+    fi
+  done
+  TRANSFER_CLEANUP_PATHS=()
+  return 0
+}
+
+transfer_cleanup_register() {
+  TRANSFER_CLEANUP_PATHS+=("$1")
+  if [[ $TRANSFER_CLEANUP_TRAPPED == false ]]; then
+    TRANSFER_CLEANUP_TRAPPED=true
+    trap _transfer_cleanup_run EXIT
+    trap '_transfer_cleanup_run; exit 130' INT
+    trap '_transfer_cleanup_run; exit 143' TERM
+    trap '_transfer_cleanup_run; exit 129' HUP
+  fi
+}
+
+transfer_wifi_backend() {
+  if [[ $(systemctl is-active NetworkManager 2>/dev/null || true) == active ]]; then
+    echo networkmanager
+  elif [[ $(systemctl is-active iwd 2>/dev/null || true) == active ]]; then
+    echo iwd
+  else
+    echo none
+  fi
+}
+
+transfer_default_source() {
+  local rel=${1#./} src
+  case $rel in
+    .config/*)
+      src=$TRANSFER_SKEL/$rel
+      [[ -e $src ]] || src=${OMARCHY_PATH:-}/config/${rel#.config/}
+      ;;
+    .?*)
+      src=$TRANSFER_SKEL/$rel
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+  [[ -e $src ]] || return 1
+  printf '%s\n' "$src"
+}

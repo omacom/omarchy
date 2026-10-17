@@ -3,7 +3,7 @@
 # omarchy:summary=Pick one or multiple options from a menu
 # omarchy:group=menu
 # omarchy:name=select
-# omarchy:args=prompt [option...] [-- --multiple --selected <value> --on-change <command-json> --change-key <key> --width <pixels> --maxheight <pixels>]
+# omarchy:args=prompt [option...] [-- --multiple --selected <value> --action <row> --on-change <command-json> --change-key <key> --width <pixels> --maxheight <pixels>]
 # omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400
 
 # An option may lead with an icon, as "<glyph><TAB><label>", and may trail a
@@ -17,6 +17,11 @@
 # JSON appended, applies immediately, and needs no Apply row. A successful
 # command may print a JSON array of actual selections to update the checkmarks.
 # --selected takes a returned value (label plus any subtext), and can be repeated.
+# --action takes "<glyph><TAB><label>[<TAB><subtext>]", can be repeated, and
+# needs --multiple. Action rows follow the options with their own icon and no
+# checkmark, and are never filtered out by search. Clicking one closes the menu
+# and returns its label alone. With --on-change it is returned only after the
+# pending change commands have finished.
 
 set -euo pipefail
 
@@ -35,6 +40,7 @@ multiple=0
 on_change="[]"
 change_key=""
 selected=()
+actions=()
 
 while (( $# > 0 )); do
   if [[ $1 == "--" ]]; then
@@ -67,6 +73,14 @@ while (( $# > 0 )); do
             exit 1
           fi
           selected+=("$1")
+          ;;
+        --action)
+          shift
+          if (( $# == 0 )); then
+            echo "omarchy-menu-select: --action requires a value" >&2
+            exit 1
+          fi
+          actions+=("$1")
           ;;
         --width)
           shift
@@ -111,6 +125,7 @@ trap 'rm -f "$selection_file" "$done_file"' EXIT
 
 options_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${options[@]}")
 selected_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${selected[@]}")
+actions_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${actions[@]}")
 payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
   my $payload = {
     mode => "select",
@@ -120,13 +135,14 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
     selected => decode_json($ARGV[7]),
     onChange => decode_json($ARGV[8]),
     changeKey => $ARGV[9],
+    actions => decode_json($ARGV[10]),
     selectionFile => decode("UTF-8", $ARGV[2]),
     doneFile => decode("UTF-8", $ARGV[3])
   };
   $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
   $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
   print encode_json($payload)
-' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$multiple" "$selected_json" "$on_change" "$change_key")
+' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$multiple" "$selected_json" "$on_change" "$change_key" "$actions_json")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null || exit 2
 

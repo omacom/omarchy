@@ -14,6 +14,8 @@ When you arrive inside, a notification will popup notifying you that you're in a
 
 This will restore your root filesystem, but not your `/home`. So it works for reverting a broken system update, but not for recovering lost personal files.
 
+To move your packages, settings and personal files to a new install or disk, use [transfer](52-transfer.md). It is a one-time move, not a backup, and it complements snapshots rather than replacing them.
+
 This also means that your `~/.config` directory is kept as-is. So if you're rolling back to an earlier version of a library or application that stores configuration files in a new format, you'll have to sort that out manually.
 
 _Note: This feature is only available on installations using the Limine boot loader, which has been the default since Omarchy 2.0. It's not available if you're on GRUB or systemd-boot._

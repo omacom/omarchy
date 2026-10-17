@@ -71,6 +71,7 @@ The manual lives in [`manual/`](manual/), which is its authoritative source.
 - [Omarchy on...](manual/49-omarchy-on.md)
 - [Dual Boot Install](manual/50-dual-boot-install.md)
 - [Unattended Installs](manual/51-unattended-installs.md)
+- [Moving to a new install](manual/52-transfer.md)
 
 ## License
 
