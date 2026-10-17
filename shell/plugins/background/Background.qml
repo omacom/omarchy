@@ -20,6 +20,11 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
+  // An instant switch keeps the displayed path until the replacement's header
+  // is known, otherwise constrainDecode would clear the image's source.
+  property string pendingInstantBackground: ""
+  // Its reload waits with it, so the old path is not reloaded meanwhile.
+  property bool pendingInstantReload: false
   property string incomingBackground: ""
   property string oldBackground: ""
   // A theme switch names its next background before it has staged the rest of
@@ -55,6 +60,8 @@ Item {
     return true
   }
 
+  onNativeSizesChanged: applyPendingInstantBackground()
+
   function isVideo(path) {
     return Util.isVideoPath(path)
   }
@@ -78,7 +85,8 @@ Item {
   property int recoverVersion: -1
 
   function recoverBackground(failedPath) {
-    if (!failedPath || failedPath !== displayedBackground) return
+    // A pending instant switch is about to replace the failed path anyway.
+    if (!failedPath || failedPath !== displayedBackground || pendingInstantBackground) return
     failedBackground = failedPath
     if (recoverProc.running) return
     recoverVersion = backgroundVersion
@@ -98,7 +106,6 @@ Item {
   }
 
   function setBackground(path, instant) {
-    if (instant) reloadVersion += 1
     transitionBackground("", path, path, instant, instant)
   }
 
@@ -107,6 +114,8 @@ Item {
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
     if (!path || (!force && finalPath === currentBackground)) return
+    pendingInstantBackground = ""
+    pendingInstantReload = false
     if (path !== preparedBackground) preparedBackground = ""
     preparedBackgroundTimer.stop()
     lastTransitionPath = path
@@ -128,7 +137,9 @@ Item {
       oldBackground = ""
       incomingBackground = ""
       preparedBackground = ""
-      displayedBackground = finalPath
+      pendingInstantBackground = finalPath
+      pendingInstantReload = instant
+      applyPendingInstantBackground()
       revealProgress = 1
       return
     }
@@ -136,6 +147,16 @@ Item {
     oldBackground = fromPath || displayedBackground
     incomingBackground = path
     revealProgress = 0
+  }
+
+  function applyPendingInstantBackground() {
+    var path = pendingInstantBackground
+    if (!path || (!isVideo(path) && nativeSizes[path] === undefined)) return
+    // The version moves first, or a cached frame for the path's old version shows.
+    if (pendingInstantReload) reloadVersion += 1
+    displayedBackground = path
+    pendingInstantBackground = ""
+    pendingInstantReload = false
   }
 
   function setPendingTheme(colorsB64, shellB64) {
@@ -201,7 +222,7 @@ Item {
   // the wallpapers still in play.
   function pruneNativeSizes() {
     var kept = {}
-    var paths = [displayedBackground, incomingBackground, oldBackground, preparedBackground]
+    var paths = [displayedBackground, incomingBackground, oldBackground, preparedBackground, pendingInstantBackground]
     for (var i = 0; i < paths.length; i++) {
       if (paths[i] && nativeSizes[paths[i]] !== undefined) kept[paths[i]] = nativeSizes[paths[i]]
     }
@@ -408,6 +429,7 @@ Item {
         id: base
         anchors.fill: parent
         path: root.displayedBackground
+        retainWhileLoading: true
         version: root.reloadVersion
         cached: true
         constrainDecode: true

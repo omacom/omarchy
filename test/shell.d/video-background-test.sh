@@ -70,7 +70,8 @@ assert(
   'the shared image path leaves mipmapping off, as the desktop background had it'
 )
 assert(
-  /instant \|\| !displayedBackground \|\| isVideo\(path\) \|\| isVideo\(displayedBackground\)[\s\S]*displayedBackground = finalPath/.test(backgroundQml),
+  /instant \|\| !displayedBackground \|\| isVideo\(path\) \|\| isVideo\(displayedBackground\)[\s\S]*pendingInstantBackground = finalPath/.test(backgroundQml) &&
+    /if \(!path \|\| \(!isVideo\(path\) && nativeSizes\[path\] === undefined\)\) return/.test(backgroundQml),
   'video switches bypass the image-only reveal stack and use the durable background path'
 )
 assert(backgroundQml.includes('BackgroundMedia {') && lockQml.includes('BackgroundMedia {'), 'desktop and lock screen share still rendering')
