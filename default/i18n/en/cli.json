@@ -143,6 +143,8 @@
   "nordvpn.rebootNow": "Reboot now to make NordVPN usable?",
   "openclaw.deleteData": "Also delete ~/.openclaw (%1: chats, memories, credentials, downloaded plugins, and OpenClaw itself)?",
   "perplexity.deleteData": "Also delete your Perplexity data (%1: logins, settings, secret vault and device identity)?",
+  "pia.connectNow": "Connect to PIA now?",
+  "pia.selectRegion": "Connect PIA to",
   "plugin.barSection": "Place %1 in which bar section?",
   "plugin.cloneTitle": "Clone plugin",
   "plugin.confirmAdd": "Clone and add this plugin?",
