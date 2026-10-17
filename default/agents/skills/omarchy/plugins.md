@@ -85,6 +85,19 @@ are centered as one group; `centerBegin` and `centerEnd` hang off its two
 edges. Put a widget beside the clock in `centerBegin` or `centerEnd`, not in
 `center`, or the clock moves off center.
 
+## Third-Party Plugins
+
+A third-party plugin is a git repo with a `manifest.json` at its root, and its code runs unsandboxed inside `omarchy-shell`. Add one only when the user asked for it, and leave it disabled until they have reviewed the code.
+
+```bash
+omarchy plugin add https://github.com/acme/omarchy-weather.git --yes
+omarchy plugin add ~/src/omarchy-weather --yes   # a local checkout the user reviewed
+omarchy plugin enable acme.weather
+```
+
+- `add`, `update`, and `remove` refuse to run without a terminal unless given `--yes`, which also skips the trust warning, so confirm with the user first.
+- A plugin added from a local checkout updates from that checkout, not from the network: `omarchy plugin update <id>` fast-forwards to the checkout's current commit.
+
 ## Customizing Built-In Plugins and Widgets
 
 To customize a built-in bar widget, never edit `$OMARCHY_PATH/shell/plugins/`.
