@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# omarchy:summary=Print the running touchpad state as JSON for the touchpad settings window
+# omarchy:hidden=true
+
+set -o pipefail
+
+OPTIONS=(
+  input:touchpad:natural_scroll
+  input:touchpad:scroll_factor
+  input:touchpad:tap_to_click
+  input:touchpad:tap_button_map
+  input:touchpad:clickfinger_behavior
+  input:touchpad:middle_button_emulation
+  input:touchpad:disable_while_typing
+  input:touchpad:tap_and_drag
+  input:touchpad:drag_lock
+  input:touchpad:drag_3fg
+  input:touchpad:flip_x
+  input:touchpad:flip_y
+  input:sensitivity
+  input:accel_profile
+  input:left_handed
+  input:scroll_method
+  gestures:workspace_swipe_distance
+  gestures:workspace_swipe_invert
+  gestures:workspace_swipe_create_new
+  gestures:workspace_swipe_forever
+  gestures:workspace_swipe_cancel_ratio
+  gestures:workspace_swipe_min_speed_to_force
+  gestures:workspace_swipe_direction_lock
+)
+
+options=$(
+  for option in "${OPTIONS[@]}"; do
+    hyprctl getoption -j "$option" 2>/dev/null || true
+  done | jq -nR '
+    # Unknown options answer in plain text, so keep only the JSON lines.
+    [inputs | fromjson? | select(type == "object" and .option)]
+    | map({
+        key: (.option | split(":") | last),
+        value: (
+          if has("bool") then .bool
+          elif has("int") then .int
+          elif has("float") then .float
+          elif has("str") then (if .str == "[[EMPTY]]" then "" else .str end)
+          else null end
+        )
+      })
+    | from_entries
+  '
+) || options='{}'
+
+devices=$(hyprctl devices -j 2>/dev/null | jq '[.mice[]?.name | select(test("touchpad|trackpad"; "i"))]') || devices='[]'
+clients=$(hyprctl clients -j 2>/dev/null | jq '[.[].class | select(. != "")] | unique') || clients='[]'
+
+disabled=""
+disabled_file="$HOME/.local/state/omarchy/toggles/hypr/touchpad-disabled-name"
+[[ -f $disabled_file ]] && IFS= read -r disabled <"$disabled_file"
+
+jq -n \
+  --argjson options "$options" \
+  --argjson devices "$devices" \
+  --argjson clients "$clients" \
+  --arg disabled "$disabled" \
+  '{ options: $options, devices: $devices, clients: $clients, disabled: $disabled }'

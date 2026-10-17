@@ -19,6 +19,9 @@ require("default.hypr.envs")
 require("default.hypr.looknfeel")
 require("default.hypr.qconsole")
 require("default.hypr.input")
+-- Let Setup > Config > Touchpad gestures replace ones the user's files add.
+-- The settings themselves apply from default.hypr.toggles, after those files.
+require("default.hypr.touchpad").watch()
 require("default.hypr.windows")
 require("default.hypr.dictation-backend")
 
