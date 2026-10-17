@@ -1,20 +1,35 @@
 #!/bin/bash
 
-# omarchy:summary=Share clipboard, files, or folders with LocalSend
+# omarchy:summary=Share text, clipboard, files, or folders with LocalSend
 # omarchy:group=share
 # omarchy:name=
-# omarchy:args=<clipboard|file|folder> [path...]
-# omarchy:examples=omarchy share clipboard | omarchy share file ~/Downloads/example.txt
+# omarchy:args=<text|clipboard|file|folder> [message|path...]
+# omarchy:examples=omarchy share text | omarchy share text "Hello" | omarchy share clipboard | omarchy share file ~/Downloads/example.txt
 
 if (($# == 0)); then
-  echo "Usage: omarchy-menu-share [clipboard|file|folder]"
+  echo "Usage: omarchy-menu-share [text|clipboard|file|folder] [message|path...]"
   exit 1
 fi
 
 MODE="$1"
 shift
 
-if [[ $MODE == "clipboard" ]]; then
+if [[ $MODE == "text" ]]; then
+  if (($# > 0)); then
+    text="$*"
+  else
+    text=$(/usr/bin/python3 "$OMARCHY_PATH/default/localsend/share-text.py") || status=$?
+    if ((${status:-0} > 1)); then
+      omarchy-notification-send -g "" -u critical "Could not share text" "The text composer did not open"
+      exit 1
+    fi
+    if ((${status:-0} == 1)); then
+      exit 0
+    fi
+  fi
+
+  [[ -n ${text//[[:space:]]/} ]] || exit 0
+elif [[ $MODE == "clipboard" ]]; then
   TEMP_FILE=$(mktemp --suffix=.txt)
   wl-paste >"$TEMP_FILE"
   FILE_ARRAY=("$TEMP_FILE")
@@ -42,7 +57,30 @@ else
 fi
 
 # Run LocalSend in its own systemd service (detached from terminal)
-systemd-run --user --quiet --collect localsend --headless send "${FILE_ARRAY[@]}"
+if [[ $MODE == "text" ]]; then
+  # LocalSend checks special flags before consuming the --text value.
+  # A leading space protects messages like "--share"; LocalSend trims it.
+  # Successful scheduling does not mean that LocalSend itself can start.
+  # Keep its exit check in the service; disable systemd's environment expansion
+  # and pass the message as a literal argument.
+  # A fixed description keeps message contents out of systemd's journal.
+  # shellcheck disable=SC2016 # The service shell expands its own positional argument and status.
+  systemd-run --user --quiet --collect --expand-environment=no --description="Share text with LocalSend" /bin/bash -c '
+    if localsend --text "$1"; then
+      exit 0
+    else
+      status=$?
+      omarchy-notification-send -g "" -u critical "Could not share text" "LocalSend exited with an error"
+      exit "$status"
+    fi
+  ' omarchy-share-text " $text" || status=$?
+  if ((${status:-0} > 0)); then
+    omarchy-notification-send -g "" -u critical "Could not share text" "LocalSend did not open"
+    exit "$status"
+  fi
+else
+  systemd-run --user --quiet --collect localsend --headless send "${FILE_ARRAY[@]}"
+fi
 
 # Note: Temporary file will remain until system cleanup for clipboard mode
 # This ensures the file content is available for the LocalSend GUI
