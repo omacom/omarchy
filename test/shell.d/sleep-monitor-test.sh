@@ -46,6 +46,7 @@ ln -s "$sleep_monitor" "$mock_omarchy/bin/omarchy-system-sleep-monitor"
 
 start_us=${EPOCHREALTIME//[!0-9]/}
 OMARCHY_PATH="$mock_omarchy" \
+  DBUS_MONITOR="$mock_bin/dbus-monitor" \
   PATH="$mock_bin:$PATH" \
   PRODUCER_PID_FILE="$producer_pid_file" \
   LOCK_LOG="$lock_log" \
@@ -79,6 +80,7 @@ chmod +x "$mock_bin/dbus-monitor"
 rm -f "$producer_pid_file"
 
 OMARCHY_PATH="$mock_omarchy" \
+  DBUS_MONITOR="$mock_bin/dbus-monitor" \
   PATH="$mock_bin:$PATH" \
   PRODUCER_PID_FILE="$producer_pid_file" \
   LOCK_LOG="$lock_log" \
@@ -104,3 +106,35 @@ if kill -0 "$producer_pid" 2>/dev/null; then
   fail "sleep monitor cleans up its producer when terminated" "producer still running: $producer_pid"
 fi
 pass "sleep monitor cleans up its producer when terminated"
+
+# A dbus-monitor shadowing /usr/bin, like Homebrew's, may default to a system
+# bus socket under its own prefix, so the monitor must never run it from PATH.
+shadow_log="$tmpdir/shadow-log"
+cat >"$mock_bin/dbus-monitor" <<'SH'
+#!/bin/bash
+
+echo ran >"$SHADOW_LOG"
+printf '   boolean true\n'
+exec sleep 30
+SH
+chmod +x "$mock_bin/dbus-monitor"
+
+env -u DBUS_MONITOR \
+  OMARCHY_PATH="$mock_omarchy" \
+  PATH="$mock_bin:$PATH" \
+  SHADOW_LOG="$shadow_log" \
+  LOCK_LOG="$lock_log" \
+  "$sleep_monitor" --inhibited >/dev/null 2>&1 &
+monitor_pid=$!
+
+for _ in {1..100}; do
+  [[ -e $shadow_log ]] && break
+  kill -0 "$monitor_pid" 2>/dev/null || break
+  sleep 0.01
+done
+kill "$monitor_pid" 2>/dev/null || true
+wait "$monitor_pid" 2>/dev/null || true
+
+[[ ! -e $shadow_log ]] ||
+  fail "sleep monitor ignores a dbus-monitor shadowing /usr/bin on PATH"
+pass "sleep monitor ignores a dbus-monitor shadowing /usr/bin on PATH"
