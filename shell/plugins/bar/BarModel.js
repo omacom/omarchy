@@ -615,6 +615,16 @@ function barSizeFor(sizes, screenName, fallback) {
   return size > 0 ? size : fallback
 }
 
+// The label a "command" module shows. The parsed JSON's text is the label - an empty one is the module
+// asking to be hidden, Waybar's usual way - and only output that did not parse falls back to the raw
+// output. `data.text || raw` put the whole JSON on the bar for `{"text":""}` because "" is falsy
+// (#15346).
+function customCommandLabel(raw, data) {
+  var text = isPlainObject(data) ? data.text : undefined
+  if (text === undefined || text === null) return String(raw || "").trim()
+  return String(text)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     barSizeFor: barSizeFor,
@@ -646,6 +656,7 @@ if (typeof module !== "undefined") {
     moduleString: moduleString,
     expandPath: expandPath,
     customModuleSafeName: customModuleSafeName,
+    customCommandLabel: customCommandLabel,
     customModuleType: customModuleType,
     customModulePath: customModulePath
   }
