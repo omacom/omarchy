@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# omarchy:summary=Remove ICDEV along with what its setup registered with your agents.
+
+# -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+wrapper="$HOME/.local/bin/icdev"
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/icdev"
+# The names ICDEV gives its own PostgreSQL container and volume
+# (args/omarchy_postgres.yaml in the icdev package).
+container=icdev-postgres
+volume=icdev-postgres-data
+
+# `icdev omarchy uninstall` is the reverse of `icdev omarchy setup`, and the
+# only thing that knows what setup wrote: the icdev-unified MCP server in each
+# agent's config, the ICDEV skill, the opencode and Pi guard plugins, its
+# systemd --user units, the agents panel collector and mark, and the Claude
+# bridge provider and token. It never touches the database or its settings,
+# which are asked about below. It runs first, while ICDEV is still installed,
+# and a failure stops here with everything in place, so running the removal
+# again picks up where it left off.
+if [[ -x $wrapper ]]; then
+  echo "Removing ICDEV from your agents..."
+  if ! "$wrapper" omarchy uninstall; then
+    echo "Could not undo ICDEV's setup; ICDEV was not removed." >&2
+    exit 1
+  fi
+fi
+
+# The board, and the generated password that opens it, are the user's work:
+# kept unless asked, default no, and kept without a terminal to ask in. The
+# container and ~/.config/icdev go together or not at all, because setup
+# refuses to reuse a container whose password is no longer in .env.
+has_container=false
+if omarchy-cmd-present docker && docker inspect "$container" >/dev/null 2>&1; then
+  has_container=true
+fi
+
+data_removed=false
+if [[ $has_container == true || -d $config_dir ]] && [[ -t 0 ]]; then
+  if gum confirm --default=false "Also delete ICDEV's database (container $container, volume $volume) and its settings in $config_dir?"; then
+    if [[ $has_container == true ]]; then
+      docker rm -f "$container" >/dev/null
+      docker volume rm "$volume" >/dev/null 2>&1 || true
+    fi
+    rm -rf "$config_dir"
+    data_removed=true
+  fi
+fi
+
+# The wrapper omarchy-install-ai-icdev wrote, and the ICDEV mise installed
+# behind it. uv stays: it may have been there already, and other mise pipx:
+# tools install through it.
+mise uninstall pipx:icdev --all 2>/dev/null || true
+mise rm -g pipx:icdev 2>/dev/null || true
+rm -f "$wrapper"
+
+echo ""
+echo "ICDEV has been removed."
+if [[ $data_removed == true ]]; then
+  echo "Its database and settings are gone too."
+else
+  if [[ $has_container == true ]]; then
+    echo "Its database is still in the Docker container $container (volume $volume)."
+    echo "To delete it: docker rm -f $container && docker volume rm $volume"
+  fi
+  if [[ -d $config_dir ]]; then
+    echo "Its settings are still in $config_dir."
+  fi
+fi
+echo "uv is still installed through mise; remove it with 'mise rm -g uv' if nothing else needs it."
