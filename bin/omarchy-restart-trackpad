@@ -3,18 +3,40 @@
 # omarchy:summary=Reset the trackpad by unbinding and rebinding its driver.
 # omarchy:requires-sudo=true
 
-for dev in /sys/bus/i2c/drivers/i2c_hid_acpi/i2c-*; do
-  [[ -e $dev ]] || continue
-  I2C_DEVICE=$(basename "$dev")
-  echo "Resetting $I2C_DEVICE via i2c_hid_acpi unbind/rebind..."
-  echo "$I2C_DEVICE" | sudo tee /sys/bus/i2c/drivers/i2c_hid_acpi/unbind > /dev/null
-  sleep 1
-  echo "$I2C_DEVICE" | sudo tee /sys/bus/i2c/drivers/i2c_hid_acpi/bind > /dev/null
-  echo "Done"
+# Sysfs root is overridable for tests that stage a fake driver tree.
+sysfs_root=${OMARCHY_TEST_SYSFS_ROOT:-/sys}
+rebind_pause=${OMARCHY_TEST_TRACKPAD_REBIND_PAUSE:-1}
+
+reset=0
+
+# i2c_hid_acpi is the common HID path. elan_i2c is used on many ASUS (and
+# similar) boards where the touchpad never binds to i2c_hid_acpi at all.
+shopt -s nullglob
+for driver in i2c_hid_acpi elan_i2c; do
+  driver_dir="$sysfs_root/bus/i2c/drivers/$driver"
+  [[ -d $driver_dir ]] || continue
+
+  for dev in "$driver_dir"/i2c-*; do
+    [[ -e $dev ]] || continue
+    i2c_device=$(basename "$dev")
+    echo "Resetting $i2c_device via $driver unbind/rebind..."
+    echo "$i2c_device" | sudo tee "$driver_dir/unbind" >/dev/null
+    sleep "$rebind_pause"
+    echo "$i2c_device" | sudo tee "$driver_dir/bind" >/dev/null
+    echo "Done"
+    reset=1
+  done
 done
+shopt -u nullglob
 
 # Also try THC path
 if lsmod | grep -q intel_quicki2c; then
   echo "Reloading intel_quicki2c..."
   sudo modprobe -r intel_quicki2c && sudo modprobe intel_quicki2c
+  reset=1
+fi
+
+if ((reset == 0)); then
+  echo "No supported trackpad driver found to reset (need i2c_hid_acpi, elan_i2c, or intel_quicki2c)." >&2
+  exit 1
 fi
