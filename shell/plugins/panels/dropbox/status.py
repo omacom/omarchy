@@ -43,6 +43,15 @@ def command_output(command):
   return completed.returncode, (completed.stdout + completed.stderr).strip()
 
 
+# The same check `dropbox-cli running` makes, without the CLI's inverted exit code.
+def daemon_running():
+  try:
+    pid = int((Path.home() / ".dropbox" / "dropbox.pid").read_text())
+    return "dropbox" in Path(f"/proc/{pid}/cmdline").read_text().lower()
+  except (OSError, ValueError):
+    return False
+
+
 def scan_dropbox(path, limit):
   total = 0
   counter = 0
@@ -98,7 +107,11 @@ def main():
 
   running = False
   status_text = "Not installed"
-  if dropbox_cli:
+  if dropbox_cli and not authenticated:
+    # `dropbox-cli status` asks an unlinked daemon for a link URL, and each ask voids the one Log in opened.
+    running = daemon_running()
+    status_text = "Waiting to be linked to a Dropbox account" if running else "Stopped"
+  elif dropbox_cli:
     status_exit, status_output = command_output([dropbox_cli, "status"])
     status_text = status_output if status_exit == 0 and status_output else "Stopped"
     lowered = status_text.lower()
