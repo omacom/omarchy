@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Open Rex, the offline regular expression workbench
+# omarchy:args=[pattern]
+
+# Rex lives in the running shell, so a second launch focuses the open window
+# instead of summoning it again over whatever the user had typed.
+address=$(hyprctl clients -j | jq -r 'first(.[] | select(.class == "org.quickshell" and .title == "Rex") | .address) // empty')
+
+if [[ -n $address ]]; then
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$address" >/dev/null
+else
+  omarchy-shell shell summon omarchy.rex "$(jq -cn --arg pattern "${1:-}" 'if $pattern == "" then {} else {pattern: $pattern} end')"
+fi
