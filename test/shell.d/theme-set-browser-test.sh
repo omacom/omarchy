@@ -31,7 +31,7 @@ chmod +x "$TMP_BIN/omarchy-theme-set-browser-policy"
 # skip everything.
 policy_tmp="$TMPDIR/policies"
 mkdir -p "$policy_tmp"
-printf '{"BrowserThemeColor": "#1c2027", "BrowserColorScheme": "device"}\n' > "$policy_tmp/color.json"
+printf '{"BrowserThemeColor": "#1f1f1f", "BrowserColorScheme": "device"}\n' > "$policy_tmp/color.json"
 
 # A test cannot make a root-owned file, so stat reports the owner the writer
 # leaves behind, or a user-owned one.
@@ -43,7 +43,7 @@ printf '%s\n' "${STAT_OWNER:?}"
 FAKE
 chmod +x "$stat_bin/stat"
 
-# No theme file -> fallback color #1c2027, which matches the fixture.
+# No theme file -> fallback color #1f1f1f, which matches the fixture.
 HOME="$TMPDIR" PATH="$stat_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" STAT_OWNER="root:root 644" \
   OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" \
   bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null
