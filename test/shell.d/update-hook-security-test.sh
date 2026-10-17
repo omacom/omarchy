@@ -35,14 +35,14 @@ assert 'sudo -v' not in s, s
 positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-update-system-pkgs','step:omarchy-migrate','step:omarchy-update-restart --services-only','step:omarchy-hook post-update','step:omarchy-update-mise','step:yay','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
 assert positions==sorted(positions), s
 yay=positions[5]
-# Everything before AUR shares the one authorization: plain sudo, no revokes.
-assert not any(line=='sudo -k' or line.startswith('sudo -N ') for line in s[auth:positions[4]]), s
+# Trusted system phases share authorization; hooks, mise and AUR start cold.
+assert not any(line=='sudo -k' or line.startswith('sudo -N ') for line in s[auth:positions[2]]), s
 assert 'sudo /usr/bin/true' in s[auth:positions[0]+1], s
-# AUR builds start from a revoked credential and cannot refresh one.
-assert 'sudo -k' in s[positions[4]:yay], s
-assert not any(line.startswith('sudo ') and line!='sudo -k' and not line.startswith('sudo -N ') for line in s[yay:]), s
+for earlier, later in zip(positions[2:5], positions[3:6]):
+ assert 'sudo -k' in s[earlier:later], s
+assert not any(line.startswith('sudo ') and line not in ('sudo -k','sudo -h') and not line.startswith('sudo -N ') for line in s[positions[3]:]), s
 PY
-  pass "update $args authorizes once for everything but AUR, which runs cold last, and exits cold"
+  pass "update $args authorizes trusted system phases, runs hooks and third-party installers cold, and exits cold"
 done
 
 for step in omarchy-update-system-pkgs yay omarchy-hook omarchy-update-mise; do
@@ -78,6 +78,16 @@ assert_boundary_cold "unsupported sudo"
 pass "unsupported sudo fails without running update steps"
 
 reset_boundary
+export SUDO_TEST_REMOVE_WRAPPER_STEP='omarchy-update-system-pkgs '
+if run_update -y; then fail "an update must stop when package replacement removes the sudo wrapper"; fi
+assert_boundary_cold "missing sudo wrapper after package replacement"
+if grep -q '^step:omarchy-hook\|^step:omarchy-update-mise\|^step:yay' "$SUDO_TEST_LOG"; then
+  fail "a missing sudo wrapper must stop before hooks or third-party installers"
+fi
+copy_boundary_file default/omarchy/sudo-no-update/sudo
+pass "package replacement cannot silently remove the cold installer boundary"
+
+reset_boundary
 "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" stable >"$boundary_tmp/output" 2>&1 || fail "refresh failed" "$(<"$boundary_tmp/output")"
 assert_boundary_cold "refresh"
 python3 - "$SUDO_TEST_LOG" <<'PY'
@@ -104,12 +114,18 @@ done
 # explicit --, while standalone timestamp maintenance cannot be combined with N.
 for args in '-v' '-n /usr/bin/true' '--user test -- /usr/bin/true' '-- /usr/bin/true' '-k' '-K'; do
   reset_boundary
-  "$SUDO_TEST_ROOT/default/omarchy/sudo-no-update/sudo" $args
+  status=0
+  "$SUDO_TEST_ROOT/default/omarchy/sudo-no-update/sudo" $args || status=$?
   case "$args" in
     -k|-K) expected="sudo $args" ;;
     *) expected="sudo -N $args" ;;
   esac
   [[ $(<"$SUDO_TEST_LOG") == "$expected" ]] || fail "wrapper changed options: $args" "$(<"$SUDO_TEST_LOG")"
+  if [[ $args == '-n /usr/bin/true' ]]; then
+    (( status == 1 )) || fail "noninteractive sudo must fail without a cached credential"
+  else
+    (( status == 0 )) || fail "wrapper failed to preserve options: $args"
+  fi
   [[ ! -e $SUDO_TEST_CACHE ]] || fail "wrapper refreshed credentials"
   pass "sudo wrapper preserves $args"
 done

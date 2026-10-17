@@ -1,7 +1,25 @@
-#!/bin/bash
+#!/bin/bash -p
 
 # omarchy:summary=Show a fuzzy-finder TUI for picking new AUR packages to install.
 # omarchy:requires-sudo=true
+
+# PKGBUILDs are third-party code. Protect the cold credential boundary before
+# shell startup files or exported functions can run, just as omarchy update does.
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+set -e
+omarchy_security_sanitize_bash_environment "$0" "$@"
+omarchy_security_require_source_root "$0"
+omarchy_security_install_sudo_cleanup_traps
+omarchy_security_revoke_sudo_timestamp || exit 1
+omarchy_security_enable_no_update_sudo
+unset OMARCHY_UPDATE_SUDO_SESSION
 
 fzf_args=(
   --multi
@@ -17,14 +35,24 @@ fzf_args=(
   --color 'pointer:green,marker:green'
 )
 
-pkg_names=$(yay -Slqa | fzf "${fzf_args[@]}")
+selection_status=0
+pkg_names=$(yay -Slqa | fzf "${fzf_args[@]}") || selection_status=$?
+case $selection_status in
+  0) ;;
+  1 | 130) exit 0 ;; # No match or the user cancelled.
+  *) exit "$selection_status" ;;
+esac
 
 if [[ -n $pkg_names ]]; then
-  # Add aur/ prefix to each package name and convert to space-separated for yay
-  source omarchy-sudo-keepalive
-
-  echo "$pkg_names" | sed 's/^/aur\//' | tr '\n' ' ' | xargs yay -S --noconfirm
-  code=$?
-  sudo updatedb --prune-bind-mounts=no --add-prunepaths=/.snapshots
-  omarchy-show-done $code
+  # Keep each selected package one operand; yay and any bare sudo in a build
+  # authenticate without publishing a reusable timestamp.
+  mapfile -t packages <<<"$pkg_names"
+  packages=("${packages[@]/#/aur/}")
+  code=0
+  yay --sudo "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" --sudoloop=false -S --noconfirm -- "${packages[@]}" || code=$?
+  omarchy_security_revoke_sudo_timestamp
+  # File indexing belongs to the scheduled plocate service, not an interactive
+  # install: a full filesystem scan can otherwise outlast the installation.
+  omarchy-show-done "$code"
+  exit "$code"
 fi

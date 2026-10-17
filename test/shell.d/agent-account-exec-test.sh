@@ -175,7 +175,7 @@ case "$1" in
     cp "$HOME/../grok-fixture" "$HOME/../real/bin/grok"
     ;;
   which)
-    [[ ${MISE_MINIMUM_RELEASE_AGE:-} == "0" ]] || exit 99
+    [[ ${MISE_MINIMUM_RELEASE_AGE:-unset} == "${OMARCHY_TEST_RELEASE_AGE:-unset}" ]] || exit 99
     printf '%s\n' "$HOME/../real/bin/grok"
     ;;
   *) exit 99 ;;
@@ -186,6 +186,11 @@ select_account grok side
 output=$(run_isolated grok)
 [[ $output == "$test_tmp/accounts/grok side" ]] || fail "a dispatcher without a CLI installs it and uses the selected account" "$output"
 pass "a dispatcher without a CLI installs it and uses the selected account"
+
+rm "$real_bin/grok"
+output=$(run_isolated env MISE_MINIMUM_RELEASE_AGE=7d OMARCHY_TEST_RELEASE_AGE=7d grok)
+[[ $output == "$test_tmp/accounts/grok side" ]] || fail "first-run account dispatch preserves an explicit release-age policy" "$output"
+pass "first-run account dispatch preserves an explicit release-age policy"
 
 rm "$real_bin/grok"
 status=0

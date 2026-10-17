@@ -35,7 +35,6 @@ fi
 # avoid recursion, but the agent's subprocesses need them for other providers.
 if ! agent_binary=$(type -P "$provider"); then
   # A mise dispatcher can exist before its CLI or first-run installer does.
-  export MISE_MINIMUM_RELEASE_AGE=0
   mise use -g --quiet "$provider"
   agent_binary=$(mise which "$provider")
 fi
