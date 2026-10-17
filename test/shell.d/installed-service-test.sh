@@ -29,11 +29,14 @@ case "${1:-}" in
 esac
 SH
 
+# Mirrors upstream dropbox.in: `running` exits 1 when running, 0 when stopped
 cat >"$mock_bin/dropbox-cli" <<'SH'
 #!/bin/bash
 set -euo pipefail
 
-[[ ${OMARCHY_TEST_DROPBOX_RUNNING:-0} == "1" && ${1:-} == "running" ]]
+if [[ ${1:-} == "running" && ${OMARCHY_TEST_DROPBOX_PROCESS:-0} == "1" ]]; then
+  exit 1
+fi
 SH
 
 cat >"$mock_bin/tailscale" <<'SH'
@@ -75,8 +78,13 @@ SH
 chmod +x "$mock_bin"/*
 mock_path="$mock_bin:$ROOT/bin:$PATH"
 
-PATH="$mock_path" OMARCHY_TEST_DROPBOX_CLI=1 OMARCHY_TEST_DROPBOX_RUNNING=1 omarchy-installed-service-dropbox
-pass "installed Dropbox service check accepts running CLI"
+PATH="$mock_path" OMARCHY_TEST_DROPBOX_CLI=1 OMARCHY_TEST_DROPBOX_PROCESS=1 omarchy-installed-service-dropbox
+pass "installed Dropbox service check accepts running daemon with CLI installed"
+
+if PATH="$mock_path" OMARCHY_TEST_DROPBOX_CLI=1 omarchy-installed-service-dropbox; then
+  fail "installed Dropbox service check rejects stopped daemon with CLI installed"
+fi
+pass "installed Dropbox service check rejects stopped daemon with CLI installed"
 
 PATH="$mock_path" OMARCHY_TEST_DROPBOX_PROCESS=1 omarchy-installed-service-dropbox
 pass "installed Dropbox service check accepts running process"
