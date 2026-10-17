@@ -1,0 +1,5 @@
+#!/bin/bash
+# The SMC drops manual fan control across sleep and t2fanrd only enables it at
+# startup, so restart it on resume (#12393).
+[[ $1 == "post" ]] || exit 0
+/usr/bin/systemctl try-restart t2fanrd.service
