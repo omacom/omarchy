@@ -5,7 +5,9 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
+const fs = require('fs')
 const media = requireFromRoot('shell/plugins/services/media/MediaModel.js')
+const widgetSource = fs.readFileSync(root + '/shell/plugins/services/media/BarWidget.qml', 'utf8')
 
 assert(media.isProxyPlayer({ dbusName: 'org.mpris.MediaPlayer2.playerctld' }), 'media detects playerctld proxy by DBus name')
 assert(media.isProxyPlayer({ desktopEntry: 'playerctld' }), 'media detects playerctld proxy by desktop entry')
@@ -57,7 +59,6 @@ assertEqual(media.volumeOsdIcon(0, false), 'volume-muted', 'volume OSD shows mut
 // Only an ALSA sink is its own physical sink. Any other default sink, a DSP
 // chain or EasyEffects above all, needs omarchy-audio-output-sink's live
 // resolution on every press, so its keys fall back to the script.
-const fs = require('fs')
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/services/media/Service.qml'), 'utf8')
 assert(
   serviceQml.includes('readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null') &&
@@ -70,4 +71,14 @@ assert(
   /if \(!media \|\| !media\.handleVolumeKey\(entry\.target\)\)\s*Util\.execArgv\(\["omarchy-audio-output-volume", entry\.target\]\)/.test(shellQml),
   'a volume key the shell declines runs omarchy-audio-output-volume'
 )
+
+const scrollAnim = widgetSource.match(/id: scrollAnim\s*([\s\S]*?)(?:onRunningChanged:|[}]\s*})/)
+assert(scrollAnim, 'media widget declares scrollAnim')
+assert(/import Quickshell\.Services\.Mpris/.test(widgetSource), 'media widget imports Mpris for playback-state gating')
+assert(/SequentialAnimation on x/.test(widgetSource), 'media widget uses a sequential marquee animation')
+assert(/activePlayer\.playbackState === MprisPlaybackState\.Playing/.test(scrollAnim[1]), 'media marquee runs only while playbackState is Playing')
+assert(/labelText\.needsScroll && !root\.popupOpen && !root\.bar\.vertical && !Style\.reduceMotion/.test(scrollAnim[1]), 'media marquee still requires overflow, a horizontal bar and animations on')
+assert(!/\.isPlaying/.test(scrollAnim[1]), 'media marquee does not gate on isPlaying')
+assert(/loops: Animation\.Infinite\s*(?:\/\/[^\n]*\s*)?PropertyAction \{ target: labelText; property: "x"; value: 0 \}\s*PauseAnimation/.test(widgetSource), 'media marquee holds the title start on every pass, not only the first')
+assert(/onRunningChanged: \{\s*if \(!running\)\s*labelText\.x = 0\s*\}/.test(widgetSource), 'media marquee resets x when the animation stops')
 JS
