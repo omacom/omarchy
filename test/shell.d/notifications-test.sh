@@ -181,6 +181,128 @@ assertEqual(
   'notifications keep non-browser leading origin text'
 )
 
+// The origin line is also how a "Chromium" notification is traced back to the
+// web app launcher that sent it (see the web app launchers section of
+// NotificationLogic.js).
+assertEqual(
+  notifications.chromiumOrigin('<a href="https://app.slack.com/">app.slack.com</a>\n\nhello', 'Chromium', ''),
+  'https://app.slack.com/',
+  'notifications read the chromium origin from the leading link href'
+)
+assertEqual(
+  notifications.chromiumOrigin('https://example.com/path Message body', 'Chromium', ''),
+  'https://example.com/path',
+  'notifications read the chromium origin from leading bare text'
+)
+assertEqual(
+  notifications.chromiumOrigin('hello there', 'Chromium', ''),
+  '',
+  'notifications find no origin in a chromium body without one'
+)
+assertEqual(
+  notifications.chromiumOrigin('<a href="https://app.slack.com/">app.slack.com</a> hello', 'Slack', ''),
+  '',
+  'notifications read no origin off a non-browser sender'
+)
+
+// Launchers come from DesktopEntries, whose command is the parsed Exec argv.
+// Only omarchy-launch-webapp launchers with a URL count; the match key is the
+// host with www. and the scheme's default port dropped; the icon is resolved
+// by the caller. The list is sorted by name so that the pick between two
+// launchers on one host does not follow DesktopEntries' hash order.
+function resolveIcon(icon) { return icon ? 'image://icon/' + icon : '' }
+const launchers = notifications.webappLaunchers([
+  { id: 'YouTube', name: 'YouTube', icon: 'youtube', command: ['/usr/bin/omarchy-launch-webapp', 'https://www.youtube.com/'] },
+  { id: 'Slack', name: 'Slack', icon: 'slack', command: ['omarchy-launch-webapp', 'https://app.slack.com/client'] },
+  { id: 'Work Mail', name: 'Work Mail', icon: 'gmail-work', command: ['omarchy-launch-webapp', 'https://mail.google.com/mail/u/0/'] },
+  { id: 'Home Mail', name: 'Home Mail', icon: 'gmail-home', command: ['omarchy-launch-webapp', 'https://mail.google.com/mail/u/1/'] },
+  { id: 'Sunshine', name: 'Sunshine', icon: 'sunshine', command: ['omarchy-launch-webapp', 'https://localhost:47990', '--ignore-certificate-errors'] },
+  { id: 'Ports', name: 'Ports', icon: 'ports', command: ['omarchy-launch-webapp', 'https://example.com:443/'] },
+  { id: 'Terminal', name: 'Terminal', icon: 'alacritty', command: ['alacritty'] },
+  { id: 'Hey', name: 'Hey', icon: 'hey', command: ['omarchy-webapp-handler-hey'] },
+  { id: 'Broken', name: 'Broken', icon: 'x', command: ['omarchy-launch-webapp'] },
+  { id: 'Odd', name: 'Odd', icon: 'y', command: ['omarchy-launch-webapp', '/not-a-url'] },
+  { id: 'No command', name: 'No command', icon: 'z' }
+], resolveIcon)
+assertDeepEqual(
+  launchers.map(function(l) { return [l.name, l.iconSource, l.host] }),
+  [
+    ['Home Mail', 'image://icon/gmail-home', 'mail.google.com'],
+    ['Ports', 'image://icon/ports', 'example.com'],
+    ['Slack', 'image://icon/slack', 'app.slack.com'],
+    ['Sunshine', 'image://icon/sunshine', 'localhost:47990'],
+    ['Work Mail', 'image://icon/gmail-work', 'mail.google.com'],
+    ['YouTube', 'image://icon/youtube', 'youtube.com']
+  ],
+  'notifications index the web app launchers among the desktop entries, sorted by name'
+)
+
+function webappName(body, app, appIcon) {
+  const found = notifications.webappFor(body, app, appIcon, launchers)
+  return found ? found.name : null
+}
+
+assertEqual(
+  webappName('<a href="https://app.slack.com/">app.slack.com</a>\n\nhello', 'Chromium', ''),
+  'Slack',
+  'notifications match a chromium origin to the launcher for its host'
+)
+assertEqual(
+  webappName('https://app.slack.com/ hello', 'Chromium', 'chromium'),
+  'Slack',
+  'notifications match a bare chromium origin the same way'
+)
+assertEqual(
+  webappName('<a href="https://youtube.com/">youtube.com</a> New upload', 'Chromium', ''),
+  'YouTube',
+  'notifications match an origin to a launcher written with www.'
+)
+assertEqual(
+  webappName('<a href="https://example.com/">example.com</a> hello', 'Chromium', ''),
+  'Ports',
+  'notifications match an origin to a launcher written with the default port'
+)
+assertEqual(
+  webappName('<a href="https://mail.google.com/">mail.google.com</a> New mail', 'Chromium', ''),
+  'Home Mail',
+  'notifications pick the first launcher by name when several share a host'
+)
+// An origin line only ever names the site, and the sanitizer's origin shape
+// wants a dotted host, so a launcher on localhost is indexed but never matched.
+assertEqual(
+  webappName('<a href="https://localhost:47990/">localhost:47990</a> Stream ready', 'Chromium', ''),
+  null,
+  'notifications do not match a localhost origin'
+)
+assertEqual(
+  webappName('<a href="https://example.org/">example.org</a> hello', 'Chromium', ''),
+  null,
+  'notifications match no launcher for a host without one'
+)
+assertEqual(
+  webappName('hello there', 'Chromium', ''),
+  null,
+  'notifications match no launcher for a chromium body without an origin'
+)
+assertEqual(
+  webappName('<a href="https://app.slack.com/">app.slack.com</a> hello', 'Slack', ''),
+  null,
+  'notifications match no launcher for a non-browser sender'
+)
+assertEqual(
+  notifications.webappFor('https://app.slack.com/ hello', 'Chromium', '', []),
+  null,
+  'notifications match no launcher when there are none'
+)
+
+// The card's icon fallback order is a QML binding no assertion here can
+// execute, so pin its shape: the avatar first, then the web app's icon, then
+// whatever the sender set — and the web app one only when it resolved.
+assert(
+  /readonly property string smallIconSource: image\.length > 0 \? image : \(webappIconSource\.length > 0 \? webappIconSource : iconSource\(appIcon\)\)/.test(cardQml),
+  'the notification card prefers the avatar, then a resolved web app icon, then the app icon'
+)
+
 assert(notifications.summaryStartsWithGlyph('󰂚  Silenced'), 'notifications detect glyph-prefixed summaries')
 assert(!notifications.summaryStartsWithGlyph('Normal summary'), 'notifications ignore normal summaries as glyph-prefixed')
 assert(notifications.shouldRenderCompactGlyph('K', '', true), 'notifications render glyph-only single-line toasts compactly')
