@@ -143,6 +143,27 @@ assertEqual(model.isTypedKeyboard('sleep-button'), false, 'a sleep button is not
 assertEqual(model.isTypedKeyboard('hl-virtual-keyboard-1'), false, 'the keyboard an input method injects through is not')
 assertEqual(model.isTypedKeyboard(''), true, 'a keyboard reporting no name is left where it was found')
 
+// The endpoints of a pointer or a companion device hold the seat's layout list
+// but nobody types on them; an activelayout from one must not move the label
+// (#15461).
+assertEqual(model.isTypedKeyboard('2.4g-mouse'), false, 'a mouse is not typed on')
+assertEqual(model.isTypedKeyboard('2.4g-mouse-1'), false, 'a mouse subendpoint is not typed on')
+assertEqual(model.isTypedKeyboard('2.4g-mouse-consumer-control'), false, 'a mouse consumer control is not typed on')
+assertEqual(model.isTypedKeyboard('2.4g-mouse-system-control'), false, 'a mouse system control is not typed on')
+assertEqual(model.isTypedKeyboard('ite-tech.-inc.-ite-device(8910)-wireless-radio-control'), false, 'a radio control is not typed on')
+assertEqual(model.isTypedKeyboard('ideapad-extra-buttons'), false, 'a vendor extra button row is not typed on')
+
+// The seat as the issue reports it: the keyboard on Russian, the mouse endpoint
+// still on the seat's first layout. An activelayout naming the mouse must leave
+// the keyboard in charge of the label.
+const seatWithMouse = [
+  { name: 'at-translated-set-2-keyboard', active_layout_index: 1, active_keymap: 'Russian', main: true },
+  { name: '2.4g-mouse', active_layout_index: 0, active_keymap: 'English (US)' },
+]
+const typedWithMouse = seatWithMouse.filter(device => model.isTypedKeyboard(device.name))
+assertEqual(typedWithMouse.length, 1, 'a seat with a mouse endpoint reads only the keyboard')
+assertEqual(model.selectKeyboard(typedWithMouse, '2.4g-mouse').active_keymap, 'Russian', 'an activelayout from a mouse endpoint leaves the typed keyboard in charge')
+
 // The activelayout event names the keyboard ahead of the layout it moved to,
 // and a description with a comma in it has to survive the split.
 const rawEvent = data => ({ data })

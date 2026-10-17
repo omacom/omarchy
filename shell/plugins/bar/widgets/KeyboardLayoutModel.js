@@ -81,12 +81,21 @@ function eventKeyboardName(event) {
 // the seat hands it ends up describing a button. Leave them out and what remains
 // is keyboards, which is what the rest of this file can then assume.
 //
+// A pointer or its companion HID endpoints are in that crowd too: the dongle of
+// a 2.4G wireless set exposes the mouse and its consumer/system controls as
+// keyboards of their own, and laptops ship radio toggles and vendor extra
+// button rows the same way. None of them is typed on, but each holds the seat's
+// layout list, so an activelayout from a scroll or a plug event would otherwise
+// drag the label back to the seat's first layout (#15461).
+//
 // Missing a name here costs the accuracy the seat had before, never a keyboard:
 // anything unrecognised stays in the list.
 var UNTYPED_KEYBOARDS = /^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)/
+var UNTYPED_DEVICES = /(^|-)(mouse|consumer-control|system-control|radio-control|extra-buttons)(-|$)/
 
 function isTypedKeyboard(name) {
-  return !UNTYPED_KEYBOARDS.test(String(name || ""))
+  var device = String(name || "")
+  return !UNTYPED_KEYBOARDS.test(device) && !UNTYPED_DEVICES.test(device)
 }
 
 // Every keyboard on the seat carries the same layout list unless one was given
