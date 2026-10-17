@@ -36,16 +36,19 @@ screen_contains() {
   local text="$1"
   local snapshot="/tmp/omarchy-acceptance-ocr-$$.png"
 
-  # Capture at 2x scale: tesseract routinely drops small caption text at
-  # native resolution (the weather panel's detail labels, for one).
-  if ! timeout 10 grim -s 2 "$snapshot" 2>/dev/null; then
-    rm -f "$snapshot"
-    return 1
-  fi
-  tesseract "$snapshot" stdout --psm 11 2>/dev/null | grep -Fi -- "$text" >/dev/null
-  local status=$?
+  # Sparse-text OCR can split phrases across lines or misread scaled glyphs.
+  # Try native and doubled captures, preserving exact words when matching.
+  local scale
+  for scale in 1 2; do
+    if timeout 10 grim -s "$scale" "$snapshot" 2>/dev/null &&
+      tesseract "$snapshot" stdout --psm 11 2>/dev/null |
+        tr -s '[:space:]' ' ' | grep -Fi -- "$text" >/dev/null; then
+      rm -f "$snapshot"
+      return 0
+    fi
+  done
   rm -f "$snapshot"
-  return $status
+  return 1
 }
 
 # Poll a command until it succeeds; screenshot and fail on timeout.
