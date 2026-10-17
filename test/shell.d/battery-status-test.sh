@@ -98,7 +98,9 @@ if [[ $1 == "-i" ]]; then
   state:                charging
   energy-full:          69.6 Wh
   energy-rate:          0.1 W
-  time to full:         0.2 hours
+INFO
+  printf '  time to full:         %s\n' "${UPOWER_TIME:-0.2 hours}"
+  cat <<'INFO'
   percentage:           79.5%
   charge-end-threshold: 80%
 INFO
@@ -132,6 +134,11 @@ pass "battery status times charging to the charge limit"
 printf '100000\n' >"$hold_dir/power/BAT0/power_now"
 idle_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
 grep -Fx $'time\t12m' <<<"$idle_output" >/dev/null || fail "a negligible draw falls back to UPower's time" "$idle_output"
+
+seconds_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" UPOWER_TIME="42 seconds" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'time\t1m' <<<"$seconds_output" >/dev/null || fail "UPower fallback converts seconds to minutes" "$seconds_output"
+days_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" UPOWER_TIME="2.6 days" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'time\t62h 24m' <<<"$days_output" >/dev/null || fail "UPower fallback converts days to hours" "$days_output"
 
 # ...and when the energy reading is missing.
 printf '27800000\n' >"$hold_dir/power/BAT0/power_now"

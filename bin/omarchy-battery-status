@@ -56,7 +56,14 @@ percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
 capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
 energy=$(awk '/^ *energy:/ { print $2; exit }' <<<"$battery_info")
 energy_full=$(awk '/energy-full:/ { print $2; exit }' <<<"$battery_info")
-upower_hours=$(awk '/time to (empty|full)/ { print ($5 ~ /^minute/ ? $4 / 60 : $4); exit }' <<<"$battery_info")
+upower_hours=$(awk '/time to (empty|full)/ {
+  value = $4
+  if ($5 ~ /^second/) value /= 3600
+  else if ($5 ~ /^minute/) value /= 60
+  else if ($5 ~ /^day/) value *= 24
+  print value
+  exit
+}' <<<"$battery_info")
 power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
 native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
 battery_path="$power_supply_path/$native_path"
