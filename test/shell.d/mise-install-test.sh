@@ -42,6 +42,29 @@ grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:playwright' "$log" ||
 
 pass "a normal install writes a wrapper that names its package"
 
+# A scoped npm package whose command differs from its name: @kilocode/cli
+# installs the kilo binary, and naming it in the wrapper is what selects it. The
+# log stays empty across stub creation, which is what keeps first provisioning
+# download-free.
+kilo_create_log="$tmpdir/kilo-create.log"
+: >"$kilo_create_log"
+OMARCHY_MISE_TEST_LOG="$kilo_create_log" install_wrapper npm:@kilocode/cli kilo >/dev/null
+[[ ! -s $kilo_create_log ]] ||
+  fail "kilo stub creation performs no mise download" "$(cat "$kilo_create_log")"
+[[ -x $home/.local/bin/kilo ]] ||
+  fail "the kilo install writes an executable wrapper"
+
+kilo_log="$tmpdir/kilo.log"
+: >"$kilo_log"
+OMARCHY_MISE_TEST_LOG="$kilo_log" PATH="$stub_bin:$PATH" \
+  "$home/.local/bin/kilo" stay --together 'two words' >/dev/null
+grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:@kilocode/cli' "$kilo_log" ||
+  fail "the kilo wrapper asks mise for its npm package" "$(cat "$kilo_log")"
+grep -Fqx $'mise\tx\tnpm:@kilocode/cli\t--\tkilo\tstay\t--together\ttwo words' "$kilo_log" ||
+  fail "the kilo wrapper preserves its arguments" "$(cat "$kilo_log")"
+
+pass "a scoped npm package names its own binary and preserves argv"
+
 # A package name is data. Quoted with %q it reaches mise as one argument
 # instead of being read as shell source when the wrapper runs.
 install_wrapper 'npm:pkg$(touch '"$tmpdir"'/PWNED)end' hostile >/dev/null

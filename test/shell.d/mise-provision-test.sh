@@ -17,7 +17,7 @@ SH
 chmod +x "$mock_bin/mise"
 
 source "$ROOT/install/user/mise.sh"
-for agent in kimi cursor-agent muse; do
+for agent in kimi cursor-agent muse kilo; do
   [[ -x $HOME/.local/bin/$agent && ! -L $HOME/.local/bin/$agent ]] ||
     fail "provisioning creates the missing $agent wrapper"
   cp "$HOME/.local/bin/$agent" "$test_tmp/$agent-wrapper"
@@ -25,9 +25,9 @@ done
 mapfile -d '' -t args <"$OMARCHY_TEST_MISE_LOG"
 [[ ${args[*]} == "settings set upgrade.auto_prune false reshim" ]] ||
   fail "provisioning creates lazy wrappers without installing packages"
-pass "provisioning creates lazy Kimi, Cursor, and Muse wrappers"
+pass "provisioning creates lazy Kimi, Cursor, Muse, and Kilo wrappers"
 
-for agent in kimi cursor-agent muse; do
+for agent in kimi cursor-agent muse kilo; do
   launcher="$HOME/.local/bin/$agent"
   for kind in script binary symlink; do
     rm -f "$launcher"

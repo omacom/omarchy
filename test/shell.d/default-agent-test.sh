@@ -56,6 +56,11 @@ cat >"$mock_bin/opencode" <<'SH'
 printf '%s\0' opencode "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
 SH
 
+cat >"$mock_bin/kilo" <<'SH'
+#!/bin/bash
+printf '%s\0' kilo "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
+SH
+
 cat >"$mock_bin/omarchy-mise-install" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_STUB_LOG"
@@ -134,6 +139,7 @@ ori_package="github:OpenRouterLabs/ori-releases"
 kimi_package="npm:@moonshot-ai/kimi-code"
 cursor_agent_package="cursor-agent"
 muse_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
+kilo_package="npm:@kilocode/cli"
 
 assert_lazy_stub() {
   local package=$1
@@ -155,6 +161,7 @@ assert_lazy_stub "$ori_package" ori
 assert_lazy_stub "$kimi_package" kimi
 assert_lazy_stub "$cursor_agent_package" cursor-agent
 assert_lazy_stub "$muse_package" muse
+assert_lazy_stub "$kilo_package" kilo
 pass "custom agent lazy stubs preserve their mise packages"
 
 source "$ROOT/install/user/mise.sh"
@@ -166,6 +173,7 @@ grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "user setup creates the
 grep -Fx "$ori_package ori" "$stub_log" >/dev/null || fail "user setup creates the Ori lazy stub"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "user setup creates the Muse lazy stub"
 grep -Fx "$kimi_package kimi" "$stub_log" >/dev/null || fail "user setup creates the Kimi lazy stub"
+grep -Fx "$kilo_package kilo" "$stub_log" >/dev/null || fail "user setup creates the Kilo lazy stub"
 pass "user setup creates the custom agent lazy stubs"
 
 : >"$stub_log"
@@ -173,6 +181,7 @@ source "$ROOT/install/user/mise.sh"
 grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null || fail "user setup recreates the Cursor CLI lazy stub"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "user setup recreates the Muse lazy stub"
 grep -Fx "$kimi_package kimi" "$stub_log" >/dev/null || fail "user setup recreates the Kimi lazy stub"
+grep -Fx "$kilo_package kilo" "$stub_log" >/dev/null || fail "user setup recreates the Kilo lazy stub"
 pass "user setup recreates wrappers even when the commands are present"
 
 : >"$stub_log"
@@ -188,6 +197,18 @@ OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/migrations/1788724825.sh" >/dev/
 rm "$test_home/.local/state/omarchy/preinstalls-removed"
 pass "Muse migration preserves existing installs and the preinstall opt-out"
 
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=kilo source "$ROOT/migrations/1791965556.sh" >/dev/null
+grep -Fx "$kilo_package kilo" "$stub_log" >/dev/null || fail "Kilo migration creates its lazy stub"
+: >"$stub_log"
+source "$ROOT/migrations/1791965556.sh" >/dev/null
+[[ ! -s $stub_log ]] || fail "Kilo migration replaces an existing command"
+mkdir -p "$test_home/.local/state/omarchy"
+touch "$test_home/.local/state/omarchy/preinstalls-removed"
+OMARCHY_TEST_MISSING_COMMAND=kilo source "$ROOT/migrations/1791965556.sh" >/dev/null
+[[ ! -s $stub_log ]] || fail "Kilo migration ignores the preinstall opt-out"
+rm "$test_home/.local/state/omarchy/preinstalls-removed"
+pass "Kilo migration preserves existing installs and the preinstall opt-out"
 
 : >"$stub_log"
 OMARCHY_TEST_MISSING_COMMAND=kimi source "$ROOT/migrations/1786967403.sh" >/dev/null
@@ -429,9 +450,10 @@ pass "agent migrations install working wrappers without overriding the preinstal
 
 "$ROOT/bin/omarchy-mise-install" "$muse_package" muse
 "$ROOT/bin/omarchy-mise-install" "$kimi_package" kimi
+"$ROOT/bin/omarchy-mise-install" "$kilo_package" kilo
 touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
 omarchy-remove-preinstalls >/dev/null
-for command in agy omp ori grok crush cursor-agent muse kimi; do
+for command in agy omp ori grok crush cursor-agent muse kimi kilo; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
 done
 pass "Remove Preinstalls deletes every optional agent lazy stub"
@@ -450,7 +472,12 @@ omarchy-remove-preinstalls >/dev/null
 [[ $("$test_home/.local/bin/muse") == "user-muse" ]] || fail "Remove Preinstalls deletes a user-managed Muse"
 rm "$test_home/.local/bin/muse"
 pass "Remove Preinstalls keeps a user-managed Muse install"
-
+printf '#!/bin/bash\necho user-kilo\n' >"$test_home/.local/bin/kilo"
+chmod +x "$test_home/.local/bin/kilo"
+omarchy-remove-preinstalls >/dev/null
+[[ $("$test_home/.local/bin/kilo") == "user-kilo" ]] || fail "Remove Preinstalls deletes a user-managed kilo"
+rm "$test_home/.local/bin/kilo"
+pass "Remove Preinstalls keeps a user-managed kilo install"
 
 [[ -z $(omarchy-default-agent) ]] || fail "default agent is unset until one is chosen"
 pass "default agent is unset until one is chosen"
@@ -514,6 +541,7 @@ declare -A expected_agents=(
   [github-copilot]="copilot"
   [kimi]="kimi"
   [kimi-code]="kimi"
+  [kilo]="kilo"
   [cursor]="cursor-agent"
   [cursor-agent]="cursor-agent"
   [muse]="muse"
@@ -535,6 +563,7 @@ declare -A expected_packages=(
   [kimi]="$kimi_package"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
+  [kilo]="$kilo_package"
 )
 
 for selection in "${!expected_agents[@]}"; do
@@ -747,6 +776,63 @@ omarchy-default-agent muse
 rm "$test_home/.local/bin/muse"
 pass "selecting a user-installed Muse preserves its launcher"
 
+# kilo follows the shared mise installation path.
+: >"$notification_history"
+: >"$agent_open_log"
+: >"$terminal_log"
+omarchy-default-agent kilo
+mapfile -d '' -t terminal_args <"$terminal_log"
+[[ ${terminal_args[0]} == "omarchy-default-agent" && ${terminal_args[1]} == "--install" && ${terminal_args[2]} == "kilo" ]] ||
+  fail "missing kilo installation opens in a terminal"
+[[ ! -s $notification_history ]] || fail "missing kilo installation skips notifications"
+[[ ! -s $agent_open_log ]] || fail "missing kilo installation waits to open the agent"
+[[ $(omarchy-default-agent) == "muse" ]] || fail "missing kilo installation waits to change the selection"
+
+if OMARCHY_TEST_MISE_FAIL=true omarchy-default-agent --install kilo >"$test_tmp/kilo-failure-output" 2>&1; then
+  fail "missing kilo rejects a failed mise installation"
+fi
+[[ $(omarchy-default-agent) == "muse" ]] || fail "failed kilo installation preserves the current default"
+grep -F "Could not install kilo with mise" "$test_tmp/kilo-failure-output" >/dev/null ||
+  fail "failed kilo installation identifies mise"
+[[ ! -s $agent_open_log ]] || fail "failed kilo installation does not open an agent"
+pass "failed kilo installation preserves the selection"
+
+: >"$mise_log"
+: >"$agent_open_log"
+omarchy-default-agent --install kilo >"$test_tmp/kilo-install-output"
+mapfile -d '' -t mise_args <"$mise_log"
+[[ ${mise_args[0]} == "use" && ${mise_args[1]} == "-g" && ${mise_args[2]} == "$kilo_package" ]] ||
+  fail "visible kilo installation uses its managed npm package through mise"
+[[ $(omarchy-default-agent) == "kilo" ]] || fail "visible kilo installation changes the selection"
+mapfile -d '' -t agent_open_args <"$agent_open_log"
+[[ ${#agent_open_args[@]} == 2 && ${agent_open_args[0]} == "omarchy-agent" && ${agent_open_args[1]} == "--inline" ]] ||
+  fail "newly installed kilo opens in the installation terminal"
+pass "kilo installs visibly through mise and opens directly"
+
+: >"$terminal_log"
+OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent kilo
+[[ ! -s $terminal_log ]] || fail "installed kilo selection skips the terminal"
+mapfile -d '' -t agent_open_args <"$agent_open_log"
+[[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
+  fail "installed kilo opens in a new terminal after selection"
+pass "installed kilo selects and opens directly"
+
+# A kilo the user manages at the wrapper's path is theirs; selecting it installs
+# no second copy through mise and replaces nothing.
+printf '%s\n' pi >"$agent_file"
+printf '#!/bin/bash\necho user-kilo\n' >"$test_home/.local/bin/kilo"
+chmod +x "$test_home/.local/bin/kilo"
+: >"$mise_history"
+: >"$stub_log"
+: >"$terminal_log"
+omarchy-default-agent kilo
+[[ $(omarchy-default-agent) == "kilo" ]] || fail "a user-installed kilo can be selected"
+[[ ! -s $mise_history && ! -s $stub_log && ! -s $terminal_log ]] ||
+  fail "a user-installed kilo skips installation and wrapper creation"
+[[ $("$test_home/.local/bin/kilo") == "user-kilo" ]] || fail "a user-installed kilo is preserved"
+rm "$test_home/.local/bin/kilo"
+pass "selecting a user-installed kilo preserves its launcher"
+
 rm "$mock_bin/omarchy-agent"
 hash -r
 
@@ -792,6 +878,7 @@ assert_bypass() {
 assert_launch pi pi "Review this project"
 assert_launch omp omp --auto-approve -- "Review this project"
 assert_launch opencode opencode --auto --prompt "Review this project"
+assert_launch kilo kilo --auto --prompt "Review this project"
 assert_launch ori ori code --interactive --prompt "Review this project"
 assert_launch claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto -- "Review this project"
 assert_launch codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me -- "Review this project"
@@ -818,9 +905,20 @@ assert_launched hermes "binds its literal initial prompt" env -u HERMES_SESSION_
   hermes chat --yolo --tui "--query=$literal_hermes_prompt"
 pass "Hermes receives prompted launches as one literal query argument"
 
+# --prompt takes the next argument whatever it looks like, so a prompt starting
+# with a dash or carrying quotes and shell characters stays prompt text.
+literal_kilo_prompt=$'-- surreal \'single\' "double" !Crash {$(touch must-not-run)}\ntrailing\\ '
+printf '%s\n' "kilo" >"$agent_file"
+( cd "$test_tmp" && omarchy-agent-prompt "$literal_kilo_prompt" )
+[[ ! -e $test_tmp/must-not-run ]] || fail "kilo's prompt text never runs as shell"
+assert_launched kilo "separates prompt text from options" kilo --auto --prompt "$literal_kilo_prompt"
+pass "kilo receives option-like prompts as one literal argument"
+
 assert_bypass pi pi
 assert_bypass omp omp --auto-approve
 assert_bypass opencode opencode --auto
+# kilo shares OpenCode's launch path, so it produces the same argv.
+assert_bypass kilo kilo --auto
 assert_bypass ori ori code
 assert_bypass claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto
 assert_bypass codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me
@@ -846,6 +944,17 @@ mapfile -d '' -t inline_args <"$inline_log"
 [[ ${inline_args[*]} == "opencode --auto --prompt Review this project" ]] ||
   fail "inline agent launcher runs in the current terminal"
 pass "inline agent launcher runs in the current terminal"
+
+# The shared OpenCode launch path serves kilo inline as well, proving no other
+# agent's argv moves when the same case block serves two agents.
+printf '%s\n' "kilo" >"$agent_file"
+omarchy-agent-prompt --inline "Review this project"
+mapfile -d '' -t inline_args <"$inline_log"
+[[ ${inline_args[*]} == "kilo --auto --prompt Review this project" ]] ||
+  fail "inline kilo launcher runs in the current terminal"
+pass "inline kilo launcher runs in the current terminal"
+
+printf '%s\n' "opencode" >"$agent_file"
 
 # The prompt route exists so the router can tell a prompt from a subcommand, so
 # cover the public routes and not only the binaries behind them.
