@@ -81,9 +81,14 @@ function eventKeyboardName(event) {
 // the seat hands it ends up describing a button. Leave them out and what remains
 // is keyboards, which is what the rest of this file can then assume.
 //
+// A Bluetooth headset's AVRCP remote-control interface belongs in the same pile:
+// it answers to switchxkblayout too, and its name carries a vendor and model
+// that no fixed prefix can anticipate, so it's matched by the "-(avrcp)" suffix
+// every one of those interfaces shares instead.
+//
 // Missing a name here costs the accuracy the seat had before, never a keyboard:
 // anything unrecognised stays in the list.
-var UNTYPED_KEYBOARDS = /^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)/
+var UNTYPED_KEYBOARDS = /^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)|-\(avrcp\)$/
 
 function isTypedKeyboard(name) {
   return !UNTYPED_KEYBOARDS.test(String(name || ""))

@@ -143,6 +143,13 @@ assertEqual(model.isTypedKeyboard('sleep-button'), false, 'a sleep button is not
 assertEqual(model.isTypedKeyboard('hl-virtual-keyboard-1'), false, 'the keyboard an input method injects through is not')
 assertEqual(model.isTypedKeyboard(''), true, 'a keyboard reporting no name is left where it was found')
 
+// A Bluetooth headset's AVRCP remote-control interface answers to
+// switchxkblayout and can drift ahead of the real keyboards, but nobody types
+// on it. Its name carries the device's own vendor and model, so only the
+// shared "-(avrcp)" suffix identifies it.
+assertEqual(model.isTypedKeyboard('wh-1000xm4-(avrcp)'), false, "a Bluetooth headset's AVRCP remote is not")
+assertEqual(model.isTypedKeyboard('sony-wh-ch720n-(avrcp)'), false, 'the suffix is matched regardless of the device name in front of it')
+
 // The activelayout event names the keyboard ahead of the layout it moved to,
 // and a description with a comma in it has to survive the split.
 const rawEvent = data => ({ data })
