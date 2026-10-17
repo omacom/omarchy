@@ -77,7 +77,8 @@ fi
 echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
 echo -e "Keep moving the finger around on sensor until the process completes.\n"
 
-if sudo fprintd-enroll "$USER"; then
+user=$(id -un)
+if sudo fprintd-enroll "$user"; then
   echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
 
   # Verify
@@ -89,7 +90,8 @@ if sudo fprintd-enroll "$USER"; then
     # Editing the stacks up front would leave those machines pointing at
     # pam_fprintd with nothing to match.
     setup_pam_config
-    "$OMARCHY_PATH/bin/omarchy-apply-lock"
+    # Check the account just enrolled, not whatever USER names.
+    OMARCHY_INSTALL_USER="$user" "$OMARCHY_PATH/bin/omarchy-apply-lock"
     if [[ ! -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
       echo "Fingerprint enrollment succeeded, but lock-screen configuration could not be confirmed. Run omarchy-apply-lock and try again." >&2
       exit 1
