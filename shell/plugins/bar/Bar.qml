@@ -1298,6 +1298,7 @@ Item {
     for (var i = clickTargets.length - 1; i >= 0; i--) {
       var target = clickTargets[i]
       if (!moduleTargetClickable(target)) continue
+      if (!targetBelongsToWindow(target, slotWindow(slot))) continue
 
       if (Util.itemContainsPoint(target, slot, localX, localY)) {
         return target
