@@ -768,6 +768,9 @@
   "install.service.tailscale": {
     "label": "Tailscale"
   },
+  "install.service.cloudflare": {
+    "label": "Cloudflare"
+  },
   "install.service.nordvpn": {
     "label": "NordVPN"
   },
@@ -1028,6 +1031,9 @@
   },
   "remove.service.ssh-agent": {
     "label": "SSH Agent"
+  },
+  "remove.service.cloudflare": {
+    "label": "Cloudflare"
   },
   "remove.ai.chatgpt": {
     "label": "ChatGPT Desktop"
