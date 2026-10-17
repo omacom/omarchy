@@ -509,6 +509,7 @@ legacy_runtime="$tmp_dir/legacy-runtime"
 mkdir -p "$legacy_runtime"
 touch "$recording_flag"
 : >"$helper_calls"
+rm -f "$OMARCHY_TEST_NOTIFICATION_ARGS"
 XDG_RUNTIME_DIR="$legacy_runtime" OMARCHY_TEST_HELPER_CALLS="$helper_calls" OMARCHY_TEST_RECORDING="$recording_flag" \
   OMARCHY_SCREENRECORD_DIR="$recording_dir" \
   "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1 ||
@@ -517,6 +518,8 @@ grep -Fxq -- '--signal INT' "$helper_calls" ||
   fail "stop signals the user's recorders when no pid was saved" "$(<"$helper_calls")"
 ! grep -Fq -- '--signal KILL' "$helper_calls" ||
   fail "a recorder that stops on INT is not killed" "$(<"$helper_calls")"
+[[ ! -e $OMARCHY_TEST_NOTIFICATION_ARGS ]] ||
+  fail "stop announces no saved recording when none was recorded as started" "$(<"$OMARCHY_TEST_NOTIFICATION_ARGS")"
 pass "without a saved pid, status and stop select the user's recorders"
 
 # The bar indicator and the menu's Stop row ask --status, so they show a stop
