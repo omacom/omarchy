@@ -55,6 +55,8 @@ You can also turn on [touchpad gestures](https://wiki.hypr.land/Configuring/Adva
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 ```
 
+If you'd rather not touch Lua at all, `omarchy toggle trackpad-macos` applies the macOS arrangement in one step: natural (inverse) scrolling plus the three-finger horizontal workspace swipe. Toggle it again to return to Omarchy's defaults. The toggle needs a trackpad to be present, and it's off on every fresh install.
+
 On Dell XPS laptops with a haptic touchpad, you can also set the click strength to low, mid, or high under _Trigger > Hardware > Touchpad Haptics_.
 
 ### Typing in Chinese, Japanese, and other languages
