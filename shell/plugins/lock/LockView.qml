@@ -78,12 +78,22 @@ Item {
   }
 
   onPasswordTextChanged: syncPasswordText()
-  onInputEnabledChanged: {
-    if (inputEnabled) Qt.callLater(forcePasswordFocus)
-  }
   Component.onCompleted: {
     syncPasswordText()
-    if (inputEnabled) Qt.callLater(forcePasswordFocus)
+  }
+
+  // The lock surface is created before Hyprland maps it and hands over
+  // keyboard focus, so a single forceActiveFocus() from Component.onCompleted
+  // lands while the window is still inactive and never re-applies once the
+  // surface activates. Focus is also dropped again after the idle screensaver
+  // that dies up to a second after the lock request, and when a failed
+  // password re-enables the field. Ask again while the field should hold
+  // focus but does not; the running binding re-arms on every later focus loss.
+  Timer {
+    interval: 100
+    repeat: true
+    running: root.inputEnabled && !root.authenticatingPassword && !passwordInput.activeFocus
+    onTriggered: root.forcePasswordFocus()
   }
 
   // Measures the masked password at full size; passwordDotScale compares this
