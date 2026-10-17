@@ -23,7 +23,8 @@
         "codex": { "enabled": true },
         "grok": { "enabled": true },
         "fireworks": { "enabled": true },
-        "kimi": { "enabled": true }
+        "kimi": { "enabled": true },
+        "agy": { "enabled": true }
       },
       "refreshIntervalSec": 900,
       "syncMode": "Off",

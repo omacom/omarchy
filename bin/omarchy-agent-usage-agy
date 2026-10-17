@@ -1,0 +1,95 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Antigravity usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Google Antigravity usage into one display-ready JSON record.
+
+Parses local sessions and conversation logs from ~/.gemini/antigravity-cli/brain/
+and prints a JSON record matching the Omarchy agents panel contract.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import json
+import os
+import sys
+from pathlib import Path
+
+AGENT_ID = "agy"
+AGENT_NAME = "Antigravity"
+AUTH_HELP = "Run `agy` to authenticate."
+
+
+def main():
+  now = dt.datetime.now(dt.timezone.utc)
+  today = dt.date.today()
+  today_str = today.strftime("%Y-%m-%d")
+
+  recent_dates = [
+      (today - dt.timedelta(days=i)).strftime("%Y-%m-%d")
+      for i in range(6, -1, -1)
+  ]
+  daily_prompts = {d: 0 for d in recent_dates}
+  active_dates = set()
+
+  brain_dir = Path.home() / ".gemini" / "antigravity-cli" / "brain"
+  total_prompts = 0
+  total_sessions = 0
+  today_sessions = 0
+
+  if brain_dir.is_dir():
+    for conv_dir in brain_dir.iterdir():
+      if not conv_dir.is_dir():
+        continue
+      total_sessions += 1
+      transcript_file = conv_dir / ".system_generated" / "logs" / "transcript.jsonl"
+      if transcript_file.is_file():
+        try:
+          mtime = dt.date.fromtimestamp(transcript_file.stat().st_mtime)
+          mtime_str = mtime.strftime("%Y-%m-%d")
+          active_dates.add(mtime_str)
+          if mtime_str == today_str:
+            today_sessions += 1
+
+          with open(transcript_file, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+              if '"type":"USER_INPUT"' in line:
+                total_prompts += 1
+                if mtime_str in daily_prompts:
+                  daily_prompts[mtime_str] += 1
+        except Exception:
+          pass
+
+  today_prompts = daily_prompts.get(today_str, 0)
+  recent_days = [{"date": d, "messageCount": daily_prompts[d]} for d in recent_dates]
+  sorted_active_dates = sorted(list(active_dates))
+
+  record = {
+      "schemaVersion": 1,
+      "id": AGENT_ID,
+      "name": AGENT_NAME,
+      "updatedAt": now.isoformat(),
+      "ready": True,
+      "hasLocalStats": True,
+      "todayPrompts": today_prompts,
+      "todaySessions": today_sessions,
+      "todayTotalTokens": 0,
+      "todayTokensByModel": {},
+      "recentDays": recent_days,
+      "totalPrompts": total_prompts,
+      "totalSessions": total_sessions,
+      "activeDays": len(sorted_active_dates),
+      "activeDates": sorted_active_dates,
+      "modelUsage": {},
+      "limits": [],
+      "tierLabel": "",
+      "usageStatusText": "",
+      "authHelpText": AUTH_HELP,
+  }
+
+  print(json.dumps(record, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()
