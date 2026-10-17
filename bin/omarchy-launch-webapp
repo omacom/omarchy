@@ -10,8 +10,79 @@ google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
 *) browser="chromium.desktop" ;;
 esac
 
-browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
+# Undo the escapes every desktop entry string carries.
+desktop_string() {
+  local string=$1 char i
+  REPLY=""
+  for (( i = 0; i < ${#string}; i++ )); do
+    char=${string:i:1}
+    if [[ $char == "\\" ]]; then
+      (( i++ ))
+      case ${string:i:1} in
+      s) char=" " ;;
+      n) char=$'\n' ;;
+      t) char=$'\t' ;;
+      r) char=$'\r' ;;
+      "\\") char="\\" ;;
+      *) char="\\${string:i:1}" ;;
+      esac
+    fi
+    REPLY+=$char
+  done
+}
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
-  exec setsid uwsm-app -- $browser_exec --app="$1" "${@:2}"
+desktop_exec_argv() {
+  local desktop=$1
+  local file line name
+  desktop_exec_argv=()
+  for file in "$HOME/.local/share/applications/$desktop" \
+              "$HOME/.nix-profile/share/applications/$desktop" \
+              "/usr/share/applications/$desktop"; do
+    [[ -f $file ]] || continue
+    line=$(sed -n 's/^Exec=//p' "$file" | head -1)
+    [[ -n $line ]] && break
+  done
+  [[ -n $line ]] || return 1
+  desktop_string "$(sed -n 's/^Name=//p' "$file" | head -1)"
+  name=$REPLY
+
+  # Split the Exec line by its own quoting, expanding %c and %k, keeping %% as
+  # %, and dropping the other field codes. A standalone -- goes too, or the
+  # launcher's own options after it would be read as operands.
+  desktop_string "$line"
+  local value=$REPLY arg="" char i quoted=0 started=0
+  for (( i = 0; i < ${#value}; i++ )); do
+    char=${value:i:1}
+    if [[ $char == '"' ]]; then
+      (( quoted = !quoted, started = 1 ))
+    elif [[ $char == "\\" ]] && (( quoted )); then
+      (( i++ ))
+      arg+=${value:i:1}
+    elif [[ $char == "%" ]]; then
+      (( i++ ))
+      case ${value:i:1} in
+      "%") arg+="%" started=1 ;;
+      c) arg+=$name started=1 ;;
+      k) arg+=$file started=1 ;;
+      esac
+    elif [[ $char == " " ]] && (( ! quoted )); then
+      if (( started )) && [[ $arg != "--" ]]; then
+        desktop_exec_argv+=("$arg")
+      fi
+      arg="" started=0
+    else
+      arg+=$char started=1
+    fi
+  done
+  if (( started )) && [[ $arg != "--" ]]; then
+    desktop_exec_argv+=("$arg")
+  fi
+
+  (( ${#desktop_exec_argv[@]} > 0 ))
+}
+
+desktop_exec_argv "$browser" || exit 1
+
+if ! omarchy-cmd-browser-handoff "${desktop_exec_argv[@]}" --app="$1" "${@:2}"; then
+  exec setsid uwsm-app -- "${desktop_exec_argv[@]}" --app="$1" "${@:2}"
 fi
