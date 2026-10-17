@@ -45,7 +45,7 @@ update_one() {
     return 1
   fi
 
-  if [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse FETCH_HEAD) ]]; then
+  if [[ $(git -C "$dir" rev-parse HEAD) == "$(git -C "$dir" rev-parse FETCH_HEAD)" ]]; then
     echo "$id is up to date."
     return 0
   fi
