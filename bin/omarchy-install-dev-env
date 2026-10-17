@@ -59,6 +59,8 @@ laravel)
   install_node
   mise x php -- composer global require laravel/installer
   echo -e "\nYou can now run: laravel new myproject"
+  echo -e "Tip: To serve Laravel with SSL and custom local domains, install"
+  echo -e "the Symfony environment from the menu and run: symfony server:start"
   ;;
 symfony)
   echo -e "Installing PHP and Symfony...\n"
