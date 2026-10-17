@@ -8,10 +8,10 @@ if [[ ${1:-} != "" && ${1:-} != "--active-state" ]]; then
   exit 1
 fi
 
-powerprofilesctl list 2>/dev/null |
-  awk -v with_state="${1:+1}" '/^\s*[* ]\s*[a-zA-Z0-9-]+:$/ {
-    active = ($1 == "*") ? 1 : 0
-    gsub(/^[*[:space:]]+|:$/, "")
-    print $0 (with_state ? "\t" active : "")
-  }' |
-  tac
+# Read the daemon's D-Bus properties directly — no Python CLI, whose
+# `/usr/bin/env python3` shebang can resolve to a python without PyGObject
+# (`ModuleNotFoundError: gi`) and die silently. jq is a base package.
+active=$(busctl --system --json=short get-property net.hadess.PowerProfiles /net/hadess/PowerProfiles net.hadess.PowerProfiles ActiveProfile 2>/dev/null | jq -r '.data // empty')
+busctl --system --json=short get-property net.hadess.PowerProfiles /net/hadess/PowerProfiles net.hadess.PowerProfiles Profiles 2>/dev/null |
+  jq -r '.data[] | .Profile.data' |
+  awk -v active="$active" -v with_state="${1:+1}" '{ print $0 (with_state ? "\t" ($0 == active ? 1 : 0) : "") }'
