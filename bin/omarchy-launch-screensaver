@@ -50,6 +50,14 @@ wait_for_screensaver_window() {
   done
 }
 
+# Moving focus on to the next monitor makes a foreign window active until its screensaver maps. Tell the
+# screensavers already running not to read that as the user clicking away, which would close them all.
+# The marker holds our pid, so it stops counting if we die without cleaning up.
+launching="$XDG_RUNTIME_DIR/omarchy-screensaver-launching"
+trap 'rm -f "$launching"' EXIT
+trap exit INT TERM
+echo $$ >"$launching"
+
 while read -r m special; do
   hypr_focus_monitor "$m"
   # Share a special workspace that is already showing, like the scratchpad, so it is still open afterwards.
@@ -74,6 +82,7 @@ while read -r m special; do
 done < <(hyprctl monitors -j | jq -r '.[] | "\(.name) \(.specialWorkspace.name)"')
 
 hypr_focus_monitor "$focused"
+rm -f "$launching"
 
 # Emptying a special workspace focuses its monitor, so the last screensaver to close would take focus
 # with it. Hand focus back to the monitor that had it once they are all gone.
