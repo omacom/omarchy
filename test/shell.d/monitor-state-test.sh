@@ -109,9 +109,13 @@ assert_line 4 "" "monitor state reports no mirror while clamshelled"
 pass "monitor state separates a disabled internal monitor from a missing one"
 
 monitor_state "$extended"
-[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":true,"focused":false,"width":1920,"height":1080},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
+[[ ${state_lines[7]-} == '[{"name":"eDP-1","make":null,"model":null,"description":null,"enabled":true,"focused":false,"width":1920,"height":1080},{"name":"DP-1","make":null,"model":null,"description":null,"enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
   fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
 monitor_state "$clamshell"
-[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
+[[ ${state_lines[7]-} == '[{"name":"eDP-1","make":null,"model":null,"description":null,"enabled":false,"focused":false,"width":0,"height":0},{"name":"DP-1","make":null,"model":null,"description":null,"enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
   fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
 pass "monitor state lists every display with its enabled and focused state"
+
+monitor_state '[{"name":"DP-1","make":"Dell Inc.","model":"DELL S2725QS","description":"Dell Inc. DELL S2725QS 7X1KT84","disabled":false,"focused":true,"mirrorOf":"none","width":3840,"height":2160}]'
+[[ $(printf '%s' "${state_lines[7]}" | jq -r '.[0] | [.name,.make,.model,.description] | join("|")') == 'DP-1|Dell Inc.|DELL S2725QS|Dell Inc. DELL S2725QS 7X1KT84' ]] || fail "monitor state preserves display metadata"
+pass "monitor state emits make, model and description without changing connector identity"

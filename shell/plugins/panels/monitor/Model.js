@@ -1,3 +1,20 @@
+// Connector names remain the identity for every monitor operation.
+function displayName(display, t) {
+  var name = String(display.name || "")
+  if (/^(eDP|LVDS|DSI)-/.test(name))
+    return t ? t("monitor.builtInDisplay") : "Built-in Display"
+
+  // Hyprland's description also contains the serial. Use the separate identity
+  // fields instead; never guess which part of an opaque description is a serial.
+  var make = String(display.make || "").trim()
+    .replace(/\s+(?:(?:Computer\s+)?Inc\.?|Incorporated|Corporation|Corp\.?)$/i, "")
+  var model = String(display.model || "").trim()
+  if (!model) return name
+  if (make && model.toLowerCase().indexOf(make.toLowerCase() + " ") === 0)
+    model = model.slice(make.length).trim()
+  return (make ? make + " " : "") + model
+}
+
 function clampBrightness(value) {
   var n = Number(value)
   if (!isFinite(n)) return 1
@@ -116,6 +133,7 @@ function parseDisplays(raw) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    displayName: displayName,
     clampBrightness: clampBrightness,
     normalizeScale: normalizeScale,
     cleanScale: cleanScale,
