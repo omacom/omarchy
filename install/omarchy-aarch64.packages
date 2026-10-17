@@ -1,6 +1,10 @@
 # Additions for every aarch64 platform, composed after omarchy-base.packages
-# (omarchy-pkg-defaults). omarchy-settings configures swap on zram, and the
-# x86_64 installer provides zram-generator for it; aarch64 gets it here.
+# by omarchy-pkg-defaults. The x86_64 installer supplies these outside the base
+# list; ARM images and package reinstalls need to request them explicitly.
+gst-plugin-pipewire
+pipewire-jack
+
+# omarchy-settings configures swap on zram.
 zram-generator
 # Nothing pulls rtkit in on aarch64, so PipeWire gets no realtime scheduling
 # without it.
