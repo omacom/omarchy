@@ -128,7 +128,7 @@ panel_state() {
   layers=$(hyprctl -j layers 2>/dev/null) || { echo unknown; return; }
   [[ -n $layers ]] || { echo unknown; return; }
   if jq -e --argjson pid "$QS_PID" '
-    [.. | objects | select(.namespace? == "omarchy-keyboard-panel" and .pid == $pid and .w > 0 and .h > 0)] | length > 0
+    [.. | objects | select((.namespace? // "" | test("^omarchy-keyboard-panel(-.+)?$")) and .namespace != "omarchy-keyboard-panel-dismiss" and .pid == $pid and .w > 0 and .h > 0)] | length > 0
   ' <<<"$layers" >/dev/null 2>&1; then
     echo mapped
   else
