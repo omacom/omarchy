@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether a display is driven by vmwgfx.
+
+# vmwgfx drives the VMware SVGA adapter, which VMware Workstation and Fusion
+# present and VirtualBox's default VMSVGA controller emulates. The quirks this
+# gates belong to that driver rather than to virtualization, so this is not
+# omarchy-hw-vm: a QEMU guest on virtio-gpu has none of them. It asks whether
+# the driver has a display, not whether the PCI IDs are present, so an adapter
+# sitting there with the driver unbound or blacklisted does not count.
+#
+# Globbing sysfs, so it forks nothing: the Hyprland config runs this on every
+# reload, inside its 1.5s budget.
+pci_drivers_path="${OMARCHY_PCI_DRIVERS_PATH:-/sys/bus/pci/drivers}"
+
+shopt -s nullglob
+
+cards=("$pci_drivers_path"/vmwgfx/*/drm/card*)
+
+(( ${#cards[@]} > 0 ))
