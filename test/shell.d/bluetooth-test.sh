@@ -28,6 +28,20 @@ assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the ada
 const retryTimer = panelSource.match(/id: discoveryRetry[\s\S]*?onTriggered: \{[\s\S]*?\n {4}\}/)
 assert(retryTimer, 'bluetooth has the discovery retry timer')
 assert(/owesDiscoveryStop = true/.test(retryTimer[0]), 'bluetooth takes on the stop it owes when it starts discovery')
+// That retry asks BlueZ for a dual BR/EDR + LE inquiry, and some controllers
+// answer it without the BLE-only peripherals in it. A visit therefore runs an
+// explicit LE scan first and only hands discovery to the retry once it is done,
+// so the pass has to be bounded on both ends: one that never reports its exit
+// would leave the panel unable to scan at all.
+assert(/property string leScanPhase/.test(panelSource), 'bluetooth tracks the LE pass it puts in front of its dual scan')
+assert(/command: \["omarchy-bluetooth-scan"\]/.test(panelSource), 'bluetooth runs the explicit LE scan')
+const leScanTimer = panelSource.match(/id: leScanStart[\s\S]*?running: ([^\n]*)/)
+assert(leScanTimer, 'bluetooth has the LE scan start timer')
+assert(/!root\.adapter\.discovering/.test(leScanTimer[1]), 'bluetooth waits for the adapter to be free before its LE pass')
+const retryRunning = panelSource.match(/id: discoveryRetry[\s\S]*?running: ([^\n]*)/)[1]
+assert(/root\.leScanPhase === "done"/.test(retryRunning), 'bluetooth leaves the dual retry to the LE pass')
+assert(/onExited: if \(root\.leScanPhase === "running"\) root\.leScanPhase = "done"/.test(panelSource), 'bluetooth hands discovery back when the LE pass exits')
+assert(/id: leScanWatchdog[\s\S]*?onTriggered: root\.leScanPhase = "done"/.test(panelSource), 'bluetooth finishes an LE pass that never confirms its exit')
 
 // Quickshell only forwards a discovering write that differs from BlueZ's last
 // confirmed state, so a stop written in the same instant as an in-flight
@@ -262,6 +276,24 @@ pass "bluetooth lifts the block before connecting"
 grep -qx "connect AA:BB:CC:DD:EE:FF" "$unpowered_log" ||
   fail "bluetooth connects once the adapter is up" "$(cat "$unpowered_log")"
 pass "bluetooth connects once the adapter is up"
+
+# The panel runs this scan in front of its dual inquiry, which is the only
+# discovery adapter.discovering can ask for and can miss a BLE-only peripheral
+# entirely. It has to ask for an LE scan and bound it, and it has to leave a
+# powered-down adapter alone rather than fail against BlueZ.
+bluetooth_scan() {
+  bluetooth_run "$1" "$ROOT/bin/omarchy-bluetooth-scan" 1
+}
+
+off_scan_log=$(bluetooth_scan no)
+grep -q "scan" "$off_scan_log" &&
+  fail "bluetooth scan leaves a powered-down adapter alone" "$(cat "$off_scan_log")"
+pass "bluetooth scan leaves a powered-down adapter alone"
+
+on_scan_log=$(bluetooth_scan yes)
+grep -qx -- "--timeout 1 scan le" "$on_scan_log" ||
+  fail "bluetooth scan asks for a bounded LE scan" "$(cat "$on_scan_log")"
+pass "bluetooth scan asks for a bounded LE scan"
 
 # Blocking hits every radio at once, so the read has to span them too. A bare
 # bluetoothctl show reports the default controller and misses a powered dongle.

@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Scan for Bluetooth Low Energy devices
+# omarchy:group=bluetooth
+# omarchy:args=[seconds]
+
+# The Bluetooth panel's own discovery is whatever adapter.discovering asks BlueZ
+# for, and that is a dual BR/EDR + LE inquiry. Some controllers answer that
+# inquiry without the BLE-only peripherals in it: a Logitech Pebble K380s
+# sitting in pairing mode was invisible to `bluetoothctl scan on` and found by
+# `bluetoothctl scan le` on the same adapter, immediately, at -61 dBm.
+#
+# So this is the explicit LE scan that lists such a device. The panel runs it
+# once per visit, for a bounded window, and then hands discovery back to its own
+# dual scan — one extra session per visit rather than a scan that runs any
+# longer than the panel's always did.
+
+set -euo pipefail
+
+seconds=${1:-10}
+[[ $seconds =~ ^[0-9]+$ ]] || { echo "Usage: omarchy-bluetooth-scan [seconds]" >&2; exit 1; }
+
+# BlueZ refuses to start discovery while the adapter is down. Nothing here is
+# lost: the panel's dual retry starts scanning once the adapter is up.
+[[ $(timeout 2s bluetoothctl show 2>/dev/null) == *"Powered: yes"* ]] || exit 0
+
+# bluetoothctl exits at its own timeout and takes the session down with it, so
+# the scan cannot outlive this command; the outer timeout only catches a
+# bluetoothctl that never returns.
+exec timeout $((seconds + 5))s bluetoothctl --timeout "$seconds" scan le >/dev/null 2>&1
