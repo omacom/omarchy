@@ -117,7 +117,21 @@ fi
 omarchy-shell shell rescanPlugins >/dev/null
 
 if [[ -n $cloned_from && $was_enabled == "true" ]]; then
-  echo "Restored $cloned_from."
+  # The shell only re-enables a source that enabling the clone switched off,
+  # and a widget that is also a menu can be back in the bar yet disabled.
+  source_enabled=$(omarchy-shell shell listPlugins | jq -r --arg id "$cloned_from" '
+    .[] | select(.id == $id) | .enabled
+  ')
+  if [[ $source_enabled == "true" ]] && omarchy-shell shell listShellConfig |
+    jq -e --arg id "$cloned_from" '.disabledPlugins // [] | index($id)' >/dev/null; then
+    source_enabled="false"
+  fi
+
+  if [[ $source_enabled == "true" ]]; then
+    echo "Restored $cloned_from."
+  elif [[ $source_enabled == "false" ]]; then
+    echo "$cloned_from stays disabled. Run 'omarchy plugin enable $cloned_from' to restore it."
+  fi
 elif [[ $was_enabled == "true" ]]; then
   echo "Plugin was enabled and was unloaded from omarchy-shell."
 fi
