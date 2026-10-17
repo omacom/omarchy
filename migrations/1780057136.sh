@@ -11,12 +11,12 @@ ensure_alacritty_shift_return() {
   [[ -f $config ]] || return 0
 
   if grep -q 'key = "Return", mods = "Shift", chars = "\\u001B\\r"' "$config"; then
-    sed -i 's/{ key = "Return", mods = "Shift", chars = "\\u001B\\r" }/{ key = "Return", mods = "Shift", chars = "\\u001B[13;2u" }/' "$config"
+    sed --follow-symlinks -i 's/{ key = "Return", mods = "Shift", chars = "\\u001B\\r" }/{ key = "Return", mods = "Shift", chars = "\\u001B[13;2u" }/' "$config"
   elif ! grep -q 'key = "Return", mods = "Shift", chars = "\\u001B\[13;2u"' "$config"; then
     if grep -qxF '{ key = "Return", mods = "Alt|Shift", chars = "\u001B[13;4u" }' "$config"; then
-      sed -i '/^{ key = "Return", mods = "Alt|Shift", chars = "\\u001B\[13;4u" }$/i # Send Shift+Return as CSI-u so TUIs can distinguish it from Return without treating it as Alt+Return.\n{ key = "Return", mods = "Shift", chars = "\\u001B[13;2u" },' "$config"
+      sed --follow-symlinks -i '/^{ key = "Return", mods = "Alt|Shift", chars = "\\u001B\[13;4u" }$/i # Send Shift+Return as CSI-u so TUIs can distinguish it from Return without treating it as Alt+Return.\n{ key = "Return", mods = "Shift", chars = "\\u001B[13;2u" },' "$config"
     elif grep -qxF '{ key = "Insert", mods = "Control", action = "Copy" },' "$config"; then
-      sed -i '/^{ key = "Insert", mods = "Control", action = "Copy" },$/a # Send Shift+Return as CSI-u so TUIs can distinguish it from Return without treating it as Alt+Return.\n{ key = "Return", mods = "Shift", chars = "\\u001B[13;2u" },' "$config"
+      sed --follow-symlinks -i '/^{ key = "Insert", mods = "Control", action = "Copy" },$/a # Send Shift+Return as CSI-u so TUIs can distinguish it from Return without treating it as Alt+Return.\n{ key = "Return", mods = "Shift", chars = "\\u001B[13;2u" },' "$config"
     else
       printf '\n# Send Shift+Return as CSI-u so TUIs can distinguish it from Return without treating it as Alt+Return.\n{ key = "Return", mods = "Shift", chars = "\\u001B[13;2u" }\n' >>"$config"
     fi
@@ -35,10 +35,10 @@ ensure_ghostty_binding() {
   key_regex=$(printf '%s\n' "$key" | sed 's/[][\\.^$*+?{}|()\/]/\\&/g')
 
   if grep -Eq "^keybind = $key_regex=.*13;[24]u" "$config"; then
-    sed -i "s/^keybind = $key_regex=.*/keybind = $key=$binding/" "$config"
+    sed --follow-symlinks -E -i "s/^keybind = $key_regex=.*/keybind = $key=$binding/" "$config"
   elif ! grep -qF "keybind = $key=" "$config"; then
     if grep -qxF 'keybind = control+insert=copy_to_clipboard' "$config"; then
-      sed -i "/^keybind = control+insert=copy_to_clipboard$/a $comment\nkeybind = $key=$binding" "$config"
+      sed --follow-symlinks -i "/^keybind = control+insert=copy_to_clipboard$/a $comment\nkeybind = $key=$binding" "$config"
     else
       printf '\n%s\nkeybind = %s=%s\n' "$comment" "$key" "$binding" >>"$config"
     fi
@@ -71,7 +71,8 @@ ensure_kitty_binding() {
         }
         print
       }
-    ' "$config" >"$tmp" && mv "$tmp" "$config"
+    ' "$config" >"$tmp" && omarchy-config-replace "$tmp" "$config" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
   elif ! grep -Eq "^map[[:space:]]+$key_regex[[:space:]]" "$config"; then
     if grep -qxF 'map shift+insert paste_from_clipboard' "$config"; then
       tmp=$(mktemp)
@@ -87,7 +88,8 @@ ensure_kitty_binding() {
           print "map " key " " binding
           inserted = 1
         }
-      ' "$config" >"$tmp" && mv "$tmp" "$config"
+      ' "$config" >"$tmp" && omarchy-config-replace "$tmp" "$config" || { rm -f "$tmp"; return 1; }
+      rm -f "$tmp"
     else
       printf '\n%s\nmap %s %s\n' "$comment" "$key" "$binding" >>"$config"
     fi
@@ -112,7 +114,8 @@ ensure_foot_text_binding() {
       }
       index($0, sequence "=") == 1 { $0 = sequence "=" binding }
       { print }
-    ' "$config" >"$tmp" && mv "$tmp" "$config"
+    ' "$config" >"$tmp" && omarchy-config-replace "$tmp" "$config" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
   elif grep -qxF '[text-bindings]' "$config"; then
     tmp=$(mktemp)
     SEQUENCE="$sequence" BINDING="$binding" COMMENT="$comment" awk '
@@ -127,7 +130,8 @@ ensure_foot_text_binding() {
         print sequence "=" binding
         inserted = 1
       }
-    ' "$config" >"$tmp" && mv "$tmp" "$config"
+    ' "$config" >"$tmp" && omarchy-config-replace "$tmp" "$config" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
   else
     printf '\n[text-bindings]\n%s\n%s=%s\n' "$comment" "$sequence" "$binding" >>"$config"
   fi
