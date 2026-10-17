@@ -237,20 +237,31 @@ set_theme_background() {
       # when OWE hands the desktop back after the intro. While the intro plays
       # the shell's background is suspended under it, so the swap is unseen.
       omarchy-theme-bg-boot-intro --theme-switch "$new_background" "$theme_id" "$intro_prepared" || true
-      if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$(readlink -f "$new_background")" &&
-        $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
-        shell_ipc background setInstant "$new_background" || true
-      fi
-      shell_ipc shell finishThemeIntro "$theme_id" || true
-      wait_for_theme_intro themeIntroStatus "$theme_id" "pending"
-      # Reloading Hyprland interrupts video presentation. Wait for playback,
-      # then serialize with theme selection so an old intro cannot reload
-      # the compositor during the next theme's video.
       (
         flock 9
-        if [[ $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
-          omarchy-restart-hyprctl
+        if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$(readlink -f "$new_background")" &&
+          $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
+          shell_ipc background setInstant "$new_background" || true
         fi
+        shell_ipc shell finishThemeIntro "$theme_id" || true
+      ) 9>"$THEME_SET_LOCK"
+      wait_for_theme_intro themeIntroStatus "$theme_id" "pending"
+      # Reloading Hyprland interrupts video presentation. Wait for playback,
+      # then serialize with selection. A background selection can replace the
+      # shell token without changing the theme, so also wait for OWE's current
+      # one-shot intro. The theme still needs its reload after that clip ends.
+      (
+        while true; do
+          flock 9
+          [[ $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]] || break
+          if owe raw '{"cmd":"intro-status"}' 2>/dev/null | jq -e '.running == true' >/dev/null 2>&1; then
+            flock -u 9
+            sleep 0.2
+          else
+            omarchy-restart-hyprctl
+            break
+          fi
+        done
       ) 9>"$THEME_SET_LOCK"
       [[ -z $OLD_BACKGROUND_SNAPSHOT ]] || rm -f "$OLD_BACKGROUND_SNAPSHOT"
     ) 9>&- &

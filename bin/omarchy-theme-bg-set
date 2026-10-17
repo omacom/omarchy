@@ -4,7 +4,9 @@
 # omarchy:args=<path-to-media>
 # omarchy:examples=omarchy theme bg set ~/Pictures/background.png
 
-if [[ -z $1 ]]; then
+set -euo pipefail
+
+if [[ -z ${1:-} ]]; then
   echo "Usage: omarchy-theme-bg-set <path-to-media>" >&2
   exit 1
 fi
@@ -17,9 +19,66 @@ if [[ ! -f $BACKGROUND ]]; then
   exit 1
 fi
 
-# Create symlink to the new background media
-ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
+# Share theme selection's lock: publishing the still and starting its intro
+# must finish before another selection can publish a different background.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+flock 9
 
-# Update the live shell background when it is running. Nothing watches the
-# symlink, so this is how the shell learns of the new background.
+previous=$(readlink -f "$CURRENT_BACKGROUND_LINK" || true)
+[[ $previous != "$BACKGROUND" ]] || exit 0
+intro=$(omarchy-theme-bg-boot-intro --resolve-enabled "$BACKGROUND")
+
+play_intro() {
+  local snapshot_dir snapshot token status deadline
+  owe status >/dev/null 2>&1 || return 1
+  mkdir -p "$HOME/.cache/omarchy" || return 1
+  snapshot_dir=$(mktemp -d "$HOME/.cache/omarchy/background-selection.XXXXXX") || return 1
+  snapshot="$snapshot_dir/previous.ppm"
+  token=${snapshot_dir##*/}
+  # Prefer the currently visible video frame when interrupting an intro.
+  if ! owe render "$(jq -nc --arg path "$snapshot" '{cmd: "snapshot", path: $path}')" >/dev/null 2>&1; then
+    case ${previous,,} in
+      *.jpg | *.jpeg | *.png | *.bmp | *.webp)
+        snapshot="$snapshot_dir/${previous##*/}"
+        cp -- "$previous" "$snapshot" || { rm -rf "$snapshot_dir"; return 1; }
+        ;;
+      *) rm -rf "$snapshot_dir"; return 1 ;;
+    esac
+  fi
+
+  if omarchy-shell shell prepareBackgroundIntro "$snapshot" "$token" >/dev/null 2>&1; then
+    deadline=$((SECONDS + 3))
+    while (( SECONDS < deadline )); do
+      status=$(omarchy-shell shell themeIntroCoverStatus "$token" 2>/dev/null || true)
+      [[ $status == "loading" ]] || break
+      sleep 0.01
+    done
+    if [[ ${status:-} == "ready" ]]; then
+      # Keep the selected still canonical throughout playback. The outgoing
+      # cover hides its decode; OWE resumes the retained background at EOF.
+      if ! ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"; then
+        omarchy-shell -q shell finishThemeIntro "$token"
+        rm -rf "$snapshot_dir"
+        return 1
+      fi
+      omarchy-shell -q background setInstant "$BACKGROUND"
+      if [[ $(omarchy-theme-bg-boot-intro --resolve-enabled "$BACKGROUND") == "$intro" ]] &&
+        owe raw "$(jq -nc --arg path "$intro" '{cmd: "intro", path: $path, start: "first-frame", refresh: true}')" >/dev/null 2>&1; then
+        omarchy-shell -q shell startBackgroundIntro "$token"
+        rm -rf "$snapshot_dir"
+        return 0
+      fi
+    fi
+    omarchy-shell -q shell finishThemeIntro "$token"
+  fi
+  rm -rf "$snapshot_dir"
+  return 1
+}
+
+if [[ -n $intro ]] && play_intro; then
+  exit 0
+fi
+
+ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
 omarchy-shell -q background set "$BACKGROUND"
+omarchy-shell -q shell cancelBackgroundIntro

@@ -25,6 +25,7 @@ Item {
   property var themeNativeSize: null
   property string themeColors: ""
   property string themeShell: ""
+  property bool applyPalette: true
   property real themeOpacity: 1
   readonly property var backgroundService: host && host.services ? host.firstPartyServiceFor("omarchy.background") : null
   readonly property bool backgroundActive: !!backgroundService && !backgroundService.suspended
@@ -62,6 +63,7 @@ Item {
   }
 
   function prepareTheme(fromPath, token, colors, shell) {
+    applyPalette = true
     framePoll.stop()
     themeFade.stop()
     themeToken = token
@@ -76,11 +78,34 @@ Item {
     themeFallback.restart()
   }
 
+  function prepareBackground(fromPath, token) {
+    if (themeToken && applyPalette) revealTheme()
+    prepareTheme(fromPath, token, "", "")
+    applyPalette = false
+  }
+
+  function startBackground(token) {
+    // Replacing a playing intro may leave the retained service suspended,
+    // without another backgroundActive change to start first-frame tracking.
+    if (token === themeToken && !applyPalette) {
+      framePoll.start()
+      if (!frameStatus.running) frameStatus.running = true
+    }
+  }
+
+  function cancelBackground() {
+    if (applyPalette) {
+      if (themeToken) revealTheme()
+    } else {
+      cancelTheme()
+    }
+  }
+
   function revealTheme() {
     if (!themeToken && !cover) return
     framePoll.stop()
     themeFallback.stop()
-    if (themeToken) {
+    if (themeToken && applyPalette) {
       Commons.Color.loadColors(Util.decodeBase64(themeColors))
       Commons.Color.loadShell(Util.decodeBase64(themeShell))
       Style.scheduleRefresh()

@@ -47,6 +47,17 @@ STUB
 cat >"$commands/omarchy-shell" <<'STUB'
 #!/bin/bash
 printf 'shell: %s\n' "$*" >>"$TEST_LOG"
+if [[ $1 == background && $2 == setInstant && -n ${TEST_RESTORE_GATE:-} ]]; then
+  touch "$TEST_RESTORE_GATE.entered"
+  for attempt in {1..250}; do
+    [[ -f $TEST_RESTORE_GATE ]] && break
+    sleep 0.02
+  done
+fi
+if [[ $1 == shell && $2 == themeIntroCoverStatus && $3 == background-selection.* ]]; then
+  echo ready
+  exit 0
+fi
 if [[ -n ${TEST_GATE_DIR:-} ]]; then
   if [[ $2 == "themeIntroStatus" && ! -f $TEST_GATE_DIR/fade-ready ]]; then
     if [[ ! -f $TEST_GATE_DIR/fade-waited ]]; then
@@ -79,6 +90,13 @@ if [[ $1 == intro && -n ${TEST_RELEASE:-} ]]; then
 fi
 printf 'owe: %s\n' "$*" >>"$TEST_LOG"
 [[ ${TEST_OWE_FAIL:-false} != true ]] || exit 1
+if [[ $1 == raw && $(jq -r .cmd <<<"$2") == intro-status ]]; then
+  if [[ -n ${TEST_PLAYBACK_GATE:-} && -f $TEST_PLAYBACK_GATE ]]; then
+    echo '{"status":"ok","running":true}'
+  else
+    echo '{"status":"ok","running":false}'
+  fi
+fi
 if [[ $1 == "render" ]]; then
   [[ ${TEST_LIVE_FRAME:-false} == "true" ]] || exit 1
   snapshot=$(jq -r '.path' <<<"$2")
@@ -205,3 +223,43 @@ done
 [[ ! -f $cover ]] || fail "the superseded intro finishes cleanup"
 (( $(grep -c '^hypr-reload$' "$log") == 1 )) || fail "the superseded intro cannot reload during a newer theme"
 pass "superseded intros do not reload the compositor"
+
+# The theme directory remains current when only its wallpaper changes. The
+# old CLI can return before the replacement intro is accepted by OWE.
+release="$test_tmp/replaced-release"
+playback="$test_tmp/replacement-playing"
+TEST_PLAYBACK_GATE="$playback" TEST_RELEASE="$release" TEST_INTRO_PID="$test_tmp/intro.pid" set_theme beta
+wait_command '^owe: intro '
+# Give another still a local intro, then confirm it from the old image.
+printf 'intro\n' >"$state/theme/backgrounds/intros/1-sky.mp4"
+TEST_LOG="$log" TEST_LIVE_FRAME=true HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" \
+  "$ROOT/bin/omarchy-theme-bg-set" "$state/theme/backgrounds/1-sky.webp"
+grep -q '^owe: raw .*"cmd":"intro"' "$log" || fail "background confirmation starts the replacement intro"
+touch "$playback" "$release"
+wait_command '^owe: raw {"cmd":"intro-status"}$'
+timeout 1 flock "$test_tmp/omarchy-theme-set.lock" true || fail "waiting for replacement playback leaves selection unlocked"
+! grep -q '^hypr-reload$' "$log" || fail "the old theme reload cannot interrupt a replacement background intro"
+[[ $(readlink "$state/background") == "$state/theme/backgrounds/1-sky.webp" ]] || fail "old theme completion cannot restore its wallpaper"
+rm "$playback"
+wait_command '^hypr-reload$'
+(( $(grep -c '^hypr-reload$' "$log") == 1 )) || fail "the current theme still reloads once after replacement playback"
+pass "a replacement background intro defers the pending theme reload until its own playback ends"
+
+# Completion must hold the same selection lock as the setter, including the
+# IPC call: checking the path first and sending it later still races.
+restore="$test_tmp/restore-gate"
+TEST_RESTORE_GATE="$restore" set_theme alpha
+for attempt in {1..200}; do
+  [[ -f $restore.entered ]] && break
+  sleep 0.01
+done
+[[ -f $restore.entered ]] || fail "the theme reaches its retained-background handoff"
+TEST_LOG="$log" HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" \
+  "$ROOT/bin/omarchy-theme-bg-set" "$state/theme/backgrounds/1-sky.webp" &
+selection_pid=$!
+sleep 0.1
+[[ $(readlink "$state/background") == "$state/theme/backgrounds/2-road.webp" ]] || fail "selection waits for the previous handoff IPC to finish"
+touch "$restore"
+wait "$selection_pid"
+[[ $(readlink "$state/background") == "$state/theme/backgrounds/1-sky.webp" ]] || fail "the newer selection wins after the handoff"
+pass "theme completion serializes its retained-background handoff with background selection"

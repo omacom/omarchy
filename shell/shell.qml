@@ -1742,6 +1742,18 @@ ShellRoot {
   ShellIpc {
     target: "shell"
 
+    function prepareBackgroundIntro(fromPath: string, token: string): void {
+      shell.bootIntro.prepareBackground(fromPath, token)
+    }
+
+    function startBackgroundIntro(token: string): void {
+      shell.bootIntro.startBackground(token)
+    }
+
+    function cancelBackgroundIntro(): void {
+      shell.bootIntro.cancelBackground()
+    }
+
     function prepareThemeIntro(fromPath: string, token: string, colorsB64: string, shellB64: string): void {
       shell.bootIntro.prepareTheme(fromPath, token, colorsB64, shellB64)
     }
