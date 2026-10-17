@@ -156,6 +156,10 @@ pass "greeter non-latin layout list stays in sync with the initramfs hook"
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\n XKB_LAYOUT="kr" # desktop only\n' assert_input "Korean selection overrides its installer US layout" "[kr] [] [$base_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr:kr104\n' assert_input "Korean Right Alt selection maps 한/영 and 한자 to Right Alt and Right Ctrl" "[kr] [kr104] [$base_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=la\n' assert_input "Lao selection gets Lao behind US on the desktop" "[us,la] [,] [$toggle_options]" $'XKBLAYOUT=us\n'
+for layout in ara bd in lk pk th; do
+  TEST_INPUT_PREFERENCE="INPUT_METHOD=none"$'\n'"XKB_LAYOUT=$layout"$'\n' assert_input "$layout selection gets $layout behind US on the desktop" "[us,$layout] [,] [$toggle_options]" $'XKBLAYOUT=us\n'
+done
+TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=in:tamilnet\n' assert_input "Tamil selection gets TamilNet '99 behind US on the desktop" "[us,in] [,tamilnet] [$toggle_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=xx\n' assert_input "an unknown desktop override is ignored" "[us] [] [$base_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr\n' assert_input "a later US variant overrides the Korean preference" "[us] [intl] [$base_options]" $'XKBLAYOUT=us\nXKBVARIANT=intl\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr\n' assert_input "a later layout overrides the Korean preference" "[de] [nodeadkeys] [$base_options]" $'XKBLAYOUT=de\nXKBVARIANT=nodeadkeys\n'
