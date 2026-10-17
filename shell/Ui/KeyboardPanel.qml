@@ -61,6 +61,10 @@ PanelWindow {
   // mapped and child items have completed layout.
   property Item focusTarget: null
 
+  // Shadows contentItem on the base window type on purpose: this is the
+  // container idiom, and it is what puts children declared inside this
+  // component into the holder rather than straight onto the window surface.
+  // Renaming it would move that decision out to every call site.
   default property alias contentItem: contentHolder.children
 
   // Lazy content. A panel that sets `content` to a Component gets it built
