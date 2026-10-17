@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# omarchy:summary=Enroll fingerprints with the on-screen guide
+# omarchy:args=[finger]
+# omarchy:examples=omarchy fingerprint enroll | omarchy fingerprint enroll right-thumb
+
+# Without a finger, open the finger picker and exit 0 once it is on screen.
+# With one, enroll that finger and wait: exit 0 on success, 1 on failure or
+# cancel, the same contract as fprintd-enroll. When the overlay cannot open,
+# fall back to fprintd-enroll in a terminal, and fail without one.
+
+set -uo pipefail
+
+finger=${1:-}
+plugin=omarchy.fingerprint-enroll
+
+if [[ -n $finger && ! $finger =~ ^(left|right)-(thumb|(index|middle|ring|little)-finger)$ ]]; then
+  echo "Unknown finger: $finger (for example right-index-finger or left-thumb)" >&2
+  exit 2
+fi
+
+overlay_call() {
+  omarchy-shell shell call "$plugin" "$1" "${2:-}" 2>/dev/null
+}
+
+fallback() {
+  if [[ -t 0 ]]; then
+    exec fprintd-enroll ${finger:+-f "$finger"}
+  fi
+  echo "The fingerprint overlay could not open" >&2
+  exit 1
+}
+
+if [[ $(omarchy-shell shell ping 2>/dev/null) != "ok" ]]; then
+  fallback
+fi
+
+# summon only queues the request and the overlay loads asynchronously, so a
+# request can reach it after this script has given up and fallen back. Each
+# request carries a deadline (epoch milliseconds): the overlay refuses one
+# that arrives later, and this script gives up only once the deadline has
+# passed, so the overlay and the fallback never both run.
+WAIT_MS=${OMARCHY_FINGERPRINT_ENROLL_WAIT_MS:-10000}
+deadline=$(( $(date +%s%3N) + WAIT_MS ))
+
+past_deadline() {
+  (( $(date +%s%3N) > deadline ))
+}
+
+if [[ -z $finger ]]; then
+  [[ $(omarchy-shell shell summon "$plugin" "{\"expires\":$deadline}" 2>/dev/null) == "ok" ]] || fallback
+  until past_deadline; do
+    [[ $(overlay_call isOpen) == "open" ]] && exit 0
+    sleep 0.2
+  done
+  # Past the deadline the overlay no longer takes the request, so this
+  # answer is final.
+  [[ $(overlay_call isOpen) == "open" ]] && exit 0
+  fallback
+fi
+
+# The overlay writes its result into a directory only this user can enter, so
+# no other local process can plant a result or race the file into existence.
+result_dir=$(mktemp -d)
+trap 'rm -rf "$result_dir"' EXIT
+done_file="$result_dir/result"
+
+if [[ $(omarchy-shell shell summon "$plugin" "{\"finger\":\"$finger\",\"doneFile\":\"$done_file\",\"expires\":$deadline}" 2>/dev/null) != "ok" ]]; then
+  rm -rf "$result_dir"
+  trap - EXIT
+  fallback
+fi
+
+# Wait for the result. While waiting, ask the overlay whether it is still
+# handling this request: if it never took it, or it went away without
+# answering (load failure, shell restart), stop instead of waiting out the
+# safety net. fprintd times out an idle enrollment itself.
+seen=false
+for i in $(seq 1 1200); do
+  [[ -f $done_file ]] && break
+  if (( i % 2 == 0 )); then
+    case $(overlay_call handles "$done_file") in
+      yes) seen=true ;;
+      *)
+        # Gone after having been ours, or not ours once the deadline has
+        # passed (the overlay refuses it from then on): give a result
+        # written on the way out a moment to land, then stop.
+        if [[ $seen == "true" ]] || past_deadline; then
+          sleep 1
+          break
+        fi
+        ;;
+    esac
+  fi
+  sleep 0.5
+done
+
+[[ $(cat "$done_file" 2>/dev/null) == "ok" ]]

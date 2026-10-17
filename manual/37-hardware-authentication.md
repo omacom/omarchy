@@ -4,7 +4,7 @@
 
 A lot of laptops come with a fingerprint sensor to do authentication. You can use this with Omarchy by running _Setup > Security > Fingerprint_ in the Omarchy menu (`Super + Space`).
 
-That'll install the fingerprint package, collect your print, verify it, and you'll be set to go using your fingerprint to unlock from the lock screen (which you can trigger with `Super + Ctrl + L`), enter sudo mode, and authorize system prompts.
+That opens the fingerprint guide. The first time it asks for your password, installs the fingerprint package, and lets you pick a finger; you then press it about twenty times, shifting it a little each time as the on-screen print fills in, touch once more to confirm, and you're set to go using your fingerprint to unlock from the lock screen (which you can trigger with `Super + Ctrl + L`), enter sudo mode, and authorize system prompts. Open the same menu item again to add more fingers. Adding a fingerprint always asks for your own password first, so nobody at your unlocked computer can add theirs; it's remembered for a few minutes, so adding several fingers in a row asks only once.
 
 Once the lock screen has turned the display off, the sensor rests to save power, so wake the screen with any key or the touchpad before touching it.
 

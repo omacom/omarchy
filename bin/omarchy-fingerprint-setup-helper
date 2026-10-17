@@ -1,0 +1,83 @@
+#!/bin/bash
+
+# omarchy:summary=Privileged steps of fingerprint setup for the enrollment overlay
+# omarchy:args=status|install|enable-login
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# The enrollment overlay has no terminal for sudo, so its privileged steps run
+# through this command, which re-runs itself through pkexec. It adds no setup
+# logic of its own: packages use the same transaction as
+# omarchy-setup-security-fingerprint, and turning login on runs that script's
+# own PAM and lock-screen steps.
+#
+#   status         ready (login on) | enroll (packages in) | install
+#   install        fingerprint packages
+#   enable-login   sudo, polkit and lock-screen authentication
+
+set -euo pipefail
+
+# Whenever this runs as root, sudo's secure_path or pkexec decides where a bare
+# helper resolves, and a dev link prepends a user-writable checkout bin/ to
+# sudo's. Pin PATH to trusted system directories, and run the setup script
+# from its packaged location with the packaged OMARCHY_PATH.
+if (( EUID == 0 )); then
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+  export OMARCHY_PATH=/usr/share/omarchy
+fi
+
+# The privileged half always runs from the packaged path rather than whichever
+# copy was invoked, so a dev checkout is never what root executes.
+PACKAGED_PATH=/usr/bin/omarchy-fingerprint-setup-helper
+
+require_root() {
+  if (( EUID == 0 )); then
+    return
+  elif [[ -t 0 ]]; then
+    exec sudo "$PACKAGED_PATH" "$@"
+  else
+    # No terminal for sudo's prompt (the overlay): polkit shows one on screen.
+    exec pkexec "$PACKAGED_PATH" "$@"
+  fi
+}
+
+status() {
+  if grep -qs pam_fprintd.so /etc/pam.d/sudo && [[ -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
+    echo ready
+  elif omarchy-cmd-present fprintd-enroll; then
+    echo enroll
+  else
+    echo install
+  fi
+}
+
+install_packages() {
+  # Same transaction as omarchy-setup-security-fingerprint: libfprint-git
+  # tracks upstream ahead of the Arch release, and --ask 4 accepts its
+  # replacement of stock libfprint in one transaction, so a failed install
+  # leaves the existing driver alone.
+  if ! pacman -Q -- libfprint-git fprintd usbutils &>/dev/null; then
+    echo "Installing fingerprint packages"
+    pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils >/dev/null
+  fi
+  echo "Packages ready"
+}
+
+case "${1:-}" in
+  status)
+    status
+    ;;
+  install)
+    require_root "$@"
+    install_packages
+    ;;
+  enable-login)
+    require_root "$@"
+    echo "Turning fingerprint login on"
+    exec /usr/bin/omarchy-setup-security-fingerprint --enable-login
+    ;;
+  *)
+    echo "Usage: omarchy-fingerprint-setup-helper status|install|enable-login" >&2
+    exit 2
+    ;;
+esac
