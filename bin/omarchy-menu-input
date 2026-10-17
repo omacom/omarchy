@@ -25,6 +25,10 @@ while (( $# > 0 )); do
       fi
       menu_width="$1"
       ;;
+    *)
+      echo "omarchy-menu-input: unknown option: $1" >&2
+      exit 1
+      ;;
   esac
   shift
 done
