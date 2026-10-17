@@ -11,6 +11,14 @@ if [[ -z $action ]]; then
   exit 1
 fi
 
+# Drop overlapping volume adjustments so hardware key repeat does not flood
+# pipewire-pulse with short-lived pactl clients. Leave mute independent so a
+# press is not lost behind an adjustment already in flight.
+if [[ $action == "raise" || $action == "lower" || $action =~ ^[+-][0-9]+$ ]]; then
+  exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-audio-output-volume.lock"
+  flock -n "$lock_fd" || exit 0
+fi
+
 # Resolve through any DSP sink to the physical one, so the keys always move real
 # loudness and the processing always sees full-scale input. Shared with the audio
 # panel and the output switcher.
