@@ -79,7 +79,7 @@ fs.writeFileSync(`${stage}/network/Panel.qml`, source)
 JS
 printf '#!/bin/bash\nexit 0\n' > "$stage/bin/noop"
 chmod +x "$stage/bin/noop"
-for command in omarchy-dns omarchy-network-band; do
+for command in omarchy-dns omarchy-network-band nmcli mmcli; do
   ln -s noop "$stage/bin/$command"
 done
 # Preview uses only synthetic details, never the host's SSID or addresses.

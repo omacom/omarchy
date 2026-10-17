@@ -35,6 +35,11 @@ done
 # host's NetworkManager.
 cat > "$stage/bin/nmcli" <<'SH'
 #!/bin/bash
+# The panel's modem probe. This fixture has no modem, and the probe must not
+# shift the call-order answers below.
+if [[ $* == "-t -f DEVICE,TYPE dev" ]]; then
+  exit 0
+fi
 printf '%s\n' "$*" >> "$NETWORK_TEST_NMCLI_LOG"
 count=$(wc -l < "$NETWORK_TEST_NMCLI_LOG")
 case $count in

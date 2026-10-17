@@ -168,7 +168,7 @@ Item {
   }
 
   // Names the connection under test when the summoner didn't. First tab
-  // field is the kind, second the SSID (wifi) or device (ethernet).
+  // field is the kind, second the SSID (wifi) or device (ethernet, mobile).
   Process {
     id: statusProc
     command: ["omarchy-network-status"]
@@ -178,6 +178,7 @@ Item {
         var fields = String(text || "").trim().split("\t")
         if (fields[0] === "wifi") root.connectionName = fields[1] || "Wi-Fi"
         else if (fields[0] === "ethernet") root.connectionName = I18n.t("network.ethernet")
+        else if (fields[0] === "mobile") root.connectionName = I18n.t("network.mobile")
       }
     }
   }

@@ -84,6 +84,14 @@ Panel {
   property var bandAvailable: []
   property string pendingBand: ""
 
+  // Mobile broadband modem, from Model.mobileStatusScript (nmcli + mmcli).
+  // Quickshell.Networking has no modem device type, so this is polled.
+  property var mobile: ({ available: false })
+  property string mobileActionKind: ""  // "connect" | "disconnect"
+  property string mobileFailure: ""
+  readonly property bool mobileConnected: mobile.available && mobile.state === "connected"
+  readonly property bool mobileHasCursor: cursorActive && focusSection === "mobile"
+
   // Per-row in-flight state. `actionSsid` flips on for the row whose action
   // is currently running so it can render "Connecting…" / "Disconnecting…" /
   // "Forgetting…". `passwordSsid` is the row currently expanded into
@@ -120,9 +128,9 @@ Panel {
   property bool cursorActive: false
 
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
-  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
+  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ modem ⇄ Wi-Fi networks. h/l move
   // within header actions, band pills, or DNS providers.
-  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
+  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "mobile" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
@@ -171,6 +179,10 @@ Panel {
   property bool bandAutoFocused: true
 
   onHeaderActionCountChanged: clampHeaderIndex()
+
+  onMobileChanged: {
+    if (!mobile.available && focusSection === "mobile") focusSection = "dns"
+  }
 
   // Availability shifts as scans land, so the option list can shrink out from
   // under the cursor. Clamp the index and evacuate the section before it
@@ -450,11 +462,14 @@ Panel {
     // for the open SSID looks out of range even while it is connected. Trust
     // the device's own state then instead of flickering to disconnected.
     if (wifiDevice && wifiDevice.connected) return "wifi"
+    if (mobileConnected) return "mobile"
     return "disconnected"
   }
-  readonly property int signalStrength: kind === "wifi"
-    ? Model.connectedSignalStrength(connectedWifiNetwork ? connectedWifiNetwork.signalStrength : 0, activeApSignal)
-    : -1
+  readonly property int signalStrength: {
+    if (kind === "wifi") return Model.connectedSignalStrength(connectedWifiNetwork ? connectedWifiNetwork.signalStrength : 0, activeApSignal)
+    if (kind === "mobile") return mobile.signal
+    return -1
+  }
   // Filled by activeApSignalPoll from nmcli while the connected network has no
   // strength of its own to report.
   property int activeApSignal: -1
@@ -570,6 +585,7 @@ Panel {
 
   function refresh(scanWifi) {
     checkConnectivity()
+    refreshMobile()
     if (scanWifi === undefined) scanWifi = false
     if (!detailsProc.running) detailsProc.running = true
     if (!dnsProc.running) {
@@ -756,6 +772,7 @@ Panel {
     var connection = ""
     if (info.type === "wifi") connection = info.ssid || "Wi-Fi"
     else if (info.type === "ethernet") connection = Commons.I18n.t("network.ethernet")
+    else if (info.type === "mobile") connection = Model.mobileTitle(mobile, Commons.I18n.t)
     bar.shell.summon("omarchy.speedtest", connection ? JSON.stringify({ connection: connection }) : "{}")
   }
 
@@ -907,6 +924,109 @@ Panel {
 
   Component.onCompleted: refresh()
 
+  function refreshMobile() {
+    if (!mobileProc.running) mobileProc.running = true
+  }
+
+  function updateMobile(raw) {
+    mobile = Model.parseMobileStatus(raw)
+    if (mobileActionKind === "connect" && mobileConnected) mobileActionKind = ""
+    if (mobileActionKind === "disconnect" && mobile.state === "disconnected") mobileActionKind = ""
+    // ModemManager reports the bearer up before NetworkManager finishes
+    // configuring it, and nothing signals that last step, so look again.
+    if (mobile.state === "connecting") mobileEventSettle.restart()
+  }
+
+  // Row click: connected -> disconnect the device, otherwise bring up the
+  // saved mobile profile on that device (turning the WWAN radio on first if
+  // it was off).
+  function toggleMobile() {
+    if (!mobile.available || mobileActionKind !== "" || mobileActionProc.running) return
+    mobileFailure = ""
+    if (mobile.state === "connected" || mobile.state === "connecting") {
+      mobileActionKind = "disconnect"
+      mobileActionProc.command = ["nmcli", "device", "disconnect", mobile.device]
+    } else if (mobile.profileUuid) {
+      mobileActionKind = "connect"
+      mobileActionProc.command = ["bash", "-c",
+        "nmcli radio wwan on && nmcli --wait 45 connection up uuid \"$1\" ifname \"$2\"",
+        "mobile-up", mobile.profileUuid, mobile.device]
+    } else {
+      mobileFailure = Commons.I18n.t("network.noMobileConnection")
+      return
+    }
+    mobileActionProc.running = true
+  }
+
+  Process {
+    id: mobileProc
+    command: ["bash", "-c", Model.mobileStatusScript]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.updateMobile(text)
+    }
+  }
+
+  Process {
+    id: mobileActionProc
+    stderr: StdioCollector { id: mobileActionStderr; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        var kind = root.mobileActionKind
+        root.mobileFailure = kind === "disconnect" ? Commons.I18n.t("network.couldNotDisconnect") : Commons.I18n.t("network.couldNotConnect")
+      }
+      root.mobileActionKind = ""
+      root.refresh()
+    }
+  }
+
+  // NetworkManager's modem state doesn't reach Quickshell.Networking, so the
+  // panel follows ModemManager's D-Bus signals instead of polling. Only while
+  // a modem is present: the startup probe (and every open) finds one first.
+  // Bearer traffic counters tick constantly while connected, so only
+  // changes to what the row and bar icon show trigger a fresh probe.
+  property real mobileEventsStartedAt: 0
+  property int mobileEventsQuickExits: 0
+
+  Process {
+    id: mobileEvents
+    command: ["gdbus", "monitor", "--system", "--dest", "org.freedesktop.ModemManager1"]
+    running: root.mobile.available
+    onRunningChanged: if (running) root.mobileEventsStartedAt = Date.now()
+    // Started again when it ends, unless it keeps ending at once (ModemManager
+    // gone), which would only respawn it forever.
+    onExited: {
+      root.mobileEventsQuickExits = Date.now() - root.mobileEventsStartedAt < 1000 ? root.mobileEventsQuickExits + 1 : 0
+      if (root.mobile.available && root.mobileEventsQuickExits < 5) mobileEventsRestart.start()
+    }
+    stdout: SplitParser {
+      onRead: function(line) {
+        if (Model.isMobileStatusEvent(line)) mobileEventSettle.restart()
+      }
+    }
+  }
+
+  Timer {
+    id: mobileEventsRestart
+    interval: 2000
+    onTriggered: if (root.mobile.available && !mobileEvents.running) mobileEvents.running = true
+  }
+
+  // A connect or disconnect walks the modem through several states within a
+  // second; probe once it settles rather than once per step.
+  Timer {
+    id: mobileEventSettle
+    interval: 400
+    onTriggered: root.refreshMobile()
+  }
+
+  Timer {
+    id: mobileFailureClear
+    interval: 4000
+    running: root.mobileFailure !== ""
+    onTriggered: root.mobileFailure = ""
+  }
+
   // Pulls everything we want about the active route's interface in one shot.
   Process {
     id: detailsProc
@@ -1022,7 +1142,7 @@ Panel {
   Timer {
     id: connectionPhraseTimer
     interval: 2800
-    running: root.opened && !root.restricted && (root.info.type === "ethernet" || (root.info.type === "wifi" && root.canDisconnect))
+    running: root.opened && !root.restricted && (root.info.type === "ethernet" || root.info.type === "mobile" || (root.info.type === "wifi" && root.canDisconnect))
     repeat: true
     onTriggered: connectionPhraseSwap.restart()
   }
@@ -1045,7 +1165,7 @@ Panel {
   Connections {
     target: root
     function onInfoChanged() {
-      if (!(root.info.type === "ethernet" || (root.info.type === "wifi" && root.canDisconnect))) {
+      if (!(root.info.type === "ethernet" || root.info.type === "mobile" || (root.info.type === "wifi" && root.canDisconnect))) {
         connectionPhraseSwap.stop()
         if (panel.loadedContent) panel.loadedContent.heroMeta.opacity = 1.0
       }
@@ -1178,15 +1298,24 @@ Panel {
                 root.focusSection = "header"
                 root.headerIndex = 0
               }
+            } else if (root.mobile.available) {
+              root.focusSection = "mobile"
             } else if (root.wifiNetworks.length > 0) {
               root.focusSection = "wifi"
               if (root.selectedIndex < 0) root.selectedIndex = 0
+            }
+          } else if (root.focusSection === "mobile") {
+            if (dy < 0) root.focusSection = "dns"
+            else if (root.wifiNetworks.length > 0) {
+              root.focusSection = "wifi"
+              root.selectedIndex = 0
+              root.wifiActionFocused = false
             }
           } else {  // wifi
             // k from the top row escapes back up to the DNS row rather than
             // wrapping around to the bottom of the list.
             if (dy < 0 && root.selectedIndex <= 0) {
-              root.focusSection = "dns"
+              root.focusSection = root.mobile.available ? "mobile" : "dns"
               root.wifiActionFocused = false
             }
             else root.selectByDelta(dy)
@@ -1205,6 +1334,7 @@ Panel {
           else if (root.focusSection === "portal") root.openCaptivePortal()
           else if (root.focusSection === "band") root.activateBand()
           else if (root.focusSection === "dns") root.activateDns()
+          else if (root.focusSection === "mobile") root.toggleMobile()
           else root.activateSelected()
         }
       }
@@ -1316,9 +1446,12 @@ Panel {
               if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
               if (root.info.type === "wifi") return root.info.ssid || "Wi-Fi"
               if (root.info.type === "ethernet") return Commons.I18n.t("network.ethernet")
+              if (root.info.type === "mobile") return Model.mobileTitle(root.mobile, Commons.I18n.t)
               return root.info.iface || (root.kind === "disconnected" ? Commons.I18n.t("network.disconnected") : Commons.I18n.t("network.noConnection"))
             }
-            readonly property string detail: root.headerDetail()
+            readonly property string detail: root.info.type === "mobile"
+              ? Model.mobileTechLabel(root.mobile.tech).toLowerCase()
+              : root.headerDetail()
 
             text: heroSsid.detail !== "" ? heroSsid.title + " (" + heroSsid.detail + ")" : heroSsid.title
             color: root.bar.foreground
@@ -1340,7 +1473,7 @@ Panel {
                 if (root.kind === "disconnected") return Commons.I18n.t("network.notConnected")
                 return ""
               }
-              if (root.info.type === "ethernet") return root.connectionPhrase.toUpperCase()
+              if (root.info.type === "ethernet" || root.info.type === "mobile") return root.connectionPhrase.toUpperCase()
               if (root.kind === "disconnected") return Commons.I18n.t("network.notConnected")
               return ""
             }
@@ -1633,6 +1766,24 @@ Panel {
         }
       }
 
+      // Mobile broadband (only when a modem is present).
+      PanelSeparator {
+        visible: root.mobile.available
+        foreground: root.bar.foreground
+      }
+
+      PanelSectionHeader {
+        visible: root.mobile.available
+        text: Commons.I18n.t("network.mobileBroadbandHeader")
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+      }
+
+      MobileRow {
+        id: mobileRow
+        visible: root.mobile.available
+        width: parent.width
+      }
 
       // Wi-Fi networks (only if a Wi-Fi station is available).
       PanelSeparator {
@@ -2110,6 +2261,98 @@ Panel {
     }
   }
 
+
+  // The modem row: same chrome as a Wi-Fi row. Click connects the saved
+  // mobile profile, or disconnects when it is up.
+  component MobileRow: CursorSurface {
+    id: mrow
+
+    readonly property bool isConnected: root.mobileConnected
+    readonly property bool isBusy: root.mobileActionKind !== "" || root.mobile.state === "connecting"
+    readonly property bool usable: !!root.mobile.radioEnabled && root.mobile.state !== "unavailable"
+    readonly property string statusText: {
+      if (root.mobileFailure !== "") return root.mobileFailure
+      if (root.mobileActionKind === "connect") return Commons.I18n.t("network.connecting")
+      if (root.mobileActionKind === "disconnect") return Commons.I18n.t("network.disconnecting")
+      return Model.mobileDetail(root.mobile, Commons.I18n.t, Commons.I18n.formatNumber)
+    }
+    readonly property color statusColor: {
+      if (root.mobileFailure !== "") return root.bar.urgent
+      if (isConnected || isBusy) return root.bar.foreground
+      return Qt.darker(root.bar.foreground, 1.5)
+    }
+
+    hasCursor: root.mobileHasCursor
+    current: isConnected
+    foreground: root.bar.foreground
+    fill: root.hoverFill
+    currentFill: root.selectedFill
+    implicitHeight: mobileBody.implicitHeight
+
+    MouseArea {
+      anchors.fill: parent
+      hoverEnabled: true
+      acceptedButtons: Qt.LeftButton
+      cursorShape: Qt.PointingHandCursor
+      enabled: root.mobileActionKind === ""
+      onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "mobile" }
+      onClicked: {
+        root.cursorActive = true
+        root.focusSection = "mobile"
+        root.toggleMobile()
+      }
+    }
+
+    Item {
+      id: mobileBody
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.top: parent.top
+      anchors.leftMargin: Style.space(10)
+      anchors.rightMargin: Style.space(10)
+      implicitHeight: Math.max(mobileIcon.implicitHeight, mobileInfo.implicitHeight) + Style.spacing.rowPaddingX
+
+      Text {
+        id: mobileIcon
+        textFormat: Text.PlainText
+        text: Model.mobileIconFor(root.mobile.signal, mrow.usable)
+        color: mrow.statusColor
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.title
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+      }
+
+      Column {
+        id: mobileInfo
+        spacing: Style.space(1)
+        anchors.left: mobileIcon.right
+        anchors.leftMargin: Style.space(10)
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+
+        Text {
+          textFormat: Text.PlainText
+          text: Model.mobileTitle(root.mobile, Commons.I18n.t)
+          color: root.bar.foreground
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.body
+          elide: Text.ElideRight
+          width: parent.width
+        }
+        Text {
+          textFormat: Text.PlainText
+          text: mrow.statusText
+          visible: mrow.statusText !== ""
+          color: mrow.statusColor
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+          width: parent.width
+        }
+      }
+    }
+  }
 
   component DetailValue: InfoValue {
     property bool copyable: false
