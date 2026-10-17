@@ -12,4 +12,9 @@ if backend and backend:match("^[%w%-]+$") and not o.cmd_missing(backend) then
   -- A modifier's mask changes between its press and release. Match the keysym
   -- independently of that mask; AltGr layouts use a different keysym.
   o.bind_hold("ALT + Alt_R", "Start dictation (push-to-talk)", "omarchy-dictation start", "Stop dictation (push-to-talk)", "omarchy-dictation stop", { ignore_mods = true })
+
+  -- Transcribe the speakers instead of the microphone, e.g. the other side of a call.
+  if backend == "voxtype" then
+    o.bind_hold("F10", "Start speaker dictation (push-to-talk)", "omarchy-voxtype-speakers start", "Stop speaker dictation (push-to-talk)", "omarchy-voxtype-speakers stop")
+  end
 end
