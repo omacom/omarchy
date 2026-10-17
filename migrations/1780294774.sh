@@ -1,6 +1,9 @@
 echo "Remove leading zero from bar clock date"
 
 config_file="$HOME/.config/omarchy/shell.json"
+if [[ -L $config_file ]]; then
+  config_file=$(readlink -f -- "$config_file")
+fi
 
 if [[ -f $config_file ]] && omarchy-cmd-present jq; then
   tmp=$(mktemp)

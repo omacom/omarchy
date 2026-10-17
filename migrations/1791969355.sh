@@ -10,6 +10,9 @@ echo "Split the bar's center section at its anchor into centerBegin, center and 
 # A replacement bar (a clone of the built-in one, or a third party's) reads the
 # layout the way it was written for, so its config is left as it is.
 config_file="$HOME/.config/omarchy/shell.json"
+if [[ -L $config_file ]]; then
+  config_file=$(readlink -f -- "$config_file")
+fi
 if [[ -s $config_file ]] && jq -e '
   (.bar | type) == "object" and (.bar | has("centerAnchor")) and ((.bar.id // "" | tostring) | IN("", "omarchy.bar"))
 ' "$config_file" >/dev/null; then
