@@ -37,6 +37,7 @@ SH
 cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+[[ -z ${OMARCHY_TEST_BROWSER_ARGS:-} ]] || printf '[%s]\n' "$@" >"$OMARCHY_TEST_BROWSER_ARGS"
 SH
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
 #!/bin/bash
@@ -83,6 +84,68 @@ grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
 
 pass "browser launcher follows opened links to the browser workspace"
 
+launched_command() {
+  sed 's/.* uwsm-app -- //' "$launch_log"
+}
+
+HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  OMARCHY_TEST_BROWSER_FOCUS="$focus_log" bash "$ROOT/bin/omarchy-launch-browser" --private "https://knowledge.test/"
+
+[[ $(launched_command) == "chromium --incognito https://knowledge.test/" ]] ||
+  fail "private browser launch puts the flag before the URL" "actual: $(launched_command)"
+pass "browser launcher keeps the private flag ahead of the URL"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=/usr/bin/env "BROWSER_NOTE=two words" chromium --class=wrapped %U
+EOF
+
+HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  OMARCHY_TEST_BROWSER_FOCUS="$focus_log" bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/wrapped"
+
+[[ $(launched_command) == "/usr/bin/env BROWSER_NOTE=two words chromium --class=wrapped https://example.test/wrapped" ]] ||
+  fail "browser launcher runs a wrapped Exec command in full" "actual: $(launched_command)"
+pass "browser launcher runs a wrapped Exec command in full"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=chromium --user-data-dir=/tmp/microsoft-edge %U
+EOF
+
+HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  OMARCHY_TEST_BROWSER_FOCUS="$focus_log" bash "$ROOT/bin/omarchy-launch-browser" --private
+
+[[ $(launched_command) == "chromium --user-data-dir=/tmp/microsoft-edge --incognito" ]] ||
+  fail "browser launcher takes only Edge's own name for Edge" "actual: $(launched_command)"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=/opt/microsoft/msedge/msedge %U
+EOF
+
+HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  OMARCHY_TEST_BROWSER_FOCUS="$focus_log" bash "$ROOT/bin/omarchy-launch-browser" --private
+
+[[ $(launched_command) == "/opt/microsoft/msedge/msedge --inprivate" ]] ||
+  fail "browser launcher asks Edge for an InPrivate window" "actual: $(launched_command)"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=/usr/bin/flatpak run --command=edge com.microsoft.Edge @@u %U @@
+EOF
+
+HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  OMARCHY_TEST_BROWSER_FOCUS="$focus_log" bash "$ROOT/bin/omarchy-launch-browser" --private "https://example.test/edge"
+
+[[ $(launched_command) == "/usr/bin/flatpak run --command=edge com.microsoft.Edge @@u --inprivate https://example.test/edge @@" ]] ||
+  fail "browser launcher asks a Flatpak Edge for an InPrivate window" "actual: $(launched_command)"
+pass "browser launcher picks the private flag from the browser, not its arguments"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=chromium %U
+EOF
+
 rm -f "$launch_log"
 cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
 #!/bin/bash
@@ -118,3 +181,82 @@ launch --private
 [[ -s $help_log ]] || fail "a private launch probes the browser's private flag"
 grep -F -- 'chromium --incognito' "$launch_log" >/dev/null || fail "a private launch passes the browser's private flag"
 pass "a private launch passes the browser's private flag"
+
+args_log="$test_tmp/args"
+launched_arguments() {
+  sed '1,/^\[--\]$/d' "$args_log" | paste -sd ' '
+}
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=/usr/bin/env "BROWSER_NOTE=two words" chromium "" "--user-data-dir=/tmp/a\\\\b" --profile=50%% %U
+EOF
+
+rm -f "$focus_log"
+OMARCHY_TEST_BROWSER_ARGS="$args_log" HYPRLAND_INSTANCE_SIGNATURE=test launch "https://example.test/quoted"
+[[ $(launched_arguments) == '[/usr/bin/env] [BROWSER_NOTE=two words] [chromium] [] [--user-data-dir=/tmp/a\b] [--profile=50%] [https://example.test/quoted]' ]] ||
+  fail "browser launcher keeps each Exec argument whole" "actual: $(launched_arguments)"
+grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
+  fail "browser launcher focuses the browser behind a wrapper" "actual: $(cat "$focus_log" 2>/dev/null)"
+pass "browser launcher decodes Exec quoting, escapes and %% into whole arguments"
+
+cat >"$mock_bin/firefox" <<'SH'
+#!/bin/bash
+[[ $1 != "--help" ]] || echo "MOZ_LOG"
+SH
+cat >"$mock_bin/flatpak" <<'SH'
+#!/bin/bash
+[[ ${!#} != "--help" ]] || printf 'probed\n' >>"$OMARCHY_TEST_BROWSER_HELP"
+SH
+chmod +x "$mock_bin/firefox" "$mock_bin/flatpak"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=env MOZ_ENABLE_WAYLAND=1 firefox %u
+EOF
+
+launch --private "https://example.test/env-firefox"
+[[ $(launched_command) == "env MOZ_ENABLE_WAYLAND=1 firefox --private-window https://example.test/env-firefox" ]] ||
+  fail "browser launcher asks Firefox behind env for its private flag" "actual: $(launched_command)"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=flatpak run --branch=stable --command=firefox --file-forwarding org.mozilla.firefox @@u %u @@
+EOF
+
+rm -f "$help_log"
+launch --private "https://example.test/flatpak-firefox"
+[[ ! -e $help_log ]] || fail "browser launcher never runs a Flatpak to probe it"
+[[ $(launched_command) == "flatpak run --branch=stable --command=firefox --file-forwarding org.mozilla.firefox @@u --private-window https://example.test/flatpak-firefox @@" ]] ||
+  fail "browser launcher asks a Flatpak Firefox for its private flag" "actual: $(launched_command)"
+pass "browser launcher asks the browser behind a wrapper for its private flag"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=env -u microsoft-edge chromium %U
+EOF
+
+launch --private "https://example.test/env-unset"
+[[ $(launched_command) == "env -u microsoft-edge chromium --incognito https://example.test/env-unset" ]] ||
+  fail "browser launcher reads env's options as options, not the browser" "actual: $(launched_command)"
+pass "browser launcher reads env's options as options, not the browser"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=env -S "MOZ_ENABLE_WAYLAND=1 firefox" %u
+EOF
+
+launch --private "https://example.test/env-split"
+[[ $(launched_command) == "env -S MOZ_ENABLE_WAYLAND=1 firefox --private-window https://example.test/env-split" ]] ||
+  fail "browser launcher finds the browser in env's split string" "actual: $(launched_command)"
+pass "browser launcher finds the browser in env's split string"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=env --split-string="MOZ_ENABLE_WAYLAND=1 'firefox'" %u
+EOF
+
+launch --private "https://example.test/env-split-quoted"
+[[ $(launched_command) == "env --split-string=MOZ_ENABLE_WAYLAND=1 'firefox' --private-window https://example.test/env-split-quoted" ]] ||
+  fail "browser launcher reads env's split string the way env does" "actual: $(launched_command)"
+pass "browser launcher reads env's split string the way env does"
