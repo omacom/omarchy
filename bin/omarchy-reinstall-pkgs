@@ -9,7 +9,10 @@ set -e
 # (stable, or edge on aarch64) and downgrade any packages that are too new.
 
 # Set the package repository to the platform's default channel
-omarchy-refresh-pacman
+source "$OMARCHY_PATH/install/helpers/pacman.sh"
+platform=$(omarchy-hw-platform)
+channel=$(omarchy_pacman_default_channel "$platform")
+omarchy-refresh-pacman "$channel"
 
 # Downgrade any packages to that channel's setup
 omarchy-update-pacman -Suu --noconfirm

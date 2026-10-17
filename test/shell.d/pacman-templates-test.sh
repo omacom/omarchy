@@ -115,6 +115,12 @@ fi
 rm -rf "$work"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 copy_boundary_file bin/omarchy-refresh-pacman
+cat >"$SUDO_TEST_ROOT/bin/omarchy-channel-current" <<'STUB'
+#!/bin/bash
+[[ ${SUDO_TEST_CHANNEL_FAIL:-0} != "1" ]] || exit 1
+echo "${SUDO_TEST_CHANNEL:-unknown}"
+STUB
+chmod +x "$SUDO_TEST_ROOT/bin/omarchy-channel-current"
 
 refresh() {
   "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" "$@" >"$boundary_tmp/output" 2>&1
@@ -153,7 +159,51 @@ PY
     assert_boundary_cold "$platform $channel"
   done
 done
-pass "a refresh backs up and copies the platform's channel template and mirrorlist, or its default channel's when none is named, then runs the cold hook and the upgrade"
+pass "a refresh backs up and copies the named channel, or the platform default when the current channel is unknown, then runs the cold hook and the upgrade"
+
+for channel in stable rc edge dev; do
+  reset_boundary
+  SUDO_TEST_CHANNEL=$channel refresh || fail "refresh preserves $channel" "$(cat "$boundary_tmp/output")"
+  expected=$channel
+  [[ $channel != "dev" ]] || expected=edge
+  grep -Fx "step:cp -f $SUDO_TEST_ROOT/default/pacman/pacman-$expected.conf /etc/pacman.conf" "$SUDO_TEST_LOG" >/dev/null ||
+    fail "$channel refresh uses $expected repositories" "$(events)"
+  grep -Fx "step:cp -f $SUDO_TEST_ROOT/default/pacman/mirrorlist-$expected /etc/pacman.d/mirrorlist" "$SUDO_TEST_LOG" >/dev/null ||
+    fail "$channel refresh uses $expected mirrors" "$(events)"
+  assert_boundary_cold "$channel refresh"
+done
+pass "a refresh with no channel preserves stable, rc and edge, and uses edge for a linked dev checkout"
+
+reset_boundary
+SUDO_TEST_CHANNEL=edge SUDO_TEST_CHANNEL_FAIL=1 refresh rc || fail "explicit rc overrides current edge without detecting it"
+grep -Fx "step:cp -f $SUDO_TEST_ROOT/default/pacman/pacman-rc.conf /etc/pacman.conf" "$SUDO_TEST_LOG" >/dev/null ||
+  fail "explicit rc overrides current edge" "$(events)"
+assert_boundary_cold "explicit override"
+pass "an explicit channel overrides the current channel without querying it"
+
+for channel in stable rc; do
+  reset_boundary
+  if SUDO_TEST_PLATFORM=aarch64 SUDO_TEST_CHANNEL=$channel refresh; then fail "aarch64 refuses current $channel without templates"; fi
+  [[ -z $(events) ]] || fail "unsupported current channel changes nothing" "$(events)"
+  assert_boundary_cold "unsupported current channel"
+done
+for channel in invalid failed; do
+  reset_boundary
+  if [[ $channel == "failed" ]]; then
+    if SUDO_TEST_CHANNEL_FAIL=1 refresh; then fail "failed channel detection is refused"; fi
+  else
+    if SUDO_TEST_CHANNEL=$channel refresh; then fail "unexpected channel is refused"; fi
+  fi
+  [[ -z $(events) ]] || fail "failed channel detection changes nothing" "$(events)"
+  assert_boundary_cold "failed channel detection"
+done
+pass "unsupported, unexpected or failed current channel detection changes nothing"
+
+reset_boundary
+if refresh invalid; then fail "invalid explicit channel is refused"; fi
+[[ -z $(events) ]] || fail "invalid explicit channel changes nothing" "$(events)"
+assert_boundary_cold "invalid explicit channel"
+pass "an invalid explicit channel changes nothing"
 
 # A channel the platform has no template for (stable or rc on aarch64), or a
 # machine whose platform can't be told, stops before anything changes.
