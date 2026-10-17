@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Remove LM Studio Bionic, keeping its configuration and project data.
+# omarchy:requires-sudo=true
+
+set -e
+
+omarchy-pkg-drop lmstudio-bionic
+
+echo ""
+echo "LM Studio Bionic has been removed. Your configuration and data have been kept."

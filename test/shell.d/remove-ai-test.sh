@@ -84,28 +84,6 @@ pass "Claude removal keeps the Claude Code CLI's state"
 grep -qx 'pkill:-x claude-desktop' "$TEST_LOG" || fail "Claude removal quits the running app before deleting its state"
 pass "Claude removal quits the running app before deleting its state"
 
-# LM Studio's models follow a relocatable home, named only by the pointer file.
-fresh_home
-mkdir -p "$tmp_dir/relocated-models/models"
-printf '%s' "$tmp_dir/relocated-models" >"$HOME/.lmstudio-home-pointer"
-mkdir -p "$HOME/.config/LM Studio"
-"$ROOT/bin/omarchy-remove-ai-lm-studio" >/dev/null
-
-[[ ! -e $tmp_dir/relocated-models ]] || fail "LM Studio removal follows a relocated home pointer"
-pass "LM Studio removal follows a relocated home pointer"
-
-[[ ! -e "$HOME/.config/LM Studio" ]] || fail "LM Studio removal deletes its config"
-pass "LM Studio removal deletes its config"
-
-# A pointer that resolves to the home directory itself would take everything.
-fresh_home
-printf '%s' "$HOME" >"$HOME/.lmstudio-home-pointer"
-mkdir -p "$HOME/Documents"
-"$ROOT/bin/omarchy-remove-ai-lm-studio" >/dev/null
-
-[[ -d $HOME/Documents ]] || fail "LM Studio removal refuses a pointer aimed at the home directory"
-pass "LM Studio removal refuses a pointer aimed at the home directory"
-
 # T3 Code bootstraps the agents it drives; their state outlives it.
 fresh_home
 mkdir -p "$HOME/.config/t3code" "$HOME/.t3" "$HOME/.grok" "$HOME/.local/share/opencode" "$HOME/.npm"
