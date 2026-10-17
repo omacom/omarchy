@@ -71,6 +71,8 @@ Run `omarchy setup keyboard` or `omarchy setup input` to open the same pickers. 
 
 Use `Super + I` to cycle through input methods or keyboard layouts, and `Super + Shift + I` to go back the other way, so with three configured you can move between two neighbours. The input indicator appears on the right of the bar only when more than one input method or layout is configured. This desktop binding works alongside your existing Fcitx switching keys; you can override it in `~/.config/hypr/bindings.lua`. Input engines and the compose sequences use the [Fcitx5](https://fcitx-im.org/) service already running in every session.
 
+When the default fcitx5 group contains only Omarchy's keyboard engines, Omarchy keeps its active engine aligned with the layout selected by Hyprland. This makes `kb_layout = "us,dk"` and XKB group-switching shortcuts work in applications that receive their input through fcitx5 as well as native Wayland applications. Once you customize the fcitx5 group, Omarchy leaves its contents alone; add a keyboard engine matching each Hyprland layout in `fcitx5-configtool` if you want Hyprland to keep switching those engines.
+
 ### Use ALT as SUPER
 
 On some keyboards, it's not convenient to use the primary meta key (Windows/cmd key) as SUPER. You can change this to be ALT instead using this change:
