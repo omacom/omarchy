@@ -99,6 +99,12 @@ if sudo fprintd-enroll "$USER"; then
   else
     echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
   fi
+elif fprintd-list "$USER" 2>/dev/null | grep -qx "No devices available"; then
+  # Detected but not driven: fprintd lists no device, almost always because
+  # libfprint has no driver for this reader, and retrying cannot change that.
+  echo -e "\e[31m\nYour fingerprint reader was detected, but fprintd has no usable device. libfprint most likely has no driver for this reader.\e[0m"
+  echo "Look for its USB ID (shown by lsusb) at https://fprint.freedesktop.org/supported-devices.html"
+  exit 1
 else
   echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
   exit 1

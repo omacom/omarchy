@@ -53,6 +53,14 @@ cat > "$scratch/bin/fprintd-enroll" <<'STUB'
 echo enroll >> "$CALL_LOG"
 exit "${ENROLL_STATUS:-1}"
 STUB
+cat > "$scratch/bin/fprintd-list" <<'STUB'
+#!/bin/bash
+if [[ ${NO_DRIVER:-0} == "1" ]]; then
+  echo "No devices available"
+  exit 1
+fi
+echo "found 1 devices"
+STUB
 cat > "$scratch/bin/fprintd-verify" <<'STUB'
 #!/bin/bash
 echo verify >> "$CALL_LOG"
@@ -110,6 +118,17 @@ if grep -qx enroll "$CALL_LOG"; then
   fail "a failed package transaction prevents enrollment"
 fi
 pass "a failed installation stops before enrollment"
+
+INSTALLED=$'libfprint-git\nfprintd\nusbutils' run_setup
+grep -q 'Please try again' "$scratch/output" || fail "a failed scan on a driven reader asks for a retry"
+pass "a failed scan on a driven reader asks for a retry"
+
+INSTALLED=$'libfprint-git\nfprintd\nusbutils' NO_DRIVER=1 run_setup
+grep -q 'libfprint most likely has no driver for this reader' "$scratch/output" || fail "a reader with no driver is named as unsupported"
+if grep -q 'Please try again' "$scratch/output"; then
+  fail "a reader with no driver is not sent round to retry"
+fi
+pass "a reader libfprint cannot drive is named as unsupported"
 
 HARDWARE_STATUS=1 run_setup
 [[ ! -s $CALL_LOG ]] || fail "missing hardware stops before package operations"
