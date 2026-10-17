@@ -180,16 +180,24 @@ function shouldRenderCompactGlyph(glyph, iconSource, singleLineToast) {
   return String(glyph || "").length > 0 && String(iconSource || "").length === 0 && !!singleLineToast
 }
 
+function iconFromHints(hints) {
+  // Ghostty (and other terminals) leave app_icon empty and identify via the
+  // desktop-entry hint; image-path may carry the same desktop id as a string.
+  return stringHint(hints, "desktop-entry") || stringHint(hints, "image-path")
+}
+
 function snapshotOf(notification, timestamp) {
   var n = notification || {}
   var id = n.id || 0
   var expireTimeout = Number(n.expireTimeout || 0)
   if (!isFinite(expireTimeout) || expireTimeout < 0) expireTimeout = 0
+  var appIcon = n.appIcon || ""
+  if (!appIcon) appIcon = iconFromHints(n.hints)
   return {
     id: id,
     originalId: id,
     app: n.appName || "",
-    appIcon: n.appIcon || "",
+    appIcon: appIcon,
     summary: String(n.summary || ""),
     body: n.body || "",
     image: n.image || "",
