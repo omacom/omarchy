@@ -25,6 +25,11 @@ case "$command" in
     ;;
 esac
 
+if [[ $bin == */* || $bin == "." || $bin == ".." ]]; then
+  echo "omarchy-mise-install: bin-name must be a basename" >&2
+  exit 1
+fi
+
 mkdir -p "$HOME/.local/bin"
 
 # The heredoc below is unquoted, so whatever these hold is written into the
@@ -53,7 +58,21 @@ cat >"$HOME/.local/bin/$command" <<EOF
 #!/bin/bash
 export MISE_MINIMUM_RELEASE_AGE=0
 mise use -g --quiet $package_arg || exit 1
-exec mise x $package_arg -- $bin_arg "\$@"
+bin_path=
+bin_paths=\$(mise bin-paths $package_arg) || exit 1
+while IFS= read -r bin_dir; do
+  [[ -n \$bin_dir ]] || continue
+  candidate="\$bin_dir"/$bin_arg
+  if [[ -f \$candidate && -x \$candidate ]]; then
+    bin_path=\$candidate
+    break
+  fi
+done <<<"\$bin_paths"
+if [[ -z \$bin_path ]]; then
+  printf "%s: mise package '%s' provides no executable '%s'\n" "\${0##*/}" $package_arg $bin_arg >&2
+  exit 1
+fi
+exec mise x $package_arg -- "\$bin_path" "\$@"
 EOF
 
 chmod +x "$HOME/.local/bin/$command"
