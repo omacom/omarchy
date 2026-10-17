@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import QtQuick
 import qs.Commons
 import qs.Commons as Commons
@@ -20,6 +21,13 @@ Item {
   property bool cursorActive: false
   property var emojis: []
   property var filteredEmojis: []
+
+  // Address of the window that was focused when the picker opened, so the
+  // emoji is typed back into it rather than whatever follow_mouse focuses
+  // once the picker closes. Empty when no window was focused (e.g. an empty
+  // workspace) - never a previously focused window, which may sit on another
+  // workspace and would pull focus there.
+  property string targetWindow: ""
 
   // Shares the [menu] surface tokens — themes that style the menu also
   // style emojis. Selected-cell colors composed in the
@@ -44,6 +52,12 @@ Item {
   property int columns: Math.floor((cardWidth - contentMargin * 2) / cellWidth)
 
   function open(payloadJson) {
+    // Quickshell keeps the last activeToplevel when Hyprland reports no
+    // focused window (an empty workspace), so only trust it when it sits on
+    // the focused workspace.
+    var active = Hyprland.activeToplevel
+    var onFocusedWorkspace = active && active.workspace && active.workspace === Hyprland.focusedWorkspace
+    root.targetWindow = (onFocusedWorkspace && active.address) ? active.address : ""
     root.opened = true
     root.filterText = ""
     root.selectedIndex = 0
@@ -149,7 +163,9 @@ Item {
   function applySelected(emoji) {
     if (!emoji) return
     root.dismiss()
-    Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-menu-emoji-insert", emoji])
+    var args = [root.omarchyPath + "/bin/omarchy-menu-emoji-insert", emoji]
+    if (root.targetWindow) args.push(root.targetWindow)
+    Quickshell.execDetached(args)
   }
 
   ListModel { id: displayModel }
