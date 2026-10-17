@@ -59,8 +59,14 @@ claim_path() {
 announce() {
   local path="$1"
   local name="${path##*/}"
+  local display_dir="$dir"
+
+  if [[ $dir == "$HOME" || $dir == "$HOME/"* ]]; then
+    display_dir="~${dir#"$HOME"}"
+  fi
+
   # Untrusted received files should not be decoded automatically for a preview.
-  local args=("$(omarchy-i18n tailscale.received "$name")" "$(omarchy-i18n tailscale.savedTo "${dir/#$HOME/~}")" -u critical -g 󰒊)
+  local args=("$(omarchy-i18n tailscale.received "$name")" "$(omarchy-i18n tailscale.savedTo "$display_dir")" -u critical -g 󰒊)
 
   # Announcing is best-effort: the file is already delivered, and under `set -e`
   # a notification outage would otherwise kill the long-running receiver.
