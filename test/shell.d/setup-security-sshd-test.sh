@@ -31,9 +31,11 @@ case $1 in
 -T)
   # OpenSSH 10.x dumps keywords in CamelCase; 9.x dumped them lowercase.
   if [[ ${SSHD_DUMP_LOWERCASE:-0} == 1 ]]; then
+    printf 'permitrootlogin %s\n' "${SSHD_ROOT_LOGIN:-no}"
     printf 'passwordauthentication %s\n' "${SSHD_PASSWORD_AUTH:-no}"
     printf 'kbdinteractiveauthentication %s\n' "${SSHD_KBD_AUTH:-no}"
   else
+    printf 'PermitRootLogin %s\n' "${SSHD_ROOT_LOGIN:-no}"
     printf 'PasswordAuthentication %s\n' "${SSHD_PASSWORD_AUTH:-no}"
     printf 'KbdInteractiveAuthentication %s\n' "${SSHD_KBD_AUTH:-no}"
   fi
@@ -74,6 +76,7 @@ run_setup() {
 
   HOME="$home" TEST_ROOT="$root" CALL_LOG="$test_dir/$scenario.calls" \
     SSHD_SYNTAX_VALID="${SSHD_SYNTAX_VALID:-1}" \
+    SSHD_ROOT_LOGIN="${SSHD_ROOT_LOGIN:-no}" \
     SSHD_PASSWORD_AUTH="${SSHD_PASSWORD_AUTH:-no}" \
     SSHD_KBD_AUTH="${SSHD_KBD_AUTH:-no}" \
     PATH="$stub_bin:$PATH" \
@@ -82,6 +85,7 @@ run_setup() {
 
 output=$(run_setup success)
 config="$test_dir/success/root/etc/ssh/sshd_config.d/10-omarchy-hardening.conf"
+grep -qxF "PermitRootLogin no" "$config" || fail "SSH setup disables root login"
 grep -qxF "PasswordAuthentication no" "$config" || fail "SSH setup disables password authentication"
 grep -qxF "KbdInteractiveAuthentication no" "$config" || fail "SSH setup disables keyboard-interactive authentication"
 grep -qxF "systemctl reload sshd.service" "$test_dir/success.calls" || fail "SSH setup reloads the validated config"
@@ -115,3 +119,13 @@ fi
 ! grep -q "Password logins are off" "$test_dir/invalid.output" ||
   fail "SSH setup must not claim rejected hardening succeeded"
 pass "SSH setup fails safely when sshd rejects the config"
+
+if SSHD_ROOT_LOGIN=prohibit-password run_setup root-override >"$test_dir/root-override.output" 2>&1; then
+  fail "SSH setup must reject an earlier rule allowing root login"
+fi
+[[ ! -e $test_dir/root-override/root/etc/ssh/sshd_config.d/10-omarchy-hardening.conf ]] ||
+  fail "SSH setup removes ineffective root login restrictions"
+if grep -qF 'systemctl reload sshd.service' "$test_dir/root-override.calls"; then
+  fail "SSH setup must not reload ineffective root login restrictions"
+fi
+pass "SSH setup checks effective root login restrictions"

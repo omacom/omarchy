@@ -40,6 +40,8 @@ while (( $# > 0 )); do
     echo "Sets up the OpenSSH server, opens the SSH port in the UFW firewall,"
     echo "and authorizes an SSH key (from GitHub, pasted, or passed via --key)."
     echo
+    echo "After a key is authorized, password and root logins are disabled."
+    echo
     echo "Passing --key or --gh-keys skips the prompts, so the command can run"
     echo "unattended from a script or a fresh machine's first login."
     exit 0
@@ -158,6 +160,7 @@ disable_password_auth() {
   sudo install -Dm644 /dev/stdin "$config" <<'CONF'
 # Written by omarchy-setup-security-sshd once an SSH key was authorized.
 # Delete this file and reload sshd to allow password logins again.
+PermitRootLogin no
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 CONF
@@ -175,9 +178,10 @@ CONF
   # Match keywords case-insensitively: OpenSSH 9.x dumps them lowercase, 10.x
   # in CamelCase.
   if ! effective_config=$(sudo sshd -T) ||
+    ! grep -qixF "permitrootlogin no" <<<"$effective_config" ||
     ! grep -qixF "passwordauthentication no" <<<"$effective_config" ||
     ! grep -qixF "kbdinteractiveauthentication no" <<<"$effective_config"; then
-    echo -e "\e[31msshd did not apply the password-authentication restrictions; removing the ineffective config.\e[0m" >&2
+    echo -e "\e[31msshd did not apply the authentication restrictions; removing the ineffective config.\e[0m" >&2
     sudo rm -f "$config"
     return 1
   fi
@@ -210,5 +214,5 @@ fi
 disable_password_auth
 
 echo -e "\e[32m\nPerfect! The SSH server is running and your key is authorized.\e[0m"
-echo "Password logins are off; this machine now accepts authorized keys only."
+echo "Password logins are off; root logins are disabled. This machine accepts authorized keys for ordinary users only."
 echo "You can now connect with: ssh $USER@$(hostname)"
