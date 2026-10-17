@@ -42,7 +42,7 @@ dashboard_url() {
   # browserUrl carries a single-use browser handoff; url is the shared-auth
   # fallback for gateways predating the handoff flow. The timeout keeps a
   # wedged CLI from hanging an app-grid launch that has no terminal to ^C.
-  timeout 10 openclaw dashboard --json 2>/dev/null | jq -re '.browserUrl // .url // empty'
+  timeout 10 openclaw dashboard --json </dev/null 2>/dev/null | jq -re '.browserUrl // .url // empty'
 }
 
 # --json never starts the gateway, so an empty answer means it is not running.
@@ -55,10 +55,12 @@ dashboard_url() {
 # would otherwise be "started" once and stay off at every following login,
 # where --force rewrites and enables it.
 if ! url=$(dashboard_url); then
+  # timeout runs OpenClaw outside the terminal's foreground group, where reading the
+  # agent's terminal or setting its modes stops the process; nothing here prompts.
   if systemctl --user is-enabled --quiet openclaw-gateway.service 2>/dev/null; then
-    timeout 60 openclaw gateway start >&2 || true
+    timeout 60 openclaw gateway start </dev/null >&2 || true
   else
-    timeout 120 openclaw gateway install --force >&2 || true
+    timeout 120 openclaw gateway install --force </dev/null >&2 || true
   fi
 
   # A first-ever service install (unit write, daemon-reload, first boot)
