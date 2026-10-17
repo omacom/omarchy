@@ -69,6 +69,17 @@ QtObject {
     Quickshell.execDetached(["bash", "-lc", command])
   }
 
+  // Run a program directly, with no shell in between. execDetached and execArgv
+  // both go through `bash -lc`, a login shell that sources /etc/profile and every
+  // script in /etc/profile.d before the program starts. That buys the session env
+  // a GUI target needs, and it is pure overhead for a tool like hyprctl that needs
+  // nothing from the profile and is already on PATH. Arguments stay literal,
+  // including user-provided values. Commands that need the login environment
+  // use execArgv instead.
+  function execProgram(argv) {
+    Quickshell.execDetached(argv)
+  }
+
   // Run an argv vector without a shell interpreting it: the constant `exec "$@"`
   // means the args only ever land in positional parameters, which bash expands
   // without re-tokenizing — so untrusted data ($(id), a filename) stays literal.

@@ -337,6 +337,7 @@ Item {
           ? root.moduleWidgets(moduleName) : []
       },
       _run: function(command) { root.run(command) },
+      _runProgram: function(argv) { root.runProgram(argv) },
       _setCenterHoverRevealSuppressed: function(value) {
         root.centerHoverRevealSuppressed = !!value
       }
@@ -979,6 +980,14 @@ Item {
     if (!command) return
 
     Util.execDetached(command)
+  }
+
+  // Same as run, for a fixed argv naming a system tool that needs nothing from
+  // the login shell. Skips the profile sourcing run pays for on every call.
+  function runProgram(argv) {
+    if (!argv || !argv.length) return
+
+    Util.execProgram(argv)
   }
 
   // Steps the bar background from clear to glassy to opaque and around. Through
