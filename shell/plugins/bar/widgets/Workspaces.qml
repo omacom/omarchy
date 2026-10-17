@@ -34,7 +34,7 @@ BarWidget {
 
   function focusWorkspace(id) {
     if (!root.bar) return
-    root.bar.run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ workspace = \"" + id + "\" })"))
+    Hyprland.dispatch("hl.dsp.focus({ workspace = \"" + id + "\" })")
   }
 
   // A wheel notch moves one entry along the row, and a touchpad adds up its
