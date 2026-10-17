@@ -131,6 +131,9 @@ printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-lifecycle-dispatch"
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
+# omarchy-cmd-default-browser reads mimeapps.list under XDG_CONFIG_HOME before
+# falling back to the mocked xdg-settings. Keep it out of the session's real config.
+export XDG_CONFIG_HOME="$test_home/.config"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_INSTALLED_DIR="$installed_dir"
