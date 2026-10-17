@@ -12,6 +12,8 @@ for command in omarchy-pkg-add omarchy-hook-install omarchy-input-method systemc
 printf '%s %s\n' "${0##*/}" "$*" >>"$TEST_CALLS"
 case "$*" in
   'configure --defaults') [[ ${TEST_INPUT_FAIL:-0} == 0 ]] ;;
+  '--user enable --no-block --now bt-agent.service') exit 0 ;;
+  *'bt-agent.service') exit 1 ;;
   '--user enable owed.service') [[ ${TEST_TTY:-0} == 0 ]] ;;
   '--user is-active --quiet graphical-session.target') [[ ${TEST_TTY:-0} == 0 ]] ;;
   '--user start owed.service') [[ ${TEST_START_FAIL:-0} == 0 ]] ;;

@@ -18,8 +18,10 @@ systemctl --user daemon-reload
 # One at a time: given a list, systemctl enables none of it when it cannot find
 # one unit, and that should not cost the session its bluetooth agent as well.
 failed=0
+# Bluetooth can take 30 seconds to become available. Queue its start so a
+# first-run login does not wait for that startup race.
+systemctl --user enable --no-block --now bt-agent.service || failed=1
 for unit in \
-  bt-agent.service \
   owed.service \
   omarchy-recover-internal-monitor.service \
   omarchy-sleep-lock.service \
