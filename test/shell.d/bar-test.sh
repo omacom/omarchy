@@ -53,6 +53,23 @@ if ! rg -q 'sourceComponent: root\.vertical \? verticalIndicatorsTree : horizont
 fi
 pass "indicators instantiate only the tree for the current bar orientation"
 
+# A bar being moved fills its output so the gesture area that took the press
+# keeps the pointer. Every edge has to take the expand, inside the anchors block.
+for edge in top bottom left right; do
+  if ! EDGE=$edge perl -0ne 'exit(/component BarPanel\b[\s\S]*?\n    anchors \{([^}]*)\}/ && $1 =~ /^\s*$ENV{EDGE}:\s*barWindow\.moveExpanded \|\|/m ? 0 : 1)' \
+    "$ROOT/shell/plugins/bar/Bar.qml"; then
+    fail "bar move expand must pin the $edge PanelWindow anchor"
+  fi
+done
+pass "bar move expand pins all four PanelWindow anchors"
+
+# Expanded, a bottom or right bar keeps its strip on its own edge.
+if ! rg -qF 'y: (barWindow.moveExpanded && root.position === "bottom") ? (parent.height - height) : 0' "$ROOT/shell/plugins/bar/Bar.qml" ||
+  ! rg -qF 'x: (barWindow.moveExpanded && root.position === "right") ? (parent.width - width) : 0' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "expanded bar must keep a bottom or right strip on its own edge"
+fi
+pass "expanded bar keeps a bottom or right strip on its own edge"
+
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
@@ -76,7 +93,7 @@ assert(
   'bar stays mapped while hidden so revealing it does not rebuild the surface'
 )
 assert(
-  /exclusionMode: root\.barHidden \? ExclusionMode\.Ignore : ExclusionMode\.Auto/.test(barSource),
+  /exclusionMode: \(root\.barHidden \|\| barWindow\.moveExpanded\) \? ExclusionMode\.Ignore : ExclusionMode\.Auto/.test(barSource),
   'a hidden bar reserves no space for itself'
 )
 for (const edge of ['top', 'bottom', 'left', 'right']) {
@@ -158,7 +175,7 @@ for (const [name, body] of [['slot', moduleSlot], ['spacer', dragSpacer]]) {
 // Unplugging a monitor tears its bar down mid-hover with no leave event, which
 // would leave that surface counted forever and the peek stuck open.
 assert(
-  /Component\.onDestruction: if \(hovered\) root\.setBarHovered\(false\)/.test(barLoaderBody),
+  /Component\.onDestruction: if \(counted\) root\.setBarHovered\(false\)/.test(barLoaderBody),
   'a bar torn down while hovered gives its hover back'
 )
 
@@ -462,6 +479,17 @@ assert(
   /height: root\.vertical \? slot\.panelIndicatorExtent : Style\.space\(2\)/.test(indicator),
   'bar sizes the open-panel mark from the same content hint on both axes'
 )
+
+// A move that ends off the strip settles the bar's hover; one released on it
+// keeps the indicator peek.
+const strip = (x, y, position) => bar.pointInBarStrip({ x, y }, position, 1920, 1080, 26)
+for (const [x, y, position, on] of [
+  [900, 10, 'top', true], [900, 400, 'top', false],
+  [900, 1070, 'bottom', true], [900, 1000, 'bottom', false],
+  [10, 500, 'left', true], [300, 500, 'left', false],
+  [1910, 500, 'right', true], [1500, 500, 'right', false],
+]) assertEqual(strip(x, y, position), on, `(${x},${y}) is ${on ? 'on' : 'off'} a ${position} strip`)
+assertEqual(bar.pointInBarStrip(null, 'top', 1920, 1080, 26), false, 'a move with no pointer is off the strip')
 
 assertEqual(bar.normalizePosition('left'), 'left', 'bar accepts valid positions')
 assertEqual(bar.normalizePosition('sideways'), 'top', 'bar defaults invalid positions')

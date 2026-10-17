@@ -612,6 +612,13 @@ assert(
     /NotificationLogic\.popupPlacement\(\s*service\.barPosition, service\.barClearanceFor\(modelData \? modelData\.name : ""\), Style\.gapsOut\)/.test(serviceQml),
   'each screen\'s toasts clear the bar as thick as it is on that screen'
 )
+// Toasts on Overlay would take the pointer from a bar being moved and end the
+// drag where the cards start, so their input region empties for the move.
+assert(
+  /readonly property bool barMoveActive: !!\(shell && shell\.bar && shell\.bar\.barMoveActive\)/.test(serviceQml) &&
+    /mask: Region \{ item: service\.barMoveActive \? null : popupColumn \}/.test(serviceQml),
+  'toast cards take no input while the bar is being moved'
+)
 assert(
   /readonly property int historyLimit: 10/.test(serviceQml),
   'notifications service keeps the last ten notifications in history'

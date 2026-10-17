@@ -52,6 +52,11 @@ Item {
   readonly property bool barVertical: barPosition === "left" || barPosition === "right"
   readonly property int defaultBarSize: barVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
 
+  // A bar being dragged to another edge expands to fill its output on the Top
+  // layer. Toasts sit above it on Overlay, so their input region would take the
+  // pointer from the bar mid-drag and end the move where the cards start.
+  readonly property bool barMoveActive: !!(shell && shell.bar && shell.bar.barMoveActive)
+
   function barClearanceFor(screenName) {
     return NotificationLogic.barClearance(shell ? shell.bar : null, screenName, defaultBarSize, Style.gapsOut)
   }
@@ -1023,8 +1028,9 @@ Item {
       anchors { top: true; bottom: true; left: true; right: true }
 
       // Keep the surface click-through except over the toast column, so the
-      // rest of the (invisible) full-screen overlay never eats input.
-      mask: Region { item: popupColumn }
+      // rest of the (invisible) full-screen overlay never eats input. While the
+      // bar is moving, the cards stay visible but take no input at all.
+      mask: Region { item: service.barMoveActive ? null : popupColumn }
 
       ColumnLayout {
         id: popupColumn

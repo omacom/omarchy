@@ -131,6 +131,18 @@ function pickPanelSlot(candidates, focusedScreen) {
   return pickDrawnSlot(pool.map(function(row) { return row.slot }))
 }
 
+// Whether a screen-local point lies on the bar strip along `position`. A move
+// that ends off the strip shrinks the panel back out from under the pointer,
+// which may never get a hover leave, so only then does the bar settle its hover.
+function pointInBarStrip(point, position, width, height, thickness) {
+  if (!point) return false
+  var size = Number(thickness) || 0
+  if (position === "bottom") return point.y >= (Number(height) || 0) - size
+  if (position === "left") return point.x < size
+  if (position === "right") return point.x >= (Number(width) || 0) - size
+  return point.y < size
+}
+
 // Resolve a pointer anywhere along the bar to the closest insertion edge.
 // Requiring the pointer to sit inside another widget makes the empty space
 // around a centered group a dead zone, even though it visually reads as the
@@ -626,6 +638,7 @@ if (typeof module !== "undefined") {
     parseCutouts: parseCutouts,
     pickDrawnSlot: pickDrawnSlot,
     pickPanelSlot: pickPanelSlot,
+    pointInBarStrip: pointInBarStrip,
     nearestDropTarget: nearestDropTarget,
     centerDropTarget: centerDropTarget,
     centerDropZone: centerDropZone,
