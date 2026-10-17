@@ -9,10 +9,28 @@ if [[ ${OMARCHY_SUDO_NO_UPDATE:-0} == "1" ]]; then
   sudo_options=(--sudo "$sudo_wrapper" --sudoloop=false)
 fi
 
+# Go leaves module-cache trees read-only (dr-xr-xr-x). PKGBUILDs that set
+# GOMODCACHE under $srcdir then fail on the next rebuild when makepkg cannot
+# remove the previous $srcdir. Make those trees writable so --cleanafter and
+# the next build can delete them (#13334).
+writable_yay_go_mod_caches() {
+  local yay_cache="${XDG_CACHE_HOME:-$HOME/.cache}/yay"
+  [[ -d $yay_cache ]] || return 0
+  local go_mod
+  while IFS= read -r -d '' go_mod; do
+    chmod -R u+w -- "$go_mod" 2>/dev/null || true
+  done < <(find "$yay_cache" -type d -path '*/src/go-mod' -print0 2>/dev/null)
+}
+
 if pacman -Qem >/dev/null; then
   if omarchy-pkg-aur-accessible; then
     echo -e "\e[32m\nUpdate AUR packages\e[0m"
-    yay "${sudo_options[@]}" -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs || exit 1
+    writable_yay_go_mod_caches
+    if ! yay "${sudo_options[@]}" -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs; then
+      # System packages and migrations already finished. One user AUR package
+      # that fails to rebuild must not paint the whole update as a failure.
+      echo -e "\e[33mAUR package update failed; system packages were updated. Fix the failing AUR package and rerun, or update it with yay directly.\e[0m" >&2
+    fi
     echo
   else
     echo -e "\e[31m\nAUR is unavailable (so skipping updates)\e[0m"
