@@ -21,8 +21,7 @@ BarWidget {
   property string typedKeyboardName: ""
   // Whether the last reading left the seat's shape in doubt.
   property bool keyboardUnresolved: false
-  // Nothing to read or switch on the single-layout install most people run, so
-  // the widget ships on the bar and stays out of the way until there are two.
+  // One layout still has a picker: it is the entry point for adding another.
   // An older Hyprland that doesn't report the list keeps showing the label.
   property bool multipleLayouts: true
   // Where the reading sits in the layout list, how long that list is, and every
@@ -33,11 +32,10 @@ BarWidget {
   // Short language code per layout description ("English (US)": "en"), read from
   // xkb's own table rather than maintained by hand.
   property var layoutBriefs: ({})
-  // The table is only needed once the widget shows a label, which a seat with
-  // one layout and one input method never does, so it's read on first need.
+  // Read the table once the first keyboard reading makes the label available.
   property bool layoutsRead: false
   property bool briefsRequested: false
-  readonly property bool needsBriefs: layoutsRead && (multipleLayouts || multipleInputs)
+  readonly property bool needsBriefs: layoutsRead
   onNeedsBriefsChanged: loadBriefs()
 
   function loadBriefs() {
@@ -264,7 +262,9 @@ BarWidget {
     horizontalMargin: 6
     tooltipText: KeyboardLayoutModel.inputTooltip(root.inputState, root.layoutFull, root.multipleLayouts)
     onPressed: function(button) {
-      if (root.multipleInputs && button === Qt.LeftButton) {
+      if (button === Qt.RightButton || (button === Qt.LeftButton && !root.multipleInputs && !root.multipleLayouts)) {
+        InputMethodState.choose()
+      } else if (root.multipleInputs && button === Qt.LeftButton) {
         InputMethodState.cycle()
       } else if (root.multipleLayouts) {
         root.cycleLayout()

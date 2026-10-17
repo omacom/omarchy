@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 import configure as setup
+import xkb_catalog
 
 
 def keyboard_catalog():
@@ -33,7 +34,7 @@ def keyboard_catalog():
     layout = input_settings[1] if len(input_settings) > 1 else mappings.get(keymap, keymap)
     # Composition engines belong in Input Methods, not as duplicate US layouts.
     catalog.setdefault(layout, label)
-  return catalog
+  return {**xkb_catalog.catalog(), **catalog}
 
 
 def keyboard_selection():
@@ -43,18 +44,18 @@ def keyboard_selection():
           for index, layout in enumerate(layouts)]
 
 
-def picker_rows(catalog, selected):
+def picker_rows(catalog, selected, identifiers=False):
   # Current entries stay first, in switching order, followed by the catalog.
   keys = list(dict.fromkeys(selected + sorted(catalog, key=lambda key: catalog[key])))
   labels = {key: catalog.get(key, key) for key in keys}
   counts = Counter(labels.values())
-  rows = {key: "\t" + labels[key] + (f" ({key})" if counts[labels[key]] > 1 else "") for key in keys}
+  rows = {key: "\t" + labels[key] + ("\t" + key if identifiers else f" ({key})" if counts[labels[key]] > 1 else "") for key in keys}
   return rows
 
 
 def choose(title, catalog, selected, kind, overrides=None):
   catalog = {**catalog, **{key: catalog.get(key, key) for key in selected}}
-  rows = picker_rows(catalog, selected)
+  rows = picker_rows(catalog, selected, kind == "keyboard")
   args = ["omarchy-menu-select", title] + list(rows.values())
   on_change = ["/usr/bin/python3", str(setup.ROOT / "default/input-methods/typing_setup.py"), "apply", kind, json.dumps({"catalog": catalog, "overrides": overrides or {}})]
   args += ["--", "--multiple", "--width", "620", "--maxheight", "650", "--on-change", json.dumps(on_change), "--change-key", "typing:" + kind]
@@ -162,20 +163,16 @@ def seed_language(method):
 
 
 def keyboard_values(selected):
-  if not selected:
-    raise ValueError("Select at least one keyboard layout")
-  parts = [value.split(":", 1) for value in selected]
-  # Preserve the installer's Latin-leading rule for desktop keybindings.
-  if parts[0][0] in setup.NON_LATIN:
-    parts = [["us"]] + [part for part in parts if part != ["us"]]
-  layouts = ",".join(part[0] for part in parts)
-  variants = ",".join(part[1] if len(part) > 1 else "" for part in parts)
-  return layouts, variants
+  return xkb_catalog.keyboard_values(selected, setup.NON_LATIN)
 
 
 def save_keyboard(selected):
   layouts, variants = keyboard_values(selected)
   config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
+  state_home = Path(os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local/state"))
+  plugin_loader = state_home / "omarchy/toggles/hypr/madmatt-keyboard-settings.lua"
+  if plugin_loader.exists() or plugin_loader.is_symlink():
+    raise RuntimeError("Remove the community Keyboard Layouts plugin using its cleanup command before editing shared layouts")
   path = config_home / "omarchy/keyboard-layouts"
   original = setup.read(path) if path.exists() else None
   group, old_layout, before = setup.live_group()
@@ -228,7 +225,7 @@ def configure_keyboard():
 
 def apply_selection(kind, context, values):
   catalog = context["catalog"]
-  rows = picker_rows(catalog, [])
+  rows = picker_rows(catalog, [], kind == "keyboard")
   valid = {row[1:]: key for key, row in rows.items()}
   if not isinstance(values, list) or any(not isinstance(value, str) or value not in valid for value in values):
     raise ValueError("The menu returned an invalid selection")

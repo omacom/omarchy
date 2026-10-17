@@ -19,9 +19,9 @@ assertEqual(model.inputTooltip(japanese, 'English (US)', true), 'Mozc · Super +
 assertEqual(model.inputTooltip({ ...japanese, current: 'keyboard-us', name: 'Keyboard - English (US)' }, 'English (US)', false), 'English (US) · Super + I', 'Latin input omits the redundant keyboard prefix')
 assertEqual(model.inputTooltip({ ...japanese, current: 'keyboard-us', name: 'Keyboard - English (US)' }, 'Danish', true), 'Danish · Super + I', 'direct input tooltip follows the active compositor layout')
 assertEqual(model.inputTooltip({ methods: ['keyboard-fr'] }, 'French', false), 'French', 'a single layout tooltip stays compact')
-assertEqual(model.showIndicator('EN', false, false), false, 'English alone stays hidden')
-assertEqual(model.showIndicator('ENG', false, false), false, 'English before the brief table loads stays hidden')
-assertEqual(model.showIndicator('FR', false, false), false, 'French alone stays hidden')
+assertEqual(model.showIndicator('EN', false, false), true, 'English alone keeps the picker available')
+assertEqual(model.showIndicator('ENG', false, false), true, 'the picker is available before the brief table loads')
+assertEqual(model.showIndicator('FR', false, false), true, 'French alone keeps the picker available')
 assertEqual(model.showIndicator('EN', false, true), true, 'Latin with another input mode stays available')
 assertEqual(model.showIndicator('EN', true, false), true, 'multiple keyboard layouts stay available')
 assertEqual(model.showIndicator('FR', true, false), true, 'French and English layouts stay available')
@@ -160,7 +160,7 @@ assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names 
   const proc = { running: false }
   const state = { needsBriefs: false, briefsRequested: false }
   load(state, proc)
-  assert(!proc.running, 'a seat with one layout and one input method never reads the table')
+  assert(!proc.running, 'the table is not read before the first keyboard reading')
   state.needsBriefs = true
   load(state, proc)
   assert(proc.running, 'the table is read once a label needs it')
@@ -182,10 +182,24 @@ assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names 
     return w
   }
   const single = widgetState('us')
-  assert(single.layoutsRead && !needs(single.layoutsRead, single.multipleLayouts, false), 'a first reading of one layout needs no table')
+  assert(single.layoutsRead && needs(single.layoutsRead, single.multipleLayouts, false), 'the visible single-layout label loads its language brief')
   assert(needs(single.layoutsRead, single.multipleLayouts, true), 'several input methods on one layout need the table')
   const several = widgetState('us,dk')
   assert(needs(several.layoutsRead, several.multipleLayouts, false), 'a first reading of several layouts needs the table')
   assert(!needs(false, true, true), 'nothing is needed before the first reading')
+
+  const pressed = new Function('root', 'Qt', 'InputMethodState', 'button',
+    widget.match(/onPressed: function\(button\) \{([\s\S]*?)\n    \}/)[1])
+  const clicks = []
+  const input = { choose: () => clicks.push('choose'), cycle: () => clicks.push('cycle') }
+  const target = { multipleInputs: false, multipleLayouts: false, cycleLayout: () => clicks.push('layout') }
+  const buttons = { LeftButton: 1, RightButton: 2 }
+  pressed(target, buttons, input, 1)
+  target.multipleLayouts = true
+  pressed(target, buttons, input, 1)
+  target.multipleInputs = true
+  pressed(target, buttons, input, 1)
+  pressed(target, buttons, input, 2)
+  assertDeepEqual(clicks, ['choose', 'layout', 'cycle', 'choose'], 'a single layout and right-click open the picker while left-click keeps upstream cycling')
 }
 JS

@@ -16,6 +16,25 @@ spec.loader.exec_module(typing)
 
 
 class TypingSetupTest(unittest.TestCase):
+  def setUp(self):
+    self.state = tempfile.TemporaryDirectory()
+    self.addCleanup(self.state.cleanup)
+    environment = patch.dict(os.environ, {"XDG_STATE_HOME": self.state.name})
+    environment.start()
+    self.addCleanup(environment.stop)
+
+  def test_community_plugin_ownership_blocks_shared_edits_before_mutation(self):
+    loader = Path(self.state.name) / "omarchy/toggles/hypr/madmatt-keyboard-settings.lua"
+    loader.parent.mkdir(parents=True)
+    loader.write_text("-- fixture community plugin loader\n")
+    with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, XDG_CONFIG_HOME=temporary), patch.object(
+        typing.setup, "live_group") as group, patch.object(typing.setup, "run") as run:
+      with self.assertRaisesRegex(RuntimeError, "community Keyboard Layouts"):
+        typing.save_keyboard(["us", "fr"])
+      group.assert_not_called()
+      run.assert_not_called()
+      self.assertFalse((Path(temporary) / "omarchy/keyboard-layouts").exists())
+
   def test_variants_and_installer_binding_safety(self):
     self.assertEqual(typing.keyboard_values(["us:intl", "fr"]), ("us,fr", "intl,"))
     self.assertEqual(typing.keyboard_values(["ru:phonetic"]), ("us,ru", ",phonetic"))
@@ -23,7 +42,7 @@ class TypingSetupTest(unittest.TestCase):
     with self.assertRaises(ValueError):
       typing.keyboard_values([])
 
-  def test_keyboard_catalog_uses_installer_choices(self):
+  def test_keyboard_catalog_extends_installer_choices(self):
     catalog = typing.keyboard_catalog()
     self.assertEqual(catalog["us"], "English (US)")
     self.assertEqual(catalog["gb"], "English (UK)")
@@ -31,15 +50,28 @@ class TypingSetupTest(unittest.TestCase):
     self.assertEqual(catalog["ch"], "German (Switzerland)")
     self.assertEqual(catalog["la"], "Lao")
     self.assertEqual(catalog["kr:kr104"], "Korean")
-    self.assertNotIn("kr", catalog)
+    self.assertIn("kr", catalog)
     # Converted as the installer does.
     self.assertEqual(catalog["fr"], "French")
     self.assertEqual(catalog["bg:phonetic"], "Bulgarian")
     self.assertEqual(catalog["cz:qwerty"], "Czech")
-    self.assertNotIn("az", catalog)
+    self.assertIn("az", catalog)
     self.assertEqual(catalog["latam"], "Spanish (Latin American)")
-    self.assertNotIn("us:intl", catalog)
-    self.assertLess(len(catalog), 60)
+    self.assertIn("us:intl", catalog)
+    self.assertGreater(len(catalog), 100)
+
+  def test_non_latin_variants_keep_desktop_shortcuts_and_respect_the_group_limit(self):
+    self.assertEqual(typing.keyboard_values(["az:cyrillic"]), ("us,az", ",cyrillic"))
+    self.assertEqual(typing.keyboard_values(["ru", "us"]), ("us,ru", ","))
+    self.assertEqual(typing.keyboard_values(["us", "de", "fr", "pl"]), ("us,de,fr,pl", ",,,"))
+    for selected in (["ru", "de", "fr", "pl"], ["us"] * 2, ["us", "de", "fr", "pl", "es"], ["us:bogus-variant"]):
+      with self.subTest(selected=selected), self.assertRaises(ValueError):
+        typing.keyboard_values(selected)
+
+  def test_full_catalogue_keeps_identifiers_searchable_and_disambiguates_names(self):
+    rows = typing.picker_rows({"us": "English", "us:intl": "English"}, ["us:intl"], True)
+    self.assertEqual(list(rows), ["us:intl", "us"])
+    self.assertEqual(rows["us:intl"], "\tEnglish\tus:intl")
 
   def test_readding_input_keeps_its_original_override(self):
     self.assertEqual(typing.input_items([["keyboard-us", ""]], ["mozc"], {"mozc": "jp"}),
@@ -163,8 +195,8 @@ class TypingSetupTest(unittest.TestCase):
 
   def test_keyboard_checks_reflect_normalized_selection(self):
     with patch.object(typing, "save_keyboard"), patch.object(typing, "keyboard_selection", return_value=["us", "ru"]), patch("builtins.print") as output:
-      typing.apply_selection("keyboard", {"catalog": {"us": "English", "ru": "Russian"}}, ["Russian"])
-      self.assertEqual(json.loads(output.call_args.args[0]), ["English", "Russian"])
+      typing.apply_selection("keyboard", {"catalog": {"us": "English", "ru": "Russian"}}, ["Russian\tru"])
+      self.assertEqual(json.loads(output.call_args.args[0]), ["English\tus", "Russian\tru"])
 
   def test_keyboard_override_failure_preserves_symlink_and_restores_settings(self):
     with tempfile.TemporaryDirectory() as temporary:

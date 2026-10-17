@@ -77,12 +77,112 @@ def cycle_choice(state, keyboards, step=1):
   return choices[(choices.index(position) + step) % len(choices)]
 
 
+def picker_scope(state, keyboards):
+  # Indices are only meaningful for this device/keymap and method list. A
+  # reconnect or settings change while the menu is open requires a fresh menu.
+  return (tuple(state.get("methods", [])), tuple(sorted(
+    tuple(str(item.get(key, "")) for key in ("name", "address", "layout", "variant"))
+    for item in keyboards)))
+
+
+def picker_rows(state, keyboards, catalog, entries):
+  rows = {}
+  keyboard = layout_keyboard(keyboards)
+  methods = state.get("methods", [])
+  primary = next((method for method in methods if method.startswith("keyboard-")), "")
+  for method in methods or ([""] if keyboard else []):
+    if method == primary and keyboard:
+      variants = keyboard.get("variant", "").split(",")
+      for index, layout in enumerate(keyboard["layout"].split(",")):
+        variant = variants[index] if index < len(variants) else ""
+        pair = layout + (":" + variant if variant else "")
+        rows[catalog.get(pair, pair) + "\t" + pair] = (method, index)
+    else:
+      name = entries.get(method, method)
+      # Labels are display data, not extra menu columns or control records.
+      name = re.sub(r"[\t\r\n]", " ", name)
+      detail = method
+      if method.startswith("keyboard-"):
+        name = name.removeprefix("Keyboard - ")
+        detail = method.removeprefix("keyboard-")
+      rows[name + "\t" + detail] = (method, None)
+  return rows
+
+
 class Indicator:
   def __init__(self, bus):
     self.bus = bus
     self.pending = ""
     self.last = ""
     self.entries = {}
+    self.menu = None
+
+  def picker_state(self):
+    devices = subprocess.run(["hyprctl", "-j", "devices"], check=True, text=True, capture_output=True, timeout=2)
+    listed = json.loads(devices.stdout)
+    keyboards = listed.get("keyboards") if isinstance(listed, dict) else None
+    if not isinstance(keyboards, list) or any(not isinstance(item, dict) for item in keyboards):
+      raise ValueError("The connected keyboards could not be read. Try again.")
+    try:
+      state = snapshot(self.bus)
+    except GLib.Error:
+      state = {}
+    return state, keyboards
+
+  def select_choice(self, choice, scope):
+    state, keyboards = self.picker_state()
+    if picker_scope(state, keyboards) != scope:
+      raise ValueError("Input settings changed. Open the picker again.")
+    method, index = choice
+    if index is not None:
+      for command in layout_switches(keyboards, index):
+        subprocess.run(command, check=True, capture_output=True, timeout=2)
+    self.pending = method
+    if method:
+      self.refresh()
+
+  def open_picker(self, changed):
+    if self.menu is not None:
+      return
+    import xkb_catalog
+    state, keyboards = self.picker_state()
+    entries = {}
+    if state.get("methods"):
+      entries = {entry[0]: entry[1] for entry in call(self.bus, "AvailableInputMethods")[0]}
+    rows = picker_rows(state, keyboards, xkb_catalog.catalog(), entries)
+    scope = picker_scope(state, keyboards)
+    current = self.pending or state.get("current") or self.last or next(iter(state.get("methods", [])), "")
+    keyboard = layout_keyboard(keyboards)
+    active = keyboard.get("active_layout_index", 0) if keyboard else None
+    options = [("✓" if method == current and (index is None or index == active) else "") + "\t" + row
+               for row, (method, index) in rows.items()]
+    actions = {"Edit layouts…": "omarchy-setup-keyboard", "Input methods…": "omarchy-setup-input"}
+    flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
+    # Quickshell may kill its reader without delivering SIGTERM. The menu
+    # must also exit in that case instead of waiting for a vanished shell.
+    self.menu = Gio.Subprocess.new(["/usr/bin/setpriv", "--pdeathsig", "KILL", "--",
+                                    "omarchy-menu-select", "Input", *options, *actions,
+                                    "--", "--width", "460", "--maxheight", "600"], flags)
+
+    def finished(process, result):
+      self.menu = None
+      try:
+        _, output, _ = process.communicate_utf8_finish(result)
+        if not process.get_successful():
+          return
+        selected = output.rstrip("\n")
+        if selected in actions:
+          Gio.Subprocess.new([actions[selected]], Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE)
+        elif selected in rows:
+          self.select_choice(rows[selected], scope)
+      except (GLib.Error, OSError, ValueError, subprocess.SubprocessError) as error:
+        self.pending = ""
+        Gio.Subprocess.new(["omarchy-notification-send", "Input could not be selected", str(error)],
+                           Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE)
+      changed()
+    # Keep the existing reader and its pending no-focus selection alive while
+    # the native menu is open; waiting synchronously would stall every monitor.
+    self.menu.communicate_utf8_async(None, None, finished)
 
   def select_next(self, step=1):
     devices = subprocess.run(["hyprctl", "-j", "devices"], check=True, text=True, capture_output=True)
@@ -295,10 +395,13 @@ def watch(bus):
     buffer += data.decode()
     while "\n" in buffer:
       line, buffer = buffer.split("\n", 1)
-      if line in ("cycle", "cycle back"):
+      if line in ("cycle", "cycle back", "choose"):
         try:
-          indicator.select_next(-1 if line == "cycle back" else 1)
-        except (GLib.Error, OSError, ValueError, subprocess.CalledProcessError):
+          if line == "choose":
+            indicator.open_picker(changed)
+          else:
+            indicator.select_next(-1 if line == "cycle back" else 1)
+        except (GLib.Error, OSError, ValueError, subprocess.SubprocessError):
           indicator.pending = ""
         refresh()
     schedule()
@@ -312,7 +415,11 @@ def watch(bus):
   # Held for as long as the loop runs.
   watchers = follow(bus, changed, presence)  # noqa: F841
   poll()
-  loop.run()
+  try:
+    loop.run()
+  finally:
+    if indicator.menu is not None:
+      indicator.menu.force_exit()
 
 
 if __name__ == "__main__":
