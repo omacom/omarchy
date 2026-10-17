@@ -43,6 +43,8 @@ import qs.Ui
 
 ShellRoot {
   id: root
+  property var powers: [2, 1, 1.5, 4, 10, 2]
+  property int powerIndex: 0
 
   function fail(message) {
     console.log("RESULT fail " + message)
@@ -60,6 +62,10 @@ ShellRoot {
   }
 
   function runChecks() {
+    if (parentBound.radius !== 9 || parentBound.color.toString() !== "#123456") {
+      root.fail("surface properties must bind in the caller's context")
+      return
+    }
     var plainWidth = plainButton.implicitWidth
     var plainHeight = plainButton.implicitHeight
     plainButton.hasCursor = true
@@ -71,8 +77,15 @@ ShellRoot {
         var focusHeight = focusableButton.implicitHeight
         focusableButton.hasCursor = true
         checkStable(focusableButton, focusWidth, focusHeight, "focusable hover-cursor", function() {
-          console.log("RESULT pass")
-          Qt.quit()
+          if (++root.powerIndex < root.powers.length) {
+            plainButton.hasCursor = false
+            plainButton.selected = false
+            focusableButton.hasCursor = false
+            Qt.callLater(runChecks)
+          } else {
+            console.log("RESULT pass")
+            Qt.quit()
+          }
         })
       })
     })
@@ -88,14 +101,27 @@ ShellRoot {
   }
 
   Item {
+    property real radius: 9
+    property color color: "#123456"
+    CornerRectangle {
+      id: parentBound
+      radius: parent.radius
+      color: parent.color
+      roundingPower: 1
+    }
+
     Button {
       id: plainButton
       text: "Refresh"
+      radius: 10
+      roundingPower: root.powers[Math.min(root.powerIndex, root.powers.length - 1)]
     }
 
     Button {
       id: focusableButton
       text: "Save"
+      radius: 10
+      roundingPower: root.powers[Math.min(root.powerIndex, root.powers.length - 1)]
       focusable: true
     }
   }

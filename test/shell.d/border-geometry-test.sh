@@ -157,6 +157,54 @@ function flattenedBounds(paths) {
   }
 }
 
+assertEqual(geometry.surfacePath(100, 50, 10, 1),
+  'M 10 0 L 90 0 L 100 10 L 100 40 L 90 50 L 10 50 L 0 40 L 0 10 L 10 0 Z',
+  'power one produces exact chamfers')
+assertEqual(geometry.surfacePath(100, 50, 10), geometry.surfacePath(100, 50, 10, 2),
+  'default power retains circular arc geometry')
+for (const [radius, power, expected] of [[10, 1, 5], [10, 2, 10], [6, 3, 9], [10, 4, 20]]) {
+  assertEqual(geometry.effectiveRadius(radius, power), expected, `power ${power} matches Hyprland's effective radius`)
+}
+assertEqual(geometry.effectiveRadius(10, 0.5), 5, 'out-of-range power clamps to the compositor minimum')
+const chamferWidth = 4
+const chamferPaths = geometry.borderPaths(100, 80, 20,
+  { top: chamferWidth, right: chamferWidth, bottom: chamferWidth, left: chamferWidth }, 1)
+for (const distance of [0.5, 2, 3.9]) {
+  const xy = (20 + distance * Math.sqrt(2)) / 2
+  assert(pathContains(chamferPaths, xy, xy), `power-one chamfer contains the ${distance}px diagonal band`)
+}
+const beyond = (20 + 4.1 * Math.sqrt(2)) / 2
+assert(!pathContains(chamferPaths, beyond, beyond), 'power-one chamfer ends at the full 4px border width')
+const scaledTallBorder = geometry.borderPaths(210, 55, geometry.effectiveRadius(10, 10),
+  { top: 2, right: 2, bottom: 2, left: 2 }, 10)
+assert(scaledTallBorder[0].includes(' Z M '), 'scaled power-ten border retains its inner contour at the height limit')
+for (const power of [1, 1.5, 2, 3, 4, 10]) {
+  for (const radius of [0, 10, 100]) {
+    for (let mask = 0; mask < 16; mask++) {
+      const widths = { top: mask & 1 ? 2 : 0, right: mask & 2 ? 3 : 0,
+        bottom: mask & 4 ? 1 : 0, left: mask & 8 ? 4 : 0 }
+      const paths = geometry.borderPaths(100, 50, radius, widths, power)
+      if (/(NaN|Infinity)/.test(paths.join(' '))) fail('finite powered geometry')
+      const contours = flattenPaths(paths)
+      if (contours.flat().some(p => p.x < -1e-8 || p.x > 100 + 1e-8 || p.y < -1e-8 || p.y > 50 + 1e-8))
+        fail('powered border remains within surface bounds')
+      if (pathContains(paths, 50, 25)) fail(`powered border leaves its center empty (power ${power}, radius ${radius}, mask ${mask})`)
+      for (const [side, x, y] of [[1, 50, 0.5], [2, 99.5, 25], [4, 50, 49.5], [8, 0.5, 25]]) {
+        if (pathContains(paths, x, y) !== !!(mask & side)) fail('powered border honors enabled sides')
+      }
+    }
+  }
+  pass(`power ${power} preserves all side masks, bounds, and winding at zero, normal, and oversized radii`)
+}
+for (const power of [1.5, 3, 4, 10]) {
+  const boundary = geometry.borderBoundary(0, 0, 100, 50,
+    { tlrx: 10, tlry: 10, trrx: 10, trry: 10, brrx: 10, brry: 10, blrx: 10, blry: 10 }, power)
+  const points = geometry.cornerPoints(boundary, 0)
+  assert(points.every(p => Math.abs(Math.pow((p.x - 90) / 10, power) + Math.pow((10 - p.y) / 10, power) - 1) < 1e-8),
+    `power ${power} samples match Hyprland's superellipse equation`)
+  assert(points.length < 100, `power ${power} has bounded practical geometry size`)
+}
+
 const selectedPaths = pathsFor({ top: 0, right: 0, bottom: 1, left: 3 })
 assertEqual(selectedPaths.length, 1, 'adjacent left and bottom borders share one contour')
 assert(
