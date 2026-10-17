@@ -1,0 +1,4 @@
+# omarchy:summary=Print debugging information
+# omarchy:args=[--no-sudo] [--print]
+# omarchy:examples=omarchy debug --print --no-sudo
+# omarchy:requires-sudo=true
