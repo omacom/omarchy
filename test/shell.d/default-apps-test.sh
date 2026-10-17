@@ -22,6 +22,13 @@ cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
 [[ ! -e $OMARCHY_TEST_INSTALLED_DIR/$1 ]]
 SH
 
+cat >"$mock_bin/omarchy-cmd-present" <<'SH'
+#!/bin/bash
+for cmd in "$@"; do
+  [[ -e $OMARCHY_TEST_INSTALLED_DIR/$cmd ]] || exit 1
+done
+SH
+
 cat >"$mock_bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
 #!/bin/bash
 printf '%s\0' "$@" >"$OMARCHY_TEST_TERMINAL_LOG"
@@ -315,3 +322,81 @@ if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install vim >"$test_t
 fi
 [[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed installation preserves the default"
 pass "failed installation preserves the current default"
+
+# Arch extra/zed ships `zeditor`; the zed-bin AUR package ships `zed`.
+# Selection, display, and launch must honor whichever binary is present.
+cat >"$mock_bin/setsid" <<'SH'
+#!/bin/bash
+printf '<%s>\n' "$@" >"$OMARCHY_TEST_SETSID_CALLS"
+SH
+cat >"$mock_bin/omarchy-launch-tui" <<'SH'
+#!/bin/bash
+printf '<%s>\n' "$@" >"$OMARCHY_TEST_TUI_CALLS"
+SH
+chmod +x "$mock_bin/setsid" "$mock_bin/omarchy-launch-tui"
+setsid_calls="$test_tmp/setsid-calls"
+tui_calls="$test_tmp/tui-calls"
+export OMARCHY_TEST_SETSID_CALLS="$setsid_calls"
+export OMARCHY_TEST_TUI_CALLS="$tui_calls"
+
+seed_zed_binaries() { # "zed" | "zeditor" | "both" | "neither"
+  rm -f "$installed_dir/zed" "$installed_dir/zeditor"
+  case $1 in
+  zed) touch "$installed_dir/zed" ;;
+  zeditor) touch "$installed_dir/zeditor" ;;
+  both) touch "$installed_dir/zed" "$installed_dir/zeditor" ;;
+  esac
+}
+
+launched_editor() {
+  if [[ -s $setsid_calls ]]; then
+    sed -n '3p' "$setsid_calls" | tr -d '<>'
+  else
+    sed -n '1p' "$tui_calls" | tr -d '<>'
+  fi
+}
+
+assert_launches() { # saved-default expected-binary [extra-launch-args...]
+  local saved=$1 expected=$2
+  shift 2
+  printf '%s\n' "$saved" >"$test_home/.local/state/omarchy/defaults/editor"
+  : >"$setsid_calls"
+  : >"$tui_calls"
+  omarchy-launch-editor "$@" "/tmp/file"
+  [[ $(launched_editor) == "$expected" ]] ||
+    fail "saved $saved launches $expected" "$(cat "$setsid_calls" "$tui_calls" 2>/dev/null)"
+}
+
+mkdir -p "$test_home/.local/state/omarchy/defaults"
+
+seed_zed_binaries zed
+: >"$install_log"
+: >"$terminal_log"
+omarchy-default-editor zed
+[[ $(<"$test_home/.local/state/omarchy/defaults/editor") == "zed" ]] || fail "zed-only install stores zed"
+[[ ! -s $install_log && ! -s $terminal_log ]] || fail "zed-only install skips installation"
+printf 'zeditor\n' >"$test_home/.local/state/omarchy/defaults/editor"
+[[ $(omarchy-default-editor) == "zed" ]] || fail "saved zeditor display resolves to an installed zed"
+assert_launches zeditor zed
+assert_launches zed zed
+assert_launches zeditor zed --inline
+pass "zed-only installs select, display, and launch zed"
+
+seed_zed_binaries zeditor
+: >"$install_log"
+: >"$terminal_log"
+omarchy-default-editor zed
+[[ $(<"$test_home/.local/state/omarchy/defaults/editor") == "zeditor" ]] || fail "zeditor-only install stores zeditor"
+[[ ! -s $install_log && ! -s $terminal_log ]] || fail "zeditor-only install skips installation"
+printf 'zed\n' >"$test_home/.local/state/omarchy/defaults/editor"
+[[ $(omarchy-default-editor) == "zeditor" ]] || fail "saved zed display resolves to an installed zeditor"
+assert_launches zed zeditor
+assert_launches zeditor zeditor
+pass "zeditor-only installs select, display, and launch zeditor"
+
+seed_zed_binaries both
+omarchy-default-editor zed
+[[ $(<"$test_home/.local/state/omarchy/defaults/editor") == "zed" ]] || fail "both installed honors an explicit zed selection"
+omarchy-default-editor zeditor
+[[ $(<"$test_home/.local/state/omarchy/defaults/editor") == "zeditor" ]] || fail "both installed honors an explicit zeditor selection"
+pass "explicit Zed selections win when both binaries exist"
