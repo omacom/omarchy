@@ -17,6 +17,12 @@ cat >"$stub_bin/v4l2-ctl" <<'SH'
 
 case "$1" in
 --list-devices)
+  if [[ ${OMARCHY_TEST_IPU7_WEBCAM:-false} == "true" ]]; then
+    printf '%s\n' "ipu7 (PCI:0000:00:05.0):"
+    printf '\t%s\n' "/dev/video5"
+    printf '\t%s\n\n' "/dev/video6"
+  fi
+
   printf '%s\n' "ipu6 (PCI:0000:00:05.0):"
   printf '\t%s\n' "/dev/video0"
   printf '\t%s\n' "/dev/video1"
@@ -42,6 +48,7 @@ case "$1" in
   /dev/video0) device_capability="Video Output" ;;
   /dev/video1) device_capability="Metadata Capture" ;;
   /dev/video7 | /dev/video9) device_capability="Video Output" ;;
+  /dev/video5 | /dev/video6) device_capability=$'Video Capture\n\t\tI/O MC' ;;
   *) device_capability="Video Capture" ;;
   esac
 
@@ -105,6 +112,17 @@ expected_dual_node="/dev/video42  Built-in Webcam: Integrated Camera
 [[ $dual_node == "$expected_dual_node" ]] ||
   fail "webcam detection falls through to a later capture-capable node in a group" "$dual_node"
 pass "webcam detection falls through to a later capture-capable node in a group"
+
+ipu7_node=$(OMARCHY_TEST_IPU7_WEBCAM=true omarchy-capture-webcam-list)
+[[ $ipu7_node == "$(omarchy-capture-webcam-list)" ]] ||
+  fail "webcam detection skips media-controller nodes that need a configured pipeline" "$ipu7_node"
+pass "webcam detection skips media-controller nodes that need a configured pipeline"
+
+if OMARCHY_TEST_IPU7_WEBCAM=true OMARCHY_TEST_RAW_WEBCAM=true "$ROOT/bin/omarchy-hw-webcam"; then
+  fail "webcam hardware detection rejects a raw IPU7 sensor node"
+else
+  pass "webcam hardware detection rejects a raw IPU7 sensor node"
+fi
 
 if "$ROOT/bin/omarchy-hw-webcam"; then
   pass "webcam hardware detection succeeds when a capture device is available"
