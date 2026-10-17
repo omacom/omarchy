@@ -48,12 +48,22 @@ add_theme_preview() {
   extension="${extension,,}"
 
   [[ -n $preview ]] || return
-  [[ -e $preview_dir/$theme_name.$extension ]] && return
+
+  # A theme can be found under the user directory and again under the Omarchy
+  # directory, and the two previews need not share an extension: an override
+  # that only adds backgrounds/ resolves to a .jpg, while the stock theme ships
+  # preview.png. Compare on the theme name alone so the user entry wins and the
+  # theme is listed once. The glob also matches a longer name (nord.custom for
+  # nord), so only an entry whose name minus its extension is this theme counts.
+  local existing
+  for existing in "$preview_dir/$theme_name".*; do
+    [[ -e $existing && ${existing##*/} == "$theme_name.${existing##*.}" ]] && return
+  done
 
   ln -s "$preview" "$preview_dir/$theme_name.$extension"
 }
 
-fast_signature="v2"$'\n'
+fast_signature="v3"$'\n'
 for theme_dir in "$USER_THEMES_PATH" "$OMARCHY_THEMES_PATH"; do
   if [[ -d $theme_dir ]]; then
     fast_signature+="$theme_dir:$(stat -Lc '%Y' "$theme_dir")"$'\n'
