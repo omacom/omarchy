@@ -79,4 +79,9 @@ assert(
   /id: revealAnimation[\s\S]*?duration: Style\.duration\(840\)/.test(backgroundQml),
   'background reveal takes 840ms'
 )
+
+assert(
+  mediaQml.includes('smooth: true') && mediaQml.includes('mipmap: true'),
+  'background media enables smooth filtering and mipmapping to prevent downscale aliasing'
+)
 JS
