@@ -19,10 +19,32 @@ case "${1:-}" in
     ;;
 esac
 
-print_status() {
-  local device nm state ssid signal freq
+display_route_json() {
+  local route route_json device device_type
 
-  device=$(ip route get "$internet_probe" 2>/dev/null | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }')
+  # Policy-routed TUNs may own a fixed probe while the physical transport still
+  # owns the main default route. Prefer its first live non-tunnel default.
+  route_json=$(ip -j -4 route show table main default 2>/dev/null)
+  while IFS= read -r route; do
+    device=$(jq -r '.dev // ""' <<<"$route")
+    [[ -z $device ]] && continue
+    device_type=$(nmcli -g GENERAL.TYPE device show "$device" 2>/dev/null | head -n 1)
+
+    if [[ -n $device_type && $device_type != "tun" && $device_type != "wireguard" ]] &&
+      ! jq -e '(.flags // []) | index("dead")' <<<"$route" >/dev/null; then
+      printf '[%s]\n' "$route"
+      return
+    fi
+  done < <(jq -c '.[]' <<<"$route_json" 2>/dev/null)
+
+  ip -j route get "$internet_probe" 2>/dev/null
+}
+
+print_status() {
+  local route_json device nm state ssid signal freq
+
+  route_json=$(display_route_json)
+  device=$(jq -r '.[0].dev // ""' <<<"$route_json" 2>/dev/null)
 
   if [[ -z $device ]]; then
     printf 'disconnected\t\t\t\n'
@@ -83,9 +105,9 @@ print_ping_samples() {
 }
 
 print_verbose() {
-  local route_json iface gw src prefix link
+  local route_json addr_json gateway_route iface gw src prefix link
 
-  route_json=$(ip -j route get "$internet_probe" 2>/dev/null)
+  route_json=$(display_route_json)
   [[ -z $route_json ]] && return
 
   iface=$(jq -r '.[0].dev // ""' <<<"$route_json" 2>/dev/null)
@@ -94,7 +116,15 @@ print_verbose() {
 
   [[ -z $iface ]] && return
 
-  prefix=$(ip -j addr show "$iface" 2>/dev/null | jq -r '.[0].addr_info[]? | select(.family == "inet") | .prefixlen // ""' 2>/dev/null | head -n 1)
+  addr_json=$(ip -j addr show "$iface" 2>/dev/null)
+  if [[ -z $src && -n $gw ]]; then
+    # Ask the kernel which address it uses to reach this gateway on this link.
+    gateway_route=$(ip -j -4 route get "$gw" oif "$iface" 2>/dev/null)
+    src=$(jq -r --arg iface "$iface" '.[0] | select(.dev == $iface) | .prefsrc // ""' <<<"$gateway_route" 2>/dev/null)
+  elif [[ -z $src ]]; then
+    src=$(jq -r '.[0].addr_info[]? | select(.family == "inet" and .scope == "global") | .local // ""' <<<"$addr_json" 2>/dev/null | head -n 1)
+  fi
+  prefix=$(jq -r --arg src "$src" '.[0].addr_info[]? | select(.family == "inet" and .local == $src) | .prefixlen // ""' <<<"$addr_json" 2>/dev/null | head -n 1)
 
   printf 'iface\t%s\n' "$iface"
   printf 'ip\t%s\n' "$src"
