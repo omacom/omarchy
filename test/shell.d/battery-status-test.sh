@@ -158,6 +158,211 @@ danish_time=$(OMARCHY_LANGUAGE_FILE="$tmp_dir/language" OMARCHY_POWER_SUPPLY_PAT
 grep -Fx $'time\t1 t 30 min' <<<"$danish_time" >/dev/null || fail "battery status durations follow the Omarchy language" "$danish_time"
 pass "battery status reads in the Omarchy language"
 
+# Dual-battery laptops (e.g. ThinkPad BAT0 + BAT1) provide a combined DisplayDevice.
+dual_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$hold_dir" "$dual_dir"' EXIT
+
+mkdir -p "$dual_dir/bin" "$dual_dir/power/BAT0" "$dual_dir/power/BAT1"
+printf '100\n' >"$dual_dir/power/BAT0/capacity"
+printf '80\n' >"$dual_dir/power/BAT1/capacity"
+printf '120\n' >"$dual_dir/power/BAT0/cycle_count"
+printf '0\n' >"$dual_dir/power/BAT0/power_now"
+
+cat >"$dual_dir/bin/upower" <<'STUB'
+#!/bin/bash
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  echo "/org/freedesktop/UPower/devices/battery_BAT1"
+  echo "/org/freedesktop/UPower/devices/DisplayDevice"
+  exit 0
+fi
+
+if [[ $1 == "-i" && $2 == */DisplayDevice ]]; then
+  cat <<'INFO'
+  power supply:         yes
+  state:                discharging
+  energy:               54.0 Wh
+  energy-full:          63.0 Wh
+  energy-rate:          12.5 W
+  time to empty:        4.3 hours
+  percentage:           86%
+INFO
+  exit 0
+fi
+
+if [[ $1 == "-i" && $2 == */battery_BAT0 ]]; then
+  cat <<'INFO'
+  native-path:          BAT0
+  power supply:         yes
+  state:                fully-charged
+  energy:               18.0 Wh
+  energy-full:          18.0 Wh
+  percentage:           100%
+INFO
+  exit 0
+fi
+
+if [[ $1 == "-i" && $2 == */battery_BAT1 ]]; then
+  cat <<'INFO'
+  native-path:          BAT1
+  power supply:         yes
+  state:                discharging
+  energy:               36.0 Wh
+  energy-full:          45.0 Wh
+  percentage:           80%
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$dual_dir/bin/upower"
+
+dual_output=$(OMARCHY_POWER_SUPPLY_PATH="$dual_dir/power" PATH="$dual_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t86%' <<<"$dual_output" >/dev/null || fail "battery status prefers combined DisplayDevice percentage on dual-battery systems"
+grep -Fx $'rate\t12.5W' <<<"$dual_output" >/dev/null || fail "battery status preserves combined DisplayDevice rate on dual-battery systems"
+grep -Fx $'size\t63Wh' <<<"$dual_output" >/dev/null || fail "battery status prefers combined DisplayDevice capacity on dual-battery systems"
+grep -Fx $'cycles\t120' <<<"$dual_output" >/dev/null || fail "battery status falls back to BAT* cycle count when DisplayDevice lacks native path"
+pass "battery status prefers combined DisplayDevice on multi-battery systems"
+
+# Dual-battery charging preserves UPower's combined time to full when individual limits differ
+dual_charge_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$hold_dir" "$dual_dir" "$dual_charge_dir"' EXIT
+
+mkdir -p "$dual_charge_dir/bin" "$dual_charge_dir/power/BAT0" "$dual_charge_dir/power/BAT1" "$dual_charge_dir/power/AC"
+printf '80\n' >"$dual_charge_dir/power/BAT0/charge_control_end_threshold"
+printf '1\n' >"$dual_charge_dir/power/AC/online"
+printf 'Mains\n' >"$dual_charge_dir/power/AC/type"
+
+cat >"$dual_charge_dir/bin/upower" <<'STUB'
+#!/bin/bash
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  echo "/org/freedesktop/UPower/devices/battery_BAT1"
+  echo "/org/freedesktop/UPower/devices/DisplayDevice"
+  exit 0
+fi
+
+if [[ $1 == "-i" && $2 == */DisplayDevice ]]; then
+  cat <<'INFO'
+  power supply:         yes
+  state:                charging
+  energy:               85.0 Wh
+  energy-full:          100.0 Wh
+  energy-rate:          10.0 W
+  time to full:         1.5 hours
+  percentage:           85%
+INFO
+  exit 0
+fi
+
+if [[ $1 == "-i" && $2 == */battery_BAT0 ]]; then
+  cat <<'INFO'
+  native-path:          BAT0
+  power supply:         yes
+  state:                charging
+  energy:               40.0 Wh
+  energy-full:          50.0 Wh
+  percentage:           80%
+INFO
+  exit 0
+fi
+
+if [[ $1 == "-i" && $2 == */battery_BAT1 ]]; then
+  cat <<'INFO'
+  native-path:          BAT1
+  power supply:         yes
+  state:                charging
+  energy:               45.0 Wh
+  energy-full:          50.0 Wh
+  percentage:           90%
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$dual_charge_dir/bin/upower"
+
+dual_charge_output=$(OMARCHY_POWER_SUPPLY_PATH="$dual_charge_dir/power" PATH="$dual_charge_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'state\tcharging' <<<"$dual_charge_output" >/dev/null || fail "dual-battery charging reports charging state"
+grep -Fx $'time\t1h 30m' <<<"$dual_charge_output" >/dev/null || fail "dual-battery charging keeps combined UPower time to full" "$dual_charge_output"
+pass "dual-battery charging keeps combined UPower estimate when individual battery limits differ"
+
+# Single-battery laptops also have a DisplayDevice created by UPower, but must
+# keep reading live instantaneous rate from sysfs power_now rather than stale energy-rate.
+single_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$hold_dir" "$dual_dir" "$dual_charge_dir" "$single_dir"' EXIT
+
+mkdir -p "$single_dir/bin" "$single_dir/power/BAT0"
+printf '75\n' >"$single_dir/power/BAT0/capacity"
+printf '15000000\n' >"$single_dir/power/BAT0/power_now"
+
+cat >"$single_dir/bin/upower" <<'STUB'
+#!/bin/bash
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  echo "/org/freedesktop/UPower/devices/DisplayDevice"
+  exit 0
+fi
+
+if [[ $1 == "-i" && $2 == */DisplayDevice ]]; then
+  cat <<'INFO'
+  power supply:         yes
+  state:                discharging
+  energy-rate:          9.0 W
+  percentage:           75%
+INFO
+  exit 0
+fi
+
+if [[ $1 == "-i" && $2 == */battery_BAT0 ]]; then
+  cat <<'INFO'
+  native-path:          BAT0
+  power supply:         yes
+  state:                discharging
+  energy-rate:          9.0 W
+  percentage:           75%
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$single_dir/bin/upower"
+
+single_output=$(OMARCHY_POWER_SUPPLY_PATH="$single_dir/power" PATH="$single_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t75%' <<<"$single_output" >/dev/null || fail "single-battery status reports percentage"
+grep -Fx $'rate\t15W' <<<"$single_output" >/dev/null || fail "single-battery status keeps live rate from sysfs power_now instead of DisplayDevice"
+pass "single-battery systems keep live sysfs rate despite DisplayDevice presence"
+
+# Desktop systems with 0 batteries (only peripheral or no batteries) must exit 0 cleanly with no output.
+desktop_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$hold_dir" "$dual_dir" "$dual_charge_dir" "$single_dir" "$desktop_dir"' EXIT
+mkdir -p "$desktop_dir/bin" "$desktop_dir/power"
+
+cat >"$desktop_dir/bin/upower" <<'STUB'
+#!/bin/bash
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/mouse_dev"
+  echo "/org/freedesktop/UPower/devices/DisplayDevice"
+  exit 0
+fi
+if [[ $1 == "-i" && $2 == */DisplayDevice ]]; then
+  cat <<'INFO'
+  power supply:         no
+  state:                unknown
+INFO
+  exit 0
+fi
+exit 1
+STUB
+chmod +x "$desktop_dir/bin/upower"
+
+desktop_output=$(OMARCHY_POWER_SUPPLY_PATH="$desktop_dir/power" PATH="$desktop_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+[[ -z $desktop_output ]] || fail "desktop system with no battery outputs nothing"
+pass "desktop system with no battery exits cleanly with no output"
+
 if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
   fail "battery status owns capacity and remaining calculations" "$matches"
 fi
