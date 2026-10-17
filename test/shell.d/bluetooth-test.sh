@@ -20,6 +20,18 @@ assert(/manageIpc: false/.test(panelSource), 'bluetooth owns its IPC handler so 
 assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", adapter\.enabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
 assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the adapter power state directly')
 
+// A device with no stored key has to reach pair. trusted is only a policy flag,
+// and paired does not imply a key either: BlueZ reports Paired: yes while the
+// bond is still missing, then drops it back to no on disconnect. Either one in
+// this check sends an unbonded device to connect, which fails with
+// br-connection-key-missing and leaves no way to pair it from the panel.
+const connectRouting = panelSource.match(/function connectDevice\(device\) \{[\s\S]*?\n {2}\}/)
+assert(connectRouting, 'bluetooth has the device connect routing')
+assert(/if \(device\.bonded\)/.test(connectRouting[0]), 'bluetooth connects a device once it has a bond')
+assert(/else runDeviceAction\(device, "pair", "connecting"\)/.test(connectRouting[0]), 'bluetooth pairs a device with no bond instead')
+assert(!/device\.trusted/.test(connectRouting[0]), 'bluetooth does not take a trusted flag for a stored key')
+assert(!/device\.paired/.test(connectRouting[0]), 'bluetooth does not take a paired flag for a stored key')
+
 // Discovery is a BlueZ session that nothing ends at panel close: it persists
 // until StopDiscovery or until quickshell's D-Bus connection drops with the
 // shell, and a leaked session keeps the radio in inquiry, starving A2DP audio
