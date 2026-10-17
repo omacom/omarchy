@@ -164,6 +164,10 @@ end
 -- run a bind that Hyprland only reports as Lua.
 o.bind_commands = {}
 
+-- The Lua expression each function bind stands for, for binds with no command
+-- to run instead. The menu dispatches it as `hyprctl dispatch <expression>`.
+o.bind_expressions = {}
+
 -- Hand the launcher the focused window's pid, which it would otherwise ask
 -- Hyprland for, to open the new terminal in that terminal's directory.
 function o.launch_terminal()

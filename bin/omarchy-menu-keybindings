@@ -256,6 +256,9 @@ hl = setmetatable({
       elseif o and o.bind_commands and o.bind_commands[bind_dispatcher] then
         kind = "exec"
         arg = o.bind_commands[bind_dispatcher]
+      elseif o and o.bind_expressions and o.bind_expressions[bind_dispatcher] then
+        kind = "lua"
+        arg = o.bind_expressions[bind_dispatcher]
       end
 
       print(table.concat({ tostring(modmask), opts.description, key, kind, arg }, "\t"))

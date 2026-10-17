@@ -21,15 +21,16 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + F`                 | Go full screen              |
 | `Super + Alt + F`                 | Go full width              |
 | `Super + Ctrl + F`                 | Go full screen inside window              |
-| `Super + 1/2/3/4`         | Jump to specific workspace     |
-| `Super + Tab` | Jump to next workspace |
-| `Super + Shift + Tab` | Jump to previous workspace |
-| `Super + Ctrl + Tab` | Jump to former workspace |
+| `Super + 1/2/3/4`         | Jump to specific workspace on the focused monitor |
+| `Super + Tab` | Jump to next workspace on the focused monitor |
+| `Super + Shift + Tab` | Jump to previous workspace on the focused monitor |
+| `Super + Ctrl + Tab` | Jump to former workspace on the focused monitor |
 | `Super + Shift + 1/2/3/4` | Move window to workspace |
 | `Super + Shift + Alt + 1/2/3/4` | Move window to workspace without following |
 | `Super + S` / `Super + Grave` | Toggle scratchpad |
 | `Super + Alt + S` / `Super + Shift + Grave` | Move window to scratchpad |
-| `Super + Shift + Alt + Arrows` | Move workspaces to directional monitor |
+| `Super + Shift + Ctrl + Arrows` | Move window to the monitor in that direction |
+| `Super + Shift + Alt + Arrows` | Move workspace to the monitor in that direction |
 | `Super + Arrow`  | Move focus to window in direction of arrow              |
 | `Super + Shift + Arrow`  | Swap window with another in direction of arrow     |
 | `Super + Minus` | Expand window left |

@@ -672,8 +672,8 @@ pass "titlebars follow the theme when XDG_STATE_HOME points elsewhere"
 
 run_node_test <<'JS'
 const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')
-assert(source.includes('function onFocusedWorkspaceChanged() { root.showFocusedMode() }'), 'a workspace switch shows the cached layout instead of running the script')
-assert(source.includes('String(event.name) === "configreloaded") root.refresh()'), 'a config reload drops every cached layout')
+assert(source.includes('function onActiveWorkspaceChanged() { root.showActiveMode() }'), 'a workspace switch shows the cached layout instead of running the script')
+assert(source.includes('if (name === "configreloaded") root.refresh()'), 'a config reload drops every cached layout')
 
 // Run the widget's own cache logic against a fake Hyprland and process.
 function body(pattern) {
@@ -687,12 +687,13 @@ const fn = name => new Function(...args, body(new RegExp(`\\n  function ${name}\
 const streamFinished = new Function(...args, 'text', body(/onStreamFinished: \{([\s\S]*?)\n      \}/))
 const exited = new Function(...args, body(/onExited: \{([\s\S]*?)\n    \}/))
 
-const hyprland = { focusedWorkspace: { id: 1 } }
+const hyprland = {}
 const proc = { running: false, command: null, runs: [] }
 const deferred = []
 const qt = { callLater: callback => deferred.push(callback) }
-const widget = { focusedMode: 'dwindle', modeStale: false, modeCache: {}, modeGeneration: 0, modeProcWorkspace: -1, modeProcGeneration: 0 }
-for (const name of ['focusedWorkspaceId', 'showFocusedMode', 'readMode', 'refresh']) {
+// Each bar follows the workspace its own monitor shows.
+const widget = { monitor: { activeWorkspace: { id: 1 } }, activeMode: 'dwindle', modeStale: false, modeCache: {}, modeGeneration: 0, modeProcWorkspace: -1, modeProcGeneration: 0 }
+for (const name of ['activeWorkspaceId', 'showActiveMode', 'readMode', 'refresh']) {
   const call = fn(name)
   widget[name] = () => call(widget, hyprland, proc, qt, widget.readMode)
 }
@@ -705,14 +706,14 @@ const finish = output => {
   proc.running = false
   while (deferred.length) deferred.shift()()
 }
-const focus = id => { hyprland.focusedWorkspace = { id }; widget.showFocusedMode(); start() }
+const focus = id => { widget.monitor.activeWorkspace = { id }; widget.showActiveMode(); start() }
 
 widget.refresh(); start()
 finish('scrolling\n')
-assertEqual(widget.focusedMode, 'scrolling', 'the first read shows the focused layout')
+assertEqual(widget.activeMode, 'scrolling', 'the first read shows the focused layout')
 focus(2); finish('floating\n')
 focus(1)
-assertEqual(widget.focusedMode, 'scrolling', 'returning to a read workspace shows its cached layout')
+assertEqual(widget.activeMode, 'scrolling', 'returning to a read workspace shows its cached layout')
 assertDeepEqual(proc.runs, ['1', '2'], 'a cached workspace switch runs no script')
 
 widget.refresh(); start()
@@ -725,16 +726,16 @@ assert(widget.modeCache[1] === undefined, 'a read that predates a refresh is not
 start()
 assertDeepEqual(proc.runs, ['1', '2', '1', '1'], 'a stale read is retried once it exits')
 finish('floating\n')
-assertEqual(widget.focusedMode, 'floating', 'the retried read shows the current layout')
+assertEqual(widget.activeMode, 'floating', 'the retried read shows the current layout')
 
 widget.refresh(); start()
 focus(2)
 assert(widget.modeStale, 'switching to an uncached workspace during a read marks it pending')
 finish('scrolling\n')
 assertEqual(widget.modeCache[1], 'scrolling', 'the in-flight read still caches its own workspace')
-assertEqual(widget.focusedMode, 'floating', 'a read for a workspace no longer focused leaves the shown layout alone')
+assertEqual(widget.activeMode, 'floating', 'a read for a workspace no longer focused leaves the shown layout alone')
 start()
 assertEqual(proc.runs[proc.runs.length - 1], '2', 'the pending read follows the newly focused workspace')
 finish('dwindle\n')
-assertEqual(widget.focusedMode, 'dwindle', 'the newly focused workspace shows its own layout')
+assertEqual(widget.activeMode, 'dwindle', 'the newly focused workspace shows its own layout')
 JS

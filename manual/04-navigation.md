@@ -20,6 +20,8 @@ You navigate between the window you want to be active with `Super + Arrow`. This
 
 If you hit `Super + Shift + 2`, you'll move the current focused application onto the second workspace. `Super + Shift + 1` moves it back. (And `Super + Shift + Alt + 2` will move the current focused application onto the second workspace without switching to it).
 
+With more than one monitor, every monitor has workspaces 1 through 10 of its own. `Super + 2` goes to the second workspace of the monitor you're on, and each monitor's top bar shows its own workspaces and the one it's showing. `Super + Tab` cycles through the workspaces on the monitor you're on. `Super + Shift + Ctrl + Arrows` moves the window you're on to the monitor in that direction, onto the workspace it's showing, and `Super + Shift + Alt + Arrows` moves the workspace you're on over to the monitor in that direction, where it takes the same number if it's free. A monitor keeps its workspaces when you unplug it: they join another screen's, numbered after the ones it already has, and go back under their old numbers when the monitor returns.
+
 If you hold down `Super` and use the mouse to click on a window, you'll be able to rearrange where it sits. If you hold `Super` and use the right button on the mouse, you can freely resize the window.
 
 You close a window on `Super + W` or `Super + Q` (and close all windows on `Ctrl + Alt + Delete`).
