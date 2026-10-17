@@ -9,6 +9,8 @@ require_command python3
 SCRATCH=$(mktemp -d)
 trap 'rm -rf "$SCRATCH"' EXIT
 TEST_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
+# pi's directory overrides would point every scan at the developer's own sessions.
+unset PI_CODING_AGENT_DIR PI_CODING_AGENT_SESSION_DIR
 
 projects="$TEST_HOME/.claude/projects/example"
 mkdir -p "$projects"
@@ -350,6 +352,38 @@ result=$(HOME="$PI_HOME" XDG_CACHE_HOME="$PI_HOME/.cache" XDG_DATA_HOME="$PI_HOM
 [[ $(jq -c '.modelUsage' <<<"$result") == '{"claude-omp":{"cacheCreationInputTokens":1,"cacheReadInputTokens":4,"inputTokens":20,"outputTokens":5},"claude-omp-profile":{"cacheCreationInputTokens":1,"cacheReadInputTokens":2,"inputTokens":7,"outputTokens":3},"claude-pi":{"cacheCreationInputTokens":2,"cacheReadInputTokens":3,"inputTokens":10,"outputTokens":4}}' ]] ||
   fail "Claude collector filters pi and omp sessions to Anthropic providers" "$result"
 pass "Claude collector counts pi and omp subscription usage, profiles included"
+
+# pi moves its agent tree with PI_CODING_AGENT_DIR and its sessions alone with
+# PI_CODING_AGENT_SESSION_DIR, so usage under either must be counted, and an
+# override reaching the default root through a symlink must count it once.
+CUSTOM_PI_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
+mkdir -p "$CUSTOM_PI_HOME/.config/pi/sessions/project" "$CUSTOM_PI_HOME/pi-sessions" "$CUSTOM_PI_HOME/.pi/agent/sessions/project"
+cat >"$CUSTOM_PI_HOME/.config/pi/sessions/project/agent-dir.jsonl" <<EOF
+{"type":"message","id":"agent-dir-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"anthropic","model":"claude-agent-dir","usage":{"input":6,"output":2}}}
+EOF
+cat >"$CUSTOM_PI_HOME/pi-sessions/session-dir.jsonl" <<EOF
+{"type":"message","id":"session-dir-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"anthropic","model":"claude-session-dir","usage":{"input":3,"output":1}}}
+EOF
+cat >"$CUSTOM_PI_HOME/.pi/agent/sessions/project/default.jsonl" <<EOF
+{"type":"message","id":"default-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"anthropic","model":"claude-default","usage":{"input":5,"output":0}}}
+EOF
+ln -s "$CUSTOM_PI_HOME/.pi/agent" "$CUSTOM_PI_HOME/pi-alias"
+
+result=$(HOME="$CUSTOM_PI_HOME" CLAUDE_CONFIG_DIR="$CUSTOM_PI_HOME/.claude" XDG_CACHE_HOME="$CUSTOM_PI_HOME/.cache" \
+  XDG_DATA_HOME="$CUSTOM_PI_HOME/.local/share" XDG_STATE_HOME="$CUSTOM_PI_HOME/.local/state" \
+  PI_CODING_AGENT_DIR="~/.config/pi" PI_CODING_AGENT_SESSION_DIR="$CUSTOM_PI_HOME/pi-sessions" \
+  "$ROOT/bin/omarchy-agent-usage-claude" --force)
+
+[[ $(jq -c '[.todayTotalTokens,.totalSessions]' <<<"$result") == "[17,3]" ]] ||
+  fail "Claude collector counts pi sessions under PI_CODING_AGENT_DIR and PI_CODING_AGENT_SESSION_DIR" "$result"
+
+result=$(HOME="$CUSTOM_PI_HOME" CLAUDE_CONFIG_DIR="$CUSTOM_PI_HOME/.claude" XDG_CACHE_HOME="$CUSTOM_PI_HOME/.cache" \
+  XDG_DATA_HOME="$CUSTOM_PI_HOME/.local/share" XDG_STATE_HOME="$CUSTOM_PI_HOME/.local/state" \
+  PI_CODING_AGENT_SESSION_DIR="$CUSTOM_PI_HOME/pi-alias/sessions/project" "$ROOT/bin/omarchy-agent-usage-claude" --force)
+
+[[ $(jq -c '[.todayTotalTokens,.totalSessions]' <<<"$result") == "[5,1]" ]] ||
+  fail "Claude collector counts a default root reached through a symlinked override once" "$result"
+pass "Claude collector follows pi's agent and session directory overrides"
 
 # Collectors overlap in practice: the update command backgrounds one per agent
 # while the panel refreshes on its own. Two writers aiming at one cache file
