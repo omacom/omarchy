@@ -1,0 +1,38 @@
+system: "base24"
+name: "Weather Parade"
+slug: "weather-parade"
+author: "OldJobobo / Omarchy Kids Themes"
+variant: "light"
+
+# Exported from colors.toml; semantic roles and repeated colors are preserved.
+
+palette:
+  # --- cloud paper / rainwashed sky ---
+  base00: "#EAF7FF" # Cloud Paper - default background
+  base01: "#D9EFFA" # Rainwashed Blue - lighter background
+  base02: "#C4E4F4" # Puddle Panel - selection background
+  base03: "#65768A" # Forecast Pencil - comments / muted text
+  base04: "#40556D" # Storm Sketch - dark foreground
+  base05: "#20314A" # Rain Ink - default foreground
+  base06: "#20314A" # Cloud Lettering - light foreground
+  base07: "#101D31" # Thunder Outline - brightest foreground
+
+  # --- gouache forecasts and kite ribbons ---
+  base08: "#CC4F45" # Kite Coral - red / error
+  base09: "#D76A2C" # Sunset Streamer - orange / warning
+  base0A: "#9B7700" # Sunflower - yellow
+  base0B: "#4F8B3E" # Meadow Green - green
+  base0C: "#168A9D" # Rain Ribbon - cyan
+  base0D: "#2478BD" # Clear Sky - blue
+  base0E: "#7955BD" # Storm Violet - purple
+  base0F: "#865A47" # Umbrella Handle - brown / special
+
+  # --- base24 extension ---
+  base10: "#F7E7AA" # Sunlit Fold - darker background
+  base11: "#F7E7AA" # Cloud Recess - darkest background
+  base12: "#EE6E63" # Bright Kite Coral - bright red
+  base13: "#B78C00" # Bright Sunflower - bright orange / yellow
+  base14: "#5DA449" # Bright Meadow Green - bright green
+  base15: "#1AA3B9" # Bright Rain Ribbon - bright cyan
+  base16: "#2A8EDF" # Bright Clear Sky - bright blue
+  base17: "#8F64DF" # Bright Storm Violet - bright purple

@@ -1,0 +1,38 @@
+system: "base24"
+name: "Pocket Arcade"
+slug: "pocket-arcade"
+author: "Ministry of Taste"
+variant: "dark"
+
+# Exported from colors.toml; semantic roles and repeated colors are preserved.
+
+palette:
+  # --- cartridge plastic / instruction paper ---
+  base00: "#0B1024" # Pocket Navy - default background
+  base01: "#121A34" # Cartridge Shell - lighter background
+  base02: "#1D2948" # Label Tray - selection background
+  base03: "#74758F" # Smoked Plastic - comments / muted text
+  base04: "#B1ACC0" # Faded Manual - dark foreground
+  base05: "#EEE7E4" # Instruction Paper - default foreground
+  base06: "#F8F1ED" # Studio Cream - light foreground
+  base07: "#FFF7F0" # Screen Glint - brightest foreground
+
+  # --- pocket studio label deck ---
+  base08: "#DB5B78" # Coral Label - red / error
+  base09: "#E27A83" # Peach Sticker - orange / warning
+  base0A: "#DAB968" # Chip Gold - yellow
+  base0B: "#4F999C" # Circuit Teal - green
+  base0C: "#57B8B7" # Screen Glass - cyan
+  base0D: "#6484C8" # Menu Blue - blue
+  base0E: "#A96EAE" # Sticker Plum - purple
+  base0F: "#8B6D9C" # Cartridge Mauve - brown / special
+
+  # --- base24 extension ---
+  base10: "#060A17" # Console Shadow - darker background
+  base11: "#03050B" # Power-off Black - darkest background
+  base12: "#F16F8B" # Bright Coral Label - bright red
+  base13: "#EFD17C" # Bright Chip Gold - bright orange / yellow
+  base14: "#68BBB8" # Bright Circuit Teal - bright green
+  base15: "#79D0CC" # Bright Screen Glass - bright cyan
+  base16: "#83A3E5" # Bright Menu Blue - bright blue
+  base17: "#C78AC8" # Bright Sticker Plum - bright purple

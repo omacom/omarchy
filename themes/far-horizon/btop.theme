@@ -1,0 +1,76 @@
+# Far Horizon — friendly-signal palette
+# Main background and text
+theme[main_bg]="#27213E"
+theme[main_fg]="#EEF2FA"
+
+# Titles and shortcuts
+theme[title]="#FFA68F"
+theme[hi_fg]="#C0B0E6"
+
+# Selection and inactive text
+theme[selected_bg]="#4E4264"
+theme[selected_fg]="#EEF2FA"
+theme[inactive_fg]="#939FBE"
+theme[graph_text]="#EEF2FA"
+theme[meter_bg]="#332C4B"
+theme[proc_misc]="#F8FAFF"
+
+# Box outlines and dividers
+theme[cpu_box]="#4E4264"
+theme[mem_box]="#4E4264"
+theme[net_box]="#4E4264"
+theme[proc_box]="#4E4264"
+theme[div_line]="#F2C66D"
+
+# Temperature: sea-glass green -> amber -> coral
+theme[temp_start]="#9CC9AE"
+theme[temp_mid]="#F2C66D"
+theme[temp_end]="#F38491"
+
+# CPU: peach -> aqua -> lilac
+theme[cpu_start]="#FFA68F"
+theme[cpu_mid]="#88C8D7"
+theme[cpu_end]="#C0B0E6"
+
+# Memory/disk free
+theme[free_start]="#C0B0E6"
+theme[free_mid]="#FFA68F"
+theme[free_end]="#F2C66D"
+
+# Memory/disk cached
+theme[cached_start]="#FFA68F"
+theme[cached_mid]="#C0B0E6"
+theme[cached_end]="#F8FAFF"
+
+# Memory/disk available
+theme[available_start]="#F2C66D"
+theme[available_mid]="#FFA68F"
+theme[available_end]="#88C8D7"
+
+# Memory/disk used
+theme[used_start]="#F38491"
+theme[used_mid]="#F2C66D"
+theme[used_end]="#939FBE"
+
+# Network
+theme[download_start]="#9CC9AE"
+theme[download_mid]="#88C8D7"
+theme[download_end]="#DCE5F5"
+theme[upload_start]="#FFA68F"
+theme[upload_mid]="#C0B0E6"
+theme[upload_end]="#F8FAFF"
+
+# Process gradient
+theme[process_start]="#C0B0E6"
+theme[process_mid]="#88C8D7"
+theme[process_end]="#F38491"
+
+# Graph gradient
+theme[gradient_color_0]="#27213E"
+theme[gradient_color_1]="#4E4264"
+theme[gradient_color_2]="#F2C66D"
+theme[gradient_color_3]="#F38491"
+theme[gradient_color_4]="#9CC9AE"
+theme[gradient_color_5]="#FFA68F"
+theme[gradient_color_6]="#88C8D7"
+theme[gradient_color_7]="#EEF2FA"

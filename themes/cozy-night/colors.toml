@@ -1,0 +1,34 @@
+# Cozy Night — Nord foundations, moonlit frost, and a little cocoa warmth.
+# Kids adaptation; not a byte-identical copy of stock Nord.
+mode = "dark"
+
+accent = "#98b9dc"
+selection = "#434c5e"
+# Readable secondary text, separate from Nord's original dark selection fill.
+muted = "#aab7c8"
+
+background = "#2e3440"
+dark_background = "#222730"
+darker_background = "#191c23"
+lighter_background = "#3b4252"
+
+foreground = "#d8dee9"
+dark_foreground = "#aab7c8"
+light_foreground = "#c2cddd"
+bright_foreground = "#eceff4"
+
+red = "#e4a0a6"
+yellow = "#ebcb8b"
+orange = "#e5b08e"
+green = "#aecb9a"
+cyan = "#93ccd9"
+blue = "#98b9dc"
+magenta = "#cbaad0"
+brown = "#cbb197"
+
+bright_red = "#f0bbc0"
+bright_yellow = "#f5dda9"
+bright_green = "#c6dfb5"
+bright_cyan = "#b2e0e8"
+bright_blue = "#b9d4ef"
+bright_magenta = "#e1c5e4"

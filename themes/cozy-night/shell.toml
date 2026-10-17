@@ -1,0 +1,141 @@
+# Cozy Night — Nord's night window, soft frost and a small pool of lamplight.
+# Theme visuals only: shell layout, plugins, font family and app opacity stay user-owned.
+[bar]
+background = "#2e3440"
+background-alpha = 1.0
+text = "#d8dee9"
+active = "#e4a0a6"
+scale-with-font = true
+size-horizontal = 28
+size-vertical = 30
+
+[hyprland]
+active-border = "#98b9dc #ebcb8b 90deg"
+active-border-foreground = "#b9d4ef #ebcb8b 90deg"
+
+[controls]
+normal-color = "foreground"
+normal-fill-alpha = 0.03
+normal-border = "#aab7c8"
+normal-border-width = 1
+normal-border-alpha = 0.55
+hover-cursor-color = "foreground"
+hover-cursor-fill-alpha = 0.06
+hover-cursor-border = "#98b9dc"
+hover-cursor-border-width = 2
+hover-cursor-border-alpha = 1.0
+focus-color = "foreground"
+focus-fill-alpha = 0.06
+focus-border = "hyprland.active-border"
+focus-border-width = 2
+focus-border-alpha = 1.0
+selected-color = "foreground"
+selected-fill-alpha = 0.10
+selected-border = "#ebcb8b"
+selected-border-width = 2
+selected-border-alpha = 1.0
+pressed-fill-alpha = 0.12
+selection-fill-alpha = 0.14
+
+[spacing]
+scale = 1.0
+scale-with-font = true
+control-height = 32
+popup-row-height = 32
+panel-gap = 16
+panel-padding = 18
+popup-padding = 14
+
+[font]
+base-size = 13
+
+[popups]
+background = "#3b4252"
+background-alpha = 1.0
+text = "#d8dee9"
+border = "hyprland.active-border"
+border-alpha = 1.0
+border-width = 2
+
+[tooltip]
+background = "#3b4252"
+background-alpha = 1.0
+text = "#d8dee9"
+border = "#98b9dc"
+border-alpha = 0.80
+
+[notifications]
+background = "#3b4252"
+background-alpha = 1.0
+text = "#d8dee9"
+border = "hyprland.active-border"
+border-alpha = 1.0
+border-width = 2
+countdown = "#ebcb8b"
+
+[launcher]
+background = "#3b4252"
+background-alpha = 1.0
+text = "#c2cddd"
+border = "hyprland.active-border"
+border-alpha = 1.0
+border-width = 2
+scrim = "#2e3440"
+scrim-alpha = 0.40
+selected-background = "#98b9dc"
+selected-background-alpha = 1.0
+selected-text = "#2e3440"
+selected-border = "#98b9dc"
+selected-border-alpha = 1.0
+selected-border-width = 0
+
+[menu]
+background = "#3b4252"
+background-alpha = 1.0
+text = "#c2cddd"
+border = "hyprland.active-border"
+border-alpha = 1.0
+border-width = 2
+scrim = "#2e3440"
+scrim-alpha = 0.40
+selected-background = "#98b9dc"
+selected-background-alpha = 1.0
+selected-text = "#2e3440"
+selected-border = "#98b9dc"
+selected-border-alpha = 1.0
+selected-border-width = 0
+
+[polkit]
+background = "#3b4252"
+background-alpha = 1.0
+text = "#d8dee9"
+text-error = "#e4a0a6"
+border = "hyprland.active-border"
+border-error = "#e4a0a6"
+border-alpha = 1.0
+scrim = "#2e3440"
+scrim-alpha = 0.45
+accent = "#98b9dc"
+
+[lock]
+background = "#3b4252"
+background-alpha = 1.0
+text = "#d8dee9"
+placeholder = "#aab7c8"
+text-error = "#e4a0a6"
+border = "#98b9dc"
+border-active = "hyprland.active-border"
+border-error = "#e4a0a6"
+border-alpha = 1.0
+selection = "#98b9dc"
+selection-alpha = 0.20
+
+[image-picker]
+# No opaque card here: protect the caption even over the brightest wallpaper.
+scrim = "#2e3440"
+scrim-alpha = 0.75
+text = "#eceff4"
+selected-border = "#ebcb8b"
+selected-border-alpha = 1.0
+unselected-border = "#aab7c8"
+unselected-border-alpha = 0.65

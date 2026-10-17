@@ -1,0 +1,39 @@
+system: "base24"
+name: "Dino Dawn"
+slug: "dino-dawn"
+author: "NobleDoodle (Primeval Dawn); Kids adaptation by OldJobobo"
+variant: "dark"
+
+# Exported from colors.toml; base04 is derived, all other source roles are preserved.
+# base04 separates duplicate muted/dark foreground: 50% base03 + 50% base06 (sRGB).
+
+palette:
+  # --- prehistoric forest / bark shadows ---
+  base00: "#28211E" # Ancient Bark - default background
+  base01: "#3B302A" # Warm Trunk - lighter background
+  base02: "#345E50" # Jade Clearing - selection background
+  base03: "#AAC5B4" # Sage Mist - comments / muted text
+  base04: "#B2C6B8" # Fern Sketch - dark foreground
+  base05: "#D9E1D4" # Pale Foliage - default foreground
+  base06: "#B9C7BD" # Misty Canopy - light foreground
+  base07: "#F2ECD9" # Dawn Haze - brightest foreground
+
+  # --- sunrise jungle discoveries ---
+  base08: "#EF9386" # Coral Frond - red / error
+  base09: "#DFA062" # Amber Fossil - orange / warning
+  base0A: "#E8BD72" # Sunrise Gold - yellow
+  base0B: "#ACD77B" # Young Fern - green
+  base0C: "#7DD3CF" # Lagoon Ripple - cyan
+  base0D: "#8CBEDB" # Open Valley - blue
+  base0E: "#CDA4D9" # Orchid Mist - purple
+  base0F: "#BEA78C" # Sandstone Trail - brown / special
+
+  # --- base24 extension ---
+  base10: "#1D1816" # Root Hollow - darker background
+  base11: "#14100E" # Deep Understory - darkest background
+  base12: "#FFB2A1" # Bright Coral Frond - bright red
+  base13: "#F2D18E" # Bright Sunrise Gold - bright orange / yellow
+  base14: "#C9ED9D" # Bright Young Fern - bright green
+  base15: "#A4ECE0" # Bright Lagoon Ripple - bright cyan
+  base16: "#B1D9F2" # Bright Open Valley - bright blue
+  base17: "#E6C1EE" # Bright Orchid Mist - bright purple

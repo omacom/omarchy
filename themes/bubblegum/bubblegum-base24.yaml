@@ -1,0 +1,38 @@
+system: "base24"
+name: "Bubblegum"
+slug: "bubblegum"
+author: "Peter Holko"
+variant: "light"
+
+# Exported from colors.toml; semantic roles and repeated colors are preserved.
+
+palette:
+  # --- sugar clouds / lilac paper ---
+  base00: "#FFF4F8" # Sugar Cloud - default background
+  base01: "#FFFAFC" # Marshmallow - lighter background
+  base02: "#F8C8DC" # Ribbon Pink - selection background
+  base03: "#A58AA8" # Lilac Dust - comments / muted text
+  base04: "#8E6F93" # Plum Pencil - dark foreground
+  base05: "#4A2A4E" # Berry Ink - default foreground
+  base06: "#5E3D63" # Mulberry Silk - light foreground
+  base07: "#3A1F3D" # Blackberry Stamp - brightest foreground
+
+  # --- sweet-shop signals ---
+  base08: "#D7263D" # Cherry Sweet - red / error
+  base09: "#F0742A" # Tangerine Twist - orange / warning
+  base0A: "#E0A106" # Honey Drop - yellow
+  base0B: "#2A9D5C" # Mint Leaf - green
+  base0C: "#0F9FB0" # Soda Glass - cyan
+  base0D: "#3B7DDD" # Blueberry Sky - blue
+  base0E: "#C04CCF" # Orchid Candy - purple
+  base0F: "#8C5A3C" # Toffee Wrapper - brown / special
+
+  # --- base24 extension ---
+  base10: "#FBE4EE" # Rose Fondant - darker background
+  base11: "#F5D3E3" # Blush Velvet - darkest background
+  base12: "#F2536B" # Bright Cherry Sweet - bright red
+  base13: "#F4BE32" # Bright Honey Drop - bright orange / yellow
+  base14: "#4CBD7D" # Bright Mint Leaf - bright green
+  base15: "#36BDCC" # Bright Soda Glass - bright cyan
+  base16: "#659BF4" # Bright Blueberry Sky - bright blue
+  base17: "#DC78E8" # Bright Orchid Candy - bright purple
