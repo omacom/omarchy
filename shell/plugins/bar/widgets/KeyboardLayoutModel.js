@@ -57,8 +57,9 @@ function shortLabel(description, briefs) {
 // Hyprland's activelayout event pairs the keyboard that switched with the layout
 // it moved to. Quickshell cuts the event into that many fields, so a description
 // carrying a comma of its own stays in one piece; a binding old enough to hand
-// back only the raw string gets split by hand. The virtual keyboard fcitx5 binds
-// to inject announces switches too, and names a keyboard nobody types on.
+// back only the raw string gets split by hand. Seat-wide switches announce every
+// device that moved, untyped ones included, so a name is only kept when it names
+// a keyboard somebody types on.
 function eventKeyboardName(event) {
   var parts
 
@@ -70,20 +71,24 @@ function eventKeyboardName(event) {
   if (!parts) parts = String(event && event.data ? event.data : "").split(",")
 
   var name = String(parts[0] || "")
-  return name.indexOf("hl-virtual-keyboard") === 0 ? "" : name
+  return isTypedKeyboard(name) ? name : ""
 }
 
 // Hyprland reports more than keyboards as keyboards. fcitx5 binds a virtual one
 // to inject through, which keeps the us layout the input method gave it, and the
 // ACPI power button, lid switch and sleep key each arrive carrying the seat's
-// layout list without anyone ever typing on them. Both answer to switchxkblayout
-// and both can hold the main flag, so a widget that reads or switches whatever
-// the seat hands it ends up describing a button. Leave them out and what remains
-// is keyboards, which is what the rest of this file can then assume.
+// layout list without anyone ever typing on them. Vendor hotkey blocks, split-out
+// HID consumer-control interfaces, and the AVRCP remote a Bluetooth headset
+// exposes ("wh-1000xm4-(avrcp)") join the seat the same way. They all answer to
+// switchxkblayout and all can hold the main flag, so a widget that reads or
+// switches whatever the seat hands it ends up describing a button — or a pair
+// of headphones, which drift to another layout index without being asked and
+// then win the reading. Leave them out and what remains is keyboards, which is
+// what the rest of this file can then assume.
 //
 // Missing a name here costs the accuracy the seat had before, never a keyboard:
 // anything unrecognised stays in the list.
-var UNTYPED_KEYBOARDS = /^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)/
+var UNTYPED_KEYBOARDS = /^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus|intel-hid-events|dell-wmi-hotkeys)|avrcp|consumer-control/
 
 function isTypedKeyboard(name) {
   return !UNTYPED_KEYBOARDS.test(String(name || ""))
