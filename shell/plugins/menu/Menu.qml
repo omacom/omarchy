@@ -310,6 +310,17 @@ Item {
         else root.loadProviderForMenu(root.activeMenu)
       }
     }
+    // A route that fell back to root before both menu files had answered
+    // gets one more try once they have, so it sees the user's overrides too.
+    var pending = root.pendingInitialMenu
+    if (pending && root.menuFilesAnswered()) {
+      root.pendingInitialMenu = ""
+      if (root.opened && !root.dmenuActive && root.item(root.resolveRoute(pending))) root.openRoute(pending)
+    }
+  }
+
+  function menuFilesAnswered() {
+    return root.defaultMenuSettled && root.userMenuSettled
   }
 
   // Each known provider is a tiny bash one-liner that enumerates a list and
@@ -813,12 +824,15 @@ Item {
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
     root.disarmPointer()
+    // Typing or moving to another menu drops a route still waiting to open.
+    root.pendingInitialMenu = ""
     if (!root.dmenuActive && root.filterText.trim()) root.loadProvidersForSearch()
     root.rebuildDisplay()
   }
 
   function setActiveMenu(id, pushHistory, fromPointer) {
     panel.freezeCardTop()
+    root.pendingInitialMenu = ""
     if (!root.item(id)) id = "root"
     if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
     root.activeMenu = id
@@ -947,6 +961,8 @@ Item {
     selectionFile = ""
     doneFile = ""
     activeMenu = root.item(initialMenu) ? initialMenu : "root"
+    // Only a route that fell back to root while the menu files load waits.
+    if (activeMenu === initialMenu || root.menuFilesAnswered()) pendingInitialMenu = ""
     navStack = []
     filterText = ""
     selectedIndex = 0
@@ -1142,8 +1158,9 @@ Item {
     watchChanges: true
     printErrors: false
     onLoaded: { root.defaultMenuItems = root.parseMenuJsonc(text()); root.defaultMenuSettled = true; root.rebuildItemsFromSources() }
-    // A user file that loaded first held its evaluation for this one.
-    onLoadFailed: { root.defaultMenuSettled = true; if (root.userMenuSettled) root.evaluateGuards() }
+    // A user file that answered first held its guard evaluation and any
+    // startup route for this one, so a failure rebuilds too.
+    onLoadFailed: { root.defaultMenuSettled = true; root.rebuildItemsFromSources() }
     onFileChanged: reload()
   }
 
