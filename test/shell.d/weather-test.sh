@@ -31,6 +31,11 @@ assertEqual(weather.wttrLocationQuery('Malibu', 'nope', -118.7804), 'Malibu', 'w
 assertEqual(weather.wttrLocationQuery('', null, null), '', 'weather falls back to IP auto-detect without a location')
 assertEqual(weather.wttrLocationQuery('  ', null, null), '', 'weather treats a blank location as unset')
 
+assertEqual(weather.autoLocationLabel('Malibu, United States\n'), 'Malibu', 'weather labels an auto-detected location by its city')
+assertEqual(weather.autoLocationLabel('Tokyo'), 'Tokyo', 'weather keeps a bare auto-detected city')
+assertEqual(weather.autoLocationLabel('37.751000,-97.822000'), '37.751000,-97.822000', 'weather keeps a wttr coordinate fallback whole')
+assertEqual(weather.autoLocationLabel(''), '', 'weather labels an empty auto-detect response as empty')
+
 assertDeepEqual(
   weather.parseGeocodingResults(JSON.stringify({
     results: [
@@ -145,6 +150,10 @@ assert(
   panelSource.split('root.controller.show()\n    locationFile.reload()\n    root.refresh()').length === 3,
   'weather reloads external location changes whenever either open path runs'
 )
+assert(
+  panelSource.includes('root.wttrLocation = Model.autoLocationLabel(raw)'),
+  'weather labels the auto-detected location without cutting a coordinate fallback'
+)
 assert(!weather.weatherResponseCompletesSave(true, 'wttr'), 'weather keeps the spinner through a non-authoritative pinned-location response')
 assert(weather.weatherResponseCompletesSave(true, 'open-meteo'), 'weather completes a pinned-location save with Open-Meteo data')
 assert(weather.weatherResponseCompletesSave(false, 'wttr'), 'weather completes a name-only location save with wttr data')
@@ -182,3 +191,34 @@ pass "weather location rejects malformed coordinates"
 weather_location --clear
 [[ ! -e "$test_tmp/.local/state/omarchy/settings/weather.json" ]] || fail "weather location clear removes the state file"
 pass "weather location clear removes the state file"
+
+# Auto-detect path: stub curl so we do not hit the network. When wttr falls
+# back to raw coordinates, the label must keep the full pair (#9706).
+stub_bin="$test_tmp/bin"
+mkdir -p "$stub_bin"
+cat >"$stub_bin/curl" <<'SH'
+#!/bin/bash
+printf '%s\n' "${TEST_WTTR_LOCATION:-}"
+SH
+chmod +x "$stub_bin/curl"
+
+run_auto_location() {
+  HOME="$test_tmp" PATH="$stub_bin:$PATH" \
+    TEST_WTTR_LOCATION="$1" \
+    "$ROOT/bin/omarchy-weather-location"
+}
+
+[[ $(run_auto_location '37.751000,-97.822000') == '37.751000,-97.822000' ]] ||
+  fail "weather location keeps full coordinate fallback from wttr" "$(run_auto_location '37.751000,-97.822000')"
+pass "weather location keeps full coordinate fallback from wttr"
+
+[[ $(run_auto_location 'Malibu, United States') == 'Malibu' ]] ||
+  fail "weather location still strips country from a city label" "$(run_auto_location 'Malibu, United States')"
+pass "weather location still strips country from a city label"
+
+[[ $(run_auto_location 'Tokyo') == 'Tokyo' ]] ||
+  fail "weather location returns a bare city name" "$(run_auto_location 'Tokyo')"
+pass "weather location returns a bare city name"
+
+[[ -z $(run_auto_location '') ]] || fail "weather location stays quiet when wttr returns nothing"
+pass "weather location stays quiet when wttr returns nothing"
