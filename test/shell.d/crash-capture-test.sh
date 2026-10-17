@@ -56,7 +56,7 @@ pass "crash capture is on by default"
 
 require_command jq
 
-# The per-program mute, driven through the real watcher with a stubbed journal:
+# The per-program mute, driven through the real watcher with stubbed events:
 # these prove what a person sees -- a toast arriving or not -- where asserting
 # that a flag file was read would prove only that a flag file was read.
 watch_bin="$TMPDIR/watch-bin"
@@ -68,7 +68,20 @@ mkdir -p "$watch_bin" "$watch_home"
 
 cat >"$watch_bin/journalctl" <<'SH'
 #!/bin/bash
-cat "$JOURNAL_ENTRIES"
+for arg in "$@"; do
+  case $arg in
+    -f|--follow) exit 1 ;;
+    _SYSTEMD_INVOCATION_ID=*) invocation=${arg#*=} ;;
+  esac
+done
+[[ -n ${invocation:-} ]] || exit 1
+jq -c --arg invocation "$invocation" \
+  'select(._SYSTEMD_INVOCATION_ID == $invocation)' "$JOURNAL_ENTRIES"
+SH
+
+cat >"$watch_bin/inotifywait" <<'SH'
+#!/bin/bash
+jq -r '._SYSTEMD_INVOCATION_ID' "$JOURNAL_ENTRIES"
 SH
 
 cat >"$watch_bin/omarchy-default-agent" <<'SH'
@@ -86,7 +99,7 @@ cat >"$watch_bin/omarchy-notification-send" <<'SH'
 printf '%s\n' "$*" >>"$NOTIFY_LOG"
 SH
 
-chmod +x "$watch_bin/journalctl" "$watch_bin/omarchy-default-agent" \
+chmod +x "$watch_bin/journalctl" "$watch_bin/inotifywait" "$watch_bin/omarchy-default-agent" \
   "$watch_bin/omarchy-notification-wait" "$watch_bin/omarchy-notification-send"
 
 reset_entries() {
@@ -96,14 +109,17 @@ reset_entries() {
 # One core dump as systemd-coredump journals it. The UID must be this user's, or
 # the watcher discards it as somebody else's crash before anything under test.
 crash_entry() {
-  local comm="$1" exe="$2"
+  local comm="$1" exe="$2" invocation
+  printf -v invocation '%032x' "$(( $(wc -l <"$JOURNAL_ENTRIES") + 1 ))"
 
   jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" \
-    '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
+    --arg invocation "$invocation" \
+    '{_SYSTEMD_INVOCATION_ID: $invocation, COREDUMP_UID: $uid,
+      COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
       COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}' >>"$JOURNAL_ENTRIES"
 }
 
-# The stubbed journalctl ends after the entries, so the watcher's loop ends too.
+# The stubbed inotifywait ends after the events, so the watcher's loop ends too.
 # Its exit status is asserted rather than discarded: a watcher that dies on a
 # muted crash notifies about nothing afterwards, which every assertion below
 # that expects silence would otherwise read as success.
@@ -116,7 +132,7 @@ run_watch() {
   JOURNAL_ENTRIES="$JOURNAL_ENTRIES" \
   NOTIFY_LOG="$NOTIFY_LOG" \
   HOME="$watch_home" \
-    "$ROOT/bin/omarchy-crash-watch" || status=$?
+    timeout 5 "$ROOT/bin/omarchy-crash-watch" || status=$?
 
   (( status == 0 )) ||
     fail "the watcher exited $status rather than carrying on, so a mute takes the service down with it"
@@ -180,14 +196,14 @@ run_watch
 pass "muting the announced name silences a program whose COMM was truncated"
 
 # A muted crash must not end the watcher. Restart=always would paper over it
-# with a five-second gap, and the watcher restarts on `journalctl -n 0`, which
-# never replays the crashes it missed while it was away.
+# with a five-second gap, and inotify never replays the crashes it missed while
+# it was away.
 reset_entries
 crash_entry chromium-browse /usr/lib/chromium/chromium-browser
 crash_entry nautilus /usr/bin/nautilus
 run_watch
 announced nautilus ||
-  fail "a muted crash stops the watcher reading the journal, losing every crash after it"
+  fail "a muted crash stops the watcher reading events, losing every crash after it"
 pass "a muted crash does not stop the watcher reading the next one"
 
 # A process can set its own comm to anything prctl takes, slashes included, and
@@ -228,7 +244,7 @@ run_watch
 announced unknown ||
   fail "a crash whose comm is empty is dropped instead of announced, because the empty field shifted every field after it"
 announced nautilus ||
-  fail "an empty comm derails the rest of the journal entry"
+  fail "an empty comm derails the next crash event"
 pass "an empty comm is announced rather than parsed into the next field"
 
 # Only "." and ".." are special. A leading dot is an ordinary filename, and
@@ -241,6 +257,16 @@ for dotted_comm in .hidden ...; do
     fail "'$dotted_comm' is an ordinary name, but it lands in the fallback, so muting it would silence unrelated crashes"
 done
 pass "a leading dot is an ordinary name rather than a special component"
+
+reset_entries
+crash_entry "foo bar" -
+run_watch
+announced "foo bar" || fail "a space in the original comm splits the name"
+mute "foo bar" on
+run_watch
+! announced "foo bar" || fail "a space-containing name cannot be muted"
+mute "foo bar" off
+pass "a space-containing comm is announced and muted under its original name"
 
 # And the name it settles on is mutable like any other.
 mute unknown on
