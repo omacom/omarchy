@@ -249,6 +249,7 @@
   "theme.noBackground": "No background was found for theme",
   "theme.notAppliedEverywhere": "Theme not applied everywhere",
   "theme.removeExtraTitle": "Remove extra theme",
+  "theme.removeFailed": "Could not remove theme",
   "theme.removed": "Theme removed",
   "theme.repoPlaceholder": "Git repo URL (https or git@host:org/repo.git)",
   "themeSync.disabled": "Herdr theme sync disabled",
