@@ -17,6 +17,8 @@ if [[ $1 == "list" ]]; then
 elif [[ $1 == "set" ]]; then
   [[ ${POWERPROFILES_SET_FAIL:-0} == "0" ]] || exit 1
   printf '%s\n' "$2" >>"$POWERPROFILES_LOG"
+elif [[ $1 == "get" ]]; then
+  tail -n 1 "$POWERPROFILES_LOG" 2>/dev/null || echo "balanced"
 fi
 EOF
 chmod +x "$tmp_dir/bin/powerprofilesctl"
@@ -72,6 +74,18 @@ pass "power profile retains performance as AC default"
 "$ROOT/bin/omarchy-powerprofiles-init"
 [[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "init restores the autodetected preference"
 pass "power profile init restores the autodetected preference"
+
+"$ROOT/bin/omarchy-powerprofiles-set" ac performance
+"$ROOT/bin/omarchy-powerprofiles-set" ac power-saver
+[[ $(tail -n 2 "$tmp_dir/calls" | head -n 1) == "balanced" ]] || fail "switching from performance to power-saver transitions through balanced"
+[[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "switching from performance lands on power-saver"
+pass "switching from performance to power-saver transitions through balanced"
+
+"$ROOT/bin/omarchy-powerprofiles-set" ac performance
+if POWERPROFILES_SET_FAIL=1 "$ROOT/bin/omarchy-powerprofiles-set" ac power-saver; then
+  fail "transition aborts if intermediate balanced set fails"
+fi
+pass "transition aborts if intermediate balanced set fails"
 
 rg -F '["omarchy-powerprofiles-set", pendingPowerSource]' "$ROOT/shell/plugins/services/battery/Service.qml" >/dev/null ||
   fail "battery service applies profiles through Omarchy command"
