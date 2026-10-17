@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# omarchy:summary=Open the web chat that matches the default coding agent
+# omarchy:examples=omarchy launch ai
+
+# The agent picked with `omarchy default agent` decides which vendor's web chat
+# SUPER + SHIFT + A opens, so the two agent keys stop pointing at different
+# companies. Resolved on every press rather than written down at pick time, so
+# nothing goes stale and users who chose an agent before this existed get the
+# right chat without re-picking.
+agent=$(omarchy-default-agent)
+
+# Only agents whose vendor runs a first-party chat site are mapped. The rest,
+# and an unset default, keep the ChatGPT window the key has always opened;
+# summoning the agent picker from a web app key would be a surprise.
+case "$agent" in
+claude) url="https://claude.ai" ;;
+codex) url="https://chatgpt.com" ;;
+grok) url="https://grok.com" ;;
+agy) url="https://gemini.google.com" ;;
+copilot) url="https://github.com/copilot" ;;
+muse) url="https://www.meta.ai" ;;
+*) url="https://chatgpt.com" ;;
+esac
+
+exec omarchy-launch-webapp "$url"
