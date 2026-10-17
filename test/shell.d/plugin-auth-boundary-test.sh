@@ -137,6 +137,9 @@ tr '\n\r\t' '   ' <<<"$bar_entry_shell" |
 tr '\n\r\t' '   ' <<<"$bar_entry_shell" |
   grep -Eq 'shell\.pluginCloneMaySummon\( *currentManifest\( *\), *requestedId *\)' ||
   fail "built-in clones in replacement bars cannot summon their existing auxiliary UI"
+tr '\n\r\t' '   ' <<<"$bar_entry_shell" |
+  grep -Eq 'return owns\( *requestedId *\)[^}]*shell\.pluginServiceFor\( *shell\.pluginRegistry\.resolveEnabledId\( *target *\), *requestedId *\)' ||
+  fail "replacement-bar bar entries cannot reach their own service"
 qml_matches "$shell_qml" 'shell\.pluginCloneMaySummon\( *currentManifest\( *\), *requestedId *\)' ||
   fail "built-in clones cannot summon their existing auxiliary UI"
 qml_matches "$shell_qml" '"omarchy\.media": *\["omarchy\.osd"\]' ||
