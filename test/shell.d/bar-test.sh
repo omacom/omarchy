@@ -681,6 +681,137 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+
+// Pills. A run is the DMS segment model: spacers break it, hidden widgets drop
+// out of it without breaking it, and runs of one are a whole pill.
+assertEqual(bar.pillMode(undefined), 'off', 'pills are off by default')
+assertEqual(bar.pillMode('section'), 'section', 'pills accept section mode')
+assertEqual(bar.pillMode('widget'), 'widget', 'pills accept widget mode')
+assertEqual(bar.pillMode('bogus'), 'off', 'an unknown pill mode draws no pills')
+
+assertEqual(bar.pillState({ id: 'omarchy.clock' }, true), true, 'a drawn widget joins a pill')
+assertEqual(bar.pillState({ id: 'omarchy.clock' }, false), null, 'a hidden widget is skipped')
+assertEqual(bar.pillState({ id: 'omarchy.spacer', size: 0 }, false), false, 'a zero-size spacer still breaks a pill')
+assertEqual(bar.pillState({ id: 'omarchy.spacer', size: 8 }, true), false, 'a spacer never draws a pill')
+assertEqual(bar.pillState({ id: 'omarchy.clock', pill: false }, true), false, 'pill: false opts a widget out and breaks the run')
+assertEqual(bar.pillState({ id: 'omarchy.clock', pill: false }, false), null, 'a hidden opted-out widget is skipped')
+
+const pillEntries = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'omarchy.spacer' }, { id: 'd' }, { id: 'e' }]
+const pillDrawn = pillEntries.map(entry => bar.pillState(entry, true))
+assertDeepEqual(bar.pillRoles(pillEntries, pillDrawn, 'off'), ['none', 'none', 'none', 'none', 'none', 'none'], 'off mode draws no pills')
+assertDeepEqual(bar.pillRoles(pillEntries, pillDrawn, 'section'), ['first', 'middle', 'last', 'none', 'first', 'last'], 'section mode joins runs and a spacer splits them')
+assertDeepEqual(bar.pillRoles(pillEntries, pillDrawn, 'widget'), ['solo', 'solo', 'solo', 'none', 'solo', 'solo'], 'widget mode gives each widget its own pill')
+assertDeepEqual(bar.pillRoles(pillEntries, [true, null, true, false, null, true], 'section'), ['first', 'none', 'last', 'none', 'none', 'solo'], 'hidden widgets drop out of a run without breaking it')
+assertDeepEqual(bar.pillRoles(pillEntries, [], 'section'), ['none', 'none', 'none', 'none', 'none', 'none'], 'widgets that have not reported draw nothing')
+assertDeepEqual(bar.pillRoles([], [], 'section'), [], 'an empty section has no roles')
+
+const groupEntries = [{ id: 'a' }, { id: 'b', group: 'net' }, { id: 'c', group: 'net' }, { id: 'd', group: 'power' }, { id: 'e' }, { id: 'f' }]
+assertDeepEqual(
+  bar.pillRoles(groupEntries, groupEntries.map(entry => bar.pillState(entry, true)), 'section'),
+  ['solo', 'first', 'last', 'solo', 'first', 'last'],
+  'a change of group key splits a run with no spacer'
+)
+assertDeepEqual(
+  bar.pillRoles(groupEntries, [true, true, null, true, true, true], 'section'),
+  ['solo', 'solo', 'none', 'solo', 'first', 'last'],
+  'a group left with one drawn widget is a whole pill'
+)
+
+// Section ends: an outer pill sits pillInset from the bar end (its slot
+// carries half the gap), a bare outer widget keeps the stock margin.
+assertEqual(bar.sectionEndMargin([true, true], false, false, 2, 6, 8), 8, 'without pills a section keeps the stock end margin')
+assertEqual(bar.sectionEndMargin([true, false], false, true, 2, 6, 8), -1, 'an outer pill carries half the gap itself')
+assertEqual(bar.sectionEndMargin([null, false, true], false, true, 2, 6, 8), 8, 'a bare outer widget keeps the stock margin, hidden ones skipped')
+assertEqual(bar.sectionEndMargin([true, false, null], true, true, 2, 6, 8), 8, 'the far end reads the last drawn widget')
+assertEqual(bar.sectionEndMargin([], true, true, 2, 6, 8), 8, 'an empty section keeps the stock margin')
+// An odd gap splits unevenly, and two neighbours still add up to it.
+assertEqual(bar.pillGapLead(7), 3, 'an odd gap puts the smaller half before a pill')
+assertEqual(bar.pillGapLead(6), 3, 'an even gap splits evenly')
+assertEqual(bar.sectionEndMargin([true], false, true, 2, 7, 8), -1, 'the start of a section takes the smaller half of an odd gap')
+assertEqual(bar.sectionEndMargin([true], true, true, 2, 7, 8), -2, 'the end of a section takes the larger half of an odd gap')
+const slotSource = barSource.slice(barSource.indexOf('component ModuleSlot'))
+assert(
+  /readonly property int pillGapLead: BarModel\.pillGapLead\(Style\.bar\.pillGap\)/.test(slotSource) &&
+  /readonly property int pillGapTrail: Style\.bar\.pillGap - pillGapLead/.test(slotSource) &&
+  /pillTrail: BarModel\.pillEndsRound\(pillRole\) \? Style\.bar\.pillPadding \+ pillGapTrail/.test(slotSource) &&
+  /width: root\.vertical \? slot\.width - inset \* 2 : slot\.pillSpan - slot\.pillGapLead - slot\.pillGapTrail/.test(slotSource),
+  'a pill is drawn between the two gap halves of its run'
+)
+{
+  const styleSource = fs.readFileSync(root + '/shell/Commons/Style.qml', 'utf8')
+  assert(/pillPadding: root\.barInsetToken\("pill-padding", 4\)/.test(styleSource) && /pillGap: +root\.barInsetToken\("pill-gap", +6\)/.test(styleSource), 'pill-padding and pill-gap keep a deliberate 0')
+}
+// A dragged widget's slot leaves its run once its room has moved away, so
+// no empty pill is left at its old place.
+assert(/readonly property bool contentDrawn: dragSource \? alongLength > 0 : widgetWidth > 0 && widgetHeight > 0/.test(slotSource), 'a dragged widget leaves no empty pill behind')
+// Dragging the slot that draws a multi-widget pill must not lift the pill
+// over the rest of the run, and the ghost is the widget, not the slot.
+assert(/z: modulePointer\.dragging && !\(slot\.pillSpan > 0 && slot\.pillRole === "first"\) \? 100 : 0/.test(slotSource), 'dragging the first widget of a pill keeps the pill under its neighbours')
+assert(
+  /color: root\.pillsOn\s*\? \(root\.transparent \|\| root\.glassPills \? root\.pillFill : Qt\.tint\(root\.background, root\.pillFill\)\)\s*: \(root\.transparent \? "transparent" : root\.background\)/.test(barSource),
+  'the drag ghost sits on the pill colour while pills are on, and on the bar colour otherwise'
+)
+assert(
+  /root\.beginBarDrag\(slot, pressedX - \(root\.vertical \? 0 : slot\.pillLead\), pressedY - \(root\.vertical \? slot\.pillLead : 0\)\)/.test(slotSource),
+  'the drag ghost stays under the pointer inside a pill'
+)
+// The pill padding goes around the widget: the slot grows by it, and the
+// widget's own area starts past the lead.
+assert(
+  /implicitWidth: root\.vertical \? widgetWidth : alongLength \+ pillLead \+ pillTrail/.test(slotSource) &&
+  /implicitHeight: root\.vertical \? alongLength \+ pillLead \+ pillTrail : widgetHeight/.test(slotSource) &&
+  /id: widgetArea\s*\n\s*\n\s*\/\/ Past the pill padding at a run's start\.\s*\n\s*x: root\.vertical \? 0 : slot\.pillLead\s*\n\s*y: root\.vertical \? slot\.pillLead : 0/.test(slotSource),
+  'a slot adds the pill padding around its widget'
+)
+// Each section list keeps its own pills; the tray's drawer, inside the
+// tray's pill, keeps none.
+const moduleListSource = barSource.slice(barSource.indexOf('component ModuleList'), barSource.indexOf('component WidgetPool'))
+assert(
+  /PillRun \{\s*id: listPills\s*keys: moduleListRoot\.keys\s*active: moduleListRoot\.region !== "tray"\s*\}/.test(moduleListSource) &&
+  /pillRun: moduleListRoot\.pillRun\s*sectionIndex: moduleListRoot\.keys\.indexOf\(modelData\.key\)/.test(moduleListSource),
+  'every section list draws its own pills, the tray drawer none'
+)
+assert(/anchors\.leftMargin: pillRun\.startMargin/.test(barSource) && /anchors\.rightMargin: pillRun\.endMargin/.test(barSource) && /anchors\.topMargin: pillRun\.startMargin/.test(barSource) && /anchors\.bottomMargin: pillRun\.endMargin/.test(barSource), 'the outer sections take their end margins from their pills')
+// Pills off must leave the bar as it was: these are the switches.
+assert(/property color barForeground: pillsOn && !\(pillTextSampled && useTransparentForeground\)\s*\? pillForeground\s*: \(useTransparentForeground \? transparentForeground : themeForeground\)/.test(barSource), 'bar text follows pills only while pills are on')
+assert(/readonly property var roles: root\.pillsOn && active \? BarModel\.pillRoles\(/.test(barSource), 'no pill roles while pills are off')
+assert(/readonly property color pillForeground: !pillsOn \? themeForeground :/.test(barSource), 'no pill text colour work while pills are off')
+// On a glassy bar the pills take the glass: no strip, the pill colour at the
+// glassy bar's opacity, and the theme text the glassy bar uses.
+assert(/readonly property bool glassPills: pillsOn && glassy && !transparent/.test(barSource), 'pills on a glassy bar are glass')
+assert(/readonly property color pillFill: glassPills \? glassTint\(Commons\.Color\.bar\.pill\) :/.test(barSource), 'a glass pill is the pill colour at the glassy opacity')
+assert(/function glassTint\(colorValue\) \{\s*return Qt\.rgba\(colorValue\.r, colorValue\.g, colorValue\.b, Math\.min\(colorValue\.a, 0\.35\)\)/.test(barSource), 'the glass tint caps opacity like the glassy bar')
+assert(/pillTextFixed \? Commons\.Color\.bar\.pillText : glassPills \? themeForeground :/.test(barSource), 'glass pills keep the glassy bar text')
+assert(/color: root\.transparent \|\| root\.glassPills \? "transparent" : \(root\.glassy \? root\.glassBackground : root\.background\)/.test(barSource), 'glass pills draw no strip')
+assert(/readonly property bool pillTextSampled: pillsOn && !pillTextFixed && requestedTransparent && Commons\.Color\.bar\.pill\.a < 1/.test(barSource), 'pill text is sampled only for a translucent pill on a transparent bar')
+assert(/readonly property bool pillRaised: !transparent && !glassPills && Commons\.Color\.pick\("bar\.pill", ""\) === ""/.test(barSource), 'the raised pill tone is used only on the opaque bar without a theme pill')
+assert(
+  /if \(root\.pillsOn \|\| root\.transparentForegroundBlended\) root\.transparentForegroundPending = true/.test(barSource) &&
+  /root\.transparentForegroundBlended = root\.pillBlendArgs\.length > 0/.test(barSource) &&
+  /onExited: \{\s*if \(!root\.transparentForegroundPending\) return\s*root\.transparentForegroundPending = false\s*Qt\.callLater\(root\.refreshTransparentForeground\)/.test(barSource),
+  'with pills on, a text colour refresh asked for during a sample runs after it'
+)
+
+
+// Tray icons on the bar sit on the pill and take its text colour; the tray
+// popups sit on the popup background and keep the theme text.
+const traySource = fs.readFileSync(root + '/shell/plugins/bar/widgets/Tray.qml', 'utf8')
+const trayItem = traySource.slice(traySource.indexOf('component TrayItem'))
+assert(/readonly property color foreground: bar \? bar\.foreground : Commons\.Color\.foreground/.test(traySource), 'tray popups keep the theme text colour')
+assert(/readonly property color barIconColor: bar \? \(bar\.pillsOn \? bar\.barForeground : bar\.foreground\)/.test(traySource), 'tray bar icons follow the pill text while pills are on')
+assert(/property color tint: root\.foreground/.test(traySource) && /colorizationColor: trayIconRoot\.tint/.test(traySource), 'tray icons are tinted with their own tint, the popup colour by default')
+assert(/TrayIcon \{[^}]*tint: root\.barIconColor/.test(trayItem), 'the tray icon on the bar takes the bar icon colour')
+// A cloned tray gets the plugin facade, which must carry pillsOn for that.
+assert(/property bool pillsOn: false/.test(fs.readFileSync(root + '/shell/Ui/PluginBarApi.qml', 'utf8')) && /api\.pillsOn = Qt\.binding\(function\(\) \{ return root\.pillsOn \}\)/.test(barSource), 'bar widgets outside the shell see whether pills are on')
+
+
+assertEqual(bar.blendHex('#ffffff', 0.5, '#000000'), '#808080', 'pill colour blends over its backdrop')
+assertEqual(bar.blendHex('#1a1b26', 1, '#ffffff'), '#1a1b26', 'an opaque pill hides its backdrop')
+assertEqual(bar.blendHex('bogus', 1, '#ffffff'), '', 'blending rejects a malformed colour')
+assertEqual(bar.pickTextColor('#ffffff', '#101010', '#f5f5f5'), '#101010', 'pill text flips to the background colour on a light pill')
+assertEqual(bar.pickTextColor('#ffffff', '#101010', '#202020'), '#ffffff', 'pill text keeps the bar text on a dark pill')
+assertEqual(bar.pickTextColor('#ffffff', '#101010', 'bogus'), '#ffffff', 'pill text keeps the bar text when the backdrop is unknown')
+assert(Math.abs(bar.contrastRatio('#ffffff', '#000000') - 21) < 1e-9, 'contrast ratio follows WCAG')
 JS
 
 put_tmp=$(mktemp -d)
