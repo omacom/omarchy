@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Detect Dell Latitude 9440 2-in-1 laptops on Intel Raptor Lake-P.
+
+omarchy-hw-match "Latitude 9440"
