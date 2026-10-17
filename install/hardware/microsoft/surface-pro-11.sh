@@ -1,0 +1,120 @@
+# Microsoft Surface Pro 11 (Snapdragon X Elite, OLED) board-specific setup.
+
+mkinitcpio_dir=${OMARCHY_SURFACE_PRO11_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
+limine_config_dir=${OMARCHY_SURFACE_PRO11_LIMINE_CONFIG_DIR:-/etc/limine-entry-tool.d}
+uki_config=${OMARCHY_SURFACE_PRO11_UKI_CONFIG:-/etc/kernel/uki.conf}
+
+# Only the X Elite OLED model has been tested. The LCD and X Plus models share
+# the DMI product name but use other device trees and panels.
+if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,denali-oled; then
+  echo "Detected Microsoft Surface Pro 11, applying board-specific support..."
+
+  # Boot configuration comes first, so the kernel's image is built with
+  # it when the kernel is installed below.
+
+  # Installs made before the Intel Surface fixes were limited to x86 carry
+  # their keyboard module file, which resets MODULES to Intel modules.
+  rm -f "$mkinitcpio_dir/surface_device_modules.conf"
+
+  # Embed the OLED model's device tree instead of the generic list. That list
+  # holds this kernel's trees too, but systemd-stub picks among them by SMBIOS
+  # identity, which the OLED, LCD and X Plus models share. The markers match
+  # dtb-uki.sh.
+  mkdir -p "$(dirname "$uki_config")"
+  uki_tmp=$(mktemp "$uki_config.XXXXXX")
+  # The previous file is kept until the kernel below installs, so a failed
+  # install leaves the stock kernel's image building as before.
+  uki_previous=""
+  if [[ -f $uki_config ]]; then
+    uki_previous=$(mktemp "$uki_config.XXXXXX")
+    cp -p "$uki_config" "$uki_previous"
+    cp -p "$uki_config" "$uki_tmp"
+    awk '
+      $0 == "# BEGIN OMARCHY QUALCOMM DEVICE TREES" || $0 == "# BEGIN OMARCHY SURFACE PRO 11 DEVICE TREE" { managed = 1; next }
+      managed && ($0 == "# END OMARCHY QUALCOMM DEVICE TREES" || $0 == "# END OMARCHY SURFACE PRO 11 DEVICE TREE") { managed = 0; next }
+      !managed { print }
+    ' "$uki_config" >"$uki_tmp"
+  else
+    chmod 0644 "$uki_tmp"
+  fi
+  cat >>"$uki_tmp" <<'CONF'
+# BEGIN OMARCHY SURFACE PRO 11 DEVICE TREE
+[UKI]
+DeviceTree=/boot/dtbs/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb
+# END OMARCHY SURFACE PRO 11 DEVICE TREE
+CONF
+  mv -f "$uki_tmp" "$uki_config"
+  unset uki_tmp
+
+  # Bring up the panel and the Flex Keyboard before disk unlock. The display
+  # driver waits for the USB-C DisplayPort chain, so that loads early too,
+  # with the IPC router and PD mapper pmic_glink needs to initialize. The
+  # Surface modules and the video clock controller are optional: the stock
+  # kernel has neither, and its image must still build.
+  # The DSP driver stays out: listing it here would bypass the USB-root guard.
+  mkdir -p "$mkinitcpio_dir"
+  cat >"$mkinitcpio_dir/surface-pro-11-initramfs.conf" <<'CONF'
+MODULES+=(msm dispcc_x1e80100 gpucc_x1e80100 videocc_sm8550? phy_qcom_edp
+  panel_samsung_atna33xc20 phy_qcom_qmp_combo ps883x qrtr qcom_pd_mapper pmic_glink pmic_glink_altmode
+  i2c_qcom_geni surface_aggregator? surface_aggregator_registry?
+  surface_aggregator_hub? surface_hid_core? surface_hid?)
+
+# The board-signed zap shader is included by qcom-firmware-extract. Wi-Fi board
+# data and the audio topology are requested once if their drivers load early.
+for firmware in \
+  qcom/gen70500_sqe.fw \
+  qcom/gen70500_gmu.bin \
+  ath12k/WCN7850/hw2.0/board.bin \
+  qcom/x1e80100/X1E80100-Microsoft-Surface-Pro-11-tplg.bin; do
+  for suffix in '' .zst .xz; do
+    for directory in "${OMARCHY_SURFACE_PRO11_FIRMWARE_ROOT:-/usr/lib/firmware}/updates" \
+      "${OMARCHY_SURFACE_PRO11_FIRMWARE_ROOT:-/usr/lib/firmware}"; do
+      if [[ -f $directory/$firmware$suffix ]]; then
+        FILES+=("$directory/$firmware$suffix")
+        break 2
+      fi
+    done
+  done
+done
+unset firmware directory suffix
+CONF
+
+  # linux-omarchy already boots first under Omarchy's defaults. An earlier
+  # revision of this script put linux-sp11 first.
+  rm -f "$limine_config_dir/zz-surface-pro-11.conf"
+
+  # Omarchy's aarch64 kernel carries the Surface Pro 11 patches: touch, pen,
+  # the Surface Aggregator keyboard and the cameras. The UKI device tree
+  # setting applies to every kernel, and the stock kernel has neither those
+  # drivers nor this device tree, so it is replaced instead of kept beside it.
+  # surface-pro-11-support carries Wi-Fi board data, audio and camera routing.
+  # A failed install stops here, before the stock kernel is removed.
+  surface_pro11_kernel=(linux-omarchy)
+  if pacman -Q linux-aarch64-headers &>/dev/null; then
+    surface_pro11_kernel+=(linux-omarchy-headers)
+  fi
+  if ! omarchy-pkg-add "${surface_pro11_kernel[@]}" surface-pro-11-support; then
+    if [[ -n $uki_previous ]]; then
+      mv -f "$uki_previous" "$uki_config"
+    else
+      rm -f "$uki_config"
+    fi
+    exit 1
+  fi
+  [[ -z $uki_previous ]] || rm -f "$uki_previous"
+  unset surface_pro11_kernel uki_previous
+  omarchy-pkg-drop linux-aarch64 linux-aarch64-headers
+
+  # Stock libcamera drives the front and back cameras; PipeWire reaches them
+  # through its libcamera plugin.
+  omarchy-pkg-add pipewire-libcamera
+
+  # iptsd turns the digitizer's reports into pen and touch input, and the
+  # sensor package serves the ADSP the light sensor's configuration.
+  omarchy-pkg-add iptsd surface-pro-11-sensors
+
+  # The light sensor configuration is copied from the Windows installation,
+  # which a full-disk install has already erased; it can be rerun later.
+  surface-pro-11-sensors-extract || true
+  systemctl enable surface-pro-11-sensors.service
+fi
