@@ -130,6 +130,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   omarchy-update-orphan-pkgs -y
 
   omarchy-update-analyze-logs
+  omarchy-update-pacnew
 
   # The dev checkout was fast-forwarded and the full upgrade went through, so
   # there is no Omarchy update left to show. Rechecking would download every
