@@ -36,6 +36,33 @@ function o.shell_succeeds(command)
   return output:find("OK", 1, true) ~= nil
 end
 
+-- Like o.shell_succeeds, but returns the command's trimmed stdout instead of
+-- a boolean, or nil when it fails or prints nothing.
+function o.shell_output(command)
+  -- Marker on its own line, so a failing command's stdout can't be mistaken
+  -- for success even when it printed something before failing.
+  local pipe = io.popen("( " .. command .. " ) 2>/dev/null && printf '\\nOK\\n'")
+  if not pipe then
+    return nil
+  end
+
+  local output = pipe:read("*a") or ""
+  pipe:close()
+
+  local marker = "\nOK\n"
+  if output:sub(-#marker) ~= marker then
+    return nil
+  end
+  output = output:sub(1, -#marker - 1)
+
+  output = output:match("^%s*(.-)%s*$")
+  if output == "" then
+    return nil
+  end
+
+  return output
+end
+
 function o.cmd_present(command)
   if command:find("/", 1, true) then
     return file_exists(command)
