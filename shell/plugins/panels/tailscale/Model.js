@@ -64,8 +64,10 @@ function osIcon(os) {
 function accountLabel(account, tr) {
   var t = translator(tr)
   if (!account) return t("tailscale.unknownAccount", "Unknown account")
-  if (account.nickname) return String(account.nickname)
+  // Tailscale fills an unset nickname with the login, which every tailnet of that login shares (#9259).
+  if (account.nickname && account.nickname !== account.account) return String(account.nickname)
   if (account.tailnet) return String(account.tailnet)
+  if (account.nickname) return String(account.nickname)
   if (account.account) return String(account.account)
   return String(account.id || t("tailscale.unknownAccount", "Unknown account"))
 }
