@@ -131,6 +131,7 @@ omp_package="github:can1357/oh-my-pi"
 crush_package="crush"
 agy_package="antigravity-cli"
 ori_package="github:OpenRouterLabs/ori-releases"
+qwen_package="npm:@qwen-code/qwen-code"
 kimi_package="npm:@moonshot-ai/kimi-code"
 cursor_agent_package="cursor-agent"
 muse_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
@@ -152,6 +153,7 @@ assert_lazy_stub "$grok_package" grok
 assert_lazy_stub "$omp_package" omp
 assert_lazy_stub "$crush_package" crush
 assert_lazy_stub "$ori_package" ori
+assert_lazy_stub "$qwen_package" qwen
 assert_lazy_stub "$kimi_package" kimi
 assert_lazy_stub "$cursor_agent_package" cursor-agent
 assert_lazy_stub "$muse_package" muse
@@ -512,6 +514,8 @@ declare -A expected_agents=(
   [gemini-cli]="agy"
   [copilot]="copilot"
   [github-copilot]="copilot"
+  [qwen]="qwen"
+  [qwen-code]="qwen"
   [kimi]="kimi"
   [kimi-code]="kimi"
   [cursor]="cursor-agent"
@@ -532,6 +536,7 @@ declare -A expected_packages=(
   [grok]="$grok_package"
   [agy]="$agy_package"
   [copilot]="copilot"
+  [qwen]="$qwen_package"
   [kimi]="$kimi_package"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
@@ -789,6 +794,7 @@ assert_bypass() {
   assert_launched "$agent" "skips permission prompts" "$@"
 }
 
+assert_launch qwen qwen --yolo "--prompt-interactive=Review this project"
 assert_launch pi pi "Review this project"
 assert_launch omp omp --auto-approve -- "Review this project"
 assert_launch opencode opencode --auto --prompt "Review this project"
@@ -803,6 +809,10 @@ assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--qu
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
 assert_launch copilot copilot --allow-all --interactive "Review this project"
 assert_launch kimi kimi --prompt "Review this project"
+printf '%s\n' qwen >"$agent_file"
+omarchy-agent-prompt '-n --help; echo literal'
+assert_launched qwen "keeps an option-like prompt literal" qwen --yolo "--prompt-interactive=-n --help; echo literal"
+
 pass "agent launcher adapts initial prompts for every supported agent"
 
 literal_muse_prompt=$'--disable-sandbox !Crash {$(touch must-not-run)}\ntrailing\\ '
@@ -818,6 +828,7 @@ assert_launched hermes "binds its literal initial prompt" env -u HERMES_SESSION_
   hermes chat --yolo --tui "--query=$literal_hermes_prompt"
 pass "Hermes receives prompted launches as one literal query argument"
 
+assert_bypass qwen qwen --yolo
 assert_bypass pi pi
 assert_bypass omp omp --auto-approve
 assert_bypass opencode opencode --auto
