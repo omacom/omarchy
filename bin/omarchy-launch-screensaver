@@ -50,28 +50,42 @@ wait_for_screensaver_window() {
   done
 }
 
-while read -r m special; do
+art=~/.config/omarchy/branding/screensaver.txt
+art_columns=$(LC_ALL=C.UTF-8 wc -L 2>/dev/null <"$art" || echo 0)
+art_rows=$(wc -l 2>/dev/null <"$art" || echo 0)
+
+# Size the font per monitor, between 6 and 18, so the art fits its logical size instead of being cropped at the edges,
+# as the 81-column logo is on a 1080p panel at scale 2. A monospace cell at N points is about 0.8N by 1.75N pixels.
+monitors_with_font_size() {
+  hyprctl monitors -j | jq -r --argjson columns "$art_columns" --argjson rows "$art_rows" '
+    .[] | .scale as $scale
+    | (if .transform % 2 == 1 then [.height, .width] else [.width, .height] end | map(. / $scale)) as [$width, $height]
+    | ([18, $width / (($columns + 2) * 0.8), $height / (($rows + 2) * 1.75)] | min | floor | [., 6] | max) as $font_size
+    | "\(.name) \($font_size) \(.specialWorkspace.name)"'
+}
+
+while read -r m font_size special; do
   hypr_focus_monitor "$m"
   # Share a special workspace that is already showing, like the scratchpad, so it is still open afterwards.
   workspace=${special:-special:screensaver-$m}
 
   case $terminal in
   *Alacritty*)
-    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -e omarchy-screensaver
+    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -o "font.size=$font_size" -e omarchy-screensaver
     ;;
   *ghostty*)
-    hypr_exec ghostty --class=org.omarchy.screensaver --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size=18 -e omarchy-screensaver
+    hypr_exec ghostty --class=org.omarchy.screensaver --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size="$font_size" -e omarchy-screensaver
     ;;
   *foot*)
-    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" -e omarchy-screensaver
+    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" --font="JetBrainsMono Nerd Font:size=$font_size" -e omarchy-screensaver
     ;;
   *kitty*)
-    hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e omarchy-screensaver
+    hypr_exec kitty --class=org.omarchy.screensaver --override font_size="$font_size" --override window_padding_width=0 -e omarchy-screensaver
     ;;
   esac
 
   wait_for_screensaver_window
-done < <(hyprctl monitors -j | jq -r '.[] | "\(.name) \(.specialWorkspace.name)"')
+done < <(monitors_with_font_size)
 
 hypr_focus_monitor "$focused"
 
