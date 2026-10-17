@@ -24,6 +24,21 @@ chmod +x "$tmp_dir/bin/powerprofilesctl"
 cat >"$tmp_dir/bin/busctl" <<'EOF'
 #!/bin/bash
 
+# BUSCTL_FAIL makes every query fail (UPower unreachable). BUSCTL_FAIL_REMAINING
+# points at a file holding a failure counter: while it is positive, fail (UPower
+# not ready yet) and decrement it, then answer normally.
+[[ ${BUSCTL_FAIL:-0} == "1" ]] && exit 1
+# BUSCTL_HANG stands in for a wedged UPower. exec keeps no shell around so the
+# per-attempt timeout lands directly on the sleeper.
+[[ ${BUSCTL_HANG:-0} == "1" ]] && exec sleep 30
+if [[ -n ${BUSCTL_FAIL_REMAINING:-} && -f $BUSCTL_FAIL_REMAINING ]]; then
+  remaining=$(<"$BUSCTL_FAIL_REMAINING")
+  if (( remaining > 0 )); then
+    printf '%d\n' $((remaining - 1)) >"$BUSCTL_FAIL_REMAINING"
+    exit 1
+  fi
+fi
+
 if [[ ${ON_BATTERY:-0} == "1" ]]; then
   echo "b true"
 else
@@ -72,6 +87,35 @@ pass "power profile retains performance as AC default"
 "$ROOT/bin/omarchy-powerprofiles-init"
 [[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "init restores the autodetected preference"
 pass "power profile init restores the autodetected preference"
+
+# A failed detection is unknown, not "on AC": it must refuse to set a profile
+# rather than fail-open to performance on a machine booting on battery (#12734).
+last_before=$(tail -n 1 "$tmp_dir/calls")
+if BUSCTL_FAIL=1 "$ROOT/bin/omarchy-powerprofiles-set" autodetect; then
+  fail "power profile autodetect fails when detection fails"
+fi
+[[ $(tail -n 1 "$tmp_dir/calls") == "$last_before" ]] || fail "failed autodetect changes no profile"
+pass "power profile autodetect refuses to guess when detection fails"
+
+# A wedged UPower must not stall autodetect: the per-attempt deadline bounds
+# the whole retry window.
+last_before=$(tail -n 1 "$tmp_dir/calls")
+start=$SECONDS
+if BUSCTL_HANG=1 "$ROOT/bin/omarchy-powerprofiles-set" autodetect; then
+  fail "power profile autodetect fails when detection hangs"
+fi
+elapsed=$((SECONDS - start))
+(( elapsed < 25 )) || fail "hung detection refuses within the retry window (took ${elapsed}s)"
+[[ $(tail -n 1 "$tmp_dir/calls") == "$last_before" ]] || fail "hung autodetect changes no profile"
+pass "power profile autodetect bounds a hung detection"
+
+# A not-yet-ready UPower recovers within the retry window.
+printf '2\n' >"$tmp_dir/busctl-failures"
+if ! BUSCTL_FAIL_REMAINING="$tmp_dir/busctl-failures" ON_BATTERY=1 "$ROOT/bin/omarchy-powerprofiles-set" autodetect; then
+  fail "power profile autodetect rides out transient detection failures"
+fi
+[[ $(tail -n 1 "$tmp_dir/calls") == "performance" ]] || fail "power profile autodetect recovers battery preference after retries"
+pass "power profile autodetect retries transient detection failures"
 
 rg -F '["omarchy-powerprofiles-set", pendingPowerSource]' "$ROOT/shell/plugins/services/battery/Service.qml" >/dev/null ||
   fail "battery service applies profiles through Omarchy command"
