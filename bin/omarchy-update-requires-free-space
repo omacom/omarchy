@@ -12,6 +12,63 @@ elif read -r available_bytes < <(df --output=avail --block-size=1 / 2>/dev/null 
   (( available_bytes < 10 * 1024 * 1024 * 1024 )); then
   echo "You need at least 10 GiB free to safely update Omarchy."
   exit 1
-else
+fi
+
+# A UKI + Limine boot squeezes the ESP, not root: a kernel update writes a
+# fresh UKI while limine-snapper-sync still holds its retained copies, and an
+# ESP that fills mid-update leaves the machine unbootable. Root's 10 GiB check
+# cannot see that when the ESP is its own small filesystem, so the ask is
+# sized against the largest UKI already on disk, with one copy per installed
+# kernel plus one for the update and history churn (at least two copies).
+# See omacom/omarchy#13355.
+esp=$(sed -n 's/^ESP_PATH=["'\'']\{0,1\}\([^"'\'']*\).*/\1/p' /etc/default/limine 2>/dev/null | tail -n 1)
+esp=${esp:-/boot}
+
+# One filesystem check is enough: an ESP living on root is already covered by
+# the 10 GiB check above.
+if [[ $(findmnt -nro SOURCE -T "$esp" 2>/dev/null) == "$(findmnt -nro SOURCE -T / 2>/dev/null)" ]]; then
   exit 0
 fi
+
+# No UKIs (different bootloader, or a wiped ESP) means nothing to size against.
+if uki_sizes=$(find "$esp" -xdev -type f -name '*.efi' -printf '%s\n' 2>/dev/null); then
+  largest_uki_bytes=$(sort -nr <<< "$uki_sizes" | head -n 1)
+else
+  if [[ -d $esp ]]; then
+    echo "Could not scan UKIs in $esp; permissions may prevent verifying UKI headroom. Check its free space before updating." >&2
+  fi
+  exit 0
+fi
+if ! [[ $largest_uki_bytes =~ ^[0-9]+$ ]]; then
+  exit 0
+fi
+
+required_copies=2
+if kernel_packages=$(pacman -Qq 2>/dev/null); then
+  kernel_count=0
+  while read -r package; do
+    case "$package" in
+      *-headers) ;;
+      linux|linux-lts|linux-zen|linux-ptl|linux-t2|linux-omarchy|linux-omarchy-*)
+        kernel_count=$(( kernel_count + 1 )) ;;
+    esac
+  done <<< "$kernel_packages"
+  if (( kernel_count > 0 )); then
+    required_copies=$(( kernel_count + 1 ))
+  fi
+fi
+required_bytes=$(( largest_uki_bytes * required_copies ))
+
+if ! read -r esp_available_bytes < <(df --output=avail --block-size=1 "$esp" 2>/dev/null | tail -n 1) ||
+  ! [[ $esp_available_bytes =~ ^[0-9]+$ ]]; then
+  # Unmeasurable ESP: warn rather than block the update on a bad df reading.
+  echo "Could not measure free space in $esp; check it has $(numfmt --to=iec -- "$required_bytes") of UKI headroom." >&2
+  exit 0
+fi
+
+if (( esp_available_bytes >= required_bytes )); then
+  exit 0
+fi
+
+echo "You need at least $(numfmt --to=iec -- "$required_bytes") free in $esp to safely update Omarchy."
+exit 1
