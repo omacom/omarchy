@@ -1,7 +1,16 @@
 #!/bin/bash
 
-# omarchy:summary=Launch a TUI or focus an existing terminal window for it
-# omarchy:args=[--app-id=<app-id>] <command> [args...]
+# omarchy:summary=Launch a TUI, focus its terminal window, or (with --toggle) close it when focused
+# omarchy:args=[--toggle] [--app-id=<app-id>] <command> [args...]
+
+# --toggle makes a bar widget a single-button open/close: if the target window
+# is already the focused one, close it; otherwise fall through to the normal
+# launch-or-focus behavior (focus it if open, launch it if not).
+TOGGLE=0
+if [[ ${1:-} == --toggle ]]; then
+  TOGGLE=1
+  shift
+fi
 
 if [[ ${1:-} == --app-id=* ]]; then
   APP_ID="${1#--app-id=}"
@@ -10,5 +19,25 @@ else
 fi
 
 LAUNCH_COMMAND="omarchy-launch-tui $@"
+
+if ((TOGGLE)); then
+  # Only close when the matching window is the focused one, so a click that
+  # lands while the TUI is in the background focuses it rather than dismissing
+  # it. Match the same way omarchy-launch-or-focus does: a class/title word
+  # match, here scoped to the active window.
+  ACTIVE_ADDRESS=$(hyprctl activewindow -j | jq -r --arg p "$APP_ID" '
+    select(((.class // "") | test("\\b" + $p + "\\b"; "i")) or ((.title // "") | test("\\b" + $p + "\\b"; "i")))
+    | .address // empty')
+
+  if [[ -n $ACTIVE_ADDRESS ]]; then
+    # This Hyprland routes hyprctl dispatch through a Lua API and rejects the
+    # classic `closewindow address:...` string form on some builds, so try the
+    # Lua dispatch first and fall back to the string form -- the same
+    # Lua-first-with-fallback pattern the focus path uses.
+    hyprctl dispatch "hl.dsp.window.close({ window = \"address:$ACTIVE_ADDRESS\" })" >/dev/null 2>&1 ||
+      hyprctl dispatch closewindow "address:$ACTIVE_ADDRESS"
+    exit 0
+  fi
+fi
 
 exec omarchy-launch-or-focus "$APP_ID" "$LAUNCH_COMMAND"
