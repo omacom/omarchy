@@ -62,6 +62,7 @@ clean_scale() {
       g = gcd(width * 120, height * 120)
       k = int(scale * 120 + 0.5)
       if (k > g) k = g
+      if (k < 1) k = 1
       while (g % k != 0) k++
       printf "%g\n", k / 120
     }'
@@ -80,6 +81,8 @@ set_scale() {
   local width="$(echo "$monitor_info" | jq -r '.width')"
   local height="$(echo "$monitor_info" | jq -r '.height')"
   local refresh_rate="$(echo "$monitor_info" | jq -r '.refreshRate')"
+  local pos_x="$(echo "$monitor_info" | jq -r '.x // 0')"
+  local pos_y="$(echo "$monitor_info" | jq -r '.y // 0')"
 
   # active_monitor is written into the Lua string eval'd below, so only a plain
   # connector name may pass; a hostile output name could execute otherwise.
@@ -88,27 +91,115 @@ set_scale() {
     exit 1
   fi
 
+  if [[ ! $width =~ ^[0-9]+$ ]] || [[ ! $height =~ ^[0-9]+$ ]] ||
+    [[ ! $refresh_rate =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    echo "Refusing to scale a monitor with unknown geometry" >&2
+    exit 1
+  fi
+
+  # Position semantics follow the layout's source, because a frozen pixel
+  # position captured at one neighbor scale overlaps once the neighbor scales
+  # differently. In a pure auto layout keep "auto" so Hyprland re-places this
+  # output beside the others. In a pinned layout keep the output's own
+  # configured position, or its current runtime position when it has no pin.
+  local monitor_lua="$HOME/.config/hypr/monitors.lua"
+  # sed -i replaces a symlink with the new file, so edit the real file and
+  # keep whatever path the user linked (omarchy#7625) intact.
+  if [[ -L $monitor_lua ]]; then
+    monitor_lua="$(readlink -f "$monitor_lua")"
+  fi
+
+  local position
+  if [[ -f $monitor_lua ]] &&
+    grep -Eq '^[[:space:]]*hl\.monitor[[:space:]]*\([[:space:]]*\{[^}]*position[[:space:]]*=[[:space:]]*"[0-9-]+x[0-9-]+"' "$monitor_lua"; then
+    local output_re="${active_monitor//./\\.}"
+    local pinned=""
+    pinned=$(
+      {
+        sed -n -E "s|^[[:space:]]*hl\.monitor[[:space:]]*\([[:space:]]*\{[^}]*output[[:space:]]*=[[:space:]]*\"${output_re}\"[^}]*position[[:space:]]*=[[:space:]]*\"([^\"]*)\"[^}]*\}[[:space:]]*\).*|\1|p" "$monitor_lua"
+        sed -n -E "s|^[[:space:]]*hl\.monitor[[:space:]]*\([[:space:]]*\{[^}]*position[[:space:]]*=[[:space:]]*\"([^\"]*)\"[^}]*output[[:space:]]*=[[:space:]]*\"${output_re}\"[^}]*\}[[:space:]]*\).*|\1|p" "$monitor_lua"
+      } | head -n 1
+    )
+    if [[ -n $pinned && $pinned != "auto" ]]; then
+      position="$pinned"
+    else
+      [[ $pos_x =~ ^-?[0-9]+$ ]] || pos_x=0
+      [[ $pos_y =~ ^-?[0-9]+$ ]] || pos_y=0
+      position="${pos_x}x${pos_y}"
+    fi
+  else
+    position="auto"
+  fi
+
   local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
   # GTK only honors integer GDK_SCALE values, so persist the nearest whole
   # factor even when the monitor scale itself is fractional.
   local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
-  local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
-  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
+  # Apply to the focused output only, keeping its current mode and the layout's
+  # position source; a bare rule drops the display to 60Hz. The change has to
+  # actually take effect before it is persisted, so Hyprland's state and the
+  # config never disagree.
+  if ! hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"${position}\", scale = $new_scale })" >/dev/null 2>&1; then
+    echo "Could not apply the scale change to $active_monitor" >&2
+    return 1
+  fi
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
-  # Persist to monitors.lua if the user still has Omarchy's generic catch-all
-  # defaults, so the scale survives reboots.
-  if [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
+  # Persist so the scale survives reboots, for this output only.
+  persist_scale "$monitor_lua" "$active_monitor" "${width}x${height}@${refresh_rate}" "$position" "$new_scale" "$new_gdk_scale"
+}
+
+# Scale changes must never be persisted through the shared
+# omarchy_monitor_scale local: it feeds the catch-all output = "" rule, so
+# Hyprland's reload on the config write rescales every display and undoes the
+# focused monitor's own scale (omarchy#6673). Instead the scale is written
+# into a per-output rule: a live single-line rule for the output is updated in
+# place (its scale may have been a literal, "auto", or the shared local), and
+# when the output has no rule of its own one is appended, where it wins over
+# the catch-all because Hyprland applies later rules for the same output last.
+persist_scale() {
+  local monitor_lua="$1" output="$2" mode="$3" position="$4" new_scale="$5" new_gdk_scale="$6"
+
+  [[ -f $monitor_lua ]] || return 0
+
+  # Two rapid clicks would otherwise check "does a rule exist" together and
+  # both append one; serialize the writes against other instances of this
+  # script. A missing flock only means the lock is skipped, not a failure.
+  local locked=0
+  if command -v flock >/dev/null 2>&1; then
+    if mkdir -p "$STATE_DIR" && exec 9>"$STATE_DIR/monitors.lua.lock" && flock 9; then
+      locked=1
+    fi
+  fi
+
+  # GDK_SCALE is a process-global environment, so the shared value keeps being
+  # refreshed when present; that cannot rescale a Wayland output. A grep-free
+  # sed -i would still rewrite the file and fire a Hyprland reload, so each
+  # write is guarded by its own match.
+  if grep -q '^local omarchy_gdk_scale = ' "$monitor_lua"; then
+    sed -i -E "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" "$monitor_lua"
+  elif grep -q '^hl\.env("GDK_SCALE"' "$monitor_lua"; then
+    sed -i -E "s|^hl\.env(\"GDK_SCALE\", \"[^\"]*\"\).*$|hl.env(\"GDK_SCALE\", \"${new_gdk_scale}\")|" "$monitor_lua"
+  fi
+
+  local output_re="${output//./\\.}"
+
+  # A live single-line rule for this output that names its own scale.
+  # Commented rules never match: the address requires hl.monitor at line start.
+  if grep -Eq "^[[:space:]]*hl\.monitor[[:space:]]*\([[:space:]]*\{[^}]*[[:space:]]output[[:space:]]*=[[:space:]]*\"${output_re}\"[^}]*[[:space:]]scale[[:space:]]*=" "$monitor_lua"; then
     sed -i -E \
-      -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
-      -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
+      -e "/^[[:space:]]*hl\.monitor[[:space:]]*\([[:space:]]*\{/!b" \
+      -e "/output[[:space:]]*=[[:space:]]*\"${output_re}\"/!b" \
+      -e "s/(scale[[:space:]]*=[[:space:]]*)(\"auto\"|'auto'|[0-9.]+|omarchy_monitor_scale)/\\1${new_scale}/" \
       "$monitor_lua"
-  elif [[ -f $monitor_lua ]] && grep -Eq '^hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("auto"|[0-9.]+) \}\)' "$monitor_lua"; then
-    sed -i -E \
-      -e "s|^(hl\.monitor\(\{ output = \"\", mode = \"preferred\", position = \"auto\", scale = )([^ ]+)( \}\))|\\1${new_scale}\\3|" \
-      -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
-      "$monitor_lua"
+  else
+    printf '\nhl.monitor({ output = \"%s\", mode = \"%s\", position = \"%s\", scale = %s })\n' \
+      "$output" "$mode" "$position" "$new_scale" >>"$monitor_lua"
+  fi
+
+  if (( locked )); then
+    flock -u 9
   fi
 }
 
