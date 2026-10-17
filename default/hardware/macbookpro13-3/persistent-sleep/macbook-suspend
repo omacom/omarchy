@@ -1,0 +1,121 @@
+#!/bin/bash
+# MacBookPro13,3 undocked suspend workaround; EC wake plus Thunderbolt lifecycle.
+set -euo pipefail
+export PATH=/usr/bin:/usr/sbin
+state=/run/macbook-suspend/state
+
+log() { printf 'macbook-suspend: %s\n' "$*"; }
+fail() { log "$*" >&2; return 1; }
+
+check() {
+  local dev name vendor device driver nhi=0 xhci=0
+  [[ $(</sys/class/dmi/id/product_name) == MacBookPro13,3 ]] ||
+    { fail 'This trial is restricted to MacBookPro13,3.'; return 1; }
+  [[ -d /sys/module/thunderbolt ]] ||
+    { fail 'Thunderbolt must be loaded before this trial.'; return 1; }
+  [[ -r /sys/module/thunderbolt/parameters/host_reset ]] || return 1
+  [[ $(</sys/power/pm_async) =~ ^[01]$ ]] || return 1
+  [[ " $(</sys/power/mem_sleep) " == *s2idle* ]] || return 1
+
+  # The first trial is undocked. Refuse external devices, including USB disks,
+  # rather than risking an active tunnel or changing a storage controller.
+  for dev in /sys/bus/thunderbolt/devices/*; do
+    [[ -e $dev ]] || continue
+    name=${dev##*/}
+    if [[ ! $name =~ ^domain[0-9]+$ && ! $name =~ ^[0-9]+-0$ ]]; then
+      fail "Disconnect Thunderbolt device $name before testing."; return 1
+    fi
+  done
+  for dev in /sys/bus/usb/devices/*; do
+    [[ -f $dev/idVendor && -f $dev/idProduct ]] || continue
+    vendor=$(<"$dev/idVendor"); device=$(<"$dev/idProduct")
+    if [[ $vendor != 1d6b && $vendor:$device != 05ac:8600 ]]; then
+      fail "Disconnect external USB device ${dev##*/} before testing."; return 1
+    fi
+  done
+  for dev in /sys/class/drm/card*-*; do
+    [[ -f $dev/status ]] || continue
+    [[ $(<"$dev/status") == connected ]] || continue
+    case ${dev##*/} in
+      *-eDP-*|*-USB-*) ;;
+      *) fail "Disconnect display ${dev##*/} before testing."; return 1 ;;
+    esac
+  done
+  # Check IDs and driver bindings; bus numbers may change after resume.
+  for dev in /sys/bus/pci/devices/*; do
+    [[ $(<"$dev/vendor") == 0x8086 ]] || continue
+    device=$(<"$dev/device")
+    case $device in
+      0x15d2|0x15d4)
+        driver=$(readlink -f "$dev/driver")
+        if [[ $device == 0x15d2 && ${driver##*/} == thunderbolt ]]; then
+          nhi=$((nhi + 1))
+        elif [[ $device == 0x15d4 && ${driver##*/} == xhci_hcd ]]; then
+          xhci=$((xhci + 1))
+        fi ;;
+    esac
+  done
+  [[ $nhi == 2 && $xhci == 2 ]] ||
+    { fail "Expected two bound NHIs and two bound USB-C controllers; got $nhi/$xhci. Reboot before testing."; return 1; }
+  log 'Preflight passed: correct model, two controller pairs, no external peripherals.'
+}
+
+pre() {
+  check
+  [[ $(</sys/module/acpi/parameters/ec_no_wakeup) == N ]] ||
+    { fail 'Kernel EC wake policy is disabled; aborting suspend.'; return 1; }
+  [[ $(</sys/bus/platform/devices/PNP0C0D:00/power/wakeup) == enabled ]] ||
+    { fail 'Lid wake permission is disabled; aborting suspend.'; return 1; }
+  # Load immediately before sleep, after ACPI initialization. DKMS supplies the
+  # module for each installed kernel; failure aborts this suspend.
+  /usr/bin/modprobe macbook_ec_wake_trial apply=1
+  [[ $(</sys/module/macbook_ec_wake_trial/parameters/apply) == Y ]] ||
+    { fail 'The EC helper was loaded in observation-only mode.'; return 1; }
+  # systemd-sleep reads sleep.conf after ExecStartPre, so select s2idle here
+  # as well. Otherwise the first suspend after a reboot would still show deep.
+  printf 's2idle\n' > /sys/power/mem_sleep
+  log 'EC wake helper active; selected s2idle.'
+  mkdir -m700 "$state"
+  cat /sys/power/pm_async > "$state/pm_async"
+  # Record intent first so ExecStopPost can recover even if preparation fails.
+  touch "$state/reload_thunderbolt"
+  printf '0\n' > /sys/power/pm_async
+  /usr/bin/modprobe -r thunderbolt
+  [[ ! -d /sys/module/thunderbolt ]] ||
+    { fail 'Thunderbolt did not unload; aborting suspend.'; return 1; }
+  log 'Prepared: s2idle, synchronous device callbacks, Thunderbolt unloaded.'
+}
+
+post() {
+  local previous result=0
+  [[ -d $state ]] || return 0
+  if [[ -f $state/pm_async ]]; then
+    previous=$(<"$state/pm_async")
+    if [[ $previous =~ ^[01]$ ]] && printf '%s\n' "$previous" > /sys/power/pm_async; then
+      unlink "$state/pm_async"
+      log "Restored pm_async=$previous."
+    else
+      log 'ERROR: could not restore pm_async.' >&2; result=1
+    fi
+  fi
+  if [[ -f $state/reload_thunderbolt ]]; then
+    if [[ -d /sys/module/thunderbolt ]] || /usr/bin/modprobe thunderbolt host_reset=0; then
+      unlink "$state/reload_thunderbolt"
+      log 'Thunderbolt loaded; host_reset=0 is used when reloading until reboot.'
+    else
+      log 'ERROR: could not reload Thunderbolt.' >&2; result=1
+    fi
+  fi
+  if [[ $result == 0 ]]; then rmdir "$state"; fi
+  return "$result"
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  case ${1:-} in
+    check) check ;;
+    pre|post)
+      [[ $EUID == 0 ]] || { fail 'Administrator privileges required.'; exit 1; }
+      "$1" ;;
+    *) printf 'Usage: %s check|pre|post\n' "$0" >&2; exit 2 ;;
+  esac
+fi
