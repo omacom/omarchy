@@ -729,9 +729,102 @@ assert(
   'notifications service releases the file queue even when a history read comes back empty'
 )
 assert(
-  /onSummaryChanged: cardSlot\.remainingLifetime = 1\.0/.test(serviceQml),
+  /onSummaryChanged: cardSlot\.applyCountdown\("restart"\)/.test(serviceQml),
   'notifications service restarts the countdown when a toast is updated under it'
 )
+// The state machine above is behavior-tested, but the delegate is the only
+// place the pause/resume transition is detected and has no QML runtime harness,
+// so pin that one seam: stopping the timer must settle the countdown, starting
+// it must re-baseline. This is the regression the review found.
+assert(
+  /onRunningChanged: cardSlot\.applyCountdown\(running \? "resume" : "pause"\)/.test(serviceQml),
+  'notifications service settles the countdown when the timer pauses and re-baselines when it resumes'
+)
+// Adversarial coverage for the countdown state machine. The delegate drives it
+// through four events; these exercise the transitions directly rather than
+// matching QML text, and each is stated as an invariant, so a regression in the
+// arithmetic — a forgiven tick, a charged pause, a suspend that fails to expire,
+// a clock that adds lifetime back — fails here.
+function step(state, event, now, lifetime = 1000) {
+  return notifications.popupCountdown(state, lifetime, event, now)
+}
+function assertClose(actual, expected, description) {
+  assert(Math.abs(actual - expected) < 1e-9, description, `expected: ${expected}\nactual:   ${actual}`)
+}
+
+assertEqual(
+  step({ remaining: 1, lastTick: 0 }, "tick", 1000).remaining,
+  0,
+  'a popup expires exactly at the end of its lifetime'
+)
+assertEqual(
+  step({ remaining: 1, lastTick: 0 }, "tick", 90000000).remaining,
+  0,
+  'a popup frozen through a suspend expires on the first tick after it'
+)
+// The bug the review found: entering between ticks must settle the partial tick
+// that already ran, not forgive it.
+let hover = step({ remaining: 1, lastTick: 0 }, "pause", 30)
+hover = step(hover, "resume", 500)
+hover = step(hover, "tick", 550)
+assertClose(
+  hover.remaining,
+  1 - 80 / 1000,
+  'pausing between ticks charges the partial tick instead of forgiving it'
+)
+// A pause must charge the active time it ends, and a resume must not charge the
+// time spent paused.
+let held = step({ remaining: 1, lastTick: 0 }, "pause", 100)
+held = step(held, "resume", 100000)
+assertClose(held.remaining, 1 - 100 / 1000, 'resuming does not charge the time spent paused')
+held = step(held, "tick", 100050)
+assertClose(held.remaining, 1 - 150 / 1000, 'the countdown resumes from the pause, not the resume instant')
+// Hovering must not extend the lifetime no matter how often it is toggled:
+// ten 20 ms hovers must charge exactly the same as running 200 ms straight.
+let manyHovers = { remaining: 1, lastTick: 0 }
+for (let i = 0; i < 10; i++) {
+  const start = i * 500
+  manyHovers = step(manyHovers, "tick", start)
+  manyHovers = step(manyHovers, "pause", start + 20)
+  manyHovers = step(manyHovers, "resume", start + 500)
+}
+assertClose(
+  manyHovers.remaining,
+  step({ remaining: 1, lastTick: 0 }, "tick", 200).remaining,
+  'ten hover cycles charge the same as running straight through'
+)
+assertClose(manyHovers.remaining, 0.8, 'ten 20 ms hovers charge exactly their active time')
+// A content refresh restarts from full, and must not carry a held-open credit
+// across the fresh deadline.
+const restarted = step({ remaining: 0.4, lastTick: 200 }, "restart", 1000)
+assertEqual(restarted.remaining, 1, 'a content refresh restarts the countdown from full')
+assertEqual(restarted.lastTick, 1000, 'a content refresh re-baselines the elapsed clock')
+const afterRestart = step(step(restarted, "resume", 5000), "tick", 5010)
+assertClose(afterRestart.remaining, 1 - 10 / 1000, 'time held before a restart is not credited after it')
+// A clock that moves backwards, or cannot be read, must not add lifetime back.
+const rewound = step({ remaining: 0.5, lastTick: 1000 }, "tick", 900)
+assertEqual(rewound.remaining, 0.5, 'a clock that jumps backwards charges nothing')
+assertEqual(rewound.lastTick, 900, 'a backwards clock re-baselines to the earlier time')
+assertEqual(step({ remaining: 0.5, lastTick: 0 }, "tick", NaN).remaining, 0.5, 'an unreadable clock charges nothing')
+assertClose(step({ remaining: 0.5, lastTick: 1000 }, "tick", 1000).remaining, 0.5, 'a tick with no elapsed time charges nothing')
+// Critical popups and exhausted countdowns stay put.
+assertEqual(step({ remaining: 1, lastTick: 0 }, "tick", 999999, 0).remaining, 1, 'a critical popup with no lifetime never counts down')
+assertEqual(step({ remaining: 0.2, lastTick: 0 }, "pause", 100, 0).remaining, 0.2, 'a popup turned critical in place keeps the lifetime it had left')
+assertEqual(step({ remaining: 0, lastTick: 0 }, "tick", 50000).remaining, 0, 'an expired countdown does not go negative')
+assertEqual(step({ remaining: 1, lastTick: 0 }, "pause", 1000).remaining, 0, 'a pause exactly at the deadline expires the countdown')
+// An unset baseline charges nothing rather than inventing elapsed time.
+assertEqual(step({}, "tick", 500).remaining, 1, 'a countdown with no baseline charges nothing')
+// Reaching zero must be reported so the popup is removed, whichever event got
+// there — the pause case is the second regression the review found.
+assertEqual(step({ remaining: 1, lastTick: 0 }, "tick", 1000).expired, true, 'a tick that runs the lifetime out reports the popup expired')
+assertEqual(step({ remaining: 1, lastTick: 0 }, "tick", 90000000).expired, true, 'a suspend that runs the lifetime out reports the popup expired')
+assertEqual(step({ remaining: 1, lastTick: 0 }, "pause", 1000).expired, true, 'a pause that runs the lifetime out reports the popup expired')
+assertEqual(step({ remaining: 0.02, lastTick: 0 }, "pause", 30).expired, true, 'hovering in the final partial tick expires the popup rather than holding it')
+assertEqual(step({ remaining: 1, lastTick: 0 }, "pause", 30).expired, false, 'a pause with lifetime left reports no expiry')
+assertEqual(step({ remaining: 0.5, lastTick: 0 }, "resume", 100).expired, false, 'a resume reports no expiry')
+assertEqual(step({ remaining: 0.4, lastTick: 0 }, "restart", 100).expired, false, 'a restart reports no expiry')
+assertEqual(step({ remaining: 1, lastTick: 0 }, "tick", 999999, 0).expired, false, 'a critical popup never reports expiry')
+assertEqual(step({}, "tick", 500).expired, false, 'a countdown with no baseline reports no expiry')
 assert(
   /awk 1 \\"\$1\\"\/\*\.json 2>\/dev\/null \|\| true", "--", historyDir/.test(serviceQml),
   'notifications service replays history by reading the archived files'
