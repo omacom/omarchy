@@ -45,6 +45,8 @@ const parsed = menu.parseMenuJsonc(`
 `)
 
 assertEqual(parsed.length, 3, 'menu parses JSONC with comments and trailing commas')
+assertEqual(menu.parseMenuJsonc('[{"label": "item"}]').length, 0, 'menu rejects root arrays')
+assertEqual(menu.parseMenuJsonc('{\n  "items": {\n    "item": { "label": "https://example.com" /* block */ } // inline\n  }\n}')[0].label, 'https://example.com', 'menu handles inline comments and slashes in strings')
 assertDeepEqual(
   parsed.find(item => item.id === 'style.theme'),
   {
