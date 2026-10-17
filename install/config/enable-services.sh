@@ -16,3 +16,8 @@ systemctl enable sddm.service
 # whole session down. [Install] pulls in systemd-oomd.socket via Also=, which
 # is what the user manager reports app.slice candidacy over.
 systemctl enable systemd-oomd.service
+# Mount binfmt_misc when sysinit starts. Left to its automount, the first
+# binfmt registration fires it inside the opening mount burst, where systemd's
+# mount rate limit holds the start back about a second, and sysinit.target
+# waits with it.
+systemctl enable proc-sys-fs-binfmt_misc.mount
