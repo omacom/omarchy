@@ -54,11 +54,11 @@
 
         "textBlockQuote.background": "{{ background }}",
         "textBlockQuote.border": "{{ accent }}",
-        "textCodeBlock.background": "{{ background }}",
+        "textCodeBlock.background": "{{ dark_background }}",
         "textLink.activeForeground": "{{ bright_blue }}",
         "textLink.foreground": "{{ blue }}",
-        "textPreformat.foreground": "{{ cyan }}",
-        "textPreformat.background": "{{ background }}",
+        "textPreformat.foreground": "{{ foreground }}",
+        "textPreformat.background": "{{ muted }}20",
         "textSeparator.foreground": "{{ muted }}",
 
         "toolbar.hoverBackground": "{{ muted }}60",
