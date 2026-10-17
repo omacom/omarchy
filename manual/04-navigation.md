@@ -34,7 +34,7 @@ Omarchy's default layout is called dwindle. It keeps all the windows you open on
 
  ![navigation-dwindle-layout](images/navigation-dwindle-layout.webp)
 
-But you can also choose to turn a workspace into the scrolling layout where windows are lined up side-by-side, beyond the visible edge of the display. You turn a single workspace into this layout via `Super + L`.
+But you can also choose to turn a workspace into the scrolling layout where windows are lined up side-by-side, beyond the visible edge of the display. You turn a single workspace into this layout via `Super + L`. `Super + J` stacks the focused window into the column beside it, or pulls a stacked window back out into its own column.
 
 Pressing `Super + L` again turns the workspace floating, where windows overlap freely and you place them yourself, and a third press returns it to dwindle. `Super + Alt + L` goes through them the other way. A window that floats anyway — one you popped out with `Super + T`, or an app that always opens floating — keeps floating when the workspace goes back to tiling. The top bar marks the workspace you're on with its layout: a square for dwindle, a circle for scrolling, and a triangle for floating. Clicking that mark cycles the layout too.
 
