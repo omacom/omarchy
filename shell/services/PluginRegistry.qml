@@ -482,9 +482,12 @@ QtObject {
           restoredEntry.id = sourceId
           config.bar.layout[cloneLocation.section][cloneLocation.index] = restoredEntry
         }
-      } else if (cloneLocation.kind === "plugin") {
-        config.plugins.splice(cloneLocation.index, 1)
       }
+      // A multi-kind clone can sit in the bar and in plugins[] at once, and
+      // either record alone would keep it active.
+      config.plugins = config.plugins.filter(function(entry) {
+        return !entry || Util.canonicalWidgetId(String(entry.id)) !== cloneId
+      })
     }
 
     if (cloneShouldRestoreSource(config, cloneId)) removeDisabled(config, sourceId)
@@ -547,7 +550,9 @@ QtObject {
         removeDisabled(config, key)
         var entry = { id: key }
         var insertedWithPlacement = false
-        if (!location.found && isBarWidget) {
+        // A plugins[] record keeps a multi-kind plugin loaded, but its widget
+        // is only on when it sits in the bar.
+        if (location.kind !== "bar" && isBarWidget) {
           var sourceLocation = clonedFrom ? findEntryLocation(config, clonedFrom) : { found: false }
           if (sourceLocation.kind === "bar") {
             var sourceEntry = config.bar.layout[sourceLocation.section][sourceLocation.index]
