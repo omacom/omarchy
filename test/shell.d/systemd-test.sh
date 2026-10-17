@@ -12,6 +12,10 @@ pass "bt-agent skips when bluetooth.service is inactive"
 grep -Fx 'Restart=on-failure' "$service" >/dev/null
 pass "bt-agent still restarts after runtime failures"
 
+grep -Fx 'ExecStart=/usr/bin/omarchy-bluetooth-agent' "$service" >/dev/null ||
+  fail "bt-agent starts the Omarchy Just Works agent"
+pass "bt-agent starts the Omarchy Just Works agent"
+
 sleep_service="$ROOT/default/systemd/user/omarchy-sleep-lock.service"
 grep -Fx 'ExecStart=/usr/bin/omarchy-system-sleep-monitor' "$sleep_service" >/dev/null
 pass "sleep lock service uses the package-backed monitor path"
