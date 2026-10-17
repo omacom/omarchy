@@ -638,7 +638,7 @@ Item {
         action: "", provider: "", score: -1, section: ""
       })
     }
-    var query = root.filterText.trim().toLowerCase()
+    var query = MenuModel.normalizeSearch(root.filterText.trim())
     for (var i = 0; i < root.dmenuOptions.length; i++) {
       // An option is "<label>", "<glyph>\t<label>", or
       // "<glyph>\t<label>\t<subtext>". The glyph never comes back with the
@@ -648,8 +648,8 @@ Item {
       var icon = parts.length > 1 ? parts.shift() : ""
       var label = parts.shift() || ""
       var detail = parts.join("\t")
-      if (query && label.toLowerCase().indexOf(query) < 0
-          && detail.toLowerCase().indexOf(query) < 0) continue
+      if (query && MenuModel.normalizeSearch(label).indexOf(query) < 0
+          && MenuModel.normalizeSearch(detail).indexOf(query) < 0) continue
       displayModel.append({
         itemId: "dmenu." + i,
         disabled: false,
@@ -749,15 +749,15 @@ Item {
       // Keep the Apps menu alphabetical independently of provider refreshes.
       if (active === "apps") {
         rows.sort(function(a, b) {
-          var aLabel = String(a.label || "").toLowerCase()
-          var bLabel = String(b.label || "").toLowerCase()
-          if (aLabel < bLabel) return -1
-          if (aLabel > bLabel) return 1
+          var aLabel = String(a.label || "")
+          var bLabel = String(b.label || "")
+          var comp = aLabel.localeCompare(bLabel, undefined, { sensitivity: "base" })
+          if (comp !== 0) return comp
+          var exactComp = aLabel.localeCompare(bLabel)
+          if (exactComp !== 0) return exactComp
           var aId = String(a.itemId || "")
           var bId = String(b.itemId || "")
-          if (aId < bId) return -1
-          if (aId > bId) return 1
-          return 0
+          return aId.localeCompare(bId)
         })
       }
     }

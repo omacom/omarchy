@@ -1,3 +1,10 @@
+function normalizeSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+}
+
 function entryName(entry) {
   return String((entry && entry.name) || (entry && entry.id) || "")
 }
@@ -7,7 +14,7 @@ function entrySubtext(entry) {
 }
 
 function entrySortKey(entry) {
-  return entryName(entry).toLowerCase()
+  return normalizeSearch(entryName(entry))
 }
 
 function keywordText(entry) {
@@ -20,14 +27,15 @@ function keywordText(entry) {
 
 function entrySearchText(entry) {
   if (!entry) return ""
-  return [entry.name, entry.genericName, entry.comment, keywordText(entry), entry.id].join(" ").toLowerCase()
+  return normalizeSearch([entry.name, entry.genericName, entry.comment, keywordText(entry), entry.id].join(" "))
 }
 
 function wordText(value) {
-  return String(value || "")
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[._:/\\-]+/g, " ")
-    .toLowerCase()
+  return normalizeSearch(
+    String(value || "")
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/[._:/\\-]+/g, " ")
+  )
 }
 
 function words(value) {
@@ -49,19 +57,20 @@ function entryAcronym(entry) {
 function termMatches(entry, term) {
   if (!term) return true
 
-  var name = entryName(entry).toLowerCase()
-  var id = String((entry && entry.id) || "").toLowerCase()
+  var normTerm = normalizeSearch(term)
+  var name = normalizeSearch(entryName(entry))
+  var id = normalizeSearch(entry && entry.id)
   var haystack = entrySearchText(entry)
 
-  if (name.indexOf(term) >= 0) return true
-  if (id.indexOf(term) >= 0) return true
-  if (haystack.indexOf(term) >= 0) return true
+  if (name.indexOf(normTerm) >= 0) return true
+  if (id.indexOf(normTerm) >= 0) return true
+  if (haystack.indexOf(normTerm) >= 0) return true
 
-  return term.length <= 5 && entryAcronym(entry).indexOf(term) >= 0
+  return normTerm.length <= 5 && entryAcronym(entry).indexOf(normTerm) >= 0
 }
 
 function allTermsMatch(entry, query) {
-  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  var terms = normalizeSearch(query).trim().split(/\s+/)
   for (var i = 0; i < terms.length; i++) {
     if (terms[i] && !termMatches(entry, terms[i])) return false
   }
@@ -69,12 +78,12 @@ function allTermsMatch(entry, query) {
 }
 
 function fuzzyScore(entry, query) {
-  var q = String(query || "").trim().toLowerCase()
+  var q = normalizeSearch(query).trim()
   if (!q) return 0
   if (!allTermsMatch(entry, q)) return -1
 
-  var name = entryName(entry).toLowerCase()
-  var id = String((entry && entry.id) || "").toLowerCase()
+  var name = normalizeSearch(entryName(entry))
+  var id = normalizeSearch(entry && entry.id)
   var haystack = entrySearchText(entry)
   var directName = name.indexOf(q)
   var directId = id.indexOf(q)
@@ -111,6 +120,10 @@ function sortedEntries(values, query, hiddenCallback) {
 
   rows.sort(function(a, b) {
     if (q && a.score !== b.score) return b.score - a.score
+    var comp = a.key.localeCompare(b.key, undefined, { sensitivity: "base" })
+    if (comp !== 0) return comp
+    var nameComp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    if (nameComp !== 0) return nameComp
     if (a.key < b.key) return -1
     if (a.key > b.key) return 1
     if (a.name < b.name) return -1
@@ -123,6 +136,7 @@ function sortedEntries(values, query, hiddenCallback) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    normalizeSearch: normalizeSearch,
     entryName: entryName,
     entrySubtext: entrySubtext,
     entrySortKey: entrySortKey,

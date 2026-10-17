@@ -123,6 +123,15 @@ assert(!menu.matchesQuery(entry, 'missing', true), 'menu rejects missing terms')
 assert(!menu.matchesQuery(entry, 'theme', false), 'menu hides invisible matches')
 assert(menu.searchScore(merged.items, entry, 'theme') < menu.searchScore(merged.items, entry, 'appearance'), 'menu scores name matches above description matches')
 
+assertEqual(menu.normalizeSearch('Área de Trabalho'), 'area de trabalho', 'normalizeSearch strips diacritics and lowercases')
+assertEqual(menu.normalizeSearch('Açúcar & Café'), 'acucar & cafe', 'normalizeSearch handles cedillas and acute accents')
+
+const accentedItem = { id: 'test.accent', label: 'Área de Trabalho Remota', aliases: ['conexão'], description: 'configuração remota' }
+assert(menu.matchesQuery(accentedItem, 'area', true), 'menu matches query without accent against accented label')
+assert(menu.matchesQuery(accentedItem, 'área', true), 'menu matches query with accent against accented label')
+assert(menu.matchesQuery(accentedItem, 'conexao', true), 'menu matches query without tilde against alias')
+assert(menu.matchesQuery(accentedItem, 'configuracao', true), 'menu matches query without cedilla or tilde against description')
+
 assertDeepEqual(
   menu.displayRow(merged.items, merged.itemOrder, {}, {}, entry, 'Style', 12, 'search'),
   {

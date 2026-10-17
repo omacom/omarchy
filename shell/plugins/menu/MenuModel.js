@@ -295,8 +295,15 @@ function labelFor(entry, checkedResults, disabledResults) {
   return marked ? entry.label + " ✓" : entry.label
 }
 
+function normalizeSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+}
+
 function searchableToken(value) {
-  return String(value || "").replace(/[._-]+/g, " ")
+  return normalizeSearch(value).replace(/[._-]+/g, " ")
 }
 
 function leafIdFor(id) {
@@ -309,19 +316,20 @@ function nameSearchText(entry) {
   var aliases = []
   var values = (Array.isArray(entry.aliases) ? entry.aliases : []).concat(Array.isArray(entry.searchTerms) ? entry.searchTerms : [])
   for (var i = 0; i < values.length; i++) aliases.push(searchableToken(values[i]))
-  return [entry.label, searchableToken(leafIdFor(entry.id)), aliases.join(" ")].join(" ").toLowerCase()
+  return [normalizeSearch(entry.label), searchableToken(leafIdFor(entry.id)), aliases.join(" ")].join(" ")
 }
 
 function termInSearchWords(term, text) {
-  var words = String(text || "").toLowerCase().split(/\s+/)
+  var words = normalizeSearch(text).split(/\s+/)
+  var normTerm = normalizeSearch(term)
   for (var i = 0; i < words.length; i++) {
-    if (words[i] === term) return true
+    if (words[i] === normTerm) return true
   }
   return false
 }
 
 function descriptionTextMatches(query, text) {
-  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  var terms = normalizeSearch(query).trim().split(/\s+/)
   for (var i = 0; i < terms.length; i++) {
     if (terms[i] && !termInSearchWords(terms[i], text)) return false
   }
@@ -333,8 +341,8 @@ function matchesQuery(entry, query, visible) {
   if (!visible) return false
 
   var nameText = nameSearchText(entry)
-  var descriptionText = String(entry.description || "").toLowerCase()
-  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  var descriptionText = normalizeSearch(entry.description)
+  var terms = normalizeSearch(query).trim().split(/\s+/)
 
   for (var i = 0; i < terms.length; i++) {
     if (!terms[i]) continue
@@ -347,10 +355,10 @@ function matchesQuery(entry, query, visible) {
 }
 
 function searchScore(items, entry, query) {
-  var needle = String(query || "").toLowerCase().trim()
-  var label = entry.label.toLowerCase()
+  var needle = normalizeSearch(query).trim()
+  var label = normalizeSearch(entry.label)
   var nameText = nameSearchText(entry)
-  var descriptionText = String(entry.description || "").toLowerCase()
+  var descriptionText = normalizeSearch(entry.description)
   var score = 80
 
   if (label === needle) score = entry.parent === "root" ? 2 : 0
@@ -698,6 +706,7 @@ if (typeof module !== "undefined") {
     dmenuSelections: dmenuSelections,
     toggleDmenuSelection: toggleDmenuSelection,
     displayRow: displayRow,
-    applyTranslations: applyTranslations
+    applyTranslations: applyTranslations,
+    normalizeSearch: normalizeSearch
   }
 }
