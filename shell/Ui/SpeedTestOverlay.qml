@@ -24,6 +24,8 @@ PanelWindow {
   required property bool running
   required property string leftLabel
   required property string rightLabel
+  property string leftDetail: ""
+  property string rightDetail: ""
   property string unit: "Mbps"
   property string title: ""
   property string layerNamespace: "omarchy-speed-test"
@@ -38,6 +40,15 @@ PanelWindow {
   // the base scale a fresh run starts from.
   property var scaleStops: [100, 250, 500, 1000, 2500, 5000, 10000]
   property real fullScale: scaleStops[0]
+  // When set, each dial keeps its own scale. The shared latch above is what
+  // read/write and download/upload use, where the two needles are one ruler.
+  // A baseline-plus-peak panel sets this so the first reading can stay put
+  // while the other gauge is the only one that opens.
+  property bool splitScale: false
+  property real leftScale: scaleStops[0]
+  property real rightScale: scaleStops[0]
+  // Where a newly opened right gauge parks its needle, as a fraction of the arc.
+  property real rightPark: 0.75
 
   signal closeRequested()
   signal runAgainRequested()
@@ -45,28 +56,57 @@ PanelWindow {
   readonly property bool failed: error !== ""
 
   function resetScale() {
-    fullScale = scaleStops[0]
+    var base = scaleStops[0]
+    fullScale = base
+    leftScale = base
+    rightScale = base
+  }
+
+  function stopFor(value) {
+    for (var i = 0; i < scaleStops.length; i++) {
+      if (value <= scaleStops[i] * 0.92) return scaleStops[i]
+    }
+    return scaleStops[scaleStops.length - 1]
   }
 
   function expandScale(value) {
     // Either reading ranges the entire cluster upward. Keeping this latch on
     // the overlay ensures both dials always describe the same scale.
-    for (var i = 0; i < scaleStops.length; i++) {
-      if (value <= scaleStops[i] * 0.92) {
-        if (scaleStops[i] > fullScale) fullScale = scaleStops[i]
-        return
-      }
-    }
-    fullScale = scaleStops[scaleStops.length - 1]
+    var stop = stopFor(value)
+    if (stop > fullScale) fullScale = stop
+  }
+
+  function latchLeft(value) {
+    if (!(value > 0)) return
+    var stop = stopFor(value)
+    if (stop > leftScale) leftScale = stop
+  }
+
+  // Open only as far as the park fraction. The needle climbs first; the
+  // slower scale animation then eases it back to rightPark instead of to half.
+  function openRight(value) {
+    if (!(value > 0)) return
+    var cap = scaleStops[scaleStops.length - 1]
+    var needed = value / rightPark
+    if (needed <= rightScale) return
+    rightScale = Math.min(cap, needed)
   }
 
   onRunningChanged: if (running) resetScale()
   onScaleStopsChanged: resetScale()
-  onLeftValueChanged: expandScale(leftValue)
-  onRightValueChanged: expandScale(rightValue)
+  onLeftValueChanged: splitScale ? latchLeft(leftValue) : expandScale(leftValue)
+  onRightValueChanged: splitScale ? openRight(rightValue) : expandScale(rightValue)
 
   Behavior on fullScale {
     NumberAnimation { duration: Style.duration(400); easing.type: Easing.OutCubic }
+  }
+
+  Behavior on leftScale {
+    NumberAnimation { duration: Style.duration(400); easing.type: Easing.OutCubic }
+  }
+
+  Behavior on rightScale {
+    NumberAnimation { duration: Style.duration(900); easing.type: Easing.OutCubic }
   }
 
   // The scrim below is a fixed near-black regardless of theme, so text and
@@ -154,15 +194,19 @@ PanelWindow {
           SpeedDial {
             id: leftDial
             label: root.leftLabel
+            detail: root.leftDetail
             value: root.leftValue
             live: root.leftLive
+            scaleMax: root.splitScale ? root.leftScale : root.fullScale
           }
 
           SpeedDial {
             id: rightDial
             label: root.rightLabel
+            detail: root.rightDetail
             value: root.rightValue
             live: root.rightLive
+            scaleMax: root.splitScale ? root.rightScale : root.fullScale
           }
         }
 
@@ -212,8 +256,10 @@ PanelWindow {
     id: dial
 
     required property string label
+    property string detail: ""
     required property real value
     required property bool live
+    required property real scaleMax
 
     readonly property real diameter: Style.space(210)
     // 0° = 3 o'clock, increasing clockwise (PathAngleArc's convention).
@@ -232,7 +278,7 @@ PanelWindow {
     // The digital readout stays on the real figure while the ignition sweep
     // drives the needle -- a cluster sweeps its gauges, not its numerals.
     readonly property real reading: ignition.running ? value : shown
-    readonly property real fullScale: root.fullScale
+    readonly property real fullScale: scaleMax
     readonly property real fraction: fullScale > 0 ? Math.max(0, Math.min(1, shown / fullScale)) : 0
     readonly property bool arcVisible: fraction > 0.004
 
@@ -396,17 +442,38 @@ PanelWindow {
     }
 
     // The 90° gap at the bottom of the scale is where a cluster prints its
-    // unit; here it names the direction.
-    Text {
-      textFormat: Text.PlainText
+    // unit; here it names the direction. `detail` is a second line under that
+    // name, used when a dial has something else to say (cores tested).
+    Column {
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.bottom: parent.bottom
-      text: dial.label
-      color: root.onScrimDim
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-      font.bold: true
-      font.letterSpacing: 1.5
+      spacing: Style.space(2)
+      width: dial.diameter
+
+      Text {
+        textFormat: Text.PlainText
+        width: parent.width
+        horizontalAlignment: Text.AlignHCenter
+        visible: dial.label !== ""
+        text: dial.label
+        color: root.onScrimDim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        font.letterSpacing: 1.5
+      }
+
+      Text {
+        textFormat: Text.PlainText
+        width: parent.width
+        horizontalAlignment: Text.AlignHCenter
+        visible: dial.detail !== ""
+        text: dial.detail
+        color: root.onScrimDim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.letterSpacing: 1.5
+      }
     }
   }
 }

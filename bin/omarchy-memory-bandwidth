@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Measure live memory bandwidth
+
+# The measurement is the membw helper, installed next to this command
+# (/usr/bin/membw, and the package symlink at $OMARCHY_PATH/bin/membw).
+# Its source slot is helpers/memory-bandwidth/membw.c. This repo does not
+# compile C, and this command must not either.
+
+set -euo pipefail
+
+bin_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+helper="$bin_dir/membw"
+
+if [[ -x $helper ]]; then
+  exec "$helper" "$@"
+else
+  echo "Memory bandwidth helper is not installed (expected $helper from helpers/memory-bandwidth/membw.c)" >&2
+  exit 1
+fi
