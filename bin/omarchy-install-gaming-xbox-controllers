@@ -16,12 +16,17 @@ omarchy-pkg-add xpadneo-dkms
 echo blacklist xpad | sudo tee /etc/modprobe.d/blacklist-xpad.conf >/dev/null
 echo hid_xpadneo | sudo tee /etc/modules-load.d/xpadneo.conf >/dev/null
 
-# Ensure user is in the input group (controllers need it)
+# No input-group grant. systemd's 70-uaccess.rules tags every device udev
+# classifies as ID_INPUT_JOYSTICK, so logind puts an ACL for the seat's active
+# user on the controller itself — read and write, on that device, for as long as
+# they are logged in. That is exactly what a controller needs.
+#
+# Membership of `input` is the blunt version of the same thing: read access to
+# every /dev/input/event*, the keyboard included, permanently and for every
+# session. Migration 1787865477 removed that grant from the default install
+# because it let any process running as the user capture keystrokes. Re-adding
+# it here would hand it back to anyone who owns a controller.
 needs_reboot=false
-if ! id -nG "$USER" | grep -qw input; then
-  sudo usermod -aG input "$USER"
-  needs_reboot=true
-fi
 
 # Swap drivers in the running kernel so a reboot isn't needed otherwise
 if lsmod | grep -q '^xpad '; then
