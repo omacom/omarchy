@@ -317,7 +317,7 @@ function formatPingLatency(ms, hasSamples, tr, fmt) {
   return f(value, value > 0 && value < 10 ? 1 : 0) + " ms"
 }
 
-function wifiRow(network) {
+function wifiRow(network, unknownSecurity, openSecurity) {
   if (!network) return null
   // Primitives only: rows become list-model data, so a WifiNetwork here puts a
   // live QObject wrapper in every delegate's var property. NetworkManager churn
@@ -329,7 +329,7 @@ function wifiRow(network) {
     known: !!network.known,
     ssid: network.name || "",
     signal: Math.round((network.signalStrength || 0) * 100),
-    security: network.security
+    security: wifiSecurity(network, unknownSecurity, openSecurity)
   }
 }
 
@@ -363,6 +363,16 @@ function requiresCredentials(security, openSecurity, oweSecurity) {
   // Only explicit passwordless types bypass the prompt. Unknown security
   // stays credentialed as the conservative fallback.
   return security !== openSecurity && security !== oweSecurity
+}
+
+// NetworkManager saves an open network without an 802-11-wireless-security
+// setting, and Quickshell 0.3.1 reports that profile as Unknown
+// (quickshell-mirror/quickshell#1229). Secured profiles always carry the
+// setting, so a saved network with Unknown security is open.
+// TODO: drop this once quickshell#1229 is fixed.
+function wifiSecurity(network, unknownSecurity, openSecurity) {
+  if (network.known && network.security === unknownSecurity) return openSecurity
+  return network.security
 }
 
 function canForgetNetwork(network) {
@@ -434,6 +444,7 @@ if (typeof module !== "undefined") {
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
+    wifiSecurity: wifiSecurity,
     canForgetNetwork: canForgetNetwork,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
