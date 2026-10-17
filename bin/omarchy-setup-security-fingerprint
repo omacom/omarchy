@@ -68,9 +68,18 @@ fi
 # needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
 # --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
 # one transaction, so a failed install leaves the existing driver in place.
-if omarchy-pkg-missing libfprint-git fprintd usbutils; then
+# Some readers need a vendor TOD module instead of upstream libfprint's drivers.
+# Preserve either explicitly installed TOD library so setup does not replace it.
+fingerprint_packages=(fprintd usbutils)
+if omarchy-pkg-present libfprint-tod || omarchy-pkg-present libfprint-tod-git; then
+  echo "Keeping the installed fingerprint TOD driver."
+else
+  fingerprint_packages=(libfprint-git "${fingerprint_packages[@]}")
+fi
+
+if omarchy-pkg-missing "${fingerprint_packages[@]}"; then
   echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
+  sudo pacman -S --needed --noconfirm --ask 4 -- "${fingerprint_packages[@]}"
 fi
 
 # Enroll first fingerprint
@@ -98,6 +107,7 @@ if sudo fprintd-enroll "$USER"; then
     echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
   else
     echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
+    exit 1
   fi
 else
   echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
