@@ -12,6 +12,12 @@ Item {
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
   readonly property int batteryThreshold: 10
+  // Must match the catalog key omarchy-battery-low sends as the summary
+  readonly property string lowBatteryTitleKey: "battery.lowTitle"
+  // Checks left to dismiss a warning restored by a previous shell (about a minute at the 30s timer).
+  // Not persisted: popups restore asynchronously, so a single check after a restart can miss the toast.
+  property int restartChecksLeft: 3
+  property bool dismissPending: false
   property string pendingPowerSource: ""
   // Follows power-profiles-daemon's change signals, so nothing polls it.
   // Quickshell never attaches that listener if the daemon failed when the
@@ -38,12 +44,28 @@ Item {
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
+    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery, restartChecksLeft > 0)
+    restartChecksLeft = BatteryModel.remainingRestartChecks(restartChecksLeft, state.level)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
+    if (state.dismiss) dismissLowBatteryWarning()
+  }
+
+  function dismissLowBatteryWarning() {
+    // A new toast can appear while an earlier dismiss is still running: run again once it exits
+    if (dismissProcess.running) {
+      dismissPending = true
+      return
+    }
+    dismissPending = false
+    // The summary is translated, so look it up the same way omarchy-battery-low does
+    dismissProcess.command = ["bash", "-c", "omarchy-notification-dismiss \"$(omarchy-i18n \"$1\")\"", "bash", lowBatteryTitleKey]
+    dismissProcess.running = true
   }
 
   function sendLowBatteryWarning(level) {
+    // A dismiss queued before the battery went low again must not close this new warning
+    dismissPending = false
     if (warningProcess.running) return
     warningProcess.command = [
       "omarchy-battery-low",
@@ -84,6 +106,10 @@ Item {
   }
 
   Process { id: warningProcess }
+  Process {
+    id: dismissProcess
+    onExited: if (root.dismissPending) root.dismissLowBatteryWarning()
+  }
 
   Process {
     id: powerProfileProcess
