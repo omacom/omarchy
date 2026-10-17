@@ -43,7 +43,7 @@ Item {
   property string lastError: ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 30, 5, 3600)
-  readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || operatorProcess.running || exitNodeProcess.running
+  readonly property bool busy: cmdPresentProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || operatorProcess.running || exitNodeProcess.running
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
 
   property string _statusOutput: ""
@@ -151,10 +151,10 @@ Item {
       refreshStatusAndAccounts(forceAccounts === true)
       return
     }
-    if (!whichProcess.running) {
+    if (!cmdPresentProcess.running) {
       refreshing = true
-      whichProcess.command = ["which", "tailscale"]
-      whichProcess.running = true
+      cmdPresentProcess.command = ["omarchy-cmd-present", "tailscale"]
+      cmdPresentProcess.running = true
     }
   }
 
@@ -456,7 +456,7 @@ Item {
   }
 
   Process {
-    id: whichProcess
+    id: cmdPresentProcess
     running: false
     command: []
     onExited: function(exitCode) {
