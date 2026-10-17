@@ -40,6 +40,8 @@ hl = setmetatable({
       kind, target = "global", dispatcher.global
     elseif type(dispatcher) == "table" and dispatcher.exec then
       kind, target = "exec", dispatcher.exec
+    elseif type(dispatcher) == "function" and o.bind_commands[dispatcher] then
+      kind, target = "exec", o.bind_commands[dispatcher]
     end
     print(kind .. "\t" .. target .. "\t" .. ((opts or {}).description or ""))
   end,
