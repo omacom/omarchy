@@ -12,6 +12,14 @@ esac
 
 browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
 
+# An allowlisted name can still have no desktop entry (Zen falls through to
+# chromium.desktop, and Chromium may not be installed). An empty Exec must
+# not be handed to uwsm-app, which would treat --app=<url> as a path.
+if [[ -z $browser_exec ]]; then
+  echo "omarchy-launch-webapp: no browser Exec found for $browser." >&2
+  exit 1
+fi
+
 if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
   exec setsid uwsm-app -- $browser_exec --app="$1" "${@:2}"
 fi
