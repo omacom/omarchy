@@ -609,8 +609,8 @@ assertEqual(notifications.parseExecArgv(legacyRestored.execArgv || ''), null, 'a
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/notifications/Service.qml'), 'utf8')
 assert(
   /function barClearanceFor\(screenName\) \{\s*return NotificationLogic\.barClearance\(shell \? shell\.bar : null, screenName, defaultBarSize, Style\.gapsOut\)\s*\}/.test(serviceQml) &&
-    /NotificationLogic\.popupPlacement\(\s*service\.barPosition, service\.barClearanceFor\(modelData \? modelData\.name : ""\), Style\.gapsOut\)/.test(serviceQml),
-  'each screen\'s toasts clear the bar as thick as it is on that screen'
+    /NotificationLogic\.popupPlacement\(\s*service\.barPosition, service\.barClearanceFor\(service\.popupScreen \? service\.popupScreen\.name : ""\), Style\.gapsOut\)/.test(serviceQml),
+  'toasts clear the bar as thick as it is on the screen they are shown on'
 )
 assert(
   /readonly property int historyLimit: 10/.test(serviceQml),
