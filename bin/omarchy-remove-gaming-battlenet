@@ -6,6 +6,15 @@ set -e
 
 PREFIX="$HOME/Games/battlenet"
 
+echo
+# Deleting the prefix takes Battle.net and everything installed inside it with
+# it, including games a tool like Lutris manages there, so nothing is removed
+# before the user agrees to exactly that.
+if ! gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n battlenet.removePrefix)"; then
+  echo "$(omarchy-i18n battlenet.removeCancelled)"
+  exit 0
+fi
+
 # Stop any running Battle.net / wine processes tied to this prefix.
 pkill -f "$PREFIX" 2>/dev/null || true
 sleep 1
