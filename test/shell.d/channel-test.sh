@@ -209,3 +209,9 @@ pass "current channel detects package-backed edge"
 
 [[ $(current_channel edge dev "$test_tmp/dev-checkout") == "dev" ]] || fail "current channel detects dev from OMARCHY_PATH"
 pass "current channel honors a dev link outside ~/omarchy"
+
+# A stripped environment exports no OMARCHY_PATH: that means package-backed,
+# not a crash (#12858).
+[[ $(env -i PATH="$stub_bin:$ROOT/bin:$PATH" OMARCHY_TEST_VERSION_CHANNEL=stable OMARCHY_TEST_PACKAGES=stable "$ROOT/bin/omarchy-channel-current" 2>"$test_tmp/stripped.err") == "stable" ]] ||
+  fail "current channel resolves without OMARCHY_PATH" "$(cat "$test_tmp/stripped.err")"
+pass "current channel treats an unset OMARCHY_PATH as package-backed"
