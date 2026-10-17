@@ -103,16 +103,56 @@ for skill in "$OMARCHY_PATH"/default/agents/skills/*/; do
   fi
 done
 
-mkdir -p ~/Downloads ~/Pictures ~/Videos ~/.config/gtk-3.0
+# Follow user-dirs.dirs rather than assuming the default names. Creating
+# ~/Pictures beside a relocated picture directory leaves an empty duplicate
+# behind and bookmarks the wrong one. xdg-user-dir echoes $HOME for a directory
+# it has no setting for, which is what marks it unset.
+xdg_user_dir() {
+  local resolved
+  resolved=$(xdg-user-dir "$1" 2>/dev/null) || true
+
+  if [[ -n $resolved && $resolved != "$HOME" ]]; then
+    echo "$resolved"
+  else
+    echo "$HOME/$2"
+  fi
+}
+
+# GTK splits a bookmark line at its first space, so a configured path like
+# ~/My Pictures has to be percent-encoded or it bookmarks ~/My.
+bookmark_dir() {
+  local path=$1 uri="file://" char i LC_ALL=C
+  for (( i = 0; i < ${#path}; i++ )); do
+    char=${path:i:1}
+    if [[ $char == [[:alnum:]/._~-] ]]; then
+      uri+=$char
+    else
+      printf -v char '%%%02X' "'$char"
+      uri+=$char
+    fi
+  done
+
+  local bookmark="$uri $2"
+  grep -qxF "$bookmark" ~/.config/gtk-3.0/bookmarks || echo "$bookmark" >>~/.config/gtk-3.0/bookmarks
+}
+
+downloads_dir=$(xdg_user_dir DOWNLOAD Downloads)
+pictures_dir=$(xdg_user_dir PICTURES Pictures)
+videos_dir=$(xdg_user_dir VIDEOS Videos)
+
+mkdir -p ~/.config/gtk-3.0
+# A configured directory can live on a drive that isn't mounted yet, and that
+# must not stop the rest of provisioning.
+mkdir -p "$downloads_dir" "$pictures_dir" "$videos_dir" || true
 xdg-user-dirs-update --set TEMPLATES "$HOME"
 xdg-user-dirs-update --set PUBLICSHARE "$HOME"
 xdg-user-dirs-update --set DESKTOP "$HOME"
 rmdir ~/Templates ~/Public ~/Desktop 2>/dev/null || true
 touch ~/.config/gtk-3.0/bookmarks
-for dir in Downloads Projects Pictures Videos; do
-  bookmark="file://$HOME/$dir $dir"
-  grep -qxF "$bookmark" ~/.config/gtk-3.0/bookmarks || echo "$bookmark" >>~/.config/gtk-3.0/bookmarks
-done
+bookmark_dir "$downloads_dir" Downloads
+bookmark_dir "$HOME/Projects" Projects
+bookmark_dir "$pictures_dir" Pictures
+bookmark_dir "$videos_dir" Videos
 
 source "$OMARCHY_INSTALL/user/all.sh"
 
