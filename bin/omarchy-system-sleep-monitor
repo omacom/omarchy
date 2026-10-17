@@ -46,16 +46,66 @@ case ${1:-} in
     exit 0
     ;;
   --inhibited)
+    # stderr is the launcher's capture for inhibit rejections, discarded on
+    # success; send the lock helper's warnings to the journal instead.
+    exec 2>&1
     monitor_sleep_events
     exit 0
     ;;
 esac
 
 sleep_monitor="$OMARCHY_PATH/bin/omarchy-system-sleep-monitor"
+inhibit_err=$(mktemp)
+inhibit_pid=""
 
-exec systemd-inhibit \
-  --what=sleep \
-  --mode=delay \
-  --who=Omarchy \
-  --why="Lock screen before suspend" \
-  "$sleep_monitor" --inhibited
+# systemd-inhibit is a child so a rejected restart can be retried here.
+# Stopping the unit must still reap that child, which reaps dbus-monitor.
+stop_inhibit() {
+  if [[ -n $inhibit_pid ]] && kill -0 "$inhibit_pid" 2>/dev/null; then
+    kill "$inhibit_pid" 2>/dev/null || true
+    wait "$inhibit_pid" 2>/dev/null || true
+  fi
+  inhibit_pid=""
+  rm -f "$inhibit_err"
+}
+# Die by the signal itself: systemd counts exit 143 as a failed stop.
+stop_on_signal() {
+  stop_inhibit
+  trap - "$1" EXIT
+  kill -"$1" $$
+}
+trap 'stop_on_signal TERM' TERM
+trap 'stop_on_signal INT' INT
+trap stop_inhibit EXIT
+
+# The unit restarts this process after every suspend. logind rejects a new
+# delay inhibitor while that transition is still running ("already running"),
+# and exiting 1 then marks omarchy-sleep-lock.service failed on every sleep.
+# Stay up and retry that rejection instead of handing it to Restart=.
+attempt=0
+while (( attempt < 40 )); do
+  systemd-inhibit \
+    --what=sleep \
+    --mode=delay \
+    --who=Omarchy \
+    --why="Lock screen before suspend" \
+    "$sleep_monitor" --inhibited 2>"$inhibit_err" &
+  inhibit_pid=$!
+  wait "$inhibit_pid"
+  inhibit_status=$?
+  inhibit_pid=""
+  if (( inhibit_status == 0 )); then
+    exit 0
+  fi
+
+  if [[ $(<"$inhibit_err") != *"already running"* ]]; then
+    cat "$inhibit_err" >&2
+    exit "$inhibit_status"
+  fi
+
+  attempt=$((attempt + 1))
+  sleep 0.25
+done
+
+cat "$inhibit_err" >&2
+exit 1
