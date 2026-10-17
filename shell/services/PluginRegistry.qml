@@ -499,7 +499,9 @@ QtObject {
       return false
     }
     var manifest = installedPlugins[key]
-    if (value && !manifest) {
+    var config = shellConfigProvider ? shellConfigProvider() : null
+    var location = findEntryLocation(config, key)
+    if (!manifest && (!location.found || value)) {
       console.warn("PluginRegistry.setEnabled: unknown plugin " + key)
       return false
     }
@@ -577,6 +579,7 @@ QtObject {
       if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
       else if (location.kind === "bar") config.bar.layout[location.section].splice(location.index, 1)
       else if (location.kind === "plugin") config.plugins.splice(location.index, 1)
+      else if (location.kind === "bar-option") delete config.bar.id
 
       // Dropping the layout entry is the whole story for a widget. Anything
       // else built-in loads by default, so switching it off has to be stated.
