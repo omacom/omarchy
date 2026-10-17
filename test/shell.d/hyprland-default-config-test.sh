@@ -218,6 +218,54 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
 
+# Hyprland shows an index past the end of the group as a Lua error notification.
+group_switches=$(HOME="$tmpdir" OMARCHY_PATH="$ROOT" lua <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+
+local binds, active = {}, nil
+hl = setmetatable({
+  dsp = setmetatable({}, {
+    __index = function(_, name)
+      return setmetatable({}, {
+        __index = function(_, method)
+          return function(arg) return { dsp = name .. "." .. method, arg = arg } end
+        end,
+        __call = function(_, arg) return { dsp = name, arg = arg } end,
+      })
+    end,
+  }),
+  bind = function(keys, dispatcher, opts)
+    if opts.description and opts.description:match("^Switch to group window") then
+      binds[keys] = dispatcher
+    end
+  end,
+  get_active_window = function() return active end,
+  dispatch = function(dispatcher) io.write(dispatcher.dsp, " ", dispatcher.arg.index, ";") end,
+}, {
+  __index = function()
+    return function() return {} end
+  end,
+})
+
+require("default.hypr.helpers")
+require("default.hypr.bindings.tiling")
+
+binds["SUPER + ALT + code:12"]()
+active = { group = nil }
+binds["SUPER + ALT + code:12"]()
+active = { group = { size = 2 } }
+binds["SUPER + ALT + code:11"]()
+binds["SUPER + ALT + code:12"]()
+io.write("\n", o.bind_commands[binds["SUPER + ALT + code:12"]])
+LUA
+)
+[[ ${group_switches%%$'\n'*} == "group.active 2;" ]] ||
+  fail "group window hotkeys switch only to a window the group has" "$group_switches"
+pass "group window hotkeys switch only to a window the group has"
+[[ ${group_switches#*$'\n'} == "hyprctl eval 'o.switch_group_window(3)'" ]] ||
+  fail "the keybindings menu can run a group window hotkey" "$group_switches"
+pass "the keybindings menu can run a group window hotkey"
+
 migration=$(grep -rl 'Move stock Hyprland user overrides into package defaults' "$ROOT/migrations" | head -n 1 || true)
 [[ -n $migration ]] || fail "Hyprland default config migration exists"
 
