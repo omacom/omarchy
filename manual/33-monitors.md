@@ -38,6 +38,27 @@ When you're extending, closing the lid on the laptop will automatically turn off
 
 ### Arranging multiple screens
 
+Open the **Display** panel from the monitor icon in the bar or with `Super + Ctrl + D`. With at least two enabled screens, a collapsed **Arrangement** row appears below **DISPLAYS**. Click the row or its right-hand chevron to open the controls; click again to close them. The row is hidden with only one enabled screen.
+
+Drag the numbered screens in the diagram to match the monitors on your desk. Nearby edges and top, center or bottom alignment snap into place, with a guide showing the shared edge. You can also use offsets between those alignments. Screens cannot overlap. Every screen must share an edge with the layout before Apply is available. You can move several screens in the draft to close existing gaps. Select and move another screen to build the whole arrangement before applying. **Discard changes** returns the diagram to the current layout without moving your screens. **Refresh** rereads the connected screens.
+
+**Identify screens** shows the matching number, display name and connector on each physical screen for four seconds. Clicking again restarts the timer. Identification does not change the layout.
+
+Click **Apply layout** to apply and save the arrangement immediately. No second confirmation is needed, and the saved layout stays in place when you close the panel. If applying fails, the previous configuration and live layout are restored.
+
+Open **Position controls** for preset placements. Choose the screen to move and its reference screen, then choose **Left**, **Right**, **Above** or **Below**. For left/right placement, **Align screens** offers **Top**, **Center** or **Bottom**. For above/below placement, it offers **Left**, **Center** or **Right**. Defaults are top and left alignment. You can also enter exact logical **X** and **Y** coordinates for the selected screen. These edit the preview; they do not move physical screens until Apply. To make precise adjustments with the keyboard, navigate to the diagram and press Enter. Arrow keys move the selected screen one logical pixel; Enter or Escape finishes editing. Changes remain a preview until Apply.
+
+Arrangement supports multiple external screens and desktops without a laptop screen. Scaling and rotation are accounted for. If the screens change before Apply, refresh and arrange them again.
+
+You can also arrange screens from the terminal:
+
+```bash
+omarchy hyprland monitor position DP-1 eDP-1 left --align bottom
+omarchy hyprland monitor position DP-2 DP-1 above --align right --dry-run
+```
+
+The command saves positions in `~/.config/hypr/monitors.lua`, preserving the other fields in your monitor rules, and keeps a backup at `monitors.lua.bak.monitor-position`. Screens using a fallback or description rule get explicit connector rules with the same options. These rules take precedence over the fallback afterward, so edit their scale fields individually if needed. Mirrored screens, overlapping layouts and disconnected layouts are rejected. Turn mirroring off first, or move an obstructing screen before moving another into its place. If applying the layout fails, the previous configuration is restored. Saving and recovery detect concurrent config edits and retain conflicting file versions beside `monitors.lua` instead of discarding them. The error gives their paths. Monitor rules built through helpers or conditional Lua code must be arranged manually. Fallback and description rules with computed option expressions need explicit connector rules before using this command.
+
 Hyprland works great with multiple screens. Read more about how to lay them out in [the Hyprland monitor documentation](https://wiki.hypr.land/Configuring/Basics/Monitors/). You can [bind specific workspaces to specific monitors](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) as well. In Omarchy, these rules go in `~/.config/hypr/monitors.lua` as `hl.monitor` entries — the file ships with commented examples for pinning a specific monitor to a resolution, position, and rotation.
 
 You can also checkout [Hyprmon](https://github.com/erans/hyprmon/), if you'd like a TUI to help you with the positioning of multiple screens.

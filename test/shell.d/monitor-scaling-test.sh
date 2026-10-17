@@ -5,7 +5,18 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+scaling_pid=""
+cleanup() {
+  if [[ -n $scaling_pid ]]; then
+    flock -u 9 2>/dev/null || true
+    if kill -0 "$scaling_pid" 2>/dev/null; then
+      kill "$scaling_pid" 2>/dev/null || true
+    fi
+    wait "$scaling_pid" 2>/dev/null || true
+  fi
+  rm -rf "$test_tmp"
+}
+trap cleanup EXIT
 
 stub_bin="$test_tmp/bin"
 eval_out="$test_tmp/hyprctl-eval"
@@ -129,3 +140,19 @@ grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down skips d
 grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
   fail "monitor scaling down persists 2x after skipping duplicate approximation"
 pass "monitor scaling down skips duplicate approximation"
+
+# The arrangement worker holds this same lock through save and rollback.
+write_monitor_config
+rm -f "$eval_out"
+mkdir -p "$home_dir/.local/state/omarchy"
+exec 9>"$home_dir/.local/state/omarchy/monitor-config.lock"
+flock 9
+(exec 9>&-; run_scaling 3) >"$test_tmp/locked-scaling.log" 2>&1 &
+scaling_pid=$!
+sleep 0.15
+[[ ! -f $eval_out ]] || fail "scaling waits for arrangement's config lock"
+flock -u 9
+wait "$scaling_pid"
+scaling_pid=""
+grep -F 'scale = 3' "$eval_out" >/dev/null || fail "scaling resumes after config lock release"
+pass "scaling serializes with arrangement configuration writes"

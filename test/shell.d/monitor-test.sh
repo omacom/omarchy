@@ -6,6 +6,37 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const monitor = requireFromRoot('shell/plugins/panels/monitor/Model.js')
+const arrangement = requireFromRoot('shell/plugins/panels/monitor/ArrangementModel.js')
+
+const screens = [
+  {name:'DP-1', x:0, y:0, logicalWidth:1920, logicalHeight:1080},
+  {name:'DP-2', x:1920, y:0, logicalWidth:1280, logicalHeight:720},
+  {name:'DP-3', x:3200, y:0, logicalWidth:1920, logicalHeight:1080}
+]
+assertDeepEqual(arrangement.positions(arrangement.snap(screens, 'DP-2', 1911, 123, 20).layout),
+  {'DP-1':[0,0], 'DP-2':[1920,123], 'DP-3':[3200,0]}, 'drag snaps an edge and retains an intermediate offset')
+assertDeepEqual(arrangement.positions(arrangement.snap(screens, 'DP-2', 1915, 354, 20).layout),
+  {'DP-1':[0,0], 'DP-2':[1920,360], 'DP-3':[3200,0]}, 'drag snaps bottom alignment')
+assertEqual(arrangement.snap(screens, 'DP-2', 1000, 400, 20), null, 'drag rejects a colliding drop')
+assertEqual(arrangement.snap(screens, 'DP-2', 7000, 5000, 20), null, 'drag requires a nearby screen edge')
+assertEqual(arrangement.overlaps(arrangement.place(screens, 'DP-2', 2500, 0)), true, 'third-screen overlap is detected')
+const draft = arrangement.place(screens, 'DP-3', 0, 1080)
+assertDeepEqual(arrangement.positions(arrangement.preset(draft, 'DP-2', 'DP-1', 'left', 'center')),
+  {'DP-1':[0,0], 'DP-2':[-1280,180], 'DP-3':[0,1080]}, 'presets retain other draft moves')
+
+assertDeepEqual(arrangement.pair([{name:'eDP-1'}, {name:'DP-1'}, {name:'DP-2'}], '', ''),
+  {moving:'DP-2', reference:'eDP-1'}, 'arrangement chooses a distinct laptop pair')
+assertDeepEqual(arrangement.pair([{name:'DP-1'}, {name:'DP-2'}], '', ''),
+  {moving:'DP-2', reference:'DP-1'}, 'arrangement supports desktop-only screens')
+assertDeepEqual(arrangement.pair([{name:'DSI-1'}, {name:'DP-1'}], '', ''),
+  {moving:'DP-1', reference:'DSI-1'}, 'arrangement recognizes an internal DSI display')
+assertDeepEqual(arrangement.pair([{name:'DP-1'}], 'disconnected', 'DP-1'),
+  {moving:'', reference:'DP-1'}, 'arrangement clears a disconnected selection')
+assertDeepEqual(arrangement.pair([], '', ''), {moving:'', reference:''}, 'arrangement handles no screens')
+assertDeepEqual(arrangement.bounds([
+  {x:-1152, y:-200, logicalWidth:1152, logicalHeight:2048},
+  {x:0, y:-200, logicalWidth:1920, logicalHeight:1080}
+]), {x:-1152, y:-200, width:3072, height:2048}, 'diagram fits scaled rotated screens at negative coordinates')
 
 assertEqual(monitor.clampBrightness(0), 1, 'monitor clamps minimum brightness')
 assertEqual(monitor.clampBrightness(101), 100, 'monitor clamps maximum brightness')

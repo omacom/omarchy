@@ -311,5 +311,11 @@
   "windowsVm.ramHeader": "How much RAM would you like to allocate to Windows VM?",
   "windowsVm.usernameHeader": "Enter Windows username:",
   "windowsVm.usernamePlaceholder": "Username (Press enter to use default: %1)",
-  "xbox.rebootNeeded": "Reboot needed to finish setup. Reboot now?"
+  "xbox.rebootNeeded": "Reboot needed to finish setup. Reboot now?",
+  "monitorPosition.title": "Monitor Position",
+  "monitorPosition.twoScreens": "Connect and enable at least two screens.",
+  "monitorPosition.moveScreen": "Screen to move",
+  "monitorPosition.reference": "Position %1 relative to",
+  "monitorPosition.side": "Place %1 relative to %2",
+  "monitorPosition.saved": "Layout saved for next time."
 }
