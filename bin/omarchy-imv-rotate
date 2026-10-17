@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Rotate the current imv image in place without truncating it
+# Rotate into a sibling temp file, then replace the original only after
+# ImageMagick reports success. Interrupted mogrify -rotate writes can leave
+# an unreadable JPEG with no backup (omacom/omarchy#14741).
+# Follow a symlink so we rotate the target, not replace the link with a copy.
+
+set -euo pipefail
+
+file=${1-}
+[[ -n $file ]] || exit 1
+[[ -f $file && -w $file ]] || exit 1
+
+# Resolve one symlink level so a link is not replaced by a regular file.
+if [[ -L $file ]]; then
+  target=$(readlink -- "$file")
+  case $target in
+    /*) file=$target ;;
+    *) file=$(dirname -- "$file")/$target ;;
+  esac
+  [[ -f $file && -w $file && ! -L $file ]] || exit 1
+fi
+
+dir=$(dirname -- "$file")
+base=$(basename -- "$file")
+tmp=$(mktemp "$dir/.$base.omarchy-rotate.XXXXXX") || exit 1
+trap 'rm -f -- "$tmp"' EXIT
+
+cp -p -- "$file" "$tmp"
+mogrify -rotate 90 -- "$tmp"
+mv -f -- "$tmp" "$file"
+trap - EXIT
