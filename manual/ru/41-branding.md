@@ -12,7 +12,7 @@ omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
 
 Затем примените настройку командой `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png` — она также придаст экрану входа SDDM те же цвета и логотип. Если захотите вернуть всё обратно, используйте `omarchy plymouth reset`.
 
- ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
+ ![branding-plymouth-shopify](../images/branding-plymouth-shopify.webp)
 
 ### Заставка
 
