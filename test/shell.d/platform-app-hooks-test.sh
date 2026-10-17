@@ -36,6 +36,7 @@ omarchy_path=$tmp/omarchy
 mkdir -p "$stub_bin" "$omarchy_path/install/helpers" "$omarchy_path/config"
 printf 'browser_policy_setup_dir() { :; }\nbrowser_policy_setup_firefox_distribution() { :; }\nas_root() { "$@"; }\n' \
   >"$omarchy_path/install/helpers/browser-policy.sh"
+printf 'chromium_force_software_video_decode() { :; }\n' >"$omarchy_path/install/helpers/chromium-video-decode.sh"
 cp "$ROOT/config/chromium-flags.conf" "$omarchy_path/config/"
 for command in omarchy-pkg-add omarchy-pkg-aur-add omarchy-pkg-drop omarchy-install-gaming-gpu-lib32; do
   printf '#!/bin/bash\nprintf "%%s %%s\\n" "%s" "$*" >>"%s"\n' "$command" "$tmp/calls" >"$stub_bin/$command"
