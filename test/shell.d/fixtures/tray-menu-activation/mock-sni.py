@@ -38,8 +38,8 @@ class StatusNotifierItem(dbus.service.Object):
       "Title": "omarchy-test-tray",
       "Status": "Active",
       "WindowId": dbus.Int32(0),
-      "IconName": "dialog-information",
-      "IconThemePath": "",
+      "IconName": os.environ.get("OMARCHY_TRAY_ICON_NAME", "dialog-information"),
+      "IconThemePath": os.environ.get("OMARCHY_TRAY_ICON_THEME_PATH", ""),
       "Menu": dbus.ObjectPath(MENU_PATH),
       "ItemIsMenu": dbus.Boolean(False),
       "ToolTip": dbus.Struct((
