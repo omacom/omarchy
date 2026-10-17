@@ -4,6 +4,37 @@
 # omarchy:group=system
 # omarchy:hidden=true
 
+# omarchy-system-hibernate holds this marker from before an encrypted hibernate
+# until resume, and the sleep monitor skips the session lock for it because the
+# LUKS prompt already guards the resume. Closing the lid right after choosing
+# Hibernate must not start that lock either: it brings the second password back,
+# and a lock surface coming up after the kernel has begun the hibernate entry
+# can keep the machine from powering off. The lid-open binding reconciles the
+# displays after resume. ScheduledShutdown keeps its last value after a sleep,
+# so it only names the operation while PreparingForSleep is true. Anything short
+# of all three takes the ordinary path below.
+hibernate_in_flight() {
+  local marker marker_fd lock_status state
+  [[ -n ${XDG_RUNTIME_DIR:-} ]] || return 1
+  marker="$XDG_RUNTIME_DIR/omarchy-hibernate-boot-auth.lock"
+  [[ -f $marker ]] || return 1
+
+  exec {marker_fd}<"$marker" || return 1
+  flock -n -E 75 "$marker_fd" 2>/dev/null
+  lock_status=$?
+  exec {marker_fd}>&-
+  (( lock_status == 75 )) || return 1
+
+  state=$(timeout 2 busctl get-property org.freedesktop.login1 /org/freedesktop/login1 \
+    org.freedesktop.login1.Manager PreparingForSleep ScheduledShutdown 2>/dev/null) || return 1
+  [[ $state == $'b true\n(st) "hibernate" '* ]]
+}
+
+if hibernate_in_flight; then
+  logger --tag omarchy-system-lid-close -- "hibernate in flight: no lock, no display change" 2>/dev/null || true
+  exit 0
+fi
+
 # Locking here rather than waiting for PrepareForSleep is what keeps the lock
 # off the critical path. logind's delay inhibitor is a timer that expires
 # whether or not the session is secure, so starting the lock the moment the lid
