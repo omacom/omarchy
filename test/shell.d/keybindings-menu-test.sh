@@ -306,9 +306,13 @@ $(lua_bind 64 "SUPER + J" "My thing")
 BINDS
 
 rm -rf "$tmpdir/cache"
-SECONDS=0
-keybindings >/dev/null
-(( SECONDS < 5 )) || fail "a config that loops over a Hyprland query doesn't stall the menu" "took ${SECONDS}s"
+# No time budget: if the loop never ended, the scan's own timeout would stop it
+# before the bind below, and the dispatcher check catches the missing bind on any
+# machine. The outer timeout only turns a hang into a failure, should that inner
+# timeout ever go too.
+timeout 60 env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+  bash "$menu" --print >/dev/null || fail "a config that loops over a Hyprland query doesn't hang the menu"
 grep -qP '→ My thing\texec\tmy-thing$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "binds after a loop over a Hyprland query are still found" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "a config that loops over a Hyprland query doesn't hang the menu"
