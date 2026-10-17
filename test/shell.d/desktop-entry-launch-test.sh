@@ -34,6 +34,16 @@ cat >"$mock_bin/setsid" <<'SH'
 printf 'launch:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
 SH
 
+cat >"$mock_bin/uname" <<'SH'
+#!/bin/bash
+echo x86_64
+SH
+
+cat >"$mock_bin/pacman" <<'SH'
+#!/bin/bash
+exit 0
+SH
+
 cat >"$mock_bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
 #!/bin/bash
 printf '%s\n' "$1" >"$OMARCHY_TEST_PRESENTATION"
@@ -44,7 +54,11 @@ chmod +x "$mock_bin"/*
 export HOME="$test_home"
 export OMARCHY_TEST_LOG="$test_tmp/launch.log"
 export OMARCHY_TEST_PRESENTATION="$test_tmp/presentation"
-export PATH="$mock_bin:$PATH"
+# Keep only explicit fixture utilities available.
+for command in bash cat mkdir grep sleep rm env; do
+  ln -s "$(command -v "$command")" "$mock_bin/$command"
+done
+export PATH="$mock_bin"
 
 wait_for_launch() {
   local expected="$1"
