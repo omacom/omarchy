@@ -58,6 +58,7 @@ The Apple T1 chip was introduced in late 2016 and used exclusively in the first-
 The Apple T2 Security Chip was introduced in 2017. The T2 chip was discontinued with the transition to Apple silicon (M-series chips) starting in 2020.
 
 - iMac Pro (2017) – Model: A1862
+- iMac (Retina 5K, 27-inch, 2020) – Model: A2115 (the 2019 model with the same number has no T2)
 - MacBook Pro 13-inch (2018, four Thunderbolt 3 ports) – Model: A1989
 - MacBook Pro 15-inch (2018) – Model: A1990
 - MacBook Air (Retina, 13-inch, 2018) – Model: A1932
