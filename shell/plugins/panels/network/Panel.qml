@@ -55,6 +55,7 @@ Panel {
   // sample arriving late never reflows the grid. This says whether the numbers
   // are real yet or the row should read "--".
   readonly property bool hasTransferStats: info.rx_bytes !== undefined
+  readonly property bool hasIpv6Route: String(info.ip || "").includes(":") || String(info.gateway || "").includes(":")
   property int connectionPhraseIndex: 0
   readonly property var connectionPhrases: [
     Commons.I18n.t("network.phrase1"),
@@ -1432,13 +1433,17 @@ Panel {
 
           InfoLabel { text: Commons.I18n.t("network.ipAddress") }
           DetailValue {
+            Layout.columnSpan: root.hasIpv6Route ? 3 : 1
             text: root.info.ip || "--"
+            elide: Text.ElideMiddle
             copyable: !!root.info.ip
             tooltipText: Commons.I18n.t("network.copyIp")
           }
           InfoLabel { text: Commons.I18n.t("network.gateway") }
           DetailValue {
+            Layout.columnSpan: root.hasIpv6Route ? 3 : 1
             text: root.info.gateway || "--"
+            elide: Text.ElideMiddle
             copyable: !!root.info.gateway
             tooltipText: Commons.I18n.t("network.copyGateway")
           }
