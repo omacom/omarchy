@@ -40,7 +40,7 @@ if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,denali-
   cat >>"$uki_tmp" <<'CONF'
 # BEGIN OMARCHY SURFACE PRO 11 DEVICE TREE
 [UKI]
-DeviceTree=/boot/dtbs/linux-omarchy-n1x/qcom/x1e80100-microsoft-denali-oled.dtb
+DeviceTree=/boot/dtbs/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb
 # END OMARCHY SURFACE PRO 11 DEVICE TREE
 CONF
   mv -f "$uki_tmp" "$uki_config"
@@ -79,7 +79,7 @@ done
 unset firmware directory suffix
 CONF
 
-  # linux-omarchy-n1x already boots first under Omarchy's defaults. An earlier
+  # linux-omarchy already boots first under Omarchy's defaults. An earlier
   # revision of this script put linux-sp11 first.
   rm -f "$limine_config_dir/zz-surface-pro-11.conf"
 
@@ -89,9 +89,9 @@ CONF
   # drivers nor this device tree, so it is replaced instead of kept beside it.
   # surface-pro-11-support carries Wi-Fi board data, audio and camera routing.
   # A failed install stops here, before the stock kernel is removed.
-  surface_pro11_kernel=(linux-omarchy-n1x)
+  surface_pro11_kernel=(linux-omarchy)
   if pacman -Q linux-aarch64-headers &>/dev/null; then
-    surface_pro11_kernel+=(linux-omarchy-n1x-headers)
+    surface_pro11_kernel+=(linux-omarchy-headers)
   fi
   if ! omarchy-pkg-add "${surface_pro11_kernel[@]}" surface-pro-11-support; then
     if [[ -n $uki_previous ]]; then

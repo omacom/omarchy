@@ -56,7 +56,7 @@ CONF
 run_setup "$matching" >/dev/null
 run_setup "$matching" >/dev/null
 
-expected_packages=$'add linux-omarchy-n1x surface-pro-11-support\ndrop linux-aarch64 linux-aarch64-headers\nadd pipewire-libcamera\nadd iptsd surface-pro-11-sensors\nextract\nsystemctl enable surface-pro-11-sensors.service'
+expected_packages=$'add linux-omarchy surface-pro-11-support\ndrop linux-aarch64 linux-aarch64-headers\nadd pipewire-libcamera\nadd iptsd surface-pro-11-sensors\nextract\nsystemctl enable surface-pro-11-sensors.service'
 [[ $(head -n6 "$matching/packages.log") == "$expected_packages" ]] ||
   fail "Surface Pro 11 setup replaces the stock kernel first, then adds its hardware support and enables the light sensor even without Windows"
 [[ ! -e $matching/mkinitcpio.conf.d/surface_device_modules.conf ]] ||
@@ -66,7 +66,7 @@ grep -Fxq 'Cmdline=@/etc/kernel/cmdline' "$matching/kernel/uki.conf" ||
   fail "unrelated UKI settings are preserved"
 ! grep -q 'DeviceTreeAuto' "$matching/kernel/uki.conf" ||
   fail "the stock kernel's device-tree list is removed with the stock kernel"
-[[ $(grep -c '^DeviceTree=/boot/dtbs/linux-omarchy-n1x/qcom/x1e80100-microsoft-denali-oled.dtb$' "$matching/kernel/uki.conf") == 1 ]] ||
+[[ $(grep -c '^DeviceTree=/boot/dtbs/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb$' "$matching/kernel/uki.conf") == 1 ]] ||
   fail "the UKI embeds the Surface Pro 11 device tree from Omarchy's kernel exactly once across reruns"
 [[ $(find "$matching/kernel" -type f | wc -l) == 1 ]] ||
   fail "the kept UKI configuration is removed once the kernel installs"
@@ -155,14 +155,14 @@ mkdir -p "$headers"
 mkdir -p "$headers/proc/device-tree" && cp "$matching/proc/device-tree/compatible" "$headers/proc/device-tree/compatible"
 touch "$headers/headers"
 run_setup "$headers" >/dev/null
-grep -Fxq 'add linux-omarchy-n1x linux-omarchy-n1x-headers surface-pro-11-support' "$headers/packages.log" ||
+grep -Fxq 'add linux-omarchy linux-omarchy-headers surface-pro-11-support' "$headers/packages.log" ||
   fail "kernel headers are replaced along with the stock kernel"
 
 fresh="$scratch/fresh"
 mkdir -p "$fresh"
 mkdir -p "$fresh/proc/device-tree" && cp "$matching/proc/device-tree/compatible" "$fresh/proc/device-tree/compatible"
 run_setup "$fresh" >/dev/null
-grep -Fxq 'DeviceTree=/boot/dtbs/linux-omarchy-n1x/qcom/x1e80100-microsoft-denali-oled.dtb' "$fresh/kernel/uki.conf" ||
+grep -Fxq 'DeviceTree=/boot/dtbs/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb' "$fresh/kernel/uki.conf" ||
   fail "a missing UKI configuration is created with the Surface device tree"
 
 for model in 'microsoft,denali\0qcom,x1p64100' 'lenovo,yoga-slim7x\0qcom,x1e80100'; do
