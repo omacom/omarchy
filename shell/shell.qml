@@ -1272,6 +1272,20 @@ ShellRoot {
     openPanelIds = ({})
   }
 
+  // Close every open panel. A panel built on KeyboardPanel is an overlay layer
+  // surface that holds keyboard focus while it is open, so a window mapped
+  // under it never receives focus and its fullscreen window rule never
+  // applies — the screensaver would open unfocused at its fallback size and
+  // give up (#15643). A caller about to take over the whole screen closes the
+  // panels first. Returns the ids it closed.
+  function hideOpenPanels() {
+    var closed = []
+    for (var id in panelLoaders) {
+      if (shell.isPluginOpen(id) && shell.hide(id)) closed.push(id)
+    }
+    return closed
+  }
+
   function deliverIfLoaded(pluginId) {
     var loader = panelLoaders[pluginId]
     if (!loader || !loader.item) return
@@ -1906,6 +1920,13 @@ ShellRoot {
 
     function hide(id: string): void {
       shell.hide(id)
+    }
+
+    // Every open panel at once, for a caller about to take over the whole
+    // screen: the screensaver must map focused, and an open KeyboardPanel
+    // would hold keyboard focus away from it (#15643).
+    function hideOpenPanels(): string {
+      return JSON.stringify(shell.hideOpenPanels())
     }
 
     function toggle(id: string, payloadJson: string): void {

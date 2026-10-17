@@ -10,6 +10,13 @@ if omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
   exit 1
 fi
 
+# An open panel (clock, clipboard, emoji picker) is an overlay layer surface
+# that keeps keyboard focus while it is up, so the screensaver terminals map
+# unfocused and their fullscreen window rule never applies. Close every open
+# panel before spawning them, and before the focus that gets handed back is
+# captured. Best effort: no running shell must not block the screensaver.
+omarchy-shell -q shell hideOpenPanels || true
+
 focused=$(omarchy-hyprland-monitor-focused)
 terminal=$(xdg-terminal-exec --print-id)
 
