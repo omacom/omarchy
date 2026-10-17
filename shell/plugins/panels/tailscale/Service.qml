@@ -96,6 +96,10 @@ Item {
     return Model.displayHostName(hostName, dnsName, I18n.t)
   }
 
+  function exitNodeLabel(peer) {
+    return Model.exitNodeLabel(peer, I18n.t)
+  }
+
   function osIcon(os) {
     return Model.osIcon(os)
   }
