@@ -178,7 +178,7 @@ Item {
     root.launchActiveToplevel = ToplevelManager.activeToplevel
     root.launchOsdMessage = name ? I18n.t("appLibrary.launching").arg(String(name)) : I18n.t("appLibrary.launchingApp")
     launchDelay.restart()
-    launchTimeout.restart()
+    if (!launchTimeout.running) launchTimeout.start()
   }
 
   function closeLaunchFeedback(serial) {
