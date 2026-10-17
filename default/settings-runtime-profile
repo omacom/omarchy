@@ -13,9 +13,10 @@
 #   Adds thunderbolt to MODULES only where modinfo finds it as a loadable module.
 # etc/limine-entry-tool.d/, default/limine/
 #   Read only where Limine and its entry tool are installed.
-# etc/systemd/oomd.conf.d/, default/systemd/user/app.slice.d/10-oomd.conf
+# etc/systemd/oomd.conf.d/, default/systemd/user-generators/omarchy-oomd-generator
 #   Inert unless systemd-oomd runs (install/config/enable-services.sh,
-#   migration 1785424256).
+#   migration 1785424256). The generator also leaves app.slice alone where
+#   procfs hides PID 1.
 # default/systemd/zram-generator.conf.d/90-omarchy.conf,
 # etc/sysctl.d/99-omarchy-sysctl.conf, etc/tmpfiles.d/omarchy-zswap.conf
 #   Swap on zram everywhere: the installer provides zram-generator on x86_64,
