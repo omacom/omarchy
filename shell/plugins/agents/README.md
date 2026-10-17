@@ -72,6 +72,7 @@ Adding an agent needs no QML changes: ship a collector that prints the record co
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 | `kimi` | Kimi Code quotas (5-hour session, weekly, and monthly allowances) | none; quota only |
+| `opencodego` | OpenCode Go usage endpoint (rolling 5-hour, weekly, monthly) | OpenCode v1/v2 databases and pi/omp sessions, including omp profiles, on the exact `opencode-go` provider |
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
 registers more than one account, the `claude`, `codex`, and `grok` records
@@ -107,6 +108,10 @@ Kimi reads `KIMI_API_KEY` first, then `credentials/kimi-code.json` under an expl
 Expired tokens are refreshed under the current CLI's renewable directory lock at `<home>/oauth/kimi-code.lock`; legacy credentials use their sibling file lock. The rotated token pair is flushed and published atomically with private permissions. Credentials are reread after the exchange so a sign-in or logout completed during the request takes precedence. A failed lock prevents refresh, and credentials are sent only to trusted Kimi HTTPS hosts without following redirects. When sign-in expires, run `kimi login`; an invalid overriding `KIMI_API_KEY` must instead be updated or unset.
 
 Limits probes reuse a result for one minute unless `--force` is requested. A failed probe retains the last-known limits with stale metadata. Cache identity follows the token used by the request, and a refresh this collector performs carries the same account's previous limits forward. Different credentials or endpoints never share cached quota.
+
+### OpenCode Go
+
+The collector reads `OPENCODE_GO_API_KEY` first, then the `opencode-go` key in `$XDG_DATA_HOME/opencode/auth.json` (default `~/.local/share/opencode/auth.json`, written by `/connect`). Limits are account-global; token stats come only from this machine's OpenCode database and pi/omp session files. The endpoint does not identify Go versus Go Plus, so no plan label is inferred. Missing credentials or an unavailable endpoint leave local stats usable; missing local sources produce an empty record. Local scan caches are best-effort and expire after 15 minutes or a local day/timezone change.
 
 ### Fireworks balance
 

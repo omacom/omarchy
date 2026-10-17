@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- OpenCode mark: dark tile with the white geometric O, from the
+       official opencode.ai favicon. Self-contained on dark and light
+       surfaces, so no -light twin is needed. -->
+  <rect width="512" height="512" fill="#131010"/>
+  <path d="M320 224V352H192V224H320Z" fill="#5A5858"/>
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M384 416H128V96H384V416ZM320 160H192V352H320V160Z" fill="white"/>
+</svg>
