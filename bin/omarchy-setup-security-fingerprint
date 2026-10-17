@@ -56,6 +56,30 @@ EOF
   fi
 }
 
+# Returns 1 when verification failed, 2 when the reader could not be claimed.
+# Some readers have been reported unclaimable straight after enrollment (Validity
+# VFS5011), so a claim failure is retried rather than taken as a verdict.
+verify_fingerprint() {
+  local attempt status log
+
+  log=$(mktemp)
+  for attempt in 1 2 3; do
+    # fprintd-verify exits 1 for both, so its output tells them apart.
+    fprintd-verify | tee "$log"
+    status=${PIPESTATUS[0]}
+    grep -q "failed to claim device" "$log" || break
+    status=2
+
+    if (( attempt < 3 )); then
+      echo -e "\nCould not open the reader. Trying again in 5 seconds...\n"
+      sleep 5
+    fi
+  done
+  rm -f "$log"
+
+  return "$status"
+}
+
 echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
 
 # Bail before installing anything if there's no reader to talk to.
@@ -82,7 +106,10 @@ if sudo fprintd-enroll "$USER"; then
 
   # Verify
   echo -e "\nNow let's verify that it's working correctly.\n"
-  if fprintd-verify; then
+  verify_status=0
+  verify_fingerprint || verify_status=$?
+
+  if (( verify_status == 0 )); then
     # PAM comes last, once a print is enrolled and verified. Detection only
     # proves a reader is there, not that libfprint can drive it — an Elan MOC
     # sensor outside the elanmoc table gets this far and then fails to enroll.
@@ -96,6 +123,9 @@ if sudo fprintd-enroll "$USER"; then
     fi
     echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
     echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
+  elif (( verify_status == 2 )); then
+    echo -e "\e[31m\nThe fingerprint was enrolled, but the reader could not be opened to verify it, so authentication was not configured.\e[0m"
+    echo "Wait a minute, or reboot, then run this setup again."
   else
     echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
   fi
