@@ -6,6 +6,14 @@
 default_browser=$(omarchy-cmd-default-browser)
 browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
 
+# An entry whose command is this launcher would recurse: each generation probes
+# the browser's flags and hands the URL to another generation through
+# systemd-run, doubling until the process table fills. Refuse instead.
+if [[ $(basename -- "$browser_exec") == omarchy-launch-browser ]]; then
+  echo "omarchy-launch-browser: the default browser entry ${default_browser:-<none>} runs omarchy-launch-browser itself; refusing to recurse" >&2
+  exit 1
+fi
+
 # Only a private launch needs the browser's flag, and probing a Firefox-family
 # browser's --help starts the whole binary, so ordinary launches skip it and
 # leave their arguments as they are.
