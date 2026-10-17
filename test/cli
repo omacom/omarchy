@@ -608,6 +608,185 @@ GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI
 grep -q 'org.gnome.desktop.interface color-scheme prefer-light' "$PI_TMPDIR/gsettings.log" || fail "gnome sync reads mode from colors.toml"
 pass "gnome sync reads mode from colors.toml"
 
+make_tmpdir ICONS_TMPDIR
+mkdir -p "$ICONS_TMPDIR/Yaru" "$ICONS_TMPDIR/Yaru-dark" "$ICONS_TMPDIR/custom-icons"
+touch "$ICONS_TMPDIR/Yaru/index.theme" "$ICONS_TMPDIR/Yaru-dark/index.theme" "$ICONS_TMPDIR/custom-icons/index.theme"
+GNOME_TEST_THEME="$PI_TMPDIR/.local/state/omarchy/current/theme"
+mkdir -p "$GNOME_TEST_THEME"
+
+echo "custom-icons" > "$GNOME_TEST_THEME/icons.theme"
+: > "$PI_TMPDIR/gsettings.log"
+OMARCHY_ICONS_DIR="$ICONS_TMPDIR" GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+grep -Fxq 'set org.gnome.desktop.interface icon-theme custom-icons' "$PI_TMPDIR/gsettings.log" || fail "gnome sync sets configured icon theme"
+pass "gnome sync sets configured icon theme when installed"
+
+make_tmpdir XDG_TMPDIR
+mkdir -p "$XDG_TMPDIR/icons/xdg-icons"
+touch "$XDG_TMPDIR/icons/xdg-icons/index.theme"
+echo "xdg-icons" > "$GNOME_TEST_THEME/icons.theme"
+: > "$PI_TMPDIR/gsettings.log"
+XDG_DATA_DIRS="$XDG_TMPDIR" OMARCHY_ICONS_DIR="" GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+grep -Fxq 'set org.gnome.desktop.interface icon-theme xdg-icons' "$PI_TMPDIR/gsettings.log" || fail "gnome sync resolves icons from XDG_DATA_DIRS"
+pass "gnome sync resolves icons from XDG_DATA_DIRS"
+
+echo "nonexistent-icon-theme" > "$GNOME_TEST_THEME/icons.theme"
+: > "$PI_TMPDIR/gsettings.log"
+OMARCHY_ICONS_DIR="$ICONS_TMPDIR" GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+grep -Fxq 'set org.gnome.desktop.interface icon-theme Yaru' "$PI_TMPDIR/gsettings.log" || fail "gnome sync falls back exactly to Yaru in light mode"
+pass "gnome sync falls back to Yaru when configured icon theme is missing in light mode"
+
+echo 'mode = "dark"' > "$GNOME_TEST_THEME/colors.toml"
+: > "$PI_TMPDIR/gsettings.log"
+OMARCHY_ICONS_DIR="$ICONS_TMPDIR" GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+grep -Fxq 'set org.gnome.desktop.interface icon-theme Yaru-dark' "$PI_TMPDIR/gsettings.log" || fail "gnome sync falls back exactly to Yaru-dark in dark mode"
+pass "gnome sync falls back to Yaru-dark when configured icon theme is missing in dark mode"
+
+make_tmpdir NO_FALLBACK_TMPDIR
+: > "$PI_TMPDIR/gsettings.log"
+XDG_DATA_DIRS="$NO_FALLBACK_TMPDIR" XDG_DATA_HOME="$NO_FALLBACK_TMPDIR" OMARCHY_ICONS_DIR="$NO_FALLBACK_TMPDIR" GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+! grep -q 'icon-theme' "$PI_TMPDIR/gsettings.log" || fail "gnome sync leaves icon setting unchanged when no fallbacks exist"
+pass "gnome sync leaves icon setting unchanged when no fallbacks exist"
+
+valid_stock_icons=("Yaru" "Yaru-bark" "Yaru-bark-dark" "Yaru-blue" "Yaru-blue-dark" "Yaru-dark" "Yaru-magenta" "Yaru-magenta-dark" "Yaru-olive" "Yaru-olive-dark" "Yaru-prussiangreen" "Yaru-prussiangreen-dark" "Yaru-purple" "Yaru-purple-dark" "Yaru-red" "Yaru-red-dark" "Yaru-sage" "Yaru-sage-dark" "Yaru-viridian" "Yaru-viridian-dark" "Yaru-wartybrown" "Yaru-yellow")
+for icons_file in "$ROOT"/themes/*/icons.theme; do
+  theme_icon=$(<"$icons_file")
+  match=0
+  for valid in "${valid_stock_icons[@]}"; do
+    if [[ $theme_icon == "$valid" ]]; then
+      match=1
+      break
+    fi
+  done
+  (( match )) || fail "stock theme $icons_file names unrecognized icon theme: '$theme_icon'"
+done
+pass "all stock themes name supported Yaru icon themes"
+
+make_tmpdir MIG_TMPDIR
+mkdir -p "$MIG_TMPDIR/home/.local/state/omarchy/current/theme" "$MIG_TMPDIR/bin"
+cat >"$MIG_TMPDIR/bin/omarchy-theme-refresh" <<EOF
+#!/bin/bash
+touch "$MIG_TMPDIR/refreshed"
+EOF
+chmod +x "$MIG_TMPDIR/bin/omarchy-theme-refresh"
+
+cat >"$MIG_TMPDIR/bin/gsettings" <<'EOF'
+#!/bin/bash
+dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
+if [[ $1 == "get" ]]; then
+  if [[ -n ${FAIL_GSETTINGS_GET:-} ]]; then
+    exit 1
+  fi
+  echo "'${FAKE_DESKTOP_ICON:-Yaru}'"
+elif [[ $1 == "set" ]]; then
+  echo "$4" > "$dir/desktop-icon.set"
+fi
+EOF
+chmod +x "$MIG_TMPDIR/bin/gsettings"
+
+cat >"$MIG_TMPDIR/bin/dconf" <<'EOF'
+#!/bin/bash
+if [[ $1 == "read" && $2 == "/org/gnome/desktop/interface/icon-theme" ]]; then
+  if [[ -n ${FAIL_DCONF_READ:-} ]]; then
+    exit 1
+  fi
+  echo "'${FAKE_DCONF_ICON:-${FAKE_DESKTOP_ICON:-Yaru}}'"
+fi
+EOF
+chmod +x "$MIG_TMPDIR/bin/dconf"
+
+echo "vantablack" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme.name"
+echo "Yaru-gray" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme"
+rm -f "$MIG_TMPDIR/refreshed"
+OMARCHY_ICONS_DIR="$ICONS_TMPDIR" DBUS_SESSION_BUS_ADDRESS="fake-bus" HOME="$MIG_TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$MIG_TMPDIR/bin:$FAKE_BIN:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1791832862.sh" >/dev/null
+[[ -f "$MIG_TMPDIR/refreshed" ]] || fail "migration 1791832862.sh refreshes theme when vantablack is staged with Yaru-gray"
+pass "migration 1791832862.sh refreshes theme when vantablack is staged with Yaru-gray"
+
+echo "nord" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme.name"
+echo "Yaru-blue" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme"
+rm -f "$MIG_TMPDIR/refreshed"
+DBUS_SESSION_BUS_ADDRESS="fake-bus" HOME="$MIG_TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$MIG_TMPDIR/bin:$FAKE_BIN:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1791832862.sh" >/dev/null
+[[ ! -f "$MIG_TMPDIR/refreshed" ]] || fail "migration 1791832862.sh leaves unaffected themes alone"
+pass "migration 1791832862.sh leaves unaffected themes alone"
+
+echo "nord" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme.name"
+echo "Yaru-blue" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme"
+rm -f "$MIG_TMPDIR/refreshed"
+FAKE_DCONF_ICON="Yaru-blue" DBUS_SESSION_BUS_ADDRESS="" XDG_RUNTIME_DIR="$MIG_TMPDIR/empty" HOME="$MIG_TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$MIG_TMPDIR/bin:$FAKE_BIN:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1791832862.sh" >/dev/null
+[[ ! -f "$MIG_TMPDIR/refreshed" ]] || fail "migration 1791832862.sh finishes when saved desktop setting is valid without DBUS"
+pass "migration 1791832862.sh finishes when saved desktop setting is valid without DBUS"
+
+echo "nord" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme.name"
+echo "Yaru-blue" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme"
+if FAIL_DCONF_READ=1 DBUS_SESSION_BUS_ADDRESS="" XDG_RUNTIME_DIR="$MIG_TMPDIR/empty" HOME="$MIG_TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$MIG_TMPDIR/bin:$FAKE_BIN:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1791832862.sh" >/dev/null 2>&1; then
+  fail "migration 1791832862.sh must fail when desktop setting cannot be verified without DBUS"
+fi
+pass "migration 1791832862.sh fails and stays pending when desktop setting cannot be verified without DBUS"
+
+mkdir -p "$MIG_TMPDIR/run/user"
+python3 -c "import socket; s = socket.socket(socket.AF_UNIX); s.bind('$MIG_TMPDIR/run/user/bus')"
+echo "custom-deleted-theme" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme.name"
+echo "Yaru-gray" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme"
+rm -f "$MIG_TMPDIR/refreshed"
+OMARCHY_ICONS_DIR="$ICONS_TMPDIR" DBUS_SESSION_BUS_ADDRESS="" XDG_RUNTIME_DIR="$MIG_TMPDIR/run/user" HOME="$MIG_TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$MIG_TMPDIR/bin:$FAKE_BIN:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1791832862.sh" >/dev/null
+[[ $(<"$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme") == "Yaru-dark" ]] || fail "migration 1791832862.sh connects to user socket when DBUS_SESSION_BUS_ADDRESS is unset"
+pass "migration 1791832862.sh connects to user socket when DBUS_SESSION_BUS_ADDRESS is unset"
+
+echo "custom-deleted-theme" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme.name"
+echo "Yaru-gray" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme"
+rm -f "$MIG_TMPDIR/refreshed"
+OMARCHY_ICONS_DIR="$ICONS_TMPDIR" DBUS_SESSION_BUS_ADDRESS="fake-bus" HOME="$MIG_TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$MIG_TMPDIR/bin:$FAKE_BIN:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1791832862.sh" >/dev/null
+[[ ! -f "$MIG_TMPDIR/refreshed" ]] || fail "migration 1791832862.sh does not call omarchy-theme-refresh when theme was removed"
+[[ $(<"$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme") == "Yaru-dark" ]] || fail "migration 1791832862.sh repairs staged icon theme directly when theme was removed"
+pass "migration 1791832862.sh repairs staged icon theme directly when theme was removed"
+
+echo "custom-deleted-theme" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme.name"
+echo "Yaru-gray" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme"
+if DBUS_SESSION_BUS_ADDRESS="" XDG_RUNTIME_DIR="$MIG_TMPDIR/empty" HOME="$MIG_TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$MIG_TMPDIR/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1791832862.sh" >/dev/null 2>&1; then
+  fail "migration 1791832862.sh must fail when DBUS_SESSION_BUS_ADDRESS is missing"
+fi
+[[ $(<"$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme") == "Yaru-gray" ]] || fail "migration 1791832862.sh preserves retryable state when DBUS_SESSION_BUS_ADDRESS is missing"
+pass "migration 1791832862.sh fails and preserves retryable state when DBUS_SESSION_BUS_ADDRESS is missing"
+
+echo "vantablack" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme.name"
+echo "Yaru-dark" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme"
+rm -f "$MIG_TMPDIR/desktop-icon.set"
+OMARCHY_ICONS_DIR="$ICONS_TMPDIR" FAKE_DESKTOP_ICON="Yaru-gray" DBUS_SESSION_BUS_ADDRESS="fake-bus" HOME="$MIG_TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$MIG_TMPDIR/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1791832862.sh" >/dev/null
+[[ -f "$MIG_TMPDIR/desktop-icon.set" && $(<"$MIG_TMPDIR/desktop-icon.set") == "Yaru-dark" ]] || fail "migration 1791832862.sh retries when desktop setting still has retired icon"
+pass "migration 1791832862.sh retries when desktop setting still has retired icon"
+
+mkdir -p "$MIG_TMPDIR/fallback-icons/hicolor"
+touch "$MIG_TMPDIR/fallback-icons/hicolor/index.theme"
+echo "custom-deleted-theme" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme.name"
+echo "Yaru-gray" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme"
+rm -f "$MIG_TMPDIR/desktop-icon.set"
+OMARCHY_ICONS_DIR="$MIG_TMPDIR/fallback-icons" XDG_DATA_DIRS="$MIG_TMPDIR/empty" XDG_DATA_HOME="$MIG_TMPDIR/empty" DBUS_SESSION_BUS_ADDRESS="fake-bus" HOME="$MIG_TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$MIG_TMPDIR/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1791832862.sh" >/dev/null
+[[ $(<"$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme") == "hicolor" ]] || fail "migration 1791832862.sh falls back to installed icons when Yaru is missing"
+[[ -f "$MIG_TMPDIR/desktop-icon.set" && $(<"$MIG_TMPDIR/desktop-icon.set") == "hicolor" ]] || fail "migration 1791832862.sh sets installed fallback on desktop when Yaru is missing"
+pass "migration 1791832862.sh falls back to installed icon themes when Yaru is missing"
+
+echo "custom-deleted-theme" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme.name"
+echo "custom-icons" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme"
+rm -f "$MIG_TMPDIR/desktop-icon.set"
+OMARCHY_ICONS_DIR="$ICONS_TMPDIR" FAKE_DESKTOP_ICON="Yaru-gray" DBUS_SESSION_BUS_ADDRESS="fake-bus" HOME="$MIG_TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$MIG_TMPDIR/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1791832862.sh" >/dev/null
+[[ $(<"$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme") == "custom-icons" ]] || fail "migration 1791832862.sh preserves valid staged icon when only desktop needs repair"
+[[ -f "$MIG_TMPDIR/desktop-icon.set" && $(<"$MIG_TMPDIR/desktop-icon.set") == "custom-icons" ]] || fail "migration 1791832862.sh sets desktop to installed staged icon"
+pass "migration 1791832862.sh preserves valid staged icon and repairs desktop setting"
+
+echo "custom-deleted-theme" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme.name"
+echo "Yaru-gray" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme"
+if OMARCHY_ICONS_DIR="$MIG_TMPDIR/empty" XDG_DATA_DIRS="$MIG_TMPDIR/empty" XDG_DATA_HOME="$MIG_TMPDIR/empty" DBUS_SESSION_BUS_ADDRESS="fake-bus" HOME="$MIG_TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$MIG_TMPDIR/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1791832862.sh" >/dev/null 2>&1; then
+  fail "migration 1791832862.sh must fail when no installed replacement exists"
+fi
+[[ $(<"$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme") == "Yaru-gray" ]] || fail "migration 1791832862.sh preserves staged icon when no replacement exists"
+pass "migration 1791832862.sh fails and stays pending when no installed icon replacement exists"
+
+echo "vantablack" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme.name"
+echo "Yaru-gray" > "$MIG_TMPDIR/home/.local/state/omarchy/current/theme/icons.theme"
+if FAIL_GSETTINGS_GET=1 OMARCHY_ICONS_DIR="$ICONS_TMPDIR" DBUS_SESSION_BUS_ADDRESS="fake-bus" HOME="$MIG_TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$MIG_TMPDIR/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1791832862.sh" >/dev/null 2>&1; then
+  fail "migration 1791832862.sh must fail when reading desktop icon fails"
+fi
+pass "migration 1791832862.sh fails and stays pending when reading desktop icon fails"
+
 cat >"$FAKE_BIN/omarchy-cmd-present" <<'EOF'
 #!/bin/bash
 [[ $1 == "code" ]]
