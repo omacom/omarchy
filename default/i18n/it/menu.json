@@ -620,6 +620,9 @@
   "setup.security.passwordless-sudo": {
     "label": "Sudo senza password"
   },
+  "setup.security.rootless-docker": {
+    "label": "Docker senza root"
+  },
   "setup.config.hyprland": {
     "label": "Hyprland"
   },
@@ -967,6 +970,9 @@
   },
   "remove.security.sudoless-docker": {
     "label": "Docker senza sudo"
+  },
+  "remove.security.rootless-docker": {
+    "label": "Docker senza root"
   },
   "remove.ai.hermes": {
     "label": "Hermes Desktop"

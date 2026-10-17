@@ -620,6 +620,9 @@
   "setup.security.passwordless-sudo": {
     "label": "Sudo gan pasfhocal"
   },
+  "setup.security.rootless-docker": {
+    "label": "Docker gan root"
+  },
   "setup.config.hyprland": {
     "label": "Hyprland"
   },
@@ -967,6 +970,9 @@
   },
   "remove.security.sudoless-docker": {
     "label": "Docker gan sudo"
+  },
+  "remove.security.rootless-docker": {
+    "label": "Docker gan root"
   },
   "remove.ai.hermes": {
     "label": "Hermes Desktop"

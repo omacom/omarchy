@@ -620,6 +620,9 @@
   "setup.security.passwordless-sudo": {
     "label": "මුරපද රහිත Sudo"
   },
+  "setup.security.rootless-docker": {
+    "label": "Root රහිත Docker"
+  },
   "setup.config.hyprland": {
     "label": "Hyprland"
   },
@@ -967,6 +970,9 @@
   },
   "remove.security.sudoless-docker": {
     "label": "Sudo රහිත Docker"
+  },
+  "remove.security.rootless-docker": {
+    "label": "Root රහිත Docker"
   },
   "remove.ai.hermes": {
     "label": "Hermes Desktop"

@@ -24,6 +24,8 @@ Omarchy는 Omarchy 메뉴(`Super + Space`)의 _설치 > 개발_ 섹션을 통해
 
 기본적으로 사용자는 `docker` 그룹에 *속해 있지 않습니다*. 그 그룹은 사실상 암호 없는 root입니다 — 그 그룹에 속한 무엇이든 `docker run -v /:/host`를 실행해 컴퓨터를 장악할 수 있습니다 — 따라서 사용자로 실행되는 악성 스크립트나 종속성 하나가 한 명령으로 root 권한을 얻을 수 있습니다. 그래서 명령줄에서는 Docker를 `sudo`와 함께 실행하고(`sudo docker ps`, `sudo docker compose up`), 데몬과 통신하는 그래픽 도구 — Windows VM — 는 필요할 때 권한을 요청합니다. 그룹 없는 구성의 편리함을 되찾고 싶고 그 대가를 이해한다면, **Setup > Security > Sudoless Docker**에서 활성화하세요(또는 `omarchy-setup-security-sudoless-docker`를 실행하세요). 경고를 표시한 뒤 사용자를 `docker` 그룹에 추가합니다. 그러면 평범한 `docker`와 `d` 별칭이 다시 `sudo` 없이 동작합니다.
 
+그런 대가 없이 `sudo`를 없애려면 **Setup > Security > Rootless Docker**를 활성화하세요(또는 `omarchy-setup-security-rootless-docker`를 실행하세요). 이는 사용자 네임스페이스 안에서 사용자 본인 계정으로 두 번째 Docker 데몬을 실행하므로, 컨테이너는 사용자가 접근할 수 있는 것에만 접근할 수 있습니다. 평범한 `docker`(와 `docker compose`)는 그 rootless 데몬과 통신하고, `sudo docker`는 Windows VM처럼 진짜 root가 필요한 작업을 위해 여전히 시스템 데몬에 연결됩니다. 두 데몬은 이미지와 볼륨을 따로 관리합니다. rootless에서는 1024 미만 포트를 사용할 수 없으며, 컨테이너의 root가 아닌 사용자가 bind mount에 쓴 파일은 호스트에서 하위 UID 소유가 됩니다. 기본값으로 되돌리려면 `docker context use default`를 사용하고, 끄려면 **Remove > Security > Rootless Docker**에서 끄세요.
+
 Omarchy 메뉴의 _설치 > 개발 > Docker DB_를 사용해 Docker에서 로컬 개발용 일반 데이터베이스를 설정할 수 있습니다.
 
 ## GitHub CLI

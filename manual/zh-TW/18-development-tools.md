@@ -24,6 +24,8 @@ Omarchy 可透過 Omarchy 選單（`Super + Space`）的 _安裝 > Development_ 
 
 預設情況下，你的使用者*不在* `docker` 群組中。該群組實際上等於免密碼的 root——群組中的任何東西都能執行 `docker run -v /:/host` 並接管整台機器——所以否則一個以你身分執行的惡作劇指令碼或相依套件，就只差一條命令便能取得 root。因此在命令列上你用 `sudo` 執行 Docker（`sudo docker ps`、`sudo docker compose up`），而與 daemon 對話的圖形工具——例如 Windows VM——在需要時會要求授權。如果你想恢復無群組設定的便利並了解其中取捨，可以從 **設定 > Security > Sudoless Docker** 啟用（或執行 `omarchy-setup-security-sudoless-docker`），它會在警告後把你加入 `docker` 群組；之後普通的 `docker` 和 `d` 別名就又能不加 `sudo` 使用了。
 
+若想免用 `sudo` 又不必承擔這個取捨，請啟用 **設定 > 安全性 > 免 root Docker**（或執行 `omarchy-setup-security-rootless-docker`）。它會以你自己的使用者身分、在 user namespace 中執行第二個 Docker daemon，因此容器只能存取你能存取的東西：普通的 `docker`（以及 `docker compose`）之後會連到這個 rootless daemon，而 `sudo docker` 仍會連到系統 daemon，處理需要真正 root 的工作，例如 Windows VM。兩個 daemon 各自保有獨立的映像檔與磁碟區；rootless 模式下無法使用 1024 以下的連接埠，而容器中非 root 使用者在 bind mount 裡寫入的檔案，在主機上會屬於某個從屬 UID。用 `docker context use default` 可切回預設 daemon，或從 **移除 > 安全性 > 免 root Docker** 將其關閉。
+
 你可以在 Omarchy 選單中使用 _安裝 > Development > Docker DB_，在 Docker 中設定常見的本地開發資料庫。
 
 ## GitHub CLI

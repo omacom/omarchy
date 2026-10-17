@@ -24,6 +24,8 @@ Omarchy תומכת בהגדרת שפע שלם של סביבות פיתוח דר�
 
 כברירת מחדל המשתמש שלכם *אינו* בקבוצת `docker`. קבוצה זו היא למעשה root ללא סיסמה — כל דבר שנמצא בה יכול להריץ `docker run -v /:/host` ולהשתלט על המכונה — כך שסקריפט או תלות סוררים אחד שפועלים כמוכם היו אחרת במרחק פקודה אחת מ-root. לכן בשורת הפקודה אתם מפעילים את Docker עם `sudo` (`sudo docker ps`, `sudo docker compose up`), והכלים הגרפיים שמדברים עם ה-daemon — מכונת Windows הווירטואלית — מבקשים אישור כשהם זקוקים לו. אם תרצו את הנוחות של הגדרה ללא קבוצה בחזרה ואתם מבינים את הוויתור הכרוך בכך, אפשרו אותה מ-**Setup > Security > Sudoless Docker** (או הריצו `omarchy-setup-security-sudoless-docker`), מה שמוסיף אתכם לקבוצת `docker` לאחר אזהרה; אזי `docker` רגיל וכינוי ה-`d` עובדים שוב ללא `sudo`.
 
+כדי לוותר על `sudo` בלי הוויתור הזה, אפשרו את **הגדרה > אבטחה > Docker ללא root** (או הריצו `omarchy-setup-security-rootless-docker`). זה מריץ daemon שני של Docker תחת המשתמש שלכם, ב-user namespace, כך שקונטיינר יכול להגיע רק למה שאתם יכולים: `docker` רגיל (וגם `docker compose`) מדבר אז עם ה-daemon ה-rootless הזה, בעוד ש-`sudo docker` עדיין מגיע ל-daemon של המערכת עבור מה שדורש root אמיתי, כמו מכונת Windows הווירטואלית. שני ה-daemons שומרים images ו-volumes נפרדים; פורטים מתחת ל-1024 אינם זמינים במצב rootless, וקבצים שמשתמש לא-root בקונטיינר כותב ב-bind mount שייכים במארח ל-UID משני. חזרו לברירת המחדל עם `docker context use default`, או כבו זאת מ-**הסרה > אבטחה > Docker ללא root**.
+
 תוכלו להגדיר את מסדי הנתונים הנפוצים לפיתוח מקומי ב-Docker באמצעות _התקנה > פיתוח > Docker DB_ בתפריט Omarchy.
 
 ## GitHub CLI
