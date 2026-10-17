@@ -7,17 +7,190 @@ o.bind("SUPER + P", "Pseudo window", hl.dsp.window.pseudo())
 o.bind("SUPER + T", "Toggle window floating/tiling", hl.dsp.window.float({ action = "toggle" }))
 o.bind("SUPER + F", "Full screen", hl.dsp.window.fullscreen({ mode = "fullscreen" }))
 o.bind("SUPER + CTRL + F", "Tiled full screen", "omarchy-hyprland-window-tiled-fullscreen-toggle")
-o.bind("SUPER + ALT + F", "Full width", hl.dsp.window.fullscreen({ mode = "maximized" }))
 o.bind("SUPER + O", "Pop window out (float & pin)", "omarchy-hyprland-window-pop")
+
+
 o.bind("SUPER + ALT + Home", "Save window width", "omarchy-hyprland-window-width save")
 o.bind("SUPER + Home", "Restore window width", "omarchy-hyprland-window-width restore")
 o.bind("SUPER + L", "Cycle workspace layout", "omarchy-hyprland-workspace-layout-toggle")
 o.bind("SUPER + ALT + L", "Cycle workspace layout back", "omarchy-hyprland-workspace-layout-toggle back")
 
-o.bind("SUPER + LEFT", "Focus on left window", hl.dsp.focus({ direction = "l" }))
-o.bind("SUPER + RIGHT", "Focus on right window", hl.dsp.focus({ direction = "r" }))
+local full_width_scrolling = {}
+
+local function focus_direction(direction)
+  local current = hl.get_active_window()
+
+  if not current or current.floating then
+    return hl.dsp.focus({ direction = direction })
+  end
+
+  local workspace = hl.get_active_workspace()
+
+  if not workspace then
+    return
+  end
+
+  -- Scrolling: preserva o foco por coluna em janelas maximizadas.
+  if workspace.tiled_layout == "scrolling" then
+    if current.fullscreen == 1 then
+      -- Avoid wrapping to the opposite end when crossing monitor edges.
+      local current_center = current.at.x + (current.size.x / 2)
+
+      for _, window in ipairs(hl.get_workspace_windows(workspace)) do
+        if window.address ~= current.address and not window.floating then
+          local center = window.at.x + (window.size.x / 2)
+          local in_direction = direction == "l"
+            and center < current_center
+            or direction == "r"
+            and center > current_center
+
+          if in_direction then
+            return hl.dsp.layout("focus " .. direction)
+          end
+        end
+      end
+
+      return hl.dsp.focus({ direction = direction })
+    end
+
+    local candidates = hl.get_workspace_windows(workspace)
+    local current_center = current.at.x + (current.size.x / 2)
+    local best = nil
+    local best_distance = math.huge
+
+    for _, window in ipairs(candidates) do
+      if window.address ~= current.address and not window.floating then
+        local center = window.at.x + (window.size.x / 2)
+        local valid = direction == "l"
+          and center < current_center
+          or direction == "r"
+          and center > current_center
+
+        if valid then
+          local distance = math.abs(center - current_center)
+          if distance < best_distance then
+            best = window
+            best_distance = distance
+          end
+        end
+      end
+    end
+
+    if best then
+      return hl.dsp.focus({
+        window = "address:" .. best.address
+      })
+    end
+
+    return hl.dsp.focus({ direction = direction })
+  end
+
+  -- Dwindle com janela maximizada: procura a janela vizinha.
+  if current.fullscreen == 1 then
+    local candidates = {}
+
+    for _, window in ipairs(hl.get_workspace_windows(workspace)) do
+      if not window.floating then
+        table.insert(candidates, window)
+      end
+    end
+
+    for index, window in ipairs(candidates) do
+      if window.address == current.address then
+        local target_index = direction == "l" and index - 1 or index + 1
+        local target = candidates[target_index]
+
+        if target then
+          return hl.dsp.focus({
+            window = "address:" .. target.address
+          })
+        end
+
+        break
+      end
+    end
+  end
+
+  -- Dwindle normal: comportamento original do Omarchy.
+  return hl.dsp.focus({ direction = direction })
+end
+
+o.bind("SUPER + LEFT", "Focus on left window", function()
+  hl.dispatch(focus_direction("l"))
+end)
+
+o.bind("SUPER + RIGHT", "Focus on right window", function()
+  hl.dispatch(focus_direction("r"))
+end)
+
+hl.unbind("SUPER + ALT + F")
+
+-- A troca manual de layout cancela o estado temporário de Full Width.
+o.bind("SUPER + L", "Toggle workspace layout", function()
+  local workspace = hl.get_active_workspace()
+
+  if workspace then
+    full_width_scrolling[tostring(workspace.id)] = nil
+  end
+
+  return os.execute("omarchy-hyprland-workspace-layout-toggle")
+end)
+
+o.bind("SUPER + ALT + F", "Full width", function()
+  local workspace = hl.get_active_workspace()
+
+  if not workspace then
+    return
+  end
+
+  local workspace_id = tostring(workspace.id)
+
+  -- Dwindle: muda temporariamente para Scrolling e expande a coluna.
+  if workspace.tiled_layout == "dwindle" then
+    full_width_scrolling[workspace_id] = true
+
+    hl.workspace_rule({
+      workspace = workspace_id,
+      layout = "scrolling",
+    })
+
+    hl.exec_scheduled_prop_refresh_immediately()
+
+    return hl.dispatch(hl.dsp.layout("colresize 1.0"))
+  end
+
+  -- Se o Full Width foi ativado a partir do Dwindle, retorna a ele.
+  if workspace.tiled_layout == "scrolling"
+      and full_width_scrolling[workspace_id] then
+    full_width_scrolling[workspace_id] = nil
+
+    return hl.workspace_rule({
+      workspace = workspace_id,
+      layout = "dwindle",
+    })
+  end
+
+  -- Scrolling manual: expande ou reduz a coluna sem trocar de layout.
+  if workspace.tiled_layout == "scrolling" then
+    local current = hl.get_active_window()
+
+    if not current or current.floating then
+      return
+    end
+
+    if current.size.x < 1200 then
+      return hl.dispatch(hl.dsp.layout("colresize 1.0"))
+    end
+
+    return hl.dispatch(hl.dsp.layout("colresize 0.49"))
+  end
+end)
+
 o.bind("SUPER + UP", "Focus on above window", hl.dsp.focus({ direction = "u" }))
+
 o.bind("SUPER + DOWN", "Focus on below window", hl.dsp.focus({ direction = "d" }))
+
+
 
 for workspace = 1, 10 do
   local key = "code:" .. tostring(workspace + 9)
