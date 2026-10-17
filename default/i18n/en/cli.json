@@ -1,4 +1,6 @@
 {
+  "agentDesktops.installedBody": "Restart your agent CLI, then ask it to use an agent desktop.",
+  "agentDesktops.installedTitle": "Agent Desktops installed",
   "agents.addFailed": "Couldn't add the %1 account",
   "agents.added": "Added %1.",
   "agents.allOver": "All %1 accounts are over %2%",
