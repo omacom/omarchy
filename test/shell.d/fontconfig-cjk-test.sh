@@ -174,6 +174,24 @@ for path in string langset; do
 done
 pass "Chinese and CJK tags keep their variant in multi-language requests"
 
+if [[ $(fc-list : file) == *NotoSansTamil* ]]; then
+  for path in string langset; do
+    for query in "sans-serif ta -" "sans-serif ta 0baa" "sans-serif ta|en 0bb5"; do
+      actual=$(echo "$query" | resolve C.UTF-8 "$path")
+      [[ $actual == "Noto Sans Tamil" ]] || fail "$path: $query resolves to Noto Sans Tamil" "$actual"
+    done
+    actual=$(echo "sans-serif - 0baa" | resolve C.UTF-8 "$path")
+    [[ $actual == "Noto Sans Tamil" ]] || fail "$path: a bare Tamil codepoint falls back to Noto Sans Tamil, not Grantha" "$actual"
+    actual=$(echo "sans-serif - 0627" | resolve C.UTF-8 "$path")
+    [[ $actual == "Noto Naskh Arabic" ]] || fail "$path: the Tamil rules leave Arabic codepoints on Naskh" "$actual"
+    actual=$(echo "sans-serif en -" | resolve C.UTF-8 "$path")
+    [[ $actual == "Liberation Sans" ]] || fail "$path: the Tamil rules leave English on Liberation Sans" "$actual"
+  done
+  pass "Tamil resolves to Noto Sans Tamil in tagged requests and bare-codepoint fallback, without disturbing Arabic or Latin"
+else
+  skip "Tamil fallback needs Noto Sans Tamil from noto-fonts"
+fi
+
 if $chinese_locale; then
   for path in string langset; do
     for override in LC_ALL=C.UTF-8 LC_CTYPE=C.UTF-8 FC_LANG=ja; do
