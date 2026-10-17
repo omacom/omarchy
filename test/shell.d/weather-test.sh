@@ -132,6 +132,14 @@ assert(
   /Qt\.callLater\(function\(\) \{\s*\n\s*if \(root\.opened\) setCenterHoverRevealSuppressed\(true\)/.test(panelSource),
   'weather claims the shared hover-reveal flag after the popout handoff, so the panel taking over wins'
 )
+assert(
+  /function close\(\) \{[\s\S]*?root\.controller\.hide\(\)[\s\S]*?setCenterHoverRevealSuppressed\(false\)/.test(panelSource),
+  'weather hides the overlay before releasing the hover-reveal flag'
+)
+assert(
+  !/function close\(\) \{\s*\n\s*setCenterHoverRevealSuppressed\(false\)/.test(panelSource),
+  'weather does not write the hover-reveal flag before hide'
+)
 
 assert(
   panelSource.includes('text: root.label || "—"'),
