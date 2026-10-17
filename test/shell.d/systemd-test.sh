@@ -12,6 +12,14 @@ pass "bt-agent skips when bluetooth.service is inactive"
 grep -Fx 'Restart=on-failure' "$service" >/dev/null
 pass "bt-agent still restarts after runtime failures"
 
+grep -Fx "ExecStart=/usr/bin/bash -c '/usr/bin/grep -qxF -m1 \"The name org.bluez does not have an owner\" < <(/usr/bin/stdbuf -oL /usr/bin/gdbus monitor --system --dest org.bluez) & /usr/bin/bt-agent -c NoInputNoOutput & wait -n; exit 1'" "$service" >/dev/null ||
+  fail "bt-agent stays registered with a bluetoothd that is gone"
+pass "bt-agent is configured to restart when org.bluez loses its owner"
+
+grep -Fx 'KillMode=mixed' "$service" >/dev/null ||
+  fail "bt-agent stop waits out the timeout because bt-agent does not exit on SIGTERM"
+pass "bt-agent is configured to stop without waiting out the timeout"
+
 sleep_service="$ROOT/default/systemd/user/omarchy-sleep-lock.service"
 grep -Fx 'ExecStart=/usr/bin/omarchy-system-sleep-monitor' "$sleep_service" >/dev/null
 pass "sleep lock service uses the package-backed monitor path"
