@@ -29,6 +29,10 @@ verify_kernel_headers() {
   local release
   release=$(uname -r)
   omarchy-pkg-present linux-t2 && kernel=linux-t2
+  # linux-omarchy is a meta package for the kernel Omarchy currently ships.
+  if [[ $kernel == "linux-omarchy" ]] && omarchy-pkg-present linux-omarchy; then
+    kernel=$(expac -Q -l '\n' '%D' linux-omarchy | sed -n '1{s/[<>=].*//;p}')
+  fi
 
   [[ $(cat "/usr/lib/modules/$release/pkgbase") == "$kernel" ]] ||
     fail "the installed system boots the supported kernel" "$release is not $kernel"
