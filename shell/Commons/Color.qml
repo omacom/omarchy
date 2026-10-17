@@ -96,6 +96,7 @@ QtObject {
     property color text: root.pick("notifications.text", root.foreground)
     property color border: root.composed("notifications.border", "notifications.border-alpha", root.accent, 1.0)
     property color countdown: root.pick("notifications.countdown", root.accent)
+    property string fontFamily: root.pick("notifications.font-family", "Liberation Sans")
   }
   readonly property QtObject menu: QtObject {
     property color background: root.composed("menu.background", "menu.background-alpha", root.background, 1.0)

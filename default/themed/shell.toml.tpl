@@ -150,6 +150,8 @@ border           = "hyprland.active-border"
 border-alpha     = 1.0
 # border-width     = 2
 countdown        = "{{ accent }}"
+# Family for the summary and body text. "monospace" follows `omarchy font set`.
+# font-family      = "Liberation Sans"
 
 [launcher]
 # Same six tokens as [menu], applied to the launcher overlay. Alpha

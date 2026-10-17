@@ -30,6 +30,10 @@ BorderSurface {
 
   // System monospace font injected by the container.
   property string fontFamily: ""
+  // Text font for summary/body, resolved by the service from the
+  // `notifications.font` shell.json setting (`omarchy notification font`).
+  // Glyphs always use fontFamily above; this is prose text only.
+  property string textFontFamily: "Liberation Sans"
 
   readonly property bool hovered: hoverTracker.hovered
 
@@ -170,7 +174,7 @@ BorderSurface {
           Layout.fillWidth: true
           visible: root.summary.length > 0
           text: root.summary
-          font.family: "Liberation Sans"
+          font.family: root.textFontFamily
           color: Commons.Color.notifications.text
           font.pixelSize: Style.font.title
           font.bold: true
@@ -185,7 +189,7 @@ BorderSurface {
           visible: root.sanitizedBody.length > 0
           text: root.styledBody
           textFormat: Text.StyledText
-          font.family: "Liberation Sans"
+          font.family: root.textFontFamily
           color: root.bodyColor
           font.pixelSize: Style.font.title
           wrapMode: Text.WordWrap
