@@ -38,3 +38,15 @@ grep -Fq 'Not a shipped user config: hypr/missing.lua' "$tmpdir/err" ||
   fail "refresh-config reports missing shipped config"
 
 pass "refresh-config validates against OMARCHY_PATH/config"
+
+echo "outside config" >"$omarchy_path/README"
+
+if HOME="$home" OMARCHY_PATH="$omarchy_path" "$ROOT/bin/omarchy-refresh-config" hypr/../../README >"$tmpdir/out" 2>"$tmpdir/err"; then
+  fail "refresh-config rejects a path that escapes with .."
+fi
+
+[[ ! -e $home/README ]] || fail "refresh-config writes nothing outside ~/.config"
+grep -Fq 'Not a shipped user config: hypr/../../README' "$tmpdir/err" ||
+  fail "refresh-config reports the escaping path"
+
+pass "refresh-config rejects paths that escape ~/.config"
