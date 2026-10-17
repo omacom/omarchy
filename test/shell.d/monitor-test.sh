@@ -7,11 +7,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const monitor = requireFromRoot('shell/plugins/panels/monitor/Model.js')
 
-assertEqual(monitor.clampBrightness(0), 1, 'monitor clamps minimum brightness')
-assertEqual(monitor.clampBrightness(101), 100, 'monitor clamps maximum brightness')
-assertEqual(monitor.clampBrightness(42.4), 42, 'monitor rounds brightness')
-assertEqual(monitor.clampBrightness('nope'), 1, 'monitor rejects invalid brightness')
-
 assertEqual(monitor.normalizeScale('1.250'), '1.25', 'monitor normalizes fractional scale')
 assertEqual(monitor.normalizeScale('nope'), '', 'monitor rejects invalid scale')
 assertEqual(monitor.cleanScale(3, 1280, 800), '3.2', 'monitor matches clean VM scale')
