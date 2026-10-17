@@ -346,6 +346,12 @@ function matchesQuery(entry, query, visible) {
   return true
 }
 
+var MANAGEMENT_MENUS = ["install", "remove", "setup", "update"]
+
+function isManagementRow(items, id) {
+  return MANAGEMENT_MENUS.some(function(menuId) { return isDescendantOf(items, id, menuId) })
+}
+
 function searchScore(items, entry, query) {
   var needle = String(query || "").toLowerCase().trim()
   var label = entry.label.toLowerCase()
@@ -366,6 +372,12 @@ function searchScore(items, entry, query) {
   // App rows sort after all menu items, so they lose the tiebreak below to an
   // equal match. Outrank those, but stay inside the tier so better ones win.
   if (entry.kind === "app") score -= 5
+  // Install, Remove, Setup and Update label their rows after the target alone
+  // ("Remove > Browser > Edge" is just "Edge"), so a product name matches them
+  // more literally than the app, whose label carries a vendor prefix ("Microsoft
+  // Edge"). Sink them below every app name match, keeping their order among
+  // themselves, so "edg" reaches the app rather than its uninstaller.
+  else if (isManagementRow(items, entry.id)) score += 40
 
   return score * 1000 + depthFor(items, entry.id) * 25 + entry.order
 }

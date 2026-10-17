@@ -175,6 +175,30 @@ assert(
   'menu keeps a better-matching menu entry above a weaker app match'
 )
 
+// Management rows are named after their target, so "edg" prefix-matches
+// Remove > Browser > Edge while it only substring-matches Microsoft Edge.
+const managed = menu.mergeAppRows(rankBase.items, rankBase.itemOrder, [
+  { id: 'apps.microsoft-edge', parent: 'apps', kind: 'app', label: 'Microsoft Edge', description: '', aliases: [] },
+  { id: 'apps.rustdesk', parent: 'apps', kind: 'app', label: 'RustDesk', description: '', aliases: [] }
+])
+const managedScore = (id, query) => menu.searchScore(managed.items, managed.items[id], query)
+assert(
+  ['install.browser.edge', 'remove.browser.edge', 'setup.default.browser.edge', 'update.channel.edge'].every(
+    id => managedScore('apps.microsoft-edge', 'edg') < managedScore(id, 'edg')
+  ),
+  'menu ranks an installed app above the management rows named after it'
+)
+assert(
+  ['install.development.rust', 'remove.development.rust'].every(
+    id => managedScore('apps.rustdesk', 'rust') < managedScore(id, 'rust')
+  ),
+  'menu ranks an app above exact-labeled management rows for a prefix of its name'
+)
+assert(
+  managedScore('remove.browser.edge', 'edge') < managedScore('remove.browser.edge', 'edg'),
+  'menu keeps match quality ordering among management rows'
+)
+
 // Routing: htop ships `Keywords=system;...`, which app rows carry as aliases.
 // An installed app must never capture a menu route (SUPER+ESCAPE opens the
 // `system` menu), while its keywords keep working for search.
