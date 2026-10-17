@@ -31,6 +31,18 @@ has_kernel_driver() {
   return 1
 }
 
+# Touch ID on 2016-2017 Touch Bar MacBook Pros sits behind the T1's Secure
+# Enclave, not on a USB reader of its own. The T1 only exposes the interface
+# fprintd needs, "Apple USB SEP Interface", in its macOS USB configuration,
+# which T1Bridge selects at boot; in the default configuration it is absent and
+# nothing in libfprint can drive the sensor, so this stays false there.
+has_apple_sep_interface() {
+  local intf
+  for intf in "$1"/*:*; do
+    [[ -r $intf/interface && $(<"$intf/interface") == "Apple USB SEP Interface" ]] && return 0
+  done
+  return 1
+}
 for dev in "$usb_devices_path"/*; do
   # The device's own product descriptor usually names it, e.g. "Goodix
   # Fingerprint USB Device" — driver-independent and vendor-agnostic.
@@ -50,6 +62,7 @@ for dev in "$usb_devices_path"/*; do
     vendor=$(<"$dev/idVendor")
     [[ $fingerprint_vendors == *" $vendor "* ]] &&
       ! has_kernel_driver "$dev" && exit 0
+    [[ $vendor == "05ac" ]] && has_apple_sep_interface "$dev" && exit 0
   fi
 done
 

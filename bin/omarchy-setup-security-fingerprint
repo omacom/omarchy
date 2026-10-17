@@ -68,18 +68,40 @@ fi
 # needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
 # --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
 # one transaction, so a failed install leaves the existing driver in place.
-if omarchy-pkg-missing libfprint-git fprintd usbutils; then
+#
+# Touch ID on T1 MacBook Pros is the exception: T1Bridge ships its own matched
+# libfprint and fprintd for it, libfprint-git cannot drive that sensor, and
+# --ask 4 would replace the pair and break Touch ID. Keep them.
+touch_id=false
+if omarchy-pkg-present libfprint-t1bridge fprintd-t1bridge; then
+  touch_id=true
+  echo "Using T1Bridge's fingerprint driver for Touch ID."
+elif omarchy-pkg-missing libfprint-git fprintd usbutils; then
   echo "Installing required packages..."
   sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
 fi
 
-# Enroll first fingerprint
-echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
-echo -e "Keep moving the finger around on sensor until the process completes.\n"
+# The T1's Secure Enclave refuses to enroll a finger it already holds
+# (enroll-duplicate), and T1Bridge setup usually enrolls one already, so a
+# Touch ID user with prints goes straight to verification.
+if [[ $touch_id == "true" ]] &&
+  fprintd-list "$USER" 2>/dev/null | grep -qE '^[[:space:]]*-[[:space:]]*#[0-9]+:'; then
+  echo -e "\e[32m\nTouch ID already has an enrolled fingerprint.\e[0m"
+  enrolled=true
+else
+  # Enroll first fingerprint
+  echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
+  echo -e "Keep moving the finger around on sensor until the process completes.\n"
 
-if sudo fprintd-enroll "$USER"; then
-  echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
+  if sudo fprintd-enroll "$USER"; then
+    echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
+    enrolled=true
+  else
+    enrolled=false
+  fi
+fi
 
+if [[ $enrolled == "true" ]]; then
   # Verify
   echo -e "\nNow let's verify that it's working correctly.\n"
   if fprintd-verify; then

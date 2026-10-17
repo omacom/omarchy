@@ -103,3 +103,27 @@ assert_detects "a self-named reader is detected with a driver bound"
 
 write_usb_devices '1234:5678:Generic USB Device'
 assert_rejects "a machine with no matching USB devices detects nothing"
+
+name_interface() {
+  local intf="$1" name="$2"
+
+  mkdir -p "$tmp_dir/devices/$intf"
+  printf '%s\n' "$name" >"$tmp_dir/devices/$intf/interface"
+}
+
+# T1 Touch ID: the iBridge names itself "iBridge", and Apple is no reader
+# vendor, so only the Secure Enclave interface identifies the sensor.
+write_usb_devices '05ac:8600:iBridge'
+name_interface '1-0/1-0:2.4' 'NCM Control'
+name_interface '1-0/1-0:2.7' 'Apple USB SEP Interface'
+assert_detects "a T1 exposing its Secure Enclave interface is detected"
+
+# The default iBridge configuration has no SEP interface; libfprint cannot
+# drive Touch ID there, so offering fingerprint setup would only fail.
+write_usb_devices '05ac:8600:iBridge'
+name_interface '1-0/1-0:1.0' 'FaceTime HD Camera (Built-in)'
+assert_rejects "a T1 in its default configuration is not detected"
+
+write_usb_devices '1234:5678:Generic USB Device'
+name_interface '1-0/1-0:1.0' 'Apple USB SEP Interface'
+assert_rejects "a SEP interface name on a non-Apple device is not detected"
