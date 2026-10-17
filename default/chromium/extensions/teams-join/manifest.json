@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Teams Join",
+  "version": "0.2",
+  "description": "Open Teams meeting links in the Teams app, this extension is installed by Omarchy",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://teams.microsoft.com/*",
+        "https://teams.cloud.microsoft/*",
+        "https://teams.live.com/*",
+        "https://gov.teams.microsoft.us/*",
+        "https://dod.teams.microsoft.us/*",
+        "https://teams.microsoftonline.cn/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "host_permissions": [
+    "https://teams.microsoft.com/*",
+    "https://teams.cloud.microsoft/*",
+    "https://teams.live.com/*",
+    "https://gov.teams.microsoft.us/*",
+    "https://dod.teams.microsoft.us/*",
+    "https://teams.microsoftonline.cn/*"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "teams-join@omarchy"
+    }
+  }
+}
