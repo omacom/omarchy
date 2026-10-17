@@ -35,6 +35,10 @@ prefix="$HOME/.openclaw"
 runtime_command="$prefix/bin/openclaw"
 command_path="$HOME/.local/bin/openclaw"
 seed=/usr/share/openclaw
+# The services a run stopped, kept until a run completes: one that fails after
+# the stop leaves them stopped, and the next would take them for stopped by the
+# user.
+stopped_dir="$HOME/.local/state/omarchy/openclaw-stopped"
 
 # Usable means the command answers, not that the file is there: upstream's
 # wrapper execs the prefix's own Node, so a prefix missing either fails here.
@@ -50,18 +54,78 @@ command_ours() {
   [[ ! -e $command_path && ! -L $command_path ]] || [[ $(readlink -- "$command_path") == "$runtime_command" ]]
 }
 
-# What omarchy-agent, the web app and a terminal run is whichever openclaw is
-# first on PATH, and Omarchy puts /usr/bin and the mise shims ahead of
-# ~/.local/bin, so the command has to resolve to the runtime from there.
-on_path() {
-  local found
-  found=$(type -P openclaw) || return 1
-  [[ $(realpath -m -- "$found") == "$(realpath -m -- "$runtime_command")" ]]
+# What omarchy-agent, the web app and a terminal run is whichever openclaw their
+# PATH finds first, and the order differs between them: the desktop puts mise's
+# shims first, a terminal adds mise's tools ahead of those, and omarchy update
+# runs migrations on a fixed system PATH without /usr/local/bin, the shims or
+# ~/.local/bin. So the runtime has to be the only openclaw in any of those
+# places, wherever each sits. mise keeps its shims wherever MISE_SHIMS_DIR,
+# MISE_DATA_DIR or XDG_DATA_HOME says, and the update passes them through from
+# the session.
+session_openclaws() {
+  local shims=${MISE_SHIMS_DIR:-${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/shims}
+  PATH="$shims:$HOME/.local/share/mise/shims:/usr/local/bin:$PATH:$HOME/.local/bin" type -aP openclaw
 }
 
-# Nothing yet, or the runtime's command.
+# Any openclaw a session might run other than the expected one, the runtime's
+# unless another is named.
+foreign_openclaw() {
+  local expected=${1:-$runtime_command} found
+  while IFS= read -r found; do
+    if [[ $(realpath -m -- "$found") != "$(realpath -m -- "$expected")" ]]; then
+      echo "$found"
+      return 0
+    fi
+  done < <(session_openclaws)
+  return 1
+}
+
+on_path() {
+  session_openclaws >/dev/null && ! foreign_openclaw >/dev/null
+}
+
+# Nothing yet, or only the runtime's command.
 path_clear() {
-  ! type -P openclaw >/dev/null || on_path
+  ! foreign_openclaw >/dev/null
+}
+
+# Until the channel serves the seed, the openclaw package is still OpenClaw
+# itself, in /usr, as it was before this release. Until then that is the
+# OpenClaw a machine has: --check takes it as installed, --now installs it and
+# stops there, and the migration moves it to ~/.openclaw once the seed arrives.
+package_is_openclaw() {
+  [[ ! -r $seed/install-cli.sh || ! -r $seed/openclaw.tgz ]]
+}
+
+# A machine that already moved has its OpenClaw in ~/.openclaw, and the package
+# being OpenClaw again only puts an older copy ahead of it on PATH. That is not
+# an installation to accept; the update that brings the seed back puts it right.
+moved_before() {
+  [[ -e $runtime_command ]] || { [[ -L $command_path ]] && command_ours; }
+}
+
+# The migration that moves OpenClaw to ~/.openclaw ran once per user, and on a
+# machine without the package it found nothing to move and was marked done. An
+# install of the package that is OpenClaw itself after that runs it again, so it
+# waits for the seed and moves it when it arrives.
+rearm_move() {
+  omarchy-migrate --rearm 1790397381.sh
+}
+
+# While the package is OpenClaw itself its command is the one OpenClaw, and
+# anything a session would run ahead of it is refused as it is for the runtime.
+package_command=/usr/bin/openclaw
+
+package_shadowed() {
+  local found
+  found=$(foreign_openclaw "$package_command") || return 1
+  echo "Another openclaw is on PATH at $found, which Omarchy could run instead of $package_command." >&2
+  echo "Remove it, then run omarchy-install-openclaw-cli --now again." >&2
+}
+
+package_in_the_way() {
+  echo "OpenClaw is set up in $prefix, but the openclaw package is OpenClaw itself again and comes first on PATH." >&2
+  echo "The update that brings the openclaw package back as the seed puts this right." >&2
 }
 
 # The package counts too: without it --now has a pacman step to take, and
@@ -119,6 +183,10 @@ unit_path() {
 stop_legacy_services() {
   local role
   for role in "${moving[@]}"; do
+    if [[ " ${running[*]} " == *" $role "* ]]; then
+      mkdir -p "$stopped_dir"
+      touch "$stopped_dir/$role"
+    fi
     if ! systemctl --user stop "openclaw-$role.service"; then
       echo "Could not stop the OpenClaw $role service, so OpenClaw was not moved to $prefix." >&2
       return 1
@@ -170,6 +238,9 @@ rehome_services() {
     if [[ " ${enabled[*]} " != *" $role "* ]]; then
       systemctl --user disable "openclaw-$role.service" 2>/dev/null || true
     fi
+    if systemctl --user is-active --quiet "openclaw-$role.service"; then
+      rm -f "$stopped_dir/$role"
+    fi
   done
 }
 
@@ -178,16 +249,29 @@ stopped_note() {
   local role
   for role in "${stopped[@]}"; do
     if ! systemctl --user is-active --quiet "openclaw-$role.service"; then
-      echo "The OpenClaw $role service was stopped for this and is not running now." >&2
+      echo "The OpenClaw $role service was stopped for this and is not running now; it starts again once this completes." >&2
     fi
   done
 }
 
 case "$mode" in
 --check)
+  if omarchy-pkg-present openclaw && package_is_openclaw; then
+    if moved_before || package_shadowed 2>/dev/null; then exit 1; else exit 0; fi
+  fi
   if installed; then exit 0; else exit 1; fi
   ;;
---now) ;;
+--now)
+  if omarchy-pkg-present openclaw && package_is_openclaw; then
+    if moved_before; then
+      package_in_the_way
+      exit 1
+    fi
+    rearm_move
+    if package_shadowed; then exit 1; fi
+    exit 0
+  fi
+  ;;
 *)
   echo "Usage: omarchy-install-openclaw-cli <--check|--now>" >&2
   exit 1
@@ -201,8 +285,8 @@ if ! command_ours; then
   exit 1
 fi
 if ! path_clear; then
-  echo "'openclaw' on PATH is $(type -P openclaw), which is what Omarchy would run instead of $runtime_command." >&2
-  echo "Remove it or reorder PATH, then run omarchy-install-openclaw-cli --now again." >&2
+  echo "Another openclaw is on PATH at $(foreign_openclaw), which Omarchy could run instead of $runtime_command." >&2
+  echo "Remove it, then run omarchy-install-openclaw-cli --now again." >&2
   exit 1
 fi
 
@@ -222,9 +306,15 @@ if ! omarchy-pkg-present openclaw; then
   echo "Installing OpenClaw..."
   omarchy-pkg-add openclaw
 fi
-if [[ $seeding == "true" && ( ! -r $seed/install-cli.sh || ! -r $seed/openclaw.tgz ) ]]; then
-  echo "The installed OpenClaw package cannot set up a self-updating OpenClaw. Run 'omarchy update', then try again." >&2
-  exit 1
+if package_is_openclaw; then
+  if moved_before; then
+    package_in_the_way
+    exit 1
+  fi
+  rearm_move
+  if package_shadowed; then exit 1; fi
+  echo "OpenClaw runs from its package until an update brings the release that sets up the self-updating copy."
+  exit 0
 fi
 
 # What the old package installed, and what of it was running and enabled, read
@@ -264,8 +354,35 @@ ln -sfn "$runtime_command" "$command_path"
 
 rehome_services
 
+# A service a failed run stopped was running before it, so it runs again now,
+# whether this run moved it or an earlier one already had.
+# One whose file is in none of the directories the running user manager loads
+# units from was removed since; its cached state could still call it loaded, and
+# this caller's environment can name other directories. Without the list it is tried.
+# The list comes from D-Bus as JSON because systemctl show quotes a path with spaces.
+unit_removed() {
+  local paths dir
+  local -a dirs
+  paths=$(busctl --user --json=short get-property org.freedesktop.systemd1 /org/freedesktop/systemd1 \
+    org.freedesktop.systemd1.Manager UnitPath 2>/dev/null | jq -r '.data[]' 2>/dev/null) && [[ -n $paths ]] || return 1
+  mapfile -t dirs <<<"$paths"
+  for dir in "${dirs[@]}"; do
+    [[ ! -e $dir/openclaw-$1.service && ! -L $dir/openclaw-$1.service ]] || return 1
+  done
+}
+
+for role in gateway node; do
+  if [[ -e $stopped_dir/$role ]]; then
+    if ! unit_removed "$role" && ! systemctl --user is-active --quiet "openclaw-$role.service" && ! systemctl --user start "openclaw-$role.service"; then
+      echo "Could not start the OpenClaw $role service again. Start it with: systemctl --user start openclaw-$role.service" >&2
+      exit 1
+    fi
+    rm -f "$stopped_dir/$role"
+  fi
+done
+
 if ! on_path; then
-  echo "$runtime_command is ready, but 'openclaw' on PATH is $(type -P openclaw || echo missing), which is what Omarchy runs." >&2
-  echo "Put ~/.local/bin on PATH, then run omarchy-install-openclaw-cli --now again." >&2
+  echo "$runtime_command is ready, but another openclaw is on PATH at $(foreign_openclaw), which Omarchy could run instead." >&2
+  echo "Remove it, then run omarchy-install-openclaw-cli --now again." >&2
   exit 1
 fi

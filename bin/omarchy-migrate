@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # omarchy:summary=Run pending Omarchy migrations.
-# omarchy:args=[--pending]
+# omarchy:args=[--pending|--rearm <migration>]
 
 set -euo pipefail
 
 mode="run"
 
 usage() {
-  echo "Usage: omarchy-migrate [--pending]"
+  echo "Usage: omarchy-migrate [--pending | --rearm <migration>]"
 }
 
 while (($#)); do
@@ -16,6 +16,12 @@ while (($#)); do
     --pending|--check)
       mode="pending"
       shift
+      ;;
+    --rearm)
+      [[ ${2:-} =~ ^[[:alnum:]_.-]+\.sh$ ]] || { usage >&2; exit 1; }
+      mode="rearm"
+      rearm_name=$2
+      shift 2
       ;;
     -h|--help)
       usage
@@ -31,6 +37,44 @@ done
 OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 STATE_DIR="${OMARCHY_MIGRATION_STATE:-$HOME/.local/state/omarchy/migrations}"
 MIGRATIONS_DIR="$OMARCHY_PATH/migrations"
+
+# A migration waiting for another repository's package defers: it writes why to
+# $OMARCHY_MIGRATION_DEFER and exits 75 (EX_TEMPFAIL). A 75 without that note is
+# an ordinary failure. It stays unmarked, the queue goes on, and it runs again
+# next time; it counts as pending again once any package changes after it
+# deferred, so the login notifier still reaches a direct pacman or another user.
+DEFERRED_STATUS=75
+DEFERRED_DIR="$STATE_DIR/deferred"
+PACKAGE_DB="${OMARCHY_PACKAGE_DB:-/var/lib/pacman/local}"
+
+# Which packages are installed: any install, upgrade or removal changes it,
+# however soon it follows a deferral, where a timestamp has a resolution. The
+# order is the C locale's, so a terminal and the login notifier agree, and a
+# database that cannot be listed gives no stamp rather than an empty one.
+package_db_stamp() {
+  [[ -d $PACKAGE_DB && -r $PACKAGE_DB && -x $PACKAGE_DB ]] || return 1
+  (
+    LC_ALL=C
+    shopt -s nullglob
+    printf '%s\n' "$PACKAGE_DB"/*/
+  ) | sha256sum | cut -d' ' -f1
+}
+
+# Without a package database to compare against, a deferral cannot be shown to
+# still hold, so it counts as pending.
+waiting() {
+  local stamp
+  stamp=$(package_db_stamp) || return 1
+  [[ -n $stamp && -f $DEFERRED_DIR/$1 && $(<"$DEFERRED_DIR/$1") == "$stamp" ]]
+}
+
+# Packages have changed since it deferred. Without a package database nothing
+# shows that, so a deferral is not run again for it.
+changed_since_deferral() {
+  local stamp
+  stamp=$(package_db_stamp) || return 1
+  [[ -n $stamp && -f $DEFERRED_DIR/$1 && $(<"$DEFERRED_DIR/$1") != "$stamp" ]]
+}
 
 migration_entries() {
   [[ -d $MIGRATIONS_DIR ]] || return 0
@@ -49,11 +93,21 @@ pending_migrations() {
 
   while IFS=$'\t' read -r name file marker; do
     [[ -n $name ]] || continue
-    if [[ ! -f $marker ]]; then
+    if [[ ! -f $marker ]] && ! waiting "$name"; then
       printf '%s\n' "$name"
     fi
   done < <(migration_entries)
 }
+
+# A migration marked done can have work again when something it moves turns up
+# after it ran: --rearm runs it on the next update, waiting until then like a
+# deferral, so it is not pending before it can do anything.
+if [[ $mode == "rearm" ]]; then
+  rm -f "$STATE_DIR/$rearm_name"
+  mkdir -p "$DEFERRED_DIR"
+  package_db_stamp >"$DEFERRED_DIR/$rearm_name" || true
+  exit 0
+fi
 
 if [[ $mode == "pending" ]]; then
   pending_output=$(pending_migrations)
@@ -85,16 +139,45 @@ wait_for_pacman_transaction
 mkdir -p "$STATE_DIR"
 [[ -d $MIGRATIONS_DIR ]] || exit 0
 
+deferred_now=()
+
+run_migration() {
+  local name=$1 file=$2 marker=$3 note status=0
+
+  echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
+  rm -f "$DEFERRED_DIR/$name"
+  note=$(mktemp)
+  OMARCHY_PATH="$OMARCHY_PATH" OMARCHY_MIGRATION_DEFER="$note" bash -euo pipefail "$file" 3<&- || status=$?
+  if (( status == DEFERRED_STATUS )) && [[ -s $note ]]; then
+    rm -f "$note"
+    mkdir -p "$DEFERRED_DIR"
+    package_db_stamp >"$DEFERRED_DIR/$name" || true
+    deferred_now+=("$name"$'\t'"$file"$'\t'"$marker")
+    echo -e "\e[33mMigration ${name%.sh} will run again on the next update.\e[0m"
+    return 0
+  fi
+  rm -f "$note"
+  (( status == 0 )) || exit "$status"
+  mkdir -p "$(dirname "$marker")"
+  touch "$marker"
+}
+
 while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 
   if [[ ! -f $marker ]]; then
-    echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
-    OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&-
-    mkdir -p "$(dirname "$marker")"
-    touch "$marker"
+    run_migration "$name" "$file" "$marker"
   fi
 done 3< <(migration_entries)
+
+# A later migration can change packages after one deferred, and that change
+# would make it pending the moment this run ends, so it gets a second look.
+for entry in "${deferred_now[@]}"; do
+  IFS=$'\t' read -r name file marker <<<"$entry"
+  if changed_since_deferral "$name"; then
+    run_migration "$name" "$file" "$marker"
+  fi
+done
 
 # Clear a login-time notification the user left sitting there and then resolved
 # by running migrations some other way. The substring matches both the current
