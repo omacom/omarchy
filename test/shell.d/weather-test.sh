@@ -59,6 +59,8 @@ assertEqual(weather.shouldUseImperial('', 'en_US', 'Denmark'), false, 'weather p
 assertEqual(weather.shouldUseImperial('', 'da_DK', 'United States of America'), true, 'weather prefers reported imperial country over metric locale')
 assertEqual(weather.shouldUseImperial('metric', 'en_US', 'United States of America'), false, 'weather metric override wins')
 assertEqual(weather.shouldUseImperial('imperial', 'da_DK', 'Denmark'), true, 'weather imperial override wins')
+assertEqual(weather.toggledUnit(false), 'imperial', 'weather tap on °C stores imperial')
+assertEqual(weather.toggledUnit(true), 'metric', 'weather tap on °F stores metric')
 assertEqual(weather.dayName('2026-05-25'), 'Monday', 'weather derives day names')
 
 const openMeteo = {
@@ -136,6 +138,10 @@ assert(
 assert(
   panelSource.includes('text: root.label || "—"'),
   'weather hero and bar use the same resolved icon'
+)
+assert(
+  panelSource.includes('onTapped: root.toggleUnits()') && panelSource.includes('persistSettings({ unit: Model.toggledUnit(useImperial) })'),
+  'weather unit letter toggles the saved Celsius and Fahrenheit override'
 )
 assert(
   panelSource.includes('onReturnRequested: root.startEditingLocation()'),

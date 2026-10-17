@@ -266,6 +266,25 @@ Panel {
     if (savingLocation && savingLocationQueryStarted) cancelEditingLocation()
   }
 
+  // Applied locally first so the readings flip on the tap itself; the
+  // shell.json write comes back through the bar as the same value. The host
+  // widget keeps its own copy, and a later write from that copy would drop
+  // the unit if it were left stale.
+  function persistSettings(values) {
+    var entry = { id: root.moduleName }
+    for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
+    for (var key in values) entry[key] = values[key]
+
+    root.settings = entry
+    if (root.hostWidget && "settings" in root.hostWidget) root.hostWidget.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
+  function toggleUnits() {
+    persistSettings({ unit: Model.toggledUnit(useImperial) })
+  }
+
   function persistLocation(name, latitude, longitude) {
     if (name && latitude !== null && longitude !== null)
       locationSaveProc.command = ["omarchy-weather-location", "--set", name, latitude + "," + longitude]
@@ -583,6 +602,7 @@ Panel {
               font.bold: true
             }
             Text {
+              id: tempUnitLabel
               textFormat: Text.PlainText
               text: root.current ? root.tempUnit : ""
               color: root.bar.foreground
@@ -590,6 +610,14 @@ Panel {
               font.pixelSize: Style.font.display
               anchors.top: tempBig.top
               anchors.topMargin: Style.space(10)
+
+              HoverHandler {
+                cursorShape: tempUnitLabel.text !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
+              }
+              TapHandler {
+                enabled: tempUnitLabel.text !== ""
+                onTapped: root.toggleUnits()
+              }
             }
           }
         }

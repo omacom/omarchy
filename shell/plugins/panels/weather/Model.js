@@ -117,6 +117,13 @@ function countryUsesImperial(countryName) {
   return false
 }
 
+// The letter on the hero reading flips the saved override to the other
+// scale. Blank stays "follow the country, then the locale"; a tap always
+// stores an explicit choice so the next open keeps it.
+function toggledUnit(useImperial) {
+  return useImperial ? "metric" : "imperial"
+}
+
 function shouldUseImperial(unitOverride, localeName, countryName) {
   var unit = normalizedUnit(unitOverride)
   if (unit === "imperial") return true
@@ -284,6 +291,7 @@ if (typeof module !== "undefined") {
     normalizedUnit: normalizedUnit,
     localeUsesImperial: localeUsesImperial,
     countryUsesImperial: countryUsesImperial,
+    toggledUnit: toggledUnit,
     shouldUseImperial: shouldUseImperial,
     dayName: dayName,
     openMeteoForecastDays: openMeteoForecastDays,
