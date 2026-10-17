@@ -59,6 +59,7 @@ Assertions are TAP-flavored and blunt:
   which keeps later assertions from reporting against state the failure
   already invalidated.
 - `require_command <cmd>` fails the file when a needed tool is absent.
+- A bare command that fails under `set -e` also ends the file. At the file's top level `base-test.sh` prints `not ok - <file>:<line>: <command>` for it, so a run of `grep` checks before one `pass` still names the one that broke; a command failing inside a function or a `( ... )` stays unnamed, because tests run expected failures there. A negated command is the exception: `set -e` never exits on `! cmd`, so a bare `! grep ...` followed by anything else cannot fail the file. Write it `! grep ... || fail "description"`.
 
 The runner compensates for that early exit: `./test/shell` continues past a failing file and summarizes the failures at the end. Aborting the whole run at the first bad file once let a single packaging failure mask 114 of 134 files. Failure granularity is therefore per file inside a run, per assertion inside a file.
 

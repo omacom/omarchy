@@ -33,7 +33,7 @@ long_suffix=$(printf 'l%.0s' {1..223})
   TEST_DELETE_FAIL=1 assert_status 1 cleanup_all_locked
   [[ -e $(rule_file 1000) ]]
   cleanup_all_locked
-  ! compgen -G "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-*"
+  ! compgen -G "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-*" || fail "legacy cleanup leaves no rule in the prefix"
   [[ $(stat -c '%a' "$quarantine") == 700 ]]
   [[ $(quarantined_policy '99-omarchy-nopasswd-ali\0143e') == 'alice ALL=(ALL) NOPASSWD: ALL' ]]
   [[ $(quarantined_policy "99-omarchy-nopasswd-$long_suffix") == 'alice ALL=(ALL) NOPASSWD: ALL' ]]
@@ -67,14 +67,14 @@ marker="$test_tmp/var/lib/omarchy/migrations/1788163635"
   [[ ! -e $marker && ! -e $test_tmp/first/1788163636.sh ]]
   run_migrations first
   [[ -f $marker && -f $test_tmp/first/1788163636.sh ]]
-  ! compgen -G "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-*"
+  ! compgen -G "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-*" || fail "completed migration leaves no rule in the prefix"
   [[ $(quarantined_policy 99-omarchy-nopasswd-mismatch) == 'alice ALL=(ALL) NOPASSWD: ALL' ]]
   enable_locked 1000 15
   cp "$(rule_file 1000)" "$test_tmp/renewed"
   : >"$test_tmp/commands"
   TEST_NO_SUDO=1 run_migrations second
   [[ -f $test_tmp/second/1788163636.sh ]]
-  ! grep -q '^sudo ' "$test_tmp/commands"
+  ! grep -q '^sudo ' "$test_tmp/commands" || fail "a later user's migration needs no sudo"
   cmp "$(rule_file 1000)" "$test_tmp/renewed"
 )
 pass "migration completion is machine-wide, retryable, and needs no sudo for later users"
