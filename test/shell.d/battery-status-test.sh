@@ -158,6 +158,103 @@ danish_time=$(OMARCHY_LANGUAGE_FILE="$tmp_dir/language" OMARCHY_POWER_SUPPLY_PAT
 grep -Fx $'time\t1 t 30 min' <<<"$danish_time" >/dev/null || fail "battery status durations follow the Omarchy language" "$danish_time"
 pass "battery status reads in the Omarchy language"
 
+# A sysfs node can exist yet fail to read (ENODEV on some hardware), and an
+# unreadable or non-numeric value must never clobber the good UPower rate
+# with 0W (#12735, #6895). Only numeric reads override UPower, for both the
+# power_now and the current_now/voltage_now branches.
+fail_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$hold_dir" "$fail_dir"' EXIT
+
+mkdir -p "$fail_dir/bin" "$fail_dir/power/BAT0"
+printf '900000\n' >"$fail_dir/power/BAT0/current_now"
+printf '12000000\n' >"$fail_dir/power/BAT0/voltage_now"
+cat >"$fail_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  exit 0
+fi
+
+if [[ $1 == "-i" ]]; then
+  cat <<'INFO'
+  native-path:          BAT0
+  power supply:         yes
+  state:                discharging
+  energy:               37.9 Wh
+  energy-full:          40.0 Wh
+  energy-rate:          5.5 W
+  time to empty:        6.9 hours
+  percentage:           94%
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$fail_dir/bin/upower"
+
+# A failing power_now read stands in for the ENODEV kernel read either way.
+mkdir -p "$fail_dir/enodev/bin" "$fail_dir/enodev/power/BAT0"
+printf '0\n' >"$fail_dir/enodev/power/BAT0/power_now"
+cp "$fail_dir/bin/upower" "$fail_dir/enodev/bin/upower"
+cat >"$fail_dir/enodev/bin/cat" <<'STUB'
+#!/bin/bash
+
+for arg in "$@"; do
+  [[ $arg == *power_now ]] && exit 1
+done
+exec /usr/bin/cat "$@"
+STUB
+chmod +x "$fail_dir/enodev/bin/upower" "$fail_dir/enodev/bin/cat"
+
+enodev_output=$(OMARCHY_POWER_SUPPLY_PATH="$fail_dir/enodev/power" PATH="$fail_dir/enodev/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t5.5W' <<<"$enodev_output" >/dev/null || fail "battery status keeps the UPower rate when power_now fails to read"
+
+# A non-numeric sysfs value is no reading at all. voltage_now stays valid
+# here: without it the script never tries current x voltage, and the case
+# would pass even with the fix reverted.
+rm -f "$fail_dir/power/BAT0/power_now"
+printf 'unknown\n' >"$fail_dir/power/BAT0/current_now"
+garbage_output=$(OMARCHY_POWER_SUPPLY_PATH="$fail_dir/power" PATH="$fail_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t5.5W' <<<"$garbage_output" >/dev/null || fail "battery status keeps the UPower rate when current_now is non-numeric"
+
+# Same for power_now itself: each guard has to earn its keep independently.
+printf 'unknown\n' >"$fail_dir/power/BAT0/power_now"
+unknown_output=$(OMARCHY_POWER_SUPPLY_PATH="$fail_dir/power" PATH="$fail_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t5.5W' <<<"$unknown_output" >/dev/null || fail "battery status keeps the UPower rate when power_now is non-numeric"
+
+# A readable power_now still wins over UPower and the current_now fallback.
+printf '20500000\n' >"$fail_dir/power/BAT0/power_now"
+printf '900000\n' >"$fail_dir/power/BAT0/current_now"
+numeric_output=$(OMARCHY_POWER_SUPPLY_PATH="$fail_dir/power" PATH="$fail_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t20.5W' <<<"$numeric_output" >/dev/null || fail "battery status prefers numeric power_now over UPower"
+
+# An empty power_now read falls through to current_now x voltage_now rather
+# than skipping straight to UPower (#12649 comparison).
+: >"$fail_dir/power/BAT0/power_now"
+fallthrough_output=$(OMARCHY_POWER_SUPPLY_PATH="$fail_dir/power" PATH="$fail_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t10.8W' <<<"$fallthrough_output" >/dev/null || fail "battery status falls through to current_now when power_now is empty"
+
+# Empty reads on both sysfs paths fall back to UPower instead of coercing to 0W.
+: >"$fail_dir/power/BAT0/current_now"
+empty_output=$(OMARCHY_POWER_SUPPLY_PATH="$fail_dir/power" PATH="$fail_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t5.5W' <<<"$empty_output" >/dev/null || fail "battery status keeps the UPower rate when sysfs reads are empty"
+
+# Same hole in the current_now fallback on its own.
+rm -f "$fail_dir/power/BAT0/power_now"
+empty_current_output=$(OMARCHY_POWER_SUPPLY_PATH="$fail_dir/power" PATH="$fail_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t5.5W' <<<"$empty_current_output" >/dev/null || fail "battery status keeps the UPower rate when current_now is empty"
+
+# The kernel ABI can report negative current_now while discharging (Apple
+# Silicon signs power_now by direction): a valid signed reading stays live,
+# and the display shows its absolute value.
+printf -- '-900000\n' >"$fail_dir/power/BAT0/current_now"
+signed_output=$(OMARCHY_POWER_SUPPLY_PATH="$fail_dir/power" PATH="$fail_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t10.8W' <<<"$signed_output" >/dev/null || fail "battery status accepts negative current_now readings"
+
+pass "battery status keeps the UPower rate when sysfs reads fail or are not numeric"
+
 if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
   fail "battery status owns capacity and remaining calculations" "$matches"
 fi
