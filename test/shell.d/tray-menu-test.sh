@@ -13,9 +13,8 @@ cleanup() {
     kill "$MOCK_PID" 2>/dev/null || true
     wait "$MOCK_PID" 2>/dev/null || true
   fi
-  if [[ -n $QS_PID ]] && kill -0 "$QS_PID" 2>/dev/null; then
-    kill "$QS_PID" 2>/dev/null || true
-    wait "$QS_PID" 2>/dev/null || true
+  if [[ -n $QS_PID ]]; then
+    stop_process_group "$QS_PID"
   fi
   [[ -n $TMPDIR && -d $TMPDIR ]] && rm -rf "$TMPDIR"
   return 0
@@ -56,7 +55,7 @@ HOME="$TMPDIR/home" \
 XDG_CONFIG_HOME="$TMPDIR/home/.config" \
 XDG_CACHE_HOME="$TMPDIR/home/.cache" \
 XDG_STATE_HOME="$TMPDIR/home/.local/state" \
-  quickshell -p "$config_dir" --no-color >"$qs_log" 2>&1 &
+  setsid quickshell -p "$config_dir" --no-color >"$qs_log" 2>&1 &
 QS_PID=$!
 
 OMARCHY_TRAY_MENU_EVENT_RESULT="$event_result" \
