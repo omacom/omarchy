@@ -275,7 +275,6 @@ Item {
     onExited: {
       currentProc.running = true
       textWatchProc.running = true
-      imageWatchProc.running = true
     }
   }
 
@@ -297,14 +296,7 @@ Item {
     }
   }
 
-  Process {
-    id: imageWatchProc
-    command: ["setpriv", "--pdeathsig", "TERM", "wl-paste", "--type", "image/png", "--watch", root.captureScript, "image/png"]
-    onExited: watchRestartTimer.restart()
-    stdout: SplitParser {
-      onRead: function(data) { root.addClipboardJson(data) }
-    }
-  }
+
 
   // A watcher that dies takes clipboard history with it, silently: copying still
   // works, the picker still opens, and the old entries are all still there, so
@@ -315,7 +307,6 @@ Item {
     repeat: false
     onTriggered: {
       if (!textWatchProc.running) textWatchProc.running = true
-      if (!imageWatchProc.running) imageWatchProc.running = true
     }
   }
 
