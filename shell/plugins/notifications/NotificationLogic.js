@@ -337,6 +337,8 @@ function localImageFile(value) {
   var s = String(value || "")
   if (s.indexOf("file://") === 0) {
     s = s.slice(7)
+    // A localhost authority names the local filesystem, just like an empty one.
+    s = s.replace(/^localhost\//i, "/")
     try { s = decodeURIComponent(s) } catch (e) {}
   }
   return s.charAt(0) === "/" ? s : ""
