@@ -19,6 +19,7 @@ if (( EUID == 0 )); then
 fi
 
 NM_DNS_CONF=/etc/NetworkManager/conf.d/20-omarchy-dns.conf
+RESOLVED_SINGLE_LABEL_CONF=/etc/systemd/resolved.conf.d/15-single-label.conf
 
 provider_from_arg() {
   case "${1:-}" in
@@ -165,6 +166,34 @@ clear_networkmanager_dns() {
   rm -f "$NM_DNS_CONF"
 }
 
+write_single_label_dns() {
+  install -d -m 0755 "$(dirname "$RESOLVED_SINGLE_LABEL_CONF")"
+  cat >"$RESOLVED_SINGLE_LABEL_CONF" <<'EOF'
+[Resolve]
+ResolveUnicastSingleLabel=yes
+EOF
+}
+
+clear_single_label_dns() {
+  rm -f "$RESOLVED_SINGLE_LABEL_CONF"
+}
+
+prompt_single_label_dns() {
+  [[ -t 0 ]] || return 0
+
+  echo "Enable single-label DNS resolution (e.g., 'server/' instead of 'server.local')? [y/N]:"
+  local answer=""
+  if ! read -r answer; then
+    answer=""
+  fi
+
+  if [[ $answer =~ ^[Yy] ]]; then
+    write_single_label_dns
+  else
+    clear_single_label_dns
+  fi
+}
+
 networkmanager_dns_connection() {
   case "$1" in
     802-11-wireless|802-3-ethernet) return 0 ;;
@@ -260,6 +289,7 @@ require_root "$provider"
 
 case "$provider" in
 Cloudflare)
+  clear_single_label_dns
   write_networkmanager_dns "1.1.1.1,1.0.0.1,2606:4700:4700::1111,2606:4700:4700::1001"
   set_connection_dns "1.1.1.1 1.0.0.1" "2606:4700:4700::1111 2606:4700:4700::1001"
   tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
@@ -271,6 +301,7 @@ EOF
   ;;
 
 Google)
+  clear_single_label_dns
   write_networkmanager_dns "8.8.8.8,8.8.4.4,2001:4860:4860::8888,2001:4860:4860::8844"
   set_connection_dns "8.8.8.8 8.8.4.4" "2001:4860:4860::8888 2001:4860:4860::8844"
   tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
@@ -288,6 +319,7 @@ DHCP)
 [Resolve]
 DNSOverTLS=no
 EOF
+  prompt_single_label_dns
   ;;
 
 Custom)
@@ -313,6 +345,7 @@ Custom)
 DNS=${dns_servers//,/ }
 FallbackDNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
 EOF
+  prompt_single_label_dns
   ;;
 esac
 
