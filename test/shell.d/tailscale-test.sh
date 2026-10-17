@@ -208,3 +208,16 @@ assertDeepEqual(
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
 JS
+
+# The bar icon needs status alone; exit nodes and accounts belong to the open
+# panel, so a background poll must not spawn their clients.
+service_qml="$ROOT/shell/plugins/panels/tailscale/Service.qml"
+panel_qml="$ROOT/shell/plugins/panels/tailscale/Panel.qml"
+grep -F 'var panelData = panelOpen || forceAccounts === true' "$service_qml" >/dev/null &&
+  grep -F 'if (panelData && !mullvadExitNodesProcess.running) {' "$service_qml" >/dev/null &&
+  grep -F 'var shouldRefreshAccounts = panelData && (' "$service_qml" >/dev/null ||
+  fail "tailscale polls exit nodes and accounts only for the open panel"
+grep -F 'onPanelOpenChanged: if (panelOpen) refresh()' "$service_qml" >/dev/null &&
+  grep -F 'panelOpen: root.opened' "$panel_qml" >/dev/null ||
+  fail "opening the tailscale panel refreshes what it shows"
+pass "tailscale polls exit nodes and accounts only for the open panel"
