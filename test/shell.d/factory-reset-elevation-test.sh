@@ -55,6 +55,15 @@ if unshare -Ur true >/dev/null 2>&1; then
   unshare -Ur "$tmp/packaged-reset" || status=$?
   (( status == 99 )) || fail "matching root invocation did not reach the guarded body"
   pass "matching packaged root invocation reaches the reset body"
+
+  # Child helpers such as omarchy-i18n need OMARCHY_PATH after sudo drops it.
+  sed 's|^exit 99$|bash -c '"'"'printf "%s" "$OMARCHY_PATH"'"'"' >"$CHILD_LOG"; exit 99|' "$tmp/packaged-reset" >"$tmp/child-reset"
+  sed -i "s|^PACKAGED_PATH=.*|PACKAGED_PATH=\"$tmp/child-reset\"|" "$tmp/child-reset"
+  status=0
+  env -u OMARCHY_PATH CHILD_LOG="$tmp/child" unshare -Ur bash "$tmp/child-reset" || status=$?
+  (( status == 99 )) || fail "child environment probe did not reach the guarded body"
+  [[ $(<"$tmp/child") == "/usr/share/omarchy" ]] || fail "factory reset exports OMARCHY_PATH to its children"
+  pass "factory reset exports OMARCHY_PATH to its children"
 else
   skip "user namespaces unavailable; root invocation coverage"
 fi
