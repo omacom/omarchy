@@ -20,7 +20,8 @@ omarchy theme install <url>     # Install from git repo
 4. When done with the theme, run `omarchy theme set "Name of new theme"`.
 
 Additional user backgrounds for any theme (stock or custom) go in
-`~/.config/omarchy/backgrounds/<theme-slug>/`.
+`~/.config/omarchy/backgrounds/<theme-slug>/`. Files placed directly in
+`~/.config/omarchy/backgrounds/` are offered in every theme.
 
 ## What a Theme Installed From a Repo May Not Contain
 

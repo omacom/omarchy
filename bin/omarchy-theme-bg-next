@@ -5,14 +5,26 @@
 
 THEME_NAME=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 THEME_BACKGROUNDS_PATH="$HOME/.local/state/omarchy/current/theme/backgrounds/"
-USER_BACKGROUNDS_PATH="$HOME/.config/omarchy/backgrounds/$THEME_NAME/"
+SHARED_BACKGROUNDS_PATH="$HOME/.config/omarchy/backgrounds/"
 CURRENT_BACKGROUND_LINK="$HOME/.local/state/omarchy/current/background"
 
+# Without a theme name the user folder is the shared one, which is listed below.
+THEME_BACKGROUND_PATHS=("$THEME_BACKGROUNDS_PATH")
+if [[ -n $THEME_NAME ]]; then
+  THEME_BACKGROUND_PATHS+=("$SHARED_BACKGROUNDS_PATH$THEME_NAME/")
+fi
+
+MEDIA_FILTER=(
+  -maxdepth 1 -type f
+  \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp'
+     -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \)
+  -print0
+)
+
+# Shared backgrounds follow the theme's own, so they never become its default.
 mapfile -d '' -t BACKGROUNDS < <(
-  find -L "$USER_BACKGROUNDS_PATH" "$THEME_BACKGROUNDS_PATH" -maxdepth 1 -type f \
-    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' \
-       -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
-    -print0 2>/dev/null | sort -z
+  find -L "${THEME_BACKGROUND_PATHS[@]}" "${MEDIA_FILTER[@]}" 2>/dev/null | sort -z
+  find -L "$SHARED_BACKGROUNDS_PATH" "${MEDIA_FILTER[@]}" 2>/dev/null | sort -z
 )
 TOTAL=${#BACKGROUNDS[@]}
 
