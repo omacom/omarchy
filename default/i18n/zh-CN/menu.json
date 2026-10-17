@@ -855,7 +855,7 @@
     "label": "JavaScript"
   },
   "install.development.go": {
-    "label": "前往"
+    "label": "Go"
   },
   "install.development.php": {
     "label": "PHP"
@@ -1066,7 +1066,7 @@
     "title": "移除"
   },
   "remove.development.go": {
-    "label": "前往"
+    "label": "Go"
   },
   "remove.development.php": {
     "label": "PHP",
