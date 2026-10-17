@@ -41,6 +41,14 @@ if ! sudo grep -Eqi '^[[:space:]]*quiet:' "$limine_conf"; then
   added_quiet=1
 fi
 
+# Secure Boot with config enrollment checks the menu against a checksum in
+# the boot image, so the menu has to be rebuilt into it or the next boot
+# panics. A run after a failed rebuild finds the menu already edited, so
+# the rebuild does not wait for an edit in this run.
+if omarchy-cmd-present limine-mkinitcpio; then
+  sudo limine-mkinitcpio
+fi
+
 if [[ -n $set_timeout && -n $added_quiet ]]; then
   echo "The boot menu now waits 1 second and stays quiet until a key is pressed"
 elif [[ -n $set_timeout ]]; then
