@@ -1092,6 +1092,18 @@ ShellRoot {
     }
   }
 
+  Connections {
+    target: shell.firstPartyServiceFor("omarchy.idle")
+    // An enabled idle-service clone may not implement resume events yet.
+    ignoreUnknownSignals: true
+    function onResumed() {
+      for (var key in shell._pluginFirstPartyServiceApis) {
+        var api = shell._pluginFirstPartyServiceApis[key]
+        if (api.serviceId === "omarchy.idle") api.resumed()
+      }
+    }
+  }
+
   // Writes inline settings to a bar layout entry or top-level plugin entry in
   // shell.json. moduleName is the entry id; settings is the merged plugin
   // state. Returns true if anything actually changed. Compute the proposed

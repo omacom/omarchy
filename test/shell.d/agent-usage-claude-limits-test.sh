@@ -362,6 +362,31 @@ panelRoot.nowMs += 1000
 assertDeepEqual(limitWindows(measured), [{ title: 'Session', percent: 0, resetAt: '' }], 'usage resets at the deadline while the panel stays open')
 assertEqual(measured.limits[0].percent, 0.78, 'display reset leaves the measured record intact')
 
+// The bar icon has to drop its alarm at that deadline with the panel closed,
+// so the panel finds the soonest reset still ahead, then moves its clock and
+// fetches the limits again. One timer waits the whole way, short of the
+// longest interval a timer can hold.
+const tickNow = Date.parse('2026-10-11T12:00:00Z')
+const tickProviders = [
+  { limits: [
+    { label: 'Session (5-hour)', percent: 0.95, resetsAt: '2026-10-11T11:00:00Z' },
+    { label: 'Weekly (7-day)', percent: 0.4, resetsAt: '2026-10-14T00:00:00Z' }
+  ] },
+  { limits: [{ label: 'Session (5-hour)', percent: 0.2, resetsAt: '2026-10-11T13:30:00Z' }, { label: 'Weekly (7-day)', percent: 0.1, resetsAt: '' }] },
+  { limits: [] },
+  {}
+]
+assertEqual(nextResetMs(tickProviders, tickNow), Date.parse('2026-10-11T13:30:00Z'), 'the next reset is the soonest one still ahead, across every agent')
+assertEqual(nextResetMs(tickProviders, Date.parse('2026-10-14T00:00:00Z')), 0, 'no reset is pending once every window has rolled over')
+assertEqual(nextResetMs([], tickNow), 0, 'no agents, no reset to wait for')
+assert(/onResetDueMsChanged: armResetTimer\(\)/.test(source), 'a new soonest reset rearms the timer')
+assertEqual(resetTickDelay(tickNow + 5000, tickNow), 5000, 'a reset a few seconds off is waited out exactly')
+assertEqual(resetTickDelay(tickNow + 18000000, tickNow), 18000000, 'a reset hours off is waited out in one go, with no wake in between')
+assertEqual(resetTickDelay(tickNow + 30 * 86400000, tickNow), 2147483647, 'a reset past the longest interval a timer can hold is waited for in stages')
+assertEqual(resetTickDelay(tickNow - 7200000, tickNow), 0, 'a reset already past is due at once')
+assert(!/id: resetTimer\n\s+repeat: true/.test(source), 'the reset timer is single-shot, not a recurring wake')
+assert(/nextResetMs\(providers, nowMs - 3000\)/.test(source), 'the reset deadline includes the three-second provider grace period')
+
 // A model's weekly allowance rides under the Weekly row; one whose window has
 // no row of its own keeps a row.
 assertDeepEqual(
