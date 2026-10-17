@@ -34,11 +34,13 @@ open_image() {
 }
 
 open_text() {
-  local text="$1"
+  local text_json="$1"
+  local text
   local url=""
   local open_dir=""
   local open_file=""
 
+  text=$(jq -er '.' <<<"$text_json") || exit 1
   url=$(grep -Eom1 'https?://[^[:space:]"'\''<>]+' <<<"$text" || true)
   if [[ -z $url && $text =~ ^[[:space:]]*([[:alnum:]][[:alnum:].-]+\.[[:alpha:]]{2,})(/[^[:space:]]*)?[[:space:]]*$ ]]; then
     url="https://${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
@@ -51,7 +53,7 @@ open_text() {
   open_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/clipboard-open"
   mkdir -p "$open_dir"
   open_file=$(mktemp --tmpdir="$open_dir" clipboard.XXXXXX.txt) || exit 1
-  printf '%s' "$text" >"$open_file"
+  jq -j '.' <<<"$text_json" >"$open_file" || exit 1
   exec omarchy-launch-editor "$open_file"
 }
 
@@ -61,7 +63,8 @@ case "$entry_type" in
     open_image "$path"
     ;;
   text)
-    text=$(jq -er --argjson index "$history_index" '.[$index].text' "$history_path") || exit 1
+    # Keep JSON's escaped line endings until the final file write.
+    text=$(jq -ec --argjson index "$history_index" '.[$index].text' "$history_path") || exit 1
     open_text "$text"
     ;;
   *)
