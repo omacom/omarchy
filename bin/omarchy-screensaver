@@ -1,6 +1,11 @@
 #!/bin/bash
 
 # omarchy:summary=Run the Omarchy screensaver using random effects from TTE.
+# omarchy:args=[monitor]
+
+monitor=${1:-}
+bounce_seconds=30
+bounced=0
 
 screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
@@ -9,6 +14,8 @@ screensaver_in_focus() {
 exit_screensaver() {
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
   pkill -x ttfx 2>/dev/null
+  [[ -n $effect ]] && kill "$effect" 2>/dev/null
+  ((bounced)) && omarchy-shell -q shell hide omarchy.screensaver-bounce
   pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
   exit 0
 }
@@ -19,8 +26,6 @@ trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
 printf '\033]11;rgb:00/00/00\007'  # Set background color to black
 
 hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprctl keyword cursor:invisible true &>/dev/null
-
-tty=$(tty 2>/dev/null)
 
 # Terminals allocate the pty at the default 80x24 and only resize it once the
 # compositor has told the window how big it is. ttfx measures the terminal once,
@@ -35,12 +40,32 @@ wait_for_terminal_resize() {
 
 wait_for_terminal_resize
 
-while true; do
-  ttfx -i ~/.config/omarchy/branding/screensaver.txt \
-    --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
-    --random-effect --no-eol --no-restore-cursor &
+art=~/.config/omarchy/branding/screensaver.txt
 
-  while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
+# Bouncing the logo like an idle DVD player is one more effect in the rotation,
+# as likely as each of the ones ttfx picks between.
+effect_count=$(ttfx --help | awk '/^Commands:/ { listed = 1; next } /^$/ { listed = 0 } listed && $1 != "help" { count++ } END { print count + 0 }')
+
+# The shell draws the bouncing logo over this terminal, gliding at the display's
+# frame rate, while the terminal stays black and keeps watching for input as it
+# does for every effect.
+bounce_logo() {
+  printf '\033[?25l\033[2J'
+  bounced=1
+  [[ $(omarchy-shell shell summon omarchy.screensaver-bounce "{\"monitor\":\"$monitor\",\"seconds\":$bounce_seconds}" 2>/dev/null) == "ok" ]]
+}
+
+while true; do
+  if ((RANDOM % (effect_count + 1) == 0)) && bounce_logo; then
+    sleep "$bounce_seconds" &
+  else
+    ttfx -i "$art" \
+      --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
+      --random-effect --no-eol --no-restore-cursor &
+  fi
+  effect=$!
+
+  while kill -0 "$effect" 2>/dev/null; do
     if read -n1 -t 1 || ! screensaver_in_focus; then
       exit_screensaver
     fi
