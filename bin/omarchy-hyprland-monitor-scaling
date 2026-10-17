@@ -96,19 +96,42 @@ set_scale() {
     exit 1
   fi
 
-  [[ $pos_x =~ ^-?[0-9]+$ ]] || pos_x=0
-  [[ $pos_y =~ ^-?[0-9]+$ ]] || pos_y=0
-  local position="${pos_x}x${pos_y}"
+  # Position semantics follow the layout's source, because a frozen pixel
+  # position captured at one neighbor scale overlaps once the neighbor scales
+  # differently. In a pure auto layout keep "auto" so Hyprland re-places this
+  # output beside the others. In a pinned layout keep the output's own
+  # configured position, or its current runtime position when it has no pin.
+  local monitor_lua="$HOME/.config/hypr/monitors.lua"
+
+  local position
+  if [[ -f $monitor_lua ]] &&
+    grep -Eq '^[[:space:]]*hl\.monitor[[:space:]]*\([[:space:]]*\{[^}]*position[[:space:]]*=[[:space:]]*"[0-9-]+x[0-9-]+"' "$monitor_lua"; then
+    local output_re="${active_monitor//./\\.}"
+    local pinned=""
+    pinned=$(
+      {
+        sed -n -E "s|^[[:space:]]*hl\.monitor[[:space:]]*\([[:space:]]*\{[^}]*output[[:space:]]*=[[:space:]]*\"${output_re}\"[^}]*position[[:space:]]*=[[:space:]]*\"([^\"]*)\"[^}]*\}[[:space:]]*\).*|\1|p" "$monitor_lua"
+        sed -n -E "s|^[[:space:]]*hl\.monitor[[:space:]]*\([[:space:]]*\{[^}]*position[[:space:]]*=[[:space:]]*\"([^\"]*)\"[^}]*output[[:space:]]*=[[:space:]]*\"${output_re}\"[^}]*\}[[:space:]]*\).*|\1|p" "$monitor_lua"
+      } | head -n 1
+    )
+    if [[ -n $pinned && $pinned != "auto" ]]; then
+      position="$pinned"
+    else
+      [[ $pos_x =~ ^-?[0-9]+$ ]] || pos_x=0
+      [[ $pos_y =~ ^-?[0-9]+$ ]] || pos_y=0
+      position="${pos_x}x${pos_y}"
+    fi
+  else
+    position="auto"
+  fi
 
   local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
   # GTK only honors integer GDK_SCALE values, so persist the nearest whole
   # factor even when the monitor scale itself is fractional.
   local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
-  local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
-  # Apply to the focused output only, keeping its current mode and position:
-  # a bare rule drops the display to 60Hz, and position = "auto" lets Hyprland
-  # re-arrange an explicit multi-monitor layout around the change.
+  # Apply to the focused output only, keeping its current mode and the layout's
+  # position source; a bare rule drops the display to 60Hz.
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"${position}\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
