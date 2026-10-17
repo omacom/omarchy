@@ -288,3 +288,28 @@ expected=$(printf '%s\n' \
   $'SUPER + X                           → My own thing\texec\tmy-thing')
 [[ $translated == "$expected" ]] || fail "keybinding descriptions show in the Omarchy language" "$translated"
 pass "keybinding descriptions show in the Omarchy language"
+
+# A user config can loop over what a Hyprland query returns, such as
+# ipairs(hl.get_monitors()) to place workspaces. The scan's stand-in for that
+# result has to end the loop, or the menu never opens and lua pins a core.
+# Binds declared after the loop still have to be found.
+cp "$home/.config/hypr/monitors.lua" "$tmpdir/monitors.lua.orig"
+cat >>"$home/.config/hypr/monitors.lua" <<'LUA'
+for _, monitor in ipairs(hl.get_monitors()) do
+  hl.monitor({ output = monitor.name, mode = "preferred" })
+end
+hl.bind("SUPER + J", hl.dsp.exec_cmd("my-thing"), { description = "My thing" })
+LUA
+
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + J" "My thing")
+BINDS
+
+rm -rf "$tmpdir/cache"
+SECONDS=0
+keybindings >/dev/null
+(( SECONDS < 5 )) || fail "a config that loops over a Hyprland query doesn't stall the menu" "took ${SECONDS}s"
+grep -qP '→ My thing\texec\tmy-thing$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "binds after a loop over a Hyprland query are still found" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+pass "a config that loops over a Hyprland query doesn't hang the menu"
+mv "$tmpdir/monitors.lua.orig" "$home/.config/hypr/monitors.lua"
