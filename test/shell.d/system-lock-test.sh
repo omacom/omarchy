@@ -33,4 +33,14 @@ mapfile -t shutdown < <(rg '^(pkill|timeout) ' "$call_log")
   fail "system lock waits for ttfx to exit" "calls: ${shutdown[*]}"
 [[ ${shutdown[2]} == "pkill -f [o]rg.omarchy.screensaver" ]] ||
   fail "system lock closes the screensaver terminal after ttfx exits" "calls: ${shutdown[*]}"
+
+# #15371: a third-party screensaver is matched only by its window class, so it
+# never gets to run its own cursor restore. The lock has to do it, afterwards.
+restore_line=$(rg -Fn 'cursor = { invisible = false }' "$call_log" | cut -d: -f1 | tail -1 || true)
+kill_line=$(rg -Fn 'pkill -f [o]rg.omarchy.screensaver' "$call_log" | cut -d: -f1 | head -1 || true)
+[[ -n $restore_line ]] ||
+  fail "system lock restores the pointer a screensaver may have left hidden" "$(cat "$call_log")"
+[[ -n $kill_line && $restore_line -gt $kill_line ]] ||
+  fail "system lock restores the pointer after closing the screensaver terminal" "$(cat "$call_log")"
 pass "system lock waits for ttfx before closing its terminal"
+pass "system lock restores the pointer a third-party screensaver left hidden"
