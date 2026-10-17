@@ -8,8 +8,9 @@ TOGGLE_FLAG="$HOME/.local/state/omarchy/toggles/hypr/$TOGGLE.lua"
 DISABLE_TOGGLE="internal-monitor-disable"
 
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
-# The first active external monitor
-EXTERNAL=$(hyprctl monitors -j | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not).name' | head -n 1)
+# The first active external monitor. FALLBACK and HEADLESS-* are synthesized
+# outputs, not monitors a panel can be mirrored to.
+EXTERNAL=$(hyprctl monitors -j | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-|^FALLBACK$|^HEADLESS-") | not).name' | head -n 1)
 
 on() {
   if [[ -z $EXTERNAL ]]; then
