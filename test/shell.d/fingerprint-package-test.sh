@@ -120,6 +120,13 @@ fi
 grep -qx enroll "$CALL_LOG" || fail "a rerun with everything installed reaches enrollment"
 pass "a rerun with everything installed goes straight to enrollment"
 
+# A failed verification has to exit nonzero, or the launcher reports "Done!"
+# for a setup that never configured PAM. run_setup fails on a zero exit.
+INSTALLED=$'libfprint-git\nfprintd\nusbutils' ENROLL_STATUS=0 VERIFY_STATUS=1 run_setup
+[[ $(grep -E '^(enroll|verify)$' "$CALL_LOG") == $'enroll\nverify' ]] || fail "enrollment is verified before authentication changes"
+grep -q 'Verification failed' "$scratch/output" || fail "a failed verification is explained"
+pass "a failed verification leaves authentication untouched and exits nonzero"
+
 INSTALL_STATUS=1 run_setup
 if grep -qx enroll "$CALL_LOG"; then
   fail "a failed package transaction prevents enrollment"

@@ -111,6 +111,7 @@ if sudo fprintd-enroll "$USER"; then
     echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
   else
     echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
+    exit 1
   fi
 else
   echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
