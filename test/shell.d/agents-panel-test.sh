@@ -42,6 +42,30 @@ for (const name of ['claude', 'codex', 'grok', 'fireworks']) {
 }
 const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
 assert(/var from = Math\.min\(0\.8, \(threshold - 15\) \/ 100\)/.test(mainSource), 'faster checks start 15 points below the switch threshold')
+{
+  const vm = require('vm')
+  const body = name => (mainSource.match(new RegExp('\\n  function ' + name + '\\([\\s\\S]*?\\n  \\}\\n')) || [''])[0]
+  const exited = (mainSource.match(/id: updateProcess\n[\s\S]*?\n    onExited: \{([\s\S]*?)\n    \}\n/) || ['', ''])[1]
+  const queue = () => {
+    const shell = { settings: {}, pendingUpdateKind: '', pendingUpdateAgentIds: null, updateProcess: { running: true }, rescanAgents() {}, reloadRecords() {} }
+    shell.root = shell
+    vm.createContext(shell)
+    vm.runInContext(body('updateCommand') + body('runUpdate') + 'function exited() {' + exited + '\n}', shell)
+    return shell
+  }
+  const queued = (...requests) => {
+    const shell = queue()
+    for (const [kind, ids] of requests) shell.runUpdate(kind, ids)
+    shell.updateProcess.running = false
+    shell.exited()
+    return shell.updateProcess.command.join(' ')
+  }
+  assertEqual(queued(['limits', ['claude']]), 'omarchy-agent-usage-update --limits-only claude', 'a retry queued behind a running update probes only the agents that asked')
+  assertEqual(queued(['limits', ['claude']], ['limits', ['codex', 'claude']]), 'omarchy-agent-usage-update --limits-only claude codex', 'queued retries merge the agents they target')
+  assertEqual(queued(['limits', ['claude']], ['limits']), 'omarchy-agent-usage-update --limits-only', 'a refresh queued behind a retry still covers every agent')
+  assertEqual(queued(['limits', ['claude']], ['force']), 'omarchy-agent-usage-update --force', 'a forced refresh queued behind a retry covers every agent')
+  assertEqual(queued(['normal'], ['limits', ['claude']]), 'omarchy-agent-usage-update', 'a retry queued behind a refresh leaves it covering every agent')
+}
 assert(/rows\.push\(\[\{ kind: "provider", index: p \}\]\)/.test(panelSource), "every agent's header is a keyboard stop")
 assert(/reorderable: root\.addStage === "" && !root\.renaming/.test(panelSource) && /onEditingChanged: root\.renaming = editing/.test(panelSource) && /onReorderRequested: function\(dy\) \{ root\.reorderProvider\(dy\) \}/.test(panelSource), 'Ctrl+Up/Down moves the agent the cursor is in')
 assert(/onReleased: root\.dropProvider\(\)/.test(panelSource), 'an agent can be dragged by its mark')
