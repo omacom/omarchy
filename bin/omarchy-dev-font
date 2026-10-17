@@ -627,7 +627,13 @@ def main():
 
     taken = {cp for cp, _, _ in glyph_list(font)}
     if args.codepoint:
-        cp = int(args.codepoint.upper().replace('U+', ''), 16)
+        try:
+            cp = int(args.codepoint.upper().replace('U+', ''), 16)
+        except ValueError:
+            sys.exit('--codepoint must be a hex codepoint like U+E90F, got %r' % args.codepoint)
+        if not PUA_FIRST <= cp <= 0xF8FF:
+            sys.exit('--codepoint U+%04X is outside the private-use range U+%04X-U+F8FF'
+                     % (cp, PUA_FIRST))
         if cp in taken:
             sys.exit('U+%04X is already used' % cp)
     else:
