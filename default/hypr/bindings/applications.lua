@@ -17,7 +17,7 @@ if o.preinstalled_bindings_enabled() then
     o.bind("SUPER + SHIFT + D", "Docker", { tui = "omarchy-launch-docker-tui" })
   end
   o.bind("SUPER + SHIFT + G", "Signal", { omarchy = "signal" })
-  o.bind("SUPER + SHIFT + O", "Obsidian", { launch = "obsidian", focus = "^obsidian$" })
+  o.bind("SUPER + SHIFT + O", "Obsidian", { launch = "obsidian", focus = "^md\\.obsidian\\.Obsidian$" })
   o.bind("SUPER + SHIFT + W", "Omawrite", { launch = "omawrite" })
   o.bind("SUPER + SHIFT + SLASH", "Passwords", { omarchy = "1password" })
 
