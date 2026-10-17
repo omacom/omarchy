@@ -48,6 +48,12 @@ cat > "$scratch/bin/limine-mkinitcpio" <<'SH'
 [[ ${REBUILD_FAIL:-0} == "0" ]]
 SH
 
+cat > "$scratch/bin/omarchy-cmd-present" <<'SH'
+#!/bin/bash
+[[ $1 == "limine-mkinitcpio" ]] || exit 99
+[[ ${LIMINE_PRESENT:-1} == "1" ]]
+SH
+
 cat > "$scratch/bin/limine-entry-tool" <<'SH'
 #!/bin/bash
 [[ $* == "--tree" ]] || exit 99
@@ -132,6 +138,12 @@ reset_fixture
 TEST_ARCH=aarch64 run_migration
 assert_skipped
 pass "ARM systems cannot receive an x86_64 kernel"
+
+reset_fixture
+LIMINE_PRESENT=0 run_migration || fail "systems without Limine tooling skip the migration" "$(<"$scratch/output")"
+assert_skipped
+grep -Fq "leaving its kernel alone" "$scratch/output" || fail "the non-Limine skip is explained" "$(<"$scratch/output")"
+pass "systems without Limine tooling keep their kernel and boot setup"
 
 reset_fixture
 printf '%s\n' linux-omarchy-ptl-novrr-mm > "$INSTALLED_PACKAGES"
