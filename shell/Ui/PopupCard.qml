@@ -67,6 +67,9 @@ PopupWindow {
 
   visible: open || card.opacity > 0
   color: "transparent"
+  // A closing card stays mapped until its fade ends; it must not take clicks
+  // meant for the bar underneath while it does.
+  mask: Region { item: root.open ? card : null }
   implicitWidth: contentWidth
   implicitHeight: contentHeight
 
