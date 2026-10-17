@@ -1,0 +1,103 @@
+#!/bin/bash
+
+# omarchy:summary=Print an Omarchy wordmark sized to the terminal for fastfetch
+# omarchy:hidden=true
+# omarchy:args=[--path]
+
+# Fastfetch file logos are 1:1 characters and ignore --logo-width, so a 26-row
+# About icon (or the 81-column wordmark) overflows typical terminals and the
+# modules collide with it on resize. Pick the largest Omarchy mark that
+# still leaves room for the module column. The default About view uses its
+# branding file instead, which is how the sheen finds those cells.
+
+set -euo pipefail
+
+# Must match etc/fastfetch/config.jsonc logo.padding and the Hardware/Software
+# box width — the picker subtracts these from the grid so the layout fits.
+PAD_LEFT=2
+PAD_RIGHT=6
+PAD_TOP=2
+MODULE_COLUMNS=54
+
+omarchy_path=${OMARCHY_PATH:-/usr/share/omarchy}
+omarchy_path=${omarchy_path%/}
+
+cols=${COLUMNS:-}
+rows=${LINES:-}
+
+if [[ $cols =~ ^[0-9]+$ && $rows =~ ^[0-9]+$ ]]; then
+  :
+else
+  stty_rows=""
+  stty_cols=""
+  if [[ -r /dev/tty ]]; then
+    read -r stty_rows stty_cols < <(stty size </dev/tty 2>/dev/null) || true
+  fi
+  [[ $cols =~ ^[0-9]+$ ]] || cols=${stty_cols:-80}
+  [[ $rows =~ ^[0-9]+$ ]] || rows=${stty_rows:-24}
+fi
+
+max_w=$(( cols - PAD_LEFT - PAD_RIGHT - MODULE_COLUMNS ))
+max_h=$(( rows - PAD_TOP - 1 ))
+(( max_w < 1 )) && max_w=1
+(( max_h < 1 )) && max_h=1
+
+logo_width() {
+  # These shipped marks contain single-column Unicode glyphs. Decode UTF-8
+  # explicitly so a C locale does not count their individual bytes.
+  python3 - "$1" <<'PYTHON'
+from pathlib import Path
+import sys
+print(max((len(line) for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()), default=0))
+PYTHON
+}
+
+logo_height() {
+  wc -l <"$1"
+}
+
+# Largest first: the full wordmark, a half-width one, then the compact O.
+# Packaged installs ship the sized marks under default/fastfetch/ (share tree);
+# The same share paths are used in a checkout.
+variants=(
+  "$omarchy_path/logo.txt"
+  "$omarchy_path/default/fastfetch/logo.txt"
+  "$omarchy_path/default/fastfetch/logo-small.txt"
+)
+
+chosen=""
+for file in "${variants[@]}"; do
+  [[ -f $file ]] || continue
+  w=$(logo_width "$file")
+  h=$(logo_height "$file")
+  if (( w <= max_w && h <= max_h )); then
+    chosen=$file
+    break
+  fi
+done
+# A newline-only file suppresses the mark when none fits. A zero-byte file
+# makes Fastfetch fall back to its built-in OS logo, which also overflows.
+[[ -n $chosen ]] || chosen="$omarchy_path/default/fastfetch/logo-none.txt"
+[[ -f $chosen ]] || exit 1
+
+print_logo() {
+  local file=$1 line
+
+  # Direct invocations follow terminal color policy. Fastfetch uses --path
+  # and applies its own color/pipe policy to the selected file.
+  if [[ -n ${NO_COLOR:-} || ! -t 1 ]]; then
+    cat "$file"
+    return
+  fi
+
+  local green=$'\e[1m\e[32m' reset=$'\e[0m'
+  while IFS= read -r line || [[ -n $line ]]; do
+    printf '%s%s%s\n' "$green" "$line" "$reset"
+  done <"$file"
+}
+
+case ${1:-} in
+  --path) printf '%s\n' "$chosen" ;;
+  "") print_logo "$chosen" ;;
+  *) echo "Usage: omarchy-fastfetch-logo [--path]" >&2; exit 1 ;;
+esac
