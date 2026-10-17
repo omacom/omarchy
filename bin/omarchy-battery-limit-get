@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# omarchy:summary=Print the current battery charge limit percentage.
+# omarchy:hidden=true
+# omarchy:args=[--options]
+
+if (( $# > 1 )) || { (( $# == 1 )) && [[ $1 != "--options" ]]; }; then
+  echo "Usage: omarchy-battery-limit-get [--options]" >&2
+  exit 2
+fi
+
+power_supply_path="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
+platform_drivers_path="${OMARCHY_PLATFORM_DRIVERS_PATH:-/sys/bus/platform/drivers}"
+
+value=""
+for threshold in "$power_supply_path"/*/charge_control_end_threshold; do
+  [[ -e $threshold ]] || continue
+  battery=${threshold%/*}
+  # Peripheral batteries do not power the machine. Keep unscoped older drivers.
+  [[ -r $battery/scope && $(<"$battery/scope") == "Device" ]] && continue
+  current=$(cat "$threshold") || exit 1
+  [[ $current =~ ^(0|[1-9][0-9]?|100)$ ]] || exit 1
+  if [[ -z $value ]]; then value=$current
+  elif [[ $value != "$current" ]]; then value=mixed; fi
+done
+
+[[ -n $value ]] || exit 1
+if [[ ${1:-} == "--options" ]]; then
+  # lg-laptop installs its 80/100-only control through an ACPI battery hook,
+  # so the battery's own driver does not identify it. Check the bound platform
+  # device and its charge control, not the laptop brand or a loaded module.
+  # Apply the restriction to the whole picker: a preset must work on every
+  # battery. Unknown drivers retain the usual presets and verified writes.
+  # Never probe supported values by writing to the hardware.
+  if [[ -e $platform_drivers_path/lg-laptop/lg-laptop/battery_care_limit ]]; then
+    printf '80 100\n'
+  else
+    printf '80 90 100\n'
+  fi
+else
+  printf '%s\n' "$value"
+fi
