@@ -2,7 +2,7 @@
 
 Networking in Omarchy is handled by NetworkManager, and you drive it from the network icon in the [top bar](05-the-top-bar.md) or with `Super + Ctrl + W`.
 
-That panel scans for Wi-Fi networks, shows signal strength, and connects. Ethernet needs nothing at all — plug it in and it works. If you'd rather stay in the terminal, `nmtui` gives you the same controls, and there's an `omarchy network` command group too.
+That panel scans for Wi-Fi networks, shows signal strength, and connects. When Ethernet is active, its _Wired Connection_ section opens NetworkManager's connection editor in a floating terminal; choose a profile to switch between DHCP and manual IP configuration, set addresses, gateway, and DNS, and save it. Ethernet needs nothing at all by default — plug it in and it works. There's an `omarchy network` command group too.
 
 ## Sharing your Wi-Fi
 
