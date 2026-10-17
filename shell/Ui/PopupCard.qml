@@ -65,12 +65,19 @@ PopupWindow {
 
   default property alias contentItem: contentHolder.children
 
-  visible: open || card.opacity > 0
+  // A closing card without an anchor window (a tray icon whose app just quit) stays hidden:
+  // re-showing it mid-fade leaves an invisible surface over the bar that keeps taking clicks.
+  property bool fadeCancelled: false
+
+  visible: open || (card.opacity > 0 && !fadeCancelled)
   color: "transparent"
   implicitWidth: contentWidth
   implicitHeight: contentHeight
 
+  onAnchorWindowChanged: if (!open && !anchorWindow) fadeCancelled = true
+
   onOpenChanged: {
+    fadeCancelled = !open && !anchorWindow
     if (!bar) return
     if (open) bar.requestPopout(coordinatorKey)
     else if (bar.activePopout === coordinatorKey) bar.releasePopout(coordinatorKey)
