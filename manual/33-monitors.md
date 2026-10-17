@@ -18,7 +18,7 @@ local omarchy_monitor_scale = 1
 
 Changes to `GDK_SCALE` apply to applications started after the change (and GTK only honors whole numbers, so keep it at the nearest integer of your monitor scale). So make sure you quit the windows that you have that are oversized after the change (or close all windows with `Ctrl + Alt + Del`!).
 
-You can also quickly step through the major monitor scaling ratios (1x, 1.25x, 1.6x, 2x, 3x, 4x) using `Super + /` to go higher and `Super + Alt + /` to go lower. If you have the default configuration, these changes will also persist past reboot.
+You can also quickly step through the major monitor scaling ratios (1x, 1.25x, 1.6x, 2x, 2.5x, 3x, 4x) using `Super + /` to go higher and `Super + Alt + /` to go lower. If you have the default configuration, these changes will also persist past reboot.
 
 ### Making text bigger or smaller
 
@@ -39,6 +39,10 @@ When you're extending, closing the lid on the laptop will automatically turn off
 ### Arranging multiple screens
 
 Hyprland works great with multiple screens. Read more about how to lay them out in [the Hyprland monitor documentation](https://wiki.hypr.land/Configuring/Basics/Monitors/). You can [bind specific workspaces to specific monitors](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) as well. In Omarchy, these rules go in `~/.config/hypr/monitors.lua` as `hl.monitor` entries — the file ships with commented examples for pinning a specific monitor to a resolution, position, and rotation.
+
+Changing a display's scale in the Display panel keeps touching screens together and preserves their edge or centre alignment. The new positions are saved to each display's rule. Intentional gaps are kept; layouts with overlapping screens or conflicting alignment constraints must be arranged before changing scale.
+
+You can target a display from the terminal with `omarchy hyprland monitor scaling --monitor DP-1 2`. To change its resolution while preserving the arrangement, add a mode, for example `omarchy hyprland monitor scaling --monitor DP-1 --mode 2560x1440@60 2`. Mirrored and disabled outputs are left alone. A single display keeps its position. Editing resolution or scale directly in `monitors.lua` still requires adjusting positions yourself.
 
 You can also checkout [Hyprmon](https://github.com/erans/hyprmon/), if you'd like a TUI to help you with the positioning of multiple screens.
 

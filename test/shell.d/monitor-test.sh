@@ -76,3 +76,10 @@ assertDeepEqual(
 
 assertDeepEqual(monitor.parseDisplays('{'), { displays: [], enabledDisplayCount: 0 }, 'monitor handles invalid display JSON')
 JS
+
+run_node_test <<'JS'
+const monitor = requireFromRoot('shell/plugins/panels/monitor/Model.js')
+for (const [width, height] of [[3840, 2160], [2560, 1664]]) {
+  assertEqual(monitor.availableScales(['1', '1.25', '1.6', '2', '2.5', '3', '4'], width, height).includes('2.5'), true, `monitor retains 2.5 for ${width}x${height}`)
+}
+JS
