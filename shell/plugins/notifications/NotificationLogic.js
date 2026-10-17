@@ -89,8 +89,34 @@ function styledBody(body, app, appIcon) {
   return stripImageTags(sanitizeBody(body, app, appIcon).replace(/\r\n|\r|\n/g, "<br/>"))
 }
 
+// Clients that relay markup sometimes hand it over HTML-escaped: KDE Connect
+// forwards a phone app's `<b>Name</b>` and `<br/>` as the literal entities
+// `&lt;b&gt;` and `&lt;br/&gt;`. The body renders as StyledText, which emits a
+// decoded entity as literal text, so the tags reach the screen as words.
+// Decoding them back into markup is what the sender meant by them.
+//
+// The set is the inline emphasis the freedesktop body-markup capability
+// defines — `b`, `i`, `u` — plus `br`, which Qt renders, senders use, and this
+// shell already produces from a newline. Nothing else is undone on purpose:
+// `img` would fetch a remote URL, `a` can only look like a link (nothing wires
+// linkActivated), and `font`/`h1`/lists restyle or spoof. Tying the list to the
+// advertised subset is the point: a tag outside it is left for the renderer,
+// which shows the escaped text as it stands.
+//
+// Only a bare, well-formed `&lt;name&gt;`, `&lt;/name&gt;`, or `&lt;br/&gt;` can
+// match: no attributes, no self-closing `b`/`i`/`u` (only `br` closes itself).
+// An attribute, a bare `&lt;` in `5 &lt; 10`, or any other name leaves the text
+// untouched, so decoding never manufactures a tag the sender did not write.
+function unescapeMarkup(text) {
+  return String(text || "").replace(/&lt;(\/?)(br|b|i|u)(\s*\/)?\s*&gt;/gi,
+    function(match, slash, name, selfClosing) {
+      if (selfClosing && name.toLowerCase() !== "br") return match
+      return "<" + slash + name + (selfClosing ? "/" : "") + ">"
+    })
+}
+
 function sanitizeBody(body, app, appIcon) {
-  var text = stripImageTags(String(body || ""))
+  var text = stripImageTags(unescapeMarkup(String(body || "")))
   if (!isChromiumDerived(app, appIcon)) return text
 
   return text
