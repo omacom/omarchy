@@ -23,6 +23,7 @@ herdr() {
 
 export HERDR_PANE_ID="current-pane"
 export HERDR_WORKSPACE_ID="workspace"
+export EDITOR="nvim"
 
 cd "$test_dir"
 hdlm "codex --flag='value with spaces'" "claude --model sonnet"
@@ -46,3 +47,48 @@ expected_first=$(printf 'cd %q && hdl %q' "$test_dir/first project's files" "cod
 
 [[ ${commands[0]} == "$expected_first" ]] || fail "hdlm omits an absent second agent argument"
 pass "hdlm omits an absent second agent argument"
+
+: >"$log"
+hdlm
+mapfile -t commands <"$log"
+expected_first=$(printf 'cd %q && hdl' "$test_dir/first project's files")
+
+[[ ${commands[0]} == "$expected_first" ]] || fail "hdlm without agents queues a bare hdl"
+pass "hdlm without agents queues a bare hdl"
+
+: >"$log"
+hdlm "" "claude --model sonnet"
+mapfile -t commands <"$log"
+expected_second=$(printf 'hdl %q %q' "" "claude --model sonnet")
+
+[[ ${commands[1]} == "$expected_second" ]] || fail "hdlm keeps the default agent beside an explicit second agent"
+pass "hdlm keeps the default agent beside an explicit second agent"
+
+export HERDR_TAB_ID="tab"
+: >"$log"
+hdl
+mapfile -t commands <"$log"
+
+[[ ${commands[0]} == "omarchy-agent --inline" ]] || fail "hdl without an agent runs the default agent"
+pass "hdl without an agent runs the default agent"
+
+: >"$log"
+hdl "codex --quiet"
+mapfile -t commands <"$log"
+
+[[ ${commands[0]} == "codex --quiet" ]] || fail "hdl with an agent runs that agent"
+pass "hdl with an agent runs that agent"
+
+: >"$log"
+hds
+mapfile -t commands <"$log"
+
+[[ ${commands[2]} == "omarchy-agent --inline" ]] || fail "hds without an agent runs the default agent"
+pass "hds without an agent runs the default agent"
+
+: >"$log"
+hds "codex --quiet"
+mapfile -t commands <"$log"
+
+[[ ${commands[2]} == "codex --quiet" ]] || fail "hds with an agent runs that agent"
+pass "hds with an agent runs that agent"
