@@ -106,6 +106,7 @@ assertDeepEqual(
     previewImage: '/home/dhh/Videos/screenrecording-2026-05-29_13-56-43-720p.gif',
     path: '/home/dhh/Videos/screenrecording-2026-05-29_13-56-43-720p.gif',
     mime: 'text/plain',
+    pinned: false,
     index: 0
   },
   'clipboard display rows show file uri entries as files'
@@ -208,6 +209,7 @@ assert(
 JS
 
 TMPDIR=$(mktemp -d)
+export XDG_STATE_HOME="$TMPDIR/home/.local/state"
 PIDS_TO_KILL=()
 
 cleanup() {
@@ -570,6 +572,9 @@ BROWSER_OUT="$TMPDIR/browser" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/browser") == "https://example.com/docs" ]] || fail "clipboard open helper opens URL entries in browser"
 pass "clipboard open helper opens URL entries in browser"
+
+# The editor case also verifies history lookup with a custom state directory.
+cp "$TMPDIR/home/.local/state/omarchy/clipboard-history.json" "$TMPDIR/state/omarchy/clipboard-history.json"
 
 EDITOR_PATH_OUT="$TMPDIR/editor-path" EDITOR_TEXT_OUT="$TMPDIR/editor-text" HOME="$TMPDIR/home" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-open" --history-index 1

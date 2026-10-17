@@ -6,7 +6,7 @@
 # omarchy:hidden=true
 
 history_index=""
-history_path="$HOME/.local/state/omarchy/clipboard-history.json"
+history_path="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/clipboard-history.json"
 
 while (( $# > 0 )); do
   case "$1" in
