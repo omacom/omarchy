@@ -8,37 +8,67 @@
 # audio still playing), so the Hyprland NVIDIA env only applies when NVIDIA is
 # the display GPU.
 #
-# sysfs exposes which VGA device drives the display via boot_vga. When no
-# device claims it (attribute missing or unreadable), assume NVIDIA is the
-# display GPU to preserve the current behavior on machines we cannot tell.
+# sysfs exposes which VGA device drives the display via boot_vga, but VGA
+# arbitration never reaches every display GPU: class 0x0380 controllers (the
+# ProArt P16's iGPU is one) own the panel without a boot_vga file at all. A
+# device with a connected DRM connector drives a display either way, and a
+# non-NVIDIA device that registered connector nodes at all is display hardware
+# even while nothing is plugged into it. Only when no device offers such
+# evidence is NVIDIA assumed to drive the display, preserving the current
+# behavior on machines we cannot tell.
 #
-# Read the cached sysfs IDs rather than lspci, which reads PCI config space and
-# resumes runtime-suspended GPUs.
+# Read the cached sysfs IDs and connector states rather than lspci, which reads
+# PCI config space and resumes runtime-suspended GPUs; kernel connector status
+# files answer from cache as well, so nothing here probes hardware.
 pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
 
 shopt -s nullglob
 
-nvidia_boot=0
-other_boot=0
+nvidia_display=0
+other_display=0
 
 for device in "$pci_devices_path"/*; do
   [[ $(< "$device/class") == 0x03* ]] || continue
-  boot_vga=0
-  if [[ -f $device/boot_vga ]]; then
-    boot_vga=$(< "$device/boot_vga")
+
+  nvidia=0
+  [[ $(< "$device/vendor") == "0x10de" ]] && nvidia=1
+
+  claims_display=0
+  if [[ -f $device/boot_vga && $(< "$device/boot_vga") == 1 ]]; then
+    claims_display=1
   fi
-  if [[ $(< "$device/vendor") == "0x10de" ]]; then
-    if (( boot_vga == 1 )); then
-      nvidia_boot=1
-    fi
-  else
-    if (( boot_vga == 1 )); then
-      other_boot=1
+
+  # A connector lit right now is a display whichever GPU it hangs off.
+  if (( claims_display == 0 )); then
+    for status in "$device"/drm/card*/card*-*/status; do
+      if [[ $(< "$status") == "connected" ]]; then
+        claims_display=1
+        break
+      fi
+    done
+  fi
+
+  # NVIDIA is the fallback suspect, so it claims the display only on positive
+  # evidence; anything else just has to expose outputs at all.
+  if (( claims_display == 0 && nvidia == 0 )); then
+    for connector in "$device"/drm/card*/card*-*; do
+      if [[ -e $connector ]]; then
+        claims_display=1
+        break
+      fi
+    done
+  fi
+
+  if (( claims_display == 1 )); then
+    if (( nvidia == 1 )); then
+      nvidia_display=1
+    else
+      other_display=1
     fi
   fi
 done
 
-if (( other_boot == 1 && nvidia_boot == 0 )); then
+if (( other_display == 1 && nvidia_display == 0 )); then
   exit 1
 else
   exit 0

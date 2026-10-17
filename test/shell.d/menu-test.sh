@@ -77,6 +77,45 @@ assertEqual(merged.items['style.theme'].label, 'Theme picker', 'menu user entrie
 assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order on override')
 assert(merged.items.root, 'menu injects root when merging sources')
 
+// The extension file promises that reusing an id "keeps existing fields unless
+// overridden": an entry naming only its action must not lose the stock icon
+// and label to normalization defaults.
+const extended = menu.mergeMenuSources(
+  parsed,
+  menu.parseMenuJsonc(`{ "style.theme": { "action": "my-theme" } }`)
+)
+assertEqual(extended.items['style.theme'].action, 'my-theme', 'an override replaces the declared field')
+assertEqual(extended.items['style.theme'].label, 'Themes', 'an override keeps the undeclared label')
+assertEqual(extended.items['style.theme'].icon, '', 'an override keeps the undeclared icon')
+assertEqual(extended.items['style.theme'].kind, 'action', 'an override derives kind from the merged fields')
+assertEqual(extended.items['style.theme'].order, 2, 'an override keeps its position')
+
+const cleared = menu.mergeMenuSources(
+  parsed,
+  menu.parseMenuJsonc(`{ "style.theme": { "icon": "", "when": "never" } }`)
+)
+assertEqual(cleared.items['style.theme'].icon, '', 'a declared empty value really clears the field')
+assertEqual(cleared.items['style.theme'].when, 'never', 'a declared guard replaces the stock one')
+assertEqual(cleared.items['style.theme'].label, 'Themes', 'clearing one field leaves the others')
+
+const turned = menu.mergeMenuSources(
+  menu.parseMenuJsonc(`{ "links": { "label": "Links" } }`),
+  menu.parseMenuJsonc(`{ "links": { "action": "open-links" } }`)
+)
+assertEqual(turned.items.links.kind, 'action', 'adding an action to a submenu turns it into an action')
+assertEqual(turned.items.links.label, 'Links', 'the turned row keeps its label')
+
+const fresh = menu.mergeMenuSources(
+  parsed,
+  menu.parseMenuJsonc(`{ "tools.notes": { "label": "Notes", "action": "open-notes" } }`)
+)
+assertEqual(fresh.items['tools.notes'].parent, 'tools', 'a new id still derives its parent')
+assertEqual(fresh.items['tools.notes'].icon, '', 'a new id still gets defaults for undeclared fields')
+assertEqual(fresh.itemOrder[3], 'tools.notes', 'a new id is appended in declaration order')
+
+assert(!Object.keys(parsed.find(item => item.id === 'style.theme')).includes('specified'), 'the declared-field list stays merge metadata')
+assert(!('specified' in JSON.parse(JSON.stringify(merged.items['style.theme']))), 'no merge metadata serializes onto an item')
+
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
 assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu builds parent paths')
@@ -148,6 +187,17 @@ assertDeepEqual(
 
 const defaultItems = menu.parseMenuJsonc(defaultMenuJsonc)
 const defaultById = Object.fromEntries(defaultItems.map(item => [item.id, item]))
+
+// The override the issue reported, run against the shipped menu: reusing
+// system.screensaver's id to retarget the action must keep its icon and label.
+const screensaverOverride = menu.mergeMenuSources(
+  defaultItems,
+  menu.parseMenuJsonc(`{ "system.screensaver": { "action": "my-screensaver" } }`)
+)
+assertEqual(screensaverOverride.items['system.screensaver'].action, 'my-screensaver', 'a stock row takes the overridden action')
+assertEqual(screensaverOverride.items['system.screensaver'].icon, '󱄄', 'a stock row keeps its icon through an override')
+assertEqual(screensaverOverride.items['system.screensaver'].label, 'Screensaver', 'a stock row keeps its label through an override')
+assertEqual(screensaverOverride.items['system.screensaver'].kind, 'action', 'a stock action row stays an action')
 
 // Needs the real menu: app rows sort after all menu items, and only at that
 // item count does the order tiebreak alone bury an installed app.

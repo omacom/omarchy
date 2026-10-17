@@ -20,7 +20,7 @@ function normalizeItem(id, raw) {
 
   var kind = value.action ? "action" : (value.target ? "link" : "menu")
 
-  return {
+  var item = {
     id: id,
     parent: parent,
     kind: kind,
@@ -41,6 +41,13 @@ function normalizeItem(id, raw) {
     checked: value.checked || "",
     disabled: value.disabled || ""
   }
+
+  // Which fields the author actually declared, so a merge can override only
+  // those. Non-enumerable: it is merge metadata and must never reach the
+  // item map a row is drawn from, or the JSON a test serializes.
+  Object.defineProperty(item, "specified", { value: Object.keys(value), enumerable: false })
+
+  return item
 }
 
 function parseMenuJsonc(raw) {
@@ -81,11 +88,29 @@ function mergeMenuSources(defaultItems, userItems, rootLabel) {
     for (var i = 0; i < src.length; i++) {
       var entry = src[i]
       if (!entry || !entry.id) continue
-      if (!nextItems[entry.id]) nextOrder.push(entry.id)
-      var prior = nextItems[entry.id] || {}
+      var prior = nextItems[entry.id]
       var merged = {}
-      for (var k in prior) merged[k] = prior[k]
-      for (var k2 in entry) merged[k2] = entry[k2]
+      if (!prior) {
+        nextOrder.push(entry.id)
+        for (var k in entry) merged[k] = entry[k]
+      } else {
+        for (var k2 in prior) merged[k2] = prior[k2]
+        // Reusing an id extends it rather than replacing it: only the fields
+        // the entry declares move over, so an override naming one field keeps
+        // the icon, label and guards it did not mention. An entry that never
+        // went through normalizeItem carries no specified list and overrides
+        // wholesale, as entries did before it existed.
+        var declared = Array.isArray(entry.specified) ? entry.specified : Object.keys(entry)
+        for (var j = 0; j < declared.length; j++) {
+          var key = declared[j]
+          if (key === "specified" || !(key in entry)) continue
+          merged[key] = entry[key]
+        }
+        // Kind is derived rather than declared, so it follows the merged
+        // fields: an action added to a submenu makes it an action, and one
+        // cleared off an action leaves a menu.
+        merged.kind = merged.action ? "action" : (merged.target ? "link" : "menu")
+      }
       merged.id = entry.id
       nextItems[entry.id] = merged
     }
