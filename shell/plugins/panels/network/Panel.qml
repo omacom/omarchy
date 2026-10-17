@@ -1316,7 +1316,7 @@ Panel {
               if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
               if (root.info.type === "wifi") return root.info.ssid || "Wi-Fi"
               if (root.info.type === "ethernet") return Commons.I18n.t("network.ethernet")
-              return root.info.iface || (root.kind === "disconnected" ? Commons.I18n.t("network.disconnected") : Commons.I18n.t("network.noConnection"))
+              return root.info.iface || (root.kind === "disconnected" ? Commons.I18n.t("network.disconnected") : root.kind === "ethernet" ? Commons.I18n.t("network.ethernet") : root.kind === "wifi" ? "Wi-Fi" : Commons.I18n.t("network.noConnection"))
             }
             readonly property string detail: root.headerDetail()
 
