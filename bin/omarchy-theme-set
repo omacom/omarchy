@@ -289,7 +289,9 @@ is_denied_installed_file() {
   local name="$1"
   local denied
 
-  [[ $name == *.lua ]] && return 0
+  # Case-folded: on a case-folded directory neovim.LUA resolves as neovim.lua,
+  # and the intent is that no Lua from an installed theme is staged at all.
+  [[ ${name,,} == *.lua ]] && return 0
 
   for denied in "${INSTALLED_THEME_DENIED[@]}"; do
     [[ $name == "$denied" ]] && return 0
@@ -326,10 +328,13 @@ stage_installed_colors_from_alacritty() {
 
 # Copies a directory without ever following a symlink: in an installed theme one
 # points wherever the theme author chose, which is how an unlock.png becomes a
-# copy of any file the session can read.
+# copy of any file the session can read. Denied files are dropped at every
+# depth, not just at the top: the intent is that no Lua from an installed theme
+# is staged, and a loader that globs the tree would reach a nested one.
 stage_installed_dir() {
   local source="$1"
   local dest="$2"
+  local prefix="${3:-}"
   local entry name
 
   mkdir -p "$dest"
@@ -338,8 +343,10 @@ stage_installed_dir() {
     [[ -e $entry && ! -L $entry ]] || continue
     name=${entry##*/}
 
-    if [[ -d $entry ]]; then
-      stage_installed_dir "$entry" "$dest/$name"
+    if is_denied_installed_file "$name"; then
+      IGNORED_THEME_FILES+=("$prefix$name")
+    elif [[ -d $entry ]]; then
+      stage_installed_dir "$entry" "$dest/$name" "$prefix$name/"
     else
       cp "$entry" "$dest/$name"
     fi

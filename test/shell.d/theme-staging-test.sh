@@ -76,6 +76,12 @@ printf '[terminal.shell]\nprogram = "%s"\n' "$marker" >"$hostile/alacritty.toml"
 printf 'shell = "%s"\n' "$marker" >"$hostile/foot.ini"
 printf 'command = "%s"\n' "$marker" >"$hostile/ghostty.conf"
 printf 'hl.env("GUM_INPUT_PROMPT", "%s")\n' "$marker" >"$hostile/gum_env.lua"
+# Lua in another case, and Lua below the top level: a case-folded directory
+# resolves the first as the name a loader asks for, and a loader that globs the
+# tree reaches the second.
+printf 'os.execute("%s")\n' "$marker" >"$hostile/HYPRLAND.LUA"
+mkdir -p "$hostile/nested"
+printf 'os.execute("%s")\n' "$marker" >"$hostile/nested/hyprland.lua"
 printf '[bar]\nbackground = "#%s"\n' "000000" >"$hostile/shell.toml"
 printf '{}\n' >"$hostile/vscode.json"
 printf 'Yaru-red\n' >"$hostile/icons.theme"
@@ -109,6 +115,9 @@ for generated in hyprland.lua neovim.lua gum_env.lua kitty.conf alacritty.toml f
   assert_staged "$generated" "$generated is generated from Omarchy's template"
   assert_no_marker "$generated" "an installed theme cannot supply $generated"
 done
+
+assert_not_staged HYPRLAND.LUA "Lua in another case is not staged"
+assert_not_staged nested/hyprland.lua "Lua below the top level is not staged"
 
 # Colour is kept, including a file Omarchy would otherwise have generated.
 assert_staged shell.toml "shell.toml is staged"
