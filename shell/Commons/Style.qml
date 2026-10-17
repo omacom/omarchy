@@ -4,6 +4,7 @@ import qs.Commons as Commons
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
+import "BorderGeometry.js" as Geometry
 
 // Shared structural style tokens for the shell. Color is the palette
 // singleton; Style holds everything else themes can influence — corner
@@ -25,13 +26,18 @@ import Quickshell.Io
 // padding, controls, and panel dimensions while preserving each component's
 // proportions; by default it also tracks `base-size`. `[bar]
 // size-horizontal` / `size-vertical` set the cross-axis dimension for
-// top/bottom and left/right bars at the default 12px font size; by default
-// those dimensions scale with `base-size` so larger fonts don't clip.
+// top/bottom and left/right bars at the default 12px font size, and
+// `icon-slot`, `icon-canvas`, `icon-size`, `icon-font` and `status-slot` the
+// widget sizes; by default all of them scale with `base-size` so larger fonts
+// don't clip.
 QtObject {
   id: root
 
   property int cornerRadius: 0
   property int gapsOut: 5
+  // Hyprland's general:gaps_out per side, unhalved: a floating bar's default
+  // margin, so the bar lines up with the windows.
+  property var gapsOutEdges: ({ top: 10, right: 10, bottom: 10, left: 10 })
 
   // ---------------------------------------------------------- state tokens
   //
@@ -303,6 +309,31 @@ QtObject {
     return Math.max(1, Math.round(base))
   }
 
+  // Bar tokens whose resting value is zero: a bar flush against its edge with
+  // square corners. barToken() floors at 1 and reads 0 as "unset", so margin
+  // and radius need a reader that keeps a deliberate 0.
+  function barInsetToken(key, fallback) {
+    var v = barOverrides[key]
+    var n = Number(v)
+    var base = (isFinite(n) && n >= 0) ? n : fallback
+    if (barScaleWithFont) base *= fontScale
+    return Math.max(0, Math.round(base))
+  }
+
+  // margin takes the same CSS-style list as the border widths — N, "Y X",
+  // "T X B", or "T R B L" — because a bar is usually set further off the edges
+  // it spans than off the one it hangs from.
+  function barMarginToken() {
+    var widths = Geometry.parseWidthSpec(barOverrides["margin"], 0)
+    var scale = barScaleWithFont ? fontScale : 1
+    return {
+      top: Math.max(0, Math.round(widths.top * scale)),
+      right: Math.max(0, Math.round(widths.right * scale)),
+      bottom: Math.max(0, Math.round(widths.bottom * scale)),
+      left: Math.max(0, Math.round(widths.left * scale))
+    }
+  }
+
   function boolToken(value, fallback) {
     if (value === undefined || value === null) return fallback
     var s = String(value).replace(/^\s+|\s+$/g, "").toLowerCase()
@@ -350,11 +381,22 @@ QtObject {
       var v = Number(root.barOverrides["notch-height"])
       return (isFinite(v) && v > 0) ? Math.round(v) : 0
     }
+    readonly property var margins:        root.barMarginToken()
+    readonly property int radius:         root.barInsetToken("radius",     0)
     readonly property int iconSlot:       root.barToken("icon-slot",       27)
     readonly property int iconCanvas:     root.barToken("icon-canvas",     16)
     readonly property int iconFont:       root.barToken("icon-font",       13)
     readonly property int iconSize:       Math.min(iconCanvas, root.barToken("icon-size", 12))
     readonly property int statusSlot:     root.barToken("status-slot",     21)
+    // Pills (bar.pills in shell.json). pill-inset is the gap between a pill
+    // and the bar's edges and ends; pill-padding the space inside a pill at
+    // its ends. Radius, inset, padding and gap keep a deliberate 0; unset,
+    // the radius follows Hyprland's rounding, capped at half the pill's
+    // thickness.
+    readonly property int pillRadius:  root.barOverrides["pill-radius"] !== undefined ? root.barInsetToken("pill-radius", 0) : root.cornerRadius
+    readonly property int pillInset:   root.barOverrides["pill-inset"] !== undefined ? root.barInsetToken("pill-inset", 0) : root.space(2)
+    readonly property int pillPadding: root.barInsetToken("pill-padding", 4)
+    readonly property int pillGap:     root.barInsetToken("pill-gap",     6)
   }
 
   // Off with Hyprland's own animations, as `omarchy toggle animations` turns
@@ -393,6 +435,7 @@ QtObject {
       var parts = css.match(/-?\d+(?:\.\d+)?/g) || []
       var n = parts.length > 0 ? Number(parts[0]) : Number(json.int)
       if (isFinite(n) && n >= 0) gapsOut = Math.max(0, Math.round(n / 2))
+      if (isFinite(n) && n >= 0) gapsOutEdges = Geometry.parseWidthSpec(css || String(n), 0)
     } catch (e) {
       // hyprctl missing / Hyprland not running — leave the previous value.
     }
@@ -425,9 +468,13 @@ QtObject {
       } else if (section === "bar") {
         if (key === "scale-with-font") {
           nextBarScaleWithFont = boolToken(raw, nextBarScaleWithFont)
+        } else if (key === "margin") {
+          // Kept verbatim: the width spec is a list as often as a number.
+          barOut[key] = raw
         } else if (key === "size-horizontal" || key === "size-vertical" || key === "notch-height"
           || key === "icon-slot" || key === "icon-canvas" || key === "icon-font"
-          || key === "icon-size" || key === "status-slot") {
+          || key === "icon-size" || key === "status-slot" || key === "radius"
+          || key === "pill-radius" || key === "pill-inset" || key === "pill-padding" || key === "pill-gap") {
           var b = parseInt(raw, 10)
           if (isFinite(b)) barOut[key] = b
         }

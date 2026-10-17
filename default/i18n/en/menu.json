@@ -113,6 +113,21 @@
   "trigger.appearance.top-bar.background.clear": {
     "label": "Clear Bar"
   },
+  "trigger.appearance.top-bar.floating": {
+    "label": "Floating Bar"
+  },
+  "trigger.appearance.top-bar.pills": {
+    "label": "Bar Pills"
+  },
+  "trigger.appearance.top-bar.pills.off": {
+    "label": "No Pills"
+  },
+  "trigger.appearance.top-bar.pills.section": {
+    "label": "Pill per Section"
+  },
+  "trigger.appearance.top-bar.pills.widget": {
+    "label": "Pill per Widget"
+  },
   "trigger.appearance.top-bar.indicators": {
     "label": "Bar Indicators"
   },
