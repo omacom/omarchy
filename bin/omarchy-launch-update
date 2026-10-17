@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Open the update window, which runs omarchy update with its progress drawn
+
+# Without a shell to draw the window, the update runs in a terminal as before.
+if ! omarchy-shell update open >/dev/null 2>&1; then
+  exec omarchy-launch-floating-terminal-with-presentation omarchy-update
+fi

@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Puts an installer's gum questions to the update window, which has no
+# terminal to draw them in. Every other gum command goes to the real gum.
+
+case ${1:-} in
+  confirm | input) kind=$1 ;;
+  *) exec /usr/bin/gum "$@" ;;
+esac
+shift
+
+default=yes secret=no question="" prompt="" placeholder=""
+while (( $# )); do
+  case $1 in
+    --default=false) default=no ;;
+    --password) secret=yes ;;
+    --prompt=*) prompt=${1#*=} ;;
+    --placeholder=*) placeholder=${1#*=} ;;
+    --prompt) prompt=${2:-}; shift ;;
+    --placeholder) placeholder=${2:-}; shift ;;
+    --affirmative | --negative | --value | --header | --char-limit | --width) shift ;;
+    --*) ;;
+    *) question=$1 ;;
+  esac
+  shift
+done
+
+if [[ $kind == "confirm" ]]; then
+  printf '\e]5150;confirm;%s;%s\a' "$default" "$question" >/dev/tty
+  read -r answer </dev/tty
+  [[ $answer == y* ]]
+else
+  printf '\e]5150;input;%s;%s;%s\a' "$secret" "$prompt" "$placeholder" >/dev/tty
+  IFS= read -r answer </dev/tty
+  printf '%s\n' "$answer"
+fi

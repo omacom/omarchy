@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Install a packaged app, surfacing the install in a floating terminal
+# omarchy:summary=Install a packaged app, surfacing the install in the update window
 # omarchy:args=<display-name> <packages>
 # omarchy:examples=omarchy install app 'LM Studio' lmstudio-bin
 
@@ -20,5 +20,5 @@ read -r -d '' -a package_list <<<"$packages" || true
 printf -v packages_arg '%q ' "${package_list[@]}"
 packages_arg="${packages_arg% }"
 
-exec omarchy-launch-floating-terminal-with-presentation \
+exec omarchy-launch-install \
   "echo ${install_message}; omarchy-pkg-add ${packages_arg}"
