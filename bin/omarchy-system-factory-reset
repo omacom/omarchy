@@ -48,8 +48,8 @@ fi
 # than via `sudo -E`, so styling survives even under an env_reset sudoers.
 # Always elevate the packaged copy, including when invoked from a dev checkout.
 if (( EUID != 0 )); then
-  mapfile -t gum_env < <(env | grep '^GUM_' || true)
-  exec sudo env "${gum_env[@]}" "$PACKAGED_PATH" "$@"
+  mapfile -d '' -t gum_env < <(env -0 | grep -z '^GUM_[A-Za-z0-9_]*=' || true)
+  exec sudo env -- "${gum_env[@]}" "$PACKAGED_PATH" "$@"
 fi
 
 export PATH="$OMARCHY_PATH/bin:$PATH"
