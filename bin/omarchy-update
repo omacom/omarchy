@@ -126,7 +126,10 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
 
-  omarchy-migrate
+  # Migrations run privileged file operations and read their target paths from
+  # OMARCHY_* overrides that exist only as test seams. Strip caller-supplied ones
+  # so a local user cannot steer a root-run migration during the update.
+  omarchy_security_run_migrations_sanitized omarchy-migrate
   omarchy-update-orphan-pkgs -y
 
   omarchy-update-analyze-logs
