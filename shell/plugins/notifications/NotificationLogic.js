@@ -295,8 +295,8 @@ function parseSettings(raw) {
 // ~/.local/state/omarchy/notifications/ so toasts survive shell restarts
 // (e.g. the restart `omarchy-update` performs). The file exists exactly as
 // long as the popup is on screen: it is written when the toast appears and
-// moved into the history/ subdirectory when the toast expires, is dismissed,
-// or its action is invoked. History is those moved files, newest last-10.
+// moved into the history/ subdirectory when the toast expires, and deleted
+// when dismissed or acted upon. History is those moved files, newest last-10.
 
 function popupEntry(value, normalUrgency) {
   var entry = historyEntry(value, normalUrgency)

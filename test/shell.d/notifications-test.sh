@@ -629,10 +629,6 @@ assert(
   'notifications service keeps history in a subdirectory of the popup state dir'
 )
 assert(
-  /if \(entry\) \{\s*\n\s*archivePopupFileFor\(entry\)[\s\S]{0,200}?popupModel\.remove\(index\)/.test(serviceQml),
-  'notifications service archives the popup file when a popup leaves the screen'
-)
-assert(
   /mv -f \\"\$4\/\$3\\" \\"\$1\/\$3\\"/.test(serviceQml),
   'notifications service archives by moving the popup file into the history dir'
 )
