@@ -259,13 +259,14 @@ Panel {
     open: root.opened
     centerOnBar: true
     focusTarget: panel.loadedContent
-    contentWidth: panel.fittedContentWidth(Style.space(560))
+    contentWidth: panel.fittedContentWidth(Math.max(Style.space(560), (panel.loadedContent ? panel.loadedContent.heroWidth : 0) + panel.padding * 2 + Border.left(panel.borderSpec) + Border.right(panel.borderSpec)))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
 
     content: PanelKeyCatcher {
       id: keyCatcher
       property alias bornField: bornField
       property alias expectancyField: expectancyField
+      readonly property real heroWidth: heroRow.implicitWidth
       implicitHeight: calendarColumn.implicitHeight
       anchors.fill: parent
       blocked: root.editingLife
@@ -296,10 +297,8 @@ Panel {
 
         Column {
           id: calendarColumn
-          // Never narrower than the grid. The popup width is capped to what
-          // the screen allows, and a fixed seven-column grid would otherwise
-          // lose its last days off the edge instead of scrolling.
-          width: Math.max(calendarScroll.width, gridColumn.width)
+          // Keep the grid and hero reachable when the screen caps the popup width.
+          width: Math.max(calendarScroll.width, gridColumn.width, heroRow.implicitWidth)
           spacing: Style.space(8)
 
           // ---- Hero: today, centered. Once the view has stepped back
