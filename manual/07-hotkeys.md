@@ -96,6 +96,10 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 
 ## Launching apps
 
+The file manager shortcuts use the default folder application (`inode/directory`). Run `omarchy default filemanager` to see its desktop ID, or `omarchy default filemanager <desktop-id>` to select an installed file manager (for example, `org.gnome.Nautilus.desktop`). Changes apply to the next launch without editing keybindings. `omarchy launch filemanager [directory]` opens a folder with the same default. The background-folder and RetroArch Games-folder actions also follow this selection. “Show in folder” actions in other applications may require separate file-manager integration.
+
+Editors, archive tools, and other applications can also register as folder handlers. If the default folder association changes, these shortcuts and folder-opening actions follow it, even when the selected application is not a dedicated file manager. Installing another handler does not necessarily replace an explicit default, but can affect the fallback when none is set. Run `omarchy default filemanager org.gnome.Nautilus.desktop` to restore Nautilus for folder opening and the file manager shortcuts.
+
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Terminal    |
