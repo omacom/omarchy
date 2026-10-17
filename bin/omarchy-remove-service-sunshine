@@ -59,7 +59,12 @@ disable_hyprland_autostart() {
   fi
 }
 
-systemctl --user disable --now sunshine 2>/dev/null || true
+if systemctl --user list-unit-files --no-legend --no-pager sunshine.service | awk '$1 == "sunshine.service" && $2 != "alias" { found = 1 } END { exit !found }'; then
+  sunshine_unit="sunshine.service"
+else
+  sunshine_unit="app-dev.lizardbyte.app.Sunshine.service"
+fi
+systemctl --user disable --now "$sunshine_unit" 2>/dev/null || true
 omarchy-pkg-drop sunshine
 omarchy-webapp-remove "$SUNSHINE_ADMIN_APP" 2>/dev/null || true
 disable_hyprland_autostart
