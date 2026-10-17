@@ -220,6 +220,7 @@ Panel {
   }
 
   ShellIpc {
+    enabled: root.ipcOwner
     target: "omarchy.monitor"
 
     function brightness(percent: string): string { return root.brightnessIpc(percent) }
