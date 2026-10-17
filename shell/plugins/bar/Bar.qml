@@ -860,6 +860,19 @@ Item {
     return items
   }
 
+  // Whether a widget id has a live slot. Unlike moduleWidgets, this sees the
+  // slots a host plugin registers for children it draws itself, which own no
+  // layout entry and borrow no WidgetHost.
+  function hasModuleSlot(pluginId) {
+    var id = String(pluginId || "")
+    if (!id) return false
+    for (var i = 0; i < moduleSlots.length; i++) {
+      var slot = moduleSlots[i]
+      if (slot && slot.activeItem && slot.moduleName === id) return true
+    }
+    return false
+  }
+
   function slotScreenName(slot) {
     var window = slotWindow(slot)
     return window && window.screen ? String(window.screen.name || "") : ""
