@@ -14,13 +14,15 @@ require_platform_fixtures "omarchy update's boot check on platform fixtures"
 
 copy_boundary_file bin/omarchy-update
 rm "$SUDO_TEST_ROOT/bin/omarchy-update-boot"
-for command in omarchy-update-boot omarchy-lifecycle-dispatch omarchy-hw-platform; do
+for command in omarchy-lifecycle-dispatch omarchy-hw-platform; do
   ln -sfn "$ROOT/bin/$command" "$SUDO_TEST_ROOT/bin/$command"
 done
 export OMARCHY_UPDATE_LOGGED=1
 
 tmp=$boundary_tmp/boot
 mkdir -p "$tmp"
+copy_boundary_file bin/omarchy-update-boot
+sed -i "s#/sys/firmware/efi#$tmp/efi#g" "$SUDO_TEST_ROOT/bin/omarchy-update-boot"
 for platform in aarch64-apple aarch64 x86; do
   fake_platform "$tmp/$platform" "$platform"
 done
@@ -74,6 +76,26 @@ for platform in x86 aarch64; do
   assert_boundary_cold "$platform update"
 done
 pass "x86 and plain aarch64 updates are unchanged: no boot check runs, nothing asks for root and the reboot is offered"
+
+cat >"$SUDO_TEST_ROOT/bin/omarchy-update-verify-boot" <<'STUB'
+#!/bin/bash
+echo generic-verify >>"$SUDO_TEST_LOG"
+exit "${GENERIC_VERIFY_STATUS:-0}"
+STUB
+chmod +x "$SUDO_TEST_ROOT/bin/omarchy-update-verify-boot"
+
+OMARCHY_VERIFY_BOOT_TEST=1 run_update x86 "$tmp/failing"
+(( status == 0 )) && reboot_offered || fail "generic UKI verification permits a healthy update"
+[[ ! -e $tmp/boot-ran ]] || fail "generic UKI verification never runs the Mac boot entrypoint"
+aur=$(at 'step:omarchy-update-aur-pkgs') verify=$(at 'generic-verify')
+[[ -n $aur && -n $verify ]] && (( aur < verify )) || fail "generic UKI verification follows AUR changes"
+assert_boundary_cold "generic UKI update"
+pass "a generic UKI is checked after AUR changes through cold sudo"
+
+GENERIC_VERIFY_STATUS=9 OMARCHY_VERIFY_BOOT_TEST=1 run_update x86 "$tmp/failing"
+(( status == 1 )) && ! reboot_offered || fail "a failed generic UKI check suppresses reboot"
+assert_boundary_cold "failed generic UKI update"
+pass "a failed generic UKI check leaves the update unfinished"
 
 # Apple: verify runs once the last package step, AUR, is done, cold through
 # the no-update wrapper, before the reboot offer.
