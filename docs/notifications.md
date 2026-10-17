@@ -181,10 +181,7 @@ Everything goes through the same sender contract, so the pieces are small:
 ## Reminders
 
 Reminders ride on notifications rather than being their own daemon.
-`bin/omarchy-reminder <minutes> [message]` creates a transient systemd user
-timer via `systemd-run --user --collect --on-active=<minutes>m` under the
-unit name `omarchy-reminder-<minutes>m-<epoch>`; the timer's payload sends the
-reminder toast, deletes its message file, and refreshes the bar indicator.
+`bin/omarchy-reminder <minutes> [message]` creates a transient systemd user timer via `systemd-run --user --collect --on-active=<minutes>m` under the unit name `omarchy-reminder-<minutes>m-<epoch>-<random>`. The random suffix comes from atomically reserving the message file with `mktemp`, so reminders created in the same second stay distinct. The timer's payload sends the reminder toast, deletes its message file, and refreshes the bar indicator.
 Custom messages are stashed in `$XDG_RUNTIME_DIR/omarchy-reminders/<unit>.message`
 since a unit name cannot carry arbitrary text. `--collect` means fired timers
 leave nothing behind.

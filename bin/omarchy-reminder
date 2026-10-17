@@ -178,21 +178,28 @@ fi
 
 set_at=$(date +%s)
 remind_at=$(date -d "+${minutes} minutes" +%H:%M)
-unit="omarchy-reminder-${minutes}m-$set_at"
 reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
-message_file="$reminder_dir/$unit.message"
 confirmation=$(omarchy-i18n reminder.willRemindAt "$remind_at")
 confirmation_title=$(omarchy-i18n --count "$minutes" reminder.setForMinutes "$minutes")
 
 mkdir -p "$reminder_dir"
+
+# Reserve a distinct name before writing the message: multiple reminders with
+# the same delay can be created within one second, including concurrently.
+message_file=$(mktemp "$reminder_dir/omarchy-reminder-${minutes}m-$set_at-XXXXXX.message")
+unit=${message_file##*/}
+unit=${unit%.message}
 
 if [[ -n $custom_message ]]; then
   printf "%s" "$custom_message" >"$message_file"
   confirmation_title=$(omarchy-i18n --count "$minutes" reminder.customInMinutes "$custom_message" "$minutes")
 fi
 
-systemd-run --user --quiet --collect --on-active="${minutes}m" --unit="$unit" \
-  bash -c 'omarchy-notification-send -g 󰢌 "$(omarchy-i18n reminder.title)" "$1"; rm -f "$2"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file"
+if ! systemd-run --user --quiet --collect --on-active="${minutes}m" --unit="$unit" \
+  bash -c 'omarchy-notification-send -g 󰢌 "$(omarchy-i18n reminder.title)" "$1"; rm -f "$2"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file"; then
+  rm -f "$message_file"
+  exit 1
+fi
 
 refresh_indicator
 omarchy-notification-send -g 󰢌 "$confirmation_title" "$confirmation"
