@@ -59,6 +59,18 @@ run usb-c ac "$bat"
 [[ ! -s $tmp_dir/calls ]] || fail "battery uevents are ignored" "$(cat "$tmp_dir/calls")"
 pass "plug, unplug, battery and no-change events are left alone"
 
+# If udevadm monitor dies, the monitor must exit non-zero so systemd restarts it.
+cat >"$tmp_dir/bin/udevadm" <<'EOF2'
+#!/bin/bash
+exit 1
+EOF2
+chmod +x "$tmp_dir/bin/udevadm"
+printf 'ac\n' >"$tmp_dir/source"
+if "$monitor" 2>/dev/null; then
+  fail "the monitor exits non-zero when udevadm monitor ends"
+fi
+pass "the monitor exits non-zero when udevadm monitor ends, so systemd restarts it"
+
 unit="$ROOT/default/systemd/user/omarchy-powerprofiles-source-monitor.service"
 grep -Fx 'ConditionPathExists=|/sys/class/firmware-attributes/asus-armoury/attributes/charge_mode/current_value' "$unit" >/dev/null &&
   grep -Fx 'ConditionPathExists=|/sys/devices/platform/asus-nb-wmi/charge_mode' "$unit" >/dev/null ||

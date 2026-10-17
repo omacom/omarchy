@@ -49,3 +49,8 @@ case ${1:-} in
 esac
 
 udevadm monitor --udev --subsystem-match=power_supply | consume_power_events
+
+# udevadm monitor runs until it is stopped, so reaching here means it failed or
+# went away. Exit non-zero so systemd restarts the monitor.
+echo "udevadm monitor ended; exiting so systemd restarts the monitor" >&2
+exit 1
