@@ -31,6 +31,7 @@ o.bind("SUPER + ALT + S", "Move window to scratchpad", hl.dsp.window.move({ work
 o.bind("SUPER + grave", "Toggle scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))
 o.bind("SUPER + M", "Minimize window to the dock", "omarchy-hyprland-window-minimize")
 o.bind("SUPER + SHIFT + grave", "Move window to scratchpad", hl.dsp.window.move({ workspace = "special:scratchpad", follow = false }))
+o.bind("SUPER + ALT + A", "Toggle agent browsers", hl.dsp.workspace.toggle_special("agents"))
 
 o.bind("SUPER + TAB", "Next workspace", hl.dsp.focus({ workspace = "e+1" }))
 o.bind("SUPER + SHIFT + TAB", "Previous workspace", hl.dsp.focus({ workspace = "e-1" }))
