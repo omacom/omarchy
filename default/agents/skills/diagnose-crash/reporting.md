@@ -39,6 +39,8 @@ useful; filing there yourself is not part of this.
 
 A duplicate issue costs a maintainer more time than no report at all.
 
+Use the canonical repository name `omacom/omarchy`: `gh search` does not follow repository redirects.
+
 ```bash
 gh search issues --repo omacom/omarchy "<program> crash"
 gh issue list --repo omacom/omarchy --state all --search "<signal> <program>"
