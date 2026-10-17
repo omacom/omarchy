@@ -19,6 +19,16 @@ if ! flock -w 5 9; then
   exit 1
 fi
 
+# Follow dotfile symlinks, and stage beside the referent for an atomic rename.
+target=$(readlink -f -- "$config")
+if [[ -e $target ]]; then
+  mode=$(stat -c '%a' -- "$target")
+  if [[ ! -f $target || ! -w $target ]] || (( (8#$mode & 0222) == 0 )); then
+    echo "Cannot update read-only dictation config: $config" >&2
+    exit 1
+  fi
+fi
+
 previous=$(omarchy-default-dictation 2>/dev/null) || previous=""
 if [[ -n $previous && $previous != "$1" ]] && omarchy-cmd-present "omarchy-dictation-$previous"; then
   if ! "omarchy-dictation-$previous" stop 9>&-; then
@@ -27,7 +37,10 @@ if [[ -n $previous && $previous != "$1" ]] && omarchy-cmd-present "omarchy-dicta
   fi
 fi
 
-temporary=$(mktemp "$config.XXXXXX")
-trap 'rm -f "$temporary"' EXIT
+temporary=$(mktemp "$target.XXXXXX")
+trap 'rm -f -- "$temporary"' EXIT
 printf '%s\n' "$1" > "$temporary"
-mv -f "$temporary" "$config"
+if [[ -f $target ]]; then
+  chmod --reference="$target" "$temporary"
+fi
+mv -fT -- "$temporary" "$target"
