@@ -15,6 +15,9 @@ Item {
   property color fillColor: bar ? bar.foreground : Commons.Color.foreground
   property color knobColor: bar ? bar.foreground : Commons.Color.foreground
   property bool dragging: false
+  // Off passes wheel input on to the view, for a slider with no value to
+  // step from yet. Clicks and drags still work.
+  property bool wheelEnabled: true
   property real trackHeight: Math.max(4, Math.round(Style.spacing.controlHeight * 0.11))
   property real knobSize: Math.max(14, Math.round(Style.spacing.controlHeight * 0.38))
   property real liveValue: value
@@ -145,6 +148,7 @@ Item {
       root.liveValue = root.value
     }
     onWheel: function(wheel) {
+      if (!root.wheelEnabled) { wheel.accepted = false; return }
       var delta = wheel.angleDelta.y > 0 ? root.step : -root.step
       var next = Math.max(root.minimum, Math.min(root.maximum, root.liveValue + delta))
       if (root.integer) next = Math.round(next)
