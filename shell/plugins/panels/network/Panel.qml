@@ -536,10 +536,20 @@ Panel {
 
   function openCaptivePortal() {
     if (!hasCaptivePortal) return
-    // Explicit user action only. argv (not a shell string), and a fixed HTTP
-    // URL: let the browser handle the redirect without trusting portal input.
-    Quickshell.execDetached(["omarchy-launch-browser", Model.captivePortalUrl])
+    if (!portalUriProc.running) portalUriProc.running = true
     close()
+  }
+
+  // Explicit user action only. argv (not a shell string), and NM's configured
+  // HTTP URL: let the browser handle the redirect without trusting portal input.
+  Process {
+    id: portalUriProc
+    command: ["busctl", "--json=short", "get-property", "org.freedesktop.NetworkManager",
+      "/org/freedesktop/NetworkManager", "org.freedesktop.NetworkManager", "ConnectivityCheckUri"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: Quickshell.execDetached(["omarchy-launch-browser", Model.captivePortalUrlFrom(text)])
+    }
   }
 
   // Keep checking while login is needed, even with the panel closed in favour

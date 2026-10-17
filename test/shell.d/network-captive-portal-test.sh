@@ -38,6 +38,16 @@ const url = new URL(network.captivePortalUrl)
 assertEqual(url.protocol, 'http:', 'browser entry point uses plain HTTP so a portal can intercept it')
 assertEqual(url.hostname, 'ping.archlinux.org', 'browser entry point is fixed rather than portal-supplied')
 assertEqual(url.username + url.password, '', 'browser entry point contains no credentials')
+const nmUri = uri => JSON.stringify({ type: 's', data: uri })
+assertEqual(network.captivePortalUrlFrom(nmUri('http://nmcheck.gnome.org/check_network_status.txt')),
+  'http://nmcheck.gnome.org/check_network_status.txt', 'browser entry point follows the URI NetworkManager probes')
+for (const uri of ['http://192.0.2.1:8080/', 'http://[2001:db8::1]/check', 'http://example.com?probe=1']) {
+  assertEqual(network.captivePortalUrlFrom(nmUri(uri)), uri, `NetworkManager's ${uri} is kept`)
+}
+for (const raw of ['', 'not json', nmUri(''), nmUri('https://nmcheck.gnome.org/'), nmUri('http://user:pw@example.com/'),
+  nmUri('http://example.com/a b'), nmUri('javascript:alert(1)'), JSON.stringify({ type: 's' })]) {
+  assertEqual(network.captivePortalUrlFrom(raw), network.captivePortalUrl, `falls back to the fixed URL for ${raw || 'no output'}`)
+}
 JS
 
 require_compositor "network captive-portal runtime test"
@@ -88,6 +98,14 @@ printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type
 chmod +x "$stage/bin/omarchy-network-status"
 printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_BROWSER_LOG"\n' > "$stage/bin/omarchy-launch-browser"
 chmod +x "$stage/bin/omarchy-launch-browser"
+# NetworkManager's probe, overridden from Arch's default as the reporter of #11961 had it.
+# Answers only the exact query, so a wrong property or path falls back and fails.
+cat > "$stage/bin/busctl" <<'SH'
+#!/bin/bash
+[[ "$*" == "--json=short get-property org.freedesktop.NetworkManager /org/freedesktop/NetworkManager org.freedesktop.NetworkManager ConnectivityCheckUri" ]] || exit 1
+echo '{"type":"s","data":"http://nmcheck.gnome.org/check_network_status.txt"}'
+SH
+chmod +x "$stage/bin/busctl"
 
 # All networking and external actions are mocked; the real connection and
 # browser are never touched, and the fixture writes only to its scratch HOME.
@@ -99,5 +117,5 @@ if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding l
   fail "network portal fixture has no QML errors" "$output"
 fi
 [[ -f $stage/browser.log ]] || fail "portal action launches the browser"
-[[ $(<"$stage/browser.log") == "http://ping.archlinux.org/nm-check.txt" ]] || fail "portal opens exactly one fixed HTTP URL"
+[[ $(<"$stage/browser.log") == "http://nmcheck.gnome.org/check_network_status.txt" ]] || fail "portal opens exactly one URL, the one NetworkManager probes"
 pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, and browser argv work in QML"

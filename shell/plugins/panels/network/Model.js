@@ -46,6 +46,16 @@ function parseActiveApSignal(raw) {
 // login page. Never execute or automatically open an untrusted Location header.
 var captivePortalUrl = "http://ping.archlinux.org/nm-check.txt"
 
+// NM judges a portal by what its own probe got back, so open the URI it probed
+// (busctl --json output); fall back unless it is plain HTTP, no userinfo.
+function captivePortalUrlFrom(raw) {
+  try {
+    var uri = JSON.parse(String(raw || "")).data
+    if (/^http:\/\/([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(:\d+)?([\/?#]\S*)?$/.test(uri)) return uri
+  } catch (e) {}
+  return captivePortalUrl
+}
+
 function connectivityState(kind, connectivity, states, checksEnabled) {
   if (kind === "disconnected") return "none"
   // Ignore stale cached results when the operator has disabled probing.
@@ -414,6 +424,7 @@ if (typeof module !== "undefined") {
     parseActiveApSignal: parseActiveApSignal,
     connectivityState: connectivityState,
     captivePortalUrl: captivePortalUrl,
+    captivePortalUrlFrom: captivePortalUrlFrom,
     formatHeaderSpeed: formatHeaderSpeed,
     formatHeaderFreq: formatHeaderFreq,
     headerDetail: headerDetail,
