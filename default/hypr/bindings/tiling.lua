@@ -2,7 +2,20 @@ o.bind("SUPER + W", "Close window", hl.dsp.window.close())
 o.bind("SUPER + Q", "Close window", hl.dsp.window.close())
 o.bind("CTRL + ALT + DELETE", "Close all windows", "omarchy-hyprland-window-close-all")
 
-o.bind("SUPER + J", "Toggle window split", hl.dsp.layout("togglesplit"))
+-- togglesplit is a dwindle-only layout message: dispatching it on a scrolling
+-- workspace, or on a floating one, is a Lua error that lands in
+-- `hyprctl configerrors`. Only a workspace whose tiled layout is dwindle gets
+-- the dispatch; on any other layout the key is inert.
+local function toggle_split()
+  local workspace = hl.get_active_workspace()
+  if workspace and workspace.tiled_layout == "dwindle" then
+    hl.dispatch(hl.dsp.layout("togglesplit"))
+  end
+end
+-- The keybindings menu cannot run a Lua bind, so it stands for the plain
+-- dispatch there and keeps its row.
+o.bind_commands[toggle_split] = "hyprctl dispatch togglesplit"
+o.bind("SUPER + J", "Toggle window split", toggle_split)
 o.bind("SUPER + P", "Pseudo window", hl.dsp.window.pseudo())
 o.bind("SUPER + T", "Toggle window floating/tiling", hl.dsp.window.float({ action = "toggle" }))
 o.bind("SUPER + F", "Full screen", hl.dsp.window.fullscreen({ mode = "fullscreen" }))
