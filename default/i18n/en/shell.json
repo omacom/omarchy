@@ -286,6 +286,7 @@
   "emojis.search": "Search emojis…",
   "imagePicker.deleteTheme": "Do you want to delete %1?",
   "lock.authenticationFailed": "Authentication failed (%1)",
+  "lock.capsLockOn": "Caps Lock is on",
   "lock.checking": "Checking…",
   "lock.enterPassword": "Enter Password",
   "lock.fingerprintUnavailable": "Fingerprint reader unavailable",
