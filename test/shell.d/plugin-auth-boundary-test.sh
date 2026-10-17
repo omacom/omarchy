@@ -91,6 +91,16 @@ qml_matches "$bar_qml" 'api\.clickTargets *= *root\.pluginClickTargets\( *api\.p
   fail "third-party bar facades exclude other widgets from their object graph"
 pass "third-party widgets receive a bar facade instead of the host bar"
 
+keyboard_panel_qml="$ROOT/shell/Ui/KeyboardPanel.qml"
+plugin_bar_api_qml="$ROOT/shell/Ui/PluginBarApi.qml"
+qml_matches "$plugin_bar_api_qml" 'function forwardBarClick\( *window, point, button *\) *\{ *return _forwardBarClick *\? *_forwardBarClick\( *window, point, button *\)' ||
+  fail "bar facade cannot forward a bar click to the host bar"
+qml_matches "$bar_qml" '_forwardBarClick: *function\( *window, point, button *\) *\{ *return root\.forwardBarClick\( *window, point, button *\)' ||
+  fail "host bar does not wire the facade's bar-click forwarding"
+qml_matches "$keyboard_panel_qml" 'typeof root\.bar\.forwardBarClick *=== *"function"\) *return root\.bar\.forwardBarClick\(' ||
+  fail "panels on a bar facade search only their own plugin's click targets"
+pass "panels on a bar facade can hand off to another plugin's icon"
+
 qml_matches "$shell_qml" 'widgets: *shell\.publicBarWidgetSnapshot\( *\)' ||
   fail "third-party widget registries receive detached snapshots"
 qml_matches "$bar_qml" 'root\.markPluginObject\( *pluginId, *target, *"clickTarget" *\)' ||

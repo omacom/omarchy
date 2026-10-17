@@ -338,6 +338,10 @@ PanelWindow {
 
     function forwardBarClick(px, py, button) {
       if (button !== Qt.LeftButton && button !== Qt.RightButton && button !== Qt.MiddleButton) return false
+      // Third-party panels get a scoped bar facade whose clickTargets hold only
+      // their own buttons; let the real bar search every plugin's targets.
+      if (root.bar && typeof root.bar.forwardBarClick === "function")
+        return root.bar.forwardBarClick(root.anchorWindow, barPoint(px, py), button)
       var target = pressTargetAt(px, py)
       if (!target) return false
       target.triggerPress(button)
