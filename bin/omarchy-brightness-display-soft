@@ -1,0 +1,97 @@
+#!/bin/bash
+
+# omarchy:summary=Adjust software display brightness via Hyprland screen shader when no DRM backlight exists.
+# omarchy:args=[--no-osd] <+N%|N%-|N%|get>
+# omarchy:examples=omarchy brightness display soft +5% | omarchy brightness display soft 50% | omarchy brightness display soft get
+# omarchy:hidden=true
+
+# Used on older Apple/NVIDIA systems where nouveau skips registering a backlight
+# after detecting Apple GMUX, but apple_gmux never binds — leaving no
+# /sys/class/backlight device. Keyboard backlight is unrelated and still works.
+
+no_osd=0
+if [[ ${1:-} == --no-osd ]]; then
+  no_osd=1
+  shift
+fi
+
+step="${1:-}"
+[[ -n $step ]] || {
+  echo "usage: omarchy-brightness-display-soft [--no-osd] <+N%|N%-|N%|get>" >&2
+  exit 1
+}
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+shader_dir="$HOME/.config/hypr/shaders"
+shader="$shader_dir/omarchy-brightness.frag"
+state_file="$state_dir/display-brightness"
+looknfeel="$HOME/.config/hypr/looknfeel.lua"
+
+mkdir -p "$state_dir" "$shader_dir"
+
+min_g=15
+max_g=100
+
+current=100
+if [[ -f $state_file ]]; then
+  current="$(tr -d '[:space:]' <"$state_file")"
+fi
+[[ $current =~ ^[0-9]+$ ]] || current=100
+
+clamp() {
+  local v="$1"
+  ((v < min_g)) && v=$min_g
+  ((v > max_g)) && v=$max_g
+  printf '%s\n' "$v"
+}
+
+if [[ $step =~ ^\+([0-9]+)%$ ]]; then
+  target=$(clamp $((current + BASH_REMATCH[1])))
+elif [[ $step =~ ^([0-9]+)%-$ ]]; then
+  target=$(clamp $((current - BASH_REMATCH[1])))
+elif [[ $step =~ ^([0-9]+)%$ ]]; then
+  target=$(clamp "${BASH_REMATCH[1]}")
+elif [[ $step == get ]]; then
+  printf '%s\n' "$current"
+  exit 0
+else
+  echo "unsupported step: $step" >&2
+  exit 1
+fi
+
+mult="$(awk -v p="$target" 'BEGIN { printf "%.2f", p / 100 }')"
+
+cat >"$shader" <<SHADER
+#version 300 es
+
+precision highp float;
+in vec2 v_texcoord;
+uniform sampler2D tex;
+
+layout(location = 0) out vec4 fragColor;
+void main() {
+    vec4 c = texture(tex, v_texcoord);
+    fragColor = vec4(c.rgb * ${mult}, c.a);
+}
+SHADER
+
+printf '%s\n' "$target" >"$state_file"
+
+# Ensure Hyprland loads this shader (same pattern as nouveau cursor looknfeel append).
+if [[ -f $looknfeel ]] && ! grep -q 'omarchy-brightness.frag' "$looknfeel"; then
+  cat >>"$looknfeel" <<'LUA'
+
+-- Software brightness when the kernel exposes no DRM backlight (e.g. nouveau +
+-- Apple GMUX detected but unbound). Driven by omarchy-brightness-display-soft.
+hl.config({
+  decoration = {
+    screen_shader = os.getenv("HOME") .. "/.config/hypr/shaders/omarchy-brightness.frag",
+  },
+})
+LUA
+fi
+
+hyprctl reload >/dev/null 2>&1 || true
+
+((no_osd)) || omarchy-osd -i brightness -p "$target" || true
+printf '%s\n' "$target"
