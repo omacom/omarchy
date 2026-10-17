@@ -123,8 +123,7 @@ function relativeTime(timestampSec, nowMs, tr, fmt) {
   if (hours < 24) return t("dropbox.hoursAgo", "%1h ago").replace("%1", f(hours))
   var days = Math.floor(hours / 24)
   if (days < 30) return t("dropbox.daysAgo", "%1d ago").replace("%1", f(days))
-  var months = Math.floor(days / 30)
-  if (months < 12) return t("dropbox.monthsAgo", "%1mo ago").replace("%1", f(months))
+  if (days < 365) return t("dropbox.monthsAgo", "%1mo ago").replace("%1", f(Math.min(11, Math.floor(days / 30))))
   return t("dropbox.yearsAgo", "%1y ago").replace("%1", f(Math.floor(days / 365)))
 }
 
