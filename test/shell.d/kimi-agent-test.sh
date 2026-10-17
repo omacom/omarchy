@@ -42,7 +42,7 @@ apply_kimi migration
 cmp -s "$kimi" "$test_tmp/wrapper" || fail "Kimi migration is idempotent"
 "$kimi" --prompt 'Review this project'
 mapfile -d '' -t args <"$OMARCHY_TEST_MISE_LOG"
-[[ ${args[*]} == "use -g --quiet $package x $package -- kimi --prompt Review this project" ]] ||
+[[ ${args[*]} == "use -g --quiet $package@latest x $package@latest -- kimi --prompt Review this project" ]] ||
   fail "Kimi migration wrapper installs the official package and forwards arguments"
 pass "Kimi migration creates a lazy, repeatable wrapper"
 

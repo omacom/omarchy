@@ -37,7 +37,7 @@ install_wrapper npm:playwright playwright >/dev/null
 log="$tmpdir/normal.log"
 : >"$log"
 OMARCHY_MISE_TEST_LOG="$log" PATH="$stub_bin:$PATH" "$home/.local/bin/playwright" >/dev/null
-grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:playwright' "$log" ||
+grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:playwright@latest' "$log" ||
   fail "the wrapper asks mise for the package it was given" "$(cat "$log")"
 
 pass "a normal install writes a wrapper that names its package"
@@ -54,7 +54,7 @@ OMARCHY_MISE_TEST_LOG="$log" PATH="$stub_bin:$PATH" "$home/.local/bin/hostile" >
   fail "a package name with shell characters does not run when the wrapper does" \
     "wrapper: $(cat "$home/.local/bin/hostile")"
 
-grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:pkg$(touch '"$tmpdir"'/PWNED)end' "$log" ||
+grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:pkg$(touch '"$tmpdir"'/PWNED)end@latest' "$log" ||
   fail "the package reaches mise whole" "$(cat "$log")"
 
 pass "a package name with shell characters reaches mise as one argument"
