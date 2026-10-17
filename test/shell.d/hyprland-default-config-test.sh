@@ -119,6 +119,54 @@ if grep -F 'wtype -M' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null; th
 fi
 pass "universal clipboard shortcuts avoid virtual keyboard modifier merging"
 
+clipboard_output=$(OMARCHY_PATH="$ROOT" lua <<'LUA'
+local active, sent, binds = nil, {}, {}
+hl = {
+  get_active_window = function() return active end,
+  dispatch = function(action) if action.state == "down" then table.insert(sent, action.mods .. "+" .. action.key) end end,
+  dsp = { send_key_state = function(options) return options end },
+  timer = function(callback) callback() end,
+}
+o = { bind = function(keys, _, dispatcher) binds[keys] = dispatcher end }
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/clipboard.lua")
+
+for _, window in ipairs({
+  { name = "opted-in", tags = { "native-super-clipboard*" } },
+  { name = "terminal", tags = { "terminal*" } },
+  { name = "other", tags = {} },
+}) do
+  active = window
+  for _, key in ipairs({ "A", "C", "V", "X" }) do
+    sent = {}
+    binds["SUPER + " .. key]()
+    print(window.name .. " " .. key .. " " .. table.concat(sent, ","))
+  end
+end
+LUA
+)
+expected_clipboard="opted-in A SUPER+A
+opted-in C SUPER+C
+opted-in V SUPER+V
+opted-in X SUPER+X
+terminal A CTRL+A
+terminal C CTRL SHIFT+C
+terminal V CTRL SHIFT+V
+terminal X CTRL+X
+other A CTRL+A
+other C CTRL+C
+other V CTRL+V
+other X CTRL+X"
+[[ $clipboard_output == "$expected_clipboard" ]] ||
+  fail "universal clipboard shortcuts pass the Super chord to apps that bind it" "$clipboard_output"
+pass "universal clipboard shortcuts pass the Super chord to apps that bind it"
+
+# Opt-in only: stock Emacs and Doom bind the Super chords only on macOS, so no
+# default rule may take the Ctrl translation away from an app.
+if grep -rF 'native-super-clipboard' "$ROOT/default/hypr/apps" >/dev/null; then
+  fail "no app is opted into native Super clipboard chords by default"
+fi
+pass "no app is opted into native Super clipboard chords by default"
+
 removed_home="$tmpdir/removed-home"
 mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
