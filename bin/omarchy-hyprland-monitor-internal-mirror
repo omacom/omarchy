@@ -5,7 +5,6 @@
 
 TOGGLE="internal-monitor-mirror"
 TOGGLE_FLAG="$HOME/.local/state/omarchy/toggles/hypr/$TOGGLE.lua"
-DISABLE_TOGGLE="internal-monitor-disable"
 
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
 # The first active external monitor
@@ -31,7 +30,7 @@ on() {
     fi
   done
 
-  omarchy-hyprland-toggle $DISABLE_TOGGLE off
+  omarchy-hyprland-monitor-internal on
 
   if omarchy-hyprland-toggle-disabled $TOGGLE; then
     printf 'hl.monitor({ output = "%s", mode = "preferred", position = "auto", scale = 1, mirror = "%s" })\n' "$EXTERNAL" "$INTERNAL" >"$TOGGLE_FLAG"

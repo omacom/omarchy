@@ -222,6 +222,7 @@ enable_internal() {
   sync_internal_scale
 
   if (( changed )); then
+    omarchy-hyprland-monitor-internal restore-backlight
     dpms_internal enable
   fi
 }
