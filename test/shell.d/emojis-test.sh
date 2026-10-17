@@ -73,10 +73,16 @@ cat >"$TMPDIR/bin/sleep" <<'SH'
 exit 0
 SH
 
-chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wtype" "$TMPDIR/bin/sleep"
+cat >"$TMPDIR/bin/hyprctl" <<'SH'
+#!/bin/bash
+[[ $* == "activewindow -j" ]] || exit 1
+printf '%s\n' "$HYPRCTL_ACTIVEWINDOW"
+SH
+
+chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wtype" "$TMPDIR/bin/sleep" "$TMPDIR/bin/hyprctl"
 
 WL_COPY_OUT="$TMPDIR/copy" WL_COPY_EMOJI_OUT="$TMPDIR/emoji" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$PATH" \
-  "$ROOT/bin/omarchy-menu-emoji-insert" "😀"
+  HYPRCTL_ACTIVEWINDOW='{"class":"firefox","tags":[]}' "$ROOT/bin/omarchy-menu-emoji-insert" "😀"
 
 [[ $(<"$TMPDIR/emoji") == "😀" ]] || fail "emoji insert helper copies emoji transiently"
 pass "emoji insert helper copies emoji transiently"
@@ -84,5 +90,11 @@ pass "emoji insert helper copies emoji transiently"
 [[ $(<"$TMPDIR/emoji.args") == "--type text/plain --sensitive --foreground" ]] || fail "emoji insert helper serves sensitive transient clipboard in foreground"
 pass "emoji insert helper serves transient clipboard in foreground"
 
-[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "emoji insert helper pastes with shift insert"
-pass "emoji insert helper pastes with shift insert"
+[[ $(<"$TMPDIR/wtype") == "-M ctrl -k v -m ctrl" ]] || fail "emoji insert helper pastes with ctrl v outside terminals"
+pass "emoji insert helper pastes with ctrl v outside terminals"
+
+WL_COPY_OUT="$TMPDIR/copy" WL_COPY_EMOJI_OUT="$TMPDIR/emoji" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$PATH" \
+  HYPRCTL_ACTIVEWINDOW='{"class":"foot","tags":["default-opacity*","terminal*"]}' "$ROOT/bin/omarchy-menu-emoji-insert" "😀"
+
+[[ $(<"$TMPDIR/wtype") == "-M ctrl -M shift -k v -m shift -m ctrl" ]] || fail "emoji insert helper pastes with ctrl shift v in terminals"
+pass "emoji insert helper pastes with ctrl shift v in terminals"
