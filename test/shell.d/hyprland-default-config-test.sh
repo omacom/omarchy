@@ -109,6 +109,21 @@ grep -F 'hl.dsp.send_key_state({ mods = mods, key = key, state = "down" })' "$RO
   fail "universal clipboard shortcuts send explicit mods to the focused surface"
 pass "universal clipboard shortcuts send explicit mods to the focused surface"
 
+# Keyboards whose main Enter key emits KP_Enter (some laptops, and any numpad)
+# must reach the same dispatchers as RETURN. The mirrors stay description-less
+# so the keybindings menu does not list every action twice.
+for chord in "SUPER + KP_Enter" "SUPER + SHIFT + KP_Enter" "SUPER + ALT + KP_Enter" "SUPER + CTRL + KP_Enter"; do
+  grep -Fq "o.bind(\"$chord\"" "$ROOT/default/hypr/bindings/applications.lua" ||
+    fail "application bindings answer to $chord as well as RETURN"
+done
+pass "application bindings answer both Enter keys"
+
+for chord in "KP_Enter" "CTRL + KP_Enter"; do
+  grep -Fq "hl.bind(\"$chord\"" "$ROOT/default/hypr/bindings/utilities.lua" ||
+    fail "selection overlay binds $chord"
+done
+pass "selection overlay answers both Enter keys"
+
 if grep -E 'send_key_state\(\{[^}]*window' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null; then
   fail "universal clipboard shortcuts do not target only normal windows"
 fi
