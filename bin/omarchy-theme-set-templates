@@ -3,6 +3,11 @@
 # omarchy:summary=Generate themed config files from Omarchy templates
 # omarchy:hidden=true
 
+# Required reads and writes must fail the renderer, including those inside
+# command substitutions. Optional palette helpers return success explicitly.
+set -e -o pipefail
+shopt -s inherit_errexit
+
 TEMPLATES_DIR="$OMARCHY_PATH/default/themed"
 USER_TEMPLATES_DIR="$HOME/.config/omarchy/themed"
 NEXT_THEME_DIR="$HOME/.local/state/omarchy/current/next-theme"
@@ -35,7 +40,7 @@ resolve_theme_ref() {
   local ref="$1"
   local fallback="${2:-}"
 
-  if [[ -n ${THEME_COLORS[$ref]+_} ]]; then
+  if [[ -n $ref && -n ${THEME_COLORS[$ref]+_} ]]; then
     REPLY="${THEME_COLORS[$ref]}"
   elif [[ -n $fallback && -n ${THEME_COLORS[$fallback]+_} ]]; then
     REPLY="${THEME_COLORS[$fallback]}"
@@ -48,7 +53,7 @@ resolve_theme_ref() {
 
 resolve_gradient_color() {
   trim "$1"
-  if [[ -n ${THEME_COLORS[$REPLY]+_} ]]; then
+  if [[ -n $REPLY && -n ${THEME_COLORS[$REPLY]+_} ]]; then
     REPLY="${THEME_COLORS[$REPLY]}"
   fi
 }
@@ -85,9 +90,10 @@ color_to_shell_hex() {
   elif [[ $color =~ ^[Rr][Gg][Bb][Aa]?\(([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?\)$ ]]; then
     REPLY="#${BASH_REMATCH[1]}"
   elif [[ $color =~ ^[Rr][Gg][Bb][Aa]?\(([0-9]+),([0-9]+),([0-9]+)(,[0-9.]+)?\)$ ]]; then
-    r=${BASH_REMATCH[1]}
-    g=${BASH_REMATCH[2]}
-    b=${BASH_REMATCH[3]}
+    # Decimal components may carry leading zeros, which bash reads as octal.
+    r=$((10#${BASH_REMATCH[1]}))
+    g=$((10#${BASH_REMATCH[2]}))
+    b=$((10#${BASH_REMATCH[3]}))
     (( r > 255 )) && r=255
     (( g > 255 )) && g=255
     (( b > 255 )) && b=255
@@ -184,8 +190,8 @@ add_mix_value() {
   start="${THEME_COLORS[$start_key]:-}"
   end="${THEME_COLORS[$end_key]:-}"
 
-  [[ $start =~ ^#[0-9A-Fa-f]{6}$ && $end =~ ^#[0-9A-Fa-f]{6}$ ]] || return
-  [[ $fn == "mix" || $fn == "mix_strip" || $fn == "mix_rgb" ]] || return
+  [[ $start =~ ^#[0-9A-Fa-f]{6}$ && $end =~ ^#[0-9A-Fa-f]{6}$ ]] || return 0
+  [[ $fn == "mix" || $fn == "mix_strip" || $fn == "mix_rgb" ]] || return 0
 
   printf 'mix\037%s\037%s\037%s\037%s\037%s\n' "$token" "$fn" "$start" "$end" "$amount" >>"$mix_table"
 }
@@ -222,7 +228,10 @@ add_function_values() {
   local token
   local -A seen=()
 
-  (( ${#template_files[@]} > 0 )) || return
+  (( ${#template_files[@]} > 0 )) || return 0
+
+  # grep returns 1 for no tokens; read errors must stop activation.
+  grep -hEo "$MIX_TOKEN_PATTERN|$GRADIENT_TOKEN_PATTERN" "${template_files[@]}" >"$scratch/tokens" || [[ $? == 1 ]]
 
   while IFS= read -r token; do
     [[ -n ${seen[$token]:-} ]] && continue
@@ -233,7 +242,7 @@ add_function_values() {
     else
       add_gradient_function_value "$token"
     fi
-  done < <(grep -hEo "$MIX_TOKEN_PATTERN|$GRADIENT_TOKEN_PATTERN" "${template_files[@]}" 2>/dev/null || true)
+  done <"$scratch/tokens"
 }
 
 strip_shell_section_header() {
@@ -256,16 +265,16 @@ apply_shell_section_override() {
   local override="$1"
   local section tmp body
 
-  [[ -f $NEXT_THEME_DIR/shell.toml ]] || return
-  [[ -f $override ]] || return
+  [[ -f $NEXT_THEME_DIR/shell.toml ]] || return 0
+  [[ -f $override ]] || return 0
 
   section=$(basename "$override")
   section="${section#shell.}"
   section="${section%.toml}"
-  [[ $section =~ ^[A-Za-z0-9_-]+$ ]] || return
+  [[ $section =~ ^[A-Za-z0-9_-]+$ ]] || return 0
 
-  tmp=$(mktemp)
-  body=$(mktemp)
+  tmp="$scratch/shell.toml"
+  body="$scratch/section"
 
   strip_shell_section_header "$section" "$override" >"$body"
 
@@ -331,7 +340,7 @@ render_templates() {
     fi
   done
 
-  (( ${#pairs[@]} > 0 )) || return
+  (( ${#pairs[@]} > 0 )) || return 0
 
   awk -v value_table="$value_table" -v mix_table="$mix_table" '
     function hex_value(char) {
@@ -390,13 +399,14 @@ render_templates() {
     }
 
     BEGIN {
-      while ((getline row < value_table) > 0) {
+      while ((status = getline row < value_table) > 0) {
         sep = index(row, "\037")
         values[substr(row, 1, sep - 1)] = substr(row, sep + 1)
       }
+      if (status < 0) exit 1
       close(value_table)
 
-      while ((getline row < mix_table) > 0) {
+      while ((status = getline row < mix_table) > 0) {
         split(row, field, "\037")
         value = mix_color(field[4], field[5], field[6])
         if (field[3] == "mix_strip") {
@@ -406,39 +416,54 @@ render_templates() {
         }
         values[field[2]] = value
       }
+      if (status < 0) exit 1
       close(mix_table)
 
       for (i = 1; i < ARGC; i += 2) {
         template = ARGV[i]
         output = ARGV[i + 1]
+        printf "" > output
         # RT holds the terminator each line was read with, so a template that
         # ends without a newline renders without one, as sed left it.
-        while ((getline line < template) > 0) printf "%s%s", render(line), RT > output
+        while ((status = getline line < template) > 0) printf "%s%s", render(line), RT > output
+        if (status < 0) exit 1
         close(template)
-        close(output)
-        # A template with no lines still leaves its output file behind.
-        printf "" >> output
-        close(output)
+        if (close(output) != 0) exit 1
       }
       exit
     }
   ' "${pairs[@]}"
 }
 
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+trap 'exit 1' HUP INT TERM
+
 # Only generate dynamic templates for themes with a colors.toml definition
 if [[ -f $COLORS_FILE ]]; then
-  value_table=$(mktemp)
-  mix_table=$(mktemp)
+  value_table="$scratch/values"
+  mix_table="$scratch/mixes"
+  : >"$value_table"
+  : >"$mix_table"
   declare -A rendered=()
+
+  # A missing user directory is optional; an unreadable one is not empty.
+  for directory in "$USER_TEMPLATES_DIR" "$TEMPLATES_DIR"; do
+    if [[ -d $directory ]]; then
+      [[ -r $directory && -x $directory ]] || exit 1
+    fi
+  done
 
   shopt -s nullglob
   template_files=("$USER_TEMPLATES_DIR"/*.tpl "$TEMPLATES_DIR"/*.tpl)
 
   # Parsing and alias/fallback resolution (legacy colorN names, derived
   # shades, mode/theme_type) is shared with every other colors.toml consumer.
+  resolved_colors=$(omarchy-theme-color --file "$COLORS_FILE" --all)
   while IFS=$'\t' read -r key value; do
+    [[ -n $key ]] || continue
     THEME_COLORS[$key]="$value"
-  done < <(omarchy-theme-color --file "$COLORS_FILE" --all)
+  done <<<"$resolved_colors"
 
   for key in "${!THEME_COLORS[@]}"; do
     add_template_value "$key" "${THEME_COLORS[$key]}"
