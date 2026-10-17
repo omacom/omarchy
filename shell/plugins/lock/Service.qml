@@ -19,6 +19,9 @@ Item {
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
 
   property bool lockRequested: false
+  // Quickshell 0.3.2 never signals sessionLock.locked going false on unlock, so
+  // the drawn lock state follows this copy; decisions read the live value.
+  property bool sessionLocked: false
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
@@ -69,7 +72,7 @@ Item {
   property bool strandedLock: false
   property bool strandedLockResolved: false
 
-  readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
+  readonly property bool locked: lockRequested || sessionLocked || sessionLock.secure
 
   // Decisions read the lock state afresh. A property binding that missed a change
   // notification once reported locked after an unlock, and a lock request before
@@ -119,6 +122,7 @@ Item {
 
     pendingSessionLock = false
     pendingSessionLockTimer.stop()
+    sessionLocked = true
     sessionLock.locked = true
   }
 
@@ -247,6 +251,7 @@ Item {
     if (!root.currentlyLocked()) return
 
     lockRequested = false
+    sessionLocked = false
     pendingSessionLock = false
     sessionLockStabilizeTimer.stop()
     pendingSessionLockTimer.stop()
@@ -507,15 +512,19 @@ Item {
     onSecureStateChanged: {
       root.logEvent("secure=" + secure)
       if (secure) {
+        root.sessionLocked = true
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
         root.startFingerprint()
+      } else if (!locked) {
+        root.sessionLocked = false
       }
     }
 
     onLockStateChanged: {
       root.logEvent("session-locked=" + locked)
+      root.sessionLocked = locked
 
       if (locked) {
         root.pendingSessionLock = false
