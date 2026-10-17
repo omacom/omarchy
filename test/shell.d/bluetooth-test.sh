@@ -103,6 +103,26 @@ assertEqual(
   'bluetooth keeps deviceName in row projections so labels survive QObject-free rows'
 )
 
+// Apple HID devices report charge through the kernel's hid-<address>-battery
+// power supply (via UPower), not BlueZ's Battery1.
+const upowerDevices = [
+  { nativePath: 'BAT0', isPresent: true, percentage: 0.5 },
+  { nativePath: 'hid-aa:bb:cc:dd:ee:01-battery-7', isPresent: false, percentage: 0.9 },
+  { nativePath: 'hid-aa:bb:cc:dd:ee:ff-battery-144', isPresent: true, percentage: 0.03 }
+]
+assertEqual(bluetooth.hidBattery('AA:BB:CC:DD:EE:FF', upowerDevices), 0.03, 'bluetooth finds a HID battery by device address')
+assertEqual(bluetooth.hidBattery('AA:BB:CC:DD:EE:01', upowerDevices), -1, 'bluetooth ignores HID batteries UPower marks as not present')
+assertEqual(bluetooth.hidBattery('11:22:33:44:55:66', upowerDevices), -1, 'bluetooth reports no HID battery for other addresses')
+assertEqual(bluetooth.hidBattery('', upowerDevices), -1, 'bluetooth reports no HID battery without an address')
+const trackpadRow = bluetooth.deviceRow({ name: 'Magic Trackpad', address: 'AA:BB:CC:DD:EE:FF', connected: true, batteryAvailable: false }, upowerDevices)
+assert(trackpadRow.batteryAvailable, 'bluetooth shows battery for devices that only report it over HID')
+assertEqual(trackpadRow.battery, 0.03, 'bluetooth uses the HID battery charge for the row')
+assertEqual(
+  bluetooth.deviceRow({ name: 'Headphones', address: 'AA:BB:CC:DD:EE:FF', connected: true, batteryAvailable: true, battery: 1 }, upowerDevices).battery,
+  1,
+  'bluetooth prefers the BlueZ battery when BlueZ reports one'
+)
+
 assertDeepEqual(
   bluetooth.withPendingAction({ a: 'connecting' }, 'b', 'forgetting'),
   { a: 'connecting', b: 'forgetting' },
