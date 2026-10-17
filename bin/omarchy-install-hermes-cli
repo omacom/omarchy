@@ -187,6 +187,30 @@ runtime_ready() {
   [[ -f $runtime/.hermes-bootstrap-complete && -f $runtime/venv/bin/hermes && -x $runtime/venv/bin/hermes && -f $runtime/venv/bin/python && -x $runtime/venv/bin/python ]] &&
     timeout 15 "$runtime/venv/bin/hermes" --version >/dev/null 2>&1
 }
+# A setup that stopped after downloading Hermes leaves a checkout with nothing
+# in it to keep: no command in either layout, no bootstrap marker, and HEAD and
+# main at upstream's main. Left alone it strands the user: this command would
+# refuse it, and the desktop app pins its own first launch to the packaged
+# release only into an empty directory, so it would update the checkout to
+# today's main and set it up with this release's installer, which stops working
+# as upstream moves on. Such a checkout is set up from the packaged release the
+# way an empty directory is. Anything of the user's keeps it refused: a command
+# file however broken, a marker, a commit of their own checked out or on main.
+# A setup still at work there is left to finish: one with a process in the
+# runtime, or one that fetched or checked out within the last minute, as a
+# setup between two of its steps has.
+unfinished_checkout() {
+  local path origin_main main_commit
+  for path in .hermes-bootstrap-complete .hermes/bin/hermes venv/bin/hermes; do
+    [[ ! -e $runtime/$path && ! -L $runtime/$path ]] || return 1
+  done
+  ! busy_in_runtime || return 1
+  [[ -z $(find "$runtime/.git/HEAD" "$runtime/.git/FETCH_HEAD" "$runtime/.git/objects" -maxdepth 1 -mmin -1 -print -quit 2>/dev/null) ]] || return 1
+  origin_main=$(git -C "$runtime" rev-parse --verify --quiet refs/remotes/origin/main) || return 1
+  [[ $runtime_commit == "$origin_main" ]] || return 1
+  main_commit=$(git -C "$runtime" rev-parse --verify --quiet refs/heads/main) || return 0
+  [[ $main_commit == "$release_commit" || $main_commit == "$origin_main" ]]
+}
 
 native_app_complete() {
   [[ -f $native_app/Hermes && -x $native_app/Hermes && -f $native_app/resources/app.asar && -f $native_app/resources/install-stamp.json ]]
@@ -280,6 +304,22 @@ git_busy_in_runtime() {
       return 0
     fi
     if dir=$(git_dir_of "$pid") && [[ $dir == "$real/.git" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Any process of the user's working inside the runtime, a setup installing
+# dependencies say, found by its working directory or as a git by its GIT_DIR.
+busy_in_runtime() {
+  local pid cwd real
+  git_busy_in_runtime && return 0
+  real=$(realpath -e -- "$runtime" 2>/dev/null) || return 1
+  for pid in $(pgrep -u "$(id -u)" 2>/dev/null); do
+    [[ $pid != "$$" ]] || continue
+    cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null) || continue
+    if [[ $cwd == "$real" || $cwd == "$real/"* ]]; then
       return 0
     fi
   done
@@ -418,8 +458,9 @@ elif [[ -e $runtime || -L $runtime ]]; then
   # or modified runtime back to the package release while repairing setup,
   # and a git state that cannot be read is not a clean one.
   refuse_unless_app_whole || exit 1
-  if ! runtime_commit=$(git -C "$runtime" rev-parse HEAD 2>/dev/null) || [[ $runtime_commit != "$release_commit" ]] ||
-    ! changes=$(git -C "$runtime" status --porcelain --untracked-files=all 2>/dev/null) || [[ -n $changes ]]; then
+  if ! runtime_commit=$(git -C "$runtime" rev-parse HEAD 2>/dev/null) ||
+    ! changes=$(git -C "$runtime" status --porcelain --untracked-files=all 2>/dev/null) || [[ -n $changes ]] ||
+    { [[ $runtime_commit != "$release_commit" ]] && ! unfinished_checkout; }; then
     echo "Hermes setup is incomplete at $runtime. Repair that installation before trying again; existing files have been kept." >&2
     exit 1
   fi
