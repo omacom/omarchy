@@ -41,7 +41,8 @@ guard_scripts() {
   node -e '
     const path = require("path")
     const fs = require("fs")
-    const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+    const { requireFromRoot } = require(path.join(process.env.ROOT, "test/shell.d/js-model-loader.js"))
+    const menu = requireFromRoot(process.env.ROOT, "shell/plugins/menu/MenuModel.js")
     const shipped = menu.parseMenuJsonc(fs.readFileSync(path.join(process.env.ROOT, "default/omarchy/omarchy-menu.jsonc"), "utf8"))
     const all = {}
     for (const item of shipped) all[item.id] = item

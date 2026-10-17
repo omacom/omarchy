@@ -56,10 +56,3 @@ function stateForShow(iconName, rawMessage, rawValue, rawMax, rawProgressText, r
   }
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    widestIcon: widestIcon,
-    iconFor: iconFor,
-    stateForShow: stateForShow
-  }
-}

@@ -169,22 +169,3 @@ function pickWindow(windows, workspaceId) {
   }
   return order[0]
 }
-
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    normalizePosition: normalizePosition,
-    isVertical: isVertical,
-    normalizeId: normalizeId,
-    pinnedIds: pinnedIds,
-    isDockWindow: isDockWindow,
-    isMinimizedWorkspace: isMinimizedWorkspace,
-    claimingEntryId: claimingEntryId,
-    buildItems: buildItems,
-    orderItems: orderItems,
-    orderWithKeyAt: orderWithKeyAt,
-    dropIndex: dropIndex,
-    pinsInOrder: pinsInOrder,
-    pickWindow: pickWindow
-  }
-}

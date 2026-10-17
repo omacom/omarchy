@@ -11,10 +11,3 @@ function isNightlight(temperature) {
   return temperature !== null && temperature !== undefined && temperature < IDENTITY_TEMPERATURE
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    IDENTITY_TEMPERATURE: IDENTITY_TEMPERATURE,
-    temperatureFromOutput: temperatureFromOutput,
-    isNightlight: isNightlight
-  }
-}

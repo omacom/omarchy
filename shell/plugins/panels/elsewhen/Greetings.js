@@ -964,15 +964,3 @@ function countryCodes() {
 }
 
 function bandsOf(key) { return LANGUAGES[key].bands }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    greeting: greeting,
-    languageFor: languageFor,
-    countryFor: countryFor,
-    languageKeys: languageKeys,
-    zoneIds: zoneIds,
-    countryCodes: countryCodes,
-    bandsOf: bandsOf
-  }
-}

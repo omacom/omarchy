@@ -24,10 +24,3 @@ function authorizationLabel(message, tr) {
   return match ? t("polkit.authorizeRunning", "Authorize running '%1'").replace("%1", match[1]) : text
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    promptLooksFingerprint: promptLooksFingerprint,
-    fingerprintConfiguredFromPamConfig: fingerprintConfiguredFromPamConfig,
-    authorizationLabel: authorizationLabel
-  }
-}

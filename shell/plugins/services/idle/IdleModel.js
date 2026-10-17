@@ -62,13 +62,3 @@ function screensaverWindowsAfter(windows, address, visible) {
     count: count
   }
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    secondsFromConfig: secondsFromConfig,
-    firstIdleTimeout: firstIdleTimeout,
-    delayAfterFirstIdle: delayAfterFirstIdle,
-    eventParts: eventParts,
-    screensaverWindowsAfter: screensaverWindowsAfter
-  }
-}

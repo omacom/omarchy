@@ -121,14 +121,3 @@ function sortedEntries(values, query, hiddenCallback) {
   return rows
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    entryName: entryName,
-    entrySubtext: entrySubtext,
-    entrySortKey: entrySortKey,
-    entrySearchText: entrySearchText,
-    entryAcronym: entryAcronym,
-    fuzzyScore: fuzzyScore,
-    sortedEntries: sortedEntries
-  }
-}

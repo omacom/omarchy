@@ -614,39 +614,3 @@ function barSizeFor(sizes, screenName, fallback) {
   var size = sizes && Object.prototype.hasOwnProperty.call(sizes, name) ? Number(sizes[name]) : 0
   return size > 0 ? size : fallback
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    barSizeFor: barSizeFor,
-    centerBesideRight: centerBesideRight,
-    cutoutPending: cutoutPending,
-    cutoutTop: cutoutTop,
-    isDrawnSlot: isDrawnSlot,
-    notchFloor: notchFloor,
-    parseCutouts: parseCutouts,
-    pickDrawnSlot: pickDrawnSlot,
-    pickPanelSlot: pickPanelSlot,
-    nearestDropTarget: nearestDropTarget,
-    centerDropTarget: centerDropTarget,
-    centerDropZone: centerDropZone,
-    traySectionDropTarget: traySectionDropTarget,
-    sectionDropZone: sectionDropZone,
-    dropRoom: dropRoom,
-    sectionRows: sectionRows,
-    layoutWidgets: layoutWidgets,
-    fadeShares: fadeShares,
-    roomLengths: roomLengths,
-    moveEntry: moveEntry,
-    navigationRegions: navigationRegions,
-    slotEdge: slotEdge,
-    sections: sections,
-    normalizePosition: normalizePosition,
-    entrySettings: entrySettings,
-    entryId: entryId,
-    moduleString: moduleString,
-    expandPath: expandPath,
-    customModuleSafeName: customModuleSafeName,
-    customModuleType: customModuleType,
-    customModulePath: customModulePath
-  }
-}

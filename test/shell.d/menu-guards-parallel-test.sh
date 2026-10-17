@@ -12,7 +12,8 @@ trap 'rm -rf "$parallel_root"' EXIT
 
 rendezvous_script=$(node -e '
   const path = require("path")
-  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+  const { requireFromRoot } = require(path.join(process.env.ROOT, "test/shell.d/js-model-loader.js"))
+  const menu = requireFromRoot(process.env.ROOT, "shell/plugins/menu/MenuModel.js")
   const meet = (mine, theirs) => `touch "$MEET/${mine}"; for _ in {1..40}; do [[ -e "$MEET/${theirs}" ]] && exit 0; sleep 0.05; done; exit 1`
   process.stdout.write(menu.guardScript({
     a: { id: "a", when: `(${meet("a", "b")})` },
@@ -40,7 +41,8 @@ pass "guard batch runs guards and readers side by side and reports every row onc
 # when it prints only newlines or nothing.
 shape_script=$(node -e '
   const path = require("path")
-  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+  const { requireFromRoot } = require(path.join(process.env.ROOT, "test/shell.d/js-model-loader.js"))
+  const menu = requireFromRoot(process.env.ROOT, "shell/plugins/menu/MenuModel.js")
   process.stdout.write(menu.guardScript({
     shape: { id: "shape", checked: "[[ \"$(omarchy-dns)\" == \"  two  words\"$'"'"'\\n'"'"'\"line\" ]]" },
     blank: { id: "blank", checked: "[[ -z \"$(omarchy-hyprland-corners)\" ]]" }
@@ -59,7 +61,8 @@ pass "a captured reader keeps exactly what \$(...) keeps"
 # arrives before it exits.
 slow_script=$(node -e '
   const path = require("path")
-  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+  const { requireFromRoot } = require(path.join(process.env.ROOT, "test/shell.d/js-model-loader.js"))
+  const menu = requireFromRoot(process.env.ROOT, "shell/plugins/menu/MenuModel.js")
   const items = {}
   for (let i = 0; i < 20; i++) items[`row${i}`] = { id: `row${i}`, when: i === 7 ? "sleep 0.3" : "true" }
   process.stdout.write(menu.guardScript(items))
@@ -74,7 +77,8 @@ pass "guard batch exits only after its slowest group has answered"
 # login shell's `set -u` an unset variable kills the group mid-guard.
 nounset_script=$(node -e '
   const path = require("path")
-  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+  const { requireFromRoot } = require(path.join(process.env.ROOT, "test/shell.d/js-model-loader.js"))
+  const menu = requireFromRoot(process.env.ROOT, "shell/plugins/menu/MenuModel.js")
   const items = {}
   for (let i = 0; i < 20; i++) items[`row${i}`] = { id: `row${i}`, when: i === 3 ? "[[ -n $OMARCHY_TEST_UNSET ]]" : "true" }
   process.stdout.write(menu.guardScript(items))
