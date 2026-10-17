@@ -78,7 +78,8 @@ registers more than one account, the `claude`, `codex`, and `grok` records
 also carry
 `accounts: [{ id, label, email, plan, active, limits, stale, usageStatusText,
 authHelpText }]`, each account probed with its own sign-in (Claude caches each
-account's limits separately; Codex runs one app-server per account home), and
+account's limits separately; Codex runs one app-server per account home and
+keeps each home's last limits, marked stale, when a probe fails), and
 `accountSwitch: { mode, threshold }`. The record's top-level `limits` and
 `tierLabel` keep describing the active account, and local stats stay one set,
 since every account shares the primary home's history. After each run,
