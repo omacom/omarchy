@@ -63,12 +63,24 @@ function screensaverWindowsAfter(windows, address, visible) {
   }
 }
 
+function screensaverWindowsFromToplevels(toplevels, screensaverClass) {
+  var windows = {}
+  for (var i = 0; i < (toplevels || []).length; i++) {
+    var toplevel = toplevels[i]
+    var client = toplevel && toplevel.lastIpcObject ? toplevel.lastIpcObject : {}
+    var address = String(toplevel && (toplevel.address || client.address) || "")
+    if (address && String(client.class || "") === screensaverClass) windows[address] = true
+  }
+  return screensaverWindowsAfter(windows, "", false)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
     firstIdleTimeout: firstIdleTimeout,
     delayAfterFirstIdle: delayAfterFirstIdle,
     eventParts: eventParts,
-    screensaverWindowsAfter: screensaverWindowsAfter
+    screensaverWindowsAfter: screensaverWindowsAfter,
+    screensaverWindowsFromToplevels: screensaverWindowsFromToplevels
   }
 }

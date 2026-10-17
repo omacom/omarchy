@@ -7,6 +7,7 @@ QtObject {
   required property string serviceId
 
   property bool stayAwake: false
+  property int screensaverWindowCount: 0
   property bool enabled: false
   property bool doNotDisturb: false
   property var activePlayer: null
