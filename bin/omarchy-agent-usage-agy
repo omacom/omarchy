@@ -1,0 +1,638 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Antigravity usage record as JSON
+# omarchy:args=[--force] [--limits-only] [--cache-seconds <seconds>]
+# omarchy:hidden=true
+"""Collect Antigravity usage into one display-ready JSON record.
+
+Live subscription tier is resolved via Google Cloud Code Assist endpoint using
+credentials discovered in Secret Service (service=gemini, username=antigravity).
+Token metrics are aggregated across local transcripts touched within 30 days,
+and prompt / session counts are scanned from history.jsonl.
+"""
+
+import argparse
+import glob
+import json
+import os
+import re
+import subprocess
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+AGENT_ID = "agy"
+AGENT_NAME = "Antigravity"
+AUTH_HELP = "Start agy to sign in."
+LOAD_CODE_ASSIST_URL = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
+RETRIEVE_USER_QUOTA_SUMMARY_URL = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"
+DEFAULT_FALLBACK_VERSION = "1.3.5"
+_DETECTED_VERSION = None
+
+
+def get_antigravity_version():
+  global _DETECTED_VERSION
+  if _DETECTED_VERSION:
+    return _DETECTED_VERSION
+  try:
+    proc = subprocess.run(
+      ["agy", "--version"],
+      capture_output=True,
+      text=True,
+      timeout=2,
+    )
+    if proc.returncode == 0 and proc.stdout.strip():
+      raw = proc.stdout.strip().split()[-1]
+      if re.match(r"^\d+(\.\d+)+", raw):
+        _DETECTED_VERSION = raw
+        return _DETECTED_VERSION
+  except Exception:
+    pass
+  _DETECTED_VERSION = DEFAULT_FALLBACK_VERSION
+  return _DETECTED_VERSION
+
+
+def user_agent():
+  return f"antigravity/{get_antigravity_version()}"
+
+
+DEFAULT_CACHE_SECONDS = 20
+
+
+def read_json(path):
+  try:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+  except Exception:
+    return None
+
+
+def write_json(path, payload):
+  path = Path(path)
+  path.parent.mkdir(parents=True, exist_ok=True)
+  fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+  try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+      json.dump(payload, handle)
+    os.replace(tmp, path)
+  except Exception:
+    Path(tmp).unlink(missing_ok=True)
+    raise
+
+
+def cache_root():
+  return Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+
+
+def default_cli_dir():
+  return Path(
+    os.environ.get("ANTIGRAVITY_CLI_HOME")
+    or (Path(os.environ.get("GEMINI_HOME") or (Path.home() / ".gemini")) / "antigravity-cli")
+  )
+
+
+def parse_time(value):
+  if not value:
+    return None
+  raw = str(value).strip().replace("Z", "+00:00")
+  raw = re.sub(r"(\.\d{6})\d+", r"\1", raw)
+  try:
+    parsed = datetime.fromisoformat(raw)
+  except ValueError:
+    return None
+  return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def parse_timestamp(value):
+  if value is None:
+    return None
+  try:
+    secs = float(value)
+    if secs > 10_000_000_000:
+      secs /= 1000.0
+    return datetime.fromtimestamp(secs, tz=timezone.utc).astimezone()
+  except (ValueError, TypeError):
+    return parse_time(value)
+
+
+def canonical_model_id(name):
+  if not name:
+    return "gemini-3.8-flash"
+  cleaned = re.sub(r"\s*\([^)]*\)", "", str(name)).strip()
+  if not cleaned:
+    return "gemini-3.8-flash"
+  model_id = re.sub(r"[\s_]+", "-", cleaned.lower())
+  model_id = re.sub(r"-+", "-", model_id).strip("-")
+  return model_id or "gemini-3.8-flash"
+
+
+def get_secret_credentials():
+  try:
+    proc = subprocess.run(
+      ["secret-tool", "lookup", "service", "gemini", "username", "antigravity"],
+      capture_output=True,
+      text=True,
+      timeout=5,
+    )
+    if proc.returncode != 0 or not proc.stdout.strip():
+      return None
+    raw = proc.stdout.strip()
+    try:
+      data = json.loads(raw)
+    except Exception:
+      return {"access_token": raw, "expiry": None}
+
+    if isinstance(data, dict):
+      token_obj = data.get("token")
+      if isinstance(token_obj, dict):
+        return {
+          "access_token": token_obj.get("access_token"),
+          "expiry": token_obj.get("expiry"),
+          "refresh_token": token_obj.get("refresh_token"),
+        }
+      elif isinstance(token_obj, str):
+        return {"access_token": token_obj, "expiry": data.get("expiry")}
+      elif "access_token" in data:
+        return {
+          "access_token": data.get("access_token"),
+          "expiry": data.get("expiry"),
+          "refresh_token": data.get("refresh_token"),
+        }
+    return None
+  except Exception:
+    return None
+
+
+def normalize_tier_label(tier_id, tier_name):
+  tier_id_norm = str(tier_id or "").lower()
+  tier_name_raw = str(tier_name or "")
+  if tier_id_norm in ("standard-tier", "g1-pro-tier") or tier_name_raw in ("Gemini Code Assist", "Google AI Pro"):
+    return "Google AI Pro"
+  if tier_id_norm in ("g1-ultra-tier", "ultra-tier") or "ultra" in tier_name_raw.lower():
+    return "Google AI Ultra"
+  if tier_id_norm in ("free-tier",) or tier_name_raw.lower() in ("free", "gemini free"):
+    return "Free"
+  return tier_name_raw or "Google AI Pro"
+
+
+def fetch_quota_summary(token, project=None, timeout=6):
+  headers = {
+    "Authorization": f"Bearer {token}",
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "User-Agent": user_agent(),
+  }
+  body = {"project": project} if project else {}
+  req = urllib.request.Request(
+    RETRIEVE_USER_QUOTA_SUMMARY_URL,
+    data=json.dumps(body).encode("utf-8"),
+    headers=headers,
+  )
+  try:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+      return json.loads(resp.read().decode("utf-8"))
+  except Exception:
+    return None
+
+
+def format_limit_entry(label, title, percent, resets_at):
+  return {
+    "label": label,
+    "title": title,
+    "percent": round(percent, 4),
+    "resetsAt": resets_at,
+  }
+
+
+def parse_quota_summary(payload):
+  if not isinstance(payload, dict):
+    return []
+  groups = payload.get("groups") or []
+  if not groups:
+    raw_buckets = payload.get("buckets") or []
+    if raw_buckets:
+      groups = [{"displayName": "Gemini Models", "buckets": raw_buckets}]
+
+  primary_session = []
+  primary_weekly = []
+  scoped_limits = []
+
+  for group in groups:
+    if not isinstance(group, dict):
+      continue
+    group_name = str(group.get("displayName") or "").strip()
+    is_primary = "gemini" in group_name.lower() or not group_name
+
+    for bucket in group.get("buckets") or []:
+      if not isinstance(bucket, dict):
+        continue
+      window = str(bucket.get("window") or "").lower()
+      remaining_fraction = bucket.get("remainingFraction") if "remainingFraction" in bucket else bucket.get("remaining_fraction")
+      if remaining_fraction is not None:
+        try:
+          percent = max(0.0, min(1.0, 1.0 - float(remaining_fraction)))
+        except (ValueError, TypeError):
+          percent = 0.0
+      else:
+        percent = 0.0
+
+      resets = parse_time(bucket.get("resetTime") or bucket.get("reset_time"))
+      resets_iso = resets.isoformat() if resets else ""
+      is_session = "5h" in window or "session" in window or "hour" in window
+
+      if is_primary:
+        if is_session:
+          primary_session.append(format_limit_entry("Session (5-hour)", "Session", percent, resets_iso))
+        else:
+          primary_weekly.append(format_limit_entry("Weekly (7-day)", "Weekly", percent, resets_iso))
+      else:
+        prefix = "Claude/GPT" if ("claude" in group_name.lower() or "gpt" in group_name.lower()) else group_name
+        if is_session:
+          scoped_limits.append(format_limit_entry(f"{prefix} (5-hour)", f"{prefix} Session", percent, resets_iso))
+        else:
+          scoped_limits.append(format_limit_entry(f"{prefix} (7-day)", f"{prefix} Weekly", percent, resets_iso))
+
+  return primary_session + primary_weekly + scoped_limits
+
+
+def format_limits_payload(tier_label="", limits=None, usage_status="", auth_help="", live=False, fetched_at_ms=0):
+  return {
+    "tierLabel": tier_label,
+    "limits": limits if limits is not None else [],
+    "usageStatusText": usage_status,
+    "authHelpText": auth_help,
+    "live": live,
+    "fetchedAtMs": fetched_at_ms,
+  }
+
+
+def collect_limits(token, force, cache_seconds):
+  cache = cache_root() / "agy-limits.json"
+  cached = read_json(cache) or {}
+  fetched_at = float(cached.get("fetchedAtMs") or 0)
+
+  if not force and cached.get("tierLabel") and (time.time() - fetched_at / 1000.0 < cache_seconds):
+    return format_limits_payload(
+      tier_label=cached.get("tierLabel", ""),
+      limits=cached.get("limits", []),
+      usage_status=cached.get("usageStatusText", ""),
+      auth_help=cached.get("authHelpText", ""),
+      live=True,
+      fetched_at_ms=fetched_at,
+    )
+
+  # Probe CloudCode loadCodeAssist endpoint with OAuth bearer token
+  headers = {
+    "Authorization": f"Bearer {token}",
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "User-Agent": user_agent(),
+  }
+  req = urllib.request.Request(LOAD_CODE_ASSIST_URL, data=b"{}", headers=headers)
+  try:
+    with urllib.request.urlopen(req, timeout=8) as resp:
+      payload = json.loads(resp.read().decode("utf-8"))
+      allowed = payload.get("allowedTiers") or []
+      tier_obj = (
+        payload.get("paidTier")
+        or payload.get("currentTier")
+        or (allowed[0] if allowed and isinstance(allowed[0], dict) else {})
+      )
+      tier_label = normalize_tier_label(tier_obj.get("id"), tier_obj.get("name"))
+      limits = []
+
+      # First attempt detailed quota summary from retrieveUserQuotaSummary
+      project_id = payload.get("cloudaicompanionProject") or tier_obj.get("cloudaicompanionProject")
+      quota_payload = fetch_quota_summary(token, project=project_id)
+      if quota_payload:
+        limits = parse_quota_summary(quota_payload)
+
+      # Fallback to loadCodeAssist limits if retrieveUserQuotaSummary was empty or unavailable
+      if not limits:
+        raw_limits = payload.get("limits") or tier_obj.get("limits") or []
+        for item in raw_limits:
+          if isinstance(item, dict):
+            pct = float(item.get("percentage") or item.get("percent") or 0.0)
+            if pct > 1.0:
+              pct /= 100.0
+            pct = max(0.0, min(1.0, pct))
+            resets = parse_time(item.get("resetsAt") or item.get("resetTime") or item.get("reset_time"))
+            limits.append({
+              "label": str(item.get("label") or "Usage"),
+              "percent": pct,
+              "resetsAt": resets.isoformat() if resets else "",
+            })
+
+      if not limits and cached.get("limits"):
+        limits = cached.get("limits")
+      fetched_ms = round(time.time() * 1000)
+      payload_data = format_limits_payload(
+        tier_label=tier_label,
+        limits=limits,
+        usage_status="",
+        auth_help="",
+        live=True,
+        fetched_at_ms=fetched_ms,
+      )
+      write_json(cache, payload_data)
+      return payload_data
+  except urllib.error.HTTPError as err:
+    if err.code in (401, 403):
+      return format_limits_payload(
+        usage_status="Waiting for auth",
+        auth_help=AUTH_HELP,
+        fetched_at_ms=fetched_at,
+      )
+  except Exception:
+    pass
+
+  if cached.get("tierLabel"):
+    return format_limits_payload(
+      tier_label=cached.get("tierLabel", ""),
+      limits=cached.get("limits", []),
+      usage_status=cached.get("usageStatusText", ""),
+      auth_help=cached.get("authHelpText", ""),
+      live=False,
+      fetched_at_ms=fetched_at,
+    )
+  return format_limits_payload(
+    usage_status="Antigravity limits unavailable",
+    auth_help=AUTH_HELP,
+    fetched_at_ms=fetched_at,
+  )
+
+
+def find_transcript_files(cli_dir, since_dt=None):
+  brain_dir = Path(cli_dir) / "brain"
+  if not brain_dir.is_dir():
+    return []
+  cutoff = since_dt.timestamp() if since_dt else None
+  files = []
+  for p in glob.glob(str(brain_dir / "*" / ".system_generated" / "logs" / "transcript.jsonl")):
+    try:
+      if cutoff is None or os.path.getmtime(p) >= cutoff:
+        files.append(p)
+    except OSError:
+      pass
+  return files
+
+
+def get_current_mtimes(cli_dir, since_dt=None):
+  mtimes = {}
+  history_file = Path(cli_dir) / "history.jsonl"
+  if history_file.is_file():
+    mtimes[str(history_file)] = history_file.stat().st_mtime
+  for t in find_transcript_files(cli_dir, since_dt=since_dt):
+    try:
+      mtimes[str(t)] = os.path.getmtime(t)
+    except OSError:
+      pass
+  return mtimes
+
+
+def local_stats(cli_dir):
+  now = datetime.now().astimezone()
+  today = now.date().isoformat()
+  week = [(now.date() - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+  cutoff = now - timedelta(days=30)
+  cutoff_ts = cutoff.timestamp()
+
+  by_day = {day: 0 for day in week}
+  today_by_model = {}
+  models = {}
+  days = set()
+  today_tokens = 0
+
+  # 1. Scan transcripts touched within 30 days
+  transcript_files = find_transcript_files(cli_dir, cutoff)
+  transcript_turns_today = 0
+  transcript_turns_total = 0
+  transcript_sessions_today = set()
+
+  for path in transcript_files:
+    path = Path(path)
+    try:
+      stat = path.stat()
+    except OSError:
+      continue
+    if stat.st_mtime < cutoff_ts:
+      continue
+
+    parts = path.parts
+    try:
+      brain_idx = parts.index("brain")
+      session_id = parts[brain_idx + 1]
+    except (ValueError, IndexError):
+      session_id = path.parent.parent.name if path.parent.name == "logs" else path.parent.name
+    current_model = "gemini-3.8-flash"
+    try:
+      with path.open("r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+          line = line.strip()
+          if not line:
+            continue
+          try:
+            entry = json.loads(line)
+          except Exception:
+            continue
+
+          content = str(entry.get("content") or "")
+          if "Model Selection" in content:
+            m = re.search(r"Model Selection\` (?:from \S+ )?to (.*?)\.(?:\s+No need|$|\n|\r|<)", content)
+            if m:
+              current_model = canonical_model_id(m.group(1))
+
+          raw_model = entry.get("model") or entry.get("model_name") or entry.get("model_id")
+          model = canonical_model_id(raw_model) if raw_model else current_model
+
+          in_tok = int(entry.get("input_tokens") or entry.get("inputTokens") or 0)
+          out_tok = int(entry.get("output_tokens") or entry.get("outputTokens") or 0)
+          cache_rd = int(entry.get("cache_read_tokens") or entry.get("cacheReadTokens") or entry.get("cacheReadInputTokens") or 0)
+          cache_wr = int(entry.get("cache_write_tokens") or entry.get("cacheCreationTokens") or entry.get("cacheCreationInputTokens") or 0)
+          total = in_tok + out_tok + cache_rd + cache_wr
+
+          raw_time = entry.get("created_at") or entry.get("timestamp")
+          dt_line = parse_time(raw_time) or parse_timestamp(raw_time) if raw_time else None
+          if dt_line:
+            if dt_line < cutoff:
+              continue
+            day = dt_line.astimezone().date().isoformat()
+          else:
+            day = today
+
+          transcript_turns_total += 1
+          if day == today:
+            transcript_turns_today += 1
+            transcript_sessions_today.add(session_id)
+
+          if total <= 0:
+            continue
+
+          days.add(day)
+          bucket = models.setdefault(model, {
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0,
+          })
+          bucket["inputTokens"] += in_tok
+          bucket["outputTokens"] += out_tok
+          bucket["cacheReadInputTokens"] += cache_rd
+          bucket["cacheCreationInputTokens"] += cache_wr
+
+          if day in by_day:
+            by_day[day] += total
+          if day == today:
+            today_tokens += total
+            today_by_model[model] = today_by_model.get(model, 0) + total
+    except OSError:
+      continue
+
+  # 2. Scan history.jsonl
+  history_file = Path(cli_dir) / "history.jsonl"
+  history_prompts_total = 0
+  history_prompts_today = 0
+  history_sessions_total = set()
+  history_sessions_today = set()
+
+  if history_file.is_file():
+    try:
+      with history_file.open("r", encoding="utf-8", errors="replace") as handle:
+        for idx, line in enumerate(handle):
+          line = line.strip()
+          if not line:
+            continue
+          try:
+            entry = json.loads(line)
+          except Exception:
+            continue
+
+          ts = parse_timestamp(entry.get("timestamp"))
+          conv_id = str(entry.get("conversationId") or entry.get("sessionId") or entry.get("workspace") or idx)
+          if ts and ts < cutoff:
+            continue
+
+          history_prompts_total += 1
+          history_sessions_total.add(conv_id)
+          if (ts and ts.date().isoformat() == today) or ts is None:
+            history_prompts_today += 1
+            history_sessions_today.add(conv_id)
+    except OSError:
+      pass
+
+  if history_prompts_total > 0:
+    today_prompts = history_prompts_today
+    today_sessions = len(history_sessions_today)
+    total_prompts = history_prompts_total
+    total_sessions = len(history_sessions_total)
+  else:
+    today_prompts = transcript_turns_today
+    today_sessions = len(transcript_sessions_today)
+    total_prompts = transcript_turns_total
+    total_sessions = len(transcript_files)
+
+  has_stats = (total_prompts > 0) or (len(days) > 0) or (total_sessions > 0)
+
+  return {
+    "hasLocalStats": has_stats,
+    "todayPrompts": today_prompts,
+    "todaySessions": today_sessions,
+    "todayTotalTokens": today_tokens,
+    "todayTokensByModel": today_by_model,
+    "recentDays": [{"date": day, "messageCount": by_day[day]} for day in week],
+    "totalPrompts": total_prompts,
+    "totalSessions": total_sessions,
+    "activeDays": len(days),
+    "activeDates": sorted(days),
+    "modelUsage": models,
+  }
+
+
+def cached_local_stats(cli_dir, force, limits_only):
+  cache = cache_root() / "agy-stats.json"
+  cached = read_json(cache) or {}
+  now = datetime.now().astimezone()
+  today = now.date().isoformat()
+  cutoff = now - timedelta(days=30)
+
+  if not force and cached.get("day") == today:
+    if limits_only:
+      return cached.get("stats") or {}
+    cached_mtimes = cached.get("mtimes")
+    if isinstance(cached_mtimes, dict):
+      current_mtimes = get_current_mtimes(cli_dir, since_dt=cutoff)
+      if current_mtimes == cached_mtimes:
+        return cached.get("stats") or {}
+
+  stats = local_stats(cli_dir)
+  write_json(cache, {
+    "day": today,
+    "at": time.time(),
+    "mtimes": get_current_mtimes(cli_dir, since_dt=cutoff),
+    "stats": stats,
+  })
+  return stats
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Print Antigravity usage record as JSON")
+  parser.add_argument("--force", action="store_true", help="Bypass all caches")
+  parser.add_argument("--limits-only", action="store_true", help="Reuse cached local stats if available")
+  parser.add_argument("--cache-seconds", type=float, default=DEFAULT_CACHE_SECONDS, help="Cache TTL for limits probe")
+  args = parser.parse_args()
+
+  cli_dir = default_cli_dir()
+  creds = get_secret_credentials()
+
+  ready = False
+  tier_label = ""
+  usage_status_text = ""
+  auth_help_text = AUTH_HELP
+  limits = []
+  limits_stale = True
+  limits_fetched_at = 0
+
+  if creds and creds.get("access_token"):
+    token = creds["access_token"]
+    expiry = creds.get("expiry")
+    expired = False
+    if expiry:
+      exp_dt = parse_time(expiry)
+      if exp_dt and exp_dt.timestamp() <= time.time():
+        expired = True
+
+    if expired:
+      usage_status_text = "Waiting for auth"
+    else:
+      limits_info = collect_limits(token, args.force, args.cache_seconds)
+      tier_label = limits_info["tierLabel"]
+      limits = limits_info["limits"]
+      usage_status_text = limits_info["usageStatusText"]
+      auth_help_text = limits_info["authHelpText"]
+      limits_stale = not limits_info["live"]
+      limits_fetched_at = limits_info["fetchedAtMs"]
+      if limits_info["live"] or tier_label:
+        ready = True
+  else:
+    usage_status_text = "Waiting for auth"
+
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": ready,
+    "tierLabel": tier_label,
+    "usageStatusText": usage_status_text,
+    "authHelpText": auth_help_text,
+    "limits": limits,
+    "limitsStale": limits_stale,
+    "limitsFetchedAt": limits_fetched_at,
+  }
+  record.update(cached_local_stats(cli_dir, args.force, args.limits_only))
+  print(json.dumps(record, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()

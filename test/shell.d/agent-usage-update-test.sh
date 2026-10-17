@@ -15,6 +15,11 @@ cat >"$FAKE_OMARCHY/bin/omarchy-agent-usage-good" <<'EOF'
 echo '{"schemaVersion":1,"id":"good","name":"Good Agent","totalPrompts":3}'
 EOF
 
+cat >"$FAKE_OMARCHY/bin/omarchy-agent-usage-agy" <<'EOF'
+#!/bin/bash
+echo '{"schemaVersion":1,"id":"agy","name":"Antigravity","totalPrompts":10}'
+EOF
+
 cat >"$FAKE_OMARCHY/bin/omarchy-agent-usage-noisy" <<'EOF'
 #!/bin/bash
 echo "this is not json"
@@ -42,6 +47,10 @@ pass "update reports a failing collector"
 [[ $(jq -r '.name' "$usage_dir/good.json") == "Good Agent" ]] ||
   fail "update writes each collector's record to the usage directory"
 pass "update writes each collector's record to the usage directory"
+
+[[ $(jq -r '.name' "$usage_dir/agy.json") == "Antigravity" ]] ||
+  fail "update discovers and executes the agy collector when present"
+pass "update discovers and executes the agy collector when present"
 
 [[ ! -e $usage_dir/noisy.json ]] ||
   fail "update refuses records that are not valid JSON"
