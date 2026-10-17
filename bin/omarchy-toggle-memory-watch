@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle the memory watchdog that warns before systemd-oomd kills an app
+# omarchy:args=[toggle|on|off]
+# omarchy:examples=omarchy toggle memory-watch | omarchy toggle memory-watch off
+
+# Off by default: it pauses processes on its own when memory runs short, and
+# every toast it sends is critical, so that is the user's call to make.
+
+# nf-md-memory, escaped so this file reads without a Nerd Font.
+readonly MEMORY_GLYPH=$'\U000f035b'
+
+unit_name=omarchy-memory-watch.service
+unit="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$unit_name"
+unit_source="$OMARCHY_PATH/default/systemd/user/$unit_name"
+
+omarchy-toggle memory-watch-on "${1:-toggle}" || exit 1
+
+# The toggle installs the unit into ~/.config/systemd/user, copied each time
+# it is turned on, so a changed unit is only picked up by turning it off and
+# on again. The unit also checks the flag with ConditionPathExists, so a copy
+# enabled without the flag, or one a package put in /usr/lib/systemd/user,
+# stays inert.
+if omarchy-toggle-enabled memory-watch-on; then
+  # A unit whose condition fails starts nothing and still reports success, so
+  # it only counts as on once it is running.
+  if install -Dm644 "$unit_source" "$unit" && systemctl --user daemon-reload &&
+    systemctl --user enable --now "$unit_name" && systemctl --user is-active --quiet "$unit_name"; then
+    omarchy-notification-send -g "$MEMORY_GLYPH" "$(omarchy-i18n memory.watchdogEnabled)"
+  else
+    # A flag left on would say memory is watched while nothing watches it.
+    omarchy-toggle memory-watch-on off
+    systemctl --user disable --now "$unit_name"
+    rm -f "$unit"
+    systemctl --user daemon-reload
+    omarchy-notification-send -u critical -g "$MEMORY_GLYPH" "$(omarchy-i18n memory.watchdogFailed)" \
+      "$(omarchy-i18n memory.seeCommand "journalctl --user -u $unit_name")"
+    exit 1
+  fi
+else
+  stop_failed=0
+  resume_failed=0
+  systemctl --user disable --now "$unit_name" || stop_failed=1
+  # Nothing would be left to say what it paused, or to resume it. Resumed even
+  # when the stop failed: what is paused is paused either way.
+  omarchy-memory-resume >/dev/null || resume_failed=1
+  if (( stop_failed || resume_failed )); then
+    # Said rather than passed off as off: a watcher still running keeps
+    # pausing, and a group still stopped is the user's work. The unit stays
+    # in place so `off` again can stop it; the flag is already off, so it
+    # never starts again on its own.
+    if (( stop_failed )); then
+      omarchy-notification-send -u critical -g "$MEMORY_GLYPH" "$(omarchy-i18n memory.watchdogNotStopped)" \
+        "$(omarchy-i18n memory.retryWith "omarchy toggle memory-watch off")"
+    else
+      omarchy-notification-send -u critical -g "$MEMORY_GLYPH" "$(omarchy-i18n memory.watchdogLeftPaused)" \
+        "$(omarchy-i18n memory.retryWith "omarchy memory resume")"
+    fi
+    exit 1
+  fi
+  rm -f "$unit"
+  systemctl --user daemon-reload
+  omarchy-notification-send -g "$MEMORY_GLYPH" "$(omarchy-i18n memory.watchdogDisabled)"
+fi

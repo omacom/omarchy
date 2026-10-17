@@ -264,6 +264,9 @@
   "trigger.toggle.crash-capture": {
     "label": "Crash Capture"
   },
+  "trigger.toggle.memory-watch": {
+    "label": "Memory Watchdog"
+  },
   "trigger.emoji": {
     "label": "Emoji"
   },

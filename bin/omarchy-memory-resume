@@ -1,0 +1,113 @@
+#!/bin/bash
+
+# omarchy:summary=Resume process groups the memory brake paused
+# omarchy:args=[name-regex]
+# omarchy:examples=omarchy memory resume | omarchy memory resume clang
+
+# frozen.tsv has one line per pause: time, who paused it (brake), key,
+# total_mb, name, pids, and the pids' start times. A pid only gets
+# SIGCONT while it still has the start time recorded for it, so a process
+# that has since exited and had its pid reused is left alone. The file is
+# rewritten under frozen.lock, which everything that writes it takes. A line
+# without all seven fields, or with a pid short of its start time, is dropped
+# with a message.
+#
+# What is resumed goes into resumed.tsv with the time, and the brake leaves it
+# alone for a while (OMARCHY_MEMORY_RESUME_HOLDOFF in omarchy-memory-watch,
+# five minutes by default), so its work can be saved even while memory is
+# still short.
+#
+# A job paused in a terminal with Ctrl+Z is not here; `fg` in that terminal
+# brings it back.
+
+set -uo pipefail
+
+state=$HOME/.local/state/omarchy/memory-watch
+frozen=$state/frozen.tsv
+resumed=$state/resumed.tsv
+
+start_time() {
+  local stat
+  { stat=$(<"/proc/$1/stat"); } 2>/dev/null || return 1
+  stat=${stat##*) }
+  read -ra stat <<<"$stat"
+  echo "${stat[19]}"
+}
+
+if [[ ! -s $frozen ]]; then
+  echo "Nothing is paused"
+  exit 0
+fi
+
+status=0
+exec 9>"$state/frozen.lock"
+flock -w 10 9 || {
+  echo "frozen.tsv is busy; try again" >&2
+  exit 1
+}
+
+kept=$(mktemp "$frozen.XXXXXX")
+copied=1
+# A line that cannot be copied keeps the old file in place: with the disk
+# full, a copy that lost lines would lose the pauses they record. The copy is
+# dropped, but every match is still resumed, since that is what was asked;
+# the lines of what was resumed stay until the watcher can prune them, and
+# the exit status says the list was not rewritten.
+copy_failed() {
+  rm -f "$kept"
+  copied=0
+  echo "Could not rewrite frozen.tsv; its lines stay until the watchdog prunes them" >&2
+  status=1
+}
+keep_line() {
+  if ((copied)) && ! printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$@" >>"$kept" 2>/dev/null; then
+    copy_failed
+  fi
+}
+# The same check as the watcher's: seven fields, a start time for every pid.
+valid_record() {
+  local fields pids starts
+  IFS=$'\t' read -ra fields <<<"$1"
+  ((${#fields[@]} == 7)) || return 1
+  [[ ${fields[5]} =~ ^[0-9]+(,[0-9]+)*$ && ${fields[6]} =~ ^[0-9]+(,[0-9]+)*$ ]] || return 1
+  IFS=, read -ra pids <<<"${fields[5]}"
+  IFS=, read -ra starts <<<"${fields[6]}"
+  ((${#pids[@]} == ${#starts[@]}))
+}
+
+# The last line counts even without its newline.
+while IFS= read -r line || [[ -n $line ]]; do
+  if ! valid_record "$line"; then
+    echo "Skipped a malformed line in frozen.tsv: $line" >&2
+    continue
+  fi
+  IFS=$'\t' read -r paused_at source key mb name pids starts <<<"$line"
+  if [[ -z ${1:-} || $name =~ $1 ]]; then
+    IFS=, read -ra pid_list <<<"$pids"
+    IFS=, read -ra start_list <<<"$starts"
+    # The hold-off goes down before the SIGCONT, so the brake can never see
+    # the group running without it. If it cannot be written (the disk full),
+    # the group is still resumed, since that is what was asked, but the
+    # failure is said and carried in the exit status rather than passed off
+    # as the promised hold-off.
+    held_off=1
+    printf '%s\t%s\n' "$EPOCHSECONDS" "$key" >>"$resumed" 2>/dev/null || held_off=0
+    resumed_count=0
+    for i in "${!pid_list[@]}"; do
+      if [[ -n ${start_list[i]:-} && $(start_time "${pid_list[i]}") == "${start_list[i]}" ]] && kill -CONT "${pid_list[i]}" 2>/dev/null; then
+        ((resumed_count++))
+      fi
+    done
+    echo "Resumed $name (${mb}M, $resumed_count of ${#pid_list[@]} processes still there, paused by $source at $paused_at)"
+    if (( ! held_off )); then
+      echo "Could not record a hold-off for $name; the brake may pause it again while memory stays short" >&2
+      status=1
+    fi
+  else
+    keep_line "$paused_at" "$source" "$key" "$mb" "$name" "$pids" "$starts"
+  fi
+done <"$frozen"
+if ((copied)) && ! mv "$kept" "$frozen" 2>/dev/null; then
+  copy_failed
+fi
+exit "$status"

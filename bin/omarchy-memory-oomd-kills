@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# omarchy:summary=Name what systemd-oomd killed, as it happens
+# omarchy:hidden=true
+
+# Started by omarchy-memory-watch. When oomd kills a scope, the user manager
+# logs it to the user journal, which is always readable, under systemd's
+# "systemd-oomd killed processes in unit" message id. Why oomd picked it (swap
+# or pressure) is only in the system journal, which a user may not be allowed
+# to read; the toast says so then rather than guessing.
+#
+# The scope is gone by the time this runs, so the app is named from what the
+# watcher last saw in it (last-top.json), falling back to the scope's name.
+
+set -uo pipefail
+
+readonly OOMD_KILL_ID=d989611b15e44c9dbf31e3c81256e4ed
+readonly LAST_TOP=$HOME/.local/state/omarchy/memory-watch/last-top.json
+readonly LOG=$HOME/.local/state/omarchy/memory-watch/watch.log
+# nf-md-memory, escaped so this file reads without a Nerd Font.
+readonly MEMORY_GLYPH=$'\U000f035b'
+
+# app-Hyprland-org.chromium.Chromium@3f2a.scope -> org.chromium.Chromium
+# app-Hyprland-my\x2dapp-1a2b3c.scope -> my-app
+# The random suffix goes before unescaping, while a dash inside the app's own
+# name is still \x2d and can't be mistaken for the separator.
+scope_name() {
+  local name=${1%.scope}
+  name=${name%.service}
+  name=${name%@*}
+  name=${name#app-}
+  name=${name#Hyprland-}
+  [[ $name =~ ^(.+)-[0-9a-f]+$ ]] && name=${BASH_REMATCH[1]}
+  systemd-escape --unescape -- "$name" 2>/dev/null || echo "$name"
+}
+
+# The leader and size of the largest group the watcher last saw in the unit,
+# tab-separated, or the scope's name alone.
+app_name() {
+  local unit=$1 name
+  name=$(jq -r --arg unit "$unit" \
+    '[.[] | select(.unit == $unit)] | max_by(.total_mb) // empty | "\(.leader)\t\(.total_mb)"' \
+    "$LAST_TOP" 2>/dev/null)
+  echo "${name:-$(scope_name "$unit")}"
+}
+
+# oomd's own line on the kill, in the system journal.
+oomd_line() {
+  local pattern
+  pattern=$(sed 's/[][\.*^$+?(){}|]/\\&/g' <<<"$1")
+  journalctl --quiet --no-pager --output=cat --since=-5min \
+    --unit=systemd-oomd.service --grep="$pattern" 2>/dev/null | tail -n 1
+}
+
+# Why oomd picked the unit, as a sentence, from oomd's line.
+reason() {
+  case $1 in
+  *"memory pressure"*) omarchy-i18n memory.oomdWhyPressure ;;
+  *"swap used"*) omarchy-i18n memory.oomdWhySwap ;;
+  # Not readable as this user, or not logged yet.
+  *) omarchy-i18n memory.oomdWhyUnknown "sudo journalctl -u systemd-oomd" ;;
+  esac
+}
+
+journalctl --user --follow --lines=0 --output=json "MESSAGE_ID=$OOMD_KILL_ID" 2>/dev/null |
+  while read -r entry; do
+    unit=$(jq -r '.USER_UNIT // .UNIT // empty' <<<"$entry" 2>/dev/null)
+    [[ -n $unit ]] || continue
+    count=$(jq -r '.N_PROCESSES // empty' <<<"$entry" 2>/dev/null)
+    IFS=$'\t' read -r name mb <<<"$(app_name "$unit")"
+    line=$(oomd_line "$unit")
+    # The log is for diagnosing, so it stays in English whatever the language.
+    printf '%s oomd killed %s: %s processes in %s. %s\n' "$(date '+%F %T')" "$name${mb:+ (${mb}M)}" \
+      "${count:-some}" "$unit" "$(OMARCHY_LANGUAGE_FILE=/dev/null reason "$line")" >>"$LOG"
+    if [[ -n $mb ]]; then
+      title=$(omarchy-i18n memory.oomdKilledSized "$name" "$mb")
+    else
+      title=$(omarchy-i18n memory.oomdKilled "$name")
+    fi
+    if [[ $count =~ ^[0-9]+$ ]]; then
+      body=$(omarchy-i18n memory.oomdKilledProcesses "$count" "$unit" "$(reason "$line")")
+    else
+      body=$(omarchy-i18n memory.oomdKilledSomeProcesses "$unit" "$(reason "$line")")
+    fi
+    omarchy-notification-send --urgency critical --glyph "$MEMORY_GLYPH" "$title" "$body" >/dev/null 2>&1
+  done

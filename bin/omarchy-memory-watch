@@ -1,0 +1,451 @@
+#!/bin/bash
+
+# omarchy:summary=Watch memory pressure; warn before systemd-oomd kills an app, and pause the runaway first
+# omarchy:hidden=true
+
+# systemd-oomd only kills scopes under app.slice
+# (default/systemd/user/app.slice.d/10-oomd.conf), and always a whole scope:
+# a terminal takes every shell and build in it along. It acts on one of two
+# lines: RAM and swap both more than 90% used (SwapUsedLimit), or app.slice
+# stalled on memory for half the time, held for 20s
+# (etc/systemd/oomd.conf.d/10-omarchy.conf). It cannot kill the compositor or
+# anything else in session.slice, which it does not look at, so a runaway
+# there, such as one Hyprland started itself, carries on while oomd takes
+# innocent apps. Neither line is visible from the desktop, so the first sign
+# is a window gone. This samples the same numbers oomd reads:
+#
+#   warn   swap 50% used with RAM 80% used, RAM 90% used with a 20% stall,
+#          or a 25% stall at any RAM use (oomd's stall line has no RAM
+#          condition), about halfway to oomd's lines and held for two samples
+#          so one spike raises nothing: a critical toast naming the largest
+#          process group, while there is still time to close it, at most once
+#          every five minutes. Never swap alone: zram is sized to RAM, so half
+#          of it in use is routine while RAM is fine.
+#   brake  swap 75% used with RAM 85% used, short of oomd's 90% and 90%, or
+#          RAM 97% used with a 40% stall, on one sample; or a 40% stall at any
+#          RAM use held for three samples (6s), short of oomd's 50% held for
+#          20s: SIGSTOP the largest process group with nothing protected in
+#          it, or the largest unprotected process tree inside one that has
+#          (omarchy-memory-top --pick), wherever it runs, then whatever it
+#          forked since the pick. Paused, not killed; omarchy-memory-resume
+#          undoes it, and the brake leaves what it resumed alone for five
+#          minutes so its work can be saved. Swap alone never brakes: zram is
+#          sized to RAM, so half of it in use is routine while RAM is fine,
+#          and a pause frees no swap. One pause at a time: while something the
+#          brake paused is still stopped, it does not pause anything else.
+#          With nothing it may pause, it looks again a minute later.
+#   kills  after oomd kills, a toast naming what it took (omarchy-memory-oomd-kills).
+#
+# Thresholds are environment variables; change them with a drop-in from
+# `systemctl --user edit omarchy-memory-watch`. So is OMARCHY_MEMORY_PROTECT,
+# a regex on process names the brake never pauses (see omarchy-memory-top).
+
+set -uo pipefail
+
+readonly STATE=$HOME/.local/state/omarchy/memory-watch
+readonly LOG=$STATE/watch.log
+# What memory looked like when it was last tight, so a kill can be named after
+# the process is gone.
+readonly LAST_TOP=$STATE/last-top.json
+# What is paused, one line per pause (see omarchy-memory-resume):
+#   time source key total_mb name pids starts
+# source is always brake here; the column is kept so other tools can add
+# their own pauses later. Written under FROZEN_LOCK.
+readonly FROZEN=$STATE/frozen.tsv
+readonly FROZEN_LOCK=$STATE/frozen.lock
+# What omarchy-memory-resume let go of, one "epoch<TAB>key" line each, so the
+# brake leaves it alone for resume_holdoff seconds. Written under FROZEN_LOCK.
+readonly RESUMED=$STATE/resumed.tsv
+readonly PICK_ERR=$STATE/pick.err
+# nf-md-memory, escaped so this file reads without a Nerd Font.
+readonly MEMORY_GLYPH=$'\U000f035b'
+
+# Overridable so the tests can feed the watcher numbers.
+meminfo=${OMARCHY_MEMORY_MEMINFO:-/proc/meminfo}
+pressure=${OMARCHY_MEMORY_PRESSURE:-/proc/pressure/memory}
+proc=${OMARCHY_MEMORY_PROC:-/proc} # where the paused processes' state is read
+# oomd's pressure line is app.slice's own stall, which can run ahead of the
+# system's, so the higher of the two counts.
+app_pressure=${OMARCHY_MEMORY_APP_PRESSURE:-/sys/fs/cgroup/user.slice/user-$UID.slice/user@$UID.service/app.slice/memory.pressure}
+
+interval=${OMARCHY_MEMORY_INTERVAL:-2}
+warn_swap_pct=${OMARCHY_MEMORY_WARN_SWAP_PCT:-50}         # with warn_swap_mem_pct; oomd: 90 and 90
+warn_swap_mem_pct=${OMARCHY_MEMORY_WARN_SWAP_MEM_PCT:-80}
+warn_mem_pct=${OMARCHY_MEMORY_WARN_MEM_PCT:-90}   # with warn_psi
+warn_psi=${OMARCHY_MEMORY_WARN_PSI:-20}           # full avg10; oomd kills at 50 held for 20s
+warn_stall_psi=${OMARCHY_MEMORY_WARN_STALL_PSI:-25} # alone, at any RAM use
+warn_gap=${OMARCHY_MEMORY_WARN_GAP:-300}
+brake_swap_pct=${OMARCHY_MEMORY_BRAKE_SWAP_PCT:-75}         # with brake_swap_mem_pct; oomd: 90 and 90
+brake_swap_mem_pct=${OMARCHY_MEMORY_BRAKE_SWAP_MEM_PCT:-85}
+brake_mem_pct=${OMARCHY_MEMORY_BRAKE_MEM_PCT:-97} # with brake_psi: thrashing before swap fills
+brake_psi=${OMARCHY_MEMORY_BRAKE_PSI:-40}
+brake_stall_psi=${OMARCHY_MEMORY_BRAKE_STALL_PSI:-40}   # alone, at any RAM use, held for:
+brake_stall_samples=${OMARCHY_MEMORY_BRAKE_STALL_SAMPLES:-3}
+brake_min_mb=${OMARCHY_MEMORY_BRAKE_MIN_MB:-1024}
+brake_gap=${OMARCHY_MEMORY_BRAKE_GAP:-10}
+brake_idle_gap=${OMARCHY_MEMORY_BRAKE_IDLE_GAP:-60} # after finding nothing it may pause
+resume_holdoff=${OMARCHY_MEMORY_RESUME_HOLDOFF:-300}
+# How soon a kill follower that has stopped is started again.
+kills_restart_gap=${OMARCHY_MEMORY_KILLS_RESTART_GAP:-30}
+
+mkdir -p "$STATE"
+
+log() {
+  printf '%s %s\n' "$(date '+%F %T')" "$*" | tee -a "$LOG" >&2
+}
+
+full_avg10() {
+  [[ -r $1 ]] && awk '/^full/ { split($2, a, "="); printf "%d", a[2] }' "$1"
+}
+
+read_metrics() {
+  local key value _ app
+  while read -r key value _; do
+    case $key in
+    MemTotal:) mem_total=$value ;;
+    MemAvailable:) mem_avail=$value ;;
+    SwapTotal:) swap_total=$value ;;
+    SwapFree:) swap_free=$value ;;
+    esac
+  done <"$meminfo"
+  mem_pct=$((100 - mem_avail * 100 / mem_total))
+  swap_pct=0
+  ((swap_total > 0)) && swap_pct=$(((swap_total - swap_free) * 100 / swap_total))
+  psi=$(full_avg10 "$pressure")
+  app=$(full_avg10 "$app_pressure")
+  psi=${psi:-0}
+  ((${app:-0} > psi)) && psi=$app
+}
+
+metrics() {
+  echo "ram ${mem_pct}% ($((mem_avail / 1024))M free), swap ${swap_pct}%, pressure ${psi}"
+}
+
+snapshot() {
+  local err
+  err=$(omarchy-memory-top --snapshot "$LAST_TOP" 2>&1 >/dev/null) || log "snapshot failed: ${err:-no output}"
+}
+
+warn() {
+  local leader mb line largest
+  IFS=$'\t' read -r leader mb < <(jq -r 'first(.[]) | "\(.leader)\t\(.total_mb)"' "$LAST_TOP" 2>/dev/null)
+  largest=${leader:+$leader, ${mb}M}
+  log "warn: $(metrics), largest ${largest:-unknown}"
+  # Worded in the background too, so the loop never waits on the toast.
+  {
+    if ((swap_pct >= warn_swap_pct && mem_pct >= warn_swap_mem_pct)); then
+      line=$(omarchy-i18n memory.warnSwap "$swap_pct" "$mem_pct")
+    else
+      line=$(omarchy-i18n memory.warnStall "$mem_pct" "$psi")
+    fi
+    if [[ -n $leader ]]; then
+      largest=$(omarchy-i18n memory.warnLargest "$leader" "$mb" "omarchy memory top")
+    else
+      largest=$(omarchy-i18n memory.warnLargestUnknown "omarchy memory top")
+    fi
+    omarchy-notification-send --urgency critical --glyph "$MEMORY_GLYPH" \
+      "$(omarchy-i18n memory.runningOut)" "$line $largest"
+  } >/dev/null 2>&1 &
+}
+
+start_time() {
+  local stat
+  { stat=$(<"$proc/$1/stat"); } 2>/dev/null || return 1
+  stat=${stat##*) }
+  read -ra stat <<<"$stat"
+  echo "${stat[19]}"
+}
+
+# Whether a SIGSTOP sent to the process has yet to take effect: one sent to a
+# process in uninterruptible sleep (disk I/O, say) waits until that is over,
+# and the process stops later, so its record must stay until then.
+stop_pending() {
+  local status mask
+  { status=$(<"$proc/$1/status"); } 2>/dev/null || return 1
+  for mask in SigPnd ShdPnd; do
+    [[ $status =~ $mask:[[:space:]]*([0-9a-f]+) ]] && ((16#${BASH_REMATCH[1]} & 0x40000)) && return 0
+  done
+  return 1
+}
+
+# Whether any of the pids is still stopped, or about to stop, with its
+# recorded start time.
+still_paused() {
+  local pids starts i stat
+  IFS=, read -ra pids <<<"$1"
+  IFS=, read -ra starts <<<"$2"
+  for i in "${!pids[@]}"; do
+    { stat=$(<"$proc/${pids[i]}/stat"); } 2>/dev/null || continue
+    stat=${stat##*) }
+    read -ra stat <<<"$stat"
+    [[ ${stat[19]} == "${starts[i]:-}" ]] || continue
+    [[ ${stat[0]} == [Tt] ]] && return 0
+    stop_pending "${pids[i]}" && return 0
+  done
+  return 1
+}
+
+# Whether a frozen.tsv line has all seven fields, with as many start times
+# as pids. A line cut short (a crash mid-write, a hand edit) is not a record.
+valid_record() {
+  local fields pids starts
+  IFS=$'\t' read -ra fields <<<"$1"
+  ((${#fields[@]} == 7)) || return 1
+  [[ ${fields[5]} =~ ^[0-9]+(,[0-9]+)*$ && ${fields[6]} =~ ^[0-9]+(,[0-9]+)*$ ]] || return 1
+  IFS=, read -ra pids <<<"${fields[5]}"
+  IFS=, read -ra starts <<<"${fields[6]}"
+  ((${#pids[@]} == ${#starts[@]}))
+}
+
+# Drops pauses nothing is left of: exited, killed, or resumed some other way.
+prune_frozen() {
+  [[ -s $FROZEN ]] || return 0
+  (
+    flock -w 5 9 || exit 0
+    kept=$(mktemp "$FROZEN.XXXXXX") || exit 0
+    # Every line is checked in before the file is replaced: with the disk
+    # full, a copy that lost lines would lose the pauses they record, and
+    # the old file keeps them until the next prune can. The last line counts
+    # even without its newline.
+    while IFS= read -r line || [[ -n $line ]]; do
+      if ! valid_record "$line"; then
+        log "prune: dropped a malformed line from frozen.tsv: $line"
+        continue
+      fi
+      IFS=$'\t' read -r _ _ _ _ _ pids starts <<<"$line"
+      still_paused "$pids" "$starts" || continue
+      printf '%s\n' "$line" >>"$kept" 2>/dev/null || {
+        rm -f "$kept"
+        exit 0
+      }
+    done <"$FROZEN"
+    mv "$kept" "$FROZEN" 2>/dev/null || rm -f "$kept"
+  ) 9>"$FROZEN_LOCK"
+}
+
+# Drops hold-offs that have run out, so resumed.tsv only grows for a while.
+prune_resumed() {
+  [[ -s $RESUMED ]] || return 0
+  (
+    flock -w 5 9 || exit 0
+    kept=$(mktemp "$RESUMED.XXXXXX") || exit 0
+    if awk -F '\t' -v now="$EPOCHSECONDS" -v gap="$resume_holdoff" \
+      'NF == 2 && $1 ~ /^[0-9]+$/ && now - $1 < gap' "$RESUMED" >"$kept" 2>/dev/null; then
+      mv "$kept" "$RESUMED" 2>/dev/null || rm -f "$kept"
+    else
+      rm -f "$kept"
+    fi
+  ) 9>"$FROZEN_LOCK"
+}
+
+# The keys resumed within the hold-off, as --skip arguments for the pick.
+held_off() {
+  [[ -s $RESUMED ]] || return 0
+  awk -F '\t' -v now="$EPOCHSECONDS" -v gap="$resume_holdoff" \
+    'NF == 2 && $1 ~ /^[0-9]+$/ && now - $1 < gap { print "--skip"; print $2 }' "$RESUMED"
+}
+
+# Adds a line to frozen.tsv through a copy renamed into place: a disk that
+# fills mid-write leaves the file as it was, not ending in half a line the
+# next record would run into.
+add_frozen() {
+  local tmp
+  tmp=$(mktemp "$FROZEN.XXXXXX") || return 1
+  # awk ends the last line with a newline even where the old file did not.
+  if { [[ ! -s $FROZEN ]] || awk 1 "$FROZEN"; } >"$tmp" 2>/dev/null &&
+    printf '%s\n' "$1" >>"$tmp" 2>/dev/null && mv "$tmp" "$FROZEN" 2>/dev/null; then
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+brake_held() {
+  [[ -s $FROZEN ]] && awk -F '\t' '$2 == "brake" { found = 1 } END { exit !found }' "$FROZEN"
+}
+
+# SIGSTOPs each of pids that still has its start time from starts, adding it
+# to stopped or, if it is still there and would not stop, to refused. Works on
+# brake's own arrays.
+stop_listed() {
+  local i pid
+  # Individual pids, never `kill -- -pgid`: a pgid can span cgroups, and
+  # Hyprland's spans every app it launched.
+  for i in "${!pids[@]}"; do
+    pid=${pids[i]}
+    [[ " ${stopped[*]} " == *" $pid "* ]] && continue
+    # Exited since the pick, or its pid already reused.
+    [[ $(start_time "$pid") == "${starts[i]}" ]] || continue
+    if kill -STOP "$pid" 2>/dev/null; then
+      stopped+=("$pid")
+      stopped_starts+=("${starts[i]}")
+    elif [[ -d /proc/$pid ]]; then
+      refused+=("$pid")
+    fi
+  done
+}
+
+# Returns 2 when there was nothing it may pause, so the loop waits longer
+# before scanning again.
+brake() {
+  local picked rc line key mb name pids starts round count skip=() stopped=() stopped_starts=() refused=()
+  mapfile -t skip < <(held_off)
+  # One scan both keeps the snapshot that names a later kill and picks.
+  picked=$(omarchy-memory-top --snapshot "$LAST_TOP" --pick "$brake_min_mb" "${skip[@]}" 2>"$PICK_ERR")
+  rc=$?
+  while IFS= read -r line || [[ -n $line ]]; do
+    log "brake: $line"
+  done <"$PICK_ERR"
+  # A Python error exits 1 too; what it printed is logged above.
+  if ((rc == 1)) && [[ ! -s $PICK_ERR ]]; then
+    log "brake: nothing unprotected over ${brake_min_mb}M to pause ($(metrics))"
+    return 2
+  elif ((rc == 1)); then
+    log "brake: nothing unprotected over ${brake_min_mb}M to pause, or the pick failed with the lines above ($(metrics))"
+    return 2
+  elif ((rc != 0)); then
+    log "brake: omarchy-memory-top --pick failed with exit $rc ($(metrics))"
+    return 2
+  fi
+  IFS=$'\t' read -r key mb name pids starts <<<"$picked"
+  IFS=, read -ra pids <<<"$pids"
+  IFS=, read -ra starts <<<"$starts"
+  # Locked from the first SIGSTOP until the record is written: resume rewrites
+  # frozen.tsv under this lock and would drop a line appended without it,
+  # leaving the group paused with nothing to resume it. No lock, no pause.
+  {
+    if ! flock -w 5 9; then
+      log "brake: frozen.tsv stayed locked; left $name running ($(metrics))"
+      return 1
+    fi
+    stop_listed
+    # What the group forked between the pick and the SIGSTOPs is not in the
+    # pick and would run on. A stopped process forks nothing more, so this
+    # settles at once; the bound is a backstop.
+    for ((round = 0; round < 3 && ${#stopped[@]} && ! ${#refused[@]}; round++)); do
+      line=$(omarchy-memory-top --members "$key" 2>/dev/null) || break
+      IFS=$'\t' read -r pids starts <<<"$line"
+      IFS=, read -ra pids <<<"$pids"
+      IFS=, read -ra starts <<<"$starts"
+      count=${#stopped[@]}
+      stop_listed
+      ((${#stopped[@]} > count)) || break
+    done
+    # Half a group paused is not a pause, and saying it was would be a lie.
+    if ((${#refused[@]})); then
+      ((${#stopped[@]})) && kill -CONT "${stopped[@]}" 2>/dev/null
+      log "brake: could not pause $name, pids ${refused[*]} refused SIGSTOP; left it running ($(metrics))"
+      return 1
+    fi
+    if ((${#stopped[@]} == 0)); then
+      log "brake: $name exited before it could be paused ($(metrics))"
+      return 1
+    fi
+    # Tests only: holds the brake between its SIGSTOPs and their record until
+    # the named file exists, so a test can stop the watcher right there.
+    if [[ -n ${OMARCHY_MEMORY_TEST_BRAKE_HOLD:-} ]]; then
+      : >"$OMARCHY_MEMORY_TEST_BRAKE_HOLD.ready"
+      until [[ -e $OMARCHY_MEMORY_TEST_BRAKE_HOLD ]]; do sleep 0.1; done
+    fi
+    pids=$(IFS=,; echo "${stopped[*]}")
+    starts=$(IFS=,; echo "${stopped_starts[*]}")
+    # A pause nothing has on record would outlive the watchdog: with the disk
+    # full, say, the group runs on rather than stays stopped.
+    if ! add_frozen "$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s' "$(date '+%F %T')" brake "$key" "$mb" "$name" "$pids" "$starts")"; then
+      kill -CONT "${stopped[@]}" 2>/dev/null
+      log "brake: could not record the pause of $name in frozen.tsv; resumed it ($(metrics))"
+      return 1
+    fi
+  } 9>"$FROZEN_LOCK"
+  # After the lock is let go: the toast below runs in the background and would
+  # hold it for as long as it runs.
+  log "brake: paused $name (${mb}M, pids $pids) $(metrics)"
+  {
+    omarchy-notification-send --urgency critical --glyph "$MEMORY_GLYPH" \
+      "$(omarchy-i18n memory.brakePaused "$name")" \
+      "$(omarchy-i18n memory.brakePausedBody "$mb" "omarchy memory resume")"
+  } >/dev/null 2>&1 &
+  return 0
+}
+
+# The follower reads the journal with `journalctl --follow`, which ends when
+# the journal goes away under it (journald restarted, say); without it, a
+# kill goes unnamed, so the loop below starts it again.
+start_kills() {
+  omarchy-memory-oomd-kills &
+  kills_pid=$!
+  kills_started=$EPOCHSECONDS
+}
+
+start_kills
+trap 'kill "$kills_pid" 2>/dev/null' EXIT
+trap 'exit 0' TERM INT
+
+last_warn=0
+next_brake=0
+stalled=0
+quit=0
+last_snapshot=0
+warm=0
+log "watching: warn at (swap>=${warn_swap_pct}% and ram>=${warn_swap_mem_pct}%) or (ram>=${warn_mem_pct}% and pressure>=${warn_psi}) or pressure>=${warn_stall_psi}, brake at (swap>=${brake_swap_pct}% and ram>=${brake_swap_mem_pct}%) or (ram>=${brake_mem_pct}% and pressure>=${brake_psi}) or pressure>=${brake_stall_psi} for ${brake_stall_samples} samples"
+
+while true; do
+  read_metrics
+
+  if ! kill -0 "$kills_pid" 2>/dev/null && ((EPOCHSECONDS - kills_started >= kills_restart_gap)); then
+    log "oomd kill follower stopped; starting it again"
+    start_kills
+  fi
+
+  prune_frozen
+  prune_resumed
+
+  # oomd's stall line has no RAM condition, so this one has none either.
+  if ((psi >= brake_stall_psi)); then
+    ((stalled++))
+  else
+    stalled=0
+  fi
+
+  # One sample is enough with RAM this full: oomd waits 20s on pressure, this
+  # must not. A stall alone waits a few, still well short of oomd's 20s. A
+  # pause stops the climb but frees nothing, so the lines stay crossed after
+  # it; pausing the next group too would only spread the damage.
+  if (((swap_pct >= brake_swap_pct && mem_pct >= brake_swap_mem_pct) ||
+    (mem_pct >= brake_mem_pct && psi >= brake_psi) || stalled >= brake_stall_samples)) &&
+    ((EPOCHSECONDS >= next_brake)) && ! brake_held; then
+    # A TERM waits for the brake to finish: stopping the watcher between a
+    # SIGSTOP and its line in frozen.tsv would leave a pause that
+    # omarchy-memory-resume, run when the watchdog is turned off, cannot see.
+    trap 'quit=1' TERM INT
+    brake
+    braked=$?
+    trap 'exit 0' TERM INT
+    ((quit)) && exit 0
+    if ((braked == 2)); then
+      next_brake=$((EPOCHSECONDS + brake_idle_gap))
+    else
+      next_brake=$((EPOCHSECONDS + brake_gap))
+    fi
+    last_snapshot=$EPOCHSECONDS
+  fi
+
+  # Two samples in a row, so one spike doesn't raise a toast.
+  if (((swap_pct >= warn_swap_pct && mem_pct >= warn_swap_mem_pct) ||
+    (mem_pct >= warn_mem_pct && psi >= warn_psi) || psi >= warn_stall_psi)); then
+    ((warm++))
+    if ((EPOCHSECONDS - last_snapshot >= 10)); then
+      snapshot
+      last_snapshot=$EPOCHSECONDS
+    fi
+  else
+    warm=0
+  fi
+
+  if ((warm >= 2 && EPOCHSECONDS - last_warn >= warn_gap)); then
+    warn
+    last_warn=$EPOCHSECONDS
+  fi
+
+  sleep "$interval"
+done

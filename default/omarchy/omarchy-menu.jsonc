@@ -114,6 +114,7 @@
   "trigger.toggle.nightlight": {"icon":"󰔎","label":"Nightlight","action":"omarchy-toggle-nightlight"},
   "trigger.toggle.screensaver": {"icon":"󱄄","label":"Screensaver","action":"omarchy-toggle-screensaver"},
   "trigger.toggle.crash-capture": {"icon":"󱚡","label":"Crash Capture","action":"omarchy-toggle-crash-capture"},
+  "trigger.toggle.memory-watch": {"icon":"󰍛","label":"Memory Watchdog","action":"omarchy-toggle-memory-watch"},
   "trigger.emoji": {"icon":"","label":"Emoji","aliases":["emoji","emojis"],"action":"omarchy-menu-emoji"},
   "trigger.clipboard-history": {"icon":"󰅇","label":"Clipboard History","action":"omarchy-shell shell summon omarchy.clipboard"},
   "trigger.reminder": {"icon":"󰢌","label":"Reminder","aliases":["reminder"]},

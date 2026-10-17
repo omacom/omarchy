@@ -14,6 +14,7 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Silence notifications | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
 | Stay awake (no idle lock) | `Super + Ctrl + I` | `omarchy toggle idle` |
 | Crash capture | — | `omarchy toggle crash-capture` |
+| Memory watchdog | — | `omarchy toggle memory-watch` |
 | Screensaver | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) theme sync | — | `omarchy toggle theme sync` |
 | Menu bar | `Super + Shift + Space` | `omarchy toggle bar` |
@@ -84,6 +85,23 @@ If you dismiss the screensaver before the lock deadline, that counts as activity
 To stop locking on idle entirely, `Super + Ctrl + I` — or `omarchy toggle idle` — flips stay awake on, and the coffee cup indicator appears in the bar. That's the one to hit before a long presentation or a build you want to watch. Hit it again to go back to normal. `omarchy toggle idle status` prints the current state as JSON if you need it from a script.
 
 This is about locking and the screensaver, not power. Suspend and hibernation have their own setup in [system sleep](36-system-sleep.md).
+
+### Memory watchdog
+
+When memory runs out, systemd-oomd kills an app to save the session. It picks only among the apps you launched, never the compositor or the desktop itself, and always takes the whole app: a terminal goes with every shell and build running in it. It does that once RAM and swap are both more than 90% full, or once your apps have spent half their time waiting on memory for 20 seconds, and nothing on the desktop says it is coming.
+
+The memory watchdog says so. It is off by default; turn it on under _Trigger > Toggle > Memory Watchdog_ (or with `omarchy toggle memory-watch`, which also takes `on` or `off`). Once swap is half full while RAM is 80% full, RAM is 90% full and your apps are stalling on it, or your apps are stalling on memory a quarter of the time however full RAM is (oomd's stall line has no RAM condition either), you get a critical notification naming the largest process, while there is still time to close something. It waits for two readings in a row, two seconds apart, so a passing spike says nothing, and it says it at most once every five minutes. If oomd does kill an app, another notification names it and says why.
+
+If memory keeps climbing, to swap 75% full while RAM is 85% full, RAM 97% full with apps stalling on it, or apps stalling on memory 40% of the time for six seconds however full RAM is, the watchdog pauses the largest runaway itself, short of oomd's lines, and tells you which. It only pauses something using at least 1 GiB. Largest is by resident memory plus swap, which is approximate: memory several processes share counts once for each of them. A pause stops the runaway taking more, but frees nothing; that memory comes back only once the paused program is closed. Swap alone never sets it off: Omarchy's swap is compressed RAM (zram) as large as RAM itself, so it is often half full while RAM is fine. Paused processes are stopped, not killed, and nothing is lost: `omarchy memory resume` brings them all back, and `omarchy memory resume <name>` just the ones matching a name. It pauses one thing at a time, and nothing else while that one is still paused. It never pauses the compositor, the shell, audio, D-Bus or terminals. It never pauses games it can recognise either, nor anything they started: games run through Steam, gamescope, Wine or Proton, and whatever Lutris, Heroic or RetroArch launches. A game started any other way is not recognised; name it in `OMARCHY_MEMORY_PROTECT` (below) to keep it running. The watchdog can still pause something the compositor, the shell or a terminal started, such as a runaway the compositor launched directly, which oomd would never pick. It also never pauses a job running in the foreground of a terminal, such as a build you started there and are watching, because the shell would take the terminal back and leave the job in the background; if that build is the runaway, only oomd's own lines stand in its way. A job you stopped yourself in a terminal with `Ctrl + Z` is not the watchdog's: type `fg` in that terminal to bring it back. Nor is any process you stopped yourself some other way: the brake leaves it out of what it pauses, so `omarchy memory resume` never starts it again. Resuming does not free anything, so the brake leaves whatever you resumed alone for five minutes, time to save your work and close it; if memory is still past its lines, it may pause something else meanwhile, and the resumed program again once the five minutes are up.
+
+`omarchy memory top` shows what is using memory, by process group, with the systemd unit each one runs in. The thresholds are environment variables (`OMARCHY_MEMORY_WARN_*`, `OMARCHY_MEMORY_BRAKE_*` and `OMARCHY_MEMORY_RESUME_HOLDOFF`, listed at the top of `omarchy-memory-watch`); set them with `systemctl --user edit omarchy-memory-watch`. The same drop-in takes `OMARCHY_MEMORY_PROTECT`, a regular expression on process names the brake must never pause, on top of its own list. A process name is at most 15 characters, as `omarchy memory top` shows it, and protecting a process does not protect what it starts. For example:
+
+```ini
+[Service]
+Environment="OMARCHY_MEMORY_PROTECT=^(blender|obs|MyGame-Linux)$"
+```
+
+An invalid expression is ignored, with a line in the log saying so, and the brake keeps its own list. The toggle copies the watchdog's unit into `~/.config/systemd/user` when it turns it on, so after an Omarchy update changes that unit, turn the watchdog off and on again to pick it up. Its log is `~/.local/state/omarchy/memory-watch/watch.log`.
 
 ### The screensaver
 

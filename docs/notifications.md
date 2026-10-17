@@ -173,6 +173,29 @@ Everything goes through the same sender contract, so the pieces are small:
   hostile process name stays a discrete argument). It waits for the
   server first: a shell crash takes the notification server down with it, and
   that crash is the one most worth reporting.
+- **Memory watchdog** — `omarchy-memory-watch` (opt-in, via
+  `omarchy-toggle-memory-watch`) samples `/proc/meminfo`, `/proc/pressure/memory`
+  and app.slice's own `memory.pressure`. Two samples past the warning line
+  (swap 50% with RAM 80%, RAM 90% with a 20% stall, or a 25% stall at any
+  RAM use, since oomd's stall line has none; never swap alone, since zram
+  sized to RAM is often half used while RAM is fine) send a critical toast
+  naming the largest process group, at most every five minutes. systemd-oomd only kills
+  whole scopes in app.slice, never the compositor or anything else in
+  session.slice, and only once RAM and swap are both more than 90% used or
+  app.slice's stall holds 50% for 20s. `omarchy-memory-oomd-kills` follows the
+  user journal for the user manager's "systemd-oomd killed" message and sends
+  a critical toast naming the app, from the snapshot the watcher took while
+  memory was tight, and why, from the system journal when this user can read
+  it. The watcher starts the follower again if it stops. Its brake (swap
+  75% with RAM 85%, or RAM 97% with a 40% stall, on one sample; or a 40%
+  stall at any RAM use held for three samples; never swap alone, since zram
+  sized to RAM is often half used while RAM is fine) sends a critical toast
+  when it pauses a process group, saying `omarchy memory resume` undoes it.
+  It pauses one group at a time, of at least 1 GiB (RSS plus swap, an
+  approximate ranking that counts shared pages once per process), and
+  nothing more while that one is still paused. A pause frees no memory; it
+  only stops the climb. What `omarchy memory resume` let go of is left alone
+  for five minutes.
 - **Pending migrations** — `omarchy-migrate-notify` (from its user service
   after `graphical-session.target`) waits for the server, then sends a
   critical toast whose click opens a terminal running `omarchy-migrate`,
