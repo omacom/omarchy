@@ -1,11 +1,13 @@
-"""Live Fcitx state for the existing keyboard layout widget."""
+"""Shared input selection and feedback for the shell."""
 
 from collections import Counter
+from functools import lru_cache
 import json
 import os
 import re
 import subprocess
 import sys
+from xml.etree import ElementTree
 
 from gi.repository import Gio, GLib
 
@@ -77,22 +79,114 @@ def cycle_choice(state, keyboards, step=1):
   return choices[(choices.index(position) + step) % len(choices)]
 
 
+@lru_cache(maxsize=1)
+def layout_languages():
+  result = {}
+  for name in ("evdev.xml", "evdev.extras.xml"):
+    path = "/usr/share/X11/xkb/rules/" + name
+    try:
+      layouts = ElementTree.parse(path).findall("./layoutList/layout")
+    except FileNotFoundError:
+      continue
+    except (OSError, ElementTree.ParseError) as error:
+      print(f"Input feedback: {error}", file=sys.stderr)
+      continue
+    for layout in layouts:
+      item = layout.find("configItem")
+      language = item.findtext("languageList/iso639Id", "")
+      result[(item.findtext("name"), "")] = (language, item.findtext("description", ""))
+      for variant in layout.findall("./variantList/variant/configItem"):
+        result[(item.findtext("name"), variant.findtext("name"))] = (
+          variant.findtext("languageList/iso639Id", language), variant.findtext("description", ""))
+  return result
+
+
+def keyboard_language(keyboard):
+  index = keyboard.get("active_layout_index", 0)
+  layouts = keyboard.get("layout", "").split(",")
+  variants = keyboard.get("variant", "").split(",")
+  layout = layouts[index]
+  variant = variants[index] if index < len(variants) else ""
+  language, name = layout_languages().get((layout, variant), ("", layout))
+  return {"key": layout + ":" + variant, "language": language, "name": name}
+
+
+class InputFeedback:
+  """Presentation metadata only; failures here must never alter input selection."""
+
+  def __init__(self, indicator):
+    self.indicator = indicator
+    self.message = {"session": f"{os.getpid()}:{GLib.get_monotonic_time()}", "serial": 0}
+
+  def observe(self, state):
+    try:
+      # A queued or refused selection is not an activation acknowledgement.
+      if self.indicator.pending:
+        return self.message
+      current = state.get("current", "")
+      primary = next((method for method in state.get("methods", []) if method.startswith("keyboard-")), "")
+      keyboard = layout_keyboard(self.indicator.keyboards)
+      if keyboard is None:
+        keyboard = next((item for item in self.indicator.keyboards if item.get("main")), None)
+      if keyboard and (not current or current == primary):
+        selection = keyboard_language(keyboard)
+      elif current:
+        selection = {"key": current, "language": state.get("language", ""), "name": state.get("name", "")}
+      else:
+        return self.message
+      if selection["key"] != self.message.get("key"):
+        serial = self.message["serial"] + ("key" in self.message)
+        self.message = {"session": self.message["session"], "serial": serial, **selection}
+    except Exception as error:
+      # Cosmetic metadata is deliberately outside the input error handler.
+      print(f"Input feedback: {error}", file=sys.stderr)
+    return self.message
+
+
 class Indicator:
   def __init__(self, bus):
     self.bus = bus
     self.pending = ""
     self.last = ""
     self.entries = {}
+    self.keyboards = []
+
+  def remember_layout(self, index):
+    keyboard = layout_keyboard(self.keyboards)
+    if keyboard:
+      for item in self.keyboards:
+        if item.get("layout") == keyboard["layout"]:
+          item["active_layout_index"] = index
+
+  def refresh_layouts(self, event=None):
+    try:
+      if event is not None:
+        name, _, description = event.partition(",")
+        device = next((item for item in self.keyboards if item.get("name") == name), None)
+        # Native cycling already knows the layout it just applied.
+        if device and description == keyboard_language(device)["name"]:
+          return False
+      devices = subprocess.run(["hyprctl", "-j", "devices"], check=True, text=True, capture_output=True, timeout=1)
+      self.keyboards = json.loads(devices.stdout).get("keyboards", [])
+      return True
+    except Exception as error:
+      # Layout metadata is cosmetic; never clear a queued selection here.
+      print(f"Input feedback: {error}", file=sys.stderr)
+      return False
 
   def select_next(self, step=1):
     devices = subprocess.run(["hyprctl", "-j", "devices"], check=True, text=True, capture_output=True)
     keyboards = json.loads(devices.stdout).get("keyboards", [])
+    self.keyboards = keyboards
     try:
       state = snapshot(self.bus)
     except GLib.Error:
       # Without Fcitx, Super+I still cycles the compositor layouts.
       for command in layout_switches(keyboards, step=step):
         subprocess.run(command, check=True, capture_output=True)
+      keyboard = layout_keyboard(keyboards)
+      if keyboard:
+        self.remember_layout((keyboard.get("active_layout_index", 0) + step) % len(keyboard["layout"].split(",")))
       return
     methods = state["methods"]
     current = self.pending or state["current"] or self.last
@@ -100,9 +194,13 @@ class Indicator:
     following, index = cycle_choice(state, keyboards, step)
     if following is None:
       return
+    applied = None
     self.pending = following
     for command in layout_switches(keyboards, index) if index is not None else []:
       subprocess.run(command, check=True, capture_output=True)
+      applied = index if index is not None else 0
+    if applied is not None:
+      self.remember_layout(applied)
     self.refresh()
 
   def refresh(self):
@@ -214,6 +312,7 @@ def follow(bus, changed, presence):
 def watch(bus):
   previous = None
   indicator = Indicator(bus)
+  feedback = InputFeedback(indicator)
   loop = GLib.MainLoop()
   buffer = ""
   timer = 0
@@ -240,7 +339,7 @@ def watch(bus):
         failed = False
       except GLib.Error:
         failed = True
-    line = json.dumps(state, ensure_ascii=False)
+    line = json.dumps({**state, "switch": feedback.observe(state)}, ensure_ascii=False)
     if line != previous:
       print(line, flush=True)
       previous = line
@@ -292,7 +391,7 @@ def watch(bus):
     if not data:
       loop.quit()
       return GLib.SOURCE_REMOVE
-    buffer += data.decode()
+    buffer += data.decode(errors="replace")
     while "\n" in buffer:
       line, buffer = buffer.split("\n", 1)
       if line in ("cycle", "cycle back"):
@@ -301,6 +400,12 @@ def watch(bus):
         except (GLib.Error, OSError, ValueError, subprocess.CalledProcessError):
           indicator.pending = ""
         refresh()
+      elif line == "layouts" or line.startswith("layout "):
+        try:
+          if indicator.refresh_layouts(json.loads(line[7:]) if line.startswith("layout ") else None):
+            changed()
+        except ValueError:
+          pass
     schedule()
     return GLib.SOURCE_CONTINUE
 
@@ -311,6 +416,7 @@ def watch(bus):
   GLib.io_add_watch(sys.stdin, GLib.IO_IN | GLib.IO_HUP, command)
   # Held for as long as the loop runs.
   watchers = follow(bus, changed, presence)  # noqa: F841
+  indicator.refresh_layouts()
   poll()
   loop.run()
 
