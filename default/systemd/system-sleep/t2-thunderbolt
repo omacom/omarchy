@@ -1,0 +1,153 @@
+#!/bin/bash
+
+# The Titan Ridge Thunderbolt controllers on T2 Macs lose power in deep sleep.
+# Left in place, the kernel resumes them serially and waits about 6 s per
+# controller for its firmware plus about 3 s per NHI, which is most of the 20 s
+# a lid-open takes. Remove them before sleeping so resume has nothing to wait
+# for, then re-enumerate in the background once they have powered back up.
+
+state=/run/omarchy-t2-thunderbolt
+
+# A controller is found from its NHI, the device the thunderbolt driver binds:
+# the bridge right under a root port on the path up from it is the switch's
+# upstream port, and the bridges one level beneath that are its downstream
+# ports. The upstream port's PCI ID is not the same on every model, 8086:15ea
+# on the 2019 16-inch and 8086:1578 on the 2018 15-inch (#9210), so the path
+# decides, not the ID.
+tb_nhis() {
+  local nhi
+  for nhi in /sys/bus/pci/drivers/thunderbolt/0000:*; do
+    [[ -e $nhi ]] && readlink -f "$nhi"
+  done
+}
+
+tb_upstream_bridges() {
+  local dev parent
+  for dev in $(tb_nhis); do
+    while :; do
+      parent=$(readlink -f "$dev/..")
+      [[ $(basename "$parent") == 0000:00:* ]] && { echo "$dev"; break; }
+      [[ $(basename "$parent") == 0000:* ]] || break
+      dev=$parent
+    done
+  done | sort -u
+}
+
+tb_downstream_bridges() {
+  local up dev
+  for up in $(tb_upstream_bridges); do
+    for dev in "$up"/0000:*; do
+      [[ -r $dev/class && $(<"$dev/class") == 0x060400 ]] && echo "$dev"
+    done
+  done
+}
+
+has_children() {
+  compgen -G "$1/0000:*" >/dev/null
+}
+
+# The integrated xHCI does not answer config cycles after the power cycle until
+# its downstream port is reset (Bridge Control bit 6, secondary bus reset).
+reset_secondary_bus() {
+  local addr=${1##*/} ctl
+  ctl=$(setpci -s "$addr" BRIDGE_CONTROL)
+  setpci -s "$addr" BRIDGE_CONTROL="$(printf '%04x' $(( 0x$ctl | 0x40 )))"
+  sleep 0.01
+  setpci -s "$addr" BRIDGE_CONTROL="$ctl"
+}
+
+rescan_unit=omarchy-t2-thunderbolt-rescan.service
+
+# Deep sleep hands amdgpu back the connector state from before it, but an
+# external panel on a Thunderbolt port is off the bus by then, so its old
+# connector reads disconnected while still owning a CRTC. It usually returns
+# on the other DP-in path (DP-6 <-> DP-7), and every modeset of that connector
+# fails with EINVAL until the CRTC is released. fbcon commits a full
+# configuration on a VT switch, which does release it; do that here, while the
+# display is still off the bus and there is nothing to see. The line printed
+# on the console matters: with CONFIG_FRAMEBUFFER_CONSOLE_DEFERRED_TAKEOVER
+# fbcon binds only once something prints on a visible text console, and a
+# boot where nothing did leaves the dummy console bound, so a bare switch
+# releases nothing.
+release_stale_crtcs() {
+  local card state holder crtc session tty="" found=0
+  for card in /sys/class/drm/card[0-9]*; do
+    [[ -r $card/device/vendor && $(<"$card/device/vendor") == 0x1002 ]] || continue
+    state=/sys/kernel/debug/dri/${card##*card}/state
+    [[ -r $state ]] || continue
+    while read -r holder crtc; do
+      [[ $crtc == "(null)" ]] && continue
+      [[ -e $card-$holder && $(<"$card-$holder/status") == disconnected ]] && found=1
+    done < <(awk '/^connector\[/{c=$2} c && /^\tcrtc=/{sub(/.*crtc=/,""); print c, $0; c=""}' "$state")
+  done
+  (( found )) || return 0
+  # The switch back goes to the session on screen, not merely the first one.
+  session=$(loginctl show-seat seat0 -p ActiveSession --value 2>/dev/null)
+  [[ -n $session && $(loginctl show-session "$session" -p Type --value 2>/dev/null) == "wayland" ]] || return 0
+  tty=$(loginctl show-session "$session" -p TTY --value 2>/dev/null)
+  [[ $tty == tty[0-9]* ]] || return 0
+  # A VT no getty claims, so keys hit while it is up land nowhere.
+  chvt 60
+  sleep 0.5
+  echo "t2-thunderbolt: releasing display CRTCs" > /dev/tty60 || true
+  sleep 2
+  chvt "${tty#tty}"
+  # After the switch back the compositor can leave a connector it still holds
+  # unlit; applying the monitor config again lights it.
+  local user uid sig
+  user=$(loginctl show-session "$session" -p Name --value 2>/dev/null)
+  [[ -n $user ]] || return 0
+  uid=$(id -u "$user")
+  sig=$(ls -t "/run/user/$uid/hypr" 2>/dev/null | head -1)
+  [[ -n $sig ]] || return 0
+  # The session stays frozen until the last sleep hook returns, so a reload
+  # waited on here would hold resume for the whole of hyprctl's timeout.
+  systemd-run --quiet --no-block --collect --uid="$user" \
+    --setenv="XDG_RUNTIME_DIR=/run/user/$uid" --setenv="HYPRLAND_INSTANCE_SIGNATURE=$sig" \
+    hyprctl reload
+}
+
+case $1 in
+  pre)
+    # A rescan still running from the last resume must not put a controller
+    # back on the bus after this removal, or the next resume waits on it again.
+    systemctl stop "$rescan_unit" 2>/dev/null || true
+    count=0
+    for dev in $(tb_upstream_bridges); do
+      echo 1 > "$dev/remove" && count=$((count + 1))
+    done
+    # A controller the last resume's rescan has not brought back yet is still
+    # one to bring back. A suspend inside that window must not lower the count
+    # the next resume works from, or the controllers stay off the bus for good.
+    previous=$(cat "$state" 2>/dev/null)
+    [[ $previous =~ ^[0-9]+$ ]] || previous=0
+    (( count < previous )) && count=$previous
+    echo "$count" > "$state"
+    ;;
+  post)
+    expected=$(cat "$state" 2>/dev/null || echo 0)
+    (( expected > 0 )) || exit 0
+    release_stale_crtcs
+    # The rescan must outlive this hook: systemd-sleep runs the hooks inside
+    # systemd-suspend.service, and everything left in that cgroup is killed
+    # the moment the last hook returns, a backgrounded subshell included. A
+    # transient unit of its own survives it.
+    systemd-run --quiet --no-block --collect --unit="${rescan_unit%.service}" \
+      "$(readlink -f "$0")" rescan "$expected"
+    ;;
+  rescan)
+    expected=${2:-0}
+    for _ in $(seq 1 30); do
+      echo 1 > /sys/bus/pci/rescan
+      (( $(tb_upstream_bridges | wc -l) >= expected )) && break
+      sleep 1
+    done
+    sleep 1
+    echo 1 > /sys/bus/pci/rescan
+    for dev in $(tb_downstream_bridges); do
+      has_children "$dev" || reset_secondary_bus "$dev"
+    done
+    sleep 1
+    echo 1 > /sys/bus/pci/rescan
+    ;;
+esac
