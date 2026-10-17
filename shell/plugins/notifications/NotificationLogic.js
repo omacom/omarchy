@@ -180,6 +180,14 @@ function shouldRenderCompactGlyph(glyph, iconSource, singleLineToast) {
   return String(glyph || "").length > 0 && String(iconSource || "").length === 0 && !!singleLineToast
 }
 
+// Quickshell reads a bare path in image-path (how Chromium sends avatars) as
+// an icon name, image://icon//tmp/…; it is a file, raw, so encode it as a URL.
+function imageOf(image) {
+  var s = String(image || "")
+  var path = /^image:\/\/icon\/(\/[\s\S]*)$/.exec(s)
+  return path ? "file://" + path[1].split("/").map(encodeURIComponent).join("/") : s
+}
+
 function snapshotOf(notification, timestamp) {
   var n = notification || {}
   var id = n.id || 0
@@ -192,7 +200,7 @@ function snapshotOf(notification, timestamp) {
     appIcon: n.appIcon || "",
     summary: String(n.summary || ""),
     body: n.body || "",
-    image: n.image || "",
+    image: imageOf(n.image),
     glyph: glyphFromHints(n.hints),
     execArgv: execArgvFromHints(n.hints),
     urgency: n.urgency,
