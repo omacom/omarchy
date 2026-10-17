@@ -47,6 +47,23 @@ hl.config({
 })
 ```
 
+### Logitech mouse buttons
+
+[OpenLogi](https://github.com/AprilNEA/OpenLogi) can configure supported Logitech mice, including mice paired directly over Bluetooth. Follow the [OpenLogi Linux installation guide](https://github.com/AprilNEA/OpenLogi/blob/master/docs/INSTALL-linux.md) to install a release package, set up its udev permissions, and enable the user agent. Quit Solaar or other Logitech device managers while using OpenLogi, since they can conflict over device access. If the mouse was connected while permissions were installed, power-cycle it so udev applies the rules.
+
+Pair the mouse through Omarchy's Bluetooth settings, then select it in OpenLogi. You can map its buttons to Omarchy shortcuts. For example, an MX Master 3S profile could use:
+
+| Mouse control | Suggested action |
+| --- | --- |
+| Back button | `Super + Shift + Tab` — previous workspace |
+| Forward button | `Super + Tab` — next workspace |
+| Gesture button click | `Alt + Tab` — switch windows |
+| Gesture button up | `Super + Space` — open the Omarchy menu |
+| Gesture button left/right | Browser back/forward |
+| Thumb-wheel click | Toggle SmartShift |
+
+Button names and available actions vary by device and OpenLogi version. Configure actions in OpenLogi's device settings; another user's profile may refer to a different device identity. If remapped buttons stop working, check the Permissions page in OpenLogi and confirm its user agent is running.
+
 ### Trackpad gestures
 
 You can also turn on [touchpad gestures](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), like swiping with three fingers to change workspaces:
