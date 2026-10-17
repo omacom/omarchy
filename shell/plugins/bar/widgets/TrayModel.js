@@ -30,6 +30,10 @@ function layoutHasWidget(layout, id) {
   return false
 }
 
+function usesNativeContextMenu(item) {
+  return !!item && String(item.id || "").indexOf("wine-") === 0
+}
+
 // A bar widget that stands in for an app's tray item takes its place: the app's
 // own icon would only show the same thing twice.
 var widgetsForTrayItems = [
@@ -70,6 +74,7 @@ if (typeof module !== "undefined") {
     itemNamed: itemNamed,
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,
+    usesNativeContextMenu: usesNativeContextMenu,
     ownedByOmarchy: ownedByOmarchy
   }
 }
