@@ -5,6 +5,7 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "WorkspacesModel.js" as WorkspacesModel
 
 BarWidget {
   id: root
@@ -19,17 +20,22 @@ BarWidget {
     return null
   }
 
-  function workspaceIds() {
-    var ids = [1, 2, 3, 4, 5]
-    var values = Hyprland.workspaces.values
+  // The output this bar is on, for the perMonitor setting.
+  readonly property string screenName: root.QsWindow.window && root.QsWindow.window.screen
+    ? String(root.QsWindow.window.screen.name || "")
+    : ""
 
+  function workspaceIds() {
+    var values = Hyprland.workspaces.values
+    var workspaces = []
     for (var i = 0; i < values.length; i++) {
-      var id = values[i].id
-      if (id > 0 && id <= 10 && ids.indexOf(id) === -1) ids.push(id)
+      workspaces.push({ id: values[i].id, monitor: values[i].monitor ? values[i].monitor.name : "" })
     }
 
-    ids.sort(function(left, right) { return left - right })
-    return ids
+    return WorkspacesModel.workspaceIds(workspaces, {
+      persistent: root.setting("persistent", undefined),
+      perMonitor: root.setting("perMonitor", false)
+    }, root.screenName)
   }
 
   function focusWorkspace(id) {
