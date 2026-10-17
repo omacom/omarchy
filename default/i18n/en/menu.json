@@ -765,6 +765,9 @@
   "install.service.slack": {
     "label": "Slack"
   },
+  "install.service.vesktop": {
+    "label": "Vesktop"
+  },
   "install.service.tailscale": {
     "label": "Tailscale"
   },
