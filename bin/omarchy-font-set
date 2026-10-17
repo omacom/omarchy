@@ -54,7 +54,7 @@ fi
 # and anything resolving "monospace" all read from here. This file is loaded
 # after the package-owned default, and prepend_first puts the chosen family at
 # the head of the list so it wins over the family that default prefers.
-fontconfig_file="$HOME/.config/fontconfig/fonts.conf"
+fontconfig_file="$HOME/.config/fontconfig/conf.d/50-omarchy-monospace.conf"
 mkdir -p "$(dirname "$fontconfig_file")"
 cat >"$fontconfig_file" <<XML
 <?xml version="1.0"?>
@@ -70,6 +70,35 @@ cat >"$fontconfig_file" <<XML
   </match>
 </fontconfig>
 XML
+
+# Clean up legacy monospace rule in ~/.config/fontconfig/fonts.conf so it does not
+# override the new drop-in (fontconfig evaluates user fonts.conf after conf.d)
+legacy_fonts_conf="$HOME/.config/fontconfig/fonts.conf"
+if [[ -f "$legacy_fonts_conf" ]]; then
+  python3 -c '
+import sys, re
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+    # Pattern matching the omarchy monospace match block
+    pattern = r"\s*<match target=\"pattern\">\s*<test name=\"family\" qual=\"any\">\s*<string>monospace</string>\s*</test>\s*<edit name=\"family\" mode=\"prepend_first\" binding=\"strong\">\s*<string>[^<]+</string>\s*</edit>\s*</match>"
+    new_content = re.sub(pattern, "", content)
+    # If the file now only contains the empty fontconfig wrapper or whitespace, remove it
+    stripped = re.sub(r"<\?xml[^>]*\?>", "", new_content)
+    stripped = re.sub(r"<!DOCTYPE[^>]*>", "", stripped)
+    stripped = re.sub(r"<fontconfig\s*/>", "", stripped)
+    stripped = re.sub(r"<fontconfig>\s*</fontconfig>", "", stripped).strip()
+    if not stripped:
+        import os
+        os.remove(path)
+    elif new_content != content:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+except Exception:
+    pass
+' "$legacy_fonts_conf"
+fi
 
 omarchy-restart-shell
 
