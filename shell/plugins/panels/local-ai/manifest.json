@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.local-ai",
+  "name": "Local AI",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "Run a model validated for your GPU, or one across several, and open any coding agent on it, with GPU temperature, memory and your token history.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Local AI",
+    "description": "Run the validated local model for your GPU and open coding agents on it.",
+    "category": "AI",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
