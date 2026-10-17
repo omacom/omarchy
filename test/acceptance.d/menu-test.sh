@@ -67,20 +67,23 @@ wait_until "root menu opens" 15 layer_on_overlay "omarchy-menu"
 wait_until "root menu content is visible" 15 screen_contains "Apps"
 screenshot "success-menu-01-root"
 
-wtype -k Down -k Down -k Down
+wtype -k Down -k Down
 sleep 1
-screenshot "success-menu-02-style-selected"
+screenshot "success-menu-02-trigger-selected"
 wtype -k Return
 
-wait_until "style submenu is visible" 15 screen_contains "Theme"
-screenshot "success-menu-03-style-submenu"
+wait_until "trigger submenu is visible" 15 screen_contains "Appearance"
+screenshot "success-menu-03-trigger-submenu"
+wtype -k Return
 
-wtype -k Down -k Down -k Down -k Down -k Return
-sleep 1
+wait_until "appearance submenu is visible" 15 screen_contains "Animations"
+wtype -k Down -k Return
+
+wait_until "menu bar submenu is visible" 15 screen_contains "Position Bar"
 screenshot "success-menu-04-menu-bar-submenu"
+wtype -k Down -k Return
 
-wtype -k Return
-sleep 1
+wait_until "position submenu is visible" 15 screen_contains "Left Bar"
 screenshot "success-menu-05-position-submenu"
 
 wtype -k Down -k Down -k Return
