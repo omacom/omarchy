@@ -21,7 +21,7 @@ source, target, name = map(Path,sys.argv[1:])
 p=target/name
 p.parent.mkdir(parents=True,exist_ok=True)
 s=(source/name).read_text().replace('$HOME', '$SUDO_TEST_HOME')
-for command in ['sudo','pkexec','pacman','omarchy-pkg-missing','systemd-inhibit','setpriv','snapper']:
+for command in ['sudo','pkexec','pacman','omarchy-pkg-missing','systemd-inhibit','setpriv','snapper','script']:
  s=s.replace('/usr/bin/'+command, str(target/'mock'/command))
 s=s.replace('PATH=/usr/bin:/usr/sbin:/bin:/sbin', 'PATH="'+str(target/'bin')+':/usr/bin:/usr/sbin:/bin:/sbin"')
 p.write_text(s)

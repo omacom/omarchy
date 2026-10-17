@@ -84,8 +84,12 @@ cleanup_update() {
 }
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
-  script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "/tmp/omarchy-update.log"
+  if [[ ${SHELL@a} == *x* ]]; then
+    script_command=$(printf '%q ' /usr/bin/env "SHELL=$SHELL" /usr/bin/bash -p -- "$0" "$@")
+  else
+    script_command=$(printf '%q ' /usr/bin/env -u SHELL /usr/bin/bash -p -- "$0" "$@")
+  fi
+  exec env SHELL=/usr/bin/bash OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" /usr/bin/script -qefc "$script_command" "/tmp/omarchy-update.log"
 fi
 
 if ! omarchy-update-lock held; then
