@@ -4,6 +4,8 @@ Omarchy enables suspend and hibernation by default, but if you're having issues 
 
 On NVIDIA GB10 machines, such as the DGX Spark and the ASUS Ascent GX10, suspend and hibernation are turned off, as they are in NVIDIA's DGX OS, because sleep hasn't been shown to work on that hardware yet. The suspend toggle and hibernation setup don't apply there. To turn sleep back on, remove `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` with `sudo rm`; Suspend then returns to the menu, and hibernation can be set up as on other machines. Running `sudo omarchy apply hardware --install-user "$USER"` puts the file back.
 
+On Razer Blade laptops, Omarchy ignores lid events, because the firmware on those machines breaks the lid-close sleep flow: after a sleep the lid state can stick at "closed", the laptop wakes on its own, and opening the lid doesn't reliably bring the display back. With lid events ignored, closing the lid switches the display off with the machine still running, and opening it brings everything back. To put a Razer Blade to true sleep, use the sleep option under _System_ (or `Super + Esc`) with the lid open; on battery, shutting down is the reliable option. To restore the default lid behavior, remove `/etc/systemd/logind.conf.d/30-razer-lid-ignore.conf` with `sudo rm`, or put it back with `sudo omarchy apply hardware --install-user "$USER"`, then reboot - logind only reads the drop-in at boot.
+
 ### Power profiles
 
 On a laptop, Omarchy remembers your power profile separately for plugged in and running on battery, and switches between the two as you plug and unplug. Out of the box that means performance on AC and balanced on battery.
