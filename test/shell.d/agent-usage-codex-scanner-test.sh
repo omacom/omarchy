@@ -704,6 +704,29 @@ result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_H
   fail "Codex collector reports its available free resets" "$result"
 pass "Codex collector reports its available free resets"
 
+# A Business seat with a spend cap and no rate windows reports the cap alone,
+# with no inferred frequency and a share taken from the amounts.
+result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
+  CODEX_RATE_LIMITS='{"planType":"business","primary":null,"secondary":null,"individualLimit":{"limit":"6000","used":"1037.07","remainingPercent":83,"resetsAt":1793491200}}' \
+  "$collector" --limits-only)
+jq -e '
+  (.limits | length) == 1
+  and .limits[0].label == "Spend limit"
+  and ((.limits[0].percent - (1037.07 / 6000)) | fabs) < 0.000001
+  and .limits[0].resetsAt == "2026-11-01T00:00:00+00:00"
+' <<<"$result" >/dev/null ||
+  fail "Codex collector reports a Business spend cap with its supplied reset time" "$result"
+pass "Codex collector reports a Business spend cap with its supplied reset time"
+
+# A zero cap cannot be divided into usage. Use the reported percentage
+# instead: 40% remaining means 60% used. This is a synthetic edge case.
+result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
+  CODEX_RATE_LIMITS='{"planType":"business","individualLimit":{"limit":"0","used":"0","remainingPercent":40,"resetsAt":1793491200}}' \
+  "$collector" --limits-only)
+jq -e '[.limits[] | select(.label == "Spend limit") | .percent] == [0.6]' <<<"$result" >/dev/null ||
+  fail "Codex collector uses the reported percentage when the spend cap is zero" "$result"
+pass "Codex collector uses the reported percentage when the spend cap is zero"
+
 # A home nobody is signed in to answers with an error, which reads as a
 # sign-in to restore rather than as missing numbers.
 result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \

@@ -68,7 +68,7 @@ Adding an agent needs no QML changes: ship a collector that prints the record co
 | Collector | Limits | Local stats |
 |---|---|---|
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
-| `codex` | The Codex app-server RPC | native Codex CLI session files on the built-in `openai` provider (plus pi and opencode sessions) |
+| `codex` | The Codex app-server RPC (rate windows, plus an individual spend cap and its reported reset time when present) | native Codex CLI session files on the built-in `openai` provider (plus pi and opencode sessions) |
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 | `kimi` | Kimi Code quotas (5-hour session, weekly, and monthly allowances) | none; quota only |

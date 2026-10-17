@@ -99,6 +99,7 @@
   "agents.windowLimit": "Limit",
   "agents.windowMonthly": "Monthly",
   "agents.windowSession": "Session",
+  "agents.windowSpendLimit": "Spend limit",
   "agents.windowUsed": "%1: %2% used",
   "agents.windowUsedResets": "%1: %2% used · resets in %3",
   "agents.windowWeekly": "Weekly",
