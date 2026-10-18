@@ -97,6 +97,12 @@ bar from the CLI — `use | reset | defaults | position | background | put |
 move | set | get`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
+## Waking from suspend
+
+`SystemClock` waits out the rest of the minute on a timer that stops while the machine is suspended, so it wakes still reporting the time it had before, for up to a minute. `omarchy-clock-resync.timer`, a user timer shipped in `default/systemd/user/`, fixes that for the bar clock without a process or a poll. It sets `OnClockChange=yes`, which makes systemd's user manager wait on a `timerfd` created with `TFD_TIMER_CANCEL_ON_SET`. The kernel cancels that timerfd when `CLOCK_REALTIME` jumps against `CLOCK_MONOTONIC`, and resuming from suspend does that as well as `settimeofday`, an NTP step and `timedatectl set-time`. `OnTimezoneChange=yes` covers a changed timezone. The timer starts `omarchy-clock-resync.service`, which runs `omarchy-shell -q omarchy.clock resync`.
+
+`resync` restarts the label's `SystemClock` and the calendar's: a re-enabled `SystemClock` re-reads the time and schedules its next tick from now. Unlike `refresh`, it leaves a month the user is browsing in the calendar where it is. A plugin with a `SystemClock` of its own can register an IPC method that does the same and have a user unit call it.
+
 ## Elsewhen
 
 Elsewhen (`omarchy.elsewhen`), the world clock, is a first-party plugin in `shell/plugins/panels/elsewhen/`; [`elsewhen.md`](elsewhen.md) covers how it works. It shipped as the separate `elsewhen` package under the id `omacom.elsewhen` until it moved in. New installs place it immediately after the clock, before Weather; the placement migration uses `omarchy bar put omarchy.elsewhen --after omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. With no shell to ask, as in an update from a TTY, it skips the placement rather than failing the update. A later migration renames existing `omacom.elsewhen` entries in `shell.json`, keeping their settings, and removes the retired package and any dev-checkout link to its `/usr/share/omarchy` path, leaving links and checkouts the user made alone.

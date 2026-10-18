@@ -123,11 +123,12 @@ for source, destination, legacy in package_defaults:
     errors.append(f"PKGBUILD does not explicitly install {source} -> {destination}")
 
 # A user unit has to be on the machine before anything turns it on: shipped in
-# /usr/lib/systemd/user, or copied out of default/ by the command enabling it.
+# /usr/lib/systemd/user, or copied or linked out of default/ by the command
+# enabling it.
 def installs_first(text):
   source = re.search(r'(\w+)="[^"\n]*default/systemd/user/', text)
   held = rf"|\$\{{?{source[1]}\b" if source else ""
-  copy = re.search(rf"^[ \t]*(?:sudo[ \t]+)?(?:install|cp)\b[^\n]*(?:default/systemd/user/{held})", text, re.MULTILINE)
+  copy = re.search(rf"^[ \t]*(?:sudo[ \t]+)?(?:install|cp|ln)\b[^\n]*(?:default/systemd/user/{held})", text, re.MULTILINE)
   enable = text.find("systemctl --user enable")
   return bool(copy) and (enable < 0 or copy.start() < enable)
 
