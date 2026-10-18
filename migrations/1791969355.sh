@@ -11,7 +11,8 @@ echo "Split the bar's center section at its anchor into centerBegin, center and 
 # swapped for a clone, and the bar was centering that list as a group. Follow
 # it to what stands in its place: the one center widget cloned from it (the
 # clone's manifest records its source), else the one of the same kind, the id
-# after the last dot. Two candidates is a guess, so the center stays whole.
+# after the last dot, when nothing was cloned from it. Two candidates is a
+# guess, so the center stays whole.
 #
 # A replacement bar (a clone of the built-in one, or a third party's) reads the
 # layout the way it was written for, so its config is left as it is.
@@ -42,8 +43,9 @@ if [[ -s $config_file ]] && jq -e '
     | ($center | map(entry_id)) as $ids
     | (if $named == "" or ($ids | index($named)) != null then $named
        else
-         ([$ids[] | select(. as $id | any($clones[]; .id == $id and .from == $named))] | only) as $clone
-         | if $clone != "" then $clone
+         ([$ids[] | select(. as $id | any($clones[]; .id == $id and .from == $named))] | unique) as $cloned
+         | if ($cloned | length) == 1 then $cloned[0]
+           elif ($cloned | length) > 1 then ""
            else ([$ids[] | select(kind == ($named | kind))] | only) end
        end) as $resolved
     | (if $resolved != "" then $resolved else $named end) as $anchor
