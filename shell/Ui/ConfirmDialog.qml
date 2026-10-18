@@ -104,6 +104,7 @@ Item {
               Accessible.selectable: true
               Accessible.selected: selected
               Accessible.onPressAction: {
+                if (!root.enabled) return
                 if (index === 0) root.canceled()
                 else root.confirmed()
               }
