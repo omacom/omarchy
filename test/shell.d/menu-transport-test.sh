@@ -27,25 +27,28 @@ assert(
   'menu writes results in place, finishing the selection before the done file'
 )
 
-// A caller that gave up has removed its files. Written again, they would hold
-// the pick in a new file that every user can read.
-const answer = menuQml.match(/  function answerRequest\(selectionPath, donePath, selection\) \{[\s\S]*?\n  \}/)
-assert(answer, 'menu answerRequest function exists')
-assert(/root\.answerRequest\(activeSelectionFile, activeDoneFile, selection\)/.test(finish[0]), 'menu answers a finished request through answerRequest')
+// A caller that created its selection file and gave up has removed it again.
+// Written anyway, the answer would hold the pick in a new file that every user
+// can read.
 assert(
-  /^\s*if \(selectionPath && !root\.requestFileExists\(selectionPath\)\) return$/m.test(answer[0])
-    && answer[0].indexOf('requestFileExists') < answer[0].indexOf('writeRequestFile'),
-  'menu writes no answer once the caller has removed its selection file'
+  /^\s*if \(activeSelectionFileExisted && !root\.requestFileExists\(activeSelectionFile\)\) return$/m.test(finish[0])
+    && finish[0].indexOf('requestFileExists') < finish[0].indexOf('writeRequestFile'),
+  'menu writes no answer once the caller has removed the selection file it created'
 )
 
 const open = menuQml.match(/  function openDmenu\(payload\) \{[\s\S]*?\n  \}/)
 assert(open, 'menu openDmenu function exists')
 assert(/root\.readOptionsFile\(String\(payload\.optionsFile\)\)/.test(open[0]), 'menu reads select rows from the file the payload names')
 assert(
-  /if \(options === null\) \{\s*root\.answerRequest\(String\(payload\.selectionFile \|\| ""\), String\(payload\.doneFile \|\| ""\), null\)\s*return\s*\}/.test(open[0])
-    && open[0].indexOf('answerRequest') < open[0].indexOf('requestSerial += 1'),
+  /if \(options === null\) \{\s*root\.writeRequestFile\(String\(payload\.doneFile \|\| ""\), "\\n"\)\s*return\s*\}/.test(open[0])
+    && open[0].indexOf('writeRequestFile') < open[0].indexOf('requestSerial += 1'),
   'menu cancels a request whose rows cannot be read, before touching the menu on screen'
 )
+assert(
+  /selectionFile = String\(payload\.selectionFile \|\| ""\)\n(?:\s*\/\/.*\n)*\s*selectionFileExisted = !!selectionFile && root\.requestFileExists\(selectionFile\)/.test(open[0]),
+  'menu notes whether the caller created its selection file before the summon'
+)
+
 JS
 
 # omarchy-menu-select against a stand-in shell that answers the way the real
@@ -153,7 +156,6 @@ const parts = [
   extract(/  Component \{\n    id: requestFileWriter[\s\S]*?\n  \}/, 'requestFileWriter'),
   extract(/  Component \{\n    id: requestFileReader[\s\S]*?\n  \}/, 'requestFileReader'),
   extract(/  function finishRequest\([\s\S]*?\n  \}/, 'finishRequest'),
-  extract(/  function answerRequest\([\s\S]*?\n  \}/, 'answerRequest'),
   extract(/  function writeRequestFile\([\s\S]*?\n  \}/, 'writeRequestFile'),
   extract(/  function requestFileExists\([\s\S]*?\n  \}/, 'requestFileExists'),
   extract(/  function readOptionsFile\([\s\S]*?\n  \}/, 'readOptionsFile'),
@@ -172,6 +174,7 @@ ShellRoot {
   id: root
   property bool requestActive: false
   property string selectionFile: ""
+  property bool selectionFileExisted: false
   property string doneFile: ""
   property bool opened: true
   property string dir: ${JSON.stringify(files)}
@@ -185,9 +188,12 @@ ${parts}
     file.destroy()
     return text
   }
+  // Opens a request the way openDmenu does, noting whether the caller created
+  // its selection file.
   function request(selectionName) {
     requestActive = true
     selectionFile = dir + "/" + selectionName
+    selectionFileExisted = !!selectionFile && requestFileExists(selectionFile)
     doneFile = dir + "/" + selectionName + ".done"
   }
   function check(condition, message) {
@@ -219,14 +225,24 @@ ${parts}
     check(read("cancelled") === "", "a cancel leaves the selection empty")
     check(read("cancelled.done") !== null, "a cancel creates the done file")
 
-    // These callers gave up: their selection files are gone.
+    check(requestFileExists(dir + "/cancelled") && !requestFileExists(dir + "/gone"), "an empty selection file counts as there, and a missing one as gone")
+
+    // These callers created their selection files, then gave up and removed them.
     request("gone")
+    selectionFileExisted = true
     finishRequest(pick)
     check(read("gone") === null && read("gone.done") === null, "a pick for a caller that gave up writes neither file")
-    check(!requestActive && selectionFile === "" && doneFile === "", "a request whose caller gave up lets go of its files")
+    check(!requestActive && selectionFile === "" && !selectionFileExisted && doneFile === "", "a request whose caller gave up lets go of its files")
     request("gone-cancelled")
+    selectionFileExisted = true
     finishRequest(null)
     check(read("gone-cancelled.done") === null, "a cancel for a caller that gave up creates no done file")
+
+    // This caller leaves creating its selection file to the shell.
+    request("uncreated")
+    check(!selectionFileExisted, "a selection file the caller never created is noted as such")
+    finishRequest(pick)
+    check(read("uncreated") === pick + "\\n" && read("uncreated.done") !== null, "a caller that never created its selection file still gets its pick")
 
     requestActive = true
     selectionFile = ""
@@ -252,4 +268,4 @@ grep -q 'MENU_TRANSPORT_FILEVIEW_PASS' "$tmp/qml.log" || { cat "$tmp/qml.log" >&
 for name in gone gone.done gone-cancelled gone-cancelled.done; do
   [[ ! -e $tmp/files/$name ]] || fail "nothing is written for a caller that gave up" "Found: $name"
 done
-pass "real FileView reads rows fresh, refuses unreadable ones, writes picks and cancels into the caller's private files, and writes nothing for a caller that gave up"
+pass "real FileView reads rows fresh, refuses unreadable ones, writes picks and cancels into the caller's private files, writes nothing for a caller that gave up, and still answers one that never created its selection file"

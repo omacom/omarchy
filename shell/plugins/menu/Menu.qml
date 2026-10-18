@@ -92,6 +92,7 @@ Item {
   property string dmenuChangeKey: ""
   property var dmenuOnChange: []
   property string selectionFile: ""
+  property bool selectionFileExisted: false
   property string doneFile: ""
   property int dmenuWidth: 300
   property int dmenuMaxHeight: 0
@@ -162,23 +163,22 @@ Item {
     }
 
     var activeSelectionFile = root.selectionFile
+    var activeSelectionFileExisted = root.selectionFileExisted
     var activeDoneFile = root.doneFile
     root.requestActive = false
     root.selectionFile = ""
+    root.selectionFileExisted = false
     root.doneFile = ""
 
-    root.answerRequest(activeSelectionFile, activeDoneFile, selection)
-  }
+    // A caller that created its selection file and then gave up, because its
+    // summon timed out or it was stopped, has removed it again. Writing now
+    // would create new files that every user can read, and leave the pick in
+    // /tmp with nobody to remove it.
+    if (activeSelectionFileExisted && !root.requestFileExists(activeSelectionFile)) return
 
-  // A caller that gave up before the answer, because its summon timed out or
-  // it was stopped, has removed its files. Writing them now would create new
-  // ones that every user can read, and leave the pick in /tmp with nobody to
-  // remove it.
-  function answerRequest(selectionPath, donePath, selection) {
-    if (selectionPath && !root.requestFileExists(selectionPath)) return
     if (selection !== null && selection !== undefined)
-      root.writeRequestFile(selectionPath, String(selection) + "\n")
-    root.writeRequestFile(donePath, "\n")
+      root.writeRequestFile(activeSelectionFile, String(selection) + "\n")
+    root.writeRequestFile(activeDoneFile, "\n")
   }
 
   // Writes block, so the selection is complete before the done file the caller
@@ -1079,7 +1079,7 @@ Item {
       // Rows that can't be read cancel this request rather than open an empty
       // menu, and leave whatever the menu shows now alone.
       if (options === null) {
-        root.answerRequest(String(payload.selectionFile || ""), String(payload.doneFile || ""), null)
+        root.writeRequestFile(String(payload.doneFile || ""), "\n")
         return
       }
     }
@@ -1096,6 +1096,10 @@ Item {
     if (dmenuOnChange.length > 0)
       dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, selectionProc.requestedSelection(), true)
     selectionFile = String(payload.selectionFile || "")
+    // omarchy-menu-select and omarchy-menu-input create the selection file
+    // before they summon, so its going missing later means the caller gave up.
+    // A caller that leaves creating it to the shell is answered as before.
+    selectionFileExisted = !!selectionFile && root.requestFileExists(selectionFile)
     doneFile = String(payload.doneFile || "")
     requestActive = !!doneFile
     dmenuWidth = Math.max(1, Number(payload.width || 300))
