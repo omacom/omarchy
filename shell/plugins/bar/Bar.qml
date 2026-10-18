@@ -2869,18 +2869,9 @@ Item {
     // dot should be along the bar, so it tracks what the module paints
     // instead of a fraction of whatever slot it happens to fill.
     readonly property real panelIndicatorExtent: {
-      var mark = panelIndicatorItem
-      if (mark) return Math.max(Style.space(10), Math.round((root.vertical ? mark.height : mark.width) * 0.55))
       var key = root.vertical ? "openPanelIndicatorHeight" : "openPanelIndicatorWidth"
       var hint = activeItem && key in activeItem ? activeItem[key] : undefined
-      if (hint !== undefined && hint !== null && hint > 0) return Math.round(hint)
-      if (root.vertical) return Math.max(Style.space(10), Math.round(slot.widgetHeight * 0.55))
-      // An icon slot keeps its short mark; a module wider than one (a row of
-      // readouts, an icon with a count) is underlined across its content,
-      // inside the padding most leave either side. The two meet at one icon,
-      // so the mark grows smoothly with the module rather than jumping.
-      var width = slot.widgetWidth
-      return Math.max(Style.space(10), Math.round(width * 0.55), Math.round(width - Style.space(12)))
+      return BarModel.panelIndicatorLength(root.vertical, slot.widgetWidth, slot.widgetHeight, panelIndicatorItem, hint, Style.space(10), Style.space(12))
     }
     // A module holding several things a panel can open from (the tray's
     // icons) names the one whose panel is open, and the mark sits under it

@@ -444,6 +444,20 @@ function fadeShares(shares, target, step) {
   return next
 }
 
+// How long the open-panel mark is along the bar. A module naming a mark item
+// is measured from that item, and a module's own positive hint wins over the
+// default. An icon slot keeps its short mark; a module wider than one (a row
+// of readouts, an icon with a count) on a horizontal bar is underlined across
+// its content, inside the `inset` of padding most leave either side. The two
+// meet at one icon, so the mark grows smoothly with the module rather than
+// jumping.
+function panelIndicatorLength(vertical, width, height, mark, hint, minimum, inset) {
+  if (mark) return Math.max(minimum, Math.round((vertical ? mark.height : mark.width) * 0.55))
+  if (hint !== undefined && hint !== null && hint > 0) return Math.round(hint)
+  if (vertical) return Math.max(minimum, Math.round(height * 0.55))
+  return Math.max(minimum, Math.round(width * 0.55), Math.round(width - inset))
+}
+
 // The length each place takes of a room `extent` long, in whole pixels, since
 // a layout places its items on whole pixels: the room's rounded length shared
 // out by largest remainder, so the places add up to it exactly.
@@ -710,6 +724,7 @@ if (typeof module !== "undefined") {
     layoutWidgets: layoutWidgets,
     fadeShares: fadeShares,
     roomLengths: roomLengths,
+    panelIndicatorLength: panelIndicatorLength,
     moveEntry: moveEntry,
     removeEntry: removeEntry,
     dragDistanceOutside: dragDistanceOutside,
