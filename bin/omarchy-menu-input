@@ -45,6 +45,7 @@ payload=$(jq -nc \
       mode: "input",
       prompt: $prompt,
       selectionFile: $selectionFile,
+      selectionFileCreated: true,
       doneFile: $doneFile
     }
     + (if ($width | length) > 0 then { width: ($width | tonumber? // 0 | trunc) } else {} end)

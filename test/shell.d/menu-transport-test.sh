@@ -31,7 +31,7 @@ assert(
 // Written anyway, the answer would hold the pick in a new file that every user
 // can read.
 assert(
-  /^\s*if \(activeSelectionFileExisted && !root\.requestFileExists\(activeSelectionFile\)\) return$/m.test(finish[0])
+  /^\s*if \(activeSelectionFileCreated && !root\.requestFileExists\(activeSelectionFile\)\) return$/m.test(finish[0])
     && finish[0].indexOf('requestFileExists') < finish[0].indexOf('writeRequestFile'),
   'menu writes no answer once the caller has removed the selection file it created'
 )
@@ -45,10 +45,14 @@ assert(
   'menu cancels a request whose rows cannot be read, before touching the menu on screen'
 )
 assert(
-  /selectionFile = String\(payload\.selectionFile \|\| ""\)\n(?:\s*\/\/.*\n)*\s*selectionFileExisted = !!selectionFile && root\.requestFileExists\(selectionFile\)/.test(open[0]),
-  'menu notes whether the caller created its selection file before the summon'
+  /var callerCreatedSelection = payload\.selectionFileCreated === true && !!payload\.selectionFile\s*\n\s*if \(callerCreatedSelection && !root\.requestFileExists\(String\(payload\.selectionFile\)\)\) return\n/.test(open[0])
+    && open[0].indexOf('callerCreatedSelection') < open[0].indexOf('readOptionsFile'),
+  'menu opens nothing for a caller that created its selection file and has removed it already'
 )
-
+assert(
+  /selectionFile = String\(payload\.selectionFile \|\| ""\)\n\s*selectionFileCreated = callerCreatedSelection\n/.test(open[0]),
+  'menu remembers whether the caller created its selection file'
+)
 JS
 
 # omarchy-menu-select against a stand-in shell that answers the way the real
@@ -96,6 +100,7 @@ jq -e '.prompt == "Pick a row" and has("optionsFile") and (has("options") | not)
 cmp -s <(jq -r '.[]' "$large/options.json") "$large/rows" || fail "the options file holds every row in order"
 (( $(stat -c %s "$large/options.json") > 131072 )) || fail "the large list is past Linux's single-argument limit"
 [[ $(<"$large/options.mode") == "700" ]] || fail "the options file is in a private directory while the menu is open" "Mode: $(<"$large/options.mode")"
+jq -e '.selectionFileCreated == true' "$large/payload.json" >/dev/null || fail "omarchy-menu-select says it created its selection file" "$(<"$large/payload.json")"
 [[ -s $large/argv ]] || fail "jq and the shell stand-in log their arguments"
 if grep -qF menu-transport-row "$large/argv"; then
   fail "no option reaches a command line" "$(grep -F menu-transport-row "$large/argv" | head -3)"
@@ -125,6 +130,15 @@ menu_select "$cancelled" Pick one two >"$cancelled/out" || status=$?
 (( status == 1 )) && [[ ! -s $cancelled/out ]] || fail "a cancelled menu exits 1 with no output" "Status: $status"
 [[ ! -e $(jq -r .optionsFile "$cancelled/payload.json") ]] || fail "a cancelled menu removes its options file"
 pass "a cancelled menu exits 1 and removes its options file"
+
+input="$tmp/input"
+mkdir -p "$input"
+typed=$(MENU_TEST_DIR="$input" MENU_TEST_PICK='typed café' PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-menu-input" Name) \
+  || fail "an input prompt returns what was typed"
+[[ $typed == 'typed café' ]] || fail "an input prompt returns what was typed" "Got: $typed"
+jq -e '.mode == "input" and .selectionFileCreated == true' "$input/payload.json" >/dev/null \
+  || fail "omarchy-menu-input says it created its selection file" "$(<"$input/payload.json")"
+pass "omarchy-menu-input says it created its selection file and returns what was typed"
 
 # Run the shipped read and write paths against real files with Quickshell's
 # FileView, offscreen and on a private runtime directory.
@@ -174,7 +188,7 @@ ShellRoot {
   id: root
   property bool requestActive: false
   property string selectionFile: ""
-  property bool selectionFileExisted: false
+  property bool selectionFileCreated: false
   property string doneFile: ""
   property bool opened: true
   property string dir: ${JSON.stringify(files)}
@@ -188,12 +202,12 @@ ${parts}
     file.destroy()
     return text
   }
-  // Opens a request the way openDmenu does, noting whether the caller created
-  // its selection file.
-  function request(selectionName) {
+  // Opens a request the way openDmenu does, from a caller that created its
+  // selection file unless told otherwise.
+  function request(selectionName, created) {
     requestActive = true
     selectionFile = dir + "/" + selectionName
-    selectionFileExisted = !!selectionFile && requestFileExists(selectionFile)
+    selectionFileCreated = created !== false
     doneFile = dir + "/" + selectionName + ".done"
   }
   function check(condition, message) {
@@ -229,18 +243,15 @@ ${parts}
 
     // These callers created their selection files, then gave up and removed them.
     request("gone")
-    selectionFileExisted = true
     finishRequest(pick)
     check(read("gone") === null && read("gone.done") === null, "a pick for a caller that gave up writes neither file")
-    check(!requestActive && selectionFile === "" && !selectionFileExisted && doneFile === "", "a request whose caller gave up lets go of its files")
+    check(!requestActive && selectionFile === "" && !selectionFileCreated && doneFile === "", "a request whose caller gave up lets go of its files")
     request("gone-cancelled")
-    selectionFileExisted = true
     finishRequest(null)
     check(read("gone-cancelled.done") === null, "a cancel for a caller that gave up creates no done file")
 
     // This caller leaves creating its selection file to the shell.
-    request("uncreated")
-    check(!selectionFileExisted, "a selection file the caller never created is noted as such")
+    request("uncreated", false)
     finishRequest(pick)
     check(read("uncreated") === pick + "\\n" && read("uncreated.done") !== null, "a caller that never created its selection file still gets its pick")
 

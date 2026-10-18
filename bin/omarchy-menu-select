@@ -143,6 +143,7 @@ payload=$(
         onChange: $onChange,
         changeKey: $changeKey,
         selectionFile: $selectionFile,
+        selectionFileCreated: true,
         doneFile: $doneFile
       }
       + (if ($width | length) > 0 then { width: ($width | tonumber? // 0 | trunc) } else {} end)
