@@ -46,11 +46,20 @@ def tokens(source):
       while i < len(source):
         char = source[i]
         if char == "\\":
-          if i + 1 < len(source):
-            value.extend(source[i:i + 2])
-            i += 2
-          else:
+          # Decode escapes as QML's JavaScript strings do, so an escaped icon
+          # code point reads as the glyph it is.
+          escape = re.match(r"\\(?:u\{([0-9A-Fa-f]+)\}|u([0-9A-Fa-f]{4})|x([0-9A-Fa-f]{2})|(\r\n|[\s\S]))", source[i:])
+          if escape is None:
             i += 1
+            continue
+          braced, unit, byte, other = escape.groups()
+          if braced or unit or byte:
+            value.append(chr(int(braced or unit or byte, 16)))
+          elif other in ("\n", "\r\n"):
+            line += 1
+          else:
+            value.append({"n": "\n", "t": "\t", "r": "\r", "b": "\b", "f": "\f", "v": "\v", "0": "\0"}.get(other, other))
+          i += len(escape.group(0))
         elif char == quote:
           i += 1
           break
@@ -59,7 +68,9 @@ def tokens(source):
             line += 1
           value.append(char)
           i += 1
-      result.append(("STRING", "".join(value), start_line))
+      # Join surrogate pairs such as "😀" into one code point.
+      text = "".join(value).encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+      result.append(("STRING", text, start_line))
     elif char.isalpha() or char == "_":
       match = re.match(r"[A-Za-z_][A-Za-z0-9_.]*", source[i:])
       value = match.group(0)
@@ -165,6 +176,8 @@ Item {
   BarIndicator { inactiveTooltipText: "Idle" }
   PanelActionButton { label: "Copy" }
   Button { iconText: "\ue900"; label: "Menu" }
+  BarIconButton { accessibleName: "\ue900" }
+  BarIconButton { accessibleName: "\u{f0001}" }
 }
 QML
 cat >"$LINT_FIXTURES/Named.qml" <<'QML'
@@ -175,12 +188,13 @@ Item {
   BarIndicator { activeTooltipText: "Recording" }
   PanelActionButton { tooltipText: "Copy" }
   Button { iconText: "\ue900"; tooltipText: "Menu" }
+  BarIconButton { accessibleName: "Caf\u00e9" }
 }
 QML
 lint_status=0
 lint_output=$(python3 -c "$naming_lint" "$ROOT" "$LINT_FIXTURES" 2>&1) || lint_status=$?
 rm -rf "$LINT_FIXTURES"
-expected_unnamed=$'Unnamed first-party controls:\n  Unnamed.qml:2 PanelSlider\n  Unnamed.qml:3 ToggleSwitch\n  Unnamed.qml:4 BarIconButton\n  Unnamed.qml:5 BarIndicator\n  Unnamed.qml:6 PanelActionButton\n  Unnamed.qml:7 Button'
+expected_unnamed=$'Unnamed first-party controls:\n  Unnamed.qml:2 PanelSlider\n  Unnamed.qml:3 ToggleSwitch\n  Unnamed.qml:4 BarIconButton\n  Unnamed.qml:5 BarIndicator\n  Unnamed.qml:6 PanelActionButton\n  Unnamed.qml:7 Button\n  Unnamed.qml:8 BarIconButton\n  Unnamed.qml:9 BarIconButton'
 if (( lint_status == 0 )) || [[ $lint_output != "$expected_unnamed" ]]; then
   fail "naming lint rejects controls named only through unread properties" "$lint_output"
 fi
