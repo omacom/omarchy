@@ -401,6 +401,13 @@ ShellRoot {
     }
     same(dialogCancels, 1, "ConfirmDialog cancel action emits canceled")
     same(dialogConfirms, 1, "ConfirmDialog confirm action emits confirmed")
+    confirmDialog.enabled = false
+    if (cancel && confirm) {
+      cancel.Accessible.pressAction()
+      confirm.Accessible.pressAction()
+    }
+    same(dialogCancels, 1, "disabled ConfirmDialog ignores cancel action")
+    same(dialogConfirms, 1, "disabled ConfirmDialog ignores confirm action")
     finishChecks()
   }
 
@@ -638,6 +645,7 @@ ShellRoot {
     Item { id: panelAnchor; width: 40; height: 40 }
 
     ConfirmDialog {
+      id: confirmDialog
       anchors.fill: parent
       opened: true
       message: "Delete this item?"
