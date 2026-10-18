@@ -98,6 +98,26 @@ fresh_preferences="$fresh_home/.config/sublime-text/Packages/User/Preferences.su
 
 pass "Sublime installer sets defaults on a fresh profile"
 
+broken_home="$test_tmp/broken-prefs"
+broken_package="$broken_home/.config/sublime-text/Packages/User"
+mkdir -p "$broken_package" "$broken_home/.local/state/omarchy/current/theme"
+printf '{"name":"broken"}\n' >"$broken_home/.local/state/omarchy/current/theme/Omarchy.sublime-color-scheme"
+printf '{"theme": "unterminated\n' >"$broken_package/Preferences.sublime-settings"
+if HOME="$broken_home" OMARCHY_PATH="$ROOT" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  bash "$ROOT/bin/omarchy-install-editor-sublime" 2>/dev/null; then
+  fail "Sublime install reports unreadable preferences"
+fi
+[[ ! -e $broken_package/Omarchy.sublime-theme ]] || fail "failed setup leaves the Install menu entry available"
+
+cp "$ROOT/default/sublime/Omarchy.sublime-theme" "$broken_package/"
+if HOME="$broken_home" OMARCHY_PATH="$ROOT" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  bash "$ROOT/bin/omarchy-install-editor-sublime" 2>/dev/null; then
+  fail "Sublime reinstall reports unreadable preferences"
+fi
+[[ -f $broken_package/Omarchy.sublime-theme ]] || fail "failed reinstall keeps a theme from an earlier setup"
+
+pass "Failed Sublime setup can be retried from the Install menu"
+
 compact="$test_tmp/compact.sublime-settings"
 printf '{"theme":"A \\"quoted\\" theme","font_size":14}\n' >"$compact"
 python3 "$ROOT/default/sublime/set-preferences.py" "$compact" theme=Omarchy.sublime-theme
