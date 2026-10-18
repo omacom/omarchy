@@ -27,12 +27,23 @@ assert(
   'menu writes results in place, finishing the selection before the done file'
 )
 
+// A caller that gave up has removed its files. Written again, they would hold
+// the pick in a new file that every user can read.
+const answer = menuQml.match(/  function answerRequest\(selectionPath, donePath, selection\) \{[\s\S]*?\n  \}/)
+assert(answer, 'menu answerRequest function exists')
+assert(/root\.answerRequest\(activeSelectionFile, activeDoneFile, selection\)/.test(finish[0]), 'menu answers a finished request through answerRequest')
+assert(
+  /^\s*if \(selectionPath && !root\.requestFileExists\(selectionPath\)\) return$/m.test(answer[0])
+    && answer[0].indexOf('requestFileExists') < answer[0].indexOf('writeRequestFile'),
+  'menu writes no answer once the caller has removed its selection file'
+)
+
 const open = menuQml.match(/  function openDmenu\(payload\) \{[\s\S]*?\n  \}/)
 assert(open, 'menu openDmenu function exists')
 assert(/root\.readOptionsFile\(String\(payload\.optionsFile\)\)/.test(open[0]), 'menu reads select rows from the file the payload names')
 assert(
-  /if \(options === null\) \{\s*root\.writeRequestFile\(String\(payload\.doneFile \|\| ""\), "\\n"\)\s*return\s*\}/.test(open[0])
-    && open[0].indexOf('writeRequestFile') < open[0].indexOf('requestSerial += 1'),
+  /if \(options === null\) \{\s*root\.answerRequest\(String\(payload\.selectionFile \|\| ""\), String\(payload\.doneFile \|\| ""\), null\)\s*return\s*\}/.test(open[0])
+    && open[0].indexOf('answerRequest') < open[0].indexOf('requestSerial += 1'),
   'menu cancels a request whose rows cannot be read, before touching the menu on screen'
 )
 JS
@@ -140,9 +151,11 @@ const extract = (pattern, name) => {
 }
 const parts = [
   extract(/  Component \{\n    id: requestFileWriter[\s\S]*?\n  \}/, 'requestFileWriter'),
-  extract(/  Component \{\n    id: optionsFileReader[\s\S]*?\n  \}/, 'optionsFileReader'),
+  extract(/  Component \{\n    id: requestFileReader[\s\S]*?\n  \}/, 'requestFileReader'),
   extract(/  function finishRequest\([\s\S]*?\n  \}/, 'finishRequest'),
+  extract(/  function answerRequest\([\s\S]*?\n  \}/, 'answerRequest'),
   extract(/  function writeRequestFile\([\s\S]*?\n  \}/, 'writeRequestFile'),
+  extract(/  function requestFileExists\([\s\S]*?\n  \}/, 'requestFileExists'),
   extract(/  function readOptionsFile\([\s\S]*?\n  \}/, 'readOptionsFile'),
 ].join('\n')
 const files = path.join(process.env.FIXTURE, 'files')
@@ -206,6 +219,21 @@ ${parts}
     check(read("cancelled") === "", "a cancel leaves the selection empty")
     check(read("cancelled.done") !== null, "a cancel creates the done file")
 
+    // These callers gave up: their selection files are gone.
+    request("gone")
+    finishRequest(pick)
+    check(read("gone") === null && read("gone.done") === null, "a pick for a caller that gave up writes neither file")
+    check(!requestActive && selectionFile === "" && doneFile === "", "a request whose caller gave up lets go of its files")
+    request("gone-cancelled")
+    finishRequest(null)
+    check(read("gone-cancelled.done") === null, "a cancel for a caller that gave up creates no done file")
+
+    requestActive = true
+    selectionFile = ""
+    doneFile = dir + "/bare.done"
+    finishRequest(null)
+    check(read("bare.done") !== null, "a request without a selection file still gets its done file")
+
     finishRequest("late")
     check(!opened, "a finish without a request only closes the menu")
     console.log("MENU_TRANSPORT_FILEVIEW_PASS")
@@ -221,4 +249,7 @@ if ! QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QPA_PLATFORMTHEME= Q
 fi
 grep -q 'MENU_TRANSPORT_FILEVIEW_PASS' "$tmp/qml.log" || { cat "$tmp/qml.log" >&2; fail "real FileView reads menu rows and writes menu results"; }
 [[ $(stat -c %a "$tmp/files/pick") == "600" ]] || fail "a pick keeps the selection file private" "Mode: $(stat -c %a "$tmp/files/pick")"
-pass "real FileView reads rows fresh, refuses unreadable ones, and writes picks and cancels into the caller's private files"
+for name in gone gone.done gone-cancelled gone-cancelled.done; do
+  [[ ! -e $tmp/files/$name ]] || fail "nothing is written for a caller that gave up" "Found: $name"
+done
+pass "real FileView reads rows fresh, refuses unreadable ones, writes picks and cancels into the caller's private files, and writes nothing for a caller that gave up"

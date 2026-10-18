@@ -167,9 +167,18 @@ Item {
     root.selectionFile = ""
     root.doneFile = ""
 
+    root.answerRequest(activeSelectionFile, activeDoneFile, selection)
+  }
+
+  // A caller that gave up before the answer, because its summon timed out or
+  // it was stopped, has removed its files. Writing them now would create new
+  // ones that every user can read, and leave the pick in /tmp with nobody to
+  // remove it.
+  function answerRequest(selectionPath, donePath, selection) {
+    if (selectionPath && !root.requestFileExists(selectionPath)) return
     if (selection !== null && selection !== undefined)
-      root.writeRequestFile(activeSelectionFile, String(selection) + "\n")
-    root.writeRequestFile(activeDoneFile, "\n")
+      root.writeRequestFile(selectionPath, String(selection) + "\n")
+    root.writeRequestFile(donePath, "\n")
   }
 
   // Writes block, so the selection is complete before the done file the caller
@@ -184,12 +193,21 @@ Item {
     writer.destroy()
   }
 
+  // A waiting caller's selection file is still empty, and an empty file loads.
+  function requestFileExists(path) {
+    var reader = requestFileReader.createObject(root, { path: path })
+    reader.waitForJob()
+    var exists = reader.loaded
+    reader.destroy()
+    return exists
+  }
+
   // omarchy-menu-select hands its rows over in a private file the payload
   // names as optionsFile: inline, they would meet Linux's 128 KiB limit on a
   // single argument and be readable by every user on the machine. A fresh
   // reader per request never serves the previous request's rows.
   function readOptionsFile(path) {
-    var reader = optionsFileReader.createObject(root, { path: path })
+    var reader = requestFileReader.createObject(root, { path: path })
     reader.waitForJob()
     var text = reader.text()
     var loaded = reader.loaded
@@ -1061,7 +1079,7 @@ Item {
       // Rows that can't be read cancel this request rather than open an empty
       // menu, and leave whatever the menu shows now alone.
       if (options === null) {
-        root.writeRequestFile(String(payload.doneFile || ""), "\n")
+        root.answerRequest(String(payload.selectionFile || ""), String(payload.doneFile || ""), null)
         return
       }
     }
@@ -1339,7 +1357,7 @@ Item {
   }
 
   Component {
-    id: optionsFileReader
+    id: requestFileReader
     FileView {
       blockLoading: true
       printErrors: false
