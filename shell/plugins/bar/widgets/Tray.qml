@@ -45,8 +45,10 @@ BarWidget {
   // can go, and so does any panel open from the tray or the tray section.
   readonly property bool barDragging: !!bar && bar.traySectionDragActive === true
   readonly property bool holdOpen: trayMenuOpen || managePopupOpen || barDragging || (!!bar && bar.traySectionPopoutOpen === true)
-  // The mark under the bar sits under the icon whose menu is open.
-  readonly property Item openPanelIndicatorItem: trayMenuOpen ? activeTrayAnchor : null
+  // The mark under the bar sits under the icon whose menu is open, or under
+  // the chevron that opened the manage popup.
+  readonly property Item openPanelIndicatorItem: trayMenuOpen ? activeTrayAnchor
+    : managePopupOpen && trayContent.item ? trayContent.item.chevron : null
   // Match Waybar's group/tray-expander drawer transition-duration.
   readonly property int animationDuration: 600
   property real revealProgress: expanded || holdOpen ? 1 : 0
@@ -269,6 +271,7 @@ BarWidget {
     Item {
       id: horizontalTrayRoot
 
+      readonly property Item chevron: expandIcon
       readonly property int chevronWidth: root.hasDrawer ? expandIcon.implicitWidth : 0
       readonly property var sectionShown: root.shownSection(drawerArea.x + trayClip.x, trayClip.width, drawerArea.x + trayClip.x + drawerContent.x + section.x, section.width)
 
@@ -359,6 +362,7 @@ BarWidget {
     Item {
       id: verticalTrayRoot
 
+      readonly property Item chevron: expandIcon
       readonly property int chevronHeight: root.hasDrawer ? expandIcon.implicitHeight : 0
       readonly property var sectionShown: root.shownSection(drawerArea.y + trayClip.y, trayClip.height, drawerArea.y + trayClip.y + drawerContent.y + section.y, section.height)
 
