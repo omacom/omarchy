@@ -22,7 +22,8 @@ make_stub() {
   chmod +x "$stub_dir/$name"
 }
 
-make_stub omarchy-notification-send ':'
+make_stub omarchy-notification-send 'printf "%s\n" "$*" >>"$NOTIFY_LOG"'
+make_stub omarchy-i18n 'printf "%s\n" "$1"'
 make_stub omarchy-hyprland-monitor-external-active 'exit 0'
 make_stub omarchy-hyprland-toggle-disabled 'exit 0'
 make_stub omarchy-hyprland-toggle ':'
@@ -33,19 +34,23 @@ make_stub omarchy-hyprland-monitor-laptop 'printf "%s\n" "$LAPTOP_NAME"'
 make_stub hyprctl 'case "$1" in
   monitors) cat "$MONITORS_JSON" ;;
   eval) printf "%s\n" "$2" >>"$EVAL_LOG" ;;
+  dispatch) printf "dispatch %s\n" "$2" >>"$EVAL_LOG" ;;
 esac'
 
 eval_log="$tmpdir/eval.log"
+notify_log="$tmpdir/notify.log"
 
 run_monitor() {
   local command=$1
   shift
   : >"$eval_log"
+  : >"$notify_log"
   HOME="$home_dir" \
     XDG_STATE_HOME="$home_dir/.local/state" \
     LAPTOP_NAME="${LAPTOP_NAME:-eDP-1}" \
     MONITORS_JSON="$monitors_json" \
     EVAL_LOG="$eval_log" \
+    NOTIFY_LOG="$notify_log" \
     PATH="$stub_dir:$ROOT/bin:$PATH" \
     "$ROOT/bin/$command" "$@"
 }
@@ -84,6 +89,8 @@ LAPTOP_NAME='eDP-1", disabled = false })os.execute("calc")--' \
 set -e
 ! grep -F 'os.execute' "$eval_log" >/dev/null ||
   fail "internal on eval's an unsafe monitor name"
+grep -F 'monitor.unsafeName' "$notify_log" >/dev/null ||
+  fail "internal on says why it left the panel alone"
 pass "internal on refuses an unsafe monitor name"
 
 # recover runs from the clamshell watcher, so it re-enables only once the
@@ -97,7 +104,7 @@ pass "recover turns the panel back on"
 
 rm -f "$disable_flag"
 run_monitor omarchy-hyprland-monitor-internal recover
-[[ ! -s $eval_log ]] || fail "recover drives the output with no flag set"
+[[ ! -s $eval_log ]] || fail "recover drives the output with no flag set" "$(<"$eval_log")"
 pass "recover stays a no-op with nothing to recover"
 make_stub omarchy-hyprland-monitor-external-active 'exit 0'
 
