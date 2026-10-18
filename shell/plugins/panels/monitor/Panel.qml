@@ -1164,6 +1164,7 @@ Panel {
     verticalPadding: Style.spacing.controlPaddingY
     bordered: true
 
+    selectable: true
     active: root.current !== null && root.current.scaleIndex === scaleIndex
     hasCursor: root.cursorActive && root.focusSection === "scale" && root.selectedIndex === scaleIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(pill)
