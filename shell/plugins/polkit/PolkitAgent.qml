@@ -322,6 +322,11 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: Style.font.iconLarge
             echoMode: root.responseVisible ? TextInput.Normal : TextInput.Password
+            // Revealed, Qt would let the password be copied, cut, or selected
+            // with the mouse into the primary selection, and from there into
+            // clipboard history. Password echo mode already blocks all of it.
+            selectByMouse: false
+            inputMethodHints: root.responseVisible ? Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase : Qt.ImhNone
             passwordCharacter: "\u2022"
             color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
             cursorVisible: activeFocus && !root.submitted && !root.errorFlash
@@ -331,6 +336,8 @@ Item {
             Keys.onPressed: function(event) {
               if (event.key === Qt.Key_Escape) {
                 root.cancelRequest()
+                event.accepted = true
+              } else if (event.matches(StandardKey.Copy) || event.matches(StandardKey.Cut)) {
                 event.accepted = true
               }
             }

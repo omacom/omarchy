@@ -6,6 +6,16 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const polkit = requireFromRoot('shell/plugins/polkit/PolkitModel.js')
+const fs = require('fs')
+
+// A revealed password must not reach the clipboard or the primary selection:
+// the field keeps mouse selection off and swallows copy and cut.
+const agentSource = fs.readFileSync(path.join(root, 'shell/plugins/polkit/PolkitAgent.qml'), 'utf8')
+const passwordField = agentSource.slice(agentSource.indexOf('id: passwordInput'))
+const fieldBody = passwordField.slice(0, passwordField.search(/\n {10}\}\n/))
+assert(/selectByMouse: false/.test(fieldBody), 'polkit password field does not select with the mouse')
+assert(/event\.matches\(StandardKey\.Copy\)/.test(fieldBody) && /event\.matches\(StandardKey\.Cut\)/.test(fieldBody), 'polkit password field swallows copy and cut')
+assert(/ImhSensitiveData \| Qt\.ImhNoPredictiveText \| Qt\.ImhNoAutoUppercase/.test(fieldBody), 'polkit password field asks input methods to treat a revealed password as sensitive')
 
 assert(polkit.promptLooksFingerprint('Swipe your finger'), 'polkit detects fingerprint prompts')
 assert(polkit.promptLooksFingerprint('fprintd verification'), 'polkit detects fprint prompts')
