@@ -231,8 +231,7 @@ The shell exposes these tokens to QML via three singletons in
   and per-surface roles (`Commons.Color.bar.*`, `Commons.Color.popups.*`,
   `Commons.Color.tooltip.*`, `Commons.Color.notifications.*`, `Commons.Color.menu.*`,
   `Commons.Color.polkit.*`, `Commons.Color.lock.*`, `Commons.Color.imagePicker.*`). Clipboard
-  and emojis share `Commons.Color.menu.*`; the `[launcher]` section is consumed
-  by the launcher outside shell QML.
+  and emojis share `Commons.Color.menu.*`.
 - `Style` — structural tokens (`cornerRadius`), shared interactive
   state tokens/helpers, spacing (`Style.spacing.*` / `Style.space(px)`),
   the type scale (`Style.font.*`), bar dimensions
@@ -252,7 +251,7 @@ and `selected`. State colors and border tokens accept palette roles
 values may also be gradients. Fill alpha applies to the state color;
 border alpha applies to the state's border token.
 
-Surfaces like `[menu]`, `[launcher]`, and `[image-picker]` define
+Surfaces like `[menu]` and `[image-picker]` define
 their own `selected-*` tokens and do **not** inherit from `[controls]`.
 `[controls]` only governs the shared button/dropdown chrome.
 
