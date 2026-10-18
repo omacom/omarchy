@@ -30,14 +30,22 @@ enable_output() {
   hyprctl eval "hl.monitor({ output = \"$INTERNAL\", disabled = false })" >/dev/null
 }
 
+# The wake is best effort, so the exit status is whether the output came back:
+# the Display panel logs a non-zero one.
+enable_and_wake() {
+  local status=0
+  enable_output || status=$?
+  wake
+  return "$status"
+}
+
 on() {
   if omarchy-hyprland-toggle-enabled $TOGGLE; then
     omarchy-hyprland-toggle $TOGGLE off
     omarchy-notification-send -g 󰍹 "$(omarchy-i18n monitor.laptopEnabled)"
   fi
 
-  enable_output
-  wake
+  enable_and_wake
 }
 
 off() {
@@ -73,8 +81,7 @@ recover() {
   omarchy-hyprland-toggle-enabled $TOGGLE || return 0
 
   omarchy-hyprland-toggle $TOGGLE off
-  enable_output
-  wake
+  enable_and_wake
 }
 
 toggle() {

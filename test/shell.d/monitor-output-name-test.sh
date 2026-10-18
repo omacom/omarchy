@@ -33,7 +33,10 @@ make_stub omarchy-hw-clamshell 'exit 0'
 make_stub omarchy-hyprland-monitor-laptop 'printf "%s\n" "$LAPTOP_NAME"'
 make_stub hyprctl 'case "$1" in
   monitors) cat "$MONITORS_JSON" ;;
-  eval) printf "%s\n" "$2" >>"$EVAL_LOG" ;;
+  eval)
+    printf "%s\n" "$2" >>"$EVAL_LOG"
+    exit "${EVAL_STATUS:-0}"
+    ;;
   dispatch) printf "dispatch %s\n" "$2" >>"$EVAL_LOG" ;;
 esac'
 
@@ -50,6 +53,7 @@ run_monitor() {
     LAPTOP_NAME="${LAPTOP_NAME:-eDP-1}" \
     MONITORS_JSON="$monitors_json" \
     EVAL_LOG="$eval_log" \
+    EVAL_STATUS="${EVAL_STATUS:-0}" \
     NOTIFY_LOG="$notify_log" \
     PATH="$stub_dir:$ROOT/bin:$PATH" \
     "$ROOT/bin/$command" "$@"
@@ -86,7 +90,9 @@ pass "internal on turns the panel back on"
 set +e
 LAPTOP_NAME='eDP-1", disabled = false })os.execute("calc")--' \
   run_monitor omarchy-hyprland-monitor-internal on >/dev/null 2>&1
+status=$?
 set -e
+(( status != 0 )) || fail "internal on rejects a monitor name with Lua metacharacters"
 ! grep -F 'os.execute' "$eval_log" >/dev/null ||
   fail "internal on eval's an unsafe monitor name"
 grep -F 'monitor.unsafeName' "$notify_log" >/dev/null ||
@@ -101,6 +107,20 @@ run_monitor omarchy-hyprland-monitor-internal recover
 grep -Fx 'hl.monitor({ output = "eDP-1", disabled = false })' "$eval_log" >/dev/null ||
   fail "clamshell recovery re-enables the panel it cleared the flag for"
 pass "recover turns the panel back on"
+
+# hyprctl exits non-zero on a spec it refuses, and the Display panel only logs
+# a refusal it sees. The wake after it is best effort and still runs.
+for action in on recover; do
+  printf 'hl.monitor({ output = "eDP-1", disabled = true })\n' >"$disable_flag"
+  set +e
+  EVAL_STATUS=7 run_monitor omarchy-hyprland-monitor-internal "$action"
+  status=$?
+  set -e
+  (( status != 0 )) || fail "internal $action reports a refused re-enable"
+  grep -Fx 'dispatch hl.dsp.dpms({ action = "enable" })' "$eval_log" >/dev/null ||
+    fail "internal $action still wakes the displays after a refused re-enable"
+  pass "internal $action reports a refused re-enable"
+done
 
 rm -f "$disable_flag"
 run_monitor omarchy-hyprland-monitor-internal recover
