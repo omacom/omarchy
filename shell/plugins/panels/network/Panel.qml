@@ -1795,6 +1795,7 @@ Panel {
     verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
     bordered: true
 
+    selectable: true
     active: root.bandCurrent === band
     selected: root.bandEffective === band
     hasCursor: root.cursorActive && root.focusSection === "band"

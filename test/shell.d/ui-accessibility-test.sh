@@ -417,6 +417,16 @@ ShellRoot {
     same(iconButton.Accessible.name, "Forget network", "icon-only Button falls back to its tooltip")
     same(namedIconButton.Accessible.name, "Previous track", "accessibleName overrides the fallback")
     same(selectedButton.Accessible.selected, true, "selected Button reports selected")
+    same(highlightedButton.Accessible.selected, false, "highlighted action Button is not selected")
+    same(highlightedButton.Accessible.selectable, false, "highlighted action Button is not selectable")
+    var otherChip = accessibleChild(choiceGroup, "Off", Accessible.Button)
+    var currentChip = accessibleChild(choiceGroup, "On", Accessible.Button)
+    check(otherChip !== null && currentChip !== null, "ButtonGroup chips are reachable")
+    if (otherChip && currentChip) {
+      same(otherChip.Accessible.selectable, true, "unselected ButtonGroup chip is still selectable")
+      same(otherChip.Accessible.selected, false, "unselected ButtonGroup chip is not selected")
+      same(currentChip.Accessible.selected, true, "current ButtonGroup chip is selected")
+    }
 
     same(barIcon.Accessible.name, "Wi-Fi: Home", "BarIconButton is named by its tooltip")
     same(bareBarIcon.Accessible.name, "", "BarIconButton never announces its glyph")
@@ -547,7 +557,9 @@ ShellRoot {
     Button { id: disabledButton; text: "Disabled"; enabled: false; onClicked: root.buttonClicks++ }
     Button { id: iconButton; iconText: "\u{F0450}"; tooltipText: "Forget network" }
     Button { id: namedIconButton; iconText: "\u{F04AE}"; accessibleName: "Previous track" }
-    Button { id: selectedButton; text: "Auto"; selected: true }
+    Button { id: selectedButton; text: "Auto"; selectable: true; selected: true }
+    Button { id: highlightedButton; text: "Open captive portal"; active: true }
+    ButtonGroup { id: choiceGroup; options: ["On", "Off"]; value: "On" }
 
     BarIconButton { id: barIcon; text: "\u{F05A9}"; tooltipText: "Wi-Fi: Home" }
     BarIconButton { id: bareBarIcon; text: "\u{F05A9}" }

@@ -30,6 +30,11 @@ BorderSurface {
   property bool active: false
   property bool hasCursor: false
   property bool focusable: false
+  // Options in a choice (a ButtonGroup chip, a segmented pill) opt in so
+  // assistive technology reports them as selectable, selected when
+  // `selected` or `active` marks the current one. Other buttons stay plain,
+  // however they are highlighted.
+  property bool selectable: false
   property bool bordered: false
 
   // Colors. Defaults track the theme; per-instance overrides are honored.
@@ -71,8 +76,8 @@ BorderSurface {
   Accessible.name: accessibleName
   Accessible.description: tooltipText !== accessibleName ? tooltipText : ""
   Accessible.focusable: focusable
-  Accessible.selectable: selected || active
-  Accessible.selected: selected || active
+  Accessible.selectable: selectable
+  Accessible.selected: selectable && (selected || active)
   Accessible.onPressAction: if (root.enabled) root.clicked()
 
   activeFocusOnTab: focusable
