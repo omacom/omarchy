@@ -118,7 +118,8 @@ def glyph_string(expression):
 
 
 def expression_nonempty(expression):
-  if not expression or any(token[0] == "STRING" and token[1] == "" for token in expression):
+  # An empty or whitespace-only literal reads as no name at all.
+  if not expression or any(token[0] == "STRING" and token[1].strip() == "" for token in expression):
     return False
   return not glyph_string(expression)
 
@@ -146,7 +147,9 @@ for path in sorted(scan.rglob("*.qml")):
     component = token[1]
     properties = direct_properties(source_tokens, index + 1)
     if component == "Button":
-      if "iconText" not in properties or ("text" in properties and not glyph_string(properties["text"])):
+      # Only readable text names an icon button; empty, blank or glyph text
+      # leaves it to accessibleName or tooltipText.
+      if "iconText" not in properties or expression_nonempty(properties.get("text", [])):
         continue
       names = ("accessibleName", "text", "tooltipText")
     else:
@@ -178,6 +181,9 @@ Item {
   Button { iconText: "\ue900"; label: "Menu" }
   BarIconButton { accessibleName: "\ue900" }
   BarIconButton { accessibleName: "\u{f0001}" }
+  Button { iconText: ""; text: "" }
+  Button { iconText: ""; text: "  " }
+  PanelSlider { accessibleName: " " }
 }
 QML
 cat >"$LINT_FIXTURES/Named.qml" <<'QML'
@@ -194,7 +200,7 @@ QML
 lint_status=0
 lint_output=$(python3 -c "$naming_lint" "$ROOT" "$LINT_FIXTURES" 2>&1) || lint_status=$?
 rm -rf "$LINT_FIXTURES"
-expected_unnamed=$'Unnamed first-party controls:\n  Unnamed.qml:2 PanelSlider\n  Unnamed.qml:3 ToggleSwitch\n  Unnamed.qml:4 BarIconButton\n  Unnamed.qml:5 BarIndicator\n  Unnamed.qml:6 PanelActionButton\n  Unnamed.qml:7 Button\n  Unnamed.qml:8 BarIconButton\n  Unnamed.qml:9 BarIconButton'
+expected_unnamed=$'Unnamed first-party controls:\n  Unnamed.qml:2 PanelSlider\n  Unnamed.qml:3 ToggleSwitch\n  Unnamed.qml:4 BarIconButton\n  Unnamed.qml:5 BarIndicator\n  Unnamed.qml:6 PanelActionButton\n  Unnamed.qml:7 Button\n  Unnamed.qml:8 BarIconButton\n  Unnamed.qml:9 BarIconButton\n  Unnamed.qml:10 Button\n  Unnamed.qml:11 Button\n  Unnamed.qml:12 PanelSlider'
 if (( lint_status == 0 )) || [[ $lint_output != "$expected_unnamed" ]]; then
   fail "naming lint rejects controls named only through unread properties" "$lint_output"
 fi
