@@ -151,8 +151,14 @@ def harness_login(source, data):
   }
 
 
+# omp and pi both move their whole agent tree when PI_CODING_AGENT_DIR is
+# set, so both sign-ins are looked for where it points.
+def omp_agent_dir():
+  return Path(os.environ.get("PI_CODING_AGENT_DIR") or (Path.home() / ".omp" / "agent"))
+
+
 def omp_logins():
-  database = Path.home() / ".omp" / "agent" / "agent.db"
+  database = omp_agent_dir() / "agent.db"
   if not database.is_file():
     return []
   try:

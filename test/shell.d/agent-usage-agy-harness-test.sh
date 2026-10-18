@@ -43,8 +43,8 @@ def machine():
   os.environ["PATH"] = f"{stubs}:{REAL_PATH}"
 
 
-def omp_login(token, expires, email):
-  database = home() / ".omp" / "agent" / "agent.db"
+def omp_login(token, expires, email, directory=None):
+  database = Path(directory or home() / ".omp" / "agent") / "agent.db"
   database.parent.mkdir(parents=True, exist_ok=True)
   database.unlink(missing_ok=True)
   conn = sqlite3.connect(database)
@@ -78,7 +78,7 @@ def agy(*accepted):
 # Every store the collector reads, so a test can tell none was written.
 def stores():
   return sorted((str(path), hashlib.md5(path.read_bytes()).hexdigest())
-                for root in (".omp", ".pi", ".local/share/opencode", ".gemini", "pi-elsewhere")
+                for root in (".omp", ".pi", ".local/share/opencode", ".gemini", "pi-elsewhere", "omp-elsewhere")
                 for path in (home() / root).rglob("*") if path.is_file())
 
 
@@ -194,6 +194,16 @@ before = stores()
 record, asked = agy("moved-token")
 expect("Antigravity collector reads pi's sign-in where PI_CODING_AGENT_DIR puts it", [asked, record["limits"][0]["percent"]], [["moved-token"], 0.25], record)
 expect("Antigravity collector never writes pi's store", stores(), before)
+
+# omp reads the same variable for its whole agent tree, so its database moves
+# with it.
+machine()
+omp_login("moved-omp-token", ms_in(3600), "me@example.com", home() / "omp-elsewhere")
+os.environ["PI_CODING_AGENT_DIR"] = str(home() / "omp-elsewhere")
+before = stores()
+record, asked = agy("moved-omp-token")
+expect("Antigravity collector reads omp's sign-in where PI_CODING_AGENT_DIR puts it", [asked, record["limits"][0]["percent"]], [["moved-omp-token"], 0.25], record)
+expect("Antigravity collector never writes omp's store", stores(), before)
 
 # ---------------------------------------------------------- local stats
 
