@@ -5,7 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
-const volume = requireFromRoot('shell/Commons/AudioVolume.js')
+const volume = requireFromRoot('shell/Commons/AudioVolumeModel.js')
 const fs = require('fs')
 const os = require('os')
 const { spawnSync } = require('child_process')
@@ -60,6 +60,12 @@ const tr = (key, english) => ({ 'audio.volume.decibels': '%1 dB (da)', 'audio.vo
 assertEqual(volume.readout(0.5, 'decibel', tr, danish), '-18,1 dB (da)', 'the dB readout is translated and localized')
 assertEqual(volume.readout(0, 'decibel', tr, danish), 'Stille', 'silence is translated')
 assertEqual(volume.readout(0.5, 'linear', tr, danish), '50%', 'the percent readout takes localized digits')
+
+// omarchy-plugin-clone copies only the plugin's own folder, so the plugins
+// reach the shared code through qs.Commons, never a path out of the folder.
+for (const file of ['shell/plugins/panels/audio/Panel.qml', 'shell/plugins/services/media/Service.qml'])
+  assert(!/^import "\.\.\//m.test(fs.readFileSync(path.join(root, file), 'utf8')), file + ' imports nothing from outside its folder')
+assert(/^singleton AudioVolume 1\.0 AudioVolume\.qml$/m.test(fs.readFileSync(path.join(root, 'shell/Commons/qmldir'), 'utf8')), 'AudioVolume is a qs.Commons singleton')
 
 // The command fallback steps like the shell does, against a pactl stub.
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'omarchy-volume-'))

@@ -45,7 +45,7 @@ volume_raw() {
 }
 
 # The scale picked in the audio panel. On the decibel scale, the volume keys
-# step in dB like shell/Commons/AudioVolume.js does.
+# step in dB like shell/Commons/AudioVolumeModel.js does.
 scale=$(jq -r '.audio.volumeScale? // empty' "$HOME/.config/omarchy/shell.json" 2>/dev/null)
 floor=-60
 

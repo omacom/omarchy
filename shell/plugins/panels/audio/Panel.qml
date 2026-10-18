@@ -8,7 +8,6 @@ import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
 import "Model.js" as Model
-import "../../../Commons/AudioVolume.js" as AudioVolume
 
 Panel {
   id: root
@@ -517,7 +516,7 @@ Panel {
     bar.shell.summon("omarchy.osd", JSON.stringify({
       icon: outputIcon(volume),
       value: Math.round(AudioVolume.position(volume, volumeScale) * 100),
-      progressText: AudioVolume.readout(volume, volumeScale, Commons.I18n.t, Commons.I18n.formatNumber)
+      progressText: AudioVolume.readout(volume, volumeScale)
     }))
   }
 
@@ -909,7 +908,7 @@ Panel {
               // The readout switches between percent and decibels.
               Button {
                 id: outputPercent
-                text: AudioVolume.readout(root.shownOutputVolume, root.volumeScale, Commons.I18n.t, Commons.I18n.formatNumber)
+                text: AudioVolume.readout(root.shownOutputVolume, root.volumeScale)
                 tooltipText: root.volumeScale === "decibel" ? Commons.I18n.t("audio.scale.toPercent") : Commons.I18n.t("audio.scale.toDecibels")
                 foreground: Qt.darker(root.bar.foreground, 1.4)
                 fontFamily: root.bar.fontFamily

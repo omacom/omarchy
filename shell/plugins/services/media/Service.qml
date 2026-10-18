@@ -4,7 +4,6 @@ import Quickshell.Io
 import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
 import "MediaModel.js" as MediaModel
-import "../../../Commons/AudioVolume.js" as AudioVolume
 import qs.Commons
 
 Item {
@@ -470,7 +469,7 @@ Item {
       icon: MediaModel.volumeOsdIcon(Math.round(volume * 100), muted),
       message: "",
       value: String(Math.round(AudioVolume.position(volume, scale) * 100)),
-      progressText: AudioVolume.readout(volume, scale, I18n.t, I18n.formatNumber),
+      progressText: AudioVolume.readout(volume, scale),
       max: "100",
       duration: ""
     }))
