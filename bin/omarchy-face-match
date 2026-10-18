@@ -1,0 +1,217 @@
+#!/bin/bash
+
+# omarchy:summary=Match the PAM user's face with Howdy; the pam_exec.so helper behind the face PAM lines
+# omarchy:hidden=true
+
+# Howdy's own PAM glue is pam_python, which drags Python 2 along. All its
+# script does is run compare.py for the user and map the exit status, so
+# pam_exec.so does that through this helper instead: PAM_USER comes from
+# pam_exec, stdout goes to the PAM conversation, and the exit status carries
+# Howdy's verdict (0 match, 10 no model, 11 timeout, 12 abort, 13 too dark).
+#
+# sudo and polkit run their stacks with root's effective id, so pam_exec's
+# seteuid option suffices there. The lock screen runs its conversation as the
+# session user, and Howdy keeps compare.py and the models readable by root
+# only, so that phase re-executes the packaged copy through the passwordless
+# rule the setup installs as /etc/sudoers.d/omarchy-face-match. The account comes from PAM_USER
+# under pam_exec, which builds the environment itself, and from SUDO_USER under
+# sudo, which sets it after env_reset: a user can only ever match their own face.
+
+set -u
+
+# Whenever this holds root, resolve the tools it calls by bare name (logger)
+# from trusted directories only; a dev link prepends a checkout bin/ to sudo's
+# secure_path.
+if (( EUID == 0 )); then
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+fi
+
+security_lib=/usr/lib/security
+compare="$security_lib/howdy/compare.py"
+lock_pam=/etc/pam.d/omarchy-lock-face
+face_key=/usr/bin/omarchy-face-key
+howdy_config=/etc/howdy/config.ini
+laptop_closed=/usr/bin/omarchy-hw-laptop-closed
+# The path /etc/sudoers.d/omarchy-face-match names; the privileged half always
+# runs from there, never from whichever copy pam_exec invoked.
+PACKAGED_PATH=/usr/bin/omarchy-face-match
+
+valid_account() {
+  [[ -n $1 && $1 != "." && $1 != ".." && $1 != */* && $1 != *[[:space:]]* ]]
+}
+
+# howdy_setting <section> <key> <default>: the value as Howdy's configparser
+# reads it, from the configuration its compare.py uses.
+howdy_setting() {
+  local config=$howdy_config
+
+  [[ -f $config ]] || config="$security_lib/howdy/config.ini"
+  if [[ ! -r $config ]]; then
+    echo "$3"
+    return
+  fi
+  awk -v section="$1" -v key="$2" -v fallback="$3" '
+    /^[[:space:]]*\[.*\][[:space:]]*$/ { current = $0; gsub(/^[[:space:]]*\[|\][[:space:]]*$/, "", current); next }
+    current == section && $0 ~ "^[[:space:]]*" key "[[:space:]]*[=:]" {
+      value = $0
+      sub(/^[^=:]*[=:][[:space:]]*/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      found = 1
+    }
+    END { print (found ? value : fallback) }' "$config"
+}
+
+is_true() {
+  case ${1,,} in
+    1 | yes | true | on) return 0 ;;
+  esac
+  return 1
+}
+
+from_ssh() {
+  tr '\0' '\n' <"/proc/$1/environ" 2>/dev/null | grep -qE '^(SSH_CONNECTION|SSH_CLIENT|SSHD_OPTS)='
+}
+
+# Howdy's own PAM module refuses before it scans while Howdy is disabled or the
+# conversation comes over SSH, and this helper takes that module's place. A
+# shut lid covers the camera, so the face is refused then too, as the
+# clamshell gate refuses it in sudo's and polkit's stacks; the lock screen has
+# no gate. pam_exec builds this helper an environment of its own, so SSH shows
+# in the conversation's.
+face_refusal() {
+  if is_true "$(howdy_setting core disabled false)"; then
+    echo "face authentication is disabled in Howdy's configuration"
+  elif is_true "$(howdy_setting core ignore_ssh true)" && from_ssh "$1"; then
+    echo "the conversation comes over SSH"
+  elif "$laptop_closed"; then
+    echo "the lid is closed"
+  fi
+}
+
+refuse_unavailable_face() {
+  local reason
+
+  reason=$(face_refusal "$PPID")
+  if [[ -n $reason ]]; then
+    logger -p auth.info -t howdy "Face refused for $user: $reason"
+    exit 1
+  fi
+}
+
+# Presence is not consent: a camera sees a face whether or not its owner meant
+# to approve anything. A scan waits for the Copilot key, which only root reads
+# from the keyboard itself (omarchy-face-key). In sudo's and polkit's stacks
+# the hint line registers the prompt with the key service before pam_exec shows
+# the usual password prompt with expose_authtok, and the answer arrives here on
+# stdin: the key answers with an empty line, which counts only when the service
+# saw the key for this very prompt; anything typed is a password meant for
+# pam_unix, which gets it through try_first_pass, so the camera stays dark and
+# nothing is echoed or logged.
+if [[ $# == 1 && $1 == --hint ]]; then
+  if (( EUID == 0 )) && valid_account "${PAM_USER:-}" && [[ -z $(face_refusal "$PPID") ]] &&
+    "$face_key" wait --pam-pid "$PPID" --user "$PAM_USER" --detach --tty 2>/dev/null; then
+    echo "Press the Copilot key to use your face, or type your password."
+  fi
+  exit 0
+fi
+
+# The setup's check asks for the face alone, with no password prompt for the
+# key to answer, so the helper waits for the key itself.
+face_only=0
+if [[ $# == 1 && $1 == --wait ]]; then
+  if ! { (( EUID == 0 )) && valid_account "${PAM_USER:-}"; }; then
+    echo "omarchy-face-match: --wait serves root's PAM stacks only" >&2
+    exit 1
+  fi
+  face_only=1
+elif (( $# != 0 )); then
+  echo "omarchy-face-match takes no arguments; pam_exec provides PAM_USER" >&2
+  exit 1
+fi
+
+user="${PAM_USER:-${SUDO_USER:-}}"
+if ! valid_account "$user"; then
+  echo "omarchy-face-match: no account to match" >&2
+  exit 1
+fi
+
+# Reached through the sudoers grant, which sudo's env_reset leaves without
+# PAM_USER, this serves the lock screen alone. Without the lock's PAM service
+# the user chose no face there, so the grant must not light the camera.
+if [[ -z ${PAM_USER:-} && ! -f $lock_pam ]]; then
+  echo "omarchy-face-match: the lock screen does not use face authentication" >&2
+  exit 1
+fi
+
+if [[ ! -r $compare ]]; then
+  if (( EUID == 0 )); then
+    echo "omarchy-face-match: $compare is missing; is Howdy installed?" >&2
+    exit 1
+  fi
+  # The session user's own conversation: elevate the packaged copy through the
+  # sudoers grant without ever prompting, and only for that same user.
+  if [[ $user != "$(id -un)" ]]; then
+    echo "omarchy-face-match: $user is not the session user" >&2
+    exit 1
+  fi
+  exec sudo -n "$PACKAGED_PATH"
+fi
+
+if (( face_only )); then
+  refuse_unavailable_face
+  "$face_key" wait --pam-pid "$PPID" --user "$user" || exit 1
+elif [[ -n ${PAM_USER:-} ]]; then
+  response=""
+  [[ -t 0 ]] || response=$(cat)
+  if [[ -n $response ]]; then
+    unset response
+    "$face_key" drop --pam-pid "$PPID" 2>/dev/null
+    exit 1
+  fi
+  "$face_key" take --pam-pid "$PPID" 2>/dev/null || exit 1
+else
+  # The lock screen keeps this waiting while it offers the face; the key
+  # service ends the wait when the lock's window since locking closes.
+  refuse_unavailable_face
+  "$face_key" wait --lock --pam-pid "$PPID" --user "$user" || exit 1
+  # The key service keeps the key for the lock while this scan runs, and gives
+  # it back at once when it hears the face opened the lock.
+  trap '"$face_key" scanned --lock --pam-pid "$PPID" --status "$?" 2>/dev/null' EXIT
+fi
+
+# The lid may have shut while the prompt waited for the key.
+refuse_unavailable_face
+
+# The lock screen follows the scan by this line (shell/plugins/lock/FaceModel.js).
+echo "Scanning face…"
+logger -p auth.info -t howdy "Attempting facial authentication for user $user"
+/usr/bin/python3 "$compare" "$user"
+status=$?
+
+case "$status" in
+  0)
+    echo "Identified face as $user"
+    logger -p auth.info -t howdy "Login approved for $user"
+    ;;
+  10)
+    echo "No face model known"
+    logger -p auth.notice -t howdy "Failure, no face model known for $user"
+    ;;
+  11)
+    echo "Face detection timeout reached"
+    logger -p auth.info -t howdy "Failure, timeout reached for $user"
+    ;;
+  12)
+    logger -p auth.info -t howdy "Failure, general abort for $user"
+    ;;
+  13)
+    echo "Face detection image too dark"
+    logger -p auth.info -t howdy "Failure, image too dark for $user"
+    ;;
+  *)
+    echo "Howdy failed with status $status"
+    logger -p auth.info -t howdy "Failure, unknown error $status for $user"
+    ;;
+esac
+
+exit "$status"

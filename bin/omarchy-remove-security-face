@@ -1,0 +1,99 @@
+#!/bin/bash
+
+# omarchy:summary=Remove face authentication from sudo, polkit, and lock screen
+# omarchy:requires-sudo=true
+
+set -e
+
+lock_pam=/etc/pam.d/omarchy-lock-face
+verify_pam=/etc/pam.d/omarchy-face-verify
+face_conf=/etc/omarchy/face.conf
+key_socket=/etc/systemd/system/omarchy-face-key.socket
+key_service=/etc/systemd/system/omarchy-face-key.service
+lock_grant=/etc/sudoers.d/omarchy-face-match
+face_marker='pam_howdy[.]so|howdy/pam[.]py|omarchy-face-match'
+
+# Resolve the invoking account before changing authentication or packages.
+if (( EUID == 0 )) && [[ -v SUDO_UID ]]; then
+  if [[ ! $SUDO_UID =~ ^[0-9]+$ ]]; then
+    echo "Cannot identify the invoking face user" >&2
+    exit 1
+  fi
+  face_user=$(/usr/bin/id -nu "+$SUDO_UID") || exit 1
+else
+  face_user=$(/usr/bin/id -un) || exit 1
+fi
+
+if [[ -z $face_user || $face_user == "." || $face_user == ".." || $face_user == */* ]]; then
+  echo "Unsafe face user name" >&2
+  exit 1
+fi
+
+
+# Drop the face module and only the clamshell gate directly above it, so a
+# fingerprint stack sharing the file keeps its own gate.
+remove_face_lines() {
+  local file=$1 label=$2
+
+  if [[ -f $file ]] && grep -Eq -- "$face_marker" "$file"; then
+    echo "Removing face authentication from $label..."
+    sudo sed -i -E \
+      -e "\\%omarchy-hw-laptop-closed%{N;\\%\\n.*($face_marker)%d;P;D}" \
+      -e "\\%$face_marker%d" "$file"
+  fi
+}
+
+# Whichever of sudo, polkit and the lock screen the setup was asked for, each
+# removal below is a no-op where nothing was configured.
+remove_file() {
+  local file=$1 label=$2
+
+  if [[ -f $file ]]; then
+    echo "Removing $label..."
+    sudo rm -f "$file"
+  fi
+}
+
+# The Copilot key service goes once no stack offers the face, and the key
+# returns to the Omarchy menu.
+remove_face_key() {
+  if [[ -f $key_socket || -f $key_service ]]; then
+    echo "Removing the Copilot key service..."
+    sudo systemctl disable --now omarchy-face-key.socket
+    sudo systemctl stop omarchy-face-key.service
+    sudo rm -f "$key_socket"
+    sudo rm -f "$key_service"
+    sudo systemctl daemon-reload
+  fi
+  if omarchy-hyprland-toggle-enabled face-key; then
+    echo "Giving the Copilot key back to the Omarchy menu..."
+    omarchy-hyprland-toggle face-key off
+  fi
+}
+
+
+echo -e "\e[32mRemoving face authentication.\n\e[0m"
+
+remove_face_lines /etc/pam.d/sudo sudo
+remove_face_lines /etc/pam.d/polkit-1 polkit
+remove_file "$lock_pam" "lock screen face authentication"
+# /etc/sudoers.d is root's alone, so the lock's grant goes without a look first,
+# and only once the lock no longer offers the face.
+sudo rm -f "$lock_grant"
+remove_file "$verify_pam" "the face verification service an interrupted setup left"
+remove_file "$face_conf" "the lock screen's face limits"
+remove_face_key
+
+# The face models are untracked package data, so clear them while Howdy's CLI
+# is still there to do it; a failure here must not leave them behind.
+if omarchy-pkg-present howdy; then
+  echo "Removing $face_user's face models..."
+  sudo howdy -U "$face_user" -y clear
+fi
+
+# pam-python is only on machines set up before the pam_exec helper; dropping it
+# takes its Python 2 along. The setup installed the driver, so it goes too.
+echo "Removing face packages..."
+omarchy-pkg-drop howdy pam-python pamtester hm1092-ir-camera
+
+echo -e "\e[32mFace authentication and $face_user's local face models have been removed.\e[0m"

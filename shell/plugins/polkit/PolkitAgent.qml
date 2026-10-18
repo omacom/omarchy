@@ -35,6 +35,10 @@ Item {
   property bool errorFlash: false
   // pam_fprintd appears in the polkit PAM stack (a sensor is enrolled).
   property bool fingerprintConfigured: false
+  // omarchy-face-match asks first in the polkit PAM stack (a face is enrolled).
+  property bool faceConfigured: false
+  // The last answer sent was the empty consent to scan, not a password.
+  property bool scanning: false
   // Lid shut right now — the reader is physically unreachable, so we fall back
   // to the password even when a sensor is enrolled. Refreshed per request.
   property bool laptopClosed: false
@@ -46,6 +50,10 @@ Item {
   // a password — including immediately when the lid is shut and the clamshell
   // gate skips pam_fprintd — we switch to the password field instead.
   readonly property bool fingerprintMode: fingerprintConfigured && !laptopClosed && dialogVisible && !responseRequired && !submitted && !errorFlash
+  // Face is offered while PAM waits for the password and the lid is open:
+  // the Copilot key starts the scan, typing takes the password path. The
+  // PAM stack itself enforces this; the dialog only says so.
+  readonly property bool faceOffered: faceConfigured && !laptopClosed && dialogVisible && responseRequired && !submitted && !errorFlash
   readonly property int cardHeight: panel.height > 0 ? Math.min(fieldHeight + contentMargin * 2, panel.height - Style.gapsOut * 2) : fieldHeight + contentMargin * 2
   // Password mode is a wide field; fingerprint mode collapses to a square that
   // just frames the centered sensor icon.
@@ -57,6 +65,7 @@ Item {
 
   function loadPamConfig(raw) {
     fingerprintConfigured = PolkitModel.fingerprintConfiguredFromPamConfig(raw)
+    faceConfigured = PolkitModel.faceConfiguredFromPamConfig(raw)
   }
 
   function refreshLidState() {
@@ -72,6 +81,7 @@ Item {
     failed = false
     errorFlash = false
     submitted = false
+    scanning = false
     passwordInput.text = ""
   }
 
@@ -110,11 +120,36 @@ Item {
   function submitResponse() {
     var flow = polkitAgent.flow
     if (!flow || !flow.isResponseRequired) return
+    scanning = false
     submitted = true
     errorFlash = false
     flow.submit(passwordInput.text)
     passwordInput.text = ""
     keyCatcher.forceActiveFocus()
+  }
+
+  // The Copilot key, which Hyprland hands to the shell instead of any window
+  // (default/hypr/toggles/face-key.lua). The dialog answers the password
+  // prompt with nothing; root scans only if omarchy-face-key saw the key on
+  // the keyboard itself, so a forged call is merely an empty password.
+  function scanFace() {
+    var flow = polkitAgent.flow
+    if (!faceOffered || !flow || !flow.isResponseRequired) return "ignored"
+    passwordInput.text = ""
+    scanning = true
+    submitted = true
+    errorFlash = false
+    flow.submit("")
+    keyCatcher.forceActiveFocus()
+    return "scanning"
+  }
+
+  ShellIpc {
+    target: "polkit"
+
+    function faceKey(): string {
+      return root.scanFace()
+    }
   }
 
   function cancelRequest() {
@@ -163,7 +198,10 @@ Item {
     watchChanges: true
     printErrors: false
     onLoaded: root.loadPamConfig(text())
-    onLoadFailed: root.fingerprintConfigured = false
+    onLoadFailed: {
+      root.fingerprintConfigured = false
+      root.faceConfigured = false
+    }
     onFileChanged: reload()
   }
 
@@ -297,7 +335,8 @@ Item {
         spacing: Style.space(14)
 
         Text {
-          text: "\uf023"
+          text: root.faceOffered || root.scanning ? "\uf030" : "\uf023"
+          textFormat: Text.PlainText
           color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
           font.family: root.fontFamily
           font.pixelSize: Style.font.iconLarge
@@ -341,7 +380,9 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.errorFlash ? I18n.t("polkit.wrong") : (root.submitted ? I18n.t("polkit.checking") : I18n.t("polkit.enterPassword"))
+            text: root.errorFlash ? (root.scanning ? I18n.t("polkit.faceNoMatch") : I18n.t("polkit.wrong"))
+              : (root.submitted ? (root.scanning ? I18n.t("polkit.scanningFace") : I18n.t("polkit.checking"))
+              : (root.faceOffered ? I18n.t("polkit.faceOrPassword") : I18n.t("polkit.enterPassword")))
             color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
             opacity: root.errorFlash ? 1 : 0.36
             font.family: root.fontFamily

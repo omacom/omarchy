@@ -677,6 +677,9 @@
   "setup.security.fido2": {
     "label": "Fido2"
   },
+  "setup.security.face": {
+    "label": "Face"
+  },
   "setup.security.sshd": {
     "label": "SSHD"
   },
@@ -1033,6 +1036,9 @@
   },
   "remove.security.fido2": {
     "label": "Fido2"
+  },
+  "remove.security.face": {
+    "label": "Face"
   },
   "remove.security.sshd": {
     "label": "SSHD"

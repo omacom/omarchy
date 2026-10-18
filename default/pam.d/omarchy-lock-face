@@ -1,0 +1,3 @@
+#%PAM-1.0
+auth       required                    pam_exec.so seteuid quiet stdout /usr/bin/omarchy-face-match
+account    include                     system-local-login
