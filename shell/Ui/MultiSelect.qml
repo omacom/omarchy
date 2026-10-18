@@ -463,14 +463,14 @@ Item {
               BorderSurface {
                 id: refreshButton
                 visible: root.arrayFrom(root.optionsCommand).length > 0
-                enabled: !root.loadingOptions
+                enabled: root.enabled && !root.loadingOptions
                 width: parent.height
                 height: parent.height
                 radius: Style.cornerRadius
 
                 Accessible.role: Accessible.Button
                 Accessible.name: I18n.t("accessibility.refreshOptions")
-                Accessible.onPressAction: if (refreshButton.enabled) root.refresh()
+                Accessible.onPressAction: if (root.enabled && refreshButton.enabled) root.refresh()
 
                 color: refreshHover.hovered
                   ? Style.hoverFillFor(root.foreground, root.accent)
