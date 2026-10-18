@@ -23,8 +23,9 @@ if [[ -s $config_file ]] && jq -e '
   clones="[]"
   shopt -s nullglob
   for manifest in "$HOME"/.config/omarchy/plugins/*/manifest.json; do
-    if next=$(jq -nc --argjson clones "$clones" '
-      input | $clones + [{id: (.id // "" | tostring), from: (.omarchy | objects | .clonedFrom // "" | tostring)} | select(.id != "" and .from != "")]
+    if next=$(jq -sc --argjson clones "$clones" '
+      if length == 1 then .[0] else error end
+      | $clones + [{id: (.id // "" | tostring), from: (.omarchy | objects | .clonedFrom // "" | tostring)} | select(.id != "" and .from != "")]
     ' "$manifest" 2>/dev/null); then
       clones=$next
     fi
