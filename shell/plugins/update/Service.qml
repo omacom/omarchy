@@ -17,8 +17,8 @@ Item {
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   readonly property string stateDir: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/omarchy-update-window"
 
-  // run.sh holds this file for as long as it runs. Read on demand rather than
-  // probed with a process, so an idle shell starts nothing.
+  // run.sh writes its pid here for as long as it runs. Read on demand rather
+  // than probed with a process, so an idle shell starts nothing.
   FileView {
     id: activeFile
     path: root.stateDir + "/active"
@@ -33,9 +33,21 @@ Item {
     printErrors: false
   }
 
+  // A runner killed outright leaves active behind, so only one whose process
+  // is still there counts.
+  FileView {
+    id: procFile
+    blockAllReads: true
+    printErrors: false
+  }
+
   function running() {
     activeFile.reload()
-    return activeFile.text().trim() !== ""
+    var pid = activeFile.text().trim()
+    if (!/^[0-9]+$/.test(pid)) return false
+    procFile.path = "/proc/" + pid + "/cmdline"
+    procFile.reload()
+    return procFile.text().indexOf("run.sh") >= 0
   }
 
   function show(command, attach, hidden) {
