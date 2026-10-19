@@ -668,6 +668,7 @@ Panel {
             trailingPadding: locationEditActions.width + Style.space(8)
             enabled: !root.savingLocation
             placeholderText: Commons.I18n.t("weather.searchCity")
+            accessibleName: Commons.I18n.t("weather.searchCity")
             foreground: root.bar.foreground
             font.family: root.bar.fontFamily
 

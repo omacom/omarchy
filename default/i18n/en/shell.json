@@ -21,6 +21,7 @@
   "accessibility.weather": "Weather",
   "accessibility.wifi": "Wi-Fi",
   "accessibility.workspace": "Workspace %1",
+  "agents.accountName": "Account name",
   "agents.addKinds": "Subscription, per use, or local",
   "agents.addTitle": "Add an agent",
   "agents.blockNetworkModel": "USE A NETWORK MODEL",
