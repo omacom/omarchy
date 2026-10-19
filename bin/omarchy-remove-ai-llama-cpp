@@ -22,9 +22,11 @@ rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/llama.cpp"
 
 # -hf downloads land in the Hugging Face hub cache, resolved in llama.cpp's
 # order (common/hf-cache.cpp). That cache is shared with every huggingface_hub
-# user, so only repos holding a GGUF are llama.cpp's to offer, and they go only
-# on an explicit yes. Without a terminal to ask in, keeping them is the answer,
-# and gum draws its prompt on stderr, so both must be terminals.
+# user and a repo can mix formats, so only the GGUF files are llama.cpp's to
+# offer: each snapshot link goes with the blob it points at, and a repo goes
+# whole only once no other file is left in it. They go only on an explicit
+# yes. Without a terminal to ask in, keeping them is the answer, and gum draws
+# its prompt on stderr, so both must be terminals.
 if [[ -n ${LLAMA_CACHE:-} ]]; then
   hub=$LLAMA_CACHE
 elif [[ -n ${HF_HUB_CACHE:-} ]]; then
@@ -37,24 +39,35 @@ else
   hub=${XDG_CACHE_HOME:-$HOME/.cache}/huggingface/hub
 fi
 
-models=()
-for repo in "$hub"/models--*/; do
-  [[ -d $repo/snapshots ]] || continue
-  if [[ -n $(find "$repo/snapshots" -name '*.gguf' -print -quit 2>/dev/null) ]]; then
-    models+=("${repo%/}")
-  fi
-done
+ggufs=()
+blobs=()
+repos=()
+while IFS= read -r -d '' file; do
+  ggufs+=("$file")
+  blob=$(readlink -f -- "$file") && [[ -f $blob ]] && blobs+=("$blob")
+  repo=${file#"$hub"/}
+  repo=$hub/${repo%%/*}
+  [[ " ${repos[*]-} " == *" $repo "* ]] || repos+=("$repo")
+done < <(find "$hub"/models--*/snapshots -name '*.gguf' -print0 2>/dev/null)
 
 models_removed=false
-if (( ${#models[@]} )) && [[ -t 0 && -t 2 ]]; then
-  size=$(du -shc "${models[@]}" 2>/dev/null | tail -1 | cut -f1 || true)
+if (( ${#ggufs[@]} )) && [[ -t 0 && -t 2 ]]; then
+  # A blob two snapshots share is counted once.
+  size=$(printf '%s\0' "${blobs[@]}" | sort -zu | du -shc --files0-from=- 2>/dev/null | tail -1 | cut -f1 || true)
   # du glues the unit to the number ("4.8G"); write the number with the
   # language's decimal separator and digits.
   if [[ $size =~ ^([0-9]+([.,][0-9]+)?)([A-Za-z]*)$ ]] && number=$(omarchy-i18n --number "${BASH_REMATCH[1]/,/.}"); then
     size="$number${BASH_REMATCH[3]}"
   fi
   if gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n llamaCpp.deleteModels "$size")"; then
-    rm -rf "${models[@]}"
+    rm -f -- "${ggufs[@]}" "${blobs[@]}"
+    for repo in "${repos[@]}"; do
+      if [[ -z $(find "$repo/snapshots" \( -type f -o -type l \) -print -quit) ]]; then
+        rm -rf -- "$repo"
+      else
+        find "$repo/snapshots" -mindepth 1 -depth -type d -empty -delete
+      fi
+    done
     models_removed=true
   fi
 fi
@@ -63,6 +76,6 @@ echo ""
 echo "Llama.cpp has been removed."
 if [[ $models_removed == "true" ]]; then
   echo "Its GGUF models in $hub are gone too."
-elif (( ${#models[@]} )); then
+elif (( ${#ggufs[@]} )); then
   echo "Its GGUF models are still in $hub."
 fi
