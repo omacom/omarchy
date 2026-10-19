@@ -205,6 +205,7 @@ Item {
       finishedAt = Date.now()
       phase = st.exit === 0 ? "done" : "failed"
       if (phase === "failed") details = true
+      if (!isTask) verify()
       scroll.to = 0
       scroll.restart()
       present()
@@ -266,9 +267,38 @@ Item {
     rev
     // The installer's own tile, before pacman has said which package it is.
     if (!name) return phase === "done" ? "done" : phase === "running" ? "active" : "pending"
-    // A finished update installed everything it listed, whether or not pacman's
-    // or makepkg's words for each one were recognized along the way.
-    return st.packages[name] || (phase === "done" && !isTask ? "done" : "pending")
+    return st.packages[name] || (verified[name] ? "done" : "pending")
+  }
+
+  // Packages a finished update never named (makepkg speaks the session's
+  // language, say) count as done only once installed at the listed version;
+  // an update the AUR skipped stays unticked.
+  property var verified: ({})
+  Process {
+    id: verifier
+    property var expected: ({})
+    stdout: StdioCollector {
+      onStreamFinished: {
+        root.verified = UpdateModel.installedAtListed(text, verifier.expected)
+        root.rev++
+      }
+    }
+  }
+
+  function verify() {
+    var expected = {}
+    var names = []
+    var models = [apps, system]
+    for (var m = 0; m < models.length; m++) {
+      for (var i = 0; i < models[m].count; i++) {
+        var e = models[m].get(i)
+        if (e.name && e.version && st.packages[e.name] !== "done") { expected[e.name] = e.version; names.push(e.name) }
+      }
+    }
+    if (!names.length) return
+    verifier.expected = expected
+    verifier.command = ["pacman", "-Q"].concat(names)
+    verifier.running = true
   }
 
   // Once installed, a package the installer asked for (rather than one pulled
