@@ -846,6 +846,9 @@
   "install.ai.desktop.hermes": {
     "label": "Hermes Desktop"
   },
+  "install.ai.desktop.llama-cpp": {
+    "label": "Llama.cpp"
+  },
   "install.ai.desktop.lm-studio": {
     "label": "LM Studio"
   },
@@ -1173,6 +1176,9 @@
   },
   "remove.ai.desktop.grok-bot": {
     "label": "Grok Bot"
+  },
+  "remove.ai.desktop.llama-cpp": {
+    "label": "Llama.cpp"
   },
   "remove.ai.desktop.lm-studio": {
     "label": "LM Studio"
