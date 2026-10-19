@@ -40,6 +40,12 @@ assert(/cycleBackgroundOnClick = clicks\.background !== false/.test(barSource), 
 assert(/cycleLayoutOnClick = clicks\.layout !== false/.test(barSource), 'only an explicit false in shell.json turns the layout cycle off')
 assert(/if \(mouse\.button === Qt\.LeftButton && root\.cycleBackgroundOnClick\)/.test(barSource), 'the empty-space double-click cycles the background only while the click is on')
 
+// Cloned widgets talk to the bar through PluginBarApi, so the switch has to
+// reach that facade as well or their workspace presses go dead.
+const apiSource = fs.readFileSync(root + '/shell/Ui/PluginBarApi.qml', 'utf8')
+assert(/property bool cycleLayoutOnClick: true/.test(apiSource), 'installed widgets see the layout click switch')
+assert(/api\.cycleLayoutOnClick = Qt\.binding\(function\(\) \{ return root\.cycleLayoutOnClick \}\)/.test(barSource), 'the bar mirrors the layout click switch into the widget API')
+
 const workspacesSource = fs.readFileSync(root + '/shell/plugins/bar/widgets/Workspaces.qml', 'utf8')
 assert(/if \(shown && root\.bar && root\.bar\.cycleLayoutOnClick\) root\.cycleLayout\(\)/.test(workspacesSource), 'the workspaces widget cycles the layout only while the click is on')
 assert(/else if \(!shown\) root\.focusWorkspace\(modelData\)/.test(workspacesSource), 'a press on another workspace still focuses it')
@@ -122,14 +128,8 @@ if ! command -v quickshell >/dev/null 2>&1; then
 fi
 
 TMPDIR=$(mktemp -d)
-result="$TMPDIR/result.json"
-log="$TMPDIR/quickshell.log"
 CYCLE_LOG="$TMPDIR/omarchy-bar-calls.log"
-config_dir="$TMPDIR/bar-clicks"
-mkdir -p "$config_dir" "$TMPDIR/home" "$TMPDIR/bin"
-cp "$SHELL_TEST_DIR/fixtures/bar-clicks/shell.qml" "$config_dir/shell.qml"
-ln -s "$ROOT/shell/Ui" "$config_dir/Ui"
-ln -s "$ROOT/shell/Commons" "$config_dir/Commons"
+mkdir -p "$TMPDIR/home" "$TMPDIR/bin"
 # The empty-space double-click cycles the background through omarchy-bar, and
 # the bar syncs the compositor's blur through it as it starts. Log every call;
 # the final count tells the cycles apart from the rest.
@@ -139,39 +139,63 @@ ln -s "$ROOT/shell/Commons" "$config_dir/Commons"
   echo 'exit 0'
 } >"$TMPDIR/bin/omarchy-bar"
 chmod +x "$TMPDIR/bin/omarchy-bar"
+# The workspaces widget reads the active layout when it starts. Answer it
+# without reaching the session's own layout script.
+printf '#!/bin/bash\necho dwindle\n' >"$TMPDIR/bin/omarchy-hyprland-workspace-layout-current"
+chmod +x "$TMPDIR/bin/omarchy-hyprland-workspace-layout-current"
 
-OMARCHY_PATH="$ROOT" \
-OMARCHY_QML_TEST_RESULT="$result" \
-OMARCHY_CYCLE_LOG="$CYCLE_LOG" \
-HOME="$TMPDIR/home" \
-XDG_CONFIG_HOME="$TMPDIR/home/.config" \
-XDG_CACHE_HOME="$TMPDIR/home/.cache" \
-XDG_STATE_HOME="$TMPDIR/home/.local/state" \
-PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
-  quickshell -p "$config_dir" --no-color >"$log" 2>&1 &
-QS_PID=$!
+# Run one fixture shell against the live compositor and wait for its result.
+run_fixture() {
+  local fixture="$1"
+  local name="$2"
+  local config_dir="$TMPDIR/$name"
+  local result="$TMPDIR/$name-result.json"
+  local log="$TMPDIR/$name.log"
 
-for _ in {1..200}; do
-  [[ -s $result ]] && break
-  if ! kill -0 "$QS_PID" 2>/dev/null; then
+  mkdir -p "$config_dir"
+  cp "$SHELL_TEST_DIR/fixtures/bar-clicks/$fixture" "$config_dir/shell.qml"
+  ln -s "$ROOT/shell/Ui" "$config_dir/Ui"
+  ln -s "$ROOT/shell/Commons" "$config_dir/Commons"
+
+  OMARCHY_PATH="$ROOT" \
+  OMARCHY_QML_TEST_RESULT="$result" \
+  OMARCHY_CYCLE_LOG="$CYCLE_LOG" \
+  HOME="$TMPDIR/home" \
+  XDG_CONFIG_HOME="$TMPDIR/home/.config" \
+  XDG_CACHE_HOME="$TMPDIR/home/.cache" \
+  XDG_STATE_HOME="$TMPDIR/home/.local/state" \
+  PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+    quickshell -p "$config_dir" --no-color >"$log" 2>&1 &
+  QS_PID=$!
+
+  local i
+  for i in {1..200}; do
+    [[ -s $result ]] && break
+    if ! kill -0 "$QS_PID" 2>/dev/null; then
+      sed -n '1,160p' "$log" >&2
+      fail "$name quickshell exited before writing result"
+    fi
+    sleep 0.1
+  done
+
+  [[ -s $result ]] || {
     sed -n '1,160p' "$log" >&2
-    fail "bar clicks quickshell exited before writing result"
-  fi
-  sleep 0.1
-done
+    fail "$name test timed out"
+  }
 
-[[ -s $result ]] || {
-  sed -n '1,160p' "$log" >&2
-  fail "bar clicks test timed out"
+  if ! jq -e '.ok == true' "$result" >/dev/null; then
+    printf '%s result:\n' "$name" >&2
+    jq . "$result" >&2
+    printf '%s log:\n' "$name" >&2
+    sed -n '1,160p' "$log" >&2
+    fail "$name test failed"
+  fi
+
+  wait "$QS_PID" 2>/dev/null || true
+  QS_PID=""
 }
 
-if ! jq -e '.ok == true' "$result" >/dev/null; then
-  printf 'bar clicks result:\n' >&2
-  jq . "$result" >&2
-  printf 'bar clicks log:\n' >&2
-  sed -n '1,160p' "$log" >&2
-  fail "the click cycles answer bar.clicks in shell.json"
-fi
+run_fixture shell.qml bar-clicks
 pass "the click cycles answer bar.clicks in shell.json"
 
 # The fixture double-clicks the empty space once with the click on and once
@@ -183,3 +207,6 @@ if [[ $count != 1 ]]; then
   fail "exactly one background cycle: from the double-click with the click on alone"
 fi
 pass "the double-click cycles the background with the click on and stays put with it off"
+
+run_fixture workspaces.qml workspace-presses
+pass "the active workspace cycles the layout only while the click is on, and other presses still focus"
