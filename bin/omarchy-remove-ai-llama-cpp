@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Llama.cpp along with the GGUF models it downloaded.
+# omarchy:requires-sudo=true
+
+# -u so an unset HOME is an error rather than a cache path rooted at /.
+set -euo pipefail
+
+# The user unit is the one the install offers; the system unit ships in the
+# same package and may have been enabled by hand. Both hold a model open.
+systemctl --user disable --now llama-server.service 2>/dev/null || true
+sudo systemctl disable --now llama-server.service 2>/dev/null || true
+
+# The GPU backends are separate packages the installer picks by hardware, so
+# they go with llama-cpp, and omarchy-pkg-drop ignores the ones not present.
+# ggml carries the CPU backend and leaves with them as a dependency, unless
+# another package still needs it.
+omarchy-pkg-drop llama-cpp ggml-cuda ggml-hip ggml-vulkan
+
+# llama-server writes its downloads under the XDG cache, which is where -hf
+# and --model-url land. LLAMA_CACHE relocates that, and the pointer to where
+# it went is the variable itself, so an unset variable means the default.
+rm -rf "${LLAMA_CACHE:-$HOME/.cache/llama.cpp}"
+
+echo ""
+echo "Llama.cpp and its models have been removed."
