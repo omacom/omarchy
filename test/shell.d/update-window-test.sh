@@ -80,6 +80,8 @@ assertEqual(s.subject, 'Chrome', 'the installer names what it installs')
 assertEqual(s.note, 'Chrome browser installed. Make it the default via Setup > Defaults > Browser.', "the installer's last word is kept")
 assert(!s.opened && U.transfer(s) > 0.9, 'a finished transaction is nearly done')
 assert(U.namesSubject('google-chrome', 'Chrome') && !U.namesSubject('libfoo', 'Chrome'), 'the app tile follows the package named like it')
+const installed = U.installedAtListed('spotifast-bin 0.14.0-1\ncursor-bin 1.7.38-1\n', { 'spotifast-bin': '0.14.0-1', 'cursor-bin': '1.7.44-1', 'slack-desktop': '4.46.101-1' })
+assertEqual(JSON.stringify(installed), '{"spotifast-bin":true}', 'only packages installed at the listed version count as updated')
 U.feed(s, 'Opening Spotify...\r\n\x1b]5150;input;no;Icon URL/name> ;Could not fetch favicon\x07')
 assert(s.opened, 'an installer that opens the app itself is noticed')
 assertEqual([s.ask.kind, s.ask.secret, s.ask.question, s.ask.hint].join(','), 'input,false,Icon URL/name> ,Could not fetch favicon', 'the gum input marker carries its prompt')
@@ -97,7 +99,7 @@ fi
 # sudo, pacman and yay speak English for the window to read, by their own name.
 probe=$(mktemp -d)
 ln -s "$ROOT/shell/plugins/update/shims/english" "$probe/env"
-output=$(LC_ALL=de_DE.UTF-8 "$probe/env" | grep '^LC_ALL=')
+output=$(LC_ALL=C "$probe/env" | grep '^LC_ALL=')
 rm -rf "$probe"
 [[ $output == "LC_ALL=C.UTF-8" ]] || fail 'the tools the window reads run in English' "$output"
 [[ $(readlink "$ROOT/shell/plugins/update/shims/sudo") == "english" && $(readlink "$ROOT/shell/plugins/update/shims/pacman") == "english" && $(readlink "$ROOT/shell/plugins/update/shims/yay") == "english" ]] ||

@@ -301,6 +301,17 @@ function namesSubject(name, subject) {
   return !!subject && squash(name).indexOf(squash(subject)) >= 0
 }
 
+// Of the packages in expected (name -> listed version), the ones `pacman -Q`
+// output shows installed at exactly that version.
+function installedAtListed(output, expected) {
+  var found = {}
+  String(output || "").split("\n").forEach(function(line) {
+    var f = line.trim().split(/\s+/)
+    if (f.length === 2 && expected[f[0]] && expected[f[0]] === f[1]) found[f[0]] = true
+  })
+  return found
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     STEPS: STEPS,
@@ -309,6 +320,7 @@ if (typeof module !== "undefined") {
     transfer: transfer,
     stepFraction: stepFraction,
     progress: progress,
-    namesSubject: namesSubject
+    namesSubject: namesSubject,
+    installedAtListed: installedAtListed
   }
 }
