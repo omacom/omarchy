@@ -431,6 +431,7 @@ Item {
                 width: parent.width - refreshButton.width - parent.spacing
                 height: parent.height
                 placeholderText: root.placeholderText
+                accessibleName: root.placeholderText
                 foreground: root.foreground
                 accent: root.accent
                 font.family: root.fontFamily
