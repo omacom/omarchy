@@ -266,7 +266,9 @@ Item {
     rev
     // The installer's own tile, before pacman has said which package it is.
     if (!name) return phase === "done" ? "done" : phase === "running" ? "active" : "pending"
-    return st.packages[name] || "pending"
+    // A finished update installed everything it listed, whether or not pacman's
+    // or makepkg's words for each one were recognized along the way.
+    return st.packages[name] || (phase === "done" && !isTask ? "done" : "pending")
   }
 
   // Once installed, a package the installer asked for (rather than one pulled

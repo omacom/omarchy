@@ -94,6 +94,16 @@ if command -v script >/dev/null; then
   pass 'gum confirm becomes a window question'
 fi
 
+# sudo, pacman and yay speak English for the window to read, by their own name.
+probe=$(mktemp -d)
+ln -s "$ROOT/shell/plugins/update/shims/english" "$probe/env"
+output=$(LC_ALL=de_DE.UTF-8 "$probe/env" | grep '^LC_ALL=')
+rm -rf "$probe"
+[[ $output == "LC_ALL=C.UTF-8" ]] || fail 'the tools the window reads run in English' "$output"
+[[ $(readlink "$ROOT/shell/plugins/update/shims/sudo") == "english" && $(readlink "$ROOT/shell/plugins/update/shims/pacman") == "english" && $(readlink "$ROOT/shell/plugins/update/shims/yay") == "english" ]] ||
+  fail 'the tools the window reads run in English' 'sudo, pacman and yay should link to shims/english'
+pass 'the tools the window reads run in English'
+
 # Inside the window, an installer handing over to another one runs in place.
 output=$(OMARCHY_UPDATE_WINDOW=1 "$ROOT/bin/omarchy-launch-install" 'echo inline')
 [[ $output == "inline" ]] || fail 'a nested install runs inside the window' "$output"
