@@ -99,13 +99,25 @@ output=$(OMARCHY_UPDATE_WINDOW=1 "$ROOT/bin/omarchy-launch-install" 'echo inline
 [[ $output == "inline" ]] || fail 'a nested install runs inside the window' "$output"
 pass 'a nested install runs inside the window'
 
-# The window can answer gum confirm and input, not draw a picker or an editor,
-# so an install it runs must not open one.
+# The window can answer gum confirm and input, not draw a picker, an editor or
+# a full-screen wizard, so an install it runs must not open one, nor any helper
+# the install calls.
+declare -A scanned
+interactive() {
+  local command=$1 depth=$2 script="$ROOT/bin/$1" next
+  [[ -f $script && -z ${scanned[$command]:-} ]] || return 1
+  scanned[$command]=1
+  grep -v '^\s*#' "$script" | grep -qE 'gum (choose|filter|file|write)|\bfzf\b|[^-]onboard\b' && { echo "$command"; return 0; }
+  (( depth < 4 )) || return 1
+  for next in $(grep -v '^\s*#' "$script" | grep -oE '\bomarchy-[a-z0-9-]+' | sort -u); do
+    interactive "$next" $((depth + 1)) && return 0
+  done
+  return 1
+}
 while IFS= read -r command; do
-  script="$ROOT/bin/${command%% *}"
-  [[ -f $script ]] || continue
-  if grep -qE 'gum (choose|filter|file|write)|\bfzf\b' "$script"; then
-    fail "installs opened in the update window ask nothing it cannot show" "${command%% *} draws a picker; leave it in the terminal"
+  scanned=()
+  if culprit=$(interactive "${command%% *}" 0); then
+    fail "installs opened in the update window ask nothing it cannot show" "${command%% *} reaches $culprit, which draws a picker or wizard; leave it in the terminal"
   fi
 done < <(grep -o '"action":"omarchy-launch-install [^"]*"' "$ROOT/default/omarchy/omarchy-menu.jsonc" | sed "s/^\"action\":\"omarchy-launch-install //; s/\"\$//; s/'//g")
 pass 'installs opened in the update window ask nothing it cannot show'

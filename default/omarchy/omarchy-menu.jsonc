@@ -340,7 +340,7 @@
   "install.cli.github": {"icon":"","label":"GitHub","disabled":"omarchy-pkg-present github-cli","action":"omarchy-launch-floating-terminal-with-presentation omarchy-pkg-add-curated github-cli"},
   "install.cli.hey": {"icon":"","iconFont":"omarchy","label":"HEY","disabled":"omarchy-pkg-present hey-cli","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-cli-hey"},
   "install.cli.hunk": {"icon":"","label":"Hunk","disabled":"omarchy-pkg-present hunk","action":"omarchy-launch-floating-terminal-with-presentation omarchy-pkg-add-curated hunk"},
-  "install.ai.desktop.openclaw": {"icon":"","iconFont":"omarchy","label":"OpenClaw","disabled":"omarchy-pkg-present openclaw","action":"omarchy-launch-install omarchy-install-ai-openclaw"},
+  "install.ai.desktop.openclaw": {"icon":"","iconFont":"omarchy","label":"OpenClaw","disabled":"omarchy-pkg-present openclaw","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-ai-openclaw"},
   "install.ai.desktop.opencode": {"icon":"","iconFont":"omarchy","label":"OpenCode Desktop","disabled":"omarchy-pkg-present opencode-desktop","action":"omarchy-install-and-launch 'OpenCode Desktop' opencode-desktop ai.opencode.desktop"},
   "install.ai.desktop.perplexity": {"icon":"","iconFont":"omarchy","label":"Perplexity","when":"omarchy-region-global","disabled":"omarchy-pkg-present perplexity","action":"omarchy-install-and-launch Perplexity perplexity perplexity"},
   "install.ai.desktop.t3-code": {"icon":"","iconFont":"omarchy","label":"T3 Code","disabled":"[[ -f \"$HOME/.local/share/t3code/T3-Code.AppImage\" ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-ai-t3-code"},
