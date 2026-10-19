@@ -103,6 +103,8 @@ assert(tailscale.isTaildropTarget({ TaildropTarget: 1, UserID: '1001' }, '2002')
 assert(!tailscale.isTaildropTarget({ TaildropTarget: 7, UserID: '1001' }, '1001'), 'tailscale skips peers Tailscale rules out')
 assert(tailscale.isTaildropTarget({ UserID: '1001' }, '1001'), 'tailscale falls back to same-owner peers without a grade')
 assert(!tailscale.isTaildropTarget({ UserID: '1002' }, '1001'), 'tailscale skips other owners without a grade')
+assert(tailscale.canSendFiles({ TaildropTarget: 1, UserID: '1001', Online: true }, '2002'), 'tailscale allows sending files to an online Taildrop target')
+assert(!tailscale.canSendFiles({ TaildropTarget: 1, UserID: '1001', Online: false }, '2002'), 'tailscale blocks sending files to an offline peer that would otherwise qualify')
 
 const mullvadNodes = tailscale.parseExitNodeList(`
  IP                  HOSTNAME                         COUNTRY            CITY                   STATUS

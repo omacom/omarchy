@@ -1346,7 +1346,7 @@ Panel {
           Layout.fillWidth: true
           text: {
             var parts = []
-            if (!peerRow.peerOnline) parts.push("Offline")
+            if (!peerRow.peerOnline) parts.push(Commons.I18n.t("tailscale.offline"))
             if (peerRow.peerIp !== "") parts.push(peerRow.peerIp)
             if (peerRow.peerDns !== "") parts.push(peerRow.peerDns)
             return parts.join(" · ")

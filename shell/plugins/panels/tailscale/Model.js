@@ -132,6 +132,14 @@ function isTaildropTarget(peer, selfUserId) {
   return owner !== "" && owner === String(selfUserId || "")
 }
 
+// A same-owner fallback grade (see above) doesn't know the peer is asleep,
+// so check Online here rather than inside isTaildropTarget: routing through
+// an offline peer would only offer a transfer that cannot land.
+function canSendFiles(peer, selfUserId) {
+  if (!peer || peer.Online !== true) return false
+  return isTaildropTarget(peer, selfUserId)
+}
+
 function peerFromStatus(id, peer, tr) {
   return {
     id: id,
@@ -356,6 +364,7 @@ if (typeof module !== "undefined") {
     renamePlan: renamePlan,
     hasFileSharing: hasFileSharing,
     isTaildropTarget: isTaildropTarget,
+    canSendFiles: canSendFiles,
     isMullvadPeer: isMullvadPeer,
     peerFromStatus: peerFromStatus,
     parseExitNodeList: parseExitNodeList,
