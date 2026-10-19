@@ -222,6 +222,7 @@ Item {
               anchors.fill: parent
               anchors.margins: Style.spacing.md
               placeholderText: root.placeholderText
+              accessibleName: root.placeholderText
               foreground: root.foreground
               accent: root.accent
               font.family: root.fontFamily

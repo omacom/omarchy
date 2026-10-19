@@ -21,6 +21,7 @@
   "accessibility.weather": "Weather",
   "accessibility.wifi": "Wi-Fi",
   "accessibility.workspace": "Workspace %1",
+  "agents.accountName": "Account name",
   "agents.active": "ACTIVE",
   "agents.addAccount": "Add an account",
   "agents.addProviderAccount": "Add %1 account",

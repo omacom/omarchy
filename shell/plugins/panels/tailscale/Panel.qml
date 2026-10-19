@@ -741,6 +741,7 @@ Panel {
                   width: parent.width
                   foreground: root.foreground
                   placeholderText: Commons.I18n.t("tailscale.searchRegions")
+                  accessibleName: Commons.I18n.t("tailscale.searchRegions")
                   text: root.mullvadQuery
                   onTextChanged: {
                     root.mullvadQuery = text
