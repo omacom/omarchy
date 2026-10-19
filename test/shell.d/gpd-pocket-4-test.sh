@@ -62,3 +62,50 @@ grep -q 'sudo tee /etc/udev/rules.d/99-gpd-pocket4-touchscreen.rules' "$ROOT/ins
 grep -q 'sudo limine-mkinitcpio' "$ROOT/migrations/1788852858.sh" || fail "migration must rebuild boot entries"
 ! grep -q 'systemctl\|iio-sensor' "$ROOT/migrations/1788852858.sh" || fail "baseline migration must not enable autorotation"
 pass "boot and touch migration do not depend on autorotation"
+
+# Execute the hardware leaf with a privileged filesystem view. The boot file
+# cannot be found by an ordinary lookup, but sudo can access its backing file,
+# modelling /boot mounted with fmask=0077,dmask=0077 without requiring root.
+boot_file=$test_tmp/root-boot/limine.conf
+hidden_boot_file=$test_tmp/unprivileged-boot/limine.conf
+mkdir -p "$test_tmp/root-boot"
+export boot_file hidden_boot_file
+omarchy-hw-gpd-pocket-4() { return 0; }
+sudo() {
+  local command=$1
+  shift
+  case "$command" in
+    test|grep|sed)
+      local args=() arg
+      for arg in "$@"; do
+        if [[ $arg == "$hidden_boot_file" ]]; then
+          args+=("$boot_file")
+        else
+          args+=("$arg")
+        fi
+      done
+      command "$command" "${args[@]}"
+      ;;
+    tee) cat >/dev/null ;;
+    mkdir|udevadm) return 0 ;;
+    *) fail "unexpected privileged command: $command" ;;
+  esac
+}
+run_hardware_leaf() {
+  local script
+  script=$(<"$ROOT/install/hardware/gpd-pocket-4.sh")
+  source /dev/stdin <<< "${script//\/boot\/limine.conf/$hidden_boot_file}"
+}
+printf 'timeout: 5\n' > "$boot_file"
+run_hardware_leaf
+grep -qx 'interface_rotation: 90' "$boot_file" || fail "root-only boot config must receive Limine rotation"
+run_hardware_leaf
+[[ $(grep -c '^interface_rotation:' "$boot_file") == 1 ]] || fail "repeated setup must not duplicate rotation"
+printf 'interface_rotation: 180\ntimeout: 5\n' > "$boot_file"
+run_hardware_leaf
+grep -qx 'interface_rotation: 180' "$boot_file" || fail "setup must preserve an existing Limine rotation"
+[[ $(grep -c '^interface_rotation:' "$boot_file") == 1 ]] || fail "existing rotation must not be duplicated"
+rm "$boot_file"
+run_hardware_leaf
+[[ ! -e $boot_file ]] || fail "setup must not create a missing Limine config"
+pass "privileged Limine checks handle root-only boot, repeat runs, existing rotation and missing config"

@@ -20,7 +20,8 @@ EOF
   # Limine's graphical menu is rotated with a global option that
   # limine-entry-tool does not manage; it preserves unmanaged options across
   # regenerations, so a one-time prepend is enough.
-  if [[ -e /boot/limine.conf ]] && ! grep -q "^interface_rotation:" /boot/limine.conf; then
+  # A root-only /boot mount needs elevated checks as well as an elevated edit.
+  if sudo test -e /boot/limine.conf && ! sudo grep -q "^interface_rotation:" /boot/limine.conf; then
     sudo sed -i "1i interface_rotation: 90" /boot/limine.conf
   fi
 
