@@ -17,10 +17,52 @@ sudo systemctl disable --now llama-server.service 2>/dev/null || true
 # another package still needs it.
 omarchy-pkg-drop llama-cpp ggml-cuda ggml-hip ggml-vulkan
 
-# llama-server writes its downloads under the XDG cache, which is where -hf
-# and --model-url land. LLAMA_CACHE relocates that, and the pointer to where
-# it went is the variable itself, so an unset variable means the default.
-rm -rf "${LLAMA_CACHE:-$HOME/.cache/llama.cpp}"
+# llama.cpp's own cache directory holds nothing another program reads.
+rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/llama.cpp"
+
+# -hf downloads land in the Hugging Face hub cache, resolved in llama.cpp's
+# order (common/hf-cache.cpp). That cache is shared with every huggingface_hub
+# user, so only repos holding a GGUF are llama.cpp's to offer, and they go only
+# on an explicit yes. Without a terminal to ask in, keeping them is the answer,
+# and gum draws its prompt on stderr, so both must be terminals.
+if [[ -n ${LLAMA_CACHE:-} ]]; then
+  hub=$LLAMA_CACHE
+elif [[ -n ${HF_HUB_CACHE:-} ]]; then
+  hub=$HF_HUB_CACHE
+elif [[ -n ${HUGGINGFACE_HUB_CACHE:-} ]]; then
+  hub=$HUGGINGFACE_HUB_CACHE
+elif [[ -n ${HF_HOME:-} ]]; then
+  hub=$HF_HOME/hub
+else
+  hub=${XDG_CACHE_HOME:-$HOME/.cache}/huggingface/hub
+fi
+
+models=()
+for repo in "$hub"/models--*/; do
+  [[ -d $repo/snapshots ]] || continue
+  if [[ -n $(find "$repo/snapshots" -name '*.gguf' -print -quit 2>/dev/null) ]]; then
+    models+=("${repo%/}")
+  fi
+done
+
+models_removed=false
+if (( ${#models[@]} )) && [[ -t 0 && -t 2 ]]; then
+  size=$(du -shc "${models[@]}" 2>/dev/null | tail -1 | cut -f1 || true)
+  # du glues the unit to the number ("4.8G"); write the number with the
+  # language's decimal separator and digits.
+  if [[ $size =~ ^([0-9]+([.,][0-9]+)?)([A-Za-z]*)$ ]] && number=$(omarchy-i18n --number "${BASH_REMATCH[1]/,/.}"); then
+    size="$number${BASH_REMATCH[3]}"
+  fi
+  if gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n llamaCpp.deleteModels "$size")"; then
+    rm -rf "${models[@]}"
+    models_removed=true
+  fi
+fi
 
 echo ""
-echo "Llama.cpp and its models have been removed."
+echo "Llama.cpp has been removed."
+if [[ $models_removed == "true" ]]; then
+  echo "Its GGUF models in $hub are gone too."
+elif (( ${#models[@]} )); then
+  echo "Its GGUF models are still in $hub."
+fi
