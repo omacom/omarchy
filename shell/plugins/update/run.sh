@@ -23,6 +23,10 @@ exec 3<>"$dir/in"
 # dialogs; everything else runs untouched. omarchy update sets its own PATH, so
 # only installs meet the gum stand-in.
 export PATH="$here/shims:$PATH" OMARCHY_UPDATE_WINDOW=1 TERM=dumb
+# The window reads pacman's and PAM's messages, which follow the session
+# language; pin them to English the way omarchy-update-system-pkgs pins pacman.
+# Omarchy's own strings come from omarchy-i18n and stay translated.
+export LC_ALL=C.UTF-8
 export SUDO_PROMPT=$'\e]5150;password\a'
 
 # The lock and the FIFO stay out of whatever the command leaves running.
