@@ -1340,6 +1340,7 @@ Item {
                   id: demoTextField
                   width: parent.width
                   placeholderText: "Type something (Enter to start editing, Esc to leave)"
+                  accessibleName: "Text field"
                   foreground: root.foreground
                   accent: root.accent
                   font.family: root.fontFamily
@@ -1362,6 +1363,7 @@ Item {
                   width: parent.width
                   password: true
                   placeholderText: "Password"
+                  accessibleName: "Password"
                   foreground: root.foreground
                   accent: root.accent
                   font.family: root.fontFamily

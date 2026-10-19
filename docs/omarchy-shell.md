@@ -464,10 +464,10 @@ The shared `qs.Ui` kit publishes Qt `Accessible` roles, names, states and action
 | `PanelActionButton` | button | `accessibleName`, `tooltipText` |
 | `Toggle` | check box | `label`, with `description` as the description |
 | `ToggleSwitch` | check box | `accessibleName`; hidden when `interactive: false`, as inside `Toggle` |
-| `TextField` | text / password text | `accessibleName`, `placeholderText` |
+| `TextField` | text / password text | `accessibleName`; `placeholderText` is the description |
 | `PanelSlider` | slider, carried by its `accessibleItem` | `accessibleName` |
 | `Dropdown`, `SearchableDropdown`, `MultiSelect` | combo box, with list items or check boxes in the popup | `accessibleName`, `label` |
-| `CursorSurface` | list item | `accessibleName`; unnamed rows stay out of the tree |
+| `CursorSurface` | list item | `accessibleName` or `Accessible.name`; unnamed rows stay out of the tree |
 | `ConfirmDialog` | dialog with buttons | `message`, `cancelText`, `confirmText` |
 | `KeyboardPanel` | dialog | `accessibleName` |
 
@@ -478,6 +478,7 @@ Rules for anything built on the kit:
 - Name the function and let state carry the rest: a `Toggle` is "Wi-Fi" plus checked, not "Wi-Fi on". Where a name includes state, bind it to coarse state ("Battery 80%"), not text that changes every second.
 - Password fields never report a name, by Qt design; the kit copies `accessibleName` into the description, and a field with a visible label can also set `Accessible.labelledBy`.
 - Keep controls out of the accessibility tree whenever they are concealed or otherwise unavailable to sighted users.
-- A `CursorSurface` row that should be reachable sets `accessibleName` and wires `Accessible.onPressAction` next to its own click handler.
+- A `TextField` names what goes in it ("City"), never an example ("Lisbon"); its placeholder stays the description.
+- A `CursorSurface` row that should be reachable sets `accessibleName` (or `Accessible.name`) and wires `Accessible.onPressAction` next to its own click handler.
 
-`test/shell.d/ui-accessibility-test.sh` statically checks first-party uses of `BarIconButton`, `BarIndicator`, `ToggleSwitch`, `PanelSlider`, `PanelActionButton` and icon-only `Button` for a non-empty name, and its runtime fixture checks the kit's roles, names, states and actions.
+`test/shell.d/ui-accessibility-test.sh` statically checks first-party uses of `BarIconButton`, `BarIndicator`, `ToggleSwitch`, `PanelSlider`, `PanelActionButton`, `TextField` and icon-only `Button` for a non-empty name, and its runtime fixture checks the kit's roles, names, states and actions.

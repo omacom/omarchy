@@ -137,6 +137,7 @@ required_names = {
   "ToggleSwitch": ("accessibleName",),
   "PanelSlider": ("accessibleName",),
   "PanelActionButton": ("accessibleName", "tooltipText"),
+  "TextField": ("accessibleName",),
 }
 failures = []
 for path in sorted(scan.rglob("*.qml")):
@@ -184,6 +185,7 @@ Item {
   Button { iconText: ""; text: "" }
   Button { iconText: ""; text: "  " }
   PanelSlider { accessibleName: " " }
+  TextField { placeholderText: "90" }
 }
 QML
 cat >"$LINT_FIXTURES/Named.qml" <<'QML'
@@ -195,12 +197,13 @@ Item {
   PanelActionButton { tooltipText: "Copy" }
   Button { iconText: "\ue900"; tooltipText: "Menu" }
   BarIconButton { accessibleName: "Caf\u00e9" }
+  TextField { placeholderText: "90"; accessibleName: "Live to" }
 }
 QML
 lint_status=0
 lint_output=$(python3 -c "$naming_lint" "$ROOT" "$LINT_FIXTURES" 2>&1) || lint_status=$?
 rm -rf "$LINT_FIXTURES"
-expected_unnamed=$'Unnamed first-party controls:\n  Unnamed.qml:2 PanelSlider\n  Unnamed.qml:3 ToggleSwitch\n  Unnamed.qml:4 BarIconButton\n  Unnamed.qml:5 BarIndicator\n  Unnamed.qml:6 PanelActionButton\n  Unnamed.qml:7 Button\n  Unnamed.qml:8 BarIconButton\n  Unnamed.qml:9 BarIconButton\n  Unnamed.qml:10 Button\n  Unnamed.qml:11 Button\n  Unnamed.qml:12 PanelSlider'
+expected_unnamed=$'Unnamed first-party controls:\n  Unnamed.qml:2 PanelSlider\n  Unnamed.qml:3 ToggleSwitch\n  Unnamed.qml:4 BarIconButton\n  Unnamed.qml:5 BarIndicator\n  Unnamed.qml:6 PanelActionButton\n  Unnamed.qml:7 Button\n  Unnamed.qml:8 BarIconButton\n  Unnamed.qml:9 BarIconButton\n  Unnamed.qml:10 Button\n  Unnamed.qml:11 Button\n  Unnamed.qml:12 PanelSlider\n  Unnamed.qml:13 TextField'
 if (( lint_status == 0 )) || [[ $lint_output != "$expected_unnamed" ]]; then
   fail "naming lint rejects controls named only through unread properties" "$lint_output"
 fi
@@ -446,8 +449,12 @@ ShellRoot {
     same(bareSwitch.Accessible.name, "Tailscale", "ToggleSwitch takes accessibleName")
     same(bareSwitch.Accessible.ignored, false, "interactive ToggleSwitch is exposed")
 
-    same(plainField.Accessible.name, "Search", "TextField is named by its placeholder")
+    same(plainField.Accessible.name, "", "TextField is never named by its placeholder")
+    same(plainField.Accessible.description, "Search", "TextField describes itself with its placeholder")
+    same(namedField.Accessible.name, "City", "TextField takes accessibleName")
+    same(namedField.Accessible.description, "Lisbon", "named TextField keeps its placeholder as the description")
     same(passwordField.Accessible.description, "Passphrase for Home", "password TextField carries its name in the description")
+    same(unnamedPasswordField.Accessible.description, "unchanged", "unnamed password TextField describes itself with its placeholder")
 
     same(slider.accessibleItem.Accessible.role, Accessible.Slider, "PanelSlider role")
     same(slider.accessibleItem.Accessible.name, "Volume", "PanelSlider takes accessibleName")
@@ -460,6 +467,7 @@ ShellRoot {
 
     same(unnamedRow.Accessible.ignored, true, "unnamed CursorSurface stays out of the tree")
     same(namedRow.Accessible.ignored, false, "named CursorSurface joins the tree")
+    same(attachedRow.Accessible.ignored, false, "CursorSurface named with Accessible.name joins the tree")
     same(namedRow.Accessible.role, Accessible.ListItem, "CursorSurface role")
     same(namedRow.Accessible.selected, true, "current CursorSurface reports selected")
 
@@ -574,6 +582,8 @@ ShellRoot {
     ToggleSwitch { id: busySwitch; accessibleName: "Busy"; busy: true; onToggled: root.switchToggles++ }
 
     TextField { id: plainField; placeholderText: "Search" }
+    TextField { id: namedField; placeholderText: "Lisbon"; accessibleName: "City" }
+    TextField { id: unnamedPasswordField; password: true; placeholderText: "unchanged" }
     TextField { id: passwordField; password: true; placeholderText: "Passphrase"; accessibleName: "Passphrase for Home" }
 
     PanelSlider {
@@ -647,6 +657,7 @@ ShellRoot {
     PanelActionButton { id: actionButton; iconText: "\u{F0156}"; tooltipText: "Unpair"; onClicked: root.actionClicks++ }
 
     CursorSurface { id: unnamedRow }
+    CursorSurface { id: attachedRow; Accessible.name: "Downloads" }
     CursorSurface {
       id: namedRow
       accessibleName: "Home"
