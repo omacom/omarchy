@@ -60,6 +60,16 @@ mapfile -d '' -t launch < "$TEST_LAUNCH"
 grep -Fqx 'unset:get default-web-browser' "$TEST_XDG_CALLS" || fail "XDG lookup excludes the BROWSER wrapper"
 pass "automatic mode preserves the existing supported-browser fallback"
 
+mkdir -p "$XDG_CONFIG_HOME"
+printf '[Default Applications]\nx-scheme-handler/http=omarchy-browser.desktop;helium.desktop;\n' > "$XDG_CONFIG_HOME/mimeapps.list"
+: > "$TEST_XDG_CALLS"
+omarchy-launch-webapp "$url"
+mapfile -d '' -t launch < "$TEST_LAUNCH"
+[[ ${launch[0]} == "helium-browser" && ${launch[1]} == "--app=$url" ]] || fail "automatic mode reads the actual browser behind the Omarchy link handler"
+[[ ! -s $TEST_XDG_CALLS ]] || fail "configured browser lookup skips xdg-settings"
+rm "$XDG_CONFIG_HOME/mimeapps.list"
+pass "automatic mode preserves upstream's direct default-browser lookup"
+
 omarchy-default-webapp-browser helium
 [[ $(omarchy-default-webapp-browser) == "helium.desktop" ]] || fail "selection persists in XDG_CONFIG_HOME"
 omarchy-launch-webapp "$url" '--class=An app'
@@ -83,6 +93,20 @@ omarchy-launch-webapp "$url"
 mapfile -d '' -t launch < "$TEST_LAUNCH"
 [[ ${launch[0]} == "chromium" ]] || fail "automatic mode restores fallback"
 pass "returning to automatic mode restores the previous behavior"
+
+omarchy-default-webapp-browser chromium
+export TEST_HANDOFF="$scratch/handoff"
+cat > "$TEST_BIN/omarchy-cmd-browser-handoff" <<'STUB'
+#!/bin/bash
+printf '%s\0' "$@" > "$TEST_HANDOFF"
+STUB
+chmod +x "$TEST_BIN/omarchy-cmd-browser-handoff"
+rm "$TEST_LAUNCH"
+omarchy-launch-webapp "$url" '--class=An app'
+mapfile -d '' -t handoff < "$TEST_HANDOFF"
+[[ ${handoff[0]} == "chromium" && ${handoff[1]} == "--app=$url" && ${handoff[2]} == "--class=An app" && ${#handoff[@]} == 3 ]] || fail "the running browser receives the full URL and extra arguments"
+[[ ! -e $TEST_LAUNCH ]] || fail "an acknowledged handoff starts no second browser"
+pass "an explicit web app browser preserves upstream's running-browser handoff"
 
 cat > "$TEST_BIN/omarchy-launch-floating-terminal-with-presentation" <<'STUB'
 #!/bin/bash
