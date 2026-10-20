@@ -90,9 +90,12 @@ if [[ -z $background_path ]]; then
 fi
 [[ -f $background_path ]] || fallback
 
+# The bar's size and insets are logical pixels and hyprctl reports the physical
+# mode, so the screen is measured in logical pixels too: the wallpaper is
+# scaled to cover it either way, and every crop below lands where the bar is.
 if [[ -z $screen_size ]]; then
   if omarchy-cmd-present hyprctl && omarchy-cmd-present jq; then
-    screen_size=$(hyprctl monitors -j 2>/dev/null | jq -r '.[0] | "\(.width)x\(.height)"' 2>/dev/null || true)
+    screen_size=$(hyprctl monitors -j 2>/dev/null | jq -r '.[0] | (.scale // 1) as $scale | "\(.width / $scale | round)x\(.height / $scale | round)"' 2>/dev/null || true)
   fi
 fi
 [[ $screen_size =~ ^([0-9]+)x([0-9]+)$ ]] || fallback
@@ -119,7 +122,7 @@ fi
 case "$position" in
 top)
   crop_width=$((screen_width - inset_left - inset_right))
-  ((crop_width > 0)) || fallback
+  ((crop_width > 0 && inset_top + bar_size <= screen_height)) || fallback
   crop="${crop_width}x${bar_size}+${inset_left}+${inset_top}"
   ;;
 bottom)
@@ -130,7 +133,7 @@ bottom)
   ;;
 left)
   crop_height=$((screen_height - inset_top - inset_bottom))
-  ((crop_height > 0)) || fallback
+  ((crop_height > 0 && inset_left + bar_size <= screen_width)) || fallback
   crop="${bar_size}x${crop_height}+${inset_left}+${inset_top}"
   ;;
 right)
