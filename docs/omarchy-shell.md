@@ -435,7 +435,7 @@ margin = "4 8"   # 4 above and below, 8 left and right
 
 Without a theme margin a floating bar floats inside the space a flush bar already reserves. It sits half of Hyprland's `general:gaps_out` from the screen edge, so the gap between the bar and the screen edge matches the gap between the bar and the windows. Its ends sit the full `gaps_out` in from the screen sides, in line with the windows. The windows stay where they are when floating is switched on or off. `radius` applies only while the bar floats; a flush bar stays square. Unset, it follows Hyprland's `decoration:rounding`, and it never rounds past half the bar's thickness.
 
-Theme values follow `scale-with-font` like the sizes above; the Hyprland-derived defaults do not. A theme margin is reserved along with the bar, so tiled and maximized windows stop clear of it and keep `gaps_out` between them and the bar. Auto-hide parks the bar fully off screen, margin included.
+Theme values follow `scale-with-font` like the sizes above; the Hyprland-derived defaults do not. A theme margin is reserved along with the bar, so tiled and maximized windows stop clear of it and keep `gaps_out` between them and the bar. Auto-hide parks the bar fully off screen, margin included. On a panel with a camera cutout, a theme top margin counts toward clearing it: the bar's floor shrinks by the margin, and a margin that clears the cutout leaves the center sections in the middle. A bar floating in the gap keeps a flush bar's floor, so the windows still stay put.
 
 ## Custom bar modules
 
