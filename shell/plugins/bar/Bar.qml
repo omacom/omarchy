@@ -776,13 +776,23 @@ Item {
     }) : null
   }
 
+  // How far a panel's camera cutout reaches into the top bar on a screen. A
+  // theme margin sits the bar that far below the edge, so the cutout reaches
+  // that much less into it, and not at all once the margin clears it. A bar
+  // floating in the gap reserves only what a flush bar reserves, so it keeps
+  // the flush floor, or floating it would move the windows.
+  function notchReachFor(screen) {
+    if (root.vertical || !screen) return 0
+    return BarModel.notchReach(BarModel.notchFloor(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, root.panelModeFor(screen), Style.bar.notchHeight), root.floatInGap ? 0 : root.barMargins.top)
+  }
+
   // How thick the bar is on a screen. A top bar shorter than a panel's camera
   // cutout leaves a sliver of every window peeking out beside the camera, so
   // the cutout is this panel's minimum sensible top-bar height. An
   // intentionally taller bar still wins.
   function thicknessFor(screen) {
     if (root.vertical || !screen) return root.barSize
-    return Math.max(root.barSize, BarModel.notchFloor(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, root.panelModeFor(screen), Style.bar.notchHeight))
+    return Math.max(root.barSize, root.notchReachFor(screen))
   }
 
   // Each screen's bar thickness, by screen name: barSize, or more where a notch
@@ -1780,7 +1790,9 @@ Item {
 
     readonly property var panelMode: root.panelModeFor(screen)
 
-    readonly property bool centerBesideRight: BarModel.centerBesideRight(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
+    // Only while the cutout still reaches into the bar: a top margin that
+    // clears it leaves the center section in the middle.
+    readonly property bool centerBesideRight: BarModel.centerBesideRight(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode) && root.notchReachFor(screen) > 0
 
     readonly property bool cutoutPending: BarModel.cutoutPending(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
     property bool cutoutWaitOver: false

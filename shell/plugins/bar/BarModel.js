@@ -644,6 +644,13 @@ function cutoutPending(cutouts, position, screenName, logicalWidth, logicalHeigh
   return described && !(cutoutTop(cutouts, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode) > 0)
 }
 
+// How far a cutout reaches into a top bar that sits `margin` below the screen
+// edge: the floor less the margin, and nothing once the margin clears it.
+function notchReach(floor, margin) {
+  var reach = Number(floor) - Math.max(0, Number(margin) || 0)
+  return reach > 0 ? reach : 0
+}
+
 // The bar's thickness on the screen with this name, from the sizes a bar
 // publishes by screen name, or `fallback` (its configured size) for a screen
 // it has none for.
@@ -796,6 +803,7 @@ if (typeof module !== "undefined") {
     barRadius: barRadius,
     isDrawnSlot: isDrawnSlot,
     notchFloor: notchFloor,
+    notchReach: notchReach,
     parseCutouts: parseCutouts,
     pickDrawnSlot: pickDrawnSlot,
     pickPanelSlot: pickPanelSlot,
