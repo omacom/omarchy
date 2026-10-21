@@ -38,6 +38,9 @@ Item {
   property string selectedAccountLabel: ""
   property string switchingAccountId: ""
   property string settingExitNodeId: ""
+  property bool exitNodeOffline: false
+  property string exitNodeName: ""
+  property string exitNodeId: ""
   property bool accountsAccessDenied: false
   property string actionStatus: ""
   property string lastError: ""
@@ -270,6 +273,9 @@ Item {
     selectedAccountLabel = ""
     switchingAccountId = ""
     settingExitNodeId = ""
+    exitNodeOffline = false
+    exitNodeName = ""
+    exitNodeId = ""
     accountsAccessDenied = false
   }
 
@@ -312,6 +318,11 @@ Item {
       peersLoaded = false
     }
     syncExitNodes()
+    exitNodeOffline = parsed.exitNodeOffline
+    // A light poll has no peer rows to name the node from, so keep the name a
+    // full poll found for the same node rather than falling back to its IP.
+    if (_statusFullPeers || parsed.exitNodeId !== exitNodeId) exitNodeName = parsed.exitNodeName
+    exitNodeId = parsed.exitNodeId
 
     if (needsLogin) statusText = "Needs login"
     else if (running) {
@@ -411,6 +422,15 @@ Item {
     _exitNodeError = ""
     settingExitNodeId = String(peer.id || "")
     exitNodeProcess.command = ["tailscale", "set", "--exit-node=" + target]
+    exitNodeProcess.running = true
+  }
+
+  // Works without the node's peer row, which can vanish while it is offline.
+  function clearExitNode() {
+    if (!installed || !running || exitNodeProcess.running) return
+    _exitNodeOutput = ""
+    _exitNodeError = ""
+    exitNodeProcess.command = ["tailscale", "set", "--exit-node="]
     exitNodeProcess.running = true
   }
 

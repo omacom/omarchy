@@ -158,6 +158,64 @@ const stopped = tailscale.parseStatus(JSON.stringify({
 
 assert(stopped.ok && !stopped.running, 'tailscale parses stopped status')
 
+assert(!status.exitNodeOffline, 'tailscale reports no offline exit node without ExitNodeStatus')
+
+function exitNodeStatus(exitStatus, peers, backendState) {
+  return tailscale.parseStatus(JSON.stringify({
+    BackendState: backendState || 'Running',
+    Self: { HostName: 'laptop', DNSName: 'laptop.tail32f559.ts.net.', TailscaleIPs: ['100.74.97.73'] },
+    ExitNodeStatus: exitStatus,
+    Peer: peers || {}
+  }))
+}
+
+const homePeer = online => ({
+  ID: 'nHome',
+  HostName: 'home',
+  DNSName: 'home.tail32f559.ts.net.',
+  TailscaleIPs: ['100.100.137.86'],
+  Online: online,
+  OS: 'linux',
+  ExitNodeOption: true
+})
+const otherOfflineExit = {
+  ID: 'nOther',
+  HostName: 'other',
+  DNSName: 'other.tail32f559.ts.net.',
+  TailscaleIPs: ['100.1.1.9'],
+  Online: false,
+  OS: 'linux',
+  ExitNodeOption: true
+}
+
+const offlineExit = exitNodeStatus(
+  { ID: 'nHome', Online: false, TailscaleIPs: ['100.100.137.86/32'] },
+  { home: homePeer(false), other: otherOfflineExit }
+)
+assert(offlineExit.exitNodeOffline, 'tailscale flags the selected exit node while it is offline')
+assertEqual(offlineExit.exitNodeName, 'home', 'tailscale names the offline exit node from its peer row')
+assertDeepEqual(offlineExit.exitNodes.map(peer => peer.HostName), ['home'], 'tailscale keeps only the selected offline exit node listed')
+assert(offlineExit.exitNodes[0].ExitNode && !offlineExit.exitNodes[0].Online, 'tailscale marks the listed offline exit node as selected and offline')
+assertDeepEqual(offlineExit.peers, [], 'tailscale still hides offline machines from the machine list')
+
+const missingExit = exitNodeStatus({ ID: 'nGone', Online: false, TailscaleIPs: ['100.100.137.86/32', 'fd7a:115c:a1e0::1/128'] })
+assert(missingExit.exitNodeOffline, 'tailscale flags an offline exit node with no peer row')
+assertEqual(missingExit.exitNodeName, '100.100.137.86', 'tailscale names a missing exit node by its address')
+assertDeepEqual(missingExit.exitNodes, [], 'tailscale lists nothing for a missing exit node')
+
+const onlineExit = exitNodeStatus({ ID: 'nHome', Online: true, TailscaleIPs: ['100.100.137.86/32'] }, { home: homePeer(true) })
+assert(!onlineExit.exitNodeOffline, 'tailscale does not warn while the exit node is online')
+assert(onlineExit.exitNodes[0].ExitNode, 'tailscale marks the online exit node as selected')
+
+const stoppedExit = exitNodeStatus({ ID: 'nHome', Online: false }, { home: homePeer(false) }, 'Stopped')
+assert(!stoppedExit.exitNodeOffline, 'tailscale does not warn about the exit node while stopped')
+
+const serviceSource = fs.readFileSync(root + '/shell/plugins/panels/tailscale/Service.qml', 'utf8')
+assert(/function clearExitNode\(\)[\s\S]*?\["tailscale", "set", "--exit-node="\]/.test(serviceSource), 'tailscale can stop using the exit node without its peer row')
+assertEqual((serviceSource.match(/clearExitNode\(\)/g) || []).length, 1, 'tailscale never clears the exit node on its own')
+assertEqual((panelSource.match(/warning: tailscale\.needsLogin \|\| tailscale\.exitNodeOffline/g) || []).length, 2, 'tailscale badges both icons while the exit node is offline')
+assert(/visible: tailscale\.exitNodeOffline[\s\S]*?onClicked: tailscale\.clearExitNode\(\)/.test(panelSource), 'tailscale offers to stop using the offline exit node')
+
 const accounts = tailscale.parseAccounts(JSON.stringify([
   {
     id: 'db1b',

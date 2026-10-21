@@ -513,7 +513,7 @@ Panel {
           color: root.barIconColor
           badgeColor: root.urgent
           crossed: !tailscale.active && !tailscale.needsLogin
-          warning: tailscale.needsLogin
+          warning: tailscale.needsLogin || tailscale.exitNodeOffline
         }
       }
     }
@@ -603,7 +603,7 @@ Panel {
                   color: root.iconColor
                   badgeColor: root.urgent
                   crossed: !tailscale.active && !tailscale.needsLogin
-                  warning: tailscale.needsLogin
+                  warning: tailscale.needsLogin || tailscale.exitNodeOffline
                 }
               }
 
@@ -628,6 +628,38 @@ Panel {
                   }
                 }
               }
+            }
+          }
+
+          // The selected exit node is offline, so Tailscale is dropping all
+          // internet traffic; clicking stops using it.
+          CursorSurface {
+            visible: tailscale.exitNodeOffline
+            width: parent.width
+            implicitHeight: exitNodeOfflineText.implicitHeight + Style.spacing.rowPaddingX
+            foreground: root.foreground
+            fill: root.hoverFill
+
+            Text {
+              id: exitNodeOfflineText
+              textFormat: Text.PlainText
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.leftMargin: Style.space(8)
+              anchors.rightMargin: Style.space(8)
+              text: Commons.I18n.t("tailscale.exitNodeOffline").arg(tailscale.exitNodeName || Commons.I18n.t("tailscale.unknown"))
+              color: root.urgent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.WordWrap
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: tailscale.clearExitNode()
             }
           }
 
@@ -1311,6 +1343,7 @@ Panel {
     property int rowIndex: 0
     readonly property bool addMullvad: peer && peer.AddMullvad === true
     readonly property bool activeExitNode: peer && peer.ExitNode === true
+    readonly property bool offlineExitNode: activeExitNode && !addMullvad && peer.Mullvad !== true && peer.Online === false
     readonly property bool settingExitNode: peer && tailscale.settingExitNodeId === String(peer.id || "")
     readonly property string peerName: peer ? String(peer.DisplayName || peer.HostName || Commons.I18n.t("tailscale.unknown")) : Commons.I18n.t("tailscale.unknown")
     readonly property string actionTooltip: addMullvad ? "" : (activeExitNode ? Commons.I18n.t("tailscale.disconnect") : Commons.I18n.t("tailscale.connect"))
@@ -1356,8 +1389,8 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: exitNodeRow.peerName
-        color: root.foreground
+        text: exitNodeRow.offlineExitNode ? Commons.I18n.t("tailscale.exitNodeOfflineRow").arg(exitNodeRow.peerName) : exitNodeRow.peerName
+        color: exitNodeRow.offlineExitNode ? root.urgent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: exitNodeRow.activeExitNode
