@@ -111,6 +111,17 @@ def entry_identity(provider: str, entry: dict[str, Any]) -> dict[str, str]:
   return {"accountId": str(entry.get("accountId") or ""), "orgId": entry_org(provider, entry)}
 
 
+# The receiver may run against the destination's older account backend, which
+# has no same_account(). Keep the comparison here so a copy does not depend on
+# the backend version.
+def same_identity(left: dict[str, Any], right: dict[str, Any]) -> bool:
+  if str(left.get("accountId") or "") != str(right.get("accountId") or ""):
+    return False
+  left_org = str(left.get("orgId") or "")
+  right_org = str(right.get("orgId") or "")
+  return not left_org or not right_org or left_org == right_org
+
+
 def export_accounts(providers: list[str]) -> dict[str, Any]:
   payload = {"version": 1, "namePolicy": "source", "providers": {}}
   for provider in providers:
@@ -288,7 +299,7 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
       was_empty = not any(accounts.identity(provider, accounts.account_home(provider, a))["accountId"] and login_files(provider, accounts.account_home(provider, a)) for a in registry["accounts"])
       for entry in incoming["accounts"]:
         incoming_identity = entry_identity(provider, entry)
-        existing = next((a for a in registry["accounts"] if accounts.same_account(accounts.identity(provider, accounts.account_home(provider, a)), incoming_identity)), None)
+        existing = next((a for a in registry["accounts"] if same_identity(accounts.identity(provider, accounts.account_home(provider, a)), incoming_identity)), None)
         if existing and login_files(provider, accounts.account_home(provider, existing)) and not replace:
           copied.append((entry, existing))
           results.append(("kept", existing))
@@ -335,7 +346,7 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
             data = current
           write_json(path, data)
         found = accounts.identity(provider, home)
-        if not accounts.same_account(found, incoming_identity) or not login_files(provider, home):
+        if not same_identity(found, incoming_identity) or not login_files(provider, home):
           raise accounts.AccountError("Transferred credentials do not match their account identity")
         if not account.get("primary"):
           accounts.link_shared(provider, home)
