@@ -289,6 +289,27 @@ result = subprocess.run(["/usr/bin/python3", "-I", "-c", transfer.RECEIVER_BOOTS
 assert result.returncode == 0, result.stderr
 assert state.read_json(state.registry_path("claude"))["futureSetting"] == "keep"
 
+# A destination backend written before organizations existed has no
+# same_account(); the receiver must not call it, even for a single account.
+machine("older-backend")
+older_root = root / "older-omarchy"
+(older_root / "bin").mkdir(parents=True)
+older_source = (Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-agent-account-state").read_text()
+older_source = older_source.replace('      "orgId": str(account.get("organizationUuid") or ""),\n', '')
+start = older_source.index("# A subscription is the login plus")
+end = older_source.index("# ---------------------------------------------------------------- registry", start)
+older_source = older_source[:start] + older_source[end:]
+(older_root / "bin/omarchy-agent-account-state").write_text(older_source)
+older_receiver = root / "older-receiver-bin"
+older_receiver.mkdir()
+older_command = older_receiver / "omarchy-agent-account-transfer"
+older_command.write_text("#!/bin/bash\nexit 1\n")
+older_command.chmod(0o755)
+older_env = dict(os.environ, OMARCHY_PATH=str(older_root), PATH=str(older_receiver) + ":" + str(root / "bin"))
+result = subprocess.run(["/usr/bin/python3", "-I", "-c", transfer.RECEIVER_BOOTSTRAP], input=json.dumps(bundle), text=True, capture_output=True, env=older_env)
+assert result.returncode == 0, result.stderr
+assert len(state.read_json(state.registry_path("claude"))["accounts"]) == 3
+
 # A missing optional refresh command must not undo a completed import.
 machine("no-updater")
 no_updater_env = dict(os.environ, PATH="")
