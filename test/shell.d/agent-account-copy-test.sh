@@ -405,3 +405,79 @@ PYBOOT
 )" --replace
 [[ $(cat "$test_tmp/preferred-receiver") == "import --replace" ]] || fail "installed receiver is preferred"
 pass "installed receiver is preferred"
+
+# One user's two Claude organizations are separate subscriptions, so a copy
+# carries both instead of treating the second as a duplicate.
+python3 - <<'PY' || fail "two Claude organizations survive a copy"
+import copy, importlib.machinery, importlib.util, json, os
+from pathlib import Path
+
+loader = importlib.machinery.SourceFileLoader("transfer", str(Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-agent-account-transfer"))
+spec = importlib.util.spec_from_loader(loader.name, loader)
+transfer = importlib.util.module_from_spec(spec)
+loader.exec_module(transfer)
+state = transfer.accounts
+root = Path(os.environ["OMARCHY_TEST_ROOT"])
+
+
+def machine(name):
+  os.environ["HOME"] = str(root / name)
+  os.environ["XDG_STATE_HOME"] = str(root / name / "state")
+  Path.home().mkdir(exist_ok=True)
+
+
+def register(label, org):
+  pending = state.begin("claude", label)
+  account_file = state.claude_account_file(pending)
+  transfer.write_json(account_file, {"oauthAccount": {
+    "accountUuid": "u-shared",
+    "organizationUuid": org,
+    "emailAddress": "shared@example.com",
+    "organizationName": org,
+  }})
+  transfer.write_json(pending / ".credentials.json", {"claudeAiOauth": {"accessToken": "fake-" + org, "refreshToken": "fake-refresh", "subscriptionType": "max"}})
+  return state.register("claude", label, pending)
+
+
+machine("org-source")
+register("Org A", "org-a")
+register("Org B", "org-b")
+payload = transfer.export_accounts(["claude"])
+transfer.validate(payload)
+
+machine("org-destination")
+transfer.write_json(Path.home() / ".claude.json", {})
+transfer.import_provider("claude", payload["providers"]["claude"], False)
+registry = state.load("claude")
+shared = [a for a in registry["accounts"] if a.get("accountId") == "u-shared"]
+assert len(shared) == 2, shared
+assert {a.get("orgId") for a in shared} == {"org-a", "org-b"}, shared
+assert {state.read_json(state.account_home("claude", a) / ".credentials.json")["claudeAiOauth"]["accessToken"] for a in shared} == {"fake-org-a", "fake-org-b"}
+
+# An export written before the top-level orgId still names the organization in
+# its Claude account file; the copy must read it from there.
+legacy = copy.deepcopy(payload)
+for entry in legacy["providers"]["claude"]["accounts"]:
+  entry.pop("orgId", None)
+transfer.validate(legacy)
+
+machine("org-destination-legacy")
+transfer.write_json(Path.home() / ".claude.json", {})
+transfer.import_provider("claude", legacy["providers"]["claude"], False)
+registry = state.load("claude")
+shared = [a for a in registry["accounts"] if a.get("accountId") == "u-shared"]
+assert len(shared) == 2, shared
+assert {a.get("orgId") for a in shared} == {"org-a", "org-b"}, shared
+
+# A bundle that names one organization on the account and another in the
+# Claude file is refused before any credentials are written.
+conflict = copy.deepcopy(payload)
+conflict["providers"]["claude"]["accounts"][0]["orgId"] = "org-other"
+try:
+  transfer.validate(conflict)
+except state.AccountError:
+  pass
+else:
+  raise AssertionError("a conflicting organization must not validate")
+PY
+pass "two Claude organizations survive a copy"
