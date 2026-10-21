@@ -215,6 +215,8 @@ assert(/function clearExitNode\(\)[\s\S]*?\["tailscale", "set", "--exit-node="\]
 assertEqual((serviceSource.match(/clearExitNode\(\)/g) || []).length, 1, 'tailscale never clears the exit node on its own')
 assertEqual((panelSource.match(/warning: tailscale\.needsLogin \|\| tailscale\.exitNodeOffline/g) || []).length, 2, 'tailscale badges both icons while the exit node is offline')
 assert(/visible: tailscale\.exitNodeOffline[\s\S]*?onClicked: tailscale\.clearExitNode\(\)/.test(panelSource), 'tailscale offers to stop using the offline exit node')
+assert(/focusSection === "exitNodeNotice"\) \{\s*tailscale\.clearExitNode\(\)/.test(panelSource), 'tailscale stops using the offline exit node from the keyboard')
+assert(/if \(showExitNodeNotice\) focusSection = "exitNodeNotice"/.test(panelSource), 'tailscale moves the keyboard cursor onto the offline exit node notice')
 
 const accounts = tailscale.parseAccounts(JSON.stringify([
   {

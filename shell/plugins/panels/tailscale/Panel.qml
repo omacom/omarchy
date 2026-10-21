@@ -55,6 +55,9 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property bool showConnections: tailscale.accounts.length > 1 || tailscale.accountsAccessDenied
   readonly property bool showPeers: tailscale.active && filteredPeers.length > 0
+  readonly property bool showExitNodeNotice: tailscale.exitNodeOffline
+  // The offline exit node notice sits right under the header.
+  readonly property string topSection: showExitNodeNotice ? "exitNodeNotice" : "header"
   readonly property var recentMullvadRegions: settings.recentMullvadRegions instanceof Array ? settings.recentMullvadRegions : (settings.recentMullvadCountries instanceof Array ? settings.recentMullvadCountries : [])
   readonly property var recentMullvadExitNodes: recentMullvadNodes()
   readonly property var exitNodes: displayExitNodes()
@@ -276,10 +279,11 @@ Panel {
     if (peerIndex >= filteredPeers.length) peerIndex = Math.max(0, filteredPeers.length - 1)
     if (exitNodeIndex >= exitNodes.length) exitNodeIndex = Math.max(0, exitNodes.length - 1)
     if (mullvadRegionIndex >= filteredMullvadRegions.length) mullvadRegionIndex = Math.max(0, filteredMullvadRegions.length - 1)
-    if (focusSection === "auth" && !tailscale.accountsAccessDenied) focusSection = tailscale.accounts.length > 1 ? "accounts" : (showExitNodes ? "exitNodes" : (showPeers ? "peers" : "header"))
-    if (focusSection === "accounts" && tailscale.accounts.length <= 1) focusSection = tailscale.accountsAccessDenied ? "auth" : (showExitNodes ? "exitNodes" : (showPeers ? "peers" : "header"))
-    if (focusSection === "peers" && !showPeers) focusSection = showExitNodes ? "exitNodes" : (tailscale.accountsAccessDenied ? "auth" : (tailscale.accounts.length > 1 ? "accounts" : "header"))
-    if (focusSection === "exitNodes" && !showExitNodes) focusSection = showPeers ? "peers" : (tailscale.accountsAccessDenied ? "auth" : (tailscale.accounts.length > 1 ? "accounts" : "header"))
+    if (focusSection === "exitNodeNotice" && !showExitNodeNotice) focusSection = "header"
+    if (focusSection === "auth" && !tailscale.accountsAccessDenied) focusSection = tailscale.accounts.length > 1 ? "accounts" : (showExitNodes ? "exitNodes" : (showPeers ? "peers" : topSection))
+    if (focusSection === "accounts" && tailscale.accounts.length <= 1) focusSection = tailscale.accountsAccessDenied ? "auth" : (showExitNodes ? "exitNodes" : (showPeers ? "peers" : topSection))
+    if (focusSection === "peers" && !showPeers) focusSection = showExitNodes ? "exitNodes" : (tailscale.accountsAccessDenied ? "auth" : (tailscale.accounts.length > 1 ? "accounts" : topSection))
+    if (focusSection === "exitNodes" && !showExitNodes) focusSection = showPeers ? "peers" : (tailscale.accountsAccessDenied ? "auth" : (tailscale.accounts.length > 1 ? "accounts" : topSection))
   }
 
   function moveCursor(dx, dy) {
@@ -288,19 +292,26 @@ Panel {
     if (dy !== 0) {
       if (focusSection === "header") {
         if (dy > 0) {
-          if (tailscale.accountsAccessDenied) focusSection = "auth"
+          if (showExitNodeNotice) focusSection = "exitNodeNotice"
+          else if (tailscale.accountsAccessDenied) focusSection = "auth"
           else if (tailscale.accounts.length > 1) focusSection = "accounts"
           else if (showExitNodes) focusSection = "exitNodes"
           else if (showPeers) focusSection = "peers"
         }
-      } else if (focusSection === "auth") {
+      } else if (focusSection === "exitNodeNotice") {
         if (dy < 0) focusSection = "header"
+        else if (tailscale.accountsAccessDenied) focusSection = "auth"
+        else if (tailscale.accounts.length > 1) focusSection = "accounts"
+        else if (showExitNodes) focusSection = "exitNodes"
+        else if (showPeers) focusSection = "peers"
+      } else if (focusSection === "auth") {
+        if (dy < 0) focusSection = topSection
         else if (tailscale.accounts.length > 1) focusSection = "accounts"
         else if (showExitNodes) focusSection = "exitNodes"
         else if (showPeers) focusSection = "peers"
       } else if (focusSection === "accounts") {
         if (dy < 0) {
-          if (accountIndex <= 0) focusSection = tailscale.accountsAccessDenied ? "auth" : "header"
+          if (accountIndex <= 0) focusSection = tailscale.accountsAccessDenied ? "auth" : topSection
           else accountIndex--
         } else {
           if (accountIndex < tailscale.accounts.length - 1) accountIndex++
@@ -309,14 +320,14 @@ Panel {
         }
       } else if (focusSection === "peers") {
         if (dy < 0) {
-          if (peerIndex <= 0) focusSection = showExitNodes ? "exitNodes" : (tailscale.accounts.length > 1 ? "accounts" : (tailscale.accountsAccessDenied ? "auth" : "header"))
+          if (peerIndex <= 0) focusSection = showExitNodes ? "exitNodes" : (tailscale.accounts.length > 1 ? "accounts" : (tailscale.accountsAccessDenied ? "auth" : topSection))
           else peerIndex--
         } else if (peerIndex < filteredPeers.length - 1) {
           peerIndex++
         }
       } else if (focusSection === "exitNodes") {
         if (dy < 0) {
-          if (exitNodeIndex <= 0) focusSection = tailscale.accounts.length > 1 ? "accounts" : (tailscale.accountsAccessDenied ? "auth" : "header")
+          if (exitNodeIndex <= 0) focusSection = tailscale.accounts.length > 1 ? "accounts" : (tailscale.accountsAccessDenied ? "auth" : topSection)
           else exitNodeIndex--
         } else if (exitNodeIndex < exitNodes.length - 1) {
           exitNodeIndex++
@@ -333,6 +344,8 @@ Panel {
     ensureCursor()
     if (focusSection === "header") {
       tailscale.toggleTailscale()
+    } else if (focusSection === "exitNodeNotice") {
+      tailscale.clearExitNode()
     } else if (focusSection === "auth") {
       tailscale.authorizeTailscaleOperator()
     } else if (focusSection === "accounts") {
@@ -420,6 +433,11 @@ Panel {
     accountIndex = index
   }
 
+  function setExitNodeNoticeCursor() {
+    cursorActive = true
+    focusSection = "exitNodeNotice"
+  }
+
   function setAuthCursor() {
     cursorActive = true
     focusSection = "auth"
@@ -454,6 +472,7 @@ Panel {
   onShowConnectionsChanged: ensureCursor()
   onShowPeersChanged: ensureCursor()
   onFilteredPeersChanged: ensureCursor()
+  onShowExitNodeNoticeChanged: ensureCursor()
   onShowExitNodesChanged: ensureCursor()
   onFilteredMullvadRegionsChanged: ensureCursor()
 
@@ -632,9 +651,10 @@ Panel {
           }
 
           // The selected exit node is offline, so Tailscale is dropping all
-          // internet traffic; clicking stops using it.
+          // internet traffic; clicking or Enter stops using it.
           CursorSurface {
             visible: tailscale.exitNodeOffline
+            hasCursor: root.cursorActive && root.focusSection === "exitNodeNotice"
             width: parent.width
             implicitHeight: exitNodeOfflineText.implicitHeight + Style.spacing.rowPaddingX
             foreground: root.foreground
@@ -659,6 +679,7 @@ Panel {
               anchors.fill: parent
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
+              onEntered: root.setExitNodeNoticeCursor()
               onClicked: tailscale.clearExitNode()
             }
           }
