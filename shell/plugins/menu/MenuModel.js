@@ -387,7 +387,8 @@ function searchScore(items, entry, query) {
   else if (label.indexOf(needle) === 0) score = 10
   // "chro" in "Google Chrome" is a word prefix, not a label prefix, so it
   // would otherwise score as a contains-match and lose to Setup > Chrome.
-  else if (entry.kind === "app" && termPrefixesWord(needle, label)) score = 10
+  // Just under a label prefix, so "vi" still puts Vim above Document Viewer.
+  else if (entry.kind === "app" && termPrefixesWord(needle, label)) score = 12
   else if (label.indexOf(needle) >= 0) score = 30
   else if (nameText.indexOf(needle) >= 0) score = 40
   else if (descriptionTextMatches(needle, descriptionText)) score = 60

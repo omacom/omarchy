@@ -161,7 +161,9 @@ const ranked = menu.mergeAppRows(rankBase.items, rankBase.itemOrder, [
   { id: 'apps.brave', parent: 'apps', kind: 'app', label: 'Brave', description: '', aliases: [] },
   { id: 'apps.fontforge', parent: 'apps', kind: 'app', label: 'FontForge', description: '', aliases: [] },
   { id: 'apps.zen', parent: 'apps', kind: 'app', label: 'Zen Browser', description: '', aliases: [] },
-  { id: 'apps.chrome', parent: 'apps', kind: 'app', label: 'Google Chrome', description: '', aliases: [] }
+  { id: 'apps.chrome', parent: 'apps', kind: 'app', label: 'Google Chrome', description: '', aliases: [] },
+  { id: 'apps.evince', parent: 'apps', kind: 'app', label: 'Document Viewer', description: '', aliases: [] },
+  { id: 'apps.vim', parent: 'apps', kind: 'app', label: 'Vim', description: '', aliases: [] }
 ])
 const rankScore = (id, query) => menu.searchScore(ranked.items, ranked.items[id], query)
 assert(
@@ -181,6 +183,10 @@ assert(
     id => rankScore('apps.chrome', 'chro') < rankScore(id, 'chro')
   ),
   'menu ranks an app whose later name-word the query prefixes above a settings leaf with the same prefix'
+)
+assert(
+  rankScore('apps.vim', 'vi') < rankScore('apps.evince', 'vi'),
+  'menu keeps an app whose name starts with the query above one whose later word does'
 )
 assert(
   rankScore('appearance.font', 'font') < rankScore('apps.fontforge', 'font'),
