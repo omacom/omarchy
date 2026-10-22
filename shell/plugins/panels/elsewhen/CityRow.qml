@@ -260,6 +260,7 @@ Rectangle {
       font.family: row.fontFamily
       foreground: row.foreground
       placeholderText: Commons.I18n.t("elsewhen.peoplePlaceholder")
+      accessibleName: Commons.I18n.t("elsewhen.editPeople")
       // Focused a beat later, as the city search does: in the same pass the
       // field is not yet shown and the focus does not hold.
       onVisibleChanged: if (visible) {
