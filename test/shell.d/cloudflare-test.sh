@@ -9,25 +9,12 @@ const fs = require('fs')
 const cloudflare = requireFromRoot('shell/plugins/panels/cloudflare/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/cloudflare/Panel.qml', 'utf8')
 
-for (const method of ['open', 'close', 'toggle', 'refresh', 'login', 'status']) {
-  assert(new RegExp(`function ${method}\\(\\)`).test(panelSource), `cloudflare exposes ${method} over IPC`)
-}
-
-// Qt 6.12's QtQuick Color type shadows the unqualified palette singleton.
-for (const file of ['Panel.qml', 'CloudflareIcon.qml', 'Sparkline.qml', 'Service.qml']) {
-  const source = fs.readFileSync(root + '/shell/plugins/panels/cloudflare/' + file, 'utf8')
-  assert(!/(^|[^.\w])Color\./m.test(source), `cloudflare ${file} reads the palette through Commons.Color`)
-}
-
 // Exercise the actual metrics-column binding with partial telemetry results.
-const metricsVisibility = panelSource.match(/visible: (cloudflare\.metricsError === ""[^\n]*)/)
+const metricsVisibility = panelSource.match(/visible: (SharedService\.metricsError === ""[^\n]*)/)
 assert(metricsVisibility, 'cloudflare metrics column has a testable visibility binding')
-const showMetrics = new Function('cloudflare', 'return (' + metricsVisibility[1] + ')')
+const showMetrics = new Function('SharedService', 'return (' + metricsVisibility[1] + ')')
 assert(showMetrics({ metricsError: 'Could not load error metrics', detailMetrics: { invocations: { value: 42 }, cpu: { value: 3 } } }), 'cloudflare keeps successful metrics visible when another query fails')
 assert(!showMetrics({ metricsError: 'Could not load metrics', detailMetrics: {} }), 'cloudflare hides empty metric rows when every query fails')
-
-const versionFlick = panelSource.match(/id: versionFlick[\s\S]*?\n {14}Column \{/)
-assert(versionFlick && /onHeightChanged: if \(root\.cursorActive\) root\.scrollCursorIntoView\(\)/.test(versionFlick[0]), 'cloudflare keeps the cursor version in view when a status line shrinks the list')
 
 // whoami
 

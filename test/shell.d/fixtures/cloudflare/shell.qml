@@ -6,7 +6,10 @@ ShellRoot {
   property string scenario: Quickshell.env("CF_TEST_SCENARIO")
   property int tick: 0
   property int failures: 0
-  Service { id: service }
+  Service {
+    id: service
+    Component.onCompleted: if (harness.scenario !== "closed") panelOpen = true
+  }
 
   function check(value, label) {
     console.log((value ? "ok - " : "not ok - ") + label)
@@ -19,7 +22,22 @@ ShellRoot {
     repeat: true
     onTriggered: {
       harness.tick++
-      if (harness.scenario === "native-install" || harness.scenario === "foreign-only") {
+      if (harness.scenario === "closed") {
+        if (harness.tick === 14) {
+          harness.check(service.authenticated, "closed widget still probes its bar status")
+          harness.check(service.workers.length === 0 && service.zones.length === 0, "closed widget never loads remote lists")
+          Qt.quit()
+        }
+      } else if (harness.scenario === "reopen") {
+        if (harness.tick === 4) service.openWorkerDetail({ name: "alpha", logsEnabled: true })
+        if (harness.tick === 8) service.panelOpen = false
+        if (harness.tick === 9) service.panelOpen = true
+        if (harness.tick === 48) {
+          harness.check(service.detailWorker.name === "alpha" && service.detailMetrics.invocations && service.detailMetrics.invocations.value === 42, "reopening during cancellation reloads the same Worker")
+          harness.check(!service.metricsLoading && service.metricsError === "", "reopened Worker completes without stale cancellation errors")
+          Qt.quit()
+        }
+      } else if (harness.scenario === "native-install" || harness.scenario === "foreign-only") {
         if (harness.tick === 8) {
           if (harness.scenario === "native-install") {
             harness.check(service.installed && service.authenticated, "native mise installation works without a handwritten wrapper")

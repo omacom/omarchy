@@ -8,6 +8,49 @@ Item {
   id: root
 
   property var settings: ({})
+  property bool available: true
+  property bool panelOpen: false
+  property bool _ready: false
+  property int _lifecycleGeneration: 0
+
+  // One startup probe keeps the bar status useful. Remote lists and recurring
+  // refreshes belong to the visible panel, not each monitor's closed widget.
+  Component.onCompleted: {
+    _ready = true
+    if (available) refresh()
+  }
+  onAvailableChanged: if (_ready) {
+    if (available) refresh()
+    else {
+      _lifecycleGeneration += 1
+      _whoamiAgain = false
+      refreshing = false
+      loginCode = ""
+      actionStatus = ""
+      delayedRefresh.stop()
+      pollWatchdog.stop()
+      suspendPanel()
+      var processes = [whichProcess, whoamiProcess, loginProcess, zonesProcess, workersProcess]
+      for (var i = 0; i < processes.length; i++) {
+        if (processes[i].running) processes[i].signal(9)
+      }
+    }
+  }
+  onPanelOpenChanged: if (_ready && available) {
+    if (panelOpen) {
+      if (!busy) refresh()
+      if (detailWorker) ensureWorkerDetail(detailWorker)
+    } else {
+      suspendPanel()
+    }
+  }
+
+  function suspendPanel() {
+    if (metricsLoading || versionsLoading) _detailName = ""
+    invalidateResources()
+    stopWorkerDetail()
+    _detailStarting = false
+  }
 
   // Keep background calls offline so cancelling a request cannot leave an
   // installer holding mise's lock. Omarchy updates install newer CLI versions.
@@ -114,9 +157,11 @@ Item {
   }
 
   function refresh() {
+    if (!available) return
     if (!installed) {
       if (!whichProcess.running) {
         refreshing = true
+        whichProcess.generation = _lifecycleGeneration
         whichProcess.command = ["mise", "where", "npm:cf"]
         whichProcess.running = true
       }
@@ -130,6 +175,7 @@ Item {
     _whoamiOutput = ""
     _whoamiError = ""
     refreshing = true
+    whoamiProcess.generation = _lifecycleGeneration
     whoamiProcess.command = cliCommand.concat(["auth", "whoami"])
     whoamiProcess.running = true
     pollWatchdog.restart()
@@ -138,7 +184,7 @@ Item {
   // Each resource request owns its account and generation until it exits.
   // Keep the last complete list if any page fails, and publish all pages at once.
   function startResource(process, kind, page, items) {
-    if (!authenticated || !tokenValid || selectedAccountId === "" || process.running) return
+    if (!available || !panelOpen || !authenticated || !tokenValid || selectedAccountId === "" || process.running) return
     process.generation = _resourceGeneration
     process.accountId = selectedAccountId
     process.page = page
@@ -257,6 +303,7 @@ Item {
   // Leaves a load that is still running or fresh alone, reuses a fresh
   // cached one, and otherwise starts over.
   function ensureWorkerDetail(worker) {
+    if (!available || !panelOpen) return
     var loading = metricsLoading || versionsLoading
     if (_detailName === worker.name && (loading || Date.now() - _detailLoadedAt < detailCacheMs)) return
     var cached = _detailCache[worker.name]
@@ -456,11 +503,12 @@ Item {
   // `cf auth login` opens the browser itself and waits for approval, so the
   // process can sit for minutes; the panel only reports that it is waiting.
   function login() {
-    if (!installed || loginProcess.running) return
+    if (!available || !installed || loginProcess.running) return
     _loginOutput = ""
     loginCode = ""
     lastError = ""
     actionStatus = I18n.t("cloudflare.approveSignIn")
+    loginProcess.generation = _lifecycleGeneration
     loginProcess.command = cliCommand.concat(["auth", "login"])
     loginProcess.running = true
   }
@@ -512,8 +560,7 @@ Item {
     id: refreshTimer
     interval: root.refreshIntervalSec * 1000
     repeat: true
-    running: true
-    triggeredOnStart: true
+    running: root.available && root.panelOpen
     onTriggered: root.refresh()
   }
 
@@ -581,10 +628,16 @@ Item {
 
   Process {
     id: whichProcess
+    property int generation: 0
     running: false
     command: []
     environment: root.cliEnvironment("")
     onExited: function(exitCode) {
+      if (!root.available) return
+      if (generation !== root._lifecycleGeneration) {
+        Qt.callLater(root.refresh)
+        return
+      }
       root.installed = exitCode === 0
       if (root.installed) root.refresh()
       else {
@@ -596,12 +649,18 @@ Item {
 
   Process {
     id: whoamiProcess
+    property int generation: 0
     running: false
     command: []
     environment: root.cliEnvironment("")
     stdout: StdioCollector { id: whoamiStdout; waitForEnd: true; onStreamFinished: root._whoamiOutput = text }
     stderr: StdioCollector { id: whoamiStderr; waitForEnd: true; onStreamFinished: root._whoamiError = text }
     onExited: function(exitCode) {
+      if (!root.available) return
+      if (generation !== root._lifecycleGeneration) {
+        Qt.callLater(root.refresh)
+        return
+      }
       if (root._whoamiAgain) {
         Qt.callLater(root.refresh)
         return
@@ -723,6 +782,7 @@ Item {
 
   Process {
     id: loginProcess
+    property int generation: 0
     running: false
     command: []
     environment: root.cliEnvironment("")
@@ -730,6 +790,7 @@ Item {
     stderr: SplitParser { onRead: function(data) { root.appendLoginOutput(data) } }
     onExited: function(exitCode) {
       root.loginCode = ""
+      if (!root.available || generation !== root._lifecycleGeneration) return
       if (exitCode !== 0) {
         root.lastError = root.elideStatus(root._loginOutput || I18n.t("cloudflare.signInFailed"))
         root.actionStatus = ""

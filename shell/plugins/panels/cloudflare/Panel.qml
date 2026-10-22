@@ -40,24 +40,24 @@ Panel {
   readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
-  readonly property bool signedIn: cloudflare.authenticated
-  readonly property bool healthy: signedIn && cloudflare.tokenValid
-  readonly property bool inWorker: signedIn && cloudflare.detailWorker !== null
-  readonly property int rowCount: !signedIn ? 0 : (inWorker ? cloudflare.detailVersions.length : cloudflare.zones.length + cloudflare.workers.length)
+  readonly property bool signedIn: SharedService.authenticated
+  readonly property bool healthy: signedIn && SharedService.tokenValid
+  readonly property bool inWorker: signedIn && SharedService.detailWorker !== null
+  readonly property int rowCount: !signedIn ? 0 : (inWorker ? SharedService.detailVersions.length : SharedService.zones.length + SharedService.workers.length)
   // Shown in one go once the deployment is in, rather than growing a source
   // a moment after the date.
   readonly property string workerMeta: {
-    if (!cloudflare.deploymentsLoaded) return I18n.t("common.loading")
-    var rollout = Model.rolloutText(cloudflare.detailLive, I18n.t, I18n.formatNumber)
+    if (!SharedService.deploymentsLoaded) return I18n.t("common.loading")
+    var rollout = Model.rolloutText(SharedService.detailLive, I18n.t, I18n.formatNumber)
     if (rollout !== "") return rollout
-    var when = Model.relativeTime(cloudflare.detailDeployedOn, undefined, I18n.t, I18n.formatNumber)
+    var when = Model.relativeTime(SharedService.detailDeployedOn, undefined, I18n.t, I18n.formatNumber)
     if (when === "") return I18n.t("cloudflare.worker")
-    if (cloudflare.detailSource === "") return I18n.t("cloudflare.deployed").arg(when)
-    return I18n.t("cloudflare.deployedVia").arg(when).arg(cloudflare.detailSource)
+    if (SharedService.detailSource === "") return I18n.t("cloudflare.deployed").arg(when)
+    return I18n.t("cloudflare.deployedVia").arg(when).arg(SharedService.detailSource)
   }
   // The service keeps its status in English for IPC; this is how it reads here.
   readonly property string statusLabel: {
-    switch (cloudflare.statusText) {
+    switch (SharedService.statusText) {
     case "Checking…": return I18n.t("cloudflare.checking")
     case "Not installed": return I18n.t("cloudflare.notInstalled")
     case "Signed out": return I18n.t("cloudflare.signedOut")
@@ -65,7 +65,7 @@ Panel {
     case "Could not verify Cloudflare login": return I18n.t("cloudflare.couldNotVerify")
     case "Signed in": return I18n.t("cloudflare.signedIn")
     }
-    return cloudflare.statusText
+    return SharedService.statusText
   }
   readonly property real maxContentHeight: Style.space(560)
   // In a Worker's view the header and metrics stay put and only the versions
@@ -83,7 +83,7 @@ Panel {
   readonly property color iconColor: healthy ? foreground : dim
   // Only a confirmed sign-out carries the needs-login badge. An
   // unverified token or missing CLI dims the mark.
-  readonly property bool needsLogin: cloudflare.installed && !signedIn
+  readonly property bool needsLogin: SharedService.installed && !signedIn
   readonly property color barIconColor: healthy ? barForeground : Qt.darker(barForeground, 1.55)
 
   function clampCursor() {
@@ -108,19 +108,19 @@ Panel {
   }
 
   function switchAccount(step) {
-    var accounts = cloudflare.accounts
+    var accounts = SharedService.accounts
     if (accounts.length < 2) return
     var current = 0
     for (var i = 0; i < accounts.length; i++) {
-      if (accounts[i].id === cloudflare.selectedAccountId) current = i
+      if (accounts[i].id === SharedService.selectedAccountId) current = i
     }
     var next = (current + step + accounts.length) % accounts.length
     rowIndex = 0
-    cloudflare.selectAccount(accounts[next].id)
+    SharedService.selectAccount(accounts[next].id)
   }
 
   function selectedWorker() {
-    return rowIndex < cloudflare.workers.length ? cloudflare.workers[rowIndex] : null
+    return rowIndex < SharedService.workers.length ? SharedService.workers[rowIndex] : null
   }
 
   // The Worker under the cursor starts loading once the cursor settles on
@@ -131,8 +131,8 @@ Panel {
   }
 
   function selectedZone() {
-    var index = rowIndex - cloudflare.workers.length
-    return index >= 0 && index < cloudflare.zones.length ? cloudflare.zones[index] : null
+    var index = rowIndex - SharedService.workers.length
+    return index >= 0 && index < SharedService.zones.length ? SharedService.zones[index] : null
   }
 
   function setRowCursor(index) {
@@ -155,7 +155,7 @@ Panel {
     rowIndex = 0
     if (panelFlick) panelFlick.contentY = 0
     if (versionFlick) versionFlick.contentY = 0
-    cloudflare.openWorkerDetail(worker)
+    SharedService.openWorkerDetail(worker)
     prefetchTimer.stop()
   }
 
@@ -163,13 +163,13 @@ Panel {
   function closeWorker() {
     if (!inWorker) return
     pointerGate.reset()
-    cloudflare.closeWorkerDetail()
+    SharedService.closeWorkerDetail()
     rowIndex = listRowIndex
     scrollCursorIntoView()
   }
 
   function selectedVersion() {
-    var versions = cloudflare.detailVersions
+    var versions = SharedService.detailVersions
     return rowIndex >= 0 && rowIndex < versions.length ? versions[rowIndex] : null
   }
 
@@ -177,34 +177,34 @@ Panel {
   // inside a Worker's view, that Worker in the dashboard.
   function openSelected() {
     if (!signedIn) {
-      cloudflare.login()
+      SharedService.login()
       return
     }
     if (inWorker) {
-      cloudflare.openWorker(cloudflare.detailWorker)
+      SharedService.openWorker(SharedService.detailWorker)
       return
     }
     var worker = selectedWorker()
     var zone = selectedZone()
     if (worker) openWorkerView(worker)
-    else if (zone) cloudflare.openZone(zone)
-    else cloudflare.openDashboard()
+    else if (zone) SharedService.openZone(zone)
+    else SharedService.openDashboard()
   }
 
   function copySelected() {
     if (inWorker) {
-      cloudflare.copyVersion(selectedVersion())
+      SharedService.copyVersion(selectedVersion())
       return
     }
     var worker = selectedWorker()
     var zone = selectedZone()
-    if (worker) cloudflare.copyWorker(worker)
-    else if (zone) cloudflare.copyZoneId(zone)
+    if (worker) SharedService.copyWorker(worker)
+    else if (zone) SharedService.copyZoneId(zone)
   }
 
   function refreshView() {
-    if (inWorker) cloudflare.refreshWorkerDetail()
-    else cloudflare.refresh()
+    if (inWorker) SharedService.refreshWorkerDetail()
+    else SharedService.refresh()
   }
 
   function scrollItemIntoView(item, flick) {
@@ -229,7 +229,7 @@ Panel {
       if (versionColumn && rowIndex < versionColumn.children.length) scrollItemIntoView(versionColumn.children[rowIndex], versionFlick)
       return
     }
-    var workerCount = cloudflare.workers.length
+    var workerCount = SharedService.workers.length
     if (rowIndex < workerCount) {
       if (workerColumn && rowIndex < workerColumn.children.length) scrollItemIntoView(workerColumn.children[rowIndex])
     } else if (zoneColumn && rowIndex - workerCount < zoneColumn.children.length) {
@@ -243,10 +243,8 @@ Panel {
   onOpenedChanged: if (opened) {
     pointerGate.reset()
     cursorActive = false
-    cloudflare.closeWorkerDetail()
     rowIndex = 0
     if (panelFlick) panelFlick.contentY = 0
-    cloudflare.refresh()
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
   onRowIndexChanged: {
@@ -256,8 +254,8 @@ Panel {
   onCursorActiveChanged: schedulePrefetch()
   onRowCountChanged: clampCursor()
 
-  Service {
-    id: cloudflare
+  Client {
+    opened: root.opened
     settings: root.settings
   }
 
@@ -265,7 +263,7 @@ Panel {
     id: prefetchTimer
     interval: 450
     repeat: false
-    onTriggered: if (root.opened && !root.inWorker) cloudflare.prefetchWorker(root.selectedWorker())
+    onTriggered: if (root.opened && !root.inWorker) SharedService.prefetchWorker(root.selectedWorker())
   }
 
   PointerMoveGate {
@@ -280,9 +278,9 @@ Panel {
     function show(): void { root.open() }
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
-    function refresh(): string { cloudflare.refresh(); return "ok" }
-    function login(): string { cloudflare.login(); return "ok" }
-    function status(): string { return cloudflare.statusText }
+    function refresh(): string { SharedService.refresh(); return "ok" }
+    function login(): string { SharedService.login(); return "ok" }
+    function status(): string { return SharedService.statusText }
   }
 
   BarIconButton {
@@ -301,8 +299,8 @@ Panel {
       }
     }
     onPressed: function(buttonCode) {
-      if (buttonCode === Qt.RightButton) cloudflare.openDashboard()
-      else if (buttonCode === Qt.MiddleButton) cloudflare.refresh()
+      if (buttonCode === Qt.RightButton) SharedService.openDashboard()
+      else if (buttonCode === Qt.MiddleButton) SharedService.refresh()
       else root.toggle()
     }
   }
@@ -364,8 +362,8 @@ Panel {
             // Like the Agents panel: the service by name, and a fact under it
             // (which login this is) rather than activity phrases, since
             // nothing runs locally for Cloudflare.
-            title: root.inWorker ? cloudflare.detailWorker.name : "Cloudflare"
-            meta: root.inWorker ? root.workerMeta : (root.healthy && cloudflare.email !== "" ? cloudflare.email : root.statusLabel)
+            title: root.inWorker ? SharedService.detailWorker.name : "Cloudflare"
+            meta: root.inWorker ? root.workerMeta : (root.healthy && SharedService.email !== "" ? SharedService.email : root.statusLabel)
             foreground: root.foreground
             fontFamily: root.fontFamily
             iconOpacity: root.healthy ? 1.0 : 0.5
@@ -413,23 +411,23 @@ Panel {
           // agents panel's provider switch. h / l cycle it from the keyboard.
           Row {
             id: accountSwitch
-            visible: root.signedIn && !root.inWorker && cloudflare.accounts.length > 1
+            visible: root.signedIn && !root.inWorker && SharedService.accounts.length > 1
             width: parent.width
             spacing: Style.spacing.md
 
-            readonly property real cellWidth: cloudflare.accounts.length > 0
-              ? (width - spacing * (cloudflare.accounts.length - 1)) / cloudflare.accounts.length
+            readonly property real cellWidth: SharedService.accounts.length > 0
+              ? (width - spacing * (SharedService.accounts.length - 1)) / SharedService.accounts.length
               : 0
 
             Repeater {
-              model: cloudflare.accounts
+              model: SharedService.accounts
 
               Button {
                 required property var modelData
 
                 width: accountSwitch.cellWidth
                 text: modelData.name
-                selected: modelData.id === cloudflare.selectedAccountId
+                selected: modelData.id === SharedService.selectedAccountId
                 bordered: true
                 foreground: root.foreground
                 fontFamily: root.fontFamily
@@ -437,7 +435,7 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY
                 onClicked: {
                   root.rowIndex = 0
-                  cloudflare.selectAccount(modelData.id)
+                  SharedService.selectAccount(modelData.id)
                 }
               }
             }
@@ -445,10 +443,10 @@ Panel {
 
           Text {
             textFormat: Text.PlainText
-            visible: cloudflare.actionStatus !== "" || cloudflare.lastError !== ""
+            visible: SharedService.actionStatus !== "" || SharedService.lastError !== ""
             width: parent.width
-            text: cloudflare.actionStatus !== "" ? cloudflare.actionStatus : cloudflare.lastError
-            color: cloudflare.lastError !== "" && cloudflare.actionStatus === "" ? root.urgent : root.dim
+            text: SharedService.actionStatus !== "" ? SharedService.actionStatus : SharedService.lastError
+            color: SharedService.lastError !== "" && SharedService.actionStatus === "" ? root.urgent : root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
             wrapMode: Text.WordWrap
@@ -456,9 +454,9 @@ Panel {
 
           Text {
             textFormat: Text.PlainText
-            visible: cloudflare.loginCode !== ""
+            visible: SharedService.loginCode !== ""
             width: parent.width
-            text: cloudflare.loginCode
+            text: SharedService.loginCode
             color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.display
@@ -478,9 +476,9 @@ Panel {
           ResourceSection {
             visible: root.signedIn && !root.inWorker
             title: I18n.t("cloudflare.workers")
-            count: cloudflare.workers.length
-            error: cloudflare.workersError
-            loading: cloudflare.loadingResources
+            count: SharedService.workers.length
+            error: SharedService.workersError
+            loading: SharedService.loadingResources
             loadingText: I18n.t("cloudflare.loadingWorkers")
             emptyText: I18n.t("cloudflare.noWorkers")
 
@@ -490,7 +488,7 @@ Panel {
               spacing: Style.space(6)
 
               Repeater {
-                model: cloudflare.workers
+                model: SharedService.workers
                 ResourceRow {
                   required property var modelData
                   required property int index
@@ -502,8 +500,8 @@ Panel {
                   copyTooltip: modelData.url !== "" ? I18n.t("cloudflare.copyWorkersDevUrl") : I18n.t("cloudflare.copyWorkerName")
                   drillable: true
                   onActivated: root.openWorkerView(modelData)
-                  onOpenRequested: cloudflare.openWorker(modelData)
-                  onCopyRequested: cloudflare.copyWorker(modelData)
+                  onOpenRequested: SharedService.openWorker(modelData)
+                  onCopyRequested: SharedService.copyWorker(modelData)
                 }
               }
             }
@@ -517,9 +515,9 @@ Panel {
           ResourceSection {
             visible: root.signedIn && !root.inWorker
             title: I18n.t("cloudflare.domains")
-            count: cloudflare.zones.length
-            error: cloudflare.zonesError
-            loading: cloudflare.loadingResources
+            count: SharedService.zones.length
+            error: SharedService.zonesError
+            loading: SharedService.loadingResources
             loadingText: I18n.t("cloudflare.loadingDomains")
             emptyText: I18n.t("cloudflare.noDomains")
 
@@ -529,20 +527,20 @@ Panel {
               spacing: Style.space(6)
 
               Repeater {
-                model: cloudflare.zones
+                model: SharedService.zones
                 ResourceRow {
                   required property var modelData
                   required property int index
                   width: zoneColumn.width
-                  rowIndex: cloudflare.workers.length + index
+                  rowIndex: SharedService.workers.length + index
                   glyph: root.domainGlyph
                   title: modelData.name
                   detail: Model.zoneDetail(modelData, I18n.t)
                   detailUrgent: Model.zoneProblem(modelData) !== ""
                   copyTooltip: I18n.t("cloudflare.copyZoneId")
-                  onActivated: cloudflare.openZone(modelData)
-                  onOpenRequested: cloudflare.openZone(modelData)
-                  onCopyRequested: cloudflare.copyZoneId(modelData)
+                  onActivated: SharedService.openZone(modelData)
+                  onOpenRequested: SharedService.openZone(modelData)
+                  onCopyRequested: SharedService.copyZoneId(modelData)
                 }
               }
             }
@@ -566,9 +564,9 @@ Panel {
 
             Text {
               textFormat: Text.PlainText
-              visible: cloudflare.metricsError !== ""
+              visible: SharedService.metricsError !== ""
               width: parent.width
-              text: cloudflare.metricsError
+              text: SharedService.metricsError
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
@@ -576,26 +574,26 @@ Panel {
             }
 
             Column {
-              visible: cloudflare.metricsError === "" || Object.keys(cloudflare.detailMetrics).length > 0
+              visible: SharedService.metricsError === "" || Object.keys(SharedService.detailMetrics).length > 0
               width: parent.width
               spacing: Style.space(12)
 
               MetricRow {
                 label: I18n.t("cloudflare.invocations")
-                metric: cloudflare.detailMetrics.invocations || null
+                metric: SharedService.detailMetrics.invocations || null
                 format: "count"
               }
 
               MetricRow {
                 label: I18n.t("cloudflare.cpuTime")
-                metric: cloudflare.detailMetrics.cpu || null
+                metric: SharedService.detailMetrics.cpu || null
                 format: "ms"
                 higherIsWorse: true
               }
 
               MetricRow {
                 label: I18n.t("cloudflare.errors")
-                metric: cloudflare.detailMetrics.errors || null
+                metric: SharedService.detailMetrics.errors || null
                 format: "count"
                 // Like the dashboard: the count says it all, and "down 100%"
                 // from a handful of errors to none is noise.
@@ -614,9 +612,9 @@ Panel {
             id: versionsSection
             visible: root.inWorker
             title: I18n.t("cloudflare.versions")
-            count: cloudflare.detailVersions.length
-            error: cloudflare.versionsError
-            loading: cloudflare.versionsLoading
+            count: SharedService.detailVersions.length
+            error: SharedService.versionsError
+            loading: SharedService.versionsLoading
             loadingText: I18n.t("cloudflare.loadingVersions")
             loadingHeight: root.versionsLoadingHeight
             emptyText: I18n.t("cloudflare.noVersions")
@@ -642,7 +640,7 @@ Panel {
                 spacing: Style.space(6)
 
                 Repeater {
-                  model: cloudflare.detailVersions
+                  model: SharedService.detailVersions
                   VersionRow {
                     required property var modelData
                     required property int index
@@ -669,10 +667,10 @@ Panel {
     MouseArea {
       anchors.fill: parent
       hoverEnabled: true
-      enabled: cloudflare.installed && !cloudflare.busy
+      enabled: SharedService.installed && !SharedService.busy
       cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
       onPositionChanged: function(mouse) { if (pointerGate.moved(loginRow, mouse)) root.cursorActive = true }
-      onClicked: cloudflare.login()
+      onClicked: SharedService.login()
     }
 
     RowLayout {
@@ -700,7 +698,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           Layout.fillWidth: true
-          text: cloudflare.installed ? I18n.t("cloudflare.signIn") : I18n.t("cloudflare.cliMissing")
+          text: SharedService.installed ? I18n.t("cloudflare.signIn") : I18n.t("cloudflare.cliMissing")
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -710,7 +708,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           Layout.fillWidth: true
-          text: cloudflare.installed ? I18n.t("cloudflare.signInHint") : I18n.t("cloudflare.installHint")
+          text: SharedService.installed ? I18n.t("cloudflare.signInHint") : I18n.t("cloudflare.installHint")
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -876,7 +874,7 @@ Panel {
     property bool higherIsWorse: false
     property bool alarming: false
     property bool showChange: true
-    readonly property bool loading: metric === null && cloudflare.metricsLoading
+    readonly property bool loading: metric === null && SharedService.metricsLoading
     readonly property string valueText: format === "ms" ? Model.formatMs(metric ? metric.value : null, I18n.formatNumber) : Model.formatCount(metric ? metric.value : null, I18n.formatNumber)
     readonly property string changeText: metric && showChange ? Model.formatChange(metric.value, metric.previous, I18n.formatNumber) : ""
     readonly property bool worse: higherIsWorse && changeText.indexOf("↗") === 0
@@ -929,7 +927,7 @@ Panel {
     id: versionRow
     property var version: null
     property int rowIndex: 0
-    readonly property bool live: !!version && cloudflare.detailLive[version.id] !== undefined
+    readonly property bool live: !!version && SharedService.detailLive[version.id] !== undefined
     readonly property string meta: {
       if (!version) return ""
       var parts = []
@@ -1020,7 +1018,7 @@ Panel {
         fontFamily: root.fontFamily
         Layout.alignment: Qt.AlignVCenter
         onHovered: function(on) { if (on) root.setRowCursor(versionRow.rowIndex) }
-        onClicked: cloudflare.copyVersion(versionRow.version)
+        onClicked: SharedService.copyVersion(versionRow.version)
       }
     }
   }

@@ -21,6 +21,9 @@ chmod +x "$scratch/bin/cf"
 cat >"$scratch/bin/mise" <<'EOF'
 #!/bin/bash
 if [[ $* == 'where npm:cf' && ${MISE_OFFLINE:-} == "1" ]]; then
+  if [[ $CF_TEST_SCENARIO == "reattach" ]]; then
+    exec python3 -c 'import time; time.sleep(0.5)'
+  fi
   [[ $CF_TEST_SCENARIO != "foreign-only" ]]
   exit $?
 fi
@@ -30,20 +33,25 @@ exec "$CF_TEST_INSTALLED" "$@"
 EOF
 chmod +x "$scratch/bin/mise"
 cp "$ROOT/test/shell.d/fixtures/cloudflare/shell.qml" "$scratch/shell.qml"
-cp "$ROOT/shell/plugins/panels/cloudflare/"{Service.qml,Model.js} "$scratch/"
+cp "$ROOT/shell/plugins/panels/cloudflare/"{Service.qml,Model.js,SharedService.qml,Client.qml,qmldir} "$scratch/"
 cp "$ROOT/shell/Commons/"{Util.qml,I18n.qml,Plural.js,Numbers.js} "$scratch/Commons/"
 printf 'singleton Util 1.0 Util.qml\nsingleton I18n 1.0 I18n.qml\n' >"$scratch/Commons/qmldir"
 
-for scenario in ${CF_TEST_SCENARIOS:-native-install foreign-only account detail repeat-account repeat-detail signout offline pagination pagination-failure login login-race detail-timeout stubborn-detail errors-query old-cli}; do
+for scenario in ${CF_TEST_SCENARIOS:-closed shared reattach reopen native-install foreign-only account detail repeat-account repeat-detail signout offline pagination pagination-failure login login-race detail-timeout stubborn-detail errors-query old-cli}; do
   rm -f "$scratch/home/.local/bin/cf"
   if [[ $scenario == "foreign-only" ]]; then
     printf '#!/bin/bash\nexit 96\n' >"$scratch/home/.local/bin/cf"
     chmod +x "$scratch/home/.local/bin/cf"
   fi
+  if [[ $scenario == "shared" || $scenario == "reattach" ]]; then
+    cp "$ROOT/test/shell.d/fixtures/cloudflare/shared.qml" "$scratch/shell.qml"
+  else
+    cp "$ROOT/test/shell.d/fixtures/cloudflare/shell.qml" "$scratch/shell.qml"
+  fi
   : >"$scratch/calls"
   rm -f "$scratch/calls.token"
   if ! OMARCHY_PATH="$ROOT" HOME="$scratch/home" XDG_CONFIG_HOME="$scratch/home/.config" XDG_RUNTIME_DIR="$scratch/runtime" \
-    QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software PATH="$scratch/bin:$PATH" \
+    QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software PATH="$scratch/bin:$PATH" \
     CF_TEST_SCENARIO="$scenario" CF_TEST_INSTALLED="$scratch/cf" CF_TEST_CALLS="$scratch/calls" FORCE_COLOR=1 \
     timeout 15 quickshell -n -p "$scratch/shell.qml" >"$scratch/$scenario.log" 2>&1; then
     cat "$scratch/$scenario.log"
