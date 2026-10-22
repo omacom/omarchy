@@ -48,9 +48,9 @@ Panel {
   // a moment after the date.
   readonly property string workerMeta: {
     if (!cloudflare.deploymentsLoaded) return I18n.t("common.loading")
-    var rollout = Model.rolloutText(cloudflare.detailLive, I18n.t)
+    var rollout = Model.rolloutText(cloudflare.detailLive, I18n.t, I18n.formatNumber)
     if (rollout !== "") return rollout
-    var when = Model.relativeTime(cloudflare.detailDeployedOn, undefined, I18n.t)
+    var when = Model.relativeTime(cloudflare.detailDeployedOn, undefined, I18n.t, I18n.formatNumber)
     if (when === "") return I18n.t("cloudflare.worker")
     if (cloudflare.detailSource === "") return I18n.t("cloudflare.deployed").arg(when)
     return I18n.t("cloudflare.deployedVia").arg(when).arg(cloudflare.detailSource)
@@ -498,7 +498,7 @@ Panel {
                   rowIndex: index
                   glyph: root.workerGlyph
                   title: modelData.name
-                  detail: Model.relativeTime(modelData.deployedOn, undefined, I18n.t)
+                  detail: Model.relativeTime(modelData.deployedOn, undefined, I18n.t, I18n.formatNumber)
                   copyTooltip: modelData.url !== "" ? I18n.t("cloudflare.copyWorkersDevUrl") : I18n.t("cloudflare.copyWorkerName")
                   drillable: true
                   onActivated: root.openWorkerView(modelData)
@@ -1005,7 +1005,7 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: versionRow.version ? Model.relativeTime(versionRow.version.createdOn, undefined, I18n.t) : ""
+        text: versionRow.version ? Model.relativeTime(versionRow.version.createdOn, undefined, I18n.t, I18n.formatNumber) : ""
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption

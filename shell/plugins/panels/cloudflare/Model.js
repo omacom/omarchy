@@ -159,21 +159,22 @@ function zoneDetail(zone, tr) {
   return zone && zone.plan ? zone.plan.replace(/ Website$/, "") : ""
 }
 
-function relativeTime(iso, nowMs, tr) {
+function relativeTime(iso, nowMs, tr, fmt) {
   var when = Date.parse(String(iso || ""))
   if (!isFinite(when)) return ""
   var t = translator(tr)
+  var number = formatter(fmt)
   var seconds = Math.max(0, Math.round(((nowMs === undefined ? Date.now() : nowMs) - when) / 1000))
   if (seconds < 60) return t("cloudflare.justNow", "just now")
   var minutes = Math.round(seconds / 60)
-  if (minutes < 60) return t("cloudflare.minutesAgo", "%1m ago").replace("%1", minutes)
+  if (minutes < 60) return t("cloudflare.minutesAgo", "%1m ago").replace("%1", number(minutes))
   var hours = Math.round(minutes / 60)
-  if (hours < 24) return t("cloudflare.hoursAgo", "%1h ago").replace("%1", hours)
+  if (hours < 24) return t("cloudflare.hoursAgo", "%1h ago").replace("%1", number(hours))
   var days = Math.round(hours / 24)
-  if (days < 30) return t("cloudflare.daysAgo", "%1d ago").replace("%1", days)
+  if (days < 30) return t("cloudflare.daysAgo", "%1d ago").replace("%1", number(days))
   var months = Math.round(days / 30)
-  if (months < 12) return t("cloudflare.monthsAgo", "%1mo ago").replace("%1", months)
-  return t("cloudflare.yearsAgo", "%1y ago").replace("%1", Math.round(days / 365))
+  if (months < 12) return t("cloudflare.monthsAgo", "%1mo ago").replace("%1", number(months))
+  return t("cloudflare.yearsAgo", "%1y ago").replace("%1", number(Math.round(days / 365)))
 }
 
 // Worker metrics come from Workers Logs through `cf observability telemetry
@@ -334,12 +335,12 @@ function parseDeployments(raw) {
 }
 
 // "SPLIT 90/10" while a gradual rollout is in progress, else "".
-function rolloutText(live, tr) {
+function rolloutText(live, tr, fmt) {
   var shares = []
   for (var id in live) shares.push(live[id])
   if (shares.length < 2) return ""
   shares.sort(function(a, b) { return b - a })
-  return translator(tr)("cloudflare.split", "Split %1").replace("%1", shares.map(function(share) { return Math.round(share) }).join("/"))
+  return translator(tr)("cloudflare.split", "Split %1").replace("%1", shares.map(function(share) { return formatter(fmt)(Math.round(share)) }).join("/"))
 }
 
 function accountDashboardUrl(accountId) {

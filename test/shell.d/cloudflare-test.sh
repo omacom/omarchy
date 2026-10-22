@@ -141,6 +141,11 @@ assertEqual(cloudflare.formatChange(5, 0), '', 'cloudflare hides the change with
 // formatter, as I18n.t and I18n.formatNumber do in the shell.
 const tr = (key, english) => '[' + key + ']' + english
 const danish = (value, decimals) => (decimals === undefined ? String(value) : Number(value).toFixed(decimals)).replace('.', ',')
+const Numbers = requireFromRoot('shell/Commons/Numbers.js')
+const persian = (value, decimals) => Numbers.format(value, decimals, '٫', '۰')
+const arabic = (value, decimals) => Numbers.format(value, decimals, '٫', '٠')
+assertEqual(cloudflare.relativeTime('2026-09-24T10:00:00Z', Date.parse('2026-09-24T12:00:00Z'), tr, persian), '[cloudflare.hoursAgo]۲h ago', 'cloudflare localizes digits inside translated relative times')
+assertEqual(cloudflare.rolloutText({ a: 10, b: 90 }, tr, arabic), '[cloudflare.split]Split ٩٠/١٠', 'cloudflare localizes every traffic share after numeric sorting')
 assertEqual(cloudflare.relativeTime('2026-09-24T10:00:00Z', Date.parse('2026-09-24T12:00:00Z'), tr), '[cloudflare.hoursAgo]2h ago', 'cloudflare translates relative times as whole phrases')
 assertEqual(cloudflare.zoneProblem({ status: 'pending' }, tr), '[cloudflare.zonePending]Pending', 'cloudflare translates zone states')
 assertEqual(cloudflare.zoneProblem({ status: 'archived' }, tr), 'Archived', 'cloudflare names an unknown zone state as Cloudflare does')
