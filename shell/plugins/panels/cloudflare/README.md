@@ -27,7 +27,7 @@ Inside the panel:
 
 ## Requirements
 
-- `cf`, set up by _Install > Service > Cloudflare_. The panel runs the installed version through `mise x` offline and never upgrades it; running `cf` yourself does
+- `cf`, set up by _Install > Service > Cloudflare_. The panel runs the installed version through `mise x` offline and never upgrades it; Omarchy updates install newer CLI versions
 - `wl-copy` for clipboard copy actions
 
 ## How it works
