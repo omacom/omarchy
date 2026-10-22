@@ -26,8 +26,8 @@ Panel {
 
   readonly property string domainGlyph: "󰖟"
   readonly property string workerGlyph: "󰅴"
-  readonly property string backGlyph: "󰅁"
-  readonly property string chevronGlyph: "󰅂"
+  readonly property string backGlyph: I18n.rightToLeft ? "󰅂" : "󰅁"
+  readonly property string chevronGlyph: I18n.rightToLeft ? "󰅁" : "󰅂"
 
   // Workers and Domains share one cursor: indexes below workers.length are
   // Workers, the rest are domains. Signed out, the only target is sign-in.
