@@ -82,11 +82,15 @@ assertEqual(bar.notchFloor(cutouts, 'top', 'eDP-1', 1512, 982, 2, mode(3024, 196
 // detector.
 assert(
   /path: "\/usr\/share\/omarchy-platform\/display-cutouts\.json"/.test(barSource) &&
-    /readonly property var displayCutouts: displayCutoutsFile\.missing \? \[\] : BarModel\.parseCutouts\(displayCutoutsFile\.text\(\)\)/.test(barSource),
+    /root\.displayCutouts = BarModel\.parseCutouts\(text\(\)\)/.test(barSource),
   'bar reads the platform package\'s cutout description from the platform root'
 )
 assert(
-  /id: displayCutoutsFile[\s\S]{0,400}blockLoading: true[\s\S]{0,200}onLoadFailed: missing = true/.test(barSource),
+  /property var displayCutouts: BarModel\.parseCutouts\(displayCutoutsFile\.text\(\)\)/.test(barSource),
+  'bar reads the cutout description synchronously at startup, before its surfaces map'
+)
+assert(
+  /id: displayCutoutsFile[\s\S]{0,400}blockLoading: true[\s\S]{0,300}onLoadFailed: \{\s*missing = true\s*root\.displayCutouts = \[\]/.test(barSource),
   'bar reads the description as the shell starts, before its surfaces map, and a removed file describes nothing'
 )
 assert(!/_PACKAGED_PATH|packagedPath/.test(barSource), 'no environment variable moves the cutout description')
@@ -127,18 +131,35 @@ for (const position of ['bottom', 'left', 'right'])
   assertEqual(bar.centerBesideRight(cutouts, position, 'eDP-1', 1512, 982, 2, mode(3024, 1964)), false, `a ${position} bar keeps the center section`)
 
 // The move is per screen and draw-time only: the user's layout is read as
-// configured, and the center entries keep their order and their own region.
+// configured, and the center entries keep their order and their own regions.
 assert(
   /centerBesideRight: BarModel\.centerBesideRight\(root\.displayCutouts, root\.position, screen\.name, screen\.width, screen\.height, screen\.devicePixelRatio, panelMode\)/.test(barSource),
   'each bar surface decides the move from its own screen'
 )
 assert(
-  /CenterModules \{\s*anchors\.fill: parent\s*entries: barWindow\.centerBesideRight \? \[\] : root\.layoutEntries\("center"\)\s*\}/.test(barSource),
+  /CenterModules \{\s*anchors\.fill: parent\s*window: barWindow\s*pool: horizontalPool\s*drawn: !barWindow\.centerBesideRight\s*\}/.test(barSource),
   'a moved center section draws nothing in the middle of the bar'
 )
 assert(
-  /ModuleList \{\s*entries: barWindow\.centerBesideRight \? root\.layoutEntries\("center"\) : \[\]\s*region: "center"\s*anchors\.right: rightModules\.left\s*anchors\.rightMargin: Style\.space\(\d+\)/.test(barSource),
-  'the center entries sit just left of the right section in their own region'
+  /CenterSections \{\s*window: barWindow\s*pool: horizontalPool\s*active: barWindow\.centerBesideRight\s*besideRight: true\s*anchors\.right: rightModules\.left\s*anchors\.rightMargin: Style\.space\(\d+\)/.test(barSource),
+  'the center sections sit just left of the right section in their own regions'
+)
+// Each surface declares the center sections twice and draws one; the other
+// must show no widgets, or it would take them from the one drawn.
+const centerSections = barSource.slice(barSource.indexOf('component CenterSections'), barSource.indexOf('component CenterBox'))
+const centerBox = barSource.slice(barSource.indexOf('component CenterBox'), barSource.indexOf('component CenterGestureArea'))
+for (const region of ['centerBegin', 'centerEnd'])
+  assert(new RegExp(`keys: sections\\.active \\? root\\.layoutWidgets\\.sections\\.${region} : \\[\\]`).test(centerSections), `inactive center sections show nothing for ${region}`)
+assert(
+  /keys: box\.active \? root\.layoutWidgets\.sections\.center : \[\]/.test(centerBox) &&
+    /readonly property bool dragHere: active && /.test(centerBox),
+  'an inactive center box shows nothing and takes no drops'
+)
+assert(
+  /fixedEdge: sections\.besideRight \? "end" : "center"/.test(centerSections) &&
+    /region: "centerEnd"\s*fixedEdge: sections\.besideRight \? "end" : "start"/.test(centerSections) &&
+    /x: root\.vertical \? 0 : \(sections\.besideRight \? beginList\.width : /.test(centerSections),
+  'beside the right section the three center sections run on in order, growing leftward'
 )
 
 // With no gap the last center slot and the first right slot would share an
@@ -149,10 +170,6 @@ const seam = [
 ]
 assertDeepEqual(bar.nearestDropTarget(seam, { x: 101 }, false), { slot: 'center-last', after: true }, 'a drop at the seam nearer the center section lands after its last entry')
 assertDeepEqual(bar.nearestDropTarget(seam, { x: 103 }, false), { slot: 'right-first', after: false }, 'a drop at the seam nearer the right section lands before its first entry')
-assert(
-  /anchorEntry: root\.findCenterAnchorEntry\(entries\)/.test(barSource),
-  'an emptied center section does not keep a hidden copy of its anchor'
-)
 
 // Until Hyprland reports the mode, a top bar waits to map where the mode may
 // still bring a cutout: a described connector whose whole-scale rebuild
@@ -227,9 +244,9 @@ assertEqual(stateBarSizeFor(copy, 26, 'HDMI-A-1'), 26, 'a plugin falls back to b
 assertEqual(stateBarSizeFor({}, 26, 'eDP-1'), 26, 'a plugin under a bar without per-screen sizes gets barSize')
 
 const parsed = JSON.parse(shellJson)
-assertEqual(parsed.bar.centerAnchor, 'omarchy.clock', 'shipped bar layout still anchors on the clock')
+assertDeepEqual(parsed.bar.layout.center.map(bar.entryId), ['omarchy.clock'], 'shipped bar layout centers the clock on its own')
 assert(
-  JSON.stringify(parsed.bar.layout.center).indexOf('omarchy.indicators') >= 0,
+  JSON.stringify(parsed.bar.layout.centerBegin).indexOf('omarchy.indicators') >= 0,
   'shipped bar layout still keeps the default center widgets'
 )
 JS

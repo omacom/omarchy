@@ -214,6 +214,10 @@ for name, target in (('omarchy-install-ai-hermes', scratch / 'installer'),
     script = (source / name).read_text()
     for original, replacement in substitutions.items():
         script = script.replace(original, replacement)
+    if name == 'omarchy-install-hermes-cli':
+        # The lock-wait and fetch-retry polls are 2s; the scenarios only
+        # need the waiting to happen, not its real duration.
+        script = script.replace('sleep 2', 'sleep 0.1')
     target.write_text(script)
     target.chmod(0o755)
 PY

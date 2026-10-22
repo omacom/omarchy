@@ -34,7 +34,7 @@ const widgetManifest = JSON.parse(read('shell/plugins/bar/widgets/Indicators.man
 assert(widget.match(/defaultIndicatorEntries: \[ "PasswordlessSudo", "ScreenRecording", "RemoteSession"/), 'remote session is included in the default indicator tray')
 assert(widgetManifest.barWidget.schema.find(field => field.key === 'items').options.some(option => option.value === 'RemoteSession'), 'remote session is configurable alongside the other indicators')
 assert(indicator.includes('firstPartyServiceFor("omarchy.remote-session")'), 'indicator reads the remote session service')
-assert(indicator.includes('"Remote session from " + peers.join(", ")'), 'active tooltip names the connected peers')
+assert(indicator.includes('Commons.I18n.t("bar.remoteSessionFrom").arg(peers.join(", "))'), 'active tooltip names the connected peers')
 assert(indicator.includes('useActiveColor: true') && indicator.includes('activeColor: Commons.Color.urgent'), 'active remote session uses the theme danger color')
 assert(indicator.includes('revealWhenInactive: false'), 'remote session shows only while a session is active, not among the inactive indicators a hover reveals')
 const barIndicator = fs.readFileSync(path.join(root, 'shell/Ui/BarIndicator.qml'), 'utf8')

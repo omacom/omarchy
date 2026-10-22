@@ -76,13 +76,14 @@ def input_catalog(items):
   return catalog, available
 
 
-def input_items(items, selected, overrides=None):
+def input_items(items, selected, overrides=None, layout="us"):
   if not any(item[0].startswith("keyboard-") for item in items):
     raise RuntimeError("The current input group has no keyboard input")
   # Retained entries keep their switching order; new engines follow them.
   kept = [item for item in items if item[0].startswith("keyboard-") or item[0] in selected]
   current = dict(items)
-  return kept + [[name, (overrides or {}).get(name, "")] for name in selected if name not in current]
+  return kept + [[name, (overrides or {}).get(name) or setup.engine_layout(name, layout)]
+                 for name in selected if name not in current]
 
 
 def set_inputs(group, layout, before, after):
@@ -127,7 +128,7 @@ def save_inputs(selected, overrides=None):
   if missing:
     load_engines(missing, catalog)
     group, layout, items = setup.live_group()
-  set_inputs(group, layout, items, input_items(items, selected, overrides))
+  set_inputs(group, layout, items, input_items(items, selected, overrides, layout))
   # Only a saved engine claims the CJK font fallback, and a failed font write
   # returns the group so the menu's restored checks stay true.
   config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
@@ -145,6 +146,19 @@ def add_input(method):
   current = [name for name, override in items if not name.startswith("keyboard-")]
   if method not in current:
     save_inputs(current + [method])
+
+
+def seed_language(method):
+  # A new CJK language brings its input method only to a group without one,
+  # so a Korean typist switching the interface to Japanese keeps Hangul.
+  try:
+    group, layout, items = setup.live_group()
+    if all(name.startswith("keyboard-") for name, override in items):
+      save_inputs([method])
+  except (OSError, ValueError, KeyError, IndexError, RuntimeError, subprocess.CalledProcessError) as error:
+    print(f"Add {setup.PRESETS[method]['label']} under Setup > Typing > Input Methods: {error}", file=sys.stderr)
+  config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
+  setup.font_default(config_home, method)
 
 
 def keyboard_values(selected):
@@ -184,7 +198,11 @@ def save_keyboard(selected):
     if primary is None:
       raise RuntimeError("The current input group has no keyboard input")
     keyboard = "keyboard-" + group_layout
-    after = [[keyboard, ""]] + [item for item in before if item[0] not in (primary, keyboard)]
+    # An engine kept on QWERTY for the old layout is re-decided for the new
+    # one; an override the user chose stays.
+    after = [[keyboard, ""]] + [
+      [name, setup.engine_layout(name, group_layout) if override == setup.engine_layout(name, old_layout) else override]
+      for name, override in before if name not in (primary, keyboard)]
     group_changed = True
     setup.live_set(group, group_layout, after)
     if setup.live_group() != (group, group_layout, after):
@@ -224,6 +242,9 @@ def apply_selection(kind, context, values):
 
 
 def main():
+  if sys.argv[1:2] == ["seed-language"] and len(sys.argv) == 3:
+    seed_language(sys.argv[2])
+    return
   if sys.argv[1:2] == ["add"] and len(sys.argv) == 3:
     try:
       add_input(sys.argv[2])

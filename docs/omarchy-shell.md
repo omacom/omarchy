@@ -85,8 +85,7 @@ loaded by default when it is built in, so `shell.json` records only the
 deviation: a third-party plugin you added under `plugins[]`, a built-in you
 switched off under `disabledPlugins[]`. A full bar has no off state: enabling
 one replaces the active bar, and it is therefore never offered under Disable.
-Bar widgets may set `barWidget.defaultSection` to `left`, `center`, `tray`, or `right`;
-widgets that omit it default to `center`.
+Bar widgets may set `barWidget.defaultSection` to `left`, `centerBegin`, `centerEnd`, `tray`, or `right`; widgets that omit it default to `centerEnd`, beside the center box rather than in it. A manifest's `center` means beside the clock and lands in `centerEnd` too, so a new widget never pushes the clock off center.
 
 Plugins run as **unsandboxed code** inside `omarchy-shell`. Adding warns you before cloning, plugins land disabled so you can review the code before `omarchy plugin enable`, and updates show a diff before touching anything. Commands confirm in a terminal even when given arguments; without one they refuse rather than guess. Add `--yes` to skip every prompt (the path for scripts and agents). The scoped interfaces remove direct access to authentication services and avoid handing generic cross-plugin service factories to replacement bars, but visual plugins can still traverse ordinary objects in their shared QML scene. Plugin code also has the same user-level file and process access as the shell.
 
@@ -116,7 +115,7 @@ or `omarchy.power`. There is no `bar` target.
 | `summon <id> <payloadJson>`           | load + open a plugin            |
 | `hide <id>`                           | close a previously-summoned     |
 | `toggle <id> <payloadJson>`           | summon if closed, hide if open  |
-| `togglePanelAt <section> <index>`     | toggle the panel at a bar position |
+| `togglePanelAt <section> <index>`     | toggle the panel at a bar position; any center section counts `centerBegin`, `center` and `centerEnd` as one |
 | `call <id> <method> <arg>`            | call an already-loaded plugin   |
 | `rescanPlugins`                       | re-walk plugin dirs and hot-reload plugin code |
 | `reloadConfig`                        | reload shell.json               |
@@ -149,11 +148,12 @@ string on a miss.
     "id": "omarchy.bar",
     "position": "top",
     "background": "opaque",
-    "centerAnchor": "omarchy.clock",
     "layout": {
-      "left":   [ { "id": "omarchy.menu" } ],
-      "center": [ { "id": "omarchy.clock", "format": "HH:mm" } ],
-      "right":  [ { "id": "omarchy.audio" } ]
+      "left":        [ { "id": "omarchy.menu" } ],
+      "centerBegin": [ { "id": "omarchy.indicators" } ],
+      "center":      [ { "id": "omarchy.clock", "format": "HH:mm" } ],
+      "centerEnd":   [ { "id": "omarchy.weather" } ],
+      "right":       [ { "id": "omarchy.audio" } ]
     }
   },
   "plugins": [
@@ -169,7 +169,8 @@ Rules:
    to replace the full bar.
 2. Every plugin instance is one entry — `bar.layout.<section>` for
    bar widgets, `plugins[]` for everything else.
-   The sections are `left`, `center`, `tray` and `right`. `tray` is
+   The sections are `left`, `centerBegin`, `center`, `centerEnd`, `tray`
+   and `right`. `tray` is
    drawn inside the tray's drawer, after the app icons, and shows only while
    `omarchy.tray` is on the bar; it cannot hold the tray itself.
 3. Settings are inline on the entry. No `config:` sub-object, no
@@ -180,6 +181,8 @@ Rules:
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
 8. `version: 1` is required.
+
+The bar's sections run along it in the order `left`, `centerBegin`, `center`, `centerEnd`, `right`. `center` is a box in the middle of the bar whose widgets are centered as one group; `centerBegin` and `centerEnd` hang off its two edges and move out as it grows. An empty box takes no room, so the two meet in the middle of the bar. While a widget is dragged, the other widgets make room for it where it would land, and it gives up its own room unless it would land back there; the box shows as an outline, or a line across the bar when empty, that it can be dropped into or beside, and grows to take in a widget that would land in it. A drop within the bar's thickness of an empty box's middle lands in it. The tray's drawer, which opens while a widget is dragged, holds the tray section the same way: it shows as an outline, or a line when empty, and a drop over it, or within half the bar's thickness of it, lands in it. A layout written from elsewhere during a drag (`omarchy bar move`, a hand edit) that moves widgets about makes the drag let go, and the layout stays as written.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
 user `shell.json` exists, defaults are used verbatim. Once the user
@@ -400,7 +403,7 @@ size-vertical   = 28   # left/right bar width at base-size 12
 
 Set `scale-with-font = false` to keep those bar sizes as fixed pixels.
 
-A panel with a camera cutout (a notch) at its top keeps a top bar out of it: the bar is never shorter than the cutout, and its center section sits beside the right one. Omarchy knows no panel's cutout itself; the platform's own package describes them in `/usr/share/omarchy-platform/display-cutouts.json`, a fixed path no environment variable moves (see [file-layout.md](file-layout.md#platform-root)):
+A panel with a camera cutout (a notch) at its top keeps a top bar out of it: the bar is never shorter than the cutout, and its three center sections sit beside the right one. Omarchy knows no panel's cutout itself; the platform's own package describes them in `/usr/share/omarchy-platform/display-cutouts.json`, a fixed path no environment variable moves (see [file-layout.md](file-layout.md#platform-root)):
 
 ```json
 { "panels": [ { "connector": "eDP", "width": 3024, "height": 1964, "top": 64 } ] }
@@ -435,3 +438,15 @@ elsewhere). The module is an `Item` and receives `bar`, `moduleName`,
 `run(cmd)`, `showTooltip(t, s)` / `hideTooltip(t)`,
 `requestPopout(o)` / `releasePopout(o)`. To shell-quote arguments for
 `run`, use `Util.shellQuote(v)` from `qs.Commons`.
+
+A module that declares `property string fixedEdge` also receives the edge of itself that stays put when it grows, set by how its section is anchored. Widgets that extend `BarWidget` from `qs.Ui` declare it already.
+
+- `"start"` (left, or top on a vertical bar): the left section and `centerEnd`, and the last widget in the center box when it holds more than one, which grows away from the middle as `centerEnd`'s do
+- `"end"`: the right section and `centerBegin`, the first widget in the center box when it holds more than one, and all three center sections where a display notch has moved them beside the right one
+- `"center"`: the rest of the center box, and a widget alone in it, which grow both ways
+
+Widgets in the tray section grow from the edge the tray keeps its pinned icons against, beside which its drawer opens the section: `"start"` where the tray's own edge is `"start"`, and `"end"` otherwise.
+
+Put content that grows, such as a drawer or a peek, on the side away from that edge so whatever is already showing keeps its place under the pointer.
+
+A widget keeps running when it moves to another section, whether dragged or moved by a config write: each bar surface keeps one instance per layout entry and hands it to the section that shows it. A drag moves the very instance dragged; a config written elsewhere says nothing of which of two identical entries moved, so those two may trade instances. Its `fixedEdge` and `settings` change in place, so bind to them rather than reading them once. A widget is built again only when it is added to the layout, when its component changes (its plugin is reloaded or swapped), when the bar turns between horizontal and vertical, and, for a custom module, when its entry changes.

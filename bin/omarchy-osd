@@ -25,7 +25,8 @@ while (($#)); do
 done
 
 if [[ -n $progress ]]; then
-  progress_text="${progress}%"
+  # Shown as given, so the number takes the language's digits here.
+  progress_text="$(omarchy-i18n --number "$progress" 2>/dev/null || printf '%s' "$progress")%"
 fi
 
 payload=$(jq -cn \

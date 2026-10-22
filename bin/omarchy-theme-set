@@ -66,8 +66,8 @@ report_failed_theme_commands() {
 
   echo "Theme retint failed: ${FAILED_THEME_COMMANDS[*]}" >&2
   if [[ $detached == "detached" ]]; then
-    omarchy-notification-send -u normal "Theme not applied everywhere" \
-      "${FAILED_THEME_COMMANDS[*]} failed. See $THEME_SET_LOG" >/dev/null 2>&1 || true
+    omarchy-notification-send -u normal "$(omarchy-i18n theme.notAppliedEverywhere)" \
+      "$(omarchy-i18n theme.commandsFailed "${FAILED_THEME_COMMANDS[*]}" "$THEME_SET_LOG")" >/dev/null 2>&1 || true
   fi
 }
 
@@ -215,7 +215,7 @@ set_theme_background() {
 
   if [[ -z $CHOSEN_THEME_BACKGROUND || ! -f $CHOSEN_THEME_BACKGROUND ]]; then
     if ! choose_theme_background; then
-      omarchy-notification-send "No background was found for theme" -t 2000
+      omarchy-notification-send "$(omarchy-i18n theme.noBackground)" -t 2000
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
       return
     fi
@@ -549,6 +549,7 @@ other_theme_commands=(
   omarchy-theme-set-vscode
   omarchy-theme-set-obsidian
   omarchy-theme-set-keyboard
+  omarchy-theme-set-fcitx5
 )
 
 theme_still_current() {

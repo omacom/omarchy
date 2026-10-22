@@ -280,7 +280,7 @@ Panel {
 
   function startAdd(label) {
     addPrivate = (addChecks[addProvider] || "") === "additional"
-    addStatus = "Starting…"
+    addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
     // Claude's login offers pasting a code back whenever its page shows one,
@@ -306,7 +306,7 @@ Panel {
   function submitPaste(code) {
     if (!addProcess.running || code.trim() === "") return
     addProcess.write(code.trim() + "\n")
-    addStatus = "Checking the code…"
+    addStatus = Commons.I18n.t("agents.checkingCode")
   }
 
   // The add command's own lines are tagged; everything else is the CLI
@@ -347,9 +347,9 @@ Panel {
 
   // A few ways into making Omarchy your own, handed to the default agent.
   readonly property var starterPrompts: [
-    { glyph: "󰏘", label: "Theme", prompt: "Make me a new Omarchy theme. Ask me what look or inspiration I have in mind, then build it following the Omarchy skill's theming guide and switch to it." },
-    { glyph: "󰐱", label: "Plugin", prompt: "Make me a new Omarchy shell plugin. Ask me what I'd like it to do, then build it following the Omarchy skill's plugin guide and enable it." },
-    { glyph: "󰣆", label: "App", prompt: "Make me a new app for my Omarchy desktop. Ask me what it should do, then build it following the omarchy-app skill and install it so it shows up in the app launcher." }
+    { glyph: "󰏘", label: Commons.I18n.t("agents.theme"), prompt: "Make me a new Omarchy theme. Ask me what look or inspiration I have in mind, then build it following the Omarchy skill's theming guide and switch to it." },
+    { glyph: "󰐱", label: Commons.I18n.t("agents.plugin"), prompt: "Make me a new Omarchy shell plugin. Ask me what I'd like it to do, then build it following the Omarchy skill's plugin guide and enable it." },
+    { glyph: "󰣆", label: Commons.I18n.t("agents.app"), prompt: "Make me a new app for my Omarchy desktop. Ask me what it should do, then build it following the omarchy-app skill and install it so it shows up in the app launcher." }
   ]
 
   function startPrompt(prompt) {
@@ -415,7 +415,7 @@ Panel {
     var parts = []
     if (String(account.plan || "") !== "") parts.push(account.plan)
     if (account.resetCredits && Number(account.resetCredits.available) > 0)
-      parts.push(account.resetCredits.available + " free reset" + (Number(account.resetCredits.available) === 1 ? "" : "s"))
+      parts.push(freeResetsText(Number(account.resetCredits.available)))
     return parts.join(" · ")
   }
 
@@ -441,7 +441,7 @@ Panel {
     if (!p || addStage === "running") return
     addProvider = p.providerId
     addPrivate = !!account && account.primary !== true
-    addStatus = "Starting…"
+    addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
     // Claude's login offers pasting a code back whenever its page shows one,
@@ -458,14 +458,21 @@ Panel {
   function resetCreditsText(credits) {
     if (!credits || !(Number(credits.available) > 0)) return ""
     var count = Number(credits.available)
-    var text = count + " free reset" + (count === 1 ? "" : "s")
     var expires = new Date(String(credits.nextExpiresAt || "")).getTime()
-    if (isFinite(expires) && expires > nowMs) text += " · next expires in " + formatDuration(expires - nowMs)
-    return text
+    if (isFinite(expires) && expires > nowMs) {
+      return Commons.I18n.tn("agents.freeResetsExpires", count)
+        .arg(Commons.I18n.formatNumber(count)).arg(formatDuration(expires - nowMs))
+    }
+    return freeResetsText(count)
+  }
+
+  function freeResetsText(count) {
+    return Commons.I18n.tn("agents.freeResets", count).arg(Commons.I18n.formatNumber(count))
   }
 
   function planLabel(p) {
     var tier = String(p && p.tierLabel || "")
+    if (tier === "Prepaid") return Commons.I18n.t("agents.tierPrepaid")
     return tier === "" ? "" : tier.charAt(0).toUpperCase() + tier.slice(1)
   }
 
@@ -584,13 +591,79 @@ Panel {
   }
 
   function formatDuration(ms) {
-    if (!(ms > 0)) return "now"
+    if (!(ms > 0)) return Commons.I18n.t("agents.durationNow")
     var minutes = Math.floor(ms / 60000)
     var hours = Math.floor(minutes / 60)
     var days = Math.floor(hours / 24)
-    if (days > 0) return days + "d " + (hours % 24) + "h"
-    if (hours > 0) return hours + "h " + (minutes % 60) + "m"
-    return Math.max(1, minutes) + "m"
+    if (days > 0) return Commons.I18n.t("agents.durationDaysHours").arg(Commons.I18n.formatNumber(days)).arg(Commons.I18n.formatNumber(hours % 24))
+    if (hours > 0) return Commons.I18n.t("agents.durationHoursMinutes").arg(Commons.I18n.formatNumber(hours)).arg(Commons.I18n.formatNumber(minutes % 60))
+    return Commons.I18n.t("agents.durationMinutes").arg(Commons.I18n.formatNumber(Math.max(1, minutes)))
+  }
+
+  // Window titles stay English in the records, where scopedPart() and the
+  // collectors match on them; only what reaches the screen is translated.
+  function windowDisplayTitle(title) {
+    var value = String(title || "")
+    if (value === "Session") return Commons.I18n.t("agents.windowSession")
+    if (value === "Weekly") return Commons.I18n.t("agents.windowWeekly")
+    if (value === "Monthly") return Commons.I18n.t("agents.windowMonthly")
+    if (value === "Spend limit") return Commons.I18n.t("agents.windowSpendLimit")
+    if (value === "Limit") return Commons.I18n.t("agents.windowLimit")
+    var part = scopedPart(value)
+    if (part && part.window === "Session") return Commons.I18n.t("agents.modelSession").arg(part.model)
+    if (part && part.window === "Weekly") return Commons.I18n.t("agents.modelWeekly").arg(part.model)
+    if (part && part.window === "Monthly") return Commons.I18n.t("agents.modelMonthly").arg(part.model)
+    return value
+  }
+
+  function scopedAllowanceText(scoped, windowTitle) {
+    var percent = Commons.I18n.formatNumber(Math.round(scoped.percent * 100))
+    var value = String(windowTitle || "")
+    if (value === "Session") return Commons.I18n.t("agents.scopedSession").arg(scoped.title).arg(percent)
+    if (value === "Weekly") return Commons.I18n.t("agents.scopedWeekly").arg(scoped.title).arg(percent)
+    if (value === "Monthly") return Commons.I18n.t("agents.scopedMonthly").arg(scoped.title).arg(percent)
+    return Commons.I18n.t("agents.scopedOther").arg(scoped.title).arg(percent).arg(windowDisplayTitle(value))
+  }
+
+  // The collectors write a fixed English status; the ones that reach the
+  // screen are shown in the current language.
+  function statusDisplayText(status) {
+    var value = String(status || "")
+    if (value === "Balance unavailable") return Commons.I18n.t("agents.balanceUnavailable")
+    var limits = value.match(/^(.+) limits unavailable$/)
+    if (limits) return Commons.I18n.t("agents.providerLimitsUnavailable").arg(limits[1])
+    var provider = value.match(/^(.+) unavailable$/)
+    if (provider) return Commons.I18n.t("agents.providerUnavailable").arg(provider[1])
+    if (value === "Sign-in expired") return Commons.I18n.t("agents.signInExpired")
+    if (value === "Waiting for auth") return Commons.I18n.t("agents.waitingForAuth")
+    if (value === "Limits paused") return Commons.I18n.t("agents.limitsPaused")
+    return value
+  }
+
+  // The usage collectors cache their help lines in English, so the fixed
+  // ones are translated here; commands stay verbatim as arguments, and raw
+  // error text from a provider passes through as it came.
+  function helpDisplayText(text) {
+    var value = String(text || "")
+    switch (value) {
+    case "Run `claude auth login` to restore authoritative usage.":
+      return Commons.I18n.t("agents.helpRunToRestoreUsage").arg("`claude auth login`")
+    case "Run `codex login` to authenticate.":
+      return Commons.I18n.t("agents.helpRunToAuthenticate").arg("`codex login`")
+    case "Start Grok, or run `grok login`, to sign in.":
+      return Commons.I18n.t("agents.helpStartOrRunToSignIn").arg("Grok").arg("`grok login`")
+    case "Start Grok to see its limits; signing in again is not needed.":
+      return Commons.I18n.t("agents.helpStartToSeeLimits").arg("Grok")
+    case "Grok's saved sign-in expired. Start Grok to refresh it.":
+      return Commons.I18n.t("agents.helpSignInExpired").arg("Grok")
+    case "Set FIREWORKS_API_KEY, run `firectl set-api-key`, or sign in to Fireworks in pi or opencode.":
+      return Commons.I18n.t("agents.helpFireworksSignIn").arg("FIREWORKS_API_KEY").arg("`firectl set-api-key`")
+    case "codex not found in PATH":
+      return Commons.I18n.t("agents.helpNotInPath").arg("codex")
+    case "Fireworks usage scan failed":
+      return Commons.I18n.t("agents.helpScanFailed").arg("Fireworks")
+    }
+    return value
   }
 
   // ---------------------------------------------------------------- balance
@@ -615,14 +688,16 @@ Panel {
   function formatMoney(value, currency) {
     var amount = Number(value)
     if (!isFinite(amount)) amount = 0
-    return currencyPrefix(currency) + amount.toFixed(2)
+    return currencyPrefix(currency) + Commons.I18n.formatNumber(amount, 2)
   }
 
   function balanceDetailText(b) {
     if (!b || !(b.funded > 0)) return ""
-    var text = formatMoney(b.spent, b.currency) + " spent of " + formatMoney(b.funded, b.currency) + " funded"
-    if (b.estimated) text += " · estimated"
-    return text
+    var spent = formatMoney(b.spent, b.currency)
+    var funded = formatMoney(b.funded, b.currency)
+    return b.estimated
+      ? Commons.I18n.t("agents.balanceSpentEstimated").arg(spent).arg(funded)
+      : Commons.I18n.t("agents.balanceSpent").arg(spent).arg(funded)
   }
 
   // ---------------------------------------------------------------- summary
@@ -662,16 +737,16 @@ Panel {
     }
 
     var phrases = []
-    if (week > 0) phrases.push(usage.formatTokenCount(week) + " tokens this week")
-    if (today > 0) phrases.push(usage.formatTokenCount(today) + " tokens today")
+    if (week > 0) phrases.push(Commons.I18n.tn("agents.tokensThisWeek", week).arg(usage.formatTokenCount(week)))
+    if (today > 0) phrases.push(Commons.I18n.tn("agents.tokensToday", today).arg(usage.formatTokenCount(today)))
     var topModel = ""
     for (var model in byModel) if (topModel === "" || byModel[model] > byModel[topModel]) topModel = model
-    if (topModel !== "" && byModel[topModel] > 0) phrases.push("Mostly " + topModel)
+    if (topModel !== "" && byModel[topModel] > 0) phrases.push(Commons.I18n.t("agents.mostlyModel").arg(topModel))
     var busiest = ""
     for (var date in byDay) if (busiest === "" || byDay[date] > byDay[busiest]) busiest = date
-    if (busiest !== "" && byDay[busiest] > 0) phrases.push("Busiest day: " + dayName(busiest))
-    if (prompts > 0) phrases.push(prompts + " prompt" + (prompts === 1 ? "" : "s") + " today")
-    if (sessions > 0) phrases.push(sessions + " session" + (sessions === 1 ? "" : "s") + " today")
+    if (busiest !== "" && byDay[busiest] > 0) phrases.push(Commons.I18n.t("agents.busiestDay").arg(dayName(busiest)))
+    if (prompts > 0) phrases.push(Commons.I18n.tn("agents.promptsToday", prompts).arg(Commons.I18n.formatNumber(prompts)))
+    if (sessions > 0) phrases.push(Commons.I18n.tn("agents.sessionsToday", sessions).arg(Commons.I18n.formatNumber(sessions)))
     return phrases
   }
   property int phraseIndex: 0
@@ -681,7 +756,7 @@ Panel {
   property string shownPhrase: ""
   readonly property string heroPhrase: addStage !== "" || blankSlate
     ? addHeading
-    : (shownPhrase !== "" ? shownPhrase : "Subscriptions")
+    : (shownPhrase !== "" ? shownPhrase : Commons.I18n.t("agents.subscriptions"))
 
   function showPhrase() {
     var n = summaryPhrases.length
@@ -690,10 +765,17 @@ Panel {
 
   onSummaryPhrasesChanged: if (shownPhrase === "" || summaryPhrases.length <= 1) showPhrase()
 
+  // The held line was written in the language it was shown in; once a new
+  // language's strings arrive and the phrases rebuild, show it again.
+  Connections {
+    target: Commons.I18n
+    function onStringsChanged() { Qt.callLater(root.showPhrase) }
+  }
+
   function dayName(date) {
     var parsed = new Date(String(date || "") + "T00:00:00")
     if (isNaN(parsed.getTime())) return String(date || "")
-    return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][parsed.getDay()]
+    return Qt.locale(Commons.I18n.formatLocale).dayName([7, 1, 2, 3, 4, 5, 6][parsed.getDay()])
   }
 
   // Only speaks up when the numbers cover more than this machine.
@@ -702,7 +784,7 @@ Panel {
     for (var i = 0; i < providers.length; i++) {
       var count = Number(providers[i].syncDeviceCount || 0)
       if (providers[i].syncEnabled && count > 0)
-        return "Merged from " + count + " device" + (count === 1 ? "" : "s")
+        return Commons.I18n.tn("agents.merged", count).arg(Commons.I18n.formatNumber(count))
     }
     return ""
   }
@@ -752,8 +834,8 @@ Panel {
 
   // Adding takes over the hero's line, and the cursor starts over.
   readonly property string addHeading: picking || addProvider === ""
-    ? "Add an account"
-    : "Add " + (/^[AEIOU]/.test(addProviderName(addProvider)) ? "an " : "a ") + addProviderName(addProvider) + " account"
+    ? Commons.I18n.t("agents.addAccount")
+    : Commons.I18n.t("agents.addProviderAccount").arg(addProviderName(addProvider))
   onAddStageChanged: {
     phraseSwap.stop()
     if (hero) hero.metaOpacity = 1.0
@@ -812,7 +894,7 @@ Panel {
     stdout: SplitParser { onRead: function(line) { root.handleAddLine(line) } }
     onExited: {
       if (root.addStage === "running") {
-        root.addResult = "The sign-in didn't finish."
+        root.addResult = Commons.I18n.t("agents.signInUnfinished")
         root.addStage = "error"
       }
     }
@@ -942,7 +1024,9 @@ Panel {
 
         Column {
           id: column
-          x: panelFlick.overhang
+          // The overhang sits on the start side, which is the right when
+          // mirrored; there the scroll bar takes the left instead.
+          x: LayoutMirroring.enabled ? (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0) : panelFlick.overhang
           // When the panel scrolls, the bar gets its own strip rather than
           // sitting on top of the right-aligned numbers.
           width: panelFlick.width - panelFlick.overhang - (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0)
@@ -952,7 +1036,7 @@ Panel {
           PanelHero {
             id: hero
             width: parent.width
-            title: "Agents"
+            title: Commons.I18n.t("agents.title")
             meta: root.heroPhrase
             foreground: root.foreground
             fontFamily: root.fontFamily
@@ -978,7 +1062,7 @@ Panel {
                   onHovered: root.pointAt("add")
                   readonly property bool adding: root.addStage !== ""
                   glyph: adding ? "󰅖" : "󰐕"
-                  tooltip: adding ? "Back to the limits" : "Add a subscription"
+                  tooltip: adding ? Commons.I18n.t("agents.backToLimits") : Commons.I18n.t("agents.addSubscription")
                   onClicked: adding ? root.cancelAdd() : root.addAccount()
                 }
 
@@ -987,7 +1071,7 @@ Panel {
                   hasCursor: root.hasKey("launch")
                   onHovered: root.pointAt("launch")
                   glyph: "󰞷"
-                  tooltip: "Start the default agent"
+                  tooltip: Commons.I18n.t("agents.startDefaultAgent")
                   onClicked: root.launchAgent()
                 }
               }
@@ -1024,7 +1108,7 @@ Panel {
             spacing: Style.space(12)
 
             PanelSectionHeader {
-              text: "MAKE SOMETHING COOL"
+              text: Commons.I18n.t("agents.makeSomethingCool")
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -1078,7 +1162,8 @@ Panel {
     Text {
       visible: root.blankSlate && root.picking
       width: parent.width
-      text: "Sign in to an AI coding subscription, and this panel keeps track of how much of it you have left."
+      text: Commons.I18n.t("agents.signInIntro")
+      textFormat: Text.PlainText
       color: root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
@@ -1150,7 +1235,8 @@ Panel {
 
       Text {
         width: parent.width
-        text: "Name this account. It signs in through a private window, so your browser's current account isn't picked up."
+        text: Commons.I18n.t("agents.nameAccount")
+        textFormat: Text.PlainText
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -1160,7 +1246,7 @@ Panel {
       TextField {
         id: addNameField
         width: parent.width
-        placeholderText: "Work"
+        placeholderText: Commons.I18n.t("agents.placeholderWork")
         foreground: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -1192,7 +1278,8 @@ Panel {
         spacing: Style.space(4)
 
         Text {
-          text: "Confirm this code in your browser"
+          text: Commons.I18n.t("agents.confirmCode")
+          textFormat: Text.PlainText
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -1216,7 +1303,8 @@ Panel {
 
         Text {
           width: parent.width
-          text: "If the page shows a code instead of finishing, paste it here."
+          text: Commons.I18n.t("agents.pasteCode")
+          textFormat: Text.PlainText
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -1226,7 +1314,7 @@ Panel {
         TextField {
           id: pasteField
           width: parent.width
-          placeholderText: "Code"
+          placeholderText: Commons.I18n.t("agents.placeholderCode")
           foreground: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -1237,7 +1325,7 @@ Panel {
 
       TextLink {
         visible: root.addUrl !== ""
-        text: "Open the sign-in page again"
+        text: Commons.I18n.t("agents.reopenSignIn")
         onClicked: root.reopenSignIn()
       }
     }
@@ -1343,9 +1431,9 @@ Panel {
     TextLink {
       visible: !section.multi && root.needsSignIn(section.provider)
       picked: root.hasKey("providerSignin", section.providerIndex)
-      text: "Sign-in required"
+      text: Commons.I18n.t("agents.signInRequired")
       idleColor: root.urgent
-      tooltip: "Sign in to " + (section.provider ? section.provider.providerName : "") + " again"
+      tooltip: Commons.I18n.t("agents.signInAgainProvider").arg(section.provider ? section.provider.providerName : "")
       onClicked: root.signInAgain(section.provider, null)
     }
 
@@ -1354,7 +1442,7 @@ Panel {
       width: parent.width
       textFormat: Text.PlainText
       // Shown for the status, so a record with no help to offer says the status rather than nothing.
-      text: section.provider ? String(section.provider.authHelpText || section.provider.usageStatusText || "") : ""
+      text: section.provider ? (root.helpDisplayText(section.provider.authHelpText) || root.statusDisplayText(section.provider.usageStatusText) || "") : ""
       color: root.urgent
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
@@ -1411,7 +1499,7 @@ Panel {
           textFormat: Text.PlainText
           width: parent.width * 0.3
           anchors.verticalCenter: parent.verticalCenter
-          text: "Balance"
+          text: Commons.I18n.t("agents.balance")
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -1581,7 +1669,7 @@ Panel {
 
     PanelToolTip {
       visible: tileMouse.containsMouse
-      text: "Start your default agent on a new " + tile.title.toLowerCase()
+      text: Commons.I18n.t("agents.startOnNew").arg(tile.title.toLowerCase())
     }
   }
 
@@ -1763,7 +1851,7 @@ Panel {
             var detail = root.accountDetail(head.account)
             if (detail !== "") parts.push(detail)
             var trouble = root.otherTrouble(head.account)
-            if (trouble !== "") parts.push(trouble)
+            if (trouble !== "") parts.push(root.statusDisplayText(trouble))
             return parts.length > 0 ? "· " + parts.join(" · ") : ""
           }
           color: root.otherTrouble(head.account) !== "" ? root.urgent : root.dim
@@ -1785,9 +1873,9 @@ Panel {
           id: signInLink
           visible: root.needsSignIn(head.account)
           picked: head.pickedKind === "signin"
-          text: "Sign-in required"
+          text: Commons.I18n.t("agents.signInRequired")
           idleColor: root.urgent
-          tooltip: "Sign in to this account again"
+          tooltip: Commons.I18n.t("agents.signInAgainAccount")
           onClicked: root.signInAgain(head.owner, head.account)
         }
       }
@@ -1823,7 +1911,8 @@ Panel {
         id: headActive
         visible: head.isActive
         anchors.right: parent.right
-        text: "ACTIVE"
+        text: Commons.I18n.t("agents.active")
+        textFormat: Text.PlainText
         color: Commons.Color.accent
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -1842,19 +1931,19 @@ Panel {
 
         TextLink {
           visible: head.autoOn || useHover.hovered || head.picked
-          text: head.pickedKind === "autoswitch" ? "Autoswitch ⏎" : "Autoswitch"
+          text: Commons.I18n.t("agents.autoswitch") + (head.pickedKind === "autoswitch" ? " ⏎" : "")
           picked: head.pickedKind === "autoswitch"
           current: head.autoOn
           tooltip: head.autoOn
-            ? "Stop switching automatically"
-            : "Switch here automatically at " + root.switchThreshold(head.owner) + "%"
+            ? Commons.I18n.t("agents.stopAutoSwitch")
+            : Commons.I18n.t("agents.switchAutoAt").arg(Commons.I18n.formatNumber(root.switchThreshold(head.owner)))
           onClicked: root.setSwitchMode(head.owner, head.autoOn ? "manual" : "auto")
         }
 
         // With Autoswitch on, Use waits until the line is hovered or picked.
         TextLink {
           visible: !head.autoOn || useHover.hovered || head.picked
-          text: head.pickedKind === "account" ? "Use ⏎" : "Use"
+          text: Commons.I18n.t("agents.use") + (head.pickedKind === "account" ? " ⏎" : "")
           picked: head.pickedKind === "account"
           onClicked: root.useAccount(head.owner, head.account)
         }
@@ -1871,7 +1960,8 @@ Panel {
 
     Text {
       id: unavailableLabel
-      text: "Usage unavailable"
+      text: Commons.I18n.t("agents.usageUnavailable")
+      textFormat: Text.PlainText
       color: root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
@@ -1881,7 +1971,7 @@ Panel {
 
     PanelToolTip {
       visible: unavailableHover.hovered && unavailable.visible
-      text: unavailable.record ? String(unavailable.record.authHelpText || "Usage has not been updated yet.") : ""
+      text: unavailable.record ? (root.helpDisplayText(unavailable.record.authHelpText) || Commons.I18n.t("agents.usageNotUpdated")) : ""
     }
   }
 
@@ -1906,16 +1996,18 @@ Panel {
       text: {
         var lines = []
         if (compact.window) {
-          lines.push(compact.window.title + ": " + Math.round(compact.window.percent * 100) + "% used"
-            + (compact.resetMs > 0 ? " · resets in " + root.formatDuration(compact.resetMs) : ""))
+          var windowName = root.windowDisplayTitle(compact.window.title)
+          var used = Commons.I18n.formatNumber(Math.round(compact.window.percent * 100))
+          lines.push(compact.resetMs > 0
+            ? Commons.I18n.t("agents.windowUsedResets").arg(windowName).arg(used).arg(root.formatDuration(compact.resetMs))
+            : Commons.I18n.t("agents.windowUsed").arg(windowName).arg(used))
         }
         if (compact.stale)
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
-            ? "Last updated " + root.formatDuration(root.nowMs - compact.fetchedAt) + " ago"
-            : compact.fetchedAt > 0 ? "Last updated less than a minute ago" : "Last updated time unavailable")
+            ? Commons.I18n.t("agents.lastUpdatedAgo").arg(root.formatDuration(root.nowMs - compact.fetchedAt))
+            : compact.fetchedAt > 0 ? Commons.I18n.t("agents.lastUpdatedJustNow") : Commons.I18n.t("agents.lastUpdatedUnknown"))
         for (var i = 0; i < compact.scoped.length; i++)
-          lines.push(compact.scoped[i].title + ": " + Math.round(compact.scoped[i].percent * 100) + "% of its "
-            + String(compact.window ? compact.window.title : "").toLowerCase() + " allowance")
+          lines.push(root.scopedAllowanceText(compact.scoped[i], compact.window ? compact.window.title : ""))
         return lines.join("\n")
       }
     }
@@ -1925,7 +2017,7 @@ Panel {
       textFormat: Text.PlainText
       width: parent.width * 0.3
       anchors.verticalCenter: parent.verticalCenter
-      text: compact.window ? compact.window.title : ""
+      text: compact.window ? root.windowDisplayTitle(compact.window.title) : ""
       color: root.foreground
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
@@ -2008,7 +2100,10 @@ Panel {
         height: meter.thickness * 2.5
         radius: width / 2
         anchors.verticalCenter: meterTrack.verticalCenter
-        x: root.clamp(meterTrack.width * root.clamp(Number(modelData.percent), 0, 1) - width / 2, 0, meterTrack.width - width)
+        // Explicit x doesn't mirror, so the tick measures from the end the
+        // fill grows from.
+        readonly property real along: root.clamp(meterTrack.width * root.clamp(Number(modelData.percent), 0, 1) - width / 2, 0, meterTrack.width - width)
+        x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
         color: meter.alarming ? root.urgent : root.foreground
       }
     }

@@ -19,6 +19,11 @@ if omarchy-hw-aarch64-apple; then
   exit 0
 fi
 
+if omarchy-sleep-disabled; then
+  echo "Hibernation is turned off on this machine" >&2
+  exit 0
+fi
+
 if [[ ! -f /sys/power/image_size ]]; then
   echo -e "Hibernation is not supported on your system" >&2
   exit 0
@@ -83,7 +88,7 @@ if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; 
 fi
 
 if ! $FORCE; then
-  MEM_TOTAL_HUMAN=$(free --human | awk '/Mem/ {print $2}')
+  MEM_TOTAL_HUMAN=$(LC_ALL=C free --human | awk '/Mem/ {print $2}')
   if ! gum confirm "Use $MEM_TOTAL_HUMAN on boot drive to make hibernation available?"; then
     exit 0
   fi

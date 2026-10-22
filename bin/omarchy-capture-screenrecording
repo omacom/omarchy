@@ -86,7 +86,7 @@ esac
 # --status only answers whether our recording runs, for the bar and the menu, so
 # it needs no recordings directory and never notifies.
 if [[ $STATUS != "true" && ! -d $OUTPUT_DIR ]]; then
-  omarchy-notification-send -u critical -t 3000 "Screen recording directory does not exist: $OUTPUT_DIR"
+  omarchy-notification-send -u critical -t 3000 "$(omarchy-i18n capture.noRecordingDir "$OUTPUT_DIR")"
   exit 1
 fi
 
@@ -97,7 +97,7 @@ start_webcam_overlay() {
   if [[ -z $WEBCAM_DEVICE ]]; then
     WEBCAM_DEVICE=$(omarchy-capture-webcam-list | sed -n '1s/[[:space:]].*//p')
     if [[ -z $WEBCAM_DEVICE ]]; then
-      omarchy-notification-send -u critical -t 3000 "No webcam devices found"
+      omarchy-notification-send -u critical -t 3000 "$(omarchy-i18n capture.noWebcam)"
       return 1
     fi
   fi
@@ -235,7 +235,7 @@ wf_audio_device() {
 }
 
 wf_audio_unavailable() {
-  omarchy-notification-send -u critical -t 5000 "Recording without $1 audio" "The $1 audio could not be added to this recording." >/dev/null 2>&1
+  omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingWithoutAudio "$1")" "$(omarchy-i18n capture.audioNotAdded "$1")" >/dev/null 2>&1
 }
 
 wf_audio_cleanup() {
@@ -424,7 +424,7 @@ stop_screenrecording() {
 
   if omarchy-capture-screenrecording-process "${RECORDER[@]}"; then
     omarchy-capture-screenrecording-process "${RECORDER[@]}" --signal KILL
-    omarchy-notification-send -u critical -t 5000 "Screen recording error" "Recording process had to be force-killed. Video may be corrupted."
+    omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingError)" "$(omarchy-i18n capture.recordingKilled)"
   else
     local filename=$(cat "$RECORDING_FILE" 2>/dev/null)
     local preview="${filename%.mp4}-preview.png"
@@ -445,7 +445,7 @@ stop_screenrecording() {
     fi
     echo "$filename"
 
-    omarchy-notification-send "Screen recording saved" "Open with Super + Alt + , (or click this)" \
+    omarchy-notification-send "$(omarchy-i18n capture.recordingSaved)" "$(omarchy-i18n capture.recordingSavedHint)" \
       -t 10000 --image "${preview:-$filename}" \
       --exec mpv -- "$filename"
 

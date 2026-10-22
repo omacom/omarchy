@@ -13,8 +13,8 @@ BarIndicator {
   active: granted
   activeText: "󰟵"
   inactiveText: "󰟵"
-  activeTooltipText: "Disable Passwordless Sudo"
-  inactiveTooltipText: "Passwordless Sudo"
+  activeTooltipText: I18n.t("bar.disablePasswordlessSudo")
+  inactiveTooltipText: I18n.t("bar.passwordlessSudo")
   useActiveColor: true
   activeColor: Commons.Color.urgent
 
@@ -54,7 +54,7 @@ BarIndicator {
     command: ["omarchy-sudo-passwordless", "--disable"]
     onExited: function(exitCode, exitStatus) {
       if ((exitCode !== 0 || exitStatus !== 0) && root.bar)
-        root.bar.run('omarchy-notification-send "Could not disable passwordless sudo" "Check the sudo configuration and try again."')
+        Util.execArgv(["omarchy-notification-send", I18n.t("bar.passwordlessSudoDisableFailed"), I18n.t("bar.passwordlessSudoDisableFailedBody")])
       if (root.indicatorHost) root.indicatorHost.refresh()
       else root.refresh()
     }

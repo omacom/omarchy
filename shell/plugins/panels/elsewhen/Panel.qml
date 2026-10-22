@@ -26,26 +26,45 @@ Panel {
   readonly property Item listWrap: panel.loadedContent ? panel.loadedContent.listWrap : null
   readonly property Item cityRows: panel.loadedContent ? panel.loadedContent.cityRows : null
   readonly property Item citySearch: panel.loadedContent ? panel.loadedContent.citySearch : null
+  readonly property Item hereSearch: panel.loadedContent ? panel.loadedContent.hereSearch : null
   readonly property Item globeLoader: panel.loadedContent ? panel.loadedContent.globeLoader : null
 
 
   // ---- settings
-  readonly property var zones: Model.parseZones(setting("zones", ""))
+  // `cities` once written; until then the older `zones` string.
+  readonly property var zones: Model.parseCities(setting("cities", null), setting("zones", ""))
   readonly property var zoneIds: zones.map(function(z) { return z.id })
   // Never written: the first probe seeds the list around the local zone.
-  readonly property bool needsSeed: String(setting("zones", "")).trim() === ""
+  readonly property bool needsSeed: zones.length === 0
   readonly property var probeIds: needsSeed ? zoneIds.concat(Model.seedCandidateZones()) : zoneIds
 
-  readonly property bool autoHour24: Model.usesTwentyFourHour(Qt.locale().timeFormat(Locale.ShortFormat))
+  readonly property var formatLocale: Qt.locale(Commons.I18n.formatLocale)
+  readonly property bool autoHour24: Model.usesTwentyFourHour(formatLocale.timeFormat(Locale.ShortFormat))
   readonly property bool hour24: Model.resolveHour24(setting("hour24", ""), autoHour24)
   // "home" shows the distance from here ("+2h"), "utc" the zone itself ("UTC-5").
   readonly property string offsetMode: setting("offsetMode", "home") === "utc" ? "utc" : "home"
   // Only the US measurement system means Fahrenheit.
-  readonly property string autoUnits: Qt.locale().measurementSystem === Locale.ImperialUSSystem ? "F" : "C"
+  readonly property string autoUnits: formatLocale.measurementSystem === Locale.ImperialUSSystem ? "F" : "C"
   readonly property string units: Model.resolveUnits(setting("units", ""), autoUnits)
   readonly property bool globeEnabled: setting("globeEnabled", true) !== false
   // Draw the globe with less in it while it moves.
   readonly property bool smoothMotion: setting("smoothMotion", true) !== false
+
+  // The words the model's clocks and dates read in, from the shell's language.
+  readonly property var words: {
+    var locale = formatLocale
+    return {
+      t: Commons.I18n.t,
+      tn: Commons.I18n.tn,
+      fmt: Commons.I18n.formatNumber,
+      am: locale.amText,
+      pm: locale.pmText,
+      date: function(parts) {
+        return new Date(parts.year, parts.month, parts.day, 12)
+          .toLocaleString(locale, Commons.I18n.t("elsewhen.dateFormat"))
+      }
+    }
+  }
 
   function toggleHour24() { persistSettings({ hour24: !hour24 }) }
   function toggleOffsetMode() { persistSettings({ offsetMode: offsetMode === "utc" ? "home" : "utc" }) }
@@ -53,7 +72,7 @@ Panel {
 
   function offsetTextFor(rowData) {
     if (!rowData || !rowData.ready) return ""
-    return offsetMode === "utc" ? Model.utcOffsetLabel(rowData.offsetMinutes) : rowData.relative
+    return offsetMode === "utc" ? Model.utcOffsetLabel(rowData.offsetMinutes, words) : rowData.relative
   }
 
   // ---- state
@@ -76,14 +95,15 @@ Panel {
 
   readonly property bool adding: citySearch ? citySearch.active : false
   onAddingChanged: if (!adding && scroller) scroller.scrollToTop()
+  readonly property bool choosingHere: hereSearch ? hereSearch.active : false
   readonly property var zoneOptions: Model.zoneOptions(zoneCatalogText, zones)
   // The globe's jump box may go to a city that is already tracked.
   readonly property var allZoneOptions: Model.zoneOptions(zoneCatalogText, [])
   readonly property var searchZoneIds: {
     var out = []
-    if (!citySearch) return out
-    for (var i = 0; i < citySearch.matches.length; i++) {
-      var id = citySearch.matches[i].value
+    var matches = (citySearch ? citySearch.matches : []).concat(hereSearch ? hereSearch.matches : [])
+    for (var i = 0; i < matches.length; i++) {
+      var id = matches[i].value
       if (out.indexOf(id) < 0) out.push(id)
     }
     return out
@@ -117,7 +137,12 @@ Panel {
   property int zoomEasing: Easing.OutQuart
 
   function setGlobeMode(on, slow) {
-    if (on) addSelected = false
+    if (on) {
+      addSelected = false
+      // Both live in the list, which the globe is about to knock away.
+      if (hereSearch) hereSearch.stop()
+      peopleEditIndex = -1
+    }
     zoomDuration = (on ? 800 : 500) * (slow === true ? slowMotionFactor : 1)
     zoomEasing = on ? Easing.OutQuart : Easing.InOutCubic
     globeMode = on
@@ -132,12 +157,49 @@ Panel {
     else g.showHome()
   }
 
+  // A tap on the globe: a city on this machine's zone becomes here, and the
+  // zone's own city goes back to being the default.
+  // The tapped city brings what is known of where it is - a tracked or jumped-to
+  // town's own coordinates and region - so here is never geocoded by name again.
   function claimHome(label, zone) {
-    var stored = Model.homeCityAfterTap(label, zone, setting("homeCity", ""), localZone)
+    var stored = Model.homeCityAfterTap(label, zone, hereZone && hereZone.chosen ? hereZone.label : "", localZone)
     if (stored === null) return
-    persistSettings({ homeCity: stored })
+    if (stored === "") { setHere({ label: Model.labelForZoneId(localZone), id: localZone }); return }
+    var pick = { label: stored, id: zone }
+    var known = zones.concat(sessionCities).filter(function(c) { return c.label === label && c.id === zone })[0]
+    var place = known && known.lat !== undefined ? known : placeOf(pick)
+    if (place) { pick.lat = place.lat; pick.lon = place.lon }
+    if (known && known.region) pick.region = known.region
+    setHere(pick)
+  }
+
+  // Here moves, and the row that stood for it follows, keeping its people. A
+  // place on another zone moves the machine's clock first, and here only moves
+  // once it has: a refused change leaves everything as it was.
+  function setHere(pick) {
+    var next = Model.hereAfterPick(zones, hereZone, pick, localZone)
+    if (!next) return
+    if (next.zoneChange !== "") {
+      if (timezoneProc.running) return
+      // Only here waits on the clock; the list is whatever it is by then.
+      timezoneProc.pending = { here: next.here, zoneChange: next.zoneChange }
+      timezoneProc.command = Model.timezoneCommand(next.zoneChange)
+      timezoneProc.running = true
+      return
+    }
+    applyHere(next)
+  }
+
+  function applyHere(next) {
+    var values = { here: next.here === null ? undefined : next.here, homeCity: undefined }
+    if (next.zones && next.zones !== zones) { values.cities = Model.serializeCities(next.zones); values.zones = undefined }
+    persistSettings(values)
     refreshFacts()
   }
+
+  function notify(title) { Util.execArgv(["omarchy-notification-send", title]) }
+
+  function startChoosingHere() { if (hereSearch && localZone !== "" && !globeMode) hereSearch.start() }
 
   function focusFromGlobe(label, zone) {
     var i = Model.indexOfZone(zones, label, zone)
@@ -161,6 +223,8 @@ Panel {
   property int dragIndex: -1
   property real dragOffset: 0
   property real rowPitch: 0
+  // Every row's pitch, measured at the grab: a row with people is a line taller.
+  property var rowPitches: []
   property int dragTarget: -1
 
   function beginRowDrag(index, pitch) {
@@ -168,23 +232,30 @@ Panel {
     dragIndex = index
     dragTarget = index
     rowPitch = pitch
+    var gap = pitch - (cityRows && cityRows.itemAt(index) ? cityRows.itemAt(index).height : 0)
+    var pitches = []
+    for (var i = 0; i < zones.length; i++) {
+      var item = cityRows ? cityRows.itemAt(i) : null
+      pitches.push(item ? item.height + gap : pitch)
+    }
+    rowPitches = pitches
   }
 
   function moveRowDrag(offset) {
     dragOffset = offset
-    dragTarget = Model.dragTargetFor(dragIndex, dragOffset, rowPitch, dragTarget, zones.length)
+    dragTarget = Model.dragTargetFor(dragIndex, dragOffset, rowPitch, dragTarget, zones.length, rowPitches)
   }
 
   // Glide into the slot, then commit.
   function releaseRowDrag() {
     if (dragIndex < 0) { cancelRowDrag(); return }
-    dropAnimation.to = (dragTarget - dragIndex) * rowPitch
+    dropAnimation.to = Model.dropOffset(dragIndex, dragTarget, rowPitch, rowPitches)
     dropAnimation.restart()
   }
 
   function commitRowDrag() {
     if (dragIndex >= 0 && dragTarget >= 0 && dragTarget !== dragIndex)
-      persistSettings({ zones: Model.serializeZones(Model.moveZone(zones, dragIndex, dragTarget)) })
+      persistSettings({ cities: Model.serializeCities(Model.moveZone(zones, dragIndex, dragTarget)), zones: undefined })
     cancelRowDrag()
   }
 
@@ -199,7 +270,7 @@ Panel {
   // Set absolutely from the pointer, held briefly after release, then back to now.
   property real scrubMinutes: 0
   readonly property double effectiveMs: nowMs + scrubMinutes * 60000
-  readonly property string scrubLabel: Model.formatScrubDelta(scrubMinutes)
+  readonly property string scrubLabel: Model.formatScrubDelta(scrubMinutes, words)
 
   // Measured against the unscrubbed present, so a drag cannot drift.
   function scrubTo(rowData, fraction) {
@@ -245,15 +316,13 @@ Panel {
   }
 
   // ---- places
-  readonly property var clockRows: Model.rows(zones, probe, effectiveMs, localOffsetMinutes, hour24)
+  readonly property var clockRows: Model.rows(zones, probe, effectiveMs, localOffsetMinutes, hour24, words)
 
-  // The system zone names a representative city; `homeCity` overrides it.
-  readonly property string homeCity: {
-    var override = String(setting("homeCity", "")).trim()
-    if (override !== "") return override
-    return localZone === "" ? "" : Model.labelForZoneId(localZone)
-  }
-  readonly property var homeZone: ({ label: homeCity, id: localZone })
+  // The system zone names a representative city; a chosen `here` overrides it
+  // while the machine stays on that zone, so a trip resets it on its own.
+  readonly property var hereZone: Model.resolveHere(setting("here", null), setting("homeCity", ""), localZone)
+  readonly property string homeCity: hereZone ? hereZone.label : ""
+  readonly property var homeZone: hereZone || ({ label: "", id: localZone })
 
   function placeOf(zone) {
     var f = facts[Model.factsKey(zone)]
@@ -344,13 +413,14 @@ Panel {
 
   readonly property string localTime: {
     var here = Model.localParts(effectiveMs)
-    var text = Model.formatTime(here, hour24)
-    return hour24 ? text : text + " " + Model.meridiem(here)
+    var text = Model.formatTime(here, hour24, words)
+    return hour24 ? text : text + " " + Model.meridiem(here, words)
   }
 
   // No full stop: a period hanging off the arc reads as a speck.
-  readonly property string hereLine: "It's " + localTime + " here"
-    + (homeCity !== "" ? " in " + homeCity : "")
+  readonly property string hereLine: (homeCity !== ""
+      ? Commons.I18n.t("elsewhen.hereIn").arg(localTime).arg(homeCity)
+      : Commons.I18n.t("elsewhen.here").arg(localTime))
     + (scrubLabel !== "" ? "  " + scrubLabel : "")
 
   // A capital's line box has empty space above it; the row's top pad drops by it.
@@ -377,14 +447,16 @@ Panel {
     font.family: root.fontFamily
     font.pixelSize: Style.font.heading
     font.weight: Font.DemiBold
-    text: "00:00"
+    // In the language's digits, which are not all as wide as ASCII ones.
+    text: Model.formatTime({ hour: 0, minute: 0 }, true, root.words)
   }
 
   TextMetrics {
     id: meridiemMetrics
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
-    text: "PM"
+    text: root.formatLocale.pmText.length > root.formatLocale.amText.length
+      ? root.formatLocale.pmText : root.formatLocale.amText
   }
 
   readonly property real timeColumnWidth: Math.ceil(widestTimeMetrics.advanceWidth
@@ -396,10 +468,14 @@ Panel {
   }
 
   // Written straight back to this widget's shell.json entry, like the clock's.
+  // An undefined value removes its key.
   function persistSettings(values) {
     var entry = { id: root.moduleName }
     for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
-    for (var key in values) entry[key] = values[key]
+    for (var key in values) {
+      if (values[key] === undefined) delete entry[key]
+      else entry[key] = values[key]
+    }
 
     root.settings = entry
     if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
@@ -408,38 +484,117 @@ Panel {
 
   function setZones(next) {
     if (next === zones) return
-    persistSettings({ zones: Model.serializeZones(next) })
+    persistSettings({ cities: Model.serializeCities(next), zones: undefined })
     refresh()
     refreshFacts()
+    fetchProfiles()
   }
 
-  // The label matters as much as the zone: many cities share one.
-  function addCity(id, label) { setZones(Model.addZone(zones, id, label || "")) }
+  // The label matters as much as the zone: many cities share one. A place from
+  // the geocoder brings its coordinates, so the row never has to look itself up.
+  function addCity(id, label, place) { setZones(Model.addZone(zones, id, label || "", place)) }
   function removeCity(id) { setZones(Model.removeZone(zones, id)) }
   function removeCityAt(index) { setZones(Model.removeZoneAt(zones, index)) }
 
   function startAdding() { if (citySearch) citySearch.start() }
 
-  function addSessionCity(label, id) {
+  function addSessionCity(label, id, place) {
     for (var i = 0; i < sessionCities.length; i++)
       if (sessionCities[i].label === label && sessionCities[i].id === id) return
-    sessionCities = sessionCities.concat([{ label: label, id: id }])
+    var city = Model.addZone([], id, label, place)[0]
+    if (!city) return
+    sessionCities = sessionCities.concat([city])
     refreshFacts()
   }
 
-  // The local city plus four places spread round the clock from it.
+  // The local city plus four places spread round the clock from it. Home is
+  // here, so a city already chosen is the one the list starts with.
   function seedFirstRun() {
     var offs = ({})
     for (var id in probe) offs[id] = probe[id].offsetMinutes
 
-    var seeded = localZone === "" ? []
-      : Model.seedZones({ label: Model.labelForZoneId(localZone), id: localZone }, offs, 4)
+    var seeded = localZone === "" || !hereZone ? []
+      : Model.seedZones({ label: hereZone.label, id: localZone }, offs, 4)
+    if (seeded.length > 0 && hereZone.lat !== undefined) seeded[0] = Object.assign({}, seeded[0], hereZone)
     if (seeded.length === 0) seeded = Model.parseZones(Model.DEFAULT_ZONES)
     if (seeded.length === 0) return
 
-    persistSettings({ zones: Model.serializeZones(seeded) })
+    persistSettings({ cities: Model.serializeCities(seeded), zones: undefined })
     refresh()
     refreshFacts()
+  }
+
+  // ---- people
+  // GitHub profiles by handle, each fetched once a session and cached on disk for a week.
+  property var profiles: ({})
+  property var profilesTried: ({})
+  property double profileStamp: 0
+  property bool profilesQueued: false
+  property int peopleEditIndex: -1
+
+  function fetchProfiles() {
+    var wanted = Model.handlesIn(zones).filter(function(h) { return !profilesTried[h] })
+    if (wanted.length === 0) return
+    if (peopleProc.running) { profilesQueued = true; return }
+    var tried = Object.assign({}, profilesTried)
+    wanted.forEach(function(h) { tried[h] = true })
+    profilesTried = tried
+    peopleProc.command = Model.profilesCommand(wanted)
+    peopleProc.running = true
+  }
+
+  function startPeopleEdit(index) {
+    if (citySearch) citySearch.stop()
+    if (hereSearch) hereSearch.stop()
+    peopleEditIndex = index
+  }
+
+  function finishPeopleEdit(index, text) {
+    peopleEditIndex = -1
+    setZones(Model.setPeopleAt(zones, index, Model.parsePeople(text)))
+    takeKeyboardBack()
+  }
+
+  function cancelPeopleEdit() {
+    peopleEditIndex = -1
+    takeKeyboardBack()
+  }
+
+  // A hidden field keeps its focus, so the panel asks for the keyboard back.
+  function takeKeyboardBack() {
+    Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+  }
+
+  // ---- place search
+  // The geocoder's places for each query, kept for the session. A query is
+  // looked up once the typing pauses, one request at a time, latest wins.
+  property var placeCache: ({})
+  property string placeWanted: ""
+
+  function requestPlaces(text) {
+    var q = Model.placeQuery(text)
+    if (q === "" || placeCache[q] !== undefined) return
+    placeWanted = q
+    placeDebounce.restart()
+  }
+
+  function lookupPlaces() {
+    var q = placeWanted
+    if (q === "" || placeCache[q] !== undefined) return
+    if (placeProc.running) return
+    placeProc.query = q
+    placeProc.command = ["curl", "-fsS", "--max-time", "8", Model.geocodeUrl(q)]
+    placeProc.running = true
+  }
+
+  function placesFor(text) {
+    var q = Model.placeQuery(text)
+    return q === "" ? [] : (placeCache[q] || [])
+  }
+
+  function placesPending(text) {
+    var q = Model.placeQuery(text)
+    return q !== "" && placeCache[q] === undefined
   }
 
   // ---- processes
@@ -450,16 +605,22 @@ Panel {
     probeProc.running = true
   }
 
+  // The command is set here rather than bound: this runs from the ids' own
+  // change handler, which can fire before a binding on them has caught up.
   function probeSearchZones() {
     if (searchZoneIds.length === 0) return
     if (searchProc.running) { searchProbeQueued = true; return }
+    searchProc.command = Model.probeCommand(searchZoneIds, false)
     searchProc.running = true
   }
 
   function refreshFacts() {
     if (zones.length === 0) return
     if (geoProc.running || weatherProc.running) { factsQueued = true; return }
-    var missing = factsRequest.filter(function(row) { return !geo[Model.factsKey(row)] })
+    var missing = factsRequest.filter(function(row) {
+      var key = Model.factsKey(row)
+      return !geo[key] && !pinnedGeo[key]
+    })
     if (missing.length === 0) { fetchWeather(); return }
     geoProc.rows = missing
     geoProc.command = ["bash", "-c", 'for url; do curl -fsS --max-time 8 "$url"; printf "\\n\\036\\n"; done', "bash"]
@@ -468,16 +629,18 @@ Panel {
   }
 
   function coordsFor(key) {
-    return geo[key] || fallbackGeo[key] || null
+    return pinnedGeo[key] || geo[key] || fallbackGeo[key] || null
   }
 
   function fetchWeather() {
     var now = Date.now()
+    // A reading for somewhere else is stale too: a city's coordinates can move under its name.
     var stale = factsRequest.map(Model.factsKey).filter(function(key) {
-      return coordsFor(key) && Model.weatherStale(weather[key], now)
+      return coordsFor(key) && Model.weatherStale(weather[key], now, coordsFor(key))
     })
     if (stale.length === 0) { publishFacts(); return }
     weatherProc.keys = stale
+    weatherProc.points = stale.map(coordsFor)
     weatherProc.command = ["curl", "-fsS", "--max-time", "8", Model.forecastUrl(stale.map(coordsFor))]
     weatherProc.running = true
   }
@@ -499,14 +662,23 @@ Panel {
 
   function utcLabelFor(zoneId) {
     var known = searchProbe[zoneId]
-    return known === undefined ? "" : Model.utcOffsetLabel(known.offsetMinutes)
+    return known === undefined ? "" : Model.utcOffsetLabel(known.offsetMinutes, words)
   }
 
   // Tracked cities, the city you are in (for the globe's home) and session cities.
   readonly property var factsRequest: {
-    var out = zones.map(function(z) { return { label: z.label, id: z.id } })
-    if (localZone !== "" && homeCity !== "") out.push({ label: homeCity, id: localZone })
+    var out = zones.slice()
+    if (hereZone) out.push(hereZone)
     return out.concat(sessionCities)
+  }
+
+  // Coordinates a city came with, from a place search: never geocoded by name.
+  readonly property var pinnedGeo: {
+    var out = {}
+    factsRequest.forEach(function(row) {
+      if (row.lat !== undefined) out[Model.factsKey(row)] = { lat: row.lat, lon: row.lon }
+    })
+    return out
   }
 
   // ---- opening spin
@@ -542,10 +714,12 @@ Panel {
       panel.ensureContent()
       focusKey = ""
       addSelected = false
-      tick(); refresh(); refreshFacts(); loadCatalog()
+      tick(); refresh(); refreshFacts(); loadCatalog(); fetchProfiles()
       startOpeningSpin()
     } else {
       if (citySearch) citySearch.stop()
+      if (hereSearch) hereSearch.stop()
+      peopleEditIndex = -1
       setGlobeMode(false, false); scrubMinutes = 0
       spinPending = false; spinFallback.stop()
     }
@@ -574,7 +748,6 @@ Panel {
   // Merged, so a known offset stays on screen while the next probe runs.
   Process {
     id: searchProc
-    command: Model.probeCommand(root.searchZoneIds, false)
     stdout: StdioCollector {
       onStreamFinished: {
         var merged = {}
@@ -628,12 +801,75 @@ Panel {
     }
   }
 
+  // Moving the clock for a new here. The zone is the machine's as soon as the
+  // command succeeds; the probe confirms it, and its offset, a moment later.
+  Process {
+    id: timezoneProc
+    property var pending: null
+    onExited: function(exitCode) {
+      var next = pending
+      pending = null
+      if (!next) return
+      if (exitCode !== 0) {
+        root.notify(Commons.I18n.t("elsewhen.timezoneFailed").arg(next.zoneChange))
+        return
+      }
+      root.localZone = next.zoneChange
+      root.applyHere(next)
+      root.tick()
+      root.refresh()
+      root.notify(Commons.I18n.t("elsewhen.timezoneChanged").arg(root.homeCity).arg(next.zoneChange))
+    }
+  }
+
+  Timer {
+    id: placeDebounce
+    interval: 300
+    onTriggered: root.lookupPlaces()
+  }
+
+  // A failed lookup is remembered as no places, so the list stops saying it is
+  // searching. The next query is tried on the answer and again on the exit: the
+  // output can finish while the process still reads as running, and a query
+  // turned away then would never be asked.
+  Process {
+    id: placeProc
+    property string query: ""
+    onRunningChanged: if (!running) Qt.callLater(root.lookupPlaces)
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var next = Object.assign({}, root.placeCache)
+        next[placeProc.query] = Model.placeOptions(text)
+        root.placeCache = next
+        Qt.callLater(root.lookupPlaces)
+      }
+    }
+  }
+
+  // Handles added mid-fetch are queued, and drained once it has exited rather
+  // than when its output ends, which can be while it still reads as running.
+  Process {
+    id: peopleProc
+    onRunningChanged: if (!running) Qt.callLater(function() {
+      if (!root.profilesQueued) return
+      root.profilesQueued = false
+      root.fetchProfiles()
+    })
+    stdout: StdioCollector {
+      onStreamFinished: {
+        root.profiles = Object.assign({}, root.profiles, Model.parseProfiles(text))
+        root.profileStamp = Date.now()
+      }
+    }
+  }
+
   Process {
     id: weatherProc
     property var keys: []
+    property var points: []
     stdout: StdioCollector {
       onStreamFinished: {
-        root.weather = Object.assign({}, root.weather, Model.parseForecast(text, weatherProc.keys, Date.now()))
+        root.weather = Object.assign({}, root.weather, Model.parseForecast(text, weatherProc.keys, Date.now(), weatherProc.points))
         root.publishFacts()
       }
     }
@@ -724,6 +960,24 @@ Panel {
       return Model.serializeZones(root.zones)
     }
     function remove(zone: string): string { root.removeCity(zone); return Model.serializeZones(root.zones) }
+
+    // The people in a city, by its name: "Emir, @sarahdev"; "" clears them.
+    function who(city: string, people: string): string {
+      var name = String(city).trim().toLowerCase()
+      for (var i = 0; i < root.zones.length; i++) {
+        if (root.zones[i].label.toLowerCase() !== name) continue
+        root.setZones(Model.setPeopleAt(root.zones, i, Model.parsePeople(people)))
+        return JSON.stringify(root.zones[i].people || [])
+      }
+      return "no city named " + city
+    }
+
+    // Where this machine is, on its own zone: "Fort Lauderdale".
+    function here(city: string): string {
+      if (root.localZone === "") return "zone not known yet"
+      root.setHere({ label: city, id: root.localZone })
+      return root.homeCity
+    }
   }
 
   BarIconButton {
@@ -732,7 +986,7 @@ Panel {
     bar: root.bar
     slotSize: Style.bar.statusSlot
     text: "󰇧"
-    tooltipText: "World clock"
+    tooltipText: Commons.I18n.t("elsewhen.worldClock")
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton || buttonCode === Qt.MiddleButton) root.refresh()
       else root.toggle()
@@ -758,10 +1012,11 @@ Panel {
       property alias listWrap: listWrap
       property alias cityRows: cityRows
       property alias citySearch: citySearch
+      property alias hereSearch: hereSearch
       property alias globeLoader: globeLoader
       implicitHeight: scrollContent.implicitHeight
       anchors.fill: parent
-      blocked: root.adding
+      blocked: root.adding || root.choosingHere || root.peopleEditIndex >= 0
       // Escape unwinds one layer: search (its own field), a shifted time, globe, then panel.
       onCloseRequested: {
         if (root.scrubMinutes !== 0) { scrubHold.stop(); root.scrubMinutes = 0 }
@@ -787,7 +1042,9 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       // "+" searches in either view; "j" jumps on the globe, "a" adds on the list.
       // "t" flips 24-hour and AM/PM time, like clicking a row's time, and Alt+T
-      // flips Fahrenheit and Celsius, like clicking a temperature.
+      // flips Fahrenheit and Celsius, like clicking a temperature. On the list,
+      // "w" asks where you are, like clicking the header, and "p" edits who is
+      // in the picked city, like its person button.
       onTextKey: function(text, modifiers) {
         var key = text.toLowerCase()
         if (key === "r") root.refresh()
@@ -797,6 +1054,10 @@ Panel {
           if (globeLoader.item) globeLoader.item.startJump()
         } else if (!root.globeMode && (key === "+" || key === "a")) {
           root.startAdding()
+        } else if (!root.globeMode && key === "w") {
+          root.startChoosingHere()
+        } else if (!root.globeMode && key === "p" && root.focusIndex >= 0) {
+          root.startPeopleEdit(root.focusIndex)
         }
       }
 
@@ -858,7 +1119,8 @@ Panel {
             caption: root.hereLine
             // Accent while scrubbed, so a shifted time is never taken for now.
             captionColor: root.scrubMinutes !== 0 ? Commons.Color.accent : root.dim
-            captionClickable: root.focusIndex >= 0
+            // Away from home it brings the globe back; at home it asks where here is.
+            captionClickable: root.focusIndex >= 0 || (root.localZone !== "" && !root.globeMode)
             foreground: root.foreground
             dim: root.dim
             fontFamily: root.fontFamily
@@ -869,8 +1131,38 @@ Panel {
             markerShown: root.focusKnown
             markerLat: root.focusLat
             markerLon: root.focusLon
-            onCaptionClicked: root.focusOn(-1)
+            onCaptionClicked: {
+              if (root.focusIndex >= 0) root.focusOn(-1)
+              else if (root.choosingHere) hereSearch.stop()
+              else root.startChoosingHere()
+            }
             onGlobeClicked: function(slow) { root.setGlobeMode(!root.globeMode, slow) }
+          }
+
+          // "Where are you?": any place; one on another zone moves the clock
+          // there too. Opened by the header rather than a button of its own.
+          CitySearch {
+            id: hereSearch
+            visible: active && root.zoom < 1
+            width: parent.width
+            showButton: false
+            options: root.allZoneOptions
+            placesFor: function(text) { return root.placesFor(text) }
+            placesPending: function(text) { return root.placesPending(text) }
+            loading: root.zoneCatalogText === ""
+            placeholderText: Commons.I18n.t("elsewhen.whereAreYou")
+            offsetLabel: function(zoneId) { return root.utcLabelFor(zoneId) }
+            foreground: root.foreground
+            dim: root.dim
+            fainter: root.fainter
+            fontFamily: root.fontFamily
+            onActiveChanged: if (active) { root.loadCatalog(); if (citySearch.active) citySearch.stop() }
+            onQueryChanged: if (active) root.requestPlaces(query)
+            onPicked: function(label, id, place) {
+              var pick = { label: label, id: id }
+              root.setHere(place ? Object.assign(pick, place) : pick)
+            }
+            onDismissed: root.takeKeyboardBack()
           }
 
           // ---- stage
@@ -916,6 +1208,9 @@ Panel {
                   visible: root.zoom < 1
                   width: parent.width
                   options: root.zoneOptions
+                  existing: root.zones
+                  placesFor: function(text) { return root.placesFor(text) }
+                  placesPending: function(text) { return root.placesPending(text) }
                   loading: root.zoneCatalogText === ""
                   offsetLabel: function(zoneId) { return root.utcLabelFor(zoneId) }
                   hasCursor: root.addSelected
@@ -923,9 +1218,10 @@ Panel {
                   dim: root.dim
                   fainter: root.fainter
                   fontFamily: root.fontFamily
-                  onActiveChanged: if (active) root.loadCatalog()
-                  onPicked: function(label, id) { root.addCity(id, label) }
-                  onDismissed: Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+                  onActiveChanged: if (active) { root.loadCatalog(); if (hereSearch.active) hereSearch.stop() }
+                  onQueryChanged: if (active) root.requestPlaces(query)
+                  onPicked: function(label, id, place) { root.addCity(id, label, place) }
+                  onDismissed: root.takeKeyboardBack()
 
                   // Knocked aside last, after every row.
                   transform: Translate {
@@ -977,6 +1273,7 @@ Panel {
                 item.moonPhase = Qt.binding(function() { return root.moonPhase })
                 item.fontFamily = Qt.binding(function() { return root.fontFamily })
                 item.hour24 = Qt.binding(function() { return root.hour24 })
+                item.words = Qt.binding(function() { return root.words })
                 item.trackedNames = Qt.binding(function() { return root.trackedNames })
                 item.trackedCities = Qt.binding(function() { return root.trackedCities })
                 item.sessionCities = Qt.binding(function() { return root.sessionPlaces })
@@ -992,8 +1289,11 @@ Panel {
                 // The footer and jump bar arrive once the globe has landed.
                 item.chromeOpacity = Qt.binding(function() { return Util.clamp((root.zoom - 0.74) / 0.26, 0, 1) })
                 item.jumpOptions = Qt.binding(function() { return root.allZoneOptions })
+                item.placesFor = function(text) { return root.placesFor(text) }
+                item.placesPending = function(text) { return root.placesPending(text) }
+                item.placeSearchRequested.connect(function(text) { root.requestPlaces(text) })
                 item.offsetModeToggleRequested.connect(function() { root.toggleOffsetMode() })
-                item.jumpRequested.connect(function(label, zone) { root.addSessionCity(label, zone) })
+                item.jumpRequested.connect(function(label, zone, place) { root.addSessionCity(label, zone, place) })
                 item.exitRequested.connect(function() { root.setGlobeMode(false, false) })
                 item.jumpDismissed.connect(function() { Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() }) })
                 item.citySelected.connect(function(label, zone) { root.focusFromGlobe(label, zone) })

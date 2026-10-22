@@ -298,8 +298,9 @@ OMARCHY_TEST_DOCKED_ACTION=suspend sync_inhibit
 pass "the inhibitor follows logind's docked lid action"
 
 # logind lists DVI-A and Composite, but a missing comma fuses them into one
-# entry, so they are uncounted too.
-for connector in DVI-A-1 Composite-1; do
+# entry, so they are uncounted too. Unknown is a driver with no type for its
+# USB-C connectors (nvidia-drm on the N1x before it reported DisplayPort).
+for connector in DVI-A-1 Composite-1 Unknown-6; do
   reset_unit
   write_connectors card0-LVDS-1 connected "card0-$connector" connected
   write_monitors "[{\"name\":\"LVDS-1\",\"disabled\":true},{\"name\":\"$connector\",\"disabled\":false}]"

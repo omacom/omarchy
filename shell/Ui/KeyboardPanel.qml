@@ -331,8 +331,7 @@ PanelWindow {
         var target = targets[i]
         if (!target || !target.triggerPress || target.visible === false || target.opacity === 0 || !target.mapToItem) continue
         if (root.bar.targetBelongsToWindow && !root.bar.targetBelongsToWindow(target, root.anchorWindow)) continue
-        var pos = root.anchorWindow.itemPosition(target)
-        if (p.x >= pos.x && p.x <= pos.x + target.width && p.y >= pos.y && p.y <= pos.y + target.height) return target
+        if (Util.itemContainsPoint(target, root.anchorWindow.contentItem, p.x, p.y)) return target
       }
       return null
     }
@@ -427,6 +426,10 @@ PanelWindow {
     Item {
       id: contentHolder
       anchors.fill: parent
+      // Right-to-left languages read the card mirrored; the card itself
+      // stays where the bar puts it.
+      LayoutMirroring.enabled: Commons.I18n.rightToLeft
+      LayoutMirroring.childrenInherit: true
       anchors.topMargin: card.contentTopInset
       anchors.rightMargin: card.contentRightInset
       anchors.bottomMargin: card.contentBottomInset
