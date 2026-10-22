@@ -500,5 +500,18 @@ except state.AccountError:
   pass
 else:
   raise AssertionError("a conflicting organization must not validate")
+
+# An entry with no organization matches any organization of its user on
+# import, so beside one that names an organization it is a duplicate.
+unknown = copy.deepcopy(payload)
+unknown_entry = unknown["providers"]["claude"]["accounts"][0]
+unknown_entry.pop("orgId", None)
+unknown_entry["files"][".claude.json"]["oauthAccount"].pop("organizationUuid", None)
+try:
+  transfer.validate(unknown)
+except state.AccountError:
+  pass
+else:
+  raise AssertionError("an entry without an organization must not validate beside its user's other one")
 PY
 pass "two Claude organizations survive a copy"

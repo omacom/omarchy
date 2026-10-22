@@ -154,7 +154,7 @@ def validate(payload: Any) -> None:
     if not isinstance(registry.get("active"), str) or registry.get("switch") not in accounts.SWITCH_MODES or type(registry.get("threshold")) is not int or not 50 <= registry["threshold"] <= 100:
       raise accounts.AccountError("Invalid account transfer preferences")
     ids = set()
-    identities = set()
+    identities = []
     for entry in registry["accounts"]:
       if not isinstance(entry, dict) or not all(isinstance(entry.get(k), str) and entry[k] for k in ("id", "label", "accountId")):
         raise accounts.AccountError("Invalid account transfer identity")
@@ -164,10 +164,11 @@ def validate(payload: Any) -> None:
         raise accounts.AccountError("Invalid account transfer ID")
       if type(entry.get("primary")) is not bool or entry["id"] in ids:
         raise accounts.AccountError("Invalid account transfer account")
-      identity = (entry["accountId"], entry_identity(provider, entry)["orgId"])
-      if identity in identities:
+      # Compared the way import matches, so no two entries land on one account.
+      identity = entry_identity(provider, entry)
+      if any(same_identity(identity, seen) for seen in identities):
         raise accounts.AccountError("Duplicate account transfer identity")
-      identities.add(identity)
+      identities.append(identity)
       ids.add(entry["id"])
       files = entry.get("files")
       if not isinstance(files, dict) or not files or not set(files) <= FILES[provider] or not all(isinstance(v, dict) for v in files.values()):
