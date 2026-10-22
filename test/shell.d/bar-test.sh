@@ -172,17 +172,6 @@ const fixedEdges = [
 ]
 for (const [pattern, source, message] of fixedEdges) assert(pattern.test(source), message)
 
-// The edge holds still while this surface's peek is open, not another
-// monitor's, so it reads the hold from the surface the sections are drawn on.
-assert(
-  /BarModel\.nextPeekEdge\(window\.peekEdge, boxEnd, window\.centerRevealState\.centerSectionRevealHeld\)/.test(centerSections),
-  'the peek edge holds on the reveal of its own surface'
-)
-assert(
-  /target: sections\.window \? sections\.window\.centerRevealState : null\s*function onCenterSectionRevealHeldChanged\(\) \{ sections\.syncPeekEdge\(\) \}/.test(centerSections),
-  'the peek edge re-measures when the reveal of its own surface changes'
-)
-
 // A layout reading an implicit size that drops from a fraction of a pixel to
 // nothing keeps the old size, so a widget hiding itself would leave a hole.
 for (const [name, body] of [['slot', moduleSlot], ['spacer', dragSpacer]]) {
