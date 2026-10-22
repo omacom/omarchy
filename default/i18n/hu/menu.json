@@ -8,11 +8,11 @@
   "learn": {
     "label": "Tanulás"
   },
+  "appearance": {
+    "label": "Megjelenés"
+  },
   "trigger": {
     "label": "Indító"
-  },
-  "style": {
-    "label": "Stílus"
   },
   "setup": {
     "label": "Beállítás"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Közösség"
   },
-  "trigger.appearance": {
-    "label": "Megjelenés"
+  "appearance.theme": {
+    "label": "Téma"
   },
-  "trigger.appearance.animations": {
-    "label": "Animációk"
+  "appearance.background": {
+    "label": "Háttér"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Betűtípus"
+  },
+  "appearance.top-bar": {
     "label": "Menüsor"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Sáv elrejtése"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Sáv mutatása"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Sáv helye"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Sáv háttere"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Átlátszatlan sáv"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Üveges sáv"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Átlátszó sáv"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Sávjelzők"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Akku százaléka"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Óra"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Vasárnap 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Vasárnap 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Vasárnap 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Vasárnap 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Vas 3 máj 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Vas 3 máj 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 máj H18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 máj H18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Felső sáv"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Alsó sáv"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Bal sáv"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Jobb sáv"
   },
-  "trigger.appearance.dock": {
-    "label": "Dokk"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Automatikus dokk"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Állandó dokk"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Dokk helye"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Felső dokk"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Alsó dokk"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Bal dokk"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Jobb dokk"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Ablakközök"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Ablaksarkok"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Témasarkok"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Éles sarkok"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Lekerekített sarkok"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Ablak átlátszósága"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Átlátszatlan ablakok"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Átlátszó ablakok"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Üveges ablakok"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1 ablak aránya"
+  "appearance.branding.screensaver": {
+    "label": "Képernyővédő"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Névjegy"
+  },
+  "appearance.branding.about.text": {
+    "label": "Szöveg szerkesztése"
+  },
+  "appearance.branding.about.image": {
+    "label": "Képből beállítás"
+  },
+  "appearance.branding.about.default": {
+    "label": "Alap visszaállítása"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Szöveg szerkesztése"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Képből beállítás"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Alap visszaállítása"
+  },
+  "appearance.dock": {
+    "label": "Dokk"
+  },
+  "appearance.dock.autohide": {
+    "label": "Automatikus dokk"
+  },
+  "appearance.dock.always-on": {
+    "label": "Állandó dokk"
+  },
+  "appearance.dock.position": {
+    "label": "Dokk helye"
+  },
+  "appearance.dock.position.top": {
+    "label": "Felső dokk"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Alsó dokk"
+  },
+  "appearance.dock.position.left": {
+    "label": "Bal dokk"
+  },
+  "appearance.dock.position.right": {
+    "label": "Jobb dokk"
+  },
+  "appearance.workspace-layout": {
     "label": "Munkaterület-kiosztás",
     "title": "Alapértelmezett munkaterület-kiosztás"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Mozaik"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Görgetés"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Lebegő"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr témaszinkron"
+  "appearance.unlock": {
+    "label": "Feloldás"
   },
   "trigger.toggle": {
     "label": "Kapcsoló"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Ébrenlét"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Értesítések"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Éjszakai fény"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Képernyővédő"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Összeomlás rögzítése"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Sebességteszt"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Laptopkijelző"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Kijelző tükrözése"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Hibrid GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Érintőpad"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Érintőpad-rezgés"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "magas"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Érintőképernyő"
   },
   "trigger.reminder.set": {
     "label": "Új beállítása"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Lemez sebességteszt"
-  },
-  "style.theme": {
-    "label": "Téma"
-  },
-  "style.background": {
-    "label": "Háttér"
-  },
-  "style.unlock": {
-    "label": "Feloldás"
-  },
-  "style.font": {
-    "label": "Betűtípus"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Képernyővédő"
-  },
-  "style.about": {
-    "label": "Névjegy"
-  },
-  "style.about.text": {
-    "label": "Szöveg szerkesztése"
-  },
-  "style.about.image": {
-    "label": "Képből beállítás"
-  },
-  "style.about.default": {
-    "label": "Alap visszaállítása"
-  },
-  "style.screensaver.text": {
-    "label": "Szöveg szerkesztése"
-  },
-  "style.screensaver.image": {
-    "label": "Képből beállítás"
-  },
-  "style.screensaver.default": {
-    "label": "Alap visszaállítása"
   },
   "setup.monitors": {
     "label": "Monitorok"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1210,8 +1162,5 @@
   },
   "system.reboot-boot-menu": {
     "label": "Újraindítás a bootmenübe"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
   }
 }

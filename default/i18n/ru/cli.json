@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 ч",
   "battery.durationHoursMinutes": "%1 ч %2 мин",
   "battery.durationMinutes": "%1 мин",
+  "battery.fullyCharged": "Полностью заряжена",
   "battery.holdingAt": "Удерживается на %1",
   "battery.lowBody": "Осталось заряда: %1%",
   "battery.lowTitle": "Пора зарядиться!",

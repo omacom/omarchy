@@ -121,7 +121,7 @@ pass "no entry outgrows the width the menu gives it"
 # the entry: XF86Calculator alone belongs in the tail the menu keeps for media
 # keys, while the calculator itself sits in the body of the list.
 stub_hyprctl <<BINDS
-$(exec_bind 68 "SUPER CTRL + Q" "Calculator" "omacalc")
+$(exec_bind 65 "SUPER SHIFT + Q" "Calculator" "omacalc")
 $(exec_bind 0 "XF86Calculator" "Calculator" "omacalc")
 $(exec_bind 8 "ALT + TAB" "Reveal active window on top" "true")
 BINDS
@@ -267,6 +267,25 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# A plugin that walks the window list while it loads must not wedge the scan,
+# and the binds after it must still be recovered from the Lua source.
+{
+  printf 'for _ in ipairs(hl.get_windows()) do\n  local window = nil\nend\n'
+  cat "$home/.config/hypr/hyprland.lua"
+} >"$tmpdir/hyprland.lua"
+mv "$tmpdir/hyprland.lua" "$home/.config/hypr/hyprland.lua"
+
+rm -rf "$tmpdir/cache"
+# A wedged scan is stopped by the menu's own timeout before the Terminal bind,
+# which the check below catches; the outer timeout only turns a hang into a fail.
+timeout --kill-after=1s 60s env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+  bash "$menu" --print >/dev/null 2>&1 ||
+  fail "a plugin iterating windows at load time does not wedge the keybindings scan"
+grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "a plugin iterating windows at load time does not wedge the keybindings scan (it stopped before the Terminal bind)"
+pass "a plugin iterating windows at load time does not wedge the keybindings scan"
 
 # Rows show their description in the Omarchy language: a numbered one
 # matches its %1 pattern, an unknown one stays as written, and the chord

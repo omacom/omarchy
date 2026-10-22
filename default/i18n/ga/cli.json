@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 u",
   "battery.durationHoursMinutes": "%1 u %2 n",
   "battery.durationMinutes": "%1 n",
+  "battery.fullyCharged": "Lánluchtaithe",
   "battery.holdingAt": "Coinnithe ag %1",
   "battery.lowBody": "Tá an ceallra síos go %1%",
   "battery.lowTitle": "Am chun athluchtú!",

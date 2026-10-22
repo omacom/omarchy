@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 val.",
   "battery.durationHoursMinutes": "%1 val. %2 min.",
   "battery.durationMinutes": "%1 min.",
+  "battery.fullyCharged": "Visiškai įkrautas",
   "battery.holdingAt": "Laikoma ties %1",
   "battery.lowBody": "Akumuliatorius išseko iki %1%",
   "battery.lowTitle": "Laikas įkrauti!",
