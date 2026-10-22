@@ -60,7 +60,7 @@ another string.
 
 ## Menu (`menu.json`) — 413 keys
 
-217 strings translated, 196 intentionally left in
+215 strings translated, 198 intentionally left in
 English (brand names and technical tokens).
 
 <details>
@@ -85,7 +85,7 @@ English (brand names and technical tokens).
 | `system.hibernate` | label: Hibernate | label: Hibernigi |
 | `system.logout` | label: Logout | label: Elsaluti |
 | `system.reboot` | label: Reboot | label: Rekomenci |
-| `system.shutdown` | label: Shutdown | label: Ŝalti |
+| `system.shutdown` | label: Shutdown | label: Malŝalti |
 | `learn.keybindings` | label: Keybindings | label: Klavkombinoj |
 | `learn.community` | label: Community | label: Komunumo |
 | `appearance.theme` | label: Theme | label: Etoso |
@@ -233,7 +233,7 @@ English (brand names and technical tokens).
 | `setup.security.sudoless-docker` | label: Sudoless Docker | label: Docker sen sudo |
 | `setup.security.passwordless-sudo` | label: Passwordless Sudo | label: Sudo sen pasvorto |
 | `setup.direct-boot` | label: Direct Boot | label: Direkta starto |
-| `setup.reset` | label: Reset Computer | label: Rekomenci komputilon |
+| `setup.reset` | label: Reset Computer | label: Restarigi komputilon al fabrika stato |
 | `install.package` | label: Package | label: Pakaĵo |
 | `install.service` | label: Service | label: Servo |
 | `install.development` | label: Development | label: Programado |
@@ -246,7 +246,6 @@ English (brand names and technical tokens).
 | `install.browser` | label: Browser | label: Retumilo |
 | `install.webapp` | label: Web App | label: Reta aplikaĵo |
 | `install.terminal` | label: Terminal | label: Terminalo |
-| `install.windows` | label: Windows | label: Fenestroj |
 | `install.preinstalls` | label: Preinstalls | label: Preinstalaĵoj |
 | `install.service.chromium-account` | label: Chromium Account | label: Chromium-konto |
 | `install.gaming.xbox-controllers` | label: Xbox Controllers | label: Xbox-regililoj |
@@ -259,7 +258,6 @@ English (brand names and technical tokens).
 | `remove.gaming` | label: Gaming / title: Remove | label: Ludoj / title: Forigi |
 | `remove.browser` | label: Browser / title: Remove | label: Retumilo / title: Forigi |
 | `remove.webapp` | label: Web App | label: Reta aplikaĵo |
-| `remove.windows` | label: Windows | label: Fenestroj |
 | `remove.preinstalls` | label: Preinstalls | label: Preinstalaĵoj |
 | `remove.security` | label: Security / title: Remove | label: Sekureco / title: Forigi |
 | `remove.security.fingerprint` | label: Fingerprint | label: Fingrospuro |
@@ -289,7 +287,7 @@ English (brand names and technical tokens).
 </details>
 
 <details>
-<summary>Left in English (196, for reference)</summary>
+<summary>Left in English (198, for reference)</summary>
 
 - `learn.omarchy`: label: Omarchy
 - `learn.hyprland`: label: Hyprland
@@ -357,6 +355,7 @@ English (brand names and technical tokens).
 - `install.style.font.bitstream`: label: Bitstream Vera Mono
 - `install.style.font.iosevka`: label: Iosevka
 - `install.tui`: label: TUI
+- `install.windows`: label: Windows
 - `install.aur`: label: AUR
 - `install.browser.chrome`: label: Chrome
 - `install.browser.edge`: label: Edge
@@ -426,6 +425,7 @@ English (brand names and technical tokens).
 - `install.development.elixir.elixir`: label: Elixir
 - `install.development.elixir.phoenix`: label: Phoenix
 - `remove.tui`: label: TUI
+- `remove.windows`: label: Windows
 - `remove.security.fido2`: label: Fido2
 - `remove.security.sshd`: label: SSHD
 - `remove.ai.hermes`: label: Hermes Desktop
@@ -1298,9 +1298,9 @@ Funkciantaj seancoj restas je %4. |
 | `system.rebootFailed` | Reboot failed | Rekomenco malsukcesis |
 | `system.rebootRetry` | Could not complete reboot. Please try again. | Ne eblis fini rekomencon. Bonvolu reprovi. |
 | `system.rebooting` | Rebooting | Rekomenco |
-| `system.shutdownFailed` | Shutdown failed | Ŝalto malsukcesis |
-| `system.shutdownRetry` | Could not complete shutdown. Please try again. | Ne eblis fini ŝalton. Bonvolu reprovi. |
-| `system.shuttingDown` | Shutting down | Ŝaltado |
+| `system.shutdownFailed` | Shutdown failed | Malŝalto malsukcesis |
+| `system.shutdownRetry` | Could not complete shutdown. Please try again. | Ne eblis fini malŝalton. Bonvolu reprovi. |
+| `system.shuttingDown` | Shutting down | Malŝaltado |
 | `t3code.nightly` | Nightly | Nokta |
 | `t3code.selectChannel` | Install T3 Code from which channel? | Instali T3 Code el kiua kanalo? |
 | `t3code.stable` | Stable | Stabla |
@@ -1605,7 +1605,7 @@ English (brand names and technical tokens).
 
 ## Totals
 
-- Translated and needing review: **1213** strings
+- Translated and needing review: **1211** strings
 - Untranslated on purpose: brand names, technical tokens, Qt date patterns,
   and clock-format previews (where only weekday and month words translate,
   so most of those preview strings are effectively unchanged).

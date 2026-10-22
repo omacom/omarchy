@@ -79,17 +79,18 @@ def prose_ratio(en, eo):
 
 def main():
     quiet = "--quiet" in sys.argv
+    say = (lambda *a: None) if quiet else print
     english = sorted(p.name for p in EN_DIR.glob("*.md"))
     problems_found = 0
 
     missing = [f for f in english if not (EO_DIR / f).exists()]
     for f in missing:
-        print(f"MISSING  {f}")
+        say(f"MISSING  {f}")
         problems_found += 1
 
     extra = sorted(p.name for p in EO_DIR.glob("*.md") if p.name not in set(english))
     for f in extra:
-        print(f"EXTRA    {f}")
+        say(f"EXTRA    {f}")
         problems_found += 1
 
     for name in english:
@@ -100,23 +101,24 @@ def main():
         eo_text = eo_path.read_text(encoding="utf-8")
 
         if not eo_text.strip():
-            print(f"EMPTY    {name}")
+            say(f"EMPTY    {name}")
             problems_found += 1
             continue
 
         issues = problems(en_text, eo_text)
         if issues:
-            print(f"BROKEN   {name}: {'; '.join(issues)}")
+            say(f"BROKEN   {name}: {'; '.join(issues)}")
             problems_found += 1
-        elif not quiet:
+        else:
             ratio = prose_ratio(en_text, eo_text)
-            flag = "  <-- still English" if ratio > 0.5 else ""
-            print(f"ok       {name}  ({ratio:.0%} untranslated){flag}")
+            if not quiet:
+                flag = "  <-- still English" if ratio > 0.5 else ""
+                print(f"ok       {name}  ({ratio:.0%} untranslated){flag}")
             if ratio > 0.5:
                 problems_found += 1
 
     done = len([f for f in english if (EO_DIR / f).exists()])
-    print(f"\n{done}/{len(english)} chapters translated, {problems_found} problems")
+    say(f"\n{done}/{len(english)} chapters translated, {problems_found} problems")
     return 1 if problems_found else 0
 
 
