@@ -832,6 +832,7 @@ Panel {
               width: parent.width
               foreground: root.foreground
               placeholderText: Commons.I18n.t("tailscale.searchMachines")
+              accessibleName: Commons.I18n.t("tailscale.searchMachines")
               // The field can disappear (account switch to a small tailnet)
               // while a query is typed; a filter with no visible box and no
               // `/` shortcut to clear it would look like missing machines.
