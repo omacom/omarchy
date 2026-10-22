@@ -475,6 +475,7 @@ Rules for anything built on the kit:
 
 - Every control someone can press, toggle or drag has a non-empty name. Set `accessibleName` when the visible content is only an icon; setting `tooltipText` instead also shows a tooltip.
 - Never use a glyph as a name. Nerd Font and other icon code points read as noise.
+- A `Button` used as an option in a choice sets `selectable: true`; only then do its `selected` or `active` visual states publish accessibility selection state. Ordinary action buttons remain unselected even when highlighted.
 - Name the function and let state carry the rest: a `Toggle` is "Wi-Fi" plus checked, not "Wi-Fi on". Where a name includes state, bind it to coarse state ("Battery 80%"), not text that changes every second.
 - Password fields never report a name, by Qt design; the kit copies `accessibleName` into the description, and a field with a visible label can also set `Accessible.labelledBy`.
 - Keep controls out of the accessibility tree whenever they are concealed or otherwise unavailable to sighted users.
