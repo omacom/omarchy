@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 ঘ",
   "battery.durationHoursMinutes": "%1 ঘ %2 মি",
   "battery.durationMinutes": "%1 মি",
+  "battery.fullyCharged": "সম্পূর্ণ চার্জ",
   "battery.holdingAt": "%1-এ ধরে রাখা হয়েছে",
   "battery.lowBody": "ব্যাটারি %1% নেমে এসেছে",
   "battery.lowTitle": "চার্জ করার সময়!",

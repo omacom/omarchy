@@ -21,17 +21,18 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + F`                 | Go full screen              |
 | `Super + Alt + F`                 | Go full width              |
 | `Super + Ctrl + F`                 | Go full screen inside window              |
-| `Super + 1/2/3/4`         | Jump to specific workspace     |
-| `Super + Tab` | Jump to next workspace |
-| `Super + Shift + Tab` | Jump to previous workspace |
-| `Super + Ctrl + Tab` | Jump to former workspace |
-| `Super + Shift + 1/2/3/4` | Move window to workspace |
-| `Super + Shift + Alt + 1/2/3/4` | Move window to workspace without following |
+| `Super + 1/2/3/4`         | Jump to specific workspace on the focused monitor |
+| `Super + Tab` | Jump to next workspace on the focused monitor |
+| `Super + Shift + Tab` | Jump to previous workspace on the focused monitor |
+| `Super + Ctrl + Tab` | Jump to former workspace on the focused monitor |
+| `Super + Shift + 1/2/3/4` | Move window to workspace on the focused monitor |
+| `Super + Shift + Alt + 1/2/3/4` | Move window to workspace on the focused monitor without following |
 | `Super + S` / `Super + Grave` | Toggle scratchpad |
 | `Super + Alt + S` / `Super + Shift + Grave` | Move window to scratchpad |
-| `Super + Shift + Alt + Arrows` | Move workspaces to directional monitor |
-| `Super + Arrow`  | Move focus to window in direction of arrow              |
-| `Super + Shift + Arrow`  | Swap window with another in direction of arrow     |
+| `Super + Shift + Ctrl + Arrows` | Move window to the monitor in that direction |
+| `Super + Shift + Alt + Arrows` | Move workspace to the monitor in that direction |
+| `Super + Arrow`  | Move focus to window in direction of arrow, crossing to the monitor on that side at the screen's edge |
+| `Super + Shift + Arrow`  | Swap window with another in direction of arrow, including one on the monitor on that side |
 | `Super + Minus` | Expand window left |
 | `Super + Equal` | Shrink window left |
 | `Super + Shift + Minus` | Shrink window up |
@@ -42,13 +43,14 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Home` | Restore saved window width |
 | `Super + Left Mouse` | Drag window around |
 | `Super + Right Mouse` | Resize window |
-| `Super + Scroll Wheel` | Scroll through workspaces |
+| `Super + Scroll Wheel` | Scroll through workspaces on the focused monitor |
 | `Super + G`               | Toggle window grouping      |
 | `Super + Alt + G`               | Move window out of grouping      |
 | `Super + Alt + Tab`               | Cycle between windows in grouping      |
 | `Super + Alt + Shift + Tab`               | Cycle backward between windows in grouping      |
+| `Super + Alt + Scroll Wheel` | Cycle between windows in grouping |
 | `Super + Alt + 1/2/3/4/5`               | Jump to specific window in grouping      |
-| `Super + Alt + Arrow`  | Move window into grouping in direction of arrow  |
+| `Super + Alt + Arrow`  | Move window into grouping in direction of arrow, including one on the monitor on that side |
 | `Super + Ctrl + Left/Right`  | Move between windows inside a tiling group |
 | `Super + Ctrl + Z` | Zoom in on screen (repeat for more zoom) |
 | `Super + Ctrl + Alt + Z` | Zoom fully out from screen |
@@ -65,18 +67,16 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Audio panel    |
 | `Super + Ctrl + B`           | Bluetooth panel    |
-| `Super + Ctrl + W`           | Wifi/network panel    |
+| `Super + Ctrl + N`           | Wifi/network panel    |
 | `Super + Ctrl + D`           | Display panel    |
 | `Super + Ctrl + P`           | Power panel    |
 | `Super + Ctrl + Alt + D`           | Calendar panel    |
 | `Super + Ctrl + Alt + E`           | World clock panel    |
 | `Super + Ctrl + 1-9`           | Toggle bar panel by position    |
 | `Super + Ctrl + S` | Share menu (via LocalSend) |
-| `Super + Ctrl + T`           | Activity (btop)    |
 | `Super + Ctrl + C` | Capture controls (screenshot/-recording/picker) |
 | `Super + Ctrl + O` | Toggle menu |
 | `Super + Ctrl + H` | Hardware menu |
-| `Super + Ctrl + Q` | Calculator |
 | `Super + Ctrl + E` | Emoji picker |
 | `Super + Ctrl + .` | Transcode media |
 | `Super + Shift + Ctrl + A` | Pick an AI agent |
@@ -108,6 +108,8 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Shift + M`           | Music (Spotify)    |
 | `Super + Shift + Alt + M`           | Music (cliamp)    |
 | `Super + Shift + /`           | Password manager (1password)    |
+| `Super + Shift + Q`           | Calculator (Omacalc)    |
+| `Super + Shift + T`           | Activity (btop)    |
 | `Super + Shift + N`           | Editor (Neovim)  |
 | `Super + Shift + C`           | Calendar ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | Email ([HEY](https://hey.com/))  |
@@ -142,8 +144,9 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 
 | Hotkey              | Function                       |
 | ------------------- | ------------------------------ |
-| `Super + Ctrl + C` | Capture menu (for keyboards w/o PrintScr button) |
 | `Print Screen`            | Screenshot                      |
+| `Super + Ctrl + Alt + C`            | Screenshot (the same shot, for keyboards with no Print Screen key) |
+| `Super + Ctrl + C` | Capture menu |
 | `Alt + Print Screen`            | Screenrecord                     |
 | `Super + Print Screen` | Color picker |
 | `Super + Ctrl + Print Screen` | Text extraction to clipboard |
@@ -172,8 +175,8 @@ All capture options are also accessible under _Trigger > Capture_ in the Omarchy
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Shift + Space` | Pick a new theme  |
-| `Super + Ctrl + Space` | Pick theme background |
+| `Super + Ctrl + T` | Pick a new theme (also `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | Pick theme background (also `Super + Ctrl + Space`) |
 | `Super + Backspace` | Toggle transparency on a window |
 | `Super + Ctrl + Backspace` | Toggle single-window square aspect |
 
@@ -186,7 +189,6 @@ All style options are also accessible under _Style_ in the Omarchy menu (`Super 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + I` | Toggle locking on idle |
-| `Super + Ctrl + N` | Toggle nightlight display temperature |
 | `Super + Ctrl + Delete` | Toggle laptop display on/off |
 | `Super + Ctrl + Alt + Delete` | Toggle laptop display mirroring |
 | `Super + Shift + Space` | Toggle the top bar  |

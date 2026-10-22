@@ -7,8 +7,8 @@ hl.on("hyprland.start", function()
     hl.env("XCURSOR_THEME", omarchy_startup_cursor.xcursor)
   end
 
-  -- Slow app launch fix -- set systemd vars before starting session services.
-  hl.exec_cmd("systemctl --user import-environment $(env | cut -d'=' -f 1)")
+  -- Slow app launch fix -- set systemd and D-Bus activation vars before
+  -- starting session services.
   hl.exec_cmd("dbus-update-activation-environment --systemd --all")
 
   hl.exec_cmd("omarchy-launch-shell")

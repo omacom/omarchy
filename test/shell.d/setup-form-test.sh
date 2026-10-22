@@ -27,10 +27,12 @@ printf '%s\n' "${line#*:}"
 exit "${line%%:*}"
 EOF
 
-cat >"$tmp_dir/tzupdate" <<'EOF'
+# Answers like geo.omarchy.org, or fails like curl -f with no network.
+cat >"$tmp_dir/curl" <<'EOF'
 #!/bin/bash
-[[ -n ${TZ_GUESS:-} ]] || exit 1
-printf '%s\n' "$TZ_GUESS"
+printf '%s\n' "${@: -1}" >>"$GUM_DIR/curl-urls"
+[[ -n ${TZ_GUESS:-} ]] || exit 22
+printf '{"name":"","latitude":null,"longitude":null,"country":"","timezone":"%s"}\n' "$TZ_GUESS"
 EOF
 
 cat >"$tmp_dir/timedatectl" <<'EOF'
@@ -74,7 +76,7 @@ printf 'hostname=%s\n' "${hostname:-}"
 printf 'timezone=%s\n' "${timezone:-}"
 EOF
 
-chmod +x "$tmp_dir/gum" "$tmp_dir/tzupdate" "$tmp_dir/timedatectl" "$tmp_dir/driver"
+chmod +x "$tmp_dir/gum" "$tmp_dir/curl" "$tmp_dir/timedatectl" "$tmp_dir/driver"
 export PATH="$tmp_dir:$PATH"
 export GUM_DIR="$tmp_dir" GUM_SCRIPT="$tmp_dir/script" GUM_ARGS="$tmp_dir/args" GUM_COUNT="$tmp_dir/count"
 export NOTICES="$tmp_dir/notices" MARKER="$tmp_dir/marker"
@@ -82,6 +84,9 @@ export NOTICES="$tmp_dir/notices" MARKER="$tmp_dir/marker"
 status=0
 
 # run_prompt <function> <status:output>... — each response answers one gum screen
+# The machine's own form defaults never reach these tests.
+export OMARCHY_FORM_DEFAULTS="$tmp_dir/no-form-defaults"
+
 run_prompt() {
   local prompt=$1
   shift
@@ -134,6 +139,23 @@ assert_status 0 "keyboard prompt succeeds"
 [[ $(head -n 1 "$tmp_dir/stdin.1") == "English (US)" ]] || fail "keyboard prompt offers English (US) first"
 grep -qF -- '--selected English (US)' "$GUM_ARGS" || fail "keyboard prompt preselects English (US)"
 pass "keyboard prompt maps the chosen label to its keymap"
+
+OMARCHY_FORM_KEYBOARD_DEFAULT="Chinese (Simplified, Pinyin)" run_prompt omarchy_prompt_keyboard "0:Chinese (Simplified, Pinyin)"
+assert_status 0 "a preset keyboard prompt succeeds"
+grep -qF -- '--selected Chinese (Simplified\, Pinyin)' "$GUM_ARGS" || fail "install media can preset the keyboard choice" "$(cat "$GUM_ARGS")"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "English (US)" ]] || fail "a preset keeps the list in its usual order"
+[[ $(field keyboard_input_method) == "pinyin" ]] || fail "the preset choice carries its input method"
+pass "install media can preselect the keyboard, which stays a choice"
+
+printf 'KEYBOARD=Chinese (Simplified, Pinyin)\nTIMEZONE=Asia/Shanghai\nOTHER=$(touch %s/NEVER)\n' "$tmp_dir" >"$tmp_dir/form-defaults"
+OMARCHY_FORM_DEFAULTS="$tmp_dir/form-defaults" run_prompt omarchy_prompt_keyboard "0:Chinese (Simplified, Pinyin)"
+grep -qF -- '--selected Chinese (Simplified\, Pinyin)' "$GUM_ARGS" || fail "a first-boot owner setup takes the media's keyboard default" "$(cat "$GUM_ARGS")"
+OMARCHY_FORM_DEFAULTS="$tmp_dir/form-defaults" TZ_GUESS=Europe/Copenhagen run_prompt omarchy_prompt_timezone "0:Asia/Shanghai"
+grep -qF -- '--selected Asia/Shanghai' "$GUM_ARGS" || fail "a first-boot owner setup takes the media's timezone default" "$(cat "$GUM_ARGS")"
+[[ ! -e $tmp_dir/NEVER ]] || fail "form defaults are read as data"
+OMARCHY_FORM_DEFAULTS="$tmp_dir/form-defaults" OMARCHY_FORM_KEYBOARD_DEFAULT=Japanese run_prompt omarchy_prompt_keyboard "0:Japanese"
+grep -qF -- '--selected Japanese' "$GUM_ARGS" || fail "the live installer's environment wins over the file"
+pass "a first-boot owner setup reads the media's defaults as data"
 
 for selection in 'Japanese|jp106|mozc|' 'Japanese (US keyboard)|us|mozc|' 'Korean|us|hangul|kr:kr104' 'Lao|us|none|la' 'Chinese (Simplified, Pinyin)|us|pinyin|' 'Taiwan (Zhuyin)|us|chewing|' 'Hong Kong (Cangjie)|us|cangjie5|'; do
   IFS='|' read -r label keymap method layout <<< "$selection"
@@ -234,7 +256,8 @@ assert_status 0 "timezone prompt accepts the geo guess"
 [[ $(field timezone) == "Europe/Copenhagen" ]] || fail "timezone prompt keeps the chosen timezone"
 grep -qF -- '--selected Europe/Copenhagen' "$GUM_ARGS" || fail "timezone prompt preselects the geo guess"
 grep -qF UTC "$tmp_dir/stdin.1" || fail "timezone prompt offers the system timezone list"
-pass "timezone prompt preselects the geo guess when one is available"
+[[ $(sort -u "$tmp_dir/curl-urls") == "https://geo.omarchy.org/" ]] || fail "timezone prompt asks only geo.omarchy.org" "$(cat "$tmp_dir/curl-urls")"
+pass "timezone prompt preselects geo.omarchy.org's timezone when it answers"
 
 # An unnetworked first boot has no guess, and the fallback has to survive `set -e`
 run_prompt omarchy_prompt_timezone "0:America/Chicago"
@@ -242,6 +265,11 @@ assert_status 0 "timezone prompt survives a failed geo guess"
 [[ $(field timezone) == "America/Chicago" ]] || fail "timezone prompt keeps the filtered timezone"
 [[ $(head -n 1 "$GUM_ARGS") == filter* ]] || fail "timezone prompt filters when there is no geo guess"
 pass "timezone prompt falls back to filtering when the geo guess fails"
+
+OMARCHY_FORM_TIMEZONE_DEFAULT=Asia/Shanghai TZ_GUESS=Europe/Copenhagen run_prompt omarchy_prompt_timezone "0:Asia/Shanghai"
+assert_status 0 "a preset timezone prompt succeeds"
+grep -qF -- '--selected Asia/Shanghai' "$GUM_ARGS" || fail "install media can preset the timezone over the geo guess" "$(cat "$GUM_ARGS")"
+pass "install media can preselect the timezone, which stays a choice"
 
 run_prompt omarchy_prompt_timezone "0:"
 assert_status 0 "timezone prompt accepts an empty selection"

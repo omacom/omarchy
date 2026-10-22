@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",
+  "battery.fullyCharged": "Fulladdat",
   "battery.holdingAt": "Hålls vid %1",
   "battery.lowBody": "Batteriet är nere på %1%",
   "battery.lowTitle": "Dags att ladda!",

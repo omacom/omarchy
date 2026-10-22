@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",
+  "battery.fullyCharged": "Plne nabitá",
   "battery.holdingAt": "Držaná na %1",
   "battery.lowBody": "Batéria klesla na %1%",
   "battery.lowTitle": "Čas nabiť!",

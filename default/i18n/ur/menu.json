@@ -8,11 +8,11 @@
   "learn": {
     "label": "سیکھیں"
   },
+  "appearance": {
+    "label": "ظاہری شکل"
+  },
   "trigger": {
     "label": "ٹریگر"
-  },
-  "style": {
-    "label": "اسٹائل"
   },
   "setup": {
     "label": "سیٹ اپ"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "کمیونٹی"
   },
-  "trigger.appearance": {
-    "label": "ظاہری شکل"
+  "appearance.theme": {
+    "label": "تھیم"
   },
-  "trigger.appearance.animations": {
-    "label": "اینیمیشنز"
+  "appearance.background": {
+    "label": "پس منظر"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "فونٹ"
+  },
+  "appearance.top-bar": {
     "label": "مینیُو بار"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "بار چھپائیں"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "بار دکھائیں"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "بار کی جگہ"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "بار کا پس منظر"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "غیر شفاف بار"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "شیشہ نما بار"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "شفاف بار"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "بار اشارے"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "بیٹری فیصد"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "گھڑی"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "اتوار 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "اتوار 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "اتوار 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "اتوار 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "اتوار 3 مئی 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "اتوار 3 مئی 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 مئی W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 مئی W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "بالائی بار"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "نچلی بار"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "بائیں بار"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "دائیں بار"
   },
-  "trigger.appearance.dock": {
-    "label": "ڈاک"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "خودکار چھپتا Dock"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "ہمیشہ ظاہر Dock"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Dock کی جگہ"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "بالائی Dock"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "نچلا Dock"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "بایاں Dock"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "دایاں Dock"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "ونڈو فاصلے"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "ونڈو کونے"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "تھیم کونے"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "نوکدار کونے"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "گول کونے"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "ونڈو دھندلاہٹ"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "غیر شفاف ونڈوز"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "شفاف ونڈوز"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "شیشہ نما ونڈوز"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1-ونڈو تناسب"
+  "appearance.branding.screensaver": {
+    "label": "اسکرین سیور"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "بارے میں"
+  },
+  "appearance.branding.about.text": {
+    "label": "متن بدلیں"
+  },
+  "appearance.branding.about.image": {
+    "label": "تصویر سے لگائیں"
+  },
+  "appearance.branding.about.default": {
+    "label": "طے شدہ بحال کریں"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "متن بدلیں"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "تصویر سے لگائیں"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "طے شدہ بحال کریں"
+  },
+  "appearance.dock": {
+    "label": "ڈاک"
+  },
+  "appearance.dock.autohide": {
+    "label": "خودکار چھپتا Dock"
+  },
+  "appearance.dock.always-on": {
+    "label": "ہمیشہ ظاہر Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Dock کی جگہ"
+  },
+  "appearance.dock.position.top": {
+    "label": "بالائی Dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "نچلا Dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "بایاں Dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "دایاں Dock"
+  },
+  "appearance.workspace-layout": {
     "label": "ورک اسپیس لے آؤٹ",
     "title": "طے شدہ ورک اسپیس لے آؤٹ"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "ٹائلنگ"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "اسکرولنگ"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "تیرتا"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr تھیم سنک"
+  "appearance.unlock": {
+    "label": "کھولیں"
   },
   "trigger.toggle": {
     "label": "ٹوگل"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "جاگتے رہیں"
-  },
-  "trigger.toggle.notifications": {
-    "label": "اطلاعات"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "نائٹ لائٹ"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "اسکرین سیور"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "کریش کیپچر"
   },
   "trigger.emoji": {
     "label": "ایموجی"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "رفتار ٹیسٹ"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "لیپ ٹاپ ڈسپلے"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "ڈسپلے عکس"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "ہائبرڈ GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "ٹچ پیڈ"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "ٹچ پیڈ ہیپٹکس"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "زیادہ"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "ٹچ اسکرین"
   },
   "trigger.reminder.set": {
     "label": "ایک لگائیں"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "ڈسک رفتار ٹیسٹ"
-  },
-  "style.theme": {
-    "label": "تھیم"
-  },
-  "style.background": {
-    "label": "پس منظر"
-  },
-  "style.unlock": {
-    "label": "کھولیں"
-  },
-  "style.font": {
-    "label": "فونٹ"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "اسکرین سیور"
-  },
-  "style.about": {
-    "label": "بارے میں"
-  },
-  "style.about.text": {
-    "label": "متن بدلیں"
-  },
-  "style.about.image": {
-    "label": "تصویر سے لگائیں"
-  },
-  "style.about.default": {
-    "label": "طے شدہ بحال کریں"
-  },
-  "style.screensaver.text": {
-    "label": "متن بدلیں"
-  },
-  "style.screensaver.image": {
-    "label": "تصویر سے لگائیں"
-  },
-  "style.screensaver.default": {
-    "label": "طے شدہ بحال کریں"
   },
   "setup.monitors": {
     "label": "مانیٹرز"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1210,8 +1162,5 @@
   },
   "system.reboot-boot-menu": {
     "label": "بوٹ مینو میں ری بوٹ کریں"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
   }
 }

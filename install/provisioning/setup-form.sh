@@ -96,10 +96,25 @@ omarchy_username_taken() { return 1; }
 # by `status=$?`: one caller runs under `set -e`, where a cancelled prompt is a
 # failing assignment that would kill the script before the status is read.
 
+# Install media for one market can leave its keyboard and timezone choices for
+# a first-boot owner setup: plain KEY=value lines, read as data. The live
+# installer sets the same defaults in its environment instead.
+omarchy_form_defaults=${OMARCHY_FORM_DEFAULTS:-/etc/omarchy/form-defaults}
+if [[ -r $omarchy_form_defaults ]]; then
+  while IFS='=' read -r omarchy_form_key omarchy_form_value; do
+    case "$omarchy_form_key" in
+      KEYBOARD) : "${OMARCHY_FORM_KEYBOARD_DEFAULT:=$omarchy_form_value}" ;;
+      TIMEZONE) : "${OMARCHY_FORM_TIMEZONE_DEFAULT:=$omarchy_form_value}" ;;
+    esac
+  done <"$omarchy_form_defaults"
+  unset omarchy_form_key omarchy_form_value
+fi
+
 omarchy_prompt_keyboard() {
-  local choice status
+  local choice status default=${OMARCHY_FORM_KEYBOARD_DEFAULT:-English (US)}
+  # gum splits --selected on commas, so "Chinese (Simplified, Pinyin)" needs them escaped.
   choice=$(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | cut -d'|' -f1 |
-    gum choose --height 10 --selected "English (US)" --header "Select keyboard layout") && status=0 || status=$?
+    gum choose --height 10 --selected "${default//,/\\,}" --header "Select keyboard layout") && status=0 || status=$?
   ((status == 0)) || return $status
 
   local selection
@@ -189,7 +204,10 @@ omarchy_prompt_hostname() {
 # often; guard it or a `set -e` caller dies before the filter fallback.
 omarchy_prompt_timezone() {
   local guess status
-  guess=$(tzupdate -p 2>/dev/null) || guess=""
+  # A preset install media names its timezone; otherwise ask geo.omarchy.org,
+  # Omarchy's own lookup of where this network is.
+  guess=${OMARCHY_FORM_TIMEZONE_DEFAULT:-}
+  [[ -n $guess ]] || guess=$(curl -fsS --max-time 5 https://geo.omarchy.org/ 2>/dev/null | jq -r '.timezone // empty' 2>/dev/null) || guess=""
 
   if [[ -n $guess ]]; then
     timezone=$(timedatectl list-timezones | gum choose --height 10 --selected "$guess" --header "Timezone") && status=0 || status=$?

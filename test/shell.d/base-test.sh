@@ -16,6 +16,12 @@ export ROOT
 # this at a file of their own.
 export OMARCHY_LANGUAGE_FILE=$ROOT/test/.no-language
 
+# Tests point HOME at a scratch directory, but a desktop session also exports
+# the XDG base directories, which would keep pointing at the real home: a
+# migration under test would then edit or delete the user's own files. Unset,
+# they follow HOME. A test that wants one sets it itself.
+unset XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME
+
 pass() {
   printf 'ok - %s\n' "$1"
 }
@@ -92,6 +98,21 @@ require_compositor() {
   fi
 
   skip "no Wayland compositor; skipping $description"
+  exit 0
+}
+
+# For tests that read the background layer's pixels off the first output: any
+# window on its workspace covers them, so in a working session the test would
+# read the window instead. Run them on an empty workspace.
+require_uncovered_background() {
+  local description="$1" workspace
+
+  workspace=$(hyprctl -j monitors | jq '.[0].activeWorkspace.id')
+  if (( $(hyprctl -j clients | jq --argjson ws "$workspace" '[.[] | select(.workspace.id == $ws)] | length') == 0 )); then
+    return 0
+  fi
+
+  skip "windows cover the background on the first output; skipping $description"
   exit 0
 }
 

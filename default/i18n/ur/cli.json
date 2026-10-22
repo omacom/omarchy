@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 گھ",
   "battery.durationHoursMinutes": "%1 گھ %2 م",
   "battery.durationMinutes": "%1 م",
+  "battery.fullyCharged": "مکمل چارج",
   "battery.holdingAt": "%1 پر برقرار",
   "battery.lowBody": "بیٹری %1% رہ گئی ہے",
   "battery.lowTitle": "چارج کرنے کا وقت ہے!",

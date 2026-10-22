@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 soat",
   "battery.durationHoursMinutes": "%1 soat %2 daq",
   "battery.durationMinutes": "%1 daq",
+  "battery.fullyCharged": "Toʻliq quvvatlangan",
   "battery.holdingAt": "%1 da ushlab turilmoqda",
   "battery.lowBody": "Batareya %1% ga tushdi",
   "battery.lowTitle": "Quvvatlash vaqti keldi!",

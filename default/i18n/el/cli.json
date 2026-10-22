@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 ώ",
   "battery.durationHoursMinutes": "%1 ώ %2 λ",
   "battery.durationMinutes": "%1 λ",
+  "battery.fullyCharged": "Πλήρως φορτισμένη",
   "battery.holdingAt": "Διατήρηση στο %1",
   "battery.lowBody": "Η μπαταρία έπεσε στο %1%",
   "battery.lowTitle": "Ώρα για φόρτιση!",

@@ -8,11 +8,11 @@
   "learn": {
     "label": "ඉගෙන ගන්න"
   },
+  "appearance": {
+    "label": "පෙනුම"
+  },
   "trigger": {
     "label": "ක්‍රියාත්මක"
-  },
-  "style": {
-    "label": "විලාසය"
   },
   "setup": {
     "label": "සැකසුම"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "ප්‍රජාව"
   },
-  "trigger.appearance": {
-    "label": "පෙනුම"
+  "appearance.theme": {
+    "label": "තේමාව"
   },
-  "trigger.appearance.animations": {
-    "label": "සජීවිකරණ"
+  "appearance.background": {
+    "label": "පසුබිම"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "ෆොන්ටය"
+  },
+  "appearance.top-bar": {
     "label": "මෙනු තීරුව"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "තීරුව සඟවන්න"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "තීරුව පෙන්වන්න"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "තීරු පිහිටුම"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "තීරු පසුබිම"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "අපාරදෘශ්‍ය තීරුව"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "වීදුරු තීරුව"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "පැහැදිලි තීරුව"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "තීරු දර්ශක"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "බැටරි ප්‍රතිශතය"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "ඔරලෝසුව"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "ඉරිදා 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "ඉරිදා 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "ඉරිදා 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "ඉරිදා 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "ඉරි 3 මැයි 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "ඉරි 3 මැයි 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 මැයි W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 මැයි W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "ඉහළ තීරුව"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "පහළ තීරුව"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "වම් තීරුව"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "දකුණු තීරුව"
   },
-  "trigger.appearance.dock": {
-    "label": "ඩොක්"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Dock ස්වයං-සඟවන්න"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "සැමවිට පෙනෙන Dock"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Dock පිහිටුම"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "ඉහළ Dock"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "පහළ Dock"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "වම් Dock"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "දකුණු Dock"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "කවුළු හිඩැස්"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "කවුළු කොන්"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "තේමා කොන්"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "තියුණු කොන්"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "වටකුරු කොන්"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "කවුළු අපාරදෘශ්‍යතාව"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "අපාරදෘශ්‍ය කවුළු"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "පාරදෘශ්‍ය කවුළු"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "වීදුරු කවුළු"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "කවුළු 1 අනුපාතය"
+  "appearance.branding.screensaver": {
+    "label": "තිර ආරක්ෂකය"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "ගැන"
+  },
+  "appearance.branding.about.text": {
+    "label": "පෙළ සංස්කරණය"
+  },
+  "appearance.branding.about.image": {
+    "label": "රූපයෙන් සකසන්න"
+  },
+  "appearance.branding.about.default": {
+    "label": "පෙරනිමිය යළි පිහිටුවන්න"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "පෙළ සංස්කරණය"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "රූපයෙන් සකසන්න"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "පෙරනිමිය යළි පිහිටුවන්න"
+  },
+  "appearance.dock": {
+    "label": "ඩොක්"
+  },
+  "appearance.dock.autohide": {
+    "label": "Dock ස්වයං-සඟවන්න"
+  },
+  "appearance.dock.always-on": {
+    "label": "සැමවිට පෙනෙන Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Dock පිහිටුම"
+  },
+  "appearance.dock.position.top": {
+    "label": "ඉහළ Dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "පහළ Dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "වම් Dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "දකුණු Dock"
+  },
+  "appearance.workspace-layout": {
     "label": "වැඩබිම් සැකැස්ම",
     "title": "පෙරනිමි වැඩබිම් සැකැස්ම"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "ටයිල් කිරීම"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "අනුචලනය"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "පාවෙන"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr තේමා සමමුහුර්තය"
+  "appearance.unlock": {
+    "label": "අගුලු හරින්න"
   },
   "trigger.toggle": {
     "label": "සක්‍රිය/අක්‍රිය"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "අවදියෙන් සිටින්න"
-  },
-  "trigger.toggle.notifications": {
-    "label": "දැනුම්දීම්"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "රාත්‍රී ආලෝකය"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "තිර ආරක්ෂකය"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "බිඳවැටීම් ග්‍රහණය"
   },
   "trigger.emoji": {
     "label": "ඉමෝජි"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "වේග පරීක්ෂණය"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "ලැප්ටොප් සංදර්ශකය"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "සංදර්ශකය දර්පණය කරන්න"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "දෙමුහුන් GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "ටච්පෑඩය"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "ටච්පෑඩ් හැප්ටික්ස්"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "වැඩි"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "ස්පර්ශ තිරය"
   },
   "trigger.reminder.set": {
     "label": "එකක් සකසන්න"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "තැටි වේග පරීක්ෂණය"
-  },
-  "style.theme": {
-    "label": "තේමාව"
-  },
-  "style.background": {
-    "label": "පසුබිම"
-  },
-  "style.unlock": {
-    "label": "අගුලු හරින්න"
-  },
-  "style.font": {
-    "label": "ෆොන්ටය"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "තිර ආරක්ෂකය"
-  },
-  "style.about": {
-    "label": "ගැන"
-  },
-  "style.about.text": {
-    "label": "පෙළ සංස්කරණය"
-  },
-  "style.about.image": {
-    "label": "රූපයෙන් සකසන්න"
-  },
-  "style.about.default": {
-    "label": "පෙරනිමිය යළි පිහිටුවන්න"
-  },
-  "style.screensaver.text": {
-    "label": "පෙළ සංස්කරණය"
-  },
-  "style.screensaver.image": {
-    "label": "රූපයෙන් සකසන්න"
-  },
-  "style.screensaver.default": {
-    "label": "පෙරනිමිය යළි පිහිටුවන්න"
   },
   "setup.monitors": {
     "label": "මොනිටර"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1210,8 +1162,5 @@
   },
   "system.reboot-boot-menu": {
     "label": "බූට් මෙනුවට නැවත ආරම්භ කරන්න"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
   }
 }

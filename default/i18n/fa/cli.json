@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 ساعت",
   "battery.durationHoursMinutes": "%1 ساعت و %2 دقیقه",
   "battery.durationMinutes": "%1 دقیقه",
+  "battery.fullyCharged": "کاملاً شارژ شده",
   "battery.holdingAt": "نگه‌داشته در %1",
   "battery.lowBody": "باتری به %1% رسیده است",
   "battery.lowTitle": "وقت شارژ رسیده!",

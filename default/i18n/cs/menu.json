@@ -8,11 +8,11 @@
   "learn": {
     "label": "Návody"
   },
+  "appearance": {
+    "label": "Vzhled"
+  },
   "trigger": {
     "label": "Akce"
-  },
-  "style": {
-    "label": "Styl"
   },
   "setup": {
     "label": "Nastavení"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Komunita"
   },
-  "trigger.appearance": {
-    "label": "Vzhled"
+  "appearance.theme": {
+    "label": "Motiv"
   },
-  "trigger.appearance.animations": {
-    "label": "Animace"
+  "appearance.background": {
+    "label": "Pozadí"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Písmo"
+  },
+  "appearance.top-bar": {
     "label": "Panel"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Skrýt panel"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Zobrazit panel"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Poloha panelu"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Pozadí panelu"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Neprůhledný panel"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Skleněný panel"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Průhledný panel"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Ukazatele panelu"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Procenta baterie"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Hodiny"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Neděle 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Neděle 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Neděle 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Neděle 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Ne 3 května 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Ne 3 května 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 května T18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 května T18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Panel nahoře"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Panel dole"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Panel vlevo"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Panel vpravo"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Automaticky skrýt Dock"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Vždy viditelný Dock"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Poloha Docku"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Dock nahoře"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Dock dole"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Dock vlevo"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Dock vpravo"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Mezery oken"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Rohy oken"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Rohy podle motivu"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Ostré rohy"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Zaoblené rohy"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Průhlednost oken"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Neprůhledná okna"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Průhledná okna"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Skleněná okna"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "Poměr pro 1 okno"
+  "appearance.branding.screensaver": {
+    "label": "Spořič obrazovky"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "O aplikaci"
+  },
+  "appearance.branding.about.text": {
+    "label": "Upravit text"
+  },
+  "appearance.branding.about.image": {
+    "label": "Nastavit z obrázku"
+  },
+  "appearance.branding.about.default": {
+    "label": "Obnovit výchozí"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Upravit text"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Nastavit z obrázku"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Obnovit výchozí"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Automaticky skrýt Dock"
+  },
+  "appearance.dock.always-on": {
+    "label": "Vždy viditelný Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Poloha Docku"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock nahoře"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock dole"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock vlevo"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock vpravo"
+  },
+  "appearance.workspace-layout": {
     "label": "Rozložení plochy",
     "title": "Výchozí rozložení plochy"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Dlaždice"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Posouvání"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Plovoucí"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Synchronizace motivu Herdr"
+  "appearance.unlock": {
+    "label": "Odemknout"
   },
   "trigger.toggle": {
     "label": "Přepnout"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Neusínat"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Oznámení"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Noční světlo"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Spořič obrazovky"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Záznam pádů"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Test rychlosti"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Displej notebooku"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Zrcadlit displej"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Hybridní GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Touchpad"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Haptika touchpadu"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "vysoká"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Dotykový displej"
   },
   "trigger.reminder.set": {
     "label": "Nastavit"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Test rychlosti disku"
-  },
-  "style.theme": {
-    "label": "Motiv"
-  },
-  "style.background": {
-    "label": "Pozadí"
-  },
-  "style.unlock": {
-    "label": "Odemknout"
-  },
-  "style.font": {
-    "label": "Písmo"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Spořič obrazovky"
-  },
-  "style.about": {
-    "label": "O aplikaci"
-  },
-  "style.about.text": {
-    "label": "Upravit text"
-  },
-  "style.about.image": {
-    "label": "Nastavit z obrázku"
-  },
-  "style.about.default": {
-    "label": "Obnovit výchozí"
-  },
-  "style.screensaver.text": {
-    "label": "Upravit text"
-  },
-  "style.screensaver.image": {
-    "label": "Nastavit z obrázku"
-  },
-  "style.screensaver.default": {
-    "label": "Obnovit výchozí"
   },
   "setup.monitors": {
     "label": "Monitory"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1210,8 +1162,5 @@
   },
   "system.reboot-boot-menu": {
     "label": "Restartovat do spouštěcí nabídky"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
   }
 }
