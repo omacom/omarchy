@@ -19,6 +19,14 @@ function kernelPercentage(raw) {
   return isNaN(level) ? -1 : Math.max(0, Math.min(100, level))
 }
 
+// What a finished status-script run leaves. A run that printed nothing found no
+// battery for a moment (around AC plug events) and is no answer: the last
+// level stands and the script runs again on UPower's next change.
+function kernelReading(raw, lastLevel) {
+  if (String(raw || "").trim() === "") return { level: lastLevel, retry: true }
+  return { level: kernelPercentage(raw), retry: false }
+}
+
 // Whether UPower's figures have moved enough since the status script last
 // ran to be worth running it again. A latch takes energy-full at least twice
 // as far, in either direction, while a sound pack's full charge only drifts
@@ -74,6 +82,7 @@ function profileAfterRead(current, replyText, signalsAtStart, signalsNow) {
 if (typeof module !== "undefined") {
   module.exports = {
     kernelPercentage: kernelPercentage,
+    kernelReading: kernelReading,
     shouldRereadKernel: shouldRereadKernel,
     batteryPercentage: batteryPercentage,
     isDischarging: isDischarging,

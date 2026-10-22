@@ -57,6 +57,14 @@ assert(battery.shouldRereadKernel(484.5, 54.3, 0.106, 0.99, true), 'battery read
 assert(battery.shouldRereadKernel(484.5, 484.5, 0.106, 0.1071, true), 'battery follows the charge while a latch holds')
 assert(!battery.shouldRereadKernel(484.5, 484.5, 0.106, 0.1065, true), 'battery lets a latched percentage move a tenth of a point first')
 
+// A run that prints nothing while latched (around an AC plug event) keeps the
+// kernel percentage and reads again on UPower's next move, rather than settling
+// on the latched figure until the shell restarts.
+assertDeepEqual(battery.kernelReading('', 99), { level: 99, retry: true }, 'battery keeps the kernel percentage through an empty run')
+assert(battery.shouldRereadKernel(-1, 484.5, 0.106, 0.1061, false), 'battery reads again after an empty run')
+assertDeepEqual(battery.kernelReading(latched, -1), { level: 99, retry: false }, 'battery settles on a run that answered')
+assertDeepEqual(battery.kernelReading(sound, 99), { level: -1, retry: false }, 'battery hands back to UPower once the latch clears')
+
 const reply = profile => JSON.stringify({ type: 's', data: profile })
 assertEqual(battery.parseActiveProfile(reply('power-saver')), 'power-saver', 'battery parses the busctl profile reply')
 assertEqual(battery.parseActiveProfile(''), '', 'battery reads a missing daemon as no profile')
