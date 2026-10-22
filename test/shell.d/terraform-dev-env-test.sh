@@ -20,13 +20,15 @@ cp -a "$test_home" "$test_tmp/expected"
 cat >"$stub_bin/mise" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >>"$TEST_MISE_LOG"
+exit "${TEST_MISE_STATUS:-0}"
 STUB
 chmod +x "$stub_bin/mise"
 
 run_dev_env() {
   local command=$1 home=$2
+  shift 2
   env -i HOME="$home" PATH="$stub_bin:/usr/bin:/bin" OMARCHY_PATH="$ROOT" \
-    TEST_MISE_LOG="$test_tmp/mise.log" \
+    TEST_MISE_LOG="$test_tmp/mise.log" "$@" \
     /bin/bash "$ROOT/bin/omarchy-$command-dev-env" terraform >"$test_tmp/output"
 }
 
@@ -72,6 +74,56 @@ run_dev_env install "$install_home"
 [[ $(<"$install_home/.terraformrc") == "$custom_rc" ]] ||
   fail "Terraform install keeps an existing cache setting"
 pass "Terraform install keeps an existing cache setting"
+
+for config_var in TF_CLI_CONFIG_FILE TERRAFORM_CONFIG; do
+  override_home="$test_tmp/$config_var home"
+  config_file="$override_home/custom.tfrc"
+  mkdir -p "$override_home"
+  printf '# default config\n' >"$override_home/.terraformrc"
+  printf '# custom config\n' >"$config_file"
+  config_env=("$config_var=$config_file")
+  if [[ $config_var == "TF_CLI_CONFIG_FILE" ]]; then
+    config_env+=("TERRAFORM_CONFIG=$override_home/unused.tfrc")
+  fi
+  run_dev_env install "$override_home" "${config_env[@]}"
+  printf '# custom config\nplugin_cache_dir = "%s"\n' "$override_home/.terraform.d/plugin-cache" >"$test_tmp/expected-terraformrc"
+  cmp -s "$test_tmp/expected-terraformrc" "$config_file" ||
+    fail "Terraform install configures the active $config_var file"
+  [[ $(<"$override_home/.terraformrc") == "# default config" && ! -e $override_home/unused.tfrc ]] ||
+    fail "Terraform install leaves inactive config files alone with $config_var"
+  pass "Terraform install configures the active $config_var file"
+
+  printf '%s\n' "$custom_rc" >"$config_file"
+  run_dev_env install "$override_home" "${config_env[@]}"
+  [[ $(<"$config_file") == "$custom_rc" ]] ||
+    fail "Terraform install preserves an existing cache in the $config_var file"
+  pass "Terraform install preserves an existing cache in the $config_var file"
+done
+
+failed_home="$test_tmp/failed install"
+mkdir -p "$failed_home"
+printf 'disable_checkpoint = true\n' >"$failed_home/.terraformrc"
+cp "$failed_home/.terraformrc" "$test_tmp/before-failure"
+if run_dev_env install "$failed_home" TEST_MISE_STATUS=42; then
+  fail "Terraform install reports a mise installation failure"
+fi
+cmp -s "$test_tmp/before-failure" "$failed_home/.terraformrc" && [[ ! -e $failed_home/.terraform.d ]] ||
+  fail "a failed Terraform installation leaves the cache and config alone"
+pass "a failed Terraform installation leaves the cache and config alone"
+
+for obstruction in cache config; do
+  failed_home="$test_tmp/failed $obstruction"
+  mkdir -p "$failed_home"
+  if [[ $obstruction == "cache" ]]; then
+    touch "$failed_home/.terraform.d"
+  else
+    mkdir "$failed_home/.terraformrc"
+  fi
+  if run_dev_env install "$failed_home"; then
+    fail "Terraform install reports a $obstruction setup failure"
+  fi
+  pass "Terraform install reports a $obstruction setup failure"
+done
 
 # Remove
 

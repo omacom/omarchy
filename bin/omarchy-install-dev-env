@@ -129,13 +129,14 @@ scala)
   mise use --global scala-cli@latest
   ;;
 terraform)
+  set -e
   echo -e "Installing Terraform...\n"
   mise use --global terraform@latest
 
   # One provider cache shared across projects, instead of a fresh download per init
   plugin_cache_dir="$HOME/.terraform.d/plugin-cache"
   mkdir -p "$plugin_cache_dir"
-  terraformrc="$HOME/.terraformrc"
+  terraformrc=${TF_CLI_CONFIG_FILE:-${TERRAFORM_CONFIG:-$HOME/.terraformrc}}
   if ! grep -Eqs '^[[:space:]]*plugin_cache_dir[[:space:]]*=' "$terraformrc"; then
     # Start on a fresh line so the setting can't run into an unterminated last line
     if [[ -s $terraformrc && -n $(tail -c 1 "$terraformrc") ]]; then
