@@ -12,6 +12,14 @@ package="$test_dir/package"
 transparency="plugin/after/transparency.lua"
 lualine="lua/plugins/lualine-transparent.lua"
 
+mock_bin="$test_dir/bin"
+mkdir -p "$mock_bin"
+cat >"$mock_bin/omarchy-pkg-present" <<'SH'
+#!/bin/bash
+[[ $OMARCHY_TEST_NVIM_INSTALLED == 1 ]]
+SH
+chmod +x "$mock_bin/omarchy-pkg-present"
+
 mkdir -p "$package/plugin/after" "$package/lua/plugins"
 printf -- '-- new transparency\n' >"$package/$transparency"
 printf -- '-- lualine\n' >"$package/$lualine"
@@ -25,7 +33,8 @@ sed -e "s@/usr/share/omarchy-nvim/config@$package@" \
   "$ROOT/migrations/1791723398.sh" >"$test_dir/migration.sh"
 
 run_migration() {
-  HOME="$test_dir" bash -euo pipefail "$test_dir/migration.sh" >/dev/null 2>&1
+  HOME="$test_dir" PATH="$mock_bin:$PATH" OMARCHY_TEST_NVIM_INSTALLED="${1:-1}" \
+    bash -euo pipefail "$test_dir/migration.sh" >/dev/null 2>&1
 }
 
 reset_config() {
@@ -82,3 +91,13 @@ rm -rf "$config"
 run_migration
 [[ ! -e $config ]] || fail "a missing Neovim config is not created"
 pass "a missing Neovim config is not created"
+
+# A custom config without omarchy-nvim is the user's own, so the migration
+# neither needs the package's files nor touches the config.
+reset_config
+printf -- '-- mine\n' >"$config/$transparency"
+cp -a "$config" "$test_dir/custom-config"
+rm -rf "$package"
+run_migration 0 || fail "a config without omarchy-nvim does not block the migration"
+diff -r "$test_dir/custom-config" "$config" >/dev/null || fail "a config without omarchy-nvim is left alone"
+pass "a config without omarchy-nvim is left alone"

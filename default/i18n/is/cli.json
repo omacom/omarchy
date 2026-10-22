@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 klst",
   "battery.durationHoursMinutes": "%1 klst %2 mín",
   "battery.durationMinutes": "%1 mín",
+  "battery.fullyCharged": "Fullhlaðin",
   "battery.holdingAt": "Haldið í %1",
   "battery.lowBody": "Rafhlaðan er komin í %1%",
   "battery.lowTitle": "Tími til að hlaða!",

@@ -2,7 +2,7 @@
 
 A world clock for the Omarchy shell: a globe in the bar that opens a panel of clocks, one row per city, with a spinnable globe behind it. It lives in `shell/plugins/panels/elsewhen/` under the plugin id `omarchy.elsewhen`, and file names below are relative to that directory. Its checks live in `test/shell.d/elsewhen/` and run as part of `./test/shell` through `test/shell.d/elsewhen-test.sh`.
 
-Everything it needs is already on an Omarchy install: `date` and `timedatectl` for zone offsets, and `curl` for weather. Weather is the only thing that touches the network: [Open-Meteo](https://open-meteo.com) geocoding and forecasts, without an API key. The globe's coastlines are [Natural Earth](https://www.naturalearthdata.com) 110m (public domain), shipped as `world.json`. Settings live inline on the widget's `shell.json` entry; see [Settings](#settings).
+Everything it needs is already on an Omarchy install: `date` and `timedatectl` for zone offsets, `curl` for weather and places, and `jq` for reading GitHub profiles. The network is touched for three things only: [Open-Meteo](https://open-meteo.com) geocoding and forecasts, without an API key, and the public GitHub profile of anyone added to a city by handle. The globe's coastlines are [Natural Earth](https://www.naturalearthdata.com) 110m (public domain), shipped as `world.json`. Settings live inline on the widget's `shell.json` entry; see [Settings](#settings).
 
 ## Why it shells out to `date`
 
@@ -21,6 +21,8 @@ Three things make it feel solid:
 **The drop is animated.** On release the row glides the remaining distance into its slot and the reorder commits when it arrives, rather than the row vanishing from under the pointer. Rows making room ease aside too - but the dragged row itself is excluded from that easing, or it lags the cursor.
 
 The list itself is **not** touched while the pointer moves - rows are displaced with a `Translate` transform, which is purely visual and leaves the Column's layout alone. Reordering the model mid-drag would replace the array the Repeater is built from, rebuild every delegate, and drop the gesture half-way through.
+
+Rows are not all one height - a city with people in it carries an extra line - so the gesture measures each row it passes by that row's own height, taken from the rows themselves when the grab starts. The rows stepping aside still move by the dragged row's height, which is the space it leaves.
 
 The grab area stops above the daylight strip, so vertical reordering never competes with the strip's horizontal scrub, and it is declared before the remove button so that keeps its taps. A few pixels of slack are required before a drag arms, so a click is never a reorder.
 
@@ -44,7 +46,23 @@ The search is driven from the keyboard: type, walk the results with the up and d
 
 Both lists name the zone and say where it is: `Asia/Kathmandu  UTC+5:45`. The name alone does not settle it - half a dozen entries share `America/Los_Angeles`, and `Asia/Kolkata` tells you nothing about India being half an hour off the hour until it says `UTC+5:30`. The offset is absolute rather than relative to you, unlike the `+9h` on a tracked row: a city you have not added yet has no relationship to you yet.
 
-Search results are not covered by the probe that feeds the rows - that one only knows the cities you track - so the offsets come from a second `date` call over whatever the list is currently showing, at most six zones, coalesced while one is in flight. The answers are merged into what is already known rather than replacing it, so the column does not blank on every keystroke.
+Search results are not covered by the probe that feeds the rows - that one only knows the cities you track - so the offsets come from a second `date` call over whatever the list is currently showing, coalesced while one is in flight. The answers are merged into what is already known rather than replacing it, so the column does not blank on every keystroke. Its command is set when it starts rather than bound to the list: the probe is started from the list's own change handler, which can run before a binding on that same list has caught up, and then it probes the list before last.
+
+### Searching places, not just zones
+
+The zone list only knows the tz database's representative cities, and most towns are not one. Someone in Fort Lauderdale could pick New York or Miami, and either way the row geocoded and fetched the weather for somewhere they are not.
+
+So the search also asks the geocoder. Open-Meteo's geocoding answers with each place's name, region, coordinates and - the part that makes this work - the IANA zone it keeps, which is everything a row needs. It is the same keyless service the weather already uses, so nothing new is trusted.
+
+The zone matches come first and are there on the first keystroke; the places join underneath once three letters have been typed and the typing has paused for 300 ms. One lookup runs at a time and the latest query wins, and every answer is kept for the session, so backspacing never asks twice. A failed lookup is kept as no places, so the list stops saying it is searching.
+
+Keeping the offline matches first means the old keyboard flow is untouched: three letters and Return pick what they always did. A city both lists know is shown once, and the offline entry takes the geocoder's region and coordinates, so "Portland" reads `Portland  Oregon, US` and adding it never geocodes again. A place's row shows its region in place of the zone name - "Florida, US" says where it is better than `America/New_York` does, and the offset beside it still says what time it keeps.
+
+A place added from the search brings its coordinates with it, and a row with coordinates is never geocoded by name. That stops a city's weather depending on the geocoder guessing right a second time, and it is what lets two Springfields be told apart: Springfield, Illinois and Springfield, Missouri both keep Central time, are listed separately, and the second one added is named `Springfield (Missouri)`, since a row is known by its name and zone. A place already on the list is left out of the results, recognised by where it is.
+
+A weather reading remembers the point it was taken for, so a city whose coordinates move - a better pick for here, say - gets fresh weather rather than its old spot's for the rest of twenty minutes.
+
+The geocoder's answer is network input and is read as such: only a real list, and no more entries than were asked for, so a malformed answer cannot hold the shell's UI thread in a loop. The globe's jump box searches places too, and a session city found that way flies to the exact spot. The globe holds one city per name, so a jump is matched by where the town is: Springfield, Missouri after Springfield, Illinois goes to Missouri, joining as `Springfield (Missouri)`, and the globe sets off for the picked coordinates without waiting for it to land.
 
 The globe's own **jump box** works the same way - arrows, Return, Escape, selection on the first match, wrapping over five results. Its results grow upward out of the field rather than down from it, but the first match is still at the top of them, so Down moves down the screen and down the list at once.
 
@@ -63,6 +81,24 @@ Scrolling is the wheel only. The rows own the pointer - drag-to-reorder and the 
 The tz database ships one representative city per zone, so most places people actually search for are missing — there is no `Miami`, only `America/New_York`. `CITY_ALIASES` in `Model.js` adds extra search entries pointing at the zone that governs them. Adding a city is a one-line change; the only rule is that the zone must be the one that place actually observes, DST rules included.
 
 Two cities may share a zone (Miami and Boca Raton are both `America/New_York`), so a row is identified by its label and zone together, and removal is by position.
+
+The aliases are the offline floor - they work with no network and on the first keystroke - but they no longer need to grow, since the place search finds the rest.
+
+## The stored list
+
+The list is `cities` on the widget's `shell.json` entry, one object per row:
+
+```json
+"cities": [
+  { "name": "Fort Lauderdale", "zone": "America/New_York", "lat": 26.12231, "lon": -80.14338, "region": "Florida, US" },
+  { "name": "Cincinnati", "zone": "America/New_York", "people": ["Ann", "@octocat"] },
+  { "name": "Tokyo", "zone": "Asia/Tokyo" }
+]
+```
+
+`lat` and `lon` come as a pair or not at all, and only a city found by the place search has them; the rest are geocoded by name as before. `people` is optional.
+
+It replaced a `zones` string, `"Label|Zone, Label|Zone"`, which had no room for coordinates (a comma was its separator) or for people. There is no migration: a config with no `cities` is read from `zones`, and the first change writes `cities` and removes `zones`. A config nobody touches keeps working as it was.
 
 ## The daylight strip
 
@@ -292,7 +328,7 @@ A marker shows the city you are in, in the accent color. It carries a dark edge:
 
 **Clicking a city row turns the globe to it** and marks it - so a tap on Tokyo swings the globe round and drops the marker on Japan. It takes the shortest way round rather than always turning forward: Los Angeles to Tokyo is 102 degrees west, not 258 east.
 
-While the globe is showing somewhere else, clicking the header line brings it home. The whole line is the target, not just the name, and it is only live while the globe is away, so it is never a dead click target. Reopening the panel also returns it home.
+While the globe is showing somewhere else, clicking the header line brings it home. The whole line is the target, not just the name. Once it is home, the same click asks where here is - see [Where "here" is](#where-here-is) - so the line is never a dead click target. In globe mode it is only live while the globe is away. Reopening the panel also returns it home.
 
 The opening spin **lands on home** - the animation runs from `homeLon - 1080` to `homeLon`, three whole turns that finish with your own meridian facing you. At rest a `Binding` holds the globe there, standing down while the animation is writing the property. Until the weather script has geocoded your city the marker is hidden and it rests on Greenwich.
 
@@ -302,7 +338,35 @@ The opening spin **lands on home** - the animation runs from `homeLon - 1080` to
 
 The header reads "It's 10:28 AM here in Los Angeles." rather than a bare "here", which names your own city without spending a row on it. The zone comes from the same `date` probe the rows use - one extra `LOCAL|<zone>` line, from `timedatectl` - so it costs no additional process and follows a time-zone change on the next refresh.
 
-The city name is the zone's last segment, and the tz database names zones after a *representative* city: someone in Boca Raton would read "here in New York". Tap your city on the globe to fix that: a city on this machine's zone becomes `homeCity`, and the header and home pin follow it. Tapping the zone's own city clears the choice, and a city on another zone leaves it alone, since the time beside the name is still this machine's.
+The city name starts as the zone's last segment, and the tz database names zones after a *representative* city: someone in Fort Lauderdale reads "here in New York", gets New York's weather on the first row, and a home pin a thousand miles north.
+
+**Click the header line to say where you are.** It opens a search titled "Where are you?" over every place the city search knows - the zone cities, the aliases, and whatever the geocoder finds. While the list's focus is on another city the first click brings it home, as it always did, and the next one asks. `w` opens the same search from the keyboard.
+
+Picking a place on this machine's own zone moves everything that meant here together. It is stored as `here`, with its coordinates; the header names it; the globe's home pin and the opening spin land on it; and **the row that stood for the old here is renamed in place**, keeping its position, its people, and gaining the new coordinates, so the first row's weather is your weather. The first run's own home row is that row. A row is only renamed into a city the list does not already hold, and no row is added if none stood for here.
+
+**A place on another zone moves the machine's clock there.** Land in Nashville, pick it, and the system time zone becomes `America/Chicago` - the bar clock, every app, and the header along with it. It goes through the same passwordless `sudo timedatectl set-timezone` rule the timezone menu uses (`etc/sudoers.d/omarchy-tzupdate`), with `sudo -n`, so where that rule is missing the change fails instead of waiting on a password prompt nobody can see. Here only moves once the clock has: a refused change leaves the header, the list and the setting as they were, and says so in a notification. Only here waits on the clock - an edit made to the list in the meantime stands. A successful one says where you are and which zone the clock is on.
+
+That move leaves the list alone. The row that stands for home stays where it is, now an hour ahead, because the point of being away is that home is somewhere else; renaming it to Nashville would lose it. Picking home again on the way back moves the clock back.
+
+`here` is remembered with its zone and only counts while the machine is on that zone. If the clock moves some other way - the timezone menu, or anything that follows the network - "here" falls back to that zone's own city on its own rather than claiming you are still in Fort Lauderdale on Central time, and it is Fort Lauderdale again once the clock comes home. Going somewhere on the same zone is one click on the header and never touches the clock.
+
+Picking the zone's own city goes back to the default rather than storing it. Tapping a city on this zone on the globe does the same as picking it here, and brings that city's coordinates and region when the panel knows them; tapping the zone's own city clears the choice, and a city on another zone leaves it alone. The older `homeCity` name is still read while there is no `here`, and the first new choice replaces it.
+
+## People
+
+Most rows on a world clock are there because of someone. A city can name the people in it, and the row stays a city: the name on top, the people on a line under it, then the date.
+
+**Hover a row and click the person button** beside its `×` (`p` from the keyboard, on the picked city). A field opens in the row for a comma-separated list: plain names, or GitHub handles with an `@`. Return keeps it, leaving the field keeps it too, and Escape puts it back. An empty list clears them.
+
+A plain name gets its first letter on a disc. A handle brings the profile's name and avatar: one `curl` to the public GitHub API per handle, one for its avatar at 96 pixels, both kept in `${XDG_CACHE_HOME:-~/.cache}/omarchy/elsewhen/people/` and refreshed once they are a week old. An avatar that failed to download is tried again next session rather than waiting out the week. Each handle is asked about once per session, so an open panel never repeats the work, and the unauthenticated limit of 60 an hour is far away. A handle GitHub does not know, or a failed request, simply stays a plain name with a monogram until the next session.
+
+The avatar is a file on disk rather than a URL handed to `Image`, so curl stays the only thing touching the network and the face is there offline.
+
+The API's answer is not trusted to say where to go next. Its `avatar_url` is ignored: the avatar comes from `avatars.githubusercontent.com` by the account's numeric `id`, so a tampered answer cannot point curl at a local service or a `file://` path. curl may speak nothing but HTTPS, redirects included. Handles are checked against GitHub's own rule before they reach a URL or a path, and passed as arguments, never script text - the same rule the zone probe follows. The cache directory is private, downloads land in fresh `mktemp` files that are renamed into place, so nothing planted at a predictable name is written through, and each handle is refreshed under a `flock`, since every monitor has a panel of its own that may ask at the same moment.
+
+The faces overlap, up to four, each edged in the row's own fill so they still read as separate people, and the names follow, elided when they run long. The people belong to the row, so they move with it, survive a rename into here, and come back in the `times` IPC.
+
+The globe still names cities, not people: a tracked city on the globe is matched by name, and a name has to stay a place to be found there.
 
 ## Two offsets, one line
 
@@ -349,6 +413,8 @@ Use that full path. `/usr/bin/qmltestrunner` is the Qt5 binary; it exits 0 havin
 | `Space` | opens the globe, and closes it again |
 | `+` | opens the city search, or the globe's jump box when the globe is up |
 | `a` | opens the city search (list only) |
+| `w` | asks where you are (list only) |
+| `p` | edits the people in the picked city (list only) |
 | `j` | opens the globe's jump box (globe only) |
 | `r` | re-probes the zones and refetches the weather |
 | `Esc` | closes the search, then leaves the globe, then closes the panel |
@@ -364,12 +430,14 @@ Inline on the widget's `shell.json` entry:
 
 | Key      | Meaning                                              |
 |----------|------------------------------------------------------|
-| `zones`  | `Label\|IANA name`, comma separated; blank seeds on first run |
+| `cities` | the list, one `{ name, zone, lat, lon, region, people }` per row; written by the panel, see [The stored list](#the-stored-list). Unset seeds on first run |
+| `zones`  | the older `Label\|IANA name` string, read only while `cities` is unset |
 | `hour24` | `true` or `false`; unset (the default) follows the system's time format. Click any row's time to flip it |
 | `offsetMode` | `home` for the offset from you (default), `utc` for the absolute one |
 | `units`  | `F` or `C`; blank (the default) follows the system's measurement units. Click any temperature to flip it |
 | `globeEnabled` | `false` to remove the globe entry point (default on) |
-| `homeCity` | your city for the header (blank = from the system zone); set by tapping a city on this zone on the globe |
+| `here` | where you are, `{ name, zone, lat, lon, region }`; counts only while the machine is on `zone`. Set from the header |
+| `homeCity` | the older name for here, read only while `here` is unset |
 | `smoothMotion` | drop labels and detail while the globe moves (default true) |
 
 ## IPC
@@ -380,5 +448,7 @@ omarchy-shell omarchy.elsewhen globe                            # switch between
 omarchy-shell omarchy.elsewhen times                            # JSON, one entry per row
 omarchy-shell omarchy.elsewhen add America/New_York Miami
 omarchy-shell omarchy.elsewhen remove America/New_York
+omarchy-shell omarchy.elsewhen who Cincinnati "Ann, @octocat"   # the people in a city, by name; "" clears
+omarchy-shell omarchy.elsewhen here "Fort Lauderdale"            # where you are, on this machine's zone
 omarchy-shell omarchy.elsewhen refresh                          # re-probe offsets
 ```

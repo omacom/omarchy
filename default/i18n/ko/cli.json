@@ -32,6 +32,7 @@
   "battery.durationHours": "%1시간",
   "battery.durationHoursMinutes": "%1시간 %2분",
   "battery.durationMinutes": "%1분",
+  "battery.fullyCharged": "완전 충전",
   "battery.holdingAt": "%1에서 유지 중",
   "battery.lowBody": "배터리가 %1% 남았습니다",
   "battery.lowTitle": "충전할 시간입니다!",

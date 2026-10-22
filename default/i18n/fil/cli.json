@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 o",
   "battery.durationHoursMinutes": "%1 o %2 m",
   "battery.durationMinutes": "%1 m",
+  "battery.fullyCharged": "Puno na ang baterya",
   "battery.holdingAt": "Nakahinto sa %1",
   "battery.lowBody": "Bumaba na sa %1% ang baterya",
   "battery.lowTitle": "Oras na para mag-recharge!",

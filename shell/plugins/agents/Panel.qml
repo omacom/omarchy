@@ -607,6 +607,7 @@ Panel {
     if (value === "Session") return Commons.I18n.t("agents.windowSession")
     if (value === "Weekly") return Commons.I18n.t("agents.windowWeekly")
     if (value === "Monthly") return Commons.I18n.t("agents.windowMonthly")
+    if (value === "Spend limit") return Commons.I18n.t("agents.windowSpendLimit")
     if (value === "Limit") return Commons.I18n.t("agents.windowLimit")
     var part = scopedPart(value)
     if (part && part.window === "Session") return Commons.I18n.t("agents.modelSession").arg(part.model)

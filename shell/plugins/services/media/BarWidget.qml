@@ -13,6 +13,7 @@ BarWidget {
   readonly property var sourcePlayers: mediaService ? mediaService.sourcePlayers : []
 
   readonly property bool hasMedia: activePlayer !== null && (activePlayer.trackTitle || activePlayer.trackArtist)
+  readonly property bool isPlaying: !!activePlayer && !!activePlayer.isPlaying
   readonly property string playIcon: activePlayer && activePlayer.isPlaying ? "󰏤" : "󰐊"
   readonly property string title: activePlayer ? (activePlayer.trackTitle || "") : ""
   readonly property string artist: activePlayer ? (activePlayer.trackArtist || "") : ""
@@ -64,11 +65,13 @@ BarWidget {
 
         property bool needsScroll: implicitWidth > scrollClip.width
 
+        // Each frame of the scroll redraws the bar, so it only runs while the
+        // track is playing and the bar is on screen to show it.
         NumberAnimation on x {
           id: scrollAnim
-          running: labelText.needsScroll && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
-          // Stopped for reduced motion, the title reads from its start again.
-          onRunningChanged: if (!running && Style.reduceMotion) labelText.x = 0
+          running: labelText.needsScroll && root.isPlaying && root.visible && !root.bar.barHidden && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
+          // Stopped, the title reads from its start again.
+          onRunningChanged: if (!running) labelText.x = 0
           loops: Animation.Infinite
           duration: Math.max(6000, labelText.implicitWidth * 25)
           from: scrollClip.width

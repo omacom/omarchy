@@ -32,6 +32,7 @@
   "battery.durationHours": "saa %1",
   "battery.durationHoursMinutes": "saa %1 dak %2",
   "battery.durationMinutes": "dak %1",
+  "battery.fullyCharged": "Imejaa chaji",
   "battery.holdingAt": "Imeshikiliwa kwenye %1",
   "battery.lowBody": "Betri imefikia %1%",
   "battery.lowTitle": "Wakati wa kuchaji tena!",

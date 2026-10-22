@@ -50,7 +50,7 @@ Panel {
   property int internetPingPacketLoss: 0
   readonly property int pingHistoryWindow: 24
   readonly property int pingAverageWindow: 5
-  readonly property bool hasInternetPing: internetPingSamples.length > 0
+  readonly property bool hasInternetPing: Model.internetPingReadable(internetPingSamples, connectivity)
   // Every stat row stays mounted whether or not there is data behind it, so a
   // sample arriving late never reflows the grid. This says whether the numbers
   // are real yet or the row should read "--".
@@ -538,7 +538,9 @@ Panel {
     if (!hasCaptivePortal) return
     // Explicit user action only. argv (not a shell string), and a fixed HTTP
     // URL: let the browser handle the redirect without trusting portal input.
-    Quickshell.execDetached(["omarchy-launch-browser", Model.captivePortalUrl])
+    // The command pauses a Tailscale exit node and re-checks quickly until the
+    // sign-in completes.
+    Quickshell.execDetached(["omarchy-network-captive-portal", Model.captivePortalUrl])
     close()
   }
 
@@ -1333,7 +1335,8 @@ Panel {
             textFormat: Text.PlainText
             width: parent.width
             text: {
-              if (root.hasCaptivePortal) return Commons.I18n.t("network.signInRequiredHeader")
+              // The sign-in button right below already says what a portal needs.
+              if (root.hasCaptivePortal) return ""
               if (root.restricted) return Commons.I18n.t("network.limitedAccessHeader")
               if (root.info.type === "wifi") {
                 if (root.canDisconnect) return root.connectionPhrase.toUpperCase()
@@ -1356,41 +1359,25 @@ Panel {
 
       }
 
-      Column {
+      Button {
+        id: portalAction
         visible: root.hasCaptivePortal
         width: parent.width
-        spacing: Style.space(6)
-
-        Button {
-          id: portalAction
-          width: parent.width
-          text: Commons.I18n.t("network.openCaptivePortal")
-          iconText: "󰏌"
-          foreground: root.bar.urgent
-          accent: root.bar.urgent
-          fontFamily: root.bar.fontFamily
-          verticalPadding: Style.space(10)
-          bordered: true
-          active: true
-          hasCursor: root.cursorActive && root.focusSection === "portal"
-          onHovered: function(on) {
-            if (!on) return
-            root.cursorActive = true
-            root.focusSection = "portal"
-          }
-          onClicked: root.openCaptivePortal()
+        text: Commons.I18n.t("network.openCaptivePortal")
+        iconText: "󰏌"
+        foreground: root.bar.urgent
+        accent: root.bar.urgent
+        fontFamily: root.bar.fontFamily
+        verticalPadding: Style.space(10)
+        bordered: true
+        active: true
+        hasCursor: root.cursorActive && root.focusSection === "portal"
+        onHovered: function(on) {
+          if (!on) return
+          root.cursorActive = true
+          root.focusSection = "portal"
         }
-
-        Text {
-          width: parent.width
-          text: Commons.I18n.t("network.captivePortalHelp")
-          textFormat: Text.PlainText
-          wrapMode: Text.WordWrap
-          color: root.bar.foreground
-          opacity: 0.7
-          font.family: root.bar.fontFamily
-          font.pixelSize: Style.font.bodySmall
-        }
+        onClicked: root.openCaptivePortal()
       }
 
       // Connection details: transfer metrics first, then IP/Gateway.
@@ -1408,16 +1395,16 @@ Panel {
           // Always mounted: these two used to appear a beat after the panel
           // opened, once the first probe returned, shoving everything below
           // them down. They now hold their place and read "--" until there is
-          // a sample.
+          // a sample, and while the internet is out of reach.
           InfoLabel { text: Commons.I18n.t("network.ping") }
           DetailValue {
             text: root.formatPingLatency(root.internetPingLatency)
-            color: root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
+            color: root.hasInternetPing && root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
           }
           InfoLabel { text: Commons.I18n.t("network.packetLoss") }
           DetailValue {
             text: root.formatPacketLoss(root.internetPingPacketLoss)
-            color: root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
+            color: root.hasInternetPing && root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
           }
 
           InfoLabel { text: Commons.I18n.t("network.receiving") }

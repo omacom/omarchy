@@ -4,9 +4,11 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-# Factory reset checks the hash of every boot file limine.conf names before it
-# hands over a staged reset: the UKI, or the kernel and initramfs where UKIs are
-# off. Snapshot copies under limine_history are not rebuilt, so not checked.
+# Factory reset checks the hash of every boot file this installation's entry
+# names before it hands over a staged reset: the UKI, or the kernel and
+# initramfs where UKIs are off. Snapshot copies under limine_history are not
+# rebuilt, so not checked. Other systems' entries are covered by
+# factory-reset-limine-test.sh.
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
@@ -14,16 +16,18 @@ eval "$(sed -n '/^verify_limine_hashes() {$/,/^}$/p' "$ROOT/bin/omarchy-system-f
 declare -F verify_limine_hashes >/dev/null || fail "factory reset defines verify_limine_hashes"
 fail_reset() { echo "$*"; exit 1; }
 
-# $1 case; then limine.conf lines, where HASH:<file> stands for that file's hash.
+# $1 case; then the lines of this installation's limine.conf entry, where
+# HASH:<file> stands for that file's hash.
 boot() {
   local case_dir="$scratch/$1" line file
   shift
-  mkdir -p "$case_dir/boot/EFI/Linux" "$case_dir/boot/abc/linux-aarch64" "$case_dir/boot/abc/limine_history"
+  mkdir -p "$case_dir/etc" "$case_dir/boot/EFI/Linux" "$case_dir/boot/abc/linux-aarch64" "$case_dir/boot/abc/limine_history"
+  printf 'abc\n' >"$case_dir/etc/machine-id"
   printf 'uki\n' >"$case_dir/boot/EFI/Linux/omarchy_linux.efi"
   printf 'kernel\n' >"$case_dir/boot/abc/linux-aarch64/vmlinuz-linux-aarch64"
   printf 'initramfs\n' >"$case_dir/boot/abc/linux-aarch64/initramfs-linux-aarch64.img"
   printf 'old\n' >"$case_dir/boot/abc/limine_history/vmlinuz-linux-aarch64_1"
-  : >"$case_dir/boot/limine.conf"
+  printf '/+Omarchy\ncomment: machine-id=abc order-priority=50\n//linux\n' >"$case_dir/boot/limine.conf"
   for line in "$@"; do
     while [[ $line =~ HASH:([^[:space:]]+) ]]; do
       file=${BASH_REMATCH[1]}
