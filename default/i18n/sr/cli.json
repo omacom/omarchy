@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 ч",
   "battery.durationHoursMinutes": "%1 ч %2 мин",
   "battery.durationMinutes": "%1 мин",
+  "battery.fullyCharged": "Потпуно напуњена",
   "battery.holdingAt": "Задржано на %1",
   "battery.lowBody": "Батерија је пала на %1%",
   "battery.lowTitle": "Време за пуњење!",

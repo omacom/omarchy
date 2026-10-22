@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",
+  "battery.fullyCharged": "Completamente carica",
   "battery.holdingAt": "Mantenuta al %1",
   "battery.lowBody": "La batteria è al %1%",
   "battery.lowTitle": "Ora di ricaricare!",

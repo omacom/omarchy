@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",
+  "battery.fullyCharged": "Täielikult laetud",
   "battery.holdingAt": "Hoitakse %1 juures",
   "battery.lowBody": "Aku tase on langenud %1%-le",
   "battery.lowTitle": "Aeg laadida!",

@@ -10,7 +10,12 @@ local events, recovery, command, imported = {}, nil, nil, false
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
 local env = { XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons", HYPRLAND_INSTANCE_SIGNATURE = "test-session", OMARCHY_PATH = os.getenv("ROOT") }
 local getenv = os.getenv
-os.getenv = function(name) return env[name] or getenv(name) end
+-- The fake environment owns every cursor variable, unset ones included, so
+-- the session running the test cannot leak its own cursor into it.
+os.getenv = function(name)
+  if name:match("CURSOR") or name == "HYPRLAND_INSTANCE_SIGNATURE" then return env[name] end
+  return env[name] or getenv(name)
+end
 local monitors = {}
 hl = {
   on = function(event, callback) events[event] = callback end,

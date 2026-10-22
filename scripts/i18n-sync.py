@@ -281,7 +281,7 @@ def scan_candidates(root):
         if "dev-gallery" in rel or rel in allowed_files:
             continue
         for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if "I18n.t(" in line or IGNORE_MARK in line or line.lstrip().startswith("//"):
+            if re.search(r"I18n\.tn?\(", line) or IGNORE_MARK in line or line.lstrip().startswith("//"):
                 continue
             if QML_DISPLAY_PROPERTY.match(line):
                 for match in QML_STRING.finditer(line.split("//")[0]):

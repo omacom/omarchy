@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 ம",
   "battery.durationHoursMinutes": "%1 ம %2 நி",
   "battery.durationMinutes": "%1 நி",
+  "battery.fullyCharged": "முழு மின்னேற்றம்",
   "battery.holdingAt": "%1 இல் நிறுத்தப்பட்டுள்ளது",
   "battery.lowBody": "மின்கலம் %1% ஆகக் குறைந்துவிட்டது",
   "battery.lowTitle": "மின்னேற்றம் செய்ய வேண்டிய நேரம்!",
