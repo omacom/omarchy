@@ -64,9 +64,9 @@ ShellRoot {
   function portalChecks() {
     check(panel.hasCaptivePortal && panel.restricted, "native portal activates restricted mode")
     check(panel.testButton.visible, "portal button visible")
-    check(panel.testButton.text === "Open Captive Portal", "prominent action label")
+    check(panel.testButton.text === "Sign into network", "prominent action label")
     check(panel.icon === "󰤩" && panel.testBarButton.active, "blocked bar icon and warning color")
-    check(panel.testMeta.text === "SIGN-IN REQUIRED", "status replaces cheerful connection phrase")
+    check(panel.testMeta.text === "" && !panel.testMeta.visible, "hero leaves the portal to the sign-in button instead of the cheerful connection phrase")
     check(panel.testTitle.text === "Guest Wi-Fi", "connected SSID survives missing route details")
     check(panel.testPoll.running && panel.testPoll.interval === 10000, "restricted recheck runs while closed")
     var before = NetworkMock.checks

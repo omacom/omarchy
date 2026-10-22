@@ -21,6 +21,11 @@ for agent in kimi cursor-agent muse; do
   [[ ! -e $HOME/.local/bin/$agent ]] || fail "provisioning must not create a handwritten $agent wrapper"
 done
 mapfile -d '' -t args <"$OMARCHY_TEST_MISE_LOG"
-[[ ${args[*]} == "settings set upgrade.auto_prune false reshim --system reshim" ]] ||
-  fail "provisioning builds the lazy shims without installing packages"
+[[ ${args[*]} == "reshim --system reshim" ]] ||
+  fail "provisioning builds the lazy shims without installing packages or writing the user's config"
 pass "provisioning leaves lazy Kimi, Cursor, and Muse shims to mise"
+
+# The settings package ships this, so the user's config stays theirs.
+grep -Fx 'upgrade.auto_prune = false' "$ROOT/etc/mise/conf.d/omarchy.toml" >/dev/null ||
+  fail "Omarchy's mise config keeps upgrades from pruning versions still in use"
+pass "upgrade pruning is off in the package-owned mise config"

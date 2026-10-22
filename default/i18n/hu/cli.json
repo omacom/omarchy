@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 ó",
   "battery.durationHoursMinutes": "%1 ó %2 p",
   "battery.durationMinutes": "%1 p",
+  "battery.fullyCharged": "Teljesen feltöltve",
   "battery.holdingAt": "Tartás %1 értéken",
   "battery.lowBody": "Az akkumulátor %1%-on áll",
   "battery.lowTitle": "Ideje feltölteni!",

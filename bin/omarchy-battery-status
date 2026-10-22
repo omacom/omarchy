@@ -123,7 +123,7 @@ for supply in "$power_supply_path"/*; do
 done
 
 charge_idle=false
-if awk -v rate="${power_rate_raw:-0}" 'BEGIN { exit !(rate <= 0.2) }'; then
+if awk -v rate="${power_rate_raw:-0}" 'BEGIN { if (rate < 0) rate = -rate; exit !(rate <= 0.2) }'; then
   charge_idle=true
 fi
 
@@ -166,8 +166,16 @@ if [[ $shell_output == "true" ]]; then
   exit 0
 fi
 
-# The power reading shows its numbers in the language's own way.
-power_reading="$(omarchy-i18n --number "$power_rate")W / $(omarchy-i18n --number "$capacity")Wh"
+# Each part of the line shows only when it has a reading behind it: a full or
+# idle battery has no time to count and no draw worth a "0W".
+battery_full=false
+if [[ $state == "fully-charged" ]]; then
+  battery_full=true
+elif [[ $ac_online == "true" ]] && (( percentage >= 100 )); then
+  battery_full=true
+fi
+
+parts=("$(omarchy-i18n battery.statusLabel "$percentage")")
 
 if [[ $charge_holding == "true" ]]; then
   if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then
@@ -176,9 +184,37 @@ if [[ $charge_holding == "true" ]]; then
     threshold_label="$(omarchy-i18n --number "$threshold_end")%"
   fi
 
-  echo "$(omarchy-i18n battery.statusLabel "$percentage")  ·  $(omarchy-i18n battery.holdingAt "$threshold_label")  ·  ${power_reading}"
-elif [[ $state == "charging" ]]; then
-  echo "$(omarchy-i18n battery.statusLabel "$percentage")  ·  $(omarchy-i18n battery.toFull "$time_remaining")  ·   ${power_reading}"
-else
-  echo "$(omarchy-i18n battery.statusLabel "$percentage")  ·  $(omarchy-i18n battery.timeLeft "$time_remaining")  ·   ${power_reading}"
+  parts+=("$(omarchy-i18n battery.holdingAt "$threshold_label")")
+elif [[ $battery_full == "true" ]]; then
+  parts+=("$(omarchy-i18n battery.fullyCharged)")
+elif [[ -n $time_remaining && $state == "charging" ]]; then
+  parts+=("$(omarchy-i18n battery.toFull "$time_remaining")")
+elif [[ -n $time_remaining ]]; then
+  parts+=("$(omarchy-i18n battery.timeLeft "$time_remaining")")
 fi
+
+# The power reading shows its numbers in the language's own way, with an arrow
+# for the direction of a live draw.
+capacity_reading=""
+(( ${capacity:-0} > 0 )) && capacity_reading="$(omarchy-i18n --number "$capacity")Wh"
+if [[ $charge_holding == "false" && $battery_full == "false" && $charge_idle == "false" ]]; then
+  if [[ $state == "charging" ]]; then
+    draw=" $(omarchy-i18n --number "$power_rate")W"
+  else
+    draw=" $(omarchy-i18n --number "$power_rate")W"
+  fi
+
+  if [[ -n $capacity_reading ]]; then
+    parts+=("${draw} / ${capacity_reading}")
+  else
+    parts+=("$draw")
+  fi
+elif [[ -n $capacity_reading ]]; then
+  parts+=("$capacity_reading")
+fi
+
+line=${parts[0]}
+for part in "${parts[@]:1}"; do
+  line+="  ·  $part"
+done
+echo "$line"

@@ -67,18 +67,16 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Audio panel    |
 | `Super + Ctrl + B`           | Bluetooth panel    |
-| `Super + Ctrl + W`           | Wifi/network panel    |
+| `Super + Ctrl + N`           | Wifi/network panel    |
 | `Super + Ctrl + D`           | Display panel    |
 | `Super + Ctrl + P`           | Power panel    |
 | `Super + Ctrl + Alt + D`           | Calendar panel    |
 | `Super + Ctrl + Alt + E`           | World clock panel    |
 | `Super + Ctrl + 1-9`           | Toggle bar panel by position    |
 | `Super + Ctrl + S` | Share menu (via LocalSend) |
-| `Super + Ctrl + T`           | Activity (btop)    |
 | `Super + Ctrl + C` | Capture controls (screenshot/-recording/picker) |
 | `Super + Ctrl + O` | Toggle menu |
 | `Super + Ctrl + H` | Hardware menu |
-| `Super + Ctrl + Q` | Calculator |
 | `Super + Ctrl + E` | Emoji picker |
 | `Super + Ctrl + .` | Transcode media |
 | `Super + Shift + Ctrl + A` | Pick an AI agent |
@@ -110,6 +108,8 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Shift + M`           | Music (Spotify)    |
 | `Super + Shift + Alt + M`           | Music (cliamp)    |
 | `Super + Shift + /`           | Password manager (1password)    |
+| `Super + Shift + Q`           | Calculator (Omacalc)    |
+| `Super + Shift + T`           | Activity (btop)    |
 | `Super + Shift + N`           | Editor (Neovim)  |
 | `Super + Shift + C`           | Calendar ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | Email ([HEY](https://hey.com/))  |
@@ -118,7 +118,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Shift + Alt + A`           | AI (Grok)  |
 | `Super + Shift + G`           | Messenger (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
-| `Super + Shift + Alt + S`           | Google Maps  |
+| `Super + Shift + S`           | Google Maps  |
 | `Super + Shift + Alt + G`           | Messenger (WhatsApp)  |
 | `Super + Shift + Ctrl + G`           | Messenger (Google)  |
 | `Super + Shift + O`           | Obsidian  |
@@ -145,7 +145,7 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | Hotkey              | Function                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | Screenshot                      |
-| `Super + Shift + S`            | Screenshot (the same shot, for keyboards with no Print Screen key) |
+| `Super + Ctrl + Alt + C`            | Screenshot (the same shot, for keyboards with no Print Screen key) |
 | `Super + Ctrl + C` | Capture menu |
 | `Alt + Print Screen`            | Screenrecord                     |
 | `Super + Print Screen` | Color picker |
@@ -175,8 +175,8 @@ All capture options are also accessible under _Trigger > Capture_ in the Omarchy
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Shift + Space` | Pick a new theme  |
-| `Super + Ctrl + Space` | Pick theme background |
+| `Super + Ctrl + T` | Pick a new theme (also `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | Pick theme background (also `Super + Ctrl + Space`) |
 | `Super + Backspace` | Toggle transparency on a window |
 | `Super + Ctrl + Backspace` | Toggle single-window square aspect |
 
@@ -189,7 +189,6 @@ All style options are also accessible under _Style_ in the Omarchy menu (`Super 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + I` | Toggle locking on idle |
-| `Super + Ctrl + N` | Toggle nightlight display temperature |
 | `Super + Ctrl + Delete` | Toggle laptop display on/off |
 | `Super + Ctrl + Alt + Delete` | Toggle laptop display mirroring |
 | `Super + Shift + Space` | Toggle the top bar  |

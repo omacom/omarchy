@@ -8,11 +8,11 @@
   "learn": {
     "label": "Jifunze"
   },
+  "appearance": {
+    "label": "Muonekano"
+  },
   "trigger": {
     "label": "Anzisha"
-  },
-  "style": {
-    "label": "Mtindo"
   },
   "setup": {
     "label": "Sanidi"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Jumuiya"
   },
-  "trigger.appearance": {
-    "label": "Muonekano"
+  "appearance.theme": {
+    "label": "Mandhari"
   },
-  "trigger.appearance.animations": {
-    "label": "Uhuishaji"
+  "appearance.background": {
+    "label": "Mandhari ya nyuma"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Fonti"
+  },
+  "appearance.top-bar": {
     "label": "Upau wa menyu"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Ficha upau"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Onyesha upau"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Nafasi ya upau"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Mandhari ya upau"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Upau usioangavu"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Upau wa kioo"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Upau wazi"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Viashiria vya upau"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Asilimia ya betri"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Saa"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Jumapili 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Jumapili 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Jumapili 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Jumapili 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Jum 3 Mei 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Jum 3 Mei 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 Mei W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 Mei W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Upau wa juu"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Upau wa chini"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Upau wa kushoto"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Upau wa kulia"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Ficha Dock kiotomatiki"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Dock wa daima"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Nafasi ya Dock"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Dock wa juu"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Dock wa chini"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Dock wa kushoto"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Dock wa kulia"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Mapengo ya madirisha"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Pembeni za madirisha"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Pembeni za mandhari"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Pembeni kali"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Pembeni za mviringo"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Uangavu wa madirisha"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Madirisha yasioangavu"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Madirisha angavu"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Madirisha ya kioo"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "Uwiano wa dirisha 1"
+  "appearance.branding.screensaver": {
+    "label": "Kiokozi cha skrini"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Kuhusu"
+  },
+  "appearance.branding.about.text": {
+    "label": "Hariri maandishi"
+  },
+  "appearance.branding.about.image": {
+    "label": "Weka kutoka picha"
+  },
+  "appearance.branding.about.default": {
+    "label": "Rejesha chaguomsingi"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Hariri maandishi"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Weka kutoka picha"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Rejesha chaguomsingi"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Ficha Dock kiotomatiki"
+  },
+  "appearance.dock.always-on": {
+    "label": "Dock wa daima"
+  },
+  "appearance.dock.position": {
+    "label": "Nafasi ya Dock"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock wa juu"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock wa chini"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock wa kushoto"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock wa kulia"
+  },
+  "appearance.workspace-layout": {
     "label": "Mpangilio wa nafasi ya kazi",
     "title": "Mpangilio chaguomsingi wa nafasi ya kazi"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Vigae"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Kusogeza"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Kuelea"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Usawazishaji wa mandhari ya Herdr"
+  "appearance.unlock": {
+    "label": "Fungua"
   },
   "trigger.toggle": {
     "label": "Badilisha"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Usilale"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Arifa"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Taa ya usiku"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Kiokozi cha skrini"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Nasa mkwamo"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Jaribio la kasi"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Skrini ya kompyuta mpakato"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Akisi skrini"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "GPU mseto"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Kiguso"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Mtetema wa kiguso"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "juu"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Skrini ya kugusa"
   },
   "trigger.reminder.set": {
     "label": "Weka moja"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Jaribio la kasi ya diski"
-  },
-  "style.theme": {
-    "label": "Mandhari"
-  },
-  "style.background": {
-    "label": "Mandhari ya nyuma"
-  },
-  "style.unlock": {
-    "label": "Fungua"
-  },
-  "style.font": {
-    "label": "Fonti"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Kiokozi cha skrini"
-  },
-  "style.about": {
-    "label": "Kuhusu"
-  },
-  "style.about.text": {
-    "label": "Hariri maandishi"
-  },
-  "style.about.image": {
-    "label": "Weka kutoka picha"
-  },
-  "style.about.default": {
-    "label": "Rejesha chaguomsingi"
-  },
-  "style.screensaver.text": {
-    "label": "Hariri maandishi"
-  },
-  "style.screensaver.image": {
-    "label": "Weka kutoka picha"
-  },
-  "style.screensaver.default": {
-    "label": "Rejesha chaguomsingi"
   },
   "setup.monitors": {
     "label": "Skrini"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1210,8 +1162,5 @@
   },
   "system.reboot-boot-menu": {
     "label": "Washa upya kwa menyu ya kuwasha"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
   }
 }

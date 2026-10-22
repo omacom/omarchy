@@ -70,5 +70,16 @@ PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" \
   "$OMARCHY_PATH/bin/omarchy-hook" pre-refresh-pacman
 omarchy_security_revoke_sudo_timestamp
 
+# Stable and rc publish omarchy and omarchy-settings; the -dev pair is edge's.
+# A stable or rc repository can still list an old -dev build (stable's listed
+# 4.0.0.r1832 from August to October 2026), and -uu would move an edge machine
+# onto it here, before omarchy-channel-set swaps the pair. That build predates
+# command-scoped sudo, so the switch would stop short of its swap and leave the
+# machine there. The -dev pair is left to the swap.
+ignore=()
+if [[ $channel == "stable" || $channel == "rc" ]]; then
+  ignore=(--ignore omarchy-dev,omarchy-settings-dev)
+fi
+
 # Reset all package DBs and then update
-omarchy-update-pacman -Syyuu --noconfirm
+omarchy-update-pacman -Syyuu --noconfirm "${ignore[@]}"

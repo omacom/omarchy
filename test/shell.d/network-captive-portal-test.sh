@@ -36,9 +36,19 @@ for (const state of ['full', 'unknown', 'none', undefined]) {
 }
 const url = new URL(network.captivePortalUrl)
 assertEqual(url.protocol, 'http:', 'browser entry point uses plain HTTP so a portal can intercept it')
-assertEqual(url.hostname, 'ping.archlinux.org', 'browser entry point is fixed rather than portal-supplied')
+assertEqual(url.hostname, 'ping.omacom.io', 'browser entry point is fixed rather than portal-supplied')
 assertEqual(url.username + url.password, '', 'browser entry point contains no credentials')
 JS
+
+# The browser must open the URL NetworkManager probes, or a portal that only
+# intercepts the probed host would never show its sign-in page.
+nm_conf="$ROOT/etc/NetworkManager/conf.d/omarchy-connectivity.conf"
+nm_uri=$(sed -n 's/^uri=//p' "$nm_conf")
+panel_uri=$(sed -n 's/^var captivePortalUrl = "\(.*\)"$/\1/p' "$ROOT/shell/plugins/panels/network/Model.js")
+[[ -n $nm_uri && $nm_uri == "$panel_uri" ]] || fail "NetworkManager probes the URL the panel opens ($nm_uri vs $panel_uri)"
+pass "NetworkManager probes the URL the panel opens"
+[[ $(sed -n 's/^response=\(.*\)$/[\1]/p' "$nm_conf") == "[]" ]] || fail "NetworkManager expects the endpoint's empty 204"
+pass "NetworkManager expects the endpoint's empty 204"
 
 require_compositor "network captive-portal runtime test"
 require_command quickshell
@@ -86,8 +96,8 @@ done
 # Normal assertions keep the details empty to exercise missing-route handling.
 printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type\\twifi\\niface\\ttest-wifi\\nssid\\tGuest Wi-Fi\\nip\\t192.0.2.10\\ngateway\\t192.0.2.1\\n"\nfi\n' > "$stage/bin/omarchy-network-status"
 chmod +x "$stage/bin/omarchy-network-status"
-printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_BROWSER_LOG"\n' > "$stage/bin/omarchy-launch-browser"
-chmod +x "$stage/bin/omarchy-launch-browser"
+printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_BROWSER_LOG"\n' > "$stage/bin/omarchy-network-captive-portal"
+chmod +x "$stage/bin/omarchy-network-captive-portal"
 
 # All networking and external actions are mocked; the real connection and
 # browser are never touched, and the fixture writes only to its scratch HOME.
@@ -99,5 +109,5 @@ if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding l
   fail "network portal fixture has no QML errors" "$output"
 fi
 [[ -f $stage/browser.log ]] || fail "portal action launches the browser"
-[[ $(<"$stage/browser.log") == "http://ping.archlinux.org/nm-check.txt" ]] || fail "portal opens exactly one fixed HTTP URL"
+[[ $(<"$stage/browser.log") == "http://ping.omacom.io/nm-check.txt" ]] || fail "portal opens exactly one fixed HTTP URL"
 pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, and browser argv work in QML"

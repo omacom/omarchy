@@ -364,6 +364,16 @@ function state()
   }
 end
 
+function latest_open_rule(index)
+  local found
+  for _, rule in ipairs(rules) do
+    if rule.name == "omarchy-floating-open-" .. tostring(index or 1) then
+      found = rule
+    end
+  end
+  return found
+end
+
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
 require("default.hypr.helpers")
 LUA
@@ -564,6 +574,80 @@ assert(rule.match.title == "negative:(?:^Meet - .+)", "the open rule does not pa
   fail "apps floated through a tag are left to it on a floating workspace"
 fi
 pass "apps floated through a tag are left to it on a floating workspace"
+
+# The user config loads saved workspace modes before its personal-rule tail.
+# Refresh exclusions before the first window, without relying on window.open.
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+o.window("^late-class$", { float = true })
+assert(latest_open_rule().match.class == "negative:(?:^late-class$)", "a late class float rule did not refresh the first-window exclusion")
+o.window({ title = "^Late picker$" }, { float = true })
+assert(latest_open_rule().match.title == "negative:(?:^Late picker$)", "a late title float rule did not refresh the first-window exclusion")
+'; then
+  fail "personal float rules registered after saved modes exclude the first window"
+fi
+pass "personal float rules registered after saved modes exclude the first window"
+
+# Either half of a tag relationship can arrive after the workspace modes.
+if ! run_lua '
+o.window("^tagged-before$", { tag = "+late-float-tag" })
+o.window({ tag = "early-float-tag" }, { float = true })
+require("default.hypr.workspace-layouts")
+o.window({ tag = "late-float-tag" }, { float = true })
+assert(latest_open_rule().match.class == "negative:(?:^tagged-before$)", "a late tag float rule missed an earlier tagged app")
+o.window({ title = "^Tagged later$" }, { tag = "+early-float-tag" })
+assert(latest_open_rule().match.title == "negative:(?:^Tagged later$)", "a late tagging rule missed an earlier float tag")
+'; then
+  fail "late tag relationships refresh exclusions in either registration order"
+fi
+pass "late tag relationships refresh exclusions in either registration order"
+
+# Two personal rules added in the tail must also work in either order.
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+o.window("^tag-first$", { tag = "+tag-first" })
+o.window({ tag = "tag-first" }, { float = true })
+assert(latest_open_rule().match.class == "negative:(?:^tag-first$)", "two late rules missed the tag-first app")
+o.window({ tag = "float-first" }, { float = true })
+o.window({ title = "^Float first$" }, { tag = "+float-first" })
+assert(latest_open_rule().match.title == "negative:(?:^Float first$)", "two late rules missed the float-first title")
+'; then
+  fail "tag and float rules both registered late exclude their first window"
+fi
+pass "tag and float rules both registered late exclude their first window"
+
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+o.workspace_mode({ workspace = "3", mode = "floating" })
+o.window("^late-on-either$", { float = true })
+for index = 1, 2 do
+  assert(latest_open_rule(index).match.class == "negative:(?:^late-on-either$)", "a late rule missed a floating workspace")
+end
+o.workspace_mode({ workspace = "1", mode = "dwindle" })
+o.workspace_mode({ workspace = "3", mode = "dwindle" })
+o.window({ title = "^After tiling$" }, { float = true })
+for index = 1, 2 do
+  assert(latest_open_rule(index).enabled == false, "a late personal rule re-enabled floating mode")
+end
+'; then
+  fail "late rules refresh all floating workspaces without reviving disabled modes"
+fi
+pass "late rules refresh all floating workspaces without reviving disabled modes"
+
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+local before = #state().rules
+o.window("^ordinary-rule$", { opacity = "0.9" })
+assert(#state().rules == before + 1, "an unrelated personal rule rebuilt floating rules")
+package.loaded["default.hypr.helpers"] = nil
+require("default.hypr.helpers")
+before = #state().rules
+o.window("^fresh-config$", { float = true })
+assert(#state().rules == before + 1, "reloading helpers retained the previous modes callback")
+'; then
+  fail "unrelated rules and fresh helpers leave generated rules alone"
+fi
+pass "unrelated rules and fresh helpers leave generated rules alone"
 
 # A window moved to a special workspace, like the scratchpad, is left alone.
 printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"

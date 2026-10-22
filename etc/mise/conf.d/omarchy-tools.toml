@@ -20,6 +20,7 @@ grok = { version = "latest", lazy = true, auto_update = "4h", minimum_release_ag
 hey-cli = { version = "latest", lazy = true, minimum_release_age = "0s" }
 hunk = { version = "latest", lazy = true, minimum_release_age = "0s" }
 muse = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
+node = { version = "latest", lazy = true, minimum_release_age = "0s" }
 "npm:@moonshot-ai/kimi-code" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["kimi"], minimum_release_age = "0s" }
 "npm:cf" = { version = "latest", lazy = true, lazy_bins = ["cf"], minimum_release_age = "0s" }
 oh-my-pi = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
