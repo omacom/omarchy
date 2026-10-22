@@ -69,15 +69,12 @@ screenshot "success-menu-01-root"
 
 wtype -k Down -k Down
 sleep 1
-screenshot "success-menu-02-trigger-selected"
+screenshot "success-menu-02-appearance-selected"
 wtype -k Return
 
-wait_until "trigger submenu is visible" 15 screen_contains "Appearance"
-screenshot "success-menu-03-trigger-submenu"
-wtype -k Return
-
-wait_until "appearance submenu is visible" 15 screen_contains "Animations"
-wtype -k Down -k Return
+wait_until "appearance submenu is visible" 15 screen_contains "Menu Bar"
+screenshot "success-menu-03-appearance-submenu"
+wtype -k Down -k Down -k Down -k Return
 
 wait_until "menu bar submenu is visible" 15 screen_contains "Position Bar"
 screenshot "success-menu-04-menu-bar-submenu"
