@@ -1,3 +1,8 @@
+# Upgrades must not delete the version a running process is executing from:
+# mise up would prune the old install dir out from under a live session.
+[settings]
+upgrade.auto_prune = false
+
 # Keep Cursor optional while applying these options whenever mise installs it.
 # Expose only its launcher so the bundled Node cannot shadow the user's Node.
 [tool_alias]

@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 ชม.",
   "battery.durationHoursMinutes": "%1 ชม. %2 น.",
   "battery.durationMinutes": "%1 น.",
+  "battery.fullyCharged": "ชาร์จเต็มแล้ว",
   "battery.holdingAt": "คงไว้ที่ %1",
   "battery.lowBody": "แบตเตอรี่เหลือ %1%",
   "battery.lowTitle": "ถึงเวลาชาร์จแล้ว!",

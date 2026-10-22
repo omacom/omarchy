@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 u",
   "battery.durationHoursMinutes": "%1 u %2 min",
   "battery.durationMinutes": "%1 min",
+  "battery.fullyCharged": "Volledig opgeladen",
   "battery.holdingAt": "Vastgehouden op %1",
   "battery.lowBody": "Batterij is gezakt naar %1%",
   "battery.lowTitle": "Tijd om op te laden!",

@@ -62,11 +62,17 @@ Assertions are TAP-flavored and blunt:
 
 The runner compensates for that early exit: `./test/shell` continues past a failing file and summarizes the failures at the end. Aborting the whole run at the first bad file once let a single packaging failure mask 114 of 134 files. Failure granularity is therefore per file inside a run, per assertion inside a file.
 
+Each file's output is kept in a fresh directory under `$TMPDIR` (`omarchy-test-shell.*`), whose path the runner prints at the end, next to each failed file. Read a failure from its log there; running the suite again only to see output is never needed.
+
+`base-test.sh` unsets `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, `XDG_DATA_HOME` and `XDG_STATE_HOME`, so a test that points `HOME` at a scratch directory cannot reach the real home through them; a desktop session exports all four. A test that needs one sets it itself.
+
 The runner also lists files with skipped checks, including files that ran some checks or later failed. Skips do not fail a run. When no files fail, a run with skips is reported as completed without failures rather than having passed every check.
 
 ## Compositor-dependent tests
 
 Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines. `require_compositor "description"` handles this: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
+
+A test that reads the background layer's pixels off the first output also calls `require_uncovered_background "description"`, which skips unless that output's workspace is empty: in a working session a window covers the background and the test would read the window. Run such tests on an empty workspace.
 
 The probe is more than an environment check, because `WAYLAND_DISPLAY` only
 proves the variable was inherited. Sandboxes pass the environment through

@@ -22,6 +22,8 @@ STUB
 cat > "$scratch/bin/sudo" <<'STUB'
 #!/bin/bash
 case "$1" in
+  -n) exit "${SUDO_CACHED:-1}" ;;
+  -v) echo "sudo authenticated" >> "$CALL_LOG"; exit "${SUDO_V_STATUS:-0}" ;;
   pacman | fprintd-enroll) exec "$@" ;;
   sed) printf 'pam %s\n' "$*" >> "$CALL_LOG" ;;
   tee) printf 'pam %s\n' "$*" >> "$CALL_LOG"; cat >/dev/null ;;
@@ -47,16 +49,30 @@ case "$1" in
   *) printf 'pacman %s\n' "$*" >> "$CALL_LOG"; exit 99 ;;
 esac
 STUB
+# Both fail unless ENROLL_STATUS or VERIFY_STATUS says otherwise, stopping
+# before PAM. ENROLL_OUTPUT is what fprintd-enroll prints first.
 cat > "$scratch/bin/fprintd-enroll" <<'STUB'
 #!/bin/bash
-# Stop before verification/PAM; no host authentication files may be changed.
 echo enroll >> "$CALL_LOG"
+[[ -z ${ENROLL_OUTPUT:-} ]] || printf '%s\n' "$ENROLL_OUTPUT"
 exit "${ENROLL_STATUS:-1}"
 STUB
 cat > "$scratch/bin/fprintd-verify" <<'STUB'
 #!/bin/bash
 echo verify >> "$CALL_LOG"
 exit "${VERIFY_STATUS:-1}"
+STUB
+# fprintd on D-Bus: SCAN_TYPE is the default reader's scan type and READER_NAME
+# its name; with SCAN_TYPE unset, fprintd doesn't answer. Never the host's own fprintd.
+cat > "$scratch/bin/busctl" <<'STUB'
+#!/bin/bash
+[[ -n ${SCAN_TYPE:-} ]] || exit 1
+case "$*" in
+  *GetDefaultDevice*) echo 'o "/net/reactivated/Fprint/Device/0"' ;;
+  *"/net/reactivated/Fprint/Device/0 net.reactivated.Fprint.Device scan-type"*) echo "s \"$SCAN_TYPE\"" ;;
+  *"/net/reactivated/Fprint/Device/0 net.reactivated.Fprint.Device name"*) echo "s \"${READER_NAME:-Some USB reader}\"" ;;
+  *) exit 1 ;;
+esac
 STUB
 chmod +x "$scratch/bin/"*
 
@@ -80,7 +96,7 @@ run_setup() {
     fail "setup stops on the simulated enrollment or installation failure"
   fi
   if grep -Eq '^(pam |apply-lock$|Unexpected privileged call)' "$CALL_LOG"; then
-    fail "setup does not change PAM or lock recovery after failed enrollment"
+    fail "setup does not change PAM or lock recovery after a failed enrollment, installation or verify"
   fi
 }
 
@@ -133,3 +149,169 @@ if grep -q 'Perfect!\|You can use your fingerprint' "$scratch/output"; then
   fail "inconclusive setup does not promise fingerprint unlock"
 fi
 pass "an inconclusive lock installer cannot report successful lock setup"
+
+# A press sensor, such as a Mac's Touch ID, takes a touch per sample, so setup
+# says to lift and touch again; a swipe sensor keeps the moving-finger
+# instruction, and one fprintd can't name is told neither.
+press_text="Touch the sensor, lift your finger and touch it again, and keep going until it says Enrolled. A step can take a few touches."
+swipe_text="Keep moving the finger around on sensor until it says Enrolled."
+unnamed_text="Touch or swipe the sensor, and keep going until it says Enrolled. A step can take a few tries."
+check_instruction() {
+  INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=$1 run_setup
+  local text
+  for text in "$press_text" "$swipe_text" "$unnamed_text"; do
+    if [[ $text == "$2" ]]; then
+      grep -qF "$text" "$scratch/output" || fail "$3" "$(cat "$scratch/output")"
+    else
+      ! grep -qF "$text" "$scratch/output" || fail "$3" "$(cat "$scratch/output")"
+    fi
+  done
+}
+check_instruction press "$press_text" "a press sensor is told to lift and touch again"
+check_instruction swipe "$swipe_text" "a swipe sensor keeps the moving-finger instruction"
+check_instruction "" "$unnamed_text" "a sensor fprintd can't name is told to touch or swipe"
+pass "each scan type gets its own instruction, and an unnamed one is told to touch or swipe"
+
+# The verify prompt names the reader's scan type, and neither when fprintd
+# can't say which, so a press reader is never told to swipe.
+check_verify_prompt() {
+  : > "$CALL_LOG"
+  INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=$1 ENROLL_STATUS=0 VERIFY_STATUS=1 \
+    OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 || true
+  grep -qF "Now let's verify that it's working correctly. $2" "$scratch/output" ||
+    fail "a ${1:-unnamed} sensor is asked to verify with: $2" "$(cat "$scratch/output")"
+}
+check_verify_prompt press "Touch the sensor."
+check_verify_prompt swipe "Swipe your finger across the sensor."
+check_verify_prompt "" "Touch or swipe the sensor."
+pass "the verify prompt names the scan type only when fprintd gives one"
+
+# fprintd-enroll's raw results become instructions. Touch ID's duplicate check
+# stage prints nothing; later stages count as steps, never touches, since one
+# stage can take several.
+enroll_lines=$'Using device /net/reactivated/Fprint/Device/0\nEnrolling right-index-finger finger.'
+for result in stage-passed stage-passed retry-scan stage-passed unknown-error; do
+  enroll_lines+=$'\nEnroll result: enroll-'$result
+done
+INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=press READER_NAME='Apple secure enclave fingerprint sensor' \
+  ENROLL_OUTPUT=$enroll_lines run_setup
+expected=$'  ✓ Step 1 done. Keep lifting your finger and touching the sensor.
+  That one didn\'t read. Keep lifting your finger and touching the sensor.
+  ✓ Step 2 done. Keep lifting your finger and touching the sensor.
+  ✗ Enrollment stopped. If you stopped before it said Enrolled, run this again and keep going.'
+[[ $(grep -E '^  ' "$scratch/output") == "$expected" ]] ||
+  fail "enrollment results read as instructions, counting steps after the duplicate check" "$(cat "$scratch/output")"
+! grep -q 'Enroll result:' "$scratch/output" || fail "no raw fprintd result reaches the owner" "$(cat "$scratch/output")"
+grep -q 'Enrollment failed' "$scratch/output" || fail "a failed enrollment still fails setup" "$(cat "$scratch/output")"
+pass "enrollment results read as instructions, and a failed enrollment still fails setup"
+
+# A failed verify fails setup and leaves PAM and the lock screen alone; the
+# success path's order is checked above.
+: > "$CALL_LOG"
+if INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=press ENROLL_STATUS=0 VERIFY_STATUS=1 \
+  OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1; then
+  fail "a failed verify fails setup" "$(cat "$scratch/output")"
+fi
+grep -qx verify "$CALL_LOG" && ! grep -Eq '^(pam |apply-lock$|Unexpected privileged call)' "$CALL_LOG" ||
+  fail "a failed verify leaves PAM and the lock screen alone" "$(cat "$CALL_LOG")"
+pass "a failed verify fails setup, leaving PAM and the lock screen alone"
+
+# The verify step's results, in fprintd-verify's own format (each with " (done)"
+# or " (not done)"), through the functions setup uses.
+source <(sed -n '/^fprintd_chatter()/,/^}/p;/^enroll_progress()/,/^}/p;/^verify_progress()/,/^}/p' \
+  "$ROOT/bin/omarchy-setup-security-fingerprint")
+[[ $(printf '%s\n' 'Using device /net/reactivated/Fprint/Device/0' 'Listing enrolled fingers:' ' - #0: right-index-finger' \
+  'Verify started!' 'Verifying: right-index-finger' 'Verify result: verify-retry-scan (not done)' \
+  'Verify result: verify-finger-not-centered (not done)' 'Verify result: verify-match (done)' |
+  verify_progress "Touch again.") == $'  That one didn\'t read. Touch again.\n  Not centered: use the middle of the sensor. Touch again.\n  ✓ Matched.' ]] ||
+  fail "verify results, retries included, read as instructions"
+[[ $(printf '%s\n' 'Verify result: verify-no-match (done)' | verify_progress "Touch again.") == $'  ✗ No match.' ]] ||
+  fail "a failed verify says so"
+pass "verify results read as instructions"
+
+# Only Touch ID's first stage is its duplicate check. On any other reader, one
+# that doesn't identify or one whose duplicate check took a touch, the first
+# stage to pass is step 1.
+INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=press ENROLL_OUTPUT=$enroll_lines run_setup
+[[ $(grep -c 'Step [0-9] done' "$scratch/output") == 3 ]] ||
+  fail "another reader's first stage is step 1" "$(cat "$scratch/output")"
+INSTALLED=$'libfprint-git\nfprintd\nusbutils' ENROLL_OUTPUT=$enroll_lines run_setup
+[[ $(grep -c 'Step [0-9] done' "$scratch/output") == 3 ]] ||
+  fail "a reader fprintd can't name has its first stage counted" "$(cat "$scratch/output")"
+[[ $(printf '%s\n' 'Enroll result: enroll-stage-passed' 'Enroll result: enroll-stage-passed' | enroll_progress "Again." 1) == \
+  $'  ✓ Step 1 done. Again.' ]] || fail "with a duplicate check, the first stage is not a step"
+pass "only a reader with a duplicate check leaves its first stage out of the steps"
+
+# sudo's own prompt comes first and is named as such; with sudo already
+# authenticated there is no prompt to explain.
+INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=press run_setup
+grep -qF "First, confirm it's you." "$scratch/output" && grep -qx 'sudo authenticated' "$CALL_LOG" ||
+  fail "setup names sudo's prompt and authenticates before enrolling" "$(cat "$scratch/output")"
+(( $(grep -n "First, confirm it's you." "$scratch/output" | cut -d: -f1) < $(grep -n "Let's set up" "$scratch/output" | cut -d: -f1) )) ||
+  fail "sudo's prompt comes before the enrollment instructions" "$(cat "$scratch/output")"
+INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=press SUDO_CACHED=0 run_setup
+! grep -qF "First, confirm it's you." "$scratch/output" && ! grep -qx 'sudo authenticated' "$CALL_LOG" ||
+  fail "an authenticated sudo is not asked again" "$(cat "$scratch/output")"
+pass "sudo is authenticated, and named, before the enrollment instructions"
+
+# What fprintd prints when it can't go on (a claimed device, no fingers) is
+# shown; its routine lines are not.
+[[ $(printf '%s\n' 'Using device /net/reactivated/Fprint/Device/0' \
+  'failed to claim device: GDBus.Error:net.reactivated.Fprint.Error.AlreadyInUse: Device was already claimed' |
+  enroll_progress "Touch again.") == '  failed to claim device: GDBus.Error:net.reactivated.Fprint.Error.AlreadyInUse: Device was already claimed' ]] ||
+  fail "why enrollment could not start is shown"
+[[ $(printf '%s\n' 'Using device /net/reactivated/Fprint/Device/0' 'No fingers enrolled for this device.' |
+  verify_progress "Touch again.") == '  No fingers enrolled for this device.' ]] || fail "why verify could not start is shown"
+pass "fprintd's reasons for stopping reach the owner, its routine lines do not"
+
+# A sudo that won't authenticate stops setup with a reason, before enrolling.
+INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=press SUDO_V_STATUS=1 run_setup
+grep -qF "Setup needs administrator rights to enroll a fingerprint." "$scratch/output" && ! grep -qx enroll "$CALL_LOG" ||
+  fail "a failed sudo stops setup with a reason" "$(cat "$scratch/output")"
+pass "a failed sudo stops setup with a reason, before enrolling"
+
+# Every retry fprintd 1.94.5 can send keeps enrollment going; only a failure
+# says it stopped, and a result fprintd adds later is shown, not called a stop.
+[[ $(printf '%s\n' 'Enrolling right-index-finger finger.' 'Enroll result: enroll-stage-passed' 'Enroll result: enroll-too-fast' \
+  'Enroll result: enroll-swipe-too-short' 'Enroll result: enroll-stage-passed' 'Enroll result: enroll-some-new-result' \
+  'Enroll result: enroll-completed' | enroll_progress "Swipe it again." 1) == $'  Too fast. Swipe it again.\n  Too short. Swipe it again.\n  ✓ Step 1 done. Swipe it again.\n  enroll-some-new-result\n  ✓ Enrolled.' ]] ||
+  fail "enrollment retries keep going, and an unknown result is shown"
+[[ $(printf '%s\n' 'Verify result: verify-too-fast (not done)' 'Verify result: verify-some-new-retry (not done)' \
+  'Verify result: verify-unknown-error (done)' | verify_progress "Swipe it again.") == $'  Too fast. Swipe it again.\n  That one didn\'t read. Swipe it again.\n  ✗ The check stopped (verify-unknown-error).' ]] ||
+  fail "any verify result that isn't done is a retry"
+pass "every retry keeps the step going, and only a finished failure says it stopped"
+
+# Each of fprintd 1.94.5's enroll and verify results, one by one.
+check_enroll() {
+  [[ $(printf 'Enroll result: %s\n' "$1" | enroll_progress "Again.") == "$2" ]] ||
+    fail "enroll result $1 reads as: $2" "$(printf 'Enroll result: %s\n' "$1" | enroll_progress "Again.")"
+}
+check_enroll enroll-completed $'  ✓ Enrolled.'
+check_enroll enroll-retry-scan "  That one didn't read. Again."
+check_enroll enroll-swipe-too-short '  Too short. Again.'
+check_enroll enroll-finger-not-centered '  Not centered: use the middle of the sensor. Again.'
+check_enroll enroll-remove-and-retry '  Lift your finger off the sensor, then try again.'
+check_enroll enroll-too-fast '  Too fast. Again.'
+check_enroll enroll-duplicate $'  ✗ That finger is already enrolled.'
+check_enroll enroll-data-full $'  ✗ The reader has no room for another fingerprint.'
+check_enroll enroll-disconnected $'  ✗ The reader was disconnected.'
+for result in enroll-failed enroll-unknown-error; do
+  check_enroll "$result" $'  ✗ Enrollment stopped. If you stopped before it said Enrolled, run this again and keep going.'
+done
+check_verify() {
+  [[ $(printf 'Verify result: %s\n' "$1" | verify_progress "Again.") == "$2" ]] ||
+    fail "verify result $1 reads as: $2" "$(printf 'Verify result: %s\n' "$1" | verify_progress "Again.")"
+}
+check_verify 'verify-match (done)' $'  ✓ Matched.'
+check_verify 'verify-no-match (done)' $'  ✗ No match.'
+check_verify 'verify-retry-scan (not done)' "  That one didn't read. Again."
+check_verify 'verify-swipe-too-short (not done)' '  Too short. Again.'
+check_verify 'verify-finger-not-centered (not done)' '  Not centered: use the middle of the sensor. Again.'
+check_verify 'verify-remove-and-retry (not done)' '  Lift your finger off the sensor, then try again.'
+# The line names no gesture, so it reads right on press and swipe readers alike.
+[[ $(printf 'Enroll result: enroll-remove-and-retry\n' | enroll_progress "Swipe it again.") == '  Lift your finger off the sensor, then try again.' ]] ||
+  fail "a swipe reader asked to lift its finger isn't told to touch"
+check_verify 'verify-too-fast (not done)' '  Too fast. Again.'
+check_verify 'verify-disconnected (done)' $'  ✗ The reader was disconnected.'
+check_verify 'verify-unknown-error (done)' $'  ✗ The check stopped (verify-unknown-error).'
+pass "each enroll and verify result fprintd 1.94.5 sends reads as intended"
