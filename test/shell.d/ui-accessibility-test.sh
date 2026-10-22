@@ -142,11 +142,25 @@ required_names = {
 failures = []
 for path in sorted(scan.rglob("*.qml")):
   source_tokens = tokens(path.read_text())
+  # An inline `component Name: Base { ... }` is checked where it is used:
+  # each usage counts as a Base carrying the definition's properties too.
+  inline = {}
+  for index, token in enumerate(source_tokens[:-4]):
+    if token[:2] == ("IDENT", "component") and source_tokens[index + 2][0] == ":" \
+        and source_tokens[index + 3][1] in set(required_names) | {"Button"} and source_tokens[index + 4][0] == "{":
+      inline[source_tokens[index + 1][1]] = (source_tokens[index + 3][1], direct_properties(source_tokens, index + 4), index + 3)
+  definitions = {position for _, _, position in inline.values()}
   for index, token in enumerate(source_tokens[:-1]):
-    if token[0] != "IDENT" or token[1] not in set(required_names) | {"Button"} or source_tokens[index + 1][0] != "{":
+    if token[0] != "IDENT" or source_tokens[index + 1][0] != "{" or index in definitions:
       continue
-    component = token[1]
-    properties = direct_properties(source_tokens, index + 1)
+    if token[1] in inline:
+      component, defaults, _ = inline[token[1]]
+      properties = {**defaults, **direct_properties(source_tokens, index + 1)}
+    elif token[1] in set(required_names) | {"Button"}:
+      component = token[1]
+      properties = direct_properties(source_tokens, index + 1)
+    else:
+      continue
     if component == "Button":
       # Only readable text names an icon button; empty, blank or glyph text
       # leaves it to accessibleName or tooltipText.
@@ -186,6 +200,8 @@ Item {
   Button { iconText: ""; text: "  " }
   PanelSlider { accessibleName: " " }
   TextField { placeholderText: "90" }
+  component ActionButton: PanelActionButton { foreground: "red" }
+  ActionButton { iconText: "\ue900" }
 }
 QML
 cat >"$LINT_FIXTURES/Named.qml" <<'QML'
@@ -198,12 +214,16 @@ Item {
   Button { iconText: "\ue900"; tooltipText: "Menu" }
   BarIconButton { accessibleName: "Caf\u00e9" }
   TextField { placeholderText: "90"; accessibleName: "Live to" }
+  component ActionButton: PanelActionButton { foreground: "red" }
+  ActionButton { iconText: "\ue900"; tooltipText: "Settings" }
+  component CloseButton: PanelActionButton { tooltipText: "Close" }
+  CloseButton { iconText: "\ue900" }
 }
 QML
 lint_status=0
 lint_output=$(python3 -c "$naming_lint" "$ROOT" "$LINT_FIXTURES" 2>&1) || lint_status=$?
 rm -rf "$LINT_FIXTURES"
-expected_unnamed=$'Unnamed first-party controls:\n  Unnamed.qml:2 PanelSlider\n  Unnamed.qml:3 ToggleSwitch\n  Unnamed.qml:4 BarIconButton\n  Unnamed.qml:5 BarIndicator\n  Unnamed.qml:6 PanelActionButton\n  Unnamed.qml:7 Button\n  Unnamed.qml:8 BarIconButton\n  Unnamed.qml:9 BarIconButton\n  Unnamed.qml:10 Button\n  Unnamed.qml:11 Button\n  Unnamed.qml:12 PanelSlider\n  Unnamed.qml:13 TextField'
+expected_unnamed=$'Unnamed first-party controls:\n  Unnamed.qml:2 PanelSlider\n  Unnamed.qml:3 ToggleSwitch\n  Unnamed.qml:4 BarIconButton\n  Unnamed.qml:5 BarIndicator\n  Unnamed.qml:6 PanelActionButton\n  Unnamed.qml:7 Button\n  Unnamed.qml:8 BarIconButton\n  Unnamed.qml:9 BarIconButton\n  Unnamed.qml:10 Button\n  Unnamed.qml:11 Button\n  Unnamed.qml:12 PanelSlider\n  Unnamed.qml:13 TextField\n  Unnamed.qml:15 PanelActionButton'
 if (( lint_status == 0 )) || [[ $lint_output != "$expected_unnamed" ]]; then
   fail "naming lint rejects controls named only through unread properties" "$lint_output"
 fi
