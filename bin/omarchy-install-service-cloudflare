@@ -15,7 +15,13 @@ fi
 if omarchy-mise-default-tools declares npm:cf; then
   mise install node npm:cf
 else
-  mise use --global node npm:cf
+  node_versions=$(mise ls --current --json node)
+  if jq -e 'length > 0' <<<"$node_versions" >/dev/null; then
+    mise install node
+  else
+    mise use --global node
+  fi
+  mise use --global npm:cf
 fi
 
 # Keep a Remove route even if login is interrupted or dashboard creation fails.
