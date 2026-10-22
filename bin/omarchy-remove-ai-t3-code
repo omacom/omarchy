@@ -19,6 +19,10 @@ fi
 while [[ $t3code_home == */ ]]; do
   t3code_home=${t3code_home%/}
 done
+if [[ ${t3code_home##*/} == "." || ${t3code_home##*/} == ".." ]]; then
+  echo "Refusing to remove T3 Code: use a data directory path without a final '.' or '..' component." >&2
+  exit 1
+fi
 
 # Installs from before the AppImage came from these packages.
 omarchy-pkg-drop t3code-bin t3code-nightly-bin

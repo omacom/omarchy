@@ -168,6 +168,23 @@ T3CODE_HOME="$HOME/.t3/" "$ROOT/bin/omarchy-remove-ai-t3-code" >/dev/null
 [[ ! -L $HOME/.t3 && -f $tmp_dir/linked-t3-data/workspace ]] || fail "T3 Code removal unlinks a symlinked home without deleting its target"
 pass "T3 Code removal keeps the contents behind a symlinked home"
 
+# rm refuses dot endings, so reject them before removing packages or app files.
+for ending in . ./ child/.. child/../; do
+  fresh_home
+  : >"$TEST_LOG"
+  t3_home="$HOME/custom t3 home"
+  mkdir -p "$t3_home/child" "$HOME/.local/share/t3code" "$HOME/.local/share/applications" "$HOME/.local/bin"
+  touch "$t3_home/workspace" "$HOME/.local/share/t3code/T3-Code.AppImage" "$HOME/.local/share/applications/t3code.desktop"
+  ln -s "$t3_home/$ending/bin/t3" "$HOME/.local/bin/t3"
+  if T3CODE_HOME="$t3_home/$ending" "$ROOT/bin/omarchy-remove-ai-t3-code" >"$tmp_dir/dot-home.log" 2>&1; then
+    fail "T3 Code removal refuses a data home ending in a dot component" "$ending"
+  fi
+  [[ ! -s $TEST_LOG && -f $t3_home/workspace && -f $HOME/.local/share/t3code/T3-Code.AppImage &&
+    -f $HOME/.local/share/applications/t3code.desktop && -L $HOME/.local/bin/t3 ]] ||
+    fail "T3 Code removal refuses dot endings before changing anything" "$ending"
+done
+pass "T3 Code removal refuses dot endings before making changes"
+
 # A configured home may contain symlinks or .., so check where it resolves
 # before either dropping packages or deleting app files.
 fresh_home
