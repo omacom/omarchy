@@ -22,6 +22,14 @@ Item {
   property int powerProfileSignals: 0
   property int powerProfileReadSignals: 0
 
+  // A dock or weak charger can stay online while the battery drains. Wait
+  // out the stale Discharging state after plugging in before warning on AC.
+  readonly property bool drainingOnPower: BatteryModel.drainingOnPower(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging)
+  property bool drainingOnPowerHeld: false
+
+  onDrainingOnPowerChanged: if (!drainingOnPower) drainingOnPowerHeld = false
+  onDrainingOnPowerHeldChanged: checkBattery()
+
   PersistentProperties {
     id: persisted
     reloadableId: "omarchy-battery"
@@ -37,7 +45,7 @@ Item {
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
+    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery, drainingOnPowerHeld)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
   }
@@ -139,6 +147,12 @@ Item {
       root.applyPowerProfile()
       root.refreshPowerProfile()
     }
+  }
+
+  Timer {
+    interval: 60000
+    running: root.drainingOnPower && !root.drainingOnPowerHeld
+    onTriggered: root.drainingOnPowerHeld = true
   }
 
   Component.onCompleted: root.refreshPowerProfile()
