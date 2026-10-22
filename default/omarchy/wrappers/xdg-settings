@@ -37,12 +37,12 @@ case "${1:-} ${2:-}" in
 esac
 
 case "${1:-} ${2:-} ${3:-}" in
-  "get default-url-scheme-handler http"*|\
-  "get default-url-scheme-handler https"*|\
-  "check default-url-scheme-handler http"*|\
-  "check default-url-scheme-handler https"*|\
-  "set default-url-scheme-handler http"*|\
-  "set default-url-scheme-handler https"*)
+  "get default-url-scheme-handler http"|\
+  "get default-url-scheme-handler https"|\
+  "check default-url-scheme-handler http"|\
+  "check default-url-scheme-handler https"|\
+  "set default-url-scheme-handler http"|\
+  "set default-url-scheme-handler https")
     exec env -u BROWSER XDG_CURRENT_DESKTOP= "$real_bin" "$@"
     ;;
 esac
