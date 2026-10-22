@@ -8,18 +8,22 @@ trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin"
 export OMARCHY_PATH="$ROOT" CF_TEST_LOG="$scratch/calls"
 export PATH="$scratch/bin:$ROOT/bin:$PATH"
-cat >"$scratch/bin/omarchy-mise-install" <<'STUB'
+export OMARCHY_MISE_CONFIG_PATH="$ROOT/etc/mise/conf.d/omarchy-tools.toml"
+cat >"$scratch/bin/mise" <<'STUB'
 #!/bin/bash
-[[ $* == "npm:cf cf" ]] || exit 1
-mkdir -p "$HOME/.local/bin"
-cat >"$HOME/.local/bin/cf" <<'CLI'
-#!/bin/bash
-printf 'managed-cf %s\n' "$*" >> "$CF_TEST_LOG"
-if [[ $* == "auth login" ]]; then exit "${CF_TEST_LOGIN_EXIT:-0}"; fi
-if [[ $* == "auth logout" ]]; then exit "${CF_TEST_LOGOUT_EXIT:-0}"; fi
+printf 'mise %s\n' "$*" >> "$CF_TEST_LOG"
+case "$*" in
+  'install node npm:cf' | 'use --global node npm:cf' | 'use -g --quiet npm:cf') exit "${CF_TEST_INSTALL_EXIT:-0}" ;;
+  'x npm:cf -- cf auth login')
+    printf 'managed-cf auth login\n' >> "$CF_TEST_LOG"
+    exit "${CF_TEST_LOGIN_EXIT:-0}"
+    ;;
+  'x npm:cf -- cf auth logout')
+    printf 'managed-cf auth logout\n' >> "$CF_TEST_LOG"
+    exit "${CF_TEST_LOGOUT_EXIT:-0}"
+    ;;
+esac
 exit 1
-CLI
-chmod +x "$HOME/.local/bin/cf"
 STUB
 cat >"$scratch/bin/cf" <<'STUB'
 #!/bin/bash
@@ -50,7 +54,7 @@ chmod +x "$scratch/bin/"*
 
 install_service() { bash "$ROOT/bin/omarchy-install-service-cloudflare"; }
 remove_service() { bash "$ROOT/bin/omarchy-remove-service-cloudflare"; }
-for scenario in ${CF_TEST_CASES:-interrupted webapp-failure logout-failure identity ownership repeated shared-icon shared-xdg shared-system legacy}; do
+for scenario in ${CF_TEST_CASES:-defaults opted-out install-failure interrupted webapp-failure logout-failure identity ownership repeated shared-icon shared-xdg shared-system legacy}; do
   export HOME="$scratch/$scenario"
   export XDG_DATA_HOME="$scratch/data-$scenario" XDG_DATA_DIRS="$scratch/system-$scenario"
   mkdir -p "$HOME/.local/share/applications"
@@ -58,6 +62,28 @@ for scenario in ${CF_TEST_CASES:-interrupted webapp-failure logout-failure ident
   marker="$HOME/.local/state/omarchy/cloudflare-service"
   : >"$CF_TEST_LOG"
   case $scenario in
+    defaults | opted-out)
+      mkdir -p "$HOME/.config/mise" "$HOME/.local/bin"
+      cp "$scratch/bin/cf" "$HOME/.local/bin/cf"
+      if [[ $scenario == "opted-out" ]]; then
+        printf 'ignored_config_paths = ["%s"]\n' "$OMARCHY_MISE_CONFIG_PATH" >"$HOME/.config/mise/miserc.toml"
+      fi
+      install_service
+      remove_service
+      if [[ $scenario == "defaults" ]]; then
+        grep -qx 'mise install node npm:cf' "$CF_TEST_LOG" || fail "default Cloudflare installs without a user declaration"
+        ! grep -q 'mise use ' "$CF_TEST_LOG" || fail "default Cloudflare does not rewrite the user config"
+      else
+        grep -qx 'mise use --global node npm:cf' "$CF_TEST_LOG" || fail "opted-out users get an explicit Cloudflare selection"
+      fi
+      cmp "$HOME/.local/bin/cf" "$scratch/bin/cf" || fail "setup preserves a user-owned cf executable"
+      ! grep -q 'decoy-cf' "$CF_TEST_LOG" || fail "authentication bypasses a user-owned cf executable"
+      ;;
+    install-failure)
+      if CF_TEST_INSTALL_EXIT=1 install_service; then fail "failed mise install aborts setup"; fi
+      [[ ! -e $launcher && ! -e $marker ]] || fail "failed CLI installation creates no setup state"
+      ! grep -q 'managed-cf' "$CF_TEST_LOG" || fail "failed CLI installation never starts authentication"
+      ;;
     interrupted)
       if CF_TEST_LOGIN_EXIT=130 install_service; then fail "interrupted login aborts setup"; fi
       [[ ! -e $launcher && -f $marker ]] || fail "interrupted login creates no launcher and retains a recovery route"
