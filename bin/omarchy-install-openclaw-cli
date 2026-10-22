@@ -455,16 +455,24 @@ manager_runs_runtime() {
 # Restore both choices even when the unit was already rewritten by a failed
 # run. Legacy bare markers restore only running state; they knew no enablement.
 restore_service() {
-  local role=$1 state="true unknown" action runtime_owned=false
+  local role=$1 state="true unknown" action runtime_owned=false owner
   if unit_removed "$role"; then
     rm -f "$stopped_dir/$role" "$stopped_dir/$role.state"
     return
   fi
   if [[ -e $stopped_dir/$role.state ]]; then
     state=$(saved_service_state "$role") || return 1
-    if manager_runs_runtime "$role"; then
+    owner=0
+    manager_runs_runtime "$role" || owner=$?
+    # Upstream writes the unit before reloading, so an installer stopped between
+    # the two leaves the manager on the old command until something reloads it.
+    if (( owner == 2 )) && systemctl --user daemon-reload; then
+      owner=0
+      manager_runs_runtime "$role" || owner=$?
+    fi
+    if (( owner == 0 )); then
       runtime_owned=true
-    elif (( $? == 2 )); then
+    elif (( owner == 2 )); then
       echo "Could not confirm the OpenClaw $role service's command; its original state is kept for the next run." >&2
       return 1
     else
