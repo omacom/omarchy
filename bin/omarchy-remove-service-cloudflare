@@ -10,9 +10,8 @@ if [[ ! -f $marker ]] && ! omarchy-installed-service-cloudflare; then
   exit 0
 fi
 
-# Repair the managed wrapper if it was removed, and never invoke another cf.
-omarchy-mise-install npm:cf cf
-if ! "$HOME/.local/bin/cf" auth logout; then
+# Resolve the Cloudflare backend even if its shim was removed.
+if ! mise x npm:cf -- cf auth logout; then
   echo "Cloudflare sign-out failed. Setup was kept so you can retry Remove > Services > Cloudflare." >&2
   exit 1
 fi

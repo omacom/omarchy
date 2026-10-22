@@ -10,9 +10,13 @@ if [[ -e $launcher || -L $launcher ]] && ! omarchy-installed-service-cloudflare;
   exit 1
 fi
 
-# Recreate the managed wrapper and invoke it explicitly: another program named
-# cf on PATH must not receive Cloudflare authentication commands.
-omarchy-mise-install npm:cf cf
+# Install the CLI and its Node runtime without copying lazy defaults into the
+# user's mise config. Node may not have been installed on a fresh desktop.
+if omarchy-mise-default-tools declares npm:cf; then
+  mise install node npm:cf
+else
+  mise use --global node npm:cf
+fi
 
 # Keep a Remove route even if login is interrupted or dashboard creation fails.
 # A failed attempt remains retryable because Install checks the launcher instead.
@@ -20,7 +24,8 @@ mkdir -p "$HOME/.local/state/omarchy"
 touch "$HOME/.local/state/omarchy/cloudflare-service"
 
 echo -e "\nSigning in to Cloudflare..."
-"$HOME/.local/bin/cf" auth login
+# Select the Cloudflare backend explicitly: another cf must not receive login.
+mise x npm:cf -- cf auth login
 
 omarchy-webapp-install "Cloudflare" "https://dash.cloudflare.com" https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/cloudflare.png
 
