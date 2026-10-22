@@ -29,6 +29,34 @@ assertDeepEqual(
   'battery clears notified state after recovery'
 )
 
+// omarchy-battery-status names the kernel as its source once UPower's
+// energy-full has latched; its percentage then beats the display device's.
+const latched = 'percentage\t99%\nstate\tcharging\nrate\t0W\nsize\t52Wh\ntime\t\nsource\tkernel\n'
+const sound = 'percentage\t51%\nstate\tdischarging\nrate\t10.8W\nsize\t56Wh\ntime\t2h 37m\n'
+assertEqual(battery.kernelPercentage(latched), 99, 'battery takes the kernel percentage past a latch')
+assertEqual(battery.kernelPercentage(sound), -1, 'battery leaves UPower the percentage while its figures are sound')
+assertEqual(battery.kernelPercentage(''), -1, 'battery leaves UPower the percentage when the script prints nothing')
+assertEqual(battery.kernelPercentage('source\tkernel\n'), -1, 'battery leaves UPower the percentage when the kernel gives none')
+assertEqual(battery.batteryPercentage({ isPresent: true, percentage: 0.106 }, 99), 99, 'battery prefers the kernel percentage over a latched UPower one')
+assertEqual(battery.batteryPercentage({ isPresent: true, percentage: 0.106 }, -1), 11, 'battery keeps UPower\'s percentage without a kernel one')
+assertEqual(battery.batteryPercentage({ isPresent: false, percentage: 0.5 }, 99), -1, 'battery reports a missing battery whatever the kernel says')
+assertDeepEqual(
+  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, true, discharging, 10, false, 99),
+  { level: 99, notify: false, notifiedLowBattery: false },
+  'battery does not warn on a latched UPower percentage'
+)
+
+// The script runs once at startup, then only when UPower's full charge moves
+// by more than a factor of two, or, while latched, as its percentage moves.
+assert(battery.shouldRereadKernel(-1, 39.87, 0, 0.45, false), 'battery reads the kernel once at startup')
+assert(!battery.shouldRereadKernel(39.8658, 39.8772, 0.4458, 0.4412, false), 'battery ignores a sound pack\'s drifting full charge and percentage')
+assert(!battery.shouldRereadKernel(0, 0, 0, 0, false), 'battery waits while UPower has no figures yet')
+assert(battery.shouldRereadKernel(0, 54.3, 0, 0.99, false), 'battery reads again once UPower has figures')
+assert(battery.shouldRereadKernel(54.3, 484.5, 0.99, 0.106, false), 'battery reads again when energy-full latches')
+assert(battery.shouldRereadKernel(484.5, 54.3, 0.106, 0.99, true), 'battery reads again when a latch clears')
+assert(battery.shouldRereadKernel(484.5, 484.5, 0.106, 0.1071, true), 'battery follows the charge while a latch holds')
+assert(!battery.shouldRereadKernel(484.5, 484.5, 0.106, 0.1065, true), 'battery lets a latched percentage move a tenth of a point first')
+
 const reply = profile => JSON.stringify({ type: 's', data: profile })
 assertEqual(battery.parseActiveProfile(reply('power-saver')), 'power-saver', 'battery parses the busctl profile reply')
 assertEqual(battery.parseActiveProfile(''), '', 'battery reads a missing daemon as no profile')
