@@ -107,6 +107,14 @@ cat >"$mock_bin/systemd-analyze" <<'SH'
 #!/bin/bash
 printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user" "${XDG_DATA_HOME:-$HOME/.local/share}/systemd/user"
 SH
+# Observe contention without replacing flock's actual locking behavior.
+cat >"$mock_bin/flock" <<'SH'
+#!/bin/bash
+if [[ -n ${OMARCHY_TEST_OBSERVE_WAIT:-} ]] && ! "$OMARCHY_TEST_ROOT/tools/flock" -n "$@"; then
+  printf 'waiting\n' >"$OMARCHY_TEST_ROOT/concurrent-events"
+fi
+exec "$OMARCHY_TEST_ROOT/tools/flock" "$@"
+SH
 # Waiting on a gateway takes no time here.
 printf '#!/bin/bash\n' >"$mock_bin/sleep"
 chmod +x "$mock_bin/"*
@@ -154,6 +162,10 @@ if [[ \${2:-} == "install" ]]; then
   # Interrupt only the Omarchy caller, after a successful pinned service install.
   if [[ \${OMARCHY_TEST_INTERRUPT_AFTER_INSTALL:-} == "\$1" && \${4:-} == "--runtime-path" ]]; then
     kill -KILL "\$PPID"
+  fi
+  if [[ -n \${OMARCHY_TEST_PAUSE_AFTER_INSTALL:-} && \${4:-} == "--runtime-path" ]]; then
+    printf 'installed\n' >"\$OMARCHY_TEST_ROOT/concurrent-events"
+    read -r -t 10 _ <"\$OMARCHY_TEST_ROOT/concurrent-release"
   fi
   [[ ! -e "\$HOME/restarts-after-install" ]] || mv "\$HOME/restarts-after-install" "\$HOME/gateway-restarting"
 fi
@@ -219,7 +231,7 @@ new_home() {
 # test can drop another openclaw. The system's commands come from a directory
 # of their own, so an openclaw on the machine running this is never found.
 mkdir -p "$test_tmp/usr-bin" "$test_tmp/tools"
-for tool in bash cat chmod cp cut env grep head jq ln mkdir mv readlink realpath rm sed sha256sum stat timeout touch true; do
+for tool in bash cat chmod cp cut env flock grep head jq ln mkdir mv readlink realpath rm sed sha256sum stat timeout touch true; do
   ln -s "$(type -P "$tool")" "$test_tmp/tools/$tool"
 done
 run() {
@@ -469,6 +481,37 @@ for role in gateway node; do
   done
 done
 pass "an interrupted service installation preserves the original running and enabled state on retry"
+
+# A second install must not consume the first caller's saved state while that
+# caller is still moving its service. Both commands and rendezvous are bounded.
+(
+  new_home overlapping-installs
+  mkdir -p "$test_home/.config/systemd/user"
+  printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
+  mkfifo "$test_tmp/concurrent-events" "$test_tmp/concurrent-release"
+  exec {event_fd}<>"$test_tmp/concurrent-events" {release_fd}<>"$test_tmp/concurrent-release"
+  first="" second=""
+  trap 'printf "continue\n" >&"$release_fd"; wait "$first" "$second" 2>/dev/null || true' EXIT
+  OMARCHY_TEST_PAUSE_AFTER_INSTALL=1 run timeout 15 omarchy-install-openclaw-cli --now & first=$!
+  read -r -t 5 -u "$event_fd" phase && [[ $phase == "installed" ]] || fail "first install reaches its service installation barrier"
+  (
+    status=0
+    OMARCHY_TEST_OBSERVE_WAIT=1 run timeout 15 omarchy-install-openclaw-cli --now || status=$?
+    printf 'finished\n' >"$test_tmp/concurrent-events"
+    exit "$status"
+  ) & second=$!
+  read -r -t 5 -u "$event_fd" phase || fail "second install either waits or finishes"
+  printf 'continue\n' >&"$release_fd"
+  if ! wait "$first" || ! wait "$second"; then
+    fail "both overlapping installs complete" "$(cat "$events")"
+  fi
+  trap - EXIT
+  [[ ! -e $test_home/active-openclaw-gateway.service && ! -e $test_home/enabled-openclaw-gateway.service ]] ||
+    fail "overlapping installs preserve the gateway's stopped and disabled state" "$(cat "$events")"
+  [[ $phase == "waiting" && ! -e $test_home/.local/state/omarchy/openclaw-stopped/gateway.state ]] ||
+    fail "the second install waits for completed service restoration"
+)
+pass "overlapping installs preserve the original service state"
 
 # An unreachable manager must not be remembered as stopped and disabled.
 new_home snapshot-manager-down

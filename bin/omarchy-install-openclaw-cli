@@ -317,6 +317,13 @@ case "$mode" in
   ;;
 esac
 
+# Keep concurrent installs from replacing the original service states with the
+# installer's choices. The lock stays outside the recovery directory, which
+# removal deletes, and is held through service restoration.
+mkdir -p "${stopped_dir%/*}"
+exec {install_lock}>"${stopped_dir%/*}/openclaw-install.lock"
+flock "$install_lock"
+
 # Refused before anything is installed or touched: the command's name, what
 # PATH finds, and a gateway running another OpenClaw all have to be clear. Each
 # is an OpenClaw of the user's own, and these refusals exit with a status no
