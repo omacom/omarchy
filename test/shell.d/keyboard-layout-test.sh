@@ -255,7 +255,9 @@ JS
 # Load input.lua against a stub hl and print its keybindings, to check that
 # Caps Lock reaches the shell without being taken from apps.
 require_command lua
-caps_binds=$(HOME="$(mktemp -d)" OMARCHY_PATH="$ROOT" lua <<'LUA'
+caps_home=$(mktemp -d)
+trap 'rm -rf "$caps_home"' EXIT
+caps_binds=$(HOME="$caps_home" OMARCHY_PATH="$ROOT" lua <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 local function proxy()
   return setmetatable({}, {
