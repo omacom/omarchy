@@ -9,10 +9,8 @@ Item {
 
   property var settings: ({})
 
-  readonly property string cliPath: Quickshell.env("HOME") + "/.local/bin/cf"
-  // The wrapper at cliPath upgrades cf before every call, and a watchdog that
-  // stops a call mid-download leaves that install holding mise's lock. Run
-  // the installed cf offline instead; upgrades happen when you run cf yourself.
+  // Keep background calls offline so cancelling a request cannot leave an
+  // installer holding mise's lock. Omarchy updates install newer CLI versions.
   readonly property var cliCommand: ["mise", "x", "npm:cf", "--", "cf"]
   property bool installed: false
   property bool authenticated: false
@@ -119,7 +117,7 @@ Item {
     if (!installed) {
       if (!whichProcess.running) {
         refreshing = true
-        whichProcess.command = ["test", "-x", cliPath]
+        whichProcess.command = ["mise", "where", "npm:cf"]
         whichProcess.running = true
       }
       return
@@ -585,6 +583,7 @@ Item {
     id: whichProcess
     running: false
     command: []
+    environment: root.cliEnvironment("")
     onExited: function(exitCode) {
       root.installed = exitCode === 0
       if (root.installed) root.refresh()

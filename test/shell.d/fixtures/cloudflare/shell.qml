@@ -19,7 +19,16 @@ ShellRoot {
     repeat: true
     onTriggered: {
       harness.tick++
-      if (harness.scenario === "account") {
+      if (harness.scenario === "native-install" || harness.scenario === "foreign-only") {
+        if (harness.tick === 8) {
+          if (harness.scenario === "native-install") {
+            harness.check(service.installed && service.authenticated, "native mise installation works without a handwritten wrapper")
+          } else {
+            harness.check(!service.installed && !service.authenticated && service.statusText === "Not installed", "unrelated cf wrapper does not mark Cloudflare installed")
+          }
+          Qt.quit()
+        }
+      } else if (harness.scenario === "account") {
         if (harness.tick === 4) service.selectAccount("b")
         if (harness.tick === 24) {
           harness.check(service.selectedAccountId === "b", "selected account stays B")

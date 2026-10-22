@@ -12,9 +12,6 @@ scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin" "$scratch/home/.local/bin" "$scratch/runtime" "$scratch/Commons"
 chmod 700 "$scratch/runtime"
-# The upgrading wrapper only marks cf as set up; calling it fails the scenario.
-printf '#!/bin/bash\nexit 96\n' >"$scratch/home/.local/bin/cf"
-chmod +x "$scratch/home/.local/bin/cf"
 cp "$ROOT/test/shell.d/fixtures/cloudflare/cf" "$scratch/cf"
 chmod +x "$scratch/cf"
 printf '#!/bin/bash\nexit 97\n' >"$scratch/bin/cf"
@@ -23,6 +20,10 @@ chmod +x "$scratch/bin/cf"
 # start a download that outlives it. Any other mise call fails the scenario.
 cat >"$scratch/bin/mise" <<'EOF'
 #!/bin/bash
+if [[ $* == 'where npm:cf' && ${MISE_OFFLINE:-} == "1" ]]; then
+  [[ $CF_TEST_SCENARIO != "foreign-only" ]]
+  exit $?
+fi
 [[ $# -ge 4 && $1 == "x" && $2 == "npm:cf" && $3 == "--" && $4 == "cf" && ${MISE_OFFLINE:-} == "1" ]] || exit 98
 shift 4
 exec "$CF_TEST_INSTALLED" "$@"
@@ -33,7 +34,12 @@ cp "$ROOT/shell/plugins/panels/cloudflare/"{Service.qml,Model.js} "$scratch/"
 cp "$ROOT/shell/Commons/"{Util.qml,I18n.qml,Plural.js,Numbers.js} "$scratch/Commons/"
 printf 'singleton Util 1.0 Util.qml\nsingleton I18n 1.0 I18n.qml\n' >"$scratch/Commons/qmldir"
 
-for scenario in ${CF_TEST_SCENARIOS:-account detail repeat-account repeat-detail signout offline pagination pagination-failure login login-race detail-timeout stubborn-detail errors-query old-cli}; do
+for scenario in ${CF_TEST_SCENARIOS:-native-install foreign-only account detail repeat-account repeat-detail signout offline pagination pagination-failure login login-race detail-timeout stubborn-detail errors-query old-cli}; do
+  rm -f "$scratch/home/.local/bin/cf"
+  if [[ $scenario == "foreign-only" ]]; then
+    printf '#!/bin/bash\nexit 96\n' >"$scratch/home/.local/bin/cf"
+    chmod +x "$scratch/home/.local/bin/cf"
+  fi
   : >"$scratch/calls"
   rm -f "$scratch/calls.token"
   if ! OMARCHY_PATH="$ROOT" HOME="$scratch/home" XDG_CONFIG_HOME="$scratch/home/.config" XDG_RUNTIME_DIR="$scratch/runtime" \
