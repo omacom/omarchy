@@ -397,7 +397,7 @@ assert(
 )
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'appearance.top-bar').map(item => item.label),
-  ['Hide Bar', 'Show Bar', 'Position Bar', 'Bar Background', 'Bar Indicators'],
+  ['Hide Bar', 'Show Bar', 'Position Bar', 'Bar Background', 'Floating Bar', 'Bar Pills', 'Bar Indicators'],
   'menu gathers the Menu Bar under Appearance'
 )
 assert(
@@ -596,6 +596,37 @@ assert(
     && defaultById['appearance.animations-on'].action === 'omarchy-toggle-animations',
   'menu uses the existing animations toggle without separate background intro controls'
 )
+// Exactly the bar's current pills and floating state are checked. With no
+// shell to ask, omarchy-bar reads shell.json; a stub stands in for a shell
+// that is not running, so the test never reaches a live one.
+{
+  const os = require('os')
+  const { execFileSync } = require('child_process')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-bar-pills-'))
+  const stubs = path.join(home, 'bin')
+  fs.mkdirSync(path.join(home, '.config/omarchy'), { recursive: true })
+  fs.mkdirSync(stubs)
+  fs.writeFileSync(path.join(stubs, 'omarchy-shell'), '#!/bin/bash\necho "omarchy-shell is not running" >&2\nexit 1\n', { mode: 0o755 })
+  const env = { ...process.env, HOME: home, OMARCHY_PATH: root, PATH: `${stubs}:${root}/bin:${process.env.PATH}` }
+  const passes = command => {
+    try {
+      execFileSync('bash', ['-c', command], { env })
+      return true
+    } catch (e) {
+      return false
+    }
+  }
+  const checked = (bar, ids) => {
+    fs.writeFileSync(path.join(home, '.config/omarchy/shell.json'), JSON.stringify({ bar }))
+    return ids.filter(id => passes(defaultById[id].checked))
+  }
+  const pillRows = ['off', 'section', 'widget'].map(mode => `appearance.top-bar.pills.${mode}`)
+  assertDeepEqual(checked({}, pillRows), ['appearance.top-bar.pills.off'], 'menu checks No Pills while pills are unset')
+  assertDeepEqual(checked({ pills: 'widget' }, pillRows), ['appearance.top-bar.pills.widget'], 'menu checks the pill mode in use')
+  assertDeepEqual(checked({}, ['appearance.top-bar.floating']), [], 'menu leaves Floating Bar unchecked for a flush bar')
+  assertDeepEqual(checked({ floating: true }, ['appearance.top-bar.floating']), ['appearance.top-bar.floating'], 'menu checks Floating Bar while the bar floats')
+  fs.rmSync(home, { recursive: true, force: true })
+}
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'setup.plugin').map(item => item.label),
   ['Enable Plugin', 'Disable Plugin', 'Add Plugin', 'Clone Plugin', 'Remove Plugin'],

@@ -66,6 +66,15 @@ function barThickness(bar, screenName, defaultBarSize) {
   return Math.max(0, size)
 }
 
+// How far the bar reaches in from the edge it hangs from on one screen: its
+// thickness, plus the margin a floating bar keeps off that edge (barMargins).
+function barReach(bar, screenName, defaultBarSize) {
+  var size = barThickness(bar, screenName, defaultBarSize)
+  if (!bar || bar.barHidden || !bar.barMargins) return size
+  var margin = Number(bar.barMargins[String(bar.position || "top")])
+  return isFinite(margin) && margin > 0 ? size + margin : size
+}
+
 // The deck hangs from the top-right corner, so it clears the bar only on the
 // two edges it touches.
 function deckMargins(barPosition, thickness, gap) {

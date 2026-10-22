@@ -461,6 +461,7 @@ ShellRoot {
     api.barHidden = Qt.binding(function() { return shell.bar ? shell.bar.barHidden === true : false })
     api.barSize = Qt.binding(function() { return shell.bar ? Math.max(0, shell.bar.barSize || 0) : 0 })
     api.barSizes = Qt.binding(function() { return shell.bar ? shell.detachedBarSizes(shell.bar.screenBarSizes) : ({}) })
+    api.barMargins = Qt.binding(function() { return shell.bar && shell.bar.barMargins ? Object.assign({}, shell.bar.barMargins) : ({ top: 0, right: 0, bottom: 0, left: 0 }) })
     api.fontFamily = Qt.binding(function() { return shell.bar ? String(shell.bar.fontFamily || "") : "" })
     api.position = Qt.binding(function() { return shell.bar ? String(shell.bar.position || "top") : "top" })
     var next = ({})
@@ -1803,6 +1804,34 @@ ShellRoot {
         return "ok"
       }
       return "no-bar"
+    }
+
+    // The bar toggles from what it shows: theme defaults and the last pill
+    // mode included, which shell.json alone does not know.
+    function toggleBarPills(): string {
+      if (shell.bar && typeof shell.bar.togglePills === "function") {
+        shell.bar.togglePills()
+        return "ok"
+      }
+      return "no-bar"
+    }
+
+    function toggleBarFloating(): string {
+      if (shell.bar && typeof shell.bar.toggleFloating === "function") {
+        shell.bar.toggleFloating()
+        return "ok"
+      }
+      return "no-bar"
+    }
+
+    // What the bar shows, theme defaults included, for omarchy-bar and the
+    // menu's check marks. "no-bar" when there is none to ask.
+    function barPills(): string {
+      return shell.bar && typeof shell.bar.pillMode === "string" ? shell.bar.pillMode : "no-bar"
+    }
+
+    function barFloating(): string {
+      return shell.bar && typeof shell.bar.floating === "boolean" ? String(shell.bar.floating) : "no-bar"
     }
 
     function setPluginEnabled(id: string, enabled: string): string {

@@ -105,11 +105,27 @@ assert(
   'bar takes its screen\'s physical mode from Hyprland'
 )
 assert(
-  /function thicknessFor\(screen\) \{\s*if \(root\.vertical \|\| !screen\) return root\.barSize\s*return Math\.max\(root\.barSize, BarModel\.notchFloor\(/.test(barSource) &&
+  /function thicknessFor\(screen\) \{\s*if \(root\.vertical \|\| !screen\) return root\.barSize\s*return Math\.max\(root\.barSize, root\.notchReachFor\(screen\)\)/.test(barSource) &&
     /readonly property int thickness: root\.thicknessFor\(screen\)/.test(barSource) &&
     /implicitHeight: root\.vertical \? 0 : thickness/.test(barSource),
   'bar height is floored at the cutout, never shrunk to it'
 )
+
+// A theme margin sits a top bar below the edge, so the cutout reaches only the
+// rest of the floor into it, and nothing once the margin clears it. A bar
+// floating in the gap reserves only a flush bar's space, so it keeps the flush
+// floor: a thinner bar there would move the windows when floating is toggled.
+assertEqual(bar.notchReach(32, 0), 32, 'a flush top bar meets the whole cutout')
+assertEqual(bar.notchReach(32, 10), 22, 'a top margin shortens how far the cutout reaches into the bar')
+assertEqual(bar.notchReach(32, 32), 0, 'a top margin as tall as the cutout clears it')
+assertEqual(bar.notchReach(32, 40), 0, 'a top margin past the cutout clears it')
+assertEqual(bar.notchReach(0, 10), 0, 'a screen without a cutout has nothing to reach')
+assertEqual(bar.notchReach(32, -4), 32, 'a negative margin counts as none')
+assertEqual(bar.notchReach(32, 'x'), 32, 'an unreadable margin counts as none')
+// The bar floats in the gap at the flush floor, so with its margin given back
+// it reserves exactly what the flush bar does.
+const gapMargins = { top: 6, right: 12, bottom: 12, left: 12 }
+assertEqual(gapMargins.top + bar.exclusiveZone(true, Math.max(26, bar.notchReach(40, 0)), gapMargins, 'top'), 40, 'a bar floating in the gap on a notched screen reserves what the flush bar reserves')
 // A hidden bar parks by that same thickness (bar-test.sh), so a floored top
 // bar leaves no strip of itself on screen.
 

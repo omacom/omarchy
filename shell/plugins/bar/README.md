@@ -16,7 +16,7 @@ the shell for its whole session.
 
 The bar config lives under the `bar:` key of [`~/.config/omarchy/shell.json`](../../../docs/omarchy-shell.md#shelljson). Out of the box the shell uses [`config/omarchy/shell.json`](../../../config/omarchy/shell.json). Once you customize anything via the bar gestures, `omarchy bar ...`, or by editing shell.json directly, your file is canonical — there is no deep-merge.
 
-The bar is configured directly on the bar itself: drag empty bar space (or click-and-hold) to move the bar to another screen edge, double-left-click empty center-bar space to cycle the bar background from clear to glassy to opaque, and drag widgets to reorder them. The `omarchy bar position`, `omarchy bar background`, `omarchy bar move`, and `omarchy bar set` commands do the same from scripts. Enable or disable widgets with `omarchy plugin enable` and `omarchy plugin disable` (widget ids come from `omarchy plugin list`).
+The bar is configured directly on the bar itself: drag empty bar space (or left click-and-hold) to move the bar to another screen edge, double-left-click empty center-bar space to cycle the bar background from clear to glassy to opaque, right-click empty bar space for options for the background, floating and pills, and drag widgets to reorder them. The `omarchy bar position`, `omarchy bar background`, `omarchy bar pills`, `omarchy bar floating`, `omarchy bar move`, and `omarchy bar set` commands do the same from scripts. Enable or disable widgets with `omarchy plugin enable` and `omarchy plugin disable` (widget ids come from `omarchy plugin list`).
 
 Example `shell.json` (bar subtree only shown):
 
@@ -49,6 +49,35 @@ Example `shell.json` (bar subtree only shown):
 ```
 
 `center` is a box in the middle of the bar whose modules are centered as one group on the exact horizontal/vertical center. `centerBegin` and `centerEnd` hang off the box's two edges and move out as it grows; with the box empty they meet in the middle of the bar.
+
+`pills` puts widgets on their own background, so the bar background can be dropped (`"background": "none"`) and the widgets still sit on something. With `"background": "glassy"` the pills are frosted glass and the strip is not drawn. Unset, a theme's `[bar] pills` decides, and without one there are no pills.
+
+| `pills` | Effect |
+|---|---|
+| `"off"` | no pills |
+| `"section"` | one pill per run of neighboring widgets. A spacer ends the run, even at `"size": 0`, and so does a change of `"group"` value between neighbors |
+| `"widget"` | one pill per widget |
+
+```json
+"bar": {
+  "background": "none",
+  "pills": "section",
+  "layout": {
+    "right": [
+      { "id": "omarchy.tray" },
+      { "id": "omarchy.spacer", "size": 0 },
+      { "id": "omarchy.bluetooth", "group": "net" },
+      { "id": "omarchy.network", "group": "net" },
+      { "id": "omarchy.audio" },
+      { "id": "omarchy.power", "pill": false }
+    ]
+  }
+}
+```
+
+That right section draws `[tray] [bluetooth network] [audio]` and a bare power widget: `"pill": false` keeps a widget off any pill. Widgets that hide themselves drop out of their pill. Widget text is picked for legibility against the pill, and a bare widget uses the same color, so it reads best on an opaque bar background. Theme keys are in [`docs/omarchy-shell.md`](../../../docs/omarchy-shell.md#bar-pills).
+
+`floating: true` moves the bar into the gap between the screen edge and the windows: half of Hyprland's `gaps_out` from the screen edge and the full `gaps_out` at its ends, so it lines up with the windows, which do not move (with `gaps_out` up to 50 for the stock 26 px bar). Its corners follow the windows'. Unset, a theme's `[bar] margin` decides; `false` keeps it flush. Theme keys are in [`docs/omarchy-shell.md`](../../../docs/omarchy-shell.md#floating-bar).
 
 ## Module catalogue
 
@@ -153,7 +182,7 @@ Item {
   Text {
     anchors.centerIn: parent
     text: "GPU"
-    color: bar ? bar.foreground : "white"
+    color: bar ? bar.barForeground : "white"
     font.family: bar ? bar.fontFamily : "monospace"
     font.pixelSize: 12
   }
@@ -170,10 +199,13 @@ Item {
 Widgets receive `bar` (the shell root), `moduleName` (string), and `settings` (object) injected at load time. A widget that declares `fixedEdge` also gets the edge of it that stays put when it grows: `"start"` (left, or top on a vertical bar), `"end"`, or `"center"` when it grows both ways, following the section it sits in. When the center box holds more than one widget, its first gets `"end"` and its last `"start"`, like `centerBegin`'s and `centerEnd`'s. A widget that grows, like the tray's drawer or the indicator peek, can lay its content out against that edge so it doesn't shift. A widget moved to another section keeps running, and its `fixedEdge` and `settings` change in place, so bind to them rather than reading them once. The bar exposes:
 
 - `bar.foreground`, `bar.background`, `bar.urgent` — theme colors (live-updated)
+- `bar.barForeground` — the text color to draw on the bar: the theme text, or the color picked for a clear bar or for pills
+- `bar.pillsOn` — whether bar pills are on
 - `bar.fontFamily` — current monospace family
 - `bar.position` — `"top" | "bottom" | "left" | "right"`
 - `bar.vertical` — boolean shortcut
 - `bar.barSize` — 26 horizontal / 28 vertical
+- `bar.barMargins` — `{ top, right, bottom, left }` gap between a floating bar and the screen edges; only the edge it is anchored to and the two it spans apply; all 0 for a flush bar
 - `bar.run(command)` — fire-and-forget bash exec (quote arguments with `Util.shellQuote` from `qs.Commons`)
 - `bar.showTooltip(target, text)` / `bar.hideTooltip(target)` — shared tooltip popup
 - `bar.requestPopout(owner)` / `bar.releasePopout(owner)` — one-popup-at-a-time coordinator

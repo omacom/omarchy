@@ -85,6 +85,63 @@ are centered as one group; `centerBegin` and `centerEnd` hang off its two
 edges. Put a widget beside the clock in `centerBegin` or `centerEnd`, not in
 `center`, or the clock moves off center.
 
+## Bar Appearance
+
+Bar-wide look is set with `omarchy bar` too; each writes `bar.<key>` in
+`shell.json` and applies live. Everything here is opt-in: unset, the bar keeps
+its stock look.
+
+```bash
+omarchy bar position top                    # top|bottom|left|right
+omarchy bar background none                 # opaque|glassy|none|cycle
+omarchy bar pills section                   # off|section|widget|toggle
+omarchy bar floating true                   # true|false|toggle
+```
+
+- `background`: `opaque` draws the bar, `glassy` draws it see-through and
+  turns on Hyprland's blur behind it, `none` drops it. `cycle` steps none,
+  glassy, opaque. With pills on, `opaque` raises the pills on the bar,
+  `glassy` makes them frosted glass with no strip, and `none` gives solid
+  pills on the wallpaper.
+- `pills` gives widgets their own background. `section` joins neighboring
+  widgets into one pill; a spacer ends it, even `{"id": "omarchy.spacer",
+  "size": 0}`, and so does a change of `"group": "<name>"` between neighbors.
+  `widget` gives every widget its own pill. `"pill": false` on a layout entry
+  keeps that widget off pills.
+- `floating` moves the bar into the gap between the screen edge and the
+  windows: half of Hyprland's `gaps_out` from the screen edge, so the gap is
+  the same on both sides of the bar, and the full `gaps_out` at its ends, so
+  it lines up with the windows. Windows do not move when it is toggled (with
+  `gaps_out` up to 50 for the stock bar), and the corners follow the
+  windows'. The gap follows Hyprland's `gaps_out`; change that rather than
+  adding a bar setting.
+- "Floating pills" is `background none`, `pills section`, `floating true`;
+  with `background glassy` the floating pills are frosted glass.
+- Right-click empty bar space for a card with the background (click to
+  cycle it), floating and pills.
+- `pills toggle` and `floating toggle` ask the running bar, so they start from
+  what it shows, theme defaults included, and pills come back in the last mode
+  used since the shell started. With no shell or bar running they flip
+  `shell.json` (pills between `off` and `section`). If the shell does not
+  answer in time they fail rather than flip, since it may still act; check
+  the bar before running them again.
+
+Theme-level keys go in the `[bar]` section of `~/.config/omarchy/shell.toml`
+(or a theme's `shell.toml`) and apply on save. A theme can turn features on
+by default; `shell.json` still wins.
+
+- Floating: `margin` (`N`, `"Y X"`, `"T X B"`, `"T R B L"`; a margin on an edge
+  the bar touches floats it unless `bar.floating` is false) and `radius`.
+- Pills: `pills` (default mode), `pill`, `pill-alpha`, `pill-text`,
+  `pill-border`, `pill-border-alpha`, `pill-radius`, `pill-inset`,
+  `pill-padding`, `pill-gap`.
+
+Unset, pills use the bar colors and Hyprland's rounding. The theme template
+lists every key with an example: `$OMARCHY_PATH/default/themed/shell.toml.tpl`.
+Frosted pills come from `background glassy`. Blur behind translucent pills
+on a clear bar is a Hyprland layer rule on the `omarchy-bar` namespace, not a
+bar setting; see `hyprland.md`.
+
 ## Customizing Built-In Plugins and Widgets
 
 To customize a built-in bar widget, never edit `$OMARCHY_PATH/shell/plugins/`.

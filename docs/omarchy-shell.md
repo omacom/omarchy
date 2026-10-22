@@ -89,13 +89,7 @@ Bar widgets may set `barWidget.defaultSection` to `left`, `centerBegin`, `center
 
 Plugins run as **unsandboxed code** inside `omarchy-shell`. Adding warns you before cloning, plugins land disabled so you can review the code before `omarchy plugin enable`, and updates show a diff before touching anything. Commands confirm in a terminal even when given arguments; without one they refuse rather than guess. Add `--yes` to skip every prompt (the path for scripts and agents). The scoped interfaces remove direct access to authentication services and avoid handing generic cross-plugin service factories to replacement bars, but visual plugins can still traverse ordinary objects in their shared QML scene. Plugin code also has the same user-level file and process access as the shell.
 
-You can still install by hand: drop a plugin into
-`~/.config/omarchy/plugins/<id>/`, run `omarchy-shell shell rescanPlugins`, then
-`omarchy plugin enable <id>`. A bar widget starts in its declared default
-section; enabling a full bar replaces the one in use. `omarchy bar` drives the
-bar from the CLI — `use | reset | defaults | position | background | put |
-move | set | get`, with placement flags such as `--section` and `--index`.
-The lower-level IPC methods remain available through `omarchy-shell shell ...`.
+You can still install by hand: drop a plugin into `~/.config/omarchy/plugins/<id>/`, run `omarchy-shell shell rescanPlugins`, then `omarchy plugin enable <id>`. A bar widget starts in its declared default section; enabling a full bar replaces the one in use. `omarchy bar` drives the bar from the CLI — `use | reset | defaults | position | background | pills | floating | put | move | set | get`, with placement flags such as `--section` and `--index`. The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
 ## Elsewhen
 
@@ -121,6 +115,9 @@ or `omarchy.power`. There is no `bar` target.
 | `reloadConfig`                        | reload shell.json               |
 | `applyTheme <colorsB64> <shellB64>`   | push theme colors + shell.toml  |
 | `toggleBarTransparency`               | cycle the bar background from clear to glassy to opaque |
+| `toggleBarPills`                      | turn bar pills off, or back on in the last mode used since the shell started |
+| `toggleBarFloating`                   | switch the bar between floating and flush |
+| `barPills` / `barFloating`            | the running bar's pills mode or floating state, theme defaults included; `no-bar` without a bar |
 | `cycleInput <next\|back>`             | switch to the next or previous input method or layout (Super+I, Super+Shift+I); `not running` without the input reader |
 | `setPluginEnabled <id> <"true"\|…>`   | flip enabled bit (`ok` / `unknown`) |
 | `enablePlugin <id> <placementJson>`   | enable and place in one mutation |
@@ -399,6 +396,11 @@ of top/bottom and left/right bars respectively, measured at the default
 scale-with-font = true
 size-horizontal = 26   # top/bottom bar height at base-size 12
 size-vertical   = 28   # left/right bar width at base-size 12
+icon-slot       = 27   # length of one icon slot along the bar
+icon-canvas     = 16   # the square an icon is drawn in
+icon-size       = 12   # the icon itself, at most icon-canvas
+icon-font       = 13   # glyph size of a font icon on an icon button
+status-slot     = 21   # length of a status indicator slot along the bar
 ```
 
 Set `scale-with-font = false` to keep those bar sizes as fixed pixels.
@@ -412,6 +414,56 @@ A panel with a camera cutout (a notch) at its top keeps a top bar out of it: the
 A panel matches a screen whose connector name starts with `connector` and whose mode, as `hyprctl monitors` reports it, is `width` x `height` physical pixels, at any scale; `top` is the physical rows the cutout covers. On such a panel, `[bar] notch-height` (logical pixels, not scaled with the font) sets the floor by hand. The bar reads the file when the shell starts and whenever it changes; a file installed where its directory didn't exist yet (the platform root itself, on a first install) is read at the next shell start.
 
 Until Hyprland reports a screen's mode, a top bar there waits to appear if a description names the screen's connector, unless the logical size times Qt's whole-number scale already matches a panel. It then appears at its floor rather than growing once windows are laid out, and never guesses a floor for a panel nothing describes. After two seconds without a mode it appears without a floor. Notifications clear the bar as thick as it is on their screen. A plugin's `shell.bar` gives the same through `barSizeFor(screenName)` and the `barSizes` map (screen name to thickness); its `barSize` stays the configured size, which the widgets are drawn at.
+
+### Floating bar
+
+A floating bar sits off the screen edge instead of flush against it. It is off unless you turn it on, so a stock bar is unchanged.
+
+Turn it on with `"floating": true` under `bar` in `shell.json` (`omarchy bar floating true`, or right-click empty bar space), or let a theme do it with a `[bar] margin` on an edge the bar touches. `bar.floating: false` keeps the bar flush whatever the theme says.
+
+```toml
+[bar]
+margin = 10   # gap between the bar and the screen edges it touches
+radius = 12   # corner rounding of the bar background
+```
+
+`margin` accepts the same CSS-style list as the border widths, `N`, `"Y X"`, `"T X B"` or `"T R B L"`, so the gap can differ per edge. It applies to the edge the bar is anchored to and the two it spans:
+
+```toml
+[bar]
+margin = "4 8"   # 4 above and below, 8 left and right
+```
+
+Without a theme margin a floating bar floats inside the space a flush bar already reserves. It sits half of Hyprland's `general:gaps_out` from the screen edge, so the gap between the bar and the screen edge matches the gap between the bar and the windows. Its ends sit the full `gaps_out` in from the screen sides, in line with the windows. The windows stay where they are when floating is switched on or off, as long as half of `gaps_out`, rounded, stays below the bar's thickness (`gaps_out` up to 50 for the stock 26 px bar). Above that the bar reserves that rounded half plus 1. `radius` applies only while the bar floats; a flush bar stays square. Unset, it follows Hyprland's `decoration:rounding`, and it never rounds past half the bar's thickness.
+
+Theme values follow `scale-with-font` like the sizes above; the Hyprland-derived defaults do not. A theme margin is reserved along with the bar, so tiled and maximized windows stop clear of it and keep `gaps_out` between them and the bar. Auto-hide parks the bar fully off screen, margin included. On a panel with a camera cutout, a theme top margin counts toward clearing it: the bar's floor shrinks by the margin, and a margin that clears the cutout leaves the center sections in the middle. A bar floating in the gap keeps a flush bar's floor, so the windows still stay put.
+
+### Bar pills
+
+Pills give bar widgets their own background, so the bar background can be dropped (`"background": "none"`) and the widgets still sit on something. They are off unless you turn them on, so a stock bar is unchanged.
+
+Turn them on with `"pills": "section"` under `bar` in `shell.json` (`omarchy bar pills section`, or right-click empty bar space), or let a theme set a default with `[bar] pills`. `shell.json` wins.
+
+| Mode | Effect |
+|---|---|
+| `off` | no pills |
+| `section` | one pill per run of neighboring widgets. A spacer ends the run, even at `"size": 0`, and so does a change of `"group"` value between neighbors |
+| `widget` | one pill per widget |
+
+These `[bar]` keys shape the pills. All are optional.
+
+| Key | Default | Effect |
+|---|---|---|
+| `pill` | see below | fill color |
+| `pill-alpha` | `background-alpha` | fill opacity, 0 to 1, used with `pill` or on a clear bar; a glassy bar caps it at 0.35 |
+| `pill-text` | picked | widget text while pills are on, `"pill": false` widgets included. Unset, the shell picks `text` or the theme background, whichever contrasts more with the pill, composited over the wallpaper when the pill is translucent on a clear bar. On a glassy bar it is `text`, as on the glassy bar itself |
+| `pill-border`, `pill-border-alpha` | none | a 1 px outline; shown when its alpha is above 0, also on a transparent fill |
+| `pill-radius` | Hyprland `decoration:rounding` | corner radius; 0 is square; capped at half the pill's thickness |
+| `pill-inset` | 2 | gap between a pill and the bar's edges and ends |
+| `pill-padding` | 4 | space inside a pill at its ends |
+| `pill-gap` | 6 | space between neighboring pills |
+
+Unset, `pill` depends on the bar background. On a clear bar (`"background": "none"`) the pill is the bar `background` at `background-alpha`, so the bar color stays behind the widgets. On an opaque bar that color would not show, so the pill is `text` at 10% over the bar, a raised tone that works for dark and light themes. On a glassy bar the strip is not drawn and the pills take its glass: the pill color at no more than 35% opacity, and Omarchy's blur behind the bar falls on the pills alone. A theme that sets `pill` gets that color in every state. The sizes scale with the font like the bar sizes above; a `pill-radius`, `pill-inset`, `pill-padding` or `pill-gap` of 0 stays 0.
 
 ## Custom bar modules
 
@@ -431,13 +483,7 @@ For a custom QML widget:
 { "id": "gpu", "type": "qml" }
 ```
 
-Then `~/.config/omarchy/bar/modules/gpu.qml` (or set `source` to point
-elsewhere). The module is an `Item` and receives `bar`, `moduleName`,
-`settings` properties. `bar` exposes `foreground` / `background` /
-`urgent` / `fontFamily` / `position` / `vertical` / `barSize`, plus
-`run(cmd)`, `showTooltip(t, s)` / `hideTooltip(t)`,
-`requestPopout(o)` / `releasePopout(o)`. To shell-quote arguments for
-`run`, use `Util.shellQuote(v)` from `qs.Commons`.
+Then `~/.config/omarchy/bar/modules/gpu.qml` (or set `source` to point elsewhere). The module is an `Item` and receives `bar`, `moduleName`, `settings` properties. `bar` exposes `foreground` / `background` / `barForeground` (the text color to draw on the bar; it follows the clear-bar sampler and pills) / `pillsOn` / `urgent` / `fontFamily` / `position` / `vertical` / `barSize` / `barMargins` (the gap between a floating bar and the screen edges; only the edge it is anchored to and the two it spans apply), plus `run(cmd)`, `showTooltip(t, s)` / `hideTooltip(t)`, `requestPopout(o)` / `releasePopout(o)`. To shell-quote arguments for `run`, use `Util.shellQuote(v)` from `qs.Commons`.
 
 A module that declares `property string fixedEdge` also receives the edge of itself that stays put when it grows, set by how its section is anchored. Widgets that extend `BarWidget` from `qs.Ui` declare it already.
 
