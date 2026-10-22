@@ -87,7 +87,7 @@ fi
 busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig >/dev/null 2>&1 || true
 
 if [[ -n $glyph ]]; then
-  omarchy-notification-send -g "$glyph" "$name is now the default file manager"
+  omarchy-notification-send -g "$glyph" "$(omarchy-i18n default.filemanagerSet "$name")"
 else
-  omarchy-notification-send "$name is now the default file manager"
+  omarchy-notification-send "$(omarchy-i18n default.filemanagerSet "$name")"
 fi

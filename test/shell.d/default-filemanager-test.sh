@@ -11,6 +11,7 @@ mock_bin="$test_tmp/bin"
 system_services="$test_tmp/usr/share/dbus-1/services"
 mkdir -p "$mock_bin" "$system_services" "$test_tmp/home"
 
+export OMARCHY_PATH="$ROOT"
 export HOME="$test_tmp/home"
 export XDG_DATA_HOME="$test_tmp/data"
 export OMARCHY_TEST_MIME_FILE="$test_tmp/inode-directory"
@@ -45,6 +46,14 @@ SH
 cat >"$mock_bin/omarchy-cmd-terminal-cwd" <<'SH'
 #!/bin/bash
 echo "/tmp/a dir"
+SH
+
+cat >"$mock_bin/omarchy-i18n" <<'SH'
+#!/bin/bash
+case $1 in
+default.filemanagerSet) printf '%s is now the default file manager\n' "$2" ;;
+*) printf '%s\n' "$1" ;;
+esac
 SH
 
 cat >"$mock_bin/omarchy-notification-send" <<'SH'

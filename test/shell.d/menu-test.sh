@@ -297,6 +297,7 @@ assertDeepEqual(
 const expectedDefaults = {
   browser: ['Chromium', 'Chrome', 'Brave', 'Brave Origin', 'Edge', 'Firefox', 'Zen'],
   terminal: ['Alacritty', 'Foot', 'Ghostty', 'Kitty'],
+  editor: ['Neovim', 'VSCode', 'Cursor', 'Zed', 'Sublime Text', 'Helix', 'Vim', 'Emacs'],
   filemanager: ['Nautilus (Files)', 'Flea', 'Dolphin', 'Thunar', 'Nemo', 'PCManFM'],
   dictation: ['Superwhisper', 'Voxtype']
 }
