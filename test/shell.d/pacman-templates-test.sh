@@ -16,10 +16,10 @@ export OMARCHY_PATH="$ROOT"
 source "$ROOT/install/helpers/pacman.sh"
 
 platforms="x86 aarch64 aarch64-apple"
-# aarch64 has edge alone: stable and rc there would install the release line,
-# which has no aarch64 support.
+# Apple Silicon has edge alone: its packages and Asahi ALARM are published for
+# edge only so far.
 channels_for() {
-  if [[ $1 == "x86" ]]; then echo "stable rc edge"; else echo "edge"; fi
+  if [[ $1 == "aarch64-apple" ]]; then echo "edge"; else echo "stable rc edge"; fi
 }
 
 # ── the templates ────────────────────────────────────────────────────────────
@@ -29,17 +29,17 @@ channels_for() {
 [[ $(omarchy_pacman_templates aarch64-apple) == "$ROOT/default/pacman/aarch64-apple" ]] || fail "Apple Silicon uses its own templates"
 for platform in aarch64-qualcomm aarch64-n1x aarch64-gb10; do
   [[ $(omarchy_pacman_templates "$platform") == "$ROOT/default/pacman/aarch64" ]] || fail "$platform shares the aarch64 templates"
-  [[ $(omarchy_pacman_default_channel "$platform") == edge ]] || fail "$platform defaults to edge"
+  [[ $(omarchy_pacman_default_channel "$platform") == stable ]] || fail "$platform defaults to stable"
 done
 ! omarchy_pacman_templates riscv 2>/dev/null || fail "an unknown platform has no templates"
 pass "each platform's templates sit in a directory of their own, x86_64's where they always were"
 
-[[ $(omarchy_pacman_default_channel x86) == stable ]] || fail "x86 defaults to stable"
-for platform in aarch64 aarch64-apple; do
-  [[ $(omarchy_pacman_default_channel "$platform") == edge ]] || fail "$platform defaults to edge"
+for platform in x86 aarch64; do
+  [[ $(omarchy_pacman_default_channel "$platform") == stable ]] || fail "$platform defaults to stable"
 done
+[[ $(omarchy_pacman_default_channel aarch64-apple) == edge ]] || fail "aarch64-apple defaults to edge"
 ! omarchy_pacman_default_channel riscv 2>/dev/null || fail "an unknown platform has no default channel"
-pass "x86 defaults to stable and every aarch64 platform to edge"
+pass "every platform defaults to stable but Apple Silicon, which defaults to edge"
 
 # pacman reads each repository list from the template, with its mirrorlist
 # standing in for /etc/pacman.d/mirrorlist.
@@ -51,7 +51,7 @@ repos() {
 for platform in $platforms; do
   templates=$(omarchy_pacman_templates "$platform")
   for channel in stable rc; do
-    [[ $platform == "x86" ]] && continue
+    [[ $platform == "aarch64-apple" ]] || continue
     [[ ! -e $templates/pacman-$channel.conf && ! -e $templates/mirrorlist-$channel ]] ||
       fail "$platform has no $channel template or mirrorlist"
   done
@@ -61,17 +61,41 @@ for platform in $platforms; do
     list=$(repos "$templates" "$channel") || fail "$platform $channel: pacman reads the template"
     case $platform in
       x86) expected="omarchy core extra multilib " ;;
-      aarch64) expected="omarchy core extra alarm aur " ;;
-      aarch64-apple) expected="omarchy asahi-alarm core extra alarm aur " ;;
+      aarch64) expected="omarchy core extra alarm " ;;
+      aarch64-apple) expected="omarchy asahi-alarm core extra alarm " ;;
     esac
     [[ $list == "$expected" ]] || fail "$platform $channel: repositories in order" "$list"
     # $arch stays literal: pacman fills it in on the machine.
     server=$(sed -n '/^\[omarchy\]/,/^\[/s/^Server = //p' "$templates/pacman-$channel.conf")
     [[ $server == "https://pkgs.omarchy.org/$channel/\$arch" ]] ||
       fail "$platform $channel: Omarchy's $channel repository" "$server"
+    # The Arch mirror is the same channel's: x86's at <channel>-mirror, Arch
+    # Linux ARM's at arm-<channel>-mirror, edge without the channel.
+    case $platform in
+      x86) host=mirror.omarchy.org layout='$repo/os/$arch' ;;
+      *) host=arm-mirror.omarchy.org layout='$arch/$repo' ;;
+    esac
+    [[ $channel == "edge" ]] || host=${host/mirror/$channel-mirror}
+    mirror=$(sed -n 's/^Server = //p' "$templates/mirrorlist-$channel")
+    [[ $mirror == "https://$host/$layout" ]] || fail "$platform $channel: the $channel Arch mirror" "$mirror"
   done
 done
-pass "x86 has templates for stable, rc and edge and aarch64 for edge alone, each with its repositories in order"
+pass "x86 and aarch64 have templates for stable, rc and edge and Apple Silicon for edge alone, each with its repositories in order and its channel's mirrors"
+
+# omarchy-version-channel names each template pair's channel: the menu's
+# checkmarks and a refresh with no channel go by it.
+sed -e "s|/etc/pacman.d/mirrorlist|$work/mirrorlist|g" -e "s|/etc/pacman.conf|$work/pacman.conf|g" \
+  "$ROOT/bin/omarchy-version-channel" >"$work/version-channel"
+for platform in $platforms; do
+  templates=$(omarchy_pacman_templates "$platform")
+  for channel in $(channels_for "$platform"); do
+    cp "$templates/pacman-$channel.conf" "$work/pacman.conf"
+    cp "$templates/mirrorlist-$channel" "$work/mirrorlist"
+    said=$(bash "$work/version-channel")
+    [[ $said == "$channel" ]] || fail "$platform $channel: omarchy-version-channel names it" "$said"
+  done
+done
+pass "omarchy-version-channel names the channel of every platform's templates"
 
 # ── install finalization ─────────────────────────────────────────────────────
 
@@ -115,6 +139,12 @@ fi
 rm -rf "$work"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 copy_boundary_file bin/omarchy-refresh-pacman
+cat >"$SUDO_TEST_ROOT/bin/omarchy-channel-current" <<'STUB'
+#!/bin/bash
+[[ ${SUDO_TEST_CHANNEL_FAIL:-0} != "1" ]] || exit 1
+echo "${SUDO_TEST_CHANNEL:-unknown}"
+STUB
+chmod +x "$SUDO_TEST_ROOT/bin/omarchy-channel-current"
 
 refresh() {
   "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" "$@" >"$boundary_tmp/output" 2>&1
@@ -147,17 +177,66 @@ expected = [
 copies = [e for e in events if e.startswith('step:cp ')]
 assert copies == expected, events
 hook = events.index('step:omarchy-hook pre-refresh-pacman')
-transaction = events.index('step:pacman -Syyuu --noconfirm')
+upgrade = 'step:pacman -Syyuu --noconfirm'
+if channel in ('stable', 'rc'):
+  # The -dev pair is edge's: an old build of it in a stable or rc repository is
+  # left to the channel switch's swap.
+  upgrade += ' --ignore omarchy-dev,omarchy-settings-dev'
+transaction = events.index(upgrade)
 assert events.index(expected[-1]) < hook < transaction, events
 PY
     assert_boundary_cold "$platform $channel"
   done
 done
-pass "a refresh backs up and copies the platform's channel template and mirrorlist, or its default channel's when none is named, then runs the cold hook and the upgrade"
+pass "a refresh backs up and copies the named channel, or the platform default when the current channel is unknown, then runs the cold hook and the upgrade"
 
-# A channel the platform has no template for (stable or rc on aarch64), or a
-# machine whose platform can't be told, stops before anything changes.
-for platform in aarch64 aarch64-apple; do
+for channel in stable rc edge dev; do
+  reset_boundary
+  SUDO_TEST_CHANNEL=$channel refresh || fail "refresh preserves $channel" "$(cat "$boundary_tmp/output")"
+  expected=$channel
+  [[ $channel != "dev" ]] || expected=edge
+  grep -Fx "step:cp -f $SUDO_TEST_ROOT/default/pacman/pacman-$expected.conf /etc/pacman.conf" "$SUDO_TEST_LOG" >/dev/null ||
+    fail "$channel refresh uses $expected repositories" "$(events)"
+  grep -Fx "step:cp -f $SUDO_TEST_ROOT/default/pacman/mirrorlist-$expected /etc/pacman.d/mirrorlist" "$SUDO_TEST_LOG" >/dev/null ||
+    fail "$channel refresh uses $expected mirrors" "$(events)"
+  assert_boundary_cold "$channel refresh"
+done
+pass "a refresh with no channel preserves stable, rc and edge, and uses edge for a linked dev checkout"
+
+reset_boundary
+SUDO_TEST_CHANNEL=edge SUDO_TEST_CHANNEL_FAIL=1 refresh rc || fail "explicit rc overrides current edge without detecting it"
+grep -Fx "step:cp -f $SUDO_TEST_ROOT/default/pacman/pacman-rc.conf /etc/pacman.conf" "$SUDO_TEST_LOG" >/dev/null ||
+  fail "explicit rc overrides current edge" "$(events)"
+assert_boundary_cold "explicit override"
+pass "an explicit channel overrides the current channel without querying it"
+
+for channel in stable rc; do
+  reset_boundary
+  if SUDO_TEST_PLATFORM=aarch64-apple SUDO_TEST_CHANNEL=$channel refresh; then fail "aarch64-apple refuses current $channel without templates"; fi
+  [[ -z $(events) ]] || fail "unsupported current channel changes nothing" "$(events)"
+  assert_boundary_cold "unsupported current channel"
+done
+for channel in invalid failed; do
+  reset_boundary
+  if [[ $channel == "failed" ]]; then
+    if SUDO_TEST_CHANNEL_FAIL=1 refresh; then fail "failed channel detection is refused"; fi
+  else
+    if SUDO_TEST_CHANNEL=$channel refresh; then fail "unexpected channel is refused"; fi
+  fi
+  [[ -z $(events) ]] || fail "failed channel detection changes nothing" "$(events)"
+  assert_boundary_cold "failed channel detection"
+done
+pass "unsupported, unexpected or failed current channel detection changes nothing"
+
+reset_boundary
+if refresh invalid; then fail "invalid explicit channel is refused"; fi
+[[ -z $(events) ]] || fail "invalid explicit channel changes nothing" "$(events)"
+assert_boundary_cold "invalid explicit channel"
+pass "an invalid explicit channel changes nothing"
+
+# A channel the platform has no template for (stable or rc on Apple Silicon),
+# or a machine whose platform can't be told, stops before anything changes.
+for platform in aarch64-apple; do
   for channel in stable rc; do
     reset_boundary
     if SUDO_TEST_PLATFORM=$platform refresh "$channel"; then fail "$platform: $channel is refused"; fi

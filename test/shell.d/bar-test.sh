@@ -114,13 +114,14 @@ assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 
 // Revealing the indicators can slide a neighbouring widget under a stationary
 // pointer; collapsing the peek on that un-hover re-opens it and stutters the
-// bar, so the peek stays held while the pointer is anywhere on the bar.
+// bar, so the peek stays held while the pointer is on the bar short of the
+// center box's end.
 const revealSource = fs.readFileSync(path.join(root, 'shell/plugins/bar/BarRevealState.qml'), 'utf8')
 const revealTimer = revealSource.slice(revealSource.indexOf('id: centerSectionRevealTimer'))
 const revealTimerBody = revealTimer.slice(0, revealTimer.indexOf('\n  }'))
 assert(
   /onTriggered: if \(!root\.barHovered\) root\.centerSectionRevealHeld = false/.test(revealTimerBody),
-  'the indicator peek stays held while the pointer is anywhere on the bar'
+  'the indicator peek stays held while the pointer is on the bar'
 )
 
 // The whole-bar hover has to come from an ancestor of the sections. A sibling
@@ -129,9 +130,33 @@ assert(
 const barLoader = barSource.slice(barSource.indexOf('sourceComponent: root.vertical ? verticalBar : horizontalBar'))
 const barLoaderBody = barLoader.slice(0, barLoader.indexOf('\n    }'))
 assert(
-  /setBarHovered\(hovered\)/.test(barLoaderBody),
+  /peeking: hovered && BarModel\.peeksAt\(point\.position, barWindow\.peekEdge, root\.vertical\)\s*onPeekingChanged: revealState\.setBarHovered\(peeking\)/.test(barLoaderBody),
   'the whole-bar hover handler is a child of the bar loader, above both orientations'
 )
+
+// Hovering the panel icons, or anything else past the clock, leaves the
+// indicators hidden; the rest of the bar up to the clock's end opens them.
+assertEqual(bar.peeksAt({ x: 400, y: 10 }, 1000, false), true, 'the peek opens left of the clock')
+assertEqual(bar.peeksAt({ x: 1200, y: 10 }, 1000, false), false, 'the peek stays shut right of the clock')
+assertEqual(bar.peeksAt({ x: 1200, y: 400 }, 600, true), true, 'a vertical bar opens the peek above the clock')
+assertEqual(bar.peeksAt({ x: 10, y: 800 }, 600, true), false, 'a vertical bar keeps the peek shut below the clock')
+assertEqual(bar.peeksAt(null, 1000, false), false, 'no pointer opens no peek')
+
+// Beside a display notch, indicators right of the clock pull its end toward
+// the start as they reveal. A stationary pointer between the two ends has to
+// keep the peek open rather than close it, slide the clock back and reopen it.
+const notchBoxEnd = revealed => revealed ? 900 : 1000
+function peekRun(pointers) {
+  let edge = notchBoxEnd(false)
+  return pointers.map(pointer => {
+    const held = bar.peeksAt(pointer, edge, false)
+    edge = bar.nextPeekEdge(edge, notchBoxEnd(held), held)
+    return held
+  })
+}
+const between = { x: 950, y: 10 }
+assertEqual(peekRun([between, between, between, between]).join(), 'true,true,true,true', 'a reveal that moves the clock does not close the peek under a still pointer')
+assertEqual(peekRun([between, { x: 1050, y: 10 }, { x: 1050, y: 10 }]).join(), 'true,false,false', 'leaving past the clock closes the peek for good')
 
 // A widget that grows (the indicator peek, a drawer) has to know which of its
 // edges stays put, and that is the side its list is anchored by.
@@ -147,6 +172,17 @@ const fixedEdges = [
 ]
 for (const [pattern, source, message] of fixedEdges) assert(pattern.test(source), message)
 
+// The edge holds still while this surface's peek is open, not another
+// monitor's, so it reads the hold from the surface the sections are drawn on.
+assert(
+  /BarModel\.nextPeekEdge\(window\.peekEdge, boxEnd, window\.centerRevealState\.centerSectionRevealHeld\)/.test(centerSections),
+  'the peek edge holds on the reveal of its own surface'
+)
+assert(
+  /target: sections\.window \? sections\.window\.centerRevealState : null\s*function onCenterSectionRevealHeldChanged\(\) \{ sections\.syncPeekEdge\(\) \}/.test(centerSections),
+  'the peek edge re-measures when the reveal of its own surface changes'
+)
+
 // A layout reading an implicit size that drops from a fraction of a pixel to
 // nothing keeps the old size, so a widget hiding itself would leave a hole.
 for (const [name, body] of [['slot', moduleSlot], ['spacer', dragSpacer]]) {
@@ -159,7 +195,7 @@ for (const [name, body] of [['slot', moduleSlot], ['spacer', dragSpacer]]) {
 // Unplugging a monitor tears its bar down mid-hover with no leave event, which
 // would leave that surface counted forever and the peek stuck open.
 assert(
-  /Component\.onDestruction: if \(hovered\) revealState\.setBarHovered\(false\)/.test(barLoaderBody),
+  /Component\.onDestruction: if \(peeking\) revealState\.setBarHovered\(false\)/.test(barLoaderBody),
   'a bar torn down while hovered gives its hover back'
 )
 
@@ -177,8 +213,8 @@ assert(
   'the pointer coming onto this bar opens its peek, and leaving re-runs its collapse'
 )
 
-// The peek opens from anywhere on the bar, widgets included, so no narrower
-// hover area opens it as well.
+// The peek opens from the bar up to the center box's end, widgets included,
+// so no narrower hover area opens it as well.
 const opensPeek = revealSource.split('\n').filter(line => /centerSectionRevealHeld = true/.test(line))
 assertEqual(opensPeek.length, 1, 'exactly one line in the bar opens the indicator peek')
 assert(setBarHoveredBody.includes(opensPeek[0].trim()), 'only the whole-bar hover opens the peek')

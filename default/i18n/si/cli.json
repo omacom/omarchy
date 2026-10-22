@@ -32,6 +32,7 @@
   "battery.durationHours": "පැය %1",
   "battery.durationHoursMinutes": "පැය %1 මි. %2",
   "battery.durationMinutes": "මි. %1",
+  "battery.fullyCharged": "සම්පූර්ණයෙන් ආරෝපිතයි",
   "battery.holdingAt": "%1 හි රඳවා ඇත",
   "battery.lowBody": "බැටරිය %1% දක්වා බැස ඇත",
   "battery.lowTitle": "ආරෝපණය කිරීමට වෙලාවයි!",

@@ -1591,6 +1591,10 @@ Item {
 
     // The same thickness the bar publishes for its screen (screenBarSizes).
     readonly property int thickness: root.thicknessFor(screen)
+    // Where the center box ends along the bar, set by the drawn center
+    // sections. Hovering past it, over the clock's trailing widgets and the
+    // right section, leaves the indicator peek shut.
+    property real peekEdge: 0
 
     implicitWidth: root.vertical ? thickness : 0
     implicitHeight: root.vertical ? 0 : thickness
@@ -1607,10 +1611,11 @@ Item {
       // hovered while the pointer is over a widget, where a sibling would lose
       // hover to the section the pointer entered.
       HoverHandler {
-        onHoveredChanged: revealState.setBarHovered(hovered)
+        readonly property bool peeking: hovered && BarModel.peeksAt(point.position, barWindow.peekEdge, root.vertical)
+        onPeekingChanged: revealState.setBarHovered(peeking)
         // Unplugging a monitor destroys its bar without a leave event, which
         // would strand this surface's tally and hold the peek open for good.
-        Component.onDestruction: if (hovered) revealState.setBarHovered(false)
+        Component.onDestruction: if (peeking) revealState.setBarHovered(false)
       }
     }
 
@@ -1914,6 +1919,23 @@ Item {
 
     implicitWidth: root.vertical ? root.barSize : beginList.width + centerBox.width + endList.width
     implicitHeight: root.vertical ? beginList.height + centerBox.height + endList.height : root.barSize
+
+    // Both placements sit at the bar surface's origin or anchor off its edge,
+    // so the box's end in the sections is its end on the surface.
+    readonly property real boxEnd: root.vertical ? y + centerBox.y + centerBox.height : x + centerBox.x + centerBox.width
+    onBoxEndChanged: syncPeekEdge()
+    onActiveChanged: syncPeekEdge()
+    onWindowChanged: syncPeekEdge()
+    Component.onCompleted: syncPeekEdge()
+
+    function syncPeekEdge() {
+      if (active && window) window.peekEdge = BarModel.nextPeekEdge(window.peekEdge, boxEnd, window.centerRevealState.centerSectionRevealHeld)
+    }
+
+    Connections {
+      target: sections.window ? sections.window.centerRevealState : null
+      function onCenterSectionRevealHeldChanged() { sections.syncPeekEdge() }
+    }
 
     ModuleList {
       id: beginList

@@ -100,7 +100,7 @@ done
 pass "a URL whose name would climb out of the themes directory never reaches git"
 
 # The derived name outlives the clone: it is the theme's directory name, and
-# Style > Unlock builds a command line out of the name the picker returned. A
+# Appearance > Unlock builds a command line out of the name the picker returned. A
 # repo whose name carries shell syntax would hand that picker its own command,
 # so the name is refused here rather than quoted at each place it lands.
 for url in \

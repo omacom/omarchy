@@ -9,8 +9,9 @@ Item {
   readonly property bool barHovered: barHoverCount > 0
   property bool centerSectionRevealHeld: false
 
-  // Open from anywhere on this bar, widgets included. Revealing can slide
-  // a widget under a stationary pointer, so hold until the whole bar is left.
+  // Open from this bar up to the end of its center box, widgets included
+  // (BarModel.peeksAt). Revealing can slide a widget under a stationary
+  // pointer, so hold until the pointer leaves that stretch of bar.
   function setBarHovered(hovered) {
     barHoverCount = Math.max(0, barHoverCount + (hovered ? 1 : -1))
     if (barHoverCount > 0) {

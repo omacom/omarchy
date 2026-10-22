@@ -158,7 +158,7 @@ Important behavior:
 - AUR builds run third-party PKGBUILD code, so they run last and never see the update's authorization. The update stops the keepalive, invalidates the timestamp, and runs yay with the no-update wrapper as its sudo command and its credential loop disabled; an AUR install prompts per command without publishing a reusable timestamp. The timestamp is invalidated again afterwards and on every exit.
 - This lifecycle controls authorization created by the protected workflow. `sudo -N` prevents cache updates but can use an existing valid credential, and `sudo -k` revokes the current session's timestamp. It does not isolate the account from unrelated concurrent authentication in another workflow.
 - Sleep inhibition authenticates before detaching, drops the held command back to the caller, and closes both update lock descriptors before the persistent process starts. Cleanup accepts only caller-owned, mode-0600, single-link state and revalidates the recorded PID, process start time, owner, and random token immediately before every signal.
-- Channel switching establishes the same boundary before dev link/unlink, refresh and package operations. It keeps the wrapper first when changing source roots, carries the original user PATH into update hooks and mise, and checks after each package transaction that the wrapper still exists before any further privileged step, since a transaction can replace the running tree with a release that predates it; when it is gone, or the destination otherwise lacks it, the switch stops after the package switch with instructions to run that release's update from a fresh session rather than letting a bare `sudo` or an updater that authenticates without `--no-update` publish a timestamp. Failed and interrupted channel switches revoke on exit.
+- Channel switching establishes the same boundary before dev link/unlink, refresh and package operations. It keeps the wrapper first when changing source roots, carries the original user PATH into update hooks and mise, and checks after each package transaction that the wrapper still exists before any further privileged step, since a transaction can replace the running tree with a release that predates it; when it is gone, or the destination otherwise lacks it, the switch stops with instructions for a fresh session, naming what is installed: that release's update once the destination's packages are in, or the switch again when a transaction before the swap replaced the tree, rather than letting a bare `sudo` or an updater that authenticates without `--no-update` publish a timestamp. Failed and interrupted channel switches revoke on exit.
 - `-y` exports `OMARCHY_UPDATE_UNATTENDED=1` and suppresses Omarchy confirmation prompts. Conflict handoff reports and skips instead of blocking. Orphan packages are automatically removed during every update. Privileged commands still require the one sudo authorization, and AUR installs can prompt separately.
 - The free-space requirement uses a 10 GiB threshold and stops the update before
   confirmation when it is not met. If free space cannot be determined, the
@@ -272,35 +272,12 @@ which pacman repo the mirrorlist points at (and swap between the `omarchy` and
 `omarchy-dev` packages through a guard-allowed pacman run), while `dev` links
 the runtime to a git checkout via the dev-link mechanism, after which
 `omarchy update` fast-forwards that checkout instead of upgrading a package.
+The refresh before that swap ignores `omarchy-dev` and `omarchy-settings-dev` on stable and rc, so an old build of them still listed in those repositories can't replace an edge machine's tree before the swap installs the release.
 Channel switching runs the `pre-refresh-pacman` hook once, during its refresh
 step: cold, behind the no-update wrapper, after the package config is re-synced
 and before the refresh transaction. It does not run if the switch fails earlier.
 
-Every platform has its own pacman.conf and mirrorlist for each channel it
-offers (x86_64 stable, rc and edge; aarch64 edge alone, below), and a channel
-change or install finalization copies them into place whole, the same way on
-every platform (`install/helpers/pacman.sh`); a channel change backs up
-the old pair first.
-x86_64's are `default/pacman/pacman-<channel>.conf` and
-`mirrorlist-<channel>`; Snapdragon and other aarch64 machines use
-`default/pacman/aarch64/`, Omarchy's repository ahead of Arch Linux ARM's, as
-x86_64 puts it ahead of Arch's (migration 1791403252 reorders existing
-machines the same way, and a refresh can then move a package Omarchy also
-publishes to Omarchy's build, downgrading it if that build is older); Apple
-Silicon uses `default/pacman/aarch64-apple/`, which puts Omarchy and Asahi ALARM
-ahead of Arch Linux ARM. Omarchy publishes aarch64 packages on edge alone so
-far, and the `omarchy` and `omarchy-settings` packages there for stable and rc
-are the release line, which has no aarch64 support, so ARM platforms have edge
-templates only: switching an ARM machine to stable or rc would replace its
-runtime with one that cannot run it. Adding a stable or rc template once a
-release supports aarch64 is what opens that channel. A channel change refuses a
-channel without both files for the platform before anything changes. On aarch64,
-`omarchy-channel-set` refuses to link a dev checkout without
-`bin/omarchy-hw-platform` and `install/helpers/pacman.sh`, whose own refresh
-would write the x86_64 templates. `omarchy-reinstall-pkgs` resets to the
-platform's default channel (`omarchy_pacman_default_channel`: stable, or edge on
-aarch64) and installs its default packages; install finalization does the same
-when the install's channel has no templates for the platform.
+Every platform has its own pacman.conf and mirrorlist for each channel it offers (x86_64 and aarch64 stable, rc and edge; Apple Silicon edge alone, below), and a channel change or install finalization copies them into place whole, the same way on every platform (`install/helpers/pacman.sh`); a channel change backs up the old pair first. x86_64's are `default/pacman/pacman-<channel>.conf` and `mirrorlist-<channel>`; Snapdragon and other aarch64 machines use `default/pacman/aarch64/`, the same files with Arch Linux ARM's repositories and Omarchy's mirror of them for that channel (`arm-mirror.omarchy.org`, `arm-rc-mirror.omarchy.org`, `arm-stable-mirror.omarchy.org`), Omarchy's repository ahead of Arch Linux ARM's, as x86_64 puts it ahead of Arch's (migration 1791403252 reorders existing machines the same way, and a refresh can then move a package Omarchy also publishes to Omarchy's build, downgrading it if that build is older); Apple Silicon uses `default/pacman/aarch64-apple/`, which puts Omarchy and Asahi ALARM ahead of Arch Linux ARM. Apple Silicon's packages are published for edge alone so far, so it has edge templates only; adding its stable or rc template is what opens that channel there. A channel change refuses a channel without both files for the platform before anything changes. On aarch64, `omarchy-channel-set` refuses to link a dev checkout without `bin/omarchy-hw-platform` and `install/helpers/pacman.sh`, whose own refresh would write the x86_64 templates. `omarchy-reinstall-pkgs` resets to the platform's default channel (`omarchy_pacman_default_channel`: stable, or edge on Apple Silicon) and installs its default packages; install finalization does the same when the install's channel has no templates for the platform.
 
 There is no version file at runtime. `omarchy-version` derives the version from
 `pacman -Q` on whichever package is installed, or reports `dev (<hash>)` for a

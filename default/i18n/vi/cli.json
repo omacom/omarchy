@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 giờ",
   "battery.durationHoursMinutes": "%1 giờ %2 phút",
   "battery.durationMinutes": "%1 phút",
+  "battery.fullyCharged": "Đã sạc đầy",
   "battery.holdingAt": "Giữ ở mức %1",
   "battery.lowBody": "Pin chỉ còn %1%",
   "battery.lowTitle": "Đến lúc sạc pin!",

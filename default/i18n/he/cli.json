@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 ש׳",
   "battery.durationHoursMinutes": "%1 ש׳ %2 ד׳",
   "battery.durationMinutes": "%1 ד׳",
+  "battery.fullyCharged": "טעון במלואו",
   "battery.holdingAt": "נשמרת על %1",
   "battery.lowBody": "הסוללה ירדה ל-%1%",
   "battery.lowTitle": "זמן לטעון!",

@@ -134,7 +134,12 @@ case "$step" in
   omarchy-update-system-pkgs|omarchy-update-keyring|omarchy-snapshot)
     sudo /usr/bin/true
     ;;
-  pacman) exit 0 ;;
+  pacman)
+    # A query answers with the packages a test models as installed, one per line.
+    if [[ ${1:-} == "-Q" && -n ${SUDO_TEST_INSTALLED:-} ]]; then
+      printf '%s\n' "$SUDO_TEST_INSTALLED"
+    fi
+    ;;
   yay)
     [[ $* == *"--sudo $OMARCHY_PATH/default/omarchy/sudo-no-update/sudo"* ]] || exit 92
     [[ $* == *"--sudoloop=false"* ]] || exit 93
@@ -151,7 +156,7 @@ ln -s ../bin/test-step "$SUDO_TEST_ROOT/mock/pacman"
 reset_boundary() {
   : >"$SUDO_TEST_LOG"
   /usr/bin/rm -f "$SUDO_TEST_CACHE"
-  unset SUDO_TEST_FAIL_STEP SUDO_TEST_SIGNAL_STEP SUDO_TEST_SUDO_FAIL SUDO_TEST_REVOKE_FAIL SUDO_TEST_UNSUPPORTED SUDO_TEST_REMOVE_WRAPPER_STEP SUDO_TEST_PLATFORM
+  unset SUDO_TEST_FAIL_STEP SUDO_TEST_SIGNAL_STEP SUDO_TEST_SUDO_FAIL SUDO_TEST_REVOKE_FAIL SUDO_TEST_UNSUPPORTED SUDO_TEST_REMOVE_WRAPPER_STEP SUDO_TEST_PLATFORM SUDO_TEST_INSTALLED
 }
 assert_boundary_cold() {
   [[ ! -e $SUDO_TEST_CACHE ]] || fail "$1 left cached authorization"

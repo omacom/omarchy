@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",
+  "battery.fullyCharged": "Pilnībā uzlādēta",
   "battery.holdingAt": "Uzturēts %1",
   "battery.lowBody": "Baterija ir nosēdusies līdz %1%",
   "battery.lowTitle": "Laiks uzlādēt!",
