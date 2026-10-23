@@ -566,6 +566,9 @@
   "setup.default.browser.zen": {
     "label": "Zen"
   },
+  "setup.default.browser.vivaldi": {
+    "label": "Vivaldi"
+  },
   "setup.default.dictation": {
     "label": "Dictation",
     "title": "Default Dictation"
@@ -763,6 +766,9 @@
   },
   "install.browser.zen": {
     "label": "Zen"
+  },
+  "install.browser.vivaldi": {
+    "label": "Vivaldi"
   },
   "install.service.1password": {
     "label": "1Password"
@@ -1030,6 +1036,9 @@
   },
   "remove.browser.zen": {
     "label": "Zen"
+  },
+  "remove.browser.vivaldi": {
+    "label": "Vivaldi"
   },
   "remove.service.1password": {
     "label": "1Password"

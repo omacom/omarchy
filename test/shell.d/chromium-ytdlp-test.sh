@@ -37,6 +37,10 @@ pass "yt-dlp native host manifest uses Omarchy host path and extension id"
   fail "yt-dlp native host installer covers Brave Origin"
 pass "yt-dlp native host installer covers Brave Origin"
 
+[[ -f $test_home/.config/vivaldi/NativeMessagingHosts/com.omarchy.ytdlp.json ]] ||
+  fail "yt-dlp native host installer covers Vivaldi"
+pass "yt-dlp native host installer covers Vivaldi"
+
 parse_result=$(bash -c '
   OMARCHY_PATH="$3"
   source "$1"

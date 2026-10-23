@@ -82,7 +82,7 @@ for browser in chromium brave; do
 done
 pass "apple: a failed browser hook fails the install"
 
-for browser in chromium brave-origin zen; do
+for browser in chromium brave-origin zen vivaldi; do
   run x86 "$ROOT/bin/omarchy-install-browser" "$browser" || fail "x86: $browser installs" "$(cat "$tmp/output")"
   ! grep -q '^post-install' "$tmp/calls" || fail "x86: a $browser install runs no hook" "$(cat "$tmp/calls")"
 done
