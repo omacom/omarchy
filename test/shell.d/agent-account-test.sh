@@ -130,6 +130,7 @@ pass "adding an account signs in through the CLI's own login"
 work="$accounts/claude/work"
 [[ -f $work/.credentials.json && ! -L $work/.credentials.json ]] || fail "an added account keeps its own credentials"
 [[ $(readlink "$work/projects") == "$HOME/.claude/projects" ]] || fail "an added account shares conversation history with the primary"
+[[ $(readlink "$work/tasks") == "$HOME/.claude/tasks" ]] || fail "an added account shares session task lists, so a resumed session keeps its tasks"
 [[ $(readlink "$work/settings.json") == "$HOME/.claude/settings.json" ]] || fail "an added account shares settings with the primary"
 [[ $(readlink "$work/CLAUDE.md") == "$HOME/.claude/CLAUDE.md" && ! -e $HOME/.claude/CLAUDE.md ]] ||
   fail "a shared file the primary doesn't have yet is linked, so it's written there when it is"
