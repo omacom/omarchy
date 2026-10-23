@@ -56,3 +56,21 @@ if run_migrate --force >"$test_tmp/force.out" 2>&1; then
 fi
 grep -q 'Unknown option: --force' "$test_tmp/force.out" || fail "omarchy-migrate reports obsolete --force option"
 pass "omarchy-migrate no longer needs --force"
+
+# A transaction that outlasts the wait has to fail rather than look applied:
+# omarchy-update runs this between the package transaction and its post-update
+# hooks, so a zero here took the update on against un-migrated state.
+ln -s /bin/true "$stub_bin/sleep"
+lock_file="$test_tmp/db.lck"
+: >"$lock_file"
+rm -rf "$test_home/.local/state/omarchy/migrations"
+: >"$test_tmp/calls"
+
+if OMARCHY_PACMAN_LOCK="$lock_file" run_migrate >"$test_tmp/locked.out" 2>&1; then
+  fail "omarchy-migrate fails when the pacman transaction outlasts the wait"
+fi
+[[ ! -s $test_tmp/calls ]] || fail "omarchy-migrate runs no migration while pacman holds its lock"
+grep -q 'Omarchy migrations did not run' "$test_tmp/locked.out" ||
+  fail "omarchy-migrate says the migrations did not run" "$(cat "$test_tmp/locked.out")"
+run_migrate --pending >/dev/null || fail "omarchy-migrate leaves the migration pending after a locked run"
+pass "omarchy-migrate fails instead of skipping migrations under a pacman lock"
