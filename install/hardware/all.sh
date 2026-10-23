@@ -65,4 +65,5 @@ run_logged "$OMARCHY_INSTALL/hardware/fix-tuxedo-backlight.sh"
 run_logged "$OMARCHY_INSTALL/hardware/speaker-tuning.sh"
 run_logged "$OMARCHY_INSTALL/hardware/pacman.sh"
 
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-vivobook-emoji-key.sh"
 run_logged "$OMARCHY_INSTALL/hardware/platform-setup.sh"
