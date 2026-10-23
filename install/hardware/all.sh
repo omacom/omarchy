@@ -36,6 +36,7 @@ run_logged "$OMARCHY_INSTALL/hardware/asus/fix-z13-touchpad.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-proart-p14-touchpad.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-proart-p14-speakers.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-proart-p14-fkeys.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-x415ma-headset-mic.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-n1x-gpu-memory.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/framework/qmk-hid.sh"
