@@ -14,6 +14,23 @@ function normalizePosition(value) {
   return /^(top|bottom|left|right)$/.test(next) ? next : "top"
 }
 
+function normalizeGlassOpacity(value) {
+  if (typeof value !== "number" || !isFinite(value)) return 35
+  return Math.round(Math.max(1, Math.min(99, value)))
+}
+
+// Clear is 0 and opaque 100 on one scale, glassy everything between, so a
+// step past either end of glassy lands on clear or opaque. Those keep the
+// glassy opacity for later.
+function stepBackground(look, glassOpacity, steps) {
+  var opacity = normalizeGlassOpacity(glassOpacity)
+  var level = look === "none" ? 0 : (look === "glassy" ? opacity : 100)
+  var next = level + 10 * steps
+  if (next <= 0) return { background: "none", glassOpacity: opacity }
+  if (next >= 100) return { background: "opaque", glassOpacity: opacity }
+  return { background: "glassy", glassOpacity: next }
+}
+
 function entrySettings(entry) {
   if (!isPlainObject(entry)) return {}
   var copy = {}
@@ -661,6 +678,8 @@ if (typeof module !== "undefined") {
     slotEdge: slotEdge,
     sections: sections,
     normalizePosition: normalizePosition,
+    normalizeGlassOpacity: normalizeGlassOpacity,
+    stepBackground: stepBackground,
     entrySettings: entrySettings,
     entryId: entryId,
     moduleString: moduleString,

@@ -59,6 +59,22 @@ const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
 const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
 const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
 
+assertEqual(bar.normalizeGlassOpacity(undefined), 35, 'glassy opacity defaults to the stock 35 percent')
+assertEqual(bar.normalizeGlassOpacity(null), 35, 'glassy opacity treats a non-number as the default')
+assertEqual(bar.normalizeGlassOpacity(0), 1, 'glassy opacity stays above clear')
+assertEqual(bar.normalizeGlassOpacity(100), 99, 'glassy opacity stays below opaque')
+assertDeepEqual(bar.stepBackground('opaque', 35, -1), { background: 'glassy', glassOpacity: 90 }, 'scrolling down from opaque turns glassy at 90 percent')
+assertDeepEqual(bar.stepBackground('glassy', 35, -1), { background: 'glassy', glassOpacity: 25 }, 'scrolling down fades glassy by ten points')
+assertDeepEqual(bar.stepBackground('glassy', 5, -1), { background: 'none', glassOpacity: 5 }, 'scrolling below glassy turns clear')
+assertDeepEqual(bar.stepBackground('glassy', 95, 1), { background: 'opaque', glassOpacity: 95 }, 'scrolling above glassy turns opaque')
+assertDeepEqual(bar.stepBackground('none', 35, 1), { background: 'glassy', glassOpacity: 10 }, 'scrolling up from clear turns glassy at 10 percent')
+assertDeepEqual(bar.stepBackground('opaque', 35, 1), { background: 'opaque', glassOpacity: 35 }, 'scrolling up stays opaque')
+assertDeepEqual(bar.stepBackground('none', 35, -1), { background: 'none', glassOpacity: 35 }, 'scrolling down stays clear')
+assert(/delete config\.bar\.transparent/.test(barSource), 'scrolling saves the background the way omarchy-bar background does')
+const barPanelSource = barSource.slice(barSource.indexOf('component BarPanel:'))
+const barContentLoader = barPanelSource.match(/^    Loader \{[\s\S]*?^    \}/m)
+assert(barContentLoader && /WheelHandler\s*\{[\s\S]*?acceptedDevices:\s*PointerDevice\.Mouse\s*\|\s*PointerDevice\.TouchPad/.test(barContentLoader[0]), 'bar wheel handler takes mouse and touchpad input on the full-size Item loader')
+
 assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.cycleBackground\(\)/.test(shellSource), 'shell exposes the bar background cycle over IPC')
 
 // put tolerates a placement target the bar does not carry, so the IPC call
