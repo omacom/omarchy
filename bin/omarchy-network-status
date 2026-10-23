@@ -26,7 +26,7 @@ physical_device() {
   local device=$1 candidate
 
   if [[ $(cat "$net_class_path/$device/type" 2>/dev/null) == "65534" ]]; then
-    for candidate in $(ip -j route show default 2>/dev/null | jq -r 'sort_by(.metric // 0)[].dev' 2>/dev/null); do
+    for candidate in $(ip -j route show default 2>/dev/null | jq -r 'sort_by(.metric // 0)[] | .dev // .nexthops[0].dev // empty' 2>/dev/null); do
       if [[ $(cat "$net_class_path/$candidate/type" 2>/dev/null) != "65534" ]]; then
         device=$candidate
         break
