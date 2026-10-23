@@ -137,6 +137,11 @@
     "other": "Click to run %1 pending migrations."
   },
   "migrate.pending": "Pending Omarchy Migrations",
+  "ml.jupyterOpen": "Lab is open on this machine",
+  "ml.jupyterTitle": "Jupyter",
+  "ml.notifications": "Notifications",
+  "ml.whisperHold": "Hold Right Alt or F9 to dictate (or toggle with Super + Ctrl + X).",
+  "ml.whisperReady": "Whisper Dictation Ready",
   "monitor.extendedRestored": "Extended mode restored",
   "monitor.laptopDisabled": "Laptop display disabled",
   "monitor.laptopEnabled": "Laptop display enabled",

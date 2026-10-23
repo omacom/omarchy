@@ -369,6 +369,45 @@
   "trigger.transcode": {
     "label": "Transcode"
   },
+  "trigger.ml": {
+    "label": "Machine Learning"
+  },
+  "trigger.ml.intent": {
+    "label": "Run by asking"
+  },
+  "trigger.ml.fold": {
+    "label": "Fold notifications"
+  },
+  "trigger.ml.search": {
+    "label": "Search screenshots"
+  },
+  "trigger.ml.restore": {
+    "label": "Restore workspace"
+  },
+  "trigger.ml.layout-save": {
+    "label": "Save workspace layout"
+  },
+  "trigger.ml.layout": {
+    "label": "Open a saved layout"
+  },
+  "trigger.ml.layout-apps": {
+    "label": "Edit a saved layout"
+  },
+  "trigger.ml.train": {
+    "label": "Training workspace"
+  },
+  "trigger.ml.park": {
+    "label": "Park training workspace"
+  },
+  "trigger.ml.chat": {
+    "label": "Local chat"
+  },
+  "trigger.ml.jupyter": {
+    "label": "Jupyter"
+  },
+  "trigger.ml.gpu-bar": {
+    "label": "GPU in the bar"
+  },
   "trigger.share": {
     "label": "Share"
   },
@@ -575,6 +614,9 @@
   },
   "setup.default.dictation.voxtype": {
     "label": "Voxtype"
+  },
+  "setup.default.dictation.whisper-cli": {
+    "label": "Whisper.cpp"
   },
   "setup.default.terminal": {
     "label": "Terminal",
@@ -857,6 +899,30 @@
   "install.ai.t3-code": {
     "label": "T3 Code"
   },
+  "install.ml": {
+    "label": "Machine Learning"
+  },
+  "install.ml.gpu": {
+    "label": "NVIDIA or ROCm"
+  },
+  "install.ml.pytorch": {
+    "label": "PyTorch"
+  },
+  "install.ml.jupyter": {
+    "label": "Jupyter"
+  },
+  "install.ml.llamacpp": {
+    "label": "llama.cpp"
+  },
+  "install.ml.models": {
+    "label": "Models folder"
+  },
+  "install.ml.data-disk": {
+    "label": "Dataset disk"
+  },
+  "install.ml.long-job": {
+    "label": "Keep GPU jobs awake"
+  },
   "install.gaming.steam": {
     "label": "Steam"
   },
@@ -1058,6 +1124,9 @@
   "remove.dictation.voxtype": {
     "label": "Voxtype"
   },
+  "remove.dictation.whisper-cli": {
+    "label": "Whisper.cpp"
+  },
   "remove.ai.grok-bot": {
     "label": "Grok Bot"
   },
@@ -1066,6 +1135,9 @@
   },
   "remove.ai.ollama": {
     "label": "Ollama"
+  },
+  "remove.ai.llamacpp": {
+    "label": "llama.cpp"
   },
   "remove.ai.openclaw": {
     "label": "OpenClaw"
