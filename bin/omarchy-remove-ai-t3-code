@@ -3,15 +3,43 @@
 # omarchy:summary=Remove T3 Code along with its configuration and workspaces.
 # omarchy:requires-sudo=true
 
-set -e
+set -euo pipefail
+
+t3code_home="${T3CODE_HOME:-$HOME/.t3}"
+while [[ $t3code_home == */ ]]; do
+  t3code_home=${t3code_home%/}
+done
+
+# rm refuses a final '.' or '..', which would leave a partial removal behind,
+# and command substitution in the check below would drop a trailing newline.
+case $t3code_home in
+"" | . | .. | */. | */.. | *$'\n'*)
+  echo "Refusing to remove T3 Code: T3CODE_HOME must name a directory, without a newline or a final '.' or '..'." >&2
+  exit 1
+  ;;
+esac
+
+# The data home comes from the environment and goes to rm -rf, so it is only
+# removed when it is an entry inside the user's home. Resolve its parent, not
+# the path itself: a symlinked home is then unlinked instead of having its
+# target emptied. A home elsewhere, such as on another drive, is left in place.
+t3code_data=""
+case $(realpath -m -- "$(dirname -- "$t3code_home")")/ in
+"$(realpath -m -- "$HOME")"/*) t3code_data=$t3code_home ;;
+esac
 
 # Installs from before the AppImage came from these packages.
 omarchy-pkg-drop t3code-bin t3code-nightly-bin
 
 # A `t3` link to one of T3 Code's launchers would only dangle once it is gone.
-case $(readlink "$HOME/.local/bin/t3" || true) in
-"$HOME/.t3/bin/t3" | /usr/bin/t3 | /usr/bin/t3-nightly) rm -f "$HOME/.local/bin/t3" ;;
-esac
+# Compare normalized spellings, so `/x/` and `/x` name the same home, and
+# resolve a relative target from the link's own directory, as the link does.
+t3_link=$(readlink "$HOME/.local/bin/t3" || true)
+if [[ -n $t3_link ]]; then
+  case $(cd "$HOME/.local/bin" && realpath -ms -- "$t3_link") in
+  "$(realpath -ms -- "$t3code_home/bin/t3")" | /usr/bin/t3 | /usr/bin/t3-nightly) rm -f "$HOME/.local/bin/t3" ;;
+  esac
+fi
 
 # The app registers its own hidden link handler next to Omarchy's launcher.
 rm -f \
@@ -23,13 +51,17 @@ update-desktop-database "$HOME/.local/share/applications" &>/dev/null || true
 
 # T3 Code drives agents that keep their own state -- ~/.claude.json, ~/.grok,
 # ~/.local/share/opencode -- and those outlive it, so only its own goes.
-rm -rf \
+rm -rf -- \
   "$HOME/.local/share/t3code" \
   "$HOME/.cache/t3code-updater" \
   "$HOME/.config/t3code" \
-  "$HOME/.config/t3code-v2" \
-  "$HOME/.t3"
+  "$HOME/.config/t3code-v2"
 rm -f "$HOME/.config/t3code-flags.conf"
 
 echo ""
+if [[ -n $t3code_data ]]; then
+  rm -rf -- "$t3code_data"
+else
+  echo "T3 Code's data in $t3code_home was left in place: only a directory inside your home is removed for you."
+fi
 echo "T3 Code has been removed."
