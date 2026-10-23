@@ -10,4 +10,9 @@ if omarchy-cmd-present alacritty; then
   cp "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" ~/.local/share/applications/
 fi
 
+# Stock launchers are copied first, so their Icon= lines are theme names and do
+# not pull parked PNGs back. Leftover custom launchers still name the old path.
+source "$OMARCHY_PATH/install/helpers/quattro-app-icons.sh"
+restore_quattro_app_menu_icons
+
 update-desktop-database ~/.local/share/applications
