@@ -375,3 +375,7 @@ You can use `Super + Ctrl + E` to show a complete emoji picker that'll put the s
 | `Shift + CapsLock Space E` | Your email (as entered on setup)  |
 
 You can add more of your own by editing `~/.XCompose`, then running `omarchy-restart-xcompose` in the terminal to get the changes picked up.
+
+### Moving between monitors in scrolling workspaces
+
+With more than one monitor, in a scrolling workspace, `Super + Shift + Left/Right` first reorders the focused window among the workspace's columns. At the first or last column, pressing toward an adjacent monitor moves the window to that monitor's currently displayed workspace and follows it, even when the destination workspace is empty. At the outermost monitor, pressing outward does nothing. Dwindle also swaps within the workspace first, then moves to an adjacent monitor at the workspace edge using any arrow direction. Single monitor setups, mirrored displays, floating windows, grouped windows, fullscreen workspaces, special workspaces, and scrolling up/down shortcuts retain their existing behavior. The monitor handoff also respects `binds.window_direction_monitor_fallback`.
