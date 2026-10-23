@@ -33,6 +33,17 @@ hypr_exec() {
     hyprctl dispatch exec -- "[workspace $workspace]" bash -lc "$command" >/dev/null
 }
 
+hypr_pin() {
+  hyprctl dispatch "hl.dsp.window.pin({ window = \"address:$1\", action = \"$2\" })" >/dev/null 2>&1 || hyprctl dispatch pin "address:$1" >/dev/null
+}
+
+# Pinned windows, like a Super + O pop-out, draw above the screensaver's special workspace.
+# Unpin them before it maps, and pin them again once the last screensaver has closed.
+pinned=$(hyprctl clients -j | jq -r '.[] | select(.pinned) | .address')
+for address in $pinned; do
+  hypr_pin "$address" disable
+done
+
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 
 # Open Hyprland's event stream before spawning anything, so a terminal that maps
@@ -80,7 +91,11 @@ hypr_focus_monitor "$focused"
 # The class goes through the environment, since in argv the screensaver's pgrep and pkill would match it.
 (
   while hyprctl clients -j | SCREENSAVER=org.omarchy.screensaver jq -e 'any(.[]; .mapped and .class == env.SCREENSAVER)' >/dev/null; do
-    IFS= read -r -u "$events" line || exit
+    IFS= read -r -u "$events" line || sleep 1
+  done
+
+  for address in $pinned; do
+    hypr_pin "$address" enable
   done
   hypr_focus_monitor "$focused"
 ) >/dev/null 2>&1 &
