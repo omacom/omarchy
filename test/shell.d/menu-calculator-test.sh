@@ -117,7 +117,13 @@ assert(
 )
 
 assert(
-  /action: "printf '%s' " \+ Util\.shellQuote\(result\) \+ " \| wl-copy && omarchy-notification-send [^"]*" \+ Util\.shellQuote\(result\)/.test(menuQml),
+  /action: "printf '%s' " \+ Util\.shellQuote\(result\) \+ " \| wl-copy && omarchy-notification-send [^"]*" \+ Util\.shellQuote\(Commons\.I18n\.t\("menu\.calculatorCopied"\)\) \+ " " \+ Util\.shellQuote\(result\)/.test(menuQml),
   'calculator row copies its result through a quoted argument and confirms it with a toast'
+)
+
+const englishShell = JSON.parse(fs.readFileSync(path.join(root, 'default/i18n/en/shell.json'), 'utf8'))
+assert(
+  menuQml.includes('Commons.I18n.t("menu.calculatorCopy")') && englishShell['menu.calculatorCopy'] && englishShell['menu.calculatorCopied'],
+  'calculator row and toast read their text from the catalog'
 )
 JS

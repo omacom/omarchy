@@ -615,10 +615,10 @@ Item {
       appId: "",
       label: result,
       target: "",
-      detail: "Copy to clipboard",
+      detail: Commons.I18n.t("menu.calculatorCopy"),
       path: "",
       childCount: 0,
-      action: "printf '%s' " + Util.shellQuote(result) + " | wl-copy && omarchy-notification-send -g 󰃬 'Copied to clipboard' " + Util.shellQuote(result),
+      action: "printf '%s' " + Util.shellQuote(result) + " | wl-copy && omarchy-notification-send -g 󰃬 " + Util.shellQuote(Commons.I18n.t("menu.calculatorCopied")) + " " + Util.shellQuote(result),
       provider: "",
       score: 0,
       section: ""
