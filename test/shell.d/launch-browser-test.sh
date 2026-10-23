@@ -36,7 +36,7 @@ exit 0
 SH
 cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+printf '%s\n' "$@" >"$OMARCHY_TEST_BROWSER_LAUNCH"
 SH
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
 #!/bin/bash
@@ -116,5 +116,61 @@ pass "an ordinary launch doesn't probe the browser's flags"
 
 launch --private
 [[ -s $help_log ]] || fail "a private launch probes the browser's private flag"
-grep -F -- 'chromium --incognito' "$launch_log" >/dev/null || fail "a private launch passes the browser's private flag"
+[[ $(sed '1,/^--$/d' "$launch_log") == $'chromium\n--incognito' ]] || fail "a private launch passes the browser's private flag"
 pass "a private launch passes the browser's private flag"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=/usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" --class=100%% %U
+EOF
+
+rm -f "$focus_log"
+HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/wrapped"
+
+expected=$(printf '%s\n' /usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" --class=100% https://example.test/wrapped)
+[[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
+  fail "wrapped Exec launcher runs the whole unquoted Exec line, then the URL"
+grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
+  fail "wrapped Exec launcher focuses the real browser, not env"
+pass "browser launcher resolves env-wrapped desktop Exec lines"
+
+rm -f "$help_log"
+launch --private
+[[ -s $help_log ]] || fail "a wrapped private launch probes the real browser, not env"
+expected=$(printf '%s\n' /usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" --class=100% --incognito)
+[[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
+  fail "a wrapped private launch passes the real browser's private flag"
+pass "a wrapped private launch passes the real browser's private flag"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Name=Work\sChromium
+Exec=/usr/bin/env -u BROWSER chromium --name %c -- https://start.example.test/ %U
+EOF
+
+rm -f "$help_log"
+launch --private
+[[ -s $help_log ]] || fail "a private launch probes the browser behind env -u, not the name it unsets"
+expected=$(printf '%s\n' /usr/bin/env -u BROWSER chromium --name "Work Chromium" https://start.example.test/ --incognito)
+[[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
+  fail "a private launch expands %c and keeps its flag an option despite the Exec line's --"
+pass "a private launch finds the browser behind env options and keeps its flag an option"
+
+spaced_desktop="userapp-Firefox Developer Edition-U5J9W3.desktop"
+cat >"$test_home/.local/share/applications/$spaced_desktop" <<'DESKTOP'
+[Desktop Entry]
+Exec=chromium %u
+DESKTOP
+cat >"$mock_bin/omarchy-cmd-default-browser" <<SH
+#!/bin/bash
+echo "$spaced_desktop"
+SH
+chmod +x "$mock_bin/omarchy-cmd-default-browser"
+
+rm -f "$launch_log"
+launch "https://example.test/spaced"
+[[ $(sed '1,/^--$/d' "$launch_log") == $'chromium\nhttps://example.test/spaced' ]] ||
+  fail "a desktop id with spaces launches its entry's command"
+pass "a desktop id with spaces launches its entry's command"
