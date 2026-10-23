@@ -64,6 +64,7 @@ Example `shell.json` (bar subtree only shown):
 | `omarchy.system-update` | Available update indicator | left = update |
 | `omarchy.tray` | System tray | hover = reveal drawer · right on chevron = manage |
 | `omarchy.weather` | Weather icon + popup with forecast | left = popup · right = full notification |
+| `omarchy.gpu` | GPU use, memory, and temperature. Hidden until a GPU answers | left = nvtop or btop |
 | `omarchy.microphone` | Mic icon + scroll volume | left = mute toggle · middle = audio panel · scroll = source volume |
 
 | `omarchy.audio` | Volume icon + popup with master slider, output-device picker, per-app mixer | left = popup · right = mute · middle = popup · scroll = volume |

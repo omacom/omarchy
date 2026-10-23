@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# omarchy:summary=Collapse repeated chat, mail, and CI notifications into one line
+# omarchy:args=[--notify] [history-dir]
+
+set -euo pipefail
+
+notify=0
+if [[ ${1:-} == "--notify" ]]; then
+  notify=1
+  shift
+fi
+
+dir="${1:-${OMARCHY_ML_NOTIFY_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/notifications/history}}"
+
+line=$(python3 - "$dir" <<'PY'
+import json
+import os
+import re
+import sys
+
+def text_of(row):
+    return " ".join(str(row.get(key) or "") for key in ("app", "summary", "body"))
+
+def classify(text):
+    lowered = text.lower()
+    if re.search(r"\b(failed|failure|build|pipeline|workflow)\b", lowered) or "github actions" in lowered or re.search(r"\bci\b", lowered):
+        return "ci"
+    if re.search(r"\b(mail|email|inbox|gmail|thunderbird)\b", lowered):
+        return "mail"
+    if re.search(r"\b(slack|discord|signal|matrix|telegram)\b", lowered) or re.search(r"#[a-z0-9][a-z0-9_-]*", lowered):
+        return "chat"
+    return "other"
+
+def channels(text):
+    found = []
+    for name in re.findall(r"#([a-z0-9][a-z0-9_-]*)", text.lower()):
+        if name not in found:
+            found.append(name)
+    return found
+
+directory = sys.argv[1]
+rows = []
+if os.path.isdir(directory):
+    for name in sorted(os.listdir(directory)):
+        if not name.endswith(".json"):
+            continue
+        with open(os.path.join(directory, name), encoding="utf-8") as handle:
+            try:
+                rows.append(json.loads(handle.read()))
+            except json.JSONDecodeError:
+                continue
+
+groups = {"ci": [], "mail": [], "chat": []}
+for row in rows:
+    kind = classify(text_of(row))
+    if kind in groups:
+        groups[kind].append(row)
+
+parts = []
+if len(groups["ci"]) >= 2:
+    failed = any(re.search(r"fail", text_of(row), re.I) for row in groups["ci"])
+    parts.append(f"{len(groups['ci'])} failed builds" if failed else f"{len(groups['ci'])} builds")
+if len(groups["mail"]) >= 2:
+    parts.append(f"{len(groups['mail'])} emails")
+if len(groups["chat"]) >= 2:
+    names = []
+    for row in groups["chat"]:
+        for name in channels(text_of(row)):
+            if name not in names:
+                names.append(name)
+    chat = f"{len(groups['chat'])} messages"
+    if names:
+        chat += " from #" + ", #".join(names)
+    parts.append(chat)
+
+if not parts:
+    sys.exit(1)
+print(", ".join(parts))
+PY
+)
+
+if ((notify)); then
+  omarchy-notification-send "$(omarchy-i18n ml.notifications)" "$line"
+else
+  printf '%s\n' "$line"
+fi
