@@ -1,6 +1,6 @@
 # Notices
 
-Notifications land in the top-right corner of the focused display. You can also quickly access the date and time, battery status, and current weather using the hotkey notices.
+Notifications land in the corner nearest the bar on the focused display: top-right with a top bar, bottom-left with a left bar, bottom-right with a bottom or right bar. Pick any corner, edge midpoint, or the middle of the screen under notification preferences. You can also quickly access the date and time, battery status, and current weather using the hotkey notices.
 
 ## Notifications
 
@@ -10,7 +10,7 @@ Cards offer what they carry: _Copy code_ for verification codes (kept out of [cl
 
 Hover a card and click the zzz next to its close mark, or right-click the card, to snooze its source for 15 minutes, an hour, or until tomorrow morning. Snoozed notifications are held back, not thrown away.
 
-Right-click the bell in the bar (hover the middle of the bar to reveal it) to open the notification panel: what's been held back, recent notifications, and the past day's history. From there you can snooze everything, wake a snoozed source, or choose whether verification codes get through while you're quiet (they do by default). The cog opens preferences for which display to use, stepping aside for fullscreen games, and the screen-sharing snooze. When you share your screen, the bell offers a timed snooze; nothing is muted until you pick one.
+Right-click the bell in the bar (hover the middle of the bar to reveal it) to open the notification panel: what's been held back, recent notifications, and the past day's history. From there you can snooze everything, wake a snoozed source, or choose whether verification codes get through while you're quiet (they do by default). The cog opens preferences for where the deck sits, which display to use, stepping aside for fullscreen games, and the screen-sharing snooze. When you share your screen, the bell offers a timed snooze; nothing is muted until you pick one.
 
 History is kept for a day. To change that, set `historyHours` in the `notifications` section of `~/.config/omarchy/shell.json` to `1`, `168` for a week, or `0` to keep no history on disk, for example `"notifications": { "historyHours": 168 }`.
 

@@ -212,7 +212,7 @@ Item {
   z: place.z
   scale: scene ? scene.at(row.key, "scale") : 1
   opacity: place.hidden ? 0 : (scene ? scene.at(row.key, "opacity") : 1)
-  transformOrigin: Item.Top
+  transformOrigin: scene && scene.growUp ? Item.Bottom : Item.Top
 
   // `visible` is deliberately unbound: anything derived from layout output
   // (opacity, place.hidden) closes a binding loop through `heights`. A hidden

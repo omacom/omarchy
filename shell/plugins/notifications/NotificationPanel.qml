@@ -169,6 +169,20 @@ Item {
         ? I18n.t("notifications.displayMissingHint")
         : I18n.t("notifications.displayActiveHint")
 
+  readonly property string positionChoice: preferences.position || "auto"
+  readonly property var positionOptions: [
+    { value: "auto", label: I18n.t("notifications.positionAuto") },
+    { value: "top-left", label: I18n.t("notifications.positionTopLeft") },
+    { value: "top-center", label: I18n.t("notifications.positionTopCenter") },
+    { value: "top-right", label: I18n.t("notifications.positionTopRight") },
+    { value: "middle-left", label: I18n.t("notifications.positionMiddleLeft") },
+    { value: "middle-center", label: I18n.t("notifications.positionMiddleCenter") },
+    { value: "middle-right", label: I18n.t("notifications.positionMiddleRight") },
+    { value: "bottom-left", label: I18n.t("notifications.positionBottomLeft") },
+    { value: "bottom-center", label: I18n.t("notifications.positionBottomCenter") },
+    { value: "bottom-right", label: I18n.t("notifications.positionBottomRight") }
+  ]
+
   function selectDisplay(value) {
     if (!service) return
     if (value === "active" || value === "all") {
@@ -275,6 +289,23 @@ Item {
               }
 
               Hint { text: root.displayExplanation }
+            }
+
+            Column {
+              width: parent.width
+              spacing: Style.spacing.lg
+
+              Picker {
+                width: parent.width
+                label: I18n.t("notifications.position")
+                value: root.positionChoice
+                options: root.positionOptions
+                foreground: root.panelFg
+                fontFamily: root.fontFamily
+                onPicked: function(value) { if (root.service) root.service.setSetting("position", value) }
+              }
+
+              Hint { text: I18n.t("notifications.positionHint") }
             }
 
             PanelSeparator { foreground: root.panelFg }

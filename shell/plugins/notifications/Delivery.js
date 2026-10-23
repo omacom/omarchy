@@ -66,16 +66,54 @@ function barThickness(bar, screenName, defaultBarSize) {
   return Math.max(0, size)
 }
 
-// The deck hangs from the top-right corner, so it clears the bar only on the
-// two edges it touches.
-function deckMargins(barPosition, thickness, gap) {
-  var position = String(barPosition || "top")
+// Where the deck can hang: the four corners, the four edge midpoints, and the
+// middle of the screen.
+var POSITIONS = [
+  "top-left", "top-center", "top-right",
+  "middle-left", "middle-center", "middle-right",
+  "bottom-left", "bottom-center", "bottom-right"
+]
+
+// `auto` keeps the deck beside the bar: a top bar leaves it top-right, a left
+// bar bottom-left, and a bottom or right bar bottom-right.
+function effectivePosition(position, barPosition) {
+  var chosen = String(position || "auto")
+  if (chosen === "auto") {
+    var bar = String(barPosition || "top")
+    if (bar === "left") return "bottom-left"
+    if (bar === "bottom" || bar === "right") return "bottom-right"
+    return "top-right"
+  }
+  return POSITIONS.indexOf(chosen) >= 0 ? chosen : effectivePosition("auto", barPosition)
+}
+
+// Which edges a position anchors to. A centred axis anchors to neither edge.
+function sides(position) {
+  var parts = String(position || "top-right").split("-")
+  var vertical = parts[0], horizontal = parts[1]
+  return {
+    top: vertical === "top",
+    bottom: vertical === "bottom",
+    left: horizontal === "left",
+    right: horizontal === "right",
+    centerX: horizontal === "center",
+    centerY: vertical === "middle"
+  }
+}
+
+// A deck in a corner clears the bar only on the edges it touches. A centred
+// axis ignores the bar's thickness: the middle of the screen is the middle.
+function deckMargins(barPosition, thickness, gap, position) {
+  var bar = String(barPosition || "top")
   var edge = Number(gap)
   if (!isFinite(edge)) edge = 0
-  var bar = Number(thickness)
-  if (!isFinite(bar)) bar = 0
+  var size = Number(thickness)
+  if (!isFinite(size)) size = 0
+  var at = sides(position)
   return {
-    top: (position === "top" ? bar : 0) + edge,
-    right: (position === "right" ? bar : 0) + edge
+    top: at.top ? edge + (bar === "top" ? size : 0) : 0,
+    right: at.right ? edge + (bar === "right" ? size : 0) : 0,
+    bottom: at.bottom ? edge + (bar === "bottom" ? size : 0) : 0,
+    left: at.left ? edge + (bar === "left" ? size : 0) : 0
   }
 }

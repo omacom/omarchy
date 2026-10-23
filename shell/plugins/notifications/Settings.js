@@ -2,7 +2,10 @@
 // Every key is optional; a missing or invalid value falls back to its default.
 .pragma library
 
+.import "Delivery.js" as Delivery
+
 var DEFAULTS = {
+  position: "auto",
   displayMode: "active",
   displayName: "",
   fullscreenOverlay: "all",
@@ -26,6 +29,7 @@ function resolve(raw) {
   var given = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw : {}
   var d = DEFAULTS
   return {
+    position: oneOf(given.position, ["auto"].concat(Delivery.POSITIONS), d.position),
     displayMode: oneOf(given.displayMode, ["active", "specific", "all"], d.displayMode),
     displayName: typeof given.displayName === "string" ? given.displayName.slice(0, 128) : d.displayName,
     fullscreenOverlay: oneOf(given.fullscreenOverlay, ["off", "all"], d.fullscreenOverlay),

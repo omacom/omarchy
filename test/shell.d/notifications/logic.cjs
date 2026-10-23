@@ -268,14 +268,43 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.ok(!Delivery.omarchyGlyph(''))
   assert.ok(!Delivery.omarchyGlyph(''))
 
-  // The deck clears the bar only on the top and right edges it touches.
+  // Each position clears the bar only on the edges it touches.
   const bar = { barHidden: false, barSize: 26, barSizeFor: name => name === 'notched' ? 40 : 26 }
   assert.equal(Delivery.barThickness(bar, 'notched', 26), 40)
   assert.equal(Delivery.barThickness(bar, 'plain', 26), 26)
   assert.equal(Delivery.barThickness({ barHidden: true }, 'plain', 26), 0)
   assert.equal(Delivery.barThickness(null, 'plain', 28), 28)
-  for (const [position, thickness, top, right] of [['top', 26, 36, 10], ['right', 40, 10, 50], ['bottom', 26, 10, 10], ['left', 26, 10, 10]])
-    assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) }, { top, right }, position)
+  for (const [barAt, thickness, expected] of [
+    ['top', 26, { top: 36, right: 10, bottom: 0, left: 0 }],
+    ['right', 40, { top: 0, right: 50, bottom: 10, left: 0 }],
+    ['bottom', 26, { top: 0, right: 10, bottom: 36, left: 0 }],
+    ['left', 26, { top: 0, right: 0, bottom: 10, left: 36 }]
+  ]) assert.deepEqual({ ...Delivery.deckMargins(barAt, thickness, 10, Delivery.effectivePosition('auto', barAt)) },
+                      expected, barAt)
+
+  // A bottom-left deck clears a left or bottom bar; a centred axis ignores it.
+  assert.deepEqual({ ...Delivery.deckMargins('left', 26, 10, 'bottom-left') },
+                   { top: 0, right: 0, bottom: 10, left: 36 })
+  assert.deepEqual({ ...Delivery.deckMargins('left', 26, 10, 'middle-center') },
+                   { top: 0, right: 0, bottom: 0, left: 0 })
+
+  // `auto` follows the bar; an explicit position wins and a bad one falls back.
+  for (const [position, barAt, expected] of [
+    ['auto', 'top', 'top-right'], ['auto', 'bottom', 'bottom-right'],
+    ['auto', 'left', 'bottom-left'], ['auto', 'right', 'bottom-right'],
+    ['middle-center', 'left', 'middle-center'], ['corner', 'left', 'bottom-left']
+  ]) assert.equal(Delivery.effectivePosition(position, barAt), expected, `${position} on a ${barAt} bar`)
+}
+
+// ------------------------------------------------------------------- layout
+{ // A bottom-anchored deck stacks upward, so the newest card stays by the corner.
+  const rows = [{ key: 'new' }, { key: 'old' }]
+  const heights = { new: 70, old: 50 }
+  const opts = { gap: 6, heightOf: key => heights[key] }
+  const down = Layout.compute(rows, opts), up = Layout.compute(rows, { ...opts, growUp: true })
+  assert.equal(up.height, down.height)
+  assert.equal(up.placements.new.y + up.placements.new.height, up.height, 'the front card lands on the bottom edge')
+  assert.ok(up.placements.old.y < up.placements.new.y, 'cards behind peek above the front one')
 }
 
 // ------------------------------------------------------------------ settings
@@ -287,6 +316,9 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.equal(r.historyHours, 24)
   assert.equal(r.displayName, '')
   assert.equal(r.offerSnoozeWhenSharing, true)
+  assert.equal(r.position, 'auto')
+  assert.equal(Settings.resolve({ position: 'bottom-left' }).position, 'bottom-left')
+  assert.equal(Settings.resolve({ position: 'corner' }).position, 'auto')
   const now = new Date(2026, 9, 19, 22, 30).getTime()
   assert.equal(Settings.snoozeSeconds('60', now), 3600)
   assert.equal(Settings.snoozeSeconds('tomorrow', now), 9 * 3600 + 1800)

@@ -167,14 +167,26 @@ Item {
 
   // ------------------------------------------------------------- the bar
   //
-  // The deck hangs from the top-right corner, so it clears the bar only when
-  // the bar is on the top or right edge and visible.
+  // The deck hangs from a corner or a screen edge, and clears the bar only when
+  // the bar is on an edge that position touches. `auto` keeps it on the corner
+  // nearest the bar, so a left bar does not leave the cards across the screen.
   readonly property var barRef: shell && shell.bar ? shell.bar : null
   readonly property string barPosition: barRef ? String(barRef.position || "top") : "top"
   readonly property bool barVertical: barPosition === "left" || barPosition === "right"
   readonly property int defaultBarSize: barVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
-  function marginsFor(screenName) {
-    return Delivery.deckMargins(barPosition, Delivery.barThickness(barRef, screenName, defaultBarSize), Style.gapsOut)
+  readonly property string deckPosition: Delivery.effectivePosition(preferences.position, barPosition)
+  readonly property var deckSides: Delivery.sides(deckPosition)
+  readonly property bool growUp: deckSides.bottom
+  // A binding cannot see values a JS function reads for itself, so the surface
+  // hands marginsFor everything as one reactive bundle.
+  readonly property var surfaceInputs: ({
+    position: deckPosition, barPosition: barPosition, bar: barRef,
+    barSize: defaultBarSize, gap: Style.gapsOut
+  })
+  function marginsFor(screenName, inputs) {
+    return Delivery.deckMargins(inputs.barPosition,
+                                Delivery.barThickness(inputs.bar, screenName, inputs.barSize),
+                                inputs.gap, inputs.position)
   }
   readonly property int notificationWidth: Style.space(380)
 
@@ -695,6 +707,7 @@ Item {
     return Layout.compute(rows, {
       expanded: expanded,
       openDeck: openDeck,
+      growUp: growUp,
       gap: gap,
       deckGap: Style.space(11),
       heightOf: function(key) { return service.heights[key] || Style.space(58) }
@@ -1568,7 +1581,7 @@ Item {
       required property var modelData
       screen: modelData
       readonly property bool showingNotifications: service.showsOn(String(modelData.name))
-      readonly property var margins: service.marginsFor(String(modelData.name))
+      readonly property var margins: service.marginsFor(String(modelData.name), service.surfaceInputs)
       readonly property bool stepAside: service.fullscreenOn(String(modelData.name))
       readonly property bool hasSomethingToShow: showingNotifications && toasts.count > 0
       // Holds the canvas for the last card's exit animation.
@@ -1585,29 +1598,36 @@ Item {
       WlrLayershell.layer: WlrLayer.Overlay
       exclusionMode: ExclusionMode.Ignore
 
-      // Constant width and full height, so the buffer is allocated once.
-      anchors { top: true; bottom: true; right: true }
-      implicitWidth: clipper.width + Style.space(10)
+      // Full height and only as wide as the deck needs, so the buffer is
+      // allocated once; a horizontally centred deck takes the full width, the
+      // only way a layer surface can sit in the middle of the screen. The extra
+      // inset leaves room for the arrival's scale animation inside the surface.
+      readonly property int motionInset: Style.spacing.sm
+      anchors { top: true; bottom: true }
+      anchors.left: service.deckSides.centerX || service.deckSides.left
+      anchors.right: service.deckSides.centerX || service.deckSides.right
+      implicitWidth: service.deckSides.left ? surface.margins.left + service.notificationWidth + motionInset
+                                            : surface.margins.right + service.notificationWidth + motionInset
 
       mask: Region { item: surface.showingNotifications ? deck : null }
 
       Item {
-        id: clipper
+        id: canvas
         visible: surface.showingNotifications
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.topMargin: surface.margins.top
-        // Room for the arrival's scale animation, and the gap from the edge.
-        readonly property int motionInset: Style.spacing.sm
-        width: service.notificationWidth + motionInset + surface.margins.right
-        height: deck.y + deck.height + motionInset
-        clip: true
+        anchors.fill: parent
 
         Item {
           id: deck
-          x: clipper.motionInset
           width: service.notificationWidth
           height: service.deckHeight
+          // An anchored edge clears the bar and the outer gap when the bar is
+          // on it; a centred axis sits in the true middle of the screen.
+          x: service.deckSides.centerX ? (parent.width - width) / 2
+            : service.deckSides.left ? surface.margins.left
+            : parent.width - surface.margins.right - width
+          y: service.deckSides.centerY ? (parent.height - height) / 2
+            : service.deckSides.top ? surface.margins.top
+            : parent.height - surface.margins.bottom - height
 
           // One hover region over the whole deck, so crossing between cards does
           // not flicker it shut. It accepts no buttons; clicks reach the cards.

@@ -1,6 +1,6 @@
 # Notifications
 
-The shell is the notification daemon: `shell/plugins/notifications/Service.qml` hosts a Quickshell `NotificationServer` that claims `org.freedesktop.Notifications` on the session bus, so anything that speaks the freedesktop protocol (notify-send, libnotify apps, Chromium web apps) is drawn as a card in a deck at the top-right corner. The end-user view is in `manual/10-notices.md`.
+The shell is the notification daemon: `shell/plugins/notifications/Service.qml` hosts a Quickshell `NotificationServer` that claims `org.freedesktop.Notifications` on the session bus, so anything that speaks the freedesktop protocol (notify-send, libnotify apps, Chromium web apps) is drawn as a card in a deck in the corner nearest the bar: top-right for a top bar, bottom-left for a left bar, and bottom-right for a bottom or right bar. A `position` preference can pin the deck to any corner, edge midpoint, or the middle of the screen instead. The end-user view is in `manual/10-notices.md`.
 
 ## Files
 
@@ -81,7 +81,7 @@ When the Hyprland portal starts a screen-share stream, the bell offers a timed s
 
 ## Preferences
 
-Preferences live in the `notifications` object of `~/.config/omarchy/shell.json`; every key is optional, and `Settings.js` holds defaults and valid values. The preferences page writes `displayMode`/`displayName`, `fullscreenOverlay` (`all` or `off`) and `offerSnoozeWhenSharing`; `historyHours` is hand-edited. Everything else follows the desktop: text size, the theme's outer gap, the locale's time format. Colours come from the theme: `[notifications]` in `shell.toml` for cards, `[popups]` for the panel, Hyprland's `decoration:rounding` for corners.
+Preferences live in the `notifications` object of `~/.config/omarchy/shell.json`; every key is optional, and `Settings.js` holds defaults and valid values. The preferences page writes `position` (`auto` or one of `top-left`, `top-center`, `top-right`, `middle-left`, `middle-center`, `middle-right`, `bottom-left`, `bottom-center`, `bottom-right`), `displayMode`/`displayName`, `fullscreenOverlay` (`all` or `off`) and `offerSnoozeWhenSharing`; `historyHours` is hand-edited. `auto` follows the bar; an explicit position anchors to that edge and clears the bar there, while a centred axis ignores the bar and the outer gap. Everything else follows the desktop: text size, the theme's outer gap, the locale's time format. Colours come from the theme: `[notifications]` in `shell.toml` for cards, `[popups]` for the panel, Hyprland's `decoration:rounding` for corners.
 
 ## The sender contract
 

@@ -21,6 +21,7 @@ function compute(rows, opts) {
   var gap = opts.gap || 6
   var deckGap = opts.deckGap || 12
   var heightOf = opts.heightOf || function() { return 76 }
+  var growUp = !!opts.growUp
   var order = [], byKey = {}
   for (var i = 0; i < rows.length; i++) {
     var key = groupKeyFor(rows[i])
@@ -70,5 +71,16 @@ function compute(rows, opts) {
     if (k < decks.length - 1) y += deckGap
   }
 
-  return { decks: decks, placements: placements, height: Math.max(0, y) }
+  var total = Math.max(0, y)
+
+  // A deck anchored to the bottom stacks upward: the same geometry, mirrored,
+  // so the newest card sits nearest the corner and older ones peek above it.
+  if (growUp) {
+    for (var key in placements) {
+      var placed = placements[key]
+      placed.y = total - (placed.y + placed.height)
+    }
+  }
+
+  return { decks: decks, placements: placements, height: total }
 }
