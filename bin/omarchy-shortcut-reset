@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Return a named shortcut to Omarchy's default keys, or remove an app's shortcut
+# omarchy:args=<id>
+# omarchy:examples=omarchy shortcut reset omarchy.dictation.hold | omarchy shortcut reset com.example.app.record
+
+source omarchy-shortcut-functions
+
+if (($# != 1)) || ! shortcut_valid_id "$1"; then
+  echo "Usage: omarchy-shortcut-reset <id>" >&2
+  exit 1
+fi
+
+shortcut_lock
+rm -f "$SHORTCUTS_DIR/$1" || shortcut_fail "could not remove $1 from $SHORTCUTS_DIR"
+shortcut_apply "$1"

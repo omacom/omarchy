@@ -1,6 +1,7 @@
 -- Omarchy Hyprland setup: helpers, defaults, and current theme overrides.
 
 require("default.hypr.helpers")
+require("default.hypr.shortcuts")
 local require_optional = require("default.hypr.require_optional")
 
 -- Use Omarchy defaults, but don't edit these directly.
@@ -21,6 +22,9 @@ require("default.hypr.looknfeel")
 require("default.hypr.qconsole")
 require("default.hypr.input")
 require("default.hypr.windows")
+-- Before the dictation backend, whose own integration may unbind or replace
+-- Omarchy's dictation shortcuts.
+o.shortcuts.apply()
 require("default.hypr.dictation-backend")
 
 -- Current theme overrides.

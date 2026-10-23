@@ -135,8 +135,62 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
+local MODIFIERS = { CONTROL = "CTRL", MOD1 = "ALT", WIN = "SUPER", LOGO = "SUPER", MOD4 = "SUPER", META = "SUPER" }
+local MODIFIER_KEYS = { ALT = true, SUPER = true, CONTROL = true, SHIFT = true, META = true, HYPER = true }
+
+-- A modifier pressed on its own changes the modifier mask between its press
+-- and release, so it only matches with the mask ignored.
+function o.modifier_key(key)
+  local name = key:match("^(%u+)_[LR]$")
+  return (name and MODIFIER_KEYS[name]) or key == "ISO_LEVEL3_SHIFT"
+end
+
+-- A chord as Hyprland matches it: modifiers sorted and case folded, so
+-- "SUPER + ctrl + x" and "CTRL + SUPER + X" are the same keys, and a modifier
+-- key alone reduces to that key. bin/omarchy-shortcut-functions matches this.
+function o.chord(keys)
+  local parts = {}
+  for raw in keys:gmatch("[^+]+") do
+    local part = raw:match("^%s*(.-)%s*$"):upper()
+    if part ~= "" then
+      table.insert(parts, part)
+    end
+  end
+
+  local key = table.remove(parts) or ""
+  if o.modifier_key(key) then
+    return key
+  end
+  for index, modifier in ipairs(parts) do
+    parts[index] = MODIFIERS[modifier] or modifier
+  end
+  table.sort(parts)
+  table.insert(parts, key)
+
+  return table.concat(parts, "+")
+end
+
+-- Keys bound outside named shortcuts, by chord, with each spelling they were
+-- bound with: Hyprland unbinds by that text, and moving a shortcut off keys it
+-- took from one of these needs a reload to bring that binding back.
+o.bound_keys = {}
+
+-- Chords bound once the shortcuts were applied, by the user's own config or a
+-- dictation backend. A shortcut can't take these: they would bind again after
+-- it at the next reload, and both would run.
+o.late_keys = {}
+
 function o.bind(keys, description, dispatcher, options)
   local opts = options or {}
+
+  if not (o.shortcuts and o.shortcuts.binding) then
+    local chord = o.chord(keys)
+    o.bound_keys[chord] = o.bound_keys[chord] or {}
+    o.bound_keys[chord][keys] = true
+    if o.shortcuts and o.shortcuts.loaded then
+      o.late_keys[chord] = true
+    end
+  end
 
   if description then
     opts.description = description
@@ -219,8 +273,10 @@ end
 -- is also non-consuming: a release bind that ignores modifiers would otherwise
 -- take the key from apps whenever it is pressed with other modifiers, such as
 -- Shift+F9, or without them, such as a plain x for SUPER + X.
+-- options.hold_state, a table, shares whether the key is held with the caller,
+-- which named shortcuts use to finish a hold before rebinding it.
 function o.bind_hold(keys, press_description, press, release_description, release, options)
-  local held = false
+  local state = options and options.hold_state or { held = false }
   press, release = command_from(press, press_description), command_from(release, release_description)
 
   local function run(dispatcher)
@@ -234,13 +290,13 @@ function o.bind_hold(keys, press_description, press, release_description, releas
   end
 
   local function on_press()
-    held = true
+    state.held = true
     run(press)
   end
 
   local function on_release()
-    if held then
-      held = false
+    if state.held then
+      state.held = false
       run(release)
     end
   end
@@ -254,7 +310,9 @@ function o.bind_hold(keys, press_description, press, release_description, releas
 
   local press_options, release_options = {}, {}
   for key, value in pairs(options or {}) do
-    press_options[key], release_options[key] = value, value
+    if key ~= "hold_state" then
+      press_options[key], release_options[key] = value, value
+    end
   end
   -- Options that change when the press half fires would break the release half.
   for _, key in ipairs({ "repeating", "long_press", "click", "drag" }) do

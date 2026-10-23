@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=List named shortcuts with their keys
+# omarchy:args=[--json]
+
+source omarchy-shortcut-functions
+
+if (($# > 1)) || [[ -n ${1:-} && $1 != "--json" ]]; then
+  echo "Usage: omarchy-shortcut-list [--json]" >&2
+  exit 1
+fi
+
+if [[ ${1:-} == "--json" ]]; then
+  shortcut_ids | while read -r id; do
+    omarchy-shortcut-get "$id" --json
+  done | jq -s .
+else
+  shortcut_ids | while read -r id; do
+    printf '%s\t%s\t%s\n' "$id" "$(shortcut_keys "$id" | paste -sd, | sed 's/,/, /g')" \
+      "$(omarchy-shortcut-get "$id" --json | jq -r '.description // ""')"
+  done | column -t -s $'\t'
+fi

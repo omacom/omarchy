@@ -307,7 +307,7 @@ def scan_candidates(root):
 
 # ------------------------------------------------------------- keybindings
 
-BIND_CALL = re.compile(r"\b(o\.(?:bind|rebind|bind_toggle|bind_hold)|hl\.bind)\(")
+BIND_CALL = re.compile(r"\b(o\.(?:bind|rebind|bind_toggle|bind_hold|shortcut)|hl\.bind)\(")
 LUA_STRING = re.compile(r'"((?:[^"\\]|\\.)*)"')
 
 
@@ -374,6 +374,13 @@ def keybinding_descriptions(root):
                 options = args[-1] if args else ""
                 described = re.search(r'description\s*=\s*("(?:[^"\\]|\\.)*"(?:\s*\.\.\s*[^,}]+)*)', options)
                 expressions = [described.group(1)] if described else []
+            elif match.group(1) == "o.shortcut":
+                spec = args[1] if len(args) > 1 else ""
+                expressions = [
+                    described.group(1)
+                    for field in ("description", "release_description")
+                    if (described := re.search(rf'\b{field}\s*=\s*("(?:[^"\\]|\\.)*"(?:\s*\.\.\s*[^,}}]+)*)', spec))
+                ]
             elif match.group(1) == "o.bind_hold":
                 expressions = [args[i] for i in (1, 3) if i < len(args)]
             else:
