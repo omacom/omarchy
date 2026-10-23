@@ -60,6 +60,7 @@ run_logged "$OMARCHY_INSTALL/hardware/lenovo/thinkpad-t14s-camera.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/fix-bcm43xx.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-surface-keyboard.sh"
+run_logged "$OMARCHY_INSTALL/hardware/fujitsu/fix-lifebook-p727-i8042.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-yt6801-ethernet-adapter.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-tuxedo-backlight.sh"
 run_logged "$OMARCHY_INSTALL/hardware/speaker-tuning.sh"
