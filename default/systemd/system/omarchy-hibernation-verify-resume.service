@@ -1,0 +1,16 @@
+[Unit]
+Description=Verify the hibernation resume_offset against the live swapfile
+# map-swapfile needs the btrfs volume mounted to resolve the swapfile's
+# physical extents.
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-hibernation-verify-resume
+# Warn-only: a stale offset is reported through the journal and the /run flag
+# file that omarchy-hibernation-resume-notify.service reads, never as a boot
+# failure. A stale offset already fails safely into a fresh session.
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# omarchy:summary=Check the boot resume_offset against the live swapfile location
+# omarchy:requires-sudo=true
+
+# Issue #14379. Hibernation writes the image through the kernel's extent map, so
+# a moved swapfile still hibernates fine -- but resume runs from the initramfs
+# before btrfs is mounted and reads the image at the literal resume_offset=
+# physical offset. A stale offset fails the image signature check and the
+# machine cold-boots: the session is gone and nothing surfaces anywhere.
+#
+# This check recomputes the live offset with `btrfs inspect-internal
+# map-swapfile -r` and compares it against the resume_offset= the machine
+# actually booted with. On mismatch it logs an error and drops a flag file on
+# /run that omarchy-hibernation-resume-notify.service turns into a desktop
+# toast. Warn-only by design (#14379 discussion): a stale offset already fails
+# safely into a fresh boot, so the check never fails the boot itself.
+
+set -euo pipefail
+
+FLAG_FILE=/run/omarchy/resume-offset-stale
+
+cmdline=$(</proc/cmdline)
+resume_device=$(sed -n 's/.*\bresume=\([^ ]*\).*/\1/p' <<<"$cmdline")
+resume_offset=$(sed -n 's/.*\bresume_offset=\([^ ]*\).*/\1/p' <<<"$cmdline")
+
+# No resume_offset= means swapfile hibernation is not configured (a whole-partition
+# resume needs no offset). The unit's absence of a flag file keeps notify inert.
+[[ -n $resume_offset ]] || exit 0
+
+# Find the file-backed swap this offset belongs to. The setup command hardcodes
+# /swap/swapfile, but nothing records the path in the boot configuration, so
+# take the live file-backed swap instead; prefer the one sitting on the resume
+# device when several exist.
+swapfile=
+while read -r path type; do
+  [[ $type == file ]] || continue
+  if [[ -z $swapfile ]]; then
+    swapfile=$path
+  fi
+  dev=$(findmnt -no SOURCE -T "$path" 2>/dev/null | sed 's/\[.*\]//')
+  if [[ $dev == "$resume_device" ]]; then
+    swapfile=$path
+    break
+  fi
+done < <(swapon --show=NAME,TYPE --noheadings 2>/dev/null)
+[[ -n $swapfile ]] || exit 0
+
+actual=$(btrfs inspect-internal map-swapfile -r "$swapfile" 2>/dev/null) || exit 0
+[[ $actual =~ ^[0-9]+$ ]] || exit 0
+
+mkdir -p -- "$(dirname -- "$FLAG_FILE")"
+if (( actual == resume_offset )); then
+  rm -f -- "$FLAG_FILE"
+  exit 0
+fi
+
+# Stale. Warn-only: the diagnostic lands in the journal and the flag file, and
+# the boot proceeds normally into a fresh session.
+{
+  echo "expected=$resume_offset"
+  echo "actual=$actual"
+  echo "swapfile=$swapfile"
+  echo "resume_device=$resume_device"
+} >"$FLAG_FILE"
+logger -p err -t omarchy-hibernation-verify-resume \
+  "resume_offset=$resume_offset is stale: $swapfile now maps to $actual; resume will silently cold-boot until re-synced"
+exit 0

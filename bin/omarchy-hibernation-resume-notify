@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# omarchy:summary=Notify when hibernation is silently broken by a stale resume offset
+
+# Runs from omarchy-hibernation-resume-notify.service after
+# graphical-session.target. The flag file is written fresh by the root
+# omarchy-hibernation-verify-resume oneshot on every boot and lives on /run, so
+# a toast can only ever describe the boot the user is sitting in.
+
+set -euo pipefail
+
+FLAG_FILE=/run/omarchy/resume-offset-stale
+[[ -r $FLAG_FILE ]] || exit 0
+
+expected=$(sed -n 's/^expected=//p' "$FLAG_FILE")
+actual=$(sed -n 's/^actual=//p' "$FLAG_FILE")
+[[ -n $expected && -n $actual ]] || exit 0
+
+# The session may reach graphical-session.target before the shell has claimed
+# org.freedesktop.Notifications; without the wait the toast lands in the void
+# (same rationale as omarchy-migrate-notify).
+omarchy-notification-wait || true
+
+omarchy-notification-send -u critical -g 󰐥 \
+  "Hibernation is silently broken" \
+  "The swapfile moved since hibernation was set up: the boot expects resume_offset=$expected, but it now maps to $actual. Resuming will cold-boot instead. Run omarchy hibernation setup to re-sync." \
+  --exec omarchy-launch-floating-terminal-with-presentation omarchy-hibernation-setup && exit 0
+
+# Reached when the notification could not be handed off; tell the user in the
+# terminal that spawned the session instead.
+echo "Hibernation resume offset is stale (boot expects $expected, live offset is $actual)." >&2
+echo "Run 'omarchy hibernation setup' to re-sync it; resuming will cold-boot until then." >&2

@@ -1,0 +1,18 @@
+[Unit]
+Description=Notify about a stale hibernation resume offset
+# The flag file is written fresh by the root
+# omarchy-hibernation-verify-resume oneshot on every boot and lives on /run, so
+# it cannot outlive the boot that produced it, and machines without swapfile
+# hibernation never see one.
+ConditionPathExists=/run/omarchy/resume-offset-stale
+# The actionable notification launches its terminal through uwsm-app, whose
+# daemon starts after graphical-session.target (same shape as
+# omarchy-migrate-notify.service).
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-hibernation-resume-notify
+
+[Install]
+WantedBy=graphical-session.target
