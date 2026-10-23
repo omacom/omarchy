@@ -162,6 +162,24 @@ if [[ ! $bios_version =~ ^0\. ]]; then
 else
   echo "N1x firmware $bios_version: GPU firmware cannot boot on this BIOS; keeping the NVIDIA stack unloaded"
 fi
+# The Surface Laptop Ultra's firmware (7.x) boots the GSP, but leaves the GPU's
+# display carveouts (its IORT RMR ranges, 0x200000000-0x2ffffffff and
+# 0xa1600000-0xb7ffffff) out of the EFI memory map, where the Dell and ASUS
+# firmware list them as reserved. Those pages then have no struct page, so
+# nvidia-drm's first vmap() of one fails ("NVRM: failed to map pages!",
+# "Unable to allocate LUT memory from sysmem") and the SoC resets. Keep the
+# stack unloaded there unless the n1x_carveout_memmap module, which gives the
+# carveouts a memmap, is installed; it then loads first. Discussion:
+# https://github.com/omacom/omarchy/discussions/15885
+n1x_gpu_premodule=
+if [[ $n1x_gpu_driver == nvidia ]] && omarchy-hw-match "Surface Laptop Ultra"; then
+  if modinfo -k "$n1x_kernel_version" n1x_carveout_memmap &>/dev/null; then
+    n1x_gpu_premodule=n1x_carveout_memmap
+  else
+    echo "Surface Laptop Ultra: the GPU carveout has no memmap; keeping the NVIDIA stack unloaded"
+    n1x_gpu_driver=unloaded
+  fi
+fi
 if [[ $n1x_gpu_driver == nvidia ]]; then
   echo "N1x firmware $bios_version: GPU drives the panel"
   cat > /etc/modprobe.d/nvidia.conf <<'CONF'
@@ -170,6 +188,9 @@ CONF
   cat > /etc/mkinitcpio.conf.d/nvidia.conf <<'CONF'
 MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
 CONF
+  if [[ -n $n1x_gpu_premodule ]]; then
+    printf 'MODULES=(%s "${MODULES[@]}")\n' "$n1x_gpu_premodule" >>/etc/mkinitcpio.conf.d/nvidia.conf
+  fi
   printf '%s\n' \
     '# N1x on firmware >= 1.0: the GPU owns the panel; drop the firmware' \
     '# framebuffer so Hyprland sees one DRM device.' \
