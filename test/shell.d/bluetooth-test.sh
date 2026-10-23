@@ -28,6 +28,10 @@ assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the ada
 const retryTimer = panelSource.match(/id: discoveryRetry[\s\S]*?onTriggered: \{[\s\S]*?\n {4}\}/)
 assert(retryTimer, 'bluetooth has the discovery retry timer')
 assert(/owesDiscoveryStop = true/.test(retryTimer[0]), 'bluetooth takes on the stop it owes when it starts discovery')
+assert(/attempts < 5/.test(retryTimer[0]) || /attempts < 5/.test(panelSource), 'bluetooth bounds discovery retry attempts')
+assert(/discoveryRetry\.attempts = 0/.test(panelSource), 'bluetooth resets discovery retry budget on open or success')
+assert(/function onEnabledChanged\(\) \{\s*if \(root\.adapter\.enabled\) discoveryRetry\.attempts = 0/.test(panelSource), 'bluetooth resets discovery retry budget when the radio comes back on')
+assert(/onAdapterChanged: discoveryRetry\.attempts = 0/.test(panelSource), 'bluetooth resets discovery retry budget for a different adapter')
 
 // Quickshell only forwards a discovering write that differs from BlueZ's last
 // confirmed state, so a stop written in the same instant as an in-flight
