@@ -22,14 +22,14 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
 
   # Preserve a user-managed Kimi launcher at the same path.
   if [[ -f ~/.local/bin/kimi && ! -L ~/.local/bin/kimi ]] &&
-    grep -Eq '^mise use -g .*"npm:@moonshot-ai/kimi-code"' ~/.local/bin/kimi; then
+    grep -Eq '^mise use -g .*"npm:@moonshot-ai/kimi-code(@latest)?"' ~/.local/bin/kimi; then
     rm -f ~/.local/bin/kimi
   fi
 
   # Cursor's own installer links ~/.local/bin/cursor-agent as well, so only
   # the mise wrapper omarchy-mise-install wrote is a preinstall.
   if [[ -f ~/.local/bin/cursor-agent && ! -L ~/.local/bin/cursor-agent ]] &&
-    grep -Eq '^mise use -g .*"cursor-agent"' ~/.local/bin/cursor-agent; then
+    grep -Eq '^mise use -g .*"cursor-agent(@latest)?"' ~/.local/bin/cursor-agent; then
     rm -f ~/.local/bin/cursor-agent
   fi
 

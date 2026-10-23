@@ -27,17 +27,32 @@ esac
 
 mkdir -p "$HOME/.local/bin"
 
+# Append @latest only when the spec has no version. npm:@scope/name uses @
+# for the scope, so that form still needs @latest; tool@1.2.3 does not.
+# A spec with [options] takes it after them, as in http:muse[...]@latest, so
+# only what follows them can be a version; an @ inside them is part of a URL.
+version=${package##*]}
+if [[ $version == *@latest || $version == npm:@*/*@* ]]; then
+  spec=$package
+elif [[ $version == npm:@*/* ]]; then
+  spec="$package@latest"
+elif [[ $version == *@* ]]; then
+  spec=$package
+else
+  spec="$package@latest"
+fi
+
 # The heredoc below is unquoted, so whatever these hold is written into the
 # wrapper as shell source. Quote them the way omarchy-install-and-launch does, so
 # a package name carrying shell characters stays one argument instead of running.
-printf -v package_arg '%q' "$package"
+printf -v package_arg '%q' "$spec"
 printf -v bin_arg '%q' "$bin"
 
 # Keep values that are inert inside double quotes in the form existing migrations
 # recognize, including mise backend options that %q would unnecessarily escape.
-case "$package" in
+case "$spec" in
   *'$'* | *'`'* | *'"'* | *'\'* | *'!'* | *[[:cntrl:]]*) ;;
-  *) package_arg="\"$package\"" ;;
+  *) package_arg="\"$spec\"" ;;
 esac
 case "$bin" in
   *'$'* | *'`'* | *'"'* | *'\'* | *'!'* | *[[:cntrl:]]*) ;;
