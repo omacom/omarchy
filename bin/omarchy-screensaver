@@ -35,13 +35,25 @@ wait_for_terminal_resize() {
 
 wait_for_terminal_resize
 
+# omarchy-launch-screensaver walks the focus across every monitor to find the
+# windows it just opened, then hands focus back to the monitor the user was
+# on. During that walk — the first seconds after launch — the screensaver
+# window is not focused, so the focus check below fails with no key pressed.
+# Closing then makes the idle service read the exit as the user dismissing
+# the screensaver, which cancels the pending lock (#15489). Give the launcher
+# a short grace window where only a key exits; once it is over, losing focus
+# still closes the screensaver.
+launch_grace_deadline=$((SECONDS + 5))
+
 while true; do
   ttfx -i ~/.config/omarchy/branding/screensaver.txt \
     --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
     --random-effect --no-eol --no-restore-cursor &
 
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
-    if read -n1 -t 1 || ! screensaver_in_focus; then
+    if read -n1 -t 1; then
+      exit_screensaver
+    elif ((SECONDS >= launch_grace_deadline)) && ! screensaver_in_focus; then
       exit_screensaver
     fi
   done
