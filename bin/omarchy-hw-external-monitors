@@ -7,6 +7,13 @@ drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
 for status in "$drm_path"/card*-*/status; do
   [[ -e $status ]] || continue
   [[ $status =~ -(eDP|LVDS|DSI)-[^/]+/status$ ]] && continue
-  [[ $(< $status) == "connected" ]] && exit 0
+  [[ $(< $status) == "connected" ]] || continue
+
+  # The T2 Touch Bar is a built-in panel on a card of its own, always connected.
+  card=${status#"$drm_path"/}
+  card=${card%%-*}
+  [[ $(readlink "$drm_path/$card/device/driver") == */appletbdrm ]] && continue
+
+  exit 0
 done
 exit 1
