@@ -194,8 +194,9 @@ duplicate_check=0
 if [[ $(fingerprint_reader name) == "Apple secure enclave fingerprint sensor" ]]; then
   duplicate_check=1
 fi
+user=$(id -un)
 # The filters only print; the exit status is fprintd's.
-sudo fprintd-enroll "$USER" | enroll_progress "$again" "$duplicate_check"
+sudo fprintd-enroll "$user" | enroll_progress "$again" "$duplicate_check"
 enroll_status=${PIPESTATUS[0]}
 if (( enroll_status == 0 )); then
   echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
@@ -211,7 +212,8 @@ if (( enroll_status == 0 )); then
     # Editing the stacks up front would leave those machines pointing at
     # pam_fprintd with nothing to match.
     setup_pam_config
-    "$OMARCHY_PATH/bin/omarchy-apply-lock"
+    # Check the account just enrolled, not whatever USER names.
+    OMARCHY_INSTALL_USER="$user" "$OMARCHY_PATH/bin/omarchy-apply-lock"
     if [[ ! -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
       echo "Fingerprint enrollment succeeded, but lock-screen configuration could not be confirmed. Run omarchy-apply-lock and try again." >&2
       exit 1
