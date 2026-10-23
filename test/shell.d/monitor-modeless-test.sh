@@ -65,6 +65,7 @@ recovered="$test_tmp/recovered.json"
 events="$test_tmp/events"
 modeless_lock="$test_tmp/omarchy-monitor-modeless.lock"
 hyprctl_fail="$test_tmp/hyprctl-fails"
+watch_err="$test_tmp/watch.err"
 
 # The monitor list lives in a file so a reload can "fix" it mid-run.
 cat >"$fake_bin/hyprctl" <<'SH'
@@ -183,7 +184,7 @@ start_watcher() {
   OMARCHY_TEST_RECOVERED_MONITORS="$recovered" \
   OMARCHY_TEST_GUARD_PAUSED="${1:-0}" \
   OMARCHY_TEST_HYPRCTL_FAIL_FLAG="$hyprctl_fail" \
-    "$ROOT/bin/omarchy-hyprland-monitor-watch" &
+    "$ROOT/bin/omarchy-hyprland-monitor-watch" 2>>"$watch_err" &
   watch_pid=$!
 
   exec {events_fd}>"$events"
@@ -290,5 +291,28 @@ start_watcher
 sleep 0.6
 [[ ! -s $reload_log ]] || fail "a healthy machine is left alone" "$(<"$reload_log")"
 pass "a healthy machine is never reloaded"
+
+stop_watcher
+
+# A connected internal panel the driver gave no modes (MacBookPro14,1 booted
+# with its eDP lanes capped, #15538) is not an unpowered monitor: no reload
+# brings its modes back. Reloading it every minute all night only churns the
+# session, so recovery gives up after a few tries and says so once.
+printf '%s' '[{"name":"eDP-1","width":0,"height":0,"disabled":false},{"name":"DP-2","width":3840,"height":2160,"disabled":false}]' >"$monitors_file"
+rm -f "$recovered"
+: >"$watch_err"
+start_watcher
+
+for (( waited = 0; waited < 200; waited++ )); do
+  [[ -s $watch_err ]] && break
+  sleep 0.05
+done
+gave_up=$(reloads)
+sleep 4.5
+(( gave_up == 5 && $(reloads) == 5 )) ||
+  fail "recovery gives up on an internal panel no reload can fix" "$gave_up -> $(reloads) reloads"
+(( $(grep -c 'eDP-1' "$watch_err") == 1 )) ||
+  fail "giving up on an internal panel is logged once" "$(<"$watch_err")"
+pass "recovery gives up on an internal panel no reload can fix, and logs it once"
 
 stop_watcher
