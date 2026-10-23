@@ -4,6 +4,23 @@
 
 First try to [rollback your system](47-system-snapshots.md) the version before your recent update. If that doesn't work, use `omarchy-debug` to share with your problem on #omarchy-help in the Discord. And if all that fails, you can reinstall the defaults configs and packages using `omarchy-reinstall`.
 
+## Recovering from a broken shell plugin
+
+If the desktop shell will not start after installing or changing a plugin, the recovery command can run from a terminal or TTY without a running Quickshell instance:
+
+```bash
+omarchy debug recovery status
+omarchy debug recovery disable-third-party
+```
+
+The second command creates a backup first, then removes third-party plugins from the shell configuration while leaving first-party defaults in place. Once the shell is working again, restore the most recent backup with:
+
+```bash
+omarchy debug recovery restore-last
+```
+
+Recovery changes only `~/.config/omarchy/shell.json`; it does not delete plugin files or user configuration outside that file.
+
 ### Why are some apps so large on my display?
 
 Omarchy assumes a 2x high-resolution display, which requires setting `GDK_SCALE` to 2 in `~/.config/hypr/monitors.lua`. But if you're on a 1x display, you can change `local omarchy_gdk_scale = 2` to 1 (and then restart any app that's oversized). See [the manual on monitors](33-monitors.md).
