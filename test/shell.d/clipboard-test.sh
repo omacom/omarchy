@@ -101,11 +101,16 @@ assertDeepEqual(
   clipboard.displayRows([{ type: 'text', text: 'file:///home/dhh/Videos/screenrecording-2026-05-29_13-56-43-720p.gif\n' }], '', 50)[0],
   {
     entryType: 'file',
+    kind: 'file',
     fullText: '/home/dhh/Videos/screenrecording-2026-05-29_13-56-43-720p.gif',
     previewText: 'screenrecording-2026-05-29_13-56-43-720p.gif',
     previewImage: '/home/dhh/Videos/screenrecording-2026-05-29_13-56-43-720p.gif',
     path: '/home/dhh/Videos/screenrecording-2026-05-29_13-56-43-720p.gif',
     mime: 'text/plain',
+    pinboard: '',
+    app: '',
+    copiedAt: 0,
+    textLength: 0,
     index: 0
   },
   'clipboard display rows show file uri entries as files'
@@ -204,6 +209,147 @@ const hugeFileRow = clipboard.displayRows([{ type: 'text', text: hugeFileList.jo
 assert(
   hugeFileRow.entryType === 'file' && hugeFileRow.fullText.split('\n').every(path => path.endsWith('.mp4')),
   'clipboard display rows cap a huge file list without truncating a path'
+)
+
+assertDeepEqual(
+  clipboard.normalizeEntry({ type: 'text', text: 'hi', pinboard: ' Code ', app: 'kitty', copiedAt: 1700000000000.7 }),
+  { type: 'text', text: 'hi', pinboard: 'Code', app: 'kitty', copiedAt: 1700000000000 },
+  'clipboard keeps pinboard, source app and copy time'
+)
+
+assertDeepEqual(
+  clipboard.normalizeEntry({ type: 'text', text: 'hi', pinboard: 'x'.repeat(200), app: 'a\nb', copiedAt: 'soon' }),
+  { type: 'text', text: 'hi', pinboard: 'x'.repeat(64), app: 'a b' },
+  'clipboard bounds metadata read from the history file'
+)
+
+assertDeepEqual(
+  clipboard.addEntry([{ type: 'text', text: 'a', pinboard: 'Code', app: 'kitty' }, { type: 'text', text: 'b' }], { type: 'text', text: 'a', app: 'zen', copiedAt: 5 }, 100),
+  [{ type: 'text', text: 'a', pinboard: 'Code', app: 'kitty', copiedAt: 5 }, { type: 'text', text: 'b' }],
+  'clipboard re-copying a pinned entry keeps its pinboard and source app'
+)
+
+assertDeepEqual(
+  clipboard.addEntry([{ type: 'text', text: 'old pin', pinboard: 'Keep' }, { type: 'text', text: 'b' }, { type: 'text', text: 'c' }], { type: 'text', text: 'new' }, 2),
+  [{ type: 'text', text: 'new' }, { type: 'text', text: 'old pin', pinboard: 'Keep' }, { type: 'text', text: 'b' }],
+  'clipboard history limit never drops pinned entries'
+)
+
+assertDeepEqual(
+  clipboard.clearHistory([{ type: 'text', text: 'a' }, { type: 'text', text: 'b', pinboard: 'Keep' }]),
+  [{ type: 'text', text: 'b', pinboard: 'Keep' }],
+  'clipboard clearing history keeps pinned entries'
+)
+
+assertDeepEqual(
+  clipboard.pinEntryAt([{ type: 'text', text: 'a' }], 0, 'Code'),
+  [{ type: 'text', text: 'a', pinboard: 'Code' }],
+  'clipboard pins an entry to a pinboard'
+)
+
+assertDeepEqual(
+  clipboard.unpinEntryAt([{ type: 'text', text: 'a', pinboard: 'Code' }], 0),
+  [{ type: 'text', text: 'a' }],
+  'clipboard unpins an entry'
+)
+
+assertDeepEqual(
+  clipboard.pinEntryAt([{ type: 'text', text: 'a' }], 0, '  '),
+  [{ type: 'text', text: 'a' }],
+  'clipboard ignores a blank pinboard name'
+)
+
+assertDeepEqual(
+  clipboard.pinboardList(['Code', 'Empty', 'Code'], [{ type: 'text', text: 'a', pinboard: 'Links' }, { type: 'text', text: 'b', pinboard: 'Code' }]),
+  ['Code', 'Empty', 'Links'],
+  'clipboard pinboard list keeps saved order and empty boards, then boards entries name'
+)
+
+assertDeepEqual(clipboard.parsePinboards('{"not":"a list"}'), [], 'clipboard pinboard parser rejects non-lists')
+
+assertDeepEqual(
+  clipboard.pinboardList(['constructor', 'toString'], [{ type: 'text', text: 'a', pinboard: 'hasOwnProperty' }]),
+  ['constructor', 'toString', 'hasOwnProperty'],
+  'clipboard pinboard list keeps names that match object properties'
+)
+
+assertEqual(clipboard.pinboardName('x'.repeat(80)), 'x'.repeat(64), 'clipboard bounds pinboard names to the stored length')
+
+{
+  const long = { type: 'text', text: 'x'.repeat(9000), pinboard: 'Code', app: 'foot', copiedAt: 1700000000000 }
+  const rows = clipboard.displayRows([long], '', 50, null, null, null, { pinboard: 'Code' })
+  assertDeepEqual(
+    rows.map(row => ({ pinboard: row.pinboard, app: row.app, copiedAt: row.copiedAt, length: row.textLength })),
+    [{ pinboard: 'Code', app: 'foot', copiedAt: 1700000000000, length: 9000 }],
+    'clipboard keeps the pinboard and metadata of text too long to display in full'
+  )
+}
+assertDeepEqual(clipboard.parsePinboards('nope'), [], 'clipboard pinboard parser rejects invalid json')
+
+assertDeepEqual(
+  clipboard.renamePinboard([{ type: 'text', text: 'a', pinboard: 'Old' }, { type: 'text', text: 'b' }], 'Old', 'New'),
+  [{ type: 'text', text: 'a', pinboard: 'New' }, { type: 'text', text: 'b' }],
+  'clipboard renames a pinboard on its entries'
+)
+
+assertDeepEqual(
+  clipboard.removePinboard([{ type: 'text', text: 'a', pinboard: 'Gone' }, { type: 'text', text: 'b', pinboard: 'Stay' }], 'Gone'),
+  [{ type: 'text', text: 'a' }, { type: 'text', text: 'b', pinboard: 'Stay' }],
+  'clipboard deleting a pinboard unpins its entries instead of deleting them'
+)
+
+assertDeepEqual(
+  [
+    { type: 'text', text: 'hello' },
+    { type: 'text', text: ' https://omarchy.org/path?q=1 ' },
+    { type: 'text', text: 'see https://omarchy.org' },
+    { type: 'text', text: 'file:///home/dhh/a.txt\n' },
+    { type: 'image', path: '/tmp/a.png' }
+  ].map(clipboard.entryKind),
+  ['text', 'link', 'text', 'file', 'image'],
+  'clipboard classifies entries as text, link, file or image'
+)
+
+const mixed = [
+  { type: 'text', text: 'https://omarchy.org', pinboard: 'Links' },
+  { type: 'text', text: 'note', app: 'obsidian' },
+  { type: 'image', path: '/tmp/a.png', pinboard: 'Links' }
+]
+
+assertDeepEqual(
+  clipboard.displayRows(mixed, '', 50, null, null, null, { pinboard: 'Links' }).map(row => row.index),
+  [0, 2],
+  'clipboard display rows narrow to one pinboard'
+)
+
+assertDeepEqual(
+  clipboard.displayRows(mixed, '', 50, null, null, null, { kind: 'link' }).map(row => row.index),
+  [0],
+  'clipboard display rows narrow to one kind'
+)
+
+assertDeepEqual(
+  clipboard.displayRows(mixed, 'obsidian', 50).map(row => row.index),
+  [1],
+  'clipboard search matches the source app'
+)
+
+assertDeepEqual(
+  clipboard.displayRows([{ type: 'text', text: 'abc', app: 'kitty', copiedAt: 9, pinboard: 'P' }], '', 50).map(row => [row.app, row.copiedAt, row.pinboard, row.textLength]),
+  [['kitty', 9, 'P', 3]],
+  'clipboard display rows carry source app, copy time, pinboard and length'
+)
+
+assertDeepEqual(
+  clipboard.kindOptions().map(option => option.value),
+  ['all', 'text', 'link', 'image', 'file'],
+  'clipboard offers every kind filter'
+)
+
+assertDeepEqual(
+  [clipboard.nextKind('all', 1), clipboard.nextKind('all', -1), clipboard.nextKind('bogus', 1)],
+  ['text', 'file', 'text'],
+  'clipboard cycles kind filters in both directions'
 )
 JS
 
