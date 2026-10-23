@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Edit the transfer config in your editor
+
+set -euo pipefail
+
+source omarchy-transfer-functions
+
+transfer_ensure_conf
+exec omarchy-launch-config-editor "$TRANSFER_CONF"
