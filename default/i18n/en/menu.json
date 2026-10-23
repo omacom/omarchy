@@ -725,6 +725,9 @@
   "install.gaming": {
     "label": "Gaming"
   },
+  "install.video": {
+    "label": "Video"
+  },
   "install.browser": {
     "label": "Browser"
   },
@@ -886,6 +889,9 @@
   },
   "install.gaming.retro-launcher": {
     "label": "RetroArch Game Launcher"
+  },
+  "install.video.filmcraft": {
+    "label": "FilmCraft"
   },
   "install.development.rails": {
     "label": "Ruby on Rails"

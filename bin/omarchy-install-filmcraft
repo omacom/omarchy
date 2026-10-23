@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Install the FilmCraft video editor from the AUR and launch it
+
+echo "Installing FilmCraft..."
+omarchy-pkg-aur-add filmcraft-bin || exit 1
+
+setsid uwsm-app -- gtk-launch ai.storyteller.filmcraft >/dev/null 2>&1 &
