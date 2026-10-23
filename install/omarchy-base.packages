@@ -4,6 +4,7 @@
 aether
 alsa-utils
 asdcontrol
+automountd
 avahi
 base-devel
 bash-completion
@@ -143,7 +144,6 @@ tobi-try
 ttf-ia-writer
 ttf-jetbrains-mono-nerd-basic
 tzupdate
-udiskie
 ufw
 ufw-docker
 unzip
