@@ -20,7 +20,11 @@ stub_log="$test_tmp/stubs"
 terminal_log="$test_tmp/terminal"
 menu_log="$test_tmp/menu"
 muse_login_log="$test_tmp/muse-login"
-mkdir -p "$mock_bin" "$test_home"
+scope_log="$test_tmp/scope"
+scope_mark="$test_tmp/scope-mark"
+systemctl_log="$test_tmp/systemctl"
+runtime_dir="$test_tmp/runtime"
+mkdir -p "$mock_bin" "$test_home" "$runtime_dir/systemd"
 
 cat >"$mock_bin/omarchy-install-chromium-claude" <<'SH'
 #!/bin/bash
@@ -46,6 +50,57 @@ cat >"$mock_bin/omarchy-launch-tui" <<'SH'
 printf '%s\0' "$@" >"$OMARCHY_TEST_AGENT_LAUNCH_LOG"
 SH
 
+# Records the scope it was asked for, then runs the command as the real one
+# would, in its own process, marked so the agent can tell it started there.
+# Like systemd 254 and later, it rewrites $$, ${NAME} and whole-word $NAME in
+# the command unless told --expand-environment=no.
+cat >"$mock_bin/systemd-run" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >>"$OMARCHY_TEST_SCOPE_LOG"
+expand=true
+while (($#)) && [[ $1 != "--" ]]; do
+  [[ $1 == "--expand-environment=no" ]] && expand=false
+  shift
+done
+shift
+
+expand_environment() {
+  local rest=$1 out="" name
+  while [[ $rest == *'$'* ]]; do
+    out+=${rest%%'$'*}
+    rest=${rest#*'$'}
+    if [[ $rest == '$'* ]]; then
+      out+='$'
+      rest=${rest:1}
+    elif [[ $rest =~ ^\{([A-Za-z_][A-Za-z0-9_]*)\}(.*)$ || $rest =~ ^([A-Za-z_][A-Za-z0-9_]*)(.*)$ ]]; then
+      name=${BASH_REMATCH[1]}
+      out+=${!name:-}
+      rest=${BASH_REMATCH[2]}
+    else
+      out+='$'
+    fi
+  done
+  printf '%s' "$out$rest"
+}
+
+if [[ $expand == "true" ]]; then
+  command=()
+  for arg in "$@"; do
+    command+=("$(expand_environment "$arg")")
+  done
+  set -- "${command[@]}"
+fi
+export OMARCHY_TEST_IN_SCOPE=true
+exec "$@"
+SH
+
+# Answers for the user manager behind the socket, or fails as one that is gone.
+cat >"$mock_bin/systemctl" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >>"$OMARCHY_TEST_SYSTEMCTL_LOG"
+[[ ${OMARCHY_TEST_USER_MANAGER_DOWN:-} != "true" ]]
+SH
+
 cat >"$mock_bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
 #!/bin/bash
 printf '%s\0' "$@" >"$OMARCHY_TEST_AGENT_TERMINAL_LOG"
@@ -54,6 +109,7 @@ SH
 cat >"$mock_bin/opencode" <<'SH'
 #!/bin/bash
 printf '%s\0' opencode "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
+printf '%s\n' "${OMARCHY_TEST_IN_SCOPE:-false}" >"$OMARCHY_TEST_AGENT_SCOPE_MARK"
 SH
 
 cat >"$mock_bin/omarchy-mise-install" <<'SH'
@@ -117,6 +173,8 @@ done
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
+export XDG_CONFIG_HOME="$HOME/.config" XDG_STATE_HOME="$HOME/.local/state"
+export XDG_DATA_HOME="$HOME/.local/share" XDG_CACHE_HOME="$HOME/.cache"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_TEST_NOTIFICATION_HISTORY="$notification_history"
 export OMARCHY_TEST_AGENT_OPEN_LOG="$agent_open_log"
@@ -128,6 +186,12 @@ export OMARCHY_TEST_STUB_LOG="$stub_log"
 export OMARCHY_TEST_AGENT_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
+export OMARCHY_TEST_SCOPE_LOG="$scope_log"
+export OMARCHY_TEST_AGENT_SCOPE_MARK="$scope_mark"
+export OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log"
+# No user manager socket until the scope checks create one, so launches start
+# without a scope and the argv checks below see the agent command alone.
+export XDG_RUNTIME_DIR="$runtime_dir"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_MISE_CONFIG_PATH="$test_tmp/etc/mise/config.toml"
 
@@ -921,6 +985,106 @@ grep -F "omarchy agent prompt" "$test_tmp/positional-output" >/dev/null ||
   fail "omarchy agent points a positional prompt at the prompt route"
 [[ ! -s $launch_log ]] || fail "omarchy agent starts nothing for a positional prompt"
 pass "omarchy agent keeps prompts on the prompt route"
+
+[[ ! -e $scope_log ]] || fail "agent launcher asks for no scope without a user manager"
+# The socket is the cheap gate: nothing asks the user manager until it exists.
+[[ ! -e $systemctl_log ]] || fail "agent launcher asks no user manager without its socket"
+pass "agent launcher starts without a scope when there is no user manager"
+
+# Stands in for the user manager's private socket, which systemd-run connects to.
+python3 -c 'import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' \
+  "$runtime_dir/systemd/private"
+
+scope_unit=""
+assert_scoped() {
+  local agent=$1
+  shift
+  local expected=(--app-id=org.omarchy.agent systemd-run --user --scope --quiet --collect --expand-environment=no
+    "--unit=omarchy-agent-$agent-*" "--description=Omarchy agent: $agent" -- "$@")
+
+  printf '%s\n' "$agent" >"$agent_file"
+  omarchy-agent
+  mapfile -d '' -t actual <"$launch_log"
+
+  (( ${#actual[@]} == ${#expected[@]} )) ||
+    fail "$agent launches in its own scope" "expected: ${expected[*]}\nactual: ${actual[*]}"
+  for ((index = 0; index < ${#expected[@]}; index++)); do
+    # Only the unit entry holds a glob: its suffix differs on every launch.
+    # shellcheck disable=SC2053
+    [[ ${actual[$index]} == ${expected[$index]} ]] ||
+      fail "$agent launches in its own scope" "expected: ${expected[*]}\nactual: ${actual[*]}"
+  done
+
+  # A unit name with a space, slash or decimal separator would be mangled or refused.
+  scope_unit=${actual[7]#--unit=}
+  [[ $scope_unit =~ ^omarchy-agent-[a-z-]+-[0-9]+$ ]] ||
+    fail "$agent scope has a valid unit name" "unit: $scope_unit"
+}
+
+assert_scoped pi pi
+assert_scoped cursor-agent cursor-agent --yolo --trust
+assert_scoped hermes hermes --yolo
+# The account pin stays after --, so the agent still starts as the selected
+# account whatever environment the scope inherits.
+assert_scoped claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto
+first_unit=$scope_unit
+assert_scoped claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto
+[[ $scope_unit != "$first_unit" ]] || fail "each agent session gets a scope of its own" "both: $scope_unit"
+pass "agent launcher starts each session in a scope of its own"
+
+printf '%s\n' "opencode" >"$agent_file"
+: >"$scope_log"
+: >"$inline_log"
+: >"$scope_mark"
+omarchy-agent --inline
+mapfile -d '' -t scope_args <"$scope_log"
+[[ ${scope_args[0]} == "--user" && ${scope_args[1]} == "--scope" && ${scope_args[5]} == --unit=omarchy-agent-opencode-* &&
+  ${scope_args[*]: -3} == "-- opencode --auto" ]] ||
+  fail "inline agent launcher starts the agent in a scope" "argv: ${scope_args[*]}"
+mapfile -d '' -t inline_args <"$inline_log"
+[[ ${inline_args[*]} == "opencode --auto" && $(<"$scope_mark") == "true" ]] ||
+  fail "inline agent launcher runs the agent inside the scope" "argv: ${inline_args[*]}, in scope: $(<"$scope_mark")"
+pass "inline agent launcher starts the agent in a scope"
+
+# systemd-run expands $NAME, ${NAME} and $$ in the command by default, which
+# would rewrite the prompt and leak environment values into it.
+literal_scope_prompt='Compare ${HOME} with $USER, then quote $$ and ${HOME}/x'
+: >"$scope_log"
+: >"$inline_log"
+omarchy-agent-prompt --inline "$literal_scope_prompt"
+mapfile -d '' -t scope_args <"$scope_log"
+[[ " ${scope_args[*]} " == *" --expand-environment=no "* ]] ||
+  fail "agent scope keeps systemd-run from expanding the command" "argv: ${scope_args[*]}"
+mapfile -d '' -t inline_args <"$inline_log"
+expected_args=(opencode --auto --prompt "$literal_scope_prompt")
+[[ ${#inline_args[@]} == "${#expected_args[@]}" && ${inline_args[*]:0:3} == "${expected_args[*]:0:3}" &&
+  ${inline_args[3]} == "${expected_args[3]}" ]] ||
+  fail "scoped agent receives its prompt literally" "expected: ${expected_args[*]}\nactual: ${inline_args[*]}"
+pass "scoped agent receives \$NAME, \${NAME} and \$\$ in its prompt literally"
+
+# A socket can outlive the manager behind it, and then systemd-run fails before
+# the agent ever runs, so a manager that does not answer means no scope.
+: >"$scope_log"
+: >"$inline_log"
+: >"$launch_log"
+OMARCHY_TEST_USER_MANAGER_DOWN=true omarchy-agent
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" && ! -s $scope_log ]] ||
+  fail "agent launcher starts without a scope when the user manager does not answer" "argv: ${launch_args[*]}"
+OMARCHY_TEST_USER_MANAGER_DOWN=true omarchy-agent --inline
+mapfile -d '' -t inline_args <"$inline_log"
+[[ ${inline_args[*]} == "opencode --auto" && $(<"$scope_mark") == "false" && ! -s $scope_log ]] ||
+  fail "inline agent launcher starts without a scope when the user manager does not answer" "argv: ${inline_args[*]}"
+pass "agent launcher starts without a scope when the user manager does not answer"
+
+: >"$launch_log"
+OMARCHY_TEST_MISSING_COMMAND=systemd-run omarchy-agent
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
+  fail "agent launcher starts without a scope when systemd-run is missing" "argv: ${launch_args[*]}"
+pass "agent launcher starts without a scope when systemd-run is missing"
+
+rm "$runtime_dir/systemd/private"
 
 printf '%s\n' "missing" >"$agent_file"
 if OMARCHY_TEST_MISSING_COMMAND=missing omarchy-agent >"$test_tmp/missing-output" 2>&1; then

@@ -177,6 +177,21 @@ if [[ -n $home_env ]]; then
   fi
 fi
 
+# Each session gets a transient scope of its own, so the agent and everything it
+# starts form one cgroup that monitors and resource controls can name, instead of
+# sharing the terminal's. A new window starts the scope inside the terminal,
+# leaving the terminal in its own. Without a user manager to ask (a container, or
+# a shell entered through su), or with one that won't answer on a socket left
+# behind (a stale socket after a manager restart, a bind-mounted /run/user), the
+# agent starts as before rather than not at all. systemd-run would otherwise
+# expand $VAR, ${VAR} and $$ in the agent's arguments, rewriting the prompt.
+# EPOCHREALTIME uses the locale's decimal separator, a comma in many.
+if ! omarchy-cmd-missing systemd-run && [[ -S ${XDG_RUNTIME_DIR:-}/systemd/private ]] &&
+  systemctl --user show -p Version --value &>/dev/null; then
+  command=(systemd-run --user --scope --quiet --collect --expand-environment=no
+    --unit="omarchy-agent-$agent-${EPOCHREALTIME//[!0-9]/}" --description="Omarchy agent: $agent" -- "${command[@]}")
+fi
+
 if [[ $inline == "true" ]]; then
   exec "${command[@]}"
 else
