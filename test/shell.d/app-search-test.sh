@@ -143,6 +143,10 @@ assert(
 
 const beginLaunchMatch = appLibraryQml.match(/function beginLaunchFeedback\(name\) \{([\s\S]*?)\n  \}/)
 assert(beginLaunchMatch, 'app library beginLaunchFeedback function exists')
+assert(appLibraryQml.includes('duration: 5000'), 'launch OSD uses a finite duration instead of sticking open')
+assert(/id: launchPoll/.test(appLibraryQml), 'launch OSD polls for a mapped window while armed')
+assert(/id: launchTimeout[\s\S]*?interval: 8000/.test(appLibraryQml), 'launch OSD failsafe is 8s')
+
 assert(
   !beginLaunchMatch[1].includes('root.launchOsdOpen = false'),
   'app library keeps owning an OSD a previous launch left on screen'
