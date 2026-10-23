@@ -152,6 +152,7 @@ def identity(provider: str, home: Path) -> dict[str, str]:
     login = (read_json(home / ".credentials.json") or {}).get("claudeAiOauth") or {}
     return {
       "accountId": str(account.get("accountUuid") or ""),
+      "orgId": str(account.get("organizationUuid") or ""),
       "email": str(account.get("emailAddress") or ""),
       "org": str(account.get("organizationName") or ""),
       "plan": plan_label(str(login.get("rateLimitTier") or ""), str(login.get("subscriptionType") or "")),
@@ -188,6 +189,19 @@ def grok_identity(home: Path) -> dict[str, str]:
     "org": "",
     "plan": str(settings.get("subscription_tier_display") or ""),
   }
+
+
+# A subscription is the login plus, for Claude, the organization it belongs
+# to: one claude.ai user can hold several organizations, each with its own
+# limits and billing. Registries written before the organization was recorded
+# have no orgId, and those keep matching on the user alone so an existing
+# login is never orphaned.
+def same_account(left: dict[str, Any], right: dict[str, Any]) -> bool:
+  if str(left.get("accountId") or "") != str(right.get("accountId") or ""):
+    return False
+  left_org = str(left.get("orgId") or "")
+  right_org = str(right.get("orgId") or "")
+  return not left_org or not right_org or left_org == right_org
 
 
 # ---------------------------------------------------------------- registry
@@ -371,7 +385,7 @@ def register(provider: str, label: str, pending: Path) -> dict[str, Any]:
     for account in registry["accounts"]:
       account.update(identity(provider, account_home(provider, account)))
     for account in registry["accounts"]:
-      if account.get("accountId") == found["accountId"]:
+      if same_account(account, found):
         shutil.rmtree(pending, ignore_errors=True)
         if found["email"]:
           raise AccountError(tr("omarchy-i18n agents.sameAccountEmail", "That's %1 (%2). Try again, and sign in as the other account in the private window.", account["label"], found["email"]))
@@ -444,7 +458,7 @@ def recover_home(provider: str, home: Path) -> dict[str, Any] | None:
     entry = receipt.get("entry")
     if not isinstance(entry, dict) or entry.get("home") != str(home) or entry.get("id") != home.name:
       return None
-    if any(identity(provider, account_home(provider, a))["accountId"] == found["accountId"] for a in registry["accounts"]):
+    if any(same_account(identity(provider, account_home(provider, a)), found) for a in registry["accounts"]):
       # A retry may already have registered this login under another home.
       shutil.rmtree(home)
       return None
