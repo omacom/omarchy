@@ -496,6 +496,17 @@ mapfile -d '' -t menu_args <"$menu_log"
 [[ ! -s $launch_log ]] || fail "--pick starts nothing when no agent is set"
 pass "--pick opens the agent defaults menu when none is set"
 
+# A prompt launched detached (the menu's "!" prefix, a crash notification)
+# has no terminal to read the refusal in, so it offers the choice too.
+: >"$launch_log"
+: >"$menu_log"
+omarchy-agent-prompt "Review this project"
+mapfile -d '' -t menu_args <"$menu_log"
+[[ ${menu_args[*]} == "summon setup.default.agent" ]] ||
+  fail "a prompt opens the agent defaults menu when none is set"
+[[ ! -s $launch_log ]] || fail "a prompt starts nothing when no agent is set"
+pass "a prompt opens the agent defaults menu when none is set"
+
 source "$ROOT/default/bash/aliases"
 [[ $(alias a) == "alias a='omarchy-agent --inline'" ]] ||
   fail "terminal alias launches the default agent inline"

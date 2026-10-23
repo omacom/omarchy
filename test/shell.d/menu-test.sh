@@ -137,6 +137,41 @@ assert(!menu.matchesQuery(entry, 'missing', true), 'menu rejects missing terms')
 assert(!menu.matchesQuery(entry, 'theme', false), 'menu hides invisible matches')
 assert(menu.searchScore(merged.items, entry, 'theme') < menu.searchScore(merged.items, entry, 'appearance'), 'menu scores name matches above description matches')
 
+// A leading "!" turns the search line into a prompt for the default agent:
+// the menu shows one row that launches it, not search results.
+assert(menu.isAgentPromptQuery('! make the borders rounded'), 'menu reads a leading ! as an agent prompt')
+assert(menu.isAgentPromptQuery('!'), 'menu reads a bare ! as an agent prompt waiting for text')
+assert(menu.isAgentPromptQuery('  ! hi'), 'menu reads a ! after spaces as an agent prompt')
+assert(!menu.isAgentPromptQuery('make the borders rounded'), 'menu leaves plain searches alone')
+assert(!menu.isAgentPromptQuery('hi ! there'), 'menu only reads a leading ! as an agent prompt')
+assert(!menu.isAgentPromptQuery(''), 'menu leaves an empty search alone')
+assertEqual(menu.agentPromptForQuery('! make the borders rounded'), 'make the borders rounded', 'menu takes the prompt after the !')
+assertEqual(menu.agentPromptForQuery('!make the borders rounded'), 'make the borders rounded', 'menu takes a prompt glued to the !')
+assertEqual(menu.agentPromptForQuery('  !  spaced prompt  '), 'spaced prompt', 'menu trims the agent prompt')
+assertEqual(menu.agentPromptForQuery('!'), null, 'menu has no prompt in a bare !')
+assertEqual(menu.agentPromptForQuery('!   '), null, 'menu has no prompt in a ! with only spaces')
+assertEqual(menu.agentPromptForQuery('make the borders rounded'), null, 'menu has no agent prompt in a plain search')
+assert(
+  /function agentPrompt\(\) \{\s*\n\s*return MenuModel\.agentPromptForQuery\(root\.filterText\)/.test(menuQml),
+  'menu delegates agent prompt parsing to the shared model'
+)
+assert(
+  /if \(root\.isAgentPromptQuery\(\)\) \{\s*\n\s*rows = \[root\.agentPromptRow\(\)\]/.test(menuQml),
+  'menu replaces search results with the agent row for a ! query'
+)
+assert(
+  /action: prompt \? "omarchy-agent-prompt " \+ Util\.shellQuote\(prompt\) : ""/.test(menuQml),
+  'menu shell-quotes the agent prompt it launches'
+)
+assert(
+  /disabled: !prompt,/.test(menuQml) && /itemId: "agent\.prompt",/.test(menuQml),
+  'menu keeps the agent row unselectable until a prompt is typed'
+)
+assert(
+  /function loadProvidersForSearch\(\) \{[^}]*?if \(root\.isAgentPromptQuery\(\)\) return/.test(menuQml),
+  'menu starts no provider work for an agent prompt, whichever path asks'
+)
+
 assertDeepEqual(
   menu.displayRow(merged.items, merged.itemOrder, {}, {}, entry, 'Style', 12, 'search'),
   {

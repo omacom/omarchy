@@ -39,9 +39,11 @@ agent=$(omarchy-default-agent)
 
 # Omarchy ships without a default, so there is nothing to launch until one is
 # picked. --pick offers the choice instead of the error, which is what the
-# keybinding wants: a keypress that opens nothing explains nothing.
+# keybinding wants: a keypress that opens nothing explains nothing. A prompt
+# offers it too: detached prompt launches (the menu's "!" prefix, a crash
+# notification) have no terminal to read the error in.
 if [[ -z $agent ]]; then
-  [[ $pick == "true" ]] && exec omarchy-menu summon setup.default.agent
+  [[ $pick == "true" || -n ${prompt:-} ]] && exec omarchy-menu summon setup.default.agent
   echo "Choose default agent with: omarchy default agent <name>" >&2
   exit 1
 fi
