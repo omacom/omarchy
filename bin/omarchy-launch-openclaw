@@ -5,6 +5,18 @@
 
 set -euo pipefail
 
+# /usr/bin usually precedes ~/.npm-global/bin. When both a packaged and a
+# user-installed openclaw are on PATH, bare `openclaw` can be the older one
+# and refuse a migrated state database. Surface that before we talk to it.
+_openclaw_bins=()
+while IFS= read -r _openclaw_bin; do
+  _openclaw_bins+=("$_openclaw_bin")
+done < <(type -aP openclaw 2>/dev/null || true)
+if ((${#_openclaw_bins[@]} > 1)); then
+  echo "warning: multiple openclaw binaries on PATH; using ${_openclaw_bins[0]}" >&2
+  printf '  %s\n' "${_openclaw_bins[@]}" >&2
+fi
+
 tui=false
 message=()
 if [[ ${1:-} == "--tui" ]]; then
