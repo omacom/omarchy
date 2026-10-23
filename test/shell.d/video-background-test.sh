@@ -51,7 +51,7 @@ assert(
     lockFeedQml.includes('LockFeed {') &&
     lockQml.includes('source: "LockFeedSurface.qml"') &&
     lockQml.includes('active: root.feedActive') &&
-    /feedActive: root\.video && root\.loadBackground && !root\.displaysBlank && !root\.powerSaverActive/.test(lockQml),
+    /feedActive: root\.video && root\.loadBackground && !root\.concealAuthentication && !root\.displaysBlank && !root\.powerSaverActive/.test(lockQml),
   'the lock screen shows video through the OWE lock feed, loaded so a missing module costs only the video'
 )
 assert(
@@ -59,9 +59,9 @@ assert(
   'the lock view itself carries no foreign import, so the lock still loads without the feed module'
 )
 assert(
-  lockQml.includes('path: root.loadBackground ? (root.video ? root.videoPosterPath : root.backgroundPath) : ""') &&
+  lockQml.includes('path: root.loadBackground && !root.concealAuthentication ? (root.video ? root.videoPosterPath : root.backgroundPath) : ""') &&
     lockQml.indexOf('id: feedLoader') > lockQml.indexOf('MultiEffect {') &&
-    lockQml.includes('visible: root.video') &&
+    lockQml.includes('visible: !root.concealAuthentication && root.video') &&
     !lockQml.includes('wallpaper.video'),
   'the lock screen keeps its image effect for stills and shows the feed for videos'
 )
@@ -138,11 +138,11 @@ assert(
   'a locked video wallpaper follows what each panel actually did, not only what the lock asked for'
 )
 assert(
-  /feedActive: root\.video && root\.loadBackground && !root\.displaysBlank && !root\.powerSaverActive/.test(lockQml) &&
+  /feedActive: root\.video && root\.loadBackground && !root\.concealAuthentication && !root\.displaysBlank && !root\.powerSaverActive/.test(lockQml) &&
     /displaysBlank: root\.screenBlank\(/.test(lockService) &&
     /powerSaverActive: root\.powerSaverActive/.test(lockService) &&
     /function runBlank\(\) \{\s*\n\s*root\.displaysBlank = true/.test(lockService) &&
-    /function runWake\(\) \{\s*\n\s*root\.displaysBlank = false/.test(lockService),
+    /function runWake\(\) \{[\s\S]*?root\.displaysBlank = false/.test(lockService),
   'the lock feed stops once displays go dark or power-saver is active'
 )
 assert(

@@ -63,12 +63,102 @@ function screensaverWindowsAfter(windows, address, visible) {
   }
 }
 
+// True once every expected screensaver window has mapped, or the launch grace
+// expired with at least one window still up (partial multi-monitor).
+function screensaverLaunchCompleteAfter(windowCount, expectedWindows, graceExpired) {
+  if (windowCount <= 0) return false
+  if (expectedWindows > 0 && windowCount >= expectedWindows) return true
+  return !!graceExpired
+}
+
+// Second IdleMonitor state while a screensaver is visible.
+// Launch activity and focus warps happen before launchComplete / before settle;
+// only a post-settle active edge dismisses. Lock handoff must not dismiss.
+function dismissStateAfter(state) {
+  var visible = !!(state && state.visible)
+  var launchComplete = !!(state && state.launchComplete)
+  var locking = !!(state && state.locking)
+  var settled = !!(state && state.settled)
+  var isIdle = !!(state && state.isIdle)
+  var dismissInFlight = !!(state && state.dismissInFlight)
+
+  if (!visible || locking || !launchComplete || dismissInFlight) {
+    return { settled: false, dismiss: false }
+  }
+  if (isIdle) return { settled: true, dismiss: false }
+  if (settled) return { settled: false, dismiss: true }
+  return { settled: false, dismiss: false }
+}
+
+// Seat dismissal must stop the lock deadline before the covering windows
+// come down. A lock already in handoff, or one already tearing the
+// screensaver down, does not start another pass.
+function dismissStart(state) {
+  var lockHandoff = !!(state && state.lockHandoff)
+  var dismissInFlight = !!(state && state.dismissInFlight)
+  var windowCount = state && state.windowCount > 0 ? state.windowCount : 0
+  if (lockHandoff || dismissInFlight || windowCount === 0) return { start: false }
+  return { start: true, stopScreensaverTimer: true, stopLockTimer: true }
+}
+
+function lockHandoffStart(state) {
+  if (state && state.dismissInFlight) return { start: false }
+  return { start: true }
+}
+
+// Stay Awake during an in-flight lock keeps the handoff guard. Otherwise a
+// still-visible screensaver stays tracked so seat dismissal can re-arm.
+function cancelIdleCyclePlan(state) {
+  var lockHandoff = !!(state && state.lockHandoff)
+  if (state && state.lockProcessRunning) {
+    return {
+      lockHandoff: lockHandoff,
+      holdHandoff: lockHandoff,
+      resetWindows: false,
+      rearmDismiss: false
+    }
+  }
+  if (!(state && state.windowCount > 0)) {
+    return { lockHandoff: false, holdHandoff: false, resetWindows: true, rearmDismiss: false }
+  }
+  return {
+    lockHandoff: false,
+    holdHandoff: false,
+    resetWindows: false,
+    rearmDismiss: !!(state && state.launchComplete)
+  }
+}
+
+function lockExitPlan(state) {
+  var windowCount = state && state.windowCount > 0 ? state.windowCount : 0
+  if (state && state.exitCode === 0) {
+    return { lockHandoff: false, resetWindows: true, rearmDismiss: false }
+  }
+  if (windowCount > 0) return { lockHandoff: false, resetWindows: false, rearmDismiss: true }
+  return { lockHandoff: false, resetWindows: true, rearmDismiss: false }
+}
+
+// A window that maps after launch was already marked complete must restart
+// the arm timer. One that completes launch now is handled by that path.
+function lateScreensaverWindowPlan(state) {
+  var already = !!(state && state.alreadyLaunchComplete)
+  var completesNow = !!(state && state.completesNow)
+  return { clearSettled: true, restartArmTimer: already && !completesNow }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
     firstIdleTimeout: firstIdleTimeout,
     delayAfterFirstIdle: delayAfterFirstIdle,
     eventParts: eventParts,
-    screensaverWindowsAfter: screensaverWindowsAfter
+    screensaverWindowsAfter: screensaverWindowsAfter,
+    screensaverLaunchCompleteAfter: screensaverLaunchCompleteAfter,
+    dismissStateAfter: dismissStateAfter,
+    dismissStart: dismissStart,
+    lockHandoffStart: lockHandoffStart,
+    cancelIdleCyclePlan: cancelIdleCyclePlan,
+    lockExitPlan: lockExitPlan,
+    lateScreensaverWindowPlan: lateScreensaverWindowPlan
   }
 }

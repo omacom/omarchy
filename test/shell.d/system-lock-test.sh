@@ -33,4 +33,17 @@ mapfile -t shutdown < <(rg '^(pkill|timeout) ' "$call_log")
   fail "system lock waits for ttfx to exit" "calls: ${shutdown[*]}"
 [[ ${shutdown[2]} == "pkill -f [o]rg.omarchy.screensaver" ]] ||
   fail "system lock closes the screensaver terminal after ttfx exits" "calls: ${shutdown[*]}"
+rg -q '^omarchy-shell lock lock$' "$call_log" ||
+  fail "system lock requests a session lock by default"
+
+: >"$call_log"
+PATH="$mock_bin:$PATH" CALL_LOG="$call_log" "$ROOT/bin/omarchy-system-lock" cleanup
+rg -q '^omarchy-shell lock lock$' "$call_log" &&
+  fail "system lock cleanup must not request another session lock"
+mapfile -t cleanup < <(rg '^(pkill|timeout) ' "$call_log")
+[[ ${cleanup[0]} == "pkill -x ttfx" ]] ||
+  fail "system lock cleanup still stops ttfx" "calls: ${cleanup[*]}"
+[[ ${cleanup[2]} == "pkill -f [o]rg.omarchy.screensaver" ]] ||
+  fail "system lock cleanup still closes the screensaver" "calls: ${cleanup[*]}"
+
 pass "system lock waits for ttfx before closing its terminal"

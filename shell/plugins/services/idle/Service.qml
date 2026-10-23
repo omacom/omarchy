@@ -29,6 +29,11 @@ Item {
   readonly property int lockDelaySeconds: IdleModel.delayAfterFirstIdle(lockTimeoutSeconds, firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property string screensaverClass: "org.omarchy.screensaver"
+  readonly property bool screensaverVisible: screensaverWindowCount > 0
+  // Arm dismissal only after launch has finished and never during lock handoff.
+  // Stay Awake gates the main idle monitor, not pointer/touch dismissal of an
+  // already-visible (e.g. force-launched) screensaver.
+  readonly property bool screensaverDismissEnabled: screensaverVisible && screensaverLaunchComplete && !lockHandoff
 
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
@@ -40,6 +45,11 @@ Item {
   property string lastEventAt: ""
   property var screensaverWindows: ({})
   property int screensaverWindowCount: 0
+  property int expectedScreensaverWindows: 0
+  property bool screensaverLaunchComplete: false
+  property bool dismissSettled: false
+  property bool dismissInFlight: false
+  property bool lockHandoff: false
 
   function secondsFromConfig(value, fallback) {
     return IdleModel.secondsFromConfig(value, fallback)
@@ -67,21 +77,65 @@ Item {
     return true
   }
 
+  function monitorCount() {
+    try {
+      var values = Hyprland.monitors && Hyprland.monitors.values
+      if (values && values.length > 0) return values.length
+    } catch (error) {
+    }
+    return 1
+  }
+
+  function beginScreensaverLaunchTracking() {
+    root.expectedScreensaverWindows = root.monitorCount()
+    root.screensaverLaunchComplete = false
+    root.dismissSettled = false
+    root.dismissInFlight = false
+    dismissArmTimer.stop()
+    if (!screensaverLaunchGraceTimer.running) screensaverLaunchGraceTimer.restart()
+  }
+
+  function markScreensaverLaunchComplete(reason) {
+    if (root.screensaverLaunchComplete) return
+    root.screensaverLaunchComplete = true
+    root.dismissSettled = false
+    screensaverLaunchGraceTimer.stop()
+    // Fixed arm delay survives jittery mice that never stay quiet long enough
+    // for the dismiss IdleMonitor alone to settle.
+    dismissArmTimer.restart()
+    logEvent("screensaver-launch-complete", reason || ("windows=" + root.screensaverWindowCount))
+  }
+
   function launchScreensaver() {
     root.screensaverStartedThisCycle = true
-    screensaverLaunchGraceTimer.restart()
+    beginScreensaverLaunchTracking()
     runProcess(screensaverProcess, "screensaver", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-launch-screensaver")
   }
 
   function lockSystem(reason) {
+    // Seat dismissal already owns this cycle. Starting a lock now would pull
+    // the covering windows down before secure and flash the desktop.
+    if (!IdleModel.lockHandoffStart({ dismissInFlight: root.dismissInFlight }).start) return
+
+    // Block dismiss before any monitor disable / pkill side effects so a
+    // spurious active edge cannot tear the screensaver down and flash the
+    // desktop ahead of the lock.
+    root.lockHandoff = true
+    dismissArmTimer.stop()
     logEvent("lock-system", reason || "requested")
     screensaverTimer.stop()
     lockTimer.stop()
     screensaverLaunchGraceTimer.stop()
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
-    resetScreensaverWindows()
-    runProcess(lockProcess, "lock", "omarchy-system-lock")
+
+    // Keep the fullscreen screensaver over the desktop until the concealed
+    // lock surface is secure on every output. Then run lock cleanup without
+    // requesting another lock (which would race fingerprint unlock). If the
+    // lock request disappears, or secure never arrives within 10s (no real
+    // screen leaves the request pending), leave the screensaver mapped
+    // instead of polling forever.
+    runProcess(lockProcess, "lock", '"$OMARCHY_PATH/shell/plugins/services/idle/lock-handoff.sh"')
   }
 
   function startIdleCycle() {
@@ -93,7 +147,22 @@ Item {
     logEvent("idle-cycle-start", "screensaver=" + root.screensaverTimeoutSeconds + " lock=" + root.lockTimeoutSeconds)
     root.idledThisCycle = true
     root.screensaverStartedThisCycle = false
-    resetScreensaverWindows()
+    root.lockHandoff = false
+    root.dismissInFlight = false
+
+    // Do not clear tracked screensaver windows: a menu/force-launched
+    // screensaver is already mapped and Hyprland will not send another
+    // openwindow for it when this idle cycle starts.
+    if (root.screensaverWindowCount === 0) {
+      root.expectedScreensaverWindows = 0
+      root.screensaverLaunchComplete = false
+      root.dismissSettled = false
+    } else {
+      root.screensaverLaunchComplete = true
+      root.expectedScreensaverWindows = Math.max(root.expectedScreensaverWindows, root.screensaverWindowCount)
+      root.dismissSettled = false
+      dismissArmTimer.restart()
+    }
 
     // Set this cycle's deadlines once: a bound interval would restart a pending
     // timer from the moment shell.json changes, locking early or late.
@@ -124,12 +193,93 @@ Item {
 
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
-    resetScreensaverWindows()
+
+    // Stay Awake during an in-flight lock must not clear the handoff guard:
+    // lockProcess is still racing to secure, and enabling dismissal would let
+    // pointer activity remove the screensaver and flash the desktop.
+    var cancelPlan = IdleModel.cancelIdleCyclePlan({
+      lockProcessRunning: lockProcess.running,
+      lockHandoff: root.lockHandoff,
+      windowCount: root.screensaverWindowCount,
+      launchComplete: root.screensaverLaunchComplete
+    })
+    root.lockHandoff = cancelPlan.lockHandoff
+    if (cancelPlan.holdHandoff) {
+      dismissArmTimer.stop()
+      return
+    }
+
+    // Stay Awake (and similar) cancel idle deadlines while a force-launched
+    // screensaver may still be mapped. Keep window tracking so seat dismissal
+    // remains armed; only clear tracking when nothing is visible.
+    if (cancelPlan.resetWindows) {
+      resetScreensaverWindows()
+    } else {
+      root.dismissInFlight = false
+      root.dismissSettled = false
+      if (cancelPlan.rearmDismiss) dismissArmTimer.restart()
+      else dismissArmTimer.stop()
+    }
   }
 
   function resetScreensaverWindows() {
     root.screensaverWindows = ({})
     root.screensaverWindowCount = 0
+    root.expectedScreensaverWindows = 0
+    root.screensaverLaunchComplete = false
+    root.dismissSettled = false
+    root.dismissInFlight = false
+    dismissArmTimer.stop()
+  }
+
+  // Signal the screensaver supervisor so its exit trap restores the cursor and
+  // tears down ttfx/terminals. Also match the lock cleanup path so a missed
+  // supervisor still drops the windows. Stop the lock deadline here: waiting
+  // for closewindow lets that timer fire while the covering windows are
+  // already coming down.
+  function dismissScreensaver(reason) {
+    var dismiss = IdleModel.dismissStart({
+      lockHandoff: root.lockHandoff,
+      dismissInFlight: root.dismissInFlight,
+      windowCount: root.screensaverWindowCount
+    })
+    if (!dismiss.start) return
+    root.dismissInFlight = true
+    root.dismissSettled = false
+    dismissArmTimer.stop()
+    if (dismiss.stopScreensaverTimer) screensaverTimer.stop()
+    if (dismiss.stopLockTimer) lockTimer.stop()
+    logEvent("screensaver-dismiss", reason || "input")
+    runProcess(
+      dismissProcess,
+      "dismiss",
+      "pkill -f '[o]marchy-screensaver' 2>/dev/null || true; pkill -x ttfx 2>/dev/null || true; timeout 1s pidwait -x ttfx 2>/dev/null || true; pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null || true"
+    )
+  }
+
+  function armDismissAfterLaunch() {
+    if (!root.screensaverVisible || root.lockHandoff || root.dismissInFlight) return
+    root.dismissSettled = true
+    logEvent("screensaver-dismiss-armed", "launch-timer")
+    // Jittery devices may never report a full idle second; if seat activity is
+    // already present after the launch quiet period, treat that as dismiss.
+    if (!screensaverDismissMonitor.isIdle) dismissScreensaver("input-already-active")
+  }
+
+  function handleDismissMonitorChanged() {
+    var next = IdleModel.dismissStateAfter({
+      visible: root.screensaverVisible,
+      launchComplete: root.screensaverLaunchComplete,
+      locking: root.lockHandoff,
+      settled: root.dismissSettled,
+      isIdle: screensaverDismissMonitor.isIdle,
+      dismissInFlight: root.dismissInFlight
+    })
+    root.dismissSettled = next.settled
+    if (next.dismiss) {
+      dismissArmTimer.stop()
+      dismissScreensaver("input")
+    }
   }
 
   function setScreensaverWindow(address, visible) {
@@ -139,12 +289,38 @@ Item {
   }
 
   function handleScreensaverWindowOpened(address) {
+    // Menu/force launches never call launchScreensaver(); start tracking here.
+    if (root.expectedScreensaverWindows <= 0) beginScreensaverLaunchTracking()
+
     setScreensaverWindow(address, true)
-    screensaverLaunchGraceTimer.stop()
+    var completesNow = IdleModel.screensaverLaunchCompleteAfter(root.screensaverWindowCount, root.expectedScreensaverWindows, false)
+    var lateWindow = IdleModel.lateScreensaverWindowPlan({
+      alreadyLaunchComplete: root.screensaverLaunchComplete,
+      completesNow: completesNow
+    })
+    // Each newly mapped output resets settle so sequential multi-monitor
+    // focus warps cannot look like user input after a premature arm.
+    if (lateWindow.clearSettled) root.dismissSettled = false
+
+    if (completesNow) {
+      markScreensaverLaunchComplete("windows=" + root.screensaverWindowCount + "/" + root.expectedScreensaverWindows)
+    } else if (lateWindow.restartArmTimer) {
+      // A slow output can map after grace already marked launch complete.
+      // Restart the arm timer so its focus activity cannot false-dismiss,
+      // and so a jittery pointer is not left unarmed after the old timer.
+      dismissArmTimer.restart()
+    }
   }
 
   function handleScreensaverWindowClosed(address) {
     setScreensaverWindow(address, false)
+
+    if (root.screensaverWindowCount === 0) {
+      root.screensaverLaunchComplete = false
+      root.expectedScreensaverWindows = 0
+      root.dismissSettled = false
+      root.dismissInFlight = false
+    }
 
     if (!root.idleEnabled || !root.idledThisCycle || !root.screensaverStartedThisCycle) return
     if (root.screensaverWindowCount > 0) return
@@ -208,6 +384,12 @@ Item {
       screensaverDelay: root.screensaverDelaySeconds,
       lockDelay: root.lockDelaySeconds,
       screensaverWindows: root.screensaverWindowCount,
+      expectedScreensaverWindows: root.expectedScreensaverWindows,
+      screensaverLaunchComplete: root.screensaverLaunchComplete,
+      screensaverDismissEnabled: root.screensaverDismissEnabled,
+      dismissSettled: root.dismissSettled,
+      dismissInFlight: root.dismissInFlight,
+      lockHandoff: root.lockHandoff,
       timers: {
         screensaver: screensaverTimer.running,
         lock: lockTimer.running,
@@ -216,7 +398,8 @@ Item {
       processes: {
         screensaver: screensaverProcess.running,
         lock: lockProcess.running,
-        wake: wakeProcess.running
+        wake: wakeProcess.running,
+        dismiss: dismissProcess.running
       },
       lastEvent: root.lastEvent,
       lastEventAt: root.lastEventAt
@@ -275,6 +458,28 @@ Item {
     onIsIdleChanged: root.handleIdleChanged()
   }
 
+  // The main idle monitor goes active when the screensaver maps and then stays
+  // active for the whole display, so it never edges again on pointer/touch.
+  // This short monitor arms only after launch is complete and dismisses on the
+  // next seat-activity edge (keyboard, pointer, touch, BT mice).
+  IdleMonitor {
+    id: screensaverDismissMonitor
+    enabled: root.screensaverDismissEnabled
+    // Short settle so a brief quiet gap is enough; the launch arm timer covers
+    // devices that never stay fully idle.
+    timeout: 0.35
+    respectInhibitors: false
+    onEnabledChanged: root.dismissSettled = false
+    onIsIdleChanged: root.handleDismissMonitorChanged()
+  }
+
+  Timer {
+    id: dismissArmTimer
+    interval: 1200
+    repeat: false
+    onTriggered: root.armDismissAfterLaunch()
+  }
+
   Timer {
     id: screensaverTimer
     repeat: false
@@ -292,6 +497,11 @@ Item {
     interval: 3000
     repeat: false
     onTriggered: {
+      if (root.screensaverWindowCount > 0 && !root.screensaverLaunchComplete) {
+        root.markScreensaverLaunchComplete("grace-fallback windows=" + root.screensaverWindowCount)
+        return
+      }
+
       if (root.idleEnabled && root.idledThisCycle && root.screensaverStartedThisCycle && root.screensaverWindowCount === 0 && !idleMonitor.isIdle) {
         root.cancelIdleCycle("screensaver-not-running")
       }
@@ -309,7 +519,30 @@ Item {
   }
   Process {
     id: lockProcess
-    onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "lock exitCode=" + exitCode + " status=" + exitStatus) }
+    onExited: function(exitCode, exitStatus) {
+      var plan = IdleModel.lockExitPlan({ exitCode: exitCode, windowCount: root.screensaverWindowCount })
+      root.lockHandoff = plan.lockHandoff
+      if (plan.resetWindows) {
+        // Successful cleanup should have removed the screensaver; a failed
+        // handoff with nothing left on screen clears stale tracking too.
+        root.resetScreensaverWindows()
+      } else if (plan.rearmDismiss) {
+        // Failed / abandoned handoff leaves windows mapped. Keep tracking and
+        // restore seat dismissal (missing-pam, IPC failure, unlock mid-poll).
+        root.dismissInFlight = false
+        root.screensaverLaunchComplete = true
+        root.dismissSettled = false
+        dismissArmTimer.restart()
+      }
+      root.logEvent("process-exit", "lock exitCode=" + exitCode + " status=" + exitStatus)
+    }
+  }
+  Process {
+    id: dismissProcess
+    onExited: function(exitCode, exitStatus) {
+      if (root.screensaverWindowCount === 0) root.dismissInFlight = false
+      root.logEvent("process-exit", "dismiss exitCode=" + exitCode + " status=" + exitStatus)
+    }
   }
   Process {
     id: wakeProcess
