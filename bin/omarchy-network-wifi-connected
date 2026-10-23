@@ -20,7 +20,7 @@ device=${BASH_REMATCH[2]}
 
 if [[ $(cat "$net_class_path/$device/type" 2>/dev/null) == "65534" ]]; then
   # A tunnel: the link it rides on, the same pick omarchy-network-status makes.
-  for candidate in $(ip -j route show default 2>/dev/null | jq -r 'sort_by(.metric // 0)[] | .dev // .nexthops[0].dev // empty' 2>/dev/null); do
+  for candidate in $(ip -j route show default 2>/dev/null | jq -r 'sort_by(.metric // 0)[] | .dev // .nexthops[]?.dev' 2>/dev/null); do
     if [[ $(cat "$net_class_path/$candidate/type" 2>/dev/null) != "65534" ]]; then
       device=$candidate
       break

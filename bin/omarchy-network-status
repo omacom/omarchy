@@ -26,7 +26,7 @@ physical_device() {
   local device=$1 candidate
 
   if [[ $(cat "$net_class_path/$device/type" 2>/dev/null) == "65534" ]]; then
-    for candidate in $(ip -j route show default 2>/dev/null | jq -r 'sort_by(.metric // 0)[] | .dev // .nexthops[0].dev // empty' 2>/dev/null); do
+    for candidate in $(ip -j route show default 2>/dev/null | jq -r 'sort_by(.metric // 0)[] | .dev // .nexthops[]?.dev' 2>/dev/null); do
       if [[ $(cat "$net_class_path/$candidate/type" 2>/dev/null) != "65534" ]]; then
         device=$candidate
         break
@@ -119,7 +119,7 @@ print_verbose() {
   if [[ $iface != $route_iface ]]; then
     # The route's addresses describe the tunnel; report the physical link's own.
     src=$(ip -j addr show "$iface" 2>/dev/null | jq -r '[.[0].addr_info[]? | select(.family == "inet" and .scope == "global")][0].local // ""' 2>/dev/null)
-    gw=$(ip -j route show default dev "$iface" 2>/dev/null | jq -r '.[0].gateway // ""' 2>/dev/null)
+    gw=$(ip -j route show default dev "$iface" 2>/dev/null | jq -r --arg dev "$iface" '[.[] | .gateway // (.nexthops[]? | select(.dev == $dev) | .gateway)][0] // ""' 2>/dev/null)
   fi
 
   prefix=$(ip -j addr show "$iface" 2>/dev/null | jq -r '.[0].addr_info[]? | select(.family == "inet") | .prefixlen // ""' 2>/dev/null | head -n 1)

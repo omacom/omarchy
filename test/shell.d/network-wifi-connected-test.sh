@@ -18,7 +18,7 @@ for device in tun0 tun1; do echo 65534 >"$net_class/$device/type"; done
 for device in wlan0 eth0 br0 ppp0 tun0 tun1; do echo up >"$net_class/$device/operstate"; done
 
 # The route the kernel picks for the internet is ROUTE_DEV, none without it. The main
-# table's default routes are DEFAULTS, as "device:metric" pairs, "device:metric:multipath" for ECMP.
+# table's default routes are DEFAULTS, as "device:metric" pairs, "dev+dev:metric:multipath" for ECMP.
 cat >"$stub_bin/ip" <<'SH'
 #!/bin/bash
 address() { case $1 in tun0) echo 198.18.0.1 ;; eth0) echo 10.0.0.20 ;; *) echo 192.168.1.20 ;; esac; }
@@ -37,7 +37,8 @@ case "$*" in
   for route in ${DEFAULTS:-}; do
     IFS=: read -r dev metric multipath <<<"$route"
     if [[ -n $multipath ]]; then
-      printf '{"dst":"default","metric":%s,"nexthops":[{"gateway":"%s","dev":"%s"}]}\n' "$metric" "$(gateway "$dev")" "$dev"
+      legs=$(for leg in ${dev//+/ }; do printf '{"gateway":"%s","dev":"%s"}\n' "$(gateway "$leg")" "$leg"; done | jq -sc .)
+      printf '{"dst":"default","metric":%s,"nexthops":%s}\n' "$metric" "$legs"
     else
       printf '{"dst":"default","gateway":"%s","dev":"%s","metric":%s}\n' "$(gateway "$dev")" "$dev" "$metric"
     fi
@@ -126,8 +127,8 @@ pass "a tunnel over Wi-Fi is Wi-Fi, with its own addresses"
 
 DEFAULTS="tun0:50 tun1:60 wlan0:600 eth0:100"
 ! connected && [[ $(status) == $'ethernet\teth0\t\t' ]] || fail "a tunnel on a docked laptop rides the lower-metric Ethernet, past another tunnel"
-DEFAULTS="tun0:50 eth0:100:multipath wlan0:600"
-! connected && [[ $(status) == $'ethernet\teth0\t\t' ]] || fail "a multipath default route names its device through its next hop"
+DEFAULTS="tun0:50 tun1+eth0:100:multipath wlan0:600"
+! connected && [[ $(status) == $'ethernet\teth0\t\t' ]] || fail "a multipath default route names its devices through its next hops"
 DEFAULTS=""
 ! connected && [[ $(status) == $'ethernet\ttun0\t\t' ]] || fail "a tunnel with no default route behind it stays the tunnel"
 pass "a tunnel resolves to the best default route on another device, or stays itself"
