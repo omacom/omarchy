@@ -235,7 +235,7 @@ new_home() {
 # before anything is asserted; one that stopped earlier started nothing.
 run_installer() {
   HOME="$test_home" HERMES_HOME="${OMARCHY_TEST_HOME:-$hermes_home}" PATH="$test_tmp/bin:$test_home/.local/bin:$PATH" npm_config_yes= \
-    bash "$test_tmp/installer" >"$test_tmp/output" 2>&1 || return
+    bash "$test_tmp/installer" "${1:---local}" >"$test_tmp/output" 2>&1 || return
   for (( attempt=0; attempt<200; attempt++ )); do
     if grep -q '^launch' "$test_tmp/events"; then return 0; fi
     sleep 0.01
@@ -700,3 +700,13 @@ run_installer || fail "setup supports the relocated desktop helper" "$(cat "$tes
 [[ $(cat "$hermes_home/desktop-build-stamp.json") == 'upstream build stamp' ]] || fail "relocated helper writes the build stamp"
 grep -qx launch "$test_tmp/events" || fail "setup launches after the relocated helper writes the stamp"
 pass "new releases use the relocated desktop stamp writer"
+
+new_home remote-to-local
+run_installer --remote || fail "remote-only installation succeeds before local setup" "$(cat "$test_tmp/output")"
+[[ $(cat "$test_tmp/events") == $'package hermes-desktop\nlaunch-before-copy' ]] || fail "remote-only setup opens the package without seeding a runtime" "$(cat "$test_tmp/events")"
+[[ ! -e $runtime && ! -e $test_home/.local/bin/hermes ]] || fail "remote-only setup leaves no runtime or CLI"
+: >"$test_tmp/events"
+run_installer || fail "a remote-only installation can later set up a local runtime" "$(cat "$test_tmp/output")"
+[[ $(cat "$test_tmp/events") == $'bootstrap\nbuild-stamp\ntheme-stop\ntheme-start\nlaunch' ]] || fail "later local setup uses the existing package and performs the full runtime setup" "$(cat "$test_tmp/events")"
+run_cli --check || fail "the later local setup is ready for the default terminal agent"
+pass "a remote-only desktop can later provision the same local runtime as the default agent"
