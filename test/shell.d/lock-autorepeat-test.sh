@@ -67,7 +67,7 @@ if ! jq -e '.ok == true' "$result" >/dev/null; then
   jq . "$result" >&2
   printf 'Lock autorepeat log:\n' >&2
   sed -n '1,220p' "$log" >&2
-  fail "lock password field drops auto-repeat except Backspace/Delete"
+  fail "lock password field drops auto-repeat except Backspace/Delete and clears on Ctrl+Backspace"
 fi
 
-pass "lock password field drops auto-repeat except Backspace/Delete"
+pass "lock password field drops auto-repeat except Backspace/Delete and clears on Ctrl+Backspace"

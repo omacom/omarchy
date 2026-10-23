@@ -70,6 +70,27 @@ Item {
     return key !== Qt.Key_Backspace && key !== Qt.Key_Delete
   }
 
+  // Escape, Ctrl+U and Ctrl+Backspace clear the whole field. Qt's password
+  // echo mode has no word boundaries, so Ctrl+Backspace would otherwise do
+  // nothing and a mistyped password could only be erased one dot at a time.
+  function clearsPassword(event) {
+    if (event.key === Qt.Key_Escape) return true
+    if (!(event.modifiers & Qt.ControlModifier)) return false
+    return event.key === Qt.Key_U || event.key === Qt.Key_Backspace
+  }
+
+  function handlePasswordKey(event) {
+    wakeRequested()
+    if (event.isAutoRepeat && dropsAutoRepeat(event.key)) {
+      event.accepted = true
+      return
+    }
+    if (clearsPassword(event)) {
+      passwordTextEdited("")
+      event.accepted = true
+    }
+  }
+
   function syncPasswordText() {
     if (passwordInput.text === passwordText) return
     syncingPasswordText = true
@@ -207,17 +228,7 @@ Item {
           if (submitted.length > 0) root.submitPassword(submitted)
         }
 
-        Keys.onPressed: function(event) {
-          root.wakeRequested()
-          if (event.isAutoRepeat && root.dropsAutoRepeat(event.key)) {
-            event.accepted = true
-            return
-          }
-          if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
-            root.passwordTextEdited("")
-            event.accepted = true
-          }
-        }
+        Keys.onPressed: function(event) { root.handlePasswordKey(event) }
       }
 
       Text {
