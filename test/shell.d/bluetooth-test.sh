@@ -190,7 +190,7 @@ bluetooth_run() {
   echo "$powered" >"$POWERED_FILE"
   : >"$device_tmp/log"
   PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" \
-    OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 "$@" ||
+    XDG_RUNTIME_DIR="$device_tmp" OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 "$@" ||
     fail "$* exits cleanly with Powered: $powered"
   printf '%s' "$device_tmp/log"
 }
