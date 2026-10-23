@@ -579,18 +579,21 @@ Panel {
           id: weatherColumn
           width: weatherScroll.width
           spacing: Style.space(14)
+          topPadding: Style.space(4)
 
       // ---- Hero row: big icon + temp on the left; location and stats stacked on the right.
       Item {
         width: parent.width
-        height: Math.max(heroLeft.height, heroRight.height)
+        // The oversized hero glyphs' line boxes run well past their ink, so
+        // bound the row by the glyph size rather than letting them pad it.
+        height: Math.max(tempBig.font.pixelSize, heroRight.height)
 
         Row {
           id: heroLeft
           anchors.left: parent.left
           anchors.leftMargin: Style.space(16)
           anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.space(16)
+          spacing: Style.space(19)
 
           Text {
             id: heroIcon
@@ -639,9 +642,9 @@ Panel {
           id: heroRight
           width: weatherStats.implicitWidth
           anchors.right: parent.right
-          anchors.rightMargin: Style.space(20)
+          anchors.rightMargin: Style.space(17)
           anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.space(12)
+          spacing: Style.space(11)
 
           Row {
             visible: !root.editingLocation && root.reportLocation !== ""
@@ -745,7 +748,7 @@ Panel {
             spacing: Style.space(36)
 
             Column {
-              spacing: Style.space(5)
+              spacing: Style.space(3)
               Text {
                 text: Commons.I18n.t("weather.feels")
                 textFormat: Text.PlainText
@@ -764,7 +767,7 @@ Panel {
             }
 
             Column {
-              spacing: Style.space(5)
+              spacing: Style.space(3)
               Text {
                 text: Commons.I18n.t("weather.wind")
                 textFormat: Text.PlainText
@@ -783,7 +786,7 @@ Panel {
             }
 
             Column {
-              spacing: Style.space(5)
+              spacing: Style.space(3)
               Text {
                 text: Commons.I18n.t("weather.humid")
                 textFormat: Text.PlainText
@@ -876,25 +879,33 @@ Panel {
         opacity: 0.12
       }
 
-      // ---- Forecast row: each cell has the day icon left of a day-name + hi/lo column.
-      //      Wrapped in an Item so the block of cells can be centered within the popup.
-      Item {
+      Row {
+        id: forecastRow
         visible: root.forecastDays.length > 0
         width: parent.width
-        height: forecastRow.height
 
-        Row {
-          id: forecastRow
-          anchors.horizontalCenter: parent.horizontalCenter
-          spacing: Style.space(44)
+        Repeater {
+          model: root.forecastDays
 
-          Repeater {
-            model: root.forecastDays
+          Item {
+            required property var modelData
+            required property int index
+            width: forecastRow.width / root.forecastDays.length
+            height: forecastCell.height
+
+            Rectangle {
+              visible: index > 0
+              anchors.left: parent.left
+              width: Style.spacing.hairline
+              height: parent.height
+              color: root.bar.foreground
+              opacity: 0.12
+            }
 
             Row {
-              required property var modelData
-              required property int index
-              spacing: Style.space(10)
+              id: forecastCell
+              anchors.horizontalCenter: parent.horizontalCenter
+              spacing: Style.space(15)
 
               Text {
                 textFormat: Text.PlainText
