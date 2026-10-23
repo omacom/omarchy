@@ -84,6 +84,8 @@ The bar configures itself. You don't have to open a config file to move things.
 
 Grab an empty patch of the bar around the center and drag it toward another screen edge, and the bar moves there — left, right, top, or bottom all work, and every widget adapts (vertical bars fall back to compact icon-only forms). A click-and-hold starts the same drag. Double-left-click that same empty space to cycle the bar background from clear to glassy to opaque. And drag any widget to reorder it or throw it into another section; the other widgets slide apart to make room where it will land.
 
+If you'd rather the click cycles were out of the way, `omarchy bar clicks` prints whether each one is on, and turns either off: `omarchy bar clicks background off`, `omarchy bar clicks layout off`, or bare `on`/`off` for both. The commands and the menu keep working either way.
+
 The middle of the bar is a box: whatever is in it stays centered as one group, and the widgets either side of it hang off its edges. While you drag a widget the box shows as an outline, or a line across the bar when it's empty, and you can drop into it or beside it. When a drop would land in the box, the box grows to take the widget in.
 
 A widget you want around but not always in view can go in the tray's drawer: drag it onto the tray, and the drawer opens to take it. It sits there after the app icons, shows up whenever the drawer does, and keeps its drawer open while its panel is up. Drag it back out onto the bar to put it back.
@@ -95,6 +97,7 @@ The same things have commands, which is what you want for a [dotfiles](31-dotfil
 ```bash
 omarchy bar position bottom
 omarchy bar background glassy  # opaque, glassy, none, or cycle
+omarchy bar clicks background off  # or layout; bare 'omarchy bar clicks' prints both
 omarchy bar move omarchy.weather --section centerBegin --index 0
 omarchy bar move omarchy.bluetooth --section tray  # into the tray's drawer
 omarchy bar set omarchy.clock format "HH:mm"
