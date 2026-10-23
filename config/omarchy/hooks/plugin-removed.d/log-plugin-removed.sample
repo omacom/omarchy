@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Rename without .sample to enable; $1 is the removed id.
+# printf '%s\n' "$1" >>"$HOME/.local/state/omarchy/plugin-removals.log"
