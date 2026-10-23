@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.gpu",
+  "name": "GPU",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "GPU use, memory, and temperature",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "GPU",
+    "description": "GPU use, memory, and temperature",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# omarchy:summary=Install PyTorch from the wheel index that matches the GPU
+# omarchy:args=[--print-index]
+# omarchy:examples=omarchy install ml-pytorch --print-index
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+torch_index() {
+  if [[ -n ${OMARCHY_ML_TORCH_INDEX:-} ]]; then
+    printf '%s\n' "$OMARCHY_ML_TORCH_INDEX"
+    return
+  fi
+  local gpu=${OMARCHY_ML_GPU:-}
+  if [[ -z $gpu ]]; then
+    if omarchy-cmd-present nvidia-smi; then
+      gpu=nvidia
+    elif omarchy-cmd-present rocminfo || omarchy-cmd-present rocm-smi; then
+      gpu=rocm
+    else
+      gpu=cpu
+    fi
+  fi
+  case "$gpu" in
+    nvidia) printf '%s\n' "https://download.pytorch.org/whl/cu132" ;;
+    rocm) printf '%s\n' "https://download.pytorch.org/whl/rocm7.1" ;;
+    *) printf '%s\n' "https://download.pytorch.org/whl/cpu" ;;
+  esac
+}
+
+index=$(torch_index)
+if [[ ${1:-} == "--print-index" ]]; then
+  printf '%s\n' "$index"
+  if [[ $index == *cu132* ]]; then
+    echo "Older Maxwell, Pascal, and Volta GPUs need https://download.pytorch.org/whl/cu126 instead. Set OMARCHY_ML_TORCH_INDEX."
+  fi
+  echo "A CPU wheel from PyPI will not see this GPU. Reinstall from the index above if torch lands on cpu."
+  exit 0
+fi
+
+echo "PyTorch wheel index: $index"
+if [[ $index == *cu132* ]]; then
+  echo "Older Maxwell, Pascal, and Volta GPUs need https://download.pytorch.org/whl/cu126 instead. Set OMARCHY_ML_TORCH_INDEX and run this again."
+fi
+echo "A CPU wheel from PyPI will not see this GPU."
+
+mise use --global python@3.12
+if omarchy-cmd-missing uv; then
+  curl -fsSL https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+
+venv="${OMARCHY_ML_PYTORCH:-$HOME/.local/share/omarchy/ml/pytorch}"
+uv venv "$venv"
+uv pip install --python "$venv/bin/python" torch --index-url "$index"
+printf '%s\n' "$index" > "$venv/WHEEL_INDEX"
+
+want=cpu
+if [[ $index == *cu1* || $index == *rocm* ]]; then
+  want=cuda
+fi
+OMARCHY_ML_WANT="$want" OMARCHY_ML_TORCH_INDEX="$index" "$venv/bin/python" - <<'PY'
+import os
+import sys
+import torch
+
+want = os.environ["OMARCHY_ML_WANT"]
+index = os.environ["OMARCHY_ML_TORCH_INDEX"]
+if want == "cuda" and not torch.cuda.is_available():
+    sys.exit(f"torch is the CPU build. Reinstall from {index}")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+tensor = torch.ones(2, device=device)
+print(f"ok {torch.__version__} {tensor.device} index {index}")
+PY
