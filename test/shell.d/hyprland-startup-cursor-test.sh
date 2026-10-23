@@ -6,7 +6,7 @@ require_command lua
 
 lua - <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
-local events, recovery, command, imported = {}, nil, nil, false
+local events, recovery, command, synced, imported = {}, nil, nil, nil, false
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
 local env = { XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons", HYPRLAND_INSTANCE_SIGNATURE = "test-session", OMARCHY_PATH = os.getenv("ROOT") }
 local getenv = os.getenv
@@ -37,7 +37,11 @@ hl = {
     if value == "omarchy-launch-shell" then
       assert(config.invisible and env.XCURSOR_THEME == "my-xcursor", "hide the compositor cursor while restoring application settings before launch")
     end
-    command = value
+    if value:match("^gsettings set ") then
+      synced = value
+    else
+      command = value
+    end
   end,
 }
 o = { shell_quote = function(value) return "'" .. value .. "'" end, launch = function(value) return value end }
@@ -69,11 +73,32 @@ assert(config.invisible, "wait for the normal theme before restoring visibility"
 omarchy_startup_cursor_restore(true)
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme)
 assert(command:match("setcursor 'my%-hyprcursor'"), "restore the user's Hyprcursor theme")
+assert(synced:match("cursor%-theme 'my%-xcursor' && .* cursor%-size 24$"), "GSettings names the Xcursor theme GTK can load, never the Hyprcursor one")
 local previous_command = command
 previous_recovery()
 assert(command == previous_command, "recovery must not change a revealed cursor")
 events["config.reloaded"]()
 assert(not config.invisible and env.XCURSOR_THEME == "my-xcursor", "ordinary config reloads must not hide the cursor")
+
+omarchy_startup_cursor_pending = true
+omarchy_startup_cursor = {
+  config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true },
+  hyprcursor = nil,
+  size = 24,
+  path = "/my/icons",
+  xcursor = "my-xcursor",
+}
+command, synced = nil, nil
+omarchy_startup_cursor_restore(true)
+assert(not config.invisible and config.sync_gsettings_theme)
+assert(command:match("setcursor 'my%-xcursor'"), "restore the Xcursor fallback when Hyprcursor theme is unset")
+assert(synced:match("cursor%-theme 'my%-xcursor'"), "Hyprland ignores setcursor for its current theme, so GSettings is written directly")
+
+omarchy_startup_cursor_pending = true
+omarchy_startup_cursor.config.sync_gsettings_theme = false
+synced = nil
+omarchy_startup_cursor_restore(true)
+assert(not synced, "leave GSettings alone when the user turned its sync off")
 
 omarchy_startup_cursor_pending = nil
 monitors = { {} }
