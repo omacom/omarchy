@@ -76,22 +76,119 @@ if notifications_ready; then
   notifications_were_running=1
 fi
 
-# Each kill stops the oldest matching instance and only returns once it has
-# fully exited. A large bar can take longer than a few seconds to tear down,
-# so the client gets time to see that through, and the wait below covers a
-# client that timed out anyway: the fresh shell refuses to start next to a
-# still-dying instance (-n), which is how a restart used to end with no bar.
-while timeout 30 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
-
 shell_instance_running() {
   quickshell list -a -j 2>/dev/null |
     jq -e --arg dir "$CONFIG_DIR/" 'any(.[]; .config_path | startswith($dir))' >/dev/null 2>&1
 }
 
-deadline=$((SECONDS + 30))
-while (( SECONDS < deadline )) && shell_instance_running; do
-  sleep 0.1
-done
+shell_instance_pids() {
+  quickshell list -a -j 2>/dev/null |
+    jq -r --arg dir "$CONFIG_DIR/" '.[] | select(.config_path | startswith($dir)) | .pid' 2>/dev/null
+}
+
+shell_process_matches_config() {
+  local pid=$1
+  [[ -r /proc/$pid/cmdline ]] || return 1
+  local args=()
+  mapfile -d '' -t args < "/proc/$pid/cmdline"
+  local i
+  for (( i = 0; i < ${#args[@]} - 1; i++ )); do
+    case ${args[i]} in
+      -p|--path|-c|--config)
+        [[ ${args[i+1]%/} == ${CONFIG_DIR%/} ]] && return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+# kill -0 is true for zombies; a zombie has already died but still owns its
+# runtime dir. Check /proc/<pid>/stat for state Z so cleanup can proceed once
+# the process is actually gone, not merely signalled.
+process_dead() {
+  local pid=$1
+  [[ -d /proc/$pid ]] || return 0
+  local state
+  state=$(awk '{print $3}' "/proc/$pid/stat" 2>/dev/null)
+  [[ -z $state || $state == "Z" ]]
+}
+
+matching_shell_pids() {
+  local registry_pids=() process_pids=() pid
+  mapfile -t registry_pids < <(shell_instance_pids)
+  mapfile -t process_pids < <(
+    for pid in $(pgrep -x quickshell 2>/dev/null); do
+      shell_process_matches_config "$pid" && echo "$pid"
+    done
+  )
+
+  {
+    printf '%s\n' "${registry_pids[@]:-}"
+    printf '%s\n' "${process_pids[@]:-}"
+  } | awk '/^[0-9]+$/ && !seen[$0]++'
+}
+
+stop_shell_instances() {
+  local deadline i pid
+  local qs_pids=()
+
+  # A large bar can take longer than a few seconds to tear down, so wait for
+  # the IPC client and then for any instance that timed out to finish exiting.
+  while timeout 30 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
+  deadline=$((SECONDS + 30))
+  while (( SECONDS < deadline )) && shell_instance_running; do
+    sleep 0.1
+  done
+
+  # Search /proc even when the registry is empty: a shell whose instance.lock
+  # is gone is unlisted, yet still running beside the relaunch.
+  mapfile -t qs_pids < <(matching_shell_pids)
+  if (( ${#qs_pids[@]} > 0 )); then
+    echo "Shell did not respond to IPC kill, falling back to signals." >&2
+    for pid in "${qs_pids[@]}"; do
+      kill -TERM "$pid" 2>/dev/null || true
+    done
+
+    sleep 0.5
+
+    for pid in "${qs_pids[@]}"; do
+      if ! process_dead "$pid"; then
+        echo "Shell still alive after SIGTERM, sending SIGKILL to $pid" >&2
+        kill -KILL "$pid" 2>/dev/null || true
+      fi
+    done
+
+    for pid in "${qs_pids[@]}"; do
+      for (( i = 0; i < 20; i++ )); do
+        process_dead "$pid" && break
+        sleep 0.05
+      done
+    done
+  fi
+}
+
+stop_shell_instances
+
+# A spinning shell can fill the tmpfs; once full, a newly launched shell cannot
+# write its instance.lock and qs list/ipc get confused. Remove runtime dirs for
+# dead pids and dangling symlinks so the replacement starts clean.
+runtime_dir=${XDG_RUNTIME_DIR:-/run/user/$UID}/quickshell
+if [[ -d $runtime_dir/by-pid ]]; then
+  for d in "$runtime_dir/by-pid"/*; do
+    [[ -e $d ]] || continue
+    pid=${d##*/}
+    [[ $pid =~ ^[0-9]+$ ]] || continue
+    if process_dead "$pid"; then
+      instance_dir=$(realpath "$d" 2>/dev/null)
+      [[ -n $instance_dir && $instance_dir != $d ]] && rm -rf "$instance_dir"
+      rm -f "$d"
+    fi
+  done
+fi
+
+if [[ -d $runtime_dir/by-shell ]]; then
+  find "$runtime_dir/by-shell" -type l -exec sh -c 'for l; do [ -e "$l" ] || rm -f "$l"; done' sh {} + 2>/dev/null || true
+fi
 
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
