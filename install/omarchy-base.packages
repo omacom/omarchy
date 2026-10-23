@@ -53,6 +53,7 @@ gnome-themes-extra
 grim
 gpu-screen-recorder
 gum
+gvfs-afc
 gvfs-mtp
 gvfs-nfs
 gvfs-smb
@@ -73,6 +74,7 @@ jq
 kernel-modules-hook
 lazygit
 less
+libimobiledevice
 libsecret
 libvips
 libyaml
@@ -147,6 +149,7 @@ udiskie
 ufw
 ufw-docker
 unzip
+usbmuxd
 usage
 uwsm
 vi
