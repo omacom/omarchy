@@ -15,6 +15,10 @@ export TEST_FAULT=""
 export TEST_DEVICE="0000:01:00.0"
 export TEST_DEVICE_2="0000:02:00.0"
 export PATH="$stub_bin:$PATH"
+export OMARCHY_PATH="$ROOT"
+export OMARCHY_KERNEL_LIMINE_CONF="$TEST_STATE/limine"
+export OMARCHY_KERNEL_REBUILD_MARKER="$TEST_STATE/kernel-marker"
+export TEST_KERNEL_FAULT=""
 
 # Model kernel state separately from package files: DKMS removal deletes the
 # latter and refreshes depmod, but cannot unload the module already in memory.
@@ -134,16 +138,38 @@ case "$command" in
   sudo)
     [[ $TEST_FAULT != "sudo-fail" ]] || exit 1
     case "$*" in
-      'modprobe dwmac-motorcomm'|'rmmod yt6801'|'tee /sys/bus/pci/drivers_probe'|'pacman -Rns --noconfirm yt6801-dkms') "$@" ;;
+      'modprobe dwmac-motorcomm'|'rmmod yt6801'|'tee /sys/bus/pci/drivers_probe'|'pacman -Rns --noconfirm yt6801-dkms'|'limine-mkinitcpio linux-omarchy'|'limine-entry-tool --tree') "$@" ;;
+      mkdir\ *|touch\ *|sed\ *|install\ *) [[ $* == *"$TEST_STATE"* ]] && "/usr/bin/$1" "${@:2}" ;;
+      tee\ -a\ *) [[ $* == *"$TEST_STATE"* ]] && /usr/bin/tee "${@:2}" ;;
       *) exit 90 ;;
     esac
     ;;
   omarchy-notification-dismiss) ;;
+  uname)
+    [[ $1 == -m ]] && echo x86_64 || echo 6.15-old
+    ;;
+  omarchy-pkg-present) exit 1 ;;
+  omarchy-pkg-add)
+    [[ $* == 'linux-omarchy linux-omarchy-headers' && $TEST_KERNEL_FAULT != install-fail ]] || exit 1
+    touch "$TEST_STATE/kernel-installed"
+    ;;
+  limine-mkinitcpio)
+    [[ $TEST_KERNEL_FAULT != rebuild-fail ]] || exit 1
+    touch "$TEST_STATE/kernel-rebuilt"
+    ;;
+  limine-entry-tool)
+    [[ $TEST_KERNEL_FAULT != entry-missing ]] || exit 0
+    echo linux-omarchy
+    ;;
+  omarchy-state)
+    [[ $* == 'set reboot-required' ]] || exit 90
+    touch "$TEST_STATE/reboot-required"
+    ;;
   *) exit 90 ;;
 esac
 SH
 chmod +x "$stub_bin/stub"
-for command in lspci pacman lsmod readlink modinfo modprobe rmmod tee sudo omarchy-notification-dismiss; do
+for command in lspci pacman lsmod readlink modinfo modprobe rmmod tee sudo omarchy-notification-dismiss uname omarchy-pkg-present omarchy-pkg-add limine-mkinitcpio limine-entry-tool omarchy-state; do
   ln -s stub "$stub_bin/$command"
 done
 ln -s "$ROOT/bin/omarchy-pkg-drop" "$stub_bin/omarchy-pkg-drop"
@@ -153,6 +179,7 @@ reset_state() {
   mkdir -p "$TEST_STATE/bindings"
   : >"$TEST_CALLS"
   TEST_FAULT=""
+  TEST_KERNEL_FAULT=""
   printf '%s\n' 0 >"$TEST_STATE/queries"
   printf '%s 0200: 1f0a:6801\n' "$TEST_DEVICE" >"$TEST_STATE/devices"
   printf '%s\n' yt6801 >"$TEST_STATE/bindings/$TEST_DEVICE"
@@ -206,7 +233,7 @@ run_migration
 assert_complete
 pass "every target adapter is rebound and verified"
 
-for fault in pci-fail pci-partial query-fail modules-fail alias-fail alias-wrong; do
+for fault in pci-fail pci-partial query-fail modules-fail; do
   reset_state
   TEST_FAULT=$fault
   if run_migration; then
@@ -215,6 +242,27 @@ for fault in pci-fail pci-partial query-fail modules-fail alias-fail alias-wrong
   assert_no_privileges "$fault must be detected before changing hardware or packages"
   [[ -e $TEST_STATE/package && -e $TEST_STATE/vendor-loaded ]] || fail "$fault lost the installed fallback"
   pass "$fault fails before cutover"
+done
+
+for fault in alias-fail alias-wrong; do
+  reset_state
+  TEST_FAULT=$fault
+  if run_migration; then fail "an unsupported running kernel leaves cutover pending"; fi
+  [[ -e $TEST_STATE/kernel-installed && -e $TEST_STATE/kernel-rebuilt && -e $TEST_STATE/kernel-marker && -e $TEST_STATE/reboot-required ]] ||
+    fail "the earlier driver migration stages a supported bootable kernel"
+  [[ -e $TEST_STATE/package && -e $TEST_STATE/vendor-loaded && $(<"$TEST_STATE/bindings/$TEST_DEVICE") == yt6801 ]] ||
+    fail "kernel preparation preserves working vendor connectivity"
+  ! grep -Eq '^(modprobe|rmmod|pacman -Rns|tee /sys)' "$TEST_CALLS" || fail "no live driver cutover happens before reboot"
+  pass "$fault stages the kernel without completing or dropping the vendor driver"
+done
+for fault in install-fail rebuild-fail entry-missing; do
+  reset_state
+  TEST_FAULT=alias-fail
+  TEST_KERNEL_FAULT=$fault
+  if run_migration; then fail "kernel preparation failure stays pending: $fault"; fi
+  [[ ! -e $TEST_STATE/kernel-marker && -e $TEST_STATE/vendor-loaded && -e $TEST_STATE/package ]] ||
+    fail "failed kernel preparation preserves the fallback and lacks a completion marker"
+  pass "kernel $fault stays pending with the vendor driver intact"
 done
 
 reset_state
@@ -336,8 +384,18 @@ reset_state
 mkdir -p "$test_tmp/omarchy/migrations"
 ln -s "$ROOT/migrations/1788279117.sh" "$test_tmp/omarchy/migrations/1788279117.sh"
 printf '%s\n' 'touch "$TEST_STATE/later-migration"' >"$test_tmp/omarchy/migrations/1788279118.sh"
+ln -s "$ROOT/migrations/1789325478.sh" "$test_tmp/omarchy/migrations/1789325478.sh"
 export OMARCHY_PATH="$test_tmp/omarchy"
 export OMARCHY_MIGRATION_STATE="$test_tmp/migration-state"
+TEST_FAULT=alias-fail
+if "$ROOT/bin/omarchy-migrate" >"$test_tmp/output" 2>&1; then
+  fail "the old running kernel must leave the driver migration pending"
+fi
+[[ -e $TEST_STATE/kernel-marker && -e $TEST_STATE/reboot-required && -e $TEST_STATE/package && -e $TEST_STATE/vendor-loaded ]] ||
+  fail "the ordered queue stages the later kernel repair without losing connectivity"
+[[ ! -e $OMARCHY_MIGRATION_STATE/1788279117.sh && ! -e $OMARCHY_MIGRATION_STATE/1789325478.sh && ! -e $TEST_STATE/later-migration ]] ||
+  fail "kernel preparation must not prematurely mark either migration or continue the queue"
+pass "the ordered queue stages the supported kernel and keeps all completion markers pending until reboot"
 TEST_FAULT=probe-noop
 if "$ROOT/bin/omarchy-migrate" >"$test_tmp/output" 2>&1; then
   fail "migration runner must fail when cutover is incomplete"
