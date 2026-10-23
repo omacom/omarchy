@@ -1893,17 +1893,30 @@ repair_sleep_lock_unit_override() {
   local unit="$HOME/.config/systemd/user/omarchy-sleep-lock.service"
   local legacy_exec='ExecStart=%h/.local/share/omarchy/bin/omarchy-system-sleep-monitor'
   local current_exec='ExecStart=/usr/bin/omarchy-system-sleep-monitor'
-  local tmp
+  local target tmp mode status
   [[ -f $unit ]] || return 0
 
   if grep -qxF "$legacy_exec" "$unit"; then
-    backup_config_file "$unit"
-    tmp=$(mktemp)
-    LEGACY_EXEC="$legacy_exec" CURRENT_EXEC="$current_exec" awk '
+    target=$(readlink -f -- "$unit") || return
+    mode=$(stat -c '%a' -- "$target") || return
+    if [[ ! -w $target ]] || (( (8#$mode & 0222) == 0 )); then
+      printf 'Cannot update read-only sleep lock unit: %s\n' "$unit" >&2
+      return 1
+    fi
+    backup_config_file "$target" || return
+    tmp=$(mktemp "$target.XXXXXX") || return
+    if LEGACY_EXEC="$legacy_exec" CURRENT_EXEC="$current_exec" awk '
       $0 == ENVIRON["LEGACY_EXEC"] { print ENVIRON["CURRENT_EXEC"]; next }
       { print }
-    ' "$unit" >"$tmp" && mv "$tmp" "$unit"
-    rm -f "$tmp"
+    ' "$target" >"$tmp" &&
+      chmod --reference="$target" "$tmp" &&
+      mv -fT -- "$tmp" "$target"; then
+      return 0
+    else
+      status=$?
+      rm -f -- "$tmp"
+      return "$status"
+    fi
   fi
 }
 
