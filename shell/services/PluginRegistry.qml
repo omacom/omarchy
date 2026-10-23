@@ -575,8 +575,22 @@ QtObject {
       }
 
       if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
-      else if (location.kind === "bar") config.bar.layout[location.section].splice(location.index, 1)
-      else if (location.kind === "plugin") config.plugins.splice(location.index, 1)
+      else {
+        // Disable must remove EVERY config reference. A plugin with several
+        // kinds (bar-widget plus overlay, panel, menu or service) can be
+        // referenced from the bar layout AND from plugins[] at the same time.
+        // Removing only the first match left the other reference behind, so
+        // a keepLoaded overlay kept being mounted at shell start while the
+        // plugin already reported disabled — running its code with no way
+        // for the user to see or switch it off.
+        if (location.kind === "bar") config.bar.layout[location.section].splice(location.index, 1)
+        if (Array.isArray(config.plugins)) {
+          for (var p = config.plugins.length - 1; p >= 0; p--) {
+            if (config.plugins[p] && Util.canonicalWidgetId(String(config.plugins[p].id)) === key)
+              config.plugins.splice(p, 1)
+          }
+        }
+      }
 
       // Dropping the layout entry is the whole story for a widget. Anything
       // else built-in loads by default, so switching it off has to be stated.
