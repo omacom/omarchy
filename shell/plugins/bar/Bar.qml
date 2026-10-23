@@ -2742,10 +2742,10 @@ Item {
     // Writable, as on any widget: its host hands it the same values.
     property string moduleName: root.entryId(entry)
     property var settings: root.entrySettings(entry)
-    property string outputText: ""
+    property string outputRaw: ""
+    property var outputData: ({})
     property string outputTooltip: ""
     property bool outputActive: false
-    property bool jsonProvidedText: false
 
     function setting(name, fallback) {
       var value = settings ? settings[name] : undefined
@@ -2756,22 +2756,14 @@ Item {
       var data = Util.parseModuleJson(raw)
       var klass = data.class || data.alt || ""
 
-      if (Util.isPlainObject(data) && data.text !== undefined && data.text !== null) {
-        outputText = String(data.text)
-        jsonProvidedText = true
-      } else if (Util.isPlainObject(data)) {
-        outputText = ""
-        jsonProvidedText = false
-      } else {
-        outputText = String(raw || "").trim()
-        jsonProvidedText = false
-      }
+      outputRaw = String(raw || "")
+      outputData = data
       outputTooltip = data.tooltip || String(setting("tooltip", ""))
       outputActive = klass === "active" || (Array.isArray(klass) && klass.indexOf("active") !== -1)
     }
 
     bar: root
-    text: jsonProvidedText ? outputText : (outputText || String(setting("text", "")))
+    text: BarModel.customCommandText(outputRaw, outputData, String(setting("text", "")))
     tooltipText: outputTooltip || String(setting("tooltip", ""))
     active: outputActive
     keepSpace: setting("keepSpace", false) === true
