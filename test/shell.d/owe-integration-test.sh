@@ -6,11 +6,12 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/bin" "$work/home"
 export TEST_CALLS="$work/calls"
-for command in omarchy-pkg-add omarchy-hook-install systemctl; do
+for command in omarchy-pkg-add omarchy-hook-install omarchy-input-method systemctl; do
   cat >"$work/bin/$command" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >>"$TEST_CALLS"
 case "$*" in
+  'configure --defaults') [[ ${TEST_INPUT_FAIL:-0} == 0 ]] ;;
   '--user enable owed.service') [[ ${TEST_TTY:-0} == 0 ]] ;;
   '--user is-active --quiet graphical-session.target') [[ ${TEST_TTY:-0} == 0 ]] ;;
   '--user start owed.service') [[ ${TEST_START_FAIL:-0} == 0 ]] ;;
@@ -57,6 +58,12 @@ HOME="$work/home" PATH="$work/bin:$PATH" bash "$ROOT/install/user/first-run/enab
 grep -E '^systemctl --user enable --now .*owed.service' "$TEST_CALLS" >/dev/null
 grep -Fx 'omarchy-hook-install theme-set /usr/share/owe/10-owe-sync' "$TEST_CALLS" >/dev/null
 pass "fresh installs enable OWE and install the theme refresh hook"
+
+: >"$TEST_CALLS"
+HOME="$work/home" PATH="$work/bin:$PATH" TEST_INPUT_FAIL=1 bash "$ROOT/install/user/first-run/enable-user-units.sh"
+grep -Fx 'omarchy-input-method configure --defaults' "$TEST_CALLS" >/dev/null
+grep -E '^systemctl --user enable --now .*owed.service' "$TEST_CALLS" >/dev/null
+pass "failed input defaults do not block enabling first-run services"
 
 cat >"$work/bin/ffmpegthumbnailer" <<'SH'
 #!/bin/bash

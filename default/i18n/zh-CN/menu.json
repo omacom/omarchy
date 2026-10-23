@@ -1,0 +1,1166 @@
+{
+  "root": {
+    "label": "前往"
+  },
+  "apps": {
+    "label": "应用"
+  },
+  "learn": {
+    "label": "学习"
+  },
+  "appearance": {
+    "label": "外观"
+  },
+  "trigger": {
+    "label": "触发"
+  },
+  "setup": {
+    "label": "设置"
+  },
+  "install": {
+    "label": "安装"
+  },
+  "remove": {
+    "label": "移除"
+  },
+  "update": {
+    "label": "更新"
+  },
+  "about": {
+    "label": "关于"
+  },
+  "system": {
+    "label": "系统"
+  },
+  "system.screensaver": {
+    "label": "屏保"
+  },
+  "system.lock": {
+    "label": "锁定"
+  },
+  "system.suspend": {
+    "label": "挂起"
+  },
+  "system.hibernate": {
+    "label": "休眠"
+  },
+  "system.logout": {
+    "label": "注销"
+  },
+  "system.reboot": {
+    "label": "重启"
+  },
+  "system.shutdown": {
+    "label": "关机"
+  },
+  "learn.keybindings": {
+    "label": "快捷键"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "社区"
+  },
+  "appearance.theme": {
+    "label": "主题"
+  },
+  "appearance.background": {
+    "label": "背景"
+  },
+  "appearance.font": {
+    "label": "字体"
+  },
+  "appearance.top-bar": {
+    "label": "菜单栏"
+  },
+  "appearance.top-bar.hide": {
+    "label": "隐藏栏"
+  },
+  "appearance.top-bar.show": {
+    "label": "显示栏"
+  },
+  "appearance.top-bar.position": {
+    "label": "栏位置"
+  },
+  "appearance.top-bar.background": {
+    "label": "栏背景"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "不透明栏"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "玻璃栏"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "透明栏"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "栏指示器"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "时钟"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "星期日 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "星期日 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "星期日 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "星期日 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "周日 5月3日 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "周日 5月3日 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "5月3日 W18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "5月03日 W18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "顶部栏"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "底部栏"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "左侧栏"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "右侧栏"
+  },
+  "appearance.windows.corners": {
+    "label": "窗口圆角"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "主题圆角"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "直角"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "圆角"
+  },
+  "appearance.windows.transparency": {
+    "label": "窗口不透明度"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "不透明窗口"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "透明窗口"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "玻璃窗口"
+  },
+  "appearance.branding.screensaver": {
+    "label": "屏保"
+  },
+  "appearance.branding.about": {
+    "label": "关于"
+  },
+  "appearance.branding.about.text": {
+    "label": "编辑文本"
+  },
+  "appearance.branding.about.image": {
+    "label": "从图片设置"
+  },
+  "appearance.branding.about.default": {
+    "label": "恢复默认"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "编辑文本"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "从图片设置"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "恢复默认"
+  },
+  "appearance.dock": {
+    "label": "程序坞"
+  },
+  "appearance.dock.autohide": {
+    "label": "自动隐藏程序坞"
+  },
+  "appearance.dock.always-on": {
+    "label": "常显程序坞"
+  },
+  "appearance.dock.position": {
+    "label": "程序坞位置"
+  },
+  "appearance.dock.position.top": {
+    "label": "顶部程序坞"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "底部程序坞"
+  },
+  "appearance.dock.position.left": {
+    "label": "左侧程序坞"
+  },
+  "appearance.dock.position.right": {
+    "label": "右侧程序坞"
+  },
+  "appearance.workspace-layout": {
+    "label": "工作区布局",
+    "title": "默认工作区布局"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "平铺"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "滚动"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "浮动"
+  },
+  "appearance.unlock": {
+    "label": "解锁"
+  },
+  "trigger.toggle": {
+    "label": "开关"
+  },
+  "trigger.emoji": {
+    "label": "表情"
+  },
+  "trigger.clipboard-history": {
+    "label": "剪贴板历史"
+  },
+  "trigger.reminder": {
+    "label": "提醒"
+  },
+  "trigger.capture": {
+    "label": "捕获"
+  },
+  "trigger.capture.screenshot": {
+    "label": "截图"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "停止录屏"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "录屏"
+  },
+  "trigger.capture.text": {
+    "label": "文本"
+  },
+  "trigger.capture.qr": {
+    "label": "QR 码"
+  },
+  "trigger.capture.color": {
+    "label": "颜色"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "无音频"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "含桌面音频"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "含桌面 + 麦克风音频"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "含桌面 + 麦克风音频 + 摄像头"
+  },
+  "trigger.transcode": {
+    "label": "转码"
+  },
+  "trigger.share": {
+    "label": "分享"
+  },
+  "trigger.hardware": {
+    "label": "硬件"
+  },
+  "trigger.tests": {
+    "label": "测速"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "触控板触觉"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "低"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "中"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "高"
+  },
+  "trigger.reminder.set": {
+    "label": "设置一个"
+  },
+  "trigger.reminder.show": {
+    "label": "显示全部"
+  },
+  "trigger.reminder.clear": {
+    "label": "清除全部"
+  },
+  "trigger.share.clipboard": {
+    "label": "剪贴板"
+  },
+  "trigger.share.file": {
+    "label": "文件"
+  },
+  "trigger.share.folder": {
+    "label": "文件夹"
+  },
+  "trigger.share.receive": {
+    "label": "接收"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "网络测速"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "磁盘测速"
+  },
+  "setup.monitors": {
+    "label": "显示器"
+  },
+  "setup.keybindings": {
+    "label": "快捷键"
+  },
+  "setup.input": {
+    "label": "输入"
+  },
+  "setup.typing": {
+    "label": "打字"
+  },
+  "setup.typing.keyboard": {
+    "label": "键盘布局"
+  },
+  "setup.typing.input": {
+    "label": "输入法"
+  },
+  "setup.language": {
+    "label": "语言"
+  },
+  "setup.network": {
+    "label": "网络"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "自定义"
+  },
+  "setup.network.qr": {
+    "label": "QR 码"
+  },
+  "setup.default": {
+    "label": "默认项"
+  },
+  "setup.default.agent": {
+    "label": "智能体",
+    "title": "默认智能体"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "浏览器",
+    "title": "默认浏览器"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "听写",
+    "title": "默认听写"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "终端",
+    "title": "默认终端"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "编辑器",
+    "title": "默认编辑器"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "插件"
+  },
+  "setup.plugin.enable": {
+    "label": "启用插件"
+  },
+  "setup.plugin.disable": {
+    "label": "禁用插件"
+  },
+  "setup.plugin.add": {
+    "label": "添加插件"
+  },
+  "setup.plugin.clone": {
+    "label": "克隆插件"
+  },
+  "setup.plugin.remove": {
+    "label": "移除插件"
+  },
+  "setup.security": {
+    "label": "安全"
+  },
+  "setup.config": {
+    "label": "配置"
+  },
+  "setup.security.fingerprint": {
+    "label": "指纹"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "免 sudo Docker"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "免密 sudo"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "直接启动"
+  },
+  "setup.reset": {
+    "label": "重置电脑"
+  },
+  "install.package": {
+    "label": "软件包"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "服务"
+  },
+  "install.development": {
+    "label": "开发"
+  },
+  "install.editor": {
+    "label": "编辑器"
+  },
+  "install.style": {
+    "label": "样式"
+  },
+  "install.style.theme": {
+    "label": "主题"
+  },
+  "install.style.background": {
+    "label": "背景"
+  },
+  "install.style.font": {
+    "label": "字体"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "游戏"
+  },
+  "install.browser": {
+    "label": "浏览器"
+  },
+  "install.webapp": {
+    "label": "网页应用"
+  },
+  "install.terminal": {
+    "label": "终端"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "预装应用"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Chromium 账户"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xbox 控制器"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch 游戏启动器"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "软件包"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "移除"
+  },
+  "remove.dictation": {
+    "label": "听写"
+  },
+  "remove.service": {
+    "label": "服务",
+    "title": "移除"
+  },
+  "remove.development": {
+    "label": "开发",
+    "title": "移除"
+  },
+  "remove.theme": {
+    "label": "主题"
+  },
+  "remove.gaming": {
+    "label": "游戏",
+    "title": "移除"
+  },
+  "remove.browser": {
+    "label": "浏览器",
+    "title": "移除"
+  },
+  "remove.webapp": {
+    "label": "网页应用"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "预装应用"
+  },
+  "remove.security": {
+    "label": "安全",
+    "title": "移除"
+  },
+  "remove.security.fingerprint": {
+    "label": "指纹"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "免 sudo Docker"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xbox 控制器 (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "移除"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "移除"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "移除"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "渠道"
+  },
+  "update.config": {
+    "label": "配置",
+    "title": "重置为默认"
+  },
+  "update.themes": {
+    "label": "额外主题"
+  },
+  "update.process": {
+    "label": "进程",
+    "title": "重启"
+  },
+  "update.hardware": {
+    "label": "硬件",
+    "title": "重启"
+  },
+  "update.firmware": {
+    "label": "固件"
+  },
+  "update.password": {
+    "label": "密码"
+  },
+  "update.timezone": {
+    "label": "时区"
+  },
+  "update.time": {
+    "label": "时间"
+  },
+  "update.channel.stable": {
+    "label": "稳定版"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "音频"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "蓝牙"
+  },
+  "update.hardware.trackpad": {
+    "label": "触控板"
+  },
+  "update.password.drive": {
+    "label": "磁盘加密"
+  },
+  "update.password.user": {
+    "label": "用户"
+  },
+  "system.reboot-boot-menu": {
+    "label": "重启到启动菜单"
+  }
+}

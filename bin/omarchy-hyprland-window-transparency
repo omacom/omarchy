@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set how see-through windows are: opaque, transparent, or glassy
+# omarchy:args=[opaque|transparent|glassy]
+# omarchy:examples=omarchy hyprland window transparency | omarchy hyprland window transparency glassy
+
+TOGGLES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr"
+
+# Opaque and glassy are toggle files loaded after every theme: opaque makes the
+# windows Omarchy makes transparent solid, and glassy blurs what is behind any
+# see-through window and gives terminals a see-through background. Transparent,
+# the default, removes both.
+current_mode() {
+  if [[ -f $TOGGLES_DIR/window-opaque.lua ]]; then
+    echo "opaque"
+  elif [[ -f $TOGGLES_DIR/window-glassy.lua ]]; then
+    echo "glassy"
+  else
+    echo "transparent"
+  fi
+}
+
+# Save the new choice before dropping the old one, so a failed save keeps it.
+save_mode() {
+  if [[ $1 != "transparent" ]]; then
+    mkdir -p "$TOGGLES_DIR" && cp "$OMARCHY_PATH/default/hypr/toggles/window-$1.lua" "$TOGGLES_DIR/window-$1.lua" || return 1
+  fi
+  local mode
+  for mode in opaque glassy; do
+    [[ $mode == "$1" ]] || rm -f "$TOGGLES_DIR/window-$mode.lua" || return 1
+  done
+}
+
+if (( $# == 0 )); then
+  current_mode
+  exit 0
+fi
+
+if [[ ! $1 =~ ^(opaque|transparent|glassy)$ ]]; then
+  echo "Usage: omarchy-hyprland-window-transparency [opaque|transparent|glassy]" >&2
+  exit 1
+fi
+
+# A theme switch renders the next theme's terminal files from the saved choice
+# and then replaces the current theme, so the choice and the glass written into
+# the current theme are changed under its lock, or the switch could drop them.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+flock 9
+
+# A choice whose glass cannot be written is taken back, so the saved choice
+# is always the one on screen.
+previous=$(current_mode)
+save_mode "$1" || exit 1
+if ! omarchy-theme-set-glass; then
+  save_mode "$previous"
+  omarchy-theme-set-glass
+  exit 1
+fi
+flock -u 9
+
+hyprctl reload >/dev/null || exit 1
+omarchy-restart-terminal
+omarchy-theme-set-foot
+omarchy-restart-btop

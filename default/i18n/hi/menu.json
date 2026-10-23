@@ -1,0 +1,1166 @@
+{
+  "root": {
+    "label": "जाएं"
+  },
+  "apps": {
+    "label": "ऐप्स"
+  },
+  "learn": {
+    "label": "सीखें"
+  },
+  "appearance": {
+    "label": "दिखावट"
+  },
+  "trigger": {
+    "label": "ट्रिगर"
+  },
+  "setup": {
+    "label": "सेटअप"
+  },
+  "install": {
+    "label": "इंस्टॉल करें"
+  },
+  "remove": {
+    "label": "हटाएं"
+  },
+  "update": {
+    "label": "अपडेट करें"
+  },
+  "about": {
+    "label": "बारे में"
+  },
+  "system": {
+    "label": "सिस्टम"
+  },
+  "system.screensaver": {
+    "label": "स्क्रीनसेवर"
+  },
+  "system.lock": {
+    "label": "लॉक करें"
+  },
+  "system.suspend": {
+    "label": "सस्पेंड"
+  },
+  "system.hibernate": {
+    "label": "हाइबरनेट"
+  },
+  "system.logout": {
+    "label": "लॉग आउट"
+  },
+  "system.reboot": {
+    "label": "रीबूट"
+  },
+  "system.shutdown": {
+    "label": "बंद करें"
+  },
+  "learn.keybindings": {
+    "label": "कीबोर्ड शॉर्टकट"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "समुदाय"
+  },
+  "appearance.theme": {
+    "label": "थीम"
+  },
+  "appearance.background": {
+    "label": "पृष्ठभूमि"
+  },
+  "appearance.font": {
+    "label": "फ़ॉन्ट"
+  },
+  "appearance.top-bar": {
+    "label": "मेनू बार"
+  },
+  "appearance.top-bar.hide": {
+    "label": "बार छिपाएं"
+  },
+  "appearance.top-bar.show": {
+    "label": "बार दिखाएं"
+  },
+  "appearance.top-bar.position": {
+    "label": "बार स्थिति"
+  },
+  "appearance.top-bar.background": {
+    "label": "बार पृष्ठभूमि"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "अपारदर्शी बार"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "ग्लासी बार"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "साफ़ बार"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "बार संकेतक"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "घड़ी"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "रविवार 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "रविवार 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "रविवार 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "रविवार 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "रवि 3 मई 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "रवि 3 मई 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 मई W18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 मई W18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "ऊपरी बार"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "निचला बार"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "बायां बार"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "दायां बार"
+  },
+  "appearance.windows.corners": {
+    "label": "विंडो कोने"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "थीम कोने"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "तेज़ कोने"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "गोल कोने"
+  },
+  "appearance.windows.transparency": {
+    "label": "विंडो अपारदर्शिता"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "अपारदर्शी विंडो"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "पारदर्शी विंडो"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "ग्लासी विंडो"
+  },
+  "appearance.branding.screensaver": {
+    "label": "स्क्रीनसेवर"
+  },
+  "appearance.branding.about": {
+    "label": "बारे में"
+  },
+  "appearance.branding.about.text": {
+    "label": "टेक्स्ट संपादित करें"
+  },
+  "appearance.branding.about.image": {
+    "label": "इमेज से सेट करें"
+  },
+  "appearance.branding.about.default": {
+    "label": "डिफ़ॉल्ट पुनर्स्थापित करें"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "टेक्स्ट संपादित करें"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "इमेज से सेट करें"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "डिफ़ॉल्ट पुनर्स्थापित करें"
+  },
+  "appearance.dock": {
+    "label": "डॉक"
+  },
+  "appearance.dock.autohide": {
+    "label": "ऑटो-छिपा डॉक"
+  },
+  "appearance.dock.always-on": {
+    "label": "हमेशा दृश्य डॉक"
+  },
+  "appearance.dock.position": {
+    "label": "डॉक स्थिति"
+  },
+  "appearance.dock.position.top": {
+    "label": "ऊपरी डॉक"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "निचला डॉक"
+  },
+  "appearance.dock.position.left": {
+    "label": "बायां डॉक"
+  },
+  "appearance.dock.position.right": {
+    "label": "दायां डॉक"
+  },
+  "appearance.workspace-layout": {
+    "label": "वर्कस्पेस लेआउट",
+    "title": "डिफ़ॉल्ट वर्कस्पेस लेआउट"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "टाइलिंग"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "स्क्रॉलिंग"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "फ़्लोटिंग"
+  },
+  "appearance.unlock": {
+    "label": "अनलॉक करें"
+  },
+  "trigger.toggle": {
+    "label": "टॉगल"
+  },
+  "trigger.emoji": {
+    "label": "Emoji"
+  },
+  "trigger.clipboard-history": {
+    "label": "क्लिपबोर्ड इतिहास"
+  },
+  "trigger.reminder": {
+    "label": "रिमाइंडर"
+  },
+  "trigger.capture": {
+    "label": "कैप्चर"
+  },
+  "trigger.capture.screenshot": {
+    "label": "स्क्रीनशॉट"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "स्क्रीन रिकॉर्डिंग रोकें"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "स्क्रीन रिकॉर्डिंग"
+  },
+  "trigger.capture.text": {
+    "label": "टेक्स्ट"
+  },
+  "trigger.capture.qr": {
+    "label": "QR कोड"
+  },
+  "trigger.capture.color": {
+    "label": "रंग"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "बिना ऑडियो"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "डेस्कटॉप ऑडियो के साथ"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "डेस्कटॉप + माइक्रोफ़ोन ऑडियो के साथ"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "डेस्कटॉप + माइक्रोफ़ोन ऑडियो + वेबकैम के साथ"
+  },
+  "trigger.transcode": {
+    "label": "ट्रांसकोड"
+  },
+  "trigger.share": {
+    "label": "साझा करें"
+  },
+  "trigger.hardware": {
+    "label": "हार्डवेयर"
+  },
+  "trigger.tests": {
+    "label": "गति परीक्षण"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "टचपैड हैप्टिक्स"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "कम"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "मध्यम"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "उच्च"
+  },
+  "trigger.reminder.set": {
+    "label": "एक सेट करें"
+  },
+  "trigger.reminder.show": {
+    "label": "सब दिखाएं"
+  },
+  "trigger.reminder.clear": {
+    "label": "सब साफ़ करें"
+  },
+  "trigger.share.clipboard": {
+    "label": "क्लिपबोर्ड"
+  },
+  "trigger.share.file": {
+    "label": "फ़ाइल"
+  },
+  "trigger.share.folder": {
+    "label": "फ़ोल्डर"
+  },
+  "trigger.share.receive": {
+    "label": "प्राप्त करें"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "नेटवर्क गति परीक्षण"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "डिस्क गति परीक्षण"
+  },
+  "setup.monitors": {
+    "label": "मॉनिटर"
+  },
+  "setup.keybindings": {
+    "label": "कीबोर्ड शॉर्टकट"
+  },
+  "setup.input": {
+    "label": "इनपुट"
+  },
+  "setup.typing": {
+    "label": "टाइपिंग"
+  },
+  "setup.typing.keyboard": {
+    "label": "कीबोर्ड लेआउट"
+  },
+  "setup.typing.input": {
+    "label": "इनपुट पद्धतियाँ"
+  },
+  "setup.language": {
+    "label": "भाषा"
+  },
+  "setup.network": {
+    "label": "नेटवर्क"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "कस्टम"
+  },
+  "setup.network.qr": {
+    "label": "QR कोड"
+  },
+  "setup.default": {
+    "label": "डिफ़ॉल्ट"
+  },
+  "setup.default.agent": {
+    "label": "एजेंट",
+    "title": "डिफ़ॉल्ट एजेंट"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "ब्राउज़र",
+    "title": "डिफ़ॉल्ट ब्राउज़र"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "डिक्टेशन",
+    "title": "डिफ़ॉल्ट डिक्टेशन"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "टर्मिनल",
+    "title": "डिफ़ॉल्ट टर्मिनल"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "संपादक",
+    "title": "डिफ़ॉल्ट संपादक"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "प्लगइन्स"
+  },
+  "setup.plugin.enable": {
+    "label": "प्लगइन सक्षम करें"
+  },
+  "setup.plugin.disable": {
+    "label": "प्लगइन अक्षम करें"
+  },
+  "setup.plugin.add": {
+    "label": "प्लगइन जोड़ें"
+  },
+  "setup.plugin.clone": {
+    "label": "प्लगइन क्लोन करें"
+  },
+  "setup.plugin.remove": {
+    "label": "प्लगइन हटाएं"
+  },
+  "setup.security": {
+    "label": "सुरक्षा"
+  },
+  "setup.config": {
+    "label": "कॉन्फ़िग"
+  },
+  "setup.security.fingerprint": {
+    "label": "फ़िंगरप्रिंट"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "बिना sudo Docker"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "बिना पासवर्ड sudo"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "सीधा बूट"
+  },
+  "setup.reset": {
+    "label": "कंप्यूटर रीसेट करें"
+  },
+  "install.package": {
+    "label": "पैकेज"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "सेवा"
+  },
+  "install.development": {
+    "label": "विकास"
+  },
+  "install.editor": {
+    "label": "संपादक"
+  },
+  "install.style": {
+    "label": "स्टाइल"
+  },
+  "install.style.theme": {
+    "label": "थीम"
+  },
+  "install.style.background": {
+    "label": "पृष्ठभूमि"
+  },
+  "install.style.font": {
+    "label": "फ़ॉन्ट"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "गेमिंग"
+  },
+  "install.browser": {
+    "label": "ब्राउज़र"
+  },
+  "install.webapp": {
+    "label": "वेब ऐप"
+  },
+  "install.terminal": {
+    "label": "टर्मिनल"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "पूर्व-इंस्टॉल"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Chromium खाता"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xbox नियंत्रक"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch गेम लॉन्चर"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "पैकेज"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "हटाएं"
+  },
+  "remove.dictation": {
+    "label": "डिक्टेशन"
+  },
+  "remove.service": {
+    "label": "सेवाएं",
+    "title": "हटाएं"
+  },
+  "remove.development": {
+    "label": "विकास",
+    "title": "हटाएं"
+  },
+  "remove.theme": {
+    "label": "थीम"
+  },
+  "remove.gaming": {
+    "label": "गेमिंग",
+    "title": "हटाएं"
+  },
+  "remove.browser": {
+    "label": "ब्राउज़र",
+    "title": "हटाएं"
+  },
+  "remove.webapp": {
+    "label": "वेब ऐप"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "पूर्व-इंस्टॉल"
+  },
+  "remove.security": {
+    "label": "सुरक्षा",
+    "title": "हटाएं"
+  },
+  "remove.security.fingerprint": {
+    "label": "फ़िंगरप्रिंट"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "बिना sudo Docker"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xbox नियंत्रक (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "हटाएं"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "हटाएं"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "हटाएं"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "चैनल"
+  },
+  "update.config": {
+    "label": "कॉन्फ़िग",
+    "title": "डिफ़ॉल्ट पर रीसेट करें"
+  },
+  "update.themes": {
+    "label": "अतिरिक्त थीम"
+  },
+  "update.process": {
+    "label": "प्रक्रिया",
+    "title": "पुनः आरंभ करें"
+  },
+  "update.hardware": {
+    "label": "हार्डवेयर",
+    "title": "पुनः आरंभ करें"
+  },
+  "update.firmware": {
+    "label": "फ़र्मवेयर"
+  },
+  "update.password": {
+    "label": "पासवर्ड"
+  },
+  "update.timezone": {
+    "label": "समय क्षेत्र"
+  },
+  "update.time": {
+    "label": "समय"
+  },
+  "update.channel.stable": {
+    "label": "स्थिर"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "ऑडियो"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "ट्रैकपैड"
+  },
+  "update.password.drive": {
+    "label": "ड्राइव एन्क्रिप्शन"
+  },
+  "update.password.user": {
+    "label": "उपयोगकर्ता"
+  },
+  "system.reboot-boot-menu": {
+    "label": "बूट मेनू में रीबूट"
+  }
+}

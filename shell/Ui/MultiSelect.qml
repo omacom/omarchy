@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC
 import QtQuick.Window
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 
 // Searchable multi-select dropdown. Trigger shape matches Dropdown /
 // SearchableDropdown; the popup shows a search field, an optional refresh
@@ -27,17 +28,17 @@ Item {
   property var options: []
   property var optionsCommand: []
   property string optionsCommandCwd: ""
-  property string placeholderText: "Search..."
-  property string emptyText: "No options"
-  property string noSelectionText: "None selected"
+  property string placeholderText: Commons.I18n.t("common.search")
+  property string emptyText: Commons.I18n.t("common.noOptions")
+  property string noSelectionText: Commons.I18n.t("common.noneSelected")
   property string triggerLabel: ""
   property bool showLabel: true
 
-  property color foreground: Color.popups.text
-  property color background: Color.popups.background
-  property color popupBorder: Color.popups.border
-  property color accent: Color.accent
-  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Color.popups.border, Style.normalBorderWidth)
+  property color foreground: Commons.Color.popups.text
+  property color background: Commons.Color.popups.background
+  property color popupBorder: Commons.Color.popups.border
+  property color accent: Commons.Color.accent
+  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Commons.Color.popups.border, Style.normalBorderWidth)
   property string fontFamily: Style.font.family
   property int rowHeight: Style.spacing.controlHeight
   property int popupRowHeight: Style.spacing.popupRowHeight
@@ -128,7 +129,7 @@ Item {
     for (var j = 0; j < arr.length; j++)
       labels.push(byValue[String(arr[j])] || String(arr[j]))
     if (labels.length <= 3) return labels.join(", ")
-    return arr.length + " selected"
+    return Commons.I18n.tn("multiSelect.selectedCount", arr.length).arg(Commons.I18n.formatNumber(arr.length))
   }
 
   property var filtered: resolvedOptions
@@ -163,7 +164,7 @@ Item {
         var parsed = JSON.parse(raw)
         return { options: parsed, error: "" }
       } catch (e) {
-        return { options: [], error: "Options command emitted invalid JSON" }
+        return { options: [], error: Commons.I18n.t("multiSelect.invalidJson") }
       }
     }
     var out = []
@@ -205,7 +206,7 @@ Item {
       if (!root.loadingOptions) return
       optionsProcess.running = false
       root.loadingOptions = false
-      root.optionsError = "Options command timed out"
+      root.optionsError = Commons.I18n.t("multiSelect.timedOut")
     }
   }
 
@@ -246,7 +247,7 @@ Item {
       refreshTimeoutTimer.stop()
       if (exitCode !== 0) {
         root.loadingOptions = false
-        root.optionsError = "Options command exited " + exitCode
+        root.optionsError = Commons.I18n.t("multiSelect.exited").arg(Commons.I18n.formatNumber(exitCode))
       }
     }
   }
@@ -492,7 +493,7 @@ Item {
               textFormat: Text.PlainText
               anchors.centerIn: parent
               visible: resultList.count === 0
-              text: root.loadingOptions ? "Loading…" : (root.optionsError !== "" ? root.optionsError : root.emptyText)
+              text: root.loadingOptions ? Commons.I18n.t("common.loading") : (root.optionsError !== "" ? root.optionsError : root.emptyText)
               color: Qt.darker(root.foreground, 1.6)
               font.family: root.fontFamily
               font.pixelSize: Style.font.body

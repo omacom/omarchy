@@ -4,7 +4,7 @@
   "name": "Keyboard layout",
   "version": "1.0.0",
   "author": "Omarchy",
-  "description": "Current xkb layout, click cycles",
+  "description": "Current keyboard layout and input language, click cycles",
   "kinds": [
     "bar-widget"
   ],
@@ -13,8 +13,9 @@
   },
   "barWidget": {
     "displayName": "Keyboard layout",
-    "description": "Current xkb layout, click cycles",
+    "description": "Current keyboard layout and input language, click cycles",
     "category": "Compositor",
+    "defaultSection": "right",
     "allowMultiple": false
   },
   "omarchy": {

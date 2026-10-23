@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 
 // Bare on/off switch: a track with a sliding knob and no label. This is the
 // switch `Toggle` parks at the end of its labeled row, factored out so panel
@@ -29,6 +30,9 @@ Item {
 
   property bool checked: false
   property bool busy: false
+  // The knob is placed by x, so a mirrored (right-to-left) layout throws it
+  // toward the left when on.
+  readonly property bool mirrored: LayoutMirroring.enabled
 
   // Off when the surrounding row owns the click, as in `Toggle`.
   property bool interactive: true
@@ -40,8 +44,8 @@ Item {
   property bool cursorRing: interactive
   property int cursorPad: Style.space(6)
   property bool rounded: Style.cornerRadius > 0
-  property color foreground: Color.foreground
-  property color accent: Color.accent
+  property color foreground: Commons.Color.foreground
+  property color accent: Commons.Color.accent
 
   signal toggled()
   signal hovered(bool isHovered)
@@ -90,7 +94,7 @@ Item {
       width: root.knobSize
       height: root.knobSize
       radius: root.rounded ? height / 2 : 0
-      x: root.checked ? track.width - width - root.knobInset : root.knobInset
+      x: root.checked !== root.mirrored ? track.width - width - root.knobInset : root.knobInset
       anchors.verticalCenter: parent.verticalCenter
       color: root.checked ? Style.selectedStateColor(root.foreground, root.accent) : Qt.darker(root.foreground, 1.25)
 

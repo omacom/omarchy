@@ -147,10 +147,17 @@ assert(
 )
 assert(
   batteryService.includes('property string activePowerProfile') &&
-    batteryService.includes('UPower.onBattery && activePowerProfile === "power-saver"') &&
+    batteryService.includes('powerSaverOnBattery: BatteryModel.isPowerSaverOnBattery(UPower.onBattery, activePowerProfile)') &&
+    /function onProfileChanged\(\) \{\s*root\.powerProfileSignals\+\+\s*root\.activePowerProfile = root\.profileName\(PowerProfiles\.profile\)/.test(batteryService) &&
+    batteryService.includes('root.activePowerProfile = BatteryModel.profileAfterRead(root.activePowerProfile, text, root.powerProfileReadSignals, root.powerProfileSignals)') &&
+    /if \(powerProfileReadProcess\.running\) \{\s*powerProfileReadPending = true/.test(batteryService) &&
+    batteryService.includes('if (root.powerProfileReadPending) Qt.callLater(root.refreshPowerProfile)') &&
+    batteryService.includes('case PowerProfile.PowerSaver: return "power-saver"') &&
     batteryService.includes('"get-property", "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles", "ActiveProfile"') &&
     !batteryService.includes('["powerprofilesctl"') &&
-    batteryService.includes('interval: 2000'),
+    !/Timer \{[^}]*refreshPowerProfile/.test(batteryService) &&
+    batteryService.includes('function refreshPowerProfile(): void { root.refreshPowerProfile() }') &&
+    fs.readFileSync(path.join(root, 'bin/omarchy-powerprofiles-set'), 'utf8').includes('omarchy-shell -q battery refreshPowerProfile'),
   'the battery service tracks the active power-saver profile'
 )
 assert(
@@ -275,7 +282,8 @@ timeout_marker=$(find "$timeout_cache/omarchy/image-selector" -maxdepth 1 -type 
 
 grep -qx 'owe' "$ROOT/install/omarchy-base.packages" || fail "OWE is a base package"
 grep -qx 'owe-lockfeed' "$ROOT/install/omarchy-base.packages" || fail "the OWE lock feed module is a base package"
-if grep -qx 'qt6-multimedia' "$ROOT/install/omarchy-base.packages"; then
+# Qt Multimedia ships for building apps; the shell itself plays video through OWE.
+if grep -rqs 'import QtMultimedia' "$ROOT/shell"; then
   fail "Qt Multimedia is no longer needed by the shell"
 fi
 
@@ -329,7 +337,10 @@ video_snapshot=$(snapshot_background_path "$CURRENT_THEME_PATH/backgrounds/old.m
 
 CHOSEN_THEME_BACKGROUND="$transition_home/disappeared.mp4"
 BACKGROUND_TRANSITION_SNAPSHOTS=false
+THEME_BACKGROUND_INTRO=""
 OLD_BACKGROUND_SNAPSHOT=""
+PREPARED_BACKGROUND=""
+PREPARED_BACKGROUND_SNAPSHOT=""
 colors_payload=""
 shell_payload=""
 shell_ipc() { :; }

@@ -29,7 +29,7 @@ wtype "rocket"
 sleep 1
 screenshot "success-emoji-picker-search"
 wtype -k Return
-wait_until "emoji picker selection closes" 15 layer_off_overlay "omarchy-emojis"
+wait_until "emoji picker selection closes" 15 layer_absent "omarchy-emojis"
 
 # Seed two clipboard entries, search for the older one, and copy it back out.
 clipboard_token="Omarchy acceptance clipboard $(date +%s)"
@@ -44,7 +44,7 @@ wtype "$clipboard_token"
 wait_until "clipboard search finds test text" 15 screen_contains "Omarchy acceptance clipboard"
 screenshot "success-clipboard-search"
 wtype -M shift -k Return -m shift
-wait_until "clipboard selection closes" 15 layer_off_overlay "omarchy-clipboard"
+wait_until "clipboard selection closes" 15 layer_absent "omarchy-clipboard"
 wait_until "clipboard selection restores test text" 15 bash -c '[[ $(wl-paste --no-newline) == "$1" ]]' _ "$clipboard_token"
 
 # Exercise the system branch without invoking any destructive action.
@@ -53,7 +53,7 @@ wait_until "system menu opens" 15 layer_on_overlay "omarchy-menu"
 wait_until "system menu content is visible" 15 screen_contains "Shutdown"
 screenshot "success-system-menu"
 wtype -k Escape
-wait_until "system menu closes" 15 layer_off_overlay "omarchy-menu"
+wait_until "system menu closes" 15 layer_absent "omarchy-menu"
 
 # Preview both visual selectors and cancel without changing user state. These
 # cover thumbnail generation, the image-grid overlay, and current selection.
@@ -62,14 +62,14 @@ wait_until "background selector opens" 30 layer_on_overlay "omarchy-image-select
 sleep 1
 screenshot "success-background-selector"
 wtype -k Escape
-wait_until "background selector closes" 15 layer_off_overlay "omarchy-image-selector"
+wait_until "background selector closes" 15 layer_absent "omarchy-image-selector"
 
 launch_app "omarchy-theme-switcher"
 wait_until "theme selector opens" 30 layer_on_overlay "omarchy-image-selector"
 sleep 1
 screenshot "success-theme-selector"
 wtype -k Escape
-wait_until "theme selector closes" 15 layer_off_overlay "omarchy-image-selector"
+wait_until "theme selector closes" 15 layer_absent "omarchy-image-selector"
 
 # Walk the reminder flow through each input screen, but dismiss before it
 # schedules a real timer in the test user's session.
@@ -83,7 +83,7 @@ wtype -k Return
 wait_until "reminder message prompt opens" 15 screen_contains "Reminder message"
 screenshot "success-reminder-03-message-prompt"
 wtype -k Escape
-wait_until "reminder flow closes" 15 layer_off_overlay "omarchy-reminders"
+wait_until "reminder flow closes" 15 layer_absent "omarchy-reminders"
 
 # Render a real shell notification and clear it through the notification IPC.
 omarchy-shell notifications dismissAll >/dev/null
@@ -92,7 +92,15 @@ wait_until "notification popup opens" 15 layer_present "omarchy-notifications"
 wait_until "notification content is visible" 15 screen_contains "Acceptance notification"
 screenshot "success-notification-popup"
 omarchy-shell notifications dismissAll >/dev/null
-wait_until "notification popup closes" 15 layer_absent "omarchy-notifications"
+# The notification surface stays mapped while idle, so wait for the count.
+notifications_cleared() { [[ $(omarchy-shell notifications count) == "0" ]]; }
+wait_until "notification popup closes" 15 notifications_cleared
+
+# The bar's notification indicator opens the notification panel.
+omarchy-shell notifications openPanel >/dev/null
+wait_until "notification panel opens" 15 screen_contains "Notifications"
+screenshot "success-notification-panel"
+omarchy-shell notifications closePanel >/dev/null
 
 # The menu's Apps submenu does the full launcher loop: open, search by
 # typing, launch the top hit.
@@ -111,7 +119,7 @@ screenshot "success-apps-menu-search"
 wtype -k Return
 
 wait_until "apps menu launches the top search hit" 60 window_present "(?i)omawrite"
-wait_until "apps menu closes after launching" 15 layer_off_overlay "omarchy-menu"
+wait_until "apps menu closes after launching" 15 layer_absent "omarchy-menu"
 
 close_windows "(?i)omawrite"
 wait_until "Omawrite window closes" 30 window_absent "(?i)omawrite"

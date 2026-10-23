@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 
 // Base item for plugin popup widgets. Many first-party plugins expose a bar
 // button plus a popup from one QML entry point; this base owns the shared
@@ -19,7 +20,7 @@ Item {
   property bool popoutSwitchClosing: false
 
   readonly property bool opened: panelController.open
-  readonly property color barForeground: bar ? bar.barForeground : Color.foreground
+  readonly property color barForeground: bar ? bar.barForeground : Commons.Color.foreground
 
   function open() { panelController.show() }
   function close() { panelController.hide() }

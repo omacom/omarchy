@@ -60,12 +60,27 @@ assertDeepEqual(
     action: 'omarchy-theme-set',
     provider: '',
     aliases: ['theme'],
+    searchTerms: [],
     when: '',
     checked: '',
     disabled: ''
   },
   'menu normalizes parsed items'
 )
+
+// A watched file read mid-write must keep the rows already there, never
+// replace them with nothing, or the menu opens empty until the shell restarts.
+const shippedMenu = fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8')
+const goodRows = menu.parseMenuJsonc(shippedMenu)
+assert(goodRows.length > 0, 'menu reads the shipped file')
+assertEqual(menu.keepMenuRows(goodRows, shippedMenu.slice(0, Math.floor(shippedMenu.length / 2)), true), goodRows, 'menu keeps its rows when the shipped file is read half-written')
+assertEqual(menu.keepMenuRows(goodRows, '', true), goodRows, 'menu keeps its rows when the shipped file is read empty')
+assertEqual(menu.keepMenuRows(goodRows, '[]', true), goodRows, 'menu keeps its rows when the shipped file reads as something other than a menu')
+assertDeepEqual(menu.keepMenuRows(goodRows, '{"items": {"root": {"label": "Go"}}}', true).map(item => item.id), ['root'], 'menu takes the finished file once it reads whole')
+assertDeepEqual(menu.keepMenuRows([], shippedMenu, true), goodRows, 'menu takes the shipped file on its first whole read')
+const userRows = menu.parseMenuJsonc('{"tools": {"label": "Tools"}}')
+assertEqual(menu.keepMenuRows(userRows, '{"tools": {', false), userRows, 'menu keeps the user extension while it is read half-saved')
+assertDeepEqual(menu.keepMenuRows(userRows, '// all commented out\n', false), [], 'menu drops the user extension once it is emptied')
 
 const user = [
   menu.normalizeItem('style.theme', { label: 'Theme picker', aliases: ['theme', 'colors'], action: 'custom-theme' }),
@@ -170,7 +185,7 @@ assert(
   'menu ranks an app matching the query as a whole word above exact-labeled menu entries'
 )
 assert(
-  rankScore('style.font', 'font') < rankScore('apps.fontforge', 'font'),
+  rankScore('appearance.font', 'font') < rankScore('apps.fontforge', 'font'),
   'menu keeps a better-matching menu entry above a weaker app match'
 )
 
@@ -192,11 +207,19 @@ assert(
   'menu delegates route resolution to the shared model'
 )
 const triggerItems = defaultItems.filter(item => item.parent === 'trigger')
-assertEqual(
-  triggerItems[0].id,
-  'trigger.emoji',
-  'menu lists Emoji first under Trigger'
+const rootIds = defaultItems.filter(item => item.parent === 'root').map(item => item.id)
+assertEqual(rootIds.indexOf('appearance'), rootIds.indexOf('trigger') - 1, 'menu lists Appearance right before Trigger')
+assert(!defaultById.style && !defaultById['trigger.appearance'], 'menu folds Style into Appearance and takes Appearance out of Trigger')
+assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'style'), 'appearance', 'menu still routes style to Appearance')
+// Super+Ctrl+O routes through the `toggle` alias (#15168): dropping it
+// silently broke the shortcut, so pin the aliases and both routes.
+assertDeepEqual(
+  defaultById['trigger.toggle'].aliases,
+  ['toggle', 'toggles'],
+  'menu keeps the toggle aliases the shortcut routes through'
 )
+assertEqual(menu.resolveRoute(rankBase.items, rankBase.itemOrder, 'toggle'), 'trigger.toggle', 'menu routes toggle to the Toggle menu')
+assertEqual(menu.resolveRoute(rankBase.items, rankBase.itemOrder, 'toggles'), 'trigger.toggle', 'menu routes toggles to the Toggle menu')
 assertEqual(
   defaultById['trigger.emoji'].action,
   'omarchy-menu-emoji',
@@ -242,6 +265,7 @@ const expectedAgents = {
   claude: { icon: '󰛄', label: 'Claude' },
   codex: { icon: '\ue905', iconFont: 'omarchy', label: 'Codex' },
   grok: { icon: '\ue904', iconFont: 'omarchy', label: 'Grok' },
+  kimi: { icon: '\u{f06a9}', label: 'Kimi' },
   hermes: { icon: '\ue90a', iconFont: 'omarchy', label: 'Hermes' },
   openclaw: { icon: '\ue90c', iconFont: 'omarchy', label: 'OpenClaw' },
   copilot: { icon: '', label: 'Copilot' },
@@ -267,13 +291,14 @@ assertDeepEqual(
   defaultItems
     .filter(item => item.parent === 'setup.default.agent')
     .map(item => item.label),
-  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
+  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Kimi', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
   'menu sorts coding agents alphabetically'
 )
 const expectedDefaults = {
   browser: ['Chromium', 'Chrome', 'Brave', 'Brave Origin', 'Edge', 'Firefox', 'Zen'],
   terminal: ['Alacritty', 'Foot', 'Ghostty', 'Kitty'],
-  editor: ['Neovim', 'VSCode', 'Cursor', 'Zed', 'Sublime Text', 'Helix', 'Vim', 'Emacs']
+  editor: ['Neovim', 'VSCode', 'Cursor', 'Zed', 'Sublime Text', 'Helix', 'Vim', 'Emacs'],
+  dictation: ['Superwhisper', 'Voxtype']
 }
 assert(
   Object.entries(expectedDefaults).every(([type, labels]) => {
@@ -281,23 +306,46 @@ assert(
     return entries.map(item => item.label).join('\0') === labels.join('\0')
       && entries.every(item => !item.when)
   }),
-  'menu always exposes every supported browser, terminal, and editor under Defaults'
+  'menu always exposes every supported browser, terminal, editor, and dictation backend under Defaults'
 )
 assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
 // Software you already have keeps its place in Install, dimmed rather than
 // dropped, so the list reads as a catalog of what Omarchy can install.
-// Chromium Account is the sole Install row with anything left to hide for, so
-// any other `when:` here is a row that went back to vanishing once installed.
+// Chromium Account is the sole Install row with anything left to hide for. The
+// Windows VM, whose guest can't run elsewhere, and the installers that need
+// x86_64 binaries (vendor builds for x86_64 alone, Windows games under Wine)
+// hide only off x86_64. Dropbox's x86_64 client runs under box64 on ARM, which
+// needs 4K pages, so it hides only where pages are larger. Spotify installs its
+// web player where its client can't run, so it never hides. Any other `when:`
+// here is a row that went back to vanishing once installed.
+const windowsGuard = 'omarchy-hw-x86'
+const x86OnlyInstalls = ['install.windows', 'install.browser.edge', 'install.gaming.minecraft', 'install.gaming.heroic', 'install.gaming.geforce-now', 'install.gaming.battlenet', 'install.gaming.lutris']
+const fourKPageGuard = '[[ $(getconf PAGESIZE) == 4096 ]]'
 assertDeepEqual(
   defaultItems
     .filter(item => item.id.startsWith('install.') && item.action && item.when)
-    .map(item => item.id),
-  ['install.service.chromium-account'],
+    .map(item => item.id)
+    .sort(),
+  [...x86OnlyInstalls, 'install.service.dropbox', 'install.service.chromium-account'].sort(),
   'menu never hides an Install row because the software is already there'
 )
 assert(
+  x86OnlyInstalls.every(id => defaultById[id].when === windowsGuard),
+  'menu hides the Windows VM and the x86_64-only installers only off x86_64'
+)
+assertEqual(
+  defaultById['install.service.dropbox'].when,
+  fourKPageGuard,
+  'menu offers Dropbox wherever box64 can run it, on x86_64 and on ARM with 4K pages'
+)
+assert(
+  !defaultById['install.service.spotify'].when
+    && defaultById['install.service.spotify'].disabled.includes('applications/Spotify.desktop'),
+  'menu offers Spotify on every platform and dims it once its client or web player is installed'
+)
+assert(
   ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust', 'install.windows'].every(
-    id => defaultById[id].disabled && !defaultById[id].when
+    id => defaultById[id].disabled && (!defaultById[id].when || defaultById[id].when === windowsGuard)
   ),
   'menu dims the Install rows for software that is already installed'
 )
@@ -325,6 +373,7 @@ assertDeepEqual(
   [
     'remove.package',
     'remove.ai',
+    'remove.dictation',
     'remove.service',
     'remove.development',
     'remove.theme',
@@ -336,7 +385,7 @@ assertDeepEqual(
     'remove.preinstalls',
     'remove.security'
   ],
-  'menu orders Remove categories like their Install counterparts, followed by Remove-only categories'
+  'menu keeps the Remove category order'
 )
 assert(
   defaultById['setup.security.passwordless-sudo'].action.includes('omarchy-sudo-passwordless'),
@@ -346,18 +395,206 @@ assert(
   !defaultById['trigger.toggle.direct-boot'] && !defaultById['trigger.toggle.passwordless-sudo'],
   'menu removes the relocated toggles from Trigger > Toggle'
 )
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'appearance.top-bar').map(item => item.label),
+  ['Hide Bar', 'Show Bar', 'Position Bar', 'Bar Background', 'Bar Indicators'],
+  'menu gathers the Menu Bar under Appearance'
+)
 assert(
-  defaultById['style.bar.position'].kind === 'menu',
+  defaultById['appearance.top-bar.hide'].when === '! omarchy-toggle-enabled bar-off'
+    && defaultById['appearance.top-bar.show'].when === 'omarchy-toggle-enabled bar-off'
+    && defaultById['appearance.top-bar.hide'].action === 'omarchy-toggle-bar'
+    && defaultById['appearance.top-bar.show'].action === 'omarchy-toggle-bar',
+  'menu offers Hide while the Menu Bar shows and Show while it is hidden'
+)
+assert(
+  defaultById['appearance.top-bar.position'].kind === 'menu',
   'menu groups Menu Bar positions in a submenu'
 )
 assert(
-  ['top', 'bottom', 'left', 'right'].every(position => defaultById[`style.bar.position.${position}`].action === `omarchy-bar position ${position}`),
+  ['top', 'bottom', 'left', 'right'].every(position => defaultById[`appearance.top-bar.position.${position}`].action === `omarchy-bar position ${position}`),
   'menu lists all Menu Bar positions under Position'
 )
-assertEqual(
-  defaultById['style.bar.transparency'].action,
-  'omarchy-bar transparent toggle',
-  'menu exposes Menu Bar transparency as a toggle'
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'appearance.top-bar.background').map(item => [item.label, item.action]),
+  [
+    ['Opaque Bar', 'omarchy-bar background opaque'],
+    ['Glassy Bar', 'omarchy-bar background glassy'],
+    ['Clear Bar', 'omarchy-bar background none']
+  ],
+  'menu picks the bar background from Menu Bar > Bar Background'
+)
+// Exactly the bar's current background is checked. Ask bash, against a
+// shell.json in each state, which rows it checks.
+{
+  const os = require('os')
+  const { execFileSync } = require('child_process')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-bar-background-'))
+  fs.mkdirSync(path.join(home, '.config/omarchy'), { recursive: true })
+  const checked = bar => {
+    fs.writeFileSync(path.join(home, '.config/omarchy/shell.json'), JSON.stringify({ bar }))
+    return ['opaque', 'glassy', 'clear'].filter(look => {
+      try {
+        execFileSync('bash', ['-c', defaultById[`appearance.top-bar.background.${look}`].checked], { env: { ...process.env, HOME: home, OMARCHY_PATH: root, PATH: `${root}/bin:${process.env.PATH}` } })
+        return true
+      } catch (e) {
+        return false
+      }
+    })
+  }
+  assertDeepEqual(checked({}), ['opaque'], 'menu checks Opaque Bar while the bar is opaque')
+  assertDeepEqual(checked({ background: 'glassy' }), ['glassy'], 'menu checks Glassy Bar while the bar is glassy')
+  assertDeepEqual(checked({ background: 'none' }), ['clear'], 'menu checks Clear Bar while the bar has no background')
+  assertDeepEqual(checked({ transparent: true }), ['clear'], 'menu checks Clear Bar for a bar made transparent before backgrounds')
+  fs.rmSync(home, { recursive: true, force: true })
+}
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'appearance.dock').map(item => item.label),
+  ['Auto-hide Dock', 'Always-on Dock', 'Dock Position'],
+  'menu gathers the dock under Appearance > Dock'
+)
+// The dock only appears on floating workspaces, so its settings only show
+// there. Ask bash, against a stubbed layout for the active workspace.
+{
+  const os = require('os')
+  const { execFileSync } = require('child_process')
+  const stub = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-dock-layout-'))
+  const shown = layout => {
+    fs.writeFileSync(path.join(stub, 'omarchy-hyprland-workspace-layout-current'), `#!/bin/bash\necho ${layout}\n`, { mode: 0o755 })
+    try {
+      execFileSync('bash', ['-c', defaultById['appearance.dock'].when], { env: { ...process.env, PATH: `${stub}:${process.env.PATH}` } })
+      return true
+    } catch (e) {
+      return false
+    }
+  }
+  assert(shown('floating'), 'menu shows Appearance > Dock on a floating workspace')
+  assert(!shown('dwindle') && !shown('scrolling'), 'menu hides Appearance > Dock on a tiled workspace')
+  fs.rmSync(stub, { recursive: true, force: true })
+}
+// Auto-hide Dock shows while the dock stays up, and Always-on Dock while it
+// hides. Ask bash, against a shell.json in each state, which rows it shows.
+{
+  const os = require('os')
+  const { execFileSync } = require('child_process')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-dock-autohide-'))
+  fs.mkdirSync(path.join(home, '.config/omarchy'), { recursive: true })
+  const shown = dock => {
+    fs.writeFileSync(path.join(home, '.config/omarchy/shell.json'), JSON.stringify({ version: 1, dock }))
+    return ['autohide', 'always-on'].filter(row => {
+      try {
+        execFileSync('bash', ['-c', defaultById[`appearance.dock.${row}`].when], { env: { ...process.env, HOME: home, OMARCHY_PATH: root, PATH: `${root}/bin:${process.env.PATH}` } })
+        return true
+      } catch (e) {
+        return false
+      }
+    })
+  }
+  assertDeepEqual(shown({}), ['autohide'], 'menu offers Auto-hide Dock while the dock stays up')
+  assertDeepEqual(shown({ autohide: true }), ['always-on'], 'menu offers Always-on Dock while the dock hides')
+  assert(
+    defaultById['appearance.dock.autohide'].action === 'omarchy-dock autohide on'
+      && defaultById['appearance.dock.always-on'].action === 'omarchy-dock autohide off',
+    'menu turns dock auto-hide on and off'
+  )
+  fs.rmSync(home, { recursive: true, force: true })
+}
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'appearance.dock.position').map(item => [item.label, item.action]),
+  [
+    ['Top Dock', 'omarchy-dock position top'],
+    ['Bottom Dock', 'omarchy-dock position bottom'],
+    ['Left Dock', 'omarchy-dock position left'],
+    ['Right Dock', 'omarchy-dock position right']
+  ],
+  'menu picks the dock position from Appearance > Dock > Dock Position'
+)
+// Exactly the dock's current position is checked, and a shell.json without
+// one has the dock at the bottom.
+{
+  const os = require('os')
+  const { execFileSync } = require('child_process')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-dock-position-'))
+  fs.mkdirSync(path.join(home, '.config/omarchy'), { recursive: true })
+  const checked = dock => {
+    fs.writeFileSync(path.join(home, '.config/omarchy/shell.json'), JSON.stringify({ version: 1, dock }))
+    return ['top', 'bottom', 'left', 'right'].filter(position => {
+      try {
+        execFileSync('bash', ['-c', defaultById[`appearance.dock.position.${position}`].checked], { env: { ...process.env, HOME: home, OMARCHY_PATH: root, PATH: `${root}/bin:${process.env.PATH}` } })
+        return true
+      } catch (e) {
+        return false
+      }
+    })
+  }
+  assertDeepEqual(checked(undefined), ['bottom'], 'menu checks Bottom Dock while no position is set')
+  assertDeepEqual(checked({ position: 'left' }), ['left'], 'menu checks Left Dock while the dock is on the left')
+  fs.rmSync(home, { recursive: true, force: true })
+}
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'appearance.top-bar.indicators').map(item => item.label),
+  ['Show Battery %', 'Hide Battery %', 'Clock'],
+  'menu gathers bar indicator options under Menu Bar > Bar Indicators'
+)
+const clockModel = requireFromRoot('shell/plugins/panels/clock/Model.js')
+const clockRows = defaultItems.filter(item => item.parent === 'appearance.top-bar.indicators.clock')
+// Each row hands bash its format, so ask bash what it hands over.
+const clockRowFormats = key => clockRows
+  .filter(item => item.action.startsWith(`omarchy-bar set omarchy.clock ${key} `))
+  .map(item => require('child_process').execFileSync('bash', ['-c', item.action.replace(`omarchy-bar set omarchy.clock ${key} `, 'printf %s ')], { encoding: 'utf8' }))
+assertDeepEqual(clockRowFormats('format'), clockModel.clockFormats(false), 'menu spells out every horizontal clock format')
+assertDeepEqual(clockRowFormats('verticalFormat'), clockModel.clockFormats(true), 'menu spells out every vertical clock format')
+assert(
+  clockRows.every(item => item.checked && item.checked.includes('$(omarchy-bar get omarchy.clock ') && item.when.includes('$(omarchy-bar position)')),
+  'menu checks the current clock format and offers only the formats for the bar orientation'
+)
+assertDeepEqual(
+  ['top', 'bottom', 'left', 'right'].map(position => defaultById[`appearance.top-bar.position.${position}`].label),
+  ['Top Bar', 'Bottom Bar', 'Left Bar', 'Right Bar'],
+  'menu names each position after the bar'
+)
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'appearance.windows.corners').map(item => [item.label, item.action]),
+  [['Theme Corners', 'omarchy-hyprland-corners theme'], ['Sharp Corners', 'omarchy-hyprland-corners sharp'], ['Rounded Corners', 'omarchy-hyprland-corners rounded']],
+  'menu picks window corners from Appearance > Windows > Window Corners'
+)
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'appearance.windows.transparency').map(item => [item.label, item.action]),
+  [
+    ['Opaque Windows', 'omarchy-hyprland-window-transparency opaque'],
+    ['Transparent Windows', 'omarchy-hyprland-window-transparency transparent'],
+    ['Glassy Windows', 'omarchy-hyprland-window-transparency glassy']
+  ],
+  'menu picks window transparency from Appearance > Windows > Window Opacity'
+)
+const triggerIds = triggerItems.map(item => item.id)
+const windowLabels = ['Window Gaps On', 'Window Gaps Off', 'Window Corners', 'Window Opacity', '1-Window Ratio On', '1-Window Ratio Off']
+const appearanceLabels = ['Animations On', 'Animations Off', 'Menu Bar', 'Dock', 'Windows', 'Workspace Layout', ...windowLabels]
+assertEqual(triggerIds[0], 'trigger.toggle', 'menu lists Toggle first under Trigger')
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'appearance').map(item => item.label),
+  ['Theme', 'Background', 'Font', 'Menu Bar', 'Windows', 'Branding', 'Dock', 'Workspace Layout', 'Animations On', 'Animations Off', 'Unlock'],
+  'menu gathers the style and look of the desktop under Appearance'
+)
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'appearance.windows').map(item => item.label),
+  windowLabels,
+  'menu gathers the window looks under Appearance > Windows'
+)
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'appearance.branding').map(item => item.label),
+  ['Screensaver', 'About'],
+  'menu gathers the screensaver and About logos under Appearance > Branding'
+)
+assert(
+  !defaultItems.some(item => item.parent === 'trigger.toggle' && appearanceLabels.includes(item.label)),
+  'menu leaves the appearance entries out of Trigger > Toggle'
+)
+assertEqual(triggerIds.indexOf('trigger.clipboard-history'), triggerIds.indexOf('trigger.emoji') + 1, 'menu places Clipboard History right after Emoji')
+assert(
+  !defaultItems.some(item => item.id.startsWith('appearance.background-intro'))
+    && defaultById['appearance.animations-on'].action === 'omarchy-toggle-animations',
+  'menu uses the existing animations toggle without separate background intro controls'
 )
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'setup.plugin').map(item => item.label),
@@ -403,9 +640,10 @@ assert(
   'plugin enable reports a bar as replacing the one in use, whether enabled or freshly added'
 )
 assert(
-  /\.barWidget\.defaultSection \/\/ "center"/.test(pluginAdd)
+  /\.barWidget\.defaultSection \/\/ "centerEnd" \| if \. == "center" then "centerEnd" end/.test(pluginAdd)
+    && /printf '%s\\n' left centerBegin center centerEnd tray right \|/.test(pluginAdd)
     && /gum choose[\s\S]*?--selected "\$default_section"/.test(pluginAdd),
-  'interactive plugin add selects the manifest placement or center fallback by default'
+  'interactive plugin add offers every bar section and selects the manifest placement or centerEnd fallback by default'
 )
 assert(
   /"omarchy-plugin-\$1" "\$id"/.test(pluginPicker),
@@ -446,20 +684,36 @@ assert(
   ),
   'menu search never restarts a volatile provider'
 )
+// A toggle is a pair of rows named for what picking them does: the -on row
+// shows while the feature is off and turns it on, the -off row the reverse.
+{
+  const pairs = defaultItems.filter(item => item.id.endsWith('-on') && defaultById[item.id.replace(/-on$/, '-off')])
+  assert(pairs.length >= 14, 'menu names every toggle by what picking it does', String(pairs.length))
+  for (const on of pairs) {
+    const off = defaultById[on.id.replace(/-on$/, '-off')]
+    assertEqual(off.action, on.action, `${on.id} and its -off row flip the same toggle`)
+    assert(on.when && off.when && on.when !== off.when, `${on.id} and its -off row show in opposite states`)
+  }
+}
 assertEqual(
-  defaultById['trigger.hardware.laptop-display'].when,
-  'omarchy-hw-laptop',
+  defaultById['trigger.hardware.laptop-display-on'].when,
+  'omarchy-hw-laptop && omarchy-hyprland-toggle-enabled internal-monitor-disable',
   'menu only shows Laptop Display on laptops'
 )
 assertEqual(
-  defaultById['trigger.hardware.mirror-display'].when,
-  'omarchy-hw-laptop',
+  defaultById['trigger.hardware.mirror-display-on'].when,
+  'omarchy-hw-laptop && ! omarchy-hyprland-toggle-enabled internal-monitor-mirror',
   'menu only shows Mirror Display on laptops'
 )
 assertEqual(
   defaultById['trigger.capture.screenrecord.webcam'].when,
   'omarchy-hw-webcam',
   'menu only shows webcam screen recording when a webcam is available'
+)
+assertEqual(
+  defaultById['trigger.capture.screenrecord.stop'].when,
+  'omarchy-capture-screenrecording --status',
+  'menu shows Stop Screenrecording only when its stop has a recording to end'
 )
 assert(
   /font\.family: row\.iconFont\.length > 0 \? row\.iconFont : root\.fontFamily/.test(menuQml),
@@ -513,8 +767,19 @@ assert(
   'menu route changes only accept an initial pointer sample for mouse activation'
 )
 assert(
-  /\(event\.key === Qt\.Key_Backspace \|\| event\.key === Qt\.Key_Left\) && !root\.filterText[\s\S]*root\.goBack\(\)/.test(menuQml),
-  'menu Left key follows empty-filter Backspace navigation'
+  /\(event\.key === Qt\.Key_Backspace \|\| Util\.readingKey\(event\) === Qt\.Key_Left\) && !root\.filterText[\s\S]*root\.goBack\(\)/.test(menuQml),
+  'menu Left key (Right in a right-to-left language) follows empty-filter Backspace navigation'
+)
+// Input methods commit text only to a text-input item, so the search line must be one.
+const filterInputBlock = (menuQml.match(/FilterInput \{[\s\S]*?\n          \}/) || [''])[0]
+assert(
+  /keyHandler: keyCatcher/.test(filterInputBlock)
+    && /readOnly: root\.deleteConfirmOpen/.test(filterInputBlock)
+    && /onTextChanged: if \(text !== root\.filterText\) root\.setFilter\(text\)/.test(filterInputBlock)
+    && /onFilterTextChanged: if \(filterInput\.text !== filterText\) filterInput\.text = filterText/.test(menuQml)
+    && !/event\.text/.test(menuQml.match(/id: keyCatcher[\s\S]*?ConfirmDialog \{/)[0])
+    && (menuQml.match(/keyCatcher\.forceActiveFocus/g) || []).length === 0,
+  'menu search line takes input-method text, refuses it behind the delete confirmation, and stays in step with the filter'
 )
 assert(
   /PointerMoveGate\s*\{[\s\S]*id: pointerGate[\s\S]*referenceItem: card[\s\S]*\}/.test(menuQml),
@@ -648,6 +913,11 @@ assert(
   'menu row hover routes through pointer movement gate'
 )
 assert(
+  /dmenuSaved = dmenuSelected\s*\n\s*if \(dmenuOnChange\.length > 0\)/.test(menuQml)
+    && /root\.dmenuSaved = root\.dmenuSelected\s*\n\s*\} else \{\s*root\.dmenuSelected = root\.dmenuSaved/.test(menuQml),
+  'a failed immediate change restores the confirmed checks, even after reopening onto queued ones'
+)
+assert(
   /onEntered: root\.selectFromPointer\(row\.index, row, \{\s*x: mouseArea\.mouseX,\s*y: mouseArea\.mouseY\s*\}\)/.test(menuQml),
   'menu samples pointer movement immediately when entering a row'
 )
@@ -656,8 +926,22 @@ assert(
     && /onClicked:[\s\S]*root\.activateIndex\(row\.index, true\)/.test(menuQml),
   'mouse activation carries pointer intent into subordinate menus'
 )
+// Both menu files load separately at startup; evaluating after the first
+// alone ran the whole guard batch twice.
+assert(
+  /function rebuildItemsFromSources\(skipGuards\)[\s\S]*?if \(!skipGuards && root\.defaultMenuSettled && root\.userMenuSettled\) root\.evaluateGuards\(\)/.test(menuQml)
+    && /onLoaded: \{ root\.defaultMenuItems = [^}]*root\.defaultMenuSettled = true; root\.rebuildItemsFromSources\(\) \}/.test(menuQml)
+    && /onLoadFailed: \{ root\.defaultMenuSettled = true; if \(root\.userMenuSettled\) root\.evaluateGuards\(\) \}/.test(menuQml)
+    && /onLoaded: \{ root\.userMenuItems = [^}]*root\.userMenuSettled = true; root\.rebuildItemsFromSources\(\) \}/.test(menuQml)
+    && /onLoadFailed: \{ root\.userMenuItems = \[\]; root\.userMenuSettled = true; root\.rebuildItemsFromSources\(\) \}/.test(menuQml),
+  'menu evaluates guards once both menu files have answered, not once per file at startup'
+)
+assert(
+  /function openExistingMenu\([\s\S]*?root\.evaluateGuards\(\)/.test(menuQml),
+  'menu still evaluates guards on every open, settled or not'
+)
 JS
 
 font_charset=$(fc-query --format='%{charset}' "$ROOT/default/fonts/omarchy/omarchy.ttf")
-[[ $font_charset == *"e900-e90e"* ]] || fail "Omarchy icon font includes every custom menu glyph"
+[[ $font_charset == *"e900-e90f"* ]] || fail "Omarchy icon font includes every custom menu glyph"
 pass "Omarchy icon font includes the official agent marks"

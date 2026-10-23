@@ -147,8 +147,8 @@ for (const manifestPath of manifests) {
     check(manifest.barWidget && typeof manifest.barWidget.allowMultiple === 'boolean', `${manifest.id} barWidget allowMultiple must be boolean`)
     if (manifest.barWidget && manifest.barWidget.defaultSection !== undefined) {
       check(
-        ['left', 'center', 'right'].includes(manifest.barWidget.defaultSection),
-        `${manifest.id} barWidget defaultSection must be left, center, or right`
+        ['left', 'centerBegin', 'center', 'centerEnd', 'right'].includes(manifest.barWidget.defaultSection),
+        `${manifest.id} barWidget defaultSection must be left, centerBegin, center, centerEnd, or right`
       )
     }
   }
@@ -209,6 +209,19 @@ check(
   /function _syncServices\(\) \{[\s\S]*Drop services for plugins that have been disabled/.test(shellSource),
   '_syncServices still drops disabled or removed services'
 )
+
+const publicManifestMatch = shellSource.match(/function publicPluginManifest\(manifest\) \{[\s\S]*?\n  \}/)
+check(!!publicManifestMatch, 'publicPluginManifest is defined')
+if (publicManifestMatch) {
+  const host = {}
+  require('vm').runInNewContext(`${publicManifestMatch[0]}\nthis.publicPluginManifest = publicPluginManifest`, host)
+  const raw = { id: 'acme.demo', __sourceDir: '/plugins/acme.demo', __isFirstParty: false, __hostCapabilities: ['authentication'] }
+  const copy = host.publicPluginManifest(raw)
+  check(copy.__sourceDir === '/plugins/acme.demo', 'third-party manifests keep their own source directory')
+  check(!('__isFirstParty' in copy) && !('__hostCapabilities' in copy), 'third-party manifests drop host trust markers')
+  copy.__sourceDir = '/elsewhere'
+  check(raw.__sourceDir === '/plugins/acme.demo', 'a plugin editing its manifest copy cannot move the registry entry')
+}
 
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
 JS

@@ -103,6 +103,8 @@ mkdir -p "$fresh_home"
 fresh_output=$(run_application_bindings "$fresh_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$fresh_output" || fail "default application bindings include essentials"
 grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$fresh_output" || fail "default application bindings include preinstalled web apps"
+grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$fresh_output" || fail "default application bindings include the preinstalled calculator"
+grep -Fq $'XF86Calculator	Calculator' <<<"$fresh_output" || fail "default application bindings include the calculator hardware key"
 pass "default application bindings load from package defaults"
 
 grep -F 'hl.dsp.send_key_state({ mods = mods, key = key, state = "down" })' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
@@ -122,19 +124,25 @@ pass "universal clipboard shortcuts avoid virtual keyboard modifier merging"
 removed_home="$tmpdir/removed-home"
 mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
-removed_output=$(run_application_bindings "$removed_home")
+removed_output=$(run_omarchy_bindings "$removed_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$removed_output" || fail "preinstall removal keeps essential bindings"
 if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$removed_output"; then
   fail "preinstall removal skips preinstalled web app bindings"
+fi
+if grep -Fq $'	Calculator' <<<"$removed_output"; then
+  fail "preinstall removal skips calculator bindings"
 fi
 pass "preinstall removal flag skips optional application bindings"
 
 variable_home="$tmpdir/variable-home"
 mkdir -p "$variable_home"
-variable_output=$(run_application_bindings "$variable_home" 'omarchy_preinstalled_bindings = false')
+variable_output=$(run_omarchy_bindings "$variable_home" 'omarchy_preinstalled_bindings = false')
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$variable_output" || fail "preinstalled binding variable keeps essential bindings"
 if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$variable_output"; then
   fail "preinstalled binding variable skips optional application bindings"
+fi
+if grep -Fq $'	Calculator' <<<"$variable_output"; then
+  fail "preinstalled binding variable skips calculator bindings"
 fi
 pass "preinstalled binding variable skips optional application bindings"
 
@@ -144,36 +152,49 @@ no_bindings_output=$(run_omarchy_bindings "$no_bindings_home" 'omarchy_default_b
 [[ -z $no_bindings_output ]] || fail "default binding variable disables all Omarchy bindings" "$no_bindings_output"
 pass "default binding variable disables all Omarchy bindings"
 
-voxtype_home="$tmpdir/voxtype-home"
-voxtype_bin="$tmpdir/voxtype-bin"
-mkdir -p "$voxtype_home" "$voxtype_bin"
-touch "$voxtype_bin/voxtype"
-chmod +x "$voxtype_bin/voxtype"
-voxtype_output=$(PATH="$voxtype_bin:$PATH" run_omarchy_bindings "$voxtype_home")
-grep -Fq $'SUPER + CTRL + X	Toggle dictation' <<<"$voxtype_output" ||
-  fail "installed Voxtype enables its toggle binding"
-grep -Fq $'F9	Start dictation (push-to-talk)' <<<"$voxtype_output" ||
-  fail "installed Voxtype enables its push-to-talk binding"
-grep -Fq $'F9	Stop dictation (push-to-talk)' <<<"$voxtype_output" ||
-  fail "installed Voxtype enables its release binding"
-pass "installed Voxtype conditionally enables dictation bindings"
-
-voxtype_without_execute_output=$(PATH="$voxtype_bin:$PATH" run_omarchy_bindings \
-  "$voxtype_home" 'os.execute = function() return nil, "No child processes", 10 end')
-grep -Fq $'SUPER + CTRL + X	Toggle dictation' <<<"$voxtype_without_execute_output" ||
-  fail "Voxtype detection does not require spawning a subprocess"
-pass "installed Voxtype detection works without os.execute"
-
+dictation_home="$tmpdir/dictation-home"
 missing_bin="$tmpdir/missing-bin"
-mkdir -p "$missing_bin"
+mkdir -p "$dictation_home" "$missing_bin"
 ln -s "$(command -v lua)" "$missing_bin/lua"
 ln -s "$(command -v lspci)" "$missing_bin/lspci"
 ln -s "$(command -v sort)" "$missing_bin/sort"
-missing_voxtype_output=$(PATH="$missing_bin" run_omarchy_bindings "$voxtype_home")
-if grep -Fq $'SUPER + CTRL + X	Toggle dictation' <<<"$missing_voxtype_output"; then
-  fail "missing Voxtype skips its bindings"
+dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
+if grep -Fq 'dictation' <<<"$dictation_output"; then fail "unconfigured dictation leaves application shortcuts available"; fi
+cat > "$missing_bin/omarchy-default-dictation" <<'SH'
+#!/bin/bash
+echo future-backend
+SH
+chmod +x "$missing_bin/omarchy-default-dictation"
+dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
+if grep -Fq 'dictation' <<<"$dictation_output"; then fail "a selected backend that is not installed leaves application shortcuts available"; fi
+printf '#!/bin/bash\nexit 0\n' > "$missing_bin/future-backend"
+chmod +x "$missing_bin/future-backend"
+dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
+for binding in \
+  $'SUPER + CTRL + X\tToggle dictation' \
+  $'F9\tStart dictation (push-to-talk)' \
+  $'F9\tStop dictation (push-to-talk)' \
+  $'ALT + Alt_R\tStart dictation (push-to-talk)' \
+  $'ALT + Alt_R\tStop dictation (push-to-talk)'; do
+  grep -Fq "$binding" <<<"$dictation_output" || fail "dictation bindings load for any selected backend" "$binding"
+done
+pass "dictation bindings require an installed selection without hardcoding backends"
+
+# Lazydocker is optional on new installs, while existing installs keep the hotkey.
+lazydocker_bin="$tmpdir/lazydocker-bin"
+mkdir -p "$lazydocker_bin"
+touch "$lazydocker_bin/lazydocker"
+chmod +x "$lazydocker_bin/lazydocker"
+lazydocker_output=$(PATH="$lazydocker_bin:$PATH" run_application_bindings "$fresh_home")
+grep -Fqx $'SUPER + SHIFT + D\tDocker' <<<"$lazydocker_output" ||
+  fail "installed Lazydocker keeps its Docker shortcut"
+pass "installed Lazydocker keeps its Docker shortcut"
+
+missing_lazydocker_output=$(PATH="$missing_bin" run_application_bindings "$fresh_home")
+if grep -Fq $'SUPER + SHIFT + D\tDocker' <<<"$missing_lazydocker_output"; then
+  fail "missing Lazydocker skips its Docker shortcut"
 fi
-pass "missing Voxtype skips dictation bindings"
+pass "missing Lazydocker skips its Docker shortcut"
 
 # The Grave shortcuts are aliases, so the original SUPER + S pair has to keep
 # working alongside them.

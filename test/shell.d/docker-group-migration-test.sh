@@ -20,9 +20,9 @@ trap 'rm -rf "$test_dir"' EXIT
 home="$test_dir/home"
 omarchy_path="$test_dir/omarchy"
 stub_bin="$test_dir/bin"
-mkdir -p "$home/.local/share/applications" "$omarchy_path/applications" "$stub_bin"
+mkdir -p "$home/.local/share/applications" "$omarchy_path/default/applications" "$stub_bin"
 
-printf 'NEW-LAUNCHER\n' >"$omarchy_path/applications/Docker.desktop"
+printf 'NEW-LAUNCHER\n' >"$omarchy_path/default/applications/Docker.desktop"
 printf 'OLD-LAUNCHER\n' >"$home/.local/share/applications/Docker.desktop"
 
 # id reports a controllable group set; sudo just drops the prefix; gpasswd
@@ -47,11 +47,12 @@ cat >"$stub_bin/gum" <<'STUB'
 [[ $1 == confirm ]] && exit 0
 exit 0
 STUB
-cat >"$stub_bin/omarchy-system-reboot" <<'STUB'
+cat >"$stub_bin/omarchy-system" <<'STUB'
 #!/bin/bash
+[[ $1 == "reboot" ]] || exit 2
 touch "${REBOOT_CALLED:?}"
 STUB
-chmod +x "$stub_bin/id" "$stub_bin/sudo" "$stub_bin/gpasswd" "$stub_bin/gum" "$stub_bin/omarchy-system-reboot"
+chmod +x "$stub_bin/id" "$stub_bin/sudo" "$stub_bin/gpasswd" "$stub_bin/gum" "$stub_bin/omarchy-system"
 
 reboot_flag="$home/.local/state/omarchy/reboot-required"
 gpasswd_calls="$test_dir/gpasswd-calls"

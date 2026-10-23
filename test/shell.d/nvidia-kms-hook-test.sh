@@ -7,7 +7,9 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 
+baseline_conf="$ROOT/etc/mkinitcpio.conf.d/00-omarchy-hooks.conf"
 hooks_conf="$ROOT/etc/mkinitcpio.conf.d/omarchy_hooks.conf"
+fake_platform "$tmp_dir/generic" x86
 
 # Each argument is a PCI device as "vendor:class", in sysfs's own format.
 write_pci_devices() {
@@ -26,8 +28,8 @@ write_pci_devices() {
   done
 }
 
-# Sources the hook config the way mkinitcpio does — with earlier drop-ins
-# already applied — and prints the resulting HOOKS. mkinitcpio does not run
+# Sources the hook config the way mkinitcpio does — after the baseline and
+# the earlier drop-ins — and prints the resulting HOOKS. mkinitcpio does not run
 # under set -u, but the config must survive it, so source under it anyway.
 # "unset" leaves MODULES undeclared entirely.
 resolved_hooks() {
@@ -37,9 +39,11 @@ resolved_hooks() {
   # The vconsole block sources the host's /etc/vconsole.conf, which may set
   # only KEYMAP; predefine XKBLAYOUT so its expansion survives set -u and the
   # test stays independent of the machine it runs on.
-  OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" bash -uc "
+  OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" OMARCHY_PROC_ROOT="$tmp_dir/generic/proc" \
+    PATH="$tmp_dir/generic/bin:$ROOT/bin:$PATH" bash -uc "
     FILES=()
     XKBLAYOUT=us
+    source '$baseline_conf'
     $modules_decl
     source '$hooks_conf'
     echo \"\${HOOKS[*]}\"
@@ -101,3 +105,28 @@ write_pci_devices 0x10de:0x030000
 mkdir -p "$tmp_dir/devices/0000:01:00.0"
 assert_hooks "unreadable device beside an NVIDIA GPU keeps kms" \
   "$nvidia_modules" "$with_kms"
+
+mkdir -p "$tmp_dir/conf" "$tmp_dir/bin"
+cp "$baseline_conf" "$tmp_dir/conf/00-omarchy-hooks.conf"
+cp "$hooks_conf" "$tmp_dir/conf/omarchy_hooks.conf"
+printf 'MODULES=(%s)\n' "$nvidia_modules" >"$tmp_dir/conf/nvidia.conf"
+printf '#!/bin/bash\nexec "$@"\n' >"$tmp_dir/bin/sudo"
+printf '#!/bin/bash\necho rebuild >>"$TEST_REBUILD_LOG"\n' >"$tmp_dir/bin/limine-mkinitcpio"
+chmod +x "$tmp_dir/bin/"*
+export PATH="$tmp_dir/bin:$tmp_dir/generic/bin:$ROOT/bin:$PATH"
+export OMARCHY_PROC_ROOT="$tmp_dir/generic/proc" OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices"
+export OMARCHY_MKINITCPIO_HOOKS_CONF="$tmp_dir/conf/omarchy_hooks.conf"
+export OMARCHY_MKINITCPIO_NVIDIA_CONF="$tmp_dir/conf/nvidia.conf"
+export OMARCHY_KMS_REBUILD_MARKER="$tmp_dir/rebuilt" TEST_REBUILD_LOG="$tmp_dir/rebuild-log"
+
+write_pci_devices 0x1002:0x030000 0x10de:0x030200
+bash -euo pipefail "$ROOT/migrations/1786605598.sh" >/dev/null
+[[ ! -e $TEST_REBUILD_LOG && ! -e $OMARCHY_KMS_REBUILD_MARKER ]] || fail "the NVIDIA migration skips hybrid graphics with the split hook baseline"
+pass "the NVIDIA migration reads the new baseline and skips hybrid graphics"
+
+write_pci_devices 0x10de:0x030000
+bash -euo pipefail "$ROOT/migrations/1786605598.sh" >/dev/null
+[[ $(<"$TEST_REBUILD_LOG") == "rebuild" && -e $OMARCHY_KMS_REBUILD_MARKER ]] || fail "the NVIDIA migration still rebuilds NVIDIA-only graphics"
+bash -euo pipefail "$ROOT/migrations/1786605598.sh" >/dev/null
+[[ $(<"$TEST_REBUILD_LOG") == "rebuild" ]] || fail "the NVIDIA migration respects its completed marker"
+pass "the NVIDIA migration still rebuilds NVIDIA-only graphics once"

@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import qs.Ui
 import qs.Commons
+import qs.Commons as Commons
 
 BarWidget {
   id: root
@@ -12,6 +13,7 @@ BarWidget {
   readonly property var sourcePlayers: mediaService ? mediaService.sourcePlayers : []
 
   readonly property bool hasMedia: activePlayer !== null && (activePlayer.trackTitle || activePlayer.trackArtist)
+  readonly property bool isPlaying: !!activePlayer && !!activePlayer.isPlaying
   readonly property string playIcon: activePlayer && activePlayer.isPlaying ? "󰏤" : "󰐊"
   readonly property string title: activePlayer ? (activePlayer.trackTitle || "") : ""
   readonly property string artist: activePlayer ? (activePlayer.trackArtist || "") : ""
@@ -63,11 +65,13 @@ BarWidget {
 
         property bool needsScroll: implicitWidth > scrollClip.width
 
+        // Each frame of the scroll redraws the bar, so it only runs while the
+        // track is playing and the bar is on screen to show it.
         NumberAnimation on x {
           id: scrollAnim
-          running: labelText.needsScroll && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
-          // Stopped for reduced motion, the title reads from its start again.
-          onRunningChanged: if (!running && Style.reduceMotion) labelText.x = 0
+          running: labelText.needsScroll && root.isPlaying && root.visible && !root.bar.barHidden && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
+          // Stopped, the title reads from its start again.
+          onRunningChanged: if (!running) labelText.x = 0
           loops: Animation.Infinite
           duration: Math.max(6000, labelText.implicitWidth * 25)
           from: scrollClip.width
@@ -125,16 +129,17 @@ BarWidget {
           width: Style.space(64)
           height: Style.space(64)
           radius: Style.spacing.labelGap
-          color: Style.normalFillFor(root.bar.foreground, Color.accent)
-          borderSpec: Border.controlSpec("normal", root.bar.foreground, Color.accent)
+          color: Style.normalFillFor(root.bar.foreground, Commons.Color.accent)
+          borderSpec: Border.controlSpec("normal", root.bar.foreground, Commons.Color.accent)
 
-          Image {
+          // Decode the art at the size it is drawn, not the size the player
+          // serves it at. The popup is built on every monitor at startup.
+          SizedImage {
             anchors.fill: parent
             anchors.margins: Style.space(2)
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            source: root.activePlayer && root.activePlayer.trackArtUrl ? root.activePlayer.trackArtUrl : ""
-            visible: source !== ""
+            crop: true
+            url: root.activePlayer && root.activePlayer.trackArtUrl ? root.activePlayer.trackArtUrl : ""
+            visible: url != ""
           }
 
           Text {
@@ -153,7 +158,7 @@ BarWidget {
 
           Text {
             textFormat: Text.PlainText
-            text: root.title || "Nothing playing"
+            text: root.title || I18n.t("media.nothingPlaying")
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.subtitle
@@ -189,6 +194,10 @@ BarWidget {
       Row {
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: Style.space(6)
+        // Transport controls keep previous, play, next in every language,
+        // matching their glyphs; media controls are not mirrored.
+        LayoutMirroring.enabled: false
+        LayoutMirroring.childrenInherit: true
 
         Button {
           iconText: "󰒮"
@@ -243,14 +252,14 @@ BarWidget {
             readonly property var player: modelData
             readonly property bool selected: root.activePlayer && player
               && root.mediaService.playerKey(root.activePlayer) === root.mediaService.playerKey(player)
-            readonly property string sourceTitle: player ? (player.trackTitle || player.identity || player.desktopEntry || "Media source") : "Media source"
+            readonly property string sourceTitle: player ? (player.trackTitle || player.identity || player.desktopEntry || I18n.t("media.mediaSource")) : I18n.t("media.mediaSource")
             readonly property string sourceDetail: player && player.trackArtist ? player.trackArtist : (player && player.identity ? player.identity : "")
 
             width: sourceList.width
             height: sourceInner.implicitHeight + Style.space(10)
             radius: Style.spacing.labelGap
-            color: selected ? Style.selectedFillFor(root.bar.foreground, Color.accent) : "transparent"
-            borderSpec: selected ? Border.controlSpec("normal", root.bar.foreground, Color.accent) : Border.none()
+            color: selected ? Style.selectedFillFor(root.bar.foreground, Commons.Color.accent) : "transparent"
+            borderSpec: selected ? Border.controlSpec("normal", root.bar.foreground, Commons.Color.accent) : Border.none()
 
             Row {
               id: sourceInner

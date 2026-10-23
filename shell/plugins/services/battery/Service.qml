@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.UPower
+import qs.Commons
 import "BatteryModel.js" as BatteryModel
 
 Item {
@@ -12,8 +13,15 @@ Item {
 
   readonly property int batteryThreshold: 10
   property string pendingPowerSource: ""
+  // Follows power-profiles-daemon's change signals, so nothing polls it.
+  // Quickshell never attaches that listener if the daemon failed when the
+  // shell started, so a one-off read on startup, on a power source change and
+  // after omarchy-powerprofiles-set (which asks for it over IPC) recovers.
   property string activePowerProfile: ""
-  readonly property bool powerSaverOnBattery: UPower.onBattery && activePowerProfile === "power-saver"
+  property bool powerProfileReadPending: false
+  property int powerProfileSignals: 0
+  property int powerProfileReadSignals: 0
+  readonly property bool powerSaverOnBattery: BatteryModel.isPowerSaverOnBattery(UPower.onBattery, activePowerProfile)
 
   PersistentProperties {
     id: persisted
@@ -56,16 +64,22 @@ Item {
   }
 
   function refreshPowerProfile() {
-    if (!powerProfileReadProcess.running) powerProfileReadProcess.running = true
+    // A read already running may have sampled the profile before the change
+    // this refresh is for, so run another once it finishes.
+    if (powerProfileReadProcess.running) {
+      powerProfileReadPending = true
+      return
+    }
+    powerProfileReadPending = false
+    powerProfileReadSignals = powerProfileSignals
+    powerProfileReadProcess.running = true
   }
 
-  function parseActiveProfile(text) {
-    // busctl --json=short prints {"type":"s","data":"balanced"}; an empty or
-    // malformed reply (daemon not running) reads as no active profile.
-    try {
-      return String(JSON.parse(text).data || "").trim()
-    } catch (e) {
-      return ""
+  function profileName(profile) {
+    switch (profile) {
+      case PowerProfile.PowerSaver: return "power-saver"
+      case PowerProfile.Performance: return "performance"
+      default: return "balanced"
     }
   }
 
@@ -83,26 +97,32 @@ Item {
     id: powerProfileReadProcess
     // Read the property straight from the daemon rather than via
     // `powerprofilesctl get`. That is a PyGObject script, and spawning a Python
-    // interpreter for it every two seconds trips a CPython 3.14 shutdown race
+    // interpreter for it trips a CPython 3.14 shutdown race
     // (python/cpython#124619): the GLib D-Bus worker thread re-enters the
-    // interpreter after finalization and the process dies with SIGSEGV,
-    // leaving a core dump and a crash notification behind roughly daily.
+    // interpreter after finalization and the process dies with SIGSEGV.
     command: ["busctl", "--json=short", "get-property", "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles", "ActiveProfile"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.activePowerProfile = root.parseActiveProfile(text)
+      onStreamFinished: root.activePowerProfile = BatteryModel.profileAfterRead(root.activePowerProfile, text, root.powerProfileReadSignals, root.powerProfileSignals)
+    }
+    onExited: {
+      // Deferred: the process still reports running while it signals exit.
+      if (root.powerProfileReadPending) Qt.callLater(root.refreshPowerProfile)
     }
   }
 
-  Timer {
-    // There is no portable way to subscribe to profile changes from QML; keep
-    // them visible to consumers such as the wallpaper service without requiring
-    // the power panel to be open.
-    interval: 2000
-    running: true
-    repeat: true
-    triggeredOnStart: true
-    onTriggered: root.refreshPowerProfile()
+  Connections {
+    target: PowerProfiles
+    function onProfileChanged() {
+      root.powerProfileSignals++
+      root.activePowerProfile = root.profileName(PowerProfiles.profile)
+    }
+  }
+
+  ShellIpc {
+    target: "battery"
+
+    function refreshPowerProfile(): void { root.refreshPowerProfile() }
   }
 
   Timer {

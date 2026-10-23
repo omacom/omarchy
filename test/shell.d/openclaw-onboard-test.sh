@@ -12,6 +12,12 @@ export TEST_LOG="$tmp_dir/log"
 export PATH="$tmp_dir/bin:$PATH"
 export HOME="$tmp_dir/home"
 export OMARCHY_OPENCLAW_ONBOARD_SETTLE_SECONDS=0
+
+# Run a scratch copy of the wrapper with its 2s gateway poll shortened;
+# every scenario otherwise costs at least one full poll interval.
+onboard="$tmp_dir/omarchy-openclaw-onboard"
+sed 's/^  sleep 2$/  sleep 0.1/' "$ROOT/bin/omarchy-openclaw-onboard" >"$onboard"
+chmod +x "$onboard"
 unit="$HOME/.config/systemd/user/openclaw-gateway.service"
 export unit
 
@@ -50,11 +56,12 @@ cat >"$tmp_dir/bin/openclaw" <<'SCRIPT'
 printf 'openclaw:%s\n' "$*" >>"$TEST_LOG"
 case $1 in
 onboard)
-  ( sleep 1; mkdir -p "$HOME/.openclaw" "${unit%/*}"; touch "$HOME/.openclaw/openclaw.json" "$unit" ) &
+  ( sleep 0.3; mkdir -p "$HOME/.openclaw" "${unit%/*}"; touch "$HOME/.openclaw/openclaw.json" "$unit" ) &
   trap 'echo terminated >>"$TEST_LOG"; exit 143' TERM
   while :; do sleep 0.2; done
   ;;
 dashboard)
+  printf 'dashboard-stdin:%s\n' "$(readlink /proc/$$/fd/0)" >>"$TEST_LOG"
   [[ -f $HOME/.openclaw/openclaw.json ]] && echo '{"ok":true,"port":18789}' || { echo '{"ok":false}'; exit 1; }
   ;;
 esac
@@ -63,7 +70,10 @@ chmod +x "$tmp_dir/bin/openclaw"
 
 start=$SECONDS
 rc=0
-"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 || rc=$?
+# A file stands in for the terminal the wizard reads, so where each probe's
+# stdin points can be told apart from it.
+: >"$tmp_dir/terminal"
+"$onboard" <"$tmp_dir/terminal" >/dev/null 2>&1 || rc=$?
 elapsed=$((SECONDS - start))
 
 grep -q '^openclaw:onboard --flow quickstart --install-daemon --skip-ui$' "$TEST_LOG" ||
@@ -75,6 +85,14 @@ grep -q '^terminated$' "$TEST_LOG" ||
   fail "a wizard that lingers after the gateway is up is stopped and counts as success" "wizard was never signalled"
 (( elapsed < 30 )) || fail "a wizard that lingers after the gateway is up is stopped and counts as success" "took ${elapsed}s"
 pass "a wizard that lingers after the gateway is up is stopped and counts as success"
+
+# OpenClaw's CLI takes a terminal on stdin out of raw mode as the timeout kills
+# it, so a probe that inherited the wizard's terminal would leave its prompts
+# unable to read keys. The wizard writes its config while prompts remain.
+grep -q '^dashboard-stdin:' "$TEST_LOG" || fail "gateway probes never read from the wizard's terminal" "no probe ran"
+! grep '^dashboard-stdin:' "$TEST_LOG" | grep -vqx 'dashboard-stdin:/dev/null' ||
+  fail "gateway probes never read from the wizard's terminal" "$(grep '^dashboard-stdin:' "$TEST_LOG" | sort -u)"
+pass "gateway probes never read from the wizard's terminal"
 
 # The wizard only starts being stopped once the gateway actually answers: a
 # stub that never writes the config is left alone and must be ended by its own
@@ -89,7 +107,7 @@ echo '{"ok":false}'; exit 1
 SCRIPT
 chmod +x "$tmp_dir/bin/openclaw"
 rc=0
-"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 || rc=$?
+"$onboard" </dev/null >/dev/null 2>&1 || rc=$?
 [[ $rc == 3 ]] || fail "an abandoned wizard passes its exit code through" "rc=$rc"
 [[ ! -f $HOME/.openclaw/openclaw.json ]] || fail "an abandoned wizard passes its exit code through" "config appeared"
 ! grep -q '^terminated$' "$TEST_LOG" || fail "an abandoned wizard passes its exit code through" "watcher signalled it anyway"
@@ -105,7 +123,7 @@ echo '{"ok":true,"port":18789}'
 SCRIPT
 chmod +x "$tmp_dir/bin/openclaw"
 rc=0
-"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 || rc=$?
+"$onboard" </dev/null >/dev/null 2>&1 || rc=$?
 [[ $rc == 0 ]] || fail "a wizard that exits cleanly is waited for" "rc=$rc"
 pass "a wizard that exits cleanly is waited for"
 
@@ -127,7 +145,7 @@ dashboard) echo '{"ok":true,"port":18789}' ;;
 esac
 SCRIPT
 chmod +x "$tmp_dir/bin/openclaw"
-printf 'gpt-5\n' | "$ROOT/bin/omarchy-openclaw-onboard" >/dev/null 2>&1
+printf 'gpt-5\n' | "$onboard" >/dev/null 2>&1
 grep -q '^answer:gpt-5$' "$TEST_LOG" ||
   fail "the wizard reads terminal input" "$(grep '^answer' "$TEST_LOG" || echo 'no input reached it')"
 pass "the wizard reads terminal input"
@@ -145,7 +163,7 @@ echo '{"ok":true,"port":18789}'
 SCRIPT
 chmod +x "$tmp_dir/bin/openclaw"
 rc=0
-"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 || rc=$?
+"$onboard" </dev/null >/dev/null 2>&1 || rc=$?
 [[ $rc == 0 ]] || fail "an already-running OpenClaw is left alone" "rc=$rc"
 ! grep -q '^wizard-ran$' "$TEST_LOG" || fail "an already-running OpenClaw is left alone" "wizard ran anyway"
 pass "an already-running OpenClaw is left alone"
@@ -169,7 +187,7 @@ SCRIPT
 chmod +x "$tmp_dir/bin/openclaw"
 start=$SECONDS
 rc=0
-err=$("$ROOT/bin/omarchy-openclaw-onboard" </dev/null 2>&1 >/dev/null) || rc=$?
+err=$("$onboard" </dev/null 2>&1 >/dev/null) || rc=$?
 elapsed=$((SECONDS - start))
 [[ $rc == 1 ]] || fail "a gateway that never comes up ends the wait with a failure" "rc=$rc"
 grep -q '^terminated$' "$TEST_LOG" || fail "a gateway that never comes up ends the wait with a failure" "wizard left running"
@@ -189,12 +207,12 @@ dashboard) echo '{"ok":false}'; exit 1 ;;
 esac
 SCRIPT
 chmod +x "$tmp_dir/bin/openclaw"
-"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 &
+"$onboard" </dev/null >/dev/null 2>&1 &
 wrapper=$!
-sleep 1
+for _ in {1..50}; do grep -q '^openclaw:onboard' "$TEST_LOG" && break; sleep 0.1; done
 kill -TERM "$wrapper"
 wait "$wrapper" 2>/dev/null || true
-sleep 1
+for _ in {1..50}; do grep -q '^terminated$' "$TEST_LOG" && break; sleep 0.1; done
 grep -q '^terminated$' "$TEST_LOG" || fail "stopping the wrapper stops the wizard" "wizard survived"
 ! pgrep -f "$tmp_dir/bin/openclaw onboard" >/dev/null || fail "stopping the wrapper stops the wizard" "wizard process still alive"
 pass "stopping the wrapper stops the wizard"
@@ -210,13 +228,13 @@ cat >"$tmp_dir/bin/openclaw" <<'SCRIPT'
 #!/bin/bash
 printf 'openclaw:%s\n' "$*" >>"$TEST_LOG"
 case $1 in
-onboard) trap 'echo terminated >>"$TEST_LOG"; exit 143' TERM; sleep 4; echo finished >>"$TEST_LOG"; exit 0 ;;
+onboard) trap 'echo terminated >>"$TEST_LOG"; exit 143' TERM; sleep 2; echo finished >>"$TEST_LOG"; exit 0 ;;
 dashboard) echo '{"ok":false}'; exit 1 ;;
 esac
 SCRIPT
 chmod +x "$tmp_dir/bin/openclaw"
 rc=0
-"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 || rc=$?
+"$onboard" </dev/null >/dev/null 2>&1 || rc=$?
 [[ $rc == 0 ]] || fail "a stale config does not start the gateway deadline" "rc=$rc"
 grep -q '^finished$' "$TEST_LOG" || fail "a stale config does not start the gateway deadline" "wizard was cut short"
 ! grep -q '^terminated$' "$TEST_LOG" || fail "a stale config does not start the gateway deadline" "wizard was signalled"
@@ -234,7 +252,7 @@ esac
 SCRIPT
 chmod +x "$tmp_dir/bin/openclaw"
 rc=0
-"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 || rc=$?
+"$onboard" </dev/null >/dev/null 2>&1 || rc=$?
 [[ $rc == 1 ]] || fail "a config rewritten by this run arms the gateway deadline" "rc=$rc"
 grep -q '^terminated$' "$TEST_LOG" || fail "a config rewritten by this run arms the gateway deadline" "wizard left running"
 pass "a config rewritten by this run arms the gateway deadline"
@@ -249,13 +267,13 @@ cat >"$tmp_dir/bin/openclaw" <<'SCRIPT'
 #!/bin/bash
 printf 'openclaw:%s\n' "$*" >>"$TEST_LOG"
 case $1 in
-onboard) trap 'echo terminated >>"$TEST_LOG"; exit 143' TERM; sleep 4; echo finished >>"$TEST_LOG"; exit 0 ;;
+onboard) trap 'echo terminated >>"$TEST_LOG"; exit 143' TERM; sleep 2; echo finished >>"$TEST_LOG"; exit 0 ;;
 dashboard) echo '{"ok":true,"port":18789}' ;;
 esac
 SCRIPT
 chmod +x "$tmp_dir/bin/openclaw"
 rc=0
-"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 || rc=$?
+"$onboard" </dev/null >/dev/null 2>&1 || rc=$?
 [[ $rc == 0 ]] || fail "an orphaned gateway answering with no config does not end the wizard" "rc=$rc"
 grep -q '^finished$' "$TEST_LOG" || fail "an orphaned gateway answering with no config does not end the wizard" "wizard was cut short"
 ! grep -q '^terminated$' "$TEST_LOG" || fail "an orphaned gateway answering with no config does not end the wizard" "wizard was signalled"
@@ -279,7 +297,7 @@ esac
 SCRIPT
 chmod +x "$tmp_dir/bin/openclaw"
 rc=0
-"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 || rc=$?
+"$onboard" </dev/null >/dev/null 2>&1 || rc=$?
 [[ $rc == 1 ]] || fail "an orphan holding the port is not mistaken for the active unit" "rc=$rc"
 grep -q '^terminated$' "$TEST_LOG" || fail "an orphan holding the port is not mistaken for the active unit" "wizard left running"
 grep -q '^systemctl:--user show -p MainPID --value openclaw-gateway.service$' "$TEST_LOG" ||
