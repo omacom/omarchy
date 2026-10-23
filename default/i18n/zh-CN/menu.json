@@ -161,6 +161,12 @@
   "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "隐藏电池百分比"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "显示电池百分比"
+  },
   "appearance.top-bar.position.top": {
     "label": "顶部栏"
   },
@@ -172,6 +178,9 @@
   },
   "appearance.top-bar.position.right": {
     "label": "右侧栏"
+  },
+  "appearance.windows": {
+    "label": "窗口"
   },
   "appearance.windows.corners": {
     "label": "窗口圆角"
@@ -196,6 +205,21 @@
   },
   "appearance.windows.transparency.glassy": {
     "label": "玻璃窗口"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "关闭窗口间隙"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "启用窗口间隙"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "关闭单窗口比例"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "启用单窗口比例"
+  },
+  "appearance.branding": {
+    "label": "品牌标识"
   },
   "appearance.branding.screensaver": {
     "label": "屏保"
@@ -260,6 +284,12 @@
   },
   "appearance.unlock": {
     "label": "解锁"
+  },
+  "appearance.animations-off": {
+    "label": "关闭动画"
+  },
+  "appearance.animations-on": {
+    "label": "启用动画"
   },
   "trigger.toggle": {
     "label": "开关"
@@ -330,6 +360,36 @@
   "trigger.hardware.touchpad-haptics.high": {
     "label": "高"
   },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "切换到集成显卡"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "切换到混合显卡"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "关闭笔记本屏幕"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "开启笔记本屏幕"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "关闭屏幕镜像"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "开启屏幕镜像"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "禁用触控板"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "启用触控板"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "禁用触摸屏"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "启用触摸屏"
+  },
   "trigger.reminder.set": {
     "label": "设置一个"
   },
@@ -356,6 +416,36 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "磁盘测速"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "关闭崩溃捕获"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "开启崩溃捕获"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "允许休眠"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "保持唤醒"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "关闭夜间模式"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "开启夜间模式"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "静音通知"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "开启通知"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "关闭屏保"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "开启屏保"
   },
   "setup.monitors": {
     "label": "显示器"
@@ -953,6 +1043,9 @@
   "remove.service.ssh-agent": {
     "label": "SSH Agent"
   },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
   "remove.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
@@ -1160,7 +1253,7 @@
   "update.password.user": {
     "label": "用户"
   },
-  "system.reboot-boot-menu": {
-    "label": "重启到启动菜单"
+  "update.kernel": {
+    "label": "内核"
   }
 }
