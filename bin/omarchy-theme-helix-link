@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# omarchy:summary=Link the rendered theme into Helix's theme directory
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# --replace takes over whatever is at the path, for the installer that has just
+# claimed it. Without it a theme file or link the user made is left alone, so
+# Helix installed outside Omarchy keeps working.
+replace=false
+[[ ${1:-} == --replace ]] && replace=true
+
+omarchy-cmd-present helix || exit 0
+
+theme_file="$HOME/.local/state/omarchy/current/theme/helix.toml"
+helix_link="$HOME/.config/helix/themes/omarchy.toml"
+
+# A theme that predates the template renders no Helix colors to link.
+[[ -f $theme_file ]] || exit 0
+[[ $replace == true || (! -e $helix_link && ! -L $helix_link) ]] || exit 0
+
+mkdir -p "${helix_link%/*}"
+ln -sfn "$theme_file" "$helix_link"
