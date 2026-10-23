@@ -287,6 +287,18 @@ grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/
   fail "a plugin iterating windows at load time does not wedge the keybindings scan (it stopped before the Terminal bind)"
 pass "a plugin iterating windows at load time does not wedge the keybindings scan"
 
+# The split toggle checks the layout in a Lua function, so the menu runs that
+# function rather than a bare togglesplit.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + J" "Toggle window split")
+BINDS
+
+rm -rf "$tmpdir/cache"
+keybindings >/dev/null
+grep -qP "→ Toggle window split\texec\thyprctl eval 'o.toggle_window_split\(\)'$" "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "picking the split toggle from the menu runs the layout-aware toggle" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+pass "picking the split toggle from the menu runs the layout-aware toggle"
+
 # Rows show their description in the Omarchy language: a numbered one
 # matches its %1 pattern, an unknown one stays as written, and the chord
 # column and what the row runs never change.
