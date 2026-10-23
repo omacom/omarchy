@@ -135,6 +135,8 @@ All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here
 
 Every widget is one entry in one of the five layout arrays, and its settings sit inline on that entry — there's no separate settings file and no `config` sub-object. The clock's `format`, `formatAlt` (what right-click cycles to), and `verticalFormat` all live right there on `{ "id": "omarchy.clock" }`.
 
+The workspace indicators take a setting the same way. `persistent` lists the workspace numbers, 1 to 10, that each monitor's bar shows even before they exist, `[1, 2, 3, 4, 5]` by default. Set it to `[]` to show only workspaces that are open, the way i3bar does: `{ "id": "omarchy.workspaces", "persistent": [] }`.
+
 `center` is the box in the middle of the bar: everything in it is centered on the screen as one group. `centerBegin` and `centerEnd` hang off either side of the box, which is how the clock stays dead center even as the weather and update badge come and go. Put more than one widget in `center` and they're centered together; leave it empty and `centerBegin` and `centerEnd` meet in the middle of the bar.
 
 One rule worth internalizing: **once you have your own `shell.json`, it's canonical**. Until you customize anything, the shell reads Omarchy's default file. The moment you drag a widget, run `omarchy bar`, or edit the file yourself, you own it — there's no deep merge, so new default widgets in future Omarchy releases won't appear on your bar automatically. `omarchy bar defaults` puts the shipped layout back whenever you want a clean slate.
