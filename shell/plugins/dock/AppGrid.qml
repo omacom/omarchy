@@ -308,6 +308,21 @@ Item {
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
 
+            // Left to the GridView, a wheel notch starts a short flick that
+            // creeps under half a row. Step a whole row per notch instead,
+            // and follow a touchpad's pixels as they come.
+            WheelHandler {
+              target: null
+              acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+              onWheel: function(event) {
+                var delta = event.pixelDelta.y || event.angleDelta.y / 120 * root.cellHeight
+                var bottom = grid.originY + Math.max(0, grid.contentHeight - grid.height)
+                grid.cancelFlick()
+                grid.contentY = Math.max(grid.originY, Math.min(bottom, grid.contentY - delta))
+                event.accepted = true
+              }
+            }
+
             delegate: Item {
               id: cell
 
