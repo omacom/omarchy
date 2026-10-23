@@ -45,6 +45,10 @@ assert(/Component\.onDestruction: if \(root && root\.sectionHost === sectionArea
 // The bar outlines the section during a drag, as it does the center box, so
 // an empty one shows no place of its own and takes no room.
 assert(!/dropSpace|widgetsExtent/.test(trayQml), 'an empty tray section shows no drop slot of its own')
+// Without an item the bar would underline the whole tray, drawer and all.
+assert(/openPanelIndicatorItem: trayMenuOpen \? activeTrayAnchor\s*: managePopupOpen && trayContent\.item \? trayContent\.item\.chevron : null/.test(trayQml) &&
+    (trayQml.match(/readonly property Item chevron: expandIcon/g) || []).length === 2,
+  'the open-panel mark sits under the chevron while the manage popup is open')
 JS
 
 run_node_test "tray drawer opens away from its fixed edge" <<'JS'
