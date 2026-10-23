@@ -16,3 +16,6 @@ systemctl enable sddm.service
 # whole session down. [Install] pulls in systemd-oomd.socket via Also=, which
 # is what the user manager reports app.slice candidacy over.
 systemctl enable systemd-oomd.service
+# Prune the pacman package cache weekly to prevent unbounded disk growth.
+# Provided by pacman-contrib, keeping the 3 most recent package versions.
+systemctl enable paccache.timer
