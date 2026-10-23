@@ -55,8 +55,15 @@ write_setting_theme() {
 
   if [[ -f $PI_SETTINGS_PATH ]]; then
     tmp=$(mktemp "$PI_SETTINGS_PATH.XXXXXX")
-    jq '.theme = "omarchy-system"' "$PI_SETTINGS_PATH" >"$tmp"
-    mv "$tmp" "$PI_SETTINGS_PATH"
+    # jq rejects a hand-edited settings.json (JSONC comments, trailing commas
+    # are common there). The staged file must not outlive that failure: under
+    # set -e the script would otherwise exit leaving settings.json.XXXXXX
+    # litter beside a settings.json it never updated.
+    if ! jq '.theme = "omarchy-system"' "$PI_SETTINGS_PATH" >"$tmp" || ! mv "$tmp" "$PI_SETTINGS_PATH"; then
+      rm -f "$tmp"
+      echo "omarchy-theme-set-pi: could not update $PI_SETTINGS_PATH" >&2
+      return 1
+    fi
   else
     cat >"$PI_SETTINGS_PATH" <<EOF
 {
@@ -68,8 +75,11 @@ EOF
 
 mkdir -p "$PI_THEME_DIR"
 tmp=$(mktemp "$PI_THEME_PATH.XXXXXX")
-cp "$PI_SOURCE_PATH" "$tmp"
-mv "$tmp" "$PI_THEME_PATH"
+if ! cp "$PI_SOURCE_PATH" "$tmp" || ! mv "$tmp" "$PI_THEME_PATH"; then
+  rm -f "$tmp"
+  echo "omarchy-theme-set-pi: could not write $PI_THEME_PATH" >&2
+  exit 1
+fi
 
 if (( PI_ACTIVATE == 1 )); then
   write_setting_theme

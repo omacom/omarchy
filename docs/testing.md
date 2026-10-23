@@ -145,6 +145,7 @@ only a live session can prove.
   with `HOME` pointed at a `mktemp -d` directory (cleaned up via
   `trap ... EXIT`) and `OMARCHY_PATH="$ROOT"`, so tests exercise the checkout
   without touching the developer's machine.
+- **Exercise staged-write failures.** `theme-set-settings-tmp-cleanup-test.sh` runs the real Claude and Pi sync scripts with isolated `HOME` and `CLAUDE_CONFIG_DIR`. It checks invalid settings, successful activation, failed theme copies (including partial copies), failed theme renames, and failed settings renames. Failure cases must reach the selected operation, return failure, remove the stage, and preserve the existing destination and settings bytes; a settings-rename failure occurs after the theme has already been published.
 - **Migrations run directly.** A migration test builds the legacy state in a
   fake `$HOME`, runs `bash -euo pipefail "$ROOT/migrations/<ts>.sh"`, and
   asserts the resulting state — including running it twice to prove
