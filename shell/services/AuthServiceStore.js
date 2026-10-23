@@ -23,6 +23,13 @@ function isTrusted(id) {
   return trustedIds[String(id || "")] === true
 }
 
+// Lets shell.qml read whether a retained service reports itself locked
+// without handing the service object out.
+function isLocked(id) {
+  var service = services[String(id || "")]
+  return !!(service && service.locked === true)
+}
+
 function ids() {
   return Object.keys(services)
 }
