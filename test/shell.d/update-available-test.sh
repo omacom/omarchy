@@ -25,6 +25,9 @@ case "${TEST_CHECKUPDATES:-updates}" in
     echo "check failed" >&2
     exit 1
     ;;
+  killed)
+    exit 137
+    ;;
 esac
 SH
 chmod +x "$stub_bin/checkupdates"
@@ -165,6 +168,36 @@ fi
 [[ $status -eq 1 ]] || fail "update checker exits non-zero when no updates are available"
 grep -q '^Omarchy is up to date$' "$stdout" || fail "update checker prints up-to-date message"
 pass "update checker reports up-to-date Omarchy packages"
+
+for mode in fail killed; do
+  if capture_checker "$stdout" "$stderr" TEST_CHECKUPDATES=$mode TEST_INSTALLED_PACKAGE=omarchy; then
+    status=0
+  else
+    status=$?
+  fi
+  (( status == 2 )) || fail "update checker exits 2 when checkupdates is $mode" "got $status"
+  ! grep -q 'up to date' "$stdout" || fail "update checker does not call a $mode check up to date"
+done
+pass "update checker reports a failed package check as a failure"
+
+if capture_checker "$stdout" "$stderr" \
+  TEST_CHECKUPDATES=fail \
+  TEST_INSTALLED_PACKAGE=omarchy \
+  TEST_OMARCHY_PATH="$test_tmp/checkout" \
+  TEST_GIT_BEHIND=2; then
+  status=0
+else
+  status=$?
+fi
+(( status == 0 )) || fail "update checker reports dev commits when checkupdates fails" "got $status"
+grep -Fx 'omarchy-dev-checkout 2 new commits on origin/quattro' "$stdout" >/dev/null ||
+  fail "update checker prints dev commits when checkupdates fails" "$(cat "$stdout")"
+pass "update checker keeps known dev commits when the package check fails"
+
+widget="$ROOT/shell/plugins/bar/widgets/SystemUpdate.qml"
+grep -q 'exitCode === 1' "$widget" || fail "update widget hides only on an up-to-date result"
+! grep -q 'updateAvailable = exitCode === 0' "$widget" || fail "update widget keeps its state when the check fails"
+pass "update widget keeps its state when the check fails"
 
 : >"$git_log"
 if capture_checker "$stdout" "$stderr" \
