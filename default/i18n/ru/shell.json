@@ -66,10 +66,6 @@
   "agents.providerLimitsUnavailable": "Лимиты %1 недоступны",
   "agents.providerUnavailable": "%1 недоступен",
   "agents.reopenSignIn": "Открыть страницу входа ещё раз",
-  "agents.scopedMonthly": "%1: %2% месячного лимита",
-  "agents.scopedOther": "%1: %2% лимита (%3)",
-  "agents.scopedSession": "%1: %2% лимита сессии",
-  "agents.scopedWeekly": "%1: %2% недельного лимита",
   "agents.sessionsToday": {
     "few": "%1 сессии сегодня",
     "many": "%1 сессий сегодня",

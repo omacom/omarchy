@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1-grenser utilgjengelige",
   "agents.providerUnavailable": "%1 utilgjengelig",
   "agents.reopenSignIn": "Åpne innloggingssiden igjen",
-  "agents.scopedMonthly": "%1: %2% av månedskvoten",
-  "agents.scopedOther": "%1: %2% av %3-kvoten",
-  "agents.scopedSession": "%1: %2% av øktkvoten",
-  "agents.scopedWeekly": "%1: %2% av ukeskvoten",
   "agents.sessionsToday": {
     "one": "%1 økt i dag",
     "other": "%1 økter i dag"

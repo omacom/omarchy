@@ -54,10 +54,6 @@
   "agents.providerLimitsUnavailable": "Batas %1 tidak tersedia",
   "agents.providerUnavailable": "%1 tidak tersedia",
   "agents.reopenSignIn": "Buka lagi halaman masuk",
-  "agents.scopedMonthly": "%1: %2% dari kuota bulanannya",
-  "agents.scopedOther": "%1: %2% dari kuota %3-nya",
-  "agents.scopedSession": "%1: %2% dari kuota sesinya",
-  "agents.scopedWeekly": "%1: %2% dari kuota mingguannya",
   "agents.sessionsToday": {
     "other": "%1 sesi hari ini"
   },

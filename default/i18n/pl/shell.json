@@ -66,10 +66,6 @@
   "agents.providerLimitsUnavailable": "Limity %1 niedostępne",
   "agents.providerUnavailable": "%1 niedostępny",
   "agents.reopenSignIn": "Otwórz ponownie stronę logowania",
-  "agents.scopedMonthly": "%1: %2% miesięcznego limitu",
-  "agents.scopedOther": "%1: %2% limitu %3",
-  "agents.scopedSession": "%1: %2% limitu sesji",
-  "agents.scopedWeekly": "%1: %2% tygodniowego limitu",
   "agents.sessionsToday": {
     "few": "%1 sesje dzisiaj",
     "many": "%1 sesji dzisiaj",

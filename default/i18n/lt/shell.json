@@ -62,10 +62,6 @@
   "agents.providerLimitsUnavailable": "%1 limitai nepasiekiami",
   "agents.providerUnavailable": "%1 nepasiekiamas",
   "agents.reopenSignIn": "Vėl atidaryti prisijungimo puslapį",
-  "agents.scopedMonthly": "%1: %2% mėnesio limito",
-  "agents.scopedOther": "%1: %2% %3 limito",
-  "agents.scopedSession": "%1: %2% sesijos limito",
-  "agents.scopedWeekly": "%1: %2% savaitės limito",
   "agents.sessionsToday": {
     "few": "%1 sesijos šiandien",
     "one": "%1 sesija šiandien",

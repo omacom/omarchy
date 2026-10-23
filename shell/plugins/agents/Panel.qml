@@ -545,37 +545,11 @@ Panel {
     return out
   }
 
-  // A model-scoped window ("Fable Weekly") is its own allowance, but it runs
-  // on the same clock as the window it's named for, so it's shown attached to
-  // that row rather than as a row of its own. One with nothing to attach to
-  // still gets its own row.
+  // A model-scoped window ("Fable Weekly") is its own allowance with its own
+  // row, titled after its model and the window it runs on.
   function scopedPart(title) {
     var match = String(title || "").match(/^(.+) (Session|Weekly|Monthly)$/)
     return match ? { model: match[1], window: match[2] } : null
-  }
-
-  function displayWindows(p) {
-    var windows = limitWindows(p)
-    var out = []
-    var byTitle = {}
-    for (var i = 0; i < windows.length; i++) {
-      if (scopedPart(windows[i].title)) continue
-      windows[i].scoped = []
-      out.push(windows[i])
-      byTitle[windows[i].title] = windows[i]
-    }
-    for (var j = 0; j < windows.length; j++) {
-      var part = scopedPart(windows[j].title)
-      if (!part) continue
-      var base = byTitle[part.window]
-      if (base) {
-        base.scoped.push({ title: part.model, percent: windows[j].percent, resetAt: windows[j].resetAt })
-      } else {
-        windows[j].scoped = []
-        out.push(windows[j])
-      }
-    }
-    return out
   }
 
   // The window that decides how much room is left — the fullest one, since
@@ -712,15 +686,6 @@ Panel {
     if (part && part.window === "Weekly") return Commons.I18n.t("agents.modelWeekly").arg(part.model)
     if (part && part.window === "Monthly") return Commons.I18n.t("agents.modelMonthly").arg(part.model)
     return value
-  }
-
-  function scopedAllowanceText(scoped, windowTitle) {
-    var percent = Commons.I18n.formatNumber(Math.round(scoped.percent * 100))
-    var value = String(windowTitle || "")
-    if (value === "Session") return Commons.I18n.t("agents.scopedSession").arg(scoped.title).arg(percent)
-    if (value === "Weekly") return Commons.I18n.t("agents.scopedWeekly").arg(scoped.title).arg(percent)
-    if (value === "Monthly") return Commons.I18n.t("agents.scopedMonthly").arg(scoped.title).arg(percent)
-    return Commons.I18n.t("agents.scopedOther").arg(scoped.title).arg(percent).arg(windowDisplayTitle(value))
   }
 
   // The collectors write a fixed English status; the ones that reach the
@@ -1450,7 +1415,7 @@ Panel {
     property int providerIndex: -1
     readonly property var accounts: root.providerAccounts(provider)
     readonly property bool multi: accounts.length > 1
-    readonly property var windows: root.displayWindows(provider)
+    readonly property var windows: root.limitWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
     spacing: Style.space(16)
     opacity: root.dragProviderId !== "" && provider && root.dragProviderId === provider.providerId ? 0.5 : 1.0
@@ -1665,7 +1630,7 @@ Panel {
           }
 
           Repeater {
-            model: root.displayWindows({ limits: accountBlock.modelData.limits || [] })
+            model: root.limitWindows({ limits: accountBlock.modelData.limits || [] })
 
             CompactLimit {
               required property var modelData
@@ -2075,15 +2040,13 @@ Panel {
 
   // A limit window: title, pace and the share left; a meter that drains with
   // a tick at even pace; then the reset countdown and what the current rate
-  // leaves at the reset. A model-scoped allowance on the same clock ("Fable"
-  // on Weekly) is a thinner tick on the meter, named in the row's tooltip.
+  // leaves at the reset.
   component CompactLimit: Item {
     id: compact
     property var window: null
     // The age of numbers kept past a failed check is shown only on hover.
     property bool stale: false
     property real fetchedAt: 0
-    readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
     readonly property real share: root.windowLeft(window)
     readonly property real resetMs: root.resetMsFor(window)
@@ -2110,8 +2073,6 @@ Panel {
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
             ? Commons.I18n.t("agents.lastUpdatedAgo").arg(root.formatDuration(root.nowMs - compact.fetchedAt))
             : compact.fetchedAt > 0 ? Commons.I18n.t("agents.lastUpdatedJustNow") : Commons.I18n.t("agents.lastUpdatedUnknown"))
-        for (var i = 0; i < compact.scoped.length; i++)
-          lines.push(root.scopedAllowanceText(compact.scoped[i], compact.window ? compact.window.title : ""))
         return lines.join("\n")
       }
     }
@@ -2172,7 +2133,6 @@ Panel {
         value: compact.share
         alarming: compact.alarming
         pace: compact.pace ? compact.pace.evenLeft : -1
-        markers: compact.scoped.map(function(scoped) { return 1 - Number(scoped.percent) })
       }
 
       Item {
@@ -2217,18 +2177,8 @@ Panel {
 
     // Where an even pace would have the fill by now, as a share of the track.
     property real pace: -1
-    // Other allowances on the same clock, drawn as thin ticks at what each
-    // has left.
-    property var markers: []
 
     implicitHeight: thickness
-
-    // Explicit x doesn't mirror, so a tick measures from the end the fill
-    // grows from.
-    function tickX(share, width) {
-      var along = root.clamp(meterTrack.width * root.clamp(share, 0, 1) - width / 2, 0, meterTrack.width - width)
-      return LayoutMirroring.enabled ? meterTrack.width - width - along : along
-    }
 
     Rectangle {
       id: meterTrack
@@ -2250,29 +2200,18 @@ Panel {
       }
     }
 
-    Repeater {
-      model: meter.markers
-
-      Rectangle {
-        required property var modelData
-        width: Math.max(2, Math.round(meter.thickness * 0.5))
-        height: meter.thickness * 2.5
-        radius: width / 2
-        anchors.verticalCenter: meterTrack.verticalCenter
-        x: meter.tickX(Number(modelData), width)
-        color: meter.alarming ? root.urgent : root.foreground
-      }
-    }
-
-    // Wider than the allowance ticks and outlined in the panel surface, so it
-    // reads over the fill and over the empty track alike.
+    // Taller than the track and outlined in the panel surface, so it reads
+    // over the fill and over the empty track alike.
     Rectangle {
       visible: meter.pace >= 0
       width: Math.max(4, Math.round(meter.thickness))
       height: Math.round(meter.thickness * 2.6)
       radius: width / 2
       anchors.verticalCenter: meterTrack.verticalCenter
-      x: meter.tickX(meter.pace, width)
+      // Explicit x doesn't mirror, so the tick measures from the end the fill
+      // grows from.
+      readonly property real along: root.clamp(meterTrack.width * root.clamp(meter.pace, 0, 1) - width / 2, 0, meterTrack.width - width)
+      x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
       color: root.foreground
       border.color: root.surface
       border.width: 1

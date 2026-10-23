@@ -25,9 +25,8 @@ Every subscription on one page, limits first.
   short" when the allowance would run dry first (urgent only when ahead of
   pace). The projection waits until 5% of the window has passed, and monthly
   windows, whose billing period length isn't reported, draw no pace. Hover a
-  row for the full breakdown. A model-scoped allowance on the same clock
-  (Claude's Fable weekly limit) is a thinner tick on that window's meter rather
-  than a row of its own; the row's tooltip names it. A lapsed or missing sign-in shows a _Sign-in required_ link that signs
+  row for the full breakdown. A model-scoped allowance (Claude's Fable weekly
+  limit) is a row of its own, paced on the clock of the window it runs on. A lapsed or missing sign-in shows a _Sign-in required_ link that signs
   that account in again from the panel; other endpoint trouble shows under the
   name in the urgent color. Limits kept from an earlier check after a failed one dim, draw no
   pace, and their tooltip says how old they are.

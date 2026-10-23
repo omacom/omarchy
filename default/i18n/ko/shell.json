@@ -54,10 +54,6 @@
   "agents.providerLimitsUnavailable": "%1 한도를 사용할 수 없음",
   "agents.providerUnavailable": "%1 사용 불가",
   "agents.reopenSignIn": "로그인 페이지를 다시 열기",
-  "agents.scopedMonthly": "%1: 월간 할당량의 %2%",
-  "agents.scopedOther": "%1: %3 할당량의 %2%",
-  "agents.scopedSession": "%1: 세션 할당량의 %2%",
-  "agents.scopedWeekly": "%1: 주간 할당량의 %2%",
   "agents.sessionsToday": {
     "other": "오늘 세션 %1개"
   },

@@ -62,10 +62,6 @@
   "agents.providerLimitsUnavailable": "Limity %1 nejsou dostupné",
   "agents.providerUnavailable": "%1 není k dispozici",
   "agents.reopenSignIn": "Znovu otevřít přihlašovací stránku",
-  "agents.scopedMonthly": "%1: %2% měsíčního limitu",
-  "agents.scopedOther": "%1: %2% limitu %3",
-  "agents.scopedSession": "%1: %2% limitu relace",
-  "agents.scopedWeekly": "%1: %2% týdenního limitu",
   "agents.sessionsToday": {
     "few": "%1 relace dnes",
     "one": "%1 relace dnes",

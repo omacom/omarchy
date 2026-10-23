@@ -66,10 +66,6 @@
   "agents.providerLimitsUnavailable": "%1: omejitve niso na voljo",
   "agents.providerUnavailable": "%1 ni na voljo",
   "agents.reopenSignIn": "Spet odpri stran za prijavo",
-  "agents.scopedMonthly": "%1: %2% mesečne kvote",
-  "agents.scopedOther": "%1: %2% kvote za %3",
-  "agents.scopedSession": "%1: %2% kvote za sejo",
-  "agents.scopedWeekly": "%1: %2% tedenske kvote",
   "agents.sessionsToday": {
     "few": "%1 seje danes",
     "one": "%1 seja danes",

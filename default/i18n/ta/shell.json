@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1 வரம்புகள் கிடைக்கவில்லை",
   "agents.providerUnavailable": "%1 கிடைக்கவில்லை",
   "agents.reopenSignIn": "உள்நுழைவுப் பக்கத்தை மீண்டும் திறக்கவும்",
-  "agents.scopedMonthly": "%1: அதன் மாதாந்திர அனுமதியில் %2%",
-  "agents.scopedOther": "%1: அதன் %3 அனுமதியில் %2%",
-  "agents.scopedSession": "%1: அதன் அமர்வு அனுமதியில் %2%",
-  "agents.scopedWeekly": "%1: அதன் வாராந்திர அனுமதியில் %2%",
   "agents.sessionsToday": {
     "one": "இன்று %1 அமர்வு",
     "other": "இன்று %1 அமர்வுகள்"

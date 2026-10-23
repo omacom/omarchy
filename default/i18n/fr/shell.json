@@ -62,10 +62,6 @@
   "agents.providerLimitsUnavailable": "Limites %1 indisponibles",
   "agents.providerUnavailable": "%1 indisponible",
   "agents.reopenSignIn": "Rouvrir la page de connexion",
-  "agents.scopedMonthly": "%1 : %2 % de son quota mensuel",
-  "agents.scopedOther": "%1 : %2 % de son quota %3",
-  "agents.scopedSession": "%1 : %2 % de son quota de session",
-  "agents.scopedWeekly": "%1 : %2 % de son quota hebdomadaire",
   "agents.sessionsToday": {
     "many": "%1 de sessions aujourd’hui",
     "one": "%1 session aujourd’hui",

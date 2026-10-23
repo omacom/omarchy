@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1 کی حدود دستیاب نہیں",
   "agents.providerUnavailable": "%1 دستیاب نہیں",
   "agents.reopenSignIn": "سائن ان صفحہ دوبارہ کھولیں",
-  "agents.scopedMonthly": "%1: اس کے ماہانہ الاؤنس کا %2%",
-  "agents.scopedOther": "%1: اس کے %3 الاؤنس کا %2%",
-  "agents.scopedSession": "%1: اس کے سیشن الاؤنس کا %2%",
-  "agents.scopedWeekly": "%1: اس کے ہفتہ وار الاؤنس کا %2%",
   "agents.sessionsToday": {
     "one": "آج %1 سیشن",
     "other": "آج %1 سیشنز"

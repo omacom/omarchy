@@ -54,10 +54,6 @@
   "agents.providerLimitsUnavailable": "%1 の上限を取得できません",
   "agents.providerUnavailable": "%1 を利用できません",
   "agents.reopenSignIn": "サインインページを再度開く",
-  "agents.scopedMonthly": "%1: 月間利用枠の %2%",
-  "agents.scopedOther": "%1: %3 利用枠の %2%",
-  "agents.scopedSession": "%1: セッション利用枠の %2%",
-  "agents.scopedWeekly": "%1: 週間利用枠の %2%",
   "agents.sessionsToday": {
     "other": "今日 %1 件のセッション"
   },

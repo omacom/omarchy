@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1 limiidid pole saadaval",
   "agents.providerUnavailable": "%1 pole saadaval",
   "agents.reopenSignIn": "Ava sisselogimisleht uuesti",
-  "agents.scopedMonthly": "%1: %2% selle kuu limiidist",
-  "agents.scopedOther": "%1: %2% selle %3 limiidist",
-  "agents.scopedSession": "%1: %2% selle seansi limiidist",
-  "agents.scopedWeekly": "%1: %2% selle nädala limiidist",
   "agents.sessionsToday": {
     "one": "%1 seanss täna",
     "other": "%1 seanssi täna"

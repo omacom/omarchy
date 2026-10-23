@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1 limitlari mavjud emas",
   "agents.providerUnavailable": "%1 mavjud emas",
   "agents.reopenSignIn": "Kirish sahifasini qayta ochish",
-  "agents.scopedMonthly": "%1: oylik limitining %2%i",
-  "agents.scopedOther": "%1: %3 limitining %2%i",
-  "agents.scopedSession": "%1: sessiya limitining %2%i",
-  "agents.scopedWeekly": "%1: haftalik limitining %2%i",
   "agents.sessionsToday": {
     "one": "Bugun %1 ta sessiya",
     "other": "Bugun %1 ta sessiya"

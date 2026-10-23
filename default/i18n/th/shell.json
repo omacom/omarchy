@@ -54,10 +54,6 @@
   "agents.providerLimitsUnavailable": "ไม่มีขีดจำกัดของ %1",
   "agents.providerUnavailable": "%1 ไม่พร้อมใช้งาน",
   "agents.reopenSignIn": "เปิดหน้าเข้าสู่ระบบอีกครั้ง",
-  "agents.scopedMonthly": "%1: %2% ของโควตารายเดือน",
-  "agents.scopedOther": "%1: %2% ของโควตา %3",
-  "agents.scopedSession": "%1: %2% ของโควตาเซสชัน",
-  "agents.scopedWeekly": "%1: %2% ของโควตารายสัปดาห์",
   "agents.sessionsToday": {
     "other": "วันนี้ %1 เซสชัน"
   },

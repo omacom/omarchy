@@ -74,10 +74,6 @@
   "agents.providerLimitsUnavailable": "حدود %1 غير متاحة",
   "agents.providerUnavailable": "%1 غير متاح",
   "agents.reopenSignIn": "افتح صفحة تسجيل الدخول مجددًا",
-  "agents.scopedMonthly": "%1: %2% من مخصصه الشهري",
-  "agents.scopedOther": "%1: %2% من مخصص %3",
-  "agents.scopedSession": "%1: %2% من مخصصه للجلسة",
-  "agents.scopedWeekly": "%1: %2% من مخصصه الأسبوعي",
   "agents.sessionsToday": {
     "few": "%1 جلسات اليوم",
     "many": "%1 جلسة اليوم",

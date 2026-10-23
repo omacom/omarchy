@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1 සීමාවන් ලබාගත නොහැක",
   "agents.providerUnavailable": "%1 ලබාගත නොහැක",
   "agents.reopenSignIn": "ඇතුළු වීමේ පිටුව නැවත විවෘත කරන්න",
-  "agents.scopedMonthly": "%1: එහි මාසික දීමනාවෙන් %2%",
-  "agents.scopedOther": "%1: එහි %3 දීමනාවෙන් %2%",
-  "agents.scopedSession": "%1: එහි සැසි දීමනාවෙන් %2%",
-  "agents.scopedWeekly": "%1: එහි සතිපතා දීමනාවෙන් %2%",
   "agents.sessionsToday": {
     "one": "අද සැසි %1ක්",
     "other": "අද සැසි %1ක්"

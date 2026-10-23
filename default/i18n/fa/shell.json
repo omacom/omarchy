@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "محدودیت‌های %1 در دسترس نیست",
   "agents.providerUnavailable": "%1 در دسترس نیست",
   "agents.reopenSignIn": "صفحهٔ ورود را دوباره باز کنید",
-  "agents.scopedMonthly": "%1: %2% از سهمیهٔ ماهانه‌اش",
-  "agents.scopedOther": "%1: %2% از سهمیهٔ %3 آن",
-  "agents.scopedSession": "%1: %2% از سهمیهٔ نشست آن",
-  "agents.scopedWeekly": "%1: %2% از سهمیهٔ هفتگی‌اش",
   "agents.sessionsToday": {
     "one": "%1 نشست امروز",
     "other": "%1 نشست امروز"

@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1-Limits nicht verfügbar",
   "agents.providerUnavailable": "%1 nicht verfügbar",
   "agents.reopenSignIn": "Anmeldeseite erneut öffnen",
-  "agents.scopedMonthly": "%1: %2% des monatlichen Kontingents",
-  "agents.scopedOther": "%1: %2% des Kontingents für %3",
-  "agents.scopedSession": "%1: %2% des Sitzungskontingents",
-  "agents.scopedWeekly": "%1: %2% des wöchentlichen Kontingents",
   "agents.sessionsToday": {
     "one": "%1 Sitzung heute",
     "other": "%1 Sitzungen heute"

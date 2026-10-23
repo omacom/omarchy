@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "Лимитите на %1 не са налични",
   "agents.providerUnavailable": "%1 е недостъпен",
   "agents.reopenSignIn": "Отвори страницата за вход отново",
-  "agents.scopedMonthly": "%1: %2% от месечния лимит",
-  "agents.scopedOther": "%1: %2% от своя лимит %3",
-  "agents.scopedSession": "%1: %2% от лимита за сесия",
-  "agents.scopedWeekly": "%1: %2% от седмичния лимит",
   "agents.sessionsToday": {
     "one": "%1 сесия днес",
     "other": "%1 сесии днес"

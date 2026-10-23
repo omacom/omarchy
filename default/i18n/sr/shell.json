@@ -62,10 +62,6 @@
   "agents.providerLimitsUnavailable": "Ограничења за %1 нису доступна",
   "agents.providerUnavailable": "%1 није доступан",
   "agents.reopenSignIn": "Поново отворите страницу за пријаву",
-  "agents.scopedMonthly": "%1: %2% свог месечног ограничења",
-  "agents.scopedOther": "%1: %2% свог %3 ограничења",
-  "agents.scopedSession": "%1: %2% свог ограничења за сесију",
-  "agents.scopedWeekly": "%1: %2% свог недељног ограничења",
   "agents.sessionsToday": {
     "few": "%1 сесије данас",
     "one": "%1 сесија данас",

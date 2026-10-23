@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1 korlátai nem elérhetők",
   "agents.providerUnavailable": "%1 nem elérhető",
   "agents.reopenSignIn": "Bejelentkezési oldal újranyitása",
-  "agents.scopedMonthly": "%1: havi keretének %2%-a",
-  "agents.scopedOther": "%1: %3 keretének %2%-a",
-  "agents.scopedSession": "%1: munkamenet-keretének %2%-a",
-  "agents.scopedWeekly": "%1: heti keretének %2%-a",
   "agents.sessionsToday": {
     "one": "%1 munkamenet ma",
     "other": "%1 munkamenet ma"

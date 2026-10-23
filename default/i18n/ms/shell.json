@@ -54,10 +54,6 @@
   "agents.providerLimitsUnavailable": "Had %1 tidak tersedia",
   "agents.providerUnavailable": "%1 tidak tersedia",
   "agents.reopenSignIn": "Buka semula halaman log masuk",
-  "agents.scopedMonthly": "%1: %2% daripada peruntukan bulanannya",
-  "agents.scopedOther": "%1: %2% daripada peruntukan %3-nya",
-  "agents.scopedSession": "%1: %2% daripada peruntukan sesinya",
-  "agents.scopedWeekly": "%1: %2% daripada peruntukan mingguannya",
   "agents.sessionsToday": {
     "other": "%1 sesi hari ini"
   },

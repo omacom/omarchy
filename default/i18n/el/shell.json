@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "Τα όρια του %1 δεν είναι διαθέσιμα",
   "agents.providerUnavailable": "Το %1 δεν είναι διαθέσιμο",
   "agents.reopenSignIn": "Άνοιξε ξανά τη σελίδα σύνδεσης",
-  "agents.scopedMonthly": "%1: %2% του μηνιαίου ορίου του",
-  "agents.scopedOther": "%1: %2% του ορίου %3 του",
-  "agents.scopedSession": "%1: %2% του ορίου συνεδρίας του",
-  "agents.scopedWeekly": "%1: %2% του εβδομαδιαίου ορίου του",
   "agents.sessionsToday": {
     "one": "%1 συνεδρία σήμερα",
     "other": "%1 συνεδρίες σήμερα"
