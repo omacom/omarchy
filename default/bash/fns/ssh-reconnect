@@ -40,9 +40,20 @@ ssh() {
 }
 
 # Disarm mouse tracking (1000/1002/1003, 1006 encoding), focus reporting
-# (1004), and the alternate screen (1049), and show the cursor again.
+# (1004), the alternate screen (1049), and show the cursor again. A remote
+# session can also arm modes the local terminal only learns about from the
+# bytes it receives: bracketed paste (2004), the kitty keyboard protocol
+# (pop every pushed flag, then set none), xterm modifyOtherKeys (4), and the
+# application cursor and keypad. A dropped session leaves them armed, so a
+# pasted passphrase arrives wrapped in paste markers and Ctrl-C arrives as a
+# keycode the terminal never raises SIGINT for.
+#
+# The terminal keeps one state for these modes, so the reset reaches the local
+# side as well: a local shell that armed bracketed paste for itself loses it
+# here, and has to arm it again. Nothing here can tell the two apart, and
+# leaving the remote's modes armed is the worse of the two.
 _ssh_disarm() {
-  printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?1049l\e[?25h'
+  printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?1049l\e[?25h\e[?2004l\e[<99u\e[=0;1u\e[>4;0m\e[?1l\e>'
 }
 
 # True for an interactive session: a destination and no remote command. The
