@@ -135,6 +135,31 @@ omarchy_persist_input_selection() {
   printf 'INPUT_METHOD=%s\nXKB_LAYOUT=%s\n' "$method" "$layout" > "$target_root/etc/omarchy/input-method"
 }
 
+# XKB settings for the form's keymaps that kbd-model-map lacks, as its rows for
+# the nearest keymap give them, so the desktop types what the console does:
+# kbd's cz is QWERTY and bg-cp1251 phonetic. Non-Latin layouts keep a US layout
+# to switch to, so the shared password stays typeable.
+keyboard_xkb_settings() {
+  local layout variant="" options=terminate:ctrl_alt_bksp
+  local switch=terminate:ctrl_alt_bksp,grp:shifts_toggle,grp_led:scroll
+
+  case $1 in
+    colemak) layout=us variant=colemak ;;
+    bg-cp1251) layout=bg,us variant=phonetic, options=$switch ;;
+    cz) layout=cz,us variant=qwerty, options=$switch ;;
+    de_CH-latin1) layout=ch ;;
+    kyrgyz) layout=kg,us options=$switch ;;
+    no-latin1) layout=no ;;
+    pl) layout=pl ;;
+    ua) layout=ua,us options=$switch ;;
+    *) return 1 ;;
+  esac
+
+  printf 'XKBLAYOUT=%s\nXKBMODEL=pc105\n' "$layout"
+  [[ -z $variant ]] || printf 'XKBVARIANT=%s\n' "$variant"
+  printf 'XKBOPTIONS=%s\n' "$options"
+}
+
 omarchy_prompt_username() {
   local status
   while true; do
