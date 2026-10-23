@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Keep the Bluetooth pairing agent registered with BlueZ
+# omarchy:hidden=true
+
+set -uo pipefail
+
+poll_interval=${OMARCHY_BLUETOOTH_AGENT_POLL_INTERVAL:-2}
+
+bluez_pid() {
+  busctl --system list --no-pager --no-legend 2>/dev/null |
+    awk '$1 == "org.bluez" { print $2; exit }'
+}
+
+# The user manager cannot order a user unit against bluetooth.service in the
+# system manager. Wait here so a session that wins that startup race still
+# registers its pairing agent as soon as BlueZ appears.
+while :; do
+  initial_bluez_pid=$(bluez_pid)
+  if [[ $initial_bluez_pid =~ ^[0-9]+$ ]]; then
+    break
+  fi
+  sleep "$poll_interval"
+done
+
+bt-agent -c NoInputNoOutput &
+agent_pid=$!
+
+stop_agent() {
+  kill -KILL "$agent_pid" 2>/dev/null || true
+  wait "$agent_pid" 2>/dev/null || true
+}
+
+trap 'stop_agent; exit 0' TERM INT HUP
+
+# bt-agent remains alive when bluetoothd disappears, but AgentManager
+# registrations belong to that daemon instance. Exit on an owner change so
+# systemd replaces the stale agent with one registered to the live daemon.
+while kill -0 "$agent_pid" 2>/dev/null; do
+  sleep "$poll_interval"
+  current_bluez_pid=$(bluez_pid)
+  if [[ $current_bluez_pid != "$initial_bluez_pid" ]]; then
+    stop_agent
+    exit 1
+  fi
+done
+
+wait "$agent_pid"

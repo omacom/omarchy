@@ -5,12 +5,21 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 service="$ROOT/default/systemd/user/bt-agent.service"
+agent_supervisor="$ROOT/bin/omarchy-bluetooth-agent-supervisor"
 
-grep -Fx 'ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service' "$service" >/dev/null
-pass "bt-agent skips when bluetooth.service is inactive"
+grep -Fx 'ExecStart=/usr/bin/omarchy-bluetooth-agent-supervisor' "$service" >/dev/null
+grep -Fx 'Restart=always' "$service" >/dev/null
+grep -Fx 'KillMode=mixed' "$service" >/dev/null
+grep -Fx 'TimeoutStopSec=3' "$service" >/dev/null
+grep -F 'current_bluez_pid != "$initial_bluez_pid"' "$agent_supervisor" >/dev/null
+pass "bt-agent follows BlueZ daemon replacements"
 
-grep -Fx 'Restart=on-failure' "$service" >/dev/null
-pass "bt-agent still restarts after runtime failures"
+grep -F 'while :' "$agent_supervisor" >/dev/null
+grep -F 'initial_bluez_pid=$(bluez_pid)' "$agent_supervisor" >/dev/null
+grep -F 'sleep "$poll_interval"' "$agent_supervisor" >/dev/null
+grep -F 'ExecCondition=' "$service" >/dev/null &&
+  fail "bt-agent still permanently skips when the user manager wins the BlueZ startup race"
+pass "bt-agent waits for BlueZ instead of permanently skipping"
 
 sleep_service="$ROOT/default/systemd/user/omarchy-sleep-lock.service"
 grep -Fx 'ExecStart=/usr/bin/omarchy-system-sleep-monitor' "$sleep_service" >/dev/null
