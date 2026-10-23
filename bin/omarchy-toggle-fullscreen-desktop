@@ -23,5 +23,11 @@ case $ACTION in
     ;;
 esac
 
-omarchy-toggle-bar "$ACTION"
+# omarchy-toggle-bar speaks user-facing on/off (show/hide). Fullscreen on hides
+# the bar, so the bar argument is inverted relative to the gaps half (#13440).
+if [[ $ACTION == "on" ]]; then
+  omarchy-toggle-bar off
+else
+  omarchy-toggle-bar on
+fi
 omarchy-hyprland-toggle window-no-gaps "$ACTION"
