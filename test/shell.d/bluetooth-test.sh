@@ -140,6 +140,22 @@ assert(
   !bluetooth.bluetoothSinkMatchesDevice({ isSink: false, isStream: false, ready: true, name: 'bluez_output.AA_BB_CC_DD_EE_FF.1', properties: {} }, { address: 'AA:BB:CC:DD:EE:FF', name: 'JBL Go 3' }),
   'bluetooth ignores non-sink nodes when matching audio outputs'
 )
+
+// Classic HID devices never get org.bluez.Battery1 from BlueZ: their charge
+// arrives through the kernel's HID power-device support, which UPower lists
+// with the device address embedded in nativePath. The panel falls back to
+// those entries when the BlueZ battery is unavailable.
+const upowerEntries = [
+  { nativePath: 'BAT0', isLaptopBattery: true, percentage: 0.67 },
+  { nativePath: 'ADP1', isLaptopBattery: false, percentage: 0 },
+  { nativePath: 'hidpp_battery_3', isLaptopBattery: false, percentage: 0.95 },
+  { nativePath: 'hid-dc:2c:26:26:f6:4e-battery-3', isLaptopBattery: false, percentage: 0.14 }
+]
+assertEqual(bluetooth.upowerBatteryForAddress(upowerEntries, 'DC:2C:26:26:F6:4E'), 0.14, 'bluetooth reads classic HID batteries from UPower by address')
+assertEqual(bluetooth.upowerBatteryForAddress({ 0: upowerEntries[3], length: 1 }, 'dc:2c:26:26:f6:4e'), 0.14, 'bluetooth reads UPower entries from array-like model values')
+assert(isNaN(bluetooth.upowerBatteryForAddress(upowerEntries, 'AA:BB:CC:DD:EE:FF')), 'bluetooth reports no UPower battery when no entry matches')
+assert(isNaN(bluetooth.upowerBatteryForAddress(upowerEntries, '')), 'bluetooth reports no UPower battery without an address')
+assert(/upowerBatteryForAddress\(UPower\.devices[\s\S]{0,120}dev\.address\)/.test(panelSource), 'bluetooth falls back to UPower when BlueZ reports no battery')
 JS
 
 # Turning Bluetooth off is an rfkill soft block, not a bluetoothctl power off,
