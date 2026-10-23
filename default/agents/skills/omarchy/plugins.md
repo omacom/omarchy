@@ -69,14 +69,22 @@ Item {
 
 ## Bar Layout
 
-Use the `omarchy bar` group to move and manage widgets:
+The `omarchy bar` group covers the whole widget layout. Full syntax (from
+`omarchy bar --help`):
 
 ```bash
-omarchy bar move omarchy.clock --section right
+omarchy bar position top                     # top|bottom|left|right
+omarchy bar transparent true                 # true|false|toggle
+omarchy bar put omarchy.keyboard-layout --after omarchy.clock   # add if missing (--before/--after, never both); one already on the bar stays where it is
+omarchy bar move omarchy.clock --section center --index 0       # place by section (left|center|right), index, or --before/--after
+omarchy bar set omarchy.clock format HH:mm   # per-widget setting; --json passes the value as JSON
+omarchy bar use local.neon-bar               # switch the active bar layout
+omarchy bar reset                            # return to the built-in Omarchy bar
+omarchy bar defaults                         # restore the default bar and service widgets
 ```
 
 For layout edits beyond what the commands cover, edit the bar configuration
-in `~/.config/omarchy/shell.json`; it hot-reloads on save.
+in `~/.config/omarchy/shell.json`.
 
 `bar.layout` has five sections, in the order they run along the bar: `left`,
 `centerBegin`, `center`, `centerEnd`, and `right`, plus `tray`, drawn inside
@@ -107,3 +115,7 @@ automatically. If a change somehow fails to apply, force a reload with
 Set `idle.screensaver` and `idle.lock` in `~/.config/omarchy/shell.json`,
 in seconds since user idle began. Example: "lock after ten minutes" means
 setting `idle.lock` to `600`.
+
+To stop the system from idling at all (keep-awake), use
+`omarchy toggle idle stay-awake` (`allow-idle` re-enables idle behavior,
+`status` reports the current state, bare `omarchy toggle idle` flips it).
