@@ -19,6 +19,7 @@ mise_history="$test_tmp/mise-history"
 stub_log="$test_tmp/stubs"
 terminal_log="$test_tmp/terminal"
 menu_log="$test_tmp/menu"
+gum_log="$test_tmp/gum"
 muse_login_log="$test_tmp/muse-login"
 mkdir -p "$mock_bin" "$test_home"
 
@@ -110,7 +111,13 @@ cat >"$mock_bin/sudo" <<'SH'
 exec "$@"
 SH
 
-for command in gum hyprctl omarchy-webapp-remove-all omarchy-tui-remove-all omarchy-pkg-drop; do
+cat >"$mock_bin/gum" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >>"${OMARCHY_TEST_GUM_LOG:-/dev/null}"
+[[ ${OMARCHY_TEST_GUM_FAIL:-false} != "true" ]]
+SH
+
+for command in hyprctl omarchy-webapp-remove-all omarchy-tui-remove-all omarchy-pkg-drop; do
   ln -s omarchy-test-noop "$mock_bin/$command"
 done
 
@@ -127,6 +134,7 @@ export OMARCHY_TEST_MISE_HISTORY="$mise_history"
 export OMARCHY_TEST_STUB_LOG="$stub_log"
 export OMARCHY_TEST_AGENT_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
+export OMARCHY_TEST_GUM_LOG="$gum_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_MISE_CONFIG_PATH="$test_tmp/etc/mise/config.toml"
@@ -509,6 +517,17 @@ pass "agent launcher has a keyboard shortcut"
 cat >"$mock_bin/omarchy-agent" <<'SH'
 #!/bin/bash
 printf '%s\0' omarchy-agent "$@" >"$OMARCHY_TEST_AGENT_OPEN_LOG"
+if [[ -n ${OMARCHY_TEST_AGENT_CONCURRENT_DEFAULT:-} ]]; then
+  printf '%s\n' "$OMARCHY_TEST_AGENT_CONCURRENT_DEFAULT" >"$HOME/.config/omarchy/defaults/agent"
+fi
+if [[ ${OMARCHY_TEST_AGENT_SIGINT:-false} == "true" ]]; then
+  trap - INT
+  kill -INT "$PPID" "$$"
+fi
+if [[ -n ${OMARCHY_TEST_AGENT_EXIT:-} ]]; then
+  exit "$OMARCHY_TEST_AGENT_EXIT"
+fi
+[[ ${OMARCHY_TEST_AGENT_FAIL:-false} != "true" ]]
 SH
 chmod +x "$mock_bin/omarchy-agent"
 hash -r
@@ -620,6 +639,85 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
 [[ ${#agent_open_args[@]} == 2 && ${agent_open_args[0]} == "omarchy-agent" && ${agent_open_args[1]} == "--inline" ]] ||
   fail "newly installed agent opens in the installation terminal"
 pass "missing agents install visibly and open in the same terminal"
+
+rm -f "$agent_file"
+: >"$menu_log"
+: >"$gum_log"
+if ! OMARCHY_TEST_AGENT_FAIL=true omarchy-default-agent --install codex >"$test_tmp/failed-launch-out" 2>"$test_tmp/failed-launch-err"; then
+  fail "failed agent setup exits cleanly when alternate agent is confirmed"
+fi
+[[ $(<"$test_tmp/failed-launch-out") == $'\033[2J\033[3J\033[H' ]] ||
+  fail "failed agent launch clears the terminal before attempting launch"
+[[ ! -e $agent_file ]] || fail "failed agent launch deletes unset default agent selection"
+[[ -z $(omarchy-default-agent) ]] || fail "default agent remains unset after failed launch"
+grep -Fq "Could not launch Codex" "$test_tmp/failed-launch-err" ||
+  fail "failed agent launch reports launch failure"
+mapfile -d '' -t menu_args <"$menu_log"
+[[ ${menu_args[*]} == "summon setup.default.agent" ]] ||
+  fail "failed agent launch reopens agent selection menu when confirmed"
+mapfile -d '' -t gum_args <"$gum_log"
+[[ ${gum_args[0]} == "confirm" && ${gum_args[1]} == "Would you like to select a different agent?" ]] ||
+  fail "failed agent launch confirms before reopening agent menu"
+pass "failed inline agent launch reverts unset selection and reopens menu"
+
+printf '%s\n' pi >"$agent_file"
+: >"$menu_log"
+: >"$gum_log"
+if ! OMARCHY_TEST_AGENT_FAIL=true omarchy-default-agent --install codex >/dev/null 2>"$test_tmp/failed-launch-err"; then
+  fail "failed agent setup exits cleanly when alternate agent is confirmed"
+fi
+[[ $(omarchy-default-agent) == "pi" ]] || fail "failed agent launch restores previous default agent"
+grep -Fq "Could not launch Codex" "$test_tmp/failed-launch-err" ||
+  fail "failed agent launch reports launch failure for previous agent"
+mapfile -d '' -t menu_args <"$menu_log"
+[[ ${menu_args[*]} == "summon setup.default.agent" ]] ||
+  fail "failed agent launch reopens agent menu after restoring previous agent"
+pass "failed inline agent launch restores previous default agent and reopens menu"
+
+printf '%s\n' pi >"$agent_file"
+: >"$menu_log"
+: >"$gum_log"
+if ! OMARCHY_TEST_AGENT_FAIL=true OMARCHY_TEST_AGENT_CONCURRENT_DEFAULT=claude \
+  omarchy-default-agent --install codex >/dev/null 2>"$test_tmp/failed-launch-err"; then
+  fail "concurrently updated default agent still exits cleanly when alternate agent is confirmed"
+fi
+[[ $(omarchy-default-agent) == "claude" ]] || fail "failed agent launch does not clobber a newer concurrent default agent"
+pass "failed inline agent launch preserves a newer concurrent default agent choice"
+
+printf '%s\n' pi >"$agent_file"
+: >"$menu_log"
+: >"$gum_log"
+ctrl_c_exit=0
+OMARCHY_TEST_AGENT_SIGINT=true omarchy-default-agent --install codex >/dev/null 2>"$test_tmp/failed-launch-err" || ctrl_c_exit=$?
+(( ctrl_c_exit == 130 )) || fail "quitting inline session with Ctrl+C preserves exit status 130 (got $ctrl_c_exit)"
+[[ $(omarchy-default-agent) == "codex" ]] || fail "quitting inline session with Ctrl+C keeps the new default agent"
+[[ ! -s "$test_tmp/failed-launch-err" ]] || fail "quitting inline session with Ctrl+C does not report launch failure"
+[[ ! -s $menu_log ]] || fail "quitting inline session with Ctrl+C does not reopen agent menu"
+pass "quitting inline agent session with Ctrl+C preserves new default agent"
+
+printf '%s\n' pi >"$agent_file"
+: >"$menu_log"
+: >"$gum_log"
+session_exit=0
+OMARCHY_AGENT_LAUNCH_GRACE_SECONDS=0 OMARCHY_TEST_AGENT_FAIL=true \
+  omarchy-default-agent --install codex >/dev/null 2>"$test_tmp/failed-launch-err" || session_exit=$?
+(( session_exit == 1 )) || fail "post-startup non-zero session exit propagates exit status"
+[[ $(omarchy-default-agent) == "codex" ]] || fail "post-startup non-zero session exit keeps the new default agent"
+[[ ! -s "$test_tmp/failed-launch-err" ]] || fail "post-startup non-zero session exit does not report launch failure"
+[[ ! -s $menu_log ]] || fail "post-startup non-zero session exit does not reopen agent menu"
+pass "post-startup non-zero inline session exit preserves new default agent"
+
+printf '%s\n' copilot >"$agent_file"
+: >"$menu_log"
+: >"$gum_log"
+declined_exit=0
+OMARCHY_TEST_AGENT_FAIL=true OMARCHY_TEST_GUM_FAIL=true omarchy-default-agent --install codex >/dev/null 2>"$test_tmp/failed-launch-err" || declined_exit=$?
+(( declined_exit == 1 )) || fail "declining alternate agent exits with code 1"
+[[ $(omarchy-default-agent) == "copilot" ]] || fail "declining alternate agent preserves previous default agent"
+[[ ! -s $menu_log ]] || fail "declining alternate agent does not summon menu"
+grep -Fq "Could not launch Codex" "$test_tmp/failed-launch-err" ||
+  fail "declining alternate agent still reports launch failure"
+pass "declining alternate agent preserves selection and exits with error"
 
 : >"$notification_history"
 : >"$agent_open_log"
@@ -944,6 +1042,7 @@ SH
 cat >"$mock_bin/omarchy-launch-openclaw" <<'SH'
 #!/bin/bash
 printf '%s\0' omarchy-launch-openclaw "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
+[[ ${OMARCHY_TEST_OPENCLAW_LAUNCH_FAIL:-false} != "true" ]]
 SH
 cat >"$mock_bin/openclaw" <<'SH'
 #!/bin/bash
@@ -981,6 +1080,22 @@ mapfile -d '' -t inline_args <"$inline_log"
 [[ ${inline_args[*]} == "omarchy-launch-openclaw --tui" ]] ||
   fail "installing OpenClaw as default agent hands over to its terminal UI"
 pass "installing OpenClaw as default agent sets up its runtime"
+
+printf '%s\n' "pi" >"$agent_file"
+: >"$menu_log"
+: >"$gum_log"
+if ! OMARCHY_TEST_OPENCLAW_INSTALLED=false OMARCHY_TEST_OPENCLAW_LAUNCH_FAIL=true \
+  omarchy-default-agent --install openclaw >/dev/null 2>"$test_tmp/openclaw-failed-err"; then
+  fail "failed OpenClaw launch exits cleanly when alternate agent is confirmed"
+fi
+[[ $(omarchy-default-agent) == "pi" ]] || fail "failed OpenClaw launch restores previous default agent"
+grep -Fq "Could not launch OpenClaw" "$test_tmp/openclaw-failed-err" ||
+  fail "failed OpenClaw launch reports launch failure"
+mapfile -d '' -t menu_args <"$menu_log"
+[[ ${menu_args[*]} == "summon setup.default.agent" ]] ||
+  fail "failed OpenClaw launch reopens agent menu after restoring previous agent"
+printf '%s\n' "openclaw" >"$agent_file"
+pass "failed OpenClaw launch restores previous default agent and reopens menu"
 
 : >"$launch_log"
 omarchy agent prompt "Review this project"

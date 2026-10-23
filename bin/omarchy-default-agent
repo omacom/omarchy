@@ -100,12 +100,39 @@ if [[ $agent == "claude" ]]; then
   omarchy-install-chromium-claude 2>/dev/null || true
 fi
 
+previous_agent=""
+if [[ -f $agent_file ]]; then
+  read -r previous_agent <"$agent_file"
+fi
+
 mkdir -p "$(dirname "$agent_file")"
 printf '%s\n' "$agent" >"$agent_file"
 
 if [[ $installing == "true" ]]; then
   printf '\033[2J\033[3J\033[H'
-  exec omarchy-agent --inline
+  SECONDS=0
+  trap ':' INT
+  omarchy-agent --inline
+  code=$?
+  trap - INT
+  if (( code != 0 && code != 130 && SECONDS < ${OMARCHY_AGENT_LAUNCH_GRACE_SECONDS:-5} )); then
+    current_agent=""
+    if [[ -f $agent_file ]]; then
+      read -r current_agent <"$agent_file"
+    fi
+    if [[ ${current_agent:-} == "$agent" ]]; then
+      if [[ -n ${previous_agent:-} ]]; then
+        printf '%s\n' "$previous_agent" >"$agent_file"
+      else
+        rm -f "$agent_file"
+      fi
+    fi
+    echo "Could not launch $name" >&2
+    if gum confirm "Would you like to select a different agent?"; then
+      exec omarchy-menu summon setup.default.agent
+    fi
+  fi
+  exit "$code"
 else
   exec omarchy-agent
 fi
