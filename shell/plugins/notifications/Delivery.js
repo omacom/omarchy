@@ -77,3 +77,17 @@ function deckMargins(barPosition, thickness, gap) {
     right: (position === "right" ? bar : 0) + edge
   }
 }
+
+// Toasts are overlay-layer surfaces, so the compositor draws them over the
+// screensaver unless they are hidden while one of its windows is mapped.
+var SCREENSAVER_APP_ID = "org.omarchy.screensaver"
+
+// Quickshell hands the toplevels over as an ObjectModel (`.values`), a test as
+// a plain array, whose own `.values` is a function, so read the array first.
+function hasScreensaverToplevel(toplevels) {
+  var list = Array.isArray(toplevels) ? toplevels : (toplevels ? toplevels.values : null)
+  if (!list || !list.length) return false
+  for (var i = 0; i < list.length; i++)
+    if (list[i] && list[i].appId === SCREENSAVER_APP_ID) return true
+  return false
+}

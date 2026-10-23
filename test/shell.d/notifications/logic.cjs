@@ -276,6 +276,28 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
     assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) }, { top, right }, position)
 }
 
+{ // Toasts hide while a screensaver window is mapped, among others or one per output.
+  const win = appId => ({ appId }), model = (...values) => ({ values })
+  const saver = win('org.omarchy.screensaver')
+  assert.ok(Delivery.hasScreensaverToplevel([saver]))
+  assert.ok(Delivery.hasScreensaverToplevel(model(win('foot'), saver)))
+  assert.ok(Delivery.hasScreensaverToplevel(model(saver, saver)))
+  for (const toplevels of [model(win('foot'), win('mpv'), win('')), model(win('org.omarchy.screensaver.other'), win('Org.Omarchy.Screensaver')),
+                           model(null, {}, win(undefined)), model(), [], {}, null, undefined])
+    assert.ok(!Delivery.hasScreensaverToplevel(toplevels), JSON.stringify(toplevels))
+  const live = model(win('foot'))
+  assert.ok(!Delivery.hasScreensaverToplevel(live))
+  live.values.push(saver)
+  assert.ok(Delivery.hasScreensaverToplevel(live), 'hidden once the screensaver maps, however it was launched')
+  live.values.pop()
+  assert.ok(!Delivery.hasScreensaverToplevel(live), 'back once it closes')
+
+  const service = fs.readFileSync(load.dir + '/Service.qml', 'utf8')
+  assert.match(service, /screensaverActive: Delivery\.hasScreensaverToplevel\(ToplevelManager\.toplevels\)/)
+  assert.match(service, /visible: !service\.screensaverActive && \(!stepAside \|\| hasSomethingToShow \|\| lingering\)/)
+  assert.match(service, /paused: service\.expanded \|\| service\.screensaverActive/)
+}
+
 // ------------------------------------------------------------------ settings
 { // Every key optional, every invalid value falls back.
   const r = Settings.resolve({ fullscreenOverlay: 'steam-away', historyHours: 7, displayName: 7 })

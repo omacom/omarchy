@@ -139,6 +139,10 @@ Item {
   // Bumped after Hyprland's window snapshot refreshes, so fullscreenOn() re-evaluates.
   property int hyprRevision: 0
 
+  // The screensaver opens on a special workspace, so fullscreenOn() never sees it, and
+  // a card arriving would map over it anyway. Read from the toplevels, however it was launched.
+  readonly property bool screensaverActive: Delivery.hasScreensaverToplevel(ToplevelManager.toplevels)
+
   // Per output, for `probe`: is the canvas mapped, stepping aside, showing cards?
   function surfaceStates() {
     var out = []
@@ -1368,7 +1372,7 @@ Item {
         else { lingering = true; lingerTimer.restart() }
       }
       Timer { id: lingerTimer; interval: 800; onTriggered: surface.lingering = false }
-      visible: !stepAside || hasSomethingToShow || lingering
+      visible: !service.screensaverActive && (!stepAside || hasSomethingToShow || lingering)
       color: "transparent"
 
       WlrLayershell.namespace: "omarchy-notifications"
@@ -1487,7 +1491,8 @@ Item {
                         && service.openDeck === Layout.groupKeyFor(model)
               // Hover opens the body only when there is nothing else to open.
               sole: toasts.count === 1
-              paused: service.expanded
+              // A card hidden under the screensaver keeps the time it had left.
+              paused: service.expanded || service.screensaverActive
 
               drawnHeight: service.at(model.key, "height")
               // A hidden output collapses child visibility; its measurements
