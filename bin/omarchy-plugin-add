@@ -39,11 +39,20 @@ select_bar_widget_placement() {
   local id="$1"
   local section
   local default_section
+  local source_id
   interactive || return 0
   (( ASSUME_YES )) && return 0
 
   jq -e '(.kinds // []) | (index("bar") | not) and (index("bar-widget") != null)' \
     "$PLUGINS_DIR/$id/manifest.json" >/dev/null 2>&1 || return 0
+
+  # Enabling a clone swaps it into its source's slot, which a section would move it out of.
+  # $plugins is the list that discovered it, so a second lookup cannot disagree, and it reads clonedFrom as the registry does.
+  source_id=$(jq -r --arg id "$id" 'first(.[] | select(.id == $id) | .clonedFrom) // empty' <<<"$plugins")
+  if [[ -n $source_id ]] &&
+    jq -e --arg id "$source_id" 'any(.[]; .id == $id and .enabled)' <<<"$plugins" >/dev/null; then
+    return 0
+  fi
 
   # A manifest's center means beside the clock, which is centerEnd.
   default_section=$(jq -r '.barWidget.defaultSection // "centerEnd" | if . == "center" then "centerEnd" end' "$PLUGINS_DIR/$id/manifest.json")
@@ -160,16 +169,17 @@ if [[ -z $enable_after ]]; then
 fi
 
 if [[ $enable_after == true ]]; then
-  select_bar_widget_placement "$id"
   discovered=0
   for (( attempt = 0; attempt < 40; attempt++ )); do
-    if omarchy-plugin-list --json | jq -e --arg id "$id" 'any(.[]; .id == $id)' >/dev/null; then
+    if plugins=$(omarchy-plugin-list --json) &&
+      jq -e --arg id "$id" 'any(.[]; .id == $id)' <<<"$plugins" >/dev/null; then
       discovered=1
       break
     fi
     sleep 0.05
   done
   (( discovered )) || fail "plugin '$id' is not known"
+  select_bar_widget_placement "$id"
   omarchy-plugin-enable "$id" "${ENABLE_PLACEMENT[@]}"
 else
   echo "Enable it later with: omarchy plugin enable $id"
