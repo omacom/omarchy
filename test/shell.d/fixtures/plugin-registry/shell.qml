@@ -257,6 +257,36 @@ ShellRoot {
     root.assertEqual(registry.moveBarWidget("third.widget", { section: "right" }), "", "registry moves widgets out of the tray section")
     root.assertDeepEqual(root.config.bar.layout.tray, [], "a widget moved out of the tray section leaves it")
 
+    // A drawer is a bar entry with type drawer; its widgets are the section
+    // drawer:<id>, kept under layout.drawers.
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [{ id: "home", type: "drawer" }, { id: "third.widget", size: 7 }], tray: [] } }, plugins: [] }
+    root.assertEqual(registry.moveBarWidget("third.widget", { section: "drawer:home" }), "", "registry moves widgets into a drawer")
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "home", type: "drawer" }], "a widget moved into a drawer leaves its section")
+    root.assertDeepEqual(root.config.bar.layout.drawers, { home: [{ id: "third.widget", size: 7 }] }, "a drawer keeps the widget and its settings")
+    root.assertEqual(registry.setBarWidget("third.widget", "size", 9, {}), "", "registry finds widgets in a drawer")
+    root.assertEqual(root.config.bar.layout.drawers.home[0].size, 9, "registry sets options on widgets in a drawer")
+    registry.setEnabled("third.widget", true)
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "home", type: "drawer" }], "enabling a widget in a drawer does not add it to the bar again")
+    root.assertEqual(registry.moveBarWidget("third.widget", { section: "drawer:gone" }), "", "a section naming no drawer on the bar falls back to the widget's own section")
+    root.assertDeepEqual(root.config.bar.layout.drawers.home, [{ id: "third.widget", size: 9 }], "a widget stays in its drawer when the target drawer does not exist")
+    root.assertEqual(registry.moveBarWidget("third.widget", { section: "left" }), "", "registry moves widgets out of a drawer")
+    root.assertDeepEqual(root.config.bar.layout.drawers.home, [], "a widget moved out of a drawer leaves it")
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [{ id: "home", type: "drawer" }, { id: "omarchy.tray" }], tray: [], drawers: { home: [{ id: "third.widget" }] } } }, plugins: [] }
+    root.assertEqual(registry.moveBarWidget("omarchy.tray", { section: "drawer:home" }), "the tray cannot go in a drawer", "registry keeps the tray out of drawers")
+    root.assertEqual(registry.moveBarWidget("omarchy.tray", { after: "third.widget" }), "the tray cannot go in a drawer", "registry keeps the tray out of drawers when placed beside a widget in one")
+    // A drawer inside another would have no section, and its widgets would
+    // not be drawn: drawers stay out of drawers and the tray's drawer.
+    root.config = { version: 1, bar: { layout: { left: [{ id: "tools", type: "drawer" }], center: [], right: [{ id: "home", type: "drawer" }, { id: "omarchy.tray" }], tray: [], drawers: { home: [{ id: "third.widget" }], tools: [] } } }, plugins: [] }
+    root.assertEqual(registry.moveBarWidget("home", { section: "drawer:tools" }), "a drawer cannot go in a drawer", "registry keeps a drawer out of another drawer")
+    root.assertEqual(registry.moveBarWidget("tools", { after: "third.widget" }), "a drawer cannot go in a drawer", "registry keeps a drawer out of a drawer when placed beside a widget in one")
+    root.assertEqual(registry.moveBarWidget("home", { section: "tray" }), "a drawer cannot go in the tray's drawer", "registry keeps a drawer out of the tray's drawer")
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "tools", type: "drawer" }], "a refused drawer move changes nothing")
+    root.assertEqual(registry.moveBarWidget("home", { section: "left" }), "", "a drawer still moves along the bar")
+    root.assertDeepEqual(root.config.bar.layout.left.map(function(entry) { return entry.id }), ["tools", "home"], "the moved drawer lands in the other section")
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [], tray: [], drawers: { gone: [{ id: "third.widget" }] } } }, plugins: [] }
+    registry.setEnabled("third.widget", true)
+    root.assertEqual(root.config.bar.layout.left.concat(root.config.bar.layout.center, root.config.bar.layout.right).filter(function(e) { return e.id === "third.widget" }).length, 1, "a widget in a drawer that is no longer on the bar counts as off the bar")
+
     root.config = { version: 1, bar: { layout: { left: [], center: [], right: [{ id: "omarchy.tray" }], tray: [{ id: "third.widget" }] } }, plugins: [] }
     root.assertEqual(registry.moveBarWidget("omarchy.tray", { section: "tray" }), "the tray cannot go in its own drawer", "registry keeps the tray out of its own drawer")
     root.assertEqual(registry.moveBarWidget("omarchy.tray", { after: "third.widget" }), "the tray cannot go in its own drawer", "registry keeps the tray out of its own drawer when placed beside a widget in it")

@@ -32,8 +32,9 @@ Usage: omarchy bar <command> [args...]
 
 Placement:
   --section <section>                  Target section: left, centerBegin,
-                                       center, centerEnd, tray, or right;
-                                       tray is the tray's drawer
+                                       center, centerEnd, tray, right, or
+                                       drawer:<id>; tray is the tray's
+                                       drawer, drawer:<id> a drawer's
   --index <n>                          Target index
   --before <id>                        Insert before a widget
   --after <id>                         Insert after a widget
@@ -68,8 +69,8 @@ bar_option_exists() {
 }
 
 validate_section() {
-  [[ $1 =~ ^(left|centerBegin|center|centerEnd|tray|right)$ ]] ||
-    fail "section must be left, centerBegin, center, centerEnd, tray, or right"
+  [[ $1 =~ ^(left|centerBegin|center|centerEnd|tray|right|drawer:[A-Za-z0-9_.-]{1,64})$ ]] ||
+    fail "section must be left, centerBegin, center, centerEnd, tray, right, or drawer:<id>"
 }
 
 validate_index() {
@@ -446,7 +447,11 @@ cmd_get() {
   (( $# == 2 )) || fail "get takes a widget id and a setting key"
 
   jq -e -r --arg id "$id" --arg key "$key" '
-    first(.bar.layout[]?[]? | select(.id == $id) | .[$key] | select(. != null))
+    first(.bar.layout
+      # Drawers count only while their entry is on the bar itself, as in the shell.
+      | [(.left, .centerBegin, .center, .centerEnd, .right) | arrays | .[] | select(type == "object" and .type == "drawer") | .id] as $drawers
+      | (.left, .centerBegin, .center, .centerEnd, .right, .tray, ($drawers[] as $drawer | .drawers[$drawer]?)) | arrays | .[]
+      | select(type == "object" and .id == $id) | .[$key] | select(. != null))
     | if type == "string" then . else tojson end
   ' "$(source_file)" 2>/dev/null || exit 1
 }

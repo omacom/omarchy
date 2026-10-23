@@ -89,7 +89,7 @@ for (const edge of ['top', 'bottom', 'left', 'right']) {
 const moduleSlot = barSource.slice(barSource.indexOf('component ModuleSlot'), barSource.indexOf('component CustomCommandModule'))
 const dragSpacer = barSource.slice(barSource.indexOf('component DragSpacer'), barSource.indexOf('component CenterGestureArea'))
 assert(
-  /if \(slot\.traySectionContains\(mouse\.x, mouse\.y\)\) \{\s*mouse\.accepted = false/.test(moduleSlot),
+  /if \(slot\.sectionContains\(mouse\.x, mouse\.y\)\) \{\s*mouse\.accepted = false/.test(moduleSlot),
   'a press in the tray\'s drawer goes to the widget in it, not the tray'
 )
 // A third-party widget's api lives as long as the widget does, wherever it
@@ -557,12 +557,12 @@ const grownRight = bar.sectionDropZone({ x: 700, y: 0, width: 30, height: 26 }, 
 for (const grown of [grownLeft, grownRight])
   assert(grown.x <= sectionZone.x && grown.x + grown.width >= sectionZone.x + sectionZone.width, 'room opening in the section, from either end, keeps the stretch it reached before')
 const trayRows = [dropRow(weatherSlot, 'tray', 660, 40), dropRow(menuSlot, 'right', 740, 30)]
-assertEqual(bar.traySectionDropTarget(trayRows, null, { x: 680 }, false), null, 'no tray section, no drop in it')
-assertEqual(bar.traySectionDropTarget(trayRows, bar.sectionDropZone({ x: 660, y: 0, width: 40, height: 26 }, 26, false), { x: 720 }, false), null, 'off the section, its widgets are out of reach')
-assertDeepEqual(bar.traySectionDropTarget(trayRows, bar.sectionDropZone({ x: 660, y: 0, width: 40, height: 26 }, 26, false), { x: 690 }, false), { slot: weatherSlot, after: true }, 'over the section, a drop lands among its widgets')
-assertDeepEqual(bar.traySectionDropTarget([trayRows[1]], sectionZone, { x: 708 }, false), { region: 'tray', after: true }, 'over an empty section, a drop lands in it')
+assertEqual(bar.sectionDropTarget(trayRows, null, { x: 680 }, false), null, 'no tray section, no drop in it')
+assertEqual(bar.sectionDropTarget(trayRows, bar.sectionDropZone({ x: 660, y: 0, width: 40, height: 26 }, 26, false), { x: 720 }, false), null, 'off the section, its widgets are out of reach')
+assertDeepEqual(bar.sectionDropTarget(trayRows, bar.sectionDropZone({ x: 660, y: 0, width: 40, height: 26 }, 26, false), { x: 690 }, false), { slot: weatherSlot, after: true }, 'over the section, a drop lands among its widgets')
+assertDeepEqual(bar.sectionDropTarget([trayRows[1]], sectionZone, { x: 708 }, false), { region: 'tray', after: true }, 'over an empty section, a drop lands in it')
 const besideTray = { id: 'beside' }
-assertDeepEqual(bar.traySectionDropTarget([trayRows[1], dropRow(besideTray, 'right', 705, 30)], sectionZone, { x: 708 }, false, besideTray), { slot: besideTray, after: false }, 'over the dragged widget\'s own room, it goes back')
+assertDeepEqual(bar.sectionDropTarget([trayRows[1], dropRow(besideTray, 'right', 705, 30)], sectionZone, { x: 708 }, false, besideTray), { slot: besideTray, after: false }, 'over the dragged widget\'s own room, it goes back')
 // The tray's own ends stay where a drop lands beside the tray, even where its
 // section reaches them with no pinned icons between: here the tray alone in
 // centerEnd, hanging off the center box, with its section first.
@@ -572,7 +572,7 @@ const inSection = { id: 'indicators' }
 const boxRow = dropRow(elsewhen, 'center', 300, 100)
 const trayRow = dropRow(trayAtBox, 'centerEnd', 400, 120)
 const trayAtBoxZone = bar.sectionDropZone({ x: 400, y: 0, width: 80, height: 26 }, 26, false, { x: 400, y: 0, width: 120, height: 26 })
-const dropAt = x => bar.traySectionDropTarget([boxRow, trayRow, dropRow(inSection, 'tray', 400, 80)], trayAtBoxZone, { x }, false) ||
+const dropAt = x => bar.sectionDropTarget([boxRow, trayRow, dropRow(inSection, 'tray', 400, 80)], trayAtBoxZone, { x }, false) ||
   bar.centerDropTarget([boxRow, trayRow], { x: 300, y: 0, width: 100, height: 26 }, { x }, false)
 assertDeepEqual(dropAt(405), { slot: trayAtBox, after: false }, 'just past the center box, a drop lands before a tray whose section comes first')
 assertDeepEqual(dropAt(395), { slot: elsewhen, after: true }, 'over the end of the box, a drop still lands in the box')
@@ -708,6 +708,99 @@ assertEqual(
 )
 JS
 
+# Drawers: a bar entry with type drawer holds widgets of its own, the section
+# drawer:<id> kept under layout.drawers, the way the tray's drawer holds the
+# tray section.
+run_node_test <<'JS'
+const fs = require('fs')
+const layout = requireFromRoot('shell/Commons/BarLayout.js')
+const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
+const tray = requireFromRoot('shell/plugins/bar/widgets/TrayModel.js')
+const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
+
+const drawerLayout = {
+  left: [{ id: 'omarchy.workspaces' }],
+  center: [{ id: 'omarchy.clock' }],
+  centerEnd: [{ id: 'tools', type: 'drawer' }],
+  right: [{ id: 'home', type: 'drawer', name: 'Home' }, { id: 'omarchy.tray' }, { id: 'home', type: 'drawer' }],
+  tray: [{ id: 'omarchy.dropbox' }],
+  drawers: { home: [{ id: 'omarchy.bluetooth' }], gone: [{ id: 'omarchy.audio' }] }
+}
+const fixed = ['left', 'centerBegin', 'center', 'centerEnd', 'right', 'tray']
+
+assertDeepEqual(layout.BASE_SECTIONS, bar.sections, 'BarLayout and BarModel list the same fixed sections')
+assertDeepEqual(layout.drawerIds(drawerLayout), ['tools', 'home'], 'drawers are the drawer entries on the bar, in bar order, each once')
+assertDeepEqual(layout.sectionNames(drawerLayout), fixed.concat(['drawer:tools', 'drawer:home']), 'every drawer on the bar is a section after the fixed ones')
+assertDeepEqual(bar.layoutSections(drawerLayout), layout.sectionNames(drawerLayout), 'BarModel finds the same drawer sections as BarLayout')
+assertDeepEqual(layout.sectionEntries(drawerLayout, 'drawer:home'), [{ id: 'omarchy.bluetooth' }], 'a drawer section reads its widgets from layout.drawers')
+assertDeepEqual(bar.sectionEntries(drawerLayout, 'drawer:home'), [{ id: 'omarchy.bluetooth' }], 'so does BarModel')
+assertEqual(layout.sectionEntries(drawerLayout, 'right').length, 3, 'a fixed section reads its own list')
+assertEqual(layout.sectionEntries(drawerLayout, 'drawer:nope'), null, 'a drawer with no widgets list has no entries')
+assertEqual(bar.sectionEntries(drawerLayout, 'drawer:nope'), null, 'nor does it in BarModel')
+assertEqual(layout.sectionEntries(drawerLayout, 'middle'), null, 'a name that is no section has no entries')
+assertDeepEqual(Object.keys(layout.sections(drawerLayout)), fixed.concat(['drawer:tools', 'drawer:home']), 'a drawers list whose drawer left the bar is no section')
+
+for (const nested of [{ right: [], tray: [{ id: 'nested', type: 'drawer' }], drawers: { x: [{ id: 'inner', type: 'drawer' }] } }]) {
+  assertDeepEqual(layout.drawerIds(nested), [], 'drawers inside the tray section or another drawer are not drawers')
+  assertDeepEqual(bar.layoutSections(nested), fixed, 'nor are they to BarModel')
+}
+assertDeepEqual(layout.drawerIds({ left: [{ id: '../x', type: 'drawer' }, { id: 'a b', type: 'drawer' }, { id: 'ok_1.2-3', type: 'drawer' }] }), ['ok_1.2-3'], 'drawer ids are plain names')
+assertEqual(bar.drawerIdOf('drawer:../x'), '', 'BarModel takes plain drawer ids only')
+
+const edited = { right: [] }
+assertDeepEqual(layout.ensureSection(edited, 'drawer:home'), [], 'a drawer section is created when missing')
+assertDeepEqual(edited.drawers, { home: [] }, 'a created drawer section lives under layout.drawers')
+assertEqual(layout.ensureSection(edited, 'drawer:../x'), null, 'no section is created for a bad drawer id')
+assertEqual(layout.ensureSection(edited, 'middle'), null, 'no section is created for a name that is no section')
+
+for (const helper of [layout, bar]) {
+  assert(helper.isHostedSection('tray') && helper.isHostedSection('drawer:home'), 'the tray section and drawers are drawn inside another widget')
+  assert(!helper.isHostedSection('right') && !helper.isHostedSection('centerEnd') && !helper.isHostedSection('drawer:'), 'bar sections and an empty drawer id are not')
+}
+
+// Each widget in a drawer keeps its key as any other does, so a drag in or
+// out hands it over rather than building it again.
+const memo = {}
+const first = bar.layoutWidgets(drawerLayout, memo)
+assertDeepEqual(Object.keys(first.sections), fixed.concat(['drawer:tools', 'drawer:home']), 'every drawer on the bar gets a list of keys')
+assertEqual(first.sections['drawer:home'].length, 1, 'a drawer lists its widgets')
+assert(!JSON.stringify(first.sections).includes('omarchy.audio'), 'widgets of a drawer gone from the bar are not drawn')
+const bluetooth = first.sections['drawer:home'][0]
+const outOfDrawer = JSON.parse(JSON.stringify(drawerLayout))
+outOfDrawer.drawers.home = []
+outOfDrawer.center.push({ id: 'omarchy.bluetooth' })
+const second = bar.layoutWidgets(outOfDrawer, memo)
+assertDeepEqual(second.sections.center, [first.sections.center[0], bluetooth], 'a widget moved out of a drawer keeps its key')
+
+// The bar's own move writes into and out of drawers.
+const config = { bar: { layout: JSON.parse(JSON.stringify(drawerLayout)) } }
+const keep = entry => bar.entryId(entry) ? entry : null
+assert(bar.moveEntry(config, { from: { region: 'center', index: 0, id: 'omarchy.clock' }, to: { region: 'drawer:home', index: 0 } }, keep), 'a widget moves into a drawer')
+assertDeepEqual(config.bar.layout.drawers.home.map(bar.entryId), ['omarchy.clock', 'omarchy.bluetooth'], 'it lands where it was dropped in the drawer')
+assert(bar.moveEntry(config, { from: { region: 'drawer:home', index: 1, id: 'omarchy.bluetooth' }, to: { region: 'left', index: -1 } }, keep), 'a widget moves out of a drawer')
+assertDeepEqual(config.bar.layout.left.map(bar.entryId), ['omarchy.workspaces', 'omarchy.bluetooth'], 'it lands on the bar')
+assert(bar.moveEntry(config, { from: { region: 'centerEnd', index: 0, id: 'tools' }, to: { region: 'drawer:tools', index: -1 } }, keep) === false, 'a drawer never goes into a drawer')
+assert(bar.moveEntry(config, { from: { region: 'right', index: 1, id: 'omarchy.tray' }, to: { region: 'drawer:home', index: -1 } }, keep) === false, 'nor does the tray')
+assert(bar.moveEntry(config, { from: { region: 'left', index: 0, id: 'omarchy.workspaces' }, to: { region: 'drawer:x', index: -1 } }, keep), 'a move to a drawer section with no list yet makes one')
+assertDeepEqual(config.bar.layout.drawers.x.map(bar.entryId), ['omarchy.workspaces'], 'the made list holds the widget')
+
+// Dropping over a drawer's section lands in it, as over the tray's.
+const zone = bar.sectionDropZone({ x: 700, y: 0, width: 0, height: 26 }, 26, false)
+assertDeepEqual(bar.sectionDropTarget([], zone, { x: 705 }, false, null, 'drawer:home'), { region: 'drawer:home', after: true }, 'over an empty drawer, a drop lands in it')
+
+assert(tray.layoutHasWidget({ right: [], drawers: { home: [{ id: 'omarchy.dropbox' }] } }, 'omarchy.dropbox'), 'a widget in a drawer counts as on the bar for the tray')
+assert(/drawerCustom: customType === "drawer"/.test(barSource) && /component DrawerModule/.test(barSource), 'the bar draws drawer entries with its drawer module')
+assert(/BarModel\.isHostedSection\(slot\.region\) && !intoSections/.test(barSource), 'the tray and drawers are never dropped into a drawer')
+// Anywhere over a drawer, its button too, a drop goes into it; the tray's
+// chevron still drops beside the tray.
+assert(/if \(BarModel\.drawerIdOf\(slot\.hostedSection\)\) return tray/.test(barSource), 'a drop anywhere over a drawer goes into it')
+const drawerRows = [dropRowFor('drawer:home', 300, 30)]
+function dropRowFor(region, x, width) { return { slot: { region, widgetKey: region + x }, region, x, y: 0, width, height: 26 } }
+const wholeDrawer = { x: 280, y: 0, width: 60, height: 26 }
+assertDeepEqual(bar.sectionDropTarget(drawerRows, wholeDrawer, { x: 285 }, false, null, 'drawer:home'), { slot: drawerRows[0].slot, after: false }, 'over the drawer button, a drop lands beside the widget nearest it, inside the drawer')
+assertEqual(bar.sectionDropTarget(drawerRows, wholeDrawer, { x: 345 }, false, null, 'drawer:home'), null, 'past the drawer, the drop is beside it on the bar')
+JS
+
 put_tmp=$(mktemp -d)
 trap 'rm -rf "$put_tmp"' EXIT
 mkdir -p "$put_tmp/bin"
@@ -837,3 +930,19 @@ put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" \
   fail "put places a widget through a ready shell" "$put_output"
 [[ $put_output == "omarchy.keyboard-layout is on the bar" ]] || fail "put reports the placed widget" "$put_output"
 pass "put places a widget through a ready shell"
+
+# get reads widgets in drawers on the bar, never in a drawer gone from it,
+# whose widgets are off the bar and which set cannot reach either.
+get_home=$(mktemp -d)
+mkdir -p "$get_home/.config/omarchy"
+cat >"$get_home/.config/omarchy/shell.json" <<'JSON'
+{"bar":{"layout":{"left":[],"right":[{"id":"home","type":"drawer"}],"tray":[],"drawers":{"home":[{"id":"w.in","size":1}],"gone":[{"id":"w.gone","size":2}]}}}}
+JSON
+get_output=$(HOME="$get_home" "$ROOT/bin/omarchy-bar" get w.in size) || fail "get finds a widget in a drawer on the bar"
+[[ $get_output == "1" ]] || fail "get reads a setting of a widget in a drawer" "$get_output"
+pass "get reads a setting of a widget in a drawer"
+if HOME="$get_home" "$ROOT/bin/omarchy-bar" get w.gone size >/dev/null 2>&1; then
+  fail "get leaves widgets of a drawer gone from the bar alone"
+fi
+pass "get leaves widgets of a drawer gone from the bar alone"
+rm -rf "$get_home"

@@ -5,6 +5,59 @@
 var sections = ["left", "centerBegin", "center", "centerEnd", "right", "tray"]
 var centerSections = ["centerBegin", "center", "centerEnd"]
 
+// A drawer is a bar entry with "type": "drawer" and an id of its own; its
+// widgets are a section too, drawer:<id>, kept under layout.drawers[<id>], as
+// Commons/BarLayout.js has them. Only a drawer on the bar itself, not in the
+// tray's drawer or another drawer, makes one.
+var drawerPrefix = "drawer:"
+
+function drawerIdOf(section) {
+  var name = String(section || "")
+  var id = name.indexOf(drawerPrefix) === 0 ? name.slice(drawerPrefix.length) : ""
+  return /^[A-Za-z0-9_.-]{1,64}$/.test(id) ? id : ""
+}
+
+// The sections drawn inside another widget: the tray's and every drawer's.
+function isHostedSection(section) {
+  return section === "tray" || drawerIdOf(section) !== ""
+}
+
+function isSectionName(section) {
+  return sections.indexOf(String(section || "")) !== -1 || drawerIdOf(section) !== ""
+}
+
+// Every section of a layout: the fixed ones, then one per drawer on the bar,
+// in bar order, each once.
+function layoutSections(layout) {
+  var names = sections.slice()
+  if (!isPlainObject(layout)) return names
+  for (var s = 0; s < sections.length; s++) {
+    var list = sections[s] === "tray" || !Array.isArray(layout[sections[s]]) ? [] : layout[sections[s]]
+    for (var i = 0; i < list.length; i++) {
+      var section = isPlainObject(list[i]) && list[i].type === "drawer" ? drawerPrefix + entryId(list[i]) : ""
+      if (drawerIdOf(section) && names.indexOf(section) === -1) names.push(section)
+    }
+  }
+  return names
+}
+
+// One section's entries in a layout, or null when it has none. With
+// `create`, a missing list is made, as a write needs.
+function sectionEntries(layout, section, create) {
+  if (!isPlainObject(layout) || !isSectionName(section)) return null
+  var id = drawerIdOf(section)
+  var owner = layout
+  var key = String(section)
+  if (id) {
+    if (create && !isPlainObject(layout.drawers)) layout.drawers = {}
+    owner = isPlainObject(layout.drawers) ? layout.drawers : null
+    key = id
+  }
+  if (!owner) return null
+  if (create && !Array.isArray(owner[key])) owner[key] = []
+  return Array.isArray(owner[key]) ? owner[key] : null
+}
+
 function isPlainObject(value) {
   return !!value && typeof value === "object" && !Array.isArray(value)
 }
@@ -257,11 +310,13 @@ function sectionDropZone(section, reach, vertical, tray) {
     : { x: start, y: section.y, width: end - start, height: section.height }
 }
 
-// A drop over the tray's drawer section, given as where a drop lands in it
-// (sectionDropZone): among the widgets in the section, or in it when it holds
-// none. Over the room the dragged widget (`source`) still holds, it goes
-// back. Null off the section, where the widgets in it are out of reach.
-function traySectionDropTarget(candidates, zone, point, vertical, source) {
+// A drop over a section drawn inside another widget, the tray's drawer
+// section or a drawer's (`region`, tray when not given), given as where a
+// drop lands in it (sectionDropZone): among the widgets in the section, or in
+// it when it holds none. Over the room the dragged widget (`source`) still
+// holds, it goes back. Null off the section, where the widgets in it are out
+// of reach.
+function sectionDropTarget(candidates, zone, point, vertical, source, region) {
   if (!zone) return null
   var rows = Array.isArray(candidates) ? candidates : []
   var axis = vertical ? Number(point && point.y) : Number(point && point.x)
@@ -272,8 +327,9 @@ function traySectionDropTarget(candidates, zone, point, vertical, source) {
   var own = ownRoomTarget(rows, axis, vertical, source)
   if (own) return own
 
-  var inside = nearestEdge(rows.filter(function(row) { return row && row.region === "tray" }), axis, vertical)
-  return inside ? inside.target : { region: "tray", after: true }
+  var section = region || "tray"
+  var inside = nearestEdge(rows.filter(function(row) { return row && row.region === section }), axis, vertical)
+  return inside ? inside.target : { region: section, after: true }
 }
 
 // Where a drop opens room for the dragged widget (`source`, { key, region }):
@@ -340,11 +396,12 @@ function layoutWidgets(layout, memo) {
   var source = isPlainObject(layout) ? layout : {}
   var state = memo || {}
   var previous = state.widgets || Object.create(null)
+  var names = layoutSections(source)
   var planned = []
-  for (var s = 0; s < sections.length; s++) {
-    var list = Array.isArray(source[sections[s]]) ? source[sections[s]] : []
+  for (var s = 0; s < names.length; s++) {
+    var list = sectionEntries(source, names[s]) || []
     for (var i = 0; i < list.length; i++)
-      planned.push({ section: sections[s], index: i, id: entryId(list[i]), json: entryJson(list[i]), entry: list[i], custom: !!customModuleType(list[i]), key: "" })
+      planned.push({ section: names[s], index: i, id: entryId(list[i]), json: entryJson(list[i]), entry: list[i], custom: !!customModuleType(list[i]), key: "" })
   }
 
   var byId = Object.create(null)
@@ -378,7 +435,7 @@ function layoutWidgets(layout, memo) {
   var next = Object.create(null)
   var bySection = {}
   var entries = Object.create(null)
-  for (var r = 0; r < sections.length; r++) bySection[sections[r]] = []
+  for (var r = 0; r < names.length; r++) bySection[names[r]] = []
   for (var gone in previous) entries[gone] = previous[gone].entry
   planned.forEach(function(plan) {
     if (!plan.key) plan.key = plan.id + "#" + (state.serial = (state.serial || 0) + 1)
@@ -473,12 +530,10 @@ function roomLengths(extent, shares) {
 function moveEntry(config, move, normalizeEntry) {
   var normalize = typeof normalizeEntry === "function" ? normalizeEntry : function(entry) { return entryId(entry) ? entry : null }
   if (!isPlainObject(config) || !move || !move.from || !move.to) return false
-  if (sections.indexOf(move.from.region) === -1 || sections.indexOf(move.to.region) === -1) return false
+  if (!isSectionName(move.from.region) || !isSectionName(move.to.region)) return false
   if (!isPlainObject(config.bar)) config.bar = {}
   if (!isPlainObject(config.bar.layout)) config.bar.layout = {}
   var layout = config.bar.layout
-  if (!Array.isArray(layout[move.from.region])) layout[move.from.region] = []
-  if (!Array.isArray(layout[move.to.region])) layout[move.to.region] = []
 
   // Where the widget the bar draws at `index` sits among the raw entries, or
   // past them all for one past the last widget.
@@ -492,8 +547,8 @@ function moveEntry(config, move, normalizeEntry) {
     return index === widgets ? entries.length : -1
   }
 
-  var fromEntries = layout[move.from.region]
-  var toEntries = layout[move.to.region]
+  var fromEntries = sectionEntries(layout, move.from.region, true)
+  var toEntries = sectionEntries(layout, move.to.region, true)
   var fromIndex = rawIndex(fromEntries, Number(move.from.index))
   if (fromIndex < 0 || fromIndex >= fromEntries.length || entryId(normalize(fromEntries[fromIndex])) !== String(move.from.id)) return false
 
@@ -502,6 +557,12 @@ function moveEntry(config, move, normalizeEntry) {
   var sameSection = fromEntries === toEntries
   if (sameSection && fromIndex < toIndex) toIndex -= 1
   if (sameSection && fromIndex === toIndex) return false
+
+  // The tray and drawers hold sections of their own, so neither goes into
+  // the tray's drawer or a drawer.
+  var moving = normalize(fromEntries[fromIndex])
+  var hosts = entryId(moving) === "omarchy.tray" || (isPlainObject(moving) && moving.type === "drawer")
+  if (hosts && (move.to.region === "tray" || drawerIdOf(move.to.region))) return false
 
   var entry = fromEntries.splice(fromIndex, 1)[0]
   toEntries.splice(toIndex, 0, entry)
@@ -649,7 +710,7 @@ if (typeof module !== "undefined") {
     nearestDropTarget: nearestDropTarget,
     centerDropTarget: centerDropTarget,
     centerDropZone: centerDropZone,
-    traySectionDropTarget: traySectionDropTarget,
+    sectionDropTarget: sectionDropTarget,
     sectionDropZone: sectionDropZone,
     dropRoom: dropRoom,
     sectionRows: sectionRows,
@@ -660,6 +721,11 @@ if (typeof module !== "undefined") {
     navigationRegions: navigationRegions,
     slotEdge: slotEdge,
     sections: sections,
+    drawerIdOf: drawerIdOf,
+    isHostedSection: isHostedSection,
+    isSectionName: isSectionName,
+    layoutSections: layoutSections,
+    sectionEntries: sectionEntries,
     normalizePosition: normalizePosition,
     entrySettings: entrySettings,
     entryId: entryId,

@@ -1,6 +1,7 @@
 pragma Singleton
 import Quickshell
 import QtQuick
+import "BarLayout.js" as BarLayout
 
 // Shared utility helpers used across plugins. Pure functions only — no
 // state. Anything stateful belongs on Color, Style, or a service.
@@ -183,6 +184,20 @@ QtObject {
     var out = {}
     for (var i = 0; i < barSections.length; i++)
       out[barSections[i]] = normalizeLayoutSection(src[barSections[i]])
+    // Only drawers on the bar keep their widgets; see BarLayout.js.
+    out.drawers = {}
+    var ids = BarLayout.drawerIds(out)
+    for (var d = 0; d < ids.length; d++)
+      out.drawers[ids[d]] = normalizeLayoutSection(BarLayout.sectionEntries(src, BarLayout.drawerSection(ids[d])))
     return out
   }
+
+  // Bar layout sections, drawers included: see BarLayout.js.
+  function layoutSectionNames(layout) { return BarLayout.sectionNames(layout) }
+  function layoutSectionEntries(layout, section) { return BarLayout.sectionEntries(layout, section) }
+  function ensureLayoutSection(layout, section) { return BarLayout.ensureSection(layout, section) }
+  function layoutSections(layout) { return BarLayout.sections(layout) }
+  function isLayoutSection(section) { return BarLayout.isSectionName(section) }
+  function isHostedLayoutSection(section) { return BarLayout.isHostedSection(section) }
+  function drawerLayoutSection(id) { return BarLayout.drawerSection(id) }
 }

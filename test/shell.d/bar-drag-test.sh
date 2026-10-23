@@ -49,7 +49,7 @@ PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
   quickshell -p "$config_dir" --no-color >"$log" 2>&1 &
 QS_PID=$!
 
-for _ in {1..100}; do
+for _ in {1..200}; do
   [[ -s $result ]] && break
   if ! kill -0 "$QS_PID" 2>/dev/null; then
     sed -n '1,160p' "$log" >&2

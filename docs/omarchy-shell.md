@@ -172,7 +172,9 @@ Rules:
    The sections are `left`, `centerBegin`, `center`, `centerEnd`, `tray`
    and `right`. `tray` is
    drawn inside the tray's drawer, after the app icons, and shows only while
-   `omarchy.tray` is on the bar; it cannot hold the tray itself.
+   `omarchy.tray` is on the bar; it cannot hold the tray itself. Each drawer on
+   the bar adds a section `drawer:<id>`, kept under `bar.layout.drawers.<id>`
+   (see *Drawers* below).
 3. Settings are inline on the entry. No `config:` sub-object, no
    merge layers.
 4. Built-in bar widget ids are namespaced (`omarchy.clock`, `omarchy.audio`, …).
@@ -424,6 +426,17 @@ If a full plugin is overkill, declare a one-off module inline in
 ```
 
 Output is plain text or Waybar-style JSON (`{ "text": ..., "tooltip": ..., "class": ... }`).
+
+A drawer holds widgets of its own, folded away behind one button, the way the tray's drawer holds the tray section:
+
+```json
+"right": [ { "id": "home", "type": "drawer", "name": "Home", "icon": "󰋜", "color": "#f38d70" } ],
+"drawers": { "home": [ { "id": "omarchy.bluetooth" }, { "id": "omarchy.audio" } ] }
+```
+
+The id names the drawer and its section, `drawer:home`; it is letters, digits, `.`, `_` and `-`. A drawer goes in `left`, `centerBegin`, `center`, `centerEnd` or `right`, never in the tray section or another drawer, and neither does the tray. `name` is the tooltip, `icon` the button's glyph and `color` (`#rrggbb`) tints the button and the line under the open drawer. It starts closed; `"collapsed": false` starts it open, and `"reveal": "hover"` opens it while the pointer is over it instead of on a click.
+
+While a widget is dragged along the bar every drawer opens, and a drop anywhere over a drawer, its button included, goes into it; a drop on the neighbouring widget lands beside it. A panel open from a widget in a drawer keeps the drawer open. A drawer opens away from the edge its section keeps to, as the tray does: toward the middle of the bar on the right, outward beside the center box. Widgets under `drawers` whose drawer is no longer on the bar are not drawn and count as off the bar.
 
 For a custom QML widget:
 

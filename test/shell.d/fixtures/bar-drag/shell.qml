@@ -42,7 +42,9 @@ ShellRoot {
   }
 
   function ids(region) {
-    return (host.config.bar.layout[region] || []).map(function(entry) { return entry.id })
+    var layout = host.config.bar.layout
+    var list = region.indexOf("drawer:") === 0 ? (layout.drawers || {})[region.slice(7)] : layout[region]
+    return (list || []).map(function(entry) { return entry.id })
   }
 
   // A widget's slots on the surface, along the bar.
@@ -132,6 +134,7 @@ ShellRoot {
       "test.a": { component: testWidget },
       "test.b": { component: testWidget },
       "test.c": { component: testWidget },
+      "test.d": { component: testWidget },
       "test.clock": { component: testWidget },
       "test.twin": { component: testWidget },
       "test.inner": { component: testWidget },
@@ -254,6 +257,58 @@ ShellRoot {
       [function() {
         var inner = root.slotsOf("test.inner")[0]
         root.check(inner && inner.activeItem.fixedEdge === "start", "moved to the left section, the tray has them grow from its start: " + (inner ? inner.activeItem.fixedEdge : "none shown"))
+
+        // A drawer holds widgets of its own, the section drawer:<id>, drawn
+        // inside it as the tray section is inside the tray.
+        host.mutateShellConfig(function(config) {
+          config.bar.layout.right.push({ id: "box", type: "drawer", collapsed: false })
+          config.bar.layout.drawers = { box: [{ id: "test.d" }] }
+        })
+      }, 600],
+      [function() {
+        var box = root.slotOf("box", "right")
+        var inside = root.slotOf("test.d", "drawer:box")
+        root.check(box && box.hostsSection && box.hostedSection === "drawer:box", "a drawer on the bar hosts its own section")
+        root.check(!!inside, "the drawer shows its widget")
+        root.check(inside && inside.activeItem.fixedEdge === "end", "a drawer in the right section opens toward the middle, its widgets growing from its end: " + (inside ? inside.activeItem.fixedEdge : "none shown"))
+        if (!inside) return
+        root.shown = inside.activeItem
+        root.counts = root.countsNow()
+        root.lift(inside)
+      }, 300],
+      [function() { root.pointAt(root.slotOf("test.a", "left"), 0.8) }, 300],
+      [function() { root.letGo(root.slotOf("test.a", "left"), 0.8) }, 700],
+      [function() {
+        root.check(JSON.stringify(root.ids("left")) === JSON.stringify(["test.a", "test.d", "test.tray"]), "a widget dragged out of a drawer lands on the bar: " + JSON.stringify(root.ids("left")))
+        root.check(JSON.stringify(root.ids("drawer:box")) === "[]", "and leaves the drawer: " + JSON.stringify(root.ids("drawer:box")))
+        var moved = root.slotOf("test.d", "left")
+        root.check(moved && moved.activeItem === root.shown, "it arrives as the very instance dragged")
+        root.check(root.countsNow() === root.counts, "nothing is built again: " + root.countsNow())
+        if (moved) root.lift(moved)
+      }, 300],
+      // While a widget is dragged the drawer opens, empty, and a drop over it
+      // goes in.
+      [function() { root.pointAt(root.slotOf("box", "right"), 0.5) }, 400],
+      [function() {
+        var box = root.slotOf("box", "right")
+        root.check(root.bar.barDragRegion === "drawer:box", "over an empty drawer, the drop would go into it: " + root.bar.barDragRegion)
+        root.letGo(box, 0.5)
+      }, 700],
+      [function() {
+        root.check(JSON.stringify(root.ids("drawer:box")) === JSON.stringify(["test.d"]), "a widget dropped over a drawer lands in it: " + JSON.stringify(root.ids("drawer:box")))
+        var back = root.slotOf("test.d", "drawer:box")
+        root.check(back && back.activeItem === root.shown, "it is still the instance dragged")
+        root.check(root.countsNow() === root.counts, "still nothing is built again: " + root.countsNow())
+        // The drawer itself never goes into a drawer.
+        root.lift(root.slotOf("box", "right"))
+      }, 300],
+      [function() { root.pointAt(root.slotOf("box", "right"), 0.5) }, 400],
+      [function() {
+        root.check(root.bar.barDragRegion !== "drawer:box", "a drawer is never dropped into itself: " + root.bar.barDragRegion)
+        root.letGo(root.slotOf("box", "right"), 0.5)
+      }, 700],
+      [function() {
+        root.check(JSON.stringify(root.ids("drawer:box")) === JSON.stringify(["test.d"]), "the drawer keeps its widget: " + JSON.stringify(root.ids("drawer:box")))
       }, 100]
     ]
     stepper.start()

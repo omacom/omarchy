@@ -9,6 +9,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "BarModel.js" as BarModel
+import "widgets/TrayModel.js" as TrayModel
 
 Item {
   id: root
@@ -98,24 +99,41 @@ Item {
   property bool tooltipShown: false
   property int tooltipRequest: 0
   property var activePopout: null
-  // A widget is being dragged that could go into the tray section, so the
-  // tray's drawer opens to show where.
-  readonly property bool traySectionDragActive: !!barDragSource && !barDragSource.hostsTraySection
-  // An open panel from a widget in the tray section keeps the tray's drawer
-  // open, so the panel's widget stays on screen under it.
-  readonly property bool traySectionPopoutOpen: {
+  // A widget is being dragged that could go into the tray section or a
+  // drawer, so the tray's drawer and every drawer open to show where.
+  readonly property bool traySectionDragActive: !!barDragSource && !barDragSource.hostsSection
+  // The section of the widget whose panel is open. An open panel from a
+  // widget in the tray section or a drawer keeps that drawer open, so the
+  // panel's widget stays on screen under it.
+  readonly property string popoutSection: {
     var owner = activePopout
-    if (!owner) return false
+    if (!owner) return ""
     for (var i = 0; i < moduleSlots.length; i++) {
       var slot = moduleSlots[i]
-      if (slot && slot.activeItem === owner) return slot.region === "tray"
+      if (slot && slot.activeItem === owner) return slot.region
     }
-    return false
+    return ""
+  }
+  readonly property bool traySectionPopoutOpen: popoutSection === "tray"
+  // Which drawers are open, by drawer id (DrawerModule). Shared by every
+  // monitor's bar.
+  property var drawerOpenState: ({})
+
+  function drawerIsOpen(id, entry) {
+    if (id in drawerOpenState) return drawerOpenState[id] === true
+    return Util.isPlainObject(entry) && entry.collapsed === false
+  }
+
+  function setDrawerOpen(id, open) {
+    var next = ({})
+    for (var key in drawerOpenState) next[key] = drawerOpenState[key]
+    next[id] = !!open
+    drawerOpenState = next
   }
   property var barDragSource: null
   // Where the dragged widget would land: { slot, after } beside a widget, or
   // { region, after } at an end of a section (see BarModel.centerDropTarget
-  // and BarModel.traySectionDropTarget).
+  // and BarModel.sectionDropTarget).
   property var barDragTarget: null
   readonly property string barDragRegion: barDragTarget ? (barDragTarget.slot ? barDragTarget.slot.region : barDragTarget.region) : ""
   // Where room is open for the dragged widget (BarModel.dropRoom), and that
@@ -768,7 +786,7 @@ Item {
 
   function layoutEntries(region) {
     var serial = barConfigSerial
-    var entries = layoutConfig ? layoutConfig[region] : null
+    var entries = layoutConfig ? BarModel.sectionEntries(layoutConfig, region) : null
     return Array.isArray(entries) ? entries : []
   }
 
@@ -999,9 +1017,9 @@ Item {
         return null
     }
 
-    // The tray cannot go into its own drawer.
-    var intoTraySection = !sourceSlot || !sourceSlot.hostsTraySection
-    var traySlot = null
+    // The tray and drawers cannot go into a drawer: the tray's or a drawer's.
+    var intoSections = !sourceSlot || !sourceSlot.hostsSection
+    var hostSlots = []
     // Each widget's own room; spacers are not widgets. The dragged widget
     // counts too: over its own room it would land back there, and folded
     // away, it still answers at the point it left, which the section's layout
@@ -1011,8 +1029,8 @@ Item {
       var slot = moduleSlots[i]
       if (!slot || !slot.visible || slot.widgetWidth <= 0 || slot.widgetHeight <= 0) continue
       if (sourceWindow && !root.sameWindow(root.slotWindow(slot), sourceWindow)) continue
-      if (slot.region === "tray" && !intoTraySection) continue
-      if (intoTraySection && slot.hostsTraySection) traySlot = slot
+      if (BarModel.isHostedSection(slot.region) && !intoSections) continue
+      if (intoSections && slot.hostsSection) hostSlots.push(slot)
 
       var slotPoint = { x: slot.x, y: slot.y }
       try {
@@ -1030,29 +1048,35 @@ Item {
       })
     }
 
-    // The tray's drawer section works as the center box does: over it, a
-    // drop lands among the widgets in it, or in it, and off it they are out
-    // of reach.
-    var drawer = BarModel.traySectionDropTarget(candidates, root.traySectionDropRect(traySlot, sourceWindow), scenePoint, root.vertical, sourceSlot)
-    if (drawer) return drawer
-    var onBar = candidates.filter(function(row) { return row.region !== "tray" })
+    // The tray's drawer section and every drawer's work as the center box
+    // does: over one, a drop lands among the widgets in it, or in it, and off
+    // it they are out of reach.
+    for (var h = 0; h < hostSlots.length; h++) {
+      var drawer = BarModel.sectionDropTarget(candidates, root.hostedSectionDropRect(hostSlots[h], sourceWindow), scenePoint, root.vertical, sourceSlot, hostSlots[h].hostedSection)
+      if (drawer) return drawer
+    }
+    var onBar = candidates.filter(function(row) { return !BarModel.isHostedSection(row.region) })
     var box = sourceWindow ? root.centerBoxFor(sourceWindow) : null
     return BarModel.centerDropTarget(onBar, root.centerBoxDropRect(box), scenePoint, root.vertical, sourceSlot)
   }
 
-  // Where a drop lands in the tray's drawer section on a bar surface, in
-  // scene coordinates: the section, any room a drag has opened there
+  // Where a drop lands in the section a slot hosts on a bar surface, in scene
+  // coordinates. The tray's: the section, any room a drag has opened there
   // included, reaching past it by half the bar's thickness either way, short
-  // of the tray's own ends (BarModel.sectionDropZone).
-  function traySectionDropRect(slot, window) {
-    var shown = slot ? slot.traySectionNow() : null
+  // of the tray's own ends (BarModel.sectionDropZone), so a drop on the
+  // tray's chevron lands beside the tray. A drawer's: the whole drawer, its
+  // button too, since the button is the drawer; beside it is the
+  // neighbouring widgets' place.
+  function hostedSectionDropRect(slot, window) {
+    var shown = slot ? slot.sectionNow() : null
     if (!shown || !window || !window.contentItem) return null
     try {
       var area = slot.widgetRoom
-      var origin = area.mapToItem(null, shown.x, shown.y)
-      var section = { x: origin.x, y: origin.y, width: shown.width, height: shown.height }
       var corner = area.mapToItem(null, 0, 0)
       var tray = { x: corner.x, y: corner.y, width: area.width, height: area.height }
+      if (BarModel.drawerIdOf(slot.hostedSection)) return tray
+      var origin = area.mapToItem(null, shown.x, shown.y)
+      var section = { x: origin.x, y: origin.y, width: shown.width, height: shown.height }
       var reach = vertical ? window.contentItem.width : window.contentItem.height
       return BarModel.sectionDropZone(section, reach, vertical, tray)
     } catch (e) {
@@ -2229,15 +2253,13 @@ Item {
     }
   }
 
-  // The tray section's list, which the tray's slot draws inside the tray's
-  // drawer and hands its bar surface's pool and window.
+  // The list of a section drawn inside another widget: the tray section in
+  // the tray's drawer, a drawer's section in the drawer. The slot hosting it
+  // names the section and hands it its bar surface's pool and window.
   Component {
-    id: traySectionComponent
+    id: hostedSectionComponent
 
-    ModuleList {
-      keys: root.layoutWidgets.sections.tray
-      region: "tray"
-    }
+    ModuleList {}
   }
 
   // A bar surface's widgets: one for each entry in the layout, under the key
@@ -2336,6 +2358,7 @@ Item {
     }
     readonly property bool qmlCustom: customType === "qml"
     readonly property bool commandCustom: customType === "command"
+    readonly property bool drawerCustom: customType === "drawer"
     readonly property bool registered: registryComponent !== null
     readonly property var activeItem: {
       if (registered) return registryLoader.item
@@ -2385,7 +2408,8 @@ Item {
     Loader {
       id: componentLoader
       active: host.placed && !host.qmlCustom && !host.registered
-      sourceComponent: host.commandCustom ? customCommandModuleComponent : emptyModuleComponent
+      sourceComponent: host.commandCustom ? customCommandModuleComponent
+        : host.drawerCustom ? drawerModuleComponent : emptyModuleComponent
       width: host.widgetWidth
       height: host.widgetHeight
       opacity: host.dragSource ? 0.22 : 1.0
@@ -2441,6 +2465,11 @@ Item {
       id: customCommandModuleComponent
       CustomCommandModule { entry: host.entry }
     }
+
+    Component {
+      id: drawerModuleComponent
+      DrawerModule { entry: host.entry }
+    }
   }
 
   // A widget's place in its section. It shows the widget its bar surface
@@ -2488,32 +2517,38 @@ Item {
       var point = mark.mapToItem(widgetArea, mark.width / 2, mark.height / 2)
       return root.vertical ? point.y : point.x
     }
-    // The tray, or a clone of it, hosts the tray section in its drawer; one
-    // inside the drawer does not, so the section never holds itself.
-    readonly property bool hostsTraySection: region !== "tray" && !!activeItem && "sectionHost" in activeItem
-    // Its drawer section is outlined while a widget that could go in it is
-    // dragged on this bar, as the center box is.
-    readonly property bool traySectionShown: hostsTraySection && root.traySectionDragActive && root.sameWindow(root.barDragWindow, window)
-    // The part of the section the drawer shows, in the slot's widget area,
+    // The tray, or a clone of it, hosts the tray section in its drawer, and a
+    // drawer hosts its own section, drawer:<id> (DrawerModule). One inside
+    // the tray's drawer or a drawer does not, so no section ever holds itself
+    // or another drawer.
+    readonly property string hostedSection: {
+      if (!activeItem || !("sectionHost" in activeItem) || BarModel.isHostedSection(region)) return ""
+      return "hostedSection" in activeItem ? String(activeItem.hostedSection || "") : "tray"
+    }
+    readonly property bool hostsSection: hostedSection !== ""
+    // Its section is outlined while a widget that could go in it is dragged
+    // on this bar, as the center box is.
+    readonly property bool sectionOutlined: hostsSection && root.traySectionDragActive && root.sameWindow(root.barDragWindow, window)
+    // The part of the section its drawer shows, in the slot's widget area,
     // or null while the drawer hides all of it (the tray's sectionShown).
-    readonly property var traySectionGeometry: {
-      var shown = hostsTraySection ? activeItem.sectionShown : null
+    readonly property var sectionGeometry: {
+      var shown = hostsSection ? activeItem.sectionShown : null
       if (!shown) return null
       return { x: holder.x + shown.x, y: holder.y + shown.y, width: shown.width, height: shown.height }
     }
-    // Where the section is now, for a drop: as traySectionGeometry, or for a
+    // Where the section is now, for a drop: as sectionGeometry, or for a
     // tray cloned before trays said how much of it shows, the whole section.
-    function traySectionNow() {
-      if (!hostsTraySection) return null
-      if ("sectionShown" in activeItem) return traySectionGeometry
+    function sectionNow() {
+      if (!hostsSection) return null
+      if ("sectionShown" in activeItem) return sectionGeometry
       var area = activeItem.sectionHost
       if (!area) return null
       var point = area.mapToItem(widgetArea, 0, 0)
       return { x: point.x, y: point.y, width: area.width, height: area.height }
     }
 
-    function traySectionContains(x, y) {
-      var area = hostsTraySection ? activeItem.sectionHost : null
+    function sectionContains(x, y) {
+      var area = hostsSection ? activeItem.sectionHost : null
       if (!area || !area.visible || area.width <= 0 || area.height <= 0) return false
       var point = slot.mapToItem(area, x, y)
       return point.x >= 0 && point.y >= 0 && point.x <= area.width && point.y <= area.height
@@ -2576,16 +2611,16 @@ Item {
         height: slot.widgetHeight
       }
 
-      // The tray section's outline, as the center box's: around what it
+      // The hosted section's outline, as the center box's: around what it
       // holds, the room for the dragged widget included, or a line where it
-      // holds nothing. Drawn over the tray rather than in its drawer, whose
-      // clip would hide an empty section's line.
+      // holds nothing. Drawn over the tray or drawer rather than in its
+      // drawer, whose clip would hide an empty section's line.
       DropOutline {
-        readonly property var section: slot.traySectionGeometry || { x: 0, y: 0, width: 0, height: 0 }
+        readonly property var section: slot.sectionGeometry || { x: 0, y: 0, width: 0, height: 0 }
 
-        visible: slot.traySectionShown && !!slot.traySectionGeometry
+        visible: slot.sectionOutlined && !!slot.sectionGeometry
         length: root.vertical ? section.height : section.width
-        dropInto: root.barDragRegion === "tray"
+        dropInto: root.barDragRegion === slot.hostedSection
         x: root.vertical ? Math.round((parent.width - across) / 2) : section.x
         y: root.vertical ? section.y : Math.round((parent.height - across) / 2)
         z: 40
@@ -2621,22 +2656,24 @@ Item {
       }
     }
 
-    // The tray section's widgets, drawn inside the tray's drawer. They are
-    // ordinary module slots of their own region, so they open panels, drag
-    // and keep settings the way widgets on the bar do.
+    // The hosted section's widgets, drawn inside the tray's drawer or a
+    // drawer. They are ordinary module slots of their own region, so they
+    // open panels, drag and keep settings the way widgets on the bar do.
     // Built through a Component outside ModuleSlot: a module list holds
     // module slots, so one declared in here would make the types a cycle.
     Loader {
-      id: traySectionLoader
-      readonly property Item host: slot.hostsTraySection ? slot.activeItem.sectionHost : null
+      id: hostedSectionLoader
+      readonly property Item host: slot.hostsSection ? slot.activeItem.sectionHost : null
       parent: host || slot
       active: !!host
-      sourceComponent: traySectionComponent
+      sourceComponent: hostedSectionComponent
     }
-    Binding { target: traySectionLoader.item; property: "window"; value: slot.window }
-    Binding { target: traySectionLoader.item; property: "pool"; value: slot.pool }
-    // Its widgets grow from the edge the tray anchors the section by.
-    Binding { target: traySectionLoader.item; property: "fixedEdge"; value: slot.hostsTraySection && slot.activeItem.sectionEdge || "center" }
+    Binding { target: hostedSectionLoader.item; property: "region"; value: slot.hostedSection }
+    Binding { target: hostedSectionLoader.item; property: "keys"; value: root.layoutWidgets.sections[slot.hostedSection] || [] }
+    Binding { target: hostedSectionLoader.item; property: "window"; value: slot.window }
+    Binding { target: hostedSectionLoader.item; property: "pool"; value: slot.pool }
+    // Its widgets grow from the edge the tray or drawer anchors the section by.
+    Binding { target: hostedSectionLoader.item; property: "fixedEdge"; value: slot.hostsSection && slot.activeItem.sectionEdge || "center" }
 
     MouseArea {
       id: modulePointer
@@ -2662,9 +2699,10 @@ Item {
       // follows the pointer instead.
 
       onPressed: function(mouse) {
-        // A press on a widget in the tray's drawer belongs to that widget's
-        // own slot, underneath this one, so it drags that widget, not the tray.
-        if (slot.traySectionContains(mouse.x, mouse.y)) {
+        // A press on a widget in the tray's drawer or a drawer belongs to that
+        // widget's own slot, underneath this one, so it drags that widget, not
+        // the tray or the drawer.
+        if (slot.sectionContains(mouse.x, mouse.y)) {
           mouse.accepted = false
           return
         }
@@ -2796,6 +2834,140 @@ Item {
       repeat: true
       triggeredOnStart: true
       onTriggered: root.runProcess(customProc)
+    }
+  }
+
+  // A drawer: a bar entry with "type": "drawer" and an id of its own, holding
+  // widgets the way the tray's drawer holds the tray section. Its widgets are
+  // the section drawer:<id> (BarModel.layoutSections), which the slot holding
+  // it draws into sectionHost, as it does the tray's. The button opens and
+  // closes it; with "reveal": "hover" it opens while the pointer is over it.
+  // A drawer starts closed unless its entry says "collapsed": false, and it
+  // stays open while a widget is dragged along the bar or a panel of one of
+  // its widgets is up. It opens away from the edge it keeps to, so on the
+  // right of the bar toward the middle, like the tray. It declares no bar,
+  // moduleName or settings: its host would hand a plugin facade to a bar
+  // property, and the drawer needs the bar itself.
+  component DrawerModule: Item {
+    id: drawer
+
+    required property var entry
+    // Set by its host: the edge it keeps to as it grows.
+    property string fixedEdge: "center"
+    readonly property string drawerId: root.entryId(entry)
+    readonly property string hostedSection: BarModel.drawerIdOf("drawer:" + drawerId) ? "drawer:" + drawerId : ""
+    readonly property var drawerSettings: root.entrySettings(entry)
+    property Item sectionHost: null
+    readonly property int sectionCount: (root.layoutWidgets.sections[hostedSection] || []).length
+    readonly property bool hoverReveal: drawerSettings.reveal === "hover"
+    readonly property bool opensBackward: fixedEdge === "end"
+    // The section's widgets grow from the button's side.
+    readonly property string sectionEdge: opensBackward ? "end" : "start"
+    readonly property color tint: /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(String(drawerSettings.color || ""))
+      ? String(drawerSettings.color) : root.barForeground
+    readonly property bool barDragging: root.traySectionDragActive
+    readonly property bool holdOpen: barDragging || (hostedSection !== "" && root.popoutSection === hostedSection)
+    readonly property bool open: root.drawerIsOpen(drawerId, entry) || holdOpen
+    readonly property real fullExtent: sectionHost ? (root.vertical ? sectionHost.implicitHeight : sectionHost.implicitWidth) : 0
+    property real revealProgress: open ? 1 : 0
+    readonly property real revealExtent: fullExtent * revealProgress
+    readonly property real buttonExtent: root.vertical ? toggle.implicitHeight : toggle.implicitWidth
+    // The part of the section the drawer shows, in the drawer, or null while
+    // it shows none of it, as the tray's sectionShown.
+    readonly property var sectionShown: {
+      var span = root.vertical
+        ? TrayModel.shownSpan(drawerClip.y, drawerClip.height, drawerClip.y + sectionArea.y, sectionArea.height)
+        : TrayModel.shownSpan(drawerClip.x, drawerClip.width, drawerClip.x + sectionArea.x, sectionArea.width)
+      if (!span) return null
+      return root.vertical
+        ? { x: 0, y: span.start, width: root.barSize, height: span.length }
+        : { x: span.start, y: 0, width: span.length, height: root.barSize }
+    }
+
+    implicitWidth: root.vertical ? root.barSize : buttonExtent + revealExtent
+    implicitHeight: root.vertical ? buttonExtent + revealExtent : root.barSize
+
+    Behavior on revealProgress {
+      NumberAnimation { duration: Style.duration(260); easing.type: Easing.OutCubic }
+    }
+
+    function setOpen(value) { root.setDrawerOpen(drawerId, value) }
+
+    HoverHandler {
+      id: drawerHover
+      enabled: drawer.hoverReveal
+      onHoveredChanged: {
+        if (hovered) {
+          collapseDelay.stop()
+          drawer.setOpen(true)
+        } else {
+          collapseDelay.restart()
+        }
+      }
+    }
+
+    Timer {
+      id: collapseDelay
+      interval: 450
+      onTriggered: if (drawer.hoverReveal && !drawerHover.hovered) drawer.setOpen(false)
+    }
+
+    WidgetButton {
+      id: toggle
+      bar: root
+      x: root.vertical ? 0 : (drawer.opensBackward ? drawer.revealExtent : 0)
+      y: root.vertical ? (drawer.opensBackward ? drawer.revealExtent : 0) : 0
+      text: {
+        var icon = String(drawer.drawerSettings.icon || "") || "\udb80\ude4b"
+        if (root.vertical) return icon
+        var pointsOut = drawer.open === drawer.opensBackward
+        var chevron = pointsOut ? "\uf054" : "\uf053"
+        return drawer.opensBackward ? chevron + " " + icon : icon + " " + chevron
+      }
+      foreground: drawer.tint
+      tooltipText: {
+        var name = String(drawer.drawerSettings.name || drawer.drawerId)
+        return name + " · " + Commons.I18n.tn("bar.drawerWidgets", drawer.sectionCount).arg(Commons.I18n.formatNumber(drawer.sectionCount))
+      }
+      onPressed: function(button) {
+        if (button === Qt.LeftButton || button === Qt.MiddleButton) drawer.setOpen(!drawer.open)
+      }
+    }
+
+    Item {
+      id: drawerClip
+      clip: true
+      x: root.vertical ? 0 : (drawer.opensBackward ? 0 : drawer.buttonExtent)
+      y: root.vertical ? (drawer.opensBackward ? 0 : drawer.buttonExtent) : 0
+      width: root.vertical ? drawer.width : drawer.revealExtent
+      height: root.vertical ? drawer.revealExtent : drawer.height
+
+      // The bar parents the section's list here. Its widgets stay loaded
+      // while the drawer is closed, so they keep their state; they only stop
+      // taking the pointer, since a closed drawer is narrower than they are.
+      // Empty, it takes no room.
+      Item {
+        id: sectionArea
+        enabled: drawer.revealProgress > 0
+        x: root.vertical ? 0 : (drawer.opensBackward ? drawer.revealExtent - drawer.fullExtent : 0)
+        y: root.vertical ? (drawer.opensBackward ? drawer.revealExtent - drawer.fullExtent : 0) : 0
+        implicitWidth: childrenRect.width
+        implicitHeight: childrenRect.height
+
+        Component.onCompleted: drawer.sectionHost = sectionArea
+        Component.onDestruction: if (drawer.sectionHost === sectionArea) drawer.sectionHost = null
+      }
+
+      // A thin line along the open drawer, in the drawer's colour.
+      Rectangle {
+        visible: !root.vertical && drawer.sectionCount > 0
+        x: sectionArea.x
+        width: drawer.fullExtent
+        height: Style.space(1)
+        y: root.position === "top" ? drawerClip.height - height : 0
+        color: drawer.tint
+        opacity: 0.35 * drawer.revealProgress
+      }
     }
   }
 }

@@ -18,10 +18,15 @@ function entryId(entry) {
   return ""
 }
 
+// Drawers count as on the bar too: their widgets are under layout.drawers
+// (see Commons/BarLayout.js).
 function layoutHasWidget(layout, id) {
-  var sections = ["left", "centerBegin", "center", "centerEnd", "right", "tray"]
+  var sections = ["left", "centerBegin", "center", "centerEnd", "right", "tray"].map(function(name) { return layout && layout[name] })
+  var drawers = layout && layout.drawers
+  if (drawers && typeof drawers === "object" && !Array.isArray(drawers))
+    for (var key in drawers) sections.push(drawers[key])
   for (var s = 0; s < sections.length; s++) {
-    var entries = layout && layout[sections[s]]
+    var entries = sections[s]
     if (!Array.isArray(entries)) continue
     for (var i = 0; i < entries.length; i++) {
       if (entryId(entries[i]) === id) return true

@@ -88,6 +88,8 @@ The middle of the bar is a box: whatever is in it stays centered as one group, a
 
 A widget you want around but not always in view can go in the tray's drawer: drag it onto the tray, and the drawer opens to take it. It sits there after the app icons, shows up whenever the drawer does, and keeps its drawer open while its panel is up. Drag it back out onto the bar to put it back.
 
+For more than one such place, add drawers of your own: a button on the bar that folds a group of widgets away, like Home for the lights and the heating. Each drawer is one entry in `~/.config/omarchy/shell.json` with `"type": "drawer"`, a name and an icon; while you drag a widget along the bar every drawer opens, so you can drop it into one. A click on the drawer's button opens and closes it.
+
 If you'd rather pick from a menu, **Appearance → Menu Bar** has the position, and **Bar Background** picks how the bar is drawn: **Opaque Bar**, **Glassy Bar** (see-through, with what's behind it blurred), or **Clear Bar**.
 
 The same things have commands, which is what you want for a [dotfiles](31-dotfiles.md) setup:
@@ -97,6 +99,7 @@ omarchy bar position bottom
 omarchy bar background glassy  # opaque, glassy, none, or cycle
 omarchy bar move omarchy.weather --section centerBegin --index 0
 omarchy bar move omarchy.bluetooth --section tray  # into the tray's drawer
+omarchy bar move omarchy.bluetooth --section drawer:home  # into the drawer "home"
 omarchy bar set omarchy.clock format "HH:mm"
 omarchy bar defaults          # back to the shipped layout
 ```

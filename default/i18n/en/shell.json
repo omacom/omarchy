@@ -126,6 +126,10 @@
   "bar.allowNotifications": "Allow Notifications",
   "bar.dayLight": "Day Light",
   "bar.disablePasswordlessSudo": "Disable Passwordless Sudo",
+  "bar.drawerWidgets": {
+    "one": "%1 widget",
+    "other": "%1 widgets"
+  },
   "bar.microphoneInUse": "Microphone in use",
   "bar.microphoneLive": "Microphone live",
   "bar.microphoneMuted": "Microphone muted",

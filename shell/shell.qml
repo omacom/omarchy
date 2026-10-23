@@ -1104,11 +1104,11 @@ ShellRoot {
     if (!Util.isPlainObject(copy.bar.layout)) copy.bar.layout = {}
     if (!Array.isArray(copy.plugins)) copy.plugins = []
 
-    var sections = Util.barSections
+    var sections = Util.layoutSectionNames(copy.bar.layout)
     var foundInLayout = false
     var dirty = false
     for (var s = 0; s < sections.length; s++) {
-      var arr = copy.bar.layout[sections[s]] || []
+      var arr = Util.layoutSectionEntries(copy.bar.layout, sections[s]) || []
       for (var i = 0; i < arr.length; i++) {
         if (arr[i] && Util.canonicalWidgetId(arr[i].id) === stripped) {
           var next = { id: stripped }
