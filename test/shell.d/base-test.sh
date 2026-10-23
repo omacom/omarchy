@@ -22,6 +22,13 @@ export OMARCHY_LANGUAGE_FILE=$ROOT/test/.no-language
 # they follow HOME. A test that wants one sets it itself.
 unset XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME
 
+# The commands under test call each other — omarchy-battery-status runs
+# omarchy-i18n, for one — so a checkout run needs the checkout's own bin/ on
+# PATH and the root it belongs to, the way an installed one has them. A test
+# that stubs a command prepends its own directory, which still wins.
+export PATH="$ROOT/bin:$PATH"
+export OMARCHY_PATH="$ROOT"
+
 pass() {
   printf 'ok - %s\n' "$1"
 }
