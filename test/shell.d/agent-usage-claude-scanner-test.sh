@@ -36,6 +36,47 @@ pass "Claude collector keeps mutually exclusive token categories"
   fail "Claude collector identifies itself and reports missing auth" "$result"
 pass "Claude collector identifies itself and reports missing auth"
 
+# Project folders may be symlinks into directories kept elsewhere, and more
+# than one may lead to the same place: their transcripts count, once each.
+LINK_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
+mkdir -p "$LINK_HOME/.claude/projects" "$LINK_HOME/shared-sessions"
+cp "$projects/session.jsonl" "$LINK_HOME/shared-sessions/session.jsonl"
+ln -s "$LINK_HOME/shared-sessions" "$LINK_HOME/.claude/projects/first"
+ln -s "$LINK_HOME/shared-sessions" "$LINK_HOME/.claude/projects/second"
+
+result=$(HOME="$LINK_HOME" XDG_CACHE_HOME="$LINK_HOME/.cache" XDG_DATA_HOME="$LINK_HOME/.local/share" \
+  "$ROOT/bin/omarchy-agent-usage-claude" --force)
+
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "58793" ]] ||
+  fail "Claude collector reads transcripts in symlinked project folders" "$result"
+pass "Claude collector reads transcripts in symlinked project folders"
+
+index=$(ls "$LINK_HOME"/.cache/omarchy/agent-usage/claude-index-*.json 2>/dev/null | head -1)
+[[ -n $index && $(jq -r '.files | length' "$index") == "1" ]] ||
+  fail "Claude collector reads a transcript reached through two symlinks once" "$(cat "$index" 2>/dev/null)"
+pass "Claude collector reads a transcript reached through two symlinks once"
+
+# A later refresh takes the linked transcript from the index, under the same
+# real path, instead of opening it again.
+chmod 000 "$LINK_HOME/shared-sessions/session.jsonl"
+result=$(HOME="$LINK_HOME" XDG_CACHE_HOME="$LINK_HOME/.cache" XDG_DATA_HOME="$LINK_HOME/.local/share" \
+  "$ROOT/bin/omarchy-agent-usage-claude" --cache-seconds 0 2>/dev/null)
+chmod 644 "$LINK_HOME/shared-sessions/session.jsonl"
+
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "58793" && $(jq -r '.files | length' "$index") == "1" ]] ||
+  fail "Claude collector serves a symlinked transcript from the scan index" "$result"
+pass "Claude collector serves a symlinked transcript from the scan index"
+
+# A link back to an ancestor is a cycle: the walk enters each real directory
+# once and comes back with the same answer.
+ln -s "$LINK_HOME/.claude/projects" "$LINK_HOME/shared-sessions/loop"
+result=$(HOME="$LINK_HOME" XDG_CACHE_HOME="$LINK_HOME/.cache" XDG_DATA_HOME="$LINK_HOME/.local/share" \
+  timeout 20 "$ROOT/bin/omarchy-agent-usage-claude" --force)
+
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "58793" ]] ||
+  fail "Claude collector stops at a symlink cycle" "$result"
+pass "Claude collector stops at a symlink cycle"
+
 # Transcripts only ever grow, so a refresh reads what was appended since the
 # last one and takes the rest from the scan index.
 cat >>"$projects/session.jsonl" <<EOF
