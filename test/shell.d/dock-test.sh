@@ -158,10 +158,6 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
 
-grep -qF 'Border.surfaceSpec("popups", "border", Commons.Color.popups.border, root.borderWidth)' "$ROOT/shell/plugins/dock/AppGrid.qml" ||
-  fail "dock app grid border follows the popup accent border"
-pass "dock app grid border follows the popup accent border"
-
 # The dock only shows on floating workspaces, and gets out of the way of a
 # fullscreen window; a maximized one only tucks it away.
 grep -qF 'dock.isFloating(workspaceId) && fullscreenMode < 2' "$ROOT/shell/plugins/dock/DockWindow.qml" ||

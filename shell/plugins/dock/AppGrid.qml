@@ -315,7 +315,7 @@ Item {
             WheelHandler {
               target: null
               onWheel: function(event) {
-                var delta = event.pixelDelta.y * 12 || event.angleDelta.y / 120 * root.cellHeight * 9
+                var delta = event.pixelDelta.y * 12 || event.angleDelta.y / 120 * root.cellHeight
                 var bottom = grid.originY + Math.max(0, grid.contentHeight - grid.height)
                 grid.contentY = Math.max(grid.originY, Math.min(bottom, grid.contentY - delta))
                 event.accepted = true
