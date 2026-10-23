@@ -310,7 +310,8 @@ pass "Antigravity migration preserves an existing Antigravity install"
 
 mkdir -p "$test_home/.local/state/omarchy"
 touch "$test_home/.local/state/omarchy/preinstalls-removed"
-"$ROOT/bin/omarchy-mise-install" oh-my-pi omp
+printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "oh-my-pi" || exit 1\nexec mise x "oh-my-pi" -- "omp" "$@"\n' >"$test_home/.local/bin/omp"
+chmod +x "$test_home/.local/bin/omp"
 : >"$stub_log"
 source "$ROOT/migrations/1785617047.sh" >/dev/null
 source "$ROOT/migrations/1785846769.sh" >/dev/null

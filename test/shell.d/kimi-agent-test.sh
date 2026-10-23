@@ -79,6 +79,7 @@ for operation in migration removal; do
   done
 done
 
+rm -f "$kimi"
 omarchy-mise-install "$package" kimi
 apply_kimi removal
 [[ ! -e $kimi ]] || fail "Remove Preinstalls removes Omarchy's Kimi wrapper"

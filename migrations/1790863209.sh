@@ -8,9 +8,27 @@ npm_grok="npm:@xai-official/grok"
 wrapper="$HOME/.local/bin/grok"
 npm_stub=false
 
-# Anchored to the package the old installer wrote. A script the user wrote that
-# calls mise use -g for something else is left alone.
-if [[ -f $wrapper && ! -L $wrapper ]] && grep -Fq "$npm_grok" "$wrapper"; then
+# Only remove a wrapper Omarchy actually wrote. A user script may also name the
+# npm package, and removing that tool would break it.
+generated_npm_stub() {
+  [[ -f $wrapper && ! -L $wrapper ]] || return 1
+  (( $(stat -c%s "$wrapper") <= 1024 )) || return 1
+
+  local current legacy
+  current=$(printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "grok" "$@"\n' "$npm_grok" "$npm_grok")
+  cmp -s -- "$wrapper" <(printf '%s\n' "$current") && return 0
+  legacy=${current/ --quiet/}
+  cmp -s -- "$wrapper" <(printf '%s\n' "$legacy") && return 0
+  legacy=${legacy/$'export MISE_MINIMUM_RELEASE_AGE=0\n'/}
+  cmp -s -- "$wrapper" <(printf '%s\n' "$legacy") && return 0
+  legacy=${legacy/ || exit 1/}
+  legacy=${legacy/exec mise x/exec mise exec}
+  cmp -s -- "$wrapper" <(printf '%s\n' "$legacy") && return 0
+  legacy=$(printf '#!/bin/bash\nmise use -g "%s"\nexec "grok" "$@"' "$npm_grok")
+  cmp -s -- "$wrapper" <(printf '%s\n' "$legacy")
+}
+
+if generated_npm_stub; then
   npm_stub=true
 fi
 
@@ -25,16 +43,31 @@ drop_npm_grok() {
 }
 
 if [[ ! -f $HOME/.local/state/omarchy/preinstalls-removed ]]; then
-  # The shim is ahead of ~/.local/bin, so drop the npm tool before looking for
-  # grok. A removed wrapper still looks installed until the tool is gone.
-  drop_npm_grok
-  if [[ $npm_stub == true ]] || omarchy-cmd-missing grok; then
-    omarchy-mise-install grok
+  if [[ $npm_stub == true ]]; then
+    backup=$(mktemp "$HOME/.local/bin/.grok-wrapper.XXXXXX")
+    mv -fT "$wrapper" "$backup"
+    if omarchy-mise-install grok; then
+      rm -f "$backup"
+    else
+      if [[ -e $wrapper || -L $wrapper ]]; then
+        echo "Grok install failed; previous launcher saved at $backup" >&2
+      else
+        mv -T "$backup" "$wrapper"
+      fi
+      exit 1
+    fi
+    drop_npm_grok
+  elif [[ ! -f $wrapper ]] || ! grep -Fq "$npm_grok" "$wrapper"; then
+    # The shim is ahead of ~/.local/bin, so remove it before checking PATH.
+    drop_npm_grok
+    if omarchy-cmd-missing grok; then
+      omarchy-mise-install grok
+    fi
   fi
 elif [[ $npm_stub == true ]]; then
   # After an opt-out, only a wrapper Omarchy wrote proves the tool is ours.
-  rm -f "$wrapper"
   drop_npm_grok
+  rm -f "$wrapper"
 fi
 
 # The npm launcher unpacked its binary into ~/.grok/bin, where x.ai's installer
