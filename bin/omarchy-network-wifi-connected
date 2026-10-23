@@ -18,10 +18,14 @@ route=$(ip route get 1.1.1.1 2>/dev/null) || exit 1
 [[ $route =~ (^|[[:space:]])dev[[:space:]]+([^[:space:]]+) ]] || exit 1
 device=${BASH_REMATCH[2]}
 
-if [[ $(cat "$net_class_path/$device/type" 2>/dev/null) != "1" ]]; then
+if [[ $(cat "$net_class_path/$device/type" 2>/dev/null) == "65534" ]]; then
   # A tunnel: the link it rides on, the same pick omarchy-network-status makes.
-  underlying=$(ip -j route show default 2>/dev/null | jq -r --arg tunnel "$device" '[.[] | select(.dev != $tunnel)] | sort_by(.metric // 0) | .[0].dev // ""' 2>/dev/null)
-  device=${underlying:-$device}
+  for candidate in $(ip -j route show default 2>/dev/null | jq -r 'sort_by(.metric // 0)[].dev' 2>/dev/null); do
+    if [[ $(cat "$net_class_path/$candidate/type" 2>/dev/null) != "65534" ]]; then
+      device=$candidate
+      break
+    fi
+  done
 fi
 
 [[ -d $net_class_path/$device/wireless ]] || exit 1

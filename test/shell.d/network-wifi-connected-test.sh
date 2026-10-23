@@ -9,12 +9,13 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 stub_bin="$test_tmp/bin"
 net_class="$test_tmp/net"
-mkdir -p "$stub_bin" "$net_class/wlan0/wireless" "$net_class/eth0" "$net_class/br0" "$net_class/tun0"
+mkdir -p "$stub_bin" "$net_class/wlan0/wireless" "$net_class/wlan0/device" "$net_class/eth0/device" "$net_class/br0" "$net_class/ppp0" "$net_class/tun0" "$net_class/tun1"
 
-# Radios, NICs and bridges carry Ethernet frames (ARPHRD_ETHER); a TUN or WireGuard tunnel does not.
+# Radios, NICs and bridges are ARPHRD_ETHER, PPP is ARPHRD_PPP, and TUN and WireGuard tunnels ARPHRD_NONE.
 for device in wlan0 eth0 br0; do echo 1 >"$net_class/$device/type"; done
-echo 65534 >"$net_class/tun0/type"
-for device in wlan0 eth0 br0 tun0; do echo up >"$net_class/$device/operstate"; done
+echo 512 >"$net_class/ppp0/type"
+for device in tun0 tun1; do echo 65534 >"$net_class/$device/type"; done
+for device in wlan0 eth0 br0 ppp0 tun0 tun1; do echo up >"$net_class/$device/operstate"; done
 
 # The route the kernel picks for the internet is ROUTE_DEV, none without it. The main
 # table's default routes are DEFAULTS, as "device:metric" pairs.
@@ -112,21 +113,22 @@ pass "Wi-Fi counts only once NetworkManager has it activated, as omarchy-network
 
 # A VPN or proxy tunnel takes the route itself; both commands report the link it rides on.
 export ROUTE_DEV=tun0 DEFAULTS="wlan0:600"
-connected && [[ $(status) == "$wifi_line" ]] || fail "a tunnel over Wi-Fi is Wi-Fi"
+connected && [[ $(status) == $wifi_line ]] || fail "a tunnel over Wi-Fi is Wi-Fi"
 verbose=$(status --verbose)
 [[ $verbose == *$'iface\twlan0\nip\t192.168.1.20\nprefix\t24\ngateway\t192.168.1.1\n'* && $verbose == *$'type\twifi\nssid\tHomeWiFi\n'* ]] ||
   fail "a tunnel over Wi-Fi gives the panel the Wi-Fi's own addresses" "$verbose"
 pass "a tunnel over Wi-Fi is Wi-Fi, with its own addresses"
 
-DEFAULTS="tun0:50 wlan0:600 eth0:100"
-! connected && [[ $(status) == $'ethernet\teth0\t\t' ]] || fail "a tunnel on a docked laptop rides the lower-metric Ethernet"
+DEFAULTS="tun0:50 tun1:60 wlan0:600 eth0:100"
+! connected && [[ $(status) == $'ethernet\teth0\t\t' ]] || fail "a tunnel on a docked laptop rides the lower-metric Ethernet, past another tunnel"
 DEFAULTS=""
 ! connected && [[ $(status) == $'ethernet\ttun0\t\t' ]] || fail "a tunnel with no default route behind it stays the tunnel"
 pass "a tunnel resolves to the best default route on another device, or stays itself"
 
-ROUTE_DEV=br0 DEFAULTS="br0:425 wlan0:600"
-[[ $(status) == $'ethernet\tbr0\t\t' ]] || fail "a bridge carrying the default route stays the bridge"
-pass "a bridge carrying the default route stays the bridge"
+DEFAULTS="br0:425 ppp0:50 wlan0:600"
+[[ $(ROUTE_DEV=br0 status) == $'ethernet\tbr0\t\t' && $(ROUTE_DEV=ppp0 status) == $'ethernet\tppp0\t\t' ]] ||
+  fail "a bridge or PPP link carrying the default route stays itself"
+pass "a bridge or PPP link carrying the default route stays itself"
 unset ROUTE_DEV DEFAULTS
 
 grep -Fq '"when":"omarchy-network-wifi-connected"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
