@@ -285,8 +285,104 @@ function iconForCode(code, night) {
   }
 }
 
+function locationCoordinates(location, area) {
+  var sources = [location, area]
+  for (var i = 0; i < sources.length; i++) {
+    var source = sources[i]
+    if (!source || source.latitude === null || source.longitude === null) continue
+    var lat = parseFloat(source.latitude)
+    var lon = parseFloat(source.longitude)
+    if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) continue
+    return { latitude: lat, longitude: lon, key: lat.toFixed(2) + "," + lon.toFixed(2) }
+  }
+  return null
+}
+
+function parseRadarStation(raw, status) {
+  if (status === 404) return null
+  if (status !== 200) return undefined
+  try {
+    var data = JSON.parse(raw)
+    if (!data || !data.properties) return undefined
+    var station = data.properties.radarStation
+    if (station === null || station === undefined) return null
+    return typeof station === "string" && /^[A-Z][A-Z0-9]{3}$/.test(station) ? station : undefined
+  } catch (e) {
+    return undefined
+  }
+}
+
+function radarProductStation(station) {
+  return station.slice(1)
+}
+
+function radarTileUrl(station, stamp, zoom, x, y) {
+  return "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::" + radarProductStation(station) + "-N0B-" + stamp + "/" + zoom + "/" + x + "/" + y + ".png"
+}
+
+function radarScansUrl(station, now) {
+  var end = new Date(now)
+  var start = new Date(end.getTime() - 60 * 60 * 1000)
+  return "https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=" + radarProductStation(station) + "&product=N0B&start=" + encodeURIComponent(start.toISOString()) + "&end=" + encodeURIComponent(end.toISOString())
+}
+
+function parseRadarScans(raw) {
+  try {
+    var data = JSON.parse(raw)
+    if (!data || !Array.isArray(data.scans)) return []
+    var unique = {}
+    var frames = []
+    for (var i = 0; i < data.scans.length; i++) {
+      var ts = data.scans[i] && data.scans[i].ts
+      if (typeof ts !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?Z$/.test(ts)) continue
+      var date = new Date(ts)
+      if (!isFinite(date.getTime())) continue
+      var stamp = date.toISOString().slice(0, 16).replace(/[-T:]/g, "")
+      if (stamp !== ts.slice(0, 16).replace(/[-T:]/g, "") || unique[stamp]) continue
+      unique[stamp] = true
+      frames.push({ stamp: stamp, time: date.getTime() })
+    }
+    frames.sort(function(a, b) { return a.time - b.time })
+    return frames.slice(-10)
+  } catch (e) {
+    return []
+  }
+}
+
+function radarWorldPoint(coordinates, zoom) {
+  var latitude = Math.max(-85.05112878, Math.min(85.05112878, coordinates.latitude))
+  var sine = Math.sin(latitude * Math.PI / 180)
+  var size = 256 * Math.pow(2, zoom)
+  return {
+    x: (coordinates.longitude + 180) / 360 * size,
+    y: (0.5 - Math.log((1 + sine) / (1 - sine)) / (4 * Math.PI)) * size
+  }
+}
+
+function radarTileGrid(coordinates, zoom, width, height, sourceZoom) {
+  if (!coordinates || width <= 0 || height <= 0) return []
+  var tileSize = 256 * Math.pow(2, zoom - sourceZoom)
+  var point = radarWorldPoint(coordinates, zoom)
+  var left = point.x - width / 2
+  var top = point.y - height / 2
+  var count = Math.pow(2, sourceZoom)
+  var result = []
+  for (var y = Math.max(0, Math.floor(top / tileSize)); y <= Math.min(count - 1, Math.ceil((top + height) / tileSize) - 1); y++) {
+    for (var x = Math.floor(left / tileSize); x <= Math.ceil((left + width) / tileSize) - 1; x++) {
+      result.push({ x: ((x % count) + count) % count, y: y, left: x * tileSize - left, top: y * tileSize - top })
+    }
+  }
+  return result
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    locationCoordinates: locationCoordinates,
+    parseRadarStation: parseRadarStation,
+    radarTileUrl: radarTileUrl,
+    radarScansUrl: radarScansUrl,
+    parseRadarScans: parseRadarScans,
+    radarTileGrid: radarTileGrid,
     parseLocationFile: parseLocationFile,
     isAutoLocation: isAutoLocation,
     effectiveLocation: effectiveLocation,

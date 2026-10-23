@@ -71,6 +71,7 @@ Panel {
   }
 
   // Parsed wttr.in j1 response. Kept on failure so stale data stays visible.
+  property var reportQuery: null
   property var report: null
   property var dailyForecastReport: null
 
@@ -145,9 +146,11 @@ Panel {
   readonly property var openMeteoCurrent: Model.openMeteoCurrentCondition(dailyForecastReport)
   readonly property var current: (hasCoordinates && openMeteoCurrent) ? openMeteoCurrent : ((report && report.current_condition && report.current_condition[0]) ? report.current_condition[0] : openMeteoCurrent)
   readonly property var areaInfo: report && report.nearest_area && report.nearest_area[0] ? report.nearest_area[0] : null
+  readonly property var resolvedCoordinates: Model.locationCoordinates(locationState, reportQuery === locationQuery ? areaInfo : null)
   readonly property var forecastDays: buildForecastDays()
   readonly property string reportCountry: areaInfo && areaInfo.country && areaInfo.country[0] ? areaInfo.country[0].value : ""
 
+  readonly property bool radarEnabled: setting("radarEnabled", true) === true
   readonly property bool useImperial: Model.shouldUseImperial(setting("unit", ""), Qt.locale().name, reportCountry)
 
   // Auto-refresh interval in minutes; clamped to a sane minimum.
@@ -180,7 +183,7 @@ Panel {
     // With coordinates this fetches open-meteo right away — no need to wait
     // for the slow wttr response. Without them it's a no-op until wttr
     // reports the area.
-    refreshDailyForecast(null)
+    refreshDailyForecast()
   }
 
   function detectLocation() {
@@ -189,18 +192,12 @@ Panel {
     locationProc.running = true
   }
 
-  function refreshDailyForecast(sourceReport) {
+  function refreshDailyForecast() {
     if (dailyForecastProc.running) return
 
-    var lat = parseFloat(String(root.locationState.latitude))
-    var lon = parseFloat(String(root.locationState.longitude))
-    if (isNaN(lat) || isNaN(lon)) {
-      var area = sourceReport && sourceReport.nearest_area && sourceReport.nearest_area[0] ? sourceReport.nearest_area[0] : root.areaInfo
-      if (!area) return
-      lat = parseFloat(String(area.latitude || ""))
-      lon = parseFloat(String(area.longitude || ""))
-    }
-    if (isNaN(lat) || isNaN(lon)) return
+    if (!resolvedCoordinates) return
+    var lat = resolvedCoordinates.latitude
+    var lon = resolvedCoordinates.longitude
 
     var url = "https://api.open-meteo.com/v1/forecast"
       + "?latitude=" + encodeURIComponent(String(lat))
@@ -368,7 +365,9 @@ Panel {
 
   Process {
     id: forecastProc
+    property string requestQuery: ""
     command: ["curl", "-fsS", "--max-time", "10", "https://wttr.in/" + root.locationQuery + "?format=j1"]
+    onStarted: requestQuery = root.locationQuery
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -380,6 +379,7 @@ Panel {
         try {
           var parsed = JSON.parse(raw)
           root.report = parsed
+          root.reportQuery = forecastProc.requestQuery
           if (!root.hasConfiguredCoordinates)
             root.label = Model.provisionalCurrentIcon(parsed.current_condition && parsed.current_condition[0], root.label)
           root.forecastRetries = 0
@@ -389,7 +389,7 @@ Panel {
           // refresh(); only a name, or wttr's own IP lookup, needs the area
           // wttr reported.
           if (!root.hasCoordinates)
-            root.refreshDailyForecast(parsed)
+            root.refreshDailyForecast()
         } catch (e) {
           // Keep last-good report visible, but try again shortly.
           root.scheduleForecastRetry()
@@ -424,7 +424,7 @@ Panel {
   Timer {
     id: dailyForecastRetryTimer
     interval: 2500
-    onTriggered: root.refreshDailyForecast(null)
+    onTriggered: root.refreshDailyForecast()
   }
 
   Process {
@@ -553,6 +553,16 @@ Panel {
       anchors.fill: parent
       blocked: root.editingLocation
       onReturnRequested: root.startEditingLocation()
+      onActivateRequested: {
+        if (!root.editingLocation && radarLoader.item && radarLoader.item.visible)
+          radarLoader.item.togglePlayback()
+      }
+      onMoveRequested: function(dx, dy) {
+        if (dx !== 0 && radarLoader.item && radarLoader.item.visible) {
+          radarLoader.item.playing = false
+          radarLoader.item.selectFrame(Math.max(0, Math.min(radarLoader.item.frames.length - 1, radarLoader.item.frameIndex + dx)))
+        }
+      }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -929,6 +939,21 @@ Panel {
               }
             }
           }
+        }
+      }
+
+      Loader {
+        id: radarLoader
+        width: parent.width
+        height: item ? item.implicitHeight : 0
+        active: root.radarEnabled
+        sourceComponent: Radar {
+          width: parent.width
+          active: root.opened
+          coordinates: root.resolvedCoordinates
+          locationName: root.reportLocation
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
         }
       }
     }
