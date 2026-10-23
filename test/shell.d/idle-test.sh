@@ -78,6 +78,23 @@ assertDeepEqual(
   { windows: { a: true }, count: 1 },
   'idle leaves screensaver windows unchanged without an address'
 )
+
+assert(
+  /onFirstIdleTimeoutSecondsChanged:[\s\S]*?idleMonitorRearmTimer\.restart\(\)/.test(serviceSource),
+  'idle re-arms its monitor when the configured first timeout changes'
+)
+
+const idleMonitor = serviceSource.slice(serviceSource.indexOf('  IdleMonitor {'))
+  .split('\n  }', 1)[0]
+assert(
+  /enabled: root\.idleEnabled && root\.idleTimersEnabled && !idleMonitorRearmTimer\.running/.test(idleMonitor),
+  'idle monitor stays disabled for the re-arm timer turn'
+)
+
+const rearmTimer = serviceSource.slice(serviceSource.indexOf('    id: idleMonitorRearmTimer'))
+  .split('\n  }', 1)[0]
+assert(/interval: 150/.test(rearmTimer), 'idle re-arm spans a tested event-loop delay')
+assert(/repeat: false/.test(rearmTimer), 'idle re-arm only pulses the monitor once per timeout change')
 JS
 
 test_tmp=$(mktemp -d)
