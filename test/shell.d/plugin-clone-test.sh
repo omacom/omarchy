@@ -141,6 +141,14 @@ clone_plugin omarchy.tray >/dev/null
   fail "tray clone is missing its model"
 pass "flat bar plugins keep local script dependencies"
 
+clone_plugin omarchy.camera >/dev/null
+camera="$TMPDIR/home/.config/omarchy/plugins/tester.camera"
+[[ -f $camera/Camera.qml ]] || fail "camera clone is missing its widget"
+[[ -x $camera/camera-busy.sh ]] || fail "camera clone is missing its probe script"
+cmp -s "$ROOT/shell/plugins/bar/widgets/camera-busy.sh" "$camera/camera-busy.sh" ||
+  fail "camera clone probe script differs from the built-in"
+pass "camera clone keeps its probe script"
+
 clone_plugin omarchy.bar >/dev/null
 grep -qx 'omarchy-plugin-enable tester.bar' "$CALLS" ||
   fail "clone does not select a cloned bar"
