@@ -34,6 +34,8 @@ function omarchy_startup_cursor_restore(loaded)
     hl.env("OMARCHY_STARTUP_CURSOR_SESSION", "")
     hl.env("OMARCHY_STARTUP_CURSOR_THEME", "")
     hl.config({ cursor = cursor.config })
+    -- Hyprland hands XWayland its root cursor only once, while the blank theme is loaded.
+    hl.exec_cmd("xsetroot -cursor_name left_ptr")
     if cursor.config.enable_hyprcursor and cursor.hyprcursor then
       hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size)
     end

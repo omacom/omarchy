@@ -6,7 +6,7 @@ require_command lua
 
 lua - <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
-local events, recovery, command, imported = {}, nil, nil, false
+local events, recovery, command, imported, root_cursor = {}, nil, nil, false, false
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
 local env = { XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons", HYPRLAND_INSTANCE_SIGNATURE = "test-session", OMARCHY_PATH = os.getenv("ROOT") }
 local getenv = os.getenv
@@ -33,6 +33,10 @@ hl = {
     if value == "dbus-update-activation-environment --systemd XCURSOR_PATH XCURSOR_THEME" then
       assert(env.XCURSOR_THEME ~= "omarchy-startup" and not env.XCURSOR_PATH:match("/default/hypr/cursors"))
       imported = true
+    end
+    if value == "xsetroot -cursor_name left_ptr" then
+      assert(env.XCURSOR_THEME ~= "omarchy-startup", "XWayland must load the user's cursor, not the blank theme")
+      root_cursor = true
     end
     if value == "omarchy-launch-shell" then
       assert(config.invisible and env.XCURSOR_THEME == "my-xcursor", "hide the compositor cursor while restoring application settings before launch")
@@ -69,6 +73,7 @@ assert(config.invisible, "wait for the normal theme before restoring visibility"
 omarchy_startup_cursor_restore(true)
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme)
 assert(command:match("setcursor 'my%-hyprcursor'"), "restore the user's Hyprcursor theme")
+assert(root_cursor, "replace the blank XWayland root cursor Hyprland set at startup")
 local previous_command = command
 previous_recovery()
 assert(command == previous_command, "recovery must not change a revealed cursor")
