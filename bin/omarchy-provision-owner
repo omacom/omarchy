@@ -109,6 +109,15 @@ set_tokyo_night_colors() {
   clear
 }
 
+# Scroll Lock is the console's Hold key: one press stops output on the VT until
+# it is pressed again, so setup looks frozen. Some keyboards wire their backlight
+# key to it. Void every keymap entry that holds, in every modifier column.
+disable_console_hold() {
+  [[ $(tty 2>/dev/null) == /dev/tty* ]] || return 0
+  dumpkeys --full-table 2>/dev/null | grep -E '^keymaps|Scroll_Lock' |
+    sed 's/Scroll_Lock/VoidSymbol/g' | loadkeys >/dev/null 2>&1 || true
+}
+
 measure_terminal() {
   TERM_WIDTH=$(stty size 2>/dev/null </dev/tty | awk '{print $2}')
   (( TERM_WIDTH > 0 )) || TERM_WIDTH=${COLUMNS:-80}
@@ -590,13 +599,18 @@ greeter_screen() {
 # missing or broken localectl, say), so the attempt fails and setup's own
 # retry-or-console screen takes over instead of asking forever.
 keyboard_form() {
-  local status failures=0
+  local status failures=0 applied
 
   while true; do
     step "Let's setup your keyboard..."
     omarchy_prompt_keyboard && status=0 || status=$?
     if ((status == 0)); then
-      apply_keyboard "$keyboard" && break
+      apply_keyboard "$keyboard" && applied=1 || applied=0
+      # Every keymap load brings Hold back, whether or not the layout took.
+      # Starting vconsole-setup waits out a reload localectl queued without waiting.
+      systemctl start systemd-vconsole-setup.service >/dev/null 2>&1 || true
+      disable_console_hold
+      ((applied)) && break
       if ((++failures >= 3)); then
         log_step "no keyboard layout could be set after $failures attempts"
         notice "Setup could not set a keyboard layout on this machine." 4
@@ -1334,6 +1348,7 @@ main() {
   # greeter_screen (which owns that settle) rather than running here on a VT
   # that may still be in a transitional mode this early in first boot.
   set_tokyo_night_colors
+  disable_console_hold
   greeter_screen
 
   while ! "$0" --attempt; do
