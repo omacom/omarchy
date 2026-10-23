@@ -52,7 +52,9 @@ write_setting_theme() {
   if [[ -f $CLAUDE_SETTINGS_PATH ]]; then
     tmp=$(mktemp "$CLAUDE_SETTINGS_PATH.XXXXXX")
     jq '.theme = "custom:omarchy"' "$CLAUDE_SETTINGS_PATH" >"$tmp"
-    mv "$tmp" "$CLAUDE_SETTINGS_PATH"
+    # Write through a dotfile symlink instead of replacing its directory entry.
+    cat "$tmp" >"$CLAUDE_SETTINGS_PATH"
+    rm -f "$tmp"
   else
     cat >"$CLAUDE_SETTINGS_PATH" <<EOF
 {
