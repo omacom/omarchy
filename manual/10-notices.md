@@ -8,9 +8,7 @@ Notifications from the same app or site stack into a deck, so a chatty Slack cha
 
 Cards offer what they carry: _Copy code_ for verification codes (kept out of [clipboard history](08-unified-clipboard-history.md) and cleared after a minute), plus any buttons the app provides. Links in a notification's text open when clicked.
 
-Right-click the bell in the bar (hover the middle of the bar to reveal it) to open the notification panel: recent notifications and the past day's history, or, while notifications are silenced, what's been held back. From there you can choose whether verification codes get through while silenced (they do by default). The cog opens preferences for which display to use and stepping aside for fullscreen games.
-
-History is kept for a day. To change that, set `historyHours` in the `notifications` section of `~/.config/omarchy/shell.json` to `1`, `168` for a week, or `0` to keep no history on disk, for example `"notifications": { "historyHours": 168 }`.
+Silencing notifications holds them back, except Omarchy's own confirmations, emergency alerts, and verification codes, which you asked for a moment ago. Put the last few back on screen, held back or not, with `Super + Shift + Alt + ,`. History is kept for a day.
 
 ## Hotkey notices
 

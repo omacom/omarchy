@@ -4,7 +4,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), vm = requ
 const { URL } = require('node:url')
 const load = require('./loader.cjs')
 const S = load('Security'), M = load('Markup'), D = load('Detect'), Store = load('Store')
-const Layout = load('Layout'), Delivery = load('Delivery'), Settings = load('Settings'), Icons = load('Icons')
+const Layout = load('Layout'), Delivery = load('Delivery'), Icons = load('Icons')
 const snap = (n, key = 'k') => Store.snapshot(n, key, { Normal: 1 })
 
 // ---------------------------------------------------------------- URL policy
@@ -245,17 +245,15 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
 
 // ------------------------------------------------------------------ delivery
 {
-  const state = over => ({ doNotDisturb: false, codesBypassQuiet: true, ...over })
-  for (const [row, over, expected] of [
-    [{ app: 'Slack', urgency: 1 }, {}, ''],
-    [{ app: 'Slack', urgency: 1 }, { doNotDisturb: true }, 'silenced'],
-    [{ app: 'Slack', urgency: 2 }, { doNotDisturb: true }, 'silenced'],      // a branded critical does not punch through
-    [{ app: 'notify-send', urgency: 2 }, { doNotDisturb: true }, ''],
-    [{ app: 'notify-send', urgency: 1 }, { doNotDisturb: true }, 'silenced'],
-    [{ app: 'omarchy-action', urgency: 0 }, { doNotDisturb: true }, ''],
-    [{ app: 'Google', urgency: 1, code: '482913' }, { doNotDisturb: true }, ''],
-    [{ app: 'Google', urgency: 1, code: '482913' }, { doNotDisturb: true, codesBypassQuiet: false }, 'silenced'],
-  ]) assert.equal(Delivery.quietReason(row, state(over)), expected, JSON.stringify([row, over]))
+  for (const [row, dnd, expected] of [
+    [{ app: 'Slack', urgency: 1 }, false, ''],
+    [{ app: 'Slack', urgency: 1 }, true, 'silenced'],
+    [{ app: 'Slack', urgency: 2 }, true, 'silenced'],      // a branded critical does not punch through
+    [{ app: 'notify-send', urgency: 2 }, true, ''],
+    [{ app: 'notify-send', urgency: 1 }, true, 'silenced'],
+    [{ app: 'omarchy-action', urgency: 0 }, true, ''],
+    [{ app: 'Google', urgency: 1, code: '482913' }, true, ''],
+  ]) assert.equal(Delivery.quietReason(row, dnd), expected, JSON.stringify([row, dnd]))
   for (const [row, ephemeral] of [[{ app: 'notify-send' }, true], [{ app: 'omarchy-action' }, true],
                                   [{ app: 'Slack', transient: true }, true], [{ app: 'Slack' }, false]])
     assert.equal(Delivery.isEphemeral(row), ephemeral, row.app)
@@ -277,15 +275,6 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.equal(Delivery.barThickness(null, 'plain', 28), 28)
   for (const [position, thickness, top, right] of [['top', 26, 36, 10], ['right', 40, 10, 50], ['bottom', 26, 10, 10], ['left', 26, 10, 10]])
     assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) }, { top, right }, position)
-}
-
-// ------------------------------------------------------------------ settings
-{ // Every key optional, every invalid value falls back.
-  const r = Settings.resolve({ fullscreenOverlay: 'steam-away', historyHours: 7, displayName: 7 })
-  assert.equal(r.fullscreenOverlay, 'all', 'retired step-aside variants fall back')
-  assert.equal(Settings.resolve({ fullscreenOverlay: 'off' }).fullscreenOverlay, 'off')
-  assert.equal(r.historyHours, 24)
-  assert.equal(r.displayName, '')
 }
 
 // --------------------------------------------------- Service.qml functions
@@ -321,7 +310,7 @@ function runIn(scope, ...names) {
 
 // Admission, close and replay run for real; only the ListModel, QObject
 // signals, the deferred event loop and external effects are faked.
-const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn', 'rememberRecent', 'recentForPanel',
+const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
   'closeToasts', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
@@ -339,14 +328,12 @@ function newCapacityScope() {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
     maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, layoutRevision: 0,
     held: [], doNotDisturb: false,
-    recentRows: [], recentLimit: 20,
-    liveEntries: [], historyEntries: [], historyHours: 24, unsaved: {}, liveLoaded: false,
+    liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
-    configuredDisplayName: 'fixture-display', deckDisplayName: '',
-    stepsAside: false, hyprRevision: 0,
+    deckDisplayName: '',
+    hyprRevision: 0,
     displayNames: ['fixture-display'], focusedDisplayName: 'fixture-display',
     Quickshell: { screens: [] }, Hyprland: { monitorFor: screen => screen.monitor },
-    codesBypassQuiet: false,
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
     Security: S, Delivery, Store,
     NotificationUrgency: { Critical: 2, Normal: 1, Low: 0 },
@@ -403,12 +390,9 @@ const summaries = rows => Array.from(rows, row => row.summary)
   const game = { lastIpcObject: { fullscreen: 1, class: 'steam_app_31' } }
   s.Quickshell.screens = [{ name: 'game',
     monitor: { activeWorkspace: { hasFullscreen: true, toplevels: { values: [game] } } } }]
-  s.stepsAside = true
   assert.equal(s.fullscreenOn('game'), false)
   game.lastIpcObject.fullscreen = 2
   assert.equal(s.fullscreenOn('game'), true)
-  s.stepsAside = false
-  assert.equal(s.fullscreenOn('game'), false)
 }
 
 { // Rapid single dismissals must skip rows that are leaving but not yet removed.
@@ -444,59 +428,15 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.equal(s.toasts.count, 0)
 }
 
-{ // Expired notifications remain readable, newest first, without unbounded retention.
-  const s = newCapacityScope()
-  for (let i = 1; i <= 25; i++) {
-    s.admit(s.fakeNotification(i, 'Message ' + i))
-    s.finishClose(s.keyForOriginal(i), 'expired')
-  }
-  assert.equal(s.toasts.count, 0)
-  assert.deepEqual(summaries(s.recentRows), Array.from({ length: 20 }, (_, i) => 'Message ' + (25 - i)))
-}
-
-{ // Replacing a live sender updates one recent entry and moves it to the front.
-  const s = newCapacityScope()
-  const first = s.fakeNotification(1, 'First')
-  s.admit(first, s.fakeNotification(2, 'Second'))
-  first.replace({ summary: 'First updated', body: 'Latest text' })
-  s.drainCallLater()
-  assert.deepEqual(summaries(s.recentRows), ['First updated', 'Second'])
-  assert.equal(s.recentRows[0].bodyLine, 'Latest text')
-}
-
-{ // A code must not outlive its toast, even in source metadata used for filtering.
+{ // A code must not outlive its toast, even in source metadata.
   const s = newCapacityScope()
   const code = s.fakeNotification(1, 'Your verification code is 938271')
   code.appName = 'Source 938271'
   s.admit(code)
   s.finishClose(s.keyForOriginal(1), 'expired')
-  assert.equal(s.recentForPanel(5)[0].bodyLine, '[redacted]')
-  assert.ok(Store.redacted(s.recentForPanel(5)[0]))
+  assert.ok(Store.redacted(s.historyEntries[0]))
   assert.ok(!Store.redacted({ summary: 'Verification notification', body: 'a real message' }))
-  assert.ok(!JSON.stringify(s.recentRows).includes('938271'))
-}
-
-{ // Silencing hides the entire recent list and held arrivals never backfill it.
-  const s = newCapacityScope()
-  s.admit(s.fakeNotification(1, 'Before quiet'))
-  s.doNotDisturb = true
-  s.handleNotification(s.fakeNotification(2, 'Silenced arrival'))
-  assert.equal(s.recentForPanel(5).length, 0)
-  s.doNotDisturb = false
-  assert.deepEqual(summaries(s.recentForPanel(5)), ['Before quiet'])
-}
-
-{ // A replacement that arrives while silenced drops its earlier recent entry.
-  const s = newCapacityScope()
-  const muted = s.fakeNotification(2, 'Before silence')
-  muted.appName = 'Noisy'
-  s.admit(s.fakeNotification(1, 'Other source'), muted)
-  assert.deepEqual(summaries(s.recentForPanel(5)), ['Before silence', 'Other source'])
-  s.doNotDisturb = true
-  muted.replace({ summary: 'Updated while silenced' })
-  s.drainCallLater()
-  s.doNotDisturb = false
-  assert.deepEqual(summaries(s.recentForPanel(5)), ['Other source'])
+  assert.ok(!JSON.stringify(s.historyEntries).includes('938271'))
 }
 
 for (const held of [true, false]) { // Capacity: at most 100 live senders, held or deferred.
@@ -820,20 +760,13 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   assert.equal(huge.execArgv, '')
 }
 
-{ // History is newest first, capped, and only as old as historyHours allows.
+{ // History is newest first, capped, and kept for a day.
   const now = 1e6, entry = (key, age, reason = 'dismissed') => ({ key, closed_ts: now - age, closed_reason: reason })
   let history = []
-  for (let i = 0; i < 150; i++) history = Store.addHistory(history, entry('n' + i, 150 - i), 24, now)
+  for (let i = 0; i < 150; i++) history = Store.addHistory(history, entry('n' + i, 150 - i), now)
   assert.equal(history.length, 100)
   assert.equal(history[0].key, 'n149')
-  eq(Store.retain([entry('a', 60), entry('b', 3599), entry('c', 3601)], 1, now).map(e => e.key), ['a', 'b'])
-  eq(Store.retain([entry('a', 60)], 0, now), [])
-  eq(Store.addHistory([], entry('a', 0), 0, now), [], 'historyHours 0 keeps none')
-  assert.equal(Store.retain([entry('a', 25 * 3600)], 168, now).length, 1)
-  assert.equal(Store.retain([entry('a', 25 * 3600)], 5, now).length, 0, 'an unknown retention is the default day')
-  // Held back means quiet kept it off the screen.
-  const rows = [entry('a', 1, 'silenced'), entry('b', 2, 'dismissed'), entry('c', 3, 'silenced'), entry('d', 4, 'silenced')]
-  eq(Store.held(rows, 2).map(e => e.key), ['a', 'c'])
+  eq(Store.retain([entry('a', 60), entry('b', 24 * 3600 - 1), entry('c', 24 * 3600 + 1)], now).map(e => e.key), ['a', 'b'])
   assert.equal(Store.closedEntry({ key: 'x' }, 'Bad reason!', 1).closed_reason, '')
 }
 
@@ -885,17 +818,17 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   const restored = Store.restored(Store.parseLive(text)[0])
   eq([restored.restored, restored.duration, restored.execArgv, restored.glyph, restored.source],
                    [true, Store.RESTORE_GRACE, '["omarchy-update"]', '\u{f0954}', 'app.slack.com'])
-  assert.equal(Store.displayRows(history)[0].bodyLine, restored.bodyLine)
+  assert.equal(Store.normalise(history[0]).bodyLine, restored.bodyLine)
 }
 
 { // quiet.json keeps today's shape, and anything else in it is ignored.
-  const state = { dnd: true, silencedSince: 5, codesBypassQuiet: false }
+  const state = { dnd: true }
   eq(Store.parseQuiet(Store.serialiseQuiet(state)), state)
   eq(JSON.parse(Store.serialiseQuiet(state)), state)
   for (const text of ['', 'nope', '[]', '"dnd"', 'null'])
     assert.equal(Store.parseQuiet(text), null, text)
   const odd = Store.parseQuiet('{"snoozes":{"a":{"until":5}},"dnd":"yes","silencedSince":"later","codesBypassQuiet":"no"}')
-  eq(odd, { dnd: false, silencedSince: 0, codesBypassQuiet: null })
+  eq(odd, { dnd: false })
 }
 
 { // The service: shown rows are saved live, closed ones move to history, quiet
@@ -912,14 +845,8 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   quiet.appName = 'notify-send'
   s.handleNotification(quiet)
   eq(s.historyEntries.map(e => e.summary + ':' + e.closed_reason), ['Silenced:silenced', 'Shown:expired'])
-  eq(Store.held(s.historyEntries, 10).map(e => e.summary), ['Silenced'])
   assert.equal(s.liveEntries.length, 0)
   assert.ok(s.unsaved.live && s.unsaved.history)
-  s.historyHours = 0
-  s.doNotDisturb = false
-  s.admit(s.fakeNotification(4, 'Unrecorded'))
-  s.finishClose(s.keyForOriginal(4), 'dismissed')
-  eq(s.historyEntries, [])
 }
 
 { // A pending card silenced before it showed leaves nothing to restore.

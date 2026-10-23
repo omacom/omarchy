@@ -8,7 +8,6 @@ The shell is the notification daemon: `shell/plugins/notifications/Service.qml` 
 |---|---|
 | `Service.qml` | The daemon: admission, quiet rules, the scene clock, click routing, IPC, one layer surface per output |
 | `Toast.qml`, `DeedButton.qml` | One card and its buttons; a card is positioned by the service and animates nothing itself |
-| `NotificationPanel.qml`, `Picker.qml` | The panel and its preferences page, opened from the bar's Dnd indicator (`shell/plugins/bar/indicators/Dnd.qml`) |
 | `Store.js` | Notification snapshots, normalisation, what a stored row keeps, the stored file formats, restore |
 | `Markup.js` | Safe body markup, source lifting (`web:app.slack.com`), one-line previews |
 | `Detect.js` | Verification codes and links |
@@ -16,7 +15,6 @@ The shell is the notification daemon: `shell/plugins/notifications/Service.qml` 
 | `Icons.js` | The names a card's icon may go by: site names, symbolic icons |
 | `Layout.js` | Pure deck layout: rows in, placements out |
 | `Delivery.js` | Quiet rules, ephemeral rules, bar clearance |
-| `Settings.js` | Defaults and validation for `notifications` in `shell.json` |
 
 The JS modules also load in Node: `test/shell.d/notifications-test.sh` covers them without a compositor, along with the startup cleanup.
 
@@ -28,7 +26,7 @@ A collapsed deck draws its cards at the front card's height; hovering opens it. 
 
 Live `Notification` objects are kept in a plain JS map (`refs`), never a ListModel role, which would dangle once the server destroys the object. At most 100 are live.
 
-The surface is one fixed-width `WlrLayer.Overlay` window per output (namespace `omarchy-notifications`), input-masked to the deck. It stays mapped while idle, because a layer surface coming and going makes Hyprland re-evaluate focus and drags a scrolling layout's viewport. The exception is a fullscreen window: unless `fullscreenOverlay` is `off`, the surface unmaps over it when nothing is showing so the window can be scanned out directly.
+The surface is one fixed-width `WlrLayer.Overlay` window per output (namespace `omarchy-notifications`), input-masked to the deck. It stays mapped while idle, because a layer surface coming and going makes Hyprland re-evaluate focus and drags a scrolling layout's viewport. The exception is a fullscreen window: the surface unmaps over it when nothing is showing so the window can be scanned out directly.
 
 ## Toast lifecycle
 
@@ -41,8 +39,8 @@ A click tries, in order: the card's `omarchy-exec-argv` command; the sender's `d
 The shell keeps its state in `~/.local/state/omarchy/notifications/` (0700), three JSON files it reads with `FileView` once at startup and rewrites whole:
 
 - `live.json`: the rows on screen, oldest first, put back after a shell restart with a 20s grace (critical ones still wait). At most 100.
-- `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and `historyHours` (default 24; `0` keeps none). Rows whose reason is `silenced` were held back by Do Not Disturb and are what the panel lists under each source.
-- `quiet.json`: `{ dnd, silencedSince, codesBypassQuiet }`.
+- `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and 24 hours. Rows whose reason is `silenced` were held back by Do Not Disturb.
+- `quiet.json`: `{ dnd }`.
 
 `Store.persistable` decides what a row keeps: its scalar fields, never images, detected links, or derived text. Text with a verification code is stored only as the redacted placeholder, the click command and glyph included. A live row is cut to 16K characters and a history row, shown as a one-line preview, to 4K. Rows keep `execArgv` and `glyph`, so a card restored after a shell restart clicks through like the live one. Rows are re-checked the same way when read back; a file that is not an array of keyed objects, or is oversized, reads as empty, and a file that does not read back exactly as it would be written is rewritten.
 
@@ -73,13 +71,13 @@ Three kinds of notification get through Do Not Disturb:
 
 - `app_name` = `omarchy-action`: Omarchy's own confirmation toasts for something the user just did.
 - urgency critical *and* `app_name` = `notify-send`: bare-CLI emergency alerts. Critical alone is not enough, because chat apps use it to force visibility under their own app name.
-- a detected verification code, while `codesBypassQuiet` is on.
+- a detected verification code: it was asked for a moment ago and expires in minutes.
 
-Silenced notifications are recorded as held and listed by source in the panel. Ephemeral ones (the `transient` hint, or `app_name` `notify-send`/`omarchy-action`) are dropped.
+Silenced notifications are recorded in history, so `showHistory` can put them back on screen. Ephemeral ones (the `transient` hint, or `app_name` `notify-send`/`omarchy-action`) are dropped.
 
-## Preferences
+## Appearance
 
-Preferences live in the `notifications` object of `~/.config/omarchy/shell.json`; every key is optional, and `Settings.js` holds defaults and valid values. The preferences page writes `displayMode`/`displayName` and `fullscreenOverlay` (`all` or `off`); `historyHours` is hand-edited. Everything else follows the desktop: text size, the theme's outer gap, the locale's time format. Colours come from the theme: `[notifications]` in `shell.toml` for cards, `[popups]` for the panel, Hyprland's `decoration:rounding` for corners.
+Notifications have no settings of their own. A new deck lands on the focused display and stays there until it empties. Everything else follows the desktop: text size, the theme's outer gap, the locale's time format. Colours come from the theme's `[notifications]` in `shell.toml`, and corners from Hyprland's `decoration:rounding`.
 
 ## The sender contract
 
@@ -182,7 +180,7 @@ Keybindings live in `default/hypr/bindings/utilities.lua`: `Super+comma`
 variants map to the IPC methods `dismissOne`, `dismissAll`, `invokeLast`,
 `showHistory` (put the last few back on screen), and the silencing toggle.
 
-The `notifications` IPC target also answers `ping` (used by `omarchy-notification-wait`), `dismiss <summary>`, `count`, `openPanel`, `closePanel`, and two for scripts and visual checks: `expand` (open the deck and hover its front card, as the pointer would) and `probe` (what the daemon thinks is true).
+The `notifications` IPC target also answers `ping` (used by `omarchy-notification-wait`), `dismiss <summary>`, `count`, and two for scripts and visual checks: `expand` (open the deck and hover its front card, as the pointer would) and `probe` (what the daemon thinks is true).
 
 ## How subsystems plug in
 

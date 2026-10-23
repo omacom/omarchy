@@ -21,12 +21,12 @@ function isEphemeral(row) {
   return app === "notify-send" || app === "omarchy-action"
 }
 
-// "silenced", or "" when the row shows. A verification code may pass: it was
-// asked for a moment ago and expires in minutes.
-function quietReason(row, state) {
-  if (!state.doNotDisturb) return ""
+// "silenced", or "" when the row shows. A verification code always passes: it
+// was asked for a moment ago and expires in minutes.
+function quietReason(row, doNotDisturb) {
+  if (!doNotDisturb) return ""
   if (bypassesQuiet(row)) return ""
-  if (state.codesBypassQuiet && String((row && row.code) || "")) return ""
+  if (String((row && row.code) || "")) return ""
   return "silenced"
 }
 
