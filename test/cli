@@ -542,6 +542,15 @@ case "$1" in
     exit 0
     ;;
   source-file)
+    # With TMUX_PANE_SEEN set, hold the queued commands until the test's pane
+    # reader has seen the reset bytes, so a run that unsets the styles before
+    # resetting the panes is recorded in that order instead of passing.
+    if [[ -n ${TMUX_PANE_SEEN:-} ]]; then
+      deadline=$((SECONDS + 10))
+      while [[ ! -e $TMUX_PANE_SEEN ]] && (( SECONDS < deadline )); do sleep 0.02; done
+      [[ -z ${TMUX_ORDER_LOG:-} ]] || echo unset >>"$TMUX_ORDER_LOG"
+      [[ -e $TMUX_PANE_SEEN ]] || exit 3
+    fi
     cat >>"${TMUX_LOG:-/dev/null}"
     exit 0
     ;;
@@ -549,8 +558,21 @@ case "$1" in
     echo "$*" >>"${TMUX_LOG:-/dev/null}"
     exit 0
     ;;
-  list-panes|list-clients)
+  list-panes)
+    [[ -n ${TMUX_TEST_PANE_TTY:-} ]] && printf '%s\n' "$TMUX_TEST_PANE_TTY"
     exit 0
+    ;;
+  list-clients)
+    [[ $2 == "-F" ]] && printf '%s\n' "${TMUX_TEST_TERMNAME:-}"
+    exit 0
+    ;;
+  show-option)
+    # show-option -gv <name>: answer from TMUX_SHOW_<name without @, - as _>
+    key=${3#@}
+    key=${key//-/_}
+    var="TMUX_SHOW_$key"
+    [[ -n ${!var:-} ]] || exit 1
+    printf '%s' "${!var}"
     ;;
   *)
     exit 0
@@ -562,6 +584,132 @@ chmod +x "$FAKE_BIN/tmux"
 TMUX_LOG="$PI_TMPDIR/tmux.log" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
 grep -Fxq "'set-environment' '-g' 'COLORFGBG' '0;15'" "$PI_TMPDIR/tmux.log" || fail "tmux sync reads mode from colors.toml"
 pass "tmux sync reads mode from colors.toml"
+
+cat >"$FAKE_BIN/omarchy-theme-osc" <<'EOF'
+#!/bin/bash
+[[ -n ${TMUX_OSC_LOG:-} ]] && printf 'osc\n' >>"$TMUX_OSC_LOG"
+printf '\033]11;#000000\007'
+EOF
+chmod +x "$FAKE_BIN/omarchy-theme-osc"
+
+# Terminals that reload their own config already pick up the palette, so the
+# theme push must not stamp an explicit background through tmux: that turns
+# every transparent pane opaque for its lifetime.
+cp "$CURRENT_THEME/colors.toml" "$PI_TMPDIR/colors-backup.toml"
+printf 'cursor = "#eeeeee"\n' >>"$CURRENT_THEME/colors.toml"
+
+TMUX_TEST_TERMNAME=xterm-ghostty TMUX_OSC_LOG="$PI_TMPDIR/tmux-osc-ghostty.log" TMUX_LOG="$PI_TMPDIR/tmux-ghostty.log" \
+  PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
+TMUX_TEST_TERMNAME=xterm-kitty TMUX_OSC_LOG="$PI_TMPDIR/tmux-osc-kitty.log" TMUX_LOG="$PI_TMPDIR/tmux-kitty.log" \
+  PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
+TMUX_TEST_TERMNAME=foot TMUX_OSC_LOG="$PI_TMPDIR/tmux-osc-foot.log" TMUX_LOG="$PI_TMPDIR/tmux-foot.log" \
+  PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
+
+mv "$PI_TMPDIR/colors-backup.toml" "$CURRENT_THEME/colors.toml"
+
+if grep -q 'window-style' "$PI_TMPDIR/tmux-ghostty.log" 2>/dev/null; then
+  fail "tmux sync skips the background stamp for self-reloading terminals"
+fi
+[[ ! -s $PI_TMPDIR/tmux-osc-ghostty.log ]] || fail "tmux sync skips the pane OSC push for self-reloading terminals"
+grep -q 'cursor-colour' "$PI_TMPDIR/tmux-ghostty.log" || fail "tmux sync keeps the cursor fallback for self-reloading terminals"
+grep -Fq "'set-environment' '-g' 'COLORFGBG'" "$PI_TMPDIR/tmux-ghostty.log" || fail "tmux sync keeps the environment sync for self-reloading terminals"
+pass "tmux sync preserves transparency for self-reloading terminals"
+
+if grep -q 'window-style' "$PI_TMPDIR/tmux-kitty.log" 2>/dev/null; then
+  fail "tmux sync skips the background stamp for kitty"
+fi
+[[ ! -s $PI_TMPDIR/tmux-osc-kitty.log ]] || fail "tmux sync skips the pane OSC push for kitty"
+pass "tmux sync preserves transparency for kitty"
+
+grep -Fq "'set-option' '-g' 'window-style'" "$PI_TMPDIR/tmux-foot.log" || fail "tmux sync still stamps the background for terminals without config reload"
+[[ -s $PI_TMPDIR/tmux-osc-foot.log ]] || fail "tmux sync still pushes pane colors for terminals without config reload"
+grep -Fq "'set-option' '-g' '@omarchy_window_style'" "$PI_TMPDIR/tmux-foot.log" || fail "tmux sync records the stamped styles it may later clear"
+pass "tmux sync keeps the full color push for terminals without config reload"
+
+# A stamp from an earlier run (before the upgrade, while detached, or under
+# another terminal) would otherwise stick on the previous theme: the skip path
+# clears it, but only when the value is still one this script wrote.
+stamped="fg=#ffffff,bg=#000000"
+TMUX_TEST_TERMNAME=xterm-ghostty TMUX_LOG="$PI_TMPDIR/tmux-ghostty-clear.log" \
+  TMUX_SHOW_window_style="$stamped" TMUX_SHOW_window_active_style="$stamped" \
+  TMUX_SHOW_omarchy_window_style="$stamped" TMUX_SHOW_omarchy_window_active_style="$stamped" \
+  PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
+grep -Fq "'set-option' '-gu' 'window-style'" "$PI_TMPDIR/tmux-ghostty-clear.log" || fail "tmux sync clears a previously stamped window style"
+grep -Fq "'set-option' '-gu' 'window-active-style'" "$PI_TMPDIR/tmux-ghostty-clear.log" || fail "tmux sync clears a previously stamped active style"
+grep -Fq "'set-option' '-gu' '@omarchy_window_style'" "$PI_TMPDIR/tmux-ghostty-clear.log" || fail "tmux sync drops its style record after clearing"
+pass "tmux sync clears previously stamped styles for self-reloading terminals"
+
+TMUX_TEST_TERMNAME=xterm-ghostty TMUX_LOG="$PI_TMPDIR/tmux-ghostty-custom.log" \
+  TMUX_SHOW_window_style="fg=#ff0000,bg=#000000" TMUX_SHOW_window_active_style="$stamped" \
+  TMUX_SHOW_omarchy_window_style="$stamped" TMUX_SHOW_omarchy_window_active_style="$stamped" \
+  PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
+if grep -Fq "'set-option' '-gu' 'window-style'" "$PI_TMPDIR/tmux-ghostty-custom.log" 2>/dev/null; then
+  fail "tmux sync leaves a user-set window style alone"
+fi
+pass "tmux sync leaves a user-set window style alone"
+
+# The reset has to reach the pane's tty, and it has to land before the style
+# unsets: tmux only picks the reset palette up when the style change follows
+# the write. A real pty stands in for the pane, and the fake tmux holds the
+# queued commands until the reader has seen those bytes, so a reversed order
+# fails the run instead of passing.
+pane_dir="$PI_TMPDIR/pane-reset"
+mkdir -p "$pane_dir"
+command -v python3 >/dev/null || fail "tmux sync resets pane colors before unsetting the styles (python3 is required to hold a pane pty)"
+TMUX_TEST_TERMNAME=xterm-ghostty TMUX_TEST_PANE_TTY="" TMUX_PANE_SEEN="$pane_dir/seen" \
+  TMUX_RESET_BYTES="$pane_dir/bytes" TMUX_ORDER_LOG="$pane_dir/order" TMUX_LOG="$PI_TMPDIR/tmux-ghostty-pane.log" \
+  TMUX_SHOW_window_style="$stamped" TMUX_SHOW_window_active_style="$stamped" \
+  TMUX_SHOW_omarchy_window_style="$stamped" TMUX_SHOW_omarchy_window_active_style="$stamped" \
+  PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" python3 - "$ROOT/bin/omarchy-theme-set-tmux" <<'PY' ||
+import os, pty, select, subprocess, sys, time
+
+master, slave = pty.openpty()
+pane = os.ttyname(slave)
+
+env = dict(os.environ, TMUX_TEST_PANE_TTY=pane)
+proc = subprocess.Popen([sys.argv[1]], env=env)
+
+# The slave stays open here until the read loop ends: closing it while nothing
+# else holds the pty makes the kernel answer EIO on the master instead of
+# letting the pane bytes through.
+os.set_blocking(master, False)
+seen = env['TMUX_PANE_SEEN']
+data = b''
+deadline = time.time() + 60
+while time.time() < deadline:
+    if select.select([master], [], [], 0.1)[0]:
+        try:
+            chunk = os.read(master, 4096)
+        except OSError:
+            break
+        if not chunk:
+            break
+        data += chunk
+        if b'\033]112\007' in data and not os.path.exists(seen):
+            # Log the pane write before creating the marker: the fake tmux
+            # wakes on the marker, so the marker must not appear while the
+            # 'pane' entry is still missing from the order log.
+            if env.get('TMUX_ORDER_LOG'):
+                with open(env['TMUX_ORDER_LOG'], 'a') as order:
+                    order.write('pane\n')
+            open(seen, 'w').close()
+    elif proc.poll() is not None:
+        break
+
+proc.wait()
+os.close(slave)
+os.close(master)
+open(env['TMUX_RESET_BYTES'], 'wb').write(data)
+sys.exit(proc.returncode)
+PY
+  fail "tmux sync writes the pane reset through a real pty"
+
+printf '\033]104;0;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15\007\033]110\007\033]111\007\033]112\007' >"$pane_dir/expected"
+cmp -s "$pane_dir/expected" "$pane_dir/bytes" || fail "tmux sync writes the palette reset, default colors and cursor reset, in that order, to the pane" "$(od -An -c "$pane_dir/bytes")"
+[[ -e $pane_dir/seen ]] || fail "tmux sync resets the pane before it unsets the styles"
+[[ $(cat "$pane_dir/order") == $'pane\nunset' ]] || fail "tmux sync sends the pane reset before the style unsets, not after" "$(cat "$pane_dir/order")"
+grep -Fq "'set-option' '-gu' 'window-style'" "$PI_TMPDIR/tmux-ghostty-pane.log" || fail "tmux sync still unsets the styles after the pane reset"
+pass "tmux sync resets pane colors before unsetting the styles"
 
 cat >"$FAKE_BIN/pgrep" <<'EOF'
 #!/bin/bash
