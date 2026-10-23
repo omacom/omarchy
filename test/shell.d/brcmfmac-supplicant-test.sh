@@ -79,7 +79,7 @@ chmod +x "$stub_bin"/*
 # grep -q gate would go silent here the way #6608 did.
 run_leaf() {
   local vendor="$1" wifi_id="${2:-}" t2="${3:-0}" apple_silicon="${4:-0}"
-  rm -rf "$test_tmp/etc"
+  rm -rf "${test_tmp:?}/etc"
   mkdir -p "$test_tmp/etc"
   printf '%s' "$vendor" >"$test_tmp/dmi/sys_vendor"
 
@@ -148,7 +148,7 @@ run_migration() {
 # A T2 install from before the quirk shipped has no config at all, so this is
 # the case that proves the T2 gate itself still fires -- and it is the piped
 # grep, run under pipefail, that #6608 was about.
-rm -rf "$test_tmp/etc"
+rm -rf "${test_tmp:?}/etc"
 run_migration "Apple Inc." 4488 1
 grep -q '^options brcmfmac feature_disable=0x82000$' "$conf" 2>/dev/null ||
   fail "the migration fixes a T2 install that never got the quirk" "$(ls -R "$test_tmp/etc" 2>&1)"
@@ -163,14 +163,14 @@ run_migration "Apple Inc." 4488 1
 [[ ! -s $calls ]] || fail "a repaired install is left untouched" "$(cat "$calls")"
 pass "the migration is idempotent"
 
-rm -rf "$test_tmp/etc"
+rm -rf "${test_tmp:?}/etc"
 run_migration "Apple Inc." 4433 0 1
 [[ ! -e $conf ]] || fail "the migration leaves Apple Silicon Wi-Fi alone"
 [[ ! -s $calls ]] || fail "the migration escalates nothing on Apple Silicon" "$(cat "$calls")"
 pass "the migration leaves Apple Silicon Wi-Fi alone"
 
 # The machine this was written for, with no T2 to fall back on.
-rm -rf "$test_tmp/etc"
+rm -rf "${test_tmp:?}/etc"
 run_migration "Apple Inc." 43ba 0
 grep -q '^options brcmfmac feature_disable=0x82000$' "$conf" 2>/dev/null ||
   fail "the migration fixes an install on a Mac without a T2" "$(ls -R "$test_tmp/etc" 2>&1)"
@@ -192,7 +192,7 @@ grep -qx 'options brcmfmac feature_disable=0x82000' "$conf" ||
   fail "a commented-out option does not count as applied" "$(cat "$conf")"
 pass "a commented-out option does not count as applied"
 
-rm -rf "$test_tmp/etc"
+rm -rf "${test_tmp:?}/etc"
 run_migration "Apple Inc." 43a0 0
 [[ ! -e $conf ]] || fail "the migration skips a Mac brcmfmac does not drive" "$(cat "$conf")"
 [[ ! -s $calls ]] || fail "the migration escalates nothing on unaffected Macs" "$(cat "$calls")"
