@@ -212,3 +212,21 @@ grep -F "omarchy default browser" "$notify_log" >/dev/null ||
 grep -F "omarchy default browser" "$error_log" >/dev/null ||
   fail "the launcher explains how to set a default browser on stderr" "$(cat "$error_log")"
 pass "browser launcher fails visibly instead of handing uwsm-app an empty command"
+
+# A web app reaches the same empty command through its chromium.desktop
+# fallback, so it needs the same guard.
+rm -f "$notify_log" "$error_log" "$launch_log"
+status=0
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
+  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app" 2>"$error_log" || status=$?
+
+(( status == 1 )) || fail "web app launcher exits 1 when no browser is found" "status: $status"
+[[ ! -e $launch_log ]] || fail "web app launcher starts nothing when no browser is found" "$(cat "$launch_log")"
+grep -F -- '-u critical' "$notify_log" >/dev/null ||
+  fail "web app launcher sends a critical notification when no browser is found"
+grep -F "No default browser found" "$notify_log" >/dev/null ||
+  fail "the web app notification says no default browser was found" "$(cat "$notify_log")"
+grep -F "omarchy default browser" "$error_log" >/dev/null ||
+  fail "the web app launcher explains how to set a default browser on stderr" "$(cat "$error_log")"
+pass "web app launcher fails visibly instead of handing uwsm-app an empty command"
