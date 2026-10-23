@@ -253,7 +253,9 @@ BarWidget {
     rowSpacing: root.vertical ? Style.space(2) : 0
 
     Repeater {
-      model: root.workspaceIds()
+      // A ScriptModel keeps the buttons for workspaces that are still listed,
+      // where a plain array replaces every button on each workspace change.
+      model: ScriptModel { values: root.workspaceIds() }
 
       WidgetButton {
         required property int modelData
