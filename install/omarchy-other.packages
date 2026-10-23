@@ -5,6 +5,7 @@ autoconf-archive
 asusctl
 base
 base-devel
+broadcom-bt-firmware
 broadcom-wl-dkms
 btrfs-progs
 dkms
