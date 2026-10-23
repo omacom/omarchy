@@ -52,4 +52,28 @@ fi
 # only see mimeapps.list, where the browser itself is kept.
 env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser "$desktop_id" || exit 1
 
+# The browser PDFs used to open in often owned the type only because nothing
+# else could open one. When its handler is unset, not installed, or a browser
+# itself, the new browser takes application/pdf over; an installed viewer like
+# Evince, the default, keeps it.
+pdf_handler=$(env XDG_CURRENT_DESKTOP= xdg-mime query default application/pdf 2>/dev/null || true)
+keep_pdf=false
+if [[ -n $pdf_handler ]]; then
+  IFS=: read -ra pdf_data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for pdf_data_dir in "${pdf_data_dirs[@]}"; do
+    pdf_entry=$pdf_data_dir/applications/$pdf_handler
+    if [[ ! -f $pdf_entry ]]; then
+      # A desktop ID turns subdirectories into dashes, so kde-viewer.desktop
+      # may live at applications/kde/viewer.desktop.
+      pdf_entry=$(find "$pdf_data_dir/applications" -mindepth 2 -type f -path "$pdf_data_dir/applications/${pdf_handler//-/[-/]}" -print -quit 2>/dev/null)
+    fi
+    [[ -n $pdf_entry ]] || continue
+    grep -q '^MimeType=.*x-scheme-handler/http' "$pdf_entry" || keep_pdf=true
+    break
+  done
+fi
+if [[ $keep_pdf == "false" ]]; then
+  env XDG_CURRENT_DESKTOP= xdg-mime default "$desktop_id" application/pdf || true
+fi
+
 omarchy-notification-send -g $glyph "$(omarchy-i18n default.browserSet "$name")"
