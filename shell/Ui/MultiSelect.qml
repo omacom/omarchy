@@ -335,6 +335,11 @@ Item {
 
       QQC.Popup {
         id: popup
+        readonly property var shadowInsets: Shadow.surfaceSpec("popups")
+        leftMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.left) : margins
+        rightMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.right) : margins
+        topMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.top) : margins
+        bottomMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.bottom) : margins
         // Reparent to the window's content item so the popup is free of any
         // clipping ancestor. Position
         // and available height are recomputed on open and any time the
@@ -343,7 +348,7 @@ Item {
         parent: trigger.Window.window ? trigger.Window.window.contentItem : trigger
         property real _anchorX: 0
         property real _anchorY: 0
-        property real _availableBelow: 0
+        readonly property real _availableBelow: Math.max(0, _windowHeight - _anchorY - Math.max(Style.space(12), bottomMargin))
         readonly property real _windowHeight: parent ? parent.height : 0
         readonly property real _idealContent: resultList.contentHeight + Style.space(50)
         readonly property real _maxRowsHeight: root.popupRowHeight * 6 + 5 * Style.spacing.labelGap + Style.space(50)
@@ -353,7 +358,6 @@ Item {
           var p = trigger.mapToItem(parent, 0, trigger.height + Style.spacing.xxs)
           _anchorX = p.x
           _anchorY = p.y
-          _availableBelow = Math.max(0, _windowHeight - _anchorY - Style.space(12))
         }
 
         x: _anchorX
@@ -378,6 +382,7 @@ Item {
         }
 
         background: BorderSurface {
+          shadowSection: "popups"
           color: root.background
           borderSpec: root.popupBorderSpec
           radius: Style.cornerRadius

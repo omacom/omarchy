@@ -209,6 +209,7 @@ Item {
   // inset by those exact widths.
   BorderSurface {
     id: plate
+    shadowSection: "notifications"
     width: body.width
     height: body.height
     radius: Style.cornerRadius

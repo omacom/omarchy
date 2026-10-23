@@ -1386,16 +1386,20 @@ Item {
         visible: surface.showingNotifications
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.topMargin: surface.margins.top
+        // Reserve blur space without moving the visible cards or their input
+        // mask. Shadows still clip at physical screen edges.
+        readonly property var shadowSpec: Shadow.surfaceSpec("notifications")
+        anchors.topMargin: surface.margins.top - shadowSpec.top
         // Room for the arrival's scale animation, and the gap from the edge.
         readonly property int motionInset: Style.spacing.sm
-        width: service.notificationWidth + motionInset + surface.margins.right
-        height: deck.y + deck.height + motionInset
+        width: service.notificationWidth + motionInset + surface.margins.right + shadowSpec.left
+        height: deck.y + deck.height + motionInset + shadowSpec.bottom
         clip: true
 
         Item {
           id: deck
-          x: clipper.motionInset
+          x: clipper.motionInset + clipper.shadowSpec.left
+          y: clipper.shadowSpec.top
           width: service.notificationWidth
           height: service.deckHeight
 
