@@ -88,6 +88,11 @@ PanelWindow {
   readonly property var coordinatorKey: owner || root
   readonly property var anchorWindow: anchorItem ? anchorItem.QsWindow.window : null
   readonly property string barPos: bar ? bar.position : "top"
+  // centerOnBar is for widgets in the bar's center section. On a screen with
+  // a camera cutout that section sits beside the right one (Bar.qml's
+  // centerBesideRight) and the middle of the bar is the camera, so the panel
+  // opens under its widget instead.
+  readonly property bool centeredOnBar: centerOnBar && !(anchorWindow && anchorWindow.centerBesideRight === true)
 
   function close() {
     if (owner && "close" in owner) owner.close()
@@ -217,10 +222,10 @@ PanelWindow {
   readonly property point cardOrigin: {
     if (!anchorItem || !bar) return Qt.point(margin, margin)
     var x = 0, y = 0
-    if (centerOnBar && (barPos === "top" || barPos === "bottom")) {
+    if (centeredOnBar && (barPos === "top" || barPos === "bottom")) {
       x = screenW / 2 - contentWidth / 2
       y = barPos === "bottom" ? screenH - barH - contentHeight - gap : barH + gap
-    } else if (centerOnBar) {
+    } else if (centeredOnBar) {
       x = barPos === "left" ? barW + gap : screenW - barW - contentWidth - gap
       y = screenH / 2 - contentHeight / 2
     } else if (barPos === "bottom") {

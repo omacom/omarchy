@@ -144,6 +144,24 @@ assert(
   /CenterSections \{\s*window: barWindow\s*pool: horizontalPool\s*active: barWindow\.centerBesideRight\s*besideRight: true\s*anchors\.right: rightModules\.left\s*anchors\.rightMargin: Style\.space\(\d+\)/.test(barSource),
   'the center sections sit just left of the right section in their own regions'
 )
+// Panels that center on the bar (the calendar, the weather) open under their
+// widget where the center section has moved, not under the camera.
+const keyboardPanelSource = fs.readFileSync(root + '/shell/Ui/KeyboardPanel.qml', 'utf8')
+const popupCardSource = fs.readFileSync(root + '/shell/Ui/PopupCard.qml', 'utf8')
+assert(
+  /readonly property bool centeredOnBar: centerOnBar && !\(anchorWindow && anchorWindow\.centerBesideRight === true\)/.test(keyboardPanelSource) &&
+    /if \(centeredOnBar && \(barPos === "top" \|\| barPos === "bottom"\)\) \{/.test(keyboardPanelSource) &&
+    /\} else if \(centeredOnBar\) \{/.test(keyboardPanelSource) &&
+    !/\bcenterOnBar &&|if \(centerOnBar\)/.test(keyboardPanelSource.slice(keyboardPanelSource.indexOf('readonly property point cardOrigin'))),
+  'a keyboard panel centers on the bar only where the center section is drawn in the middle'
+)
+assert(
+  /if \(root\.centerOnBar && window\.centerBesideRight !== true\)/.test(popupCardSource),
+  'a popup card centers on the bar only where the center section is drawn in the middle'
+)
+for (const panel of ['clock', 'weather'])
+  assert(/centerOnBar: true/.test(fs.readFileSync(root + `/shell/plugins/panels/${panel}/Panel.qml`, 'utf8')), `the ${panel} panel still centers on an ordinary bar`)
+
 // Each surface declares the center sections twice and draws one; the other
 // must show no widgets, or it would take them from the one drawn.
 const centerSections = barSource.slice(barSource.indexOf('component CenterSections'), barSource.indexOf('component CenterBox'))

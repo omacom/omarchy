@@ -117,7 +117,9 @@ PopupWindow {
       var window = target.QsWindow.window
       if (!window) return
 
-      if (root.centerOnBar) {
+      // Beside a camera cutout the bar's center section is moved off the
+      // middle (KeyboardPanel.centeredOnBar), so the popup follows its widget.
+      if (root.centerOnBar && window.centerBesideRight !== true) {
         var cx = 0;
         var cy = 0;
         if (root.bar.position === "top" || root.bar.position === "bottom") {
