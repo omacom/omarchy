@@ -26,6 +26,7 @@
     "other": "%1 free resets · next expires in %2"
   },
   "agents.helpFireworksSignIn": "Set %1, run %2, or sign in to Fireworks in pi or opencode.",
+  "agents.helpGoAddKey": "Add an OpenCode Go API key with %1.",
   "agents.helpNotInPath": "%1 not found in PATH",
   "agents.helpRunToAuthenticate": "Run %1 to authenticate.",
   "agents.helpRunToRestoreUsage": "Run %1 to restore authoritative usage.",

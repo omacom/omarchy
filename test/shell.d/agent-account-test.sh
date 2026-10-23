@@ -326,7 +326,9 @@ pass "a failed registration rolls the new home back to pending"
 
 # ------------------------------------------------------------ panel add flow
 
-[[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional' ]] ||
+# OpenCode Go always reports first: it holds one API key, not accounts, and
+# re-adding replaces it.
+[[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional\nopencode first' ]] ||
   fail "--check says what adding would mean for each provider" "$(omarchy-agent-account-add --check)"
 pass "--check says what adding would mean for each provider"
 
