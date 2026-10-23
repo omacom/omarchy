@@ -34,6 +34,16 @@ Firefox and Zen are a different family, so they get different treatment: Omarchy
 
 They don't get the Chromium extensions above, and they're not themed by Omarchy, so those parts of the experience are yours to set up.
 
+## Browsers driven by an agent
+
+An AI agent that drives a browser through DevTools or Playwright can pull your keyboard into that browser whenever it opens a tab or window, or goes fullscreen. Give that browser a window class starting with `agent-` and Omarchy keeps it on its own hidden workspace, where it never takes focus on its own:
+
+```bash
+chromium --class=agent-work --user-data-dir="$HOME/.agent-profile" --remote-debugging-port=9222
+```
+
+Press `Super + Alt + A` to show or hide it, for example to log in or watch what the agent is doing. This is tested with Chromium and Brave, and Chromium-family browsers take `--class`.
+
 ## Removing one again
 
 Anything you installed here can be taken back off under _Remove > Browser_. Chromium isn't in that list — it's part of the base system.
