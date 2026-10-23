@@ -77,6 +77,7 @@ remove_legacy_wrapper omp oh-my-pi github:can1357/oh-my-pi
 remove_legacy_wrapper grok grok npm:@xai-official/grok
 remove_legacy_wrapper ghui ghui npm:@kitlangton/ghui
 remove_legacy_wrapper hunk hunk aqua:modem-dev/hunk
+remove_legacy_wrapper kimi npm:@moonshot-ai/kimi-code
 remove_legacy_wrapper hey hey-cli github:basecamp/hey-cli
 remove_legacy_wrapper ori ori github:OpenRouterLabs/ori-releases
 remove_legacy_wrapper cf npm:cf

@@ -17,6 +17,7 @@ cat >"$mock_bin/mise" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_MISE_LOG"
 [[ $* == 'reshim --system' ]] && exit "${OMARCHY_TEST_RESHIM_STATUS:-0}"
+[[ $1 == unuse ]] && exit "${OMARCHY_TEST_UNUSE_STATUS:-0}"
 exit 0
 SH
 chmod +x "$mock_bin/mise"
@@ -63,6 +64,7 @@ write_wrapper npm:playwright playwright
 write_wrapper github:can1357/oh-my-pi omp
 write_wrapper aqua:google-antigravity/antigravity-cli agy
 write_wrapper npm:cf cf
+write_wrapper npm:@moonshot-ai/kimi-code kimi
 cat >"$test_home/.local/bin/hunk" <<'SH'
 #!/bin/bash
 echo user-owned
@@ -71,7 +73,7 @@ chmod +x "$test_home/.local/bin/hunk"
 
 bash -euo pipefail "$ROOT/migrations/1791382872.sh" >/dev/null
 
-for command in codex playwright omp agy cf cursor-agent basecamp muse; do
+for command in codex playwright omp agy cf kimi cursor-agent basecamp muse; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "lazy-tool migration removes the recognized $command wrapper"
 done
 grep -Fx 'echo user-owned' "$test_home/.local/bin/hunk" >/dev/null || fail "lazy-tool migration preserves a user-owned command"
@@ -84,7 +86,7 @@ pass "lazy-tool migration replaces recognized wrappers with native lazy declarat
 # shorthand and under every older backend name alike.
 unuse=$(grep '^unuse ' "$mise_log") || fail "lazy-tool migration drops the wrappers' latest requests"
 [[ $unuse == "unuse -g --no-prune "* ]] || fail "lazy-tool migration keeps installs when it drops requests" "$unuse"
-for request in codex@latest claude@latest muse@latest npm:cf@latest aqua:modem-dev/hunk@latest github:can1357/oh-my-pi@latest; do
+for request in codex@latest claude@latest muse@latest npm:cf@latest aqua:modem-dev/hunk@latest github:can1357/oh-my-pi@latest npm:@moonshot-ai/kimi-code@latest; do
   [[ " $unuse " == *" $request "* ]] || fail "lazy-tool migration drops the wrappers' latest requests" "$request"
 done
 pass "lazy-tool migration drops the wrappers' latest requests"
@@ -168,3 +170,44 @@ for failure in package reshim; do
 done
 rm -f "$test_home/.local/bin/codex"
 pass "lazy-tool migration keeps old wrappers until the replacement shims exist"
+
+# 1792611438 retires the Kimi wrapper 1791382872 missed on machines that already
+# ran it, and only the wrapper it can prove is Omarchy's.
+kimi_migration="$ROOT/migrations/1792611438.sh"
+write_wrapper npm:@moonshot-ai/kimi-code kimi
+: >"$mise_log"
+bash -euo pipefail "$kimi_migration" >/dev/null
+[[ ! -e $test_home/.local/bin/kimi ]] || fail "Kimi migration removes the leftover wrapper"
+grep -Fx 'unuse -g --no-prune npm:@moonshot-ai/kimi-code@latest' "$mise_log" >/dev/null ||
+  fail "Kimi migration drops the wrapper's latest request" "$(cat "$mise_log")"
+pass "Kimi migration replaces the leftover wrapper with the lazy shim"
+
+: >"$mise_log"
+bash -euo pipefail "$kimi_migration" >/dev/null
+[[ ! -s $mise_log ]] || fail "Kimi migration leaves a user's own latest request alone once the wrapper is gone" "$(cat "$mise_log")"
+pass "Kimi migration is idempotent"
+
+write_wrapper npm:@moonshot-ai/kimi-code kimi
+OMARCHY_TEST_UNUSE_STATUS=1 bash -euo pipefail "$kimi_migration" >/dev/null 2>&1 && status=0 || status=$?
+((status != 0)) || fail "Kimi migration stays pending when it cannot drop the request"
+[[ -e $test_home/.local/bin/kimi ]] || fail "Kimi migration keeps the wrapper to retry when it cannot drop the request"
+: >"$mise_log"
+bash -euo pipefail "$kimi_migration" >/dev/null
+[[ ! -e $test_home/.local/bin/kimi ]] && grep -q '^unuse ' "$mise_log" || fail "Kimi migration finishes on the retry"
+pass "Kimi migration retries after it cannot drop the request"
+: >"$mise_log"
+
+write_wrapper npm:@moonshot-ai/kimi-code kimi
+printf 'echo finished\n' >>"$test_home/.local/bin/kimi"
+cp "$test_home/.local/bin/kimi" "$test_tmp/expected-kimi"
+bash -euo pipefail "$kimi_migration" >/dev/null
+cmp -s "$test_home/.local/bin/kimi" "$test_tmp/expected-kimi" || fail "Kimi migration preserves a customized launcher"
+[[ ! -s $mise_log ]] || fail "Kimi migration keeps the request behind a customized launcher" "$(cat "$mise_log")"
+pass "Kimi migration preserves a customized launcher"
+
+write_wrapper npm:@moonshot-ai/kimi-code kimi
+mkdir -p "$test_home/.local/state/omarchy"
+touch "$test_home/.local/state/omarchy/preinstalls-removed"
+bash -euo pipefail "$kimi_migration" >/dev/null
+[[ -e $test_home/.local/bin/kimi && ! -s $mise_log ]] || fail "Kimi migration leaves an opted-out user alone"
+pass "Kimi migration leaves an opted-out user alone"
