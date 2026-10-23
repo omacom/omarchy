@@ -524,7 +524,8 @@ Panel {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: expired ? 0 : Number(percent),
-      resetAt: expired ? "" : String(resetAt || "")
+      resetAt: expired ? "" : String(resetAt || ""),
+      spanMs: windowSpanMs(label)
     }
   }
 
@@ -588,6 +589,17 @@ Panel {
     if (!w || w.resetAt === "") return -1
     var ms = new Date(w.resetAt).getTime()
     return isFinite(ms) ? ms - root.nowMs : -1
+  }
+
+  // Where "now" sits inside the window, 0..1: the fill says how much of
+  // the allowance is spent, the caret how much of the window's time is.
+  // Negative hides the caret (no span, no reset time, or already reset).
+  function windowElapsedFraction(w) {
+    if (!w) return -1
+    var span = Number(w.spanMs || 0)
+    var remaining = resetMsFor(w)
+    if (!(span > 0) || !(remaining > 0)) return -1
+    return clamp(1 - remaining / span, 0, 1)
   }
 
   function formatDuration(ms) {
@@ -2032,6 +2044,7 @@ Panel {
       value: compact.window ? compact.window.percent : -1
       alarming: compact.alarming
       markers: compact.scoped
+      caret: root.windowElapsedFraction(compact.window)
     }
 
     // Sized to the widest time left ("19h 40m"), so every meter ends in the
@@ -2069,6 +2082,14 @@ Panel {
     // Other allowances on the same clock, drawn as ticks across the track.
     property var markers: []
 
+    // Where "now" sits in the window, 0..1, drawn as a caret above the
+    // track. The fill says how much of the allowance is spent; the caret
+    // how much of the window's time is. Negative hides it.
+    property real caret: -1
+
+    readonly property real caretSize: Math.max(3, Math.round(thickness * 1.2))
+    readonly property real caretGap: Math.max(1, Math.round(thickness * 0.4))
+
     implicitHeight: thickness
 
     Rectangle {
@@ -2105,6 +2126,72 @@ Panel {
         readonly property real along: root.clamp(meterTrack.width * root.clamp(Number(modelData.percent), 0, 1) - width / 2, 0, meterTrack.width - width)
         x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
         color: meter.alarming ? root.urgent : root.foreground
+      }
+    }
+
+    // The time caret: a small triangle over the track with a hairline
+    // reaching through it, marking where "now" sits in the window. Like
+    // the marker ticks it overflows the meter's nominal height rather
+    // than growing it, so inline rows keep their height.
+    Item {
+      visible: meter.caret >= 0
+      width: meter.caretSize
+      height: meter.caretSize + meter.caretGap + meter.thickness
+      anchors.bottom: parent.bottom
+      // Explicit x doesn't mirror, so the caret measures from the end the
+      // fill grows from, exactly like the marker ticks.
+      readonly property real along: root.clamp(meterTrack.width * root.clamp(meter.caret, 0, 1) - width / 2, 0, meterTrack.width - width)
+      x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
+
+      Canvas {
+        id: meterCaret
+        anchors.top: parent.top
+        width: parent.width
+        height: meter.caretSize
+        onPaint: {
+          var ctx = getContext("2d")
+          ctx.reset()
+          ctx.fillStyle = root.foreground
+          ctx.beginPath()
+          ctx.moveTo(0, 0)
+          ctx.lineTo(width, 0)
+          ctx.lineTo(width / 2, height)
+          ctx.closePath()
+          ctx.fill()
+        }
+        Connections {
+          target: root
+          function onForegroundChanged() { meterCaret.requestPaint() }
+        }
+      }
+
+      Rectangle {
+        anchors.top: parent.top
+        anchors.topMargin: meter.caretSize
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: 1
+        height: meter.caretGap + meter.thickness
+        color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.55)
+      }
+    }
+
+    // The caret's position as a number: what share of the window's time
+    // has passed. It follows the caret, flipping to its left near the
+    // right end so it never runs off the meter.
+    Text {
+      id: meterCaretLabel
+      visible: meter.caret >= 0
+      textFormat: Text.PlainText
+      text: Commons.I18n.formatNumber(Math.round(root.clamp(meter.caret, 0, 1) * 100)) + "%"
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      y: -(meter.caretSize + meter.caretGap) + meter.caretSize / 2 - height / 2
+      x: {
+        var edge = Math.round(root.clamp(meter.caret, 0, 1) * meterTrack.width)
+        var left = meter.caret < 0.7 ? Math.min(edge + meter.caretSize, meterTrack.width - width)
+                                     : edge - meter.caretSize - width
+        return LayoutMirroring.enabled ? meterTrack.width - width - left : left
       }
     }
   }
