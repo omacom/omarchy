@@ -1,20 +1,25 @@
 #!/bin/bash
 
-# Turn off keyboard backlight before hibernate to prevent hang on power-off.
-# The ASUS keyboard controller can block S4 shutdown if LEDs are active.
+# Turn off the ASUS keyboard backlight before hibernate to prevent a hang on
+# power-off, and restore it on resume, since nothing else knows it was turned off.
+# The ASUS keyboard controller can block S4 shutdown if its LEDs are active;
+# other keyboards don't hang, so they are left alone.
 
 sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
 
-if [[ $1 == "pre" && $sleep_action == "hibernate" ]]; then
-  device=""
-  for candidate in /sys/class/leds/*kbd_backlight*; do
-    if [[ -e "$candidate" ]]; then
-      device="$(basename "$candidate")"
-      break
-    fi
-  done
+# brightnessctl saves the level under $XDG_RUNTIME_DIR, or /tmp without one, where any
+# user could plant a symlink for root to write through. Only root can create in /run.
+export XDG_RUNTIME_DIR=/run/omarchy-keyboard-backlight
 
-  if [[ -n "$device" ]]; then
-    brightnessctl -d "$device" set 0 >/dev/null 2>&1
-  fi
+# omarchy-brightness-keyboard drives the first keyboard LED, so that is the one to check.
+leds=(/sys/class/leds/*kbd_backlight*)
+
+if [[ $sleep_action == "hibernate" && ${leds[0]##*/} == asus* ]]; then
+  case $1 in
+    pre)
+      mkdir -p -m 0700 "$XDG_RUNTIME_DIR"
+      omarchy-brightness-keyboard off >/dev/null 2>&1
+      ;;
+    post) omarchy-brightness-keyboard restore >/dev/null 2>&1 ;;
+  esac
 fi
