@@ -446,6 +446,55 @@ check(shows("HDMI-A-1") >= 1 and shows("HDMI-A-1") <= 3, "the returning monitor 
 ' || fail "a returning monitor reclaims its original workspace numbers even when started on one of them"
 pass "a returning monitor reclaims its original workspace numbers even when started on one of them"
 
+run_lua dropout '
+plug("HDMI-A-1", 0, "LG", 1)
+plug("DP-1", 1, "DELL", 11)
+world.focused = "HDMI-A-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+window("0xb", 2)
+window("0xc", 3)
+monitor_named("HDMI-A-1").active = 3
+
+unplug("HDMI-A-1")
+world.handlers["monitor.removed"]({ name = "HDMI-A-1" })
+monitor_named("DP-1").active = 14
+world.focused = "DP-1"
+
+-- Taking 14 home leaves DP-1 on a fresh lowest number, inside the returning block.
+plug("HDMI-A-1", 2, "LG", 1)
+world.handlers["monitor.added"]({ name = "HDMI-A-1" })
+check(world.windows["0xa"].workspace == 1 and world.windows["0xb"].workspace == 2 and world.windows["0xc"].workspace == 3,
+  "the workspaces return to 1, 2 and 3: "
+  .. world.windows["0xa"].workspace .. ", " .. world.windows["0xb"].workspace .. ", " .. world.windows["0xc"].workspace)
+check(on(1) == "HDMI-A-1" and on(2) == "HDMI-A-1" and on(3) == "HDMI-A-1", "all three are back on the returning monitor")
+check(shows("DP-1") >= 11 and shows("DP-1") <= 20, "the other monitor is back on its own block, not " .. shows("DP-1"))
+' || fail "a returning monitor reclaims its numbers when the other monitor was showing one of them"
+pass "a returning monitor reclaims its numbers when the other monitor was showing one of them"
+
+run_lua dropout '
+plug("HDMI-A-1", 0, "LG", 1)
+plug("DP-1", 1, "DELL", 11)
+world.focused = "HDMI-A-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 2)
+window("0xb", 3)
+monitor_named("HDMI-A-1").active = 3
+
+unplug("HDMI-A-1")
+world.handlers["monitor.removed"]({ name = "HDMI-A-1" })
+
+-- Nothing comes back to 1, so the empty workspace Hyprland starts the monitor on stays in its block.
+plug("HDMI-A-1", 2, "LG", 1)
+world.focused = "HDMI-A-1"
+world.handlers["monitor.added"]({ name = "HDMI-A-1" })
+check(world.windows["0xa"].workspace == 2 and world.windows["0xb"].workspace == 3, "the workspaces return to 2 and 3")
+check(shows("HDMI-A-1") == 2 or shows("HDMI-A-1") == 3, "the returning monitor shows a restored workspace, not empty " .. shows("HDMI-A-1"))
+' || fail "a returning monitor shows its restored workspaces rather than the empty one it started on"
+pass "a returning monitor shows its restored workspaces rather than the empty one it started on"
+
 run_lua merge '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
