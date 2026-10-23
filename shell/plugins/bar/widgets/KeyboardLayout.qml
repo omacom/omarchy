@@ -48,7 +48,7 @@ BarWidget {
   readonly property string layoutLabel: KeyboardLayoutModel.shortLabel(layoutFull, layoutBriefs)
   readonly property var inputState: InputMethodState.state
   readonly property bool multipleInputs: (inputState.methods || []).length > 1
-  readonly property string inputLabel: KeyboardLayoutModel.inputLabel(inputState, layoutLabel)
+  readonly property string inputLabel: KeyboardLayoutModel.inputLabel(inputState, layoutLabel, layoutFull)
 
   // A query already in flight was started before this event, so it may read the
   // layout the switch replaced. Remember the request and re-run once it lands
