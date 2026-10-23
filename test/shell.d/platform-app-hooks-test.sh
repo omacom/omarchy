@@ -36,11 +36,12 @@ omarchy_path=$tmp/omarchy
 mkdir -p "$stub_bin" "$omarchy_path/install/helpers" "$omarchy_path/config"
 printf 'browser_policy_setup_dir() { :; }\nbrowser_policy_setup_firefox_distribution() { :; }\nas_root() { "$@"; }\n' \
   >"$omarchy_path/install/helpers/browser-policy.sh"
+cp "$ROOT/install/helpers/brave-web-speech.sh" "$omarchy_path/install/helpers/"
 cp "$ROOT/config/chromium-flags.conf" "$omarchy_path/config/"
 for command in omarchy-pkg-add omarchy-pkg-aur-add omarchy-pkg-drop omarchy-install-gaming-gpu-lib32; do
   printf '#!/bin/bash\nprintf "%%s %%s\\n" "%s" "$*" >>"%s"\n' "$command" "$tmp/calls" >"$stub_bin/$command"
 done
-for command in omarchy-install-chromium-copy-url omarchy-install-chromium-ytdlp omarchy-theme-set-browser setsid; do
+for command in omarchy-install-chromium-copy-url omarchy-install-chromium-ytdlp omarchy-install-video-decode omarchy-theme-set-browser setsid systemctl; do
   printf '#!/bin/bash\nexit 0\n' >"$stub_bin/$command"
 done
 chmod +x "$stub_bin"/*
