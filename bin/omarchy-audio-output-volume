@@ -1,24 +1,44 @@
 #!/bin/bash
 
 # omarchy:summary=Adjust output volume and show the Omarchy OSD
-# omarchy:args=<raise|lower|mute-toggle|+N|-N>
-# omarchy:examples=omarchy audio output volume raise | omarchy audio output volume lower | omarchy audio output volume mute-toggle | omarchy audio output volume +1
+# omarchy:args=[--follow-active] <raise|lower|mute-toggle|+N|-N>
+# omarchy:examples=omarchy audio output volume raise | omarchy audio output volume --follow-active raise | omarchy audio output volume mute-toggle | omarchy audio output volume +1
+
+follow_active=false
+while [[ $1 == --* ]]; do
+  case $1 in
+    --follow-active) follow_active=true ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+  shift
+done
 
 action="${1:-}"
 
 if [[ -z $action ]]; then
-  echo "Usage: omarchy-audio-output-volume <raise|lower|mute-toggle|+N|-N>"
+  echo "Usage: omarchy-audio-output-volume [--follow-active] <raise|lower|mute-toggle|+N|-N>"
   exit 1
 fi
 
 # Resolve through any DSP sink to the physical one, so the keys always move real
 # loudness and the processing always sees full-scale input. Shared with the audio
-# panel and the output switcher.
-sink="$(omarchy-audio-output-sink)"
+# panel and the output switcher. With --follow-active the keys follow the stream
+# playing on another output (a call on a headset) instead of the default sink.
+if [[ $follow_active == true ]]; then
+  sink="$(omarchy-audio-output-sink --active)"
+else
+  sink="$(omarchy-audio-output-sink)"
+fi
 if [[ -z $sink ]]; then
   echo "Could not resolve an audio sink to control." >&2
   exit 1
 fi
+
+# A volume step is a read-modify-write, and the shell runs the script detached,
+# so repeated presses can overlap and both read the same volume, dropping a
+# step. Serialize the mutation; the lock is released when the script exits.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-audio-output-volume.lock"
+flock 9
 
 # pactl reports the same percentage scale wpctl does (both are the raw volume
 # over PA_VOLUME_NORM), so the OSD reads identically either way.

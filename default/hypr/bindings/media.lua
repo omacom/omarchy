@@ -15,8 +15,8 @@ o.bind("XF86TouchpadOn", "Enable touchpad", "omarchy-toggle-touchpad on", { lock
 o.bind("XF86TouchpadOff", "Disable touchpad", "omarchy-toggle-touchpad off", { locked = true })
 
 -- Precise volume and brightness controls.
-o.bind("ALT + XF86AudioRaiseVolume", "Volume up precise", "omarchy-audio-output-volume +1", { locked = true, repeating = true })
-o.bind("ALT + XF86AudioLowerVolume", "Volume down precise", "omarchy-audio-output-volume -1", { locked = true, repeating = true })
+o.bind("ALT + XF86AudioRaiseVolume", "Volume up precise", "omarchy-audio-output-volume --follow-active +1", { locked = true, repeating = true })
+o.bind("ALT + XF86AudioLowerVolume", "Volume down precise", "omarchy-audio-output-volume --follow-active -1", { locked = true, repeating = true })
 o.bind("ALT + XF86MonBrightnessUp", "Brightness up precise", "omarchy-brightness-display +1%", { locked = true, repeating = true })
 o.bind("ALT + XF86MonBrightnessDown", "Brightness down precise", "omarchy-brightness-display 1%-", { locked = true, repeating = true })
 
