@@ -180,9 +180,12 @@ Rules:
    First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`.
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
-8. `version: 1` is required.
+8. `minBarWidth` on a bar widget entry leaves it off any bar shorter than that many logical pixels, measured along the bar's run: its width on a top or bottom bar, its height on a left or right one.
+9. `version: 1` is required.
 
 The bar's sections run along it in the order `left`, `centerBegin`, `center`, `centerEnd`, `right`. `center` is a box in the middle of the bar whose widgets are centered as one group; `centerBegin` and `centerEnd` hang off its two edges and move out as it grows. An empty box takes no room, so the two meet in the middle of the bar. While a widget is dragged, the other widgets make room for it where it would land, and it gives up its own room unless it would land back there; the box shows as an outline, or a line across the bar when empty, that it can be dropped into or beside, and grows to take in a widget that would land in it. A drop within the bar's thickness of an empty box's middle lands in it. The tray's drawer, which opens while a widget is dragged, holds the tray section the same way: it shows as an outline, or a line when empty, and a drop over it, or within half the bar's thickness of it, lands in it. A layout written from elsewhere during a drag (`omarchy bar move`, a hand edit) that moves widgets about makes the drag let go, and the layout stays as written.
+
+One layout is drawn on every screen, so a bar that fits a wide display can run out of room on a narrow one. The centered group is held clear of the sections anchored to the two edges: it stays centered while it fits between them and slides along the room they leave rather than overprinting them. That keeps the bar legible, but it cannot invent room — a layout with more widgets than a screen can hold still runs past the end. Give the widgets worth dropping on a small screen a `minBarWidth`, in logical pixels, and the bars too short for them leave them off while every wider bar is unchanged. It is measured along the bar's run, so a left or right bar is judged by its height rather than its width. Widgets without the setting are never dropped, and one that is left off a bar is never built there — a widget is only ever loaded once a slot holds it — so it costs that screen nothing.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
 user `shell.json` exists, defaults are used verbatim. Once the user
