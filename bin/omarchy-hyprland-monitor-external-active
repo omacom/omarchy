@@ -3,4 +3,11 @@
 # omarchy:summary=Returns true when Hyprland has an active external monitor
 # omarchy:hidden=true
 
-hyprctl monitors all -j | jq -e '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | select(.disabled == false)' >/dev/null 2>&1
+# An external output unplugged with the dock can stay listed and still flagged
+# enabled while carrying no mode at all -- the 0x0 state
+# omarchy-hyprland-monitor-modeless exists to spot. Counting that corpse as a
+# live screen is what leaves the internal panel disabled after undocking: the
+# recover path in omarchy-hyprland-monitor-internal sees an active external and
+# returns before re-enabling it. A monitor is only a screen once it reports a
+# mode.
+hyprctl monitors all -j | jq -e '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | select(.disabled == false) | select(.width > 0 and .height > 0)' >/dev/null 2>&1
