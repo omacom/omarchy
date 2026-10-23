@@ -144,6 +144,20 @@ grep -F -- ' -- vivaldi https://example.test/vivaldi' "$launch_log" >/dev/null |
   fail "a browser in XDG_DATA_DIRS launches from its desktop entry" "$(cat "$launch_log")"
 pass "browser launcher reads Exec= from the data dirs the resolver searched"
 
+# Web apps start from the same resolved entry, so they read the same dirs.
+cat >"$mock_bin/uwsm-app" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+SH
+chmod +x "$mock_bin/uwsm-app"
+
+rm -f "$launch_log"
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app"
+grep -F -- '-- vivaldi --app=https://example.test/app' "$launch_log" >/dev/null ||
+  fail "a web app launches a browser in XDG_DATA_DIRS from its desktop entry" "$(cat "$launch_log" 2>/dev/null)"
+pass "web app launcher reads Exec= from the data dirs the resolver searched"
+
 # The Nix profile is not guaranteed to be on XDG_DATA_DIRS, but both scripts
 # read it all the same.
 mkdir -p "$test_home/.nix-profile/share/applications"

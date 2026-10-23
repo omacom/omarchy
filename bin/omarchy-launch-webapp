@@ -10,7 +10,16 @@ google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
 *) browser="chromium.desktop" ;;
 esac
 
-browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
+# Read Exec= from the same data dirs omarchy-cmd-default-browser searched, as
+# omarchy-launch-browser does, so a browser it resolved is one this can start.
+IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}:$HOME/.nix-profile/share"
+browser_exec=""
+for data_dir in "${data_dirs[@]}"; do
+  entry="$data_dir/applications/$browser"
+  [[ -f $entry ]] || continue
+  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
+  break
+done
 
 if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
   exec setsid uwsm-app -- $browser_exec --app="$1" "${@:2}"
