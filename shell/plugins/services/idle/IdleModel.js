@@ -63,12 +63,47 @@ function screensaverWindowsAfter(windows, address, visible) {
   }
 }
 
+// The screensaver windows still open, read from the live toplevels rather than
+// from the openwindow events tracked so far. A close event can be missed, and a
+// window tracked from an earlier event that has since gone must not keep a
+// cycle armed, or hold off the launch grace fallback, for the rest of the
+// session.
+//
+// A toplevel whose wayland handle has not been attached yet reports a null app
+// id. That is unknown, not absent: the handle arrives milliseconds after the
+// window maps, and reading it as "not the screensaver" drops a window that is
+// really up, which on a lock path fails open. Such a window is kept when the
+// openwindow events already track its address, and ignored when they do not, so
+// a toplevel this cannot identify never becomes a screensaver window by itself.
+function screensaverWindowsFrom(entries, className, tracked) {
+  var windows = {}
+  var count = 0
+
+  for (var i = 0; i < (entries ? entries.length : 0); i++) {
+    var entry = entries[i] || {}
+    var address = String(entry.address || "")
+    if (!address || windows[address]) continue
+
+    if (entry.appId === null) {
+      if (!tracked || !tracked[address]) continue
+    } else if (String(entry.appId || "") !== className) {
+      continue
+    }
+
+    windows[address] = true
+    count++
+  }
+
+  return { windows: windows, count: count }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
     firstIdleTimeout: firstIdleTimeout,
     delayAfterFirstIdle: delayAfterFirstIdle,
     eventParts: eventParts,
-    screensaverWindowsAfter: screensaverWindowsAfter
+    screensaverWindowsAfter: screensaverWindowsAfter,
+    screensaverWindowsFrom: screensaverWindowsFrom
   }
 }
