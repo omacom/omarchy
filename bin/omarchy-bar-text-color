@@ -123,6 +123,27 @@ sample=$(printf '#%02x%02x%02x' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BAS
 text_contrast=$(contrast "$text_color" "$sample")
 background_contrast=$(contrast "$background_color" "$sample")
 
-awk -v text="$text_contrast" -v background="$background_contrast" 'BEGIN { exit !(background > text) }' \
-  && printf '%s\n' "$background_color" \
-  || printf '%s\n' "$text_color"
+# WCAG AA asks 4.5:1 for small text. Both theme colors are surfaces a theme
+# picked for a solid bar, so on a bright wallpaper the better of the two can
+# still land under the floor: a dark theme's background is charcoal, not ink,
+# and a blue charcoal over a blue sky reads as a soft edge. When neither clears
+# the floor, print the plain ink that is most legible on the sample instead.
+floor=4.5
+
+if awk -v text="$text_contrast" -v background="$background_contrast" -v floor="$floor" \
+  'BEGIN { exit !(text >= floor || background >= floor) }'; then
+  if awk -v text="$text_contrast" -v background="$background_contrast" 'BEGIN { exit !(background > text) }'; then
+    printf '%s\n' "$background_color"
+  else
+    printf '%s\n' "$text_color"
+  fi
+else
+  black_contrast=$(contrast '#000000' "$sample")
+  white_contrast=$(contrast '#ffffff' "$sample")
+
+  if awk -v black="$black_contrast" -v white="$white_contrast" 'BEGIN { exit !(white > black) }'; then
+    printf '%s\n' '#ffffff'
+  else
+    printf '%s\n' '#000000'
+  fi
+fi
