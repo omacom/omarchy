@@ -1,0 +1,156 @@
+#!/bin/bash
+set -euo pipefail
+
+source_root=$OMARCHY_PATH
+base_root=""
+remove=0
+while (( $# )); do
+  case "$1" in
+    --base) base_root=${2:?Missing checkout}; shift 2 ;;
+    --uninstall) remove=1; shift ;;
+    -h|--help)
+      echo "Usage: omarchy install tooltips [--base <checkout>] [--uninstall]"
+      echo "Builds a pinned local Quickshell package and a tooltip-only copy of the current Omarchy tree."
+      echo "Requires a reboot. Uninstall restores the previous package and Omarchy selection."
+      exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; exit 1 ;;
+  esac
+done
+if (( EUID == 0 )); then
+  echo "Run this as your user, from a terminal where sudo can prompt." >&2
+  exit 1
+fi
+state_dir=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy
+state_file=$state_dir/tooltip-trial.json
+data_dir=${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/tooltips
+mkdir -p "$state_dir" "$data_dir" "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy"
+# Serialize install/uninstall; no background updater or polling is installed.
+exec 9>"$state_dir/tooltip-trial.lock"
+flock -n 9 || { echo "Another tooltip installation is active." >&2; exit 1; }
+
+read_state() {
+  python3 - "$state_file" "$1" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))[sys.argv[2]])
+PY
+}
+restore_selection() {
+  if [[ $1 == "/usr/share/omarchy" ]]; then
+    bash "$source_root/bin/omarchy-dev-unlink" --no-reboot
+  else
+    bash "$source_root/bin/omarchy-dev-link" "$1" --no-reboot
+  fi
+}
+selected_root=$(bash -c '. /etc/omarchy.conf; printf "%s" "$OMARCHY_PATH"')
+[[ -d $selected_root/shell ]] || { echo "Invalid selected Omarchy tree: $selected_root" >&2; exit 1; }
+if [[ -z $base_root ]]; then
+  base_root=$selected_root
+fi
+if (( remove )); then
+  [[ -f $state_file ]] || { echo "No tooltip trial installed by this command."; exit 0; }
+  previous=$(read_state previousOmarchy)
+  selected=$(read_state trialOmarchy)
+  package=$(read_state previousPackage)
+  # Do not overwrite a dev link changed by another development task.
+  configured=$(bash -c '. /etc/omarchy.conf; printf "%s" "$OMARCHY_PATH"')
+  [[ $configured == "$selected" ]] || { echo "Omarchy selection changed after this trial; review before uninstalling." >&2; exit 1; }
+  [[ -f $package ]] || { echo "Rollback package missing: $package" >&2; exit 1; }
+  sudo pacman -U --noconfirm "$package"
+  restore_selection "$previous"
+  mv "$state_file" "$state_file.removed"
+  echo "Restored the previous runtime and Omarchy selection. Reboot after saving your work."
+  exit 0
+fi
+
+if [[ -f $state_file ]]; then
+  configured=$(bash -c '. /etc/omarchy.conf; printf "%s" "$OMARCHY_PATH"')
+  if [[ $configured == "$(read_state trialOmarchy)" ]]; then
+    echo "The tooltip trial is already installed. Uninstall it before selecting a newer trial."
+    exit 0
+  else
+    echo "An existing tooltip trial has a different Omarchy selection; review its state before proceeding." >&2
+    exit 1
+  fi
+fi
+
+[[ -d $base_root/shell && -d $base_root/default ]] || { echo "Invalid Omarchy checkout: $base_root" >&2; exit 1; }
+installed_version=$(pacman -Q quickshell | cut -d' ' -f2)
+[[ $installed_version == 0.3.1-* || $installed_version == 0.3.1.tooltip* ]] || {
+  echo "This reviewed runtime patch targets Quickshell 0.3.1; installed: $installed_version. Refusing a version downgrade." >&2
+  exit 1
+}
+omarchy-pkg-add base-devel git cmake ninja qt6-base qt6-declarative qt6-shadertools wayland-protocols libpipewire polkit cpptrace jemalloc libxcb
+cache_dir=${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/tooltips
+mkdir -p "$cache_dir/stock"
+find_stock() {
+  python3 - "$cache_dir/stock" <<'PY'
+from pathlib import Path
+import subprocess, sys
+for directory in [Path('/var/cache/pacman/pkg'), Path(sys.argv[1])]:
+    for path in sorted(directory.glob('quickshell-0.3.1-*.pkg.tar.*'), reverse=True):
+        if path.name.endswith('.sig'):
+            continue
+        print(path)
+        raise SystemExit
+PY
+}
+stock=$(find_stock)
+if [[ -z $stock ]]; then
+  sudo pacman -Sw --noconfirm --cachedir "$cache_dir/stock" quickshell
+  stock=$(find_stock)
+fi
+[[ -n $stock ]] || { echo "The original Quickshell 0.3.1 package is required for safe rollback." >&2; exit 1; }
+previous_package=$stock
+previous_root=$selected_root
+if [[ $installed_version != 0.3.1-* ]]; then
+  # A prior local trial records its exact package for restoration.
+  previous_package=$(python3 - "$selected_root" "$installed_version" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1]).parent / 'manifest.json'
+d = json.loads(p.read_text()) if p.is_file() else {}
+print(d.get('package', ''))
+PY
+)
+  [[ -f $previous_package ]] || { echo "Save the current custom Quickshell package before replacing it." >&2; exit 1; }
+fi
+run_dir=$(mktemp -d "$data_dir/install.XXXXXX")
+TOOLTIP_BUILD_DIR="$cache_dir/runtime" bash "$source_root/default/tooltips/build-runtime"
+runtime=$cache_dir/runtime/build/src/quickshell
+TOOLTIP_QUICKSHELL="$runtime" bash "$source_root/default/tooltips/check-runtime"
+python3 "$source_root/default/tooltips/prepare-trial.py" --source "$source_root" --installed "$base_root" \
+  --stock-package "$stock" --output "$run_dir/trial" --runtime "$runtime"
+trial=$run_dir/trial
+# Validate the exact kit, not merely the development checkout.
+TOOLTIP_QUICKSHELL="$runtime" bash "$trial/omarchy/test/shell.d/tooltips-test.sh"
+(cd "$trial/package" && makepkg --noconfirm)
+package=$(cd "$trial/package" && makepkg --packagelist)
+[[ -f $package ]] || { echo "Runtime package was not produced." >&2; exit 1; }
+cp -a "$previous_package" "$trial/backup/previous.pkg.tar"
+previous_package=$trial/backup/previous.pkg.tar
+# State is staged before the first system mutation, so recovery paths are ready.
+python3 - "$state_file.pending" "$previous_root" "$trial/omarchy" "$previous_package" <<'PY'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps(dict(previousOmarchy=sys.argv[2], trialOmarchy=sys.argv[3], previousPackage=sys.argv[4])) + '\n')
+PY
+# A package hook may fail after files have been installed. Restore even when
+# pacman reports failure rather than assuming no mutation occurred.
+if ! sudo pacman -U --noconfirm "$package"; then
+  if sudo pacman -U --noconfirm "$previous_package"; then
+    rm -f "$state_file.pending"
+  else
+    echo "Automatic runtime restoration failed; recovery details: $state_file.pending" >&2
+  fi
+  exit 1
+fi
+if bash "$source_root/bin/omarchy-dev-link" "$trial/omarchy" --no-reboot; then
+  mv "$state_file.pending" "$state_file"
+else
+  sudo pacman -U --noconfirm "$previous_package"
+  restore_selection "$previous_root"
+  rm -f "$state_file.pending"
+  exit 1
+fi
+echo "Tooltip trial installed. Reboot after saving your work so all launchers inherit it."
+echo "Rollback: omarchy install tooltips --uninstall"

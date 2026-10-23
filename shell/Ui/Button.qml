@@ -136,27 +136,13 @@ BorderSurface {
 
   Behavior on color { ColorAnimation { duration: Style.duration(120) } }
 
-  ToolTip {
+  PanelToolTip {
     visible: root.tooltipText !== "" && mouseArea.containsMouse
     text: root.tooltipText
-    delay: 400
-    padding: 0
-    background: BorderSurface {
-      color: root.tooltipBackground
-      borderSpec: root._tooltipBorderSpec
-      radius: 0
-    }
-    contentItem: Text {
-      textFormat: Text.PlainText
-      text: root.tooltipText
-      color: root.tooltipForeground
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
-      leftPadding: Border.left(root._tooltipBorderSpec) + Style.spacing.controlPaddingX
-      rightPadding: Border.right(root._tooltipBorderSpec) + Style.spacing.controlPaddingX
-      topPadding: Border.top(root._tooltipBorderSpec) + Style.spacing.controlPaddingY
-      bottomPadding: Border.bottom(root._tooltipBorderSpec) + Style.spacing.controlPaddingY
-    }
+    panelBackground: root.tooltipBackground
+    panelForeground: root.tooltipForeground
+    panelBorder: root.tooltipBorder
+    fontFamily: root.fontFamily
   }
 
   Row {

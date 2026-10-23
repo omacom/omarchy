@@ -450,3 +450,5 @@ Widgets in the tray section grow from the edge the tray keeps its pinned icons a
 Put content that grows, such as a drawer or a peek, on the side away from that edge so whatever is already showing keeps its place under the pointer.
 
 A widget keeps running when it moves to another section, whether dragged or moved by a config write: each bar surface keeps one instance per layout entry and hands it to the section that shows it. A drag moves the very instance dragged; a config written elsewhere says nothing of which of two identical entries moved, so those two may trade instances. Its `fixedEdge` and `settings` change in place, so bind to them rather than reading them once. A widget is built again only when it is added to the layout, when its component changes (its plugin is reloaded or swapped), when the bar turns between horizontal and vertical, and, for a custom module, when its entry changes.
+
+Shared plain hints and optional interactive cards are described in [Tooltips](tooltips.md), including the standalone runtime provider and reversible local trial.
