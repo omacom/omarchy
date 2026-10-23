@@ -43,6 +43,7 @@ with tempfile.TemporaryDirectory(prefix="omarchy-locate-") as scratch:
     "fzf": 'cat >/dev/null\nprintf "%s\\n" test-package',
     "yay": 'if [[ ${1:-} == "-Slqa" ]]; then printf "%s\\n" test-package; fi',
     "omarchy-sudo-keepalive": ':',
+    "omarchy-pkg-db-sync": ':',
     "omarchy-show-done": ':',
   }
   for name, body in stubs.items():
