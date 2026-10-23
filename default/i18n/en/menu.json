@@ -656,9 +656,6 @@
   "setup.security.ssh-agent": {
     "label": "SSH Agent"
   },
-  "setup.security.sudoless-docker": {
-    "label": "Sudoless Docker"
-  },
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
   },
@@ -1006,9 +1003,6 @@
   },
   "remove.security.sshd": {
     "label": "SSHD"
-  },
-  "remove.security.sudoless-docker": {
-    "label": "Sudoless Docker"
   },
   "remove.ai.hermes": {
     "label": "Hermes Desktop"

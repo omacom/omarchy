@@ -80,8 +80,6 @@
   "directBoot.disable": "Disable direct boot (remove Omarchy EFI entry)?",
   "directBoot.setup": "Setup direct boot (so snapshot booting must be done via bios)?",
   "display.restartFootForFontSize": "Restart Foot to apply the new terminal font size",
-  "docker.enableSudoless": "Enable sudoless Docker? This gives anything running as you passwordless root.",
-  "docker.rebootToApply": "Reboot now to apply?",
   "docker.selectDatabase": "Select database (return to install, esc to cancel)",
   "done.failed": "Failed (exit code %1)! Press any key to close...",
   "done.success": "Done! Press any key to close...",
