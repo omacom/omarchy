@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Agent Desktops while keeping profiles, tokens and settings
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+agent-desktops remove
+omarchy-pkg-drop agent-desktops

@@ -839,6 +839,9 @@
   "install.ai.grok-bot": {
     "label": "Grok Bot"
   },
+  "install.ai.agent-desktop": {
+    "label": "Agent Desktops"
+  },
   "install.ai.hermes": {
     "label": "Hermes Desktop"
   },
@@ -1009,6 +1012,9 @@
   },
   "remove.security.sudoless-docker": {
     "label": "Sudoless Docker"
+  },
+  "remove.ai.agent-desktop": {
+    "label": "Agent Desktops"
   },
   "remove.ai.hermes": {
     "label": "Hermes Desktop"
