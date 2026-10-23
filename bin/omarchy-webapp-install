@@ -5,13 +5,8 @@
 
 set -e
 
-ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
 
-safe_icon_name() {
-  printf '%s\n' "$1" \
-    | tr '[:upper:]' '[:lower:]' \
-    | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//'
-}
+source "$OMARCHY_PATH/install/helpers/icon.sh"
 
 require_plain_name() {
   # The name becomes a filename. A slash would turn it into directory levels, so
@@ -25,34 +20,6 @@ require_plain_name() {
   fi
 }
 
-icon_name_from_ref() {
-  local ref="$1"
-  local name
-  name=$(basename "$ref")
-
-  if [[ $name == *.* ]]; then
-    safe_icon_name "${name%.*}"
-  else
-    printf '%s\n' "$name"
-  fi
-}
-
-install_user_icon() {
-  local source="$1"
-  local name="$2"
-  local ext="${source##*.}"
-
-  [[ $ext == "$source" ]] && ext="png"
-  mkdir -p "$ICON_DIR"
-  cp "$source" "$ICON_DIR/$name.$ext"
-  gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
-  printf '%s\n' "$name"
-}
-
-download_icon() {
-  curl -fsSL --max-time 10 -o "$2" "$1" 2>/dev/null &&
-    [[ -s $2 && $(file -b --mime-type "$2") == image/* ]]
-}
 
 # Chromium --app= treats javascript:, file:, and data: as a document to
 # run. Prefix schemeless input with https as before, then refuse anything
@@ -100,9 +67,9 @@ fetch_site_icon() {
   ?*) icon_url="$origin/$icon_url" ;;
   esac
 
-  { [[ -n $icon_url ]] && download_icon "$icon_url" "$dest"; } ||
-    download_icon "$origin/apple-touch-icon.png" "$dest" ||
-    download_icon "https://www.google.com/s2/favicons?domain=${site_url}&sz=256" "$dest"
+  { [[ -n $icon_url ]] && omarchy_icon_download "$icon_url" "$dest" 2>/dev/null; } ||
+    omarchy_icon_download "$origin/apple-touch-icon.png" "$dest" 2>/dev/null ||
+    omarchy_icon_download "https://www.google.com/s2/favicons?domain=${site_url}&sz=256" "$dest" 2>/dev/null
 }
 
 desktop_string_escape() {
@@ -145,10 +112,9 @@ if (( $# < 3 )); then
   require_http_url "$APP_URL"
 
   # Try to fetch the site's icon automatically first.
-  mkdir -p "$ICON_DIR"
-  ICON_VALUE=$(safe_icon_name "$APP_NAME")
-  if fetch_site_icon "$APP_URL" "$ICON_DIR/$ICON_VALUE.png"; then
-    gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+  mkdir -p "$OMARCHY_ICON_DIR"
+  ICON_VALUE=$(omarchy_icon_name "$APP_NAME")
+  if fetch_site_icon "$APP_URL" "$OMARCHY_ICON_DIR/$ICON_VALUE.png"; then
     ICON_REF="$ICON_VALUE"
   else
     ICON_REF=$(gum input --prompt "$(omarchy-i18n tui.iconPrompt)" --placeholder "$(omarchy-i18n webapp.iconPlaceholder)")
@@ -176,27 +142,25 @@ fi
 require_plain_name "$APP_NAME"
 
 if [[ -z $ICON_REF ]]; then
-  ICON_VALUE=$(safe_icon_name "$APP_NAME")
-  mkdir -p "$ICON_DIR"
-  if ! fetch_site_icon "$APP_URL" "$ICON_DIR/$ICON_VALUE.png"; then
+  ICON_VALUE=$(omarchy_icon_name "$APP_NAME")
+  mkdir -p "$OMARCHY_ICON_DIR"
+  if ! fetch_site_icon "$APP_URL" "$OMARCHY_ICON_DIR/$ICON_VALUE.png"; then
     echo "Error: Failed to download icon."
     exit 1
   fi
-  gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
 elif [[ $ICON_REF =~ ^https?:// ]]; then
-  ICON_VALUE=$(safe_icon_name "$APP_NAME")
-  mkdir -p "$ICON_DIR"
-  if ! download_icon "$ICON_REF" "$ICON_DIR/$ICON_VALUE.png"; then
+  ICON_VALUE=$(omarchy_icon_name "$APP_NAME")
+  mkdir -p "$OMARCHY_ICON_DIR"
+  if ! omarchy_icon_download "$ICON_REF" "$OMARCHY_ICON_DIR/$ICON_VALUE.png" 2>/dev/null; then
     echo "Error: Failed to download icon."
     exit 1
   fi
-  gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
 elif [[ -f $ICON_REF ]]; then
-  ICON_VALUE=$(install_user_icon "$ICON_REF" "$(safe_icon_name "$APP_NAME")")
+  ICON_VALUE=$(omarchy_icon_install_local "$ICON_REF" "$(omarchy_icon_name "$APP_NAME")")
 else
   # Bundled Omarchy icons are package-owned under /usr/share/icons/hicolor.
   # Accept either "HEY" or the historical "HEY.png" argument form.
-  ICON_VALUE=$(icon_name_from_ref "$ICON_REF")
+  ICON_VALUE=$(omarchy_icon_name_from_ref "$ICON_REF")
 fi
 
 # Default Exec quotes the URL as one Exec-spec argument; the whole line then gets
