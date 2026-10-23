@@ -136,6 +136,8 @@
   "trigger.toggle.screensaver-off": {"icon":"󱄄","label":"Screensaver Off","when":"! omarchy-toggle-enabled screensaver-off","action":"omarchy-toggle-screensaver"},
   "trigger.toggle.crash-capture-on": {"icon":"󱚡","label":"Crash Capture On","when":"omarchy-toggle-enabled crash-capture-off","action":"omarchy-toggle-crash-capture"},
   "trigger.toggle.crash-capture-off": {"icon":"󱚡","label":"Crash Capture Off","when":"! omarchy-toggle-enabled crash-capture-off","action":"omarchy-toggle-crash-capture"},
+  "trigger.toggle.games-host-on": {"icon":"󰊴","label":"Host Games","when":"omarchy-cmd-present tailscale && ! systemctl --user -q is-active omarchy-games-host","action":"omarchy-launch-floating-terminal-with-presentation omarchy-games-host"},
+  "trigger.toggle.games-host-off": {"icon":"󰊴","label":"Stop Hosting Games","when":"systemctl --user -q is-active omarchy-games-host","action":"omarchy-games-host stop"},
   "trigger.emoji": {"icon":"","label":"Emoji","aliases":["emoji","emojis"],"action":"omarchy-menu-emoji"},
   "trigger.clipboard-history": {"icon":"󰅇","label":"Clipboard History","action":"omarchy-shell shell summon omarchy.clipboard"},
   "trigger.reminder": {"icon":"󰢌","label":"Reminder","aliases":["reminder"]},

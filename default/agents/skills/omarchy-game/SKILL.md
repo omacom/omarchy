@@ -81,7 +81,7 @@ magick /tmp/<name>-icon.png -resize 32x32 /tmp/<name>-icon-32.png
 omarchy-games-install <name> ["Title"]
 ```
 
-This adds the game to the app launcher (Super + Space) as a web app, opened in the desktop's current theme, with `icon.svg` as its icon (or a square cut from `check-play.png` if there is none). Run it again after renaming the title; the game file itself needs no reinstall after edits. Tell the user the game's name in the launcher, where the file is, the controls, and that it is removed under Remove > Web App (which leaves the file in `~/Games`).
+This adds the game to the app launcher (Super + Space) as a web app, opened in the desktop's current theme, with `icon.svg` as its icon (or a square cut from `check-play.png` if there is none). Run it again after renaming the title; the game file itself needs no reinstall after edits. Tell the user the game's name in the launcher, where the file is, the controls, and that it is removed under Remove > Web App (which leaves the file in `~/Games`). To play with friends on their own computers, `omarchy-games-host` (or Trigger > Toggle > Host Games) puts every game on the user's tailnet behind a lobby page and prints its address.
 
 ## Making it good
 

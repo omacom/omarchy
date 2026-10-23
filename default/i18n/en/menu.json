@@ -324,6 +324,12 @@
   "trigger.toggle.crash-capture-off": {
     "label": "Crash Capture Off"
   },
+  "trigger.toggle.games-host-on": {
+    "label": "Host Games"
+  },
+  "trigger.toggle.games-host-off": {
+    "label": "Stop Hosting Games"
+  },
   "trigger.emoji": {
     "label": "Emoji"
   },

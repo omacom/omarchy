@@ -1,0 +1,181 @@
+#!/bin/bash
+
+# omarchy:summary=Host your games on your tailnet so friends can play them in a browser
+# omarchy:args=[start|stop|status] [--port <port>]
+# omarchy:examples=omarchy games host | omarchy games host stop | omarchy games host --port 9443
+
+# Serves a folder holding only each game's playable copy, its icon and a lobby page, from
+# a server on 127.0.0.1 that tailscale serve exposes to the tailnet alone, never Funnel.
+# Both run in one user unit that ends with the graphical session, and when either exits the
+# other is stopped; a foreground tailscale serve withdraws its address as it goes, so nothing
+# is left pointing at a port some other program could take.
+
+set -euo pipefail
+
+source "$OMARCHY_PATH/install/helpers/games.sh"
+
+UNIT=omarchy-games-host
+SITE="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/games-host"
+action=start
+port=7443
+
+while (( $# > 0 )); do
+  case $1 in
+    start | stop | status) action=$1 ;;
+    --port)
+      port=${2:-}
+      shift
+      ;;
+    *)
+      echo "Usage: omarchy-games-host [start|stop|status] [--port <port>]" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+if [[ ! $port =~ ^[0-9]+$ ]] || (( port < 1024 || port > 65534 )); then
+  echo "Port must be a number from 1024 to 65534: $port" >&2
+  exit 1
+fi
+
+if omarchy-cmd-missing tailscale; then
+  echo "Hosting games needs Tailscale. Install it from Install > Service > Tailscale, then run this again." >&2
+  exit 1
+fi
+
+address=$(tailscale status --self --json 2>/dev/null | jq -r 'select(.BackendState == "Running") | .Self.DNSName // empty' | sed 's/\.$//')
+hosting() { systemctl --user is-active --quiet "$UNIT"; }
+
+case $action in
+  stop)
+    if hosting; then
+      systemctl --user stop "$UNIT"
+      echo "Your games are no longer hosted."
+    else
+      echo "Your games aren't being hosted."
+    fi
+    exit 0
+    ;;
+  status)
+    if hosting; then
+      echo "Hosting your games at https://$(systemctl --user show -p Description --value "$UNIT")"
+    else
+      echo "Your games aren't being hosted."
+    fi
+    exit 0
+    ;;
+esac
+
+if [[ -z $address ]]; then
+  echo "Sign in to Tailscale first (tailscale up), then run this again." >&2
+  exit 1
+fi
+
+# Starting again rebuilds the site, so a game edited since is the one friends get.
+hosting && systemctl --user stop "$UNIT"
+
+if tailscale serve status --json 2>/dev/null | jq -e --arg port "$port" '.TCP // {} | has($port)' >/dev/null; then
+  echo "Port $port already serves something else on your tailnet. Pick another: omarchy-games-host --port <port>" >&2
+  exit 1
+fi
+backend=$((port + 1))
+if ss -Htln "sport = :$backend" | grep -q .; then
+  echo "Port $backend is already in use on this computer. Pick another: omarchy-games-host --port <port>" >&2
+  exit 1
+fi
+
+# Only playable copies and icons go into the site: never anything else from a game's folder.
+rm -rf "$SITE"
+mkdir -p "$SITE"
+names=()
+for page in "$HOME"/Games/*/index.html "$OMARCHY_PATH"/games/*/index.html; do
+  [[ -f $page ]] || continue
+  name=$(basename "$(dirname "$page")")
+  [[ " ${names[*]} " == *" $name "* ]] && continue
+  find_game "$name" 2>/dev/null || continue
+  mkdir -p "$SITE/$name"
+  build_offline_game "$GAME_PAGE" "$SITE/$name/index.html" || cp "$GAME_PAGE" "$SITE/$name/index.html"
+  # Its icon.svg or icon.png, or else a square cut from check's screenshot, as omarchy-games-install does.
+  folder=$(dirname "$GAME_PAGE")
+  if [[ -f $folder/icon.svg && ! -L $folder/icon.svg ]]; then
+    cp "$folder/icon.svg" "$SITE/$name/icon.svg"
+  elif [[ -f $folder/icon.png && ! -L $folder/icon.png ]]; then
+    cp "$folder/icon.png" "$SITE/$name/icon.png"
+  elif [[ -f $folder/check-play.png && ! -L $folder/check-play.png ]]; then
+    magick "$folder/check-play.png" -gravity center -extent "%[fx:min(w,h)]x%[fx:min(w,h)]" -resize 256x256 "$SITE/$name/icon.png" 2>/dev/null || true
+  fi
+  names+=("$name")
+done
+
+if (( ${#names[@]} == 0 )); then
+  echo "There are no games to host. Make one with the Game tile in the agents panel." >&2
+  exit 1
+fi
+for icon in "$SITE"/*/icon.svg "$SITE"/*/icon.png; do
+  [[ -f $icon ]] && magick -background none "$icon" -resize 64x64 "$SITE/favicon.ico" 2>/dev/null && break
+done
+
+# The lobby, in the host's theme, and each game opened in it too.
+omarchy-theme-color --all | python3 -c '
+import html, json, os, re, sys, urllib.parse
+site = sys.argv[1]
+keys = ("mode", "background", "foreground", "accent", "muted", "red", "green", "yellow", "blue", "magenta", "cyan", "orange")
+palette = {k: v for k, v in (line.rstrip("\n").split("\t", 1) for line in sys.stdin if "\t" in line) if k in keys}
+fragment = "#palette=" + urllib.parse.quote(json.dumps(palette))
+tiles = []
+for name in sys.argv[2:]:
+    page = open(os.path.join(site, name, "index.html"), encoding="utf-8").read()
+    found = re.search(r"<title>(.*?)</title>", page, re.S)
+    title = html.unescape(found.group(1)).strip() if found else name
+    icon = next((f"{name}/{i}" for i in ("icon.svg", "icon.png") if os.path.isfile(os.path.join(site, name, i))), "")
+    picture = f"<img src=\"{html.escape(icon)}\" alt=\"\">" if icon else "<span class=\"blank\"></span>"
+    tiles.append(f"<a href=\"{html.escape(name)}/{html.escape(fragment)}\">{picture}<span>{html.escape(title)}</span></a>")
+bg, fg, accent = palette.get("background", "#1a1b26"), palette.get("foreground", "#c0caf5"), palette.get("accent", "#7aa2f7")
+open(os.path.join(site, "index.html"), "w", encoding="utf-8").write(f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Games</title>
+<style>
+  body {{ margin: 0; min-height: 100vh; background: {bg}; color: {fg}; font-family: ui-monospace, monospace; display: grid; place-content: center; padding: 32px; box-sizing: border-box; }}
+  h1 {{ margin: 0 0 6px; color: {accent}; letter-spacing: 3px; text-align: center; }}
+  p {{ margin: 0 0 32px; text-align: center; color: color-mix(in srgb, {fg} 60%, {bg}); }}
+  main {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px; width: min(760px, 90vw); }}
+  a {{ display: grid; justify-items: center; gap: 10px; padding: 18px 10px; border-radius: 14px; color: inherit; text-decoration: none; }}
+  a:hover, a:focus-visible {{ background: color-mix(in srgb, {fg} 10%, {bg}); outline: none; }}
+  img, .blank {{ width: 96px; height: 96px; border-radius: 22px; }}
+  .blank {{ background: color-mix(in srgb, {accent} 40%, {bg}); }}
+</style></head>
+<body><h1>GAMES</h1><p>Pick one to play. They are played with the keyboard.</p><main>
+{chr(10).join(tiles)}
+</main></body></html>
+""")
+' "$SITE" "${names[@]}"
+
+systemd-run --user --quiet --collect --unit="$UNIT" --description="$address:$port/" \
+  --property=PartOf=graphical-session.target --property=After=graphical-session.target \
+  bash -c 'python3 -m http.server "$1" --bind 127.0.0.1 --directory "$2" >/dev/null 2>&1 &
+    tailscale serve --https="$3" "http://127.0.0.1:$1" &
+    wait -n
+    kill $(jobs -p) 2>/dev/null
+    wait' \
+  bash "$backend" "$SITE" "$port"
+
+ready=false
+for _ in {1..75}; do
+  if curl -fsS -o /dev/null "https://$address:$port/" 2>/dev/null; then
+    ready=true
+    break
+  fi
+  sleep 0.2
+done
+if [[ $ready == "false" ]]; then
+  # Tailscale's first HTTPS certificate can need the tailnet's admin to allow it; it says how in the unit's log.
+  echo "Your games didn't come up at https://$address:$port/. What the host said:" >&2
+  journalctl --user -u "$UNIT" -n 20 --no-pager -o cat >&2 || true
+  systemctl --user stop "$UNIT" 2>/dev/null || true
+  exit 1
+fi
+
+echo "Hosting ${#names[@]} games at https://$address:$port/ for everyone on your tailnet."
+echo "To let a friend outside it play, share this computer with them in the Tailscale admin (Machines > Share)."
+echo "Stop with: omarchy-games-host stop"
