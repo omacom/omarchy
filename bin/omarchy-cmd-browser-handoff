@@ -46,7 +46,7 @@ reply=$({
   # microseconds since 1601 and one it ignores. It reads a message without them
   # only for a single argument, so a handoff with a flag as well would have the
   # flag taken as a field and dropped.
-  if [[ $profile == microsoft-edge ]]; then
+  if [[ $profile == "microsoft-edge" ]]; then
     printf '\0%s\0%s' "$((${EPOCHREALTIME//[!0-9]/} + 11644473600000000))" 0
   fi
   printf '\0browser'

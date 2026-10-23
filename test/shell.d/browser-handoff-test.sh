@@ -15,7 +15,13 @@ edge_socket="$edge_tmp/config/microsoft-edge/SingletonSocket"
 edge_received="$edge_tmp/received"
 mkdir -p "${edge_socket%/*}"
 
-python3 - "$edge_socket" "$edge_received" <<'PY' &
+stop_edge_server() {
+  kill "$edge_server" 2>/dev/null || true
+  wait "$edge_server" 2>/dev/null || true
+  rm -rf "$edge_tmp"
+}
+
+python3 - "$edge_socket" "$edge_received" >/dev/null <<'PY' &
 import socket, sys
 server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 server.bind(sys.argv[1])
@@ -30,6 +36,7 @@ while True:
     connection.close()
 PY
 edge_server=$!
+trap stop_edge_server EXIT
 
 for _ in $(seq 100); do
   [[ -S $edge_socket ]] && break
@@ -50,8 +57,6 @@ export -f type
   fail "the running Edge acknowledges a handed off command line"
 
 unset -f type
-kill "$edge_server" 2>/dev/null || true
-wait "$edge_server" 2>/dev/null || true
 
 mapfile -d '' -t fields <"$edge_received"
 ((${#fields[@]} == 7)) ||
@@ -62,7 +67,8 @@ mapfile -d '' -t fields <"$edge_received"
   ${fields[5]} == "--app=https://example.test" && ${fields[6]} == "--ignore-certificate-errors" ]] ||
   fail "the Edge handoff keeps every argument behind the two fields Edge expects" "$(od -c <"$edge_received")"
 pass "the Edge handoff sends the two fields Edge's own second process sends, keeping every argument"
-rm -rf "$edge_tmp"
+stop_edge_server
+trap - EXIT
 
 # The handoff only stands in for the packaged browser itself.
 if [[ $(type -P chromium) != "/usr/bin/chromium" ]]; then
