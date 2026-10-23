@@ -547,7 +547,8 @@ QtObject {
         removeDisabled(config, key)
         var entry = { id: key }
         var insertedWithPlacement = false
-        if (!location.found && isBarWidget) {
+        // A plugins[] entry is not a slot: only the layout says a widget is on the bar.
+        if (isBarWidget && !findBarLocation(config, key, "").found) {
           var sourceLocation = clonedFrom ? findEntryLocation(config, clonedFrom) : { found: false }
           if (sourceLocation.kind === "bar") {
             var sourceEntry = config.bar.layout[sourceLocation.section][sourceLocation.index]
