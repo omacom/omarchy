@@ -129,3 +129,18 @@ grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down skips d
 grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
   fail "monitor scaling down persists 2x after skipping duplicate approximation"
 pass "monitor scaling down skips duplicate approximation"
+
+# Display persistence/recovery and scaling use the same advisory lock.
+write_monitor_config
+rm -f "$eval_out"
+exec 7>"$home_dir/.local/state/omarchy/monitor-config.lock"
+flock 7
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling up 7>&- &
+scaling_pid=$!
+sleep 0.1
+[[ ! -f $eval_out ]] || fail "scaling waits for the shared monitor lock"
+flock -u 7
+exec 7>&-
+wait "$scaling_pid"
+grep -F 'scale = 3' "$eval_out" >/dev/null || fail "scaling continues after the monitor lock is released"
+pass "scaling serializes with display persistence and recovery"

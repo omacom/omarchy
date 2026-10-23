@@ -1,0 +1,40 @@
+{
+  "capturedOn": "2026-10-21",
+  "base": "quattro ce39c5e9",
+  "environment": {
+    "compositor": "Hyprland 0.56.2",
+    "Qt": "6.11.2",
+    "shell": "Full production Quickshell config from this branch",
+    "outputs": "Two isolated headless outputs; no physical monitor changes",
+    "watchdogLauncher": "The isolated session has no systemd user manager; a stand-in started the same watchdog command detached, without the caller's lock descriptors",
+    "notVerified": [
+      "disposable VM acceptance",
+      "physical hardware preview/Keep",
+      "per-monitor workspace reconciliation (the isolated compositor does not load Omarchy's Hyprland config)"
+    ]
+  },
+  "timedRollback": {
+    "input": "GUI selects HEADLESS-1 beside HEADLESS-2, Below, then Preview",
+    "preview": [
+      { "name": "HEADLESS-1", "x": 1920, "y": 1080 },
+      { "name": "HEADLESS-2", "x": 1920, "y": 0 }
+    ],
+    "afterExpiry": [
+      { "name": "HEADLESS-1", "x": 0, "y": 0 },
+      { "name": "HEADLESS-2", "x": 1920, "y": 0 }
+    ],
+    "configUnchanged": true,
+    "images": ["images/display-layout-before.png", "images/display-layout-preview.png", "images/display-layout-reverted.png"]
+  },
+  "keep": {
+    "input": "GUI Below, Preview, Keep; explicit compositor reload afterward",
+    "afterReload": [
+      { "name": "HEADLESS-1", "x": 1920, "y": 1080 },
+      { "name": "HEADLESS-2", "x": 1920, "y": 0 }
+    ],
+    "configErrors": "",
+    "workspaceRulesWritten": false,
+    "watchdogAfterKeep": "No pending preview",
+    "image": "images/display-layout-kept.png"
+  }
+}
