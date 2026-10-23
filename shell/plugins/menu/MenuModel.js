@@ -1,7 +1,88 @@
+// JSONC -> JSON, in ONE pass. A comment ends at a newline (//) or at its
+// closing */ (/* */); a string is copied verbatim with its escapes intact; and
+// a trailing comma is dropped only when it is outside a string. The previous
+// version only removed whole-line comments, so ONE trailing "//" on a value's
+// line made the whole file parse to nothing — the launcher came up empty with
+// no error anywhere.
+//
+// "Trailing" looks PAST a comment: `"label": "A", // note` above `}` is the
+// ordinary way people annotate an entry.
+function nextSignificantIndex(text, from) {
+  var i = from
+  var n = text.length
+  while (i < n) {
+    var ch = text.charAt(i)
+    if (/\s/.test(ch)) {
+      i += 1
+      continue
+    }
+    if (ch === "/" && text.charAt(i + 1) === "/") {
+      while (i < n && text.charAt(i) !== "\n") i += 1
+      continue
+    }
+    if (ch === "/" && text.charAt(i + 1) === "*") {
+      var end = text.indexOf("*/", i + 2)
+      i = end < 0 ? n : end + 2
+      continue
+    }
+    return i
+  }
+  return n
+}
+
 function stripJsonc(raw) {
-  return String(raw || "")
-    .replace(/^\s*\/\/[^\n]*(\n|$)/gm, "")
-    .replace(/,(\s*[}\]])/g, "$1")
+  var text = String(raw || "")
+  // A UTF-8 BOM is invisible in every editor and makes JSON.parse throw.
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1)
+  var out = ""
+  var i = 0
+  var n = text.length
+  var inString = false
+  var escaped = false
+
+  while (i < n) {
+    var ch = text.charAt(i)
+
+    if (inString) {
+      out += ch
+      if (escaped) escaped = false
+      else if (ch === "\\") escaped = true
+      else if (ch === '"') inString = false
+      i += 1
+      continue
+    }
+
+    if (ch === '"') {
+      inString = true
+      out += ch
+      i += 1
+      continue
+    }
+
+    if (ch === "/" && text.charAt(i + 1) === "/") {
+      while (i < n && text.charAt(i) !== "\n") i += 1
+      continue
+    }
+
+    if (ch === "/" && text.charAt(i + 1) === "*") {
+      var commentEnd = text.indexOf("*/", i + 2)
+      i = commentEnd < 0 ? n : commentEnd + 2
+      continue
+    }
+
+    if (ch === ",") {
+      var next = text.charAt(nextSignificantIndex(text, i + 1))
+      if (next === "}" || next === "]") {
+        i += 1
+        continue
+      }
+    }
+
+    out += ch
+    i += 1
+  }
+
+  return out
 }
 
 function normalizeAliases(value) {
@@ -39,8 +120,20 @@ function normalizeItem(id, raw) {
     searchTerms: normalizeAliases(value.searchTerms),
     when: value.when || "",
     checked: value.checked || "",
-    disabled: value.disabled || ""
+    disabled: value.disabled || "",
+    // The keys the source actually WROTE. normalizeItem fills every field with
+    // a default, so without this a merge cannot tell "the user left this alone"
+    // from "the user set it to empty".
+    specified: specifiedKeys(value)
   }
+}
+
+// The keys a raw JSONC entry actually carries.
+function specifiedKeys(value) {
+  var out = []
+  if (!value || typeof value !== "object") return out
+  for (var key in value) out.push(key)
+  return out
 }
 
 function parseMenuJsonc(raw) {
@@ -89,6 +182,12 @@ function keepMenuRows(previous, raw, required) {
 // source supplies one; only then does rootLabel (the catalog's translation
 // of "Go") apply. A root row from either source keeps its own label, so a
 // user-supplied heading is never overwritten by the catalog.
+// Merge the default menu with the user's extension file, PER KEY: only the
+// fields a later source actually WROTE replace the earlier ones. It used to
+// copy every key of the later entry over the earlier one — and normalizeItem
+// fills every field — so an entry that only added an alias wiped the default
+// row's label, icon, action and guards, and the row became a childless menu
+// (which is not shown at all).
 function mergeMenuSources(defaultItems, userItems, rootLabel) {
   var nextItems = ({})
   var nextOrder = []
@@ -99,12 +198,28 @@ function mergeMenuSources(defaultItems, userItems, rootLabel) {
     for (var i = 0; i < src.length; i++) {
       var entry = src[i]
       if (!entry || !entry.id) continue
-      if (!nextItems[entry.id]) nextOrder.push(entry.id)
-      var prior = nextItems[entry.id] || {}
+      var prior = nextItems[entry.id]
+      if (!prior) nextOrder.push(entry.id)
       var merged = {}
-      for (var k in prior) merged[k] = prior[k]
-      for (var k2 in entry) merged[k2] = entry[k2]
+      if (prior) {
+        for (var k in prior) merged[k] = prior[k]
+        var specified = entry.specified
+        if (specified) {
+          for (var k2 = 0; k2 < specified.length; k2++) {
+            if (specified[k2] === "specified") continue
+            merged[specified[k2]] = entry[specified[k2]]
+          }
+        } else {
+          // A hand-built row with no key list replaces wholesale.
+          for (var k3 in entry) merged[k3] = entry[k3]
+        }
+      } else {
+        for (var k4 in entry) merged[k4] = entry[k4]
+      }
       merged.id = entry.id
+      // kind is derived from action/target, so it follows the merge.
+      merged.kind = merged.action ? "action" : (merged.target ? "link" : "menu")
+      delete merged.specified
       nextItems[entry.id] = merged
     }
   }
@@ -113,7 +228,7 @@ function mergeMenuSources(defaultItems, userItems, rootLabel) {
     nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: (typeof rootLabel === "string" && rootLabel) ? rootLabel : "Go", title: "", target: "", description: "", aliases: [], searchTerms: [], when: "", checked: "", disabled: "", action: "", provider: "" }
     nextOrder.unshift("root")
   }
-  for (var k3 = 0; k3 < nextOrder.length; k3++) nextItems[nextOrder[k3]].order = k3
+  for (var k5 = 0; k5 < nextOrder.length; k5++) nextItems[nextOrder[k5]].order = k5
 
   return {
     items: nextItems,
@@ -563,9 +678,20 @@ function substituteGuardReaders(expression) {
   return expression
 }
 
+// The id comes from a JSONC key and is spliced into a shell script, so it is
+// QUOTED. Unquoted, a key with a space was split into words and a key with a
+// shell metacharacter broke the line: bash then refused the whole batch, every
+// guard went unanswered, and every guarded row showed. printf also avoids the
+// word splitting and globbing an unquoted echo would do.
+function shellQuote(text) {
+  return "'" + String(text === undefined || text === null ? "" : text).replace(/'/g, "'\\''") + "'"
+}
+
 function guardLine(id, tag, expression) {
-  return "if { " + substituteGuardReaders(expression) + "; } >/dev/null 2>&1; then echo "
-    + id + ":" + tag + ":1; else echo " + id + ":" + tag + ":0; fi\n"
+  var quoted = shellQuote(id)
+  return "if { " + substituteGuardReaders(expression) + "; } >/dev/null 2>&1; then "
+    + "printf '%s:%s:1\\n' " + quoted + " " + shellQuote(tag) + "; else "
+    + "printf '%s:%s:0\\n' " + quoted + " " + shellQuote(tag) + "; fi\n"
 }
 
 // How many subshells share the guards. Most of what is left of the batch is
