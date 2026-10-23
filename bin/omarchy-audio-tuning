@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Manage the speaker tuning for this laptop
-# omarchy:args=<on|off|status|match|fronted-sink> [--force]
+# omarchy:args=<on|off|status|match|fronted-sink|hidden-sink|follow-port> [--force]
 # omarchy:group=audio
 # omarchy:examples=omarchy audio tuning status | omarchy audio tuning on | omarchy audio tuning off
 
@@ -23,6 +23,10 @@ fragment="$config_home/pipewire/$host_config_name.d/90-tuning.conf"
 unit_name=omarchy-speaker-tuning.service
 unit="$config_home/systemd/user/$unit_name"
 unit_source="$OMARCHY_PATH/default/systemd/user/$unit_name"
+# Only installed for a tuning that sets speaker_port; see follow-port below.
+port_unit_name=omarchy-speaker-tuning-port.service
+port_unit="$config_home/systemd/user/$port_unit_name"
+port_unit_source="$OMARCHY_PATH/default/systemd/user/$port_unit_name"
 
 # Earlier revisions loaded the tuning into the daemon, as a WirePlumber smart
 # filter, or into the shared filter-chain.conf.d namespace. Remove all three so
@@ -119,6 +123,28 @@ tuned_hardware_sink() {
   printf '%s\n' "$found"
 }
 
+# Where the speakers share a sink with the headphone jack -- HDA codecs, where
+# plugging in headphones switches the sink's port rather than adding a sink -- the
+# tuning names the port it was measured on. Prints nothing and fails for a tuning
+# whose speakers have a sink of their own.
+tuned_port() {
+  local dir
+  dir="$(tuning_match)" || return 1
+  unset speaker_port
+  # shellcheck disable=SC1090
+  source "$dir/tuning.conf"
+  [[ -n ${speaker_port:-} ]] || return 1
+  printf '%s\n' "$speaker_port"
+}
+
+# pactl prints the port with or without a direction prefix ("[Out] name")
+# depending on its version, so take the last field.
+active_port() {
+  LC_ALL=C pactl list sinks 2>/dev/null | awk -v want="$1" '
+    /^[[:space:]]*Name:/ {name = $2}
+    name == want && /^[[:space:]]*Active Port:/ {print $NF; exit}'
+}
+
 tuning_present() {
   pactl list sinks short 2>/dev/null | awk '{print $2}' | grep -x "$sink_name" >/dev/null
 }
@@ -157,6 +183,25 @@ easyeffects_running() {
     systemctl --user is-active --quiet easyeffects.service 2>/dev/null
 }
 
+# A tuning with speaker_port needs the follower installed, enabled and running;
+# one without needs it gone, or a follower left from another tuning keeps moving
+# the default output around.
+port_follower_current() {
+  if [[ -z ${speaker_port:-} ]]; then
+    [[ ! -e $port_unit ]]
+  else
+    [[ -r $port_unit ]] && cmp -s "$port_unit_source" "$port_unit" &&
+      systemctl --user is-active --quiet "$port_unit_name" 2>/dev/null &&
+      systemctl --user is-enabled --quiet "$port_unit_name" 2>/dev/null
+  fi
+}
+
+remove_port_follower() {
+  [[ -e $port_unit ]] || return 0
+  systemctl --user disable --now "$port_unit_name" >/dev/null 2>&1
+  rm -f "$port_unit"
+}
+
 # Unloading a daemon-loaded drop-in is the one case that still needs an audio
 # restart, because the daemon only reads its own config at startup.
 drop_stale_daemon_config() {
@@ -183,6 +228,66 @@ case "$action" in
     # omarchy-audio-output-sink, which follows the current default output.
     tuning_present || exit 1
     tuned_hardware_sink
+    ;;
+
+  hidden-sink)
+    # The one sink the output list should leave out while a tuning is up. Usually
+    # that is the physical speakers, since selecting them would only bypass the
+    # tuning. But where the speakers share a sink with the headphone jack and
+    # headphones are plugged in, that sink *is* the headphones, and the tuning sink
+    # is the one to hide: selecting it would put speaker EQ on headphones.
+    tuning_present || exit 1
+    speakers="$(tuned_hardware_sink)" || exit 1
+    if port="$(tuned_port)" && [[ "$(active_port "$speakers")" != "$port" ]]; then
+      printf '%s\n' "$sink_name"
+    else
+      printf '%s\n' "$speakers"
+    fi
+    ;;
+
+  follow-port)
+    # Run by omarchy-speaker-tuning-port.service, for tunings that set
+    # speaker_port. Plugging headphones into a jack that shares the speakers' sink
+    # switches that sink's port, not the default sink, so audio would keep flowing
+    # through the tuning and put speaker EQ on headphones. Follow the port: when
+    # the speaker port goes inactive, move the default output and app streams from
+    # the tuning to the physical sink, and back when it returns. Only a default
+    # that is the sink being left is moved, so an output picked by hand (HDMI,
+    # Bluetooth) stays where it is.
+    port="$(tuned_port)" || exit 0
+    # Fail rather than idle when the sink is not up yet; systemd retries.
+    speakers="$(tuned_hardware_sink)" || exit 1
+
+    last=""
+    sync_port() {
+      local now default
+      now="$(active_port "$speakers")"
+      [[ -n $now && $now != "$last" ]] || return 0
+      default="$(pactl get-default-sink 2>/dev/null)"
+      if [[ $now == "$port" ]]; then
+        if [[ $default == "$speakers" ]]; then
+          # The host may still be bringing the tuning sink up. Leave the port
+          # unrecorded so the sink appearing, itself a sink event, retries this.
+          tuning_present || return 0
+          pactl set-default-sink "$sink_name" >/dev/null 2>&1
+          move_apps_to "$sink_name"
+        fi
+      elif [[ $default == "$sink_name" ]]; then
+        pactl set-default-sink "$speakers" >/dev/null 2>&1
+        move_apps_to "$speakers"
+      fi
+      last="$now"
+    }
+
+    # Subscribe before the first sync, so a port change in between is not lost.
+    exec {events}< <(LC_ALL=C pactl subscribe 2>/dev/null)
+    sync_port
+    while read -r -u "$events" line; do
+      [[ $line == *" on sink #"* ]] && sync_port
+    done
+    # pactl exits when the audio server goes away. Fail so systemd restarts this
+    # once the server is back.
+    exit 1
     ;;
 
   status)
@@ -213,14 +318,15 @@ case "$action" in
     ;;
 
   off)
-    if [[ ! -r $fragment && ! -r $unit && ! -r $stale_daemon && ! -r $stale_wireplumber &&
-      ! -r $stale_shared ]]; then
+    if [[ ! -r $fragment && ! -r $unit && ! -r $port_unit && ! -r $stale_daemon &&
+      ! -r $stale_wireplumber && ! -r $stale_shared ]]; then
       echo "No speaker tuning installed."
       exit 0
     fi
 
     speakers="$(tuned_hardware_sink)" || speakers=""
 
+    remove_port_follower
     systemctl --user disable --now "$unit_name" >/dev/null 2>&1
     rm -f "$fragment" "$host_config" "$unit" "$stale_shared"
     rmdir "$config_home/pipewire/$host_config_name.d" 2>/dev/null
@@ -252,7 +358,7 @@ case "$action" in
       exit 0
     }
 
-    unset description sink_pattern
+    unset description sink_pattern speaker_port
     # shellcheck disable=SC1090
     source "$selected/tuning.conf"
 
@@ -298,6 +404,7 @@ EOF
       [[ -r $unit ]] && cmp -s "$unit_source" "$unit" &&
       systemctl --user is-active --quiet "$unit_name" 2>/dev/null &&
       systemctl --user is-enabled --quiet "$unit_name" 2>/dev/null &&
+      port_follower_current &&
       [[ "$(tuning_downstream_sink)" == "$speaker_sink" ]]; then
       echo "Speaker tuning already current: $description"
       exit 0
@@ -319,6 +426,7 @@ EOF
       sleep 0.25
     done
     if ! tuning_present; then
+      remove_port_follower
       systemctl --user disable --now "$unit_name" >/dev/null 2>&1
       rm -f "$fragment" "$host_config" "$unit"
       systemctl --user daemon-reload >/dev/null 2>&1
@@ -334,6 +442,7 @@ EOF
     done
     downstream="$(tuning_downstream_sink)"
     if [[ $downstream != "$speaker_sink" ]]; then
+      remove_port_follower
       systemctl --user disable --now "$unit_name" >/dev/null 2>&1
       rm -f "$fragment" "$host_config" "$unit"
       systemctl --user daemon-reload >/dev/null 2>&1
@@ -341,6 +450,22 @@ EOF
       echo "$speaker_sink, so it was removed rather than left tuning the wrong" >&2
       echo "device. Audio is untouched." >&2
       exit 1
+    fi
+
+    if [[ -n ${speaker_port:-} ]]; then
+      install -Dm644 "$port_unit_source" "$port_unit"
+      systemctl --user daemon-reload >/dev/null 2>&1
+      systemctl --user enable "$port_unit_name" >/dev/null 2>&1
+      systemctl --user restart "$port_unit_name" >/dev/null 2>&1
+    else
+      remove_port_follower
+    fi
+
+    # With headphones in the shared jack, the follower keeps the default on the
+    # headphones and switches to the tuning once they are unplugged.
+    if [[ -n ${speaker_port:-} && "$(active_port "$speaker_sink")" != "$speaker_port" ]]; then
+      echo "Headphones are in use; the speakers switch to the tuning when they are unplugged."
+      exit 0
     fi
 
     pactl set-default-sink "$sink_name" >/dev/null 2>&1
@@ -352,7 +477,7 @@ EOF
     ;;
 
   *)
-    echo "Usage: omarchy-audio-tuning <on|off|status|match|fronted-sink> [--force]" >&2
+    echo "Usage: omarchy-audio-tuning <on|off|status|match|fronted-sink|hidden-sink|follow-port> [--force]" >&2
     exit 2
     ;;
 esac

@@ -39,8 +39,9 @@ omarchy audio tuning off       # remove it, back to raw speakers
 omarchy audio tuning status    # installed? in use? what matches?
 ```
 
-`match` and `fronted-sink` are also accepted; they exist for the install hooks
-and the sink-listing scripts rather than for daily use.
+`match`, `fronted-sink`, `hidden-sink` and `follow-port` are also accepted; they
+exist for the install hooks, the sink-listing scripts and the port follower
+rather than for daily use.
 
 `on` verifies its own work: it waits for the tuning sink to appear and confirms
 its output linked to the expected physical sink, and uninstalls everything again
@@ -78,6 +79,27 @@ node is named `omarchy_speaker_tuning` (the install checks for that exact name,
 so renaming it silently fails verification), and its output stream sets
 `node.dont-fallback` alongside `node.dont-move`, so WirePlumber cannot link it
 somewhere else when the target sink is absent at host start.
+
+### Speakers that share a sink with the headphone jack
+
+On SoundWire laptops the speakers are a sink of their own. On HDA codecs they are
+not: the speakers and the headphone jack are two ports of one sink, and plugging
+in headphones switches the port rather than adding a sink. A tuning in front of
+that sink would put speaker EQ on headphones. Such a tuning names the port it was
+measured on:
+
+```bash
+sink_pattern='^alsa_output.pci-.*analog-stereo$'
+speaker_port="analog-output-speaker"
+```
+
+With `speaker_port` set, `on` also installs `omarchy-speaker-tuning-port.service`,
+which lives and dies with the tuning host and follows the sink's port: when the
+speaker port goes inactive it moves the default output and app streams from the
+tuning to the physical sink, and back when the speaker port returns. It only moves
+a default that is the sink being left, so an output picked by hand stays put. While
+headphones are in, `hidden-sink` reports the tuning sink rather than the physical
+one, so the output list shows the headphones and not the tuning.
 
 Gate narrowly and widen as models are validated; a tuning aimed at the wrong
 drivers can sound worse than none and can stress them. When a tuning covers a model
@@ -142,6 +164,8 @@ real bugs:
   in the graph, and selecting the physical one would only bypass the tuning. So
   `omarchy-audio-sink-availability` reports it unavailable and
   `omarchy-audio-output-switch` skips it, leaving one speaker entry in the panel.
+  Both ask `omarchy-audio-tuning hidden-sink` which sink to leave out; for a
+  tuning with `speaker_port` and headphones in the jack, that is the tuning sink.
   A WirePlumber smart filter would remove the need for both — it leaves the real
   device as the default output — but on PipeWire 1.6.8 / WirePlumber 0.5.15 the
   graph loads and links correctly as a smart filter and then passes audio through

@@ -17,14 +17,16 @@ fi
 
 # A speaker tuning is a virtual sink in front of the real speakers. Both exist
 # in the graph, but selecting the physical one would only bypass the tuning, so
-# report it unavailable and keep it out of the output list.
-fronted=""
-[[ $kind == sinks ]] && fronted="$(omarchy-audio-tuning fronted-sink 2>/dev/null || true)"
+# report it unavailable and keep it out of the output list. Where the speakers
+# share a sink with a headphone jack that has headphones in, it is the tuning
+# sink that goes instead.
+hidden=""
+[[ $kind == sinks ]] && hidden="$(omarchy-audio-tuning hidden-sink 2>/dev/null || true)"
 
-LC_ALL=C pactl list "$kind" 2>/dev/null | awk -v fronted="$fronted" -v header="$header" '
+LC_ALL=C pactl list "$kind" 2>/dev/null | awk -v hidden="$hidden" -v header="$header" '
   function emit_sink() {
     if (name == "") return
-    if (fronted != "" && name == fronted) {
+    if (hidden != "" && name == hidden) {
       print name "\t0"
       return
     }
