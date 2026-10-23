@@ -102,14 +102,24 @@ wait_until "notification panel opens" 15 screen_contains "Notifications"
 screenshot "success-notification-panel"
 omarchy-shell notifications closePanel >/dev/null
 
-# The menu's Apps submenu does the full launcher loop: open, search by
-# typing, launch the top hit.
+# The menu's Apps entry hands off to the dock's app grid, which does the full
+# launcher loop: open, search by typing, launch the top hit.
 if window_present "(?i)omawrite" >/dev/null 2>&1; then
   fail "app launch test starts with no Omawrite window" "an Omawrite window is already open"
 fi
 
+# Owned only after the precondition, so a failure partway leaves no grid or
+# Omawrite window behind for the files that run after this one.
+cleanup_app_launch() {
+  if layer_present "omarchy-dock-apps" >/dev/null 2>&1; then
+    omarchy-shell omarchy.dock apps >/dev/null 2>&1 || true
+  fi
+  close_windows "(?i)omawrite"
+}
+trap cleanup_app_launch EXIT
+
 omarchy-menu summon apps >/dev/null
-wait_until "apps menu opens" 15 layer_on_overlay "omarchy-menu"
+wait_until "apps menu opens" 15 layer_on_overlay "omarchy-dock-apps"
 sleep 1
 screenshot "success-apps-menu-open"
 
@@ -119,7 +129,9 @@ screenshot "success-apps-menu-search"
 wtype -k Return
 
 wait_until "apps menu launches the top search hit" 60 window_present "(?i)omawrite"
-wait_until "apps menu closes after launching" 15 layer_absent "omarchy-menu"
+wait_until "apps menu closes after launching" 15 layer_absent "omarchy-dock-apps"
 
 close_windows "(?i)omawrite"
 wait_until "Omawrite window closes" 30 window_absent "(?i)omawrite"
+
+trap - EXIT
