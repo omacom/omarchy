@@ -182,15 +182,78 @@ def plan(home):
 # The credits answer as one limit window: how much of this period's included
 # usage is gone, and when the period ends. The answer is protobuf JSON, which
 # leaves out a field holding zero, so a period with nothing used yet has no
-# percentage at all.
+# percentage at all. Every product the answer breaks usage down into rides
+# along as a sub-row, and the on-demand and prepaid figures as detail lines.
+def pretty_name(value):
+  text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", " ", str(value or "").strip())
+  return text.replace("_", " ").strip()
+
+
+def humanize_enum(value):
+  text = str(value or "")
+  for prefix in ("TOP_UP_METHOD_", "USAGE_PERIOD_TYPE_"):
+    if text.startswith(prefix):
+      text = text[len(prefix):]
+  text = text.replace("_", " ").strip().lower()
+  return text[:1].upper() + text[1:]
+
+
+# Money comes as {"val": n} in US cents, xAI's billing convention; a zero
+# field is left out of the answer altogether.
+def money(value):
+  if isinstance(value, dict):
+    value = value.get("val", 0)
+  try:
+    return f"${float(value or 0) / 100:.2f}"
+  except (TypeError, ValueError):
+    return None
+
+
+def window_seconds(period):
+  start, end = parse_time(period.get("start")), parse_time(period.get("end"))
+  if start and end and end > start:
+    return int((end - start).total_seconds())
+  return None
+
+
+def credit_details(config):
+  details = []
+  if "onDemandCap" in config or "onDemandUsed" in config:
+    details.append({"label": "On-demand", "value": f"used {money(config.get('onDemandUsed'))} / cap {money(config.get('onDemandCap'))}"})
+  if "prepaidBalance" in config:
+    details.append({"label": "Prepaid balance", "value": money(config.get("prepaidBalance"))})
+  if "monthlyLimit" in config:
+    details.append({"label": "Monthly limit", "value": money(config.get("monthlyLimit"))})
+  if config.get("topUpMethod"):
+    details.append({"label": "Top-up", "value": humanize_enum(config.get("topUpMethod"))})
+  return [d for d in details if d.get("value")]
+
+
 def credits_limit(data):
   config = data["config"]
   period = config["currentPeriod"]
-  return {
+  limit = {
     "label": "Weekly" if "WEEK" in str(period.get("type")) else "Monthly",
     "percent": max(0.0, min(1.0, float(config.get("creditUsagePercent") or 0) / 100)),
     "resetsAt": parse_time(period["end"]).isoformat(),
   }
+  seconds = window_seconds(period)
+  if seconds:
+    limit["windowSeconds"] = seconds
+  products = []
+  for entry in config.get("productUsage") or []:
+    if not isinstance(entry, dict) or not entry.get("product"):
+      continue
+    products.append({
+      "label": pretty_name(entry.get("product")),
+      "percent": max(0.0, min(1.0, float(entry.get("usagePercent") or 0) / 100)),
+    })
+  if products:
+    limit["subLimits"] = products
+  details = credit_details(config)
+  if details:
+    limit["details"] = details
+  return limit
 
 
 # A window whose reset has passed starts over empty. A weekly one's next
@@ -202,6 +265,8 @@ def rolled_forward(limits):
     resets = parse_time(limit.get("resetsAt"))
     if resets and resets <= now:
       limit = dict(limit, percent=0.0, resetsAt="")
+      if isinstance(limit.get("subLimits"), list):
+        limit["subLimits"] = [dict(sub, percent=0.0) for sub in limit["subLimits"] if isinstance(sub, dict)]
       if limit.get("label") == "Weekly":
         weeks = (now - resets) // timedelta(weeks=1) + 1
         limit["resetsAt"] = (resets + weeks * timedelta(weeks=1)).isoformat()

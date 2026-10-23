@@ -518,13 +518,16 @@ Panel {
   // and that beats reading it back out of the label: a model-scoped limit is
   // titled after its model, and a name like "Opus 5 (1M context)" would parse
   // as a one-minute window.
-  function limitWindow(label, percent, resetAt, title) {
+  function limitWindow(label, percent, resetAt, title, spanMs, subLimits, details) {
     var reset = new Date(String(resetAt || "")).getTime()
     var expired = isFinite(reset) && reset <= root.nowMs
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: expired ? 0 : Number(percent),
-      resetAt: expired ? "" : String(resetAt || "")
+      resetAt: expired ? "" : String(resetAt || ""),
+      spanMs: Number(spanMs) > 0 ? Number(spanMs) : 0,
+      subLimits: subLimits || [],
+      details: details || []
     }
   }
 
@@ -535,9 +538,104 @@ Panel {
     for (var i = 0; i < list.length; i++) {
       var entry = list[i] || {}
       var percent = Number(entry.percent)
-      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title))
+      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title,
+        paceSpanMs(entry, p.providerId), subLimitWindows(entry), detailLines(entry)))
     }
     return out
+  }
+
+  // Per-product breakdown a collector may report under a limit. A sub-row
+  // runs on its own reset, or its parent's when it names none, so its usage
+  // empties when that passes; it only shows a countdown and φ of its own
+  // when the collector gives it both its own reset and its own window.
+  function subLimitWindows(entry) {
+    var list = entry && Array.isArray(entry.subLimits) ? entry.subLimits : []
+    var out = []
+    for (var i = 0; i < list.length; i++) {
+      var sub = list[i] || {}
+      var percent = Number(sub.percent)
+      if (!(percent >= 0)) percent = 0
+      var ownReset = String(sub.resetsAt || "")
+      var ownWindow = ownReset !== "" ? explicitSpanMs(sub) : 0
+      var w = limitWindow(sub.label, percent, ownReset !== "" ? ownReset : entry.resetsAt,
+        String(sub.label || "Usage"), ownWindow, [], [])
+      w.hideReset = !(ownWindow > 0)
+      out.push(w)
+    }
+    return out
+  }
+
+  // Free-form "label: value" lines a collector may attach to a limit.
+  function detailLines(entry) {
+    var list = entry && Array.isArray(entry.details) ? entry.details : []
+    var out = []
+    for (var i = 0; i < list.length; i++) {
+      var d = list[i] || {}
+      var label = String(d.label || "")
+      var value = String(d.value === undefined || d.value === null ? "" : d.value)
+      if (value === "") continue
+      out.push(label !== "" ? label + ": " + value : value)
+    }
+    return out
+  }
+
+  // Window length the collector states outright, in ms; 0 when it doesn't.
+  function explicitSpanMs(e) {
+    var minutes = Number(e.windowMinutes !== undefined ? e.windowMinutes : e.window_minutes)
+    if (minutes > 0) return minutes * 60000
+    var seconds = Number(e.limitWindowSeconds !== undefined ? e.limitWindowSeconds
+      : (e.limit_window_seconds !== undefined ? e.limit_window_seconds
+      : (e.windowSeconds !== undefined ? e.windowSeconds : e.window_seconds)))
+    return seconds > 0 ? seconds * 1000 : 0
+  }
+
+  // Cycle length of a limit, for the pace coefficient: the collector's own
+  // window duration when it reports one, otherwise read from the label.
+  // Billing-cycle limits (Cursor) span the calendar month ending at reset.
+  function paceSpanMs(entry, providerId) {
+    var e = entry || {}
+    var stated = explicitSpanMs(e)
+    if (stated > 0) return stated
+    var text = String(e.label || "").toLowerCase() + " " + String(e.title || "").toLowerCase()
+    var monthly = text.indexOf("month") >= 0 || text.indexOf("billing") >= 0
+      || (providerId === "cursor" && !windowIsLong(text) && windowSpanMs(e.label) === 0)
+    if (monthly) {
+      var end = new Date(String(e.resetsAt || ""))
+      if (!isFinite(end.getTime())) return 0
+      var start = new Date(end.getTime())
+      var day = start.getUTCDate()
+      start.setUTCDate(1)
+      start.setUTCMonth(start.getUTCMonth() - 1)
+      var lastDay = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).getUTCDate()
+      start.setUTCDate(Math.min(day, lastDay))
+      return end.getTime() - start.getTime()
+    }
+    if (/\bweek|\b(?:7|seven)\s*-?\s*days?\b/.test(text)) return 7 * 24 * 3600 * 1000
+    if (/\bdaily\b|\b(?:1|one)\s*-?\s*day\b|\b24\s*-?\s*h(?:ours?)?\b/.test(text)) return 24 * 3600 * 1000
+    var fromLabel = windowSpanMs(e.label)
+    if (fromLabel > 0) return fromLabel
+    return text.indexOf("session") >= 0 ? 5 * 3600 * 1000 : 0
+  }
+
+  // Burn-rate coefficient φ: the share of the allowance used by reset if the
+  // pace so far holds, (p + p / elapsed * remaining) / 100. Under 1 it lasts,
+  // over 1 it runs out first. Empty when it can't be known.
+  function paceText(w) {
+    if (!w || !(w.percent >= 0) || !(w.spanMs > 0)) return ""
+    var remainingMs = resetMsFor(w)
+    if (!(remainingMs > 0)) return ""
+    var elapsedMs = w.spanMs - remainingMs
+    if (!(elapsedMs > 0)) return ""
+    var p = w.percent * 100
+    var projected = p + (p / elapsedMs) * remainingMs
+    if (!isFinite(projected)) return ""
+    return "φ " + Commons.I18n.formatNumber(projected / 100, 1)
+  }
+
+  // A reset countdown with φ after it, when there is one.
+  function resetWithPace(w, remainingMs) {
+    var pace = paceText(w)
+    return root.formatDuration(remainingMs) + (pace !== "" ? " · " + pace : "")
   }
 
   // A model-scoped window ("Fable Weekly") is its own allowance, but it runs
@@ -1463,7 +1561,7 @@ Panel {
       Repeater {
         model: section.multi ? [] : section.windows
 
-        CompactLimit {
+        LimitBlock {
           required property var modelData
           width: section.width
           window: modelData
@@ -1567,9 +1665,12 @@ Panel {
           }
 
           Repeater {
-            model: root.displayWindows({ limits: accountBlock.modelData.limits || [] })
+            model: root.displayWindows({
+              providerId: section.provider ? section.provider.providerId : "",
+              limits: accountBlock.modelData.limits || []
+            })
 
-            CompactLimit {
+            LimitBlock {
               required property var modelData
               width: accountBlock.width
               window: modelData
@@ -1978,15 +2079,66 @@ Panel {
   // One line per limit window: title, meter, percentage, and reset. A
   // model-scoped allowance on the same clock ("Fable" on Weekly) is a marker
   // on this row's meter, named in the row's tooltip.
+  // A limit row with the per-product sub-limits a collector breaks it down
+  // into, indented under it, and any detail lines it attaches.
+  component LimitBlock: Column {
+    id: block
+    property var window: null
+    property bool stale: false
+    property real fetchedAt: 0
+    readonly property real indent: Style.space(12)
+    spacing: Style.space(6)
+
+    CompactLimit {
+      width: block.width
+      window: block.window
+      stale: block.stale
+      fetchedAt: block.fetchedAt
+    }
+
+    Repeater {
+      model: block.window && block.window.subLimits ? block.window.subLimits : []
+
+      CompactLimit {
+        required property var modelData
+        x: block.indent
+        width: block.width - block.indent
+        titleWidth: block.width * 0.3 - block.indent
+        fontSize: Style.font.caption
+        window: modelData
+        stale: block.stale
+        fetchedAt: block.fetchedAt
+      }
+    }
+
+    Repeater {
+      model: block.window && block.window.details ? block.window.details : []
+
+      Text {
+        required property var modelData
+        textFormat: Text.PlainText
+        x: block.indent
+        width: block.width - block.indent
+        text: String(modelData)
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        elide: Text.ElideRight
+      }
+    }
+  }
+
   component CompactLimit: Item {
     id: compact
     property var window: null
+    property real titleWidth: width * 0.3
+    property real fontSize: Style.font.bodySmall
     // The age of numbers kept past a failed check is shown only on hover.
     property bool stale: false
     property real fetchedAt: 0
     readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
-    readonly property real resetMs: root.resetMsFor(window)
+    readonly property real resetMs: window && window.hideReset ? -1 : root.resetMsFor(window)
     implicitHeight: Math.max(compactTitle.implicitHeight, compactValue.implicitHeight)
 
     HoverHandler { id: compactHover }
@@ -1999,7 +2151,7 @@ Panel {
           var windowName = root.windowDisplayTitle(compact.window.title)
           var used = Commons.I18n.formatNumber(Math.round(compact.window.percent * 100))
           lines.push(compact.resetMs > 0
-            ? Commons.I18n.t("agents.windowUsedResets").arg(windowName).arg(used).arg(root.formatDuration(compact.resetMs))
+            ? Commons.I18n.t("agents.windowUsedResets").arg(windowName).arg(used).arg(root.resetWithPace(compact.window, compact.resetMs))
             : Commons.I18n.t("agents.windowUsed").arg(windowName).arg(used))
         }
         if (compact.stale)
@@ -2015,12 +2167,12 @@ Panel {
     Text {
       id: compactTitle
       textFormat: Text.PlainText
-      width: parent.width * 0.3
+      width: compact.titleWidth
       anchors.verticalCenter: parent.verticalCenter
       text: compact.window ? root.windowDisplayTitle(compact.window.title) : ""
       color: root.foreground
       font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
+      font.pixelSize: compact.fontSize
       elide: Text.ElideRight
     }
 
@@ -2034,17 +2186,18 @@ Panel {
       markers: compact.scoped
     }
 
-    // Sized to the widest time left ("19h 40m"), so every meter ends in the
-    // same place.
+    // Sized to the widest time left with its φ ("19h 40m · φ 0.6"), so
+    // every meter ends in the same place.
     TextMetrics {
       id: compactValueMetrics
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
-      text: "00h 00m"
+      text: "00h 00m · φ 0.0"
     }
 
-    // How long until the window resets. The meter says how full it is; the
-    // exact percentage is in the row's tooltip.
+    // How long until the window resets, then the burn-rate coefficient φ:
+    // the share of the allowance used by then at the pace so far. The meter
+    // says how full it is; the exact percentage is in the row's tooltip.
     Text {
       id: compactValue
       width: Math.ceil(compactValueMetrics.advanceWidth)
@@ -2052,10 +2205,10 @@ Panel {
       anchors.verticalCenter: parent.verticalCenter
       textFormat: Text.PlainText
       horizontalAlignment: Text.AlignRight
-      text: compact.resetMs > 0 ? root.formatDuration(compact.resetMs) : ""
+      text: compact.resetMs > 0 ? root.resetWithPace(compact.window, compact.resetMs) : ""
       color: root.dim
       font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
+      font.pixelSize: compact.fontSize
     }
   }
 
