@@ -189,6 +189,117 @@ if exercise_post_upgrade_migrations 0 2 >/dev/null 2>&1; then
 fi
 pass "Omarchy 4 upgrade cannot finish with pending migrations"
 
+# Run the actual missing-default copy before the actual backend migration, as
+# the legacy upgrade does. Package lookup is the only external stub.
+(
+  dictation_tmp=$(mktemp -d)
+  trap 'rm -rf "$dictation_tmp"' EXIT
+  root=$dictation_tmp/source
+  export HOME=$dictation_tmp/home XDG_CONFIG_HOME=$dictation_tmp/home/.config
+  export PATH="$root/bin:$PATH" VOXTYPE_PACKAGE=1
+  unset OMARCHY_MIGRATION_STATE
+  mkdir -p "$root/config/omarchy/defaults" "$root/migrations" "$root/bin"
+  cp "$ROOT/config/omarchy/defaults/dictation" "$root/config/omarchy/defaults/"
+  cp "$ROOT/migrations/1791479273.sh" "$root/migrations/"
+  ln -s "$ROOT/bin/omarchy-pkg-present" "$root/bin/omarchy-pkg-present"
+  printf 'unrelated default\n' >"$root/config/unrelated.conf"
+  cat >"$root/bin/pacman" <<'SH'
+#!/bin/bash
+[[ ${VOXTYPE_PACKAGE:-0} == 1 && $* == '-Q -- voxtype-bin' ]]
+SH
+  chmod +x "$root/bin/pacman"
+  printf '#!/bin/bash\nexit 0\n' >"$root/bin/omarchy-notification-dismiss"
+  chmod +x "$root/bin/omarchy-notification-dismiss"
+  is_retired_config_file() { return 1; }
+  eval "copy_missing_config_defaults() { $(function_body copy_missing_config_defaults)
+}"
+  backend="$XDG_CONFIG_HOME/omarchy/defaults/dictation"
+  copy_defaults() { copy_missing_config_defaults "$root/config" "$XDG_CONFIG_HOME"; }
+  migrate_backend() { OMARCHY_PATH="$root" bash "$ROOT/bin/omarchy-migrate" >/dev/null; }
+  reset_queue() { rm -f "${OMARCHY_MIGRATION_STATE:-$HOME/.local/state/omarchy/migrations}/1791479273.sh"; }
+
+  copy_defaults
+  [[ ! -e $backend && ! -L $backend ]] || fail "legacy Voxtype selection stays missing until its migration"
+  [[ $(cat "$XDG_CONFIG_HOME/unrelated.conf") == "unrelated default" ]] ||
+    fail "deferring dictation still populates unrelated missing defaults"
+  migrate_backend
+  [[ $(cat "$backend") == voxtype ]] || fail "copy then migration preserves legacy Voxtype"
+  copy_defaults
+  migrate_backend
+  [[ $(cat "$backend") == voxtype ]] || fail "retry preserves the migrated Voxtype selection"
+  pass "legacy default copy lets the ordered migration preserve Voxtype"
+
+  rm "$backend"
+  reset_queue
+  copy_defaults
+  printf 'exit 1\n' >"$root/migrations/0000000001.sh"
+  if migrate_backend; then
+    fail "a failed queue does not finish the deferred dictation upgrade"
+  fi
+  [[ ! -e $backend ]] || fail "a failed queue does not certify a new dictation selection"
+  rm "$root/migrations/0000000001.sh"
+  copy_defaults
+  migrate_backend
+  [[ $(cat "$backend") == voxtype ]] || fail "retry after queue failure still preserves Voxtype"
+  pass "failed migration queues leave the legacy dictation choice recoverable"
+
+  rm "$backend"
+  reset_queue
+  VOXTYPE_PACKAGE=0 copy_defaults
+  VOXTYPE_PACKAGE=0 migrate_backend
+  [[ $(cat "$backend") == superwhisper ]] || fail "users without Voxtype retain the packaged default"
+  pass "non-Voxtype upgrades retain the packaged dictation default"
+
+  for selection in superwhisper custom-backend voxtype; do
+    printf '%s\n' "$selection" >"$backend"
+    reset_queue
+    copy_defaults
+    migrate_backend
+    [[ $(cat "$backend") == "$selection" ]] || fail "upgrade keeps explicit dictation choice $selection"
+  done
+  pass "copy and migration preserve every explicit backend choice"
+
+  rm "$backend"
+  printf '%s\n' custom-backend >"$dictation_tmp/linked-backend"
+  ln -s "$dictation_tmp/linked-backend" "$backend"
+  reset_queue
+  copy_defaults
+  migrate_backend
+  [[ -L $backend && $(cat "$backend") == custom-backend ]] || fail "upgrade preserves a linked backend choice"
+  rm "$backend" "$dictation_tmp/linked-backend"
+  ln -s "$dictation_tmp/linked-backend" "$backend"
+  reset_queue
+  copy_defaults
+  migrate_backend
+  [[ -L $backend && ! -e $backend ]] || fail "migration preserves an existing dangling user selection link"
+  pass "copy and migration preserve existing backend links"
+
+  rm "$backend"
+  copy_defaults
+  migrate_backend
+  [[ $(cat "$backend") == superwhisper ]] || fail "completed default migration state does not defer a missing selection forever"
+  export OMARCHY_MIGRATION_STATE=$dictation_tmp/custom-state
+  mkdir -p "$OMARCHY_MIGRATION_STATE"
+  touch "$OMARCHY_MIGRATION_STATE/1791479273.sh"
+  rm "$backend"
+  copy_defaults
+  migrate_backend
+  [[ $(cat "$backend") == superwhisper ]] || fail "completed custom migration state does not defer a missing selection forever"
+  rm "$backend"
+  reset_queue
+  copy_defaults
+  [[ ! -e $backend ]] || fail "a pending custom queue ignores the completed default-state marker"
+  migrate_backend
+  [[ $(cat "$backend") == voxtype ]] || fail "pending custom migration state preserves legacy Voxtype"
+  pass "dictation default seeding follows both default and custom migration state"
+
+  rm "$backend"
+  mv "$root/migrations/1791479273.sh" "$dictation_tmp/migration"
+  copy_defaults
+  [[ $(cat "$backend") == superwhisper ]] || fail "older trees without the backend migration keep default-copy behavior"
+  pass "older packaged trees retain their existing default-copy behavior"
+)
+
 if function_body cleanup_retired_services | grep -F 'systemctl disable iwd' >/dev/null; then
   fail "Omarchy 4 upgrade does not retire iwd in a step separate from the NetworkManager enable"
 fi
