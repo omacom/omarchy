@@ -93,6 +93,8 @@ You start Signal with `Super + Shift + G`. It's not part of the base install, so
 
 You start mpv via the application launcher (`Super + Space`) or just double-click on a video in the file manager.
 
+Omarchy's controls and menus follow your desktop theme while the player stays open, including when playback is paused.
+
 ## Omacut
 
 [Omacut](https://github.com/omacom-io/omacut) is Omarchy's own dead-simple video trimmer. When all you need is to cut the start and end off a clip, it beats firing up a full video editor.
