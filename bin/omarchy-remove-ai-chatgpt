@@ -9,6 +9,18 @@ omarchy-pkg-drop openai-codex-desktop
 
 # Not ~/.cache/codex-runtimes: the Codex CLI resolves its own runtime under
 # there, and it ships in a different package that survives this one.
+#
+# The app's artifact runtime extracts its files into directories the user owns
+# but cannot write to (dr-x------), and rm -rf cannot delete files inside a
+# directory without write permission, so make those directories writable first.
+# find follows no symlinks, so a linked Codex directory's target is left alone,
+# and it is best effort: rm -rf alone decides whether the removal succeeded.
+for dir in "$HOME/.config/Codex" "$HOME/.cache/Codex"; do
+  if [[ -d $dir ]]; then
+    find "$dir" -type d ! -perm -u+w -exec chmod u+w {} + 2>/dev/null || true
+  fi
+done
+
 rm -rf \
   "$HOME/.config/Codex" \
   "$HOME/.cache/Codex"
