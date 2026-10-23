@@ -15,14 +15,15 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 # Membership of `input` gives raw access to /dev/input/event*: any process
-# running as the user could log keystrokes. Only the opt-in controller and
-# ydotool features may grant it.
+# running as the user could log keystrokes. Only the opt-in controller, ydotool
+# and Voxtype evdev hotkey features may grant it.
 verify_input_group() {
   if id -nG | grep -qw input; then
-    if pacman -Q xpadneo-dkms &>/dev/null || pacman -Q ydotool &>/dev/null; then
+    if pacman -Q xpadneo-dkms &>/dev/null || pacman -Q ydotool &>/dev/null ||
+      [[ $(RUST_LOG=off voxtype config get hotkey.enabled 2>/dev/null) == "true" ]]; then
       pass "input group membership is backed by an opt-in feature"
     else
-      fail "user is not in the input group" "no controller or ydotool support installed to justify it"
+      fail "user is not in the input group" "no controller, ydotool or Voxtype hotkey support to justify it"
     fi
   else
     pass "user is not in the input group"
