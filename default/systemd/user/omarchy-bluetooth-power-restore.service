@@ -1,0 +1,22 @@
+[Unit]
+Description=Restore Omarchy Bluetooth on/off preference
+Documentation=man:rfkill(8)
+# bluetoothd may AutoEnable before systemd-rfkill finishes restoring a soft
+# block across reboot (#13342). Re-apply the user's last omarchy-bluetooth-power
+# choice once the session and bluetooth stack are up.
+After=bluetooth.service
+# Wait for the compositor, not just graphical-session-pre.target: a queued
+# SW_RFKILL_ALL event is flushed when Hyprland first syncs its input devices,
+# and the kernel's rfkill-input then unblocks every radio. Restoring before that
+# lets the unblock-all turn Bluetooth back on over a saved "off".
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionPathIsDirectory=/sys/class/bluetooth
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-bluetooth-power restore
+RemainAfterExit=yes
+
+[Install]
+WantedBy=graphical-session.target

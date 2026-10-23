@@ -2,7 +2,7 @@
 
 # omarchy:summary=Turn Bluetooth on or off, remembered across reboots
 # omarchy:group=bluetooth
-# omarchy:args=<on|off|toggle|is-on>
+# omarchy:args=<on|off|toggle|is-on|restore>
 
 # BlueZ never persists an adapter's Powered property, so turning Bluetooth off
 # through bluetoothctl lasts only until the next boot. The rfkill soft block does
@@ -15,8 +15,23 @@
 # at its stock default and bluetoothd powers the adapter up by itself. Every
 # Omarchy path that turns Bluetooth on or off goes through here, because a plain
 # `bluetoothctl power on` fails outright while the block is set.
+#
+# Desired on/off is also mirrored under XDG state and re-applied after login
+# (#13342): some boots restore rfkill after bluetoothd has already AutoEnabled,
+# so a late restore keeps the user's off preference.
 
 POWER_WAIT_SECONDS=${OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS:-2}
+
+desired_state_file() {
+  printf '%s\n' "${OMARCHY_BLUETOOTH_STATE_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/bluetooth-power}"
+}
+
+remember() {
+  local state=$1 file
+  file=$(desired_state_file)
+  mkdir -p -- "$(dirname -- "$file")"
+  printf '%s\n' "$state" >"$file"
+}
 
 controllers() {
   timeout 2s bluetoothctl list 2>/dev/null | awk '{print $2}'
@@ -65,25 +80,42 @@ power_on() {
 
 case "${1:-}" in
   on)
+    remember on
     power_on
     ;;
   off)
     # No bluetoothctl power off to go with this: the block already drops the
     # adapter to Powered: no, and it is the half that survives the reboot.
+    remember off
     rfkill block bluetooth
     ;;
   toggle)
     if powered; then
+      remember off
       rfkill block bluetooth
     else
+      remember on
       power_on
     fi
     ;;
   is-on)
     powered
     ;;
+  restore)
+    # Best-effort: missing state file means "leave whatever rfkill restored".
+    state_file=$(desired_state_file)
+    [[ -f $state_file ]] || exit 0
+    case $(<"$state_file") in
+      off)
+        rfkill block bluetooth
+        ;;
+      on)
+        power_on || true
+        ;;
+    esac
+    ;;
   *)
-    echo "Usage: omarchy-bluetooth-power <on|off|toggle|is-on>" >&2
+    echo "Usage: omarchy-bluetooth-power <on|off|toggle|is-on|restore>" >&2
     exit 1
     ;;
 esac
