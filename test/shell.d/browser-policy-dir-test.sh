@@ -103,8 +103,8 @@ browser_policy_setup_dir "$planted_dir"
 [[ -d $planted_dir ]] || fail "policy setup leaves the managed directory in place"
 mode=$(stat -c '%a' "$planted_dir")
 [[ $mode == "755" ]] || fail "policy setup leaves the managed directory 0755" "mode=$mode"
-[[ $(jq '.DefaultBrowserSettingEnabled' "$planted_dir/omarchy.json") == "false" ]] ||
-  fail "policy setup hides the default browser setting"
+[[ $(jq '.DefaultBrowserSettingEnabled' "$planted_dir/omarchy.json") == "null" ]] ||
+  fail "policy setup leaves the native default browser setting available"
 pass "policy setup drops non-root files and non-empty subdirectories"
 
 owned=$test_tmp/not-root

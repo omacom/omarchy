@@ -46,13 +46,13 @@ pass "the migration follows symlinked browser flags"
 [[ ! -e $config_dir/brave-origin-flags.conf ]] || fail "the migration leaves missing browser flags absent"
 pass "the migration skips missing browser flags"
 
-grep -qxF -- '--no-default-browser-check' "$ROOT/config/chromium-flags.conf" ||
-  fail "new Chromium-family flags skip the default browser check"
+! grep -qxF -- '--no-default-browser-check' "$ROOT/config/chromium-flags.conf" ||
+  fail "new Chromium-family flags allow native default browser checks"
 [[ $(jq '.policies.DontCheckDefaultBrowser' "$ROOT/default/firefox/policies.json") == "true" ]] ||
   fail "Firefox's policies skip the default browser check"
-[[ $(jq '.DefaultBrowserSettingEnabled' "$ROOT/default/chromium/policies/omarchy.json") == "false" ]] ||
-  fail "Chromium-family policy hides the default browser setting"
-pass "new installs skip the default browser check"
+[[ $(jq '.DefaultBrowserSettingEnabled' "$ROOT/default/chromium/policies/omarchy.json") == "null" ]] ||
+  fail "Chromium-family policy leaves the default browser setting available"
+pass "Chromium defaults stay available while Firefox keeps its existing check policy"
 
 # Only Omarchy's own policy files go into root-owned directories.
 if [[ -f $test_tmp/sudo ]]; then

@@ -25,6 +25,13 @@ if [ "$OMARCHY_PATH" != /usr/share/omarchy ]; then
   esac
 fi
 
+# Native browser default checks/changes must see the browser behind Omarchy's
+# desktop-specific link handler. Other xdg-settings operations pass through.
+case ":$PATH:" in
+  *":${OMARCHY_PATH%/}/default/xdg-utils:"*) ;;
+  *) PATH="${OMARCHY_PATH%/}/default/xdg-utils${PATH:+:$PATH}" ;;
+esac
+
 # mise's command wrappers must precede real tool directories inherited from a
 # parent shell, so scripts follow account switches without Bash functions.
 # mise activate also keeps this directory ahead of its managed tool binaries.

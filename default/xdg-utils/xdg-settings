@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Browser settings describe the selected browser, while link opening retains
+# Omarchy's desktop-specific handler for focus/activation. xdg-settings must
+# read back the same underlying associations it changes, or it rolls them back.
+# Delegate all other properties and non-Omarchy handlers to the system utility.
+case "${1:-}:${2:-}" in
+  get:default-web-browser|check:default-web-browser|set:default-web-browser)
+    routed=1
+    for scheme in http https; do
+      handler=$(xdg-mime query default "x-scheme-handler/$scheme" 2>/dev/null)
+      [[ $handler == "omarchy-browser.desktop" ]] || routed=0
+    done
+    if (( routed )); then
+      # A custom BROWSER remains an explicit user override. The shell's own
+      # launcher otherwise makes the generic xdg-settings setter refuse writes.
+      if [[ ${BROWSER:-} == "omarchy-launch-browser" ]]; then
+        unset BROWSER
+      fi
+      export XDG_CURRENT_DESKTOP=
+    fi
+    ;;
+esac
+
+exec /usr/bin/xdg-settings "$@"
