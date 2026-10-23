@@ -250,7 +250,10 @@ jobs:
 
   translate:
     needs: [prepare, publish-extract]
-    if: needs.prepare.outputs.locales != '[]'
+    # Without a status function GitHub adds success(), which is false when
+    # extract and validate-extract were skipped upstream, as they are on every
+    # run with nothing to extract.
+    if: ${{ always() && !cancelled() && needs.prepare.result == 'success' && needs.publish-extract.result == 'success' && needs.prepare.outputs.locales != '[]' }}
     strategy:
       fail-fast: false
       matrix:
