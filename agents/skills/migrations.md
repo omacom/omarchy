@@ -51,7 +51,11 @@ omarchy-hook post-update
 ```
 
 `omarchy-migrate` waits for any active pacman transaction to finish, then runs
-all pending migrations for the current user in the visible update terminal.
+all pending migrations for the current user in the visible update terminal. An
+administrator's run holds the machine-wide update lock while it does, so two
+administrators' updates or migrations never run the same migration at once;
+run on its own while another holds it, it says so and runs nothing. Other
+accounts' runs change only their own files and lock nothing.
 
 ### At login
 
@@ -62,8 +66,10 @@ Every graphical login starts `omarchy-migrate-notify.service` after
 omarchy-migrate --pending
 ```
 
-It stays silent while `omarchy update` holds its lock, since that update applies
-the pending migrations itself.
+It waits while an update or migration holds a lock the account takes, and only
+then counts what is still pending: the account's own update applies its pending
+migrations itself, and those another administrator's update doesn't are
+prompted for once it has finished.
 
 If that user has pending migrations, it shows a notification that opens a
 terminal for:

@@ -153,6 +153,13 @@ cat >"$stub_bin/omarchy-sudo-allowed" <<'SH'
 exit 0
 SH
 chmod +x "$stub_bin/omarchy-sudo-allowed"
+# omarchy-migrate takes the update lock; here it runs as if it already held it,
+# and never touches the machine's real one.
+cat >"$stub_bin/omarchy-update-lock" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$stub_bin/omarchy-update-lock"
 
 reset_state() {
   rm -rf "$TEST_STATE"

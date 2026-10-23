@@ -82,6 +82,12 @@ cat > "$scratch/bin/omarchy-notification-dismiss" <<'SH'
 #!/bin/bash
 exit 0
 SH
+# omarchy-migrate takes the update lock; here it runs as if it already held it,
+# and never touches the machine's real one.
+cat >"$scratch/bin/omarchy-update-lock" <<'SH'
+#!/bin/bash
+exit 0
+SH
 chmod +x "$scratch/bin/"*
 
 reset_fixture() {

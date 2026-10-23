@@ -9,7 +9,15 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 test_root="$test_tmp/omarchy"
 test_home="$test_tmp/home"
-mkdir -p "$test_root/migrations" "$test_home"
+mkdir -p "$test_root/migrations" "$test_home" "$test_tmp/bin"
+# omarchy-migrate takes the update lock; here it runs as if it already held it,
+# and never touches the machine's real one.
+cat >"$test_tmp/bin/omarchy-update-lock" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$test_tmp/bin/omarchy-update-lock"
+export PATH="$test_tmp/bin:$PATH"
 
 cat >"$test_root/migrations/100-first.sh" <<'SH'
 [[ $OMARCHY_PATH == "$TEST_EXPECTED_OMARCHY_PATH" ]]

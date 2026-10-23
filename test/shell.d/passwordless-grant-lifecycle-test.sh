@@ -50,6 +50,13 @@ mkdir -p "$test_tmp/source/migrations" "$test_tmp/source/bin"
 cp "$ROOT/migrations/1788163635.sh" "$test_tmp/source/migrations/"
 ln -s "$test_tmp/omarchy-sudo-passwordless" "$test_tmp/source/bin/omarchy-sudo-passwordless"
 printf 'echo "later migration ran"\n' >"$test_tmp/source/migrations/1788163636.sh"
+# omarchy-migrate takes the update lock; here it runs as if it already held it,
+# and never touches the machine's real one.
+cat >"$test_tmp/bin/omarchy-update-lock" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$test_tmp/bin/omarchy-update-lock"
 run_migrations() {
   TEST_MIGRATION=1 OMARCHY_PATH="$test_tmp/source" OMARCHY_MIGRATION_STATE="$test_tmp/$1" \
     PATH="$test_tmp/bin:$PATH" /usr/bin/bash "$ROOT/bin/omarchy-migrate" >"$test_tmp/migrations.log" 2>&1

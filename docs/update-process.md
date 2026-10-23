@@ -21,7 +21,8 @@ The design goal is:
 
 | Path | Owner | Purpose |
 | --- | --- | --- |
-| `${XDG_RUNTIME_DIR:-/tmp}/omarchy-update.lock` | user | Prevent overlapping update runs. Owned by `omarchy-update-lock`; compatibility wrappers inherit/respect it. |
+| `/run/omarchy-update.lock` | root (read: `wheel`) | Prevent overlapping updates and migrations across the machine, so two administrators never run them at once. Created from `etc/tmpfiles.d/omarchy-update-lock.conf` at boot, by any later `systemd-tmpfiles --create`, and by a migration on existing installs. `omarchy-update-lock` takes it instead of the account's own whenever the account can read it, after checking that the account's own isn't held by an update that started before the machine-wide lock existed. `omarchy-migrate` takes it for an administrator. |
+| `${XDG_RUNTIME_DIR:-/tmp}/omarchy-update.lock` | user | The lock of an account that can't read the machine-wide one (an account that isn't an administrator, whose migrations change only its own files) or of a machine that hasn't created it yet. Owned by `omarchy-update-lock`; compatibility wrappers inherit/respect it. |
 | `${XDG_RUNTIME_DIR}/omarchy-update-stay-awake/` | user | Private mode-0700 inhibitor coordination state. If no runtime directory is available, the helper uses the validated mode-0700 `/tmp/omarchy-$UID/` fallback. |
 | `${XDG_RUNTIME_DIR:-/tmp}/omarchy-update-$UID.log` | user | Transcript of `omarchy update`, used by `omarchy-update-analyze-logs`. Per-user so a second account can update while `fs.protected_regular` blocks appending to another account's transcript in `/tmp` (#15679). |
 | `~/.local/state/omarchy/current/` | user | Generated active theme, selected theme name, and current background symlink. |
@@ -123,7 +124,7 @@ omarchy-update
   ├─ stop unless the account is an administrator (omarchy-sudo-allowed), before any password prompt
   ├─ ensure transcript logging through script(1) → ${XDG_RUNTIME_DIR:-/tmp}/omarchy-update-$UID.log
   ├─ omarchy-update-lock
-  │    └─ acquire the update lock and run omarchy-update inside it
+  │    └─ acquire the update lock (the machine's, else the account's) and run omarchy-update inside it
   ├─ omarchy-update-requires-free-space
   │    └─ abort below the configured free-space threshold on /
   ├─ confirm unless -y
@@ -195,14 +196,15 @@ terminal. The retired unit was `omarchy-update-user-notify.path`.
 Retiring that watcher through a migration cannot come in time for the update
 that retires it: pacman writes the migration directory, the watcher fires, and
 only then does `omarchy-migrate` reach the migration that stops it. So the
-notifier also refuses to run while `omarchy update` holds its
-`$XDG_RUNTIME_DIR/omarchy-update.lock`, which covers the stale watcher and any
+notifier also waits while an update or migration holds a lock the account
+takes (`omarchy-update-lock wait`), and only then counts what is still pending, which covers the stale watcher and any
 trigger added later — during an update, every pending migration is by
 definition already being applied a step away. It checks again after waiting for
 the notification server, since that wait is long enough for an update to start
 underneath it.
 
-The notifier reads only its own user's runtime directory, never the `/tmp` path
+The notifier reads only the machine-wide lock and its own user's runtime
+directory, never the `/tmp` path
 `omarchy-update` falls back to when `XDG_RUNTIME_DIR` is unset. A shared lock
 file belongs to whoever created it first, so honouring it would let one user
 silence another user's notification. Missing an update and showing a redundant
@@ -294,7 +296,7 @@ scripts.
 | Binary | Current purpose | Keep? / Question |
 | --- | --- | --- |
 | `omarchy-update` | Public user command. Adds transcript logging, confirmation, snapshot, and restart checks around the locked, sleep-inhibited update pipeline. | **Keep.** This is the blessed entry point and orchestrates the update pipeline. |
-| `omarchy-update-lock` | Hidden command wrapper that holds the per-user update lock while its child runs. | **Keep internal/hidden.** Isolates update concurrency and lock descriptor handling. |
+| `omarchy-update-lock` | Hidden command wrapper that holds the update lock (machine-wide for administrators) while its child runs; `omarchy update` and `omarchy-migrate` take it. | **Keep internal/hidden.** Isolates update concurrency and lock descriptor handling. |
 | `omarchy-update-stay-awake` | Hidden helper that starts or stops update-owned sleep and idle inhibition, restoring only the state it changed. | **Keep internal/hidden.** Keeps inhibitor ownership and cleanup together. |
 | `omarchy-update-status` | Hidden compatibility helper that clears the shell update indicator. `omarchy-update` clears it directly now; an update started by an older `omarchy-update` still calls this after its upgrade. | **Temporary.** Keep only for updates started before the change. |
 | `omarchy-update-confirm` | Gum confirmation copy for `omarchy update`. | **Question.** Could be inlined into `omarchy-update`; separate file only helps keep copy isolated. |

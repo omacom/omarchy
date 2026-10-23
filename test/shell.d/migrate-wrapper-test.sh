@@ -16,7 +16,13 @@ cat >"$stub_bin/omarchy-notification-dismiss" <<'SH'
 #!/bin/bash
 printf '%s\n' "$1" >>"$TEST_DISMISSALS"
 SH
-chmod +x "$stub_bin/omarchy-notification-dismiss"
+# omarchy-migrate takes the update lock; here it runs as if it already held it,
+# and never touches the machine's real one.
+cat >"$stub_bin/omarchy-update-lock" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$stub_bin/omarchy-notification-dismiss" "$stub_bin/omarchy-update-lock"
 
 cat >"$test_root/migrations/100-migration.sh" <<'SH'
 echo migration >>"$TEST_CALLS"

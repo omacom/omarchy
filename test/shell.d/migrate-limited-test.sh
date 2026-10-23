@@ -36,6 +36,12 @@ cat >"$mock_bin/omarchy-sudo-allowed" <<'SH'
 #!/bin/bash
 [[ $TEST_ADMIN == "yes" ]]
 SH
+# omarchy-migrate takes the update lock; here it runs as if it already held it,
+# and never touches the machine's real one.
+cat >"$mock_bin/omarchy-update-lock" <<'SH'
+#!/bin/bash
+exit 0
+SH
 chmod +x "$mock_bin"/*
 
 run_migrate() { # ADMIN
