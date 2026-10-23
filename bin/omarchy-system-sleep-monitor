@@ -9,7 +9,7 @@ consume_sleep_events() {
   sleep_lock="$OMARCHY_PATH/bin/omarchy-system-sleep-lock"
 
   while IFS= read -r line; do
-    if [[ $line == *"boolean true"* ]]; then
+    if [[ $line == *"PrepareForSleep (true"* ]]; then
       "$sleep_lock"
       return 0
     fi
@@ -20,8 +20,10 @@ monitor_sleep_events() {
   local monitor_fd monitor_pid status
 
   coproc SLEEP_EVENTS {
-    exec dbus-monitor --system \
-      "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"
+    # BecomeMonitor on the system bus is root-only, so a user session of the
+    # old monitor tool fell back to deprecated eavesdropping. gdbus uses
+    # AddMatch, which a session is allowed to do for login1 signals.
+    exec gdbus monitor --system --dest org.freedesktop.login1 --object-path /org/freedesktop/login1
   }
   monitor_fd=${SLEEP_EVENTS[0]}
   monitor_pid=$SLEEP_EVENTS_PID
