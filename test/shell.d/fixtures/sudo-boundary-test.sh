@@ -151,6 +151,7 @@ case "$step" in
   yay)
     [[ $* == *"--sudo $OMARCHY_PATH/default/omarchy/sudo-no-update/sudo"* ]] || exit 92
     [[ $* == *"--sudoloop=false"* ]] || exit 93
+    [[ $* == *"--ask 4"* ]] || exit 96
     [[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 95
     ;;
 esac
