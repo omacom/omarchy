@@ -576,8 +576,8 @@ BarWidget {
     owner: root
     bar: root.bar
     open: root.trayMenuOpen
-    // The card fades out over 140ms (visible stays true for that whole time --
-    // see PopupCard's own visible: open || card.opacity > 0), so resetting on
+    // The card fades out over 140ms (visible stays true for that whole time
+    // unless its anchor leaves the window -- see PopupCard's visible), so resetting on
     // "open" would swap a live submenu for the root menu mid-fade: a visible
     // flash, and a resize/reposition if the two have different geometry. Wait
     // for the fade to actually finish. Switching to a different tray item
