@@ -129,3 +129,31 @@ grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down skips d
 grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
   fail "monitor scaling down persists 2x after skipping duplicate approximation"
 pass "monitor scaling down skips duplicate approximation"
+
+# Per-monitor override: scaling the focused explicit output must not rewrite
+# the wildcard omarchy_monitor_scale used by other displays.
+cat >"$monitor_lua" <<'LUA'
+local omarchy_gdk_scale = 2
+local omarchy_monitor_scale = 2
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
+hl.monitor({ output = "eDP-1", mode = "2880x1800@120", position = "0x0", scale = 2 })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling up
+grep -F 'hl.monitor({ output = "eDP-1"' "$monitor_lua" | grep -q 'scale = 3' ||
+  fail "per-monitor scaling up updates the focused output rule"
+grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
+  fail "per-monitor scaling up rewrote the wildcard omarchy_monitor_scale"
+pass "per-monitor scaling up updates only the focused output rule"
+
+# A focused output rule that shares omarchy_monitor_scale has no scale of its
+# own to rewrite, so the wildcard variable must still be persisted.
+cat >"$monitor_lua" <<'LUA'
+local omarchy_gdk_scale = 2
+local omarchy_monitor_scale = 2
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
+hl.monitor({ output = "eDP-1", mode = "2880x1800@120", position = "0x0", scale = omarchy_monitor_scale })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling up
+grep -Fx 'local omarchy_monitor_scale = 3' "$monitor_lua" >/dev/null ||
+  fail "per-monitor rule sharing omarchy_monitor_scale persists the wildcard"
+pass "per-monitor rule sharing omarchy_monitor_scale persists the wildcard"
