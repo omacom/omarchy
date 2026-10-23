@@ -211,3 +211,20 @@ grep -Fx 'omarchy-dev-checkout 1 new commit on origin/quattro' "$stdout" >/dev/n
   fail "update checker reports cached dev commits after a fetch failure" "$(cat "$stdout")"
 [[ ! -s $stderr ]] || fail "update checker keeps dev fetch failures quiet" "$(cat "$stderr")"
 pass "update checker uses cached dev state when fetching is unavailable"
+
+# A stripped environment exports no OMARCHY_PATH: that means package-backed,
+# not a nounset abort, and the verdict follows the packages (#12858 follow-up).
+: >"$git_log"
+if env -i PATH="$stub_bin:/usr/bin:/bin" TEST_GIT_LOG="$git_log" \
+  TEST_CHECKUPDATES=none TEST_INSTALLED_PACKAGE=omarchy \
+  "$ROOT/bin/omarchy-update-available" >"$stdout" 2>"$stderr"; then
+  status=0
+else
+  status=$?
+fi
+[[ $status -eq 1 ]] || fail "update checker without OMARCHY_PATH reports up-to-date packages"
+grep -q '^Omarchy is up to date$' "$stdout" || fail "update checker without OMARCHY_PATH prints up-to-date message"
+grep -q "unbound variable" "$stderr" &&
+  fail "update checker without OMARCHY_PATH reports no unbound variable" "$(cat "$stderr")"
+[[ ! -s $git_log ]] || fail "update checker without OMARCHY_PATH invokes no git" "$(cat "$git_log")"
+pass "update checker treats an unset OMARCHY_PATH as package-backed"
