@@ -413,6 +413,29 @@ A panel matches a screen whose connector name starts with `connector` and whose 
 
 Until Hyprland reports a screen's mode, a top bar there waits to appear if a description names the screen's connector, unless the logical size times Qt's whole-number scale already matches a panel. It then appears at its floor rather than growing once windows are laid out, and never guesses a floor for a panel nothing describes. After two seconds without a mode it appears without a floor. Notifications clear the bar as thick as it is on their screen. A plugin's `shell.bar` gives the same through `barSizeFor(screenName)` and the `barSizes` map (screen name to thickness); its `barSize` stays the configured size, which the widgets are drawn at.
 
+### Floating bar
+
+A floating bar sits off the screen edge instead of flush against it. It is off unless you turn it on, so a stock bar is unchanged.
+
+Turn it on with `"floating": true` under `bar` in `shell.json`, or let a theme do it with a `[bar] margin` on an edge the bar touches. `bar.floating: false` keeps the bar flush whatever the theme says.
+
+```toml
+[bar]
+margin = 10   # gap between the bar and the screen edges it touches
+radius = 12   # corner rounding of the bar background
+```
+
+`margin` accepts the same CSS-style list as the border widths, `N`, `"Y X"`, `"T X B"` or `"T R B L"`, so the gap can differ per edge. It applies to the edge the bar is anchored to and the two it spans:
+
+```toml
+[bar]
+margin = "4 8"   # 4 above and below, 8 left and right
+```
+
+Without a theme margin a floating bar floats inside the space a flush bar already reserves. It sits half of Hyprland's `general:gaps_out` from the screen edge, so the gap between the bar and the screen edge matches the gap between the bar and the windows. Its ends sit the full `gaps_out` in from the screen sides, in line with the windows. The windows stay where they are when floating is switched on or off, as long as half of `gaps_out`, rounded, stays below the bar's thickness (`gaps_out` up to 50 for the stock 26 px bar). Above that the bar reserves that rounded half plus 1. `radius` applies only while the bar floats; a flush bar stays square. Unset, it follows Hyprland's `decoration:rounding`, and it never rounds past half the bar's thickness.
+
+Theme values follow `scale-with-font` like the sizes above; the Hyprland-derived defaults do not. A theme margin is reserved along with the bar, so tiled and maximized windows stop clear of it and keep `gaps_out` between them and the bar. Auto-hide parks the bar fully off screen, margin included. On a panel with a camera cutout, a theme top margin counts toward clearing it: the bar's floor shrinks by the margin, and a margin that clears the cutout leaves the center sections in the middle. A bar floating in the gap keeps a flush bar's floor, so the windows still stay put.
+
 ## Custom bar modules
 
 If a full plugin is overkill, declare a one-off module inline in
@@ -431,13 +454,7 @@ For a custom QML widget:
 { "id": "gpu", "type": "qml" }
 ```
 
-Then `~/.config/omarchy/bar/modules/gpu.qml` (or set `source` to point
-elsewhere). The module is an `Item` and receives `bar`, `moduleName`,
-`settings` properties. `bar` exposes `foreground` / `background` /
-`urgent` / `fontFamily` / `position` / `vertical` / `barSize`, plus
-`run(cmd)`, `showTooltip(t, s)` / `hideTooltip(t)`,
-`requestPopout(o)` / `releasePopout(o)`. To shell-quote arguments for
-`run`, use `Util.shellQuote(v)` from `qs.Commons`.
+Then `~/.config/omarchy/bar/modules/gpu.qml` (or set `source` to point elsewhere). The module is an `Item` and receives `bar`, `moduleName`, `settings` properties. `bar` exposes `foreground` / `background` / `urgent` / `fontFamily` / `position` / `vertical` / `barSize` / `barMargins` (the gap between a floating bar and the screen edges; only the edge it is anchored to and the two it spans apply), plus `run(cmd)`, `showTooltip(t, s)` / `hideTooltip(t)`, `requestPopout(o)` / `releasePopout(o)`. To shell-quote arguments for `run`, use `Util.shellQuote(v)` from `qs.Commons`.
 
 A module that declares `property string fixedEdge` also receives the edge of itself that stays put when it grows, set by how its section is anchored. Widgets that extend `BarWidget` from `qs.Ui` declare it already.
 
