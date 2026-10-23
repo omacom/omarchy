@@ -200,6 +200,7 @@ BarWidget {
   implicitHeight: orientationLoader.item ? orientationLoader.item.implicitHeight : 0
 
   ShellIpc {
+    enabled: root.ipcOwner
     target: "omarchy.indicators"
 
     function refresh(): void {
