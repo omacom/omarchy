@@ -63,6 +63,14 @@ is_user_desktop_file() {
   return 1
 }
 
+dir_is_user_desktop() {
+  local dir
+  for dir in "${user_desktop_dirs[@]}"; do
+    [[ $1 == $dir ]] && return 0
+  done
+  return 1
+}
+
 desktop_name="${desktop_file##*/}"
 desktop_name="${desktop_name%.desktop}"
 exec_line="$(sed -n 's/^Exec=//p' "$desktop_file" | head -1)"
@@ -79,6 +87,28 @@ fi
 
 if is_user_desktop_file; then
   display_name="${entry_name:-$desktop_name}"
+  # Kitty's menu entry hides the packaged one. Delete it only after pacman
+  # succeeds, so a cancelled uninstall leaves --single-instance in place.
+  if [[ $desktop_file_name == "kitty.desktop" ]]; then
+    system_desktop=""
+    for dir in "${desktop_dirs[@]}"; do
+      if dir_is_user_desktop "$dir"; then
+        continue
+      fi
+      candidate="$dir/$desktop_file_name"
+      if [[ -f $candidate ]]; then
+        system_desktop="$candidate"
+        break
+      fi
+    done
+    if [[ -n $system_desktop ]] && package_name="$(pacman -Qqo "$system_desktop" 2>/dev/null | head -1)" && [[ -n $package_name ]]; then
+      quoted_package="$(printf '%q' "$package_name")"
+      quoted_display="$(printf '%q' "$display_name")"
+      quoted_desktop="$(printf '%q' "$desktop_file")"
+      quoted_desktop_dir="$(printf '%q' "${desktop_file%/*}")"
+      exec omarchy-launch-floating-terminal-with-presentation "echo Uninstalling $quoted_display...; sudo pacman -Rns $quoted_package && rm -f $quoted_desktop && { update-desktop-database $quoted_desktop_dir >/dev/null || true; }"
+    fi
+  fi
   rm -f "$desktop_file"
   update-desktop-database "${desktop_file%/*}" &>/dev/null || true
   exit 0
