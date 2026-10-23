@@ -6,7 +6,20 @@ screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
 }
 
+# Restore input before closing the terminal, and on other shell exits.
+terminal_state=$(stty -g 2>/dev/null) || exit 1
+input_reporting_enabled=false
+cleanup_terminal() {
+  if [[ $input_reporting_enabled == "true" ]]; then
+    printf '\033[?1003l\033[?1016l\033[<u'
+    input_reporting_enabled=false
+  fi
+  stty "$terminal_state" 2>/dev/null || true
+}
+trap cleanup_terminal EXIT
+
 exit_screensaver() {
+  cleanup_terminal
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
   pkill -x ttfx 2>/dev/null
   pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
@@ -35,13 +48,19 @@ wait_for_terminal_resize() {
 
 wait_for_terminal_resize
 
+# Report modifier-only keys and pointer motion in supporting terminals.
+# Focus reporting stays off because startup itself changes window focus.
+stty -echo -icanon min 1 time 0 || exit 1
+input_reporting_enabled=true
+printf '\033[>8u\033[?1003h\033[?1016h'
+
 while true; do
   ttfx -i ~/.config/omarchy/branding/screensaver.txt \
     --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
     --random-effect --no-eol --no-restore-cursor &
 
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
-    if read -n1 -t 1 || ! screensaver_in_focus; then
+    if IFS= read -r -s -n1 -t 1 || ! screensaver_in_focus; then
       exit_screensaver
     fi
   done
