@@ -722,6 +722,9 @@
   "install.style.font.iosevka": {
     "label": "Iosevka"
   },
+  "install.style.font.maple": {
+    "label": "Maple Mono CN"
+  },
   "install.gaming": {
     "label": "Gaming"
   },

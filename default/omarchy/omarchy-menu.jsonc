@@ -271,6 +271,7 @@
   "install.style.font.victor": {"icon":"","label":"Victor Code","action":"omarchy-install-font 'Victor Code' ttf-victor-mono-nerd 'VictorMono Nerd Font'"},
   "install.style.font.bitstream": {"icon":"","label":"Bitstream Vera Mono","action":"omarchy-install-font 'Bitstream Vera Code' ttf-bitstream-vera-mono-nerd 'BitstromWera Nerd Font'"},
   "install.style.font.iosevka": {"icon":"","label":"Iosevka","action":"omarchy-install-font Iosevka ttf-iosevka-nerd 'Iosevka Nerd Font Mono'"},
+  "install.style.font.maple": {"icon":"","label":"Maple Mono CN","disabled":"omarchy-pkg-present maplemono-nf-cn","action":"omarchy-install-font 'Maple Mono CN' maplemono-nf-cn 'Maple Mono NF CN'"},
   "install.gaming": {"icon":"","label":"Gaming"},
   "install.browser": {"icon":"","label":"Browser"},
   "install.webapp": {"icon":"","label":"Web App","action":"omarchy-launch-floating-terminal-with-presentation omarchy-webapp-install"},
