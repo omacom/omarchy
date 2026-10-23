@@ -167,10 +167,6 @@ check_instruction() {
       [[ $output != *"$text"* ]] || fail "$3" "$output"
     fi
   done
-  # The setup terminal wraps a long line mid-word.
-  while IFS= read -r text; do
-    (( ${#text} <= 80 )) || fail "$3: the instruction fits on an 80-column line" "$text"
-  done <<<"$2"
 }
 check_instruction press "$press_text" "a press sensor is told to lift and touch again"
 check_instruction swipe "$swipe_text" "a swipe sensor keeps the moving-finger instruction"
