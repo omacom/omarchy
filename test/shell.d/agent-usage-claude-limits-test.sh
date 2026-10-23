@@ -225,6 +225,161 @@ unreachable=$(collect_limits "token" 0 0 "$cache")
   fail "Claude collector advises a retry after a transport failure" "$unreachable"
 pass "Claude collector falls back to cache when the probe cannot connect"
 
+# A lapsed saved token is not the end of the story: omp and pi hold Claude
+# subscriptions too and refresh their own tokens. Both are stubbed on PATH so
+# the real subprocess path runs — omp with two accounts it selects by
+# position, pi with a third — and each logs what it was asked. Anthropic is
+# answered per token: the profile endpoint says whose a token is, the usage
+# endpoint how much it has used.
+SIBLINGS="$CACHE_HOME/siblings"
+SIBLING_LOG="$SIBLINGS/calls.log"
+mkdir -p "$SIBLINGS/bin"
+cat >"$SIBLINGS/bin/omp" <<'SH'
+#!/bin/bash
+echo "omp $*" >>"$SIBLING_LOG"
+case "$*" in
+  "token anthropic --list") printf '1. a@example.com (Org A)\n2. b@example.com (Org B)\n' ;;
+  "token anthropic --account 1") echo sk-ant-oat01-a ;;
+  "token anthropic --account 2") echo sk-ant-oat01-b ;;
+  *) exit 1 ;;
+esac
+SH
+cat >"$SIBLINGS/bin/pi" <<'SH'
+#!/bin/bash
+echo "pi $*" >>"$SIBLING_LOG"
+if [[ $* == "auth print-bearer-token --provider anthropic" ]]; then
+  echo sk-ant-oat01-p
+else
+  exit 1
+fi
+SH
+chmod +x "$SIBLINGS/bin/omp" "$SIBLINGS/bin/pi"
+cat >"$SIBLINGS/anthropic.py" <<'PY'
+import io, json, urllib.error
+
+OWNERS = {
+  "sk-ant-oat01-a": ("user-a", "org-a"),
+  "sk-ant-oat01-b": ("user-b", "org-b"),
+  "sk-ant-oat01-p": ("user-p", "org-p"),
+}
+USED = {"sk-ant-oat01-a": 11.0, "sk-ant-oat01-b": 22.0, "sk-ant-oat01-p": 33.0}
+
+def install(collector):
+  probes = []
+  def urlopen(request, timeout=None):
+    token = request.get_header("Authorization").split(" ", 1)[1]
+    if request.full_url == collector.PROFILE_ENDPOINT:
+      if token not in OWNERS:
+        raise urllib.error.HTTPError(request.full_url, 401, "unauthorized", None, None)
+      user, org = OWNERS[token]
+      return io.BytesIO(json.dumps({"account": {"uuid": user}, "organization": {"uuid": org}}).encode())
+    probes.append(token)
+    return io.BytesIO(json.dumps({"five_hour": {"utilization": USED.get(token, 0.0)}}).encode())
+  collector.urllib.request.urlopen = urlopen
+  return probes
+PY
+
+borrow_limits() {
+  : >"$SIBLING_LOG"
+  COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" TOKEN="$1" EXPIRES_AT="$2" REFRESH_EXPIRES_AT="$3" \
+    IDENTITY="$4" SIBLINGS="$SIBLINGS" SIBLING_LOG="$SIBLING_LOG" PATH="$SIBLINGS/bin:$PATH" \
+    XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
+import importlib.machinery, importlib.util, json, os, sys
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+sys.path.insert(0, os.environ["SIBLINGS"])
+import anthropic
+
+(collector.cache_root() / "claude-limits.json").unlink(missing_ok=True)
+probes = anthropic.install(collector)
+identity = tuple(os.environ["IDENTITY"].split("/")) if os.environ["IDENTITY"] else ("", "")
+result = collector.collect_limits(
+  os.environ["TOKEN"],
+  int(os.environ["EXPIRES_AT"]),
+  int(os.environ["REFRESH_EXPIRES_AT"]),
+  False,
+  identity=identity,
+)
+print(json.dumps({"result": result, "probes": probes}))
+PY
+}
+
+# omp's second account is the one this home is signed in as: the first is
+# asked, shown to belong to someone else, and passed over.
+paused_borrow=$(borrow_limits "lapsed" 1000 "$live_refresh" "user-b/org-b")
+[[ $(jq -c '.probes' <<<"$paused_borrow") == '["sk-ant-oat01-b"]' ]] ||
+  fail "a paused home probes with the sibling token that is its own" "$paused_borrow"
+[[ $(jq -c '[.result.usageStatusText, .result.live, [.result.limits[].percent]]' <<<"$paused_borrow") == '["",true,[0.22]]' ]] ||
+  fail "a borrowed token's limits are live, with nothing to report" "$paused_borrow"
+pass "a paused home probes with the sibling token that is its own"
+
+# A lapsed refresh token borrows the same way, and pi stands in when omp holds
+# nothing for this home.
+expired_borrow=$(borrow_limits "lapsed" 1000 1000 "user-p/org-p")
+[[ $(jq -c '[.probes, .result.usageStatusText]' <<<"$expired_borrow") == '[["sk-ant-oat01-p"],""]' ]] ||
+  fail "an expired home borrows pi's token when it is the home's own" "$expired_borrow"
+pass "an expired home borrows pi's token when it is the home's own"
+
+# Nothing saved at all, but a profile that names the account: still answerable.
+unsaved_borrow=$(borrow_limits "" 0 0 "user-a/org-a")
+[[ $(jq -c '[.probes, .result.usageStatusText]' <<<"$unsaved_borrow") == '[["sk-ant-oat01-a"],""]' ]] ||
+  fail "a home with no saved token borrows its own sibling token" "$unsaved_borrow"
+pass "a home with no saved token borrows its own sibling token"
+
+# The same account in another organization is another subscription, so its
+# token is not this home's: no probe, and the home still says it is paused.
+other_org=$(borrow_limits "lapsed" 1000 "$live_refresh" "user-a/org-b")
+[[ $(jq -c '[.probes, .result.usageStatusText]' <<<"$other_org") == '[[],"Limits paused"]' ]] ||
+  fail "a sibling token for another organization is never borrowed" "$other_org"
+pass "a sibling token for another organization is never borrowed"
+
+# A home that does not say who it is signed in as cannot be matched, so no
+# sibling is so much as asked.
+unknown=$(borrow_limits "lapsed" 1000 1000 "")
+[[ $(jq -c '[.probes, .result.usageStatusText]' <<<"$unknown") == '[[],"Sign-in expired"]' && ! -s $SIBLING_LOG ]] ||
+  fail "a home with no identity never asks a sibling CLI" "$unknown $(cat "$SIBLING_LOG")"
+pass "a home with no identity never asks a sibling CLI"
+
+# Every registered account is matched on its own. Two lapsed homes, siblings
+# holding only the first one's subscription: the first reads live numbers,
+# the second keeps its own status rather than the first's allowance.
+account_borrow=$(COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" SIBLINGS="$SIBLINGS" SIBLING_LOG="$SIBLING_LOG" \
+  PATH="$SIBLINGS/bin:$PATH" XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
+import importlib.machinery, importlib.util, json, os, pathlib, sys
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+sys.path.insert(0, os.environ["SIBLINGS"])
+import anthropic
+
+homes = pathlib.Path(os.environ["SIBLINGS"]) / "homes"
+for name, user, org in (("main", "user-a", "org-a"), ("work", "user-c", "org-c")):
+  home = homes / name
+  home.mkdir(parents=True, exist_ok=True)
+  login = {"accessToken": "lapsed-" + name, "expiresAt": 1000, "refreshTokenExpiresAt": 1000, "subscriptionType": "max"}
+  (home / ".credentials.json").write_text(json.dumps({"claudeAiOauth": login}))
+  (home / ".claude.json").write_text(json.dumps({"oauthAccount": {"accountUuid": user, "organizationUuid": org}}))
+
+probes = anthropic.install(collector)
+accounts = [
+  collector.account_limits({"id": name, "home": str(homes / name), "active": name == "main"}, False)
+  for name in ("main", "work")
+]
+print(json.dumps({
+  "accounts": [{"id": a["id"], "status": a["usageStatusText"], "used": [l["percent"] for l in a["limits"]]} for a in accounts],
+  "probes": probes,
+}, separators=(",", ":")))
+PY
+)
+[[ $account_borrow == '{"accounts":[{"id":"main","status":"","used":[0.11]},{"id":"work","status":"Sign-in expired","used":[]}],"probes":["sk-ant-oat01-a"]}' ]] ||
+  fail "each registered account borrows only its own subscription's token" "$account_borrow"
+pass "each registered account borrows only its own subscription's token"
+
 # Reuse and --force are decided against a cache that is fresh by the clock, so
 # the probe is answered rather than refused: what matters is whether it ran.
 probe_with_cache() {

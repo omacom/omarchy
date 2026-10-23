@@ -89,8 +89,15 @@ account changed.
 
 Codex CLI will front any OpenAI-compatible backend — `--oss`, or a custom `model_provider` in `config.toml` aimed at Ollama, LM Studio, or a gateway — and those rollouts sit in the same sessions directory as OpenAI-backed ones. The Codex collector skips a rollout whose first `session_meta.model_provider` names anything but the built-in `openai` provider. Rollouts written before Codex recorded that field carry no provider and still count.
 
-Claude limits need a signed-in CLI; without credentials the panel says so and
-falls back to local stats only. A non-default Claude directory is honored via
+Claude limits need a signed-in CLI. Only Claude Code refreshes the token in a
+home's `.credentials.json`, so once that copy has lapsed the collector asks
+`omp` (each account it holds) and then `pi` for a live one. A token is used
+only when Anthropic's profile endpoint says it belongs to the account and
+organization the home's own profile names, so another subscription's numbers
+never land under this home's plan, and nothing is written back to either
+tool's store. With no usable credential the panel says so, keeps drawing the
+last known windows until their reset passes, and is left with local stats
+only once even those are gone. A non-default Claude directory is honored via
 `CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`, Grok via `GROK_HOME`. Grok's
 plan comes from the settings it caches in its home, and its limit from the
 credits endpoint its own `/usage` view reads, asked with each account's
