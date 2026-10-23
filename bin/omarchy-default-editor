@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set the default editor used by omarchy-launch-editor
-# omarchy:args=[code|cursor|zed|sublime_text|helix|vim|emacs|nvim]
+# omarchy:args=[code|cursor|zed|sublime_text|helix|vim|emacs|nvim|air|clion|datagrip|goland|intellij-idea|phpstorm|pycharm|rider|rubymine|rustrover|webstorm]
 # omarchy:examples=omarchy default editor | omarchy default editor code | omarchy default editor helix
 
 installing=false
@@ -34,12 +34,23 @@ vim) selection="vim"; editor="vim"; name="Vim"; glyph= ;;
 emacs) selection="emacs"; editor="emacs"; name="Emacs"; glyph= ;;
 nvim) selection="nvim"; editor="nvim"; name="Neovim"; glyph= ;;
 *)
-  echo "Usage: omarchy-default-editor <code|cursor|zed|sublime_text|helix|vim|emacs|nvim>"
-  exit 1
+  source "$OMARCHY_PATH/default/jetbrains/products.sh"
+  if ! jetbrains_product "$1" || [[ $jetbrains_is_editor == "false" ]]; then
+    echo "Usage: omarchy-default-editor <code|cursor|zed|sublime_text|helix|vim|emacs|nvim|air|clion|datagrip|goland|intellij-idea|phpstorm|pycharm|rider|rubymine|rustrover|webstorm>"
+    exit 1
+  fi
+  selection=$1
+  editor=$jetbrains_command
+  name=$jetbrains_name
+  glyph=
   ;;
 esac
 
-if omarchy-cmd-missing "$editor"; then
+if omarchy-cmd-missing "$editor" || {
+  [[ ${jetbrains_is_editor:-false} == "true" ]] &&
+    omarchy-pkg-present "${jetbrains_packages[0]}" &&
+    omarchy-pkg-missing "${jetbrains_packages[@]}"
+}; then
   if [[ $installing == "false" ]]; then
     exec omarchy-launch-floating-terminal-with-presentation omarchy-default-editor --install "$selection"
   else
@@ -52,6 +63,7 @@ if omarchy-cmd-missing "$editor"; then
     vim) omarchy-pkg-add vim ;;
     emacs) omarchy-install-editor-emacs ;;
     nvim) omarchy-pkg-add neovim ;;
+    *) omarchy-install-jetbrains "$selection" ;;
     esac || exit 1
   fi
 fi

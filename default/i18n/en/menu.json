@@ -620,6 +620,54 @@
   "setup.default.editor.emacs": {
     "label": "Emacs"
   },
+  "setup.default.editor.jetbrains": {
+    "label": "JetBrains",
+    "title": "Default JetBrains Editor"
+  },
+  "setup.default.editor.jetbrains.air": {
+    "label": "Air",
+    "description": "Default JetBrains editor"
+  },
+  "setup.default.editor.jetbrains.clion": {
+    "label": "CLion",
+    "description": "Default JetBrains editor"
+  },
+  "setup.default.editor.jetbrains.datagrip": {
+    "label": "DataGrip",
+    "description": "Default JetBrains editor"
+  },
+  "setup.default.editor.jetbrains.goland": {
+    "label": "GoLand",
+    "description": "Default JetBrains editor"
+  },
+  "setup.default.editor.jetbrains.intellij-idea": {
+    "label": "IntelliJ IDEA",
+    "description": "Default JetBrains editor"
+  },
+  "setup.default.editor.jetbrains.phpstorm": {
+    "label": "PhpStorm",
+    "description": "Default JetBrains editor"
+  },
+  "setup.default.editor.jetbrains.pycharm": {
+    "label": "PyCharm",
+    "description": "Default JetBrains editor"
+  },
+  "setup.default.editor.jetbrains.rider": {
+    "label": "Rider",
+    "description": "Default JetBrains editor"
+  },
+  "setup.default.editor.jetbrains.rubymine": {
+    "label": "RubyMine",
+    "description": "Default JetBrains editor"
+  },
+  "setup.default.editor.jetbrains.rustrover": {
+    "label": "RustRover",
+    "description": "Default JetBrains editor"
+  },
+  "setup.default.editor.jetbrains.webstorm": {
+    "label": "WebStorm",
+    "description": "Default JetBrains editor"
+  },
   "setup.plugin": {
     "label": "Plugins"
   },
@@ -818,6 +866,53 @@
   "install.editor.emacs": {
     "label": "Emacs"
   },
+  "install.editor.jetbrains": {
+    "label": "JetBrains"
+  },
+  "install.editor.jetbrains.air": {
+    "label": "Air",
+    "description": "Install JetBrains editor"
+  },
+  "install.editor.jetbrains.clion": {
+    "label": "CLion",
+    "description": "Install JetBrains editor"
+  },
+  "install.editor.jetbrains.datagrip": {
+    "label": "DataGrip",
+    "description": "Install JetBrains editor"
+  },
+  "install.editor.jetbrains.goland": {
+    "label": "GoLand",
+    "description": "Install JetBrains editor"
+  },
+  "install.editor.jetbrains.intellij-idea": {
+    "label": "IntelliJ IDEA",
+    "description": "Install JetBrains editor"
+  },
+  "install.editor.jetbrains.phpstorm": {
+    "label": "PhpStorm",
+    "description": "Install JetBrains editor"
+  },
+  "install.editor.jetbrains.pycharm": {
+    "label": "PyCharm",
+    "description": "Install JetBrains editor"
+  },
+  "install.editor.jetbrains.rider": {
+    "label": "Rider",
+    "description": "Install JetBrains editor"
+  },
+  "install.editor.jetbrains.rubymine": {
+    "label": "RubyMine",
+    "description": "Install JetBrains editor"
+  },
+  "install.editor.jetbrains.rustrover": {
+    "label": "RustRover",
+    "description": "Install JetBrains editor"
+  },
+  "install.editor.jetbrains.webstorm": {
+    "label": "WebStorm",
+    "description": "Install JetBrains editor"
+  },
   "install.terminal.alacritty": {
     "label": "Alacritty"
   },
@@ -925,6 +1020,15 @@
   },
   "install.development.clojure": {
     "label": "Clojure"
+  },
+  "install.development.jetbrains-toolbox": {
+    "label": "JetBrains Toolbox"
+  },
+  "install.development.jetbrains-gateway": {
+    "label": "JetBrains Gateway"
+  },
+  "install.development.jetbrains-mps": {
+    "label": "JetBrains MPS"
   },
   "install.development.scala": {
     "label": "Scala"

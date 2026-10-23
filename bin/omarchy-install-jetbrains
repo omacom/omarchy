@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Install and launch a JetBrains IDE or development tool
+# omarchy:args=<air|clion|datagrip|goland|intellij-idea|phpstorm|pycharm|rider|rubymine|rustrover|webstorm|toolbox|gateway|mps>
+# omarchy:examples=omarchy install jetbrains pycharm | omarchy install jetbrains air
+
+source "$OMARCHY_PATH/default/jetbrains/products.sh"
+
+if (( $# != 1 )) || ! jetbrains_product "$1"; then
+  echo "Usage: omarchy-install-jetbrains <air|clion|datagrip|goland|intellij-idea|phpstorm|pycharm|rider|rubymine|rustrover|webstorm|toolbox|gateway|mps>" >&2
+  exit 1
+fi
+
+echo "Installing $jetbrains_name..."
+omarchy-pkg-aur-add "${jetbrains_packages[@]}" || exit 1
+
+if omarchy-cmd-missing "$jetbrains_command"; then
+  echo "$jetbrains_name installed without its expected launcher: $jetbrains_command" >&2
+  exit 1
+fi
+
+setsid uwsm-app -- gtk-launch "$jetbrains_desktop" >/dev/null 2>&1 &
