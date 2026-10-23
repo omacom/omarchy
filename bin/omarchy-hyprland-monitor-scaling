@@ -71,6 +71,45 @@ normalize_scale() {
   awk 'NR == 1 { printf "%g\n", $0 }'
 }
 
+# monitors.lua with its comments cut away, so a commented-out example can pose
+# neither as a rule nor as one of its keys. The file ships with several. Each
+# hl.monitor call then gets a line of its own, however it was wrapped.
+monitor_rules() {
+  local monitor_lua="$1"
+
+  [[ -f $monitor_lua ]] || return 0
+  sed -E -e 's/--\[\[[^]]*\]\]//g' -e 's/--.*$//' "$monitor_lua" |
+    tr '\n' ' ' |
+    sed -E -e 's/hl\.monitor[[:space:]]*\(/\nhl.monitor(/g' -e 's/\}[[:space:]]*\)/})\n/g'
+}
+
+# The hl.monitor rules naming this monitor as their output.
+monitor_own_rules() {
+  local monitor_lua="$1" output="$2"
+
+  monitor_rules "$monitor_lua" |
+    grep -E '^hl\.monitor\([[:space:]]*\{.*output[[:space:]]*=[[:space:]]*"'"$output"'"'
+}
+
+# The scale a monitor's own rules set. Hyprland merges every rule for an output,
+# so the last one naming a scale wins. A key is preceded by a table separator
+# so a longer key cannot stand in for it.
+monitor_rule_scale() {
+  monitor_own_rules "$1" "$2" |
+    sed -nE 's/.*[{,;[:space:]]scale[[:space:]]*=[[:space:]]*("[^"]*"|[^,;}[:space:]]+).*/\1/p' | tail -1
+}
+
+# Whether writing the shipped locals and catch-all reaches this monitor at all.
+# A rule of its own replaces the catch-all outright, even one naming no scale,
+# unless its scale defers to the local by name, as the shipped
+# `scale = omarchy_monitor_scale` does.
+persisting_governs_monitor() {
+  local monitor_lua="$1" output="$2"
+
+  [[ -z $(monitor_own_rules "$monitor_lua" "$output") ]] ||
+    [[ $(monitor_rule_scale "$monitor_lua" "$output") == "omarchy_monitor_scale" ]]
+}
+
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
@@ -96,6 +135,15 @@ set_scale() {
 
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
+
+  # Hyprland reloads monitors.lua when it changes, and the reload re-applies
+  # whichever rule governs this monitor. Persisting somewhere that rule does not
+  # read back is therefore worse than not persisting at all: the reload undoes
+  # the scale just set, and the display snaps back a moment after it moved.
+  if [[ -f $monitor_lua ]] && ! persisting_governs_monitor "$monitor_lua" "$active_monitor"; then
+    echo "Not persisting scale: $active_monitor has its own rule in $monitor_lua that overrides the shared scale." >&2
+    return 0
+  fi
 
   # Persist to monitors.lua if the user still has Omarchy's generic catch-all
   # defaults, so the scale survives reboots.
