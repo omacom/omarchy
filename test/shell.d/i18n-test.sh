@@ -119,6 +119,10 @@ const unknownShell = [...shellKeys].filter((key) => !Object.hasOwn(enShell, key)
 assert(unknownShell.length === 0, 'every referenced shell key exists in the English catalog', JSON.stringify(unknownShell))
 
 const cliKeys = collectKeys(path.join(root, 'bin'), [''], /omarchy-i18n (?:--count \S+ )?([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g)
+// Font removal routes these keys through its local `t` helper so an installed
+// checkout with an older catalog can still show useful English text.
+const fontRemove = fs.readFileSync(path.join(root, 'bin/omarchy-font-remove'), 'utf8')
+for (const [, key] of fontRemove.matchAll(/\bt (font\.[a-zA-Z0-9]+(?:\.[a-zA-Z0-9]+)*)/g)) cliKeys.add(key)
 const unreferencedCli = Object.keys(enCli).filter((key) => !cliKeys.has(key))
 assert(unreferencedCli.length === 0, 'every cli catalog key is referenced', JSON.stringify(unreferencedCli))
 const unknownCli = [...cliKeys].filter((key) => !Object.hasOwn(enCli, key))
