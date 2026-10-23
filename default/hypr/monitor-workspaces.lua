@@ -392,7 +392,7 @@ local function adopt(workspace, block)
   end
 
   for _, id in ipairs(candidates) do
-    if vacate(id) then
+    if not hl.get_workspace(id) then
       renumber(workspace, id)
       return true
     end
@@ -554,13 +554,14 @@ function M.reconcile(added, gone)
   local focused_monitor = hl.get_active_monitor()
   local focused_name = focused_monitor and focused_monitor.name
   local changed = false
+  local restored = {}
 
   local function own_views()
     for _, monitor in ipairs(monitors) do
       local block = by_connector[monitor.name]
       local active = monitor.active_workspace
       local own = regular(active) and block_of_id(active.id) == block
-        and (monitor.name ~= added or (active.windows or 0) > 0)
+        and (monitor.name ~= added or not restored[monitor.name] or (active.windows or 0) > 0)
 
       -- A workspace whose monitor is unplugged stays in view where it was put,
       -- unless this monitor has only just arrived on it. An empty one is only
@@ -630,6 +631,7 @@ function M.reconcile(added, gone)
           elseif block_of_id(id) ~= by_connector[monitor.name] then
             adopt(workspace, by_connector[monitor.name])
           end
+          restored[monitor.name] = true
           changed = true
         end
       end

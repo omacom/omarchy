@@ -446,7 +446,7 @@ check(shows("HDMI-A-1") >= 1 and shows("HDMI-A-1") <= 3, "the returning monitor 
 ' || fail "a returning monitor reclaims its original workspace numbers even when started on one of them"
 pass "a returning monitor reclaims its original workspace numbers even when started on one of them"
 
-run_lua dropout '
+run_lua dropout-visible '
 plug("HDMI-A-1", 0, "LG", 1)
 plug("DP-1", 1, "DELL", 11)
 world.focused = "HDMI-A-1"
@@ -473,7 +473,7 @@ check(shows("DP-1") >= 11 and shows("DP-1") <= 20, "the other monitor is back on
 ' || fail "a returning monitor reclaims its numbers when the other monitor was showing one of them"
 pass "a returning monitor reclaims its numbers when the other monitor was showing one of them"
 
-run_lua dropout '
+run_lua dropout-shown '
 plug("HDMI-A-1", 0, "LG", 1)
 plug("DP-1", 1, "DELL", 11)
 world.focused = "HDMI-A-1"
@@ -494,6 +494,38 @@ check(world.windows["0xa"].workspace == 2 and world.windows["0xb"].workspace == 
 check(shows("HDMI-A-1") == 2 or shows("HDMI-A-1") == 3, "the returning monitor shows a restored workspace, not empty " .. shows("HDMI-A-1"))
 ' || fail "a returning monitor shows its restored workspaces rather than the empty one it started on"
 pass "a returning monitor shows its restored workspaces rather than the empty one it started on"
+
+run_lua arrival '
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+
+-- A workspace rule put the new monitor on an empty workspace of its own, and nothing comes back to it.
+plug("DP-1", 1, "LG", 15)
+world.focused = "DP-1"
+world.handlers["monitor.added"]({ name = "DP-1" })
+check(shows("DP-1") == 15, "a new monitor keeps the empty workspace it arrived on, not " .. shows("DP-1"))
+' || fail "a monitor with nothing to restore keeps the empty workspace it arrived on"
+pass "a monitor with nothing to restore keeps the empty workspace it arrived on"
+
+run_lua placed '
+plug("eDP-1", 0, "Panel", 2)
+plug("DP-1", 1, "LG", 11)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xe", 2)
+
+-- A window rule left workspace 1 on DP-1, which is looking at its empty 11.
+world.workspaces[#world.workspaces + 1] = { id = 1, monitor = "DP-1" }
+world.windows["0xa"] = { workspace = 1 }
+monitor_named("DP-1").active = 11
+world.handlers["config.reloaded"]()
+check(world.windows["0xa"].workspace == 12, "the workspace joins the block beside the empty one, not on " .. world.windows["0xa"].workspace)
+check(shows("DP-1") == 11 and not on(21), "the empty workspace in view stays where it is")
+' || fail "a workspace joining a block leaves the empty workspace in view alone"
+pass "a workspace joining a block leaves the empty workspace in view alone"
 
 run_lua merge '
 plug("eDP-1", 0, "Panel", 1)
