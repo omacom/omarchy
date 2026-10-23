@@ -25,6 +25,7 @@ Item {
   property bool expectedStop: false
   property bool pendingRun: false
   property string phase: ""        // "down" | "up" | ""
+  property bool sampled: false     // the phase has reported its first sample
   property string stderrText: ""
   property string downloadMbps: ""
   property string uploadMbps: ""
@@ -79,6 +80,14 @@ Item {
 
     if (phase === "down") downloadMbps = String(value)
     else if (phase === "up") uploadMbps = String(value)
+    else return
+
+    // The window opens on the first sample: fetching endpoints and starting
+    // workers can take most of it before the helper reports anything.
+    if (!sampled) {
+      sampled = true
+      phaseTimer.restart()
+    }
   }
 
   function runSpeedTest() {
@@ -98,6 +107,7 @@ Item {
   function startPhase(nextPhase) {
     expectedStop = false
     phase = nextPhase
+    sampled = false
     stderrText = ""
     speedTestProc.command = ["omarchy-network-speedtest", nextPhase]
     speedTestProc.running = true
@@ -162,7 +172,8 @@ Item {
 
   Timer {
     id: phaseTimer
-    interval: 5000
+    // Until the first sample this bounds a warm-up that never reports.
+    interval: root.sampled ? 5000 : 20000
     repeat: false
     onTriggered: root.stopPhase()
   }
