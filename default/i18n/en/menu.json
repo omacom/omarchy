@@ -854,6 +854,9 @@
   "install.ai.perplexity": {
     "label": "Perplexity"
   },
+  "install.ai.rea": {
+    "label": "REA"
+  },
   "install.ai.t3-code": {
     "label": "T3 Code"
   },
@@ -1072,6 +1075,9 @@
   },
   "remove.ai.perplexity": {
     "label": "Perplexity"
+  },
+  "remove.ai.rea": {
+    "label": "REA"
   },
   "remove.ai.t3-code": {
     "label": "T3 Code"

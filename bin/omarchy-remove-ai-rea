@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# omarchy:summary=Remove REA along with its agent registrations and its own caches.
+
+set -e
+
+# REA's own uninstall takes its MCP server and skill out of every agent setup
+# registered it with, leaving the agents' other configuration alone, and
+# --purge-data clears its caches and state under ~/.rea. A REA too broken to
+# run that would otherwise be impossible to remove, so offer to go ahead
+# anyway; without a terminal to ask in, keeping it is the answer.
+if ! rea uninstall --purge-data; then
+  echo ""
+  echo "REA couldn't take itself out of your agents' configurations."
+  if [[ -t 0 && -t 2 ]] &&
+    gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n rea.removeAnyway)"; then
+    echo "Check your agents' MCP settings for a server named rea."
+  else
+    exit 1
+  fi
+fi
+
+mise uninstall rea --all
+mise rm -g rea
+
+echo ""
+echo "REA has been removed."
