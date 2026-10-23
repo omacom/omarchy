@@ -29,6 +29,10 @@ Item {
   property string downloadMbps: ""
   property string uploadMbps: ""
   property string error: ""
+  // The helper needs seconds of warm-up (endpoint fetch, worker spawn, first
+  // sampling interval) before its first line. The 5s measurement window must
+  // therefore start on the first sample, not at process launch (#12854).
+  property bool sampleSeen: false
 
   readonly property real downloadValue: toMbps(downloadMbps)
   readonly property real uploadValue: toMbps(uploadMbps)
@@ -51,6 +55,7 @@ Item {
     root.opened = false
     root.pendingRun = false
     phaseTimer.stop()
+    warmupTimer.stop()
     // Clear the phase before killing the process: onExited advances to the
     // upload phase when it still reads "down".
     root.phase = ""
@@ -77,6 +82,12 @@ Item {
     var value = parseFloat(line)
     if (!isFinite(value) || value < 0) return
 
+    if (!sampleSeen) {
+      sampleSeen = true
+      warmupTimer.stop()
+      phaseTimer.restart()
+    }
+
     if (phase === "down") downloadMbps = String(value)
     else if (phase === "up") uploadMbps = String(value)
   }
@@ -99,13 +110,15 @@ Item {
     expectedStop = false
     phase = nextPhase
     stderrText = ""
+    sampleSeen = false
     speedTestProc.command = ["omarchy-network-speedtest", nextPhase]
     speedTestProc.running = true
-    phaseTimer.restart()
+    warmupTimer.restart()
   }
 
   function stopPhase() {
     phaseTimer.stop()
+    warmupTimer.stop()
     if (speedTestProc.running) {
       expectedStop = true
       speedTestProc.running = false
@@ -140,6 +153,7 @@ Item {
     }
     onExited: function(exitCode) {
       phaseTimer.stop()
+      warmupTimer.stop()
 
       if (root.pendingRun) {
         root.pendingRun = false
@@ -163,6 +177,15 @@ Item {
   Timer {
     id: phaseTimer
     interval: 5000
+    repeat: false
+    onTriggered: root.stopPhase()
+  }
+
+  // Gives up on a phase whose helper never produces a sample, so a wedged
+  // run still ends instead of measuring forever.
+  Timer {
+    id: warmupTimer
+    interval: 20000
     repeat: false
     onTriggered: root.stopPhase()
   }
