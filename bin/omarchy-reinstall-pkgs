@@ -20,4 +20,31 @@ omarchy-update-pacman -Suu --noconfirm
 # Ensure this platform's default packages are installed
 default_packages=$(omarchy-pkg-defaults)
 mapfile -t packages <<<"$default_packages"
-omarchy-update-pacman -Syu --noconfirm --needed "${packages[@]}"
+
+# Leave out a default that another installed package provides in its place, such
+# as a drop-in replacement. --needed only skips a package installed under its own
+# name, so pacman would try to swap the replacement out, and --noconfirm declines
+# that conflict, which fails the whole install.
+installed_names=$(pacman -Qq)
+declare -A installed unsatisfied
+while IFS= read -r name; do [[ -z $name ]] || installed[$name]=1; done <<<"$installed_names"
+absent=()
+for package in "${packages[@]}"; do
+  [[ -n ${installed[$package]:-} ]] || absent+=("$package")
+done
+if (( ${#absent[@]} > 0 )); then
+  # pacman -T exits 127 when it lists unsatisfied names; any other failure is an
+  # error, which would otherwise leave every absent default out.
+  status=0
+  unsatisfied_names=$(pacman -T -- "${absent[@]}") || status=$?
+  (( status == 0 || status == 127 )) || exit "$status"
+  while IFS= read -r name; do [[ -z $name ]] || unsatisfied[$name]=1; done <<<"$unsatisfied_names"
+fi
+wanted=()
+for package in "${packages[@]}"; do
+  if [[ -n ${installed[$package]:-} || -n ${unsatisfied[$package]:-} ]]; then
+    wanted+=("$package")
+  fi
+done
+
+omarchy-update-pacman -Syu --noconfirm --needed "${wanted[@]}"

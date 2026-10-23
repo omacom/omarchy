@@ -136,6 +136,27 @@ cat >"$work/stubs/omarchy-refresh-pacman" <<'SH'
 printf 'refresh %s\n' "$*" >>"$STUB_LOG"
 [[ -z ${REFRESH_FAILS:-} ]]
 SH
+# Installed package names come from $STUB_INSTALLED, and names other installed
+# packages provide from $STUB_PROVIDED; with neither, nothing is installed.
+# PACMAN_T_FAILS makes pacman -T fail the way a broken database does.
+cat >"$work/stubs/pacman" <<'SH'
+#!/bin/bash
+case $1 in
+  -Qq) cat "${STUB_INSTALLED:-/dev/null}" ;;
+  -T)
+    [[ -z ${PACMAN_T_FAILS:-} ]] || { echo "error: failed to query" >&2; exit 1; }
+    shift 2
+    status=0
+    for dep in "$@"; do
+      if ! grep -Fxq -- "$dep" "${STUB_INSTALLED:-/dev/null}" "${STUB_PROVIDED:-/dev/null}"; then
+        printf '%s\n' "$dep"
+        status=127
+      fi
+    done
+    exit "$status"
+    ;;
+esac
+SH
 chmod +x "$work/stubs/"*
 
 for platform in aarch64 x86; do
@@ -148,6 +169,29 @@ for platform in aarch64 x86; do
     fail "$platform: reinstall installs the platform's default set" "$(tail -n 1 "$STUB_LOG")"
 done
 pass "omarchy-reinstall-pkgs installs the platform's default set"
+
+# A default that another installed package provides in its place (rwsm-git for
+# uwsm) is left out, so pacman does not try to swap the replacement back. A
+# default that is missing outright is still installed.
+export STUB_LOG="$work/provided.log" STUB_INSTALLED="$work/installed" STUB_PROVIDED="$work/provided"
+: >"$STUB_LOG"
+{ grep -vx -e uwsm -e btop "$work/x86.packages"; echo rwsm-git; } >"$STUB_INSTALLED"
+echo uwsm >"$STUB_PROVIDED"
+OMARCHY_PROC_ROOT="$work/x86/proc" PATH="$work/stubs:$work/x86/bin:$ROOT/bin:$PATH" omarchy-reinstall-pkgs
+expected="-Syu --noconfirm --needed $(grep -vx uwsm "$work/x86.packages" | tr '\n' ' ')"
+[[ $(tail -n 1 "$STUB_LOG") == "${expected% }" ]] ||
+  fail "reinstall leaves out a default another package provides" "$(tail -n 1 "$STUB_LOG")"
+unset STUB_INSTALLED STUB_PROVIDED
+pass "omarchy-reinstall-pkgs leaves out a default another installed package provides"
+
+# A failed pacman -T stops the reinstall rather than skipping every absent default.
+: >"$STUB_LOG"
+if PACMAN_T_FAILS=1 OMARCHY_PROC_ROOT="$work/x86/proc" PATH="$work/stubs:$work/x86/bin:$ROOT/bin:$PATH" \
+  omarchy-reinstall-pkgs >/dev/null 2>&1; then
+  fail "reinstall stops when pacman -T fails"
+fi
+! grep -q -- '--needed' "$STUB_LOG" || fail "reinstall installs nothing when pacman -T fails" "$(cat "$STUB_LOG")"
+pass "omarchy-reinstall-pkgs stops when pacman -T fails"
 
 # Reinstall requests the platform's default channel explicitly; a failed refresh
 # stops the reinstall.
