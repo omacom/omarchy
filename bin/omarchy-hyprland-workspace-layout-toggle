@@ -20,15 +20,26 @@ if [[ $DIRECTION != "next" && $DIRECTION != "back" ]]; then
   exit 1
 fi
 
-ACTIVE_WORKSPACE=$(hyprctl activeworkspace -j | jq -r '.id')
-# Named workspaces report a negative id, and Hyprland reads a leading "-" as a
-# selector relative to the current workspace: targeting one lands on workspace 1
-# and reconfigures that instead.
-[[ $ACTIVE_WORKSPACE =~ ^[0-9]+$ ]] || exit 1
 MODES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts"
-MODE_FILE="$MODES_DIR/$ACTIVE_WORKSPACE.lua"
 
-CURRENT_MODE=$(omarchy-hyprland-workspace-layout-current)
+# hyprctl activeworkspace never reports a special workspace, so an open scratchpad
+# is read off the focused monitor and addressed by its name, never its negative id.
+SPECIAL_WORKSPACE=$(hyprctl monitors -j | jq -r 'first(.[] | select(.focused) | .specialWorkspace.name // "") // ""')
+
+if [[ -n $SPECIAL_WORKSPACE ]]; then
+  ACTIVE_WORKSPACE=$SPECIAL_WORKSPACE
+  # The file is loaded back as a Lua module, where a dot means a directory.
+  MODE_FILE="$MODES_DIR/${SPECIAL_WORKSPACE//[^A-Za-z0-9_-]/_}.lua"
+  CURRENT_MODE=$(hyprctl workspaces -j | jq -r --arg name "$SPECIAL_WORKSPACE" 'first(.[] | select(.name == $name) | .tiledLayout // "") // ""')
+else
+  ACTIVE_WORKSPACE=$(hyprctl activeworkspace -j | jq -r '.id')
+  # Named workspaces report a negative id, and Hyprland reads a leading "-" as a
+  # selector relative to the current workspace: targeting one lands on workspace 1
+  # and reconfigures that instead.
+  [[ $ACTIVE_WORKSPACE =~ ^[0-9]+$ ]] || exit 1
+  MODE_FILE="$MODES_DIR/$ACTIVE_WORKSPACE.lua"
+  CURRENT_MODE=$(omarchy-hyprland-workspace-layout-current)
+fi
 
 if [[ $DIRECTION == "back" ]]; then
   case "$CURRENT_MODE" in
@@ -42,6 +53,12 @@ else
     scrolling) NEW_MODE=floating ;;
     *) NEW_MODE=dwindle ;;
   esac
+fi
+
+# The floating mode only arranges numbered workspaces, so a special one moves
+# between the two tiled layouts.
+if [[ -n $SPECIAL_WORKSPACE && $NEW_MODE == "floating" ]]; then
+  [[ $CURRENT_MODE == "dwindle" ]] && NEW_MODE=scrolling || NEW_MODE=dwindle
 fi
 
 APPLY="o.workspace_mode({ workspace = \"$ACTIVE_WORKSPACE\", mode = \"$NEW_MODE\" })"
