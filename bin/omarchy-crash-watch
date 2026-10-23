@@ -45,6 +45,13 @@ announce() {
     --exec omarchy-agent-crash "$pid" "$comm" "$exe" "$signal"
 }
 
+# Record the watcher's start time in microseconds, rounded down to the whole
+# second. systemd-coredump records COREDUMP_TIMESTAMP from the kernel's %t with
+# 1-second resolution (<seconds>000000). Rounding down ensures real crashes in
+# the first second of the session are not dropped, while still filtering out
+# earlier-session crashes delayed by slow coredump compression.
+readonly started_at_us=$(( ${OMARCHY_CRASH_WATCH_STARTED_US:-$((10#${EPOCHREALTIME//[!0-9]/}))} / 1000000 * 1000000 ))
+
 # -n 0 so a restart does not re-announce crashes already dealt with.
 journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
   while IFS= read -r entry; do
@@ -52,16 +59,23 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # IFS whitespace, so an empty field collapses into the next delimiter and
     # every field after it shifts along one. A process can set its own comm to
     # nothing, and that crash used to be read as somebody else's and dropped.
-    IFS=$'\t' read -r uid comm pid exe signal < <(
+    IFS=$'\t' read -r uid comm pid exe signal crash_ts < <(
       jq -r 'def field: if . == null or . == "" then "-" else . end;
              [(._UID | field),
               (.COREDUMP_COMM | field),
               (.COREDUMP_PID | field),
               (.COREDUMP_EXE | field),
-              (.COREDUMP_SIGNAL_NAME | field)] | @tsv' <<<"$entry" 2>/dev/null
+              (.COREDUMP_SIGNAL_NAME | field),
+              (.COREDUMP_TIMESTAMP | field)] | @tsv' <<<"$entry" 2>/dev/null
     )
 
     [[ $pid =~ ^[0-9]+$ ]] || continue
+
+    # Ignore crashes that occurred before this watcher instance started.
+    # systemd-coredump stores COREDUMP_TIMESTAMP in microseconds since the epoch.
+    if [[ $crash_ts =~ ^[0-9]+$ ]]; then
+      ((10#$crash_ts >= started_at_us)) || continue
+    fi
 
     # The toast only offers a diagnosis, so it has nothing to offer until an
     # agent is chosen. Checked per crash, not at startup, so picking one takes
