@@ -35,9 +35,30 @@ Item {
     onTriggered: root.remapping = false
   }
 
+  // Quickshell signals x and y on every geometry change, so a rotation or mode
+  // change that keeps the origin would remap too. Only a moved origin does.
+  property int lastX: 0
+  property int lastY: 0
+
+  function syncOrigin() {
+    if (!screen) return
+    lastX = screen.x
+    lastY = screen.y
+  }
+
+  function originMoved() {
+    if (!screen || (screen.x === lastX && screen.y === lastY)) return
+    lastX = screen.x
+    lastY = screen.y
+    settleTimer.restart()
+  }
+
+  Component.onCompleted: syncOrigin()
+  onScreenChanged: syncOrigin()
+
   Connections {
     target: root.screen
-    function onXChanged() { settleTimer.restart() }
-    function onYChanged() { settleTimer.restart() }
+    function onXChanged() { root.originMoved() }
+    function onYChanged() { root.originMoved() }
   }
 }
