@@ -10,7 +10,6 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Services.Notifications
-import Quickshell.Services.Pipewire
 import qs.Commons
 import qs.Commons as Commons
 
@@ -50,7 +49,6 @@ Item {
   readonly property string displayMode: preferences.displayMode
   readonly property string displayName: preferences.displayName
   readonly property bool stepsAside: preferences.fullscreenOverlay === "all"
-  readonly property bool offerSnoozeWhenSharing: preferences.offerSnoozeWhenSharing
   onStepsAsideChanged: hyprRefresh.restart()
 
   // How many sources, held notifications per source, and recent ones the panel lists.
@@ -115,53 +113,8 @@ Item {
     saveQuiet()
   }
 
-  // Undoes both silencing and snoozing everything.
-  function letEverythingThrough() {
-    setDoNotDisturb(false)
-    unsnooze(globalKey)
-  }
-
-  readonly property bool quiet: doNotDisturb || globalSnoozeUntil > 0
-
-  // ---------------------------------------------------- screen sharing
-  //
-  // Watch the portal's PipeWire stream lifetime rather than frame activity,
-  // which screenshots and VNC also produce. Sharing only offers a timed snooze.
-  readonly property var sharingCandidates: {
-    var nodes = Pipewire.nodes.values, out = []
-    for (var i = 0; i < nodes.length && out.length < 64; i++)
-      if (nodes[i].type === PwNodeType.VideoSource) out.push(nodes[i])
-    return out
-  }
-  PwObjectTracker { objects: service.sharingCandidates }
-  readonly property int sharingStreams: {
-    if (!Pipewire.ready) return 0
-    var count = 0
-    for (var i = 0; i < sharingCandidates.length; i++) {
-      var node = sharingCandidates[i]
-      if (!node.ready) continue
-      var props = node.properties
-      if (props["media.class"] === "Video/Source"
-          && String(props["media.name"] || "").indexOf("xdph-streaming-") === 0) count++
-    }
-    return count
-  }
-  readonly property bool sharingActive: sharingStreams > 0
-  readonly property bool sharingDetectionAvailable: Pipewire.ready
-  property bool sharingOfferHandled: false
-  readonly property bool sharingOfferPending: offerSnoozeWhenSharing && sharingActive
-    && !sharingOfferHandled && !doNotDisturb && !globalSnoozeUntil
-  onSharingActiveChanged: {
-    sharingOfferHandled = sharingActive && (doNotDisturb || globalSnoozeUntil > 0)
-  }
-  onDoNotDisturbChanged: { if (doNotDisturb && sharingActive) sharingOfferHandled = true }
-  onGlobalSnoozeUntilChanged: { if (globalSnoozeUntil > 0 && sharingActive) sharingOfferHandled = true }
-  function dismissSharingOffer() { if (sharingActive) sharingOfferHandled = true }
-  function snoozeSharingOffer(seconds) {
-    if (!sharingOfferPending || [1800, 3600, 14400].indexOf(seconds) < 0) return
-    sharingOfferHandled = true
-    snoozeSource(globalKey, "", seconds, true)
-  }
+  // Persisted: nothing on screen says the desktop is quiet, so a reload must not lift it.
+  function saveQuiet() { saveSoon("quiet") }
 
   readonly property int gap: Style.space(6)
 
@@ -254,132 +207,6 @@ Item {
     return Math.min(maxDuration, Math.max(base, requested > 0 ? requested : 0))
   }
 
-  // ------------------------------------------------------------- snooze
-  //
-  // Keyed by the row's group key: per site for browser notifications
-  // ("web:app.slack.com"), per app otherwise. Snoozed notifications are still recorded.
-  property var snoozes: ({})        // groupKey -> { until: epoch seconds, label, since }
-  property int snoozeRevision: 0
-
-  // Snoozing everything is the same mechanism under a key no source can have.
-  readonly property string globalKey: "*"
-  readonly property double globalSnoozeUntil: { snoozeRevision; return snoozedUntil(globalKey) }
-
-  function shortWords(minutes) {
-    if (minutes < 60) return I18n.t("notifications.minutesShort").arg(I18n.formatNumber(minutes))
-    var hours = Math.round(minutes / 6) / 10
-    return I18n.t("notifications.hoursShort").arg(I18n.formatNumber(hours, hours % 1 ? 1 : 0))
-  }
-
-  // One choice, worked out against the clock as it is now: "tomorrow" is a
-  // different number of seconds at every hour of the day.
-  function snoozeOption(choice) {
-    var value = String(choice || "")
-    var seconds = Settings.snoozeSeconds(value, Date.now())
-    if (!(seconds > 0)) return null
-    if (value === "tomorrow")
-      return { short: I18n.t("notifications.tomorrow"), seconds: seconds }
-    return { short: shortWords(Number(value)), seconds: seconds }
-  }
-
-  readonly property var snoozeOptions: {
-    var choices = Settings.SNOOZE_CHOICES, out = []
-    for (var i = 0; i < choices.length; i++) {
-      var option = snoozeOption(choices[i])
-      if (option) out.push(option)
-    }
-    return out
-  }
-
-  function snoozedUntil(groupKey) {
-    var entry = snoozes[String(groupKey || "")]
-    var until = entry ? Number(entry.until || 0) : 0
-    return until > Date.now() / 1000 ? until : 0
-  }
-
-  // Soonest to wake first, which is the order the panel lists them in.
-  function liveSnoozes() {
-    snoozeRevision
-    var now = Date.now() / 1000, out = []
-    for (var key in snoozes) {
-      if (key === globalKey) continue
-      var entry = snoozes[key]
-      if (!entry || Number(entry.until || 0) <= now) continue
-      out.push({ key: key, label: String(entry.label || key), until: Number(entry.until) })
-    }
-    out.sort(function(a, b) { return a.until - b.until })
-    return out
-  }
-
-  readonly property int snoozeCount: { snoozeRevision; return liveSnoozes().length }
-  readonly property bool anySnooze: snoozeCount > 0 || globalSnoozeUntil > 0
-
-  // Past a year is a mistake, and an infinite snooze would persist as null.
-  readonly property int maxSnoozeSeconds: 366 * 86400
-
-  // `fromNow` re-snoozes rather than extending what was already left.
-  function snoozeSource(groupKey, label, seconds, fromNow) {
-    var key = String(groupKey || "")
-    seconds = Number(seconds)
-    if (!key || !isFinite(seconds) || seconds <= 0) return 0
-    seconds = Math.min(seconds, maxSnoozeSeconds)
-    // Snoozing everything supersedes silencing: the same quiet, with an end.
-    if (key === globalKey) setDoNotDisturb(false)
-    var from = fromNow ? Date.now() / 1000
-                       : Math.max(Date.now() / 1000, snoozedUntil(key))
-    var next = {}
-    for (var k in snoozes) next[k] = snoozes[k]
-    // When this quiet period began, so the panel lists only what it held.
-    var since = (next[key] && snoozedUntil(key)) ? Number(next[key].since || 0)
-                                                 : Date.now() / 1000
-    next[key] = { until: from + seconds, label: String(label || key), since: since }
-    snoozes = next
-    snoozeRevision += 1
-    saveQuiet()
-    // Anything from that source already on screen goes now.
-    var keys = []
-    for (var i = 0; i < toasts.count; i++) {
-      var row = toasts.get(i)
-      if (key === globalKey ? !Delivery.bypassesQuiet(row) : String(row.groupKey || "") === key) keys.push(row.key)
-    }
-    for (var j = 0; j < keys.length; j++) closeToast(keys[j], "snoozed")
-    return next[key].until
-  }
-
-  function unsnooze(groupKey) {
-    var next = {}
-    for (var k in snoozes) if (k !== String(groupKey)) next[k] = snoozes[k]
-    snoozes = next
-    snoozeRevision += 1
-    saveQuiet()
-  }
-
-  function unsnoozeAll() {
-    snoozes = ({})
-    snoozeRevision += 1
-    saveQuiet()
-  }
-
-  // Persisted: nothing on screen says the desktop is quiet, so a reload must not lift it.
-  function saveQuiet() { saveSoon("quiet") }
-
-  // Wakes the bindings so a snooze that has run out stops being counted, and
-  // drops it from the map. Only runs while something is actually snoozed.
-  Timer {
-    interval: 20000
-    repeat: true
-    running: service.anySnooze
-    onTriggered: {
-      var now = Date.now() / 1000, next = {}, dropped = false
-      for (var k in service.snoozes) {
-        if (Number(service.snoozes[k].until || 0) > now) next[k] = service.snoozes[k]
-        else dropped = true
-      }
-      if (dropped) { service.snoozes = next; service.saveQuiet() }
-      service.snoozeRevision += 1
-    }
-  }
-
   // ------------------------------------------------------------- recent
   //
   // Session-only text snapshots of what reached the screen, never live objects.
@@ -388,20 +215,18 @@ Item {
 
   function rememberRecent(row) {
     var key = String(row.key), rows = []
-    if (!doNotDisturb && !globalSnoozeUntil && !snoozedUntil(row.groupKey)) {
-      // A digest keeps source matching apart from the redacted display text.
-      var sourceKey = Qt.md5(String(row.groupKey || ""))
+    if (!doNotDisturb) {
       row = Store.sanitiseForPersistence(row)
       rows.push({
-        key: key, sourceKey: sourceKey,
+        key: key,
         source: String(row.source || row.app || "").slice(0, 120),
         summary: String(row.summary || "").slice(0, 240),
         bodyLine: String(row.bodyLine || "").slice(0, 1000),
         ts: Number(row.ts)
       })
     }
-    // A replacement may move to a snoozed source: drop its old entry even when
-    // the new version belongs only in Held Back.
+    // A replacement that arrives while silenced drops its old entry, as the new
+    // version belongs only in Held Back.
     for (var i = 0; i < recentRows.length && rows.length < recentLimit; i++) {
       if (recentRows[i].key !== key) rows.push(recentRows[i])
     }
@@ -409,15 +234,8 @@ Item {
   }
 
   function recentForPanel(limit) {
-    snoozeRevision
-    if (doNotDisturb || globalSnoozeUntil) return []
-    var excluded = Object.create(null), snoozed = liveSnoozes()
-    for (var i = 0; i < snoozed.length; i++) excluded[Qt.md5(snoozed[i].key)] = true
-    var rows = []
-    for (var j = 0; j < recentRows.length && rows.length < limit; j++) {
-      if (!excluded[recentRows[j].sourceKey]) rows.push(recentRows[j])
-    }
-    return rows
+    if (doNotDisturb) return []
+    return recentRows.slice(0, limit)
   }
 
   // ------------------------------------------------------- what was held
@@ -443,51 +261,30 @@ Item {
     historyRevision += 1
   }
 
-  // When the quiet holding this source began: the earliest of the reasons
-  // currently in force.
-  function quietSince(groupKey) {
-    var entry = snoozes[String(groupKey || "")]
-    var mine = entry && snoozedUntil(groupKey) ? Number(entry.since || 0) : 0
-    var global = globalSnoozeUntil ? Number((snoozes[globalKey] || {}).since || 0) : 0
-    var silence = doNotDisturb ? silencedSince : 0
-    var starts = [mine, global, silence].filter(function(t) { return t > 0 })
-    return starts.length ? Math.min.apply(null, starts) : 0
-  }
-
   function heldFor(groupKey, limit) {
     heldRevision
-    var since = quietSince(groupKey)
     var out = []
     for (var i = 0; i < heldRows.length && out.length < limit; i++) {
       var row = heldRows[i]
       if (String(row.groupKey || "") !== String(groupKey)) continue
-      if (since && Number(row.ts || 0) < since) continue
+      if (silencedSince && Number(row.ts || 0) < silencedSince) continue
       out.push(row)
     }
     return out
   }
 
-  // Sources snoozed by name first, then (while everything is quiet) any other
-  // source that held something.
+  // While silenced, every source that held something since silencing began.
   function quietSources(limit) {
-    snoozeRevision; heldRevision
+    heldRevision
     var rows = [], seen = {}
-    var snoozed = liveSnoozes()
-    var i, key
-    for (i = 0; i < snoozed.length && rows.length < limit; i++) {
-      seen[snoozed[i].key] = true
-      rows.push({ key: snoozed[i].key, label: snoozed[i].label, until: snoozed[i].until,
-                  held: heldFor(snoozed[i].key, heldPerSource) })
-    }
-    if (!doNotDisturb && !globalSnoozeUntil) return rows
-    for (i = 0; i < heldRows.length && rows.length < limit; i++) {
-      key = String(heldRows[i].groupKey || "")
+    if (!doNotDisturb) return rows
+    for (var i = 0; i < heldRows.length && rows.length < limit; i++) {
+      var key = String(heldRows[i].groupKey || "")
       if (!key || seen[key]) continue
       var held = heldFor(key, heldPerSource)
       if (!held.length) continue
       seen[key] = true
-      rows.push({ key: key, label: String(heldRows[i].source || heldRows[i].app || key),
-                  until: 0, held: held })
+      rows.push({ key: key, label: String(heldRows[i].source || heldRows[i].app || key), held: held })
     }
     return rows
   }
@@ -756,8 +553,6 @@ Item {
     // Quiet still records it (unless ephemeral), straight to history.
     var muted = Delivery.quietReason(row, {
       doNotDisturb: doNotDisturb,
-      globalSnoozed: globalSnoozeUntil > 0,
-      sourceSnoozed: snoozedUntil(row.groupKey) > 0,
       codesBypassQuiet: codesBypassQuiet
     })
     if (muted) {
@@ -1287,7 +1082,7 @@ Item {
     }
     if (unsaved.quiet && quietLoaded) {
       delete unsaved.quiet
-      quietFile.setText(Store.serialiseQuiet({ snoozes: snoozes, dnd: doNotDisturb, silencedSince: silencedSince,
+      quietFile.setText(Store.serialiseQuiet({ dnd: doNotDisturb, silencedSince: silencedSince,
                                                codesBypassQuiet: codesBypassQuiet }))
     }
   }
@@ -1318,13 +1113,11 @@ Item {
   function applyQuiet(read) {
     if (quietLoaded) return
     if (read) {
-      snoozes = read.snoozes
       doNotDisturb = read.dnd
       silencedSince = read.silencedSince
       if (read.codesBypassQuiet !== null) codesBypassQuiet = read.codesBypassQuiet
     }
     quietLoaded = true
-    snoozeRevision += 1
     if (unsaved.quiet) saveSoon("quiet")
   }
 
@@ -1542,9 +1335,6 @@ Item {
     function probe(): string {
       return JSON.stringify({ toasts: toasts.count,
         doNotDisturb: service.doNotDisturb, expanded: service.expanded,
-        sharingActive: service.sharingActive, sharingStreams: service.sharingStreams,
-        sharingOfferPending: service.sharingOfferPending, offerSnoozeWhenSharing: service.offerSnoozeWhenSharing,
-        globalSnoozeUntil: service.globalSnoozeUntil,
         displayMode: service.displayMode, displayName: service.displayName,
         displays: service.displayNames, focusedDisplay: service.focusedDisplayName,
         targetDisplay: service.targetDisplayName,
@@ -1708,11 +1498,6 @@ Item {
               onExpired: service.closeToast(model.key, "expired")
               onActivated: service.activate(model.key)
               onDismissed: service.closeToast(model.key, "dismissed")
-              snoozeOptions: service.snoozeOptions
-              onSnoozeRequested: function(seconds) {
-                service.snoozeSource(String(model.groupKey || ""),
-                                     String(model.source || model.app || ""), seconds)
-              }
             }
           }
         }

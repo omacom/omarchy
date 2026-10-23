@@ -242,16 +242,14 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
 
 // ------------------------------------------------------------------ delivery
 {
-  const state = over => ({ doNotDisturb: false, globalSnoozed: false, sourceSnoozed: false, codesBypassQuiet: true, ...over })
+  const state = over => ({ doNotDisturb: false, codesBypassQuiet: true, ...over })
   for (const [row, over, expected] of [
     [{ app: 'Slack', urgency: 1 }, {}, ''],
     [{ app: 'Slack', urgency: 1 }, { doNotDisturb: true }, 'silenced'],
-    [{ app: 'Slack', urgency: 1 }, { globalSnoozed: true }, 'snoozed'],
-    [{ app: 'Slack', urgency: 1 }, { sourceSnoozed: true }, 'snoozed'],
     [{ app: 'Slack', urgency: 2 }, { doNotDisturb: true }, 'silenced'],      // a branded critical does not punch through
     [{ app: 'notify-send', urgency: 2 }, { doNotDisturb: true }, ''],
     [{ app: 'notify-send', urgency: 1 }, { doNotDisturb: true }, 'silenced'],
-    [{ app: 'omarchy-action', urgency: 0 }, { globalSnoozed: true }, ''],
+    [{ app: 'omarchy-action', urgency: 0 }, { doNotDisturb: true }, ''],
     [{ app: 'Google', urgency: 1, code: '482913' }, { doNotDisturb: true }, ''],
     [{ app: 'Google', urgency: 1, code: '482913' }, { doNotDisturb: true, codesBypassQuiet: false }, 'silenced'],
   ]) assert.equal(Delivery.quietReason(row, state(over)), expected, JSON.stringify([row, over]))
@@ -280,17 +278,11 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
 
 // ------------------------------------------------------------------ settings
 { // Every key optional, every invalid value falls back.
-  const r = Settings.resolve({ fullscreenOverlay: 'steam-away', historyHours: 7, displayName: 7,
-                               offerSnoozeWhenSharing: 'no' })
+  const r = Settings.resolve({ fullscreenOverlay: 'steam-away', historyHours: 7, displayName: 7 })
   assert.equal(r.fullscreenOverlay, 'all', 'retired step-aside variants fall back')
   assert.equal(Settings.resolve({ fullscreenOverlay: 'off' }).fullscreenOverlay, 'off')
   assert.equal(r.historyHours, 24)
   assert.equal(r.displayName, '')
-  assert.equal(r.offerSnoozeWhenSharing, true)
-  const now = new Date(2026, 9, 19, 22, 30).getTime()
-  assert.equal(Settings.snoozeSeconds('60', now), 3600)
-  assert.equal(Settings.snoozeSeconds('tomorrow', now), 9 * 3600 + 1800)
-  assert.equal(Settings.snoozeSeconds('nope', now), 0)
 }
 
 // --------------------------------------------------- Service.qml functions
@@ -343,7 +335,7 @@ function newCapacityScope() {
   const s = {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
     maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, layoutRevision: 0,
-    held: [], doNotDisturb: false, globalSnoozeUntil: 0,
+    held: [], doNotDisturb: false,
     recentRows: [], recentLimit: 20,
     liveEntries: [], historyEntries: [], historyHours: 24, unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
@@ -351,11 +343,8 @@ function newCapacityScope() {
     stepsAside: false, hyprRevision: 0,
     displayNames: ['fixture-display'], focusedDisplayName: 'fixture-display',
     Quickshell: { screens: [] }, Hyprland: { monitorFor: screen => screen.monitor },
-    snoozeRevision: 0, snoozes: {},
     codesBypassQuiet: false,
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
-    snoozedUntil: key => s.snoozes[key] || 0,
-    liveSnoozes: () => Object.keys(s.snoozes).map(key => ({ key })),
     Security: S, Delivery, Store,
     NotificationUrgency: { Critical: 2, Normal: 1, Low: 0 },
     Qt: { callLater: f => later.push(f),
@@ -477,47 +466,33 @@ const summaries = rows => Array.from(rows, row => row.summary)
   const code = s.fakeNotification(1, 'Your verification code is 938271')
   code.appName = 'Source 938271'
   s.admit(code)
-  const group = s.toasts.get(0).groupKey
   s.finishClose(s.keyForOriginal(1), 'expired')
   assert.equal(s.recentForPanel(5)[0].bodyLine, '[redacted]')
   assert.ok(Store.redacted(s.recentForPanel(5)[0]))
   assert.ok(!Store.redacted({ summary: 'Verification notification', body: 'a real message' }))
   assert.ok(!JSON.stringify(s.recentRows).includes('938271'))
-  s.snoozes[group] = 1
-  assert.equal(s.recentForPanel(5).length, 0)
 }
 
-{ // Full quiet hides the entire recent list and held arrivals never backfill it.
+{ // Silencing hides the entire recent list and held arrivals never backfill it.
   const s = newCapacityScope()
   s.admit(s.fakeNotification(1, 'Before quiet'))
   s.doNotDisturb = true
   s.handleNotification(s.fakeNotification(2, 'Silenced arrival'))
   assert.equal(s.recentForPanel(5).length, 0)
   s.doNotDisturb = false
-  s.globalSnoozeUntil = 1
-  s.handleNotification(s.fakeNotification(3, 'Global snooze arrival'))
-  assert.equal(s.recentForPanel(5).length, 0)
-  s.globalSnoozeUntil = 0
   assert.deepEqual(summaries(s.recentForPanel(5)), ['Before quiet'])
 }
 
-{ // Filter before applying N, preserving other sources and restoring earlier rows on wake.
+{ // A replacement that arrives while silenced drops its earlier recent entry.
   const s = newCapacityScope()
-  const snoozed = s.fakeNotification(2, 'Soon snoozed')
-  snoozed.appName = 'Noisy'
-  s.admit(s.fakeNotification(1, 'Other source'), snoozed)
-  const group = s.toasts.get(0).groupKey
-  s.snoozes[group] = 1
-  assert.deepEqual(summaries(s.recentForPanel(1)), ['Other source'])
-  const held = s.fakeNotification(3, 'Held arrival')
-  held.appName = 'Noisy'
-  s.handleNotification(held)
-  delete s.snoozes[group]
-  assert.deepEqual(summaries(s.recentForPanel(5)), ['Soon snoozed', 'Other source'])
-  s.snoozes[group] = 1
-  snoozed.replace({ summary: 'Updated while snoozed' })
+  const muted = s.fakeNotification(2, 'Before silence')
+  muted.appName = 'Noisy'
+  s.admit(s.fakeNotification(1, 'Other source'), muted)
+  assert.deepEqual(summaries(s.recentForPanel(5)), ['Before silence', 'Other source'])
+  s.doNotDisturb = true
+  muted.replace({ summary: 'Updated while silenced' })
   s.drainCallLater()
-  delete s.snoozes[group]
+  s.doNotDisturb = false
   assert.deepEqual(summaries(s.recentForPanel(5)), ['Other source'])
 }
 
@@ -648,13 +623,12 @@ for (const held of [true, false]) { // A cancelled pending card frees exactly on
   assert.equal(s.liveCount(), 0)
 }
 
-for (const quiet of ['silenced', 'snoozed']) { // Quiet closes a muted update; only Omarchy and bare notify-send critical get through.
+for (const holding of [false, true]) { // Silencing closes a muted update; only Omarchy and bare notify-send critical get through.
   const s = newCapacityScope()
-  s.pointerHolding = quiet === 'snoozed'
+  s.pointerHolding = holding
   const muted = s.fakeNotification(1, 'Before quiet')
   s.handleNotification(muted)
-  if (quiet === 'silenced') s.doNotDisturb = true
-  else s.snoozedUntil = () => 12345
+  s.doNotDisturb = true
   muted.replace({ summary: 'Quiet update' })
   s.releaseHeld()
   s.drainCallLater()
@@ -670,7 +644,7 @@ for (const quiet of ['silenced', 'snoozed']) { // Quiet closes a muted update; o
     s.handleNotification(n)
     s.releaseHeld()
     s.drainCallLater()
-    assert.equal(s.toasts.count - before, shows ? 1 : 0, quiet + ': ' + summary)
+    assert.equal(s.toasts.count - before, shows ? 1 : 0, (holding ? 'holding: ' : '') + summary)
     if (shows) assert.equal(s.toasts.get(0).summary, summary)
   }
 }
@@ -855,7 +829,7 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   assert.equal(Store.retain([entry('a', 25 * 3600)], 168, now).length, 1)
   assert.equal(Store.retain([entry('a', 25 * 3600)], 5, now).length, 0, 'an unknown retention is the default day')
   // Held back means quiet kept it off the screen.
-  const rows = [entry('a', 1, 'snoozed'), entry('b', 2, 'dismissed'), entry('c', 3, 'silenced'), entry('d', 4, 'snoozed')]
+  const rows = [entry('a', 1, 'silenced'), entry('b', 2, 'dismissed'), entry('c', 3, 'silenced'), entry('d', 4, 'silenced')]
   eq(Store.held(rows, 2).map(e => e.key), ['a', 'c'])
   assert.equal(Store.closedEntry({ key: 'x' }, 'Bad reason!', 1).closed_reason, '')
 }
@@ -912,16 +886,13 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
 }
 
 { // quiet.json keeps today's shape, and anything else in it is ignored.
-  const state = { snoozes: { 'web:app.slack.com': { until: 2e9, label: 'Slack', since: 1e9 } }, dnd: true, silencedSince: 5,
-                  codesBypassQuiet: false }
+  const state = { dnd: true, silencedSince: 5, codesBypassQuiet: false }
   eq(Store.parseQuiet(Store.serialiseQuiet(state)), state)
   eq(JSON.parse(Store.serialiseQuiet(state)), state)
   for (const text of ['', 'nope', '[]', '"dnd"', 'null'])
     assert.equal(Store.parseQuiet(text), null, text)
-  const odd = Store.parseQuiet('{"snoozes":{"__proto__":{"until":1},"a":{"until":"x"},"b":null,"c":{"until":5,"label":7}},' +
-                               '"dnd":"yes","silencedSince":"later","codesBypassQuiet":"no"}')
-  eq(odd, { snoozes: { c: { until: 5, label: '7', since: 0 } }, dnd: false, silencedSince: 0, codesBypassQuiet: null })
-  assert.ok(!('until' in odd.snoozes), 'a __proto__ key cannot replace the prototype')
+  const odd = Store.parseQuiet('{"snoozes":{"a":{"until":5}},"dnd":"yes","silencedSince":"later","codesBypassQuiet":"no"}')
+  eq(odd, { dnd: false, silencedSince: 0, codesBypassQuiet: null })
 }
 
 { // The service: shown rows are saved live, closed ones move to history, quiet

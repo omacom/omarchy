@@ -5,7 +5,7 @@
 var CRITICAL = 2
 
 // Omarchy's own action toasts and bare notify-send critical alerts get through
-// Do Not Disturb and every snooze. Critical alone is not enough: chat apps send
+// Do Not Disturb. Critical alone is not enough: chat apps send
 // critical to force visibility, under their own app name.
 function bypassesQuiet(row) {
   var app = String((row && row.app) || "")
@@ -21,15 +21,13 @@ function isEphemeral(row) {
   return app === "notify-send" || app === "omarchy-action"
 }
 
-// "silenced", "snoozed", or "" when the row shows. A verification code may
-// pass either: it was asked for a moment ago and expires in minutes.
+// "silenced", or "" when the row shows. A verification code may pass: it was
+// asked for a moment ago and expires in minutes.
 function quietReason(row, state) {
-  var reason = state.doNotDisturb ? "silenced"
-             : (state.globalSnoozed || state.sourceSnoozed) ? "snoozed" : ""
-  if (!reason) return ""
+  if (!state.doNotDisturb) return ""
   if (bypassesQuiet(row)) return ""
   if (state.codesBypassQuiet && String((row && row.code) || "")) return ""
-  return reason
+  return "silenced"
 }
 
 // A summary that opens with its own glyph ("󰂚  Silenced": one code point, two

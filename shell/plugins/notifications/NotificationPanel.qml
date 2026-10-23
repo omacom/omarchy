@@ -1,5 +1,5 @@
-// The notification panel: held-back and recent notifications, history, snooze
-// controls and preferences. Hosted per monitor by bar/indicators/Dnd.qml; the
+// The notification panel: held-back and recent notifications, history and
+// preferences. Hosted per monitor by bar/indicators/Dnd.qml; the
 // service decides everything, this only draws it and asks for changes.
 
 import QtQuick
@@ -34,37 +34,26 @@ Item {
   Component.onDestruction: if (service) service.notePanel(root, false)
 
   // ------------------------------------------------------------- state
-  readonly property int snoozeRevision: service ? service.snoozeRevision : 0
   readonly property int heldRevision: service ? service.heldRevision : 0
   readonly property int historyRevision: service ? service.historyRevision : 0
   readonly property bool silenced: service ? service.doNotDisturb : false
-  readonly property var snoozed: { snoozeRevision; return service ? service.liveSnoozes() : [] }
-  readonly property double globalUntil: service ? service.globalSnoozeUntil : 0
-  readonly property bool globalSnoozed: globalUntil > 0
-  readonly property bool quiet: silenced || globalSnoozed
-  readonly property bool hasState: quiet || snoozed.length > 0
   readonly property bool codesLetThrough: service ? service.codesBypassQuiet : true
-  readonly property bool sharingOfferPending: service ? service.sharingOfferPending : false
   readonly property var preferences: service ? service.preferences : ({})
 
-  readonly property var recent: { snoozeRevision; return service ? service.recentForPanel(service.recentCount) : [] }
+  readonly property var recent: service ? service.recentForPanel(service.recentCount) : []
   readonly property var history: { historyRevision; return service ? service.historyRows : [] }
-  readonly property var sources: {
-    snoozeRevision; heldRevision
-    return service ? service.quietSources(service.sourceLimit) : []
-  }
+  readonly property var sources: { heldRevision; return service ? service.quietSources(service.sourceLimit) : [] }
 
   property string expandedKey: ""
   property bool recentExpanded: false
   property bool historyExpanded: false
   property int cursorAt: 0
   property bool cursorLive: false
-  property bool globalChoosing: false
 
-  onQuietChanged: if (quiet) recentExpanded = false
+  onSilencedChanged: if (silenced) recentExpanded = false
   onOpenedChanged: {
     if (service) service.notePanel(root, opened)
-    cursorAt = 0; cursorLive = false; expandedKey = ""; globalChoosing = false
+    cursorAt = 0; cursorLive = false; expandedKey = ""
     recentExpanded = false
     historyExpanded = false
     if (!opened) settingsView = false
@@ -86,17 +75,12 @@ Item {
   readonly property color panelFg: Commons.Color.popups.text
   readonly property color dim: Qt.darker(panelFg, 1.4)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
-
-  // Do not disturb and snooze must never read as the same quiet state.
   readonly property color silencedColour: Commons.Color.urgent
-  readonly property color snoozedColour: Commons.Color.accent
 
   readonly property string bell: "\u{f009a}"
   readonly property string bellOff: "\u{f009b}"
-  readonly property string bellSleep: "\u{f00a0}"
   readonly property string keyGlyph: "\u{f0306}"
   readonly property string keyOff: "\u{f0308}"
-  readonly property string hourglass: "\u{f051f}"
   readonly property string chevronDown: "\u{f0140}"
   readonly property string chevronUp: "\u{f0143}"
 
@@ -105,34 +89,7 @@ Item {
     var locale = Qt.locale(I18n.formatLocale)
     return locale.toString(when, locale.timeFormat(Locale.ShortFormat))
   }
-
-  // A wake time on another day carries a "+1" like a flight arrival.
-  function dayOffset(when) {
-    var today = new Date(); today.setHours(0, 0, 0, 0)
-    var then = new Date(when.getTime()); then.setHours(0, 0, 0, 0)
-    var days = Math.round((then.getTime() - today.getTime()) / 86400000)
-    return days <= 0 ? "" : " +" + I18n.formatNumber(days)
-  }
-
-  // "28m", "3h", then the wake time itself.
-  function waitingFor(until) {
-    var left = Math.max(0, until - Date.now() / 1000)
-    var minutes = Math.max(1, Math.round(left / 60))
-    if (minutes < 60) return I18n.t("notifications.minutesShort").arg(I18n.formatNumber(minutes))
-    if (left < 8 * 3600) return I18n.t("notifications.hoursShort").arg(I18n.formatNumber(Math.max(1, Math.round(left / 3600))))
-    var when = new Date(until * 1000)
-    return clockTime(when) + dayOffset(when)
-  }
-
-  readonly property string stateLine: {
-    if (globalSnoozed) {
-      var when = new Date(globalUntil * 1000)
-      return I18n.t("notifications.snoozedUntil").arg(clockTime(when) + dayOffset(when))
-    }
-    if (silenced) return I18n.t("notifications.dndOn")
-    if (snoozed.length > 0) return I18n.tn("notifications.sourcesSnoozed", snoozed.length).arg(I18n.formatNumber(snoozed.length))
-    return I18n.t("notifications.enabled")
-  }
+  readonly property string stateLine: silenced ? I18n.t("notifications.dndOn") : I18n.t("notifications.enabled")
 
   // ------------------------------------------------------------- preferences
   readonly property var availableScreens: Quickshell.screens || []
@@ -181,17 +138,6 @@ Item {
     if (name) service.setSettings({ displayName: name, displayMode: "specific" })
   }
 
-  function snoozeEverything(seconds) {
-    if (service) service.snoozeSource(service.globalKey, "", seconds, true)
-    globalChoosing = false
-  }
-
-  function toggleQuiet() {
-    if (!service) return
-    if (quiet) service.letEverythingThrough()
-    else service.setDoNotDisturb(true)
-  }
-
   // ------------------------------------------------------------- the panel
   KeyboardPanel {
     id: panel
@@ -212,16 +158,11 @@ Item {
         root.cursorAt = Math.max(0, Math.min(root.sources.length - 1, root.cursorAt + dy))
         root.cursorLive = true
       }
-      // Keys act only on a keyboard-armed cursor row: stray typing at the
-      // open panel must not change what gets through.
+      // Keys act only on a keyboard-armed cursor row.
       onActivateRequested: {
         if (root.settingsView || !root.cursorLive || root.cursorAt >= root.sources.length) return
         var key = root.sources[root.cursorAt].key
         root.expandedKey = root.expandedKey === key ? "" : key
-      }
-      onDeleteRequested: {
-        if (!root.settingsView && root.cursorLive && root.cursorAt < root.sources.length && root.service)
-          root.service.unsnooze(root.sources[root.cursorAt].key)
       }
 
       Flickable {
@@ -286,14 +227,6 @@ Item {
               onToggled: if (root.service) root.service.setSetting("fullscreenOverlay", root.preferences.fullscreenOverlay === "off" ? "all" : "off")
             }
 
-            SwitchRow {
-              label: I18n.t("notifications.suggestSnooze")
-              hint: root.service && !root.service.sharingDetectionAvailable
-                ? I18n.t("notifications.sharingUnavailable")
-                : I18n.t("notifications.suggestSnoozeHint")
-              checked: root.preferences.offerSnoozeWhenSharing !== false
-              onToggled: if (root.service) root.service.setSetting("offerSnoozeWhenSharing", root.preferences.offerSnoozeWhenSharing === false)
-            }
           }
 
           // --------------------------------------------------- notifications
@@ -309,8 +242,8 @@ Item {
               meta: root.stateLine
               foreground: root.panelFg
               fontFamily: root.fontFamily
-              iconOpacity: root.hasState ? 1.0 : 0.5
-              // A fixed square: the three bells differ in width.
+              iconOpacity: root.silenced ? 1.0 : 0.5
+              // A fixed square: the two bells differ in width.
               iconComponent: Component {
                 Item {
                   implicitWidth: hero.iconSize
@@ -319,12 +252,8 @@ Item {
                   Text {
                     textFormat: Text.PlainText
                     anchors.centerIn: parent
-                    text: root.silenced ? root.bellOff
-                        : (root.globalSnoozed || root.snoozed.length > 0) ? root.bellSleep
-                        : root.bell
-                    color: root.silenced ? root.silencedColour
-                         : (root.globalSnoozed || root.snoozed.length > 0) ? root.snoozedColour
-                         : root.panelFg
+                    text: root.silenced ? root.bellOff : root.bell
+                    color: root.silenced ? root.silencedColour : root.panelFg
                     font.family: root.fontFamily
                     font.pixelSize: hero.iconSize
                   }
@@ -335,9 +264,9 @@ Item {
                 Row {
                   spacing: Style.space(6)
 
-                  // Whether verification codes get through quiet.
+                  // Whether verification codes get through Do Not Disturb.
                   ActionButton {
-                    visible: root.hasState || root.globalChoosing
+                    visible: root.silenced
                     anchors.verticalCenter: parent.verticalCenter
                     iconText: root.codesLetThrough ? root.keyGlyph : root.keyOff
                     tooltipText: root.codesLetThrough
@@ -345,17 +274,6 @@ Item {
                       : I18n.t("notifications.allowCodes")
                     foreground: root.codesLetThrough ? root.panelFg : root.dim
                     onClicked: if (root.service) root.service.setCodesBypassQuiet(!root.codesLetThrough)
-                  }
-
-                  ActionButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    iconText: root.globalSnoozed ? root.bell : root.bellSleep
-                    tooltipText: root.globalSnoozed ? I18n.t("notifications.endSnooze") : I18n.t("notifications.snoozeAll")
-                    foreground: root.globalSnoozed ? root.snoozedColour : root.panelFg
-                    onClicked: {
-                      if (root.globalSnoozed) root.service.unsnooze(root.service.globalKey)
-                      else root.globalChoosing = !root.globalChoosing
-                    }
                   }
 
                   ActionButton {
@@ -368,98 +286,19 @@ Item {
                   // On means notifications are coming through.
                   ToggleSwitch {
                     anchors.verticalCenter: parent.verticalCenter
-                    checked: !root.quiet
+                    checked: !root.silenced
                     foreground: root.panelFg
-                    onToggled: root.toggleQuiet()
-                  }
-                }
-              }
-            }
-
-            // A share started: offer a timed snooze, never impose one.
-            BorderSurface {
-              visible: root.sharingOfferPending
-              width: parent.width
-              implicitHeight: sharingOfferContent.implicitHeight + Style.space(16)
-              color: "transparent"
-              borderSpec: Border.controlSpec("normal", root.panelFg, Commons.Color.accent)
-              radius: Style.cornerRadius
-
-              Column {
-                id: sharingOfferContent
-                anchors.fill: parent
-                anchors.margins: Style.space(8)
-                spacing: Style.space(5)
-
-                Text {
-                  width: parent.width
-                  text: I18n.t("notifications.sharingDetected")
-                  textFormat: Text.PlainText
-                  color: root.panelFg
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.bodySmall
-                  font.bold: true
-                }
-
-                Caption {
-                  width: parent.width
-                  text: I18n.t("notifications.sharingQuestion")
-                }
-
-                Flow {
-                  width: parent.width
-                  spacing: Style.space(5)
-
-                  Repeater {
-                    model: root.service && root.sharingOfferPending ? [30, 60, 240] : []
-
-                    ChoiceButton {
-                      required property var modelData
-                      text: root.service.shortWords(modelData)
-                      onClicked: root.service.snoozeSharingOffer(modelData * 60)
-                    }
-                  }
-
-                  ChoiceButton {
-                    text: I18n.t("notifications.notNow")
-                    onClicked: if (root.service) root.service.dismissSharingOffer()
-                  }
-                }
-              }
-            }
-
-            // Global snooze lengths, revealed by its button.
-            Column {
-              width: parent.width
-              spacing: Style.space(5)
-              visible: root.globalChoosing && !root.globalSnoozed
-
-              Hint {
-                visible: root.codesLetThrough
-                text: I18n.t("notifications.codesException")
-              }
-
-              Flow {
-                width: parent.width
-                spacing: Style.space(5)
-
-                Repeater {
-                  model: root.globalChoosing && root.service ? root.service.snoozeOptions : []
-
-                  ChoiceButton {
-                    required property var modelData
-                    text: String(modelData.short)
-                    onClicked: root.snoozeEverything(Number(modelData.seconds))
+                    onToggled: if (root.service) root.service.setDoNotDisturb(!root.silenced)
                   }
                 }
               }
             }
 
             // --------------------------------------------------- recent
-            PanelSeparator { visible: !root.quiet; foreground: root.panelFg }
+            PanelSeparator { visible: !root.silenced; foreground: root.panelFg }
 
             SectionToggle {
-              visible: !root.quiet
+              visible: !root.silenced
               text: I18n.t("notifications.recentHeader").arg(I18n.formatNumber(root.recent.length))
               expanded: root.recentExpanded
               showTooltip: I18n.t("notifications.showRecent")
@@ -468,17 +307,17 @@ Item {
             }
 
             Hint {
-              visible: !root.quiet && root.recentExpanded && root.recent.length === 0
+              visible: !root.silenced && root.recentExpanded && root.recent.length === 0
               text: I18n.t("notifications.noneRecent")
             }
 
             Column {
-              visible: !root.quiet && root.recentExpanded
+              visible: !root.silenced && root.recentExpanded
               width: parent.width
               spacing: Style.spacing.md
 
               Repeater {
-                model: !root.settingsView && !root.quiet && root.recentExpanded ? root.recent : []
+                model: !root.settingsView && !root.silenced && root.recentExpanded ? root.recent : []
 
                 EntryCard {
                   required property var modelData
@@ -488,20 +327,22 @@ Item {
             }
 
             // --------------------------------------------------- held back
-            PanelSeparator { foreground: root.panelFg }
+            PanelSeparator { visible: root.silenced; foreground: root.panelFg }
 
             PanelSectionHeader {
-              text: root.quiet ? I18n.t("notifications.heldBack") : I18n.t("notifications.snoozedSources")
+              visible: root.silenced
+              text: I18n.t("notifications.heldBack")
               foreground: root.panelFg
               fontFamily: root.fontFamily
             }
 
             Hint {
-              visible: root.sources.length === 0
-              text: root.quiet ? I18n.t("notifications.noneHeld") : I18n.t("notifications.noneSnoozed")
+              visible: root.silenced && root.sources.length === 0
+              text: I18n.t("notifications.noneHeld")
             }
 
             Column {
+              visible: root.silenced
               width: parent.width
               spacing: Style.spacing.sm
 
@@ -513,8 +354,6 @@ Item {
                   required property var modelData
                   required property int index
                   readonly property bool expanded: root.expandedKey === modelData.key
-                  readonly property bool snoozedByName: modelData.until > 0
-                  property bool choosing: false
                   width: parent.width
                   spacing: 0
 
@@ -540,39 +379,12 @@ Item {
                         elide: Text.ElideRight
                       }
 
-                      // When it comes back, and what it has held so far.
-                      Row {
+                      // What it has held so far.
+                      Caption {
+                        readonly property int count: line.modelData.held.length
                         width: parent.width
-                        spacing: Style.spacing.sm
-
-                        Text {
-                          textFormat: Text.PlainText
-                          visible: line.snoozedByName
-                          anchors.verticalCenter: parent.verticalCenter
-                          text: root.hourglass
-                          color: root.snoozedColour
-                          font.family: root.fontFamily
-                          font.pixelSize: Math.round(Style.font.caption * 0.85)
-                        }
-
-                        Caption {
-                          visible: line.snoozedByName
-                          text: root.waitingFor(line.modelData.until)
-                          color: root.snoozedColour
-                        }
-
-                        Caption {
-                          visible: line.snoozedByName && line.modelData.held.length > 0
-                          text: "·"
-                        }
-
-                        Caption {
-                          readonly property int count: line.modelData.held.length
-                          visible: count > 0
-                          width: Math.min(implicitWidth, Math.max(0, parent.width - x))
-                          text: I18n.tn("notifications.heldCount", count).arg(I18n.formatNumber(count))
-                          elide: Text.ElideRight
-                        }
+                        text: I18n.tn("notifications.heldCount", count).arg(I18n.formatNumber(count))
+                        elide: Text.ElideRight
                       }
                     }
 
@@ -583,59 +395,18 @@ Item {
                       cursorShape: Qt.PointingHandCursor
                       onContainsMouseChanged: if (containsMouse) {
                         root.cursorAt = line.index
-                        // Hover selects, but only keyboard navigation arms the
-                        // state-changing keys on this row.
                         root.cursorLive = false
                       }
                       onClicked: root.expandedKey = line.expanded ? "" : line.modelData.key
                     }
 
-                    Row {
+                    ActionButton {
                       id: controls
                       anchors.right: parent.right
                       anchors.verticalCenter: parent.verticalCenter
-                      spacing: Style.spacing.xs
-
-                      Row {
-                        spacing: Style.spacing.xs
-                        visible: line.choosing
-
-                        Repeater {
-                          model: line.choosing && root.service ? root.service.snoozeOptions : []
-
-                          ChoiceButton {
-                            required property var modelData
-                            text: String(modelData.short)
-                            // From now, not on top of what is left.
-                            onClicked: {
-                              root.service.snoozeSource(line.modelData.key, line.modelData.label,
-                                                        Number(modelData.seconds), true)
-                              line.choosing = false
-                            }
-                          }
-                        }
-                      }
-
-                      ActionButton {
-                        visible: line.modelData.held.length > 0
-                        iconText: line.expanded ? root.chevronUp : root.chevronDown
-                        tooltipText: line.expanded ? I18n.t("notifications.hideHeld") : I18n.t("notifications.showHeld")
-                        onClicked: root.expandedKey = line.expanded ? "" : line.modelData.key
-                      }
-
-                      ActionButton {
-                        iconText: line.choosing ? "\u{f0156}" : "\u{f0150}"
-                        tooltipText: line.choosing ? I18n.t("notifications.closeSnoozeOptions")
-                                   : (line.snoozedByName ? I18n.t("notifications.extendSnooze") : I18n.t("notifications.snoozeSource"))
-                        onClicked: line.choosing = !line.choosing
-                      }
-
-                      ActionButton {
-                        visible: line.snoozedByName
-                        iconText: root.bell
-                        tooltipText: I18n.t("notifications.resumeSource")
-                        onClicked: root.service.unsnooze(line.modelData.key)
-                      }
+                      iconText: line.expanded ? root.chevronUp : root.chevronDown
+                      tooltipText: line.expanded ? I18n.t("notifications.hideHeld") : I18n.t("notifications.showHeld")
+                      onClicked: root.expandedKey = line.expanded ? "" : line.modelData.key
                     }
                   }
 
@@ -709,21 +480,6 @@ Item {
                 }
               }
             }
-
-            Button {
-              visible: (root.quiet || root.snoozed.length > 1)
-              width: parent.width
-              text: I18n.t("notifications.resumeAll")
-              bordered: true
-              foreground: root.panelFg
-              fontFamily: root.fontFamily
-              fontSize: Style.font.caption
-              onClicked: {
-                if (!root.service) return
-                root.service.letEverythingThrough()
-                root.service.unsnoozeAll()
-              }
-            }
           }
         }
       }
@@ -750,14 +506,6 @@ Item {
   component ActionButton: PanelActionButton {
     foreground: root.panelFg
     fontFamily: root.fontFamily
-  }
-
-  component ChoiceButton: Button {
-    bordered: true
-    foreground: root.panelFg
-    fontFamily: root.fontFamily
-    fontSize: Style.font.caption
-    verticalPadding: Style.spacing.hairline
   }
 
   component SwitchRow: Column {

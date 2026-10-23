@@ -150,7 +150,7 @@ var RETENTION_HOURS = [0, 1, 24, 168]
 var LIVE_ROW_CHARS = 16384
 var HISTORY_ROW_CHARS = 4096
 // The closing reasons that mean "this never reached the screen".
-var HELD_REASONS = ["snoozed", "silenced"]
+var HELD_REASONS = ["silenced"]
 
 // What a stored row keeps. Derived text is recomputed on restore; codes,
 // links and images never persist, so a stored row cannot assert a
@@ -273,7 +273,7 @@ function displayRows(entries) {
   return entries.map(normalise)
 }
 
-// quiet.json: snoozed sources, Do Not Disturb, when silencing began, and
+// quiet.json: Do Not Disturb, when silencing began, and
 // whether codes get through. null when there is nothing usable in it.
 function parseQuiet(text) {
   var raw = String(text || "")
@@ -281,24 +281,13 @@ function parseQuiet(text) {
   var read
   try { read = JSON.parse(raw) } catch (e) { return null }
   if (!read || typeof read !== "object" || Array.isArray(read)) return null
-  var snoozes = {}, given = read.snoozes
-  if (given && typeof given === "object" && !Array.isArray(given)) {
-    for (var k in given) {
-      if (k === "__proto__") continue
-      var entry = given[k], until = entry ? Number(entry.until) : NaN
-      if (!entry || typeof entry !== "object" || !isFinite(until)) continue
-      var since = Number(entry.since || 0)
-      snoozes[k] = { until: until, label: Security.bounded(String(entry.label || k), 256),
-                     since: isFinite(since) ? since : 0 }
-    }
-  }
   var silencedSince = Number(read.silencedSince || 0)
-  return { snoozes: snoozes, dnd: read.dnd === true, silencedSince: isFinite(silencedSince) ? silencedSince : 0,
+  return { dnd: read.dnd === true, silencedSince: isFinite(silencedSince) ? silencedSince : 0,
            codesBypassQuiet: typeof read.codesBypassQuiet === "boolean" ? read.codesBypassQuiet : null }
 }
 
 function serialiseQuiet(state) {
-  return JSON.stringify({ snoozes: state.snoozes, dnd: !!state.dnd, silencedSince: Number(state.silencedSince || 0),
+  return JSON.stringify({ dnd: !!state.dnd, silencedSince: Number(state.silencedSince || 0),
                           codesBypassQuiet: !!state.codesBypassQuiet }) + "\n"
 }
 

@@ -25,9 +25,7 @@ Item {
   property bool hovered: false
   property double now: Date.now()
   property real cardWidth: Style.space(380)
-  property var snoozeOptions: []             // the daemon's
   property var actions: []                   // what the sender put on the wire
-  property bool menuOpen: false
 
   // The pointer in the deck's coordinates: the deck owns hover, so cards and
   // their buttons work out what is under it themselves.
@@ -66,7 +64,6 @@ Item {
   signal expired()
   signal activated()
   signal dismissed()
-  signal snoozeRequested(int seconds)
   signal codeCopied(string code)
   signal actionInvoked(string identifier)
 
@@ -125,17 +122,8 @@ Item {
     return out
   }
 
-  readonly property var menuDeeds: {
-    var out = []
-    for (var i = 0; i < snoozeOptions.length; i++)
-      out.push({ kind: "snooze", label: String(snoozeOptions[i].short),
-                 value: Number(snoozeOptions[i].seconds) })
-    return out
-  }
-
   function doDeed(deed) {
     var kind = String(deed.kind || "")
-    if (kind === "snooze") { menuOpen = false; snoozeRequested(Number(deed.value)); return }
     if (kind === "action") { actionInvoked(String(deed.value)); return }
     codeCopied(String(deed.value))
     copiedCode = String(deed.value)
@@ -205,8 +193,6 @@ Item {
   // The height the scene says it is right now, on the way there.
   property real drawnHeight: targetHeight
 
-  onHoveredChanged: if (!hovered) menuOpen = false
-  onExpandedChanged: if (!expanded) menuOpen = false
 
   y: scene ? scene.at(row.key, "y") : 0
   z: place.z
@@ -428,11 +414,11 @@ Item {
             anchors.verticalCenter: title.verticalCenter
             spacing: Style.space(5)
 
-            // The time and the hover controls (snooze, close) share one
-            // square and crossfade, so nothing in the headline moves.
+            // The time and the hover close mark share one square and
+            // crossfade, so nothing in the headline moves.
             Item {
-              width: Math.max(stamp.implicitWidth, controls.implicitWidth)
-              height: Math.max(stamp.implicitHeight, controls.implicitHeight)
+              width: Math.max(stamp.implicitWidth, shut.implicitWidth)
+              height: Math.max(stamp.implicitHeight, shut.implicitHeight)
               anchors.verticalCenter: parent.verticalCenter
 
               Text {
@@ -448,67 +434,32 @@ Item {
                 Behavior on opacity { NumberAnimation { duration: card.fade } }
               }
 
-              Row {
-                id: controls
+              Item {
+                id: shut
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
+                implicitWidth: closeMark.implicitWidth + Style.space(6)
+                implicitHeight: closeMark.implicitHeight
                 enabled: card.hovered
                 opacity: card.hovered ? 1 : 0
                 visible: opacity > 0.01
+                readonly property bool hot: card.pointerOver(shut)
                 Behavior on opacity { NumberAnimation { duration: card.fade } }
 
-                // Opens the snooze choices, as a right-click does.
-                Item {
-                  id: nap
-                  anchors.verticalCenter: parent.verticalCenter
-                  implicitWidth: napMark.implicitWidth + Style.space(6)
-                  implicitHeight: napMark.implicitHeight
-                  readonly property bool hot: card.pointerOver(nap)
-
-                  Text {
-                    id: napMark
-                    anchors.centerIn: parent
-                    textFormat: Text.PlainText
-                    text: "\u{f04b2}"
-                    color: nap.hot || card.menuOpen ? Commons.Color.notifications.text : card.dimColor
-                    font.family: Style.font.family
-                    font.pixelSize: Math.round(Style.font.caption * 1.44)
-                  }
-
-                  MouseArea {
-                    anchors.fill: parent
-                    anchors.margins: -Style.space(3)
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: card.menuOpen = !card.menuOpen
-                  }
+                Text {
+                  id: closeMark
+                  anchors.centerIn: parent
+                  textFormat: Text.PlainText
+                  text: "✕"
+                  color: shut.hot ? Commons.Color.notifications.text : card.dimColor
+                  font.pixelSize: Math.round(Style.font.caption * 1.44)
                 }
 
-                Item {
-                  id: shut
-                  anchors.verticalCenter: parent.verticalCenter
-                  implicitWidth: closeMark.implicitWidth + Style.space(6)
-                  implicitHeight: closeMark.implicitHeight
-                  readonly property bool hot: card.pointerOver(shut)
-
-                  Text {
-                    id: closeMark
-                    anchors.centerIn: parent
-                    textFormat: Text.PlainText
-                    text: "✕"
-                    color: shut.hot ? Commons.Color.notifications.text : card.dimColor
-                    font.pixelSize: Math.round(Style.font.caption * 1.44)
-                  }
-
-                  MouseArea {
-                    anchors.fill: parent
-                    anchors.margins: -Style.space(3)
-                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: function(mouse) {
-                      if (mouse.button === Qt.RightButton) card.menuOpen = !card.menuOpen
-                      else card.dismissed()
-                    }
-                  }
+                MouseArea {
+                  anchors.fill: parent
+                  anchors.margins: -Style.space(3)
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: card.dismissed()
                 }
               }
             }
@@ -546,10 +497,9 @@ Item {
       }
     }
 
-    // The space under the body does one job at a time: the snooze choices or
-    // the button row, drawn in the card because the surface is clipped. The
-    // row shows only under the pointer in an open deck. It spans the content
-    // under the mark too, and keeps the side padding below it.
+    // The button row under the body, drawn in the card because the surface is
+    // clipped. It shows only under the pointer in an open deck. It spans the
+    // content under the mark too, and keeps the side padding below it.
     Item {
       id: deedArea
       anchors { left: parent.left; right: parent.right; bottom: parent.bottom
@@ -557,17 +507,12 @@ Item {
                 rightMargin: plate.contentRightInset + Style.space(12)
                 bottomMargin: plate.contentBottomInset + Style.space(12) }
 
-      readonly property string mode: card.menuOpen ? "menu"
-                                   : (card.hovered && card.expanded
-                                      && card.allDeeds.length > 0) ? "row" : ""
-
-      readonly property real contentHeight: mode === "menu" ? menuRow.implicitHeight
-                                          : mode === "row" ? deedRow.implicitHeight : 0
+      readonly property bool shown: card.hovered && card.expanded && card.allDeeds.length > 0
       // What the state asks for; the drawn height is whatever slack the
       // scene has given the card so far. The card already pads its text at
       // the bottom; extraPadding tops that up to the side padding.
       readonly property real extraPadding: Style.space(12) - card.contentPaddingY
-      readonly property real wanted: mode === "" ? 0 : contentHeight + Style.space(10) + extraPadding
+      readonly property real wanted: shown ? deedRow.implicitHeight + Style.space(10) + extraPadding : 0
       height: Math.max(0, card.drawnHeight - card.fixedHeight - extraPadding)
       visible: height > 0
       clip: true
@@ -580,44 +525,12 @@ Item {
         width: parent.width
         layoutDirection: Qt.RightToLeft
         spacing: Style.space(6)
-        opacity: deedArea.mode === "row" ? 1 : 0
+        opacity: deedArea.shown ? 1 : 0
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: card.fade } }
 
         Repeater {
           model: card.allDeeds.slice().reverse()
-          DeedButton {
-            required property var modelData
-            deed: modelData
-            toast: card
-          }
-        }
-      }
-
-      // The snooze choices, on one line: "Snooze" and its buttons.
-      Flow {
-        id: menuRow
-        anchors.bottom: parent.bottom
-        width: parent.width
-        spacing: Style.space(6)
-        opacity: deedArea.mode === "menu" ? 1 : 0
-        visible: opacity > 0.01
-        Behavior on opacity { NumberAnimation { duration: card.fade } }
-
-        Text {
-          textFormat: Text.PlainText
-          // As tall as the buttons beside it, so the word sits centred.
-          height: snoozeChoices.count ? snoozeChoices.itemAt(0).height : implicitHeight
-          verticalAlignment: Text.AlignVCenter
-          text: I18n.t("notifications.snooze")
-          color: card.bodyColor
-          font.family: Style.font.family
-          font.pixelSize: Style.font.body
-        }
-
-        Repeater {
-          id: snoozeChoices
-          model: card.menuOpen ? card.menuDeeds : []
           DeedButton {
             required property var modelData
             deed: modelData
@@ -638,11 +551,8 @@ Item {
       cursorShape: Qt.PointingHandCursor
 
       onClicked: function(mouse) {
-        if (mouse.button === Qt.RightButton) { card.menuOpen = !card.menuOpen; return }
-        // The surface takes no keyboard focus, so a click is the way out of the menu.
-        if (card.menuOpen) { card.menuOpen = false; return }
-        if (mouse.button === Qt.MiddleButton) card.dismissed()
-        else card.activated()
+        if (mouse.button === Qt.LeftButton) card.activated()
+        else card.dismissed()
       }
     }
   }

@@ -6,7 +6,7 @@ The shell is the notification daemon: `shell/plugins/notifications/Service.qml` 
 
 | File | Role |
 |---|---|
-| `Service.qml` | The daemon: admission, quiet rules, snoozes, the scene clock, click routing, offers, IPC, one layer surface per output |
+| `Service.qml` | The daemon: admission, quiet rules, the scene clock, click routing, IPC, one layer surface per output |
 | `Toast.qml`, `DeedButton.qml` | One card and its buttons; a card is positioned by the service and animates nothing itself |
 | `NotificationPanel.qml`, `Picker.qml` | The panel and its preferences page, opened from the bar's Dnd indicator (`shell/plugins/bar/indicators/Dnd.qml`) |
 | `Store.js` | Notification snapshots, normalisation, what a stored row keeps, the stored file formats, restore |
@@ -32,7 +32,7 @@ The surface is one fixed-width `WlrLayer.Overlay` window per output (namespace `
 
 ## Toast lifecycle
 
-A card stays at least 5s (low), 8s (normal), or until dismissed (critical), stretched up to 30s by a longer `expire_timeout`. Its time pauses while the deck is open; a content update restarts it. Left-click activates, middle-click dismisses, the zzz beside the close mark on hover, or a right-click, opens the source's snooze choices (15 minutes, an hour, tomorrow at 8).
+A card stays at least 5s (low), 8s (normal), or until dismissed (critical), stretched up to 30s by a longer `expire_timeout`. Its time pauses while the deck is open; a content update restarts it. Left-click activates; right-click, middle-click, or the close mark on hover dismisses.
 
 A click tries, in order: the card's `omarchy-exec-argv` command; the sender's `default` action; the sender's window by pid; a window showing the source (exact class, then for a site a browser window whose title names it); the site itself; the first link in the text; `omarchy-hyprland-focus-app` by app name.
 
@@ -41,8 +41,8 @@ A click tries, in order: the card's `omarchy-exec-argv` command; the sender's `d
 The shell keeps its state in `~/.local/state/omarchy/notifications/` (0700), three JSON files it reads with `FileView` once at startup and rewrites whole:
 
 - `live.json`: the rows on screen, oldest first, put back after a shell restart with a 20s grace (critical ones still wait). At most 100.
-- `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and `historyHours` (default 24; `0` keeps none). Rows whose reason is `snoozed` or `silenced` were held back by quiet and are what the panel lists under each source.
-- `quiet.json`: `{ snoozes, dnd, silencedSince, codesBypassQuiet }`.
+- `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and `historyHours` (default 24; `0` keeps none). Rows whose reason is `silenced` were held back by Do Not Disturb and are what the panel lists under each source.
+- `quiet.json`: `{ dnd, silencedSince, codesBypassQuiet }`.
 
 `Store.persistable` decides what a row keeps: its scalar fields, never images, detected links, or derived text. Text with a verification code is stored only as the redacted placeholder, the click command and glyph included. A live row is cut to 16K characters and a history row, shown as a one-line preview, to 4K. Rows keep `execArgv` and `glyph`, so a card restored after a shell restart clicks through like the live one. Rows are re-checked the same way when read back; a file that is not an array of keyed objects, or is oversized, reads as empty, and a file that does not read back exactly as it would be written is rewritten.
 
@@ -65,23 +65,21 @@ A site's icon is never fetched: the site name comes from the notification body a
 
 Images are decoded in the shell process like every other image it draws. A sender's file path (`Security.localImagePath`) must be absolute, at most 1024 characters, free of control characters and of empty, `.` and `..` segments, and not under `/proc`, `/sys`, `/dev` or `/run` and `/var/run` (other than `/run/user/<uid>/`); `file://` URLs are accepted and decoded first. No extension is required, as Chromium's temp files (`/tmp/.org.chromium.Chromium.*/…`) have none. A native sender already runs as you and could read the file itself; a sandboxed one can only name a file for you to see. Images are never persisted, so restored and replayed cards fall back to the source's icon.
 
-## Silencing and snoozing
+## Silencing
 
-Do Not Disturb is a boolean in `quiet.json`, toggled via `omarchy-shell notifications toggleDnd` / `setDnd` / `isDnd`; `omarchy-toggle-notification-silencing` wraps the toggle. A snooze is the same quiet with an end time, per source (`groupKey`) or for everything (key `*`, which replaces Do Not Disturb).
+Do Not Disturb is a boolean in `quiet.json`, toggled via `omarchy-shell notifications toggleDnd` / `setDnd` / `isDnd`; `omarchy-toggle-notification-silencing` wraps the toggle.
 
-Three kinds of notification get through every kind of quiet:
+Three kinds of notification get through Do Not Disturb:
 
 - `app_name` = `omarchy-action`: Omarchy's own confirmation toasts for something the user just did.
 - urgency critical *and* `app_name` = `notify-send`: bare-CLI emergency alerts. Critical alone is not enough, because chat apps use it to force visibility under their own app name.
 - a detected verification code, while `codesBypassQuiet` is on.
 
-Quieted notifications are recorded as held and listed by source in the panel. Ephemeral ones (the `transient` hint, or `app_name` `notify-send`/`omarchy-action`) are dropped.
-
-When the Hyprland portal starts a screen-share stream, the bell offers a timed snooze; nothing is muted automatically.
+Silenced notifications are recorded as held and listed by source in the panel. Ephemeral ones (the `transient` hint, or `app_name` `notify-send`/`omarchy-action`) are dropped.
 
 ## Preferences
 
-Preferences live in the `notifications` object of `~/.config/omarchy/shell.json`; every key is optional, and `Settings.js` holds defaults and valid values. The preferences page writes `displayMode`/`displayName`, `fullscreenOverlay` (`all` or `off`) and `offerSnoozeWhenSharing`; `historyHours` is hand-edited. Everything else follows the desktop: text size, the theme's outer gap, the locale's time format. Colours come from the theme: `[notifications]` in `shell.toml` for cards, `[popups]` for the panel, Hyprland's `decoration:rounding` for corners.
+Preferences live in the `notifications` object of `~/.config/omarchy/shell.json`; every key is optional, and `Settings.js` holds defaults and valid values. The preferences page writes `displayMode`/`displayName` and `fullscreenOverlay` (`all` or `off`); `historyHours` is hand-edited. Everything else follows the desktop: text size, the theme's outer gap, the locale's time format. Colours come from the theme: `[notifications]` in `shell.toml` for cards, `[popups]` for the panel, Hyprland's `decoration:rounding` for corners.
 
 ## The sender contract
 
