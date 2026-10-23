@@ -14,8 +14,10 @@ if [[ -s $config_file ]]; then
     | if (.bar.centerAnchor | type) == "string" then .bar.centerAnchor |= rename end
     | if (.plugins | type) == "array" then .plugins |= map(rename) end
     | if (.disabledPlugins | type) == "array" then .disabledPlugins |= map(rename) end
-  ' "$config_file" >"$tmp"
-  mv "$tmp" "$config_file"
+  ' "$config_file" >"$tmp" || { rm -f "$tmp"; exit 1; }
+
+  omarchy-config-replace "$tmp" "$config_file" || { rm -f "$tmp"; exit 1; }
+  rm -f "$tmp"
 fi
 
 # Dev checkouts found the packaged plugin through this link; one the user made
