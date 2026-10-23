@@ -17,7 +17,11 @@ ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service
 # inbound pair attempts at a lower layer.
 ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
 Restart=on-failure
+# Flapping Bluetooth devices can make bt-agent exit about every 15 s (#13487).
+# Ramp up retries without leaving pairing stopped after a burst of failures.
 RestartSec=2
+RestartSteps=6
+RestartMaxDelaySec=120
 
 [Install]
 WantedBy=graphical-session.target
