@@ -208,7 +208,14 @@ Item {
         }
 
         Keys.onPressed: function(event) {
+          // The key that wakes a blanked display only wakes it: the user can't
+          // see the field yet, so it must not become part of the password.
+          var wasBlank = root.displaysBlank
           root.wakeRequested()
+          if (wasBlank) {
+            event.accepted = true
+            return
+          }
           if (event.isAutoRepeat && root.dropsAutoRepeat(event.key)) {
             event.accepted = true
             return
