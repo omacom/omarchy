@@ -138,8 +138,16 @@ start_webcam_overlay() {
   sleep 0.6
 }
 
+# An mpv still opening a camera that never delivers a frame ignores TERM, so an
+# overlay left after a second is killed. Anchored to mpv, so a shell whose
+# command line merely mentions the overlay is never signalled.
 cleanup_webcam() {
-  pkill -f "WebcamOverlay" 2>/dev/null
+  local overlay="^([^ ]*/)?mpv( .*)? --title=WebcamOverlay( |$)" waited=0
+  pkill -f "$overlay" 2>/dev/null
+  while pgrep -f "$overlay" >/dev/null && ((waited++ < 10)); do
+    sleep 0.1
+  done
+  pkill --signal KILL -f "$overlay" 2>/dev/null
   rm -f "$REGION_FILE"
 }
 
@@ -545,6 +553,8 @@ fi
     if screenrecording_active; then
       stop_screenrecording
     elif [[ $STOP_RECORDING == "true" ]]; then
+      # An overlay outliving its recording is still cleared by a second stop.
+      cleanup_webcam
       exit 1
     else
       rm -f "$CANCEL_FILE"

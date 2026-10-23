@@ -539,3 +539,66 @@ if status "$legacy_runtime"; then fail "--status reports nothing when no recorde
 ! grep -q -- '--signal' "$helper_calls" || fail "--status signals nothing" "$(<"$helper_calls")"
 [[ ! -e $OMARCHY_TEST_NOTIFICATION_ARGS ]] || fail "--status never notifies, even without a recordings directory" "$(<"$OMARCHY_TEST_NOTIFICATION_ARGS")"
 pass "--status answers what stop would act on, without a recordings directory, notifications or signals"
+
+# An overlay whose camera never delivers a frame ignores TERM. Stop removes it
+# anyway, and so does a second stop once the recording has already ended.
+fixture_pids=()
+trap 'kill -KILL "${fixture_pids[@]}" 2>/dev/null || true; rm -rf "$tmp_dir"' EXIT
+
+process_alive() {
+  local state
+  state=$(<"/proc/$1/stat") 2>/dev/null || return 1
+  state=${state##*) }
+  [[ ${state:0:1} != "Z" ]]
+}
+gone_within_5s() {
+  local tick
+  for tick in {1..50}; do
+    process_alive "$1" || return 0
+    sleep 0.1
+  done
+  return 1
+}
+start_stuck_overlay() {
+  rm -f "$tmp_dir/overlay-ready"
+  (exec -a mpv bash -c 'trap "" TERM; touch "$0"; for _ in {1..600}; do sleep 0.05; done' \
+    "$tmp_dir/overlay-ready" "av://v4l2:$tmp_dir/video" --title=WebcamOverlay --wayland-app-id=WebcamOverlay-medium) >/dev/null 2>&1 &
+  overlay_pid=$!
+  fixture_pids+=("$overlay_pid")
+  local tick
+  for tick in {1..50}; do
+    [[ -e $tmp_dir/overlay-ready ]] && break
+    sleep 0.1
+  done
+  [[ -e $tmp_dir/overlay-ready ]] || fail "the stuck overlay fixture starts"
+  kill -TERM "$overlay_pid"
+  sleep 0.2
+  process_alive "$overlay_pid" || fail "the stuck overlay fixture ignores TERM"
+}
+
+# A shell that only mentions the overlay on its command line is not the overlay.
+bash -c 'for _ in {1..600}; do sleep 0.05; done' bystander --title=WebcamOverlay >/dev/null 2>&1 &
+bystander_pid=$!
+fixture_pids+=("$bystander_pid")
+
+start_stuck_overlay
+touch "$recording_flag"
+XDG_RUNTIME_DIR="$legacy_runtime" OMARCHY_TEST_HELPER_CALLS="$helper_calls" OMARCHY_TEST_RECORDING="$recording_flag" \
+  OMARCHY_SCREENRECORD_DIR="$recording_dir" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1 ||
+  fail "stop finds the recording beside a stuck overlay"
+gone_within_5s "$overlay_pid" || fail "stop removes an overlay that ignores TERM"
+pass "stop removes an overlay that ignores TERM"
+
+start_stuck_overlay
+rm -f "$recording_flag"
+stop_status=0
+XDG_RUNTIME_DIR="$legacy_runtime" OMARCHY_TEST_HELPER_CALLS="$helper_calls" OMARCHY_TEST_RECORDING="$recording_flag" \
+  OMARCHY_SCREENRECORD_DIR="$recording_dir" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1 || stop_status=$?
+((stop_status == 1)) || fail "a second stop still reports that nothing was recording" "exit $stop_status"
+gone_within_5s "$overlay_pid" || fail "a second stop removes an overlay left behind by its recording"
+pass "a second stop removes an overlay left behind by its recording"
+
+process_alive "$bystander_pid" || fail "removing the overlay signals only mpv"
+pass "removing the overlay signals only mpv"
