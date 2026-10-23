@@ -36,6 +36,7 @@ ShellRoot {
   property real alignedTextContentWidth: 0
   property real pathX: 6
   property real pathY: 8
+  property bool badgeShown: true
   readonly property bool imageReady: customImage.componentPaintedWidth > 0 && croppedImage.componentPaintedWidth > 0
   readonly property string imageSource: "data:image/svg+xml;base64," + Qt.btoa('<svg xmlns="http://www.w3.org/2000/svg" width="15" height="9"><rect width="15" height="9" fill="white"/></svg>'.split("").map(function(c) { return c.charCodeAt(0) }))
 
@@ -79,6 +80,24 @@ ShellRoot {
       return false
     }
     return checkPaintedBounds(icon, name)
+  }
+
+  // A badge is left out of the mark's bounds and drawn in a box over the painted mark.
+  function checkBadge(icon, name, paintedWidth, paintedHeight) {
+    var frame = findItem(icon, function(item) { return item.sourceComponent === dotBadge })
+    if (!root.badgeShown) return true
+    if (!frame || !frame.item) {
+      fail(name + " has no badge")
+      return false
+    }
+    var center = frame.mapToItem(icon, frame.width / 2, frame.height / 2)
+    if (Math.abs(frame.width - paintedWidth) > 0.05 || Math.abs(frame.height - paintedHeight) > 0.05
+        || Math.abs(center.x - (icon.width / 2 + icon.opticalCenterErrorX)) > 0.05
+        || Math.abs(center.y - (icon.height / 2 + icon.opticalCenterErrorY)) > 0.05) {
+      fail(name + " badge box is " + frame.width + " × " + frame.height + " at " + center.x + ", " + center.y)
+      return false
+    }
+    return true
   }
 
   function checkGeometry() {
@@ -141,7 +160,7 @@ ShellRoot {
       return false
     }
     var customIcons = [customBox, nestedBox, customGlyph, rotatedBox, customImage, croppedImage,
-      centeredGlyph, rightGlyph, mirroredGlyph, paddedShape, fittedShape]
+      centeredGlyph, rightGlyph, mirroredGlyph, paddedShape, fittedShape, badgedBox]
     for (var i = 0; i < customIcons.length; i++) {
       var custom = customIcons[i]
       if (Math.abs(Math.max(custom.componentPaintedWidth, custom.componentPaintedHeight) - Style.bar.iconSize) > 0.05
@@ -158,6 +177,15 @@ ShellRoot {
       fail("a custom component's aspect ratio changes")
       return false
     }
+    if (Math.abs(badgedBox.componentPaintedWidth / badgedBox.componentPaintedHeight - 15 / 9) > 0.01) {
+      fail("a badge changes its mark's aspect ratio")
+      return false
+    }
+    if (!checkBadge(badgedBox, "custom component", badgedBox.componentPaintedWidth, badgedBox.componentPaintedHeight)) return false
+    if (!checkPaintedBounds(badgedGlyph, "badged glyph")) return false
+    if (!checkBadge(badgedGlyph, "glyph", badgedGlyph.glyphPaintedWidth, badgedGlyph.glyphPaintedHeight)) return false
+    if (!checkPaintedBounds(badgedRotated, "badged rotated glyph")) return false
+    if (!checkBadge(badgedRotated, "rotated glyph", badgedRotated.glyphPaintedHeight, badgedRotated.glyphPaintedWidth)) return false
     if (!checkPaintedBounds(labelledPower, "battery percentage")) return false
     if (Math.abs(labelledPower.glyphPaintedWidth - power.glyphPaintedWidth) > 0.05
         || Math.abs(labelledPower.glyphPaintedHeight - power.glyphPaintedHeight) > 0.05) {
@@ -244,8 +272,18 @@ ShellRoot {
           fail("oversized icons do not fit their canvas")
           return
         }
-        console.log("RESULT pass")
-        Qt.quit()
+        var markWidth = badgedBox.componentPaintedWidth
+        var markX = badgedBox.opticalCenterErrorX
+        root.badgeShown = false
+        Qt.callLater(function() {
+          if (!checkGeometry()) return
+          if (badgedBox.componentPaintedWidth !== markWidth || badgedBox.opticalCenterErrorX !== markX) {
+            fail("hiding the badge moves or resizes its mark")
+            return
+          }
+          console.log("RESULT pass")
+          Qt.quit()
+        })
       })
     })
   }
@@ -432,6 +470,24 @@ ShellRoot {
         source: root.imageSource
       }
     }
+  }
+  Component {
+    id: dotBadge
+    Item { Rectangle { x: parent.width - 3; y: -1; width: 6; height: 6; radius: 3; color: "red" } }
+  }
+  BarIconButton {
+    id: badgedBox
+    bar: testBar
+    iconComponent: Component { Rectangle { width: 15; height: 9; color: "white" } }
+    badgeComponent: root.badgeShown ? dotBadge : null
+  }
+  BarIconButton { id: badgedGlyph; bar: testBar; text: "󰂚"; badgeComponent: root.badgeShown ? dotBadge : null }
+  BarIconButton {
+    id: badgedRotated
+    bar: verticalBar
+    text: "\uf053"
+    textRotation: 90
+    badgeComponent: root.badgeShown ? dotBadge : null
   }
   BarIconButton { id: labelledPower; bar: testBar; text: "󰁹"; labelText: "100%"; slotSize: Style.bar.iconSlot * 2 }
   BarIconButton { id: rotatedIcon; bar: verticalBar; text: "\uf053"; textRotation: 90 }

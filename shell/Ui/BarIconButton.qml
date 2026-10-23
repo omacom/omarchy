@@ -6,6 +6,8 @@ WidgetButton {
   id: root
 
   property Component iconComponent: null
+  // Drawn over the normalized mark and left out of its bounds: a badge, count or state mark.
+  property Component badgeComponent: null
   property real slotSize: Style.bar.iconSlot
   property real opticalSize: Style.bar.iconCanvas
   property real iconSize: Math.min(Style.bar.iconSize, opticalSize)
@@ -84,6 +86,27 @@ WidgetButton {
         visible: root.iconComponent !== null
         sourceComponent: root.iconComponent
         sourceSize: root.opticalSize
+      }
+
+      // The painted mark's box after normalization. A badge anchors to it.
+      Item {
+        id: markFrame
+        visible: badge.active
+        // textRotation turns the glyph but not this box, so the box takes the turned mark's extent.
+        readonly property real turn: glyph.visible ? root.textRotation * Math.PI / 180 : 0
+        readonly property real turnCos: Math.abs(Math.cos(turn))
+        readonly property real turnSin: Math.abs(Math.sin(turn))
+        width: glyph.visible ? glyph.paintedWidth * turnCos + glyph.paintedHeight * turnSin : customIcon.paintedWidth
+        height: glyph.visible ? glyph.paintedWidth * turnSin + glyph.paintedHeight * turnCos : customIcon.paintedHeight
+        x: (glyph.visible ? glyph.paintedCenterX : customIcon.width / 2 + customIcon.centerErrorX) - width / 2
+        y: (glyph.visible ? glyph.paintedCenterY : customIcon.height / 2 + customIcon.centerErrorY) - height / 2
+
+        Loader {
+          id: badge
+          anchors.fill: parent
+          active: root.badgeComponent !== null
+          sourceComponent: root.badgeComponent
+        }
       }
 
       Rectangle {
