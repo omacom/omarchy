@@ -79,6 +79,12 @@ Item {
 
   function recoverBackground(failedPath) {
     if (!failedPath || failedPath !== displayedBackground) return
+    // A still held behind a starting video is let go, not recovered: the link
+    // names the video, and reloading the still for it would only fail again.
+    if (isVideo(currentBackground)) {
+      displayedBackground = currentBackground
+      return
+    }
     failedBackground = failedPath
     if (recoverProc.running) return
     recoverVersion = backgroundVersion
@@ -107,6 +113,9 @@ Item {
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
     if (!path || (!force && finalPath === currentBackground)) return
+    // A still that replaces a video shows at once: the layer may still hold
+    // the image from before the video, which must not fade back into view.
+    var leavingVideo = isVideo(currentBackground)
     if (path !== preparedBackground) preparedBackground = ""
     preparedBackgroundTimer.stop()
     lastTransitionPath = path
@@ -122,9 +131,20 @@ Item {
     revealAnimation.stop()
     finishingTransition = false
 
+    // OWE plays videos on its own layer and hides this one once the video's
+    // first frame is up. Keep the still on screen until then, so the switch
+    // never shows an empty background.
+    if (isVideo(path) && displayedBackground && !isVideo(displayedBackground)) {
+      oldBackground = ""
+      incomingBackground = ""
+      preparedBackground = ""
+      revealProgress = 1
+      return
+    }
+
     // Video frames are not fed through the image-only reveal stack. Switching
     // instantly also avoids decoding two full videos during a transition.
-    if (instant || !displayedBackground || isVideo(path) || isVideo(displayedBackground)) {
+    if (instant || !displayedBackground || leavingVideo || isVideo(path) || isVideo(displayedBackground)) {
       oldBackground = ""
       incomingBackground = ""
       preparedBackground = ""
@@ -402,8 +422,8 @@ Item {
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       exclusionMode: ExclusionMode.Ignore
 
-      // OWE owns video backgrounds. This layer draws stills, and stays empty
-      // behind a video so OWE's own layer shows through.
+      // OWE owns video backgrounds. This layer draws stills, and keeps the last
+      // one behind a starting video until OWE suspends it.
       BackgroundMedia {
         id: base
         anchors.fill: parent

@@ -70,9 +70,70 @@ assert(
   'the shared image path leaves mipmapping off, as the desktop background had it'
 )
 assert(
-  /instant \|\| !displayedBackground \|\| isVideo\(path\) \|\| isVideo\(displayedBackground\)[\s\S]*displayedBackground = finalPath/.test(backgroundQml),
+  /instant \|\| !displayedBackground \|\| leavingVideo \|\| isVideo\(path\) \|\| isVideo\(displayedBackground\)[\s\S]*displayedBackground = finalPath/.test(backgroundQml),
   'video switches bypass the image-only reveal stack and use the durable background path'
 )
+// Run transitionBackground itself for still -> video -> another still.
+const transitionMatch = backgroundQml.match(/function transitionBackground\(([^)]*)\) \{([\s\S]*?)\n  \}\n/)
+assert(transitionMatch, 'transitionBackground is defined')
+const background = {
+  currentBackground: '', displayedBackground: '', oldBackground: '', incomingBackground: '',
+  preparedBackground: '', lastTransitionPath: '', backgroundVersion: 0, failedBackground: '',
+  revealStartedVersion: -1, revealProgress: 1, finishingTransition: false,
+  isVideo: path => /\.(mp4|m4v|mov|webm|mkv|avi)$/i.test(String(path || '')),
+  requestNativeSize: () => {},
+  preparedBackgroundTimer: { stop: () => {} },
+  revealAnimation: { stop: () => {} },
+}
+const transitionBackground = new Function('state', ...transitionMatch[1].split(',').map(name => name.trim()),
+  `with (state) {${transitionMatch[2]}\n}`).bind(null, background)
+transitionBackground('', '/bg/totoro.webp', '/bg/totoro.webp', true, true)
+assert(background.displayedBackground === '/bg/totoro.webp', 'the first still is on screen')
+transitionBackground('', '/bg/loops/totoro.mp4', '/bg/loops/totoro.mp4', false, false)
+assert(
+  background.displayedBackground === '/bg/totoro.webp' && background.currentBackground === '/bg/loops/totoro.mp4',
+  'a video replacing a still keeps the still on screen until OWE hides this layer'
+)
+transitionBackground('', '/bg/waves.webp', '/bg/waves.webp', false, false)
+assert(
+  background.displayedBackground === '/bg/waves.webp' && background.revealProgress === 1 && background.oldBackground === '',
+  'a still replacing a video shows at once, with no fade from the image before the video'
+)
+// A still held behind a video that then fails to load is let go, not recovered.
+const recoverMatch = backgroundQml.match(/function recoverBackground\(([^)]*)\) \{([\s\S]*?)\n  \}\n/)
+assert(recoverMatch, 'recoverBackground is defined')
+Object.assign(background, { recoverProc: { running: false }, recoverVersion: -1 })
+const recoverBackground = new Function('state', recoverMatch[1].trim(),
+  `with (state) {${recoverMatch[2]}\n}`).bind(null, background)
+transitionBackground('', '/bg/loops/totoro.mp4', '/bg/loops/totoro.mp4', false, false)
+recoverBackground('/bg/waves.webp')
+assert(
+  background.displayedBackground === '/bg/loops/totoro.mp4' && !background.recoverProc.running,
+  'a held still that fails behind a video is dropped rather than reloaded for the video'
+)
+transitionBackground('', '/bg/waves.webp', '/bg/waves.webp', false, false)
+recoverBackground('/bg/waves.webp')
+assert(background.recoverProc.running, 'a failed still that is the background is still recovered')
+// An intro cover over a video is sized for OWE's frame, not the still held behind it.
+const introQml = fs.readFileSync(path.join(root, 'shell/services/BackgroundIntro.qml'), 'utf8')
+const prepareMatch = introQml.match(/function prepareTheme\(([^)]*)\) \{([\s\S]*?)\n  \}\n/)
+assert(prepareMatch, 'prepareTheme is defined')
+const intro = {
+  themeBackground: '', themeNativeSize: null, themeToken: '', transitionToken: '', themeColors: '', themeShell: '', themeOpacity: 0,
+  framePoll: { stop: () => {} }, themeFade: { stop: () => {} }, themeFallback: { restart: () => {} },
+  Util: { isVideoPath: background.isVideo },
+  backgroundService: {
+    displayedBackground: '/bg/small.webp', currentBackground: '/bg/loops/totoro.mp4',
+    nativeSizes: { '/bg/small.webp': { width: 1280, height: 720 } },
+  },
+}
+const prepareTheme = new Function('state', ...prepareMatch[1].split(',').map(name => name.trim()),
+  `with (state) {${prepareMatch[2]}\n}`).bind(null, intro)
+prepareTheme('/cache/previous.ppm', 'token', '', '')
+assert(intro.themeNativeSize === null, 'an intro cover over a video decodes at screen size, not the held still\'s size')
+intro.backgroundService.currentBackground = '/bg/small.webp'
+prepareTheme('/cache/previous-2.webp', 'token', '', '')
+assert(intro.themeNativeSize && intro.themeNativeSize.width === 1280, 'an intro cover over a still keeps that still\'s size')
 assert(backgroundQml.includes('BackgroundMedia {') && lockQml.includes('BackgroundMedia {'), 'desktop and lock screen share still rendering')
 assert(
   !backgroundQml.includes('videoEnabled') &&

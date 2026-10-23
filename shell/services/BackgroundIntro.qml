@@ -67,7 +67,9 @@ Item {
     themeToken = token
     transitionToken = token
     if (themeBackground !== fromPath) {
-      themeNativeSize = backgroundService && backgroundService.nativeSizes ? backgroundService.nativeSizes[backgroundService.displayedBackground] : null
+      // Behind a video the held still is not what the cover shows: OWE's frame is screen-sized.
+      var shown = backgroundService && !Util.isVideoPath(backgroundService.currentBackground) ? backgroundService.displayedBackground : ""
+      themeNativeSize = shown && backgroundService.nativeSizes ? backgroundService.nativeSizes[shown] : null
     }
     themeBackground = fromPath
     themeColors = colors
