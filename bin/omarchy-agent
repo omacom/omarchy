@@ -177,6 +177,13 @@ if [[ -n $home_env ]]; then
   fi
 fi
 
+# omarchy-agent-crash marks a diagnosis so omarchy-crash-watch can tell the
+# crashes it causes from new ones. Carried in the command for the same reason
+# as the account pin.
+if [[ -n ${OMARCHY_CRASH_DIAGNOSIS:-} ]]; then
+  command=(env "OMARCHY_CRASH_DIAGNOSIS=$OMARCHY_CRASH_DIAGNOSIS" "${command[@]}")
+fi
+
 if [[ $inline == "true" ]]; then
   exec "${command[@]}"
 else
