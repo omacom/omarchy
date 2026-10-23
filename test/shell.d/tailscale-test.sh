@@ -183,10 +183,68 @@ assertDeepEqual(
   ['Home', 'Work'],
   'tailscale preserves connection nicknames'
 )
+assertDeepEqual(
+  accounts.accounts.map(account => tailscale.accountLabel(account)),
+  ['Home', 'Work'],
+  'tailscale labels each connection by a nickname the user set over its tailnet'
+)
 assertEqual(
   tailscale.accountLabel({ nickname: '', tailnet: 'tailnet.example', account: 'user@example', id: 'abcd' }),
   'tailnet.example',
   'tailscale labels connections by tailnet when nickname is missing'
+)
+assertEqual(
+  tailscale.accountLabel({ nickname: 'solo-nick', tailnet: '', account: '', id: 'solo' }),
+  'solo-nick',
+  'tailscale falls back to nickname when tailnet is empty'
+)
+assertEqual(
+  tailscale.accountLabel({ nickname: '', tailnet: '', account: 'user@example', id: 'acct' }),
+  'user@example',
+  'tailscale falls back to account when nickname and tailnet are empty'
+)
+assertEqual(
+  tailscale.accountLabel({ nickname: '', tailnet: '', account: '', id: 'only-id' }),
+  'only-id',
+  'tailscale falls back to id when nothing else is set'
+)
+assertEqual(
+  tailscale.accountLabel(null),
+  'Unknown account',
+  'tailscale labels a missing account as unknown'
+)
+
+// Issue #9259: with no nickname set, tailscale switch --list --json reports the
+// login as the nickname of every profile of that login; only tailnet differs.
+const multiTailnet = tailscale.parseAccounts(JSON.stringify([
+  {
+    id: '1982',
+    nickname: 'user@example.com',
+    tailnet: 'user@example.com',
+    account: 'user@example.com',
+    selected: false
+  },
+  {
+    id: '8833',
+    nickname: 'user@example.com',
+    tailnet: 'acme.com',
+    account: 'user@example.com',
+    selected: true
+  }
+]))
+
+assertEqual(multiTailnet.accounts.length, 2, 'tailscale parses multi-tailnet profiles for one login')
+assertEqual(multiTailnet.selectedAccountId, '8833', 'tailscale records the selected multi-tailnet profile id')
+assertEqual(multiTailnet.selectedAccountLabel, 'acme.com', 'tailscale labels the selected multi-tailnet profile by its tailnet')
+assertDeepEqual(
+  multiTailnet.accounts.map(account => tailscale.accountLabel(account)),
+  ['user@example.com', 'acme.com'],
+  'tailscale distinguishes multi-tailnet profiles that share one nickname'
+)
+assert(
+  multiTailnet.accounts.map(account => tailscale.accountLabel(account))[0] !==
+    multiTailnet.accounts.map(account => tailscale.accountLabel(account))[1],
+  'tailscale multi-tailnet switcher rows are not identical'
 )
 
 assertDeepEqual(
