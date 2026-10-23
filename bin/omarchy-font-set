@@ -73,11 +73,11 @@ XML
 
 omarchy-restart-shell
 
-if pgrep -x ghostty; then
+if pgrep -x ghostty >/dev/null; then
   omarchy-notification-send -g  "$(omarchy-i18n font.restartToSeeChange Ghostty)"
 fi
 
-if pgrep -x foot; then
+if pgrep -x foot >/dev/null; then
   omarchy-notification-send -g  "$(omarchy-i18n font.restartToSeeChange Foot)"
 fi
 
