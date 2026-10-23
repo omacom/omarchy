@@ -46,6 +46,24 @@ if [[ -z $agent ]]; then
   exit 1
 fi
 
+# A custom launcher owns its flags and profile. Pass the optional prompt as
+# one positional argument, without evaluating it as shell code.
+if [[ $agent == custom:* ]]; then
+  custom_name=${agent#custom:}
+  launcher="$HOME/.config/omarchy/agents/$custom_name"
+  if [[ ! $custom_name =~ ^[a-zA-Z0-9_-]+$ || ! -f $launcher || ! -x $launcher ]]; then
+    echo "Custom agent requires an executable launcher: $launcher" >&2
+    exit 1
+  fi
+  command=("$launcher")
+  [[ -n ${prompt:-} ]] && command+=("$prompt")
+  if [[ $inline == "true" ]]; then
+    exec "${command[@]}"
+  else
+    exec omarchy-launch-tui --app-id=org.omarchy.agent "${command[@]}"
+  fi
+fi
+
 # OpenClaw's launcher sets OpenClaw up when the package became the seed before
 # this user's OpenClaw moved, so with the package a missing command is its to fix.
 if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
