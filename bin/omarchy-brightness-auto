@@ -1,0 +1,516 @@
+#!/bin/bash
+
+# omarchy:summary=Control automatic display brightness from an ambient light sensor.
+# omarchy:args=<on|off|toggle|status>
+
+curve_center_percent=30
+curve_percent_per_octave=7.5
+curve_center_lux=200
+smoothing_new_weight=0.25
+change_threshold=2
+max_step=3
+poll_seconds=1
+retry_seconds=5
+iio_root=${OMARCHY_AUTO_BRIGHTNESS_IIO_ROOT:-/sys/bus/iio/devices}
+service=omarchy-brightness-auto.service
+unit="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$service"
+last_status=""
+events=""
+next_tick=0
+monitors_changed=0
+
+is_apple_sensor() {
+  local path=""
+  local product=""
+  local vendor=""
+
+  path="$(realpath -e "$1")" || return 1
+  while [[ $path != "/" ]]; do
+    if [[ -r $path/idVendor && -r $path/idProduct ]]; then
+      read -r vendor <"$path/idVendor" || return 1
+      read -r product <"$path/idProduct" || return 1
+      [[ ${vendor,,} == "05ac" && ${product,,} == "1114" ]] && return 0
+    fi
+    path="${path%/*}"
+    [[ -n $path ]] || path="/"
+  done
+
+  return 1
+}
+
+find_illuminance_channel() {
+  local sensor="$1"
+  local channel=""
+  local name=""
+
+  if [[ -r $sensor/in_illuminance_input ]]; then
+    printf '%s\n' "$sensor/in_illuminance_input"
+    return
+  fi
+  for channel in "$sensor"/in_illuminance*_input; do
+    name=${channel##*/}
+    if [[ -r $channel && $name =~ ^in_illuminance[0-9]+_input$ ]]; then
+      printf '%s\n' "$channel"
+      return
+    fi
+  done
+  if [[ -r $sensor/in_illuminance_raw ]]; then
+    printf '%s\n' "$sensor/in_illuminance_raw"
+    return
+  fi
+  for channel in "$sensor"/in_illuminance*_raw; do
+    name=${channel##*/}
+    if [[ -r $channel && $name =~ ^in_illuminance[0-9]+_raw$ ]]; then
+      printf '%s\n' "$channel"
+      return
+    fi
+  done
+
+  return 1
+}
+
+find_sensor() {
+  local root="${1:-$iio_root}"
+  local fallback=""
+  local sensor=""
+
+  for sensor in "$root"/iio:device*; do
+    [[ -e $sensor ]] || continue
+    find_illuminance_channel "$sensor" >/dev/null || continue
+
+    if is_apple_sensor "$sensor"; then
+      printf '%s apple\n' "$sensor"
+      return 0
+    fi
+    [[ -n $fallback ]] || fallback="$sensor"
+  done
+
+  [[ -n $fallback ]] || return 1
+  printf '%s generic\n' "$fallback"
+}
+
+read_lux() {
+  local sensor="$1"
+  local channel=""
+  local input=""
+  local offset=0
+  local raw=""
+  local scale=1
+
+  channel="$(find_illuminance_channel "$sensor")" || return 1
+  if [[ $channel == *_input ]]; then
+    read -r input <"$channel" || return 1
+    awk -v value="$input" '
+      BEGIN {
+        if (value !~ /^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$/) exit 1
+        printf "%.10g\n", value + 0
+      }
+    '
+    return
+  fi
+
+  read -r raw <"$channel" || return 1
+  if [[ -r ${channel%_raw}_offset ]]; then
+    read -r offset <"${channel%_raw}_offset" || return 1
+  elif [[ -r $sensor/in_illuminance_offset ]]; then
+    read -r offset <"$sensor/in_illuminance_offset" || return 1
+  fi
+  if [[ -r ${channel%_raw}_scale ]]; then
+    read -r scale <"${channel%_raw}_scale" || return 1
+  elif [[ -r $sensor/in_illuminance_scale ]]; then
+    read -r scale <"$sensor/in_illuminance_scale" || return 1
+  fi
+
+  awk -v raw="$raw" -v offset="$offset" -v scale="$scale" '
+    function number(value) {
+      return value ~ /^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$/
+    }
+    BEGIN {
+      if (!number(raw) || !number(offset) || !number(scale)) exit 1
+      printf "%.10g\n", (raw + offset) * scale
+    }
+  '
+}
+
+curve_brightness() {
+  awk \
+    -v lux="$1" \
+    -v center_percent="$curve_center_percent" \
+    -v percent_per_octave="$curve_percent_per_octave" \
+    -v center_lux="$curve_center_lux" '
+      BEGIN {
+        if (lux !~ /^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$/) exit 1
+        if (lux < 0.1) lux = 0.1
+        target = int(center_percent + percent_per_octave * log(lux / center_lux) / log(2) + 0.5)
+        print target
+      }
+    '
+}
+
+# Snap to the reading once the difference is too small to change the curve,
+# so steady light stops the work on each poll.
+smooth_lux() {
+  awk -v old="$1" -v new="$2" -v new_weight="$smoothing_new_weight" '
+    BEGIN {
+      smoothed = old * (1 - new_weight) + new * new_weight
+      if (smoothed - new < 0.01 && new - smoothed < 0.01) smoothed = new
+      printf "%.10g\n", smoothed
+    }
+  '
+}
+
+# Sensor readings jitter by a fraction of a percent in steady light. A change
+# under 1% moves the curve by about 0.1 brightness points, so it counts as no
+# change. Readings compare in millionths, so a fractional reading in dim light
+# keeps its precision. A value that is not a number always counts.
+reading_changed() {
+  local reading=""
+  local fraction=""
+  local values=()
+  local difference=0
+
+  for reading in "$1" "$2"; do
+    [[ $reading =~ ^([0-9]+)(\.([0-9]*))?$ ]] || return 0
+    fraction="${BASH_REMATCH[3]}000000"
+    values+=("$(( 10#${BASH_REMATCH[1]} * 1000000 + 10#${fraction:0:6} ))")
+  done
+  difference=$(( values[1] - values[0] ))
+  (( difference < 0 )) && difference=$(( -difference ))
+  (( difference * 100 > values[0] ))
+}
+
+target_with_offset() {
+  local target=$(( $1 + $2 ))
+
+  (( target < 1 )) && target=1
+  (( target > 100 )) && target=100
+  printf '%s\n' "$target"
+}
+
+needs_adjustment() {
+  local difference=$(( $1 - $2 ))
+
+  (( difference < 0 )) && difference=$(( -difference ))
+  (( difference >= change_threshold ))
+}
+
+step_toward() {
+  local target="$1"
+  local current="$2"
+
+  if (( target - current > max_step )); then
+    printf '%s\n' "$(( current + max_step ))"
+  elif (( current - target > max_step )); then
+    printf '%s\n' "$(( current - max_step ))"
+  else
+    printf '%s\n' "$target"
+  fi
+}
+
+select_monitor() {
+  local kind="$1"
+  local monitors=""
+
+  monitors="$(hyprctl monitors -j 2>/dev/null)" || return 1
+  jq -er --arg kind "$kind" '
+    [.[] | select(.disabled == false)] as $active
+    | if $kind == "apple" then
+        [$active[]
+          | select(
+              .make == "Apple Computer Inc"
+              and ((.model // "") | test("StudioDisplay|ProDisplayXDR|Studio XDR"))
+            )]
+      else
+        [$active[] | select(.name | test("^(eDP|LVDS|DSI)-"))]
+      end as $preferred
+    | if ($preferred | length) == 1 or ($kind == "apple" and ($preferred | length) > 0) then
+        $preferred[0].name
+      elif ($preferred | length) == 0 and ($active | length) == 1 then
+        $active[0].name
+      else
+        empty
+      end
+  ' <<<"$monitors"
+}
+
+read_brightness() {
+  local brightness=""
+
+  brightness="$(omarchy-brightness-display --monitor "$1" 2>/dev/null)" || return 1
+  [[ $brightness =~ ^[0-9]+$ ]] || return 1
+  (( brightness >= 0 && brightness <= 100 )) || return 1
+  printf '%s\n' "$brightness"
+}
+
+write_brightness() {
+  local monitor="$1"
+  local brightness="$2"
+
+  [[ $brightness =~ ^[0-9]+$ ]] || return 1
+  (( brightness >= 1 && brightness <= 100 )) || return 1
+  omarchy-brightness-display --no-osd --monitor "$monitor" "$brightness%" --nonblocking >/dev/null
+}
+
+# Wait for the next poll on the Hyprland event stream instead of with sleep,
+# so an idle poll starts no process. A monitor event sets monitors_changed.
+# Returns 1 when the stream ends, because Hyprland stopped.
+wait_for_tick() {
+  local line=""
+  local now=0
+  local remaining=0
+
+  while true; do
+    now=${EPOCHREALTIME//[!0-9]/}
+    remaining=$(( next_tick - now ))
+    if (( remaining <= 0 )); then
+      next_tick=$(( now + poll_seconds * 1000000 ))
+      return 0
+    fi
+    printf -v remaining '%d.%06d' $(( remaining / 1000000 )) $(( remaining % 1000000 ))
+    if IFS= read -r -t "$remaining" -u "$events" line; then
+      [[ $line == monitoradded* || $line == monitorremoved* ]] && monitors_changed=1
+    elif (( $? <= 128 )); then
+      return 1
+    fi
+  done
+}
+
+open_events() {
+  local socket="${XDG_RUNTIME_DIR:-}/hypr/${HYPRLAND_INSTANCE_SIGNATURE:-}/.socket2.sock"
+
+  [[ -S $socket ]] || return 1
+  exec {events}< <(socat -U - "UNIX-CONNECT:$socket")
+}
+
+log_message() {
+  printf 'omarchy-brightness-auto: %s\n' "$*" >&2
+}
+
+log_state() {
+  local status="$*"
+
+  [[ $status == $last_status ]] && return 0
+  last_status="$status"
+  log_message "$status"
+}
+
+control_session() {
+  local sensor="$1"
+  local kind="$2"
+  local monitor="$3"
+  local lux=""
+  local smoothed_lux=""
+  local base_target=""
+  local target=""
+  local current=""
+  local last_auto=""
+  local offset=""
+  local next=""
+  local mapped_monitor=""
+  local write_status=0
+  local channel=""
+  local raw=""
+  local last_raw=""
+
+  channel="$(find_illuminance_channel "$sensor")" || {
+    log_state "unable to read sensor $sensor"
+    return 1
+  }
+  read -r last_raw <"$channel"
+  lux="$(read_lux "$sensor")" || {
+    log_state "unable to read sensor $sensor"
+    return 1
+  }
+  smoothed_lux="$lux"
+  base_target="$(curve_brightness "$smoothed_lux")" || return 1
+  current="$(read_brightness "$monitor")" || {
+    log_state "unable to read brightness for $monitor"
+    return 1
+  }
+  offset=$(( current - base_target ))
+  last_auto="$current"
+  target="$current"
+  log_state "controlling $monitor from $sensor at $current%"
+
+  monitors_changed=0
+  next_tick=0
+  while wait_for_tick; do
+    if (( monitors_changed )); then
+      monitors_changed=0
+      mapped_monitor="$(select_monitor "$kind")" || {
+        log_state "lost display $monitor"
+        return 1
+      }
+      if [[ $mapped_monitor != $monitor ]]; then
+        log_state "display mapping changed from $monitor to $mapped_monitor"
+        return 1
+      fi
+    fi
+    read -r raw <"$channel" || {
+      log_state "lost sensor $sensor"
+      return 1
+    }
+    # Steady light: the reading is about the same, the smoothing has settled,
+    # and no write is still pending.
+    if [[ $smoothed_lux == $lux ]] && ! reading_changed "$last_raw" "$raw" &&
+      ! needs_adjustment "$target" "$last_auto"; then
+      continue
+    fi
+    last_raw="$raw"
+    lux="$(read_lux "$sensor")" || {
+      log_state "lost sensor $sensor"
+      return 1
+    }
+    smoothed_lux="$(smooth_lux "$smoothed_lux" "$lux")" || return 1
+    base_target="$(curve_brightness "$smoothed_lux")" || return 1
+    target="$(target_with_offset "$base_target" "$offset")"
+    needs_adjustment "$target" "$last_auto" || continue
+
+    current="$(read_brightness "$monitor")" || {
+      log_state "lost brightness control for $monitor"
+      return 1
+    }
+    # A manual change is the new baseline for the light at this moment, so no
+    # unfinished ramp or smoothing moves the display away from it.
+    if (( current != last_auto )); then
+      smoothed_lux="$lux"
+      base_target="$(curve_brightness "$lux")" || return 1
+      offset=$(( current - base_target ))
+      last_auto="$current"
+      target="$current"
+      continue
+    fi
+
+    next="$(step_toward "$target" "$last_auto")"
+    if write_brightness "$monitor" "$next"; then
+      last_auto="$next"
+    else
+      write_status=$?
+      (( write_status == 75 )) && continue
+      log_state "unable to set brightness for $monitor"
+      return 1
+    fi
+  done
+}
+
+controller_pass() {
+  local sensor=""
+  local kind=""
+  local monitor=""
+  local status=0
+
+  if ! read -r sensor kind < <(find_sensor); then
+    log_state "no ambient light sensor found"
+    return 1
+  fi
+  # Listen before the monitor query, so no monitor change falls between them.
+  open_events || {
+    log_state "no Hyprland event socket"
+    return 1
+  }
+  # A closed lid covers a built-in sensor. In clamshell mode Omarchy disables
+  # the internal panel, and the sensor would then drive the external display.
+  # The lid is asked after the monitor query: the lid closes before Omarchy
+  # disables the panel, so a session that starts in between still gets the
+  # monitor event and ends.
+  if ! monitor="$(select_monitor "$kind")"; then
+    log_state "no unambiguous active monitor for $sensor"
+    status=1
+  elif [[ $kind == generic ]] && omarchy-hw-laptop-closed; then
+    log_state "paused: lid closed"
+    status=1
+  else
+    control_session "$sensor" "$kind" "$monitor" || status=$?
+  fi
+  exec {events}<&-
+  return "$status"
+}
+
+run_controller() {
+  while true; do
+    controller_pass || true
+    sleep "$retry_seconds" || return 0
+  done
+}
+
+automatic_brightness_supported() {
+  local sensor=""
+  local kind=""
+  local monitor=""
+
+  read -r sensor kind < <(find_sensor) || return 1
+  monitor="$(select_monitor "$kind")" || return 1
+  read_brightness "$monitor" >/dev/null
+}
+
+# The service is opt-in, so the command installs its unit instead of the
+# package, and removes it again when the service is turned off.
+enable_service() {
+  install -Dm644 "$OMARCHY_PATH/default/systemd/user/$service" "$unit" || return 1
+  systemctl --user daemon-reload
+  systemctl --user enable --now "$service"
+}
+
+disable_service() {
+  systemctl --user disable --now "$service"
+  rm -f "$unit"
+  systemctl --user daemon-reload
+}
+
+service_enabled() {
+  systemctl --user is-enabled --quiet "$service" 2>/dev/null
+}
+
+print_status() {
+  local supported=false
+  local enabled=false
+  local active=false
+
+  automatic_brightness_supported && supported=true
+  service_enabled && enabled=true
+  systemctl --user is-active --quiet "$service" 2>/dev/null && active=true
+  printf '{"supported":%s,"enabled":%s,"active":%s}\n' "$supported" "$enabled" "$active"
+}
+
+usage() {
+  printf 'Usage: omarchy-brightness-auto <on|off|toggle|status>\n' >&2
+}
+
+main() {
+  if (( $# == 0 )); then
+    run_controller
+    return
+  fi
+
+  (( $# == 1 )) || {
+    usage
+    return 2
+  }
+
+  case "$1" in
+  on)
+    enable_service
+    ;;
+  off)
+    disable_service
+    ;;
+  toggle)
+    if service_enabled; then
+      disable_service
+    else
+      enable_service
+    fi
+    ;;
+  status)
+    print_status
+    ;;
+  *)
+    usage
+    return 2
+    ;;
+  esac
+}
+
+if [[ ${BASH_SOURCE[0]} == $0 ]]; then
+  main "$@"
+fi
