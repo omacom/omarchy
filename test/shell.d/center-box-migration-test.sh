@@ -73,6 +73,61 @@ check '{"bar":{"centerAnchor":"omarchy.clock","layout":{"center":"omarchy.clock"
   '{"layout":{"center":"omarchy.clock"}}' \
   "a center that is not a list only loses the anchor"
 
+# A stale anchor: the widget was swapped for a clone and the anchor never followed.
+clone() {
+  mkdir -p "$test_dir/home/.config/omarchy/plugins/$1"
+  printf '{"id":"%s","omarchy":{"clonedFrom":"%s"}}\n' "$1" "$2" >"$test_dir/home/.config/omarchy/plugins/$1/manifest.json"
+}
+
+check '{"bar":{"centerAnchor":"omarchy.clock","layout":{"center":["omarchy.indicators","omarchy.clock","omarchy.weather"]}}}' \
+  '{"layout":{"centerBegin":["omarchy.indicators"],"center":["omarchy.clock"],"centerEnd":["omarchy.weather"]}}' \
+  "an anchor the center lists is used as named"
+
+rm -rf "$test_dir/home/.config/omarchy/plugins"
+check '{"bar":{"centerAnchor":"omarchy.clock","layout":{"center":["omarchy.indicators",{"id":"dhh.clock","format":"HH:mm"},"omarchy.weather"]}}}' \
+  '{"layout":{"centerBegin":["omarchy.indicators"],"center":[{"id":"dhh.clock","format":"HH:mm"}],"centerEnd":["omarchy.weather"]}}' \
+  "a stale anchor follows the one center widget of its kind"
+
+check '{"bar":{"centerAnchor":"omarchy.clock","layout":{"center":["omarchy.clock-extra","acme.clock","dhh.clock","omarchy.weather"]}}}' \
+  '{"layout":{"center":["omarchy.clock-extra","acme.clock","dhh.clock","omarchy.weather"]}}' \
+  "a stale anchor with two center widgets of its kind and no clone record leaves the center whole"
+
+clone dhh.clock omarchy.clock
+check '{"bar":{"centerAnchor":"omarchy.clock","layout":{"center":["omarchy.indicators","acme.clock","dhh.clock","omarchy.weather"]}}}' \
+  '{"layout":{"centerBegin":["omarchy.indicators","acme.clock"],"center":["dhh.clock"],"centerEnd":["omarchy.weather"]}}' \
+  "a stale anchor follows the clone that replaced it, even beside another widget of its kind"
+
+clone acme.clock omarchy.clock
+check '{"bar":{"centerAnchor":"omarchy.clock","layout":{"center":["acme.clock","dhh.clock","omarchy.weather"]}}}' \
+  '{"layout":{"center":["acme.clock","dhh.clock","omarchy.weather"]}}' \
+  "a stale anchor with two clones in the center leaves the center whole"
+
+rm -rf "$test_dir/home/.config/omarchy/plugins"
+clone dhh.clock omarchy.clock
+clone dhh.clock-alt omarchy.clock
+check '{"bar":{"centerAnchor":"omarchy.clock","layout":{"center":["dhh.clock-alt","dhh.clock","omarchy.weather"]}}}' \
+  '{"layout":{"center":["dhh.clock-alt","dhh.clock","omarchy.weather"]}}' \
+  "a stale anchor with two clones in the center leaves it whole, even when only one shares its kind"
+
+rm -rf "$test_dir/home/.config/omarchy/plugins"
+mkdir -p "$test_dir/home/.config/omarchy/plugins/"{broken,empty,doubled}
+echo '{' >"$test_dir/home/.config/omarchy/plugins/broken/manifest.json"
+: >"$test_dir/home/.config/omarchy/plugins/empty/manifest.json"
+echo '{"id":"a"}{"id":"b"}' >"$test_dir/home/.config/omarchy/plugins/doubled/manifest.json"
+check '{"bar":{"centerAnchor":"omarchy.clock","layout":{"center":["omarchy.indicators","dhh.clock"]}}}' \
+  '{"layout":{"centerBegin":["omarchy.indicators"],"center":["dhh.clock"],"centerEnd":[]}}' \
+  "an unreadable plugin manifest does not stop the migration"
+
+echo '{"id":"dhh.clock","omarchy":{"clonedFrom":"omarchy.clock"}}{"id":"b"}' >"$test_dir/home/.config/omarchy/plugins/doubled/manifest.json"
+check '{"bar":{"centerAnchor":"omarchy.clock","layout":{"center":["acme.clock","dhh.clock"]}}}' \
+  '{"layout":{"center":["acme.clock","dhh.clock"]}}' \
+  "a manifest the shell cannot parse records no clone"
+
+check '{"bar":{"centerAnchor":"omarchy.clock","layout":{"center":["omarchy.media","omarchy.weather"]}}}' \
+  '{"layout":{"center":["omarchy.media","omarchy.weather"]}}' \
+  "a stale anchor with nothing of its kind in the center leaves the center whole"
+rm -rf "$test_dir/home/.config/omarchy/plugins"
+
 for given in \
   '{"version":1,"bar":{"layout":{"center":["omarchy.media","omarchy.clock"]}},"plugins":[]}' \
   '{"version":1,"bar":{"id":"local.bar","centerAnchor":"omarchy.clock","layout":{"center":["a","omarchy.clock","b"]}}}'; do
