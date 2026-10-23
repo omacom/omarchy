@@ -550,3 +550,28 @@ toggle
 grep -q "set to tiling" "$notification_log" && ! grep -q "dwindle" "$notification_log" ||
   fail "the notification calls dwindle tiling" "$(cat "$notification_log")"
 pass "the notification calls dwindle tiling"
+
+# A layout registered from Lua is named lua:<name>, and its name is not limited
+# to lowercase letters. The saved files hold it as written.
+custom_layout="lua:wide-columns_2"
+custom_state="$tmpdir/custom-state"
+custom_dir="$custom_state/omarchy/workspace-layouts"
+mkdir -p "$custom_dir"
+
+layout_command() {
+  env HOME="$home_dir" XDG_STATE_HOME="$custom_state" HYPRCTL_LOG="$log_file" \
+    PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/$1"
+}
+
+# With a default saved, a mode the command cannot read looks like a workspace
+# with no mode of its own, so it would be reported as the default.
+printf 'o.workspace_mode({ workspace = "3", mode = "%s" })\n' "$custom_layout" >"$custom_dir/3.lua"
+printf 'o.workspace_mode({ default = "scrolling" })\n' >"$custom_dir/default.lua"
+[[ $(layout_command omarchy-hyprland-workspace-layout-current) == "$custom_layout" ]] ||
+  fail "a saved Lua layout is reported as the workspace layout" "$(layout_command omarchy-hyprland-workspace-layout-current)"
+pass "a saved Lua layout is reported as the workspace layout"
+
+printf 'o.workspace_mode({ default = "%s" })\n' "$custom_layout" >"$custom_dir/default.lua"
+[[ $(layout_command omarchy-hyprland-workspace-layout-default) == "$custom_layout" ]] ||
+  fail "a saved Lua layout is reported as the default layout" "$(layout_command omarchy-hyprland-workspace-layout-default)"
+pass "a saved Lua layout is reported as the default layout"
