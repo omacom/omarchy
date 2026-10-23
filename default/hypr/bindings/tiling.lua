@@ -98,8 +98,21 @@ o.bind("SUPER + CTRL + RIGHT", "Move grouped window focus right", hl.dsp.group.n
 o.bind("SUPER + ALT + mouse_down", "Next window in group", hl.dsp.group.next())
 o.bind("SUPER + ALT + mouse_up", "Previous window in group", hl.dsp.group.prev())
 
+-- Hyprland reports an index past the end of the group as a Lua error, so skip it.
+function o.switch_group_window(index)
+  local window = hl.get_active_window()
+  if window and window.group and index <= window.group.size then
+    hl.dispatch(hl.dsp.group.active({ index = index }))
+  end
+end
+
 for index = 1, 5 do
-  o.bind("SUPER + ALT + code:" .. tostring(index + 9), "Switch to group window " .. index, hl.dsp.group.active({ index = index }))
+  local function switch()
+    o.switch_group_window(index)
+  end
+
+  o.bind_commands[switch] = "hyprctl eval " .. o.shell_quote("o.switch_group_window(" .. index .. ")")
+  o.bind("SUPER + ALT + code:" .. tostring(index + 9), "Switch to group window " .. index, switch)
 end
 
 o.bind("SUPER + SLASH", "Monitor scaling up", "omarchy-hyprland-monitor-scaling up")
