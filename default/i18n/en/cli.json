@@ -70,6 +70,7 @@
   "crash.captureEnabled": "Crash capture enabled",
   "crash.diagnose": "Click to diagnose with AI",
   "crash.processCrashed": "Process crashed: %1",
+  "browser.commandNotFound": "Browser command not found: %1",
   "default.browserSet": "%1 is now the default browser",
   "default.editorSet": "%1 is now the default editor",
   "default.terminalSet": "%1 is now the default terminal",

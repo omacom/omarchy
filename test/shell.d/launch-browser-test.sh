@@ -43,6 +43,7 @@ cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
 printf '%s\n' "$1" >"$OMARCHY_TEST_BROWSER_FOCUS"
 SH
 chmod +x "$mock_bin"/*
+ln -s "$ROOT/bin/omarchy-cmd-default-browser" "$mock_bin/omarchy-cmd-default-browser"
 
 launch_log="$test_tmp/launch"
 focus_log="$test_tmp/focus"
@@ -118,3 +119,72 @@ launch --private
 [[ -s $help_log ]] || fail "a private launch probes the browser's private flag"
 grep -F -- 'chromium --incognito' "$launch_log" >/dev/null || fail "a private launch passes the browser's private flag"
 pass "a private launch passes the browser's private flag"
+
+spaced_desktop="userapp-Firefox Developer Edition-U5J9W3.desktop"
+cat >"$test_home/.local/share/applications/$spaced_desktop" <<'EOF'
+[Desktop Entry]
+Exec=chromium %u
+EOF
+rm -f "$mock_bin/omarchy-cmd-default-browser"
+cat >"$mock_bin/omarchy-cmd-default-browser" <<EOF
+#!/bin/bash
+printf '%s\n' '$spaced_desktop'
+EOF
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_NOTIFY"
+SH
+chmod +x "$mock_bin/omarchy-cmd-default-browser" "$mock_bin/omarchy-notification-send"
+rm -f "$launch_log"
+notify_log="$test_tmp/notify"
+HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  OMARCHY_TEST_BROWSER_FOCUS="$focus_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/spaced"
+[[ ! -e $notify_log ]] || fail "a desktop id with spaces still resolves to a browser command"
+grep -F 'https://example.test/spaced' "$launch_log" >/dev/null || fail "a desktop id with spaces still opens the URL"
+grep -F -- '-- chromium' "$launch_log" >/dev/null || fail "a desktop id with spaces launches the desktop entry's command"
+pass "a desktop id with spaces still launches the browser"
+
+missing_desktop="missing browser.desktop"
+rm -f "$mock_bin/omarchy-cmd-default-browser"
+cat >"$mock_bin/omarchy-cmd-default-browser" <<EOF
+#!/bin/bash
+printf '%s\n' '$missing_desktop'
+EOF
+chmod +x "$mock_bin/omarchy-cmd-default-browser"
+rm -f "$launch_log" "$notify_log"
+missing_status=0
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/missing" || missing_status=$?
+[[ $missing_status == 1 ]] || fail "a missing browser command exits 1"
+[[ ! -e $launch_log ]] || fail "a missing browser command does not launch a browser"
+expected=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-i18n" browser.commandNotFound "$missing_desktop")
+grep -F -- '-u critical' "$notify_log" >/dev/null || fail "a missing browser command sends a critical notification"
+grep -F -- "$expected" "$notify_log" >/dev/null || fail "a missing browser command reports the desktop id through the catalog"
+pass "a missing browser command reports the failure and does not launch"
+
+rm -f "$mock_bin/omarchy-cmd-default-browser"
+cat >"$mock_bin/omarchy-cmd-default-browser" <<'EOF'
+#!/bin/bash
+printf '%s\n' 'google-chrome missing.desktop'
+EOF
+cat >"$mock_bin/setsid" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$OMARCHY_TEST_WEBAPP_LAUNCH"
+exit 0
+SH
+chmod +x "$mock_bin/omarchy-cmd-default-browser" "$mock_bin/setsid"
+webapp_log="$test_tmp/webapp"
+rm -f "$notify_log" "$webapp_log"
+webapp_status=0
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" OMARCHY_TEST_WEBAPP_LAUNCH="$webapp_log" \
+  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app" || webapp_status=$?
+[[ $webapp_status == 1 ]] || fail "a missing web app browser exits 1"
+[[ ! -e $webapp_log ]] || fail "a missing web app browser does not launch"
+webapp_expected=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-i18n" browser.commandNotFound "google-chrome missing.desktop")
+grep -F -- '-u critical' "$notify_log" >/dev/null || fail "a missing web app browser sends a critical notification"
+grep -F -- "$webapp_expected" "$notify_log" >/dev/null || fail "a missing web app browser reports the desktop id through the catalog"
+pass "a missing web app browser reports the failure and does not launch"
