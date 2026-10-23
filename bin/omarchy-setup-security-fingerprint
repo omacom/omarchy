@@ -155,74 +155,123 @@ if omarchy-pkg-missing libfprint-git fprintd usbutils; then
   sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
 fi
 
-# Enroll first fingerprint
-# Authenticate sudo first, and say so: with fingerprint sudo already set up it
-# asks for a touch of its own, which must not pass for the first sample.
-if ! sudo -n true 2>/dev/null; then
-  echo -e "\nFirst, confirm it's you. Setup needs administrator rights to enroll."
-  if ! sudo -v; then
-    echo -e "\e[31mSetup needs administrator rights to enroll a fingerprint.\e[0m"
-    exit 1
+# fprintd-enroll and fprintd-verify use fprintd's default reader. Prints its
+# path, or NoSuchDevice when fprintd has no reader it can drive.
+default_reader() {
+  gdbus call --system --dest net.reactivated.Fprint --object-path /net/reactivated/Fprint/Manager \
+    --method net.reactivated.Fprint.Manager.GetDefaultDevice 2>&1 |
+    grep -o -e '/net/reactivated/Fprint/Device/[0-9]\+' -e 'NoSuchDevice'
+}
+
+# Whether a print is saved on the default reader: 0 yes, 1 no, 2 fprintd could
+# not say. fprintd-list prints a "Using device <path>" header per reader, then
+# one " - #N: finger" line per print or "User has no fingers enrolled", which
+# also contains the word finger, so only entry lines under the default count.
+# It exits non-zero when it cannot list, which must not read as no prints.
+fingerprint_enrolled() {
+  local reader listing
+  reader=$(default_reader) || return 2
+  # A sensor libfprint cannot drive holds no print; enrolling reports fprintd's error.
+  if [[ $reader == "NoSuchDevice" ]]; then
+    return 1
   fi
+  listing=$(fprintd-list "$USER" 2>&1) || return 2
+  awk -v reader="$reader" '
+    /^Using device / { current = ($3 == reader) }
+    current && /^ *- #[0-9]+: / { found = 1 }
+    END { exit !found }
+  ' <<<"$listing"
+}
+
+enrolled=0
+fingerprint_enrolled || enrolled=$?
+
+if (( enrolled == 2 )); then
+  echo -e "\e[31mCould not check for saved fingerprints. Make sure fprintd is running and\e[0m"
+  echo -e "\e[31mfprintd-list $USER works, then run this setup again.\e[0m"
+  exit 1
 fi
 
-echo -e "\e[32m\nLet's set up your right index finger as the first fingerprint.\e[0m"
 # A press sensor needs a touch for each sample; a swipe sensor a moving finger.
 # When fprintd can't say which, the prompts name neither.
 case $(fingerprint_reader scan-type) in
   press)
     start="Touch the sensor." again="Keep lifting your finger and touching the sensor."
-    echo -e "Touch the sensor, lift your finger and touch it again, and keep going until it says Enrolled. A step can take a few touches.\n"
+    how="Touch the sensor, lift your finger and touch it again, and keep going until it says Enrolled. A step can take a few touches."
     ;;
   swipe)
     start="Swipe your finger across the sensor." again="Swipe it again."
-    echo -e "Keep moving the finger around on sensor until it says Enrolled.\n"
+    how="Keep moving the finger around on sensor until it says Enrolled."
     ;;
   *)
     start="Touch or swipe the sensor." again="Touch or swipe it again."
-    echo -e "Touch or swipe the sensor, and keep going until it says Enrolled. A step can take a few tries.\n"
+    how="Touch or swipe the sensor, and keep going until it says Enrolled. A step can take a few tries."
     ;;
 esac
 
-# fprintd runs a duplicate check before enrolling on a reader that identifies,
-# which D-Bus doesn't say. Touch ID does, and its check needs no touch while
-# nothing is enrolled; any other reader's first stage counts, touched or not.
-# The name is the driver's full_name in libfprint/drivers/aurora/aurora.c, which
-# omarchy-pkgs adds to libfprint-git in pkgbuilds/libfprint-git/aurora-apple-sep.patch.
-# If it changes there, Touch ID shows one step early.
-duplicate_check=0
-if [[ $(fingerprint_reader name) == "Apple secure enclave fingerprint sensor" ]]; then
-  duplicate_check=1
-fi
-# The filters only print; the exit status is fprintd's.
-sudo fprintd-enroll "$USER" | enroll_progress "$again" "$duplicate_check"
-enroll_status=${PIPESTATUS[0]}
-if (( enroll_status == 0 )); then
-  echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
-
-  # Verify
-  echo -e "\nNow let's verify that it's working correctly. $start\n"
-  fprintd-verify | verify_progress "$again"
-  verify_status=${PIPESTATUS[0]}
-  if (( verify_status == 0 )); then
-    # PAM comes last, once a print is enrolled and verified. Detection only
-    # proves a reader is there, not that libfprint can drive it — an Elan MOC
-    # sensor outside the elanmoc table gets this far and then fails to enroll.
-    # Editing the stacks up front would leave those machines pointing at
-    # pam_fprintd with nothing to match.
-    setup_pam_config
-    "$OMARCHY_PATH/bin/omarchy-apply-lock"
-    if [[ ! -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
-      echo "Fingerprint enrollment succeeded, but lock-screen configuration could not be confirmed. Run omarchy-apply-lock and try again." >&2
+# fprintd-enroll refuses a finger that matches a print saved under another
+# finger name (enroll-duplicate), so keep any saved print and verify it instead.
+if (( enrolled == 0 )); then
+  echo -e "\e[32mA fingerprint is already enrolled. Let's check it still works.\e[0m"
+else
+  # Enroll first fingerprint
+  # Authenticate sudo first, and say so: with fingerprint sudo already set up it
+  # asks for a touch of its own, which must not pass for the first sample.
+  if ! sudo -n true 2>/dev/null; then
+    echo -e "\nFirst, confirm it's you. Setup needs administrator rights to enroll."
+    if ! sudo -v; then
+      echo -e "\e[31mSetup needs administrator rights to enroll a fingerprint.\e[0m"
       exit 1
     fi
-    echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
-    echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
+  fi
+
+  echo -e "\e[32m\nLet's set up your right index finger as the first fingerprint.\e[0m"
+  echo -e "$how\n"
+
+  # fprintd runs a duplicate check before enrolling on a reader that identifies,
+  # which D-Bus doesn't say. Touch ID does, and its check needs no touch while
+  # nothing is enrolled; any other reader's first stage counts, touched or not.
+  # The name is the driver's full_name in libfprint/drivers/aurora/aurora.c, which
+  # omarchy-pkgs adds to libfprint-git in pkgbuilds/libfprint-git/aurora-apple-sep.patch.
+  # If it changes there, Touch ID shows one step early.
+  duplicate_check=0
+  if [[ $(fingerprint_reader name) == "Apple secure enclave fingerprint sensor" ]]; then
+    duplicate_check=1
+  fi
+  # The filters only print; the exit status is fprintd's.
+  sudo fprintd-enroll "$USER" | enroll_progress "$again" "$duplicate_check"
+  enroll_status=${PIPESTATUS[0]}
+  if (( enroll_status == 0 )); then
+    echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
   else
-    echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
+    echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
     exit 1
   fi
+fi
+
+# Verify
+echo -e "\nNow let's verify that it's working correctly. $start\n"
+fprintd-verify | verify_progress "$again"
+verify_status=${PIPESTATUS[0]}
+if (( verify_status == 0 )); then
+  # PAM comes last, once a print is enrolled and verified. Detection only
+  # proves a reader is there, not that libfprint can drive it — an Elan MOC
+  # sensor outside the elanmoc table gets this far and then fails to enroll.
+  # Editing the stacks up front would leave those machines pointing at
+  # pam_fprintd with nothing to match.
+  setup_pam_config
+  "$OMARCHY_PATH/bin/omarchy-apply-lock"
+  if [[ ! -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
+    echo "Fingerprint enrollment succeeded, but lock-screen configuration could not be confirmed. Run omarchy-apply-lock and try again." >&2
+    exit 1
+  fi
+  echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
+  echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
 else
-  echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
+  # The print stays saved, even one enrolled just now, so a rerun would skip enrollment.
+  # fprintd-verify accepts any saved finger, so the one that failed is not known.
+  echo -e "\e[31m\nVerification failed. fprintd-list $USER shows your saved fingerprints.\e[0m"
+  echo -e "\e[31mRemove one with fprintd-delete $USER -f <finger>, or all of them with\e[0m"
+  echo -e "\e[31mfprintd-delete $USER, then run this setup again.\e[0m"
   exit 1
 fi

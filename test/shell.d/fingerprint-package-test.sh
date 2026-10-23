@@ -49,6 +49,15 @@ case "$1" in
   *) printf 'pacman %s\n' "$*" >> "$CALL_LOG"; exit 99 ;;
 esac
 STUB
+cat > "$scratch/bin/gdbus" <<'STUB'
+#!/bin/bash
+echo "(objectpath '/net/reactivated/Fprint/Device/0',)"
+STUB
+cat > "$scratch/bin/fprintd-list" <<'STUB'
+#!/bin/bash
+echo "Using device /net/reactivated/Fprint/Device/0"
+echo "User $1 has no fingers enrolled for Test Sensor."
+STUB
 # Both fail unless ENROLL_STATUS or VERIFY_STATUS says otherwise, stopping
 # before PAM. ENROLL_OUTPUT is what fprintd-enroll prints first.
 cat > "$scratch/bin/fprintd-enroll" <<'STUB'
