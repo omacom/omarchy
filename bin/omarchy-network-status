@@ -20,34 +20,16 @@ case "${1:-}" in
     ;;
 esac
 
-# The kernel sends internet traffic through VPN and proxy tunnels, so the
-# default-route device is often a TUN/WireGuard interface with no radio or NIC
-# behind it. Report the physical link that traffic ultimately rides on instead,
-# so a laptop on Wi-Fi through a tunnel is still "wifi".
+# A tunnel (TUN, WireGuard: no Ethernet link layer) takes the internet route, but its
+# packets leave by the best default route on another device; a bridge stays itself.
 physical_device() {
-  local device=$1 candidate
+  local device=$1 underlying
 
-  [[ -d $net_class_path/$device/wireless || -e $net_class_path/$device/device ]] && {
-    printf '%s\n' "$device"
-    return
-  }
+  if [[ $(cat "$net_class_path/$device/type" 2>/dev/null) != "1" ]]; then
+    underlying=$(ip -j route show default 2>/dev/null | jq -r --arg tunnel "$device" '[.[] | select(.dev != $tunnel)] | sort_by(.metric // 0) | .[0].dev // ""' 2>/dev/null)
+  fi
 
-  # A tunnel: prefer a connected radio, then a wired NIC with carrier.
-  for candidate in "$net_class_path"/*; do
-    [[ -d $candidate/wireless ]] || continue
-    [[ $(cat "$candidate/operstate" 2>/dev/null) == up ]] || continue
-    printf '%s\n' "${candidate##*/}"
-    return
-  done
-
-  for candidate in "$net_class_path"/*; do
-    [[ -e $candidate/device ]] || continue
-    [[ $(cat "$candidate/operstate" 2>/dev/null) == up ]] || continue
-    printf '%s\n' "${candidate##*/}"
-    return
-  done
-
-  printf '%s\n' "$device"
+  printf '%s\n' "${underlying:-$device}"
 }
 
 print_status() {
