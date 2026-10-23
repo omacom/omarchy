@@ -79,6 +79,21 @@ function availableScales(scales, width, height) {
     .map(function(candidate) { return candidate.value })
 }
 
+function scaleDisplay(displays, selectedName, focusedName) {
+  if (!Array.isArray(displays)) return null
+
+  var focused = null
+  var first = null
+  for (var i = 0; i < displays.length; i++) {
+    var display = displays[i]
+    if (!display || !display.enabled) continue
+    if (display.name === selectedName && selectedName) return display
+    if (display.name === focusedName || display.focused) focused = display
+    if (!first) first = display
+  }
+  return focused || first
+}
+
 // tr is an optional translate(key, english) from the QML side (I18n.t);
 // without it the English text stands, which is what the Node tests assert.
 function brightnessName(percent, tr) {
@@ -121,6 +136,7 @@ if (typeof module !== "undefined") {
     cleanScale: cleanScale,
     matchingScaleIndex: matchingScaleIndex,
     availableScales: availableScales,
+    scaleDisplay: scaleDisplay,
     brightnessName: brightnessName,
     parseDisplays: parseDisplays
   }

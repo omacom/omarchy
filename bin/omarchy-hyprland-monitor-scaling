@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# omarchy:summary=Show, set, or adjust focused Hyprland monitor scaling
-# omarchy:args=[up|down|SCALE]
-# omarchy:examples=omarchy hyprland monitor scaling | omarchy hyprland monitor scaling 1.6 | omarchy hyprland monitor scaling up | omarchy hyprland monitor scaling down
+# omarchy:summary=Show, set, or adjust Hyprland monitor scaling
+# omarchy:args=[up|down|SCALE|--monitor OUTPUT SCALE]
+# omarchy:examples=omarchy hyprland monitor scaling | omarchy hyprland monitor scaling 1.6 | omarchy hyprland monitor scaling --monitor DP-1 1.25 | omarchy hyprland monitor scaling up
 
 SCALES=(1 1.25 1.6 2 3 4)
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 SCALE_LOG="$STATE_DIR/monitor-scaling.log"
 
 usage() {
-  echo "Usage: omarchy-hyprland-monitor-scaling [up|down|SCALE]"
+  echo "Usage: omarchy-hyprland-monitor-scaling [up|down|SCALE|--monitor OUTPUT SCALE]"
 }
 
 focused_monitor_scale() {
@@ -71,10 +71,50 @@ normalize_scale() {
   awk 'NR == 1 { printf "%g\n", $0 }'
 }
 
+has_target_scale_rule() {
+  [[ -f $1 ]] || return 1
+  awk -v output="$2" '
+    /^[[:space:]]*hl[.]monitor\(\{/ && index($0, "output = \"" output "\"") && /scale = / { found = 1 }
+    END { exit !found }
+  ' "$1"
+}
+
+persist_target_scale() {
+  local monitor_lua="$1" output="$2" scale="$3"
+  local temporary
+
+  [[ -f $monitor_lua ]] || return 0
+  monitor_lua=$(realpath -e "$monitor_lua") || return 1
+  temporary=$(mktemp "${monitor_lua}.XXXXXX") || return 1
+  if awk -v output="$output" -v scale="$scale" '
+    /^[[:space:]]*hl[.]monitor\(\{/ && index($0, "output = \"" output "\"") && /scale = / {
+      sub(/scale = [^,;}]*[^,;}[:space:]]/, "scale = " scale)
+      found = 1
+    }
+    { print }
+    END {
+      if (!found) print "hl.monitor({ output = \"" output "\", mode = \"preferred\", position = \"auto\", scale = " scale " })"
+    }
+  ' "$monitor_lua" >"$temporary"; then
+    chmod --reference="$monitor_lua" "$temporary"
+    mv -- "$temporary" "$monitor_lua"
+  else
+    rm -f -- "$temporary"
+    return 1
+  fi
+}
+
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
-  local monitor_info="$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')"
+  local target="${3:-}"
+  local monitors_json monitor_info
+  monitors_json=$(hyprctl monitors -j) || return 1
+  if [[ -n $target ]]; then
+    monitor_info=$(jq -e -c --arg name "$target" '.[] | select(.name == $name)' <<<"$monitors_json") || return 1
+  else
+    monitor_info=$(jq -e -c '.[] | select(.focused == true)' <<<"$monitors_json") || return 1
+  fi
   local active_monitor="$(echo "$monitor_info" | jq -r '.name')"
   local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
   local width="$(echo "$monitor_info" | jq -r '.width')"
@@ -96,6 +136,17 @@ set_scale() {
 
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
+
+  if [[ -n $target ]] || jq -e 'length > 1' <<<"$monitors_json" >/dev/null; then
+    persist_target_scale "$monitor_lua" "$active_monitor" "$new_scale"
+    return
+  fi
+
+  # A previously named output still wins over the catch-all after another
+  # display is unplugged. Update it as well as the single-display defaults.
+  if has_target_scale_rule "$monitor_lua" "$active_monitor"; then
+    persist_target_scale "$monitor_lua" "$active_monitor" "$new_scale" || return 1
+  fi
 
   # Persist to monitors.lua if the user still has Omarchy's generic catch-all
   # defaults, so the scale survives reboots.
@@ -177,6 +228,15 @@ case "${1:-}" in
   ;;
 -h | --help)
   usage
+  ;;
+--monitor)
+  if (( $# != 3 )) || [[ ! $2 =~ ^[A-Za-z0-9._-]+$ ]] ||
+    [[ ! $3 =~ ^[0-9]+([.][0-9]+)?$ ]] ||
+    ! awk -v scale="$3" 'BEGIN { exit !(scale >= 1 && scale <= 4) }'; then
+    usage >&2
+    exit 1
+  fi
+  set_scale "$3" "$3" "$2"
   ;;
 up)
   monitor_info=$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')

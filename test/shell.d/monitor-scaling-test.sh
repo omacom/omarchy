@@ -19,8 +19,14 @@ cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 if [[ $1 == "monitors" && $2 == "-j" ]]; then
-  printf '[{"name":"eDP-1","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0}]' \
-    "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
+  if [[ ${OMARCHY_TEST_ONLY_EXTERNAL:-} == 1 ]]; then
+    printf '[{"name":"DP-1","focused":true,"scale":1.25,"width":2560,"height":1440,"refreshRate":60.0}]'
+  elif [[ ${OMARCHY_TEST_TWO_MONITORS:-} == 1 ]]; then
+    printf '[{"name":"eDP-1","focused":true,"scale":2,"width":2880,"height":1800,"refreshRate":120.0},{"name":"DP-1","focused":false,"scale":1,"width":2560,"height":1440,"refreshRate":60.0}]'
+  else
+    printf '[{"name":"eDP-1","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0}]' \
+      "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
+  fi
 elif [[ $1 == "eval" ]]; then
   printf '%s\n' "$2" >"$OMARCHY_TEST_HYPRCTL_EVAL_OUT"
 else
@@ -42,6 +48,8 @@ run_scaling() {
     PATH="$stub_bin:$PATH" \
     OMARCHY_TEST_HYPRCTL_EVAL_OUT="$eval_out" \
     OMARCHY_TEST_MONITOR_SCALE="${OMARCHY_TEST_MONITOR_SCALE:-2}" \
+    OMARCHY_TEST_TWO_MONITORS="${OMARCHY_TEST_TWO_MONITORS:-}" \
+    OMARCHY_TEST_ONLY_EXTERNAL="${OMARCHY_TEST_ONLY_EXTERNAL:-}" \
     "$ROOT/bin/omarchy-hyprland-monitor-scaling" "$@"
 }
 
@@ -129,3 +137,76 @@ grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down skips d
 grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
   fail "monitor scaling down persists 2x after skipping duplicate approximation"
 pass "monitor scaling down skips duplicate approximation"
+
+write_monitor_config
+OMARCHY_TEST_TWO_MONITORS=1 run_scaling --monitor DP-1 1.25
+grep -F 'output = "DP-1", mode = "2560x1440@60.0", position = "auto", scale = 1.25' "$eval_out" >/dev/null ||
+  fail "targeted scaling applies to the selected, unfocused display"
+grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
+  fail "targeted scaling leaves the shared default alone"
+grep -Fx 'local omarchy_gdk_scale = 2' "$monitor_lua" >/dev/null ||
+  fail "targeted scaling leaves the global GTK scale alone"
+grep -Fx 'hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", scale = 1.25 })' "$monitor_lua" >/dev/null ||
+  fail "targeted scaling persists a rule for only the selected display"
+pass "targeted scaling changes and persists only the selected output"
+
+OMARCHY_TEST_TWO_MONITORS=1 run_scaling --monitor DP-1 1.6
+[[ $(grep -c '^hl.monitor({ output = "DP-1"' "$monitor_lua") == 1 ]] ||
+  fail "repeated targeted scaling updates its rule rather than duplicating it"
+grep -Fx 'hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", scale = 1.6 })' "$monitor_lua" >/dev/null ||
+  fail "repeated targeted scaling persists its new value"
+pass "targeted scaling updates the selected output rule"
+
+OMARCHY_TEST_TWO_MONITORS=1 run_scaling --monitor eDP-1 2
+grep -Fx 'hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", scale = 1.6 })' "$monitor_lua" >/dev/null ||
+  fail "changing the other display leaves the external scale intact"
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 2 })' "$monitor_lua" >/dev/null ||
+  fail "changing the other display saves its own rule"
+pass "each enabled display retains its own scale"
+
+OMARCHY_TEST_TWO_MONITORS=1 run_scaling up
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 3 })' "$monitor_lua" >/dev/null ||
+  fail "scale hotkey saves the focused monitor rather than the shared default"
+grep -Fx 'hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", scale = 1.6 })' "$monitor_lua" >/dev/null ||
+  fail "scale hotkey leaves the other display unchanged"
+grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
+  fail "scale hotkey leaves the shared default alone with two displays"
+pass "focused-monitor hotkeys persist independently with two displays"
+
+write_monitor_config
+printf '%s\n' 'hl.monitor({ output = "DP-1", mode = "2560x1440@144", position = "2880x0", scale = 1, transform = 1 })' >>"$monitor_lua"
+OMARCHY_TEST_TWO_MONITORS=1 run_scaling --monitor DP-1 1.25
+grep -Fx 'hl.monitor({ output = "DP-1", mode = "2560x1440@144", position = "2880x0", scale = 1.25, transform = 1 })' "$monitor_lua" >/dev/null ||
+  fail "targeted scaling preserves custom mode, position, and transform"
+pass "targeted scaling preserves existing output settings"
+
+write_monitor_config
+printf '%s\n' 'hl.monitor({ output = "DP-1"; mode = "preferred"; position = "auto"; scale = 1.25; transform = 1 })' >>"$monitor_lua"
+OMARCHY_TEST_TWO_MONITORS=1 run_scaling --monitor DP-1 2
+grep -Fx 'hl.monitor({ output = "DP-1"; mode = "preferred"; position = "auto"; scale = 2; transform = 1 })' "$monitor_lua" >/dev/null ||
+  fail "targeted scaling preserves settings after a semicolon-separated scale"
+pass "targeted scaling leaves semicolon-separated settings intact"
+
+write_monitor_config
+OMARCHY_TEST_TWO_MONITORS=1 run_scaling --monitor DP-1 1.25
+OMARCHY_TEST_ONLY_EXTERNAL=1 run_scaling 1.6
+grep -Fx 'hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", scale = 1.6 })' "$monitor_lua" >/dev/null ||
+  fail "the remaining display updates its existing output-specific rule"
+pass "single-display scaling updates a previously named output"
+
+write_monitor_config
+mv "$monitor_lua" "$home_dir/shared-monitors.lua"
+ln -s "$home_dir/shared-monitors.lua" "$monitor_lua"
+OMARCHY_TEST_TWO_MONITORS=1 run_scaling --monitor DP-1 1.25
+[[ -L $monitor_lua ]] || fail "targeted scaling preserves a symlinked monitor config"
+grep -F 'output = "DP-1"' "$home_dir/shared-monitors.lua" >/dev/null ||
+  fail "targeted scaling updates the symlink target"
+rm "$monitor_lua"
+pass "targeted scaling keeps symlinked monitor configs linked"
+
+write_monitor_config
+if OMARCHY_TEST_TWO_MONITORS=1 run_scaling --monitor HDMI-A-9 2 >/dev/null 2>&1; then
+  fail "targeted scaling rejects a disconnected output"
+fi
+grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null || fail "invalid target leaves config untouched"
+pass "targeted scaling rejects missing displays"
