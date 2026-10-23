@@ -1,0 +1,8 @@
+{
+  "SearchSuggestEnabled": false,
+  "NetworkPredictionOptions": 2,
+  "BlockThirdPartyCookies": true,
+  "WebRtcIPHandling": "default_public_interface_only",
+  "AlternateErrorPagesEnabled": false,
+  "SpellCheckServiceEnabled": false
+}
