@@ -51,6 +51,9 @@ exit_session() {
 
   # Proceed as soon as apps exit, with a bound for unresponsive windows.
   timeout 2s omarchy-hyprland-window-close-all --wait
+  if [[ $action == "logout" ]]; then
+    omarchy-sddm-set-monitor-scale || true
+  fi
   "${command[@]}"
 }
 
