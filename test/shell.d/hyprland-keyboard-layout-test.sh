@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
 require_command lua
@@ -7,7 +9,7 @@ require_command xkbcli
 
 resolved_input_for() {
   local module="$1"
-  OMARCHY_PATH="$ROOT" OMARCHY_MODULE="$module" OMARCHY_VCONSOLE="${2-}" lua <<'LUA'
+  OMARCHY_PATH="$ROOT" OMARCHY_MODULE="$module" OMARCHY_VCONSOLE="${2-}" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local vconsole = os.getenv("OMARCHY_VCONSOLE")
