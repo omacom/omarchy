@@ -3,6 +3,13 @@
 # omarchy:summary=Show or adjust brightness on the focused display.
 # omarchy:args=[--no-osd] [--monitor name] [+N%|N%-|N%|off|on]
 # omarchy:examples=omarchy brightness display | omarchy brightness display +5% | omarchy brightness display --monitor DP-1 50% | omarchy brightness display off | omarchy brightness display on
+#
+# `off` and `on` normally blank and relight every display with DPMS. With the
+# ddc-blank toggle on (omarchy toggle ddc-blank) and only external monitors
+# attached, they instead put each monitor to sleep and wake it over DDC/CI,
+# so the video link stays up. Some HDMI 2.1 monitors drop hotplug on DPMS off,
+# which removes and re-adds the output every few seconds while locked, and
+# need a long link training to come back; keeping the link up avoids both.
 
 no_osd=0
 monitor=""
@@ -48,16 +55,49 @@ use_ddc_display() {
 # I2C buses, slowly, so only a connector with a ddc node is probed. Everywhere
 # else every external monitor is.
 monitor_may_have_ddc() {
+  local name=${1:-$monitor}
   local displays_conf=/usr/share/omarchy-platform/displays.conf directive argument
   [[ -r $displays_conf ]] || return 0
 
   while IFS=$' \t\r' read -r directive argument || [[ -n $directive ]]; do
     if [[ $directive == "ddc-require-connector-ddc" && -z $argument ]]; then
-      compgen -G "/sys/class/drm/card*-$monitor/ddc" >/dev/null
+      compgen -G "/sys/class/drm/card*-$name/ddc" >/dev/null
       return
     fi
   done <"$displays_conf"
   return 0
+}
+
+# The enabled monitors when every one of them can be slept over DDC/CI: all
+# external and, on a platform that says so, all with a ddc node. A built-in
+# panel has no DDC, so a laptop with its lid open keeps DPMS for everything;
+# mixing the two would leave one display lit.
+ddc_blank_monitors() {
+  omarchy-toggle-enabled ddc-blank || return 1
+  local names name
+  names=$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.disabled == false) | .name') || return 1
+  [[ -n $names ]] || return 1
+  for name in $names; do
+    [[ $name =~ ^(eDP|LVDS|DSI)- ]] && return 1
+    monitor_may_have_ddc "$name" || return 1
+  done
+  printf '%s\n' "$names"
+}
+
+# Sleep or wake every DDC-blank monitor at once; one slow monitor must not
+# delay the others. Fails if any monitor did not take the command.
+ddc_blank_all() {
+  local action="$1" names name pid status=0
+  names=$(ddc_blank_monitors) || return 1
+  local -a pids=()
+  for name in $names; do
+    omarchy-brightness-display-ddc "$name" "$action" &
+    pids+=("$!")
+  done
+  for pid in "${pids[@]}"; do
+    wait "$pid" || status=1
+  done
+  return "$status"
 }
 
 # The kernel backlight is the built-in panel's, so an external monitor without
@@ -85,9 +125,19 @@ fi
 step="$1"
 
 if [[ $step == "off" ]]; then
-  hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
+  # A monitor that did not take the DDC command still has to go dark: DPMS
+  # then blanks everything, link drop and all, rather than leave it lit.
+  if ! ddc_blank_all off; then
+    hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
+  fi
   exit 0
 elif [[ $step == "on" ]]; then
+  if ddc_blank_monitors >/dev/null && ! ddc_blank_all on; then
+    # A monitor that ignores the DDC wake only comes back on a fresh signal,
+    # so give it the modeset it would have had with DPMS.
+    hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
+    sleep 1
+  fi
   # Skip the dispatch when every active display is already lit: a redundant
   # DPMS enable right after system resume forces another modeset, which blanks
   # the panel for a beat (visible flash at the unlock screen).

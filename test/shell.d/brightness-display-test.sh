@@ -220,3 +220,81 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+# `off` and `on` blank with DPMS unless the ddc-blank toggle is on and every
+# enabled display is external: then the monitor sleeps over DDC/CI and the
+# video link stays up (some HDMI 2.1 monitors drop hotplug on DPMS off).
+home_dir="$test_tmp/home"
+mkdir -p "$home_dir"
+
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+if [[ $1 == "dispatch" ]]; then
+  printf 'hyprctl dispatch %s\n' "$2" >>"$CALL_LOG"
+  exit 0
+fi
+monitors=${MONITORS_JSON:-}
+[[ -n $monitors ]] || monitors='[{"name":"HDMI-A-1","disabled":false,"dpmsStatus":true}]'
+printf '%s\n' "$monitors"
+SH
+
+cat >"$mock_bin/ddcutil" <<'SH'
+#!/bin/bash
+printf 'ddcutil %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == *" detect --brief"* ]]; then
+  cat <<EOT
+Display 1
+   I2C bus:             /dev/i2c-7
+   DRM connector:       card1-HDMI-A-1
+EOT
+elif [[ $* == *" setvcp D6 "* ]]; then
+  if [[ ${DDC_SET_FAIL:-0} == "1" ]]; then
+    exit 1
+  fi
+fi
+SH
+chmod +x "$mock_bin/hyprctl" "$mock_bin/ddcutil"
+
+run_power() {
+  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" HOME="$home_dir" \
+    PATH="$mock_bin:$ROOT/bin:$PATH" "$brightness_display" "$@"
+}
+
+: >"$call_log"
+run_power off
+grep -F 'hyprctl dispatch hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \
+  fail "off blanks with DPMS while the toggle is off"
+! grep -F ' setvcp D6 ' "$call_log" >/dev/null || fail "off sends no DDC power command while the toggle is off"
+pass "off blanks with DPMS while the toggle is off"
+
+mkdir -p "$home_dir/.local/state/omarchy/toggles"
+: >"$home_dir/.local/state/omarchy/toggles/ddc-blank"
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/"*
+: >"$call_log"
+run_power off
+grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp D6 04' "$call_log" >/dev/null || \
+  fail "the ddc-blank toggle sleeps an external monitor over DDC/CI"
+! grep -F 'hl.dsp.dpms' "$call_log" >/dev/null || fail "a monitor asleep over DDC/CI is not also turned off with DPMS"
+pass "the ddc-blank toggle sleeps an external monitor over DDC/CI instead of DPMS"
+
+: >"$call_log"
+MONITORS_JSON='[{"name":"eDP-1","disabled":false,"dpmsStatus":true},{"name":"HDMI-A-1","disabled":false,"dpmsStatus":true}]' run_power off
+grep -F 'hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \
+  fail "a built-in panel keeps DPMS for every display"
+! grep -F ' setvcp D6 ' "$call_log" >/dev/null || fail "no display sleeps over DDC/CI beside a built-in panel"
+pass "a built-in panel keeps DPMS for every display"
+
+: >"$call_log"
+run_power on
+run_power on
+(( $(grep -c 'setvcp D6 01' "$call_log") == 1 )) || \
+  fail "a burst of wake requests writes DDC once" "$(<"$call_log")"
+! grep -F 'hl.dsp.dpms' "$call_log" >/dev/null || fail "waking over DDC/CI leaves a lit display's DPMS alone"
+pass "a burst of wake requests writes DDC once and leaves lit displays alone"
+
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/"*.wake
+: >"$call_log"
+DDC_SET_FAIL=1 run_power off
+grep -F 'hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \
+  fail "a monitor that refuses the DDC command is blanked with DPMS"
+pass "a monitor that refuses the DDC command is blanked with DPMS"
