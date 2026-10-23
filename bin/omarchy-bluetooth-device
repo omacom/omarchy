@@ -26,20 +26,37 @@ power_on() {
 }
 
 trust_device() {
-  bluetoothctl trust "$address" >/dev/null 2>&1 || true
+  if ! bluetoothctl trust "$address" >/dev/null 2>&1; then
+    echo "Could not trust the Bluetooth device" >&2
+    return 1
+  fi
+}
+
+pair_device() {
+  if ! timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1; then
+    echo "Pairing failed. Keep the device in pairing mode and try again" >&2
+    return 1
+  fi
+}
+
+connect_device() {
+  if ! timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1; then
+    echo "Could not connect to the Bluetooth device" >&2
+    return 1
+  fi
 }
 
 case "$action" in
   pair)
     power_on
-    timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
+    pair_device
     trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    connect_device
     ;;
   connect)
     power_on
     trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    connect_device
     ;;
   disconnect)
     timeout 10s bluetoothctl disconnect "$address" >/dev/null 2>&1 || true

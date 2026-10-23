@@ -28,6 +28,22 @@ assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the ada
 const retryTimer = panelSource.match(/id: discoveryRetry[\s\S]*?onTriggered: \{[\s\S]*?\n {4}\}/)
 assert(retryTimer, 'bluetooth has the discovery retry timer')
 assert(/owesDiscoveryStop = true/.test(retryTimer[0]), 'bluetooth takes on the stop it owes when it starts discovery')
+assert(/!root\.connectionActionRunning/.test(retryTimer[0]), 'bluetooth keeps discovery stopped while pairing or connecting')
+const actionRunning = panelSource.match(/readonly property bool connectionActionRunning: \{[\s\S]*?\n {2}\}/)
+assert(actionRunning && /moduleWidgets\(moduleName\)[\s\S]*items\[i\]\.discoveryPausedForAction/.test(actionRunning[0]), 'bluetooth holds discovery off in every monitor instance while one pairs or connects')
+const discoveringHandler = panelSource.match(/function onDiscoveringChanged\(\) \{[\s\S]*?\n {4}\}/)
+assert(discoveringHandler && /else if \(root\.discoveryPausedForAction\) root\.adapter\.discovering = false/.test(discoveringHandler[0]), 'bluetooth stops a discovery start confirmed after a pair or connect began')
+
+assert(/adapter\.discovering = false[\s\S]*connectionStartTimeout\.restart\(\)/.test(panelSource), 'bluetooth stops discovery before starting a connection action')
+assert(/id: connectionProc[\s\S]*onExited:[\s\S]*finishConnectionAction/.test(panelSource), 'bluetooth observes connection command failures')
+assert(/id: connectionProc[\s\S]*?onRunningChanged: if \(!running && root\.activeConnectionAddress !== ""\) root\.finishConnectionAction\(/.test(panelSource), 'bluetooth releases a pair or connect whose helper fails to start')
+assert(/showDiscoveredDevices:[^\n]*connectionActionRunning/.test(panelSource), 'bluetooth keeps discovered devices visible while discovery pauses for an action')
+assert(/function runConnectionAction[^\n]*\n[^\n]*connectionActionRunning\) return/.test(panelSource), 'bluetooth ignores a second connection while one runs in any instance')
+assert(/readonly property string actionTooltip: \{[^}]*if \(root\.connectionActionRunning\) return ""/.test(panelSource), 'bluetooth stops offering Connect or Pair while a connection runs')
+assert(/actionFailure = Model\.failedConnectionStep\(activeConnectionAction, deviceForAddress\(activeConnectionAddress\)\)/.test(panelSource), 'bluetooth names the step that failed')
+assert(/visible: root\.actionFailure !== ""/.test(panelSource), 'bluetooth shows connection failures in the panel')
+assert(/id: pendingTimeout[\s\S]*?onTriggered:[^\n]*expirePendingActions\([^\n]*connectionProc\.running/.test(panelSource), 'bluetooth keeps a running pair or connect row past the pending timeout')
+assert(/syncPendingActions\(\)[^}]*pendingTimeout\.restart\(\)/.test(panelSource.match(/function finishConnectionAction[\s\S]*?\n {2}\}/)[0]), 'bluetooth restarts the pending timeout once a watched connection succeeds')
 
 // Quickshell only forwards a discovering write that differs from BlueZ's last
 // confirmed state, so a stop written in the same instant as an in-flight
@@ -109,6 +125,17 @@ assertDeepEqual(
   'bluetooth adds pending actions immutably'
 )
 assertDeepEqual(bluetooth.withPendingAction({ a: 'connecting' }, 'a', ''), {}, 'bluetooth clears pending actions immutably')
+assertDeepEqual(
+  bluetooth.expirePendingActions({ a: 'connecting', b: 'forgetting' }, 'a'),
+  { a: 'connecting' },
+  'bluetooth keeps the row of a running pair or connect when pending actions time out'
+)
+assertDeepEqual(bluetooth.expirePendingActions({ a: 'connecting', b: 'forgetting' }, ''), {}, 'bluetooth clears every pending action on timeout when nothing is running')
+assertEqual(bluetooth.failedConnectionStep('pair', { paired: false, bonded: false }), 'pair', 'bluetooth reports a pair that never paired as a pairing failure')
+assertEqual(bluetooth.failedConnectionStep('pair', { paired: true }), 'connect', 'bluetooth reports a pair that paired but did not connect as a connection failure')
+assertEqual(bluetooth.failedConnectionStep('pair', { bonded: true }), 'connect', 'bluetooth treats a bonded device as paired when naming the failed step')
+assertEqual(bluetooth.failedConnectionStep('pair', null), 'pair', 'bluetooth reports a pairing failure when the device is gone')
+assertEqual(bluetooth.failedConnectionStep('connect', { paired: true }), 'connect', 'bluetooth reports a failed connect as a connection failure')
 
 const bluetoothSink = {
   isSink: true,
@@ -156,6 +183,7 @@ cat >"$mock_bin/bluetoothctl" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$BLUETOOTHCTL_LOG"
+[[ ${BLUETOOTHCTL_FAIL:-} == "$1" ]] && exit 1
 [[ $1 == "power" && $2 == "on" ]] && echo yes >"$POWERED_FILE"
 [[ $1 == "list" ]] &&
   for c in ${MOCK_CONTROLLERS:-AA:BB:CC:DD:EE:FF}; do printf 'Controller %s mock\n' "$c"; done
@@ -251,6 +279,40 @@ pass "bluetooth skips the power-on delay when the adapter is already powered"
 grep -qx "connect AA:BB:CC:DD:EE:FF" "$powered_log" ||
   fail "bluetooth still connects when the adapter is already powered"
 pass "bluetooth still connects when the adapter is already powered"
+
+pair_log=$(bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+grep -qx "pair AA:BB:CC:DD:EE:FF" "$pair_log" ||
+  fail "bluetooth starts pairing while the device is discoverable" "$(cat "$pair_log")"
+grep -qx "trust AA:BB:CC:DD:EE:FF" "$pair_log" ||
+  fail "bluetooth trusts a successfully paired device" "$(cat "$pair_log")"
+grep -qx "connect AA:BB:CC:DD:EE:FF" "$pair_log" ||
+  fail "bluetooth connects a successfully paired device" "$(cat "$pair_log")"
+pass "bluetooth pairs, trusts, and connects a device in order"
+
+: >"$device_tmp/log"
+echo yes >"$POWERED_FILE"
+if PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" BLUETOOTHCTL_FAIL=pair \
+  "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF >/dev/null 2>&1; then
+  fail "bluetooth reports a pairing failure"
+fi
+pass "bluetooth reports a pairing failure"
+
+grep -q "trust AA:BB:CC:DD:EE:FF" "$device_tmp/log" &&
+  fail "bluetooth does not trust a device after pairing fails" "$(cat "$device_tmp/log")"
+grep -q "connect AA:BB:CC:DD:EE:FF" "$device_tmp/log" &&
+  fail "bluetooth does not connect a device after pairing fails" "$(cat "$device_tmp/log")"
+pass "bluetooth stops the connection sequence after pairing fails"
+
+: >"$device_tmp/log"
+if PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" BLUETOOTHCTL_FAIL=connect \
+  "$ROOT/bin/omarchy-bluetooth-device" connect AA:BB:CC:DD:EE:FF >/dev/null 2>&1; then
+  fail "bluetooth reports a connection failure"
+fi
+pass "bluetooth reports a connection failure"
+
+grep -qx "trust AA:BB:CC:DD:EE:FF" "$device_tmp/log" ||
+  fail "bluetooth trusts a known device before connecting" "$(cat "$device_tmp/log")"
+pass "bluetooth trusts a known device before connecting"
 
 # Connecting to a device while Bluetooth is off has to lift the block first —
 # BlueZ refuses to power an adapter up while one is set.
