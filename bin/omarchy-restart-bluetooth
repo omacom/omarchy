@@ -1,7 +1,14 @@
 #!/bin/bash
 
 # omarchy:summary=Unblock and restart the bluetooth service.
+# omarchy:requires-sudo=true
 
 echo -e "Unblocking bluetooth...\n"
 rfkill unblock bluetooth
+
+echo -e "Restarting bluetooth service...\n"
+sudo systemctl restart bluetooth.service
+restart_status=$?
+
 rfkill list bluetooth
+exit "$restart_status"
