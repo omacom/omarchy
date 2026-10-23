@@ -38,6 +38,26 @@ function parseProfiles(raw, previousIndex) {
   }
 }
 
+// omarchy-battery-charge-limit status prints "on" or "off", then the stopping
+// percentage when the laptop has one. No output means no supported battery.
+function parseChargeLimit(raw) {
+  var parts = String(raw || "").trim().split(/\s+/)
+  var state = parts[0]
+  if (state !== "on" && state !== "off") return { supported: false, enabled: false, end: 0 }
+
+  var end = parseInt(parts[1], 10)
+  return { supported: true, enabled: state === "on", end: end > 0 && end < 100 ? end : 0 }
+}
+
+// Laptops that stop by charging mode rather than at a number get plain labels,
+// so the panel never promises a percentage the firmware does not keep.
+function chargeLimitOptions(end) {
+  return [
+    { enabled: true, icon: "\u{F0081}", label: end > 0 ? "Limit " + end + "%" : "Limit" },
+    { enabled: false, icon: "\u{F0079}", label: end > 0 ? "Full 100%" : "Full" }
+  ]
+}
+
 function profileIcon(name) {
   if (name === "power-saver") return "󰌪"
   if (name === "balanced") return "󰊚"
@@ -116,6 +136,8 @@ if (typeof module !== "undefined") {
     selectProfileIndex: selectProfileIndex,
     parseKeyValue: parseKeyValue,
     parseProfiles: parseProfiles,
+    parseChargeLimit: parseChargeLimit,
+    chargeLimitOptions: chargeLimitOptions,
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
