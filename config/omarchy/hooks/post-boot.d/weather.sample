@@ -3,8 +3,8 @@
 # Show the weather status notification after Omarchy has started.
 # To put it into use, remove .sample from this file name.
 
-weather=$(omarchy-weather-status 2>/dev/null) || true
-
-if [[ -n $weather && $weather != "Weather unavailable" ]]; then
+# omarchy-weather-status exits non-zero when it has nothing to report, so its
+# exit status is the check; matching on its wording breaks when that wording does.
+if weather=$(omarchy-weather-status 2>/dev/null) && [[ -n $weather ]]; then
   omarchy-notification-send -u low "$weather"
 fi
