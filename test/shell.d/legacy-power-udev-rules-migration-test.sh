@@ -592,6 +592,7 @@ write_vulnerable_wifi_rule
 
 set +e
 HOME="$home_dir" \
+  OMARCHY_PATH="$omarchy_path" \
   PATH="$test_dir/failing-bin:$PATH" \
   bash -euo pipefail "$migration" >"$test_dir/elevation-failure.out" 2>&1
 failure_status=$?
@@ -626,6 +627,7 @@ chmod +x "$test_dir/failing-bin/sudo"
 
 set +e
 HOME="$home_dir" \
+  OMARCHY_PATH="$omarchy_path" \
   PATH="$test_dir/failing-bin:$test_dir/bin:$PATH" \
   bash -euo pipefail "$migration" >"$test_dir/partial-failure.out" 2>&1
 partial_status=$?
