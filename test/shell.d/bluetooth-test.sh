@@ -20,6 +20,60 @@ assert(/manageIpc: false/.test(panelSource), 'bluetooth owns its IPC handler so 
 assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", adapter\.enabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
 assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the adapter power state directly')
 
+// A soft-blocked radio is unregistered from BlueZ, not powered down, so the
+// adapter goes null while hardware is still there. rfkill is the only thing
+// that can tell that apart from a machine with no radio at all, and the panel
+// asks it on the two events that move the answer: the widget loading and the
+// adapter changing. Never on a timer — the shell rules out polling state that
+// only moves through known events, and one widget exists per monitor.
+assert(/visible: adapter !== null \|\| radioBlocked/.test(panelSource), 'bluetooth keeps the bar widget up while the radio is blocked')
+assert(/onAdapterChanged: refreshRadioState\(\)/.test(panelSource), 'bluetooth re-reads rfkill when the adapter appears or disappears')
+assert(/Component\.onCompleted: refreshRadioState\(\)/.test(panelSource), 'bluetooth reads rfkill once when the widget loads')
+assert(/function refreshRadioState\(\)/.test(panelSource), 'bluetooth exposes a rfkill refresh for adapter events')
+const timerBlocks = []
+for (let at = panelSource.indexOf('Timer {'); at !== -1; at = panelSource.indexOf('Timer {', at + 1)) {
+  let depth = 0
+  let end = at + 'Timer {'.length - 1
+  for (; end < panelSource.length; end++) {
+    if (panelSource[end] === '{') depth++
+    else if (panelSource[end] === '}') {
+      depth--
+      if (depth === 0) break
+    }
+  }
+  timerBlocks.push(panelSource.slice(at, end))
+}
+assert(timerBlocks.length > 0, 'bluetooth still has its timers')
+assert(
+  timerBlocks.every((block) => !/rfkill|radioProbe|refreshRadioState/.test(block)),
+  'bluetooth never polls rfkill on a timer'
+)
+
+// With no adapter object to read, rfkill decides the direction: blocked means
+// the only way is on, and a radio that is up but not yet registered — the
+// window right after an unblock — means the only way is off.
+assert(
+  /function toggleBluetooth\(\)[\s\S]*?radioState === "blocked"\) Quickshell\.execDetached\(\["omarchy-bluetooth-power", "on"\]\)/.test(panelSource),
+  'bluetooth turns on from the panel while the radio is blocked'
+)
+assert(
+  /radioState === "present"\) Quickshell\.execDetached\(\["omarchy-bluetooth-power", "off"\]\)/.test(panelSource),
+  'bluetooth turns off from the panel while the adapter is still registering'
+)
+
+// The switch and the hero are what tell the user the radio is off rather than
+// missing, so they have to survive the adapter going null.
+assert(/visible: !!root\.adapter \|\| root\.radioBlocked/.test(panelSource), 'bluetooth keeps the power switch visible while the radio is blocked')
+assert(/radioBlocked \? "bluetooth\.turnedOff"/.test(panelSource), 'bluetooth reports the blocked radio as turned off')
+assert(/root\.radioBlocked \? "bluetooth\.turnOnToScan"/.test(panelSource), 'bluetooth asks for the radio to be turned on instead of reporting missing hardware')
+
+// Both strings are existing translations; the fix adds no keys.
+const enShell = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
+const enStrings = enShell.translations || enShell
+for (const key of ['bluetooth.turnedOff', 'bluetooth.turnOnToScan']) {
+  assert(typeof enStrings[key] === 'string', 'bluetooth reuses the existing translation for ' + key)
+}
+
 // Discovery is a BlueZ session that nothing ends at panel close: it persists
 // until StopDiscovery or until quickshell's D-Bus connection drops with the
 // shell, and a leaked session keeps the radio in inquiry, starving A2DP audio
