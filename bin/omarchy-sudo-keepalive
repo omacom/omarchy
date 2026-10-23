@@ -3,7 +3,44 @@
 # omarchy:summary=Prompt for sudo once and keep the credential alive in the background.
 # omarchy:requires-sudo=true
 
+# Source this so the EXIT trap applies to the calling shell:
+#   source omarchy-sudo-keepalive
+
+# Refresh for at most an hour by default so a long pacman/yay install does not
+# re-prompt, while an abandoned or SIGKILLed install cannot renew forever.
+# Tests override the interval and ceiling to keep the suite fast.
+keepalive_interval=${OMARCHY_SUDO_KEEPALIVE_INTERVAL:-60}
+keepalive_max_refreshes=${OMARCHY_SUDO_KEEPALIVE_MAX_REFRESHES:-60}
+keepalive_parent_pid=$$
+
+# Stop refreshing and revoke. Callers run this once their privileged work is
+# done (before any long Done prompt); the EXIT trap runs it otherwise.
+omarchy_sudo_keepalive_stop() {
+  [[ -n ${SUDO_KEEPALIVE_PID:-} ]] || return 0
+  kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+  wait "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+  SUDO_KEEPALIVE_PID=
+  sudo -k
+}
+
 sudo -v
-while true; do sudo -n true; sleep 60; done 2>/dev/null &
+
+(
+  trap - EXIT
+  sleep_pid=""
+  # Sleep is interruptible so stop can wake the loop promptly. A TERM that
+  # arrives during sudo -n true is deferred until that refresh finishes, so
+  # the caller's wait returns before sudo -k and cannot leave a late refresh
+  # rewriting the timestamp after revoke.
+  trap '[[ -z $sleep_pid ]] || kill "$sleep_pid" 2>/dev/null; exit 0' TERM
+  for ((refresh = 0; refresh < keepalive_max_refreshes; refresh++)); do
+    sleep "$keepalive_interval" &
+    sleep_pid=$!
+    wait "$sleep_pid" || exit 0
+    sleep_pid=""
+    kill -0 "$keepalive_parent_pid" 2>/dev/null || exit 0
+    sudo -n true 2>/dev/null || exit 0
+  done
+) &
 SUDO_KEEPALIVE_PID=$!
-trap "kill $SUDO_KEEPALIVE_PID 2>/dev/null" EXIT
+trap omarchy_sudo_keepalive_stop EXIT
