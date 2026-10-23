@@ -427,6 +427,7 @@ var GUARD_READERS = [
   "omarchy-channel-current",
   "omarchy-default-agent",
   "omarchy-default-browser",
+  "omarchy-default-webapp-browser",
   "omarchy-default-editor",
   "omarchy-default-terminal",
   "omarchy-default-dictation",
