@@ -47,19 +47,19 @@ chmod +x "$mock_bin"/*
 launch_log="$test_tmp/launch"
 focus_log="$test_tmp/focus"
 xdg_settings_browser="$test_tmp/xdg-settings-browser"
-HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
   bash "$ROOT/bin/omarchy-launch-browser"
 
 [[ ! -e $focus_log ]] || fail "browser launcher leaves a new window on the current workspace"
 
-HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
   bash "$ROOT/bin/omarchy-launch-browser" --private
 
 [[ ! -e $focus_log ]] || fail "private browser launcher leaves a new window on the current workspace"
 
-HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
   bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/authorize"
 
@@ -68,7 +68,7 @@ grep -Fx '^chromium.*$' "$focus_log" >/dev/null || fail "browser launcher focuse
 
 rm -f "$focus_log" "$xdg_settings_browser"
 
-HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   BROWSER=omarchy-launch-browser OMARCHY_TEST_XDG_SETTINGS_EMPTY=1 \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
   OMARCHY_TEST_XDG_SETTINGS_BROWSER="$xdg_settings_browser" \
@@ -90,7 +90,7 @@ cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
 SH
 chmod +x "$mock_bin/omarchy-cmd-browser-handoff"
 
-HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
   OMARCHY_TEST_BROWSER_FOCUS="$focus_log" bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/running"
 
 [[ ! -e $launch_log ]] || fail "browser launcher starts no browser when the running one takes the URL"
@@ -104,7 +104,7 @@ cat >"$mock_bin/chromium" <<'SH'
 SH
 chmod +x "$mock_bin/chromium"
 launch() {
-  HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
     OMARCHY_TEST_BROWSER_FOCUS="$focus_log" OMARCHY_TEST_BROWSER_HELP="$help_log" \
     bash "$ROOT/bin/omarchy-launch-browser" "$@"
 }
@@ -118,3 +118,44 @@ launch --private
 [[ -s $help_log ]] || fail "a private launch probes the browser's private flag"
 grep -F -- 'chromium --incognito' "$launch_log" >/dev/null || fail "a private launch passes the browser's private flag"
 pass "a private launch passes the browser's private flag"
+
+# A default-handler entry whose Exec is this launcher used to recurse: each
+# generation probed the command's --help and handed the URL to another
+# generation through systemd-run, doubling until the process table filled.
+cat >"$test_home/.local/share/applications/selfref.desktop" <<'EOF'
+[Desktop Entry]
+Exec=omarchy-launch-browser %U
+EOF
+cat >"$mock_bin/omarchy-launch-browser" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_BROWSER_RECURSE"
+SH
+mkdir -p "$test_home/.config"
+cat >"$test_home/.config/mimeapps.list" <<'EOF'
+[Default Applications]
+x-scheme-handler/http=selfref.desktop
+x-scheme-handler/https=selfref.desktop
+EOF
+recurse_log="$test_tmp/recurse"
+error_log="$test_tmp/error"
+rm -f "$launch_log"
+
+set +e
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_RECURSE="$recurse_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/loop" 2>"$error_log"
+launcher_status=$?
+set -e
+
+(( launcher_status != 0 )) || fail "a self-referencing default browser entry exits with an error"
+[[ ! -s $recurse_log ]] || fail "a self-referencing default browser entry runs omarchy-launch-browser again
+
+$(cat "$recurse_log")"
+[[ ! -e $launch_log ]] || fail "a self-referencing default browser entry hands the URL to systemd-run
+
+$(cat "$launch_log")"
+grep -F 'selfref.desktop' "$error_log" >/dev/null ||
+  fail "a self-referencing default browser entry names the offending entry
+
+$(cat "$error_log")"
+pass "a self-referencing default browser entry is refused instead of recursing"
