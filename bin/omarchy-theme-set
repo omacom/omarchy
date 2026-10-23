@@ -529,6 +529,7 @@ flock -u 9
 visible_theme_commands=(
   omarchy-restart-terminal
   omarchy-theme-set-foot
+  omarchy-theme-set-mc
   omarchy-theme-set-tmux
   omarchy-restart-btop
   omarchy-restart-opencode
