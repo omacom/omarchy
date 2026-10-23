@@ -121,6 +121,31 @@ fi
 grep -qx enroll "$CALL_LOG" || fail "a rerun with everything installed reaches enrollment"
 pass "a rerun with everything installed goes straight to enrollment"
 
+for library in libfprint-tod libfprint-tod-git; do
+  INSTALLED="$library"$'\nfprintd\nusbutils' run_setup
+  if grep -q '^pacman' "$CALL_LOG"; then
+    fail "setup preserves an explicitly installed $library"
+  fi
+  grep -qx enroll "$CALL_LOG" || fail "an installed $library stack reaches enrollment"
+  pass "setup preserves an explicitly installed $library stack"
+
+  INSTALLED="$library" run_setup
+  grep -qx 'pacman -S --needed --noconfirm --ask 4 -- fprintd usbutils' "$CALL_LOG" ||
+    fail "missing clients are installed without replacing $library"
+  pass "a $library setup installs only its missing clients and USB tools"
+
+  INSTALLED="$library"$'\nfprintd\nusbutils' ENROLL_STATUS=0 VERIFY_STATUS=1 run_setup
+  [[ $(grep -E '^(enroll|verify)$' "$CALL_LOG") == $'enroll\nverify' ]] ||
+    fail "$library enrollment is verified before authentication changes"
+  grep -q 'Verification failed' "$scratch/output" || fail "$library verification failure is explained"
+  pass "failed verification on $library leaves authentication untouched and exits nonzero"
+done
+
+INSTALLED=$'libfprint-git\nfprintd\nusbutils' ENROLL_STATUS=0 VERIFY_STATUS=1 run_setup
+grep -qx verify "$CALL_LOG" || fail "default enrollment must also be verified"
+grep -q 'Verification failed' "$scratch/output" || fail "default verification failure is explained"
+pass "failed verification on the default stack leaves authentication untouched and exits nonzero"
+
 INSTALL_STATUS=1 run_setup
 if grep -qx enroll "$CALL_LOG"; then
   fail "a failed package transaction prevents enrollment"

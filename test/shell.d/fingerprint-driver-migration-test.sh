@@ -30,7 +30,10 @@ case "$1" in
     else
       shift
     fi
-    if grep -qx -- "$1" <<< "${INSTALLED:-}"; then
+    # pacman -Q also resolves provides: both TOD packages provide libfprint.
+    if [[ $1 == "libfprint" ]] && grep -Eq '^libfprint-tod(-git)?$' <<< "${INSTALLED:-}"; then
+      :
+    elif grep -qx -- "$1" <<< "${INSTALLED:-}"; then
       :
     else
       grep -qx -- "$1" "$INSTALLED_LOG"
@@ -68,6 +71,12 @@ pass "an installed libfprint-git is left alone"
 INSTALLED=$'libfprint\nfprintd' run_migration
 [[ ! -s $CALL_LOG ]] || fail "an installed stock libfprint is left alone" "$(<"$CALL_LOG")"
 pass "an installed stock libfprint is left alone"
+
+for library in libfprint-tod libfprint-tod-git; do
+  INSTALLED="$library"$'\nfprintd' run_migration
+  [[ ! -s $CALL_LOG ]] || fail "an installed $library is left alone" "$(<"$CALL_LOG")"
+  pass "an installed $library is left alone"
+done
 
 INSTALLED='' run_migration
 [[ ! -s $CALL_LOG ]] || fail "a machine without fprintd is left alone" "$(<"$CALL_LOG")"
