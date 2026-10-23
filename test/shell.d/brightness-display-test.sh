@@ -9,6 +9,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 mock_bin="$test_tmp/bin"
 call_log="$test_tmp/calls"
+written_value="$test_tmp/written-value"
 runtime_dir="$test_tmp/runtime"
 mkdir -p "$mock_bin" "$runtime_dir"
 
@@ -32,23 +33,91 @@ cat >"$mock_bin/brightnessctl" <<'SH'
 printf 'brightnessctl %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == *" -m"* ]]; then
   printf 'mock_backlight,backlight,40,40%%\n'
+elif [[ ${BACKLIGHT_WRITE_FAIL:-0} == "1" ]]; then
+  exit 1
 fi
+SH
+
+cat >"$mock_bin/omarchy-osd" <<'SH'
+#!/bin/bash
+printf 'omarchy-osd %s\n' "$*" >>"$CALL_LOG"
 SH
 
 cat >"$mock_bin/ddcutil" <<'SH'
 #!/bin/bash
 printf 'ddcutil %s\n' "$*" >>"$CALL_LOG"
 
-if [[ $* == *" detect --brief"* ]]; then
+skip_checks=0
+verify=0
+operation=""
+target=""
+while (( $# > 0 )); do
+  case "$1" in
+  --bus)
+    shift 2
+    ;;
+  --skip-ddc-checks)
+    skip_checks=1
+    shift
+    ;;
+  --verify)
+    verify=1
+    shift
+    ;;
+  --noverify)
+    verify=0
+    shift
+    ;;
+  --brief)
+    shift
+    ;;
+  detect)
+    operation="$1"
+    shift
+    ;;
+  getvcp)
+    [[ $2 == "10" ]] || exit 1
+    operation="$1"
+    shift 2
+    ;;
+  setvcp)
+    [[ $2 == "10" ]] || exit 1
+    operation="$1"
+    target="$3"
+    shift 3
+    ;;
+  *)
+    printf 'Unrecognized option: %s\n' "$1" >&2
+    exit 1
+    ;;
+  esac
+done
+
+case "$operation" in
+detect)
   cat <<EOF
 Display 1
    I2C bus:             /dev/i2c-${DDC_BUS:-7}
    DRM connector:       card1-${DDC_CONNECTOR:-DP-1}
 EOF
-elif [[ $* == *" getvcp 10 "* ]]; then
+  ;;
+getvcp)
   [[ ${DDC_READ_FAIL:-0} == "1" ]] && exit 1
-  printf 'VCP 10 C %s %s\n' "${DDC_CURRENT:-40}" "${DDC_MAXIMUM:-80}"
-fi
+  current="${DDC_CURRENT:-40}"
+  if [[ -z ${DDC_CURRENT:-} && -r $WRITTEN_VALUE ]]; then
+    read -r current <"$WRITTEN_VALUE"
+  fi
+  printf 'VCP 10 C %s %s\n' "$current" "${DDC_MAXIMUM:-80}"
+  ;;
+setvcp)
+  if [[ ${DDC_WRITE_FAIL:-0} == "1" ]] || { (( skip_checks )) && [[ ${DDC_SWALLOW_FAST_WRITE:-0} == "1" ]]; }; then
+    (( verify )) && exit 1
+  else
+    printf '%s\n' "$target" >"$WRITTEN_VALUE"
+  fi
+  ;;
+esac
+exit 0
 SH
 
 chmod +x "$mock_bin"/*
@@ -64,7 +133,7 @@ sed -i "s|/sys/class/drm|$test_tmp/drm|g" "$brightness_display"
 grep -qF "$test_tmp/drm/card" "$brightness_display" || fail "omarchy-brightness-display reads DRM connectors from the fixture"
 
 run_brightness() {
-  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" \
+  CALL_LOG="$call_log" WRITTEN_VALUE="$written_value" XDG_RUNTIME_DIR="$runtime_dir" \
     PATH="$mock_bin:$ROOT/bin:$PATH" "$brightness_display" "$@"
 }
 
@@ -77,18 +146,53 @@ run_brightness --monitor DP-1 >/dev/null
 (( $(grep -c '^ddcutil --skip-ddc-checks detect --brief$' "$call_log") == 1 )) || fail "DDC bus mapping is cached"
 pass "DDC bus mapping is cached"
 
-run_brightness --no-osd --monitor DP-1 25%
-grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 20' "$call_log" >/dev/null || \
-  fail "external percentage is converted to the monitor VCP range"
-pass "external percentage is converted to the monitor VCP range"
+run_brightness --monitor DP-1 25% || fail "external brightness works with ddcutil 2.2.7 options"
+[[ $(cat "$written_value") == "20" ]] || fail "external brightness converts the target to the monitor range"
+grep -Fx 'omarchy-osd -i brightness -p 25' "$call_log" >/dev/null || \
+  fail "successful external writes show the new brightness"
+pass "external writes work with ddcutil 2.2.7 options and show the new brightness"
 
 get_count=$(grep -c ' getvcp 10 ' "$call_log")
 run_brightness --no-osd --monitor DP-1 30%
 (( $(grep -c ' getvcp 10 ' "$call_log") == get_count )) || \
   fail "absolute external brightness reuses the cached VCP range"
-grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 24' "$call_log" >/dev/null || \
-  fail "absolute external brightness skips write verification"
+[[ $(cat "$written_value") == "24" ]] || fail "cached external range converts the target correctly"
 pass "absolute external brightness reuses the cached VCP range"
+
+set_count=$(grep -c ' setvcp 10 ' "$call_log")
+DDC_SWALLOW_FAST_WRITE=1 run_brightness --no-osd --monitor DP-1 35% || \
+  fail "full DDC checks avoid a swallowed first write"
+[[ $(cat "$written_value") == "28" ]] || fail "the monitor receives the brightness target"
+(( $(grep -c ' setvcp 10 ' "$call_log") == set_count + 1 )) || \
+  fail "external brightness uses one DDC process"
+pass "full DDC checks avoid a swallowed first write in one process"
+
+set_count=$(grep -c ' setvcp 10 ' "$call_log")
+detect_count=$(grep -c ' detect --brief' "$call_log")
+osd_count=$(grep -c '^omarchy-osd ' "$call_log")
+if DDC_WRITE_FAIL=1 run_brightness --monitor DP-1 45% >"$test_tmp/failed-output" 2>&1; then
+  fail "rejected external brightness write is reported"
+fi
+[[ ! -s $test_tmp/failed-output ]] || fail "failed writes do not report an unconfirmed brightness"
+[[ $(cat "$written_value") == "28" ]] || fail "the rejected write leaves the monitor unchanged"
+(( $(grep -c '^omarchy-osd ' "$call_log") == osd_count )) || \
+  fail "failed external writes do not show a success OSD"
+(( $(grep -c ' setvcp 10 ' "$call_log") == set_count + 1 )) || \
+  fail "a rejected write uses one DDC process"
+get_count=$(grep -c ' getvcp 10 ' "$call_log")
+brightness=$(run_brightness --monitor DP-1) || fail "external brightness stays readable after a rejected write"
+[[ $brightness == "35" ]] || fail "external brightness stays readable after a rejected write" "actual: $brightness"
+(( $(grep -c ' getvcp 10 ' "$call_log") == get_count + 1 )) || \
+  fail "external brightness is re-read after a rejected write"
+(( $(grep -c ' detect --brief' "$call_log") == detect_count )) || \
+  fail "a rejected write keeps the cached DDC bus"
+if DDC_WRITE_FAIL=1 CALL_LOG="$call_log" WRITTEN_VALUE="$written_value" XDG_RUNTIME_DIR="$runtime_dir" PATH="$mock_bin:$PATH" \
+  "$ROOT/bin/omarchy-brightness-display-ddc" DP-1 45% >"$test_tmp/failed-output" 2>&1; then
+  fail "the DDC helper reports a failed verification"
+fi
+[[ ! -s $test_tmp/failed-output ]] || fail "the DDC helper does not emit an unconfirmed percentage"
+pass "rejected writes report failure without a false brightness or OSD and preserve the cached bus"
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
 
 brightness=$(run_brightness --monitor eDP-1)
 [[ $brightness == "40" ]] || fail "internal monitor uses the kernel backlight" "actual: $brightness"
@@ -97,7 +201,7 @@ grep -F 'brightnessctl -d mock_backlight -m' "$call_log" >/dev/null || \
 pass "internal monitor uses the kernel backlight"
 
 brightness=$(FOCUSED_MONITOR=DP-1 run_brightness)
-[[ $brightness == "50" ]] || fail "brightness follows the focused external monitor" "actual: $brightness"
+[[ $brightness == "35" ]] || fail "brightness follows the focused external monitor" "actual: $brightness"
 pass "brightness follows the focused external monitor"
 
 detect_count=$(grep -c ' detect --brief' "$call_log")
@@ -119,7 +223,7 @@ fi
 (( $(grep -c ' detect --brief' "$call_log") == detect_count + 1 )) || \
   fail "transient DDC read failure is not retried immediately"
 brightness=$(run_brightness --monitor DP-1)
-[[ $brightness == "50" ]] || fail "transient DDC read failure is retried on the next invocation" "actual: $brightness"
+[[ $brightness == "35" ]] || fail "transient DDC read failure is retried on the next invocation" "actual: $brightness"
 (( $(grep -c ' detect --brief' "$call_log") == detect_count + 2 )) || \
   fail "transient DDC read failure does not create a negative cache entry"
 pass "transient DDC read failure is retried on the next invocation"
@@ -129,15 +233,36 @@ get_count=$(grep -c ' getvcp 10 ' "$call_log")
 DDC_MAXIMUM=100 run_brightness --no-osd --monitor DP-1 50%
 (( $(grep -c ' getvcp 10 ' "$call_log") == get_count + 1 )) || \
   fail "expired external brightness range is refreshed"
-grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 50' "$call_log" >/dev/null || \
-  fail "expired external brightness range uses the refreshed maximum"
+[[ $(cat "$written_value") == "50" ]] || fail "expired external brightness range uses the refreshed maximum"
 pass "expired external brightness range is refreshed"
 
 rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
 DDC_CURRENT=4 DDC_MAXIMUM=100 run_brightness --no-osd --monitor DP-1 +5%
-grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 5' "$call_log" >/dev/null || \
-  fail "external low brightness writes the one-percent target"
+[[ $(cat "$written_value") == "5" ]] || fail "external low brightness writes the one-percent target"
 pass "external low brightness uses a one-percent step"
+
+exec {test_lock_fd}>"$runtime_dir/omarchy-brightness-display.lock"
+flock -n "$test_lock_fd"
+call_count=$(wc -l <"$call_log")
+if run_brightness --monitor DP-1 40% >/dev/null 2>&1; then
+  fail "a dropped brightness write is not reported as successful"
+fi
+(( $(wc -l <"$call_log") == call_count )) || fail "a dropped brightness write never reaches the backend or OSD"
+brightness=$(run_brightness --monitor DP-1)
+[[ -n $brightness ]] || fail "brightness stays readable while a write holds the lock"
+flock -u "$test_lock_fd"
+exec {test_lock_fd}>&-
+pass "a dropped brightness write fails without changing the display or showing an OSD"
+
+osd_count=$(grep -c '^omarchy-osd ' "$call_log")
+if BACKLIGHT_WRITE_FAIL=1 run_brightness --no-osd --monitor eDP-1 40%; then
+  fail "a failed internal brightness write is reported"
+fi
+if BACKLIGHT_WRITE_FAIL=1 run_brightness --monitor eDP-1 40%; then
+  fail "a failed internal brightness write is reported with the OSD enabled"
+fi
+(( $(grep -c '^omarchy-osd ' "$call_log") == osd_count )) || fail "a failed internal brightness write shows no success OSD"
+pass "a failed internal brightness write fails without showing a success OSD"
 
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
@@ -158,6 +283,7 @@ pass "named Apple display is detected independently of focus"
 # A platform whose display driver has no DDC channel says so: an external
 # monitor whose connector has no ddc node is not probed and never dims the
 # built-in panel in its place.
+printf '40\n' >"$written_value"
 mkdir -p "$test_tmp/drm/card2-USB-1" "$test_tmp/drm/card2-eDP-1"
 # The last line needs no newline.
 printf '%s\n%s' '# no DDC channel on the display driver' 'ddc-require-connector-ddc' >"$platform_root/displays.conf"

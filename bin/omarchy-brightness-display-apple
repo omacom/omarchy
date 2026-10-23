@@ -101,7 +101,7 @@ fi
 
 if ! sudo asdcontrol "$device" -- "$step" >/dev/null; then
   retry_with_fresh_device
-  sudo asdcontrol "$device" -- "$step" >/dev/null
+  sudo asdcontrol "$device" -- "$step" >/dev/null || exit 1
 fi
 
 (( no_osd )) || omarchy-osd -i brightness -p "$(current_brightness "$device")"

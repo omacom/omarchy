@@ -31,6 +31,14 @@ Item {
   signal moved(real value)
   signal released(real value)
 
+  function cancelDrag() {
+    if (!dragging) return
+    mouseArea.enabled = false
+    dragging = false
+    liveValue = value
+    Qt.callLater(function() { mouseArea.enabled = true })
+  }
+
   // Right-click is a secondary action on the whole track — audio uses it to
   // mute the channel the slider belongs to. Dragging stays left-button only.
   signal rightClicked()
@@ -139,9 +147,13 @@ Item {
       root.moved(next)
     }
     onReleased: function(mouse) {
-      if (mouse.button !== Qt.LeftButton) return
+      if (mouse.button !== Qt.LeftButton || !root.dragging) return
       root.dragging = false
       root.released(root.liveValue)
+      root.liveValue = root.value
+    }
+    onCanceled: {
+      root.dragging = false
       root.liveValue = root.value
     }
     onWheel: function(wheel) {
