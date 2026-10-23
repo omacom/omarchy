@@ -103,6 +103,45 @@ assertEqual(
   'bluetooth keeps deviceName in row projections so labels survive QObject-free rows'
 )
 
+// BlueZ publishes org.bluez.Battery1 only for peripherals that report battery over
+// GATT, so a classic-HID device such as a Magic Mouse reads as having no battery at
+// all. The kernel does read it, over a HID feature report, and UPower carries it on a
+// nativePath that names the device address.
+assertEqual(bluetooth.hidBatteryAddress('hid-d4:9a:20:83:52:e9-battery-71'), 'd49a208352e9', 'bluetooth reads the device address out of a kernel HID battery path')
+assertEqual(bluetooth.hidBatteryAddress('/org/bluez/hci0/dev_D3_05_D1_D9_35_22'), '', 'bluetooth ignores UPower devices BlueZ already reports a battery for')
+assertEqual(bluetooth.hidBatteryAddress('macsmc-battery'), '', 'bluetooth ignores UPower devices that are not HID batteries')
+
+assertDeepEqual(
+  bluetooth.hidBatteryMap([
+    { nativePath: 'hid-d4:9a:20:83:52:e9-battery-71', percentage: 0.6, ready: true },
+    { nativePath: 'hid-11:22:33:44:55:66-battery-71', percentage: 0.4, ready: false },
+    { nativePath: 'hid-aa:bb:cc:dd:ee:ff-battery-71', percentage: 0, ready: true },
+    { nativePath: 'macsmc-battery', percentage: 1, ready: true }
+  ]),
+  { d49a208352e9: 0.6 },
+  'bluetooth maps HID battery levels by address, skipping devices that are absent or not ready'
+)
+
+const hidBatteries = bluetooth.hidBatteryMap([{ nativePath: 'hid-d4:9a:20:83:52:e9-battery-71', percentage: 0.6, ready: true }])
+const hidRow = bluetooth.deviceRow({ name: 'Magic Mouse', address: 'D4:9A:20:83:52:E9', connected: true }, hidBatteries)
+assert(hidRow.batteryAvailable, 'bluetooth reports a battery for a device whose level only the kernel knows')
+assertEqual(hidRow.battery, 0.6, 'bluetooth carries the kernel HID level on the same scale BlueZ uses')
+
+const gattRow = bluetooth.deviceRow({ name: 'Keyboard', address: 'D4:9A:20:83:52:E9', connected: true, batteryAvailable: true, battery: 0.9 }, hidBatteries)
+assertEqual(gattRow.battery, 0.9, 'bluetooth prefers the level BlueZ reports over the kernel HID fallback')
+
+assert(
+  !bluetooth.deviceRow({ name: 'Magic Mouse', address: 'D4:9A:20:83:52:E9', connected: true }).batteryAvailable,
+  'bluetooth leaves a row without a battery when no HID levels are supplied'
+)
+
+assert(/hidBatteries: Model\.hidBatteryMap\(upowerDevices\)/.test(panelSource), 'bluetooth builds the HID battery map from UPower')
+assertEqual(
+  (panelSource.match(/Model\.deviceRow\([^)]*hidBatteries\)/g) || []).length,
+  3,
+  'bluetooth passes the HID battery map into every device row projection'
+)
+
 assertDeepEqual(
   bluetooth.withPendingAction({ a: 'connecting' }, 'b', 'forgetting'),
   { a: 'connecting', b: 'forgetting' },
