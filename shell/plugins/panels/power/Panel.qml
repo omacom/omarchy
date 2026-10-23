@@ -140,11 +140,9 @@ Panel {
   }
 
   function refresh() {
-    if (!batteryPresent) return
-
-    if (!batteryProc.running) batteryProc.running = true
+    if (batteryPresent && !batteryProc.running) batteryProc.running = true
     if (!profilesProc.running) profilesProc.running = true
-    if (!systemProc.running) systemProc.running = true
+    if (batteryPresent && !systemProc.running) systemProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -194,14 +192,6 @@ Panel {
 
   onOpenedChanged: {
     if (opened) {
-      if (!batteryPresent) {
-        // Deferred: closing here writes the very property whose change
-        // is being notified, which QML reports as a binding loop for
-        // Panel.opened on every open attempt without a battery.
-        Qt.callLater(function() { root.close() })
-        return
-      }
-
       refresh()
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
@@ -209,11 +199,20 @@ Panel {
     }
   }
 
-  onBatteryPresentChanged: if (!batteryPresent) close()
+  // Without a battery (a desktop) the widget stays on the bar with the power
+  // profile picker; the battery parts of the panel hide themselves. The bar
+  // icon then shows the active profile, which power-profiles-daemon reports
+  // through PowerProfiles, so it is right before the panel is ever opened.
+  readonly property string liveProfile: {
+    var profile = PowerProfiles.profile
+    if (profile === PowerProfile.PowerSaver) return "power-saver"
+    if (profile === PowerProfile.Performance) return "performance"
+    if (profile === PowerProfile.Balanced) return "balanced"
+    return ""
+  }
 
-  visible: batteryPresent
-  implicitWidth: batteryPresent ? button.implicitWidth : 0
-  implicitHeight: batteryPresent ? button.implicitHeight : 0
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
 
   Process {
     id: batteryProc
@@ -287,14 +286,16 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.batteryIcon()
-    labelText: root.showPercentage && !vertical ? Commons.I18n.formatNumber(Math.round(root.batteryFraction * 100)) + "%" : ""
-    slotSize: Style.bar.iconSlot * (root.showPercentage && !vertical ? 2 : 1)
+    text: root.batteryPresent ? root.batteryIcon() : root.profileIcon(root.liveProfile || root.activeProfile)
+    labelText: root.batteryPresent && root.showPercentage && !vertical ? Commons.I18n.formatNumber(Math.round(root.batteryFraction * 100)) + "%" : ""
+    slotSize: Style.bar.iconSlot * (root.batteryPresent && root.showPercentage && !vertical ? 2 : 1)
     tooltipText: ""
     onPressed: function(b) {
-      if (!root.batteryPresent) return
-      if (b === Qt.RightButton) root.togglePercentage()
-      else root.toggle()
+      if (b === Qt.RightButton) {
+        if (root.batteryPresent) root.togglePercentage()
+      } else {
+        root.toggle()
+      }
     }
   }
 
@@ -303,7 +304,7 @@ Panel {
     anchorItem: button
     owner: root
     bar: root.bar
-    open: root.opened && root.batteryPresent
+    open: root.opened
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
@@ -331,6 +332,7 @@ Panel {
 
         // ---------- Hero: battery icon · title/status · percentage ----------
         Item {
+          visible: root.batteryPresent
           width: parent.width
           implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroPercent.implicitHeight)
 
@@ -398,6 +400,7 @@ Panel {
 
         // ---------- Battery progress bar ----------
         Item {
+          visible: root.batteryPresent
           width: parent.width
           implicitHeight: Style.space(8)
 
@@ -465,6 +468,7 @@ Panel {
 
         // ---------- Power profile picker ----------
         PanelSeparator {
+          visible: root.batteryPresent
           foreground: root.bar.foreground
         }
 

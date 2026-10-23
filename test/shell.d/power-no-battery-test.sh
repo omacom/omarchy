@@ -31,8 +31,11 @@ QML2_IMPORT_PATH="$ROOT/shell${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}" \
 QML_IMPORT_PATH="$ROOT/shell${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}" \
 PATH="$ROOT/bin:$PATH" \
   timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "power panel without a battery fixture exits cleanly" "$output"
-[[ $output == *"RESULT pass"* ]] || fail "power panel without a battery settles closed after open" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "power widget without a battery stays on the bar and opens" "$output"
 if rg -q 'Binding loop' <<< "$output"; then
   fail "power panel without a battery has no binding loop" "$output"
 fi
-pass "power panel without a battery settles closed after open, with no binding loop"
+if rg -q "TypeError" <<< "$output"; then
+  fail "power panel without a battery opens without errors" "$output"
+fi
+pass "power widget without a battery stays on the bar and opens its panel, with no binding loop"

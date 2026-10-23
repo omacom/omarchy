@@ -173,13 +173,9 @@ for _ in {1..80}; do
 done
 
 panels=(omarchy.audio omarchy.bluetooth omarchy.monitor omarchy.network)
-# The power panel hides itself without a battery, so it can only be
-# timed where one exists.
-if "$ROOT/bin/omarchy-battery-present" >/dev/null 2>&1; then
-  panels+=(omarchy.power)
-else
-  skip "panel omarchy.power first open and reopen (no battery)"
-fi
+# The power panel opens with or without a battery (without one it holds
+# only the power profile picker).
+panels+=(omarchy.power)
 
 # listPlugins reports discovered manifests, not registered IPC handlers:
 # widget components load asynchronously, so wait until each panel's own
