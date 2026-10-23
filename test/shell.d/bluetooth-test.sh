@@ -98,9 +98,23 @@ assertDeepEqual(
   'bluetooth projects device rows with primitives only'
 )
 assertEqual(
-  bluetooth.deviceLabel(bluetooth.deviceRow({ name: 'Generic', deviceName: 'MX Master 3S', address: '2', connected: true })),
+  bluetooth.deviceLabel(bluetooth.deviceRow({ name: 'Bluetooth Alias', deviceName: 'MX Master 3S', address: '2', connected: true })),
+  'Bluetooth Alias',
+  'bluetooth labels device rows with the alias-aware name when one is set'
+)
+assertEqual(
+  bluetooth.deviceLabel(bluetooth.deviceRow({ name: '', deviceName: 'MX Master 3S', address: '2', connected: true })),
   'MX Master 3S',
-  'bluetooth keeps deviceName in row projections so labels survive QObject-free rows'
+  'bluetooth falls back to deviceName when no alias-aware name is set'
+)
+const unnamedAliasLists = bluetooth.deviceLists([
+  { name: 'AA:BB:CC:DD:EE:01', deviceName: 'JBL Go 3', address: 'AA:BB:CC:DD:EE:01', connected: true },
+  { name: '   ', deviceName: 'MX Master 3S', address: 'AA:BB:CC:DD:EE:02', paired: true }
+])
+assertDeepEqual(
+  unnamedAliasLists.connected.concat(unnamedAliasLists.known).map(bluetooth.deviceLabel),
+  ['JBL Go 3', 'MX Master 3S'],
+  'bluetooth keeps showing a named device whose alias is not a name'
 )
 
 assertDeepEqual(
@@ -139,6 +153,23 @@ assert(
 assert(
   !bluetooth.bluetoothSinkMatchesDevice({ isSink: false, isStream: false, ready: true, name: 'bluez_output.AA_BB_CC_DD_EE_FF.1', properties: {} }, { address: 'AA:BB:CC:DD:EE:FF', name: 'JBL Go 3' }),
   'bluetooth ignores non-sink nodes when matching audio outputs'
+)
+const builtInSink = {
+  isSink: true,
+  isStream: false,
+  ready: true,
+  name: 'alsa_output.pci-0000_00_1f.3.analog-stereo',
+  properties: { 'node.description': 'Speaker + Headphones' }
+}
+assertEqual(
+  bluetooth.bluetoothSinkFor([builtInSink, bluetoothSink], { address: 'AA:BB:CC:DD:EE:FF', name: 'Headphones', deviceName: 'JBL Go 3' }),
+  bluetoothSink,
+  'bluetooth picks the sink carrying the device address over an earlier sink sharing its alias'
+)
+assertEqual(
+  bluetooth.bluetoothSinkFor([builtInSink], { address: '11:22:33:44:55:66', name: 'Headphones' }),
+  builtInSink,
+  'bluetooth falls back to the label when no sink carries the device address'
 )
 JS
 

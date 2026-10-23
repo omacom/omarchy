@@ -197,11 +197,7 @@ Panel {
   }
 
   function bluetoothAudioSink(device) {
-    var sinks = audioSinks()
-    for (var i = 0; i < sinks.length; i++) {
-      if (Model.bluetoothSinkMatchesDevice(sinks[i], device)) return sinks[i]
-    }
-    return null
+    return Model.bluetoothSinkFor(audioSinks(), device)
   }
 
   function setDefaultAudioSink(sink) {
