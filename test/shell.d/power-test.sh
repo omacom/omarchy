@@ -45,12 +45,22 @@ assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states),
   'power shows battery icon when unplugged before battery state refreshes'
 )
+for (const heldBattery of [
+  { isPresent: true, percentage: 0.8, state: states.FullyCharged },
+  { isPresent: true, percentage: 0.8, state: states.PendingCharge },
+  { isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0.1, timeToFull: 120 }
+]) {
+  assertEqual(power.batteryIcon(heldBattery, false, states), power.batteryIcon(heldBattery, true, states), `power keeps the plain battery icon during charge hold state ${heldBattery.state}`)
+}
+const staleFullBattery = { isPresent: true, percentage: 1, state: states.FullyCharged }
+assertEqual(power.batteryIcon(staleFullBattery, true, states), '󰁹', 'power shows the full battery level after unplug before state refreshes')
+assertEqual(power.batteryIcon(staleFullBattery, false, states), '󰂅', 'power shows the connected full battery icon before state refreshes')
 
 assert(/if \(b === Qt\.RightButton\) root\.togglePercentage\(\)/.test(panelSource), 'power right click toggles the bar percentage')
 assert(/Object\.assign\([^\n]+showPercentage: !root\.showPercentage[^\n]+\)[\s\S]*updateEntryInline/.test(panelSource), 'power persists the bar percentage setting')
 // BarIconButton lays its label out before the icon; bar-icon-geometry-test.sh checks the order.
-assert(/text: root\.batteryIcon\(\)\n\s*labelText: root\.showPercentage && !vertical \? Commons\.I18n\.formatNumber\(Math\.round\(root\.batteryFraction \* 100\)\) \+ "%" : ""/.test(panelSource), 'power shows the percentage as the bar button label beside the battery icon')
-assert(/openPanelIndicatorWidth:.*showPercentage.*button\.glyphPaintedWidth : 0/.test(panelSource), 'power spans the open-panel mark across the painted percentage block')
+assert(/text: root\.batteryIcon\(\)\n\s*iconComponent: root\.chargeThresholdActive \? chargeHoldIcon : null\n\s*labelText: root\.showPercentage && !vertical \? Commons\.I18n\.formatNumber\(Math\.round\(root\.batteryFraction \* 100\)\) \+ "%" : ""/.test(panelSource), 'power shows the percentage as the bar button label beside the battery icon')
+assert(/button\.iconComponent \? button\.componentPaintedWidth : button\.glyphPaintedWidth/.test(panelSource), 'power spans the open-panel mark across the painted icon block')
 assert(/IpcHandler[\s\S]*?function togglePercentage\(\) \{ root\.togglePercentage\(\) \}/.test(panelSource), 'power exposes togglePercentage over IPC')
 assert(/manageIpc: false/.test(panelSource), 'power owns its IPC handler so it can extend the target methods')
 JS
