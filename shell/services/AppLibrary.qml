@@ -237,7 +237,7 @@ Item {
     watchChanges: true
     printErrors: false
     onLoaded: root.loadConfiguredHides(text())
-    onFileChanged: root.loadConfiguredHides(text())
+    onFileChanged: reload()
     onLoadFailed: root.loadConfiguredHides("")
   }
 
