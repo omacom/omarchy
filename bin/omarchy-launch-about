@@ -10,7 +10,7 @@
 
 LOGO_FILE="$HOME/.config/omarchy/branding/about.txt"
 FIT_FILE="$HOME/.local/state/omarchy/windows/about.fit"
-OMARCHY_FASTFETCH_DIR=/etc/fastfetch
+OMARCHY_FASTFETCH_DIR=${OMARCHY_FASTFETCH_DIR:-/etc/fastfetch}
 
 # The logo block in the fastfetch config. The fit below reproduces this layout to
 # size the window, and the sheen has to repaint the very cells fastfetch drew the
@@ -62,6 +62,24 @@ custom_fastfetch_config() {
 # nothing, which measures the content narrower than it renders.
 display_columns() {
   LC_ALL=C.UTF-8 wc -L
+}
+
+# About's own screen is Omarchy's config with a line saying c copies it. The hint
+# means nothing to any other fastfetch run, so it is added here rather than to the
+# config every one of them reads.
+about_config() {
+  jq '.modules += [{ type: "custom", format: "\u001b[90m    Press c to copy these details for a bug report" }, "break"]' \
+    "$OMARCHY_FASTFETCH_DIR/config.jsonc"
+}
+
+# Everything About draws and measures goes through here, so the fit and the sheen
+# see the hint the screen shows.
+about_fastfetch() {
+  if [[ -n ${ABOUT_CONFIG:-} ]]; then
+    fastfetch --config "$ABOUT_CONFIG" "$@"
+  else
+    fastfetch "$@"
+  fi
 }
 
 logo_dimensions() {
@@ -141,7 +159,7 @@ fit_window() {
   # The guard character keeps command substitution from eating the trailing
   # break line, which provides the bottom padding row.
   local modules module_w
-  modules=$(fastfetch --logo none | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g'; printf X)
+  modules=$(about_fastfetch --logo none | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g'; printf X)
   modules=${modules%X}
   module_w=$(printf '%s' "$modules" | display_columns)
 
@@ -203,7 +221,7 @@ measure_layout() {
 
   # --pipe false because fastfetch drops its colours when it is not writing to a
   # terminal, and it is writing to this substitution.
-  rendered=$(fastfetch --pipe false 2>/dev/null; printf X)
+  rendered=$(about_fastfetch --pipe false 2>/dev/null; printf X)
   rendered=${rendered%X}
   LAYOUT_ROWS=$(printf '%s' "$rendered" | wc -l)
   (( LAYOUT_ROWS > 0 )) || return 1
@@ -284,11 +302,70 @@ content_changed() {
   [[ $(stty size) != "$grid" || $(stat -c %Y "$LOGO_FILE" 2>/dev/null) != "$logo_stamp" ]]
 }
 
-# A tick either times out, which is the delay, or a key arrives and About closes.
-# Anything else on stdin is a terminal that went away, which closes it too.
+# The modules About shows, for a bug report rather than a screen. Where it gets
+# pasted knows nothing of box drawing, Nerd Font glyphs or colour, so drop the
+# frame, keep only the words in each key, and let fastfetch name the modules whose
+# key was nothing but a glyph. A command module has no name of its own to fall
+# back on, so name those after what they run.
+plain_config() {
+  jq '
+    .logo = { type: "none" }
+    | .modules |= map(
+      select(type == "object" and .type != "custom")
+      | del(.keyColor)
+      | .key = (.key // "" | gsub("[^ -~]"; "") | gsub("^ +| +$"; ""))
+      | if .type == "command" and .key == "" then
+          if (.text | test("omarchy-version-branch")) then .key = "Branch"
+          elif (.text | test("omarchy-version-channel")) then .key = "Channel"
+          elif (.text | test("omarchy-theme-current")) then .key = "Theme" | .text = "omarchy-theme-current"
+          else . end
+        else . end
+      | if .key == "" then del(.key) else . end
+    )
+  ' "$OMARCHY_FASTFETCH_DIR/config.jsonc"
+}
+
+# Fenced so it keeps its lines when pasted into a GitHub issue. The config is
+# written to the file given, which the caller owns and cleans up.
+#
+# fastfetch takes its first parent to be the shell and the next one up to be the
+# terminal. Here that parent is this copy, the About render above it is the
+# shell, and the terminal About runs in is above that — so exec, to add no
+# subshell of its own, and have fastfetch skip the one parent that is this copy.
+# Otherwise the report names About as the terminal and has no font to go with it.
+copy_report() {
+  local config=$1 report
+
+  plain_config >"$config" && report=$(FFTS_IGNORE_PARENT=1 exec fastfetch --config "$config" --pipe true 2>/dev/null)
+
+  if [[ -n ${report:-} ]] && printf '```\n%s\n```' "$report" | wl-copy --type text/plain; then
+    omarchy-notification-send -g 󰅍 "System details copied to clipboard" "Paste them into your bug report."
+  else
+    omarchy-notification-send -g 󰅍 -u critical "Could not copy system details"
+  fi
+}
+
+# A tick either times out, which is the delay, or a key arrives. c copies the
+# details and leaves About open, so the sheen carries on while they are gathered;
+# any other key closes it. Anything else on stdin is a terminal that went away,
+# which closes it too. The copy runs in a session of its own, so closing About
+# straight after pressing c does not take the report, or the notice saying what
+# became of it, down with the window. It stays a child of About, though, without
+# setsid forking it away, because fastfetch finds the terminal by walking up from
+# it. And it gets no terminal to read from, so nothing fastfetch asks the terminal
+# is answered into the keys About is reading.
 tick() {
-  read -t "$1" -n 1 -s && exit
-  (( $? > 128 )) || exit
+  local key
+
+  if read -t "$1" -n 1 -s key; then
+    if [[ $key == "c" ]]; then
+      setsid omarchy-launch-about --copy </dev/null >/dev/null 2>&1 &
+    else
+      exit
+    fi
+  else
+    (( $? > 128 )) || exit
+  fi
 }
 
 play_sheen() {
@@ -322,8 +399,23 @@ rest_sheen() {
   return 0
 }
 
+if [[ ${1:-} == "--copy" ]]; then
+  COPY_CONFIG=$(mktemp --suffix=.jsonc)
+  trap 'rm -f "$COPY_CONFIG"' EXIT
+  copy_report "$COPY_CONFIG"
+  exit
+fi
+
 if [[ ${1:-} == "--render" ]]; then
   printf '\e[?25l'
+
+  # A user's own fastfetch config is shown as it is, without the hint.
+  ABOUT_CONFIG=$(mktemp --suffix=.jsonc)
+  trap 'rm -f "$ABOUT_CONFIG"' EXIT
+  if custom_fastfetch_config || ! about_config >"$ABOUT_CONFIG"; then
+    rm -f "$ABOUT_CONFIG"
+    ABOUT_CONFIG=""
+  fi
 
   # A sweep runs for seconds between polls, so it reads this instead. The polling
   # stays as the backstop, for a signal that arrived while it could not be taken.
@@ -341,7 +433,7 @@ if [[ ${1:-} == "--render" ]]; then
     resized=false
     LAYOUT_ROWS=""
     clear
-    fastfetch
+    about_fastfetch
     # A second pass picks up a fit that could not measure the window the first
     # time. Beyond that, a window that will not settle would be fitted again on
     # every repaint.
