@@ -250,7 +250,9 @@ jobs:
 
   translate:
     needs: [prepare, publish-extract]
-    if: needs.prepare.outputs.locales != '[]'
+    # Without always(), a skipped extract upstream skips this job too, and a
+    # run with nothing to extract never translates.
+    if: ${{ always() && !cancelled() && needs.publish-extract.result == 'success' && needs.prepare.outputs.locales != '[]' }}
     strategy:
       fail-fast: false
       matrix:
