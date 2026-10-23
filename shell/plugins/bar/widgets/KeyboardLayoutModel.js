@@ -57,8 +57,8 @@ function shortLabel(description, briefs) {
 // Hyprland's activelayout event pairs the keyboard that switched with the layout
 // it moved to. Quickshell cuts the event into that many fields, so a description
 // carrying a comma of its own stays in one piece; a binding old enough to hand
-// back only the raw string gets split by hand. The virtual keyboard fcitx5 binds
-// to inject announces switches too, and names a keyboard nobody types on.
+// back only the raw string gets split by hand. The devices UNTYPED_KEYBOARDS
+// names announce switches too, and name a keyboard nobody types on.
 function eventKeyboardName(event) {
   var parts
 
@@ -70,20 +70,21 @@ function eventKeyboardName(event) {
   if (!parts) parts = String(event && event.data ? event.data : "").split(",")
 
   var name = String(parts[0] || "")
-  return name.indexOf("hl-virtual-keyboard") === 0 ? "" : name
+  return isTypedKeyboard(name) ? name : ""
 }
 
 // Hyprland reports more than keyboards as keyboards. fcitx5 binds a virtual one
 // to inject through, which keeps the us layout the input method gave it, and the
 // ACPI power button, lid switch and sleep key each arrive carrying the seat's
-// layout list without anyone ever typing on them. Both answer to switchxkblayout
-// and both can hold the main flag, so a widget that reads or switches whatever
+// layout list without anyone ever typing on them, as does the SMC power/lid
+// device on an Apple laptop. All of them answer to switchxkblayout and any of
+// them can hold the main flag, so a widget that reads or switches whatever
 // the seat hands it ends up describing a button. Leave them out and what remains
 // is keyboards, which is what the rest of this file can then assume.
 //
 // Missing a name here costs the accuracy the seat had before, never a keyboard:
 // anything unrecognised stays in the list.
-var UNTYPED_KEYBOARDS = /^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)/
+var UNTYPED_KEYBOARDS = /^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus|apple-smc-power)/
 
 function isTypedKeyboard(name) {
   return !UNTYPED_KEYBOARDS.test(String(name || ""))
