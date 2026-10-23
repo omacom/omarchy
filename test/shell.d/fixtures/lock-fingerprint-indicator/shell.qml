@@ -67,20 +67,20 @@ ShellRoot {
           view.fingerprintConfigured = true
           root.assertTrue(indicator.visible, "fingerprint indicator is shown when a sensor is configured")
 
-          // The field reserves space for the icon so a long password can never
-          // slide underneath it. The reserve must exceed the icon's own width
+          // The field reserves space for the icons so a long password can never
+          // slide underneath them. The reserve must exceed the icons' own width
           // (leaving a gap), and the shrunk dots must fit the reserved-clear
           // area even at extreme lengths.
           root.assertTrue(view.fingerprintReserve > indicator.width,
             "reserved space exceeds the icon width, got reserve " + view.fingerprintReserve + " vs icon " + indicator.width)
 
           view.passwordText = "x".repeat(80)
-          var clearWidth = view.fieldWidth - 2 * view.fingerprintReserve
+          var clearWidth = view.fieldWidth - 2 * view.rightIconsReserve
           probe.font.pixelSize = Math.max(1, Math.floor(view.passwordDotFontSize * view.passwordDotScale))
           probe.font.letterSpacing = view.passwordDotLetterSpacing * view.passwordDotScale
           probe.text = "●".repeat(80)
           root.assertTrue(probe.advanceWidth <= clearWidth,
-            "80 dots stay clear of the fingerprint icon, need " + probe.advanceWidth + "px of " + clearWidth)
+            "80 dots stay clear of the icons, need " + probe.advanceWidth + "px of " + clearWidth)
 
           view.fingerprintConfigured = false
           root.assertTrue(view.fingerprintReserve === 0, "no space is reserved when no sensor is configured")
