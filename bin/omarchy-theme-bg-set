@@ -17,6 +17,16 @@ if [[ ! -f $BACKGROUND ]]; then
   exit 1
 fi
 
+# A still with a theme loop goes straight to the loop, so the shell is told once.
+source omarchy-theme-bg-companions
+BACKGROUND=$(theme_bg_live_target "$BACKGROUND")
+
+# Serialize with omarchy-theme-bg-loop-apply, so a loop it starts in the
+# meantime never replaces this choice.
+mkdir -p "$HOME/.local/state/omarchy"
+exec 8>"$HOME/.local/state/omarchy/background-loop.lock"
+flock 8
+
 # Create symlink to the new background media
 ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
 

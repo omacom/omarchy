@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# omarchy:summary=Point the background at the current still's theme loop, or back at the still
+# omarchy:args=[--resolve-only [background]|--still background|--still-only]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# While a theme loop plays the background link names the loop, so OWE plays it
+# like any video background; theme memory, intros and the picker map it back
+# to its still. omarchy-theme-bg-companions describes the layout.
+source omarchy-theme-bg-companions
+
+current_background_link="$HOME/.local/state/omarchy/current/background"
+
+case ${1:-} in
+  --resolve-only)
+    theme_bg_companion loops "${2:-$current_background_link}" || true
+    exit 0
+    ;;
+  --still)
+    theme_bg_still_for "${2:-}"
+    exit 0
+    ;;
+esac
+
+# Every writer of the link takes the same lock, so a pick or theme switch made
+# while this runs is never replaced by the loop of the background before it.
+mkdir -p "$HOME/.local/state/omarchy"
+exec 8>"$HOME/.local/state/omarchy/background-loop.lock"
+flock 8
+
+current=$(readlink -f "$current_background_link" 2>/dev/null) || exit 0
+
+# A shell starting up begins a theme loop again from its still, which is what
+# an intro pairs with. It isn't running yet, so only the link changes.
+if [[ ${1:-} == "--still-only" ]]; then
+  target=$(theme_bg_still_for "$current")
+  [[ $target == "$current" ]] || ln -nsf "$target" "$current_background_link"
+  printf '%s\n' "$target"
+  exit 0
+fi
+
+target=$(theme_bg_live_target "$(theme_bg_still_for "$current")")
+
+if [[ $target != "$current" ]]; then
+  ln -nsf "$target" "$current_background_link"
+  # Nothing watches the link for the shell; OWE follows it on its own.
+  omarchy-shell -q background set "$target" || true
+fi
