@@ -31,8 +31,8 @@
     "panelError": "{{ mix background red 12% }}",
     "border": "{{ mix background foreground 30% }}",
     "borderMuted": "{{ mix background foreground 20% }}",
-    "mutedText": "{{ mix foreground background 34% }}",
-    "dimText": "{{ mix foreground background 52% }}"
+    "mutedText": "{{ mix foreground background 10% }}",
+    "dimText": "{{ mix foreground background 16% }}"
   },
   "colors": {
     "accent": "accent",
