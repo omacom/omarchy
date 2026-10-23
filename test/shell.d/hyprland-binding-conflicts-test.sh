@@ -163,6 +163,13 @@ grep -Fq $'SUPER + SHIFT + A\tChatGPT' <<<"$bindings" || fail "conflict check se
 grep -Fq $'F9\tStart dictation (push-to-talk)' <<<"$bindings" || fail "conflict check sees the Voxtype bindings"
 pass "conflict check covers the full default binding set"
 
+grep -Fq $'CTRL + PRINT\tScreenrecording' <<<"$bindings" ||
+  fail "screen recording avoids the Magic SysRq chord"
+if grep -Fq $'ALT + PRINT\t' <<<"$bindings"; then
+  fail "Alt+Print remains available for Magic SysRq"
+fi
+pass "Alt+Print remains available for Magic SysRq"
+
 duplicates=$(duplicate_signatures <<<"$bindings")
 
 while read -r signature; do
