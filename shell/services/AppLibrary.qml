@@ -17,9 +17,12 @@ Item {
   property var desktopHiddenEntryIds: ({})
 
   // Maps an icon name to a file on disk (e.g. "omacut" -> ".../apps/omacut.svg").
-  // Used as a fallback for icons that Qt's themed lookup misses because they were
-  // installed after this process started (its icon cache never re-scans). Refreshed
-  // whenever the app list changes, so newly installed apps get their icon live.
+  // Built by walking the icon theme's inheritance chain and limited to
+  // app/device icons, so a name resolves without the ambiguity an
+  // unconstrained themed lookup carries, and so icons installed after this
+  // process started are found at all (Qt's icon cache never re-scans).
+  // Refreshed whenever the app list changes, so newly installed apps get their
+  // icon live.
   property var iconIndex: ({})
   property var pendingIconIndex: ({})
 
@@ -135,19 +138,62 @@ Item {
   }
 
   function iconIndexScanCommand() {
-    // List app/device icons across the XDG icon dirs and /usr/share/pixmaps as
-    // "<path>" lines. Some desktop entries, such as Print Settings, use device
-    // icons like "printer" instead of app icons. SVGs are emitted before PNGs
-    // so the parser, which keeps the first hit per name, prefers scalable icons.
+    // List app/device icons as "<path>" lines, in icon-theme search order: the
+    // active theme, each theme it inherits depth-first in declared order, then
+    // hicolor, then /usr/share/pixmaps. Some desktop entries, such as Print
+    // Settings, use device icons like "printer" instead of app icons.
+    //
+    // The parser keeps the first hit per name, so this order is what picks the
+    // icon; walking every theme on disk instead let whichever one `find`
+    // reached first decide it. Depth-first is what the icon theme spec defines:
+    // a parent's own inheritance is searched before the next declared parent.
+    // A theme's icons may be spread across base directories, but only the first
+    // index.theme found defines it, so the walk takes that one and stops.
+    // hicolor is appended rather than followed through Inherits because it is
+    // the fallback of last resort and themes do list it early
+    // (Tela-circle-dark: "Inherits=hicolor,Adwaita,breeze").
+    //
+    // A theme is exhausted before the next is consulted, SVGs first and then
+    // PNGs across all its base directories, so a scalable icon further down the
+    // theme order cannot outrank the configured theme's raster one. Scan each
+    // root once, starting only at the themes in that order, then group the
+    // paths by theme, format, base order and size: scalable first, then the
+    // largest fixed size, since a name sort would pick 64x64 over 256x256.
+    // Symbolic icons are dropped so the index cannot prefer a monochrome glyph.
     return [
-      'dirs="$HOME/.icons $HOME/.local/share/icons";',
-      'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
-      '{',
-      '  for base in $dirs; do',
-      '    [[ -d $base ]] && find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" \\) \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null;',
+      'theme=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "\'");',
+      ': "${theme:=hicolor}";',
+      'dirs=("$HOME/.icons" "${XDG_DATA_HOME:-$HOME/.local/share}/icons");',
+      'IFS=: read -ra data_dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}";',
+      'for d in "${data_dirs[@]}"; do dirs+=("$d/icons"); done;',
+      'installed=false; for base in "${dirs[@]}"; do [[ ! -d $base/$theme ]] || installed=true; done;',
+      'if [[ $installed == false ]]; then theme=Adwaita; fi;',
+      'declare -A seen; order=();',
+      'visit() {',
+      '  local base parent name=$1;',
+      '  name="${name#"${name%%[![:space:]]*}"}"; name="${name%"${name##*[![:space:]]}"}";',
+      '  if [[ -z $name || $name == "hicolor" || -n ${seen[$name]+set} ]]; then return; fi;',
+      '  seen[$name]=1; order+=("$name");',
+      '  for base in "${dirs[@]}"; do',
+      '    [[ -f $base/$name/index.theme ]] || continue;',
+      '    while IFS= read -r parent || [[ -n $parent ]]; do visit "$parent"; done < <(sed -n "s/^Inherits=//p" "$base/$name/index.theme" | head -1 | tr "," "\\n");',
+      '    break;',
       '  done;',
-      '  find /usr/share/pixmaps -maxdepth 1 \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null;',
-      '} | awk \'/\\.svg$/ { print; next } { png[++n] = $0 } END { for (i = 1; i <= n; i++) print png[i] }\''
+      '};',
+      'visit "$theme"; order+=(hicolor);',
+      'export ICON_ORDER=$(printf "%s\\n" "${order[@]}");',
+      '{',
+      '  base_index=0;',
+      '  for base in "${dirs[@]}"; do',
+      '    roots=(); for name in "${order[@]}"; do [[ ! -d $base/$name ]] || roots+=("$base/$name"); done;',
+      '    if ((${#roots[@]})); then',
+      '      find -L "${roots[@]}" \\( -path "*/apps/*" -o -path "*/devices/*" \\) ! -path "*/symbolic/*" \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null |',
+      '        ICON_BASE="$base" ICON_BASE_INDEX="$base_index" awk \'BEGIN { n = split(ENVIRON["ICON_ORDER"], themes, "\\n"); for (i = 1; i <= n; i++) rank[themes[i]] = i } { relative = substr($0, length(ENVIRON["ICON_BASE"]) + 2); n = split(relative, parts, "/"); if (!(parts[1] in rank)) next; size = 0; for (i = 2; i < n; i++) { if (parts[i] == "scalable") { size = 1000000; continue }; if (!match(parts[i], /^[0-9]+/)) continue; s = substr(parts[i], 1, RLENGTH) + 0; if (match(parts[i], /@[0-9]+/)) s *= substr(parts[i], RSTART + 1, RLENGTH - 1); if (s > size) size = s }; printf "%d\\t%d\\t%d\\t%d\\t%s\\n", rank[parts[1]], /\\.svg$/ ? 0 : 1, ENVIRON["ICON_BASE_INDEX"], -size, $0 }\';',
+      '    fi;',
+      '    ((base_index += 1));',
+      '  done;',
+      '  find /usr/share/pixmaps -maxdepth 1 \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null | awk \'{ printf "999999\\t%d\\t0\\t0\\t%s\\n", /\\.svg$/ ? 0 : 1, $0 }\';',
+      '} | sort -t $\'\\t\' -k1,1n -k2,2n -k3,3n -k4,4n -k5,5r | cut -f5-'
     ].join(' ')
   }
 
