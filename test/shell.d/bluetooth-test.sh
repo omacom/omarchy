@@ -50,6 +50,14 @@ assert(/sibling\.owesDiscoveryStop = true/.test(stopTimer[0]), 'bluetooth moves 
 assert(/onDiscoveringChanged[\s\S]{0,120}owesDiscoveryStop = false/.test(panelSource), 'bluetooth settles the stop it owes once discovery is confirmed down')
 assert(/Component\.onDestruction: \{[\s\S]{0,400}owesDiscoveryStop = true[\s\S]{0,200}discovering = false/.test(panelSource), 'bluetooth passes the stop it owes to a sibling when an instance is destroyed')
 
+// Trust is set by the pair action, so a device whose pair failed stays trusted
+// without a bond. Connecting it only repeats the failure; the panel has to pair.
+const connectDevice = panelSource.match(/function connectDevice\(device\) \{[\s\S]*?\n  \}/)
+assert(connectDevice, 'bluetooth has the connect action')
+assert(/if \(device\.paired \|\| device\.bonded\) runDeviceAction\(device, "connect"/.test(connectDevice[0]), 'bluetooth connects a bonded device')
+assert(!/trusted/.test(connectDevice[0]), 'bluetooth pairs a trusted device that never bonded instead of connecting it')
+assert(/else runDeviceAction\(device, "pair", "connecting"\)/.test(connectDevice[0]), 'bluetooth sends a device with no bond to pair')
+
 assert(bluetooth.isUuidLike('0000110b-0000-1000-8000-00805f9b34fb'), 'bluetooth detects UUID-like names')
 assert(bluetooth.isAddressLike('AA:BB:CC:DD:EE:FF'), 'bluetooth detects address-like names')
 assertEqual(bluetooth.normalizedAddress('AA:BB_CC-dd-ee-ff'), 'aabbccddeeff', 'bluetooth normalizes BlueZ and PipeWire address formats')
@@ -151,12 +159,22 @@ trap 'rm -rf "$device_tmp"' EXIT
 mock_bin="$device_tmp/bin"
 mkdir -p "$mock_bin"
 export POWERED_FILE="$device_tmp/powered"
+export PAIRED_FILE="$device_tmp/paired"
 
 cat >"$mock_bin/bluetoothctl" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$BLUETOOTHCTL_LOG"
 [[ $1 == "power" && $2 == "on" ]] && echo yes >"$POWERED_FILE"
+# The pair exit status and the bond are set apart on purpose: bluetoothctl
+# exits 1 with AlreadyExists for a device that is bonded, and a kill at the
+# timeout exits 124 whether or not the bond had landed. info reports the bond
+# the way bluetoothctl does.
+if [[ $1 == "pair" ]]; then
+  [[ ${PAIR_BONDS:-1} == "1" ]] && echo yes >"$PAIRED_FILE"
+  exit "${PAIR_EXIT:-0}"
+fi
+[[ $1 == "info" ]] && printf '\tPaired: %s\n' "$(cat "$PAIRED_FILE" 2>/dev/null || echo no)"
 [[ $1 == "list" ]] &&
   for c in ${MOCK_CONTROLLERS:-AA:BB:CC:DD:EE:FF}; do printf 'Controller %s mock\n' "$c"; done
 # Per-controller state where a test set it, the shared file otherwise.
@@ -262,6 +280,58 @@ pass "bluetooth lifts the block before connecting"
 grep -qx "connect AA:BB:CC:DD:EE:FF" "$unpowered_log" ||
   fail "bluetooth connects once the adapter is up" "$(cat "$unpowered_log")"
 pass "bluetooth connects once the adapter is up"
+
+# Trust is what makes BlueZ reconnect to a device on every advertisement. Set
+# on a device that never bonded, it leaves the device flapping once a second:
+# each connection is dropped as soon as the device asks for encryption, and the
+# panel then treats the trusted device as paired and never pairs it again.
+bluetooth_pair_log() {
+  bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF
+}
+
+rm -f "$PAIRED_FILE"
+paired_log=$(bluetooth_pair_log)
+grep -qx "trust AA:BB:CC:DD:EE:FF" "$paired_log" ||
+  fail "bluetooth trusts a device once it has bonded" "$(cat "$paired_log")"
+pass "bluetooth trusts a device once it has bonded"
+
+grep -qx "connect AA:BB:CC:DD:EE:FF" "$paired_log" ||
+  fail "bluetooth connects a device once it has bonded" "$(cat "$paired_log")"
+pass "bluetooth connects a device once it has bonded"
+
+rm -f "$PAIRED_FILE"
+unpaired_log=$(PAIR_EXIT=1 PAIR_BONDS=0 bluetooth_pair_log)
+grep -qx "trust AA:BB:CC:DD:EE:FF" "$unpaired_log" &&
+  fail "bluetooth does not trust a device whose pairing failed" "$(cat "$unpaired_log")"
+pass "bluetooth does not trust a device whose pairing failed"
+
+grep -qx "connect AA:BB:CC:DD:EE:FF" "$unpaired_log" &&
+  fail "bluetooth does not connect a device whose pairing failed" "$(cat "$unpaired_log")"
+pass "bluetooth does not connect a device whose pairing failed"
+
+# A device already stuck in that loop is clicked again: the panel pairs it, and
+# a pair that fails again has to lift the trust so BlueZ stops reconnecting.
+grep -qx "untrust AA:BB:CC:DD:EE:FF" "$unpaired_log" ||
+  fail "bluetooth lifts the trust of a device whose pairing failed" "$(cat "$unpaired_log")"
+pass "bluetooth lifts the trust of a device whose pairing failed"
+
+# The bond is what counts, not the pair exit status. bluetoothctl refuses to
+# pair a device that already is (AlreadyExists, exit 1), and that device still
+# gets trusted and connected.
+echo yes >"$PAIRED_FILE"
+bonded_log=$(PAIR_EXIT=1 PAIR_BONDS=0 bluetooth_pair_log)
+grep -qx "trust AA:BB:CC:DD:EE:FF" "$bonded_log" && grep -qx "connect AA:BB:CC:DD:EE:FF" "$bonded_log" ||
+  fail "bluetooth trusts and connects a bonded device even when pair exits 1" "$(cat "$bonded_log")"
+pass "bluetooth trusts and connects a bonded device even when pair exits 1"
+
+# And a pair that exits cleanly without leaving a bond is still a failed pair.
+rm -f "$PAIRED_FILE"
+unbonded_log=$(PAIR_EXIT=0 PAIR_BONDS=0 bluetooth_pair_log)
+grep -qx "trust AA:BB:CC:DD:EE:FF" "$unbonded_log" &&
+  fail "bluetooth does not trust a device that pair exited 0 on without a bond" "$(cat "$unbonded_log")"
+grep -qx "untrust AA:BB:CC:DD:EE:FF" "$unbonded_log" ||
+  fail "bluetooth untrusts a device that pair exited 0 on without a bond" "$(cat "$unbonded_log")"
+pass "bluetooth takes the bond, not the pair exit status, as the result"
 
 # Blocking hits every radio at once, so the read has to span them too. A bare
 # bluetoothctl show reports the default controller and misses a powered dongle.
