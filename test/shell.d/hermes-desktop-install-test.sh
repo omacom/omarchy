@@ -14,7 +14,7 @@ mkdir -p "$test_tmp/bin" "$test_tmp/package/resources" "$test_tmp/share" "$test_
 # Real Git exercises patch checks and preservation; all package, desktop and
 # service commands are mocks. No command reaches the live user installation.
 git -C "$test_tmp/seed" init -q -b main
-printf 'venv/\n.hermes-bootstrap-complete\napps/desktop/release/\n__pycache__/\n' >"$test_tmp/seed/.gitignore"
+printf 'venv/\n.hermes/\n.hermes-bootstrap-complete\napps/desktop/release/\n__pycache__/\n' >"$test_tmp/seed/.gitignore"
 printf 'before\n' >"$test_tmp/seed/runtime.txt"
 mkdir -p "$test_tmp/seed/apps/desktop/src"
 printf 'desktop source\n' >"$test_tmp/seed/apps/desktop/src/main.js"
@@ -450,6 +450,90 @@ run_installer || fail "clean incomplete full-history release checkout is repaire
 [[ $(cat "$runtime/venv/dependency-commit") == "$release_commit" ]] || fail "full-history retry pins before installing dependencies"
 [[ $(git -C "$runtime" rev-parse HEAD) == "$release_commit" && -f $native/resources/app.asar ]] || fail "full-history retry seeds the matching release"
 pass "full-history retries force the guarded release pin before dependency setup"
+
+# A setup that stopped after downloading Hermes leaves a clean checkout of
+# upstream's main with no command and no marker. Once nothing has touched it
+# for a minute it is set up from the release like an empty directory, since
+# refusing it would strand the user: the desktop app pins its own first launch
+# only into an empty directory.
+stopped_checkout() {
+  git clone -q "$test_tmp/seed" "$runtime"
+  find "$runtime/.git" -exec touch -d '5 minutes ago' {} +
+}
+new_home stopped-after-download
+stopped_checkout
+run_installer || fail "a clean checkout left by a stopped setup is set up" "$(cat "$test_tmp/output")"
+grep -qx bootstrap "$test_tmp/events" || fail "the stopped setup's checkout reaches the upstream installer"
+[[ $(cat "$runtime/venv/dependency-commit") == "$release_commit" ]] || fail "the stopped setup's checkout is pinned before dependencies"
+[[ $(git -C "$runtime" rev-parse HEAD) == "$release_commit" && -f $native/resources/app.asar ]] || fail "the stopped setup's checkout ends at the packaged release with the app"
+pass "a clean checkout left by a stopped setup is set up from the packaged release"
+
+# The same checkout with a Hermes command in it, in either layout and however
+# broken, with a bootstrap marker, with a commit of the user's own checked out
+# or on main, with a setup still at work in it, or fetched within the last
+# minute may be someone's install, work or setup: it is still refused, and no
+# command of it is run to find out.
+refused_incomplete() {
+  run_installer && fail "$1 is not reset"
+  ! grep -qx bootstrap "$test_tmp/events" || fail "$1 never reaches the upstream installer"
+  [[ ! -e $test_tmp/probed ]] || fail "$1 is judged without running its command"
+  assert_stopped "$1 prevents launch"
+}
+for layout in venv/bin .hermes/bin; do
+  new_home "unfinished-command-${layout%%/*}"
+  stopped_checkout
+  mkdir -p "$runtime/$layout"
+  printf '#!/bin/bash\ntouch "$OMARCHY_TEST_ROOT/probed"\nexit 1\n' >"$runtime/$layout/hermes"
+  chmod +x "$runtime/$layout/hermes"
+  [[ -z $(git -C "$runtime" status --porcelain --untracked-files=all) ]] || fail "a $layout/hermes leaves the checkout clean"
+  refused_incomplete "a checkout with a $layout/hermes but no marker"
+done
+new_home unfinished-command-unrunnable
+stopped_checkout
+mkdir -p "$runtime/venv/bin"
+printf 'not executable\n' >"$runtime/venv/bin/hermes"
+refused_incomplete "a checkout with a venv/bin/hermes that cannot run"
+new_home unfinished-command-dangling
+stopped_checkout
+mkdir -p "$runtime/.hermes/bin"
+ln -s "$runtime/nowhere" "$runtime/.hermes/bin/hermes"
+refused_incomplete "a checkout with a dangling .hermes/bin/hermes"
+new_home unfinished-marker
+stopped_checkout
+touch "$runtime/.hermes-bootstrap-complete"
+refused_incomplete "a checkout with a marker but no command"
+new_home unfinished-own-main
+stopped_checkout
+printf 'own work\n' >"$runtime/keep"
+git -C "$runtime" add keep
+git -C "$runtime" -c user.name=Test -c user.email=test@example.invalid commit -qm own-work
+find "$runtime/.git" -exec touch -d '5 minutes ago' {} +
+refused_incomplete "a checkout whose main carries other work"
+new_home unfinished-own-detached
+stopped_checkout
+git -C "$runtime" checkout -q --detach
+printf 'own work\n' >"$runtime/keep"
+git -C "$runtime" add keep
+git -C "$runtime" -c user.name=Test -c user.email=test@example.invalid commit -qm own-detached-work
+find "$runtime/.git" -exec touch -d '5 minutes ago' {} +
+refused_incomplete "a checkout with a commit of the user's own checked out"
+new_home unfinished-busy
+stopped_checkout
+rm -f "$test_tmp/release-busy" "$test_tmp/busy-ready"
+(cd "$runtime" && exec -a hermes-setup bash -c 'touch "$2"; for (( i = 0; i < 900; i++ )); do [[ -e "$1" ]] && exit; sleep 0.1; done' _ "$test_tmp/release-busy" "$test_tmp/busy-ready") &
+busy=$!
+for (( attempt = 0; attempt < 300; attempt++ )); do
+  [[ -e $test_tmp/busy-ready ]] && break
+  sleep 0.1
+done
+[[ -e $test_tmp/busy-ready ]] || fail "the stand-in setup starts in the runtime"
+refused_incomplete "a checkout with a setup still at work in it"
+touch "$test_tmp/release-busy"
+wait "$busy" 2>/dev/null || true
+new_home unfinished-fresh
+git clone -q "$test_tmp/seed" "$runtime"
+refused_incomplete "a checkout fetched within the last minute"
+pass "an incomplete checkout with a command, a marker, the user's own commit, a setup at work or a fresh fetch is still refused"
 
 # A main that is neither the release nor origin/main is kept under another name
 # and main still starts at the release: a user's own commits stay reachable,
