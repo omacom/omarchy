@@ -40,7 +40,6 @@ export PATH="$TMPDIR/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 
 # A deferred-provisioning install records neither privileged group.
-OMARCHY_INSTALL_USER="" bash -eE "$ROOT/install/config/docker.sh"
 OMARCHY_INSTALL_USER="" bash -eE "$ROOT/install/config/browser-policy.sh"
 
 [[ ! -f $OMARCHY_PROVISIONING_DIR/groups ]] ||
@@ -54,7 +53,6 @@ grep -F -- '-d -m 0755 -o root -g root /etc/chromium/policies/managed' "$TMPDIR/
 pass "deferred provisioning records no privileged groups"
 
 # The same remains true when an install user already exists.
-OMARCHY_INSTALL_USER=existing bash -eE "$ROOT/install/config/docker.sh"
 OMARCHY_INSTALL_USER=existing bash -eE "$ROOT/install/config/browser-policy.sh"
 [[ ! -f $TMPDIR/usermod.calls ]] || fail "default install must not grant privileged groups"
 pass "existing install user gets neither docker nor input access"

@@ -1,0 +1,31 @@
+[Quadlet]
+# Local databases do not need the desktop to wait for network-online.target.
+DefaultDependencies=false
+
+[Unit]
+Description=Omarchy MSSQL development database
+
+[Container]
+GlobalArgs=--remote=false
+Image=mcr.microsoft.com/mssql/server:2022-CU12-ubuntu-22.04
+ContainerName=omarchy-db-mssql
+PublishPort=127.0.0.1:1433:1433
+Volume=omarchy-db-mssql-data.volume:/var/opt/mssql
+ImageVolume=ignore
+HttpProxy=false
+StopTimeout=120
+# Never replace an unrelated container that has claimed this name.
+PodmanArgs=--replace=false --cidfile=%t/%N/container.cid
+Environment=MSSQL_PID=Developer
+Environment=ACCEPT_EULA=Y
+Environment=MSSQL_SA_PASSWORD=@dmin123
+
+[Service]
+RuntimeDirectory=%N
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=900
+TimeoutStopSec=130
+
+[Install]
+WantedBy=default.target

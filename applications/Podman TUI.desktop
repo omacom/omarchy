@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Name=Podman TUI
+Comment=Manage containers, pods, images, volumes, and networks
+Exec=omarchy-launch-podman-tui
+Terminal=false
+Type=Application
+Icon=utilities-terminal
+Categories=Development;System;
