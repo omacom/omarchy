@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether the computer is an MSI laptop.
+
+# Read DMI IDs via OMARCHY_DMI_ID_PATH for test stubs, falling back to /sys.
+dmi_path="${OMARCHY_DMI_ID_PATH:-/sys/class/dmi/id}"
+
+# MSI laptops report "Micro-Star International Co., Ltd." as sys_vendor. Some
+# MSI desktop boards also report this, so we additionally check for laptop
+# product families in either product_family or product_name.
+sys_vendor=$(cat "$dmi_path/sys_vendor" 2>/dev/null)
+[[ $sys_vendor == "Micro-Star International Co., Ltd." ]] || exit 1
+
+# Combine both fields for a single match — laptops have the model line in
+# product_family (e.g. "Titan GT77HX 13VI") and optionally the short model
+# in product_name (e.g. "MSI Titan GT77HX 13VI"). Desktop boards usually
+# only have the board name in product_name (e.g. "MEG X670E ACE").
+combined="$(cat "$dmi_path/product_family" 2>/dev/null) $(cat "$dmi_path/product_name" 2>/dev/null)"
+
+# All known MSI laptop families as of 2026. Katana, Cyborg, Pulse, Bravo,
+# Alpha cover budget/mid-tier; Prestige covers content-creation ultraportables.
+for family in "Titan" "Stealth" "Raider" "Vector" "Crosshair" "Summit" \
+              "Creator" "Modern" "Katana" "Cyborg" "Pulse" "Bravo" \
+              "Alpha" "Prestige"; do
+  if grep -qi "$family" <<<"$combined"; then
+    exit 0
+  fi
+done
+
+exit 1
