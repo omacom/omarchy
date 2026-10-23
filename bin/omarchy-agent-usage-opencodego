@@ -1,0 +1,628 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the OpenCode Go usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect OpenCode Go subscription usage into one display-ready JSON record.
+
+Limits come from OpenCode's Go usage endpoint (the rolling 5-hour, weekly,
+and monthly windows the console dashboard shows). Machine-local stats come
+from OpenCode v1/v2 databases and pi/omp sessions on the exact opencode-go
+provider, grouped by day and model. The agents panel only reads the JSON
+this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import http.client
+import json
+import math
+import os
+import sqlite3
+import stat
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "opencodego"
+AGENT_NAME = "OpenCode Go"
+AUTH_HELP = "Run /connect in opencode and choose OpenCode Go, or set OPENCODE_GO_API_KEY."
+USAGE_URL = "https://opencode.ai/zen/go/v1/usage"
+PROVIDER_ID = "opencode-go"
+DEFAULT_CACHE_SECONDS = 900
+
+
+class LocalScanError(Exception):
+  """A local history could not be read completely; do not publish a record."""
+
+
+def source_exists(path: Path) -> bool:
+  try:
+    path.stat()
+    return True
+  except FileNotFoundError:
+    return False
+  except OSError as exc:
+    raise LocalScanError from exc
+
+
+def session_files(root: Path):
+  if not source_exists(root):
+    return
+
+  def fail_walk(error):
+    raise LocalScanError from error
+
+  # pathlib globbing can suppress traversal errors, yielding partial histories.
+  for directory, _, filenames in os.walk(root, onerror=fail_walk):
+    for name in filenames:
+      if name.endswith(".jsonl"):
+        yield Path(directory) / name
+
+
+def number(value: Any) -> int:
+  if isinstance(value, bool):
+    return 0
+  if isinstance(value, int):
+    return max(0, value)
+  if isinstance(value, float) and math.isfinite(value):
+    return max(0, int(value))
+  return 0
+
+
+def empty_bucket() -> dict[str, int]:
+  return {
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+  }
+
+
+def cache_root() -> Path:
+  root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  # Caching must not make a readable local history unavailable.
+  try:
+    root.mkdir(parents=True, exist_ok=True)
+  except OSError:
+    pass
+  return root
+
+
+def date_string(value: dt.date) -> str:
+  return value.strftime("%Y-%m-%d")
+
+
+def local_date_string() -> str:
+  return date_string(dt.date.today())
+
+
+def recent_date_strings() -> list[str]:
+  today = dt.date.today()
+  return [date_string(today - dt.timedelta(days=offset)) for offset in range(6, -1, -1)]
+
+
+def data_home() -> Path:
+  return Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+
+
+def local_date_from_timestamp(value: Any) -> str:
+  if value is None:
+    return local_date_string()
+
+  if isinstance(value, (int, float)):
+    try:
+      seconds = float(value) / 1000.0 if float(value) > 10_000_000_000 else float(value)
+      return date_string(dt.datetime.fromtimestamp(seconds).date())
+    except Exception:
+      return local_date_string()
+
+  raw = str(value).strip()
+  if not raw:
+    return local_date_string()
+
+  # Session JSONL timestamps are usually ISO-8601. Python accepts offsets
+  # but not a trailing Z until we normalize it to +00:00.
+  try:
+    parsed = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    if parsed.tzinfo is not None:
+      parsed = parsed.astimezone()
+    return date_string(parsed.date())
+  except Exception:
+    return local_date_string()
+
+
+def usage_token(usage: dict[str, Any], snake_key: str, camel_key: str) -> int:
+  value = usage.get(snake_key, usage.get(camel_key, 0))
+  try:
+    return number(round(float(value or 0)))
+  except Exception:
+    return 0
+
+
+def merge_stats(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+  merged = dict(base)
+  for key in ("todayPrompts", "todaySessions", "todayTotalTokens", "totalPrompts", "totalSessions"):
+    merged[key] = number(base.get(key)) + number(extra.get(key))
+
+  combined = dict(base.get("todayTokensByModel") or {})
+  for model, count in (extra.get("todayTokensByModel") or {}).items():
+    combined[model] = number(combined.get(model)) + number(count)
+  merged["todayTokensByModel"] = combined
+
+  usage = {model: dict(bucket) for model, bucket in (base.get("modelUsage") or {}).items()}
+  for model, bucket in (extra.get("modelUsage") or {}).items():
+    target = usage.setdefault(model, empty_bucket())
+    for field, count in (bucket or {}).items():
+      target[field] = number(target.get(field)) + number(count)
+  merged["modelUsage"] = usage
+
+  by_date: dict[str, int] = {}
+  for source in (base.get("recentDays") or [], extra.get("recentDays") or []):
+    for day in source:
+      date = str((day or {}).get("date") or "")
+      if date:
+        by_date[date] = by_date.get(date, 0) + number((day or {}).get("messageCount"))
+  merged["recentDays"] = [{"date": date, "messageCount": by_date[date]} for date in sorted(by_date)]
+
+  # Sources overlap in time, so union dates rather than summing counts.
+  dates = set(base.get("activeDates") or []) | set(extra.get("activeDates") or [])
+  merged["activeDates"] = sorted(dates)
+  merged["activeDays"] = max(len(dates), number(base.get("activeDays")), number(extra.get("activeDays")))
+  return merged
+
+
+def cache_identity() -> dict[str, Any]:
+  # Offset alone cannot distinguish zones with different daylight-saving rules.
+  return {
+      "version": 1,
+      "localDay": local_date_string(),
+      "timezone": [os.environ.get("TZ", ""), list(time.tzname), time.timezone,
+                   dt.datetime.now().astimezone().strftime("%z")],
+  }
+
+
+def valid_stats(stats: Any) -> bool:
+  if not isinstance(stats, dict):
+    return False
+
+  def count(value: Any) -> bool:
+    return type(value) is int and value >= 0
+
+  def date(value: Any) -> bool:
+    try:
+      return isinstance(value, str) and dt.date.fromisoformat(value).isoformat() == value
+    except ValueError:
+      return False
+
+  def counts(value: Any) -> bool:
+    return isinstance(value, dict) and all(isinstance(key, str) and count(n) for key, n in value.items())
+
+  if not all(count(stats.get(key)) for key in (
+      "todayPrompts", "todaySessions", "todayTotalTokens", "totalPrompts", "totalSessions", "activeDays")):
+    return False
+  if not counts(stats.get("todayTokensByModel")):
+    return False
+  days = stats.get("recentDays")
+  if not isinstance(days, list) or len(days) != 7:
+    return False
+  if not all(isinstance(day, dict) and date(day.get("date")) and count(day.get("messageCount")) for day in days):
+    return False
+  if [day["date"] for day in days] != recent_date_strings():
+    return False
+  dates = stats.get("activeDates")
+  if not isinstance(dates, list) or not all(date(day) for day in dates):
+    return False
+  if dates != sorted(set(dates)) or stats["activeDays"] != len(dates):
+    return False
+  models = stats.get("modelUsage")
+  fields = set(empty_bucket())
+  return isinstance(models, dict) and all(
+      isinstance(model, str) and counts(bucket) and set(bucket) == fields
+      for model, bucket in models.items())
+
+
+def read_fresh_json(path: Path, max_age_seconds: float) -> dict[str, Any] | None:
+  try:
+    age = dt.datetime.now().timestamp() - path.stat().st_mtime
+    if max_age_seconds <= 0 or not 0 <= age <= max_age_seconds:
+      return None
+    cached = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(cached, dict) or any(cached.get(key) != value for key, value in cache_identity().items()):
+      return None
+    return cached if valid_stats(cached.get("stats")) else None
+  except (OSError, ValueError):
+    return None
+
+
+def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+  tmp = None
+  try:
+    # A unique sibling supports overlapping collector invocations; replacement
+    # is atomic and a failed write leaves the previous successful scan intact.
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                     prefix=f".{path.name}.", suffix=".tmp", delete=False) as handle:
+      tmp = Path(handle.name)
+      json.dump({**cache_identity(), **payload}, handle, allow_nan=False)
+    os.replace(tmp, path)
+  except (OSError, ValueError):
+    pass
+  finally:
+    if tmp is not None:
+      try:
+        tmp.unlink(missing_ok=True)
+      except OSError:
+        pass
+
+
+# ------------------------------------------------------------------- limits
+#
+# OpenCode's Go usage endpoint answers with the same three windows the
+# console dashboard draws: a rolling 5-hour session, a weekly, and a monthly
+# allowance, each as a percent of the plan used plus a reset timestamp.
+
+
+def api_key() -> str:
+  env_key = os.environ.get("OPENCODE_GO_API_KEY")
+  if env_key:
+    return env_key
+  auth_file = data_home() / "opencode" / "auth.json"
+  try:
+    auth = json.loads(auth_file.read_text(encoding="utf-8"))
+  except (OSError, ValueError):
+    return ""
+  entry = auth.get(PROVIDER_ID) if isinstance(auth, dict) else None
+  if isinstance(entry, str):
+    return entry
+  if isinstance(entry, dict):
+    key = entry.get("key")
+    return key if isinstance(key, str) else ""
+  return ""
+
+
+def probe_limits(key: str) -> dict[str, Any]:
+  if not key:
+    return {
+        "ok": False,
+        "limits": [],
+        "usageStatusText": "OpenCode Go unavailable",
+        "authHelpText": AUTH_HELP,
+    }
+  # The endpoint rejects the default Python-urllib user agent, so identify
+  # like the agent clients the service expects.
+  request = urllib.request.Request(
+      USAGE_URL,
+      headers={
+          "Authorization": f"Bearer {key}",
+          "User-Agent": "omarchy-agent-usage-opencodego/1.0",
+      },
+  )
+  try:
+    with urllib.request.urlopen(request, timeout=10) as response:
+      payload = json.loads(response.read().decode("utf-8"))
+  except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException) as exc:
+    # Exception strings may contain request details or credentials. Only
+    # expose a numeric HTTP status, never the remote/network error text.
+    code = getattr(exc, "code", None)
+    reason = f"HTTP {code}" if type(code) is int else "request failed"
+    return {
+        "ok": False,
+        "limits": [],
+        "usageStatusText": "OpenCode Go unavailable",
+        "authHelpText": f"OpenCode Go usage endpoint error: {reason}",
+        "retryAdvised": code not in (401, 403),
+    }
+
+  windows = {
+      "rolling": ("Session (5-hour)", "Rolling 5-hour window"),
+      "weekly": ("Weekly (7-day)", "Weekly window"),
+      "monthly": ("Monthly", "Monthly window"),
+  }
+  usage = payload.get("usage") if isinstance(payload, dict) else None
+  usage = usage if isinstance(usage, dict) else {}
+  limits: list[dict[str, Any]] = []
+  for window, (label, title) in windows.items():
+    entry = usage.get(window)
+    if not isinstance(entry, dict):
+      continue
+    percent = entry.get("percent")
+    if isinstance(percent, bool) or not isinstance(percent, (int, float)) or not 0 <= percent <= 100:
+      continue
+    reset = entry.get("resetsAt")
+    if not isinstance(reset, str) or "T" not in reset:
+      continue
+    try:
+      dt.datetime.fromisoformat(reset.replace("Z", "+00:00"))
+    except ValueError:
+      continue
+    limits.append({
+        "label": label,
+        "title": title,
+        "percent": float(percent) / 100.0,
+        "resetsAt": reset,
+    })
+  if not limits:
+    return {
+        "ok": False,
+        "limits": [],
+        "usageStatusText": "OpenCode Go unavailable",
+        "authHelpText": "OpenCode Go usage endpoint returned no limits.",
+        "retryAdvised": True,
+    }
+  return {"ok": True, "limits": limits, "usageStatusText": "", "authHelpText": ""}
+
+
+# -------------------------------------------------------------------- stats
+#
+# opencode records per-message provider, model, and token usage in its own
+# database. Scan it for opencode-go messages and aggregate them by day and
+# model. A big history walked on every panel open would be wasteful, so the
+# scan caches its result with the same freshness contract as the claude
+# collector's scans.
+
+
+def scan_opencode_stats(max_age_seconds: float) -> dict[str, Any]:
+  today = local_date_string()
+  recent_dates = recent_date_strings()
+  recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
+  sessions: set[str] = set()
+  active_days: set[str] = set()
+  today_sessions: set[str] = set()
+  today_tokens: dict[str, int] = {}
+  usage_by_model: dict[str, dict[str, int]] = {}
+  prompts = 0
+  today_prompt_count = 0
+  today_token_total = 0
+
+  db = data_home() / "opencode" / "opencode.db"
+  cache_file = None
+  scan_ok = False
+  if source_exists(db):
+    cache_file = cache_root() / f"opencodego-{hashlib.sha1(str(db).encode('utf-8')).hexdigest()[:16]}.json"
+    cached = read_fresh_json(cache_file, max_age_seconds)
+    if cached is not None:
+      return cached.get("stats") or {}
+
+    conn = None
+    try:
+      # Read-only: opencode may be writing right now.
+      conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+      conn.execute("PRAGMA query_only = ON")
+      tables = {name for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+      queries = []
+      if "message" in tables:
+        queries.append(("opencode:", "SELECT session_id, data, NULL FROM message"))
+      if "session_message" in tables:
+        queries.append(("opencode-v2:", "SELECT session_id, data, type FROM session_message"))
+      rows = ((prefix, row) for prefix, query in queries for row in conn.execute(query))
+      for prefix, (session_id, raw, row_type) in rows:
+        # One malformed row must not abort the scan, so every shape
+        # assumption lives inside the try.
+        try:
+          entry = json.loads(raw)
+          if not isinstance(entry, dict):
+            continue
+          # v2 moves role to the type column, and provider/model into data.model.
+          if row_type is None:
+            role, provider, model_id = entry.get("role"), entry.get("providerID"), entry.get("modelID")
+          else:
+            model_info = entry.get("model") or {}
+            role, provider, model_id = row_type, model_info.get("providerID"), model_info.get("id")
+          # Exact match: a custom gateway is not this subscription.
+          if role != "assistant" or provider != PROVIDER_ID:
+            continue
+          tokens = entry.get("tokens") or {}
+          cache = tokens.get("cache") or {}
+          input_tokens = number(tokens.get("input"))
+          # opencode keeps thinking tokens out of output; both are generated.
+          output_tokens = number(tokens.get("output")) + number(tokens.get("reasoning"))
+          cache_read = number(cache.get("read"))
+          cache_write = number(cache.get("write"))
+          total = input_tokens + output_tokens + cache_read + cache_write
+          if total <= 0:
+            continue
+
+          created = number((entry.get("time") or {}).get("created"))
+          day = dt.datetime.fromtimestamp(created / 1000).strftime("%Y-%m-%d") if created > 0 else today
+          model = str(model_id or PROVIDER_ID).rstrip("/").split("/")[-1]
+        except Exception:
+          continue
+        session_key = prefix + str(session_id)
+        sessions.add(session_key)
+        active_days.add(day)
+        prompts += 1
+
+        bucket = usage_by_model.setdefault(model, empty_bucket())
+        bucket["inputTokens"] += input_tokens
+        bucket["outputTokens"] += output_tokens
+        bucket["cacheReadInputTokens"] += cache_read
+        bucket["cacheCreationInputTokens"] += cache_write
+
+        if day in recent:
+          recent[day]["messageCount"] += total
+        if day == today:
+          today_prompt_count += 1
+          today_sessions.add(session_key)
+          today_token_total += total
+          today_tokens[model] = today_tokens.get(model, 0) + total
+      scan_ok = bool(queries)
+    except (sqlite3.Error, OSError) as exc:
+      raise LocalScanError from exc
+    finally:
+      if conn is not None:
+        conn.close()
+
+  stats = {
+      "todayPrompts": today_prompt_count,
+      "todaySessions": len(today_sessions),
+      "todayTotalTokens": today_token_total,
+      "todayTokensByModel": today_tokens,
+      "recentDays": [recent[day] for day in recent_dates],
+      "totalPrompts": prompts,
+      "totalSessions": len(sessions),
+      "activeDays": len(active_days),
+      "activeDates": sorted(active_days),
+      "modelUsage": usage_by_model,
+  }
+  if cache_file is not None and scan_ok:
+    write_json_atomic(cache_file, {"stats": stats})
+  return stats
+
+
+# ------------------------------------------------------- pi and omp sessions
+#
+# pi (and omp) can burn an OpenCode Go subscription without ever touching
+# the opencode database. Their compatible JSONL session formats carry the
+# provider, model, and token usage on every assistant message.
+
+
+def scan_pi_usage(max_age_seconds: float) -> dict[str, Any] | None:
+  agent_dir = Path(os.environ.get("PI_CODING_AGENT_DIR") or (Path.home() / ".pi" / "agent"))
+  roots = [
+      agent_dir / "sessions",
+      Path.home() / ".omp" / "agent" / "sessions",
+  ]
+  profiles = Path.home() / ".omp" / "profiles"
+  if source_exists(profiles):
+    try:
+      roots.extend(profile / "agent" / "sessions" for profile in profiles.iterdir()
+                   if stat.S_ISDIR(profile.stat().st_mode))
+    except OSError as exc:
+      raise LocalScanError from exc
+  root_identity = sorted(str(root.absolute()) for root in roots)
+  cache_file = cache_root() / "opencodego-pi-sessions.json"
+  cached = read_fresh_json(cache_file, max_age_seconds)
+  if cached is not None and cached.get("sessionRoots") == root_identity:
+    return cached.get("stats")
+
+  today = local_date_string()
+  recent_dates = recent_date_strings()
+  recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
+  sessions: set[str] = set()
+  active_days: set[str] = set()
+  today_sessions: set[str] = set()
+  today_tokens: dict[str, int] = {}
+  usage_by_model: dict[str, dict[str, int]] = {}
+  seen: set[str] = set()
+  prompts = 0
+  today_prompt_count = 0
+  today_token_total = 0
+
+  for root in roots:
+    for path in session_files(root):
+      try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+          for line_number, line in enumerate(handle, 1):
+            if '"usage"' not in line or '"assistant"' not in line:
+              continue
+            try:
+              entry = json.loads(line)
+              message = entry.get("message") if isinstance(entry.get("message"), dict) else {}
+              if entry.get("type") != "message" or message.get("role") != "assistant":
+                continue
+              provider = str(message.get("provider") or "")
+              if provider != PROVIDER_ID:
+                continue
+              unique_key = f"{path}:{entry.get('id') or line_number}"
+              if unique_key in seen:
+                continue
+              seen.add(unique_key)
+              usage = message.get("usage") or {}
+              input_tokens = usage_token(usage, "input", "inputTokens")
+              output_tokens = usage_token(usage, "output", "outputTokens")
+              cache_read = usage_token(usage, "cacheRead", "cache_read_input_tokens")
+              cache_write = usage_token(usage, "cacheWrite", "cache_creation_input_tokens")
+              total = input_tokens + output_tokens + cache_read + cache_write
+              if total <= 0:
+                total = number(usage.get("totalTokens"))
+                input_tokens = total
+              if total <= 0:
+                continue
+              model = str(message.get("model") or PROVIDER_ID)
+              day = local_date_from_timestamp(entry.get("timestamp") or message.get("timestamp"))
+            except Exception:
+              continue
+
+            session_key = str(path)
+            sessions.add(session_key)
+            active_days.add(day)
+            prompts += 1
+            bucket = usage_by_model.setdefault(model, empty_bucket())
+            bucket["inputTokens"] += input_tokens
+            bucket["outputTokens"] += output_tokens
+            bucket["cacheReadInputTokens"] += cache_read
+            bucket["cacheCreationInputTokens"] += cache_write
+            if day in recent:
+              recent[day]["messageCount"] += total
+            if day == today:
+              today_prompt_count += 1
+              today_sessions.add(session_key)
+              today_token_total += total
+              today_tokens[model] = today_tokens.get(model, 0) + total
+      except OSError as exc:
+        raise LocalScanError from exc
+
+  stats = None
+  if prompts > 0:
+    stats = {
+        "todayPrompts": today_prompt_count,
+        "todaySessions": len(today_sessions),
+        "todayTotalTokens": today_token_total,
+        "todayTokensByModel": today_tokens,
+        "recentDays": [recent[day] for day in recent_dates],
+        "modelUsage": usage_by_model,
+        "totalPrompts": prompts,
+        "totalSessions": len(sessions),
+        "activeDays": len(active_days),
+        "activeDates": sorted(active_days),
+    }
+  if stats is not None:
+    write_json_atomic(cache_file, {"stats": stats, "sessionRoots": root_identity})
+  return stats
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true", help="rescan the database and re-probe limits, ignoring caches")
+  parser.add_argument("--limits-only", action="store_true", help="reuse any recent database scan; only the limits probe must be fresh")
+  args = parser.parse_args()
+
+  scan_age = 0 if args.force else DEFAULT_CACHE_SECONDS
+  try:
+    stats = scan_opencode_stats(scan_age)
+    pi_usage = scan_pi_usage(scan_age)
+  except LocalScanError:
+    print("OpenCode Go local usage scan failed.", file=sys.stderr)
+    return 1
+  if pi_usage is not None:
+    stats = merge_stats(stats, pi_usage)
+  limits = probe_limits(api_key())
+
+  record = {
+      "schemaVersion": 1,
+      "id": AGENT_ID,
+      "name": AGENT_NAME,
+      "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+      "ready": number(stats.get("totalPrompts")) > 0 or len(limits["limits"]) > 0,
+      "hasLocalStats": True,
+      # The endpoint reports allowances, not the Go / Go Plus plan name.
+      "tierLabel": "",
+      "usageStatusText": limits["usageStatusText"],
+      "authHelpText": limits["authHelpText"],
+      "limits": limits["limits"],
+  }
+  if limits.get("retryAdvised"):
+    record["retryAdvised"] = True
+  record.update(stats)
+  print(json.dumps(record, separators=(",", ":"), sort_keys=True))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
