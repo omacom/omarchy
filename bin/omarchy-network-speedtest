@@ -43,12 +43,21 @@ fi
 fast_token="YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm"
 fast_api_url="https://api.fast.com/netflix/speedtest/v2?https=true&token=$fast_token&urlCount=$url_count"
 
-fast_urls=$(curl -fsS "$fast_api_url" 2>/dev/null | jq -r '.targets[]?.url // empty')
+# The endpoint answers with a list of download targets, and the answer arrives
+# over the network, so what it may hand us is bounded: the transfer cannot
+# run forever or fill memory, and only https targets are used, so a hijacked
+# or malformed answer cannot point the transfer somewhere else.
+fast_response=$(curl -fsS --max-time 15 --max-filesize 65536 "$fast_api_url" 2>/dev/null | head -c 65536) || fast_response=""
+fast_urls=$(printf '%s' "$fast_response" | jq -r '.targets[]?.url // empty' 2>/dev/null | grep '^https://' | head -n "$url_count") || fast_urls=""
 
 if [[ -z $fast_urls ]]; then
   echo "Failed to fetch speed test endpoints" >&2
   exit 1
 fi
+
+# The targets are read into a list, so a target is never split on whitespace
+# or expanded as a glob, and every target the endpoint named is kept.
+mapfile -t fast_url_list <<<"$fast_urls"
 
 traffic_pids=()
 
@@ -87,7 +96,7 @@ traffic_worker() {
 }
 
 for (( i = 0; i < parallel; i++ )); do
-  traffic_worker $fast_urls &
+  traffic_worker "${fast_url_list[@]}" &
   traffic_pids+=("$!")
 done
 
