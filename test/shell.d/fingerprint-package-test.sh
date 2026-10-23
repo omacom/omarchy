@@ -42,6 +42,14 @@ case "$1" in
     fi
     grep -qx -- "$1" <<< "${INSTALLED:-}"
     ;;
+  # Ownership query, not a transaction: answer it without logging a call.
+  # Only the library the setup cares about has an owner here, so any other path
+  # comes back unowned the way pacman answers for a file no package ships.
+  -Qqo)
+    [[ $2 == /usr/lib/libfprint-2.so.2 ]] || exit 1
+    [[ -n ${LIBFPRINT_OWNER:-} ]] || exit 1
+    echo "$LIBFPRINT_OWNER"
+    ;;
   -S)
     printf 'pacman %s\n' "$*" >> "$CALL_LOG"
     exit "${INSTALL_STATUS:-0}"
@@ -102,6 +110,13 @@ run_setup() {
 
 assert_installs() {
   grep -qx 'pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils' "$CALL_LOG" || fail "$1"
+  (( $(grep -c '^pacman ' "$CALL_LOG") == 1 )) || fail "$1: one pacman transaction"
+}
+
+assert_keeps_driver() {
+  grep -qx 'pacman -S --needed --noconfirm --ask 4 -- fprintd usbutils' "$CALL_LOG" ||
+    fail "$1"
+  grep -q 'libfprint-git' "$CALL_LOG" && fail "$1: libfprint-git is not installed"
   (( $(grep -c '^pacman ' "$CALL_LOG") == 1 )) || fail "$1: one pacman transaction"
 }
 
@@ -315,3 +330,32 @@ check_verify 'verify-too-fast (not done)' '  Too fast. Again.'
 check_verify 'verify-disconnected (done)' $'  ✗ The reader was disconnected.'
 check_verify 'verify-unknown-error (done)' $'  ✗ The check stopped (verify-unknown-error).'
 pass "each enroll and verify result fprintd 1.94.5 sends reads as intended"
+
+# Readers libfprint cannot drive at all run on a TOD stack -- a libfprint fork
+# plus a vendor blob -- and that fork provides libfprint-2.so.2 itself. --ask 4
+# would accept its removal silently, leaving the machine with no driver, so the
+# owner of the library decides whether libfprint-git may replace it.
+LIBFPRINT_OWNER=libfprint-tod INSTALLED=$'libfprint-tod' run_setup
+assert_keeps_driver "a TOD-provided libfprint is kept instead of being replaced"
+pass "a TOD-provided libfprint is kept and libfprint-git is skipped"
+
+# The TOD packages are named differently per vendor, so the check has to follow
+# the library's owner rather than any one package name.
+LIBFPRINT_OWNER=libfprint-tod-git INSTALLED=$'libfprint-tod-git' run_setup
+assert_keeps_driver "a differently named TOD package is kept too"
+pass "the driver is kept by library ownership, not by package name"
+
+LIBFPRINT_OWNER=libfprint-tod INSTALLED=$'libfprint-tod\nfprintd\nusbutils' run_setup
+if grep -q '^pacman ' "$CALL_LOG"; then
+  fail "a TOD machine with everything installed does not touch pacman"
+fi
+grep -qx enroll "$CALL_LOG" || fail "a TOD machine with everything installed reaches enrollment"
+pass "a TOD machine with everything installed goes straight to enrollment"
+
+LIBFPRINT_OWNER=libfprint run_setup
+assert_installs "stock libfprint is still replaced by libfprint-git"
+pass "stock libfprint is still replaced by libfprint-git"
+
+LIBFPRINT_OWNER=libfprint-git INSTALLED=$'libfprint-git' run_setup
+assert_installs "an existing libfprint-git still completes the package set"
+pass "an existing libfprint-git still completes the package set"
