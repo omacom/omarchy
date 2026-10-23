@@ -22,10 +22,11 @@ for data_dir in "${data_dirs[@]}"; do
 done
 
 # Handing an empty command to uwsm-app surfaces as "Command not found: \"\"",
-# which fails a keybinding silently. Say what is missing and how to fix it.
+# which fails a keybinding silently. A web app runs in a Chromium-based
+# browser, so say that rather than claiming no browser is set.
 if [[ -z $browser_exec ]]; then
-  echo "omarchy-launch-webapp: no browser found for web apps; set one with 'omarchy default browser <browser>'" >&2
-  omarchy-notification-send -u critical -g 󰖟 "$(omarchy-i18n browser.notFound)" "$(omarchy-i18n browser.notFoundHint)"
+  echo "omarchy-launch-webapp: web apps need a Chromium-based browser; install Chromium with 'omarchy install browser chromium'" >&2
+  omarchy-notification-send -u critical -g 󰖟 "$(omarchy-i18n browser.webappNeedsChromium)" "$(omarchy-i18n browser.webappNeedsChromiumHint)"
   exit 1
 fi
 

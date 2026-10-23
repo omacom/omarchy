@@ -214,7 +214,21 @@ grep -F "omarchy default browser" "$error_log" >/dev/null ||
 pass "browser launcher fails visibly instead of handing uwsm-app an empty command"
 
 # A web app reaches the same empty command through its chromium.desktop
-# fallback, so it needs the same guard.
+# fallback when the default is not Chromium-based, so it needs its own guard
+# and message.
+cat >"$XDG_DATA_DIRS/applications/firefox.desktop" <<'EOF'
+[Desktop Entry]
+Exec=firefox %u
+EOF
+cat >"$mock_bin/firefox" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$mock_bin/firefox"
+cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'EOF'
+[Default Applications]
+x-scheme-handler/http=firefox.desktop
+EOF
 rm -f "$notify_log" "$error_log" "$launch_log"
 status=0
 HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
@@ -225,8 +239,10 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
 [[ ! -e $launch_log ]] || fail "web app launcher starts nothing when no browser is found" "$(cat "$launch_log")"
 grep -F -- '-u critical' "$notify_log" >/dev/null ||
   fail "web app launcher sends a critical notification when no browser is found"
-grep -F "No default browser found" "$notify_log" >/dev/null ||
-  fail "the web app notification says no default browser was found" "$(cat "$notify_log")"
-grep -F "omarchy default browser" "$error_log" >/dev/null ||
-  fail "the web app launcher explains how to set a default browser on stderr" "$(cat "$error_log")"
+grep -F "Web apps need a Chromium-based browser" "$notify_log" >/dev/null ||
+  fail "the web app notification asks for a Chromium-based browser" "$(cat "$notify_log")"
+grep -F "omarchy install browser chromium" "$notify_log" >/dev/null ||
+  fail "the web app notification explains how to install Chromium" "$(cat "$notify_log")"
+grep -F "omarchy install browser chromium" "$error_log" >/dev/null ||
+  fail "the web app launcher explains how to install Chromium on stderr" "$(cat "$error_log")"
 pass "web app launcher fails visibly instead of handing uwsm-app an empty command"

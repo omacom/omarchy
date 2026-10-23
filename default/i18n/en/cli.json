@@ -46,6 +46,8 @@
   "branding.pickScreensaverImage": "Pick PNG or SVG for screensaver",
   "browser.notFound": "No default browser found",
   "browser.notFoundHint": "Install a browser or set one with: omarchy default browser <browser>",
+  "browser.webappNeedsChromium": "Web apps need a Chromium-based browser",
+  "browser.webappNeedsChromiumHint": "Install Chromium with: omarchy install browser chromium",
   "capture.audioNotAdded": "The %1 audio could not be added to this recording.",
   "capture.noRecordingDir": "Screen recording directory does not exist: %1",
   "capture.noWebcam": "No webcam devices found",
