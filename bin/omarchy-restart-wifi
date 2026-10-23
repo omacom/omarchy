@@ -1,11 +1,26 @@
-#!/bin/bash
+#!/bin/bash -p
 
-# omarchy:summary=Unblock and restart the Wi-Fi service.
+# omarchy:summary=Unblock Wi-Fi and reload the radio driver
+# omarchy:args=[--interface NAME]
+# omarchy:requires-sudo=true
 
-echo -e "Unblocking wifi...\n"
-
-rfkill unblock wifi
-nmcli networking on
-nmcli radio wifi on
-nmcli device wifi rescan 2>/dev/null || true
-rfkill list wifi
+# This NOPASSWD boundary needs protected startup before its first command.
+# A plain Bash launch with a decoy -p argument cannot bypass that boundary.
+if [[ $- != *p* ]]; then
+  echo "Run omarchy-restart-wifi directly, with its protected interpreter." >&2
+  exit 1
+fi
+if (( EUID != 0 )); then
+  if [[ -t 0 || -t 2 ]]; then
+    sudo /usr/bin/omarchy-restart-wifi "$@"
+  else
+    pkexec /usr/bin/omarchy-restart-wifi "$@"
+  fi
+else
+  export PATH=/usr/bin:/usr/sbin:/bin:/sbin LC_ALL=C.UTF-8
+  NET_ROOT=/sys/class/net
+  exec 9>>/run/omarchy-restart-wifi.lock
+  flock -w 90 9 || exit 1
+  source /usr/share/omarchy/install/helpers/wifi-restart.sh
+  wifi_restart "$@"
+fi
