@@ -56,8 +56,7 @@ cleanup() {
   local pid
   for pid in "${traffic_pids[@]}"; do
     [[ -n $pid ]] || continue
-    pkill -TERM -P "$pid" 2>/dev/null || true
-    kill "$pid" 2>/dev/null || true
+    kill -TERM -- "-$pid" 2>/dev/null || true
   done
   for pid in "${traffic_pids[@]}"; do
     [[ -n $pid ]] || continue
@@ -71,6 +70,18 @@ traffic_worker() {
   local urls=("$@")
   local url_count=${#urls[@]}
   local idx=$RANDOM
+  local worker_pid=$BASHPID
+
+  # Keep the watchdog and upload pipeline in this worker's process group.
+  set +m
+  (
+    # A panel can disappear before EXIT cleanup runs. Watch from outside the
+    # transfer so even a curl that never returns is stopped with its worker.
+    while kill -0 "$$" 2>/dev/null && kill -0 "$worker_pid" 2>/dev/null; do
+      sleep 0.2
+    done
+    kill -TERM -- "-$worker_pid" 2>/dev/null || true
+  ) &
   if [[ $direction == "down" ]]; then
     while true; do
       url=${urls[$((idx % url_count))]}
@@ -86,6 +97,9 @@ traffic_worker() {
   fi
 }
 
+# Give each worker a separate process group, so cleanup reaches every transfer
+# without racing a worker that is starting its next curl or dd process.
+set -m
 for (( i = 0; i < parallel; i++ )); do
   traffic_worker $fast_urls &
   traffic_pids+=("$!")
