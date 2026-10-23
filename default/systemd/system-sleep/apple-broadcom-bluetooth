@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Resume is the same warm power transition as the reboot that wedges the chip.
+# A system-sleep hook blocks user.slice until it returns, and recovery waits on
+# BlueZ, so hand it to the oneshot and get out. restart covers a unit that
+# failed at boot; try-restart would skip that.
+
+if [[ ${1:-} == "post" ]]; then
+  systemctl --no-block reset-failed omarchy-apple-broadcom-bluetooth.service || true
+  systemctl --no-block restart omarchy-apple-broadcom-bluetooth.service || true
+fi
