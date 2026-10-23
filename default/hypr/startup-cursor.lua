@@ -86,7 +86,8 @@ hl.on("config.reloaded", function()
       -- Compositor environment survives Lua reloads; a session id prevents stale inheritance.
       hl.env("OMARCHY_STARTUP_CURSOR_THEME", omarchy_startup_cursor.xcursor)
       hl.env("OMARCHY_STARTUP_CURSOR_SESSION", os.getenv("HYPRLAND_INSTANCE_SIGNATURE"))
-      if cold then
+      -- An acknowledged reveal never goes back to the blank theme, even without monitors.
+      if cold and not revealed then
         hl.env("XCURSOR_PATH", os.getenv("OMARCHY_PATH") .. "/default/hypr/cursors:" .. omarchy_startup_cursor.path)
         hl.env("XCURSOR_THEME", "omarchy-startup")
       else

@@ -74,13 +74,17 @@ assert(config.invisible, "wait for the normal theme before restoring visibility"
 omarchy_startup_cursor_restore(true)
 assert(config.invisible and not command:match("my%-hyprcursor"), "stay hidden until the compositor has applied the hide")
 assert(env.OMARCHY_STARTUP_CURSOR_SESSION == "test-session", "a reload before the cursor is shown must still find the reveal pending")
--- The shell acknowledges the reveal once, so a reload inside the wait must resume it.
-omarchy_startup_cursor_pending, omarchy_startup_cursor, reveal = nil, nil, nil
-for name in pairs(config) do config[name] = true end
-config.invisible = false
-dofile(os.getenv("ROOT") .. "/default/hypr/startup-cursor.lua")
-events["config.reloaded"]()
-assert(config.invisible and reveal, "a reload during the reveal's wait must resume it rather than wait for recovery")
+-- The shell acknowledges the reveal once, so a reload inside the wait must resume it, with or without monitors.
+for _, present in ipairs({ {}, { {} } }) do
+  omarchy_startup_cursor_pending, omarchy_startup_cursor, reveal = nil, nil, nil
+  for name in pairs(config) do config[name] = true end
+  config.invisible = false
+  monitors = present
+  dofile(os.getenv("ROOT") .. "/default/hypr/startup-cursor.lua")
+  events["config.reloaded"]()
+  assert(config.invisible and reveal, "a reload during the reveal's wait must resume it rather than wait for recovery")
+  assert(env.XCURSOR_THEME == "my-xcursor" and env.XCURSOR_PATH == "/my/icons", "a resumed reveal must not bring back the blank theme")
+end
 reveal()
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme)
 assert(env.OMARCHY_STARTUP_CURSOR_SESSION == "" and env.OMARCHY_STARTUP_CURSOR_REVEALED == "", "a shown cursor ends the startup reveal")
