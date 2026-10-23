@@ -770,6 +770,11 @@ assert(
   /\(event\.key === Qt\.Key_Backspace \|\| Util\.readingKey\(event\) === Qt\.Key_Left\) && !root\.filterText[\s\S]*root\.goBack\(\)/.test(menuQml),
   'menu Left key (Right in a right-to-left language) follows empty-filter Backspace navigation'
 )
+assert(
+  /else if \(event\.key === Qt\.Key_Return \|\| event\.key === Qt\.Key_Enter\) \{/.test(menuQml)
+    && /else if \(Util\.readingKey\(event\) === Qt\.Key_Right\) \{\s*\n(?:\s*\/\/[^\n]*\n)*\s*if \(!root\.dmenuActive && root\.cursorActive\) \{\s*\n\s*var row = displayModel\.get\(root\.selectedIndex\)\s*\n\s*if \(row && \(row\.kind === "menu" \|\| row\.kind === "link"\)\) \{\s*\n\s*root\.activateIndex\(root\.selectedIndex\)\s*\n\s*event\.accepted = true/.test(menuQml),
+  'menu Right key (Left in a right-to-left language) only enters submenus and links outside dmenu mode'
+)
 // Input methods commit text only to a text-input item, so the search line must be one.
 const filterInputBlock = (menuQml.match(/FilterInput \{[\s\S]*?\n          \}/) || [''])[0]
 assert(
