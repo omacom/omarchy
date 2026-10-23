@@ -149,7 +149,7 @@ only a live session can prove.
   fake `$HOME`, runs `bash -euo pipefail "$ROOT/migrations/<ts>.sh"`, and
   asserts the resulting state — including running it twice to prove
   idempotence, and once against non-legacy state to prove it leaves user
-  customization alone. Keep that test while the migration is still being written or bugfixed, if it calls an Omarchy helper whose interface can still change, or if it is a security-sensitive privileged repair. Once a one-shot rewrite has shipped in a tagged release and is frozen, drop the test even when that rewrite used sudo, pacman, or limine-mkinitcpio. Keep the migration itself for late-updaters. Tests of `omarchy-migrate`, the login notifier, and `omarchy-upgrade-to-quattro` stay.
+  customization alone. A migration that depends on a package other than `omarchy` also runs once with that package removed and the user's config left behind, and must exit 0 and leave that config as it is. Keep that test while the migration is still being written or bugfixed, if it calls an Omarchy helper whose interface can still change, or if it is a security-sensitive privileged repair. Once a one-shot rewrite has shipped in a tagged release and is frozen, drop the test even when that rewrite used sudo, pacman, or limine-mkinitcpio. Keep the migration itself for late-updaters. Tests of `omarchy-migrate`, the login notifier, and `omarchy-upgrade-to-quattro` stay.
 - **Assert the invariant, not the snapshot.** Config tests pin the property a
   test is named for (this widget stays adjacent to that one) rather than whole
   structures, so unrelated churn does not fail them.

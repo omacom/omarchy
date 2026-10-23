@@ -12,7 +12,7 @@ sed "s@/usr/share/omarchy-nvim/config/lua/config/remote_clipboard.lua@$test_home
 printf '%s\n' '-- corrected packaged provider' >"$test_home/package.lua"
 cat >"$test_home/bin/pacman" <<'STUB'
 #!/bin/bash
-[[ $* == '-Q omarchy-nvim' ]] || exit 1
+[[ $* == '-Q omarchy-nvim' && $TEST_NVIM_VERSION != "none" ]] || exit 1
 printf 'omarchy-nvim %s\n' "${TEST_NVIM_VERSION:-2026.9.21-2}"
 STUB
 chmod +x "$test_home/bin/pacman"
@@ -60,6 +60,15 @@ mv "$test_home/package.lua" "$test_home/package.saved"
 if run_migration; then fail "missing package source leaves migration pending"; fi
 cmp "$provider" "$SHELL_TEST_DIR/fixtures/neovim-clipboard/june.lua" || fail "missing source leaves provider unchanged"
 pass "old or missing package cannot mark an unrepaired provider complete"
+
+# A removed omarchy-nvim leaves ~/.config/nvim behind. Skip instead of blocking
+# every later migration, and leave the provider as it is.
+export TEST_NVIM_VERSION=none
+run_migration >"$test_home/output" || fail "uninstalled package completes the migration"
+cmp "$provider" "$SHELL_TEST_DIR/fixtures/neovim-clipboard/june.lua" || fail "uninstalled package leaves provider unchanged"
+grep -q 'omarchy-nvim is not installed' "$test_home/output" || fail "uninstalled package explains the skip"
+unset TEST_NVIM_VERSION
+pass "uninstalled package skips the repair without blocking later migrations"
 
 mv "$test_home/package.saved" "$test_home/package.lua"
 # A write that fails after producing partial output must never damage the live
