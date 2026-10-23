@@ -54,8 +54,8 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Ctrl + Left/Right`  | Move between windows inside a tiling group |
 | `Super + Ctrl + Z` | Zoom in on screen (repeat for more zoom) |
 | `Super + Ctrl + Alt + Z` | Zoom fully out from screen |
-| `Super + /` | Step forward through monitor scaling options |
-| `Super + Alt + /` | Step backward through monitor scaling options |
+| `Super + Ctrl + Alt + Equal` | Step forward through monitor scaling options |
+| `Super + Ctrl + Alt + Minus` | Step backward through monitor scaling options |
 | `Alt + Tab` | Cycle forward through windows on the active workspace |
 | `Alt + Shift + Tab` | Cycle backward through windows on the active workspace |
 | `Ctrl + Alt + Tab`| Cycle focus forward through monitors |
