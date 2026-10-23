@@ -836,6 +836,9 @@
   "install.ai.claude": {
     "label": "Claude Desktop"
   },
+  "install.ai.ghost": {
+    "label": "Ghost"
+  },
   "install.ai.grok-bot": {
     "label": "Grok Bot"
   },
@@ -1051,6 +1054,9 @@
   },
   "remove.ai.claude": {
     "label": "Claude Desktop"
+  },
+  "remove.ai.ghost": {
+    "label": "Ghost UI"
   },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
