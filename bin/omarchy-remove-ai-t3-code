@@ -6,21 +6,18 @@
 set -euo pipefail
 
 t3code_home="${T3CODE_HOME:-$HOME/.t3}"
-resolved_t3code_home=$(realpath -m -- "$t3code_home")
-resolved_home=$(realpath -m -- "$HOME")
-
-# Match the installer's configured home, but never let it take the user's
-# home or a parent of it. Resolve aliases for validation only, so removal
-# still unlinks a symlinked home instead of recursively deleting its target.
-if [[ $resolved_t3code_home == "/" || $resolved_home == "$resolved_t3code_home" || $resolved_home == "$resolved_t3code_home/"* ]]; then
-  echo "Refusing to remove T3 Code: its data directory is your home or an ancestor." >&2
-  exit 1
-fi
 while [[ $t3code_home == */ ]]; do
   t3code_home=${t3code_home%/}
 done
-if [[ ${t3code_home##*/} == "." || ${t3code_home##*/} == ".." ]]; then
-  echo "Refusing to remove T3 Code: use a data directory path without a final '.' or '..' component." >&2
+
+# The data home comes from the environment and goes to rm -rf, so it must name
+# an entry inside the user's home. Resolve its parent, not the path itself: a
+# symlinked home is then unlinked instead of having its target emptied. rm
+# refuses a final '.' or '..', which would leave a partial removal behind.
+t3code_parent=$(realpath -m -- "$(dirname -- "$t3code_home")")
+resolved_home=$(realpath -m -- "$HOME")
+if [[ ${t3code_home##*/} == @(|.|..) || ($t3code_parent != "$resolved_home" && $t3code_parent != "$resolved_home/"*) ]]; then
+  echo "Refusing to remove T3 Code: its data directory must be inside your home directory." >&2
   exit 1
 fi
 
@@ -28,9 +25,13 @@ fi
 omarchy-pkg-drop t3code-bin t3code-nightly-bin
 
 # A `t3` link to one of T3 Code's launchers would only dangle once it is gone.
-case $(readlink "$HOME/.local/bin/t3" || true) in
-"${T3CODE_HOME:-$HOME/.t3}/bin/t3" | /usr/bin/t3 | /usr/bin/t3-nightly) rm -f "$HOME/.local/bin/t3" ;;
-esac
+# Compare normalized spellings, so `/x/` and `/x` name the same home.
+t3_link=$(readlink "$HOME/.local/bin/t3" || true)
+if [[ -n $t3_link ]]; then
+  case $(realpath -ms -- "$t3_link") in
+  "$(realpath -ms -- "$t3code_home/bin/t3")" | /usr/bin/t3 | /usr/bin/t3-nightly) rm -f "$HOME/.local/bin/t3" ;;
+  esac
+fi
 
 # The app registers its own hidden link handler next to Omarchy's launcher.
 rm -f \
