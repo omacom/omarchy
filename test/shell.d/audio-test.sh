@@ -23,6 +23,17 @@ assertDeepEqual(
 )
 assertDeepEqual(audio.rowSnapshot(undefined), [], 'audio projects a missing list to no rows')
 assert(audio.nodeRow({ id: 7, name: 'bluez_output' }).name === 'bluez_output', 'audio rows carry the node name that identifies them')
+const deadNode = new Proxy({}, {
+  get() { throw new Error('destroyed PwNode QObject') }
+})
+const liveSink = { id: 11, name: 'alsa_output.speakers' }
+const staleSink = { id: 10, name: 'alsa_output.old' }
+assertEqual(audio.nodeRow(deadNode), null, 'audio drops a destroyed node that throws on property access')
+assertDeepEqual(
+  audio.rowSnapshot([staleSink, liveSink, deadNode], [liveSink]),
+  [{ id: 11, name: 'alsa_output.speakers' }],
+  'audio row snapshots keep only nodes still present in Pipewire.nodes'
+)
 
 assertEqual(audio.outputVolumeName(0, false), 'Silenced', 'audio labels silent output')
 assertEqual(audio.outputVolumeName(0.9, false), 'Party mode', 'audio labels loud output')
@@ -160,4 +171,35 @@ assert(panel.includes('onNodesChanged: volumeSinkResolveTimer.restart()') && /ta
 }
 assert(/path: [^\n]*"\/easyeffects\/db\/easyeffectsrc"\s*watchChanges: true\s*printErrors: false\s*onFileChanged: volumeSinkResolveTimer\.restart\(\)/.test(panel),
   "EasyEffects' configured output is watched, since an idle EasyEffects resolves through it")
+{
+  const sinksBody = panel.match(/readonly property var audioSinks: \{([\s\S]*?)\n  \}/)[1]
+  const sourcesBody = panel.match(/readonly property var audioSources: \{([\s\S]*?)\n  \}/)[1]
+  const snapshotBody = panel.match(/function rowSnapshot\(list\) \{([\s\S]*?)\n  \}/)[1]
+  const evalSinks = new Function('candidateSinks', 'sink', 'nodes', 'sinkAvailable', sinksBody)
+  const evalSources = new Function('candidateSources', 'source', 'nodes', sourcesBody)
+  const evalSnapshot = new Function('Model', 'nodes', 'list', snapshotBody)
+
+  const oldSink = { id: 1, name: 'alsa_output.pci' }
+  const oldSource = { id: 2, name: 'alsa_input.pci' }
+  assertDeepEqual(
+    evalSnapshot(audio, [oldSink], evalSinks([oldSink], oldSink, [oldSink], () => true)),
+    [{ id: 1, name: 'alsa_output.pci' }],
+    'audio panel snapshots live sinks while PipeWire is running'
+  )
+  assertDeepEqual(
+    evalSinks([], oldSink, [], () => true),
+    [],
+    'audioSinks clears on PipeWire teardown even if defaultAudioSink lags behind nodes'
+  )
+  assertDeepEqual(
+    evalSources([], oldSource, []),
+    [],
+    'audioSources clears on PipeWire teardown even if defaultAudioSource lags behind nodes'
+  )
+  assertDeepEqual(
+    evalSnapshot(audio, [], [oldSink]),
+    [],
+    'panel rowSnapshot drops any node no longer in Pipewire.nodes'
+  )
+}
 JS

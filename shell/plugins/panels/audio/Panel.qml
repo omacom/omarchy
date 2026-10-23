@@ -90,25 +90,19 @@ Panel {
     return Model.isAudioSource(node)
   }
 
-  property var cachedAudioSinks: []
-  property var cachedAudioSources: []
-
-  readonly property var rawAudioSinks: {
+  readonly property var audioSinks: {
     var list = []
     for (var i = 0; i < candidateSinks.length; i++)
       if (sinkAvailable(candidateSinks[i])) list.push(candidateSinks[i])
-    if (sink && list.indexOf(sink) < 0) list.unshift(sink)
+    if (sink && nodes.indexOf(sink) >= 0 && list.indexOf(sink) < 0) list.unshift(sink)
     return list
   }
 
-  readonly property var rawAudioSources: {
+  readonly property var audioSources: {
     var list = candidateSources.slice()
-    if (source && list.indexOf(source) < 0) list.unshift(source)
+    if (source && nodes.indexOf(source) >= 0 && list.indexOf(source) < 0) list.unshift(source)
     return list
   }
-
-  readonly property var audioSinks: rawAudioSinks.length > 0 ? rawAudioSinks : cachedAudioSinks
-  readonly property var audioSources: rawAudioSources.length > 0 ? rawAudioSources : cachedAudioSources
 
   readonly property var audioStreams: {
     var list = []
@@ -207,9 +201,6 @@ Panel {
   readonly property bool inputMuted: inputViaWpctl ? UntypedInput.muted : (source && source.audio ? source.audio.muted : false)
   readonly property var inputPeakNode: inputViaWpctl ? null : source
   readonly property bool inputLevelShown: !!inputPeakNode
-
-  onRawAudioSinksChanged: if (rawAudioSinks.length > 0) cachedAudioSinks = rawAudioSinks
-  onRawAudioSourcesChanged: if (rawAudioSources.length > 0) cachedAudioSources = rawAudioSources
 
   // Single cursor model shared by keyboard and mouse. Sections:
   //   "output"  — output slider + sink device list
@@ -385,7 +376,7 @@ Panel {
   onAudioStreamsChanged: scheduleDisplayAudioModelRefresh()
 
   function rowSnapshot(list) {
-    return Model.rowSnapshot(list)
+    return Model.rowSnapshot(list, nodes)
   }
 
   // A row that outlives its node resolves to null, or to a node PipeWire recreated
