@@ -7,6 +7,12 @@ screensaver_in_focus() {
 }
 
 exit_screensaver() {
+  # A dismissal before arming must not leave the arming job polling, or let it
+  # arm after the reset below.
+  if [[ -n ${arm_pid:-} ]]; then
+    kill "$arm_pid" 2>/dev/null
+  fi
+  printf '\033[?1003l\033[?1006l'  # Stop mouse reporting before the pty goes away
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
   pkill -x ttfx 2>/dev/null
   pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
@@ -33,7 +39,44 @@ wait_for_terminal_resize() {
   done
 }
 
+# ttfx never enables mouse reporting, so pointer motion never reaches this
+# script's stdin and only a keypress can dismiss the screensaver. Any-event
+# tracking makes the terminal deliver motion, so the read loop below exits on
+# pointer input too.
+#
+# Arm it late: omarchy-launch-screensaver focuses each monitor in turn, warping
+# the pointer on multi-monitor setups, and a warp that lands after arming reads
+# as user input and dismisses the screensaver on sight. The launcher's last warp
+# is the focus restore straight after the final screensaver maps, so wait until
+# every monitor has one, then settle. It allows each terminal 5s to map, so the
+# wait is capped to match rather than leaving the mouse dead if one never does.
+# The class goes through the environment, since in argv pkill would match it.
+screensavers_on_every_monitor() {
+  hyprctl clients -j | SCREENSAVER=org.omarchy.screensaver MONITORS="$1" \
+    jq -e '[.[] | select(.mapped and .class == env.SCREENSAVER)] | length >= (env.MONITORS | tonumber)' >/dev/null
+}
+
+arm_mouse_reporting() {
+  local settle_seconds=0.5
+  local monitors deadline
+  monitors=$(hyprctl monitors -j | jq length 2>/dev/null)
+  [[ $monitors =~ ^[1-9][0-9]*$ ]] || monitors=1
+  deadline=$((SECONDS + 5 * monitors))
+
+  until screensavers_on_every_monitor "$monitors" || ((SECONDS >= deadline)); do
+    sleep 0.1
+  done
+
+  sleep $settle_seconds
+  printf '\033[?1003h\033[?1006h'
+}
+
 wait_for_terminal_resize
+
+# Backgrounded so the read loop starts now, keeping the keyboard responsive from
+# the first frame; the mouse joins once reporting is armed.
+arm_mouse_reporting &
+arm_pid=$!
 
 while true; do
   ttfx -i ~/.config/omarchy/branding/screensaver.txt \
