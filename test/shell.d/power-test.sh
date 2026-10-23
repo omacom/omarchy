@@ -53,4 +53,5 @@ assert(/text: root\.batteryIcon\(\)\n\s*labelText: root\.showPercentage && !vert
 assert(/openPanelIndicatorWidth:.*showPercentage.*button\.glyphPaintedWidth : 0/.test(panelSource), 'power spans the open-panel mark across the painted percentage block')
 assert(/IpcHandler[\s\S]*?function togglePercentage\(\) \{ root\.togglePercentage\(\) \}/.test(panelSource), 'power exposes togglePercentage over IPC')
 assert(/manageIpc: false/.test(panelSource), 'power owns its IPC handler so it can extend the target methods')
+assert(!/omarchy-system-stats|systemInfo/.test(panelSource), 'power does not fetch system stats it does not show')
 JS
