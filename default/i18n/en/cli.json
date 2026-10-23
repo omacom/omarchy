@@ -44,6 +44,8 @@
   "battlenet.wipePartial": "Wipe the partial prefix and start fresh?",
   "branding.pickAboutImage": "Pick PNG or SVG for About",
   "branding.pickScreensaverImage": "Pick PNG or SVG for screensaver",
+  "browser.notFound": "No default browser found",
+  "browser.notFoundHint": "Install a browser or set one with: omarchy default browser <browser>",
   "capture.audioNotAdded": "The %1 audio could not be added to this recording.",
   "capture.noRecordingDir": "Screen recording directory does not exist: %1",
   "capture.noWebcam": "No webcam devices found",

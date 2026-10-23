@@ -58,4 +58,24 @@ if [[ -z $browser || $browser == "omarchy-browser.desktop" ]]; then
   browser=$(XDG_CURRENT_DESKTOP= xdg-mime query default x-scheme-handler/https 2>/dev/null)
 fi
 
-[[ -n $browser && $browser != "omarchy-browser.desktop" ]] && echo "$browser"
+if [[ -n $browser && $browser != "omarchy-browser.desktop" ]]; then
+  echo "$browser"
+  exit 0
+fi
+
+# When no browser is set or the fallbacks only returned the routing entry,
+# fall back to the first installed browser.
+for candidate in \
+  chromium.desktop \
+  brave-browser.desktop \
+  brave-origin.desktop \
+  firefox.desktop \
+  zen.desktop \
+  google-chrome.desktop \
+  microsoft-edge.desktop
+do
+  if installed "$candidate"; then
+    echo "$candidate"
+    exit 0
+  fi
+done
