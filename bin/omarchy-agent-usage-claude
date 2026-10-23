@@ -1145,17 +1145,28 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
 
 
 # The accounts `omarchy agent account` registered, read straight from its
-# registry. Only a registry holding a second account matters: with one, the
-# record is exactly what it always was.
-def registered_accounts() -> list[dict[str, Any]]:
+# registry. With fewer than two accounts, keep the old record shape but retain
+# whether the registry was read so consumers can distinguish failure from a
+# confirmed single-account setup.
+def registered_accounts() -> dict[str, Any]:
   state = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
+  path = state / "omarchy" / "agents" / "accounts" / "claude.json"
   try:
-    registry = json.loads((state / "omarchy" / "agents" / "accounts" / "claude.json").read_text(encoding="utf-8"))
+    registry = json.loads(path.read_text(encoding="utf-8"))
+  except FileNotFoundError:
+    return {"status": "missing", "accounts": []}
   except Exception:
-    return []
-  accounts = [a for a in registry.get("accounts") or [] if isinstance(a, dict) and a.get("id")]
+    return {"status": "unreadable", "accounts": []}
+  if not isinstance(registry, dict):
+    return {"status": "unreadable", "accounts": []}
+  registered = registry.get("accounts", [])
+  if not isinstance(registered, list):
+    return {"status": "unreadable", "accounts": []}
+  if any(not isinstance(account, dict) or not account.get("id") for account in registered):
+    return {"status": "unreadable", "accounts": []}
+  accounts = registered
   if len(accounts) < 2:
-    return []
+    return {"status": "available", "accounts": []}
   active_id = registry.get("active") or accounts[0]["id"]
   if not any(a["id"] == active_id for a in accounts):
     active_id = accounts[0]["id"]
@@ -1165,7 +1176,7 @@ def registered_accounts() -> list[dict[str, Any]]:
       "mode": "auto" if registry.get("switch") == "auto" else "manual",
       "threshold": registry.get("threshold") or 95,
     }
-  return accounts
+  return {"status": "available", "accounts": accounts}
 
 
 def current_account_id(home: Path) -> str:
@@ -1195,6 +1206,7 @@ def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
   limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, force, cache_name)
   return {
     "id": account["id"],
+    "accountId": identity or str(account.get("accountId") or ""),
     "label": str(account.get("label") or account["id"]),
     "email": str(account.get("email") or ""),
     "plan": plan or str(account.get("plan") or ""),
@@ -1242,7 +1254,8 @@ def main() -> int:
   if opencode is not None:
     stats = merge_stats(stats, opencode)
 
-  registered = registered_accounts()
+  registry = registered_accounts()
+  registered = registry["accounts"]
   accounts = [account_limits(account, args.force) for account in registered]
   current = next((a for a in accounts if a["active"]), None)
   if current:
@@ -1263,6 +1276,7 @@ def main() -> int:
     "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
     "ready": number(stats.get("totalPrompts")) > 0 or len(limits["limits"]) > 0,
     "hasLocalStats": True,
+    "accountRegistryStatus": registry["status"],
     "tierLabel": plan,
     "usageStatusText": limits["usageStatusText"],
     "authHelpText": limits["authHelpText"],
@@ -1272,6 +1286,9 @@ def main() -> int:
     "limitsStale": stale,
     "limitsFetchedAt": fetched_at,
   }
+  if registry["status"] == "unreadable":
+    # Limits came from config_dir(), which may be CLAUDE_CONFIG_DIR or ~/.claude.
+    record["fallbackAccountLabel"] = "Configured home"
   if limits.get("retryAdvised"):
     record["retryAdvised"] = True
   if accounts:
