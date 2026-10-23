@@ -154,4 +154,13 @@ assert(
   openMatch[1].includes('root.appLibrary.refreshIcons()'),
   'menu refreshes the shared icon index when opened'
 )
+
+assert(
+  /Timer\s*\{[^}]*?id:\s*hiddenEntryDebounce[^}]*?interval:\s*750[^}]*?onTriggered:\s*if\s*\(!hiddenEntryScan\.running\)\s*hiddenEntryScan\.running\s*=\s*true[^}]*?\}/.test(appLibraryQml),
+  'app library defines a debounce timer for hidden entry scans with onTriggered handler'
+)
+assert(
+  /Connections\s*\{[^}]*?target:\s*DesktopEntries\.applications[^}]*?function onValuesChanged\(\)\s*\{[^}]*?hiddenEntryDebounce\.restart\(\)/.test(appLibraryQml),
+  'app library debounces hidden entry scan on desktop entry value changes'
+)
 JS
