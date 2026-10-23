@@ -932,6 +932,9 @@
   "install.development.javascript.node": {
     "label": "Node.js"
   },
+  "install.development.javascript.pnpm": {
+    "label": "pnpm"
+  },
   "install.development.javascript.bun": {
     "label": "Bun"
   },
@@ -1147,6 +1150,9 @@
   },
   "remove.development.javascript.node": {
     "label": "Node.js"
+  },
+  "remove.development.javascript.pnpm": {
+    "label": "pnpm"
   },
   "remove.development.javascript.bun": {
     "label": "Bun"
