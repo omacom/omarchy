@@ -1,0 +1,219 @@
+#!/bin/bash
+
+# omarchy:summary=Record dictation with whisper.cpp and type it
+# omarchy:args=<start|stop|toggle|language|word|model> [value]
+# omarchy:examples=omarchy dictation whisper-cli language en | omarchy dictation whisper-cli word Omarchy | omarchy dictation whisper-cli word --app Alacritty kubectl
+
+set -euo pipefail
+
+runtime="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/omarchy-whisper"
+model="${OMARCHY_WHISPER_MODEL:-${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/whisper/ggml-base.en.bin}"
+language=""
+prompt=""
+
+dictation_file() {
+  printf '%s/omarchy/ml/dictation.json' "${XDG_CONFIG_HOME:-$HOME/.config}"
+}
+
+prompt_line() {
+  local placeholder=$1
+  local value=""
+  if [[ -t 0 ]] && omarchy-cmd-present gum; then
+    value=$(gum input --placeholder "$placeholder")
+  elif [[ ! -t 0 ]]; then
+    IFS= read -r value || true
+  fi
+  printf '%s' "$value"
+}
+
+load_dictation() {
+  local app=${OMARCHY_ML_APP_CLASS:-}
+  if [[ -z $app ]] && omarchy-cmd-present hyprctl; then
+    app=$(hyprctl activewindow -j 2>/dev/null | python3 -c 'import json,sys
+try:
+    print(json.load(sys.stdin).get("class") or "")
+except Exception:
+    print("")' || true)
+  fi
+  [[ -f $(dictation_file) ]] || return 0
+  local parsed configured_model
+  parsed=$(APP_CLASS="$app" python3 - "$(dictation_file)" <<'PY'
+import json
+import os
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    data = json.load(handle)
+if not isinstance(data, dict):
+    data = {}
+words = [str(word) for word in data.get("words") or [] if str(word).strip()]
+apps = data.get("apps") or {}
+app = os.environ.get("APP_CLASS") or ""
+if isinstance(apps, dict):
+    words.extend(str(word) for word in apps.get(app) or [] if str(word).strip())
+print(str(data.get("language") or ""))
+print(str(data.get("model") or ""))
+print(", ".join(words))
+PY
+)
+  language=$(printf '%s\n' "$parsed" | sed -n '1p')
+  configured_model=$(printf '%s\n' "$parsed" | sed -n '2p')
+  prompt=$(printf '%s\n' "$parsed" | sed -n '3p')
+  if [[ -z ${OMARCHY_WHISPER_MODEL:-} && -n $configured_model ]]; then
+    model=$configured_model
+  fi
+}
+
+start_recording() {
+  mkdir -p "$runtime"
+  if [[ -f $runtime/record.pid ]] && kill -0 "$(<"$runtime/record.pid")" 2>/dev/null; then
+    exit 0
+  fi
+  rm -f "$runtime/dictate.wav" "$runtime/dictate.wav.txt"
+  nohup pw-record --rate 16000 --channels 1 --format s16 "$runtime/dictate.wav" >/dev/null 2>&1 &
+  echo $! > "$runtime/record.pid"
+  disown || true
+  local _try
+  for _try in 1 2 3 4 5 6 7 8 9 10; do
+    [[ -f $runtime/dictate.wav ]] && break
+    sleep 0.1
+  done
+}
+
+stop_recording() {
+  load_dictation
+  if [[ -f $runtime/record.pid ]]; then
+    local pid
+    pid=$(<"$runtime/record.pid")
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    rm -f "$runtime/record.pid"
+  fi
+  if [[ ! -f $runtime/dictate.wav ]]; then
+    exit 0
+  fi
+  if [[ ! -f $model ]]; then
+    echo "Whisper model is missing. Install it from Setup > Defaults > Dictation." >&2
+    exit 1
+  fi
+  args=(-m "$model" -f "$runtime/dictate.wav" -nt -np -otxt)
+  if [[ -n $language ]]; then
+    args+=(-l "$language")
+  fi
+  if [[ -n $prompt ]]; then
+    args+=(--prompt "$prompt")
+  fi
+  whisper-cli "${args[@]}" >/dev/null
+  if [[ ! -s $runtime/dictate.wav.txt ]]; then
+    exit 0
+  fi
+  local text
+  text=$(tr '\n' ' ' < "$runtime/dictate.wav.txt")
+  text=${text%" "}
+  [[ -n $text ]] || exit 0
+  wtype -- "$text"
+}
+
+update_dictation() {
+  python3 - "$(dictation_file)" "$@" <<'PY'
+import json
+import os
+import sys
+
+path = sys.argv[1]
+verb = sys.argv[2]
+os.makedirs(os.path.dirname(path), exist_ok=True)
+data = {}
+if os.path.isfile(path):
+    with open(path, encoding="utf-8") as handle:
+        loaded = json.load(handle)
+    if isinstance(loaded, dict):
+        data = loaded
+if verb == "language":
+    data["language"] = sys.argv[3]
+elif verb == "model":
+    data["model"] = sys.argv[3]
+elif verb == "word":
+    drop = sys.argv[3] == "drop"
+    app = sys.argv[4]
+    term = sys.argv[5]
+    if app:
+        apps = data.get("apps") or {}
+        words = [str(word) for word in apps.get(app) or [] if str(word) != term]
+        if not drop:
+            words.append(term)
+        apps[app] = words
+        data["apps"] = apps
+    else:
+        words = [str(word) for word in data.get("words") or [] if str(word) != term]
+        if not drop:
+            words.append(term)
+        data["words"] = words
+else:
+    print("Unknown dictation setting.", file=sys.stderr)
+    sys.exit(1)
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2)
+    handle.write("\n")
+print(sys.argv[3] if verb != "word" else sys.argv[5])
+PY
+}
+
+case "${1:-}" in
+  start) start_recording ;;
+  stop) stop_recording ;;
+  language)
+    value=${2:-}
+    if [[ -z $value ]]; then
+      value=$(prompt_line "en")
+    fi
+    if [[ -z $value ]]; then
+      echo "Usage: omarchy dictation whisper-cli language <code>" >&2
+      exit 1
+    fi
+    update_dictation language "$value"
+    ;;
+  model)
+    value=${2:-}
+    if [[ -z $value ]]; then
+      value=$(prompt_line "$model")
+    fi
+    if [[ -z $value ]]; then
+      echo "Usage: omarchy dictation whisper-cli model <file>" >&2
+      exit 1
+    fi
+    update_dictation model "$value"
+    ;;
+  word)
+    shift
+    drop=keep
+    app=""
+    while [[ ${1:-} == --* ]]; do
+      case $1 in
+        --drop) drop=drop; shift ;;
+        --app) app=${2:-}; shift 2 ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
+      esac
+    done
+    value=${1:-}
+    if [[ -z $value ]]; then
+      value=$(prompt_line "Omarchy")
+    fi
+    if [[ -z $value ]]; then
+      echo "Usage: omarchy dictation whisper-cli word [--app CLASS] [--drop] <word>" >&2
+      exit 1
+    fi
+    update_dictation word "$drop" "$app" "$value"
+    ;;
+  toggle)
+    if [[ -f $runtime/record.pid ]] && kill -0 "$(<"$runtime/record.pid")" 2>/dev/null; then
+      stop_recording
+    else
+      start_recording
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy dictation whisper-cli <start|stop|toggle|language|word|model>" >&2
+    exit 1
+    ;;
+esac
