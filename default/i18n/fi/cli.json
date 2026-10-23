@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",
+  "battery.fullyCharged": "Täyteen ladattu",
   "battery.holdingAt": "Rajoitettu: %1",
   "battery.lowBody": "Akkua on jäljellä %1 %",
   "battery.lowTitle": "Aika ladata!",

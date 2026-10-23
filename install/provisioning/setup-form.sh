@@ -204,9 +204,10 @@ omarchy_prompt_hostname() {
 # often; guard it or a `set -e` caller dies before the filter fallback.
 omarchy_prompt_timezone() {
   local guess status
-  # A preset install media names its timezone; otherwise guess from the network.
+  # A preset install media names its timezone; otherwise ask geo.omarchy.org,
+  # Omarchy's own lookup of where this network is.
   guess=${OMARCHY_FORM_TIMEZONE_DEFAULT:-}
-  [[ -n $guess ]] || guess=$(tzupdate -p 2>/dev/null) || guess=""
+  [[ -n $guess ]] || guess=$(curl -fsS --max-time 5 https://geo.omarchy.org/ 2>/dev/null | jq -r '.timezone // empty' 2>/dev/null) || guess=""
 
   if [[ -n $guess ]]; then
     timezone=$(timedatectl list-timezones | gum choose --height 10 --selected "$guess" --header "Timezone") && status=0 || status=$?

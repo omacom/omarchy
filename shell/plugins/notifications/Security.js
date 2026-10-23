@@ -3,7 +3,7 @@
 .pragma library
 var MAX_APP_NAME=256, MAX_SUMMARY=2048, MAX_BODY=32768
 var MAX_ACTIONS=16, MAX_ACTION_LABEL=256, MAX_ACTION_ID=256, MAX_SOURCE=253
-var MAX_URL=4096, MAX_CODES=8, MAX_PHONE=64
+var MAX_URL=4096, MAX_CODES=8
 function bounded(value, max) { return typeof value === 'string' ? value.slice(0,max) : '' }
 function containsControlChars(s) { return /[\x00-\x20\x7f-\x9f\\]/.test(s) }
 function canonicalHostname(raw) {

@@ -32,6 +32,7 @@
   "battery.durationHours": "%1小时",
   "battery.durationHoursMinutes": "%1小时%2分钟",
   "battery.durationMinutes": "%1分钟",
+  "battery.fullyCharged": "已充满",
   "battery.holdingAt": "保持在 %1",
   "battery.lowBody": "电池电量已降至 %1%",
   "battery.lowTitle": "该充电了！",

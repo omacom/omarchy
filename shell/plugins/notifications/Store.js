@@ -68,8 +68,6 @@ function snapshot(n, key, urgencyEnum) {
     code: found.code,
     codes: found.codes,
     link: found.link,
-    meeting: found.meeting,
-    phone: found.phone,
     image: img,
     urgency: typeof n.urgency === "number" ? n.urgency : urgencyEnum.Normal,
     expireTimeout: expire,
@@ -81,7 +79,7 @@ function snapshot(n, key, urgencyEnum) {
 var ROLES = ["originalId", "senderPid", "execArgv", "glyph", "transient", "app", "appIcon", "summary", "body", "rawBody", "bodyRich",
              "bodyLine", "source", "groupKey", "image", "urgency",
              "expireTimeout", "duration", "ts",
-             "code", "codes", "link", "meeting", "phone"]
+             "code", "codes", "link"]
 
 function applyTo(model, index, row) {
   var current = model.get(index)
@@ -101,7 +99,7 @@ var RESTORE_GRACE = 20000
 var SHAPE = {
   key: "", originalId: 0, senderPid: 0, execArgv: "", glyph: "", transient: false, app: "", appIcon: "", summary: "", body: "",
   bodyRich: "", bodyLine: "", rawBody: "", source: "", groupKey: "", image: "",
-  code: "", codes: "", link: "", meeting: false, phone: "",
+  code: "", codes: "", link: "",
   urgency: 1, expireTimeout: 0, duration: 0, ts: 0,
   restored: false
 }
@@ -119,7 +117,6 @@ function normalise(row) {
   out.source = out.source.slice(0, Security.MAX_SOURCE)
   out.appIcon = ICON_NAME.test(out.appIcon) ? out.appIcon : ""
   out.link = Security.safeHttpUrl(out.link)
-  out.phone = out.phone.slice(0, Security.MAX_PHONE)
   out.glyph = Security.safeGlyph(out.glyph)
   var argv = Security.parseExecArgv(out.execArgv)
   out.execArgv = argv ? JSON.stringify(argv) : ""
@@ -138,13 +135,11 @@ function normalise(row) {
 function restored(entry) {
   if (!entry || !entry.key) return null
   var row = normalise(entry)
-  // persistable() drops link/meeting/phone so a stored entry cannot
+  // persistable() drops the link so a stored entry cannot
   // assert capabilities. Recompute them from the text and re-validate. Codes
   // are not recomputed: a redacted entry has nothing left to find.
   var found = Detect.scan(row.summary, row.body)
   row.link = found.link
-  row.meeting = found.meeting
-  row.phone = found.phone
   row = normalise(row)
   row.duration = row.urgency === 2 ? 0 : RESTORE_GRACE
   row.restored = true
@@ -168,10 +163,10 @@ var RETENTION_HOURS = [0, 1, 24, 168]
 var LIVE_ROW_CHARS = 16384
 var HISTORY_ROW_CHARS = 4096
 // The closing reasons that mean "this never reached the screen".
-var HELD_REASONS = ["snoozed", "silenced"]
+var HELD_REASONS = ["silenced"]
 
 // What a stored row keeps. Derived text is recomputed on restore; codes,
-// links, phones and images never persist, so a stored row cannot assert a
+// links and images never persist, so a stored row cannot assert a
 // capability.
 var STORED = ["key", "originalId", "senderPid", "execArgv", "glyph", "app", "appIcon", "summary", "body",
               "rawBody", "source", "groupKey", "urgency", "expireTimeout", "duration", "ts"]
@@ -291,7 +286,7 @@ function displayRows(entries) {
   return entries.map(normalise)
 }
 
-// quiet.json: snoozed sources, Do Not Disturb, when silencing began, and
+// quiet.json: Do Not Disturb, when silencing began, and
 // whether codes get through. null when there is nothing usable in it.
 function parseQuiet(text) {
   var raw = String(text || "")
@@ -299,38 +294,14 @@ function parseQuiet(text) {
   var read
   try { read = JSON.parse(raw) } catch (e) { return null }
   if (!read || typeof read !== "object" || Array.isArray(read)) return null
-  var snoozes = {}, given = read.snoozes
-  if (given && typeof given === "object" && !Array.isArray(given)) {
-    for (var k in given) {
-      if (k === "__proto__") continue
-      var entry = given[k], until = entry ? Number(entry.until) : NaN
-      if (!entry || typeof entry !== "object" || !isFinite(until)) continue
-      var since = Number(entry.since || 0)
-      snoozes[k] = { until: until, label: Security.bounded(String(entry.label || k), 256),
-                     since: isFinite(since) ? since : 0 }
-    }
-  }
   var silencedSince = Number(read.silencedSince || 0)
-  return { snoozes: snoozes, dnd: read.dnd === true, silencedSince: isFinite(silencedSince) ? silencedSince : 0,
+  return { dnd: read.dnd === true, silencedSince: isFinite(silencedSince) ? silencedSince : 0,
            codesBypassQuiet: typeof read.codesBypassQuiet === "boolean" ? read.codesBypassQuiet : null }
 }
 
 function serialiseQuiet(state) {
-  return JSON.stringify({ snoozes: state.snoozes, dnd: !!state.dnd, silencedSince: Number(state.silencedSince || 0),
+  return JSON.stringify({ dnd: !!state.dnd, silencedSince: Number(state.silencedSince || 0),
                           codesBypassQuiet: !!state.codesBypassQuiet }) + "\n"
-}
-
-// The previous engine kept Do Not Disturb in ~/.local/state/omarchy/notifications.json;
-// it holds until quiet.json is first written.
-function legacyDnd(text) {
-  var raw = String(text || "")
-  if (raw.length > 1048576) return false
-  try {
-    var read = JSON.parse(raw)
-    return !!read && typeof read === "object" && read.dnd === true
-  } catch (e) {
-    return false
-  }
 }
 
 // What a redacted row says, stored in English like any stored value and

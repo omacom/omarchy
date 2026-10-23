@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",
+  "battery.fullyCharged": "Încărcat complet",
   "battery.holdingAt": "Menținută la %1",
   "battery.lowBody": "Bateria a scăzut la %1%",
   "battery.lowTitle": "Este timpul să încarci!",
