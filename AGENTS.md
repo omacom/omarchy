@@ -96,6 +96,7 @@ The experience should be the same on every platform. When a package or feature i
 - Follow the "Privilege Escalation" section of `default/agents/skills/omarchy/SKILL.md`. It draws the
   `sudo`/`pkexec` line by whether the caller has a terminal to enter a password in, and the repo's
   own scripts follow it.
+- An agent's own shell is not a terminal a person can type a password into, even with a pty. The end-user skill tells an agent to try `sudo -n` and fall back to `pkexec --disable-internal-agent` itself, rather than run `sudo` and wait on a prompt nobody sees.
 
 # Git
 
