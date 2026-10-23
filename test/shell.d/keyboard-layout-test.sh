@@ -143,6 +143,22 @@ assertEqual(model.isTypedKeyboard('sleep-button'), false, 'a sleep button is not
 assertEqual(model.isTypedKeyboard('hl-virtual-keyboard-1'), false, 'the keyboard an input method injects through is not')
 assertEqual(model.isTypedKeyboard(''), true, 'a keyboard reporting no name is left where it was found')
 
+// A 2.4G receiver exposes a mouse and its companion HID endpoints, and a vendor
+// hotkey block arrives as a radio control or extra buttons. Each holds the
+// seat's starting layout, so a mouse scroll while Russian is active must not
+// drag the label back to English (US).
+assertEqual(model.isTypedKeyboard('2.4g-mouse'), false, 'a mouse endpoint is not typed on')
+assertEqual(model.isTypedKeyboard('2.4g-mouse-1'), false, 'a numbered mouse endpoint is not typed on')
+assertEqual(model.isTypedKeyboard('2.4g-mouse-consumer-control'), false, 'a mouse consumer control is not typed on')
+assertEqual(model.isTypedKeyboard('2.4g-mouse-system-control'), false, 'a mouse system control is not typed on')
+assertEqual(model.isTypedKeyboard('pixart-usb-optical-mouse'), false, 'a wired mouse is not typed on')
+assertEqual(model.isTypedKeyboard('ite-tech.-inc.-ite-device(8910)-wireless-radio-control'), false, 'a wireless radio control is not typed on')
+assertEqual(model.isTypedKeyboard('ideapad-extra-buttons'), false, 'a vendor hotkey block is not typed on')
+assertEqual(model.isTypedKeyboard('2.4g-mouse-consumer-control-1'), false, 'a numbered consumer control is not typed on')
+assertEqual(model.isTypedKeyboard('usb-keyboard'), true, 'a real keyboard sharing the receiver seat is still typed on')
+assertEqual(model.isTypedKeyboard('2.4g-mouse-keyboard'), true, 'the keyboard a combo receiver names after its mouse is still typed on')
+assertEqual(model.isTypedKeyboard('mosart-semi.-2.4g-keyboard-mouse-keyboard'), true, 'a keyboard whose product name mentions a mouse is still typed on')
+
 // The activelayout event names the keyboard ahead of the layout it moved to,
 // and a description with a comma in it has to survive the split.
 const rawEvent = data => ({ data })
@@ -151,8 +167,26 @@ const parsedEvent = data => ({ data, parse: count => data.split(',', count - 1).
 assertEqual(model.eventKeyboardName(rawEvent('at-translated-set-2-keyboard,French')), 'at-translated-set-2-keyboard', 'the event names its keyboard')
 assertEqual(model.eventKeyboardName(parsedEvent('at-translated-set-2-keyboard,English (US, intl.)')), 'at-translated-set-2-keyboard', 'a description carrying a comma leaves the name alone')
 assertEqual(model.eventKeyboardName(rawEvent('hl-virtual-keyboard,English (US)')), '', 'the keyboard an input method injects through is not typed on')
+assertEqual(model.eventKeyboardName(rawEvent('2.4g-mouse-consumer-control,English (US)')), '', 'a mouse endpoint raising the event is not typed on')
 assertEqual(model.eventKeyboardName({ parse: () => { throw new Error('unsupported') }, data: 'kb,French' }), 'kb', 'a binding without parse falls back to the raw data')
 assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names no keyboard')
+
+// The reporter's repro: the keyboard sits on Russian while the mouse endpoints
+// stay on English (US); a mouse event must leave the reading on the keyboard.
+// Run it the way the widget does: keep the last name an event gave, and read
+// from the devices isTypedKeyboard lets through.
+const mixedSeat = [
+  { name: '2.4g-mouse', active_layout_index: 0, active_keymap: 'English (US)' },
+  { name: '2.4g-mouse-consumer-control', active_layout_index: 0, active_keymap: 'English (US)' },
+  { name: 'at-translated-set-2-keyboard', active_layout_index: 1, active_keymap: 'Russian' },
+]
+let typedName = 'at-translated-set-2-keyboard'
+for (const device of ['2.4g-mouse', '2.4g-mouse-system-control', '2.4g-mouse-consumer-control']) {
+  const named = model.eventKeyboardName(rawEvent(device + ',English (US)'))
+  if (named) typedName = named
+}
+assertEqual(typedName, 'at-translated-set-2-keyboard', 'the mouse events leave the typed keyboard named')
+assertEqual(model.selectKeyboard(mixedSeat.filter(k => model.isTypedKeyboard(k.name)), typedName).active_keymap, 'Russian', 'the reading stays on the keyboard that moved')
 {
   const widget = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/KeyboardLayout.qml'), 'utf8')
   assert(!/Component\.onCompleted: \{[\s\S]*?briefsProc\.running = true/.test(widget), 'the xkb layout table is not read at startup')
