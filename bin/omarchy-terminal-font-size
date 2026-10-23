@@ -1,0 +1,106 @@
+#!/bin/bash
+
+# omarchy:summary=Set the terminal font size, leaving the rest of the desktop alone
+# omarchy:args=[size|reset]
+# omarchy:examples=omarchy terminal font size | omarchy terminal font size 12 | omarchy terminal font size reset
+
+# Sets the font point size in every terminal config Omarchy manages: Alacritty,
+# Ghostty, Kitty and Foot. The font family is omarchy-font-set's job, and
+# omarchy-display-text-size calls this to keep terminals in proportion with the
+# shell and GTK, so a size set here lasts until the next desktop text size change.
+# Accepts an integer from 6 to 24 (pt).
+
+MIN=6
+MAX=24
+DEFAULT_PT=9
+
+usage() {
+  echo "Usage: omarchy-terminal-font-size [size|reset]"
+  echo "  (no args)   print the current terminal font size in pt"
+  echo "  <size>      set the terminal font size in pt ($MIN–$MAX)"
+  echo "  reset       return terminals to the default ${DEFAULT_PT}pt"
+}
+
+# Set the font point size in terminal configs, creating Kitty overrides when
+# it inherits its size from the system config. Live-reload signals mirror
+# omarchy-font-set; foot has no reload signal, so running instances are nudged.
+set_terminal_size() {
+  local pt="$1"
+
+  if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
+    sed -i -E "s/^size[[:space:]]*=.*/size = $pt/" ~/.config/alacritty/alacritty.toml
+  fi
+
+  if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
+    mkdir -p ~/.config/kitty
+    if grep -qE '^[[:space:]]*font_size[[:space:]]+' ~/.config/kitty/kitty.conf 2>/dev/null; then
+      sed --follow-symlinks -i -E "s/^[[:space:]]*font_size[[:space:]]+.*/font_size $pt.0/" ~/.config/kitty/kitty.conf
+    else
+      printf '\nfont_size %s.0\n' "$pt" >>~/.config/kitty/kitty.conf
+    fi
+    pkill -USR1 kitty 2>/dev/null || true
+  fi
+
+  if [[ -f ~/.config/ghostty/config ]]; then
+    sed -i -E "s/^font-size = .*/font-size = $pt/" ~/.config/ghostty/config
+    pkill -SIGUSR2 ghostty 2>/dev/null || true
+  fi
+
+  if [[ -f ~/.config/foot/foot.ini ]]; then
+    sed -i -E "s/(:size=)[0-9.]+/\1$pt/" ~/.config/foot/foot.ini
+    # Foot has no config-reload signal, so a running instance keeps its startup
+    # size until relaunched (new windows pick up the change). Nudge the user —
+    # but reuse the same notification id (freedesktop replaces_id) so dragging
+    # through several sizes refreshes one toast instead of stacking a pile.
+    if pgrep -x foot >/dev/null 2>&1; then
+      local id_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-terminal-font-size.foot-notif-id"
+      local prev_id=""
+      [[ -f $id_file ]] && read -r prev_id <"$id_file" 2>/dev/null
+      local replace=()
+      [[ $prev_id =~ ^[0-9]+$ ]] && replace=(-r "$prev_id")
+      local new_id
+      new_id="$(omarchy-notification-send \
+        "$(omarchy-i18n display.restartFootForFontSize)" \
+        "${replace[@]}" -p 2>/dev/null)" || true
+      [[ $new_id =~ ^[0-9]+$ ]] && printf '%s\n' "$new_id" >"$id_file"
+    fi
+  fi
+}
+
+# Print the current terminal point size from whichever config we find first.
+current_size() {
+  if [[ -f ~/.config/ghostty/config ]]; then
+    grep -oP '^font-size = \K[0-9.]+' ~/.config/ghostty/config | head -1
+  elif [[ -f ~/.config/alacritty/alacritty.toml ]]; then
+    grep -oP '^size[[:space:]]*=[[:space:]]*\K[0-9.]+' ~/.config/alacritty/alacritty.toml | head -1
+  elif [[ -f ~/.config/kitty/kitty.conf ]]; then
+    local pt
+    pt=$(grep -oP '^[[:space:]]*font_size[[:space:]]+\K[0-9.]+' ~/.config/kitty/kitty.conf | tail -1)
+    echo "${pt:-$DEFAULT_PT}"
+  elif [[ -f ~/.config/foot/foot.ini ]]; then
+    grep -oP ':size=\K[0-9.]+' ~/.config/foot/foot.ini | head -1
+  elif omarchy-cmd-present kitty; then
+    echo "$DEFAULT_PT"
+  fi
+}
+
+case "${1:-}" in
+  -h | --help)
+    usage
+    ;;
+  "")
+    current_size
+    ;;
+  reset | default)
+    set_terminal_size "$DEFAULT_PT"
+    ;;
+  *)
+    if [[ $1 =~ ^[0-9]+$ ]] && ((10#$1 >= MIN && 10#$1 <= MAX)); then
+      set_terminal_size "$((10#$1))"
+    else
+      echo "Size must be an integer between $MIN and $MAX (pt)." >&2
+      usage >&2
+      exit 1
+    fi
+    ;;
+esac

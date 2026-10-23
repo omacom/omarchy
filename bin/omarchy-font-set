@@ -47,7 +47,7 @@ if [[ -f ~/.config/ghostty/config ]]; then
 fi
 
 if [[ -f ~/.config/foot/foot.ini ]]; then
-  sed -i "s/^font=.*/font=$font_name:size=9/g" ~/.config/foot/foot.ini
+  sed -i -E "s/^font=[^:]*/font=$font_name/" ~/.config/foot/foot.ini
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
