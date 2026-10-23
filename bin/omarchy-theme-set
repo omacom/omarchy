@@ -613,6 +613,10 @@ if [[ $THEME_HEADLESS != "1" ]]; then
   if [[ -z $THEME_INTRO_TOKEN ]]; then
     visible_theme_commands+=(omarchy-restart-hyprctl)
   fi
+  # Herdr caches its pane palette in a detached server. Retint its client TTYs
+  # and reload it before OpenCode and other terminal-adaptive TUIs re-query.
+  # A wedged server must not block every subsequent theme switch.
+  timeout 5 omarchy-theme-set-herdr || true
   run_parallel "${visible_theme_commands[@]}"
 
   # A switch from the theme picker, the menu or a script returns once what is
