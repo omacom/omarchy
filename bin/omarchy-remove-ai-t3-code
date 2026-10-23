@@ -10,16 +10,22 @@ while [[ $t3code_home == */ ]]; do
   t3code_home=${t3code_home%/}
 done
 
-# The data home comes from the environment and goes to rm -rf, so it must name
-# an entry inside the user's home. Resolve its parent, not the path itself: a
-# symlinked home is then unlinked instead of having its target emptied. rm
-# refuses a final '.' or '..', which would leave a partial removal behind.
-t3code_parent=$(realpath -m -- "$(dirname -- "$t3code_home")")
-resolved_home=$(realpath -m -- "$HOME")
-if [[ ${t3code_home##*/} == @(|.|..) || ($t3code_parent != "$resolved_home" && $t3code_parent != "$resolved_home/"*) ]]; then
-  echo "Refusing to remove T3 Code: its data directory must be inside your home directory." >&2
+# rm refuses a final '.' or '..', which would leave a partial removal behind.
+case ${t3code_home##*/} in
+"" | . | ..)
+  echo "Refusing to remove T3 Code: T3CODE_HOME must name a directory, without a final '.' or '..'." >&2
   exit 1
-fi
+  ;;
+esac
+
+# The data home comes from the environment and goes to rm -rf, so it is only
+# removed when it is an entry inside the user's home. Resolve its parent, not
+# the path itself: a symlinked home is then unlinked instead of having its
+# target emptied. A home elsewhere, such as on another drive, is left in place.
+t3code_data=""
+case $(realpath -m -- "$(dirname -- "$t3code_home")")/ in
+"$(realpath -m -- "$HOME")"/*) t3code_data=$t3code_home ;;
+esac
 
 # Installs from before the AppImage came from these packages.
 omarchy-pkg-drop t3code-bin t3code-nightly-bin
@@ -47,9 +53,13 @@ rm -rf -- \
   "$HOME/.local/share/t3code" \
   "$HOME/.cache/t3code-updater" \
   "$HOME/.config/t3code" \
-  "$HOME/.config/t3code-v2" \
-  "$t3code_home"
+  "$HOME/.config/t3code-v2"
 rm -f "$HOME/.config/t3code-flags.conf"
 
 echo ""
+if [[ -n $t3code_data ]]; then
+  rm -rf -- "$t3code_data"
+else
+  echo "T3 Code's data in $t3code_home was left in place: only a directory inside your home is removed for you."
+fi
 echo "T3 Code has been removed."

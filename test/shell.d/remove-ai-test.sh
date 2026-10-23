@@ -186,24 +186,27 @@ for ending in . ./ child/.. child/../; do
     -f $HOME/.local/share/applications/t3code.desktop && -L $HOME/.local/bin/t3 ]] ||
     fail "T3 Code removal refuses dot endings before changing anything" "$ending"
 done
+: >"$TEST_LOG"
+if T3CODE_HOME=/ "$ROOT/bin/omarchy-remove-ai-t3-code" >"$tmp_dir/dot-home.log" 2>&1 || [[ -s $TEST_LOG ]]; then
+  fail "T3 Code removal refuses / as its data home before changing anything"
+fi
 pass "T3 Code removal refuses dot endings before making changes"
 
-# A configured home may contain symlinks or .., so check where it resolves
-# before either dropping packages or deleting app files. Only entries inside
-# the user's home may go, even where the command runs with sudo.
+# rm -rf only takes a configured home that is an entry inside the user's home,
+# even where the command runs with sudo. One anywhere else, such as on another
+# drive, stays in place while the app itself still goes.
 fresh_home
-mkdir -p "$HOME/Documents" "$HOME/.local/share/t3code" "$tmp_dir/outside/t3"
+mkdir -p "$HOME/Documents" "$tmp_dir/outside/t3"
 ln -s "$HOME" "$tmp_dir/home-alias"
 ln -s "$tmp_dir/outside" "$HOME/outside-link"
-for unsafe_home in "$HOME/.t3/.." "$tmp_dir/home-alias" "$HOME/.." / "$HOME" "$tmp_dir/outside/t3" "$HOME/outside-link/t3"; do
-  : >"$TEST_LOG"
-  if T3CODE_HOME="$unsafe_home" "$ROOT/bin/omarchy-remove-ai-t3-code" >"$tmp_dir/unsafe-home.log" 2>&1; then
-    fail "T3 Code removal refuses a home outside the user's home" "$unsafe_home"
-  fi
-  [[ -d $HOME/Documents && -d $HOME/.local/share/t3code && -d $tmp_dir/outside/t3 && ! -s $TEST_LOG ]] ||
-    fail "T3 Code removal refuses unsafe homes before changing anything" "$unsafe_home"
+for outside_home in "$tmp_dir/home-alias" "$HOME" "$tmp_dir/outside/t3" "$HOME/outside-link/t3"; do
+  mkdir -p "$HOME/.local/share/t3code"
+  T3CODE_HOME="$outside_home" "$ROOT/bin/omarchy-remove-ai-t3-code" >"$tmp_dir/outside-home.log"
+  [[ -d $HOME/Documents && -d $tmp_dir/outside/t3 ]] || fail "T3 Code removal leaves a home outside the user's home in place" "$outside_home"
+  [[ ! -e $HOME/.local/share/t3code ]] || fail "T3 Code removal still removes the app with a home outside the user's home" "$outside_home"
+  grep -q "left in place" "$tmp_dir/outside-home.log" || fail "T3 Code removal says where it left the data" "$outside_home"
 done
-pass "T3 Code removal refuses homes outside the user's home before making changes"
+pass "T3 Code removal leaves a home outside the user's home in place and removes the app"
 
 # Perplexity's other products (the CLI, Comet) share the perplexity-* prefix;
 # the desktop app owns only its rpc-server runtime and Electron caches. The
