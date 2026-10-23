@@ -35,28 +35,38 @@ run_setup "00:1f.6 Ethernet controller [0200]: Intel I219-LM [8086:15b7]" >/dev/
   fail "other network hardware installs no Broadcom driver" "$(actions)"
 
 run_migration() {
-  local pci=$1
-  local installed=$2
+  local arch=$1
+  local pci=$2
+  local installed=$3
   rm -f "$scratch/actions"
+  omarchy-hw-x86() { [[ $arch == x86 ]]; }
   lspci() { printf '%s\n' "$pci"; }
-  omarchy-pkg-missing() { [[ $installed == no ]]; }
+  omarchy-pkg-missing() { [[ " $installed " != *" $1 "* ]]; }
   omarchy-pkg-add() { printf 'add %s\n' "$*" >>"$scratch/actions"; }
   omarchy-state() { printf 'state %s\n' "$*" >>"$scratch/actions"; }
   source "$migration"
 }
 
-run_migration "00:1f.6 Ethernet controller [0200]: Intel I219-LM [8086:15b7]" no >/dev/null
+bcm43228="00:00.0 Network controller [0280]: Broadcom Inc. BCM43228 [14e4:4359]"
+
+run_migration x86 "00:1f.6 Ethernet controller [0200]: Intel I219-LM [8086:15b7]" "" >/dev/null
 [[ -z $(actions) ]] ||
   fail "the migration does nothing without a BCM43228" "$(actions)"
 
-run_migration "00:00.0 Network controller [0280]: Broadcom Inc. BCM43228 [14e4:4359]" yes >/dev/null
+run_migration x86 "$bcm43228" "broadcom-wl-dkms" >/dev/null
 [[ -z $(actions) ]] ||
   fail "the migration leaves an installed broadcom-wl-dkms alone" "$(actions)"
 
-if [[ ! -d /usr/lib/firmware/b43 ]]; then
-  run_migration "00:00.0 Network controller [0280]: Broadcom Inc. BCM43228 [14e4:4359]" no >/dev/null
-  [[ $(actions) == $'add broadcom-wl-dkms\nstate set reboot-required' ]] ||
-    fail "the migration installs broadcom-wl-dkms and asks for a reboot" "$(actions)"
-fi
+run_migration x86 "$bcm43228" "b43-firmware" >/dev/null
+[[ -z $(actions) ]] ||
+  fail "the migration leaves a machine running b43 on b43-firmware alone" "$(actions)"
+
+run_migration aarch64 "$bcm43228" "" >/dev/null
+[[ -z $(actions) ]] ||
+  fail "the migration asks for no x86-only driver on ARM" "$(actions)"
+
+run_migration x86 "$bcm43228" "" >/dev/null
+[[ $(actions) == $'add broadcom-wl-dkms\nstate set reboot-required' ]] ||
+  fail "the migration installs broadcom-wl-dkms and asks for a reboot" "$(actions)"
 
 pass "BCM43228 gets the wl driver on install and on existing machines"
