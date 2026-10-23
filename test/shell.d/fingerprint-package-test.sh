@@ -2,7 +2,8 @@
 #
 # The fingerprint setup installs libfprint-git in place of stock libfprint. The
 # two conflict, so the swap has to happen inside one --ask 4 transaction, and a
-# rerun with everything installed must not touch pacman at all. The real
+# rerun with everything installed must not touch pacman at all. A different
+# package providing libfprint (a reader-specific fork) is kept. The real
 # omarchy-pkg-missing runs; pacman and the privileged calls are stubbed.
 
 set -euo pipefail
@@ -30,17 +31,33 @@ case "$1" in
   *) echo "Unexpected privileged call: $*" >> "$CALL_LOG"; exit 99 ;;
 esac
 STUB
-# INSTALLED lists the installed package names, one per line.
+# INSTALLED lists the installed package names, one per line. PROVIDER names the
+# installed package that provides libfprint, which pacman -Q resolves and -Qq
+# prints in place of the requested name.
 cat > "$scratch/bin/pacman" <<'STUB'
 #!/bin/bash
+satisfier() {
+  if grep -qx -- "$1" <<< "${INSTALLED:-}"; then
+    printf '%s\n' "$1"
+  elif [[ $1 == "libfprint" && -n ${PROVIDER:-} ]]; then
+    printf '%s\n' "$PROVIDER"
+  else
+    return 1
+  fi
+}
 case "$1" in
-  -Q)
+  -Q | -Qq)
+    query=$1
     if [[ $2 == "--" ]]; then
       shift 2
     else
       shift
     fi
-    grep -qx -- "$1" <<< "${INSTALLED:-}"
+    if [[ $query == "-Qq" ]]; then
+      satisfier "$1"
+    else
+      satisfier "$1" > /dev/null
+    fi
     ;;
   -S)
     printf 'pacman %s\n' "$*" >> "$CALL_LOG"
@@ -114,12 +131,26 @@ INSTALLED=$'libfprint\nfprintd\nusbutils' run_setup
 assert_installs "installed stock libfprint is replaced in the same transaction"
 pass "installed stock libfprint is replaced without a removal step"
 
-INSTALLED=$'libfprint-git\nfprintd\nusbutils' run_setup
+PROVIDER=libfprint-git INSTALLED=$'libfprint-git\nfprintd\nusbutils' run_setup
 if grep -q '^pacman' "$CALL_LOG"; then
   fail "a rerun with everything installed does not touch pacman"
 fi
 grep -qx enroll "$CALL_LOG" || fail "a rerun with everything installed reaches enrollment"
 pass "a rerun with everything installed goes straight to enrollment"
+
+# A reader-specific fork that provides libfprint is the only driver for its
+# reader; replacing it with libfprint-git would leave the reader unsupported.
+PROVIDER=libfprint-goodixtls511-git INSTALLED=$'libfprint-goodixtls511-git\nfprintd\nusbutils' run_setup
+if grep -q '^pacman' "$CALL_LOG"; then
+  fail "a libfprint fork with fprintd installed does not touch pacman"
+fi
+grep -qx enroll "$CALL_LOG" || fail "a libfprint fork with fprintd installed reaches enrollment"
+pass "an installed libfprint fork is kept and setup goes straight to enrollment"
+
+PROVIDER=libfprint-goodixtls511-git INSTALLED='libfprint-goodixtls511-git' run_setup
+grep -qx 'pacman -S --needed --noconfirm --ask 4 -- fprintd usbutils' "$CALL_LOG" ||
+  fail "a libfprint fork without fprintd installs only fprintd and usbutils" "$(<"$CALL_LOG")"
+pass "an installed libfprint fork is kept while fprintd and usbutils are installed"
 
 INSTALL_STATUS=1 run_setup
 if grep -qx enroll "$CALL_LOG"; then
