@@ -449,6 +449,44 @@ ShellRoot {
     registry.setEnabled("third.widget", false)
     root.assertDeepEqual(root.config.bar.layout.center, [], "disabling existing bar widgets removes the original layout entry")
 
+    // A plugins[] record left from when a plugin had no widget does not put
+    // the widget on the bar, so enabling still has to.
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [], right: [] } },
+      plugins: [{ id: "third.widget" }]
+    }
+    root.assertTrue(registry.setEnabled("third.widget", true), "enabling a widget with a plugins record succeeds")
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "enabling a widget with a plugins record puts it on the bar")
+    root.assertDeepEqual(root.config.plugins, [{ id: "third.widget" }], "enabling a widget with a plugins record adds no second record")
+    root.assertTrue(registry.inBar("third.widget"), "a widget enabled over a plugins record is in the bar")
+    registry.setEnabled("third.widget", true)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "enabling a widget already on the bar adds no second entry")
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [{ id: "omarchy.weather" }], right: [] } },
+      plugins: [{ id: "third.center-widget" }]
+    }
+    root.assertEqual(registry.putBarWidget("third.center-widget", {}), "", "put accepts a widget with a plugins record")
+    root.assertDeepEqual(
+      root.config.bar.layout.center,
+      [{ id: "omarchy.weather" }, { id: "third.center-widget" }],
+      "put places a widget that only has a plugins record"
+    )
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [{ id: "omarchy.hybrid", size: 2 }], center: [], right: [] } },
+      plugins: [{ id: "local.hybrid" }]
+    }
+    registry.setEnabled("local.hybrid", true)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "local.hybrid", size: 2 }], "enabling a multi-kind clone with a plugins record replaces its source")
+    registry.setEnabled("local.hybrid", false)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "omarchy.hybrid", size: 2 }], "disabling a multi-kind clone with a plugins record restores its source")
+    root.assertDeepEqual(root.config.plugins, [], "disabling a multi-kind clone drops its plugins record")
+    root.assertEqual(registry.resolveEnabledId("omarchy.hybrid"), "omarchy.hybrid", "a disabled multi-kind clone stops receiving its source's calls")
+
     root.config = { version: 1 }
     registry.setEnabled("third.panel", true)
     root.assertDeepEqual(root.config.plugins, [{ id: "third.panel" }], "setEnabled repairs missing plugin config shape")
