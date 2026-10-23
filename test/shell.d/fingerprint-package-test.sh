@@ -30,7 +30,8 @@ case "$1" in
   *) echo "Unexpected privileged call: $*" >> "$CALL_LOG"; exit 99 ;;
 esac
 STUB
-# INSTALLED lists the installed package names, one per line.
+# INSTALLED lists the installed package names, one per line; PROVIDES what
+# they provide under another name, the way a libfprint fork provides libfprint.
 cat > "$scratch/bin/pacman" <<'STUB'
 #!/bin/bash
 case "$1" in
@@ -41,6 +42,9 @@ case "$1" in
       shift
     fi
     grep -qx -- "$1" <<< "${INSTALLED:-}"
+    ;;
+  -T)
+    grep -qx -- "$2" <<< "${INSTALLED:-}" || grep -qx -- "$2" <<< "${PROVIDES:-}" || { echo "$2"; exit 127; }
     ;;
   -S)
     printf 'pacman %s\n' "$*" >> "$CALL_LOG"
@@ -126,6 +130,22 @@ if grep -qx enroll "$CALL_LOG"; then
   fail "a failed package transaction prevents enrollment"
 fi
 pass "a failed installation stops before enrollment"
+
+# A libfprint the owner installed themselves (a community driver such as
+# libfprint-elanpress-git) provides libfprint and conflicts with libfprint-git,
+# so the --ask 4 transaction would replace it. It stays, and only what is
+# missing besides it is installed.
+INSTALLED=$'libfprint-elanpress-git\nfprintd\nusbutils' PROVIDES=libfprint run_setup
+if grep -q '^pacman' "$CALL_LOG"; then
+  fail "an installed libfprint other than Arch's is kept" "$(cat "$CALL_LOG")"
+fi
+grep -qF 'Keeping the installed libfprint in place of libfprint-git.' "$scratch/output" ||
+  fail "setup says it kept the installed libfprint" "$(cat "$scratch/output")"
+grep -qx enroll "$CALL_LOG" || fail "setup enrolls against the kept libfprint"
+INSTALLED=libfprint-elanpress-git PROVIDES=libfprint run_setup
+grep -qx 'pacman -S --needed --noconfirm --ask 4 -- fprintd usbutils' "$CALL_LOG" ||
+  fail "the rest is installed without libfprint-git next to a kept libfprint" "$(cat "$CALL_LOG")"
+pass "a libfprint the owner installed is kept, and only the rest is installed"
 
 HARDWARE_STATUS=1 run_setup
 [[ ! -s $CALL_LOG ]] || fail "missing hardware stops before package operations"
