@@ -3,6 +3,13 @@
 Window.SetBackgroundTopColor(0.101, 0.105, 0.149);
 Window.SetBackgroundBottomColor(0.101, 0.105, 0.149);
 
+# Colour for text the script renders itself. omarchy-plymouth-set rewrites
+# these lines together with the background colours, so they track the same
+# foreground the entry, lock and bullet images are recoloured to.
+text_color.red = 0.753;
+text_color.green = 0.792;
+text_color.blue = 0.961;
+
 logo.image = Image("logo.png");
 logo.sprite = Sprite(logo.image);
 logo.sprite.SetOpacity(1);
@@ -33,6 +40,8 @@ fun refresh_callback() {
   }
 
   global.animation_frame++;
+
+  update_capslock_warning();
 
   # Animate fake progress to limit over time with easing
   if (global.fake_progress_active == 1) {
@@ -85,11 +94,15 @@ fun hide_progress_bar() {
 fun show_password_dialog() {
   lock.sprite.SetOpacity(1);
   entry.sprite.SetOpacity(1);
+  global.password_visible = 1;
+  update_capslock_warning();
 }
 
 fun hide_password_dialog() {
   lock.sprite.SetOpacity(0);
   entry.sprite.SetOpacity(0);
+  global.password_visible = 0;
+  update_capslock_warning();
 
   for (index = 0; bullet.sprites[index]; index++) {
     bullet.sprites[index].SetOpacity(0);
@@ -132,6 +145,77 @@ bullet.sprites = [];
 
 fun position_bullet(index) {
   bullet.sprites[index].SetPosition(entry.x + 20 + index * (7 + 5), entry.y + entry.image.GetHeight() / 2 - 3.5, 10002);
+}
+
+#----------------------------------------- Caps Lock Warning --------------------------------
+
+# Plymouth reports the keyboard's Caps Lock state to scripts through
+# Plymouth.GetCapslockState(). Every use is guarded so a plymouthd without the
+# call, or a missing warning.png, leaves the password prompt itself untouched.
+global.capslock_supported = 0;
+if (Plymouth.GetCapslockState) global.capslock_supported = 1;
+global.capslock_visible = 0;
+global.password_visible = 0;
+
+capslock.text_sprite = Sprite();
+capslock.text_sprite.SetOpacity(0);
+capslock.icon_sprite = Sprite();
+capslock.icon_sprite.SetOpacity(0);
+capslock.icon_source = Image("warning.png");
+
+# Centre the icon and text as a pair under the entry field. Re-run from
+# layout() so the warning follows the prompt when a display appears late.
+fun position_capslock_warning() {
+  if (capslock.image) {
+    capslock.x = Window.GetWidth() / 2 - (capslock.icon_w + capslock.gap + capslock.text_w) / 2;
+    capslock.y = entry.y + entry.image.GetHeight() + 20;
+
+    if (capslock.icon) {
+      capslock.icon_sprite.SetPosition(capslock.x, capslock.y + (capslock.text_h - capslock.icon_h) / 2, 10003);
+    }
+    capslock.text_sprite.SetPosition(capslock.x + capslock.icon_w + capslock.gap, capslock.y, 10003);
+  }
+}
+
+fun update_capslock_warning() {
+  if (global.capslock_supported == 1) {
+    warn = 0;
+    if (global.password_visible == 1 && Plymouth.GetCapslockState()) warn = 1;
+
+    if (warn != global.capslock_visible) {
+      global.capslock_visible = warn;
+
+      if (warn == 1) {
+        # Render lazily: the label plugin is only needed once Caps Lock is on.
+        if (!capslock.image) {
+          capslock.image = Image.Text("Caps Lock is on", text_color.red, text_color.green, text_color.blue);
+
+          # Scale the icon to the label height; it sits to the left of the text.
+          capslock.text_w = capslock.image.GetWidth();
+          capslock.text_h = capslock.image.GetHeight();
+          capslock.icon_w = 0;
+          capslock.icon_h = 0;
+          capslock.gap = 0;
+          if (capslock.icon_source) {
+            capslock.icon_h = Math.Int(capslock.text_h * 0.85);
+            if (capslock.icon_h < 8) capslock.icon_h = 8;
+            capslock.icon_w = Math.Int(capslock.icon_h * capslock.icon_source.GetWidth() / capslock.icon_source.GetHeight());
+            capslock.gap = 8;
+            capslock.icon = capslock.icon_source.Scale(capslock.icon_w, capslock.icon_h);
+            capslock.icon_sprite.SetImage(capslock.icon);
+          }
+
+          capslock.text_sprite.SetImage(capslock.image);
+          position_capslock_warning();
+        }
+        capslock.text_sprite.SetOpacity(1);
+        if (capslock.icon) capslock.icon_sprite.SetOpacity(1);
+      } else {
+        capslock.text_sprite.SetOpacity(0);
+        capslock.icon_sprite.SetOpacity(0);
+      }
+    }
+  }
 }
 
 fun display_normal_callback() {
@@ -231,6 +315,8 @@ fun layout() {
   for (index = 0; bullet.sprites[index]; index++) {
     position_bullet(index);
   }
+
+  position_capslock_warning();
 
   progress_box.x = global.layout_width / 2 - progress_box.image.GetWidth() / 2;
   progress_box.y = entry.y + entry.image.GetHeight() / 2 - progress_box.image.GetHeight() / 2;
