@@ -56,7 +56,16 @@ toggle() {
 }
 
 recover() {
-  if ! omarchy-hyprland-monitor-external-active && omarchy-hyprland-toggle-enabled $TOGGLE; then
+  # Match the external-active tri-state contract: only a known false means the
+  # external display is gone. Unknown must preserve the user's mirror toggle.
+  omarchy-hyprland-monitor-external-active
+  case $? in
+    0) return 0 ;;
+    1) ;;
+    *) return 0 ;;
+  esac
+
+  if omarchy-hyprland-toggle-enabled $TOGGLE; then
     omarchy-hyprland-toggle $TOGGLE off
   fi
 }

@@ -51,10 +51,23 @@ recover() {
   # Runs from the clamshell watcher every few seconds, so it must be a no-op
   # unless it actually re-enables a display: an unconditional wake here undoes
   # lock-screen blanking and races the resume modeset into a visible flash.
-  omarchy-hyprland-monitor-external-active && return 0
+  #
+  # external-active is tri-state: only its contracted false (1) authorizes a
+  # recovery. A failed or timed-out query is unknown, not evidence that the
+  # external display disappeared.
+  omarchy-hyprland-monitor-external-active
+  case $? in
+    0) return 0 ;;
+    1) ;;
+    *) return 0 ;;
+  esac
+
   omarchy-hyprland-toggle-enabled $TOGGLE || return 0
 
-  omarchy-hyprland-toggle $TOGGLE off
+  # Do not let the best-effort wake mask a failed toggle removal. The
+  # clamshell caller treats a nonzero recovery as "stop before the next state
+  # transition", so preserving this status is part of its transaction boundary.
+  omarchy-hyprland-toggle $TOGGLE off || return 1
   wake
 }
 
