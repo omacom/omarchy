@@ -131,6 +131,37 @@ run
 [[ $(jq -c . "$config") == "$expected_config" ]] || fail "the rename can be rerun"
 pass "bar entries, the center anchor and plugin lists move to omarchy.elsewhen with their settings"
 
+mv "$config" "$test_dir/shared-shell.json"
+jq '.bar.centerAnchor = "omacom.elsewhen"' "$test_dir/shared-shell.json" >"$test_dir/rewrite.json"
+mv "$test_dir/rewrite.json" "$test_dir/shared-shell.json"
+chmod 640 "$test_dir/shared-shell.json"
+ln -s ../../../shared-shell.json "$config"
+run
+[[ -L $config && $(readlink "$config") == ../../../shared-shell.json ]] || fail "the user's relative config link is preserved"
+[[ $(jq -r .bar.centerAnchor "$test_dir/shared-shell.json") == omarchy.elsewhen ]] || fail "the linked config target is renamed"
+[[ $(stat -c %a "$test_dir/shared-shell.json") == 640 ]] || fail "the target's permissions are preserved"
+run
+[[ -L $config ]] || fail "a repeated rename preserves the config link"
+rm "$config"
+mv "$test_dir/shared-shell.json" "$config"
+pass "relative config links and target permissions survive the rename and retries"
+
+for command in chmod mv; do
+  cat >"$test_dir/bin/$command" <<'SH'
+#!/bin/bash
+[[ ${CONFIG_REPLACE_FAILURE:-} != "${0##*/}" ]] || exit 1
+exec "/usr/bin/${0##*/}" "$@"
+SH
+  chmod +x "$test_dir/bin/$command"
+done
+for failure in chmod mv; do
+  cp "$config" "$test_dir/before.json"
+  if run "CONFIG_REPLACE_FAILURE=$failure"; then fail "$failure failure must leave the migration pending"; fi
+  cmp -s "$config" "$test_dir/before.json" || fail "$failure failure preserves the original config"
+  [[ -z $(find "${config%/*}" -name '.shell.json.*' -print) ]] || fail "$failure failure leaves no temporary config"
+done
+pass "permission and replacement failures preserve the original and clean temporary configs"
+
 printf 'not json' >"$config"
 if run; then
   fail "an unreadable config must leave the migration pending"
