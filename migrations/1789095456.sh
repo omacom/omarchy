@@ -18,23 +18,42 @@ fi
 was_ignored=false
 if [[ -d $work_dir ]]; then
   mise_state_dir=${MISE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/mise}
-  ignored_configs_dir="$mise_state_dir/ignored-configs"
+  # Mise expands a leading ~/ that a value set outside a shell leaves literal.
+  if [[ $mise_state_dir == "~/"* ]]; then
+    mise_state_dir="$HOME/${mise_state_dir#"~/"}"
+  fi
   work_target=$(readlink -m "$work_dir")
   config_path_target="$work_target/.mise.toml"
   config_target=$(readlink -m "$mise_config")
 
-  if [[ -d $ignored_configs_dir ]]; then
-    for ignored_entry in "$ignored_configs_dir"/*; do
-      [[ -L $ignored_entry ]] || continue
-      ignored_target=$(readlink "$ignored_entry")
-      if [[ $ignored_target == $work_target || $ignored_target == $config_path_target || $ignored_target == $config_target ]]; then
-        was_ignored=true
-        break
+  # Mise records trust and ignore decisions as symlinks to the config or its root.
+  has_work_record() {
+    local entry target
+
+    [[ -d $1 ]] || return 1
+    for entry in "$1"/*; do
+      [[ -L $entry ]] || continue
+      target=$(readlink "$entry")
+      if [[ $target == $work_target || $target == $config_path_target || $target == $config_target ]]; then
+        return 0
       fi
     done
+    return 1
+  }
+
+  if has_work_record "$mise_state_dir/ignored-configs"; then
+    was_ignored=true
   fi
 
-  if [[ $was_ignored == "false" ]]; then
+  # Without Mise there is no trust to revoke, unless a grant is left in its
+  # state. That grant applies again once Mise is back, and only Mise revokes it.
+  if [[ $was_ignored == "false" ]] && omarchy-cmd-missing mise && has_work_record "$mise_state_dir/trusted-configs"; then
+    echo "Mise is needed to revoke its trust for $work_dir. Install it and update again:" >&2
+    echo "  omarchy pkg add mise-bin" >&2
+    exit 1
+  fi
+
+  if [[ $was_ignored == "false" ]] && omarchy-cmd-present mise; then
     # Normal Mise trust is recorded against the config-root directory, while
     # paranoid trust is recorded against the file and its contents. Stage an
     # empty, inert config when the legacy file is gone so either trust mode can
