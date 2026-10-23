@@ -47,7 +47,7 @@ Item {
   }
 
   ShellIpc {
-    enabled: root.manageIpc && root.ipcTarget !== ""
+    active: root.manageIpc && root.ipcTarget !== ""
     target: root.ipcTarget
 
     function open(): void { root.open() }

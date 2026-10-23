@@ -38,6 +38,7 @@ Run `omarchy-restart-shell` after making changes to QML files.
   than for where they appear: the background switcher registers `background`, and
   bar widgets register one target each — `omarchy.indicators`,
   `omarchy.system-update`, `omarchy.clock`. There is no `bar` target.
+- Declare a target with `ShellIpc` from `qs.Commons`, not with a bare `IpcHandler`. The bar makes a copy of each widget for each monitor, and Quickshell writes a warning for each enabled handler after the first of a target. `ShellIpc` enables only the first copy, and the next copy becomes enabled when the shell destroys the first. To disable a `ShellIpc`, set `active: false`, not `enabled`.
 
 ## Keeping state current without polling
 
