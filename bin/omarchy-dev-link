@@ -110,7 +110,7 @@ fi
   printf 'export OMARCHY_PATH='
   omarchy_conf_quote "$target"
   printf '\n'
-} | sudo tee /etc/omarchy.conf >/dev/null
+} | sudo install -Dm644 -T -o root -g root /dev/stdin /etc/omarchy.conf
 
 sudo install -Dm440 -o root -g root "$staged_sudoers" "$sudoers_file"
 
