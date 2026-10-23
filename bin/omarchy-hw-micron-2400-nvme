@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Detect a Micron 2400 NVMe SSD, whose APST power states hang the controller.
+
+nvme_class="${OMARCHY_NVME_CLASS:-/sys/class/nvme}"
+
+grep -qs "^Micron_2400" "$nvme_class"/*/model
