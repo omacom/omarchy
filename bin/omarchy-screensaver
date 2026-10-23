@@ -22,13 +22,26 @@ hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprc
 
 tty=$(tty 2>/dev/null)
 
-# Terminals allocate the pty at the default 80x24 and only resize it once the
+# Terminals allocate the pty at a default size and only resize it once the
 # compositor has told the window how big it is. ttfx measures the terminal once,
-# at startup, so starting it before the resize lands sizes an 80x24 canvas and
+# at startup, so starting it before the resize lands sizes a small canvas and
 # paints it into the corner of a fullscreen window.
+#
+# That initial size is not always the classic 24x80: foot, for one, allocates its
+# own default geometry (15x48 here), so a guard that loops only while the size
+# equals "24 80" is false on the first iteration and returns without waiting at
+# all. Wait for the size to stop changing instead, which holds for any terminal.
 wait_for_terminal_resize() {
-  local deadline=$((SECONDS + 2))
-  while ((SECONDS < deadline)) && [[ $(stty size 2>/dev/null) == "24 80" ]]; do
+  local deadline=$((SECONDS + 5)) size last="" stable=0
+  while ((SECONDS < deadline)); do
+    size=$(stty size 2>/dev/null)
+    if [[ -n $size && $size != "24 80" && $size == "$last" ]]; then
+      ((stable++))
+      ((stable >= 15)) && return # ~300ms unchanged
+    else
+      stable=0
+    fi
+    last=$size
     sleep 0.02
   done
 }
