@@ -81,6 +81,11 @@ Item {
   property color themeForeground: Commons.Color.bar.text
   property color themeContrastForeground: Commons.Color.background
   property color transparentForeground: Commons.Color.bar.text
+  // Counts strip sample requests, so only the latest answer starts a choice.
+  property int transparentSampleRequest: 0
+  // The background plugin reads the strip under the bar from the wallpaper it
+  // has already decoded, far faster than decoding the file again.
+  readonly property var backgroundService: shell?.firstPartyServiceFor("omarchy.background") || null
   property color foreground: themeForeground
   property color barForeground: useTransparentForeground ? transparentForeground : themeForeground
   property bool foregroundAnimationEnabled: true
@@ -1360,13 +1365,29 @@ Item {
   function refreshTransparentForeground() {
     if (!requestedTransparent || transparentForegroundProc.running) return
 
-    transparentForegroundProc.command = [
+    var request = ++transparentSampleRequest
+    if (backgroundService && typeof backgroundService.sampleBarStrip === "function") {
+      backgroundService.sampleBarStrip(root.position, root.barSize, function(sample) {
+        if (request === root.transparentSampleRequest) root.chooseTransparentForeground(sample)
+      })
+    } else {
+      chooseTransparentForeground("")
+    }
+  }
+
+  function chooseTransparentForeground(sample) {
+    if (!requestedTransparent || transparentForegroundProc.running) return
+
+    var command = [
       "omarchy-bar-text-color",
       root.position,
       String(root.barSize),
       colorHex(root.themeForeground),
       colorHex(root.themeContrastForeground)
     ]
+    // Without a sample the command decodes the current background itself.
+    if (sample) command.push("--sample", sample)
+    transparentForegroundProc.command = command
     transparentForegroundProc.running = true
   }
 
@@ -1405,6 +1426,16 @@ Item {
     watchChanges: true
     printErrors: false
     onFileChanged: root.scheduleTransparentForegroundRefresh()
+  }
+
+  // omarchy-theme-bg-set moves the state link before it tells the shell, so
+  // sample again once the background plugin has the new wallpaper.
+  Connections {
+    target: root.backgroundService
+    ignoreUnknownSignals: true
+    function onCurrentBackgroundChanged() {
+      root.scheduleTransparentForegroundRefresh()
+    }
   }
 
   function runProcess(process) {
