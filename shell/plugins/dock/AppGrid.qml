@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "DockModel.js" as DockModel
 
 // Every app on one grid. Type to narrow it, arrows to move, Enter to launch.
 Item {
@@ -28,6 +29,19 @@ Item {
   property string filterText: ""
   property int selectedIndex: 0
   property var apps: []
+  // The ring glides only to a neighbouring cell; opening, filtering, wrapping
+  // to another row, the pointer and longer jumps snap it into place.
+  property bool ringSnap: true
+  // Where the pointer last was, so hovering selects only when the pointer
+  // itself moved, never when the grid scrolls under a pointer at rest.
+  property var lastPointer: null
+
+  // The accent marks the selection, unless the theme's accent is too faint
+  // against the card to see.
+  readonly property color ringColor: {
+    var c = DockModel.selectionRingColor(Commons.Color.accent, Commons.Color.menu.text, Commons.Color.menu.background, 0.9)
+    return Qt.rgba(c.r, c.g, c.b, c.a)
+  }
 
   readonly property int iconSize: Math.round(56 * Style.fontScale)
   readonly property int labelHeight: Math.ceil(labelMetrics.height) * 2
@@ -52,7 +66,8 @@ Item {
   readonly property int cardHeight: Math.min(panel.height - screenMargin * 2, inset * 2 + headerHeight + headerSpacing + visibleRows * cellHeight)
 
   function open() {
-    root.selectedIndex = 0
+    root.lastPointer = null
+    root.moveTo(0, "reset")
     if (root.appLibrary) root.appLibrary.refreshIcons()
     // The cells from last time are reused when nothing changed, so the grid
     // opens with its icons already drawn.
@@ -124,20 +139,41 @@ Item {
     root.appsStale = false
     var rows = root.appLibrary ? root.appLibrary.sortedEntries(root.filterText) : []
     root.apps = rows.map(function(row) { return row.entry })
-    root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.apps.length - 1))
+    root.moveTo(root.selectedIndex, "reset")
     grid.positionViewAtBeginning()
   }
 
   function setFilter(text) {
     root.filterText = text
-    root.selectedIndex = 0
+    root.moveTo(0, "reset")
     root.rebuild()
   }
 
   function select(delta) {
     if (root.apps.length === 0) return
-    root.selectedIndex = Math.max(0, Math.min(root.apps.length - 1, root.selectedIndex + delta))
+    root.moveTo(root.selectedIndex + delta, "key")
     grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+  }
+
+  // Every selection change comes through here. kind is "key", "pointer" or
+  // "reset"; only a key press to a neighbouring cell lets the ring glide.
+  function moveTo(index, kind) {
+    var target = Math.max(0, Math.min(root.apps.length - 1, index))
+    root.ringSnap = kind !== "key" || !DockModel.isGridStep(root.selectedIndex, target, root.columns)
+    root.selectedIndex = target
+    if (root.ringSnap) Qt.callLater(function() { root.ringSnap = false })
+  }
+
+  // Hover selects only when the pointer moved a pixel from where it last
+  // counted; slower movement adds up until it does. The first report after
+  // opening just notes where it is, and the uninstall prompt and the app menu
+  // hold the selection on the app they name.
+  function hoverAt(index, point) {
+    var last = root.lastPointer
+    if (last && !DockModel.pointerMoved(last, point)) return
+    root.lastPointer = point
+    if (!last || root.dragging || root.uninstallEntry || root.menuEntry) return
+    if (index !== root.selectedIndex) root.moveTo(index, "pointer")
   }
 
   function launch(index) {
@@ -146,6 +182,13 @@ Item {
     root.close()
     if (root.dock) root.dock.launchEntry(entry)
     else root.appLibrary.launch(entry.id, root.appLibrary.entryName(entry))
+  }
+
+  // A new column count (another screen, a resized card) moves every cell, so
+  // the ring follows without a glide.
+  onColumnsChanged: {
+    root.ringSnap = true
+    Qt.callLater(function() { root.ringSnap = false })
   }
 
   FontMetrics {
@@ -308,6 +351,35 @@ Item {
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
 
+            // The selection ring frames the whole cell. It lives in the grid's
+            // content, so it scrolls with the apps.
+            Rectangle {
+              id: ring
+              // Declared here, but parented to the content explicitly: a plain
+              // child of a GridView stays put while the apps scroll.
+              parent: grid.contentItem
+              readonly property var origin: DockModel.gridCellOrigin(root.selectedIndex, root.columns, root.cellWidth, root.cellHeight, root.cellGutter, grid.effectiveLayoutDirection === Qt.RightToLeft)
+              x: origin.x
+              y: origin.y
+              z: 1
+              width: root.cellWidth - root.cellGutter * 2
+              height: root.cellHeight - root.cellGutter * 2
+              visible: root.apps.length > 0
+              color: "transparent"
+              radius: Style.cornerRadius
+              border.color: root.ringColor
+              border.width: root.borderWidth
+
+              Behavior on x {
+                enabled: !root.ringSnap
+                NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+              }
+              Behavior on y {
+                enabled: !root.ringSnap
+                NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+              }
+            }
+
             delegate: Item {
               id: cell
 
@@ -335,15 +407,10 @@ Item {
                 asynchronous: false
                 smooth: true
                 mipmap: true
-              }
+                // The selected app's icon lifts a little, as the dock's do on hover.
+                scale: cell.selected ? 1.08 : 1
 
-              // The selection marks the app's name, not the whole cell.
-              Rectangle {
-                anchors.centerIn: label
-                width: Math.min(cell.width - root.cellGutter * 2, label.contentWidth + Style.spacing.md * 2)
-                height: label.contentHeight + Style.spacing.xs * 2
-                radius: Style.cornerRadius
-                color: cell.selected ? Commons.Color.menu.selectedBackground : "transparent"
+                Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
               }
 
               Text {
@@ -354,7 +421,7 @@ Item {
                 width: parent.width - (root.cellGutter + Style.spacing.md) * 2
                 textFormat: Text.PlainText
                 text: root.appLibrary ? root.appLibrary.entryName(cell.modelData) : ""
-                color: cell.selected ? Commons.Color.menu.selectedText : Commons.Color.menu.text
+                color: Commons.Color.menu.text
                 font.family: Style.font.menuFamily
                 font.pixelSize: Style.font.body
                 horizontalAlignment: Text.AlignHCenter
@@ -371,13 +438,15 @@ Item {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 // The grid would otherwise take a dragging press for a scroll.
                 preventStealing: true
-                onContainsMouseChanged: if (containsMouse && !root.dragging) root.selectedIndex = cell.index
                 onPressed: function(event) {
                   cell.moved = false
                   cell.pressPoint = Qt.point(event.x, event.y)
                 }
                 onPositionChanged: function(event) {
-                  if (!(pressedButtons & Qt.LeftButton)) return
+                  if (!(pressedButtons & Qt.LeftButton)) {
+                    root.hoverAt(cell.index, cell.mapToItem(panel.contentItem, event.x, event.y))
+                    return
+                  }
                   if (!cell.moved && Math.hypot(event.x - cell.pressPoint.x, event.y - cell.pressPoint.y) > Style.space(4)) cell.moved = true
                   if (cell.moved) root.dragTo(cell.modelData, cell.mapToItem(panel.contentItem, event.x, event.y))
                 }
@@ -388,6 +457,7 @@ Item {
                 onClicked: function(event) {
                   if (cell.moved) return
                   if (event.button === Qt.RightButton) {
+                    root.moveTo(cell.index, "pointer")
                     root.openMenu(cell.modelData, cell.mapToItem(panel.contentItem, event.x, event.y))
                     return
                   }
