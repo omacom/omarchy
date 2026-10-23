@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# omarchy:summary=Remove whisper.cpp dictation
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if omarchy-cmd-present whisper-cli || omarchy-pkg-present whisper-cpp; then
+  omarchy-pkg-drop whisper-cpp
+  rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/whisper"
+  rm -f "$HOME/.local/bin/whisper-cli"
+  backend="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/defaults/dictation"
+  if [[ -f $backend && $(<"$backend") == "whisper-cli" ]]; then
+    rm -f "$backend"
+  fi
+  hyprctl reload >/dev/null || true
+else
+  echo "Whisper.cpp was not installed."
+fi

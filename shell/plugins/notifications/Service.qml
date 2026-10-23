@@ -20,6 +20,7 @@ import "Markup.js" as Markup
 import "Delivery.js" as Delivery
 import "Settings.js" as Settings
 import "Icons.js" as Icons
+import "NotificationFold.js" as NotificationFold
 
 Item {
   id: service
@@ -257,7 +258,7 @@ Item {
   property int historyRevision: 0
 
   function refreshHistory() {
-    historyRows = Store.displayRows(currentHistory())
+    historyRows = NotificationFold.fold(Store.displayRows(currentHistory()))
     historyRevision += 1
   }
 

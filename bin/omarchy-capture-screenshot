@@ -20,4 +20,9 @@ for arg in "$@"; do
   esac
 done
 
-exec omasnap "${omasnap_args[@]}"
+omasnap "${omasnap_args[@]}"
+status=$?
+if [[ -n ${OMARCHY_PATH:-} && -x $OMARCHY_PATH/bin/omarchy-ml-shot ]]; then
+  "$OMARCHY_PATH/bin/omarchy-ml-shot" index-latest || true
+fi
+exit "$status"

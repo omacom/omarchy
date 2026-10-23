@@ -1,0 +1,295 @@
+#!/bin/bash
+
+# omarchy:summary=Index screenshots and find one by color, words, or day
+# omarchy:args=<index|search|index-latest> [options]
+# omarchy:examples=omarchy ml shot search red error from Tuesday | omarchy ml shot index --path shot.png --text error --colors red
+
+set -euo pipefail
+
+if [[ ${1:-} == "search" && $# -eq 1 ]]; then
+  query=""
+  if [[ -t 0 ]] && omarchy-cmd-present gum; then
+    query=$(gum input --placeholder "red error from Tuesday")
+  elif [[ ! -t 0 ]]; then
+    IFS= read -r query || true
+  fi
+  if [[ -z $query ]]; then
+    echo "Say what the screenshot looked like." >&2
+    exit 1
+  fi
+  set -- search "$query"
+fi
+
+exec python3 - "$@" <<'PY'
+import datetime
+import json
+import os
+import re
+import struct
+import subprocess
+import sys
+import zlib
+
+WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+STOP = {"the", "a", "an", "to", "on", "of", "my", "that", "this", "from", "and"}
+NAMED = {
+    "red": (220, 40, 40),
+    "orange": (230, 120, 30),
+    "yellow": (230, 210, 40),
+    "green": (40, 160, 60),
+    "blue": (40, 80, 220),
+    "purple": (140, 40, 180),
+    "white": (245, 245, 245),
+    "black": (15, 15, 15),
+    "gray": (140, 140, 140),
+}
+
+def state_dir():
+    root = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
+    path = os.path.join(root, "omarchy", "ml")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def index_path():
+    return os.environ.get("OMARCHY_ML_SHOT_INDEX") or os.path.join(state_dir(), "shots.jsonl")
+
+def nearest(rgb):
+    best = None
+    best_distance = None
+    for name, color in NAMED.items():
+        distance = sum((rgb[i] - color[i]) ** 2 for i in range(3))
+        if best_distance is None or distance < best_distance:
+            best = name
+            best_distance = distance
+    return best
+
+def paeth(left, up, up_left):
+    estimate = left + up - up_left
+    distances = (abs(estimate - left), abs(estimate - up), abs(estimate - up_left))
+    return (left, up, up_left)[distances.index(min(distances))]
+
+def png_colors(path):
+    try:
+        with open(path, "rb") as handle:
+            if handle.read(8) != b"\x89PNG\r\n\x1a\n":
+                return []
+            width = height = color_type = None
+            data = b""
+            while True:
+                header = handle.read(8)
+                if len(header) < 8:
+                    break
+                length, kind = struct.unpack(">I4s", header)
+                chunk = handle.read(length)
+                handle.read(4)
+                if kind == b"IHDR":
+                    width, height, depth, color_type = struct.unpack(">IIBB", chunk[:10])
+                    if depth != 8 or color_type not in (2, 6) or chunk[12] != 0:
+                        return []
+                elif kind == b"IDAT":
+                    data += chunk
+                elif kind == b"IEND":
+                    break
+        channels = 4 if color_type == 6 else 3
+        raw = zlib.decompress(data)
+        stride = width * channels
+        rows = []
+        index = 0
+        previous = bytearray(stride)
+        for _ in range(height):
+            filter_type = raw[index]
+            index += 1
+            row = bytearray(raw[index:index + stride])
+            index += stride
+            if filter_type == 1:
+                for i in range(stride):
+                    left = row[i - channels] if i >= channels else 0
+                    row[i] = (row[i] + left) & 255
+            elif filter_type == 2:
+                for i in range(stride):
+                    row[i] = (row[i] + previous[i]) & 255
+            elif filter_type == 3:
+                for i in range(stride):
+                    left = row[i - channels] if i >= channels else 0
+                    row[i] = (row[i] + ((left + previous[i]) // 2)) & 255
+            elif filter_type == 4:
+                for i in range(stride):
+                    left = row[i - channels] if i >= channels else 0
+                    up_left = previous[i - channels] if i >= channels else 0
+                    row[i] = (row[i] + paeth(left, previous[i], up_left)) & 255
+            previous = row
+            rows.append(row)
+        step_x = max(1, width // 32)
+        step_y = max(1, height // 32)
+        counts = {}
+        reds = 0
+        samples = 0
+        total = [0, 0, 0]
+        for y in range(0, height, step_y):
+            row = rows[y]
+            for x in range(0, width, step_x):
+                offset = x * channels
+                rgb = (row[offset], row[offset + 1], row[offset + 2])
+                name = nearest(rgb)
+                counts[name] = counts.get(name, 0) + 1
+                samples += 1
+                total[0] += rgb[0]
+                total[1] += rgb[1]
+                total[2] += rgb[2]
+                if rgb[0] > 140 and rgb[0] > rgb[1] + 40 and rgb[0] > rgb[2] + 40:
+                    reds += 1
+        if samples == 0:
+            return []
+        colors = [name for name, count in counts.items() if count / samples >= 0.08]
+        average = nearest(tuple(channel // samples for channel in total))
+        if average not in colors:
+            colors.append(average)
+        if reds / samples >= 0.02 and "red" not in colors:
+            colors.append("red")
+        return colors[:4]
+    except Exception:
+        return []
+
+def ocr(path):
+    try:
+        result = subprocess.run(["tesseract", path, "stdout"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return result.stdout.strip()
+
+def record(path, text, colors, mtime):
+    if mtime is None:
+        mtime = os.path.getmtime(path)
+    mtime = float(mtime)
+    if colors is None:
+        colors = png_colors(path)
+    if text is None:
+        text = ocr(path)
+    row = {
+        "path": os.path.abspath(path),
+        "mtime": mtime,
+        "weekday": datetime.datetime.fromtimestamp(mtime).strftime("%A"),
+        "colors": colors,
+        "text": text or "",
+    }
+    with open(index_path(), "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row) + "\n")
+    print(row["path"])
+
+def load_rows():
+    path = index_path()
+    if not os.path.isfile(path):
+        return []
+    rows = []
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+def score(row, query):
+    lowered = query.lower()
+    points = 0
+    weekday = str(row.get("weekday") or "").lower()
+    for day in WEEKDAYS:
+        if day in lowered and weekday == day:
+            points += 3
+    for color in row.get("colors") or []:
+        if color.lower() in lowered:
+            points += 2
+    text = str(row.get("text") or "").lower()
+    for word in re.findall(r"[a-z0-9]+", lowered):
+        if word in STOP or word in WEEKDAYS or word in NAMED:
+            continue
+        if word in text:
+            points += 1
+    return points
+
+def search(query):
+    best = None
+    best_score = 0
+    for row in load_rows():
+        points = score(row, query)
+        if points > best_score:
+            best = row
+            best_score = points
+    if not best:
+        print("No matching screenshot.", file=sys.stderr)
+        sys.exit(1)
+    print(best["path"])
+
+def newest_png():
+    roots = []
+    for key in ("OMASNAP_SCREENSHOT_DIR", "XDG_PICTURES_DIR"):
+        if os.environ.get(key):
+            roots.append(os.environ[key])
+    home = os.path.expanduser("~")
+    roots.extend([os.path.join(home, "Pictures"), os.path.join(home, "Pictures", "Screenshots")])
+    newest = None
+    newest_mtime = -1
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        for dirpath, _, files in os.walk(root):
+            for name in files:
+                if not name.lower().endswith(".png"):
+                    continue
+                path = os.path.join(dirpath, name)
+                try:
+                    mtime = os.path.getmtime(path)
+                except OSError:
+                    continue
+                if mtime > newest_mtime:
+                    newest = path
+                    newest_mtime = mtime
+    return newest
+
+def parse_index(args):
+    path = text = None
+    colors = None
+    mtime = None
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--path":
+            path = args[index + 1]
+            index += 2
+        elif arg == "--text":
+            text = args[index + 1]
+            index += 2
+        elif arg == "--colors":
+            colors = [item for item in args[index + 1].split(",") if item]
+            index += 2
+        elif arg == "--mtime":
+            mtime = args[index + 1]
+            index += 2
+        else:
+            print("Unknown option: " + arg, file=sys.stderr)
+            sys.exit(1)
+    if not path:
+        print("Usage: omarchy ml shot index --path FILE", file=sys.stderr)
+        sys.exit(1)
+    record(path, text, colors, mtime)
+
+args = sys.argv[1:]
+if not args:
+    print("Usage: omarchy ml shot <index|search|index-latest>", file=sys.stderr)
+    sys.exit(1)
+command = args[0]
+if command == "index":
+    parse_index(args[1:])
+elif command == "search":
+    if len(args) < 2:
+        print("Say what the screenshot looked like.", file=sys.stderr)
+        sys.exit(1)
+    search(" ".join(args[1:]))
+elif command == "index-latest":
+    path = newest_png()
+    if not path:
+        sys.exit(0)
+    record(path, None, None, None)
+else:
+    print("Usage: omarchy ml shot <index|search|index-latest>", file=sys.stderr)
+    sys.exit(1)
+PY
