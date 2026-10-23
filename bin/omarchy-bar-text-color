@@ -11,6 +11,8 @@ text_color=${3:-}
 background_color=${4:-}
 background_path=""
 screen_size=""
+blend_color=""
+blend_alpha=""
 
 shift 4 2>/dev/null || true
 while (($# > 0)); do
@@ -22,6 +24,11 @@ while (($# > 0)); do
   --screen)
     screen_size=${2:-}
     shift 2
+    ;;
+  --blend)
+    blend_color=${2:-}
+    blend_alpha=${3:-}
+    shift 3 2>/dev/null || shift $#
     ;;
   *)
     shift
@@ -68,8 +75,50 @@ contrast() {
   '
 }
 
+# A pill composited over the sampled strip: `color` at `alpha` over `sample`.
+blend() {
+  local color="$1"
+  local alpha="$2"
+  local sample="$3"
+
+  awk -v top="$color" -v a="$alpha" -v bottom="$sample" '
+    function channel(hex, start) {
+      return strtonum("0x" substr(hex, start, 2))
+    }
+    function mix(start) {
+      return int(channel(top, start) * a + channel(bottom, start) * (1 - a) + 0.5)
+    }
+    BEGIN {
+      printf "#%02x%02x%02x\n", mix(2), mix(4), mix(6)
+    }
+  '
+}
+
+pick() {
+  local sample="$1"
+  local text_contrast background_contrast
+
+  text_contrast=$(contrast "$text_color" "$sample")
+  background_contrast=$(contrast "$background_color" "$sample")
+
+  if awk -v text="$text_contrast" -v background="$background_contrast" 'BEGIN { exit !(background > text) }'; then
+    printf '%s\n' "$background_color"
+  else
+    printf '%s\n' "$text_color"
+  fi
+  exit 0
+}
+
 valid_hex "$text_color" || fallback
 valid_hex "$background_color" || fallback
+if [[ -n $blend_color ]]; then
+  valid_hex "$blend_color" || fallback
+  [[ $blend_alpha =~ ^(0(\.[0-9]+)?|1(\.0+)?)$ ]] || fallback
+  # An opaque pill hides the wallpaper; nothing to sample.
+  if awk -v a="$blend_alpha" 'BEGIN { exit !(a >= 1) }'; then
+    pick "$blend_color"
+  fi
+fi
 [[ $position =~ ^(top|bottom|left|right)$ ]] || fallback
 [[ $bar_size =~ ^[0-9]+$ ]] || fallback
 omarchy-cmd-present magick || fallback
@@ -120,9 +169,7 @@ pixel=$(magick "$background_path[0]" -auto-orient \
 [[ $pixel =~ ^([0-9]+),([0-9]+),([0-9]+)$ ]] || fallback
 
 sample=$(printf '#%02x%02x%02x' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}")
-text_contrast=$(contrast "$text_color" "$sample")
-background_contrast=$(contrast "$background_color" "$sample")
-
-awk -v text="$text_contrast" -v background="$background_contrast" 'BEGIN { exit !(background > text) }' \
-  && printf '%s\n' "$background_color" \
-  || printf '%s\n' "$text_color"
+if [[ -n $blend_color ]]; then
+  sample=$(blend "$blend_color" "$blend_alpha" "$sample")
+fi
+pick "$sample"

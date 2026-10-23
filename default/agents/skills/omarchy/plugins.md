@@ -85,6 +85,29 @@ are centered as one group; `centerBegin` and `centerEnd` hang off its two
 edges. Put a widget beside the clock in `centerBegin` or `centerEnd`, not in
 `center`, or the clock moves off center.
 
+## Bar Pills
+
+`"pills"` in the `bar` block of `~/.config/omarchy/shell.json` gives widgets
+their own background, so the bar background can be dropped
+(`omarchy bar background none`) and the widgets still sit on something. It is
+opt-in: unset or `"off"`, there are no pills. It applies on save.
+
+- `"section"` joins neighboring widgets into one pill; a spacer ends it, even
+  `{"id": "omarchy.spacer", "size": 0}`, and so does a change of
+  `"group": "<name>"` between neighbors. `"widget"` gives every widget its
+  own pill. `"pill": false` on a layout entry keeps that widget off pills.
+- The bar background sets the pill look: `omarchy bar background opaque`
+  raises the pills on the bar, `glassy` makes them frosted glass with no
+  strip, and `none` gives solid pills on the wallpaper.
+- Theme keys in the `[bar]` section of `~/.config/omarchy/shell.toml` (or a
+  theme's `shell.toml`): `pills` (a default mode; `shell.json` wins), `pill`,
+  `pill-alpha`, `pill-text`, `pill-border`, `pill-border-alpha`,
+  `pill-radius`, `pill-inset`, `pill-padding`, `pill-gap`. Unset, pills use
+  the bar colors and Hyprland's rounding. The theme template lists them with
+  examples: `$OMARCHY_PATH/default/themed/shell.toml.tpl`.
+- For frosted pills use `glassy`. Blur behind translucent pills on a clear
+  bar is a Hyprland layer rule, not a bar setting; see `hyprland.md`.
+
 ## Customizing Built-In Plugins and Widgets
 
 To customize a built-in bar widget, never edit `$OMARCHY_PATH/shell/plugins/`.
