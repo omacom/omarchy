@@ -133,6 +133,13 @@ if grep -E 'install -d -m 0?[27]?777 /etc/.*/policies|chmod a\+rw|2775' "$upgrad
 fi
 pass "Omarchy 4 upgrade locks the Chromium policy directory to root"
 
+# A browser chosen on 3.x survives the retire step in ~/.config/mimeapps.list,
+# so the upgrade may only fill in Chromium when nothing resolves.
+grep -B1 -F 'env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser chromium.desktop' "$upgrade_to_quattro" |
+  grep -F '[[ -z $(env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings get default-web-browser 2>/dev/null) ]]; then' >/dev/null ||
+  fail "Omarchy 4 upgrade keeps the default browser the user chose"
+pass "Omarchy 4 upgrade keeps the default browser the user chose"
+
 grep -F 'OMARCHY_UPGRADE_TO_QUATTRO_LIVE=1' "$upgrade_to_quattro" >/dev/null
 grep -F 'systemd-networkd.service' "$upgrade_to_quattro" >/dev/null
 grep -F 'systemd-networkd.socket' "$upgrade_to_quattro" >/dev/null
