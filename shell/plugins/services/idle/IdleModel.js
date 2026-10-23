@@ -63,12 +63,22 @@ function screensaverWindowsAfter(windows, address, visible) {
   }
 }
 
+// A second idle monitor watches for input while the screensaver is displayed.
+// It only counts as input once the monitor has gone quiet since the screensaver
+// appeared, because launching the screensaver registers as activity itself.
+function dismissStateAfter(settled, isIdle, visible) {
+  if (!visible) return { settled: false, dismiss: false }
+  if (isIdle) return { settled: true, dismiss: false }
+  return { settled: false, dismiss: !!settled }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
     firstIdleTimeout: firstIdleTimeout,
     delayAfterFirstIdle: delayAfterFirstIdle,
     eventParts: eventParts,
-    screensaverWindowsAfter: screensaverWindowsAfter
+    screensaverWindowsAfter: screensaverWindowsAfter,
+    dismissStateAfter: dismissStateAfter
   }
 }
