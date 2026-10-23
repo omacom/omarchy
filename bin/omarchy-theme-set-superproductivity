@@ -1,0 +1,84 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the generated Omarchy theme to Super Productivity
+# omarchy:hidden=true
+
+set -euo pipefail
+
+SOURCE_PATH="$HOME/.local/state/omarchy/current/theme/superproductivity.css"
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+
+# Electron derives userData from package.json `name`, which Super Productivity
+# deliberately keeps at its historical camelCase spelling while presenting
+# "Super Productivity" to the desktop. The hyphenated directory beside it holds
+# the Arch launcher's flags file and is not the app's state, so the camelCase
+# one has to be tried first.
+USER_DATA_DIRS=(
+  "$CONFIG_HOME/superProductivity"
+  "$CONFIG_HOME/super-productivity"
+)
+
+# Only follow an install that has already run once. Creating the directory here
+# would leave a stray Super Productivity state dir on machines that never open it.
+user_data_dir=""
+for candidate in "${USER_DATA_DIRS[@]}"; do
+  if [[ -d $candidate ]]; then
+    user_data_dir="$candidate"
+    break
+  fi
+done
+
+# styles.css is also where a user puts their own Super Productivity CSS, so a
+# file Omarchy didn't write is kept aside before it is replaced. Omarchy's own
+# copy carries a hash of everything below its first line; a file is ours to
+# replace only when that hash still matches, which also catches rules a user
+# added to a stylesheet Omarchy wrote. A symlink points at the user's own
+# dotfiles and is never ours.
+omarchy_owns_target() {
+  local target="$1" header
+
+  if [[ -f $target && ! -L $target ]] && IFS= read -r header <"$target" &&
+    [[ $header =~ ^/\*\ omarchy:sha256=([0-9a-f]{64})\ \*/$ ]]; then
+    [[ $(tail -n +2 "$target" | sha256sum) == "${BASH_REMATCH[1]}  -" ]]
+  else
+    return 1
+  fi
+}
+
+sync_stylesheet() {
+  local target="$1" backup snapshot hash tmp
+
+  if [[ -e $target || -L $target ]] && ! omarchy_owns_target "$target"; then
+    backup="$target.bak.$(date +%s)"
+    cp -P "$target" "$backup"
+    echo "Saved your Super Productivity styles.css as $backup before applying the Omarchy theme." >&2
+  fi
+
+  # Super Productivity injects this file with webContents.insertCSS() and reloads
+  # it when it changes. Write it atomically so the app never reads a half-written
+  # stylesheet, and the palette lands whole. An overlapping theme switch can
+  # replace the source mid-sync, so hash and write one copy of it; hashing the
+  # source and reading it again could stamp one palette onto another and make
+  # the next sync mistake Omarchy's own file for the user's.
+  snapshot=$(mktemp "$target.XXXXXX")
+  cp "$SOURCE_PATH" "$snapshot"
+  hash=$(sha256sum <"$snapshot")
+  tmp=$(mktemp "$target.XXXXXX")
+  {
+    printf '/* omarchy:sha256=%s */\n' "${hash%% *}"
+    cat "$snapshot"
+  } >"$tmp"
+  rm "$snapshot"
+  mv "$tmp" "$target"
+}
+
+if [[ -f $SOURCE_PATH && -n $user_data_dir ]]; then
+  # A theme missing a colour this template needs leaves its placeholder
+  # unresolved. Super Productivity would drop those declarations and paint half a
+  # palette, so leave the stylesheet it already has in place instead.
+  if grep -q '{{' "$SOURCE_PATH"; then
+    echo "Skipping Super Productivity theme: $(basename "$SOURCE_PATH") has unresolved colors." >&2
+  else
+    sync_stylesheet "$user_data_dir/styles.css"
+  fi
+fi
