@@ -261,6 +261,9 @@ BarWidget {
     bar: root.bar
     text: root.inputLabel
     fontSize: Style.font.caption
+    // Native-rendered caption glyphs sit one visual pixel above the bar's
+    // centre at the stock 10px caption; scale that with the caption, not the theme's spacing.
+    labelVerticalOffset: root.vertical ? 0 : Math.max(1, Math.round(Style.font.caption / 10))
     horizontalMargin: 6
     tooltipText: KeyboardLayoutModel.inputTooltip(root.inputState, root.layoutFull, root.multipleLayouts)
     onPressed: function(button) {
