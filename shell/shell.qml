@@ -1512,6 +1512,7 @@ ShellRoot {
       shell.pluginReloadPending = true
       return
     }
+    console.log("Reloading local plugins")
     shell.pluginReloading = true
     shell.unloadPanels()
     shell.unloadPluginServices()
@@ -1532,7 +1533,7 @@ ShellRoot {
   Connections {
     target: shell.pluginRegistry
     function onLocalPluginChanged(pluginId) {
-      console.log("Local plugin changed, reloading:", pluginId)
+      // Quiet per event: the timer coalesces a burst, and reloadPlugins() logs the reload that runs.
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
