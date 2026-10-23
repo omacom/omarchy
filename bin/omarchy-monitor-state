@@ -21,3 +21,16 @@ omarchy-hyprland-monitor-scaling 2>/dev/null || echo
 
 printf '%s\n' "$monitors_json" | jq -c \
   '[.[] | {name, enabled:(.disabled != true), focused:(.focused == true), width, height}]'
+
+# Refresh rate is reported for the focused monitor only, like scaling above.
+# Delegated rather than derived from $monitors_json so the rate normalization
+# and mode filtering live in one place.
+#
+# Each answers with exactly one line whatever the helper does, like brightness
+# above. `|| echo` is not enough here: a helper that succeeds with nothing to
+# say, or a jq that exits 0 on empty input, would drop the line unnoticed.
+{ omarchy-hyprland-monitor-refresh-rate 2>/dev/null; echo; } | head -n 1
+omarchy-hyprland-monitor-refresh-rate list 2>/dev/null |
+  jq -R -s -c 'split("\n") | map(select(length > 0))'
+{ omarchy-hyprland-monitor-refresh-rate pending 2>/dev/null | jq -c . 2>/dev/null
+  echo '{"pending":false,"secondsLeft":0}'; } | head -n 1
