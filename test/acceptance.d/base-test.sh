@@ -86,8 +86,7 @@ layer_on_overlay() {
   hyprctl -j layers | jq -e --arg ns "$1" '[.[].levels["3"][]? | select(.namespace == $ns)] | length > 0'
 }
 
-# A layer can be mapped but parked off the monitor: the bar hides that way so
-# revealing it does not have to rebuild the surface. Assert on geometry when
+# A layer can be mapped but outside the monitor. Assert on geometry when
 # what matters is that the user can actually see it. Layer boxes are local to
 # their monitor and in logical coordinates, so compare them with local bounds
 # derived from the monitor's scaled pixel size.

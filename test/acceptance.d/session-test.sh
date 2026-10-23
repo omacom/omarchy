@@ -27,16 +27,14 @@ done
 wait_until "bar layer is on screen" 30 layer_on_screen "omarchy-bar"
 wait_until "background layer is on screen" 30 layer_on_screen "omarchy-background"
 
-# Hiding parks the bar off-screen without unmapping its layer surface, and
-# revealing brings that same surface back on-screen.
+# Hiding unmaps the bar; revealing maps it back on-screen.
 restore_bar_visibility() {
   omarchy-toggle-bar off >/dev/null 2>&1 || true
 }
 trap restore_bar_visibility EXIT
 
 omarchy-toggle-bar on
-wait_until "hidden bar layer stays mapped" 15 layer_present "omarchy-bar"
-wait_until "hidden bar layer parks off screen" 15 layer_off_screen "omarchy-bar"
+wait_until "hidden bar layer is absent" 15 layer_absent "omarchy-bar"
 screenshot "success-bar-hidden"
 
 omarchy-toggle-bar off

@@ -38,8 +38,8 @@ Item {
     function metadataFor(id) { return null }
   }
   // Mirrors the on-disk `bar-off` flag so the user can hide the bar without
-  // killing the entire shell. Hidden panels stay mapped but park off-screen
-  // without an exclusion zone; updated by the FileView watcher further down.
+  // killing the entire shell. Hidden bars unmap; panels keep their own surfaces.
+  // Updated by the FileView watcher further down.
   property bool barHidden: false
   property string home: Quickshell.env("HOME")
   property string stateHome: home + "/.local/state"
@@ -332,6 +332,10 @@ Item {
       _releasePopout: function(owner) { root.releasePluginPopout(key, owner) },
       _switchPanelFrom: function(owner, direction) { return root.switchPanelFrom(owner, direction) },
       _targetBelongsToWindow: function(target, window) { return root.targetBelongsToWindow(target, window) },
+      _panelWindowFor: function(widget) {
+        return root.moduleWidgets(moduleName).indexOf(widget) >= 0
+          ? root.panelWindowFor(widget) : null
+      },
       _moduleWidgets: function(requestedId) {
         return String(requestedId || "") === String(moduleName || "")
           ? root.moduleWidgets(moduleName) : []
@@ -507,7 +511,18 @@ Item {
 
   function slotWindow(slot) {
     if (!slot) return null
-    return targetWindow(slot.activeItem) || targetWindow(slot)
+    // The slot retains its logical window even when hide destroys the backing
+    // window and QsWindow.window no longer resolves through the item tree.
+    return slot.window || targetWindow(slot.activeItem) || targetWindow(slot)
+  }
+
+  function panelWindowFor(widget) {
+    if (!widget) return null
+    for (var i = 0; i < moduleSlots.length; i++) {
+      var slot = moduleSlots[i]
+      if (slot && slot.activeItem === widget) return slotWindow(slot)
+    }
+    return null
   }
 
   function sameWindow(left, right) {
@@ -1534,31 +1549,21 @@ Item {
   component BarPanel: PanelWindow {
     id: barWindow
 
-    // Hiding parks the bar just past its screen edge instead of unmapping it.
-    // Unmapping frees the layer surface and the whole scene graph, so every
-    // reveal has to rebuild them — new surface, re-shaped glyphs, re-uploaded
-    // textures — which measures ~150ms against ~20ms to tear down. Parking
-    // keeps the surface alive, so showing is only a margin change.
+    // A parked layer can wait indefinitely for its frame callback, leaving a
+    // reveal's margin change uncommitted. Unmap while hidden so revealing uses
+    // a fresh layer surface rather than depending on that callback. This trades
+    // the parked surface's cheap reveal for rebuilding its backing scene graph.
     //
     // A top bar that can't tell its notch floor yet waits for Hyprland's mode
     // before it maps (see BarModel.cutoutPending), so it maps at its floor
     // instead of growing once the windows are laid out. The wait ends once, for
     // good: when the mode settles it, or after two seconds without one.
-    visible: !remapGuard.remapping && (cutoutWaitOver || !cutoutPending)
-    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Auto
+    visible: !root.barHidden && !remapGuard.remapping && (cutoutWaitOver || !cutoutPending)
+    exclusionMode: ExclusionMode.Auto
 
     ScreenMoveRemap {
       id: remapGuard
       window: barWindow
-    }
-
-    // Parked by its full thickness, which a notch floor may make more than
-    // barSize, so no strip of it stays on screen.
-    margins {
-      top: root.barHidden && root.position === "top" ? -barWindow.thickness : 0
-      bottom: root.barHidden && root.position === "bottom" ? -barWindow.thickness : 0
-      left: root.barHidden && root.position === "left" ? -barWindow.thickness : 0
-      right: root.barHidden && root.position === "right" ? -barWindow.thickness : 0
     }
 
     anchors {
@@ -1575,7 +1580,10 @@ Item {
     readonly property bool cutoutPending: BarModel.cutoutPending(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
     property bool cutoutWaitOver: false
     onCutoutPendingChanged: if (!cutoutPending) cutoutWaitOver = true
-    Component.onCompleted: if (!cutoutPending) cutoutWaitOver = true
+    Component.onCompleted: {
+      if (!cutoutPending) cutoutWaitOver = true
+      scheduleHiddenLayout()
+    }
 
     Timer {
       interval: 2000
@@ -1590,8 +1598,50 @@ Item {
     // right section, leaves the indicator peek shut.
     property real peekEdge: 0
 
-    implicitWidth: root.vertical ? thickness : 0
-    implicitHeight: root.vertical ? 0 : thickness
+    // Lay out slots before the first map too: a bar hidden from startup (or
+    // added on a new output while hidden) has no compositor-assigned extent.
+    implicitWidth: root.vertical ? thickness : (screen ? screen.width : 0)
+    implicitHeight: root.vertical ? (screen ? screen.height : 0) : thickness
+
+    // Unmapping detaches contentItem from its QQuickWindow. In Qt 6 a
+    // parentless item is effectively invisible: slots then measure every
+    // widget as zero, and an output never mapped has no usable layout at all.
+    // Keep a Qt-only layout parent while hidden. This window is never shown
+    // and creates no bar layer; Quickshell reparents the content on mapping.
+    Window {
+      id: hiddenLayoutWindow
+      visible: false
+      transientParent: null
+      width: barWindow.implicitWidth
+      height: barWindow.implicitHeight
+    }
+    property bool hiddenLayoutQueued: false
+
+    function scheduleHiddenLayout() {
+      if (backingWindowVisible || hiddenLayoutQueued) return
+      hiddenLayoutQueued = true
+      Qt.callLater(updateHiddenLayout)
+    }
+
+    function polishHiddenItem(item) {
+      for (var i = 0; i < item.children.length; i++) polishHiddenItem(item.children[i])
+      item.ensurePolished()
+    }
+
+    function updateHiddenLayout() {
+      hiddenLayoutQueued = false
+      if (backingWindowVisible) return
+      contentItem.parent = hiddenLayoutWindow.contentItem
+      contentItem.width = hiddenLayoutWindow.width
+      contentItem.height = hiddenLayoutWindow.height
+      // The proxy root's polish callback assumes a backing window. It has
+      // no layout of its own; only polish descendants while unmapped.
+      for (var i = 0; i < contentItem.children.length; i++) polishHiddenItem(contentItem.children[i])
+    }
+
+    onBackingWindowVisibleChanged: scheduleHiddenLayout()
+    onImplicitWidthChanged: scheduleHiddenLayout()
+    onImplicitHeightChanged: scheduleHiddenLayout()
     color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
@@ -2182,6 +2232,8 @@ Item {
     property var window: null
     // The bar surface's widgets, which the list's slots show (WidgetPool).
     property var pool: null
+    onChildrenChanged: if (window) window.scheduleHiddenLayout()
+    onWindowChanged: if (window) window.scheduleHiddenLayout()
     // Kept between updates, so a row stays the same object for as long as it
     // is shown (BarModel.sectionRows).
     property var rowMemo: ({})
@@ -2194,13 +2246,12 @@ Item {
 
     Repeater {
       // Keyed rows, so a config change or a drag only adds, moves and removes
-      // the slots and spacers that changed. A list makes no slots while it is
-      // hidden, where they would hold their widgets out of sight, or before it
-      // has the pool its slots take their widgets from, as the tray's drawer
-      // section until its slot hands it one.
+      // the slots and spacers that changed. Inactive sections have no window;
+      // a drawer also waits for its pool. Do not gate on inherited visibility:
+      // unmapping the bar would remove every slot and unload its panels.
       model: ScriptModel {
         objectProp: "key"
-        values: moduleListRoot.visible && moduleListRoot.pool ? moduleListRoot.listRows : []
+        values: moduleListRoot.window && moduleListRoot.pool ? moduleListRoot.listRows : []
       }
 
       delegate: DelegateChooser {
@@ -2520,6 +2571,8 @@ Item {
     }
     readonly property real widgetWidth: host ? host.widgetWidth : 0
     readonly property real widgetHeight: host ? host.widgetHeight : 0
+    onWidgetWidthChanged: if (window) window.scheduleHiddenLayout()
+    onWidgetHeightChanged: if (window) window.scheduleHiddenLayout()
     // Its length along the bar. The dragged widget keeps its place's share
     // of the room: all of it until the room moves away.
     readonly property real alongLength: dragSource

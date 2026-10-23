@@ -1,0 +1,1 @@
+{"schemaVersion":1,"id":"acceptance.bar-panel","name":"Bar panel acceptance","version":"1.0.0","kinds":["bar-widget"],"entryPoints":{"barWidget":"Panel.qml"},"barWidget":{"displayName":"Bar panel acceptance","allowMultiple":false}}

@@ -86,7 +86,11 @@ PanelWindow {
   }
 
   readonly property var coordinatorKey: owner || root
-  readonly property var anchorWindow: anchorItem ? anchorItem.QsWindow.window : null
+  // A hidden bar has no backing window for QsWindow's attached lookup. Its
+  // slot still names the logical per-monitor window, including its screen and
+  // content coordinates. Keep panels independent of the bar's surface lifetime.
+  readonly property var anchorWindow: (bar && typeof bar.panelWindowFor === "function"
+    ? bar.panelWindowFor(owner) : null) || (anchorItem ? anchorItem.QsWindow.window : null)
   readonly property string barPos: bar ? bar.position : "top"
 
   function close() {

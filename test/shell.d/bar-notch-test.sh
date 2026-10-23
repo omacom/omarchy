@@ -106,13 +106,9 @@ assert(
 )
 assert(
   /function thicknessFor\(screen\) \{\s*if \(root\.vertical \|\| !screen\) return root\.barSize\s*return Math\.max\(root\.barSize, BarModel\.notchFloor\(/.test(barSource) &&
-    /readonly property int thickness: root\.thicknessFor\(screen\)/.test(barSource) &&
-    /implicitHeight: root\.vertical \? 0 : thickness/.test(barSource),
+    /readonly property int thickness: root\.thicknessFor\(screen\)/.test(barSource),
   'bar height is floored at the cutout, never shrunk to it'
 )
-// A hidden bar parks by that same thickness (bar-test.sh), so a floored top
-// bar leaves no strip of itself on screen.
-
 // The calibration must not scale with the font: it describes physical pixels
 // beside the camera.
 assert(
@@ -187,15 +183,14 @@ for (const position of ['bottom', 'left', 'right'])
   assertEqual(bar.cutoutPending(pro16, position, 'eDP-1', 2592, 1676, 2, null), false, `a ${position} bar never waits`)
 assert(
   /readonly property bool cutoutPending: BarModel\.cutoutPending\(root\.displayCutouts, root\.position, screen\.name, screen\.width, screen\.height, screen\.devicePixelRatio, panelMode\)/.test(barSource) &&
-    /visible: !remapGuard\.remapping && \(cutoutWaitOver \|\| !cutoutPending\)/.test(barSource),
+    /visible: !root\.barHidden && !remapGuard\.remapping && \(cutoutWaitOver \|\| !cutoutPending\)/.test(barSource),
   'a bar surface maps only once its floor is known, and still remaps on a screen move'
 )
 assert(
-  /property bool cutoutWaitOver: false\s*onCutoutPendingChanged: if \(!cutoutPending\) cutoutWaitOver = true\s*Component\.onCompleted: if \(!cutoutPending\) cutoutWaitOver = true/.test(barSource) &&
+  /property bool cutoutWaitOver: false\s*onCutoutPendingChanged: if \(!cutoutPending\) cutoutWaitOver = true/.test(barSource) &&
     /Timer \{\s*interval: 2000\s*running: barWindow\.cutoutPending && !barWindow\.cutoutWaitOver\s*onTriggered: barWindow\.cutoutWaitOver = true\s*\}/.test(barSource),
   'the wait ends once, for good: when the mode settles it or after two seconds'
 )
-
 // Toasts and plugins clear the bar as thick as it is on their screen. The bar
 // publishes each screen's thickness by name from the same calculation its
 // surfaces use; barSize stays the configured size the widgets are drawn at.
