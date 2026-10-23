@@ -156,6 +156,7 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | `Alt + Shift + D` | Download the video on the current page to `~/Videos` |
 | `Super + Ctrl + X` | Start/stop dictation (requires _Setup > Defaults > Dictation_) |
 | `Right Alt` / `F9` | Push-to-talk dictation (requires Voxtype or Superwhisper) |
+| `F10` | Push-to-talk dictation of what's playing through the speakers (requires Voxtype) |
 
 With screenrecordings, the hotkey first asks which audio you want, then starts recording. Hit it again to stop. See [screenshots and recording](12-screenshots-recording.md) for the details.
 

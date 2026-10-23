@@ -1,0 +1,209 @@
+#!/bin/bash
+
+# omarchy:summary=Transcribe what is playing through the speakers, such as the other side of a call
+# omarchy:args=<start|stop>
+
+# Voxtype records from the microphone. For this recording only, its capture
+# stream is relinked to the default output's monitor, so the same daemon,
+# model, waveform and typing are reused. The links are swapped rather than
+# moving the stream with `pactl move-source-output`, because WirePlumber
+# remembers moved streams and later microphone dictation would keep recording
+# the speakers. The default source is left alone so apps in a call keep the
+# microphone.
+#
+# Voxtype opens a new capture stream for every recording, so the swap is done
+# by a watcher that the first press starts and that then keeps running. It
+# follows PipeWire's events instead of polling: it swaps the microphone link
+# the moment WirePlumber makes it, through a pw-cli that stays connected, and
+# keeps the default output and its monitor ports up to date as outputs or their
+# channels change, so a press never waits on a lookup. It also resumes the media
+# players Voxtype pauses (audio.pause_media), as they are what is transcribed.
+
+config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/defaults/dictation"
+state_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-voxtype-speakers"
+# Holds the PID of the start waiting for the speakers and when it started (in
+# microseconds), while F10 is held.
+active="$state_dir/active"
+
+# Swaps the microphone links of Voxtype's capture stream for the speaker
+# monitor while a speaker recording is active, and leaves normal dictation alone.
+watch() {
+  local line op link_id input_id input node port="" sink="" sender="" status_key=""
+  local recording="" started="" last_recording="" signalled="" pending=0 output cli cli_pid
+  local -a outputs
+  local -A monitors=() swapped=() linked=()
+
+  exec 9> "$state_dir/watcher.lock"
+  flock -n 9 || return 0
+
+  [[ $(pw-metadata -n default 0 default.audio.sink 2> /dev/null) =~ \"name\":\"([^\"]*)\" ]] && sink=${BASH_REMATCH[1]}
+
+  # pw-cli stays connected, so a link change is a line on its input rather than
+  # a new PipeWire client.
+  exec {cli}> >(exec 9>&-; pw-cli > /dev/null 2>&1)
+  cli_pid=$!
+
+  # Port lines are "+ id port" (added), "- id port" (removed) or "* id port"
+  # (changed), each followed by "+ link-id |-> input-id input" lines for the
+  # links from that port. dbus-monitor prints a "signal ... sender=" line for
+  # each MPRIS change, followed by its properties.
+  while IFS= read -r line; do
+    case $line in
+      "update: "*)
+        [[ $line =~ \"name\":\"([^\"]*)\" ]] && sink=${BASH_REMATCH[1]}
+        continue
+        ;;
+      "signal "*)
+        [[ $line =~ sender=([^ ]+) ]] && sender=${BASH_REMATCH[1]}
+        status_key=""
+        continue
+        ;;
+      *'string "PlaybackStatus"')
+        status_key=1
+        continue
+        ;;
+      *variant*'string "Paused"')
+        # Voxtype pauses playing players as the recording starts.
+        [[ -n $status_key && -f $active ]] || continue
+        read -r recording started < "$active"
+        if (( ${EPOCHREALTIME/./} - started < 2000000 )); then
+          busctl --user call "$sender" /org/mpris/MediaPlayer2 org.mpris.MediaPlayer2.Player Play > /dev/null 2>&1 &
+        fi
+        continue
+        ;;
+    esac
+
+    if [[ $line =~ ^([-+\ ])\ +([0-9]+)\ +\|-\>\ +([0-9]+)\ (.*)$ ]]; then
+      op=${BASH_REMATCH[1]} link_id=${BASH_REMATCH[2]} input_id=${BASH_REMATCH[3]} input=${BASH_REMATCH[4]}
+      node=${input%%:*}
+      [[ ${node,,} == *voxtype* && -f $active ]] || continue
+      read -r recording started < "$active"
+      if [[ "$recording $started" != "$last_recording" ]]; then
+        last_recording="$recording $started" signalled="" pending=0 swapped=() linked=()
+      fi
+
+      if [[ $op == - ]]; then
+        [[ ${swapped[$link_id]:-} == 1 ]] && swapped[$link_id]=2 && ((pending--))
+      elif [[ $port == "$sink:monitor_"* ]]; then
+        linked[$input]=2
+      elif [[ -z ${swapped[$link_id]:-} ]]; then
+        swapped[$link_id]=1
+        ((++pending))
+
+        # Match channels by name (FL to FL); a channel layout that doesn't
+        # match, such as a mono capture stream, gets every monitor channel.
+        outputs=()
+        if [[ -n ${monitors["$sink:monitor_${input##*:input_}"]:-} ]]; then
+          outputs=("${monitors["$sink:monitor_${input##*:input_}"]}")
+        else
+          for output in "${!monitors[@]}"; do
+            [[ $output == "$sink:monitor_"* ]] && outputs+=("${monitors[$output]}")
+          done
+        fi
+
+        if (( ${#outputs[@]} == 0 )); then
+          rm -f "$active"
+          voxtype record cancel
+          omarchy-notification-send -t 3000 "Speaker dictation" "Couldn't connect Voxtype to the speaker output"
+          continue
+        fi
+
+        # The microphone is unlinked first, so any gap records silence rather
+        # than the microphone.
+        printf 'destroy %s\n' "$link_id" >&"$cli"
+        if [[ -z ${linked[$input]:-} ]]; then
+          linked[$input]=1
+          for output in "${outputs[@]}"; do
+            printf 'create-link - %s - %s { object.linger = true }\n' "$output" "$input_id" >&"$cli"
+          done
+        fi
+      fi
+
+      # The start is told once the speakers are linked and the microphone isn't;
+      # if that never happens, it cancels the recording.
+      if [[ -z $signalled ]] && (( pending == 0 )) && [[ " ${linked[*]} " == *" 2 "* && " ${linked[*]} " != *" 1 "* ]]; then
+        signalled=1
+        kill -USR1 "$recording" 2> /dev/null
+      fi
+    elif [[ $line =~ ^([-+*])\ +([0-9]+)\ (.*)$ ]]; then
+      port=${BASH_REMATCH[3]}
+      if [[ $port == *:monitor_* ]]; then
+        case ${BASH_REMATCH[1]} in
+          +) monitors[$port]=${BASH_REMATCH[2]} ;;
+          -) unset 'monitors[$port]' ;;
+        esac
+      fi
+    fi
+  done < <(
+    exec 9>&-
+    stdbuf -oL pw-metadata -m -n default 0 default.audio.sink 2> /dev/null &
+    stdbuf -oL dbus-monitor --session "type='signal',path='/org/mpris/MediaPlayer2',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'" 2> /dev/null &
+    stdbuf -oL pw-link -m -o -l -I
+    kill $(jobs -p) 2> /dev/null
+  )
+  exec {cli}>&-
+  wait "$cli_pid"
+}
+
+start() {
+  local linked="" timer backend=""
+
+  # Takes the same lock as omarchy-dictation and omarchy-dictation-use, so a
+  # backend switch can't replace Voxtype while the recording starts.
+  mkdir -p "${config%/*}" "$state_dir"
+  exec 9> "$config.lock"
+  if ! flock -w 5 9; then
+    echo "Dictation is busy; try again." >&2
+    return 1
+  fi
+  [[ -s $config ]] && read -r backend < "$config"
+  if [[ $backend != "voxtype" ]]; then
+    echo "Speaker dictation needs the Voxtype dictation backend." >&2
+    return 1
+  fi
+
+  if flock -n "$state_dir/watcher.lock" true; then
+    setsid -f omarchy-voxtype-speakers watch > /dev/null 2>&1 9>&-
+  fi
+
+  trap 'linked=1' USR1
+  echo "$$ ${EPOCHREALTIME/./}" > "$active"
+  sleep 1 9>&- &
+  timer=$!
+
+  if ! voxtype record start 9>&-; then
+    rm -f "$active"
+    kill "$timer" 2> /dev/null
+    return 1
+  fi
+  exec 9>&-
+
+  # Only the error report waits for the speakers; the recording is running.
+  [[ -n $linked ]] || wait "$timer"
+  kill "$timer" 2> /dev/null
+
+  if [[ -z $linked && -f $active ]]; then
+    rm -f "$active"
+    voxtype record cancel
+    omarchy-notification-send -t 3000 "Speaker dictation" "Couldn't connect Voxtype to the speaker output"
+    return 1
+  fi
+}
+
+stop() {
+  rm -f "$active"
+  mkdir -p "${config%/*}"
+  exec 9> "$config.lock"
+  if ! flock -w 5 9; then
+    echo "Dictation is busy; try again." >&2
+    return 1
+  fi
+  omarchy-dictation-voxtype stop 9>&-
+}
+
+case "${1:-}" in
+  start) start ;;
+  stop) stop ;;
+  watch) watch ;;
+  *) echo "Usage: omarchy voxtype speakers <start|stop>" >&2; exit 1 ;;
+esac

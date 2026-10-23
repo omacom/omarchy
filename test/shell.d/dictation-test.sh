@@ -242,7 +242,12 @@ for _, keys in ipairs({ "F9", "ALT + Alt_R" }) do
   assert(binds(keys, "omarchy-dictation start") and binds(keys, "omarchy-dictation stop"),
     keys .. " starts dictation on press and stops it on release")
 end
-bindings, installed = {}, false
+assert(not binds("F10", "omarchy-voxtype-speakers start"), "speaker dictation is Voxtype only")
+bindings, selected = {}, "voxtype"
+dofile(root .. "/default/hypr/bindings/dictation.lua")
+assert(binds("F10", "omarchy-voxtype-speakers start") and binds("F10", "omarchy-voxtype-speakers stop"),
+  "F10 transcribes the speakers while held with Voxtype")
+bindings, selected, installed = {}, "some-backend", false
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "a selected backend that is not installed leaves application keys available")
 LUA
