@@ -8,10 +8,10 @@ name = "terminal"
 [theme.custom]
 # The tab bar sits on the terminal's own background, like tmux's bg=default, so
 # it turns see-through with the rest of the terminal under Glassy windows. With
-# no panel_bg the active tab's text falls back to surface_dim, so that is black
-# for dark text on the accent - same colors as status-left's "#[fg=black,bg=blue]"
+# no panel_bg the active tab's text falls back to surface_dim. herdr also draws
+# the sidebar's dividers in surface_dim, so it keeps herdr's gray: a black one
+# would hide them against the terminal background
 panel_bg = "reset"
-surface_dim = "black"
 
 [terminal]
 # Matches -c "#{pane_current_path}" on every split, window, and session
