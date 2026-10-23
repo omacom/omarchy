@@ -21,6 +21,7 @@ Item {
     ? shell.shellConfig.idle : (shell && shell.idleConfig ? shell.idleConfig : ({}))
   readonly property int screensaverTimeoutSeconds: secondsFromConfig(idleConfig.screensaver, defaultScreensaverSeconds)
   readonly property int lockTimeoutSeconds: secondsFromConfig(idleConfig.lock, defaultLockSeconds)
+  readonly property int suspendTimeoutSeconds: IdleModel.optionalSecondsFromConfig(idleConfig.suspend)
   readonly property bool screensaverEnabled: screensaverTimeoutSeconds > 0
   readonly property bool lockEnabled: lockTimeoutSeconds > 0
   readonly property bool idleTimersEnabled: screensaverEnabled || lockEnabled
@@ -32,6 +33,8 @@ Item {
 
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
+  property bool suspendMonitorArmed: true
+  property bool suspendMonitorsReady: false
   property bool hasPendingStayAwakePersist: false
   property bool pendingStayAwakePersist: false
   property bool idledThisCycle: false
@@ -44,6 +47,18 @@ Item {
   function secondsFromConfig(value, fallback) {
     return IdleModel.secondsFromConfig(value, fallback)
   }
+
+  function rearmSuspendMonitors() {
+    if (!root.suspendMonitorsReady) return
+
+    // Quickshell's IdleMonitor can stop reporting after its timeout changes.
+    // Recreate both new monitors through an enabled transition before they use
+    // the changed setting, rather than letting a stale monitor decide suspend.
+    root.suspendMonitorArmed = false
+    Qt.callLater(function() { root.suspendMonitorArmed = true })
+  }
+
+  onSuspendTimeoutSecondsChanged: root.rearmSuspendMonitors()
 
   function nowIso() {
     return new Date().toISOString()
@@ -194,6 +209,27 @@ Item {
     else handleActiveSignal()
   }
 
+  function maybeSuspend() {
+    if (!IdleModel.shouldSuspend(
+      suspendInputIdleMonitor.isIdle,
+      suspendInhibitorMonitor.isIdle,
+      root.idleEnabled,
+      root.suspendTimeoutSeconds
+    )) return
+
+    runProcess(suspendProcess, "suspend", "omarchy-toggle-enabled suspend-off || systemctl suspend")
+  }
+
+  function handleSuspendInputIdleChanged() {
+    logEvent("suspend-input-idle-monitor", suspendInputIdleMonitor.isIdle ? "idle" : "active")
+    maybeSuspend()
+  }
+
+  function handleSuspendInhibitorChanged() {
+    logEvent("suspend-inhibitor-monitor", suspendInhibitorMonitor.isIdle ? "idle" : "active")
+    maybeSuspend()
+  }
+
   function statusJson() {
     return JSON.stringify({
       enabled: root.idleEnabled,
@@ -205,6 +241,9 @@ Item {
       screensaverStarted: root.screensaverStartedThisCycle,
       screensaver: root.screensaverTimeoutSeconds,
       lock: root.lockTimeoutSeconds,
+      suspend: root.suspendTimeoutSeconds,
+      suspendInputIdle: suspendInputIdleMonitor.isIdle,
+      suspendInhibitorIdle: suspendInhibitorMonitor.isIdle,
       screensaverDelay: root.screensaverDelaySeconds,
       lockDelay: root.lockDelaySeconds,
       screensaverWindows: root.screensaverWindowCount,
@@ -216,6 +255,7 @@ Item {
       processes: {
         screensaver: screensaverProcess.running,
         lock: lockProcess.running,
+        suspend: suspendProcess.running,
         wake: wakeProcess.running
       },
       lastEvent: root.lastEvent,
@@ -275,6 +315,26 @@ Item {
     onIsIdleChanged: root.handleIdleChanged()
   }
 
+  IdleMonitor {
+    id: suspendInputIdleMonitor
+    enabled: root.idleEnabled && root.suspendTimeoutSeconds > 0 && root.suspendMonitorArmed
+    timeout: Math.max(1, root.suspendTimeoutSeconds)
+    // This clock is tied to physical input only. Opening the screensaver or
+    // lock screen must not restart a configured suspend countdown.
+    respectInhibitors: false
+    onIsIdleChanged: root.handleSuspendInputIdleChanged()
+  }
+
+  IdleMonitor {
+    id: suspendInhibitorMonitor
+    enabled: root.idleEnabled && root.suspendTimeoutSeconds > 0 && root.suspendMonitorArmed
+    // A short inhibitor-aware gate preserves video and system inhibitor
+    // handling without allowing compositor window events to reset the clock.
+    timeout: 1
+    respectInhibitors: true
+    onIsIdleChanged: root.handleSuspendInhibitorChanged()
+  }
+
   Timer {
     id: screensaverTimer
     repeat: false
@@ -310,6 +370,10 @@ Item {
   Process {
     id: lockProcess
     onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "lock exitCode=" + exitCode + " status=" + exitStatus) }
+  }
+  Process {
+    id: suspendProcess
+    onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "suspend exitCode=" + exitCode + " status=" + exitStatus) }
   }
   Process {
     id: wakeProcess
@@ -350,6 +414,7 @@ Item {
   Component.onCompleted: {
     logEvent("service-ready")
     refreshStayAwakeState()
+    root.suspendMonitorsReady = true
   }
 
   ShellIpc {

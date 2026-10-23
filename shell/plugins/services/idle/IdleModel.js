@@ -1,7 +1,24 @@
+var MAX_TIMEOUT_SECONDS = Math.floor(2147483647 / 1000)
+
 function secondsFromConfig(value, fallback) {
   var n = Number(value)
   if (!isFinite(n) || n < 0) return fallback
   return Math.floor(n)
+}
+
+function optionalSecondsFromConfig(value) {
+  if (value === undefined || value === null || value === "") return -1
+  if (typeof value !== "number" && typeof value !== "string") return -1
+
+  var n = Number(value)
+  if (!isFinite(n)) return -1
+
+  var seconds = Math.floor(n)
+  return seconds > 0 ? Math.min(seconds, MAX_TIMEOUT_SECONDS) : -1
+}
+
+function shouldSuspend(inputIdle, inhibitorIdle, idleEnabled, timeoutSeconds) {
+  return !!inputIdle && !!inhibitorIdle && !!idleEnabled && timeoutSeconds > 0
 }
 
 // 0 means the action is disabled, not "fire immediately". min(0, 300) would
@@ -65,7 +82,10 @@ function screensaverWindowsAfter(windows, address, visible) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    MAX_TIMEOUT_SECONDS: MAX_TIMEOUT_SECONDS,
     secondsFromConfig: secondsFromConfig,
+    optionalSecondsFromConfig: optionalSecondsFromConfig,
+    shouldSuspend: shouldSuspend,
     firstIdleTimeout: firstIdleTimeout,
     delayAfterFirstIdle: delayAfterFirstIdle,
     eventParts: eventParts,
