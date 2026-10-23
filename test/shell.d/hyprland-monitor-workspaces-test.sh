@@ -418,6 +418,34 @@ check(shows("eDP-1") >= 1 and shows("eDP-1") <= 10, "the other monitor is back o
 ' || fail "a returning monitor takes back the workspace in view elsewhere without a swap"
 pass "a returning monitor takes back the workspace in view elsewhere without a swap"
 
+run_lua dropout '
+plug("HDMI-A-1", 0, "LG", 1)
+plug("DP-1", 1, "DELL", 11)
+world.focused = "HDMI-A-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+window("0xb", 2)
+window("0xc", 3)
+monitor_named("HDMI-A-1").active = 3
+
+unplug("HDMI-A-1")
+world.handlers["monitor.removed"]({ name = "HDMI-A-1" })
+check(world.windows["0xa"].workspace == 12 and world.windows["0xb"].workspace == 13 and world.windows["0xc"].workspace == 14,
+  "the unplugged monitor'"'"'s workspaces joined the remaining monitor'"'"'s block")
+
+-- Returning to block 0, Hyprland starts the monitor on empty workspace 1 inside its own block.
+plug("HDMI-A-1", 2, "LG", 1)
+world.focused = "HDMI-A-1"
+world.handlers["monitor.added"]({ name = "HDMI-A-1" })
+check(world.windows["0xa"].workspace == 1 and world.windows["0xb"].workspace == 2 and world.windows["0xc"].workspace == 3,
+  "the workspaces return to 1, 2 and 3 instead of shifting past the empty one: "
+  .. world.windows["0xa"].workspace .. ", " .. world.windows["0xb"].workspace .. ", " .. world.windows["0xc"].workspace)
+check(on(1) == "HDMI-A-1" and on(2) == "HDMI-A-1" and on(3) == "HDMI-A-1", "all three are back on the returning monitor")
+check(shows("HDMI-A-1") >= 1 and shows("HDMI-A-1") <= 3, "the returning monitor shows one of its restored workspaces")
+' || fail "a returning monitor reclaims its original workspace numbers even when started on one of them"
+pass "a returning monitor reclaims its original workspace numbers even when started on one of them"
+
 run_lua merge '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
