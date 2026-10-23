@@ -31,12 +31,21 @@ function omarchy_startup_cursor_restore(loaded)
   local cursor = omarchy_startup_cursor
   if loaded then
     omarchy_startup_cursor_pending = false
-    hl.env("OMARCHY_STARTUP_CURSOR_SESSION", "")
-    hl.env("OMARCHY_STARTUP_CURSOR_THEME", "")
-    hl.config({ cursor = cursor.config })
-    if cursor.config.enable_hyprcursor and cursor.hyprcursor then
-      hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size)
-    end
+    -- The pointer only picks up the restored theme when it is shown again, and
+    -- the compositor checks cursor.invisible every 500ms, so hide it past one check.
+    -- The reveal stays recorded until then, since a reload discards this timer,
+    -- and so does this acknowledgement, which the shell sends only once.
+    hl.config({ cursor = { invisible = true } })
+    hl.env("OMARCHY_STARTUP_CURSOR_REVEALED", os.getenv("HYPRLAND_INSTANCE_SIGNATURE"))
+    hl.timer(function()
+      hl.env("OMARCHY_STARTUP_CURSOR_SESSION", "")
+      hl.env("OMARCHY_STARTUP_CURSOR_THEME", "")
+      hl.env("OMARCHY_STARTUP_CURSOR_REVEALED", "")
+      hl.config({ cursor = cursor.config })
+      if cursor.config.enable_hyprcursor and cursor.hyprcursor then
+        hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size)
+      end
+    end, { timeout = 600, type = "oneshot" })
   elseif not cursor.restoring then
     -- Reload the normal Xcursor fallback before enabling Hyprcursor or GSettings.
     cursor.restoring = true
@@ -51,13 +60,14 @@ function omarchy_startup_cursor_restore(loaded)
 end
 
 hl.on("config.reloaded", function()
-  local recover = false
+  local recover, revealed = false, false
   if omarchy_startup_cursor_pending == nil then
     -- An ordinary reload must not hide the pointer, but an interrupted reveal survives.
     local cold = #hl.get_monitors() == 0
     local session = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
     local interrupted = session and os.getenv("OMARCHY_STARTUP_CURSOR_SESSION") == session
     recover = not cold and not interrupted and os.getenv("XCURSOR_THEME") == "omarchy-startup"
+    revealed = interrupted and os.getenv("OMARCHY_STARTUP_CURSOR_REVEALED") == session
     omarchy_startup_cursor_pending = cold or interrupted or recover
     if omarchy_startup_cursor_pending then
       local hyprcursor = hl.get_config("cursor.enable_hyprcursor")
@@ -76,7 +86,8 @@ hl.on("config.reloaded", function()
       -- Compositor environment survives Lua reloads; a session id prevents stale inheritance.
       hl.env("OMARCHY_STARTUP_CURSOR_THEME", omarchy_startup_cursor.xcursor)
       hl.env("OMARCHY_STARTUP_CURSOR_SESSION", os.getenv("HYPRLAND_INSTANCE_SIGNATURE"))
-      if cold then
+      -- An acknowledged reveal never goes back to the blank theme, even without monitors.
+      if cold and not revealed then
         hl.env("XCURSOR_PATH", os.getenv("OMARCHY_PATH") .. "/default/hypr/cursors:" .. omarchy_startup_cursor.path)
         hl.env("XCURSOR_THEME", "omarchy-startup")
       else
@@ -94,6 +105,11 @@ hl.on("config.reloaded", function()
         omarchy_startup_cursor_restore()
       end
     end, { timeout = 15000, type = "oneshot" })
-    if recover then omarchy_startup_cursor_restore() end
+    -- A reload inside the reveal's wait resumes it instead of waiting for recovery.
+    if revealed then
+      omarchy_startup_cursor_restore(true)
+    elseif recover then
+      omarchy_startup_cursor_restore()
+    end
   end
 end)

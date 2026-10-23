@@ -52,16 +52,21 @@ with tempfile.TemporaryDirectory() as directory:
     if parent_signature:
       parent_env["HYPRLAND_INSTANCE_SIGNATURE"] = parent_signature
     env.update(WAYLAND_DISPLAY=display, HYPRLAND_INSTANCE_SIGNATURE=signature)
+    # Only the cursor has green in it. The cover is black and the desktop
+    # magenta, which can show at part opacity while its panel fades in.
+    screenshot = stage / "frame.png"
+    def cursor_pixels():
+      subprocess.run(["grim", "-c", str(screenshot)], env=env, check=True,
+               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+      green = subprocess.check_output(["magick", str(screenshot), "-channel", "G", "-separate", "-threshold", "0", "-format", "%[fx:mean*w*h]", "info:"], text=True, timeout=5)
+      return float(green)
+
     # Capture immediately, including before Quickshell loads its cover. The
     # fixture cannot reveal while grim or magick is busy taking these frames.
     deadline = time.monotonic() + 5
     for sample in range(3):
       assert time.monotonic() < deadline, "initial compositor captures timed out"
-      screenshot = stage / "frame.png"
-      subprocess.run(["grim", "-c", str(screenshot)], env=env, check=True,
-               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-      maximum = subprocess.check_output(["magick", str(screenshot), "-format", "%[fx:maxima]", "info:"], text=True, timeout=5)
-      assert maximum == "0", "the cursor appeared in the first compositor frames"
+      assert cursor_pixels() == 0, "the cursor appeared in the first compositor frames"
 
     def wait_phase(expected):
       deadline = time.monotonic() + 5
@@ -93,10 +98,7 @@ with tempfile.TemporaryDirectory() as directory:
     deadline = time.monotonic() + 5
     seen = False
     while time.monotonic() < deadline:
-      subprocess.run(["grim", "-c", str(screenshot)], env=env, check=True,
-               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-      green = subprocess.check_output(["magick", str(screenshot), "-channel", "G", "-separate", "-threshold", "0", "-format", "%[fx:mean*w*h]", "info:"], text=True, timeout=5)
-      if float(green) > 20:
+      if cursor_pixels() > 20:
         seen = True
         break
       time.sleep(0.05)
@@ -115,6 +117,12 @@ with tempfile.TemporaryDirectory() as directory:
     print((stage / "compositor.log").read_text())
     raise
   finally:
+    # Stop Quickshell before its compositor: losing the display makes it abort,
+    # and the crash watcher reports that abort as a crash.
+    subprocess.run(["pkill", "-TERM", "-f", "quickshell -p " + str(stage)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and subprocess.run(["pgrep", "-f", "quickshell -p " + str(stage)], stdout=subprocess.DEVNULL).returncode == 0:
+      time.sleep(0.05)
     os.killpg(compositor.pid, signal.SIGTERM)
     compositor.wait(timeout=10)
     log.close()
