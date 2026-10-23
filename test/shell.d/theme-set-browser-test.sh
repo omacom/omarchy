@@ -31,7 +31,7 @@ chmod +x "$TMP_BIN/omarchy-theme-set-browser-policy"
 # skip everything.
 policy_tmp="$TMPDIR/policies"
 mkdir -p "$policy_tmp"
-printf '{"BrowserThemeColor": "#1c2027", "BrowserColorScheme": "device"}\n' > "$policy_tmp/color.json"
+printf '{"BrowserThemeColor": "#1c2027"}\n' > "$policy_tmp/color.json"
 
 # A test cannot make a root-owned file, so stat reports the owner the writer
 # leaves behind, or a user-owned one.
@@ -62,6 +62,20 @@ if [[ ! -e $CALL_LOG ]]; then
   fail "setter rewrites a matching color.json that is not root-owned 0644"
 fi
 pass "setter rewrites a matching color.json that is not root-owned 0644"
+
+# A root-owned file from before BrowserColorScheme was dropped carries the same
+# color but is not current, so it is rewritten.
+rm -f "$CALL_LOG"
+printf '{"BrowserThemeColor": "#1c2027", "BrowserColorScheme": "device"}\n' > "$policy_tmp/color.json"
+
+HOME="$TMPDIR" PATH="$stat_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" STAT_OWNER="root:root 644" \
+  OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" \
+  bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null
+
+if [[ ! -e $CALL_LOG ]]; then
+  fail "setter rewrites a root-owned color.json that still carries BrowserColorScheme"
+fi
+pass "setter rewrites a root-owned color.json that still carries BrowserColorScheme"
 
 # Now point it at a policy dir whose color.json does not match.
 rm -f "$CALL_LOG"
