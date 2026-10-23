@@ -7,6 +7,14 @@ _omarchy_complete() {
   bin_dir=$(dirname -- "$(readlink -f -- "$omarchy_path" 2>/dev/null || printf '%s' "$omarchy_path")")
   [[ -d $bin_dir ]] || return 0
 
+  if (( COMP_CWORD == 3 )) && [[ ${COMP_WORDS[1]} == "plugin" && ${COMP_WORDS[2]} == @(enable|disable) ]]; then
+    compopt +o default
+    local plugin_ids
+    plugin_ids=$("$bin_dir/omarchy-plugin-catalog" | jq -r '.[].id') || return 0
+    mapfile -t COMPREPLY < <(compgen -W "$plugin_ids" -- "$cur")
+    return 0
+  fi
+
   local prefix="omarchy"
   local i part
   for ((i = 1; i < COMP_CWORD; i++)); do
