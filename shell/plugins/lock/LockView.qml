@@ -3,6 +3,7 @@ import QtQuick.Effects
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "FaceModel.js" as FaceModel
 
 Item {
   id: root
@@ -11,6 +12,9 @@ Item {
   property string videoPosterPath: ""
   property int backgroundVersion: 0
   property bool fingerprintConfigured: false
+  // What the lock offers: "" without a face, "offered", "exhausted" or "expired".
+  property string faceState: ""
+  property bool faceAuthenticating: false
   property bool fingerprintUnavailable: false
   property bool authenticatingPassword: false
   property string failureMessage: ""
@@ -25,7 +29,8 @@ Item {
   property string passwordText: ""
   property bool syncingPasswordText: false
 
-  readonly property string placeholderText: Commons.I18n.t("lock.enterPassword")
+  readonly property string placeholderText: FaceModel.placeholderText(faceState, Commons.I18n.t)
+  readonly property bool faceIconShown: faceState === "offered" || faceAuthenticating
   readonly property int fieldWidth: 381
   readonly property int fieldHeight: 67
   readonly property int outlineThickness: 3
@@ -35,12 +40,13 @@ Item {
   // Space to keep clear on each side of the field for the fingerprint icon
   // (icon width plus a gap) so the centered dots never run under it.
   readonly property real fingerprintReserve: fingerprintConfigured ? Math.round(fingerprintIcon.implicitWidth + 12) : 0
+  readonly property real faceReserve: faceIconShown ? Math.round(faceIcon.implicitWidth + 12) : 0
   // Shrink the dots to fit once the password outgrows the field, so every
   // keystroke stays visible — otherwise long passwords clip with no feedback.
   readonly property real passwordDotScale: dotMetrics.advanceWidth > 0
     ? Math.min(1, (passwordInput.width - 4) / dotMetrics.advanceWidth)
     : 1
-  readonly property bool showPasswordCursor: inputEnabled && !authenticatingPassword && failureMessage.length === 0
+  readonly property bool showPasswordCursor: inputEnabled && !authenticatingPassword && !faceAuthenticating && failureMessage.length === 0
   readonly property bool errorState: failureMessage.length > 0
   readonly property var inputBorderSpec: errorState
     ? Border.surfaceSpec("lock", "border-error", Commons.Color.lock.borderError, root.outlineThickness, "border-alpha")
@@ -168,9 +174,9 @@ Item {
         anchors.topMargin: inputField.borderTop
         // Reserve the fingerprint icon's width on both sides so the centered
         // dots stay symmetric and never slide under the icon as they grow.
-        anchors.rightMargin: inputField.borderRight + 18 + root.fingerprintReserve
+        anchors.rightMargin: inputField.borderRight + 18 + Math.max(root.fingerprintReserve, root.faceReserve)
         anchors.bottomMargin: inputField.borderBottom
-        anchors.leftMargin: inputField.borderLeft + 18 + root.fingerprintReserve
+        anchors.leftMargin: inputField.borderLeft + 18 + Math.max(root.fingerprintReserve, root.faceReserve)
         verticalAlignment: TextInput.AlignVCenter
         horizontalAlignment: TextInput.AlignHCenter
         activeFocusOnPress: true
@@ -223,12 +229,12 @@ Item {
       Text {
         textFormat: Text.PlainText
         anchors.fill: passwordInput
-        text: root.authenticatingPassword ? Commons.I18n.t("lock.checking") : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
+        text: root.faceAuthenticating ? Commons.I18n.t("lock.scanningFace") : root.authenticatingPassword ? Commons.I18n.t("lock.checking") : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
         visible: passwordInput.text.length === 0
-        color: root.authenticatingPassword ? Commons.Color.lock.text : (root.failureMessage.length > 0 ? Commons.Color.lock.textError : Commons.Color.lock.placeholder)
+        color: (root.authenticatingPassword || root.faceAuthenticating) ? Commons.Color.lock.text : (root.failureMessage.length > 0 ? Commons.Color.lock.textError : Commons.Color.lock.placeholder)
         font.family: Style.font.family
         font.pixelSize: root.fieldFontSize
-        font.italic: !root.authenticatingPassword && root.failureMessage.length > 0
+        font.italic: !root.authenticatingPassword && !root.faceAuthenticating && root.failureMessage.length > 0
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
@@ -239,6 +245,27 @@ Item {
       // Matches hyprlock, which draws its fingerprint icon in the same spot.
       // A reader the shell cannot reach crosses out rather than disappears, so
       // it stops inviting touches that can never unlock.
+      // Face hint pinned inside the field's left edge while the lock offers
+      // the face; it brightens while a scan runs. The Copilot key starts one,
+      // so the placeholder says "Face or Password". Once the lock's
+      // scans are spent or its window has closed, the hint goes and the
+      // placeholder says why only the password is left.
+      Text {
+        id: faceIcon
+        objectName: "faceIndicator"
+        textFormat: Text.PlainText
+        anchors.left: parent.left
+        anchors.leftMargin: inputField.borderLeft + 18
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.faceIconShown
+        text: ""
+        color: root.faceAuthenticating ? Commons.Color.lock.text : Commons.Color.lock.placeholder
+        font.family: Style.font.family
+        font.pixelSize: Math.round(root.fieldFontSize * 1.1)
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+      }
+
       Text {
         id: fingerprintIcon
         objectName: "fingerprintIndicator"

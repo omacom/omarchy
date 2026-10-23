@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -e
+
+# Only invite when the IR camera is fitted and face auth isn't set up yet (the
+# setup installs the driver itself, and the face limits are the last thing it
+# writes on success, whichever of sudo, polkit and the lock screen it was asked
+# for).
+if omarchy-hw-dell-xps-ir-camera && [[ ! -f /etc/omarchy/face.conf ]] &&
+  omarchy-done ensure face-setup-invitation; then
+  omarchy-notification-send -u critical -g $'' "Setup Face Recognition" \
+    "Enable sudo, polkit and unlocking with your face." \
+    --exec omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-face
+fi
