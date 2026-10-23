@@ -124,6 +124,7 @@
   "audio.unmute": "Unmute",
   "bar.allowIdleLock": "Allow Idle Lock & Screensaver",
   "bar.allowNotifications": "Allow Notifications",
+  "bar.capsLockOn": "Caps Lock on",
   "bar.dayLight": "Day Light",
   "bar.disablePasswordlessSudo": "Disable Passwordless Sudo",
   "bar.microphoneInUse": "Microphone in use",

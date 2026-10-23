@@ -1,6 +1,7 @@
 module qs.Commons
 singleton AudioNodes 1.0 AudioNodes.qml
 singleton Border 1.0 Border.qml
+singleton CapsLock 1.0 CapsLock.qml
 singleton Color 1.0 Color.qml
 singleton I18n 1.0 I18n.qml
 singleton InputDevices 1.0 InputDevices.qml

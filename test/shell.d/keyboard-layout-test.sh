@@ -19,6 +19,25 @@ assertEqual(model.inputTooltip(japanese, 'English (US)', true), 'Mozc · Super +
 assertEqual(model.inputTooltip({ ...japanese, current: 'keyboard-us', name: 'Keyboard - English (US)' }, 'English (US)', false), 'English (US) · Super + I', 'Latin input omits the redundant keyboard prefix')
 assertEqual(model.inputTooltip({ ...japanese, current: 'keyboard-us', name: 'Keyboard - English (US)' }, 'Danish', true), 'Danish · Super + I', 'direct input tooltip follows the active compositor layout')
 assertEqual(model.inputTooltip({ methods: ['keyboard-fr'] }, 'French', false), 'French', 'a single layout tooltip stays compact')
+
+// Caps Lock is spelled out in the tooltip, between the name and the shortcut,
+// in every input mode the badge shows on.
+assertEqual(model.inputTooltip({ ...japanese, current: 'keyboard-us', name: 'Keyboard - English (US)' }, 'English (US)', false, true), 'English (US) · Caps Lock on · Super + I', 'Caps Lock sits between the layout and the shortcut')
+assertEqual(model.inputTooltip(japanese, 'English (US)', false, true), 'Mozc · Caps Lock on · Super + I', 'Caps Lock shows beside an input method too')
+assertEqual(model.inputTooltip({ methods: ['keyboard-us', 'hangul'], current: 'hangul', name: 'Hangul' }, 'Korean', false, true), 'Hangul · Caps Lock on · Super + I', 'Caps Lock shows in Hangul mode')
+assertEqual(model.inputTooltip({ methods: ['keyboard-fr'] }, 'French', true, true), 'French · Caps Lock on · Super + I', 'Caps Lock shows on a seat with several layouts')
+assertEqual(model.inputTooltip({ methods: ['keyboard-fr'] }, 'French', false, true), 'French · Caps Lock on', 'a single layout names Caps Lock without a shortcut')
+assertEqual(model.inputTooltip(japanese, 'English (US)', false, false), 'Mozc · Super + I', 'Caps Lock off leaves the tooltip as it was')
+assertEqual(model.inputTooltip(japanese, 'English (US)', false, true, (key, english) => key === 'bar.capsLockOn' ? 'Verr. Maj.' : english), 'Mozc · Verr. Maj. · Super + I', 'the Caps Lock words come from the catalog')
+assertEqual(model.capsLockOn([{ name: 'kb', capsLock: true }]), true, 'a keyboard reporting Caps Lock has it on')
+assertEqual(model.capsLockOn([{ name: 'kb', capsLock: false }]), false, 'a keyboard reporting no Caps Lock has it off')
+assertEqual(model.capsLockOn([{ name: 'kb' }]), false, 'an older Hyprland that reports no lock reads as off')
+assertEqual(model.capsLockOn([{ name: 'laptop', capsLock: false }, { name: 'usb', capsLock: true }]), true, 'Caps Lock on a second keyboard lights the badge')
+assertEqual(model.capsLockOn([]), false, 'no keyboard means no Caps Lock')
+assertEqual(model.capsLockOn(undefined), false, 'no reading means no Caps Lock')
+assertEqual(model.showIndicator('EN', false, false, true), true, 'one layout shows the widget while Caps Lock is on')
+assertEqual(model.showIndicator('EN', false, false, false), false, 'one layout hides the widget again once Caps Lock is off')
+assertEqual(model.showIndicator('', false, false, true), false, 'Caps Lock with no keymap still shows nothing')
 assertEqual(model.showIndicator('EN', false, false), false, 'English alone stays hidden')
 assertEqual(model.showIndicator('ENG', false, false), false, 'English before the brief table loads stays hidden')
 assertEqual(model.showIndicator('FR', false, false), false, 'French alone stays hidden')
@@ -172,7 +191,7 @@ assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names 
   // Drive the real keyboard reading, then the needsBriefs binding, as QML would.
   const reading = new Function('root', 'KeyboardLayoutModel', 'text',
     widget.match(/id: queryProc[\s\S]*?onStreamFinished: \{([\s\S]*?)\n      \}/)[1])
-  const needs = new Function('layoutsRead', 'multipleLayouts', 'multipleInputs',
+  const needs = new Function('layoutsRead', 'multipleLayouts', 'multipleInputs', 'capsLock',
     'return ' + widget.match(/readonly property bool needsBriefs: ([^\n]+)/)[1])
   const widgetState = layout => {
     const w = { typedKeyboardName: '', multipleLayouts: true, layoutsRead: false }
@@ -187,5 +206,78 @@ assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names 
   const several = widgetState('us,dk')
   assert(needs(several.layoutsRead, several.multipleLayouts, false), 'a first reading of several layouts needs the table')
   assert(!needs(false, true, true), 'nothing is needed before the first reading')
+
+  // The reading takes Caps Lock off any keyboard someone types on, never off a
+  // button, and drops it once the last keyboard is gone.
+  const capsReading = (keyboards, named = 'usb-keyboard') => {
+    const w = { typedKeyboardName: named, multipleLayouts: true, layoutsRead: false, capsLock: true }
+    w.typedKeyboards = list => list.filter(k => model.isTypedKeyboard(k.name))
+    w.selectKeyboard = typed => model.selectKeyboard(typed, w.typedKeyboardName)
+    reading(w, model, JSON.stringify({ keyboards }))
+    return w
+  }
+  const keyboard = (name, capsLock) => ({ name, layout: 'us,kr', active_keymap: 'English (US)', active_layout_index: 0, capsLock })
+  assert(capsReading([keyboard('power-button', false), keyboard('usb-keyboard', true)]).capsLock, 'Caps Lock is read off the keyboard being typed on')
+  assert(!capsReading([keyboard('power-button', true), keyboard('usb-keyboard', false)]).capsLock, 'a button reporting Caps Lock does not light the badge')
+  assert(!capsReading([keyboard('power-button', true)]).capsLock, 'Caps Lock clears once the last keyboard is unplugged')
+  {
+    const second = capsReading([keyboard('at-translated-set-2-keyboard', false), keyboard('usb-keyboard', true)], 'at-translated-set-2-keyboard')
+    assert(second.capsLock && second.keyboardName === 'at-translated-set-2-keyboard', 'Caps Lock on a second keyboard lights the badge while the label keeps its keyboard')
+  }
+  {
+    const single = l => ({ name: 'at-translated-set-2-keyboard', layout: 'us', active_keymap: 'English (US)', active_layout_index: 0, capsLock: l })
+    const on = capsReading([single(true)], '')
+    const off = capsReading([single(false)], '')
+    assert(on.capsLock && !on.multipleLayouts && needs(on.layoutsRead, on.multipleLayouts, false, on.capsLock), 'Caps Lock on a single layout reads the label table')
+    assert(model.showIndicator('EN', on.multipleLayouts, false, on.capsLock), 'Caps Lock on a single layout shows the widget')
+    assert(!off.capsLock && !needs(off.layoutsRead, off.multipleLayouts, false, off.capsLock), 'a single layout with Caps Lock off needs no table')
+    assert(!model.showIndicator('EN', off.multipleLayouts, false, off.capsLock), 'a single layout with Caps Lock off stays hidden')
+  }
+  assert(widget.includes('KeyboardLayoutModel.showIndicator(layoutLabel, multipleLayouts, multipleInputs, capsLock)'), 'the widget shows while Caps Lock is on')
+
+  // Caps Lock raises no Hyprland event, so the widget reads the seat again on
+  // the shortcut Hyprland sends when the key is let go, without a timer.
+  assert(/Connections \{\s*target: CapsLock\s*function onToggled\(\) \{ root\.refresh\(\) \}/.test(widget), 'the widget reads the seat again when Caps Lock is let go')
+  const capsLock = require('fs').readFileSync(path.join(root, 'shell/Commons/CapsLock.qml'), 'utf8')
+  assert(/^pragma Singleton/.test(capsLock) && !/Timer|Process/.test(capsLock), 'one Caps Lock shortcut serves every bar and starts nothing')
+  assert(capsLock.includes('name: "caps-lock"') && capsLock.includes('appid: "omarchy"'), 'the shell registers the shortcut Hyprland sends')
+  assert(require('fs').readFileSync(path.join(root, 'shell/Commons/qmldir'), 'utf8').includes('singleton CapsLock 1.0 CapsLock.qml'), 'the Caps Lock singleton is registered')
 }
 JS
+
+# Load input.lua against a stub hl and print its keybindings, to check that
+# Caps Lock reaches the shell without being taken from apps.
+require_command lua
+caps_home=$(mktemp -d)
+trap 'rm -rf "$caps_home"' EXIT
+caps_binds=$(HOME="$caps_home" OMARCHY_PATH="$ROOT" lua <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+local function proxy()
+  return setmetatable({}, {
+    __index = function(self, key) local value = proxy(); rawset(self, key, value); return value end,
+    __call = function() return {} end,
+  })
+end
+local dsp = proxy()
+rawset(dsp, "global", function(name) return { global = name } end)
+hl = setmetatable({
+  dsp = dsp,
+  bind = function(keys, dispatcher, opts)
+    opts = opts or {}
+    if type(dispatcher) == "table" and dispatcher.global then
+      local flags = {}
+      for _, flag in ipairs({ "release", "transparent", "ignore_mods", "non_consuming", "locked", "dont_inhibit", "submap_universal" }) do
+        if opts[flag] then flags[#flags + 1] = flag end
+      end
+      print(keys .. "\t" .. dispatcher.global .. "\t" .. table.concat(flags, ",") .. "\t" .. (opts.description or ""))
+    end
+  end,
+}, { __index = function() return function() return {} end end })
+require("default.hypr.helpers")
+require("default.hypr.input")
+LUA
+)
+[[ $caps_binds == $'Caps_Lock\tomarchy:caps-lock\trelease,transparent,ignore_mods,non_consuming,locked,dont_inhibit,submap_universal\t' ]] ||
+  fail "Caps Lock release reaches the shell without taking the key, locked, inhibited or in a submap: $caps_binds"
+pass "Caps Lock release reaches the shell without taking the key, locked, inhibited or in a submap"
+
