@@ -8,6 +8,10 @@ unset GUM_STATUS
 unset OMARCHY_UPDATE_FORCE
 unset TEST_AVAILABLE_BYTES
 unset TEST_DF_INVALID
+unset TEST_ROOT_FSTYPE
+unset TEST_ROOT_SOURCE
+unset TEST_DEVICE_BYTES
+unset TEST_BTRFS_DF_FILE
 
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 test_tmp="$boundary_tmp"
@@ -58,6 +62,22 @@ if (( TEST_DF_INVALID )); then
 else
   printf "Avail\n%s\n" "$TEST_AVAILABLE_BYTES"
 fi'
+
+# The btrfs branch of the free-space helper reads the root's filesystem type,
+# source device, chunk accounting and device size. Stub them all so the cases
+# below do not depend on this machine's real root filesystem. The default
+# fstype is ext4, which keeps the helper's btrfs branch out of the df cases
+# above.
+write_stub findmnt '
+if [[ $2 == FSTYPE ]]; then
+  printf "%s\n" "${TEST_ROOT_FSTYPE:-ext4}"
+else
+  printf "%s\n" "${TEST_ROOT_SOURCE:-/dev/sda1}"
+fi'
+
+write_stub lsblk 'printf "%s\n" "${TEST_DEVICE_BYTES:-0}"'
+
+write_stub btrfs 'cat "${TEST_BTRFS_DF_FILE:-/dev/null}"'
 
 write_stub gum '
 printf "%s\n" "$*" >>"$GUM_MARKER"
@@ -148,3 +168,79 @@ output=$(TEST_DF_INVALID=1 run_update -y)
 [[ -z $output ]] || fail "failed disk-space detection remains silent"
 [[ -f $snapshot_marker ]] || fail "failed disk-space detection does not block the update"
 pass "failed disk-space detection silently continues"
+
+# The btrfs chunk-allocation branch (#15528): df's free space can sit inside
+# partly-used data chunks, so a full device with no metadata headroom has to
+# stop the update even though df reports gigabytes.
+gib=$((1024 * 1024 * 1024))
+btrfs_df_file="$test_tmp/btrfs-df"
+export TEST_ROOT_FSTYPE=btrfs
+export TEST_ROOT_SOURCE=/dev/sda1
+export TEST_BTRFS_DF_FILE="$btrfs_df_file"
+export TEST_DEVICE_BYTES=$((500 * gib))
+
+# A 500 GiB device fully allocated to chunks: 494 GiB of data, 5 GiB of
+# metadata with only 550 MiB headroom, 8 MiB of system groups. Unallocated is
+# under 1 GiB, df's answer is not consulted here, so give it a healthy value.
+printf '%s\n' \
+  "Data, single: total=$((494 * gib)), used=$((480 * gib))" \
+  "System, DUP: total=8388608, used=16384" \
+  "Metadata, DUP: total=$((5 * gib)), used=$((5 * gib - 550 * 1024 * 1024))" \
+  "GlobalReserve, single: total=110968832, used=0" >"$btrfs_df_file"
+
+set +e
+output=$(TEST_AVAILABLE_BYTES=$((100 * gib)) \
+  PATH="$stub_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-update-requires-free-space")
+status=$?
+set -e
+(( status == 1 )) || fail "a fully allocated btrfs root stops the update"
+[[ $output == *"no unallocated device space"* ]] || fail "the fully allocated btrfs root explains why"
+[[ $output == *"btrfs balance start"* ]] || fail "the fully allocated btrfs root names the remedy"
+pass "a fully allocated btrfs root with no metadata headroom stops the update"
+
+rm -f "$snapshot_marker"
+output=$(TEST_AVAILABLE_BYTES=$((100 * gib)) run_update -y)
+[[ $output == *"no unallocated device space"* ]] || fail "the update surfaces the btrfs allocation failure"
+[[ ! -f $snapshot_marker ]] || fail "an update on a fully allocated btrfs root stops before snapshotting"
+pass "a whole update stops on a fully allocated btrfs root"
+
+# Space to allocate new chunks from means the state is harmless, whatever df
+# says about the space inside the existing chunks.
+export TEST_DEVICE_BYTES=$((600 * gib))
+set +e
+PATH="$stub_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-update-requires-free-space" >/dev/null
+status=$?
+set -e
+(( status == 0 )) || fail "unallocated device space keeps the update going"
+pass "unallocated device space keeps the update going"
+
+# The metadata headroom condition is half of the pair: one GiB exactly is
+# still headroom on the boundary.
+export TEST_DEVICE_BYTES=$((500 * gib))
+printf '%s\n' \
+  "Data, single: total=$((494 * gib)), used=$((480 * gib))" \
+  "System, DUP: total=8388608, used=16384" \
+  "Metadata, DUP: total=$((5 * gib)), used=$((4 * gib))" \
+  "GlobalReserve, single: total=110968832, used=0" >"$btrfs_df_file"
+set +e
+PATH="$stub_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-update-requires-free-space" >/dev/null
+status=$?
+set -e
+(( status == 0 )) || fail "one GiB of metadata headroom is not 'nearly gone'"
+pass "metadata headroom at the one-GiB boundary keeps the update going"
+
+# Allocated beyond the one device the check sees is accounting it does not
+# model (another device, a misparse); it must not invent a block.
+export TEST_DEVICE_BYTES=0
+set +e
+PATH="$stub_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-update-requires-free-space" >/dev/null
+status=$?
+set -e
+(( status == 0 )) || fail "chunk accounting beyond the visible device does not block"
+pass "unmodellable chunk accounting keeps the update going"
+
+unset TEST_ROOT_FSTYPE TEST_ROOT_SOURCE TEST_DEVICE_BYTES TEST_BTRFS_DF_FILE
