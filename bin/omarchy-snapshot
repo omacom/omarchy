@@ -22,15 +22,36 @@ create)
   # The description is just a label, so never let it abort the snapshot.
   DESC="$(omarchy-version 2>/dev/null || echo unknown)"
 
-  # Get existing snapper config names from CSV output
-  mapfile -t CONFIGS < <(sudo snapper --csvout list-configs | awk -F, 'NR>1 {print $1}')
+  # Capture list-configs on its own so a failed sudo is not mistaken for an
+  # empty config list. Process substitution hides the command's exit status,
+  # which previously reported "No Snapper configs found" and pointed users at
+  # install/config/snapper.sh — a script that overwrites a working root config.
+  # Keep stderr on the terminal so sudo can still prompt for a password.
+  if ! configs_csv="$(sudo snapper --csvout list-configs)"; then
+    # Any non-zero status lands here (sudo, D-Bus, snapper). Snapper's own
+    # stderr already printed above; keep this line cause-neutral.
+    echo -e "\e[31mCould not list Snapper configs.\e[0m" >&2
+    exit 1
+  fi
 
-  # Snapper installed but unconfigured snapshots nothing. Staying quiet here
+  mapfile -t CONFIGS < <(printf '%s\n' "$configs_csv" | awk -F, 'NR>1 {print $1}')
+
+  # Snapper installed but listing nothing snapshots nothing. Staying quiet here
   # reads as a successful snapshot, so the next update looks recoverable when
-  # nothing has ever been captured.
+  # nothing has ever been captured. An exit-0 header-only listing also happens
+  # when /etc/snapper/configs/root exists but is unregistered, unreadable, or
+  # empty — never point those at snapper.sh, which overwrites that file.
   if (( ${#CONFIGS[@]} == 0 )); then
+    snapper_root=${OMARCHY_SNAPPER_CONFIG_PATH:-/etc/snapper/configs/root}
+    snapper_conf=${OMARCHY_SNAPPER_CONF_PATH:-/etc/conf.d/snapper}
+
     echo -e "\e[33mNo Snapper configs found, so no snapshot was created.\e[0m" >&2
-    echo "Configure Snapper with: sudo bash -euo pipefail \"$OMARCHY_PATH/install/config/snapper.sh\"" >&2
+    if [[ -e $snapper_root ]]; then
+      echo "A config file exists at $snapper_root but Snapper did not list it." >&2
+      echo "Check SNAPPER_CONFIGS in $snapper_conf and permissions on the config file." >&2
+    else
+      echo "Configure Snapper with: sudo bash -euo pipefail \"$OMARCHY_PATH/install/config/snapper.sh\"" >&2
+    fi
     exit 1
   fi
 
