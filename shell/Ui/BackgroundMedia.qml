@@ -42,6 +42,8 @@ Item {
       fillMode: Image.PreserveAspectCrop
       asynchronous: true
       cache: root.cached
+      smooth: true
+      mipmap: true
       sourceSize.width: root.constrainDecode ? root.decodeSize.width : (root.version > 0 ? width : 0)
       sourceSize.height: root.constrainDecode ? root.decodeSize.height : (root.version > 0 ? height : 0)
     }
