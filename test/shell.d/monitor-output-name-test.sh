@@ -85,6 +85,20 @@ set -e
 [[ ! -e $mirror_flag ]] || fail "an unsafe external monitor name is not written as Lua"
 pass "mirror on refuses an unsafe headless output name"
 
+# FALLBACK and HEADLESS-* are synthesized outputs, not monitors a panel can be
+# mirrored to: with only those present there is no external to mirror onto.
+for pseudo in FALLBACK HEADLESS-1; do
+  rm -f "$mirror_flag"
+  printf '[{"name":"eDP-1"},{"name":"%s"}]\n' "$pseudo" >"$monitors_json"
+  set +e
+  run_monitor omarchy-hyprland-monitor-internal-mirror on >/dev/null 2>&1
+  status=$?
+  set -e
+  (( status != 0 )) || fail "mirror on refuses the synthesized $pseudo output"
+  [[ ! -e $mirror_flag ]] || fail "the synthesized $pseudo output is not written as a mirror target"
+done
+pass "mirror on refuses synthesized outputs as mirror targets"
+
 # The clamshell sync writes the internal-monitor name into generated Lua too.
 clamshell_flag="$flag_dir/internal-monitor-clamshell.lua"
 printf '[{"name":"eDP-1"}]\n' >"$monitors_json"

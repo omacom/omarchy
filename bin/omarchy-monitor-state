@@ -10,8 +10,9 @@ focused_monitor=$(printf '%s\n' "$monitors_json" | jq -r '[.[] | select(.focused
 
 printf '%s\n' "$monitors_json" | jq -r '
   def internal: test("^(eDP|LVDS|DSI)-");
+  def synthesized: test("^FALLBACK$|^HEADLESS-");
   ([.[] | select(.name | internal)][0].name // ""),
-  ([.[] | select((.name | internal) | not)][0].name // ""),
+  ([.[] | select(((.name | internal) or (.name | synthesized)) | not)][0].name // ""),
   ([.[] | select((.name | internal) and .disabled != true)][0].name // ""),
   ([.[] | select(.mirrorOf != "none") | if (.name | internal) then .mirrorOf else .name end][0] // "")
 '
