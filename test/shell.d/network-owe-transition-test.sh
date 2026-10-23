@@ -25,6 +25,10 @@ source = source.replace('import Quickshell.Networking', 'import Quickshell.Netwo
 source = source.replace(/\bNetworking\./g, 'NetworkMock.')
 source = source.replace('  id: root', '  id: root\n  property alias testApPoll: activeApSignalPoll')
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)
+
+let mock = fs.readFileSync(`${stage}/mocks/NetworkMock.qml`, 'utf8')
+mock = mock.replace('    property int type: DeviceType.Wifi\n', '    property int type: DeviceType.Wifi\n    property int mode: WifiDeviceMode.Station\n')
+fs.writeFileSync(`${stage}/mocks/NetworkMock.qml`, mock)
 JS
 printf '#!/bin/bash\nexit 0\n' > "$stage/bin/noop"
 chmod +x "$stage/bin/noop"
