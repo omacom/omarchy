@@ -876,6 +876,58 @@ assert_bypass copilot copilot --allow-all
 assert_bypass kimi kimi --yolo
 pass "agent launcher skips permission prompts for every supported agent"
 
+# A flags file replaces Omarchy's unattended flags for its own agent only, one
+# trimmed argument per line, and an empty one launches with none.
+flags_dir="$test_home/.config/omarchy/agents"
+mkdir -p "$flags_dir"
+printf '%s\n' '# Skip every prompt' '' '  --dangerously-skip-permissions  ' '--model' 'opus 4' >"$flags_dir/claude.flags"
+assert_bypass claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --dangerously-skip-permissions --model "opus 4"
+assert_launch claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --dangerously-skip-permissions --model "opus 4" -- "Review this project"
+assert_bypass codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me
+pass "agent flags file replaces the unattended flags for its agent only"
+
+printf '%s' '--worktree' >"$flags_dir/hermes.flags"
+assert_bypass hermes hermes --worktree
+assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --worktree --tui "--query=Review this project"
+pass "agent flags file reads a last line without a trailing newline"
+
+: >"$flags_dir/claude.flags"
+assert_bypass claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude
+pass "empty agent flags file launches with no flags"
+
+printf '%s\n' '--model' 'sonnet' >"$flags_dir/crush.flags"
+assert_launch crush crush run "Review this project"
+printf '%s\n' '--thinking' 'high' >"$flags_dir/pi.flags"
+assert_bypass pi pi --thinking high
+pass "agent flags file adds flags only where the agent launches with them"
+
+# A flags file that can't be read stops the launch rather than dropping the
+# user's flags. Root reads any file, so the permission case needs a user.
+assert_unreadable_flags() {
+  local description=$1
+
+  printf '%s\n' "claude" >"$agent_file"
+  : >"$launch_log"
+  if omarchy-agent >"$test_tmp/flags-output" 2>&1; then
+    fail "agent launcher refuses $description"
+  fi
+  grep -Fq "Cannot read $flags_dir/claude.flags" "$test_tmp/flags-output" ||
+    fail "agent launcher explains $description"
+  [[ ! -s $launch_log ]] || fail "agent launcher starts nothing with $description"
+}
+
+rm "$flags_dir/claude.flags"
+ln -s "$flags_dir/missing.flags" "$flags_dir/claude.flags"
+assert_unreadable_flags "a dangling flags symlink"
+rm "$flags_dir/claude.flags"
+if (( EUID != 0 )); then
+  printf '%s\n' '--model' 'opus' >"$flags_dir/claude.flags"
+  chmod 000 "$flags_dir/claude.flags"
+  assert_unreadable_flags "an unreadable flags file"
+fi
+pass "unreadable agent flags file stops the launch"
+rm -rf "$flags_dir"
+
 printf '%s\n' "opencode" >"$agent_file"
 omarchy-agent
 mapfile -d '' -t launch_args <"$launch_log"
