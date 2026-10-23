@@ -6,9 +6,14 @@ SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-clamshell.lock"
 MODELESS_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-modeless.lock"
 
+# A long-lived watcher must never retain a caller's one-reconciliation state.
+unset OMARCHY_MONITOR_SNAPSHOT
+
 sync_clamshell() {
   (
     flock -n 9 || exit 0
+    OMARCHY_MONITOR_SNAPSHOT=$(omarchy-hyprland-monitor-snapshot) || exit 2
+    export OMARCHY_MONITOR_SNAPSHOT
     omarchy-hyprland-monitor-clamshell
     omarchy-system-lid-inhibit
   ) 9>"$LOCK"
@@ -76,7 +81,16 @@ poll_clamshell_state() {
 # drift those binds can miss (e.g. across suspend/resume).
 poll_pid=""
 sync_poll_state() {
-  if omarchy-hw-laptop && omarchy-hyprland-monitor-external-active; then
+  local external_state=1
+  if omarchy-hw-laptop; then
+    external_state=0
+    omarchy-hyprland-monitor-external-active || external_state=$?
+    # An unanswered query is not an unplug event. Keep the recovery poll alive
+    # so it can reconcile again when the compositor responds.
+    (( external_state <= 1 )) || return 0
+  fi
+
+  if (( external_state == 0 )); then
     if [[ -z $poll_pid ]] || ! kill -0 "$poll_pid" 2>/dev/null; then
       poll_clamshell_state &
       poll_pid=$!
