@@ -5,6 +5,34 @@
 
 set -e
 
+resolve_source_root() {
+  case $1 in
+    /usr/bin/*)
+      printf '%s\n' /usr/share/omarchy
+      ;;
+    */bin/*)
+      printf '%s\n' "${1%/bin/*}"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# Keep the follow-up helper in the same packaged or dev-linked tree as this
+# command instead of selecting executable code from inherited environment.
+command_path=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || {
+  echo "Could not resolve the Omarchy fingerprint setup command." >&2
+  exit 1
+}
+source_root=$(resolve_source_root "$command_path") || {
+  echo "Could not resolve the Omarchy source root." >&2
+  exit 1
+}
+if [[ ! -d $source_root/default ]]; then
+  echo "Omarchy source root has no default/: $source_root" >&2
+  exit 1
+fi
 
 setup_pam_config() {
   # A clamshell gate runs before pam_fprintd in every stack: when the lid is
@@ -211,7 +239,7 @@ if (( enroll_status == 0 )); then
     # Editing the stacks up front would leave those machines pointing at
     # pam_fprintd with nothing to match.
     setup_pam_config
-    "$OMARCHY_PATH/bin/omarchy-apply-lock"
+    "$source_root/bin/omarchy-apply-lock"
     if [[ ! -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
       echo "Fingerprint enrollment succeeded, but lock-screen configuration could not be confirmed. Run omarchy-apply-lock and try again." >&2
       exit 1
