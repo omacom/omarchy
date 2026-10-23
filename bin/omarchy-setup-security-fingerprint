@@ -168,11 +168,12 @@ fi
 
 echo -e "\e[32m\nLet's set up your right index finger as the first fingerprint.\e[0m"
 # A press sensor needs a touch for each sample; a swipe sensor a moving finger.
-# When fprintd can't say which, the prompts name neither.
+# When fprintd can't say which, the prompts name neither. Each line stays short,
+# since the setup terminal wraps a long one mid-word.
 case $(fingerprint_reader scan-type) in
   press)
     start="Touch the sensor." again="Keep lifting your finger and touching the sensor."
-    echo -e "Touch the sensor, lift your finger and touch it again, and keep going until it says Enrolled. A step can take a few touches.\n"
+    echo -e "Touch the sensor, lift your finger and touch it again.\nKeep going until it says Enrolled. A step can take a few touches.\n"
     ;;
   swipe)
     start="Swipe your finger across the sensor." again="Swipe it again."
@@ -180,7 +181,7 @@ case $(fingerprint_reader scan-type) in
     ;;
   *)
     start="Touch or swipe the sensor." again="Touch or swipe it again."
-    echo -e "Touch or swipe the sensor, and keep going until it says Enrolled. A step can take a few tries.\n"
+    echo -e "Touch or swipe the sensor, and keep going until it says Enrolled.\nA step can take a few tries.\n"
     ;;
 esac
 

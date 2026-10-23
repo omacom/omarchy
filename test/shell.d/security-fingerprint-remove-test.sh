@@ -38,10 +38,22 @@ printf 'bob\n'
 SH
 cat >"$test_tmp/bin/sudo" <<'SH'
 #!/bin/bash
+case $1 in
+  -n) exit "${TEST_SUDO_CACHED:-0}" ;;
+  -v) printf 'sudo -v\n' >>"$TEST_LOG"; exit "${TEST_SUDO_V_FAIL:-0}" ;;
+esac
 printf 'sudo %s\n' "$*" >>"$TEST_LOG"
+if [[ $* == "fprintd-delete $TEST_EXPECTED_USER" ]]; then
+  (( ${TEST_PRINTS_FAIL:-0} == 0 )) || echo "${TEST_PRINTS_OUTPUT:-delete failed}"
+  exit "${TEST_PRINTS_FAIL:-0}"
+fi
 [[ $# == 4 && $1 == rm && $2 == -rf && $3 == -- && $4 == "$TEST_FPRINT/$TEST_EXPECTED_USER" ]] || exit 91
 [[ ${TEST_DELETE_FAIL:-0} == 0 ]] || exit 92
 exec /usr/bin/rm -rf -- "$4"
+SH
+cat >"$test_tmp/bin/omarchy-cmd-present" <<'SH'
+#!/bin/bash
+[[ $1 == fprintd-delete && ${TEST_FPRINTD:-1} == 1 ]]
 SH
 cat >"$test_tmp/bin/omarchy-pkg-drop" <<'SH'
 #!/bin/bash
@@ -73,7 +85,9 @@ run_remove() {
     "TEST_LOG=$log" "TEST_FPRINT=$test_tmp/fprint" "TEST_EXPECTED_USER=$expected"
     "TEST_DIRECT_USER=$direct_user" "TEST_SUDO_USER=$sudo_user" "TEST_SUDO_UID=${SUDO_UID:-}"
     "TEST_ID_FAIL=${id_fail:-0}" "TEST_DELETE_FAIL=${delete_fail:-0}"
-    "TEST_PACKAGE_FAIL=${package_fail:-0}" "USER=spoofed" "SUDO_USER=spoofed"
+    "TEST_PACKAGE_FAIL=${package_fail:-0}" "TEST_PRINTS_FAIL=${prints_fail:-0}" "TEST_FPRINTD=${fprintd:-1}"
+    "TEST_PRINTS_OUTPUT=${prints_output:-}" "TEST_SUDO_CACHED=${sudo_cached:-0}" "TEST_SUDO_V_FAIL=${sudo_v_fail:-0}"
+    "USER=spoofed" "SUDO_USER=spoofed"
     "PATH=$test_tmp/bin:/usr/bin:/bin"
   )
   if (( EUID == 0 )); then
@@ -98,6 +112,42 @@ grep -Fq "sudo rm -rf -- $test_tmp/fprint/alice" "$log" || fail "deletion preced
 [[ $(tail -n 1 "$log") == 'package fprintd libfprint libfprint-git' ]] || fail "packages drop after deletion"
 grep -Fq "alice's local saved fingerprints have been removed" "$output" || fail "success describes local saved files"
 pass "direct user ignores spoofed USER and leaves other accounts alone"
+
+# A match-on-chip reader keeps prints in the device too: fprintd deletes them
+# there before anything else goes.
+[[ $(grep -m1 '^sudo ' "$log") == 'sudo fprintd-delete alice' ]] || fail "fprintd deletes the prints first" "$(cat "$log")"
+! grep -q 'may' "$output" || fail "a delete that worked warns about nothing" "$(cat "$output")"
+prints_fail=1
+mkdir -p "$test_tmp/fprint/alice"
+run_remove || fail "a failed fprintd delete does not stop removal" "$(cat "$output")"
+grep -q "may not have been deleted: delete failed" "$output" && [[ ! -e $test_tmp/fprint/alice ]] ||
+  fail "a failed delete is reported, and the local files still go" "$(cat "$output")"
+prints_output="No devices available"
+run_remove || fail "removal with no reader available succeeds" "$(cat "$output")"
+grep -q 'No fingerprint reader is available now' "$output" && ! grep -q 'may not have been deleted' "$output" ||
+  fail "no reader to delete from is said plainly, not as a failed delete" "$(cat "$output")"
+unset prints_fail prints_output
+fprintd=0
+run_remove || fail "removal without fprintd succeeds" "$(cat "$output")"
+! grep -q '^sudo fprintd-delete' "$log" || fail "without fprintd nothing asks it to delete"
+unset fprintd
+pass "prints are deleted in the reader first, and a delete that can't run doesn't stop removal"
+
+# sudo asks in view before the silenced delete, and a refusal changes nothing.
+sudo_cached=1
+run_remove || fail "removal with sudo to authenticate succeeds" "$(cat "$output")"
+[[ $(grep -m2 '^sudo ' "$log") == $'sudo -v\nsudo fprintd-delete alice' ]] || fail "sudo authenticates before the delete" "$(cat "$log")"
+mkdir -p "$test_tmp/fprint/alice"
+printf 'auth sufficient pam_fprintd.so\n' >"$test_tmp/etc/pam.d/sudo"
+sudo_v_fail=1
+if run_remove; then
+  fail "removal stops when sudo won't authenticate"
+fi
+! grep -Eq '^sudo [^-]|^package ' "$log" && grep -Fq pam_fprintd.so "$test_tmp/etc/pam.d/sudo" && [[ -d $test_tmp/fprint/alice ]] &&
+  grep -q 'needs administrator rights' "$output" || fail "a refused sudo changes nothing, and removal says why" "$(cat "$log"; cat "$output")"
+: >"$test_tmp/etc/pam.d/sudo"
+unset sudo_cached sudo_v_fail
+pass "sudo authenticates in view before the delete, and a refusal changes nothing"
 
 SUDO_UID=12345
 run_remove || fail "unprivileged caller ignores forged SUDO_UID" "$(cat "$output")"

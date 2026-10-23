@@ -153,19 +153,24 @@ pass "an inconclusive lock installer cannot report successful lock setup"
 # A press sensor, such as a Mac's Touch ID, takes a touch per sample, so setup
 # says to lift and touch again; a swipe sensor keeps the moving-finger
 # instruction, and one fprintd can't name is told neither.
-press_text="Touch the sensor, lift your finger and touch it again, and keep going until it says Enrolled. A step can take a few touches."
+press_text=$'Touch the sensor, lift your finger and touch it again.\nKeep going until it says Enrolled. A step can take a few touches.'
 swipe_text="Keep moving the finger around on sensor until it says Enrolled."
-unnamed_text="Touch or swipe the sensor, and keep going until it says Enrolled. A step can take a few tries."
+unnamed_text=$'Touch or swipe the sensor, and keep going until it says Enrolled.\nA step can take a few tries.'
 check_instruction() {
   INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=$1 run_setup
-  local text
+  local text output
+  output=$(<"$scratch/output")
   for text in "$press_text" "$swipe_text" "$unnamed_text"; do
     if [[ $text == "$2" ]]; then
-      grep -qF "$text" "$scratch/output" || fail "$3" "$(cat "$scratch/output")"
+      [[ $output == *"$text"* ]] || fail "$3" "$output"
     else
-      ! grep -qF "$text" "$scratch/output" || fail "$3" "$(cat "$scratch/output")"
+      [[ $output != *"$text"* ]] || fail "$3" "$output"
     fi
   done
+  # The setup terminal wraps a long line mid-word.
+  while IFS= read -r text; do
+    (( ${#text} <= 80 )) || fail "$3: the instruction fits on an 80-column line" "$text"
+  done <<<"$2"
 }
 check_instruction press "$press_text" "a press sensor is told to lift and touch again"
 check_instruction swipe "$swipe_text" "a swipe sensor keeps the moving-finger instruction"
