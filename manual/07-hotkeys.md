@@ -16,6 +16,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + J` | Toggle window position (horizontal/vertical) |
 | `Super + O`               | Toggle popping window into sticky'n'floating |
 | `Super + L`               | Cycle through the dwindle, scrolling, and floating layouts |
+| `Super + Shift + K` | Switch all numbered workspaces between dwindle and scrolling |
 | `Super + Alt + L`         | Cycle through the layouts in reverse |
 | `Super + P`               | Toggle pseudo window style (natural v stretch) |
 | `Super + F`                 | Go full screen              |
@@ -375,3 +376,7 @@ You can use `Super + Ctrl + E` to show a complete emoji picker that'll put the s
 | `Shift + CapsLock Space E` | Your email (as entered on setup)  |
 
 You can add more of your own by editing `~/.XCompose`, then running `omarchy-restart-xcompose` in the terminal to get the changes picked up.
+
+### Changing the layout everywhere
+
+`Super + L` changes the current workspace. `Super + Shift + K` switches all numbered workspaces to scrolling, or to dwindle when the focused workspace is already scrolling. It changes workspaces with windows, empty workspaces, saved workspaces that are not open yet, and the default for new workspaces. The choice survives a restart. Special and named workspace rules are not rewritten. Named workspaces that follow the general default also inherit its new layout. Previous choices are backed up under `~/.local/state/omarchy/workspace-layout-backups/`, or the corresponding directory in `XDG_STATE_HOME`. `Super + K` still opens the keybindings menu.
