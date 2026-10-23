@@ -344,10 +344,17 @@ assert(
   'menu offers Spotify on every platform and dims it once its client or web player is installed'
 )
 assert(
-  ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust', 'install.windows'].every(
+  ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust', 'install.development.swift', 'install.windows'].every(
     id => defaultById[id].disabled && (!defaultById[id].when || defaultById[id].when === windowsGuard)
   ),
   'menu dims the Install rows for software that is already installed'
+)
+assert(
+  defaultById['install.development.swift'].disabled === 'omarchy-pkg-present swift-bin' &&
+    defaultById['install.development.swift'].action.includes("omarchy-install-dev-env swift") &&
+    defaultById['remove.development.swift'].when === 'omarchy-pkg-present swift-bin' &&
+    defaultById['remove.development.swift'].action.includes("omarchy-remove-dev-env swift"),
+  'menu wires Swift install and removal to the same package state'
 )
 assertEqual(
   defaultById['install.browser.zen'].disabled,

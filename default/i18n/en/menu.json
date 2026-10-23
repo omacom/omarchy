@@ -911,6 +911,9 @@
   "install.development.zig": {
     "label": "Zig"
   },
+  "install.development.swift": {
+    "label": "Swift"
+  },
   "install.development.rust": {
     "label": "Rust"
   },
@@ -1126,6 +1129,9 @@
   },
   "remove.development.zig": {
     "label": "Zig"
+  },
+  "remove.development.swift": {
+    "label": "Swift"
   },
   "remove.development.rust": {
     "label": "Rust"
