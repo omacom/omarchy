@@ -8,6 +8,8 @@ Backgrounds can be videos as well as stills. Drop an `mp4`, `m4v`, `mov`, `webm`
 
 Themes can include a short intro for a still background. For `backgrounds/road.webp`, the matching video lives at `backgrounds/intros/road.mp4`. It plays automatically at boot and when switching to a theme with that background selected, then returns to the still. Intro videos stay out of the background picker and never loop.
 
+Each Omarchy theme ships the intro for its default background. Pick one of its other backgrounds and Omarchy downloads that background's intro behind the scenes, so it plays the next time you switch to the theme or log in. Until the download has finished, or when you are offline, you see the still as usual.
+
 Turning off _Appearance > Animations_ also turns off background intros. Omarchy does this by default in a virtual machine. The `omarchy theme bg intro toggle` command can toggle intros separately. Refreshing a theme or choosing another background within the same theme does not play an intro.
 
 You can find a huge collection of cool curated backgrounds on https://github.com/dharmx/walls.
