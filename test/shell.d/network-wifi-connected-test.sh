@@ -9,7 +9,11 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 stub_bin="$test_tmp/bin"
 net_class="$test_tmp/net"
-mkdir -p "$stub_bin" "$net_class/wlan0/wireless" "$net_class/eth0"
+mkdir -p "$stub_bin" "$net_class/wlan0/wireless" "$net_class/eth0/device" "$net_class/tun0"
+
+# Real NICs sit on a bus device; a tunnel interface has neither radio nor NIC.
+printf 'up\n' >"$net_class/wlan0/operstate"
+printf 'up\n' >"$net_class/eth0/operstate"
 
 # The route the kernel picks for the internet, from ROUTE_DEV; none without it.
 cat >"$stub_bin/ip" <<'SH'
@@ -55,6 +59,16 @@ pass "Ethernet and no route at all are not Wi-Fi"
 ! ROUTE_DEV=wlan0 NM_STATE=70 connected || fail "a Wi-Fi device NetworkManager has not activated is not connected"
 ! ROUTE_DEV=wlan0 NM_DOWN=1 connected || fail "Wi-Fi NetworkManager cannot answer for is not connected"
 pass "Wi-Fi counts only once NetworkManager has it activated, as omarchy-network-status does"
+
+# The route a VPN or proxy TUN takes is the tunnel itself; both commands
+# resolve it to the link underneath.
+ROUTE_DEV=tun0 connected || fail "a tunnel default route on activated Wi-Fi is connected Wi-Fi"
+pass "a tunnel default route on activated Wi-Fi is connected Wi-Fi"
+
+printf 'down\n' >"$net_class/wlan0/operstate"
+! ROUTE_DEV=tun0 connected || fail "a tunnel over a down radio is not connected Wi-Fi"
+printf 'up\n' >"$net_class/wlan0/operstate"
+pass "a tunnel resolves to Wi-Fi only when the radio is up"
 
 grep -Fq '"when":"omarchy-network-wifi-connected"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
   fail "the menu's Wi-Fi QR Code row asks the cheap predicate"
