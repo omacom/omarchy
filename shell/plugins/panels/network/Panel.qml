@@ -860,15 +860,54 @@ Panel {
   }
 
   function connectDirectly(ssid) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connect() })
+    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      prepareWifiProfile.targetSsid = ssid
+      prepareWifiProfile.targetPsk = ""
+      prepareWifiProfile.usePsk = false
+      prepareWifiProfile.command = [
+        "bash", "-c", Model.prepareWifiProfileScript, "nmcli-prep",
+        ssid, root.wifiDevice ? root.wifiDevice.name : ""
+      ]
+      prepareWifiProfile.running = true
+    })
   }
 
   function connectWithPassphrase(ssid, passphrase) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connectWithPsk(passphrase) })
+    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      prepareWifiProfile.targetSsid = ssid
+      prepareWifiProfile.targetPsk = passphrase
+      prepareWifiProfile.usePsk = true
+      prepareWifiProfile.command = [
+        "bash", "-c", Model.prepareWifiProfileScript, "nmcli-prep",
+        ssid, root.wifiDevice ? root.wifiDevice.name : ""
+      ]
+      prepareWifiProfile.running = true
+    })
+  }
+
+  Process {
+    id: prepareWifiProfile
+    property string targetSsid: ""
+    property string targetPsk: ""
+    property bool usePsk: false
+    onExited: function() {
+      var ssid = targetSsid
+      var psk = targetPsk
+      var withPsk = usePsk
+      targetSsid = ""
+      targetPsk = ""
+      usePsk = false
+      if (root.actionKind !== "connect" || root.actionSsid !== ssid) return
+      var network = root.networkForSsid(ssid)
+      if (!network) return
+      if (withPsk) network.connectWithPsk(psk)
+      else network.connect()
+    }
   }
 
   function connectEnterprise(ssid, identity, passphrase) {
     runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      enterpriseConnect.targetSsid = ssid
       enterpriseConnect.secret = passphrase
       enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]
       enterpriseConnect.running = true
@@ -879,11 +918,31 @@ Panel {
   // The password goes over stdin, never argv.
   Process {
     id: enterpriseConnect
+    property string targetSsid: ""
     property string secret: ""
     stdinEnabled: true
     onStarted: {
       write(secret + "\n")
       secret = ""
+    }
+    onExited: function(exitCode) {
+      var ssid = targetSsid
+      targetSsid = ""
+      if (root.actionKind !== "connect" || root.actionSsid !== ssid) return
+      if (exitCode === 0) {
+        root.clearNetworkAction()
+        return
+      }
+      var network = root.networkForSsid(ssid)
+      if (network) {
+        var needsCreds = root.requiresCredentials(network.security)
+        root.failNetworkAction(network, ConnectionFailReason.WifiAuthTimeout)
+        if (root.shouldRepromptPassphrase(ConnectionFailReason.WifiAuthTimeout, needsCreds)) {
+          root.openPasswordPrompt(ssid)
+        }
+      } else {
+        root.clearNetworkAction()
+      }
     }
   }
 
@@ -901,7 +960,20 @@ Panel {
   }
 
   function forget(net) {
-    runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) { network.forget() })
+    var ssid = net ? (net.ssid || "") : ""
+    runNetworkAction("forget", ssid ? networkForSsid(ssid) : null, function(network) {
+      network.forget()
+      forgetWifiProfiles.command = ["bash", "-c", Model.forgetWifiProfilesScript, "nmcli-forget", ssid]
+      forgetWifiProfiles.running = true
+    })
+  }
+
+  Process {
+    id: forgetWifiProfiles
+    onExited: function() {
+      if (root.actionKind === "forget") root.clearNetworkAction()
+      else root.refresh()
+    }
   }
 
   implicitWidth: button.implicitWidth

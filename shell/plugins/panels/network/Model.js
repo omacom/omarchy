@@ -378,6 +378,38 @@ function canForgetNetwork(network) {
   return !!(network && network.known && !network.connected)
 }
 
+// Normalize saved Wi-Fi profiles for an SSID before activating or updating one:
+// clear stale connection.interface-name bindings that no longer match the active
+// Wi-Fi device and remove duplicate profiles left behind by prior failed connects.
+var prepareWifiProfileScript =
+  'ssid="$1"; dev="$2"; kept=""; ' +
+  'while IFS=: read -r uuid type; do ' +
+  '  [[ "$type" == "802-11-wireless" && -n "$uuid" ]] || continue; ' +
+  '  prof_ssid=$(LC_ALL=C nmcli -e no -g 802-11-wireless.ssid connection show uuid "$uuid" 2>/dev/null) || continue; ' +
+  '  [[ "$prof_ssid" == "$ssid" ]] || continue; ' +
+  '  if [[ -z "$kept" ]]; then ' +
+  '    kept="$uuid"; ' +
+  '    ifname=$(LC_ALL=C nmcli -e no -g connection.interface-name connection show uuid "$uuid" 2>/dev/null || true); ' +
+  '    if [[ -n "$ifname" && -n "$dev" && "$ifname" != "$dev" ]]; then ' +
+  '      nmcli connection modify uuid "$uuid" connection.interface-name "" >/dev/null 2>&1 || true; ' +
+  '    fi; ' +
+  '  else ' +
+  '    nmcli connection delete uuid "$uuid" >/dev/null 2>&1 || true; ' +
+  '  fi; ' +
+  'done < <(LC_ALL=C nmcli -t -e no -f UUID,TYPE connection show 2>/dev/null || true)'
+
+// Delete all saved 802-11-wireless profiles matching an SSID so duplicate
+// profiles ("<SSID> 1", etc.) do not keep the network marked as known after
+// WifiNetwork.forget() removes only one profile object.
+var forgetWifiProfilesScript =
+  'ssid="$1"; ' +
+  'while IFS=: read -r uuid type; do ' +
+  '  [[ "$type" == "802-11-wireless" && -n "$uuid" ]] || continue; ' +
+  '  prof_ssid=$(LC_ALL=C nmcli -e no -g 802-11-wireless.ssid connection show uuid "$uuid" 2>/dev/null) || continue; ' +
+  '  [[ "$prof_ssid" == "$ssid" ]] || continue; ' +
+  '  nmcli connection delete uuid "$uuid" >/dev/null 2>&1 || true; ' +
+  'done < <(LC_ALL=C nmcli -t -e no -f UUID,TYPE connection show 2>/dev/null || true)'
+
 // The password arrives on stdin and reaches nmcli through the scriptable
 // `connection edit` editor -- argv is world-readable in /proc, so the secret
 // must never be an argument (printf is a bash builtin, so no process spawns
@@ -389,6 +421,11 @@ var enterpriseConnectScript =
   " 802-1x.identity \"$2\" 802-1x.auth-timeout 8 >/dev/null" +
   " && printf 'set 802-1x.password %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
   " && nmcli connection up uuid \"$u\"" +
+  " && { while IFS=: read -r old_u old_t; do" +
+  "   [[ \"$old_t\" == \"802-11-wireless\" && -n \"$old_u\" && \"$old_u\" != \"$u\" ]] || continue;" +
+  "   s=$(LC_ALL=C nmcli -e no -g 802-11-wireless.ssid connection show uuid \"$old_u\" 2>/dev/null) || continue;" +
+  "   [[ \"$s\" == \"$1\" ]] && nmcli connection delete uuid \"$old_u\" >/dev/null 2>&1 || true;" +
+  " done < <(LC_ALL=C nmcli -t -e no -f UUID,TYPE connection show 2>/dev/null || true); }" +
   " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
 
 function networkFailureReason(reason, needsCredentials, reasons, tr) {
@@ -445,6 +482,8 @@ if (typeof module !== "undefined") {
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
+    prepareWifiProfileScript: prepareWifiProfileScript,
+    forgetWifiProfilesScript: forgetWifiProfilesScript,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
     shouldRepromptPassphrase: shouldRepromptPassphrase

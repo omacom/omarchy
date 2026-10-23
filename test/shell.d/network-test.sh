@@ -321,4 +321,76 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+
+assert(
+  typeof network.prepareWifiProfileScript === 'string' &&
+    network.prepareWifiProfileScript.includes('connection.interface-name ""'),
+  'network exports profile preparation script that clears stale interface bindings'
+)
+assert(
+  typeof network.forgetWifiProfilesScript === 'string' &&
+    network.forgetWifiProfilesScript.includes('nmcli connection delete uuid'),
+  'network exports forget cleanup script that removes all profiles for an SSID'
+)
+assert(
+  /id:\s*enterpriseConnect[\s\S]*?onExited:\s*function\(exitCode\)[\s\S]*?failNetworkAction\(network,\s*ConnectionFailReason\.WifiAuthTimeout\)/.test(panelSource),
+  'network handles enterprise 802.1X connection failures on process exit instead of hanging until timeout'
+)
+assert(
+  /id:\s*prepareWifiProfile[\s\S]*?network\.connectWithPsk\(psk\)[\s\S]*?network\.connect\(\)/.test(panelSource),
+  'network prepares saved Wi-Fi profiles before activating a connection'
+)
+
+const { execFileSync } = require('child_process')
+const os = require('os')
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'omarchy-net-test-'))
+const logPath = path.join(tmpDir, 'nmcli.log')
+const mockNmcli = path.join(tmpDir, 'nmcli')
+fs.writeFileSync(
+  mockNmcli,
+  `#!/bin/bash
+if [[ "$1" == "-t" && "$5" == "UUID,TYPE" ]]; then
+  printf 'uuid-1:802-11-wireless\\nuuid-2:802-11-wireless\\nuuid-3:802-11-wireless\\n'
+  exit 0
+fi
+if [[ "$1" == "-e" && "$4" == "802-11-wireless.ssid" ]]; then
+  case "$8" in
+    uuid-1|uuid-2) printf 'MyCorpWifi\\n' ;;
+    uuid-3) printf 'OtherWifi\\n' ;;
+  esac
+  exit 0
+fi
+if [[ "$1" == "-e" && "$4" == "connection.interface-name" ]]; then
+  printf 'wlan9\\n'
+  exit 0
+fi
+printf '%s\\n' "$*" >> "${logPath}"
+`,
+  { mode: 0o755 }
+)
+
+const env = Object.assign({}, process.env, { PATH: `${tmpDir}:${process.env.PATH}` })
+execFileSync('bash', ['-c', network.prepareWifiProfileScript, 'nmcli-prep', 'MyCorpWifi', 'wlan0'], { env })
+const prepCalls = fs.readFileSync(logPath, 'utf8').trim().split('\n')
+assertDeepEqual(
+  prepCalls,
+  [
+    'connection modify uuid uuid-1 connection.interface-name ',
+    'connection delete uuid uuid-2'
+  ],
+  'prepareWifiProfileScript clears mismatched interface-name on primary profile and deletes duplicate profiles'
+)
+
+fs.writeFileSync(logPath, '')
+execFileSync('bash', ['-c', network.forgetWifiProfilesScript, 'nmcli-forget', 'MyCorpWifi'], { env })
+const forgetCalls = fs.readFileSync(logPath, 'utf8').trim().split('\n')
+assertDeepEqual(
+  forgetCalls,
+  [
+    'connection delete uuid uuid-1',
+    'connection delete uuid uuid-2'
+  ],
+  'forgetWifiProfilesScript deletes every saved profile matching the target SSID'
+)
+fs.rmSync(tmpDir, { recursive: true, force: true })
 JS
