@@ -66,10 +66,14 @@ JS
 
 qml_matches "$shell_qml" 'inst\.shell *= *shell\.pluginShellFor\( *manifest *\)' ||
   fail "service plugins receive a scoped shell facade"
-qml_matches "$shell_qml" 'item\.shell *= *shell\.pluginShellFor\( *panelEntry\.manifest *\)' ||
+qml_matches "$shell_qml" 'function +deliverPanelPluginApis\( *item, *pluginId, *manifest *\) *\{[^}]*item\.shell *= *shell\.pluginShellFor\( *manifest *\)' ||
   fail "panel plugins receive a scoped shell facade"
+qml_matches "$shell_qml" 'shell\.deliverPanelPluginApis\( *item, *panelEntry\.pluginId, *shell\.pluginRegistry\.installedPlugins\[ *panelEntry\.pluginId *\] *\|\| *panelEntry\.manifest *\)' ||
+  fail "panel plugins receive a facade built from the registry manifest"
 qml_matches "$shell_qml" 'target\.shell *= *shell\.pluginShellFor\( *manifest *\)' ||
   fail "full-bar plugins receive a scoped shell facade"
+qml_matches "$shell_qml" 'shell\.revokePluginShellApi\( *shellKey *\)[^}]*if *\( *active *\) *shell\.refreshPanelPluginApis\(' ||
+  fail "only active plugins receive refreshed panel apis after a revoke"
 pass "third-party entry points receive scoped shell facades"
 
 if qml_matches "$plugin_shell_api" 'function +pluginShellForId\('; then
