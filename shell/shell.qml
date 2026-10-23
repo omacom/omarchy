@@ -119,7 +119,7 @@ ShellRoot {
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
-  readonly property var barConfig: shellConfig && Util.isPlainObject(shellConfig.bar) ? shellConfig.bar : builtinShellConfig.bar
+  readonly property var barConfig: currentBarConfig()
   onBarConfigChanged: {
     if (bar && "barConfig" in bar)
       bar.barConfig = shell.barConfigFor(shell.activeBarManifest)
@@ -330,8 +330,14 @@ ShellRoot {
     return copy
   }
 
+  // Read through shellConfig, not barConfig: syncPluginApis runs from
+  // onShellConfigChanged, and barConfig's binding may not have caught up.
+  function currentBarConfig() {
+    return shellConfig && Util.isPlainObject(shellConfig.bar) ? shellConfig.bar : builtinShellConfig.bar
+  }
+
   function publicBarConfig() {
-    return JSON.parse(JSON.stringify(shell.barConfig || {}))
+    return JSON.parse(JSON.stringify(shell.currentBarConfig() || {}))
   }
 
   function barConfigFor(manifest) {
