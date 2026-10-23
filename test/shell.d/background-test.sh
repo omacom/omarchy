@@ -79,4 +79,22 @@ assert(
   /id: revealAnimation[\s\S]*?duration: Style\.duration\(840\)/.test(backgroundQml),
   'background reveal takes 840ms'
 )
+
+// Resumed from an intro, the base still holds the wallpaper from before it.
+assert(
+  /resumeCover = suspended && !instant && fromPath !== "" && !isVideo\(path\)/.test(backgroundQml) &&
+    /visible: !\(root\.resumeCover && root\.oldBackground !== "" && oldFrame\.status !== Image\.Ready\)/.test(backgroundQml) &&
+    /id: resumeCoverTimer[\s\S]*?onTriggered: root\.resumeCover = false/.test(backgroundQml),
+  'background keeps the stale base out until the outgoing cover is ready after an intro'
+)
+assert(
+  /function recoverBackground\(failedPath\) \{[\s\S]*?if \(incomingBackground && currentBackground !== failedPath\) return/.test(backgroundQml),
+  'background does not recover a wallpaper that a running transition replaces'
+)
+assert(
+  /if \(!root\.suspended\) root\.resumedAt = Date\.now\(\)/.test(backgroundQml) &&
+    /function recoverBackground\(failedPath\) \{[\s\S]*?if \(Date\.now\(\) - resumedAt < 500\) \{[\s\S]*?recoverGraceTimer\.restart\(\)/.test(backgroundQml) &&
+    /id: recoverGraceTimer[\s\S]*?onTriggered: root\.recoverBackground\(root\.failedBackground\)/.test(backgroundQml),
+  'background waits for the theme switch transition before recovering right after an intro'
+)
 JS
