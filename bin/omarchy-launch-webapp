@@ -12,6 +12,13 @@ esac
 
 browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
-  exec setsid uwsm-app -- $browser_exec --app="$1" "${@:2}"
+# Opera ignores --app= and opens its start page, so give the web app a window of its own instead.
+if [[ $browser == opera* ]]; then
+  app_args=(--new-window "$1")
+else
+  app_args=(--app="$1")
+fi
+
+if ! omarchy-cmd-browser-handoff "$browser_exec" "${app_args[@]}" "${@:2}"; then
+  exec setsid uwsm-app -- $browser_exec "${app_args[@]}" "${@:2}"
 fi
