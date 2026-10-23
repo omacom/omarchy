@@ -12,6 +12,8 @@ sed "s|/etc/pacman.conf|$PACMAN_CONFIG|g" "$ROOT/migrations/1791403252.sh" >"$te
 cat >"$test_dir/bin/sudo" <<'SH'
 #!/bin/bash
 [[ ${CONFIG_STATUS:-0} == 0 ]] || exit "$CONFIG_STATUS"
+# The update stub writes CALL_LOG, so this models sudo expiring during the upgrade.
+[[ -z ${EXPIRE_SUDO:-} || ! -e $CALL_LOG ]] || exit 1
 if [[ $1 == "install" ]]; then
   install -m 644 "${@: -2}"
 else
@@ -66,6 +68,12 @@ fi
 [[ -f $CALL_LOG ]] || fail "failed update was attempted"
 run || fail "failed package update can be retried after ordering"
 pass "package update failure propagates and retry updates already ordered repositories"
+
+cp "$test_dir/original" "$PACMAN_CONFIG"
+run EXPIRE_SUDO=1 || fail "reordering needs no sudo after the package update"
+run EXPIRE_SUDO=1 || fail "an ordered configuration needs no sudo after the package update"
+! compgen -G "$PACMAN_CONFIG.??????" >/dev/null || fail "no staged configuration is left behind"
+pass "staged configuration is cleaned up before the package update"
 
 # A failed configuration write must never proceed to the package update.
 cp "$test_dir/original" "$PACMAN_CONFIG"
