@@ -151,7 +151,8 @@ choose_theme_background() {
   CHOSEN_THEME_BACKGROUND=""
   mapfile -d '' -t backgrounds < <(
     find -L "$HOME/.config/omarchy/backgrounds/$THEME_NAME/" "$theme_path/backgrounds/" -maxdepth 1 -type f \
-      \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' \
+      ! -name '*@*' \
+      \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' -o -iname '*.svg' \
          -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
       -print0 2>/dev/null | sort -z
   )
@@ -256,6 +257,10 @@ set_theme_background() {
     ) 9>&- &
     return
   fi
+  # Supersede any pending intro palette before an ordinary still transition.
+  # Older shells can cancel through applyTheme until they restart with the
+  # cancellation-only IPC method.
+  shell_ipc shell cancelThemeIntro || shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
   new_background_snapshot=""
   if [[ -n $PREPARED_BACKGROUND_SNAPSHOT && $PREPARED_BACKGROUND == "$new_background" ]]; then
     new_background_snapshot="$PREPARED_BACKGROUND_SNAPSHOT"
@@ -439,6 +444,9 @@ if [[ ! -f $NEXT_THEME_PATH/colors.toml && -f $NEXT_THEME_PATH/alacritty.toml ]]
   omarchy-theme-colors-from-alacritty "$NEXT_THEME_PATH"
 fi
 
+# Render generated wallpapers before selecting or preloading a staged image.
+omarchy-theme-set-templates
+
 CHOSEN_THEME_BACKGROUND=""
 STAGED_THEME_BACKGROUND=""
 OLD_BACKGROUND_SNAPSHOT=""
@@ -466,7 +474,7 @@ if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
       OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
 
       # Hand the shell the next background now, so it decodes while the
-      # templates render and the theme swaps in. The staged file is the same
+      # theme swaps in. The staged file is the same
       # inode the swap moves into place, so its snapshot is the final image.
       PREPARED_BACKGROUND="$CHOSEN_THEME_BACKGROUND"
       PREPARED_BACKGROUND_SNAPSHOT=$(snapshot_background_path "$STAGED_THEME_BACKGROUND" "next")
@@ -478,9 +486,6 @@ if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
     fi
   fi
 fi
-
-# Generate dynamic configs
-omarchy-theme-set-templates
 
 # Replacing the theme's still can cancel an active OWE intro even before the
 # background link changes. Present its cover before replacing either path.
