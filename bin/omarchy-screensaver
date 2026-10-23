@@ -2,6 +2,12 @@
 
 # omarchy:summary=Run the Omarchy screensaver using random effects from TTE.
 
+# The launcher keeps its pid here while it steps through monitors. A marker whose launcher is gone is ignored.
+launcher_running() {
+  local pid
+  read -r pid 2>/dev/null <"$XDG_RUNTIME_DIR/omarchy-screensaver-launching" && kill -0 "$pid" 2>/dev/null
+}
+
 screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
 }
@@ -41,7 +47,8 @@ while true; do
     --random-effect --no-eol --no-restore-cursor &
 
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
-    if read -n1 -t 1 || ! screensaver_in_focus; then
+    # While the launcher is still stepping through monitors, focus is expected to be elsewhere.
+    if read -n1 -t 1 || { ! launcher_running && ! screensaver_in_focus; }; then
       exit_screensaver
     fi
   done
