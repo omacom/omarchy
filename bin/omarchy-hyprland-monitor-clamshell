@@ -164,13 +164,36 @@ read_monitor_position() {
   echo auto
 }
 
+# The panel's connector or a desc: in any Lua string, or an output that is not a
+# plain string at all, any of which this parser may not be able to rule out.
+internal_may_have_rule() {
+  local rules
+  rules=$(monitor_rules | tr '\n' ' ')
+
+  grep -qE "output[[:space:]]*=[[:space:]]*([\"']|\[\[)($INTERNAL([\"']|\]\])|desc:)" <<<"$rules" ||
+    grep -qE "output[[:space:]]*=[[:space:]]*([^\"'[:space:][]|(\"[^\"]*\"|'[^']*'|\[\[([^]]|\][^]])*\]\])[[:space:]]*\.\.)" <<<"$rules"
+}
+
+# A new panel rule without a transform resets it to 0, unrotating a panel the
+# catch-all rotated. Hyprland never mixes a panel's own rule with the catch-all.
+read_monitor_transform() {
+  local transform
+  if internal_may_have_rule; then
+    transform=$(configured_internal_monitor_value transform)
+  else
+    transform=$(configured_monitor_value "" transform)
+  fi
+  [[ $transform =~ ^[0-7]$ ]] && echo ", transform = $transform"
+}
+
 enable_internal_output() {
   [[ -n $INTERNAL ]] || return 0
   local scale="${1:-}"
-  local position
+  local position transform
   [[ -n $scale ]] || scale=$(read_monitor_scale)
   position=$(read_monitor_position)
-  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", mode = \"preferred\", position = \"$position\", scale = $scale })" >/dev/null 2>&1 || true
+  transform=$(read_monitor_transform)
+  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", mode = \"preferred\", position = \"$position\", scale = $scale$transform })" >/dev/null 2>&1 || true
 }
 
 sync_internal_scale() {

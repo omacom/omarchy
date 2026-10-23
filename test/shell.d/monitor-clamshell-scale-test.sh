@@ -209,6 +209,31 @@ hl.monitor({ output = "eDP-1"; position = "0x0"; scale = 1.25; transform = 1 })
 LUA
 }
 
+# A rotated panel, as a GPD handheld's portrait-mounted one runs (#7066).
+write_rotated_catch_all_config() {
+  cat >"$monitor_lua" <<'LUA'
+local omarchy_monitor_scale = "1.2"
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale, transform = 3 })
+LUA
+}
+
+# The panel's own rule names no transform, so the catch-all's never reaches it.
+write_unrotated_internal_rule_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 1.25 })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1, transform = 3 })
+LUA
+}
+
+# A panel rule this cannot read, by description, wrapped, quoted otherwise or
+# named by an expression, may name no transform.
+write_unreadable_internal_rule_config() {
+  cat >"$monitor_lua" <<LUA
+$1
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1, transform = 3 })
+LUA
+}
+
 remember_scale() {
   mkdir -p "$state_dir"
   printf '%s\n' "$1" >"$scale_state"
@@ -401,6 +426,48 @@ remember_scale 1.75
 OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
 grep -F 'scale = 1.25' "$eval_log" >/dev/null || fail "clamshell recovery does not read a scale out of a trailing comment"
 pass "clamshell recovery does not read a scale out of a trailing comment"
+
+# Regression (#7066): correcting the scale must not reset the panel's rotation.
+write_rotated_catch_all_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=1.25 run_clamshell
+grep -F 'scale = 1.2, transform = 3' "$eval_log" >/dev/null || fail "clamshell recovery keeps the catch-all transform"
+pass "clamshell recovery keeps the catch-all transform"
+
+write_internal_monitor_scaleless_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'transform = 1' "$eval_log" >/dev/null || fail "clamshell recovery keeps the internal rule's transform"
+pass "clamshell recovery keeps the internal rule's transform"
+
+write_unrotated_internal_rule_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'scale = 1.25 })' "$eval_log" >/dev/null || fail "clamshell recovery leaves the catch-all transform off a panel with its own rule"
+pass "clamshell recovery leaves the catch-all transform off a panel with its own rule"
+
+unreadable_rules=(
+  'hl.monitor({ output = "desc:LG Display 0x0521", scale = 1.25 })'
+  $'hl.monitor({\n  output = "eDP-1",\n  scale = 1.25,\n})'
+  $'hl.monitor({\n  output =\n    "eDP-1",\n  scale = 1.25,\n})'
+  "hl.monitor({ output = 'eDP-1', scale = 1.25 })"
+  'hl.monitor({ output = [[eDP-1]], scale = 1.25 })'
+  $'local panel = "eDP-1"\nhl.monitor({ output = panel, scale = 1.25 })'
+  'hl.monitor({ output = "eDP-" .. 1, scale = 1.25 })'
+)
+for rule in "${unreadable_rules[@]}"; do
+  write_unreadable_internal_rule_config "$rule"
+  : >"$eval_log"
+  OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+  grep -F 'scale = 1 })' "$eval_log" >/dev/null || fail "clamshell recovery leaves the catch-all transform off a panel rule it cannot read: $rule"
+done
+pass "clamshell recovery leaves the catch-all transform off a panel rule it cannot read"
+
+write_unreadable_internal_rule_config 'hl.monitor({ output = "DP-2", mode = "2560x1440@144", position = "auto", scale = 1 })'
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'scale = 1, transform = 3 })' "$eval_log" >/dev/null || fail "clamshell recovery keeps the catch-all transform beside an external monitor's rule"
+pass "clamshell recovery keeps the catch-all transform beside an external monitor's rule"
 
 for config in nested_table semicolon block_comment; do
   "write_${config}_config"
