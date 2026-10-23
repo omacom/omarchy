@@ -1,18 +1,19 @@
 #!/bin/bash
 
-# omarchy:summary=Hand a command line to the running Chromium-based browser
+# omarchy:summary=Hand a command line to a running browser
 # omarchy:args=<browser-command> [browser-args...]
 # omarchy:hidden=true
 
-# A second browser process spends ~165ms starting up only to pass its command
+# A second Chromium process spends ~165ms starting up only to pass its command
 # line to the running one over the profile's singleton socket, then exits. Send
 # it there directly, and fail when no browser acknowledges it so the caller can
-# launch one instead.
+# launch one instead. Zen uses its native D-Bus endpoint for the same handoff.
 config="${XDG_CONFIG_HOME:-$HOME/.config}"
 
 # Only the browsers themselves: a wrapper in their place may pick a profile or
 # add flags of its own, which only running it can honour.
 case $(type -P "$1") in
+/opt/zen-browser-bin/zen-bin) exec omarchy-cmd-zen-handoff "$@" ;;
 /usr/bin/chromium) profile=chromium flags=chromium-flags.conf ;;
 /usr/bin/google-chrome-stable) profile=google-chrome flags=chrome-flags.conf ;;
 /usr/bin/brave) profile=BraveSoftware/Brave-Browser flags=brave-flags.conf ;;
