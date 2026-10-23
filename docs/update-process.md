@@ -114,6 +114,8 @@ hook runs `omarchy-hyprland-reload-guard resume`, forces one `hyprctl reload`,
 and restores the session's previous `misc.disable_autoreload` and
 `debug.suppress_errors` values.
 
+A post-transaction hook on `usr/lib/binfmt.d/qemu-*-static.conf` runs `omarchy-apply-binfmt`, which regenerates the `/etc/binfmt.d` overrides that add `O` and `C` to the QEMU registrations, so they follow every qemu update, and restarts `systemd-binfmt` when the running registrations differ. It sorts after systemd's own `25-systemd-binfmt.hook`.
+
 ## Path 1: `omarchy update`
 
 High-level flow:

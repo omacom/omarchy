@@ -1,0 +1,131 @@
+#!/bin/bash
+
+# omarchy:summary=Keep QEMU binfmt registrations usable for setuid binaries in cross-arch containers
+# omarchy:group=apply
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+# qemu-user-static-binfmt registers its interpreters with flags FP. Setuid
+# binaries such as sudo in an emulated-architecture Docker container only keep
+# their credentials under binfmt_misc emulation when the registration carries
+# C (which implies O, handing the interpreter the binary as an open file). F,
+# already set by the package, is what lets the interpreter run inside a
+# container whose rootfs differs from the host's.
+#
+# This writes an /etc/binfmt.d override per package registration with O and C
+# added to the package's own flags, so P (argv[0] preserved) and anything a
+# later package adds survive. The 30-omarchy-binfmt pacman hook reruns it
+# whenever qemu changes its registrations, so overrides follow interpreter,
+# magic and mask changes, cover newly added architectures, and go away with
+# removed ones. Files without the managed marker belong to the administrator
+# and are left alone.
+#
+# C is machine-wide: QEMU runs a root-owned setuid foreign-architecture binary
+# with root's credentials anywhere on the host, not only inside Docker.
+
+set -euo pipefail
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-apply-binfmt [--check]
+
+Regenerates /etc/binfmt.d/qemu-*-static.conf from the qemu-user-static-binfmt
+registrations with the O and C flags added, removes managed overrides whose
+registration is gone, and restarts systemd-binfmt when the running
+registrations differ.
+
+--check   exit 1 if anything would change, without changing it
+USAGE
+}
+
+check=0
+case "${1:-}" in
+  "") ;;
+  --check) check=1 ;;
+  -h|--help) usage; exit 0 ;;
+  *) usage >&2; exit 2 ;;
+esac
+
+source_dir="${OMARCHY_BINFMT_SOURCE_DIR:-/usr/lib/binfmt.d}"
+dest_dir="${OMARCHY_BINFMT_DIR:-/etc/binfmt.d}"
+proc_dir="${OMARCHY_BINFMT_PROC_DIR:-/proc/sys/fs/binfmt_misc}"
+marker="# Managed by omarchy-apply-binfmt from $source_dir; local edits are overwritten"
+
+managed() {
+  local first_line
+  [[ -f $1 ]] && IFS= read -r first_line <"$1" && [[ $first_line == "# Managed by omarchy-apply-binfmt "* ]]
+}
+
+sorted_letters() {
+  grep -o . <<<"$1" | sort | tr -d '\n'
+}
+
+declare -A writes=()
+declare -A live_flags=()
+removes=()
+
+for conf in "$source_dir"/qemu-*-static.conf; do
+  [[ -e $conf ]] || continue
+
+  line=$(grep -m1 -v -e '^[#;]' -e '^$' "$conf" || true)
+  [[ -n $line ]] || continue
+
+  flags=${line##*:}
+  for flag in O C; do
+    [[ $flags == *$flag* ]] || flags+=$flag
+  done
+
+  target="$dest_dir/$(basename "$conf")"
+  if [[ -e $target ]] && ! managed "$target"; then
+    echo "Leaving unmanaged $target alone" >&2
+    continue
+  fi
+
+  content=$(printf '%s\n%s:%s' "$marker" "${line%:*}" "$flags")
+  if [[ ! -e $target || $(<"$target") != "$content" ]]; then
+    writes[$target]=$content
+  fi
+
+  name=${line#:}
+  live_flags[${name%%:*}]=$flags
+done
+
+for target in "$dest_dir"/qemu-*-static.conf; do
+  if [[ -e $target && ! -e $source_dir/$(basename "$target") ]] && managed "$target"; then
+    removes+=("$target")
+  fi
+done
+
+restart=0
+if (( ${#writes[@]} || ${#removes[@]} )); then
+  restart=1
+elif [[ -e $proc_dir/status ]]; then
+  for name in "${!live_flags[@]}"; do
+    live=$(sed -n 's/^flags: //p' "$proc_dir/$name" 2>/dev/null || true)
+    if [[ $(sorted_letters "$live") != $(sorted_letters "${live_flags[$name]}") ]]; then
+      restart=1
+      break
+    fi
+  done
+fi
+
+if (( check )); then
+  exit "$restart"
+fi
+
+if (( ${#writes[@]} )); then
+  mkdir -p "$dest_dir"
+  for target in "${!writes[@]}"; do
+    printf '%s\n' "${writes[$target]}" >"$target"
+  done
+fi
+
+for target in "${removes[@]}"; do
+  rm -f "$target"
+done
+
+# binfmt_misc is not mounted in the ISO's target chroot; the registrations load
+# at first boot there.
+if (( restart )) && [[ -e $proc_dir/status ]]; then
+  systemctl restart systemd-binfmt.service
+fi
