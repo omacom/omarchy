@@ -10,10 +10,11 @@ while [[ $t3code_home == */ ]]; do
   t3code_home=${t3code_home%/}
 done
 
-# rm refuses a final '.' or '..', which would leave a partial removal behind.
-case ${t3code_home##*/} in
-"" | . | ..)
-  echo "Refusing to remove T3 Code: T3CODE_HOME must name a directory, without a final '.' or '..'." >&2
+# rm refuses a final '.' or '..', which would leave a partial removal behind,
+# and command substitution in the check below would drop a trailing newline.
+case $t3code_home in
+"" | . | .. | */. | */.. | *$'\n'*)
+  echo "Refusing to remove T3 Code: T3CODE_HOME must name a directory, without a newline or a final '.' or '..'." >&2
   exit 1
   ;;
 esac
@@ -31,10 +32,11 @@ esac
 omarchy-pkg-drop t3code-bin t3code-nightly-bin
 
 # A `t3` link to one of T3 Code's launchers would only dangle once it is gone.
-# Compare normalized spellings, so `/x/` and `/x` name the same home.
+# Compare normalized spellings, so `/x/` and `/x` name the same home, and
+# resolve a relative target from the link's own directory, as the link does.
 t3_link=$(readlink "$HOME/.local/bin/t3" || true)
 if [[ -n $t3_link ]]; then
-  case $(realpath -ms -- "$t3_link") in
+  case $(cd "$HOME/.local/bin" && realpath -ms -- "$t3_link") in
   "$(realpath -ms -- "$t3code_home/bin/t3")" | /usr/bin/t3 | /usr/bin/t3-nightly) rm -f "$HOME/.local/bin/t3" ;;
   esac
 fi

@@ -148,6 +148,14 @@ echo "#!/bin/sh" >"$HOME/.local/bin/t3"
 [[ -f $HOME/.local/bin/t3 ]] || fail "T3 Code removal keeps a t3 the user put there"
 pass "T3 Code removal keeps a t3 the user put there"
 
+# A relative link resolves from its own directory, not from wherever removal runs.
+fresh_home
+mkdir -p "$HOME/.t3/bin" "$HOME/.local/bin"
+ln -s .t3/bin/t3 "$HOME/.local/bin/t3"
+(cd "$HOME" && "$ROOT/bin/omarchy-remove-ai-t3-code" >/dev/null)
+[[ -L $HOME/.local/bin/t3 ]] || fail "T3 Code removal keeps a relative t3 link that points elsewhere"
+pass "T3 Code removal resolves a relative t3 link from its own directory"
+
 # Installation and removal must agree on a relocated home, including the
 # literal link the installer writes, without taking the default home's data.
 # A trailing slash on either side still names the same home.
@@ -190,7 +198,15 @@ done
 if T3CODE_HOME=/ "$ROOT/bin/omarchy-remove-ai-t3-code" >"$tmp_dir/dot-home.log" 2>&1 || [[ -s $TEST_LOG ]]; then
   fail "T3 Code removal refuses / as its data home before changing anything"
 fi
-pass "T3 Code removal refuses dot endings before making changes"
+# Command substitution drops a trailing newline, which would let a sibling of
+# the home pass for an entry inside it.
+mkdir -p "$HOME"$'\n/data'
+if T3CODE_HOME="$HOME"$'\n/data' "$ROOT/bin/omarchy-remove-ai-t3-code" >"$tmp_dir/dot-home.log" 2>&1 || [[ -s $TEST_LOG ]]; then
+  fail "T3 Code removal refuses a data home with a newline before changing anything"
+fi
+[[ -d "$HOME"$'\n/data' ]] || fail "T3 Code removal keeps the sibling a newline would have named"
+rm -rf "$HOME"$'\n'
+pass "T3 Code removal refuses dot endings and newlines before making changes"
 
 # rm -rf only takes a configured home that is an entry inside the user's home,
 # even where the command runs with sudo. One anywhere else, such as on another
