@@ -205,6 +205,7 @@
   "setup.default.agent.hermes": {"icon":"","iconFont":"omarchy","label":"Hermes","checked":"[[ \"$(omarchy-default-agent)\" == \"hermes\" ]]","action":"omarchy-default-agent hermes"},
   "setup.default.agent.kimi": {"icon":"󰚩","label":"Kimi","checked":"[[ \"$(omarchy-default-agent)\" == \"kimi\" ]]","action":"omarchy-default-agent kimi"},
   "setup.default.agent.muse": {"icon":"󰛤","label":"Muse Code","checked":"[[ \"$(omarchy-default-agent)\" == \"muse\" ]]","action":"omarchy-default-agent muse"},
+  "setup.default.agent.omo": {"icon":"󰚩","label":"OmO","checked":"[[ \"$(omarchy-default-agent)\" == \"omo\" ]]","action":"omarchy-default-agent omo"},
   "setup.default.agent.omp": {"icon":"","iconFont":"omarchy","label":"omp","checked":"[[ \"$(omarchy-default-agent)\" == \"omp\" ]]","action":"omarchy-default-agent omp"},
   "setup.default.agent.openclaw": {"icon":"","iconFont":"omarchy","label":"OpenClaw","checked":"[[ \"$(omarchy-default-agent)\" == \"openclaw\" ]]","action":"omarchy-default-agent openclaw"},
   "setup.default.agent.opencode": {"icon":"","iconFont":"omarchy","label":"OpenCode","checked":"[[ \"$(omarchy-default-agent)\" == \"opencode\" ]]","action":"omarchy-default-agent opencode"},

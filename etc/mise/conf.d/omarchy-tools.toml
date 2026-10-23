@@ -23,6 +23,7 @@ muse = { version = "latest", lazy = true, auto_update = "4h", minimum_release_ag
 node = { version = "latest", lazy = true, minimum_release_age = "0s" }
 "npm:@moonshot-ai/kimi-code" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["kimi"], minimum_release_age = "0s" }
 "npm:cf" = { version = "latest", lazy = true, lazy_bins = ["cf"], minimum_release_age = "0s" }
+"npm:omo-ai" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["omo"], minimum_release_age = "0s" }
 oh-my-pi = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 opencode = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 ori = { version = "latest", lazy = true, minimum_release_age = "0s" }

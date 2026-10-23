@@ -134,6 +134,7 @@ export OMARCHY_MISE_CONFIG_PATH="$test_tmp/etc/mise/config.toml"
 grok_package="grok"
 legacy_grok_package="npm:@xai-official/grok"
 omp_package="oh-my-pi"
+omo_package="npm:omo-ai"
 legacy_omp_package="github:can1357/oh-my-pi"
 crush_package="crush"
 agy_package="antigravity-cli"
@@ -179,16 +180,16 @@ for tool in "$ori_package" basecamp; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-for tool in codex claude copilot opencode pi "\"$kimi_package\""; do
+for tool in codex claude copilot opencode pi "\"$kimi_package\"" "\"$omo_package\""; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, auto_update = \"4h\", " "$lazy_config" ||
     fail "user setup declares $tool as a self-updating native lazy tool"
 done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 12 ]] || fail "only the agent CLIs update themselves"
+[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 13 ]] || fail "only the agent CLIs update themselves"
 for tool in node uv; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 22 ]] || fail "user setup declares every default mise tool as lazy"
+[[ $(grep -c 'lazy = true' "$lazy_config") == 23 ]] || fail "user setup declares every default mise tool as lazy"
 grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
 pass "user setup configures system lazy tools from registry shorthands"
 : >"$stub_log"
@@ -515,6 +516,7 @@ hash -r
 
 declare -A expected_agents=(
   [pi]="pi"
+  [omo]="omo"
   [omp]="omp"
   [oh-my-pi]="omp"
   [opencode]="opencode"
@@ -544,6 +546,7 @@ declare -A expected_agents=(
 
 declare -A expected_packages=(
   [pi]="pi"
+  [omo]="$omo_package"
   [omp]="$omp_package"
   [opencode]="opencode"
   [ori]="$ori_package"
@@ -789,6 +792,34 @@ omarchy-default-agent muse
 rm "$test_home/.local/bin/muse"
 pass "selecting a user-installed Muse preserves its launcher"
 
+: >"$mise_history"
+: >"$terminal_log"
+omarchy-default-agent omo
+mapfile -d '' -t terminal_args <"$terminal_log"
+[[ ${terminal_args[*]} == "omarchy-default-agent --install omo" ]] ||
+  fail "missing OmO installs in a terminal"
+[[ $(omarchy-default-agent) == "muse" ]] || fail "missing OmO preserves the default until installed"
+
+: >"$mise_history"
+omarchy-default-agent --install omo >/dev/null
+grep -Fx "install $omo_package" "$mise_history" >/dev/null ||
+  fail "OmO installs its declared npm package"
+[[ $(omarchy-default-agent) == "omo" ]] || fail "installed OmO becomes the default"
+mapfile -d '' -t agent_open_args <"$agent_open_log"
+[[ ${agent_open_args[*]} == "omarchy-agent --inline" ]] || fail "newly installed OmO opens inline"
+pass "OmO installs visibly through mise before becoming the default"
+
+printf '#!/bin/bash\necho user-omo\n' >"$test_home/.local/bin/omo"
+chmod +x "$test_home/.local/bin/omo"
+: >"$mise_history"
+: >"$terminal_log"
+omarchy-default-agent omo
+[[ $(omarchy-default-agent) == "omo" ]] || fail "a user-installed OmO can be selected"
+[[ ! -s $mise_history && ! -s $terminal_log ]] || fail "a user-installed OmO skips mise installation"
+[[ $("$test_home/.local/bin/omo") == "user-omo" ]] || fail "a user-installed OmO is preserved"
+rm "$test_home/.local/bin/omo"
+pass "selecting a user-installed OmO preserves its launcher"
+
 rm "$mock_bin/omarchy-agent"
 hash -r
 
@@ -832,6 +863,7 @@ assert_bypass() {
 }
 
 assert_launch pi pi "Review this project"
+assert_launch omo omo --approve -- "Review this project"
 assert_launch omp omp --auto-approve -- "Review this project"
 assert_launch opencode opencode --auto --prompt "Review this project"
 assert_launch ori ori code --interactive --prompt "Review this project"
@@ -847,6 +879,22 @@ assert_launch copilot copilot --allow-all --interactive "Review this project"
 assert_launch kimi kimi --prompt "Review this project"
 pass "agent launcher adapts initial prompts for every supported agent"
 
+literal_omo_prompt=$'--help !Crash {$(touch must-not-run)}\ntrailing\\ '
+printf '%s\n' "omo" >"$agent_file"
+omarchy-agent-prompt "$literal_omo_prompt"
+assert_launched omo "separates prompt text from options" omo --approve -- "$literal_omo_prompt"
+cat >"$mock_bin/omo" <<'SH'
+#!/bin/bash
+printf '%s\0' omo "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
+SH
+chmod +x "$mock_bin/omo"
+omarchy agent prompt --inline "$literal_omo_prompt"
+mapfile -d '' -t omo_args <"$inline_log"
+[[ ${#omo_args[@]} == 4 && ${omo_args[0]} == "omo" && ${omo_args[1]} == "--approve" &&
+  ${omo_args[2]} == "--" && ${omo_args[3]} == "$literal_omo_prompt" ]] ||
+  fail "inline OmO receives the literal prompt after --"
+pass "OmO receives literal prompts in terminal and inline launches"
+
 literal_muse_prompt=$'--disable-sandbox !Crash {$(touch must-not-run)}\ntrailing\\ '
 printf '%s\n' "muse" >"$agent_file"
 omarchy-agent-prompt "$literal_muse_prompt"
@@ -861,6 +909,7 @@ assert_launched hermes "binds its literal initial prompt" env -u HERMES_SESSION_
 pass "Hermes receives prompted launches as one literal query argument"
 
 assert_bypass pi pi
+assert_bypass omo omo --approve
 assert_bypass omp omp --auto-approve
 assert_bypass opencode opencode --auto
 assert_bypass ori ori code
@@ -1018,7 +1067,7 @@ pass "OpenClaw's agent hands a missing command to its launcher only when the pac
 
 # Native lazy shims can precede ~/.local/bin. The agent launcher must still run
 # the official command when the default-agent selector recognized one.
-for agent in cursor-agent muse; do
+for agent in cursor-agent muse omo; do
   printf '#!/bin/bash\nprintf "official %s\\n"\n' "$agent" >"$test_home/.local/bin/$agent"
   chmod +x "$test_home/.local/bin/$agent"
   printf '%s\n' "$agent" >"$agent_file"
@@ -1026,4 +1075,4 @@ for agent in cursor-agent muse; do
   [[ $output == "official $agent" ]] || fail "agent launcher preserves the user-installed $agent ahead of a mise shim"
   rm "$test_home/.local/bin/$agent"
 done
-pass "agent launcher runs user-installed Cursor and Muse ahead of native lazy shims"
+pass "agent launcher runs user-installed Cursor, Muse and OmO ahead of native lazy shims"

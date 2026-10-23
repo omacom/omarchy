@@ -117,6 +117,10 @@ muse)
   command=(muse --approval-mode never)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
+omo)
+  command=(omo --approve)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
 omp)
   command=(omp --auto-approve)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
@@ -146,9 +150,9 @@ kimi)
   ;;
 esac
 
-# A user-installed Cursor or Muse still wins in the agent launcher even when
+# A user-installed Cursor, Muse or OmO still wins in the agent launcher even when
 # mise's system lazy shim is earlier on PATH.
-if [[ $agent == "cursor-agent" || $agent == "muse" ]] &&
+if [[ $agent == "cursor-agent" || $agent == "muse" || $agent == "omo" ]] &&
   [[ -f $HOME/.local/bin/$agent && -x $HOME/.local/bin/$agent ]] &&
   { [[ -L $HOME/.local/bin/$agent ]] || ! grep -q '^mise use -g' "$HOME/.local/bin/$agent"; }; then
   command[0]="$HOME/.local/bin/$agent"

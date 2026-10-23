@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi]
+# omarchy:args=[pi|omo|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi]
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
@@ -25,6 +25,7 @@ fi
 
 case "$1" in
 pi) agent="pi"; name="Pi" ;;
+omo) agent="omo"; name="OmO"; agent_package="npm:omo-ai" ;;
 omp | oh-my-pi) agent="omp"; name="Oh My Pi"; agent_package="oh-my-pi" ;;
 opencode | open-code) agent="opencode"; name="OpenCode" ;;
 ori | openrouter) agent="ori"; name="Ori"; agent_package="ori" ;;
@@ -40,7 +41,7 @@ muse | muse-code | musecode) agent="muse"; name="Muse Code" ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
 kimi | kimi-code) agent="kimi"; name="Kimi"; agent_package="npm:@moonshot-ai/kimi-code" ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi>"
+  echo "Usage: omarchy-default-agent <pi|omo|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi>"
   exit 1
   ;;
 esac

@@ -43,7 +43,7 @@ mise's commands come before `~/.local/bin` on `PATH`, so a tool you installed yo
 disable_tools = ["cursor-agent"]
 ```
 
-If you already have a `[settings]` table, add the entry there; extend an existing `disable_tools` list rather than replacing it. Make sure your installation is on `PATH`. Use the mise tool name, which can differ from its command: `oh-my-pi` provides `omp`, for example. The default-agent launcher also prefers a user-installed Cursor or Muse in `~/.local/bin`.
+If you already have a `[settings]` table, add the entry there; extend an existing `disable_tools` list rather than replacing it. Make sure your installation is on `PATH`. Use the mise tool name, which can differ from its command: `oh-my-pi` provides `omp`, for example. The default-agent launcher also prefers a user-installed Cursor, Muse or OmO in `~/.local/bin`.
 
 ### Removing and restoring defaults
 
