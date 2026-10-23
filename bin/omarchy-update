@@ -36,6 +36,8 @@ export PATH OMARCHY_UPDATE_SUDO_SESSION=1
 
 update_stay_awake_stopped=0
 sudo_keepalive_pid=""
+packages_upgraded=0
+boot_checked=0
 
 # Ask for the password once, then keep sudo's timestamp fresh so long package
 # downloads, migrations, hooks, and mise never outlast it and prompt again.
@@ -79,6 +81,12 @@ cleanup_update() {
   fi
   if (( update_stay_awake_stopped == 0 )); then
     omarchy-update-stay-awake stop || status=1
+  fi
+  # A failed step or a signal can end the update after the packages are upgraded
+  # and before the boot check. Where the platform has one, say that it has not
+  # run. Resolving it needs no root.
+  if (( packages_upgraded && ! boot_checked )) && [[ -n $(omarchy-lifecycle-dispatch --resolve update-verify 2>/dev/null) ]]; then
+    echo -e "\e[31m\nThe update stopped before its boot files were verified. Do not reboot until omarchy update completes.\e[0m" >&2
   fi
   omarchy_security_exit_with_revoked_sudo "$status"
 }
@@ -125,6 +133,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # them, so everything below waits on this finishing. An upgrade that stopped
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
+  packages_upgraded=1
 
   omarchy-migrate
   omarchy-update-orphan-pkgs -y
@@ -159,6 +168,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # timestamp. Until it passes, the update neither finishes nor offers a reboot.
   boot_verified=1
   PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$PATH" OMARCHY_SUDO_NO_UPDATE=1 omarchy-update-boot || boot_verified=0
+  boot_checked=1
   omarchy_security_revoke_sudo_timestamp
 
   # The sleep inhibitor covers AUR builds, hooks and mise as well; releasing it

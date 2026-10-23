@@ -41,15 +41,17 @@ boot_package "$tmp/unverified" 1
 mkdir -p "$tmp/none" "$tmp/older/usr/lib/omarchy/mac-boot" "$tmp/older/var/lib/pacman/local/omarchy-mac-boot-20260921-10"
 
 # omarchy update -y on platform $1 with the boot package in lifecycle root $2.
-# The update's own PATH is fixed, so the platform's uname goes beside the
-# stubbed steps.
+# Step $3, when given, fails; step $4, when given, sends the update a TERM. The
+# update's own PATH is fixed, so the platform's uname goes beside the stubbed
+# steps.
 run_update() {
-  local platform=$1 lifecycle=$2
+  local platform=$1 lifecycle=$2 failing_step=${3:-} interrupting_step=${4:-}
   reset_boundary
   rm -f "$tmp/boot-ran"
   cp "$tmp/$platform/bin/uname" "$SUDO_TEST_ROOT/bin/uname"
   status=0
   OMARCHY_PROC_ROOT="$tmp/$platform/proc" OMARCHY_LIFECYCLE_ROOT="$lifecycle" \
+    SUDO_TEST_FAIL_STEP="$failing_step" SUDO_TEST_SIGNAL_STEP="$interrupting_step" \
     "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$tmp/out" 2>"$tmp/err" || status=$?
 }
 
@@ -60,6 +62,10 @@ at() {
 
 reboot_offered() {
   grep -q '^step:omarchy-update-restart --reboot-only' "$SUDO_TEST_LOG"
+}
+
+boot_files_flagged() {
+  grep -q 'stopped before its boot files were verified. Do not reboot' "$tmp/err"
 }
 
 # x86 and plain aarch64: the boot check is a no-op, even with a
@@ -87,6 +93,7 @@ aur=$(at 'step:omarchy-update-aur-pkgs') verify=$(at 'sudo -N omarchy-lifecycle-
 [[ $(sed -n "$((verify - 1))p;$((verify + 1))p" "$SUDO_TEST_LOG") == $'sudo -k\nsudo -k' ]] ||
   fail "apple: verification starts cold after AUR and sudo is revoked right after it" "$(cat "$SUDO_TEST_LOG")"
 reboot_offered || fail "apple: a verified update offers the reboot"
+! boot_files_flagged || fail "apple: a verified update does not say its boot files went unverified" "$(cat "$tmp/err")"
 assert_boundary_cold "apple update"
 pass "apple: verify runs as root through the boot package, and a verified update offers the reboot"
 
@@ -107,6 +114,7 @@ grep -q '^step:omarchy-update-stay-awake stop' "$SUDO_TEST_LOG" ||
 grep -q 'the boot files do not match' "$tmp/err" && grep -q 'The update is not finished' "$tmp/err" ||
   fail "apple: a failed verification says why, and that the update is not finished" "$(cat "$tmp/err")"
 ! grep -q 'Something went wrong during the update' "$tmp/out" "$tmp/err" || fail "apple: a failed verification is not reported as a crash"
+! boot_files_flagged || fail "apple: a failed verification is not reported as a missed one" "$(cat "$tmp/err")"
 assert_boundary_cold "apple failed verification"
 pass "apple: a failed verification fails the update, explained, with no reboot offered"
 
@@ -125,3 +133,41 @@ run_update aarch64-apple "$tmp/older"
 grep -q 'which omarchy-mac-boot 20260921-10 does not provide; update omarchy-mac-boot' "$tmp/err" ||
   fail "apple: a boot package without update-verify is named with its version" "$(cat "$tmp/err")"
 pass "apple: a boot package without update-verify fails the update and asks for its update"
+
+# A step that fails after the package upgrade ends the update before the boot
+# check, with the new packages already installed. Where the platform has a boot
+# check, the update says that it has not run, without asking for root.
+run_update aarch64-apple "$tmp/passing" omarchy-migrate
+(( status == 17 )) || fail "apple: a failed migration fails the update with its own status" "status $status: $(cat "$tmp/err")"
+[[ ! -e $tmp/boot-ran ]] && ! reboot_offered || fail "apple: a failed migration ends the update before the boot check and the reboot offer" "$(cat "$SUDO_TEST_LOG")"
+grep -q 'Something went wrong during the update' "$tmp/out" || fail "apple: a failed migration is still reported as a failed update" "$(cat "$tmp/out")"
+boot_files_flagged || fail "apple: a failed migration says the boot files were not verified" "$(cat "$tmp/err")"
+! grep -q 'omarchy-lifecycle-dispatch' "$SUDO_TEST_LOG" || fail "apple: saying so asks for no root" "$(cat "$SUDO_TEST_LOG")"
+assert_boundary_cold "apple failed migration"
+pass "apple: a step failing after the package upgrade says the boot files were not verified"
+
+# So does an update interrupted there.
+run_update aarch64-apple "$tmp/passing" "" omarchy-update-aur-pkgs
+(( status == 143 )) || fail "apple: an interrupted update exits with the signal's status" "status $status: $(cat "$tmp/err")"
+[[ ! -e $tmp/boot-ran ]] || fail "apple: an update interrupted during AUR never reaches the boot check" "$(cat "$tmp/boot-ran")"
+boot_files_flagged || fail "apple: an update interrupted after the package upgrade says the boot files were not verified" "$(cat "$tmp/err")"
+assert_boundary_cold "apple interrupted update"
+pass "apple: an update interrupted after the package upgrade says the boot files were not verified"
+
+# A package upgrade that stops has not put the new packages in place, so there
+# is nothing to say about the boot files.
+run_update aarch64-apple "$tmp/passing" omarchy-update-system-pkgs
+(( status == 17 )) || fail "apple: a blocked package upgrade fails the update" "status $status: $(cat "$tmp/err")"
+! boot_files_flagged || fail "apple: a blocked package upgrade says nothing about the boot files" "$(cat "$tmp/err")"
+pass "apple: a package upgrade that stops is reported as before"
+
+# No boot check to miss: x86, plain aarch64, and a Mac that predates its boot
+# package.
+for scenario in "x86 $tmp/failing" "aarch64 $tmp/failing" "aarch64-apple $tmp/none"; do
+  read -r platform lifecycle <<<"$scenario"
+  run_update "$platform" "$lifecycle" omarchy-migrate
+  (( status == 17 )) || fail "$platform: a failed migration fails the update" "status $status: $(cat "$tmp/err")"
+  grep -q 'Something went wrong during the update' "$tmp/out" || fail "$platform: a failed migration is reported as a failed update" "$(cat "$tmp/out")"
+  ! boot_files_flagged || fail "$platform ${lifecycle##*/}: a failed migration says nothing about a boot check that would not have run" "$(cat "$tmp/err")"
+done
+pass "a failed step is reported as before where no boot check would have run"
