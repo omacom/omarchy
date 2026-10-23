@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <title>Abacus.AI</title>
+  <rect x="0" y="3" width="192" height="186" fill="#0A0E1C"/>
+  <rect x="41" y="48" width="11" height="42" rx="5.5" fill="#FFFFFF"/>
+  <circle cx="46.5" cy="107.0" r="10.4" fill="#248BFF"/>
+  <rect x="41" y="125" width="11" height="26" rx="5.5" fill="#D1E4F5"/>
+  <rect x="74" y="32" width="11" height="30" rx="5.5" fill="#D1E4F5"/>
+  <circle cx="79.0" cy="78.0" r="10.6" fill="#D831A4"/>
+  <rect x="74" y="97" width="11" height="68" rx="5.5" fill="#FFFFFF"/>
+  <rect x="107" y="29" width="11" height="68" rx="5.5" fill="#FFFFFF"/>
+  <circle cx="112.0" cy="116.0" r="10.6" fill="#24E4DF"/>
+  <rect x="107" y="134" width="11" height="31" rx="5.5" fill="#D1E4F5"/>
+  <rect x="140" y="48" width="11" height="30" rx="5.5" fill="#D1E4F5"/>
+  <circle cx="144.5" cy="95.0" r="10.4" fill="#B438FF"/>
+  <rect x="140" y="113" width="11" height="35" rx="5.5" fill="#FFFFFF"/>
+</svg>
