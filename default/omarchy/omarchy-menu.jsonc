@@ -130,6 +130,8 @@
   "trigger.toggle.idle-lock-off": {"icon":"","label":"Allow Sleep","when":"[[ -f ~/.local/state/omarchy/indicators/stay-awake ]]","action":"omarchy-toggle-idle"},
   "trigger.toggle.notifications-on": {"icon":"󰂛","label":"Notifications On","when":"[[ $(omarchy-shell notifications isDnd) == on ]]","action":"omarchy-toggle-notification-silencing"},
   "trigger.toggle.notifications-off": {"icon":"󰂛","label":"Silence Notifications","when":"[[ $(omarchy-shell notifications isDnd) != on ]]","action":"omarchy-toggle-notification-silencing"},
+  "trigger.toggle.meeting-on": {"icon":"","label":"Meeting Mode On","when":"[[ $(omarchy-toggle-meeting status) != on ]]","action":"omarchy-toggle-meeting on"},
+  "trigger.toggle.meeting-off": {"icon":"","label":"Meeting Mode Off","when":"[[ $(omarchy-toggle-meeting status) == on ]]","action":"omarchy-toggle-meeting off"},
   "trigger.toggle.nightlight-on": {"icon":"󰔎","label":"Nightlight On","when":"[[ $(omarchy-toggle-nightlight --status) != *'\"enabled\":true'* ]]","action":"omarchy-toggle-nightlight"},
   "trigger.toggle.nightlight-off": {"icon":"󰔎","label":"Nightlight Off","when":"[[ $(omarchy-toggle-nightlight --status) == *'\"enabled\":true'* ]]","action":"omarchy-toggle-nightlight"},
   "trigger.toggle.screensaver-on": {"icon":"󱄄","label":"Screensaver On","when":"omarchy-toggle-enabled screensaver-off","action":"omarchy-toggle-screensaver"},

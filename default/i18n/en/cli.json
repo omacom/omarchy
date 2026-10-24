@@ -132,6 +132,13 @@
   "lock.didNotLock": "Screen did not lock before suspend",
   "lock.unlockedNoLockScreen": "The session was left unlocked (no lock screen is configured).",
   "lock.unlockedTimeout": "The session was left unlocked (the shell did not secure the session within %1ms).",
+  "meeting.alreadyOff": "Already off",
+  "meeting.alreadyOn": "Already on",
+  "meeting.offBody": "Restored mic, notifications, and idle",
+  "meeting.offTitle": "Meeting mode off",
+  "meeting.onBody": "Mic muted, notifications silenced, staying awake",
+  "meeting.onTitle": "Meeting mode on",
+  "meeting.title": "Meeting mode",
   "migrate.clickToRun": {
     "one": "Click to run %1 pending migration.",
     "other": "Click to run %1 pending migrations."

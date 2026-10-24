@@ -874,3 +874,51 @@ if (( alias_ms * 4 > full_ms )); then
   fail "an alias dispatch costs a fraction of loading the whole command table"
 fi
 pass "an alias dispatch costs a fraction of loading the whole command table (${alias_ms}ms vs ${full_ms}ms)"
+
+meeting_home=$(mktemp -d)
+TMPDIRS+=("$meeting_home")
+meeting_bin=$(mktemp -d)
+TMPDIRS+=("$meeting_bin")
+cat >"$meeting_bin/omarchy-toggle-idle" << 'SH'
+#!/bin/bash
+state="$HOME/.meeting-idle"
+case "${1:-}" in
+  status) [[ -f $state ]] && printf '{"enabled":true}\n' || printf '{"enabled":false}\n' ;;
+  stay-awake) touch "$state" ;;
+  allow-idle) rm -f "$state" ;;
+esac
+SH
+cat >"$meeting_bin/omarchy-shell" << 'SH'
+#!/bin/bash
+state="$HOME/.meeting-dnd"
+if [[ $1 == notifications && $2 == dndState ]]; then
+  [[ -f $state ]] && echo on || echo off
+elif [[ $1 == notifications && $2 == setDnd ]]; then
+  if [[ $3 == on ]]; then touch "$state"; else rm -f "$state"; fi
+fi
+exit 0
+SH
+cat >"$meeting_bin/wpctl" << 'SH'
+#!/bin/bash
+state="$HOME/.meeting-mic"
+if [[ $1 == get-volume ]]; then
+  [[ -f $state ]] && echo MUTED || echo Volume
+elif [[ $1 == set-mute && $3 == 1 ]]; then
+  touch "$state"
+elif [[ $1 == set-mute && $3 == 0 ]]; then
+  rm -f "$state"
+fi
+SH
+printf '#!/bin/bash\nexit 0\n' >"$meeting_bin/omarchy-notification-send"
+chmod +x "$meeting_bin"/*
+meeting_env=(env HOME="$meeting_home" XDG_STATE_HOME="$meeting_home/state" PATH="$meeting_bin:$PATH")
+"${meeting_env[@]}" "$ROOT/bin/omarchy-toggle-meeting" on >/dev/null
+[[ -f $meeting_home/.meeting-idle ]] || fail "meeting mode stays awake"
+[[ -f $meeting_home/.meeting-dnd ]] || fail "meeting mode silences notifications"
+[[ -f $meeting_home/.meeting-mic ]] || fail "meeting mode mutes the mic"
+"${meeting_env[@]}" "$ROOT/bin/omarchy-toggle-meeting" off >/dev/null
+[[ -f $meeting_home/.meeting-idle ]] && fail "meeting mode restores idle"
+[[ -f $meeting_home/.meeting-dnd ]] && fail "meeting mode restores notifications"
+[[ -f $meeting_home/.meeting-mic ]] && fail "meeting mode restores the mic"
+[[ -f $meeting_home/state/omarchy/meeting ]] && fail "meeting mode clears its state"
+pass "meeting mode mutes, silences, stays awake, then restores"
