@@ -26,28 +26,54 @@ if ! fc-list | grep -Fqi -- "$font_name"; then
   exit 1
 fi
 
-if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
-  sed -i "s/family = \".*\"/family = \"$font_name\"/g" ~/.config/alacritty/alacritty.toml
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+alacritty_config="$config_home/alacritty/alacritty.toml"
+kitty_config="$config_home/kitty/kitty.conf"
+ghostty_config="$config_home/ghostty/config"
+foot_config="$config_home/foot/foot.ini"
+foot_local="$config_home/foot/local.ini"
+
+if [[ -f $alacritty_config ]]; then
+  sed --follow-symlinks -i "s/family = \".*\"/family = \"$font_name\"/g" "$alacritty_config"
 fi
 
-if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
-  mkdir -p ~/.config/kitty
-  if grep -qE '^[[:space:]]*font_family[[:space:]]+' ~/.config/kitty/kitty.conf 2>/dev/null; then
+if [[ -f $kitty_config ]] || omarchy-cmd-present kitty; then
+  mkdir -p "$(dirname "$kitty_config")"
+  if grep -qE '^[[:space:]]*font_family[[:space:]]+' "$kitty_config" 2>/dev/null; then
     kitty_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
-    sed --follow-symlinks -i -E "s/^[[:space:]]*font_family[[:space:]]+.*/font_family $kitty_font_name/" ~/.config/kitty/kitty.conf
+    sed --follow-symlinks -i -E "s/^[[:space:]]*font_family[[:space:]]+.*/font_family $kitty_font_name/" "$kitty_config"
   else
-    printf '\nfont_family %s\n' "$font_name" >>~/.config/kitty/kitty.conf
+    printf '\nfont_family %s\n' "$font_name" >>"$kitty_config"
   fi
   pkill -USR1 kitty
 fi
 
-if [[ -f ~/.config/ghostty/config ]]; then
-  sed -i "s/font-family = \".*\"/font-family = \"$font_name\"/g" ~/.config/ghostty/config
+if [[ -f $ghostty_config ]]; then
+  sed --follow-symlinks -i "s/font-family = \".*\"/font-family = \"$font_name\"/g" "$ghostty_config"
   pkill -SIGUSR2 ghostty
 fi
 
-if [[ -f ~/.config/foot/foot.ini ]]; then
-  sed -i "s/^font=.*/font=$font_name:size=9/g" ~/.config/foot/foot.ini
+if [[ -f $foot_config ]]; then
+  sed --follow-symlinks -i -E "s/^font=[^:]+/font=$font_name/" "$foot_config"
+fi
+
+# Foot's one font= key replaces the whole list, so the overlay keeps this
+# family. Replace only that line; other machine-local settings stay.
+if [[ -f $foot_local ]]; then
+  size=$(sed -n 's/^[[:space:]]*font[[:space:]]*=.*:size=\([0-9.][0-9.]*\).*/\1/p' "$foot_local" | head -1 || true)
+  size=${size:-9}
+  size=${size%.0}
+  if grep -qE '^[[:space:]]*font[[:space:]]*=' "$foot_local"; then
+    tmp=$(mktemp)
+    awk -v line="font=$font_name:size=$size" '
+      /^[[:space:]]*font[[:space:]]*=/ { if (!done) print line; done = 1; next }
+      { print }
+    ' "$foot_local" >"$tmp"
+    cat "$tmp" >"$foot_local"
+    rm -f "$tmp"
+  else
+    printf '\nfont=%s:size=%s\n' "$font_name" "$size" >>"$foot_local"
+  fi
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,

@@ -22,6 +22,16 @@ require("hypr.bindings")
 require("hypr.looknfeel")
 require("hypr.autostart")
 
+-- Optional per-machine input (touchpad, extra gestures). Missing file is skipped.
+do
+  local path = (os.getenv("XDG_CONFIG_HOME") or (os.getenv("HOME") .. "/.config")) .. "/hypr/input.local.lua"
+  local file = io.open(path, "r")
+  if file then
+    file:close()
+    dofile(path)
+  end
+end
+
 -- Toggle config flags dynamically.
 require("default.hypr.toggles")
 
