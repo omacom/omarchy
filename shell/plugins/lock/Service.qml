@@ -59,6 +59,9 @@ Item {
   property string lastEvent: "init"
   property string lastEventAt: ""
   property bool displaysBlank: false
+  // The keyboard backlight saves its level as it goes off, so only the first
+  // blank since a wake turns it off; a second would save the 0 over it.
+  property bool keyboardBlank: false
   // displaysBlank tracks what the lock asked for; Hyprland reports what each
   // panel actually did. While a video is on show the two are reconciled, so a
   // blank that failed keeps playing and a panel woken behind the lock's back
@@ -265,6 +268,7 @@ Item {
   function runWake() {
     root.displaysBlank = false
     root.monitorDpmsKnown = false
+    root.keyboardBlank = false
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
     resumeFingerprint()
@@ -362,7 +366,10 @@ Item {
     root.displaysBlank = true
     root.monitorDpmsKnown = false
     pauseFingerprint()
-    if (!blankProcess.running) blankProcess.running = true
+    if (blankProcess.running) return
+    blankProcess.keyboard = !root.keyboardBlank
+    root.keyboardBlank = true
+    blankProcess.running = true
   }
 
   function screenBlank(screenName) {
@@ -800,7 +807,8 @@ Item {
 
   Process {
     id: blankProcess
-    command: ["bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
+    property bool keyboard: true
+    command: ["bash", "-c", (keyboard ? "omarchy-brightness-keyboard off; " : "") + "omarchy-brightness-display off"]
   }
 
   // Quickshell exposes no DPMS signal, so the panel state is polled while a
@@ -942,6 +950,9 @@ Item {
       if (!root.passwordPamConfigured) return "missing-pam"
       // omarchy-system-sleep-lock asks for the lock before every suspend.
       if (root.currentlyLocked()) root.noteSleepRequested()
+      // Nothing else blanks displays lit behind the lock's back, so every
+      // request turns them off again, as the first one did.
+      if (root.lockRequested) root.armBlankTimer()
       if (!root.currentlyLocked() && !root.beginLock()) return "failed"
       return "ok"
     }

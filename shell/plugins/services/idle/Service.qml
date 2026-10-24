@@ -120,7 +120,9 @@ Item {
     lockTimer.stop()
     screensaverLaunchGraceTimer.stop()
 
-    if (root.idledThisCycle) runProcess(wakeProcess, "wake", "omarchy-system-wake")
+    // While locked the lock owns the displays: it wakes them on input and blanks
+    // them again, where a wake from here would leave them lit behind it.
+    if (root.idledThisCycle) runProcess(wakeProcess, "wake", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-system-wake")
 
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
