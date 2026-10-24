@@ -158,6 +158,24 @@ hl = {
     local address = selector:match("^address:(.+)$")
     return world.windows[address] and { address = address } or nil
   end,
+  get_windows = function()
+    local list = {}
+    for address, window in pairs(world.windows) do
+      list[#list + 1] = {
+        address = address,
+        floating = window.box ~= nil,
+        mapped = true,
+        hidden = false,
+        pinned = false,
+        fullscreen = 0,
+        at = window.box and { x = window.box.x, y = window.box.y } or { x = 0, y = 0 },
+        size = window.box and { x = window.box.width, y = window.box.height } or { x = 0, y = 0 },
+        monitor = monitor_object(monitor_named(workspace_numbered(window.workspace).monitor)),
+      }
+    end
+    table.sort(list, function(left, right) return left.address < right.address end)
+    return list
+  end,
   dsp = {
     focus = function(spec)
       return function()
@@ -209,8 +227,22 @@ hl = {
       end,
     },
     window = {
+      center = function(spec)
+        return function()
+          local window = world.windows[spec.window.address]
+          local monitor = monitor_named(workspace_numbered(window.workspace).monitor)
+          window.box.x = monitor.x + math.floor((monitor.width / monitor.scale - window.box.width) / 2)
+          window.box.y = monitor.y + math.floor((monitor.height / monitor.scale - window.box.height) / 2)
+        end
+      end,
       move = function(spec)
         return function()
+          if spec.x then
+            local box = world.windows[spec.window.address].box
+            box.x = (spec.relative and box.x or 0) + spec.x
+            box.y = (spec.relative and box.y or 0) + spec.y
+            return
+          end
           if spec.monitor then
             local target = monitor_named(spec.monitor)
             if not target then error("Invalid monitor / monitor doesn't exist") end
@@ -238,8 +270,13 @@ function load_module()
   return require("default.hypr.monitor-workspaces")
 end
 
-function plug(name, id, description, active)
-  world.monitors[#world.monitors + 1] = { name = name, id = id, description = description, active = active }
+-- A monitor is 1920x1080 at the origin unless given a box of its own.
+function plug(name, id, description, active, box)
+  box = box or { x = 0, y = 0, width = 1920, height = 1080 }
+  world.monitors[#world.monitors + 1] = {
+    name = name, id = id, description = description, active = active,
+    x = box.x, y = box.y, width = box.width, height = box.height, scale = 1,
+  }
   if not workspace_numbered(active) then create(active, name) end
 end
 
@@ -256,9 +293,10 @@ function unplug(name)
   if world.focused == name then world.focused = world.monitors[1].name end
 end
 
-function window(address, id)
+-- A window with a box floats there; one without is tiled.
+function window(address, id, box)
   if not workspace_numbered(id) then create(id, world.focused) end
-  world.windows[address] = { workspace = id }
+  world.windows[address] = { workspace = id, box = box }
 end
 
 function on(id)
@@ -417,6 +455,26 @@ check(on(11) == "DP-5" and shows("DP-5") == 11, "the returning monitor shows its
 check(shows("eDP-1") >= 1 and shows("eDP-1") <= 10, "the other monitor is back on its own, not " .. shows("eDP-1"))
 ' || fail "a returning monitor takes back the workspace in view elsewhere without a swap"
 pass "a returning monitor takes back the workspace in view elsewhere without a swap"
+
+run_lua floating-back '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11, { x = 1920, y = 0, width = 2560, height = 1440 })
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 11, { x = 2500, y = 300, width = 800, height = 600 })
+window("0xb", 1, { x = 100, y = 100, width = 800, height = 600 })
+window("0xc", 1)
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+local carried = world.windows["0xa"].box
+check(carried.x + 400 >= 0 and carried.x + 400 < 1920 and carried.y + 300 >= 0 and carried.y + 300 < 1080,
+  "the carried window is back on the monitor it landed on, not at " .. carried.x .. "," .. carried.y)
+check(world.windows["0xb"].box.x == 100 and world.windows["0xb"].box.y == 100, "a window already on its monitor stays put")
+check(world.windows["0xc"].box == nil, "a tiled window is left to the layout")
+' || fail "a floating window carried off its monitor by an unplug is brought back on screen"
+pass "a floating window carried off its monitor by an unplug is brought back on screen"
 
 run_lua merge '
 plug("eDP-1", 0, "Panel", 1)
