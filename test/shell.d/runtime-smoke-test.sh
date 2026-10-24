@@ -311,6 +311,17 @@ Item {
       })
     }
 
+    function probeStockWidgetSummon(): string {
+      var entryFacade = root.shell
+        && typeof root.shell.pluginShellForBarEntry === "function"
+        ? root.shell.pluginShellForBarEntry("probe-monitor", "omarchy.monitor") : null
+      return JSON.stringify({
+        entryFacade: !!entryFacade,
+        osdSummoned: entryFacade ? entryFacade.summon("omarchy.osd", "{}") : false,
+        foreignSummoned: entryFacade ? entryFacade.summon("omarchy.lock", "{}") : false
+      })
+    }
+
     function mutateSnapshot(): string {
       if (root.barConfig && root.barConfig.layout
           && root.barConfig.layout.left && root.barConfig.layout.left.length > 0)
@@ -758,6 +769,13 @@ jq -e '.entryFacade == true and .osdSummoned == true and .foreignSummoned == fal
   <<<"$media_summon_probe" >/dev/null || {
   printf 'Replacement-bar media summon probe: %s\n' "$media_summon_probe" >&2
   fail_with_log "replacement-bar clone facades retain only their auxiliary UI integration"
+}
+
+stock_summon_probe=$(shell_ipc acme-review-bar probeStockWidgetSummon)
+jq -e '.entryFacade == true and .osdSummoned == true and .foreignSummoned == false' \
+  <<<"$stock_summon_probe" >/dev/null || {
+  printf 'Replacement-bar stock summon probe: %s\n' "$stock_summon_probe" >&2
+  fail_with_log "replacement-bar stock widget facades reach only their auxiliary UI"
 }
 
 bar_config_before=$(shell_ipc shell listShellConfig | jq -c '.bar')
