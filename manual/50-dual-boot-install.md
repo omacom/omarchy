@@ -35,7 +35,7 @@ Confirm that everything looks good and wait for the install to finish like norma
 
 When you finish your Omarchy install, you'll notice that the Limine bootloader is the default now. With this, you can also add options to Limine for your other installs such as Windows.
 
-In order to do that, run `limine-scan` and follow the prompts to add whichever items you'd like to your limine config. Then when you boot, you'll see your normal options for Omarchy, as well as Windows Boot Manager or others.
+To add other operating systems, run `limine-scan` and follow the prompts to add the entries you want to your Limine config. The boot menu stays hidden by default and starts Omarchy after one second. To choose Windows or another entry, press any key as soon as Limine starts; when the menu appears, use the arrow keys to select an entry and press Enter. If Omarchy starts before you press a key, restart and try again. If you turned on _Setup > Direct Boot_, the firmware skips Limine entirely, so pick Limine from your BIOS boot menu or run _Setup > Direct Boot_ again to remove the entry.
 
 ## Bitlocker
 
