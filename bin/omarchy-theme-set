@@ -531,7 +531,7 @@ visible_theme_commands=(
   omarchy-theme-set-foot
   omarchy-theme-set-tmux
   omarchy-restart-btop
-  omarchy-restart-opencode
+  omarchy-theme-set-opencode
   omarchy-restart-helix
   omarchy-theme-set-hunk
 )
