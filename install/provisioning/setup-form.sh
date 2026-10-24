@@ -155,15 +155,21 @@ omarchy_prompt_username() {
   done
 }
 
+# gum silently drops keys past its 400-character default, and `openssl passwd -6`
+# hashes only the first 256 bytes, so an over-long password is refused, never cut.
+OMARCHY_PASSWORD_MAX_BYTES=256
+
 omarchy_prompt_password() {
   local status
   while true; do
-    password=$(gum input --placeholder "Used for user + root, and disk encryption when enabled" --prompt.foreground="#845DF9" --password --prompt "Password> ") && status=0 || status=$?
+    password=$(gum input --placeholder "Used for user + root, and disk encryption when enabled" --prompt.foreground="#845DF9" --password --char-limit 0 --prompt "Password> ") && status=0 || status=$?
     ((status == 0)) || return $status
-    password_confirmation=$(gum input --placeholder "Must match the password you just typed" --prompt.foreground="#845DF9" --password --prompt "Confirm> ") && status=0 || status=$?
+    password_confirmation=$(gum input --placeholder "Must match the password you just typed" --prompt.foreground="#845DF9" --password --char-limit 0 --prompt "Confirm> ") && status=0 || status=$?
     ((status == 0)) || return $status
 
-    if [[ -n "$password" && "$password" == "$password_confirmation" ]]; then
+    if (($(printf '%s' "$password" | wc -c) > OMARCHY_PASSWORD_MAX_BYTES)); then
+      notice "Your password can't be longer than $OMARCHY_PASSWORD_MAX_BYTES bytes! Accented and non-Latin letters take more than one." 3
+    elif [[ -n "$password" && "$password" == "$password_confirmation" ]]; then
       return 0
     elif [[ -z "$password" ]]; then
       notice "Your password can't be blank!" 1
