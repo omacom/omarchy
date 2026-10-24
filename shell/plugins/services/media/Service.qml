@@ -259,13 +259,21 @@ Item {
         iconName: iconName,
         player: player,
         playerKey: playerKey(player),
-        before: beforeTrackSignature,
-        attempts: 0
+        before: beforeTrackSignature
       }
+      trackRestartTimer.stop()
       trackOsdTimer.restart()
     } else {
       Qt.callLater(function() { root.showOsd(actionLabel, iconName, player) })
     }
+  }
+
+  function showPendingTrackOsd(player) {
+    var pending = pendingTrackOsd
+    pendingTrackOsd = null
+    trackOsdTimer.stop()
+    trackRestartTimer.stop()
+    root.showOsd(pending.actionLabel, pending.iconName, player)
   }
 
   function flushPendingTrackOsd(force) {
@@ -273,16 +281,34 @@ Item {
     if (!pending) return
 
     var player = playerForKey(pending.playerKey) || pending.player
-    if (force || MediaModel.trackChanged(pending.before, player) || pending.attempts >= 10) {
-      pendingTrackOsd = null
-      trackOsdTimer.stop()
-      root.showOsd(pending.actionLabel, pending.iconName, player)
+    // Players like Chromium blank the track metadata for a moment while
+    // switching tracks, so a track change only counts once the new title has
+    // arrived. The timer force-flushes for players that never deliver one.
+    if (!force && !(MediaModel.trackChanged(pending.before, player) && MediaModel.hasTrackTitle(player)))
       return
-    }
 
-    pending.attempts = pending.attempts + 1
-    pendingTrackOsd = pending
-    trackOsdTimer.restart()
+    showPendingTrackOsd(player)
+  }
+
+  function seekedDuringPendingTrackOsd(player) {
+    var pending = pendingTrackOsd
+    if (!pending || playerKey(player) !== pending.playerKey) return
+
+    // positionChanged also fires on routine refreshes, and some players seek to
+    // zero before the next track arrives: only previous returning to the start counts.
+    if (pending.actionLabel !== "Previous" || player.playbackState === MprisPlaybackState.Stopped) return
+    if (player.position < 1) trackRestartTimer.restart()
+  }
+
+  function flushRestartedTrackOsd() {
+    var pending = pendingTrackOsd
+    if (!pending) return
+
+    // Previous restarted a track that had played a while: no track change will
+    // follow, so show the OSD as-is.
+    var player = playerForKey(pending.playerKey) || pending.player
+    if (!MediaModel.trackChanged(pending.before, player) && MediaModel.hasTrackTitle(player))
+      showPendingTrackOsd(player)
   }
 
   function selectPlayer(key) {
@@ -444,14 +470,23 @@ Item {
       required property var modelData
       target: modelData
       function onIsPlayingChanged() { root.syncPlayingOrder() }
+      function onPostTrackChanged() { root.flushPendingTrackOsd(false) }
+      function onPositionChanged() { root.seekedDuringPendingTrackOsd(modelData) }
     }
   }
 
   Timer {
     id: trackOsdTimer
-    interval: 120
+    interval: 2000
     repeat: false
-    onTriggered: root.flushPendingTrackOsd(false)
+    onTriggered: root.flushPendingTrackOsd(true)
+  }
+
+  Timer {
+    id: trackRestartTimer
+    interval: 400
+    repeat: false
+    onTriggered: root.flushRestartedTrackOsd()
   }
 
   PwObjectTracker { objects: root.playbackStreams }
