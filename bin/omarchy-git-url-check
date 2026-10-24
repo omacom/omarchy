@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Check that a git URL names a repository, not a transport helper
-# omarchy:args=<git-url>
+# omarchy:args=[--require-authenticated-network] [--resolve] <git-url>
 # omarchy:hidden=true
 
 set -euo pipefail
@@ -20,12 +20,27 @@ set -euo pipefail
 # two are spelled like a helper but are read as plain ssh. `ext` and `fd` are
 # left out deliberately -- git ships a helper for each, and `ext` runs whatever
 # command the URL carries.
+# Some callers only need to know whether Git handles a URL itself. Content
+# installers additionally opt into a policy that refuses network transports
+# without peer authentication.
 TRANSPORTS=(ssh git git+ssh ssh+git http https ftp ftps file)
+UNAUTHENTICATED_NETWORK_TRANSPORTS=(git http ftp)
 
 fail() {
   echo "omarchy-git-url-check: $*" >&2
   exit 1
 }
+
+require_authenticated_network=0
+resolve=0
+while [[ ${1-} == --* ]]; do
+  case $1 in
+  --require-authenticated-network) require_authenticated_network=1 ;;
+  --resolve) resolve=1 ;;
+  *) fail "unknown option: $1" ;;
+  esac
+  shift
+done
 
 url="${1-}"
 
@@ -33,18 +48,61 @@ if [[ -z $url ]]; then
   fail "a git URL is required"
 fi
 
-if [[ $url == -* || $url =~ ^[A-Za-z0-9][A-Za-z0-9+.-]*:: ]]; then
-  fail "'$url' names a git option or transport helper, not a repository."
-fi
+validate_url() {
+  local candidate="$1" enforce_authenticated_network="$2"
+  local scheme transport unauthenticated
 
-if [[ $url =~ ^([A-Za-z0-9][A-Za-z0-9+.-]*):// ]]; then
-  scheme="${BASH_REMATCH[1]}"
+  if [[ $candidate == -* || $candidate =~ ^[A-Za-z0-9][A-Za-z0-9+.-]*:: ]]; then
+    fail "'$candidate' names a git option or transport helper, not a repository."
+  fi
 
-  for transport in "${TRANSPORTS[@]}"; do
-    if [[ $scheme == "$transport" ]]; then
-      exit 0
+  if [[ $candidate =~ ^([A-Za-z0-9][A-Za-z0-9+.-]*):// ]]; then
+    scheme="${BASH_REMATCH[1]}"
+
+    for transport in "${TRANSPORTS[@]}"; do
+      if [[ $scheme == "$transport" ]]; then
+        if (( enforce_authenticated_network )); then
+          for unauthenticated in "${UNAUTHENTICATED_NETWORK_TRANSPORTS[@]}"; do
+            if [[ $scheme == "$unauthenticated" ]]; then
+              fail "the '$scheme' network transport is not authenticated; use HTTPS, SSH, FTPS, or a local repository."
+            fi
+          done
+        fi
+        return 0
+      fi
+    done
+
+    fail "'$candidate' names the '$scheme' transport, which Omarchy does not clone from."
+  fi
+}
+
+if (( resolve )); then
+  effective_url="$url"
+  rewrite_depth=0
+  declare -A seen_urls=()
+
+  while :; do
+    ((rewrite_depth += 1))
+    if (( rewrite_depth > 32 )); then
+      fail "git URL rewriting does not resolve to a stable destination."
     fi
+    validate_url "$effective_url" 0
+    if [[ -n ${seen_urls[$effective_url]+x} ]]; then
+      fail "git URL rewriting does not resolve to a stable destination."
+    fi
+    seen_urls["$effective_url"]=1
+
+    if ! rewritten_url=$(git ls-remote --get-url "$effective_url" 2>/dev/null) || [[ -z $rewritten_url ]]; then
+      fail "could not resolve git URL rewriting."
+    fi
+    if [[ $rewritten_url == "$effective_url" ]]; then
+      break
+    fi
+    effective_url="$rewritten_url"
   done
 
-  fail "'$url' names the '$scheme' transport, which Omarchy does not clone from."
+  validate_url "$effective_url" "$require_authenticated_network"
+  printf '%s\n' "$effective_url"
+else
+  validate_url "$url" "$require_authenticated_network"
 fi
