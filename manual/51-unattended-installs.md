@@ -11,7 +11,7 @@ The files are exactly what the installer's own wizard writes, so the easiest way
 | File | Required | Purpose |
 |------|----------|---------|
 | `user_configuration.json` | Yes | Disk, hostname, timezone, keyboard |
-| `user_credentials.json` | Yes | Username and password hash |
+| `user_credentials.json` | Yes | Username and password hash, and the LUKS passphrase for an encrypted install |
 | `user_full_name.txt` | No | Git full name |
 | `user_email_address.txt` | No | Git email |
 | `user_encrypt_installation.txt` | No | `true` when the configuration carries a `disk_encryption` block |
@@ -58,4 +58,4 @@ The boot order lists the disk first on purpose: the empty disk falls through to 
 
 ## Two caveats
 
-Encrypted unattended installs aren't fully unattended — someone still has to type the LUKS passphrase at the first boot. And the `disk_encryption` block in `user_configuration.json` carries that passphrase in plaintext, so treat a cidata drive built from an encrypted install as the secret it is.
+Encrypted unattended installs aren't fully unattended — someone still has to type the LUKS passphrase at the first boot. And that passphrase goes at the top level of `user_credentials.json` as `encryption_password` — archinstall reads it there, not from the `disk_encryption` block in `user_configuration.json` — so treat a cidata drive built from an encrypted install as the secret it is.
