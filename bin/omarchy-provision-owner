@@ -695,6 +695,15 @@ apply_keyboard() {
     log_step "/etc/vconsole.conf does not read back as keymap $keymap with an XKB layout"
     return 1
   fi
+
+  # firstboot can leave XKBLAYOUT empty for keymaps with no kbd-model-map row.
+  # Fill it (and force colemak/dvorak variants) before the UKI rebuild.
+  source "$OMARCHY_PATH/install/helpers/keyboard-vconsole.sh"
+  omarchy_ensure_vconsole_xkb
+
+  if ! omarchy_rebuild_boot_keyboard >>"$LOG_FILE" 2>&1; then
+    log_step "could not rebuild the UKI after applying keymap $keymap"
+  fi
 }
 
 # The same username/password/name/email form as the ISO configurator's Step 2.
