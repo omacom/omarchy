@@ -107,3 +107,15 @@ pass "systemd-oomd acts on sustained memory stall"
 grep -Fx 'systemctl enable systemd-oomd.service' "$ROOT/install/config/enable-services.sh" >/dev/null ||
   fail "new installs ship the oomd drop-ins with the daemon that reads them disabled"
 pass "new installs enable systemd-oomd"
+
+# A crash anywhere in init.scope (plymouthd after switch-root, a generator)
+# makes systemd-coredump write |/bin/false to kernel.core_pattern, which turns
+# off crash capture for the rest of the boot.
+core_dumps_service="$ROOT/etc/systemd/system/omarchy-restore-core-dumps.service"
+grep -Fx 'ExecStart=/usr/lib/systemd/systemd-sysctl --prefix=kernel.core_pattern' "$core_dumps_service" >/dev/null ||
+  fail "core dump restore writes its own core_pattern instead of the configured one"
+grep -Fx 'After=plymouth-quit.service plymouth-quit-wait.service systemd-sysctl.service' "$core_dumps_service" >/dev/null ||
+  fail "core dump restore can run before plymouthd has quit, and crashed, on its way out"
+grep -Fx 'Wants=omarchy-restore-core-dumps.service' "$ROOT/etc/systemd/system/multi-user.target.d/10-omarchy-restore-core-dumps.conf" >/dev/null ||
+  fail "nothing pulls in the core dump restore at boot"
+pass "boot restores core dump collection after an init.scope crash"
