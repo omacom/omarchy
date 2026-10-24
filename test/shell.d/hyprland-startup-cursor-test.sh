@@ -4,7 +4,9 @@ set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
 require_command lua
 
-lua - <<'LUA'
+fixture=$(mktemp)
+trap 'rm -f "$fixture"' EXIT
+cat > "$fixture" <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 local events, recovery, command, imported = {}, nil, nil, false
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
@@ -130,6 +132,8 @@ monitors = {}
 env.XCURSOR_THEME, env.XCURSOR_PATH = "next-theme", "/next/icons"
 env.OMARCHY_STARTUP_CURSOR_PATH = "/stale/icons"
 env.OMARCHY_STARTUP_CURSOR_SESSION = "old-session"
+env.HYPRLAND_INSTANCE_SIGNATURE = "next-session"
+dofile(os.getenv("ROOT") .. "/default/hypr/startup-cursor.lua")
 events["config.reloaded"]()
 assert(omarchy_startup_cursor.xcursor == "next-theme" and omarchy_startup_cursor.path == "/next/icons", "a new session must honor changed cursor settings instead of inherited snapshots")
 omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
@@ -138,4 +142,5 @@ events["config.reloaded"]()
 assert(omarchy_startup_cursor.xcursor == "default", "an ordinary boot without a cursor theme keeps the default alias instead of adopting GSettings")
 io.popen = popen
 LUA
+lua "$fixture"
 pass "the first compositor frame starts blank and the reveal restores user cursor settings"
