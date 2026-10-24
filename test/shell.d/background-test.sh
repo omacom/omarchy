@@ -79,4 +79,13 @@ assert(
   /id: revealAnimation[\s\S]*?duration: Style\.duration\(840\)/.test(backgroundQml),
   'background reveal takes 840ms'
 )
+
+assert(
+  /mask:\s*Region\s*\{\s*item:\s*\(root\.barMoveActive \|\| root\.barDragActive\) \? null : bgMouseArea\s*\}/.test(backgroundQml),
+  'background panel window releases input mask when bar drag or move is active'
+)
+assert(
+  /enabled:\s*!root\.barMoveActive && !root\.barDragActive/.test(backgroundQml),
+  'background mouse area disables while bar drag or move is active'
+)
 JS

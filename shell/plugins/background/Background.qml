@@ -17,6 +17,8 @@ Item {
   readonly property string stateHome: home + "/.local/state"
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
   readonly property string currentThemeBackgrounds: stateHome + "/omarchy/current/theme/backgrounds"
+  readonly property bool barMoveActive: !!root.shell && !!root.shell.bar && !!root.shell.bar.barMoveActive
+  readonly property bool barDragActive: !!root.shell && !!root.shell.bar && !!root.shell.bar.barDragSource
 
   property string currentBackground: ""
   property string displayedBackground: ""
@@ -401,6 +403,7 @@ Item {
       WlrLayershell.layer: WlrLayer.Background
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       exclusionMode: ExclusionMode.Ignore
+      mask: Region { item: (root.barMoveActive || root.barDragActive) ? null : bgMouseArea }
 
       // OWE owns video backgrounds. This layer draws stills, and stays empty
       // behind a video so OWE's own layer shows through.
@@ -510,8 +513,10 @@ Item {
       }
 
       MouseArea {
+        id: bgMouseArea
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
+        enabled: !root.barMoveActive && !root.barDragActive
         onDoubleClicked: function(mouse) {
           if (mouse.button === Qt.RightButton) root.openThemeSwitcher()
           else root.openSelector()

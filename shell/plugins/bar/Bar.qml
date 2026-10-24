@@ -2089,6 +2089,7 @@ Item {
     acceptedButtons: Qt.LeftButton
     cursorShape: dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
     pressAndHoldInterval: 200
+    preventStealing: true
 
     function startDrag(x, y) {
       if (dragging) return
@@ -2650,6 +2651,7 @@ Item {
 
       anchors.fill: parent
       acceptedButtons: Qt.LeftButton
+      preventStealing: true
       // Sized by the widget, not the slot, which a drag can shrink to nothing
       // under the pointer that holds it.
       enabled: slot.visible && slot.widgetWidth > 0 && slot.widgetHeight > 0

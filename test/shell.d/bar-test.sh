@@ -30,6 +30,12 @@ if ! perl -0ne 'exit(/onPressAndHold:\s*function[^{]*\{[^}]*?\bpressed\b[^}]*?\b
 fi
 pass "bar move ignores a press-and-hold propagated from a widget above"
 
+if ! perl -0ne 'exit(/component CenterGestureArea:\s*MouseArea\s*\{[^}]*?\bpreventStealing:\s*true\b/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "center gesture area must prevent stealing during bar drag"
+fi
+pass "center gesture area sets preventStealing to retain pointer grab across screen"
+
 # Every click target registration used to resync every plugin api inline. With
 # six monitors' worth of widgets that is hundreds of full walks at startup, so
 # the change handlers coalesce into one deferred resync and ownership lookups
