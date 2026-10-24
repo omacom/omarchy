@@ -3,6 +3,20 @@
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+require_command jq
+require_command python3
+
+test_home=$(mktemp -d)
+trap 'rm -rf "$test_home"' EXIT
+
+# Without credentials the collector must still print a full, hidden-by-default
+# record: the update runner writes whatever valid JSON appears on stdout.
+no_key=$(HOME="$test_home" KIMI_CODE_HOME="$test_home/kimi-code" KIMI_API_KEY="" \
+  "$ROOT/bin/omarchy-agent-usage-kimi")
+[[ $(jq -r '.id + ":" + (.ready | tostring) + ":" + (.scope)' <<<"$no_key") == "kimi:false:account" ]] ||
+  fail "Kimi collector prints a valid record without credentials" "$no_key"
+pass "Kimi collector prints a valid record without credentials"
+
 python3 - "$ROOT/bin/omarchy-agent-usage-kimi" <<'PY'
 import contextlib
 import importlib.machinery
@@ -49,9 +63,6 @@ class Handler(BaseHTTPRequestHandler):
     requests.append((self.path, None, urllib.parse.parse_qs(body)))
     if state.get("token_hook"):
       state["token_hook"]()
-    if state.get("entered"):
-      state["entered"].set()
-    time.sleep(state.get("delay", 0))
     if state.get("token_status"):
       self.reply(state["token_status"], {"error_description": "Echo RT_old"})
     else:
@@ -101,7 +112,13 @@ def record():
   return json.loads(output.getvalue())
 
 def destination(root):
-  for url in ("https://outside.example/api/oauth/token", local_url + "/api/oauth/token"):
+  try:
+    scanner.trusted_url("http://auth.kimi.com/api/oauth/token")
+  except scanner.KimiError:
+    pass
+  else:
+    raise AssertionError("plain HTTP off loopback was accepted")
+  for url in("https://outside.example/api/oauth/token", local_url + "/api/oauth/token"):
     scanner.TOKEN_URL = url
     try:
       scanner.request_refresh("RT_old")
@@ -117,9 +134,33 @@ def home_isolation(root):
   (default / "kimi-code.json").write_text("{}")
   assert scanner.credentials_dir() == root / "code home" / "credentials", "explicit home fell back to another account"
 
+def store_choice(root):
+  del os.environ["KIMI_CODE_HOME"]
+  code, legacy = Path.home() / ".kimi-code" / "credentials", Path.home() / ".kimi" / "credentials"
+  legacy.mkdir(parents=True)
+  (legacy / "kimi-code.json").write_text("{}")
+  assert scanner.credentials_dir() == legacy, "legacy kimi-cli store was not the fallback"
+  code.mkdir(parents=True)
+  (code / "kimi-code.json").write_text("{}")
+  assert scanner.credentials_dir() == code, "kimi-code store did not win over legacy kimi-cli"
+
+def env_key(root):
+  credentials("AT_stored", time.time() + 3600)
+  os.environ["KIMI_API_KEY"] = "AT_env"
+  assert scanner.api_key() == "AT_env", "stored credentials overrode KIMI_API_KEY"
+
 def static_token(root):
   credentials("AT_static", 0)
   assert scanner.api_key() == "AT_static" and not requests, "non-expiring token was refreshed"
+  credentials("AT_fresh", time.time() + 3600)
+  assert scanner.api_key() == "AT_fresh" and not requests, "fresh token was refreshed"
+
+def refresh(root):
+  credentials()
+  assert scanner.api_key() == "AT_new", "expired token was not refreshed"
+  saved = json.loads(scanner.CREDENTIALS_PATH.read_text())
+  assert saved["access_token"] == "AT_new" and saved["refresh_token"] == "RT_new", "rotated pair was not persisted"
+  assert requests[-1][2]["refresh_token"] == ["RT_old"], "refresh did not spend the stored refresh token"
 
 def cli_lock(root):
   credentials()
@@ -149,25 +190,43 @@ def lock_failure(root):
   assert not requests, "refresh posted while lock acquisition failed"
 
 def heartbeat(root):
+  # The CLI treats a lease whose mtime is 5 s old as abandoned. Hold the token
+  # request open, age the lease past that, and wait for the collector to renew
+  # it, twice, so a single touch does not pass for a heartbeat.
   credentials()
-  state.update(delay=6, entered=threading.Event())
-  outcome = []
-  def refresh():
-    try:
-      outcome.append(scanner.api_key())
-    except Exception as error:
-      outcome.append(error)
-  thread = threading.Thread(target=refresh)
-  thread.start()
-  try:
-    assert state["entered"].wait(2), "refresh request did not arrive"
-    time.sleep(5.2)
-    lock = root / "code home" / "oauth" / "kimi-code.lock"
-    assert lock.is_dir() and time.time() - lock.stat().st_mtime < 3, "CLI lock expired during a slow refresh"
-  finally:
-    thread.join()
-  assert outcome == ["AT_new"], "slow refresh failed"
+  lock = root / "code home" / "oauth" / "kimi-code.lock"
+  aged = 1000
+  renewed = []
+  def hold():
+    for _ in range(2):
+      os.utime(lock, (aged, aged))
+      deadline = time.monotonic() + 10
+      while lock.is_dir() and lock.stat().st_mtime == aged and time.monotonic() < deadline:
+        time.sleep(0.05)
+      renewed.append(lock.is_dir() and lock.stat().st_mtime != aged)
+  state["token_hook"] = hold
+  assert scanner.api_key() == "AT_new", "slow refresh failed"
+  assert renewed == [True, True], "CLI lock lease was not renewed during a slow refresh"
   assert not lock.exists(), "refresh retained its directory lease"
+
+def legacy_quota(root):
+  # The older payload shape: the weekly quota, the 5-hour session window, used
+  # derived from remaining, nanosecond stamps trimmed and empty windows dropped.
+  payload = {
+    "usage": {"limit": 100, "used": 33, "reset_at": "2026-08-23T11:52:13.042087123Z"},
+    "limits": [
+      {"window": {"duration": 300, "timeUnit": "MINUTES"},
+       "detail": {"limit": 50, "remaining": 17, "reset_at": "2026-08-17T16:52:13Z"}},
+      {"window": {"duration": 7, "timeUnit": "DAYS"},
+       "detail": {"name": "Weekly quota", "limit": 200, "used": 50}},
+      {"window": {"duration": 0}, "detail": {"limit": 0, "used": 0}},
+    ],
+  }
+  assert scanner.to_limits(payload) == [
+    {"label": "Weekly limit", "percent": 0.33, "resetsAt": "2026-08-23T11:52:13.042087Z"},
+    {"label": "Session (5-hour)", "percent": 0.66, "resetsAt": "2026-08-17T16:52:13Z"},
+    {"label": "Weekly quota", "percent": 0.25, "resetsAt": ""},
+  ], f"usage windows rendered wrong: {scanner.to_limits(payload)}"
 
 def private_write(root):
   credentials()
@@ -273,9 +332,11 @@ def redirects(root):
   assert not record()["ready"]
   assert len(requests) == 1 and requests[0][0] == "/coding/v1/usages", "usage followed a redirect"
 
-cases = {"destination": destination, "home": home_isolation, "static": static_token,
+cases = {"destination": destination, "home": home_isolation, "store": store_choice,
+         "env_key": env_key, "static": static_token, "refresh": refresh,
          "cli_lock": cli_lock, "lock_failure": lock_failure, "heartbeat": heartbeat,
-         "private_write": private_write, "quota": modern_quota, "stale": stale_limits,
+         "private_write": private_write, "quota": modern_quota, "legacy_quota": legacy_quota,
+         "stale": stale_limits,
          "rotation_cache": rotated_cache, "cache_identity": cache_identity,
          "concurrent_signin": concurrent_signin, "concurrent_logout": concurrent_logout,
          "invalid_grant": invalid_grant,

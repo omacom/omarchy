@@ -19,18 +19,83 @@ run_dir="$test_tmp/run"
 stub_bin="$test_tmp/bin"
 mkdir -p "$root_dir/shell" "$run_dir" "$stub_bin"
 touch "$root_dir/shell/shell.qml"
-# The shell names its socket after its config and display, as omarchy-shell
-# derives it.
 display="test-display"
-socket=$(XDG_RUNTIME_DIR="$run_dir" WAYLAND_DISPLAY="$display" shell_ipc_socket "$root_dir")
+calls="$test_tmp/qs-calls"
 
-# qs is the fallback: it records that it ran and answers.
+# qs is the fallback: it logs its arguments and answers with the display it was
+# given, or hangs, or answers as a shell that is still starting.
 cat >"$stub_bin/qs" <<'SH'
 #!/bin/bash
-printf 'qs\n' >>"$QS_CALLS"
-printf 'from-qs\n'
+printf '%s\n' "$*" >>"$QS_CALLS"
+case $QS_MODE in
+  hang) sleep 5 ;;
+  starting) printf 'Not ready to accept queries yet.\n' ;;
+  *) printf 'from-qs on %s\n' "$WAYLAND_DISPLAY" ;;
+esac
 SH
 chmod +x "$stub_bin/qs"
+
+# An empty $display calls with no WAYLAND_DISPLAY at all, as callers from a
+# stripped environment do.
+shell_call() {
+  local display_env=()
+  [[ -n $display ]] && display_env=(WAYLAND_DISPLAY="$display")
+  : >"$calls"
+  env -u WAYLAND_DISPLAY PATH="$stub_bin:$PATH" OMARCHY_PATH="$root_dir" XDG_RUNTIME_DIR="${runtime:-$run_dir}" \
+    "${display_env[@]}" QS_CALLS="$calls" QS_MODE="${qs_mode:-}" \
+    OMARCHY_SHELL_IPC_TIMEOUT="${IPC_TIMEOUT:-2s}" "$ROOT/bin/omarchy-shell" "$@"
+}
+
+# qs ipc path: no shell socket in the runtime directory yet.
+
+output=$(IPC_TIMEOUT=0.1s qs_mode=hang shell_call shell ping 2>&1) && fail "hung shell IPC returns a failure"
+[[ $output == "omarchy-shell is not responding" ]] || fail "hung shell IPC reports that the shell is unresponsive" "$output"
+pass "shell IPC calls time out when Quickshell is unresponsive"
+
+# A starting shell answers on stdout and exits 0, so a ping reads it as up.
+output=$(qs_mode=starting shell_call shell ping 2>&1) && fail "a starting shell answers IPC calls with a failure"
+[[ $output == "omarchy-shell is not ready" ]] || fail "a starting shell reports that it is not ready" "$output"
+pass "shell IPC calls fail while Quickshell is still starting"
+
+qs_mode=starting shell_call -q shell ping >/dev/null 2>&1 || fail "quiet best-effort IPC calls tolerate a starting shell"
+pass "quiet best-effort IPC calls tolerate a starting shell"
+
+shell_call shell ping >/dev/null
+[[ $(<"$calls") == "ipc -n -p $root_dir/shell call -- shell ping" ]] ||
+  fail "shell IPC targets the newest live Quickshell instance of this config" "$(<"$calls")"
+pass "shell IPC targets the newest live Quickshell instance of this config"
+
+# Display recovery: qs matches instances by display.
+display_run="$test_tmp/display-run"
+mkdir -p "$display_run"
+touch "$display_run/wayland-1" "$display_run/wayland-1.lock"
+
+output=$(runtime="$display_run" display="" shell_call omarchy.indicators refresh)
+[[ $output == "from-qs on wayland-1" ]] || fail "shell ipc recovers a missing display" "$output"
+pass "shell ipc recovers a missing display"
+
+touch "$display_run/wayland-9"
+output=$(runtime="$display_run" display=wayland-9 shell_call omarchy.indicators refresh)
+[[ $output == "from-qs on wayland-9" ]] || fail "shell ipc keeps an existing display" "$output"
+pass "shell ipc keeps an existing display"
+rm "$display_run/wayland-9"
+
+# A second Hyprland session leaves its display in the systemd user environment
+# after it ends, and services started then must still reach the live shell.
+output=$(runtime="$display_run" display=wayland-2 shell_call omarchy.indicators refresh)
+[[ $output == "from-qs on wayland-1" ]] || fail "shell ipc recovers from a display whose socket is gone" "$output"
+pass "shell ipc recovers from a display whose socket is gone"
+
+# A display may be an absolute path to a socket outside the runtime directory.
+mkdir -p "$test_tmp/elsewhere"
+touch "$test_tmp/elsewhere/wayland-5"
+output=$(runtime="$display_run" display="$test_tmp/elsewhere/wayland-5" shell_call omarchy.indicators refresh)
+[[ $output == "from-qs on $test_tmp/elsewhere/wayland-5" ]] || fail "shell ipc keeps a live absolute display" "$output"
+pass "shell ipc keeps a live absolute display"
+
+# Socket path: the shell names its socket after its config and display, as
+# omarchy-shell derives it.
+socket=$(XDG_RUNTIME_DIR="$run_dir" WAYLAND_DISPLAY="$display" shell_ipc_socket "$root_dir")
 
 # The fake shell replies as the mode file says, and logs each request with
 # its separators made visible.
@@ -50,17 +115,13 @@ SH
 chmod +x "$test_tmp/responder"
 
 mode="$test_tmp/mode"
-calls="$test_tmp/qs-calls"
 requests="$test_tmp/requests"
-MODE="$mode" REQUESTS="$requests" socat UNIX-LISTEN:"$socket",fork SYSTEM:"$test_tmp/responder" 2>/dev/null &
-server_pid=$!
-for _ in $(seq 50); do [[ -S $socket ]] && break; sleep 0.05; done
-
-shell_call() {
-  : >"$calls"
-  PATH="$stub_bin:$PATH" OMARCHY_PATH="$root_dir" XDG_RUNTIME_DIR="$run_dir" WAYLAND_DISPLAY="$display" QS_CALLS="$calls" \
-    OMARCHY_SHELL_IPC_TIMEOUT="${IPC_TIMEOUT:-2s}" "$ROOT/bin/omarchy-shell" "$@"
+start_server() {
+  MODE="$mode" REQUESTS="$requests" socat UNIX-LISTEN:"$socket",fork SYSTEM:"$test_tmp/responder" 2>/dev/null &
+  server_pid=$!
+  for _ in $(seq 50); do [[ -S $socket ]] && break; sleep 0.05; done
 }
+start_server
 
 printf 'ok' >"$mode"
 output=$(shell_call media next extra-arg)
@@ -80,13 +141,13 @@ pass "socket output drops trailing newlines as the qs ipc path does"
 
 printf 'skip' >"$mode"
 output=$(shell_call nosuch ping)
-[[ $output == "from-qs" && -s $calls ]] || fail "a call the shell did not run goes to qs ipc" "got: $output"
+[[ $output == "from-qs on $display" && -s $calls ]] || fail "a call the shell did not run goes to qs ipc" "got: $output"
 pass "a call the shell did not run goes to qs ipc for its exact answer"
 
 printf 'ok' >"$mode"
 : >"$requests"
 output=$(shell_call shell summon "$(printf 'a\x1fb')")
-[[ $output == "from-qs" && ! -s $requests ]] || fail "an argument holding a separator goes straight to qs ipc" "got: $output"
+[[ $output == "from-qs on $display" && ! -s $requests ]] || fail "an argument holding a separator goes straight to qs ipc" "got: $output"
 pass "an argument holding a separator goes straight to qs ipc"
 
 printf 'hang' >"$mode"
@@ -114,21 +175,19 @@ wait "$server_pid" 2>/dev/null || true
 server_pid=""
 [[ -S $socket ]] || fail "a killed listener leaves its socket file behind"
 output=$(shell_call shell ping)
-[[ $output == "from-qs" ]] || fail "a stale socket with nothing listening falls back to qs ipc" "got: $output"
+[[ $output == "from-qs on $display" ]] || fail "a stale socket with nothing listening falls back to qs ipc" "got: $output"
 pass "a stale socket with nothing listening falls back to qs ipc"
 
 rm -f "$socket"
 output=$(shell_call shell ping)
-[[ $output == "from-qs" ]] || fail "without the socket calls go through qs ipc" "got: $output"
+[[ $output == "from-qs on $display" ]] || fail "without the socket calls go through qs ipc" "got: $output"
 pass "without the socket calls go through qs ipc"
 
 # A call for a different display never reaches this shell's socket.
 printf 'ok' >"$mode"
-MODE="$mode" REQUESTS="$requests" socat UNIX-LISTEN:"$socket",fork SYSTEM:"$test_tmp/responder" 2>/dev/null &
-server_pid=$!
-for _ in $(seq 50); do [[ -S $socket ]] && break; sleep 0.05; done
+start_server
 output=$(display="other-display" shell_call shell ping)
-[[ $output == "from-qs" ]] || fail "a call for another display does not reach this shell's socket" "got: $output"
+[[ $output == "from-qs on other-display" ]] || fail "a call for another display does not reach this shell's socket" "got: $output"
 pass "a call for another display does not reach this shell's socket"
 
 run_node_test <<'JS'
