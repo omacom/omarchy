@@ -29,6 +29,10 @@ Panel {
     var device = UPower.displayDevice
     return !!(device && device.isPresent)
   }
+  // The status script's percentage while UPower's full charge is latched (the
+  // battery service explains), -1 while the display device's figure holds.
+  readonly property var batteryService: bar?.shell?.firstPartyServiceFor("omarchy.battery")
+  readonly property int kernelPercentage: batteryService ? batteryService.kernelPercentage : -1
 
   function upowerStates() {
     return {
@@ -50,12 +54,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.kernelPercentage)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t)
+    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.kernelPercentage)
   }
 
   function profileIcon(name) {
@@ -72,7 +76,7 @@ Panel {
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.kernelPercentage)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
@@ -80,7 +84,7 @@ Panel {
   // 0..1 charge level, used by the visual progress bar.
   readonly property real batteryFraction: {
     var d = UPower.displayDevice
-    return Model.batteryFraction(d)
+    return Model.batteryFraction(d, root.kernelPercentage)
   }
 
   readonly property bool charging: {

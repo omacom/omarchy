@@ -196,6 +196,98 @@ sparse_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:
 [[ $sparse_output == "Battery 60%  ·  "$' '"9W" ]] || fail "missing readings drop out of the status line" "$sparse_output"
 pass "battery status leaves out readings it doesn't have"
 
+# UPower latched energy-full on a Smart Battery blip (a MacBook Air: 484 Wh on
+# a 54 Wh pack) and reads a tenth of the charge; the kernel's charge registers
+# still have it right. UPower's time to full counts to the latched value too.
+latch_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$hold_dir" "$latch_dir"' EXIT
+
+mkdir -p "$latch_dir/bin" "$latch_dir/power/BAT0" "$latch_dir/power/ac"
+printf 'Mains\n' >"$latch_dir/power/ac/type"
+printf '1\n' >"$latch_dir/power/ac/online"
+printf '6833000\n' >"$latch_dir/power/BAT0/charge_now"
+printf '6876000\n' >"$latch_dir/power/BAT0/charge_full"
+printf '7600000\n' >"$latch_dir/power/BAT0/voltage_min_design"
+printf '8533000\n' >"$latch_dir/power/BAT0/voltage_now"
+printf '0\n' >"$latch_dir/power/BAT0/current_now"
+printf '274\n' >"$latch_dir/power/BAT0/cycle_count"
+cat >"$latch_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  exit 0
+fi
+
+if [[ $1 == "-i" ]]; then
+  cat <<'INFO'
+  native-path:          BAT0
+  power supply:         yes
+  state:                charging
+  energy:               51.4 Wh
+  energy-full:          484.515 Wh
+  energy-full-design:   54.34 Wh
+  energy-rate:          3.2 W
+  time to full:         5.6 days
+  percentage:           10.6099%
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$latch_dir/bin/upower"
+
+latched_output=$(OMARCHY_POWER_SUPPLY_PATH="$latch_dir/power" PATH="$latch_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t99%' <<<"$latched_output" >/dev/null || fail "a latched energy-full gives way to the kernel's charge registers" "$latched_output"
+grep -Fx $'size\t52Wh' <<<"$latched_output" >/dev/null || fail "a latched energy-full gives way to the kernel's full charge" "$latched_output"
+grep -Fx $'time\t' <<<"$latched_output" >/dev/null || fail "UPower's time to full against a latched energy-full is not shown" "$latched_output"
+grep -Fx $'source\tkernel' <<<"$latched_output" >/dev/null || fail "battery status names the kernel as its source past a latch" "$latched_output"
+grep -Fx $'state\tcharging' <<<"$latched_output" >/dev/null || fail "the kernel registers leave UPower's state alone" "$latched_output"
+grep -Fx $'cycles\t274' <<<"$latched_output" >/dev/null || fail "battery status still reports the cycle count past a latch" "$latched_output"
+
+# Charging past a latch times the kernel's full charge against the live draw
+# (a MacBook Pro: 733 Wh latched on a 77 Wh pack, charging at 32 W).
+printf '2693000\n' >"$latch_dir/power/BAT0/charge_now"
+printf '4806000\n' >"$latch_dir/power/BAT0/charge_full"
+printf '11400000\n' >"$latch_dir/power/BAT0/voltage_min_design"
+printf '11400000\n' >"$latch_dir/power/BAT0/voltage_now"
+printf '2800000\n' >"$latch_dir/power/BAT0/current_now"
+sed -i 's/energy:               51.4 Wh/energy:               30.7 Wh/; s/energy-full:          484.515 Wh/energy-full:          733.4 Wh/; s/energy-full-design:   54.34 Wh/energy-full-design:   76.6 Wh/; s/energy-rate:          3.2 W/energy-rate:          31.9 W/; s/time to full:         5.6 days/time to full:         21.7 hours/; s/percentage:           10.6099%/percentage:           4.2%/' "$latch_dir/bin/upower"
+charging_latched_output=$(OMARCHY_POWER_SUPPLY_PATH="$latch_dir/power" PATH="$latch_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t56%' <<<"$charging_latched_output" >/dev/null || fail "a charge-counting battery's percentage comes from its charge registers" "$charging_latched_output"
+grep -Fx $'size\t54Wh' <<<"$charging_latched_output" >/dev/null || fail "a charge-counting battery's size converts at its design voltage" "$charging_latched_output"
+grep -Fx $'time\t45m' <<<"$charging_latched_output" >/dev/null || fail "time to full past a latch counts to the kernel's full charge" "$charging_latched_output"
+
+# A battery that counts energy answers from energy_now and energy_full.
+rm "$latch_dir/power/BAT0"/charge_* "$latch_dir/power/BAT0"/voltage_*
+printf '30700000\n' >"$latch_dir/power/BAT0/energy_now"
+printf '54800000\n' >"$latch_dir/power/BAT0/energy_full"
+printf '31900000\n' >"$latch_dir/power/BAT0/power_now"
+energy_latched_output=$(OMARCHY_POWER_SUPPLY_PATH="$latch_dir/power" PATH="$latch_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t56%' <<<"$energy_latched_output" >/dev/null || fail "an energy-counting battery's percentage comes from its energy registers" "$energy_latched_output"
+grep -Fx $'size\t54Wh' <<<"$energy_latched_output" >/dev/null || fail "an energy-counting battery's size comes from energy_full" "$energy_latched_output"
+grep -Fx $'source\tkernel' <<<"$energy_latched_output" >/dev/null || fail "an energy-counting battery past a latch names the kernel as its source" "$energy_latched_output"
+
+# With no registers to read, UPower's figures stand, wrong as they are.
+rm "$latch_dir/power/BAT0"/energy_*
+bare_latched_output=$(OMARCHY_POWER_SUPPLY_PATH="$latch_dir/power" PATH="$latch_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t4%' <<<"$bare_latched_output" >/dev/null || fail "a latch with no kernel registers keeps UPower's percentage" "$bare_latched_output"
+grep -q $'^source\t' <<<"$bare_latched_output" && fail "a latch with no kernel registers names no other source" "$bare_latched_output"
+pass "battery status reads the kernel's charge registers past a latched UPower energy-full"
+
+# A full charge a little over the design capacity is a healthy new pack, and
+# UPower's figures stand; the registers are not read, and no source is named.
+printf '2693000\n' >"$latch_dir/power/BAT0/charge_now"
+printf '4806000\n' >"$latch_dir/power/BAT0/charge_full"
+printf '11400000\n' >"$latch_dir/power/BAT0/voltage_min_design"
+sed -i 's/energy-full:          733.4 Wh/energy-full:          78.1 Wh/; s/percentage:           4.2%/percentage:           39.3%/' "$latch_dir/bin/upower"
+healthy_output=$(OMARCHY_POWER_SUPPLY_PATH="$latch_dir/power" PATH="$latch_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t39%' <<<"$healthy_output" >/dev/null || fail "a plausible energy-full keeps UPower's percentage" "$healthy_output"
+grep -Fx $'size\t78Wh' <<<"$healthy_output" >/dev/null || fail "a plausible energy-full keeps UPower's size" "$healthy_output"
+grep -q $'^source\t' <<<"$healthy_output" && fail "a plausible energy-full names no other source" "$healthy_output"
+pass "battery status keeps UPower's figures while its energy-full is plausible"
+
 if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
   fail "battery status owns capacity and remaining calculations" "$matches"
 fi

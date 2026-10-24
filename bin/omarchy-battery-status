@@ -58,8 +58,57 @@ energy=$(awk '/^ *energy:/ { print $2; exit }' <<<"$battery_info")
 energy_full=$(awk '/energy-full:/ { print $2; exit }' <<<"$battery_info")
 upower_hours=$(awk '/time to (empty|full)/ { print ($5 ~ /^minute/ ? $4 / 60 : $4); exit }' <<<"$battery_info")
 power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
+energy_full_design=$(awk '/energy-full-design:/ { print $2; exit }' <<<"$battery_info")
+state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
 native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
 battery_path="$power_supply_path/$native_path"
+
+# UPower can latch energy-full on a garbage reading from a Smart Battery blip
+# (MacBooks: 484 Wh on a 54 Wh pack) and keep it until the daemon restarts,
+# so the percentage, pack size and time to full all follow a wrong
+# denominator. A full charge beyond twice the design capacity cannot be real:
+# read this battery's own kernel registers for those figures instead, the
+# way the live draw already comes from sysfs. UPower's energy and rate still
+# hold, and nothing else here moves. The --shell output names the source so
+# the shell knows when to prefer this percentage over UPower's.
+charge_source=upower
+if awk -v full="${energy_full:-0}" -v design="${energy_full_design:-0}" 'BEGIN { exit !(design > 0 && full > design * 2) }'; then
+  kernel_energy=""
+  kernel_energy_full=""
+  if [[ -r $battery_path/energy_now && -r $battery_path/energy_full ]]; then
+    kernel_energy=$(awk -v microwatthours="$(<"$battery_path/energy_now")" 'BEGIN { print microwatthours / 1000000 }')
+    kernel_energy_full=$(awk -v microwatthours="$(<"$battery_path/energy_full")" 'BEGIN { print microwatthours / 1000000 }')
+  elif [[ -r $battery_path/charge_now && -r $battery_path/charge_full ]]; then
+    # A charge-counting battery converts at the design voltage; UPower tries
+    # these files in this order, so its energy and this full charge agree.
+    design_voltage=""
+    for voltage_file in voltage_max_design voltage_min_design voltage_now; do
+      [[ -r $battery_path/$voltage_file ]] || continue
+      design_voltage=$(<"$battery_path/$voltage_file")
+      break
+    done
+    if [[ -n $design_voltage ]]; then
+      kernel_energy=$(awk -v microamphours="$(<"$battery_path/charge_now")" -v microvolts="$design_voltage" 'BEGIN { print microamphours * microvolts / 1000000000000 }')
+      kernel_energy_full=$(awk -v microamphours="$(<"$battery_path/charge_full")" -v microvolts="$design_voltage" 'BEGIN { print microamphours * microvolts / 1000000000000 }')
+    fi
+  fi
+
+  if awk -v full="${kernel_energy_full:-0}" 'BEGIN { exit !(full > 0) }'; then
+    energy=$kernel_energy
+    energy_full=$kernel_energy_full
+    percentage=$(awk -v energy="$energy" -v full="$energy_full" 'BEGIN {
+      percent = int(energy * 100 / full)
+      if (percent > 100) percent = 100
+      if (percent < 0) percent = 0
+      print percent
+    }')
+    capacity=$(awk -v full="$energy_full" 'BEGIN { printf "%d", full }')
+    charge_source=kernel
+    # UPower's time to full counts up to the latched value, in days; its time
+    # to empty divides a sound energy by the rate and stands.
+    [[ $state != "charging" ]] || upower_hours=""
+  fi
+fi
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when available so the open panel stays live.
@@ -80,7 +129,6 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   sub(/\.0$/, "", rounded)
   print rounded
 }')
-state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
 threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 
@@ -148,6 +196,7 @@ if [[ $shell_output == "true" ]]; then
   printf 'rate\t%s\n' "${power_rate}W"
   printf 'size\t%s\n' "${capacity}Wh"
   printf 'time\t%s\n' "$time_remaining"
+  [[ $charge_source == "upower" ]] || printf 'source\t%s\n' "$charge_source"
 
   cycles=""
   [[ ! -r $battery_path/cycle_count ]] || cycles=$(<"$battery_path/cycle_count")
