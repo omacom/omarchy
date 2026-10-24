@@ -86,6 +86,8 @@ cat >"$restart_bin/qs" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$OMARCHY_TEST_IPC_LOG"
+[[ -z ${OMARCHY_TEST_IPC_TIMEOUT_LOG:-} ]] ||
+  printf '%s %s\n' "${OMARCHY_SHELL_IPC_TIMEOUT:-unset}" "$*" >>"$OMARCHY_TEST_IPC_TIMEOUT_LOG"
 
 case "$*" in
   *'shell ping')
@@ -94,10 +96,22 @@ case "$*" in
       printf 'ok\n'
     ;;
   *'lock lock')
+    if [[ ${OMARCHY_TEST_RELOCK_STALL:-0} == 1 ]]; then
+      sleep 15
+      exit 0
+    fi
+    [[ -z ${OMARCHY_TEST_LOCK_IPC_DELAY:-} ]] || sleep "$OMARCHY_TEST_LOCK_IPC_DELAY"
     touch "$OMARCHY_TEST_QS_STATE.locked"
     printf 'ok\n'
     ;;
   *'lock status')
+    if [[ ${OMARCHY_TEST_RELOCK_STALL:-0} == 1 ]] &&
+      grep -Fx '303' "$OMARCHY_TEST_QS_STATE" >/dev/null; then
+      sleep 2
+      printf '{"secure": false, "requested": false}\n'
+      exit 0
+    fi
+    [[ -z ${OMARCHY_TEST_LOCK_IPC_DELAY:-} ]] || sleep "$OMARCHY_TEST_LOCK_IPC_DELAY"
     if [[ -f $OMARCHY_TEST_QS_STATE.locked ]]; then
       printf '{"secure": true, "requested": true}\n'
     else
@@ -323,3 +337,94 @@ grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null 
 [[ -f $restart_state.locked ]] || fail "lock recovery did not re-secure the session without notifications"
 grep -q "notification service did not become ready" "$test_tmp/dead-notifications.out" || fail "a missing notification service is not reported" "$(cat "$test_tmp/dead-notifications.out")"
 pass "restart recovers the lock even when the notification service never returns"
+
+# A live or freshly started shell under CPU load can take longer than 0.5s to
+# answer lock IPC. The pre-restart check must still preserve a live locker, and
+# relock_session must wait long enough per call to re-secure a slow fresh shell.
+: >"$restart_log"
+printf '303\n' >"$restart_state"
+touch "$restart_state.locked"
+
+slow_locked_error=$(PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_SESSION_LOCKED=1 \
+  OMARCHY_TEST_LOCK_IPC_DELAY=0.7 \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "restart refuses while a slow shell lock is active"
+
+[[ $slow_locked_error == "Refusing to restart Omarchy shell while the session is locked." ]] ||
+  fail "slow locked restart explains why it was refused" "$slow_locked_error"
+[[ $(<"$restart_state") == 303 ]] || fail "slow locked restart preserves the running shell"
+[[ ! -s $restart_log ]] || fail "slow locked restart does not stop or launch Quickshell"
+pass "restart preserves a locked shell that takes over 0.5s to answer IPC"
+
+sleep 30 &
+restart_pid_one=$!
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+rm -f "$restart_state.locked" "$test_tmp/notification-checks"
+: >"$restart_log"
+: >"$ipc_log"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_SESSION_LOCKED=1 \
+OMARCHY_TEST_LOCK_IPC_DELAY=0.7 \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 10 "$ROOT/bin/omarchy-restart-shell" || fail "locked restart recovers when the fresh shell answers lock IPC slowly"
+
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ -f $restart_state.locked ]] || fail "slow dead-lock recovery re-secures the session"
+pass "restart re-secures a locked session when the fresh shell answers IPC slowly"
+
+# Stalled lock calls during recovery are capped at 10s while time remains and
+# clamped to the remaining 30s deadline in the final ten seconds so recovery
+# stops within its allowed window instead of overrunning.
+ipc_timeout_log="$test_tmp/ipc-timeouts.log"
+sleep 60 &
+restart_pid_one=$!
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+rm -f "$restart_state.locked" "$test_tmp/notification-checks"
+: >"$restart_log"
+: >"$ipc_log"
+: >"$ipc_timeout_log"
+
+stalled_started=$SECONDS
+stalled_relock_error=$(PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_SESSION_LOCKED=1 \
+  OMARCHY_TEST_RELOCK_STALL=1 \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  OMARCHY_TEST_IPC_TIMEOUT_LOG="$ipc_timeout_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 34 "$ROOT/bin/omarchy-restart-shell" 2>&1) &&
+  fail "restart fails when stalled lock IPC never re-secures the session"
+stalled_elapsed=$((SECONDS - stalled_started))
+
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ $stalled_relock_error == "Omarchy shell restarted, but the session lock was not re-secured." ]] ||
+  fail "stalled lock recovery reports that the session lock was not re-secured" "$stalled_relock_error"
+(( stalled_elapsed >= 29 && stalled_elapsed <= 32 )) ||
+  fail "stalled lock recovery stops within its 30s deadline" "elapsed: ${stalled_elapsed}s"
+grep -Eq '^[1-9]s .* call -- lock status$' "$ipc_timeout_log" ||
+  fail "stalled lock recovery clamps lock status timeout in the final ten seconds" "$(cat "$ipc_timeout_log")"
+grep -Eq '^[1-9]s .* call -- lock lock$' "$ipc_timeout_log" ||
+  fail "stalled lock recovery clamps lock lock timeout in the final ten seconds" "$(cat "$ipc_timeout_log")"
+pass "restart caps and clamps stalled lock IPC calls to the 30s recovery deadline"
