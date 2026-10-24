@@ -11,6 +11,7 @@ panel only ever reads the JSON this prints.
 """
 
 import argparse
+import base64
 import fcntl
 import hashlib
 import json
@@ -1006,6 +1007,110 @@ def fetch_codex_rpc(home=None):
   return result
 
 
+# Who a home's probe answers for, or "" when only Codex could say: keyring and
+# auto stores keep the login out of auth.json.
+def signed_in_identity(codex_home):
+  token = ENV.get("CODEX_ACCESS_TOKEN")
+  if token:
+    return "token:" + hashlib.sha1(token.encode("utf-8", "surrogatepass")).hexdigest()
+  try:
+    with (codex_home / "config.toml").open("rb") as handle:
+      config = tomllib.load(handle)
+  except FileNotFoundError:
+    config = {}
+  except Exception:
+    return ""
+  if str(config.get("cli_auth_credentials_store") or "file") != "file":
+    return ""
+  # account_id names the workspace, whose members each have their own limits,
+  # so the user comes from the ID token's claims, read as Codex reads them.
+  try:
+    tokens = json.loads((codex_home / "auth.json").read_text(encoding="utf-8"))["tokens"]
+    payload = tokens["id_token"].split(".")[1]
+    claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))["https://api.openai.com/auth"]
+    workspace = str(tokens["account_id"] or "")
+    user = str(claims.get("chatgpt_user_id") or claims.get("user_id") or "")
+  except Exception:
+    return ""
+  return f"{workspace}\n{user}" if workspace and user else ""
+
+
+# Keyed by the home and the account it is signed in to, so a home signed in to
+# someone else never falls back on the last one's numbers. None when the
+# account can't be told, since then no numbers can be vouched for.
+def limits_cache_path(home):
+  codex_home = Path(home or ENV.get("CODEX_HOME") or (Path.home() / ".codex"))
+  identity = signed_in_identity(codex_home)
+  if not identity:
+    return None
+  # surrogatepass: a lone surrogate from JSON or the environment must not stop the record.
+  digest = hashlib.sha1(f"{codex_home}\n{identity}".encode("utf-8", "surrogatepass")).hexdigest()[:16]
+  try:
+    return cache_root() / f"codex-limits-{digest}.json"
+  except Exception as exc:
+    print(f"omarchy-agent-usage-codex: limits cache unavailable ({exc})", file=sys.stderr)
+    return None
+
+
+def usable_cached_limits(cached):
+  entries = cached.get("limits") if isinstance(cached, dict) else None
+  if not isinstance(entries, list):
+    return []
+  now = datetime.now(timezone.utc)
+  usable = []
+  for entry in entries:
+    if not isinstance(entry, dict):
+      continue
+    try:
+      resets = datetime.fromisoformat(str(entry.get("resetsAt") or ""))
+    except ValueError:
+      resets = None
+    if resets and resets.tzinfo is None:
+      resets = resets.replace(tzinfo=timezone.utc)
+    # A window that has reset since is empty now, whatever it read then.
+    usable.append(dict(entry, percent=0.0, resetsAt="") if resets and resets <= now else entry)
+  return usable
+
+
+# The app-server's answer, with the last limits it gave kept as the answer of
+# record when a later probe fails on the way: one slow or dropped call is no
+# reason to blank limits that were right a refresh ago. `live` says the limits
+# came from this probe.
+def collect_limits(home=None):
+  cache = limits_cache_path(home)
+  rpc = fetch_codex_rpc(home)
+  rpc["live"] = bool(rpc["limits"])
+  rpc["fetchedAtMs"] = round(time.time() * 1000) if rpc["live"] else 0
+  # A login that changed while the probe ran leaves no telling whose these are.
+  if cache is None or cache != limits_cache_path(home):
+    return rpc
+
+  if rpc["live"]:
+    try:
+      write_json(cache, {"fetchedAtMs": rpc["fetchedAtMs"], "limits": rpc["limits"], "tierLabel": rpc["tierLabel"]})
+    except Exception as exc:
+      print(f"omarchy-agent-usage-codex: could not write limits cache ({exc})", file=sys.stderr)
+    return rpc
+
+  # A sign-out, a missing CLI, or an app-server that died saying nothing is
+  # news the panel must show, not something to paper over with old numbers.
+  if rpc["usageStatusText"] != "Codex limits unavailable" or rpc["authHelpText"] == AUTH_HELP:
+    return rpc
+  try:
+    cached = json.loads(cache.read_text(encoding="utf-8"))
+  except Exception:
+    return rpc
+  limits = usable_cached_limits(cached)
+  if limits:
+    rpc.update(
+      limits=limits,
+      fetchedAtMs=number(cached.get("fetchedAtMs")),
+      tierLabel=rpc["tierLabel"] or str(cached.get("tierLabel") or ""),
+      usageStatusText="",
+    )
+  return rpc
+
+
 # The accounts `omarchy agent account` registered, read straight from its
 # registry. Only a registry holding a second account matters: with one, the
 # record is exactly what it always was.
@@ -1035,7 +1140,7 @@ def registered_accounts():
 def account_limits(account):
   # The primary is ~/.codex by definition, not whatever CODEX_HOME this run
   # happened to inherit — that would report another account's limits as Main's.
-  rpc = fetch_codex_rpc(account.get("home") or (Path.home() / ".codex"))
+  rpc = collect_limits(account.get("home") or (Path.home() / ".codex"))
   return {
     "id": account["id"],
     "label": str(account.get("label") or account["id"]),
@@ -1044,7 +1149,8 @@ def account_limits(account):
     "active": account["active"],
     "primary": bool(account.get("primary")),
     "limits": rpc["limits"],
-    "stale": not rpc["limits"],
+    "stale": not rpc["live"],
+    "fetchedAt": rpc["fetchedAtMs"],
     "usageStatusText": rpc["usageStatusText"],
     "authHelpText": rpc["authHelpText"],
     "resetCredits": rpc.get("resetCredits"),
@@ -1077,8 +1183,10 @@ def main():
     }
     if current.get("resetCredits"):
       rpc["resetCredits"] = current["resetCredits"]
+    stale, fetched_at = current["stale"], current["fetchedAt"]
   else:
-    rpc = fetch_codex_rpc()
+    rpc = collect_limits()
+    stale, fetched_at = not rpc.pop("live"), rpc.pop("fetchedAtMs")
 
   record = {
     "schemaVersion": 1,
@@ -1090,6 +1198,10 @@ def main():
   }
   record.update(stats)
   record.update(rpc)
+  # Numbers kept past a failed probe, and when they were measured, so the
+  # panel can tell them apart from ones checked just now.
+  record["limitsStale"] = stale
+  record["limitsFetchedAt"] = fetched_at
   if accounts:
     record["accountSwitch"] = registered[0]["switch"]
     record["accounts"] = accounts
