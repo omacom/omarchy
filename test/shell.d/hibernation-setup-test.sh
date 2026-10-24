@@ -4,45 +4,122 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-if [[ ! -f /sys/power/image_size ]]; then
-  skip "hibernation is unavailable; skipping setup prompt test"
-  exit 0
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+
+fake_bin="$test_tmp/bin"
+mkdir -p "$fake_bin"
+
+cat >"$fake_bin/omarchy-cmd-missing" <<'STUB'
+#!/bin/bash
+exit 1
+STUB
+
+cat >"$fake_bin/omarchy-hw-aarch64-apple" <<'STUB'
+#!/bin/bash
+exit 1
+STUB
+
+cat >"$fake_bin/omarchy-sleep-disabled" <<'STUB'
+#!/bin/bash
+exit 1
+STUB
+
+cat >"$fake_bin/sudo" <<'STUB'
+#!/bin/bash
+if [[ $1 == "btrfs" ]]; then
+  echo 12345
+elif [[ $1 == "sed" ]]; then
+  "$@"
+else
+  printf 'sudo %s\n' "$*" >>"$TEST_LOG"
+  [[ ${FAIL_REBUILD:-0} == "0" ]]
 fi
+STUB
 
-tmpdir=$(mktemp -d)
-trap 'rm -rf "$tmpdir"' EXIT
-mkdir -p "$tmpdir/bin"
+chmod +x "$fake_bin"/*
 
-cat >"$tmpdir/bin/omarchy-cmd-missing" <<'EOF'
+image_size="$test_tmp/image_size"
+mkinitcpio_conf="$test_tmp/omarchy_resume.conf"
+swap_file="$test_tmp/swapfile"
+resume_drop_in="$test_tmp/resume.conf"
+test_log="$test_tmp/calls.log"
+
+touch "$image_size" "$swap_file"
+printf '%s\n' 'HOOKS+=(resume)' >"$mkinitcpio_conf"
+
+run_setup() {
+  OMARCHY_HIBERNATION_IMAGE_SIZE_PATH="$image_size" \
+    OMARCHY_HIBERNATION_MKINITCPIO_CONF="$mkinitcpio_conf" \
+    OMARCHY_HIBERNATION_SWAP_FILE="$swap_file" \
+    OMARCHY_HIBERNATION_RESUME_DROP_IN="$resume_drop_in" \
+    TEST_LOG="$test_log" PATH="$fake_bin:$PATH" \
+    "$ROOT/bin/omarchy-hibernation-setup" "$@"
+}
+
+run_setup >/dev/null
+[[ ! -e $test_log ]] || fail "configured hibernation skips an unnecessary UKI rebuild"
+pass "configured hibernation remains a no-op without force"
+
+run_setup --force >/dev/null
+rebuild_count=$(grep -cFx 'sudo limine-mkinitcpio' "$test_log" || true)
+(( rebuild_count == 1 )) ||
+  fail "forced hibernation setup rebuilds the UKI once" "$(cat "$test_log")"
+pass "forced hibernation setup rebuilds an already-configured UKI"
+
+rm -f "$test_log"
+run_setup --force --no-rebuild >/dev/null
+[[ ! -e $test_log ]] || fail "no-rebuild suppresses a forced UKI rebuild" "$(cat "$test_log")"
+pass "forced hibernation setup honors no-rebuild callers"
+
+printf '%s\n' 'KERNEL_CMDLINE[default]+=" resume=/dev/root resume_offset="' >"$resume_drop_in"
+rm -f "$test_log"
+run_setup --force >/dev/null
+
+grep -qF 'resume_offset=12345"' "$resume_drop_in" ||
+  fail "forced hibernation setup repairs an empty resume offset"
+rebuild_count=$(grep -cFx 'sudo limine-mkinitcpio' "$test_log" || true)
+(( rebuild_count == 1 )) ||
+  fail "offset repair and force share one UKI rebuild" "$(cat "$test_log")"
+pass "forced offset repair rebuilds the UKI exactly once"
+
+if FAIL_REBUILD=1 run_setup --force >"$test_tmp/output" 2>&1; then
+  fail "forced rebuild failure reaches the caller"
+fi
+! grep -q 'Hibernation is already set up' "$test_tmp/output" || fail "a failed rebuild announces no success"
+pass "forced hibernation repair reports rebuild failures"
+
+locale_bin="$test_tmp/locale-bin"
+mkdir -p "$locale_bin"
+cp "$fake_bin/omarchy-cmd-missing" "$fake_bin/omarchy-hw-aarch64-apple" \
+  "$fake_bin/omarchy-sleep-disabled" "$locale_bin/"
+
+cat >"$locale_bin/grep" <<'STUB'
 #!/bin/bash
 exit 1
-EOF
+STUB
 
-cat >"$tmpdir/bin/grep" <<'EOF'
-#!/bin/bash
-exit 1
-EOF
-
-cat >"$tmpdir/bin/free" <<'EOF'
+cat >"$locale_bin/free" <<'STUB'
 #!/bin/bash
 if [[ ${LC_ALL:-} == "C" ]]; then
   printf 'Mem: 31Gi 1Gi 30Gi\n'
 else
   printf '内存： 31Gi 1Gi 30Gi\n'
 fi
-EOF
+STUB
 
-cat >"$tmpdir/bin/gum" <<'EOF'
+cat >"$locale_bin/gum" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >"$PROMPT_LOG"
 exit 1
-EOF
+STUB
 
-chmod +x "$tmpdir/bin/"*
+chmod +x "$locale_bin"/*
 
-env -u LC_ALL PROMPT_LOG="$tmpdir/prompt" PATH="$tmpdir/bin:$PATH" \
+env -u LC_ALL OMARCHY_HIBERNATION_IMAGE_SIZE_PATH="$image_size" \
+  PROMPT_LOG="$test_tmp/prompt" PATH="$locale_bin:$PATH" \
   "$ROOT/bin/omarchy-hibernation-setup"
 
-[[ $(<"$tmpdir/prompt") == "confirm Use 31Gi on boot drive to make hibernation available?" ]] ||
+[[ $(<"$test_tmp/prompt") == "confirm Use 31Gi on boot drive to make hibernation available?" ]] ||
   fail "hibernation setup reads memory size independently of the user's locale"
 pass "hibernation setup reads memory size independently of the user's locale"
