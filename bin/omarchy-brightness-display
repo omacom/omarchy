@@ -84,18 +84,52 @@ ddc_blank_monitors() {
   printf '%s\n' "$names"
 }
 
-# Sleep or wake every DDC-blank monitor at once; one slow monitor must not
-# delay the others. Fails if any monitor did not take the command.
+# A marker per monitor asleep over DDC/CI, so a wake reaches the monitors that
+# were slept even after the monitor set changed in between (a laptop lid
+# reopened before the wake would otherwise leave them dark: DPMS still reads
+# them as on). Blank and wake share one lock: the lock screen starts them
+# without waiting for one another, and a slow blank that fails over to DPMS
+# must not turn the displays off after a newer wake has lit them.
+blank_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-ddc-blank"
+
+ddc_blank_lock() {
+  mkdir -p "$blank_dir" 2>/dev/null || return 0
+  exec {blank_fd}>"$blank_dir/.lock" || return 0
+  flock -w 10 "$blank_fd" || true
+}
+
+ddc_blank_marker() {
+  printf '%s/%s\n' "$blank_dir" "${1//[^[:alnum:]_.-]/_}"
+}
+
+ddc_blank_asleep() {
+  local marker
+  for marker in "$blank_dir"/*; do
+    [[ -f $marker ]] && cat "$marker"
+  done
+}
+
+# Sleep or wake the named monitors at once; one slow monitor must not delay
+# the others. A monitor that took the sleep is marked asleep until a wake has
+# been tried on it. Fails if any monitor did not take the command.
 ddc_blank_all() {
-  local action="$1" names name pid status=0
-  names=$(ddc_blank_monitors) || return 1
-  local -a pids=()
+  local action="$1" names="$2" name status=0 i
+  local -a monitors=() pids=()
   for name in $names; do
     omarchy-brightness-display-ddc "$name" "$action" &
+    monitors+=("$name")
     pids+=("$!")
   done
-  for pid in "${pids[@]}"; do
-    wait "$pid" || status=1
+  for i in "${!pids[@]}"; do
+    name=${monitors[i]}
+    if ! wait "${pids[i]}"; then
+      status=1
+      rm -f "$(ddc_blank_marker "$name")"
+    elif [[ $action == "off" ]]; then
+      printf '%s\n' "$name" >"$(ddc_blank_marker "$name")" 2>/dev/null || true
+    else
+      rm -f "$(ddc_blank_marker "$name")"
+    fi
   done
   return "$status"
 }
@@ -125,14 +159,17 @@ fi
 step="$1"
 
 if [[ $step == "off" ]]; then
+  ddc_blank_lock
   # A monitor that did not take the DDC command still has to go dark: DPMS
   # then blanks everything, link drop and all, rather than leave it lit.
-  if ! ddc_blank_all off; then
+  if ! names=$(ddc_blank_monitors) || ! ddc_blank_all off "$names"; then
     hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
   fi
   exit 0
 elif [[ $step == "on" ]]; then
-  if ddc_blank_monitors >/dev/null && ! ddc_blank_all on; then
+  ddc_blank_lock
+  asleep=$(ddc_blank_asleep)
+  if [[ -n $asleep ]] && ! ddc_blank_all on "$asleep"; then
     # A monitor that ignores the DDC wake only comes back on a fresh signal,
     # so give it the modeset it would have had with DPMS.
     hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1

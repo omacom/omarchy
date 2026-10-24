@@ -128,26 +128,12 @@ fi
 
 # VCP D6 is the monitor's power mode: 01 on, 04 off. Written without
 # verification: a monitor that is off no longer answers the read-back, so a
-# verified write reports failure for a command it applied. Wake requests arrive
-# in bursts (the lock screen asks on every key press and pointer move), and each
-# DDC write holds the bus for a few hundred milliseconds, so one wake a second is
-# plenty.
+# verified write reports failure for a command it applied.
 if [[ $step == "off" || $step == "on" ]]; then
   bus="$(find_bus)" || exit 1
-  wake_file="$cache_dir/$cache_name.wake"
   if [[ $step == "on" ]]; then
-    now=$(date +%s)
-    if [[ -r $wake_file ]]; then
-      read -r woke_at <"$wake_file" || true
-      if [[ $woke_at =~ ^[0-9]+$ ]] && (( now - woke_at < 1 )); then
-        exit 0
-      fi
-    fi
-    mkdir -p "$cache_dir" 2>/dev/null || true
-    printf '%s\n' "$now" >"$wake_file" 2>/dev/null || true
     value=01
   else
-    rm -f "$wake_file"
     value=04
   fi
   if ! ddcutil --bus "$bus" --skip-ddc-checks --noverify setvcp D6 "$value" >/dev/null 2>&1; then
