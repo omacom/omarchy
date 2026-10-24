@@ -686,6 +686,9 @@
   "install.service": {
     "label": "Service"
   },
+  "install.utility": {
+    "label": "Utility"
+  },
   "install.development": {
     "label": "Development"
   },
@@ -796,6 +799,9 @@
   },
   "install.service.chromium-account": {
     "label": "Chromium Account"
+  },
+  "install.utility.gearlever": {
+    "label": "Gear Lever"
   },
   "install.editor.vscode": {
     "label": "VSCode"
