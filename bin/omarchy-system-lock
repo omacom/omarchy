@@ -5,10 +5,58 @@
 # omarchy:name=lock
 # omarchy:examples=omarchy system lock
 
-omarchy-shell lock lock >/dev/null
+# An accepted request is not a secure session lock: Quickshell acquires the
+# compositor lock asynchronously and can refuse a request on stdout at exit 0.
+budget_ms=5000
+deadline_ms=$((10#${EPOCHREALTIME//[!0-9]/} / 1000 + budget_ms))
+
+remaining_ms() {
+  echo $((deadline_ms - 10#${EPOCHREALTIME//[!0-9]/} / 1000))
+}
+
+lock_ipc() {
+  local limit=$1 remaining seconds
+  shift
+
+  remaining=$(remaining_ms)
+  (( remaining > 0 )) || return 1
+  (( limit < remaining )) || limit=$remaining
+  printf -v seconds '%d.%03d' $((limit / 1000)) $((limit % 1000))
+
+  OMARCHY_SHELL_IPC_TIMEOUT="$seconds" \
+    timeout --kill-after=0.1s "$seconds" omarchy-shell "$@"
+}
+
+report_unsecured() {
+  printf 'omarchy-system-lock: could not confirm a secure session lock (%s)\n' "$1" >&2
+  timeout --kill-after=0.1s 1s omarchy-notification-send -u critical -g 󰌾 \
+    "Screen lock failed" "The session may be unlocked ($1)." >/dev/null 2>&1 || true
+  exit 1
+}
+
+reply=$(lock_ipc 1000 lock lock 2>/dev/null) ||
+  report_unsecured "the shell did not accept the lock request"
+case $reply in
+  ok) ;;
+  missing-pam) report_unsecured "no lock screen is configured" ;;
+  failed) report_unsecured "the shell refused to lock" ;;
+  *) report_unsecured "the shell returned an unexpected lock response" ;;
+esac
+
+lock_secure=0
+while (( $(remaining_ms) > 0 )); do
+  status=$(lock_ipc 500 lock status 2>/dev/null) ||
+    report_unsecured "the shell stopped responding while locking"
+  if jq -es 'length == 1 and .[0].secure == true' <<<"$status" >/dev/null 2>&1; then
+    lock_secure=1
+    break
+  fi
+  sleep 0.1
+done
+(( lock_secure )) || report_unsecured "the shell did not secure the session within ${budget_ms}ms"
 
 # Set keyboard layout to default (first layout)
-hyprctl switchxkblayout all 0 > /dev/null 2>&1
+timeout --kill-after=0.1s 1s hyprctl switchxkblayout all 0 >/dev/null 2>&1 || true
 
 # Ensure 1password is locked. Use timeout because `1password --lock` can
 # otherwise leave a full Electron helper tree running after each lock.
