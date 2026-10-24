@@ -13,6 +13,14 @@ const panelSource = fs.readFileSync(root + '/shell/plugins/panels/clock/Panel.qm
 const widgetSource = fs.readFileSync(root + '/shell/plugins/panels/clock/BarWidget.qml', 'utf8')
   .replace(/^\s*\/\/.*$/gm, '')
 
+const format = requireFromRoot('shell/Commons/ClockFormat.js')
+assertEqual(format.configuredClockFormat({}, true), 'HH\n\u2014\nmm', 'shared format keeps the vertical clock default')
+assertEqual(format.configuredClockFormat({ format: '' }, false), '', 'shared format preserves an empty clock label')
+assertEqual(format.compactTimeFormat(format.configuredClockFormat({ format: 'dddd h:mm ap' }, false)), 'h:mm ap', 'compact time follows the configured twelve-hour clock')
+assertEqual(format.compactTimeFormat("HH:mm 'ap'"), 'HH:mm', 'compact time ignores quoted period tokens')
+assertEqual(format.compactTimeFormat("h:mm 'H' AP"), 'h:mm AP', 'compact time ignores quoted hour tokens')
+assertEqual(format.compactTimeFormat(format.configuredClockFormat(null, false)), 'HH:mm', 'compact time follows the default clock')
+
 // ---- week start resolution
 assertEqual(calendar.normalizedWeekStart('monday', 0), 1, 'calendar reads a named week start')
 assertEqual(calendar.normalizedWeekStart('SUN', 1), 0, 'calendar reads an abbreviated week start')
