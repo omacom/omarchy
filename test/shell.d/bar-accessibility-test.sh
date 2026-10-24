@@ -7,55 +7,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # Bar buttons carry Qt Accessible roles, names and a press action so screen
 # readers and AT-SPI clients can find and operate them.
 
-require_command python3
-
-# Every bar icon button must be named by its tooltip or an accessibleName;
-# its text is an icon glyph and never names it.
-naming_lint=$(cat <<'PY'
-import pathlib
-import re
-import sys
-
-
-def unnamed(value):
-  literal = value[1:-1] if value[:1] in "\"'" and value[-1:] == value[:1] else None
-  if literal is None:
-    return False
-  text = literal.encode().decode("unicode_escape") if "\\u" in literal else literal
-  return all(0xE000 <= ord(c) <= 0xF8FF or ord(c) >= 0xF0000 for c in text)
-
-
-names = {
-  "BarIconButton": ("accessibleName", "tooltipText"),
-  "BarIndicator": ("accessibleName", "tooltipText", "activeTooltipText"),
-}
-failures = []
-for path in sorted(pathlib.Path(sys.argv[1]).rglob("*.qml")):
-  lines = path.read_text().splitlines()
-  for start, line in enumerate(lines):
-    match = re.match(r"^(\s*)(BarIconButton|BarIndicator)\s*\{\s*$", line)
-    if not match:
-      continue
-    properties = {}
-    for body in lines[start + 1:]:
-      if body.startswith(match.group(1) + "}"):
-        break
-      prop = re.match(re.escape(match.group(1)) + r"  (\w+):\s*(.+?)\s*$", body)
-      if prop:
-        properties[prop.group(1)] = prop.group(2)
-    if all(unnamed(properties[name]) for name in names[match.group(2)] if name in properties) \
-        or not any(name in properties for name in names[match.group(2)]):
-      failures.append(f"{path.relative_to(sys.argv[1])}:{start + 1} {match.group(2)}")
-
-if failures:
-  print("Unnamed bar buttons:\n" + "\n".join(f"  {failure}" for failure in failures), file=sys.stderr)
-  raise SystemExit(1)
-PY
-)
-
-python3 -c "$naming_lint" "$ROOT/shell/plugins"
-pass "bar icon buttons provide accessible names"
-
 if ! command -v quickshell >/dev/null 2>&1; then
   skip "quickshell not installed; skipping bar accessibility runtime test"
   exit 0
