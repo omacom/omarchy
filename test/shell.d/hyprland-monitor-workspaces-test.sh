@@ -337,6 +337,13 @@ check(world.windows["0xa"].workspace == 15 and shows("DP-1") == 15, "a move foll
 hl.dispatch(m.focus(2, "eDP-1"))
 check(shows("eDP-1") == 2 and world.focused == "eDP-1", "a named monitor goes to its own workspace")
 
+-- After a hotplug the bar can still name the screen that went away, or the
+-- FALLBACK that stood in for it (#16351). The click lands on the focused one.
+hl.dispatch(m.focus(4, "FALLBACK"))
+check(shows("eDP-1") == 4 and world.focused == "eDP-1", "a monitor name Hyprland no longer has falls back to the focused monitor")
+hl.dispatch(m.focus(5, ""))
+check(shows("eDP-1") == 5, "an empty monitor name falls back to the focused monitor")
+
 check(o.bind_expressions[m.focus(3)] == "o.workspaces.focus(3)", "the menu can replay Super + 3")
 check(o.bind_expressions[m.move_window(3, false)] == "o.workspaces.move_window(3, false)", "the menu can replay a silent move")
 check(o.bind_expressions[m.focus(2, "DP-1")] == "o.workspaces.focus(2, \"DP-1\")", "the bar names its monitor")
