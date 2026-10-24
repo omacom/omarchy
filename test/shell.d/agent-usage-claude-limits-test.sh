@@ -212,7 +212,7 @@ write_json(home() / ".claude.json", {"primaryApiKey": "sk-ant-test"})
 record, http = claude()
 check("Claude collector takes an API key for a missing sign-in",
       record["usageStatusText"] == "" and record["tierLabel"] == "" and record["limits"] == []
-      and "API key" in record["authHelpText"] and "sk-ant-test" not in str(record) and http.count == 0, record)
+      and "API key" in record["authHelpText"] and "sk-ant-test" not in str(record) and http.count == 0 and record["ready"], record)
 signed_in(expires=1000, refresh_expires=1000)
 record, _ = claude()
 check("Claude collector takes an API key for an expired sign-in", record["usageStatusText"] == "" and record["tierLabel"] == "", record)
