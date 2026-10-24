@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# omarchy:summary=Add a game made in ~/Games/<name> to the app launcher
+# omarchy:args=<name> [title]
+# omarchy:examples=omarchy games install snake | omarchy games install tilt-maze "Tilt Maze"
+
+# The launcher runs omarchy-games-launch, which opens ~/Games/<name>/index.html as a
+# web app in the current theme. omarchy-webapp-install refuses file: URLs because the
+# URL there is typed into a box; here nothing but a file under ~/Games can be launched.
+
+set -euo pipefail
+
+source "$OMARCHY_PATH/install/helpers/desktop-entry.sh"
+
+ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
+DESKTOP_DIR="$HOME/.local/share/applications"
+
+fail() {
+  echo "$1" >&2
+  exit 1
+}
+
+if (( $# < 1 || $# > 2 )); then
+  fail "Usage: omarchy-games-install <name> [title]"
+fi
+
+name=$1
+[[ $name =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]] || fail "Game name must be lowercase letters, digits and dashes: $name"
+
+# ~/Games may itself be a symlink, but the game's folder must resolve inside it.
+games=$(realpath -e "$HOME/Games" 2>/dev/null) || fail "No ~/Games directory"
+folder=$(realpath -e "$HOME/Games/$name" 2>/dev/null) || fail "No game at ~/Games/$name"
+[[ $folder == "$games/$name" ]] || fail "~/Games/$name points outside ~/Games"
+game="$folder/index.html"
+[[ -f $game && ! -L $game ]] || fail "No ~/Games/$name/index.html"
+
+if (( $# == 2 )); then
+  title=$2
+else
+  title=$(sed -E 's/-/ /g; s/(^| )([a-z])/\1\u\2/g' <<<"$name")
+fi
+[[ -n $title && $title != */* && $title != .* ]] || fail "Title cannot be empty, contain '/' or start with '.': $title"
+
+url="file://$(jq -rn --arg path "$game" '$path | split("/") | map(@uri) | join("/")')"
+exec_line="Exec=$(desktop_string_escape "omarchy-games-launch $name")"
+desktop="$DESKTOP_DIR/$title.desktop"
+
+# Reinstalling replaces this game's own launcher, never someone else's.
+if [[ -L $desktop ]]; then
+  fail "$desktop is a symlink; not replacing it"
+elif [[ -e $desktop ]] && ! grep -qxF "$exec_line" "$desktop"; then
+  fail "There is already a launcher called $title. Pick another title: omarchy-games-install $name \"Another Title\""
+fi
+
+# The icon is the game's icon.svg or icon.png, or else a square from check's screenshot of it in play.
+icon=$(safe_icon_name "$title")
+mkdir -p "$ICON_DIR" "$DESKTOP_DIR"
+source_image=""
+for candidate in icon.svg icon.png check-play.png; do
+  if [[ -f $folder/$candidate ]]; then
+    source_image="$folder/$candidate"
+    break
+  fi
+done
+if [[ -n $source_image ]] &&
+  magick -background none "$source_image" -gravity center -extent "%[fx:min(w,h)]x%[fx:min(w,h)]" -resize 256x256 "$ICON_DIR/$icon.png" 2>/dev/null; then
+  gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+else
+  icon="applications-games"
+fi
+
+cat >"$desktop" <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=$(desktop_string_escape "$title")
+Comment=$(desktop_string_escape "$title, a game in ~/Games/$name")
+$exec_line
+Icon=$(desktop_string_escape "$icon")
+Categories=Game;
+Terminal=false
+StartupNotify=true
+StartupWMClass=$(desktop_string_escape "$(omarchy-webapp-window-class "$url")")
+EOF
+chmod +x "$desktop"
+
+echo "$title is in the app launcher (Super + Space). It plays ~/Games/$name/index.html, so moving that folder breaks the launcher."

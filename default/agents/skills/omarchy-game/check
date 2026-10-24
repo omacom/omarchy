@@ -1,0 +1,377 @@
+#!/usr/bin/python3 -I
+"""Play a game headless and report what a person would notice first.
+
+  check ~/Games/<name>/index.html
+
+Loads the game in a throwaway headless Chromium and drives it through
+window.omarchyGame, the contract the template defines: it waits for the game to
+be ready, starts a round, plays the game's own CHECK.play script with real key
+presses, pauses and resumes, ends the round and starts another. Any page error
+fails the check, and so does a round that never starts, a simulation that never
+moves, a pause that doesn't stop it, or a CHECK.expect event that never
+happened. Screenshots land beside the game as check-title.png, check-play.png,
+check-over.png and check-light.png (in a light theme): look at all four before calling the game done.
+"""
+
+import base64, json, os, pathlib, queue, re, shutil, subprocess, sys, tempfile, threading, time, urllib.parse
+
+KEYS = {
+  "Space": (" ", 32), "Enter": ("Enter", 13), "Escape": ("Escape", 27), "Tab": ("Tab", 9), "Backspace": ("Backspace", 8),
+  "ArrowLeft": ("ArrowLeft", 37), "ArrowUp": ("ArrowUp", 38), "ArrowRight": ("ArrowRight", 39), "ArrowDown": ("ArrowDown", 40),
+  "ShiftLeft": ("Shift", 16), "ShiftRight": ("Shift", 16), "ControlLeft": ("Control", 17), "AltLeft": ("Alt", 18),
+  "Slash": ("/", 191), "Minus": ("-", 189), "Equal": ("=", 187), "Comma": (",", 188), "Period": (".", 190),
+}
+for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+  KEYS["Key" + c] = (c.lower(), ord(c))
+for d in "0123456789":
+  KEYS["Digit" + d] = (d, ord(d))
+
+# A light theme (Flexoki Light), since games follow whichever theme the desktop has when they launch.
+LIGHT = {"mode": "light", "background": "#fffcf0", "foreground": "#100f0f", "accent": "#205ea6", "muted": "#b7b5ac",
+         "red": "#d14d41", "green": "#879a39", "yellow": "#d0a215", "blue": "#205ea6", "magenta": "#ce5d97",
+         "cyan": "#3aa99f", "orange": "#d0772b"}
+
+
+class Stop(Exception):
+  pass
+
+
+class Browser:
+  """Chromium over --remote-debugging-pipe: NUL-separated JSON on fds 3 and 4, so no websocket library is needed."""
+
+  def __init__(self, profile):
+    chrome = shutil.which("chromium") or sys.exit("check needs chromium")
+    to_chrome_r, to_chrome_w = os.pipe()
+    from_chrome_r, from_chrome_w = os.pipe()
+
+    def wire():
+      os.dup2(to_chrome_r, 3)
+      os.dup2(from_chrome_w, 4)
+
+    self.proc = subprocess.Popen(
+      [chrome, "--headless=new", "--remote-debugging-pipe", "--no-first-run", "--no-default-browser-check",
+       "--disable-extensions", "--disable-background-networking", "--mute-audio", "--use-angle=vulkan", "--enable-features=Vulkan",
+       "--enable-unsafe-swiftshader", "--window-size=1280,800",
+       f"--user-data-dir={profile}", "about:blank"],
+      pass_fds=(3, 4), preexec_fn=wire,
+      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    os.close(to_chrome_r)
+    os.close(from_chrome_w)
+    self.out = os.fdopen(to_chrome_w, "wb", buffering=0)
+    self.inp = os.fdopen(from_chrome_r, "rb", buffering=0)
+    self.next_id = 0
+    self.replies = {}
+    self.events = queue.Queue()
+    self.cond = threading.Condition()
+    threading.Thread(target=self.read, daemon=True).start()
+
+  def read(self):
+    buf = b""
+    while True:
+      chunk = self.inp.read(1 << 20)
+      if not chunk:
+        with self.cond:
+          self.replies[-1] = None
+          self.cond.notify_all()
+        return
+      buf += chunk
+      while b"\0" in buf:
+        raw, buf = buf.split(b"\0", 1)
+        msg = json.loads(raw)
+        if "id" in msg:
+          with self.cond:
+            self.replies[msg["id"]] = msg
+            self.cond.notify_all()
+        else:
+          self.events.put(msg)
+
+  def send(self, method, params=None, session=None, timeout=30):
+    self.next_id += 1
+    mid = self.next_id
+    msg = {"id": mid, "method": method, "params": params or {}}
+    if session:
+      msg["sessionId"] = session
+    self.out.write(json.dumps(msg).encode() + b"\0")
+    deadline = time.time() + timeout
+    with self.cond:
+      while mid not in self.replies:
+        if -1 in self.replies:
+          raise RuntimeError("Chromium exited")
+        left = deadline - time.time()
+        if left <= 0:
+          raise TimeoutError(method)
+        self.cond.wait(left)
+      reply = self.replies.pop(mid)
+    if "error" in reply:
+      raise RuntimeError(f"{method}: {reply['error'].get('message')}")
+    return reply.get("result", {})
+
+  def close(self):
+    self.proc.terminate()
+    try:
+      self.proc.wait(5)
+    except subprocess.TimeoutExpired:
+      self.proc.kill()
+
+
+class Page:
+  def __init__(self, browser, url):
+    self.b = browser
+    self.errors, self.warnings = [], []
+    target = browser.send("Target.createTarget", {"url": "about:blank"})["targetId"]
+    self.session = browser.send("Target.attachToTarget", {"targetId": target, "flatten": True})["sessionId"]
+    for domain in ("Runtime", "Log", "Network", "Page"):
+      self.send(f"{domain}.enable")
+    self.send("Emulation.setFocusEmulationEnabled", {"enabled": True})
+    self.send("Page.navigate", {"url": url})
+
+  def send(self, method, params=None, timeout=30):
+    return self.b.send(method, params, self.session, timeout)
+
+  def drain(self):
+    while True:
+      try:
+        msg = self.b.events.get_nowait()
+      except queue.Empty:
+        return
+      m, p = msg.get("method"), msg.get("params", {})
+      if m == "Runtime.exceptionThrown":
+        d = p["exceptionDetails"]
+        text = d.get("exception", {}).get("description") or d.get("text", "exception")
+        self.errors.append(f"{text.splitlines()[0]} (line {d.get('lineNumber', 0) + 1})")
+      elif m == "Runtime.consoleAPICalled" and p["type"] in ("error", "assert", "warning"):
+        text = " ".join(str(a.get("value", a.get("description", ""))) for a in p.get("args", []))
+        (self.warnings if p["type"] == "warning" else self.errors).append(f"console.{p['type']}: {text[:300]}")
+      elif m == "Log.entryAdded" and p["entry"]["level"] == "error":
+        self.errors.append(f"{p['entry']['text'][:300]} {p['entry'].get('url', '')}".strip())
+      elif m == "Network.loadingFailed" and not p.get("canceled"):
+        self.errors.append(f"Failed to load a resource: {p.get('errorText')}")
+
+  def js(self, expr):
+    r = self.send("Runtime.evaluate", {"expression": expr, "returnByValue": True, "awaitPromise": True})
+    return None if "exceptionDetails" in r else r["result"].get("value")
+
+  def status(self):
+    return self.js("(() => { const g = window.omarchyGame; if (!g) return null;"
+                   " return { ready: !!g.ready, state: g.state, ticks: g.ticks, frames: g.frames, events: g.events }; })()")
+
+  def wait_for(self, predicate, seconds):
+    deadline = time.time() + seconds
+    while True:
+      self.drain()
+      st = self.status()
+      if (st and predicate(st)) or time.time() >= deadline:
+        return st or {"ready": False, "state": None, "ticks": 0, "frames": 0, "events": {}}
+      time.sleep(0.1)
+
+  def key(self, code, down):
+    key, vk = KEYS.get(code, (code, 0))
+    params = {"type": "keyDown" if down else "keyUp", "code": code, "key": key, "windowsVirtualKeyCode": vk}
+    if down and len(key) == 1:
+      params["text"] = key
+    self.send("Input.dispatchKeyEvent", params)
+
+  def tap(self, code):
+    self.key(code, True)
+    time.sleep(0.05)
+    self.key(code, False)
+
+  def shoot(self, path):
+    with open(path, "wb") as f:
+      f.write(base64.b64decode(self.send("Page.captureScreenshot", {"format": "png"})["data"]))
+
+
+def renderer(page):
+  name = page.js("(() => { const gl = document.createElement('canvas').getContext('webgl2'); const info = gl?.getExtension('WEBGL_debug_renderer_info');"
+                 " return info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : 'an unknown renderer'; })()") or "an unknown renderer"
+  return "software rendering, so expect it slower than on screen" if "SwiftShader" in name else name
+
+
+def blank(png):
+  # Nearly all one colour means nothing but text was drawn: a HUD alone is under 0.5%, the sparsest real scene about 1%.
+  histogram = subprocess.run(["magick", png, "-scale", "320x200", "-format", "%c", "histogram:info:-"],
+                             capture_output=True, text=True).stdout
+  counts = [int(line.split(":")[0]) for line in histogram.splitlines() if ":" in line and line.split(":")[0].strip().isdigit()]
+  if not counts:
+    return False
+  common = re.search(r"#[0-9A-Fa-f]{6}", max(histogram.splitlines(), key=lambda line: int(line.split(":")[0]) if line.split(":")[0].strip().isdigit() else 0)).group(0)
+  share = subprocess.run(["magick", png, "-scale", "320x200", "-fuzz", "6%", "-fill", "black", "-opaque", common,
+                          "-fill", "white", "+opaque", "black", "-colorspace", "gray", "-format", "%[fx:mean]", "info:"],
+                         capture_output=True, text=True).stdout.strip()
+  try:
+    return float(share) < 0.005
+  except ValueError:
+    return False
+
+
+def run(page, url, folder, problems, notes):
+  shot = lambda name: page.shoot(os.path.join(folder, f"check-{name}.png"))
+
+  st = page.wait_for(lambda s: s["ready"], 30)
+  if not st["ready"]:
+    problems.append("The game never became ready (window.omarchyGame.ready stayed false). Usually a script error before the game starts, or three.js failed to load: see the page errors.")
+    raise Stop
+  contract = page.js("window.omarchyGame.check") or {}
+  start, pause = contract.get("start", "Space"), contract.get("pause", "Escape")
+  play, expect = contract.get("play") or [], contract.get("expect") or []
+  if not play:
+    problems.append("CHECK.play is empty: give it the key presses that play this game for a few seconds.")
+  if not expect:
+    problems.append("CHECK.expect is empty: name at least one note() event that proves the game's main mechanic works.")
+  time.sleep(0.5)
+  shot("title")
+  if st["state"] != "title":
+    problems.append(f"The game should open on its title screen, but its state was '{st['state']}'.")
+
+  page.tap(start)
+  st = page.wait_for(lambda s: s["state"] == "playing", 3)
+  if st["state"] != "playing":
+    problems.append(f"Pressing CHECK.start ({start}) did not start a round; the state stayed '{st['state']}'.")
+    raise Stop
+  # Pause straight away, while the round is surely still going, then resume.
+  page.tap(pause)
+  st = page.wait_for(lambda s: s["state"] == "paused", 2)
+  if st["state"] != "paused":
+    problems.append(f"Pressing CHECK.pause ({pause}) did not pause; the state is '{st['state']}'.")
+  else:
+    before = st["ticks"]
+    time.sleep(0.8)
+    if page.status()["ticks"] != before:
+      problems.append("The simulation kept running while paused.")
+    page.tap(pause)
+    st = page.wait_for(lambda s: s["state"] == "playing", 2)
+    if st["state"] != "playing":
+      problems.append(f"Pressing CHECK.pause ({pause}) again did not resume; the state is '{st['state']}'.")
+      raise Stop
+  ticks0, frames0, t0 = st["ticks"], st["frames"], time.time()
+
+  # The game's own script, in real time, screenshotted partway through.
+  actions = []
+  for at, code, hold in play:
+    actions += [(float(at), str(code), True), (float(at) + float(hold) / 1000, str(code), False)]
+  actions.sort(key=lambda a: a[0])
+  length = min(15.0, max([a[0] for a in actions] + [3.0]) + 0.5)
+  shot_taken, ended = False, None
+  while (now := time.time() - t0) < length:
+    while actions and actions[0][0] <= now:
+      _, code, down = actions.pop(0)
+      page.key(code, down)
+    if not shot_taken and now >= length * 0.6:
+      shot("play")
+      shot_taken = True
+    page.drain()
+    st = page.status() or st
+    if st["state"] in ("over", "won") and not ended:
+      ended = (st["state"], now)
+      if not shot_taken:
+        shot("play")
+        shot_taken = True
+    time.sleep(0.03)
+  for _, code, down in actions:
+    if not down:
+      page.key(code, False)
+
+  elapsed = time.time() - t0
+  notes.append(f"Played CHECK.play for {length:.1f}s at {(st['frames'] - frames0) / elapsed:.0f} frames per second on {renderer(page)}.")
+  if st["ticks"] <= ticks0:
+    problems.append("The simulation never advanced during play: omarchyGame.ticks did not move.")
+  events = st.get("events") or {}
+  notes.append("Events noted during play: " + (", ".join(f"{k} x{v}" for k, v in events.items()) or "none"))
+  for name in expect:
+    if not events.get(name):
+      problems.append(f"CHECK.expect names '{name}', but note('{name}') never happened while CHECK.play ran: the mechanic is broken, or the script doesn't exercise it.")
+  if ended:
+    notes.append(f"The round ended by itself as '{ended[0]}' after {ended[1]:.1f}s.")
+    if ended[1] < 2:
+      problems.append("The round ended within two seconds of starting, so it is probably impossible to survive.")
+
+  page.js("window.omarchyGame.end()")
+  st = page.wait_for(lambda s: s["state"] in ("over", "won"), 2)
+  if st["state"] not in ("over", "won"):
+    problems.append(f"omarchyGame.end() did not end the round; the state is '{st['state']}'.")
+    return
+  time.sleep(0.4)
+  shot("over")
+  page.tap(start)
+  st = page.wait_for(lambda s: s["state"] == "playing", 3)
+  if st["state"] != "playing":
+    problems.append(f"Pressing CHECK.start ({start}) after the round ended did not start a new one; the state is '{st['state']}'.")
+    return
+  time.sleep(0.5)
+  st = page.wait_for(lambda s: True, 0)
+  if st["state"] != "playing":
+    problems.append(f"A restarted round ended at once as '{st['state']}': reset() is not resetting everything.")
+
+  # The same game in a light theme, as omarchy-games-launch would pass it. A new fragment alone
+  # would only fire hashchange, so leave the page first and load it fresh.
+  page.send("Page.navigate", {"url": "about:blank"})
+  time.sleep(0.3)
+  page.send("Page.navigate", {"url": url.split("#")[0] + "#seed=1&palette=" + urllib.parse.quote(json.dumps(LIGHT))})
+  time.sleep(1)
+  st = page.wait_for(lambda s: s["ready"] and s["state"] == "title", 30)
+  if st["ready"]:
+    page.tap(start)
+    time.sleep(1.5)
+    shot("light")
+
+
+def main():
+  if len(sys.argv) != 2 or not os.path.isfile(sys.argv[1]):
+    sys.exit("Usage: check <path to the game's index.html>")
+  path = os.path.realpath(sys.argv[1])
+  folder = os.path.dirname(path)
+  for name in ("title", "play", "over", "light"):
+    try:
+      os.remove(os.path.join(folder, f"check-{name}.png"))
+    except FileNotFoundError:
+      pass
+
+  problems, notes, page = [], [], None
+  profile = tempfile.mkdtemp(prefix="omarchy-game-check-")
+  browser = Browser(profile)
+  try:
+    url = pathlib.Path(path).as_uri() + "#seed=1"
+    page = Page(browser, url)
+    run(page, url, folder, problems, notes)
+  except Stop:
+    pass
+  except Exception as e:
+    problems.append(f"The check itself could not finish: {e}")
+  finally:
+    if page:
+      page.drain()
+    browser.close()
+    shutil.rmtree(profile, ignore_errors=True)
+
+  errors = list(dict.fromkeys(page.errors if page else []))
+  warnings = list(dict.fromkeys(page.warnings if page else []))
+  print("== Page errors")
+  print("\n".join(errors) if errors else "none")
+  if warnings:
+    print("== Page warnings")
+    print("\n".join(warnings[:10]))
+  print("== Play")
+  print("\n".join(notes) if notes else "not reached")
+  print("== Screenshots")
+  for name in ("title", "play", "over", "light"):
+    png = os.path.join(folder, f"check-{name}.png")
+    if os.path.isfile(png):
+      print(png)
+      if blank(png):
+        problems.append(f"check-{name}.png is nearly blank: almost nothing but the background was drawn.")
+
+  if errors:
+    problems.insert(0, f"{len(errors)} page error(s), listed above.")
+  print()
+  if problems:
+    print("FAILED")
+    print("\n".join(f"- {p}" for p in problems))
+    print("\nFix these, then run check again.")
+    sys.exit(1)
+  print("PASSED the automatic checks, which only prove the game runs. Now view the four screenshots above with your")
+  print("image tool (view_image in Codex, Read in Claude Code) and fix what looks wrong: is the player obvious, is")
+  print("everything on screen and readable, in the theme's colours, and does it look like the game you meant to make?")
+
+
+main()

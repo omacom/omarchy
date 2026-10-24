@@ -4,6 +4,8 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+export OMARCHY_PATH="$ROOT"
+
 require_command gio
 
 test_tmp=$(mktemp -d)

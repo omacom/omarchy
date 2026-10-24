@@ -25,6 +25,7 @@
     "one": "%1 free reset · next expires in %2",
     "other": "%1 free resets · next expires in %2"
   },
+  "agents.game": "Game",
   "agents.helpFireworksSignIn": "Set %1, run %2, or sign in to Fireworks in pi or opencode.",
   "agents.helpNotInPath": "%1 not found in PATH",
   "agents.helpRunToAuthenticate": "Run %1 to authenticate.",

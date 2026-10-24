@@ -92,9 +92,11 @@ Panel {
         }
       }
       if (!blankSlate) {
-        var tiles = []
-        for (var j = 0; j < starterPrompts.length; j++) tiles.push({ kind: "starter", index: j })
-        rows.push(tiles)
+        for (var j = 0; j < starterPrompts.length; j += starterColumns) {
+          var tiles = []
+          for (var k = j; k < Math.min(j + starterColumns, starterPrompts.length); k++) tiles.push({ kind: "starter", index: k })
+          rows.push(tiles)
+        }
       }
     }
     return rows
@@ -349,8 +351,11 @@ Panel {
   readonly property var starterPrompts: [
     { glyph: "󰏘", label: Commons.I18n.t("agents.theme"), prompt: "Make me a new Omarchy theme. Ask me what look or inspiration I have in mind, then build it following the Omarchy skill's theming guide and switch to it." },
     { glyph: "󰐱", label: Commons.I18n.t("agents.plugin"), prompt: "Make me a new Omarchy shell plugin. Ask me what I'd like it to do, then build it following the Omarchy skill's plugin guide and enable it." },
-    { glyph: "󰣆", label: Commons.I18n.t("agents.app"), prompt: "Make me a new app for my Omarchy desktop. Ask me what it should do, then build it following the omarchy-app skill and install it so it shows up in the app launcher." }
+    { glyph: "󰣆", label: Commons.I18n.t("agents.app"), prompt: "Make me a new app for my Omarchy desktop. Ask me what it should do, then build it following the omarchy-app skill and install it so it shows up in the app launcher." },
+    { glyph: "󰊴", label: Commons.I18n.t("agents.game"), prompt: "Make me a new game for my Omarchy desktop. Ask me what kind of game I'd like, then build it following the omarchy-game skill and add it to the app launcher." }
   ]
+  // Two across, so a label in a long language still fits its tile.
+  readonly property int starterColumns: 2
 
   function startPrompt(prompt) {
     root.close()
@@ -1113,9 +1118,10 @@ Panel {
               fontFamily: root.fontFamily
             }
 
-            Row {
-              id: tileRow
+            Grid {
+              id: tileGrid
               width: parent.width
+              columns: root.starterColumns
               spacing: Style.space(10)
 
               Repeater {
@@ -1126,7 +1132,7 @@ Panel {
                   required property int index
                   hasCursor: root.hasKey("starter", index)
                   onHovered: root.pointAt("starter", index)
-                  width: (tileRow.width - tileRow.spacing * 2) / 3
+                  width: (tileGrid.width - tileGrid.spacing * (tileGrid.columns - 1)) / tileGrid.columns
                   glyph: modelData.glyph
                   title: modelData.label
                   onClicked: root.startPrompt(modelData.prompt)
