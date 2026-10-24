@@ -42,6 +42,26 @@ cat > /etc/limine-entry-tool.d/00-omarchy-n1x-sleep.conf <<'CONF'
 KERNEL_CMDLINE[default]+=" mem_sleep_default=s2idle"
 CONF
 
+# Lenovo Pro 9 15N1X11 (DMI product name 83SS, family "Pro 9 15N1X11", board
+# LNVNB161216) hides \_SB.SSPM when _OSI("Windows 2022") is true. Linux claims
+# that string, so the SSPM mailbox never maps, every sspm_ci_set() returns
+# -ENODEV, and the I2C controller behind the internal keyboard (LENC0001 on
+# I2C2) never powers on. Dell and ASUS N1x firmware do not do this. Drop the
+# claim so SSPM enumerates and the keyboard works from the LUKS prompt.
+# Verified on BIOS TUCN26WW: with the claim removed, SSPM_CI binds and
+# LENC0001:00 048D:83DB appears as a console keyboard.
+lenovo_n1x=0
+if omarchy-hw-match "15N1X11" || omarchy-hw-match "83SS"; then
+  lenovo_n1x=1
+  cat > /etc/limine-entry-tool.d/00-omarchy-n1x-lenovo-osi.conf <<'CONF'
+# Lenovo N1x: firmware hides SSPM from an OS that claims Windows 2022, which
+# leaves the I2C keyboard unpowered. The inner quotes reach the kernel as
+# written (limine-entry-tool strips only the outer pair and does not unescape
+# \"), and keep Windows 2022 one parameter. See install/hardware/n1x.sh.
+KERNEL_CMDLINE[default]+=" acpi_osi="!Windows 2022""
+CONF
+fi
+
 # cppc_cpufreq leaves CPPC autonomous selection off, so the CPUs follow the
 # kernel governor and the energy performance preference that
 # power-profiles-daemon sets per profile changes nothing. NVIDIA's RTX Spark
@@ -110,6 +130,9 @@ if [[ -z $root_cmdline || $root_cmdline != *root=* ]]; then
   return 1
 fi
 rescue_cmdline="$root_cmdline initramfs_async=0 console=tty0 acpi=nospcr plymouth.enable=0 nomodeset module_blacklist=nvidia,nvidia_drm,nvidia_modeset,nvidia_uvm,nvidia_peermem,nouveau modprobe.blacklist=nvidia,nvidia_drm,nvidia_modeset,nvidia_uvm,nvidia_peermem,nouveau nvidia_drm.modeset=0 systemd.unit=multi-user.target fbcon=map:0 loglevel=7 ignore_loglevel systemd.show_status=1 systemd.log_target=console vt.global_cursor_default=1"
+if (( lenovo_n1x )); then
+  rescue_cmdline+=' acpi_osi="!Windows 2022"'
+fi
 printf '%s\n' \
   '# N1x: a text-console rescue entry sits right below the normal one; see install/hardware/n1x.sh.' \
   'MKINITCPIO_FALLBACK=linux-omarchy' \
