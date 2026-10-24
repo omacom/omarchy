@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi]
+# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|custom:<name>]
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
@@ -23,6 +23,26 @@ if (($# == 0)); then
   exit 0
 fi
 
+# Custom agents are user-owned executable launchers, not mise packages.
+if [[ $1 == custom:* ]]; then
+  agent=$1
+  custom_name=${agent#custom:}
+  launcher="$HOME/.config/omarchy/agents/$custom_name"
+  if [[ ! $custom_name =~ ^[a-zA-Z0-9_-]+$ || ! -f $launcher || ! -x $launcher ]]; then
+    echo "Custom agent requires an executable launcher: $launcher" >&2
+    exit 1
+  fi
+  mkdir -p "$(dirname "$agent_file")" || exit 1
+  # Resolve the destination so atomic replacement preserves dotfile symlinks.
+  IFS= read -r -d '' agent_file < <(readlink -fz -- "$agent_file") || exit 1
+  pending=$(mktemp "$agent_file.XXXXXX") || exit 1
+  if ! printf '%s\n' "$agent" >"$pending" || ! mv -T -- "$pending" "$agent_file"; then
+    rm -f -- "$pending"
+    exit 1
+  fi
+  exec omarchy-agent
+fi
+
 case "$1" in
 pi) agent="pi"; name="Pi" ;;
 omp | oh-my-pi) agent="omp"; name="Oh My Pi"; agent_package="oh-my-pi" ;;
@@ -40,7 +60,7 @@ muse | muse-code | musecode) agent="muse"; name="Muse Code" ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
 kimi | kimi-code) agent="kimi"; name="Kimi"; agent_package="npm:@moonshot-ai/kimi-code" ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi>"
+  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|custom:<name>>"
   exit 1
   ;;
 esac
