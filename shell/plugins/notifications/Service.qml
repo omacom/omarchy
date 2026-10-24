@@ -1298,6 +1298,7 @@ Item {
         // entry deliberately creates a separate card.
         if (!replay) continue
         row.key = nextKey()
+        row.groupKey = Markup.regroup(row)
       }
       if (!reserveLive(row.key)) break
       showRow(row)
