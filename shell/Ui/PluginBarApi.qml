@@ -27,6 +27,9 @@ QtObject {
   property bool _centerHoverRevealSuppressed: false
   readonly property bool centerHoverRevealSuppressed: _centerHoverRevealSuppressed
   property var activePopout: null
+  // Where the open panel's card stands, copied, so a panel taking over on a
+  // switch can start its card from there.
+  property var popoutCard: null
   property var clickTargets: []
   property var layoutConfig: ({})
   readonly property var foreignPopoutMarker: ({ foreign: true })
@@ -37,6 +40,7 @@ QtObject {
   property var _unregisterClickTarget: null
   property var _requestPopout: null
   property var _releasePopout: null
+  property var _notePopoutCard: null
   property var _switchPanelFrom: null
   property var _targetBelongsToWindow: null
   property var _moduleWidgets: null
@@ -69,6 +73,10 @@ QtObject {
 
   function releasePopout(owner) {
     if (_releasePopout) _releasePopout(owner)
+  }
+
+  function notePopoutCard(card) {
+    if (_notePopoutCard) _notePopoutCard(card)
   }
 
   function switchPanelFrom(owner, direction) {

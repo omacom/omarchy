@@ -99,6 +99,15 @@ Item {
   property bool tooltipShown: false
   property int tooltipRequest: 0
   property var activePopout: null
+  // Where the open panel's card stands ({ screen, x, y, width, height }), so
+  // the panel taking over on a switch can start its card from there.
+  property var popoutCard: null
+
+  // Only a screen name and four numbers are kept, whoever reports them.
+  function notePopoutCard(card) {
+    popoutCard = card ? { screen: String(card.screen || ""), x: Number(card.x) || 0, y: Number(card.y) || 0,
+                          width: Number(card.width) || 0, height: Number(card.height) || 0 } : null
+  }
   // A widget is being dragged that could go into the tray section, so the
   // tray's drawer opens to show where.
   readonly property bool traySectionDragActive: !!barDragSource && !barDragSource.hostsTraySection
@@ -213,6 +222,10 @@ Item {
     api._centerHoverRevealSuppressed = Qt.binding(function() { return root.centerHoverRevealSuppressed })
     api.traySectionDragActive = Qt.binding(function() { return root.traySectionDragActive })
     api.traySectionPopoutOpen = Qt.binding(function() { return root.traySectionPopoutOpen })
+    api.popoutCard = Qt.binding(function() {
+      var card = root.popoutCard
+      return card ? { screen: card.screen, x: card.x, y: card.y, width: card.width, height: card.height } : null
+    })
     root.syncPluginBarApiObjects(api)
   }
 
@@ -347,6 +360,7 @@ Item {
       _requestPopout: function(owner) { root.requestPluginPopout(key, owner) },
       _releasePopout: function(owner) { root.releasePluginPopout(key, owner) },
       _switchPanelFrom: function(owner, direction) { return root.switchPanelFrom(owner, direction) },
+      _notePopoutCard: function(card) { root.notePopoutCard(card) },
       _targetBelongsToWindow: function(target, window) { return root.targetBelongsToWindow(target, window) },
       _moduleWidgets: function(requestedId) {
         return String(requestedId || "") === String(moduleName || "")
