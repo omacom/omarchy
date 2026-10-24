@@ -36,7 +36,7 @@ But in special circumstances, like remote Omarchy installs on protected computer
 
 ### Language
 
-Omarchy speaks 50 languages — the same set as omarchy.org — and English is the default. To switch, open the Omarchy menu and go to _Setup > Language_, or run `omarchy language <code>` in a terminal (`omarchy language list` shows the codes). The menu, desktop, and Omarchy's own notifications change language immediately, and every application you open afterwards follows too. Apps that were already open switch once you restart them.
+Omarchy speaks 51 languages — the same set as omarchy.org, plus Esperanto — and English is the default. To switch, open the Omarchy menu and go to _Setup > Language_, or run `omarchy language <code>` in a terminal (`omarchy language list` shows the codes). The menu, desktop, and Omarchy's own notifications change language immediately, and every application you open afterwards follows too. Apps that were already open switch once you restart them.
 
 ### Help if you're stuck
 

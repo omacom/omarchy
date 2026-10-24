@@ -82,7 +82,7 @@ files committed.
   switch replaces files and symlinks, so re-arm the watcher on every change.
   Fall back to `#FFD60A` when Omarchy isn't there. `templates.md` has the
   `Theme` class. Never change Omarchy's config.
-- **Speak the user's language.** Omarchy runs in 50 languages, and the app
+- **Speak the user's language.** Omarchy runs in 51 languages, and the app
   follows the one picked under Setup > Language, live, like the theme. Write
   every visible string as `qsTr("Save")` in QML or `tr("Save")` in C++, with
   `%1` placeholders filled by `.arg()` rather than sentences glued together,
