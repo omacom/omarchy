@@ -40,6 +40,14 @@ EOF
   fi
 }
 
+# One key file and one set of PAM lines serve the whole machine, and setting
+# them up installs packages and edits sudo's and polkit's PAM files, so it is an
+# administrator's to do.
+if ! omarchy-sudo-allowed; then
+  echo -e "\e[31mOnly an administrator can set up FIDO2.\e[0m"
+  exit 1
+fi
+
 echo -e "\e[32mSetting up FIDO2 device for authentication.\n\e[0m"
 
 # Install required packages

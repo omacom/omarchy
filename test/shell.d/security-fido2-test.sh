@@ -209,6 +209,13 @@ cat >"$stub_bin/fido2-token" <<'SH'
 echo '/dev/hidraw0: vendor=0x1050, product=0x0407 (Yubico YubiKey)'
 SH
 
+# Setting FIDO2 up is an administrator's; these cases run as one unless
+# TEST_ADMIN says otherwise.
+cat >"$stub_bin/omarchy-sudo-allowed" <<'SH'
+#!/bin/bash
+[[ ${TEST_ADMIN:-yes} == "yes" ]]
+SH
+chmod +x "$stub_bin/omarchy-sudo-allowed"
 cat >"$stub_bin/omarchy-pkg-add" <<'SH'
 #!/bin/bash
 SH
@@ -326,6 +333,12 @@ run_setup
 ! grep -Fq $'sudo\tmktemp\t' "$calls" ||
   fail "FIDO2 setup creates no stage over an existing registration" "$(cat "$calls")"
 pass "FIDO2 setup leaves an existing registration alone"
+
+# Another account is told so before anything is installed or asked of sudo.
+reset_run
+if TEST_ADMIN=no invoke_setup; then fail "FIDO2 setup refuses an account that isn't an administrator"; fi
+[[ ! -s $calls && ! -e $authfile ]] || fail "FIDO2 setup asks nothing of sudo for an account that isn't an administrator" "$(cat "$calls")"
+pass "FIDO2 setup is an administrator's"
 
 reset_run
 mkdir -p "$authdir"
