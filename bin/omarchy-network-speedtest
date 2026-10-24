@@ -43,10 +43,21 @@ fi
 fast_token="YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm"
 fast_api_url="https://api.fast.com/netflix/speedtest/v2?https=true&token=$fast_token&urlCount=$url_count"
 
-fast_urls=$(curl -fsS "$fast_api_url" 2>/dev/null | jq -r '.targets[]?.url // empty')
+mapfile -t fast_urls < <(curl -fsS "$fast_api_url" 2>/dev/null | jq -r '.targets[]?.url // empty')
 
-if [[ -z $fast_urls ]]; then
-  echo "Failed to fetch speed test endpoints" >&2
+valid_fast_url() {
+  local url=${1,,}
+  [[ $url =~ ^https://([[:alnum:]-]+\.)*(fast\.com|netflix\.com|nflxvideo\.net)(:443)?(/|$) ]]
+}
+
+validated_urls=()
+for url in "${fast_urls[@]}"; do
+  valid_fast_url "$url" && validated_urls+=("$url")
+done
+fast_urls=("${validated_urls[@]}")
+
+if (( ${#fast_urls[@]} == 0 )); then
+  echo "Failed to fetch valid speed test endpoints" >&2
   exit 1
 fi
 
@@ -74,20 +85,20 @@ traffic_worker() {
   if [[ $direction == "down" ]]; then
     while true; do
       url=${urls[$((idx % url_count))]}
-      curl -fsS -o /dev/null "$url" 2>/dev/null || return
+      curl -fsS --proto '=https' -o /dev/null -- "$url" 2>/dev/null || return
       idx=$((idx + 1))
     done
   else
     while true; do
       url=${urls[$((idx % url_count))]}
-      dd if=/dev/zero bs=1M count=64 2>/dev/null | curl -fsS -o /dev/null -X POST --data-binary @- "$url" 2>/dev/null || return
+      dd if=/dev/zero bs=1M count=64 2>/dev/null | curl -fsS --proto '=https' -o /dev/null -X POST --data-binary @- -- "$url" 2>/dev/null || return
       idx=$((idx + 1))
     done
   fi
 }
 
 for (( i = 0; i < parallel; i++ )); do
-  traffic_worker $fast_urls &
+  traffic_worker "${fast_urls[@]}" &
   traffic_pids+=("$!")
 done
 
