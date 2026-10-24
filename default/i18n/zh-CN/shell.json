@@ -54,10 +54,6 @@
   "agents.providerLimitsUnavailable": "%1 额度不可用",
   "agents.providerUnavailable": "%1 不可用",
   "agents.reopenSignIn": "重新打开登录页面",
-  "agents.scopedMonthly": "%1：已用其每月额度的 %2%",
-  "agents.scopedOther": "%1：已用其 %3 额度的 %2%",
-  "agents.scopedSession": "%1：已用其会话额度的 %2%",
-  "agents.scopedWeekly": "%1：已用其每周额度的 %2%",
   "agents.sessionsToday": {
     "other": "今天 %1 个会话"
   },

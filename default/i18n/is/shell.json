@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1-takmarkanir ekki tiltækar",
   "agents.providerUnavailable": "%1 ekki tiltækt",
   "agents.reopenSignIn": "Opna innskráningarsíðuna aftur",
-  "agents.scopedMonthly": "%1: %2% af mánaðarkvóta sínum",
-  "agents.scopedOther": "%1: %2% af %3-kvóta sínum",
-  "agents.scopedSession": "%1: %2% af lotukvóta sínum",
-  "agents.scopedWeekly": "%1: %2% af vikukvóta sínum",
   "agents.sessionsToday": {
     "one": "%1 seta í dag",
     "other": "%1 setur í dag"

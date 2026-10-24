@@ -524,7 +524,12 @@ Panel {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: expired ? 0 : Number(percent),
-      resetAt: expired ? "" : String(resetAt || "")
+      resetAt: expired ? "" : String(resetAt || ""),
+      // Kept from the raw label: "Session", the title, says nothing of how
+      // long the window runs. A monthly window follows a billing period of 28
+      // to 31 days that no collector reports, so it carries no span and draws
+      // no pace rather than a wrong one.
+      spanMs: String(label || "").toLowerCase().indexOf("month") >= 0 ? 0 : windowSpanMs(label)
     }
   }
 
@@ -540,37 +545,11 @@ Panel {
     return out
   }
 
-  // A model-scoped window ("Fable Weekly") is its own allowance, but it runs
-  // on the same clock as the window it's named for, so it's shown attached to
-  // that row rather than as a row of its own. One with nothing to attach to
-  // still gets its own row.
+  // A model-scoped window ("Fable Weekly") is its own allowance with its own
+  // row, titled after its model and the window it runs on.
   function scopedPart(title) {
     var match = String(title || "").match(/^(.+) (Session|Weekly|Monthly)$/)
     return match ? { model: match[1], window: match[2] } : null
-  }
-
-  function displayWindows(p) {
-    var windows = limitWindows(p)
-    var out = []
-    var byTitle = {}
-    for (var i = 0; i < windows.length; i++) {
-      if (scopedPart(windows[i].title)) continue
-      windows[i].scoped = []
-      out.push(windows[i])
-      byTitle[windows[i].title] = windows[i]
-    }
-    for (var j = 0; j < windows.length; j++) {
-      var part = scopedPart(windows[j].title)
-      if (!part) continue
-      var base = byTitle[part.window]
-      if (base) {
-        base.scoped.push({ title: part.model, percent: windows[j].percent, resetAt: windows[j].resetAt })
-      } else {
-        windows[j].scoped = []
-        out.push(windows[j])
-      }
-    }
-    return out
   }
 
   // The window that decides how much room is left — the fullest one, since
@@ -600,6 +579,99 @@ Panel {
     return Commons.I18n.t("agents.durationMinutes").arg(Commons.I18n.formatNumber(Math.max(1, minutes)))
   }
 
+  // ---------------------------------------------------------------- pace
+  //
+  // A limit reads as what is left: its meter drains toward empty as it is
+  // spent, the way the prepaid balance does. Spent evenly, the fill would sit
+  // exactly on the share of the window still ahead, and that share is the
+  // pace tick. More than five points below it is ahead of pace, more than
+  // five above is under. The projection carries the window's average rate so
+  // far to the reset: what is still left then, or, when the allowance runs
+  // dry first, when that happens and how much more allowance the habit needs.
+
+  function windowLeft(w) {
+    return w && w.percent >= 0 ? clamp(1 - w.percent, 0, 1) : -1
+  }
+
+  function windowElapsed(w) {
+    if (!w || !(w.spanMs > 0)) return -1
+    var remainingMs = resetMsFor(w)
+    // A reset further out than the window is long means the label was misread
+    // (a model name parsed as minutes); no pace beats a wrong one.
+    if (!(remainingMs > 0) || remainingMs > w.spanMs) return -1
+    return (w.spanMs - remainingMs) / w.spanMs
+  }
+
+  function paceFor(w) {
+    var elapsed = windowElapsed(w)
+    if (elapsed < 0) return null
+    var left = windowLeft(w)
+    var evenLeft = 1 - elapsed
+    var gap = evenLeft - left
+    var pace = {
+      evenLeft: evenLeft,
+      state: gap > 0.05 ? "ahead" : gap < -0.05 ? "under" : "on",
+      projected: false,
+      // Negative when the allowance runs out before the reset: the shortfall.
+      leftAtReset: 0,
+      runsOutMs: -1
+    }
+    // The first minutes of a window say more about one prompt than about a
+    // habit, so the projection waits for 5% of it to pass.
+    if (elapsed >= 0.05 && left > 0 && left < 1) {
+      var spent = 1 - left
+      pace.projected = true
+      pace.leftAtReset = 1 - spent / elapsed
+      if (pace.leftAtReset < 0)
+        pace.runsOutMs = left * elapsed * w.spanMs / spent
+    }
+    return pace
+  }
+
+  // Within the on-pace band a projection just past empty is rounding as much
+  // as a warning, so only ahead of pace turns urgent.
+  function paceUrgent(pace) {
+    return !!pace && pace.runsOutMs > 0 && pace.state === "ahead"
+  }
+
+  function paceGlyph(pace) {
+    if (!pace) return ""
+    if (pace.state === "ahead") return "\u{f0535}"
+    if (pace.state === "under") return "\u{f0533}"
+    return "\u{f029a}"
+  }
+
+  function shortfallPercent(pace) {
+    return Commons.I18n.formatNumber(Math.max(1, Math.round(-pace.leftAtReset * 100)))
+  }
+
+  function projectionText(w, pace) {
+    if (windowLeft(w) === 0) return Commons.I18n.t("agents.limitReached")
+    if (!pace || !pace.projected) return ""
+    if (pace.runsOutMs > 0)
+      return Commons.I18n.t("agents.paceOutShort").arg(formatDuration(pace.runsOutMs)).arg(shortfallPercent(pace))
+    return Commons.I18n.t("agents.paceLeftAtReset").arg(Commons.I18n.formatNumber(Math.round(pace.leftAtReset * 100)))
+  }
+
+  function paceLines(w, pace) {
+    if (!w || !pace) return []
+    var lines = [
+      pace.state === "ahead" ? Commons.I18n.t("agents.paceAhead")
+        : pace.state === "under" ? Commons.I18n.t("agents.paceUnder")
+        : Commons.I18n.t("agents.paceOn"),
+      Commons.I18n.t("agents.paceEvenLeft")
+        .arg(Commons.I18n.formatNumber(Math.round(windowLeft(w) * 100)))
+        .arg(Commons.I18n.formatNumber(Math.round(pace.evenLeft * 100)))
+    ]
+    if (pace.runsOutMs > 0) {
+      lines.push(Commons.I18n.t("agents.paceRunsOut").arg(formatDuration(pace.runsOutMs)).arg(formatDuration(resetMsFor(w) - pace.runsOutMs)))
+      lines.push(Commons.I18n.t("agents.paceNeedsMore").arg(shortfallPercent(pace)))
+    } else if (pace.projected) {
+      lines.push(Commons.I18n.t("agents.paceStillLeft").arg(Commons.I18n.formatNumber(Math.round(pace.leftAtReset * 100))))
+    }
+    return lines
+  }
+
   // Window titles stay English in the records, where scopedPart() and the
   // collectors match on them; only what reaches the screen is translated.
   function windowDisplayTitle(title) {
@@ -614,15 +686,6 @@ Panel {
     if (part && part.window === "Weekly") return Commons.I18n.t("agents.modelWeekly").arg(part.model)
     if (part && part.window === "Monthly") return Commons.I18n.t("agents.modelMonthly").arg(part.model)
     return value
-  }
-
-  function scopedAllowanceText(scoped, windowTitle) {
-    var percent = Commons.I18n.formatNumber(Math.round(scoped.percent * 100))
-    var value = String(windowTitle || "")
-    if (value === "Session") return Commons.I18n.t("agents.scopedSession").arg(scoped.title).arg(percent)
-    if (value === "Weekly") return Commons.I18n.t("agents.scopedWeekly").arg(scoped.title).arg(percent)
-    if (value === "Monthly") return Commons.I18n.t("agents.scopedMonthly").arg(scoped.title).arg(percent)
-    return Commons.I18n.t("agents.scopedOther").arg(scoped.title).arg(percent).arg(windowDisplayTitle(value))
   }
 
   // The collectors write a fixed English status; the ones that reach the
@@ -1352,7 +1415,7 @@ Panel {
     property int providerIndex: -1
     readonly property var accounts: root.providerAccounts(provider)
     readonly property bool multi: accounts.length > 1
-    readonly property var windows: root.displayWindows(provider)
+    readonly property var windows: root.limitWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
     spacing: Style.space(16)
     opacity: root.dragProviderId !== "" && provider && root.dragProviderId === provider.providerId ? 0.5 : 1.0
@@ -1567,7 +1630,7 @@ Panel {
           }
 
           Repeater {
-            model: root.displayWindows({ limits: accountBlock.modelData.limits || [] })
+            model: root.limitWindows({ limits: accountBlock.modelData.limits || [] })
 
             CompactLimit {
               required property var modelData
@@ -1975,19 +2038,22 @@ Panel {
     }
   }
 
-  // One line per limit window: title, meter, percentage, and reset. A
-  // model-scoped allowance on the same clock ("Fable" on Weekly) is a marker
-  // on this row's meter, named in the row's tooltip.
+  // A limit window: title, pace and the share left; a meter that drains with
+  // a tick at even pace; then the reset countdown and what the current rate
+  // leaves at the reset.
   component CompactLimit: Item {
     id: compact
     property var window: null
     // The age of numbers kept past a failed check is shown only on hover.
     property bool stale: false
     property real fetchedAt: 0
-    readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
+    readonly property real share: root.windowLeft(window)
     readonly property real resetMs: root.resetMsFor(window)
-    implicitHeight: Math.max(compactTitle.implicitHeight, compactValue.implicitHeight)
+    // A percentage kept from an earlier check, read against the current clock,
+    // would look like a slowdown that never happened.
+    readonly property var pace: stale ? null : root.paceFor(window)
+    implicitHeight: compactColumn.implicitHeight
 
     HoverHandler { id: compactHover }
 
@@ -2002,72 +2068,115 @@ Panel {
             ? Commons.I18n.t("agents.windowUsedResets").arg(windowName).arg(used).arg(root.formatDuration(compact.resetMs))
             : Commons.I18n.t("agents.windowUsed").arg(windowName).arg(used))
         }
+        lines = lines.concat(root.paceLines(compact.window, compact.pace))
         if (compact.stale)
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
             ? Commons.I18n.t("agents.lastUpdatedAgo").arg(root.formatDuration(root.nowMs - compact.fetchedAt))
             : compact.fetchedAt > 0 ? Commons.I18n.t("agents.lastUpdatedJustNow") : Commons.I18n.t("agents.lastUpdatedUnknown"))
-        for (var i = 0; i < compact.scoped.length; i++)
-          lines.push(root.scopedAllowanceText(compact.scoped[i], compact.window ? compact.window.title : ""))
         return lines.join("\n")
       }
     }
 
-    Text {
-      id: compactTitle
-      textFormat: Text.PlainText
-      width: parent.width * 0.3
-      anchors.verticalCenter: parent.verticalCenter
-      text: compact.window ? root.windowDisplayTitle(compact.window.title) : ""
-      color: root.foreground
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
-      elide: Text.ElideRight
-    }
+    Column {
+      id: compactColumn
+      width: parent.width
+      spacing: Style.space(6)
 
-    Meter {
-      anchors.left: compactTitle.right
-      anchors.right: compactValue.left
-      anchors.rightMargin: Style.space(20)
-      anchors.verticalCenter: parent.verticalCenter
-      value: compact.window ? compact.window.percent : -1
-      alarming: compact.alarming
-      markers: compact.scoped
-    }
+      Item {
+        width: parent.width
+        implicitHeight: Math.max(compactTitle.implicitHeight, compactValue.implicitHeight)
 
-    // Sized to the widest time left ("19h 40m"), so every meter ends in the
-    // same place.
-    TextMetrics {
-      id: compactValueMetrics
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
-      text: "00h 00m"
-    }
+        // A model-scoped window is titled after its model, and those names run
+        // long enough to reach the percentage, so the title gives way first.
+        Text {
+          id: compactTitle
+          textFormat: Text.PlainText
+          anchors.left: parent.left
+          anchors.right: compactPace.left
+          anchors.rightMargin: Style.spacing.sm
+          anchors.verticalCenter: parent.verticalCenter
+          text: compact.window ? root.windowDisplayTitle(compact.window.title) : ""
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          elide: Text.ElideRight
+        }
 
-    // How long until the window resets. The meter says how full it is; the
-    // exact percentage is in the row's tooltip.
-    Text {
-      id: compactValue
-      width: Math.ceil(compactValueMetrics.advanceWidth)
-      anchors.right: parent.right
-      anchors.verticalCenter: parent.verticalCenter
-      textFormat: Text.PlainText
-      horizontalAlignment: Text.AlignRight
-      text: compact.resetMs > 0 ? root.formatDuration(compact.resetMs) : ""
-      color: root.dim
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
+        // Whether the spend runs ahead of the clock; the numbers behind it
+        // are in the row's tooltip.
+        Text {
+          id: compactPace
+          textFormat: Text.PlainText
+          anchors.right: compactValue.left
+          anchors.rightMargin: text === "" ? 0 : Style.spacing.sm
+          anchors.verticalCenter: parent.verticalCenter
+          text: root.paceGlyph(compact.pace)
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        Text {
+          id: compactValue
+          textFormat: Text.PlainText
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          text: compact.share >= 0 ? Commons.I18n.t("agents.windowLeft").arg(Commons.I18n.formatNumber(Math.round(compact.share * 100))) : ""
+          color: compact.alarming ? root.urgent : root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+      }
+
+      Meter {
+        width: parent.width
+        value: compact.share
+        alarming: compact.alarming
+        pace: compact.pace ? compact.pace.evenLeft : -1
+      }
+
+      Item {
+        width: parent.width
+        implicitHeight: Math.max(compactReset.implicitHeight, compactProjection.implicitHeight)
+
+        Text {
+          id: compactReset
+          textFormat: Text.PlainText
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+          text: compact.resetMs > 0 ? Commons.I18n.t("agents.resetsIn").arg(root.formatDuration(compact.resetMs)) : ""
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        Text {
+          id: compactProjection
+          textFormat: Text.PlainText
+          anchors.left: compactReset.right
+          anchors.leftMargin: Style.spacing.sm
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          horizontalAlignment: Text.AlignRight
+          elide: Text.ElideLeft
+          text: root.projectionText(compact.window, compact.pace)
+          color: root.paceUrgent(compact.pace) ? root.urgent : root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+      }
     }
   }
 
-  // Rounded track showing the percentage of the allowance used.
+  // Rounded track showing the share of an allowance still left.
   component Meter: Item {
     id: meter
     property real value: -1
     property bool alarming: false
     property real thickness: Math.max(Style.space(4), Math.round(Style.spacing.controlHeight * 0.14))
 
-    // Other allowances on the same clock, drawn as ticks across the track.
-    property var markers: []
+    // Where an even pace would have the fill by now, as a share of the track.
+    property real pace: -1
 
     implicitHeight: thickness
 
@@ -2091,20 +2200,24 @@ Panel {
       }
     }
 
-    Repeater {
-      model: meter.markers
+    // Taller than the track and outlined in the panel surface, so it reads
+    // over the fill and over the empty track alike.
+    Rectangle {
+      visible: meter.pace >= 0
+      width: Math.max(4, Math.round(meter.thickness))
+      height: Math.round(meter.thickness * 2.6)
+      radius: width / 2
+      anchors.verticalCenter: meterTrack.verticalCenter
+      // Explicit x doesn't mirror, so the tick measures from the end the fill
+      // grows from.
+      readonly property real along: root.clamp(meterTrack.width * root.clamp(meter.pace, 0, 1) - width / 2, 0, meterTrack.width - width)
+      x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
+      color: root.foreground
+      border.color: root.surface
+      border.width: 1
 
-      Rectangle {
-        required property var modelData
-        width: Math.max(2, Math.round(meter.thickness * 0.5))
-        height: meter.thickness * 2.5
-        radius: width / 2
-        anchors.verticalCenter: meterTrack.verticalCenter
-        // Explicit x doesn't mirror, so the tick measures from the end the
-        // fill grows from.
-        readonly property real along: root.clamp(meterTrack.width * root.clamp(Number(modelData.percent), 0, 1) - width / 2, 0, meterTrack.width - width)
-        x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
-        color: meter.alarming ? root.urgent : root.foreground
+      Behavior on x {
+        NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic }
       }
     }
   }

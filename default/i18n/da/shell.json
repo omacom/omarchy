@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1-grænser ikke tilgængelige",
   "agents.providerUnavailable": "%1 ikke tilgængelig",
   "agents.reopenSignIn": "Åbn login-siden igen",
-  "agents.scopedMonthly": "%1: %2% af sin månedlige kvote",
-  "agents.scopedOther": "%1: %2% af sin %3-kvote",
-  "agents.scopedSession": "%1: %2% af sin sessionskvote",
-  "agents.scopedWeekly": "%1: %2% af sin ugentlige kvote",
   "agents.sessionsToday": {
     "one": "%1 session i dag",
     "other": "%1 sessioner i dag"

@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "Hindi available ang mga limitasyon ng %1",
   "agents.providerUnavailable": "Hindi available ang %1",
   "agents.reopenSignIn": "Buksan muli ang page ng pag-sign in",
-  "agents.scopedMonthly": "%1: %2% ng buwanang allowance nito",
-  "agents.scopedOther": "%1: %2% ng %3 allowance nito",
-  "agents.scopedSession": "%1: %2% ng session allowance nito",
-  "agents.scopedWeekly": "%1: %2% ng lingguhang allowance nito",
   "agents.sessionsToday": {
     "one": "%1 session ngayong araw",
     "other": "%1 session ngayong araw"

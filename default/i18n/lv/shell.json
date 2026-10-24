@@ -62,10 +62,6 @@
   "agents.providerLimitsUnavailable": "%1 limiti nav pieejami",
   "agents.providerUnavailable": "%1 nav pieejams",
   "agents.reopenSignIn": "Atvērt pierakstīšanās lapu atkal",
-  "agents.scopedMonthly": "%1: %2% no mēneša limita",
-  "agents.scopedOther": "%1: %2% no %3 limita",
-  "agents.scopedSession": "%1: %2% no sesijas limita",
-  "agents.scopedWeekly": "%1: %2% no nedēļas limita",
   "agents.sessionsToday": {
     "one": "%1 sesija šodien",
     "other": "%1 sesijas šodien",

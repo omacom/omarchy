@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1-gränser otillgängliga",
   "agents.providerUnavailable": "%1 otillgänglig",
   "agents.reopenSignIn": "Öppna inloggningssidan igen",
-  "agents.scopedMonthly": "%1: %2% av månadsgränsen",
-  "agents.scopedOther": "%1: %2% av %3-gränsen",
-  "agents.scopedSession": "%1: %2% av sessionsgränsen",
-  "agents.scopedWeekly": "%1: %2% av veckogränsen",
   "agents.sessionsToday": {
     "one": "%1 session i dag",
     "other": "%1 sessioner i dag"

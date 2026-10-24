@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1 limitleri kullanılamıyor",
   "agents.providerUnavailable": "%1 kullanılamıyor",
   "agents.reopenSignIn": "Giriş sayfasını yeniden açın",
-  "agents.scopedMonthly": "%1: aylık hakkının %2%'si",
-  "agents.scopedOther": "%1: %3 hakkının %2%'si",
-  "agents.scopedSession": "%1: oturum hakkının %2%'si",
-  "agents.scopedWeekly": "%1: haftalık hakkının %2%'si",
   "agents.sessionsToday": {
     "one": "Bugün %1 oturum",
     "other": "Bugün %1 oturum"

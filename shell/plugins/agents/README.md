@@ -15,14 +15,21 @@ Every subscription on one page, limits first.
   token counts add up to across every agent: tokens this week and today, the
   most used model, the busiest day, and today's prompts and sessions. Its
   corner has + to add a subscription and >_ to start the default agent.
-- **One section per agent** — its mark, name, and plan, then a compact line
-  per limit window: its meter and the time until it resets (the exact percentage
-  on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
-  limit) is a tick on that window's meter rather than a line of its own; the
-  row's tooltip names it. A lapsed or missing sign-in shows a _Sign-in required_ link that signs
+- **One section per agent** — its mark, name, and plan, then a row per limit
+  window that reads as what is left: the title and the share left, a meter that
+  drains toward empty, and the time until it resets. A taller tick on the meter
+  marks even pace (the share of the window still ahead), and the icon beside
+  the percentage says whether usage is ahead of it (more than five points
+  below), on it, or under it. Beside the countdown, the window's average rate
+  so far is carried to the reset: "~34% left at reset", or "Out in 2d 3h · 65%
+  short" when the allowance would run dry first (urgent only when ahead of
+  pace). The projection waits until 5% of the window has passed, and monthly
+  windows, whose billing period length isn't reported, draw no pace. Hover a
+  row for the full breakdown. A model-scoped allowance (Claude's Fable weekly
+  limit) is a row of its own, paced on the clock of the window it runs on. A lapsed or missing sign-in shows a _Sign-in required_ link that signs
   that account in again from the panel; other endpoint trouble shows under the
-  name in the urgent color. Limits kept from an earlier check after a failed one dim, and their
-  tooltip says how old they are.
+  name in the urgent color. Limits kept from an earlier check after a failed one dim, draw no
+  pace, and their tooltip says how old they are.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
   lines. An _ACTIVE_ label marks the account new sessions start as; the

@@ -62,10 +62,6 @@
   "agents.providerLimitsUnavailable": "Límites de %1 no disponibles",
   "agents.providerUnavailable": "%1 no disponible",
   "agents.reopenSignIn": "Abrir de nuevo la página de inicio de sesión",
-  "agents.scopedMonthly": "%1: %2% de su límite mensual",
-  "agents.scopedOther": "%1: %2% de su límite %3",
-  "agents.scopedSession": "%1: %2% de su límite de sesión",
-  "agents.scopedWeekly": "%1: %2% de su límite semanal",
   "agents.sessionsToday": {
     "many": "%1 sesiones hoy",
     "one": "%1 sesión hoy",

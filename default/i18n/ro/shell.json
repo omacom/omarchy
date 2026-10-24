@@ -62,10 +62,6 @@
   "agents.providerLimitsUnavailable": "Limite %1 indisponibile",
   "agents.providerUnavailable": "%1 indisponibil",
   "agents.reopenSignIn": "Deschide din nou pagina de autentificare",
-  "agents.scopedMonthly": "%1: %2% din cota lunară",
-  "agents.scopedOther": "%1: %2% din cota %3",
-  "agents.scopedSession": "%1: %2% din cota pe sesiune",
-  "agents.scopedWeekly": "%1: %2% din cota săptămânală",
   "agents.sessionsToday": {
     "few": "%1 sesiuni azi",
     "one": "%1 sesiune azi",

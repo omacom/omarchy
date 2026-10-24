@@ -62,10 +62,6 @@
   "agents.providerLimitsUnavailable": "מגבלות %1 אינן זמינות",
   "agents.providerUnavailable": "%1 אינו זמין",
   "agents.reopenSignIn": "פתחו שוב את דף ההתחברות",
-  "agents.scopedMonthly": "%1: %2% מהמכסה החודשית",
-  "agents.scopedOther": "%1: %2% ממכסת %3",
-  "agents.scopedSession": "%1: %2% ממכסת ההפעלה",
-  "agents.scopedWeekly": "%1: %2% מהמכסה השבועית",
   "agents.sessionsToday": {
     "one": "הפעלה אחת היום",
     "other": "%1 הפעלות היום",

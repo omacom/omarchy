@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1: rajoja ei saatavilla",
   "agents.providerUnavailable": "%1 ei saatavilla",
   "agents.reopenSignIn": "Avaa kirjautumissivu uudelleen",
-  "agents.scopedMonthly": "%1: %2% sen kuukausikiintiöstä",
-  "agents.scopedOther": "%1: %2% sen %3-kiintiöstä",
-  "agents.scopedSession": "%1: %2% sen istuntokiintiöstä",
-  "agents.scopedWeekly": "%1: %2% sen viikkokiintiöstä",
   "agents.sessionsToday": {
     "one": "%1 istunto tänään",
     "other": "%1 istuntoa tänään"

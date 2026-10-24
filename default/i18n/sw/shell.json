@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "Vikomo vya %1 havipatikani",
   "agents.providerUnavailable": "%1 haipatikani",
   "agents.reopenSignIn": "Fungua ukurasa wa kuingia tena",
-  "agents.scopedMonthly": "%1: %2% ya kikomo chake cha mwezi",
-  "agents.scopedOther": "%1: %2% ya kikomo chake cha %3",
-  "agents.scopedSession": "%1: %2% ya kikomo chake cha kipindi",
-  "agents.scopedWeekly": "%1: %2% ya kikomo chake cha wiki",
   "agents.sessionsToday": {
     "one": "%1 kipindi leo",
     "other": "%1 vipindi leo"

@@ -54,10 +54,6 @@
   "agents.providerLimitsUnavailable": "%1 用量限制無法取得",
   "agents.providerUnavailable": "%1 無法使用",
   "agents.reopenSignIn": "再次開啟登入頁面",
-  "agents.scopedMonthly": "%1：其每月額度的 %2%",
-  "agents.scopedOther": "%1：其 %3 額度的 %2%",
-  "agents.scopedSession": "%1：其工作階段額度的 %2%",
-  "agents.scopedWeekly": "%1：其每週額度的 %2%",
   "agents.sessionsToday": {
     "other": "今日 %1 個工作階段"
   },

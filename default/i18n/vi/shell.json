@@ -54,10 +54,6 @@
   "agents.providerLimitsUnavailable": "Chưa có giới hạn %1",
   "agents.providerUnavailable": "%1 không khả dụng",
   "agents.reopenSignIn": "Mở lại trang đăng nhập",
-  "agents.scopedMonthly": "%1: %2% hạn mức hàng tháng",
-  "agents.scopedOther": "%1: %2% hạn mức %3",
-  "agents.scopedSession": "%1: %2% hạn mức phiên",
-  "agents.scopedWeekly": "%1: %2% hạn mức hàng tuần",
   "agents.sessionsToday": {
     "other": "%1 phiên hôm nay"
   },

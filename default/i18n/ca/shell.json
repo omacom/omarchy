@@ -62,10 +62,6 @@
   "agents.providerLimitsUnavailable": "Límits de %1 no disponibles",
   "agents.providerUnavailable": "%1 no disponible",
   "agents.reopenSignIn": "Torna a obrir la pàgina d'inici de sessió",
-  "agents.scopedMonthly": "%1: %2% de la seva assignació mensual",
-  "agents.scopedOther": "%1: %2% de la seva assignació %3",
-  "agents.scopedSession": "%1: %2% de la seva assignació de sessió",
-  "agents.scopedWeekly": "%1: %2% de la seva assignació setmanal",
   "agents.sessionsToday": {
     "many": "%1 sessions avui",
     "one": "%1 sessió avui",

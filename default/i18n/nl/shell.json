@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1-limieten niet beschikbaar",
   "agents.providerUnavailable": "%1 niet beschikbaar",
   "agents.reopenSignIn": "Open de aanmeldpagina opnieuw",
-  "agents.scopedMonthly": "%1: %2% van de maandlimiet",
-  "agents.scopedOther": "%1: %2% van de %3-limiet",
-  "agents.scopedSession": "%1: %2% van de sessielimiet",
-  "agents.scopedWeekly": "%1: %2% van de weeklimiet",
   "agents.sessionsToday": {
     "one": "%1 sessie vandaag",
     "other": "%1 sessies vandaag"

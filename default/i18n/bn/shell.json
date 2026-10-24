@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1-এর সীমা পাওয়া যাচ্ছে না",
   "agents.providerUnavailable": "%1 পাওয়া যাচ্ছে না",
   "agents.reopenSignIn": "সাইন-ইন পেজ আবার খুলুন",
-  "agents.scopedMonthly": "%1: মাসিক বরাদ্দের %2%",
-  "agents.scopedOther": "%1: %3 বরাদ্দের %2%",
-  "agents.scopedSession": "%1: সেশন বরাদ্দের %2%",
-  "agents.scopedWeekly": "%1: সাপ্তাহিক বরাদ্দের %2%",
   "agents.sessionsToday": {
     "one": "আজ %1টি সেশন",
     "other": "আজ %1টি সেশন"

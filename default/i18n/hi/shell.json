@@ -58,10 +58,6 @@
   "agents.providerLimitsUnavailable": "%1 सीमाएँ अनुपलब्ध हैं",
   "agents.providerUnavailable": "%1 अनुपलब्ध है",
   "agents.reopenSignIn": "साइन-इन पृष्ठ फिर खोलें",
-  "agents.scopedMonthly": "%1: अपने मासिक भत्ते का %2%",
-  "agents.scopedOther": "%1: अपने %3 भत्ते का %2%",
-  "agents.scopedSession": "%1: अपने सत्र भत्ते का %2%",
-  "agents.scopedWeekly": "%1: अपने साप्ताहिक भत्ते का %2%",
   "agents.sessionsToday": {
     "one": "आज %1 सेशन",
     "other": "आज %1 सेशन"

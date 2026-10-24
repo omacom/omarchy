@@ -70,10 +70,6 @@
   "agents.providerLimitsUnavailable": "Teorainneacha %1 gan fáil",
   "agents.providerUnavailable": "%1 gan fáil",
   "agents.reopenSignIn": "Oscail an leathanach síniú isteach arís",
-  "agents.scopedMonthly": "%1: %2% dá liúntas míosúil",
-  "agents.scopedOther": "%1: %2% dá liúntas %3",
-  "agents.scopedSession": "%1: %2% dá liúntas seisiúin",
-  "agents.scopedWeekly": "%1: %2% dá liúntas seachtainiúil",
   "agents.sessionsToday": {
     "few": "%1 seisiún inniu",
     "many": "%1 seisiún inniu",
