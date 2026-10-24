@@ -218,6 +218,9 @@ BorderSurface {
   MouseArea {
     id: mouseArea
     anchors.fill: parent
+    // Undoes the press scale, so the button only looks smaller: a press near
+    // its edge still counts as a click when it's let go there.
+    scale: 1 / root.scale
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     acceptedButtons: Qt.LeftButton | Qt.RightButton
