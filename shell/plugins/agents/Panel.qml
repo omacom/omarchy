@@ -584,6 +584,37 @@ Panel {
     return best
   }
 
+  // Roughly how many tokens a weekly allowance holds: the tokens spent since
+  // the window opened over the fraction of it used. recentDays only reaches a
+  // week back, so longer windows get no estimate, and neither does a window
+  // whose first day the record does not cover. The first day counts in
+  // proportion to the part of it inside the window. Under 5% the meter's
+  // whole-percent steps make the estimate too coarse to show.
+  function estimatedAllowance(days, w) {
+    if (!w || w.title !== "Weekly" || !(w.percent >= 0.05) || w.resetAt === "") return -1
+    var start = new Date(w.resetAt).getTime() - 7 * 24 * 3600 * 1000
+    if (!isFinite(start)) return -1
+    var firstDay = new Date(start)
+    firstDay.setHours(0, 0, 0, 0)
+    var nextDay = new Date(firstDay)
+    nextDay.setDate(nextDay.getDate() + 1)
+    var firstShare = (nextDay.getTime() - start) / (nextDay.getTime() - firstDay.getTime())
+    var firstKey = usage.dateString(firstDay)
+    var covered = false
+    var spent = 0
+    var list = days || []
+    for (var i = 0; i < list.length; i++) {
+      var date = String(list[i].date || "")
+      var tokens = Number(list[i].messageCount || 0)
+      if (date === "" || !isFinite(tokens)) continue
+      if (date <= firstKey) covered = true
+      if (date === firstKey) spent += tokens * firstShare
+      else if (date > firstKey) spent += tokens
+    }
+    if (!covered || !(spent > 0)) return -1
+    return spent / Math.min(w.percent, 1)
+  }
+
   function resetMsFor(w) {
     if (!w || w.resetAt === "") return -1
     var ms = new Date(w.resetAt).getTime()
@@ -1467,6 +1498,7 @@ Panel {
           required property var modelData
           width: section.width
           window: modelData
+          days: section.provider ? (section.provider.recentDays || []) : []
           stale: !!section.provider && section.provider.limitsStale === true
           fetchedAt: section.provider ? Number(section.provider.limitsFetchedAt || 0) : 0
         }
@@ -1984,6 +2016,12 @@ Panel {
     // The age of numbers kept past a failed check is shown only on hover.
     property bool stale: false
     property real fetchedAt: 0
+    // The agent's tokens by day, for the allowance estimate. Left empty where
+    // the limits belong to one of several accounts, since the days are not
+    // split by account. A stale percentage is older than the day totals, so
+    // dividing one by the other would overstate the allowance.
+    property var days: []
+    readonly property real allowance: stale ? -1 : root.estimatedAllowance(days, window)
     readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
@@ -2001,6 +2039,8 @@ Panel {
           lines.push(compact.resetMs > 0
             ? Commons.I18n.t("agents.windowUsedResets").arg(windowName).arg(used).arg(root.formatDuration(compact.resetMs))
             : Commons.I18n.t("agents.windowUsed").arg(windowName).arg(used))
+          if (compact.allowance > 0)
+            lines.push(Commons.I18n.tn("agents.weeklyAllowanceEstimate", Math.round(compact.allowance)).arg(usage.formatTokenCount(compact.allowance)))
         }
         if (compact.stale)
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
