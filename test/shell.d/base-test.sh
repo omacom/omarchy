@@ -9,6 +9,7 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 SHELL_TEST_DIR="$ROOT/test/shell.d"
 
 export ROOT
+export OMARCHY_TESTING=1
 
 # Commands print user-facing text in the language picked under Setup >
 # Language, so pin tests to English (a missing file means English) rather than
