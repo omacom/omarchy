@@ -51,6 +51,10 @@ function omarchy_startup_cursor_restore(loaded)
 end
 
 hl.on("config.reloaded", function()
+  -- Hyprland names its instance before it loads the config, so only
+  -- `Hyprland --verify-config` gets here without one: no cursor to manage,
+  -- and hl.env refuses the missing session id.
+  if not os.getenv("HYPRLAND_INSTANCE_SIGNATURE") then return end
   local recover = false
   if omarchy_startup_cursor_pending == nil then
     -- An ordinary reload must not hide the pointer, but an interrupted reveal survives.
