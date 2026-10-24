@@ -31,4 +31,18 @@ assertEqual(
   '1h ago · Docs',
   'dropbox file metadata includes relative time and folder'
 )
+
+assertEqual(
+  dropbox.fileUri('/home/me/Dropbox/Q1 "final" #2.pdf'),
+  'file:///home/me/Dropbox/Q1%20%22final%22%20%232.pdf',
+  'dropbox encodes each path segment into a file URI'
+)
+
+const reveal = dropbox.revealCommand("/home/me/Dropbox/it's here.txt")
+assertEqual(reveal.slice(0, 3).join(' '), 'gdbus call --session', 'dropbox reveals files over D-Bus')
+assertEqual(reveal[reveal.indexOf('--dest') + 1], 'org.freedesktop.FileManager1', 'dropbox asks whichever file manager owns FileManager1')
+assertEqual(reveal[reveal.indexOf('--object-path') + 1], '/org/freedesktop/FileManager1', 'dropbox calls the FileManager1 object')
+assertEqual(reveal[reveal.indexOf('--method') + 1], 'org.freedesktop.FileManager1.ShowItems', 'dropbox selects the file rather than opening its folder')
+assertEqual(reveal[reveal.length - 2], '["file:///home/me/Dropbox/it\'s%20here.txt"]', 'dropbox passes the URI as a GVariant string array')
+assertEqual(reveal[reveal.length - 1], '', 'dropbox passes an empty startup id')
 JS
