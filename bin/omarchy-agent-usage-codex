@@ -26,6 +26,14 @@ import tomllib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+# Codex CLI 0.163 compresses its rollouts to *.jsonl.zst. Python 3.14 reads
+# that from the stdlib; without it, the scan skips the compressed sessions
+# rather than failing on them.
+try:
+  from compression import zstd
+except ImportError:
+  zstd = None
+
 AGENT_ID = "codex"
 AGENT_NAME = "Codex"
 AUTH_HELP = "Run `codex login` to authenticate."
@@ -432,19 +440,34 @@ def scan_opencode_sessions():
   return True
 
 
+# Both rollout spellings: plain JSONL, and the *.jsonl.zst Codex CLI 0.163
+# writes when it rolls a session over. Without a stdlib zstd reader, the
+# compressed files stay out of the scan instead of being read as garbage.
+def session_rollouts(root):
+  yield from root.rglob("*.jsonl")
+  if zstd is not None:
+    yield from root.rglob("*.jsonl.zst")
+
+
 def scan_native_codex_sessions(cached_files, scanned_files):
   codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
   roots = [codex_home / "sessions", codex_home / "archived_sessions"]
   files = []
+  found = set()
   cutoff = time.time() - 30 * 24 * 60 * 60
   for root in roots:
     if not root.exists():
       continue
-    for path in root.rglob("*.jsonl"):
+    for path in session_rollouts(root):
+      # A compress or restore can leave both copies; the plain one, listed first, wins as in Codex.
+      rollout = path.with_suffix("") if path.suffix == ".zst" else path
+      if rollout in found:
+        continue
       try:
         stat_result = path.stat()
       except OSError:
         continue
+      found.add(rollout)
       if stat_result.st_mtime >= cutoff:
         files.append((path, stat_result))
 
@@ -458,13 +481,20 @@ def scan_native_codex_sessions(cached_files, scanned_files):
     merge_file_record(key, record)
 
 
+def open_session(path):
+  # zstd.open does its own text decoding and error replacement.
+  if path.suffix == ".zst":
+    return zstd.open(path, "rt", errors="replace")
+  return path.open(errors="replace")
+
+
 def read_native_codex_session(path, stat_result):
   record = new_file_record(stat_result)
   current_model = "codex"
   seen_meta = False
   previous_total_usage = None
   try:
-    with path.open(errors="replace") as handle:
+    with open_session(path) as handle:
       for raw in handle:
         # Cheap pre-filter before JSON parsing keeps files with unrelated
         # lines inexpensive. session_meta still has to get through: it says

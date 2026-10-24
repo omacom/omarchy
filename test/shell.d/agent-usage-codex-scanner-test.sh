@@ -1269,3 +1269,44 @@ result=$(run_incremental)
 [[ $(jq -r '.modelUsage["gpt-broken"].inputTokens' <<<"$result") == "6" ]] ||
   fail "Codex collector drops usage read before a line that stops the read" "$result"
 pass "Codex collector keeps usage read before a line that stops the read"
+
+# Codex CLI 0.163 compresses rolled-over sessions to rollout-*.jsonl.zst; the
+# scan must decompress them (Python 3.14's stdlib zstd) and count them like
+# plain rollouts. Older Pythons skip the case with the collector.
+if python3 -c 'import compression.zstd' 2>/dev/null; then
+  ZST_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
+  mkdir -p "$ZST_HOME/bin" "$ZST_HOME/.codex/sessions/$(date +%Y/%m/%d)"
+  cp "$TEST_HOME/bin/codex" "$ZST_HOME/bin/codex"
+  zst_session="$ZST_HOME/.codex/sessions/$(date +%Y/%m/%d)/rollout.jsonl.zst"
+  # The compressed rollout carries the same content as the plain fixture
+  # from the first scenario, so the expected totals are the same.
+  python3 - "$TEST_HOME/.codex/sessions/$(date +%Y/%m/%d)/rollout.jsonl" "$zst_session" <<'PY'
+import compression.zstd
+import shutil
+import sys
+
+with open(sys.argv[1], "rb") as plain, compression.zstd.open(sys.argv[2], "wb") as compressed:
+  shutil.copyfileobj(plain, compressed)
+PY
+
+  result=$(HOME="$ZST_HOME" CODEX_HOME="$ZST_HOME/.codex" XDG_CACHE_HOME="$ZST_HOME/.cache" XDG_DATA_HOME="$ZST_HOME/.local/share" \
+    PATH="$ZST_HOME/bin:$PATH" "$collector")
+
+  [[ $(jq -r '.todayTotalTokens' <<<"$result") == "210" ]] ||
+    fail "Codex collector counts tokens in a rollout compressed to .jsonl.zst" "$result"
+  [[ $(jq -r '.todayPrompts' <<<"$result") == "2" ]] ||
+    fail "Codex collector counts prompts in a rollout compressed to .jsonl.zst" "$result"
+  pass "Codex collector counts a rollout compressed to .jsonl.zst"
+
+  # Codex publishes the compressed copy before deleting the plain one, and the
+  # reverse on resume, so both can sit side by side; it reads the plain one.
+  cp "$TEST_HOME/.codex/sessions/$(date +%Y/%m/%d)/rollout.jsonl" "${zst_session%.zst}"
+  result=$(HOME="$ZST_HOME" CODEX_HOME="$ZST_HOME/.codex" XDG_CACHE_HOME="$ZST_HOME/.cache" XDG_DATA_HOME="$ZST_HOME/.local/share" \
+    PATH="$ZST_HOME/bin:$PATH" "$collector" --force)
+
+  [[ $(jq -r '.todayTotalTokens' <<<"$result") == "210" ]] ||
+    fail "Codex collector counts a rollout once when its plain and compressed copies coexist" "$result"
+  pass "Codex collector counts a rollout once when its plain and compressed copies coexist"
+else
+  skip "Codex collector counts a rollout compressed to .jsonl.zst (python3 lacks compression.zstd, needs 3.14)"
+fi
