@@ -994,6 +994,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: Commons.I18n.t("elsewhen.worldClock")
     anchorItem: button
     owner: root
     bar: root.bar

@@ -830,6 +830,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("monitor.display")
     anchors.fill: parent
     bar: root.bar
     text: Quickshell.screens.length > 1 ? "󰍺" : "󰍹"
@@ -846,6 +847,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("monitor.display")
     anchorItem: button
     owner: root
     bar: root.bar
