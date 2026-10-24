@@ -132,6 +132,7 @@
   "layout.defaultScrolling": "Default layout set to scrolling",
   "layout.defaultTiling": "Default layout set to tiling",
   "layout.needsReload": "Workspace layout needs a Hyprland reload",
+  "layout.splitNeedsTiling": "Window split only works in the tiling layout",
   "layout.workspaceFloating": "Workspace layout set to floating",
   "layout.workspaceFloatingUnsaved": "Workspace layout set to floating but could not be saved",
   "layout.workspaceScrolling": "Workspace layout set to scrolling",

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle the split of the focused window on a tiling workspace
+
+# Only dwindle splits windows. Hyprland raises a Lua error popup for togglesplit
+# on a scrolling workspace, so say what the binding needs instead.
+if [[ $(omarchy-hyprland-workspace-layout-current) == "dwindle" ]]; then
+  hyprctl dispatch 'hl.dsp.layout("togglesplit")' >/dev/null
+else
+  omarchy-notification-send -g 󱂬 "$(omarchy-i18n layout.splitNeedsTiling)"
+fi
