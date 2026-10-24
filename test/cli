@@ -228,6 +228,14 @@ pass "install-time setup plumbing is hidden from the setup wizards"
 output=$(timeout 5 "$CLI" apply hardware --help)
 assert_output_contains "hidden setup plumbing still routes" "$output" "omarchy-apply-hardware"
 
+# A theme named like hidden plumbing (omarchy-theme-set-hermes) is still a
+# theme name, while a fixed-choice parent leaves its hidden children routable.
+output=$("$CLI" theme set hermes --help)
+assert_output_contains "hidden plumbing does not take a theme name" "$output" "Apply an Omarchy theme"
+
+output=$("$CLI" system lid-close --help)
+assert_output_contains "hidden plumbing keeps its route beside a fixed-choice parent" "$output" "omarchy-system-lid-close"
+
 output=$("$CLI" screenshot --help)
 assert_output_contains "root alias resolves to command help" "$output" "omarchy-capture-screenshot"
 

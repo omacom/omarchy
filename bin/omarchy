@@ -439,6 +439,48 @@ load_group_commands() {
 
 }
 
+# Whether a command's first word argument is free-form, like <theme-name>,
+# rather than a fixed choice like <logout|reboot|shutdown>. Only a free-form
+# argument can be any word, including one a hidden command is named after.
+command_takes_free_word() {
+  local key="$1"
+  local token=""
+
+  for token in ${COMMAND_ARGS[$key]}; do
+    token="${token//[][]/}"
+    [[ -z $token || $token == -* ]] && continue
+    [[ $token =~ ^[\<][^|\<\>]+[\>]$ ]]
+    return
+  done
+
+  return 1
+}
+
+# A hidden command never takes a word that a visible command accepts as its
+# free-form argument: `omarchy theme set hermes` names a theme, and must not
+# run the hidden omarchy-theme-set-hermes plumbing that happens to share the
+# name. Hidden commands keep their routes wherever no visible command claims them.
+hidden_binary_shadows_argument() {
+  local hidden_binary="$1"
+  local visible_binary="$2"
+  local hidden_key=""
+  local visible_key=""
+  local shadows=1
+
+  if load_command_by_binary "$hidden_binary" && load_command_by_binary "$visible_binary"; then
+    hidden_key="${BINARY_TO_KEY[$hidden_binary]}"
+    visible_key="${BINARY_TO_KEY[$visible_binary]}"
+    if [[ ${COMMAND_HIDDEN[$hidden_key]} == "true" && ${COMMAND_HIDDEN[$visible_key]} != "true" ]] &&
+      command_takes_free_word "$visible_key"; then
+      shadows=0
+    fi
+  fi
+
+  # Dispatch loads what it needs itself, so leave the tables as resolution found them.
+  reset_commands
+  return $shadows
+}
+
 resolve_direct_route() {
   local argc="$1"
   shift
@@ -448,20 +490,32 @@ resolve_direct_route() {
   local binary=""
   local candidate=""
 
+  DIRECT_RESOLVED_BINARY=""
+
   for (( prefix_count = argc; prefix_count >= 1; prefix_count-- )); do
     route="omarchy $(join_words " " "${args[@]:0:prefix_count}")"
 
     binary="omarchy-$(join_words "-" "${args[@]:0:prefix_count}")"
     candidate="$OMARCHY_BIN_DIR/$binary"
-    if [[ -f $candidate && -x $candidate ]]; then
-      DIRECT_RESOLVED_BINARY="$binary"
-      DIRECT_RESOLVED_COUNT="$prefix_count"
-      DIRECT_RESOLVED_ROUTE="$route"
+    [[ -f $candidate && -x $candidate ]] || continue
+
+    # The longest match stands unless it is hidden and the nearest shorter
+    # command would take the extra words as its argument.
+    if [[ -n $DIRECT_RESOLVED_BINARY ]]; then
+      if hidden_binary_shadows_argument "$DIRECT_RESOLVED_BINARY" "$binary"; then
+        DIRECT_RESOLVED_BINARY="$binary"
+        DIRECT_RESOLVED_COUNT="$prefix_count"
+        DIRECT_RESOLVED_ROUTE="$route"
+      fi
       return 0
     fi
+
+    DIRECT_RESOLVED_BINARY="$binary"
+    DIRECT_RESOLVED_COUNT="$prefix_count"
+    DIRECT_RESOLVED_ROUTE="$route"
   done
 
-  return 1
+  [[ -n $DIRECT_RESOLVED_BINARY ]]
 }
 
 sorted_keys() {
