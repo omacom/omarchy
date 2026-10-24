@@ -140,6 +140,7 @@ only a live session can prove.
   executables (`sudo`, `tmux`, `gsettings`, helper commands) that log their
   arguments to a file, prepend it to `PATH`, and then run the real script
   under test. Assertions grep the call log and the files the script wrote.
+- **Fingerprint verification boundaries.** `bash test/shell.d/fingerprint-verify-settle-test.sh` runs the complete setup script with PAM paths relocated to scratch space and hardware, package, fprintd, privileged writes, and lock installation stubbed. It checks one verification for a genuine mismatch, bounded retries only for fprintd's literal `failed to claim device:` output, and PAM/lock setup only after a match. The test records settle calls rather than waiting; it cannot prove that the delay releases a real reader or that authentication works on hardware.
 - **Login shells drop the stubs.** A `bash -l` rereads `/etc/profile`, which resets `OMARCHY_PATH` from `/etc/omarchy.conf` and puts that checkout's `bin/` ahead of the stub directory, so a command run through one reaches the real commands again. Commands that start `bash -lc` (`omarchy-theme-set` runs its app retints that way) need a `bash` stub that drops the `-l`.
 - **Fake `$HOME`, real `$OMARCHY_PATH`.** Anything touching user state runs
   with `HOME` pointed at a `mktemp -d` directory (cleaned up via
