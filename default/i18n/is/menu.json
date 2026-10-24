@@ -572,6 +572,9 @@
   "setup.security.passwordless-sudo": {
     "label": "Sudo án lykilorðs"
   },
+  "setup.security.rootless-docker": {
+    "label": "Docker án root"
+  },
   "setup.config.hyprland": {
     "label": "Hyprland"
   },
@@ -919,6 +922,9 @@
   },
   "remove.security.sudoless-docker": {
     "label": "Docker án sudo"
+  },
+  "remove.security.rootless-docker": {
+    "label": "Docker án root"
   },
   "remove.ai.hermes": {
     "label": "Hermes Desktop"

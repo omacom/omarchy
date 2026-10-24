@@ -24,6 +24,8 @@ Omarchy 支持通过 Omarchy 菜单（`Super + Space`）的_安装 > Development
 
 默认情况下，你的用户*不*在 `docker` 组中。这个组实际上等同于免密码的 root——组内任何东西都能执行 `docker run -v /:/host` 并接管整台机器——所以一个以你的身份运行的流氓脚本或依赖，否则一条命令就能拿到 root。因此在命令行里你用 `sudo` 运行 Docker（`sudo docker ps`、`sudo docker compose up`），而与守护进程通信的图形工具——Windows 虚拟机——会在需要时请求授权。如果你想恢复无组设置的便利并理解其中的取舍，可以从 **Setup > Security > Sudoless Docker** 启用它（或运行 `omarchy-setup-security-sudoless-docker`），它会在发出警告后将你加入 `docker` 组；之后普通的 `docker` 和 `d` 别名就又能不用 `sudo` 工作了。
 
+若想摆脱 `sudo` 又不必承担这种取舍，可以启用 **Setup > Security > Rootless Docker**（或运行 `omarchy-setup-security-rootless-docker`）。它会以你自己的用户身份、在用户命名空间中运行第二个 Docker 守护进程，因此容器能触及的范围不会超过你本人：之后普通的 `docker`（以及 `docker compose`）会与这个 rootless 守护进程通信，而 `sudo docker` 仍然连接系统守护进程，用于真正需要 root 的场景，比如 Windows 虚拟机。两个守护进程各自保存镜像和卷；rootless 模式下无法使用 1024 以下的端口，而且容器内非 root 用户在绑定挂载中写入的文件，在主机上归属于一个从属 UID。用 `docker context use default` 可以切回默认，或者从 **Remove > Security > Rootless Docker** 将其关闭。
+
 你可以使用 Omarchy 菜单中的_安装 > Development > Docker DB_，在 Docker 中设置本地开发常用的数据库。
 
 ## GitHub CLI

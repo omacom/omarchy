@@ -572,6 +572,9 @@
   "setup.security.passwordless-sudo": {
     "label": "Sudo na Walang Password"
   },
+  "setup.security.rootless-docker": {
+    "label": "Docker na Walang Root"
+  },
   "setup.config.hyprland": {
     "label": "Hyprland"
   },
@@ -919,6 +922,9 @@
   },
   "remove.security.sudoless-docker": {
     "label": "Docker na Walang Sudo"
+  },
+  "remove.security.rootless-docker": {
+    "label": "Docker na Walang Root"
   },
   "remove.ai.hermes": {
     "label": "Hermes Desktop"

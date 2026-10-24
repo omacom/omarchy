@@ -24,6 +24,8 @@ Omarchy は Omarchy メニュー（`Super + Space`）の _インストール > D
 
 デフォルトではあなたのユーザーは `docker` グループに*入っていません*。そのグループは実質的にパスワードなしの root です — そのグループに属するものは `docker run -v /:/host` を実行してマシンを乗っ取れます — したがって、あなたとして実行される悪意のあるスクリプトや依存関係が1つあるだけで、root まであと1コマンドという状態になってしまいます。そこでコマンドラインでは Docker を `sudo` で実行し（`sudo docker ps`、`sudo docker compose up`）、デーモンと通信するグラフィカルツール — Windows VM — は必要なときに許可を求めます。グループなしのセットアップの便利さを取り戻したい場合で、そのトレードオフを理解しているなら、**設定 > Security > Sudoless Docker** から有効にしてください（または `omarchy-setup-security-sudoless-docker` を実行してください）。警告の後にあなたが `docker` グループに追加され、プレーンな `docker` と `d` エイリアスが再び `sudo` なしで使えるようになります。
 
+このトレードオフなしで `sudo` をなくしたいなら、**設定 > Security > Rootless Docker** を有効にしてください（または `omarchy-setup-security-rootless-docker` を実行してください）。これはあなた自身のユーザーとして、ユーザー名前空間の中で2つ目の Docker デーモンを動かすので、コンテナはあなたが触れられるものにしか触れられません。プレーンな `docker`（と `docker compose`）はその rootless デーモンと通信し、`sudo docker` は Windows VM のように本物の root が必要なもののために、引き続きシステムのデーモンに届きます。2つのデーモンはイメージとボリュームを別々に持ちます。rootless では1024未満のポートは使えず、コンテナ内の非 root ユーザーが bind mount に書き込んだファイルはホスト上の従属 UID の所有になります。既定に戻すには `docker context use default` を使い、無効にするには **削除 > Security > Rootless Docker** から行います。
+
 ローカル開発用の一般的なデータベースは、Omarchy メニューの _インストール > Development > Docker DB_ を使って Docker でセットアップできます。
 
 ## GitHub CLI
