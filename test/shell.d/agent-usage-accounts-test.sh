@@ -264,3 +264,41 @@ signed_out=$(PATH="$test_tmp/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --
   fail "a signed-out Codex home waits for auth on its own" "$signed_out"
 touch "$accounts/codex/side/auth.json"
 pass "a signed-out Codex home waits for auth on its own"
+
+# Two organizations of one Claude user have separate allowances, so their
+# limits caches must be separate files too.
+COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" python3 - <<'PY' || fail "Claude organizations keep separate limits caches"
+import importlib.machinery, importlib.util, json, os, tempfile
+from pathlib import Path
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+seen = []
+collector.oauth_login = lambda home: ("token", 0, 0, "Max")
+
+
+def collect_limits(token, expires_at_ms, refresh_expires_at_ms, force, cache_name="claude-limits.json"):
+  seen.append(cache_name)
+  return {"limits": [], "usageStatusText": "", "authHelpText": "", "live": True, "fetchedAtMs": 0}
+
+
+collector.collect_limits = collect_limits
+for label, org in (("Org A", "org-a"), ("Org B", "org-b")):
+  home = Path(tempfile.mkdtemp())
+  (home / ".claude.json").write_text(json.dumps({
+    "oauthAccount": {
+      "accountUuid": "u-shared",
+      "organizationUuid": org,
+      "emailAddress": "shared@example.com",
+    }
+  }))
+  collector.account_limits({"id": label.lower().replace(" ", "-"), "label": label, "home": str(home), "active": True}, False)
+
+assert len(seen) == 2, seen
+assert seen[0] != seen[1], seen
+assert "org-a" in seen[0] and "org-b" in seen[1], seen
+PY
+pass "Claude organizations keep separate limits caches"

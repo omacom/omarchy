@@ -33,8 +33,8 @@ if [[ ${1:-} == "auth" && ${2:-} == "login" ]]; then
   home=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
   account_file="$home/.claude.json"
   [[ -z ${CLAUDE_CONFIG_DIR:-} ]] && account_file="$HOME/.claude.json"
-  printf '{"oauthAccount":{"accountUuid":"%s","emailAddress":"%s","organizationName":"Work"}}\n' \
-    "$OMARCHY_TEST_LOGIN_UUID" "$OMARCHY_TEST_LOGIN_EMAIL" >"$account_file"
+  printf '{"oauthAccount":{"accountUuid":"%s","organizationUuid":"%s","emailAddress":"%s","organizationName":"Work"}}\n' \
+    "$OMARCHY_TEST_LOGIN_UUID" "${OMARCHY_TEST_LOGIN_ORG_UUID:-org-default}" "$OMARCHY_TEST_LOGIN_EMAIL" >"$account_file"
   echo '{"claudeAiOauth":{"rateLimitTier":"default_claude_max_5x","subscriptionType":"max"}}' >"$home/.credentials.json"
   exit 0
 fi
@@ -102,7 +102,7 @@ unset OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME
 
 accounts="$XDG_STATE_HOME/omarchy/agents/accounts"
 
-echo '{"oauthAccount":{"accountUuid":"u-main","emailAddress":"me@example.com","organizationName":"Me"},"mcpServers":{"docs":{"command":"docs-mcp"}}}' >"$HOME/.claude.json"
+echo '{"oauthAccount":{"accountUuid":"u-main","organizationUuid":"org-default","emailAddress":"me@example.com","organizationName":"Me"},"mcpServers":{"docs":{"command":"docs-mcp"}}}' >"$HOME/.claude.json"
 echo '{"claudeAiOauth":{"rateLimitTier":"default_claude_max_20x","subscriptionType":"max"}}' >"$HOME/.claude/.credentials.json"
 echo '{"theme":"custom:omarchy"}' >"$HOME/.claude/settings.json"
 
@@ -419,3 +419,44 @@ omarchy-agent-account-state refresh claude
 [[ $(jq -r '.accounts[] | select(.id == "events") | .email' "$accounts/claude.json") == "switched@example.com" ]] ||
   fail "refresh saves who each home is signed in as now"
 pass "refresh saves who each home is signed in as now"
+
+# ------------------------------------------------------------ organizations
+
+# One claude.ai user can belong to several organizations, each a separate
+# subscription with its own limits; the user id alone must not collapse them.
+STATE="$ROOT/bin/omarchy-agent-account-state" python3 - <<'PY' || fail "a second Claude organization is a separate account"
+import importlib.machinery, importlib.util, json, os
+from pathlib import Path
+
+loader = importlib.machinery.SourceFileLoader("state", os.environ["STATE"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+state = importlib.util.module_from_spec(spec)
+loader.exec_module(state)
+
+
+def register(label, org):
+  home = state.begin("claude", label)
+  state.claude_account_file(home).write_text(json.dumps({
+    "oauthAccount": {
+      "accountUuid": "u-shared",
+      "organizationUuid": org,
+      "emailAddress": "shared@example.com",
+      "organizationName": org,
+    }
+  }))
+  (home / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {"accessToken": "test-token"}}))
+  return state.register("claude", label, home)
+
+
+first = register("Org A", "org-a")
+second = register("Org B", "org-b")
+assert first["accountId"] == second["accountId"] == "u-shared"
+assert (first["orgId"], second["orgId"]) == ("org-a", "org-b")
+shared = [a for a in state.load("claude")["accounts"] if a.get("accountId") == "u-shared"]
+assert len(shared) == 2, shared
+assert {a.get("orgId") for a in shared} == {"org-a", "org-b"}, shared
+# A registry written before org ids existed still matches on the user alone.
+assert state.same_account({"accountId": "u-shared"}, {"accountId": "u-shared", "orgId": "org-a"})
+assert not state.same_account({"accountId": "u-shared", "orgId": "org-a"}, {"accountId": "u-shared", "orgId": "org-b"})
+PY
+pass "a second Claude organization is a separate account"
