@@ -125,7 +125,7 @@ function inputTooltip(state, layout, multipleLayouts) {
 }
 
 function showIndicator(layoutLabel, multipleLayouts, multipleInputs) {
-  return multipleInputs || (layoutLabel !== "" && multipleLayouts)
+  return multipleInputs || layoutLabel !== ""
 }
 
 function layoutIndex(keyboard) {
