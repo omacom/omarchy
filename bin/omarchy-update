@@ -104,6 +104,7 @@ omarchy-update-requires-free-space
 
 if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   authorize_update
+  omarchy-update-verify-package-database
 
   # Before the snapshot: the cache is on the snapshotted subvolume, so pruning
   # after it frees nothing until that snapshot ages out.
