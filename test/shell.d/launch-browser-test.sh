@@ -83,7 +83,7 @@ grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
 
 pass "browser launcher follows opened links to the browser workspace"
 
-rm -f "$launch_log"
+rm -f "$launch_log" "$focus_log"
 cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
 #!/bin/bash
 [[ $1 == "chromium" && $2 == "https://example.test/running" ]]
@@ -95,6 +95,16 @@ HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_lo
 
 [[ ! -e $launch_log ]] || fail "browser launcher starts no browser when the running one takes the URL"
 pass "browser launcher hands a URL to the running browser"
+
+# The handoff path is what a link click takes when the browser is already up, and
+# it must not move the view to that browser's workspace -- the rules in
+# apps/browser.lua keep the browser's own activation request from doing it.
+HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/running"
+
+[[ ! -e $focus_log ]] || fail "a URL handed to the running browser leaves the view where it is" "$(cat "$focus_log")"
+pass "a URL handed to the running browser leaves the view where it is"
 
 rm -f "$mock_bin/omarchy-cmd-browser-handoff" "$launch_log"
 help_log="$test_tmp/help"

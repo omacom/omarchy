@@ -20,7 +20,9 @@ if [[ " $* " == *" --private "* ]]; then
   fi
 fi
 
+started_browser=0
 if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
+  started_browser=1
   systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
     --property=StandardOutput=null --property=StandardError=null \
     uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
@@ -34,6 +36,12 @@ for argument in "$@"; do
   fi
 done
 
-if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+# Only a browser this launcher started is focused. A URL the handoff gave to the
+# running browser focuses nothing: the point of apps/browser.lua turning
+# focus_on_activate off is that a URL opening in a browser that already lives on
+# another workspace must not drag the view there, and focusing here would do it
+# anyway. (omarchy-launch-or-focus-webapp keeps its own explicit focus; that path
+# is asked for by name.)
+if [[ -n $url && $started_browser == 1 && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   omarchy-hyprland-focus-app "^$(basename "$browser_exec" -stable).*$" || true
 fi
