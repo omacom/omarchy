@@ -10,6 +10,10 @@ hl.config({
   },
 
   group = {
+    groupbar = {
+      text_color = "rgb({{ foreground_strip }})",
+      text_color_inactive = "rgba({{ foreground_strip }}90)",
+    },
     col = {
       border_active = active_border_color,
       border_inactive = inactive_border_color,
