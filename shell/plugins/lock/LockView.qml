@@ -54,8 +54,16 @@ Item {
   signal clearFailureRequested()
   signal wakeRequested()
 
+  function passwordFocusAllowed() {
+    return inputEnabled && !authenticatingPassword
+  }
+
+  function schedulePasswordFocus() {
+    if (passwordFocusAllowed()) Qt.callLater(forcePasswordFocus)
+  }
+
   function forcePasswordFocus() {
-    passwordInput.forceActiveFocus()
+    if (passwordFocusAllowed() && passwordInput.enabled) passwordInput.forceActiveFocus()
   }
 
   function clearPassword() {
@@ -78,12 +86,11 @@ Item {
   }
 
   onPasswordTextChanged: syncPasswordText()
-  onInputEnabledChanged: {
-    if (inputEnabled) Qt.callLater(forcePasswordFocus)
-  }
+  onInputEnabledChanged: schedulePasswordFocus()
+  onAuthenticatingPasswordChanged: schedulePasswordFocus()
   Component.onCompleted: {
     syncPasswordText()
-    if (inputEnabled) Qt.callLater(forcePasswordFocus)
+    schedulePasswordFocus()
   }
 
   // Measures the masked password at full size; passwordDotScale compares this
@@ -174,6 +181,7 @@ Item {
         verticalAlignment: TextInput.AlignVCenter
         horizontalAlignment: TextInput.AlignHCenter
         activeFocusOnPress: true
+        focus: root.passwordFocusAllowed()
         clip: true
         enabled: root.inputEnabled && !root.authenticatingPassword
         readOnly: root.authenticatingPassword
@@ -191,6 +199,10 @@ Item {
           width: 2
           color: Commons.Color.lock.text
           visible: passwordInput.cursorVisible
+        }
+
+        onActiveFocusChanged: {
+          if (!activeFocus) root.schedulePasswordFocus()
         }
 
         onTextChanged: {
