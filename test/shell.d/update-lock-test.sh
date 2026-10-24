@@ -413,7 +413,7 @@ migrate_as() { # a|b [COMMAND...]: run omarchy-migrate as that account, inside C
   local account=$1
   shift
   rm -rf "$machine_dir/state-$account" "$machine_dir/calls-$account"
-  as_account "$account" env OMARCHY_PATH="$machine_dir/omarchy" OMARCHY_MIGRATION_STATE="$machine_dir/state-$account" \
+  as_account "$account" env OMARCHY_PATH="$machine_dir/omarchy" OMARCHY_MIGRATION_STATE="$machine_dir/state-$account" OMARCHY_MIGRATION_RECORD="$machine_dir/no-record" \
     TEST_CALLS="$machine_dir/calls-$account" "$@" "$ROOT/bin/omarchy-migrate"
 }
 

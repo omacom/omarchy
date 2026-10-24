@@ -17,7 +17,7 @@ cat >"$test_tmp/bin/omarchy-update-lock" <<'SH'
 exit 0
 SH
 chmod +x "$test_tmp/bin/omarchy-update-lock"
-export PATH="$test_tmp/bin:$PATH"
+export PATH="$test_tmp/bin:$PATH" OMARCHY_MIGRATION_RECORD="$test_tmp/no-record"
 
 cat >"$test_root/migrations/100-first.sh" <<'SH'
 [[ $OMARCHY_PATH == "$TEST_EXPECTED_OMARCHY_PATH" ]]

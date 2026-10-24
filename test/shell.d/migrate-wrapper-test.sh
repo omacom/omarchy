@@ -31,6 +31,7 @@ SH
 run_migrate() {
   HOME="$test_home" \
   OMARCHY_PATH="$test_root" \
+  OMARCHY_MIGRATION_RECORD="$test_tmp/no-record" \
   PATH="$stub_bin:$ROOT/bin:$PATH" \
   TEST_CALLS="$test_tmp/calls" \
   TEST_DISMISSALS="$test_tmp/dismissals" \
@@ -105,7 +106,8 @@ run_limited_migrate() { # ADMIN
   mkdir -p "$home"
   : >"$test_tmp/calls"
   : >"$test_tmp/escalations"
-  HOME="$home" PATH="$limited_bin:$PATH" OMARCHY_PATH="$limited_root" TEST_ADMIN="$1" TEST_TMP="$test_tmp" \
+  HOME="$home" PATH="$limited_bin:$PATH" OMARCHY_PATH="$limited_root" OMARCHY_MIGRATION_RECORD="$test_tmp/no-record" \
+    TEST_ADMIN="$1" TEST_TMP="$test_tmp" \
     TEST_CALLS="$test_tmp/calls" TEST_ESCALATIONS="$test_tmp/escalations" \
     "$ROOT/bin/omarchy-migrate" >"$test_tmp/out" 2>"$test_tmp/err"
 }
@@ -173,3 +175,47 @@ if run_limited_migrate no; then fail "a step about a limited account's home fail
 grep -q "Needs an administrator, for this account: sudo chown root .*/.config/thing" "$test_tmp/err" ||
   fail "a step about a limited account's home says so" "$(cat "$test_tmp/err")"
 pass "a step about the limited account itself fails and stays pending, saying it needs an administrator"
+
+# With the record of administrators' runs, a limited account runs a migration
+# only once an administrator's run has, and stops at the first one that hasn't.
+# Migrations from before the record run as before.
+record="$test_tmp/admin-migrations"
+record_root="$test_tmp/record-omarchy"
+mkdir -p "$record" "$record_root/migrations" "$test_tmp/record-yes" "$test_tmp/record-no"
+for name in 1700000000 1800000000 1800000001; do
+  printf 'echo %s >>"$TEST_CALLS"\n' "$name" >"$record_root/migrations/$name.sh"
+done
+record_migrate() { # ADMIN [ARGS...]
+  local admin=$1
+  shift
+  : >"$test_tmp/calls"
+  HOME="$test_tmp/record-$admin" PATH="$limited_bin:$PATH" OMARCHY_PATH="$record_root" OMARCHY_MIGRATION_RECORD="$record" \
+    TEST_ADMIN="$admin" TEST_TMP="$test_tmp" TEST_CALLS="$test_tmp/calls" TEST_ESCALATIONS="$test_tmp/escalations" \
+    "$ROOT/bin/omarchy-migrate" "$@"
+}
+
+record_migrate no >"$test_tmp/out" || fail "a limited account's run finishes while it waits for an administrator"
+[[ $(cat "$test_tmp/calls") == "1700000000" ]] && grep -q "wait for an administrator" "$test_tmp/out" ||
+  fail "a limited account runs only what predates the record or an administrator has run, and says so" "$(cat "$test_tmp/calls" "$test_tmp/out")"
+if record_migrate no --pending >/dev/null; then fail "a limited account isn't prompted for what waits for an administrator"; fi
+record_migrate yes >/dev/null || fail "an administrator's run finishes"
+[[ -e $record/1800000000.sh && -e $record/1800000001.sh ]] || fail "an administrator's run records what it runs" "$(ls "$record")"
+# One the record lost while the administrator's marker stayed runs again for
+# them and is recorded again.
+rm "$record/1800000001.sh"
+record_migrate yes >/dev/null && [[ $(cat "$test_tmp/calls") == "1800000001" && -e $record/1800000001.sh ]] ||
+  fail "an administrator's run reruns a migration the record lost, and records it again" "$(cat "$test_tmp/calls")"
+# One it couldn't record stays pending for the administrator, to run again.
+printf 'echo 1800000002 >>"$TEST_CALLS"\n' >"$record_root/migrations/1800000002.sh"
+if (( EUID != 0 )); then
+  chmod 555 "$record"
+  if record_migrate yes >/dev/null 2>&1; then fail "an administrator's run that can't record a migration fails"; fi
+  chmod 755 "$record"
+  [[ ! -e $test_tmp/record-yes/.local/state/omarchy/migrations/1800000002.sh ]] ||
+    fail "a migration an administrator's run couldn't record stays pending for it"
+fi
+record_migrate yes >/dev/null && [[ -e $record/1800000002.sh ]] || fail "the administrator's next run runs and records it"
+record_migrate no >/dev/null || fail "a limited account's run finishes once an administrator's has"
+[[ $(cat "$test_tmp/calls") == $'1800000000\n1800000001\n1800000002' ]] ||
+  fail "a limited account runs the migrations an administrator's run has" "$(cat "$test_tmp/calls")"
+pass "a limited account's migrations wait for an administrator's run"
