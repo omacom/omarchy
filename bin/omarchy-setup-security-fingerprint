@@ -21,7 +21,13 @@ setup_pam_config() {
   # Configure sudo
   if ! grep -q pam_fprintd.so /etc/pam.d/sudo; then
     echo "Configuring sudo for fingerprint authentication..."
-    sudo sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/sudo
+    # The sudo dialog's lines stay first: they only act without a terminal,
+    # where a fingerprint wait would be invisible.
+    if grep -q 'omarchy-sudo-dialog-auth refused' /etc/pam.d/sudo; then
+      sudo sed -i '/omarchy-sudo-dialog-auth refused/a auth      sufficient pam_fprintd.so' /etc/pam.d/sudo
+    else
+      sudo sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/sudo
+    fi
   fi
   if ! grep -q 'omarchy-hw-laptop-closed' /etc/pam.d/sudo; then
     echo "Adding clamshell gate to sudo..."

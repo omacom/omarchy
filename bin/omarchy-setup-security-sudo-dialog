@@ -1,0 +1,167 @@
+#!/bin/bash
+
+# omarchy:summary=Show a polkit dialog for sudo when it has no terminal, such as a command an agent runs
+# omarchy:requires-sudo=true
+
+# Without a terminal, sudo cannot ask for a password and a fingerprint wait is
+# invisible, so an agent's or a background job's sudo just hangs or fails.
+# This adds omarchy-sudo-dialog-auth to the top of /etc/pam.d/sudo: such a
+# sudo then asks in the desktop's polkit dialog (fingerprint or password),
+# showing its command (cut to 60 printable characters; the journal keeps it
+# whole). A sudo with a terminal prompts in it as before.
+
+set -e
+
+helper=/usr/bin/omarchy-sudo-dialog-auth
+policy=/etc/polkit-1/actions/org.omarchy.sudo-dialog.policy
+action=org.omarchy.sudo-dialog.authenticate
+authorize_line="auth      sufficient                    pam_exec.so quiet seteuid $helper"
+# If the helper is gone (Omarchy removed, a renamed file), the guard skips the
+# "refused" line, which would otherwise stop every sudo with a die nobody can
+# undo through sudo; the authorize line then just fails and falls through.
+guard_line="auth      [success=1 default=ignore]    pam_exec.so quiet /usr/bin/test ! -x $helper"
+refused_line="auth      [success=ignore default=die]  pam_exec.so quiet seteuid $helper refused"
+
+# Put /etc/pam.d/sudo and the policy back as they were before this run, so a
+# failed re-run leaves a working earlier setup in place.
+restore_previous() {
+  sudo cp -f "$saved/sudo" /etc/pam.d/sudo || return 1
+  if (( had_policy )); then
+    sudo cp -f "$saved/policy" "$policy" || return 1
+  else
+    sudo rm -f "$policy" || return 1
+  fi
+  writing=0
+  reload_polkit || echo "Couldn't reload polkit; until it restarts it may still list the dialog's action as this run left it." >&2
+}
+
+# A policy written to a new /etc/polkit-1/actions wasn't picked up by the
+# running polkitd until it reloaded, so tell it to reread its actions. A
+# reload keeps the running polkitd and the desktop's registered dialog agent.
+reload_polkit() {
+  sudo systemctl reload polkit.service
+}
+
+# Any exit after the first write and before "Done" (a failed command under
+# set -e, Ctrl-C, TERM or HUP) puts the earlier setup back; a SIGKILL can't be
+# caught and leaves the run half done. Those signals are ignored while this
+# runs, so a second Ctrl-C can't cut the restore short. The backup is deleted
+# only once nothing needs it; if the restore fails it stays and is named.
+on_exit() {
+  local rc=$?
+  trap '' INT TERM HUP
+  if (( writing )); then
+    if restore_previous; then
+      echo "Setup didn't finish, so sudo's earlier setup was put back." >&2
+    else
+      echo "Setup didn't finish and couldn't put sudo's earlier setup back. The copies are in $saved: as root, copy $saved/sudo to /etc/pam.d/sudo, and $saved/policy to $policy (or delete $policy if there is no $saved/policy)." >&2
+      exit "$rc"
+    fi
+  fi
+  if safe_backup_dir && ! sudo rm -rf -- "$saved"; then
+    echo "Couldn't remove the backup in $saved." >&2
+  fi
+  exit "$rc"
+}
+
+# The backup directory's name is checked before any privileged command uses it.
+safe_backup_dir() {
+  [[ $saved =~ ^/tmp/omarchy-sudo-dialog\.[[:alnum:]]{10}$ ]] && sudo test -d "$saved" -a ! -L "$saved"
+}
+
+if (( EUID == 0 )); then
+  echo "Run this as your own user: the dialog belongs to your desktop session." >&2
+  exit 1
+fi
+
+if [[ ! -x $helper ]]; then
+  echo "$helper is missing; update Omarchy first." >&2
+  exit 1
+fi
+
+echo -e "\e[32mSetting up the sudo dialog for commands without a terminal.\n\e[0m"
+
+# The copies restore_previous puts back as root live in a root-owned 0700
+# directory, so no process of this user can swap them before a restore.
+writing=0
+saved=""
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+saved=$(sudo mktemp -d /tmp/omarchy-sudo-dialog.XXXXXXXXXX) || saved=""
+trap on_exit EXIT
+if ! safe_backup_dir; then
+  echo "Could not create a safe directory for the backup." >&2
+  exit 1
+fi
+sudo cp -- /etc/pam.d/sudo "$saved/sudo"
+had_policy=0
+if [[ -f $policy ]]; then
+  sudo cp -- "$policy" "$saved/policy"
+  had_policy=1
+fi
+
+writing=1
+
+# auth_self, never *_keep: polkit never reuses an earlier answer. Inactive and
+# remote sessions get "no", so sudo falls through to its normal stack there.
+sudo install -D -m 0644 /dev/stdin "$policy" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>Omarchy</vendor>
+  <vendor_url>https://omarchy.org</vendor_url>
+  <action id="org.omarchy.sudo-dialog.authenticate">
+    <description>Authenticate a sudo command that has no terminal</description>
+    <message>Authentication is required to run a command with sudo.</message>
+    <icon_name>dialog-password</icon_name>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_self</allow_active>
+    </defaults>
+  </action>
+</policyconfig>
+EOF
+if ! reload_polkit; then
+  echo "Couldn't reload polkit to load the dialog's action." >&2
+  exit 1
+fi
+
+# The lines go first, ahead of fingerprint and password: re-running replaces
+# them rather than adding a second set.
+sudo sed -i '\#/usr/bin/omarchy-sudo-dialog-auth#d' /etc/pam.d/sudo
+sudo sed -i "1i $refused_line" /etc/pam.d/sudo
+sudo sed -i "1i $guard_line" /etc/pam.d/sudo
+sudo sed -i "1i $authorize_line" /etc/pam.d/sudo
+
+# The reload returns once polkitd has reread its actions; the short poll is a
+# fallback. A check for this session then answers 2 (authentication
+# required). That proves the action is loaded and asks for this session; it
+# can't prove an agent is running. The Omarchy shell normally runs one; without
+# it no dialog can appear, and a terminal-less sudo falls back to its usual
+# prompts (a fingerprint wait it can't show, then a password it can't read).
+status=1
+for _ in {1..20}; do
+  status=0
+  pkcheck --action-id "$action" --process $$ >/dev/null 2>&1 || status=$?
+  (( status == 2 )) && break
+  sleep 0.25
+done
+
+# Each failure below exits; on_exit then puts the earlier setup back.
+if (( status != 2 )); then
+  if (( status == 0 )); then
+    echo "A local polkit rule grants $action without asking, so the dialog would never appear." >&2
+  elif (( status == 127 )); then
+    echo "polkit couldn't check $action (pkcheck 127, usually because the action isn't loaded), so no dialog can ask for it." >&2
+  else
+    echo "polkit would not ask this session (pkcheck $status). Run this from your desktop session." >&2
+  fi
+  exit 1
+fi
+
+writing=0
+echo -e "\e[32mDone. A sudo without a terminal now asks in a dialog that shows its command.\e[0m"

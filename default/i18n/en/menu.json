@@ -662,6 +662,9 @@
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
   },
+  "setup.security.sudo-dialog": {
+    "label": "Sudo Dialog"
+  },
   "setup.config.hyprland": {
     "label": "Hyprland"
   },
@@ -1009,6 +1012,9 @@
   },
   "remove.security.sudoless-docker": {
     "label": "Sudoless Docker"
+  },
+  "remove.security.sudo-dialog": {
+    "label": "Sudo Dialog"
   },
   "remove.ai.hermes": {
     "label": "Hermes Desktop"

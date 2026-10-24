@@ -16,6 +16,8 @@ credential="tester:credential-handle,public-key,es256,+presence"
 authdir="$test_tmp/etc-fido2"
 authfile="$authdir/fido2"
 setup_copy="$test_tmp/setup.sh"
+pam_sudo="$test_tmp/pam-sudo"
+pam_polkit="$test_tmp/pam-polkit-1"
 mkdir -p "$stub_bin"
 
 cleanup() {
@@ -184,7 +186,10 @@ case "${1:-}" in
       reject "$@"
     fi
 
-    if [[ $3 == "1i auth    sufficient pam_u2f.so cue authfile=/etc/fido2/fido2" && $4 == "/etc/pam.d/sudo" ]]; then
+    # The grep stub reads the fixture, so only the insertion it calls for passes.
+    if [[ $TEST_PAM_SUDO_INSERT == top && $3 == "1i auth    sufficient pam_u2f.so cue authfile=/etc/fido2/fido2" && $4 == "/etc/pam.d/sudo" ]]; then
+      exit 0
+    elif [[ $TEST_PAM_SUDO_INSERT == after-dialog && $3 == "/omarchy-sudo-dialog-auth refused/a auth    sufficient pam_u2f.so cue authfile=/etc/fido2/fido2" && $4 == "/etc/pam.d/sudo" ]]; then
       exit 0
     elif [[ $3 == "1i auth      sufficient pam_u2f.so cue authfile=/etc/fido2/fido2" && $4 == "/etc/pam.d/polkit-1" ]]; then
       exit 0
@@ -201,6 +206,21 @@ case "${1:-}" in
     reject "$@"
     ;;
 esac
+SH
+
+# The setup decides where its sudo line goes by reading /etc/pam.d/sudo. Point
+# those reads at a fixture, so the host's own PAM stack (stock, or already
+# carrying the sudo dialog or a key) can't change which insertion the run takes.
+cat >"$stub_bin/grep" <<'SH'
+#!/bin/bash
+
+args=("$@")
+last=$(( ${#args[@]} - 1 ))
+case "${args[last]}" in
+  /etc/pam.d/sudo) args[last]=$TEST_PAM_SUDO ;;
+  /etc/pam.d/polkit-1) args[last]=$TEST_PAM_POLKIT ;;
+esac
+exec /usr/bin/grep "${args[@]}"
 SH
 
 cat >"$stub_bin/fido2-token" <<'SH'
@@ -242,7 +262,7 @@ case "$TEST_PAMU_MODE" in
 esac
 SH
 
-chmod +x "$stub_bin/mktemp" "$stub_bin/sudo" "$stub_bin/fido2-token" \
+chmod +x "$stub_bin/mktemp" "$stub_bin/sudo" "$stub_bin/grep" "$stub_bin/fido2-token" \
   "$stub_bin/omarchy-pkg-add" "$stub_bin/pamu2fcfg"
 
 reset_run() {
@@ -251,6 +271,9 @@ reset_run() {
   : >"$pamu_targets"
   : >"$bare_mktemp"
   rm -rf "$authdir"
+  printf '%s\n' '#%PAM-1.0' 'auth		include		system-auth' >"$pam_sudo"
+  printf '%s\n' 'auth      include system-auth' >"$pam_polkit"
+  pam_sudo_insert=top
 }
 
 invoke_setup() {
@@ -262,6 +285,7 @@ invoke_setup() {
   TEST_AUTHDIR="$authdir" TEST_AUTHFILE="$authfile" TEST_BARE_MKTEMP="$bare_mktemp" \
     TEST_CREDENTIAL="$credential" TEST_FAIL_CHMOD="$fail_chmod" TEST_FAIL_MV="$fail_mv" \
     TEST_LOG="$calls" TEST_MKTEMP_MODE="$mktemp_mode" TEST_PAMU_MODE="$pamu_mode" \
+    TEST_PAM_SUDO="$pam_sudo" TEST_PAM_POLKIT="$pam_polkit" TEST_PAM_SUDO_INSERT="$pam_sudo_insert" \
     TEST_PAMU_TARGETS="$pamu_targets" TEST_STAGES="$stages" TEST_TMP="$test_tmp" \
     PATH="$stub_bin:$ROOT/bin:$PATH" \
     bash "$setup_copy" </dev/null >/dev/null
@@ -478,3 +502,23 @@ invoke_setup success 0 0 nonregular >/dev/null 2>&1 &&
   fail "a nonregular stage is never published" "$(cat "$calls")"
 [[ ! -e $authfile ]] || fail "a nonregular stage publishes no authfile"
 pass "FIDO2 setup rejects nonregular mktemp output before any privileged write"
+
+# With the sudo dialog set up, the key's line goes right after the dialog's
+# lines rather than above them; on a stock stack it goes first.
+reset_run
+run_setup
+grep -Fxq $'sudo\tsed\t-i\t1i auth    sufficient pam_u2f.so cue authfile=/etc/fido2/fido2\t/etc/pam.d/sudo' "$calls" ||
+  fail "FIDO2 setup puts its sudo line first on a stock stack" "$(cat "$calls")"
+
+reset_run
+printf '%s\n' \
+  'auth      sufficient                    pam_exec.so quiet seteuid /usr/bin/omarchy-sudo-dialog-auth' \
+  'auth      [success=1 default=ignore]    pam_exec.so quiet /usr/bin/test ! -x /usr/bin/omarchy-sudo-dialog-auth' \
+  'auth      [success=ignore default=die]  pam_exec.so quiet seteuid /usr/bin/omarchy-sudo-dialog-auth refused' \
+  '#%PAM-1.0' 'auth		include		system-auth' >"$pam_sudo"
+pam_sudo_insert=after-dialog
+run_setup
+grep -Fxq $'sudo\tsed\t-i\t/omarchy-sudo-dialog-auth refused/a auth    sufficient pam_u2f.so cue authfile=/etc/fido2/fido2\t/etc/pam.d/sudo' "$calls" ||
+  fail "FIDO2 setup puts its sudo line after the sudo dialog's lines" "$(cat "$calls")"
+pass "FIDO2 setup places its sudo line first, or after the sudo dialog's lines"
+

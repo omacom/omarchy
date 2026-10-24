@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Stop showing a polkit dialog for sudo commands without a terminal
+# omarchy:requires-sudo=true
+
+set -e
+
+policy=/etc/polkit-1/actions/org.omarchy.sudo-dialog.policy
+
+echo -e "\e[32mRemoving the sudo dialog.\n\e[0m"
+
+# PAM lines first, so sudo never runs the helper without its policy.
+if grep -q '/usr/bin/omarchy-sudo-dialog-auth' /etc/pam.d/sudo; then
+  sudo sed -i '\#/usr/bin/omarchy-sudo-dialog-auth#d' /etc/pam.d/sudo
+fi
+sudo rm -f "$policy"
+# Have polkitd reread its actions so it drops this one now.
+if ! sudo systemctl reload polkit.service; then
+  echo "Couldn't reload polkit; it lists the dialog's action until it restarts. Without the PAM lines nothing uses it." >&2
+fi
+sudo rm -rf /run/omarchy-sudo-dialog
+
+echo -e "\e[32mA sudo without a terminal is back to the stock prompts.\e[0m"

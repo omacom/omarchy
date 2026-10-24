@@ -1,0 +1,239 @@
+#!/bin/bash -p
+
+# omarchy:summary=Authenticate a terminal-less sudo through the desktop's polkit dialog (called by PAM)
+# omarchy:hidden=true
+
+# /etc/pam.d/sudo runs this through pam_exec, before the stock lines, once
+# omarchy-setup-security-sudo-dialog has added them:
+#
+#   auth  sufficient                    pam_exec.so quiet seteuid /usr/bin/omarchy-sudo-dialog-auth
+#   auth  [success=1 default=ignore]    pam_exec.so quiet /usr/bin/test ! -x /usr/bin/omarchy-sudo-dialog-auth
+#   auth  [success=ignore default=die]  pam_exec.so quiet seteuid /usr/bin/omarchy-sudo-dialog-auth refused
+#
+# The middle line skips the last one when this file is missing, so a removed
+# helper can't turn the "die" into a sudo that always fails.
+#
+# It only acts when sudo has no terminal: an agent's tool call, a background
+# job, a launcher. There sudo cannot ask for a password, and a fingerprint wait
+# is invisible; the polkit dialog (fingerprint or password, per
+# /etc/pam.d/polkit-1) is the visible prompt. With a terminal, sudo prompts in
+# it as before.
+#
+# "seteuid" makes pam_exec call setuid(geteuid()) before running this, so under
+# sudo the real and effective uids are both 0 and the unprivileged process that
+# ran sudo cannot ptrace or signal it. The script checks both uids and refuses
+# to act unless they are 0. Its inputs are the PAM environment, /proc entries of sudo and
+# of the process that ran it, and its own marker directory; -p in the shebang
+# keeps BASH_ENV and exported functions out.
+#
+# Mode "authorize" (no argument):
+#   0  polkit authorized the action in a dialog for the process that ran sudo.
+#   1  otherwise. When a dialog was shown and not approved (cancel, failed
+#      attempts, no answer within 60 s, a pkcheck error), a "refused" marker
+#      is written for this sudo process first (if it cannot be, that sudo is
+#      killed), so the next line stops sudo instead of falling through to the
+#      invisible fingerprint wait, and a passwd_tries retry gets no new dialog.
+#      When no dialog is possible (a terminal, no agent, an inactive or remote
+#      session, a local rule that grants the action without authentication),
+#      no marker is written and the stock stack runs as before.
+# Mode "refused": 1 (PAM "die") when this sudo process has a marker, else 0.
+
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup for sudo authentication." >&2
+  exit 126
+fi
+
+set -u
+export PATH=/usr/bin
+umask 077
+
+readonly ACTION=org.omarchy.sudo-dialog.authenticate
+readonly TIMEOUT=60
+readonly MARKDIR=/run/omarchy-sudo-dialog
+# The dialog shows its message on one line and elides the middle of a long
+# one, so the command is cut explicitly instead; the journal keeps it whole.
+readonly MAXCMD=60
+
+mode=${1:-authorize}
+sudo_pid=$PPID
+sudo_start=""
+
+log() { /usr/bin/logger -t omarchy-sudo-dialog -p auth.notice -- "$*" 2>/dev/null || :; }
+
+# Field N of /proc/PID/stat, counted after the parenthesised comm, which may
+# itself contain spaces and parentheses.
+stat_field() {
+  local stat rest index
+  local -a fields
+  stat=$(</proc/"$1"/stat) || return 1
+  rest=${stat##*) }
+  read -r -a fields <<<"$rest"
+  index=$(( $2 - 3 ))
+  if (( index < 0 )) || [[ -z ${fields[index]:-} ]]; then
+    return 1
+  fi
+  printf '%s\n' "${fields[index]}"
+}
+
+# The refused marker of the sudo process that called us: <pid>.<start time>.
+marker_path() {
+  local start
+  start=$(stat_field "$sudo_pid" 22) || return 1
+  [[ $start =~ ^[0-9]+$ ]] || return 1
+  printf '%s/%s.%s\n' "$MARKDIR" "$sudo_pid" "$start"
+}
+
+fall_through() {
+  log "fall-through: $*"
+  exit 1
+}
+
+# A dialog was shown and not approved. If the marker cannot be written, stop
+# this sudo directly. Its start time is re-checked just before the kill, so a
+# recycled pid is not hit; sudo is blocked on this helper, so it only exits in
+# between if something kills it.
+refuse() {
+  local marker
+  if marker=$(marker_path) && { [[ -d $MARKDIR ]] || /usr/bin/mkdir -m 0700 -- "$MARKDIR"; } && : >"$marker"; then
+    log "refused: $*"
+  elif [[ -z $sudo_start ]]; then
+    log "refused (marker write failed, sudo start time unknown, not killing): $*"
+  elif [[ $(stat_field "$sudo_pid" 22) == "$sudo_start" ]]; then
+    log "refused (marker write failed, killing sudo $sudo_pid): $*"
+    /usr/bin/kill -KILL -- "$sudo_pid"
+  else
+    log "refused (marker write failed, sudo $sudo_pid already gone): $*"
+  fi
+  exit 1
+}
+
+prune_markers() {
+  local marker name
+  for marker in "$MARKDIR"/*.*; do
+    [[ -f $marker ]] || continue
+    name=${marker##*/}
+    if [[ $(stat_field "${name%%.*}" 22 2>/dev/null) != "${name#*.}" ]]; then
+      /usr/bin/rm -f -- "$marker"
+    fi
+  done
+}
+
+# Does the sudo that called us use -S/--stdin? Its caller then supplies the
+# password itself, so a dialog would only get in the way. getopt reads the
+# options with sudo's own option string and long options (1.9.17), so
+# clusters, attached and detached arguments, optional arguments and
+# abbreviated long options parse as sudo parses them. An argv getopt rejects
+# is not treated as -S.
+SUDO_SHORT_OPTS='+Aa:BbC:c:D:Eeg:Hh::iKklNnPp:R:r:SsT:t:U:u:Vv'
+SUDO_LONG_OPTS='askpass,auth-type:,background,bell,close-from:,login-class:,chdir:,preserve-env::,edit,group:,set-home,help,host:,login,remove-timestamp,reset-timestamp,list,no-update,non-interactive,preserve-groups,prompt:,chroot:,role:,stdin,shell,type:,command-timeout:,other-user:,user:,version,validate'
+
+reads_password_from_stdin() {
+  local -a argv opts
+  local parsed i
+  mapfile -d '' -t argv <"/proc/$sudo_pid/cmdline" 2>/dev/null || return 1
+  (( ${#argv[@]} > 1 )) || return 1
+  parsed=$(/usr/bin/getopt -q -s bash -n sudo -o "$SUDO_SHORT_OPTS" -l "$SUDO_LONG_OPTS" -- "${argv[@]:1}") || return 1
+  # getopt's bash-quoted output: options first, then "--", then the operands.
+  eval "opts=($parsed)"
+  for (( i = 0; i < ${#opts[@]}; i++ )); do
+    case ${opts[i]} in
+      --) return 1 ;;
+      -S | --stdin) return 0 ;;
+      -a | -C | -c | -D | -g | -h | -p | -R | -r | -T | -t | -U | -u | --auth-type | --close-from | --login-class | --chdir | --preserve-env | --group | --host | --prompt | --chroot | --role | --type | --command-timeout | --other-user | --user)
+        (( i++ )) ;;
+    esac
+  done
+  return 1
+}
+
+refused_mode() {
+  local marker
+  if (( $(/usr/bin/id -u) == 0 )) && marker=$(marker_path) && [[ -e $marker ]]; then
+    log "refused: sudo $sudo_pid stops (dialog not approved)"
+    exit 1
+  fi
+  exit 0
+}
+
+authorize_mode() {
+  local marker user uid subject start uids probe full cmd status
+
+  [[ ${PAM_TYPE:-} == "auth" ]] || fall_through "PAM_TYPE=${PAM_TYPE:-unset}"
+  [[ ${PAM_SERVICE:-} == "sudo" ]] || fall_through "PAM_SERVICE=${PAM_SERVICE:-unset}"
+  [[ -z ${PAM_TTY:-} ]] || fall_through "sudo has a terminal (${PAM_TTY})"
+  if reads_password_from_stdin; then
+    fall_through "sudo -S reads the password from its input"
+  fi
+  (( $(/usr/bin/id -u) == 0 && $(/usr/bin/id -ru) == 0 )) || fall_through "not running as root (pam_exec seteuid missing)"
+
+  if marker=$(marker_path) && [[ -e $marker ]]; then
+    log "refused again: sudo $sudo_pid already had its dialog refused"
+    exit 1
+  fi
+  prune_markers
+
+  user=${PAM_USER:-}
+  [[ -n $user ]] || fall_through "PAM_USER unset"
+  uid=$(/usr/bin/id -u -- "$user" 2>/dev/null) || fall_through "unknown user"
+  if [[ ! $uid =~ ^[0-9]+$ ]] || (( uid == 0 )); then
+    fall_through "refusing uid '$uid'"
+  fi
+
+  [[ $(/usr/bin/readlink -- "/proc/$sudo_pid/exe" 2>/dev/null) == "/usr/bin/sudo" ]] || fall_through "parent $sudo_pid is not /usr/bin/sudo"
+  sudo_start=$(stat_field "$sudo_pid" 22) || fall_through "cannot read sudo's start time"
+
+  # The polkit subject is the process that ran sudo, pinned by its start time;
+  # all four of its uids must be the authenticating user's.
+  subject=$(stat_field "$sudo_pid" 4) || fall_through "cannot read sudo's parent"
+  if [[ ! $subject =~ ^[0-9]+$ ]] || (( subject <= 1 )); then
+    fall_through "bad subject pid '$subject'"
+  fi
+  start=$(stat_field "$subject" 22) || fall_through "cannot read the subject's start time"
+  [[ $start =~ ^[0-9]+$ ]] || fall_through "bad start time"
+  uids=$(/usr/bin/awk '$1 == "Uid:" { print $2, $3, $4, $5 }' "/proc/$subject/status" 2>/dev/null) || fall_through "cannot read the subject's status"
+  [[ $uids == "$uid $uid $uid $uid" ]] || fall_through "subject $subject uids '$uids' are not $uid"
+  [[ $(stat_field "$subject" 22) == "$start" ]] || fall_through "subject $subject changed"
+
+  # The action is auth_self for active local sessions, so a non-interactive
+  # check answers 2 (challenge). 0 means a local rule grants it without
+  # authentication, which is not an authentication.
+  probe=0
+  /usr/bin/pkcheck --action-id "$ACTION" --process "$subject,$start,$uid" >/dev/null 2>&1 || probe=$?
+  case $probe in
+    2) ;;
+    0) fall_through "polkit grants $ACTION without authentication; ignoring it" ;;
+    1) fall_through "no dialog possible for subject $subject (inactive or remote session)" ;;
+    *) fall_through "pkcheck probe failed ($probe)" ;;
+  esac
+
+  # The journal gets the whole command with only control bytes replaced; the
+  # dialog gets printable ASCII, cut explicitly.
+  full=$(/usr/bin/tr '\0' ' ' <"/proc/$sudo_pid/cmdline" 2>/dev/null | LC_ALL=C /usr/bin/tr '[:cntrl:]' '?')
+  full=${full% }
+  cmd=$(printf '%s' "$full" | LC_ALL=C /usr/bin/tr -c '[:print:]' '?')
+  if (( ${#cmd} > MAXCMD )); then
+    cmd="${cmd:0:MAXCMD}... (+$(( ${#cmd} - MAXCMD )) chars, see journalctl -t omarchy-sudo-dialog)"
+  fi
+
+  log "asking polkit for uid $uid, subject $subject (start $start): $full"
+  status=0
+  /usr/bin/timeout "$TIMEOUT" /usr/bin/pkcheck --action-id "$ACTION" --process "$subject,$start,$uid" \
+    --allow-user-interaction --detail polkit.message "Run: ${cmd:-sudo}" >/dev/null 2>&1 || status=$?
+  case $status in
+    0)
+      log "authorized uid $uid, subject $subject"
+      exit 0
+      ;;
+    2) fall_through "no polkit authentication agent for subject $subject" ;;
+    3) refuse "dialog dismissed (uid $uid, subject $subject)" ;;
+    1) refuse "not authorized in the dialog (uid $uid, subject $subject)" ;;
+    124) refuse "dialog unanswered after ${TIMEOUT}s (uid $uid, subject $subject)" ;;
+    *) refuse "pkcheck failed ($status) (uid $uid, subject $subject)" ;;
+  esac
+}
+
+case $mode in
+  refused) refused_mode ;;
+  authorize) authorize_mode ;;
+  *) fall_through "unknown mode" ;;
+esac
