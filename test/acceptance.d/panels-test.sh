@@ -31,7 +31,7 @@ set_accessibility() {
 # (no accessibility bus, or a Quickshell that publishes none), read the screen
 # instead. Fall back to the screen when the tree never shows the panel.
 wait_for_panel() {
-  local name="$1" description="$2" status attempt
+  local name="$1" description="$2" status
 
   if ((! accessibility_available)); then
     printf '# no accessibility tree; reading the screen for %s\n' "$name"
@@ -41,7 +41,7 @@ wait_for_panel() {
 
   # The shell publishes its tree a moment after accessibility is switched on.
   # libatspi aborts rather than return when there is no bus at all.
-  for attempt in 1 2 3 4 5; do
+  for _ in 1 2 3 4 5; do
     status=0
     python "$ROOT/test/acceptance.d/atspi.py" dialog "$name" 2>/dev/null || status=$?
     (( status > 1 )) || break
