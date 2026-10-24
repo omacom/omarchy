@@ -1426,14 +1426,14 @@ MulticastDNS=no
 EOF
   cat <<'EOF' | as_root tee /etc/systemd/resolved.conf.d/20-docker-dns.conf >/dev/null
 [Resolve]
-DNSStubListenerExtra=172.17.0.1
+DNSStubListenerExtra=172.30.0.1
 EOF
   cat <<'EOF' | as_root tee /etc/docker/daemon.json >/dev/null
 {
     "log-driver": "json-file",
     "log-opts": { "max-size": "10m", "max-file": "5" },
-    "dns": ["172.17.0.1"],
-    "bip": "172.17.0.1/16"
+    "dns": ["172.30.0.1"],
+    "bip": "172.30.0.1/16"
 }
 EOF
   as_root ln -sfn ../run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
