@@ -19,6 +19,8 @@ BarWidget {
   readonly property string artist: activePlayer ? (activePlayer.trackArtist || "") : ""
 
   property bool popupOpen: false
+  // Carry sub-notch wheel deltas (touchpads, high-resolution wheels) between events.
+  property real wheelAccumulator: 0
 
   function close() { popupOpen = false }
   property real maxLabelWidth: 180
@@ -99,9 +101,11 @@ BarWidget {
       }
     }
     onWheel: function(wheel) {
-      if (!root.activePlayer) return
-      if (wheel.angleDelta.y > 0 && root.mediaService) root.mediaService.runAction("previous", false)
-      else if (wheel.angleDelta.y < 0 && root.mediaService) root.mediaService.runAction("next", false)
+      if (!root.activePlayer || !root.mediaService) return
+      var result = Util.wheelSteps(root.wheelAccumulator, wheel.angleDelta.y)
+      root.wheelAccumulator = result.remainder
+      if (result.steps > 0) root.mediaService.runAction("previous", false)
+      else if (result.steps < 0) root.mediaService.runAction("next", false)
     }
     onEntered: if (root.bar) root.bar.showTooltip(root, root.hasMedia ? (root.title + (root.artist ? " — " + root.artist : "")) : "")
     onExited: if (root.bar) root.bar.hideTooltip(root)

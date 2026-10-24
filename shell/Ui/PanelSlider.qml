@@ -18,6 +18,8 @@ Item {
   property real trackHeight: Math.max(4, Math.round(Style.spacing.controlHeight * 0.11))
   property real knobSize: Math.max(14, Math.round(Style.spacing.controlHeight * 0.38))
   property real liveValue: value
+  // Carry sub-notch wheel deltas (touchpads, high-resolution wheels) between events.
+  property real wheelAccumulator: 0
 
   // macOS-style notches. When > 1, that many evenly-spaced tick marks are cut
   // into the track (drawn in the panel background color, so only the part
@@ -145,8 +147,10 @@ Item {
       root.liveValue = root.value
     }
     onWheel: function(wheel) {
-      var delta = wheel.angleDelta.y > 0 ? root.step : -root.step
-      var next = Math.max(root.minimum, Math.min(root.maximum, root.liveValue + delta))
+      var result = Util.wheelSteps(root.wheelAccumulator, wheel.angleDelta.y)
+      root.wheelAccumulator = result.remainder
+      if (result.steps === 0) return
+      var next = Math.max(root.minimum, Math.min(root.maximum, root.liveValue + result.steps * root.step))
       if (root.integer) next = Math.round(next)
       root.liveValue = next
       root.moved(next)
