@@ -289,9 +289,10 @@ def scan_candidates(root):
             elif match := QML_LIST_ITEM.match(line):
                 consider("qml", rel, lineno, match.group(1))
 
-    for path in sorted((root / "bin").iterdir()):
-        if not path.is_file():
-            continue
+    # install/ holds the first-run invitations, sent from the user's session.
+    scripts = sorted(path for path in (root / "bin").iterdir() if path.is_file())
+    scripts += sorted(path for path in (root / "install").rglob("*") if path.suffix in (".sh", ".hook"))
+    for path in scripts:
         rel = path.relative_to(root).as_posix()
         if rel in allowed_files:
             continue

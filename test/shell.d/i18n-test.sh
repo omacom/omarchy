@@ -118,7 +118,10 @@ assert(unreferencedShell.length === 0, 'every shell catalog key is referenced', 
 const unknownShell = [...shellKeys].filter((key) => !Object.hasOwn(enShell, key))
 assert(unknownShell.length === 0, 'every referenced shell key exists in the English catalog', JSON.stringify(unknownShell))
 
-const cliKeys = collectKeys(path.join(root, 'bin'), [''], /omarchy-i18n (?:--count \S+ )?([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g)
+const cliKeyPattern = /omarchy-i18n (?:--count \S+ )?([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g
+const cliKeys = collectKeys(path.join(root, 'bin'), [''], cliKeyPattern)
+for (const key of collectKeys(path.join(root, 'install'), ['.sh', '.hook'], cliKeyPattern)) cliKeys.add(key)
+for (const key of collectKeys(path.join(root, 'default'), ['.py'], cliKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh'], /omarchy_form_text ([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g)) cliKeys.add(key)
 const unreferencedCli = Object.keys(enCli).filter((key) => !cliKeys.has(key))
 assert(unreferencedCli.length === 0, 'every cli catalog key is referenced', JSON.stringify(unreferencedCli))
