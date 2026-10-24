@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Open a generic image selector menu
-# omarchy:args=[--selected <image>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] [--print-rows] <image-dir>...
+# omarchy:args=[--selected <image>] [--print-name] [--show-labels|--sentence-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] [--print-rows] <image-dir>...
 
 selected_image=""
 print_name=false
@@ -15,7 +15,7 @@ print_rows=false
 image_dirs=()
 
 usage() {
-  echo "Usage: omarchy-menu-images [--selected <image>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] [--print-rows] <image-dir>..."
+  echo "Usage: omarchy-menu-images [--selected <image>] [--print-name] [--show-labels|--sentence-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] [--print-rows] <image-dir>..."
 }
 
 while (( $# > 0 )); do
@@ -35,6 +35,10 @@ while (( $# > 0 )); do
       ;;
     --show-labels)
       show_labels=true
+      shift
+      ;;
+    --sentence-labels)
+      show_labels=sentence
       shift
       ;;
     --filterable)
