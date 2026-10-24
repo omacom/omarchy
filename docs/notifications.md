@@ -95,6 +95,7 @@ flags map onto that call:
 | `--action <label> <program> [words…]` | hint `omarchy-actions` | a button, up to three; the first is also the click. Its words end at the next `--action`, `--with` or `--exec`. Cannot be combined with `--exec` |
 | `--with <args…>` | appended to every action | the data the actions act on; consumes the rest of the line, so it comes last |
 | `--image` | hint `image-path` | the standard freedesktop image hint |
+| `--preview <path>` | hint `omarchy-preview` | a local picture drawn across the card under the text, at its own aspect ratio (a screen recording's first frame, say). Checked like `image-path` and never persisted |
 | `-i` / `--icon` | `app_icon` | themed icon name for the toast |
 | `--app-name` | `app_name` | defaults to `omarchy-action` |
 | `-u` / `--urgency` | hint `urgency` (byte) | `low`/`normal`/`critical`; defaults to `low` |
