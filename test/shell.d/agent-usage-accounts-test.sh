@@ -16,6 +16,9 @@ export XDG_CACHE_HOME="$test_tmp/cache"
 export XDG_DATA_HOME="$test_tmp/data"
 unset CLAUDE_CONFIG_DIR CODEX_HOME
 
+primary_cache_key=$(python3 -c 'import hashlib, os; print(hashlib.sha1((os.environ["HOME"] + "/.claude").encode()).hexdigest()[:16])')
+primary_cache="$XDG_CACHE_HOME/omarchy/agent-usage/claude-limits-$primary_cache_key.json"
+
 accounts="$XDG_STATE_HOME/omarchy/agents/accounts"
 mkdir -p "$HOME/.claude/projects" "$HOME/.codex/sessions" "$accounts/claude/work" "$accounts/claude/old" "$accounts/codex/side"
 
@@ -87,7 +90,7 @@ pass "a lapsed account keeps its last-known limits and says why"
   fail "the record's own limits describe the active account" "$claude_record"
 pass "the record's own limits describe the active account"
 
-[[ -f $XDG_CACHE_HOME/omarchy/agent-usage/claude-limits.json && -f $XDG_CACHE_HOME/omarchy/agent-usage/claude-limits-u-work.json ]] ||
+[[ ! -f $XDG_CACHE_HOME/omarchy/agent-usage/claude-limits.json && -f $primary_cache && -f $XDG_CACHE_HOME/omarchy/agent-usage/claude-limits-u-work.json ]] ||
   fail "each account keeps its own limits cache, keyed by subscription"
 pass "each account keeps its own limits cache"
 
@@ -166,6 +169,37 @@ PY
 rm -f "$HOME/.claude.json"
 pass "a primary home signed in to another subscription doesn't inherit its limits"
 
+# A primary home with no recorded identity keeps its own home's cache, even when
+# the collector inherited another account's CLAUDE_CONFIG_DIR.
+work_cache_key=$(python3 -c 'import hashlib, sys; print(hashlib.sha1(sys.argv[1].encode()).hexdigest()[:16])' "$accounts/claude/work")
+jq -nc --arg open "$open_at" --argjson now "$(( $(date +%s) * 1000 ))" '{fetchedAtMs: $now, limits: [{label: "Session (5-hour)", percent: 0.66, resetsAt: $open}]}' \
+  >"$XDG_CACHE_HOME/omarchy/agent-usage/claude-limits-$work_cache_key.json"
+jq -nc --arg open "$open_at" --argjson now "$(( $(date +%s) * 1000 ))" '{fetchedAtMs: $now, limits: [{label: "Session (5-hour)", percent: 0.21, resetsAt: $open}]}' \
+  >"$primary_cache"
+inherited=$(CLAUDE_CONFIG_DIR="$accounts/claude/work" COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" python3 - <<'PY'
+import importlib.machinery, importlib.util, io, json, os, sys
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+def urlopen(request, timeout=None):
+  if request.get_header("Authorization").endswith("token-main"):
+    raise collector.urllib.error.URLError("down")
+  return io.BytesIO(b'{"five_hour": {"utilization": 12.0}}')
+
+collector.urllib.request.urlopen = urlopen
+collector.scan_pi_usage = lambda age: None
+collector.scan_opencode_usage = lambda age: None
+sys.argv = ["omarchy-agent-usage-claude", "--force"]
+collector.main()
+PY
+)
+[[ $(jq -c '.accounts[0].limits[0].percent' <<<"$inherited") == 0.21 ]] ||
+  fail "a primary home keeps its own limits cache under an inherited CLAUDE_CONFIG_DIR" "$inherited"
+pass "a primary home keeps its own limits cache under an inherited CLAUDE_CONFIG_DIR"
+
 # A registry with one account changes nothing about the record.
 jq '.accounts |= [.[0]] | .active = "main"' "$accounts/claude.json" >"$test_tmp/one.json"
 mv "$test_tmp/one.json" "$accounts/claude.json"
@@ -192,7 +226,7 @@ pass "a single account record is unchanged"
 # A failed probe falls back on hour-old numbers, and the record says so.
 hour_ago_ms=$(( ($(date +%s) - 3600) * 1000 ))
 jq -nc --arg open "$open_at" --argjson at "$hour_ago_ms" '{fetchedAtMs: $at, limits: [{label: "Session (5-hour)", percent: 0.42, resetsAt: $open}]}' \
-  >"$XDG_CACHE_HOME/omarchy/agent-usage/claude-limits.json"
+  >"$primary_cache"
 kept=$(COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" python3 - <<'PY'
 import importlib.machinery, importlib.util, os, sys
 

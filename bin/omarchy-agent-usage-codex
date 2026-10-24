@@ -538,7 +538,17 @@ def read_native_codex_session(path, stat_result):
 
 def cache_root():
   root = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
-  root.mkdir(parents=True, exist_ok=True)
+  root.mkdir(parents=True, exist_ok=True, mode=0o700)
+  # mkdir(exist_ok=True) leaves an already-open tree alone, and older runs
+  # wrote world-readable files. Clamp both so plan/usage details stay private.
+  try:
+    if root.stat().st_mode & 0o077:
+      root.chmod(0o700)
+    for path in root.iterdir():
+      if not path.is_symlink() and path.is_file() and path.stat().st_mode & 0o077:
+        path.chmod(0o600)
+  except OSError:
+    pass
   return root
 
 
@@ -646,9 +656,8 @@ def write_json(path, payload):
   try:
     with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
       handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
-    # mkstemp opens at 0600; nothing in the cache is sensitive, so open it
-    # up to the usual 0644.
-    tmp.chmod(0o644)
+    # Keep the mkstemp 0600 mode: usage caches are per-user and should not be
+    # world-readable.
     tmp.replace(path)
   except BaseException:
     tmp.unlink(missing_ok=True)
