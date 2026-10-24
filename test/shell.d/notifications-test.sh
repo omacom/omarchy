@@ -88,3 +88,154 @@ grep -q 'WlrLayershell.namespace: "omarchy-notifications"' "$service" ||
 grep -q 'omarchy-notifications' "$ROOT/default/hypr/toggles/window-glassy.lua" ||
   fail "glassy toggle still matches the notification layer namespace"
 pass "notification surface keeps the omarchy-notifications layer namespace"
+
+# Font commands run with isolated config and IPC; do not affect later checks.
+(
+  tmpdir=$(mktemp -d)
+  trap 'rm -rf "$tmpdir"' EXIT
+
+  # Stub the shell IPC: commit() refreshes the running shell, which does not
+  # exist under test. Record calls and succeed silently.
+  printf '%s\n' '#!/bin/bash' 'echo "$@" >>"$OMARCHY_TEST_SHELL_ARGS"' 'exit 0' >"$tmpdir/omarchy-shell"
+  chmod +x "$tmpdir/omarchy-shell"
+  touch "$tmpdir/shell-args"
+
+  export OMARCHY_TEST_SHELL_ARGS="$tmpdir/shell-args"
+
+  # Isolate shell.json writes: omarchy-shell-config resolves the user config
+  # from $HOME, so point HOME at the scratch dir.
+  export HOME="$tmpdir"
+  export OMARCHY_PATH="$ROOT"
+  export PATH="$tmpdir:$ROOT/bin:$PATH"
+
+  font() {
+    omarchy-notification-font "$@"
+  }
+
+  mode() {
+    jq -r '.notifications.font // "default"' "$HOME/.config/omarchy/shell.json"
+  }
+
+  # ------------------------------------------------------------------ CLI
+
+  out=$(font show)
+  [[ $out == *"mode: default"* ]] || fail "notification font show defaults to default mode" "$out"
+  [[ $out == *"Liberation Sans"* ]] || fail "notification font show resolves the default family" "$out"
+  pass "notification font show defaults to default mode"
+
+  font default >/dev/null
+  [[ $(mode) == "default" ]] || fail "notification font default persists default mode"
+  pass "notification font default persists default mode"
+
+  font system >/dev/null
+  [[ $(mode) == "system" ]] || fail "notification font system persists system mode"
+  pass "notification font system persists system mode"
+
+  out=$(font show)
+  [[ $out == *"mode: system"* ]] || fail "notification font show reports system mode" "$out"
+  pass "notification font show reports system mode"
+
+  mapfile -t installed_families < <(fc-list -f '%{family[0]}\n' | sort -u)
+  custom_family=${installed_families[0]}
+  [[ -n $custom_family ]] || fail "custom font test needs an installed family"
+  font set "$custom_family" >/dev/null
+  [[ $(mode) == "$custom_family" ]] || fail "notification font set persists a custom family"
+  pass "notification font set persists a custom family"
+
+  if font set "No Such Font XYZ-123" >"$tmpdir/font-error" 2>&1; then
+    fail "notification font set rejects unknown families"
+  fi
+  [[ $(mode) == "$custom_family" ]] || fail "notification font set leaves the stored mode alone on rejection"
+  pass "notification font set rejects unknown families"
+  grep -Fq "Font 'No Such Font XYZ-123' not found." "$tmpdir/font-error" || fail "unknown family has an explanatory error"
+  pass "unknown family has an explanatory error"
+
+  # Fixed font database catches partial-family, style and empty-string matches
+  # independently of whichever font packages the test machine has installed.
+  cat >"$tmpdir/fc-list" <<'FONTS'
+#!/bin/bash
+printf '%s\n' 'Fixture Sans,Fixture Sans Alias' 'Fixture Mono'
+FONTS
+  chmod +x "$tmpdir/fc-list"
+  for invalid_family in "" "Fixture" "Regular"; do
+    if font set "$invalid_family" >"$tmpdir/font-error" 2>&1; then
+      fail "reject empty, partial and style names" "$invalid_family"
+    fi
+    [[ $(mode) == "$custom_family" ]] || fail "invalid family must preserve config"
+  done
+  pass "empty, partial and style names are rejected without changing config"
+  font set "fixture sans alias" >/dev/null
+  [[ $(mode) == "fixture sans alias" ]] || fail "full aliases are accepted case-insensitively"
+  pass "full aliases are accepted case-insensitively"
+  font list | grep -Fx 'Fixture Sans' >/dev/null || fail "proportional families appear in the list"
+  pass "proportional families appear in the list"
+  rm "$tmpdir/fc-list"
+
+  if font bogus 2>/dev/null; then
+    fail "notification font rejects unknown subcommands"
+  fi
+  pass "notification font rejects unknown subcommands"
+
+  [[ -n $(font list) ]] || fail "notification font list prints families"
+  pass "notification font list prints families"
+)
+
+# Exercise live QML precedence using the production font bindings.
+(
+  require_command quickshell
+  test_tmp=$(mktemp -d)
+  trap 'rm -rf "$test_tmp"' EXIT
+  export FONT_TEST_STAGE="$test_tmp"
+  export HOME="$test_tmp"
+  ln -s "$ROOT/shell/Commons" "$test_tmp/Commons"
+  # Compile the production bindings in a small host, without starting another
+  # notification server. Test actual QML reactivity and render the resolved font.
+  node <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(process.env.ROOT + '/shell/plugins/notifications/Service.qml', 'utf8')
+const start = source.indexOf('  readonly property string notificationFontSetting:')
+const end = source.indexOf('\n  // ------------------------------------------------------------- displays', start)
+if (start < 0 || end < 0) throw Error('missing font bindings')
+fs.writeFileSync(process.env.FONT_TEST_STAGE + '/shell.qml', `
+import QtQuick
+import Quickshell
+import qs.Commons
+import qs.Commons as Commons
+ShellRoot {
+  id: service
+  property var shell: ({ shellConfig: {}, bar: { fontFamily: "monospace" } })
+${source.slice(start, end)}
+  FloatingWindow {
+    width: 480; height: 160; visible: true
+    color: "#202030"
+    Text { anchors.centerIn: parent; text: "Notification theme font\\nSummary and body preview"; color: "white"; font.pixelSize: 22; font.family: service.notificationTextFontFamily }
+  }
+  function check(expected) {
+    if (notificationTextFontFamily !== expected) throw Error("font: " + notificationTextFontFamily + " expected " + expected)
+  }
+  Component.onCompleted: Qt.callLater(function() {
+    check("Liberation Sans")
+    Commons.Color.shellValues = ({ "notifications.font-family": "serif" })
+    check("serif")
+    shell = ({ shellConfig: { notifications: { font: "sans-serif" } }, bar: { fontFamily: "monospace" } })
+    check("sans-serif")
+    Commons.Color.shellValues = ({ "notifications.font-family": "monospace" })
+    check("sans-serif")
+    shell = ({ shellConfig: { notifications: { font: "default" } } })
+    check("monospace")
+    shell = ({ shellConfig: { notifications: { font: "system" } }, bar: { fontFamily: "serif" } })
+    check("serif")
+    console.log("RESULT pass")
+    if (Quickshell.env("FONT_TEST_VISUAL") !== "1") Qt.quit()
+  })
+}
+`)
+JS
+  if [[ ${FONT_TEST_VISUAL:-0} == 1 ]]; then
+    quickshell -p "$test_tmp" --no-color
+  else
+    output=$(QT_QPA_PLATFORM=offscreen timeout 15 quickshell -p "$test_tmp" --no-color 2>&1)
+    [[ $output == *"RESULT pass"* ]] || fail "notification font precedence reacts live" "$output"
+    pass "notification theme default and user overrides react live"
+  fi
+)

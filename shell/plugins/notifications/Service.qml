@@ -26,6 +26,20 @@ Item {
   // Injected by omarchy-shell (the first-party service loader).
   property var shell: null
 
+  // "default" follows the theme; "system" and custom families are user overrides.
+  readonly property string notificationFontSetting: {
+    var cfg = shell && shell.shellConfig ? shell.shellConfig.notifications : null
+    var f = cfg ? cfg.font : null
+    return (typeof f === "string" && f.length > 0) ? f : "default"
+  }
+  readonly property string notificationTextFontFamily: {
+    if (service.notificationFontSetting === "system")
+      return (shell && shell.bar && shell.bar.fontFamily) || Style.font.family
+    if (service.notificationFontSetting === "default")
+      return Commons.Color.notifications.fontFamily
+    return service.notificationFontSetting
+  }
+
   // ------------------------------------------------------------- displays
   //
   // A new deck lands on the focused output and stays there until it empties.
@@ -1582,6 +1596,7 @@ Item {
               hovered: service.keyboardMode ? service.keyboardKey === model.key : service.hoverKey === model.key
               selected: service.keyboardMode && service.keyboardKey === model.key
               actions: service.actionsOf(model.key, service.refsRevision)
+              textFontFamily: service.notificationTextFontFamily
               hoverX: service.hoverX
               hoverY: service.hoverY
               // A click is the mouse taking over: it ends keyboard mode, which

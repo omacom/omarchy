@@ -16,6 +16,8 @@ import "Icons.js" as Icons
 Item {
   id: card
 
+  property string textFontFamily: "Liberation Sans"
+
   property var row: ({})
   property var place: ({ y: 0, scale: 1, opacity: 1, z: 1, front: true, hidden: false })
   property var scene: null                   // owns the clock; without it the card stands still
@@ -397,7 +399,7 @@ Item {
                    - Style.space(8))
             text: card.redacted ? I18n.t("notifications.redactedSummary") : String(card.row.summary || "")
             color: Commons.Color.notifications.text
-            font.family: "Liberation Sans"
+            font.family: card.textFontFamily
             font.pixelSize: Style.font.title
             font.bold: true
             wrapMode: Text.Wrap
@@ -490,7 +492,7 @@ Item {
 
         FontMetrics {
           id: metrics
-          font.family: "Liberation Sans"
+          font.family: card.textFontFamily
           font.pixelSize: Style.font.title
         }
 
@@ -508,7 +510,7 @@ Item {
           text: card.redacted ? I18n.t("notifications.redactedBody") : String(card.row.bodyRich || "")
           color: card.bodyColor
           linkColor: Commons.Color.notifications.countdown
-          font.family: "Liberation Sans"
+          font.family: card.textFontFamily
           font.pixelSize: Style.font.title
           wrapMode: Text.Wrap
           maximumLineCount: card.bodyLines
