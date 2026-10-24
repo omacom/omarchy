@@ -17,18 +17,18 @@ USAGE
 
 name=$(git config --global user.name || true)
 email=$(git config --global user.email || true)
-interactive=1
+interactive=1 set_name=0 set_email=0
 
 while (($#)); do
   case "$1" in
     --name)
       [[ -n ${2:-} ]] || { usage >&2; exit 1; }
-      name=$2 interactive=0
+      name=$2 interactive=0 set_name=1
       shift 2
       ;;
     --email)
       [[ -n ${2:-} ]] || { usage >&2; exit 1; }
-      email=$2 interactive=0
+      email=$2 interactive=0 set_email=1
       shift 2
       ;;
     -h | --help)
@@ -48,6 +48,7 @@ if (( interactive )); then
   echo
   name=$(gum input --value "$name" --placeholder "Your full name" --prompt "Full name> ")
   email=$(gum input --value "$email" --placeholder "you@example.com" --prompt "Email address> ")
+  set_name=1 set_email=1
 fi
 
 # Fill the Compose shortcuts (Compose, Space, n/e) the install used to seed,
@@ -65,17 +66,17 @@ set_compose_identity() {
   KEY="<Multi_key> <space> <$key> :" LINE="<Multi_key> <space> <$key> : \"$value\"" \
     awk 'index($0, ENVIRON["KEY"]) == 1 { print ENVIRON["LINE"]; found = 1; next } { print } END { if (!found) print ENVIRON["LINE"] }' \
     "$file" >"$file.new"
-  # Copy back over the original rather than renaming, so it keeps its permissions.
-  cat "$file.new" >"$file"
-  rm "$file.new"
+  # Rename into place so an interrupted write never leaves it partial, keeping its mode.
+  chmod --reference="$file" "$file.new"
+  mv "$file.new" "$file"
 }
 
-if [[ -n ${name//[[:space:]]/} ]]; then
+if (( set_name )) && [[ -n ${name//[[:space:]]/} ]]; then
   git config --global user.name "$name"
   set_compose_identity n "$name"
 fi
 
-if [[ -n ${email//[[:space:]]/} ]]; then
+if (( set_email )) && [[ -n ${email//[[:space:]]/} ]]; then
   git config --global user.email "$email"
   set_compose_identity e "$email"
 fi
@@ -88,8 +89,9 @@ if (( interactive )); then
   echo
   if omarchy-cmd-missing gh; then
     echo "The GitHub CLI (gh) is not installed, so skipping GitHub sign-in."
-  # gh's own record of sign-ins, read directly: running gh would install it first.
-  elif grep -qs "^github.com:" "${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}/hosts.yml"; then
+  # Only a gh that has signed in before is asked, as running the lazy shim installs it.
+  elif grep -qs "^github.com:" "${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}/hosts.yml" &&
+    gh auth status --hostname github.com >/dev/null 2>&1; then
     echo "Already signed in to GitHub."
   elif gum confirm "Sign in to GitHub?"; then
     gh auth login
