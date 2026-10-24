@@ -191,8 +191,16 @@ run_root_transaction() {
       [[ $text_hex =~ ^[0-9a-fA-F]{6}$ ]]
     fi
 
+    # The packaged omarchy themes belong to omarchy-settings, so every upgrade
+    # extracts the defaults over them. A selected theme is published into
+    # omarchy-custom directories no package owns and activated by name instead:
+    # plymouthd.conf is a pacman backup file, and the SDDM drop-in is unowned.
     theme_dir=/usr/share/plymouth/themes/omarchy
     sddm_dir=/usr/share/sddm/themes/omarchy
+    plymouth_custom_dir=/usr/share/plymouth/themes/omarchy-custom
+    sddm_custom_dir=/usr/share/sddm/themes/omarchy-custom
+    sddm_conf_dir=/etc/sddm.conf.d
+    sddm_custom_conf=20-omarchy-custom-theme.conf
     plymouth_theme_assets=(
       bullet.png
       entry.png
@@ -213,7 +221,7 @@ run_root_transaction() {
     case "$mode" in
     set)
       plymouth_assets=("${plymouth_theme_assets[@]}")
-      sddm_assets=("${sddm_theme_assets[@]}")
+      sddm_assets=("${sddm_default_assets[@]}")
       ;;
     refresh-plymouth)
       plymouth_assets=("${plymouth_default_assets[@]}")
@@ -305,6 +313,19 @@ run_root_transaction() {
       for asset in entry lock; do
         magick "$plymouth_stage/$asset.png" -channel RGB +level-colors "#f7768e","#f7768e" "$sddm_stage/$asset-failed.png"
       done
+      for asset in metadata.desktop theme.conf; do
+        copy_trusted_file "$source_root/default/sddm/omarchy/$asset" "$sddm_stage/$asset"
+      done
+
+      # The copied definition names the packaged directory, so point it at the
+      # custom one or Plymouth would load the packaged script and images.
+      sed \
+        -e "s|^ImageDir=.*|ImageDir=$plymouth_custom_dir|" \
+        -e "s|^ScriptFile=.*|ScriptFile=$plymouth_custom_dir/omarchy.script|" \
+        "$plymouth_stage/omarchy.plymouth" >"$plymouth_stage/omarchy-custom.plymouth"
+      rm -f -- "$plymouth_stage/omarchy.plymouth"
+
+      printf "[Theme]\nCurrent=omarchy-custom\n" >"$staging_dir/$sddm_custom_conf"
       chown -R 0:0 -- "$staging_dir"
       find "$staging_dir" -type f -exec chmod 0600 -- {} +
     elif (( ${#sddm_assets[@]} )); then
@@ -313,14 +334,40 @@ run_root_transaction() {
       done
     fi
 
+    plymouth_destination=$theme_dir
+    sddm_destination=$sddm_dir
+    plymouth_published=("${plymouth_assets[@]}")
+    if [[ $mode == "set" ]]; then
+      plymouth_destination=$plymouth_custom_dir
+      sddm_destination=$sddm_custom_dir
+      plymouth_published=()
+      for asset in "${plymouth_assets[@]}"; do
+        if [[ $asset == "omarchy.plymouth" ]]; then
+          plymouth_published+=(omarchy-custom.plymouth)
+        else
+          plymouth_published+=("$asset")
+        fi
+      done
+
+      # Create a custom directory only under a validated parent so it is
+      # root-owned from the start. An existing one faces the checks below.
+      for directory in "$plymouth_custom_dir" "$sddm_custom_dir"; do
+        validate_trusted_directory "${directory%/*}"
+        if [[ ! -e $directory && ! -L $directory ]]; then
+          mkdir -m 0755 -- "$directory"
+        fi
+      done
+    fi
+
     if (( ${#plymouth_assets[@]} )); then
-      validate_trusted_directory "$theme_dir"
+      validate_trusted_directory "$plymouth_destination"
       if [[ $mode == "refresh-plymouth" ]]; then
         validate_trusted_directory "$theme_dir/logos"
       fi
     fi
     if (( ${#sddm_assets[@]} )); then
-      validate_trusted_directory "$sddm_dir"
+      validate_trusted_directory "$sddm_destination"
+      validate_trusted_directory "$sddm_conf_dir"
     fi
 
     publish_asset() {
@@ -349,18 +396,28 @@ run_root_transaction() {
     }
 
     if (( ${#plymouth_assets[@]} )); then
-      for asset in "${plymouth_assets[@]}"; do
-        publish_asset "$plymouth_stage/$asset" "$theme_dir/$asset"
+      for asset in "${plymouth_published[@]}"; do
+        publish_asset "$plymouth_stage/$asset" "$plymouth_destination/$asset"
       done
     fi
 
     if (( ${#sddm_assets[@]} )); then
       for asset in "${sddm_assets[@]}"; do
-        publish_asset "$sddm_stage/$asset" "$sddm_dir/$asset"
+        publish_asset "$sddm_stage/$asset" "$sddm_destination/$asset"
       done
+    fi
+
+    case "$mode" in
+    set)
+      publish_asset "$staging_dir/$sddm_custom_conf" "$sddm_conf_dir/$sddm_custom_conf"
+      ;;
+    refresh-sddm)
       validate_trusted_directory "$sddm_dir"
       rm -f -- "$sddm_dir/logo.svg"
-    fi
+      validate_trusted_directory "$sddm_conf_dir"
+      rm -f -- "$sddm_conf_dir/$sddm_custom_conf"
+      ;;
+    esac
   ' bash "$mode" "$OMARCHY_PATH" "$bg_hex" "$text_hex" "$((64 * 1024 * 1024))"
 }
 
@@ -371,7 +428,11 @@ else
 fi
 
 if [[ $mode != "refresh-sddm" ]]; then
-  sudo plymouth-set-default-theme omarchy
+  if [[ $mode == "set" ]]; then
+    sudo plymouth-set-default-theme omarchy-custom
+  else
+    sudo plymouth-set-default-theme omarchy
+  fi
 
   if omarchy-cmd-present limine-mkinitcpio; then
     sudo limine-mkinitcpio
