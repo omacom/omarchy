@@ -98,6 +98,9 @@ for (let i = 0; i < 1000; i++) {
   // A restored row cannot claim a site either unless it came from a browser.
   assert.equal(Store.restored({ key: 'r', app: 'Chat', source: 'bank.example' }).groupKey, 'app:chat')
   assert.equal(Store.restored({ key: 'r', app: 'Chromium', source: 'app.slack.com' }).groupKey, 'web:app.slack.com')
+  // An unnamed sender's toasts each stand alone rather than stacking.
+  for (const app of ['omarchy-action', 'notify-send'])
+    assert.notEqual(Store.restored({ key: 'a', app }).groupKey, Store.restored({ key: 'b', app }).groupKey, app)
 }
 
 { // `-i name` is an icon name, not a picture; only the strict charset is kept.
@@ -353,7 +356,7 @@ function newCapacityScope() {
     displayNames: ['fixture-display'], focusedDisplayName: 'fixture-display',
     Quickshell: { screens: [] }, Hyprland: { monitorFor: screen => screen.monitor },
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
-    Security: S, Delivery, Store,
+    Security: S, Delivery, Store, Markup: M,
     NotificationUrgency: { Critical: 2, Normal: 1, Low: 0 },
     Qt: { callLater: f => later.push(f),
       md5: value => require('node:crypto').createHash('md5').update(value).digest('hex') },
@@ -744,12 +747,13 @@ for (const replay of [false, true]) { // Replay and startup restore share held r
 
 { // Repeated replay creates distinct cards; restore cannot overwrite an admitted key.
   const s = newCapacityScope()
-  s.restoreRows([{ key: 'same', summary: 'Original' }], true)
-  s.restoreRows([{ key: 'same', summary: 'Replay' }], true)
-  s.restoreRows([{ key: 'same', summary: 'Stale startup' }], false)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Original' }], true)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Replay' }], true)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Stale startup' }], false)
   s.drainCallLater()
   assert.deepEqual(summaries(s.toasts.rows), ['Replay', 'Original'])
   assert.equal(new Set(s.toasts.rows.map(r => r.key)).size, 2)
+  assert.equal(new Set(s.toasts.rows.map(r => r.groupKey)).size, 2, 'the replayed card is its own deck')
 }
 
 { // Clearing pending rows cancels their callbacks even if replay reuses the exact key.

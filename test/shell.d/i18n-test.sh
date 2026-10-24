@@ -124,6 +124,7 @@ const cliKeys = new Set([
   ...collectKeys(path.join(root, 'bin'), [''], cliKeyPattern),
   ...collectKeys(path.join(root, 'install', 'helpers'), ['.sh'], cliKeyPattern),
 ])
+for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh'], /omarchy_form_text ([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g)) cliKeys.add(key)
 const unreferencedCli = Object.keys(enCli).filter((key) => !cliKeys.has(key))
 assert(unreferencedCli.length === 0, 'every cli catalog key is referenced', JSON.stringify(unreferencedCli))
 const unknownCli = [...cliKeys].filter((key) => !Object.hasOwn(enCli, key))

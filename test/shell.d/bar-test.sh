@@ -133,10 +133,10 @@ assert(
   'the whole-bar hover handler is a child of the bar loader, above both orientations'
 )
 
-// Hovering the panel icons, or anything else past the clock, leaves the
-// indicators hidden; the rest of the bar up to the clock's end opens them.
+// Hovering the clock, or anything past it, leaves the indicators hidden; the
+// rest of the bar up to the clock's start opens them.
 assertEqual(bar.peeksAt({ x: 400, y: 10 }, 1000, false), true, 'the peek opens left of the clock')
-assertEqual(bar.peeksAt({ x: 1200, y: 10 }, 1000, false), false, 'the peek stays shut right of the clock')
+assertEqual(bar.peeksAt({ x: 1200, y: 10 }, 1000, false), false, 'the peek stays shut over and right of the clock')
 assertEqual(bar.peeksAt({ x: 1200, y: 400 }, 600, true), true, 'a vertical bar opens the peek above the clock')
 assertEqual(bar.peeksAt({ x: 10, y: 800 }, 600, true), false, 'a vertical bar keeps the peek shut below the clock')
 assertEqual(bar.peeksAt(null, 1000, false), false, 'no pointer opens no peek')

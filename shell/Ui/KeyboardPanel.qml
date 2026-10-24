@@ -428,6 +428,23 @@ PanelWindow {
       return true
     }
 
+    // This overlay takes presses on the bar strip too, so the bar button under
+    // the pointer never sees itself held; it's told, for its press feedback,
+    // the way the bar's own press handler tells it.
+    property var heldTarget: null
+    function hold(target) {
+      if (heldTarget && heldTarget !== target && "held" in heldTarget) heldTarget.held = false
+      heldTarget = target && "held" in target ? target : null
+      if (heldTarget) heldTarget.held = true
+    }
+
+    onPressed: function(mouse) {
+      hold(root.focusPrimed && inBarRegion(mouse.x, mouse.y) ? pressTargetAt(mouse.x, mouse.y) : null)
+    }
+    onReleased: hold(null)
+    onCanceled: hold(null)
+    onEnabledChanged: if (!enabled) hold(null)
+
     onPositionChanged: function(mouse) { hoveringBar = inBarRegion(mouse.x, mouse.y) }
     onExited: hoveringBar = false
     onClicked: function(mouse) {
