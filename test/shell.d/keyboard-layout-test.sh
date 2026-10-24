@@ -141,7 +141,21 @@ assertEqual(model.isTypedKeyboard('power-button'), false, 'a power button is not
 assertEqual(model.isTypedKeyboard('lid-switch'), false, 'a lid switch is not')
 assertEqual(model.isTypedKeyboard('sleep-button'), false, 'a sleep button is not')
 assertEqual(model.isTypedKeyboard('hl-virtual-keyboard-1'), false, 'the keyboard an input method injects through is not')
+assertEqual(model.isTypedKeyboard('wh-1000xm4-(avrcp)'), false, 'a Bluetooth remote-control endpoint is not')
+assertEqual(model.isTypedKeyboard('logitech-g502-hero-consumer-control'), false, 'a split-out consumer-control interface is not')
+assertEqual(model.isTypedKeyboard('intel-hid-events'), false, 'a vendor hotkey block is not')
+assertEqual(model.isTypedKeyboard('dell-wmi-hotkeys'), false, 'a WMI hotkey block is not')
 assertEqual(model.isTypedKeyboard(''), true, 'a keyboard reporting no name is left where it was found')
+
+// The seat as the widget composes it: filter, then pick. A remote that drifted
+// ahead on the layout list loses the reading to the keyboard being typed on.
+const remoteSeat = [
+  { name: 'wh-1000xm4-(avrcp)', active_layout_index: 1, active_keymap: 'English (US)', main: false },
+  { name: 'at-translated-set-2-keyboard', active_layout_index: 0, active_keymap: 'Belgian', main: true },
+]
+const remoteSeatTyped = remoteSeat.filter(k => model.isTypedKeyboard(k.name))
+assertEqual(remoteSeatTyped.length, 1, 'the remote is filtered out of the typed list')
+assertEqual(model.selectKeyboard(remoteSeatTyped).active_keymap, 'Belgian', 'a drifted remote never wins the reading')
 
 // The activelayout event names the keyboard ahead of the layout it moved to,
 // and a description with a comma in it has to survive the split.
@@ -151,6 +165,8 @@ const parsedEvent = data => ({ data, parse: count => data.split(',', count - 1).
 assertEqual(model.eventKeyboardName(rawEvent('at-translated-set-2-keyboard,French')), 'at-translated-set-2-keyboard', 'the event names its keyboard')
 assertEqual(model.eventKeyboardName(parsedEvent('at-translated-set-2-keyboard,English (US, intl.)')), 'at-translated-set-2-keyboard', 'a description carrying a comma leaves the name alone')
 assertEqual(model.eventKeyboardName(rawEvent('hl-virtual-keyboard,English (US)')), '', 'the keyboard an input method injects through is not typed on')
+assertEqual(model.eventKeyboardName(rawEvent('wh-1000xm4-(avrcp),English (US)')), '', 'a remote announcing a seat-wide switch names no keyboard')
+assertEqual(model.eventKeyboardName(rawEvent('power-button,English (US)')), '', 'a button announcing a seat-wide switch names no keyboard')
 assertEqual(model.eventKeyboardName({ parse: () => { throw new Error('unsupported') }, data: 'kb,French' }), 'kb', 'a binding without parse falls back to the raw data')
 assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names no keyboard')
 {
