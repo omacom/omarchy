@@ -63,12 +63,18 @@ function screensaverWindowsAfter(windows, address, visible) {
   }
 }
 
+function shouldDismissScreensaver(state) {
+  if (!state) return false
+  return Boolean(state.screensaverWindowCount > 0 || state.screensaverStartedThisCycle || state.screensaverRunning)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
     firstIdleTimeout: firstIdleTimeout,
     delayAfterFirstIdle: delayAfterFirstIdle,
     eventParts: eventParts,
-    screensaverWindowsAfter: screensaverWindowsAfter
+    screensaverWindowsAfter: screensaverWindowsAfter,
+    shouldDismissScreensaver: shouldDismissScreensaver
   }
 }
