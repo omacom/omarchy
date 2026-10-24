@@ -9,7 +9,7 @@ export BROWSER="${BROWSER:-omarchy-launch-browser}"
 export BAT_THEME=ansi
 
 # Color man pages with bat
-export MANROFFOPT="-c"
+export GROFF_NO_SGR=1
 export MANPAGER="sh -c 'col -bx | bat -l man -p'"
 
 # Idempotent — already sourced by /etc/skel/.bashrc; re-source here so SSH and
