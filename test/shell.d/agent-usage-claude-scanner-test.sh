@@ -5,6 +5,10 @@ source "$(dirname "$0")/base-test.sh"
 require_command jq
 require_command python3
 
+# The collector reads CLAUDE_CONFIG_DIR before ~/.claude, so a run from inside
+# a Claude session with its own config dir must not scan that instead.
+unset CLAUDE_CONFIG_DIR
+
 # Every fixture home lives under one scratch directory, cleaned up at exit.
 SCRATCH=$(mktemp -d)
 trap 'rm -rf "$SCRATCH"' EXIT
