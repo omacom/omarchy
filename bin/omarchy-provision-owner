@@ -1152,16 +1152,22 @@ reset_limine_config() {
   if [[ -f $esp/limine.conf ]]; then
     # Same rewrite as omarchy-system-factory-reset, keyed to this identity:
     # this machine's entry keeps only its header, and any copy after the first
-    # is dropped. An entry-less config passes through as is.
+    # is dropped. A fresh image's Omarchy entry has no machine-id yet; it is
+    # keyed to this one in place, so limine-update rebuilds it where default_entry points.
     entries=$(awk -v id="$machine_id" '
       function flush() {
-        if (is_ours && !kept) { printf "%s\n", header; kept = 1 }
-        else if (!is_ours) printf "%s", block
-        block = header = ""; is_ours = nested = 0
+        image = id != "" && !has_id && image_entry && image_uki
+        if (image && !kept) { printf "%scomment: machine-id=%s order-priority=50\n\n", header, id; kept = 1 }
+        else if (is_ours && !kept) { printf "%s\n", header; kept = 1 }
+        else if (!is_ours && !image) printf "%s", block
+        block = header = ""; is_ours = nested = has_id = image_entry = image_uki = 0
       }
       /^\/[^\/]/ { flush(); in_entry = 1 }
       !in_entry { next }
       {
+        if ($0 == "/+Omarchy") image_entry = 1
+        if (/^comment: machine-id=/) has_id = 1
+        if (/^[[:space:]]*path: boot\(\):\/EFI\/Linux\/omarchy_/) image_uki = 1
         if (id != "" && /^comment: machine-id=/ && $0 ~ ("machine-id=" id "([[:space:]]|$)")) is_ours = 1
         if (/^[[:space:]]*\/\//) nested = 1
         block = block $0 "\n"

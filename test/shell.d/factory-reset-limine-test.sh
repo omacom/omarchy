@@ -368,3 +368,29 @@ printf 'default_entry: 2\n' >"$root/boot/limine.conf"
 [[ $(staleness "$root") == stale ]] ||
   fail "first boot repairs a machine left without an entry of its own"
 pass "a machine without an entry of its own still gets one at first boot"
+
+# The image builder clears its machine-id but leaves the bootable Omarchy UKI
+# entry. Kept as is, limine-update reuses it by name without this machine's
+# identity; dropped, the rebuilt entry can land after another system's.
+root="$test_tmp/image-first-boot"
+make_root "$root"
+{
+  printf 'default_entry: 2\n'
+  omarchy_entry "$OLD_ID" | sed '/^comment: machine-id=/d'
+  foreign_entry
+  windows_entry
+} >"$root/boot/limine.conf"
+[[ $(staleness "$root") == stale ]] ||
+  fail "a fresh image's markerless entry needs a machine-specific rebuild"
+run_provision_function "$root" reset_limine_config ||
+  fail "first boot resets the image's markerless entry"
+conf="$root/boot/limine.conf"
+[[ $(grep -c '^/+Omarchy$' "$conf") == 1 ]] && [[ $(grep -m1 '^/' "$conf") == "/+Omarchy" ]] &&
+  entry_for "$conf" "$NEW_ID" | grep -q '^/+Omarchy$' ||
+  fail "the image entry is keyed to this machine and stays first, where default_entry points"
+! grep -q 'stalehash' "$conf" || fail "the image entry's kernels are left for limine-update to rebuild"
+[[ $(awk '/^\/Windows$/,/bootmgfw/' "$conf") == "$windows_before" ]] ||
+  fail "the Windows entry survives the image's first boot"
+entry_for "$conf" "$FOREIGN_ID" | grep -q 'foreignhash' ||
+  fail "another installation's entry survives the image's first boot"
+pass "first boot keys only the markerless image entry to this machine, in place"
