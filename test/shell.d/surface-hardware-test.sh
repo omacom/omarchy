@@ -63,7 +63,7 @@ run_surface_setup x86_64 "$keyboard_setup" >/dev/null
 run_surface_setup x86_64 "$keyboard_setup" "pinctrl_tigerlake 32768 0" >/dev/null
 [[ -f $module_list ]] ||
   fail "Surface keyboard setup writes the initramfs module list on Intel Surfaces"
-[[ $(<"$module_list") == "MODULES=(pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)" ]] ||
+[[ $(<"$module_list") == "MODULES+=(pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)" ]] ||
   fail "Surface keyboard setup lists the detected pinctrl module ahead of the Surface and Intel LPSS modules" "$(<"$module_list")"
 
 pass "Surface hardware setup applies Intel fixes only on x86_64"
