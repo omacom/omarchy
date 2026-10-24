@@ -79,7 +79,7 @@ grep -F 'MANUAL_DISABLE_FLAG' "$clamshell" >/dev/null
 ! grep -F 'rm -f "$MANUAL_DISABLE_FLAG"' "$clamshell" >/dev/null
 ! grep -F '>"$MANUAL_DISABLE_FLAG"' "$clamshell" >/dev/null
 grep -F 'read_monitor_scale' "$clamshell" >/dev/null
-grep -F 'scale = $scale' "$clamshell" >/dev/null
+grep -F 'scale = $2' "$clamshell" >/dev/null
 grep -F 'hyprctl dispatch "hl.dsp.dpms({ action = \"$action\", monitor = \"$INTERNAL\" })"' "$clamshell" >/dev/null
 grep -F 'hyprctl monitors all -j' "$clamshell" >/dev/null
 grep -F 'omarchy-hyprland-monitor-external-active' "$clamshell" >/dev/null

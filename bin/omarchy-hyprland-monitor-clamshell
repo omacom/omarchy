@@ -7,7 +7,17 @@ TOGGLES_DIR="$HOME/.local/state/omarchy/toggles/hypr"
 CLAMSHELL_FLAG="$TOGGLES_DIR/internal-monitor-clamshell.lua"
 MANUAL_DISABLE_FLAG="$TOGGLES_DIR/internal-monitor-disable.lua"
 SCALE_STATE="$TOGGLES_DIR/internal-monitor-scale"
+POSITION_PENDING="$TOGGLES_DIR/internal-monitor-position-pending"
+POSITION_STATE="$TOGGLES_DIR/internal-monitor-position"
+POSITION_FLAG="$TOGGLES_DIR/internal-monitor-position.lua"
+POSITION_LAYOUT="$TOGGLES_DIR/internal-monitor-layout"
 MONITOR_LUA="$HOME/.config/hypr/monitors.lua"
+
+# Lid bindings, wake recovery and the watcher can reconcile at the same time.
+# Lock here so every caller shares the same capture/reload/restore transaction.
+mkdir -p "$TOGGLES_DIR"
+exec 8>"$TOGGLES_DIR/internal-monitor-clamshell.lock"
+flock 8
 
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
 
@@ -126,6 +136,66 @@ remember_internal_scale() {
   store_internal_scale "$scale"
 }
 
+current_internal_position() {
+  [[ -n $INTERNAL ]] || return 0
+  hyprctl monitors all -j | jq -r --arg internal "$INTERNAL" '.[] | select(.name == $internal and .disabled != true) | "\(.x)x\(.y)"' | head -1
+}
+
+# Whether the panel, put at $1, would stay clear of every enabled external.
+# $2 is the scale to measure it at, when it is not the panel's current one.
+# Sizes are in layout pixels: the mode divided by the scale, with width and
+# height swapped for a transform that rotates by a quarter turn. A live scale is
+# rounded, since 5/3 is reported as a float a hair past the edge; a requested
+# one is not, since Hyprland may still snap it larger.
+internal_fits_at() {
+  [[ -n $INTERNAL ]] || return 1
+
+  hyprctl monitors all -j | jq -e --arg internal "$INTERNAL" --arg position "$1" --argjson scale "${2:-null}" '
+    def size: if (.transform // 0) % 2 == 1 then [.height, .width] else [.width, .height] end;
+    . as $all
+    | ($position | split("x") | map(tonumber)) as [$x, $y]
+    | ([$all[] | select(.name == $internal and .disabled != true)] | .[0]) as $panel
+    | $panel != null
+    and ($panel | size
+      | if $scale then map(. / $scale) else map(. / $panel.scale | round) end as [$pw, $ph]
+      | [$all[] | select(.name != $internal and .disabled != true) | size as [$w, $h]
+        | select($x < .x + ($w / .scale | round) and .x < $x + $pw and $y < .y + ($h / .scale | round) and .y < $y + $ph)]
+      | length == 0)' >/dev/null 2>&1
+}
+
+# Capture every enabled output before disabling the panel. Restoring the same
+# absolute arrangement needs no anchor, including for identical externals.
+remember_internal_position() {
+  local monitors temporary
+  monitors=$(hyprctl monitors all -j | jq -er --arg internal "$INTERNAL" '
+    [.[] | select(.disabled != true)]
+    | select(length > 1 and length <= 64 and any(.[]; .name == $internal))
+    | select(all(.[];
+        (.name | test("^[A-Za-z0-9._-]+$")) and
+        all(.width, .height, .scale, (.transform // 0), .x, .y, .refreshRate; type == "number") and
+        (.x | floor) == .x and (.y | floor) == .y))
+    | sort_by(.name == $internal)') || return 0
+
+  temporary=$(mktemp "$TOGGLES_DIR/.internal-monitor-position.XXXXXX") || return 0
+  if ! {
+    printf '2\n%s\n%s\n' "$INTERNAL" "$(jq 'length' <<<"$monitors")"
+    jq -r '.[] | [.name, ((.serial // "") | gsub("[^A-Za-z0-9._:-]"; "_")),
+      ((.description // "") | gsub("[^A-Za-z0-9._:-]"; "_")),
+      .width, .height, .scale, (.transform // 0), .x, .y, .refreshRate] | map(tostring) | join("\t")' <<<"$monitors"
+    cat "$MONITOR_LUA"
+  } >"$temporary" || ! mv "$temporary" "$POSITION_PENDING"; then
+    rm -f "$temporary"
+  fi
+}
+
+position_config_matches() {
+  local version internal count
+  [[ -f $POSITION_LAYOUT ]] || return 1
+  { read -r version; read -r internal; read -r count; } <"$POSITION_LAYOUT" 2>/dev/null || return 1
+  [[ $version == "2" && $internal == "$INTERNAL" && $count =~ ^[1-9][0-9]?$ ]] && (( count >= 2 && count <= 64 )) || return 1
+  cmp -s "$MONITOR_LUA" <(tail -n "+$((count + 4))" "$POSITION_LAYOUT")
+}
+
 # $1 is the configured scale when the caller has already read it, so one sync
 # does not parse the config twice.
 read_monitor_scale() {
@@ -164,13 +234,40 @@ read_monitor_position() {
   echo auto
 }
 
+apply_internal_output() {
+  # A new per-output rule does not inherit the catch-all's mode or transform.
+  # Carry the enabled panel's values so the fit check measures what we apply.
+  hyprctl eval "local panel = hl.get_monitor(\"$INTERNAL\")
+    hl.monitor({ output = \"$INTERNAL\", position = \"$1\", scale = $2,
+      mode = panel and string.format(\"%dx%d@%.5f\", panel.width, panel.height, panel.refresh_rate),
+      transform = panel and panel.transform })" >/dev/null 2>&1 || true
+}
+
 enable_internal_output() {
   [[ -n $INTERNAL ]] || return 0
   local scale="${1:-}"
-  local position
+  local position preserve_position=0
   [[ -n $scale ]] || scale=$(read_monitor_scale)
   position=$(read_monitor_position)
-  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", mode = \"preferred\", position = \"$position\", scale = $scale })" >/dev/null 2>&1 || true
+  # A panel that is already on holds a place of its own. Re-applying it with
+  # "auto" would send it to the end of the layout, so a scale correction keeps
+  # it where it is.
+  # The same scale change can widen it into a neighbor, though, and then
+  # "auto" is the safer place.
+  if [[ $position == "auto" ]]; then
+    position=$(current_internal_position)
+    if internal_fits_at "$position" "$scale"; then
+      preserve_position=1
+    else
+      position=auto
+    fi
+  fi
+  apply_internal_output "$position" "$scale"
+  # A requested scale can snap to a smaller value and grow the panel. Check
+  # the compositor's applied geometry instead of duplicating its scale rules.
+  if (( preserve_position )) && ! internal_fits_at "$position"; then
+    apply_internal_output auto "$scale"
+  fi
 }
 
 sync_internal_scale() {
@@ -199,6 +296,27 @@ sync_internal_scale() {
   enable_internal_output "$desired_scale"
 }
 
+# The fixed toggle validates the captured config and outputs before its first
+# application, then requires their positions to match on subsequent reloads.
+restore_internal_position() {
+  [[ -n $INTERNAL && -f $POSITION_PENDING ]] || return 0
+  if [[ $(read_monitor_position) != "auto" ]]; then
+    rm -f "$POSITION_PENDING"
+    return 0
+  fi
+
+  local temporary
+  temporary=$(mktemp "$TOGGLES_DIR/.internal-monitor-position.XXXXXX") || return 0
+  # An old toggle can run during capture. Only arm the snapshot after the
+  # clamshell reload and scale sync, when it is ready to be restored.
+  if cp "$OMARCHY_PATH/default/hypr/toggles/internal-monitor-position.lua" "$temporary" &&
+    mv "$POSITION_PENDING" "$POSITION_STATE" && mv "$temporary" "$POSITION_FLAG"; then
+    hyprctl eval 'dofile(os.getenv("HOME") .. "/.local/state/omarchy/toggles/hypr/internal-monitor-position.lua")' >/dev/null 2>&1 || true
+  else
+    rm -f "$temporary"
+  fi
+}
+
 dpms_internal() {
   local action="$1"
 
@@ -207,14 +325,20 @@ dpms_internal() {
 }
 
 enable_internal() {
-  local changed=0
+  local changed=0 reload=0
 
-  if [[ -f $CLAMSHELL_FLAG ]]; then
-    rm -f "$CLAMSHELL_FLAG"
-    changed=1
+  if [[ -f $POSITION_FLAG ]] && ! position_config_matches; then
+    rm -f "$POSITION_FLAG" "$POSITION_LAYOUT"
+    reload=1
   fi
 
-  if (( changed )); then
+  if [[ -f $CLAMSHELL_FLAG ]]; then
+    rm -f "$CLAMSHELL_FLAG" "$POSITION_FLAG" "$POSITION_LAYOUT" "$POSITION_STATE"
+    changed=1
+    reload=1
+  fi
+
+  if (( reload )); then
     hyprctl reload >/dev/null 2>&1 || true
   fi
 
@@ -222,6 +346,7 @@ enable_internal() {
   sync_internal_scale
 
   if (( changed )); then
+    restore_internal_position
     dpms_internal enable
   fi
 }
@@ -230,13 +355,13 @@ disable_internal() {
   [[ -n $INTERNAL ]] || exit 0
   [[ -f $MANUAL_DISABLE_FLAG ]] && return 0
 
-  mkdir -p "$TOGGLES_DIR"
-  remember_internal_scale
-
   local config
   config=$(printf 'hl.monitor({ output = "%s", disabled = true })' "$INTERNAL")
 
   if [[ ! -f $CLAMSHELL_FLAG ]] || [[ $(< "$CLAMSHELL_FLAG") != $config ]]; then
+    remember_internal_scale
+    remember_internal_position
+    rm -f "$POSITION_FLAG" "$POSITION_LAYOUT" "$POSITION_STATE"
     printf '%s\n' "$config" >"$CLAMSHELL_FLAG"
     hyprctl reload >/dev/null 2>&1 || true
   fi
