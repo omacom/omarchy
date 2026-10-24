@@ -521,16 +521,16 @@ Item {
 
     // The buttons, as a bar along the card's bottom edge: a hairline above,
     // equal segments split by hairlines, three to a line, and a short last line
-    // stretched across. Drawn in the card because the surface is clipped, on
-    // the front card of each deck, and on any card under the pointer, or the
-    // keyboard, in an open deck.
+    // stretched across. Drawn in the card because the surface is clipped. In
+    // an open deck only the card under the pointer, or the keyboard, has them;
+    // otherwise the front card of each deck does.
     Item {
       id: deedArea
       anchors { left: parent.left; right: parent.right; bottom: parent.bottom
                 leftMargin: plate.borderLeft; rightMargin: plate.borderRight
                 bottomMargin: plate.borderBottom }
 
-      readonly property bool shown: card.allDeeds.length > 0 && (card.place.front || (card.hovered && card.expanded))
+      readonly property bool shown: card.allDeeds.length > 0 && (card.expanded ? card.hovered : card.place.front)
       readonly property int columns: Math.max(1, Math.min(3, card.allDeeds.length))
       readonly property int rows: Math.ceil(card.allDeeds.length / columns)
       readonly property real rule: 1
