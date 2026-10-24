@@ -58,6 +58,8 @@ trusted_root_bin="$test_tmp/trusted-root-bin"
 trusted_fprintd="$test_tmp/trusted-fprintd-list"
 password_pam="$test_tmp/omarchy-lock-password"
 fingerprint_pam="$test_tmp/omarchy-lock-fingerprint"
+sssd_module="$test_tmp/pam_sss.so"
+sssd_config="$test_tmp/sssd.conf"
 attack_marker="$test_tmp/user-fprintd-list-ran"
 trusted_uid="$test_tmp/trusted-fprintd-list.uid"
 trusted_args="$test_tmp/trusted-fprintd-list.args"
@@ -110,6 +112,8 @@ prepare_helper() {
   awk \
     -v password_pam="$password_pam" \
     -v fingerprint_pam="$fingerprint_pam" \
+    -v sssd_module="$sssd_module" \
+    -v sssd_config="$sssd_config" \
     -v trusted_root_bin="$trusted_root_bin" \
     -v trusted_fprintd="$trusted_fprintd" \
     -v keep_root_path="$keep_root_path" \
@@ -122,6 +126,15 @@ prepare_helper() {
       line = $0
       gsub("/etc/pam\\.d/omarchy-lock-password", "\"" password_pam "\"", line)
       gsub("/etc/pam\\.d/omarchy-lock-fingerprint", "\"" fingerprint_pam "\"", line)
+
+      if (line == "sssd_pam_module=/usr/lib/security/pam_sss.so") {
+        print "sssd_pam_module=\"" sssd_module "\""
+        next
+      }
+      if (line == "sssd_conf=/etc/sssd/sssd.conf") {
+        print "sssd_conf=\"" sssd_config "\""
+        next
+      }
 
       if (line == "if (( EUID == 0 )); then" && keep_root_path == 0) {
         print "if (( 0 )); then"
@@ -195,7 +208,7 @@ for helper in "$patched_helper" "$absolute_only_helper" "$root_path_only_helper"
 done
 
 reset_runtime_files() {
-  rm -f "$password_pam" "$fingerprint_pam" "$trusted_uid" "$trusted_args" "$attack_marker" "$attack_args"
+  rm -f "$password_pam" "$fingerprint_pam" "$sssd_module" "$sssd_config" "$trusted_uid" "$trusted_args" "$attack_marker" "$attack_args"
 }
 
 run_as_root() {
@@ -219,6 +232,36 @@ grep -Fx "$target_user" "$trusted_args" >/dev/null || fail "the trusted fprintd-
 [[ -f $test_tmp/fprintd.service.d/10-stop-timeout.conf ]] ||
   fail "the lock helper installs the stop-timeout drop-in beside the resume hook"
 pass "the hardened root lock helper uses the trusted fingerprint probe"
+
+# Directory accounts (SSSD) are unknown to pam_unix, so the lock screen offers
+# the password to pam_sss first, but only where SSSD is set up.
+reset_runtime_files
+run_as_root "$patched_helper" "the lock helper runs without SSSD"
+if grep -F 'pam_sss' "$password_pam" >/dev/null; then
+  fail "the lock PAM file names pam_sss where SSSD is not set up"
+fi
+pass "the lock PAM file is unchanged where SSSD is not set up"
+
+touch "$sssd_module"
+run_as_root "$patched_helper" "the lock helper runs with the SSSD PAM module but no configuration"
+if grep -F 'pam_sss' "$password_pam" >/dev/null; then
+  fail "the lock PAM file names pam_sss without an SSSD configuration"
+fi
+pass "the SSSD PAM module alone does not enable directory accounts"
+
+touch "$sssd_config"
+run_as_root "$patched_helper" "the lock helper runs with SSSD set up"
+sss_auth_line=$(grep -n 'auth .*pam_sss.so forward_pass' "$password_pam") ||
+  fail "the lock PAM file offers the password to pam_sss where SSSD is set up"
+sss_account_line=$(grep -n 'account .*pam_sss.so' "$password_pam") ||
+  fail "the lock PAM file checks directory accounts with pam_sss"
+unix_auth_line=$(grep -n 'pam_unix.so' "$password_pam")
+local_account_line=$(grep -n 'system-local-login' "$password_pam")
+(( ${sss_auth_line%%:*} < ${unix_auth_line%%:*} )) ||
+  fail "pam_sss is asked for the password before pam_unix"
+(( ${sss_account_line%%:*} < ${local_account_line%%:*} )) ||
+  fail "pam_sss checks the account before system-local-login"
+pass "the lock PAM file asks pam_sss before pam_unix where SSSD is set up"
 
 reset_runtime_files
 run_as_root "$absolute_only_helper" "the absolute-path-only lock helper runs in an isolated root context"

@@ -1,4 +1,6 @@
 {
+  "ad.domainPrompt": "Domain> ",
+  "ad.joinUserPrompt": "Directory account allowed to join computers> ",
   "agents.addFailed": "Couldn't add the %1 account",
   "agents.added": "Added %1.",
   "agents.allOver": "All %1 accounts are over %2%",

@@ -114,6 +114,10 @@ hook runs `omarchy-hyprland-reload-guard resume`, forces one `hyprctl reload`,
 and restores the session's previous `misc.disable_autoreload` and
 `debug.suppress_errors` values.
 
+## Directory accounts (SSSD)
+
+`omarchy setup ad` joins an Active Directory domain and lets `omarchy-apply-sssd` add `sss` to `nsswitch.conf` and point `su` at the system PAM stack. The `omarchy-settings` post-upgrade scriptlet copies `/etc/nsswitch.conf` from `etc-overrides/` on every upgrade (see [`file-layout.md`](file-layout.md)), which drops `sss` again: SSSD keeps running, but `id` and sudo group lookups answer "no such user" for every directory account. A migration would run once per user and never again, so `omarchy update` runs `omarchy-apply-sssd` after the package transaction on every update. It does nothing, and asks for no privileges, unless the SSSD service is enabled, and it writes a file only when its content changes. A failure there is reported and the update carries on. The lock screen needs no step of its own: no package owns `omarchy-lock-password`, so an update leaves its `pam_sss` lines alone, and `omarchy-apply-lock` writes them whenever it runs on a machine with SSSD, which `omarchy setup ad` does.
+
 ## Path 1: `omarchy update`
 
 High-level flow:
@@ -135,6 +139,7 @@ omarchy-update
   │  install/config/snapper.sh, and the update continues without one)
   ├─ omarchy-update-stay-awake start
   ├─ run system-package updates
+  ├─ re-apply the SSSD setup (omarchy-apply-sssd), a no-op unless SSSD is set up
   ├─ run migrations
   ├─ automatically remove orphan packages and run log analysis
   ├─ clear the shell update indicator: the update just installed what it showed

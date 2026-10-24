@@ -22,6 +22,7 @@ steps=(
   omarchy-update-boot
   omarchy-update-keyring
   omarchy-update-system-pkgs
+  omarchy-apply-sssd
   omarchy-migrate
   omarchy-hook
   omarchy-update-aur-pkgs
@@ -77,6 +78,7 @@ expected_steps() {
     omarchy-update-dev \
     omarchy-update-keyring \
     omarchy-update-system-pkgs \
+    omarchy-apply-sssd \
     omarchy-migrate \
     omarchy-update-orphan-pkgs \
     omarchy-update-analyze-logs \
@@ -117,9 +119,18 @@ pass "a confirmed update approves orphan removal"
 if FAILING_STEP=omarchy-update-system-pkgs run_update -y; then
   fail "an update whose packages did not upgrade passes for a whole one"
 fi
-for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
+for step in omarchy-apply-sssd omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
   if grep -q "^$step " "$test_tmp/steps"; then
     fail "a blocked package upgrade still runs $step"
   fi
 done
 pass "a blocked package upgrade stops the update before it migrates"
+
+# Re-applying SSSD guards directory accounts, not the update itself: when it
+# can't finish, the update reports that and carries on with the migrations.
+FAILING_STEP=omarchy-apply-sssd run_update -y ||
+  fail "an update still finishes when the SSSD re-apply fails" "$(cat "$test_tmp/err")"
+grep -q '^omarchy-migrate ' "$test_tmp/steps" || fail "a failed SSSD re-apply still lets the migrations run"
+grep -F 'Run omarchy-apply-sssd to retry' "$test_tmp/err" >/dev/null ||
+  fail "a failed SSSD re-apply tells the user how to retry" "$(cat "$test_tmp/err")"
+pass "a failed SSSD re-apply is reported and does not stop the update"

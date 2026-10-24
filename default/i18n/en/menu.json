@@ -671,6 +671,9 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
+  "setup.ad": {
+    "label": "Active Directory"
+  },
   "setup.direct-boot": {
     "label": "Direct Boot"
   },

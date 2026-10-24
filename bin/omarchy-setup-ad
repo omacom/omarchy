@@ -1,0 +1,197 @@
+#!/bin/bash
+
+# omarchy:summary=Join an Active Directory domain and let its accounts log in
+# omarchy:args=[--domain <domain>] [--group <ad-group>] [--join-user <account>]
+# omarchy:examples=omarchy-setup-ad | omarchy-setup-ad --domain example.corp | omarchy-setup-ad --domain example.corp --group "Linux Users" --join-user admin
+# omarchy:requires-sudo=true
+
+set -e
+
+sssd_conf=/etc/sssd/sssd.conf
+domain_pattern='^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$'
+group_pattern='^[^,=\\"[:cntrl:]]+$'
+account_pattern='^[A-Za-z0-9._@-]+$'
+DOMAIN=""
+GROUP=""
+JOIN_USER=""
+
+# Checked while parsing, before anything is installed or changed: an option
+# swallowing the next flag as its value would otherwise join the wrong domain.
+require_value() {
+  if [[ -z $2 || $2 == -* ]]; then
+    echo "omarchy-setup-ad: $1 needs a value." >&2
+    exit 2
+  fi
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+  --domain=*) DOMAIN="${1#--domain=}" ;;
+  --domain)
+    shift
+    require_value --domain "${1:-}"
+    DOMAIN="$1"
+    ;;
+  --group=*) GROUP="${1#--group=}" ;;
+  --group)
+    shift
+    require_value --group "${1:-}"
+    GROUP="$1"
+    ;;
+  --join-user=*) JOIN_USER="${1#--join-user=}" ;;
+  --join-user)
+    shift
+    require_value --join-user "${1:-}"
+    JOIN_USER="$1"
+    ;;
+  -h | --help)
+    echo "Usage: omarchy-setup-ad [--domain <domain>] [--group <ad-group>] [--join-user <account>]"
+    echo
+    echo "Joins this computer to an Active Directory domain with realmd and SSSD,"
+    echo "so domain accounts can log in with their short name and a /home/<name> home."
+    echo
+    echo "--group limits logins to the members of one directory group. Local"
+    echo "accounts are not affected. Without it, the domain's own access rules apply."
+    echo "--join-user is the directory account allowed to join computers; its password"
+    echo "is asked by realm and never stored."
+    echo
+    echo "Missing values are asked for. Run it again to change the group."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-setup-ad: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
+if [[ -z $DOMAIN ]]; then
+  DOMAIN=$(gum input --prompt "$(omarchy-i18n ad.domainPrompt)" --placeholder "example.corp") || exit 1
+fi
+
+# These end up in sssd.conf and on the realm command line, so anything that
+# could add a line, a key or an option is refused before the machine changes.
+if [[ ! $DOMAIN =~ $domain_pattern ]]; then
+  echo "omarchy-setup-ad: '$DOMAIN' is not a domain name like example.corp." >&2
+  exit 2
+fi
+
+if [[ -n $GROUP && ( $GROUP == -* || ! $GROUP =~ $group_pattern ) ]]; then
+  echo "omarchy-setup-ad: '$GROUP' is not a single directory group name." >&2
+  exit 2
+fi
+
+if [[ -n $JOIN_USER && ( $JOIN_USER == -* || ! $JOIN_USER =~ $account_pattern ) ]]; then
+  echo "omarchy-setup-ad: '$JOIN_USER' is not a directory account name." >&2
+  exit 2
+fi
+
+domain_lower="${DOMAIN,,}"
+work_dir=$(mktemp -d)
+trap 'rm -rf "$work_dir"' EXIT
+
+# Set <key> = <value> in the [domain/<domain>] section of a copy of sssd.conf,
+# replacing the line when there is one, and leaving every other section alone.
+set_sssd_key() {
+  local file="$1" key="$2" value="$3"
+
+  awk -v section="[domain/$domain_lower]" -v key="$key" -v value="$value" '
+    function flush() {
+      if (in_section && !done) { print key " = " value; done = 1 }
+      printf "%s", blanks; blanks = ""
+    }
+    $0 == section { in_section = 1; print; next }
+    /^\[/ { flush(); in_section = 0 }
+    in_section && /^[ \t]*$/ { blanks = blanks $0 "\n"; next }
+    in_section && $0 ~ "^[ \t]*" key "[ \t]*=" {
+      if (!done) { print key " = " value; done = 1 }
+      printf "%s", blanks; blanks = ""
+      next
+    }
+    in_section { printf "%s", blanks; blanks = "" }
+    { print }
+    END { flush() }
+  ' "$file" >"$file.new"
+  mv "$file.new" "$file"
+}
+
+join_domain() {
+  if realm list --name-only | grep -qixF "$DOMAIN"; then
+    echo "Already joined to $DOMAIN."
+    return
+  fi
+
+  if [[ -z $JOIN_USER ]]; then
+    JOIN_USER=$(gum input --prompt "$(omarchy-i18n ad.joinUserPrompt)" --placeholder "administrator") || exit 1
+    if [[ -z $JOIN_USER || $JOIN_USER == -* || ! $JOIN_USER =~ $account_pattern ]]; then
+      echo -e "\e[31mNo valid directory account given.\e[0m" >&2
+      exit 1
+    fi
+  fi
+
+  echo "Joining $DOMAIN as $JOIN_USER..."
+  sudo realm join -v -U "$JOIN_USER" "$DOMAIN"
+}
+
+configure_sssd() {
+  local work="$work_dir/sssd.conf" mode owner
+
+  sudo cat "$sssd_conf" >"$work"
+  if ! grep -qxF "[domain/$domain_lower]" "$work"; then
+    echo -e "\e[31m$sssd_conf has no [domain/$domain_lower] section after the join.\e[0m" >&2
+    exit 1
+  fi
+
+  set_sssd_key "$work" use_fully_qualified_names False
+  set_sssd_key "$work" fallback_homedir /home/%u
+  if [[ -n $GROUP ]]; then
+    set_sssd_key "$work" access_provider simple
+    set_sssd_key "$work" simple_allow_groups "$GROUP"
+  fi
+
+  # SSSD refuses a configuration other accounts can read, so keep what it set.
+  mode=$(sudo stat -c %a "$sssd_conf")
+  owner=$(sudo stat -c %U:%G "$sssd_conf")
+  sudo install -m "$mode" -o "${owner%:*}" -g "${owner#*:}" "$work" "$sssd_conf"
+}
+
+echo -e "\e[32mJoining this computer to $DOMAIN.\n\e[0m"
+
+echo "Installing the directory client packages..."
+omarchy-pkg-add sssd krb5 samba
+omarchy-pkg-aur-add realmd adcli
+
+# The computer account is named after the host name, so a short one surprises.
+if [[ $(hostnamectl --static) != *.* ]]; then
+  echo -e "\e[33mThe host name has no domain part. If the computer account should be named differently, run: sudo hostnamectl set-hostname <name>.$DOMAIN\e[0m"
+fi
+
+# Kerberos refuses a clock that is more than five minutes off.
+sudo timedatectl set-ntp true
+
+if ! realm discover "$DOMAIN" >/dev/null; then
+  echo -e "\e[31mCould not find $DOMAIN. Check that the DNS server points at a domain controller.\e[0m" >&2
+  exit 1
+fi
+
+join_domain
+configure_sssd
+
+sudo systemctl enable --now sssd.service
+sudo systemctl restart sssd.service
+# Nothing to clear is not an error.
+sudo sss_cache -E || true
+
+# Domain lookups, su and the lock screen only know directory accounts once
+# these are told about SSSD.
+omarchy-apply-sssd
+omarchy-apply-lock
+
+echo -e "\e[32m\nPerfect! This computer is joined to $DOMAIN.\e[0m"
+if [[ -n $GROUP ]]; then
+  echo "Members of '$GROUP' can log in with their short name; local accounts are unchanged."
+else
+  echo "Domain accounts can log in with their short name; local accounts are unchanged."
+fi
+echo "Check an account with: id <name>"

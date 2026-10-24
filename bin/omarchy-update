@@ -126,6 +126,12 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
 
+  # A settings update rewrites nsswitch.conf without sss, which silently
+  # breaks every directory account, so machines with SSSD get it back here.
+  # Nothing else depends on it, so a failure is reported without stopping.
+  omarchy-apply-sssd ||
+    echo -e "\e[33mCould not re-apply the SSSD setup. Run omarchy-apply-sssd to retry.\e[0m" >&2
+
   omarchy-migrate
   omarchy-update-orphan-pkgs -y
 

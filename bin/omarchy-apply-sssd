@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# omarchy:summary=Let SSSD (directory) accounts through user lookup and su, where SSSD is set up
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -e
+
+sssd_pam_module=/usr/lib/security/pam_sss.so
+nsswitch=/etc/nsswitch.conf
+su_pam=/etc/pam.d/su
+
+# SSSD is optional, and a settings update rewrites nsswitch.conf without it.
+# Joining a domain enables the service, which is the sign it is set up:
+# /etc/sssd is readable by root only, so its configuration can't be probed here.
+sssd_is_set_up() {
+  [[ -f $sssd_pam_module ]] && systemctl is-enabled --quiet sssd.service 2>/dev/null
+}
+
+# Install the content over the target only when it differs, so a machine that
+# is already set up runs no privileged command at all. The content goes in on
+# stdin, so there is no temporary file to replace between the edit and the copy.
+install_if_changed() {
+  local target="$1" content="$2"
+
+  if ! cmp -s <(printf '%s\n' "$content") "$target"; then
+    printf '%s\n' "$content" | sudo install -Dm644 /dev/stdin "$target"
+    echo "Updated $target"
+  fi
+}
+
+if sssd_is_set_up; then
+  # Without sss here, SSSD runs and is online but `id` and sudo group lookups
+  # answer "no such user" for every directory account.
+  install_if_changed "$nsswitch" "$(sed -E '/^(passwd|group|shadow|gshadow):/{/[[:space:]]sss([[:space:]]|$)/!s/[[:space:]]*$/ sss/}' "$nsswitch")"
+
+  # su asks pam_unix alone, which never sees a directory account's password.
+  install_if_changed "$su_pam" "$(sed -E 's/^(auth|account|session)[[:space:]]+required[[:space:]]+pam_unix\.so[[:space:]]*$/\1 include system-auth/' "$su_pam")"
+fi

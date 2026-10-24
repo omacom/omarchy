@@ -79,6 +79,7 @@ for command in \
   omarchy-update-pkg-prune \
   omarchy-update-keyring \
   omarchy-update-system-pkgs \
+  omarchy-apply-sssd \
   omarchy-migrate \
   omarchy-update-aur-pkgs \
   omarchy-update-mise \
