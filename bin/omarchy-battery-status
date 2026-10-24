@@ -81,8 +81,21 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   print rounded
 }')
 state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+
+# Kernel sysfs is the live threshold. UPower's charge-*-threshold fields on
+# ThinkPads are a built-in 75/80 default until ChargeThresholdEnabled is set
+# through UPower itself, so they can disagree with TLP or a manual sysfs write.
+read_sysfs_threshold() {
+  local file="$1"
+  [[ -r $file ]] || return 1
+  local value
+  value=$(<"$file")
+  [[ -n $value ]] || return 1
+  printf '%s' "$value"
+}
+
+threshold_start=$(read_sysfs_threshold "$battery_path/charge_control_start_threshold" || true)
+threshold_end=$(read_sysfs_threshold "$battery_path/charge_control_end_threshold" || true)
 
 # Read the thresholds from the battery UPower resolved rather than a BAT* glob,
 # which misses every battery with another name.
@@ -109,6 +122,14 @@ minutes_remaining=$(awk \
   printf "%d", int(hours * 60 + 0.5)
 }')
 time_remaining=$(format_duration "$minutes_remaining")
+
+# UPower is all-or-nothing: only when sysfs exposed neither attribute.
+# Per-field fallback mixes fabricated UPower start (e.g. 75) with end-only
+# sysfs devices (ASUS #7374) and renders inverted ranges like 75-60%.
+if [[ -z $threshold_start && -z $threshold_end ]]; then
+  threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+  threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+fi
 
 ac_online=false
 for supply in "$power_supply_path"/*; do
