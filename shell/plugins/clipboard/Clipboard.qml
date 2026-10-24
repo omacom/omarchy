@@ -17,8 +17,10 @@ Item {
   property bool cursorActive: false
   property bool clearConfirmOpen: false
   property var history: []
+  property bool historyReady: false
+  property string statusMessage: ""
 
-  property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
+  property string historyPath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/clipboard-history.json"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
@@ -39,10 +41,13 @@ Item {
   property int cardHeight: Math.min(Style.space(600), panel.height - Style.gapsOut * 2)
   property int rowHeight: Math.max(Style.space(50), Style.font.body + Style.font.caption + Style.spacing.rowPaddingX * 2)
   property int historyLimit: 500
+  readonly property int pinCount: ClipboardHistory.pinnedCount(root.history)
+  readonly property int footerHeight: Math.max(Style.space(24), Style.font.caption * 2 + Style.spacing.sm)
 
   function open(payloadJson) {
     root.opened = true
     root.filterText = ""
+    root.statusMessage = ""
     root.selectedIndex = 0
     root.cursorActive = true
     root.disarmPointer()
@@ -70,11 +75,80 @@ Item {
 
   function loadHistory(raw) {
     root.history = ClipboardHistory.parseHistory(raw)
+    root.historyReady = true
     if (root.opened) root.rebuildDisplay()
   }
 
   function saveHistory() {
-    historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
+    historyFile.setText(JSON.stringify(ClipboardHistory.trimHistory(root.history, root.historyLimit), null, 2) + "\n")
+  }
+
+  // A fresh reader keeps IPC payloads out of command-line arguments and reads
+  // this request before the CLI removes its private temporary file.
+  function pinClipboardFile(path) {
+    historyFile.waitForJob()
+    if (!root.historyReady) return "not-ready"
+    var request = pinRequestComponent.createObject(root, { path: path })
+    var entry = ClipboardHistory.parseEntryJson(request.text())
+    request.destroy()
+    var result = ClipboardHistory.pinEntry(root.history, entry, root.historyLimit)
+    return root.finishPin(result)
+  }
+
+  function finishPin(result) {
+    if (result.status === "limit") {
+      root.statusMessage = Commons.I18n.t("clipboard.pinLimit").arg(Commons.I18n.formatNumber(ClipboardHistory.pinLimit))
+      return result.status
+    }
+    if (result.status !== "pinned" && result.status !== "unpinned" && result.status !== "already-pinned") return result.status
+    if (!root.persistHistory(result.history)) return "save-failed"
+    if (root.opened) root.rebuildDisplay()
+    return result.status
+  }
+
+  function persistHistory(nextHistory) {
+    // Drain ordinary history writes before confirming a pin. A fresh writer
+    // also avoids FileView skipping an identical payload after a failed save.
+    historyFile.waitForJob()
+    var serialized = JSON.stringify(ClipboardHistory.trimHistory(nextHistory, root.historyLimit), null, 2) + "\n"
+    var writer = pinWriterComponent.createObject(root, { path: root.historyPath })
+    writer.setText(serialized)
+    var saved = writer.savedSuccessfully
+    writer.destroy()
+    // Check the committed file too: a failed final atomic commit must never
+    // leave an in-memory pin looking persistent.
+    if (saved) {
+      var stored = pinRequestComponent.createObject(root, { path: root.historyPath })
+      saved = stored.text() === serialized
+      stored.destroy()
+    }
+    if (!saved) {
+      root.statusMessage = Commons.I18n.t("clipboard.saveFailedRetry")
+      return false
+    }
+
+    root.history = nextHistory
+    root.statusMessage = ""
+    return true
+  }
+
+  function togglePinDisplayIndex(index) {
+    historyFile.waitForJob()
+    if (index < 0 || index >= displayModel.count) return
+    var historyIndex = displayModel.get(index).historyIndex
+    var key = ClipboardHistory.entryKey(root.history[historyIndex])
+    var result = ClipboardHistory.togglePinnedAt(root.history, historyIndex, root.historyLimit)
+    root.finishPin(result)
+    // Keep the same entry selected after it moves between the two groups.
+    for (var i = 0; i < displayModel.count; i++) {
+      if (ClipboardHistory.entryKey(root.history[displayModel.get(i).historyIndex]) === key) {
+        root.selectedIndex = i
+        break
+      }
+    }
+    root.cursorActive = true
+    root.disarmPointer()
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   function addClipboardEntry(entry) {
@@ -103,8 +177,7 @@ Item {
   }
 
   function confirmClearHistory() {
-    root.history = ClipboardHistory.clearHistory()
-    root.saveHistory()
+    if (!root.persistHistory(ClipboardHistory.clearHistory())) return
     root.selectedIndex = 0
     root.cursorActive = false
     root.disarmPointer()
@@ -114,11 +187,11 @@ Item {
   }
 
   function removeDisplayIndex(index) {
+    historyFile.waitForJob()
     if (index < 0 || index >= displayModel.count) return
 
     var row = displayModel.get(index)
-    root.history = ClipboardHistory.removeEntryAt(root.history, row.historyIndex)
-    root.saveHistory()
+    if (!root.persistHistory(ClipboardHistory.removeEntryAt(root.history, row.historyIndex))) return
 
     if (displayModel.count <= 1) {
       root.selectedIndex = 0
@@ -144,6 +217,7 @@ Item {
         previewImage: row.previewImage ? Util.fileUrl(row.previewImage) : "",
         path: row.path,
         mime: row.mime,
+        pinned: row.pinned,
         historyIndex: row.index
       })
     }
@@ -250,6 +324,23 @@ Item {
 
   ListModel { id: displayModel }
 
+  Component {
+    id: pinRequestComponent
+    FileView { blockLoading: true; printErrors: false }
+  }
+
+  Component {
+    id: pinWriterComponent
+    FileView {
+      preload: false
+      atomicWrites: true
+      blockWrites: true
+      printErrors: false
+      property bool savedSuccessfully: false
+      onSaved: savedSuccessfully = true
+    }
+  }
+
   PointerMoveGate {
     id: pointerGate
     referenceItem: card
@@ -264,6 +355,7 @@ Item {
     onLoaded: root.loadHistory(text())
     onLoadFailed: root.loadHistory("[]")
     onFileChanged: reload()
+    onSaveFailed: root.statusMessage = Commons.I18n.t("clipboard.saveFailed")
   }
 
   // Reap watchers left behind by a previous shell instance, then start our
@@ -336,6 +428,7 @@ Item {
 
     BorderSurface {
       id: card
+      objectName: "clipboardCard"
       width: root.cardWidth
       height: root.cardHeight
       radius: root.cornerRadius
@@ -348,6 +441,7 @@ Item {
 
       Item {
         id: keyCatcher
+        objectName: "clipboardKeyCatcher"
         anchors.fill: parent
         z: root.clearConfirmOpen ? 20 : 0
         focus: true
@@ -362,6 +456,9 @@ Item {
           if (event.key === Qt.Key_Escape) {
             if (root.filterText) root.setFilter("")
             else root.close()
+            event.accepted = true
+          } else if (event.key === Qt.Key_P && event.modifiers === Qt.ControlModifier) {
+            root.togglePinDisplayIndex(root.selectedIndex)
             event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
@@ -437,7 +534,8 @@ Item {
           Text {
             textFormat: Text.PlainText
             anchors.left: parent.left
-            anchors.right: parent.right
+            anchors.right: pinCounter.left
+            anchors.rightMargin: Style.spacing.md
             anchors.verticalCenter: parent.verticalCenter
             text: root.filterText || Commons.I18n.t("clipboard.search")
             color: root.foreground
@@ -446,11 +544,23 @@ Item {
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
           }
+
+          Text {
+            id: pinCounter
+            textFormat: Text.PlainText
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: Commons.I18n.t("clipboard.pinCount").arg(Commons.I18n.formatNumber(root.pinCount)).arg(Commons.I18n.formatNumber(ClipboardHistory.pinLimit))
+            color: root.foreground
+            opacity: 0.58
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
         }
 
         Item {
           width: parent.width
-          height: parent.height - root.headerHeight - root.contentSpacing
+          height: parent.height - root.headerHeight - root.footerHeight - root.contentSpacing * 2
 
           Row {
             anchors.fill: parent
@@ -463,6 +573,7 @@ Item {
 
               ListView {
                 id: resultList
+                objectName: "clipboardResults"
                 anchors.fill: parent
                 anchors.rightMargin: root.contentMargin
                 model: displayModel
@@ -477,6 +588,7 @@ Item {
                   required property string previewText
                   required property string fullText
                   required property string previewImage
+                  required property bool pinned
 
                   readonly property bool hasCursor: root.cursorActive && index === root.selectedIndex
 
@@ -504,7 +616,7 @@ Item {
 
                     Text {
                       textFormat: Text.PlainText
-                      width: parent.width - (parent.parent.previewImage.length > 0 ? parent.height + parent.spacing : 0)
+                      width: parent.width - Style.space(54) - parent.spacing - (parent.parent.previewImage.length > 0 ? parent.height + parent.spacing : 0)
                       height: parent.height
                       text: parent.parent.previewText
                       color: parent.parent.hasCursor ? root.selectedText : root.foreground
@@ -515,10 +627,35 @@ Item {
                       wrapMode: Text.NoWrap
                       verticalAlignment: Text.AlignVCenter
                     }
+
+                    Item {
+                      width: Style.space(54)
+                      height: parent.height
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.centerIn: parent
+                        text: row.pinned ? Commons.I18n.t("clipboard.unpin") : Commons.I18n.t("clipboard.pin")
+                        color: row.hasCursor ? root.selectedText : root.foreground
+                        opacity: row.pinned || pinMouse.containsMouse ? 1 : 0.5
+                        font.family: root.fontFamily
+                        font.pixelSize: Style.font.caption
+                      }
+
+                      MouseArea {
+                        id: pinMouse
+                        objectName: "clipboardPinButton"
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.togglePinDisplayIndex(row.index)
+                      }
+                    }
                   }
 
                   MouseArea {
                     anchors.fill: parent
+                    anchors.rightMargin: Style.space(66)
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onPositionChanged: function(mouse) {
@@ -607,6 +744,20 @@ Item {
               width: parent.width
             }
           }
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          width: parent.width
+          height: root.footerHeight
+          text: root.statusMessage || Commons.I18n.t("clipboard.pinShortcut")
+          color: root.foreground
+          opacity: root.statusMessage ? 1 : 0.58
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          maximumLineCount: 2
+          wrapMode: Text.Wrap
+          elide: Text.ElideRight
         }
       }
     }
