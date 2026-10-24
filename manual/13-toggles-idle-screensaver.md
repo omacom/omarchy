@@ -72,12 +72,15 @@ The Omarchy shell owns idle behavior, and the timings are a top-level `idle` blo
   "version": 1,
   "idle": {
     "screensaver": 150,
-    "lock": 300
+    "lock": 300,
+    "blank": 5
   }
 }
 ```
 
-Both numbers are seconds counted from the moment you went idle — not from each other. So with the defaults, the screensaver comes up after two and a half minutes and the lock screen takes over at five minutes, whether or not the screensaver ran. Save the file and the shell picks up the new timings right away.
+The first two numbers are seconds counted from the moment you went idle — not from each other. So with the defaults, the screensaver comes up after two and a half minutes and the lock screen takes over at five minutes, whether or not the screensaver ran. Save the file and the shell picks up the new timings right away.
+
+`blank` counts from a different moment: it is how many seconds the locked screen stays lit before it turns the displays off, measured from when the lock appears. Raise it if your monitor takes longer than five seconds to come back after going dark — otherwise the locked display blanks again before you can read the password prompt — or set it to `0` to keep the displays lit until you unlock.
 
 If you dismiss the screensaver before the lock deadline, that counts as activity and the pending lock is cancelled. You don't get locked out for glancing at your machine.
 

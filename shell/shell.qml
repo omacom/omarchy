@@ -43,7 +43,8 @@ ShellRoot {
     version: 1,
     idle: {
       screensaver: 150,
-      lock: 300
+      lock: 300,
+      blank: 5
     },
     bar: {
       position: "top",
@@ -362,9 +363,14 @@ ShellRoot {
     return shell.manifestHasKind(manifest, "bar")
   }
 
+  // The idle block times both the idle service and the lock screen: the idle
+  // service decides when the session locks, and the lock screen decides how
+  // long the locked display stays lit before it blanks. A clone of either
+  // reads the same block, so customizing one keeps the other's timing.
   function publicIdleConfigFor(manifest) {
     var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
-    if (!metadata || String(metadata.clonedFrom || "") !== "omarchy.idle") return ({})
+    var sourceId = metadata ? String(metadata.clonedFrom || "") : ""
+    if (sourceId !== "omarchy.idle" && sourceId !== "omarchy.lock") return ({})
     var idle = shell.shellConfig && Util.isPlainObject(shell.shellConfig.idle)
       ? shell.shellConfig.idle : ({})
     return JSON.parse(JSON.stringify(idle))
