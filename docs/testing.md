@@ -103,7 +103,7 @@ Override a budget through the environment variable named at the top of each file
 
 ## Companion checkouts
 
-Some checks hold Omarchy's scripts against the packages in the separate omarchy-pkgs repository (or the installer in omarchy-iso). `find_omarchy_pkgs` sets `OMARCHY_PKGS_ROOT` to that checkout's `pkgbuilds/` directory. When `OMARCHY_PKGS_PATH` is set, only it (the checkout or its `pkgbuilds/`) is tried, and an override that doesn't resolve fails the test, so a typo never turns package checks into skips. Without the override, the usual places beside this checkout and `~/Work/omacom` are tried; finding none returns 1, and the test skips only the checks that need it, the same way a missing compositor is handled, so the suite stays green on a machine with just this repository. Point `OMARCHY_PKGS_PATH` at the checkout when running from a worktree or an unusual location.
+Some checks hold Omarchy's scripts against the packages in the separate omarchy-pkgs repository. `find_omarchy_pkgs` sets `OMARCHY_PKGS_ROOT` to that checkout's `pkgbuilds/` directory. When `OMARCHY_PKGS_PATH` is set, only it (the checkout or its `pkgbuilds/`) is tried, and an override that doesn't resolve fails the test, so a typo never turns package checks into skips. Without the override, the usual places beside this checkout and `~/Work/omacom` are tried; finding none returns 1, and the test skips only the checks that need it, the same way a missing compositor is handled, so the suite stays green on a machine with just this repository. Point `OMARCHY_PKGS_PATH` at the checkout when running from a worktree or an unusual location.
 
 ## Unit-testing shell JavaScript from bash
 

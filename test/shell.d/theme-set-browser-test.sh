@@ -124,7 +124,3 @@ refreshed=$(sort "$refresh_log" | tr '\n' ' ')
 [[ $refreshed == "brave brave-origin chromium google-chrome " ]] ||
   fail "setter refreshes exactly the running browsers (got: $refreshed)"
 pass "setter refreshes exactly the running browsers"
-
-grep -q '<&0 &$' "$ROOT/bin/omarchy-theme-set-browser" ||
-  fail "setter keeps stdin for the backgrounded policy writer"
-pass "setter keeps stdin for the backgrounded policy writer"

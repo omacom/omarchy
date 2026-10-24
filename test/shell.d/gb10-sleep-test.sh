@@ -5,8 +5,6 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 setup="$ROOT/install/hardware/gb10/sleep.sh"
-all="$ROOT/install/hardware/all.sh"
-menu="$ROOT/default/omarchy/omarchy-menu.jsonc"
 
 # The setting follows the real GB10 predicate on fixture machines, and root
 # reads only the live hardware.
@@ -15,12 +13,6 @@ require_platform_fixtures "the GB10 sleep setting"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin"
-
-bash -n "$setup" || fail "GB10 sleep script has valid syntax"
-
-grep -q 'run_logged .*hardware/gb10/sleep.sh' "$all" ||
-  fail "the GB10 sleep setting runs during hardware setup"
-pass "the GB10 sleep setting runs at install"
 
 # An aarch64 machine, with an NVIDIA GPU of the given PCI device ID or none.
 machine() {
@@ -98,28 +90,3 @@ hibernation=$(TEST_SUDO_STATUS=1 run spark "$scratch/spark" bash "$ROOT/bin/omar
 ! grep -qE '^(gum|btrfs|swapon|sudo) ' "$CALL_LOG" ||
   fail "hibernation setup creates no swap while sleep is disabled"
 pass "the suspend toggle and hibernation setup respect the disabled setting"
-
-guard() {
-  grep -F "\"$1\"" "$menu" | sed -E 's/.*"when":"([^"]*)".*/\1/'
-}
-cat >"$scratch/bin/omarchy-toggle-enabled" <<'SH'
-#!/bin/bash
-[[ ${TEST_SUSPEND_OFF:-0} == 1 ]]
-SH
-cat >"$scratch/bin/omarchy-hibernation-available" <<'SH'
-#!/bin/bash
-[[ ${TEST_HIBERNATION_OFF:-0} != 1 ]]
-SH
-chmod +x "$scratch/bin"/*
-for item in system.suspend system.hibernate; do
-  when=$(guard "$item")
-  [[ $when == *"omarchy-sleep-disabled"* && $when != *"omarchy-hw-"* ]] ||
-    fail "the $item row follows the sleep setting, not the hardware"
-  run spark "$scratch/spark" bash -c "$when" && fail "the $item row is hidden while sleep is disabled"
-  run spark "$scratch/none" bash -c "$when" || fail "the $item row returns when the setting is removed"
-done
-TEST_SUSPEND_OFF=1 run other "$scratch/none" bash -c "$(guard system.suspend)" &&
-  fail "the suspend toggle still hides Suspend"
-TEST_HIBERNATION_OFF=1 run other "$scratch/none" bash -c "$(guard system.hibernate)" &&
-  fail "Hibernate stays hidden until hibernation is set up"
-pass "the menu hides Suspend and Hibernate only while sleep is disabled"

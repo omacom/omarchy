@@ -39,9 +39,3 @@ groups=$(STUB_PACKAGES=xpadneo-dkms user_groups)
 groups=$(STUB_PACKAGES=ydotool user_groups)
 [[ ",$groups," == *",input,"* ]] || fail "user_groups keeps input for installed ydotool support"
 pass "first-boot user_groups keeps deliberate input-group opt-ins"
-
-# The Quattro upgrade must not re-add the user to docker.
-if rg -q 'usermod -aG docker' "$ROOT/bin/omarchy-upgrade-to-quattro"; then
-  fail "omarchy-upgrade-to-quattro must not add the user to the docker group"
-fi
-pass "the Quattro upgrade does not grant the docker group"

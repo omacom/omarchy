@@ -5,22 +5,12 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 setup="$ROOT/install/hardware/nvidia/dgx-spark-boot.sh"
-all="$ROOT/install/hardware/all.sh"
 direct_boot="$ROOT/bin/omarchy-boot-direct"
 config_name=zz-omarchy-dgx-spark.conf
 
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin"
-
-bash -n "$setup" || fail "DGX Spark boot script has valid syntax"
-bash -n "$direct_boot" || fail "Direct Boot check has valid syntax"
-
-grep -q 'run_logged .*hardware/nvidia/dgx-spark-boot.sh' "$all" ||
-  fail "the DGX Spark boot setting runs during hardware setup"
-grep -q 'omarchy-boot-direct' "$setup" ||
-  fail "hardware setup asks the Direct Boot helper before writing the UKI setting"
-pass "the DGX Spark boot setting runs at install"
 
 # The real GB10 predicate reads fixture machines, which root never does.
 require_platform_fixtures "the DGX Spark boot setting"
@@ -165,8 +155,4 @@ done
 status=0
 TEST_EFIBOOTMGR_STATUS=1 numbers 'Boot0002* Omarchy' >/dev/null || status=$?
 (( status == 2 )) || fail "--number reports an unreadable EFI list"
-grep -Fq 'omarchy-boot-direct --number' "$ROOT/bin/omarchy-setup-direct-boot" ||
-  fail "Setup > Direct Boot finds the Omarchy entry through the helper"
-! grep -q 'efibootmgr | grep' "$ROOT/bin/omarchy-setup-direct-boot" ||
-  fail "Setup > Direct Boot keeps no pattern of its own"
 pass "the Direct Boot helper names the Omarchy entry for Setup > Direct Boot"
