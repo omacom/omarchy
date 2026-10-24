@@ -75,4 +75,11 @@ assertDeepEqual(
 )
 
 assertDeepEqual(monitor.parseDisplays('{'), { displays: [], enabledDisplayCount: 0 }, 'monitor handles invalid display JSON')
+
+assertEqual(monitor.transformToDegrees(0), 0, 'monitor maps transform 0 to 0 degrees')
+assertEqual(monitor.transformToDegrees(1), 90, 'monitor maps transform 1 to 90 degrees')
+assertEqual(monitor.transformToDegrees(2), 180, 'monitor maps transform 2 to 180 degrees')
+assertEqual(monitor.transformToDegrees(3), 270, 'monitor maps transform 3 to 270 degrees')
+assertEqual(monitor.transformToDegrees(5), 0, 'monitor maps a flipped transform back to 0 degrees')
+assertEqual(monitor.transformToDegrees(undefined), 0, 'monitor defaults a missing transform to 0 degrees')
 JS

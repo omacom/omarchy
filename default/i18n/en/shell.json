@@ -318,6 +318,7 @@
   "monitor.display": "Display",
   "monitor.displayFocused": "%1 · focused",
   "monitor.displays": "DISPLAYS",
+"monitor.displaysHint": "Pick a degree \u00b7 right-click on/off",
   "monitor.fixedBrightness": "FIXED BRIGHTNESS",
   "monitor.level.candlelit": "Candlelit",
   "monitor.level.evenDay": "Even day",

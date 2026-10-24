@@ -60,6 +60,18 @@ You can also checkout [Hyprmon](https://github.com/erans/hyprmon/), if you'd lik
 
 Monitor brightness is controlled by the dedicated function keys for brightness up/down. If you hold down shift while pressing these, you'll go to maximum or minimum brightness. The keys control the display you're focused on, so external monitors that speak DDC/CI are adjusted the same way as the laptop screen.
 
+### Rotating a screen
+
+If a monitor sits vertically (portrait) or upside down, rotate it from the _Display_ panel: under each display name in the DISPLAYS section, pick a degree — 0°, 90°, 180°, or 270° — and it applies immediately (right-click a display's name to turn it on or off). The picked degree is highlighted on the display, and because the buttons stay put while the screen rotates, correcting a wrong pick is a single click on a new degree. From the keyboard, navigate with j/k to the display's row, point a degree with h/l, and press Enter — the pointer starts on the row's current degree, so Enter there is a safe no-op. The rotation is saved to `~/.config/hypr/monitors.lua` as a `transform` rule for that display, so it comes back after a reboot.
+
+From the terminal:
+
+```
+omarchy hyprland monitor rotation            # show the focused display's rotation
+omarchy hyprland monitor rotation up         # step the focused display through 90°
+omarchy hyprland monitor rotation HDMI-A-1 90   # set a specific display to 90°
+```
+
 ### Apple Displays
 
 If you're using an Apple display, the regular keyboard brightness keys will also automatically work, if you're focused on the Apple display. This is done through the `asdcontrol` command.

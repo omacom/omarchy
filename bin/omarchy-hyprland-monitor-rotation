@@ -1,0 +1,195 @@
+#!/bin/bash
+
+# omarchy:summary=Show, cycle, or set monitor rotation
+# omarchy:args=[up|down] | [DEG] | NAME DEG
+# omarchy:examples=omarchy hyprland monitor rotation up | omarchy hyprland monitor rotation HDMI-A-1 90
+
+# Per-output rotation in degrees (0, 90, 180, or 270). Degrees map to
+# Hyprland's wl_output_transform integer: 0 -> 0, 90 -> 1, 180 -> 2, 270 -> 3
+# (4-7 are the flipped variants, which read back as 0 degrees).
+#
+# The change is applied live with a single hl.monitor rule — Hyprland merges
+# it into the output's existing rule, so mode, position, and scale are
+# untouched — and then persisted as a rotation rule in
+# ~/.config/hypr/monitors.lua so it survives reboots. An existing per-output
+# rule is updated in place; a bare rule is only appended when the output has
+# no rule of its own.
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+
+transform_for() {
+  case "$1" in
+  0) echo 0 ;;
+  90) echo 1 ;;
+  180) echo 2 ;;
+  270) echo 3 ;;
+  *) return 1 ;;
+  esac
+}
+
+rotation_for() {
+  case "$1" in
+  1) echo 90 ;;
+  2) echo 180 ;;
+  3) echo 270 ;;
+  *) echo 0 ;;
+  esac
+}
+
+usage() {
+  echo "Usage: omarchy-hyprland-monitor-rotation [up|down] | [DEG] | NAME DEG"
+  echo "  DEG is 0, 90, 180, or 270 degrees"
+}
+
+require_name() {
+  if [[ ! $1 =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "Refusing unsafe monitor name" >&2
+    exit 1
+  fi
+}
+
+monitors_json() {
+  hyprctl monitors all -j 2>/dev/null
+}
+
+focused_name() {
+  monitors_json | jq -r '[(.[] | select(.focused == true))] | if length then .[0].name else "" end'
+}
+
+transform_of() {
+  local name="${1:-}"
+  local filter="select(.focused == true)"
+  if [[ -n "$name" ]]; then
+    filter="select(.name == \"$name\")"
+  fi
+  monitors_json | jq -r "[(.[] | $filter)] | if length then .[0].transform // 0 else 0 end"
+}
+
+show() {
+  local transform
+  if ! transform="$(transform_of "${1:-}")" || [[ -z $transform ]]; then
+    echo "No Hyprland display state available" >&2
+    return 1
+  fi
+  rotation_for "$transform"
+}
+
+apply_rotation() {
+  local name="$1" transform="$2" expression
+  require_name "$name"
+  expression="hl.monitor({ output = \"$name\", transform = $transform })"
+  if ! hyprctl eval "$expression" 2>/dev/null; then
+    echo "Could not apply rotation to $name" >&2
+    return 1
+  fi
+}
+
+monitor_lua_path() {
+  local monitor_lua="$HOME/.config/hypr/monitors.lua"
+  if [[ -f $monitor_lua ]]; then
+    # sed -i replaces a symlink with a new file, so edit the real file and
+    # keep whatever path the user linked (omarchy#7625) intact.
+    if [[ -L $monitor_lua ]]; then
+      readlink -f "$monitor_lua"
+    else
+      echo "$monitor_lua"
+    fi
+  fi
+}
+
+persist_rotation() {
+  local name="$1" transform="$2"
+  local monitor_lua output_re
+  monitor_lua="$(monitor_lua_path)"
+  if [[ -z $monitor_lua ]]; then
+    echo "Applied; no $HOME/.config/hypr/monitors.lua to persist to" >&2
+    # 2 = applied, runtime-only (no config). Supported, not an error.
+    return 2
+  fi
+
+  # Serialize writes; two rapid panel clicks would otherwise both decide to
+  # append at once. A missing flock only means the lock is skipped, not a failure.
+  local locked=0
+  if command -v flock >/dev/null 2>&1; then
+    if mkdir -p "$STATE_DIR" && exec 9>"$STATE_DIR/monitors.lua.lock" && flock 9; then
+      locked=1
+    fi
+  fi
+
+  local output_re="${name//./\\.}"
+
+  # A live single-line rule for this output. The leading hl.monitor at line
+  # start keeps commented-out rules from ever matching.
+  if grep -Eq "^[[:space:]]*hl\.monitor[[:space:]]*\([[:space:]]*\{[^}]*output[[:space:]]*=[[:space:]]*\"${output_re}\"[^}]*\}" "$monitor_lua"; then
+    # The transform can sit either side of the output field; update it if
+    # already present, otherwise add it before the closing brace.
+    if grep -Eq "^[[:space:]]*hl\.monitor[[:space:]]*\([^}]*[[:space:]]transform[[:space:]]*=[[:space:]]*[0-9]+[^}]*output[[:space:]]*=[[:space:]]*\"${output_re}\"[^}]*\}" "$monitor_lua" \
+       || grep -Eq "^[[:space:]]*hl\.monitor[[:space:]]*\([^}]*output[[:space:]]*=[[:space:]]*\"${output_re}\"[^}]*[[:space:]]transform[[:space:]]*=[[:space:]]*[0-9]+[^}]*\}" "$monitor_lua"; then
+      sed -i -E \
+        -e "/^[[:space:]]*hl\.monitor[[:space:]]*\([[:space:]]*\{/!b" \
+        -e "/output[[:space:]]*=[[:space:]]*\"${output_re}\"/!b" \
+        -e "s/(transform[[:space:]]*=[[:space:]]*)[0-9]+/\\1${transform}/" \
+        "$monitor_lua" || { echo "Could not update the rotation rule in $monitor_lua" >&2; return 1; }
+    else
+      sed -i -E \
+        -e "/^[[:space:]]*hl\.monitor[[:space:]]*\([[:space:]]*\{/!b" \
+        -e "/output[[:space:]]*=[[:space:]]*\"${output_re}\"/!b" \
+        -e "s/[[:space:]]\}[[:space:]]*\)$/, transform = ${transform} })/" \
+        "$monitor_lua" || { echo "Could not update the rotation rule in $monitor_lua" >&2; return 1; }
+    fi
+  else
+    printf '\nhl.monitor({ output = "%s", transform = %s })\n' "$name" "$transform" >>"$monitor_lua" || { echo "Could not write the rotation rule to $monitor_lua" >&2; return 1; }
+  fi
+
+  if (( locked )); then
+    flock -u 9
+  fi
+}
+
+set_rotation() {
+  local name="$1" degrees="$2" transform
+  transform="$(transform_for "$degrees")" || {
+    usage >&2
+    return 1
+  }
+
+  # Apply first; only persist what actually took effect.
+  # Persist exit 1 = hard failure (reported); exit 2 = no config, a supported
+  # runtime-only mode (noted on stderr, still a success).
+  apply_rotation "$name" "$transform" || return 1
+  local rc=0
+  persist_rotation "$name" "$transform" || rc=$?
+  if [[ $rc -eq 1 ]]; then
+    return 1
+  fi
+  echo "Rotation $(rotation_for "$transform") degrees for $name"
+}
+
+case "${1:-}" in
+"")
+  show
+  ;;
+-h | --help)
+  usage
+  ;;
+up)
+  show >/dev/null || exit 1
+  set_rotation "$(focused_name)" "$(( ( $(show) + 90) % 360 ))"
+  ;;
+down)
+  show >/dev/null || exit 1
+  set_rotation "$(focused_name)" "$(( ( $(show) + 270) % 360 ))"
+  ;;
+0 | 90 | 180 | 270)
+  set_rotation "$(focused_name)" "$1"
+  ;;
+*)
+  degrees="${2:-}"
+  if [[ -n $degrees ]]; then
+    set_rotation "$1" "$degrees"
+  else
+    usage >&2
+    exit 1
+  fi
+  ;;
+esac
