@@ -3,7 +3,7 @@
 # omarchy:group=transcode
 # omarchy:name=
 # omarchy:summary=Transcode pictures and videos for sharing
-# omarchy:args=[--path path] [input] [format] [resolution] | --batch <input...>
+# omarchy:args=[--path path] [input] [format] [resolution] [| --batch <input...>]
 # omarchy:examples=omarchy transcode|omarchy transcode --path ~/Downloads|omarchy transcode ~/Videos/demo.mov mp4 1080p|omarchy transcode ~/Pictures/background.heic jpg medium
 
 set -euo pipefail
