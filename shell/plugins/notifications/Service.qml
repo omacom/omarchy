@@ -282,10 +282,10 @@ Item {
   //
   // One clock for the whole deck: each card interpolates from `was` to its
   // placement by t. A Behavior per card would restart on every retarget.
-  // A strong ease-out with no overshoot: the cards answer at once and settle
+  // Style's strong ease-out, with no overshoot: the cards answer at once and settle
   // without a bounce. Whatever leaves (a card, an open deck) goes quicker than
   // it came, since nobody is waiting on it.
-  readonly property var sceneCurve: [0.23, 1.0, 0.32, 1.0, 1.0, 1.0]
+  readonly property var sceneCurve: Style.easeOut
   readonly property int arriveDuration: 250
   readonly property int leaveDuration: 200
   property int sceneDuration: arriveDuration

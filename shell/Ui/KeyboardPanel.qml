@@ -110,7 +110,7 @@ PanelWindow {
   // Keyboard focus follows `open` (NOT `visible`). The window remains
   // mapped during the fade-out so the opacity animation has something to
   // animate, but keyboard/click ownership must release the moment the
-  // logical close fires — otherwise the user is locked out for 140ms.
+  // logical close fires — otherwise the user is locked out until it ends.
   //
   // Prime with Exclusive on every open, then settle on OnDemand. Hyprland
   // focuses OnDemand when a surface first maps, but not when an already-mapped
@@ -241,6 +241,17 @@ PanelWindow {
     x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
     y = Math.max(margin, Math.min(y, screenH - contentHeight - margin))
     return Qt.point(Math.round(x), Math.round(y))
+  }
+
+  // Where the card grows from, in its own coordinates: the point on its
+  // bar-facing edge nearest the icon it hangs from.
+  readonly property point growOrigin: {
+    var x = Math.max(0, Math.min(anchorScreenPos.x + anchorW / 2 - cardOrigin.x, contentWidth))
+    var y = Math.max(0, Math.min(anchorScreenPos.y + anchorH / 2 - cardOrigin.y, contentHeight))
+    if (barPos === "bottom") return Qt.point(x, contentHeight)
+    if (barPos === "left") return Qt.point(0, y)
+    if (barPos === "right") return Qt.point(contentWidth, y)
+    return Qt.point(x, 0)
   }
 
 
@@ -411,11 +422,26 @@ PanelWindow {
     borderSpec: root.borderSpec
     padding: root.padding
     radius: Style.cornerRadius
-    opacity: root.open || root.popoutSwitching ? 1.0 : 0
 
-    Behavior on opacity {
+    // The card fades in as it grows out of the bar from just under full size,
+    // toward the icon it hangs from, and goes in two thirds of the time. A
+    // switch between panels doesn't move the card, and a keypress jumps it.
+    property real shown: root.open || root.popoutSwitching ? 1 : 0
+    Behavior on shown {
+      id: showing
       enabled: !root.popoutSwitching && !root.popoutSwitchClosing
-      NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+      NumberAnimation {
+        duration: Style.duration(showing.targetValue > 0 ? 180 : 120)
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Style.easeOut
+      }
+    }
+    opacity: shown
+    transform: Scale {
+      origin.x: root.growOrigin.x
+      origin.y: root.growOrigin.y
+      xScale: 0.97 + 0.03 * card.shown
+      yScale: 0.97 + 0.03 * card.shown
     }
 
     // Swallow clicks on the card so they don't bubble to the dismissal
