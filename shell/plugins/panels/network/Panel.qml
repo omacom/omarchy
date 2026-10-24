@@ -1033,14 +1033,14 @@ Panel {
     id: connectionPhraseSwap
     PropertyAnimation {
       target: panel.loadedContent ? panel.loadedContent.heroMeta : null; property: "opacity"
-      to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(150); easing.type: Easing.OutCubic
     }
     ScriptAction {
       script: root.connectionPhraseIndex = (root.connectionPhraseIndex + 1) % root.connectionPhrases.length
     }
     PropertyAnimation {
       target: panel.loadedContent ? panel.loadedContent.heroMeta : null; property: "opacity"
-      to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(200); easing.type: Easing.OutCubic
     }
   }
 
