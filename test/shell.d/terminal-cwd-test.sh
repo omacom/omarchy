@@ -31,7 +31,17 @@ done
 
 cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
-[[ -n ${ACTIVE_PID:-} ]] && printf 'Window 1 -> terminal:\n\tpid: %s\n' "$ACTIVE_PID"
+if [[ -n ${HYPRCTL_DOWN:-} ]]; then
+  echo "HYPRLAND_INSTANCE_SIGNATURE not set! (is hyprland running?)"
+  exit 1
+elif [[ -z ${ACTIVE_PID:-} ]]; then
+  echo '{}'
+elif [[ $1 == "activewindow" && $2 == "-j" ]]; then
+  # A window title is free text. The one that ends the text form's header in "pid:" is the case that matters.
+  printf '{"address":"0x1","title":"%s","pid":%s}\n' "${ACTIVE_TITLE:-terminal}" "$ACTIVE_PID"
+else
+  printf 'Window 1 -> %s:\n\tpid: %s\n' "${ACTIVE_TITLE:-terminal}" "$ACTIVE_PID"
+fi
 exit 0
 SH
 chmod +x "$stub_bin/hyprctl"
@@ -40,9 +50,19 @@ cwd=$(ACTIVE_PID="$terminal_pid" PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_t
 [[ $cwd == "$work_dir" ]] || fail "a new terminal opens in the focused terminal's shell directory" "got: $cwd"
 pass "a new terminal opens in the focused terminal's shell directory"
 
+rapid_dir=my-rapid
+cwd=$(ACTIVE_PID="$terminal_pid" ACTIVE_TITLE=$rapid_dir PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd")
+[[ $cwd == "$work_dir" ]] || fail "a window titled like a pid line still finds its shell directory" "got: $cwd"
+pass "a window titled like a pid line still finds its shell directory"
+
 output=$(PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" HOME="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" 2>&1)
 [[ $output == "$test_tmp" ]] || fail "with no focused terminal the new one opens in HOME" "got: $output"
 pass "with no focused terminal the new one opens in HOME, quietly"
+
+# hyprctl reports a missing Hyprland on stdout, which is not JSON.
+output=$(HYPRCTL_DOWN=1 PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" HOME="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" 2>&1)
+[[ $output == "$test_tmp" ]] || fail "with Hyprland unreachable the new one opens in HOME" "got: $output"
+pass "with Hyprland unreachable the new one opens in HOME, quietly"
 
 # The Super+Return binding hands over the focused window's pid, so Hyprland is
 # not asked again; a hyprctl that fails the test proves it goes unasked.
