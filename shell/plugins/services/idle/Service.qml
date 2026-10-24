@@ -12,6 +12,8 @@ Item {
   // Injected by omarchy-shell (the first-party service loader).
   property var shell: null
 
+  signal resumed()
+
   readonly property string home: Quickshell.env("HOME")
   readonly property string stayAwakeStateDir: home + "/.local/state/omarchy/indicators"
   readonly property string stayAwakeStatePath: stayAwakeStateDir + "/stay-awake"
@@ -301,6 +303,22 @@ Item {
   Connections {
     target: Hyprland
     function onRawEvent(event) { root.handleHyprlandEvent(event) }
+  }
+
+  // One event stream for the session, including while Stay Awake is enabled.
+  // SplitParser consumes each line instead of retaining the session's output.
+  Process {
+    id: sleepMonitor
+    running: true
+    command: ["dbus-monitor", "--system", "type='signal',sender='org.freedesktop.login1',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        if (String(line).trim() === "boolean false") root.resumed()
+      }
+    }
+    onExited: function(exitCode, exitStatus) {
+      root.logEvent("sleep-monitor-exit", "exitCode=" + exitCode + " status=" + exitStatus)
+    }
   }
 
   Process {
