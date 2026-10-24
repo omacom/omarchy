@@ -16,7 +16,7 @@ Item {
 
   property bool stateLoaded: false
   property var temperature: null
-  readonly property bool enabled: stateLoaded && NightlightModel.isNightlight(temperature)
+  readonly property bool nightlightOn: stateLoaded && NightlightModel.isNightlight(temperature)
 
   property bool hasPendingTemperature: false
   property int pendingTemperature: 0
@@ -30,7 +30,7 @@ Item {
   }
 
   function toggle() {
-    setNightlight(!enabled)
+    setNightlight(!nightlightOn)
   }
 
   function applyTemperature(temp) {
@@ -90,7 +90,7 @@ Item {
     target: "nightlight"
 
     function status(): string {
-      return JSON.stringify({ enabled: root.enabled, temperature: root.temperature })
+      return JSON.stringify({ enabled: root.nightlightOn, temperature: root.temperature })
     }
 
     function refresh(): void {
@@ -108,7 +108,7 @@ Item {
     }
 
     function toggle(): string {
-      var enabling = !root.enabled
+      var enabling = !root.nightlightOn
       root.setNightlight(enabling)
       return enabling ? "enabled" : "disabled"
     }

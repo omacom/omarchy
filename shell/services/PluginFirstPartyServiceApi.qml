@@ -8,6 +8,7 @@ QtObject {
 
   property bool stayAwake: false
   property bool enabled: false
+  property bool nightlightOn: false
   property bool doNotDisturb: false
   property var activePlayer: null
   property var sourcePlayers: []
