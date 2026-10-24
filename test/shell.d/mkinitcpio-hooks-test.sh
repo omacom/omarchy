@@ -21,7 +21,7 @@ printf '%s\0' apple,j416c qcom,x1e80100 >"$test_tmp/platforms/contradiction/proc
 etc="$test_tmp/etc"
 devices="$test_tmp/devices"
 
-omarchy_hooks="base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt filesystems fsck btrfs-overlayfs"
+omarchy_hooks="base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block omarchy-numlock encrypt filesystems fsck btrfs-overlayfs"
 omarchy_hooks_without_kms=${omarchy_hooks/ kms / }
 apple_hooks="base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block filesystems fsck"
 nvidia_modules="nvidia nvidia_modeset nvidia_uvm nvidia_drm"
@@ -181,15 +181,15 @@ CONF
 assert_hooks "a platform fragment's hooks survive on Apple Silicon" aarch64-apple \
   "base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block platform-firmware filesystems fsck platform-late"
 assert_hooks "a platform fragment's hooks survive on plain aarch64" aarch64 \
-  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
+  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block omarchy-numlock encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
 assert_hooks "a platform fragment's hooks survive on x86" x86 \
-  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
+  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block omarchy-numlock encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
 
 # The NVIDIA filter still runs after the fragment and removes only kms.
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 pci_devices 0x10de:0x030000
 assert_hooks "the NVIDIA filter keeps a platform fragment's hooks" x86 \
-  "base udev plymouth keyboard autodetect microcode modconf keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
+  "base udev plymouth keyboard autodetect microcode modconf keymap consolefont block omarchy-numlock encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
 
 # Existing x86 configurations build the image they built before the baseline
 # moved: the same HOOKS, MODULES and FILES.

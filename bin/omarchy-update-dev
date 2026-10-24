@@ -4,6 +4,11 @@
 
 set -euo pipefail
 
+# sudo does not keep OMARCHY_PATH. The script path is the checkout, and the
+# packaged command is the one that should skip this step.
+source "${BASH_SOURCE[0]%/*}/omarchy-security-functions"
+omarchy_security_adopt_root "${BASH_SOURCE[0]}" || exit 0
+
 [[ $OMARCHY_PATH != "/usr/share/omarchy" ]] || exit 0
 
 if ! git -C "$OMARCHY_PATH" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
