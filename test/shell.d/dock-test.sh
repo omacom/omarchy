@@ -181,15 +181,33 @@ chmod +x "$mock_bin/omarchy-hyprland-workspace-layout-current"
 minimize() { PATH="$mock_bin:$ROOT/bin:$PATH" omarchy-hyprland-window-minimize "$@"; }
 
 minimize 0xabc
+grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-3", window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
+  fail "minimize remembers the workspace the window left" "$(cat "$TMPDIR/hyprctl.log")"
 grep -qxF 'hl.dsp.window.move({ workspace = "special:minimized", follow = false, window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
   fail "minimize moves the window to the dock's hidden workspace" "$(cat "$TMPDIR/hyprctl.log")"
 [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dsp.focus({ workspace = "3" })' ]] ||
   fail "minimize focuses the workspace the window left" "$(cat "$TMPDIR/hyprctl.log")"
 : >"$TMPDIR/hyprctl.log"
 minimize
-grep -qF 'address:0xdef' "$TMPDIR/hyprctl.log" && [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dsp.focus({ workspace = "5" })' ]] ||
+grep -qF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-5", window = "address:0xdef" })' "$TMPDIR/hyprctl.log" &&
+  grep -qF 'address:0xdef' "$TMPDIR/hyprctl.log" && [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dsp.focus({ workspace = "5" })' ]] ||
   fail "minimize takes the active window when given none" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize sends a window to the dock and keeps focus on its workspace"
+
+cat >"$mock_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  clients) printf '[{"address":"0xabc","workspace":{"id":7},"tags":["omarchy-minimized-from-3"]}]\n' ;;
+  dispatch) printf '%s\n' "\$2" >>"$TMPDIR/hyprctl.log" ;;
+esac
+STUB
+: >"$TMPDIR/hyprctl.log"
+minimize 0xabc
+grep -qxF 'hl.dsp.window.tag({ tag = "-omarchy-minimized-from-3", window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
+  fail "minimize forgets the previous workspace" "$(cat "$TMPDIR/hyprctl.log")"
+grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-7", window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
+  fail "minimize remembers the workspace it leaves this time" "$(cat "$TMPDIR/hyprctl.log")"
+pass "minimize remembers only the workspace the window is leaving"
 
 # A tiled workspace has no dock to bring a window back from, so nothing there
 # is minimized.

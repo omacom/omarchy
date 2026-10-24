@@ -212,8 +212,8 @@ Item {
         anchors.fill: parent
         opened: !!root.uninstallEntry
         z: 10
-        message: "Do you want to uninstall " + (root.uninstallEntry && root.appLibrary ? root.appLibrary.entryName(root.uninstallEntry) : "") + "?"
-        confirmText: "Uninstall"
+        message: Commons.I18n.t("common.uninstallConfirm").arg(root.uninstallEntry && root.appLibrary ? root.appLibrary.entryName(root.uninstallEntry) : "")
+        confirmText: Commons.I18n.t("common.uninstall")
         background: Commons.Color.menu.background
         foreground: Commons.Color.menu.text
         scrim: Commons.Color.menu.scrim
@@ -244,9 +244,9 @@ Item {
             else root.close()
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
-          } else if (event.key === Qt.Key_Left) {
+          } else if (Util.readingKey(event) === Qt.Key_Left) {
             root.select(-1)
-          } else if (event.key === Qt.Key_Right) {
+          } else if (Util.readingKey(event) === Qt.Key_Right) {
             root.select(1)
           } else if (event.key === Qt.Key_Up) {
             root.select(-root.columns)
@@ -286,7 +286,7 @@ Item {
             anchors.rightMargin: Style.spacing.controlPaddingX
             anchors.verticalCenter: parent.verticalCenter
             textFormat: Text.PlainText
-            text: root.filterText || "Search apps…"
+            text: root.filterText || Commons.I18n.t("dock.searchApps")
             color: Commons.Color.menu.text
             opacity: root.filterText ? 1 : 0.58
             font.family: Style.font.menuFamily
@@ -402,7 +402,7 @@ Item {
             anchors.centerIn: parent
             visible: root.apps.length === 0
             textFormat: Text.PlainText
-            text: "No apps match “" + root.filterText + "”"
+            text: Commons.I18n.t("dock.noAppsMatch").arg(root.filterText)
             color: Commons.Color.menu.text
             opacity: 0.7
             font.family: Style.font.menuFamily
@@ -435,7 +435,10 @@ Item {
       visible: !!entry && !root.dragging
       width: Math.max(Style.space(160), menuColumn.implicitWidth) + padding * 2
       height: menuColumn.implicitHeight + padding * 2
-      x: Math.min(root.menuPoint.x, panel.width - width - Style.gapsOut)
+      // Opens along the reading direction from the pointer.
+      x: LayoutMirroring.enabled
+        ? Math.max(Style.gapsOut, root.menuPoint.x - width)
+        : Math.min(root.menuPoint.x, panel.width - width - Style.gapsOut)
       y: Math.min(root.menuPoint.y, panel.height - height - Style.gapsOut)
       radius: Style.cornerRadius
       color: Commons.Color.popups.background
@@ -449,7 +452,7 @@ Item {
         width: menu.width - menu.contentLeftInset - menu.contentRightInset
 
         MenuRow {
-          text: "Open"
+          text: Commons.I18n.t("dock.open")
           onTriggered: {
             var entry = menu.entry
             root.close()
@@ -460,16 +463,16 @@ Item {
 
         MenuRow {
           visible: !!root.dock
-          text: menu.pinned ? "Remove from Dock" : "Keep in Dock"
+          text: menu.pinned ? Commons.I18n.t("dock.removeFromDock") : Commons.I18n.t("dock.keepInDock")
           onTriggered: {
             if (root.dock && menu.entry) root.dock.setPinned(String(menu.entry.id || ""), !menu.pinned)
             root.menuEntry = null
           }
+        }
 
         MenuRow {
-          text: "Uninstall"
+          text: Commons.I18n.t("dock.uninstall")
           onTriggered: root.requestUninstall(menu.entry)
-        }
         }
       }
     }
@@ -488,7 +491,8 @@ Item {
 
     Text {
       anchors.verticalCenter: parent.verticalCenter
-      x: Style.spacing.controlPaddingX
+      anchors.left: parent.left
+      anchors.leftMargin: Style.spacing.controlPaddingX
       textFormat: Text.PlainText
       text: row.text
       color: Commons.Color.popups.text

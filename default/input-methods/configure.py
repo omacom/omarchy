@@ -150,7 +150,7 @@ def activation_default():
 def transaction(config_home):
   data_home = Path(os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local/share"))
   paths = [config_home / "fcitx5" / name for name in ["profile", "config", "conf/quickphrase.conf", "conf/wayland.conf", "conf/xcb.conf", "conf/pinyin.conf"]]
-  paths += [config_home / "fontconfig/conf.d/50-omarchy-input-method.conf", data_home / "dbus-1/services/org.fcitx.Fcitx5.service"]
+  paths += [font_path(config_home), data_home / "dbus-1/services/org.fcitx.Fcitx5.service"]
   before = {path.resolve(): path.read_text() if path.exists() else None for path in paths}
   try:
     yield
@@ -168,8 +168,8 @@ def selection():
   preference = values(read(Path(os.environ.get("OMARCHY_INPUT_SELECTION", "/etc/omarchy/input-method"))))
   layout = vconsole.get("XKBLAYOUT", "us").split(",")[0] or "us"
   variant = vconsole.get("XKBVARIANT", "").split(",")[0]
-  if preference.get("XKB_LAYOUT") in ("kr", "la") and vconsole.get("XKBLAYOUT", "us") == "us" and not variant:
-    layout, variant = preference["XKB_LAYOUT"], ""
+  if preference.get("XKB_LAYOUT") in ("kr", "kr:kr104", "la") and vconsole.get("XKBLAYOUT", "us") == "us" and not variant:
+    layout, _, variant = preference["XKB_LAYOUT"].partition(":")
   method = preference.get("INPUT_METHOD", "mozc" if layout == "jp" else "none")
   if method not in PRESETS:
     raise ValueError(f"Unknown installed input method: {method}")
@@ -194,25 +194,51 @@ def stock_profile(text):
     and not groups.get("Groups/0/Items/0", {}).get("Layout"))
 
 
+def engine_layout(method, group_layout):
+  # Hangul, Zhuyin and Cangjie keys sit where QWERTY puts them whatever the
+  # Latin layout, so Dvorak or AZERTY must not move them. Korean and JIS layouts
+  # already put them there, and keep their own input keys (한/영, 半角/全角).
+  layout = PRESETS.get(method, {}).get("layout", "")
+  if not layout or group_layout == layout or group_layout.split("-")[0] in ("kr", "jp"):
+    return ""
+  return layout
+
+
 def profile_text(layout, method):
   default_im = method if method != "none" else f"keyboard-{layout}"
   text = f"[Groups/0]\nName=Default\nDefault Layout={layout}\nDefaultIM={default_im}\n\n[Groups/0/Items/0]\nName=keyboard-{layout}\nLayout=\n"
   if method != "none":
-    text += f"\n[Groups/0/Items/1]\nName={method}\nLayout=\n"
+    text += f"\n[Groups/0/Items/1]\nName={method}\nLayout={engine_layout(method, layout)}\n"
   return text + "\n[GroupOrder]\n0=Default\n"
 
 
-def font_default(config_home, method):
-  variant = PRESETS[method]["font"]
-  path = config_home / "fontconfig/conf.d/50-omarchy-input-method.conf"
-  if not variant or path.exists() or path.is_symlink():
-    return
+FONT_VARIANTS = ("JP", "KR", "SC", "TC", "HK")
+
+
+def font_path(config_home):
+  return config_home / "fontconfig/conf.d/50-omarchy-input-method.conf"
+
+
+def font_set(config_home, variant):
+  if variant is not None and variant not in FONT_VARIANTS:
+    raise ValueError(f"Unknown CJK variant: {variant}")
   # Only CJK fallback changes; retain the interface and terminal's Latin font.
+  # No variant still writes the file, so a later language or input method
+  # does not seed over an explicit return to the system's choice.
   rules = []
   for families, face in [("sans-serif|Liberation Sans", "Sans"), ("serif|Liberation Serif", "Serif"), ("monospace|JetBrainsMono Nerd Font", "Sans Mono")]:
     for family in families.split("|"):
-      rules.append(f'<alias><family>{family}</family><accept><family>Noto {face} CJK {variant}</family></accept></alias>')
-  atomic_write(path, '<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">\n<fontconfig>\n' + "\n".join(rules) + "\n</fontconfig>\n")
+      if variant:
+        rules.append(f'<alias><family>{family}</family><accept><family>Noto {face} CJK {variant}</family></accept></alias>')
+  atomic_write(font_path(config_home), '<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">\n<fontconfig>\n' + "\n".join(rules) + "\n</fontconfig>\n")
+
+
+def font_default(config_home, method, variant=None):
+  variant = variant or PRESETS[method]["font"]
+  path = font_path(config_home)
+  if not variant or path.exists() or path.is_symlink():
+    return
+  font_set(config_home, variant)
 
 
 def live_group():
@@ -291,7 +317,7 @@ def configure_inner(args, config_home, running):
           new_items = [[f"keyboard-{layout}", ""]]
           if method != "none":
             if any(item[0] == method for item in available_methods()):
-              new_items.append([method, ""])
+              new_items.append([method, engine_layout(method, layout)])
             else:
               print(f"Finish input setup after login: omarchy setup input {method}", file=sys.stderr)
           live_set(group, layout, new_items)
@@ -317,10 +343,20 @@ def main():
   mode = configure_parser.add_mutually_exclusive_group(required=True)
   mode.add_argument("--seed", action="store_true")
   mode.add_argument("--defaults", action="store_true")
+  font_parser = commands.add_parser("font")
+  font_parser.add_argument("--seed", action="store_true")
+  font_parser.add_argument("variant", choices=[variant.lower() for variant in FONT_VARIANTS] + ["default"])
   args = parser.parse_args()
+  config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
   if args.command == "status":
     method, layout = selection()
     print(json.dumps({"installed_method": method, "layout": layout}))
+  elif args.command == "font" and args.variant == "default":
+    font_set(config_home, None)
+  elif args.command == "font" and args.seed:
+    font_default(config_home, None, args.variant.upper())
+  elif args.command == "font":
+    font_set(config_home, args.variant.upper())
   else:
     configure(args)
 

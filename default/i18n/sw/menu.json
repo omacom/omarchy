@@ -1,0 +1,1166 @@
+{
+  "root": {
+    "label": "Nenda"
+  },
+  "apps": {
+    "label": "Programu"
+  },
+  "learn": {
+    "label": "Jifunze"
+  },
+  "appearance": {
+    "label": "Muonekano"
+  },
+  "trigger": {
+    "label": "Anzisha"
+  },
+  "setup": {
+    "label": "Sanidi"
+  },
+  "install": {
+    "label": "Sakinisha"
+  },
+  "remove": {
+    "label": "Ondoa"
+  },
+  "update": {
+    "label": "Sasisha"
+  },
+  "about": {
+    "label": "Kuhusu"
+  },
+  "system": {
+    "label": "Mfumo"
+  },
+  "system.screensaver": {
+    "label": "Kiokozi cha skrini"
+  },
+  "system.lock": {
+    "label": "Funga"
+  },
+  "system.suspend": {
+    "label": "Sitisha"
+  },
+  "system.hibernate": {
+    "label": "Sinzia"
+  },
+  "system.logout": {
+    "label": "Toka"
+  },
+  "system.reboot": {
+    "label": "Anzisha upya"
+  },
+  "system.shutdown": {
+    "label": "Zima"
+  },
+  "learn.keybindings": {
+    "label": "Mikato ya vitufe"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Jumuiya"
+  },
+  "appearance.theme": {
+    "label": "Mandhari"
+  },
+  "appearance.background": {
+    "label": "Mandhari ya nyuma"
+  },
+  "appearance.font": {
+    "label": "Fonti"
+  },
+  "appearance.top-bar": {
+    "label": "Upau wa menyu"
+  },
+  "appearance.top-bar.hide": {
+    "label": "Ficha upau"
+  },
+  "appearance.top-bar.show": {
+    "label": "Onyesha upau"
+  },
+  "appearance.top-bar.position": {
+    "label": "Nafasi ya upau"
+  },
+  "appearance.top-bar.background": {
+    "label": "Mandhari ya upau"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "Upau usioangavu"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "Upau wa kioo"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "Upau wazi"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "Viashiria vya upau"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "Saa"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Jumapili 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Jumapili 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Jumapili 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Jumapili 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "Jum 3 Mei 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "Jum 3 Mei 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 Mei W18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 Mei W18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "Upau wa juu"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "Upau wa chini"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "Upau wa kushoto"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "Upau wa kulia"
+  },
+  "appearance.windows.corners": {
+    "label": "Pembeni za madirisha"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "Pembeni za mandhari"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "Pembeni kali"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "Pembeni za mviringo"
+  },
+  "appearance.windows.transparency": {
+    "label": "Uangavu wa madirisha"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "Madirisha yasioangavu"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "Madirisha angavu"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "Madirisha ya kioo"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Kiokozi cha skrini"
+  },
+  "appearance.branding.about": {
+    "label": "Kuhusu"
+  },
+  "appearance.branding.about.text": {
+    "label": "Hariri maandishi"
+  },
+  "appearance.branding.about.image": {
+    "label": "Weka kutoka picha"
+  },
+  "appearance.branding.about.default": {
+    "label": "Rejesha chaguomsingi"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Hariri maandishi"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Weka kutoka picha"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Rejesha chaguomsingi"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Ficha Dock kiotomatiki"
+  },
+  "appearance.dock.always-on": {
+    "label": "Dock wa daima"
+  },
+  "appearance.dock.position": {
+    "label": "Nafasi ya Dock"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock wa juu"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock wa chini"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock wa kushoto"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock wa kulia"
+  },
+  "appearance.workspace-layout": {
+    "label": "Mpangilio wa nafasi ya kazi",
+    "title": "Mpangilio chaguomsingi wa nafasi ya kazi"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "Vigae"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "Kusogeza"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "Kuelea"
+  },
+  "appearance.unlock": {
+    "label": "Fungua"
+  },
+  "trigger.toggle": {
+    "label": "Badilisha"
+  },
+  "trigger.emoji": {
+    "label": "Emoji"
+  },
+  "trigger.clipboard-history": {
+    "label": "Historia ya ubao wa kunakili"
+  },
+  "trigger.reminder": {
+    "label": "Kikumbusho"
+  },
+  "trigger.capture": {
+    "label": "Nasa"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Picha ya skrini"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Acha kurekodi skrini"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Rekodi skrini"
+  },
+  "trigger.capture.text": {
+    "label": "Maandishi"
+  },
+  "trigger.capture.qr": {
+    "label": "Msimbo wa QR"
+  },
+  "trigger.capture.color": {
+    "label": "Rangi"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Bila sauti"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "Na sauti ya eneo-kazi"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "Na sauti ya eneo-kazi + maikrofoni"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "Na sauti ya eneo-kazi + maikrofoni + kamera ya wavuti"
+  },
+  "trigger.transcode": {
+    "label": "Geuza msimbo"
+  },
+  "trigger.share": {
+    "label": "Shiriki"
+  },
+  "trigger.hardware": {
+    "label": "Vifaa"
+  },
+  "trigger.tests": {
+    "label": "Jaribio la kasi"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Mtetema wa kiguso"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "chini"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "katikati"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "juu"
+  },
+  "trigger.reminder.set": {
+    "label": "Weka moja"
+  },
+  "trigger.reminder.show": {
+    "label": "Onyesha zote"
+  },
+  "trigger.reminder.clear": {
+    "label": "Futa zote"
+  },
+  "trigger.share.clipboard": {
+    "label": "Ubao wa kunakili"
+  },
+  "trigger.share.file": {
+    "label": "Faili"
+  },
+  "trigger.share.folder": {
+    "label": "Folda"
+  },
+  "trigger.share.receive": {
+    "label": "Pokea"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Jaribio la kasi ya mtandao"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Jaribio la kasi ya diski"
+  },
+  "setup.monitors": {
+    "label": "Skrini"
+  },
+  "setup.keybindings": {
+    "label": "Mikato ya vitufe"
+  },
+  "setup.input": {
+    "label": "Ingizo"
+  },
+  "setup.typing": {
+    "label": "Kuandika"
+  },
+  "setup.typing.keyboard": {
+    "label": "Miundo ya kibodi"
+  },
+  "setup.typing.input": {
+    "label": "Mbinu za ingizo"
+  },
+  "setup.language": {
+    "label": "Lugha"
+  },
+  "setup.network": {
+    "label": "Mtandao"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "Maalum"
+  },
+  "setup.network.qr": {
+    "label": "Msimbo wa QR"
+  },
+  "setup.default": {
+    "label": "Chaguomsingi"
+  },
+  "setup.default.agent": {
+    "label": "Ajenti",
+    "title": "Ajenti chaguomsingi"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "Kivinjari",
+    "title": "Kivinjari chaguomsingi"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Imla",
+    "title": "Imla chaguomsingi"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Terminali",
+    "title": "Terminali chaguomsingi"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Kihariri",
+    "title": "Kihariri chaguomsingi"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Programu-jalizi"
+  },
+  "setup.plugin.enable": {
+    "label": "Washa programu-jalizi"
+  },
+  "setup.plugin.disable": {
+    "label": "Zima programu-jalizi"
+  },
+  "setup.plugin.add": {
+    "label": "Ongeza programu-jalizi"
+  },
+  "setup.plugin.clone": {
+    "label": "Nakili programu-jalizi"
+  },
+  "setup.plugin.remove": {
+    "label": "Ondoa programu-jalizi"
+  },
+  "setup.security": {
+    "label": "Usalama"
+  },
+  "setup.config": {
+    "label": "Usanidi"
+  },
+  "setup.security.fingerprint": {
+    "label": "Alama ya kidole"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker bila sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Sudo bila nenosiri"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "Anza moja kwa moja"
+  },
+  "setup.reset": {
+    "label": "Weka upya kompyuta"
+  },
+  "install.package": {
+    "label": "Kifurushi"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "Huduma"
+  },
+  "install.development": {
+    "label": "Maendeleo"
+  },
+  "install.editor": {
+    "label": "Kihariri"
+  },
+  "install.style": {
+    "label": "Mtindo"
+  },
+  "install.style.theme": {
+    "label": "Mandhari"
+  },
+  "install.style.background": {
+    "label": "Mandhari ya nyuma"
+  },
+  "install.style.font": {
+    "label": "Fonti"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Michezo"
+  },
+  "install.browser": {
+    "label": "Kivinjari"
+  },
+  "install.webapp": {
+    "label": "Programu ya wavuti"
+  },
+  "install.terminal": {
+    "label": "Terminali"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Zilizosakinishwa awali"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Akaunti ya Chromium"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Vidhibiti vya Xbox"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "Kizinduzi cha michezo cha RetroArch"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Kifurushi"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "Ondoa"
+  },
+  "remove.dictation": {
+    "label": "Imla"
+  },
+  "remove.service": {
+    "label": "Huduma",
+    "title": "Ondoa"
+  },
+  "remove.development": {
+    "label": "Maendeleo",
+    "title": "Ondoa"
+  },
+  "remove.theme": {
+    "label": "Mandhari"
+  },
+  "remove.gaming": {
+    "label": "Michezo",
+    "title": "Ondoa"
+  },
+  "remove.browser": {
+    "label": "Kivinjari",
+    "title": "Ondoa"
+  },
+  "remove.webapp": {
+    "label": "Programu ya wavuti"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Zilizosakinishwa awali"
+  },
+  "remove.security": {
+    "label": "Usalama",
+    "title": "Ondoa"
+  },
+  "remove.security.fingerprint": {
+    "label": "Alama ya kidole"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker bila sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Vidhibiti vya Xbox (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Ondoa"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Ondoa"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Ondoa"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Kituo"
+  },
+  "update.config": {
+    "label": "Usanidi",
+    "title": "Weka upya kwa chaguomsingi"
+  },
+  "update.themes": {
+    "label": "Mandhari za ziada"
+  },
+  "update.process": {
+    "label": "Mchakato",
+    "title": "Anzisha upya"
+  },
+  "update.hardware": {
+    "label": "Vifaa",
+    "title": "Anzisha upya"
+  },
+  "update.firmware": {
+    "label": "Firmware"
+  },
+  "update.password": {
+    "label": "Nenosiri"
+  },
+  "update.timezone": {
+    "label": "Eneo la saa"
+  },
+  "update.time": {
+    "label": "Muda"
+  },
+  "update.channel.stable": {
+    "label": "Imara"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "Sauti"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Kiguso"
+  },
+  "update.password.drive": {
+    "label": "Usimbaji wa kiendeshaji"
+  },
+  "update.password.user": {
+    "label": "Mtumiaji"
+  },
+  "system.reboot-boot-menu": {
+    "label": "Washa upya kwa menyu ya kuwasha"
+  }
+}

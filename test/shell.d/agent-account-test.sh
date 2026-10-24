@@ -293,8 +293,8 @@ omarchy-agent-account-remove claude work </dev/null >/dev/null
 [[ -z $(omarchy-agent-account-home claude) ]] || fail "removing the active account falls back to the primary"
 pass "remove forgets an added account without touching shared files"
 
-# A registry that can't be saved leaves the new login pending, where the add
-# command cleans it up, rather than in a home nothing can manage.
+# A registry that can't be saved leaves the new login pending for recovery,
+# rather than in a home nothing can manage.
 STATE="$ROOT/bin/omarchy-agent-account-state" python3 - <<'PY' || fail "a failed registration rolls the new home back to pending"
 import importlib.machinery, importlib.util, json, os, sys
 loader = importlib.machinery.SourceFileLoader("state", os.environ["STATE"])
@@ -304,6 +304,7 @@ loader.exec_module(state)
 
 pending = state.begin("claude")
 (pending / ".claude.json").write_text(json.dumps({"oauthAccount": {"accountUuid": "u-stranded", "emailAddress": "stranded@example.com"}}))
+(pending / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {"accessToken": "test-token"}}))
 
 def broken_save(provider, registry):
   raise OSError("disk full")
@@ -317,7 +318,7 @@ else:
   sys.exit("register should fail when the registry can't be saved")
 assert pending.is_dir(), "the login goes back to pending"
 assert not (state.accounts_root() / "claude" / "stranded").exists(), "no home is left outside the registry"
-# The add command would remove it on exit; this test stands in for it.
+# Remove the recoverable fixture before later tests.
 import shutil
 shutil.rmtree(pending)
 PY

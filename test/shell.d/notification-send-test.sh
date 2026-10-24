@@ -183,6 +183,31 @@ if send "Head" --exec "" 2>/dev/null; then
 fi
 pass "notification wrapper rejects --exec with an empty program"
 
+# ---------------------------------------------------------------- --action
+# Each action's words are literals ending at the next --action or --with; the
+# data after --with takes the rest of the line and joins every action, so a
+# filename that reads like a flag stays part of the filename.
+: >"$args_file"
+send "Screenshot saved" "shot.png" --action Edit omasnap --file --action "Copy path" wl-copy -- \
+  --with "/tmp/a b --action x.png" >/dev/null
+load
+[[ $(hint_value omarchy-actions) == '[{"label":"Edit","argv":["omasnap","--file","/tmp/a b --action x.png"]},{"label":"Copy path","argv":["wl-copy","--","/tmp/a b --action x.png"]}]' ]] ||
+  fail "notification wrapper builds the actions hint" "$(hint_value omarchy-actions)"
+[[ $(hint_value omarchy-exec-argv) == '["omasnap","--file","/tmp/a b --action x.png"]' ]] ||
+  fail "the first action is the click command" "$(hint_value omarchy-exec-argv)"
+pass "notification wrapper builds --action buttons with --with data, the first as the click"
+
+if send "Head" --action One true --action Two true --action Three true --action Four true 2>/dev/null; then
+  fail "notification wrapper rejects a fourth action"
+fi
+if send "Head" --action Go true --exec mpv 2>/dev/null; then
+  fail "notification wrapper rejects --exec alongside --action"
+fi
+if send "Head" --with /tmp/x 2>/dev/null; then
+  fail "notification wrapper rejects --with without an action"
+fi
+pass "notification wrapper rejects too many actions, --exec with --action, and --with alone"
+
 # A description that begins with a dash is content, not options: a price, a
 # negative number, a diff line. It must reach the body, not error out.
 : >"$args_file"

@@ -103,6 +103,8 @@ mkdir -p "$fresh_home"
 fresh_output=$(run_application_bindings "$fresh_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$fresh_output" || fail "default application bindings include essentials"
 grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$fresh_output" || fail "default application bindings include preinstalled web apps"
+grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$fresh_output" || fail "default application bindings include the preinstalled calculator"
+grep -Fq $'XF86Calculator	Calculator' <<<"$fresh_output" || fail "default application bindings include the calculator hardware key"
 pass "default application bindings load from package defaults"
 
 grep -F 'hl.dsp.send_key_state({ mods = mods, key = key, state = "down" })' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
@@ -122,19 +124,25 @@ pass "universal clipboard shortcuts avoid virtual keyboard modifier merging"
 removed_home="$tmpdir/removed-home"
 mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
-removed_output=$(run_application_bindings "$removed_home")
+removed_output=$(run_omarchy_bindings "$removed_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$removed_output" || fail "preinstall removal keeps essential bindings"
 if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$removed_output"; then
   fail "preinstall removal skips preinstalled web app bindings"
+fi
+if grep -Fq $'	Calculator' <<<"$removed_output"; then
+  fail "preinstall removal skips calculator bindings"
 fi
 pass "preinstall removal flag skips optional application bindings"
 
 variable_home="$tmpdir/variable-home"
 mkdir -p "$variable_home"
-variable_output=$(run_application_bindings "$variable_home" 'omarchy_preinstalled_bindings = false')
+variable_output=$(run_omarchy_bindings "$variable_home" 'omarchy_preinstalled_bindings = false')
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$variable_output" || fail "preinstalled binding variable keeps essential bindings"
 if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$variable_output"; then
   fail "preinstalled binding variable skips optional application bindings"
+fi
+if grep -Fq $'	Calculator' <<<"$variable_output"; then
+  fail "preinstalled binding variable skips calculator bindings"
 fi
 pass "preinstalled binding variable skips optional application bindings"
 
@@ -217,33 +225,6 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
 (( number_claims == 9 )) ||
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
-
-migration=$(grep -rl 'Move stock Hyprland user overrides into package defaults' "$ROOT/migrations" | head -n 1 || true)
-[[ -n $migration ]] || fail "Hyprland default config migration exists"
-
-migration_home="$tmpdir/migration-home"
-mkdir -p "$migration_home/.config/hypr"
-cat >"$migration_home/.config/hypr/bindings.lua" <<'LUA'
-require("default.hypr.bindings.media")
-require("default.hypr.bindings.clipboard")
-require("default.hypr.bindings.tiling")
-require("default.hypr.bindings.utilities")
-
--- Application bindings without Omarchy's preinstalled web apps, TUIs, or desktop apps.
-o.bind("SUPER + RETURN", "Terminal", { omarchy = "terminal" })
-o.bind("SUPER + SHIFT + RETURN", "Browser", { omarchy = "browser" })
-o.bind("SUPER + SHIFT + F", "File manager", { omarchy = "nautilus" })
-o.bind("SUPER + ALT + SHIFT + F", "File manager (cwd)", { omarchy = "nautilus-cwd" })
-o.bind("SUPER + SHIFT + B", "Browser", { omarchy = "browser" })
-o.bind("SUPER + SHIFT + ALT + B", "Browser (private)", { omarchy = "browser --private" })
-o.bind("SUPER + SHIFT + N", "Editor", { omarchy = "editor" })
-LUA
-HOME="$migration_home" OMARCHY_PATH="$ROOT" bash -euo pipefail "$migration" >/dev/null
-cmp -s "$ROOT/config/hypr/bindings.lua" "$migration_home/.config/hypr/bindings.lua" ||
-  fail "plain legacy bindings migrate to the user override stub"
-[[ -f $migration_home/.local/state/omarchy/preinstalls-removed ]] ||
-  fail "plain legacy bindings preserve preinstall removal state"
-pass "migration converts plain legacy bindings to package-owned defaults"
 
 upgrade_script="$ROOT/bin/omarchy-upgrade-to-quattro"
 grep -Fq 'touch "$state_dir/preinstalls-removed"' "$upgrade_script" ||

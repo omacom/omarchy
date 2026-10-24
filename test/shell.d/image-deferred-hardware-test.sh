@@ -367,10 +367,14 @@ keyring_bin="$test_tmp/keyring-bin"
 mkdir -p "$keyring_bin" "$fixture/install/post-install"
 # Finalization's repositories are pacman-templates-test.sh's; here they land in
 # the root under test, never the host's /etc.
-sed 's|/etc/pacman|$OMARCHY_IMAGE_ROOT/etc/pacman|g' "$ROOT/install/post-install/pacman.sh" >"$fixture/install/post-install/pacman.sh"
+cp "$ROOT/install/post-install/pacman.sh" "$fixture/install/post-install/pacman.sh"
 cp "$ROOT/install/helpers/pacman.sh" "$fixture/install/helpers/pacman.sh"
+target_etc='etc="${2:-/}/etc"'
+grep -Fqx "  $target_etc" "$ROOT/bin/omarchy-apply-pacman" || fail "omarchy-apply-pacman still names its target etc"
+sed "s|^  $target_etc\$|  etc=\"\${2:-\$OMARCHY_IMAGE_ROOT}/etc\"|" "$ROOT/bin/omarchy-apply-pacman" >"$fixture/bin/omarchy-apply-pacman"
+chmod +x "$fixture/bin/omarchy-apply-pacman"
 mkdir -p "$fixture/default"
-cp -r "$ROOT/default/pacman" "$fixture/default/"
+cp -r "$ROOT/default/pacman" "$ROOT/default/regions" "$fixture/default/"
 : >"$fixture/install/hardware/pacman.sh"
 for command in pacman-key omarchy-pkg-add; do
   cat >"$keyring_bin/$command" <<'SH'

@@ -23,3 +23,7 @@ omarchy-install-chromium-ytdlp
 if [[ $INSTALL_GOOGLE_ACCOUNTS == "true" ]]; then
   omarchy-install-chromium-google-account
 fi
+
+# Put the Snapdragon video decoding settings back. Last, so a failure here is
+# the command's result.
+omarchy-install-video-decode

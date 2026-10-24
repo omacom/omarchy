@@ -17,3 +17,11 @@ pass "packaged Limine defaults keep PID 1 from waiting on the console"
 grep -Fxq 'BOOT_ORDER="linux-t2, linux-omarchy, linux-omarchy-*, *, *fallback, Snapshots"' "$packaged_defaults" ||
   fail "packaged Limine defaults protect T2 Macs and prefer the exact Omarchy kernel elsewhere"
 pass "packaged Limine defaults protect T2 Macs and prefer the exact Omarchy kernel elsewhere"
+
+limine_template="$ROOT/default/limine/limine.conf"
+grep -Fxq 'timeout: 1' "$limine_template" ||
+  fail "the Limine template still waits out a long boot menu timeout"
+pass "Limine template waits 1 second for a key at boot"
+grep -Fxq 'quiet: yes' "$limine_template" ||
+  fail "the Limine template still draws the boot menu on every boot"
+pass "Limine template keeps the boot menu quiet until a key is pressed"

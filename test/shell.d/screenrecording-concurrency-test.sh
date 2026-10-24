@@ -49,10 +49,26 @@ case $1 in
   unload-module) rm -f "$TEST_STATE/module-$2" ;;
 esac
 SH
+# The contended invocations wait 1s for the lock before deciding a start
+# is in progress; the starts under test are gated, so 0.2s decides the same.
 cat >"$tmp/bin/flock" <<'SH'
 #!/bin/bash
 [[ ${TEST_ROLE:-} == "new-start" ]] && touch "$TEST_STATE/lock-attempted"
+if [[ ${1:-} == "-w" && ${2:-} == "1" ]]; then
+  shift 2
+  set -- -w 0.2 "$@"
+fi
 exec /usr/bin/flock "$@"
+SH
+# The recorder-exit polls (0.1s TERM grace, 0.2s ready wait) run shorter;
+# the test's own shorter sleeps pass through untouched.
+cat >"$tmp/bin/sleep" <<'SH'
+#!/bin/bash
+case "${1:-}" in
+  0.1) exec /usr/bin/sleep 0.02 ;;
+  0.2) exec /usr/bin/sleep 0.05 ;;
+  *) exec /usr/bin/sleep "$@" ;;
+esac
 SH
 cat >"$tmp/bin/omarchy-cmd-present" <<'SH'
 #!/bin/bash
@@ -218,7 +234,7 @@ rm -f "$tmp/recorder-pid" "$tmp/recordings/"* "$XDG_RUNTIME_DIR/omarchy-screenre
 true & dead=$!
 wait "$dead"
 echo "$dead" >"$XDG_RUNTIME_DIR/omarchy-screenrecord-starting"
-/usr/bin/flock "$XDG_RUNTIME_DIR/omarchy-screenrecord.lock" sleep 2 & holder=$!
+/usr/bin/flock "$XDG_RUNTIME_DIR/omarchy-screenrecord.lock" sleep 1 & holder=$!
 sleep 0.3
 timeout 15 "$record" --fullscreen --resolution=1280x800 >/dev/null 2>&1 || fail "a toggle behind a stale start marker finishes"
 wait "$holder" || true

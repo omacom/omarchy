@@ -45,17 +45,20 @@ function rowSnapshot(list) {
   return rows
 }
 
-function outputVolumeName(volume, muted) {
-  if (muted) return "Muted"
+// tr is an optional translate(key, english) from the QML side (I18n.t);
+// without it the English text stands, which is what the Node tests assert.
+function outputVolumeName(volume, muted, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (muted) return t("audio.level.muted", "Muted")
   var p = Math.round(volume * 100)
-  if (p === 0) return "Silenced"
-  if (p >= 100) return "Concert hall"
-  if (p >= 85) return "Party mode"
-  if (p >= 70) return "Cranked up"
-  if (p >= 50) return "Steady groove"
-  if (p >= 30) return "Easy listening"
-  if (p >= 15) return "Murmur"
-  return "Whisper"
+  if (p === 0) return t("audio.level.silenced", "Silenced")
+  if (p >= 100) return t("audio.level.concertHall", "Concert hall")
+  if (p >= 85) return t("audio.level.partyMode", "Party mode")
+  if (p >= 70) return t("audio.level.crankedUp", "Cranked up")
+  if (p >= 50) return t("audio.level.steadyGroove", "Steady groove")
+  if (p >= 30) return t("audio.level.easyListening", "Easy listening")
+  if (p >= 15) return t("audio.level.murmur", "Murmur")
+  return t("audio.level.whisper", "Whisper")
 }
 
 function parseSinkAvailability(raw) {
@@ -84,12 +87,14 @@ function nodeProps(node) {
   return node && node.ready && node.properties ? node.properties : {}
 }
 
-function nodeLabel(node) {
-  if (!node) return "Unknown"
+// tr as in outputVolumeName; only the fallback for a nameless device is UI copy.
+function nodeLabel(node, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (!node) return t("audio.unknownDevice", "Unknown")
   var p = nodeProps(node)
   var nickname = friendlyDeviceLabel(node.nickname || node.nick || p["node.nick"] || p["device.profile.description"] || "")
   if (nickname) return nickname
-  return friendlyDeviceLabel(node.description || p["node.description"] || node.name || "Unknown")
+  return friendlyDeviceLabel(node.description || p["node.description"] || node.name || t("audio.unknownDevice", "Unknown"))
 }
 
 function isHeadphones(node) {
@@ -238,12 +243,14 @@ function unmatchedMprisStreamLabel(label, players, streams) {
   })
 }
 
-function streamLabel(node, players, streams) {
-  if (!node) return "Stream"
+// Matching passes no tr, so a nameless stream compares as English everywhere.
+function streamLabel(node, players, streams, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (!node) return t("audio.stream", "Stream")
   var label = rawStreamLabel(node)
   return friendlyStreamLabel(matchingMprisStreamLabel(label, players)
     || unmatchedMprisStreamLabel(label, players, streams)
-    || label) || "Stream"
+    || label) || t("audio.stream", "Stream")
 }
 
 function streamRepresentsPlayer(node, player, players, streams) {

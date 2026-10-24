@@ -1,0 +1,1166 @@
+{
+  "root": {
+    "label": "ไป"
+  },
+  "apps": {
+    "label": "แอป"
+  },
+  "learn": {
+    "label": "เรียนรู้"
+  },
+  "appearance": {
+    "label": "ลักษณะ"
+  },
+  "trigger": {
+    "label": "สั่งการ"
+  },
+  "setup": {
+    "label": "ตั้งค่า"
+  },
+  "install": {
+    "label": "ติดตั้ง"
+  },
+  "remove": {
+    "label": "นำออก"
+  },
+  "update": {
+    "label": "อัปเดต"
+  },
+  "about": {
+    "label": "เกี่ยวกับ"
+  },
+  "system": {
+    "label": "ระบบ"
+  },
+  "system.screensaver": {
+    "label": "พักหน้าจอ"
+  },
+  "system.lock": {
+    "label": "ล็อก"
+  },
+  "system.suspend": {
+    "label": "พักเครื่อง"
+  },
+  "system.hibernate": {
+    "label": "จำศีล"
+  },
+  "system.logout": {
+    "label": "ออกจากระบบ"
+  },
+  "system.reboot": {
+    "label": "รีสตาร์ต"
+  },
+  "system.shutdown": {
+    "label": "ปิดเครื่อง"
+  },
+  "learn.keybindings": {
+    "label": "ปุ่มลัด"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "ชุมชน"
+  },
+  "appearance.theme": {
+    "label": "ธีม"
+  },
+  "appearance.background": {
+    "label": "พื้นหลัง"
+  },
+  "appearance.font": {
+    "label": "ฟอนต์"
+  },
+  "appearance.top-bar": {
+    "label": "แถบเมนู"
+  },
+  "appearance.top-bar.hide": {
+    "label": "ซ่อนแถบ"
+  },
+  "appearance.top-bar.show": {
+    "label": "แสดงแถบ"
+  },
+  "appearance.top-bar.position": {
+    "label": "ตำแหน่งแถบ"
+  },
+  "appearance.top-bar.background": {
+    "label": "พื้นหลังแถบ"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "แถบทึบ"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "แถบกระจก"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "แถบใส"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "ตัวชี้วัดแถบ"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "นาฬิกา"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "อาทิตย์ 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "อาทิตย์ 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "อาทิตย์ 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "อาทิตย์ 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "อา. 3 พ.ค. 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "อา. 3 พ.ค. 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 พ.ค. W18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 พ.ค. W18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "แถบบน"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "แถบล่าง"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "แถบซ้าย"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "แถบขวา"
+  },
+  "appearance.windows.corners": {
+    "label": "มุมหน้าต่าง"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "มุมตามธีม"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "มุมแหลม"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "มุมโค้ง"
+  },
+  "appearance.windows.transparency": {
+    "label": "ความทึบหน้าต่าง"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "หน้าต่างทึบ"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "หน้าต่างใส"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "หน้าต่างกระจก"
+  },
+  "appearance.branding.screensaver": {
+    "label": "พักหน้าจอ"
+  },
+  "appearance.branding.about": {
+    "label": "เกี่ยวกับ"
+  },
+  "appearance.branding.about.text": {
+    "label": "แก้ข้อความ"
+  },
+  "appearance.branding.about.image": {
+    "label": "ตั้งจากภาพ"
+  },
+  "appearance.branding.about.default": {
+    "label": "คืนค่าเริ่มต้น"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "แก้ข้อความ"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "ตั้งจากภาพ"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "คืนค่าเริ่มต้น"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "ซ่อน Dock อัตโนมัติ"
+  },
+  "appearance.dock.always-on": {
+    "label": "แสดง Dock เสมอ"
+  },
+  "appearance.dock.position": {
+    "label": "ตำแหน่ง Dock"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock บน"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock ล่าง"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock ซ้าย"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock ขวา"
+  },
+  "appearance.workspace-layout": {
+    "label": "เค้าโครงพื้นที่งาน",
+    "title": "เค้าโครงพื้นที่งานเริ่มต้น"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "เรียงหน้าต่าง"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "เลื่อน"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "ลอย"
+  },
+  "appearance.unlock": {
+    "label": "ปลดล็อก"
+  },
+  "trigger.toggle": {
+    "label": "สลับ"
+  },
+  "trigger.emoji": {
+    "label": "อิโมจิ"
+  },
+  "trigger.clipboard-history": {
+    "label": "ประวัติคลิปบอร์ด"
+  },
+  "trigger.reminder": {
+    "label": "เตือนความจำ"
+  },
+  "trigger.capture": {
+    "label": "จับภาพ"
+  },
+  "trigger.capture.screenshot": {
+    "label": "ภาพหน้าจอ"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "หยุดอัดหน้าจอ"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "อัดหน้าจอ"
+  },
+  "trigger.capture.text": {
+    "label": "ข้อความ"
+  },
+  "trigger.capture.qr": {
+    "label": "รหัส QR"
+  },
+  "trigger.capture.color": {
+    "label": "สี"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "ไม่มีเสียง"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "พร้อมเสียงเดสก์ท็อป"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "พร้อมเสียงเดสก์ท็อป + ไมโครโฟน"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "พร้อมเสียงเดสก์ท็อป + ไมโครโฟน + เว็บแคม"
+  },
+  "trigger.transcode": {
+    "label": "แปลงวิดีโอ"
+  },
+  "trigger.share": {
+    "label": "แชร์"
+  },
+  "trigger.hardware": {
+    "label": "ฮาร์ดแวร์"
+  },
+  "trigger.tests": {
+    "label": "ทดสอบความเร็ว"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "การสั่นทัชแพด"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "ต่ำ"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "กลาง"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "สูง"
+  },
+  "trigger.reminder.set": {
+    "label": "ตั้งรายการ"
+  },
+  "trigger.reminder.show": {
+    "label": "แสดงทั้งหมด"
+  },
+  "trigger.reminder.clear": {
+    "label": "ล้างทั้งหมด"
+  },
+  "trigger.share.clipboard": {
+    "label": "คลิปบอร์ด"
+  },
+  "trigger.share.file": {
+    "label": "ไฟล์"
+  },
+  "trigger.share.folder": {
+    "label": "โฟลเดอร์"
+  },
+  "trigger.share.receive": {
+    "label": "รับ"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "ทดสอบความเร็วเครือข่าย"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "ทดสอบความเร็วดิสก์"
+  },
+  "setup.monitors": {
+    "label": "จอภาพ"
+  },
+  "setup.keybindings": {
+    "label": "ปุ่มลัด"
+  },
+  "setup.input": {
+    "label": "อินพุต"
+  },
+  "setup.typing": {
+    "label": "การพิมพ์"
+  },
+  "setup.typing.keyboard": {
+    "label": "เค้าโครงแป้นพิมพ์"
+  },
+  "setup.typing.input": {
+    "label": "วิธีป้อนข้อมูล"
+  },
+  "setup.language": {
+    "label": "ภาษา"
+  },
+  "setup.network": {
+    "label": "เครือข่าย"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "กำหนดเอง"
+  },
+  "setup.network.qr": {
+    "label": "รหัส QR"
+  },
+  "setup.default": {
+    "label": "ค่าเริ่มต้น"
+  },
+  "setup.default.agent": {
+    "label": "เอเจนต์",
+    "title": "เอเจนต์เริ่มต้น"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "เบราว์เซอร์",
+    "title": "เบราว์เซอร์เริ่มต้น"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "การพูดพิมพ์",
+    "title": "การพูดพิมพ์เริ่มต้น"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "เทอร์มินัล",
+    "title": "เทอร์มินัลเริ่มต้น"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "ตัวแก้ไข",
+    "title": "ตัวแก้ไขเริ่มต้น"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "ปลั๊กอิน"
+  },
+  "setup.plugin.enable": {
+    "label": "เปิดปลั๊กอิน"
+  },
+  "setup.plugin.disable": {
+    "label": "ปิดปลั๊กอิน"
+  },
+  "setup.plugin.add": {
+    "label": "เพิ่มปลั๊กอิน"
+  },
+  "setup.plugin.clone": {
+    "label": "โคลนปลั๊กอิน"
+  },
+  "setup.plugin.remove": {
+    "label": "นำปลั๊กอินออก"
+  },
+  "setup.security": {
+    "label": "ความปลอดภัย"
+  },
+  "setup.config": {
+    "label": "การตั้งค่า"
+  },
+  "setup.security.fingerprint": {
+    "label": "ลายนิ้วมือ"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker ไม่ใช้ sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "sudo ไม่ใช้รหัสผ่าน"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "บูตตรง"
+  },
+  "setup.reset": {
+    "label": "รีเซ็ตเครื่อง"
+  },
+  "install.package": {
+    "label": "แพ็กเกจ"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "บริการ"
+  },
+  "install.development": {
+    "label": "การพัฒนา"
+  },
+  "install.editor": {
+    "label": "ตัวแก้ไข"
+  },
+  "install.style": {
+    "label": "สไตล์"
+  },
+  "install.style.theme": {
+    "label": "ธีม"
+  },
+  "install.style.background": {
+    "label": "พื้นหลัง"
+  },
+  "install.style.font": {
+    "label": "ฟอนต์"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "เกม"
+  },
+  "install.browser": {
+    "label": "เบราว์เซอร์"
+  },
+  "install.webapp": {
+    "label": "เว็บแอป"
+  },
+  "install.terminal": {
+    "label": "เทอร์มินัล"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "แอปติดตั้งล่วงหน้า"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "บัญชี Chromium"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xbox Controllers"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch Game Launcher"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "แพ็กเกจ"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "นำออก"
+  },
+  "remove.dictation": {
+    "label": "การพูดพิมพ์"
+  },
+  "remove.service": {
+    "label": "บริการ",
+    "title": "นำออก"
+  },
+  "remove.development": {
+    "label": "การพัฒนา",
+    "title": "นำออก"
+  },
+  "remove.theme": {
+    "label": "ธีม"
+  },
+  "remove.gaming": {
+    "label": "เกม",
+    "title": "นำออก"
+  },
+  "remove.browser": {
+    "label": "เบราว์เซอร์",
+    "title": "นำออก"
+  },
+  "remove.webapp": {
+    "label": "เว็บแอป"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "แอปติดตั้งล่วงหน้า"
+  },
+  "remove.security": {
+    "label": "ความปลอดภัย",
+    "title": "นำออก"
+  },
+  "remove.security.fingerprint": {
+    "label": "ลายนิ้วมือ"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker ไม่ใช้ sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xbox Controllers (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "นำออก"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "นำออก"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "นำออก"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "ช่องทาง"
+  },
+  "update.config": {
+    "label": "การตั้งค่า",
+    "title": "รีเซ็ตเป็นค่าเริ่มต้น"
+  },
+  "update.themes": {
+    "label": "ธีมเสริม"
+  },
+  "update.process": {
+    "label": "โปรเซส",
+    "title": "รีสตาร์ต"
+  },
+  "update.hardware": {
+    "label": "ฮาร์ดแวร์",
+    "title": "รีสตาร์ต"
+  },
+  "update.firmware": {
+    "label": "เฟิร์มแวร์"
+  },
+  "update.password": {
+    "label": "รหัสผ่าน"
+  },
+  "update.timezone": {
+    "label": "เขตเวลา"
+  },
+  "update.time": {
+    "label": "เวลา"
+  },
+  "update.channel.stable": {
+    "label": "เสถียร"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "เสียง"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "แทร็คแพด"
+  },
+  "update.password.drive": {
+    "label": "เข้ารหัสไดรฟ์"
+  },
+  "update.password.user": {
+    "label": "ผู้ใช้"
+  },
+  "system.reboot-boot-menu": {
+    "label": "รีบูตไปยังเมนูบูต"
+  }
+}

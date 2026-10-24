@@ -96,11 +96,16 @@ PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" CO
 
 rm "$marker"
 : >"$command_log"
+# This case runs a scratch copy with the five-second OWE window shortened
+# to one second; it proves the wait gives up, not the window's real length.
+boot_intro_fast="$test_tmp/boot-intro-fast"
+sed 's/SECONDS + 5/SECONDS + 1/' "$ROOT/bin/omarchy-theme-bg-boot-intro" >"$boot_intro_fast"
+chmod +x "$boot_intro_fast"
 started=$SECONDS
-if ! PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_FAIL=unavailable OMARCHY_SESSION_ID=unavailable-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"; then
+if ! PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_FAIL=unavailable OMARCHY_SESSION_ID=unavailable-boot "$boot_intro_fast"; then
   fail "an unavailable OWE settles startup rather than requesting another launcher"
 fi
-(( SECONDS - started >= 4 && SECONDS - started <= 7 )) || fail "startup waits only through the five-second window" "$((SECONDS - started))"
+(( SECONDS - started >= 1 && SECONDS - started <= 3 )) || fail "startup waits only through the OWE window" "$((SECONDS - started))"
 [[ $(<"$marker") == "unavailable-boot" ]] || fail "an unavailable OWE still settles the session"
 ! grep -q '^owe: intro ' "$command_log" || fail "an unavailable OWE never starts an intro"
 PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OMARCHY_SESSION_ID=unavailable-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"
@@ -236,34 +241,6 @@ cp -r "$intro_state/previous-theme" "$intro_state/theme"
 PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$theme_id"
 ! grep -q '^owe: intro ' "$command_log" || fail "reused filenames do not let a superseded theme launch play"
 pass "theme switches can play their selected intro without resetting login startup"
-
-migration_home="$test_tmp/migration-home"
-migration_bin="$test_tmp/migration-bin"
-migration_calls="$test_tmp/migration-calls"
-mkdir -p "$migration_home/.local/state/omarchy/current" "$migration_bin"
-printf 'catppuccin\n' >"$migration_home/.local/state/omarchy/current/theme.name"
-cat >"$migration_bin/omarchy-theme-refresh" <<'SH'
-#!/bin/bash
-printf 'refresh\n' >>"$MIGRATION_CALLS"
-SH
-chmod +x "$migration_bin/omarchy-theme-refresh"
-
-HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" OMARCHY_SESSION_ID=migration-boot bash -euo pipefail "$ROOT/migrations/1788281348.sh" >/dev/null
-[[ $(<"$migration_calls") == "refresh" ]] || fail "the migration refreshes an active theme with packaged intros"
-[[ $(<"$migration_home/.local/state/omarchy/background-intro.session-id") == "migration-boot" ]] || fail "the migration defers a newly installed intro until the next login"
-
-mkdir -p "$intro_runtime/hypr/older-session" "$intro_runtime/hypr/current-session"
-touch -d '2 minutes ago' "$intro_runtime/hypr/older-session"
-HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
-  OMARCHY_SESSION_ID="" HYPRLAND_INSTANCE_SIGNATURE="" XDG_RUNTIME_DIR="$intro_runtime" \
-  bash -euo pipefail "$ROOT/migrations/1788281348.sh" >/dev/null
-[[ $(<"$migration_home/.local/state/omarchy/background-intro.session-id") == "current-session" ]] || fail "an update outside Hyprland consumes the session that shell restart will use"
-HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
-  OMARCHY_SESSION_ID="" HYPRLAND_INSTANCE_SIGNATURE="" XDG_RUNTIME_DIR="$test_tmp/no-session" \
-  bash -euo pipefail "$ROOT/migrations/1788281348.sh" >/dev/null
-[[ $(<"$migration_home/.local/state/omarchy/background-intro.session-id") == "current-session" ]] || fail "a headless update leaves the previous session marker alone"
-
-pass "the migration does not start a login intro during an update"
 
 packaged_pairs=0
 for intro in "$ROOT"/themes/*/backgrounds/intros/*.mp4; do

@@ -12,6 +12,10 @@ import "DockModel.js" as DockModel
 // mask is empty and clicks fall through to the windows below.
 PanelWindow {
   id: window
+  // Right-to-left languages read this window mirrored.
+  Binding { target: window.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
+  Binding { target: window.contentItem; property: "LayoutMirroring.childrenInherit"; value: true }
+
 
   property var dock: null
 
@@ -256,6 +260,11 @@ PanelWindow {
 
   Item {
     id: body
+
+    // The strip keeps its order in every language, like the bar: drags and
+    // drops reckon slots along x from the first app. Only the menu mirrors.
+    LayoutMirroring.enabled: false
+    LayoutMirroring.childrenInherit: true
 
     width: slots.implicitWidth
     height: slots.implicitHeight
@@ -536,7 +545,7 @@ PanelWindow {
       width: menu.width - menu.contentLeftInset - menu.contentRightInset
 
       Repeater {
-        model: [["top", "Top"], ["bottom", "Bottom"], ["left", "Left"], ["right", "Right"]]
+        model: [["top", Commons.I18n.t("dock.positionTop")], ["bottom", Commons.I18n.t("dock.positionBottom")], ["left", Commons.I18n.t("dock.positionLeft")], ["right", Commons.I18n.t("dock.positionRight")]]
 
         delegate: MenuRow {
           required property var modelData
@@ -550,26 +559,26 @@ PanelWindow {
 
       MenuRow {
         visible: window.settingsMenu
-        text: "Auto-hide"
+        text: Commons.I18n.t("dock.autoHide")
         checked: window.autohide
         onTriggered: Util.execDetached("omarchy-dock autohide " + (window.autohide ? "off" : "on"))
       }
 
       MenuRow {
         visible: menu.hasEntry && menu.running
-        text: "New Window"
+        text: Commons.I18n.t("dock.newWindow")
         onTriggered: window.dock.launch(menu.item)
       }
 
       MenuRow {
         visible: menu.hasEntry
-        text: menu.item && menu.item.pinned ? "Remove from Dock" : "Keep in Dock"
+        text: menu.item && menu.item.pinned ? Commons.I18n.t("dock.removeFromDock") : Commons.I18n.t("dock.keepInDock")
         onTriggered: window.dock.setPinned(menu.item.key, !menu.item.pinned)
       }
 
       MenuRow {
         visible: menu.running
-        text: "Quit"
+        text: Commons.I18n.t("dock.quit")
         onTriggered: window.dock.quit(menu.item)
       }
     }
@@ -589,7 +598,8 @@ PanelWindow {
 
     Text {
       anchors.verticalCenter: parent.verticalCenter
-      x: Style.spacing.controlPaddingX
+      anchors.left: parent.left
+      anchors.leftMargin: Style.spacing.controlPaddingX
       textFormat: Text.PlainText
       text: row.text
       color: Commons.Color.popups.text

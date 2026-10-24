@@ -1,0 +1,1166 @@
+{
+  "root": {
+    "label": "Iet"
+  },
+  "apps": {
+    "label": "Lietotnes"
+  },
+  "learn": {
+    "label": "Mācīties"
+  },
+  "appearance": {
+    "label": "Izskats"
+  },
+  "trigger": {
+    "label": "Palaist"
+  },
+  "setup": {
+    "label": "Iestatīšana"
+  },
+  "install": {
+    "label": "Instalēt"
+  },
+  "remove": {
+    "label": "Noņemt"
+  },
+  "update": {
+    "label": "Atjaunināt"
+  },
+  "about": {
+    "label": "Par"
+  },
+  "system": {
+    "label": "Sistēma"
+  },
+  "system.screensaver": {
+    "label": "Ekrānsaudzētājs"
+  },
+  "system.lock": {
+    "label": "Bloķēt"
+  },
+  "system.suspend": {
+    "label": "Iemidzināt"
+  },
+  "system.hibernate": {
+    "label": "Ziemas miegs"
+  },
+  "system.logout": {
+    "label": "Iziet"
+  },
+  "system.reboot": {
+    "label": "Restartēt"
+  },
+  "system.shutdown": {
+    "label": "Izslēgt"
+  },
+  "learn.keybindings": {
+    "label": "Taustiņu saīsnes"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Kopiena"
+  },
+  "appearance.theme": {
+    "label": "Tēma"
+  },
+  "appearance.background": {
+    "label": "Fons"
+  },
+  "appearance.font": {
+    "label": "Fonts"
+  },
+  "appearance.top-bar": {
+    "label": "Izvēlņu josla"
+  },
+  "appearance.top-bar.hide": {
+    "label": "Paslēpt joslu"
+  },
+  "appearance.top-bar.show": {
+    "label": "Rādīt joslu"
+  },
+  "appearance.top-bar.position": {
+    "label": "Joslas vieta"
+  },
+  "appearance.top-bar.background": {
+    "label": "Joslas fons"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "Necaurspīdīga josla"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "Stikla josla"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "Caurspīdīga josla"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "Joslas rādītāji"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "Pulkstenis"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Svētdiena 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Svētdiena 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Svētdiena 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Svētdiena 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "Svēt. 3. maijs 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "Svēt. 3. maijs 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3. maijs N18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03. maijs N18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "Augšējā josla"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "Apakšējā josla"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "Kreisā josla"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "Labā josla"
+  },
+  "appearance.windows.corners": {
+    "label": "Logu stūri"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "Tēmas stūri"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "Asi stūri"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "Noapaļoti stūri"
+  },
+  "appearance.windows.transparency": {
+    "label": "Logu necaurspīdīgums"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "Necaurspīdīgi logi"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "Caurspīdīgi logi"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "Stikla logi"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Ekrānsaudzētājs"
+  },
+  "appearance.branding.about": {
+    "label": "Par"
+  },
+  "appearance.branding.about.text": {
+    "label": "Rediģēt tekstu"
+  },
+  "appearance.branding.about.image": {
+    "label": "Uzlikt no attēla"
+  },
+  "appearance.branding.about.default": {
+    "label": "Atjaunot noklusējumu"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Rediģēt tekstu"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Uzlikt no attēla"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Atjaunot noklusējumu"
+  },
+  "appearance.dock": {
+    "label": "Doks"
+  },
+  "appearance.dock.autohide": {
+    "label": "Paslēpt doku automātiski"
+  },
+  "appearance.dock.always-on": {
+    "label": "Vienmēr redzams doks"
+  },
+  "appearance.dock.position": {
+    "label": "Doka vieta"
+  },
+  "appearance.dock.position.top": {
+    "label": "Augšējais doks"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Apakšējais doks"
+  },
+  "appearance.dock.position.left": {
+    "label": "Kreisais doks"
+  },
+  "appearance.dock.position.right": {
+    "label": "Labais doks"
+  },
+  "appearance.workspace-layout": {
+    "label": "Darbvietas izkārtojums",
+    "title": "Noklusējuma darbvietas izkārtojums"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "Mozaīka"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "Ritināšana"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "Peldošs"
+  },
+  "appearance.unlock": {
+    "label": "Atbloķēt"
+  },
+  "trigger.toggle": {
+    "label": "Pārslēgt"
+  },
+  "trigger.emoji": {
+    "label": "Emocijzīmes"
+  },
+  "trigger.clipboard-history": {
+    "label": "Starpliktuves vēsture"
+  },
+  "trigger.reminder": {
+    "label": "Atgādinājums"
+  },
+  "trigger.capture": {
+    "label": "Uzņemt"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Ekrānuzņēmums"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Apturēt ekrāna ierakstu"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Ekrāna ieraksts"
+  },
+  "trigger.capture.text": {
+    "label": "Teksts"
+  },
+  "trigger.capture.qr": {
+    "label": "QR kods"
+  },
+  "trigger.capture.color": {
+    "label": "Krāsa"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Bez audio"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "Ar darbvirsmas audio"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "Ar darbvirsmas + mikrofona audio"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "Ar darbvirsmas + mikrofona audio + tīmekļa kamera"
+  },
+  "trigger.transcode": {
+    "label": "Pārkodēt"
+  },
+  "trigger.share": {
+    "label": "Koplietot"
+  },
+  "trigger.hardware": {
+    "label": "Aparatūra"
+  },
+  "trigger.tests": {
+    "label": "Ātruma tests"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Skārienpaliktņa vibrācija"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "zema"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "vidēja"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "augsta"
+  },
+  "trigger.reminder.set": {
+    "label": "Uzlikt vienu"
+  },
+  "trigger.reminder.show": {
+    "label": "Rādīt visus"
+  },
+  "trigger.reminder.clear": {
+    "label": "Notīrīt visus"
+  },
+  "trigger.share.clipboard": {
+    "label": "Starpliktuve"
+  },
+  "trigger.share.file": {
+    "label": "Fails"
+  },
+  "trigger.share.folder": {
+    "label": "Mape"
+  },
+  "trigger.share.receive": {
+    "label": "Saņemt"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Tīkla ātruma tests"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Diska ātruma tests"
+  },
+  "setup.monitors": {
+    "label": "Monitori"
+  },
+  "setup.keybindings": {
+    "label": "Taustiņu saīsnes"
+  },
+  "setup.input": {
+    "label": "Ievade"
+  },
+  "setup.typing": {
+    "label": "Rakstīšana"
+  },
+  "setup.typing.keyboard": {
+    "label": "Tastatūras izkārtojumi"
+  },
+  "setup.typing.input": {
+    "label": "Ievades metodes"
+  },
+  "setup.language": {
+    "label": "Valoda"
+  },
+  "setup.network": {
+    "label": "Tīkls"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "Pielāgots"
+  },
+  "setup.network.qr": {
+    "label": "QR kods"
+  },
+  "setup.default": {
+    "label": "Noklusējumi"
+  },
+  "setup.default.agent": {
+    "label": "Aģents",
+    "title": "Noklusējuma aģents"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "Pārlūks",
+    "title": "Noklusējuma pārlūks"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Diktēšana",
+    "title": "Noklusējuma diktēšana"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Terminālis",
+    "title": "Noklusējuma terminālis"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Redaktors",
+    "title": "Noklusējuma redaktors"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Spraudņi"
+  },
+  "setup.plugin.enable": {
+    "label": "Ieslēgt spraudni"
+  },
+  "setup.plugin.disable": {
+    "label": "Izslēgt spraudni"
+  },
+  "setup.plugin.add": {
+    "label": "Pievienot spraudni"
+  },
+  "setup.plugin.clone": {
+    "label": "Klonēt spraudni"
+  },
+  "setup.plugin.remove": {
+    "label": "Noņemt spraudni"
+  },
+  "setup.security": {
+    "label": "Drošība"
+  },
+  "setup.config": {
+    "label": "Konfigurācija"
+  },
+  "setup.security.fingerprint": {
+    "label": "Pirksta nospiedums"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker bez sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Sudo bez paroles"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "Tiešā palaišana"
+  },
+  "setup.reset": {
+    "label": "Atiestatīt datoru"
+  },
+  "install.package": {
+    "label": "Pakotne"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "Pakalpojums"
+  },
+  "install.development": {
+    "label": "Izstrāde"
+  },
+  "install.editor": {
+    "label": "Redaktors"
+  },
+  "install.style": {
+    "label": "Stils"
+  },
+  "install.style.theme": {
+    "label": "Tēma"
+  },
+  "install.style.background": {
+    "label": "Fons"
+  },
+  "install.style.font": {
+    "label": "Fonts"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Spēles"
+  },
+  "install.browser": {
+    "label": "Pārlūks"
+  },
+  "install.webapp": {
+    "label": "Tīmekļa lietotne"
+  },
+  "install.terminal": {
+    "label": "Terminālis"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Iepriekš instalētie"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Chromium konts"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xbox kontrolleri"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch spēļu palaidējs"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Pakotne"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "Noņemt"
+  },
+  "remove.dictation": {
+    "label": "Diktēšana"
+  },
+  "remove.service": {
+    "label": "Pakalpojumi",
+    "title": "Noņemt"
+  },
+  "remove.development": {
+    "label": "Izstrāde",
+    "title": "Noņemt"
+  },
+  "remove.theme": {
+    "label": "Tēma"
+  },
+  "remove.gaming": {
+    "label": "Spēles",
+    "title": "Noņemt"
+  },
+  "remove.browser": {
+    "label": "Pārlūks",
+    "title": "Noņemt"
+  },
+  "remove.webapp": {
+    "label": "Tīmekļa lietotne"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Iepriekš instalētie"
+  },
+  "remove.security": {
+    "label": "Drošība",
+    "title": "Noņemt"
+  },
+  "remove.security.fingerprint": {
+    "label": "Pirksta nospiedums"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker bez sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xbox kontrolleri (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Noņemt"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Noņemt"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Noņemt"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Kanāls"
+  },
+  "update.config": {
+    "label": "Konfigurācija",
+    "title": "Atiestatīt uz noklusējumu"
+  },
+  "update.themes": {
+    "label": "Papildu tēmas"
+  },
+  "update.process": {
+    "label": "Process",
+    "title": "Restartēt"
+  },
+  "update.hardware": {
+    "label": "Aparatūra",
+    "title": "Restartēt"
+  },
+  "update.firmware": {
+    "label": "Programmaparatūra"
+  },
+  "update.password": {
+    "label": "Parole"
+  },
+  "update.timezone": {
+    "label": "Laika josla"
+  },
+  "update.time": {
+    "label": "Laiks"
+  },
+  "update.channel.stable": {
+    "label": "Stabils"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "Audio"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Skārienpaliktnis"
+  },
+  "update.password.drive": {
+    "label": "Diska šifrēšana"
+  },
+  "update.password.user": {
+    "label": "Lietotājs"
+  },
+  "system.reboot-boot-menu": {
+    "label": "Restartēt uz sāknēšanas izvēlni"
+  }
+}
