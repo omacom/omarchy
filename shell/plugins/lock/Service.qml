@@ -359,6 +359,9 @@ Item {
   }
 
   function runBlank() {
+    // Text left unsent when the displays go dark, such as stray presses while
+    // away, would otherwise be prepended to the next password typed.
+    if (!authenticatingPassword) enteredPassword = ""
     root.displaysBlank = true
     root.monitorDpmsKnown = false
     pauseFingerprint()

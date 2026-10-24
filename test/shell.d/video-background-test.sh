@@ -141,7 +141,7 @@ assert(
   /feedActive: root\.video && root\.loadBackground && !root\.displaysBlank && !root\.powerSaverActive/.test(lockQml) &&
     /displaysBlank: root\.screenBlank\(/.test(lockService) &&
     /powerSaverActive: root\.powerSaverActive/.test(lockService) &&
-    /function runBlank\(\) \{\s*\n\s*root\.displaysBlank = true/.test(lockService) &&
+    /function runBlank\(\) \{[^}]*root\.displaysBlank = true/.test(lockService) &&
     /function runWake\(\) \{\s*\n\s*root\.displaysBlank = false/.test(lockService),
   'the lock feed stops once displays go dark or power-saver is active'
 )
