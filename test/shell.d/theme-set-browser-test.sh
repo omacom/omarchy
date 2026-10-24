@@ -119,11 +119,59 @@ HOME="$TMPDIR" PATH="$browser_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT"
 
 refreshed=$(sort "$refresh_log" | tr '\n' ' ')
 # Chrome running as plain google-chrome is refreshed through that name; Edge is
-# installed but not running; brave-origin matches on its binary path, and the
-# running "brave" process refreshes plain brave too.
-[[ $refreshed == "brave brave-origin chromium google-chrome " ]] ||
-  fail "setter refreshes exactly the running browsers (got: $refreshed)"
-pass "setter refreshes exactly the running browsers"
+# installed but not running; brave-origin matches on its binary path, and plain
+# brave is not refreshed when only brave-origin is running.
+[[ $refreshed == "brave-origin chromium google-chrome " ]] ||
+  fail "setter refreshes exactly the running browsers without plain brave (got: $refreshed)"
+pass "setter refreshes exactly the running browsers without plain brave when only brave-origin runs"
+
+# When both plain brave and brave-origin are running, both are refreshed.
+rm -f "$refresh_log"
+cat >"$browser_bin/ps" <<'FAKE'
+#!/bin/bash
+printf '%s\n' \
+  'brave /opt/brave-origin-bin/brave --profile' \
+  'brave /opt/brave-bin/brave'
+FAKE
+HOME="$TMPDIR" PATH="$browser_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" REFRESH_LOG="$refresh_log" BROWSER_BIN="$browser_bin" \
+  bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null
+
+refreshed=$(sort "$refresh_log" | tr '\n' ' ')
+[[ $refreshed == "brave brave-origin " ]] ||
+  fail "setter refreshes both brave and brave-origin when both run (got: $refreshed)"
+pass "setter refreshes both brave and brave-origin when both run"
+
+# When only plain brave is running, brave-origin is not refreshed.
+rm -f "$refresh_log"
+cat >"$browser_bin/ps" <<'FAKE'
+#!/bin/bash
+printf '%s\n' \
+  'brave /opt/brave-bin/brave'
+FAKE
+HOME="$TMPDIR" PATH="$browser_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" REFRESH_LOG="$refresh_log" BROWSER_BIN="$browser_bin" \
+  bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null
+
+refreshed=$(sort "$refresh_log" | tr '\n' ' ')
+[[ $refreshed == "brave " ]] ||
+  fail "setter refreshes plain brave without brave-origin when only brave runs (got: $refreshed)"
+pass "setter refreshes plain brave without brave-origin when only brave runs"
+
+# A hanging browser refresh does not block the theme switch.
+rm -f "$refresh_log"
+cat >"$browser_bin/brave" <<'FAKE'
+#!/bin/bash
+sleep 15
+FAKE
+chmod +x "$browser_bin/brave"
+start_time=$SECONDS
+HOME="$TMPDIR" PATH="$browser_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" REFRESH_LOG="$refresh_log" BROWSER_BIN="$browser_bin" \
+  bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null
+elapsed=$((SECONDS - start_time))
+(( elapsed < 10 )) || fail "hanging browser refresh stalled theme switch (took ${elapsed}s)"
+pass "hanging browser refresh is bounded by timeout and does not stall theme switch"
 
 grep -q '<&0 &$' "$ROOT/bin/omarchy-theme-set-browser" ||
   fail "setter keeps stdin for the backgrounded policy writer"
