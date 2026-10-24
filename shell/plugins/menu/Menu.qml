@@ -112,11 +112,13 @@ Item {
   // Each color already includes its alpha companion (composed in the
   // singleton), so consumers can drop them straight into a Rectangle.
   property color background: Commons.Color.menu.background
+  property var backgroundSpec: Commons.Color.menu.backgroundSpec
   property color foreground: Commons.Color.menu.text
   property color border: Commons.Color.menu.border
   property var borderSpec: Border.surfaceSpec("menu", "border", border, Math.max(1, Style.space(2)))
   property color scrim: Commons.Color.menu.scrim
   property color selectedBackground: Commons.Color.menu.selectedBackground
+  property var selectedBackgroundSpec: Commons.Color.menu.selectedBackgroundSpec
   property color selectedText: Commons.Color.menu.selectedText
   property color selectedBorder: Commons.Color.menu.selectedBorder
   property var selectedBorderSpec: Border.surfaceSpec("menu", "selected-border", selectedBorder, 0)
@@ -1311,7 +1313,8 @@ Item {
       radius: root.cornerRadius
       anchors.horizontalCenter: parent.horizontalCenter
       y: panel.effectiveCardTop
-      color: root.background
+      fillColor: root.background
+      fillSpec: root.backgroundSpec
       borderSpec: root.borderSpec
       padding: root.contentMargin
 
@@ -1498,7 +1501,8 @@ Item {
               // installed, not to be picked.
               opacity: row.disabled ? 0.4 : 1
               radius: root.cornerRadius
-              color: row.hasCursor ? root.selectedBackground : "transparent"
+              fillColor: row.hasCursor ? root.selectedBackground : "transparent"
+              fillSpec: row.hasCursor ? root.selectedBackgroundSpec : null
               borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
 
               Rectangle {
@@ -1633,18 +1637,16 @@ Item {
             }
           }
 
-          // Scroll scrims. The clipped row already marks the fold at rest;
-          // these keep both edges honest once the list has been scrolled,
-          // when content hides above the card top as well as below. Strength
-          // tracks the distance still hidden past each edge rather than
-          // animating on a clock, so a programmatic jump — wrapping from the
-          // last row back to the first — lands with the fade already applied.
+          // Scroll cues. Solid cards fade into their background; gradient
+          // cards use a translucent foreground tint so the fill still shows
+          // through instead of being covered by a flat first-stop color.
+          // Strength tracks hidden content, including programmatic jumps.
           Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
             height: Math.min(Style.space(28), parent.height / 2)
-            visible: opacity > 0
+            visible: opacity > 0 && !root.backgroundSpec.gradient.enabled
             opacity: resultList.contentHeight > resultList.height
               ? Math.max(0, Math.min(1, (resultList.contentY - resultList.originY) / height))
               : 0
@@ -1659,13 +1661,43 @@ Item {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             height: Math.min(Style.space(28), parent.height / 2)
-            visible: opacity > 0
+            visible: opacity > 0 && !root.backgroundSpec.gradient.enabled
             opacity: resultList.contentHeight > resultList.height
               ? Math.max(0, Math.min(1, (resultList.originY + resultList.contentHeight - resultList.height - resultList.contentY) / height))
               : 0
             gradient: Gradient {
               GradientStop { position: 0; color: Util.alpha(root.background, 0) }
               GradientStop { position: 1; color: root.background }
+            }
+          }
+
+          Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: Math.min(Style.space(28), parent.height / 2)
+            visible: opacity > 0 && root.backgroundSpec.gradient.enabled
+            opacity: resultList.contentHeight > resultList.height
+              ? Math.max(0, Math.min(1, (resultList.contentY - resultList.originY) / height))
+              : 0
+            gradient: Gradient {
+              GradientStop { position: 0; color: Util.alpha(root.foreground, 0.18) }
+              GradientStop { position: 1; color: Util.alpha(root.foreground, 0) }
+            }
+          }
+
+          Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: Math.min(Style.space(28), parent.height / 2)
+            visible: opacity > 0 && root.backgroundSpec.gradient.enabled
+            opacity: resultList.contentHeight > resultList.height
+              ? Math.max(0, Math.min(1, (resultList.originY + resultList.contentHeight - resultList.height - resultList.contentY) / height))
+              : 0
+            gradient: Gradient {
+              GradientStop { position: 0; color: Util.alpha(root.foreground, 0) }
+              GradientStop { position: 1; color: Util.alpha(root.foreground, 0.18) }
             }
           }
 

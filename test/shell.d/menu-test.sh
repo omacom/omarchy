@@ -945,3 +945,21 @@ JS
 font_charset=$(fc-query --format='%{charset}' "$ROOT/default/fonts/omarchy/omarchy.ttf")
 [[ $font_charset == *"e900-e90f"* ]] || fail "Omarchy icon font includes every custom menu glyph"
 pass "Omarchy icon font includes the official agent marks"
+
+if ! command -v quickshell >/dev/null 2>&1; then
+  skip "menu gradient runtime checks require Quickshell"
+  exit 0
+fi
+
+# No windows or compositor interaction: exercise real QML bindings offscreen.
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+mkdir -p "$test_tmp/home" "$test_tmp/cache"
+ln -s "$ROOT/shell/Ui" "$test_tmp/Ui"
+ln -s "$ROOT/shell/Commons" "$test_tmp/Commons"
+cp "$ROOT/test/shell.d/fixtures/menu-gradient/shell.qml" "$test_tmp/shell.qml"
+if ! timeout 15 env HOME="$test_tmp/home" XDG_CONFIG_HOME="$test_tmp/home/.config" XDG_CACHE_HOME="$test_tmp/cache" QT_QPA_PLATFORM=offscreen quickshell -p "$test_tmp" --no-color >"$test_tmp/runtime.log" 2>&1; then
+  fail "menu gradient runtime fixture exits cleanly" "$(<"$test_tmp/runtime.log")"
+fi
+grep -q 'RESULT pass' "$test_tmp/runtime.log" || fail "menu gradient bindings resolve and select their renderers" "$(<"$test_tmp/runtime.log")"
+pass "menu gradients preserve alpha, renderer switching, and reference fallbacks"
