@@ -16,8 +16,8 @@ done
 mkinitcpio_dir="$scratch/mkinitcpio.conf.d"
 module_list="$mkinitcpio_dir/surface_device_modules.conf"
 
-# A third argument is what the mocked lsmod prints; without one, no module is
-# detected and the script writes nothing.
+# A third argument is what the mocked lsmod prints; without one, no pinctrl
+# module is detected, as on an AMD Surface.
 run_surface_setup() (
   machine=$1
   script=$2
@@ -57,13 +57,14 @@ run_surface_setup x86_64 "$surface_setup" >/dev/null
   fail "Surface setup installs Marvell firmware on Intel Surfaces"
 
 run_surface_setup x86_64 "$keyboard_setup" >/dev/null
-[[ -e $scratch/probes && ! -e $module_list ]] ||
-  fail "Surface keyboard setup probes modules on Intel Surfaces and writes nothing without a pinctrl module"
+[[ -e $scratch/probes && $(<"$module_list") == "MODULES+=(surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd hid_multitouch 8250_dw)" ]] ||
+  fail "Surface keyboard setup writes the AMD module list without a pinctrl module"
+rm -f "$module_list"
 
 run_surface_setup x86_64 "$keyboard_setup" "pinctrl_tigerlake 32768 0" >/dev/null
 [[ -f $module_list ]] ||
   fail "Surface keyboard setup writes the initramfs module list on Intel Surfaces"
-[[ $(<"$module_list") == "MODULES=(pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)" ]] ||
+[[ $(<"$module_list") == "MODULES+=(pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)" ]] ||
   fail "Surface keyboard setup lists the detected pinctrl module ahead of the Surface and Intel LPSS modules" "$(<"$module_list")"
 
 pass "Surface hardware setup applies Intel fixes only on x86_64"
