@@ -64,12 +64,17 @@ function shownSpan(clipStart, clipLength, start, length) {
   return { start: from, length: to - from }
 }
 
+function menuModelHasChildren(model) {
+  return Boolean(model && model.values && model.values.length > 0)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     shownSpan: shownSpan,
     itemNamed: itemNamed,
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,
-    ownedByOmarchy: ownedByOmarchy
+    ownedByOmarchy: ownedByOmarchy,
+    menuModelHasChildren: menuModelHasChildren
   }
 }
