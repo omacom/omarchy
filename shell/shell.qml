@@ -1488,23 +1488,33 @@ ShellRoot {
       loadPluginWidget(registryKey, url, meta)
     }
 
-    // Drop registrations for plugins that are no longer present or enabled.
-    var allIds = shell.barWidgetRegistry.availableIds()
+    // Drop registrations, and loads in flight, for plugins that are no longer
+    // present or enabled.
+    var allIds = Object.keys(pluginWidgetComponents)
     for (var i = 0; i < allIds.length; i++) {
       var id = allIds[i]
-      if (!pluginWidgetComponents[id]) continue
       if (!seen[id]) {
+        var dropped = pluginWidgetComponents[id]
         shell.barWidgetRegistry.unregister(id)
         var next = ({})
         for (var k in pluginWidgetComponents) if (k !== id) next[k] = pluginWidgetComponents[k]
         pluginWidgetComponents = next
+        releasePluginWidgetComponent(dropped)
       }
     }
   }
 
   function unloadPluginWidgets() {
-    for (var id in pluginWidgetComponents) shell.barWidgetRegistry.unregister(id)
+    var dropped = pluginWidgetComponents
+    for (var id in dropped) shell.barWidgetRegistry.unregister(id)
     pluginWidgetComponents = ({})
+    for (var key in dropped) releasePluginWidgetComponent(dropped[key])
+  }
+
+  function releasePluginWidgetComponent(entry) {
+    // A load in flight still holds the component it was going to replace.
+    var component = entry ? entry.component || (entry.previous ? entry.previous.component : null) : null
+    if (component) component.destroy()
   }
 
   function reloadPlugins() {
@@ -1561,18 +1571,32 @@ ShellRoot {
     // asynchronous and syncPluginWidgets runs several times while the shell
     // starts, so without a marker the later passes cannot tell a load in
     // flight from one that never happened.
-    setPluginWidgetComponent(registryKey, { url: url, component: null })
+    var existing = pluginWidgetComponents[registryKey]
+    var previous = existing && !existing.component ? existing.previous : existing
+    var claim = { url: url, component: null, previous: previous }
+    setPluginWidgetComponent(registryKey, claim)
 
-    var comp = Qt.createComponent(url, Component.Asynchronous)
+    // Parented to the shell: unparented, the first Loader to show it adopts
+    // it, and takes it down with its bar while other bars still need it.
+    var comp = Qt.createComponent(url, Component.Asynchronous, shell)
     function finalize() {
+      if (comp.status !== Component.Ready && comp.status !== Component.Error) return
+      // Dropped or superseded while loading: no longer this load's to fill.
+      if (shell.pluginWidgetComponents[registryKey] !== claim) {
+        comp.destroy()
+        return
+      }
       if (comp.status === Component.Ready) {
         shell.barWidgetRegistry.register(registryKey, comp, meta)
         shell.setPluginWidgetComponent(registryKey, { url: url, component: comp })
-      } else if (comp.status === Component.Error) {
+        shell.releasePluginWidgetComponent(previous)
+      } else {
         console.warn("Plugin widget " + registryKey + " failed: " + comp.errorString())
-        // Drop the claim so a later rescan can retry.
-        shell.setPluginWidgetComponent(registryKey, null)
+        // Keep tracking the component this was replacing; otherwise drop the
+        // claim. Either way a later rescan retries.
+        shell.setPluginWidgetComponent(registryKey, previous && previous.component ? previous : null)
         shell.pluginRegistry.pluginLoadFailed(registryKey, comp.errorString())
+        comp.destroy()
       }
     }
     if (comp.status === Component.Loading) {
