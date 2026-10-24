@@ -108,13 +108,18 @@ assert(
 
 assert(
   /function launch\(desktopId, name\) \{[\s\S]*?uwsm-app[\s\S]*?\n  \}/.test(appLibraryQml) &&
-    appLibraryQml.includes('Util.execDetached("uwsm-app -- gtk-launch "'),
-  'app library launches desktop entries through gtk-launch in their own scope'
+    appLibraryQml.includes('["uwsm-app", "--", "omarchy-launch-desktop-entry", id + ".desktop"]'),
+  'app library launches desktop entries through omarchy-launch-desktop-entry in their own scope'
 )
 
 assert(
-  appLibraryQml.includes('Util.shellQuote(id + ".desktop")'),
+  appLibraryQml.includes('id + ".desktop"'),
   'app library launches by full file name so ids ending in .desktop (org.telegram.desktop) resolve'
+)
+
+assert(
+  appLibraryQml.includes('"XDG_ACTIVATION_TOKEN=" + token') && appLibraryQml.includes('Util.execArgv(argv)'),
+  'app library passes the click\'s activation token to the app it launches'
 )
 
 assert(

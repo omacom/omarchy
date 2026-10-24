@@ -86,11 +86,23 @@ Item {
       Util.execDetached("omarchy-launch-tui " + command.map(function(word) { return Util.shellQuote(word) }).join(" "))
       return
     }
-    // Start gtk-launch inside a scope under app-graphical.slice so apps do not
-    // inherit wayland-wm@.service. Keeping gtk-launch as the desktop-entry
-    // resolver supports IDs with spaces and entries that UWSM rejects.
-    // Keep the .desktop suffix or ids like org.telegram.desktop won't resolve.
-    Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(id + ".desktop"))
+    // Start the app inside a scope under app-graphical.slice so it does not
+    // inherit wayland-wm@.service. omarchy-launch-desktop-entry resolves IDs
+    // with spaces and entries that UWSM rejects. Keep the .desktop suffix or
+    // ids like org.telegram.desktop won't resolve.
+    //
+    // The activation token ties the launch to this click, so an app that is
+    // already running can raise its window; Hyprland refuses a request without one.
+    // The compositor sends the token after this returns, so launch once it arrives.
+    var argv = ["uwsm-app", "--", "omarchy-launch-desktop-entry", id + ".desktop"]
+    if (Quickshell.requestActivationToken) {
+      Quickshell.requestActivationToken(function(token) {
+        if (token) argv = ["env", "XDG_ACTIVATION_TOKEN=" + token].concat(argv)
+        Util.execArgv(argv)
+      })
+    } else {
+      Util.execArgv(argv)
+    }
   }
 
   // The command a terminal entry runs, without the field codes it leaves for a
