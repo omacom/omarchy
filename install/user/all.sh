@@ -13,6 +13,7 @@ run_logged "$OMARCHY_INSTALL/user/hardware/dell/xps13-text-scaling.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/qualcomm/video-decode.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/qualcomm/camera.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/fix-nouveau-cursor.sh"
+run_logged "$OMARCHY_INSTALL/user/hardware/fix-vmware-cursor.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/vm-no-animations.sh"
 
 run_logged "$OMARCHY_INSTALL/user/default-keyring.sh"
