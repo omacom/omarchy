@@ -24,3 +24,7 @@ pkill -x ttfx 2>/dev/null || true
 # ttfx handles SIGTERM asynchronously, so keep its terminal alive until it exits.
 timeout 1s pidwait -x ttfx 2>/dev/null || true
 pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null || true
+# A third-party screensaver is only matched by its window class, so killing the
+# terminal can beat its own deferred cleanup and leave the pointer hidden.
+# Restore it the way omarchy-screensaver's exit trap does (#15371).
+hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
