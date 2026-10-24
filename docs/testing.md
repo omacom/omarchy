@@ -140,6 +140,7 @@ only a live session can prove.
   executables (`sudo`, `tmux`, `gsettings`, helper commands) that log their
   arguments to a file, prepend it to `PATH`, and then run the real script
   under test. Assertions grep the call log and the files the script wrote.
+  Menu CLI fixtures must also finish the file-based reply protocol: write the selection to `selectionFile`, then create `doneFile`, and assert the command exits zero with the expected selection on stdout. A timeout is a failure bound, not evidence of a successful menu interaction; this fixture coverage does not replace a live Quickshell session.
 - **Login shells drop the stubs.** A `bash -l` rereads `/etc/profile`, which resets `OMARCHY_PATH` from `/etc/omarchy.conf` and puts that checkout's `bin/` ahead of the stub directory, so a command run through one reaches the real commands again. Commands that start `bash -lc` (`omarchy-theme-set` runs its app retints that way) need a `bash` stub that drops the `-l`.
 - **Fake `$HOME`, real `$OMARCHY_PATH`.** Anything touching user state runs
   with `HOME` pointed at a `mktemp -d` directory (cleaned up via
