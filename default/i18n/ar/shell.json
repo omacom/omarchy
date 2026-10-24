@@ -261,7 +261,6 @@
   "dropbox.monthsAgo": "قبل %1 شهر",
   "dropbox.noFiles": "لم يُعثر على ملفات متزامنة.",
   "dropbox.notInstalled": "Dropbox CLI غير مثبّت",
-  "dropbox.openedLogin": "تم فتح تسجيل الدخول إلى Dropbox",
   "dropbox.pauseSyncing": "إيقاف المزامنة مؤقتًا",
   "dropbox.phrase1": "ترتيب الملفات",
   "dropbox.phrase10": "فهرسة الفوضى",

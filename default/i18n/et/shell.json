@@ -229,7 +229,6 @@
   "dropbox.monthsAgo": "%1 kuud tagasi",
   "dropbox.noFiles": "Sünkroonitud faile ei leitud.",
   "dropbox.notInstalled": "Dropbox CLI pole installitud",
-  "dropbox.openedLogin": "Dropboxi sisselogimine on avatud",
   "dropbox.pauseSyncing": "Peata sünkroonimine",
   "dropbox.phrase1": "Faile arhiveerides",
   "dropbox.phrase10": "Kaost kataloogides",

@@ -221,7 +221,6 @@
   "dropbox.monthsAgo": "%1 個月前",
   "dropbox.noFiles": "找不到已同步的檔案。",
   "dropbox.notInstalled": "尚未安裝 Dropbox CLI",
-  "dropbox.openedLogin": "已開啟 Dropbox 登入",
   "dropbox.pauseSyncing": "暫停同步",
   "dropbox.phrase1": "歸檔檔案",
   "dropbox.phrase10": "編目混亂",

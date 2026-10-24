@@ -245,7 +245,6 @@
   "dropbox.monthsAgo": "%1 мес назад",
   "dropbox.noFiles": "Синхронизированные файлы не найдены.",
   "dropbox.notInstalled": "Dropbox CLI не установлен",
-  "dropbox.openedLogin": "Вход в Dropbox открыт",
   "dropbox.pauseSyncing": "Приостановить синхронизацию",
   "dropbox.phrase1": "Раскладываем файлы",
   "dropbox.phrase10": "Каталогизируем хаос",
