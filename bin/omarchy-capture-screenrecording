@@ -427,15 +427,15 @@ stop_screenrecording() {
     omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingError)" "$(omarchy-i18n capture.recordingKilled)"
   else
     local filename=$(cat "$RECORDING_FILE" 2>/dev/null)
-    local preview="${filename%.mp4}-preview.png"
+    local preview="$RUNTIME_DIR/omarchy-screenrecord-preview-$$.png"
 
-    # Take the preview thumbnail from the raw recording while finalizing runs,
+    # Take the preview frame from the raw recording while finalizing runs,
     # 0.2s in: the frame the finalized video, trimmed by 0.1s, shows at 0.1s.
     # Finalizing renames its output over the file, so the raw one is held open
     # here first and ffmpeg reads it through that descriptor, whenever it starts.
     local raw_fd preview_pid=""
     if exec {raw_fd}<"$filename"; then
-      ffmpeg -y -ss 00:00:00.2 -i "/proc/self/fd/$raw_fd" -vframes 1 -q:v 2 "$preview" -loglevel quiet 2>/dev/null &
+      ffmpeg -y -ss 00:00:00.2 -i "/proc/self/fd/$raw_fd" -vframes 1 -vf "scale='min(960,iw)':-2" "$preview" -loglevel quiet 2>/dev/null &
       preview_pid=$!
     fi
     finalize_recording
@@ -445,15 +445,20 @@ stop_screenrecording() {
     fi
     echo "$filename"
 
-    omarchy-notification-send "$(omarchy-i18n capture.recordingSaved)" "$(omarchy-i18n capture.recordingSavedHint)" \
-      -t 10000 --image "${preview:-$filename}" \
-      --exec mpv -- "$filename"
+    local preview_args=()
+    [[ -s $preview ]] && preview_args=(--preview "$preview")
 
-    # The shell loads the thumbnail into memory when the toast appears and never
-    # re-reads the file, so the preview only has to outlive that load -- not the
-    # toast. Clear it out of the recordings directory a moment later.
+    omarchy-notification-send "$(omarchy-i18n capture.recordingSaved)" "$(omarchy-i18n capture.recordingSavedHint)" \
+      -t 10000 "${preview_args[@]}" \
+      --action "$(omarchy-i18n capture.recordingOpen)" mpv -- \
+      --action Omacut omacut \
+      --with "$filename"
+
+    # The shell loads the preview into memory when the toast appears and never
+    # re-reads the file, so it only has to outlive that load -- not the toast.
+    # A toast held back behind others appears later, so give it half a minute.
     (
-      sleep 2
+      sleep 30
       rm -f "$preview"
     ) 9>&- &
   fi

@@ -52,6 +52,7 @@
   "capture.qrNone": "No QR code found",
   "capture.recordingError": "Screen recording error",
   "capture.recordingKilled": "Recording process had to be force-killed. Video may be corrupted.",
+  "capture.recordingOpen": "Open",
   "capture.recordingSaved": "Screen recording saved",
   "capture.recordingSavedHint": "Open with Super + Alt + , (or click this)",
   "capture.recordingWithoutAudio": "Recording without %1 audio",
