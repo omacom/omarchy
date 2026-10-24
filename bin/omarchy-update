@@ -84,8 +84,14 @@ cleanup_update() {
 }
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
-  script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "/tmp/omarchy-update.log"
+  # The trailing exit keeps a plain Bash as the session leader of script's PTY
+  # instead of letting it exec this update. When the terminal closes, that
+  # leader dies and the kernel hangs up everything in the foreground, so a
+  # waiting prompt exits and the traps below run. Led by the update itself,
+  # its traps wait on the prompt, which never sees a signal and keeps the
+  # update lock forever. Bash is pinned so the user's shell never runs here.
+  script_command="$(printf '%q ' "$0" "$@"); exit \$?"
+  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" SHELL=/usr/bin/bash script -qefc "$script_command" "/tmp/omarchy-update.log"
 fi
 
 if ! omarchy-update-lock held; then
