@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Benutzer"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Neustart ins Boot-Menü"
   }
 }

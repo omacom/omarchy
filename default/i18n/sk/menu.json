@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Používateľ"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Reštartovať do ponuky zavádzania"
   }
 }

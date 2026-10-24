@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "صارف"
-  },
-  "system.reboot-boot-menu": {
-    "label": "بوٹ مینو میں ری بوٹ کریں"
   }
 }

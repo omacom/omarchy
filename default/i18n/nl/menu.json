@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Gebruiker"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Opnieuw opstarten naar opstartmenu"
   }
 }

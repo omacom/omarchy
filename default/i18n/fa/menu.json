@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "کاربر"
-  },
-  "system.reboot-boot-menu": {
-    "label": "راه‌اندازی مجدد به منوی بوت"
   }
 }

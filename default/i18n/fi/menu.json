@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Käyttäjä"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Käynnistä uudelleen käynnistysvalikkoon"
   }
 }

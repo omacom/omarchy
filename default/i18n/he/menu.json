@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "משתמש"
-  },
-  "system.reboot-boot-menu": {
-    "label": "הפעל מחדש לתפריט האתחול"
   }
 }

@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "ব্যবহারকারী"
-  },
-  "system.reboot-boot-menu": {
-    "label": "বুট মেনুতে রিবুট"
   }
 }

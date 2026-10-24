@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "පරිශීලකයා"
-  },
-  "system.reboot-boot-menu": {
-    "label": "බූට් මෙනුවට නැවත ආරම්භ කරන්න"
   }
 }

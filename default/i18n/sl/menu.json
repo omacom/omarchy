@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Uporabnik"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Znova zaženi v zagonski meni"
   }
 }

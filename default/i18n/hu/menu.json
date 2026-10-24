@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Felhasználó"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Újraindítás a bootmenübe"
   }
 }

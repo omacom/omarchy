@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "使用者"
-  },
-  "system.reboot-boot-menu": {
-    "label": "重新開機至開機選單"
   }
 }

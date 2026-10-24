@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Kullanıcı"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Önyükleme Menüsüne Yeniden Başlat"
   }
 }

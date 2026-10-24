@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Bruker"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Start på nytt til oppstartsmeny"
   }
 }
