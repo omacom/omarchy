@@ -193,7 +193,10 @@ Item {
   function probeNextSize() {
     if (sizeProbe.running || sizeQueue.length === 0) return
     sizeProbe.path = sizeQueue[0]
-    sizeProbe.command = ["magick", "identify", "-ping", "-format", "%w %h", sizeProbe.path]
+    // Animated images print one line per frame and the parser reads the first,
+    // the frame the shell draws. Without the newline 20x10 twice reads
+    // "20 1020 10"; a "[0]" suffix would turn brackets in the name into a glob.
+    sizeProbe.command = ["magick", "identify", "-ping", "-format", "%w %h\n", sizeProbe.path]
     sizeProbe.running = true
   }
 
