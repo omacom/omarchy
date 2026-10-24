@@ -13,10 +13,11 @@ brightness_file="$test_tmp/brightness"
 mock_leds="$test_tmp/sys/class/leds"
 command="$test_tmp/omarchy-brightness-keyboard"
 state_file="$runtime_dir/omarchy-keyboard-backlight-mock_kbd_backlight"
-mkdir -p "$mock_bin" "$runtime_dir" "$mock_leds/mock_kbd_backlight"
+mkdir -p "$mock_bin" "$mock_leds/mock_kbd_backlight"
+mkdir -m 700 "$runtime_dir"
 
 sed "s|/sys/class/leds/\\*kbd_backlight\\*|$mock_leds/*kbd_backlight*|" \
-  "$ROOT/bin/omarchy-brightness-keyboard" >"$command"
+  "$ROOT/bin/omarchy-brightness-keyboard" | sed "s|/tmp/omarchy-|$test_tmp/fallback-|" >"$command"
 chmod +x "$command"
 
 cat >"$mock_bin/brightnessctl" <<'SH'
@@ -117,6 +118,55 @@ assert_brightness 1 "a failed manual brightness change leaves the keyboard uncha
 [[ $(<"$state_file") == 2 ]] || fail "a failed manual brightness change preserves the saved level"
 pass "a failed manual brightness change preserves the saved level"
 
+hardware_file="$mock_leds/mock_kbd_backlight/brightness_hw_changed"
+rm -f "$state_file"
+printf '2\n' >"$brightness_file"
+printf '1\n' >"$hardware_file"
+run_brightness off
+run_brightness off
+run_brightness restore
+assert_brightness 2 "an unchanged hardware value does not block restoration"
+
+run_brightness off
+printf '1\n' >"$brightness_file"
+run_brightness restore
+assert_brightness 1 "a brightness change outside the command is preserved"
+[[ ! -e $state_file ]] || fail "an external brightness change clears the snapshot"
+pass "an external brightness change clears the snapshot"
+
+printf '2\n' >"$brightness_file"
+run_brightness off
+printf '0\n' >"$hardware_file"
+run_brightness restore
+assert_brightness 0 "a hardware change to zero is preserved"
+[[ ! -e $state_file ]] || fail "a hardware change to zero clears the snapshot"
+pass "a hardware change to zero clears the snapshot"
+
+printf '2\n' >"$brightness_file"
+: >"$hardware_file"
+run_brightness off
+printf '1\n' >"$hardware_file"
+printf '1\n' >"$brightness_file"
+run_brightness restore
+assert_brightness 1 "the first hardware notification after blanking is preserved"
+
+printf '2\n' >"$brightness_file"
+run_brightness off
+printf '0\n' >"$hardware_file"
+run_brightness off
+run_brightness restore
+assert_brightness 0 "repeated blanks preserve a hardware choice of zero"
+
+printf '2\n' >"$brightness_file"
+run_brightness off
+printf '1\n' >"$hardware_file"
+printf '1\n' >"$brightness_file"
+run_brightness off
+assert_brightness 0 "blanking after a hardware change still turns the keyboard off"
+run_brightness restore
+assert_brightness 1 "blanking after a hardware change saves the new level"
+rm -f "$hardware_file"
+
 # Hold the lock as an in-flight off would, and finish that off only after a restore has started.
 rm -f "$state_file"
 printf '2\n' >"$brightness_file"
@@ -146,6 +196,46 @@ kill -0 "$restore_pid" 2>/dev/null && kill "$restore_pid" && fail "a restore fin
 wait "$restore_pid"
 assert_brightness 2 "a restore waits for an in-flight blank to save its level"
 
+runtime_dir=""
+state_file="$test_tmp/fallback-$UID/omarchy-keyboard-backlight-mock_kbd_backlight"
+run_brightness off
+[[ $(stat -c '%a' "${state_file%/*}") == "700" ]] || fail "the fallback directory is private"
+pass "the fallback directory is private"
+run_brightness off
+run_brightness restore
+assert_brightness 2 "blank and restore work without XDG_RUNTIME_DIR"
+
+victim="$test_tmp/victim"
+printf 'keep me\n' >"$victim"
+rm -f "$state_file.lock"
+ln -s "$victim" "$state_file.lock"
+chmod 777 "${state_file%/*}"
+for direction in off restore up down cycle; do
+  if run_brightness "$direction" >/dev/null 2>&1; then
+    fail "a shared state directory is rejected for $direction"
+  fi
+done
+[[ $(<"$victim") == "keep me" ]] || fail "an unsafe lock symlink does not truncate its target"
+pass "an unsafe lock symlink does not truncate its target"
+assert_brightness 2 "an unsafe directory leaves keyboard brightness unchanged"
+
+rm -rf "${state_file%/*}"
+mkdir -m 700 "$test_tmp/symlink-target"
+ln -s "$test_tmp/symlink-target" "${state_file%/*}"
+if run_brightness off >/dev/null 2>&1; then
+  fail "a symlinked fallback directory is rejected"
+fi
+[[ -z $(ls -A "$test_tmp/symlink-target") ]] || fail "a symlinked fallback directory is untouched"
+pass "a symlinked fallback directory is rejected before writing state"
+
+runtime_dir="/"
+if run_brightness off >/dev/null 2>&1; then
+  fail "a state directory owned by another user is rejected"
+fi
+pass "a state directory owned by another user is rejected"
+
+runtime_dir="$test_tmp/runtime"
+state_file="$runtime_dir/omarchy-keyboard-backlight-mock_kbd_backlight"
 rm -f "$state_file"
 printf '1\n' >"$brightness_file"
 rm -rf "$runtime_dir"
