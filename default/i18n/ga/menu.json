@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Úsáideoir"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Atosaigh go roghchlár tosaithe"
   }
 }

@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "ユーザー"
-  },
-  "system.reboot-boot-menu": {
-    "label": "ブートメニューで再起動"
   }
 }

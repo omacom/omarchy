@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Kasutaja"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Taaskäivita alglaadimismenüüsse"
   }
 }

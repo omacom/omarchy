@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Utilisateur"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Redémarrer sur le menu de démarrage"
   }
 }

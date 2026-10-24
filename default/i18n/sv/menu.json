@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Användare"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Starta om till startmenyn"
   }
 }

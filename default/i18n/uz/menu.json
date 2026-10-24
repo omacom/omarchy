@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Foydalanuvchi"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Yuklanish menyusiga qayta yuklash"
   }
 }

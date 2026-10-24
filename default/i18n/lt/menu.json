@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Vartotojas"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Perkrauti į įkrovos meniu"
   }
 }

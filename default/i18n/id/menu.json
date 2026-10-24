@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Pengguna"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Mulai ulang ke Menu Boot"
   }
 }

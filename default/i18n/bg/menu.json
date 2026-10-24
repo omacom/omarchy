@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Потребител"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Рестарт към менюто за зареждане"
   }
 }

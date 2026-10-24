@@ -1159,8 +1159,5 @@
   },
   "update.password.user": {
     "label": "Usuari"
-  },
-  "system.reboot-boot-menu": {
-    "label": "Reinicia al menú d'arrencada"
   }
 }
