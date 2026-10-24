@@ -35,6 +35,9 @@ chmod +x "$tmp_dir/bin/busctl"
 export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
 export POWERPROFILES_LOG="$tmp_dir/calls"
 export OMARCHY_POWERPROFILES_STATE_DIR="$tmp_dir/state"
+# Toggle flags live under $HOME; keep the developer's own out of the test.
+export HOME="$tmp_dir/home"
+mkdir -p "$HOME"
 
 "$ROOT/bin/omarchy-powerprofiles-set" ac balanced
 [[ $(<"$tmp_dir/state/ac") == "balanced" ]] || fail "power profile stores AC preference"
@@ -72,6 +75,21 @@ pass "power profile retains performance as AC default"
 "$ROOT/bin/omarchy-powerprofiles-init"
 [[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "init restores the autodetected preference"
 pass "power profile init restores the autodetected preference"
+
+mkdir -p "$HOME/.local/state/omarchy/toggles"
+touch "$HOME/.local/state/omarchy/toggles/powerprofiles-autoswitch-off"
+calls_before=$(wc -l <"$tmp_dir/calls")
+"$ROOT/bin/omarchy-powerprofiles-set" ac
+ON_BATTERY=1 "$ROOT/bin/omarchy-powerprofiles-set"
+"$ROOT/bin/omarchy-powerprofiles-init"
+(( $(wc -l <"$tmp_dir/calls") == calls_before )) ||
+  fail "power source changes leave the profile alone when autoswitch is off" "$(tail -n 3 "$tmp_dir/calls")"
+pass "power source changes leave the profile alone when autoswitch is off"
+
+"$ROOT/bin/omarchy-powerprofiles-set" battery balanced
+[[ $(tail -n 1 "$tmp_dir/calls") == "balanced" && $(<"$tmp_dir/state/battery") == "balanced" ]] ||
+  fail "an explicit profile still applies when autoswitch is off"
+pass "an explicit profile still applies when autoswitch is off"
 
 rg -F '["omarchy-powerprofiles-set", pendingPowerSource]' "$ROOT/shell/plugins/services/battery/Service.qml" >/dev/null ||
   fail "battery service applies profiles through Omarchy command"

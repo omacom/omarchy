@@ -27,6 +27,14 @@ case "$action" in
   *) usage ;;
 esac
 
+# Restoring the remembered profile on a power-source change (no profile named)
+# is skipped when another tool manages the profile, such as a vendor power
+# daemon, so the two do not fight over every plug and unplug. A profile chosen
+# explicitly is still applied and remembered.
+if [[ -z $requested_profile ]] && omarchy-toggle-enabled powerprofiles-autoswitch-off; then
+  exit 0
+fi
+
 mapfile -t profiles < <(omarchy-powerprofiles-list)
 
 profile_available() {
