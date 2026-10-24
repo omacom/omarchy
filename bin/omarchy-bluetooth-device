@@ -29,12 +29,33 @@ trust_device() {
   bluetoothctl trust "$address" >/dev/null 2>&1 || true
 }
 
+# The panel runs this detached, so only a notification tells anyone it failed.
+# The message is fixed: bluetoothctl's output carries chatter about nearby devices.
+pair_failed() {
+  local message
+  if (( $1 == 124 )); then
+    message="Pairing timed out after 20 seconds. Is the device in pairing mode?"
+  else
+    message="Pairing failed. Put the device in pairing mode and try again."
+  fi
+  echo "$message" >&2
+  omarchy-notification-send --app-name Bluetooth -u normal "Bluetooth pairing failed" "$message" || true
+}
+
 case "$action" in
   pair)
     power_on
-    timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
-    trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    # Trust is not a bond. A failed pair that still trusts the address makes the
+    # panel treat the device as already paired and skip pairing on later clicks.
+    status=0
+    timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || status=$?
+    if (( status == 0 )); then
+      trust_device
+      timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    else
+      pair_failed "$status"
+      exit 1
+    fi
     ;;
   connect)
     power_on
