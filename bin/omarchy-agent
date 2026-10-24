@@ -139,8 +139,11 @@ kimi)
   fi
   ;;
 *)
-  echo "Unsupported default agent: $agent" >&2
-  exit 1
+  # Any other installed agent the user has configured: launch it bare and let
+  # it run its own trust flow. The prompt goes positionally, the most common
+  # convention; an agent wanting a different spelling belongs above.
+  command=("$agent")
+  [[ -n ${prompt:-} ]] && command+=("$prompt")
   ;;
 esac
 

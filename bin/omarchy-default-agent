@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi]
+# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|<installed command>]
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
@@ -44,8 +44,16 @@ muse | muse-code | musecode)
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
 kimi | kimi-code) agent="kimi"; name="Kimi"; agent_package="npm:@moonshot-ai/kimi-code" ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi>"
-  exit 1
+  # Any installed command can serve as the default agent; omarchy-agent
+  # launches agents outside the curated list bare (see its own fallback).
+  if omarchy-cmd-missing "$1"; then
+    echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi>" >&2
+    echo "Or the name of any installed command to run as the agent." >&2
+    exit 1
+  fi
+  agent="$1"
+  name="$1"
+  agent_generic=true
   ;;
 esac
 
@@ -56,7 +64,11 @@ agent_package=${agent_package:-$agent}
 # UI updates. Each has its own installer with the same --check/--now contract
 # mise-backed agents get from mise; see omarchy-install-hermes-cli and
 # omarchy-install-openclaw-cli.
-if [[ -n ${agent_installer:-} ]]; then
+if [[ -n ${agent_generic:-} ]]; then
+  # Nothing to install: a generic agent had to be on PATH to be accepted.
+  agent_present() { omarchy-cmd-present "$agent"; }
+  agent_install() { omarchy-cmd-present "$agent"; }
+elif [[ -n ${agent_installer:-} ]]; then
   # Not omarchy-cmd-present: a command on PATH says nothing about whether the
   # install behind it finished or runs the sessions omarchy-agent starts.
   # Treating it as installed would skip the floating terminal and run a
