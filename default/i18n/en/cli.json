@@ -325,5 +325,8 @@
   "windowsVm.ramHeader": "How much RAM would you like to allocate to Windows VM?",
   "windowsVm.usernameHeader": "Enter Windows username:",
   "windowsVm.usernamePlaceholder": "Username (Press enter to use default: %1)",
-  "xbox.rebootNeeded": "Reboot needed to finish setup. Reboot now?"
+  "xbox.rebootNeeded": "Reboot needed to finish setup. Reboot now?",
+  "labCli.sendToLab": "Send to Omarchy Lab",
+  "labCli.screenshotSaved": "Lab screenshot saved",
+  "labCli.aspectRatio": "Lab Aspect Ratio"
 }
