@@ -534,6 +534,44 @@ assert(tiled_max.fullscreen == 1, "a maximized window on a tiled workspace was u
 fi
 pass "a new window on a floating workspace brings a maximized one back to size"
 
+# Hyprland keeps one maximized window a workspace, and maximizing a second one
+# gives the first its own size back, before the second is maximized. The first
+# is maximized again when it is brought forward, unless the other was brought
+# back to its own size by hand.
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+local events = state().subscriptions
+local queued = {}
+hl.timer = function(callback) table.insert(queued, callback) end
+local function settle()
+  while #queued > 0 do
+    table.remove(queued, 1)()
+  end
+end
+local first = window("0x1", 1, { floating = true, fullscreen = 1 })
+local second = window("0x2", 1, { floating = true })
+events["window.fullscreen"][1](first)
+settle()
+first.fullscreen = 0
+events["window.fullscreen"][1](first)
+second.fullscreen = 1
+events["window.fullscreen"][1](second)
+settle()
+events["window.active"][1](first)
+settle()
+assert(first.fullscreen == 1, "a window another one took its maximize from came forward at its own size")
+first.fullscreen, second.fullscreen = 0, 0
+events["window.fullscreen"][1](first)
+events["window.fullscreen"][1](second)
+settle()
+events["window.active"][1](first)
+settle()
+assert(first.fullscreen == 0, "a window was maximized again after the one in front was brought back to its own size")
+'; then
+  fail "a window that lost its maximize to another one takes it back when brought forward"
+fi
+pass "a window that lost its maximize to another one takes it back when brought forward"
+
 # Apps with float rules of their own keep them on a floating workspace: the
 # open rule passes them over, so they open at their own size and the mode never
 # claims them.
