@@ -157,6 +157,16 @@ mcode)
   command=(mcode)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
+goose)
+  # Goose has no bypass flag; GOOSE_MODE outranks a configured approve mode.
+  # --text= binds a prompt that starts with a dash, and --interactive keeps
+  # the session open after the prompted turn.
+  if [[ -n ${prompt:-} ]]; then
+    command=(env GOOSE_MODE=auto goose run --interactive "--text=$prompt")
+  else
+    command=(env GOOSE_MODE=auto goose)
+  fi
+  ;;
 kiro-cli)
   # A positional input seeds the interactive chat; -- keeps a prompt starting
   # with a dash literal.
