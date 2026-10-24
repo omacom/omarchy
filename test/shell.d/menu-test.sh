@@ -573,7 +573,7 @@ const appearanceLabels = ['Animations On', 'Animations Off', 'Menu Bar', 'Dock',
 assertEqual(triggerIds[0], 'trigger.toggle', 'menu lists Toggle first under Trigger')
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'appearance').map(item => item.label),
-  ['Theme', 'Background', 'Font', 'Menu Bar', 'Windows', 'Branding', 'Dock', 'Workspace Layout', 'Animations On', 'Animations Off', 'Unlock'],
+  ['Theme', 'Next Theme', 'Previous Theme', 'Background', 'Font', 'Menu Bar', 'Windows', 'Branding', 'Dock', 'Workspace Layout', 'Animations On', 'Animations Off', 'Unlock'],
   'menu gathers the style and look of the desktop under Appearance'
 )
 assertDeepEqual(
@@ -595,6 +595,26 @@ assert(
   !defaultItems.some(item => item.id.startsWith('appearance.background-intro'))
     && defaultById['appearance.animations-on'].action === 'omarchy-toggle-animations',
   'menu uses the existing animations toggle without separate background intro controls'
+)
+const styleIds = defaultItems.filter(item => item.parent === 'appearance').map(item => item.id)
+const themeAt = styleIds.indexOf('appearance.theme')
+assert(
+  styleIds[themeAt + 1] === 'appearance.theme-next' && styleIds[themeAt + 2] === 'appearance.theme-prev',
+  'menu offers next and previous theme under Appearance after Theme'
+)
+assertEqual(
+  defaultById['appearance.theme-next'].action,
+  'omarchy-theme-next',
+  'menu cycles to the next theme from Style'
+)
+assertEqual(
+  defaultById['appearance.theme-prev'].action,
+  'omarchy-theme-prev',
+  'menu cycles to the previous theme from Style'
+)
+assert(
+  defaultById['appearance.theme-next'].aliases.length === 0 && defaultById['appearance.theme-prev'].aliases.length === 0,
+  'menu does not alias the new Style theme cycle rows'
 )
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'setup.plugin').map(item => item.label),
