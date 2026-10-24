@@ -14,14 +14,14 @@ for arg in "$@"; do
   case "$arg" in
     --with-mangohud) with_mangohud=1 ;;
     -h|--help)
-      cat <<'EOF'
+      cat <<'HELP'
 Usage: omarchy-launch-battlenet [--with-mangohud]
 
 Options:
   --with-mangohud   Enable the MangoHud FPS overlay for games launched from
                     Battle.net. Toggle perf logging in-game with Shift_L+F2;
                     CSV logs land in ~/mangohud/.
-EOF
+HELP
       exit 0
       ;;
     *)
@@ -37,12 +37,49 @@ if [[ ! -f $LAUNCHER ]]; then
   exit 1
 fi
 
-env_args=(
-  WINEPREFIX="$PREFIX"
-  PROTONPATH=GE-Proton
-  GAMEID=umu-battlenet
-  PROTON_VERB=run
-)
-(( with_mangohud )) && env_args+=(MANGOHUD=1)
+# umu-run sandboxes each launch, so Battle.net's own single-instance lock never
+# sees an earlier copy. Window-only checks also miss tray-hidden trees that
+# have no Hyprland client. Focus an existing client when one exists; otherwise
+# refuse to stack another Proton tree.
+battlenet_window_address() {
+  # Match class only — title matches pick up browser tabs / cwd titles.
+  hyprctl clients -j 2>/dev/null | jq -r '
+    .[]
+    | select(.class | test("battle.?net"; "i"))
+    | .address
+  ' 2>/dev/null | head -n1 || true
+}
 
-env "${env_args[@]}" umu-run "$LAUNCHER"
+battlenet_running() {
+  # Fixed-string match on the umu-run + prefix path so $HOME metacharacters
+  # and sibling dirs like battlenet-old/ do not false-positive.
+  local procs
+  procs=$(pgrep -af umu-run 2>/dev/null) || return 1
+  grep -Fq -- "umu-run $PREFIX/" <<<"$procs"
+}
+
+WINDOW_ADDRESS=$(battlenet_window_address)
+if [[ -n ${WINDOW_ADDRESS:-} ]]; then
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:$WINDOW_ADDRESS\" })" >/dev/null 2>&1 ||
+    hyprctl dispatch focuswindow "address:$WINDOW_ADDRESS" >/dev/null 2>&1 || true
+else
+  if battlenet_running; then
+    msg="Battle.net is already running or still starting (no window to focus)."
+    echo "$msg" >&2
+    # Do not tell the user to kill the tree: umu-run exists before any window
+    # while GE-Proton is downloading, and #13344 often has no tray icon.
+    omarchy-notification-send -u normal -g "🎮" "Battle.net already running" \
+      "A copy is already running or still starting, with no window yet. Wait for it, or stop the hidden copy with: pkill -f 'umu-run $HOME/Games/battlenet/'" \
+      2>/dev/null || true
+  else
+    env_args=(
+      WINEPREFIX="$PREFIX"
+      PROTONPATH=GE-Proton
+      GAMEID=umu-battlenet
+      PROTON_VERB=run
+    )
+    (( with_mangohud )) && env_args+=(MANGOHUD=1)
+
+    env "${env_args[@]}" umu-run "$LAUNCHER"
+  fi
+fi
