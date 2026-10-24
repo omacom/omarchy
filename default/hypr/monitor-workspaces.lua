@@ -306,8 +306,8 @@ local function home(monitor, block)
   local best = nil
 
   for _, workspace in ipairs(hl.get_workspaces()) do
-    if regular(workspace) and block_of_id(workspace.id) == block and workspace.monitor
-      and workspace.monitor.name == monitor.name and (not best or workspace.id < best) then
+    if regular(workspace) and (workspace.windows or 0) > 0 and block_of_id(workspace.id) == block
+      and workspace.monitor and workspace.monitor.name == monitor.name and (not best or workspace.id < best) then
       best = workspace.id
     end
   end
@@ -361,6 +361,25 @@ local function reclaim(monitor, id)
 
   local monitors = connected()
   settle(away, monitors, assign(monitors))
+end
+
+-- An empty workspace only holds the number Hyprland parked a monitor on; move
+-- it out of the way so a workspace with windows can take that number.
+local function vacate(id)
+  local occupant = hl.get_workspace(id)
+  if not occupant then
+    return true
+  end
+  if not regular(occupant) or (occupant.windows or 0) > 0 then
+    return false
+  end
+
+  local parked = free_block() * SLOTS + 1
+  while hl.get_workspace(parked) or merged[parked] do
+    parked = parked + 1
+  end
+  hl.dispatch(hl.dsp.workspace.change_id({ workspace = tostring(id), id = parked }))
+  return not hl.get_workspace(id)
 end
 
 -- Renumber a workspace into a block, keeping its slot when that one is free and
@@ -535,12 +554,14 @@ function M.reconcile(added, gone)
   local focused_monitor = hl.get_active_monitor()
   local focused_name = focused_monitor and focused_monitor.name
   local changed = false
+  local restored = {}
 
   local function own_views()
     for _, monitor in ipairs(monitors) do
       local block = by_connector[monitor.name]
       local active = monitor.active_workspace
       local own = regular(active) and block_of_id(active.id) == block
+        and (monitor.name ~= added or not restored[monitor.name] or (active.windows or 0) > 0)
 
       -- A workspace whose monitor is unplugged stays in view where it was put,
       -- unless this monitor has only just arrived on it. An empty one is only
@@ -605,11 +626,12 @@ function M.reconcile(added, gone)
             hl.dispatch(hl.dsp.workspace.move({ workspace = tostring(id), monitor = monitor.name }))
           end
 
-          if block_of_id(origin.id) == by_connector[monitor.name] and not hl.get_workspace(origin.id) then
+          if block_of_id(origin.id) == by_connector[monitor.name] and vacate(origin.id) then
             renumber(workspace, origin.id)
           elseif block_of_id(id) ~= by_connector[monitor.name] then
             adopt(workspace, by_connector[monitor.name])
           end
+          restored[monitor.name] = true
           changed = true
         end
       end
