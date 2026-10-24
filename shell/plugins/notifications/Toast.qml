@@ -557,11 +557,14 @@ Item {
               readonly property int perLine: line < deedArea.rows - 1 ? deedArea.columns
                                              : card.allDeeds.length - line * deedArea.columns
               readonly property real step: (deedRow.width + deedArea.rule) / perLine
+              // Where the segment starts in reading order; the first action
+              // sits on the right in a right-to-left language.
+              readonly property real start: Math.round(slot * step)
               deed: modelData
               toast: card
-              x: Math.round(slot * step)
+              width: Math.round((slot + 1) * step) - start - deedArea.rule
+              x: card.LayoutMirroring.enabled ? deedRow.width - start - width : start
               y: line * (deedArea.segmentHeight + deedArea.rule)
-              width: Math.round((slot + 1) * step) - x - deedArea.rule
               height: deedArea.segmentHeight
             }
           }

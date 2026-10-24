@@ -100,9 +100,7 @@ flags map onto that call:
 | `-u` / `--urgency` | hint `urgency` (byte) | `low`/`normal`/`critical`; defaults to `low` |
 | `-t` / `--expire-time` | `expire_timeout` | milliseconds on screen; server default otherwise |
 
-Unknown flags are a hard error, not a silent pass-through: `--exec` and
-`--action` are the only doors to a command, and there is no generic option
-pass-through to smuggle one through.
+Unknown flags are a hard error, not a silent pass-through: `--exec` and `--action` are the only doors to a command, and there is no generic option pass-through to smuggle one through.
 
 The defaults are the point: an unadorned `omarchy-notification-send "Done"`
 is a low-urgency user-action toast that pops through DND and is treated as
@@ -168,8 +166,7 @@ as a `busctl` option; the summary/body themselves are never parsed as options.)
 
 ### Buttons
 
-`--action` adds a button that runs a command, the way `--exec` makes the card
-click run one:
+`--action` adds a button that runs a command, the way `--exec` makes the card click run one:
 
 ```bash
 omarchy-notification-send "Screen recording saved" "$name" \
@@ -178,20 +175,9 @@ omarchy-notification-send "Screen recording saved" "$name" \
   --with "$filename"
 ```
 
-The two halves follow the click-command rule. An action's own words are literals
-written at the call site, so they can end at the next `--action` or `--with`
-without being mistaken for data. Untrusted data goes once, after `--with`, which
-takes the rest of the line and is appended to every action's argv: a filename
-that reads `--action` stays part of the filename. Options go before the first
-`--action`, as anything after it is an action's word.
+The two halves follow the click-command rule. An action's own words are literals written at the call site, so they can end at the next `--action`, `--with` or `--exec` without being mistaken for data. Untrusted data goes once, after `--with`, which takes the rest of the line and is appended to every action's argv: a filename that reads `--action` stays part of the filename. Options go before the first `--action`, as anything after it is an action's word.
 
-The buttons ride as the `omarchy-actions` hint (`[{"label", "argv"}]`, each argv
-checked like `omarchy-exec-argv`), and the first action's argv is also set as
-the click command. Like the click, they are not libnotify actions: the shell
-runs them itself and stores them with the row, so the sender exits at once and a
-card restored after a shell restart, or brought back from history, keeps its
-buttons. The card shows them under its body while it is hovered in an open
-deck, with a mark beside the title the rest of the time.
+The buttons ride as the `omarchy-actions` hint (`[{"label", "argv"}]`, each argv checked like `omarchy-exec-argv`), and the first action's argv is also set as the click command. Like the click, they are not libnotify actions: the shell runs them itself and stores them with the row, so the sender exits at once and a card restored after a shell restart, or brought back from history, keeps its buttons. The card shows them as a bar along its bottom edge while it is hovered in an open deck, with a mark beside the title the rest of the time.
 
 ## Helper commands
 
