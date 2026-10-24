@@ -874,3 +874,16 @@ if (( alias_ms * 4 > full_ms )); then
   fail "an alias dispatch costs a fraction of loading the whole command table"
 fi
 pass "an alias dispatch costs a fraction of loading the whole command table (${alias_ms}ms vs ${full_ms}ms)"
+
+cleaned=$("$ROOT/bin/omarchy-clipboard-clean-url" 'https://example.com/a?id=1&utm_source=newsletter&fbclid=abc#top')
+[[ $cleaned == 'https://example.com/a?id=1#top' ]] || fail "clean-url drops tracking params and keeps the fragment: $cleaned"
+pass "clean-url drops tracking params and keeps the fragment"
+
+cleaned=$("$ROOT/bin/omarchy-clipboard-clean-url" 'https://example.com/a?utm_medium=email')
+[[ $cleaned == 'https://example.com/a' ]] || fail "clean-url removes a query that was only tracking: $cleaned"
+pass "clean-url removes a query that was only tracking"
+
+if "$ROOT/bin/omarchy-clipboard-clean-url" 'not a url' >/dev/null 2>&1; then
+  fail "clean-url rejects a non-http value"
+fi
+pass "clean-url rejects a non-http value"
