@@ -112,13 +112,31 @@ interruptible() {
   wait $!
 }
 
-if omarchy-cmd-missing "$provider"; then
-  say "$(omarchy-i18n agents.installingCli "$name")"
-  if [[ $events == "true" ]]; then
-    mise use -g "$package" >/dev/null 2>&1 || fail "$(omarchy-i18n agents.installCliFailed "$name")"
-  else
-    mise use -g "$package" || exit 1
+# A command on PATH may only be a mise dispatcher or Omarchy's first-run
+# installer. Resolve those before promising a browser: the download (or a
+# wait for another installer) can take minutes. Login uses the resolved CLI
+# so the lazy launcher cannot start another update after the status changes.
+login_binary=$(type -P "$provider" || true)
+if [[ -n $login_binary && $login_binary -ef $(type -P mise) ]]; then
+  login_binary=$(MISE_OFFLINE=1 mise which "$provider" 2>/dev/null) || login_binary=""
+  # A native dispatcher also supports a CLI installed outside mise.
+  if [[ -z $login_binary ]]; then
+    while IFS= read -r candidate; do
+      [[ $candidate -ef $(type -P mise) ]] && continue
+      login_binary=$candidate
+      break
+    done < <(type -aP "$provider")
   fi
+fi
+
+if [[ -z $login_binary ]] || head -c 4096 "$login_binary" | grep -aqE 'mise (use|x) '; then
+  say "$(omarchy-i18n agents.preparingCli "$name")"
+  if [[ $events == "true" ]]; then
+    interruptible env MISE_MINIMUM_RELEASE_AGE=0 mise use -g "$package" >/dev/null 2>&1 || fail "$(omarchy-i18n agents.installCliFailed "$name")"
+  else
+    interruptible env MISE_MINIMUM_RELEASE_AGE=0 mise use -g "$package" || fail "$(omarchy-i18n agents.installCliFailed "$name")"
+  fi
+  login_binary=$(MISE_OFFLINE=1 mise which "$provider") || fail "$(omarchy-i18n agents.installedCliMissing "$name")"
 fi
 
 # Your main browser is almost certainly signed in to the account you already
@@ -131,9 +149,9 @@ private_browser() {
 }
 
 case "$provider" in
-claude) login_command=(claude auth login) ;;
-codex) login_command=(codex login) ;;
-grok) login_command=(grok login) ;;
+claude) login_command=("$login_binary" auth login) ;;
+codex) login_command=("$login_binary" login) ;;
+grok) login_command=("$login_binary" login) ;;
 esac
 
 # The CLI's own home, whatever this shell has pointed it at.
