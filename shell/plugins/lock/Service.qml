@@ -232,6 +232,8 @@ Item {
     resetAuthenticationState()
     lockRequested = true
     armBlankTimer()
+    // Some lock paths bypass omarchy-system-lock, including suspend and recovery.
+    layoutResetBeforeLock.running = true
     logEvent("lock-requested")
     queueSessionLock()
 
@@ -510,6 +512,8 @@ Item {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
+        // Reapply after the lock is secure in case the first IPC call raced it.
+        layoutResetAfterLock.running = true
         root.startFingerprint()
       }
     }
@@ -721,6 +725,16 @@ Item {
     interval: FingerprintModel.REACH_TIMEOUT_MS
     repeat: false
     onTriggered: root.timeoutFingerprintReach()
+  }
+
+  Process {
+    id: layoutResetBeforeLock
+    command: ["hyprctl", "switchxkblayout", "all", "0"]
+  }
+
+  Process {
+    id: layoutResetAfterLock
+    command: ["hyprctl", "switchxkblayout", "all", "0"]
   }
 
   Process {
