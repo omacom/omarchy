@@ -640,6 +640,7 @@ Panel {
 
               PanelSlider {
                 id: brightnessSlider
+                surfaceFillSpec: Commons.Color.popups.backgroundSpec
                 bar: root.bar
                 anchors.fill: parent
                 anchors.leftMargin: Style.space(6)
@@ -715,6 +716,7 @@ Panel {
 
               PanelSlider {
                 id: textSizeSlider
+                surfaceFillSpec: Commons.Color.popups.backgroundSpec
                 bar: root.bar
                 anchors.fill: parent
                 anchors.leftMargin: Style.space(6)

@@ -936,6 +936,7 @@ Panel {
 
               PanelSlider {
                 id: outputSlider
+                surfaceFillSpec: Commons.Color.popups.backgroundSpec
                 bar: root.bar
                 anchors.fill: parent
                 anchors.leftMargin: Style.space(6)
@@ -1035,6 +1036,7 @@ Panel {
 
                 PanelSlider {
                   id: inputSlider
+                  surfaceFillSpec: Commons.Color.popups.backgroundSpec
                   bar: root.bar
                   width: parent.width
                   minimum: 0
@@ -1330,6 +1332,7 @@ Panel {
       }
 
       PanelSlider {
+        surfaceFillSpec: Commons.Color.popups.backgroundSpec
         bar: root.bar
         width: parent.width
         minimum: 0

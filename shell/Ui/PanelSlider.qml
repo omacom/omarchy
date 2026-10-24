@@ -25,6 +25,10 @@ Item {
   // `integer`/`step` or an index-based value. Default 0 leaves the track plain.
   property int tickCount: 0
   property color tickColor: bar ? bar.background : Commons.Color.background
+  // The host supplies its actual fill; unrelated popup settings must not
+  // restyle sliders on solid windows such as the developer gallery.
+  property var surfaceFillSpec: null
+  readonly property bool gradientCard: !!(surfaceFillSpec && surfaceFillSpec.gradient && surfaceFillSpec.gradient.enabled)
 
   onValueChanged: if (!dragging) liveValue = value
 
@@ -78,7 +82,9 @@ Item {
     Rectangle {
       required property int index
       width: Math.max(1, Style.space(2))
-      height: root.trackHeight + Style.space(4)
+      // On gradient cards, keep the cut-out entirely inside the track instead
+      // of exposing a bar-colored tip against the card's changing background.
+      height: root.trackHeight + (root.gradientCard ? 0 : Style.space(4))
       radius: 1
       color: root.tickColor
       anchors.verticalCenter: track.verticalCenter
@@ -93,7 +99,7 @@ Item {
     height: root.knobSize
     radius: root.knobSize / 2
     color: root.knobColor
-    borderSpec: Border.flat(root.bar ? root.bar.background : "#101315", Math.max(1, Style.space(2)))
+    borderSpec: Border.flat(root.gradientCard ? root.trackColor : (root.bar ? root.bar.background : "#101315"), Math.max(1, Style.space(2)))
     anchors.verticalCenter: track.verticalCenter
     x: Math.max(0, Math.min(track.width - width, root.trackX(root.progress) - width / 2))
     scale: root._hot ? 1.15 : 1.0
