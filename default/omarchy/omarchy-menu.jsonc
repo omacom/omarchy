@@ -331,7 +331,7 @@
   "install.development.javascript": {"icon":"","label":"JavaScript"},
   "install.development.go": {"icon":"","label":"Go","disabled":"[[ -d $HOME/.local/share/mise/installs/go ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-dev-env go'"},
   "install.development.php": {"icon":"","label":"PHP"},
-  "install.development.python": {"icon":"","label":"Python","disabled":"[[ -d $HOME/.local/share/mise/installs/python ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-dev-env python'"},
+  "install.development.python": {"icon":"","label":"Python","disabled":"[[ -d $HOME/.local/share/mise/installs/uv ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-dev-env python'"},
   "install.development.elixir": {"icon":"","label":"Elixir"},
   "install.development.zig": {"icon":"","label":"Zig","disabled":"[[ -d $HOME/.local/share/mise/installs/zig ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-dev-env zig'"},
   "install.development.rust": {"icon":"","label":"Rust","disabled":"[[ -d $HOME/.rustup ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-dev-env rust'"},

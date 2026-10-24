@@ -28,10 +28,10 @@ cp "$ROOT/etc/mise/conf.d/omarchy-tools.toml" "$mise_config"
 export OMARCHY_MISE_CONFIG_PATH="$mise_config"
 
 bash "$ROOT/bin/omarchy-install-dev-env" python >/dev/null
-grep -Fx 'use --global python@latest' "$mise_log" >/dev/null || fail "Python setup installs Python through mise"
+grep -q 'python' "$mise_log" && fail "Python setup leaves python to the system interpreter"
 grep -Fx 'install uv' "$mise_log" >/dev/null || fail "Python setup installs the system-configured uv"
 grep -Fx 'use --global uv' "$mise_log" >/dev/null && fail "Python setup leaves the system-configured uv out of the user config"
-pass "Python setup installs Python and uv through mise"
+pass "Python setup installs uv through mise and pins no global Python"
 
 # mise skips Omarchy's declarations for a user who removed the preinstalls, so
 # uv goes in their own config, leaving the opt-out in place.
