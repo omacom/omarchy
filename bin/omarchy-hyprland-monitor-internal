@@ -40,7 +40,14 @@ off() {
     exit 1
   fi
 
-  if omarchy-hyprland-toggle-disabled $TOGGLE && omarchy-hyprland-toggle-disabled $MIRROR_TOGGLE; then
+  # Mirroring drives the internal output too, so it has to go before the
+  # disable rule lands or the two toggles fight and nothing appears to happen.
+  # The mirror command clears this toggle the same way when it turns on.
+  if omarchy-hyprland-toggle-enabled $MIRROR_TOGGLE; then
+    omarchy-hyprland-toggle $MIRROR_TOGGLE off
+  fi
+
+  if omarchy-hyprland-toggle-disabled $TOGGLE; then
     printf 'hl.monitor({ output = "%s", disabled = true })\n' "$INTERNAL" >"$TOGGLE_FLAG"
     omarchy-notification-send -g 󰍹 "$(omarchy-i18n monitor.laptopDisabled)"
     hyprctl reload
