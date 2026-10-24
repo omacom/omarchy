@@ -562,10 +562,23 @@ assertDeepEqual(
   defaultItems.filter(item => item.parent === 'appearance.windows.transparency').map(item => [item.label, item.action]),
   [
     ['Opaque Windows', 'omarchy-hyprland-window-transparency opaque'],
-    ['Transparent Windows', 'omarchy-hyprland-window-transparency transparent'],
+    ['Theme Windows', 'omarchy-hyprland-window-transparency transparent'],
     ['Glassy Windows', 'omarchy-hyprland-window-transparency glassy']
   ],
   'menu picks window transparency from Appearance > Windows > Window Opacity'
+)
+const englishMenuCatalog = JSON.parse(fs.readFileSync(path.join(root, 'default/i18n/en/menu.json'), 'utf8'))
+const englishMenu = menu.mergeMenuSources(menu.applyTranslations(defaultItems, englishMenuCatalog), [])
+const themeWindows = englishMenu.items['appearance.windows.transparency.transparent']
+assertEqual(
+  menu.labelFor(themeWindows, { [themeWindows.id]: true }),
+  'Theme Windows ✓',
+  'menu keeps Theme Windows and its check mark after applying the English catalog'
+)
+assertDeepEqual(
+  [themeWindows.action, themeWindows.checked],
+  ['omarchy-hyprland-window-transparency transparent', '[[ $(omarchy-hyprland-window-transparency) == "transparent" ]]'],
+  'translated Theme Windows keeps the existing transparent mode action and guard'
 )
 const triggerIds = triggerItems.map(item => item.id)
 const windowLabels = ['Window Gaps On', 'Window Gaps Off', 'Window Corners', 'Window Opacity', '1-Window Ratio On', '1-Window Ratio Off']
