@@ -12,6 +12,7 @@ file first, if one exists.
 ```
 ~/.config/omarchy/hooks/
 ├── battery-low.d/          # Low battery (percentage in $1)
+├── font-hinting.d/         # After font hinting change (hinting style in $1)
 ├── font-set.d/             # After font change (font name in $1)
 ├── post-boot.d/            # After the desktop starts
 ├── post-update.d/          # At the end of `omarchy update`, after privileged work

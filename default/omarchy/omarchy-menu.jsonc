@@ -56,6 +56,7 @@
   "appearance.theme": {"icon":"󰸌","label":"Theme","aliases":["theme","themes"],"action":"omarchy-shell shell summon omarchy.image-picker '{\"source\":\"themes\"}'"},
   "appearance.background": {"icon":"","label":"Background","aliases":["background","wallpaper"],"action":"background=$(omarchy-theme-bg-switcher); [[ -n $background ]] && omarchy-theme-bg-set \"$background\""},
   "appearance.font": {"icon":"","label":"Font","provider":"fonts"},
+  "appearance.font-hinting": {"icon":"󰋁","label":"Font Hinting","provider":"font-hinting"},
   "appearance.top-bar": {"icon":"󰍜","label":"Menu Bar"},
   "appearance.top-bar.hide": {"icon":"󰈉","label":"Hide Bar","when":"! omarchy-toggle-enabled bar-off","action":"omarchy-toggle-bar"},
   "appearance.top-bar.show": {"icon":"󰈈","label":"Show Bar","when":"omarchy-toggle-enabled bar-off","action":"omarchy-toggle-bar"},
