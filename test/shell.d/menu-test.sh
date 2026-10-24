@@ -383,6 +383,7 @@ assertDeepEqual(
     'remove.tui',
     'remove.windows',
     'remove.preinstalls',
+    'remove.hardware',
     'remove.security'
   ],
   'menu keeps the Remove category order'
