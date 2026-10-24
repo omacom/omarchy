@@ -1,0 +1,163 @@
+#!/bin/bash
+
+# omarchy:summary=Repair or reject stale Limine boot images after an update
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+from_update=0
+if [[ ${1:-} == "--from-update" ]]; then
+  from_update=1
+  shift
+fi
+if (( $# )); then
+  echo "Usage: omarchy-update-verify-boot [--from-update]" >&2
+  exit 2
+fi
+
+modules_dir="${OMARCHY_MODULES_DIR:-/usr/lib/modules}"
+uki_dir="${OMARCHY_UKI_DIR:-/boot/EFI/Linux}"
+limine_config="${OMARCHY_LIMINE_CONFIG:-/boot/limine.conf}"
+config_root="${OMARCHY_LIMINE_CONFIG_ROOT:-}"
+uki_configs=(
+  "$config_root"/usr/share/limine-entry-tool.d/*.conf
+  "$config_root"/etc/limine-entry-tool.conf
+  "$config_root"/etc/limine-entry-tool.d/*.conf
+  "$config_root"/etc/default/limine
+)
+[[ -z ${OMARCHY_UKI_CONFIG:-} ]] || uki_configs=("$OMARCHY_UKI_CONFIG")
+
+# Nothing to verify on a non-UEFI or non-UKI installation. The explicit test
+# flag exists only so the same boundary can be exercised outside a booted VM.
+if [[ ${OMARCHY_VERIFY_BOOT_TEST:-} != "1" ]]; then
+  [[ -d /sys/firmware/efi ]] || exit 0
+fi
+# Follow limine-entry-tool's load order without executing configuration as shell.
+uki=""
+for file in "${uki_configs[@]}"; do
+  [[ -f $file ]] || continue
+  value=$(sudo awk '
+    /^[[:space:]]*ENABLE_UKI[[:space:]]*=/ {
+      value = $0
+      sub(/^[^=]*=[[:space:]]*/, "", value)
+      sub(/"$/, "", value)
+      sub(/^"/, "", value)
+      found = 1
+    }
+    END { if (found) print "=" value }
+  ' "$file")
+  [[ $value != "="* ]] || uki=${value#=}
+done
+[[ $uki == "yes" ]] || exit 0
+
+failures=()
+verify_boot_images() {
+  local config pkgbase kernel_name kernel_version reference path filename uki
+  local embedded_version expected_hash actual_hash matched version_file owned_kernels=0
+  local -a references=()
+
+  failures=()
+  if ! config=$(sudo cat "$limine_config" 2>/dev/null); then
+    failures+=("$limine_config is missing or unreadable")
+    return 1
+  fi
+
+  mapfile -t references < <(
+    grep -E '^[[:space:]]*path:[[:space:]]*\$?boot\(\):/EFI/Linux/' <<<"$config" |
+      grep -oE '\$?boot\(\):/EFI/Linux/[^#[:space:]]+\.efi(#[0-9a-f]+)?' || true
+  )
+
+  shopt -s nullglob
+  for pkgbase in "$modules_dir"/*/pkgbase; do
+    # kernel-modules-hook can preserve the running kernel after its package is
+    # replaced. Limine deliberately ignores that unowned copy, so we do too.
+    pacman -Qqo "$pkgbase" &>/dev/null || continue
+    ((owned_kernels += 1))
+
+    kernel_name=$(<"$pkgbase")
+    kernel_name=${kernel_name// /}
+    kernel_version=${pkgbase%/pkgbase}
+    kernel_version=${kernel_version##*/}
+    matched=0
+
+    for reference in "${references[@]}"; do
+      path=${reference%#*}
+      filename=${path##*/}
+      [[ $filename == *"_${kernel_name}.efi" ]] || continue
+      ((matched += 1))
+
+      uki="$uki_dir/$filename"
+      if ! sudo test -f "$uki"; then
+        failures+=("$uki is missing for $kernel_name $kernel_version")
+        continue
+      fi
+
+      if ! version_file=$(mktemp); then
+        failures+=("Could not create a temporary file to inspect $uki")
+        continue
+      fi
+      if sudo objcopy -O binary --only-section=.uname "$uki" "$version_file" 2>/dev/null; then
+        embedded_version=$(tr -d '\0' <"$version_file")
+      else
+        embedded_version=""
+      fi
+      rm -f -- "$version_file"
+      if [[ $embedded_version != "$kernel_version" ]]; then
+        failures+=("$uki contains ${embedded_version:-no kernel version}; expected $kernel_version")
+      fi
+
+      if [[ $reference == *"#"* ]]; then
+        expected_hash=${reference##*#}
+        actual_hash=$(sudo b2sum "$uki" 2>/dev/null | awk '{ print $1 }' || true)
+        if [[ $actual_hash != "$expected_hash" ]]; then
+          failures+=("$limine_config has a stale hash for $uki")
+        fi
+      fi
+    done
+
+    ((matched > 0)) || failures+=("$limine_config has no UKI for $kernel_name $kernel_version")
+  done
+  shopt -u nullglob
+
+  ((owned_kernels > 0)) || failures+=("No installed kernel package was found under $modules_dir")
+
+  ((${#failures[@]} == 0))
+}
+
+build_failed=0
+if (( from_update )) && [[ -r ${OMARCHY_UPDATE_LOG:-/tmp/omarchy-update.log} ]] &&
+  grep -q 'mkinitcpio failed for kernel' "${OMARCHY_UPDATE_LOG:-/tmp/omarchy-update.log}"; then
+  build_failed=1
+fi
+
+if verify_boot_images && (( build_failed == 0 )); then
+  exit 0
+fi
+
+echo -e "\e[33m\nThe installed kernels and Limine boot images do not match. Rebuilding once...\e[0m" >&2
+repair_log=$(mktemp) || {
+  echo "Could not create a temporary file for the Limine rebuild log. Do not reboot." >&2
+  exit 1
+}
+repair_failed=0
+if ! sudo limine-mkinitcpio 2>&1 | tee "$repair_log"; then
+  repair_failed=1
+fi
+if grep -q 'mkinitcpio failed for kernel' "$repair_log"; then
+  repair_failed=1
+fi
+rm -f -- "$repair_log"
+
+verify_boot_images || true
+if (( repair_failed == 0 )) && ((${#failures[@]} == 0)); then
+  echo -e "\e[32mThe Limine boot images are repaired.\e[0m"
+  exit 0
+fi
+
+(( repair_failed == 0 )) || failures+=("limine-mkinitcpio reported a failed kernel build")
+
+echo -e "\e[31m\nThe Limine boot images are still unsafe:\e[0m" >&2
+printf '  %s\n' "${failures[@]}" >&2
+echo -e "\nDo not reboot. Repair the errors above, run sudo limine-mkinitcpio, then retry omarchy update.\n" >&2
+exit 1

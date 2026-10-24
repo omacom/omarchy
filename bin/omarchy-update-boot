@@ -6,9 +6,8 @@
 
 # Proves that the boot files the package steps left boot the updated system;
 # omarchy update neither finishes nor offers a reboot until this passes. It is
-# the update-verify lifecycle dispatch operation: a no-op where the platform
-# registers no boot package, x86 included, and the platform's own entrypoint
-# says what failed.
+# the update-verify lifecycle dispatch operation on platforms with their own
+# boot chain. On generic UEFI systems, verify Limine's UKIs instead.
 
 set -e
 
@@ -36,4 +35,6 @@ elif (( status != 0 )); then
   exit "$status"
 elif [[ -n $resolved ]]; then
   sudo omarchy-lifecycle-dispatch "$operation"
+elif [[ -d /sys/firmware/efi || ${OMARCHY_VERIFY_BOOT_TEST:-} == "1" ]]; then
+  sudo /bin/bash -p "$OMARCHY_PATH/bin/omarchy-update-verify-boot" --from-update
 fi
