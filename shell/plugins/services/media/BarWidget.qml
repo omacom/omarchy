@@ -201,6 +201,7 @@ BarWidget {
 
         Button {
           iconText: "󰒮"
+          anchors.verticalCenter: parent.verticalCenter
           foreground: root.bar.foreground
           horizontalPadding: Style.spacing.controlPaddingX
           verticalPadding: Style.spacing.controlPaddingY
@@ -211,6 +212,7 @@ BarWidget {
 
         Button {
           iconText: root.activePlayer && root.activePlayer.isPlaying ? "󰏤" : "󰐊"
+          anchors.verticalCenter: parent.verticalCenter
           foreground: root.bar.foreground
           horizontalPadding: Style.spacing.panelGap
           verticalPadding: Style.spacing.controlPaddingY
@@ -222,6 +224,7 @@ BarWidget {
 
         Button {
           iconText: "󰒭"
+          anchors.verticalCenter: parent.verticalCenter
           foreground: root.bar.foreground
           horizontalPadding: Style.spacing.controlPaddingX
           verticalPadding: Style.spacing.controlPaddingY
