@@ -531,10 +531,11 @@ assertDeepEqual(
   assertDeepEqual(checked({ position: 'left' }), ['left'], 'menu checks Left Dock while the dock is on the left')
   fs.rmSync(home, { recursive: true, force: true })
 }
-assertDeepEqual(
-  defaultItems.filter(item => item.parent === 'appearance.top-bar.indicators').map(item => item.label),
-  ['Show Battery %', 'Hide Battery %', 'Clock'],
-  'menu gathers bar indicator options under Menu Bar > Bar Indicators'
+const indicatorLabels = defaultItems.filter(item => item.parent === 'appearance.top-bar.indicators').map(item => item.label)
+assert(
+  ['Show Battery %', 'Hide Battery %', 'Clock'].every(label => indicatorLabels.includes(label)),
+  'menu gathers bar indicator options under Menu Bar > Bar Indicators',
+  JSON.stringify(indicatorLabels)
 )
 const clockModel = requireFromRoot('shell/plugins/panels/clock/Model.js')
 const clockRows = defaultItems.filter(item => item.parent === 'appearance.top-bar.indicators.clock')

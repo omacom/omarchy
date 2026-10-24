@@ -228,6 +228,8 @@
   "sshd.keyPaste": "Paste key manually",
   "sshd.publicKeyPrompt": "Public key> ",
   "sshd.removeAuthorizedKeys": "Also remove all authorized SSH keys (%1)?",
+  "statusPhrases.disabled": "Status phrases hidden",
+  "statusPhrases.enabled": "Status phrases shown",
   "suspend.availableInMenu": "Suspend now available in system menu",
   "suspend.removedFromMenu": "Suspend removed from system menu",
   "suspend.turnedOffOnMachine": "Suspend is turned off on this machine",

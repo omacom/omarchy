@@ -122,6 +122,12 @@
   "appearance.top-bar.indicators.battery-percentage-off": {
     "label": "Hide Battery %"
   },
+  "appearance.top-bar.indicators.status-phrases-on": {
+    "label": "Show Status Phrases"
+  },
+  "appearance.top-bar.indicators.status-phrases-off": {
+    "label": "Hide Status Phrases"
+  },
   "appearance.top-bar.indicators.clock": {
     "label": "Clock"
   },

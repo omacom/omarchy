@@ -63,6 +63,8 @@ Panel {
     return "󰂯"
   }
 
+  // `omarchy toggle status-phrases` turns the rotating hero phrases into plain status text.
+  readonly property bool statusPhrases: setting("statusPhrases", true) !== false
   property int phraseIndex: 0
   readonly property var activePhrases: [
     Commons.I18n.t("bluetooth.phrase1"),
@@ -74,10 +76,11 @@ Panel {
     Commons.I18n.t("bluetooth.phrase7"),
     Commons.I18n.t("bluetooth.phrase8")
   ]
-  readonly property bool rotatingPhrases: adapter && adapter.enabled
+  readonly property bool rotatingPhrases: statusPhrases && adapter && adapter.enabled
   readonly property string heroStatusText: {
     if (!adapter) return Commons.I18n.t("bluetooth.noAdapter")
     if (!adapter.enabled) return Commons.I18n.t("bluetooth.turnedOff")
+    if (!statusPhrases) return connectedDevices.length > 0 ? Commons.I18n.t("bluetooth.connectedStatus") : Commons.I18n.t("bluetooth.on")
     return activePhrases[phraseIndex % activePhrases.length]
   }
 

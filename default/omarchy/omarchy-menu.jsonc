@@ -67,6 +67,8 @@
   "appearance.top-bar.indicators": {"icon":"󰋽","label":"Bar Indicators"},
   "appearance.top-bar.indicators.battery-percentage-on": {"icon":"󰁹","label":"Show Battery %","when":"omarchy-hw-laptop && [[ $(omarchy-bar get omarchy.power showPercentage) != true ]]","action":"omarchy-shell omarchy.power togglePercentage"},
   "appearance.top-bar.indicators.battery-percentage-off": {"icon":"󰁹","label":"Hide Battery %","when":"omarchy-hw-laptop && [[ $(omarchy-bar get omarchy.power showPercentage) == true ]]","action":"omarchy-shell omarchy.power togglePercentage"},
+  "appearance.top-bar.indicators.status-phrases-on": {"icon":"󰋽","label":"Show Status Phrases","when":"[[ $(omarchy-toggle-status-phrases --status) == \"off\" ]]","action":"omarchy-toggle-status-phrases"},
+  "appearance.top-bar.indicators.status-phrases-off": {"icon":"󰋽","label":"Hide Status Phrases","when":"[[ $(omarchy-toggle-status-phrases --status) == \"on\" ]]","action":"omarchy-toggle-status-phrases"},
   "appearance.top-bar.indicators.clock": {"icon":"󰥔","label":"Clock"},
   "appearance.top-bar.indicators.clock.sunday-24h": {"icon":"󰥔","label":"Sunday 14:30","when":"[[ $(omarchy-bar position) != \"left\" && $(omarchy-bar position) != \"right\" ]]","checked":"[[ $(omarchy-bar get omarchy.clock format) == \"dddd HH:mm\" ]]","action":"omarchy-bar set omarchy.clock format \"dddd HH:mm\""},
   "appearance.top-bar.indicators.clock.sunday-12h": {"icon":"󰥔","label":"Sunday 2:30 PM","when":"[[ $(omarchy-bar position) != \"left\" && $(omarchy-bar position) != \"right\" ]]","checked":"[[ $(omarchy-bar get omarchy.clock format) == \"dddd h:mm AP\" ]]","action":"omarchy-bar set omarchy.clock format \"dddd h:mm AP\""},

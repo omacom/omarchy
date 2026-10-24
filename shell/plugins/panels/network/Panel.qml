@@ -55,6 +55,8 @@ Panel {
   // sample arriving late never reflows the grid. This says whether the numbers
   // are real yet or the row should read "--".
   readonly property bool hasTransferStats: info.rx_bytes !== undefined
+  // `omarchy toggle status-phrases` turns the rotating connection phrases into plain status text.
+  readonly property bool statusPhrases: setting("statusPhrases", true) !== false
   property int connectionPhraseIndex: 0
   readonly property var connectionPhrases: [
     Commons.I18n.t("network.phrase1"),
@@ -65,7 +67,9 @@ Panel {
     Commons.I18n.t("network.phrase6"),
     Commons.I18n.t("network.phrase7")
   ]
-  readonly property string connectionPhrase: connectionPhrases[connectionPhraseIndex % connectionPhrases.length]
+  readonly property string connectionPhrase: statusPhrases
+    ? connectionPhrases[connectionPhraseIndex % connectionPhrases.length]
+    : Commons.I18n.t("network.connected")
   readonly property bool networkManagerAvailable: Networking.backend === NetworkBackendType.NetworkManager
   readonly property var networkDevices: Networking.devices ? Networking.devices.values : []
   readonly property var wifiDevice: findDevice(DeviceType.Wifi)
@@ -1024,7 +1028,7 @@ Panel {
   Timer {
     id: connectionPhraseTimer
     interval: 2800
-    running: root.opened && !root.restricted && (root.info.type === "ethernet" || (root.info.type === "wifi" && root.canDisconnect))
+    running: root.opened && root.statusPhrases && !root.restricted && (root.info.type === "ethernet" || (root.info.type === "wifi" && root.canDisconnect))
     repeat: true
     onTriggered: connectionPhraseSwap.restart()
   }
