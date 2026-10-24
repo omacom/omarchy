@@ -9,6 +9,7 @@ ShellRoot {
   id: test
   property bool failed: false
   property int builds: 0
+  property real formHeight: 42
 
   function check(ok, message) {
     if (!ok) {
@@ -31,7 +32,19 @@ ShellRoot {
     focusTarget: lazy.loadedContent
 
     content: Item {
-      implicitHeight: 42
+      implicitHeight: test.formHeight
+      ListView {
+        width: parent.width
+        height: 240
+        model: 20
+        delegate: Item { width: 100; height: 30 }
+      }
+      TextInput {
+        objectName: "password-field"
+        y: 600
+        width: 100
+        height: 30
+      }
       Component.onCompleted: test.builds++
     }
   }
@@ -57,6 +70,28 @@ ShellRoot {
       test.check(first !== null && test.builds === 1, "opening builds the content")
       test.check(lazy.focusTarget === first, "a focus target inside the content resolves on open")
       test.check(lazy.loadedContentHeight === 42, "the content's height reaches the panel")
+
+      function find(item, name) {
+        if (item.objectName === name) return item
+        for (var i = 0; i < item.children.length; i++) {
+          var found = find(item.children[i], name)
+          if (found) return found
+        }
+        return null
+      }
+      var holder = first.parent.parent
+      var viewport = holder.parent.parent
+      test.check(viewport.objectName === "keyboard-panel-content-viewport", "production content uses the scroll viewport")
+      test.formHeight = 700
+      lazy.contentHeight = 220
+      test.check(viewport.contentHeight >= 700 && viewport.interactive, "a capped card keeps the full form scrollable")
+      viewport.contentY = 600
+      var password = find(first, "password-field")
+      var point = password.mapToItem(viewport, 0, 0)
+      test.check(point.y >= 0 && point.y + password.height <= viewport.height, "the lower password field can be scrolled into view")
+      lazy.contentHeight = 900
+      viewport.returnToBounds()
+      test.check(!viewport.interactive, "scrolling disables when the complete form fits again")
 
       lazy.open = false
       test.check(lazy.loadedContent === first, "closing keeps the content")
