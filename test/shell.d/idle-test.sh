@@ -78,6 +78,47 @@ assertDeepEqual(
   { windows: { a: true }, count: 1 },
   'idle leaves screensaver windows unchanged without an address'
 )
+assertDeepEqual(
+  idle.screensaverWindowsFromToplevels([
+    { address: '0xabc', lastIpcObject: { class: 'org.omarchy.screensaver' } },
+    { address: '0xdef', lastIpcObject: { class: 'foot' } }
+  ], 'org.omarchy.screensaver'),
+  { windows: { '0xabc': true }, count: 1 },
+  'idle restores already-open screensaver windows from Hyprland'
+)
+assert(
+  /function syncScreensaverWindows\(\)[\s\S]*?Hyprland\.toplevels\.values/.test(serviceSource) &&
+    /target: Hyprland\.toplevels[\s\S]*?onValuesChanged.*syncScreensaverWindows\(\)/.test(serviceSource) &&
+    /Component\.onCompleted:[\s\S]*?syncScreensaverWindows\(\)/.test(serviceSource),
+  'idle seeds the screensaver count at startup and refreshes it with Hyprland clients'
+)
+const syncBody = serviceSource.match(/function syncScreensaverWindows\(\) \{[\s\S]*?\n  \}/)[0]
+assert(
+  syncBody.includes('handleScreensaverWindowOpened(') &&
+    !syncBody.includes('handleScreensaverWindowClosed(') &&
+    !syncBody.includes('root.screensaverWindows ='),
+  'idle sync never closes a counted screensaver whose class Hyprland has not reported yet'
+)
+const eventBody = serviceSource.match(/function handleHyprlandEvent\(event\) \{[\s\S]*?\n  \}/)[0]
+assert(
+  /!root\.closedWindows\[address\]\) root\.handleScreensaverWindowOpened/.test(syncBody) &&
+    /if \(address\) root\.closedWindows\[address\] = true\n\s*if \(root\.screensaverWindows\[address\]\) root\.handleScreensaverWindowClosed\(address\)/.test(eventBody) &&
+    /delete root\.closedWindows\[/.test(eventBody.split('closewindow')[0]),
+  'idle sync never revives a window closewindow closed, counted or not, until that address opens again'
+)
+assertDeepEqual(
+  idle.screensaverWindowsFromToplevels([{ address: 'abc', lastIpcObject: {} }], 'org.omarchy.screensaver'),
+  { windows: {}, count: 0 },
+  'idle cannot classify a toplevel before Hyprland reports its class'
+)
+
+// A force-launched screensaver stays up across idle cycles, and the bar reads
+// this count to stay below it, so starting or cancelling a cycle keeps it.
+const idleSource = require('fs').readFileSync(root + '/shell/plugins/services/idle/Service.qml', 'utf8')
+for (const name of ['startIdleCycle', 'cancelIdleCycle']) {
+  const body = idleSource.match(new RegExp('function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}'))
+  assert(body && !body[0].includes('resetScreensaverWindows()'), name + ' keeps screensaver windows that are still open')
+}
 JS
 
 test_tmp=$(mktemp -d)

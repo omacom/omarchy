@@ -39,6 +39,7 @@ Item {
   property string lastEvent: "starting"
   property string lastEventAt: ""
   property var screensaverWindows: ({})
+  property var closedWindows: ({})
   property int screensaverWindowCount: 0
 
   function secondsFromConfig(value, fallback) {
@@ -93,7 +94,6 @@ Item {
     logEvent("idle-cycle-start", "screensaver=" + root.screensaverTimeoutSeconds + " lock=" + root.lockTimeoutSeconds)
     root.idledThisCycle = true
     root.screensaverStartedThisCycle = false
-    resetScreensaverWindows()
 
     // Set this cycle's deadlines once: a bound interval would restart a pending
     // timer from the moment shell.json changes, locking early or late.
@@ -124,9 +124,10 @@ Item {
 
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
-    resetScreensaverWindows()
   }
 
+  // Only the lock closes screensaver windows, so only the lock forgets them. A
+  // force-launched one outlives idle cycles, and the bar steps below it by count.
   function resetScreensaverWindows() {
     root.screensaverWindows = ({})
     root.screensaverWindowCount = 0
@@ -136,6 +137,15 @@ Item {
     var next = IdleModel.screensaverWindowsAfter(root.screensaverWindows, address, visible)
     root.screensaverWindows = next.windows
     root.screensaverWindowCount = next.count
+  }
+
+  // Only adds: a toplevel's class arrives after it does, so absence is not a close, and a
+  // clients reply sent before a closewindow can land after it, so closed stays closed.
+  function syncScreensaverWindows() {
+    var next = IdleModel.screensaverWindowsFromToplevels(Hyprland.toplevels.values, root.screensaverClass)
+    for (var address in next.windows) {
+      if (!root.screensaverWindows[address] && !root.closedWindows[address]) root.handleScreensaverWindowOpened(address)
+    }
   }
 
   function handleScreensaverWindowOpened(address) {
@@ -163,10 +173,13 @@ Item {
     var name = String(event && event.name ? event.name : "")
     if (name === "openwindow") {
       var open = eventParts(event, 4)
+      delete root.closedWindows[String(open[0] || "")]
       if (String(open[2] || "") === root.screensaverClass) root.handleScreensaverWindowOpened(open[0])
     } else if (name === "closewindow") {
       var close = eventParts(event, 1)
       var address = String(close[0] || "")
+      // Every close, counted or not: the lock resets the count before it closes the screensavers.
+      if (address) root.closedWindows[address] = true
       if (root.screensaverWindows[address]) root.handleScreensaverWindowClosed(address)
     }
   }
@@ -303,6 +316,11 @@ Item {
     function onRawEvent(event) { root.handleHyprlandEvent(event) }
   }
 
+  Connections {
+    target: Hyprland.toplevels
+    function onValuesChanged() { root.syncScreensaverWindows() }
+  }
+
   Process {
     id: screensaverProcess
     onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "screensaver exitCode=" + exitCode + " status=" + exitStatus) }
@@ -349,6 +367,7 @@ Item {
 
   Component.onCompleted: {
     logEvent("service-ready")
+    syncScreensaverWindows()
     refreshStayAwakeState()
   }
 
