@@ -128,6 +128,35 @@ assert(
     /function openThemes\(\) \{\s*if \(themeRows\) \{\s*openThemeRows\(\)[\s\S]*refreshThemeRows\(\)/.test(imagePickerQml),
   'image picker opens themes from held rows before refreshing them'
 )
+const filterGuard = imagePickerQml.match(/else if \((root\.filterable && event\.text[^\n]+)\) \{/)
+assert(filterGuard, 'image picker has a printable-input guard')
+const acceptsFilterInput = new Function('root', 'event', 'Qt', `return (${filterGuard[1]})`)
+const Qt = {
+  NoModifier: 0,
+  ShiftModifier: 0x02000000,
+  ControlModifier: 0x04000000,
+  AltModifier: 0x08000000,
+  MetaModifier: 0x10000000,
+  KeypadModifier: 0x20000000,
+  GroupSwitchModifier: 0x40000000
+}
+for (const [label, modifiers] of [
+  ['no modifiers', Qt.NoModifier],
+  ['Shift', Qt.ShiftModifier],
+  ['keypad', Qt.KeypadModifier],
+  ['layout', Qt.GroupSwitchModifier],
+  ['Shift plus keypad', Qt.ShiftModifier | Qt.KeypadModifier],
+  ['Shift plus layout', Qt.ShiftModifier | Qt.GroupSwitchModifier]
+]) {
+  assert(acceptsFilterInput({ filterable: true }, { text: '+', modifiers }, Qt), `image picker accepts ${label}`)
+  for (const shortcut of ['ControlModifier', 'AltModifier', 'MetaModifier']) {
+    assert(!acceptsFilterInput({ filterable: true }, { text: '+', modifiers: modifiers | Qt[shortcut] }, Qt), `image picker rejects ${label} plus ${shortcut}`)
+  }
+}
+for (const text of ['', '\n', '\x7f', 'ab']) {
+  assert(!acceptsFilterInput({ filterable: true }, { text, modifiers: Qt.NoModifier }, Qt), `image picker rejects non-printable or multi-character input ${JSON.stringify(text)}`)
+}
+assert(!acceptsFilterInput({ filterable: false }, { text: '+', modifiers: Qt.NoModifier }, Qt), 'image picker does not type when filtering is disabled')
 assert(
   /command: \[root\.omarchyPath \+ "\/bin\/omarchy-theme-switcher", "--print-rows"\]/.test(imagePickerQml),
   'image picker refreshes theme rows from the theme switcher'
