@@ -638,9 +638,6 @@
   "setup.plugin.remove": {
     "label": "Remove Plugin"
   },
-  "setup.git": {
-    "label": "Git"
-  },
   "setup.security": {
     "label": "Security"
   },
@@ -664,6 +661,9 @@
   },
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
+  },
+  "setup.config.git": {
+    "label": "Git"
   },
   "setup.config.hyprland": {
     "label": "Hyprland"
