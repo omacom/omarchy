@@ -36,6 +36,10 @@ assert(
     qml.includes('var percent = Math.round(100 * readNumber(brightnessFile) / max)'),
   'brightness keys compute percentages as brightnessctl reports them'
 )
+assert(
+  qml.includes('setProc.command = ["brightnessctl", "-q", "-n1", "-d", device, "set", BrightnessModel.brightnessKeyTarget(action, current) + "%"]'),
+  'brightness keys keep a coarse backlight at one raw step at least, as the script does'
+)
 
 const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
 assert(
