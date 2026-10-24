@@ -5,16 +5,28 @@
 # omarchy:hidden=true
 
 # The menu's Wi-Fi QR Code row asks this on every open. It answers what
-# omarchy-network-status reports as wifi -- the default-route device is
-# wireless and NetworkManager has it activated -- without the nmcli and iw
-# queries that only feed that status line's SSID, signal and frequency (~65ms
-# against ~3ms here). Keep the two agreeing.
+# omarchy-network-status reports as wifi -- the physical link carrying the
+# traffic is wireless and NetworkManager has it activated -- without the nmcli
+# and iw queries that only feed that status line's SSID, signal and frequency
+# (~65ms against ~3ms here). Keep the two agreeing, including when the default
+# route runs over a tunnel (VPN or proxy TUN) that both resolve to the link
+# underneath.
 
 net_class_path="${OMARCHY_NET_CLASS_PATH:-/sys/class/net}"
 
 route=$(ip route get 1.1.1.1 2>/dev/null) || exit 1
 [[ $route =~ (^|[[:space:]])dev[[:space:]]+([^[:space:]]+) ]] || exit 1
 device=${BASH_REMATCH[2]}
+
+if [[ $(cat "$net_class_path/$device/type" 2>/dev/null) == "65534" ]]; then
+  # A tunnel: the link it rides on, the same pick omarchy-network-status makes.
+  for candidate in $(ip -j route show default 2>/dev/null | jq -r 'sort_by(.metric // 0)[] | .dev // .nexthops[]?.dev' 2>/dev/null); do
+    if [[ $(cat "$net_class_path/$candidate/type" 2>/dev/null) != "65534" ]]; then
+      device=$candidate
+      break
+    fi
+  done
+fi
 
 [[ -d $net_class_path/$device/wireless ]] || exit 1
 
