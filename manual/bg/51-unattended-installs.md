@@ -12,8 +12,6 @@ ISO файлът на Omarchy може да се инсталира сам, бе
 |------|----------|---------|
 | `user_configuration.json` | Да | Диск, име на хост, часова зона, клавиатура |
 | `user_credentials.json` | Да | Потребителско име и хеш на парола |
-| `user_full_name.txt` | Не | Пълно име за Git |
-| `user_email_address.txt` | Не | Имейл за Git |
 | `user_encrypt_installation.txt` | Не | `true`, когато конфигурацията носи блок `disk_encryption` |
 | `authorized_keys` | Не | SSH публични ключове, по един на ред |
 | `tailscale_authkey` | Не | Ключ за удостоверяване в Tailscale за присъединяване към твоя tailnet при първо зареждане |

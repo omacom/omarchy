@@ -12,8 +12,6 @@ Les fichiers sont exactement ce que l'assistant de l'installateur lui-même écr
 |------|----------|---------|
 | `user_configuration.json` | Oui | Disque, nom d'hôte, fuseau horaire, clavier |
 | `user_credentials.json` | Oui | Nom d'utilisateur et hachage du mot de passe |
-| `user_full_name.txt` | Non | Nom complet Git |
-| `user_email_address.txt` | Non | E-mail Git |
 | `user_encrypt_installation.txt` | Non | `true` quand la configuration contient un bloc `disk_encryption` |
 | `authorized_keys` | Non | Clés publiques SSH, une par ligne |
 | `tailscale_authkey` | Non | Clé d'authentification Tailscale pour rejoindre votre tailnet au premier démarrage |

@@ -12,8 +12,6 @@ ISO ของ Omarchy สามารถติดตั้งตัวเอง�
 |------|----------|---------|
 | `user_configuration.json` | ใช่ | ดิสก์ ชื่อโฮสต์ เขตเวลา คีย์บอร์ด |
 | `user_credentials.json` | ใช่ | ชื่อผู้ใช้และแฮชรหัสผ่าน |
-| `user_full_name.txt` | ไม่ | ชื่อเต็ม Git |
-| `user_email_address.txt` | ไม่ | อีเมล Git |
 | `user_encrypt_installation.txt` | ไม่ | `true` เมื่อการกำหนดค่าบรรจุบล็อก `disk_encryption` |
 | `authorized_keys` | ไม่ | คีย์สาธารณะ SSH หนึ่งบรรทัดต่อหนึ่งคีย์ |
 | `tailscale_authkey` | ไม่ | คีย์ยืนยัน Tailscale สำหรับเข้าร่วม tailnet ของคุณตอนบูตครั้งแรก |

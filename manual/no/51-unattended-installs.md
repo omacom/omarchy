@@ -12,8 +12,6 @@ Filene er nøyaktig det installasjonsprogrammets egen veiviser skriver, så den 
 |------|----------|---------|
 | `user_configuration.json` | Ja | Disk, vertsnavn, tidssone, tastatur |
 | `user_credentials.json` | Ja | Brukernavn og passordhash |
-| `user_full_name.txt` | Nei | Git fullt navn |
-| `user_email_address.txt` | Nei | Git-e-post |
 | `user_encrypt_installation.txt` | Nei | `true` når konfigurasjonen bærer en `disk_encryption`-blokk |
 | `authorized_keys` | Nei | SSH-offentlige nøkler, én per linje |
 | `tailscale_authkey` | Nei | Tailscale-autentiseringsnøkkel for å bli med i tailnet-et ditt ved første oppstart |

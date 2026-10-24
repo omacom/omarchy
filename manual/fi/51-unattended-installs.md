@@ -12,8 +12,6 @@ Tiedostot ovat täsmälleen sitä, mitä asennusohjelman oma velho kirjoittaa, j
 |------|----------|---------|
 | `user_configuration.json` | Kyllä | Levy, isäntänimi, aikavyöhyke, näppäimistö |
 | `user_credentials.json` | Kyllä | Käyttäjänimi ja salasanan tiiviste |
-| `user_full_name.txt` | Ei | Gitin koko nimi |
-| `user_email_address.txt` | Ei | Gitin sähköposti |
 | `user_encrypt_installation.txt` | Ei | `true`, kun määrityksessä on `disk_encryption`-lohko |
 | `authorized_keys` | Ei | SSH-julkiset avaimet, yksi per rivi |
 | `tailscale_authkey` | Ei | Tailscalen valtuutusavain tailnetiin liittymistä varten ensikäynnistyksellä |

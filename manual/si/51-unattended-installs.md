@@ -12,8 +12,6 @@ Omarchy ISO එකට යතුරුපුවරුවේ කිසිවෙක
 |------|----------|---------|
 | `user_configuration.json` | ඔව් | තැටිය, ධාරක නාමය, වේලා කලාපය, යතුරුපුවරුව |
 | `user_credentials.json` | ඔව් | පරිශීලක නාමය සහ මුරපද හැෂ් |
-| `user_full_name.txt` | නැත | Git සම්පූර්ණ නම |
-| `user_email_address.txt` | නැත | Git විද්‍යුත් තැපෑල |
 | `user_encrypt_installation.txt` | නැත | වින්‍යාසය `disk_encryption` බ්ලොක් එකක් ගෙන යන විට `true` |
 | `authorized_keys` | නැත | SSH පොදු යතුරු, පේළියකට එකක් |
 | `tailscale_authkey` | නැත | පළමු ආරම්භයේදී ඔබේ ටේල්නෙට් එකට එක්වීම සඳහා Tailscale අත්සන් යතුර |

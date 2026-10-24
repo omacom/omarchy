@@ -12,8 +12,6 @@ Skrárnar eru nákvæmlega það sem eigin hjálp uppsetningarforritsins skrifar
 |------|----------|---------|
 | `user_configuration.json` | Já | Diskur, hýsilsnafn, tímabelti, lyklaborð |
 | `user_credentials.json` | Já | Notendanafn og lykilorðshass |
-| `user_full_name.txt` | Nei | Fullt Git nafn |
-| `user_email_address.txt` | Nei | Git netfang |
 | `user_encrypt_installation.txt` | Nei | `true` þegar stillingin ber `disk_encryption` blokk |
 | `authorized_keys` | Nei | Opinberir SSH lyklar, einn á línu |
 | `tailscale_authkey` | Nei | Tailscale auðkenningarlykill til að ganga í tailnetið þitt við fyrstu ræsingu |

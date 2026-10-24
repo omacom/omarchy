@@ -12,8 +12,6 @@ Omarchy ISOは、キーボードの前に誰もいなくても自分自身をイ
 |------|----------|---------|
 | `user_configuration.json` | はい | ディスク、ホスト名、タイムゾーン、キーボード |
 | `user_credentials.json` | はい | ユーザー名とパスワードハッシュ |
-| `user_full_name.txt` | いいえ | Gitのフルネーム |
-| `user_email_address.txt` | いいえ | Gitのメールアドレス |
 | `user_encrypt_installation.txt` | いいえ | 設定に`disk_encryption`ブロックが含まれるときは`true` |
 | `authorized_keys` | いいえ | SSH公開鍵（1行に1つ） |
 | `tailscale_authkey` | いいえ | 初回起動時にtailnetに参加するためのTailscale認証キー |

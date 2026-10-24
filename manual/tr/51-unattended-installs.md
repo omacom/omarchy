@@ -12,8 +12,6 @@ Dosyalar tam olarak kurulum programının kendi sihirbazının yazdığı şeyle
 |------|----------|---------|
 | `user_configuration.json` | Evet | Disk, ana bilgisayar adı, saat dilimi, klavye |
 | `user_credentials.json` | Evet | Kullanıcı adı ve parola özeti |
-| `user_full_name.txt` | Hayır | Git tam adı |
-| `user_email_address.txt` | Hayır | Git e-postası |
 | `user_encrypt_installation.txt` | Hayır | Yapılandırma bir `disk_encryption` bloğu taşıdığında `true` |
 | `authorized_keys` | Hayır | SSH genel anahtarları, satır başına bir tane |
 | `tailscale_authkey` | Hayır | İlk önyüklemede tailnet'inize katılmak için Tailscale yetkilendirme anahtarı |

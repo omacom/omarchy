@@ -12,8 +12,6 @@ Omarchy ISO 可以在無人在鍵盤旁的情況下自行完成安裝。如果�
 |------|----------|---------|
 | `user_configuration.json` | Yes | 磁碟、主機名稱、時區、鍵盤 |
 | `user_credentials.json` | Yes | 使用者名稱和密碼雜湊 |
-| `user_full_name.txt` | No | Git 全名 |
-| `user_email_address.txt` | No | Git 電子郵件 |
 | `user_encrypt_installation.txt` | No | 當設定攜帶 `disk_encryption` 區塊時為 `true` |
 | `authorized_keys` | No | SSH 公開金鑰，每行一把 |
 | `tailscale_authkey` | No | 首次開機時加入你的 tailnet 用的 Tailscale auth key |

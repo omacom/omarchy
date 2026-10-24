@@ -12,8 +12,6 @@ Omarchy ISO کی بورڈ پر کوئی موجود نہ ہوتے ہوئے خود
 |------|----------|---------|
 | `user_configuration.json` | ہاں | ڈسک، ہوسٹ نام، ٹائم زون، کی بورڈ |
 | `user_credentials.json` | ہاں | صارف نام اور پاس ورڈ ہیش |
-| `user_full_name.txt` | نہیں | Git مکمل نام |
-| `user_email_address.txt` | نہیں | Git ای میل |
 | `user_encrypt_installation.txt` | نہیں | `true` جب کنفگریشن میں `disk_encryption` بلاک ہو |
 | `authorized_keys` | نہیں | SSH عوامی کلیدیں، فی سطر ایک |
 | `tailscale_authkey` | نہیں | پہلے بوٹ پر آپ کے ٹیل نیٹ میں شامل ہونے کے لیے Tailscale منظوری کلید |

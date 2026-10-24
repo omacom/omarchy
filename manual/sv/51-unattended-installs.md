@@ -12,8 +12,6 @@ Filerna är exakt vad installationsprogrammets egen guide skriver, så det enkla
 |------|----------|---------|
 | `user_configuration.json` | Ja | Disk, värdnamn, tidszon, tangentbord |
 | `user_credentials.json` | Ja | Användarnamn och lösenordshash |
-| `user_full_name.txt` | Nej | Git fullständigt namn |
-| `user_email_address.txt` | Nej | Git e-post |
 | `user_encrypt_installation.txt` | Nej | `true` när konfigurationen bär ett `disk_encryption`-block |
 | `authorized_keys` | Nej | SSH publika nycklar, en per rad |
 | `tailscale_authkey` | Nej | Tailscale auth-nyckel för att ansluta till ditt tailnet vid första uppstart |

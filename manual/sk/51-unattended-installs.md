@@ -12,8 +12,6 @@ Súbory sú presne tým, čo zapisuje vlastný sprievodca inštalačného progra
 |------|----------|---------|
 | `user_configuration.json` | Áno | Disk, názov hostiteľa, časové pásmo, klávesnica |
 | `user_credentials.json` | Áno | Používateľské meno a haš hesla |
-| `user_full_name.txt` | Nie | Celé meno pre Git |
-| `user_email_address.txt` | Nie | E-mail pre Git |
 | `user_encrypt_installation.txt` | Nie | `true`, keď konfigurácia nesie blok `disk_encryption` |
 | `authorized_keys` | Nie | Verejné kľúče SSH, jeden na riadok |
 | `tailscale_authkey` | Nie | Autorizačný kľúč Tailscale na pripojenie do vášho tailnetu pri prvom zavedení |

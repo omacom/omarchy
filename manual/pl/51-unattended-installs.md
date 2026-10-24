@@ -12,8 +12,6 @@ Te pliki są dokładnie tym, co zapisuje własny kreator instalatora, więc naj�
 |------|----------|---------|
 | `user_configuration.json` | Tak | Dysk, nazwa hosta, strefa czasowa, klawiatura |
 | `user_credentials.json` | Tak | Nazwa użytkownika i skrót hasła |
-| `user_full_name.txt` | Nie | Pełne imię i nazwisko dla Gita |
-| `user_email_address.txt` | Nie | Adres e-mail dla Gita |
 | `user_encrypt_installation.txt` | Nie | `true`, gdy konfiguracja zawiera blok `disk_encryption` |
 | `authorized_keys` | Nie | Klucze publiczne SSH, po jednym w wierszu |
 | `tailscale_authkey` | Nie | Klucz autoryzacji Tailscale do dołączenia do twojego tailnetu przy pierwszym rozruchu |

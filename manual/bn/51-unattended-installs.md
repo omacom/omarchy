@@ -12,8 +12,6 @@ Omarchy ISO কীবোর্ডে কেউ না থাকলেও নি�
 |------|----------|---------|
 | `user_configuration.json` | হ্যাঁ | ডিস্ক, হোস্টনাম, সময় অঞ্চল, কীবোর্ড |
 | `user_credentials.json` | হ্যাঁ | ব্যবহারকারীর নাম ও পাসওয়ার্ড হ্যাশ |
-| `user_full_name.txt` | না | Git পুরো নাম |
-| `user_email_address.txt` | না | Git ইমেল |
 | `user_encrypt_installation.txt` | না | কনফিগারেশনে `disk_encryption` ব্লক থাকলে `true` |
 | `authorized_keys` | না | SSH পাবলিক কী, প্রতি লাইনে একটি |
 | `tailscale_authkey` | না | প্রথম বুটে আপনার tailnet-এ যোগ দেওয়ার জন্য Tailscale অথ কী |

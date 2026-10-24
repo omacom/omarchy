@@ -1,16 +1,54 @@
 #!/bin/bash
 
 # omarchy:summary=Set the name and email for your git commits, and sign in to GitHub
+# omarchy:args=[--name <name>] [--email <email>]
+# omarchy:examples=omarchy setup git | omarchy setup git --name "Jane Doe" --email jane@example.com
 
 set -e
 
+usage() {
+  cat <<USAGE
+Usage: omarchy-setup-git [--name <name>] [--email <email>]
+
+Without options, asks for the name and email used for git commits and offers
+to sign in to GitHub. With either option, sets what was given and asks nothing.
+USAGE
+}
+
 name=$(git config --global user.name || true)
 email=$(git config --global user.email || true)
+interactive=1
 
-echo "Set the name and email used for your git commits."
-echo
-name=$(gum input --value "$name" --placeholder "Your full name" --prompt "Full name> ")
-email=$(gum input --value "$email" --placeholder "you@example.com" --prompt "Email address> ")
+while (($#)); do
+  case "$1" in
+    --name)
+      [[ -n ${2:-} ]] || { usage >&2; exit 1; }
+      name=$2 interactive=0
+      shift 2
+      ;;
+    --email)
+      [[ -n ${2:-} ]] || { usage >&2; exit 1; }
+      email=$2 interactive=0
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if (( interactive )); then
+  echo "Set the name and email used for your git commits."
+  echo
+  name=$(gum input --value "$name" --placeholder "Your full name" --prompt "Full name> ")
+  email=$(gum input --value "$email" --placeholder "you@example.com" --prompt "Email address> ")
+fi
 
 # Fill the Compose shortcuts (Compose, Space, n/e) the install used to seed,
 # leaving the rest of a hand-edited ~/.XCompose alone.
@@ -43,15 +81,17 @@ if [[ -n ${email//[[:space:]]/} ]]; then
 fi
 
 if [[ -f ~/.XCompose ]]; then
-  omarchy-restart-xcompose || true
+  omarchy-restart-xcompose >/dev/null 2>&1 || true
 fi
 
-echo
-if omarchy-cmd-missing gh; then
-  echo "The GitHub CLI (gh) is not installed, so skipping GitHub sign-in."
-# gh's own record of sign-ins, read directly: running gh would install it first.
-elif grep -qs "^github.com:" "${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}/hosts.yml"; then
-  echo "Already signed in to GitHub."
-elif gum confirm "Sign in to GitHub?"; then
-  gh auth login
+if (( interactive )); then
+  echo
+  if omarchy-cmd-missing gh; then
+    echo "The GitHub CLI (gh) is not installed, so skipping GitHub sign-in."
+  # gh's own record of sign-ins, read directly: running gh would install it first.
+  elif grep -qs "^github.com:" "${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}/hosts.yml"; then
+    echo "Already signed in to GitHub."
+  elif gum confirm "Sign in to GitHub?"; then
+    gh auth login
+  fi
 fi
