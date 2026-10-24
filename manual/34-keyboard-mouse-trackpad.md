@@ -35,6 +35,12 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
+### Touchpad settings
+
+For the touchpad, you don't have to write config at all. _Setup > Config > Touchpad_ in the Omarchy menu (or `omarchy setup touchpad`) opens a settings window for natural scrolling, scroll speed, tap to click, two-finger and corner clicks, tap-and-drag, three-finger drag, pointer speed and acceleration, multi-finger gestures, per-app scroll speeds, and per-device overrides when you use more than one touchpad. Changes apply the moment you make them, and the window has a scroll list, click pad, and drag target on the side for trying them out.
+
+The window only saves what you change, to `~/.config/omarchy/touchpad.json`, and everything else keeps following Omarchy's defaults. Pointer speed and acceleration set there apply to touchpads only, so a mouse keeps its own speed. The window is the source of truth for whatever you change in it: those settings win over the same options in `~/.config/hypr/input.lua`, and a gesture set there replaces one in `input.lua` that uses the same swipe. Options you haven't touched in the window keep whatever `input.lua` says, and the window marks the ones that file also sets; resetting one hands it back to `input.lua`.
+
 You can [see all the input options](https://wiki.hypr.land/Configuring/Basics/Variables/#input) on the Hyprland wiki for inputs.
 
 CapsLock works as a normal Caps Lock, and `Shift + CapsLock` is the compose key for [quick emojis](07-hotkeys.md#quick-emojis) and [other completions](07-hotkeys.md#quick-completions). If you'd rather have the compose key elsewhere, replace `omarchy:shift_caps_compose` in `kb_options`. For example, this moves the compose key to Right Alt:
@@ -49,7 +55,7 @@ hl.config({
 
 ### Trackpad gestures
 
-You can also turn on [touchpad gestures](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), like swiping with three fingers to change workspaces:
+The _Gestures_ page of the touchpad settings window sets these up for you. You can also turn on [touchpad gestures](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/) by hand, like swiping with three fingers to change workspaces:
 
 ```lua
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
