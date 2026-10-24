@@ -7,6 +7,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "PolkitModel.js" as PolkitModel
+import "KeypadDigits.js" as KeypadDigits
 
 Item {
   id: root
@@ -331,6 +332,14 @@ Item {
             Keys.onPressed: function(event) {
               if (event.key === Qt.Key_Escape) {
                 root.cancelRequest()
+                event.accepted = true
+                return
+              }
+              // Keypad digits can arrive as navigation keys while this overlay sees NumLock as off,
+              // and navigation is useless in a hidden password field: type the digit (#15424).
+              var digit = KeypadDigits.digitFor(event.key, event.modifiers, event.text, readOnly)
+              if (digit !== null) {
+                passwordInput.insert(passwordInput.cursorPosition, digit)
                 event.accepted = true
               }
             }
