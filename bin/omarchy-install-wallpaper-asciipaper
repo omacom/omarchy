@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Install asciipaper, a live animated ASCII wallpaper engine
+# omarchy:requires-sudo=true
+
+set -e
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+echo "Installing asciipaper..."
+omarchy-pkg-add webkitgtk-6.0 python-gobject gtk4-layer-shell
+
+# asciipaper is not packaged yet, so track its repository directly. The
+# checkout doubles as the data directory: the engine reads its wallpapers from
+# ~/.local/share/asciipaper/wallpapers.
+source_dir="$HOME/.local/share/asciipaper"
+if [[ -d $source_dir/.git ]]; then
+  git -C "$source_dir" pull --ff-only
+else
+  git clone --depth 1 https://github.com/cYoren/asciipaper "$source_dir"
+fi
+
+install -Dm755 "$source_dir/asciipaper" "$HOME/.local/bin/asciipaper"
+install -Dm644 "$source_dir/asciipaper.service" "$HOME/.config/systemd/user/asciipaper.service"
+
+systemctl --user daemon-reload
+systemctl --user enable --now asciipaper.service
+
+echo ""
+echo "asciipaper is running. Change the wallpaper with: asciipaper set fluid"
+echo "See the presets with: asciipaper list"
