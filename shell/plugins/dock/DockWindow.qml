@@ -497,7 +497,7 @@ PanelWindow {
       sourceSize: Qt.size(window.iconSize * 2, window.iconSize * 2)
       source: window.dock && appSlot.modelData ? window.dock.iconFor(appSlot.modelData) : ""
       fillMode: Image.PreserveAspectFit
-      asynchronous: true
+      asynchronous: Util.loadsOffThread(source)
       smooth: true
       mipmap: true
       opacity: appSlot.launching ? appSlot.pulse : (appSlot.windowCount > 0 ? 1 : window.idleOpacity)
