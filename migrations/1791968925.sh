@@ -11,6 +11,9 @@ echo "Write the bar's tray where the bar drew it"
 # A replacement bar (a clone of the built-in one, or a third party's) reads the
 # layout the way it was written for, so its config is left as it is.
 config_file="$HOME/.config/omarchy/shell.json"
+if [[ -L $config_file ]]; then
+  config_file=$(readlink -f -- "$config_file")
+fi
 if [[ -s $config_file ]] && jq -e '
   (.bar | type) == "object" and ((.bar.id // "" | tostring) | IN("", "omarchy.bar")) and (.bar.layout | type) == "object"
 ' "$config_file" >/dev/null; then
