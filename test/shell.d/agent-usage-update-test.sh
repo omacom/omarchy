@@ -63,3 +63,47 @@ pass "update succeeds when the requested collectors all pass"
 [[ -e $usage_dir/skipped.json && ! -e $usage_dir/noisy.json ]] ||
   fail "update with agent arguments only runs the named collectors"
 pass "update with agent arguments only runs the named collectors"
+
+require_command python3
+PYTHONDONTWRITEBYTECODE=1 python3 - "$ROOT" <<'PY'
+import json
+import os
+import sqlite3
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+with tempfile.TemporaryDirectory() as scratch:
+  home = Path(scratch)
+  fake = home / "omarchy"
+  (fake / "bin").mkdir(parents=True)
+  (fake / "bin/omarchy-agent-usage-opencodego").symlink_to(root / "bin/omarchy-agent-usage-opencodego")
+  env = dict(os.environ, HOME=str(home), OMARCHY_PATH=str(fake),
+             XDG_DATA_HOME=str(home / "data"), XDG_CACHE_HOME=str(home / "cache"),
+             XDG_STATE_HOME=str(home / "state"), PI_CODING_AGENT_DIR="", OPENCODE_GO_API_KEY="")
+  record = home / "state/omarchy/agents/usage/opencodego.json"
+  record.parent.mkdir(parents=True)
+  seeded = b'{ "id": "opencodego", "totalPrompts": 91, "limits": [{"percent":0.5}] }\n'
+  record.write_bytes(seeded)
+  db = home / "data/opencode/opencode.db"
+  db.parent.mkdir(parents=True)
+  db.write_bytes(b"not sqlite")
+  def update():
+    return subprocess.run([str(root / "bin/omarchy-agent-usage-update"), "opencodego", "--force"],
+                          env=env, capture_output=True)
+  failed = update()
+  assert failed.returncode != 0, "incomplete collector scan must fail updater"
+  assert record.read_bytes() == seeded, "failure must preserve complete record byte-for-byte"
+  db.write_bytes(b"")
+  with sqlite3.connect(db) as conn:
+    conn.execute("CREATE TABLE message (session_id text, data text)")
+    conn.execute("INSERT INTO message VALUES (?, ?)", ("recovered", json.dumps({
+      "role": "assistant", "providerID": "opencode-go", "tokens": {"input": 5}})))
+  recovered = update()
+  assert recovered.returncode == 0, recovered.stderr.decode()
+  assert json.loads(record.read_bytes())["totalPrompts"] == 1, "successful recovery must publish fresh stats"
+PY
+[[ $? == 0 ]] || fail "update preserves last-good OpenCode Go record and resumes after scan recovery"
+pass "update preserves last-good OpenCode Go record and resumes after scan recovery"
