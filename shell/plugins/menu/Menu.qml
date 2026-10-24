@@ -19,6 +19,15 @@ Item {
   // `omarchy-shell shell summon omarchy.menu ...` and close() when hidden.
   property string pendingInitialMenu: "root"
 
+  // The summon's starting-row request, parked until the rows it names are
+  // actually on screen. Provider-backed menus (apps, fonts, ...) fill
+  // after open() and may also re-fill on every entry (volatile providers),
+  // so the request can outlive a single openExistingMenu. Shape:
+  // { id: string, index: number|null, serial: number }. Null when nothing
+  // is pending. Cleared by user navigation, filter typing, opening
+  // another menu, cancel/apply, and a fresh open.
+  property var pendingInitial: null
+
   function open(payloadJson) {
     var payload = ({})
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
@@ -28,10 +37,42 @@ Item {
     // whole; reading it again here keeps the menu from opening empty.
     if (root.defaultMenuItems.length === 0) defaultMenuFile.reload()
 
+    // checkedResults is normally filled by the async guard batch after open.
+    // A caller that already knows the ✓ state can prime the first paint to
+    // avoid stale markers until that batch lands. Only a row that declares a
+    // checked: guard can show a marker (MenuModel.labelFor requires it), so a
+    // primed id for an unguarded row is inert. The guard batch then replaces
+    // checkedResults wholesale, confirming the primed values it agrees with.
+    if (payload.checked && typeof payload.checked === "object") {
+      for (var ck in payload.checked) {
+        if (Object.prototype.hasOwnProperty.call(payload.checked, ck))
+          root.checkedResults[ck] = !!payload.checked[ck]
+      }
+    }
+
+    // The same first-paint deal for `disabled:` rows: a summoner whose
+    // condition changed since the last guard batch can name the rows it
+    // expects to be disabled. The batch re-derives the truth on the way in
+    // and reconfirms (it does not read these), so a primed row settles the
+    // dim/inert state only until that lands -- never a permanent override.
+    if (payload.disabled && typeof payload.disabled === "object") {
+      for (var dis in payload.disabled) {
+        if (Object.prototype.hasOwnProperty.call(payload.disabled, dis))
+          root.disabledResults[dis] = !!payload.disabled[dis]
+      }
+    }
+
+    // Default each session to the theme's disabled alpha before honoring a
+    // per-session override; a summoner that wants its disabled rows dimmed
+    // differently from the theme can name one in the payload.
+    root.disabledAlphaOverride = -1
+    if (typeof payload.disabledAlpha === "number" && isFinite(payload.disabledAlpha))
+      root.disabledAlphaOverride = Util.clampAlpha(payload.disabledAlpha)
+
     if (payload.mode === "select" || payload.mode === "input") {
       root.openDmenu(payload)
     } else {
-      root.openRoute(payload.initialMenu || payload.menu || "root")
+      root.openRoute(payload.initialMenu || payload.menu || "root", payload.initialIndex, payload.initialId)
     }
   }
 
@@ -50,6 +91,12 @@ Item {
   function ping() { return "ok" }
 
   property string fontFamily: Style.font.menuFamily
+  // Disabled rows render at this alpha. A summon can override it for the
+  // session by naming `disabledAlpha` in the open payload; otherwise the
+  // active theme's [menu] disabled-alpha token decides (default 0.4). -1
+  // means "no override this session, use the theme".
+  property real disabledAlphaOverride: -1
+  readonly property real disabledAlpha: root.disabledAlphaOverride >= 0 ? root.disabledAlphaOverride : Color.menu.disabledAlpha
   // JSONC menu definitions. The shell parses both at startup and merges
   // the user file on top of the defaults, so the keybind → IPC → visible
   // path doesn't have to shell out to bash + jq on every open.
@@ -302,6 +349,7 @@ Item {
     root.providerRevision += 1
     root.providersLoaded = ({})
     root.providerQueue = []
+    root.pendingInitial = null
     root.items = mergedMenu.items
     root.itemOrder = mergedMenu.itemOrder
     root.rowsLoaded = true
@@ -405,6 +453,7 @@ Item {
     root.items = merged.items
     root.itemOrder = merged.itemOrder
     if (root.opened) root.rebuildDisplay()
+    if (root.opened) root.applyPendingInitial("apps")
   }
 
   function startProviderForMenu(id) {
@@ -472,6 +521,7 @@ Item {
     root.items = merged.items
     root.itemOrder = merged.itemOrder
     if (root.opened) root.rebuildDisplay()
+    if (root.opened) root.applyPendingInitial(menuId)
   }
 
   function startNextProvider() {
@@ -629,6 +679,37 @@ Item {
     var target = root.nextSelectable(root.selectedIndex, 1)
     root.selectedIndex = target >= 0 ? target : 0
     root.cursorActive = target >= 0
+  }
+
+  // Rows are keyed by itemId, which lets a summoning caller name the row its
+  // cursor should start on even when the display order differs from item
+  // order (apps sort alphabetically, provider rows and search results reorder
+  // freely). -1 means the id is not on screen right now.
+  function indexOfItemId(id) {
+    for (var ri = 0; ri < displayModel.count; ri++) {
+      if (displayModel.get(ri).itemId === id) return ri
+    }
+    return -1
+  }
+
+  // Provider rows land after open() already resolved the starting row
+  // against an empty display -- a first-ever summon of a provider menu, or
+  // any summon of a volatile one. Apply the parked request when rows for
+  // the summoned menu arrive. id wins, ordinal is the fallback, then
+  // clamp and settle like open() does. One-shot: a successful apply (or
+  // a stale serial, or rows arriving for a menu the request did not
+  // name) consumes the parking so a later user action is not yanked.
+  function applyPendingInitial(menuId) {
+    if (!pendingInitial) return
+    if (pendingInitial.serial !== requestSerial) { pendingInitial = null; return }
+    if (activeMenu !== menuId) return
+    var ids = []
+    for (var ri = 0; ri < displayModel.count; ri++) ids.push(displayModel.get(ri).itemId)
+    var target = MenuModel.resolveInitialRow(ids, pendingInitial.id, pendingInitial.index)
+    pendingInitial = null
+    if (target < 0) return
+    selectedIndex = Math.min(Math.max(target, 0), Math.max(displayModel.count - 1, 0))
+    settleCursor()
   }
 
   function rebuildDmenuDisplay() {
@@ -806,8 +887,10 @@ Item {
 
   function select(delta) {
     if (displayModel.count === 0) return
+    delta = Number(delta) || 0
 
     root.disarmPointer()
+    root.pendingInitial = null
     var from = cursorActive ? selectedIndex + delta : (delta < 0 ? displayModel.count - 1 : 0)
     var target = root.nextSelectable(from, delta)
     if (target < 0) return
@@ -819,6 +902,7 @@ Item {
 
   function setFilter(nextFilter) {
     panel.freezeCardTop()
+    root.pendingInitial = null
     root.filterText = nextFilter
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
@@ -830,6 +914,7 @@ Item {
   function setActiveMenu(id, pushHistory, fromPointer) {
     panel.freezeCardTop()
     if (!root.item(id)) id = "root"
+    root.pendingInitial = null
     if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
     root.activeMenu = id
     root.filterText = ""
@@ -895,6 +980,7 @@ Item {
       var label = row.label
       applySerial = requestSerial
       opened = false
+      root.pendingInitial = null
       filterText = ""
       if (root.appLibrary) root.appLibrary.launch(appId, label)
     } else {
@@ -940,6 +1026,7 @@ Item {
 
     applySerial = requestSerial
     opened = false
+    root.pendingInitial = null
     filterText = ""
     root.runAction(action)
   }
@@ -947,24 +1034,54 @@ Item {
   function cancel() {
     if (root.dmenuActive) root.finishRequest(null)
     opened = false
+    root.pendingInitial = null
     filterText = ""
   }
 
-  function openExistingMenu(initialMenu) {
+  function openExistingMenu(initialMenu, initialIndex, initialId) {
     requestSerial += 1
     mode = "menu"
     requestActive = false
     selectionFile = ""
     doneFile = ""
+    root.pendingInitial = null
     activeMenu = root.item(initialMenu) ? initialMenu : "root"
     navStack = []
     filterText = ""
-    selectedIndex = 0
+    selectedIndex = typeof initialIndex === "number" && initialIndex >= 0 ? initialIndex : 0
     cursorActive = true
     root.disarmPointer()
     root.evaluateGuards()
     opened = true
     rebuildDisplay()
+    // A summoner can name the starting row by itemId as well as by ordinal,
+    // which matters for menus whose display order differs from item order
+    // (apps sort alphabetically, provider rows reorder on refresh). settle-
+    // Cursor() then normalizes a row that turned disabled or filtered off.
+    if (initialId) {
+      var idRow = root.indexOfItemId(initialId)
+      if (idRow >= 0) selectedIndex = idRow
+    }
+    if (initialId || typeof initialIndex === "number") {
+      selectedIndex = Math.min(Math.max(selectedIndex, 0), Math.max(displayModel.count - 1, 0))
+      root.settleCursor()
+      // Park the request when the summoned menu is provider-backed and
+      // either the rows have not landed yet (first summon of a provider
+      // menu) or a volatile provider is about to replace the visible
+      // rows with a fresh list. applyPendingInitial re-resolves the
+      // index against the post-merge display order; the inline resolve
+      // above already gave the user the best first paint we can show
+      // from the currently visible rows.
+      var openEntry = root.item(activeMenu)
+      var openSpec = openEntry && openEntry.provider ? root.providers[openEntry.provider] : null
+      if (openSpec && (!root.providersLoaded[activeMenu] || openSpec.volatile)) {
+        root.pendingInitial = {
+          id: initialId || "",
+          index: typeof initialIndex === "number" ? initialIndex : null,
+          serial: requestSerial
+        }
+      }
+    }
     invalidateVolatileProvider(activeMenu)
     loadProviderForMenu(activeMenu)
     // The shell may start before first-install packages have finished placing
@@ -994,6 +1111,7 @@ Item {
     dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
     activeMenu = "root"
     navStack = []
+    root.pendingInitial = null
     filterText = ""
     selectedIndex = 0
     cursorActive = mode !== "input"
@@ -1016,7 +1134,7 @@ Item {
     return MenuModel.resolveRoute(root.items, root.itemOrder, input)
   }
 
-  function openRoute(initialMenu) {
+  function openRoute(initialMenu, initialIndex, initialId) {
     var id = root.resolveRoute(initialMenu)
     var entry = root.items[id]
     // If the resolved id is an action (i.e. the user invoked an alias for
@@ -1030,7 +1148,7 @@ Item {
     // If it's a link (a redirect to another menu), follow the link.
     if (entry && entry.kind === "link" && entry.target) id = entry.target
     root.pendingInitialMenu = id
-    root.openExistingMenu(id)
+    root.openExistingMenu(id, initialIndex, initialId)
     return "ok"
   }
 
@@ -1041,6 +1159,7 @@ Item {
   function selectFromPointer(index, item, mouse) {
     if (!pointerGate.moved(item, mouse)) return
     if (!root.rowSelectable(index)) return
+    root.pendingInitial = null
     root.cursorActive = true
     root.selectedIndex = index
   }
@@ -1496,7 +1615,7 @@ Item {
               height: root.rowHeightForDetail(row.detail)
               // Faded: the row is here to say the software is already
               // installed, not to be picked.
-              opacity: row.disabled ? 0.4 : 1
+              opacity: row.disabled ? root.disabledAlpha : 1
               radius: root.cornerRadius
               color: row.hasCursor ? root.selectedBackground : "transparent"
               borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()

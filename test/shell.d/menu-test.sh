@@ -8,6 +8,7 @@ run_node_test <<'JS'
 const fs = require('fs')
 const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
 const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
+const colorQml = fs.readFileSync(path.join(root, 'shell/Commons/Color.qml'), 'utf8')
 const defaultMenuJsonc = fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8')
 
 assertDeepEqual(
@@ -97,8 +98,11 @@ assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu buil
 assert(menu.isDescendantOf(merged.items, 'style.theme', 'style'), 'menu detects descendants')
 assertEqual(menu.childCount(merged.items, merged.itemOrder, 'style'), 1, 'menu counts children')
 assertEqual(menu.labelFor({ id: 'style.theme', label: 'Theme', checked: 'cmd' }, { 'style.theme': true }), 'Theme ✓', 'menu appends checked marker')
+assertEqual(menu.labelFor({ id: 'system.lock', label: 'Lock' }, { 'system.lock': true }), 'Lock', 'menu only marks a row that declares a checked guard, so a primed id for an unguarded row is inert')
 assertEqual(menu.labelFor({ id: 'install.browser.zen', label: 'Zen', disabled: 'cmd' }, {}, { 'install.browser.zen': true }), 'Zen ✓', 'menu marks a disabled row as something you already have')
 assertEqual(menu.labelFor({ id: 'install.browser.zen', label: 'Zen', disabled: 'cmd' }, {}, { 'install.browser.zen': false }), 'Zen', 'menu leaves an uninstalled row unmarked')
+assertEqual(menu.labelFor({ id: 'modes.mirror', label: 'Mirror', checked: 'cmd', disabled: 'cmd' }, {}, { 'modes.mirror': true }), 'Mirror', 'menu does not mark a disabled row that owns its own checked marker')
+assertEqual(menu.labelFor({ id: 'modes.mirror', label: 'Mirror', checked: 'cmd', disabled: 'cmd' }, { 'modes.mirror': true }, { 'modes.mirror': true }), 'Mirror ✓', 'menu marks a disabled row only when its own checked condition holds')
 
 const visibilityItems = {
   hardware: menu.normalizeItem('hardware', { label: 'Hardware' }),
@@ -128,6 +132,18 @@ assert(
 assert(
   /function matchesQuery\(entry, query\) \{\s*\n\s*return MenuModel\.matchesQuery\(entry, query, root\.isVisible\(entry\) && !root\.isDisabled\(entry\)\)/.test(menuQml),
   'menu search skips disabled rows, which belong to the submenu they sit in rather than a list of what you can do'
+)
+assert(
+  /property real disabledAlpha: root\.disabledAlphaOverride >= 0 \? root\.disabledAlphaOverride : Color\.menu\.disabledAlpha/.test(menuQml),
+  'menu resolves disabledAlpha from the session override, falling back to the theme token'
+)
+assert(
+  /root\.disabledAlphaOverride = -1\s*\n\s*if \(typeof payload\.disabledAlpha === "number" && isFinite\(payload\.disabledAlpha\)\)\s*\n\s*root\.disabledAlphaOverride = Util\.clampAlpha\(payload\.disabledAlpha\)/.test(menuQml),
+  'menu resets the disabledAlpha override on each open and honors a numeric payload value'
+)
+assert(
+  /property real disabledAlpha: root\.pickAlpha\("menu\.disabled-alpha", 0\.4\)/.test(colorQml),
+  'menu disabled alpha defaults to 0.4 and reads the theme menu.disabled-alpha token'
 )
 
 const entry = merged.items['style.theme']
@@ -724,6 +740,57 @@ assert(
   /function select\(delta\)[\s\S]*root\.disarmPointer\(\)[\s\S]*selectedIndex =/.test(menuQml),
   'menu keyboard navigation disarms pointer selection'
 )
+// The shell IPC delivers every argument as a JS string, so `select("1")`
+// lands raw: `selectedIndex + "1"` concatenates instead of adding, and the
+// highs and lows of a 4-row menu collapse onto one row. Coerce before the
+// arithmetic instead of leaving the row choice to string-to-number casts.
+assert(
+  /function select\(delta\)[\s\S]*\n    delta = Number\(delta\) \|\| 0\s*\n\s*root\.disarmPointer\(\)[\s\S]*selectedIndex \+ delta/.test(menuQml),
+  'menu coerces an IPC string delta to a number before stepping the cursor'
+)
+// A summoner can prime the first paint: checked markers seed synchronously
+// (the guard batch only confirms the same conditions later), and the starting
+// cursor can be named by ordinal or by row id — id survives menus whose
+// display order differs from item order. resolveRoute keeps the action/link
+// shortcuts; the state parameters ride through to openExistingMenu.
+assert(
+  /if \(payload\.checked && typeof payload\.checked === "object"\) \{[\s\S]*?root\.checkedResults\[ck\] = !!payload\.checked\[ck\]/.test(menuQml),
+  'menu primes checked markers from the summon payload'
+)
+assert(
+  /if \(payload\.disabled && typeof payload\.disabled === "object"\) \{[\s\S]*?root\.disabledResults\[dis\] = !!payload\.disabled\[dis\]/.test(menuQml),
+  'menu primes disabled rows from the summon payload'
+)
+assert(
+  /root\.openRoute\(payload\.initialMenu \|\| payload\.menu \|\| "root", payload\.initialIndex, payload\.initialId\)/.test(menuQml),
+  'menu threads initial highlight state from the summon payload'
+)
+assert(
+  /function openExistingMenu\(initialMenu, initialIndex, initialId\)[\s\S]*root\.indexOfItemId\(initialId\)/.test(menuQml),
+  'menu resolves an initial highlight by row id'
+)
+assert(
+  /function indexOfItemId\(id\)[\s\S]*if \(displayModel\.get\(ri\)\.itemId === id\) return ri[\s\S]*return -1/.test(menuQml),
+  'menu maps a row id to a display index'
+)
+  assert(
+    /function indexOfItemId\(id\)[\s\S]*if \(displayModel\.get\(ri\)\.itemId === id\) return ri[\s\S]*return -1/.test(menuQml),
+    'menu maps a row id to a display index'
+  )
+
+  // Behavior: provider merge creates provider rows and indexOfItemId can target them
+  const firstItems = { root: { label: 'Root', children: ['apps'] }, apps: { label: 'Apps', children: [] } }
+  const firstOrder = ['root', 'apps']
+  const providerRows = [
+    { id: 'apps.editor', label: 'Editor' },
+    { id: 'apps.browser', label: 'Browser' }
+  ]
+  const mergedProvider = menu.swapProviderRows(firstItems, firstOrder, 'apps', providerRows)
+  assert(
+    mergedProvider.itemOrder.includes('apps.editor') && mergedProvider.itemOrder.includes('apps.browser'),
+    'provider merge inserts provider rows into order'
+  )
+
 // A dimmed row is not a target: the cursor steps over it, the pointer refuses
 // to land on it, and neither Enter nor a click can reach it.
 assert(
@@ -744,7 +811,7 @@ assert(
   'menu leaves the cursor put when the pointer crosses a disabled row'
 )
 assert(
-  /opacity: row\.disabled \? 0\.4 : 1/.test(menuQml) && !/font\.italic/.test(menuQml),
+  /opacity: row\.disabled \? root\.disabledAlpha : 1/.test(menuQml) && !/font\.italic/.test(menuQml),
   'menu renders a disabled row faded, and leaves it at that'
 )
 assert(
@@ -780,6 +847,56 @@ assert(
     && !/event\.text/.test(menuQml.match(/id: keyCatcher[\s\S]*?ConfirmDialog \{/)[0])
     && (menuQml.match(/keyCatcher\.forceActiveFocus/g) || []).length === 0,
   'menu search line takes input-method text, refuses it behind the delete confirmation, and stays in step with the filter'
+)
+// A summon's starting row can be named by id or by ordinal. At open time
+// the rows may not exist yet -- a first-ever summon of a provider menu
+// starts with an empty display -- so the QML side parks the request and
+// re-resolves it when the provider merge lands. The model helper covers
+// the lookup and the ordinal fallback, in display order.
+{
+  const appsBaseItems = { apps: { id: 'apps', kind: 'menu', label: 'Apps', provider: 'apps' } }
+  const appsBaseOrder = ['apps']
+  const appRows = values => values.map(v => ({ id: `apps.${v}`, kind: 'app', parent: 'apps', label: v }))
+  const merged = menu.mergeAppRows(appsBaseItems, appsBaseOrder, appRows(['alacritty', 'firefox', 'youtube']))
+  // The QML side sorts apps alphabetically at display time (Menu.qml
+  // render block). Mirror that here so the test exercises the id lookup
+  // against display order, not item order.
+  const displayIds = merged.itemOrder.filter(id => id !== 'apps').sort()
+  assertEqual(menu.resolveInitialRow([], 'apps.firefox', null), -1, 'empty display resolves nothing yet')
+  assertEqual(
+    menu.resolveInitialRow(displayIds, 'apps.firefox', null),
+    displayIds.indexOf('apps.firefox'),
+    'pending id resolves against the post-merge display order'
+  )
+  assertEqual(menu.resolveInitialRow(displayIds, null, 2), 2, 'pending ordinal resolves after rows land')
+  assertEqual(menu.resolveInitialRow(displayIds, null, 99), 99, 'caller is responsible for clamping the ordinal past the end')
+  assertEqual(menu.resolveInitialRow(displayIds, 'apps.unknown', null), -1, 'an id that never lands resolves to nothing')
+}
+assert(
+  /property var pendingInitial/.test(menuQml)
+    && /function applyPendingInitial\(menuId\)[\s\S]*MenuModel\.resolveInitialRow/.test(menuQml),
+  'menu parks a summoning start request and re-resolves it through the model helper'
+)
+assert(
+  /if \(initialId \|\| typeof initialIndex === "number"\)[\s\S]*?root\.pendingInitial = \{/.test(menuQml),
+  'menu parks the request when the summoned menu has a provider whose rows are pending'
+)
+assert(
+  /function mergeAppRows\(\)[\s\S]*?root\.applyPendingInitial\("apps"\)/.test(menuQml)
+    && /function mergeProviderRows\(rows, menuId, providerKey\)[\s\S]*?root\.applyPendingInitial\(menuId\)/.test(menuQml),
+  'provider merges re-resolve a parked summon start request'
+)
+assert(
+  /function select\(delta\)[\s\S]*?root\.pendingInitial = null/.test(menuQml)
+    && /function setFilter\(nextFilter\)[\s\S]*?root\.pendingInitial = null/.test(menuQml)
+    && /function setActiveMenu\(id, pushHistory, fromPointer\)[\s\S]*?root\.pendingInitial = null/.test(menuQml)
+    && /function selectFromPointer\(index, item, mouse\)[\s\S]*?root\.pendingInitial = null/.test(menuQml)
+    && /function cancel\(\)[\s\S]*?root\.pendingInitial = null/.test(menuQml)
+    && /function applySelected\(id, action\)[\s\S]*?root\.pendingInitial = null/.test(menuQml)
+    && /function openDmenu\(payload\)[\s\S]*?root\.pendingInitial = null/.test(menuQml)
+    && /function openExistingMenu\(initialMenu, initialIndex, initialId\)[\s\S]*?root\.pendingInitial = null/.test(menuQml)
+    && /function rebuildItemsFromSources\(\)[\s\S]*?root\.pendingInitial = null/.test(menuQml),
+  'pending initial selection is cleared on user input and lifecycle resets'
 )
 assert(
   /PointerMoveGate\s*\{[\s\S]*id: pointerGate[\s\S]*referenceItem: card[\s\S]*\}/.test(menuQml),
