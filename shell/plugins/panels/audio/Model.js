@@ -30,16 +30,23 @@ function isAudioSource(node) {
 // identifies the node it was taken from for as long as that node lives.
 function nodeRow(node) {
   if (!node) return null
-  var id = node.id
-  if (id === undefined || id === null) return null
-  return { id: id, name: String(node.name || "") }
+  try {
+    var id = node.id
+    if (id === undefined || id === null) return null
+    return { id: id, name: String(node.name || "") }
+  } catch (e) {
+    return null
+  }
 }
 
-function rowSnapshot(list) {
+function rowSnapshot(list, liveNodes) {
   var values = list && list.length ? list : []
+  var checkLive = Array.isArray(liveNodes)
   var rows = []
   for (var i = 0; i < values.length; i++) {
-    var row = nodeRow(values[i])
+    var node = values[i]
+    if (checkLive && liveNodes.indexOf(node) < 0) continue
+    var row = nodeRow(node)
     if (row) rows.push(row)
   }
   return rows
