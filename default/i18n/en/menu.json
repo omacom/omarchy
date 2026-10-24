@@ -489,6 +489,18 @@
   "setup.network.qr": {
     "label": "QR Code"
   },
+  "setup.network.pia": {
+    "label": "PIA VPN"
+  },
+  "setup.network.pia.connect": {
+    "label": "Connect"
+  },
+  "setup.network.pia.disconnect": {
+    "label": "Disconnect"
+  },
+  "setup.network.pia.region": {
+    "label": "Region"
+  },
   "setup.default": {
     "label": "Defaults"
   },
@@ -784,6 +796,9 @@
   },
   "install.service.nordvpn": {
     "label": "NordVPN"
+  },
+  "install.service.pia": {
+    "label": "PIA VPN"
   },
   "install.service.once": {
     "label": "ONCE"
