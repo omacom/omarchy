@@ -49,7 +49,8 @@ language_file=${OMARCHY_LANGUAGE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/omarchy
 language=en
 if [[ -f $language_file ]]; then
   candidate=$(head -n 1 "$language_file" | tr -d '[:space:]')
-  if [[ $candidate =~ ^[a-z]{2,3}(-[A-Za-z]{2})?$ && -f $i18n/$candidate/cli.json ]]; then
+  # A bracket range follows the locale's collation, not ASCII; compare in C.
+  if (LC_ALL=C; [[ $candidate =~ ^[a-z]{2,3}(-[A-Za-z]{2})?$ ]]) && [[ -f $i18n/$candidate/cli.json ]]; then
     language=$candidate
   fi
 fi

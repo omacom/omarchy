@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 tmp_dir=$(mktemp -d)
 trap 'rm -r "$tmp_dir"' EXIT
@@ -192,6 +193,16 @@ Username is reserved for system
 Username is reserved for system
 That username already exists on this machine"
 pass "username prompt rejects malformed, reserved, and taken names"
+
+# The username check is a bracket range, pinned to C: under tr_TR.UTF-8 an
+# unpinned `[a-z]` misses `i`, and every name spelled with one is refused.
+if turkish_locale "$tmp_dir/locales"; then
+  in_turkish run_prompt omarchy_prompt_username "0:ismail"
+  [[ $(field username) == "ismail" ]] || fail "username prompt accepts a name with an i under tr_TR.UTF-8" "$(<"$NOTICES")"
+  pass "username prompt reads a name the same under tr_TR.UTF-8"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping the locale-pinning check"
+fi
 
 run_prompt omarchy_prompt_username "1:"
 assert_status "$OMARCHY_FORM_BACK" "username prompt reports Esc as back"

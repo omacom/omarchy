@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 require_command jq
 
@@ -121,3 +122,22 @@ set -e
 (( status != 0 )) || fail "scaling rejects a focused monitor name with Lua metacharacters"
 [[ ! -s $eval_log ]] || fail "an unsafe focused monitor name is not eval'd as Lua"
 pass "scaling refuses an unsafe focused monitor name"
+
+# The connector allowlists are bracket ranges, which follow the locale's
+# collation, so they are pinned to C: under tr_TR.UTF-8 an unpinned `[A-Za-z]`
+# misses `i` and `I`, and an HDMI connector reads as unsafe.
+if turkish_locale "$tmpdir/locales"; then
+  rm -f "$disable_flag"
+  printf '[{"name":"HDMI-A-1"},{"name":"DP-3"}]\n' >"$monitors_json"
+  LAPTOP_NAME=HDMI-A-1 in_turkish run_monitor omarchy-hyprland-monitor-internal off >/dev/null 2>&1 &&
+    grep -Fx 'hl.monitor({ output = "HDMI-A-1", disabled = true })' "$disable_flag" >/dev/null ||
+    fail "internal off accepts an HDMI connector under tr_TR.UTF-8"
+  printf '[{"name":"HDMI-A-1","focused":true,"scale":1.0,"width":1920,"height":1080,"refreshRate":60.0}]\n' \
+    >"$monitors_json"
+  in_turkish run_monitor omarchy-hyprland-monitor-scaling 1.6 >/dev/null 2>&1 &&
+    grep -F 'hl.monitor({ output = "HDMI-A-1"' "$eval_log" >/dev/null ||
+    fail "scaling accepts an HDMI connector under tr_TR.UTF-8"
+  pass "the connector allowlists read an HDMI name the same under tr_TR.UTF-8"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping the locale-pinning check"
+fi

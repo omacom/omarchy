@@ -59,7 +59,8 @@ download_icon() {
 # that is not http(s).
 normalize_webapp_url() {
   local url=$1
-  if [[ ! $url =~ ^[a-zA-Z][a-zA-Z0-9+.-]*: ]]; then
+  # A bracket range follows the locale's collation, not ASCII; compare in C.
+  if ! (LC_ALL=C; [[ $url =~ ^[a-zA-Z][a-zA-Z0-9+.-]*: ]]); then
     url="https://$url"
   fi
   printf '%s' "$url"

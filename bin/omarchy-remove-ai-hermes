@@ -226,7 +226,9 @@ if [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]] && [[ -t 0 ]]; then
   size=$(du -shc "$HOME/.hermes" "$HOME/.config/Hermes" 2>/dev/null | tail -1 | cut -f1 || true)
   # du glues the unit to the number ("1.2G"); write the number with the
   # language's decimal separator and digits.
-  if [[ $size =~ ^([0-9]+([.,][0-9]+)?)([A-Za-z]*)$ ]] && number=$(omarchy-i18n --number "${BASH_REMATCH[1]/,/.}"); then
+  # [[:alpha:]], not [A-Za-z]: a bracket range follows the locale's collation and
+  # can miss plain letters, and this match's groups are used below.
+  if [[ $size =~ ^([0-9]+([.,][0-9]+)?)([[:alpha:]]*)$ ]] && number=$(omarchy-i18n --number "${BASH_REMATCH[1]/,/.}"); then
     size="$number${BASH_REMATCH[3]}"
   fi
   if gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n hermes.deleteData "$size")"; then

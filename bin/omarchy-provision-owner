@@ -914,7 +914,8 @@ configure_region() {
   while IFS='=' read -r key value; do
     [[ $key == "REGION" ]] && fallback=$value
   done <"$defaults"
-  [[ $fallback =~ ^[a-z]{2}$ ]] || return 0
+  # A bracket range follows the locale's collation, not ASCII; compare in C.
+  (LC_ALL=C; [[ $fallback =~ ^[a-z]{2}$ ]]) || return 0
   case "$timezone" in
     Asia/Hong_Kong | Hongkong | Asia/Macau | Asia/Macao | Asia/Taipei | ROC) region=global ;;
     *)

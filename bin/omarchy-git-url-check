@@ -33,11 +33,13 @@ if [[ -z $url ]]; then
   fail "a git URL is required"
 fi
 
-if [[ $url == -* || $url =~ ^[A-Za-z0-9][A-Za-z0-9+.-]*:: ]]; then
+# [[:alnum:]], not [A-Za-z0-9]: a bracket range follows the locale's collation
+# and can miss plain letters, and the scheme match's group is used below.
+if [[ $url == -* || $url =~ ^[[:alnum:]][[:alnum:]+.-]*:: ]]; then
   fail "'$url' names a git option or transport helper, not a repository."
 fi
 
-if [[ $url =~ ^([A-Za-z0-9][A-Za-z0-9+.-]*):// ]]; then
+if [[ $url =~ ^([[:alnum:]][[:alnum:]+.-]*):// ]]; then
   scheme="${BASH_REMATCH[1]}"
 
   for transport in "${TRANSPORTS[@]}"; do
