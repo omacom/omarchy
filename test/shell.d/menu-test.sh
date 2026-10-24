@@ -271,6 +271,7 @@ const expectedAgents = {
   mcode: { icon: '\ue912', iconFont: 'omarchy', label: 'MiniMax Code' },
   'kiro-cli': { icon: '\ue914', iconFont: 'omarchy', label: 'Kiro CLI' },
   freebuff: { icon: '\ue916', iconFont: 'omarchy', label: 'Freebuff' },
+  goose: { icon: '\ue913', iconFont: 'omarchy', label: 'Goose' },
   kilo: { icon: '\ue917', iconFont: 'omarchy', label: 'Kilo' },
   devin: { icon: '\ue918', iconFont: 'omarchy', label: 'Devin CLI' },
   amp: { icon: '\ue919', iconFont: 'omarchy', label: 'Amp' },
@@ -299,7 +300,7 @@ assertDeepEqual(
   defaultItems
     .filter(item => item.parent === 'setup.default.agent')
     .map(item => item.label),
-  ['Amp', 'Antigravity', 'Claude', 'Codex', 'Command Code', 'Copilot', 'Crush', 'Cursor CLI', 'DeepSeek Harness', 'Devin CLI', 'Freebuff', 'Grok', 'Hermes', 'Kilo', 'Kimi', 'Kiro CLI', 'MiniMax Code', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi', 'Qwen Code'],
+  ['Amp', 'Antigravity', 'Claude', 'Codex', 'Command Code', 'Copilot', 'Crush', 'Cursor CLI', 'DeepSeek Harness', 'Devin CLI', 'Freebuff', 'Goose', 'Grok', 'Hermes', 'Kilo', 'Kimi', 'Kiro CLI', 'MiniMax Code', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi', 'Qwen Code'],
   'menu sorts coding agents alphabetically'
 )
 const expectedDefaults = {

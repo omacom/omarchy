@@ -17,7 +17,7 @@ SH
 chmod +x "$mock_bin/mise"
 
 source "$ROOT/install/user/mise.sh"
-for agent in kimi cursor-agent muse qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
+for agent in kimi cursor-agent muse qwen dsh mcode goose kiro-cli freebuff kilo devin amp commandcode; do
   [[ ! -e $HOME/.local/bin/$agent ]] || fail "provisioning must not create a handwritten $agent wrapper"
 done
 mapfile -d '' -t args <"$OMARCHY_TEST_MISE_LOG"
