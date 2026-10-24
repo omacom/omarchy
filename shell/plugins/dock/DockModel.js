@@ -48,6 +48,50 @@ function isMinimizedWorkspace(name) {
   return String(name || "") === MINIMIZED_WORKSPACE
 }
 
+// Where a window really is. Quickshell's workspace object for a window can be
+// null or stale right after the window moved to a special workspace, so the
+// window's own IPC record (which lists { id, name }) backs it up. Returns
+// { id, name }, with id -1 when neither source knows.
+function resolveWorkspace(workspace, ipcWorkspace) {
+  var id = workspace && workspace.id !== undefined ? Number(workspace.id) : NaN
+  var name = workspace && workspace.name !== undefined ? String(workspace.name) : ""
+  var ipcId = ipcWorkspace && ipcWorkspace.id !== undefined ? Number(ipcWorkspace.id) : NaN
+  var ipcName = ipcWorkspace && ipcWorkspace.name !== undefined ? String(ipcWorkspace.name) : ""
+  // The IPC record is read at the same time as the window's other fields, so
+  // when the two disagree about a special workspace, it wins.
+  if (isMinimizedWorkspace(ipcName)) return { id: isNaN(ipcId) ? -1 : ipcId, name: ipcName }
+  if (isNaN(id)) id = isNaN(ipcId) ? -1 : ipcId
+  if (!name) name = ipcName
+  return { id: id, name: name }
+}
+
+// Hyprland events after which a window may have changed workspace under the
+// dock: a window moving, and a special workspace opening or closing.
+// Quickshell follows windows opening and closing on its own.
+var REFRESH_EVENTS = ["movewindow", "movewindowv2", "activespecial", "activespecialv2"]
+
+function shouldRefreshOn(eventName) {
+  return REFRESH_EVENTS.indexOf(String(eventName || "")) >= 0
+}
+
+// What an item looks like in the dock: "idle" (pinned, not running), "running",
+// "minimized" (every window minimized) or "launching". visible counts windows
+// that are not minimized.
+function itemState(item, launching) {
+  var windows = item && item.windows ? item.windows : []
+  if (windows.length === 0) return launching ? "launching" : "idle"
+  var visible = 0
+  for (var i = 0; i < windows.length; i++) if (!windows[i].minimized) visible++
+  return visible === 0 ? "minimized" : "running"
+}
+
+function windowCounts(item) {
+  var windows = item && item.windows ? item.windows : []
+  var minimized = 0
+  for (var i = 0; i < windows.length; i++) if (windows[i].minimized) minimized++
+  return { total: windows.length, minimized: minimized, visible: windows.length - minimized }
+}
+
 // A terminal app's window carries the app id its launcher gave the terminal,
 // which no desktop entry names as its class. The entry that passes that app id
 // claims it, and so does a terminal entry for the command Omarchy's TUI
@@ -170,6 +214,34 @@ function pickWindow(windows, workspaceId) {
   return order[0]
 }
 
+// What a click on an app does. An app with no window launches. Otherwise the
+// click picks a window as pickWindow does, and if that window is the one the
+// user is already looking at, there is nowhere further to go, so the click
+// minimizes it instead. Windows are { workspaceId, minimized, activated }.
+// Returns { action: "launch" | "focus" | "minimize", index }.
+function clickAction(windows, workspaceId) {
+  var index = pickWindow(windows, workspaceId)
+  if (index < 0) return { action: "launch", index: -1 }
+  var picked = windows[index]
+  if (picked.activated && !picked.minimized && picked.workspaceId === workspaceId)
+    return { action: "minimize", index: index }
+  return { action: "focus", index: index }
+}
+
+// A window title cut to fit a label, with an ellipsis where it was cut.
+function shortTitle(title, max) {
+  var text = String(title || "").replace(/\s+/g, " ").trim()
+  var limit = Math.max(2, max || 48)
+  return text.length > limit ? text.slice(0, limit - 1).replace(/\s+$/, "") + "\u2026" : text
+}
+
+// The window rows a label lists for an app: the windows in dock order,
+// at most `limit` of them, and how many were left out.
+function windowRows(windows, limit) {
+  var list = windows || []
+  var cap = Math.max(1, limit || 6)
+  return { rows: list.slice(0, cap), hidden: Math.max(0, list.length - cap) }
+}
 
 if (typeof module !== "undefined") {
   module.exports = {
@@ -179,12 +251,19 @@ if (typeof module !== "undefined") {
     pinnedIds: pinnedIds,
     isDockWindow: isDockWindow,
     isMinimizedWorkspace: isMinimizedWorkspace,
+    resolveWorkspace: resolveWorkspace,
+    shouldRefreshOn: shouldRefreshOn,
+    itemState: itemState,
+    windowCounts: windowCounts,
     claimingEntryId: claimingEntryId,
     buildItems: buildItems,
     orderItems: orderItems,
     orderWithKeyAt: orderWithKeyAt,
     dropIndex: dropIndex,
     pinsInOrder: pinsInOrder,
-    pickWindow: pickWindow
+    pickWindow: pickWindow,
+    clickAction: clickAction,
+    shortTitle: shortTitle,
+    windowRows: windowRows
   }
 }

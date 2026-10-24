@@ -51,13 +51,32 @@ PanelWindow {
   readonly property int iconSize: Math.round(36 * Style.fontScale)
   // Each app has a square slot with its icon in the middle, and the slots run
   // straight to the edge of the dock.
-  readonly property int iconInset: Style.spacing.md
+  readonly property int iconInset: Style.spacing.lg
   readonly property int slotSize: iconSize + iconInset * 2
-  // A pinned app that is not running is drawn faded.
-  readonly property real idleOpacity: 0.7
+  // The dock sits on a rounded panel, with this much of it around the slots.
+  readonly property int pad: Style.spacing.xs
+  readonly property int panelThickness: slotSize + pad * 2
+  // A pinned app that is not running is drawn faded; one whose windows are all
+  // minimized is open, so it sits between that and a running app.
+  readonly property real idleOpacity: 0.55
+  readonly property real minimizedOpacity: 0.8
+  // The thumbnails a hovered app shows: one per window, in a row along a
+  // horizontal dock and in a column beside a vertical one.
+  readonly property bool previews: !!dock && dock.previews
+  readonly property int previewWidth: Math.round(190 * Style.fontScale)
+  readonly property int previewHeight: Math.round(previewWidth * 0.6)
+  readonly property int previewLimit: vertical ? 3 : 4
   // Room inward of the dock for its menus: the tallest, the apps button's,
   // has five rows.
-  readonly property int popupRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
+  readonly property int menuRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
+  // ...and for the previews, which reach as far inward as one thumbnail is
+  // deep (with the app's name above it) or wide. The dock's surface is only
+  // as big as this, so anything taller would be cut off.
+  readonly property int previewRoom: !previews ? 0
+    : (vertical ? previewWidth + Style.space(40) : previewHeight + Style.space(96)) + gap * 2
+  readonly property int popupRoom: Math.max(menuRoom, previewRoom)
+  // Which way is inward from the screen edge, along the axis across the dock.
+  readonly property int inward: position === "top" || position === "left" ? 1 : -1
   // Icons pop away from the screen edge.
   readonly property int popOrigin: position === "top" ? Item.Top
     : position === "left" ? Item.Left
@@ -123,7 +142,7 @@ PanelWindow {
   // The slot a point along the dock falls before, counting from the first app.
   function slotIndexAt(point) {
     var along = window.vertical ? point.y : point.x
-    var first = window.slotSize
+    var first = window.slotSize + window.pad
     var count = window.dock ? window.dock.itemModel.count : 0
     return Math.max(0, Math.min(count, Math.round((along - first) / window.slotSize)))
   }
@@ -132,10 +151,77 @@ PanelWindow {
   // The apps button's menu: where the dock sits and whether it hides.
   property bool settingsMenu: false
 
+  // The label that names an icon under the pointer. It waits a moment before
+  // the first one shows, and follows the pointer from icon to icon without
+  // waiting again.
+  property var tipSlot: null
+  property var pendingTipSlot: null
+  property bool tipWarm: false
+
+  function showTip(slot) {
+    if (!slot || !slot.tip) return
+    tipLeaveTimer.stop()
+    window.pendingTipSlot = slot
+    // A label still up, held for the pointer to reach it, moves on at once.
+    if (window.tipWarm || window.tipSlot) window.tipSlot = slot
+    else tipTimer.restart()
+  }
+
+  function hideTip(slot) {
+    if (window.pendingTipSlot !== slot) return
+    window.pendingTipSlot = null
+    tipTimer.stop()
+    if (window.tipSlot !== slot) return
+    // The previews can be clicked, so they wait a moment for the pointer to
+    // cross from the icon onto them.
+    if (tip.previewing && tip.wanted) tipLeaveTimer.restart()
+    else window.clearTip()
+  }
+
+  function clearTip() {
+    window.tipSlot = null
+    window.tipWarm = true
+    tipWarmTimer.restart()
+  }
+
+  // A press on an icon is the pointer acting on it, so the label gets out of
+  // the way. It comes back once the pointer has left and returned.
+  function dismissTip() {
+    window.pendingTipSlot = null
+    tipTimer.stop()
+    tipLeaveTimer.stop()
+    window.tipSlot = null
+  }
+
+  // The tooltip keeps drawing the last slot it named while it fades out. With
+  // no slot it would collapse to an empty box and slide to the corner.
+  onTipSlotChanged: if (tipSlot) tip.lastSlot = tipSlot
+
+  Timer {
+    id: tipTimer
+    interval: 350
+    onTriggered: window.tipSlot = window.pendingTipSlot
+  }
+
+  Timer {
+    id: tipWarmTimer
+    interval: 400
+    onTriggered: window.tipWarm = false
+  }
+
+  // Ends the wait for the pointer to reach the previews, unless it has.
+  Timer {
+    id: tipLeaveTimer
+    interval: 250
+    onTriggered: if (!tipHover.hovered && window.tipSlot !== null) window.clearTip()
+  }
+
   onWorkspaceIdChanged: if (dock) dock.readMode(workspaceId)
   onShownChanged: {
     if (shown) return
     closeMenu()
+    window.tipSlot = null
+    window.pendingTipSlot = null
     window.revealed = false
   }
   Component.onCompleted: if (dock) dock.readMode(workspaceId)
@@ -206,14 +292,16 @@ PanelWindow {
     right: window.position !== "left"
   }
 
-  implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupRoom : 0
-  implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + window.popupRoom
+  implicitWidth: window.vertical ? window.gap + window.panelThickness + window.popupRoom : 0
+  implicitHeight: window.vertical ? 0 : window.gap + window.panelThickness + window.popupRoom
 
   mask: Region {
     item: window.contentShown ? body : null
 
     Region { item: window.shown && window.autohide ? edgeTrigger : null }
     Region { item: menu.visible ? menu : null }
+    // The previews take clicks; a plain name label does not.
+    Region { item: tip.wanted && tip.previewing ? tip : null }
   }
 
   onAutohideChanged: window.revealed = false
@@ -223,7 +311,7 @@ PanelWindow {
     // Long enough to cross a gap between the edge and the icons, no longer.
     interval: 150
     onTriggered: {
-      if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging) window.revealed = false
+      if (!bodyHover.hovered && !edgeHover.hovered && !tipHover.hovered && !window.menuOpen && !window.dragging) window.revealed = false
     }
   }
 
@@ -266,12 +354,12 @@ PanelWindow {
     LayoutMirroring.enabled: false
     LayoutMirroring.childrenInherit: true
 
-    width: slots.implicitWidth
-    height: slots.implicitHeight
+    width: slots.implicitWidth + window.pad * 2
+    height: slots.implicitHeight + window.pad * 2
     // How far the dock is tucked past its edge. Auto-hide slides it, but only
     // while the dock is on screen: arriving on a floating workspace shows it
     // where it belongs at once.
-    property real tuck: window.tucked ? window.slotSize + window.gap : 0
+    property real tuck: window.tucked ? window.panelThickness + window.gap : 0
 
     Behavior on tuck {
       enabled: window.shown
@@ -301,6 +389,14 @@ PanelWindow {
       }
     }
 
+    // The dock's panel, in the same look as its menus.
+    BorderSurface {
+      anchors.fill: parent
+      radius: Style.cornerRadius
+      color: Commons.Color.popups.background
+      borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Style.normalBorderWidth)
+    }
+
     Grid {
       id: slots
       anchors.centerIn: parent
@@ -315,6 +411,24 @@ PanelWindow {
         delegate: AppSlot {}
       }
     }
+
+    // A hairline between the apps button and the apps. It takes no room of its
+    // own, and steps out of the way while icons are being moved.
+    Rectangle {
+      readonly property int thickness: Math.max(1, Style.space(1))
+      readonly property int length: Math.round(window.slotSize * 0.46)
+      readonly property int along: window.pad + window.slotSize
+
+      visible: appRepeater.count > 0
+      opacity: window.dragging || window.insertIndex >= 0 ? 0 : 1
+      width: window.vertical ? length : thickness
+      height: window.vertical ? thickness : length
+      x: window.vertical ? Math.round((body.width - width) / 2) : along - Math.floor(thickness / 2)
+      y: window.vertical ? along - Math.floor(thickness / 2) : Math.round((body.height - height) / 2)
+      color: Util.alpha(Commons.Color.popups.text, 0.22)
+
+      Behavior on opacity { NumberAnimation { duration: 120 } }
+    }
   }
 
   component Slot: Item {
@@ -325,6 +439,13 @@ PanelWindow {
     property bool hovered: mouse.containsMouse && !window.hoverStale && !window.dragging
     property bool pressed: mouse.pressed
     property alias mouse: mouse
+    // What the label names this slot, and for an app, its windows (for the
+    // previews) and the icon shown until a window's picture arrives.
+    property string tip: ""
+    property var tipWindows: []
+    property string tipIcon: ""
+    onHoveredChanged: if (hovered) window.showTip(slot); else window.hideTip(slot)
+    onPressedChanged: if (pressed) window.dismissTip()
 
     width: window.slotSize
     height: window.slotSize
@@ -342,6 +463,19 @@ PanelWindow {
     id: appsSlot
 
     property real displayedShift: window.insertIndex >= 0 ? -window.slotSize / 2 : 0
+
+    tip: Commons.I18n.t("dock.apps", "Apps")
+
+    Rectangle {
+      x: window.iconInset / 2
+      y: window.iconInset / 2
+      width: window.slotSize - window.iconInset
+      height: window.slotSize - window.iconInset
+      radius: Style.cornerRadius
+      color: appsSlot.pressed ? Style.pressedFill : appsSlot.hovered ? Style.hoverFill : "transparent"
+
+      Behavior on color { ColorAnimation { duration: 120 } }
+    }
 
     Behavior on displayedShift {
       enabled: window.animateShifts
@@ -389,7 +523,7 @@ PanelWindow {
             width: parent.square
             height: parent.square
             radius: Math.max(1, Math.round(parent.square * 0.2))
-            color: Commons.Color.bar.text
+            color: Commons.Color.popups.text
           }
         }
       }
@@ -407,7 +541,25 @@ PanelWindow {
     property point pressPoint
     property bool dragged: false
     readonly property int windowCount: modelData ? modelData.windows.length : 0
-    property real pulse: 1
+    readonly property string dockState: window.dock ? window.dock.stateFor(modelData) : "idle"
+    readonly property var counts: window.dock ? window.dock.countsFor(modelData) : ({ total: 0, minimized: 0, visible: 0 })
+    // One of the app's windows has the focus.
+    readonly property bool focused: {
+      if (!modelData) return false
+      for (var i = 0; i < modelData.windows.length; i++) {
+        if (modelData.windows[i].toplevel.activated) return true
+      }
+      return false
+    }
+    // Slides in when the app joins the dock, and bounces while it launches.
+    property real appear: 0
+    property real bounce: 0
+
+    NumberAnimation on appear { from: 0; to: 1; duration: 220; easing.type: Easing.OutCubic }
+
+    tip: window.dock ? window.dock.labelFor(modelData) : ""
+    tipWindows: modelData ? modelData.windows : []
+    tipIcon: window.dock && modelData ? window.dock.iconFor(modelData) : ""
 
     // Slots between where the dragged app was and where it would land step
     // aside to make room; the dragged one follows the pointer.
@@ -483,12 +635,33 @@ PanelWindow {
         return
       }
       window.closeMenu()
-      if (event.button === Qt.MiddleButton) window.dock.launch(appSlot.modelData)
+      if (event.button === Qt.MiddleButton) window.dock.newWindow(appSlot.modelData)
       else window.dock.activate(appSlot.modelData)
     }
 
-    // Running apps are drawn in full, pinned ones that are not running faded,
-    // and one that is starting pulses between the two.
+    // The plate behind the icon: faint under the pointer, firmer while pressed,
+    // and tinted with the accent on the app that has the focus.
+    Rectangle {
+      x: window.iconInset / 2
+      y: window.iconInset / 2
+      width: window.slotSize - window.iconInset
+      height: window.slotSize - window.iconInset
+      radius: Style.cornerRadius
+      color: appSlot.pressed && !appSlot.lifted ? Style.pressedFill
+        : appSlot.focused ? Style.selectedAccentFill
+        : (appSlot.hovered || appSlot.lifted) ? Style.hoverFill
+        : "transparent"
+      opacity: appSlot.appear
+      transform: Translate {
+        x: window.vertical ? 0 : appSlot.displayedShift
+        y: window.vertical ? appSlot.displayedShift : 0
+      }
+
+      Behavior on color { ColorAnimation { duration: 120 } }
+    }
+
+    // Running apps are drawn in full, apps whose windows are all minimized a
+    // little softer, and pinned ones that are not running faded.
     Image {
       x: window.iconInset
       y: window.iconInset
@@ -500,24 +673,285 @@ PanelWindow {
       asynchronous: true
       smooth: true
       mipmap: true
-      opacity: appSlot.launching ? appSlot.pulse : (appSlot.windowCount > 0 ? 1 : window.idleOpacity)
+      opacity: appSlot.appear * (appSlot.launching || appSlot.dockState === "running" ? 1
+        : appSlot.dockState === "minimized" ? window.minimizedOpacity
+        : window.idleOpacity)
+      transform: [
+        Translate {
+          x: window.vertical ? 0 : appSlot.displayedShift
+          y: window.vertical ? appSlot.displayedShift : 0
+        },
+        Translate {
+          x: window.vertical ? appSlot.bounce * window.inward : 0
+          y: window.vertical ? 0 : appSlot.bounce * window.inward
+        }
+      ]
+      scale: (0.6 + 0.4 * appSlot.appear) * (appSlot.lifted || appSlot.hovered ? (appSlot.pressed && !appSlot.lifted ? 1.05 : 1.15) : 1)
+      transformOrigin: window.popOrigin
+
+      Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+      Behavior on opacity { NumberAnimation { duration: 150 } }
+    }
+
+    // On the edge of the slot toward the screen edge: a dot for each window in
+    // view, a ring for each minimized one, three at most. The focused app's
+    // first dot stretches into a pill in the accent color.
+    Item {
+      id: dots
+
+      readonly property int size: Math.max(4, Math.round(window.iconSize * 0.12))
+      readonly property int step: size + Math.max(2, Math.round(size * 0.75))
+      readonly property int shown: Math.min(3, appSlot.counts.total)
+      readonly property int filled: Math.min(appSlot.counts.visible, shown - (appSlot.counts.minimized > 0 ? 1 : 0))
+      readonly property int stretch: appSlot.focused && filled > 0 ? Math.round(size * 1.8) : 0
+      // Kept clear of the icon: it sits under the icon's plate, in the strip
+      // between the plate and the slot's edge, so the gap to the icon is the
+      // plate's own margin plus a little air, and it stays put whether or not
+      // the plate is showing.
+      readonly property int edge: Math.max(0, Math.round(window.iconInset / 2) - size - Math.max(1, Style.space(2)))
+      readonly property int run: shown > 0 ? size + stretch + (shown - 1) * step : 0
+      readonly property color tone: appSlot.focused ? Commons.Color.accent : Util.alpha(Commons.Color.popups.text, 0.7)
+
+      visible: shown > 0
+      opacity: appSlot.appear
+      width: window.vertical ? size : run
+      height: window.vertical ? run : size
+      x: window.position === "left" ? edge
+        : window.position === "right" ? appSlot.width - width - edge
+        : Math.round((appSlot.width - width) / 2)
+      y: window.position === "top" ? edge
+        : window.position === "bottom" ? appSlot.height - height - edge
+        : Math.round((appSlot.height - height) / 2)
       transform: Translate {
         x: window.vertical ? 0 : appSlot.displayedShift
         y: window.vertical ? appSlot.displayedShift : 0
       }
-      scale: appSlot.lifted || appSlot.hovered ? 1.15 : 1
-      transformOrigin: window.popOrigin
 
-      Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+      Repeater {
+        model: dots.shown
+
+        delegate: Rectangle {
+          required property int index
+          readonly property bool ring: index >= dots.filled
+          readonly property bool pill: index === 0 && dots.stretch > 0
+          readonly property int along: index * dots.step + (index > 0 ? dots.stretch : 0)
+
+          x: window.vertical ? 0 : along
+          y: window.vertical ? along : 0
+          width: window.vertical ? dots.size : dots.size + (pill ? dots.stretch : 0)
+          height: window.vertical ? dots.size + (pill ? dots.stretch : 0) : dots.size
+          radius: dots.size / 2
+          color: ring ? "transparent" : dots.tone
+          border.width: ring ? Math.max(1, Math.round(dots.size * 0.25)) : 0
+          border.color: dots.tone
+
+          Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+          Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+        }
+      }
     }
 
     SequentialAnimation {
       running: appSlot.launching
       loops: Animation.Infinite
-      onRunningChanged: if (!running) appSlot.pulse = 1
+      onRunningChanged: if (!running) appSlot.bounce = 0
 
-      NumberAnimation { target: appSlot; property: "pulse"; from: 1; to: window.idleOpacity; duration: 500; easing.type: Easing.InOutSine }
-      NumberAnimation { target: appSlot; property: "pulse"; to: 1; duration: 500; easing.type: Easing.InOutSine }
+      NumberAnimation { target: appSlot; property: "bounce"; to: Math.round(window.slotSize * 0.28); duration: 240; easing.type: Easing.OutQuad }
+      NumberAnimation { target: appSlot; property: "bounce"; to: 0; duration: 240; easing.type: Easing.InQuad }
+      PauseAnimation { duration: 300 }
+    }
+  }
+
+  // Names the app under the pointer. A running app also shows a live picture
+  // of each of its windows (the first few), the focused one outlined in the
+  // accent and a minimized one dimmed. With previews off, or for an app that
+  // is not running, it is just the name.
+  BorderSurface {
+    id: tip
+
+    // The slot the label last named, kept through the fade-out.
+    property var lastSlot: null
+
+    readonly property var windows: lastSlot ? lastSlot.tipWindows : []
+    readonly property bool previewing: window.previews && windows.length > 0
+    readonly property var listing: DockModel.windowRows(windows, window.previewLimit)
+    readonly property int cards: Math.max(1, listing.rows.length)
+    readonly property bool wanted: window.contentShown && window.tipSlot !== null && !window.menuOpen
+      && !window.dragging && window.insertIndex < 0
+    // Along a horizontal dock the thumbnails share the screen's width, so they
+    // narrow when there are many and the screen is small.
+    readonly property int cardWidth: window.vertical ? window.previewWidth
+      : Math.max(Style.space(96), Math.min(window.previewWidth,
+          Math.floor((window.width - window.gap * 2 - contentLeftInset - contentRightInset - Style.spacing.sm * (cards - 1)) / cards)))
+
+    visible: opacity > 0
+    opacity: wanted ? 1 : 0
+    leftPadding: Style.spacing.controlPaddingX
+    rightPadding: Style.spacing.controlPaddingX
+    topPadding: Style.spacing.controlPaddingY
+    bottomPadding: Style.spacing.controlPaddingY
+    width: tipColumn.implicitWidth + contentLeftInset + contentRightInset
+    height: tipColumn.implicitHeight + contentTopInset + contentBottomInset
+    x: window.popupX(lastSlot, tip)
+    y: window.popupY(lastSlot, tip)
+    radius: Style.cornerRadius
+    color: Commons.Color.tooltip.background
+    borderSpec: Border.surfaceSpec("tooltip", "border", Commons.Color.tooltip.border, Style.normalBorderWidth)
+
+    Behavior on opacity { NumberAnimation { duration: 110 } }
+
+    // The pointer on the previews keeps the label up, and keeps an auto-hidden
+    // dock out.
+    HoverHandler {
+      id: tipHover
+      onHoveredChanged: {
+        if (hovered) return
+        tipLeaveTimer.restart()
+        if (window.autohide) hideTimer.restart()
+      }
+    }
+
+    Column {
+      id: tipColumn
+      x: tip.contentLeftInset
+      y: tip.contentTopInset
+      spacing: Style.spacing.sm
+
+      Text {
+        id: tipHeading
+        textFormat: Text.PlainText
+        text: tip.lastSlot ? tip.lastSlot.tip : ""
+        color: Commons.Color.tooltip.text
+        font.family: Style.font.family
+        font.pixelSize: Style.font.bodySmall
+        font.bold: tip.previewing
+        elide: Text.ElideRight
+      }
+
+      Binding {
+        target: tipHeading
+        property: "width"
+        value: Math.max(0, window.popupRoom - tip.contentLeftInset - tip.contentRightInset)
+        when: window.vertical
+      }
+
+      Grid {
+        visible: tip.previewing
+        columns: window.vertical ? 1 : tip.cards
+        spacing: Style.spacing.sm
+
+        Repeater {
+          model: tip.previewing ? tip.listing.rows : []
+
+          delegate: PreviewCard {
+            // Capturing stops once the label has faded out.
+            active: tip.visible
+            cardWidth: tip.cardWidth
+            icon: tip.lastSlot ? tip.lastSlot.tipIcon : ""
+            // Picking a window brings that one forward, as a click on the
+            // icon would for the app's first.
+            onPicked: {
+              window.dismissTip()
+              if (window.dock) window.dock.bringForward(modelData)
+            }
+          }
+        }
+      }
+
+      Text {
+        visible: tip.previewing && tip.listing.hidden > 0
+        textFormat: Text.PlainText
+        text: "+" + tip.listing.hidden
+        color: Commons.Color.tooltip.text
+        opacity: 0.55
+        font.family: Style.font.family
+        font.pixelSize: Style.font.bodySmall
+      }
+    }
+  }
+
+  // One window's thumbnail. The picture is the compositor's own
+  // capture of the window; until it arrives, or where the compositor has none
+  // (a minimized window can be one), the app's icon stands in.
+  component PreviewCard: Item {
+    id: card
+
+    required property var modelData
+    property bool active: false
+    property int cardWidth: window.previewWidth
+    property string icon: ""
+    signal picked()
+
+    readonly property var toplevel: modelData ? modelData.toplevel : null
+    readonly property bool minimized: !!modelData && modelData.minimized === true
+    readonly property bool focused: !!toplevel && toplevel.activated
+    readonly property int thumbHeight: Math.round(cardWidth * window.previewHeight / window.previewWidth)
+
+    width: cardWidth
+    height: thumb.height
+
+    Item {
+      id: thumb
+      width: card.cardWidth
+      height: card.thumbHeight
+      clip: true
+
+      Rectangle {
+        anchors.fill: parent
+        color: Util.alpha(Commons.Color.tooltip.text, 0.08)
+      }
+
+      Image {
+        anchors.centerIn: parent
+        width: Math.round(parent.height * 0.4)
+        height: width
+        sourceSize: Qt.size(width * 2, height * 2)
+        source: card.icon
+        fillMode: Image.PreserveAspectFit
+        asynchronous: true
+        smooth: true
+        mipmap: true
+        visible: !view.hasContent
+        opacity: card.minimized ? 0.55 : 1
+      }
+
+      // Fitted inside the box, keeping the window's own proportions.
+      ScreencopyView {
+        id: view
+        anchors.centerIn: parent
+        visible: hasContent
+        opacity: card.minimized ? 0.55 : 1
+        captureSource: card.active ? card.toplevel : null
+        live: true
+        paintCursor: false
+        constraintSize: Qt.size(thumb.width, thumb.height)
+      }
+
+      // Lightens under the pointer, and a little more while pressed.
+      Rectangle {
+        anchors.fill: parent
+        color: pick.pressed ? Style.pressedFill : pick.containsMouse ? Style.hoverFill : "transparent"
+
+        Behavior on color { ColorAnimation { duration: 120 } }
+      }
+
+      Rectangle {
+        anchors.fill: parent
+        color: "transparent"
+        border.width: Math.max(1, Style.space(1))
+        border.color: card.focused ? Commons.Color.accent
+          : pick.containsMouse ? Util.alpha(Commons.Color.tooltip.text, 0.6)
+          : Util.alpha(Commons.Color.tooltip.text, 0.25)
+      }
+    }
+
+    // The whole card is the target.
+    MouseArea {
+      id: pick
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: card.picked()
     }
   }
 
@@ -527,6 +961,9 @@ PanelWindow {
     readonly property var item: window.menuItem
     readonly property bool hasEntry: !!item && !!window.dock && !!window.dock.entryFor(item)
     readonly property bool running: !!item && item.windows.length > 0
+    readonly property bool inView: !!item && !!window.dock && item.windows.some(function(other) {
+      return !other.minimized && other.workspaceId === window.dock.minimizeWorkspaceId()
+    })
 
     visible: window.contentShown && (!!item || window.settingsMenu)
     width: Math.max(Style.space(140), menuColumn.implicitWidth) + padding * 2
@@ -567,7 +1004,13 @@ PanelWindow {
       MenuRow {
         visible: menu.hasEntry && menu.running
         text: Commons.I18n.t("dock.newWindow")
-        onTriggered: window.dock.launch(menu.item)
+        onTriggered: window.dock.newWindow(menu.item)
+      }
+
+      MenuRow {
+        visible: menu.inView
+        text: Commons.I18n.t("dock.minimize", "Minimize")
+        onTriggered: window.dock.minimize(menu.item)
       }
 
       MenuRow {
