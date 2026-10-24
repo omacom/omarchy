@@ -137,6 +137,8 @@ omarchy-update
   ├─ run system-package updates
   ├─ run migrations
   ├─ automatically remove orphan packages and run log analysis
+  ├─ omarchy-update-pacnew
+  │    └─ list the .pacnew files pacman left beside edited Omarchy config files
   ├─ clear the shell update indicator: the update just installed what it showed
   ├─ restart marked services and the shell
   ├─ run the post-update hook, then update mise tools
@@ -313,6 +315,7 @@ scripts.
 | `omarchy-update-mise` | Runs `MISE_MINIMUM_RELEASE_AGE=0 mise up` for mise-managed tools — the override of mise's release-age cooldown is the point. | **Keep.** Mise-managed tools are intentionally part of the blessed update path. |
 | `omarchy-update-orphan-pkgs` | Lists orphans and prompts before removal unless passed `-y`, as the update pipeline does; standalone noninteractive mode only reports. | **Keep for now.** Automates cleanup during updates and supports standalone review. |
 | `omarchy-update-analyze-logs` | Scans `/tmp/omarchy-update.log` for known failure patterns, currently initramfs generation. | **Keep/expand.** Useful safety net; should grow only for high-signal checks. |
+| `omarchy-update-pacnew` | Lists the `.pacnew` files `pacdiff -o` finds beside config files owned by packages from the omarchy repository, and says how to merge them. Reports only; a failed look warns and the update carries on. | **Keep.** Keeps an unmerged Omarchy default visible at every update, where pacman's own warning scrolls past once. |
 | `omarchy-update-boot` | Hidden helper that runs the platform's `update-verify` lifecycle operation through `omarchy-lifecycle-dispatch`, with `sudo` only when the platform implements it. | **Keep internal/hidden.** Keeps platform boot checks out of the pipeline and stubbable in tests. |
 | `omarchy-update-restart` | Restarts components selected by `restart-*-required` markers, always restarts the shell, and prompts for reboot after kernel/Hyprland updates. Internal phase flags let the update finish sudo-capable restarts before user hooks and defer only the unprivileged reboot prompt. | **Keep.** Important final step; may eventually include service-restart checks. |
 | `omarchy-update-firmware` | Manual firmware update command using fwupd. Not part of the normal update pipeline. | **Keep separate.** Firmware is not a routine system update step. |
@@ -354,6 +357,5 @@ scripts.
      maintenance flows. Keep an eye on what should be allowed versus redirected
      to `omarchy update`.
 
-2. **Pacnew/pacsave handling is still missing**
-   - Package-backed Omarchy should warn about or help process `.pacnew` and
-     `.pacsave` files after updates.
+2. **Pacnew/pacsave handling stops at a report**
+   - `omarchy-update-pacnew` warns about the `.pacnew` files of packages from the omarchy repository after every update. Merging them is still manual, and `.pacsave` files and other packages' `.pacnew` files are not reported.
