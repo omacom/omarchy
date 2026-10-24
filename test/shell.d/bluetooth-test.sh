@@ -29,6 +29,23 @@ const retryTimer = panelSource.match(/id: discoveryRetry[\s\S]*?onTriggered: \{[
 assert(retryTimer, 'bluetooth has the discovery retry timer')
 assert(/owesDiscoveryStop = true/.test(retryTimer[0]), 'bluetooth takes on the stop it owes when it starts discovery')
 
+// A controller that keeps rejecting StartDiscovery was asked every second for
+// as long as the panel stayed open, which can wedge it (#13447).
+assertDeepEqual([1, 2, 3, 4, 5, 6, 7, 20].map(bluetooth.discoveryRetryInterval),
+  [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000], 'bluetooth backs off discovery retries to a 30s ceiling')
+assertEqual(bluetooth.discoveryRetryInterval(0), 1000, 'bluetooth retries discovery after a second before any attempt')
+assert(/interval: Model\.discoveryRetryInterval\(attempts\)/.test(retryTimer[0]), 'bluetooth paces discovery retries by the attempts so far')
+assert(!/onRunningChanged/.test(retryTimer[0]), 'bluetooth does not start retries over just because an adapter came back on its own')
+assert(/\n {4}\} else \{[\s\S]{0,300}discoveryRetry\.attempts = 0/.test(panelSource), 'bluetooth starts retries over for each panel visit')
+assert(/onDiscoveringChanged[\s\S]{0,120}discovering\) discoveryRetry\.attempts = 0/.test(panelSource), 'bluetooth starts retries over when BlueZ confirms the scan')
+assert(/function toggleBluetooth\(\)[\s\S]{0,200}if \(!adapter\.enabled\) discoveryRetry\.attempts = 0/.test(panelSource), 'bluetooth starts retries over when the user turns the radio back on')
+assert(bluetooth.discoveryRetryAllowed(0) && bluetooth.discoveryRetryAllowed(bluetooth.discoveryRetryLimit - 1),
+  'bluetooth keeps retrying discovery below the limit')
+assert(!bluetooth.discoveryRetryAllowed(bluetooth.discoveryRetryLimit), 'bluetooth stops retrying discovery at the limit')
+assert(/running:[^\n]*&& Model\.discoveryRetryAllowed\(attempts\)/.test(retryTimer[0]),
+  'bluetooth stops the retry timer once a controller has refused discovery too many times')
+assert(/onTriggered: \{\s*attempts \+= 1/.test(retryTimer[0]), 'bluetooth counts each discovery request')
+
 // Quickshell only forwards a discovering write that differs from BlueZ's last
 // confirmed state, so a stop written in the same instant as an in-flight
 // StartDiscovery would be swallowed. Binding the stop timer to the confirmed
