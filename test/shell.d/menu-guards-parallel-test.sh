@@ -69,20 +69,40 @@ slow_output=$(bash -c "$slow_script")
 grep -qx 'row7:w:1' <<<"$slow_output" || fail "guard batch waits for its slowest group" "row7 missing"
 pass "guard batch exits only after its slowest group has answered"
 
-# A group that dies part way leaves its remaining rows unanswered, and the
-# menu keeps its last complete answers only when the batch fails. Under a
-# login shell's `set -u` an unset variable kills the group mid-guard.
-nounset_script=$(node -e '
+# A user guard that exits, execs, fails to parse or trips a login shell's `set -u`
+# answers for its own row only: every other row is still answered, and the
+# batch still succeeds, so the menu takes the answers. The menu keeps the last
+# line per row, so that is the line read back for each. The other rows quote,
+# since each guard reaches its eval inside single quotes.
+for broken in 'exit 0' 'exit 3' 'exit 198' 'exec true' 'exec false' '[[ -n $OMARCHY_TEST_UNSET ]]' '[[ -n '; do
+  broken_script=$(BROKEN="$broken" node -e '
+    const path = require("path")
+    const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+    const items = {}
+    for (let i = 0; i < 20; i++) items[`row${i}`] = { id: `row${i}`, when: i === 3 ? process.env.BROKEN : "[[ \"it'"'"'s\" == '"'"'it'"'"'\\'"'"''"'"'s'"'"' ]]" }
+    process.stdout.write(menu.guardScript(items))
+  ')
+  broken_output=$(env -u OMARCHY_TEST_UNSET bash -u -c "$broken_script" 2>/dev/null) ||
+    fail "a batch with a broken guard ($broken) still succeeds"
+  expected=""
+  for i in {0..19}; do
+    answer=1
+    ((i == 3)) && [[ $broken != "exit 0" && $broken != "exec true" ]] && answer=0
+    expected+="row$i:w:$answer "
+  done
+  result=""
+  for i in {0..19}; do result+="$(grep "^row$i:" <<<"$broken_output" | tail -1 || :) "; done
+  [[ $result == "$expected" ]] ||
+    fail "a broken guard ($broken) answers for its own row only" "got: $result"
+done
+pass "a guard that exits, execs, fails to parse or trips set -u answers for its own row only"
+
+no_guard_trips=$(node -e '
   const path = require("path")
   const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
-  const items = {}
-  for (let i = 0; i < 20; i++) items[`row${i}`] = { id: `row${i}`, when: i === 3 ? "[[ -n $OMARCHY_TEST_UNSET ]]" : "true" }
-  process.stdout.write(menu.guardScript(items))
+  process.stdout.write(menu.guardScript({ set: { id: "set", when: "[[ -n $OMARCHY_TEST_UNSET ]]" } }))
 ')
-nounset_status=0
-env -u OMARCHY_TEST_UNSET bash -u -c "$nounset_script" >/dev/null 2>&1 || nounset_status=$?
-((nounset_status != 0)) || fail "a guard group that dies part way fails the batch"
-bash -c "$nounset_script" >/dev/null 2>&1 || fail "a batch whose groups all finish succeeds"
-OMARCHY_TEST_UNSET=set bash -u -c "$nounset_script" >/dev/null 2>&1 ||
-  fail "the batch itself runs under set -u when no guard trips it"
-pass "a guard group that dies part way fails the whole batch, so the menu keeps its last answers"
+no_guard_trips_output=$(OMARCHY_TEST_UNSET=set bash -u -c "$no_guard_trips") &&
+  [[ $no_guard_trips_output == "set:w:1" ]] ||
+  fail "the batch itself runs under set -u when no guard trips it" "got: ${no_guard_trips_output:-}"
+pass "the batch itself runs under set -u when no guard trips it"
