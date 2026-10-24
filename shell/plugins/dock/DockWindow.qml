@@ -468,7 +468,7 @@ PanelWindow {
     property point pressPoint
     property bool dragged: false
     readonly property int windowCount: modelData ? modelData.windows.length : 0
-    readonly property bool focused: !!modelData && modelData.windows.some(function(entry) { return entry.toplevel.activated })
+    readonly property bool focused: !!modelData && modelData.windows.some(function(entry) { return !!entry.toplevel && entry.toplevel.activated })
     property real pulse: 1
 
     onHoveredChanged: window.slotHovered(appSlot, appSlot.key, appSlot.hovered)
@@ -701,7 +701,7 @@ PanelWindow {
     }
 
     visible: window.listShown
-    width: Math.max(Style.space(160), Math.min(Style.space(360), listColumn.implicitWidth)) + padding * 2
+    width: Math.max(Style.space(160), Math.min(Style.space(360), listColumn.naturalWidth)) + padding * 2
     height: Math.min(windows.length, window.listRows) * rowHeight + padding * 2
     x: window.popupX(window.listSlot, windowList)
     y: window.popupY(window.listSlot, windowList)
@@ -736,6 +736,14 @@ PanelWindow {
         id: listColumn
         width: parent.width
 
+        // Column sizes its rows to its own width, so the popup is sized from
+        // the widest row's title and place instead.
+        readonly property real naturalWidth: {
+          var widest = 0
+          for (var i = 0; i < children.length; i++) widest = Math.max(widest, children[i].implicitWidth || 0)
+          return widest
+        }
+
         Repeater {
           model: windowList.windows
 
@@ -747,7 +755,7 @@ PanelWindow {
             readonly property bool current: !!toplevel && toplevel.activated
             readonly property string title: toplevel && toplevel.title ? toplevel.title : windowList.fallbackTitle
             readonly property string place: modelData.minimized ? Commons.I18n.t("dock.minimized")
-              : modelData.workspaceId >= 1 ? String(modelData.workspaceId) : ""
+              : modelData.workspaceId >= 1 ? Commons.I18n.formatNumber(modelData.workspaceId, 0) : ""
             readonly property int textGap: Style.spacing.controlPaddingX
 
             implicitWidth: titleText.implicitWidth + placeText.implicitWidth + textGap * 3
