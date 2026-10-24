@@ -106,6 +106,11 @@ local touchpad = require("default.hypr.touchpad")
 touchpad.input_devices_path = os.getenv("INPUT_DEVICES")
 touchpad.input_class_path = os.getenv("INPUT_CLASS")
 touchpad.udev_data_path = os.getenv("UDEV_DATA")
+if os.getenv("USER_SCROLL") then
+  -- The user's input.lua loads after watch() and gives foot its own speed.
+  touchpad.watch()
+  hl.window_rule({ match = { class = "foot" }, scroll_touchpad = 3 })
+end
 for i = 1, tonumber(os.getenv("TIMES")) do
   if i > 1 then print("--") end
   touchpad.apply(os.getenv("SETTINGS"))
@@ -121,9 +126,11 @@ grep -Fqx 'rule foot 2.0' <<<"$missing_output" &&
   grep -Fqx 'rule (org\.omarchy\..*|TUI\..*) title=foot 2.0' <<<"$missing_output" ||
   fail "a terminal's scroll speed also covers TUIs launched from it" "$missing_output"
 pass "a terminal's scroll speed also covers TUIs launched from it"
-! grep -q 'scroll_touchpad' "$ROOT/default/hypr/input.lua" ||
-  fail "terminal scroll speeds are set only by the touchpad module, so the window can remove them"
-pass "terminal scroll speeds are set only by the touchpad module, so the window can remove them"
+user_output=$(USER_SCROLL=1 run_apply "$tmpdir/missing.json")
+grep -Fqx 'rule foot 3' <<<"$user_output" && ! grep -q 'foot 2.0' <<<"$user_output" &&
+  grep -Fqx 'rule com.mitchellh.ghostty 0.2' <<<"$user_output" ||
+  fail "Omarchy's default scroll speed steps aside for one the user's config sets" "$user_output"
+pass "Omarchy's default scroll speed steps aside for one the user's config sets"
 
 printf 'not json' >"$tmpdir/broken.json"
 broken_output=$(run_apply "$tmpdir/broken.json")

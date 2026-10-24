@@ -348,8 +348,17 @@ local applied = { gestures = {}, rules = {} }
 local foreign = {}
 local real_gesture = nil
 
+-- Window classes other config gives a touchpad scroll speed, recorded by
+-- watch(), so Omarchy's default speeds never override the user's own.
+local foreign_scroll = {}
+local real_window_rule = nil
+
 local function gesture_api()
   return real_gesture or hl.gesture
+end
+
+local function window_rule_api()
+  return real_window_rule or hl.window_rule
 end
 
 local function same_gesture(a, b)
@@ -360,6 +369,17 @@ end
 -- has no way to list gestures, and unsetting one that does not exist is
 -- reported as a config error, so only exact recorded swipes are ever unset.
 function M.watch()
+  if not real_window_rule and type(hl.window_rule) == "function" then
+    real_window_rule = hl.window_rule
+    hl.window_rule = function(rule)
+      if type(rule) == "table" and rule.scroll_touchpad ~= nil and type(rule.match) == "table"
+        and type(rule.match.class) == "string" then
+        foreign_scroll[rule.match.class] = true
+      end
+      return real_window_rule(rule)
+    end
+  end
+
   if real_gesture or type(hl.gesture) ~= "function" then
     return
   end
@@ -547,17 +567,21 @@ function M.apply(path)
   end
 
   for _, app in ipairs(settings.apps or M.default_apps) do
-    local matches = { { class = app.match } }
-    local title = M.terminal_titles[app.match]
-    if title then
-      matches[2] = { class = M.tui_class, initial_title = title }
-    end
-    for _, match in ipairs(matches) do
-      local ok, rule = pcall(hl.window_rule, { match = match, scroll_touchpad = app.scroll })
-      if ok then
-        applied.rules[#applied.rules + 1] = rule
-      else
-        report(app.match .. " scroll speed", rule)
+    -- A saved list is the user's own and wins; Omarchy's defaults step aside
+    -- for a class their config already gives a speed.
+    if settings.apps or not foreign_scroll[app.match] then
+      local matches = { { class = app.match } }
+      local title = M.terminal_titles[app.match]
+      if title then
+        matches[2] = { class = M.tui_class, initial_title = title }
+      end
+      for _, match in ipairs(matches) do
+        local ok, rule = pcall(window_rule_api(), { match = match, scroll_touchpad = app.scroll })
+        if ok then
+          applied.rules[#applied.rules + 1] = rule
+        else
+          report(app.match .. " scroll speed", rule)
+        end
       end
     end
   end

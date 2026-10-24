@@ -203,10 +203,11 @@ Item {
       }
 
       Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Left || event.key === Qt.Key_H) {
+        var key = Util.readingKey(event, true)
+        if (key === Qt.Key_Left) {
           nudge(-1)
           event.accepted = true
-        } else if (event.key === Qt.Key_Right || event.key === Qt.Key_L) {
+        } else if (key === Qt.Key_Right) {
           nudge(1)
           event.accepted = true
         }
