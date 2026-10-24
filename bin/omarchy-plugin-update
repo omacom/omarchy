@@ -57,6 +57,11 @@ update_one() {
     return 0
   fi
 
+  if [[ -n $EXPECTED_COMMIT ]] && ! git -C "$dir" merge-base --is-ancestor HEAD "$target"; then
+    echo "omarchy-plugin-update: requested commit is not a fast-forward from installed HEAD for '$id'" >&2
+    return 1
+  fi
+
   if (( ! ASSUME_YES )); then
     echo "Changes for $id:"
     if omarchy-cmd-present delta; then
@@ -76,7 +81,15 @@ update_one() {
     return 1
   fi
 
-  if ! omarchy-plugin-validate "$dir"; then
+  local validation_status=0
+  omarchy-plugin-validate "$dir" || validation_status=$?
+
+  if [[ -n $EXPECTED_COMMIT && $(git -C "$dir" rev-parse HEAD) != "$EXPECTED_COMMIT" ]]; then
+    echo "omarchy-plugin-update: installed commit does not match --commit for '$id'; refusing to report success" >&2
+    return 1
+  fi
+
+  if (( validation_status != 0 )); then
     git -C "$dir" reset --hard ORIG_HEAD >/dev/null
     echo "omarchy-plugin-update: update of '$id' failed validation; rolled back" >&2
     return 1
