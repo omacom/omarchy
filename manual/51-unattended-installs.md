@@ -11,7 +11,8 @@ The files are exactly what the installer's own wizard writes, so the easiest way
 | File | Required | Purpose |
 |------|----------|---------|
 | `user_configuration.json` | Yes | Disk, hostname, timezone, keyboard |
-| `user_credentials.json` | Yes | Username and password hash |
+| `user_credentials.json` | Yes, unless using `defer-provisioning` | Username and password hash |
+| `defer-provisioning` | Alternative to credentials | Empty file that defers user setup to first boot |
 | `user_full_name.txt` | No | Git full name |
 | `user_email_address.txt` | No | Git email |
 | `user_encrypt_installation.txt` | No | `true` when the configuration carries a `disk_encryption` block |
@@ -34,9 +35,16 @@ Any filesystem with the right label works. A tiny ISO is the easy way:
 
 ```bash
 mkdir cidata
-cp user_configuration.json user_credentials.json authorized_keys cidata/
+cp user_configuration.json cidata/
+for file in user_credentials.json defer-provisioning user_full_name.txt user_email_address.txt user_encrypt_installation.txt authorized_keys tailscale_authkey; do
+  if [[ -f $file ]]; then
+    cp "$file" cidata/
+  fi
+done
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
+
+Create either `user_credentials.json` or `defer-provisioning` before running these commands. The other files are copied only when present.
 
 Then attach it to the VM alongside the Omarchy ISO. Here's a full Proxmox example:
 
