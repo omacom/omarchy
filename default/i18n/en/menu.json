@@ -306,6 +306,12 @@
   "trigger.toggle.notifications-off": {
     "label": "Silence Notifications"
   },
+  "trigger.toggle.presentation-on": {
+    "label": "Presentation On"
+  },
+  "trigger.toggle.presentation-off": {
+    "label": "Presentation Off"
+  },
   "trigger.toggle.nightlight-on": {
     "label": "Nightlight On"
   },
@@ -431,6 +437,9 @@
   },
   "trigger.share.clipboard": {
     "label": "Clipboard"
+  },
+  "trigger.share.qr": {
+    "label": "QR Code"
   },
   "trigger.share.file": {
     "label": "File"
