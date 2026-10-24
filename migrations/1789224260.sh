@@ -1,53 +1,40 @@
 echo "Move terminal font size into per-machine overlay files"
 
-size=""
-ghostty="$HOME/.config/ghostty/config"
-kitty="$HOME/.config/kitty/kitty.conf"
-foot="$HOME/.config/foot/foot.ini"
-alacritty="$HOME/.config/alacritty/alacritty.toml"
-ghostty_local="${XDG_CONFIG_HOME:-$HOME/.config}/ghostty/local"
-kitty_local="${XDG_CONFIG_HOME:-$HOME/.config}/kitty/local.conf"
-foot_local="${XDG_CONFIG_HOME:-$HOME/.config}/foot/local.ini"
-alacritty_local="${XDG_CONFIG_HOME:-$HOME/.config}/alacritty/local.toml"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+ghostty="$config_home/ghostty/config"
+kitty="$config_home/kitty/kitty.conf"
+foot="$config_home/foot/foot.ini"
+alacritty="$config_home/alacritty/alacritty.toml"
 
-if [[ -f $ghostty_local ]]; then
-  size=$(sed -n 's/^font-size[[:space:]]*=[[:space:]]*//p' "$ghostty_local" | head -1)
-fi
-if [[ -z $size && -f $kitty_local ]]; then
-  size=$(sed -n 's/^font_size[[:space:]]*//p' "$kitty_local" | head -1)
-fi
-if [[ -z $size && -f $foot_local ]]; then
-  size=$(sed -n 's/.*:size=\([0-9.]*\).*/\1/p' "$foot_local" | head -1)
-fi
-if [[ -z $size && -f $alacritty_local ]]; then
-  size=$(sed -n 's/^size[[:space:]]*=[[:space:]]*//p' "$alacritty_local" | head -1)
-fi
-if [[ -z $size && -f $ghostty ]]; then
-  size=$(sed -n 's/^font-size[[:space:]]*=[[:space:]]*//p' "$ghostty" | head -1)
-fi
-if [[ -z $size && -f $kitty ]]; then
-  size=$(sed -n 's/^[[:space:]]*font_size[[:space:]]*//p' "$kitty" | head -1)
-fi
-if [[ -z $size && -f $foot ]]; then
-  size=$(sed -n 's/.*:size=\([0-9.]*\).*/\1/p' "$foot" | head -1)
-fi
-if [[ -z $size && -f $alacritty ]]; then
-  size=$(sed -n 's/^size[[:space:]]*=[[:space:]]*//p' "$alacritty" | head -1)
-fi
-size=${size:-9}
-size=${size%.0}
+# Each terminal keeps its own size. A missing size is left alone; a value that
+# is not a number becomes 9 inside omarchy-font-size --read, and this migration
+# keeps going so later ones are not stuck.
+apply_terminal() {
+  local term="$1" size
+  size=$(omarchy-font-size --read "$term")
+  if [[ -n $size ]]; then
+    omarchy-font-size --quiet --only "$term" "$size"
+  fi
+}
 
-omarchy-font-size --quiet "$size"
+apply_terminal ghostty
+apply_terminal kitty
+apply_terminal foot
+apply_terminal alacritty
+
+omarchy-font-size --includes-only
 
 if [[ -f $ghostty ]]; then
-  sed -i '/^font-size[[:space:]]*=/d' "$ghostty"
+  sed --follow-symlinks -i '/^[[:space:]]*font-size[[:space:]]*=/d' "$ghostty"
 fi
 if [[ -f $kitty ]]; then
   sed --follow-symlinks -i '/^[[:space:]]*font_size[[:space:]]/d' "$kitty"
 fi
 if [[ -f $foot ]]; then
-  sed -i 's/^\(font=[^:]*\):size=[0-9.]*/\1/' "$foot"
+  sed --follow-symlinks -i 's/^\(font=[^:]*\):size=[0-9.]*/\1/' "$foot"
 fi
-if [[ -f $alacritty ]]; then
-  sed -i '/^size[[:space:]]*=/d' "$alacritty"
+# Drop the shared size only when Alacritty will actually load the overlay.
+# A [general] import array counts; a file we could not edit keeps its size.
+if [[ -f $alacritty ]] && omarchy-font-size --query alacritty-import; then
+  sed --follow-symlinks -i '/^[[:space:]]*size[[:space:]]*=/d' "$alacritty"
 fi
