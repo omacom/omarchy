@@ -47,7 +47,7 @@ fi
 echo
 if omarchy-cmd-missing gh; then
   echo "The GitHub CLI (gh) is not installed, so skipping GitHub sign-in."
-elif echo "Checking GitHub sign-in..." && gh auth status >/dev/null 2>&1; then
+elif gh auth status >/dev/null 2>&1; then
   echo "Already signed in to GitHub."
 elif gum confirm "Sign in to GitHub?"; then
   gh auth login
