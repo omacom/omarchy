@@ -36,7 +36,7 @@ ColumnLayout {
     font.letterSpacing: 1
   }
 
-  Caption { text: "Changes apply as you make them. Scroll, tap, and drag here to feel them." }
+  Caption { text: Commons.I18n.t("touchpad.testPadHint") }
 
   // ---- Scroll ----
   BorderSurface {
@@ -130,12 +130,12 @@ ColumnLayout {
       acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
       onPressed: function(mouse) {
         root.clickCount++
-        root.lastClick = mouse.button === Qt.RightButton ? "Right click"
-          : mouse.button === Qt.MiddleButton ? "Middle click"
-          : "Left click"
+        root.lastClick = mouse.button === Qt.RightButton ? Commons.I18n.t("touchpad.rightClick")
+          : mouse.button === Qt.MiddleButton ? Commons.I18n.t("touchpad.middleClick")
+          : Commons.I18n.t("touchpad.leftClick")
       }
       onDoubleClicked: function(mouse) {
-        if (mouse.button === Qt.LeftButton) root.lastClick = "Double click"
+        if (mouse.button === Qt.LeftButton) root.lastClick = Commons.I18n.t("touchpad.doubleClick")
       }
     }
   }

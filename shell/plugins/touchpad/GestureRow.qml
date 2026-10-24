@@ -46,7 +46,7 @@ Item {
       Dropdown {
         id: fingers
         showLabel: false
-        options: Model.FINGERS
+        options: Model.translatedOptions(Model.FINGERS, Commons.I18n.t)
         value: String(root.binding.fingers)
         Layout.fillWidth: true
         Layout.preferredWidth: Style.space(110)
@@ -57,7 +57,7 @@ Item {
       Dropdown {
         id: direction
         showLabel: false
-        options: Model.DIRECTIONS
+        options: Model.translatedOptions(Model.DIRECTIONS, Commons.I18n.t)
         value: root.binding.direction || ""
         Layout.fillWidth: true
         Layout.preferredWidth: Style.space(140)
@@ -68,7 +68,7 @@ Item {
       Dropdown {
         id: mods
         showLabel: false
-        options: Model.MODIFIERS
+        options: Model.translatedOptions(Model.MODIFIERS, Commons.I18n.t)
         value: root.binding.mods || ""
         Layout.fillWidth: true
         Layout.preferredWidth: Style.space(96)
@@ -87,7 +87,7 @@ Item {
       Dropdown {
         id: action
         showLabel: false
-        options: Model.ACTIONS
+        options: Model.translatedOptions(Model.ACTIONS, Commons.I18n.t)
         value: root.binding.action || ""
         Layout.fillWidth: true
         Layout.preferredWidth: Style.space(180)

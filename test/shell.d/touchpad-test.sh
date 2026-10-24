@@ -431,6 +431,18 @@ assertEqual(overrides.appScroll, true, 'input.lua per-app scroll rules are detec
 const template = require('fs').readFileSync(require('path').join(root, 'config/hypr/input.lua'), 'utf8')
 assertDeepEqual(model.userOverrides(template), { touchpad: {}, gestureSettings: {}, gestures: 0, appScroll: false }, 'the stock input.lua template overrides nothing')
 
+// ---- labels resolve through the shell catalog ----
+const english = JSON.parse(require('fs').readFileSync(require('path').join(root, 'default/i18n/en/shell.json'), 'utf8'))
+const labelKeys = []
+const collect = (entry) => {
+  if (entry.label) labelKeys.push(entry.label)
+  if (entry.description) labelKeys.push(entry.description)
+  ;(entry.options || []).forEach(collect)
+}
+Object.values(model.SETTINGS).concat(Object.values(model.GESTURE_SETTINGS), model.PAGES, model.FINGERS, model.DIRECTIONS,
+  model.MODIFIERS, model.ACTIONS, model.GESTURE_PRESETS, [model.CUSTOM_DEVICE]).forEach(collect)
+assertDeepEqual(labelKeys.filter((key) => typeof english[key] !== 'string'), [], 'every touchpad label and description is an English catalog key')
+
 // ---- gestures ----
 assertDeepEqual(
   model.gestureProblems([

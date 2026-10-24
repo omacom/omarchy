@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "Model.js" as Model
 
 // One setting row: title and description on the left, the control for the
 // spec's type (switch, choice chips, or slider) on the right or underneath.
@@ -21,8 +22,8 @@ Item {
   property bool saved: false
   property bool external: false
   readonly property string externalText: saved
-    ? "Overrides ~/.config/hypr/input.lua"
-    : "From ~/.config/hypr/input.lua; change it to override"
+    ? Commons.I18n.t("touchpad.overridesInputLua")
+    : Commons.I18n.t("touchpad.fromInputLua")
   property string note: ""
   // Hairline above the row, for every row but a card's first.
   property bool divided: false
@@ -96,7 +97,7 @@ Item {
 
           Text {
             textFormat: Text.PlainText
-            text: root.spec.label || ""
+            text: root.spec.label ? Commons.I18n.t(root.spec.label) : ""
             color: root.foreground
             font.family: Style.font.family
             font.pixelSize: Style.font.subtitle
@@ -117,7 +118,7 @@ Item {
         Text {
           textFormat: Text.PlainText
           visible: text !== ""
-          text: root.external ? root.externalText : (root.note || root.spec.description || "")
+          text: root.external ? root.externalText : (root.note || (root.spec.description ? Commons.I18n.t(root.spec.description) : ""))
           color: root.external ? root.accent : root.dim
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
@@ -178,7 +179,7 @@ Item {
       visible: root.chips
       focusable: visible && enabled
       opacity: enabled ? 1 : 0.45
-      options: root.spec.options || []
+      options: Model.translatedOptions(root.spec.options || [], Commons.I18n.t)
       value: root.value === undefined ? "" : String(root.value)
       foreground: root.foreground
       background: root.background

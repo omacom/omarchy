@@ -55,7 +55,7 @@ Item {
     || overrides.gestures > 0
     || overrides.appScroll
   readonly property var apps: Model.appsOrDefault(doc.apps)
-  readonly property var gestureProblems: Model.gestureProblems(doc.gestures.bindings)
+  readonly property var gestureProblems: Model.gestureProblems(doc.gestures.bindings, Commons.I18n.t, Commons.I18n.formatNumber)
   readonly property var pageIds: Model.PAGES.map(function(p) { return p.id })
 
   // ---- lifecycle ----------------------------------------------------------
@@ -322,7 +322,7 @@ Item {
       onStreamFinished: root.applyError = String(text || "").trim()
     }
     onExited: function(exitCode) {
-      if (exitCode !== 0 && root.applyError === "") root.applyError = "Hyprland did not accept the touchpad settings"
+      if (exitCode !== 0 && root.applyError === "") root.applyError = Commons.I18n.t("touchpad.applyFailed")
       if (exitCode === 0) root.applyError = ""
       if (root.applyQueued) root.runApply()
       else root.refreshStatus()
@@ -468,7 +468,7 @@ Item {
                 required property var modelData
                 required property int index
                 Layout.fillWidth: true
-                text: modelData.label
+                text: Commons.I18n.t(modelData.label)
                 iconText: modelData.icon
                 leftAlign: true
                 focusable: true
@@ -519,7 +519,7 @@ Item {
 
               Text {
                 textFormat: Text.PlainText
-                text: Model.PAGES[Math.max(0, root.pageIds.indexOf(root.page))].label
+                text: Commons.I18n.t(Model.PAGES[Math.max(0, root.pageIds.indexOf(root.page))].label)
                 color: root.foreground
                 font.family: Style.font.family
                 font.pixelSize: Style.font.title
@@ -753,7 +753,7 @@ Item {
 
                   Button {
                     required property var modelData
-                    text: modelData.label
+                    text: Commons.I18n.t(modelData.label)
                     bordered: true
                     focusable: true
                     foreground: root.dim
@@ -773,7 +773,6 @@ Item {
                 visible: root.overrides.gestures > 0
                 textFormat: Text.PlainText
                 text: Commons.I18n.tn("touchpad.inputLuaGestures", root.overrides.gestures).arg(Commons.I18n.formatNumber(root.overrides.gestures))
-                  + " of its own. A gesture here replaces any of those that use the same swipe."
                 color: root.accent
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -860,7 +859,7 @@ Item {
                   visible: root.unusedClients.length > 0
                   showLabel: false
                   value: ""
-                  options: [{ value: "", label: "Add a running app…" }].concat(root.unusedClients)
+                  options: [{ value: "", label: Commons.I18n.t("touchpad.addRunningApp") }].concat(root.unusedClients)
                   Layout.fillWidth: true
                   Layout.preferredWidth: Style.space(240)
                   Layout.minimumWidth: Style.space(120)
@@ -951,7 +950,7 @@ Item {
 
                   Setting {
                     Layout.fillWidth: true
-                    spec: ({ type: "bool", label: "Custom settings for this touchpad", description: "Override the shared settings on this device only", fallback: false })
+                    spec: Model.CUSTOM_DEVICE
                     value: deviceSection.customized
                     scroller: devicesPage
                     foreground: root.foreground

@@ -3,18 +3,25 @@
 // ~/.config/omarchy/touchpad.json, and default/hypr/touchpad.lua validates and
 // applies it. Everything else here derives what to display from that document,
 // the running Hyprland options, and the user's own ~/.config/hypr/input.lua.
+// Every label and description below is a key in default/i18n/<code>/shell.json;
+// the window looks it up at display time so a language switch re-renders it.
+
+// Marks a shell catalog key; the window translates it when displayed.
+function t(key) {
+  return key
+}
 
 var SETTINGS = {
   natural_scroll: {
     type: "bool",
-    label: "Natural scrolling",
-    description: "Content follows your fingers, like on a phone",
+    label: t("touchpad.naturalScroll"),
+    description: t("touchpad.naturalScrollHint"),
     fallback: false
   },
   scroll_factor: {
     type: "number",
-    label: "Scroll speed",
-    description: "How far content moves for each swipe",
+    label: t("touchpad.scrollSpeed"),
+    description: t("touchpad.scrollSpeedHint"),
     min: 0.1,
     max: 2,
     step: 0.05,
@@ -25,83 +32,83 @@ var SETTINGS = {
   scroll_method: {
     type: "choice",
     pointer: true,
-    label: "Scroll with",
+    label: t("touchpad.scrollWith"),
     options: [
-      { value: "2fg", label: "Two fingers" },
-      { value: "edge", label: "Right edge" },
-      { value: "no_scroll", label: "Off" }
+      { value: "2fg", label: t("touchpad.twoFingers") },
+      { value: "edge", label: t("touchpad.rightEdge") },
+      { value: "no_scroll", label: t("touchpad.off") }
     ],
     fallback: "2fg"
   },
   tap_to_click: {
     type: "bool",
-    label: "Tap to click",
-    description: "A light tap clicks without pressing the pad down",
+    label: t("touchpad.tapToClick"),
+    description: t("touchpad.tapToClickHint"),
     fallback: true
   },
   tap_button_map: {
     type: "choice",
-    label: "Two-finger tap",
-    description: "Three fingers then do the other one",
+    label: t("touchpad.twoFingerTap"),
+    description: t("touchpad.twoFingerTapHint"),
     options: [
-      { value: "lrm", label: "Right click" },
-      { value: "lmr", label: "Middle click" }
+      { value: "lrm", label: t("touchpad.rightClick") },
+      { value: "lmr", label: t("touchpad.middleClick") }
     ],
     fallback: "lrm"
   },
   clickfinger_behavior: {
     type: "bool",
-    label: "Two-finger click to right-click",
-    description: "Off uses the bottom-right corner of the pad instead",
+    label: t("touchpad.clickfinger"),
+    description: t("touchpad.clickfingerHint"),
     fallback: true
   },
   middle_button_emulation: {
     type: "bool",
-    label: "Middle click emulation",
-    description: "Press left and right together for a middle click",
+    label: t("touchpad.middleEmulation"),
+    description: t("touchpad.middleEmulationHint"),
     fallback: false
   },
   tap_and_drag: {
     type: "bool",
-    label: "Tap and drag",
-    description: "Tap, then touch again and move to drag",
+    label: t("touchpad.tapAndDrag"),
+    description: t("touchpad.tapAndDragHint"),
     fallback: true
   },
   drag_lock: {
     type: "choice",
     integer: true,
-    label: "Drag lock",
-    description: "Keep a tap-drag going after you lift your finger",
+    label: t("touchpad.dragLock"),
+    description: t("touchpad.dragLockHint"),
     options: [
-      { value: "0", label: "Off" },
-      { value: "1", label: "Brief pause" },
-      { value: "2", label: "Until tapped" }
+      { value: "0", label: t("touchpad.off") },
+      { value: "1", label: t("touchpad.briefPause") },
+      { value: "2", label: t("touchpad.untilTapped") }
     ],
     fallback: 0
   },
   drag_3fg: {
     type: "choice",
     integer: true,
-    label: "Multi-finger drag",
-    description: "Drag windows and selections without pressing",
+    label: t("touchpad.multiFingerDrag"),
+    description: t("touchpad.multiFingerDragHint"),
     options: [
-      { value: "0", label: "Off" },
-      { value: "1", label: "Three fingers" },
-      { value: "2", label: "Four fingers" }
+      { value: "0", label: t("touchpad.off") },
+      { value: "1", label: t("touchpad.threeFingers") },
+      { value: "2", label: t("touchpad.fourFingers") }
     ],
     fallback: 0
   },
   disable_while_typing: {
     type: "bool",
-    label: "Disable while typing",
-    description: "Ignore palm touches while you type",
+    label: t("touchpad.disableWhileTyping"),
+    description: t("touchpad.disableWhileTypingHint"),
     fallback: true
   },
   sensitivity: {
     type: "number",
     pointer: true,
-    label: "Pointer speed",
-    description: "Only touchpads change; mice keep their own speed",
+    label: t("touchpad.pointerSpeed"),
+    description: t("touchpad.pointerSpeedHint"),
     min: -1,
     max: 1,
     step: 0.05,
@@ -112,19 +119,19 @@ var SETTINGS = {
   accel_profile: {
     type: "choice",
     pointer: true,
-    label: "Acceleration",
-    description: "Adaptive moves further on quick swipes; flat is constant",
+    label: t("touchpad.acceleration"),
+    description: t("touchpad.accelerationHint"),
     options: [
-      { value: "adaptive", label: "Adaptive" },
-      { value: "flat", label: "Flat" }
+      { value: "adaptive", label: t("touchpad.adaptive") },
+      { value: "flat", label: t("touchpad.flat") }
     ],
     fallback: "adaptive"
   },
   left_handed: {
     type: "bool",
     pointer: true,
-    label: "Left-handed",
-    description: "Swap the left and right buttons",
+    label: t("touchpad.leftHanded"),
+    description: t("touchpad.leftHandedHint"),
     fallback: false
   }
 }
@@ -132,15 +139,15 @@ var SETTINGS = {
 var GESTURE_SETTINGS = {
   workspace_swipe_invert: {
     type: "bool",
-    label: "Invert workspace swipe",
-    description: "Swipe toward the workspace you want instead of pushing the current one away",
+    label: t("touchpad.invertSwipe"),
+    description: t("touchpad.invertSwipeHint"),
     fallback: true
   },
   workspace_swipe_distance: {
     type: "number",
     integer: true,
-    label: "Swipe distance",
-    description: "How far a swipe travels before the workspace fully changes",
+    label: t("touchpad.swipeDistance"),
+    description: t("touchpad.swipeDistanceHint"),
     min: 100,
     max: 1000,
     step: 25,
@@ -150,31 +157,31 @@ var GESTURE_SETTINGS = {
   },
   workspace_swipe_create_new: {
     type: "bool",
-    label: "Create workspaces at the end",
-    description: "Swiping past the last workspace opens a new one",
+    label: t("touchpad.createWorkspaces"),
+    description: t("touchpad.createWorkspacesHint"),
     fallback: true
   },
   workspace_swipe_forever: {
     type: "bool",
-    label: "Swipe across many workspaces",
-    description: "Keep moving through workspaces in one long swipe",
+    label: t("touchpad.swipeForever"),
+    description: t("touchpad.swipeForeverHint"),
     fallback: false
   },
   workspace_swipe_direction_lock: {
     type: "bool",
-    label: "Lock swipe direction",
-    description: "A swipe that starts sideways stays sideways",
+    label: t("touchpad.lockDirection"),
+    description: t("touchpad.lockDirectionHint"),
     fallback: true
   }
 }
 
 var PAGES = [
-  { id: "scrolling", label: "Scrolling", icon: "󰡏" },
-  { id: "clicking", label: "Tap & Click", icon: "󰍽" },
-  { id: "pointer", label: "Pointer", icon: "󰇀" },
-  { id: "gestures", label: "Gestures", icon: "󰆾" },
-  { id: "apps", label: "App Scrolling", icon: "󰀻" },
-  { id: "devices", label: "Devices", icon: "󰟸" }
+  { id: "scrolling", label: t("touchpad.scrolling"), icon: "󰡏" },
+  { id: "clicking", label: t("touchpad.tapAndClick"), icon: "󰍽" },
+  { id: "pointer", label: t("touchpad.pointer"), icon: "󰇀" },
+  { id: "gestures", label: t("touchpad.gestures"), icon: "󰆾" },
+  { id: "apps", label: t("touchpad.appScrolling"), icon: "󰀻" },
+  { id: "devices", label: t("touchpad.devices"), icon: "󰟸" }
 ]
 
 var PAGE_SETTINGS = {
@@ -183,65 +190,73 @@ var PAGE_SETTINGS = {
   pointer: ["sensitivity", "accel_profile", "disable_while_typing", "left_handed"]
 }
 
+// The switch that gives one device its own settings.
+var CUSTOM_DEVICE = {
+  type: "bool",
+  label: t("touchpad.customDevice"),
+  description: t("touchpad.customDeviceHint"),
+  fallback: false
+}
+
 // What a device can override on its own, in display order.
 var DEVICE_SETTINGS = ["natural_scroll", "scroll_factor", "sensitivity", "accel_profile", "tap_to_click", "left_handed"]
 
 var FINGERS = [
-  { value: "2", label: "Two" },
-  { value: "3", label: "Three" },
-  { value: "4", label: "Four" },
-  { value: "5", label: "Five" }
+  { value: "2", label: t("touchpad.fingers2") },
+  { value: "3", label: t("touchpad.fingers3") },
+  { value: "4", label: t("touchpad.fingers4") },
+  { value: "5", label: t("touchpad.fingers5") }
 ]
 
 var DIRECTIONS = [
-  { value: "horizontal", label: "Sideways" },
-  { value: "vertical", label: "Vertical" },
-  { value: "swipe", label: "Any way" },
-  { value: "left", label: "Left" },
-  { value: "right", label: "Right" },
-  { value: "up", label: "Up" },
-  { value: "down", label: "Down" },
-  { value: "pinch", label: "Pinch" },
-  { value: "pinchin", label: "Pinch in" },
-  { value: "pinchout", label: "Pinch out" }
+  { value: "horizontal", label: t("touchpad.directionSideways") },
+  { value: "vertical", label: t("touchpad.directionVertical") },
+  { value: "swipe", label: t("touchpad.directionAny") },
+  { value: "left", label: t("touchpad.directionLeft") },
+  { value: "right", label: t("touchpad.directionRight") },
+  { value: "up", label: t("touchpad.directionUp") },
+  { value: "down", label: t("touchpad.directionDown") },
+  { value: "pinch", label: t("touchpad.directionPinch") },
+  { value: "pinchin", label: t("touchpad.directionPinchIn") },
+  { value: "pinchout", label: t("touchpad.directionPinchOut") }
 ]
 
 var MODIFIERS = [
-  { value: "", label: "No key" },
-  { value: "SUPER", label: "Super" },
-  { value: "ALT", label: "Alt" },
-  { value: "CTRL", label: "Ctrl" },
-  { value: "SHIFT", label: "Shift" }
+  { value: "", label: t("touchpad.noKey") },
+  { value: "SUPER", label: t("touchpad.keySuper") },
+  { value: "ALT", label: t("touchpad.keyAlt") },
+  { value: "CTRL", label: t("touchpad.keyCtrl") },
+  { value: "SHIFT", label: t("touchpad.keyShift") }
 ]
 
 // Keep the names in sync with M.actions in default/hypr/touchpad.lua.
 var ACTIONS = [
-  { value: "workspace", label: "Workspaces" },
-  { value: "workspace_next", label: "Next workspace" },
-  { value: "workspace_previous", label: "Previous workspace" },
-  { value: "focus_left", label: "Focus left" },
-  { value: "focus_right", label: "Focus right" },
-  { value: "focus_up", label: "Focus up" },
-  { value: "focus_down", label: "Focus down" },
-  { value: "move", label: "Move window" },
-  { value: "resize", label: "Resize window" },
-  { value: "float", label: "Toggle floating" },
-  { value: "fullscreen", label: "Fullscreen" },
-  { value: "maximize", label: "Maximize" },
-  { value: "close", label: "Close window" },
-  { value: "special", label: "Scratchpad" },
-  { value: "zoom", label: "Zoom screen" },
-  { value: "scroll_move", label: "Scroll layout" },
-  { value: "menu", label: "Omarchy menu" },
-  { value: "notifications", label: "Notification history" }
+  { value: "workspace", label: t("touchpad.actionWorkspaces") },
+  { value: "workspace_next", label: t("touchpad.actionNextWorkspace") },
+  { value: "workspace_previous", label: t("touchpad.actionPreviousWorkspace") },
+  { value: "focus_left", label: t("touchpad.actionFocusLeft") },
+  { value: "focus_right", label: t("touchpad.actionFocusRight") },
+  { value: "focus_up", label: t("touchpad.actionFocusUp") },
+  { value: "focus_down", label: t("touchpad.actionFocusDown") },
+  { value: "move", label: t("touchpad.actionMove") },
+  { value: "resize", label: t("touchpad.actionResize") },
+  { value: "float", label: t("touchpad.actionFloat") },
+  { value: "fullscreen", label: t("touchpad.actionFullscreen") },
+  { value: "maximize", label: t("touchpad.actionMaximize") },
+  { value: "close", label: t("touchpad.actionClose") },
+  { value: "special", label: t("touchpad.actionScratchpad") },
+  { value: "zoom", label: t("touchpad.actionZoom") },
+  { value: "scroll_move", label: t("touchpad.actionScrollLayout") },
+  { value: "menu", label: t("touchpad.actionMenu") },
+  { value: "notifications", label: t("touchpad.actionNotifications") }
 ]
 
 var GESTURE_PRESETS = [
-  { label: "Swipe between workspaces", binding: { fingers: 3, direction: "horizontal", action: "workspace" } },
-  { label: "Swipe up for the menu", binding: { fingers: 4, direction: "up", action: "menu" } },
-  { label: "Swipe down to close", binding: { fingers: 4, direction: "down", action: "close" } },
-  { label: "Pinch to zoom the screen", binding: { fingers: 3, direction: "pinch", action: "zoom" } },
-  { label: "Swipe up for scratchpad", binding: { fingers: 3, direction: "up", action: "special" } }
+  { label: t("touchpad.presetWorkspaces"), binding: { fingers: 3, direction: "horizontal", action: "workspace" } },
+  { label: t("touchpad.presetMenu"), binding: { fingers: 4, direction: "up", action: "menu" } },
+  { label: t("touchpad.presetClose"), binding: { fingers: 4, direction: "down", action: "close" } },
+  { label: t("touchpad.presetZoom"), binding: { fingers: 3, direction: "pinch", action: "zoom" } },
+  { label: t("touchpad.presetScratchpad"), binding: { fingers: 3, direction: "up", action: "special" } }
 ]
 
 // Keep in sync with M.default_apps in default/hypr/touchpad.lua.
@@ -303,6 +318,13 @@ function isObject(value) {
 
 function copy(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
+}
+
+// A copy of an option list with its label keys looked up through tr (I18n.t).
+function translatedOptions(options, tr) {
+  return options.map(function(option) {
+    return { value: option.value, label: tr(option.label) }
+  })
 }
 
 function labelFor(options, value) {
@@ -527,18 +549,23 @@ function directionsOverlap(a, b) {
 
 // Hyprland refuses a gesture that an earlier one already covers, so flag the
 // later binding of each overlapping pair, plus swipes that scrolling owns.
-function gestureProblems(bindings) {
+// tr is an optional translate(key, english) from the QML side (I18n.t) and
+// fmt a number formatter (I18n.formatNumber); without them the English text
+// and plain digits stand, which is what the Node tests assert.
+function gestureProblems(bindings, tr, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var number = typeof fmt === "function" ? fmt : function(v) { return String(v) }
   var problems = []
   for (var i = 0; i < bindings.length; i++) {
     var binding = bindings[i]
     var problem = ""
     var pinch = DIRECTION_COVERS.pinch.indexOf(binding.direction) >= 0
-    if (binding.fingers === 2 && !pinch) problem = "Two-finger swipes are used for scrolling"
+    if (binding.fingers === 2 && !pinch) problem = t("touchpad.twoFingerScrollConflict", "Two-finger swipes are used for scrolling")
     for (var j = 0; j < i && problem === ""; j++) {
       var earlier = bindings[j]
       if (earlier.fingers === binding.fingers && (earlier.mods || "") === (binding.mods || "")
           && directionsOverlap(earlier.direction, binding.direction)) {
-        problem = "Gesture " + (j + 1) + " already uses this swipe"
+        problem = t("touchpad.gestureConflict", "Gesture %1 already uses this swipe").replace("%1", number(j + 1))
       }
     }
     problems.push(problem)
@@ -611,6 +638,7 @@ if (typeof module !== "undefined") {
     FINGERS: FINGERS,
     MODIFIERS: MODIFIERS,
     GESTURE_PRESETS: GESTURE_PRESETS,
+    CUSTOM_DEVICE: CUSTOM_DEVICE,
     DEFAULT_APPS: DEFAULT_APPS,
     normalize: normalize,
     parse: parse,
@@ -620,6 +648,7 @@ if (typeof module !== "undefined") {
     liveValue: liveValue,
     formatNumber: formatNumber,
     labelFor: labelFor,
+    translatedOptions: translatedOptions,
     userOverrides: userOverrides,
     gestureProblems: gestureProblems,
     presetActive: presetActive,
