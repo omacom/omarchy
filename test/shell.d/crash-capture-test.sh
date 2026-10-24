@@ -96,11 +96,12 @@ reset_entries() {
 # One core dump as systemd-coredump journals it. The UID must be this user's, or
 # the watcher discards it as somebody else's crash before anything under test.
 crash_entry() {
-  local comm="$1" exe="$2"
+  local comm="$1" exe="$2" cmdline="${3:-}"
 
-  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" \
+  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" --arg cmd "$cmdline" \
     '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
-      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}' >>"$JOURNAL_ENTRIES"
+      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV",
+      COREDUMP_CMDLINE: (if $cmd == "" then null else $cmd end)}' >>"$JOURNAL_ENTRIES"
 }
 
 # The stubbed journalctl ends after the entries, so the watcher's loop ends too.
@@ -251,6 +252,33 @@ run_watch
   fail "the fallback name cannot be muted, so the one crash most likely to repeat is the one that cannot be silenced"
 pass "the fallback name can be muted like any other"
 mute unknown off
+
+# Electron/Chromium utility children dump core as a matter of course. The
+# journaled COMM/EXE is the parent app, so only the cmdline can tell them from
+# a crash of the browser itself.
+reset_entries
+crash_entry antigravity-ide /usr/bin/antigravity-ide \
+  "/proc/self/exe --type=utility --utility-sub-type=node.mojom.NodeService"
+run_watch
+! announced antigravity-ide ||
+  fail "an Electron utility subprocess crash is toasted as if the app itself died"
+pass "Electron utility subprocess crashes are not announced"
+
+reset_entries
+crash_entry antigravity-ide /usr/bin/antigravity-ide
+run_watch
+announced antigravity-ide ||
+  fail "a crash of the Electron app itself is swallowed with its utility children"
+pass "a crash of the Electron app itself is still announced"
+
+reset_entries
+crash_entry antigravity-ide /usr/bin/antigravity-ide \
+  "/proc/self/exe --type=utility --utility-sub-type=node.mojom.NodeService"
+crash_entry nautilus /usr/bin/nautilus
+run_watch
+announced nautilus ||
+  fail "skipping a utility crash stops the watcher reading the next one"
+pass "skipping a utility crash does not stop the watcher"
 
 # What omarchy-crash-mute does on its own. That it agrees with the watcher is
 # already covered above, which drives it for every mute it makes.
