@@ -18,6 +18,39 @@ sed 's/timeout=8/timeout=0.5/g' "$ROOT/bin/omarchy-agent-usage-codex" >"$collect
 chmod +x "$collector"
 TEST_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
 
+# The collector counts "today" in local time; pin the zone so fixtures stamped
+# at noon UTC fall on today's date wherever the suite runs.
+export TZ=UTC
+
+# Adds one OpenAI assistant message, stamped now, to an opencode database,
+# creating the database and its message table when missing.
+add_opencode_message() {
+  python3 - "$@" <<'PY'
+import json
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+db, message_id, input_tokens = Path(sys.argv[1]), sys.argv[2], int(sys.argv[3])
+db.parent.mkdir(parents=True, exist_ok=True)
+conn = sqlite3.connect(db)
+conn.execute("CREATE TABLE IF NOT EXISTS message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+now_ms = int(time.time() * 1000)
+conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
+  message_id, "ses_1", now_ms, now_ms, json.dumps({
+    "role": "assistant",
+    "providerID": "openai",
+    "modelID": "gpt-5.2-codex",
+    "tokens": {"input": input_tokens, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
+    "time": {"created": now_ms},
+  }),
+))
+conn.commit()
+conn.close()
+PY
+}
+
 # A fixture home signed in to Codex, with an empty bin/ for its CLI.
 signed_in_home() {
   local home
@@ -226,34 +259,7 @@ pass "Codex collector ignores prefix-colliding providers, user messages, and mal
 CACHE_HOME=$(signed_in_home)
 cp "$TEST_HOME/bin/codex" "$CACHE_HOME/bin/codex"
 
-python3 - "$CACHE_HOME/.local/share/opencode/opencode.db" <<'PY'
-import json
-import sqlite3
-import sys
-import time
-from pathlib import Path
-
-db = Path(sys.argv[1])
-db.parent.mkdir(parents=True, exist_ok=True)
-conn = sqlite3.connect(db)
-conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
-now_ms = int(time.time() * 1000)
-
-def message(id, provider, model, role="assistant", input=0, output=0, reasoning=0, read=0, write=0):
-  return (id, "ses_1", now_ms, now_ms, json.dumps({
-    "role": role,
-    "providerID": provider,
-    "modelID": model,
-    "tokens": {"input": input, "output": output, "reasoning": reasoning, "cache": {"read": read, "write": write}},
-    "time": {"created": now_ms},
-  }))
-
-conn.executemany("INSERT INTO message VALUES (?, ?, ?, ?, ?)", [
-  message("c_1", "openai", "gpt-5.2-codex", input=5),
-])
-conn.commit()
-conn.close()
-PY
+add_opencode_message "$CACHE_HOME/.local/share/opencode/opencode.db" c_1 5
 
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$collector")
@@ -293,28 +299,7 @@ pass "Codex collector recovers from a corrupt cache file"
 
 # A new opencode message changes what a scan would find; a --limits-only run
 # must reuse the cached stats instead of rescanning.
-python3 - "$CACHE_HOME/.local/share/opencode/opencode.db" <<'PY'
-import json
-import sqlite3
-import sys
-import time
-from pathlib import Path
-
-db = Path(sys.argv[1])
-conn = sqlite3.connect(db)
-now_ms = int(time.time() * 1000)
-conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
-  "c_2", "ses_1", now_ms, now_ms, json.dumps({
-    "role": "assistant",
-    "providerID": "openai",
-    "modelID": "gpt-5.2-codex",
-    "tokens": {"input": 10, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
-    "time": {"created": now_ms},
-  }),
-))
-conn.commit()
-conn.close()
-PY
+add_opencode_message "$CACHE_HOME/.local/share/opencode/opencode.db" c_2 10
 
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
@@ -343,28 +328,7 @@ pass "Codex collector --limits-only sees a refreshed cache after --force"
 
 # An expired cache makes --limits-only rescan too: stale today* stats must
 # never be served under a fresh updatedAt.
-python3 - "$CACHE_HOME/.local/share/opencode/opencode.db" <<'PY'
-import json
-import sqlite3
-import sys
-import time
-from pathlib import Path
-
-db = Path(sys.argv[1])
-conn = sqlite3.connect(db)
-now_ms = int(time.time() * 1000)
-conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
-  "c_3", "ses_1", now_ms, now_ms, json.dumps({
-    "role": "assistant",
-    "providerID": "openai",
-    "modelID": "gpt-5.2-codex",
-    "tokens": {"input": 10, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
-    "time": {"created": now_ms},
-  }),
-))
-conn.commit()
-conn.close()
-PY
+add_opencode_message "$CACHE_HOME/.local/share/opencode/opencode.db" c_3 10
 touch -d "2 hours ago" "$cache_file"
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
@@ -377,29 +341,11 @@ pass "Codex collector --limits-only rescans when the cache is stale"
 # (the widget's periodic refresh) reuses a scan only while it is young enough
 # to be a concurrent collector run; past that it rescans, so stats stay as
 # fresh as refreshIntervalSec, however low the user sets it.
-python3 - "$CACHE_HOME/.local/share/opencode/opencode.db" <<'PY'
-import json
-import sqlite3
-import sys
-import time
-from pathlib import Path
+add_opencode_message "$CACHE_HOME/.local/share/opencode/opencode.db" c_4 10
 
-db = Path(sys.argv[1])
-conn = sqlite3.connect(db)
-now_ms = int(time.time() * 1000)
-conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
-  "c_4", "ses_1", now_ms, now_ms, json.dumps({
-    "role": "assistant",
-    "providerID": "openai",
-    "modelID": "gpt-5.2-codex",
-    "tokens": {"input": 10, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
-    "time": {"created": now_ms},
-  }),
-))
-conn.commit()
-conn.close()
-PY
-
+# Freshly written, so well inside the concurrent-run window however long the
+# runs above took.
+touch "$cache_file"
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$collector")
 
@@ -418,28 +364,7 @@ pass "Codex collector no-flag mode rescans instead of serving a stale cache"
 
 # The same age from the other side: a cache far past the no-flag window but
 # well inside 15 minutes is still good enough for --limits-only.
-python3 - "$CACHE_HOME/.local/share/opencode/opencode.db" <<'PY'
-import json
-import sqlite3
-import sys
-import time
-from pathlib import Path
-
-db = Path(sys.argv[1])
-conn = sqlite3.connect(db)
-now_ms = int(time.time() * 1000)
-conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
-  "c_5", "ses_1", now_ms, now_ms, json.dumps({
-    "role": "assistant",
-    "providerID": "openai",
-    "modelID": "gpt-5.2-codex",
-    "tokens": {"input": 10, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
-    "time": {"created": now_ms},
-  }),
-))
-conn.commit()
-conn.close()
-PY
+add_opencode_message "$CACHE_HOME/.local/share/opencode/opencode.db" c_5 10
 touch -d "10 minutes ago" "$cache_file"
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
@@ -464,28 +389,7 @@ pass "Codex collector treats a cache from another day as a miss"
 # A cache stamped in the future (the clock was set backwards after the write)
 # has no trustworthy age: it must be a miss, not fresh until the clock
 # catches up.
-python3 - "$CACHE_HOME/.local/share/opencode/opencode.db" <<'PY'
-import json
-import sqlite3
-import sys
-import time
-from pathlib import Path
-
-db = Path(sys.argv[1])
-conn = sqlite3.connect(db)
-now_ms = int(time.time() * 1000)
-conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
-  "c_6", "ses_1", now_ms, now_ms, json.dumps({
-    "role": "assistant",
-    "providerID": "openai",
-    "modelID": "gpt-5.2-codex",
-    "tokens": {"input": 10, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
-    "time": {"created": now_ms},
-  }),
-))
-conn.commit()
-conn.close()
-PY
+add_opencode_message "$CACHE_HOME/.local/share/opencode/opencode.db" c_6 10
 touch -d "@$(( $(date +%s) + 3600 ))" "$cache_file"
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
@@ -498,30 +402,7 @@ pass "Codex collector treats a future-dated cache as a miss"
 FRESH_HOME=$(signed_in_home)
 cp "$TEST_HOME/bin/codex" "$FRESH_HOME/bin/codex"
 
-python3 - "$FRESH_HOME/.local/share/opencode/opencode.db" <<'PY'
-import json
-import sqlite3
-import sys
-import time
-from pathlib import Path
-
-db = Path(sys.argv[1])
-db.parent.mkdir(parents=True, exist_ok=True)
-conn = sqlite3.connect(db)
-conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
-now_ms = int(time.time() * 1000)
-conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
-  "f_1", "ses_1", now_ms, now_ms, json.dumps({
-    "role": "assistant",
-    "providerID": "openai",
-    "modelID": "gpt-5.2-codex",
-    "tokens": {"input": 7, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
-    "time": {"created": now_ms},
-  }),
-))
-conn.commit()
-conn.close()
-PY
+add_opencode_message "$FRESH_HOME/.local/share/opencode/opencode.db" f_1 7
 
 result=$(HOME="$FRESH_HOME" CODEX_HOME="$FRESH_HOME/.codex" XDG_CACHE_HOME="$FRESH_HOME/.cache" XDG_DATA_HOME="$FRESH_HOME/.local/share" \
   PATH="$FRESH_HOME/bin:$PATH" "$collector" --limits-only)
@@ -588,30 +469,7 @@ pass "Codex collector counts good opencode rows past malformed ones"
 UNWRITABLE_HOME=$(signed_in_home)
 cp "$TEST_HOME/bin/codex" "$UNWRITABLE_HOME/bin/codex"
 
-python3 - "$UNWRITABLE_HOME/.local/share/opencode/opencode.db" <<'PY'
-import json
-import sqlite3
-import sys
-import time
-from pathlib import Path
-
-db = Path(sys.argv[1])
-db.parent.mkdir(parents=True, exist_ok=True)
-conn = sqlite3.connect(db)
-conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
-now_ms = int(time.time() * 1000)
-conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
-  "u_1", "ses_1", now_ms, now_ms, json.dumps({
-    "role": "assistant",
-    "providerID": "openai",
-    "modelID": "gpt-5.2-codex",
-    "tokens": {"input": 3, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
-    "time": {"created": now_ms},
-  }),
-))
-conn.commit()
-conn.close()
-PY
+add_opencode_message "$UNWRITABLE_HOME/.local/share/opencode/opencode.db" u_1 3
 
 # XDG_CACHE_HOME points at a regular file, so mkdir inside cache_root fails.
 touch "$UNWRITABLE_HOME/not-a-dir"
@@ -652,29 +510,7 @@ result=$(HOME="$INTERRUPTED_HOME" CODEX_HOME="$INTERRUPTED_HOME/.codex" XDG_CACH
 
 # Once the database is whole again, the very next --limits-only run scans it
 # instead of reusing a zero snapshot.
-python3 - "$INTERRUPTED_HOME/.local/share/opencode/opencode.db" <<'PY'
-import json
-import sqlite3
-import sys
-import time
-from pathlib import Path
-
-db = Path(sys.argv[1])
-conn = sqlite3.connect(db)
-conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
-now_ms = int(time.time() * 1000)
-conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
-  "i_1", "ses_1", now_ms, now_ms, json.dumps({
-    "role": "assistant",
-    "providerID": "openai",
-    "modelID": "gpt-5.2-codex",
-    "tokens": {"input": 9, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
-    "time": {"created": now_ms},
-  }),
-))
-conn.commit()
-conn.close()
-PY
+add_opencode_message "$INTERRUPTED_HOME/.local/share/opencode/opencode.db" i_1 9
 
 result=$(HOME="$INTERRUPTED_HOME" CODEX_HOME="$INTERRUPTED_HOME/.codex" XDG_CACHE_HOME="$INTERRUPTED_HOME/.cache" XDG_DATA_HOME="$INTERRUPTED_HOME/.local/share" \
   PATH="$INTERRUPTED_HOME/bin:$PATH" "$collector" --limits-only)
