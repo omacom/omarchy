@@ -24,7 +24,7 @@ omarchy-pkg-add "$kernel" "$kernel-headers"
 # Preserve unrelated settings, especially the root filesystem's kernel cmdline.
 sudo mkdir -p "$(dirname "$limine_conf")"
 sudo touch "$limine_conf"
-sudo sed -i -E '/^[[:space:]]*BOOT_ORDER[[:space:]]*=/d' "$limine_conf"
+sudo sed -i --follow-symlinks -E '/^[[:space:]]*BOOT_ORDER[[:space:]]*=/d' "$limine_conf"
 printf '\n%s\n' 'BOOT_ORDER="linux-omarchy, linux-omarchy-*, *, *fallback, Snapshots"' | sudo tee -a "$limine_conf" >/dev/null
 
 # Package hooks ran before the config repair. Rebuild the new kernel's image
