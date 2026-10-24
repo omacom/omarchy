@@ -241,6 +241,15 @@ assert_output_contains "pkg add help shows direct route" "$output" "omarchy pkg 
 output=$("$CLI" system reboot --help)
 assert_output_contains "system command help is safe" "$output" "omarchy-system"
 
+# The 4.0 names are files, so they also answer help for omarchy reboot and
+# omarchy system reboot, and have to describe the action rather than themselves.
+for action in logout reboot shutdown; do
+  output=$(omarchy-system-$action --help)
+  assert_output_contains "omarchy-system-$action still reaches omarchy-system" "$output" "Usage: omarchy-system <logout|reboot|shutdown>"
+  output=$("$CLI" $action --help)
+  assert_output_contains "omarchy $action help describes the action" "$output" "after closing applications"
+done
+
 output=$("$CLI" dev benchmark cli --repeat=1)
 assert_output_contains "benchmark command runs" "$output" "Omarchy CLI benchmark"
 

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Shut down after closing applications
+# omarchy:hidden=true
+
+# Keybindings, menu extensions and scripts written for Omarchy 4.0 call this
+# name. omarchy-system took it over in 4.5.
+exec omarchy-system shutdown "$@"
