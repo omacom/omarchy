@@ -4,7 +4,20 @@
 # omarchy:args=[url]
 
 default_browser=$(omarchy-cmd-default-browser)
-browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
+# A desktop id can contain spaces. An unquoted id is split by the shell, so the
+# Exec lookup finds nothing and the launcher runs an empty command.
+browser_exec=""
+for applications_dir in "$HOME/.local/share/applications" "$HOME/.nix-profile/share/applications" /usr/share/applications; do
+  desktop_file="$applications_dir/$default_browser"
+  [[ -f $desktop_file ]] || continue
+  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$desktop_file" | head -1)
+  [[ -n $browser_exec ]] && break
+done
+
+if [[ -z $browser_exec ]]; then
+  omarchy-notification-send -u critical "$(omarchy-i18n browser.commandNotFound "$default_browser")"
+  exit 1
+fi
 
 # Only a private launch needs the browser's flag, and probing a Firefox-family
 # browser's --help starts the whole binary, so ordinary launches skip it and
