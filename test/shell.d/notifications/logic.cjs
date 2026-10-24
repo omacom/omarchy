@@ -499,7 +499,7 @@ const summaries = rows => Array.from(rows, row => row.summary)
   other.appName = 'Other'
   s.admit(other, ...[1, 2, 3, 4, 5].map(id => s.fakeNotification(id, 'Card ' + id)))
   Object.assign(s, { Layout, gap: 6, targetDisplayName: 'fixture-display', marginsFor: () => ({ top: 10, right: 10 }),
-    Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] }, keyboardMode: true })
+    Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] }, keyboardMode: true, keyboardRejected: {} })
   runIn(s, 'layoutWith', 'reachable', 'moveSelection', 'keepSelectionInReach', 'keyboardOrder')
   for (const row of s.toasts.rows) s.heights[row.key] = 100
   Object.defineProperty(s, 'layout', { get: () => s.layoutWith(true, s.openDeck) })
@@ -515,9 +515,15 @@ const summaries = rows => Array.from(rows, row => row.summary)
   s.moveSelection(-1)
   assert.equal(summary(), 'Card 4')
   // A selected card that grows past the bottom (its buttons, its body) gives way.
-  s.heights[s.keyboardKey] = 200
+  const grown = s.keyboardKey
+  s.heights[grown] = 200
   s.keepSelectionInReach()
   assert.equal(summary(), 'Card 5')
+  // Its buttons hide again once it is not selected; Down passes it rather than
+  // landing on it and giving way again, forever.
+  s.heights[grown] = 100
+  s.moveSelection(1)
+  assert.equal(summary(), 'Other app')
 }
 
 for (const held of [true, false]) { // Capacity: at most 100 live senders, held or deferred.

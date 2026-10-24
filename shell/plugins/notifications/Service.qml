@@ -277,6 +277,9 @@ Item {
   // keyboard back.
   property bool keyboardMode: false
   property string keyboardKey: ""
+  // Cards that fit only until selection showed their buttons, skipped for the
+  // rest of this session so Down does not keep landing on them.
+  property var keyboardRejected: ({})
 
   Timer { id: keyboardIdle; interval: 10000; onTriggered: service.stopKeyboard() }
 
@@ -301,6 +304,7 @@ Item {
     var order = keyboardOrder()
     if (!order.length) return false
     keyboardMode = true
+    keyboardRejected = ({})
     selectCard(order[0])
     keyboardIdle.restart()
     return true
@@ -324,7 +328,7 @@ Item {
     if (!keyboardMode || rowIndexFor(keyboardKey) >= 0 && !leaving[keyboardKey]) return
     var order = keyboardOrder()
     for (var i = Math.min(Math.max(0, fromIndex), order.length - 1); i >= 0; i--) {
-      if (reachable(order[i])) { selectCard(order[i]); return }
+      if (!keyboardRejected[order[i]] && reachable(order[i])) { selectCard(order[i]); return }
     }
     stopKeyboard()
   }
@@ -349,7 +353,7 @@ Item {
   function moveSelection(step) {
     var order = keyboardOrder()
     for (var next = order.indexOf(keyboardKey) + step; next >= 0 && next < order.length; next += step) {
-      if (reachable(order[next])) { selectCard(order[next]); return }
+      if (!keyboardRejected[order[next]] && reachable(order[next])) { selectCard(order[next]); return }
     }
   }
 
@@ -358,9 +362,10 @@ Item {
   // longer fits.
   function keepSelectionInReach() {
     if (!keyboardMode || reachable(keyboardKey)) return
+    keyboardRejected[keyboardKey] = true
     var order = keyboardOrder()
     for (var i = order.indexOf(keyboardKey) - 1; i >= 0; i--) {
-      if (reachable(order[i])) { selectCard(order[i]); return }
+      if (!keyboardRejected[order[i]] && reachable(order[i])) { selectCard(order[i]); return }
     }
   }
 
