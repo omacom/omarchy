@@ -184,6 +184,31 @@ function o.launch_terminal()
   return launch
 end
 
+-- Raise the focused window. Hyprland lets a floating window focused over a
+-- fullscreen one keep drawing above it, so raising that fullscreen window again
+-- lowers the rest of its workspace, top down so they keep their stacking order.
+function o.reveal_active_window()
+  local function reveal()
+    hl.dispatch(hl.dsp.window.bring_to_top())
+
+    local window = hl.get_active_window()
+    if not window or (window.fullscreen or 0) == 0 or not window.workspace then
+      return
+    end
+
+    local windows = hl.get_windows()
+    for i = #windows, 1, -1 do
+      local other = windows[i]
+      if other.address ~= window.address and other.workspace and other.workspace.id == window.workspace.id then
+        hl.dispatch(hl.dsp.window.alter_zorder({ mode = "bottom", window = other }))
+      end
+    end
+  end
+
+  o.bind_expressions[reveal] = "o.reveal_active_window()"
+  return reveal
+end
+
 function o.exec_on_start(command)
   hl.on("hyprland.start", function()
     hl.exec_cmd(command)
