@@ -9,9 +9,14 @@ mock_bin="$test_tmp/bin"
 export HOME="$test_tmp/home with spaces"
 export PATH="$mock_bin:$HOME/.local/bin:$ROOT/bin:/usr/local/bin:/usr/bin"
 export OMARCHY_TEST_MISE_LOG="$test_tmp/mise-log"
+export MISE_OFFLINE=false
 mkdir -p "$mock_bin" "$HOME/.local/bin"
 cat >"$mock_bin/mise" <<'SH'
 #!/bin/bash
+if [[ ${MISE_OFFLINE:-} != "true" ]]; then
+  echo "unexpected network access during provisioning" >&2
+  exit 1
+fi
 printf '%s\0' "$@" >>"$OMARCHY_TEST_MISE_LOG"
 SH
 chmod +x "$mock_bin/mise"
@@ -24,6 +29,8 @@ mapfile -d '' -t args <"$OMARCHY_TEST_MISE_LOG"
 [[ ${args[*]} == "reshim --system reshim" ]] ||
   fail "provisioning builds the lazy shims without installing packages or writing the user's config"
 pass "provisioning leaves lazy Kimi, Cursor, and Muse shims to mise"
+[[ $MISE_OFFLINE == "false" ]] || fail "provisioning must not leave later tool installs offline"
+pass "provisioning keeps both shim rebuilds offline without changing the caller's setting"
 
 # The settings package ships this, so the user's config stays theirs.
 grep -Fx 'upgrade.auto_prune = false' "$ROOT/etc/mise/conf.d/omarchy.toml" >/dev/null ||
