@@ -740,6 +740,9 @@
   "install.windows": {
     "label": "Windows"
   },
+  "install.android": {
+    "label": "Android"
+  },
   "install.aur": {
     "label": "AUR"
   },
@@ -990,6 +993,9 @@
   },
   "remove.windows": {
     "label": "Windows"
+  },
+  "remove.android": {
+    "label": "Android"
   },
   "remove.preinstalls": {
     "label": "Preinstalls"
