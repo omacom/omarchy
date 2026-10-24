@@ -20,10 +20,12 @@ cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 if [[ $1 == "monitors" && $2 == "all" && $3 == "-j" ]]; then
+  other=""
+  [[ -n ${OMARCHY_TEST_OTHER_OUTPUT:-} ]] && other=$(printf ',{"name":"%s","disabled":false,"scale":1}' "$OMARCHY_TEST_OTHER_OUTPUT")
   if [[ ${OMARCHY_TEST_INTERNAL_DISABLED:-false} == "true" ]]; then
-    printf '[{"name":"eDP-1","disabled":true,"scale":null}]'
+    printf '[{"name":"eDP-1","disabled":true,"scale":null}%s]' "$other"
   else
-    printf '[{"name":"eDP-1","disabled":false,"scale":%s}]' "${OMARCHY_TEST_INTERNAL_SCALE:-2}"
+    printf '[{"name":"eDP-1","disabled":false,"scale":%s}%s]' "${OMARCHY_TEST_INTERNAL_SCALE:-2}" "$other"
   fi
 elif [[ $1 == "eval" ]]; then
   printf '%s\n' "$2" >>"$OMARCHY_TEST_HYPRCTL_EVAL_LOG"
@@ -59,6 +61,11 @@ SH
 cat >"$stub_bin/omarchy-hw-clamshell" <<'SH'
 #!/bin/bash
 [[ ${OMARCHY_TEST_CLAMSHELL:-false} == "true" ]]
+SH
+
+cat >"$stub_bin/omarchy-hw-external-monitors" <<'SH'
+#!/bin/bash
+[[ ${OMARCHY_TEST_EXTERNAL_CONNECTED:-false} == "true" ]]
 SH
 
 chmod +x "$stub_bin"/*
@@ -222,6 +229,8 @@ run_clamshell() {
     OMARCHY_TEST_INTERNAL_DISABLED="${OMARCHY_TEST_INTERNAL_DISABLED:-false}" \
     OMARCHY_TEST_EXTERNAL_ACTIVE="${OMARCHY_TEST_EXTERNAL_ACTIVE:-false}" \
     OMARCHY_TEST_CLAMSHELL="${OMARCHY_TEST_CLAMSHELL:-false}" \
+    OMARCHY_TEST_EXTERNAL_CONNECTED="${OMARCHY_TEST_EXTERNAL_CONNECTED:-false}" \
+    OMARCHY_TEST_OTHER_OUTPUT="${OMARCHY_TEST_OTHER_OUTPUT:-}" \
     "$ROOT/bin/omarchy-hyprland-monitor-clamshell"
 }
 
@@ -411,3 +420,28 @@ for config in nested_table semicolon block_comment; do
   grep -F 'scale = 1.25' "$eval_log" >/dev/null || fail "clamshell recovery reads the scale out of a ${config//_/ } rule"
   pass "clamshell recovery reads a ${config//_/ } rule"
 done
+
+# A panel turned off from the Display panel is a runtime disabled = true with
+# no flag. Once the external display is unplugged, the recovery's rule update
+# has to say disabled = false, or the panel stays off behind Hyprland's
+# FALLBACK (#16307). While an external display or a headless output is still
+# there, the choice to run on it alone stands, since the docked poll reaches
+# this every two seconds.
+write_internal_monitor_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true OMARCHY_TEST_OTHER_OUTPUT=FALLBACK run_clamshell
+grep -Fx 'hl.monitor({ output = "eDP-1", disabled = false, mode = "preferred", position = "0x0", scale = 1.25 })' "$eval_log" >/dev/null ||
+  fail "clamshell recovery turns a panel-disabled display back on once nothing external is connected" "$(cat "$eval_log")"
+pass "clamshell recovery turns a panel-disabled display back on once nothing external is connected"
+
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=DP-1 run_clamshell
+grep -F 'scale = 1.25' "$eval_log" >/dev/null && ! grep -F 'disabled = false' "$eval_log" >/dev/null ||
+  fail "clamshell recovery leaves a panel-disabled display off while an external display is connected" "$(cat "$eval_log")"
+pass "clamshell recovery leaves a panel-disabled display off while an external display is connected"
+
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=HEADLESS-1 run_clamshell
+grep -F 'scale = 1.25' "$eval_log" >/dev/null && ! grep -F 'disabled = false' "$eval_log" >/dev/null ||
+  fail "clamshell recovery leaves a panel-disabled display off while a headless output is enabled" "$(cat "$eval_log")"
+pass "clamshell recovery leaves a panel-disabled display off while a headless output is enabled"
