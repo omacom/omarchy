@@ -99,6 +99,8 @@ expect("the meters are Cursor's own, not spend over the allowance", meters(recor
   {"label": "Included total", "percent": 1876}, {"label": "Auto models", "percent": 1181},
   {"label": "Named models", "percent": 10000}, {"label": "On-demand $9.51 / $10.00", "percent": 9510},
 ], record)
+expect("auto and named model meters are a breakdown of the included total",
+       [limit.get("supplementary", False) for limit in record["limits"]], [False, True, True, False], record)
 expect("the reset is the billing cycle's end", record["limits"][0]["resetsAt"], "2099-09-03T06:25:26+00:00", record)
 starts = [window_start(request["data"]) for request in cursor.requests if request["url"].endswith("GetAggregatedUsageEvents")]
 expect("tokens are asked for in seven daily windows, each from local midnight",
@@ -140,6 +142,8 @@ expect("a kept limit whose cycle ended resets, the rest stand",
 expect("an on-demand meter that reset is renamed with its new spend",
        {name: lapsed["limits"][3][name] for name in ("label", "title", "percent", "resetsAt")},
        {"label": "On-demand $0.00 / $10.00", "title": "On-demand $0.00 / $10.00 Monthly", "percent": 0.0, "resetsAt": ""}, lapsed)
+expect("a kept named-model meter stays a breakdown, and the caps do not become one",
+       [limit.get("supplementary", False) for limit in lapsed["limits"]], [False, True, True, False], lapsed)
 
 # A scan from yesterday moves onto this week's dates, and its today figures
 # are cleared, since none of it happened today. Each day's usage rides along,
@@ -261,6 +265,8 @@ expect("a weekly included allowance reads Weekly and resets with the week", read
   period: [["Weekly", WEEK_END], ["Auto models Weekly", WEEK_END], ["Named models Weekly", WEEK_END], ["On-demand $9.51 / $10.00 Monthly", CYCLE_END]]
   for period in ("INCLUDED_USAGE_PERIOD_WEEKLY", "WEEKLY", "2")
 }, read)
+expect("a weekly plan's model meters stay a breakdown of the included week",
+       [limit.get("supplementary", False) for limit in record["limits"]], [False, True, True, False], record)
 
 # A weekly plan whose GetPlanInfo fails can't say its week's reset, so the
 # known weekly limits are kept, stale, rather than read as Monthly.
