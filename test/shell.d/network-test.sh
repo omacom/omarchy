@@ -290,6 +290,238 @@ assertEqual(network.canForgetNetwork({ known: true, connected: false, security: 
 assertEqual(network.canForgetNetwork({ known: false, connected: false, security: security.Owe }), false, 'network cannot forget unknown networks')
 assertEqual(network.canForgetNetwork({ known: true, connected: true, security: security.Owe }), false, 'network cannot forget the connected network')
 
+// The right-edge forget target above is for known networks you are NOT on. The
+// connected network gets inline Disconnect / Forget actions instead: clicking
+// its row expands them rather than dropping the connection on the spot.
+{
+  const runPanel = (body, state) => new Function('state', 'with (state) {' + body + '}')(state)
+
+  // Re-hide whenever the prompt changes or closes. Show/hide lives on the
+  // panel root next to passwordText so a scan rebuild cannot snap it back.
+  const passwordChanged = panelSource.match(/onPasswordSsidChanged: \{([\s\S]*?)\n {2}\}/)
+  assert(passwordChanged, 'network reacts to the passphrase prompt opening and closing')
+  for (const [description, passwordSsid] of [['closes', ''], ['moves to another network', 'Other']]) {
+    const revealState = { showPassword: true, passwordSsid, opened: true, passwordText: 'secret', Qt: { callLater() {} }, panel: { loadedContent: null } }
+    runPanel(passwordChanged[1], revealState)
+    assertEqual(revealState.showPassword, false, 'network hides the password again when the prompt ' + description)
+  }
+
+  // Strings come from the catalog alone: an inline English fallback would
+  // hide a missing key instead of failing the catalog check.
+  assert(!/I18n\.t\(\s*\"network\.[A-Za-z0-9.]+\"\s*,/.test(panelSource), 'network looks every string up by key with no inline English fallback')
+
+  const rowClick = panelSource.match(/id: rowMouse\b[\s\S]*?onClicked: \{([\s\S]*?)\n {6}\}/)
+  assert(rowClick, 'network row has a click handler')
+  const clickCalls = []
+  const clickState = row => ({
+    row,
+    root: {
+      cursorActive: false,
+      focusSection: '',
+      selectedIndex: -1,
+      wifiActionFocused: true,
+      toggleManage: ssid => clickCalls.push('toggle ' + ssid),
+      openPasswordPrompt: ssid => clickCalls.push('prompt ' + ssid),
+      connectDirectly: ssid => clickCalls.push('connect ' + ssid),
+      disconnectRow: ssid => clickCalls.push('disconnect ' + ssid)
+    }
+  })
+  runPanel(rowClick[1], clickState({ net: { ssid: 'Home' }, isConnected: true, index: 0, requiresCredentials: true, isKnown: true }))
+  assertDeepEqual(clickCalls, ['toggle Home'], 'network row click on the connected network expands its actions')
+  clickCalls.length = 0
+  runPanel(rowClick[1], clickState({ net: { ssid: 'Cafe' }, isConnected: false, index: 1, requiresCredentials: true, isKnown: false }))
+  assertDeepEqual(clickCalls, ['prompt Cafe'], 'network row click on an unknown credentialed network opens the passphrase prompt')
+  clickCalls.length = 0
+  runPanel(rowClick[1], clickState({ net: { ssid: 'Open' }, isConnected: false, index: 2, requiresCredentials: false, isKnown: true }))
+  assertDeepEqual(clickCalls, ['connect Open'], 'network row click on a known network connects it')
+
+  const closeFn = panelSource.match(/ {2}function close\(\) \{[\s\S]*?\n {2}\}/)
+  assert(closeFn, 'network has close()')
+  const closeState = { root: { controller: { hide() {} } }, cancelPasswordPrompt() {}, manageSsid: 'Home' }
+  runPanel(closeFn[0] + '\nclose()', closeState)
+  assertEqual(closeState.manageSsid, '', 'network collapses the actions when the panel closes')
+
+  const openedChanged = panelSource.match(/onOpenedChanged: \{([\s\S]*?)\n {2}\}/)
+  assert(openedChanged, 'network reacts to the panel opening and closing')
+  const openedState = {
+    manageSsid: 'Home',
+    opened: true,
+    refresh() {},
+    selectedIndex: 3,
+    wifiNetworks: [{}, {}],
+    wifiActionFocused: true,
+    focusSection: 'dns',
+    hasCaptivePortal: false,
+    dnsProviders: ['auto'],
+    dnsProvider: 'auto',
+    dnsIndex: 1,
+    syncBandIndex() {},
+    cursorActive: true
+  }
+  runPanel(openedChanged[1], openedState)
+  assertEqual(openedState.manageSsid, '', 'network starts every open with the actions collapsed')
+
+  const closeRequested = panelSource.match(/onCloseRequested: \{([\s\S]*?)\n {6}\}/)
+  assert(closeRequested, 'network handles Esc from the key catcher')
+  let closed = false
+  const escState = { root: { manageSsid: 'Home', close() { closed = true } } }
+  runPanel(closeRequested[1], escState)
+  assertEqual(escState.root.manageSsid, '', 'network Esc collapses open actions before closing the panel')
+  assert(!closed, 'network Esc does not close the panel while actions are open')
+  runPanel(closeRequested[1], escState)
+  assert(closed, 'network Esc closes the panel once actions are already collapsed')
+
+  // Run the panel's own selection, activation and action logic against
+  // stand-in state, the way the scanner helper is run above.
+  const panelLogic = state => {
+    const fn = name => {
+      const found = panelSource.match(new RegExp(' {2}function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n {2}\\}'))
+      assert(found, 'network has ' + name + '()')
+      return found[0]
+    }
+    const binding = panelSource.match(/readonly property bool selectedManageOpen: \{([\s\S]*?)\n {2}\}/)
+    assert(binding, 'network derives selectedManageOpen from the keyboard selection')
+    Object.defineProperty(state, 'selectedManageOpen', {
+      get: () => new Function('state', 'with (state) {' + binding[1] + '}')(state)
+    })
+    const names = ['toggleManage', 'canForgetNetwork', 'moveWifiCursor', 'selectWifiActionByDelta', 'activateSelected', 'runNetworkAction']
+    new Function('state', 'with (state) {' + names.map(fn).join('\n') +
+      '\nstate.fns = { toggleManage, moveWifiCursor, selectWifiActionByDelta, activateSelected, runNetworkAction } }')(state)
+    return state.fns
+  }
+  const calls = []
+  const newState = overrides => Object.assign({
+    Model: network,
+    busy: false,
+    selectedIndex: 0,
+    manageSsid: '',
+    manageFocused: false,
+    manageIndex: 0,
+    wifiActionFocused: false,
+    focusSection: 'wifi',
+    selectByDelta: delta => calls.push('select ' + delta),
+    wifiNetworks: [
+      { ssid: 'Home', connected: true, known: true, signal: 80, security: security.Wpa2Psk },
+      { ssid: 'Cafe', connected: false, known: true, signal: 50, security: security.Wpa2Psk }
+    ],
+    actionKind: '',
+    actionSsid: '',
+    failureSsid: '',
+    failureReason: '',
+    actionTimeout: { restart() {} },
+    disconnectRow: ssid => calls.push('disconnect ' + ssid),
+    forget: net => calls.push('forget ' + net.ssid),
+    connectDirectly: ssid => calls.push('connect ' + ssid),
+    openPasswordPrompt: ssid => calls.push('prompt ' + ssid),
+    requiresCredentials: () => true
+  }, overrides)
+
+  // Enter on the connected row toggles its actions; it must not act by itself.
+  let state = newState()
+  let logic = panelLogic(state)
+  logic.activateSelected()
+  assertEqual(state.manageSsid, 'Home', 'network Enter on the connected row opens its actions')
+  assertEqual(calls.length, 0, 'network Enter on the connected row neither disconnects nor forgets')
+  assertEqual(state.selectedManageOpen, true, 'network recognises the open actions on the selected row')
+  logic.activateSelected()
+  assertEqual(state.manageSsid, '', 'network Enter on the connected row closes its actions again')
+  logic.toggleManage('Home')
+  logic.toggleManage('Cafe')
+  assertEqual(state.manageSsid, 'Cafe', 'network opening another row switches the actions rather than stacking them')
+
+  // l/h: from the row into the buttons, then between them, clamped to both.
+  state = newState({ manageSsid: 'Home' })
+  logic = panelLogic(state)
+  logic.selectWifiActionByDelta(-1)
+  assertEqual(state.manageFocused, false, 'network h on the row does not enter the actions')
+  logic.selectWifiActionByDelta(1)
+  assertEqual(state.manageFocused, true, 'network l on the row enters the actions')
+  assertEqual(state.manageIndex, 0, 'network entering the actions lands on Disconnect, not the destructive Forget')
+  logic.selectWifiActionByDelta(-1)
+  assertEqual(state.manageIndex, 0, 'network cursor stops at the first action')
+  logic.selectWifiActionByDelta(1)
+  logic.selectWifiActionByDelta(1)
+  assertEqual(state.manageIndex, 1, 'network cursor stops at the last action')
+  assertEqual(state.manageFocused, true, 'network cursor stays inside the actions while moving between them')
+
+  // Enter on a focused action runs exactly that action -- including Forget on
+  // the connected network, which the row's right-edge target never offers.
+  calls.length = 0
+  state.manageIndex = 0
+  logic.activateSelected()
+  assertDeepEqual(calls, ['disconnect Home'], 'network Enter on Disconnect disconnects the connected network')
+  calls.length = 0
+  state.manageIndex = 1
+  logic.activateSelected()
+  assertDeepEqual(calls, ['forget Home'], 'network Enter on Forget forgets the connected network')
+  calls.length = 0
+  state.busy = true
+  logic.activateSelected()
+  assertEqual(calls.length, 0, 'network ignores an action while another one is running')
+  assertEqual(state.selectedManageOpen, false, 'network drops the open actions while an action is running')
+
+  // Up/down arrows: into the buttons, back out, on to the next row.
+  calls.length = 0
+  state = newState({ manageSsid: 'Home' })
+  logic = panelLogic(state)
+  logic.moveWifiCursor(1)
+  assert(state.manageFocused && state.manageIndex === 0, 'network down arrow on the connected row steps into the actions')
+  assertEqual(calls.length, 0, 'network stepping into the actions does not move the row cursor')
+  logic.moveWifiCursor(-1)
+  assertEqual(state.manageFocused, false, 'network up arrow on the actions steps back to the row')
+  assertEqual(calls.length, 0, 'network stepping back to the row does not move to another row')
+  logic.moveWifiCursor(1)
+  logic.moveWifiCursor(1)
+  assert(!state.manageFocused && calls.join() === 'select 1', 'network down arrow on the actions moves on to the next row')
+  calls.length = 0
+  state = newState({ manageSsid: 'Cafe', selectedIndex: 1, wifiNetworks: [
+    { ssid: 'Cafe', connected: true, known: true, signal: 50, security: security.Wpa2Psk }
+  ], manageFocused: true })
+  state.selectedIndex = 0
+  logic = panelLogic(state)
+  logic.moveWifiCursor(1)
+  assert(state.manageFocused && calls.length === 0, 'network down arrow on the last row stays on the actions instead of dropping out')
+  state = newState()
+  logic = panelLogic(state)
+  logic.moveWifiCursor(1)
+  assert(!state.manageFocused && calls.join() === 'select 1', 'network down arrow without open actions just moves to the next row')
+  calls.length = 0
+  logic.moveWifiCursor(-1)
+  assertEqual(state.focusSection, 'dns', 'network up arrow on the top row still escapes to the DNS row')
+  assertEqual(calls.length, 0, 'network up arrow on the top row does not wrap around the list')
+
+  // The actions only exist for the connected row.
+  state = newState()
+  logic = panelLogic(state)
+  logic.selectWifiActionByDelta(1)
+  assertEqual(state.manageFocused, false, 'network l on a connected row with no open actions enters nothing')
+  assertEqual(state.wifiActionFocused, false, 'network l on the connected row keeps its forget target hidden')
+  state = newState({ manageSsid: 'Home', selectedIndex: 1 })
+  logic = panelLogic(state)
+  assertEqual(state.selectedManageOpen, false, 'network open actions do not follow the cursor to another row')
+  logic.selectWifiActionByDelta(1)
+  assertEqual(state.manageFocused, false, 'network l on another row does not enter the connected row actions')
+  assertEqual(state.wifiActionFocused, true, 'network l on a known disconnected row still reaches its forget target')
+  logic.activateSelected()
+  assertDeepEqual(calls.slice(-1), ['forget Cafe'], 'network Enter on a known disconnected row still forgets it')
+  state = newState({ manageSsid: 'Home', wifiNetworks: [{ ssid: 'Home', connected: false, known: true, signal: 80, security: security.Wpa2Psk }] })
+  logic = panelLogic(state)
+  assertEqual(state.selectedManageOpen, false, 'network closes the actions once the network is no longer connected')
+
+  // Starting any action collapses the panel; a refused action leaves it alone.
+  state = newState({ manageSsid: 'Home' })
+  logic = panelLogic(state)
+  let ran = false
+  logic.runNetworkAction('forget', { name: 'Home' }, () => { ran = true })
+  assert(ran && state.actionKind === 'forget' && state.actionSsid === 'Home', 'network runs the requested action')
+  assertEqual(state.manageSsid, '', 'network collapses the actions as soon as an action starts')
+  state = newState({ manageSsid: 'Home', actionKind: 'connect' })
+  logic = panelLogic(state)
+  ran = false
+  logic.runNetworkAction('forget', { name: 'Home' }, () => { ran = true })
+  assert(!ran && state.manageSsid === 'Home', 'network leaves the actions open when another action is already running')
+}
+
 assertEqual(network.shouldRepromptPassphrase(reasons.NoSecrets, true, reasons), true, 'network reprompts when required credentials are missing')
 assertEqual(network.shouldRepromptPassphrase(reasons.NoSecrets, false, reasons), false, 'network does not ask a passwordless network for missing secrets')
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, true, reasons), true, 'network reprompts a credentialed network after a wrong password')
