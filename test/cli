@@ -838,6 +838,100 @@ if (( EUID != 0 )); then
   pass "an alias dispatch reads only the commands that can own its route"
 fi
 
+# An empty option list piped into menu-select is the caller's "nothing to
+# offer", not a usage mistake: it must exit 3 quietly instead of leaking the
+# usage string, and callers must report what came up empty.
+status=0
+output=$(printf '' | "$ROOT/bin/omarchy-menu-select" "Pick" 2>&1) || status=$?
+(( status == 3 )) || fail "menu-select exits 3 on an empty piped option list (got $status)"
+[[ -z $output ]] || fail "menu-select is quiet on an empty piped option list"
+pass "menu-select exits 3 quietly on an empty piped option list"
+
+status=0
+output=$("$ROOT/bin/omarchy-menu-select" </dev/null 2>&1) || status=$?
+(( status == 1 )) || fail "menu-select without a prompt exits 1 (got $status)"
+assert_output_contains "menu-select without a prompt still prints usage" "$output" "Usage: omarchy-menu-select"
+
+make_tmpdir EMPTY_MEDIA_TMPDIR
+status=0
+output=$("$ROOT/bin/omarchy-menu-file" "Pick media" "$EMPTY_MEDIA_TMPDIR" "jpg png" 2>&1) || status=$?
+(( status == 3 )) || fail "menu-file exits 3 when no files match (got $status)"
+assert_output_contains "menu-file reports an empty search instead of usage" "$output" "No matching files"
+
+make_tmpdir NOTIFY_TMPDIR
+NOTIFY_FAKE_BIN="$NOTIFY_TMPDIR/fake-bin"
+mkdir -p "$NOTIFY_FAKE_BIN"
+
+cat >"$NOTIFY_FAKE_BIN/omarchy-notification-send" <<'EOF'
+#!/bin/bash
+printf '%s|' "$@" >>"${NOTIFY_LOG:-/dev/null}"
+EOF
+chmod +x "$NOTIFY_FAKE_BIN/omarchy-notification-send"
+
+status=0
+output=$(NOTIFY_LOG="$NOTIFY_TMPDIR/notify.log" OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE="$ROOT/test/.no-language" PATH="$NOTIFY_FAKE_BIN:$PATH" "$ROOT/bin/omarchy-transcode" --path "$EMPTY_MEDIA_TMPDIR" 2>&1) || status=$?
+(( status == 1 )) || fail "transcode exits 1 when nothing matches (got $status)"
+[[ $(<"$NOTIFY_TMPDIR/notify.log") == "-g|󰧸|Nothing to transcode|No pictures or videos under $EMPTY_MEDIA_TMPDIR|" ]] || fail "transcode notifies with a glyph, headline and description when nothing matches"
+if [[ $output == *"Usage: omarchy-menu-select"* ]]; then
+  fail "transcode does not leak the menu-select usage string"
+fi
+pass "transcode notifies instead of leaking usage when nothing matches"
+
+# A menu that cannot open (exit 2) is not an empty search, and an unreadable
+# folder beside the matches must not hide them.
+printf '#!/bin/bash\nexit 1\n' >"$NOTIFY_FAKE_BIN/omarchy-shell"
+chmod +x "$NOTIFY_FAKE_BIN/omarchy-shell"
+make_tmpdir FOUND_MEDIA_TMPDIR
+make_tmpdir LOCKED_MEDIA_TMPDIR
+touch "$FOUND_MEDIA_TMPDIR/clip.mp4"
+# Root reads through the permission, so the unreadable folder only means
+# something for an ordinary user.
+if (( EUID != 0 )); then
+  mkdir "$FOUND_MEDIA_TMPDIR/locked"
+  chmod 000 "$FOUND_MEDIA_TMPDIR/locked" "$LOCKED_MEDIA_TMPDIR"
+fi
+: >"$NOTIFY_TMPDIR/notify.log"
+
+file_status=0
+PATH="$NOTIFY_FAKE_BIN:$PATH" "$ROOT/bin/omarchy-menu-file" "Pick media" "$FOUND_MEDIA_TMPDIR" "mp4" >/dev/null 2>&1 || file_status=$?
+NOTIFY_LOG="$NOTIFY_TMPDIR/notify.log" OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE="$ROOT/test/.no-language" PATH="$NOTIFY_FAKE_BIN:$PATH" "$ROOT/bin/omarchy-transcode" --path "$FOUND_MEDIA_TMPDIR" >/dev/null 2>&1 || true
+locked_status=0
+"$ROOT/bin/omarchy-menu-file" "Pick media" "$LOCKED_MEDIA_TMPDIR" "mp4" >/dev/null 2>&1 || locked_status=$?
+if (( EUID != 0 )); then
+  chmod 755 "$FOUND_MEDIA_TMPDIR/locked" "$LOCKED_MEDIA_TMPDIR"
+fi
+
+(( file_status == 2 )) || fail "menu-file offers the matches it found beside an unreadable folder (got $file_status)"
+pass "menu-file offers the matches it found beside an unreadable folder"
+if (( EUID != 0 )); then
+  (( locked_status == 1 )) || fail "menu-file reports an unreadable folder as a failed search, not as no matches (got $locked_status)"
+  pass "menu-file reports an unreadable folder as a failed search, not as no matches"
+fi
+[[ $(<"$NOTIFY_TMPDIR/notify.log") != *"Nothing to transcode"* ]] || fail "transcode does not report an empty search when the menu cannot open"
+pass "transcode does not report an empty search when the menu cannot open"
+
+# The collected list still reaches the picker newest first, filtered by
+# extension, and the pick comes back.
+make_tmpdir PICK_MEDIA_TMPDIR
+PICK_FAKE_BIN="$PICK_MEDIA_TMPDIR/fake-bin"
+mkdir -p "$PICK_FAKE_BIN" "$PICK_MEDIA_TMPDIR/Pictures" "$PICK_MEDIA_TMPDIR/Videos"
+
+cat >"$PICK_FAKE_BIN/omarchy-menu-select" <<'EOF'
+#!/bin/bash
+cat >"$MENU_ROWS"
+head -n 1 "$MENU_ROWS"
+EOF
+chmod +x "$PICK_FAKE_BIN/omarchy-menu-select"
+
+touch -d '2026-01-01' "$PICK_MEDIA_TMPDIR/Pictures/old.png"
+touch -d '2026-02-01' "$PICK_MEDIA_TMPDIR/Videos/new.mp4"
+touch "$PICK_MEDIA_TMPDIR/Pictures/notes.txt"
+
+pick=$(MENU_ROWS="$PICK_MEDIA_TMPDIR/rows" PATH="$PICK_FAKE_BIN:$PATH" "$ROOT/bin/omarchy-menu-file" "Pick media" "$PICK_MEDIA_TMPDIR/Pictures:$PICK_MEDIA_TMPDIR/Videos" "png mp4")
+[[ $(<"$PICK_MEDIA_TMPDIR/rows") == "$PICK_MEDIA_TMPDIR/Videos/new.mp4"$'\n'"$PICK_MEDIA_TMPDIR/Pictures/old.png" ]] || fail "menu-file offers matching files newest first"
+[[ $pick == "$PICK_MEDIA_TMPDIR/Videos/new.mp4" ]] || fail "menu-file returns the pick"
+pass "menu-file offers matching files newest first and returns the pick"
+
 # The same guarantee against the real command table, timed: an alias dispatch
 # that loads every header costs what help on it costs (about 190ms either way
 # before the candidates-only path, against 13ms after). Timing both in the same
