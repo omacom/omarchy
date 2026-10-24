@@ -257,6 +257,7 @@
 
   // Install
   "install.package": {"icon":"󰣇","label":"Package","action":"xdg-terminal-exec --app-id=org.omarchy.terminal omarchy-pkg-install"},
+  "install.bundle": {"icon":"󰏗","label":"Bundles","action":"omarchy-launch-floating-terminal-with-presentation omarchy-bundle-add"},
   "install.ai": {"icon":"󱚤","label":"AI"},
   "install.service": {"icon":"","label":"Service"},
   "install.development": {"icon":"󰵮","label":"Development"},
@@ -351,6 +352,7 @@
 
   // Remove
   "remove.package": {"icon":"󰣇","label":"Package","action":"xdg-terminal-exec --app-id=org.omarchy.terminal omarchy-pkg-remove"},
+  "remove.bundle": {"icon":"󰭌","label":"Bundles","when":"[[ -n $(find \"${XDG_DATA_HOME:-$HOME/.local/share}/omarchy-bundles\" -mindepth 1 -maxdepth 1 -type d -print -quit 2>/dev/null) ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-bundle-remove"},
   "remove.ai": {"icon":"󱚤","label":"AI","title":"Remove"},
   "remove.dictation": {"icon":"","label":"Dictation","when":"omarchy-pkg-present voxtype-bin || omarchy-pkg-present superwhisper-bin"},
   "remove.service": {"icon":"","label":"Services","title":"Remove"},

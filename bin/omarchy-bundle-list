@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=List installed Omarchy bundles
+# omarchy:group=bundle
+
+set -euo pipefail
+
+BUNDLE_CMD=omarchy-bundle-list
+# shellcheck source=omarchy-bundle-lib
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/omarchy-bundle-lib"
+
+if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+  echo "Usage: omarchy bundle list"
+  exit 0
+fi
+
+[[ $# -eq 0 ]] || bundle_fail "Usage: omarchy bundle list"
+
+ledger=$(bundle_ledger_read)
+count=$(jq -r '.bundles | length' <<<"$ledger")
+if (( count == 0 )); then
+  echo "No bundles installed."
+  exit 0
+fi
+
+jq -r '.bundles | to_entries | sort_by(.key)[] |
+  "\(.key)\t\(.value.version)\t\(.value.name)\t\(.value.source)"' <<<"$ledger" |
+  while IFS=$'\t' read -r id version name source; do
+    printf '%s  %s  %s\n' "$(bundle_plain "$id")" "$(bundle_plain "$version")" "$(bundle_plain "$name")"
+    printf '  source: %s\n' "$(bundle_plain "$(bundle_redact_url "$source")")"
+  done

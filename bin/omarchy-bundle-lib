@@ -1,0 +1,534 @@
+#!/bin/bash
+
+# omarchy:summary=Shared helpers for Omarchy bundles (source this, don't run it).
+# omarchy:group=bundle
+# omarchy:name=lib
+# omarchy:hidden=true
+
+# Bundles are data. Nothing in this file executes a file from a bundle.
+# Project scripts run only from omarchy-bundle-project-new, after a person
+# has seen the script and confirmed.
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "omarchy-bundle-lib: source this file from the bundle commands; don't run it." >&2
+  exit 1
+fi
+
+bundle_fail() {
+  echo "${BUNDLE_CMD:-omarchy-bundle}: $*" >&2
+  exit 1
+}
+
+bundle_interactive() {
+  [[ -t 0 && -t 1 ]]
+}
+
+bundle_confirm() {
+  local prompt="$1"
+  (( BUNDLE_ASSUME_YES )) && return 0
+  if bundle_interactive; then
+    gum confirm "$prompt"
+  else
+    bundle_fail "refusing to continue without confirmation; pass --yes"
+  fi
+}
+
+# ~/.local/share/omarchy is a symlink to /usr/share/omarchy on an installed
+# system. Copies go next to that link so install does not try to write the
+# system tree.
+bundle_data_root() {
+  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/omarchy-bundles"
+}
+
+bundle_ledger_path() {
+  printf '%s\n' "${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/bundles/ledger.json"
+}
+
+bundle_plugins_dir() {
+  printf '%s\n' "$HOME/.config/omarchy/plugins"
+}
+
+# Literal tildes: callers pass an unexpanded home prefix.
+# shellcheck disable=SC2088
+bundle_expand_home() {
+  local path="$1"
+  if [[ $path == "~" ]]; then
+    printf '%s\n' "$HOME"
+  elif [[ $path == "~/"* ]]; then
+    printf '%s\n' "$HOME/${path:2}"
+  else
+    printf '%s\n' "$path"
+  fi
+}
+
+bundle_under_home() {
+  local path="$1" home
+  home=$(realpath -m -- "$HOME")
+  path=$(realpath -m -- "$path")
+  [[ $path == "$home"/* ]]
+}
+
+# shellcheck disable=SC2088
+bundle_safe_rel() {
+  local path="$1"
+  [[ -n $path ]] || return 1
+  [[ $path != *$'\n'* ]] || return 1
+  [[ $path != /* ]] || return 1
+  [[ $path != "~"* ]] || return 1
+  [[ $path != *".."* ]] || return 1
+}
+
+bundle_valid_id() {
+  [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* && $1 != omarchy.* ]]
+}
+
+bundle_valid_package_name() {
+  [[ $1 =~ ^[a-z0-9@._+][a-z0-9@._+-]*$ ]]
+}
+
+# publisher/name or publisher/name@version. A version may contain dots and
+# dashes; it may not contain a slash, which would make this a path or URL.
+bundle_registry_ref() {
+  [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ || $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*@[^/]+$ ]]
+}
+
+bundle_git_url() {
+  [[ $1 =~ :// || $1 == git@* || $1 == *.git ]]
+}
+
+bundle_classify_source() {
+  local spec="$1" expanded
+  expanded=$(bundle_expand_home "$spec")
+  # An explicit URL is also a relative path: https://host/repo.git names the
+  # directory https:/host/repo.git. That directory must not skip the clone.
+  # An existing folder, including one named demo.git, stays a local install.
+  if [[ $spec =~ :// || $spec == git@* ]]; then
+    printf '%s\n' git
+    return 0
+  fi
+  if [[ -d $expanded ]]; then
+    printf '%s\n' path
+    return 0
+  fi
+  if bundle_git_url "$spec"; then
+    printf '%s\n' git
+    return 0
+  fi
+  if bundle_registry_ref "$spec"; then
+    printf '%s\n' registry
+    return 0
+  fi
+  printf '%s\n' unknown
+}
+
+bundle_no_controls() {
+  [[ $1 != *[[:cntrl:]]* ]]
+}
+
+bundle_plain() {
+  local value="$1"
+  value=${value//[[:cntrl:]]/?}
+  printf '%s\n' "$value"
+}
+
+bundle_show() {
+  local line
+  while IFS= read -r line || [[ -n $line ]]; do
+    printf '%s\n' "${line//[[:cntrl:]]/?}"
+  done
+}
+
+# Drop userinfo so a token in https://user:token@host/repo is not stored or printed.
+bundle_redact_url() {
+  local url="$1"
+  if [[ $url =~ ^([A-Za-z][A-Za-z0-9+.-]*://)[^/?#]+@(.+)$ ]]; then
+    url="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+  fi
+  printf '%s\n' "$url"
+}
+
+bundle_ledger_empty() {
+  printf '%s\n' '{"schemaVersion":1,"bundles":{},"packages":{},"plugins":{},"skills":{},"configs":{}}'
+}
+
+bundle_ledger_read() {
+  local path
+  path=$(bundle_ledger_path)
+  if [[ ! -f $path ]]; then
+    bundle_ledger_empty
+    return 0
+  fi
+  jq -e 'type == "object" and .schemaVersion == 1' "$path" >/dev/null 2>&1 \
+    || bundle_fail "ledger is missing or not schemaVersion 1: $path"
+  jq -c . "$path"
+}
+
+bundle_ledger_write() {
+  local json="$1" path dir tmp
+  path=$(bundle_ledger_path)
+  dir=$(dirname -- "$path")
+  mkdir -p -- "$dir"
+  tmp=$(mktemp "$dir/.ledger.json.XXXXXX")
+  if ! printf '%s\n' "$json" >"$tmp"; then
+    rm -f -- "$tmp"
+    bundle_fail "could not write $path"
+  fi
+  mv -f -- "$tmp" "$path"
+}
+
+# Hold this from the ledger read through the final write. The lock drops when
+# the command exits, which includes a failed install's cleanup.
+bundle_ledger_lock() {
+  local dir ready
+  dir=$(dirname -- "$(bundle_ledger_path)")
+  mkdir -p -- "$dir"
+  # Hold the lock in another process. A fd opened in this function is visible
+  # to every child, and bash will not leave FD_CLOEXEC set on it. The helper
+  # exits when this shell does, which includes a failed install's cleanup.
+  coproc BUNDLE_LOCK_HOLDER {
+    exec 9>>"$dir/ledger.lock"
+    flock 9 || exit 1
+    printf 'ready\n'
+    cat >/dev/null
+  }
+  IFS= read -r -u "${BUNDLE_LOCK_HOLDER[0]}" ready
+  [[ $ready == ready ]] || bundle_fail "could not lock the bundle ledger"
+}
+
+bundle_tree_sha256() {
+  local dir="$1" hash
+  hash=$(
+    cd -- "$dir" || exit 1
+    find . -name .git -prune -o -type f -print0 | sort -z | xargs -0 -r sha256sum | sha256sum | awk '{print $1}'
+  )
+  [[ $hash =~ ^[a-f0-9]{64}$ ]] || bundle_fail "could not checksum $dir"
+  printf '%s\n' "$hash"
+}
+
+bundle_file_sha256() {
+  local file="$1" hash
+  hash=$(sha256sum -- "$file" | awk '{print $1}')
+  [[ $hash =~ ^[a-f0-9]{64}$ ]] || bundle_fail "could not checksum $file"
+  printf '%s\n' "$hash"
+}
+
+bundle_copy_tree() {
+  local src="$1" dest="$2" parent stage
+  parent=$(dirname -- "$dest")
+  mkdir -p -- "$parent"
+  stage=$(mktemp -d "$parent/.bundle.XXXXXX")
+  if ! tar -C "$src" --exclude .git -cf - . | tar -C "$stage" -xf -; then
+    rm -rf -- "$stage"
+    bundle_fail "could not copy $src"
+  fi
+  mv -- "$stage" "$dest"
+}
+
+bundle_skill_dirs() {
+  local dir profile
+  local candidates=(
+    "$HOME/.agents/skills"
+    "$HOME/.claude/skills"
+    "$HOME/.codex/skills"
+    "$HOME/.pi/agent/skills"
+    "$HOME/.gemini/config/skills"
+    "$HOME/.hermes/skills"
+  )
+  for dir in "${candidates[@]}"; do
+    [[ -d $dir ]] && printf '%s\n' "$dir"
+  done
+  if [[ -d $HOME/.hermes/profiles ]]; then
+    for profile in "$HOME/.hermes/profiles"/*/; do
+      [[ -d ${profile}skills ]] && printf '%s\n' "${profile}skills"
+    done
+  fi
+}
+
+bundle_load_explicit_packages() {
+  BUNDLE_EXPLICIT=$(pacman -Qqe 2>/dev/null || true)
+}
+
+bundle_is_explicit() {
+  local pkg="$1"
+  [[ -n $BUNDLE_EXPLICIT ]] || return 1
+  grep -qxF -- "$pkg" <<<"$BUNDLE_EXPLICIT"
+}
+
+bundle_package_present() {
+  pacman -Q -- "$1" &>/dev/null
+}
+
+bundle_plugin_present() {
+  local id="$1" dir
+  dir=$(bundle_plugins_dir)
+  [[ -e $dir/$id || -L $dir/$id ]]
+}
+
+# True when the checkout is not the commit recorded at install, or is dirty,
+# or is not a git checkout we can verify. Removal then keeps the directory.
+bundle_plugin_changed() {
+  local id="$1" recorded="$2" dir head
+  dir="$(bundle_plugins_dir)/$id"
+  [[ -e $dir || -L $dir ]] || return 1
+  if [[ -L $dir && ! -d $dir ]]; then
+    return 0
+  fi
+  head=$(git -C "$dir" rev-parse HEAD 2>/dev/null || true)
+  [[ -n $head ]] || return 0
+  [[ -z $(git -C "$dir" status --porcelain 2>/dev/null || true) ]] || return 0
+  if [[ -n $recorded && $head != "$recorded" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+# Compare git URLs that differ only by a trailing slash or .git suffix.
+bundle_url_key() {
+  local url="$1"
+  url="${url%/}"
+  url="${url%.git}"
+  printf '%s\n' "$url"
+}
+
+# Print the id of an installed plugin for this git URL, from the ledger or
+# from a plugin directory whose origin remote matches. Returns 1 when none matches.
+bundle_plugin_id_for_url() {
+  local url="$1" ledger_json="$2" key id source dir path remote
+  key=$(bundle_url_key "$(bundle_redact_url "$url")")
+  while IFS= read -r id; do
+    [[ -n $id ]] || continue
+    source=$(jq -r --arg id "$id" '.plugins[$id].source // empty' <<<"$ledger_json")
+    [[ -n $source ]] || continue
+    if [[ $(bundle_url_key "$(bundle_redact_url "$source")") == "$key" ]]; then
+      printf '%s\n' "$id"
+      return 0
+    fi
+  done < <(jq -r '.plugins // {} | keys[]' <<<"$ledger_json")
+  dir=$(bundle_plugins_dir)
+  [[ -d $dir ]] || return 1
+  for path in "$dir"/*; do
+    [[ -e $path || -L $path ]] || continue
+    [[ -d $path || -L $path ]] || continue
+    [[ -e $path/.git ]] || continue
+    remote=$(git -C "$path" remote get-url origin 2>/dev/null || true)
+    [[ -n $remote ]] || continue
+    if [[ $(bundle_url_key "$(bundle_redact_url "$remote")") == "$key" ]]; then
+      basename -- "$path"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# pacman -Rns removes dependencies that are not explicit. A library another
+# bundle still owns can be one of those dependencies, so mark it explicit
+# before that drop. Names in the drop list are left alone; the drop removes
+# those packages themselves.
+bundle_protect_owned_packages() {
+  local ledger_json="${ledger:-}" name pkg
+  local -a protect=()
+  local -A dropping=()
+  [[ -n $ledger_json ]] || return 0
+  for pkg in "$@"; do
+    [[ -n $pkg ]] && dropping[$pkg]=1
+  done
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    [[ -n ${dropping[$name]:-} ]] && continue
+    bundle_package_present "$name" || continue
+    protect+=("$name")
+  done < <(jq -r '.packages // {} | keys[]' <<<"$ledger_json")
+  (( ${#protect[@]} > 0 )) || return 0
+  if (( EUID == 0 )); then
+    pacman -D --asexplicit -- "${protect[@]}"
+  else
+    sudo pacman -D --asexplicit -- "${protect[@]}"
+  fi
+}
+
+bundle_config_target() {
+  local target="$1" expanded home
+  expanded=$(bundle_expand_home "$target")
+  if [[ $expanded != /* ]]; then
+    expanded="$HOME/$expanded"
+  fi
+  home=$(realpath -m -- "$HOME")
+  expanded=$(realpath -m -- "$expanded")
+  [[ $expanded == "$home"/* ]] || return 1
+  printf '%s\n' "$expanded"
+}
+
+# Allowed top-level keys. packageType is optional so a bundle can later be a
+# registry package beside plugin and theme; when present it must be "bundle".
+bundle_validate() {
+  local dir="$1" manifest link field value entry source target bundle_id link_name expanded
+  local -A seen_links=() seen_targets=()
+  [[ -n $dir && -d $dir ]] || bundle_fail "bundle folder not found: ${dir:-<none>}"
+  manifest="$dir/bundle.json"
+  [[ -f $manifest ]] || bundle_fail "missing bundle.json in $dir"
+  jq -e 'type == "object"' "$manifest" >/dev/null 2>&1 || bundle_fail "bundle.json is not a JSON object: $manifest"
+  jq -e '.schemaVersion == 1' "$manifest" >/dev/null 2>&1 \
+    || bundle_fail "unsupported or missing schemaVersion (expected 1) in $manifest"
+
+  while IFS= read -r field; do
+    [[ -n $field ]] || continue
+    bundle_fail "unknown key '$field' in $manifest"
+  done < <(jq -r '
+    (keys - ["schemaVersion","packageType","id","name","version","description","packages","aurPackages","plugins","skills","config","conflicts","project","introduction"])[]
+  ' "$manifest")
+
+  if jq -e 'has("packageType")' "$manifest" >/dev/null; then
+    jq -e '.packageType == "bundle"' "$manifest" >/dev/null \
+      || bundle_fail "'packageType' must be \"bundle\" when present"
+  fi
+
+  for field in id name version description packages aurPackages plugins skills config conflicts; do
+    jq -e --arg f "$field" 'has($f)' "$manifest" >/dev/null 2>&1 \
+      || bundle_fail "manifest missing required field '$field'"
+  done
+
+  for field in id name version description; do
+    jq -e --arg f "$field" '(.[$f] | type) == "string" and (.[$f] | length) > 0' "$manifest" >/dev/null \
+      || bundle_fail "manifest '$field' must be a non-empty string"
+    value=$(jq -r --arg f "$field" '.[$f]' "$manifest")
+    bundle_no_controls "$value" || bundle_fail "manifest '$field' contains a control character"
+  done
+
+  bundle_id=$(jq -r '.id' "$manifest")
+  bundle_valid_id "$bundle_id" || bundle_fail "invalid bundle id '$bundle_id'"
+
+  for field in packages aurPackages plugins skills conflicts; do
+    jq -e --arg f "$field" '(.[$f] | type) == "array"' "$manifest" >/dev/null \
+      || bundle_fail "'$field' must be an array"
+  done
+  jq -e '(.config | type) == "array"' "$manifest" >/dev/null || bundle_fail "'config' must be an array"
+
+  for field in packages aurPackages; do
+    jq -e --arg f "$field" '(.[$f] | unique | length) == (.[$f] | length)' "$manifest" >/dev/null \
+      || bundle_fail "'$field' contains a duplicate"
+    while IFS= read -r value; do
+      [[ -n $value ]] || continue
+      bundle_valid_package_name "$value" || bundle_fail "invalid package name '$value'"
+    done < <(jq -r --arg f "$field" '.[$f][]' "$manifest")
+  done
+  while IFS= read -r value; do
+    [[ -n $value ]] || continue
+    if jq -e --arg name "$value" '(.packages | index($name)) != null' "$manifest" >/dev/null; then
+      bundle_fail "package '$value' is listed in both packages and aurPackages"
+    fi
+  done < <(jq -r '.aurPackages[]' "$manifest")
+
+  while IFS= read -r value; do
+    [[ -n $value ]] || continue
+    bundle_no_controls "$value" || bundle_fail "plugin reference contains a control character"
+    if bundle_git_url "$value"; then
+      continue
+    fi
+    bundle_valid_id "$value" || bundle_fail "invalid plugin reference '$value'"
+  done < <(jq -r '.plugins[]' "$manifest")
+
+  while IFS= read -r value; do
+    [[ -n $value ]] || continue
+    bundle_no_controls "$value" || bundle_fail "skill path contains a control character"
+    bundle_safe_rel "$value" || bundle_fail "skill path must be a safe relative path: '$value'"
+    [[ -d $dir/$value ]] || bundle_fail "skill folder not found: '$value'"
+    [[ -f $dir/$value/SKILL.md ]] || bundle_fail "skill is missing SKILL.md: '$value'"
+    link_name="${bundle_id}-$(basename -- "$value")"
+    if [[ -n ${seen_links[$link_name]:-} ]]; then
+      bundle_fail "skill folders share the link name '$link_name'"
+    fi
+    seen_links[$link_name]=1
+  done < <(jq -r '.skills[]' "$manifest")
+
+  while IFS= read -r entry; do
+    [[ -n $entry ]] || continue
+    jq -e 'type == "object" and (keys - ["source","target"] | length) == 0 and has("source") and has("target")' <<<"$entry" >/dev/null \
+      || bundle_fail "each config entry must be an object with source and target"
+    source=$(jq -r '.source' <<<"$entry")
+    target=$(jq -r '.target' <<<"$entry")
+    bundle_no_controls "$source" || bundle_fail "config source contains a control character"
+    bundle_safe_rel "$source" || bundle_fail "config source must be a safe relative path: '$source'"
+    [[ -f $dir/$source ]] || bundle_fail "config source not found: '$source'"
+    bundle_no_controls "$target" || bundle_fail "config target contains a control character"
+    [[ -n $target && $target != *$'\n'* && $target != *".."* ]] || bundle_fail "invalid config target: '$target'"
+    if [[ $target == /* ]]; then
+      bundle_fail "config target must be relative or start with ~/: '$target'"
+    fi
+    expanded=$(bundle_config_target "$target") \
+      || bundle_fail "config target must stay under your home directory: '$target'"
+    if [[ -n ${seen_targets[$expanded]:-} ]]; then
+      bundle_fail "config entries resolve to the same target: $expanded"
+    fi
+    seen_targets[$expanded]=1
+  done < <(jq -c '.config[]' "$manifest")
+
+  while IFS= read -r value; do
+    [[ -n $value ]] || continue
+    bundle_valid_id "$value" || bundle_fail "invalid conflict id '$value'"
+  done < <(jq -r '.conflicts[]' "$manifest")
+
+  if jq -e 'has("project")' "$manifest" >/dev/null; then
+    jq -e '
+      (.project | type) == "object"
+      and ((.project | keys) - ["root","layout","create"] | length) == 0
+      and ((.project.layout | type) == "array")
+    ' "$manifest" >/dev/null || bundle_fail "'project' must be an object with layout, and only root, layout, and create"
+    while IFS= read -r value; do
+      [[ -n $value ]] || continue
+      bundle_no_controls "$value" || bundle_fail "project layout path contains a control character"
+      bundle_safe_rel "$value" || bundle_fail "project layout path must be a safe relative path: '$value'"
+    done < <(jq -r '.project.layout[]' "$manifest")
+    if jq -e '.project | has("create")' "$manifest" >/dev/null; then
+      value=$(jq -r '.project.create' "$manifest")
+      bundle_no_controls "$value" || bundle_fail "project create path contains a control character"
+      bundle_safe_rel "$value" || bundle_fail "project create path must be a safe relative path: '$value'"
+      [[ -f $dir/$value ]] || bundle_fail "project create script not found: '$value'"
+    fi
+    if jq -e '.project | has("root")' "$manifest" >/dev/null; then
+      jq -e '(.project.root | type) == "string" and (.project.root | length) > 0' "$manifest" >/dev/null \
+        || bundle_fail "'project.root' must be a non-empty string"
+      value=$(jq -r '.project.root' "$manifest")
+      bundle_no_controls "$value" || bundle_fail "project root contains a control character"
+    fi
+  fi
+
+  if jq -e 'has("introduction")' "$manifest" >/dev/null; then
+    jq -e '(.introduction | type) == "string" and (.introduction | length) > 0' "$manifest" >/dev/null \
+      || bundle_fail "'introduction' must be a non-empty string"
+    value=$(jq -r '.introduction' "$manifest")
+    bundle_no_controls "$value" || bundle_fail "introduction path contains a control character"
+    bundle_safe_rel "$value" || bundle_fail "introduction path must be a safe relative path: '$value'"
+    [[ -f $dir/$value ]] || bundle_fail "introduction file not found: '$value'"
+  fi
+
+  link=$(find "$dir" -name .git -prune -o \( -type l -o -type p -o -type s -o -type b -o -type c \) -print -quit 2>/dev/null)
+  [[ -z $link ]] || bundle_fail "bundles are data only; refusing special file: $link"
+}
+
+bundle_warn_git_source() {
+  local url="$1"
+  cat >&2 <<WARN
+
+⚠️  development/unsafe source
+
+  This git URL is an unreviewed development source. The bundle is copied
+  as data and no file from it is run during install. It is not signed,
+  checksummed by a registry, or revocable.
+
+      URL: $url
+
+WARN
+}
+
+bundle_receipt_json() {
+  local source="$1" version="$2" sha="$3" commit="$4" name="$5"
+  jq -n \
+    --arg source "$source" \
+    --arg version "$version" \
+    --arg sha256 "$sha" \
+    --arg commit "$commit" \
+    --arg name "$name" \
+    --arg installed_at "$(date -u +%FT%TZ)" \
+    '{source: $source, version: $version, sha256: $sha256, name: $name, installed_at: $installed_at}
+     + (if $commit == "" then {commit: null} else {commit: $commit} end)'
+}

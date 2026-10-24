@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# omarchy:summary=Create a project from an installed bundle
+# omarchy:group=bundle
+# omarchy:args=<bundle-id> <project-name>
+# omarchy:examples=omarchy bundle project new web-developer my-site
+
+set -euo pipefail
+
+BUNDLE_CMD=omarchy-bundle-project-new
+# shellcheck source=omarchy-bundle-lib
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/omarchy-bundle-lib"
+
+if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+  cat <<USAGE
+Usage: omarchy bundle project new <bundle-id> <project-name>
+
+Creates the bundle's project folders and a .omarchy-project marker.
+When the bundle has a create script, the script is shown and run only
+after you confirm. PROJECT_DIR and BUNDLE_DIR are set for the script.
+USAGE
+  exit 0
+fi
+
+[[ $# -eq 2 ]] || bundle_fail "Usage: omarchy bundle project new <bundle-id> <project-name>"
+
+bundle_id="$1"
+project_name="$2"
+bundle_valid_id "$bundle_id" || bundle_fail "invalid bundle id '$bundle_id'"
+bundle_valid_id "$project_name" || bundle_fail "invalid project name '$project_name'"
+
+bundle_dir="$(bundle_data_root)/$bundle_id"
+manifest="$bundle_dir/bundle.json"
+[[ -f $manifest ]] || bundle_fail "bundle '$bundle_id' is not installed"
+
+jq -e 'has("project")' "$manifest" >/dev/null \
+  || bundle_fail "bundle '$bundle_id' does not define a project"
+
+version=$(jq -r '.version' "$manifest")
+if jq -e '.project | has("root")' "$manifest" >/dev/null; then
+  root=$(jq -r '.project.root' "$manifest")
+else
+  # Expanded by bundle_expand_home. A literal tilde is the manifest default.
+  # shellcheck disable=SC2088
+  root="~/Work"
+fi
+root=$(bundle_expand_home "$root")
+if [[ $root != /* ]]; then
+  root="$HOME/$root"
+fi
+root=$(realpath -m -- "$root")
+bundle_under_home "$root" || bundle_fail "project root must be under your home directory"
+
+project_dir="$root/$project_name"
+[[ ! -e $project_dir ]] || bundle_fail "project already exists: $project_dir"
+
+mkdir -p -- "$project_dir"
+while IFS= read -r folder; do
+  [[ -n $folder ]] || continue
+  bundle_safe_rel "$folder" || bundle_fail "invalid layout folder '$folder'"
+  mkdir -p -- "$project_dir/$folder"
+done < <(jq -r '.project.layout[]' "$manifest")
+
+jq -n \
+  --arg bundle_id "$bundle_id" \
+  --arg version "$version" \
+  --arg created_at "$(date -u +%FT%TZ)" \
+  '{bundle_id: $bundle_id, version: $version, created_at: $created_at}' \
+  >"$project_dir/.omarchy-project"
+
+echo "Created $project_dir"
+
+if ! jq -e '.project | has("create")' "$manifest" >/dev/null; then
+  exit 0
+fi
+
+script_rel=$(jq -r '.project.create' "$manifest")
+bundle_safe_rel "$script_rel" || bundle_fail "invalid create script '$script_rel'"
+script="$bundle_dir/$script_rel"
+[[ -f $script ]] || bundle_fail "create script not found: $script_rel"
+
+echo
+echo "Create script: $script_rel"
+echo "-----"
+cat -- "$script"
+echo "-----"
+
+run_script=0
+if bundle_interactive; then
+  if gum confirm "Run this create script in $project_dir?"; then
+    run_script=1
+  fi
+fi
+
+if (( run_script == 0 )); then
+  echo "Not running the create script without confirmation."
+  exit 0
+fi
+
+echo "Running create script."
+(
+  cd -- "$project_dir" || exit 1
+  PROJECT_DIR="$project_dir" BUNDLE_DIR="$bundle_dir" bash -- "$script"
+)

@@ -72,6 +72,17 @@ while (( $# > 0 )); do
     ASSUME_YES=1
     shift
     ;;
+  --)
+    shift
+    if (( $# > 1 )); then
+      fail "unexpected argument: $2"
+    fi
+    if (( $# == 1 )); then
+      [[ -z $url ]] || fail "unexpected argument: $1"
+      url="$1"
+    fi
+    break
+    ;;
   -h | --help)
     echo "Usage: omarchy plugin add [git-url] [--enable] [--yes]"
     exit 0

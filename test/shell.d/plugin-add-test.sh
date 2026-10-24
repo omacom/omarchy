@@ -138,6 +138,18 @@ for bad in "-oProxyCommand=x" "--upload-pack=x"; do
 done
 pass "plugin add rejects option-shaped URLs before cloning"
 
+# `--` ends option parsing. The operand is still a URL, so a dash-shaped
+# operand is refused by the guard before clone.
+rm -f "$clone_marker"
+output=$(HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$guard_stubs:$ROOT/bin:$PATH" \
+  omarchy-plugin-add --yes -- "-oProxyCommand=x" 2>&1) &&
+  fail "plugin add rejects an option-shaped URL after --" "$output"
+grep -qF "names a git option or transport helper" <<<"$output" ||
+  fail "plugin add names the guard rejection after --" "$output"
+[[ ! -e $clone_marker ]] ||
+  fail "plugin add reached git clone for an option-shaped URL after --"
+pass "plugin add accepts -- and still rejects an option-shaped URL"
+
 # The guard's leading-dash arm is only reachable through `gum input`: argv
 # dashes die in the option parser first. interactive() requires a TTY on stdin
 # and stdout, so run this one case on a pty via util-linux `script -qec` (the

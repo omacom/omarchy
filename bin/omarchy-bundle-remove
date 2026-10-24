@@ -1,0 +1,274 @@
+#!/bin/bash
+
+# omarchy:summary=Remove an installed Omarchy bundle
+# omarchy:group=bundle
+# omarchy:args=<id> [--dry-run] [--yes]
+# omarchy:examples=omarchy bundle remove web-developer
+
+set -euo pipefail
+
+BUNDLE_CMD=omarchy-bundle-remove
+BUNDLE_ASSUME_YES=0
+# shellcheck source=omarchy-bundle-lib
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/omarchy-bundle-lib"
+
+dry_run=0
+bundle_id=""
+
+while (( $# > 0 )); do
+  case "$1" in
+  --dry-run)
+    dry_run=1
+    shift
+    ;;
+  --yes | -y)
+    BUNDLE_ASSUME_YES=1
+    shift
+    ;;
+  -h | --help)
+    cat <<USAGE
+Usage: omarchy bundle remove <id> [--dry-run] [--yes]
+
+Drops this bundle's ownership. A package, plugin, skill link, or config
+file is removed only when no other bundle owns it, it was not yours
+before any bundle, and you did not change it after install.
+USAGE
+    exit 0
+    ;;
+  -*)
+    bundle_fail "unknown remove option: $1"
+    ;;
+  *)
+    [[ -z $bundle_id ]] || bundle_fail "unexpected argument: $1"
+    bundle_id="$1"
+    shift
+    ;;
+  esac
+done
+
+if (( dry_run == 0 )); then
+  bundle_ledger_lock
+fi
+ledger=$(bundle_ledger_read)
+
+if [[ -z $bundle_id ]]; then
+  bundle_interactive || bundle_fail "a bundle id is required"
+  bundle_id=$(jq -r '.bundles | keys[]' <<<"$ledger" | sort | gum choose --header "Remove which bundle?") || bundle_fail "cancelled"
+  [[ -n $bundle_id ]] || bundle_fail "nothing selected"
+fi
+
+bundle_valid_id "$bundle_id" || bundle_fail "invalid bundle id '$bundle_id'"
+jq -e --arg id "$bundle_id" '.bundles[$id] != null' <<<"$ledger" >/dev/null \
+  || bundle_fail "bundle '$bundle_id' is not installed"
+
+name=$(jq -r --arg id "$bundle_id" '.bundles[$id].name' <<<"$ledger")
+version=$(jq -r --arg id "$bundle_id" '.bundles[$id].version' <<<"$ledger")
+
+plan=$(mktemp)
+trap 'rm -f -- "$plan"' EXIT
+jq -n '{packages:[], plugins:[], skills:[], configs:[]}' >"$plan"
+
+jq -c --arg id "$bundle_id" '
+  .packages | to_entries[] | select(.value.owners | index($id) != null) |
+  {name: .key, user_owned: .value.user_owned, owners: (.value.owners | length), source: (.value.source // "repo")}
+' <<<"$ledger" | while IFS= read -r row; do
+  name_item=$(jq -r '.name' <<<"$row")
+  user_owned=$(jq -r '.user_owned' <<<"$row")
+  owners=$(jq -r '.owners' <<<"$row")
+  source=$(jq -r '.source' <<<"$row")
+  if (( owners > 1 )); then
+    action=keep
+    note="kept, still owned by another bundle"
+  elif [[ $user_owned == true ]]; then
+    action=release
+    note="kept, installed by you"
+  else
+    action=drop
+    note="remove"
+  fi
+  jq --arg name "$name_item" --arg action "$action" --arg note "$note" --arg source "$source" \
+    --argjson user_owned "$user_owned" \
+    '.packages += [{name:$name, action:$action, note:$note, user_owned:$user_owned, source:$source}]' "$plan" >"$plan.next"
+  mv -f -- "$plan.next" "$plan"
+done
+
+jq -c --arg id "$bundle_id" '
+  .plugins | to_entries[] | select(.value.owners | index($id) != null) |
+  {id: .key, user_owned: .value.user_owned, owners: (.value.owners | length)}
+' <<<"$ledger" | while IFS= read -r row; do
+  plugin_id=$(jq -r '.id' <<<"$row")
+  user_owned=$(jq -r '.user_owned' <<<"$row")
+  owners=$(jq -r '.owners' <<<"$row")
+  if (( owners > 1 )); then
+    action=keep
+    note="kept, still owned by another bundle"
+  elif [[ $user_owned == true ]]; then
+    action=release
+    note="kept, installed by you"
+  else
+    action=drop
+    note="remove"
+  fi
+  jq --arg id "$plugin_id" --arg action "$action" --arg note "$note" --argjson user_owned "$user_owned" \
+    '.plugins += [{id:$id, action:$action, note:$note, user_owned:$user_owned}]' "$plan" >"$plan.next"
+  mv -f -- "$plan.next" "$plan"
+done
+
+jq -c --arg id "$bundle_id" '
+  .skills | to_entries[] | select(.value.owners | index($id) != null) |
+  {path: .key, user_owned: .value.user_owned, owners: (.value.owners | length)}
+' <<<"$ledger" | while IFS= read -r row; do
+  path=$(jq -r '.path' <<<"$row")
+  user_owned=$(jq -r '.user_owned' <<<"$row")
+  owners=$(jq -r '.owners' <<<"$row")
+  if (( owners > 1 )); then
+    action=keep
+    note="kept, still owned by another bundle"
+  elif [[ $user_owned == true ]]; then
+    action=release
+    note="kept, yours"
+  else
+    action=drop
+    note="unlink"
+  fi
+  jq --arg path "$path" --arg action "$action" --arg note "$note" --argjson user_owned "$user_owned" \
+    '.skills += [{path:$path, action:$action, note:$note, user_owned:$user_owned}]' "$plan" >"$plan.next"
+  mv -f -- "$plan.next" "$plan"
+done
+
+jq -c --arg id "$bundle_id" '
+  .configs | to_entries[] | select(.value.owners | index($id) != null) |
+  {
+    target: .key,
+    user_owned: .value.user_owned,
+    owners: (.value.owners | length),
+    sha256: (.value.sha256 // "")
+  }
+' <<<"$ledger" | while IFS= read -r row; do
+  target=$(jq -r '.target' <<<"$row")
+  user_owned=$(jq -r '.user_owned' <<<"$row")
+  owners=$(jq -r '.owners' <<<"$row")
+  expected=$(jq -r '.sha256' <<<"$row")
+  if (( owners > 1 )); then
+    action=keep
+    note="kept, still owned by another bundle"
+  elif [[ $user_owned == true ]]; then
+    action=release
+    note="kept, yours"
+  elif [[ -L $target || ( -e $target && ! -f $target ) ]]; then
+    action=release
+    note="kept, you changed it"
+  elif [[ -f $target ]]; then
+    current=$(bundle_file_sha256 "$target")
+    if [[ -n $expected && $current == "$expected" ]]; then
+      action=drop
+      note="remove"
+    else
+      action=release
+      note="kept, you changed it"
+    fi
+  else
+    action=drop
+    note="remove"
+  fi
+  jq --arg target "$target" --arg action "$action" --arg note "$note" --argjson user_owned "$user_owned" \
+    '.configs += [{target:$target, action:$action, note:$note, user_owned:$user_owned}]' "$plan" >"$plan.next"
+  mv -f -- "$plan.next" "$plan"
+done
+
+echo "Bundle: $name ($bundle_id) $version"
+echo
+echo "Packages:"
+jq -r 'if ([.packages[] | select(.source != "aur")] | length) == 0 then "  (none)" else .packages[] | select(.source != "aur") | "  \(if .action == "drop" then "-" else "=" end) \(.name)  (\(.note))" end' "$plan"
+echo
+echo "AUR packages:"
+jq -r 'if ([.packages[] | select(.source == "aur")] | length) == 0 then "  (none)" else .packages[] | select(.source == "aur") | "  \(if .action == "drop" then "-" else "=" end) \(.name)  (\(.note))" end' "$plan"
+echo
+echo "Plugins:"
+jq -r 'if (.plugins | length) == 0 then "  (none)" else .plugins[] | "  \(if .action == "drop" then "-" else "=" end) \(.id)  (\(.note))" end' "$plan"
+echo
+echo "Skills:"
+jq -r 'if (.skills | length) == 0 then "  (none)" else .skills[] | "  \(if .action == "drop" then "-" else "=" end) \(.path)  (\(.note))" end' "$plan"
+echo
+echo "Config:"
+jq -r 'if (.configs | length) == 0 then "  (none)" else .configs[] | "  \(if .action == "drop" then "-" else "=" end) \(.target)  (\(.note))" end' "$plan"
+
+if (( dry_run )); then
+  echo
+  echo "Dry run: nothing was removed."
+  exit 0
+fi
+
+bundle_confirm "Remove this bundle?" || bundle_fail "aborted"
+
+mapfile -t repo_drop < <(jq -r '.packages[] | select(.action == "drop" and .source != "aur") | .name' "$plan")
+mapfile -t aur_drop < <(jq -r '.packages[] | select(.action == "drop" and .source == "aur") | .name' "$plan")
+if (( ${#repo_drop[@]} > 0 || ${#aur_drop[@]} > 0 )); then
+  bundle_protect_owned_packages "${repo_drop[@]}" "${aur_drop[@]}"
+fi
+if (( ${#repo_drop[@]} > 0 )); then
+  if ! omarchy-pkg-drop "${repo_drop[@]}"; then
+    echo "Could not remove ${repo_drop[*]}; leaving those packages installed." >&2
+  fi
+fi
+if (( ${#aur_drop[@]} > 0 )); then
+  if ! omarchy-pkg-aur-drop "${aur_drop[@]}"; then
+    echo "Could not remove ${aur_drop[*]}; leaving those packages installed." >&2
+  fi
+fi
+
+while IFS= read -r plugin_id; do
+  [[ -n $plugin_id ]] || continue
+  recorded=$(jq -r --arg id "$plugin_id" '.plugins[$id].commit // empty' <<<"$ledger")
+  if bundle_plugin_present "$plugin_id" && bundle_plugin_changed "$plugin_id" "$recorded"; then
+    echo "Keeping plugin $plugin_id; it has local changes."
+    continue
+  fi
+  if bundle_plugin_present "$plugin_id"; then
+    omarchy-plugin-remove --yes -- "$plugin_id"
+  fi
+done < <(jq -r '.plugins[] | select(.action == "drop") | .id' "$plan")
+
+while IFS= read -r path; do
+  [[ -n $path && -L $path ]] || continue
+  expected=$(jq -r --arg path "$path" '.skills[$path].target // empty' <<<"$ledger")
+  if [[ -n $expected && $(readlink -- "$path") == "$expected" ]]; then
+    rm -f -- "$path"
+  else
+    echo "Keeping skill link $path; it no longer points at the bundle."
+  fi
+done < <(jq -r '.skills[] | select(.action == "drop") | .path' "$plan")
+
+while IFS= read -r target; do
+  [[ -n $target && -f $target && ! -L $target ]] || continue
+  expected=$(jq -r --arg target "$target" '.configs[$target].sha256 // empty' <<<"$ledger")
+  current=$(sha256sum -- "$target" | awk '{print $1}')
+  if [[ -n $expected && $current == "$expected" ]]; then
+    rm -f -- "$target"
+  else
+    echo "Keeping $target; it changed during removal."
+  fi
+done < <(jq -r '.configs[] | select(.action == "drop") | .target' "$plan")
+
+bundle_root=$(bundle_data_root)
+[[ $bundle_root == /* && -n $bundle_id ]] || bundle_fail "refusing to remove an unset bundle directory"
+rm -rf -- "${bundle_root:?}/${bundle_id:?}"
+
+updated=$(jq -c --arg id "$bundle_id" '
+  def drop_owner:
+    with_entries(
+      if ((.value.owners | index($id)) != null) then
+        .value.owners |= map(select(. != $id))
+      else
+        .
+      end
+    )
+    | with_entries(select((.value.owners | length) > 0));
+  del(.bundles[$id])
+  | .packages |= drop_owner
+  | .plugins |= drop_owner
+  | .skills |= drop_owner
+  | .configs |= drop_owner
+' <<<"$ledger")
+bundle_ledger_write "$updated"
+echo "Removed $bundle_id."
