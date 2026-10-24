@@ -1,3 +1,5 @@
 window-padding-x = 0
 window-padding-y = 0
 window-padding-color = "extend-always"
+# Keep the screensaver opaque even when the user's config makes the terminal translucent.
+background-opacity = 1
