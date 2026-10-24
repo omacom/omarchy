@@ -338,6 +338,19 @@ attempt() {
   } >>"$tmp/output" 2>&1
 }
 
+# The scripted mode: the current and new passwords on stdin, no prompts.
+attempt_stdin() {
+  local crash_at=$1
+  shift
+  : >"$tmp/inputs"
+  echo 0 >"$tmp/steps"
+  echo "$crash_at" >"$tmp/crash-at"
+  : >"$tmp/trace"
+  {
+    printf '%s\n' "$@" | CRASH_AT=$crash_at bash -c 'TEST_PID=$$ exec bash "$0" --system-stdin' "$ROOT/bin/omarchy-drive-password"
+  } >>"$tmp/output" 2>&1
+}
+
 consistent() {
   local context=$1 password=$2 other=$old_password
   [[ $password == "$old_password" ]] && other=$new_password
@@ -429,6 +442,20 @@ for run_spec in "${matrix[@]}"; do
   ! grep -q 'luksChangeKey\|chpasswd' "$tmp/sudo-calls" && [[ ! -e $journal ]] || fail "$backend: a wrong current password changes nothing"
   [[ -n $(opens "$system" "$old_password") && $(account owner) == "$old_password" ]] || fail "$backend: a wrong current password leaves the disk and accounts"
   pass "$backend: a wrong current password is refused before anything changes"
+
+  fixture
+  attempt_stdin 0 "$old_password" "$new_password" || fail "$backend: --system-stdin changes the system disk password" "$(cat "$tmp/output")"
+  consistent "scripted" "$new_password"
+  [[ ! -s $tmp/prompts && ! -e $tmp/offered ]] || fail "$backend: --system-stdin asks nothing and offers no drive" "$(cat "$tmp/prompts")"
+  [[ $(opens "$data" "$data_password") == "0" ]] || fail "$backend: --system-stdin leaves the data drive alone"
+  no_secrets "scripted"
+  pass "$backend: --system-stdin changes the system disk from stdin, with no prompts or drive choice"
+
+  fixture
+  if attempt_stdin 0 "not-the-password" "$new_password"; then fail "$backend: --system-stdin refuses a wrong current password"; fi
+  said "That password does not open $system."
+  [[ -n $(opens "$system" "$old_password") && ! -e $journal ]] || fail "$backend: --system-stdin with a wrong password changes nothing"
+  pass "$backend: --system-stdin refuses a wrong current password before anything changes"
 
   fixture ""
   attempt 0 "$old_password" "$new_password" "$new_password" || fail "$backend: a single-slot system disk changes" "$(cat "$tmp/output")"
@@ -535,6 +562,20 @@ unset TEST_CHANGE_PARTIAL TEST_KILL_FAIL
 attempt 0 "$old_password" "$new_password" || fail "the rerun with the old password rolls back" "$(cat "$tmp/output")"
 consistent "rollback with the old password" "$old_password"
 pass "a rerun with the old password removes the half-added new key"
+
+fixture
+export TEST_CHANGE_PARTIAL=1 TEST_KILL_FAIL=1
+attempt 0 "$old_password" "$new_password" "$new_password" || true
+unset TEST_CHANGE_PARTIAL TEST_KILL_FAIL
+[[ -e $journal ]] || fail "an interrupted change keeps its journal"
+if attempt_stdin 0 "$old_password" "$new_password"; then fail "--system-stdin leaves an interrupted change to a person"; fi
+said "Run omarchy-drive-password to finish it first."
+[[ -e $journal ]] || fail "--system-stdin keeps the interrupted change's journal"
+pass "--system-stdin leaves an interrupted change for a person to finish"
+
+if output=$("$ROOT/bin/omarchy-drive-password" --bogus 2>&1); then fail "an unknown option is refused"; fi
+[[ $output == *"Usage: omarchy-drive-password [--system-stdin]"* ]] || fail "an unknown option is refused with the usage" "$output"
+pass "an unknown option is refused with the usage"
 
 # With both keys on the disk, the added slot is only removed or kept once the
 # new password opens it and the old password the old slot: a wrong new password

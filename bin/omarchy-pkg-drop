@@ -29,6 +29,9 @@ done
 if (( ${#installed[@]} > 0 )); then
   if (( EUID == 0 )); then
     pacman -Rns --noconfirm "${installed[@]}"
+  elif ! omarchy-sudo-allowed; then
+    echo "Only an administrator can remove software." >&2
+    exit 1
   else
     sudo pacman -Rns --noconfirm "${installed[@]}"
   fi

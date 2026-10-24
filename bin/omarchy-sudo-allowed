@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# omarchy:summary=Succeed when you're an administrator who can use sudo, fail otherwise
+# omarchy:hidden=true
+
+# Omarchy's administrators are the members of wheel: setup puts the owner there
+# and grants %wheel sudo (omarchy-provision-owner), and Omarchy's passwordless
+# rules name %wheel. Steps only an administrator can take ask here first, so
+# other accounts get a plain answer instead of a password prompt sudo refuses.
+#
+# This session's groups, not the account's configured ones: sudo goes by the
+# session's too, so a change to wheel takes effect at the next sign-in for both.
+
+if (( $# > 0 )); then
+  echo "Usage: omarchy-sudo-allowed" >&2
+  exit 2
+fi
+
+id -nG | tr ' ' '\n' | grep -qx wheel

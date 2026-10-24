@@ -27,6 +27,13 @@ exit 0
 FAKE
 chmod +x "$TMP_BIN/omarchy-theme-set-browser-policy"
 
+# The policy takes an administrator; the cases run as one unless they say so.
+cat > "$TMP_BIN/omarchy-sudo-allowed" <<'FAKE'
+#!/bin/bash
+[[ ${TEST_ADMIN:-yes} == "yes" ]]
+FAKE
+chmod +x "$TMP_BIN/omarchy-sudo-allowed"
+
 # A policy directory that already carries the target color, so the setter can
 # skip everything.
 policy_tmp="$TMPDIR/policies"
@@ -75,6 +82,19 @@ if [[ ! -e $CALL_LOG ]]; then
   fail "setter invoked the privileged writer when color.json mismatched"
 fi
 pass "setter invokes the privileged writer when color.json mismatches"
+
+# Only an administrator may write the machine-wide policy, so anyone else leaves
+# it alone instead of being asked for an administrator's password.
+rm -f "$CALL_LOG"
+HOME="$TMPDIR" PATH="$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" TEST_ADMIN=no \
+  OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" \
+  bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null ||
+  fail "setter fails for an account that isn't an administrator"
+
+if [[ -e $CALL_LOG ]]; then
+  fail "setter left the machine-wide policy to an administrator"
+fi
+pass "setter leaves the machine-wide policy alone for other accounts"
 
 # No managed policy dirs at all must not vacuously skip the writer.
 rm -f "$CALL_LOG"

@@ -90,6 +90,12 @@ esac
 SH
 chmod +x "$stub_bin/git"
 
+cat >"$stub_bin/omarchy-sudo-allowed" <<'SH'
+#!/bin/bash
+[[ ${TEST_ADMIN:-yes} == "yes" ]]
+SH
+chmod +x "$stub_bin/omarchy-sudo-allowed"
+
 run_checker() {
   OMARCHY_PATH="${TEST_OMARCHY_PATH:-/usr/share/omarchy}" \
     TEST_GIT_LOG="$git_log" \
@@ -211,3 +217,17 @@ grep -Fx 'omarchy-dev-checkout 1 new commit on origin/quattro' "$stdout" >/dev/n
   fail "update checker reports cached dev commits after a fetch failure" "$(cat "$stdout")"
 [[ ! -s $stderr ]] || fail "update checker keeps dev fetch failures quiet" "$(cat "$stderr")"
 pass "update checker uses cached dev state when fetching is unavailable"
+
+# Updates take an administrator, so the bar offers them to no one else, even
+# when one is waiting.
+: >"$git_log"
+if capture_checker "$stdout" "$stderr" TEST_ADMIN=no TEST_CHECKUPDATES=updates TEST_INSTALLED_PACKAGE=omarchy; then
+  status=0
+else
+  status=$?
+fi
+(( status == 1 )) || fail "update checker offers no update to an account that isn't an administrator"
+grep -Fx 'Omarchy updates are installed by an administrator' "$stdout" >/dev/null ||
+  fail "update checker says who installs updates" "$(cat "$stdout")"
+[[ ! -s $git_log ]] || fail "update checker doesn't fetch for an account that can't update"
+pass "update checker offers updates only to administrators"

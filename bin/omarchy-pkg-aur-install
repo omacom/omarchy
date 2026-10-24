@@ -17,14 +17,21 @@ fzf_args=(
   --color 'pointer:green,marker:green'
 )
 
-pkg_names=$(yay -Slqa | fzf "${fzf_args[@]}")
+# Only an administrator can change the system's packages. Say so before the
+# picker rather than after, when sudo would refuse.
+if ! omarchy-sudo-allowed; then
+  echo "Only an administrator can install software." >&2
+  omarchy-show-done 1
+else
+  pkg_names=$(yay -Slqa | fzf "${fzf_args[@]}")
 
-if [[ -n $pkg_names ]]; then
-  # Add aur/ prefix to each package name and convert to space-separated for yay
-  source omarchy-sudo-keepalive
+  if [[ -n $pkg_names ]]; then
+    # Add aur/ prefix to each package name and convert to space-separated for yay
+    source omarchy-sudo-keepalive
 
-  echo "$pkg_names" | sed 's/^/aur\//' | tr '\n' ' ' | xargs yay -S --noconfirm
-  code=$?
-  sudo updatedb --prune-bind-mounts=no --add-prunepaths=/.snapshots
-  omarchy-show-done $code
+    echo "$pkg_names" | sed 's/^/aur\//' | tr '\n' ' ' | xargs yay -S --noconfirm
+    code=$?
+    sudo updatedb --prune-bind-mounts=no --add-prunepaths=/.snapshots
+    omarchy-show-done $code
+  fi
 fi

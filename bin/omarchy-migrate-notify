@@ -4,35 +4,28 @@
 
 set -euo pipefail
 
-update_in_progress() {
-  local lock="${XDG_RUNTIME_DIR:-}/omarchy-update.lock"
+# Never while an update or migration holds a lock this account takes: its own
+# update applies its migrations itself, and another administrator's would turn
+# a run away. Waiting instead of leaving keeps the prompt for migrations still
+# pending afterwards, such as a second administrator's own.
+while :; do
+  omarchy-update-lock wait
 
-  [[ -n ${XDG_RUNTIME_DIR:-} && -f $lock ]] || return 1
+  pending_migrations=$(omarchy-migrate --pending 2>/dev/null) || exit 0
+  pending_count=$(printf '%s\n' "$pending_migrations" | sed '/^[[:space:]]*$/d' | wc -l)
 
-  # flock -n only fails here when the lock is held, since the file is ours.
-  ! flock -n "$lock" true 2>/dev/null
-}
+  message=$(omarchy-i18n --count "$pending_count" migrate.clickToRun "$pending_count")
 
-if update_in_progress; then
-  exit 0
-fi
+  # This runs from omarchy-migrate-notify.service after graphical-session.target,
+  # but the target can be reached before the shell has claimed
+  # org.freedesktop.Notifications. Without the wait the toast is sent into the
+  # void and the user never learns about their pending migrations.
+  omarchy-notification-wait || true
 
-pending_migrations=$(omarchy-migrate --pending 2>/dev/null) || exit 0
-pending_count=$(printf '%s\n' "$pending_migrations" | sed '/^[[:space:]]*$/d' | wc -l)
-
-message=$(omarchy-i18n --count "$pending_count" migrate.clickToRun "$pending_count")
-
-# This runs from omarchy-migrate-notify.service after graphical-session.target,
-# but the target can be reached before the shell has claimed
-# org.freedesktop.Notifications. Without the wait the toast is sent into the
-# void and the user never learns about their pending migrations.
-omarchy-notification-wait || true
-
-# That wait is long enough for an update to start underneath us, and the count
-# above is already stale by then, so re-check before spending the toast.
-if update_in_progress; then
-  exit 0
-fi
+  # That wait is long enough for an update to start underneath us, and the count
+  # above is already stale by then, so wait it out and count again.
+  omarchy-update-lock busy || break
+done
 
 # The shell keeps the click command with the toast, so this oneshot can hand the
 # invitation over and exit instead of staying activated until it is answered.

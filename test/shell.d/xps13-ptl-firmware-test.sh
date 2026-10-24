@@ -47,6 +47,11 @@ else
   touch "$TEST_ALIAS_FILE"
 fi
 SH
+# Installing takes an administrator; hardware setup runs as one.
+cat >"$test_tmp/bin/omarchy-sudo-allowed" <<'SH'
+#!/bin/bash
+exit 0
+SH
 cat >"$test_tmp/bin/omarchy-state" <<'SH'
 #!/bin/bash
 printf 'state %s\n' "$*" >>"$TEST_LOG"

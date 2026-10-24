@@ -80,7 +80,24 @@ wait_for_pacman_transaction() {
   exit 0
 }
 
+# An administrator's run holds the machine-wide update lock, so two
+# administrators' updates or migrations never run the same migration at once:
+# both could rebuild one boot image or add one line twice. omarchy update
+# already holds it when it runs this. Other accounts' migrations change only
+# their own files and lock nothing, as before.
+if omarchy-update-lock shared && ! omarchy-update-lock held; then
+  exec omarchy-update-lock run "$0"
+fi
+
 wait_for_pacman_transaction
+
+# An account that isn't an administrator applies only its own part of each
+# migration. The machine-wide steps are an administrator's, done by their own
+# run of the same migration, so here sudo and pkexec run nothing and report
+# success instead of asking for a password sudo would refuse.
+if ! omarchy-sudo-allowed; then
+  PATH="$OMARCHY_PATH/default/omarchy/migrate-limited:$PATH"
+fi
 
 mkdir -p "$STATE_DIR"
 [[ -d $MIGRATIONS_DIR ]] || exit 0

@@ -151,6 +151,12 @@ cat >"$setter_bin/omarchy-cmd-present" <<'SH'
 exit 1
 SH
 chmod +x "$setter_bin/omarchy-cmd-present"
+# Writing the policy takes an administrator, which the setter runs as here.
+cat >"$setter_bin/omarchy-sudo-allowed" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$setter_bin/omarchy-sudo-allowed"
 
 setter_home="$test_tmp/home"
 theme_dir="$setter_home/.local/state/omarchy/current/theme"

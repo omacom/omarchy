@@ -4,7 +4,12 @@
 # omarchy:args=<packages...>
 
 if omarchy-pkg-missing "$@"; then
-  yay -S --noconfirm --needed -- "$@" || exit 1
+  if ! omarchy-sudo-allowed; then
+    echo "Only an administrator can install software." >&2
+    exit 1
+  else
+    yay -S --noconfirm --needed -- "$@" || exit 1
+  fi
 fi
 
 for pkg in "$@"; do

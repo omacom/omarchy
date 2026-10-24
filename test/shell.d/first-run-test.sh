@@ -91,8 +91,13 @@ cat >"$mock_bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_CALLS"
 SH
+# Only an administrator is offered an update; these cases run as one.
+cat >"$mock_bin/omarchy-sudo-allowed" <<'SH'
+#!/bin/bash
+exit 0
+SH
 chmod +x "$mock_bin/nm-online" "$mock_bin/omarchy-update-available" \
-  "$mock_bin/checkupdates" "$mock_bin/omarchy-notification-send"
+  "$mock_bin/checkupdates" "$mock_bin/omarchy-notification-send" "$mock_bin/omarchy-sudo-allowed"
 
 # Arguments: OMARCHY_PATH, omarchy-update-available's exit status, then
 # checkupdates'.

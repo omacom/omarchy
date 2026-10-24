@@ -42,9 +42,12 @@ announce_network() {
     nm-online -q -t 3600 || return
   fi
 
-  # A fresh install from current media has nothing to update, and a toast
-  # that leads nowhere teaches people to dismiss the next one.
-  update_pending && notify_update
+  # Only an administrator can install updates, so only they are asked to. A
+  # fresh install from current media has nothing to update, and a toast that
+  # leads nowhere teaches people to dismiss the next one.
+  if omarchy-sudo-allowed && update_pending; then
+    notify_update
+  fi
 }
 
 # Detached, so a slow or absent connection never holds up the rest of first run.

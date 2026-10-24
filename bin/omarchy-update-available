@@ -4,6 +4,12 @@
 
 set -euo pipefail
 
+# Only an administrator can install updates, so no one else is offered them.
+if ! omarchy-sudo-allowed; then
+  echo "Omarchy updates are installed by an administrator"
+  exit 1
+fi
+
 updates=()
 
 if [[ $OMARCHY_PATH != "/usr/share/omarchy" ]]; then

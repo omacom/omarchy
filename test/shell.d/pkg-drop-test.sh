@@ -26,7 +26,13 @@ printf '%s\n' "$*" >"$TEST_TMP/pkg-drop-command"
 exit "${TEST_REMOVE_STATUS:-0}"
 EOF
 
-chmod +x "$mock_path/pacman" "$mock_path/sudo"
+# Removing packages takes an administrator; these cases run as one.
+cat >"$mock_path/omarchy-sudo-allowed" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+
+chmod +x "$mock_path/pacman" "$mock_path/sudo" "$mock_path/omarchy-sudo-allowed"
 
 PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" \
   "$ROOT/bin/omarchy-pkg-drop" exact-package virtual-package provider-package exact-package

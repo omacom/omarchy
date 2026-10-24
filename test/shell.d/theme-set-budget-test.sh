@@ -75,6 +75,8 @@ done
 # Never escalate: the browser policy hook would rewrite the system's policy.
 stub sudo 'exit 1'
 stub pkexec 'exit 1'
+# The switch runs as an administrator, so it reaches the browser policy hook.
+stub omarchy-sudo-allowed
 stub pgrep '[[ " $* " == *" hunk "* ]] || exit 1'
 stub tmux '[[ $1 == "list-sessions" ]] && printf "%s\n" one two three'
 stub code "[[ \$* == *--list-extensions* ]] && { sleep $STUB_COST; echo enkia.tokyo-night; }"

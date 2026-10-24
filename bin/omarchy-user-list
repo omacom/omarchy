@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# omarchy:summary=List login users and which are administrators
+# omarchy:args=[--json]
+
+set -euo pipefail
+
+json="false"
+
+while (( $# > 0 )); do
+  case "$1" in
+  --json)
+    json="true"
+    ;;
+  -h | --help)
+    echo "Usage: omarchy user list [--json]"
+    exit 0
+    ;;
+  *)
+    echo "omarchy-user-list: unknown option: $1" >&2
+    exit 1
+    ;;
+  esac
+  shift
+done
+
+# What counts as a login account and as an administrator (a member of wheel,
+# the group sudo and polkit trust) is defined once, with the other commands.
+source "$OMARCHY_PATH/install/helpers/user-accounts.sh"
+
+# One call each for sessions and last logins, so the cost stays flat however
+# many accounts there are. Signed in is a session open now (active or online),
+# not a lingering account's services.
+signed_in=" $(loginctl list-users --no-pager --json=short 2>/dev/null |
+  jq -r '.[] | select(.state == "active" or .state == "online") | .user' 2>/dev/null | tr '\n' ' ' || true) "
+last_logins=$(lastlog2 2>/dev/null | awk 'NR > 1 && NF >= 7 {
+  date = $(NF-5); for (i = NF-4; i <= NF; i++) date = date " " $i
+  print $1 "\t" date
+}' || true)
+
+rows=$(
+  user_accounts_login_users | while IFS=$'\t' read -r name uid _; do
+    admin="false"
+    user_accounts_is_admin "$name" && admin="true"
+
+    online="false"
+    [[ $signed_in == *" $name "* ]] && online="true"
+
+    last=$(awk -F '\t' -v user="$name" '$1 == user { print $2; exit }' <<<"$last_logins")
+    if [[ -n $last ]]; then
+      last=$(date -d "$last" '+%Y-%m-%dT%H:%M:%S%:z' 2>/dev/null || true)
+    fi
+
+    printf '%s\t%s\t%s\t%s\t%s\n' "$name" "$uid" "$admin" "$online" "$last"
+  done | sort -t $'\t' -k1,1
+)
+
+if [[ $json == "true" ]]; then
+  jq -R -s '
+    split("\n") | map(select(length > 0) | split("\t") | {
+      user: .[0],
+      uid: (.[1] | tonumber),
+      admin: (.[2] == "true"),
+      signed_in: (.[3] == "true"),
+      last_login: (if .[4] == "" then null else .[4] end)
+    })
+  ' <<<"$rows"
+else
+  awk -F '\t' '
+    function yesno(value) { return value == "true" ? "yes" : "no" }
+    BEGIN { printf "%-24s %-6s %-10s %s\n", "USER", "ADMIN", "SIGNED IN", "LAST LOGIN" }
+    NF {
+      last = $5 == "" ? "never" : substr($5, 1, 10) " " substr($5, 12, 5)
+      printf "%-24s %-6s %-10s %s\n", $1, yesno($3), yesno($4), last
+    }
+  ' <<<"$rows"
+fi

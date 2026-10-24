@@ -89,7 +89,12 @@ cat >"$mock_bin/yay" <<'STUB'
   printf '\n'
 } >>"$OMARCHY_TEST_PACKAGE_CALLS"
 STUB
-chmod +x "$mock_bin/omarchy-pkg-missing" "$mock_bin/sudo" "$mock_bin/yay"
+# Installing takes an administrator; these cases run as one.
+cat >"$mock_bin/omarchy-sudo-allowed" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+chmod +x "$mock_bin/omarchy-pkg-missing" "$mock_bin/sudo" "$mock_bin/yay" "$mock_bin/omarchy-sudo-allowed"
 
 : >"$package_calls"
 PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_PACKAGE_CALLS="$package_calls" \

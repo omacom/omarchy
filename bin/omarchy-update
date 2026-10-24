@@ -34,6 +34,13 @@ unset OMARCHY_SUDO_NO_UPDATE
 # Helpers that manage their own sudo boundary leave this authorization to us.
 export PATH OMARCHY_UPDATE_SUDO_SESSION=1
 
+# An update changes the whole machine, so it takes an administrator. Say so
+# before the log and the password prompt, rather than letting sudo refuse.
+if ! omarchy-sudo-allowed; then
+  echo "Omarchy updates are installed by an administrator." >&2
+  exit 1
+fi
+
 update_stay_awake_stopped=0
 sudo_keepalive_pid=""
 
@@ -85,7 +92,10 @@ cleanup_update() {
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "/tmp/omarchy-update.log"
+  # Per-user path: a shared /tmp/omarchy-update.log breaks the second account
+  # that updates, because with fs.protected_regular=1 nobody can append to a
+  # transcript another account owns (#15679). Same rule as the update lock.
+  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "${XDG_RUNTIME_DIR:-/tmp}/omarchy-update-$UID.log"
 fi
 
 if ! omarchy-update-lock held; then

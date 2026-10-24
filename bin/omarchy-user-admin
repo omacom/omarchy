@@ -1,0 +1,152 @@
+#!/bin/bash
+
+# omarchy:summary=Give a login user administrator rights or take them away
+# omarchy:args=[name] [on|off]
+# omarchy:examples=omarchy user admin alice on | omarchy user admin alice off
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# Like Omarchy's other commands, these run as you and ask for sudo themselves.
+# Under sudo or in a root shell the session's OMARCHY_PATH is gone, so say so
+# before anything needs it.
+if (( EUID == 0 )); then
+  echo "omarchy-user-admin: run this as your user, not as root; it asks for sudo when it needs it" >&2
+  exit 1
+fi
+
+source "$OMARCHY_PATH/install/helpers/user-accounts.sh"
+
+name=""
+state=""
+
+fail() {
+  echo "omarchy-user-admin: $*" >&2
+  exit 1
+}
+
+interactive() {
+  [[ -t 0 && -t 1 ]]
+}
+
+# By position: the name, then on or off. Both are valid names too, so the
+# first word is always the name.
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help)
+    echo "Usage: omarchy user admin [name] [on|off]"
+    exit 0
+    ;;
+  -*)
+    fail "unknown option: $1"
+    ;;
+  *)
+    if [[ -z $name ]]; then
+      name="$1"
+    elif [[ -z $state && ( $1 == "on" || $1 == "off" ) ]]; then
+      state="$1"
+    else
+      fail "usage: omarchy user admin [name] [on|off]"
+    fi
+    ;;
+  esac
+  shift
+done
+
+self=$(user_accounts_self)
+omarchy-sudo-allowed || fail "only an administrator can change administrator rights"
+
+if [[ -z $name ]]; then
+  interactive || fail "a name is required (e.g. omarchy user admin alice on)"
+  name=$(user_accounts_login_users | cut -f1 | sort |
+    gum filter --placeholder "$(omarchy-i18n user.adminWhich)") || fail "cancelled"
+  [[ -n $name ]] || fail "nothing selected"
+fi
+
+getent passwd "$name" >/dev/null || fail "there is no user '$name'"
+user_accounts_is_login_user "$name" || fail "'$name' is a system account, not a login user"
+
+if user_accounts_is_admin "$name"; then
+  current="on"
+else
+  current="off"
+fi
+
+if [[ -z $state ]]; then
+  interactive || fail "say on or off (e.g. omarchy user admin $name on)"
+  if [[ $current == "on" ]]; then
+    gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n user.takeAdminAway "$name")" || fail "cancelled"
+    state="off"
+  else
+    gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n user.giveAdmin "$name")" || fail "cancelled"
+    state="on"
+  fi
+fi
+
+if [[ $state == "off" && $current == "off" ]]; then
+  echo "$name isn't an administrator."
+  exit 0
+fi
+
+[[ $state == "on" || $name != "$self" ]] || fail "you can't take away your own administrator rights; ask another administrator"
+
+as_root true || fail "couldn't get administrator rights (sudo)"
+user_accounts_lock || fail "another account change is in progress; try again when it's done"
+# Another command may have changed the account while this one waited for sudo
+# or the lock: what the question and checks above saw must still hold.
+getent passwd "$name" >/dev/null || fail "there is no user '$name'"
+if user_accounts_is_admin "$name"; then
+  now="on"
+else
+  now="off"
+fi
+[[ $now == "$current" ]] || fail "'$name' changed while this was waiting; run it again"
+
+if [[ $state == "off" ]]; then
+  other_admins=$(user_accounts_admins | grep -vxF -- "$name" || true)
+  [[ -n $other_admins ]] || fail "'$name' is the last administrator; make someone else an administrator first"
+  # Membership through the primary group can't be dropped with gpasswd.
+  wheel_gid=$(getent group wheel | cut -d: -f3)
+  if [[ $(getent passwd "$name" | cut -d: -f4) == "$wheel_gid" ]]; then
+    fail "wheel is $name's primary group; change it first (sudo usermod -g $name $name)"
+  fi
+fi
+
+if [[ $state == "on" ]]; then
+  # Also for a wheel member: wheel alone gives no sudo on an install that
+  # granted it only by name.
+  user_accounts_ensure_wheel_sudo || fail "couldn't give the wheel group sudo"
+  if [[ $current == "on" ]]; then
+    echo "$name is already an administrator."
+  else
+    as_root gpasswd -a "$name" wheel >/dev/null
+    user_accounts_log "login user '$name' made an administrator by $self"
+    echo "$name is now an administrator. It takes effect the next time they log in."
+  fi
+else
+  # The grants go before wheel membership does: a demotion that stops leaves an
+  # administrator through wheel, and running it again finishes.
+  user_accounts_drop_installer_grants "$name" && user_accounts_drop_passwordless_grants "$name" "$(getent passwd "$name" | cut -d: -f3)" ||
+    fail "couldn't remove the sudo grants naming '$name', so they're still an administrator; run this again to finish"
+  as_root gpasswd -d "$name" wheel >/dev/null
+  user_accounts_log "administrator rights taken from login user '$name' by $self"
+  if user_accounts_has_full_sudo "$name"; then
+    fail "$name is out of wheel, but another sudo rule still gives them full sudo; see sudo -l -U $name"
+  fi
+  # Sudoless Docker (omarchy-setup-security-sudoless-docker) is root without a
+  # password, and left as it is, like a hand-written sudo rule.
+  if user_accounts_in_group "$name" docker; then
+    fail "$name is out of wheel, but still in the docker group, which gives root without a password; take them out with sudo gpasswd -d $name docker"
+  fi
+  echo "$name is no longer an administrator."
+  # Programs keep the groups they started with, so sudo still works in a
+  # session that is already open.
+  if user_accounts_has_programs "$name"; then
+    echo "$name has programs running, and they keep sudo until $name logs out."
+    if interactive && gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n user.signOutNow "$name")"; then
+      user_accounts_sign_out "$name" || fail "some of $name's programs are still running and keep sudo"
+      user_accounts_log "login user '$name' signed out by $self after losing administrator rights"
+      echo "Signed $name out."
+    fi
+  fi
+fi
