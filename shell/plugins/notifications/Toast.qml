@@ -125,12 +125,11 @@ Item {
     return out
   }
 
-  // Marks on the headline rather than buttons: buttons cost height, and a
-  // collapsed deck draws every card at the tallest one's height.
+  // Marks on the headline. Buttons say for themselves that a card can be
+  // acted on; a verification code is marked even where they are hidden.
   readonly property var marks: {
     var out = []
     if (String(row.code || "")) out.push("\u{f0306}")
-    if (actions.length > 0 || execActions.length > 0) out.push("\u{f0cfd}")
     return out
   }
 

@@ -177,7 +177,7 @@ omarchy-notification-send "Screen recording saved" "$name" \
 
 The two halves follow the click-command rule. An action's own words are literals written at the call site, so they can end at the next `--action`, `--with` or `--exec` without being mistaken for data. Untrusted data goes once, after `--with`, which takes the rest of the line and is appended to every action's argv: a filename that reads `--action` stays part of the filename. Options go before the first `--action`, as anything after it is an action's word.
 
-The buttons ride as the `omarchy-actions` hint (`[{"label", "argv"}]`, each argv checked like `omarchy-exec-argv`), and the first action's argv is also set as the click command. Like the click, they are not libnotify actions: the shell runs them itself and stores them with the row, so the sender exits at once and a card restored after a shell restart, or brought back from history, keeps its buttons. The card shows them as a bar along its bottom edge while it is the front card of its deck, or, once a deck is open, only while it is the card hovered or selected, with a mark beside the title the rest of the time.
+The buttons ride as the `omarchy-actions` hint (`[{"label", "argv"}]`, each argv checked like `omarchy-exec-argv`), and the first action's argv is also set as the click command. Like the click, they are not libnotify actions: the shell runs them itself and stores them with the row, so the sender exits at once and a card restored after a shell restart, or brought back from history, keeps its buttons. The card shows them as a bar along its bottom edge while it is the front card of its deck, or, once a deck is open, only while it is the card hovered or selected.
 
 ## Helper commands
 
