@@ -10,9 +10,12 @@ omarchy-shell lock lock >/dev/null
 # Set keyboard layout to default (first layout)
 hyprctl switchxkblayout all 0 > /dev/null 2>&1
 
-# Ensure 1password is locked. Use timeout because `1password --lock` can
-# otherwise leave a full Electron helper tree running after each lock.
-if pgrep -x "1password" >/dev/null && omarchy-cmd-present 1password; then
+# Ensure 1password is locked, as it can't detect the Hyprland lock on its own,
+# unless its "Lock 1Password when computer locks" setting has been turned off.
+# Use timeout because `1password --lock` can otherwise leave a full Electron
+# helper tree running after each lock.
+if pgrep -x "1password" >/dev/null && omarchy-cmd-present 1password &&
+  [[ $(jq '."security.autolock.onDeviceLock"' "${XDG_CONFIG_HOME:-$HOME/.config}/1Password/settings/settings.json" 2>/dev/null || echo "unreadable") != "false" ]]; then
   (
     flock -n 9 || exit 0
     timeout --kill-after=1s 3s 1password --lock >/dev/null 2>&1 || true
