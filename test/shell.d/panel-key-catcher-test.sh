@@ -18,6 +18,6 @@ if [[ -z $qml_test_runner ]]; then
   exit 0
 fi
 
-output=$(QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software "$qml_test_runner" -input "$SHELL_TEST_DIR/panel-key-catcher/qml" -o -,txt 2>&1) ||
+output=$(QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software "$qml_test_runner" -import "$SHELL_TEST_DIR/panel-key-catcher/imports" -input "$SHELL_TEST_DIR/panel-key-catcher/qml" -o -,txt 2>&1) ||
   fail "panel key catcher passes modifiers with text keys" "$output"
 pass "panel key catcher passes modifiers with text keys"

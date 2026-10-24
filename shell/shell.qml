@@ -1900,16 +1900,18 @@ ShellRoot {
       return JSON.stringify(shell.bar && shell.bar.debugBarGeometry ? shell.bar.debugBarGeometry() : [])
     }
 
+    // Keybindings come through these four, so what they open or close
+    // jumps there rather than animating.
     function summon(id: string, payloadJson: string): string {
-      return shell.summon(id, payloadJson) ? "ok" : "unknown"
+      return Style.byKey(function() { return shell.summon(id, payloadJson) }) ? "ok" : "unknown"
     }
 
     function hide(id: string): void {
-      shell.hide(id)
+      Style.byKey(function() { shell.hide(id) })
     }
 
     function toggle(id: string, payloadJson: string): void {
-      shell.toggle(id, payloadJson)
+      Style.byKey(function() { shell.toggle(id, payloadJson) })
     }
 
     // A bar section's panels answer to their position as well as their id, so a
@@ -1921,7 +1923,7 @@ ShellRoot {
         ? shell.bar.panelWidgetIdAt(section, index)
         : ""
       if (!id) return "unknown"
-      shell.toggle(id, "{}")
+      Style.byKey(function() { shell.toggle(id, "{}") })
       return id
     }
 
