@@ -6,6 +6,8 @@ asusctl
 base
 base-devel
 broadcom-wl-dkms
+# BCM43228 (14e4:4359) b43 firmware. linux-firmware does not ship ucode30_mimo.fw.
+b43-firmware
 btrfs-progs
 dkms
 egl-wayland
