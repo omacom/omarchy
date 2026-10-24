@@ -108,7 +108,7 @@ registry("claude", [
 ], active="old", switch="auto", threshold=95)
 record = claude()
 expect("an account on its API key has no plan and nothing to sign in to",
-       [record["accounts"][1]["plan"], record["accounts"][1]["usageStatusText"], record["tierLabel"]], ["", "", ""], record)
+       [record["accounts"][1]["plan"], record["accounts"][1]["usageStatusText"], record["tierLabel"], record["ready"]], ["", "", "", True], record)
 (home() / ".claude.json").unlink()
 
 # A registry with one account changes nothing about the record.

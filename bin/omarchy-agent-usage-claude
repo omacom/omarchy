@@ -806,8 +806,10 @@ def main() -> int:
   record = base_record(
     AGENT_ID,
     AGENT_NAME,
-    # A configured key is a credential, which makes the agent in use too.
-    ready=number(stats.get("totalPrompts")) > 0 or bool(stats.get("modelUsage")) or len(limits["limits"]) > 0 or bool(limits.get("apiKey")),
+    # A configured key is a credential, and so is each registered account, which
+    # makes the agent in use too.
+    ready=number(stats.get("totalPrompts")) > 0 or bool(stats.get("modelUsage")) or len(limits["limits"]) > 0
+    or bool(limits.get("apiKey")) or bool(accounts),
     hasLocalStats=True,
     tierLabel=plan,
     usageStatusText=limits["usageStatusText"],
