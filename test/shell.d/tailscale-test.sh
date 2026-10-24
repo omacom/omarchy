@@ -207,4 +207,15 @@ assertDeepEqual(
 
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
+
+assert(tailscale.allPollsSettled(1, false, 0, false, 0, false, 0), 'tailscale stands the poll watchdog down once its launch cycle has fully exited')
+assert(tailscale.allPollsSettled(1, false, 1, false, 1, false, 1), 'tailscale stands the poll watchdog down once its own launches have exited')
+assert(!tailscale.allPollsSettled(1, true, 1, false, 0, false, 0), 'tailscale keeps the poll watchdog armed while its own status launch is in flight')
+assert(!tailscale.allPollsSettled(1, false, 0, true, 1, false, 0), 'tailscale keeps the poll watchdog armed while its own exit-node launch is in flight')
+assert(!tailscale.allPollsSettled(1, false, 0, false, 0, true, 1), 'tailscale keeps the poll watchdog armed while its own accounts launch is in flight')
+assert(tailscale.allPollsSettled(1, true, 2, false, 0, true, 2), 'tailscale stands the poll watchdog down when only newer-cycle relaunches remain in flight')
+assert(!tailscale.allPollsSettled(2, true, 2, false, 0, false, 0), 'tailscale keeps the watchdog of its own cycle armed across overlapping older cycles')
+assertEqual(tailscale.oldestPollCycle(false, 1, false, 1, false, 1), 0, 'tailscale has no poll cycle to hand the watchdog to once nothing is in flight')
+assertEqual(tailscale.oldestPollCycle(true, 3, true, 2, false, 1), 2, 'tailscale hands the watchdog to the oldest poll cycle still in flight')
+
 JS
