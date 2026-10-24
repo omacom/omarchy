@@ -7,8 +7,9 @@ description: >
   Triggers: Hyprland, window rules, window behavior, animations, keybindings, monitors, gaps, borders,
   blur, opacity, omarchy-shell, bar, widgets, terminal config, themes, fonts, background,
   night light, idle, lock screen, screenshots, screen recording, reminders, layer rules, workspace
-  settings, display config, appearance changes, and user-facing omarchy commands. Excludes Omarchy
-  source development through `omarchy dev link` workflows.
+  settings, display config, appearance changes, user-facing omarchy commands, reboot, shutdown,
+  power off, halt, and systemctl reboot. Excludes Omarchy source development through
+  `omarchy dev link` workflows.
 ---
 
 # Omarchy Skill
@@ -207,6 +208,10 @@ omarchy system shutdown         # Shutdown
 omarchy system reboot           # Reboot
 ```
 
+`omarchy system reboot` and `omarchy system shutdown` schedule the action in the user systemd, show an on-screen notice, then close application windows. Use those. Do not run `systemctl reboot`, `reboot`, `shutdown`, or `poweroff` from an agent — they skip the notice and the window close, so the desktop sits on its last frame while systemd shuts down and the machine looks frozen. Do not wait for the session to die after scheduling the reboot.
+
+Do not `modprobe -r` in-use audio, GPU, or Wi-Fi drivers as a way to avoid a reboot. A module stuck in uninterruptible sleep (D-state) can stall shutdown the same way.
+
 **IMPORTANT:** Always run `omarchy debug` with `--no-sudo --print` flags to avoid interactive sudo prompts that will hang the terminal.
 
 ## Troubleshooting
@@ -274,3 +279,4 @@ This skill intentionally does not cover Omarchy source development. Do not use t
 - "Reset shell/bar to defaults" -> `omarchy refresh shell`
 - "Record my screen" -> `omarchy screenrecord --fullscreen`, then `omarchy screenrecord --stop-recording` (see `capture.md`)
 - "Report this bug to Omarchy" -> Gather diagnostics and a capture of the problem, then file it (see `contributing.md`)
+- "Reboot!" / "Restart the computer" -> `omarchy system reboot` (never `systemctl reboot`)
