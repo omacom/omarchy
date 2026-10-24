@@ -94,13 +94,17 @@ browser_bin="$TMPDIR/browser-bin"
 mkdir -p "$browser_bin"
 cat >"$browser_bin/ps" <<'FAKE'
 #!/bin/bash
+if [[ -n ${BROWSER_PROCESS_TABLE:-} ]]; then
+  printf '%s\n' "$BROWSER_PROCESS_TABLE"
+  exit 0
+fi
 printf '%s\n' \
   'chromium /usr/lib/chromium/chromium --type=renderer' \
   'chrome /opt/google/chrome/chrome' \
   'brave /opt/brave-origin-bin/brave --profile' \
   'bash bash -c pgrep -f brave'
 FAKE
-for command in chromium google-chrome microsoft-edge-stable brave brave-origin; do
+for command in chromium google-chrome microsoft-edge-stable brave brave-origin helium-browser; do
   printf '#!/bin/bash\nprintf "%%s\\n" "%s" >>"$REFRESH_LOG"\n' "$command" >"$browser_bin/$command"
 done
 # Only the stubs count as installed, so a real browser on the host, such as
@@ -124,6 +128,34 @@ refreshed=$(sort "$refresh_log" | tr '\n' ' ')
 [[ $refreshed == "brave brave-origin chromium google-chrome " ]] ||
   fail "setter refreshes exactly the running browsers (got: $refreshed)"
 pass "setter refreshes exactly the running browsers"
+
+# Helium's process is named helium, while Arch's launcher is helium-browser.
+# Log the arguments too: refreshing must not open a startup window.
+cat >"$browser_bin/helium-browser" <<'FAKE'
+#!/bin/bash
+printf '%s\n' "$*" >>"$REFRESH_LOG"
+FAKE
+
+refresh_helium() {
+  rm -f "$refresh_log"
+  HOME="$TMPDIR" PATH="$browser_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+    OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" REFRESH_LOG="$refresh_log" BROWSER_BIN="$browser_bin" \
+    BROWSER_PROCESS_TABLE="$1" bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null
+}
+
+refresh_helium $'helium /opt/helium-browser-bin/helium\nhelium /opt/helium-browser-bin/helium --type=renderer'
+[[ -f $refresh_log && $(<"$refresh_log") == "--refresh-platform-policy --no-startup-window" ]] ||
+  fail "setter refreshes a running Helium once without opening a window"
+pass "setter refreshes a running Helium once without opening a window"
+
+refresh_helium 'bash bash -c helium-browser'
+[[ ! -e $refresh_log ]] || fail "setter does not start an idle Helium mentioned in another process"
+pass "setter does not start an idle Helium mentioned in another process"
+
+rm "$browser_bin/helium-browser"
+refresh_helium 'helium /opt/helium-browser-bin/helium'
+[[ ! -e $refresh_log ]] || fail "setter skips Helium when its launcher is unavailable"
+pass "setter skips Helium when its launcher is unavailable"
 
 grep -q '<&0 &$' "$ROOT/bin/omarchy-theme-set-browser" ||
   fail "setter keeps stdin for the backgrounded policy writer"
