@@ -52,8 +52,32 @@ fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
 # and anything resolving "monospace" all read from here. This file is loaded
-# after the package-owned default, and prepend_first puts the chosen family at
-# the head of the list so it wins over the family that default prefers.
+# after the package-owned default assigns its generic monospace family.
+# The ui-monospace alias keeps its own first family, so it needs an explicit
+# match too. Preserve other named fonts unless they match the default family.
+default_mono_conf="$OMARCHY_PATH/default/fontconfig/conf.avail/50-omarchy.conf"
+default_mono_family="JetBrainsMono Nerd Font"
+if [[ -r $default_mono_conf ]]; then
+  extracted=$(
+    awk '
+      /<match target="pattern">/ { in_match=1; family_test=0; is_mono=0; assign=0 }
+      in_match && /<test name="family" qual="any">/ { family_test=1 }
+      in_match && family_test && /<string>monospace<\/string>/ { is_mono=1 }
+      /<\/test>/ { family_test=0 }
+      in_match && /<edit name="family" mode="assign"/ { assign=1 }
+      in_match && is_mono && assign && /<string>[^<]+<\/string>/ {
+        sub(/.*<string>/, "")
+        sub(/<\/string>.*/, "")
+        print
+        exit
+      }
+      /<\/edit>/ { assign=0 }
+      /<\/match>/ { in_match=0 }
+    ' "$default_mono_conf"
+  )
+  [[ -n $extracted ]] && default_mono_family=$extracted
+fi
+
 fontconfig_file="$HOME/.config/fontconfig/fonts.conf"
 mkdir -p "$(dirname "$fontconfig_file")"
 cat >"$fontconfig_file" <<XML
@@ -61,8 +85,16 @@ cat >"$fontconfig_file" <<XML
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
   <match target="pattern">
-    <test name="family" qual="any">
-      <string>monospace</string>
+    <test name="family" qual="first" compare="eq">
+      <string>$default_mono_family</string>
+    </test>
+    <edit name="family" mode="prepend_first" binding="strong">
+      <string>$font_name</string>
+    </edit>
+  </match>
+  <match target="pattern">
+    <test name="family" qual="first" compare="eq">
+      <string>ui-monospace</string>
     </test>
     <edit name="family" mode="prepend_first" binding="strong">
       <string>$font_name</string>
