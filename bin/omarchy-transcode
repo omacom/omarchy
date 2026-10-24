@@ -3,7 +3,7 @@
 # omarchy:group=transcode
 # omarchy:name=
 # omarchy:summary=Transcode pictures and videos for sharing
-# omarchy:args=[--path path] [input] [format] [resolution]
+# omarchy:args=[--path path] [input] [format] [resolution] | --batch <input...>
 # omarchy:examples=omarchy transcode|omarchy transcode --path ~/Downloads|omarchy transcode ~/Videos/demo.mov mp4 1080p|omarchy transcode ~/Pictures/background.heic jpg medium
 
 set -euo pipefail
@@ -12,12 +12,14 @@ usage() {
   cat <<'EOF'
 Usage:
   omarchy transcode [--path path] [input] [format] [resolution]
+  omarchy transcode --batch [--] <input...>
 
 With no input, pick a picture or video from ~/Pictures and ~/Videos,
 or only from --path when provided. Then pick the output format and resolution.
 
 Options:
   --path path  Limit interactive fuzzy file selection to this path
+  --batch      Process a selection, optionally reusing settings per source type
 
 Formats:
   Pictures: jpg, png
@@ -30,8 +32,7 @@ EOF
 }
 
 media_type() {
-  local mime
-  mime=$(file -b --mime-type "$1")
+  local mime="$1"
 
   case "$mime" in
   image/*) echo picture ;;
@@ -70,12 +71,13 @@ transcode_picture() {
     ;;
   esac
 
+  # JPG and PNG are still images: retain the first frame/page of a sequence.
   case "$format" in
   jpg)
-    magick "$input" -resize "$resize" -quality 85 -strip "$output"
+    magick "$input" -delete '1--1' -resize "$resize" -quality 85 -strip "$output"
     ;;
   png)
-    magick "$input" -resize "$resize" -strip -define png:compression-filter=5 \
+    magick "$input" -delete '1--1' -resize "$resize" -strip -define png:compression-filter=5 \
       -define png:compression-level=9 \
       -define png:compression-strategy=1 \
       -define png:exclude-chunk=all \
@@ -120,6 +122,28 @@ transcode_video() {
   esac
 }
 
+# Keep encoder output private until it is complete. The subshell owns its
+# temporary directory; cleanup must never remove the shared destination.
+encode_output() (
+  local type="$1" input="$2" format="$3" resolution="$4" output="$5"
+  local temporary_dir temporary_output
+  temporary_dir=$(mktemp -d -- "$(dirname -- "$output")/.omarchy-transcode.XXXXXX") || return $?
+  trap 'rm -rf -- "$temporary_dir"' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  temporary_output="$temporary_dir/$(basename -- "$output")"
+
+  if [[ $type == "video" ]]; then
+    transcode_video "$input" "$format" "$resolution" "$temporary_output" || return $?
+  else
+    transcode_picture "$input" "$format" "$resolution" "$temporary_output" || return $?
+  fi
+
+  # Stage beside the destination for a same-filesystem rename. Never replace a
+  # concurrent winner, and never fall back to copying a partial file into place.
+  mv --no-copy --update=none-fail -T -- "$temporary_output" "$output"
+)
+
 copy_to_clipboard() {
   local output="$1"
   local uri
@@ -128,12 +152,150 @@ copy_to_clipboard() {
   printf '%s\n' "$uri" | wl-copy --type text/uri-list
 }
 
+select_setting() {
+  local status=0
+  omarchy-menu-select "$@" || status=$?
+  # The menu uses 1 for cancellation and 2 for a shell/IPC failure.
+  if (( status == 1 )); then
+    return 130
+  else
+    return "$status"
+  fi
+}
+
+# Keep the chosen settings even if the encoder fails for the current file.
+selected_format=""
+selected_resolution=""
+apply_to_type=false
+
+transcode_file() {
+  local input="$1" format="$2" resolution="$3" mime="$4" reuse_label="${5:-}"
+  local type output selection glyph=
+  local -a menu_args=()
+  apply_to_type=false
+
+  type=$(media_type "$mime") || return 1
+  [[ -z $reuse_label ]] || menu_args=(-- --checkbox "$reuse_label" --width 460)
+
+  if [[ -z $format ]]; then
+    if [[ $type == "picture" ]]; then
+      format=$(select_setting "$(omarchy-i18n transcode.selectFormat)" jpg png) || return $?
+    else
+      format=$(select_setting "$(omarchy-i18n transcode.selectFormat)" mp4 gif) || return $?
+    fi
+  fi
+
+  # Picture qualities are words, so the menu shows them in the Omarchy language
+  # and maps the pick back to the value the transcoder takes.
+  local high medium low choice
+  high=$(omarchy-i18n transcode.qualityHigh)
+  medium=$(omarchy-i18n transcode.qualityMedium)
+  low=$(omarchy-i18n transcode.qualityLow)
+
+  if [[ -z $resolution ]]; then
+    if [[ $type == "picture" ]]; then
+      choice=$(select_setting "$(omarchy-i18n transcode.selectResolution)" "$high" "$medium" "$low" "${menu_args[@]}") || return $?
+      if [[ -n $reuse_label ]]; then
+        apply_to_type=$(jq -r '.checked' <<< "$choice")
+        choice=$(jq -r '.value' <<< "$choice")
+      fi
+      case $choice in
+        "$high") resolution=high ;;
+        "$medium") resolution=medium ;;
+        "$low") resolution=low ;;
+      esac
+    else
+      selection=$(select_setting "$(omarchy-i18n transcode.selectResolution)" 4k 1080p 720p "${menu_args[@]}") || return $?
+      if [[ -n $reuse_label ]]; then
+        apply_to_type=$(jq -r '.checked' <<< "$selection")
+        resolution=$(jq -r '.value' <<< "$selection")
+      else
+        resolution=$selection
+      fi
+    fi
+  fi
+
+  selected_format=$format
+  selected_resolution=$resolution
+  output=$(output_path "$input" "$format" "$resolution")
+  if [[ -e $output || -L $output ]]; then
+    printf 'Output already exists, skipping: %s\n' "$output" >&2
+    return 1
+  fi
+
+  local resolution_label=$resolution
+  case $resolution in
+    high) resolution_label=$high ;;
+    medium) resolution_label=$medium ;;
+    low) resolution_label=$low ;;
+  esac
+
+  if [[ $type == "video" ]]; then
+    glyph=
+    omarchy-notification-send -g  "$(omarchy-i18n transcode.working)" "$(omarchy-i18n transcode.workingBody "$(basename -- "$input")" "$format" "$resolution")"
+  fi
+
+  encode_output "$type" "$input" "$format" "$resolution" "$output" || return $?
+  copy_to_clipboard "$output" || return $?
+  omarchy-notification-send -g "$glyph" "$(omarchy-i18n transcode.done "$resolution_label" "$format")" "$(omarchy-i18n transcode.saved)"
+}
+
+transcode_batch() {
+  local input mime index label status failed=0
+  local -a inputs=("$@") mimes=()
+  local -A remaining=() formats=() resolutions=()
+
+  # Match detected source types, so JPEG aliases and uppercase extensions share
+  # settings, but a PNG with a misleading .heic filename does not.
+  for input in "${inputs[@]}"; do
+    if [[ -f $input ]] && mime=$(file -b --mime-type -- "$input") && media_type "$mime" >/dev/null; then
+      mimes+=("$mime")
+      remaining[$mime]=$(( ${remaining[$mime]:-0} + 1 ))
+    else
+      printf 'Cannot transcode: %s\n' "$input" >&2
+      mimes+=("")
+      failed=1
+    fi
+  done
+
+  for index in "${!inputs[@]}"; do
+    input=${inputs[index]}
+    mime=${mimes[index]}
+    [[ -n $mime ]] || continue
+    remaining[$mime]=$(( ${remaining[$mime]} - 1 ))
+    label=""
+    if [[ -z ${formats[$mime]:-} ]] && (( ${remaining[$mime]} > 0 )); then
+      label=$(omarchy-i18n transcode.applyToType "${mime#*/}")
+    fi
+    printf 'Transcoding %s\n' "$input"
+    status=0
+    transcode_file "$input" "${formats[$mime]:-}" "${resolutions[$mime]:-}" "$mime" "$label" || status=$?
+    # Cancel means cancel the selection, not open the next file's prompts.
+    if (( status == 130 )); then
+      return 130
+    elif (( status != 0 )); then
+      printf 'Failed to transcode: %s\n' "$input" >&2
+      if (( failed == 0 )); then
+        failed=$status
+      fi
+    fi
+    if [[ $apply_to_type == "true" ]]; then
+      formats[$mime]=$selected_format
+      resolutions[$mime]=$selected_resolution
+    fi
+  done
+  return "$failed"
+}
+
 main() {
   local input="" format="" resolution="" search_path=""
-  local type output positional=()
+  local batch=0 positional=()
 
   while (( $# > 0 )); do
     case "$1" in
+    --batch)
+      batch=1
+      ;;
     --path)
       shift
       (( $# > 0 )) || { echo "Missing value for --path" >&2; return 2; }
@@ -160,6 +322,16 @@ main() {
     shift
   done
 
+  if (( batch )); then
+    if [[ -n $search_path ]] || (( ${#positional[@]} == 0 )); then
+      echo "Usage: omarchy transcode --batch [--] <input...>" >&2
+      return 2
+    fi
+    transcode_batch "${positional[@]}"
+    return $?
+  fi
+
+  (( ${#positional[@]} <= 3 )) || { usage >&2; return 2; }
   input="${positional[0]:-}"
   format="${positional[1]:-}"
   resolution="${positional[2]:-}"
@@ -171,56 +343,9 @@ main() {
 
   [[ -n $input ]] || return 1
   [[ -f $input ]] || { echo "File not found: $input" >&2; return 1; }
-
-  type=$(media_type "$input")
-
-  if [[ -z $format ]]; then
-    if [[ $type == "picture" ]]; then
-      format=$(omarchy-menu-select "$(omarchy-i18n transcode.selectFormat)" jpg png)
-    else
-      format=$(omarchy-menu-select "$(omarchy-i18n transcode.selectFormat)" mp4 gif)
-    fi
-  fi
-
-  # Picture qualities are words, so the menu shows them in the Omarchy language
-  # and maps the pick back to the value the transcoder takes.
-  local high medium low choice
-  high=$(omarchy-i18n transcode.qualityHigh)
-  medium=$(omarchy-i18n transcode.qualityMedium)
-  low=$(omarchy-i18n transcode.qualityLow)
-
-  if [[ -z $resolution ]]; then
-    if [[ $type == "picture" ]]; then
-      choice=$(omarchy-menu-select "$(omarchy-i18n transcode.selectResolution)" "$high" "$medium" "$low")
-      case $choice in
-        "$high") resolution=high ;;
-        "$medium") resolution=medium ;;
-        "$low") resolution=low ;;
-      esac
-    else
-      resolution=$(omarchy-menu-select "$(omarchy-i18n transcode.selectResolution)" 4k 1080p 720p)
-    fi
-  fi
-
-  output=$(output_path "$input" "$format" "$resolution")
-
-  local resolution_label=$resolution
-  case $resolution in
-    high) resolution_label=$high ;;
-    medium) resolution_label=$medium ;;
-    low) resolution_label=$low ;;
-  esac
-
-  if [[ $type == "video" ]]; then
-    omarchy-notification-send -g  "$(omarchy-i18n transcode.working)" "$(omarchy-i18n transcode.workingBody "$(basename -- "$input")" "$format" "$resolution")"
-    transcode_video "$input" "$format" "$resolution" "$output"
-    copy_to_clipboard "$output"
-    omarchy-notification-send -g  "$(omarchy-i18n transcode.done "$resolution" "$format")" "$(omarchy-i18n transcode.saved)"
-  else
-    transcode_picture "$input" "$format" "$resolution" "$output"
-    copy_to_clipboard "$output"
-    omarchy-notification-send -g  "$(omarchy-i18n transcode.done "$resolution_label" "$format")" "$(omarchy-i18n transcode.saved)"
-  fi
+  local mime
+  mime=$(file -b --mime-type -- "$input")
+  transcode_file "$input" "$format" "$resolution" "$mime"
 }
 
 main "$@"
