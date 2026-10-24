@@ -44,7 +44,7 @@ fi
 if [[ ${0##*/} == "omarchy-shell" ]]; then
   printf '%s\n' "$*" >"$STEP_LOG.shell-args"
 fi
-[[ ${FAILING_STEP:-} != "${0##*/}" ]] || exit 1
+[[ " ${FAILING_STEP:-} " != *" ${0##*/} "* ]] || exit 1
 STUB
   chmod +x "$stub_bin/$step"
 done
@@ -123,3 +123,29 @@ for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-
   fi
 done
 pass "a blocked package upgrade stops the update before it migrates"
+
+# Optional tools may fail after system packages have already changed. Finish
+# AUR work, verify boot files and release Stay Awake before offering a reboot.
+for args in '-y' ''; do
+  FAILING_STEP=omarchy-update-mise run_update $args || fail "a failed mise update prevents system update completion"
+  if [[ -n $args ]]; then
+    expected_steps >"$test_tmp/expected"
+  else
+    expected_steps confirmed >"$test_tmp/expected"
+  fi
+  diff "$test_tmp/expected" <(steps_run) >"$test_tmp/order" ||
+    fail "a failed mise update skips later update steps" "$(cat "$test_tmp/order")"
+  grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
+  assert_boundary_cold "update after mise failure"
+done
+pass "a mise failure still finishes the update, offers a reboot and explains how to retry"
+
+# A non-fatal tool failure must not weaken the boot verification gate.
+if FAILING_STEP="omarchy-update-mise omarchy-update-boot" run_update -y; then
+  fail "a boot verification failure after mise failure reports success"
+fi
+[[ $(grep -c '^omarchy-update-restart ' "$test_tmp/steps") == "1" ]] ||
+  fail "an update with unverified boot files offers a reboot"
+grep -q "Do not reboot" "$test_tmp/err" || fail "boot verification failure loses its warning"
+assert_boundary_cold "failed boot verification after mise failure"
+pass "a boot verification failure still blocks a reboot after mise fails"

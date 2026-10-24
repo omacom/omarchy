@@ -142,7 +142,10 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
 
   # Hooks and mise run with the caller's PATH so user-installed tools resolve.
   PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-hook" post-update
-  PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update-mise"
+  # Optional tool downloads must not skip boot verification or the reboot
+  # prompt after system packages have already been upgraded.
+  mise_updated=1
+  PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update-mise" || mise_updated=0
 
   # AUR builds run third-party PKGBUILD code, so they go last and never see the
   # update's authorization: revoke it, then authenticate each sudo call with
@@ -168,6 +171,10 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # Awake marker.
   omarchy-update-stay-awake stop
   update_stay_awake_stopped=1
+
+  if (( mise_updated == 0 )); then
+    echo -e "\e[33m\nSome mise tools could not be updated. Review the errors above and run 'omarchy update mise' to retry.\e[0m" >&2
+  fi
 
   if (( boot_verified )); then
     "$OMARCHY_PATH/bin/omarchy-update-restart" --reboot-only
