@@ -29,6 +29,10 @@ BROWSER_POLICY_FIREFOX_DIRS=(
   /opt/zen-browser/distribution
 )
 
+BROWSER_POLICY_ZEN_DIR=/etc/zen/policies
+BROWSER_POLICY_ZEN_PACKAGED=/opt/zen-browser-bin/distribution/policies.json
+BROWSER_POLICY_ZEN_MARKER="Written by Omarchy from zen-browser-bin's policies; removing Zen through Omarchy deletes it."
+
 BROWSER_POLICY_DEFAULT_COLOR="#1c2027"
 
 browser_policy_purge_dir() {
@@ -192,4 +196,49 @@ browser_policy_setup_firefox_distribution() {
   browser_policy_setup_parent "$distribution_dir"
   browser_policy_purge_dir "$distribution_dir"
   browser_policy_install_firefox_policies "$distribution_dir" "$policies"
+}
+
+# zen-browser-bin owns its distribution/policies.json, so each package update
+# drops an edit made there. Zen reads /etc/zen/policies/policies.json in its
+# place whenever that exists, so start it from the package's policies and keep
+# Omarchy's setting where pacman never writes. Zen reads only "policies", so the
+# marker beside it tells removal which file Omarchy wrote.
+browser_policy_setup_zen_policies() {
+  local policy_dir=${1:-$BROWSER_POLICY_ZEN_DIR}
+  local packaged=${2:-$BROWSER_POLICY_ZEN_PACKAGED}
+  local tmp
+
+  if [[ ! -e $policy_dir/policies.json && ! -L $policy_dir/policies.json ]]; then
+    browser_policy_firefox_policy_file_ok "$packaged" || return 0
+
+    tmp=$(mktemp) || return 1
+    if jq --arg marker "$BROWSER_POLICY_ZEN_MARKER" '{__COMMENT__: $marker} + .' "$packaged" >"$tmp" 2>/dev/null; then
+      browser_policy_setup_parent "${policy_dir%/*}"
+      browser_policy_setup_parent "$policy_dir"
+      as_root install -m 644 -o root -g root -T "$tmp" "$policy_dir/policies.json"
+    fi
+    rm -f "$tmp"
+  fi
+
+  browser_policy_firefox_skip_default_check "$policy_dir"
+}
+
+# Delete the policies.json Omarchy wrote for Zen, then its directories if
+# nothing else is in them. An administrator's own file stays, as Firefox's
+# policies.json does when Firefox is removed.
+browser_policy_remove_zen_policies() {
+  local policy_dir=${1:-$BROWSER_POLICY_ZEN_DIR}
+  local file=$policy_dir/policies.json
+  local dir
+
+  if browser_policy_firefox_policy_file_ok "$file" &&
+    [[ $(jq -r '.__COMMENT__ // empty' "$file" 2>/dev/null) == "$BROWSER_POLICY_ZEN_MARKER" ]]; then
+    as_root rm -f -- "$file"
+  fi
+
+  for dir in "$policy_dir" "${policy_dir%/*}"; do
+    if [[ -d $dir && ! -L $dir ]] && [[ -z $(ls -A -- "$dir") ]]; then
+      as_root rmdir -- "$dir"
+    fi
+  done
 }
