@@ -55,9 +55,11 @@ PanelWindow {
   readonly property int slotSize: iconSize + iconInset * 2
   // A pinned app that is not running is drawn faded.
   readonly property real idleOpacity: 0.7
-  // Room inward of the dock for its menus: the tallest, the apps button's,
-  // has five rows.
-  readonly property int popupRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
+  // An app's window list shows this many rows before it scrolls.
+  readonly property int listRows: 8
+  // Room inward of the dock for its menus and window lists: the tallest menu,
+  // the apps button's, has five rows, and a window list up to listRows.
+  readonly property int popupRoom: Style.spacing.popupRowHeight * Math.max(5, listRows) + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
   // Icons pop away from the screen edge.
   readonly property int popOrigin: position === "top" ? Item.Top
     : position === "left" ? Item.Left
@@ -132,21 +134,79 @@ PanelWindow {
   // The apps button's menu: where the dock sits and whether it hides.
   property bool settingsMenu: false
 
+  // The app whose windows are listed, by desktop id so the list follows its
+  // windows as they open, close and change title, and the slot it hangs off.
+  // An app the pointer rests on is listed after a short pause; moving on to
+  // another app while a list is open lists that one at once.
+  property string listKey: ""
+  property Item listSlot: null
+  property string pendingListKey: ""
+  property Item pendingListSlot: null
+  readonly property var listItem: listKey && dock ? dock.itemFor(listKey) : null
+  readonly property bool listShown: contentShown && DockModel.listsWindows(listItem) && !menuOpen && !dragging
+
+  // Moving from one icon to the next enters the new slot before it leaves the
+  // old one, so leaving only cancels a pending list that is still this slot's.
+  function slotHovered(slot, key, hovered) {
+    if (!hovered) {
+      if (window.pendingListSlot === slot) listOpenTimer.stop()
+      listCloseTimer.restart()
+      return
+    }
+    listCloseTimer.stop()
+    if (window.listKey === key) return
+    window.pendingListKey = key
+    window.pendingListSlot = slot
+    if (window.listShown) window.openList()
+    else listOpenTimer.restart()
+  }
+
+  function openList() {
+    window.listKey = window.pendingListKey
+    window.listSlot = window.pendingListSlot
+  }
+
+  function closeList() {
+    listOpenTimer.stop()
+    listCloseTimer.stop()
+    window.listKey = ""
+    window.listSlot = null
+    window.pendingListKey = ""
+    window.pendingListSlot = null
+    if (window.autohide) hideTimer.restart()
+  }
+
+  Timer {
+    id: listOpenTimer
+    interval: 350
+    onTriggered: if (window.pendingListSlot && window.pendingListSlot.hovered) window.openList()
+  }
+
+  // Long enough to cross the gap between an icon and its list.
+  Timer {
+    id: listCloseTimer
+    interval: 300
+    onTriggered: if (window.listKey && !listHover.hovered && !(window.listSlot && window.listSlot.hovered)) window.closeList()
+  }
+
   onWorkspaceIdChanged: if (dock) dock.readMode(workspaceId)
   onShownChanged: {
     if (shown) return
     closeMenu()
+    closeList()
     window.revealed = false
   }
   Component.onCompleted: if (dock) dock.readMode(workspaceId)
 
   function openMenu(item, slot) {
+    window.closeList()
     window.settingsMenu = false
     window.menuItem = item
     window.menuSlot = slot
   }
 
   function openSettingsMenu(slot) {
+    window.closeList()
     window.menuItem = null
     window.settingsMenu = true
     window.menuSlot = slot
@@ -214,6 +274,7 @@ PanelWindow {
 
     Region { item: window.shown && window.autohide ? edgeTrigger : null }
     Region { item: menu.visible ? menu : null }
+    Region { item: windowList.visible ? windowList : null }
   }
 
   onAutohideChanged: window.revealed = false
@@ -223,7 +284,7 @@ PanelWindow {
     // Long enough to cross a gap between the edge and the icons, no longer.
     interval: 150
     onTriggered: {
-      if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging) window.revealed = false
+      if (!bodyHover.hovered && !edgeHover.hovered && !listHover.hovered && !window.menuOpen && !window.dragging) window.revealed = false
     }
   }
 
@@ -407,7 +468,10 @@ PanelWindow {
     property point pressPoint
     property bool dragged: false
     readonly property int windowCount: modelData ? modelData.windows.length : 0
+    readonly property bool focused: !!modelData && modelData.windows.some(function(entry) { return entry.toplevel.activated })
     property real pulse: 1
+
+    onHoveredChanged: window.slotHovered(appSlot, appSlot.key, appSlot.hovered)
 
     // Slots between where the dragged app was and where it would land step
     // aside to make room; the dragged one follows the pointer.
@@ -436,6 +500,7 @@ PanelWindow {
     }
 
     mouse.onPressed: function(event) {
+      window.closeList()
       appSlot.dragged = false
       if (event.button === Qt.LeftButton) appSlot.pressPoint = appSlot.bodyPoint(event)
     }
@@ -511,6 +576,44 @@ PanelWindow {
       Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
     }
 
+    // A dot for each window, up to three, in the inset between the icon and
+    // the screen edge, where the icon's pop never reaches. The app with the
+    // focused window has its dots in the accent color.
+    Grid {
+      id: dots
+
+      readonly property int dot: Math.max(3, Math.round(window.iconSize / 9))
+      readonly property int count: DockModel.dotCount(appSlot.windowCount)
+      // Centered in the inset on the screen side of the slot.
+      readonly property int edgeOffset: Math.round((window.iconInset - dot) / 2)
+
+      visible: count > 0 && !appSlot.lifted
+      columns: window.vertical ? 1 : Math.max(1, count)
+      spacing: Math.round(dot * 0.75)
+      x: window.position === "left" ? edgeOffset
+        : window.position === "right" ? appSlot.width - dot - edgeOffset
+        : Math.round((appSlot.width - width) / 2)
+      y: window.position === "top" ? edgeOffset
+        : window.position === "bottom" ? appSlot.height - dot - edgeOffset
+        : Math.round((appSlot.height - height) / 2)
+      transform: Translate {
+        x: window.vertical ? 0 : appSlot.displayedShift
+        y: window.vertical ? appSlot.displayedShift : 0
+      }
+
+      Repeater {
+        model: dots.count
+
+        delegate: Rectangle {
+          width: dots.dot
+          height: dots.dot
+          radius: width / 2
+          color: appSlot.focused ? Commons.Color.accent : Commons.Color.bar.text
+          opacity: appSlot.focused ? 1 : 0.6
+        }
+      }
+    }
+
     SequentialAnimation {
       running: appSlot.launching
       loops: Animation.Infinite
@@ -580,6 +683,119 @@ PanelWindow {
         visible: menu.running
         text: Commons.I18n.t("dock.quit")
         onTriggered: window.dock.quit(menu.item)
+      }
+    }
+  }
+
+  // An app's windows, one row each with its title and where it is: a click
+  // brings that window forward, as a click on the icon would after cycling to
+  // it.
+  BorderSurface {
+    id: windowList
+
+    readonly property var windows: window.listItem ? window.listItem.windows : []
+    readonly property int rowHeight: Style.spacing.popupRowHeight
+    readonly property string fallbackTitle: {
+      var entry = window.dock && window.listItem ? window.dock.entryFor(window.listItem) : null
+      return entry ? entry.name : (window.listItem ? window.listItem.key : "")
+    }
+
+    visible: window.listShown
+    width: Math.max(Style.space(160), Math.min(Style.space(360), listColumn.implicitWidth)) + padding * 2
+    height: Math.min(windows.length, window.listRows) * rowHeight + padding * 2
+    x: window.popupX(window.listSlot, windowList)
+    y: window.popupY(window.listSlot, windowList)
+    radius: Style.cornerRadius
+    color: Commons.Color.popups.background
+    borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Style.normalBorderWidth)
+    padding: Style.spacing.sm
+
+    HoverHandler {
+      id: listHover
+      onHoveredChanged: {
+        if (hovered) {
+          listCloseTimer.stop()
+          return
+        }
+        listCloseTimer.restart()
+        if (window.autohide) hideTimer.restart()
+      }
+    }
+
+    Flickable {
+      x: windowList.contentLeftInset
+      y: windowList.contentTopInset
+      width: windowList.width - windowList.contentLeftInset - windowList.contentRightInset
+      height: windowList.height - windowList.contentTopInset - windowList.contentBottomInset
+      contentHeight: listColumn.implicitHeight
+      interactive: contentHeight > height
+      boundsBehavior: Flickable.StopAtBounds
+      clip: true
+
+      Column {
+        id: listColumn
+        width: parent.width
+
+        Repeater {
+          model: windowList.windows
+
+          delegate: Rectangle {
+            id: listRow
+
+            required property var modelData
+            readonly property var toplevel: modelData.toplevel
+            readonly property bool current: !!toplevel && toplevel.activated
+            readonly property string title: toplevel && toplevel.title ? toplevel.title : windowList.fallbackTitle
+            readonly property string place: modelData.minimized ? Commons.I18n.t("dock.minimized")
+              : modelData.workspaceId >= 1 ? String(modelData.workspaceId) : ""
+            readonly property int textGap: Style.spacing.controlPaddingX
+
+            implicitWidth: titleText.implicitWidth + placeText.implicitWidth + textGap * 3
+            width: listColumn.width
+            height: windowList.rowHeight
+            radius: Style.cornerRadius
+            color: rowHover.hovered ? Style.hoverFill : "transparent"
+
+            Text {
+              id: titleText
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.left: parent.left
+              anchors.leftMargin: listRow.textGap
+              width: Math.min(implicitWidth, listRow.width - placeText.implicitWidth - listRow.textGap * 3)
+              textFormat: Text.PlainText
+              elide: Text.ElideRight
+              text: listRow.title
+              color: listRow.current ? Commons.Color.accent : Commons.Color.popups.text
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+            }
+
+            Text {
+              id: placeText
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.right: parent.right
+              anchors.rightMargin: listRow.textGap
+              textFormat: Text.PlainText
+              text: listRow.place
+              color: Commons.Color.popups.text
+              opacity: 0.6
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+            }
+
+            HoverHandler { id: rowHover }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: {
+                var picked = listRow.modelData
+                window.closeList()
+                if (window.dock) window.dock.bringForward(picked)
+              }
+            }
+          }
+        }
       }
     }
   }
