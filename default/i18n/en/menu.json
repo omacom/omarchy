@@ -526,6 +526,9 @@
   "setup.default.agent.muse": {
     "label": "Muse Code"
   },
+  "setup.default.agent.omo": {
+    "label": "OmO"
+  },
   "setup.default.agent.omp": {
     "label": "omp"
   },
@@ -565,6 +568,9 @@
   },
   "setup.default.browser.zen": {
     "label": "Zen"
+  },
+  "setup.default.browser.helium": {
+    "label": "Helium"
   },
   "setup.default.dictation": {
     "label": "Dictation",
@@ -764,6 +770,9 @@
   "install.browser.zen": {
     "label": "Zen"
   },
+  "install.browser.helium": {
+    "label": "Helium"
+  },
   "install.service.1password": {
     "label": "1Password"
   },
@@ -847,6 +856,9 @@
   },
   "install.ai.ollama": {
     "label": "Ollama"
+  },
+  "install.ai.omo": {
+    "label": "OmO"
   },
   "install.ai.openclaw": {
     "label": "OpenClaw"
