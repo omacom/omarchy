@@ -17,8 +17,10 @@ formats or endpoints.
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
+import sqlite3
 import sys
 import urllib.request
 from datetime import datetime
@@ -55,7 +57,7 @@ AGENT_NAME = "Ollama Cloud"
 PROVIDER = "ollama-cloud"
 BALANCE_ENDPOINT = "https://ollama.com/api/balance"
 ME_ENDPOINT = "https://ollama.com/api/me"
-AUTH_HELP_NO_KEY = "Set OLLAMA_API_KEY, or sign in to pi with an Ollama Cloud key, to show the account limits."
+AUTH_HELP_NO_KEY = "Set OLLAMA_API_KEY, or sign in to pi or omp with an Ollama Cloud key, to show the account limits."
 AUTH_HELP_BAD_KEY = (
   "Ollama Cloud rejected the API key. Update OLLAMA_API_KEY or ~/.config/omarchy/agents/ollama.json,"
   " or sign in to pi again. Local stats are still shown."
@@ -80,6 +82,46 @@ def pi_agent_dir() -> Path:
   return Path(os.path.expanduser(configured)) if configured else Path.home() / ".pi" / "agent"
 
 
+# omp moves its whole agent tree when PI_CODING_AGENT_DIR is set, as pi does.
+def omp_agent_dir() -> Path:
+  return pi_agent_dir() if os.environ.get("PI_CODING_AGENT_DIR", "").strip() else Path.home() / ".omp" / "agent"
+
+
+def literal_key(entry: Any) -> str:
+  # Only a literal key is taken: a `$VAR` or `!command` entry is resolved by
+  # pi alone.
+  key = str(entry.get("key") or "").strip() if isinstance(entry, dict) else ""
+  return key if not key.startswith(("!", "$")) else ""
+
+
+# omp keeps the keys it signed in with in its agent.db, never in an
+# auth.json; a key it disabled is passed over. Read-only, like every store a
+# collector reads.
+def omp_database_key() -> str:
+  database = omp_agent_dir() / "agent.db"
+  if not database.is_file():
+    return ""
+  try:
+    conn = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+    try:
+      rows = conn.execute(
+        "SELECT data FROM auth_credentials WHERE provider = ? AND credential_type = 'api_key' AND disabled_cause IS NULL ORDER BY id DESC",
+        (PROVIDER,),
+      ).fetchall()
+    finally:
+      conn.close()
+  except sqlite3.Error:
+    return ""
+  for (data,) in rows:
+    try:
+      key = literal_key(json.loads(data))
+    except (TypeError, ValueError):
+      continue
+    if key:
+      return key
+  return ""
+
+
 def api_key() -> str:
   env = os.environ.get("OLLAMA_API_KEY", "").strip()
   if env:
@@ -88,14 +130,11 @@ def api_key() -> str:
   if configured:
     return configured
   # pi and omp store the Ollama Cloud key they signed in with; either one
-  # proves the account, and the balance endpoint accepts the same key. Only a
-  # literal key is taken: a `$VAR` or `!command` entry is resolved by pi alone.
-  for auth_path in (pi_agent_dir() / "auth.json", Path.home() / ".omp" / "agent" / "auth.json"):
-    entry = read_json(auth_path).get(PROVIDER)
-    key = str(entry.get("key") or "").strip() if isinstance(entry, dict) else ""
-    if key and not key.startswith(("!", "$")):
-      return key
-  return ""
+  # proves the account, and the balance endpoint accepts the same key.
+  pi_key = literal_key(read_json(pi_agent_dir() / "auth.json").get(PROVIDER))
+  if pi_key:
+    return pi_key
+  return omp_database_key() or literal_key(read_json(Path.home() / ".omp" / "agent" / "auth.json").get(PROVIDER))
 
 
 # ---------------------------------------------------------------- local scan
