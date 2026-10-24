@@ -20,6 +20,13 @@ if (($# == 0)); then
   # sublime-text-4 ships `subl`; older defaults stored `sublime_text`.
   [[ $editor == sublime_text ]] && editor=subl
 
+  # extra/zed ships `zeditor` while zed-bin (AUR) ships `zed`: resolve a
+  # saved Zed default to whichever binary is actually present.
+  if [[ $editor == zed || $editor == zeditor ]] && ! omarchy-cmd-present "$editor"; then
+    [[ $editor == zed ]] && other=zeditor || other=zed
+    omarchy-cmd-present "$other" && editor="$other"
+  fi
+
   [[ -n $editor ]] && echo "$editor" || echo "nvim"
   exit 0
 fi
@@ -38,6 +45,19 @@ nvim) selection="nvim"; editor="nvim"; name="Neovim"; glyph= ;;
   exit 1
   ;;
 esac
+
+# extra/zed ships `zeditor` while zed-bin (AUR) ships `zed`: store whichever
+# Zed binary is actually present, preferring an explicitly selected one.
+# A fresh install lands `zeditor` via omarchy-install-editor-zed.
+if [[ $selection == zed ]]; then
+  if omarchy-cmd-present "$1"; then
+    editor="$1"
+  elif [[ $1 == zed ]] && omarchy-cmd-present zeditor; then
+    editor="zeditor"
+  elif [[ $1 == zeditor ]] && omarchy-cmd-present zed; then
+    editor="zed"
+  fi
+fi
 
 if omarchy-cmd-missing "$editor"; then
   if [[ $installing == "false" ]]; then
