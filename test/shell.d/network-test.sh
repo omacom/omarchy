@@ -12,6 +12,16 @@ const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.
 assert(/IpcHandler[\s\S]*?function toggleNetwork\(\) \{ root\.toggleNetwork\(\) \}/.test(panelSource), 'network exposes the Wi-Fi radio toggle over IPC')
 assert(/manageIpc: false/.test(panelSource), 'network owns its IPC handler so it can extend the target methods')
 
+// The stat grid is set in body-small and spacing does not follow a body-small
+// override, so the panel grows with it rather than overlapping labels and
+// values (#13572). The divisor must stay body-small's own default.
+const styleSource = fs.readFileSync(root + '/shell/Commons/Style.qml', 'utf8')
+assert(
+  panelSource.includes('contentWidth: panel.fittedContentWidth(Style.space(380) * Math.max(1, Style.font.bodySmall / Style.fontPx(0.917)))') &&
+    /readonly property int bodySmall:\s+root\.fontToken\("body-small",\s+root\.fontPx\(0\.917\)\)/.test(styleSource),
+  'network panel widens with a raised body-small font'
+)
+
 // Opening from the bar must call open() and nothing else. open() runs
 // refresh(true), which defers the PHY scan; a second bare refresh() defaults
 // scanWifi to false, sets scannerEnabled synchronously, and stalls the open on
