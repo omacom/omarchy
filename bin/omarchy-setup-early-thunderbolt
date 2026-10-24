@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# omarchy:summary=Enable or disable early Thunderbolt module loading in the initramfs
+# omarchy:args=<enable|disable>
+# omarchy:examples=omarchy-setup-early-thunderbolt disable
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+action=${1:-}
+conf="${OMARCHY_THUNDERBOLT_MKINITCPIO_CONF:-/etc/mkinitcpio.conf.d/thunderbolt_module.conf}"
+source_conf="${OMARCHY_PATH:-/usr/share/omarchy}/etc/mkinitcpio.conf.d/thunderbolt_module.conf"
+
+usage() {
+  echo "Usage: omarchy-setup-early-thunderbolt <enable|disable>" >&2
+  echo >&2
+  echo "enable  — load thunderbolt in the initramfs (default Omarchy behavior)." >&2
+  echo "disable — omit it so firmware-provided dock USB can survive until LUKS." >&2
+}
+
+as_root() {
+  if (( EUID == 0 )); then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+rebuild_initramfs() {
+  if omarchy-cmd-present limine-mkinitcpio; then
+    as_root limine-mkinitcpio
+  elif omarchy-cmd-present mkinitcpio; then
+    as_root mkinitcpio -P
+  else
+    echo "Warning: no limine-mkinitcpio/mkinitcpio; rebuild the initramfs manually." >&2
+    return 0
+  fi
+}
+
+case "$action" in
+enable)
+  if [[ ! -f $source_conf ]]; then
+    echo "Error: packaged thunderbolt drop-in missing at $source_conf" >&2
+    exit 1
+  fi
+  as_root install -Dm644 "$source_conf" "$conf"
+  rebuild_initramfs
+  echo "Early thunderbolt module enabled in $conf"
+  ;;
+disable)
+  if [[ -e $conf ]]; then
+    as_root rm -f -- "$conf"
+  fi
+  rebuild_initramfs
+  echo "Early thunderbolt module disabled (removed $conf)"
+  ;;
+-h | --help | "")
+  usage
+  [[ -n $action ]] || exit 2
+  exit 0
+  ;;
+*)
+  usage
+  echo "omarchy-setup-early-thunderbolt: unknown action '$action'" >&2
+  exit 2
+  ;;
+esac
