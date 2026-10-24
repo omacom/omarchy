@@ -5,8 +5,13 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
+const fs = require('fs')
 const nightlight = requireFromRoot('shell/plugins/services/nightlight/NightlightModel.js')
+const serviceSource = fs.readFileSync(root + '/shell/plugins/services/nightlight/Service.qml', 'utf8')
+const runApply = serviceSource.match(/function runApply\(temp\) \{([\s\S]*?)\n  \}/)
+const executableRunApply = runApply ? runApply[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '') : ''
 
+assert(/^\s*applyProcess\.command\s*=\s*NightlightModel\.applyCommand\(temp\)\s*$/m.test(executableRunApply), 'nightlight service delegates its apply process to the tested model command')
 assertEqual(nightlight.temperatureFromOutput('4000\n'), 4000, 'nightlight parses probe temperature')
 assertEqual(nightlight.temperatureFromOutput("Couldn't connect to hyprsunset"), null, 'nightlight treats unreachable hyprsunset as unknown')
 assertEqual(nightlight.isNightlight(4000), true, 'nightlight reports warm temperatures as enabled')
@@ -127,3 +132,74 @@ if rg -q 'omarchy.indicators' "$ROOT/bin/omarchy-toggle-nightlight"; then
   fail "nightlight toggle leaves indicator refresh to the nightlight service"
 fi
 pass "nightlight toggle leaves indicator refresh to the nightlight service"
+
+# Another user's hyprsunset always runs here, for their own Hyprland session;
+# this user's runs only when OWN_HYPRSUNSET=1. Limited by -u, pgrep finds a match
+# only for this user's UID and only when that process exists.
+LAUNCH_LOG="$TMPDIR/launches"
+rm -f "$TMPDIR/bin/setsid"
+cat >"$TMPDIR/bin/pgrep" <<'SH'
+#!/bin/bash
+while (( $# )); do
+  if [[ $1 == "-u" ]]; then
+    [[ $2 == "$TEST_UID" && ${OWN_HYPRSUNSET:-0} == 1 ]]
+    exit
+  fi
+  shift
+done
+exit 0
+SH
+cat >"$TMPDIR/bin/uwsm-app" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$LAUNCH_LOG"
+SH
+chmod +x "$TMPDIR/bin/pgrep" "$TMPDIR/bin/uwsm-app"
+
+wait_for_launch() {
+  for _ in {1..20}; do
+    [[ -s $LAUNCH_LOG ]] && break
+    sleep 0.05
+  done
+}
+
+LAUNCH_LOG="$LAUNCH_LOG" TEST_UID="$UID" nightlight_cli >/dev/null
+wait_for_launch
+grep -Fqx -- '-- hyprsunset' "$LAUNCH_LOG" || fail "nightlight toggle starts this user's hyprsunset when only another user's runs"
+
+rm -f "$LAUNCH_LOG"
+LAUNCH_LOG="$LAUNCH_LOG" TEST_UID="$UID" OWN_HYPRSUNSET=1 nightlight_cli >/dev/null
+sleep 0.2
+[[ ! -e $LAUNCH_LOG ]] || fail "nightlight toggle leaves a running hyprsunset of this user's alone"
+pass "nightlight toggle only counts this user's hyprsunset as running"
+
+# The shell service runs its script in a login shell; run it without -l here, so
+# no login profile can put the real commands ahead of these mocks.
+mapfile -d '' -t apply_command < <(run_node_test <<'JS'
+const nightlight = requireFromRoot('shell/plugins/services/nightlight/NightlightModel.js')
+process.stdout.write(nightlight.applyCommand(4000).map(arg => arg + '\0').join(''))
+JS
+)
+[[ ${apply_command[0]:-} == "bash" && ${apply_command[1]:-} == "-lc" ]] || fail "the nightlight service applies through a login shell" "${apply_command[*]}"
+
+nightlight_service() {
+  PATH="$TMPDIR/bin:$PATH" \
+  HYPRSUNSET_STATE="$STATE" \
+  OMARCHY_SHELL_LOG="$SHELL_LOG" \
+  LAUNCH_LOG="$LAUNCH_LOG" \
+  TEST_UID="$UID" \
+    bash -c "${apply_command[2]}"
+}
+
+printf '6500\n' >"$STATE"
+rm -f "$LAUNCH_LOG"
+nightlight_service
+wait_for_launch
+grep -Fqx -- '-- hyprsunset' "$LAUNCH_LOG" || fail "nightlight service starts this user's hyprsunset when only another user's runs"
+[[ $(<"$STATE") == 4000 ]] || fail "nightlight service applies the requested temperature"
+
+printf '6500\n' >"$STATE"
+rm -f "$LAUNCH_LOG"
+OWN_HYPRSUNSET=1 nightlight_service
+sleep 0.2
+[[ ! -e $LAUNCH_LOG && $(<"$STATE") == 4000 ]] || fail "nightlight service leaves a running hyprsunset of this user's alone"
+pass "nightlight service only counts this user's hyprsunset as running"
