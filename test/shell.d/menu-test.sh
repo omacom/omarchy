@@ -344,7 +344,7 @@ assert(
   'menu offers Spotify on every platform and dims it once its client or web player is installed'
 )
 assert(
-  ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust', 'install.windows'].every(
+  ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust', 'install.development.haskell', 'install.windows'].every(
     id => defaultById[id].disabled && (!defaultById[id].when || defaultById[id].when === windowsGuard)
   ),
   'menu dims the Install rows for software that is already installed'
