@@ -32,6 +32,16 @@ expand_tilde() {
   esac
 }
 
+# A path under $HOME is stored with ~ so a shared config does not carry this
+# machine's home directory. A path outside $HOME is written as given.
+portable_path() {
+  local path="$1"
+  case $path in
+    "$HOME"/*) printf '~/%s\n' "${path#"$HOME"/}" ;;
+    *) printf '%s\n' "$path" ;;
+  esac
+}
+
 # First capture of a sed substitution, with a trailing # comment and surrounding
 # whitespace removed. Empty when the file or the key is absent. A value that is
 # still not a number becomes 9 so a bad line cannot stop a migration.
@@ -204,18 +214,21 @@ write_terminal() {
 
 ensure_ghostty_include() {
   [[ -f $ghostty_shared ]] || return 0
-  local desired="config-file = ?\"${ghostty_local}\"" line target correct=0 stale=""
+  local portable desired line target token correct=0 stale=""
+  portable=$(portable_path "$ghostty_local")
+  desired="config-file = ?\"${portable}\""
   while IFS= read -r line || [[ -n $line ]]; do
     [[ $line == *"ghostty/local"* ]] || continue
     [[ $line =~ ^[[:space:]]*config-file[[:space:]]*=[[:space:]]*\?\"([^\"]+)\" ]] || continue
-    target=$(expand_tilde "${BASH_REMATCH[1]}")
-    if [[ $target == "$ghostty_local" ]]; then
+    token=${BASH_REMATCH[1]}
+    target=$(expand_tilde "$token")
+    if [[ $target == "$ghostty_local" && $token == "$portable" ]]; then
       correct=1
     else
       stale=$line
     fi
   done <"$ghostty_shared"
-  if ((correct)); then
+  if ((correct)) && [[ -z $stale ]]; then
     return 0
   fi
   if [[ -n $stale ]]; then
@@ -263,12 +276,12 @@ ensure_kitty_include() {
 # binding, so foot -C fails and the font falls back to 8 pt.
 ensure_foot_include() {
   [[ -f $foot_shared ]] || return 0
-  python3 - "$foot_shared" "$foot_local" "$HOME" <<'PY'
+  python3 - "$foot_shared" "$foot_local" "$HOME" "$(portable_path "$foot_local")" <<'PY'
 import re
 import sys
 from pathlib import Path
 
-path, overlay, home = sys.argv[1:4]
+path, overlay, home, written = sys.argv[1:5]
 file = Path(path)
 text = file.read_text()
 lines = text.splitlines()
@@ -303,44 +316,40 @@ def section_end(start):
             return index
     return len(lines)
 
-desired = f"include={overlay}"
+desired = f"include={written}"
 changed = False
 main = next((i for i, line in enumerate(lines) if line.strip() == "[main]"), None)
 
+# Foot applies a later font= over an earlier include, so the overlay include
+# has to come after the shared font line or the saved size never wins.
+if main is not None:
+    end = section_end(main)
+    font_at = [i for i in range(main + 1, end) if re.match(r"\s*font\s*=", lines[i])]
+    threshold = font_at[-1] if font_at else main
+    inside = [i for i in range(main + 1, end) if is_local(lines[i])]
+    outside = [i for i, line in enumerate(lines) if is_local(line) and not (main < i < end)]
+    if (
+        not outside
+        and len(inside) == 1
+        and inside[0] > threshold
+        and lines[inside[0]].strip() == desired
+    ):
+        raise SystemExit(0)
+
+kept = [line for line in lines if not is_local(line)]
+if len(kept) != len(lines):
+    changed = True
+lines = kept
+
+main = next((i for i, line in enumerate(lines) if line.strip() == "[main]"), None)
 if main is None:
-    if lines:
+    if lines and lines[-1] != "":
         lines.append("")
     lines.extend(["[main]", desired])
     changed = True
-    main = len(lines) - 2
 else:
-    end = section_end(main)
-    include_at = [i for i in range(main + 1, end) if include_value(lines[i]) is not None]
-    local_at = [i for i in include_at if is_local(lines[i])]
-    good = [i for i in local_at if resolve(include_value(lines[i])) == overlay]
-    if good:
-        for index in reversed([i for i in local_at if i not in good]):
-            del lines[index]
-            changed = True
-    elif local_at:
-        lines[local_at[0]] = desired
-        changed = True
-        for index in reversed(local_at[1:]):
-            del lines[index]
-    else:
-        insert_at = include_at[-1] + 1 if include_at else main + 1
-        lines.insert(insert_at, desired)
-        changed = True
-
-main = next((i for i, line in enumerate(lines) if line.strip() == "[main]"), None)
-end = section_end(main) if main is not None else 0
-kept = []
-for index, line in enumerate(lines):
-    if is_local(line) and not (main is not None and main < index < end):
-        changed = True
-        continue
-    kept.append(line)
-lines = kept
+    lines.insert(section_end(main), desired)
+    changed = True
 
 if not changed:
     raise SystemExit(0)
@@ -354,15 +363,15 @@ PY
 alacritty_import() {
   local mode="$1"
   [[ -f $alacritty_shared ]] || return 1
-  python3 - "$alacritty_shared" "$alacritty_local" "$HOME" "$mode" <<'PY'
+  python3 - "$alacritty_shared" "$alacritty_local" "$HOME" "$mode" "$(portable_path "$alacritty_local")" <<'PY'
 import re
 import sys
 from pathlib import Path
 
-path, overlay, home, mode = sys.argv[1:5]
+path, overlay, home, mode, written = sys.argv[1:6]
 file = Path(path)
 text = file.read_text()
-needle = f'"{overlay}"'
+needle = f'"{written}"'
 
 def resolve(token):
     token = token.strip()
@@ -480,12 +489,12 @@ while (($#)); do
   esac
 done
 
-if [[ $mode == includes ]]; then
+if [[ $mode == "includes" ]]; then
   ensure_includes
   exit 0
 fi
 
-if [[ $mode == query ]]; then
+if [[ $mode == "query" ]]; then
   case $query_what in
     alacritty-import)
       if alacritty_import check; then
@@ -500,7 +509,7 @@ if [[ $mode == query ]]; then
   esac
 fi
 
-if [[ $mode == read ]]; then
+if [[ $mode == "read" ]]; then
   size=$(size_from_terminal "$read_term")
   if [[ -n $size ]]; then
     printf '%s\n' "$size"
@@ -530,9 +539,9 @@ fi
 if pgrep -x ghostty >/dev/null 2>&1; then
   pkill -SIGUSR2 ghostty 2>/dev/null || true
   if (( ! quiet )); then
-    omarchy-notification-send -g "Restart Ghostty to see the font size" || true
+    omarchy-notification-send -g "$(omarchy-i18n font.restartToSeeChange Ghostty)" || true
   fi
 fi
 if (( ! quiet )) && pgrep -x foot >/dev/null 2>&1; then
-  omarchy-notification-send -g "Restart Foot to see the font size" || true
+  omarchy-notification-send -g "$(omarchy-i18n font.restartToSeeChange Foot)" || true
 fi
