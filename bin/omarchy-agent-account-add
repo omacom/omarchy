@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# omarchy:summary=Sign in to a Claude, Codex, or Grok subscription
-# omarchy:args=[--check] [--events] [--reauth <account>] [claude|codex|grok] [label]
-# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side
+# omarchy:summary=Sign in to a Claude, Codex, Grok, or OpenCode Go subscription
+# omarchy:args=[--check] [--events] [--reauth <account>] [claude|codex|grok|opencode] [label]
+# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side | omarchy agent account add opencode oc_sk_…
 
 set -uo pipefail
 
@@ -43,22 +43,25 @@ if [[ $check == "true" ]]; then
       echo "$p first"
     fi
   done
+  # OpenCode Go holds one API key, not a set of accounts; re-adding replaces it.
+  echo "opencode first"
   exit 0
 fi
 
 # The provider can be left out when it's your default agent:
 # `omarchy agent account add Work`.
-if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" && ${1:-} != "opencode" ]]; then
   default=$(omarchy-default-agent)
-  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
+  [[ $default == "claude" || $default == "codex" || $default == "grok" || $default == "opencode" ]] && set -- "$default" "$@"
 fi
 
 case "${1:-}" in
 claude) provider="claude"; name="Claude"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR" ;;
 codex) provider="codex"; name="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME" ;;
 grok) provider="grok"; name="Grok"; site="x.ai"; package="grok"; home_env="GROK_HOME" ;;
+opencode) provider="opencode"; name="OpenCode Go"; site="opencode.ai/console"; package="opencode"; home_env="" ;;
 *)
-  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok] [label]" >&2
+  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok|opencode] [label]" >&2
   exit 1
   ;;
 esac
@@ -96,8 +99,10 @@ fail() {
 # half-made home behind.
 home=""
 browser=""
+header_file=""
 cleanup() {
   [[ -n $browser ]] && rm -f "$browser"
+  [[ -n $header_file ]] && rm -f "$header_file"
   [[ -n $home && -d $home && $home == */.pending/* ]] && rm -rf "$home"
 }
 trap cleanup EXIT
@@ -140,6 +145,97 @@ esac
 login() {
   interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "OMARCHY_AGENT_${provider^^}_HOME=" "${login_command[@]}"
 }
+
+# OpenCode Go has no login command: a Go workspace's Console API key is the
+# sign-in, pasted here and checked against the gateway's usage endpoint before
+# it lands in opencode's auth.json. One key per machine; re-running replaces
+# it. The console page opens in the normal browser — that is where the user
+# is already signed in to the Console.
+if [[ $provider == "opencode" ]]; then
+  console_url="https://opencode.ai/console"
+  say "$(omarchy-i18n agents.goConsoleOpened)"
+  # The panel lifts the first URL out of the output for its reopen link.
+  echo "$console_url"
+  omarchy-launch-browser "$console_url" >/dev/null 2>&1 &
+
+  # The key may be passed as the argument (`account add opencode oc_sk_…`);
+  # otherwise it is asked for. The panel's paste field writes it to stdin.
+  key="$label"
+  if [[ -z $key ]]; then
+    if [[ $events == "true" ]]; then
+      read -r key || fail "$(omarchy-i18n agents.loginUnfinished)"
+    elif [[ -t 0 ]]; then
+      key=$(gum input --password --placeholder "oc_sk_…" --prompt "OpenCode Go API key: ") || exit 130
+    else
+      read -r key || fail "$(omarchy-i18n agents.loginUnfinished)"
+    fi
+  fi
+  key=${key//[[:space:]]/}
+  [[ -n $key ]] || fail "$(omarchy-i18n agents.loginUnfinished)"
+
+  say "$(omarchy-i18n agents.goCheckingKey)"
+  # The key never enters a child process's arguments, where another local
+  # user could read it: curl takes the header from a private file instead.
+  header_file=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/omarchy-go-auth.XXXXXX") || fail "$(omarchy-i18n agents.homeFailed)"
+  printf 'Authorization: Bearer %s\n' "$key" >"$header_file" || fail "$(omarchy-i18n agents.homeFailed)"
+  status=$(curl -sS -o /dev/null -w "%{http_code}" -m 15 \
+    -H @"$header_file" -H "Accept: application/json" \
+    "https://opencode.ai/inference/go/v1/usage" 2>/dev/null) || status="000"
+  if [[ $status == "404" ]]; then
+    status=$(curl -sS -o /dev/null -w "%{http_code}" -m 15 \
+      -H @"$header_file" -H "Accept: application/json" \
+      "https://opencode.ai/zen/go/v1/usage" 2>/dev/null) || status="000"
+  fi
+  rm -f "$header_file"
+  header_file=""
+  case "$status" in
+  200) ;;
+  401) fail "$(omarchy-i18n agents.goKeyRejected)" ;;
+  403) fail "$(omarchy-i18n agents.goKeyNoSubscription)" ;;
+  *) fail "$(omarchy-i18n agents.goKeyUnreachable)" ;;
+  esac
+
+  # Merge the key into opencode's auth.json, keeping the other providers, and
+  # write it the way a credential file is written: private, one atomic rename.
+  auth_dir="${XDG_DATA_HOME:-$HOME/.local/share}/opencode"
+  mkdir -p "$auth_dir" || fail "$(omarchy-i18n agents.homeFailed)"
+  OPENCODE_AUTH_DIR="$auth_dir" OPENCODE_GO_KEY="$key" python3 - <<'EOF' || fail "$(omarchy-i18n agents.homeFailed)"
+import json, os, tempfile
+from pathlib import Path
+
+auth_dir = Path(os.environ["OPENCODE_AUTH_DIR"])
+auth_file = auth_dir / "auth.json"
+try:
+    auth = json.loads(auth_file.read_text())
+    if not isinstance(auth, dict):
+        auth = {}
+except (OSError, json.JSONDecodeError):
+    auth = {}
+auth["opencode-go"] = {"type": "api", "key": os.environ["OPENCODE_GO_KEY"]}
+fd, tmp = tempfile.mkstemp(prefix="auth.json.", dir=auth_dir)
+try:
+    with os.fdopen(fd, "w") as handle:
+        json.dump(auth, handle, indent=2)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, auth_file)
+finally:
+    Path(tmp).unlink(missing_ok=True)
+EOF
+
+  # The first agent signed in on a machine with none chosen becomes the
+  # default, so `omarchy agent` and the panel's starter prompts have one to
+  # run. A default someone already picked is never touched.
+  if [[ -z $(omarchy-default-agent) ]]; then
+    mkdir -p "$HOME/.config/omarchy/defaults"
+    printf '%s\n' "$provider" >"$HOME/.config/omarchy/defaults/agent"
+  fi
+  omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+  finish "$(omarchy-i18n agents.signedIn "$name")"
+  exit 0
+fi
 
 # Signing an account that's already here in again, where it lives: the
 # primary home through the normal browser, an added one through a private

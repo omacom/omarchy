@@ -37,20 +37,23 @@ Every subscription on one page, limits first.
 - **Make something cool** — starter prompts (a new theme, plugin, or app) that
   start the default agent on the task through `omarchy agent prompt`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
-  Claude Code, Codex, and Grok as large marks, three across, with the first
+  Claude Code, Codex, Grok, and OpenCode Go as large marks, with the first
   one focused, and the hero's line reads Add an account. The + becomes the
   X that goes back. An agent that can't be added is dimmed and says why on
   hover. A further account asks for a name first, and Enter signs it in. The
   panel then runs `omarchy-agent-account-add --events` and follows it: the
   status, the code Grok asks you to confirm in the browser, a field to paste
   Claude's code back if its page shows one instead of finishing, and a link to
-  reopen the sign-in page. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
+  reopen the sign-in page. OpenCode Go has no login page: the console opens
+  for an API key, the field takes it, and the key is checked against the
+  gateway before it is stored. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
   carries on and its result arrives as a notification.
 
 The icon is always in the bar. On a machine with no agent yet, the panel is
 the blank slate for setting one up: it opens on the same choice of Claude,
-Codex, or Grok, and the first agent signed in becomes the default agent if
-none was picked. An agent appears once it is enabled in settings and has
+Codex, Grok, or OpenCode Go, and the first agent signed in becomes the
+default agent if none was picked. An agent appears once it is enabled in
+settings and has
 recorded usage, on this machine or a synced one; a CLI installed
 mid-session shows up at the next refresh. Drop the widget with
 `omarchy plugin disable omarchy.agents`.
@@ -72,6 +75,7 @@ Adding an agent needs no QML changes: ship a collector that prints the record co
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 | `kimi` | Kimi Code quotas (5-hour session, weekly, and monthly allowances) | none; quota only |
+| `opencode` | OpenCode Go quotas (5-hour rolling, weekly, and monthly windows) from the gateway's `/v1/usage` endpoint | opencode.db messages on the `opencode-go` provider |
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
 registers more than one account, the `claude`, `codex`, and `grok` records
@@ -103,6 +107,10 @@ pi stores in `~/.pi/agent/auth.json` when Fireworks is signed in there
 and finally the key opencode stores in `~/.local/share/opencode/auth.json`.
 
 Kimi reads `KIMI_API_KEY` first, then `credentials/kimi-code.json` under an explicit `KIMI_CODE_HOME`. Without that override it prefers `~/.kimi-code/credentials/kimi-code.json`, with the legacy `~/.kimi/credentials/kimi-code.json` as a compatibility fallback. An explicit home never borrows another home's sign-in. Its record reports account quotas, without local token or prompt statistics.
+
+OpenCode Go reads `OPENCODE_GO_API_KEY` first, then the `opencode-go` key opencode stores in `~/.local/share/opencode/auth.json` (honoring `XDG_DATA_HOME`) — the same entry `/connect` writes. Quotas come from the gateway's `/v1/usage` endpoint: the 5-hour rolling, weekly, and monthly windows, including exhausted (`rate-limited`) ones. A `401` means the key was rejected, a `403` that its workspace has no Go subscription. Local stats count `opencode.db` messages on the `opencode-go` provider, so Go traffic from other harnesses still shows through the quota windows. `omarchy agent account add opencode` runs the sign-in: the console opens, the key is pasted, checked against the gateway, and merged into `auth.json`. One key per machine; adding again replaces it. The console OAuth sign-in opencode itself uses for Go cannot read the usage endpoint, so the API key is required for limits.
+
+Go's *Extra usage* pays from the workspace's prepaid credits once a window is exhausted. The residual comes from the console's billing status endpoint, which answers only keys carrying the Billing permission — create the key with Billing read (owners and admins can grant it) to see the remaining credit as the tab's balance. Keys without it fall back to the budgets API: the member's monthly credit-billed spend and its budget cap, so a capped member budget still draws the fuel gauge. With neither there is no residual to compute and no ledger is shown.
 
 Expired tokens are refreshed under the current CLI's renewable directory lock at `<home>/oauth/kimi-code.lock`; legacy credentials use their sibling file lock. The rotated token pair is flushed and published atomically with private permissions. Credentials are reread after the exchange so a sign-in or logout completed during the request takes precedence. A failed lock prevents refresh, and credentials are sent only to trusted Kimi HTTPS hosts without following redirects. When sign-in expires, run `kimi login`; an invalid overriding `KIMI_API_KEY` must instead be updated or unset.
 
