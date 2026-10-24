@@ -1,0 +1,18 @@
+#!/bin/bash
+# systemd-sleep hook for BCM4377 on T2 Macs (MacBookAir9,1).
+# brcmfmac times out entering D3 (error -5), which aborts every suspend.
+# hci_bcm4377 survives suspend but its function comes back hung and later
+# raises a PCIe error that takes the whole chip (Wi-Fi too) offline.
+# Unload both before sleep; reload ~15s after wake, since an instant reload
+# crashed the machine.
+
+case "$1" in
+  pre)
+    modprobe -r brcmfmac_wcc brcmfmac hci_bcm4377
+    ;;
+  post)
+    systemd-run --collect --on-active=15 --unit=t2-wifi-reload \
+      /bin/sh -c 'modprobe brcmfmac; systemctl start bt-bcm4377-rebind.service'
+    ;;
+esac
+exit 0
