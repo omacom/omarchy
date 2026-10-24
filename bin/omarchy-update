@@ -75,8 +75,9 @@ cleanup_update() {
   trap - EXIT HUP INT TERM
   if ! end_update_authorization; then
     echo "Could not invalidate sudo before update cleanup." >&2
-    omarchy_security_exit_with_revoked_sudo 1
+    status=1
   fi
+  # The inhibitor is caller-owned, so release it even if revocation failed.
   if (( update_stay_awake_stopped == 0 )); then
     omarchy-update-stay-awake stop || status=1
   fi
