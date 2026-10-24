@@ -15,6 +15,8 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("omarchy-provision-first-run")
   hl.exec_cmd("omarchy-powerprofiles-init")
   hl.exec_cmd(o.launch("omarchy-hyprland-monitor-watch"))
+  -- Sense exits at once unless the user enabled it (omarchy sense enable).
+  hl.exec_cmd(o.launch("omarchy-sense watch"))
   hl.exec_cmd(o.launch("udiskie --automount --no-notify --no-tray"))
 
   -- Run post-boot hooks after startup config has loaded.

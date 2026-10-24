@@ -1,0 +1,576 @@
+#!/bin/bash
+
+# omarchy:summary=Learn your scenes and protect your flow, locally
+# omarchy:group=sense
+# omarchy:args=[status|enable|disable|scenes|apply <scene>|flow|guard|why|snapshot|forget|watch]
+# omarchy:examples=omarchy sense scenes | omarchy sense apply morning-ghostty | omarchy sense flow
+
+set -uo pipefail
+
+# Sense learns from two local signals only: which window class has focus and
+# which window classes sit on which workspaces. Window titles, file paths and
+# keystrokes are never recorded, and nothing leaves the machine. The models
+# are counting and similarity over that history (how often a set of windows
+# recurs together, how often focus switches), so every answer can explain
+# itself with the numbers behind it.
+
+SENSE_DIR="${OMARCHY_SENSE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/sense}"
+EVENTS_FILE="$SENSE_DIR/events.tsv"
+SNAPSHOTS_FILE="$SENSE_DIR/snapshots.tsv"
+ENABLED_FILE="$SENSE_DIR/enabled"
+GUARDIAN_FILE="$SENSE_DIR/guardian-dnd"
+
+MIN_SCENE_SNAPSHOTS="${OMARCHY_SENSE_MIN_SCENE_SNAPSHOTS:-3}"
+MIN_SCENE_DAYS="${OMARCHY_SENSE_MIN_SCENE_DAYS:-2}"
+FLOW_WINDOW_SECONDS="${OMARCHY_SENSE_FLOW_WINDOW:-900}"
+
+now_epoch() {
+  if [[ -n ${OMARCHY_SENSE_NOW:-} ]]; then
+    printf '%s\n' "$OMARCHY_SENSE_NOW"
+  else
+    date +%s
+  fi
+}
+
+# GNU date -d and BSD date -r spell "epoch to field" differently; Omarchy runs
+# GNU, the test suite may not, so try both.
+epoch_field() {
+  local epoch="$1" format="$2"
+  date -d "@$epoch" "+$format" 2>/dev/null || date -r "$epoch" "+$format"
+}
+
+sense_enabled() {
+  [[ -f $ENABLED_FILE ]]
+}
+
+excluded_class() {
+  case "$1" in
+    "" | org.omarchy.screensaver | hyprlock | org.omarchy.lock*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+sanitize_field() {
+  printf '%s' "$1" | tr ',\t ' '___'
+}
+
+current_items() {
+  hyprctl clients -j 2>/dev/null | jq -r '
+    [ .[]
+      | select((.class // "") != "")
+      | select(.class != "org.omarchy.screensaver" and .class != "hyprlock" and (.class | startswith("org.omarchy.lock") | not))
+      | "\( (.class | gsub("[, \t]"; "_")) )@\( ((.workspace.name // "1") | tostring | gsub("[, \t]"; "_")) )"
+    ]
+    | unique
+    | join(",")
+  ' 2>/dev/null || true
+}
+
+active_class() {
+  hyprctl activewindow -j 2>/dev/null | jq -r '.class // ""' 2>/dev/null || true
+}
+
+record_event() {
+  local class="$1" epoch last_epoch last_class
+  sense_enabled || return 0
+  [[ -n $class ]] || return 0
+
+  # The screensaver and lock screen are not focus, but they are information:
+  # as an __away__ marker they end the previous app's stretch, so a break is
+  # never counted as focused work in that app.
+  if excluded_class "$class"; then
+    class="__away__"
+  fi
+
+  epoch=$(now_epoch)
+  if [[ -f $EVENTS_FILE ]]; then
+    last_epoch=$(tail -n 1 "$EVENTS_FILE" | cut -f1)
+    last_class=$(tail -n 1 "$EVENTS_FILE" | cut -f2)
+    # A refocus of the same class seconds later is not a switch.
+    if [[ $last_class == "$class" ]] && (( epoch - ${last_epoch:-0} < 5 )); then
+      return 0
+    fi
+    [[ $last_class == "$class" && $class == "__away__" ]] && return 0
+  fi
+
+  mkdir -p "$SENSE_DIR"
+  printf '%s\t%s\n' "$epoch" "$(sanitize_field "$class")" >>"$EVENTS_FILE"
+}
+
+record_snapshot() {
+  local items epoch last_items last_epoch
+  sense_enabled || return 0
+
+  items=$(current_items)
+  [[ -n $items ]] || return 0
+  # A scene sample needs at least two windows; a lone window is not a layout.
+  [[ $items == *,* ]] || return 0
+
+  epoch=$(now_epoch)
+  if [[ -f $SNAPSHOTS_FILE ]]; then
+    last_epoch=$(tail -n 1 "$SNAPSHOTS_FILE" | cut -f1)
+    last_items=$(tail -n 1 "$SNAPSHOTS_FILE" | cut -f4)
+    # Open/close bursts describe the same moment; sample it once.
+    if [[ $last_items == "$items" ]] && (( epoch - ${last_epoch:-0} < 600 )); then
+      return 0
+    fi
+  fi
+
+  mkdir -p "$SENSE_DIR"
+  printf '%s\t%s\t%s\t%s\n' \
+    "$epoch" "$(epoch_field "$epoch" %F)" "$(epoch_field "$epoch" %H)" "$items" >>"$SNAPSHOTS_FILE"
+}
+
+# Greedy similarity clustering over snapshots: a snapshot joins the first
+# scene whose original layout it resembles enough (Jaccard >= 0.6), otherwise
+# it starts a new candidate. A candidate becomes a scene once it has recurred
+# on different days. Core items are the class@workspace pairs present in at
+# least half of the scene's snapshots.
+discover_scenes() {
+  [[ -f $SNAPSHOTS_FILE ]] || return 0
+
+  awk -F '\t' -v min_count="$MIN_SCENE_SNAPSHOTS" -v min_days="$MIN_SCENE_DAYS" '
+    function short_name(item,   n, parts) {
+      sub(/@.*/, "", item)
+      n = split(item, parts, ".")
+      item = parts[n]
+      item = tolower(item)
+      gsub(/[^a-z0-9-]/, "-", item)
+      return item
+    }
+    function daypart(hour) {
+      if (hour < 5) return "night"
+      if (hour < 12) return "morning"
+      if (hour < 18) return "afternoon"
+      return "evening"
+    }
+    {
+      epoch = $1; day = $2; hour = $3 + 0; items = $4
+      count_items = split(items, list, ",")
+      if (count_items < 2) next
+
+      scene = 0
+      for (s = 1; s <= scenes; s++) {
+        split(proto[s], plist, ",")
+        inter = 0; delete seen
+        for (i = 1; i <= count_items; i++) seen[list[i]] = 1
+        for (i = 1; i <= length(plist); i++) if (plist[i] in seen) inter++
+        union_count = count_items + length(plist) - inter
+        if (union_count > 0 && inter / union_count >= 0.6) { scene = s; break }
+      }
+      if (scene == 0) {
+        scenes++
+        scene = scenes
+        proto[scene] = items
+      }
+
+      hits[scene]++
+      hour_sum[scene] += hour
+      if (!((scene SUBSEP day) in day_seen)) {
+        day_seen[scene SUBSEP day] = 1
+        days[scene]++
+      }
+      delete present
+      for (i = 1; i <= count_items; i++) {
+        if (!(list[i] in present)) {
+          present[list[i]] = 1
+          item_hits[scene SUBSEP list[i]]++
+          scene_item[scene SUBSEP list[i]] = 1
+        }
+      }
+    }
+    END {
+      for (s = 1; s <= scenes; s++) {
+        if (hits[s] < min_count || days[s] < min_days) continue
+
+        core = ""; best = ""; best_hits = -1
+        for (key in scene_item) {
+          split(key, kv, SUBSEP)
+          if (kv[1] != s) continue
+          item = kv[2]
+          if (item_hits[key] * 2 >= hits[s]) core = core (core == "" ? "" : ",") item
+          if (item_hits[key] > best_hits || (item_hits[key] == best_hits && item < best)) {
+            best = item; best_hits = item_hits[key]
+          }
+        }
+        if (core == "") core = best
+
+        name = daypart(int(hour_sum[s] / hits[s] + 0.5)) "-" short_name(best)
+        if (name in used_name) {
+          used_name[name]++
+          name = name "-" used_name[name]
+        } else {
+          used_name[name] = 1
+        }
+
+        printf "%s\t%d\t%d\t%d\t%s\t%s\n", name, hits[s], days[s], int(hour_sum[s] / hits[s] + 0.5), core, best
+      }
+    }
+  ' "$SNAPSHOTS_FILE" | sort -t "$(printf '\t')" -k2,2nr -k1,1
+}
+
+flow_report() {
+  local epoch
+  epoch=$(now_epoch)
+
+  if [[ ! -f $EVENTS_FILE ]]; then
+    printf 'learning\t0\t0\t-\t0\t-\t0\n'
+    return 0
+  fi
+
+  awk -F '\t' -v now="$epoch" -v window="$FLOW_WINDOW_SECONDS" '
+    {
+      epochs[++total] = $1
+      classes[total] = $2
+      if ($1 >= now - window && $2 != "__away__") {
+        switches++
+        distinct[$2] = 1
+      }
+      last_epoch = $1
+      last_class = $2
+    }
+    END {
+      distinct_count = 0
+      for (c in distinct) distinct_count++
+
+      # Longest single-class stretch and the dominant class, by seconds, in
+      # the window. A stretch runs from one focus event to the next.
+      longest = 0; top_class = ""; top_seconds = 0
+      for (i = 1; i <= total; i++) {
+        start = epochs[i]
+        end = (i < total) ? epochs[i + 1] : now
+        if (end < now - window) continue
+        if (start < now - window) start = now - window
+        if (end > now) end = now
+        dur = end - start
+        if (dur < 0) dur = 0
+        if (classes[i] == "__away__") continue
+        seconds[classes[i]] += dur
+        if (dur > longest) longest = dur
+      }
+      for (c in seconds) {
+        if (seconds[c] > top_seconds) { top_seconds = seconds[c]; top_class = c }
+      }
+
+      dwell = (last_epoch == "") ? window + 1 : now - last_epoch
+      if (last_class == "") last_class = "-"
+      if (top_class == "") top_class = "-"
+
+      # Idle means away, not merely quiet: an hour with no focus event at
+      # all, or the screensaver/lock marker as the latest event. A long
+      # unbroken stretch in one app stays flow; it does not decay into idle
+      # just for lasting.
+      if (total < 8) state = "learning"
+      else if (last_class == "__away__" || dwell > 3600) state = "idle"
+      else if (switches >= 12 && distinct_count >= 4) state = "scattered"
+      else if (longest >= 300 && switches <= 8) state = "flow"
+      else state = "settling"
+
+      printf "%s\t%d\t%d\t%s\t%d\t%s\t%d\n", state, switches, distinct_count, last_class, dwell, top_class, longest
+    }
+  ' "$EVENTS_FILE"
+}
+
+flow_sentence() {
+  local state switches distinct last_class dwell top_class longest
+  IFS="$(printf '\t')" read -r state switches distinct last_class dwell top_class longest <<<"$(flow_report)"
+
+  case "$state" in
+    learning) printf 'still learning (fewer than 8 focus changes recorded)\n' ;;
+    idle) printf 'idle (no focus change for %dm)\n' $(( dwell / 60 )) ;;
+    flow) printf 'in flow (focused stretches up to %dm, %s switches in the last 15m)\n' $(( longest / 60 )) "$switches" ;;
+    scattered) printf 'scattered (%s switches across %s apps in the last 15m)\n' "$switches" "$distinct" ;;
+    *) printf 'settling (%s switches in the last 15m)\n' "$switches" ;;
+  esac
+}
+
+dnd_state() {
+  local state
+  state=$(omarchy-shell notifications dndState 2>/dev/null || true)
+  case "$state" in
+    on | off) printf '%s\n' "$state" ;;
+    *) printf '' ;;
+  esac
+}
+
+restore_guardian_dnd() {
+  [[ -f $GUARDIAN_FILE ]] || return 0
+  local previous
+  previous=$(cut -f2 "$GUARDIAN_FILE")
+  # Keep the marker when the restore does not land (the shell may be
+  # restarting); the next guard pass retries instead of forgetting that
+  # notifications are silenced because of sense.
+  if omarchy-shell notifications setDnd "$previous" >/dev/null 2>&1; then
+    rm -f "$GUARDIAN_FILE"
+  fi
+}
+
+guardian_guard() {
+  local state switches distinct last_class dwell top_class longest current_dnd
+  sense_enabled || { printf 'sense is off\n'; return 0; }
+  IFS="$(printf '\t')" read -r state switches distinct last_class dwell top_class longest <<<"$(flow_report)"
+
+  if [[ $state == "flow" ]]; then
+    current_dnd=$(dnd_state)
+    if [[ -z $current_dnd ]]; then
+      printf 'flow, but the shell is not answering; leaving notifications alone\n'
+      return 0
+    fi
+    if [[ -f $GUARDIAN_FILE ]]; then
+      printf 'in flow; notifications already silenced by sense\n'
+      return 0
+    fi
+    if [[ $current_dnd == "on" ]]; then
+      printf 'in flow; notifications were already silenced\n'
+      return 0
+    fi
+    mkdir -p "$SENSE_DIR"
+    printf '%s\t%s\n' "$(now_epoch)" "$current_dnd" >"$GUARDIAN_FILE"
+    omarchy-notification-send "$(omarchy-i18n sense.inFlow)" "$(omarchy-i18n sense.silencing)" || true
+    omarchy-shell notifications setDnd on >/dev/null 2>&1 || true
+    printf 'in flow; notifications silenced\n'
+  else
+    if [[ -f $GUARDIAN_FILE ]]; then
+      restore_guardian_dnd
+      printf 'flow over (%s); notifications restored\n' "$state"
+    else
+      printf '%s; notifications untouched\n' "$state"
+    fi
+  fi
+}
+
+scene_apply() {
+  local wanted="$1" name count days hour core best line found=""
+  [[ -n $wanted ]] || { echo "Usage: omarchy sense apply <scene>" >&2; return 1; }
+
+  local index=0
+  while IFS="$(printf '\t')" read -r name count days hour core best; do
+    [[ -n $name ]] || continue
+    index=$(( index + 1 ))
+    if [[ $wanted == "$name" || $wanted == "$index" ]]; then
+      found="$name"
+      break
+    fi
+  done <<<"$(discover_scenes)"
+
+  if [[ -z $found ]]; then
+    echo "No learned scene named $wanted yet. Run: omarchy sense scenes" >&2
+    return 1
+  fi
+
+  local clients moved=0 missing="" item class workspace address current_ws main_ws="" fallback_ws=""
+  clients=$(hyprctl clients -j 2>/dev/null || printf '[]')
+
+  # A scene can hold the same class on two workspaces (two terminals), so
+  # each window may only be assigned to one scene slot.
+  local used_json='[]'
+  local -a core_items
+  IFS=',' read -ra core_items <<<"$core"
+  for item in "${core_items[@]}"; do
+    class=${item%@*}
+    workspace=${item##*@}
+    address=$(jq -r --arg c "$class" --argjson used "$used_json" \
+      '[.[] | select(.class == $c) | select(.address as $a | $used | index($a) | not)][0].address // ""' <<<"$clients")
+    [[ -n $address ]] && used_json=$(jq -c --arg a "$address" '. + [$a]' <<<"$used_json")
+    if [[ -z $address ]]; then
+      missing="$missing $class"
+      continue
+    fi
+    [[ -z $fallback_ws ]] && fallback_ws="$workspace"
+    if [[ $item == "$best" ]]; then main_ws="$workspace"; fi
+    current_ws=$(jq -r --arg a "$address" '[.[] | select(.address == $a)][0].workspace.name // "" | tostring' <<<"$clients")
+    if [[ $current_ws != "$workspace" ]]; then
+      hyprctl dispatch movetoworkspacesilent "$workspace,address:$address" >/dev/null 2>&1 || true
+      moved=$(( moved + 1 ))
+    fi
+  done
+
+  main_ws="${main_ws:-$fallback_ws}"
+  [[ -n $main_ws ]] && hyprctl dispatch workspace "$main_ws" >/dev/null 2>&1 || true
+
+  printf 'scene %s: moved %s window(s) back to their usual workspaces\n' "$found" "$moved"
+  if [[ -n $missing ]]; then
+    printf 'not open right now:%s\n' "$missing"
+  fi
+  omarchy-notification-send "$(omarchy-i18n sense.sceneRestored)" "$(omarchy-i18n sense.sceneBack "$found")" || true
+}
+
+watch_events() {
+  sense_enabled || return 0
+
+  local socket="${XDG_RUNTIME_DIR:-}/hypr/${HYPRLAND_INSTANCE_SIGNATURE:-}/.socket2.sock"
+  [[ -S $socket ]] || return 0
+
+  local lock="${XDG_RUNTIME_DIR:-/tmp}/omarchy-sense.lock"
+  exec 9>"$lock"
+  flock -n 9 || return 0
+
+  record_snapshot
+  local last_class="" event class rc
+  exec 3< <(socat -U - "UNIX-CONNECT:$socket" 2>/dev/null || true)
+  while true; do
+    event=""
+    read -r -t 60 event <&3
+    rc=$?
+    # A timeout is the guardian's heartbeat: flow is a state you settle into
+    # without generating events, so it can only be noticed by checking the
+    # local log once in a while. This never queries the compositor.
+    if (( rc > 128 )); then
+      guardian_guard >/dev/null 2>&1 || true
+      continue
+    fi
+    (( rc == 0 )) || break
+
+    case "$event" in
+      activewindow\>\>*)
+        class=${event#activewindow>>}
+        class=${class%%,*}
+        if [[ $class != "$last_class" ]]; then
+          last_class="$class"
+          record_event "$class"
+          guardian_guard >/dev/null 2>&1 || true
+        fi
+        ;;
+      openwindow\>\>* | closewindow\>\>* | movewindow\>\>* | movewindowv2\>\>*)
+        # Sampling moves as well as opens means the layout a user settles
+        # into by hand is learned, not just the one windows opened with.
+        record_snapshot
+        ;;
+    esac
+  done
+  exec 3<&-
+}
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-sense <command>
+
+  status     What sense has learned so far
+  enable     Start learning (local only; classes and workspaces, never titles)
+  disable    Stop learning and restore anything sense silenced
+  scenes     Scenes discovered from your recurring window layouts
+  apply <s>  Move open windows back to a scene's usual workspaces
+  flow       Your current focus state, with the numbers behind it
+  guard      Silence notifications while you are in flow, restore after
+  why        Explain the current flow state and scene match
+  snapshot   Record the current layout once (the watcher does this for you)
+  forget     Delete everything sense has learned
+  watch      Listen for window events (started by the session when enabled)
+USAGE
+}
+
+case "${1:-status}" in
+  enable)
+    mkdir -p "$SENSE_DIR"
+    touch "$ENABLED_FILE"
+    record_snapshot
+    class=$(active_class)
+    [[ -n $class ]] && record_event "$class"
+    # The session watcher exited at login while sense was off, so enabling
+    # has to start one. It flock-guards itself, and exits at once when no
+    # compositor socket exists.
+    setsid "${BASH_SOURCE[0]}" watch >/dev/null 2>&1 </dev/null &
+    printf 'sense is learning. it only records window classes and workspaces, locally in %s\n' "${SENSE_DIR/#$HOME/~}"
+    printf 'give it a few days, then run: omarchy sense scenes\n'
+    ;;
+  disable)
+    restore_guardian_dnd
+    rm -f "$ENABLED_FILE"
+    printf 'sense is off; learned history is kept. omarchy sense forget deletes it\n'
+    ;;
+  status)
+    if sense_enabled; then printf 'learning: on\n'; else printf 'learning: off\n'; fi
+    event_count=0; snapshot_count=0; scene_count=0
+    [[ -f $EVENTS_FILE ]] && event_count=$(wc -l <"$EVENTS_FILE" | tr -d ' ')
+    [[ -f $SNAPSHOTS_FILE ]] && snapshot_count=$(wc -l <"$SNAPSHOTS_FILE" | tr -d ' ')
+    scene_count=$(discover_scenes | grep -c . || true)
+    printf 'focus events: %s, layout snapshots: %s, scenes learned: %s\n' "$event_count" "$snapshot_count" "$scene_count"
+    printf 'flow: %s\n' "$(flow_sentence)"
+    ;;
+  scenes)
+    if [[ ${2:-} == "--json" ]]; then
+      json='[]'
+      while IFS="$(printf '\t')" read -r name count days hour core best; do
+        [[ -n $name ]] || continue
+        json=$(jq -c --arg name "$name" --argjson seen "$count" --argjson days "$days" \
+          --argjson hour "$hour" --arg core "$core" \
+          '. + [{name: $name, seen: $seen, days: $days, usual_hour: $hour,
+                 windows: ($core | split(",") | map(split("@") | {class: .[0], workspace: .[1]}))}]' <<<"$json")
+      done <<<"$(discover_scenes)"
+      printf '%s\n' "$json"
+    else
+      found=0
+      while IFS="$(printf '\t')" read -r name count days hour core best; do
+        [[ -n $name ]] || continue
+        found=1
+        printf '%s  (seen %sx over %s days, usually around %02d:00)\n' "$name" "$count" "$days" "$hour"
+        IFS=',' read -ra items <<<"$core"
+        while read -r item; do
+          printf '  %s -> workspace %s\n' "${item%@*}" "${item##*@}"
+        done <<<"$(printf '%s\n' "${items[@]}" | sort)"
+      done <<<"$(discover_scenes)"
+      (( found )) || printf 'no scenes yet. sense needs the same layout on at least %s different days\n' "$MIN_SCENE_DAYS"
+    fi
+    ;;
+  apply)
+    scene_apply "${2:-}"
+    ;;
+  flow)
+    if [[ ${2:-} == "--json" ]]; then
+      IFS="$(printf '\t')" read -r state switches distinct last_class dwell top_class longest <<<"$(flow_report)"
+      jq -n --arg state "$state" --argjson switches "$switches" --argjson distinct_apps "$distinct" \
+        --arg current_class "$last_class" --argjson dwell_seconds "$dwell" \
+        --arg top_class "$top_class" --argjson longest_focus_seconds "$longest" \
+        '{state: $state, switches: $switches, distinct_apps: $distinct_apps,
+          current_class: $current_class, dwell_seconds: $dwell_seconds,
+          top_class: $top_class, longest_focus_seconds: $longest_focus_seconds}'
+    else
+      flow_sentence
+    fi
+    ;;
+  guard)
+    guardian_guard
+    ;;
+  why)
+    printf 'flow: %s\n' "$(flow_sentence)"
+    items=$(current_items)
+    if [[ -n $items ]]; then
+      best_name=""; best_match=0
+      while IFS="$(printf '\t')" read -r name count days hour core best; do
+        [[ -n $name ]] || continue
+        match=$(awk -v a="$items" -v b="$core" 'BEGIN {
+          na = split(a, aa, ","); nb = split(b, bb, ",")
+          for (i = 1; i <= na; i++) set[aa[i]] = 1
+          inter = 0
+          for (i = 1; i <= nb; i++) if (bb[i] in set) inter++
+          union_count = na + nb - inter
+          printf "%d", (union_count > 0) ? int(100 * inter / union_count) : 0
+        }')
+        if (( match > best_match )); then best_match=$match; best_name="$name"; fi
+      done <<<"$(discover_scenes)"
+      if (( best_match >= 50 )); then
+        printf 'this looks like %s (%s%% match)\n' "$best_name" "$best_match"
+      else
+        printf 'no scene matches the current layout yet\n'
+      fi
+    fi
+    ;;
+  snapshot)
+    record_snapshot
+    ;;
+  forget)
+    restore_guardian_dnd
+    rm -f "$EVENTS_FILE" "$SNAPSHOTS_FILE"
+    printf 'forgotten. sense kept no copy anywhere else\n'
+    ;;
+  watch)
+    watch_events
+    ;;
+  -h | --help | help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac

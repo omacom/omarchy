@@ -125,6 +125,12 @@
   "appearance.unlock": {"icon":"󰟵","label":"Unlock","aliases":["unlock"],"action":"unlock=$(omarchy-plymouth-switcher); if [[ $unlock == default ]]; then omarchy-launch-floating-terminal-with-presentation omarchy-plymouth-reset; elif [[ -n $unlock ]]; then omarchy-launch-floating-terminal-with-presentation \"omarchy-plymouth-set-by-theme $(printf %q \"$unlock\")\"; fi"},
 
   // Trigger
+  "trigger.sense": {"icon":"󰧑","label":"Sense"},
+  "trigger.sense.scenes": {"icon":"󰀻","label":"Learned Scenes","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-sense scenes'"},
+  "trigger.sense.flow": {"icon":"󰧑","label":"Flow State","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-sense why'"},
+  "trigger.sense.enable": {"icon":"󰧑","label":"Start Learning","action":"omarchy-sense enable"},
+  "trigger.sense.disable": {"icon":"󰧑","label":"Stop Learning","action":"omarchy-sense disable"},
+  "trigger.sense.forget": {"icon":"󰧑","label":"Forget Everything Learned","action":"omarchy-sense forget"},
   "trigger.toggle": {"icon":"󰔎","label":"Toggle","aliases":["toggle","toggles"]},
   "trigger.toggle.idle-lock-on": {"icon":"","label":"Stay Awake","when":"[[ ! -f ~/.local/state/omarchy/indicators/stay-awake ]]","action":"omarchy-toggle-idle"},
   "trigger.toggle.idle-lock-off": {"icon":"","label":"Allow Sleep","when":"[[ -f ~/.local/state/omarchy/indicators/stay-awake ]]","action":"omarchy-toggle-idle"},
