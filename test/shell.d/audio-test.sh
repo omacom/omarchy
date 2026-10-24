@@ -161,3 +161,11 @@ assert(panel.includes('onNodesChanged: volumeSinkResolveTimer.restart()') && /ta
 assert(/path: [^\n]*"\/easyeffects\/db\/easyeffectsrc"\s*watchChanges: true\s*printErrors: false\s*onFileChanged: volumeSinkResolveTimer\.restart\(\)/.test(panel),
   "EasyEffects' configured output is watched, since an idle EasyEffects resolves through it")
 JS
+
+grep -Fq 'readonly property real outputVolumeMaximum: 1.25' "$ROOT/shell/plugins/panels/audio/Panel.qml" ||
+  fail "audio panel allows 125% master output volume"
+pass "audio panel allows 125% master output volume"
+
+grep -Fq 'max_volume=125' "$ROOT/bin/omarchy-audio-output-volume" ||
+  fail "audio volume command allows 125% output volume"
+pass "audio volume command allows 125% output volume"
