@@ -28,6 +28,16 @@ assert(
   'menu falls back to bash when an in-process summon is refused'
 )
 
+assertDeepEqual(
+  menu.dmenuAnchor({ x: -10, y: 38, width: 2541, height: 1319, extra: true }),
+  { x: -10, y: 38, width: 2541, height: 1319 },
+  'menu keeps a numeric anchor'
+)
+assertEqual(menu.dmenuAnchor({ x: '100', y: 38, width: 400, height: 400 }), null, 'menu ignores an anchor with a string field')
+assertEqual(menu.dmenuAnchor({ x: null, y: 38, width: 400, height: 400 }), null, 'menu ignores an anchor with a null field')
+assertEqual(menu.dmenuAnchor({ x: 0, y: 0, width: 0, height: 400 }), null, 'menu ignores an anchor without an area')
+assertEqual(menu.dmenuAnchor(undefined), null, 'menu centers on the screen without an anchor')
+
 const parsed = menu.parseMenuJsonc(`
 {
   // comment

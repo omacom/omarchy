@@ -3,7 +3,7 @@
 # omarchy:summary=Pick one or multiple options from a menu
 # omarchy:group=menu
 # omarchy:name=select
-# omarchy:args=prompt [option...] [-- --multiple --selected <value> --on-change <command-json> --change-key <key> --width <pixels> --maxheight <pixels>]
+# omarchy:args=prompt [option...] [-- --multiple --selected <value> --on-change <command-json> --change-key <key> --width <pixels> --maxheight <pixels> --anchor <x,y,width,height>]
 # omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400
 
 # An option may lead with an icon, as "<glyph><TAB><label>", and may trail a
@@ -17,6 +17,8 @@
 # JSON appended, applies immediately, and needs no Apply row. A successful
 # command may print a JSON array of actual selections to update the checkmarks.
 # --selected takes a returned value (label plus any subtext), and can be repeated.
+# --anchor centers the menu on a rectangle in the focused monitor's logical
+# coordinates instead of on the screen, such as the window the menu acts on.
 
 set -euo pipefail
 
@@ -31,6 +33,7 @@ shift
 options=()
 menu_width=""
 menu_maxheight=""
+menu_anchor=""
 multiple=0
 on_change="[]"
 change_key=""
@@ -85,6 +88,14 @@ while (( $# > 0 )); do
           fi
           menu_maxheight="$1"
           ;;
+        --anchor)
+          shift
+          if (( $# == 0 )) || [[ ! $1 =~ ^-?[0-9]+,-?[0-9]+,[0-9]+,[0-9]+$ ]]; then
+            echo "omarchy-menu-select: --anchor requires x,y,width,height" >&2
+            exit 1
+          fi
+          menu_anchor="$1"
+          ;;
       esac
       shift
     done
@@ -125,8 +136,12 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
   };
   $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
   $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
+  if (length($ARGV[10] // "")) {
+    my ($x, $y, $width, $height) = map { int } split /,/, $ARGV[10];
+    $payload->{anchor} = { x => $x, y => $y, width => $width, height => $height };
+  }
   print encode_json($payload)
-' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$multiple" "$selected_json" "$on_change" "$change_key")
+' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$multiple" "$selected_json" "$on_change" "$change_key" "$menu_anchor")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null || exit 2
 
