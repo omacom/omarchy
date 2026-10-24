@@ -142,35 +142,11 @@ EOF
 result=$(HOME="$PI_HOME" CODEX_HOME="$PI_HOME/.codex" XDG_DATA_HOME="$PI_HOME/.local/share" \
   PATH="$PI_HOME/bin:$PATH" "$collector")
 
-[[ $(jq -r '.todayTotalTokens' <<<"$result") == "77" ]] ||
-  fail "Codex collector counts Pi fork, OMP, and profile usage once" "$result"
-[[ $(jq -c '.modelUsage' <<<"$result") == '{"gpt-pi":{"inputTokens":24,"outputTokens":5,"cacheReadInputTokens":3,"cacheCreationInputTokens":2},"gpt-omp":{"inputTokens":20,"outputTokens":5,"cacheReadInputTokens":4,"cacheCreationInputTokens":1},"gpt-omp-profile":{"inputTokens":7,"outputTokens":3,"cacheReadInputTokens":2,"cacheCreationInputTokens":1}}' ]] ||
-  fail "Codex collector filters pi and omp sessions to Codex providers" "$result"
-[[ $(jq -r '.todayPrompts' <<<"$result") == "5" ]] ||
-  fail "Codex collector keeps distinct Pi messages with colliding IDs" "$result"
-[[ $(jq -c '[.todaySessions,.totalSessions]' <<<"$result") == '[5,5]' ]] ||
-  fail "Codex collector attributes new fork usage to its own session" "$result"
-pass "Codex collector deduplicates Pi forks without collapsing ID collisions, profiles included"
-
-# A $HOME that is itself a git checkout (a common dotfiles setup with a
-# whitelist .gitignore) must not hide the session files from the scan:
-# ripgrep applies the parent repo's ignore rules to searched directories,
-# which would otherwise make the scan silently count zero usage.
-GIT_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
-mkdir -p "$GIT_HOME/bin" "$GIT_HOME/.pi/agent/sessions/project"
-cp "$TEST_HOME/bin/codex" "$GIT_HOME/bin/codex"
-cat >"$GIT_HOME/.pi/agent/sessions/project/pi.jsonl" <<EOF
-{"type":"message","id":"git-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-git","usage":{"input":6,"output":2}}}
-EOF
-git -C "$GIT_HOME" init -q
-printf '*\n' >"$GIT_HOME/.gitignore"
-
-result=$(HOME="$GIT_HOME" CODEX_HOME="$GIT_HOME/.codex" XDG_DATA_HOME="$GIT_HOME/.local/share" \
-  PATH="$GIT_HOME/bin:$PATH" "$collector")
-
-[[ $(jq -r '.todayTotalTokens' <<<"$result") == "8" ]] ||
-  fail "Codex collector counts pi sessions when HOME is a git checkout" "$result"
-pass "Codex collector counts pi sessions when HOME is a git checkout"
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "0" ]] ||
+  fail "Codex collector no longer counts pi and omp sessions" "$result"
+[[ $(jq -c '.modelUsage' <<<"$result") == '{}' ]] ||
+  fail "Codex collector keeps pi and omp usage in the dedicated pi collector" "$result"
+pass "Codex collector leaves pi and omp sessions to the pi collector"
 
 # A subscription burned entirely through opencode has no native session files;
 # usage must come from opencode's message database, filtered to OpenAI.
@@ -1199,16 +1175,16 @@ expire_scan_cache() {
 }
 
 result=$(run_incremental)
-[[ $(jq -r '.todayTotalTokens' <<<"$result") == "20" ]] ||
-  fail "Codex collector counts both session sources on a first scan" "$result"
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "15" ]] ||
+  fail "Codex collector counts native sessions and leaves Pi usage to its collector" "$result"
 
 file_cache=$(ls "$INCREMENTAL_HOME/.cache/omarchy/agent-usage/"codex-files-*.json 2>/dev/null | head -n 1)
 [[ -n $file_cache && -s $file_cache ]] ||
   fail "Codex collector writes a per-file cache on first scan"
 [[ $(jq --arg path "$incremental_session" -r '.files[$path].days | length' "$file_cache") == "1" ]] ||
   fail "Codex collector records the native session file it read" "$(cat "$file_cache")"
-# A forked pi session repeats its parent's messages, so pi sessions are only
-# deduplicated across the whole tree at once, never replayed per file.
+# Pi sessions belong to the dedicated Pi collector and never enter Codex's
+# per-file cache.
 [[ $(jq --arg path "$incremental_pi" -r '.files | has($path)' "$file_cache") == "false" ]] ||
   fail "Codex collector keeps pi sessions out of the per-file cache" "$(cat "$file_cache")"
 pass "Codex collector records per-file totals as it scans"
@@ -1218,14 +1194,14 @@ pass "Codex collector records per-file totals as it scans"
 chmod 000 "$incremental_session"
 expire_scan_cache
 result=$(run_incremental)
-[[ $(jq -r '.todayTotalTokens' <<<"$result") == "20" ]] ||
-  fail "Codex collector rereads session files it has already counted" "$result"
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "15" ]] ||
+  fail "Codex collector replays its native session file without counting Pi" "$result"
 pass "Codex collector replays unchanged session files instead of rereading them"
 
 # --force means the history itself is re-read, per-file records included.
 result=$(run_incremental --force)
-[[ $(jq -r '.todayTotalTokens' <<<"$result") == "5" ]] ||
-  fail "Codex collector --force reuses per-file records" "$result"
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "0" ]] ||
+  fail "Codex collector --force rereads native history without counting Pi" "$result"
 pass "Codex collector --force rereads the history"
 
 chmod 644 "$incremental_session"
@@ -1238,7 +1214,7 @@ cat >>"$incremental_session" <<EOF
 EOF
 expire_scan_cache
 result=$(run_incremental)
-[[ $(jq -r '.todayTotalTokens' <<<"$result") == "52" ]] ||
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "47" ]] ||
   fail "Codex collector misses turns appended to a session it had cached" "$result"
 pass "Codex collector rereads a session file that grew"
 

@@ -345,11 +345,11 @@ EOF
 result=$(HOME="$PI_HOME" XDG_CACHE_HOME="$PI_HOME/.cache" XDG_DATA_HOME="$PI_HOME/.local/share" \
   "$ROOT/bin/omarchy-agent-usage-claude" --force)
 
-[[ $(jq -r '.todayTotalTokens' <<<"$result") == "62" ]] ||
-  fail "Claude collector counts usage from pi and omp sessions" "$result"
-[[ $(jq -c '.modelUsage' <<<"$result") == '{"claude-omp":{"cacheCreationInputTokens":1,"cacheReadInputTokens":4,"inputTokens":20,"outputTokens":5},"claude-omp-profile":{"cacheCreationInputTokens":1,"cacheReadInputTokens":2,"inputTokens":7,"outputTokens":3},"claude-pi":{"cacheCreationInputTokens":2,"cacheReadInputTokens":3,"inputTokens":10,"outputTokens":4}}' ]] ||
-  fail "Claude collector filters pi and omp sessions to Anthropic providers" "$result"
-pass "Claude collector counts pi and omp subscription usage, profiles included"
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "0" ]] ||
+  fail "Claude collector no longer counts pi and omp sessions" "$result"
+[[ $(jq -c '.modelUsage' <<<"$result") == '{}' ]] ||
+  fail "Claude collector keeps pi and omp usage in the dedicated pi collector" "$result"
+pass "Claude collector leaves pi and omp sessions to the pi collector"
 
 # Collectors overlap in practice: the update command backgrounds one per agent
 # while the panel refreshes on its own. Two writers aiming at one cache file

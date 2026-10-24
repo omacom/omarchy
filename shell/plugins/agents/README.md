@@ -1,6 +1,6 @@
 # Agents
 
-One bar icon and one panel for every AI coding subscription on the machine.
+One bar icon and one panel for AI coding subscriptions and local Pi/OMP usage on the machine.
 The panel is strictly a display: it watches the usage records that
 `omarchy-agent-usage-update` writes to `~/.local/state/omarchy/agents/usage/`
 and draws whatever appears there. `Panel.qml` owns the bar button and the
@@ -68,9 +68,10 @@ Adding an agent needs no QML changes: ship a collector that prints the record co
 | Collector | Limits | Local stats |
 |---|---|---|
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
-| `codex` | The Codex app-server RPC (rate windows, plus an individual spend cap and its reported reset time when present) | native Codex CLI session files on the built-in `openai` provider (plus pi and opencode sessions) |
+| `codex` | The Codex app-server RPC (rate windows, plus an individual spend cap and its reported reset time when present) | native Codex CLI session files on the built-in `openai` provider and opencode sessions on an OpenAI provider |
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `pi` | None; labeled Local usage | Pi and Oh My Pi assistant messages from every backend, with inherited fork responses counted once |
 | `kimi` | Kimi Code quotas (5-hour session, weekly, and monthly allowances) | none; quota only |
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
@@ -107,6 +108,10 @@ Kimi reads `KIMI_API_KEY` first, then `credentials/kimi-code.json` under an expl
 Expired tokens are refreshed under the current CLI's renewable directory lock at `<home>/oauth/kimi-code.lock`; legacy credentials use their sibling file lock. The rotated token pair is flushed and published atomically with private permissions. Credentials are reread after the exchange so a sign-in or logout completed during the request takes precedence. A failed lock prevents refresh, and credentials are sent only to trusted Kimi HTTPS hosts without following redirects. When sign-in expires, run `kimi login`; an invalid overriding `KIMI_API_KEY` must instead be updated or unset.
 
 Limits probes reuse a result for one minute unless `--force` is requested. A failed probe retains the last-known limits with stale metadata. Cache identity follows the token used by the request, and a refresh this collector performs carries the same account's previous limits forward. Different credentials or endpoints never share cached quota.
+
+Pi scans `~/.pi/agent/sessions`, `~/.omp/agent/sessions`, existing `~/.pi/profiles/*/agent/sessions` and `~/.omp/profiles/*/agent/sessions`, and `PI_CODING_AGENT_DIR/sessions` and the explicit `PI_CODING_AGENT_SESSION_DIR` directory when configured. OMP's `PI_CONFIG_DIR` root and existing `$XDG_DATA_HOME/omp/sessions` and `$XDG_DATA_HOME/omp/profiles/*/sessions` are also included. Physical file aliases are counted once. Forks are deduplicated within their `parentSession` lineage using entry IDs and message fingerprints, not globally by Pi's short entry IDs; independent sessions remain separate.
+
+The Pi tab is local usage, not a subscription meter: it does not infer quota resets or costs from tokens. Today and the seven daily rows use local calendar dates; model totals cover all valid assistant usage still on disk. Prompt counts represent assistant responses, including tool-use turns. Invalid dates and negative, non-finite, or fractional token counters are skipped. Recent scans are cached for 20 seconds, or 15 minutes for `--limits-only`; `--force`, a different local date, or changed session roots triggers a fresh scan. The cache is optional and an empty forced scan clears old usage.
 
 ### Fireworks balance
 
@@ -204,5 +209,5 @@ the same account synced from two machines is not counted twice.
 
 One caveat on "all-time": the Codex collector only reads native session files
 touched in the last 30 days, and Fireworks requests the last 30 days from its
-billing API, so their totals and day counts cover that window. Claude's cover
+billing API, so their totals and day counts cover that window. Claude and Pi cover
 every transcript still on disk.
