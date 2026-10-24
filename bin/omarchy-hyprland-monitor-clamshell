@@ -3,13 +3,25 @@
 # omarchy:summary=Apply clamshell display state to Hyprland monitors
 # omarchy:hidden=true
 
+# Serialize the entire read/recover/decision/apply sequence with scale saves.
+# The private re-entry argument is only used by the lock-owning Python supervisor.
+if [[ ${1:-} != "--layout-locked" ]]; then
+  exec python3 "$OMARCHY_PATH/default/hypr/monitor-layout.py" --clamshell
+fi
+
 TOGGLES_DIR="$HOME/.local/state/omarchy/toggles/hypr"
 CLAMSHELL_FLAG="$TOGGLES_DIR/internal-monitor-clamshell.lua"
 MANUAL_DISABLE_FLAG="$TOGGLES_DIR/internal-monitor-disable.lua"
 SCALE_STATE="$TOGGLES_DIR/internal-monitor-scale"
-MONITOR_LUA="$HOME/.config/hypr/monitors.lua"
+MONITOR_LUA="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/monitors.lua"
 
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
+# Use the same byte-validated managed geometry as the normal Lua loader.
+SAVED_MONITOR=""
+if [[ -n $INTERNAL && -f $MONITOR_LUA ]]; then
+  SAVED_MONITOR=$(python3 "$OMARCHY_PATH/default/hypr/monitor-layout.py" --saved-monitor "$MONITOR_LUA" "$INTERNAL") || exit 1
+fi
+IFS=$'\t' read -r SAVED_SCALE SAVED_POSITION SAVED_MODE SAVED_TRANSFORM <<<"$SAVED_MONITOR"
 
 # INTERNAL is written into generated Lua and hyprctl eval/dispatch below, so a
 # name that is not a plain connector string could execute on the next reload.
@@ -96,6 +108,10 @@ configured_internal_monitor_value() {
 
 configured_monitor_scale() {
   local scale
+  if [[ -n $SAVED_SCALE ]]; then
+    printf '%s\n' "$SAVED_SCALE"
+    return
+  fi
   scale=$(configured_internal_monitor_value scale)
   # An internal rule that names a scale settles it, even when the name resolves
   # to nothing usable. Only a rule that names none at all defers to the catch-all,
@@ -155,7 +171,7 @@ read_monitor_scale() {
 
 read_monitor_position() {
   local position
-  position=$(configured_internal_monitor_value position)
+  position=${SAVED_POSITION:-$(configured_internal_monitor_value position)}
   if [[ $position =~ ^[-[:alnum:]_.+]+$ ]]; then
     echo "$position"
     return
@@ -170,7 +186,7 @@ enable_internal_output() {
   local position
   [[ -n $scale ]] || scale=$(read_monitor_scale)
   position=$(read_monitor_position)
-  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", mode = \"preferred\", position = \"$position\", scale = $scale })" >/dev/null 2>&1 || true
+  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", mode = \"${SAVED_MODE:-preferred}\", position = \"$position\", scale = $scale, transform = ${SAVED_TRANSFORM:-0} })" >/dev/null 2>&1 || true
 }
 
 sync_internal_scale() {

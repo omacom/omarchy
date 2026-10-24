@@ -13,7 +13,8 @@ stub_dir="$tmpdir/bin"
 home_dir="$tmpdir/home"
 monitors_json="$tmpdir/monitors.json"
 flag_dir="$home_dir/.local/state/omarchy/toggles/hypr"
-mkdir -p "$stub_dir" "$flag_dir"
+mkdir -p "$stub_dir" "$flag_dir" "$home_dir/.config/hypr"
+: > "$home_dir/.config/hypr/monitors.lua"
 
 make_stub() {
   local name=$1
@@ -30,10 +31,29 @@ make_stub omarchy-hyprland-monitor-internal ':'
 make_stub omarchy-hyprland-monitor-internal-mirror ':'
 make_stub omarchy-hw-clamshell 'exit 0'
 make_stub omarchy-hyprland-monitor-laptop 'printf "%s\n" "$LAPTOP_NAME"'
-make_stub hyprctl 'case "$1" in
-  monitors) cat "$MONITORS_JSON" ;;
-  eval) printf "%s\n" "$2" >>"$EVAL_LOG" ;;
-esac'
+cat >"$stub_dir/hyprctl" <<'PYTHON'
+#!/usr/bin/python3
+import json, os, re, sys
+from pathlib import Path
+path = Path(os.environ["MONITORS_JSON"])
+if sys.argv[1] == "monitors":
+  print(path.read_text())
+elif sys.argv[1] == "getoption":
+  print(json.dumps({"bool": False}))
+elif sys.argv[1] == "eval":
+  if "hl.monitor(" not in sys.argv[2]:
+    print("ok")
+    sys.exit(0)
+  with open(os.environ["EVAL_LOG"], "a") as log:
+    log.write(sys.argv[2] + "\n")
+  displays = json.loads(path.read_text())
+  for name, x, y, scale in re.findall(r'output = "([^"]+)".*?position = "(-?\d+)x(-?\d+)".*?scale = ([\d.]+)', sys.argv[2]):
+    for display in displays:
+      if display["name"] == name:
+        display.update(x=int(x), y=int(y), scale=float(scale))
+  path.write_text(json.dumps(displays))
+PYTHON
+chmod +x "$stub_dir/hyprctl"
 
 eval_log="$tmpdir/eval.log"
 
@@ -41,7 +61,8 @@ run_monitor() {
   local command=$1
   shift
   : >"$eval_log"
-  HOME="$home_dir" \
+  OMARCHY_PATH="$ROOT" \
+    HOME="$home_dir" \
     XDG_STATE_HOME="$home_dir/.local/state" \
     LAPTOP_NAME="${LAPTOP_NAME:-eDP-1}" \
     MONITORS_JSON="$monitors_json" \
