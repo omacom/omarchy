@@ -279,14 +279,37 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.ok(!Delivery.omarchyGlyph(''))
   assert.ok(!Delivery.omarchyGlyph(''))
 
-  // The deck clears the bar only on the top and right edges it touches.
+  // The deck hangs from one corner and clears the bar on the two edges that
+  // corner touches; anything else reads as the default top-right.
   const bar = { barHidden: false, barSize: 26, barSizeFor: name => name === 'notched' ? 40 : 26 }
   assert.equal(Delivery.barThickness(bar, 'notched', 26), 40)
   assert.equal(Delivery.barThickness(bar, 'plain', 26), 26)
   assert.equal(Delivery.barThickness({ barHidden: true }, 'plain', 26), 0)
   assert.equal(Delivery.barThickness(null, 'plain', 28), 28)
-  for (const [position, thickness, top, right] of [['top', 26, 36, 10], ['right', 40, 10, 50], ['bottom', 26, 10, 10], ['left', 26, 10, 10]])
-    assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) }, { top, right }, position)
+  for (const junk of [undefined, null, '', 'top', 'middle', ' top right ', 7])
+    assert.equal(Delivery.normalizePosition(junk), 'top-right', String(junk))
+  assert.equal(Delivery.normalizePosition(' BOTTOM-Left '), 'bottom-left')
+  for (const [corner, barPosition, thickness, margins] of [
+    ['top-right', 'top', 26, { top: 36, bottom: 0, left: 0, right: 10 }],
+    ['top-right', 'right', 40, { top: 10, bottom: 0, left: 0, right: 50 }],
+    ['top-left', 'top', 26, { top: 36, bottom: 0, left: 10, right: 0 }],
+    ['top-left', 'left', 40, { top: 10, bottom: 0, left: 50, right: 0 }],
+    ['bottom-right', 'bottom', 26, { top: 0, bottom: 36, left: 0, right: 10 }],
+    ['bottom-right', 'right', 40, { top: 0, bottom: 10, left: 0, right: 50 }],
+    ['bottom-left', 'bottom', 26, { top: 0, bottom: 36, left: 10, right: 0 }],
+    ['bottom-left', 'left', 40, { top: 0, bottom: 10, left: 50, right: 0 }],
+    // A bar on an edge the corner does not touch costs no clearance.
+    ['top-right', 'bottom', 26, { top: 10, bottom: 0, left: 0, right: 10 }],
+    ['bottom-left', 'top', 26, { top: 0, bottom: 10, left: 10, right: 0 }],
+  ])
+    assert.deepEqual({ ...Delivery.deckMargins(corner, barPosition, thickness, 10) }, margins, corner + '/' + barPosition)
+  // A bottom corner draws the layout upside down, so the newest card (layout
+  // y 0) hangs nearest the edge, and cards travel out through it.
+  assert.equal(Delivery.flipY(false, 300, 40, 58), 40)
+  assert.equal(Delivery.flipY(true, 300, 40, 58), 202)
+  assert.equal(Delivery.flipY(true, undefined, 40, 58), -98)
+  assert.equal(Delivery.outward(false, 24), -24)
+  assert.equal(Delivery.outward(true, 24), 24)
 }
 
 // --------------------------------------------------- Service.qml functions

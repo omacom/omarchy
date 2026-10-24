@@ -1,6 +1,6 @@
 # Notifications
 
-The shell is the notification daemon: `shell/plugins/notifications/Service.qml` hosts a Quickshell `NotificationServer` that claims `org.freedesktop.Notifications` on the session bus, so anything that speaks the freedesktop protocol (notify-send, libnotify apps, Chromium web apps) is drawn as a card in a deck at the top-right corner. The end-user view is in `manual/10-notices.md`.
+The shell is the notification daemon: `shell/plugins/notifications/Service.qml` hosts a Quickshell `NotificationServer` that claims `org.freedesktop.Notifications` on the session bus, so anything that speaks the freedesktop protocol (notify-send, libnotify apps, Chromium web apps) is drawn as a card in a deck in one corner of the screen (`notifications.position` in `shell.json`, top-right by default). The end-user view is in `manual/10-notices.md`.
 
 ## Files
 
@@ -14,7 +14,7 @@ The shell is the notification daemon: `shell/plugins/notifications/Service.qml` 
 | `Security.js` | URL policy, bounds, the sender image path policy, the `omarchy-exec-argv` and glyph checks |
 | `Icons.js` | The names a card's icon may go by: site names, symbolic icons |
 | `Layout.js` | Pure deck layout: rows in, placements out |
-| `Delivery.js` | Quiet rules, ephemeral rules, bar clearance |
+| `Delivery.js` | Quiet rules, ephemeral rules, the deck's corner and bar clearance |
 
 The JS modules also load in Node: `test/shell.d/notifications-test.sh` covers them without a compositor, along with the startup cleanup.
 
@@ -77,7 +77,7 @@ Silenced notifications are recorded in history, so `showHistory` can put them ba
 
 ## Appearance
 
-Notifications have no settings of their own. A new deck lands on the focused display and stays there until it empties. Everything else follows the desktop: text size, the theme's outer gap, the locale's time format. Colours come from the theme's `[notifications]` in `shell.toml`, and corners from Hyprland's `decoration:rounding`.
+One setting of its own: `notifications.position` in `shell.json` names the corner toasts stack into — `top-right` (default), `top-left`, `bottom-right` or `bottom-left` — with the newest card nearest the edge and the deck clearing the bar on the two edges the corner touches. A new deck lands on the focused display and stays there until it empties. Everything else follows the desktop: text size, the theme's outer gap, the locale's time format. Colours come from the theme's `[notifications]` in `shell.toml`, and corners from Hyprland's `decoration:rounding`.
 
 ## The sender contract
 

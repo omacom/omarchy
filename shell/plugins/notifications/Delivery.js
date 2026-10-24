@@ -64,16 +64,43 @@ function barThickness(bar, screenName, defaultBarSize) {
   return Math.max(0, size)
 }
 
-// The deck hangs from the top-right corner, so it clears the bar only on the
-// two edges it touches.
-function deckMargins(barPosition, thickness, gap) {
-  var position = String(barPosition || "top")
+// The corner the deck hangs from, shell.json's notifications.position, newest
+// card nearest it.
+var POSITIONS = ["top-right", "top-left", "bottom-right", "bottom-left"]
+
+function normalizePosition(value) {
+  var position = String(value || "").trim().toLowerCase()
+  return POSITIONS.indexOf(position) >= 0 ? position : "top-right"
+}
+
+// The deck hangs from one corner, so it clears the bar only on the two edges
+// that corner touches. Answers the distance from each screen edge to the deck.
+function deckMargins(corner, barPosition, thickness, gap) {
+  var position = normalizePosition(corner)
+  var vertical = position.indexOf("top") === 0 ? "top" : "bottom"
+  var horizontal = position.indexOf("left") >= 0 ? "left" : "right"
+  var at = String(barPosition || "top")
   var edge = Number(gap)
   if (!isFinite(edge)) edge = 0
   var bar = Number(thickness)
   if (!isFinite(bar)) bar = 0
-  return {
-    top: (position === "top" ? bar : 0) + edge,
-    right: (position === "right" ? bar : 0) + edge
-  }
+  var margins = { top: 0, bottom: 0, left: 0, right: 0 }
+  margins[vertical] = (at === vertical ? bar : 0) + edge
+  margins[horizontal] = (at === horizontal ? bar : 0) + edge
+  return margins
+}
+
+// A bottom corner draws the layout upside down in the deck, so the newest
+// card sits nearest the edge. Layout y and height in, the card's displayed
+// top edge out.
+function flipY(bottom, extent, y, height) {
+  if (!bottom) return y
+  var total = Number(extent)
+  return (isFinite(total) ? total : 0) - y - height
+}
+
+// One travel out of the screen edge the deck hangs from: up for a top corner,
+// down for a bottom one.
+function outward(bottom, travel) {
+  return bottom ? travel : -travel
 }

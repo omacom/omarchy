@@ -80,5 +80,8 @@
       "YouTube"
     ]
   },
+  "notifications": {
+    "position": "top-right"
+  },
   "plugins": []
 }
