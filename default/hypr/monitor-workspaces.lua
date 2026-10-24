@@ -149,12 +149,16 @@ local function internal(monitor)
 end
 
 -- The monitors that show workspaces of their own. `gone` names one Hyprland
--- still lists while it reports the monitor's removal.
+-- still lists while it reports the monitor's removal. FALLBACK is the headless
+-- output Hyprland parks the workspaces on while no monitor is plugged in:
+-- nobody sees it, and renumbering them into a block of its own would hide them
+-- from Hyprland, which puts a returning monitor back on the workspace it
+-- remembers by id.
 local function connected(gone)
   local monitors = {}
 
   for _, monitor in ipairs(hl.get_monitors()) do
-    if not monitor.is_mirror and monitor.name ~= gone then
+    if not monitor.is_mirror and monitor.name ~= gone and monitor.name ~= "FALLBACK" then
       monitors[#monitors + 1] = monitor
     end
   end

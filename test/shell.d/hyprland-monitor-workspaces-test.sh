@@ -396,6 +396,38 @@ check(shows("eDP-1") >= 1 and shows("eDP-1") <= 10, "the laptop is back on its o
 ' || fail "an unplugged monitor's workspaces come back with it, whatever the connector"
 pass "an unplugged monitor's workspaces come back with it, whatever the connector"
 
+run_lua fallback '
+plug("HDMI-A-1", 0, "Dell", 3)
+world.focused = "HDMI-A-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 3)
+window("0xb", 2)
+
+-- The only monitor drops hotplug: Hyprland brings up its headless FALLBACK
+-- output and parks the workspaces there.
+plug("FALLBACK", 1, "", 1)
+unplug("HDMI-A-1")
+world.handlers["monitor.removed"]({ name = "HDMI-A-1" })
+world.handlers["monitor.added"]({ name = "FALLBACK" })
+check(on(3) == "FALLBACK" and on(2) == "FALLBACK", "the workspaces wait on FALLBACK under their own numbers; 3 is on " .. tostring(on(3)))
+
+-- The monitor returns: Hyprland starts it on a fresh number, then puts it
+-- back on the workspace it remembers by id, and takes FALLBACK down.
+plug("HDMI-A-1", 0, "Dell", 1)
+hl.dispatch(hl.dsp.workspace.move({ workspace = "3", monitor = "HDMI-A-1" }))
+hl.dispatch(hl.dsp.focus({ workspace = "3" }))
+world.handlers["monitor.added"]({ name = "HDMI-A-1" })
+unplug("FALLBACK")
+world.handlers["monitor.removed"]({ name = "FALLBACK" })
+check(shows("HDMI-A-1") == 3, "the monitor is back on the workspace it showed, not " .. shows("HDMI-A-1"))
+check(on(2) == "HDMI-A-1" and world.windows["0xb"].workspace == 2, "the other workspace is home under its own number")
+for _, workspace in ipairs(hl.get_workspaces()) do
+  check(workspace.id < 11, "a workspace was renumbered into a block of FALLBACK'"'"'s: " .. workspace.id)
+end
+' || fail "the only monitor comes back on the workspace it showed, its workspaces never renumbered through FALLBACK"
+pass "the only monitor comes back on the workspace it showed, its workspaces never renumbered through FALLBACK"
+
 run_lua return-visible '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
