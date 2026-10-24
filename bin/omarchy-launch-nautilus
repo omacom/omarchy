@@ -1,5 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Launch Files
+# omarchy:summary=Launch the default file manager (kept for bindings that still name Nautilus)
+# omarchy:hidden=true
 
-exec setsid uwsm-app -- nautilus --new-window
+exec omarchy-launch-filemanager "$@"
