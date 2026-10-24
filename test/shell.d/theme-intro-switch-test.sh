@@ -70,6 +70,8 @@ if [[ -n ${TEST_GATE_DIR:-} ]]; then
   else
     echo "ready"
   fi
+elif [[ $2 == "themeIntroCoverStatus" ]]; then
+  echo "ready"
 fi
 STUB
 cat >"$commands/owe" <<'STUB'
@@ -115,9 +117,14 @@ grep -Fxq "owe: intro --start first-frame --refresh $state/theme/backgrounds/int
 [[ $(readlink "$state/background") == "$state/theme/backgrounds/2-road.webp" ]] || fail "the remembered background is selected"
 ! grep -qE '^shell: background (prepare|themeTransition)' "$log" || fail "an intro replaces the normal still transition"
 [[ $(<"$home/.local/state/omarchy/background-intro.session-id") == already-consumed ]] || fail "a theme switch leaves login consumption unchanged"
-# The shell holds the old theme's still, whose path the swap deleted, and loads
-# it again when OWE hands the desktop back, so it gets the new one either way.
+# The shell holds the old theme's still and OWE shows its layer again when the
+# intro ends, so it gets the new one under the cover, before the intro plays.
 wait_command "^shell: background setInstant $state/theme/backgrounds/2-road.webp\$"
+handover=$(grep -n -m1 '^shell: background setInstant ' "$log" | cut -d: -f1)
+intro=$(grep -n -m1 '^owe: intro ' "$log" | cut -d: -f1)
+(( handover < intro )) || fail "the shell gets the new still before the intro plays" "$(cat "$log")"
+wait_command '^hypr-reload$'
+(( $(grep -c '^shell: background setInstant ' "$log") == 1 )) || fail "the new still is handed over once" "$(cat "$log")"
 pass "switching themes plays the matching intro for the remembered background"
 
 set_theme beta
@@ -205,3 +212,22 @@ done
 [[ ! -f $cover ]] || fail "the superseded intro finishes cleanup"
 (( $(grep -c '^hypr-reload$' "$log") == 1 )) || fail "the superseded intro cannot reload during a newer theme"
 pass "superseded intros do not reload the compositor"
+
+# A video background leaves no still to cover the switch with, so the shell's
+# layer stays visible until the intro starts: the new still waits for it.
+for attempt in {1..250}; do
+  pgrep -f "^/bin/bash $ROOT/bin/omarchy-theme-set (alpha|beta)\$" >/dev/null || break
+  sleep 0.02
+done
+mkdir -p "$home/Videos"
+printf 'video\n' >"$home/Videos/loop.mp4"
+ln -nsf "$home/Videos/loop.mp4" "$state/background"
+printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/beta"
+set_theme beta
+wait_command '^hypr-reload$'
+grep -q '^shell: shell prepareThemeIntro  ' "$log" || fail "a video background has no outgoing cover" "$(cat "$log")"
+handover=$(grep -n -m1 '^shell: background setInstant ' "$log" | cut -d: -f1)
+intro=$(grep -n -m1 '^owe: intro ' "$log" | cut -d: -f1)
+[[ -n $handover && -n $intro ]] && (( intro < handover )) || fail "without a cover the new still follows the intro" "$(cat "$log")"
+(( $(grep -c '^shell: background setInstant ' "$log") == 1 )) || fail "without a cover the new still is handed over once" "$(cat "$log")"
+pass "without an outgoing cover the new still is handed over after the intro"

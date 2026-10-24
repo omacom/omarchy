@@ -210,6 +210,12 @@ set_theme_background_link() {
   ln -nsf "$CHOSEN_THEME_BACKGROUND" "$CURRENT_BACKGROUND_LINK"
 }
 
+# Whether a switch's background and theme are still the selected ones.
+theme_background_current() {
+  [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$(readlink -f "$1")" &&
+    $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$2" ]]
+}
+
 set_theme_background() {
   local new_background new_background_snapshot theme_id intro_prepared=false
 
@@ -233,12 +239,22 @@ set_theme_background() {
     ln -nsf "$new_background" "$CURRENT_BACKGROUND_LINK"
     (
       # Played or not, the shell gets the new still: it still holds the old
-      # theme's path, which the theme swap above deleted, and loads it again
-      # when OWE hands the desktop back after the intro. While the intro plays
-      # the shell's background is suspended under it, so the swap is unseen.
+      # one, and OWE shows the shell's layer again the moment the intro ends,
+      # above its own. Hand it over while the outgoing cover hides that layer,
+      # so the old still cannot show first when its file outlives the theme
+      # swap (a user's own background, or one picked by path). Without a
+      # cover, it waits until the intro has played.
+      local handed_over=false
+      if [[ -n $OLD_BACKGROUND_SNAPSHOT ]]; then
+        wait_for_theme_intro themeIntroCoverStatus "$theme_id" "loading"
+        if [[ $(omarchy-shell shell themeIntroCoverStatus "$theme_id" 2>/dev/null) == "ready" ]] &&
+          theme_background_current "$new_background" "$theme_id" &&
+          shell_ipc background setInstant "$new_background"; then
+          handed_over=true
+        fi
+      fi
       omarchy-theme-bg-boot-intro --theme-switch "$new_background" "$theme_id" "$intro_prepared" || true
-      if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$(readlink -f "$new_background")" &&
-        $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
+      if [[ $handed_over == "false" ]] && theme_background_current "$new_background" "$theme_id"; then
         shell_ipc background setInstant "$new_background" || true
       fi
       shell_ipc shell finishThemeIntro "$theme_id" || true
