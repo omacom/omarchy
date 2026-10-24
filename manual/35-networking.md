@@ -24,7 +24,7 @@ This pins the band rather than a specific access point, so you keep roaming betw
 
 ## How fast is it?
 
-_Trigger > Speed Test > Network Speed Test_ measures your actual up and down speed with a pair of dials. From the terminal it's `omarchy network speedtest down` or `up`. (There's a disk speed test sitting next to it in that menu, if you're benchmarking the other bottleneck.)
+_Trigger > Speed Test > Network Speed Test_ measures your actual up and down speed with a pair of dials. From the terminal it's `omarchy network speedtest down` or `up`. (Disk speed and memory bandwidth sit next to it in that menu, if you're benchmarking the rest of the machine.)
 
 ## The firewall
 
