@@ -324,6 +324,12 @@
   "trigger.toggle.crash-capture-off": {
     "label": "Crash Capture Off"
   },
+  "trigger.toggle.low-latency-audio-on": {
+    "label": "Low Latency Audio On"
+  },
+  "trigger.toggle.low-latency-audio-off": {
+    "label": "Low Latency Audio Off"
+  },
   "trigger.emoji": {
     "label": "Emoji"
   },
