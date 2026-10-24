@@ -431,9 +431,19 @@ Item {
 
       readonly property var entry: root.menuEntry
       readonly property bool pinned: !!entry && !!root.dock && root.dock.isPinned(String(entry.id || ""))
+      // A Column takes its width from its rows, which take theirs from the menu,
+      // so the menu fits the widest label itself rather than asking the Column.
+      readonly property real rowsWidth: {
+        var widest = 0
+        for (var i = 0; i < menuColumn.children.length; i++) {
+          var row = menuColumn.children[i]
+          if (row.visible) widest = Math.max(widest, row.implicitWidth)
+        }
+        return widest
+      }
 
       visible: !!entry && !root.dragging
-      width: Math.max(Style.space(160), menuColumn.implicitWidth) + padding * 2
+      width: Math.max(Style.space(160) + padding * 2, rowsWidth + contentLeftInset + contentRightInset)
       height: menuColumn.implicitHeight + padding * 2
       // Opens along the reading direction from the pointer.
       x: LayoutMirroring.enabled
@@ -485,11 +495,13 @@ Item {
     signal triggered()
 
     width: parent ? parent.width : 0
+    implicitWidth: rowLabel.implicitWidth + Style.spacing.controlPaddingX * 2
     height: visible ? Style.spacing.popupRowHeight : 0
     radius: Style.cornerRadius
     color: rowMouse.containsMouse ? Style.hoverFill : "transparent"
 
     Text {
+      id: rowLabel
       anchors.verticalCenter: parent.verticalCenter
       anchors.left: parent.left
       anchors.leftMargin: Style.spacing.controlPaddingX

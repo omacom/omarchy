@@ -206,7 +206,8 @@ PanelWindow {
     right: window.position !== "left"
   }
 
-  implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupRoom : 0
+  // A side dock's menu opens sideways, so its room is the menu's width.
+  implicitWidth: window.vertical ? window.gap + window.slotSize + Math.max(window.popupRoom, menu.width + window.gap) : 0
   implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + window.popupRoom
 
   mask: Region {
@@ -527,9 +528,19 @@ PanelWindow {
     readonly property var item: window.menuItem
     readonly property bool hasEntry: !!item && !!window.dock && !!window.dock.entryFor(item)
     readonly property bool running: !!item && item.windows.length > 0
+    // A Column takes its width from its rows, which take theirs from the menu,
+    // so the menu fits the widest label itself rather than asking the Column.
+    readonly property real rowsWidth: {
+      var widest = 0
+      for (var i = 0; i < menuColumn.children.length; i++) {
+        var row = menuColumn.children[i]
+        if (row.visible) widest = Math.max(widest, row.implicitWidth)
+      }
+      return widest
+    }
 
     visible: window.contentShown && (!!item || window.settingsMenu)
-    width: Math.max(Style.space(140), menuColumn.implicitWidth) + padding * 2
+    width: Math.max(Style.space(140) + padding * 2, rowsWidth + contentLeftInset + contentRightInset)
     height: menuColumn.implicitHeight + padding * 2
     x: window.popupX(window.menuSlot, menu)
     y: window.popupY(window.menuSlot, menu)
@@ -592,11 +603,13 @@ PanelWindow {
     signal triggered()
 
     width: parent ? parent.width : 0
+    implicitWidth: rowLabel.implicitWidth + Style.spacing.controlPaddingX * 2 + (checked ? checkMark.implicitWidth + Style.spacing.controlPaddingX : 0)
     height: visible ? Style.spacing.popupRowHeight : 0
     radius: Style.cornerRadius
     color: rowMouse.containsMouse ? Style.hoverFill : "transparent"
 
     Text {
+      id: rowLabel
       anchors.verticalCenter: parent.verticalCenter
       anchors.left: parent.left
       anchors.leftMargin: Style.spacing.controlPaddingX
@@ -608,6 +621,7 @@ PanelWindow {
     }
 
     Text {
+      id: checkMark
       visible: row.checked
       anchors.verticalCenter: parent.verticalCenter
       anchors.right: parent.right
