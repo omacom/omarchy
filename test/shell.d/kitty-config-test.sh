@@ -63,7 +63,7 @@ grep -qx 'font_size 12.0' "$kitty_local" || fail "size command handles absent se
 rm -f "$kitty_config" "$kitty_local"
 run_command omarchy-display-text-size 16
 grep -qx 'font_size 12.0' "$kitty_local" || fail "size command handles absent config"
-grep -Fq 'globinclude ~/.config/kitty/local.conf' "$kitty_config" || fail "size command globincludes the overlay"
+grep -qx 'globinclude local.conf' "$kitty_config" || fail "size command globincludes the overlay" "$(grep globinclude "$kitty_config" || true)"
 ! grep -q '^include ' "$kitty_config" || fail "size command must not restore the theme include"
 pass "font controls create missing Kitty overrides without restoring the theme include"
 
