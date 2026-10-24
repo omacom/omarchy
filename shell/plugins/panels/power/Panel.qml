@@ -66,9 +66,10 @@ Panel {
     var device = UPower.displayDevice
     return device && device.isPresent && device.state === UPowerDeviceState.FullyCharged && !root.chargeThresholdActive
   }
+  readonly property var batteryService: bar?.shell?.firstPartyServiceFor("omarchy.battery")
   readonly property bool discharging: {
     var device = UPower.displayDevice
-    return !!(device && device.isPresent && UPower.onBattery)
+    return !!(device && device.isPresent && (batteryService ? batteryService.onBattery : UPower.onBattery))
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
@@ -85,7 +86,7 @@ Panel {
 
   readonly property bool charging: {
     var d = UPower.displayDevice
-    return d && d.isPresent && !UPower.onBattery && !root.batteryFlowIdle
+    return d && d.isPresent && !root.discharging && !root.batteryFlowIdle
   }
 
   readonly property color batteryFillColor: {

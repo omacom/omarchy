@@ -7,6 +7,13 @@ function isDischarging(device, onBattery, dischargingState) {
   return !!(device && device.isPresent && onBattery && device.state === dischargingState)
 }
 
+// A dock can keep a USB-C supply online, so UPower reports external power,
+// while it passes none and the battery drains. Right after plugging in the
+// battery state lags the other way, so callers hold this before believing it.
+function drainingOnPower(device, onBattery, dischargingState) {
+  return !!(device && device.isPresent && !onBattery && device.state === dischargingState)
+}
+
 function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, alreadyNotified) {
   var level = batteryPercentage(device)
   if (level < 0) return { level: level, notify: false, notifiedLowBattery: false }
@@ -42,6 +49,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     batteryPercentage: batteryPercentage,
     isDischarging: isDischarging,
+    drainingOnPower: drainingOnPower,
     shouldWarnLowBattery: shouldWarnLowBattery,
     parseActiveProfile: parseActiveProfile,
     profileAfterRead: profileAfterRead,

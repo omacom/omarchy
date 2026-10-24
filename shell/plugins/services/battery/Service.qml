@@ -21,7 +21,19 @@ Item {
   property bool powerProfileReadPending: false
   property int powerProfileSignals: 0
   property int powerProfileReadSignals: 0
-  readonly property bool powerSaverOnBattery: BatteryModel.isPowerSaverOnBattery(UPower.onBattery, activePowerProfile)
+  // On battery when UPower says so, or when the battery has kept discharging
+  // for a minute on a power source that passes nothing (see drainingOnPower).
+  readonly property bool drainingOnPower: BatteryModel.drainingOnPower(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging)
+  property bool drainingOnPowerHeld: false
+  readonly property bool onBattery: UPower.onBattery || drainingOnPowerHeld
+  readonly property bool powerSaverOnBattery: BatteryModel.isPowerSaverOnBattery(onBattery, activePowerProfile)
+
+  onDrainingOnPowerChanged: if (!drainingOnPower) drainingOnPowerHeld = false
+  onOnBatteryChanged: {
+    checkBattery()
+    applyPowerProfile()
+    refreshPowerProfile()
+  }
 
   PersistentProperties {
     id: persisted
@@ -34,11 +46,11 @@ Item {
   }
 
   function isDischarging() {
-    return BatteryModel.isDischarging(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging)
+    return BatteryModel.isDischarging(UPower.displayDevice, root.onBattery, UPowerDeviceState.Discharging)
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
+    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, root.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
   }
@@ -53,7 +65,7 @@ Item {
   }
 
   function applyPowerProfile() {
-    pendingPowerSource = UPower.onBattery ? "battery" : "ac"
+    pendingPowerSource = root.onBattery ? "battery" : "ac"
     if (!powerProfileProcess.running) runPendingPowerProfile()
   }
 
@@ -133,13 +145,10 @@ Item {
     onTriggered: root.checkBattery()
   }
 
-  Connections {
-    target: UPower
-    function onOnBatteryChanged() {
-      root.checkBattery()
-      root.applyPowerProfile()
-      root.refreshPowerProfile()
-    }
+  Timer {
+    interval: 60000
+    running: root.drainingOnPower && !root.drainingOnPowerHeld
+    onTriggered: root.drainingOnPowerHeld = true
   }
 
   Component.onCompleted: root.refreshPowerProfile()
