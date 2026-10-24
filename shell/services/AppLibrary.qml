@@ -93,10 +93,16 @@ Item {
     //
     // The activation token ties the launch to this click, so an app that is
     // already running can raise its window; Hyprland refuses a request without one.
+    // The compositor sends the token after this returns, so launch once it arrives.
     var argv = ["uwsm-app", "--", "omarchy-launch-desktop-entry", id + ".desktop"]
-    var token = Quickshell.activationToken ? Quickshell.activationToken() : ""
-    if (token) argv = ["env", "XDG_ACTIVATION_TOKEN=" + token].concat(argv)
-    Util.execArgv(argv)
+    if (Quickshell.requestActivationToken) {
+      Quickshell.requestActivationToken(function(token) {
+        if (token) argv = ["env", "XDG_ACTIVATION_TOKEN=" + token].concat(argv)
+        Util.execArgv(argv)
+      })
+    } else {
+      Util.execArgv(argv)
+    }
   }
 
   // The command a terminal entry runs, without the field codes it leaves for a
