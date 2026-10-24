@@ -306,9 +306,10 @@ PanelWindow {
 
   // --- switching between panels --------------------------------------------
 
-  // One card, not two: a panel taking over from another starts its card where
-  // the last one stood, at its size, and morphs it into its own place while
-  // the new content fades in. Each panel tells the bar where its card is.
+  // One card, not two: a panel taking over from another in the same section of
+  // the bar starts its card where the last one stood, at its size, and morphs
+  // it into its own place while the new content fades in. Each panel tells the
+  // bar where its card is. Across sections the new panel opens fresh.
   readonly property rect cardTarget: Qt.rect(cardOrigin.x, cardOrigin.y, contentWidth, contentHeight)
   onCardTargetChanged: publishCard()
 
@@ -319,14 +320,16 @@ PanelWindow {
   }
 
   // Already true as `open` flips, before onOpenChanged marks the switch, so
-  // the card never starts growing in on top of the morph.
+  // the card never starts growing in on top of the morph. Only a takeover in
+  // the same section morphs; across sections the card grows in as usual.
   readonly property bool takingOver: !!bar && !!bar.activePopout && bar.activePopout !== coordinatorKey
+    && typeof bar.popoutCardFor === "function" && !!bar.popoutCardFor(coordinatorKey)
 
   property rect morphFrom: Qt.rect(0, 0, 0, 0)
   property real morph: 1
 
   function morphFromLastCard() {
-    var last = bar && "popoutCard" in bar ? bar.popoutCard : null
+    var last = bar && typeof bar.popoutCardFor === "function" ? bar.popoutCardFor(coordinatorKey) : null
     if (!last || !screen || last.screen !== screen.name) return
     morphFrom = Qt.rect(last.x, last.y, last.width, last.height)
     morphRun.restart()
@@ -470,13 +473,14 @@ PanelWindow {
 
     // The card fades in as it grows out of the bar from just under full size,
     // toward the icon it hangs from, and goes in two thirds of the time. On a
-    // switch between panels it doesn't: the card morphs over from the last one.
+    // switch within a section of the bar it doesn't: the card morphs over from
+    // the last one.
     property real shown: root.open || root.popoutSwitching ? 1 : 0
     Behavior on shown {
       id: showing
       // The card giving way on a switch still fades out, briefly over the one
       // taking its place, so there's no empty frame while that one maps.
-      enabled: !root.takingOver && !root.popoutSwitching
+      enabled: !root.takingOver && !(root.popoutSwitching && root.morph < 1)
       NumberAnimation {
         duration: Style.duration(showing.targetValue > 0 ? 180 : 120)
         easing.type: Easing.Bezier
