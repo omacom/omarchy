@@ -49,6 +49,9 @@ assert(
   dock.isDockWindow(app('xeyes', 7, { hasEntry: false, workspaceId: -99, minimized: true })),
   'dock keeps a minimized window without a desktop entry, so it can come back'
 )
+assertDeepEqual([0, 1, 3, 7].map(dock.dotCount), [0, 1, 3, 3], 'dock shows a dot per window, up to three')
+assert(dock.listsWindows(items[2]) && !dock.listsWindows(items[0]) && !dock.listsWindows(items[1]),
+  'dock lists the windows of an app with several, not of one with a single window or none')
 assertEqual(dock.dropIndex(2, 0, 40, 6), 2, 'dock keeps a barely dragged app in its slot')
 assertEqual(dock.dropIndex(2, 85, 40, 6), 4, 'dock lands a dragged app as many slots on as the pointer went')
 assertEqual(dock.dropIndex(2, -500, 40, 6), 0, 'dock lands an app dragged past the start in the first slot')
