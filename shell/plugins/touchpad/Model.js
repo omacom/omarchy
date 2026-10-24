@@ -468,13 +468,6 @@ function deviceEffective(key, state, name, live) {
   return effective(key, state.touchpad, live)
 }
 
-function formatNumber(spec, value) {
-  var number = Number(value)
-  var text = number.toFixed(spec.decimals !== undefined ? spec.decimals : 2)
-  if (spec.signed && number > 0) text = "+" + text
-  return text + (spec.suffix || "")
-}
-
 // Lua comments can hold example settings, as Omarchy's own input.lua template
 // does, so drop them before looking for anything the user really set.
 function stripLuaComments(text) {
@@ -646,7 +639,6 @@ if (typeof module !== "undefined") {
     effective: effective,
     deviceEffective: deviceEffective,
     liveValue: liveValue,
-    formatNumber: formatNumber,
     labelFor: labelFor,
     translatedOptions: translatedOptions,
     userOverrides: userOverrides,

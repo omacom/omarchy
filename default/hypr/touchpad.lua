@@ -26,6 +26,10 @@ M.path = paths.home .. "/.config/omarchy/touchpad.json"
 -- Where connected input devices are listed. Read as a plain file, since asking
 -- Hyprland through hyprctl from inside its own config load would deadlock.
 M.input_devices_path = "/proc/bus/input/devices"
+-- Where each event device's major:minor and udev's properties for it live, to
+-- recognize pads whose name says neither touchpad nor trackpad.
+M.input_class_path = "/sys/class/input"
+M.udev_data_path = "/run/udev/data"
 
 local function boolean()
   return { type = "boolean" }
@@ -139,6 +143,17 @@ M.default_apps = {
   -- foot only applies its scrollback multiplier to wheel clicks, not precise touchpad scrolling.
   { match = "foot", scroll = 2.0 },
   { match = "com.mitchellh.ghostty", scroll = 0.2 },
+}
+
+-- TUIs launched under their own app-id (org.omarchy.agent in the console,
+-- org.omarchy.btop, TUI.float, ...) no longer carry the terminal's class, but
+-- their initial title is still the terminal's name, so an app row for a
+-- terminal also matches them by that to scroll at the same rate.
+M.tui_class = "(org\\.omarchy\\..*|TUI\\..*)"
+M.terminal_titles = {
+  ["(Alacritty|kitty)"] = "(Alacritty|kitty)",
+  ["foot"] = "foot",
+  ["com.mitchellh.ghostty"] = "Ghostty",
 }
 
 local function valid_text(value, limit)
@@ -400,6 +415,36 @@ local function merge(...)
   return result
 end
 
+local function read_line(path)
+  local file = io.open(path, "r")
+  if not file then
+    return nil
+  end
+  local line = file:read("*l")
+  file:close()
+  return line
+end
+
+-- Some touchpads carry neither word (Apple Silicon's is "apple-mtp-multi-touch"),
+-- so ask udev, as omarchy-hw-touchpad does. The name alone can't say: some
+-- touchscreens' mouse interfaces are called multi-touch too.
+local function udev_touchpad(event)
+  local dev = event and read_line(M.input_class_path .. "/" .. event .. "/dev")
+  local file = dev and io.open(M.udev_data_path .. "/c" .. dev, "r")
+  if not file then
+    return false
+  end
+  local found = false
+  for line in file:lines() do
+    if line == "E:ID_INPUT_TOUCHPAD=1" then
+      found = true
+      break
+    end
+  end
+  file:close()
+  return found
+end
+
 -- Hyprland names a device by its kernel name, lowercased with spaces turned
 -- into dashes, and treats it as a touchpad by the same test as
 -- omarchy-hw-touchpad. Hyprland has no device-added event, so a pad first
@@ -411,15 +456,27 @@ function M.connected_touchpads(path)
     return names
   end
 
+  local name, event
+  local function finish()
+    if name and valid_text(name, 256)
+      and (name:find("touchpad", 1, true) or name:find("trackpad", 1, true) or udev_touchpad(event)) then
+      names[#names + 1] = name
+    end
+    name, event = nil, nil
+  end
+
   for line in file:lines() do
-    local name = line:match('^N: Name="(.*)"$')
-    if name then
-      name = name:lower():gsub(" ", "-")
-      if (name:find("touchpad", 1, true) or name:find("trackpad", 1, true)) and valid_text(name, 256) then
-        names[#names + 1] = name
-      end
+    local found = line:match('^N: Name="(.*)"$')
+    if found then
+      finish()
+      name = found:lower():gsub(" ", "-")
+    elseif line:match("^H: Handlers=") then
+      event = line:match("%f[%w](event%d+)%f[^%w]")
+    elseif line == "" then
+      finish()
     end
   end
+  finish()
   file:close()
 
   return names
@@ -490,11 +547,18 @@ function M.apply(path)
   end
 
   for _, app in ipairs(settings.apps or M.default_apps) do
-    local ok, rule = pcall(hl.window_rule, { match = { class = app.match }, scroll_touchpad = app.scroll })
-    if ok then
-      applied.rules[#applied.rules + 1] = rule
-    else
-      report(app.match .. " scroll speed", rule)
+    local matches = { { class = app.match } }
+    local title = M.terminal_titles[app.match]
+    if title then
+      matches[2] = { class = M.tui_class, initial_title = title }
+    end
+    for _, match in ipairs(matches) do
+      local ok, rule = pcall(hl.window_rule, { match = match, scroll_touchpad = app.scroll })
+      if ok then
+        applied.rules[#applied.rules + 1] = rule
+      else
+        report(app.match .. " scroll speed", rule)
+      end
     end
   end
 

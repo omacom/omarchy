@@ -52,6 +52,11 @@ options=$(
 ) || options='{}'
 
 devices=$(hyprctl devices -j 2>/dev/null | jq '[.mice[]?.name | select(test("touchpad|trackpad"; "i"))]') || devices='[]'
+# A pad named neither (Apple Silicon's apple-mtp-multi-touch) is only found
+# through udev, which omarchy-hw-touchpad asks when no name matches.
+if [[ $devices == "[]" ]] && pad=$(omarchy-hw-touchpad 2>/dev/null) && [[ -n $pad ]]; then
+  devices=$(jq -n --arg pad "$pad" '[$pad]')
+fi
 clients=$(hyprctl clients -j 2>/dev/null | jq '[.[].class | select(. != "")] | unique') || clients='[]'
 
 disabled=""

@@ -362,6 +362,9 @@ Item {
     minimumSize: Qt.size(Style.space(820), Style.space(520))
     visible: false
 
+    Binding { target: window.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
+    Binding { target: window.contentItem; property: "LayoutMirroring.childrenInherit"; value: true }
+
     onVisibleChanged: {
       if (!visible && !root.closingFromHost && root.shell && typeof root.shell.hide === "function")
         root.shell.hide(root.pluginId)

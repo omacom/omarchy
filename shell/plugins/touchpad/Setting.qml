@@ -54,7 +54,7 @@ Item {
   function formatted(v) {
     if (spec.type !== "number" || v === undefined) return ""
     var decimals = spec.decimals !== undefined ? spec.decimals : 2
-    var text = Number(v).toFixed(decimals)
+    var text = Commons.I18n.formatNumber(Number(v), decimals)
     if (spec.signed && Number(v) > 0) text = "+" + text
     return text + (spec.suffix || "")
   }

@@ -65,7 +65,8 @@ run_apply() {
   local file="$1"
   local times="${2:-1}"
 
-  ROOT="$ROOT" SETTINGS="$file" TIMES="$times" INPUT_DEVICES="${INPUT_DEVICES:-$tmpdir/no-input-devices}" lua <<'LUA'
+  ROOT="$ROOT" SETTINGS="$file" TIMES="$times" INPUT_DEVICES="${INPUT_DEVICES:-$tmpdir/no-input-devices}" \
+    INPUT_CLASS="$tmpdir/sys-class-input" UDEV_DATA="$tmpdir/udev-data" lua <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 
 local function flat(value, prefix, out)
@@ -90,7 +91,8 @@ hl = {
     print(("gesture %d %s %s %s"):format(spec.fingers, spec.direction, spec.mods or "-", action))
   end,
   window_rule = function(rule)
-    print(("rule %s %s"):format(rule.match.class, rule.scroll_touchpad))
+    local title = rule.match.initial_title and (" title=" .. rule.match.initial_title) or ""
+    print(("rule %s%s %s"):format(rule.match.class, title, rule.scroll_touchpad))
     return { set_enabled = function(_, on) print("rule-enabled " .. tostring(on)) end }
   end,
   dispatch = function() end,
@@ -102,6 +104,8 @@ hl = {
 
 local touchpad = require("default.hypr.touchpad")
 touchpad.input_devices_path = os.getenv("INPUT_DEVICES")
+touchpad.input_class_path = os.getenv("INPUT_CLASS")
+touchpad.udev_data_path = os.getenv("UDEV_DATA")
 for i = 1, tonumber(os.getenv("TIMES")) do
   if i > 1 then print("--") end
   touchpad.apply(os.getenv("SETTINGS"))
@@ -110,10 +114,16 @@ LUA
 }
 
 missing_output=$(run_apply "$tmpdir/missing.json")
-expected_missing=$'rule (Alacritty|kitty) 1.5\nrule foot 2.0\nrule com.mitchellh.ghostty 0.2'
-[[ $missing_output == "$expected_missing" ]] ||
+[[ -n $missing_output ]] && ! grep -qv '^rule ' <<<"$missing_output" ||
   fail "without a settings file only Omarchy's per-app scroll speeds apply" "$missing_output"
 pass "without a settings file only Omarchy's per-app scroll speeds apply"
+grep -Fqx 'rule foot 2.0' <<<"$missing_output" &&
+  grep -Fqx 'rule (org\.omarchy\..*|TUI\..*) title=foot 2.0' <<<"$missing_output" ||
+  fail "a terminal's scroll speed also covers TUIs launched from it" "$missing_output"
+pass "a terminal's scroll speed also covers TUIs launched from it"
+! grep -q 'scroll_touchpad' "$ROOT/default/hypr/input.lua" ||
+  fail "terminal scroll speeds are set only by the touchpad module, so the window can remove them"
+pass "terminal scroll speeds are set only by the touchpad module, so the window can remove them"
 
 printf 'not json' >"$tmpdir/broken.json"
 broken_output=$(run_apply "$tmpdir/broken.json")
@@ -174,6 +184,9 @@ rule firefox 0.8'
 [[ $settings_output == "$expected_settings" ]] ||
   fail "settings are validated against the schema before they reach Hyprland" "expected:"$'\n'"$expected_settings"$'\n'"actual:"$'\n'"$settings_output"
 pass "settings are validated against the schema before they reach Hyprland"
+[[ $settings_output != *"rule foot"* && $settings_output != *"title=foot"* ]] ||
+  fail "a saved app list replaces Omarchy's terminal scroll speeds" "$settings_output"
+pass "a saved app list replaces Omarchy's terminal scroll speeds"
 pass "pointer settings target each touchpad by name instead of every mouse"
 pass "shadowed, two-finger, and unknown gestures are dropped before Hyprland rejects them"
 
@@ -189,15 +202,30 @@ N: Name="TPPS/2 Elan TrackPoint"
 
 I: Bus=0005 Vendor=004c Product=0265 Version=0001
 N: Name="Apple Trackpad"
+
+I: Bus=001c Vendor=05ac Product=0352 Version=0001
+N: Name="Apple MTP multi-touch"
+H: Handlers=mouse2 event7
+
+I: Bus=0018 Vendor=2a94 Product=d64d Version=0100
+N: Name="Goodix multi-touch"
+H: Handlers=mouse3 event9
 DEVICES
+mkdir -p "$tmpdir/sys-class-input/event7" "$tmpdir/sys-class-input/event9" "$tmpdir/udev-data"
+echo 13:71 >"$tmpdir/sys-class-input/event7/dev"
+echo 13:73 >"$tmpdir/sys-class-input/event9/dev"
+printf 'E:ID_INPUT=1\nE:ID_INPUT_TOUCHPAD=1\n' >"$tmpdir/udev-data/c13:71"
+printf 'E:ID_INPUT=1\nE:ID_INPUT_TOUCHSCREEN=1\n' >"$tmpdir/udev-data/c13:73"
 
 connected_output=$(INPUT_DEVICES="$tmpdir/input-devices" run_apply "$tmpdir/settings.json" | grep '^device')
 expected_connected='device accel_profile=flat name=apple-trackpad natural_scroll=false sensitivity=-0.2
 device accel_profile=flat name=elan-touchpad sensitivity=0.3
-device accel_profile=flat name=elan0678:00-04f3:3195-touchpad sensitivity=0.3'
+device accel_profile=flat name=elan0678:00-04f3:3195-touchpad sensitivity=0.3
+device accel_profile=flat name=apple-mtp-multi-touch sensitivity=0.3'
 [[ $connected_output == "$expected_connected" ]] ||
   fail "connected touchpads get the shared pointer settings without a saved entry" "expected:"$'\n'"$expected_connected"$'\n'"actual:"$'\n'"$connected_output"
 pass "connected touchpads get the shared pointer settings without a saved entry"
+pass "a touchpad named neither touchpad nor trackpad is found through udev, and a touchscreen is not"
 
 reapply_output=$(run_apply "$tmpdir/settings.json" 2)
 second=${reapply_output#*$'--\n'}
@@ -483,7 +511,10 @@ case "$1 $2" in
       *) echo "no such option" ;;
     esac
     ;;
-  "devices -j") echo '{"mice":[{"name":"logitech-mouse"},{"name":"elan-touchpad"},{"name":"Apple Magic Trackpad"}]}' ;;
+  "devices -j")
+    if [[ -n ${HYPRCTL_DEVICES-} ]]; then echo "$HYPRCTL_DEVICES"
+    else echo '{"mice":[{"name":"logitech-mouse"},{"name":"elan-touchpad"},{"name":"Apple Magic Trackpad"}]}'; fi
+    ;;
   "clients -j") echo '[{"class":"foot"},{"class":"firefox"},{"class":"foot"},{"class":""}]' ;;
 esac
 SH
@@ -515,6 +546,14 @@ pass "status reports the running options"
 [[ $(jq -c '.devices' <<<"$status") == '["elan-touchpad","Apple Magic Trackpad"]' ]] ||
   fail "status lists touchpads and trackpads but not mice" "$status"
 pass "status lists touchpads and trackpads but not mice"
+mkdir -p "$tmpdir/hw-bin"
+printf '#!/bin/bash\necho apple-mtp-multi-touch\n' >"$tmpdir/hw-bin/omarchy-hw-touchpad"
+chmod +x "$tmpdir/hw-bin/omarchy-hw-touchpad"
+status=$(HOME="$tmpdir/home" PATH="$tmpdir/hw-bin:$stub_bin:$PATH" HYPRCTL_LOG="$log" \
+  HYPRCTL_DEVICES='{"mice":[{"name":"apple-mtp-multi-touch"}]}' "$ROOT/bin/omarchy-touchpad-status")
+[[ $(jq -c '.devices' <<<"$status") == '["apple-mtp-multi-touch"]' ]] ||
+  fail "status finds a touchpad named neither touchpad nor trackpad through omarchy-hw-touchpad" "$status"
+pass "status finds a touchpad named neither touchpad nor trackpad through omarchy-hw-touchpad"
 [[ $(jq -c '.clients' <<<"$status") == '["firefox","foot"]' ]] ||
   fail "status lists each open window class once" "$status"
 pass "status lists each open window class once"

@@ -82,7 +82,7 @@ ColumnLayout {
       anchors.top: parent.top
       anchors.margins: Style.spacing.md
       textFormat: Text.PlainText
-      text: Math.round(scrollList.visibleArea.yPosition / Math.max(0.001, 1 - scrollList.visibleArea.heightRatio) * 100) + "%"
+      text: Commons.I18n.formatNumber(Math.round(scrollList.visibleArea.yPosition / Math.max(0.001, 1 - scrollList.visibleArea.heightRatio) * 100)) + "%"
       color: root.dim
       font.family: Style.font.family
       font.pixelSize: Style.font.caption
