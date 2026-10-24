@@ -375,6 +375,7 @@ ShellRoot {
     var sourceId = metadata ? String(metadata.clonedFrom || "") : ""
     var allowed = {
       "omarchy.audio": ["omarchy.osd"],
+      "omarchy.microphone": ["omarchy.osd"],
       "omarchy.media": ["omarchy.osd"],
       "omarchy.monitor": ["omarchy.osd"],
       "omarchy.network": ["omarchy.speedtest", "omarchy.wifiqr"]
