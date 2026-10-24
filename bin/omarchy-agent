@@ -132,6 +132,10 @@ pi)
   command=(pi)
   [[ -n ${prompt:-} ]] && command+=("$prompt")
   ;;
+omo)
+  command=(omo)
+  [[ -n ${prompt:-} ]] && command+=("$prompt")
+  ;;
 kimi)
   # --prompt is non-interactive print mode only; it cannot combine with --yolo.
   if [[ -n ${prompt:-} ]]; then

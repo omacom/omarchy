@@ -526,6 +526,9 @@
   "setup.default.agent.muse": {
     "label": "Muse Code"
   },
+  "setup.default.agent.omo": {
+    "label": "OmO"
+  },
   "setup.default.agent.omp": {
     "label": "omp"
   },
@@ -850,6 +853,9 @@
   },
   "install.ai.ollama": {
     "label": "Ollama"
+  },
+  "install.ai.omo": {
+    "label": "OmO"
   },
   "install.ai.openclaw": {
     "label": "OpenClaw"
