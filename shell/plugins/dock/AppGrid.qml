@@ -37,14 +37,14 @@ Item {
   readonly property int cellHeight: cellPadding * 2 + iconSize + Style.spacing.md + labelHeight
   readonly property int maxColumns: 7
   readonly property int visibleRows: 4
-  readonly property int borderWidth: Math.max(1, Style.space(2))
-  readonly property int contentMargin: Style.spacing.panelPadding
-  readonly property int inset: contentMargin + borderWidth
+  readonly property int inset: Style.spacing.panelPadding
   readonly property int headerHeight: Math.max(Style.space(36), Style.font.heading + Style.spacing.controlPaddingY * 2)
-  readonly property int headerSpacing: Style.spacing.xl
+  readonly property int headerSpacing: Style.spacing.xl * 2
+  readonly property int searchWidth: Math.min(gridWidth, cellWidth * 4)
   readonly property int screenMargin: Style.space(40)
 
-  // The card fits whole columns, and the grid sits centered in it so any
+  // The grid floats over the dimmed desktop like the dock's icons, with no
+  // card around it. Its area fits whole columns, and the grid sits centered in it so any
   // leftover width splits evenly on both sides.
   readonly property int cardWidth: Math.min(panel.width - screenMargin * 2, maxColumns * cellWidth + inset * 2)
   readonly property int columns: Math.max(1, Math.floor((cardWidth - inset * 2) / cellWidth))
@@ -172,7 +172,8 @@ Item {
     WlrLayershell.namespace: "omarchy-dock-apps"
     Rectangle {
       anchors.fill: parent
-      color: Commons.Color.menu.scrim
+      // Deeper than the menu's scrim: the labels sit on it directly.
+      color: Util.alpha(Commons.Color.menu.background, 0.88)
       opacity: root.dragging ? 0 : 1
 
       Behavior on opacity { NumberAnimation { duration: 150 } }
@@ -187,15 +188,11 @@ Item {
       }
     }
 
-    BorderSurface {
+    Item {
       id: card
       width: root.cardWidth
       height: root.cardHeight
       anchors.centerIn: parent
-      radius: Style.cornerRadius
-      color: Commons.Color.menu.background
-      borderSpec: Border.surfaceSpec("menu", "border", Commons.Color.menu.border, root.borderWidth)
-      padding: root.contentMargin
       opacity: root.dragging ? 0 : 1
 
       Behavior on opacity { NumberAnimation { duration: 150 } }
@@ -268,16 +265,18 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.topMargin: card.contentTopInset
-        anchors.bottomMargin: card.contentBottomInset
+        anchors.topMargin: root.inset
+        anchors.bottomMargin: root.inset
         spacing: root.headerSpacing
 
         Rectangle {
-          x: root.cellGutter
-          width: parent.width - root.cellGutter * 2
+          anchors.horizontalCenter: parent.horizontalCenter
+          width: root.searchWidth
           height: root.headerHeight
           radius: Style.cornerRadius
-          color: Util.alpha(Commons.Color.menu.text, 0.06)
+          color: Util.alpha(Commons.Color.menu.text, 0.08)
+          border.width: 1
+          border.color: Util.alpha(Commons.Color.menu.text, root.filterText ? 0.24 : 0.1)
 
           Text {
             anchors.left: parent.left
@@ -291,6 +290,7 @@ Item {
             opacity: root.filterText ? 1 : 0.58
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.heading
+            horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
           }
         }
@@ -321,12 +321,28 @@ Item {
               width: root.cellWidth
               height: root.cellHeight
 
+              // The selected app is lifted onto a soft tile and pops a little,
+              // like an icon under the pointer in the dock.
+              Rectangle {
+                anchors.fill: parent
+                anchors.margins: root.cellGutter
+                radius: Style.cornerRadius
+                color: Util.alpha(Commons.Color.menu.text, 0.1)
+                opacity: cell.selected ? 1 : 0
+
+                Behavior on opacity { NumberAnimation { duration: 120 } }
+              }
+
               Image {
                 id: icon
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: root.cellPadding
                 width: root.iconSize
                 height: root.iconSize
+                scale: cell.selected ? 1.12 : 1
+
+                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
                 sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
                 source: root.appLibrary ? root.appLibrary.iconSource(cell.modelData.icon) : ""
                 fillMode: Image.PreserveAspectFit
@@ -337,15 +353,6 @@ Item {
                 mipmap: true
               }
 
-              // The selection marks the app's name, not the whole cell.
-              Rectangle {
-                anchors.centerIn: label
-                width: Math.min(cell.width - root.cellGutter * 2, label.contentWidth + Style.spacing.md * 2)
-                height: label.contentHeight + Style.spacing.xs * 2
-                radius: Style.cornerRadius
-                color: cell.selected ? Commons.Color.menu.selectedBackground : "transparent"
-              }
-
               Text {
                 id: label
                 anchors.top: icon.bottom
@@ -354,7 +361,7 @@ Item {
                 width: parent.width - (root.cellGutter + Style.spacing.md) * 2
                 textFormat: Text.PlainText
                 text: root.appLibrary ? root.appLibrary.entryName(cell.modelData) : ""
-                color: cell.selected ? Commons.Color.menu.selectedText : Commons.Color.menu.text
+                color: Commons.Color.menu.text
                 font.family: Style.font.menuFamily
                 font.pixelSize: Style.font.body
                 horizontalAlignment: Text.AlignHCenter
