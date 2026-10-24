@@ -15,11 +15,31 @@ terminal_log="$test_tmp/terminal-log"
 notification_log="$test_tmp/notification-log"
 setup_log="$test_tmp/setup-log"
 browser_file="$test_tmp/browser"
+password_manager_file="$test_home/.config/omarchy/defaults/password-manager"
 mkdir -p "$mock_bin" "$test_home/.config" "$installed_dir"
 
 cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
 #!/bin/bash
 [[ ! -e $OMARCHY_TEST_INSTALLED_DIR/$1 ]]
+SH
+
+cat >"$mock_bin/omarchy-cmd-present" <<'SH'
+#!/bin/bash
+[[ -e $OMARCHY_TEST_INSTALLED_DIR/$1 ]]
+SH
+
+cat >"$mock_bin/omarchy-install-service-1password" <<'SH'
+#!/bin/bash
+printf 'install:1password\n' >>"$OMARCHY_TEST_INSTALL_LOG"
+[[ ${OMARCHY_TEST_SERVICE_INSTALL_FAIL:-} != "1password" ]] || exit 1
+touch "$OMARCHY_TEST_INSTALLED_DIR/1password"
+SH
+
+cat >"$mock_bin/omarchy-install-service-bitwarden" <<'SH'
+#!/bin/bash
+printf 'install:bitwarden\n' >>"$OMARCHY_TEST_INSTALL_LOG"
+[[ ${OMARCHY_TEST_SERVICE_INSTALL_FAIL:-} != "bitwarden" ]] || exit 1
+touch "$OMARCHY_TEST_INSTALLED_DIR/bitwarden-desktop"
 SH
 
 cat >"$mock_bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
@@ -315,3 +335,89 @@ if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install vim >"$test_t
 fi
 [[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed installation preserves the default"
 pass "failed installation preserves the current default"
+
+# Password manager defaults answer the way the hotkey always has until a
+# choice is made.
+rm -f "$password_manager_file" "$installed_dir/1password" "$installed_dir/bitwarden-desktop"
+touch "$installed_dir/1password" "$installed_dir/bitwarden-desktop"
+[[ $(omarchy-default-password-manager) == "1password" ]] ||
+  fail "unset password manager prefers 1Password when both managers are installed"
+rm -f "$installed_dir/1password"
+[[ $(omarchy-default-password-manager) == "bitwarden" ]] ||
+  fail "unset password manager is Bitwarden when it is the only manager installed"
+rm -f "$installed_dir/bitwarden-desktop"
+[[ $(omarchy-default-password-manager) == "1password" ]] ||
+  fail "unset password manager is 1Password, whose launcher starts its installer, when neither is installed"
+mkdir -p "$(dirname "$password_manager_file")"
+printf 'keepassxc\n' >"$password_manager_file"
+touch "$installed_dir/bitwarden-desktop"
+[[ $(omarchy-default-password-manager) == "bitwarden" ]] ||
+  fail "unrecognized password manager falls back to the installed manager"
+rm -f "$installed_dir/bitwarden-desktop"
+printf '1password\n' >"$password_manager_file"
+[[ $(omarchy-default-password-manager) == "1password" ]] ||
+  fail "recognized password manager is honored even when that manager is missing"
+pass "password manager default follows the hotkey's order until chosen"
+
+# Choosing a missing password manager offers to install it in a visible
+# terminal first, then selects it once the installation succeeds.
+rm -f "$password_manager_file"
+assert_missing_opens_installer password-manager bitwarden
+[[ ! -e $password_manager_file ]] ||
+  fail "the password manager terminal offer leaves the default untouched until installation"
+: >"$install_log"
+: >"$notification_log"
+omarchy-default-password-manager --install bitwarden
+[[ $(<"$install_log") == "install:bitwarden" ]] ||
+  fail "installing Bitwarden runs its service installer"
+[[ $(omarchy-default-password-manager) == "bitwarden" ]] ||
+  fail "Bitwarden becomes the default password manager after installation"
+mapfile -d '' -t notification_args <"$notification_log"
+[[ ${notification_args[*]} == "-g 󰟵 Bitwarden is now the default password manager" ]] ||
+  fail "a notification announces the new default password manager"
+pass "missing password manager installs in a terminal before selection"
+
+# A manager that is already installed is selected immediately.
+touch "$installed_dir/1password"
+: >"$install_log"
+: >"$notification_log"
+omarchy-default-password-manager 1password
+[[ ! -s $install_log ]] ||
+  fail "installed password manager skips its installer"
+[[ $(omarchy-default-password-manager) == "1password" ]] ||
+  fail "installed password manager becomes the default"
+mapfile -d '' -t notification_args <"$notification_log"
+[[ ${notification_args[*]} == "-g 󰢁 1Password is now the default password manager" ]] ||
+  fail "a notification announces the new default password manager"
+pass "installed password manager is selected immediately"
+
+# A failed password manager installation leaves the previous default in place.
+rm -f "$installed_dir/bitwarden-desktop"
+if OMARCHY_TEST_SERVICE_INSTALL_FAIL=bitwarden \
+  omarchy-default-password-manager --install bitwarden >"$test_tmp/password-manager-install-failure" 2>&1; then
+  fail "failed password manager installation returns an error"
+fi
+[[ $(omarchy-default-password-manager) == "1password" ]] ||
+  fail "failed password manager installation preserves the current default"
+pass "failed password manager installation preserves the current default"
+
+# When the choice cannot be saved, nothing claims otherwise.
+readonly_home="$test_tmp/password-manager-readonly-home"
+mkdir -p "$readonly_home"
+touch "$readonly_home/.config"
+: >"$notification_log"
+if HOME="$readonly_home" omarchy-default-password-manager 1password \
+  >"$test_tmp/password-manager-save-failure" 2>&1; then
+  fail "an unsavable password manager default returns an error"
+fi
+[[ ! -s $notification_log ]] ||
+  fail "an unsavable password manager default sends no success notification"
+pass "an unsavable password manager default fails instead of reporting success"
+
+# Anything that is not a known password manager is a usage error.
+if omarchy-default-password-manager keepassxc >"$test_tmp/password-manager-usage-error" 2>&1; then
+  fail "unknown password manager is a usage error"
+fi
+grep -Fq "Usage: omarchy-default-password-manager <1password|bitwarden>" "$test_tmp/password-manager-usage-error" ||
+  fail "password manager usage error names the managers that can be chosen"
+pass "unknown password manager is a usage error"

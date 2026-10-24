@@ -72,6 +72,7 @@
   "crash.processCrashed": "Process crashed: %1",
   "default.browserSet": "%1 is now the default browser",
   "default.editorSet": "%1 is now the default editor",
+  "default.passwordManagerSet": "%1 is now the default password manager",
   "default.terminalSet": "%1 is now the default terminal",
   "dictation.hint": "Hold Right Alt or F9 to dictate (or toggle with Super + Ctrl + X).",
   "dictation.installVoxtype": "Install Voxtype + AI model (~150MB) to enable dictation?",

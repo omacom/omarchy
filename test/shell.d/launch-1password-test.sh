@@ -40,7 +40,3 @@ PATH="$mock_bin:$PATH" OMARCHY_TEST_INSTALLED=false OMARCHY_TEST_LOG="$launch_lo
 grep -Fxq 'install:omarchy-install-service-1password' "$launch_log" ||
   fail "1Password launcher starts the installer when missing"
 pass "1Password launcher starts the installer when missing"
-
-grep -Fq '{ omarchy = "1password" }' "$ROOT/default/hypr/bindings/applications.lua" ||
-  fail "1Password keybinding uses the conditional launcher"
-pass "1Password keybinding uses the conditional launcher"

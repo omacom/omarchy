@@ -107,7 +107,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Shift + Alt + F`           | File manager in cwd of terminal    |
 | `Super + Shift + M`           | Music (Spotify)    |
 | `Super + Shift + Alt + M`           | Music (cliamp)    |
-| `Super + Shift + /`           | Password manager (1password)    |
+| `Super + Shift + /`           | Password manager (1password or bitwarden)    |
 | `Super + Shift + Q`           | Calculator (Omacalc)    |
 | `Super + Shift + T`           | Activity (btop)    |
 | `Super + Shift + N`           | Editor (Neovim)  |
