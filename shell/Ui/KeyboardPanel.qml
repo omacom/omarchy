@@ -54,6 +54,10 @@ PanelWindow {
   property int padding: Style.spacing.popupPadding
   property int contentWidth: Style.space(280)
   property int contentHeight: Style.space(200)
+  // Panels with an existing full-card ScrollView/Flickable must keep their
+  // constrained viewport so their keyboard cursor can scroll it normally.
+  property bool scrollOverflow: false
+  function ensureItemVisible(item) { contentViewport.revealItem(item) }
 
   // The card's height on screen. Content that arrives after the panel is up
   // (a Wi-Fi scan, Bluetooth devices turning up) grows the card toward it
@@ -633,13 +637,11 @@ PanelWindow {
       flickableDirection: Flickable.VerticalFlick
       interactive: contentHeight > height
       Controls.ScrollBar.vertical: Controls.ScrollBar { policy: Controls.ScrollBar.AsNeeded }
-      function revealFocusedItem() {
+      function revealItem(item) {
         if (!interactive) {
           contentY = 0
           return
         }
-        var window = contentHolder.Window.window
-        var item = window ? window.activeFocusItem : null
         // A panel's key catcher spans the entire form. Only reveal controls
         // that fit inside the viewport, not that enclosing focus scope.
         if (!item || item.height > height) return
@@ -651,6 +653,10 @@ PanelWindow {
         else if (point.y + item.height > contentY + height)
           contentY = point.y + item.height - height
         contentY = Math.max(0, Math.min(contentY, contentHeight - height))
+      }
+      function revealFocusedItem() {
+        var window = contentHolder.Window.window
+        revealItem(window ? window.activeFocusItem : null)
       }
       onHeightChanged: Qt.callLater(revealFocusedItem)
       onContentHeightChanged: Qt.callLater(revealFocusedItem)
@@ -672,7 +678,7 @@ PanelWindow {
         width: contentViewport.width
         // Keep the full form/list layout intact when the OSK reduces the card.
         // The viewport scrolls instead of putting lower controls off-surface.
-        height: Math.max(contentViewport.height, root.loadedContentHeight)
+        height: root.scrollOverflow ? Math.max(contentViewport.height, root.loadedContentHeight) : contentViewport.height
 
         Loader {
           id: contentLoader

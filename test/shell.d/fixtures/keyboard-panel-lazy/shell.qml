@@ -1,6 +1,8 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import qs.Ui
+import qs.Commons
 
 // Drives the real KeyboardPanel through open, close and reopen. The panels
 // are pinned invisible so nothing maps on the desktop running the test; the
@@ -10,6 +12,13 @@ ShellRoot {
   property bool failed: false
   property int builds: 0
   property real formHeight: 42
+
+  QtObject {
+    id: audioCursor
+    property var panel: scrolling
+    property var root: ({focusSection: "input", selectedIndex: 0})
+    // AUDIO_CURSOR_HELPER
+  }
 
   function check(ok, message) {
     if (!ok) {
@@ -30,6 +39,7 @@ ShellRoot {
     bar: null
     visible: false
     focusTarget: lazy.loadedContent
+    scrollOverflow: true
 
     content: Item {
       implicitHeight: test.formHeight
@@ -46,6 +56,29 @@ ShellRoot {
         height: 30
       }
       Component.onCompleted: test.builds++
+    }
+  }
+
+  KeyboardPanel {
+    id: scrolling
+    anchorItem: anchor
+    bar: null
+    visible: false
+    contentHeight: 220
+    focusTarget: scrolling.loadedContent
+    content: PanelKeyCatcher {
+      property alias scrollArea: innerScroll
+      property alias selectedRow: bottomRow
+      implicitHeight: 700
+      ScrollView {
+        id: innerScroll
+        anchors.fill: parent
+        Column {
+          width: innerScroll.availableWidth
+          Item { width: 100; height: 600 }
+          Item { id: bottomRow; width: 100; height: 100 }
+        }
+      }
     }
   }
 
@@ -92,6 +125,28 @@ ShellRoot {
       lazy.contentHeight = 900
       viewport.returnToBounds()
       test.check(!viewport.interactive, "scrolling disables when the complete form fits again")
+
+      scrolling.open = true
+      var inner = scrolling.loadedContent.scrollArea.contentItem
+      var outer = scrolling.loadedContent.parent.parent.parent.parent
+      test.check(!outer.interactive && inner.height < inner.contentHeight,
+        "existing ScrollViews keep the constrained viewport and own their scrolling")
+      // PanelKeyCatcher retains the focus target, just as audio's cursor model
+      // does; visibility must not rely on focus moving into a selected row.
+      test.check(scrolling.focusTarget === scrolling.loadedContent, "the key catcher remains the focus target")
+      var selected = scrolling.loadedContent.selectedRow
+      audioCursor.ensureCursorVisible(selected)
+      var selectedPoint = selected.mapToItem(outer, 0, 0)
+      test.check(selectedPoint.y >= -0.5 && selectedPoint.y + selected.height <= outer.height + 0.5,
+        "inner keyboard scrolling can reveal the bottom selected row without outer focus changes")
+      scrolling.open = false
+
+      lazy.contentHeight = 220
+      viewport.contentY = 0
+      lazy.ensureItemVisible(password)
+      point = password.mapToItem(viewport, 0, 0)
+      test.check(point.y >= 0 && point.y + password.height <= viewport.height,
+        "outer-scroll panels can reveal a selected control while the key catcher retains focus")
 
       lazy.open = false
       test.check(lazy.loadedContent === first, "closing keeps the content")
