@@ -7,7 +7,7 @@ set -e
 name=$(git config --global user.name || true)
 email=$(git config --global user.email || true)
 
-echo "Set the name and email used for your git commits (hit return to skip)."
+echo "Set the name and email used for your git commits."
 echo
 name=$(gum input --value "$name" --placeholder "Your full name" --prompt "Full name> ")
 email=$(gum input --value "$email" --placeholder "you@example.com" --prompt "Email address> ")
