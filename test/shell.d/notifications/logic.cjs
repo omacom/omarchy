@@ -493,6 +493,21 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.ok(!JSON.stringify(s.historyEntries).includes('938271'))
 }
 
+{ // The keyboard stops at the last card that fits on screen: the deck does not scroll.
+  const s = newCapacityScope()
+  s.admit(...[1, 2, 3, 4, 5].map(id => s.fakeNotification(id, 'Card ' + id)))
+  Object.assign(s, { Layout, gap: 6, targetDisplayName: 'fixture-display', marginsFor: () => ({ top: 10, right: 10 }),
+    Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] } })
+  runIn(s, 'layoutWith', 'reachable', 'moveSelection', 'keyboardOrder')
+  for (const row of s.toasts.rows) s.heights[row.key] = 100
+  Object.defineProperty(s, 'layout', { get: () => s.layoutWith(true, s.openDeck) })
+  s.selectCard = key => { s.keyboardKey = key; s.openDeck = Layout.groupKeyFor(s.toasts.get(s.rowIndexFor(key))) }
+  s.selectCard(s.keyboardOrder()[0])
+  for (let i = 0; i < 5; i++) s.moveSelection(1)
+  // 300 tall, 10 down, 6 apart: two 100-tall cards fit, the third would end at 322.
+  assert.equal(s.keyboardOrder().indexOf(s.keyboardKey), 1)
+}
+
 for (const held of [true, false]) { // Capacity: at most 100 live senders, held or deferred.
   const s = newCapacityScope()
   s.pointerHolding = held

@@ -318,19 +318,38 @@ Item {
     }
   }
 
-  // The selected card went away: select the one that took its place, or stop.
+  // The selected card went away: select the one that took its place, or the
+  // nearest one above it on screen, or stop.
   function keepSelection(fromIndex) {
     if (!keyboardMode || rowIndexFor(keyboardKey) >= 0 && !leaving[keyboardKey]) return
     var order = keyboardOrder()
-    if (!order.length) stopKeyboard()
-    else selectCard(order[Math.min(Math.max(0, fromIndex), order.length - 1)])
+    for (var i = Math.min(Math.max(0, fromIndex), order.length - 1); i >= 0; i--) {
+      if (reachable(order[i])) { selectCard(order[i]); return }
+    }
+    stopKeyboard()
+  }
+
+  // The deck does not scroll, so a card that would open below the bottom of
+  // the screen is out of reach, for the keyboard as for the pointer.
+  function reachable(key) {
+    var at = rowIndexFor(key)
+    if (at < 0) return false
+    var place = layoutWith(true, Layout.groupKeyFor(toasts.get(at))).placements[key]
+    if (!place || place.hidden) return false
+    var screen = null
+    for (var s = 0; s < Quickshell.screens.length; s++)
+      if (String(Quickshell.screens[s].name) === targetDisplayName) screen = Quickshell.screens[s]
+    if (!screen) return true
+    var room = screen.height - marginsFor(targetDisplayName).top - gap
+    return place.y + (place.height || Style.space(58)) <= room
   }
 
   function moveSelection(step) {
     var order = keyboardOrder()
     var at = order.indexOf(keyboardKey)
-    if (!order.length) return
-    selectCard(order[Math.max(0, Math.min(order.length - 1, at + step))])
+    var next = at + step
+    if (next < 0 || next >= order.length || !reachable(order[next])) return
+    selectCard(order[next])
   }
 
   // The card's buttons in Delivery.deeds' order, which the card draws and
@@ -481,16 +500,19 @@ Item {
   // A move started after the jump settles on its own finish instead.
   function landed() { if (t >= 1) settled() }
 
-  readonly property var layout: {
-    layoutRevision
+  readonly property var layout: { layoutRevision; return layoutWith(expanded, openDeck) }
+
+  // The deck as it would stand with this deck open; the keyboard asks before
+  // it moves.
+  function layoutWith(isExpanded, deckKey) {
     var rows = []
     for (var i = 0; i < toasts.count; i++) {
       var row = toasts.get(i)
       if (!leaving[row.key]) rows.push(row)   // a card on its way out takes no space
     }
     return Layout.compute(rows, {
-      expanded: expanded,
-      openDeck: openDeck,
+      expanded: isExpanded,
+      openDeck: deckKey,
       gap: gap,
       deckGap: Style.space(11),
       heightOf: function(key) { return service.heights[key] || Style.space(58) }
@@ -1549,6 +1571,7 @@ Item {
               onActionInvoked: function(identifier) { service.stopKeyboard(); service.invokeAction(model.key, identifier) }
               onExecInvoked: function(index) { service.stopKeyboard(); service.runExecAction(model.key, index) }
               onCodeCopied: function(code) { service.stopKeyboard(); service.copyCode(code, model.key) }
+              onLinkOpened: service.stopKeyboard()
               now: service.nowTick
               expanded: service.expanded
                         && service.openDeck === Layout.groupKeyFor(model)

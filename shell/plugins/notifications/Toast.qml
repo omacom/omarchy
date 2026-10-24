@@ -68,6 +68,7 @@ Item {
   signal codeCopied(string code)
   signal actionInvoked(string identifier)
   signal execInvoked(int index)
+  signal linkOpened()
 
   readonly property bool critical: row.urgency === 2
   readonly property color dimColor: Qt.darker(Commons.Color.notifications.text, 1.4)
@@ -513,7 +514,7 @@ Item {
           maximumLineCount: card.bodyLines
           elide: Text.ElideRight
           // Second gate: Markup already drops anchors it will not vouch for.
-          onLinkActivated: function(url) { Security.openExternalUrl(url) }
+          onLinkActivated: function(url) { card.linkOpened(); Security.openExternalUrl(url) }
         }
       }
     }
