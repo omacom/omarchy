@@ -322,13 +322,175 @@ function leafIdFor(id) {
   return parts.length > 0 ? parts[parts.length - 1] : id
 }
 
+// nameSearchText runs for every row on every keystroke; rows are rebuilt
+// when the menu changes, so caching by row object stays correct.
+var nameSearchTextCache = typeof WeakMap === "function" ? new WeakMap() : null
+
 function nameSearchText(entry) {
   if (!entry) return ""
+  var cached = nameSearchTextCache ? nameSearchTextCache.get(entry) : undefined
+  if (cached !== undefined) return cached
+  var text = buildNameSearchText(entry)
+  if (nameSearchTextCache) nameSearchTextCache.set(entry, text)
+  return text
+}
+
+function buildNameSearchText(entry) {
   var aliases = []
   var values = (Array.isArray(entry.aliases) ? entry.aliases : []).concat(Array.isArray(entry.searchTerms) ? entry.searchTerms : [])
   for (var i = 0; i < values.length; i++) aliases.push(searchableToken(values[i]))
   return [entry.label, searchableToken(leafIdFor(entry.id)), aliases.join(" ")].join(" ").toLowerCase()
 }
+
+// --- acronym/camelCase matching (local test patch) ---
+function camelWords(value) {
+  var parts = String(value || "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .toLowerCase()
+    .split(/[^a-z0-9\u00c0-\u024f]+/)
+  var out = []
+  for (var i = 0; i < parts.length; i++) if (parts[i]) out.push(parts[i])
+  return out
+}
+
+// Search runs on every keystroke over every row, so split each name once.
+var wordInfoCache = Object.create(null)
+var wordInfoCacheSize = 0
+
+function wordInfo(value) {
+  var key = String(value || "")
+  var info = wordInfoCache[key]
+  if (info) return info
+  var words = camelWords(key)
+  var acronym = ""
+  for (var i = 0; i < words.length; i++) acronym += words[i].charAt(0)
+  if (wordInfoCacheSize >= 5000) {
+    wordInfoCache = Object.create(null)
+    wordInfoCacheSize = 0
+  }
+  info = { words: words, acronym: acronym, joined: words.join("") }
+  wordInfoCache[key] = info
+  wordInfoCacheSize++
+  return info
+}
+
+function textAcronym(value) {
+  return wordInfo(value).acronym
+}
+
+// Cheap reject: every match below uses the term's letters in order.
+function lettersInOrder(term, text) {
+  var j = 0
+  for (var i = 0; i < text.length && j < term.length; i++) if (text.charCodeAt(i) === term.charCodeAt(j)) j++
+  return j === term.length
+}
+
+function textAcronymMatches(term, value) {
+  term = String(term || "").toLowerCase()
+  if (!term || term.length > 5) return false
+  return textAcronym(value).indexOf(term) === 0
+}
+
+// Every name a row answers to: label, leaf id, aliases, and searchTerms
+// (where translations keep the English label). Built once per row object.
+var entryNamesCache = typeof WeakMap === "function" ? new WeakMap() : null
+
+function entryNameInfos(entry) {
+  var infos = entryNamesCache ? entryNamesCache.get(entry) : null
+  if (infos) return infos
+  var values = [entry.label, leafIdFor(entry.id)]
+    .concat(Array.isArray(entry.aliases) ? entry.aliases : [])
+    .concat(Array.isArray(entry.searchTerms) ? entry.searchTerms : [])
+  infos = []
+  for (var i = 0; i < values.length; i++) infos.push(wordInfo(values[i]))
+  if (entryNamesCache) entryNamesCache.set(entry, infos)
+  return infos
+}
+
+function entryAcronymMatches(entry, term) {
+  if (!entry) return false
+  term = String(term || "").toLowerCase()
+  if (!term || term.length > 5) return false
+  var infos = entryNameInfos(entry)
+  for (var i = 0; i < infos.length; i++) if (infos[i].acronym.indexOf(term) === 0) return true
+  return false
+}
+
+// Word-prefix match: the term is split into prefixes of the words, in order,
+// and words may be skipped. "rr" and "ror" (initials), "rorails" (r-o-rails)
+// and "rubyrails" all match Ruby on Rails. The first piece may also start
+// inside a word, so "rord" (mi-ror, d-isplay) matches Mirror Display like
+// "ror" already does as a substring.
+function wordPrefixMatches(term, words) {
+  var failed = {}
+  function from(ti, wi) {
+    if (ti === term.length) return true
+    if (wi >= words.length) return false
+    var key = ti + ":" + wi
+    if (failed[key]) return false
+    var word = words[wi]
+    for (var k = 0; k < word.length && ti + k < term.length && word.charAt(k) === term.charAt(ti + k); k++) {
+      if (from(ti + k + 1, wi + 1)) return true
+    }
+    if (from(ti, wi + 1)) return true
+    failed[key] = true
+    return false
+  }
+  if (from(0, 0)) return true
+  for (var wi = 0; wi < words.length; wi++) {
+    var word = words[wi]
+    for (var start = 1; start < word.length; start++) {
+      for (var k = 0; start + k < word.length && k < term.length && word.charAt(start + k) === term.charAt(k); k++) {
+        if (from(k + 1, wi + 1)) return true
+      }
+    }
+  }
+  return false
+}
+
+function fuzzyTerm(term) {
+  term = String(term || "").toLowerCase().replace(/\s+/g, "")
+  return term.length < 2 || term.length > 64 ? "" : term
+}
+
+function infoWordPrefixMatches(term, info) {
+  return lettersInOrder(term, info.joined) && wordPrefixMatches(term, info.words)
+}
+
+function textFuzzyAcronymMatches(term, value) {
+  term = fuzzyTerm(term)
+  return !!term && infoWordPrefixMatches(term, wordInfo(value))
+}
+
+function entryFuzzyAcronymMatches(entry, term) {
+  if (!entry) return false
+  term = fuzzyTerm(term)
+  if (!term) return false
+  var infos = entryNameInfos(entry)
+  for (var i = 0; i < infos.length; i++) if (infoWordPrefixMatches(term, infos[i])) return true
+  return false
+}
+
+// Match tiers (lower sorts first). Tiers never interleave: each is 100 apart
+// and kind adjustments stay within -5..0.
+//   0   exact full label (absolute top; incl. upstream whole-word app rule)
+//   100 tier A: contiguous initials/camelCase prefix (gb -> Grok Bot / GrokBot)
+//   200 tier B: other direct matches (prefix, substring, alias/id, description)
+//   400 tier C: word prefixes, words may be skipped (rr, rorails -> Ruby on Rails)
+var TIER_EXACT = 0, TIER_ACRONYM = 100, TIER_DIRECT = 200, TIER_FUZZY = 400
+
+function dmenuTier(query, label, detail) {
+  var q = String(query || "").toLowerCase().trim()
+  if (!q) return TIER_DIRECT
+  var l = String(label || "").toLowerCase()
+  if (l === q) return TIER_EXACT
+  if (textAcronymMatches(q, label)) return TIER_ACRONYM
+  if (l.indexOf(q) >= 0 || String(detail || "").toLowerCase().indexOf(q) >= 0) return TIER_DIRECT
+  if (textFuzzyAcronymMatches(q, label)) return TIER_FUZZY
+  return -1
+}
+// --- end patch ---
 
 function termInSearchWords(term, text) {
   var words = String(text || "").toLowerCase().split(/\s+/)
@@ -358,10 +520,24 @@ function matchesQuery(entry, query, visible) {
     if (!terms[i]) continue
     if (nameText.indexOf(terms[i]) >= 0) continue
     if (termInSearchWords(terms[i], descriptionText)) continue
+    if (entryAcronymMatches(entry, terms[i])) continue
+    if (entryFuzzyAcronymMatches(entry, terms[i])) continue
     return false
   }
 
   return true
+}
+
+function needsWordPrefixMatch(entry, query, nameText, descriptionText) {
+  var terms = query.split(/\s+/)
+  for (var i = 0; i < terms.length; i++) {
+    if (!terms[i]) continue
+    if (nameText.indexOf(terms[i]) >= 0) continue
+    if (termInSearchWords(terms[i], descriptionText)) continue
+    if (entryAcronymMatches(entry, terms[i])) continue
+    if (entryFuzzyAcronymMatches(entry, terms[i])) return true
+  }
+  return false
 }
 
 function searchScore(items, entry, query) {
@@ -369,16 +545,21 @@ function searchScore(items, entry, query) {
   var label = entry.label.toLowerCase()
   var nameText = nameSearchText(entry)
   var descriptionText = String(entry.description || "").toLowerCase()
-  var score = 80
+  var score = TIER_DIRECT + 80
 
-  if (label === needle) score = entry.parent === "root" ? 2 : 0
+  if (label === needle) score = TIER_EXACT + (entry.parent === "root" ? 2 : 0)
   // An installed app whose name contains the query as a whole word ("zen"
   // for Zen Browser) beats exact-labeled menu entries like Install > Zen.
-  else if (entry.kind === "app" && label.split(/\s+/).indexOf(needle) >= 0) score = 0
-  else if (label.indexOf(needle) === 0) score = 10
-  else if (label.indexOf(needle) >= 0) score = 30
-  else if (nameText.indexOf(needle) >= 0) score = 40
-  else if (descriptionTextMatches(needle, descriptionText)) score = 60
+  else if (entry.kind === "app" && label.split(/\s+/).indexOf(needle) >= 0) score = TIER_EXACT
+  else if (textAcronymMatches(needle, entry.label) || entryAcronymMatches(entry, needle)) score = TIER_ACRONYM + (textAcronymMatches(needle, entry.label) ? 10 : 20)
+  else if (label.indexOf(needle) === 0) score = TIER_DIRECT + 10
+  else if (label.indexOf(needle) >= 0) score = TIER_DIRECT + 30
+  else if (nameText.indexOf(needle) >= 0) score = TIER_DIRECT + 40
+  else if (descriptionTextMatches(needle, descriptionText)) score = TIER_DIRECT + 60
+  else if (entryFuzzyAcronymMatches(entry, needle)) score = TIER_FUZZY + 10
+  // Multi-term queries: matchesQuery accepts each term on its own, so a row
+  // with any term matched only by word prefixes stays in the word-prefix tier.
+  else if (needsWordPrefixMatch(entry, needle, nameText, descriptionText)) score = TIER_FUZZY + 80
 
   if (entry.kind === "menu" || entry.kind === "link") score -= 2
   // App rows sort after all menu items, so they lose the tiebreak below to an
@@ -714,6 +895,11 @@ if (typeof module !== "undefined") {
     termInSearchWords: termInSearchWords,
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
+    textAcronymMatches: textAcronymMatches,
+    entryAcronymMatches: entryAcronymMatches,
+    textFuzzyAcronymMatches: textFuzzyAcronymMatches,
+    entryFuzzyAcronymMatches: entryFuzzyAcronymMatches,
+    dmenuTier: dmenuTier,
     searchScore: searchScore,
     dmenuValue: dmenuValue,
     dmenuSelections: dmenuSelections,
