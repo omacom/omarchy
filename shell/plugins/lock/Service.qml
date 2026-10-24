@@ -563,6 +563,28 @@ Item {
         onWakeRequested: root.runWake()
       }
 
+      // A suspend between the lock's focus request and the compositor's
+      // keyboard grab can drop the password field's focus, and nothing after
+      // the resume asks for it back: the surface stays shown across the
+      // sleep, so neither completion nor inputEnabled re-runs. Timers stand
+      // still through a suspend, so the first tick after one sees the wall
+      // clock jump; the field takes focus again then, while the lock stays
+      // up and secure.
+      Timer {
+        id: passwordFocusSleepWatch
+        interval: 1000
+        repeat: true
+        running: root.lockRequested
+        property double lastTickMs: 0
+        onRunningChanged: lastTickMs = Date.now()
+        onTriggered: {
+          var now = Date.now()
+          var slept = FingerprintModel.spannedSleep(now - lastTickMs, interval)
+          lastTickMs = now
+          if (slept && lockView.inputEnabled && !root.authenticatingPassword) lockView.forcePasswordFocus()
+        }
+      }
+
     }
   }
 
