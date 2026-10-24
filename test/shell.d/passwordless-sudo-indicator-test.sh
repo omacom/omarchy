@@ -21,7 +21,7 @@ assert(!indicator.includes('Timer'), 'indicator does not poll the sudo probe')
 assert(indicator.includes('function onRefreshRequested() { root.refresh() }'), 'indicator probes when the indicator host asks for a refresh')
 assert(indicator.includes('command: ["omarchy-sudo-passwordless", "--disable"]'), 'active indicator revokes access through a background process')
 assert(indicator.includes('if (root.granted) disableProc.running = true'), 'active click bypasses the terminal launcher')
-assert(indicator.includes('root.indicatorHost.refresh()'), 'disabling access refreshes all indicator instances immediately')
+assert(indicator.includes('root.indicatorHost.broadcast("refresh")'), 'disabling access refreshes all indicator instances immediately')
 const press = new Function('root', 'disableProc', indicator.match(/onPressed: function\(\) \{([\s\S]*?)\n  \}/)[1])
 const launched = []
 const button = { granted: true, bar: { run: command => launched.push(command) } }
