@@ -12,7 +12,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 mock_bin="$test_tmp/bin"
 notifications="$test_tmp/notifications"
-mkdir -p "$mock_bin" "$test_tmp/home/.claude" "$test_tmp/home/.codex"
+mkdir -p "$mock_bin" "$test_tmp/home/.claude" "$test_tmp/home/.codex" "$test_tmp/runtime"
 
 cat >"$mock_bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
@@ -91,6 +91,9 @@ chmod +x "$mock_bin"/*
 
 export HOME="$test_tmp/home"
 export XDG_STATE_HOME="$test_tmp/state"
+# No user manager socket here, so omarchy-agent starts no real scopes in the
+# desktop's user manager.
+export XDG_RUNTIME_DIR="$test_tmp/runtime"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_NOTIFICATIONS="$notifications"
