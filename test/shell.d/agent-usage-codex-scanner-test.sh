@@ -6,6 +6,7 @@ require_command jq
 require_command python3
 require_command git
 require_command rg
+require_command zstd
 
 # Every fixture home lives under one scratch directory, cleaned up at exit.
 SCRATCH=$(mktemp -d)
@@ -1269,3 +1270,26 @@ result=$(run_incremental)
 [[ $(jq -r '.modelUsage["gpt-broken"].inputTokens' <<<"$result") == "6" ]] ||
   fail "Codex collector drops usage read before a line that stops the read" "$result"
 pass "Codex collector keeps usage read before a line that stops the read"
+
+# Codex compresses a finished rollout to .jsonl.zst and decompresses it again to
+# append, so a compressed rollout counts, and one caught mid-swap counts once.
+compressed_session="$INCREMENTAL_HOME/.codex/sessions/$(date +%Y/%m/%d)/rollout-compressed.jsonl"
+cat >"$compressed_session" <<EOF
+{"timestamp":"$incremental_timestamp","type":"turn_context","payload":{"model":"gpt-compressed"}}
+{"timestamp":"$incremental_timestamp","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":7,"output_tokens":2}}}}
+EOF
+zstd -q --rm "$compressed_session" && [[ ! -e $compressed_session ]] ||
+  fail "Codex compressed-session fixture is not compressed only"
+expire_scan_cache
+result=$(run_incremental)
+[[ $(jq -c '.modelUsage["gpt-compressed"] | [.inputTokens, .outputTokens]' <<<"$result") == "[7,2]" ]] ||
+  fail "Codex collector misses compressed session files" "$result"
+pass "Codex collector reads compressed session files"
+
+zstd -q -d -k "$compressed_session.zst" && [[ -f $compressed_session && -f $compressed_session.zst ]] ||
+  fail "Codex mid-swap fixture is not in both forms"
+expire_scan_cache
+result=$(run_incremental)
+[[ $(jq -c '.modelUsage["gpt-compressed"] | [.inputTokens, .outputTokens]' <<<"$result") == "[7,2]" ]] ||
+  fail "Codex collector counts a session twice while Codex swaps its compression" "$result"
+pass "Codex collector counts a session once while Codex swaps its compression"

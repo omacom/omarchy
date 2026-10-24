@@ -432,6 +432,20 @@ def scan_opencode_sessions():
   return True
 
 
+def native_session_files(root):
+  # Codex compresses a finished rollout to .jsonl.zst and decompresses it again
+  # to append, so for a moment both exist; the plain one is what Codex reads.
+  paths = {path for path in root.rglob("*.jsonl*") if path.name.endswith((".jsonl", ".jsonl.zst"))}
+  return [path for path in paths if not (path.suffix == ".zst" and path.with_suffix("") in paths)]
+
+
+def open_native_session(path):
+  if path.suffix == ".zst":
+    from compression import zstd
+    return zstd.open(path, "rt", errors="replace")
+  return path.open(errors="replace")
+
+
 def scan_native_codex_sessions(cached_files, scanned_files):
   codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
   roots = [codex_home / "sessions", codex_home / "archived_sessions"]
@@ -440,7 +454,7 @@ def scan_native_codex_sessions(cached_files, scanned_files):
   for root in roots:
     if not root.exists():
       continue
-    for path in root.rglob("*.jsonl"):
+    for path in native_session_files(root):
       try:
         stat_result = path.stat()
       except OSError:
@@ -464,7 +478,7 @@ def read_native_codex_session(path, stat_result):
   seen_meta = False
   previous_total_usage = None
   try:
-    with path.open(errors="replace") as handle:
+    with open_native_session(path) as handle:
       for raw in handle:
         # Cheap pre-filter before JSON parsing keeps files with unrelated
         # lines inexpensive. session_meta still has to get through: it says
