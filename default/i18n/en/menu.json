@@ -288,6 +288,15 @@
   "appearance.animations-off": {
     "label": "Animations Off"
   },
+  "appearance.intros": {
+    "label": "Background Intros"
+  },
+  "appearance.intros.on-theme": {
+    "label": "On Theme Change"
+  },
+  "appearance.intros.on-select": {
+    "label": "On Background Change"
+  },
   "appearance.unlock": {
     "label": "Unlock"
   },

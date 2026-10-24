@@ -23,3 +23,12 @@ ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
 # Update the live shell background when it is running. Nothing watches the
 # symlink, so this is how the shell learns of the new background.
 omarchy-shell -q background set "$BACKGROUND"
+
+# With `omarchy theme bg intro select enable`, a still's matching intro also
+# plays when it is picked here (picker, `bg next`, `bg set`). Theme switches
+# and login play theirs through omarchy-theme-set and the login launcher, which
+# never pass through this command, so nothing plays twice. Detached, so the
+# picker and keybinds return at once; the launcher re-checks every gate.
+if omarchy-toggle-enabled background-intros-on-select; then
+  omarchy-theme-bg-boot-intro --on-select "$BACKGROUND" >/dev/null 2>&1 &
+fi

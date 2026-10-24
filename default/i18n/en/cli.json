@@ -259,6 +259,7 @@
   "tailscale.sent": "Sent to %1",
   "tailscale.transferFailed": "Taildrop transfer failed",
   "theme.backgroundIntros": "Background Intros",
+  "theme.backgroundIntrosOnSelect": "Intros on background change",
   "theme.commandsFailed": "%1 failed. See %2",
   "theme.noBackground": "No background was found for theme",
   "theme.notAppliedEverywhere": "Theme not applied everywhere",

@@ -573,8 +573,16 @@ const appearanceLabels = ['Animations On', 'Animations Off', 'Menu Bar', 'Dock',
 assertEqual(triggerIds[0], 'trigger.toggle', 'menu lists Toggle first under Trigger')
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'appearance').map(item => item.label),
-  ['Theme', 'Background', 'Font', 'Menu Bar', 'Windows', 'Branding', 'Dock', 'Workspace Layout', 'Animations On', 'Animations Off', 'Unlock'],
+  ['Theme', 'Background', 'Font', 'Menu Bar', 'Windows', 'Branding', 'Dock', 'Workspace Layout', 'Animations On', 'Animations Off', 'Background Intros', 'Unlock'],
   'menu gathers the style and look of the desktop under Appearance'
+)
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'appearance.intros').map(item => [item.label, item.action]),
+  [
+    ['On Theme Change', 'omarchy-theme-bg-intro toggle'],
+    ['On Background Change', 'omarchy-theme-bg-intro select toggle']
+  ],
+  'menu offers both intro triggers under Appearance > Background Intros'
 )
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'appearance.windows').map(item => item.label),
