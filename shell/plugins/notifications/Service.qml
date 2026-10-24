@@ -535,6 +535,9 @@ Item {
       var at = service.rowIndexFor(key)
       var snap = service.snapshot(), deckNow = service.deckHeight
       if (at >= 0) {
+        // A sender replacing a card on its way out gives it a fresh life:
+        // it comes back, rather than leaving with the new words on it.
+        if (service.leaving[key]) service.unmarkLeaving(key)
         Store.applyTo(toasts, at, row)      // an update, in place
         service.retarget(snap, deckNow)
       } else {
@@ -648,15 +651,16 @@ Item {
     for (var i = 0; i < keys.length; i++) finishClose(keys[i], leaving[keys[i]])
   }
 
-  function finishClose(key, reason) {
-    var rest = {}
+  function unmarkLeaving(key) {
+    var rest = {}, stay = {}
     for (var k in leaving) if (k !== key) rest[k] = leaving[k]
+    for (var g in departures) if (g !== key) stay[g] = departures[g]
     leaving = rest
-    if (departures[key]) {
-      var stay = {}
-      for (var g in departures) if (g !== key) stay[g] = departures[g]
-      departures = stay
-    }
+    departures = stay
+  }
+
+  function finishClose(key, reason) {
+    unmarkLeaving(key)
     var at = rowIndexFor(key)
     if (!liveKeys[key]) return
     releaseLive(key)

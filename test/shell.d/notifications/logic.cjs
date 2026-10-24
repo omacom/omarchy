@@ -310,7 +310,7 @@ function runIn(scope, ...names) {
 const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
-  'closeToasts', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
 function newCapacityScope() {
@@ -445,6 +445,21 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.equal(s.toasts.count, 2, 'the card rises out before it goes')
   s.finishDeparted(Date.now() + 1000)
   assert.deepEqual(s.toasts.rows.map(row => row.key), [back], 'its deadline removes it without the scene settling')
+}
+
+{ // A sender replacing a card during its exit brings it back instead of losing the update.
+  const s = newCapacityScope()
+  const sender = s.fakeNotification(1, 'Expiring')
+  s.admit(sender)
+  const key = s.keyForOriginal(1)
+  s.snapshot = () => ({ [key]: { y: 0, scale: 1, opacity: 1, height: 58 } })
+  s.closeToast(key, 'expired')
+  sender.replace({ summary: 'Still going', expireTimeout: 12345 })
+  s.drainCallLater()
+  s.finishDeparted(Date.now() + 1000)
+  assert.equal(s.toasts.count, 1)
+  assert.equal(s.toasts.get(0).summary, 'Still going')
+  assert.equal(sender.expiries, 0, 'the fresh notification must not be reported expired')
 }
 
 { // A code must not outlive its toast, even in source metadata.
