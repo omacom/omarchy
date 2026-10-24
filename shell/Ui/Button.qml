@@ -192,7 +192,7 @@ BorderSurface {
       RotationAnimation on rotation {
         from: 0
         to: 360
-        duration: 900
+        duration: Style.duration(900)
         loops: Animation.Infinite
         running: root.iconSpinning && !Style.reduceMotion
       }

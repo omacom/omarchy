@@ -13,7 +13,7 @@ Every animation needs a reason: it shows where something came from or went, it c
 
 ## Tokens
 
-- Every duration goes through `Style.duration(ms)`. It returns 0 when `omarchy toggle animations` has turned Hyprland's animations off, which is how the shell honours reduced motion. A bare `duration: 150` keeps animating after that, so don't write one.
+- Every duration goes through `Style.duration(ms)`. It returns 0 when `omarchy toggle animations` has turned Hyprland's animations off, which is how the shell honours reduced motion. A bare `duration: 150` keeps animating after that, so don't write one; `test/shell.d/motion-test.sh` fails on it. A looping animation also needs `running: ... && !Style.reduceMotion`, or its zero-length steps spin the CPU.
 - Movement and entrances use `Style.easeOut`, a strong ease-out (`cubic-bezier(0.23, 1, 0.32, 1)`) passed as `easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut`. Plain fades may use `Easing.OutCubic`, and hover colour changes `Easing.InOutQuad`.
 - Never an ease-in curve on UI: it starts slowest at the moment the eye is on it. No overshoot or bounce.
 - Never `Easing.Linear` except for constant motion such as a spinner.
