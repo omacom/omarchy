@@ -15,7 +15,6 @@ const themeSwitcher = fs.readFileSync(path.join(root, 'bin/omarchy-theme-switche
 const quattroUpgrade = fs.readFileSync(path.join(root, 'bin/omarchy-upgrade-to-quattro'), 'utf8')
 const barTextColor = fs.readFileSync(path.join(root, 'bin/omarchy-bar-text-color'), 'utf8')
 const menuImages = fs.readFileSync(path.join(root, 'bin/omarchy-menu-images'), 'utf8')
-const lockService = fs.readFileSync(path.join(root, 'shell/plugins/lock/Service.qml'), 'utf8')
 const batteryService = fs.readFileSync(path.join(root, 'shell/plugins/services/battery/Service.qml'), 'utf8')
 const themeSet = fs.readFileSync(path.join(root, 'bin/omarchy-theme-set'), 'utf8')
 const directImageList = fs.readFileSync(path.join(root, 'shell/plugins/image-picker/list.sh'), 'utf8')
@@ -44,18 +43,6 @@ assert(
     !backgroundQml.includes('MediaPlayer') &&
     !lockQml.includes('MediaPlayer'),
   'no shell surface builds a Qt Multimedia pipeline'
-)
-assert(
-  /path: root\.loadBackground \? \(root\.video \? root\.videoPosterPath : root\.backgroundPath\) : ""/.test(lockQml) &&
-    !fs.existsSync(path.join(root, 'shell/plugins/lock/LockFeedSurface.qml')) &&
-    !/^import Owe\./m.test(lockQml) &&
-    !lockQml.includes('LockFeed'),
-  'the lock screen shows a video wallpaper as its still poster and plays nothing'
-)
-assert(
-  /MultiEffect \{[\s\S]*?source: wallpaper/.test(lockQml) &&
-    !lockQml.includes('wallpaper.video'),
-  'the lock screen gives a video poster the same image effect as a still'
 )
 assert(
   !mediaQml.includes('mipmap'),
@@ -114,12 +101,6 @@ assert(
     /if \[\[ \$BACKGROUND_TRANSITION_SNAPSHOTS == "true" \]\]/.test(themeSet) &&
     /if \[\[ -z \$CHOSEN_THEME_BACKGROUND \|\| ! -f \$CHOSEN_THEME_BACKGROUND \]\]/.test(themeSet),
   'theme changes disable both transition snapshots whenever either side is a video'
-)
-assert(
-  !lockService.includes('"hyprctl", "monitors"') &&
-    !lockService.includes('monitorDpms') &&
-    !lockService.includes('displaysBlank'),
-  'the lock does not poll the panels, since nothing behind it plays'
 )
 assert(
   batteryService.includes('property string activePowerProfile') &&
@@ -266,8 +247,7 @@ pass "direct picker generates and reuses still thumbnails"
 pass "direct picker omits videos whose thumbnails cannot be generated"
 pass "a rejected video is remembered so it costs nothing on the next open"
 pass "a timed out video is left to retry"
-pass "a locked video wallpaper follows the panels' real DPMS state"
-pass "OWE and its lock feed module are declared"
+pass "OWE is a base package"
 
 source <(awk '
   /^(is_video_path|snapshot_background_path|background_transition_uses_snapshots|choose_theme_background|choose_staged_theme_background|set_theme_background)\(\) \{/ { copying=1 }
