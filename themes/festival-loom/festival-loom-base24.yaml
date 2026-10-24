@@ -1,0 +1,38 @@
+system: "base24"
+name: "Festival Loom"
+slug: "festival-loom"
+author: "OldJobobo / Omarchy Kids Themes"
+variant: "light"
+
+# Exported from colors.toml; semantic roles and repeated colors are preserved.
+
+palette:
+  # --- cotton table / folded felt ---
+  base00: "#FFF0DC" # Cotton Cream - default background
+  base01: "#F5DCC7" # Peach Cloth - lighter background
+  base02: "#E8C8B0" # Folded Felt - selection background
+  base03: "#796A70" # Thread Shadow - comments / muted text
+  base04: "#554654" # Embroidery Ink - dark foreground
+  base05: "#342B3D" # Plum Stitch - default foreground
+  base06: "#342B3D" # Cotton Lettering - light foreground
+  base07: "#1E1726" # Deep Seam - brightest foreground
+
+  # --- festival threads and paper banners ---
+  base08: "#BD4058" # Berry Ribbon - red / error
+  base09: "#D36C32" # Terracotta Bead - orange / warning
+  base0A: "#9B7300" # Spun Gold - yellow
+  base0B: "#4E7F4D" # Leaf Felt - green
+  base0C: "#187D83" # Turquoise Thread - cyan
+  base0D: "#326AA8" # Denim Patch - blue
+  base0E: "#9A4D96" # Orchid Yarn - purple
+  base0F: "#875744" # Wooden Loom - brown / special
+
+  # --- base24 extension ---
+  base10: "#F7E4CD" # Canvas Fold - darker background
+  base11: "#F7E4CD" # Loom Recess - darkest background
+  base12: "#E05B78" # Bright Berry Ribbon - bright red
+  base13: "#B78800" # Bright Spun Gold - bright orange / yellow
+  base14: "#5C965B" # Bright Leaf Felt - bright green
+  base15: "#1C949B" # Bright Turquoise Thread - bright cyan
+  base16: "#3B7DC6" # Bright Denim Patch - bright blue
+  base17: "#B65BB1" # Bright Orchid Yarn - bright purple

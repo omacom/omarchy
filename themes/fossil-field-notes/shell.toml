@@ -1,0 +1,144 @@
+# Fossil Field Notes — theme-only shell visuals; shell.json remains user-owned.
+[bar]
+background = "#f4e6c9"
+background-alpha = 0.97
+text = "#3b2d26"
+active = "#94411f"
+scale-with-font = true
+size-horizontal = 28
+size-vertical = 30
+
+[hyprland]
+active-border = "#94411f #3d7d7b 90deg"
+active-border-foreground = "#d36849 #489491 90deg"
+
+[controls]
+normal-color = "#3b2d26"
+normal-fill-alpha = 0.04
+normal-border = "#7c6d5a"
+normal-border-width = 1
+normal-border-alpha = 0.62
+hover-cursor-color = "#211913"
+hover-cursor-fill-alpha = 0.10
+hover-cursor-border = "#3d7d7b"
+hover-cursor-border-width = 2
+hover-cursor-border-alpha = 0.90
+focus-color = "#211913"
+focus-fill-alpha = 0.13
+focus-border = "hyprland.active-border"
+focus-border-width = 2
+focus-border-alpha = 1.0
+selected-color = "foreground"
+selected-fill-alpha = 0.14
+selected-border = "#211913"
+selected-border-width = 0
+selected-border-alpha = 0.86
+pressed-fill-alpha = 0.24
+selection-fill-alpha = 0.40
+
+[spacing]
+scale = 1.0
+scale-with-font = true
+control-height = 30
+popup-row-height = 32
+panel-gap = 11
+panel-padding = 14
+popup-padding = 12
+
+[font]
+base-size = 12
+caption = 10
+body-small = 11
+body = 12
+subtitle = 13
+heading = 15
+
+[popups]
+background = "#e8d5ae"
+background-alpha = 0.98
+text = "#3b2d26"
+border = "#94411f"
+border-alpha = 0.96
+border-width = 2
+
+[tooltip]
+background = "#e8d5ae"
+background-alpha = 0.99
+text = "#3b2d26"
+border = "#7c6d5a"
+border-alpha = 0.90
+
+[notifications]
+background = "#e8d5ae"
+background-alpha = 0.98
+text = "#3b2d26"
+border = "#94411f"
+border-alpha = 0.96
+border-width = 2
+countdown = "#987000"
+
+[launcher]
+background = "#e8d5ae"
+background-alpha = 0.97
+text = "#3b2d26"
+border = "#94411f"
+border-alpha = 0.98
+border-width = 2
+scrim = "#ead6b4"
+scrim-alpha = 0.28
+selected-background = "#94411f"
+selected-background-alpha = 1.0
+selected-text = "#f4e6c9"
+selected-border = "#211913"
+selected-border-alpha = 0.85
+selected-border-width = 0
+
+[menu]
+background = "#e8d5ae"
+background-alpha = 0.98
+text = "#3b2d26"
+border = "#94411f"
+border-alpha = 0.98
+border-width = 2
+scrim = "#ead6b4"
+scrim-alpha = 0.28
+selected-background = "#94411f"
+selected-background-alpha = 1.0
+selected-text = "#f4e6c9"
+selected-border = "#211913"
+selected-border-alpha = 0.85
+selected-border-width = 0
+
+[polkit]
+background = "#e8d5ae"
+background-alpha = 0.99
+text = "#3b2d26"
+text-error = "#d36849"
+border = "#94411f"
+border-error = "#d36849"
+border-alpha = 1.0
+scrim = "#ead6b4"
+scrim-alpha = 0.36
+accent = "#3d7d7b"
+
+[lock]
+background = "#e8d5ae"
+background-alpha = 0.96
+text = "#3b2d26"
+placeholder = "#59483a"
+text-error = "#d36849"
+border = "#7c6d5a"
+border-active = "hyprland.active-border"
+border-error = "#d36849"
+border-alpha = 1.0
+selection = "#94411f"
+selection-alpha = 0.55
+
+[image-picker]
+scrim = "#ead6b4"
+scrim-alpha = 0.28
+text = "#3b2d26"
+selected-border = "#94411f"
+selected-border-alpha = 1.0
+unselected-border = "#7c6d5a"
+unselected-border-alpha = 0.72
