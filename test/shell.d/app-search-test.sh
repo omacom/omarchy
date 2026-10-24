@@ -74,6 +74,33 @@ assert(
 const acronymMatches = search.sortedEntries(entries, 'gc').map(row => search.entryName(row.entry))
 assertEqual(acronymMatches[0], 'Google Contacts', 'short acronym matching still works')
 
+const chineseEntries = [
+  { name: '小红书', genericName: '', comment: '', keywords: [], id: 'com.xiaohongshu.app.desktop' },
+  { name: '抖音', genericName: '', comment: '', keywords: [], id: 'com.douyin.app.desktop' },
+  { name: '微信 Universal', genericName: '', comment: '', keywords: ['wechat', 'weixin'], id: 'wechat-universal.desktop' }
+]
+
+const menuModel = requireFromRoot('shell/plugins/menu/MenuModel.js')
+assertEqual(menuModel.pinyinInitials('小红书'), 'xhs', 'search computes pinyin initials for Chinese names')
+const fieldRuns = menuModel.pinyinFieldInitials(['微信', '', '聊天']).split(' ')
+assert(fieldRuns.includes('wx') && fieldRuns.includes('lt') && !fieldRuns.some(run => run.length > 2), 'pinyin initials stay within their field')
+
+for (const [query, name] of [['xhs', '小红书'], ['dy', '抖音'], ['wx', '微信 Universal']]) {
+  const hits = search.sortedEntries(chineseEntries, query).map(row => search.entryName(row.entry))
+  assertEqual(hits[0], name, 'pinyin initials find ' + name)
+}
+
+assert(!search.sortedEntries(chineseEntries, 'dy').some(row => search.entryName(row.entry) === '小红书'), 'unrelated pinyin initials do not match')
+
+// Initials must not run across fields: 微信's name and its 聊天 comment or keyword are not "xl".
+const crossField = [
+  { name: '微信', genericName: '', comment: '聊天', keywords: ['聊天'], id: 'wechat.desktop' }
+]
+assert(!search.sortedEntries(crossField, 'xl').length, 'pinyin initials do not span name, comment and keywords')
+assertEqual(search.sortedEntries(crossField, 'lt').length, 1, 'a Chinese keyword is found by its own initials')
+const qmlListKeywords = { length: 1, 0: '聊天' }
+assert(search.entrySearchText({ name: '微信', keywords: qmlListKeywords }).includes(' lt'), 'keywords from a QML list contribute their initials')
+
 const directMatches = search.sortedEntries(entries, 'obs').map(row => search.entryName(row.entry))
 assertEqual(directMatches[0], 'OBS Studio', 'direct app-name matching still works')
 

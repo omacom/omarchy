@@ -281,8 +281,20 @@ function assertDeepEqual(actual, expected, description) {
   )
 }
 
+// QML JavaScript keeps .pragma and .import headers, which node cannot parse,
+// so a file with them is evaluated without those lines and its .import names
+// bound to the imported files' exports.
 function requireFromRoot(relativePath) {
-  return require(path.join(root, relativePath))
+  const file = path.join(root, relativePath)
+  const source = require('fs').readFileSync(file, 'utf8')
+  if (!/^\.(pragma|import) /m.test(source)) return require(file)
+  const scope = {}
+  for (const [, target, name] of source.matchAll(/^\.import "([^"]+\.js)" as (\w+)$/gm)) {
+    scope[name] = requireFromRoot(path.relative(root, path.join(path.dirname(file), target)))
+  }
+  const module = { exports: {} }
+  new Function('module', ...Object.keys(scope), source.replace(/^\.(pragma|import) .*$/gm, ''))(module, ...Object.values(scope))
+  return module.exports
 }
 
 JS_PRELUDE
