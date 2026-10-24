@@ -216,6 +216,22 @@ function resolveRoute(items, itemOrder, input) {
   return raw
 }
 
+// A direct summon (`omarchy menu summon <alias>`) reaches openRoute before the
+// menu is rendered, so the row list's visibility filter never applies to it.
+// Resolve the route through the same visibility rules: an entry the `when`
+// guards hid must not run or open from a summon. An unknown id still falls
+// through (openRoute's misspelling behavior), and before the guards have
+// evaluated (no result for the entry) nothing is hidden.
+function routeTarget(items, itemOrder, whenResults, input) {
+  var id = resolveRoute(items, itemOrder, input)
+  var entry = item(items, id)
+  if (!entry) return id
+  // Before the default rows load, root has no children; only its own guard
+  // may refuse it, never an empty child list.
+  if (id === "root") return entry.when && whenResults && whenResults.root === false ? null : id
+  return isVisible(items, itemOrder, whenResults, entry) ? id : null
+}
+
 function slugify(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "item"
 }
@@ -699,6 +715,7 @@ if (typeof module !== "undefined") {
     swapProviderRows: swapProviderRows,
     item: item,
     resolveRoute: resolveRoute,
+    routeTarget: routeTarget,
     slugify: slugify,
     depthFor: depthFor,
     pathFor: pathFor,
