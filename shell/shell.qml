@@ -119,6 +119,21 @@ ShellRoot {
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
+  // Lets the overlays that allow it yield the pointer to a surface drawn above
+  // them, such as an on-screen keyboard. "auto" unless shell.json says true
+  // (always) or false (never): they then yield only while something other than
+  // the bar reserves screen space.
+  readonly property var overlaysCooperativeFocus: {
+    var setting = shellConfig && Util.isPlainObject(shellConfig.overlays) ? shellConfig.overlays.cooperativeFocus : undefined
+    return setting === true || setting === false ? setting : "auto"
+  }
+  // What the bar reserves, in Hyprland's order: [left, top, right, bottom].
+  readonly property var barReservedSpace: {
+    var size = bar && bar.barHidden !== true ? Math.max(0, Number(bar.barSize) || 0) : 0
+    var position = bar ? String(bar.position || "top") : "top"
+    return [position === "left" ? size : 0, position === "top" ? size : 0, position === "right" ? size : 0, position === "bottom" ? size : 0]
+  }
+
   readonly property var barConfig: shellConfig && Util.isPlainObject(shellConfig.bar) ? shellConfig.bar : builtinShellConfig.bar
   onBarConfigChanged: {
     if (bar && "barConfig" in bar)
