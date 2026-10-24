@@ -126,6 +126,9 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
 
+  # omarchy-settings owns the generated Plymouth and SDDM files, so restore a
+  # remembered unlock theme after pacman may have replaced them.
+  omarchy-plymouth-restore || echo "Could not restore the selected unlock theme; continuing the update." >&2
   omarchy-migrate
   omarchy-update-orphan-pkgs -y
 
