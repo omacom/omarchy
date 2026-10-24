@@ -51,6 +51,10 @@ Item {
   function close() { popup.close() }
   function toggle() { popup.opened ? popup.close() : popup.open() }
 
+  // What assistive technology announces for the trigger; the selection
+  // rides in the description.
+  property string accessibleName: label
+
   signal changed(var values)
   signal hovered(bool isHovered)
 
@@ -110,6 +114,7 @@ Item {
   }
 
   function toggleValue(value) {
+    if (!root.enabled) return
     var v = String(value)
     var arr = arrayFrom(values)
     var idx = arr.indexOf(v)
@@ -284,6 +289,12 @@ Item {
 
       activeFocusOnTab: true
 
+      Accessible.role: Accessible.ComboBox
+      Accessible.name: root.accessibleName
+      Accessible.description: root.selectionLabel() || root.triggerLabel || root.noSelectionText
+      Accessible.focusable: true
+      Accessible.onPressAction: if (root.enabled) root.toggle()
+
       HoverHandler {
         id: triggerHover
         onHoveredChanged: root.hovered(hovered)
@@ -410,6 +421,7 @@ Item {
                 width: parent.width - refreshButton.width - parent.spacing
                 height: parent.height
                 placeholderText: root.placeholderText
+                accessibleName: root.placeholderText
                 foreground: root.foreground
                 accent: root.accent
                 font.family: root.fontFamily
@@ -442,10 +454,15 @@ Item {
               BorderSurface {
                 id: refreshButton
                 visible: root.arrayFrom(root.optionsCommand).length > 0
-                enabled: !root.loadingOptions
+                enabled: root.enabled && !root.loadingOptions
                 width: parent.height
                 height: parent.height
                 radius: Style.cornerRadius
+
+                Accessible.role: Accessible.Button
+                Accessible.name: I18n.t("accessibility.refreshOptions")
+                Accessible.onPressAction: if (root.enabled && refreshButton.enabled) root.refresh()
+
                 color: refreshHover.hovered
                   ? Style.hoverFillFor(root.foreground, root.accent)
                   : Style.normalFillFor(root.foreground, root.accent)
@@ -542,6 +559,14 @@ Item {
                 required property int index
 
                 readonly property bool selected: root.isSelected(modelData.value)
+
+                Accessible.role: Accessible.CheckBox
+                Accessible.name: modelData.label
+                Accessible.description: modelData.description || ""
+                Accessible.checkable: true
+                Accessible.checked: selected
+                Accessible.onToggleAction: root.toggleValue(modelData.value)
+                Accessible.onPressAction: root.toggleValue(modelData.value)
 
                 width: resultList.width
                 height: Math.max(root.popupRowHeight, rowContent.implicitHeight + Style.spacing.rowPaddingX)

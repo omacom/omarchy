@@ -162,6 +162,7 @@ BarWidget {
     horizontalMargin: 8.75
     verticalPadding: 8.75
     tooltipText: I18n.t("clock.toggleFormat")
+    accessibleName: I18n.t("accessibility.clock")
 
     onPressed: function(b) {
       if (b === Qt.RightButton) root.cycleFormat()

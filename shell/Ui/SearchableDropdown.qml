@@ -52,6 +52,10 @@ Item {
   function close() { popup.close() }
   function toggle() { popup.opened ? popup.close() : popup.open() }
 
+  // What assistive technology announces for the trigger; the current
+  // option rides in the description.
+  property string accessibleName: label
+
   signal changed(string value)
   signal hovered(bool isHovered)
 
@@ -117,6 +121,12 @@ Item {
       borderSpec: _borderSpec
 
       activeFocusOnTab: true
+
+      Accessible.role: Accessible.ComboBox
+      Accessible.name: root.accessibleName
+      Accessible.description: root.currentLabel() || root.triggerLabel
+      Accessible.focusable: true
+      Accessible.onPressAction: if (root.enabled) root.toggle()
 
       HoverHandler {
         id: triggerHover
@@ -208,6 +218,7 @@ Item {
               anchors.fill: parent
               anchors.margins: Style.spacing.md
               placeholderText: root.placeholderText
+              accessibleName: root.placeholderText
               foreground: root.foreground
               accent: root.accent
               font.family: root.fontFamily
@@ -269,7 +280,7 @@ Item {
               keyNavigationEnabled: false
 
               function selectCurrent() {
-                if (currentIndex < 0 || currentIndex >= root.filtered.length) return
+                if (!root.enabled || currentIndex < 0 || currentIndex >= root.filtered.length) return
                 var v = root.optionValue(root.filtered[currentIndex])
                 root.value = v
                 root.changed(v)
@@ -306,6 +317,17 @@ Item {
                 color: index === resultList.currentIndex
                   ? Style.hoverFillFor(root.foreground, root.accent)
                   : "transparent"
+
+                Accessible.role: Accessible.ListItem
+                Accessible.name: root.optionLabel(modelData)
+                Accessible.description: root.optionDescription(modelData)
+                Accessible.selectable: true
+                Accessible.selected: root.optionValue(modelData) === root.value
+                Accessible.onPressAction: {
+                  if (!root.enabled) return
+                  resultList.currentIndex = index
+                  resultList.selectCurrent()
+                }
 
                 Column {
                   id: rowContent

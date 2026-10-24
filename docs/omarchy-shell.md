@@ -450,3 +450,35 @@ Widgets in the tray section grow from the edge the tray keeps its pinned icons a
 Put content that grows, such as a drawer or a peek, on the side away from that edge so whatever is already showing keeps its place under the pointer.
 
 A widget keeps running when it moves to another section, whether dragged or moved by a config write: each bar surface keeps one instance per layout entry and hands it to the section that shows it. A drag moves the very instance dragged; a config written elsewhere says nothing of which of two identical entries moved, so those two may trade instances. Its `fixedEdge` and `settings` change in place, so bind to them rather than reading them once. A widget is built again only when it is added to the layout, when its component changes (its plugin is reloaded or swapped), when the bar turns between horizontal and vertical, and, for a custom module, when its entry changes.
+
+## Accessibility
+
+The shared `qs.Ui` kit publishes Qt `Accessible` roles, names, states and actions, so screen readers such as Orca and AT-SPI tools can find and operate shell controls without the mouse. On an enabled control, an accessibility action calls the same signal a click, toggle or slider step does (`clicked()`, `toggled()`, `triggerPress()`, `moved()` / `released()`), so there is no second code path; disabled controls ignore accessibility actions just as they ignore the pointer. A `PanelSlider` value set directly through the accessibility Value interface is committed the same way, through `moved()` and `released()`. This needs a Quickshell build that includes quickshell-mirror/quickshell@916a0dd, which 0.3.2 and later include: releases up to and including 0.3.1 publish no accessibility tree for any window.
+
+| Component | Role | Name, in fallback order |
+|-----------|------|-------------------------|
+| `Button` | button | `accessibleName`, `text`, `tooltipText` |
+| `WidgetButton` | button (static text when not `pressable`) | `accessibleName`, `tooltipText`, `text` |
+| `BarIconButton`, `BarIndicator` | button | `accessibleName`, `tooltipText` — never the glyph |
+| `PanelActionButton` | button | `accessibleName`, `tooltipText` |
+| `Toggle` | check box | `label`, with `description` as the description |
+| `ToggleSwitch` | check box | `accessibleName`; hidden when `interactive: false`, as inside `Toggle` |
+| `TextField` | text / password text | `accessibleName`; `placeholderText` is the description |
+| `PanelSlider` | slider, carried by its `accessibleItem` | `accessibleName` |
+| `Dropdown`, `SearchableDropdown`, `MultiSelect` | combo box, with list items or check boxes in the popup | `accessibleName`, `label` |
+| `CursorSurface` | list item | `accessibleName` or `Accessible.name`; unnamed rows stay out of the tree |
+| `ConfirmDialog` | dialog with buttons | `message`, `cancelText`, `confirmText` |
+| `KeyboardPanel` | dialog | `accessibleName` |
+
+Rules for anything built on the kit:
+
+- Every control someone can press, toggle or drag has a non-empty name. Set `accessibleName` when the visible content is only an icon; setting `tooltipText` instead also shows a tooltip.
+- Never use a glyph as a name. Nerd Font and other icon code points read as noise.
+- A `Button` used as an option in a choice sets `selectable: true`; only then do its `selected` or `active` visual states publish accessibility selection state. Ordinary action buttons remain unselected even when highlighted.
+- Name the function and let state carry the rest: a `Toggle` is "Wi-Fi" plus checked, not "Wi-Fi on". Where a name includes state, bind it to coarse state ("Battery 80%"), not text that changes every second.
+- Password fields never report a name, by Qt design; the kit copies `accessibleName` into the description, and a field with a visible label can also set `Accessible.labelledBy`.
+- Keep controls out of the accessibility tree whenever they are concealed or otherwise unavailable to sighted users.
+- A `TextField` names what goes in it ("City"), never an example ("Lisbon"); its placeholder stays the description.
+- A `CursorSurface` row that should be reachable sets `accessibleName` (or `Accessible.name`) and wires `Accessible.onPressAction` next to its own click handler.
+
+`test/shell.d/ui-accessibility-test.sh` statically checks first-party uses of `BarIconButton`, `BarIndicator`, `ToggleSwitch`, `PanelSlider`, `PanelActionButton`, `TextField` and icon-only `Button` for a non-empty name, and its runtime fixture checks the kit's roles, names, states and actions.

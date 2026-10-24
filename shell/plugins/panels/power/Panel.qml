@@ -285,6 +285,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: root.batteryPresent ? I18n.t("accessibility.battery").arg(I18n.formatNumber(root.batteryFraction * 100, 0)) : I18n.t("accessibility.power")
     anchors.fill: parent
     bar: root.bar
     text: root.batteryIcon()
@@ -300,6 +301,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("accessibility.power")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -502,6 +504,7 @@ Panel {
                 horizontalPadding: Style.spacing.controlPaddingX
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
+                selectable: true
                 active: root.activeProfile === modelData
                 hasCursor: root.cursorActive && root.profileIndex === index
                 onClicked: root.setProfile(modelData)

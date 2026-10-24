@@ -952,6 +952,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("agents.title")
     anchors.fill: parent
     bar: root.bar
     text: "󱚣"
@@ -965,6 +966,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("agents.title")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -1247,6 +1249,7 @@ Panel {
         id: addNameField
         width: parent.width
         placeholderText: Commons.I18n.t("agents.placeholderWork")
+        accessibleName: Commons.I18n.t("agents.accountName")
         foreground: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -1315,6 +1318,7 @@ Panel {
           id: pasteField
           width: parent.width
           placeholderText: Commons.I18n.t("agents.placeholderCode")
+          accessibleName: Commons.I18n.t("agents.placeholderCode")
           foreground: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -1883,6 +1887,7 @@ Panel {
       TextField {
         id: nameField
         visible: head.editing
+        accessibleName: Commons.I18n.t("agents.accountName")
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter

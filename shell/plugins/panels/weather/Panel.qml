@@ -537,6 +537,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("accessibility.weather")
     anchorItem: root.anchorItem
     owner: root.barIdentity
     bar: root.bar
@@ -671,6 +672,7 @@ Panel {
               width: Style.space(190)
               enabled: !root.savingLocation
               placeholderText: Commons.I18n.t("weather.searchCity")
+              accessibleName: Commons.I18n.t("weather.searchCity")
               foreground: root.bar.foreground
               font.family: root.bar.fontFamily
 
