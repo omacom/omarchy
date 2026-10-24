@@ -327,6 +327,9 @@ Item {
       MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
+        // CloseOnPressOutsideParent treats a press on the trigger as inside,
+        // so the popup is still open here and a second click collapses it
+        // instead of reopening.
         onClicked: {
           trigger.forceActiveFocus()
           popup.opened ? popup.close() : popup.open()
@@ -335,16 +338,20 @@ Item {
 
       QQC.Popup {
         id: popup
-        // Reparent to the window's content item so the popup is free of any
-        // clipping ancestor. Position
+        closePolicy: QQC.Popup.CloseOnPressOutsideParent | QQC.Popup.CloseOnEscape
+        // Keep the trigger as the logical parent so CloseOnPressOutsideParent
+        // treats a press on the trigger as inside, leaving the toggle to the
+        // trigger's onClicked. The popup item is still rendered in the window
+        // overlay, so it is not clipped by the trigger's ancestors. Position
         // and available height are recomputed on open and any time the
         // trigger's geometry changes, since a binding on mapToItem alone
         // won't reliably re-evaluate when ancestors scroll or resize.
-        parent: trigger.Window.window ? trigger.Window.window.contentItem : trigger
+        parent: trigger
         property real _anchorX: 0
         property real _anchorY: 0
         property real _availableBelow: 0
-        readonly property real _windowHeight: parent ? parent.height : 0
+        readonly property var _windowItem: trigger.Window.window ? trigger.Window.window.contentItem : null
+        readonly property real _windowHeight: _windowItem ? _windowItem.height : 0
         readonly property real _idealContent: resultList.contentHeight + Style.space(50)
         readonly property real _maxRowsHeight: root.popupRowHeight * 6 + 5 * Style.spacing.labelGap + Style.space(50)
 
@@ -353,7 +360,10 @@ Item {
           var p = trigger.mapToItem(parent, 0, trigger.height + Style.spacing.xxs)
           _anchorX = p.x
           _anchorY = p.y
-          _availableBelow = Math.max(0, _windowHeight - _anchorY - Style.space(12))
+          // _anchorY is relative to the trigger; the clamp below needs the
+          // anchor in window coordinates.
+          var win = _windowItem ? trigger.mapToItem(_windowItem, 0, trigger.height + Style.spacing.xxs) : p
+          _availableBelow = Math.max(0, _windowHeight - win.y - Style.space(12))
         }
 
         x: _anchorX
