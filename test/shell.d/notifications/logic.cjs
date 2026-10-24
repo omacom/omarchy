@@ -323,7 +323,8 @@ function newCapacityScope() {
   const later = []
   const s = {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
-    maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, layoutRevision: 0,
+    maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
+    arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
     held: [], doNotDisturb: false,
     liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
@@ -414,15 +415,20 @@ const summaries = rows => Array.from(rows, row => row.summary)
   for (const sender of senders) assert.equal(sender.closeAttempts, 1)
 }
 
-{ // Clearing takes every card out together, with one jump.
+{ // A clicked card rises out before it goes; a keypress clears every card with one jump.
   const s = newCapacityScope()
   s.admit(...[1, 2, 3].map(id => s.fakeNotification(id)))
-  let lands = 0
+  let lands = 0, moves = 0
   s.land = () => { lands += 1 }
-  assert.equal(s.clearAll('dismissed'), 3)
+  s.retarget = () => { moves += 1 }
+  s.closeToast(s.toasts.get(0).key, 'dismissed')
+  s.drainCallLater()
+  assert.equal(moves, 1)
+  assert.equal(s.toasts.count, 3, 'a clicked card keeps its row until its exit move finishes')
+  assert.equal(s.clearAll('dismissed', true), 3)
   assert.equal(lands, 1)
   s.drainCallLater()
-  assert.equal(s.toasts.count, 0)
+  assert.equal(s.toasts.count, 0, 'the jump takes the card already on its way out too')
 }
 
 { // A code must not outlive its toast, even in source metadata.

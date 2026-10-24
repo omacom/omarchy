@@ -80,12 +80,20 @@ Item {
   readonly property bool glyphLed: Delivery.summaryStartsWithGlyph(row.summary)
   readonly property real contentPaddingY: hasBody ? Style.space(10) : Style.space(7)
   // A card behind the front of a collapsed deck is a shape: the cards are
-  // translucent, so its text would read through the one in front. Only
-  // opening and closing the deck fades the text; taking or giving up the
-  // front, as cards arrive and leave, is instant.
-  property real expandShare: expanded ? 1 : 0
-  Behavior on expandShare { NumberAnimation { duration: card.fade; easing.type: Easing.OutCubic } }
-  readonly property real contentOpacity: place.front ? 1 : expandShare
+  // translucent, so its text would read through the one in front. The text
+  // fades as the deck moves (opening, closing, a card arriving over it or
+  // leaving it the front) and jumps with it when a keypress skips the move.
+  // It goes out in half the time it comes in, so a card arriving over this one
+  // doesn't show both texts at once.
+  property real contentOpacity: expanded || place.front ? 1 : 0
+  Behavior on contentOpacity {
+    id: contentFade
+    enabled: !(card.scene && card.scene.jumping)
+    NumberAnimation {
+      duration: contentFade.targetValue > 0 ? card.fade : card.fade / 2
+      easing.type: Easing.OutCubic
+    }
+  }
 
   // The body opens in an open deck, or on hover when nothing else is on
   // screen. Never in a collapsed stack: every card there is drawn at the front
@@ -203,7 +211,7 @@ Item {
   // `visible` is deliberately unbound: anything derived from layout output
   // (opacity, place.hidden) closes a binding loop through `heights`. A hidden
   // card is at opacity 0 and costs no drawing; `enabled` refuses the pointer.
-  enabled: !place.hidden
+  enabled: !place.hidden && !place.leaving
 
   // BorderSurface keeps gradients and per-side border widths; content below is
   // inset by those exact widths.
