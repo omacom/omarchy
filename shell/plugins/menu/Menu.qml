@@ -827,13 +827,17 @@ Item {
     root.rebuildDisplay()
   }
 
-  function setActiveMenu(id, pushHistory, fromPointer) {
+  function setActiveMenu(id, pushHistory, fromPointer, restoreIndex) {
     panel.freezeCardTop()
     if (!root.item(id)) id = "root"
-    if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
+    if (pushHistory && id !== root.activeMenu) {
+      // A filtered list's index means nothing once the filter clears, so a
+      // menu left mid-search comes back at the top.
+      root.navStack = root.navStack.concat([{ id: root.activeMenu, index: root.filterText.trim() ? 0 : root.selectedIndex }])
+    }
     root.activeMenu = id
     root.filterText = ""
-    root.selectedIndex = 0
+    root.selectedIndex = restoreIndex !== undefined ? restoreIndex : 0
     root.cursorActive = true
     if (fromPointer) pointerGate.allowInitialSample()
     else root.disarmPointer()
@@ -848,7 +852,11 @@ Item {
     if (root.navStack.length > 0) {
       var previous = root.navStack[root.navStack.length - 1]
       root.navStack = root.navStack.slice(0, root.navStack.length - 1)
-      root.setActiveMenu(previous, false)
+      if (typeof previous === "string") {
+        root.setActiveMenu(previous, false)
+      } else {
+        root.setActiveMenu(previous.id, false, false, previous.index)
+      }
       return true
     }
 
