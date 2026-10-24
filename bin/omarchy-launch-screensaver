@@ -14,7 +14,7 @@ focused=$(omarchy-hyprland-monitor-focused)
 terminal=$(xdg-terminal-exec --print-id)
 
 case $terminal in
-*Alacritty* | *ghostty* | *foot* | *kitty*) ;;
+*Alacritty* | *ghostty* | *foot* | *kitty* | *wezterm*) ;;
 *)
   omarchy-notification-send -g ✋ "$(omarchy-i18n screensaver.terminalOnly)"
   exit 1
@@ -67,6 +67,10 @@ while read -r m special; do
     ;;
   *kitty*)
     hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e omarchy-screensaver
+    ;;
+  *wezterm*)
+    # Keep screensaver settings and dismissal separate from existing terminal windows.
+    hypr_exec wezterm --config-file "$OMARCHY_PATH/default/wezterm/screensaver.lua" start --always-new-process --no-auto-connect --class org.omarchy.screensaver -- omarchy-screensaver
     ;;
   esac
 

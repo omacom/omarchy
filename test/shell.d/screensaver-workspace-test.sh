@@ -42,15 +42,16 @@ exec cat "$TEST_DIR/events"
 SH
 printf '#!/bin/bash\nexit 1\n' >"$tmpdir/bin/pgrep"
 printf '#!/bin/bash\nexit 1\n' >"$tmpdir/bin/omarchy-toggle-enabled"
+printf '#!/bin/bash\nexit 0\n' >"$tmpdir/bin/omarchy-notification-send"
 printf '#!/bin/bash\necho DP-1\n' >"$tmpdir/bin/omarchy-hyprland-monitor-focused"
-printf '#!/bin/bash\necho foot.desktop\n' >"$tmpdir/bin/xdg-terminal-exec"
+printf '#!/bin/bash\necho "${TEST_TERMINAL:-foot.desktop}"\n' >"$tmpdir/bin/xdg-terminal-exec"
 chmod +x "$tmpdir/bin/"*
 
 : >"$tmpdir/calls"
 : >"$tmpdir/spawned"
 printf '[{"class":"org.omarchy.screensaver","mapped":true}]\n' >"$tmpdir/clients.json"
 
-PATH="$tmpdir/bin:$PATH" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test \
+PATH="$tmpdir/bin:$PATH" OMARCHY_PATH="$ROOT" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test \
   timeout 10 "$ROOT/bin/omarchy-launch-screensaver" force
 
 mapfile -t spawns < <(grep exec_cmd "$tmpdir/calls")
@@ -79,11 +80,23 @@ grep -q 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls" ||
 pass "focus returns to the monitor that had it once the screensaver closes"
 
 # Screensavers can close while the launcher is still waiting on another monitor, consuming their events.
+# Exercise this lifecycle with WezTerm as well as the Foot path above.
 kill "$(<"$tmpdir/socat.pid")"
 : >"$tmpdir/calls"
 : >"$tmpdir/spawned"
-PATH="$tmpdir/bin:$PATH" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test \
+PATH="$tmpdir/bin:$PATH" OMARCHY_PATH="$ROOT" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test TEST_TERMINAL=org.wezfurlong.wezterm.desktop \
   timeout 10 "$ROOT/bin/omarchy-launch-screensaver" force
+mapfile -t spawns < <(grep exec_cmd "$tmpdir/calls")
+(( ${#spawns[@]} == 2 )) || fail "WezTerm opens a screensaver on each monitor" "$(<"$tmpdir/calls")"
+printf -v config '%q' "$ROOT/default/wezterm/screensaver.lua"
+for spawn in "${spawns[@]}"; do
+  [[ $spawn == *"wezterm --config-file $config start "* && $spawn == *" -- omarchy-screensaver "* ]] ||
+    fail "WezTerm screensavers use the standalone config and screensaver command" "$spawn"
+  for option in --always-new-process --no-auto-connect "--class org.omarchy.screensaver"; do
+    [[ $spawn == *" $option "* ]] || fail "WezTerm screensavers preserve process and mux isolation" "$spawn"
+  done
+done
+pass "WezTerm screensavers do not reuse personal terminal processes or configuration"
 for (( attempt = 0; attempt < 100; attempt++ )); do
   (( $(grep -c 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls") == 3 )) && break
   sleep 0.05

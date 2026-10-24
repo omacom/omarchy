@@ -217,7 +217,7 @@
   "reset.willErase": "This will permanently erase:",
   "screensaver.disabled": "Screensaver disabled",
   "screensaver.enabled": "Screensaver enabled",
-  "screensaver.terminalOnly": "Screensaver only runs in Alacritty, Foot, Ghostty, or Kitty",
+  "screensaver.terminalOnly": "Screensaver only runs in Alacritty, Foot, Ghostty, Kitty, or WezTerm",
   "share.chooserClosed": "The file chooser did not open",
   "share.couldNot": "Could not share",
   "share.filesTitle": "Share files",
