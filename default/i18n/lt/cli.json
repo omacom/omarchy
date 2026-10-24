@@ -53,7 +53,6 @@
   "capture.recordingError": "Ekrano įrašo klaida",
   "capture.recordingKilled": "Įrašymo procesą teko nutraukti priverstinai. Vaizdo įrašas gali būti sugadintas.",
   "capture.recordingSaved": "Ekrano įrašas įrašytas",
-  "capture.recordingSavedHint": "Atidaryti su Super + Alt + , (arba spustelėti čia)",
   "capture.recordingWithoutAudio": "Įrašoma be %1 garso",
   "capture.selectWebcam": "Pasirinkite internetinę kamerą",
   "capture.textCopied": "Tekstas iš pasirinkimo nukopijuotas į iškarpinę",

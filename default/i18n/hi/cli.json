@@ -53,7 +53,6 @@
   "capture.recordingError": "स्क्रीन रिकॉर्डिंग त्रुटि",
   "capture.recordingKilled": "रिकॉर्डिंग प्रक्रिया को ज़बरदस्ती बंद करना पड़ा। वीडियो क्षतिग्रस्त हो सकता है।",
   "capture.recordingSaved": "स्क्रीन रिकॉर्डिंग सहेजी गई",
-  "capture.recordingSavedHint": "Super + Alt + , से खोलें (या यहाँ क्लिक करें)",
   "capture.recordingWithoutAudio": "%1 ऑडियो के बिना रिकॉर्डिंग",
   "capture.selectWebcam": "वेबकैम चुनें",
   "capture.textCopied": "चयन से टेक्स्ट क्लिपबोर्ड पर कॉपी किया गया",

@@ -53,7 +53,6 @@
   "capture.recordingError": "螢幕錄影錯誤",
   "capture.recordingKilled": "錄影處理程序被迫強制結束，影片可能損毀。",
   "capture.recordingSaved": "螢幕錄影已儲存",
-  "capture.recordingSavedHint": "用 Super + Alt + , 開啟（或點此）",
   "capture.recordingWithoutAudio": "錄影不含 %1 音訊",
   "capture.selectWebcam": "選擇網路攝影機",
   "capture.textCopied": "已將選取文字複製到剪貼簿",

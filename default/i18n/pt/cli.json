@@ -53,7 +53,6 @@
   "capture.recordingError": "Erro na gravação de ecrã",
   "capture.recordingKilled": "O processo de gravação teve de ser terminado à força. O vídeo pode estar danificado.",
   "capture.recordingSaved": "Gravação de ecrã guardada",
-  "capture.recordingSavedHint": "Abre com Super + Alt + , (ou clica aqui)",
   "capture.recordingWithoutAudio": "A gravar sem áudio %1",
   "capture.selectWebcam": "Seleciona webcam",
   "capture.textCopied": "Texto da seleção copiado para a área de transferência",

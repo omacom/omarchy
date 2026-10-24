@@ -53,7 +53,6 @@
   "capture.recordingError": "Error de gravació de pantalla",
   "capture.recordingKilled": "S'ha hagut de forçar l'aturada del procés de gravació. El vídeo pot estar malmès.",
   "capture.recordingSaved": "Gravació de pantalla desada",
-  "capture.recordingSavedHint": "Obre-ho amb Super + Alt + , (o fes clic aquí)",
   "capture.recordingWithoutAudio": "S'està gravant sense àudio %1",
   "capture.selectWebcam": "Selecciona una webcam",
   "capture.textCopied": "Text de la selecció copiat al porta-retalls",

@@ -448,7 +448,7 @@ stop_screenrecording() {
     local image_args=()
     [[ -s $preview ]] && image_args=(--image "$preview")
 
-    omarchy-notification-send "$(omarchy-i18n capture.recordingSaved)" "$(omarchy-i18n capture.recordingSavedHint)" \
+    omarchy-notification-send "$(omarchy-i18n capture.recordingSaved)" "$(recording_details "$filename")" \
       -t 10000 "${image_args[@]}" \
       --action "$(omarchy-i18n capture.recordingOpen)" mpv -- \
       --action Omacut omacut \
@@ -464,6 +464,33 @@ stop_screenrecording() {
   fi
 
   rm -f "$RECORDING_FILE" "$REC_PID_FILE"
+}
+
+# How long the saved recording runs and how big it is, like "1:07 · 12.4 MB".
+recording_details() {
+  local seconds bytes length="" size
+  seconds=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$1" 2>/dev/null)
+  if [[ $seconds =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    seconds=$(LC_ALL=C printf '%.0f' "$seconds")
+    if ((seconds >= 3600)); then
+      length=$(printf '%d:%02d:%02d' $((seconds / 3600)) $((seconds % 3600 / 60)) $((seconds % 60)))
+    else
+      length=$(printf '%d:%02d' $((seconds / 60)) $((seconds % 60)))
+    fi
+  fi
+
+  bytes=$(stat -c %s "$1" 2>/dev/null) || bytes=0
+  size=$(awk -v b="$bytes" 'BEGIN {
+    split("B KB MB GB TB", unit); i = 1
+    while (b >= 1000 && i < 5) { b /= 1000; i++ }
+    printf(i == 1 ? "%d %s" : "%.1f %s", b, unit[i])
+  }')
+
+  if [[ -n $length ]]; then
+    echo "$length · $size"
+  else
+    echo "$size"
+  fi
 }
 
 toggle_screenrecording_indicator() {

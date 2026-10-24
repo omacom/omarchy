@@ -53,7 +53,6 @@
   "capture.recordingError": "Error al grabar la pantalla",
   "capture.recordingKilled": "Se tuvo que forzar el cierre de la grabación. El video podría estar dañado.",
   "capture.recordingSaved": "Grabación de pantalla guardada",
-  "capture.recordingSavedHint": "Ábrela con Super + Alt + , (o haz clic aquí)",
   "capture.recordingWithoutAudio": "Grabando sin audio de %1",
   "capture.selectWebcam": "Selecciona una webcam",
   "capture.textCopied": "Texto de la selección copiado al portapapeles",

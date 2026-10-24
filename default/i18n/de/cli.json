@@ -53,7 +53,6 @@
   "capture.recordingError": "Fehler bei Bildschirmaufnahme",
   "capture.recordingKilled": "Aufnahmeprozess musste erzwungen beendet werden. Video könnte beschädigt sein.",
   "capture.recordingSaved": "Bildschirmaufnahme gespeichert",
-  "capture.recordingSavedHint": "Öffne mit Super + Alt + , (oder klicke hier)",
   "capture.recordingWithoutAudio": "Aufnahme ohne %1-Audio",
   "capture.selectWebcam": "Webcam auswählen",
   "capture.textCopied": "Text aus Auswahl in Zwischenablage kopiert",

@@ -53,7 +53,6 @@
   "capture.recordingError": "Błąd nagrywania ekranu",
   "capture.recordingKilled": "Proces nagrywania musiał zostać zakończony siłą. Wideo może być uszkodzone.",
   "capture.recordingSaved": "Nagranie ekranu zapisane",
-  "capture.recordingSavedHint": "Otwórz za pomocą Super + Alt + , (lub kliknij tutaj)",
   "capture.recordingWithoutAudio": "Nagrywanie bez dźwięku %1",
   "capture.selectWebcam": "Wybierz kamerę internetową",
   "capture.textCopied": "Tekst z zaznaczenia skopiowany do schowka",

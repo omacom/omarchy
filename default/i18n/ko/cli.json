@@ -53,7 +53,6 @@
   "capture.recordingError": "화면 녹화 오류",
   "capture.recordingKilled": "녹화 프로세스를 강제 종료해야 했습니다. 동영상이 손상되었을 수 있습니다.",
   "capture.recordingSaved": "화면 녹화가 저장되었습니다",
-  "capture.recordingSavedHint": "Super + Alt + ,로 열기 (또는 여기를 클릭)",
   "capture.recordingWithoutAudio": "%1 소리 없이 녹화 중",
   "capture.selectWebcam": "웹캠 선택",
   "capture.textCopied": "선택 영역의 텍스트가 클립보드에 복사되었습니다",

@@ -53,7 +53,6 @@
   "capture.recordingError": "Ошибка записи экрана",
   "capture.recordingKilled": "Процесс записи пришлось принудительно завершить. Видео может быть повреждено.",
   "capture.recordingSaved": "Запись экрана сохранена",
-  "capture.recordingSavedHint": "Открыть клавишами Super + Alt + , (или нажмите сюда)",
   "capture.recordingWithoutAudio": "Запись без звука %1",
   "capture.selectWebcam": "Выбрать веб-камеру",
   "capture.textCopied": "Текст из выделения скопирован в буфер обмена",

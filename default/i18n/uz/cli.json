@@ -53,7 +53,6 @@
   "capture.recordingError": "Ekran yozuvi xatosi",
   "capture.recordingKilled": "Yozuv jarayoni majburan toʻxtatildi. Video buzilgan boʻlishi mumkin.",
   "capture.recordingSaved": "Ekran yozuvi saqlandi",
-  "capture.recordingSavedHint": "Super + Alt + , bilan oching (yoki shu yerni bosing)",
   "capture.recordingWithoutAudio": "%1 audiosiz yozilmoqda",
   "capture.selectWebcam": "Veb-kamerani tanlang",
   "capture.textCopied": "Tanlangan matn buferga nusxalandi",

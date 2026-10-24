@@ -53,7 +53,6 @@
   "capture.recordingError": "خطای ضبط صفحه",
   "capture.recordingKilled": "فرایند ضبط به‌اجبار متوقف شد. ویدیو ممکن است خراب شود.",
   "capture.recordingSaved": "ضبط صفحه ذخیره شد",
-  "capture.recordingSavedHint": "با Super + Alt + , باز کنید (یا اینجا کلیک کنید)",
   "capture.recordingWithoutAudio": "ضبط بدون صدای %1",
   "capture.selectWebcam": "انتخاب وب‌کم",
   "capture.textCopied": "متن انتخاب‌شده در کلیپ‌بورد کپی شد",

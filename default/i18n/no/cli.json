@@ -53,7 +53,6 @@
   "capture.recordingError": "Feil ved skjermopptak",
   "capture.recordingKilled": "Opptaksprosessen måtte tvangsavsluttes. Videoen kan være ødelagt.",
   "capture.recordingSaved": "Skjermopptak lagret",
-  "capture.recordingSavedHint": "Åpne med Super + Alt + , (eller klikk her)",
   "capture.recordingWithoutAudio": "Tar opp uten %1-lyd",
   "capture.selectWebcam": "Velg webkamera",
   "capture.textCopied": "Tekst fra utvalget kopiert til utklippstavlen",

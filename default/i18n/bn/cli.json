@@ -53,7 +53,6 @@
   "capture.recordingError": "স্ক্রিন রেকর্ডিং ত্রুটি",
   "capture.recordingKilled": "রেকর্ডিং প্রসেস জোর করে বন্ধ করতে হয়েছে। ভিডিও নষ্ট হতে পারে।",
   "capture.recordingSaved": "স্ক্রিন রেকর্ডিং সংরক্ষিত",
-  "capture.recordingSavedHint": "Super + Alt + , দিয়ে খুলুন (বা এখানে ক্লিক করুন)",
   "capture.recordingWithoutAudio": "%1 অডিও ছাড়া রেকর্ডিং",
   "capture.selectWebcam": "ওয়েবক্যাম বেছে নিন",
   "capture.textCopied": "বেছে নেওয়া টেক্সট ক্লিপবোর্ডে কপি হয়েছে",

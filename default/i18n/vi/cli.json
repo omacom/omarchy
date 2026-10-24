@@ -53,7 +53,6 @@
   "capture.recordingError": "Lỗi ghi màn hình",
   "capture.recordingKilled": "Đã buộc dừng tiến trình ghi. Video có thể bị lỗi.",
   "capture.recordingSaved": "Đã lưu bản ghi màn hình",
-  "capture.recordingSavedHint": "Mở bằng Super + Alt + , (hoặc nhấp vào đây)",
   "capture.recordingWithoutAudio": "Đang ghi không có âm thanh %1",
   "capture.selectWebcam": "Chọn webcam",
   "capture.textCopied": "Đã sao chép văn bản từ vùng chọn vào bảng nhớ tạm",

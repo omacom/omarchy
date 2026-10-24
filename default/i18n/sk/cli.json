@@ -53,7 +53,6 @@
   "capture.recordingError": "Chyba nahrávania obrazovky",
   "capture.recordingKilled": "Proces nahrávania musel byť násilne ukončený. Video môže byť poškodené.",
   "capture.recordingSaved": "Nahrávka obrazovky uložená",
-  "capture.recordingSavedHint": "Otvoriť pomocou Super + Alt + , (alebo kliknite sem)",
   "capture.recordingWithoutAudio": "Nahrávanie bez zvuku %1",
   "capture.selectWebcam": "Vyberte webkameru",
   "capture.textCopied": "Text z výberu skopírovaný do schránky",

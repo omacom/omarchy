@@ -53,7 +53,6 @@
   "capture.recordingError": "Kesalahan perekaman layar",
   "capture.recordingKilled": "Proses perekaman terpaksa dimatikan paksa. Video mungkin rusak.",
   "capture.recordingSaved": "Rekaman layar tersimpan",
-  "capture.recordingSavedHint": "Buka dengan Super + Alt + , (atau klik ini)",
   "capture.recordingWithoutAudio": "Merekam tanpa audio %1",
   "capture.selectWebcam": "Pilih Webcam",
   "capture.textCopied": "Teks dari pilihan disalin ke papan klip",

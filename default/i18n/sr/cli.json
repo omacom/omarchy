@@ -53,7 +53,6 @@
   "capture.recordingError": "Грешка снимања екрана",
   "capture.recordingKilled": "Процес снимања је морао бити присилно заустављен. Видео је можда оштећен.",
   "capture.recordingSaved": "Снимак екрана сачуван",
-  "capture.recordingSavedHint": "Отворите са Super + Alt + , (или кликните овде)",
   "capture.recordingWithoutAudio": "Снимање без звука %1",
   "capture.selectWebcam": "Изаберите веб-камеру",
   "capture.textCopied": "Текст из избора копиран у клипборд",
