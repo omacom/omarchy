@@ -11,6 +11,7 @@ import qs.Commons as Commons
 import "plugins/bar"
 import "services"
 import "services/AuthServiceStore.js" as AuthServiceStore
+import "services/PluginManifest.js" as PluginManifest
 
 ShellRoot {
   id: shell
@@ -354,8 +355,9 @@ ShellRoot {
   }
 
   function manifestHasKind(manifest, kind) {
-    return !!manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf(kind) !== -1
+    // The rule lives in PluginManifest.js: a manifest that has been through a model carries kinds as a
+    // V4Sequence, which Array.isArray() rejects (#15360).
+    return PluginManifest.hasKind(manifest, kind)
   }
 
   function pluginHasBarCapabilities(manifest) {
