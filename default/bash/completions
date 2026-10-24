@@ -63,6 +63,16 @@ _omarchy_complete() {
       args="${args#*omarchy:args=}"
       current_arg_index=$((COMP_CWORD - first_arg_index))
 
+      # `[a | b]` makes the whole line optional; complete it like `a | b`.
+      if [[ $args == \[*" | "*\] ]]; then
+        local inner="${args:1:-1}" depth=0 k
+        for ((k = 0; k < ${#inner} && depth >= 0; k++)); do
+          [[ ${inner:k:1} == "[" ]] && (( depth++ ))
+          [[ ${inner:k:1} == "]" ]] && (( depth-- ))
+        done
+        (( depth == 0 )) && args="$inner"
+      fi
+
       alts="${args// | /$'\n'}"
       while IFS= read -r alt; do
         read -r -a spec <<<"$alt"
