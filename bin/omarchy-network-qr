@@ -36,15 +36,27 @@ fi
 uuid=$(nmcli --get-values GENERAL.CON-UUID device show "$interface" | head -n 1)
 [[ -n $uuid && $uuid != "--" ]] || { echo "No active Wi-Fi connection" >&2; exit 1; }
 
-mapfile -t fields < <(nmcli --show-secrets --escape no --get-values \
+# Read the fields by name, not position: nmcli prints nothing for the fields of
+# a setting the profile lacks, and an open network has no
+# 802-11-wireless-security setting, so positional reads shift "no" (hidden)
+# into key-mgmt and the network is refused for a missing password.
+ssid=""
+key_management=""
+password=""
+hidden="no"
+wep_key=""
+while IFS= read -r line; do
+  value=${line#*:}
+  case ${line%%:*} in
+    802-11-wireless.ssid) ssid=$value ;;
+    802-11-wireless-security.key-mgmt) key_management=$value ;;
+    802-11-wireless-security.psk) password=$value ;;
+    802-11-wireless.hidden) hidden=$value ;;
+    802-11-wireless-security.wep-key0) wep_key=$value ;;
+  esac
+done < <(nmcli --show-secrets --escape no --terse --fields \
   802-11-wireless.ssid,802-11-wireless-security.key-mgmt,802-11-wireless-security.psk,802-11-wireless.hidden,802-11-wireless-security.wep-key0 \
   connection show uuid "$uuid")
-
-ssid=${fields[0]:-}
-key_management=${fields[1]:-}
-password=${fields[2]:-}
-hidden=${fields[3]:-no}
-wep_key=${fields[4]:-}
 
 [[ -n $ssid ]] || { echo "Could not read the Wi-Fi name" >&2; exit 1; }
 [[ $key_management != *eap* && $key_management != *ieee8021x* ]] || {
