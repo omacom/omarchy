@@ -432,6 +432,9 @@
   "trigger.share.clipboard": {
     "label": "Clipboard"
   },
+  "trigger.share.text": {
+    "label": "Text"
+  },
   "trigger.share.file": {
     "label": "File"
   },

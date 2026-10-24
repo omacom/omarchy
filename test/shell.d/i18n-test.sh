@@ -119,6 +119,8 @@ const unknownShell = [...shellKeys].filter((key) => !Object.hasOwn(enShell, key)
 assert(unknownShell.length === 0, 'every referenced shell key exists in the English catalog', JSON.stringify(unknownShell))
 
 const cliKeys = collectKeys(path.join(root, 'bin'), [''], /omarchy-i18n (?:--count \S+ )?([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g)
+// The GTK text composer uses the same CLI catalogs through omarchy-i18n.
+for (const key of collectKeys(path.join(root, 'default/localsend'), ['.py'], /translate\('([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)'\)/g)) cliKeys.add(key)
 const unreferencedCli = Object.keys(enCli).filter((key) => !cliKeys.has(key))
 assert(unreferencedCli.length === 0, 'every cli catalog key is referenced', JSON.stringify(unreferencedCli))
 const unknownCli = [...cliKeys].filter((key) => !Object.hasOwn(enCli, key))
