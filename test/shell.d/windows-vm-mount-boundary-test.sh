@@ -1,15 +1,28 @@
 #!/bin/bash
-# Exercise the real EUID-0/PKEXEC_UID boundary in an isolated user+mount namespace.
+# Exercise the real EUID-0/PKEXEC_UID boundary in an isolated mount namespace.
 
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-if ((EUID != 0)); then
-  if unshare --user --map-auto --map-root-user --mount true 2>/dev/null; then
-    exec unshare --user --map-auto --map-root-user --mount --propagation private bash "$0"
+# Real root shares the host's mounts, so root runs need a private mount
+# namespace too, or the tmpfs mounts below cover the live /run, /var and /home.
+if [[ ${OMARCHY_TEST_PRIVATE_MOUNTS:-} != "1" ]]; then
+  if ((EUID == 0)); then
+    namespace=(--mount --propagation private)
+  else
+    namespace=(--user --map-auto --map-root-user --mount --propagation private)
   fi
-  skip "automatic subordinate-id namespace unavailable; skipping root Windows VM boundary probe"
-  exit 0
+
+  if unshare "${namespace[@]}" true 2>/dev/null; then
+    OMARCHY_TEST_PRIVATE_MOUNTS=1 exec unshare "${namespace[@]}" bash "$0"
+  else
+    skip "no private mount namespace available; skipping root Windows VM boundary probe"
+    exit 0
+  fi
+fi
+
+if [[ $(readlink /proc/self/ns/mnt) == "$(readlink /proc/1/ns/mnt 2>/dev/null)" ]]; then
+  fail "refusing to mount over /run, /var and /home in the host's mount namespace"
 fi
 
 test_tmp=$(mktemp -d)
