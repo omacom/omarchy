@@ -580,8 +580,26 @@ pass "clipboard open helper opens text entries in editor"
 [[ $(<"$TMPDIR/editor-path") == "$TMPDIR"/state/omarchy/clipboard-open/clipboard.*.txt ]] || fail "clipboard open helper writes text entries to a temporary file"
 pass "clipboard open helper writes text entries to a temporary file"
 
+for ending in none newline blank-lines crlf unicode; do
+  case $ending in
+    none) printf 'plain text' ;;
+    newline) printf 'plain text\n' ;;
+    blank-lines) printf 'first line\nsecond line\n\n\n' ;;
+    crlf) printf 'first line\r\nsecond line\r\n' ;;
+    unicode) printf '日本語 😀\n\n' ;;
+  esac >"$TMPDIR/expected-editor-text"
+  jq -Rs '[{type:"text", text:.}]' <"$TMPDIR/expected-editor-text" >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+
+  EDITOR_PATH_OUT="$TMPDIR/editor-path" EDITOR_TEXT_OUT="$TMPDIR/editor-text" HOME="$TMPDIR/home" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" \
+    "$ROOT/bin/omarchy-clipboard-open" --history-index 0
+
+  cmp -s "$TMPDIR/expected-editor-text" "$TMPDIR/editor-text" || fail "clipboard open helper preserves $ending text byte for byte"
+  pass "clipboard open helper preserves $ending text byte for byte"
+done
+
+jq -n --arg image "$TMPDIR/image.png" '[{type:"image", mime:"image/png", path:$image}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
-  "$ROOT/bin/omarchy-clipboard-open" --history-index 2
+  "$ROOT/bin/omarchy-clipboard-open" --history-index 0
 
 [[ $(<"$TMPDIR/omasnap") == "$TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
