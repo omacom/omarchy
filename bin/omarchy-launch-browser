@@ -20,8 +20,15 @@ if [[ " $* " == *" --private "* ]]; then
   fi
 fi
 
+# The unit starts from the user manager's environment, so carry over the token
+# from whatever opened the link for the browser to ask for focus with.
+token_env=()
+if [[ -n ${XDG_ACTIVATION_TOKEN:-} ]]; then
+  token_env=(--setenv=XDG_ACTIVATION_TOKEN)
+fi
+
 if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
-  systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
+  systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" "${token_env[@]}" \
     --property=StandardOutput=null --property=StandardError=null \
     uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
 fi

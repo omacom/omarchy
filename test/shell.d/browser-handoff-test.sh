@@ -4,12 +4,23 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# A token from the shell running the tests would reach every launch below;
+# the cases that want one set it themselves.
+unset XDG_ACTIVATION_TOKEN
+
 require_command python3
 require_command socat
 
 # The handoff only stands in for the packaged browser itself.
 if [[ $(type -P chromium) != "/usr/bin/chromium" ]]; then
   skip "browser handoff needs /usr/bin/chromium"
+  exit 0
+fi
+
+# Flags in the system flags file, which a test can't swap out, may send every
+# launch to the launcher instead.
+if [[ -e /etc/chromium-flags.conf ]]; then
+  skip "browser handoff needs no /etc/chromium-flags.conf"
   exit 0
 fi
 
@@ -55,6 +66,29 @@ expected=$(printf 'START\0%s\0browser\0--app=https://example.test/a b' "$test_tm
 [[ $(od -c <"$received") == "$expected" ]] ||
   fail "the handoff sends the working directory and arguments as Chromium's singleton expects" "$(od -c <"$received")"
 pass "a command line is handed to the running browser over its singleton socket"
+
+(cd "$test_tmp" && XDG_ACTIVATION_TOKEN=token-from-click "$ROOT/bin/omarchy-cmd-browser-handoff" chromium "https://example.test/c") ||
+  fail "the running browser acknowledges a handoff with an activation token"
+
+expected=$(printf 'START\0%s\0browser\0--xdg-activation-token=token-from-click\0https://example.test/c' "$test_tmp" | od -c)
+[[ $(od -c <"$received") == "$expected" ]] ||
+  fail "the handoff passes the activation token the way a browser process does" "$(od -c <"$received")"
+pass "the handoff passes the activation token to the running browser"
+
+if [[ $(type -P microsoft-edge-stable) != "/usr/bin/microsoft-edge-stable" ]]; then
+  skip "Edge handoff needs /usr/bin/microsoft-edge-stable"
+elif [[ -e /etc/microsoft-edge-stable-flags.conf ]]; then
+  skip "Edge handoff needs no /etc/microsoft-edge-stable-flags.conf"
+else
+  mkdir -p "$XDG_CONFIG_HOME/microsoft-edge"
+  ln -s "$socket" "$XDG_CONFIG_HOME/microsoft-edge/SingletonSocket"
+  (cd "$test_tmp" && "$ROOT/bin/omarchy-cmd-browser-handoff" microsoft-edge-stable --app=https://example.test/d --ignore-certificate-errors) ||
+    fail "the running Edge acknowledges a handed off command line"
+
+  [[ $(tr '\0' '\n' <"$received") =~ ^START$'\n'"$test_tmp"$'\n'[0-9]{17}$'\n'0$'\n'browser$'\n'--app=https://example.test/d$'\n'--ignore-certificate-errors$ ]] ||
+    fail "the handoff sends Edge the two fields its own handoff adds after the directory" "$(od -c <"$received")"
+  pass "Edge is handed the fields that keep it from dropping two arguments"
+fi
 
 ! "$ROOT/bin/omarchy-cmd-browser-handoff" chromium --user-data-dir=/elsewhere https://example.test ||
   fail "another data directory is left to a browser of its own"
