@@ -162,6 +162,8 @@ Panel {
   readonly property bool bandPillsVisible: canSelectBand && bandPinned
   readonly property string bandSectionTitle: Model.bandSectionTitle(bandEffective, bandCurrent, Commons.I18n.t, Commons.I18n.formatNumber)
   readonly property bool bandBusy: pendingBand !== ""
+  // The DNS pills show a choice the moment it's made, and fall back if it fails.
+  readonly property string dnsEffective: pendingDnsProvider !== "" ? pendingDnsProvider : dnsProvider
   // The speed test needs an interface to test, so its hero action only
   // appears once there is one.
   readonly property bool canRunSpeedTest: !!info.iface
@@ -777,10 +779,11 @@ Panel {
       return
     }
 
+    // The panel stays open, so the choice can be seen taking hold and another
+    // tried without reopening it.
     root.pendingDnsProvider = provider
     actionProc.command = ["bash", "-c", root.dnsCommand(provider)]
     actionProc.running = true
-    root.close()
   }
 
   function requiresCredentials(security) {
@@ -1743,7 +1746,7 @@ Panel {
     // Map the panel's domain semantics onto Button's structural props:
     // `current DNS` is the pill's `active` fill; the keyboard cursor lights
     // up `hasCursor`.
-    active: root.dnsProvider === provider
+    active: root.dnsEffective === provider
     hasCursor: root.cursorActive && root.focusSection === "dns" && root.dnsIndex === index
 
     onHovered: function(isHovered) {
