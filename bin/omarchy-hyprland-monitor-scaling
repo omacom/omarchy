@@ -7,6 +7,10 @@
 SCALES=(1 1.25 1.6 2 3 4)
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 SCALE_LOG="$STATE_DIR/monitor-scaling.log"
+# Hardcoded to ~/.local/state like the other Hyprland toggles, which
+# default/hypr reads regardless of XDG_STATE_HOME.
+SCALES_DIR="$HOME/.local/state/omarchy/toggles/hypr"
+SCALES_FILE="$SCALES_DIR/monitor-scales"
 
 usage() {
   echo "Usage: omarchy-hyprland-monitor-scaling [up|down|SCALE]"
@@ -71,6 +75,48 @@ normalize_scale() {
   awk 'NR == 1 { printf "%g\n", $0 }'
 }
 
+# Save the scale as data for default/hypr/monitor-scales.lua, which re-applies
+# it over the rule that governs the monitor on every config load. One line per
+# monitor: scale, connector, saved-at time, description. A monitor with a
+# description is keyed by it, so its scale follows it between ports.
+#
+# Saved scales lose to monitors.lua edits made after them. The GDK edit in
+# set_scale is this command's own, not the user's, so it must not count as one:
+# edited_from is the file's time just before that edit, and every save that was
+# winning then is moved up to the edit's time so it keeps winning.
+save_scale() {
+  local scale="$1" name="$2" description="$3" monitor_lua="$4" edited_from="${5:-}"
+  local saved_at config_changed_at=""
+
+  # Descriptions come from EDID; anything that could break a line is dropped.
+  if [[ $description == *[[:cntrl:]]* ]]; then
+    description=""
+  fi
+
+  saved_at=$(date +%s)
+  if [[ -f $monitor_lua ]]; then
+    # -L: a monitors.lua symlinked into a dotfiles checkout is edited through
+    # its target, so the target's time is the one that matters.
+    config_changed_at=$(stat -L -c %Y "$monitor_lua")
+    (( config_changed_at > saved_at )) && saved_at=$config_changed_at
+  fi
+  [[ -n $config_changed_at ]] || edited_from=""
+
+  mkdir -p "$SCALES_DIR" || return 0
+  {
+    if [[ -f $SCALES_FILE ]]; then
+      awk -F '\t' -v OFS='\t' -v name="$name" -v description="$description" \
+        -v from="$edited_from" -v to="$config_changed_at" '
+        description != "" && $4 == description { next }
+        description == "" && $4 == "" && $2 == name { next }
+        from != "" && $3 >= from + 0 && $3 < to + 0 { $3 = to }
+        { print }
+      ' "$SCALES_FILE"
+    fi
+    printf '%s\t%s\t%s\t%s\n' "$scale" "$name" "$saved_at" "$description"
+  } >"$SCALES_FILE.tmp" && mv "$SCALES_FILE.tmp" "$SCALES_FILE"
+}
+
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
@@ -79,10 +125,9 @@ set_scale() {
   local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
   local width="$(echo "$monitor_info" | jq -r '.width')"
   local height="$(echo "$monitor_info" | jq -r '.height')"
-  local refresh_rate="$(echo "$monitor_info" | jq -r '.refreshRate')"
 
-  # active_monitor is written into the Lua string eval'd below, so only a plain
-  # connector name may pass; a hostile output name could execute otherwise.
+  # active_monitor is saved for Lua to read back as an output name, so only a
+  # plain connector name may pass; monitor-scales.lua skips anything else.
   if [[ ! $active_monitor =~ ^[A-Za-z0-9._-]+$ ]]; then
     echo "Refusing unsafe monitor name" >&2
     exit 1
@@ -93,23 +138,29 @@ set_scale() {
   # factor even when the monitor scale itself is fractional.
   local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
   local monitor_lua="$HOME/.config/hypr/monitors.lua"
+  local description="$(echo "$monitor_info" | jq -r '.description // ""')"
 
-  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
-  # Persist to monitors.lua if the user still has Omarchy's generic catch-all
-  # defaults, so the scale survives reboots.
-  if [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
-    sed -i -E \
-      -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
-      -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
-      "$monitor_lua"
-  elif [[ -f $monitor_lua ]] && grep -Eq '^hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("auto"|[0-9.]+) \}\)' "$monitor_lua"; then
-    sed -i -E \
-      -e "s|^(hl\.monitor\(\{ output = \"\", mode = \"preferred\", position = \"auto\", scale = )([^ ]+)( \}\))|\\1${new_scale}\\3|" \
-      -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
-      "$monitor_lua"
+  # Only touch monitors.lua when the GDK scale changes. save_scale is told the
+  # file's time from before the edit, so the edit doesn't outrank the saves.
+  local edited_from=""
+  if [[ -f $monitor_lua ]] && grep -Eq "^local omarchy_gdk_scale = [0-9]+\$" "$monitor_lua" &&
+    ! grep -Fxq "local omarchy_gdk_scale = $new_gdk_scale" "$monitor_lua"; then
+    edited_from=$(stat -L -c %Y "$monitor_lua")
+    sed -i --follow-symlinks -E "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" "$monitor_lua"
+  elif [[ -f $monitor_lua ]] && grep -Eq '^hl\.env\("GDK_SCALE", "[0-9]+"\)$' "$monitor_lua" &&
+    ! grep -Fxq "hl.env(\"GDK_SCALE\", \"$new_gdk_scale\")" "$monitor_lua"; then
+    edited_from=$(stat -L -c %Y "$monitor_lua")
+    sed -i --follow-symlinks -E 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' "$monitor_lua"
   fi
+
+  save_scale "$new_scale" "$active_monitor" "$description" "$monitor_lua" "$edited_from"
+
+  # Apply through the config so the scale lands on the rule that governs the
+  # monitor: a live rule under another output key (say a desc: rule's monitor
+  # addressed by connector) does not take effect on a multi-monitor setup.
+  hyprctl reload >/dev/null
 }
 
 scale_from_current() {

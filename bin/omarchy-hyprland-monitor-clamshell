@@ -7,6 +7,7 @@ TOGGLES_DIR="$HOME/.local/state/omarchy/toggles/hypr"
 CLAMSHELL_FLAG="$TOGGLES_DIR/internal-monitor-clamshell.lua"
 MANUAL_DISABLE_FLAG="$TOGGLES_DIR/internal-monitor-disable.lua"
 SCALE_STATE="$TOGGLES_DIR/internal-monitor-scale"
+SAVED_SCALES="$TOGGLES_DIR/monitor-scales"
 MONITOR_LUA="$HOME/.config/hypr/monitors.lua"
 
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
@@ -94,9 +95,24 @@ configured_internal_monitor_value() {
   configured_monitor_value "$INTERNAL" "$1"
 }
 
+# A scale saved by omarchy-hyprland-monitor-scaling for the internal panel, as
+# default/hypr/monitor-scales.lua applies it: only when saved after the last
+# edit to monitors.lua.
+saved_internal_scale() {
+  [[ -n $INTERNAL && -f $SAVED_SCALES ]] || return 0
+  local config_changed_at=0
+  [[ -f $MONITOR_LUA ]] && config_changed_at=$(stat -L -c %Y "$MONITOR_LUA")
+
+  awk -F '\t' -v name="$INTERNAL" -v since="$config_changed_at" '
+    $2 == name && $3 >= since { scale = $1 }
+    END { if (scale != "") print scale }
+  ' "$SAVED_SCALES"
+}
+
 configured_monitor_scale() {
   local scale
-  scale=$(configured_internal_monitor_value scale)
+  scale=$(saved_internal_scale)
+  [[ -n $scale ]] || scale=$(configured_internal_monitor_value scale)
   # An internal rule that names a scale settles it, even when the name resolves
   # to nothing usable. Only a rule that names none at all defers to the catch-all,
   # which is the scale Omarchy has always applied for that config.

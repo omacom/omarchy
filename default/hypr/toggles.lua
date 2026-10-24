@@ -20,4 +20,7 @@ local disabled_input_device = require("default.hypr.disabled-input-device")
 disabled_input_device("touchpad")
 disabled_input_device("touchscreen")
 
+-- Scales saved by omarchy-hyprland-monitor-scaling, applied over the config.
+require("default.hypr.monitor-scales").apply()
+
 require("default.hypr.workspace-layouts")

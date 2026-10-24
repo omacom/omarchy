@@ -258,6 +258,22 @@ OMARCHY_TEST_INTERNAL_SCALE=3 run_clamshell
 grep -F 'scale = 1.25' "$eval_log" >/dev/null || fail "clamshell recovery corrects a drifted numeric scale"
 pass "clamshell recovery corrects a drifted numeric scale"
 
+# A scale saved by omarchy-hyprland-monitor-scaling is the panel's scale, until
+# monitors.lua is edited after it.
+write_internal_monitor_config
+touch -d @1000 "$monitor_lua"
+mkdir -p "$state_dir"
+printf '1.6\teDP-1\t2000\tPanel\n' >"$state_dir/monitor-scales"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=3 run_clamshell
+grep -F 'scale = 1.6' "$eval_log" >/dev/null || fail "clamshell recovery corrects toward a saved scale"
+touch -d @3000 "$monitor_lua"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=3 run_clamshell
+grep -F 'scale = 1.25' "$eval_log" >/dev/null || fail "clamshell recovery prefers a monitors.lua edit newer than the saved scale"
+rm "$state_dir/monitor-scales"
+pass "clamshell recovery follows the newer of the saved scale and monitors.lua"
+
 write_auto_monitor_config
 : >"$eval_log"
 OMARCHY_TEST_INTERNAL_SCALE=1.6 OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_CLAMSHELL=true run_clamshell

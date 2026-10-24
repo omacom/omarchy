@@ -104,20 +104,24 @@ set -e
 [[ ! -e $clamshell_flag ]] || fail "an unsafe internal monitor name is not written as clamshell Lua"
 pass "clamshell refuses an unsafe internal monitor name"
 
-# The scaling command eval's the focused-monitor name into a Lua string.
+# The scaling command saves the focused-monitor name for Lua to read back as an output name.
+saved_scales="$flag_dir/monitor-scales"
 printf '[{"name":"eDP-1","focused":true,"scale":1.0,"width":1920,"height":1080,"refreshRate":60.0}]\n' \
   >"$monitors_json"
+rm -f "$saved_scales"
 run_monitor omarchy-hyprland-monitor-scaling 1.6
-grep -F 'hl.monitor({ output = "eDP-1"' "$eval_log" >/dev/null ||
-  fail "scaling eval's the focused connector name"
+awk -F '\t' '$1 == "1.6" && $2 == "eDP-1" { found = 1 } END { exit !found }' "$saved_scales" ||
+  fail "scaling saves the focused connector name"
 pass "scaling accepts a plain connector name"
 
 printf '[{"name":"eDP-1\\" })os.execute(\\"calc\\")--","focused":true,"scale":1.0,"width":1920,"height":1080,"refreshRate":60.0}]\n' \
   >"$monitors_json"
+rm -f "$saved_scales"
 set +e
 run_monitor omarchy-hyprland-monitor-scaling 1.6 >/dev/null 2>&1
 status=$?
 set -e
 (( status != 0 )) || fail "scaling rejects a focused monitor name with Lua metacharacters"
 [[ ! -s $eval_log ]] || fail "an unsafe focused monitor name is not eval'd as Lua"
+[[ ! -e $saved_scales ]] || fail "an unsafe focused monitor name is not saved"
 pass "scaling refuses an unsafe focused monitor name"
