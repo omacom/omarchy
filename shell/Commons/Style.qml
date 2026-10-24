@@ -362,21 +362,8 @@ QtObject {
   // for Style.duration(ms), which is then 0, so nothing is drawn in between.
   property bool reduceMotion: false
 
-  // Held for the length of a keypress's answer: a keyboard action is repeated
-  // too often to wait on motion, so whatever it opens or closes jumps there.
-  property bool keyed: false
-
-  function byKey(action) {
-    keyed = true
-    try {
-      return action()
-    } finally {
-      keyed = false
-    }
-  }
-
   function duration(ms) {
-    return reduceMotion || keyed ? 0 : ms
+    return reduceMotion ? 0 : ms
   }
 
   // A strong ease-out, for anything appearing or moving in answer to the
