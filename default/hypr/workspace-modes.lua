@@ -369,6 +369,19 @@ local function watch()
     end, { type = "oneshot", timeout = 1 })
   end)
 
+  -- When a fullscreen window on a floating workspace gains focus, re-enter fullscreen
+  -- to clear m_allowedOverFullscreen on sibling floating windows so it is drawn in front.
+  hl.on("window.active", function(window)
+    if not window then
+      return
+    end
+
+    local id = window.workspace and window.workspace.id
+    if floating_workspace(id) and (window.fullscreen or 0) == 2 then
+      hl.dispatch(hl.dsp.window.fullscreen({ mode = "fullscreen", action = "set", window = window }))
+    end
+  end)
+
   hl.on("workspace.active", update_input)
   hl.on("monitor.focused", update_input)
 end
