@@ -895,6 +895,26 @@ assert(
   'menu never writes into the item map held by the var property'
 )
 
+// Dmenu rows come solely from dmenuOptions, so a background refresh landing
+// mid-read — a desktop-entry rescan, a provider exit, a guard batch, a menu
+// source reload — must not rebuild an open dmenu: clearing the model resets
+// the scroll position under the reader for rows that cannot have changed.
+const backgroundRebuilds = menuQml.match(/if \(root\.opened[^\n]*\)(?: \{)?\s*\n?\s*root\.rebuildDisplay\(\)/g) || []
+assertEqual(
+  backgroundRebuilds.length,
+  4,
+  'menu rebuilds the open display from app, provider, guard, and source refreshes'
+)
+assert(
+  backgroundRebuilds.every(function(site) { return site.includes('!root.dmenuActive') }),
+  'menu background refreshes leave an open dmenu untouched'
+)
+assert(
+  /target: Commons\.I18n\s*\n\s*function onStringsChanged\(\) \{ if \(root\.opened && root\.dmenuActive && root\.dmenuMultiple\) root\.updateDmenuChecks\(\)/.test(menuQml)
+    && /row\.itemId === "dmenu\.apply"\) \{\s*\n\s*displayModel\.setProperty\(i, "label", Commons\.I18n\.t\("common\.apply"\)\)/.test(menuQml),
+  'menu retitles an open dmenu in place when the language changes'
+)
+
 for (const functionName of ['openExistingMenu', 'openDmenu']) {
   const openMatch = menuQml.match(new RegExp(`function ${functionName}\\([^)]*\\) \\{([\\s\\S]*?)\\n  \\}`))
   assert(openMatch, `menu ${functionName} function exists`)
