@@ -60,26 +60,27 @@ chmod u+w "$toggles_dir"
 run omarchy-hyprland-window-transparency transparent
 pass "a failed save keeps the transparency already chosen"
 
-# GTK apps only ask Hyprland for blur under a CSS backdrop-filter, so glassy
-# imports one into the user's gtk.css, leaving the rest of it alone.
+# GTK apps only ask Hyprland for blur under a CSS backdrop-filter, so see-through
+# windows import one into the user's gtk.css, leaving the rest of it alone.
 gtk_css="$home_dir/.config/gtk-4.0/gtk.css"
 mkdir -p "${gtk_css%/*}"
 printf 'label { color: red; }\n' >"$gtk_css"
-run omarchy-hyprland-window-transparency glassy
-grep -qxF "@import url(\"file://$ROOT/default/gtk/glass.css\");" "$gtk_css" || fail "glassy GTK apps import the backdrop blur"
-grep -qx 'label { color: red; }' "$gtk_css" || fail "glassy keeps the user's own GTK CSS"
-run omarchy-hyprland-window-transparency glassy
-(( $(grep -c 'omarchy-glass begin' "$gtk_css") == 1 )) || fail "glassy GTK apps import the backdrop blur once"
 run omarchy-hyprland-window-transparency transparent
-[[ $(<"$gtk_css") == 'label { color: red; }' ]] || fail "leaving glassy restores the user's GTK CSS"
+grep -qxF "@import url(\"file://$ROOT/default/gtk/glass.css\");" "$gtk_css" || fail "see-through GTK apps import the backdrop blur"
+grep -qx 'label { color: red; }' "$gtk_css" || fail "the import keeps the user's own GTK CSS"
+run omarchy-hyprland-window-transparency glassy
+(( $(grep -c 'omarchy-glass begin' "$gtk_css") == 1 )) || fail "see-through GTK apps import the backdrop blur once"
+run omarchy-hyprland-window-transparency opaque
+[[ $(<"$gtk_css") == 'label { color: red; }' ]] || fail "opaque windows drop the backdrop blur"
 grep -qF 'backdrop-filter: blur(' "$ROOT/default/gtk/glass.css" || fail "the GTK glass is a backdrop blur"
 printf 'label { color: red; }' >"$gtk_css"
 run omarchy-hyprland-window-transparency glassy
-run omarchy-hyprland-window-transparency transparent
-[[ $(od -An -c "$gtk_css" | tr -d ' \n') == 'label{color:red;}' ]] || fail "leaving glassy restores GTK CSS without a final newline"
+run omarchy-hyprland-window-transparency opaque
+[[ $(od -An -c "$gtk_css" | tr -d ' \n') == 'label{color:red;}' ]] || fail "opaque windows restore GTK CSS without a final newline"
 
 # A GTK config that cannot be written fails the change.
 printf 'label { color: red; }\n' >"$gtk_css"
+run omarchy-hyprland-window-transparency transparent
 chmod a-w "$gtk_css"
 : >"$tmpdir/commands.log"
 if run omarchy-hyprland-window-transparency glassy 2>/dev/null; then
@@ -89,7 +90,7 @@ fi
 chmod u+w "$gtk_css"
 [[ $(run omarchy-hyprland-window-transparency) == "transparent" ]] || fail "a failed change keeps the previous choice"
 run omarchy-hyprland-window-transparency transparent
-pass "glassy GTK apps get a backdrop blur, and leaving glassy takes it out"
+pass "see-through GTK apps get a backdrop blur, and opaque windows take it out"
 
 # Opaque reaches the windows Omarchy makes transparent through their tag.
 grep -qF 'tag = "+transparent-window"' "$ROOT/default/hypr/helpers.lua" || fail "transparent windows carry a tag"

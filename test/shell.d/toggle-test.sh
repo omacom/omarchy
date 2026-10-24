@@ -100,13 +100,16 @@ pass "animations toggle turns the no-animations flag the right way round"
 
 # A VM install starts without animations; other machines keep them.
 for virt in vm none; do
-  rm -rf "$test_home/.local/state/omarchy/toggles/hypr"
+  rm -rf "$test_home/.local/state/omarchy/toggles/hypr" "$test_home/.config/gtk-4.0"
   printf '#!/bin/bash\n[[ %s == vm ]]\n' "$virt" >"$stub_bin/omarchy-hw-vm"
   chmod +x "$stub_bin/omarchy-hw-vm"
-  HOME="$test_home" OMARCHY_PATH="$ROOT" bash "$ROOT/install/user/hardware/vm-no-animations.sh" >/dev/null
+  # Theme setup runs first and imports the GTK backdrop blur for see-through windows.
+  HOME="$test_home" XDG_STATE_HOME="" XDG_CONFIG_HOME="" OMARCHY_PATH="$ROOT" omarchy-theme-set-glass
+  HOME="$test_home" XDG_STATE_HOME="" XDG_CONFIG_HOME="" OMARCHY_PATH="$ROOT" bash "$ROOT/install/user/hardware/vm-no-animations.sh" >/dev/null
   if [[ $virt == "vm" ]]; then
     [[ -f $animations_flag ]] || fail "a VM install turns animations off"
     [[ -f ${animations_flag%/*}/window-opaque.lua ]] || fail "a VM install starts with opaque windows"
+    ! grep -qF 'glass.css' "$test_home/.config/gtk-4.0/gtk.css" || fail "a VM install takes the GTK backdrop blur back out"
   else
     [[ ! -f $animations_flag ]] || fail "a machine that is not a VM keeps its animations"
     [[ ! -f ${animations_flag%/*}/window-opaque.lua ]] || fail "a machine that is not a VM keeps transparent windows"
