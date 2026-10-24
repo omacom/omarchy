@@ -322,6 +322,9 @@ hl = {
     table.insert(subscriptions[event], callback)
   end,
   timer = function(callback) callback() end,
+  get_loaded_plugins = function()
+    return os.getenv("HYPRBARS_RESIDENT") == "1" and { { name = "hyprbars" } } or {}
+  end,
   get_active_workspace = function() return active end,
   get_config = function(key) return config[key] end,
   config = function(values)
@@ -721,6 +724,19 @@ assert(state().plugin_loads == 1 and #state().buttons == buttons, "titlebars wer
   fail "a workspace that starts floating gets titlebars without a reload"
 fi
 pass "a workspace that starts floating gets titlebars without a reload"
+
+# Hyprland unloads a plugin the config stops asking for, and loading it again
+# costs a cascade of reloads, so a session that has loaded titlebars keeps them.
+if ! run_lua '
+window("0x1", 3)
+require("default.hypr.workspace-layouts")
+local s = state()
+assert(s.plugin_loads == 1, "the loaded titlebar plugin was not asked for with nothing floating")
+assert(not s.titlebar_config, "titlebars were turned on with nothing floating")
+' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1 HYPRBARS_RESIDENT=1; then
+  fail "a session that loaded titlebars keeps the plugin when nothing floats"
+fi
+pass "a session that loaded titlebars keeps the plugin when nothing floats"
 printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
 
 # A theme whose raised surface is its background would hide the titlebar again,
