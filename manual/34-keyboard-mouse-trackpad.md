@@ -63,6 +63,20 @@ Select Japanese, Korean, Chinese (Simplified, Pinyin), Taiwan (Zhuyin), or Hong 
 
 Typing starts in Latin mode. Press `Super + I` to cycle through configured input methods, and `Super + Shift + I` to cycle back. Tap `Shift` on its own to step out of an input method like Pinyin into Latin letters, and tap it again to go back, the way Sogou, Microsoft Pinyin, and macOS work; `Shift` plus a letter still types a capital. On Japanese keyboards, 全角/半角 toggles input, 変換 turns it on, and 無変換 turns it off. With Korean, 한/영 switches Hangul and 한자 converts to Hanja, whether your keyboard has dedicated keys or sends Right Alt and Right Ctrl for them, as many laptops do, so Right Alt and Right Ctrl are not plain modifiers there; dictation push-to-talk stays on F9. `Ctrl + Space` stays available for Tmux and Herdr; `Shift + CapsLock` stays the compose key.
 
+A Left Shift tap reaches Fcitx as `Shift_L` on the current default, `omarchy:shift_caps_compose`. An older `kb_options` value, `shift:both_capslock_cancel`, puts Caps Lock on the Shift keys, so Fcitx sees the release as `Shift+Caps_Lock` and a `Shift_L` trigger never fires. If `kb_options` in `~/.config/hypr/input.lua` still carries it, replace it and the `compose:caps` beside it with the current compose option, keeping any others such as `grp:alts_toggle`:
+
+```lua
+hl.config({
+  input = {
+    kb_options = "omarchy:shift_caps_compose,grp:alts_toggle",
+  },
+})
+```
+
+Then run `hyprctl reload` and restart Fcitx so its virtual keyboard picks up the map: `systemctl --user restart omarchy-fcitx5.service`. Do not add `shift:both_capslock` or `shift:both_capslock_cancel` back.
+
+Fcitx itself needs no change: Omarchy sets `Shift_L` as its temporary toggle, `AltTriggerKeys` in `~/.config/fcitx5/config`. A Shift held longer than Fcitx's `ModifierOnlyKeyTimeout` (250 ms unless you changed it) does not switch.
+
 The keyboard indicator appears on the right of the bar when you have multiple keyboard layouts or input methods. Click it to switch input languages; Japanese displays あ for hiragana. For Japanese character choices, switch to Japanese, type a word such as `nihongo`, then press Space twice. Press Enter to accept your choice. If you also have multiple keyboard layouts, right-click the indicator to cycle those.
 
 Use _Setup > Typing > Keyboard Layouts_ to select layouts such as English and French, from the same choices offered during installation. Use _Setup > Typing > Input Methods_ to select which composition engines are active. Both pickers open inside the Omarchy menu with your current selections checked. Click or press Enter to toggle a choice; each change applies immediately. Deselecting an input method removes it from the cycle without uninstalling it; the keyboard remains available.
