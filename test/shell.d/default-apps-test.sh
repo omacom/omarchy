@@ -290,6 +290,54 @@ for entry in "${terminal_cases[@]}"; do
 done
 pass "terminal defaults install every missing terminal before selection"
 
+# Mirror the installed launcher's preference filtering instead of omitting it.
+cat >"$mock_bin/xdg-terminal-exec" <<'SH'
+#!/bin/bash
+[[ $1 == "--print-id" ]] || exit 1
+[[ ${OMARCHY_TEST_TERMINAL_UNSUPPORTED:-false} != true ]] || exit 0
+if [[ -n ${OMARCHY_TEST_TERMINAL_REPLY:-} ]]; then
+  printf '%s\n' "$OMARCHY_TEST_TERMINAL_REPLY"
+  exit 0
+fi
+if [[ -f $HOME/.config/xdg-terminals.list ]]; then
+  while IFS= read -r id; do
+    case "$id" in
+    Alacritty.desktop) command=alacritty ;;
+    foot.desktop) command=foot ;;
+    com.mitchellh.ghostty.desktop) command=ghostty ;;
+    kitty.desktop) command=kitty ;;
+    *) continue ;;
+    esac
+    if [[ -f $OMARCHY_TEST_INSTALLED_DIR/$command ]]; then
+      printf '%s\n' "$id"
+      exit 0
+    fi
+  done <"$HOME/.config/xdg-terminals.list"
+fi
+printf 'foot.desktop\n'
+SH
+chmod +x "$mock_bin/xdg-terminal-exec"
+[[ $(omarchy-default-terminal) == "kitty" ]] || fail "the default terminal agrees with the installed launcher"
+pass "terminal readback uses the installed launcher's selection"
+
+printf '# comment\n\nAlacritty.desktop\nkitty.desktop\n' >"$test_home/.config/xdg-terminals.list"
+rm -f "$installed_dir/alacritty"
+[[ $(omarchy-default-terminal) == "kitty" ]] || fail "an absent first preference does not override the effective terminal"
+pass "terminal readback skips an uninstalled first preference"
+
+[[ $(OMARCHY_TEST_TERMINAL_UNSUPPORTED=true omarchy-default-terminal) == "kitty" ]] || fail "a customized unsupported getter falls back to an installed preference"
+pass "unsupported terminal getters only fall back to installed preferences"
+
+OMARCHY_TEST_TERMINAL_REPLY=org.wezfurlong.wezterm.desktop omarchy-default-terminal >"$test_tmp/unknown-terminal"
+[[ $(<"$test_tmp/unknown-terminal") == "org.wezfurlong.wezterm.desktop" ]] || fail "an unknown effective terminal retains its desktop id"
+pass "unknown terminals returned by the launcher retain their id"
+
+rm -f "$test_home/.config/xdg-terminals.list"
+[[ $(OMARCHY_TEST_TERMINAL_REPLY=Alacritty.desktop:/usr/share/applications/Alacritty.desktop omarchy-default-terminal) == "alacritty" ]] || fail "system launcher output still resolves without a user preference"
+pass "system launcher output works without a user preference"
+
+omarchy-default-terminal kitty >/dev/null
+
 for entry in "${editor_cases[@]}"; do
   read -r selection command installer <<<"$entry"
   rm -f "$installed_dir/$command"
