@@ -1,11 +1,11 @@
-// One thing a notification can do, as a themed Button with its name on it.
+// One thing a notification can do: a segment of the card's button bar, its
+// name centred, filled on hover.
 
 import QtQuick
 import qs.Commons
 import qs.Commons as Commons
-import qs.Ui
 
-Button {
+Rectangle {
   id: button
 
   property var deed: ({})
@@ -23,36 +23,28 @@ Button {
   // A tick rather than a past-tense verb, so the width does not change.
   readonly property string labelText: taken ? "\u{f012c}" : String(deed.label || "")
 
-  bordered: true
-  hasCursor: hot                      // paints the theme's hover state
-  foreground: Commons.Color.notifications.text
-  fontFamily: Style.font.family
-  fontSize: Style.font.body
+  color: Commons.Color.notifications.background
 
-  // Never wider than the card: a long action label is cut short instead.
-  width: parent ? Math.min(implicitWidth, parent.width) : implicitWidth
-
-  // The shared Button's label is a single unbounded line. Measure our own so
-  // it can be elided.
-  implicitWidth: label.implicitWidth + horizontalPadding * 2
-                 + _reservedBorderLeft + _reservedBorderRight
-  implicitHeight: label.implicitHeight + verticalPadding * 2
-                  + _reservedBorderTop + _reservedBorderBottom
+  Rectangle {
+    anchors.fill: parent
+    color: button.hot ? Style.hoverFillFor(Commons.Color.notifications.text, Commons.Color.accent) : "transparent"
+    Behavior on color { ColorAnimation { duration: Style.duration(120) } }
+  }
 
   Text {
-    id: label
-    x: button._reservedContentLeftInset
-    anchors.verticalCenter: parent.verticalCenter
-    width: Math.max(1, button.width - button._reservedContentLeftInset
-                      - button.rightPadding - button._reservedBorderRight)
+    anchors.centerIn: parent
+    width: Math.min(implicitWidth, parent.width - Style.space(16))
     text: button.labelText
     textFormat: Text.PlainText
     elide: Text.ElideRight
-    color: button.selected ? button._selectedColor : button.foreground
-    font.family: button.fontFamily
-    font.pixelSize: button.fontSize
-    font.bold: button.selected
+    color: button.hot ? Commons.Color.notifications.text : Qt.darker(Commons.Color.notifications.text, 1.15)
+    font.family: Style.font.family
+    font.pixelSize: Style.font.body
   }
 
-  onClicked: button.toast.doDeed(button.deed)
+  MouseArea {
+    anchors.fill: parent
+    cursorShape: Qt.PointingHandCursor
+    onClicked: button.toast.doDeed(button.deed)
+  }
 }

@@ -504,44 +504,66 @@ Item {
       }
     }
 
-    // The button row under the body, drawn in the card because the surface is
-    // clipped. It shows only under the pointer in an open deck. It spans the
-    // content under the mark too, and keeps the side padding below it.
+    // The buttons, as a bar along the card's bottom edge: a hairline above,
+    // equal segments split by hairlines, three to a line. Drawn in the card
+    // because the surface is clipped, and only under the pointer in an open
+    // deck.
     Item {
       id: deedArea
       anchors { left: parent.left; right: parent.right; bottom: parent.bottom
-                leftMargin: plate.contentLeftInset + Style.space(12)
-                rightMargin: plate.contentRightInset + Style.space(12)
-                bottomMargin: plate.contentBottomInset + Style.space(12) }
+                leftMargin: plate.borderLeft; rightMargin: plate.borderRight
+                bottomMargin: plate.borderBottom }
 
       readonly property bool shown: card.hovered && card.expanded && card.allDeeds.length > 0
+      readonly property int columns: Math.max(1, Math.min(3, card.allDeeds.length))
+      readonly property int rows: Math.ceil(card.allDeeds.length / columns)
+      readonly property real rule: 1
+      readonly property real segmentHeight: Style.spacing.controlHeight + Style.space(6)
+      readonly property real barHeight: rule + rows * segmentHeight + (rows - 1) * rule
       // What the state asks for; the drawn height is whatever slack the
-      // scene has given the card so far. The card already pads its text at
-      // the bottom; extraPadding tops that up to the side padding.
-      readonly property real extraPadding: Style.space(12) - card.contentPaddingY
-      readonly property real wanted: shown ? deedRow.implicitHeight + Style.space(10) + extraPadding : 0
-      height: Math.max(0, card.drawnHeight - card.fixedHeight - extraPadding)
+      // scene has given the card so far.
+      readonly property real wanted: shown ? barHeight : 0
+      height: Math.max(0, card.drawnHeight - card.fixedHeight)
       visible: height > 0
       clip: true
 
-      // Right-aligned and wrapping: laid out right to left over the reversed
-      // list, so one line still reads in order.
-      Flow {
-        id: deedRow
+      // The hairlines are this colour showing through the gaps between
+      // segments.
+      Rectangle {
+        id: deedBar
         anchors.bottom: parent.bottom
         width: parent.width
-        layoutDirection: Qt.RightToLeft
-        spacing: Style.space(6)
+        height: deedArea.barHeight
+        color: Qt.rgba(card.dimColor.r, card.dimColor.g, card.dimColor.b, 0.35)
         opacity: deedArea.shown ? 1 : 0
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: card.fade } }
 
-        Repeater {
-          model: card.allDeeds.slice().reverse()
-          DeedButton {
-            required property var modelData
-            deed: modelData
-            toast: card
+        // Placed by hand rather than a Grid: a short last line stretches its
+        // segments across the bar instead of leaving an empty cell.
+        Item {
+          id: deedRow
+          y: deedArea.rule
+          width: parent.width
+          height: parent.height - deedArea.rule
+
+          Repeater {
+            model: card.allDeeds
+            DeedButton {
+              required property var modelData
+              required property int index
+              readonly property int line: Math.floor(index / deedArea.columns)
+              readonly property int slot: index % deedArea.columns
+              readonly property int perLine: line < deedArea.rows - 1 ? deedArea.columns
+                                             : card.allDeeds.length - line * deedArea.columns
+              readonly property real step: (deedRow.width + deedArea.rule) / perLine
+              deed: modelData
+              toast: card
+              x: Math.round(slot * step)
+              y: line * (deedArea.segmentHeight + deedArea.rule)
+              width: Math.round((slot + 1) * step) - x - deedArea.rule
+              height: deedArea.segmentHeight
+            }
           }
         }
       }
