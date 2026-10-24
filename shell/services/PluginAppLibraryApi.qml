@@ -10,6 +10,7 @@ QtObject {
 
   property var _entryName: null
   property var _entrySubtext: null
+  property var _searchableId: null
   property var _sortedEntries: null
   property var _iconSource: null
   property var _refreshIcons: null
@@ -22,6 +23,10 @@ QtObject {
 
   function entrySubtext(entry) {
     return _entrySubtext ? _entrySubtext(entry) : ""
+  }
+
+  function searchableId(entry) {
+    return _searchableId ? _searchableId(entry) : ""
   }
 
   function sortedEntries(query) {
