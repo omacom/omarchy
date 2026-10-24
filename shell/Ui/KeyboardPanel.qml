@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as Controls
 import Quickshell
 import Quickshell.Wayland
 import qs.Commons
@@ -618,12 +619,45 @@ PanelWindow {
       acceptedButtons: Qt.AllButtons
     }
 
-    Item {
-      id: contentHolder
+    Flickable {
+      id: contentViewport
+      objectName: "keyboard-panel-content-viewport"
       anchors.top: parent.top
       anchors.left: parent.left
       width: root.contentWidth - card.contentLeftInset - card.contentRightInset
       height: root.contentHeight - card.contentTopInset - card.contentBottomInset
+      contentWidth: width
+      contentHeight: contentHolder.height
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      flickableDirection: Flickable.VerticalFlick
+      interactive: contentHeight > height
+      Controls.ScrollBar.vertical: Controls.ScrollBar { policy: Controls.ScrollBar.AsNeeded }
+      function revealFocusedItem() {
+        if (!interactive) {
+          contentY = 0
+          return
+        }
+        var window = contentHolder.Window.window
+        var item = window ? window.activeFocusItem : null
+        // A panel's key catcher spans the entire form. Only reveal controls
+        // that fit inside the viewport, not that enclosing focus scope.
+        if (!item || item.height > height) return
+        var ancestor = item
+        while (ancestor && ancestor !== contentHolder) ancestor = ancestor.parent
+        if (!ancestor) return
+        var point = item.mapToItem(contentHolder, 0, 0)
+        if (point.y < contentY) contentY = point.y
+        else if (point.y + item.height > contentY + height)
+          contentY = point.y + item.height - height
+        contentY = Math.max(0, Math.min(contentY, contentHeight - height))
+      }
+      onHeightChanged: Qt.callLater(revealFocusedItem)
+      onContentHeightChanged: Qt.callLater(revealFocusedItem)
+      Connections {
+        target: contentHolder.Window.window
+        function onActiveFocusItemChanged() { Qt.callLater(contentViewport.revealFocusedItem) }
+      }
       // Right-to-left languages read the card mirrored; the card itself
       // stays where the bar puts it.
       LayoutMirroring.enabled: Commons.I18n.rightToLeft
@@ -633,12 +667,20 @@ PanelWindow {
       // Fades in with the morph, done by the time the card has mostly landed.
       opacity: Math.min(1, root.morph * 1.6)
 
-      Loader {
-        id: contentLoader
-        anchors.fill: parent
-        focus: true
-        active: !!root.content && (root.open || root.contentRequested)
-        sourceComponent: root.content
+      Item {
+        id: contentHolder
+        width: contentViewport.width
+        // Keep the full form/list layout intact when the OSK reduces the card.
+        // The viewport scrolls instead of putting lower controls off-surface.
+        height: Math.max(contentViewport.height, root.loadedContentHeight)
+
+        Loader {
+          id: contentLoader
+          anchors.fill: parent
+          focus: true
+          active: !!root.content && (root.open || root.contentRequested)
+          sourceComponent: root.content
+        }
       }
 
     }
