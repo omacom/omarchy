@@ -4,10 +4,28 @@
 # omarchy:args=<url>
 
 browser=$(omarchy-cmd-default-browser)
+chromium_browsers="chromium|chrome|brave|microsoft-edge|vivaldi|opera|helium"
+
+# A launcher of the user's own can open web apps when its Exec= runs a
+# Chromium-based browser, directly or through a wrapper script naming one.
+chromium_based() {
+  local program=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$1 2>/dev/null | head -1)
+
+  [[ -n $program ]] || return 1
+  [[ ${program##*/} =~ $chromium_browsers ]] ||
+    grep -qIE -- "--user-data-dir|$chromium_browsers" "$(type -P "$program")" 2>/dev/null
+}
 
 case $browser in
 google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
+*)
+  if ! chromium_based "$browser"; then
+    if [[ -n $browser && $browser != "chromium.desktop" ]]; then
+      omarchy-notification-send "$(omarchy-i18n webapp.browserFallback "${browser%.desktop}")"
+    fi
+    browser="chromium.desktop"
+  fi
+  ;;
 esac
 
 browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
