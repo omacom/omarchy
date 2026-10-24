@@ -751,6 +751,13 @@ assert(
   /function rebuildDisplay\(\)[\s\S]*?root\.settleCursor\(\)/.test(menuQml),
   'menu parks the cursor on a selectable row after the rows change'
 )
+const menuRebuild = menuQml.match(/function rebuildDisplay\(\) \{([\s\S]*?)\n  \}/)
+assert(
+  menuRebuild
+    && /displayModel\.append\(rows\)/.test(menuRebuild[1])
+    && !/displayModel\.append\(rows\[/.test(menuRebuild[1]),
+  'menu appends its rows to the model in one batch'
+)
 // A menu with nothing selectable in it has no cursor, and Return must not
 // conjure one onto a disabled row just because rows exist.
 assert(
