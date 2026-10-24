@@ -72,8 +72,6 @@ The runner also lists files with skipped checks, including files that ran some c
 
 Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines. `require_compositor "description"` handles this: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
 
-A test that reads the background layer's pixels off the first output also calls `require_uncovered_background "description"`, which skips unless that output's workspace is empty: in a working session a window covers the background and the test would read the window. Run such tests on an empty workspace.
-
 The probe is more than an environment check, because `WAYLAND_DISPLAY` only
 proves the variable was inherited. Sandboxes pass the environment through
 while blocking `$XDG_RUNTIME_DIR`, so Quickshell clears a bare variable check

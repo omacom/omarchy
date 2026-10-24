@@ -101,21 +101,6 @@ require_compositor() {
   exit 0
 }
 
-# For tests that read the background layer's pixels off the first output: any
-# window on its workspace covers them, so in a working session the test would
-# read the window instead. Run them on an empty workspace.
-require_uncovered_background() {
-  local description="$1" workspace
-
-  workspace=$(hyprctl -j monitors | jq '.[0].activeWorkspace.id')
-  if (( $(hyprctl -j clients | jq --argjson ws "$workspace" '[.[] | select(.workspace.id == $ws)] | length') == 0 )); then
-    return 0
-  fi
-
-  skip "windows cover the background on the first output; skipping $description"
-  exit 0
-}
-
 # Finds the pkgbuilds/ directory of the omarchy-pkgs checkout, which some tests
 # hold Omarchy's scripts against, and sets OMARCHY_PKGS_ROOT to it. The checkout
 # lives in its own repository, wherever this machine keeps it.
