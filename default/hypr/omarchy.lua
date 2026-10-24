@@ -14,6 +14,7 @@ if _G.omarchy_default_bindings ~= false then
   require("default.hypr.bindings.tiling")
   require("default.hypr.bindings.utilities")
   require("default.hypr.bindings.dictation")
+  require("default.hypr.bindings.logitech-mx-keys")
   require_optional.module("default.hypr.bindings.applications")
 end
 require("default.hypr.envs")
