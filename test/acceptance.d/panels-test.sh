@@ -33,6 +33,12 @@ set_accessibility() {
 wait_for_panel() {
   local name="$1" description="$2" status attempt
 
+  if ((! accessibility_available)); then
+    printf '# no accessibility tree; reading the screen for %s\n' "$name"
+    wait_until "$description" 15 screen_contains "$name"
+    return
+  fi
+
   # The shell publishes its tree a moment after accessibility is switched on.
   # libatspi aborts rather than return when there is no bus at all.
   for attempt in 1 2 3 4 5; do
@@ -64,7 +70,9 @@ wait_for_panel() {
 
 restore_weather() {
   hide_panels
-  set_accessibility "$accessibility_enabled" || true
+  if ((accessibility_available)); then
+    set_accessibility "$accessibility_enabled" || true
+  fi
 
   if ((weather_existed)); then
     mkdir -p "$(dirname "$WEATHER_FILE")"
@@ -76,7 +84,11 @@ restore_weather() {
   rm -f "$weather_backup"
 }
 
-accessibility_enabled=$(busctl --user get-property org.a11y.Bus /org/a11y/bus org.a11y.Status IsEnabled | awk '{print $2}')
+accessibility_available=0
+accessibility_enabled=""
+if accessibility_enabled=$(busctl --user get-property org.a11y.Bus /org/a11y/bus org.a11y.Status IsEnabled 2>/dev/null | awk '{print $2}'); then
+  accessibility_available=1
+fi
 trap restore_weather EXIT
 
 open_and_capture_panel() {
@@ -131,7 +143,9 @@ else
 fi
 
 # The common panel keyboard contract uses Tab to move to the next bar panel.
-set_accessibility true
+if ((accessibility_available)) && ! set_accessibility true; then
+  accessibility_available=0
+fi
 omarchy-shell shell summon omarchy.bluetooth >/dev/null
 wait_for_panel "Bluetooth" "panel keyboard navigation starts on bluetooth"
 screenshot "success-panel-navigation-01-bluetooth"

@@ -39,7 +39,7 @@ Item {
   property int pressFeedbackButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
   // What assistive technology announces. Bar labels are often glyphs, so the
   // tooltip wins; BarIconButton never falls back to its glyph text.
-  property string accessibleName: tooltipText !== "" ? tooltipText : text
+  property string accessibleName: tooltipText !== "" ? tooltipText : (isIconGlyph(text) ? "" : text)
 
   signal pressed(int button)
   signal wheelMoved(int delta)

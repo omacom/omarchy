@@ -26,7 +26,8 @@ def shell_apps():
 
 
 def find(node, role, name):
-  if node.get_role_name() == role and node.get_name() == name:
+  if (node.get_role_name() == role and node.get_name() == name
+      and node.get_state_set().contains(Atspi.StateType.SHOWING)):
     return node
   for index in range(node.get_child_count()):
     child = node.get_child_at_index(index)

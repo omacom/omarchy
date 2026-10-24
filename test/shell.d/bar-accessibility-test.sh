@@ -47,6 +47,7 @@ ShellRoot {
       onPressed: function(button) { root.presses.push("widget:" + button) }
     }
     WidgetButton { id: textWidget; text: "Tuesday 14:32" }
+    WidgetButton { id: glyphWidget; text: root.glyph }
     WidgetButton { id: staticWidget; text: "3"; pressable: false }
     WidgetButton { id: concealedWidget; text: "x"; concealed: true }
     WidgetButton { id: disabledWidget; text: "x"; enabled: false; onPressed: root.presses.push("disabled") }
@@ -67,6 +68,7 @@ ShellRoot {
     same(widget.Accessible.role, Accessible.Button, "pressable WidgetButton is a button")
     same(widget.Accessible.name, "Calendar", "WidgetButton prefers its tooltip")
     same(textWidget.Accessible.name, "Tuesday 14:32", "WidgetButton falls back to its text")
+    same(glyphWidget.Accessible.name, "", "WidgetButton never announces an icon glyph")
     same(staticWidget.Accessible.role, Accessible.StaticText, "non-pressable WidgetButton reads as text")
     same(concealedWidget.Accessible.ignored, true, "concealed WidgetButton is hidden")
     same(glyphIcon.Accessible.name, "", "BarIconButton never announces its glyph")
