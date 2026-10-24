@@ -35,7 +35,7 @@ assert(/text: section\.provider \? \(root\.helpDisplayText\(section\.provider\.a
 assert(/case "Run `codex login` to authenticate\.":\s*return Commons\.I18n\.t\("agents\.helpRunToAuthenticate"\)\.arg\("`codex login`"\)/.test(panelSource), 'known collector help lines are translated at display, commands kept verbatim')
 // A reworded collector line would silently fall back to English, so every
 // fixed help line the collectors cache must still be one the panel maps.
-for (const name of ['claude', 'codex', 'grok', 'fireworks']) {
+for (const name of ['claude', 'codex', 'grok', 'fireworks', 'agy']) {
   const collector = fs.readFileSync(root + '/bin/omarchy-agent-usage-' + name, 'utf8')
   const help = collector.match(/^AUTH_HELP = "([^"]+)"$/m)
   assert(help && panelSource.includes('case ' + JSON.stringify(help[1]) + ':'), name + ' auth help is translated in the panel')

@@ -1,0 +1,174 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Antigravity usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Google Antigravity usage into one display-ready JSON record.
+
+Parses local sessions and conversation logs from ~/.gemini/antigravity-cli/brain/
+(and ~/.gemini/antigravity/brain/ when present)
+and prints a JSON record matching the Omarchy agents panel contract.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import tempfile
+import time
+from pathlib import Path
+
+AGENT_ID = "agy"
+AGENT_NAME = "Antigravity"
+AUTH_HELP = "Run `agy` to authenticate."
+# Antigravity reports no limits, so a limits-only refresh has nothing new to
+# show and reuses a recent history scan instead of rereading every transcript.
+LIMITS_ONLY_SCAN_REUSE_SECONDS = 900
+
+
+def read_json(path):
+  try:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+  except Exception:
+    return None
+
+
+# A temporary file of its own per write, so overlapping runs can't rename
+# each other's away.
+def write_json(path, payload):
+  path = Path(path)
+  path.parent.mkdir(parents=True, exist_ok=True)
+  fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+  try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+      json.dump(payload, handle)
+    os.replace(tmp, path)
+  except Exception:
+    Path(tmp).unlink(missing_ok=True)
+    raise
+
+
+def cache_root():
+  return Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+
+
+def brain_dirs():
+  gemini_dir = Path.home() / ".gemini"
+  return [d for d in (gemini_dir / "antigravity-cli" / "brain", gemini_dir / "antigravity" / "brain") if d.is_dir()]
+
+
+def prompt_date(entry):
+  raw = entry.get("created_at")
+  if not isinstance(raw, str):
+    return None
+  try:
+    parsed = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+  except ValueError:
+    return None
+  if parsed.tzinfo is None:
+    parsed = parsed.replace(tzinfo=dt.timezone.utc)
+  return parsed.astimezone().date().isoformat()
+
+
+def local_stats(dirs, today):
+  today_str = today.isoformat()
+  recent_dates = [
+      (today - dt.timedelta(days=i)).isoformat()
+      for i in range(6, -1, -1)
+  ]
+  daily_prompts = {d: 0 for d in recent_dates}
+  active_dates = set()
+  today_sessions = set()
+  total_prompts = 0
+  total_sessions = 0
+
+  for brain_dir in dirs:
+    for conv_dir in brain_dir.iterdir():
+      if not conv_dir.is_dir():
+        continue
+      total_sessions += 1
+      transcript_file = conv_dir / ".system_generated" / "logs" / "transcript.jsonl"
+      if not transcript_file.is_file():
+        continue
+      try:
+        with open(transcript_file, "r", encoding="utf-8", errors="ignore") as f:
+          for line in f:
+            if "USER_INPUT" not in line:
+              continue
+            try:
+              entry = json.loads(line)
+            except ValueError:
+              continue
+            if not isinstance(entry, dict) or entry.get("type") != "USER_INPUT":
+              continue
+
+            total_prompts += 1
+            day = prompt_date(entry)
+            if day is None:
+              continue
+            active_dates.add(day)
+            if day in daily_prompts:
+              daily_prompts[day] += 1
+            if day == today_str:
+              today_sessions.add(str(conv_dir))
+      except OSError:
+        pass
+
+  sorted_active_dates = sorted(active_dates)
+  return {
+      "todayPrompts": daily_prompts.get(today_str, 0),
+      "todaySessions": len(today_sessions),
+      "recentDays": [{"date": d, "messageCount": daily_prompts[d]} for d in recent_dates],
+      "totalPrompts": total_prompts,
+      "totalSessions": total_sessions,
+      "activeDays": len(sorted_active_dates),
+      "activeDates": sorted_active_dates,
+  }
+
+
+# A scan from before midnight would count yesterday's prompts as today's.
+def cached_local_stats(dirs, max_age):
+  cache = cache_root() / "agy-stats.json"
+  cached = read_json(cache) or {}
+  today = dt.datetime.now().astimezone().date()
+  key = [str(d) for d in dirs]
+  if cached.get("dirs") == key and cached.get("day") == today.isoformat() and time.time() - float(cached.get("at") or 0) < max_age:
+    return cached["stats"]
+  stats = local_stats(dirs, today)
+  try:
+    write_json(cache, {"dirs": key, "day": today.isoformat(), "at": time.time(), "stats": stats})
+  except OSError:
+    pass
+  return stats
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  dirs = brain_dirs()
+  record = {
+      "schemaVersion": 1,
+      "id": AGENT_ID,
+      "name": AGENT_NAME,
+      "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+      "ready": bool(dirs),
+      "hasLocalStats": True,
+      "todayTotalTokens": 0,
+      "todayTokensByModel": {},
+      "modelUsage": {},
+      "limits": [],
+      "tierLabel": "",
+      "usageStatusText": "",
+      "authHelpText": "" if dirs else AUTH_HELP,
+  }
+  record.update(cached_local_stats(dirs, LIMITS_ONLY_SCAN_REUSE_SECONDS if args.limits_only and not args.force else 0))
+
+  print(json.dumps(record, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()
