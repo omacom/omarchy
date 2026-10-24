@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "acceptance.panel-reopen",
+  "name": "Panel reopen acceptance fixture",
+  "version": "1.0.0",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": {"overlay": "PanelReopen.qml"}
+}
