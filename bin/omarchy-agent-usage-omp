@@ -1,0 +1,484 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the omp (Oh My Pi) usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect omp (Oh My Pi) usage into one display-ready JSON record.
+
+omp tracks its own usage through `omp stats --json`; this collector runs that
+command and translates its output into the record contract the agents panel
+reads from ~/.local/state/omarchy/agents/usage/. The panel only ever reads the
+JSON this prints.
+
+omp is provider-agnostic, so unlike the claude/codex collectors the numbers
+here come from omp itself rather than any one vendor's transcript format. A
+DeepSeek account (the prepaid provider omp most commonly runs on) also exposes
+a live credit ledger through `get-user-balance`; when present it becomes the
+panel's balance readout. DeepSeek reports only remaining credits, never the
+original funding amount, so the collector surfaces `remaining` alone and the
+panel shows that figure without a spend gauge.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import shutil
+import sqlite3
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+AGENT_ID = "omp"
+AGENT_NAME = "Oh My Pi"
+STATS_HELP = "`omp stats` is unavailable — showing saved history."
+DEEPSEEK_BALANCE_ENDPOINT = "https://api.deepseek.com/user/balance"
+
+
+def number(value) -> int:
+    try:
+        n = float(value or 0)
+        return round(n) if n == n else 0
+    except Exception:
+        return 0
+
+
+def local_date(timestamp_ms) -> str:
+    try:
+        return dt.datetime.fromtimestamp(float(timestamp_ms) / 1000.0).strftime("%Y-%m-%d")
+    except Exception:
+        return dt.datetime.now().strftime("%Y-%m-%d")
+
+
+def empty_bucket() -> dict:
+    return {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+    }
+
+
+def session_counts(db_path: Path) -> tuple[int, int]:
+    """Return (today_sessions, total_sessions) from omp's stats database.
+
+    omp records one row per session in the `session_rollup` table of
+    ~/.omp/stats.db, with its start and end timestamps; a session counts toward
+    today when its last activity falls on today. That table is the
+    authoritative session source; `omp stats` does not surface a count, and a
+    fresh omp install has no JSONL session directory at all, so counting loose
+    files would report 0 sessions on a real machine.
+
+    Older layouts kept one JSONL file per session under ~/.omp/agent/sessions/,
+    so fall back to that glob when the database has no session rows. A missing
+    or unreadable source is not an error: the panel simply shows 0 sessions.
+    """
+    start_of_today = dt.datetime.combine(dt.datetime.now().date(), dt.time.min).timestamp()
+    today = 0
+    total = 0
+
+    if db_path.is_file():
+        try:
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+        except sqlite3.Error:
+            conn = None
+        if conn is not None:
+            try:
+                for (started_at, ended_at) in conn.execute(
+                    "SELECT started_at, ended_at FROM session_rollup"
+                ):
+                    total += 1
+                    # Timestamps are stored in milliseconds like `messages`.
+                    # Count a session as today when it had activity today, not
+                    # only when it started today: a resumed or long-running
+                    # session that began before midnight would otherwise be
+                    # dropped, undercounting the panel the way the JSONL
+                    # fallback (mtime) and the other collectors never do.
+                    if max(number(started_at), number(ended_at)) / 1000.0 >= start_of_today:
+                        today += 1
+            except sqlite3.Error:
+                pass
+            finally:
+                conn.close()
+
+    if total == 0:
+        # Fallback for the older JSONL-per-session layout.
+        root = Path.home() / ".omp" / "agent" / "sessions"
+        if root.is_dir():
+            try:
+                for path in root.rglob("*.jsonl"):
+                    total += 1
+                    try:
+                        if path.stat().st_mtime >= start_of_today:
+                            today += 1
+                    except OSError:
+                        pass
+            except OSError:
+                pass
+
+    return today, total
+
+
+def empty_stats() -> dict:
+    return {
+        "todayPrompts": 0,
+        "todaySessions": 0,
+        "todayTotalTokens": 0,
+        "todayTokensByModel": {},
+        "recentDays": [],
+        "totalPrompts": 0,
+        "totalSessions": 0,
+        "activeDays": 0,
+        "activeDates": [],
+        "modelUsage": {},
+    }
+
+
+def base_record(**overrides) -> dict:
+    record = {
+        "schemaVersion": 1,
+        "id": AGENT_ID,
+        "name": AGENT_NAME,
+        "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "ready": False,
+        "hasLocalStats": False,
+        "hasPromptStats": True,
+        "tierLabel": "",
+        "usageStatusText": "",
+        "authHelpText": "",
+        "limits": [],
+    }
+    record.update(empty_stats())
+    record.update(overrides)
+    return record
+
+
+def find_omp() -> str | None:
+    """Resolve the omp binary, tolerating environments whose PATH omits mise
+    shims and ~/.local/bin."""
+    found = shutil.which("omp")
+    if found:
+        return found
+    home = Path.home()
+    for candidate in (
+        home / ".local" / "share" / "mise" / "shims" / "omp",
+        home / ".local" / "bin" / "omp",
+        home / ".npm-global" / "bin" / "omp",
+    ):
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
+def run_stats(binary: str) -> dict | None:
+    """Run `omp stats --json` and return the parsed object, or None on failure."""
+    try:
+        proc = subprocess.run(
+            [binary, "stats", "--json"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            errors="replace",
+            timeout=120,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        # A slow or missing binary must degrade to "no stats", never crash the
+        # collector: main() falls back to the stats DB for the historical
+        # fields instead of emitting a zeroed record over the last good one.
+        return None
+    if proc.returncode != 0:
+        return None
+    try:
+        parsed = json.loads(proc.stdout)
+        return parsed if isinstance(parsed, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
+def fetch_deepseek_balance(binary: str) -> dict | None:
+    """Fetch DeepSeek's live prepaid ledger for the panel's balance readout.
+
+    DeepSeek's API is prepaid-only: `get-user-balance` returns the remaining
+    granted and topped-up credits, whose sum is the current total. It does not
+    report the original funding amount, so `funded` and `spent` stay 0 and the
+    panel renders a plain remaining figure instead of a drain gauge. The API
+    key comes from omp's own credential store (`omp token deepseek`), never
+    from disk or env, so key rotation is honored. Any failure — no deepseek
+    account, no network, an error status — yields no balance rather than a
+    wrong number.
+    """
+    try:
+        key = subprocess.run(
+            [binary, "token", "deepseek", "--raw"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            errors="replace",
+            timeout=30,
+        ).stdout.strip()
+    except Exception:
+        return None
+    if not key:
+        return None
+
+    request = urllib.request.Request(
+        DEEPSEEK_BALANCE_ENDPOINT,
+        headers={"Authorization": "Bearer " + key, "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8", errors="replace"))
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, OSError):
+        return None
+
+    infos = payload.get("balance_infos") if isinstance(payload, dict) else None
+    if not isinstance(infos, list) or not infos:
+        return None
+    info = infos[0]
+    if not isinstance(info, dict):
+        return None
+
+    def money(value) -> float:
+        try:
+            n = float(value)
+            return n if n == n else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+
+    # total_balance, granted_balance, and topped_up_balance are all *remaining*
+    # credits, and granted + topped_up sums to total. There is no original
+    # funding figure, so "spent" is unknowable from this endpoint: report
+    # remaining only and leave funded/spent at 0, which the panel reads as a
+    # plain remaining readout rather than a gauge that can never drain. A zero
+    # total is a valid exhausted state and must still surface as a balance.
+    total = money(info.get("total_balance"))
+    currency = str(info.get("currency") or "USD").upper() or "USD"
+    return {
+        "remaining": total,
+        "funded": 0.0,
+        "spent": 0.0,
+        "currency": currency,
+        "estimated": False,
+    }
+
+
+def summarize(data: dict) -> dict:
+    overall = data.get("overall") or {}
+    if not isinstance(overall, dict):
+        return empty_stats()
+
+    total_requests = number(overall.get("totalRequests"))
+
+    # Per-model all-time buckets. omp groups byModel by (model, provider), so
+    # the same model run through two providers yields one entry each; sum them
+    # into a single bucket instead of letting the second entry overwrite the
+    # first.
+    model_usage: dict = {}
+    by_model = data.get("byModel") or []
+    for entry in by_model:
+        if not isinstance(entry, dict):
+            continue
+        model = str(entry.get("model") or "omp")
+        bucket = model_usage.get(model)
+        if bucket is None:
+            bucket = empty_bucket()
+            model_usage[model] = bucket
+        bucket["inputTokens"] += number(entry.get("totalInputTokens"))
+        bucket["outputTokens"] += number(entry.get("totalOutputTokens"))
+        bucket["cacheReadInputTokens"] += number(entry.get("totalCacheReadTokens"))
+        bucket["cacheCreationInputTokens"] += number(entry.get("totalCacheWriteTokens"))
+
+    # Daily series: one entry per day, {timestamp, requests, errors, tokens}.
+    by_date: dict[str, int] = {}
+    active_dates: set[str] = set()
+    for entry in data.get("timeSeries") or []:
+        if not isinstance(entry, dict):
+            continue
+        day = local_date(entry.get("timestamp"))
+        tokens = number(entry.get("tokens"))
+        by_date[day] = by_date.get(day, 0) + tokens
+        if number(entry.get("requests")) > 0 or tokens > 0:
+            active_dates.add(day)
+
+    today = dt.datetime.now().strftime("%Y-%m-%d")
+    recent_dates = [
+        (dt.datetime.now() - dt.timedelta(days=offset)).strftime("%Y-%m-%d")
+        for offset in range(6, -1, -1)
+    ]
+    recent_days = [
+        {"date": day, "messageCount": by_date.get(day, 0)} for day in recent_dates
+    ]
+
+    today_sessions, total_sessions = session_counts(Path.home() / ".omp" / "stats.db")
+
+    return {
+        "todayPrompts": sum(
+            number(e.get("requests"))
+            for e in (data.get("timeSeries") or [])
+            if isinstance(e, dict) and local_date(e.get("timestamp")) == today
+        ),
+        "todaySessions": today_sessions,
+        "todayTotalTokens": by_date.get(today, 0),
+        "todayTokensByModel": {},
+        "recentDays": recent_days,
+        "totalPrompts": total_requests,
+        "totalSessions": total_sessions,
+        "activeDays": len(active_dates),
+        "activeDates": sorted(active_dates),
+        "modelUsage": model_usage,
+    }
+
+
+def read_history(db_path: Path) -> dict | None:
+    """Read the seven-day and all-time fields from omp's stats database.
+
+    `omp stats --json` runs getDashboardStats() without a range, so it filters
+    overall, per-model, and time-series data to the last 24 hours. That is
+    enough for the panel's "today" row but not its seven-day series or
+    all-time totals: older days would read zero, a rolling day would pass for
+    all-time usage, and the tab would hide after one quiet day even though
+    older sessions exist. The `messages` table keeps every parsed message, so
+    it is the source for those fields.
+
+    Returns None when the database is missing, unreadable, or empty, so the
+    caller falls back to the 24-hour `omp stats --json` payload.
+    """
+    if not db_path.is_file():
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+    except sqlite3.Error:
+        return None
+    try:
+        cur = conn.execute(
+            "SELECT model, timestamp, input_tokens, output_tokens, "
+            "cache_read_tokens, cache_write_tokens, total_tokens "
+            "FROM messages"
+        )
+        today = dt.datetime.now().strftime("%Y-%m-%d")
+        recent_dates = [
+            (dt.datetime.now() - dt.timedelta(days=offset)).strftime("%Y-%m-%d")
+            for offset in range(6, -1, -1)
+        ]
+
+        by_date: dict[str, int] = {}
+        active_dates: set[str] = set()
+        model_usage: dict[str, dict] = {}
+        today_prompts = 0
+        today_tokens = 0
+        total_prompts = 0
+
+        # Iterate the cursor row by row rather than fetchall() so a long-lived
+        # messages table is never materialized fully in memory: only the
+        # per-day and per-model aggregates are held.
+        for model, timestamp, input_tokens, output_tokens, cache_read, cache_write, total_tokens in cur:
+            total_prompts += 1
+            day = local_date(timestamp)
+            tokens = number(total_tokens)
+            by_date[day] = by_date.get(day, 0) + tokens
+            active_dates.add(day)
+            if day == today:
+                today_prompts += 1
+                today_tokens += tokens
+
+            key = str(model) if model else "omp"
+            bucket = model_usage.get(key)
+            if bucket is None:
+                bucket = empty_bucket()
+                model_usage[key] = bucket
+            bucket["inputTokens"] += number(input_tokens)
+            bucket["outputTokens"] += number(output_tokens)
+            bucket["cacheReadInputTokens"] += number(cache_read)
+            bucket["cacheCreationInputTokens"] += number(cache_write)
+    except sqlite3.Error:
+        return None
+    finally:
+        conn.close()
+
+    if total_prompts == 0:
+        return None
+
+    return {
+        "todayPrompts": today_prompts,
+        "todayTotalTokens": today_tokens,
+        "recentDays": [
+            {"date": day, "messageCount": by_date.get(day, 0)} for day in recent_dates
+        ],
+        "totalPrompts": total_prompts,
+        "activeDays": len(active_dates),
+        "activeDates": sorted(active_dates),
+        "modelUsage": model_usage,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    # omp stats has no cache to force past and no cheaper limits-only path;
+    # the flags exist so the collector accepts the same invocation the update
+    # command gives every collector.
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--limits-only", action="store_true")
+    args = parser.parse_args()
+
+    binary = find_omp()
+    if not binary:
+        record = base_record(usageStatusText="omp unavailable", authHelpText="omp not found in PATH")
+        print(json.dumps(record, separators=(",", ":"), sort_keys=True))
+        return 0
+
+    data = run_stats(binary)
+    stats = summarize(data) if data is not None else empty_stats()
+
+    # The 24-hour `omp stats --json` payload cannot back the seven-day series
+    # or all-time totals; when omp's own stats database is readable it supplies
+    # those fields and supersedes the truncated values.
+    history = read_history(Path.home() / ".omp" / "stats.db")
+    if history is not None:
+        stats.update(history)
+
+    if data is None:
+        # A transient stats failure (timeout, bad output) must not erase the
+        # last good record: when the DB is readable it still backs the
+        # historical fields, so keep them and flag the gap rather than zeroing
+        # the record. Only when both sources are gone is there nothing to show,
+        # and then the collector emits nothing so the update runner leaves the
+        # previous record untouched.
+        if history is None:
+            return 1
+        today_sessions, total_sessions = session_counts(Path.home() / ".omp" / "stats.db")
+        stats["todaySessions"] = today_sessions
+        stats["totalSessions"] = total_sessions
+        status = "omp stats unavailable"
+        help_text = STATS_HELP
+    else:
+        status = ""
+        help_text = ""
+
+    record = base_record(
+        ready=number(stats["totalPrompts"]) > 0,
+        hasLocalStats=True,
+        usageStatusText=status,
+        authHelpText=help_text,
+    )
+    record.update(stats)
+
+    # DeepSeek is the prepaid provider whose balance endpoint is open to API
+    # keys, and its ledger belongs to the account, not to the last 24 hours of
+    # usage: a DeepSeek account that has been quiet for a day still has credits
+    # worth showing. fetch_deepseek_balance already returns None when omp has
+    # no DeepSeek key (or the endpoint is unreachable), so attempt it
+    # unconditionally rather than gating on recent byModel activity.
+    balance = fetch_deepseek_balance(binary)
+    if balance is not None:
+        record["balance"] = balance
+        record["tierLabel"] = "Prepaid"
+
+    print(json.dumps(record, separators=(",", ":"), sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
