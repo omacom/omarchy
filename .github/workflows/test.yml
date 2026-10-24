@@ -1,0 +1,144 @@
+name: Tests
+
+# ./test/all, the CLI and shell suites, on every pull request and on every
+# push to quattro. About fourteen minutes. The graphical acceptance suite drives
+# a live session in a disposable VM and is not part of this.
+
+on:
+  pull_request:
+  push:
+    branches: [quattro]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a pull request replaces the run of the one before it.
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: omarchy
+          persist-credentials: false
+
+      # A few test files read the packaging and the ISO builder from checkouts
+      # next to this one, which is where a developer keeps them.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: omacom/omarchy-pkgs
+          path: omarchy-pkgs
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: omacom/omarchy-iso
+          path: omarchy-iso
+          persist-credentials: false
+
+      # The companions are taken at the head of their default branch: the
+      # tests that read them check that the three repositories agree today,
+      # and a pinned commit would go stale and hide a mismatch. A run then
+      # depends on more than this commit, so its summary says which it saw.
+      - name: Record the revisions under test
+        run: |
+          for repo in omarchy omarchy-pkgs omarchy-iso; do
+            echo "- $repo $(git -C "$repo" rev-parse HEAD)"
+          done | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Ubuntu's AppArmor restricts unprivileged user namespaces, inside a
+      # container as anywhere else, and the tests of the root helpers need
+      # them.
+      - name: Allow unprivileged user namespaces
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      # The tests run where the code they cover runs: on Arch. The container
+      # boots systemd because the elsewhen tests ask the real timedatectl for
+      # its zones. It is privileged because the tests of the root helpers run
+      # them inside user namespaces, which Docker's default profile refuses:
+      # without those they skip, and a suite that skips its security tests
+      # proves less than it seems to. The tests themselves run as an ordinary
+      # user with no sudo.
+      #
+      # A privileged container shares the host's consoles and devices, so the
+      # units that would claim them are masked before systemd starts: without
+      # that, its getty, udev and vconsole setup take over the host's.
+      #
+      # /run is mounted exec because the tests run files out of
+      # XDG_RUNTIME_DIR, as a session's /run/user/<uid> allows. The image
+      # ships newuidmap and newgidmap without their file capabilities, so
+      # shadow is reinstalled to give them back.
+      - name: Start an Arch container
+        run: |
+          docker run -d --name tests --privileged --cgroupns=host \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:rw --tmpfs /run:exec --tmpfs /tmp:exec \
+            -v "$PWD:/src:ro" ghcr.io/archlinux/archlinux:latest bash -c '
+              systemctl mask getty.target console-getty.service \
+                systemd-udev-trigger.service systemd-udevd.service \
+                systemd-vconsole-setup.service
+              exec /usr/lib/systemd/systemd
+            '
+          docker exec tests bash -euo pipefail -c '
+            for i in $(seq 1 60); do
+              state=$(systemctl is-system-running 2>/dev/null || true)
+              case $state in running | degraded) break ;; esac
+              sleep 1
+            done
+            echo "systemd: $state"
+            # From our own Arch mirror first, and a second and third try: a
+            # mirror that drops one file must not fail the tests.
+            sed -i "1i Server = https://mirror.omarchy.org/\$repo/os/\$arch" /etc/pacman.d/mirrorlist
+            for attempt in 1 2 3; do
+              pacman -Syu --noconfirm --needed \
+                desktop-file-utils diffutils expac ffmpeg gcc git gum imagemagick inetutils jq less \
+                libxkbcommon lua mise nodejs openssh plocate python python-gobject ripgrep socat sudo \
+                tmux which xdg-utils >/dev/null &&
+                pacman -S --noconfirm shadow >/dev/null && break
+              [ "$attempt" -lt 3 ] || { echo "::error::the test container could not install its tools"; exit 1; }
+              sleep 15
+            done
+            useradd -m tester
+            cp -r /src /home/tester/work
+            chown -R tester /home/tester/work
+            # Without user namespaces the root-helper tests skip and the suite
+            # still passes, so find out here.
+            setpriv --reuid=tester --regid=tester --init-groups \
+              unshare --user --map-auto --map-root-user true ||
+              { echo "::error::user namespaces are unavailable; the root-helper tests would skip"; exit 1; }
+          '
+
+      # pacman -Syu brings the container to what the mirror has on the day,
+      # so a run also depends on that day's packages. The summary lists the
+      # versions installed, for a red run to be traced to a package that moved.
+      # It is written before the tests, so a run that hangs still has it.
+      - name: Record the packages under test
+        run: |
+          packages=$(docker exec tests pacman -Q)
+          count=$(wc -l <<<"$packages")
+          echo "$count packages, listed in the run summary"
+          {
+            echo "<details><summary>$count packages under test</summary>"
+            echo
+            echo '```'
+            echo "$packages"
+            echo '```'
+            echo '</details>'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Run ./test/all
+        run: |
+          docker exec tests bash -euo pipefail -c '
+            # What a session gives a workstation: its runtime directory,
+            # OMARCHY_PATH, and the omarchy commands on PATH.
+            runtime=/run/user/$(id -u tester)
+            install -d -m 700 -o tester -g tester "$runtime"
+            cd /home/tester/work/omarchy
+            setpriv --reuid=tester --regid=tester --init-groups env \
+              HOME=/home/tester XDG_RUNTIME_DIR="$runtime" \
+              OMARCHY_PATH="$PWD" PATH="$PWD/bin:$PATH" ./test/all
+          '
