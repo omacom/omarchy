@@ -343,6 +343,7 @@
   "network.connected": "Connected",
   "network.connecting": "Connecting…",
   "network.connectionFailed": "Connection failed",
+  "network.connectionTimedOut": "Connection timed out",
   "network.copyGateway": "Copy gateway",
   "network.copyIp": "Copy IP",
   "network.copyToClipboard": "Copy to clipboard",
