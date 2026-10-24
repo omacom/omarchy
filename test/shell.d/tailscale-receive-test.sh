@@ -135,8 +135,20 @@ receive 1 env OMARCHY_LANGUAGE_FILE="$WORKDIR/language"
 assert_notification "$downloads/Translated Image.png" "Modtaget Translated Image.png" "Gemt til $downloads"
 pass "taildrop receive preserves localized notifications"
 
-# A save location under HOME reads as ~, not the expanded path.
-printf 'png' >"$WORKDIR/outbox/home.png"
-receive 1 env HOME="$WORKDIR"
-assert_notification "$downloads/home.png" "Received home.png" "Saved to ~/downloads"
-pass "taildrop receive shortens a save location under HOME"
+# A downloads directory under home is shown the way people know it, as ~/...
+# The home path carries glob characters so it must be matched as a literal prefix.
+home="$WORKDIR/home[1]"
+downloads="$home/Downloads"
+mkdir -p "$downloads"
+printf 'pdf' >"$WORKDIR/outbox/report.pdf"
+receive 1 env HOME="$home"
+assert_notification "$downloads/report.pdf" "Received report.pdf" "Saved to ~/Downloads"
+pass "taildrop receive shortens a downloads directory under home to ~"
+
+# A sibling whose name starts with home is not inside home and keeps its full path.
+downloads="$home-backup/Downloads"
+mkdir -p "$downloads"
+printf 'pdf' >"$WORKDIR/outbox/archive.pdf"
+receive 1 env HOME="$home"
+assert_notification "$downloads/archive.pdf" "Received archive.pdf" "Saved to $downloads"
+pass "taildrop receive leaves a home-prefix sibling path unchanged"
