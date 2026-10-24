@@ -256,6 +256,29 @@ pass "Claude collector counts Anthropic usage, reasoning included, from opencode
   fail "Claude collector ignores prefix-colliding providers, user messages, and malformed rows" "$result"
 pass "Claude collector ignores prefix-colliding providers, user messages, and malformed rows"
 
+opencode_scan() {
+  HOME="$OPENCODE_HOME" XDG_CACHE_HOME="$OPENCODE_HOME/.cache" XDG_DATA_HOME="$OPENCODE_HOME/.local/share" \
+    "$ROOT/bin/omarchy-agent-usage-claude" --cache-seconds 0
+}
+opencode_sql() {
+  python3 -c 'import sqlite3, sys; conn = sqlite3.connect(sys.argv[1]); conn.execute(sys.argv[2]); conn.commit()' \
+    "$OPENCODE_HOME/.local/share/opencode/opencode.db" "$1"
+}
+
+# opencode bumps a row's update time on every rewrite, so a row is parsed
+# again only once that time moves: an edit that keeps it is one the index
+# never sees, and a deleted row leaves the totals.
+opencode_sql "UPDATE message SET data = replace(data, '\"input\": 100', '\"input\": 1100') WHERE id = 'msg_1'"
+[[ $(opencode_scan | jq -r '.todayTotalTokens') == "192" ]] ||
+  fail "Claude collector serves unchanged opencode rows from the index" "$(opencode_scan)"
+opencode_sql "UPDATE message SET time_updated = time_updated + 1 WHERE id = 'msg_1'"
+[[ $(opencode_scan | jq -r '.todayTotalTokens') == "1192" ]] ||
+  fail "Claude collector rereads an opencode row whose update time moved" "$(opencode_scan)"
+opencode_sql "DELETE FROM message WHERE id = 'msg_1'"
+[[ $(opencode_scan | jq -r '.todayTotalTokens') == "0" ]] ||
+  fail "Claude collector drops a deleted opencode row" "$(opencode_scan)"
+pass "Claude collector parses an opencode row again only once its update time moves"
+
 # opencode v2 writes session_message instead of message: the role is its own
 # column and the provider and model nest under data.model. An upgraded
 # database keeps its v1 rows, so both tables count.
@@ -350,6 +373,20 @@ result=$(HOME="$PI_HOME" XDG_CACHE_HOME="$PI_HOME/.cache" XDG_DATA_HOME="$PI_HOM
 [[ $(jq -c '.modelUsage' <<<"$result") == '{"claude-omp":{"cacheCreationInputTokens":1,"cacheReadInputTokens":4,"inputTokens":20,"outputTokens":5},"claude-omp-profile":{"cacheCreationInputTokens":1,"cacheReadInputTokens":2,"inputTokens":7,"outputTokens":3},"claude-pi":{"cacheCreationInputTokens":2,"cacheReadInputTokens":3,"inputTokens":10,"outputTokens":4}}' ]] ||
   fail "Claude collector filters pi and omp sessions to Anthropic providers" "$result"
 pass "Claude collector counts pi and omp subscription usage, profiles included"
+
+# pi and omp sessions only grow too: a refresh reads what was appended and
+# serves an unchanged session from the index without opening it.
+cat >>"$PI_HOME/.omp/agent/sessions/project/omp.jsonl" <<EOF
+{"type":"message","id":"omp-2","timestamp":"$timestamp","message":{"role":"assistant","provider":"anthropic","model":"claude-omp","usage":{"input":100,"output":0}}}
+EOF
+chmod 000 "$PI_HOME/.pi/agent/sessions/project/pi.jsonl"
+result=$(HOME="$PI_HOME" XDG_CACHE_HOME="$PI_HOME/.cache" XDG_DATA_HOME="$PI_HOME/.local/share" \
+  "$ROOT/bin/omarchy-agent-usage-claude" --cache-seconds 0 2>/dev/null)
+chmod 644 "$PI_HOME/.pi/agent/sessions/project/pi.jsonl"
+
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "162" ]] ||
+  fail "Claude collector reads only what was appended to pi and omp sessions" "$result"
+pass "Claude collector reads only what was appended to pi and omp sessions"
 
 # Collectors overlap in practice: the update command backgrounds one per agent
 # while the panel refreshes on its own. Two writers aiming at one cache file

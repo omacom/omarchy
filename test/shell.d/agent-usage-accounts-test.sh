@@ -64,8 +64,8 @@ def urlopen(request, timeout=None):
   return io.BytesIO(json.dumps({"five_hour": {"utilization": usage[token]}, "seven_day": {"utilization": 5.0}}).encode())
 
 collector.urllib.request.urlopen = urlopen
-collector.scan_pi_usage = lambda age: None
-collector.scan_opencode_usage = lambda age: None
+collector.scan_pi_usage = lambda age, use_index=True: None
+collector.scan_opencode_usage = lambda age, use_index=True: None
 sys.argv = ["omarchy-agent-usage-claude", "--force"]
 collector.main()
 PY
@@ -104,8 +104,8 @@ spec = importlib.util.spec_from_loader(loader.name, loader)
 collector = importlib.util.module_from_spec(spec)
 loader.exec_module(collector)
 collector.urllib.request.urlopen = lambda request, timeout=None: io.BytesIO(b'{"five_hour": {"utilization": 30.0}}')
-collector.scan_pi_usage = lambda age: None
-collector.scan_opencode_usage = lambda age: None
+collector.scan_pi_usage = lambda age, use_index=True: None
+collector.scan_opencode_usage = lambda age, use_index=True: None
 sys.argv = ["omarchy-agent-usage-claude", "--force"]
 collector.main()
 PY
@@ -125,8 +125,8 @@ spec = importlib.util.spec_from_loader(loader.name, loader)
 collector = importlib.util.module_from_spec(spec)
 loader.exec_module(collector)
 collector.urllib.request.urlopen = lambda request, timeout=None: io.BytesIO(b'{"five_hour": {"utilization": 30.0}}')
-collector.scan_pi_usage = lambda age: None
-collector.scan_opencode_usage = lambda age: None
+collector.scan_pi_usage = lambda age, use_index=True: None
+collector.scan_opencode_usage = lambda age, use_index=True: None
 sys.argv = ["omarchy-agent-usage-claude", "--force"]
 collector.main()
 PY
@@ -155,8 +155,8 @@ def urlopen(request, timeout=None):
   return io.BytesIO(b'{"five_hour": {"utilization": 12.0}}')
 
 collector.urllib.request.urlopen = urlopen
-collector.scan_pi_usage = lambda age: None
-collector.scan_opencode_usage = lambda age: None
+collector.scan_pi_usage = lambda age, use_index=True: None
+collector.scan_opencode_usage = lambda age, use_index=True: None
 sys.argv = ["omarchy-agent-usage-claude", "--force"]
 collector.main()
 PY
@@ -177,8 +177,8 @@ spec = importlib.util.spec_from_loader(loader.name, loader)
 collector = importlib.util.module_from_spec(spec)
 loader.exec_module(collector)
 collector.urllib.request.urlopen = lambda request, timeout=None: io.BytesIO(b'{"five_hour": {"utilization": 30.0}}')
-collector.scan_pi_usage = lambda age: None
-collector.scan_opencode_usage = lambda age: None
+collector.scan_pi_usage = lambda age, use_index=True: None
+collector.scan_opencode_usage = lambda age, use_index=True: None
 sys.argv = ["omarchy-agent-usage-claude", "--force"]
 collector.main()
 PY
@@ -205,8 +205,8 @@ def urlopen(request, timeout=None):
   raise collector.urllib.error.URLError("down")
 
 collector.urllib.request.urlopen = urlopen
-collector.scan_pi_usage = lambda age: None
-collector.scan_opencode_usage = lambda age: None
+collector.scan_pi_usage = lambda age, use_index=True: None
+collector.scan_opencode_usage = lambda age, use_index=True: None
 sys.argv = ["omarchy-agent-usage-claude", "--force"]
 collector.main()
 PY

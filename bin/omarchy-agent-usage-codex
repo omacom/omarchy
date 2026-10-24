@@ -15,6 +15,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import select
 import shutil
 import sqlite3
@@ -47,6 +48,21 @@ LIMITS_ONLY_REUSE_SECONDS = 900
 # only reads the session files that changed. Bumping the schema retires every
 # record written by an older layout.
 FILE_CACHE_SCHEMA = 1
+
+# pi/omp sessions and opencode rows keep indexes of their own on the same
+# terms: a session is read from where the last scan stopped, and an opencode
+# row only when its update time moved.
+PI_INDEX_SCHEMA = 1
+OPENCODE_INDEX_SCHEMA = 1
+
+# How much of each end of what was read the pi index remembers a hash of, so a
+# session replaced or rewritten with more than it had is not taken for an
+# append.
+INDEX_HEAD_BYTES = 4096
+
+# A pi/omp line spends a Codex subscription when it names it as the provider
+# or the API.
+PI_CODEX_LINE = re.compile(rb'"provider"\s*:\s*"openai-codex"|"api"\s*:\s*"openai-codex')
 
 
 def local_day(value):
@@ -218,11 +234,10 @@ def add_usage(day, session_key, model, input_tokens, output_tokens, cache_read, 
   merge_file_record(session_key, record)
 
 
-def pi_parent_session(path):
+def pi_parent_session(header_line):
   try:
-    with open(path, encoding="utf-8", errors="replace") as session_file:
-      header = json.loads(session_file.readline())
-  except (OSError, json.JSONDecodeError):
+    header = json.loads(header_line.decode("utf-8", errors="replace"))
+  except json.JSONDecodeError:
     return None
 
   if not isinstance(header, dict):
@@ -231,6 +246,93 @@ def pi_parent_session(path):
   if not isinstance(parent, str) or not parent:
     return None
   return os.path.abspath(os.path.expanduser(parent))
+
+
+def pi_message_usage(line):
+  """[day, model, input, output, cacheRead, cacheWrite] for a Codex reply,
+  None for any other message. `day` is None when the line carries no time."""
+  message = line.get("message") or {}
+  if not isinstance(message, dict) or message.get("role") != "assistant":
+    return None
+  provider = str(message.get("provider") or "")
+  api = str(message.get("api") or "")
+  if provider != "openai-codex" and not api.startswith("openai-codex"):
+    return None
+
+  usage = message.get("usage") or {}
+  if not isinstance(usage, dict) or not usage:
+    return None
+  total = number(usage.get("totalTokens"))
+  input_tokens = number(usage.get("input"))
+  output_tokens = number(usage.get("output"))
+  cache_read = number(usage.get("cacheRead"))
+  cache_write = number(usage.get("cacheWrite"))
+  if total and not (input_tokens or output_tokens or cache_read or cache_write):
+    input_tokens = total
+  if not (input_tokens or output_tokens or cache_read or cache_write):
+    return None
+
+  timestamp = line.get("timestamp") or message.get("timestamp")
+  day = local_day(timestamp) if timestamp is not None else None
+  return [day, model_name(message.get("model")), input_tokens, output_tokens, cache_read, cache_write]
+
+
+def read_pi_session(path, entry):
+  """Index entry for one pi/omp session: the session it forked from, and each
+  message line naming a Codex provider as [id, timestamp, usage], usage being
+  None for a message that only takes part in deduplication. Reuses `entry`
+  where the file only grew."""
+  stat_result = path.stat()
+  if entry and entry["size"] == stat_result.st_size and entry["mtime"] == stat_result.st_mtime_ns:
+    return entry
+
+  # Only the same file, grown past what was read with what was read still in
+  # place, is an append. A session replaced by a larger one is a new file, and
+  # one rewritten in place has a different start or end.
+  if (
+    entry
+    and stat_result.st_size > entry["size"]
+    and entry["file"] == [stat_result.st_dev, stat_result.st_ino]
+    and entry["head"] == read_digest(path, entry["offset"])
+  ):
+    messages = list(entry["messages"])
+    offset = entry["offset"]
+    parent = entry["parent"]
+  else:
+    messages = []
+    offset = 0
+    parent = None
+
+  with path.open("rb") as handle:
+    handle.seek(offset)
+    for raw in handle:
+      if not raw.endswith(b"\n"):
+        # A line still being written; pick it up whole next time.
+        break
+      if offset == 0:
+        parent = pi_parent_session(raw)
+      offset += len(raw)
+
+      if b"openai-codex" not in raw or not PI_CODEX_LINE.search(raw):
+        continue
+      try:
+        line = json.loads(raw.decode("utf-8", errors="replace"))
+        if not isinstance(line, dict) or line.get("type") != "message":
+          continue
+        usage = pi_message_usage(line)
+      except Exception:
+        continue
+      messages.append([str(line.get("id") or ""), str(line.get("timestamp") or ""), usage])
+
+  return {
+    "size": stat_result.st_size,
+    "file": [stat_result.st_dev, stat_result.st_ino],
+    "mtime": stat_result.st_mtime_ns,
+    "head": read_digest(path, offset),
+    "offset": offset,
+    "parent": parent,
+    "messages": messages,
+  }
 
 
 # `omp --profile=<name>` (and pi's equivalent) relocates the whole agent tree
@@ -252,90 +354,46 @@ def pi_session_roots():
   return roots
 
 
-def scan_pi_sessions():
-  roots = pi_session_roots()
-  rg = find_command("rg") or "rg"
+# Only the session files themselves count: the roots also hold logs and
+# artifacts that can quote a session line without being one.
+def scan_pi_sessions(cached_index, scanned_index):
   session_keys = {}
   today_session_keys = {}
-  for root in roots:
-    if not root.exists():
+  parents = {}
+  for root in pi_session_roots():
+    if not root.is_dir():
       continue
-    try:
-      proc = subprocess.Popen(
-        # --no-ignore: these are data files, not a source tree. When $HOME is
-        # itself a git checkout (a common dotfiles setup), the parent repo's
-        # ignore rules would otherwise silently exclude every session file and
-        # the scan would count zero usage.
-        [rg, "--json", "--no-ignore", "-e", r'"provider"\s*:\s*"openai-codex"', "-e", r'"api"\s*:\s*"openai-codex', str(root)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        errors="replace",
-        env=ENV,
-      )
-    except FileNotFoundError:
-      return
-
-    assert proc.stdout is not None
-    for raw in proc.stdout:
+    for path in root.rglob("*.jsonl"):
+      key = str(path)
       try:
-        event = json.loads(raw)
-        if event.get("type") != "match":
+        record = read_pi_session(path, cached_index.get(key))
+      except OSError:
+        continue
+      scanned_index[key] = record
+      parents[key] = record["parent"]
+
+      for message_id, message_timestamp, usage in record["messages"]:
+        # Forks retain both fields; IDs alone can collide across sessions.
+        if message_id and message_timestamp:
+          message_key = ("entry", message_id, message_timestamp)
+        else:
+          message_key = ("path", key, message_id)
+        duplicate = message_key in seen_pi_messages
+        seen_pi_messages.add(message_key)
+        if usage is None:
           continue
-        line = event.get("data", {}).get("lines", {}).get("text", "")
-        raw_path = event.get("data", {}).get("path", {}).get("text", "pi-session")
-        path = os.path.abspath(os.path.expanduser(raw_path))
-        entry = json.loads(line)
-      except Exception:
-        continue
 
-      if entry.get("type") != "message":
-        continue
-      message_id = str(entry.get("id") or "")
-      message_timestamp = str(entry.get("timestamp") or "")
-      # Forks retain both fields; IDs alone can collide across sessions.
-      if message_id and message_timestamp:
-        message_key = ("entry", message_id, message_timestamp)
-      else:
-        message_key = ("path", path, message_id)
-      duplicate = message_key in seen_pi_messages
-      seen_pi_messages.add(message_key)
-      message = entry.get("message") or {}
-      if message.get("role") != "assistant":
-        continue
-      provider = str(message.get("provider") or "")
-      api = str(message.get("api") or "")
-      if provider != "openai-codex" and not api.startswith("openai-codex"):
-        continue
+        day, model, input_tokens, output_tokens, cache_read, cache_write = usage
+        day = day or today
+        session_keys.setdefault(key, set()).add(message_key)
+        if day == today:
+          today_session_keys.setdefault(key, set()).add(message_key)
+        if duplicate:
+          continue
+        add_usage(day, key, model, input_tokens, output_tokens, cache_read, cache_write)
 
-      usage = message.get("usage") or {}
-      if not usage:
-        continue
-      total = number(usage.get("totalTokens"))
-      input_tokens = number(usage.get("input"))
-      output_tokens = number(usage.get("output"))
-      cache_read = number(usage.get("cacheRead"))
-      cache_write = number(usage.get("cacheWrite"))
-      if total and not (input_tokens or output_tokens or cache_read or cache_write):
-        input_tokens = total
-      if not (input_tokens or output_tokens or cache_read or cache_write):
-        continue
-
-      day = local_day(entry.get("timestamp") or message.get("timestamp"))
-      session_keys.setdefault(path, set()).add(message_key)
-      if day == today:
-        today_session_keys.setdefault(path, set()).add(message_key)
-      if duplicate:
-        continue
-      add_usage(day, path, model_name(message.get("model")), input_tokens, output_tokens, cache_read, cache_write)
-
-    try:
-      proc.wait(timeout=1)
-    except Exception:
-      proc.kill()
-
-  # Resolve session ownership after scanning so rg's file order cannot affect it.
-  parents = {path: pi_parent_session(path) for path in session_keys}
+  # Resolve session ownership after scanning so file order cannot affect it.
+  parents = {path: parents[path] for path in session_keys}
   total_sessions.difference_update(session_keys)
   today_sessions.difference_update(session_keys)
   for path, keys in session_keys.items():
@@ -354,13 +412,50 @@ def scan_pi_sessions():
       today_sessions.add(path)
 
 
-def scan_opencode_sessions():
+def opencode_usage(session_id, raw):
+  """[day, model, input, output, cacheRead, cacheWrite, session] for an OpenAI
+  reply row, None for any other row. `day` is None when the row carries no
+  creation time."""
+  # One malformed row must not abort the scan, so every shape assumption
+  # lives inside the try.
+  try:
+    entry = json.loads(raw)
+    # Exact match: opencode provider ids are free-form, and a custom
+    # "openai-local" gateway is not this subscription.
+    if not isinstance(entry, dict) or entry.get("role") != "assistant":
+      return None
+    if str(entry.get("providerID") or "") != "openai":
+      return None
+    tokens = entry.get("tokens") or {}
+    cache = tokens.get("cache") or {}
+    input_tokens = number(tokens.get("input"))
+    # opencode keeps thinking tokens out of output; both are generated.
+    output_tokens = number(tokens.get("output")) + number(tokens.get("reasoning"))
+    cache_read = number(cache.get("read"))
+    cache_write = number(cache.get("write"))
+    if not (input_tokens or output_tokens or cache_read or cache_write):
+      return None
+    created = (entry.get("time") or {}).get("created")
+    day = local_day(created) if created is not None else None
+    model = model_name(str(entry.get("modelID") or "").rstrip("/").split("/")[-1])
+  except Exception:
+    return None
+  return [day, model, input_tokens, output_tokens, cache_read, cache_write, "opencode:" + str(session_id)]
+
+
+def scan_opencode_sessions(cached_rows, scanned_rows):
   # A subscription burned entirely through opencode leaves no native session
   # files, but opencode records per-message provider, model, and token usage
   # in its own database. Read-only: opencode may be writing right now.
   # Returns whether the scan ran to completion: a scan cut short by a
   # database error still contributes what it read, but must not be cached
   # as if it were the whole story.
+  #
+  # A message row is rewritten while its reply streams and keeps its id, so
+  # scanned_rows keeps {id: [time_updated, usage]} and only rows whose update
+  # time moved since cached_rows are read. Asking which rows those are reads
+  # each row's leading columns, never its JSON, so an unchanged database costs
+  # milliseconds however much history it holds.
   db = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
   if not db.is_file():
     return True
@@ -368,8 +463,23 @@ def scan_opencode_sessions():
     conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
   except sqlite3.Error:
     return False
+  complete = True
   try:
     conn.execute("PRAGMA query_only = ON")
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(message)")}
+    key_column = "id" if "id" in columns else "rowid"
+    updated_column = "time_updated" if "time_updated" in columns else "NULL"
+    stale = []
+    for row_id, updated in conn.execute(f"SELECT {key_column}, {updated_column} FROM message"):
+      held = cached_rows.get(str(row_id))
+      # A row with no update time can never be shown unchanged, so it is read.
+      if held is not None and updated is not None and held[0] == updated:
+        scanned_rows[str(row_id)] = held
+      else:
+        stale.append(row_id)
+        # Counts for nothing unless the filtered read below returns it.
+        scanned_rows[str(row_id)] = [updated, None]
+
     # OpenCode DBs grow huge (every historical message, JSON included), and
     # Python-side json.loads of every row wasted ~600 MB of RSS on machines
     # whose subscription never ran on OpenAI. The json_extract conditions are
@@ -392,44 +502,30 @@ def scan_opencode_sessions():
     #     well-formed JSON are skipped here; the per-row try/except below
     #     stays as the final safety net for rows that pass the SQL filter
     #     but fail json.loads.
-    for session_id, raw in conn.execute(
-      "SELECT session_id, data FROM message"
-      " WHERE data LIKE '%\"role\"%:%\"assistant\"%'"
-      " AND data LIKE '%\"providerID\"%:%\"openai\"%'"
-      " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.role') END = 'assistant'"
-      " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.providerID') END = 'openai'"
-    ):
-      # One malformed row must not abort the scan, so every shape assumption
-      # lives inside the try.
-      try:
-        entry = json.loads(raw)
-        # Exact match: opencode provider ids are free-form, and a custom
-        # "openai-local" gateway is not this subscription.
-        if not isinstance(entry, dict) or entry.get("role") != "assistant":
-          continue
-        if str(entry.get("providerID") or "") != "openai":
-          continue
-        tokens = entry.get("tokens") or {}
-        cache = tokens.get("cache") or {}
-        input_tokens = number(tokens.get("input"))
-        # opencode keeps thinking tokens out of output; both are generated.
-        output_tokens = number(tokens.get("output")) + number(tokens.get("reasoning"))
-        cache_read = number(cache.get("read"))
-        cache_write = number(cache.get("write"))
-        if not (input_tokens or output_tokens or cache_read or cache_write):
-          continue
-        day = local_day((entry.get("time") or {}).get("created"))
-        model = model_name(str(entry.get("modelID") or "").rstrip("/").split("/")[-1])
-      except Exception:
-        continue
-      add_usage(day, "opencode:" + str(session_id), model, input_tokens, output_tokens, cache_read, cache_write)
+    for start in range(0, len(stale), 500):
+      chunk = stale[start:start + 500]
+      for row_id, session_id, raw in conn.execute(
+        f"SELECT {key_column}, session_id, data FROM message"
+        f" WHERE {key_column} IN ({','.join('?' * len(chunk))})"
+        " AND data LIKE '%\"role\"%:%\"assistant\"%'"
+        " AND data LIKE '%\"providerID\"%:%\"openai\"%'"
+        " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.role') END = 'assistant'"
+        " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.providerID') END = 'openai'",
+        chunk,
+      ):
+        scanned_rows[str(row_id)][1] = opencode_usage(session_id, raw)
   except sqlite3.Error:
     # Transient lock, schema migration, corruption: the numbers stop here,
     # incomplete.
-    return False
+    complete = False
   finally:
     conn.close()
-  return True
+
+  for _, usage in scanned_rows.values():
+    if usage:
+      day, model, input_tokens, output_tokens, cache_read, cache_write, session_key = usage
+      add_usage(day or today, session_key, model, input_tokens, output_tokens, cache_read, cache_write)
+  return complete
 
 
 def scan_native_codex_sessions(cached_files, scanned_files):
@@ -587,7 +683,8 @@ def read_file_cache():
   timezone can invalidate one, so midnight and the clock moving leave them true.
 
   pi and omp sessions stay out of it: a forked pi session repeats its parent's
-  messages, so they are only deduplicated across the whole tree at once.
+  messages, so they are only deduplicated across the whole tree at once. Their
+  own index (read_pi_index) keeps each message instead of a file's totals.
   """
   try:
     payload = json.loads(file_cache_path().read_text(encoding="utf-8"))
@@ -620,6 +717,79 @@ def reusable_record(cached_files, key, stat_result):
   if record["mtime"] != stat_result.st_mtime or record["size"] != stat_result.st_size:
     return None
   return record
+
+
+# What was already read, by its first and last few kilobytes: a session
+# rewritten in place rather than appended to changes one or the other.
+def read_digest(path, length):
+  digest = hashlib.sha1()
+  with path.open("rb") as handle:
+    digest.update(handle.read(min(length, INDEX_HEAD_BYTES)))
+    handle.seek(max(0, length - INDEX_HEAD_BYTES))
+    digest.update(handle.read(min(length, INDEX_HEAD_BYTES)))
+  return digest.hexdigest()
+
+
+# Indexes take the function naming their path, so an unusable cache root is a
+# miss to read and a warning to write, like the file cache, never a crash.
+def read_index(index_path, schema):
+  """The entries of an index written in this layout and timezone, or {}."""
+  try:
+    payload = json.loads(index_path().read_text(encoding="utf-8"))
+  except Exception:
+    return {}
+  if not isinstance(payload, dict) or payload.get("schemaVersion") != schema:
+    return {}
+  if payload.get("zone") != file_cache_zone():
+    return {}
+  entries = payload.get("entries")
+  return entries if isinstance(entries, dict) else {}
+
+
+def write_index(index_path, schema, entries):
+  try:
+    write_json(index_path(), {"schemaVersion": schema, "zone": file_cache_zone(), "entries": entries})
+  except Exception as exc:
+    print(f"omarchy-agent-usage-codex: could not write {index_path.__name__.removesuffix('_path').replace('_', ' ')} ({exc})", file=sys.stderr)
+
+
+def pi_index_path():
+  return cache_root() / f"codex-pi-index-{scan_cache_digest()}.json"
+
+
+def valid_pi_entry(value):
+  try:
+    return (
+      all(type(value[key]) is int for key in ("size", "mtime", "offset"))
+      and type(value["file"]) is list and type(value["head"]) is str
+      and (value["parent"] is None or type(value["parent"]) is str)
+      and all(len(message) == 3 and (message[2] is None or len(message[2]) == 6) for message in value["messages"])
+    )
+  except Exception:
+    return False
+
+
+def read_pi_index():
+  """Per-file messages of pi/omp sessions from earlier scans, keyed by path.
+
+  A forked session repeats its parent's messages, so the index keeps each
+  message's identity rather than a file's totals: the tree is still
+  deduplicated as a whole on every run, only without reading it again.
+  """
+  return {path: entry for path, entry in read_index(pi_index_path, PI_INDEX_SCHEMA).items() if valid_pi_entry(entry)}
+
+
+def opencode_index_path():
+  return cache_root() / f"codex-opencode-index-{scan_cache_digest()}.json"
+
+
+def read_opencode_index():
+  """Each opencode message row's usage as of the update time it was read at."""
+  return {
+    row_id: row
+    for row_id, row in read_index(opencode_index_path, OPENCODE_INDEX_SCHEMA).items()
+    if type(row) is list and len(row) == 2 and (row[1] is None or (type(row[1]) is list and len(row[1]) == 7))
+  }
 
 
 def read_fresh_json(path, max_age_seconds):
@@ -704,12 +874,25 @@ def local_stats():
 
 # A forced scan (no reuse at all) reads every session file again.
 def run_local_scans(max_age):
-  cached_files = read_file_cache() if max_age > 0 else {}
+  reuse = max_age > 0
+  cached_files = read_file_cache() if reuse else {}
+  cached_pi = read_pi_index() if reuse else {}
+  cached_opencode = read_opencode_index() if reuse else {}
   scanned_files = {}
-  scan_pi_sessions()
+  scanned_pi = {}
+  scanned_opencode = {}
+  scan_pi_sessions(cached_pi, scanned_pi)
   scan_native_codex_sessions(cached_files, scanned_files)
-  complete = scan_opencode_sessions()
+  complete = scan_opencode_sessions(cached_opencode, scanned_opencode)
   write_file_cache(scanned_files)
+  # Rewritten only when something changed: the pi index holds every message
+  # of the tree, and most refreshes find no session grew.
+  if scanned_pi != cached_pi:
+    write_index(pi_index_path, PI_INDEX_SCHEMA, scanned_pi)
+  # A scan cut short would leave rows it never reached marked as counting for
+  # nothing until they change again.
+  if complete and scanned_opencode != cached_opencode:
+    write_index(opencode_index_path, OPENCODE_INDEX_SCHEMA, scanned_opencode)
   return local_stats(), complete
 
 

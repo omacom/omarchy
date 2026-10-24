@@ -5,7 +5,6 @@ source "$(dirname "$0")/base-test.sh"
 require_command jq
 require_command python3
 require_command git
-require_command rg
 
 # Every fixture home lives under one scratch directory, cleaned up at exit.
 SCRATCH=$(mktemp -d)
@@ -112,12 +111,6 @@ mkdir -p "$PI_HOME/bin" "$PI_HOME/.pi/agent/sessions/project" "$PI_HOME/.omp/age
   "$PI_HOME/.omp/profiles/codex/agent/sessions/project"
 mkdir -p "$PI_HOME/.codex" && touch "$PI_HOME/.codex/auth.json"
 cp "$TEST_HOME/bin/codex" "$PI_HOME/bin/codex"
-real_rg=$(command -v rg)
-cat >"$PI_HOME/bin/rg" <<EOF
-#!/bin/bash
-exec "$real_rg" --sort path "\$@"
-EOF
-chmod +x "$PI_HOME/bin/rg"
 cat >"$PI_HOME/.pi/agent/sessions/project/pi.jsonl" <<EOF
 {"type":"message","id":"deadbeef","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","api":"openai-codex-responses","model":"gpt-pi","usage":{"input":10,"output":4,"cacheRead":3,"cacheWrite":2,"totalTokens":19}}}
 EOF
@@ -153,9 +146,9 @@ result=$(HOME="$PI_HOME" CODEX_HOME="$PI_HOME/.codex" XDG_DATA_HOME="$PI_HOME/.l
 pass "Codex collector deduplicates Pi forks without collapsing ID collisions, profiles included"
 
 # A $HOME that is itself a git checkout (a common dotfiles setup with a
-# whitelist .gitignore) must not hide the session files from the scan:
-# ripgrep applies the parent repo's ignore rules to searched directories,
-# which would otherwise make the scan silently count zero usage.
+# whitelist .gitignore) must not hide the session files from the scan, as it
+# did when ripgrep searched them and applied the parent repo's ignore rules:
+# the scan silently counted zero usage.
 GIT_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
 mkdir -p "$GIT_HOME/bin" "$GIT_HOME/.pi/agent/sessions/project"
 cp "$TEST_HOME/bin/codex" "$GIT_HOME/bin/codex"
@@ -799,7 +792,7 @@ pass "Codex collector probes without temporary space"
 LAUNCH_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
 SAFE_PATH="$LAUNCH_HOME/tools"
 mkdir -p "$SAFE_PATH"
-for tool in python3 rg jq; do
+for tool in python3 jq; do
   if command -v "$tool" >/dev/null; then
     ln -s "$(command -v "$tool")" "$SAFE_PATH/$tool"
   fi
@@ -1269,3 +1262,84 @@ result=$(run_incremental)
 [[ $(jq -r '.modelUsage["gpt-broken"].inputTokens' <<<"$result") == "6" ]] ||
   fail "Codex collector drops usage read before a line that stops the read" "$result"
 pass "Codex collector keeps usage read before a line that stops the read"
+
+# pi/omp sessions and opencode rows are indexed too: an unchanged session is
+# replayed without being opened, a grown one is read from where the last scan
+# stopped, and an opencode row is parsed again only once its update time moves.
+INDEXED_HOME=$(signed_in_home)
+cp "$TEST_HOME/bin/codex" "$INDEXED_HOME/bin/codex"
+indexed_root="$INDEXED_HOME/.omp/agent/sessions/project"
+mkdir -p "$indexed_root"
+indexed_line() {
+  printf '{"type":"message","id":"%s","timestamp":"%s","message":{"role":"assistant","provider":"openai-codex","model":"gpt-indexed","usage":{"input":%s,"output":0}}}\n' "$1" "$timestamp" "$2"
+}
+indexed_line indexed-1 10 >"$indexed_root/one.jsonl"
+indexed_line indexed-2 20 >"$indexed_root/two.jsonl"
+# The roots also hold logs and artifacts, and one quoting a session line is
+# still not a session.
+indexed_line quoted-1 500 >"$indexed_root/tool.eval.log"
+
+python3 - "$INDEXED_HOME/.local/share/opencode/opencode.db" <<'PY'
+import json
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+db = Path(sys.argv[1])
+db.parent.mkdir(parents=True, exist_ok=True)
+conn = sqlite3.connect(db)
+conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+now_ms = int(time.time() * 1000)
+conn.execute("INSERT INTO message VALUES ('msg_1', 'ses_1', ?, ?, ?)", (now_ms, now_ms, json.dumps({
+  "role": "assistant",
+  "providerID": "openai",
+  "modelID": "gpt-indexed",
+  "tokens": {"input": 100, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
+  "time": {"created": now_ms},
+})))
+conn.commit()
+conn.close()
+PY
+
+run_indexed() {
+  HOME="$INDEXED_HOME" CODEX_HOME="$INDEXED_HOME/.codex" XDG_CACHE_HOME="$INDEXED_HOME/.cache" \
+    XDG_DATA_HOME="$INDEXED_HOME/.local/share" PATH="$INDEXED_HOME/bin:$PATH" \
+    "$collector" "$@"
+}
+expire_indexed_scan_cache() {
+  local cache
+  for cache in "$INDEXED_HOME/.cache/omarchy/agent-usage/"codex-scan-*.json; do
+    [[ -e $cache ]] && touch -d "2 hours ago" "$cache"
+  done
+}
+indexed_sql() {
+  python3 -c 'import sqlite3, sys; conn = sqlite3.connect(sys.argv[1]); conn.execute(sys.argv[2]); conn.commit()' \
+    "$INDEXED_HOME/.local/share/opencode/opencode.db" "$1"
+}
+
+result=$(run_indexed)
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "130" ]] ||
+  fail "Codex collector counts logs under the pi roots as sessions" "$result"
+pass "Codex collector counts session files, not logs, under the pi roots"
+
+indexed_line indexed-3 300 >>"$indexed_root/two.jsonl"
+chmod 000 "$indexed_root/one.jsonl"
+expire_indexed_scan_cache
+result=$(run_indexed 2>/dev/null)
+chmod 644 "$indexed_root/one.jsonl"
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "430" ]] ||
+  fail "Codex collector rereads pi and omp sessions it has already counted" "$result"
+pass "Codex collector reads only what was appended to pi and omp sessions"
+
+indexed_sql "UPDATE message SET data = replace(data, '\"input\": 100', '\"input\": 1100') WHERE id = 'msg_1'"
+expire_indexed_scan_cache
+result=$(run_indexed)
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "430" ]] ||
+  fail "Codex collector reparses opencode rows whose update time did not move" "$result"
+indexed_sql "UPDATE message SET time_updated = time_updated + 1 WHERE id = 'msg_1'"
+expire_indexed_scan_cache
+result=$(run_indexed)
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "1430" ]] ||
+  fail "Codex collector misses an opencode row whose update time moved" "$result"
+pass "Codex collector parses an opencode row again only once its update time moves"

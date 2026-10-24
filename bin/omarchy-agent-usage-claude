@@ -27,6 +27,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -144,12 +145,12 @@ def index_zone() -> list[Any]:
   return [os.environ.get("TZ"), list(time.tzname), time.timezone, time.altzone]
 
 
-def load_index(index_file: Path) -> dict[str, Any]:
+def load_index(index_file: Path, version: int = INDEX_VERSION) -> dict[str, Any]:
   try:
     data = json.loads(index_file.read_text(encoding="utf-8"))
     if (
       isinstance(data, dict)
-      and data.get("version") == INDEX_VERSION
+      and data.get("version") == version
       and data.get("zone") == index_zone()
       and isinstance(data.get("files"), dict)
     ):
@@ -170,33 +171,46 @@ def read_digest(path: Path, length: int) -> str:
   return digest.hexdigest()
 
 
-def parse_usage_records(path: Path, entry: dict[str, Any] | None) -> dict[str, Any]:
-  """Return the index entry for one transcript, reusing `entry` where the file
-  only grew. Records are [key, model, day, input, output, cacheRead,
-  cacheWrite, session]; `day` is None when the line carries no timestamp."""
+def resume_point(path: Path, entry: dict[str, Any] | None) -> tuple[os.stat_result, bool, list[Any], int, int]:
+  """Where reading a transcript picks up again: (stat, unchanged, records,
+  offset, lines). `unchanged` means `entry` still describes the file and
+  nothing needs reading at all."""
   stat = path.stat()
-  size = stat.st_size
-  mtime = stat.st_mtime_ns
-
-  if entry and entry.get("size") == size and entry.get("mtime") == mtime:
-    return entry
+  if entry and entry.get("size") == stat.st_size and entry.get("mtime") == stat.st_mtime_ns:
+    return stat, True, [], 0, 0
 
   # Only the same file, grown past what was read with what was read still in
   # place, is an append. A transcript replaced by a larger one is a new file,
   # and one rewritten in place has a different start or end.
   if (
     entry
-    and size > number(entry.get("size"))
+    and stat.st_size > number(entry.get("size"))
     and entry.get("file") == [stat.st_dev, stat.st_ino]
     and entry.get("head") == read_digest(path, number(entry.get("offset")))
   ):
-    records = list(entry.get("records") or [])
-    offset = number(entry.get("offset"))
-    line_number = number(entry.get("lines"))
-  else:
-    records = []
-    offset = 0
-    line_number = 0
+    return stat, False, list(entry.get("records") or []), number(entry.get("offset")), number(entry.get("lines"))
+  return stat, False, [], 0, 0
+
+
+def index_entry(path: Path, stat: os.stat_result, offset: int, lines: int, records: list[Any]) -> dict[str, Any]:
+  return {
+    "size": stat.st_size,
+    "file": [stat.st_dev, stat.st_ino],
+    "mtime": stat.st_mtime_ns,
+    "head": read_digest(path, offset),
+    "offset": offset,
+    "lines": lines,
+    "records": records,
+  }
+
+
+def parse_usage_records(path: Path, entry: dict[str, Any] | None) -> dict[str, Any]:
+  """Return the index entry for one transcript, reusing `entry` where the file
+  only grew. Records are [key, model, day, input, output, cacheRead,
+  cacheWrite, session]; `day` is None when the line carries no timestamp."""
+  stat, unchanged, records, offset, line_number = resume_point(path, entry)
+  if unchanged:
+    return entry
 
   # A streamed response is several lines sharing one message id, and the
   # first line's output_tokens is a placeholder while the last carries the
@@ -263,15 +277,7 @@ def parse_usage_records(path: Path, entry: dict[str, Any] | None) -> dict[str, A
       else:
         records[held] = record
 
-  return {
-    "size": size,
-    "file": [stat.st_dev, stat.st_ino],
-    "mtime": mtime,
-    "head": read_digest(path, offset),
-    "offset": offset,
-    "lines": line_number,
-    "records": records,
-  }
+  return index_entry(path, stat, offset, line_number, records)
 
 
 def scan_projects(projects_path: Path, index_file: Path | None = None) -> dict[str, Any]:
@@ -313,10 +319,10 @@ def scan_projects(projects_path: Path, index_file: Path | None = None) -> dict[s
     except Exception as exc:
       print(f"Could not write Claude scan index {index_file}: {exc}", file=sys.stderr)
 
-  return summarize_records(current, order)
+  return summarize_records(record for key in order for record in current[key].get("records") or [])
 
 
-def summarize_records(indexed: dict[str, Any], order: list[str]) -> dict[str, Any]:
+def summarize_records(records: Iterable[list[Any]]) -> dict[str, Any]:
   today = local_date_string()
   recent_dates = recent_date_strings()
   recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
@@ -334,12 +340,11 @@ def summarize_records(indexed: dict[str, Any], order: list[str]) -> dict[str, An
   today_prompt_count = 0
   today_token_total = 0
 
-  for key in order:
-    for record in indexed[key].get("records") or []:
-      held = seen.get(record[0])
-      if held is not None and record[4] < held[4]:
-        continue
-      seen[record[0]] = record
+  for record in records:
+    held = seen.get(record[0])
+    if held is not None and record[4] < held[4]:
+      continue
+    seen[record[0]] = record
 
   for _, model, day, input_tokens, output_tokens, cache_read, cache_write, session_key in seen.values():
     if day is None:
@@ -539,95 +544,102 @@ def pi_session_roots() -> list[Path]:
   return roots
 
 
-def scan_pi_usage(max_age_seconds: float) -> dict[str, Any] | None:
+PI_INDEX_VERSION = 1
+
+
+def parse_pi_records(path: Path, entry: dict[str, Any] | None) -> dict[str, Any]:
+  """Return the index entry for one pi/omp session, reusing `entry` where the
+  file only grew. Records have the transcript index's shape, with the session
+  file standing in for the session id; keys carry the path, so a message is
+  only ever deduplicated within its own file."""
+  stat, unchanged, records, offset, line_number = resume_point(path, entry)
+  if unchanged:
+    return entry
+
+  keys = {record[0] for record in records}
+  with path.open("rb") as handle:
+    handle.seek(offset)
+    for raw in handle:
+      if not raw.endswith(b"\n"):
+        # A line still being written; pick it up whole next time.
+        break
+      offset += len(raw)
+      line_number += 1
+
+      if b'"usage"' not in raw or b'"assistant"' not in raw:
+        continue
+      try:
+        parsed = json.loads(raw.decode("utf-8", errors="replace"))
+        message = parsed.get("message") if isinstance(parsed.get("message"), dict) else {}
+        if parsed.get("type") != "message" or message.get("role") != "assistant":
+          continue
+        provider = str(message.get("provider") or "")
+        if provider != "anthropic":
+          continue
+        key = f"{path}:{parsed.get('id') or line_number}"
+        if key in keys:
+          continue
+        keys.add(key)
+        usage = message.get("usage") or {}
+        input_tokens = usage_token(usage, "input", "inputTokens")
+        output_tokens = usage_token(usage, "output", "outputTokens")
+        cache_read = usage_token(usage, "cacheRead", "cache_read_input_tokens")
+        cache_write = usage_token(usage, "cacheWrite", "cache_creation_input_tokens")
+        total = input_tokens + output_tokens + cache_read + cache_write
+        if total <= 0:
+          total = number(usage.get("totalTokens"))
+          input_tokens = total
+        if total <= 0:
+          continue
+        timestamp = parsed.get("timestamp") or message.get("timestamp")
+        records.append([
+          key,
+          str(message.get("model") or "claude"),
+          local_date_from_timestamp(timestamp) if timestamp is not None else None,
+          input_tokens,
+          output_tokens,
+          cache_read,
+          cache_write,
+          str(path),
+        ])
+      except Exception:
+        continue
+
+  return index_entry(path, stat, offset, line_number, records)
+
+
+# Sessions only grow, like Claude Code transcripts, so they share the
+# transcript scan's per-file index: an unchanged session is not opened and a
+# grown one is read from where the last scan stopped.
+def scan_pi_usage(max_age_seconds: float, use_index: bool = True) -> dict[str, Any] | None:
   roots = pi_session_roots()
   cache_file = cache_root() / "claude-pi-sessions.json"
+  index_file = cache_root() / "claude-pi-index.json"
   cached = read_fresh_json(cache_file, max_age_seconds)
   if cached is not None:
     return cached.get("stats")
 
-  today = local_date_string()
-  recent_dates = recent_date_strings()
-  recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
-  sessions: set[str] = set()
-  active_days: set[str] = set()
-  today_sessions: set[str] = set()
-  today_tokens: dict[str, int] = {}
-  usage_by_model: dict[str, dict[str, int]] = {}
-  seen: set[str] = set()
-  prompts = 0
-  today_prompt_count = 0
-  today_token_total = 0
-
+  previous = load_index(index_file, PI_INDEX_VERSION) if use_index else {}
+  current: dict[str, Any] = {}
+  order: list[str] = []
   for root in roots:
     files = root.rglob("*.jsonl") if root.is_dir() else []
     for path in files:
+      key = str(path)
       try:
-        with path.open("r", encoding="utf-8", errors="replace") as handle:
-          for line_number, line in enumerate(handle, 1):
-            if '"usage"' not in line or '"assistant"' not in line:
-              continue
-            try:
-              entry = json.loads(line)
-              message = entry.get("message") if isinstance(entry.get("message"), dict) else {}
-              if entry.get("type") != "message" or message.get("role") != "assistant":
-                continue
-              provider = str(message.get("provider") or "")
-              if provider != "anthropic":
-                continue
-              unique_key = f"{path}:{entry.get('id') or line_number}"
-              if unique_key in seen:
-                continue
-              seen.add(unique_key)
-              usage = message.get("usage") or {}
-              input_tokens = usage_token(usage, "input", "inputTokens")
-              output_tokens = usage_token(usage, "output", "outputTokens")
-              cache_read = usage_token(usage, "cacheRead", "cache_read_input_tokens")
-              cache_write = usage_token(usage, "cacheWrite", "cache_creation_input_tokens")
-              total = input_tokens + output_tokens + cache_read + cache_write
-              if total <= 0:
-                total = number(usage.get("totalTokens"))
-                input_tokens = total
-              if total <= 0:
-                continue
-              model = str(message.get("model") or "claude")
-              day = local_date_from_timestamp(entry.get("timestamp") or message.get("timestamp"))
-            except Exception:
-              continue
-
-            session_key = str(path)
-            sessions.add(session_key)
-            active_days.add(day)
-            prompts += 1
-            bucket = usage_by_model.setdefault(model, empty_bucket())
-            bucket["inputTokens"] += input_tokens
-            bucket["outputTokens"] += output_tokens
-            bucket["cacheReadInputTokens"] += cache_read
-            bucket["cacheCreationInputTokens"] += cache_write
-            if day in recent:
-              recent[day]["messageCount"] += total
-            if day == today:
-              today_prompt_count += 1
-              today_sessions.add(session_key)
-              today_token_total += total
-              today_tokens[model] = today_tokens.get(model, 0) + total
+        current[key] = parse_pi_records(path, previous.get(key))
       except OSError:
         continue
+      order.append(key)
 
-  stats = None
-  if prompts > 0:
-    stats = {
-      "todayPrompts": today_prompt_count,
-      "todaySessions": len(today_sessions),
-      "todayTotalTokens": today_token_total,
-      "todayTokensByModel": today_tokens,
-      "recentDays": [recent[day] for day in recent_dates],
-      "modelUsage": usage_by_model,
-      "totalPrompts": prompts,
-      "totalSessions": len(sessions),
-      "activeDays": len(active_days),
-      "activeDates": sorted(active_days),
-    }
+  if current != previous:
+    try:
+      write_json(index_file, {"version": PI_INDEX_VERSION, "zone": index_zone(), "files": current})
+    except Exception as exc:
+      print(f"Could not write pi session index {index_file}: {exc}", file=sys.stderr)
+
+  summary = summarize_records(record for key in order for record in current[key]["records"])
+  stats = summary if summary["totalPrompts"] > 0 else None
   write_json(cache_file, {"stats": stats})
   return stats
 
@@ -640,7 +652,102 @@ def scan_pi_usage(max_age_seconds: float) -> dict[str, Any] | None:
 # messages and merge the result into whatever the transcript scan found.
 
 
-def scan_opencode_usage(max_age_seconds: float) -> dict[str, Any] | None:
+OPENCODE_INDEX_VERSION = 1
+
+# opencode v1 keeps messages in `message`, with the role, provider and model in
+# each row's data. v2 writes `session_message` instead: the role moves to the
+# `type` column and the provider and model nest under data.model. A database
+# can hold either or both.
+OPENCODE_TABLES = (("message", "opencode:", "NULL"), ("session_message", "opencode-v2:", "type"))
+
+
+def opencode_record(session_key: str, raw: Any, row_type: Any) -> list[Any] | None:
+  """The usage record of one message row, [model, day, input, output,
+  cacheRead, cacheWrite, session], or None for a row that is not an Anthropic
+  reply. `day` is None when the row carries no creation time."""
+  # One malformed row must not abort the scan, so every shape assumption
+  # lives inside the try.
+  try:
+    entry = json.loads(raw)
+    if not isinstance(entry, dict):
+      return None
+    if row_type is None:
+      role = entry.get("role")
+      provider = entry.get("providerID")
+      model_id = entry.get("modelID")
+    else:
+      role = row_type
+      model_info = entry.get("model") or {}
+      provider = model_info.get("providerID")
+      model_id = model_info.get("id")
+    # Exact match: opencode provider ids are free-form, and a custom
+    # "anthropic-proxy" gateway is not this subscription.
+    if role != "assistant" or str(provider or "") != "anthropic":
+      return None
+    tokens = entry.get("tokens") or {}
+    cache = tokens.get("cache") or {}
+    input_tokens = number(tokens.get("input"))
+    # opencode keeps thinking tokens out of output; both are generated.
+    output_tokens = number(tokens.get("output")) + number(tokens.get("reasoning"))
+    cache_read = number(cache.get("read"))
+    cache_write = number(cache.get("write"))
+    if input_tokens + output_tokens + cache_read + cache_write <= 0:
+      return None
+
+    created = number((entry.get("time") or {}).get("created"))
+    day = dt.datetime.fromtimestamp(created / 1000).strftime("%Y-%m-%d") if created > 0 else None
+    model = str(model_id or "claude").rstrip("/").split("/")[-1]
+  except Exception:
+    return None
+  return [model, day, input_tokens, output_tokens, cache_read, cache_write, session_key]
+
+
+def read_opencode_table(conn: sqlite3.Connection, table: str, prefix: str, type_column: str, known: dict[str, Any]) -> dict[str, Any]:
+  """Every row of one message table as {id: [time_updated, record]}, parsing
+  only the rows that are new or changed since `known` was read. Asking which
+  rows those are reads each row's leading columns, never its JSON, so an
+  unchanged database costs milliseconds however much history it holds."""
+  columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+  key_column = "id" if "id" in columns else "rowid"
+  updated_column = "time_updated" if "time_updated" in columns else "NULL"
+
+  rows: dict[str, Any] = {}
+  stale = []
+  for row_id, updated in conn.execute(f"SELECT {key_column}, {updated_column} FROM {table}"):
+    held = known.get(str(row_id))
+    # A row with no update time can never be shown unchanged, so it is read.
+    if held is not None and updated is not None and held[0] == updated:
+      rows[str(row_id)] = held
+    else:
+      stale.append(row_id)
+
+  for start in range(0, len(stale), 500):
+    chunk = stale[start:start + 500]
+    query = (
+      f"SELECT {key_column}, {updated_column}, session_id, data, {type_column} FROM {table}"
+      f" WHERE {key_column} IN ({','.join('?' * len(chunk))})"
+    )
+    for row_id, updated, session_id, raw, row_type in conn.execute(query, chunk):
+      rows[str(row_id)] = [updated, opencode_record(prefix + str(session_id), raw, row_type)]
+  return rows
+
+
+def load_opencode_index(index_file: Path) -> dict[str, Any]:
+  try:
+    data = json.loads(index_file.read_text(encoding="utf-8"))
+    if (
+      isinstance(data, dict)
+      and data.get("version") == OPENCODE_INDEX_VERSION
+      and data.get("zone") == index_zone()
+      and isinstance(data.get("tables"), dict)
+    ):
+      return data["tables"]
+  except Exception:
+    pass
+  return {}
+
+
+def scan_opencode_usage(max_age_seconds: float, use_index: bool = True) -> dict[str, Any] | None:
   db = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
   if not db.is_file():
     return None
@@ -648,23 +755,17 @@ def scan_opencode_usage(max_age_seconds: float) -> dict[str, Any] | None:
   # Same freshness contract as the transcript scan: --limits-only promises to
   # reuse recent local stats, and a big opencode history walked on every panel
   # open would break that promise.
-  cache_file = cache_root() / f"claude-opencode-{hashlib.sha1(str(db).encode('utf-8')).hexdigest()[:16]}.json"
+  digest = hashlib.sha1(str(db).encode("utf-8")).hexdigest()[:16]
+  cache_file = cache_root() / f"claude-opencode-{digest}.json"
+  index_file = cache_root() / f"claude-opencode-index-{digest}.json"
   cached = read_fresh_json(cache_file, max_age_seconds)
   if cached is not None:
     return cached.get("stats")
 
-  today = local_date_string()
-  recent_dates = recent_date_strings()
-  recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
-  sessions: set[str] = set()
-  active_days: set[str] = set()
-  today_sessions: set[str] = set()
-  today_tokens: dict[str, int] = {}
-  usage_by_model: dict[str, dict[str, int]] = {}
-  prompts = 0
-  today_prompt_count = 0
-  today_token_total = 0
-
+  # A message row is rewritten while its reply streams and keeps its id, so
+  # the index keeps each row's record next to the update time it was read at.
+  previous = load_opencode_index(index_file) if use_index else {}
+  current: dict[str, Any] = {}
   try:
     # Read-only: opencode may be writing right now.
     conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
@@ -673,89 +774,28 @@ def scan_opencode_usage(max_age_seconds: float) -> dict[str, Any] | None:
   try:
     conn.execute("PRAGMA query_only = ON")
     tables = {name for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-    # opencode v1 keeps messages in `message`, with the role, provider and model
-    # in each row's data. v2 writes `session_message` instead: the role moves to
-    # the `type` column and the provider and model nest under data.model. A
-    # database can hold either or both.
-    queries = []
-    if "message" in tables:
-      queries.append(("opencode:", "SELECT session_id, data, NULL FROM message"))
-    if "session_message" in tables:
-      queries.append(("opencode-v2:", "SELECT session_id, data, type FROM session_message"))
-    rows = ((prefix, row) for prefix, query in queries for row in conn.execute(query))
-    for session_prefix, (session_id, raw, row_type) in rows:
-      # One malformed row must not abort the scan, so every shape assumption
-      # lives inside the try.
-      try:
-        entry = json.loads(raw)
-        if not isinstance(entry, dict):
-          continue
-        if row_type is None:
-          role = entry.get("role")
-          provider = entry.get("providerID")
-          model_id = entry.get("modelID")
-        else:
-          role = row_type
-          model_info = entry.get("model") or {}
-          provider = model_info.get("providerID")
-          model_id = model_info.get("id")
-        # Exact match: opencode provider ids are free-form, and a custom
-        # "anthropic-proxy" gateway is not this subscription.
-        if role != "assistant" or str(provider or "") != "anthropic":
-          continue
-        tokens = entry.get("tokens") or {}
-        cache = tokens.get("cache") or {}
-        input_tokens = number(tokens.get("input"))
-        # opencode keeps thinking tokens out of output; both are generated.
-        output_tokens = number(tokens.get("output")) + number(tokens.get("reasoning"))
-        cache_read = number(cache.get("read"))
-        cache_write = number(cache.get("write"))
-        total = input_tokens + output_tokens + cache_read + cache_write
-        if total <= 0:
-          continue
-
-        created = number((entry.get("time") or {}).get("created"))
-        day = dt.datetime.fromtimestamp(created / 1000).strftime("%Y-%m-%d") if created > 0 else today
-        model = str(model_id or "claude").rstrip("/").split("/")[-1]
-      except Exception:
-        continue
-      session_key = session_prefix + str(session_id)
-      sessions.add(session_key)
-      active_days.add(day)
-      prompts += 1
-
-      bucket = usage_by_model.setdefault(model, empty_bucket())
-      bucket["inputTokens"] += input_tokens
-      bucket["outputTokens"] += output_tokens
-      bucket["cacheReadInputTokens"] += cache_read
-      bucket["cacheCreationInputTokens"] += cache_write
-
-      if day in recent:
-        recent[day]["messageCount"] += total
-      if day == today:
-        today_prompt_count += 1
-        today_sessions.add(session_key)
-        today_token_total += total
-        today_tokens[model] = today_tokens.get(model, 0) + total
+    for table, prefix, type_column in OPENCODE_TABLES:
+      if table in tables:
+        current[table] = read_opencode_table(conn, table, prefix, type_column, previous.get(table) or {})
   except sqlite3.Error:
     return None
   finally:
     conn.close()
 
-  stats = None
-  if prompts > 0:
-    stats = {
-      "todayPrompts": today_prompt_count,
-      "todaySessions": len(today_sessions),
-      "todayTotalTokens": today_token_total,
-      "todayTokensByModel": today_tokens,
-      "recentDays": [recent[day] for day in recent_dates],
-      "modelUsage": usage_by_model,
-      "totalPrompts": prompts,
-      "totalSessions": len(sessions),
-      "activeDays": len(active_days),
-      "activeDates": sorted(active_days),
-    }
+  if current != previous:
+    try:
+      write_json(index_file, {"version": OPENCODE_INDEX_VERSION, "zone": index_zone(), "tables": current})
+    except Exception as exc:
+      print(f"Could not write opencode index {index_file}: {exc}", file=sys.stderr)
+
+  # Rows are unique by table and id, so their keys never collapse two replies.
+  summary = summarize_records(
+    [f"{table}:{row_id}", *record]
+    for table, rows in current.items()
+    for row_id, (_, record) in rows.items()
+    if record
+  )
+  stats = summary if summary["totalPrompts"] > 0 else None
   write_json(cache_file, {"stats": stats})
   return stats
 
@@ -1234,11 +1274,11 @@ def main() -> int:
       if today_prompts or today_sessions:
         stats = dict(stats, todayPrompts=today_prompts, todaySessions=today_sessions)
 
-  pi_usage = scan_pi_usage(scan_age)
+  pi_usage = scan_pi_usage(scan_age, use_index=not args.force)
   if pi_usage is not None:
     stats = merge_stats(stats, pi_usage)
 
-  opencode = scan_opencode_usage(scan_age)
+  opencode = scan_opencode_usage(scan_age, use_index=not args.force)
   if opencode is not None:
     stats = merge_stats(stats, opencode)
 
