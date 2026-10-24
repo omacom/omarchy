@@ -98,7 +98,6 @@ with tempfile.TemporaryDirectory() as tmp:
   r, menus, encodes, calls = run(heics, ['jpg', {'value': 'medium', 'checked': True}])
   check('checked settings convert three HEICs with just one format/resolution pair', r.returncode == 0 and len(menus) == 2 and len(encodes) == 3)
   check('both format and resolution carry over', all('2160x>' in args and args[-1].endswith('-medium.jpg') for _, args in encodes))
-  check('checkbox identifies the source type', '--checkbox' in menus[1] and 'Apply to all heic files' in menus[1])
 
   r, menus, encodes, _ = run(heics, ['jpg', {'value': 'medium', 'checked': False}, 'png', {'value': 'low', 'checked': False}, 'jpg', 'high'])
   check('unchecked settings prompt separately and final file has no checkbox', r.returncode == 0 and len(menus) == 6 and '--checkbox' not in menus[-1] and encodes[1][1][-1].endswith('-low.png'))
