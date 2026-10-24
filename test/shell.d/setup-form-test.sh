@@ -211,6 +211,16 @@ assert_notices "password prompt explains each rejection" "Passwords didn't match
 Your password can't be blank!"
 pass "password prompt rejects mismatched and blank passwords"
 
+# 129 é is 258 bytes in 129 characters: the hash truncates bytes, so bytes are what count
+longest=$(printf 'a%.0s' {1..256})
+run_prompt omarchy_prompt_password "0:${longest}b" "0:${longest}b" "0:$(printf 'é%.0s' {1..129})" "0:$(printf 'é%.0s' {1..129})" "0:$longest" "0:$longest"
+assert_status 0 "password prompt accepts a 256-byte password"
+[[ $(field password) == "$longest" ]] || fail "password prompt keeps a 256-byte password whole"
+assert_notices "password prompt refuses passwords over 256 bytes" "Your password can't be longer than 256 bytes! Accented and non-Latin letters take more than one.
+Your password can't be longer than 256 bytes! Accented and non-Latin letters take more than one."
+(($(grep -c -- '--char-limit 0' "$GUM_ARGS") == 6)) || fail "password prompts lift gum's 400-character cap"
+pass "password prompt refuses what the account hash would truncate instead of cutting it"
+
 run_prompt omarchy_prompt_password "0:s3cret" "1:"
 assert_status "$OMARCHY_FORM_BACK" "password prompt reports Esc on the confirmation as back"
 assert_returned "password confirmation survives Esc under set -e"
