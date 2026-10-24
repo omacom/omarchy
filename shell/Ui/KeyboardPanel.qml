@@ -332,8 +332,10 @@ PanelWindow {
   // One card, not two: a panel taking over from another in the same section of
   // the bar starts its card where the last one stood, at its size, and morphs
   // it into its own place while the new content fades in. Each panel tells the
-  // bar where its card is. Across sections the new panel opens fresh.
-  readonly property rect cardTarget: Qt.rect(cardOrigin.x, cardOrigin.y, contentWidth, contentHeight)
+  // bar where its card is, at the height it's drawn, so a switch while it's
+  // still growing starts from what's on screen. Across sections the new panel
+  // opens fresh.
+  readonly property rect cardTarget: Qt.rect(cardOrigin.x, cardOrigin.y, contentWidth, drawnHeight)
   onCardTargetChanged: publishCard()
 
   function publishCard() {
