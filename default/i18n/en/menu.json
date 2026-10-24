@@ -291,6 +291,27 @@
   "appearance.unlock": {
     "label": "Unlock"
   },
+  "trigger.sense": {
+    "label": "Sense"
+  },
+  "trigger.sense.scenes": {
+    "label": "Learned Scenes"
+  },
+  "trigger.sense.routines": {
+    "label": "Learned Routines"
+  },
+  "trigger.sense.flow": {
+    "label": "Flow State"
+  },
+  "trigger.sense.enable": {
+    "label": "Start Learning"
+  },
+  "trigger.sense.disable": {
+    "label": "Stop Learning"
+  },
+  "trigger.sense.forget": {
+    "label": "Forget Everything Learned"
+  },
   "trigger.toggle": {
     "label": "Toggle"
   },
