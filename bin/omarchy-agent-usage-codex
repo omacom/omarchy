@@ -373,10 +373,10 @@ def scan_opencode_sessions():
     # OpenCode DBs grow huge (every historical message, JSON included), and
     # Python-side json.loads of every row wasted ~600 MB of RSS on machines
     # whose subscription never ran on OpenAI. The json_extract conditions are
-    # the authority for the rows that reach them: role == "assistant" and
-    # providerID == "openai", the same exact-match values the Python filter
-    # below checks. The guards in front are pure acceleration, not a perfect
-    # proxy for the Python filter:
+    # the authority for the rows that reach them: assistant role and provider
+    # == "openai", the same exact-match values the Python filter below checks.
+    # The guards in front are pure acceleration, not a perfect proxy for the
+    # Python filter:
     #   - The LIKE gates skip rows whose JSON cannot contain the two
     #     key/value pairs, avoiding the JSON parse of tens-of-MB blobs. They
     #     can differ from json.loads on duplicate keys (Python keeps the
@@ -392,37 +392,72 @@ def scan_opencode_sessions():
     #     well-formed JSON are skipped here; the per-row try/except below
     #     stays as the final safety net for rows that pass the SQL filter
     #     but fail json.loads.
-    for session_id, raw in conn.execute(
-      "SELECT session_id, data FROM message"
-      " WHERE data LIKE '%\"role\"%:%\"assistant\"%'"
-      " AND data LIKE '%\"providerID\"%:%\"openai\"%'"
-      " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.role') END = 'assistant'"
-      " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.providerID') END = 'openai'"
-    ):
-      # One malformed row must not abort the scan, so every shape assumption
-      # lives inside the try.
-      try:
-        entry = json.loads(raw)
-        # Exact match: opencode provider ids are free-form, and a custom
-        # "openai-local" gateway is not this subscription.
-        if not isinstance(entry, dict) or entry.get("role") != "assistant":
+    # One snapshot for every query, so a migration committing between them
+    # cannot slip a row past the v1 dedupe below.
+    conn.execute("BEGIN")
+    tables = {name for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    # A database can hold v1 rows, v2 rows, or both. v2 writes
+    # `session_message`: the role is its own `type` column, compactions carry
+    # usage of their own, and the provider and model nest under data.model. Its
+    # migration copies each v1 row there under the same id and session and keeps
+    # the original, so a v1 row counts only when v2 has no copy of it.
+    queries = []
+    if "message" in tables:
+      queries.append(
+        "SELECT session_id, data, NULL FROM message"
+        " WHERE data LIKE '%\"role\"%:%\"assistant\"%'"
+        " AND data LIKE '%\"providerID\"%:%\"openai\"%'"
+        " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.role') END = 'assistant'"
+        " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.providerID') END = 'openai'"
+        + (" AND NOT EXISTS (SELECT 1 FROM session_message WHERE session_message.id = message.id)" if "session_message" in tables else "")
+      )
+    if "session_message" in tables:
+      queries.append(
+        "SELECT session_id, data, type FROM session_message"
+        " WHERE type IN ('assistant', 'compaction')"
+        " AND data LIKE '%\"providerID\"%:%\"openai\"%'"
+        " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.model.providerID') END = 'openai'"
+      )
+    # A database with neither table is a schema we do not understand (a
+    # migration in flight, or a corrupt file), not a database with no usage.
+    # Report the scan as incomplete so a zero snapshot is not cached.
+    if not queries:
+      return False
+    for query in queries:
+      for session_id, raw, row_type in conn.execute(query):
+        # One malformed row must not abort the scan, so every shape assumption
+        # lives inside the try.
+        try:
+          entry = json.loads(raw)
+          if not isinstance(entry, dict):
+            continue
+          if row_type is None:
+            role = entry.get("role")
+            provider = entry.get("providerID")
+            model_id = entry.get("modelID")
+          else:
+            role = row_type
+            model_info = entry.get("model") or {}
+            provider = model_info.get("providerID")
+            model_id = model_info.get("id")
+          # Exact match: opencode provider ids are free-form, and a custom
+          # "openai-local" gateway is not this subscription.
+          if role not in ("assistant", "compaction") or str(provider or "") != "openai":
+            continue
+          tokens = entry.get("tokens") or {}
+          cache = tokens.get("cache") or {}
+          input_tokens = number(tokens.get("input"))
+          # opencode keeps thinking tokens out of output; both are generated.
+          output_tokens = number(tokens.get("output")) + number(tokens.get("reasoning"))
+          cache_read = number(cache.get("read"))
+          cache_write = number(cache.get("write"))
+          if not (input_tokens or output_tokens or cache_read or cache_write):
+            continue
+          day = local_day((entry.get("time") or {}).get("created"))
+          model = model_name(str(model_id or "").rstrip("/").split("/")[-1])
+        except Exception:
           continue
-        if str(entry.get("providerID") or "") != "openai":
-          continue
-        tokens = entry.get("tokens") or {}
-        cache = tokens.get("cache") or {}
-        input_tokens = number(tokens.get("input"))
-        # opencode keeps thinking tokens out of output; both are generated.
-        output_tokens = number(tokens.get("output")) + number(tokens.get("reasoning"))
-        cache_read = number(cache.get("read"))
-        cache_write = number(cache.get("write"))
-        if not (input_tokens or output_tokens or cache_read or cache_write):
-          continue
-        day = local_day((entry.get("time") or {}).get("created"))
-        model = model_name(str(entry.get("modelID") or "").rstrip("/").split("/")[-1])
-      except Exception:
-        continue
-      add_usage(day, "opencode:" + str(session_id), model, input_tokens, output_tokens, cache_read, cache_write)
+        add_usage(day, "opencode:" + str(session_id), model, input_tokens, output_tokens, cache_read, cache_write)
   except sqlite3.Error:
     # Transient lock, schema migration, corruption: the numbers stop here,
     # incomplete.
