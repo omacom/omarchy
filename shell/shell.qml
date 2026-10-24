@@ -353,9 +353,13 @@ ShellRoot {
     return snapshot
   }
 
+  // Manifests read through a model delegate's modelData carry kinds as a QML
+  // sequence rather than a JS Array. Accept either, or a third-party menu is
+  // denied its application library and its cached facade is then revoked.
   function manifestHasKind(manifest, kind) {
-    return !!manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf(kind) !== -1
+    var kinds = manifest ? manifest.kinds : null
+    if (!kinds || typeof kinds === "string" || typeof kinds.length !== "number") return false
+    return Array.prototype.indexOf.call(kinds, kind) !== -1
   }
 
   function pluginHasBarCapabilities(manifest) {
