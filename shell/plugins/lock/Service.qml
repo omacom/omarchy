@@ -794,6 +794,26 @@ Item {
   }
 
   Process {
+    id: loginWatchProc
+    command: ["bash", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/lock/watch-login-session.sh"]
+    running: true
+    stdout: SplitParser {
+      onRead: function(line) {
+        // Unlock is only allowed through PAM, never a logind Unlock signal.
+        if (String(line).endsWith(": org.freedesktop.login1.Session.Lock ()")
+            && !root.currentlyLocked()) root.beginLock()
+      }
+    }
+    onExited: loginWatchRestartTimer.restart()
+  }
+
+  Timer {
+    id: loginWatchRestartTimer
+    interval: 1000
+    onTriggered: loginWatchProc.running = true
+  }
+
+  Process {
     id: wakeProcess
     command: ["bash", "-c", "omarchy-system-wake"]
   }
