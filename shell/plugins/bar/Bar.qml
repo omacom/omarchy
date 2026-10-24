@@ -1008,7 +1008,7 @@ Item {
   Component.onCompleted: applyBarConfig()
 
   // The indicator peek opens as the pointer comes onto the bar and holds until
-  // it leaves, or crosses past the end of the center box onto the panel icons
+  // it leaves, or crosses onto the clock at the start of the center box
   // (BarModel.peeksAt). Revealing the indicators widens their section, which
   // can slide a widget under a stationary pointer, so nothing narrower than the
   // stretch of bar up to that edge, held still while the peek is open
@@ -1767,8 +1767,8 @@ Item {
 
     // The same thickness the bar publishes for its screen (screenBarSizes).
     readonly property int thickness: root.thicknessFor(screen)
-    // Where the center box ends along the bar, set by the drawn center
-    // sections. Hovering past it, over the clock's trailing widgets and the
+    // Where the center box starts along the bar, set by the drawn center
+    // sections. Hovering past it, over the clock, its trailing widgets and the
     // right section, leaves the indicator peek shut.
     property real peekEdge: 0
 
@@ -2277,15 +2277,15 @@ Item {
     implicitHeight: root.vertical ? beginList.height + centerBox.height + endList.height : root.barSize
 
     // Both placements sit at the bar surface's origin or anchor off its edge,
-    // so the box's end in the sections is its end on the surface.
-    readonly property real boxEnd: root.vertical ? y + centerBox.y + centerBox.height : x + centerBox.x + centerBox.width
-    onBoxEndChanged: syncPeekEdge()
+    // so the box's start in the sections is its start on the surface.
+    readonly property real boxStart: root.vertical ? y + centerBox.y : x + centerBox.x
+    onBoxStartChanged: syncPeekEdge()
     onActiveChanged: syncPeekEdge()
     onWindowChanged: syncPeekEdge()
     Component.onCompleted: syncPeekEdge()
 
     function syncPeekEdge() {
-      if (active && window) window.peekEdge = BarModel.nextPeekEdge(window.peekEdge, boxEnd, root.centerSectionRevealHeld)
+      if (active && window) window.peekEdge = BarModel.nextPeekEdge(window.peekEdge, boxStart, root.centerSectionRevealHeld)
     }
 
     Connections {
