@@ -63,6 +63,7 @@ EOF
 
 rm "$XDG_CONFIG_HOME/hyprland-mimeapps.list"
 printf '[Default Applications]\nx-scheme-handler/http=missing.desktop\n' >"$XDG_CONFIG_HOME/mimeapps.list"
+echo "Exec=brave %U" >"$XDG_DATA_DIRS/applications/fallback.desktop"
 
 [[ $(omarchy-cmd-default-browser) == "fallback.desktop" ]] ||
   fail "default browser falls back to xdg-settings when no listed handler is installed"
@@ -70,3 +71,73 @@ printf '[Default Applications]\nx-scheme-handler/http=missing.desktop\n' >"$XDG_
   fail "default browser unsets BROWSER before asking xdg-settings"
 
 pass "default browser reads mimeapps.list and falls back to xdg-settings"
+
+# With the listed handler gone, xdg-settings and xdg-mime settle on the
+# routing entry, which only hands links back to omarchy-launch-browser. The
+# installed handlers they stopped reporting are still in the mimeinfo caches.
+cat >"$mock_bin/xdg-settings" <<'SH'
+#!/bin/bash
+echo omarchy-browser.desktop
+SH
+cat >"$mock_bin/xdg-mime" <<'SH'
+#!/bin/bash
+echo omarchy-browser.desktop
+SH
+chmod +x "$mock_bin/xdg-settings" "$mock_bin/xdg-mime"
+printf '[MIME Cache]\nx-scheme-handler/https=omarchy-browser.desktop;\n' >"$XDG_DATA_HOME/applications/mimeinfo.cache"
+printf '[MIME Cache]\nx-scheme-handler/https=removed.desktop;brave-browser.desktop;\n' >"$XDG_DATA_DIRS/applications/mimeinfo.cache"
+
+[[ $(omarchy-cmd-default-browser) == "brave-browser.desktop" ]] ||
+  fail "default browser falls back to an installed https handler in mimeinfo.cache" "$(omarchy-cmd-default-browser)"
+
+pass "default browser falls back to an installed browser when the listed one is gone"
+
+# An answer with no installed browser behind it is as useless as an empty one,
+# and xdg-mime may still have a working one.
+cat >"$mock_bin/xdg-settings" <<'SH'
+#!/bin/bash
+echo removed.desktop
+SH
+cat >"$mock_bin/xdg-mime" <<'SH'
+#!/bin/bash
+echo firefox.desktop
+SH
+chmod +x "$mock_bin/xdg-settings" "$mock_bin/xdg-mime"
+
+[[ $(omarchy-cmd-default-browser) == "firefox.desktop" ]] ||
+  fail "default browser skips an xdg-settings answer that is not installed" "$(omarchy-cmd-default-browser)"
+
+pass "default browser checks that fallback answers are installed"
+
+# Nothing resolvable is left: fail rather than hand the launcher an empty
+# command.
+for cache in "$XDG_DATA_HOME/applications/mimeinfo.cache" "$XDG_DATA_DIRS/applications/mimeinfo.cache"; do
+  rm -f "$cache"
+done
+cat >"$mock_bin/xdg-settings" <<'SH'
+#!/bin/bash
+echo omarchy-browser.desktop
+SH
+cat >"$mock_bin/xdg-mime" <<'SH'
+#!/bin/bash
+echo omarchy-browser.desktop
+SH
+chmod +x "$mock_bin/xdg-settings" "$mock_bin/xdg-mime"
+
+if browser=$(omarchy-cmd-default-browser); then
+  fail "default browser fails when no browser can be resolved" "$browser"
+fi
+[[ -z $browser ]] || fail "default browser prints nothing when no browser can be resolved" "$browser"
+
+pass "default browser fails when no browser can be resolved"
+
+# The Nix profile is not guaranteed to be on XDG_DATA_DIRS, but Omarchy scans
+# it elsewhere and both browser scripts have always read it.
+mkdir -p "$HOME/.nix-profile/share/applications"
+printf '[Desktop Entry]\nExec=brave %%U\n' >"$HOME/.nix-profile/share/applications/nix-browser.desktop"
+printf '[Default Applications]\nx-scheme-handler/http=nix-browser.desktop\n' >"$XDG_CONFIG_HOME/mimeapps.list"
+
+[[ $(omarchy-cmd-default-browser) == "nix-browser.desktop" ]] ||
+  fail "default browser finds a browser in the Nix profile" "$(omarchy-cmd-default-browser)"
+
+pass "default browser finds a browser in the Nix profile"
