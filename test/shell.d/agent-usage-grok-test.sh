@@ -44,6 +44,12 @@ end = os.environ["PERIOD_END"]
 def urlopen(request, timeout=None):
   assert request.full_url == collector.CREDITS_URL
   token = request.get_header("Authorization").split(" ", 1)[1]
+  if token == "token-offline":
+    raise collector.urllib.error.URLError("network is unreachable")
+  if token == "token-broken":
+    raise collector.urllib.error.HTTPError(request.full_url, 500, "Internal Server Error", {}, None)
+  if token == "token-revoked":
+    raise collector.urllib.error.HTTPError(request.full_url, 401, "Unauthorized", {}, None)
   config = {"currentPeriod": {"type": "USAGE_PERIOD_TYPE_WEEKLY", "end": end}, "billingPeriodEnd": end}
   if used.get(token):
     config["creditUsagePercent"] = used[token]
@@ -131,6 +137,25 @@ record=$(collect)
 [[ $(jq -c '.limits[0] | {label, percent}' <<<"$record") == '{"label":"Weekly","percent":0.0}' ]] ||
   fail "an untouched period reads as 0% rather than nothing known" "$record"
 pass "an untouched period reads as 0% rather than nothing known"
+
+# xAI not answering is no reason to sign in again; a refused token is.
+signed_in "$HOME/.grok" token-offline u-main "$future" "X Premium+"
+rm -f "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json
+record=$(collect)
+[[ $(jq -r '.usageStatusText' <<<"$record") == "Grok limits unavailable" && $(jq -r '.authHelpText' <<<"$record") != *"sign in"* ]] ||
+  fail "an unreachable usage endpoint doesn't ask a signed-in Grok to sign in" "$record"
+[[ $(jq -r '.retryAdvised' <<<"$record") == "true" && $(jq -r '.authHelpText' <<<"$record") == *"Retrying shortly"* ]] ||
+  fail "an unreachable usage endpoint asks the panel to try again soon" "$record"
+signed_in "$HOME/.grok" token-broken u-main "$future" "X Premium+"
+record=$(collect)
+[[ $(jq -c '{usageStatusText, retryAdvised}' <<<"$record") == '{"usageStatusText":"Grok limits unavailable","retryAdvised":null}' && $(jq -r '.authHelpText' <<<"$record") == *"returned no limits"* ]] ||
+  fail "a usage endpoint that answers with an error neither asks for a sign-in nor promises a retry" "$record"
+signed_in "$HOME/.grok" token-revoked u-main "$future" "X Premium+"
+record=$(collect)
+[[ $(jq -c '{usageStatusText, authHelpText}' <<<"$record") == '{"usageStatusText":"Waiting for auth","authHelpText":"Start Grok, or run `grok login`, to sign in."}' ]] ||
+  fail "a refused Grok token still asks for a sign-in" "$record"
+[[ $(jq -r '.retryAdvised' <<<"$record") == "null" ]] || fail "a refused Grok token doesn't advise a retry" "$record"
+pass "an unreachable usage endpoint doesn't ask a signed-in Grok to sign in"
 
 signed_in "$HOME/.grok" token-main u-main "$future" "X Premium+"
 side="$XDG_STATE_HOME/omarchy/agents/accounts/grok/side"

@@ -251,6 +251,11 @@ def collect_limits(home, key, force):
     limit = None
     if error.code in (401, 403):
       result["usageStatusText"] = "Waiting for auth"
+  except (urllib.error.URLError, OSError):
+    # Not reached at all, as in the seconds after login before the network
+    # is up. The panel honors this with one sooner try.
+    limit = None
+    result["retryAdvised"] = True
   except Exception:
     limit = None
 
@@ -260,7 +265,13 @@ def collect_limits(home, key, force):
   else:
     result["limits"] = cached.get("limits") or []
     if not result["usageStatusText"] and not result["limits"]:
+      # Signed in, but xAI didn't answer: say that rather than asking for a
+      # sign-in that wouldn't help.
       result["usageStatusText"] = "Grok limits unavailable"
+      if result.get("retryAdvised"):
+        result["authHelpText"] = "Couldn't reach xAI's usage endpoint. Retrying shortly. Local Grok stats are still shown."
+      else:
+        result["authHelpText"] = "xAI's usage endpoint returned no limits. Local Grok stats are still shown."
   return result
 
 
@@ -311,6 +322,7 @@ def account_limits(account, force):
     "fetchedAt": limits["fetchedAtMs"],
     "usageStatusText": limits["usageStatusText"],
     "authHelpText": limits["authHelpText"],
+    "retryAdvised": bool(limits.get("retryAdvised")),
   }
 
 
@@ -351,6 +363,8 @@ def main():
     "limitsFetchedAt": fetched_at,
   }
   record.update(cached_local_stats(stats_home, LIMITS_ONLY_SCAN_REUSE_SECONDS if args.limits_only and not args.force else 0))
+  if limits.get("retryAdvised"):
+    record["retryAdvised"] = True
   if accounts:
     record["accountSwitch"] = registered[0]["switch"]
     record["accounts"] = accounts
