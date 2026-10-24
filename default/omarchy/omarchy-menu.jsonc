@@ -179,6 +179,8 @@
   "trigger.tests.disk-speedtest": {"icon":"󰋊","label":"Disk Speed Test","action":"omarchy-shell shell summon omarchy.disk-speedtest"},
 
   // Setup
+  "setup.workspaces": {"icon":"󱂬","label":"Workspaces"},
+  "setup.workspaces.per-monitor": {"icon":"󰍹","label":"Per Monitor Workspaces","description":"Give each monitor its own workspaces 1–10; turn off for global numbering","checked":"[[ ! -f ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/no-monitor-workspaces ]]","action":"omarchy-toggle-monitor-workspaces"},
   "setup.monitors": {"icon":"󰍹","label":"Monitors","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/monitors.lua\""},
   "setup.keybindings": {"icon":"","label":"Keybindings","when":"[[ -f ~/.config/hypr/bindings.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/bindings.lua\""},
   "setup.input": {"icon":"","label":"Input","when":"[[ -f ~/.config/hypr/input.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/input.lua\""},

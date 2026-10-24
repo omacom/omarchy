@@ -19,7 +19,7 @@ o.bind("SUPER + RIGHT", "Focus on right window", hl.dsp.focus({ direction = "r" 
 o.bind("SUPER + UP", "Focus on above window", hl.dsp.focus({ direction = "u" }))
 o.bind("SUPER + DOWN", "Focus on below window", hl.dsp.focus({ direction = "d" }))
 
--- Each monitor has workspaces 1-10 of its own; see default/hypr/monitor-workspaces.lua.
+-- Workspace numbers follow the per-monitor setting; see default/hypr/monitor-workspaces.lua.
 for workspace = 1, 10 do
   local key = "code:" .. tostring(workspace + 9)
   o.bind("SUPER + " .. key, "Switch to workspace " .. workspace, o.workspaces.focus(workspace))
@@ -35,7 +35,7 @@ o.bind("SUPER + SHIFT + grave", "Move window to scratchpad", hl.dsp.window.move(
 
 o.bind("SUPER + TAB", "Next workspace", hl.dsp.focus({ workspace = "m+1" }))
 o.bind("SUPER + SHIFT + TAB", "Previous workspace", hl.dsp.focus({ workspace = "m-1" }))
-o.bind("SUPER + CTRL + TAB", "Former workspace", hl.dsp.focus({ workspace = "previous_per_monitor" }))
+o.bind("SUPER + CTRL + TAB", "Former workspace", hl.dsp.focus({ workspace = o.workspaces.enabled and "previous_per_monitor" or "previous" }))
 
 o.bind("SUPER + SHIFT + ALT + LEFT", "Move workspace to left monitor", o.workspaces.move_to_monitor("l"))
 o.bind("SUPER + SHIFT + ALT + RIGHT", "Move workspace to right monitor", o.workspaces.move_to_monitor("r"))

@@ -447,6 +447,13 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk Speed Test"
   },
+  "setup.workspaces": {
+    "label": "Workspaces"
+  },
+  "setup.workspaces.per-monitor": {
+    "label": "Per Monitor Workspaces",
+    "description": "Give each monitor its own workspaces 1–10; turn off for global numbering"
+  },
   "setup.monitors": {
     "label": "Monitors"
   },

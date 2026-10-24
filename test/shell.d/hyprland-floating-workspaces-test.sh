@@ -757,7 +757,7 @@ pass "titlebars follow the theme when XDG_STATE_HOME points elsewhere"
 run_node_test <<'JS'
 const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')
 assert(source.includes('function onActiveWorkspaceChanged() { root.showActiveMode() }'), 'a workspace switch shows the cached layout instead of running the script')
-assert(source.includes('if (name === "configreloaded") root.refresh()'), 'a config reload drops every cached layout')
+assert(/if \(name === "configreloaded"\) \{\s*workspaceScope.reload\(\)\s*root.refresh\(\)/.test(source), 'a config reload refreshes workspace scope and drops every cached layout')
 
 // Run the widget's own cache logic against a fake Hyprland and process.
 function body(pattern) {

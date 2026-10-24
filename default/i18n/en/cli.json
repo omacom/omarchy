@@ -26,6 +26,8 @@
   "agents.switchedBody": "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.",
   "animations.disabled": "Animations disabled",
   "animations.enabled": "Animations enabled",
+  "workspaces.perMonitorEnabled": "Per monitor workspaces enabled",
+  "workspaces.globalEnabled": "Global workspace numbering enabled",
   "audio.micMuted": "Microphone muted",
   "audio.micOn": "Microphone on",
   "audio.noDevices": "No audio devices found",
