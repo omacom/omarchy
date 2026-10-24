@@ -11,3 +11,7 @@ if grep -q "Updating linux initcpios" "$update_log"; then
     echo
   fi
 fi
+
+# Fail-soft: warn before reboot when the running root already depends on an
+# extra encrypted Btrfs member that stock initramfs cannot recreate.
+omarchy-root-btrfs-extra-luks || true
