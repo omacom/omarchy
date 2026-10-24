@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = btop
+
+[Action]
+Description = Stripping file capabilities from btop...
+When = PostTransaction
+Depends = omarchy
+Exec = /usr/bin/omarchy-strip-btop-caps
