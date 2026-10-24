@@ -12,8 +12,6 @@ Omarchy ISO कीबोर्ड पर किसी के बिना ही
 |------|----------|---------|
 | `user_configuration.json` | हाँ | डिस्क, होस्टनाम, टाइमज़ोन, कीबोर्ड |
 | `user_credentials.json` | हाँ | यूज़रनेम और पासवर्ड हैश |
-| `user_full_name.txt` | नहीं | Git पूरा नाम |
-| `user_email_address.txt` | नहीं | Git ईमेल |
 | `user_encrypt_installation.txt` | नहीं | `true` जब कॉन्फ़िगरेशन में `disk_encryption` ब्लॉक हो |
 | `authorized_keys` | नहीं | SSH सार्वजनिक कुंजियाँ, प्रति पंक्ति एक |
 | `tailscale_authkey` | नहीं | पहले बूट पर आपके टेलनेट से जुड़ने के लिए Tailscale प्राधिकरण कुंजी |

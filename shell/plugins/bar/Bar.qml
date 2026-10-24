@@ -89,9 +89,11 @@ Item {
   readonly property color glassBackground: Qt.rgba(background.r, background.g, background.b, Math.min(background.a, 0.35))
   property color urgent: Commons.Color.bar.active
 
-  Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
-  Behavior on background { ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
-  Behavior on urgent { ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
+  // A theme change cross-fades the bar's colors. Cycling the background
+  // between opaque, glassy and clear jumps, text color included.
+  Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
+  Behavior on background { ColorAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
+  Behavior on urgent { ColorAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
   property var tooltipTarget: null
   property var pendingTooltipTarget: null
   property string tooltipText: ""
@@ -99,6 +101,35 @@ Item {
   property bool tooltipShown: false
   property int tooltipRequest: 0
   property var activePopout: null
+  // Where the open panel's card stands, and in which section of the bar, so
+  // a panel taking over in the same section can start its card from there.
+  property var popoutCard: null
+
+  // The section a panel's widget sits in, the center's pieces counted as one,
+  // as keyboard switching between panels counts them.
+  function popoutSectionOf(owner) {
+    for (var i = 0; i < moduleSlots.length; i++) {
+      var slot = moduleSlots[i]
+      if (slot && slot.activeItem === owner) return BarModel.navigationRegions(slot.region).join(" ")
+    }
+    return ""
+  }
+
+  // Reported by the open panel. Only a screen name and four numbers are kept,
+  // whoever reports them; the section comes from the bar's own layout.
+  function notePopoutCard(card) {
+    popoutCard = card ? { screen: String(card.screen || ""), section: popoutSectionOf(activePopout),
+                          x: Number(card.x) || 0, y: Number(card.y) || 0,
+                          width: Number(card.width) || 0, height: Number(card.height) || 0 } : null
+  }
+
+  // The last card, copied, for a panel taking over in the same section: one
+  // switching across the bar opens fresh instead of flying the card over it.
+  function popoutCardFor(owner) {
+    var card = popoutCard
+    if (!card || !card.section || card.section !== popoutSectionOf(owner)) return null
+    return { screen: card.screen, x: card.x, y: card.y, width: card.width, height: card.height }
+  }
   // A widget is being dragged that could go into the tray section, so the
   // tray's drawer opens to show where.
   readonly property bool traySectionDragActive: !!barDragSource && !barDragSource.hostsTraySection
@@ -347,6 +378,8 @@ Item {
       _requestPopout: function(owner) { root.requestPluginPopout(key, owner) },
       _releasePopout: function(owner) { root.releasePluginPopout(key, owner) },
       _switchPanelFrom: function(owner, direction) { return root.switchPanelFrom(owner, direction) },
+      _notePopoutCard: function(card) { root.notePopoutCard(card) },
+      _popoutCardFor: function(owner) { return root.popoutCardFor(owner) },
       _targetBelongsToWindow: function(target, window) { return root.targetBelongsToWindow(target, window) },
       _moduleWidgets: function(requestedId) {
         return String(requestedId || "") === String(moduleName || "")
@@ -544,6 +577,7 @@ Item {
 
   function clearTooltip() {
     tooltipTimer.stop()
+    if (tooltipShown) tooltipWarmTimer.restart()
     pendingTooltipTarget = null
     pendingTooltipText = ""
     tooltipTarget = null
@@ -1531,6 +1565,10 @@ Item {
   }
 
   function showTooltip(target, text) {
+    // The delay only guards the first tooltip against a passing pointer. Once
+    // one is up, or was a moment ago, the next icon's shows at once, so
+    // sliding along the bar reads each label without waiting on every one.
+    var warm = tooltipShown || tooltipWarmTimer.running
     clearTooltip()
 
     if (!targetTooltipHovered(target) || !text) {
@@ -1553,7 +1591,8 @@ Item {
       tooltipText = pendingTooltipText
       pendingTooltipTarget = null
       pendingTooltipText = ""
-      tooltipTimer.restart()
+      if (warm) tooltipShown = true
+      else tooltipTimer.restart()
     })
   }
 
@@ -1571,6 +1610,14 @@ Item {
       if (root.targetTooltipHovered(root.tooltipTarget)) root.tooltipShown = true
       else root.clearTooltip()
     }
+  }
+
+  // How long after a tooltip hides the next one still skips the delay. Long
+  // enough to cross the gap between two icons, short enough that coming back
+  // to the bar later waits again.
+  Timer {
+    id: tooltipWarmTimer
+    interval: 400
   }
 
   Timer {

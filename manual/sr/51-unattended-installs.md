@@ -12,8 +12,6 @@ Omarchy ISO може сам да се инсталира без икога за 
 |------|----------|---------|
 | `user_configuration.json` | Да | Диск, име домаћина, временска зона, тастатура |
 | `user_credentials.json` | Да | Корисничко име и хеш лозинке |
-| `user_full_name.txt` | Не | Пуно име за Git |
-| `user_email_address.txt` | Не | Е-пошта за Git |
 | `user_encrypt_installation.txt` | Не | `true` када конфигурација носи блок `disk_encryption` |
 | `authorized_keys` | Не | SSH јавни кључеви, по један у реду |
 | `tailscale_authkey` | Не | Tailscale кључ за потврду идентитета за придруживање твом tailnet-у при првом покретању |

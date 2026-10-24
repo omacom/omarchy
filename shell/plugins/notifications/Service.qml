@@ -91,8 +91,7 @@ Item {
     for (var i = 0; i < list.length; i++) {
       var s = list[i]
       out.push({ display: s.modelData ? String(s.modelData.name) : "", mapped: s.visible === true,
-                 stepAside: s.stepAside === true, showing: s.showingNotifications === true,
-                 lingering: s.lingering === true })
+                 stepAside: s.stepAside === true, showing: s.showingNotifications === true })
     }
     return out
   }
@@ -161,7 +160,10 @@ Item {
 
   ListModel {
     id: toasts
-    onCountChanged: { if (count === 0) service.deckDisplayName = "" }
+    onCountChanged: {
+      if (count === 0) service.deckDisplayName = ""
+      if (service.keyboardMode) Qt.callLater(function() { service.keepSelection(0) })
+    }
   }
 
   // ------------------------------------------------------ live capacity
@@ -211,15 +213,19 @@ Item {
 
   property var heights: ({})       // key -> measured card height
   property int layoutRevision: 0
-  // Cards that arrived since the deck last opened or closed. They settle into
-  // their measured height at once (a late icon, a re-wrap) instead of growing.
+  // Cards that arrived since the deck last opened or closed. Once still, they
+  // settle into their measured height at once (a late icon, a re-wrap) instead
+  // of growing; while they are still dropping in, the move takes it up.
   property var fresh: ({})
   onExpandedChanged: fresh = ({})
+  property string arriving: ""
 
   Timer {
     id: collapseGrace
     interval: 120
     onTriggered: {
+      // The keyboard holds the deck open while the pointer passes through.
+      if (service.keyboardMode) return
       service.commit(function() { service.expanded = false; service.openDeck = "" })
       service.releaseHeld()
     }
@@ -228,7 +234,7 @@ Item {
   // New cards wait while the deck is held open, so nothing moves mid-read.
   property var held: []
 
-  function holding() { return pointerIn && expanded }
+  function holding() { return (pointerIn || keyboardMode) && expanded }
 
   function releaseHeld() {
     if (!held.length) return
@@ -261,35 +267,200 @@ Item {
   }
   function pointerLeft() { collapseGrace.restart() }
 
+  // ------------------------------------------------------------- keyboard
+  //
+  // Notifications never take the keyboard on their own: a card grabbing focus
+  // as it arrived would swallow whatever you were typing. A keybinding starts
+  // this instead. The newest card is selected and its deck opened; arrows move
+  // between cards, number keys press a button, Enter clicks the card, Delete
+  // dismisses it, and Escape, any choice, or a few idle seconds give the
+  // keyboard back.
+  property bool keyboardMode: false
+  property string keyboardKey: ""
+  // Cards that fit only until selection showed their buttons, skipped for the
+  // rest of this session so Down does not keep landing on them.
+  property var keyboardRejected: ({})
+
+  Timer { id: keyboardIdle; interval: 10000; onTriggered: service.stopKeyboard() }
+
+  // Cards in the order they stand: deck by deck, front to back.
+  function keyboardOrder() {
+    var out = [], decks = layout.decks
+    for (var i = 0; i < decks.length; i++)
+      for (var j = 0; j < decks[i].rows.length; j++) out.push(String(decks[i].rows[j].key))
+    return out
+  }
+
+  function selectCard(key) {
+    var at = rowIndexFor(key)
+    if (at < 0) return false
+    keyboardKey = key
+    hoverKey = key
+    pointerEntered(Layout.groupKeyFor(toasts.get(at)))
+    return true
+  }
+
+  function startKeyboard() {
+    var order = keyboardOrder()
+    if (!order.length) return false
+    keyboardMode = true
+    keyboardRejected = ({})
+    selectCard(order[0])
+    keyboardIdle.restart()
+    return true
+  }
+
+  function stopKeyboard() {
+    if (!keyboardMode) return
+    keyboardIdle.stop()
+    keyboardMode = false
+    keyboardKey = ""
+    // With the pointer over the deck, hover stays where the pointer put it.
+    if (!pointerIn) {
+      hoverKey = ""
+      collapseGrace.restart()
+    }
+  }
+
+  // The selected card went away: select the one that took its place, or the
+  // nearest one above it on screen, or stop.
+  function keepSelection(fromIndex) {
+    if (!keyboardMode || rowIndexFor(keyboardKey) >= 0 && !leaving[keyboardKey]) return
+    var order = keyboardOrder()
+    for (var i = Math.min(Math.max(0, fromIndex), order.length - 1); i >= 0; i--) {
+      if (!keyboardRejected[order[i]] && reachable(order[i])) { selectCard(order[i]); return }
+    }
+    stopKeyboard()
+  }
+
+  // The deck does not scroll, so a card that would open below the bottom of
+  // the screen is out of reach, for the keyboard as for the pointer.
+  function reachable(key) {
+    var at = rowIndexFor(key)
+    if (at < 0) return false
+    var place = layoutWith(true, Layout.groupKeyFor(toasts.get(at))).placements[key]
+    if (!place || place.hidden) return false
+    var screen = null
+    for (var s = 0; s < Quickshell.screens.length; s++)
+      if (String(Quickshell.screens[s].name) === targetDisplayName) screen = Quickshell.screens[s]
+    if (!screen) return true
+    var room = screen.height - marginsFor(targetDisplayName).top - gap
+    return place.y + (place.height || Style.space(58)) <= room
+  }
+
+  // Past cards that do not fit: the rest of a long deck can be out of reach
+  // while the next deck, opened in its place, is not.
+  function moveSelection(step) {
+    var order = keyboardOrder()
+    for (var next = order.indexOf(keyboardKey) + step; next >= 0 && next < order.length; next += step) {
+      if (!keyboardRejected[order[next]] && reachable(order[next])) { selectCard(order[next]); return }
+    }
+  }
+
+  // Selecting a card shows its buttons and opening its deck can open its body,
+  // so it grows after reachable() said yes. Once it has, step back if it no
+  // longer fits.
+  function keepSelectionInReach() {
+    if (!keyboardMode || reachable(keyboardKey)) return
+    keyboardRejected[keyboardKey] = true
+    var order = keyboardOrder()
+    for (var i = order.indexOf(keyboardKey) - 1; i >= 0; i--) {
+      if (!keyboardRejected[order[i]] && reachable(order[i])) { selectCard(order[i]); return }
+    }
+  }
+
+  // The card's buttons in Delivery.deeds' order, which the card draws and
+  // numbers in the same order.
+  function deedsFor(key) {
+    var at = rowIndexFor(key)
+    return at < 0 ? [] : Delivery.deeds(toasts.get(at), actionsOf(key, refsRevision))
+  }
+
+  function runDeed(key, index) {
+    var deed = deedsFor(key)[index]
+    if (!deed) return false
+    if (deed.kind === "code") copyCode(deed.value, key)
+    else if (deed.kind === "exec") runExecAction(key, Number(deed.value))
+    else invokeAction(key, String(deed.value))
+    return true
+  }
+
+  // True when the key was ours.
+  function keyboardPressed(key, text) {
+    if (!keyboardMode) return false
+    keyboardIdle.restart()
+    var selected = keyboardKey
+    if (key === Qt.Key_Escape) {
+      stopKeyboard()
+    } else if (key === Qt.Key_Down || key === Qt.Key_J || key === Qt.Key_Tab) {
+      moveSelection(1)
+    } else if (key === Qt.Key_Up || key === Qt.Key_K || key === Qt.Key_Backtab) {
+      moveSelection(-1)
+    } else if (key === Qt.Key_Return || key === Qt.Key_Enter) {
+      stopKeyboard()
+      activate(selected)
+    } else if (key === Qt.Key_Delete || key === Qt.Key_Backspace) {
+      var at = keyboardOrder().indexOf(selected)
+      closeToast(selected, "dismissed")
+      keepSelection(at)
+    } else if (/^[1-9]$/.test(text)) {
+      if (Number(text) <= deedsFor(selected).length) {
+        stopKeyboard()
+        runDeed(selected, Number(text) - 1)
+      }
+    } else {
+      return false
+    }
+    return true
+  }
+
   // Fed target heights, never mid-animation ones, so layout moves on events.
   function noteHeight(key, h) {
     if (Math.abs((heights[key] || 0) - h) < 0.5) return
-    if (fresh[key] && !expanded) {
+    // Measured while it is being inserted: the arrival's own move follows.
+    if (key === arriving) {
+      heights[key] = h
+      return
+    }
+    if (fresh[key] && !expanded && !sceneRun.running) {
       heights[key] = h
       land()
     } else {
       commit(function() { service.heights[key] = h })
     }
+    if (key === keyboardKey) keepSelectionInReach()
   }
 
   // ------------------------------------------------------- the scene clock
   //
   // One clock for the whole deck: each card interpolates from `was` to its
   // placement by t. A Behavior per card would restart on every retarget.
-  readonly property var sceneCurve: [0.21, 1.02, 0.73, 1.0, 1.0, 1.0]
-  readonly property int sceneDuration: Style.duration(320)
+  // Style's strong ease-out, with no overshoot: the cards answer at once and settle
+  // without a bounce. Whatever leaves (a card, an open deck) goes quicker than
+  // it came, since nobody is waiting on it.
+  readonly property var sceneCurve: Style.easeOut
+  readonly property int arriveDuration: 250
+  readonly property int leaveDuration: 200
+  property int sceneDuration: arriveDuration
+  // How far a card drops in from, and rises by on its way out.
+  readonly property real travel: Style.space(24)
 
   property real t: 1                 // 0..1, eased, shared by every card
   property var was: ({})             // where each card was when the target moved
   property real deckWas: 0
+  // Set while a change lands without the clock, so the cards' text jumps too.
+  property bool jumping: false
 
   NumberAnimation {
     id: sceneRun
     target: service; property: "t"; from: 0; to: 1
-    duration: Math.max(1, service.sceneDuration)
+    duration: Math.max(1, Style.duration(service.sceneDuration))
     easing.type: Easing.Bezier
     easing.bezierCurve: service.sceneCurve
-    onFinished: service.settled()
+    onFinished: {
+      service.finishLeaving()
+      service.settled()
+    }
   }
 
   function at(key, what) {
@@ -319,23 +490,26 @@ Item {
   function commit(change) {
     var snap = snapshot(), deckNow = deckHeight
     change()
-    retarget(snap, deckNow)
+    retarget(snap, deckNow, expanded ? arriveDuration : leaveDuration)
   }
 
-  function retarget(snap, deckNow) {
+  function retarget(snap, deckNow, duration) {
     if (!snap) { snap = snapshot(); deckNow = deckHeight }
     deckWas = deckNow
     was = snap
+    sceneDuration = duration || arriveDuration
     layoutRevision += 1
     t = 0
     sceneRun.restart()
   }
 
-  // Arrivals and departures skip the clock: everything jumps to its place.
+  // Keyboard dismissals skip the clock: everything jumps to its place.
   function land() {
     sceneRun.stop()
+    jumping = true
     layoutRevision += 1
     t = 1
+    jumping = false
     Qt.callLater(landed)
   }
 
@@ -344,24 +518,37 @@ Item {
   // A move started after the jump settles on its own finish instead.
   function landed() { if (t >= 1) settled() }
 
-  readonly property var layout: {
-    layoutRevision
+  readonly property var layout: { layoutRevision; return layoutWith(expanded, openDeck) }
+
+  // The deck as it would stand with this deck open; the keyboard asks before
+  // it moves.
+  function layoutWith(isExpanded, deckKey) {
     var rows = []
     for (var i = 0; i < toasts.count; i++) {
       var row = toasts.get(i)
       if (!leaving[row.key]) rows.push(row)   // a card on its way out takes no space
     }
     return Layout.compute(rows, {
-      expanded: expanded,
-      openDeck: openDeck,
+      expanded: isExpanded,
+      openDeck: deckKey,
       gap: gap,
       deckGap: Style.space(11),
       heightOf: function(key) { return service.heights[key] || Style.space(58) }
     })
   }
 
-  // A leaving card has no placement, so its Toast is hidden and takes no input.
-  readonly property var placements: layout.placements
+  // A leaving card takes no room in the layout but keeps a placement of its
+  // own, rising out of where it was while the others close over it.
+  // Copied, not borrowed: writing it into layout.placements would mutate this
+  // binding's own input while reading it.
+  property var departures: ({})
+  readonly property var placements: {
+    var out = {}
+    var base = layout.placements
+    for (var k in base) out[k] = base[k]
+    for (var key in leaving) if (departures[key]) out[key] = departures[key]
+    return out
+  }
 
   // Our own identity: the sender's id is reused by replaces_id.
   function nextKey() {
@@ -502,17 +689,27 @@ Item {
       var row = pending.row
       pending.row = null
       var at = service.rowIndexFor(key)
+      var snap = service.snapshot(), deckNow = service.deckHeight
       if (at >= 0) {
-        var snap = service.snapshot(), deckNow = service.deckHeight
+        // A sender replacing a card on its way out gives it a fresh life:
+        // it comes back, rather than leaving with the new words on it.
+        if (service.leaving[key]) service.unmarkLeaving(key)
         Store.applyTo(toasts, at, row)      // an update, in place
         service.retarget(snap, deckNow)
       } else {
         service.pinDeckDisplay()
         // Before the insert: the delegate measures itself while it is built.
         service.fresh[key] = true
+        service.arriving = key
         toasts.insert(0, row)
-        // Arrivals don't slide in: the card and the deck are simply there.
-        service.land()
+        service.arriving = ""
+        // It drops in from just above where it lands, from under the bar for
+        // the top card, and fades in on the way.
+        var landing = service.layout.placements[key]
+        snap[key] = { y: (landing ? landing.y : 0) - service.travel,
+                      scale: landing ? landing.scale : 1, opacity: 0,
+                      height: landing ? landing.height : 0 }
+        service.retarget(snap, deckNow, service.arriveDuration)
       }
     })
   }
@@ -535,15 +732,16 @@ Item {
 
   // ------------------------------------------------------------- departure
   //
-  // A leaving row loses its layout room and vanishes at once, but keeps its
-  // model slot until the next tick: removing it from inside the delegate
+  // A leaving row loses its layout room at once but keeps its model slot until
+  // it has risen out of sight. Dismissed from the keyboard, it vanishes and
+  // goes on the next tick instead: removing it from inside the delegate
   // handler that dismissed it would destroy that delegate mid-call.
   property var leaving: ({})
 
-  function closeToast(key, reason) { closeToasts([key], reason) }
+  function closeToast(key, reason, instant) { closeToasts([key], reason, instant) }
 
-  // One jump for the lot, however many cards leave together.
-  function closeToasts(keys, reason) {
+  // One move, or one jump, for the lot, however many cards leave together.
+  function closeToasts(keys, reason, instant) {
     var next = {}, marked = false
     for (var k in leaving) next[k] = leaving[k]
     for (var i = 0; i < keys.length; i++) {
@@ -557,9 +755,51 @@ Item {
       marked = true
     }
     if (!marked) return
+    if (instant) {
+      jumping = true
+      leaving = next
+      jumping = false
+      land()
+      Qt.callLater(finishLeaving)
+      return
+    }
+    var snap = snapshot(), deckNow = deckHeight
+    var staying = 0
+    for (var r = 0; r < toasts.count; r++) if (!next[toasts.get(r).key]) staying++
+    var gone = {}
+    for (var d in departures) gone[d] = departures[d]
+    for (var j = 0; j < keys.length; j++) {
+      var from = snap[keys[j]], place = placements[keys[j]]
+      if (!next[keys[j]] || gone[keys[j]] || !from) continue
+      // Under the cards closing in, so the one taking its place covers it on
+      // the way up. Its text goes first, or it would read through them; the
+      // last card keeps its words, with nothing to cover it.
+      gone[keys[j]] = { y: from.y - travel, scale: from.scale, opacity: 0, height: from.height,
+                        z: 0, front: staying === 0, hidden: place ? place.hidden === true : true,
+                        leaving: true, until: Date.now() + Style.duration(leaveDuration) }
+    }
+    departures = gone
     leaving = next
-    land()
-    Qt.callLater(finishLeaving)
+    retarget(snap, deckNow, leaveDuration)
+    if (!departureDeadline.running) departureDeadline.start()
+  }
+
+  // A departure ends on its own clock, not the scene's: arrivals and updates
+  // restart that, and a card updating every tick would otherwise keep every
+  // closed card on screen, and counted against the limit, for good.
+  Timer {
+    id: departureDeadline
+    interval: Math.max(1, Style.duration(service.leaveDuration))
+    onTriggered: service.finishDeparted(Date.now())
+  }
+
+  function finishDeparted(now) {
+    var keys = Object.keys(departures), waiting = false
+    for (var i = 0; i < keys.length; i++) {
+      if (departures[keys[i]].until <= now) finishClose(keys[i], leaving[keys[i]])
+      else waiting = true
+    }
+    if (waiting) departureDeadline.restart()
   }
 
   function finishLeaving() {
@@ -567,10 +807,16 @@ Item {
     for (var i = 0; i < keys.length; i++) finishClose(keys[i], leaving[keys[i]])
   }
 
-  function finishClose(key, reason) {
-    var rest = {}
+  function unmarkLeaving(key) {
+    var rest = {}, stay = {}
     for (var k in leaving) if (k !== key) rest[k] = leaving[k]
+    for (var g in departures) if (g !== key) stay[g] = departures[g]
     leaving = rest
+    departures = stay
+  }
+
+  function finishClose(key, reason) {
+    unmarkLeaving(key)
     var at = rowIndexFor(key)
     if (!liveKeys[key]) return
     releaseLive(key)
@@ -585,20 +831,26 @@ Item {
 
   // Over a snapshot of the keys, never over the model's count: closeToast marks
   // a row leaving rather than removing it, so a count loop never progresses.
-  function clearAll(reason) {
+  function clearAll(reason, instant) {
     var keys = Object.keys(liveKeys)
-    closeToasts(keys, reason)
+    closeToasts(keys, reason, instant)
     return keys.length
   }
 
-  function dismissNewest() {
+  // The newest card still on screen, past any on their way out.
+  function newestLive() {
     for (var i = 0; i < toasts.count; i++) {
       var key = String(toasts.get(i).key)
-      if (leaving[key]) continue
-      closeToast(key, "dismissed")
-      return true
+      if (!leaving[key]) return key
     }
-    return false
+    return ""
+  }
+
+  function dismissNewest(instant) {
+    var key = newestLive()
+    if (!key) return false
+    closeToast(key, "dismissed", instant)
+    return true
   }
 
   // What the sender said can be done with this notification. A restored row
@@ -626,6 +878,15 @@ Item {
   function invokeAction(key, identifier) {
     if (typeof identifier !== "string" || identifier.length > Security.MAX_ACTION_ID) return
     invokeSenderAction(key, identifier)
+    closeToast(key, "activated")
+  }
+
+  // An --action button: its argv runs like the click command does.
+  function runExecAction(key, index) {
+    var at = rowIndexFor(key)
+    var actions = Security.parseExecActions(at >= 0 ? toasts.get(at).execActions : "")
+    if (!actions || index < 0 || index >= actions.length) return
+    Util.execArgv(actions[index].argv)
     closeToast(key, "activated")
   }
 
@@ -771,7 +1032,7 @@ Item {
 
   // A click: Omarchy's own --exec command first, then the sender's default
   // action, then its window, then its site.
-  function activate(key) {
+  function activate(key, instant) {
     var at = rowIndexFor(key)
     var row = at >= 0 ? toasts.get(at) : null
     var argv = Security.parseExecArgv(row ? row.execArgv : "")
@@ -779,7 +1040,7 @@ Item {
       // Detached through bash positional parameters, never a shell string, and
       // outliving the shell, which installer toasts restart on their first act.
       Util.execArgv(argv)
-      closeToast(key, "activated")
+      closeToast(key, "activated", instant)
       return
     }
 
@@ -794,7 +1055,7 @@ Item {
       else if (String(row.link || "")) Security.openExternalUrl(String(row.link))
       else if (String(row.app || "")) Util.execArgv(["omarchy-hyprland-focus-app", String(row.app)])
     }
-    closeToast(key, "activated")
+    closeToast(key, "activated", instant)
   }
 
   // -------------------------------------------------------------- codes
@@ -1106,17 +1367,31 @@ Item {
       return isDnd()
     }
 
-    // Dismiss the newest card on screen.
-    function dismissOne(): string { return service.dismissNewest() ? "ok" : "none" }
+    // Dismiss the newest card on screen. These three are what the keybindings
+    // run, and a keypress is answered at once, without motion.
+    function dismissOne(): string { return service.dismissNewest(true) ? "ok" : "none" }
 
     // Every card, every stack.
-    function dismissAll(): string { service.clearAll("dismissed"); return "ok" }
+    function dismissAll(): string { service.clearAll("dismissed", true); return "ok" }
 
     // Click the newest card, as the pointer would.
     function invokeLast(): string {
-      if (toasts.count === 0) return "none"
-      service.activate(String(toasts.get(0).key))
+      var key = service.newestLive()
+      if (!key) return "none"
+      service.activate(key, true)
       return "ok"
+    }
+
+    // Press button n (from 1) on the newest card.
+    function invokeAction(n: int): string {
+      if (toasts.count === 0) return "none"
+      return service.runDeed(String(toasts.get(0).key), n - 1) ? "ok" : "none"
+    }
+
+    // Hand the keyboard to the notifications until Escape or a choice.
+    function keyboard(): string {
+      if (service.keyboardMode) { service.stopKeyboard(); return "off" }
+      return service.startKeyboard() ? "on" : "none"
     }
 
     // Put the last few back on screen.
@@ -1159,6 +1434,7 @@ Item {
     function probe(): string {
       return JSON.stringify({ toasts: toasts.count,
         doNotDisturb: service.doNotDisturb, expanded: service.expanded,
+        keyboardMode: service.keyboardMode, keyboardKey: service.keyboardKey,
         displays: service.displayNames, focusedDisplay: service.focusedDisplayName,
         targetDisplay: service.targetDisplayName,
         notificationDisplays: service.displayNames.filter(function(name) { return service.showsOn(name) }),
@@ -1184,18 +1460,13 @@ Item {
       readonly property var margins: service.marginsFor(String(modelData.name))
       readonly property bool stepAside: service.fullscreenOn(String(modelData.name))
       readonly property bool hasSomethingToShow: showingNotifications && toasts.count > 0
-      // Holds the canvas for the last card's exit animation.
-      property bool lingering: false
-      onHasSomethingToShowChanged: {
-        if (hasSomethingToShow) lingering = false
-        else { lingering = true; lingerTimer.restart() }
-      }
-      Timer { id: lingerTimer; interval: 800; onTriggered: surface.lingering = false }
-      visible: !stepAside || hasSomethingToShow || lingering
+      visible: !stepAside || hasSomethingToShow
       color: "transparent"
 
       WlrLayershell.namespace: "omarchy-notifications"
       WlrLayershell.layer: WlrLayer.Overlay
+      readonly property bool takesKeyboard: service.keyboardMode && service.targetDisplayName === String(modelData.name)
+      WlrLayershell.keyboardFocus: takesKeyboard ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
       exclusionMode: ExclusionMode.Ignore
 
       // Constant width and full height, so the buffer is allocated once.
@@ -1203,6 +1474,13 @@ Item {
       implicitWidth: clipper.width + Style.space(10)
 
       mask: Region { item: surface.showingNotifications ? deck : null }
+
+      Item {
+        focus: surface.takesKeyboard
+        Keys.onPressed: function(event) {
+          event.accepted = service.keyboardPressed(event.key, event.text)
+        }
+      }
 
       Item {
         id: clipper
@@ -1241,7 +1519,7 @@ Item {
               var found = ""
               for (var key in places) {
                 var pl = places[key]
-                if (pl.hidden) continue
+                if (pl.hidden || pl.leaving) continue
                 var h = pl.height || Style.space(58)
                 if (y >= pl.y && y <= pl.y + h) { found = key; break }
               }
@@ -1282,6 +1560,8 @@ Item {
                 var top = place.y
                 var bottom = top + (service.heights[first.key] || Style.space(58))
                 if (mouse.y >= top - Style.space(6) && mouse.y <= bottom + Style.space(6)) {
+                  // Opening another deck would hide the keyboard's card.
+                  if (service.keyboardMode && decks[i].key !== service.openDeck) service.stopKeyboard()
                   service.pointerEntered(decks[i].key)
                   return
                 }
@@ -1299,12 +1579,17 @@ Item {
               cardWidth: deck.width
               place: service.placements[model.key]
                      || ({ y: 0, scale: 1, opacity: 0, z: 1, front: false, hidden: true })
-              hovered: service.hoverKey === model.key
+              hovered: service.keyboardMode ? service.keyboardKey === model.key : service.hoverKey === model.key
+              selected: service.keyboardMode && service.keyboardKey === model.key
               actions: service.actionsOf(model.key, service.refsRevision)
               hoverX: service.hoverX
               hoverY: service.hoverY
-              onActionInvoked: function(identifier) { service.invokeAction(model.key, identifier) }
-              onCodeCopied: function(code) { service.copyCode(code, model.key) }
+              // A click is the mouse taking over: it ends keyboard mode, which
+              // would otherwise keep the keyboard from the app it opened.
+              onActionInvoked: function(identifier) { service.stopKeyboard(); service.invokeAction(model.key, identifier) }
+              onExecInvoked: function(index) { service.stopKeyboard(); service.runExecAction(model.key, index) }
+              onCodeCopied: function(code) { service.stopKeyboard(); service.copyCode(code, model.key) }
+              onLinkOpened: service.stopKeyboard()
               now: service.nowTick
               expanded: service.expanded
                         && service.openDeck === Layout.groupKeyFor(model)
@@ -1319,8 +1604,8 @@ Item {
               Component.onCompleted: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
 
               onExpired: service.closeToast(model.key, "expired")
-              onActivated: service.activate(model.key)
-              onDismissed: service.closeToast(model.key, "dismissed")
+              onActivated: { service.stopKeyboard(); service.activate(model.key) }
+              onDismissed: { service.stopKeyboard(); service.closeToast(model.key, "dismissed") }
             }
           }
         }

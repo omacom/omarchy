@@ -324,6 +324,23 @@ shutil.rmtree(pending)
 PY
 pass "a failed registration rolls the new home back to pending"
 
+# A settings cache whose settings aren't an object costs only the plan.
+STATE="$ROOT/bin/omarchy-agent-account-state" python3 - <<'PY' || fail "a Grok settings cache of the wrong shape reads as no plan"
+import importlib.machinery, importlib.util, json, os, tempfile
+from pathlib import Path
+loader = importlib.machinery.SourceFileLoader("state", os.environ["STATE"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+state = importlib.util.module_from_spec(spec)
+loader.exec_module(state)
+
+home = Path(tempfile.mkdtemp(dir=os.environ["HOME"]))
+(home / "auth.json").write_text(json.dumps({"https://auth.x.ai::client": {"user_id": "u-odd", "email": "odd@example.com"}}))
+(home / "settings_cache.json").write_text(json.dumps({"payload": json.dumps({"settings": "x"})}))
+found = state.grok_identity(home)
+assert found["plan"] == "" and found["email"] == "odd@example.com", found
+PY
+pass "a Grok settings cache of the wrong shape reads as no plan"
+
 # ------------------------------------------------------------ panel add flow
 
 [[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional' ]] ||

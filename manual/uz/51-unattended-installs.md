@@ -12,8 +12,6 @@ Fayllar oʻrnatuvchining oʻz ustasi yozganlarining aynan oʻzi, shuning uchun b
 |------|----------|---------|
 | `user_configuration.json` | Ha | Disk, hostname, vaqt mintaqasi, klaviatura |
 | `user_credentials.json` | Ha | Foydalanuvchi nomi va parol xeshi |
-| `user_full_name.txt` | Yoʻq | Git toʻliq nomi |
-| `user_email_address.txt` | Yoʻq | Git email |
 | `user_encrypt_installation.txt` | Yoʻq | Konfiguratsiya `disk_encryption` blokini olib yurganda `true` |
 | `authorized_keys` | Yoʻq | SSH ochiq kalitlar, har qatorda bitta |
 | `tailscale_authkey` | Yoʻq | Birinchi yuklashda tailnetingizga qoʻshilish uchun Tailscale auth kaliti |

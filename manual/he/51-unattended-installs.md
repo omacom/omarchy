@@ -12,8 +12,6 @@
 |------|----------|---------|
 | `user_configuration.json` | כן | דיסק, שם מארח, אזור זמן, מקלדת |
 | `user_credentials.json` | כן | שם משתמש וגיבוב סיסמה |
-| `user_full_name.txt` | לא | שם מלא של Git |
-| `user_email_address.txt` | לא | דוא"ל של Git |
 | `user_encrypt_installation.txt` | לא | `true` כאשר התצורה נושאת בלוק `disk_encryption` |
 | `authorized_keys` | לא | מפתחות ציבוריים של SSH, אחד בכל שורה |
 | `tailscale_authkey` | לא | מפתח אימות Tailscale להצטרפות ל-tailnet שלכם באתחול הראשון |

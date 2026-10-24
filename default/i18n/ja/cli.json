@@ -53,7 +53,6 @@
   "capture.recordingError": "画面録画エラー",
   "capture.recordingKilled": "録画プロセスを強制終了しました。動画が破損している可能性があります。",
   "capture.recordingSaved": "画面録画を保存しました",
-  "capture.recordingSavedHint": "Super + Alt + , で開く（またはここをクリック）",
   "capture.recordingWithoutAudio": "%1 の音声なしで録画中",
   "capture.selectWebcam": "ウェブカメラを選択",
   "capture.textCopied": "選択したテキストをクリップボードにコピーしました",

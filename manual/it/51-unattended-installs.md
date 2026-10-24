@@ -12,8 +12,6 @@ I file sono esattamente quelli che scrive la procedura guidata del programma di 
 |------|----------|---------|
 | `user_configuration.json` | Sì | Disco, hostname, fuso orario, tastiera |
 | `user_credentials.json` | Sì | Nome utente e hash della password |
-| `user_full_name.txt` | No | Nome completo per Git |
-| `user_email_address.txt` | No | Email per Git |
 | `user_encrypt_installation.txt` | No | `true` quando la configurazione contiene un blocco `disk_encryption` |
 | `authorized_keys` | No | Chiavi pubbliche SSH, una per riga |
 | `tailscale_authkey` | No | Chiave di autenticazione Tailscale per unirsi alla tailnet al primo avvio |

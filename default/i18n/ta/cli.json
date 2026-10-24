@@ -53,7 +53,6 @@
   "capture.recordingError": "திரைப்பதிவு பிழை",
   "capture.recordingKilled": "பதிவு செயல்முறை வலுக்கட்டாயமாக நிறுத்தப்பட்டது. காணொளி சிதைந்திருக்கலாம்.",
   "capture.recordingSaved": "திரைப்பதிவு சேமிக்கப்பட்டது",
-  "capture.recordingSavedHint": "Super + Alt + , உடன் திறக்கவும் (அல்லது இதைக் கிளிக் செய்யவும்)",
   "capture.recordingWithoutAudio": "%1 ஒலி இல்லாமல் பதிவு செய்கிறது",
   "capture.selectWebcam": "வெப்கேமைத் தேர்ந்தெடுக்கவும்",
   "capture.textCopied": "தேர்விலிருந்து உரை கிளிப்போர்டுக்கு நகலெடுக்கப்பட்டது",

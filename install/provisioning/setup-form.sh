@@ -173,6 +173,7 @@ omarchy_prompt_password() {
   done
 }
 
+# Only ISO configurators from before omarchy-setup-git still call this.
 # Both fields are skippable with Return, so an empty value is a real answer and
 # only Esc/Ctrl+C end the prompt early.
 omarchy_prompt_identity() {

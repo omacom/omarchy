@@ -366,6 +366,10 @@ QtObject {
     return reduceMotion ? 0 : ms
   }
 
+  // A strong ease-out, for anything appearing or moving in answer to the
+  // pointer: it starts at once and settles without a bounce.
+  readonly property var easeOut: [0.23, 1.0, 0.32, 1.0, 1.0, 1.0]
+
   function refresh() {
     hyprctlProc.running = true
     gapsOutProc.running = true

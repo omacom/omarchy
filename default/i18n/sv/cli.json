@@ -53,7 +53,6 @@
   "capture.recordingError": "Fel vid skärminspelning",
   "capture.recordingKilled": "Inspelningen tvingades avslutas. Videon kan vara skadad.",
   "capture.recordingSaved": "Skärminspelning sparad",
-  "capture.recordingSavedHint": "Öppna med Super + Alt + , (eller klicka här)",
   "capture.recordingWithoutAudio": "Spelar in utan %1-ljud",
   "capture.selectWebcam": "Välj webbkamera",
   "capture.textCopied": "Text från markeringen kopierad till urklipp",

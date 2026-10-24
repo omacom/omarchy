@@ -176,6 +176,21 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.deepEqual([secret.execArgv, secret.glyph], ['', ''])
 }
 
+{ // --action buttons: up to three, each a label and an argv held to the click's rules.
+  const actions = JSON.stringify([{ label: 'Edit', argv: ['omasnap', '--file', '/tmp/a b.png'] },
+                                  { label: 'Copy path', argv: ['wl-copy', '--', '/tmp/a b.png'] }])
+  assert.equal(JSON.stringify(S.parseExecActions(actions)), actions)
+  const one = { label: 'Go', argv: ['true'] }
+  for (const bad of ['', '[]', '{}', JSON.stringify([one, one, one, one]), JSON.stringify([{ label: ' ', argv: ['true'] }]),
+                     JSON.stringify([{ label: 'Go', argv: ['-rf'] }]), JSON.stringify([{ label: 'Go' }]), JSON.stringify([one, 'x'])])
+    assert.equal(S.parseExecActions(bad), null, bad)
+  // Stored with the row, so a restored card keeps its buttons; redacted with a code.
+  const row = snap({ appName: 'omasnap', summary: 'Screenshot saved', hints: { 'omarchy-actions': actions } })
+  assert.equal(Store.restored(Store.sanitiseForPersistence(row)).execActions, actions)
+  const secret = snap({ appName: 'x', summary: 'Sign in', body: 'Your verification code is 482913', hints: { 'omarchy-actions': actions } })
+  assert.equal(Store.sanitiseForPersistence(secret).execActions, '')
+}
+
 { // Sender image paths: absolute, one spelling, bounded, and never a kernel interface or service state.
   for (const path of ['/tmp/.org.chromium.Chromium.Xk3lQa/1', '/tmp/.org.chromium.Chromium.Xk3lQa/notification-icon', '/home/u/.cache/app/avatar.png',
                       '/usr/share/icons/hicolor/48x48/apps/slack.png', '/run/user/1000/app/com.slack.Slack/icon.png', '/tmp/a b#c?.png',
@@ -251,6 +266,11 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
     [{ app: 'omarchy-action', urgency: 0 }, true, ''],
     [{ app: 'Google', urgency: 1, code: '482913' }, true, ''],
   ]) assert.equal(Delivery.quietReason(row, dnd), expected, JSON.stringify([row, dnd]))
+  // The number keys count buttons in the order the card draws them: codes, --action, the sender's.
+  const deeds = Delivery.deeds({ codes: '482913 771204', execActions: JSON.stringify([{ label: 'Edit', argv: ['omasnap'] }]) },
+                               [{ id: 'join', text: 'Join call' }])
+  assert.equal(JSON.stringify(Array.from(deeds, d => d.kind + ':' + d.value)), JSON.stringify(['code:482913', 'code:771204', 'exec:0', 'action:join']))
+  assert.equal(Delivery.deeds({}, []).length, 0)
   for (const [row, ephemeral] of [[{ app: 'notify-send' }, true], [{ app: 'omarchy-action' }, true],
                                   [{ app: 'Slack', transient: true }, true], [{ app: 'Slack' }, false]])
     assert.equal(Delivery.isEphemeral(row), ephemeral, row.app)
@@ -310,7 +330,7 @@ function runIn(scope, ...names) {
 const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
-  'closeToasts', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
 function newCapacityScope() {
@@ -323,7 +343,8 @@ function newCapacityScope() {
   const later = []
   const s = {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
-    maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, layoutRevision: 0,
+    maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
+    arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
     held: [], doNotDisturb: false,
     liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
@@ -336,7 +357,8 @@ function newCapacityScope() {
     NotificationUrgency: { Critical: 2, Normal: 1, Low: 0 },
     Qt: { callLater: f => later.push(f),
       md5: value => require('node:crypto').createHash('md5').update(value).digest('hex') },
-    Style: { space: n => n },
+    Style: { space: n => n, duration: n => n },
+    departureDeadline: { running: false, start() {}, restart() {} },
     holding: () => s.pointerHolding === true,
     snapshot: () => ({}), deckHeight: 0, retarget: () => {}, land: () => {}, layout: { placements: {} },
   }
@@ -414,15 +436,50 @@ const summaries = rows => Array.from(rows, row => row.summary)
   for (const sender of senders) assert.equal(sender.closeAttempts, 1)
 }
 
-{ // Clearing takes every card out together, with one jump.
+{ // A clicked card rises out before it goes; a keypress clears every card with one jump.
   const s = newCapacityScope()
   s.admit(...[1, 2, 3].map(id => s.fakeNotification(id)))
-  let lands = 0
+  let lands = 0, moves = 0
   s.land = () => { lands += 1 }
-  assert.equal(s.clearAll('dismissed'), 3)
+  s.retarget = () => { moves += 1 }
+  s.closeToast(s.toasts.get(0).key, 'dismissed')
+  s.drainCallLater()
+  assert.equal(moves, 1)
+  assert.equal(s.toasts.count, 3, 'a clicked card keeps its row until its exit move finishes')
+  assert.equal(s.clearAll('dismissed', true), 3)
   assert.equal(lands, 1)
   s.drainCallLater()
-  assert.equal(s.toasts.count, 0)
+  assert.equal(s.toasts.count, 0, 'the jump takes the card already on its way out too')
+}
+
+{ // A card on its way out is passed over by the shortcuts, and goes on its own deadline
+  // however often an update restarts the scene.
+  const s = newCapacityScope()
+  s.admit(...[1, 2].map(id => s.fakeNotification(id)))
+  const [front, back] = s.toasts.rows.map(row => row.key)
+  const at = { y: 0, scale: 1, opacity: 1, height: 58 }
+  s.snapshot = () => ({ [front]: at, [back]: at })
+  s.closeToast(front, 'dismissed')
+  assert.equal(s.newestLive(), back, 'the activation shortcut must not run the departing card again')
+  s.finishDeparted(Date.now())
+  assert.equal(s.toasts.count, 2, 'the card rises out before it goes')
+  s.finishDeparted(Date.now() + 1000)
+  assert.deepEqual(s.toasts.rows.map(row => row.key), [back], 'its deadline removes it without the scene settling')
+}
+
+{ // A sender replacing a card during its exit brings it back instead of losing the update.
+  const s = newCapacityScope()
+  const sender = s.fakeNotification(1, 'Expiring')
+  s.admit(sender)
+  const key = s.keyForOriginal(1)
+  s.snapshot = () => ({ [key]: { y: 0, scale: 1, opacity: 1, height: 58 } })
+  s.closeToast(key, 'expired')
+  sender.replace({ summary: 'Still going', expireTimeout: 12345 })
+  s.drainCallLater()
+  s.finishDeparted(Date.now() + 1000)
+  assert.equal(s.toasts.count, 1)
+  assert.equal(s.toasts.get(0).summary, 'Still going')
+  assert.equal(sender.expiries, 0, 'the fresh notification must not be reported expired')
 }
 
 { // A code must not outlive its toast, even in source metadata.
@@ -434,6 +491,39 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.ok(Store.redacted(s.historyEntries[0]))
   assert.ok(!Store.redacted({ summary: 'Verification notification', body: 'a real message' }))
   assert.ok(!JSON.stringify(s.historyEntries).includes('938271'))
+}
+
+{ // The keyboard only selects cards that fit on screen: the deck does not scroll.
+  const s = newCapacityScope()
+  const other = s.fakeNotification(9, 'Other app')
+  other.appName = 'Other'
+  s.admit(other, ...[1, 2, 3, 4, 5].map(id => s.fakeNotification(id, 'Card ' + id)))
+  Object.assign(s, { Layout, gap: 6, targetDisplayName: 'fixture-display', marginsFor: () => ({ top: 10, right: 10 }),
+    Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] }, keyboardMode: true, keyboardRejected: {} })
+  runIn(s, 'layoutWith', 'reachable', 'moveSelection', 'keepSelectionInReach', 'keyboardOrder')
+  for (const row of s.toasts.rows) s.heights[row.key] = 100
+  Object.defineProperty(s, 'layout', { get: () => s.layoutWith(true, s.openDeck) })
+  s.selectCard = key => { s.keyboardKey = key; s.openDeck = Layout.groupKeyFor(s.toasts.get(s.rowIndexFor(key))) }
+  const summary = () => s.toasts.get(s.rowIndexFor(s.keyboardKey)).summary
+  s.selectCard(s.keyboardOrder()[0])
+  s.moveSelection(1)
+  // 300 tall, 10 down, 6 apart: two 100-tall cards fit, the third would end at 322...
+  assert.equal(summary(), 'Card 4')
+  // ...so Down skips the rest of that deck for the next one, which fits once it opens.
+  s.moveSelection(1)
+  assert.equal(summary(), 'Other app')
+  s.moveSelection(-1)
+  assert.equal(summary(), 'Card 4')
+  // A selected card that grows past the bottom (its buttons, its body) gives way.
+  const grown = s.keyboardKey
+  s.heights[grown] = 200
+  s.keepSelectionInReach()
+  assert.equal(summary(), 'Card 5')
+  // Its buttons hide again once it is not selected; Down passes it rather than
+  // landing on it and giving way again, forever.
+  s.heights[grown] = 100
+  s.moveSelection(1)
+  assert.equal(summary(), 'Other app')
 }
 
 for (const held of [true, false]) { // Capacity: at most 100 live senders, held or deferred.

@@ -133,3 +133,22 @@ if TEST_ADMIN=no offers_update "$installed" 1 0; then
 fi
 ! grep -qx checkupdates "$test_tmp/calls" || fail "first run doesn't check for updates for an account that isn't an administrator"
 pass "first run offers an update only to an administrator"
+
+# Arguments: the git name and email already configured, empty for unset.
+offers_git_setup() {
+  : >"$test_tmp/calls"
+  local home="$test_tmp/git-home"
+  rm -rf "$home" && mkdir -p "$home"
+  [[ -z $1 ]] || HOME="$home" git config --global user.name "$1"
+  [[ -z $2 ]] || HOME="$home" git config --global user.email "$2"
+  HOME="$home" PATH="$mock_bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" \
+    bash "$ROOT/install/user/first-run/git.sh"
+  grep -Fq 'Setup Git' "$test_tmp/calls"
+}
+
+offers_git_setup "" "" || fail "first run offers git setup on a fresh account"
+offers_git_setup "Jane" "" || fail "first run offers git setup when the email is missing"
+if offers_git_setup "Jane" "jane@example.com"; then
+  fail "first run offers no git setup when the install already set an identity"
+fi
+pass "first run offers git setup only when the identity is missing"

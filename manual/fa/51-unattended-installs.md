@@ -12,8 +12,6 @@ ISO Omarchy می‌تواند خودش را با هیچ‌کس پشت صفحه�
 |------|----------|---------|
 | `user_configuration.json` | بله | دیسک، نام میزبان، منطقه زمانی، صفحه‌کلید |
 | `user_credentials.json` | بله | نام کاربری و هش گذرواژه |
-| `user_full_name.txt` | خیر | نام کامل Git |
-| `user_email_address.txt` | خیر | ایمیل Git |
 | `user_encrypt_installation.txt` | خیر | `true` وقتی پیکربندی یک بلوک `disk_encryption` حمل می‌کند |
 | `authorized_keys` | خیر | کلیدهای عمومی SSH، یکی در هر خط |
 | `tailscale_authkey` | خیر | کلید احراز هویت Tailscale برای پیوستن به tailnet شما در اولین بوت |

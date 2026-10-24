@@ -186,7 +186,7 @@ def grok_identity(home: Path) -> dict[str, str]:
     "accountId": str(login.get("user_id") or ""),
     "email": str(login.get("email") or ""),
     "org": "",
-    "plan": str(settings.get("subscription_tier_display") or ""),
+    "plan": str((settings if isinstance(settings, dict) else {}).get("subscription_tier_display") or ""),
   }
 
 

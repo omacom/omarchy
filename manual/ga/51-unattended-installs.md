@@ -12,8 +12,6 @@ Is iad na comhaid go díreach an méid a scríobhann treoraí an suiteálaí fé
 |------|----------|---------|
 | `user_configuration.json` | Sea | Diosca, óstainm, crios ama, méarchlár |
 | `user_credentials.json` | Sea | Ainm úsáideora agus haise pasfhocail |
-| `user_full_name.txt` | Níl | Ainm iomlán Git |
-| `user_email_address.txt` | Níl | Ríomhphost Git |
 | `user_encrypt_installation.txt` | Níl | `true` nuair a iompraíonn an chumraíocht bloc `disk_encryption` |
 | `authorized_keys` | Níl | Eochracha poiblí SSH, ceann in aghaidh na líne |
 | `tailscale_authkey` | Níl | Eochair fíordheimhnithe Tailscale chun dul isteach i do tailnet ar an gcéad tosú |

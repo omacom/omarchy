@@ -12,8 +12,6 @@ Failai yra tiksliai tai, ką įrašo pati įdiegyklės vediklis, todėl lengviau
 |------|----------|---------|
 | `user_configuration.json` | Taip | Diskas, šeimininko pavadinimas, laiko juosta, klaviatūra |
 | `user_credentials.json` | Taip | Vartotojo vardas ir slaptažodžio hash |
-| `user_full_name.txt` | Ne | Git pilnas vardas |
-| `user_email_address.txt` | Ne | Git el. paštas |
 | `user_encrypt_installation.txt` | Ne | `true`, kai konfigūracija turi `disk_encryption` bloką |
 | `authorized_keys` | Ne | SSH viešieji raktai, po vieną eilutėje |
 | `tailscale_authkey` | Ne | Tailscale auth raktas prisijungimui prie tavo tailnet pirmosios įkrovos metu |

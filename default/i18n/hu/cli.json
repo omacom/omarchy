@@ -53,7 +53,6 @@
   "capture.recordingError": "Képernyőfelvétel hibája",
   "capture.recordingKilled": "A felvételi folyamatot kényszerrel le kellett állítani. A videó sérülhetett.",
   "capture.recordingSaved": "Képernyőfelvétel mentve",
-  "capture.recordingSavedHint": "Megnyitás: Super + Alt + , (vagy kattints ide)",
   "capture.recordingWithoutAudio": "Felvétel %1 hang nélkül",
   "capture.selectWebcam": "Webkamera kiválasztása",
   "capture.textCopied": "Kijelölt szöveg a vágólapra másolva",

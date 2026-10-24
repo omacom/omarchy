@@ -12,8 +12,6 @@ Failid on täpselt need, mida paigaldaja oma viisard kirjutab, nii et lihtsaim v
 |------|----------|---------|
 | `user_configuration.json` | Jah | Ketas, hostinimi, ajavöönd, klaviatuur |
 | `user_credentials.json` | Jah | Kasutajanimi ja parooli räsi |
-| `user_full_name.txt` | Ei | Giti täisnimi |
-| `user_email_address.txt` | Ei | Giti e-post |
 | `user_encrypt_installation.txt` | Ei | `true`, kui seadistus kannab `disk_encryption` plokki |
 | `authorized_keys` | Ei | SSH avalikud võtmed, üks rea kohta |
 | `tailscale_authkey` | Ei | Tailscale'i autentimisvõti sinu tailnetiga liitumiseks esimesel alglaadimisel |

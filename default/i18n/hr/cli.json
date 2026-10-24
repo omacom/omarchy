@@ -53,7 +53,6 @@
   "capture.recordingError": "Pogreška snimanja zaslona",
   "capture.recordingKilled": "Proces snimanja morao je biti prisilno zaustavljen. Video može biti oštećen.",
   "capture.recordingSaved": "Snimka zaslona spremljena",
-  "capture.recordingSavedHint": "Otvorite sa Super + Alt + , (ili kliknite ovo)",
   "capture.recordingWithoutAudio": "Snimanje bez %1 zvuka",
   "capture.selectWebcam": "Odaberite web-kameru",
   "capture.textCopied": "Tekst iz odabira kopiran u međuspremnik",

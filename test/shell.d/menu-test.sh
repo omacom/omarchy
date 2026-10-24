@@ -257,22 +257,30 @@ assertEqual(
   'menu lists Reset Computer last under Setup'
 )
 const expectedAgents = {
-  agy: { icon: '󰫢', label: 'Antigravity' },
+  agy: { icon: '\ue91c', iconFont: 'omarchy', label: 'Antigravity' },
   pi: { icon: '\ue901', iconFont: 'omarchy', label: 'Pi' },
   omp: { icon: '\ue903', iconFont: 'omarchy', label: 'omp' },
   opencode: { icon: '\ue902', iconFont: 'omarchy', label: 'OpenCode' },
   ori: { icon: '\ue909', iconFont: 'omarchy', label: 'Ori' },
-  claude: { icon: '󰛄', label: 'Claude' },
+  claude: { icon: '\ue90e', iconFont: 'omarchy', label: 'Claude' },
   codex: { icon: '\ue905', iconFont: 'omarchy', label: 'Codex' },
   grok: { icon: '\ue904', iconFont: 'omarchy', label: 'Grok' },
-  kimi: { icon: '\u{f06a9}', label: 'Kimi' },
+  kimi: { icon: '\ue91d', iconFont: 'omarchy', label: 'Kimi' },
+  qwen: { icon: '\ue910', iconFont: 'omarchy', label: 'Qwen Code' },
+  dsh: { icon: '\ue911', iconFont: 'omarchy', label: 'DeepSeek Harness' },
+  mcode: { icon: '\ue912', iconFont: 'omarchy', label: 'MiniMax Code' },
+  'kiro-cli': { icon: '\ue914', iconFont: 'omarchy', label: 'Kiro CLI' },
+  freebuff: { icon: '\ue916', iconFont: 'omarchy', label: 'Freebuff' },
+  kilo: { icon: '\ue917', iconFont: 'omarchy', label: 'Kilo' },
+  devin: { icon: '\ue918', iconFont: 'omarchy', label: 'Devin CLI' },
+  amp: { icon: '\ue919', iconFont: 'omarchy', label: 'Amp' },
+  commandcode: { icon: '\ue91a', iconFont: 'omarchy', label: 'Command Code' },
   hermes: { icon: '\ue90a', iconFont: 'omarchy', label: 'Hermes' },
   openclaw: { icon: '\ue90c', iconFont: 'omarchy', label: 'OpenClaw' },
   copilot: { icon: '', label: 'Copilot' },
-  crush: { icon: '󰋑', label: 'Crush' },
-  muse: { icon: '󰛤', label: 'Muse Code' },
+  crush: { icon: '\ue91e', iconFont: 'omarchy', label: 'Crush' },
+  muse: { icon: '\ue91f', iconFont: 'omarchy', label: 'Muse Code' },
   'cursor-agent': { icon: '\ue90d', iconFont: 'omarchy', label: 'Cursor CLI' },
-
 }
 assert(
   Object.entries(expectedAgents).every(([agent, expected]) => {
@@ -291,7 +299,7 @@ assertDeepEqual(
   defaultItems
     .filter(item => item.parent === 'setup.default.agent')
     .map(item => item.label),
-  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Kimi', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
+  ['Amp', 'Antigravity', 'Claude', 'Codex', 'Command Code', 'Copilot', 'Crush', 'Cursor CLI', 'DeepSeek Harness', 'Devin CLI', 'Freebuff', 'Grok', 'Hermes', 'Kilo', 'Kimi', 'Kiro CLI', 'MiniMax Code', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi', 'Qwen Code'],
   'menu sorts coding agents alphabetically'
 )
 const expectedDefaults = {
@@ -943,5 +951,5 @@ assert(
 JS
 
 font_charset=$(fc-query --format='%{charset}' "$ROOT/default/fonts/omarchy/omarchy.ttf")
-[[ $font_charset == *"e900-e90f"* ]] || fail "Omarchy icon font includes every custom menu glyph"
+[[ $font_charset == *"e900-e91f"* ]] || fail "Omarchy icon font includes every custom menu glyph"
 pass "Omarchy icon font includes the official agent marks"

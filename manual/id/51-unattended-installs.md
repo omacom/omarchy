@@ -12,8 +12,6 @@ Berkas-berkas tersebut persis seperti yang ditulis wizard pemasang itu sendiri, 
 |------|----------|---------|
 | `user_configuration.json` | Ya | Disk, hostname, zona waktu, keyboard |
 | `user_credentials.json` | Ya | Nama pengguna dan hash kata sandi |
-| `user_full_name.txt` | Tidak | Nama lengkap Git |
-| `user_email_address.txt` | Tidak | Email Git |
 | `user_encrypt_installation.txt` | Tidak | `true` saat konfigurasi memuat blok `disk_encryption` |
 | `authorized_keys` | Tidak | Kunci publik SSH, satu per baris |
 | `tailscale_authkey` | Tidak | Kunci auth Tailscale untuk bergabung dengan tailnet kamu pada boot pertama |

@@ -53,7 +53,6 @@
   "capture.recordingError": "Errore di registrazione schermo",
   "capture.recordingKilled": "La registrazione è stata chiusa forzatamente. Il video potrebbe essere danneggiato.",
   "capture.recordingSaved": "Registrazione schermo salvata",
-  "capture.recordingSavedHint": "Apri con Super + Alt + , (o fai clic qui)",
   "capture.recordingWithoutAudio": "Registrazione senza audio %1",
   "capture.selectWebcam": "Seleziona webcam",
   "capture.textCopied": "Testo della selezione copiato negli appunti",

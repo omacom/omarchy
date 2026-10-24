@@ -163,11 +163,23 @@ PopupWindow {
     borderSpec: root.borderSpec
     padding: root.padding
     radius: Style.cornerRadius
-    opacity: root.open ? 1.0 : 0
 
-    Behavior on opacity {
-      NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+    // Grows out of the bar from just under full size as it fades in, as the
+    // keyboard panels do, and goes in two thirds of the time.
+    property real shown: root.open ? 1 : 0
+    Behavior on shown {
+      id: showing
+      NumberAnimation {
+        duration: Style.duration(showing.targetValue > 0 ? 180 : 120)
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Style.easeOut
+      }
     }
+    opacity: shown
+    scale: 0.97 + 0.03 * shown
+    transformOrigin: !root.bar || root.bar.position === "top" ? Item.Top
+      : root.bar.position === "bottom" ? Item.Bottom
+      : root.bar.position === "left" ? Item.Left : Item.Right
 
     Item {
       id: contentHolder

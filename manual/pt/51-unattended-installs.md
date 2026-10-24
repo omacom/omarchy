@@ -12,8 +12,6 @@ Os ficheiros são exatamente o que o próprio assistente do instalador escreve, 
 |------|----------|---------|
 | `user_configuration.json` | Sim | Disco, nome do anfitrião, fuso horário, teclado |
 | `user_credentials.json` | Sim | Nome de utilizador e hash da palavra-passe |
-| `user_full_name.txt` | Não | Nome completo do Git |
-| `user_email_address.txt` | Não | E-mail do Git |
 | `user_encrypt_installation.txt` | Não | `true` quando a configuração contém um bloco `disk_encryption` |
 | `authorized_keys` | Não | Chaves públicas SSH, uma por linha |
 | `tailscale_authkey` | Não | Chave de autenticação Tailscale para aderir à sua tailnet no primeiro arranque |

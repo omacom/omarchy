@@ -12,8 +12,6 @@
 |------|----------|---------|
 | `user_configuration.json` | Ναι | Δίσκος, όνομα κεντρικού υπολογιστή, ζώνη ώρας, πληκτρολόγιο |
 | `user_credentials.json` | Ναι | Όνομα χρήστη και κατακερματισμός κωδικού |
-| `user_full_name.txt` | Όχι | Πλήρες όνομα Git |
-| `user_email_address.txt` | Όχι | Email Git |
 | `user_encrypt_installation.txt` | Όχι | `true` όταν η διαμόρφωση φέρει ένα μπλοκ `disk_encryption` |
 | `authorized_keys` | Όχι | Δημόσια κλειδιά SSH, ένα ανά γραμμή |
 | `tailscale_authkey` | Όχι | Κλειδί πιστοποίησης Tailscale για ένταξη στο tailnet σου κατά την πρώτη εκκίνηση |

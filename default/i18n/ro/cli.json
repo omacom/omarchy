@@ -53,7 +53,6 @@
   "capture.recordingError": "Eroare la înregistrarea ecranului",
   "capture.recordingKilled": "Procesul de înregistrare a fost oprit forțat. Videoclipul poate fi corupt.",
   "capture.recordingSaved": "Înregistrare ecran salvată",
-  "capture.recordingSavedHint": "Deschide cu Super + Alt + , (sau dă clic aici)",
   "capture.recordingWithoutAudio": "Se înregistrează fără audio %1",
   "capture.selectWebcam": "Selectează camera web",
   "capture.textCopied": "Textul selectat a fost copiat în clipboard",

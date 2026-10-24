@@ -20,6 +20,7 @@ stub_log="$test_tmp/stubs"
 terminal_log="$test_tmp/terminal"
 menu_log="$test_tmp/menu"
 muse_login_log="$test_tmp/muse-login"
+clipboard_log="$test_tmp/clipboard"
 mkdir -p "$mock_bin" "$test_home"
 
 cat >"$mock_bin/omarchy-install-chromium-claude" <<'SH'
@@ -34,6 +35,11 @@ SH
 cat >"$mock_bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
 printf '%s\0' "$@" >>"$OMARCHY_TEST_NOTIFICATION_HISTORY"
+SH
+
+cat >"$mock_bin/wl-copy" <<'SH'
+#!/bin/bash
+cat >"$OMARCHY_TEST_CLIPBOARD"
 SH
 
 cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
@@ -65,8 +71,21 @@ cat >"$mock_bin/mise" <<'SH'
 #!/bin/bash
 printf '%s\0' "$@" >"$OMARCHY_TEST_MISE_LOG"
 printf '%s\n' "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
+if [[ -n ${MISE_PRERELEASES:-} ]]; then
+  printf 'prereleases=%s %s\n' "$MISE_PRERELEASES" "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
+fi
 
-if [[ $1 == "where" ]]; then
+if [[ $1 == "tool" && $3 == "--backend" ]]; then
+  case "$2" in
+  npm:*) printf '%s\n' "$2" ;;
+  amp) printf '%s\n' "npm:@ampcode/cli" ;;
+  qwen) printf '%s\n' "npm:@qwen-code/qwen-code" ;;
+  *) printf '%s\n' "aqua:example/$2" ;;
+  esac
+  exit 0
+fi
+
+if [[ $1 == "where" || $1 == "which" ]]; then
   [[ ${OMARCHY_TEST_AGENT_INSTALLED:-false} == "true" ]]
   exit
 fi
@@ -123,6 +142,7 @@ export OMARCHY_TEST_STUB_LOG="$stub_log"
 export OMARCHY_TEST_AGENT_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
+export OMARCHY_TEST_CLIPBOARD="$clipboard_log"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_MISE_CONFIG_PATH="$test_tmp/etc/mise/config.toml"
 
@@ -132,6 +152,20 @@ crush_package="crush"
 agy_package="antigravity-cli"
 ori_package="ori"
 kimi_package="npm:@moonshot-ai/kimi-code"
+qwen_package="qwen"
+dsh_package="npm:@deepseek-ai/dsh"
+# Omarchy declares a tool with backend options under its bare name; the
+# bracketed package is what a user without the declarations gets.
+mcode_tool="npm:@minimax-ai/code"
+mcode_package="$mcode_tool[allow_builds=better-sqlite3]"
+kiro_cli_tool="http:kiro-cli"
+kiro_cli_package="$kiro_cli_tool[platforms_linux_x64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-x86_64-linux.tar.gz,platforms_linux_arm64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-aarch64-linux.tar.gz,version_list_url=https://prod.download.cli.kiro.dev/stable/latest/manifest.json,version_json_path=.version]"
+freebuff_package="npm:freebuff"
+kilo_package="npm:@kilocode/cli"
+devin_tool="http:devin"
+devin_package="$devin_tool[platforms_linux_x64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-x86_64-unknown-linux.tar.gz,platforms_linux_arm64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-aarch64-unknown-linux.tar.gz,bin_path=bin,version_list_url=https://static.devin.ai/cli/current/manifest.json,version_json_path=.version]"
+amp_package="amp"
+commandcode_package="npm:command-code"
 cursor_agent_package="cursor-agent"
 muse_package="muse"
 
@@ -174,12 +208,46 @@ for tool in codex claude copilot opencode pi "\"$kimi_package\""; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, auto_update = \"4h\", " "$lazy_config" ||
     fail "user setup declares $tool as a self-updating native lazy tool"
 done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 12 ]] || fail "only the agent CLIs update themselves"
+grep -Eq "^$qwen_package = \\{ version = \"latest\", lazy = true, auto_update = \"4h\", minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
+  fail "user setup declares Qwen Code as a self-updating native lazy tool"
+# A tool without registry bin metadata names the commands mise shims for it.
+declare -A declared_bins=(
+  [$amp_package]='"amp"'
+  ["\"$dsh_package\""]='"dsh"'
+  ["\"$freebuff_package\""]='"freebuff"'
+  ["\"$kilo_package\""]='"kilo"'
+  ["\"$commandcode_package\""]='"commandcode"'
+)
+for tool in "${!declared_bins[@]}"; do
+  grep -Fx "$tool = { version = \"latest\", lazy = true, auto_update = \"4h\", lazy_bins = [${declared_bins[$tool]}], minimum_release_age = \"0s\" }" "$lazy_config" >/dev/null ||
+    fail "user setup declares $tool as a self-updating native lazy tool with its commands"
+done
+# mise drops bracket options from a table-valued key, so a tool with backend
+# options is declared by its bare name with the options inside the table: the
+# same options the launcher hands a user without the declarations.
+declare -A declared_option_bins=(
+  [mcode]='"mcode"'
+  [kiro_cli]='"kiro-cli"'
+  [devin]='"devin"'
+)
+for agent in "${!declared_option_bins[@]}"; do
+  tool_var="${agent}_tool"
+  package_var="${agent}_package"
+  declaration=$(grep -F "\"${!tool_var}\" = { version = \"latest\", lazy = true, auto_update = \"4h\", lazy_bins = [${declared_option_bins[$agent]}], minimum_release_age = \"0s\", " "$lazy_config") ||
+    fail "user setup declares ${!tool_var} as a self-updating native lazy tool with its commands"
+  options=${!package_var#*[}
+  IFS=, read -ra options <<<"${options%]}"
+  for option in "${options[@]}"; do
+    [[ $declaration == *" ${option%%=*} = \"${option#*=}\""* ]] ||
+      fail "user setup declares ${!tool_var} with ${option%%=*} inside its table"
+  done
+done
+[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 21 ]] || fail "only the agent CLIs update themselves"
 for tool in node uv; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 22 ]] || fail "user setup declares every default mise tool as lazy"
+[[ $(grep -c 'lazy = true' "$lazy_config") == 31 ]] || fail "user setup declares every default mise tool as lazy"
 grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
 pass "user setup configures system lazy tools from registry shorthands"
 : >"$stub_log"
@@ -278,6 +346,27 @@ declare -A expected_agents=(
   [github-copilot]="copilot"
   [kimi]="kimi"
   [kimi-code]="kimi"
+  [qwen]="qwen"
+  [qwen-code]="qwen"
+  [dsh]="dsh"
+  [deepseek]="dsh"
+  [deepseek-harness]="dsh"
+  [mcode]="mcode"
+  [minimax-code]="mcode"
+  [minimax]="mcode"
+  [kiro-cli]="kiro-cli"
+  [kiro]="kiro-cli"
+  [freebuff]="freebuff"
+  [kilo]="kilo"
+  [kilocode]="kilo"
+  [kilo-code]="kilo"
+  [devin]="devin"
+  [devin-cli]="devin"
+  [amp]="amp"
+  [ampcode]="amp"
+  [commandcode]="commandcode"
+  [command-code]="commandcode"
+  [cmdc]="commandcode"
   [cursor]="cursor-agent"
   [cursor-agent]="cursor-agent"
   [muse]="muse"
@@ -297,6 +386,15 @@ declare -A expected_packages=(
   [agy]="$agy_package"
   [copilot]="copilot"
   [kimi]="$kimi_package"
+  [qwen]="$qwen_package"
+  [dsh]="$dsh_package"
+  [mcode]="$mcode_package"
+  [kiro-cli]="$kiro_cli_package"
+  [freebuff]="$freebuff_package"
+  [kilo]="$kilo_package"
+  [devin]="$devin_package"
+  [amp]="$amp_package"
+  [commandcode]="$commandcode_package"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
 )
@@ -479,6 +577,23 @@ printf 'ignored_config_paths = ["%s"]\n' "$OMARCHY_MISE_CONFIG_PATH" >"$test_hom
 omarchy-default-agent --install muse >/dev/null
 grep -Fx "use -g $muse_package" "$mise_history" >/dev/null ||
   fail "Muse selection adds Muse to the user config after Remove Preinstalls"
+# Every DSH release is a prerelease, which `mise use` skips unless told otherwise.
+: >"$mise_history"
+omarchy-default-agent --install dsh >/dev/null
+grep -Fx "prereleases=true use -g $dsh_package" "$mise_history" >/dev/null ||
+  fail "DSH selection lets mise pick a prerelease after Remove Preinstalls"
+: >"$mise_history"
+omarchy-default-agent --install kilo >/dev/null
+grep -q '^prereleases=' "$mise_history" && fail "other agents install only stable releases after Remove Preinstalls"
+# An npm-backed agent brings node along here too, since node may still be
+# declared without being installed; Muse isn't npm-backed and doesn't.
+node_line=$(grep -nx "install node" "$mise_history" | cut -d: -f1)
+kilo_line=$(grep -nFx "use -g $kilo_package" "$mise_history" | cut -d: -f1)
+[[ -n $node_line && -n $kilo_line ]] && (( node_line < kilo_line )) ||
+  fail "an npm-backed agent installs node before it after Remove Preinstalls"
+: >"$mise_history"
+omarchy-default-agent --install muse >/dev/null
+grep -qx "install node" "$mise_history" && fail "an agent that isn't npm-backed installs no node after Remove Preinstalls"
 rm -f "$agent_file" "$test_home/.config/mise/miserc.toml"
 
 # With Omarchy's system config, installing is enough; the user config stays alone.
@@ -494,6 +609,28 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
 [[ ${#agent_open_args[@]} == 2 && ${agent_open_args[0]} == "omarchy-agent" && ${agent_open_args[1]} == "--inline" ]] ||
   fail "newly installed Muse opens in the installation terminal"
 pass "Muse installs visibly through mise and opens directly"
+
+saved_agent=$(<"$agent_file")
+for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
+  tool_var="${agent//-/_}_tool"
+  package_var="${agent//-/_}_package"
+  declared_tool=${!tool_var:-${!package_var}}
+  : >"$mise_history"
+  omarchy-default-agent --install "$agent" >/dev/null
+  # npm-backed agents bring node along, which a fresh machine doesn't have yet.
+  case "$agent" in
+  kiro-cli | devin) expected_install="install $declared_tool" ;;
+  *) expected_install="install node $declared_tool" ;;
+  esac
+  grep -Fx "$expected_install" "$mise_history" >/dev/null || fail "visible $agent installation installs Omarchy's declaration (expected: $expected_install)"
+  : >"$mise_history"
+  OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent "$agent" >/dev/null
+  grep -Fx "where $declared_tool" "$mise_history" >/dev/null || fail "$agent selection looks for Omarchy's declaration"
+  grep -q '^use ' "$mise_history" && fail "$agent selection leaves the user config alone when the system config declares it"
+  [[ $(omarchy-default-agent) == "$agent" ]] || fail "visible $agent installation changes the selection"
+done
+printf '%s\n' "$saved_agent" >"$agent_file"
+pass "the added agents install through Omarchy's mise declarations"
 
 : >"$terminal_log"
 : >"$muse_login_log"
@@ -588,6 +725,30 @@ assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--qu
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
 assert_launch copilot copilot --allow-all --interactive "Review this project"
 assert_launch kimi kimi --prompt "Review this project"
+assert_launch qwen qwen --yolo "--prompt-interactive=Review this project"
+printf '%s\n' qwen >"$agent_file"
+omarchy-agent-prompt '-n --help; echo literal'
+assert_launched qwen "keeps an option-like prompt literal" qwen --yolo "--prompt-interactive=-n --help; echo literal"
+# DSH's browser UI takes no prompt, and its headless profile would run one with
+# full access in a window that closes with the answer.
+: >"$notification_history"
+printf '%s\n' dsh >"$agent_file"
+omarchy-agent-prompt '-n --help; echo literal'
+assert_launched dsh "opens its browser UI for a prompt" env DSH_PERMISSION_MODE=danger-full-access dsh web
+[[ $(<"$clipboard_log") == '-n --help; echo literal' ]] || fail "DSH launcher puts the prompt on the clipboard"
+mapfile -d '' -t notification_args <"$notification_history"
+[[ ${notification_args[*]} == *"DeepSeek Harness takes no starting prompt"* ]] || fail "DSH launcher says where the prompt went"
+assert_launch mcode mcode -- "Review this project"
+assert_launch kiro-cli kiro-cli chat --trust-all-tools -- "Review this project"
+: >"$notification_history"
+assert_launch freebuff freebuff
+assert_launch kilo kilo --auto "--prompt=Review this project"
+assert_launch devin devin --permission-mode dangerous --respect-workspace-trust false -- "Review this project"
+assert_launch amp bash -c 'printf "%s\n" "$1" | exec "$0" --dangerously-allow-all' amp "Review this project"
+assert_launch commandcode commandcode --yolo -- "Review this project"
+[[ $(<"$clipboard_log") == "Review this project" ]] || fail "Freebuff launcher puts the prompt on the clipboard"
+mapfile -d '' -t notification_args <"$notification_history"
+[[ ${notification_args[*]} == *"Freebuff takes no starting prompt"* ]] || fail "Freebuff launcher says where the prompt went"
 pass "agent launcher adapts initial prompts for every supported agent"
 
 literal_muse_prompt=$'--disable-sandbox !Crash {$(touch must-not-run)}\ntrailing\\ '
@@ -617,6 +778,18 @@ assert_bypass hermes hermes --yolo
 assert_bypass agy agy --dangerously-skip-permissions
 assert_bypass copilot copilot --allow-all
 assert_bypass kimi kimi --yolo
+assert_bypass qwen qwen --yolo
+assert_bypass dsh env DSH_PERMISSION_MODE=danger-full-access dsh web
+assert_bypass mcode mcode
+assert_bypass kiro-cli kiro-cli chat --trust-all-tools
+: >"$clipboard_log"
+: >"$notification_history"
+assert_bypass freebuff freebuff
+assert_bypass kilo kilo --auto
+assert_bypass devin devin --permission-mode dangerous --respect-workspace-trust false
+assert_bypass amp amp --dangerously-allow-all
+assert_bypass commandcode commandcode --yolo
+[[ ! -s $clipboard_log && ! -s $notification_history ]] || fail "Freebuff launcher leaves the clipboard alone without a prompt"
 pass "agent launcher skips permission prompts for every supported agent"
 
 printf '%s\n' "opencode" >"$agent_file"
@@ -760,13 +933,28 @@ fi
 pass "OpenClaw's agent hands a missing command to its launcher only when the package is there"
 
 # Native lazy shims can precede ~/.local/bin. The agent launcher must still run
-# the official command when the default-agent selector recognized one.
-for agent in cursor-agent muse; do
+# the official command when the default-agent selector recognized one, for
+# every agent and whether or not it is wrapped in env or bash.
+lazy_shims="$test_tmp/lazy-shims"
+mkdir -p "$lazy_shims"
+for agent in cursor-agent muse claude kiro-cli devin amp dsh hermes; do
   printf '#!/bin/bash\nprintf "official %s\\n"\n' "$agent" >"$test_home/.local/bin/$agent"
-  chmod +x "$test_home/.local/bin/$agent"
+  printf '#!/bin/bash\nprintf "lazy shim %s\\n"\n' "$agent" >"$lazy_shims/$agent"
+  chmod +x "$test_home/.local/bin/$agent" "$lazy_shims/$agent"
   printf '%s\n' "$agent" >"$agent_file"
-  output=$("$ROOT/bin/omarchy-agent" --inline)
+  output=$(PATH="$lazy_shims:$PATH" "$ROOT/bin/omarchy-agent" --inline)
   [[ $output == "official $agent" ]] || fail "agent launcher preserves the user-installed $agent ahead of a mise shim"
-  rm "$test_home/.local/bin/$agent"
+  output=$(PATH="$lazy_shims:$PATH" omarchy-agent-prompt --inline "Review this project")
+  [[ $output == "official $agent" ]] || fail "prompted agent launcher preserves the user-installed $agent ahead of a mise shim"
+  # Once mise has its own copy installed, a terminal runs that one, so the
+  # launcher does too rather than a leftover install in ~/.local/bin.
+  output=$(OMARCHY_TEST_AGENT_INSTALLED=true PATH="$lazy_shims:$PATH" "$ROOT/bin/omarchy-agent" --inline)
+  [[ $output == "lazy shim $agent" ]] || fail "agent launcher runs mise's installed $agent over a leftover ~/.local/bin copy"
+  # An older wrapper set its variable on the install line; it is still a
+  # wrapper, not the user's own install.
+  printf '#!/bin/bash\nMISE_MINIMUM_RELEASE_AGE=0 mise use -g --quiet "%s" || exit 1\nprintf "old wrapper %s\\n"\n' "$agent" "$agent" >"$test_home/.local/bin/$agent"
+  output=$(PATH="$lazy_shims:$PATH" "$ROOT/bin/omarchy-agent" --inline)
+  [[ $output == "lazy shim $agent" ]] || fail "agent launcher treats an older one-line mise wrapper for $agent as a wrapper"
+  rm "$test_home/.local/bin/$agent" "$lazy_shims/$agent"
 done
-pass "agent launcher runs user-installed Cursor and Muse ahead of native lazy shims"
+pass "agent launcher runs user-installed agents ahead of native lazy shims"

@@ -713,7 +713,7 @@ Panel {
                 RotationAnimator on rotation {
                   running: root.savingLocation && !Style.reduceMotion
                   from: 0; to: 360
-                  duration: 800
+                  duration: Style.duration(800)
                   loops: Animation.Infinite
                 }
               }

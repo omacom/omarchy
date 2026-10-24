@@ -53,7 +53,6 @@
   "capture.recordingError": "Грешка при запис на екрана",
   "capture.recordingKilled": "Процесът на запис трябваше да се прекрати принудително. Видеото може да е повредено.",
   "capture.recordingSaved": "Записът на екрана е запазен",
-  "capture.recordingSavedHint": "Отвори със Super + Alt + , (или кликни тук)",
   "capture.recordingWithoutAudio": "Запис без %1 звук",
   "capture.selectWebcam": "Избери уебкамера",
   "capture.textCopied": "Текстът от селекцията е копиран в клипборда",

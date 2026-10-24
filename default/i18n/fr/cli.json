@@ -53,7 +53,6 @@
   "capture.recordingError": "Erreur d'enregistrement d'écran",
   "capture.recordingKilled": "Le processus d'enregistrement a dû être tué de force. La vidéo peut être corrompue.",
   "capture.recordingSaved": "Enregistrement d'écran sauvegardé",
-  "capture.recordingSavedHint": "Ouvrir avec Super + Alt + , (ou cliquez ici)",
   "capture.recordingWithoutAudio": "Enregistrement sans l'audio %1",
   "capture.selectWebcam": "Sélectionner la webcam",
   "capture.textCopied": "Texte de la sélection copié dans le presse-papiers",
