@@ -160,7 +160,10 @@ Item {
 
   ListModel {
     id: toasts
-    onCountChanged: { if (count === 0) service.deckDisplayName = "" }
+    onCountChanged: {
+      if (count === 0) service.deckDisplayName = ""
+      if (service.keyboardMode) Qt.callLater(function() { service.keepSelection(0) })
+    }
   }
 
   // ------------------------------------------------------ live capacity
@@ -221,6 +224,8 @@ Item {
     id: collapseGrace
     interval: 120
     onTriggered: {
+      // The keyboard holds the deck open while the pointer passes through.
+      if (service.keyboardMode) return
       service.commit(function() { service.expanded = false; service.openDeck = "" })
       service.releaseHeld()
     }
@@ -229,7 +234,7 @@ Item {
   // New cards wait while the deck is held open, so nothing moves mid-read.
   property var held: []
 
-  function holding() { return pointerIn && expanded }
+  function holding() { return (pointerIn || keyboardMode) && expanded }
 
   function releaseHeld() {
     if (!held.length) return
@@ -261,6 +266,117 @@ Item {
     })
   }
   function pointerLeft() { collapseGrace.restart() }
+
+  // ------------------------------------------------------------- keyboard
+  //
+  // Notifications never take the keyboard on their own: a card grabbing focus
+  // as it arrived would swallow whatever you were typing. A keybinding starts
+  // this instead. The newest card is selected and its deck opened; arrows move
+  // between cards, number keys press a button, Enter clicks the card, Delete
+  // dismisses it, and Escape, any choice, or a few idle seconds give the
+  // keyboard back.
+  property bool keyboardMode: false
+  property string keyboardKey: ""
+
+  Timer { id: keyboardIdle; interval: 10000; onTriggered: service.stopKeyboard() }
+
+  // Cards in the order they stand: deck by deck, front to back.
+  function keyboardOrder() {
+    var out = [], decks = layout.decks
+    for (var i = 0; i < decks.length; i++)
+      for (var j = 0; j < decks[i].rows.length; j++) out.push(String(decks[i].rows[j].key))
+    return out
+  }
+
+  function selectCard(key) {
+    var at = rowIndexFor(key)
+    if (at < 0) return false
+    keyboardKey = key
+    hoverKey = key
+    pointerEntered(Layout.groupKeyFor(toasts.get(at)))
+    return true
+  }
+
+  function startKeyboard() {
+    var order = keyboardOrder()
+    if (!order.length) return false
+    keyboardMode = true
+    selectCard(order[0])
+    keyboardIdle.restart()
+    return true
+  }
+
+  function stopKeyboard() {
+    if (!keyboardMode) return
+    keyboardIdle.stop()
+    keyboardMode = false
+    keyboardKey = ""
+    // With the pointer over the deck, hover stays where the pointer put it.
+    if (!pointerIn) {
+      hoverKey = ""
+      collapseGrace.restart()
+    }
+  }
+
+  // The selected card went away: select the one that took its place, or stop.
+  function keepSelection(fromIndex) {
+    if (!keyboardMode || rowIndexFor(keyboardKey) >= 0 && !leaving[keyboardKey]) return
+    var order = keyboardOrder()
+    if (!order.length) stopKeyboard()
+    else selectCard(order[Math.min(Math.max(0, fromIndex), order.length - 1)])
+  }
+
+  function moveSelection(step) {
+    var order = keyboardOrder()
+    var at = order.indexOf(keyboardKey)
+    if (!order.length) return
+    selectCard(order[Math.max(0, Math.min(order.length - 1, at + step))])
+  }
+
+  // The card's buttons in Delivery.deeds' order, which the card draws and
+  // numbers in the same order.
+  function deedsFor(key) {
+    var at = rowIndexFor(key)
+    return at < 0 ? [] : Delivery.deeds(toasts.get(at), actionsOf(key, refsRevision))
+  }
+
+  function runDeed(key, index) {
+    var deed = deedsFor(key)[index]
+    if (!deed) return false
+    if (deed.kind === "code") copyCode(deed.value, key)
+    else if (deed.kind === "exec") runExecAction(key, Number(deed.value))
+    else invokeAction(key, String(deed.value))
+    return true
+  }
+
+  // True when the key was ours.
+  function keyboardPressed(key, text) {
+    if (!keyboardMode) return false
+    keyboardIdle.restart()
+    var selected = keyboardKey
+    if (key === Qt.Key_Escape) {
+      stopKeyboard()
+    } else if (key === Qt.Key_Down || key === Qt.Key_J || key === Qt.Key_Tab) {
+      moveSelection(1)
+    } else if (key === Qt.Key_Up || key === Qt.Key_K || key === Qt.Key_Backtab) {
+      moveSelection(-1)
+    } else if (key === Qt.Key_Return || key === Qt.Key_Enter) {
+      stopKeyboard()
+      activate(selected)
+    } else if (key === Qt.Key_Delete || key === Qt.Key_Backspace) {
+      var at = keyboardOrder().indexOf(selected)
+      closeToast(selected, "dismissed")
+      keepSelection(at)
+    } else if (/^[1-9]$/.test(text)) {
+      if (Number(text) <= deedsFor(selected).length) {
+        stopKeyboard()
+        runDeed(selected, Number(text) - 1)
+      }
+    } else {
+      return false
+    }
+    return true
+  }
 
   // Fed target heights, never mid-animation ones, so layout moves on events.
   function noteHeight(key, h) {
@@ -1226,6 +1342,18 @@ Item {
       return "ok"
     }
 
+    // Press button n (from 1) on the newest card.
+    function invokeAction(n: int): string {
+      if (toasts.count === 0) return "none"
+      return service.runDeed(String(toasts.get(0).key), n - 1) ? "ok" : "none"
+    }
+
+    // Hand the keyboard to the notifications until Escape or a choice.
+    function keyboard(): string {
+      if (service.keyboardMode) { service.stopKeyboard(); return "off" }
+      return service.startKeyboard() ? "on" : "none"
+    }
+
     // Put the last few back on screen.
     function showHistory(): string { service.replayHistory(); return "ok" }
 
@@ -1266,6 +1394,7 @@ Item {
     function probe(): string {
       return JSON.stringify({ toasts: toasts.count,
         doNotDisturb: service.doNotDisturb, expanded: service.expanded,
+        keyboardMode: service.keyboardMode, keyboardKey: service.keyboardKey,
         displays: service.displayNames, focusedDisplay: service.focusedDisplayName,
         targetDisplay: service.targetDisplayName,
         notificationDisplays: service.displayNames.filter(function(name) { return service.showsOn(name) }),
@@ -1296,6 +1425,8 @@ Item {
 
       WlrLayershell.namespace: "omarchy-notifications"
       WlrLayershell.layer: WlrLayer.Overlay
+      readonly property bool takesKeyboard: service.keyboardMode && service.targetDisplayName === String(modelData.name)
+      WlrLayershell.keyboardFocus: takesKeyboard ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
       exclusionMode: ExclusionMode.Ignore
 
       // Constant width and full height, so the buffer is allocated once.
@@ -1303,6 +1434,13 @@ Item {
       implicitWidth: clipper.width + Style.space(10)
 
       mask: Region { item: surface.showingNotifications ? deck : null }
+
+      Item {
+        focus: surface.takesKeyboard
+        Keys.onPressed: function(event) {
+          event.accepted = service.keyboardPressed(event.key, event.text)
+        }
+      }
 
       Item {
         id: clipper
@@ -1382,6 +1520,8 @@ Item {
                 var top = place.y
                 var bottom = top + (service.heights[first.key] || Style.space(58))
                 if (mouse.y >= top - Style.space(6) && mouse.y <= bottom + Style.space(6)) {
+                  // Opening another deck would hide the keyboard's card.
+                  if (service.keyboardMode && decks[i].key !== service.openDeck) service.stopKeyboard()
                   service.pointerEntered(decks[i].key)
                   return
                 }
@@ -1399,13 +1539,16 @@ Item {
               cardWidth: deck.width
               place: service.placements[model.key]
                      || ({ y: 0, scale: 1, opacity: 0, z: 1, front: false, hidden: true })
-              hovered: service.hoverKey === model.key
+              hovered: service.keyboardMode ? service.keyboardKey === model.key : service.hoverKey === model.key
+              selected: service.keyboardMode && service.keyboardKey === model.key
               actions: service.actionsOf(model.key, service.refsRevision)
               hoverX: service.hoverX
               hoverY: service.hoverY
-              onActionInvoked: function(identifier) { service.invokeAction(model.key, identifier) }
-              onExecInvoked: function(index) { service.runExecAction(model.key, index) }
-              onCodeCopied: function(code) { service.copyCode(code, model.key) }
+              // A click is the mouse taking over: it ends keyboard mode, which
+              // would otherwise keep the keyboard from the app it opened.
+              onActionInvoked: function(identifier) { service.stopKeyboard(); service.invokeAction(model.key, identifier) }
+              onExecInvoked: function(index) { service.stopKeyboard(); service.runExecAction(model.key, index) }
+              onCodeCopied: function(code) { service.stopKeyboard(); service.copyCode(code, model.key) }
               now: service.nowTick
               expanded: service.expanded
                         && service.openDeck === Layout.groupKeyFor(model)
@@ -1420,8 +1563,8 @@ Item {
               Component.onCompleted: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
 
               onExpired: service.closeToast(model.key, "expired")
-              onActivated: service.activate(model.key)
-              onDismissed: service.closeToast(model.key, "dismissed")
+              onActivated: { service.stopKeyboard(); service.activate(model.key) }
+              onDismissed: { service.stopKeyboard(); service.closeToast(model.key, "dismissed") }
             }
           }
         }

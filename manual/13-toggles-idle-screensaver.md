@@ -11,7 +11,7 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Toggle | Hotkey | Command |
 | ------ | ------ | ------- |
 | Night light | — | `omarchy toggle nightlight` |
-| Silence notifications | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
+| Silence notifications | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
 | Stay awake (no idle lock) | `Super + Ctrl + I` | `omarchy toggle idle` |
 | Crash capture | — | `omarchy toggle crash-capture` |
 | Screensaver | — | `omarchy toggle screensaver` |
@@ -57,7 +57,7 @@ Then start hyprsunset at login by adding `o.launch_on_start("hyprsunset")` to `~
 
 ### Do not disturb
 
-`Super + Ctrl + ,` silences notifications. No toasts pop up while it's on, and the crossed-out bell indicator sits in the bar to remind you why the desktop has gone quiet.
+`Super + Ctrl + Alt + ,` silences notifications. No toasts pop up while it's on, and the crossed-out bell indicator sits in the bar to remind you why the desktop has gone quiet.
 
 Nothing is lost, though. Silenced notifications are held back: put the last few back on screen with `Super + Shift + Alt + ,`. See [notices](10-notices.md) for the rest.
 

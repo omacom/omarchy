@@ -266,6 +266,11 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
     [{ app: 'omarchy-action', urgency: 0 }, true, ''],
     [{ app: 'Google', urgency: 1, code: '482913' }, true, ''],
   ]) assert.equal(Delivery.quietReason(row, dnd), expected, JSON.stringify([row, dnd]))
+  // The number keys count buttons in the order the card draws them: codes, --action, the sender's.
+  const deeds = Delivery.deeds({ codes: '482913 771204', execActions: JSON.stringify([{ label: 'Edit', argv: ['omasnap'] }]) },
+                               [{ id: 'join', text: 'Join call' }])
+  assert.equal(JSON.stringify(Array.from(deeds, d => d.kind + ':' + d.value)), JSON.stringify(['code:482913', 'code:771204', 'exec:0', 'action:join']))
+  assert.equal(Delivery.deeds({}, []).length, 0)
   for (const [row, ephemeral] of [[{ app: 'notify-send' }, true], [{ app: 'omarchy-action' }, true],
                                   [{ app: 'Slack', transient: true }, true], [{ app: 'Slack' }, false]])
     assert.equal(Delivery.isEphemeral(row), ephemeral, row.app)

@@ -191,9 +191,9 @@ The buttons ride as the `omarchy-actions` hint (`[{"label", "argv"}]`, each argv
 - `omarchy-notification-weather` — despite the name, not a sender: it toggles
   the `omarchy.weather` shell panel.
 
-Keybindings live in `default/hypr/bindings/utilities.lua`: `Super+comma`
-variants map to the IPC methods `dismissOne`, `dismissAll`, `invokeLast`,
-`showHistory` (put the last few back on screen), and the silencing toggle.
+Keybindings live in `default/hypr/bindings/utilities.lua`: `Super+comma` variants map to the IPC methods `dismissOne`, `dismissAll`, `invokeLast`, `showHistory` (put the last few back on screen), `keyboard`, and the silencing toggle.
+
+`keyboard` (`Super+Ctrl+comma`) is the only way the notifications take the keyboard: a card that grabbed focus as it arrived would swallow whatever you were typing. It selects the newest card and opens its deck, and the surface on that display takes exclusive keyboard focus. Arrows (or `j`/`k`, `Tab`) move through the cards deck by deck, `1`–`9` press a button in `Delivery.deeds` order (the card numbers them), `Enter` clicks the card, `Delete` dismisses it and selects the next, and `Escape`, any choice, or ten idle seconds end it. While it lasts the deck stays open and new cards wait, as under the pointer. `invokeAction <n>` presses button `n` on the newest card without the mode.
 
 The `notifications` IPC target also answers `ping` (used by `omarchy-notification-wait`), `dismiss <summary>`, `count`, and two for scripts and visual checks: `expand` (open the deck and hover its front card, as the pointer would) and `probe` (what the daemon thinks is true).
 
