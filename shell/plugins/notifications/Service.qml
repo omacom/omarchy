@@ -617,11 +617,30 @@ Item {
       // last card keeps its words, with nothing to cover it.
       gone[keys[j]] = { y: from.y - travel, scale: from.scale, opacity: 0, height: from.height,
                         z: 0, front: staying === 0, hidden: place ? place.hidden === true : true,
-                        leaving: true }
+                        leaving: true, until: Date.now() + Style.duration(leaveDuration) }
     }
     departures = gone
     leaving = next
     retarget(snap, deckNow, leaveDuration)
+    if (!departureDeadline.running) departureDeadline.start()
+  }
+
+  // A departure ends on its own clock, not the scene's: arrivals and updates
+  // restart that, and a card updating every tick would otherwise keep every
+  // closed card on screen, and counted against the limit, for good.
+  Timer {
+    id: departureDeadline
+    interval: Math.max(1, Style.duration(service.leaveDuration))
+    onTriggered: service.finishDeparted(Date.now())
+  }
+
+  function finishDeparted(now) {
+    var keys = Object.keys(departures), waiting = false
+    for (var i = 0; i < keys.length; i++) {
+      if (departures[keys[i]].until <= now) finishClose(keys[i], leaving[keys[i]])
+      else waiting = true
+    }
+    if (waiting) departureDeadline.restart()
   }
 
   function finishLeaving() {
@@ -658,14 +677,20 @@ Item {
     return keys.length
   }
 
-  function dismissNewest(instant) {
+  // The newest card still on screen, past any on their way out.
+  function newestLive() {
     for (var i = 0; i < toasts.count; i++) {
       var key = String(toasts.get(i).key)
-      if (leaving[key]) continue
-      closeToast(key, "dismissed", instant)
-      return true
+      if (!leaving[key]) return key
     }
-    return false
+    return ""
+  }
+
+  function dismissNewest(instant) {
+    var key = newestLive()
+    if (!key) return false
+    closeToast(key, "dismissed", instant)
+    return true
   }
 
   // What the sender said can be done with this notification. A restored row
@@ -1182,8 +1207,9 @@ Item {
 
     // Click the newest card, as the pointer would.
     function invokeLast(): string {
-      if (toasts.count === 0) return "none"
-      service.activate(String(toasts.get(0).key), true)
+      var key = service.newestLive()
+      if (!key) return "none"
+      service.activate(key, true)
       return "ok"
     }
 

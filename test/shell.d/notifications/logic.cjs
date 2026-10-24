@@ -310,7 +310,7 @@ function runIn(scope, ...names) {
 const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
-  'closeToasts', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'closeToasts', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
 function newCapacityScope() {
@@ -337,7 +337,8 @@ function newCapacityScope() {
     NotificationUrgency: { Critical: 2, Normal: 1, Low: 0 },
     Qt: { callLater: f => later.push(f),
       md5: value => require('node:crypto').createHash('md5').update(value).digest('hex') },
-    Style: { space: n => n },
+    Style: { space: n => n, duration: n => n },
+    departureDeadline: { running: false, start() {}, restart() {} },
     holding: () => s.pointerHolding === true,
     snapshot: () => ({}), deckHeight: 0, retarget: () => {}, land: () => {}, layout: { placements: {} },
   }
@@ -429,6 +430,21 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.equal(lands, 1)
   s.drainCallLater()
   assert.equal(s.toasts.count, 0, 'the jump takes the card already on its way out too')
+}
+
+{ // A card on its way out is passed over by the shortcuts, and goes on its own deadline
+  // however often an update restarts the scene.
+  const s = newCapacityScope()
+  s.admit(...[1, 2].map(id => s.fakeNotification(id)))
+  const [front, back] = s.toasts.rows.map(row => row.key)
+  const at = { y: 0, scale: 1, opacity: 1, height: 58 }
+  s.snapshot = () => ({ [front]: at, [back]: at })
+  s.closeToast(front, 'dismissed')
+  assert.equal(s.newestLive(), back, 'the activation shortcut must not run the departing card again')
+  s.finishDeparted(Date.now())
+  assert.equal(s.toasts.count, 2, 'the card rises out before it goes')
+  s.finishDeparted(Date.now() + 1000)
+  assert.deepEqual(s.toasts.rows.map(row => row.key), [back], 'its deadline removes it without the scene settling')
 }
 
 { // A code must not outlive its toast, even in source metadata.
