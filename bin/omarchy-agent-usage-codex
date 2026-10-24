@@ -899,6 +899,23 @@ def has_codex_credentials(codex_home, env):
   return (codex_home / "auth.json").is_file()
 
 
+# Codex signed in with an OpenAI API key (codex login --with-api-key) has no
+# ChatGPT plan, so it has no limits to read and refuses them as unauthenticated.
+# It isn't waiting for a sign-in: account/read names the login it uses.
+API_KEY_PLAN = "API key"
+
+
+# The kind of login account/read reports ("apiKey", "chatgpt"), or "" for none
+# or no answer: Codex 0.158's app-server can leave it unanswered for good.
+def codex_account_type(proc):
+  try:
+    account_msg = rpc_request(proc, 3, "account/read", timeout=2)
+  except (TimeoutError, RuntimeError):
+    return ""
+  account = (account_msg.get("result") or {}).get("account") or {}
+  return str(account.get("type") or "")
+
+
 def fetch_codex_rpc(home=None):
   result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP}
   env = dict(ENV, CODEX_HOME=str(home)) if home else ENV
@@ -953,7 +970,10 @@ def fetch_codex_rpc(home=None):
     error = limits_msg.get("error")
     if isinstance(error, dict):
       message = str(error.get("message") or "")
-      if "auth" in message.lower():
+      if "auth" in message.lower() and codex_account_type(proc) == "apiKey":
+        result["tierLabel"] = API_KEY_PLAN
+        result["authHelpText"] = ""
+      elif "auth" in message.lower():
         result["usageStatusText"] = "Waiting for auth"
         result["authHelpText"] = AUTH_HELP
       else:

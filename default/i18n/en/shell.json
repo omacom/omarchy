@@ -81,6 +81,7 @@
   "agents.syncMkdirFailed": "Usage sync mkdir failed",
   "agents.syncScanFailed": "Usage sync scan failed",
   "agents.theme": "Theme",
+  "agents.tierApiKey": "API key",
   "agents.tierPrepaid": "Prepaid",
   "agents.title": "Agents",
   "agents.tokensThisWeek": {

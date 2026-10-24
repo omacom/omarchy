@@ -413,7 +413,7 @@ Panel {
 
   function accountDetail(account) {
     var parts = []
-    if (String(account.plan || "") !== "") parts.push(account.plan)
+    if (String(account.plan || "") !== "") parts.push(tierText(account.plan))
     if (account.resetCredits && Number(account.resetCredits.available) > 0)
       parts.push(freeResetsText(Number(account.resetCredits.available)))
     return parts.join(" · ")
@@ -470,10 +470,17 @@ Panel {
     return Commons.I18n.tn("agents.freeResets", count).arg(Commons.I18n.formatNumber(count))
   }
 
-  function planLabel(p) {
-    var tier = String(p && p.tierLabel || "")
+  // A plan or tier as the collectors report it, in the current language where
+  // it has a catalog entry; the provider heading and each account row use it.
+  function tierText(tier) {
+    tier = String(tier || "")
+    if (tier === "API key") return Commons.I18n.t("agents.tierApiKey")
     if (tier === "Prepaid") return Commons.I18n.t("agents.tierPrepaid")
     return tier === "" ? "" : tier.charAt(0).toUpperCase() + tier.slice(1)
+  }
+
+  function planLabel(p) {
+    return tierText(p && p.tierLabel)
   }
 
   function launchAgent() {

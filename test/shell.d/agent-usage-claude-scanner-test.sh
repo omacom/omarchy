@@ -2,6 +2,10 @@
 
 source "$(dirname "$0")/base-test.sh"
 
+# The collector counts an API key in the environment as a login; these
+# fixtures plant their own.
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+
 require_command jq
 require_command python3
 

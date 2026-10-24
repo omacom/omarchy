@@ -857,6 +857,53 @@ def profile_path(home: Path) -> Path:
   return home / ".claude.json"
 
 
+# Claude Code signed in with an API key (pay as you go through the Anthropic
+# Console) rather than a subscription: there are no plan limits to show, and it
+# is not waiting for a sign-in. The key is the CLI's own (primaryApiKey in its
+# profile), supplied by its user settings (an apiKeyHelper, or a key in their
+# env block), or set in the environment the CLI starts with. settings.local.json
+# beside them is a project's file, which the CLI doesn't sign in from. Only
+# whether a key is configured is checked; the key itself is never read out.
+API_KEY_PLAN = "API key"
+API_KEY_VARIABLES = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+
+
+def json_object(path: Path) -> dict[str, Any]:
+  data = read_json(path)
+  return data if isinstance(data, dict) else {}
+
+
+def api_key_login(claude_dir: Path) -> bool:
+  if json_object(profile_path(claude_dir)).get("primaryApiKey"):
+    return True
+  settings = json_object(claude_dir / "settings.json")
+  if settings.get("apiKeyHelper"):
+    return True
+  # The settings' env block is applied over the environment, as the CLI does,
+  # so a variable it sets, even to nothing, is the one that counts.
+  env = {name: os.environ.get(name) for name in API_KEY_VARIABLES}
+  overrides = settings.get("env")
+  if isinstance(overrides, dict):
+    env.update({name: overrides[name] for name in API_KEY_VARIABLES if name in overrides})
+  return any(env.values())
+
+
+# The plan label and limits for a home's login: a subscription's from the
+# usage endpoint, or none for an API key. Wherever the subscription would ask
+# for a sign-in (there is none, or its sign-in expired), a configured API key
+# makes that sign-in unnecessary and leads instead. collect_limits decides both
+# before it would reach the network.
+SIGN_IN_STATUSES = ("Waiting for auth", "Sign-in expired")
+
+
+def login_limits(claude_dir: Path, force: bool, cache_name: str = "claude-limits.json") -> tuple[str, dict[str, Any]]:
+  access_token, expires_at_ms, refresh_expires_at_ms, plan = oauth_login(claude_dir)
+  limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, force, cache_name)
+  if limits["usageStatusText"] in SIGN_IN_STATUSES and api_key_login(claude_dir):
+    return API_KEY_PLAN, {"limits": [], "usageStatusText": "", "authHelpText": "", "live": True, "fetchedAtMs": 0}
+  return plan, limits
+
+
 # The rate-limit tier names the ceiling, not the plan: a Team premium seat
 # runs on `default_claude_max_5x` while paying for Team. Lead with the
 # subscription and keep the multiplier as its qualifier, so Max still reads
@@ -1178,7 +1225,6 @@ def current_account_id(home: Path) -> str:
 
 def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
   home = expand_path(account["home"]) if account.get("home") else expand_path("~/.claude")
-  access_token, expires_at_ms, refresh_expires_at_ms, plan = oauth_login(home)
   # Keyed by the subscription, not the label: forget "Work" and add a different
   # "Work", and the new one must never fall back on the old one's allowance.
   # Who the home is signed in as now, not when it was added: a `claude auth
@@ -1192,7 +1238,7 @@ def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
     cache_name = "claude-limits.json"
   else:
     cache_name = f"claude-limits-{key}.json"
-  limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, force, cache_name)
+  plan, limits = login_limits(home, force, cache_name)
   return {
     "id": account["id"],
     "label": str(account.get("label") or account["id"]),
@@ -1252,8 +1298,7 @@ def main() -> int:
     limits = {key: current[key] for key in ("limits", "usageStatusText", "authHelpText", "retryAdvised")}
     stale, fetched_at = current["stale"], current["fetchedAt"]
   else:
-    access_token, expires_at_ms, refresh_expires_at_ms, plan = oauth_login(claude_dir)
-    limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, args.force)
+    plan, limits = login_limits(claude_dir, args.force)
     stale, fetched_at = not limits["live"], limits["fetchedAtMs"]
 
   record = {
@@ -1261,7 +1306,9 @@ def main() -> int:
     "id": AGENT_ID,
     "name": AGENT_NAME,
     "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
-    "ready": number(stats.get("totalPrompts")) > 0 or len(limits["limits"]) > 0,
+    # An API-key login has no limits to show but is signed in, so it shows
+    # before its first session rather than as a provider to add.
+    "ready": number(stats.get("totalPrompts")) > 0 or len(limits["limits"]) > 0 or plan == API_KEY_PLAN,
     "hasLocalStats": True,
     "tierLabel": plan,
     "usageStatusText": limits["usageStatusText"],
