@@ -6,6 +6,8 @@
 set -e
 
 ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
+WEBAPP_TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$WEBAPP_TMP_DIR"' EXIT
 
 safe_icon_name() {
   printf '%s\n' "$1" \
@@ -50,8 +52,216 @@ install_user_icon() {
 }
 
 download_icon() {
-  curl -fsSL --max-time 10 -o "$2" "$1" 2>/dev/null &&
+  curl -fsSL --proto '=http,https' --proto-redir '=http,https' --max-time 10 -o "$2" "$1" 2>/dev/null &&
     [[ -s $2 && $(file -b --mime-type "$2") == image/* ]]
+}
+
+url_origin() {
+  local url=$1 scheme authority
+
+  [[ $url =~ ^([Hh][Tt][Tt][Pp][Ss]?)://([^/?#]+) ]] || return 1
+  scheme=${BASH_REMATCH[1],,}
+  authority=${BASH_REMATCH[2]}
+
+  printf '%s://%s' "$scheme" "$authority"
+}
+
+canonical_origin() {
+  local url=$1 scheme authority
+
+  [[ $url =~ ^([Hh][Tt][Tt][Pp][Ss]?)://([^/?#]+) ]] || return 1
+  scheme=${BASH_REMATCH[1],,}
+  authority=${BASH_REMATCH[2]##*@}
+  authority=${authority,,}
+
+  case "$scheme:$authority" in
+  http:*:80) authority=${authority%:80} ;;
+  https:*:443) authority=${authority%:443} ;;
+  esac
+
+  printf '%s://%s' "$scheme" "$authority"
+}
+
+url_scheme() {
+  local url=$1
+
+  [[ $url =~ ^([Hh][Tt][Tt][Pp][Ss]?):// ]] || return 1
+  printf '%s' "${BASH_REMATCH[1],,}"
+}
+
+url_host() {
+  local url=$1 authority host
+
+  [[ $url =~ ^[Hh][Tt][Tt][Pp][Ss]?://([^/?#]+) ]] || return 1
+  authority=${BASH_REMATCH[1]##*@}
+
+  if [[ $authority == \[* ]]; then
+    host=${authority%%\]*}
+    host="$host]"
+  else
+    host=${authority%%:*}
+  fi
+
+  printf '%s' "${host,,}"
+}
+
+strings_equal() {
+  # An unquoted variable on the right of [[ == ]] is a pattern, while quoting
+  # variables there is against repository style. A quoted case pattern compares
+  # literal strings, including IPv6 brackets and other glob metacharacters.
+  case $1 in
+  "$2") return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+redirect_with_credentials() {
+  local current_url=$1 next_url=$2 current_origin next_origin
+  local current_authority userinfo prefix next_authority suffix
+
+  current_origin=$(canonical_origin "$current_url") || {
+    printf '%s' "$next_url"
+    return
+  }
+  next_origin=$(canonical_origin "$next_url") || {
+    printf '%s' "$next_url"
+    return
+  }
+
+  [[ $current_url =~ ^[Hh][Tt][Tt][Pp][Ss]?://([^/?#]+) ]] || {
+    printf '%s' "$next_url"
+    return
+  }
+  current_authority=${BASH_REMATCH[1]}
+
+  # Retain URL credentials only within the same scheme, hostname, and effective
+  # port. A same-host redirect to another port can reach a different service.
+  if ! strings_equal "$current_origin" "$next_origin" || [[ $current_authority != *@* ]]; then
+    printf '%s' "$next_url"
+    return
+  fi
+  userinfo=${current_authority%@*}
+
+  [[ $next_url =~ ^([Hh][Tt][Tt][Pp][Ss]?://)([^/?#]+)(.*)$ ]] || {
+    printf '%s' "$next_url"
+    return
+  }
+  prefix=${BASH_REMATCH[1]}
+  next_authority=${BASH_REMATCH[2]}
+  suffix=${BASH_REMATCH[3]}
+
+  if [[ $next_authority == *@* ]]; then
+    printf '%s' "$next_url"
+  else
+    printf '%s%s@%s%s' "$prefix" "$userinfo" "$next_authority" "$suffix"
+  fi
+}
+
+site_host_key() {
+  local host=$1 without_www
+
+  # Treat the ordinary apex/www pair as one site, but do not turn a name such
+  # as www.127.0.0.1 into the loopback literal by stripping its prefix.
+  without_www=${host#www.}
+  if [[ $host == www.* && $without_www =~ \.[[:alpha:]][[:alnum:]-]*$ ]]; then
+    host=$without_www
+  fi
+
+  printf '%s' "$host"
+}
+
+page_redirect_allowed() {
+  local selected_url=$1 current_url=$2 next_url=$3
+  local selected_host next_host current_scheme next_scheme
+
+  selected_host=$(url_host "$selected_url") || return 1
+  next_host=$(url_host "$next_url") || return 1
+  current_scheme=$(url_scheme "$current_url") || return 1
+  next_scheme=$(url_scheme "$next_url") || return 1
+
+  selected_host=$(site_host_key "$selected_host")
+  next_host=$(site_host_key "$next_host")
+
+  # The page URL is chosen by the user, so redirects may move between its apex
+  # and www host or change ports. They may not delegate the fetch to another
+  # host, and an HTTPS page may not downgrade the request to HTTP.
+  strings_equal "$selected_host" "$next_host" || return 1
+  [[ $current_scheme != "https" || $next_scheme == "https" ]]
+}
+
+fetch_with_redirects() {
+  local start_url=$1 dest=$2 policy=$3 allowed_origin=${4:-}
+  local current_url=$start_url metadata status next_url next_origin
+  local metadata_file="$WEBAPP_TMP_DIR/curl-metadata"
+  local redirects=0 max_redirects=3 max_time=10
+  local -a curl_args
+
+  curl_args=(-fs --proto '=http,https' --max-redirs 0)
+  if [[ $policy == "page" ]]; then
+    max_time=5
+  fi
+
+  while :; do
+    : >"$dest"
+    if [[ $policy == "page" ]]; then
+      # Icon markup normally lives near the start of the document. Keep the old
+      # bounded-prefix behavior: head closes the pipe at 100 KB, so large or slow
+      # pages do not have to finish before discovery can continue. Write curl's
+      # status separately so each redirect is still checked before its next hop.
+      curl "${curl_args[@]}" --max-time "$max_time" -o - \
+        -w $'%{stderr}%{http_code}\n%{redirect_url}' -- "$current_url" \
+        2>"$metadata_file" | head -c 100000 >"$dest"
+      metadata=$(<"$metadata_file")
+    elif ! metadata=$(curl "${curl_args[@]}" --max-time "$max_time" \
+      -o "$dest" -w $'%{http_code}\n%{redirect_url}' -- "$current_url" 2>/dev/null); then
+      rm -f "$dest"
+      return 1
+    fi
+
+    status=${metadata%%$'\n'*}
+    next_url=${metadata#*$'\n'}
+
+    if [[ $status == 2* ]]; then
+      FETCH_FINAL_URL=$current_url
+      return 0
+    fi
+
+    if [[ $status != 3* || -z $next_url ]] || (( redirects >= max_redirects )); then
+      rm -f "$dest"
+      return 1
+    fi
+
+    if [[ $policy == "page" ]]; then
+      page_redirect_allowed "$start_url" "$current_url" "$next_url" || {
+        rm -f "$dest"
+        return 1
+      }
+    else
+      # An automatically discovered icon has no user-granted authority beyond
+      # the final page origin. Validate every hop before issuing the next request.
+      next_origin=$(canonical_origin "$next_url") || {
+        rm -f "$dest"
+        return 1
+      }
+      strings_equal "$next_origin" "$allowed_origin" || {
+        rm -f "$dest"
+        return 1
+      }
+    fi
+
+    next_url=$(redirect_with_credentials "$current_url" "$next_url")
+    current_url=$next_url
+    redirects=$((redirects + 1))
+  done
+}
+
+download_site_icon() {
+  local icon_url=$1 dest=$2 allowed_origin=$3
+
+  # Check the URL as resolved, not the href: a relative href can still name a host.
+  strings_equal "$(canonical_origin "$icon_url")" "$allowed_origin" &&
+    fetch_with_redirects "$icon_url" "$dest" icon "$allowed_origin" &&
+    [[ -s $dest && $(file -b --mime-type "$dest") == image/* ]]
 }
 
 # Chromium --app= treats javascript:, file:, and data: as a document to
@@ -84,24 +294,42 @@ require_http_url() {
 
 fetch_site_icon() {
   local site_url="$1" dest="$2"
-  local origin page icon_url
-  origin=$(sed -E 's|^(https?://[^/]+).*|\1|' <<<"$site_url")
+  local origin origin_key page page_file page_url base icon_url icon_url_lower
+  page_file="$WEBAPP_TMP_DIR/page"
 
   # Prefer the site's own high-res icon (apple-touch-icon is typically 180px+),
   # then the well-known path, then Google's favicon service as a last resort.
-  page=$(curl -fsSL --max-time 5 "$site_url" 2>/dev/null | head -c 100000 | tr '\n' ' ')
+  if fetch_with_redirects "$site_url" "$page_file" page; then
+    page_url=$FETCH_FINAL_URL
+    page=$(head -c 100000 "$page_file" | tr '\n' ' ')
+  else
+    page_url=$site_url
+    page=""
+  fi
+
+  page_url=${page_url%%#*}
+  page_url=${page_url%%\?*}
+  origin=$(url_origin "$page_url")
+  origin_key=$(canonical_origin "$page_url")
+  if [[ ${page_url#*://} == */* ]]; then
+    base="${page_url%/*}/"
+  else
+    base="$origin/"
+  fi
+
   icon_url=$(grep -oiE "<link[^>]*rel=[\"'][^\"']*apple-touch-icon[^\"']*[\"'][^>]*>" <<<"$page" |
     grep -oiE "href=[\"'][^\"']+" | head -1 | sed -E "s/^href=[\"']//")
 
-  case $icon_url in
+  icon_url_lower=${icon_url,,}
+  case $icon_url_lower in
   http://* | https://*) ;;
-  //*) icon_url="https:$icon_url" ;;
+  //*) icon_url="${origin%%://*}:$icon_url" ;;
   /*) icon_url="$origin$icon_url" ;;
-  ?*) icon_url="$origin/$icon_url" ;;
+  ?*) icon_url="$base$icon_url" ;;
   esac
 
-  { [[ -n $icon_url ]] && download_icon "$icon_url" "$dest"; } ||
-    download_icon "$origin/apple-touch-icon.png" "$dest" ||
+  { [[ -n $icon_url ]] && download_site_icon "$icon_url" "$dest" "$origin_key"; } ||
+    download_site_icon "$origin/apple-touch-icon.png" "$dest" "$origin_key" ||
     download_icon "https://www.google.com/s2/favicons?domain=${site_url}&sz=256" "$dest"
 }
 
