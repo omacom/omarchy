@@ -175,3 +175,57 @@ for good in \
     fail "plugin add did not reach git clone for a legitimate URL: $good" "$output"
 done
 pass "plugin add lets legitimate git URLs reach git clone"
+
+# A remote may advance after review. Pin both add and update before publication.
+pinned_home="$TMPDIR/pinned-home"
+pinned_repo="$TMPDIR/pinned-repo"
+write_plugin "$pinned_repo" "acme.pinned" "Pinned"
+git -C "$pinned_repo" init -q -b main
+git -C "$pinned_repo" add .
+git -C "$pinned_repo" -c user.name=Test -c user.email=test@example.com commit -qm A
+commit_a=$(git -C "$pinned_repo" rev-parse HEAD)
+printf 'import QtQuick\nItem { objectName: "B" }\n' >"$pinned_repo/Widget.qml"
+git -C "$pinned_repo" add .
+git -C "$pinned_repo" -c user.name=Test -c user.email=test@example.com commit -qm B
+commit_b=$(git -C "$pinned_repo" rev-parse HEAD)
+
+pinned_command() {
+  HOME="$pinned_home" OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" "$@"
+}
+pinned_command omarchy-plugin-add "$pinned_repo" --yes --commit "$commit_a" >"$TMPDIR/pinned-add.log" 2>&1 ||
+  fail "plugin add accepts an immutable reviewed commit" "$(cat "$TMPDIR/pinned-add.log")"
+pinned_target="$pinned_home/.config/omarchy/plugins/acme.pinned"
+[[ $(git -C "$pinned_target" rev-parse HEAD) == "$commit_a" ]] || fail "plugin add installed newer unreviewed code"
+[[ $(git -C "$pinned_target" symbolic-ref --short HEAD) == "main" ]] || fail "pinned add lost its updateable branch"
+[[ $(git -C "$pinned_target" remote get-url origin) == "$pinned_repo" ]] || fail "pinned add changed the remote"
+
+printf 'import QtQuick\nItem { objectName: "C" }\n' >"$pinned_repo/Widget.qml"
+git -C "$pinned_repo" add .
+git -C "$pinned_repo" -c user.name=Test -c user.email=test@example.com commit -qm C
+commit_c=$(git -C "$pinned_repo" rev-parse HEAD)
+# Simulate an overlapping update check rewriting FETCH_HEAD just before merge.
+real_git=$(command -v git)
+cat >"$stub_dir/git" <<STUB
+#!/bin/bash
+if [[ \$1 == "-C" && \${3:-} == "merge" ]]; then
+  "$real_git" -C "\$2" fetch --quiet origin "$commit_c"
+fi
+exec "$real_git" "\$@"
+STUB
+chmod +x "$stub_dir/git"
+pinned_command omarchy-plugin-update acme.pinned --yes --commit "$commit_b" >"$TMPDIR/pinned-update.log" 2>&1 ||
+  fail "plugin update accepts an immutable checked commit" "$(cat "$TMPDIR/pinned-update.log")"
+[[ $(git -C "$pinned_target" rev-parse HEAD) == "$commit_b" ]] || fail "plugin update installed newer unreviewed code"
+for bad in HEAD --upload-pack=other 0123456789012345678901234567890123456789; do
+  if pinned_command omarchy-plugin-update acme.pinned --yes --commit "$bad" >"$TMPDIR/pinned-bad.log" 2>&1; then
+    fail "plugin update accepted an invalid or unavailable commit" "$bad"
+  fi
+  [[ $(git -C "$pinned_target" rev-parse HEAD) == "$commit_b" ]] || fail "failed pin changed installed code"
+done
+if pinned_command omarchy-plugin-update --yes --commit "$commit_b" >"$TMPDIR/pinned-no-id.log" 2>&1; then
+  fail "pinned update without an id was accepted"
+fi
+pinned_command omarchy-plugin-update acme.pinned --yes >"$TMPDIR/unpinned-update.log" 2>&1 ||
+  fail "ordinary update remains compatible" "$(cat "$TMPDIR/unpinned-update.log")"
+[[ $(git -C "$pinned_target" rev-parse HEAD) == "$commit_c" ]] || fail "ordinary update did not follow remote HEAD"
+pass "plugin add/update apply the reviewed commit and preserve ordinary updating"

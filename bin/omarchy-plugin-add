@@ -2,7 +2,7 @@
 
 # omarchy:summary=Add a shell plugin from git
 # omarchy:group=plugin
-# omarchy:args=[git-url] [--enable] [--yes]
+# omarchy:args=[git-url] [--enable] [--yes] [--commit <sha>]
 # omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable
 # omarchy:alias=omarchy plugin install
 
@@ -13,6 +13,7 @@ export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
 
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
 ASSUME_YES=0
+EXPECTED_COMMIT=""
 
 fail() {
   echo "omarchy-plugin-add: $*" >&2
@@ -68,12 +69,18 @@ while (( $# > 0 )); do
     enable_after=true
     shift
     ;;
+  --commit)
+    [[ ${2:-} =~ ^[0-9a-fA-F]{40}$ ]] || fail "--commit requires a full 40-character commit SHA"
+    [[ -z $EXPECTED_COMMIT ]] || fail "--commit may only be specified once"
+    EXPECTED_COMMIT="${2,,}"
+    shift 2
+    ;;
   --yes | -y)
     ASSUME_YES=1
     shift
     ;;
   -h | --help)
-    echo "Usage: omarchy plugin add [git-url] [--enable] [--yes]"
+    echo "Usage: omarchy plugin add [git-url] [--enable] [--yes] [--commit <sha>]"
     exit 0
     ;;
   -*)
@@ -121,6 +128,24 @@ rm -rf "$stage"
 if ! git clone -- "$url" "$stage"; then
   rm -rf "$stage"
   fail "failed to clone $url"
+fi
+
+if [[ -n $EXPECTED_COMMIT ]]; then
+  if ! git -C "$stage" fetch --quiet origin "$EXPECTED_COMMIT" ||
+    [[ $(git -C "$stage" rev-parse 'FETCH_HEAD^{commit}') != "$EXPECTED_COMMIT" ]]; then
+    rm -rf "$stage"
+    fail "failed to fetch the requested commit"
+  fi
+  branch=$(git -C "$stage" symbolic-ref --quiet --short HEAD || true)
+  if [[ -n $branch ]]; then
+    checkout_args=(-B "$branch")
+  else
+    checkout_args=(--detach)
+  fi
+  if ! git -C "$stage" checkout --quiet "${checkout_args[@]}" "$EXPECTED_COMMIT"; then
+    rm -rf "$stage"
+    fail "failed to check out the requested commit"
+  fi
 fi
 
 if ! omarchy-plugin-validate "$stage"; then

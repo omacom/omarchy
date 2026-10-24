@@ -2,7 +2,7 @@
 
 # omarchy:summary=Update installed git-managed plugins
 # omarchy:group=plugin
-# omarchy:args=[id] [--yes]
+# omarchy:args=[id] [--yes] [--commit <sha>]
 
 set -euo pipefail
 
@@ -11,6 +11,7 @@ export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
 
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
 ASSUME_YES=0
+EXPECTED_COMMIT=""
 UPDATED_ANY=0
 
 fail() {
@@ -39,13 +40,19 @@ valid_plugin_id() {
 update_one() {
   local id="$1"
   local dir="$PLUGINS_DIR/$id"
+  local target="${EXPECTED_COMMIT:-FETCH_HEAD}"
 
-  if ! git -C "$dir" fetch --quiet origin HEAD; then
+  if ! git -C "$dir" fetch --quiet origin "${EXPECTED_COMMIT:-HEAD}"; then
     echo "omarchy-plugin-update: fetch failed for '$id'" >&2
     return 1
   fi
 
-  if [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse FETCH_HEAD) ]]; then
+  if [[ -n $EXPECTED_COMMIT && $(git -C "$dir" rev-parse 'FETCH_HEAD^{commit}') != "$EXPECTED_COMMIT" ]]; then
+    echo "omarchy-plugin-update: fetched commit does not match --commit for '$id'" >&2
+    return 1
+  fi
+
+  if [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse "$target") ]]; then
     echo "$id is up to date."
     return 0
   fi
@@ -53,9 +60,9 @@ update_one() {
   if (( ! ASSUME_YES )); then
     echo "Changes for $id:"
     if omarchy-cmd-present delta; then
-      git -C "$dir" diff HEAD FETCH_HEAD | delta --paging=never
+      git -C "$dir" diff HEAD "$target" | delta --paging=never
     else
-      git -C "$dir" diff HEAD FETCH_HEAD
+      git -C "$dir" diff HEAD "$target"
     fi
     echo
     confirm "Update $id?" || {
@@ -64,7 +71,7 @@ update_one() {
     }
   fi
 
-  if ! git -C "$dir" merge --ff-only FETCH_HEAD >/dev/null 2>&1; then
+  if ! git -C "$dir" merge --ff-only "$target" >/dev/null 2>&1; then
     echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
     return 1
   fi
@@ -83,12 +90,18 @@ id=""
 
 while (( $# > 0 )); do
   case "$1" in
+  --commit)
+    [[ ${2:-} =~ ^[0-9a-fA-F]{40}$ ]] || fail "--commit requires a full 40-character commit SHA"
+    [[ -z $EXPECTED_COMMIT ]] || fail "--commit may only be specified once"
+    EXPECTED_COMMIT="${2,,}"
+    shift 2
+    ;;
   --yes | -y)
     ASSUME_YES=1
     shift
     ;;
   -h | --help)
-    echo "Usage: omarchy plugin update [id] [--yes]"
+    echo "Usage: omarchy plugin update [id] [--yes] [--commit <sha>]"
     exit 0
     ;;
   -*)
@@ -101,6 +114,8 @@ while (( $# > 0 )); do
     ;;
   esac
 done
+
+[[ -z $EXPECTED_COMMIT || -n $id ]] || fail "--commit requires a plugin id"
 
 [[ -d $PLUGINS_DIR ]] || fail "no plugins installed"
 
