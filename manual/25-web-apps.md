@@ -80,12 +80,18 @@ Select _Install > Service > Microsoft_ to add Outlook, Word, Excel, PowerPoint, 
 
 Remove the bundle with _Remove > Service > Microsoft_, or remove individual apps with _Remove > Web App_. You can also install just the apps you want through _Install > Web App_.
 
+To open local `.doc`/`.docx`, `.xls`/`.xlsx`, and `.ppt`/`.pptx` files in the Microsoft web apps, run `omarchy setup microsoft-office` in a terminal. This installs rclone, connects your OneDrive account, and installs the Microsoft launchers. Sign into the same Microsoft account in the browser used for web apps. You can choose whether to make these apps the defaults for Office documents; otherwise, use your file manager's _Open With_ menu.
+
+Each opening uploads a new copy into a separate folder under **Omarchy Uploads** in OneDrive and opens that copy. Edits save to OneDrive, and the original local file stays unchanged. To continue editing an uploaded copy, open it from Word, Excel, PowerPoint, or OneDrive rather than reopening the local original. This integration supports the commercial Microsoft cloud; your organization may require administrator approval for OneDrive access.
+
 For a government or sovereign cloud, edit the URL on the `Exec=` line in the relevant launcher under `~/.local/share/applications/`, such as `Microsoft Teams.desktop`, using the URL supplied by your organization. Write any literal `%` in that line as `%%`. Changes apply on the next launch. Running the bundle installer again replaces its launchers with the default URLs.
 
-To keep work sign-ins separate, append a browser data directory to each launcher's `Exec=` line:
+To keep work sign-ins separate, use a URL launcher with a browser data directory on its `Exec=` line:
 
 ```ini
 Exec=omarchy-launch-webapp "https://teams.cloud.microsoft/" --user-data-dir=/absolute/path/to/work-browser-profile
 ```
 
-Replace the example directory with an absolute path of your choice and use the same path for all six launchers to share work sign-ins between them. The web apps use Omarchy's selected supported browser, falling back to Chromium when the default browser is unsupported.
+Replace the example directory with an absolute path of your choice and use the same path for URL launchers that should share work sign-ins. The web apps use Omarchy's selected supported browser, falling back to Chromium when the default browser is unsupported.
+
+Replacing the Word, Excel, or PowerPoint handler with a custom URL launcher disables local file opening for that app. Local file opening uses the default browser profile.
