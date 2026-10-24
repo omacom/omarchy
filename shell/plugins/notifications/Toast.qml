@@ -196,11 +196,8 @@ Item {
   // A block shorter than the mark is centred against it, measured at rest.
   readonly property real textOffset: Math.max(0, (thumb.height - restingBlock) / 2)
 
-  // The icon and text side by side, before any preview under them.
-  readonly property real headBlock: Math.max(thumb.height, textOffset + textBlock)
-
   readonly property real fixedHeight: plate.borderTop + plate.borderBottom
-      + contentPaddingY * 2 + headBlock + preview.block
+      + contentPaddingY * 2 + Math.max(thumb.height, textOffset + textBlock)
 
   // The height this card's *state* implies, a step function the deck lays out
   // from. Feeding a mid-animation height back into the layout stalls the stack.
@@ -519,49 +516,6 @@ Item {
           // Second gate: Markup already drops anchors it will not vouch for.
           onLinkActivated: function(url) { card.linkOpened(); Security.openExternalUrl(url) }
         }
-      }
-    }
-
-    // An Omarchy sender's wide picture (--preview), across the card under the
-    // text at the picture's own shape: 16:9 until it loads, gone if it fails.
-    Item {
-      id: preview
-      readonly property string url: Security.localImageUrl(card.row.preview)
-      readonly property real ratio: shot.status === Image.Ready && shot.implicitWidth > 0
-                                    ? Math.max(0.3, Math.min(1, shot.implicitHeight / shot.implicitWidth)) : 9 / 16
-      readonly property real gap: Style.space(10)
-      readonly property real block: url !== "" && shot.status !== Image.Error ? gap + height : 0
-      anchors { left: layout.left; right: layout.right }
-      y: layout.y + card.headBlock + gap
-      height: Math.round(width * ratio)
-      visible: block > 0
-      opacity: card.contentOpacity
-
-      Image {
-        id: shot
-        anchors.fill: parent
-        source: card.reloading ? "" : preview.url
-        fillMode: Image.PreserveAspectCrop
-        // Constant, so the card resizing never reloads the image.
-        sourceSize.width: card.cardWidth * Screen.devicePixelRatio
-        asynchronous: true
-        // A sender may write each picture to the same path.
-        cache: false
-        readonly property bool rounded: Style.cornerRadius > 0
-        layer.enabled: visible && rounded
-        layer.effect: MultiEffect {
-          maskEnabled: true
-          maskSource: previewMask
-        }
-      }
-
-      Rectangle {
-        id: previewMask
-        anchors.fill: parent
-        visible: false
-        layer.enabled: true
-        radius: Style.cornerRadius
-        color: "black"
       }
     }
 

@@ -58,8 +58,6 @@ function snapshot(n, key, urgencyEnum) {
     codes: found.codes,
     link: found.link,
     image: img,
-    // Omarchy's wide picture under the text, held to the same path policy.
-    preview: Security.localImagePath(hints["omarchy-preview"]),
     urgency: typeof n.urgency === "number" ? n.urgency : urgencyEnum.Normal,
     expireTimeout: expire,
     ts: Date.now() / 1000
@@ -68,7 +66,7 @@ function snapshot(n, key, urgencyEnum) {
 
 // The fields an in-place update (replaces_id) must write through to the row.
 var ROLES = ["originalId", "senderPid", "execArgv", "execActions", "glyph", "transient", "app", "appIcon", "summary", "body", "rawBody", "bodyRich",
-             "bodyLine", "source", "groupKey", "image", "preview", "urgency",
+             "bodyLine", "source", "groupKey", "image", "urgency",
              "expireTimeout", "duration", "ts",
              "code", "codes", "link"]
 
@@ -89,7 +87,7 @@ var RESTORE_GRACE = 20000
 // row goes through normalise() and carries every field.
 var SHAPE = {
   key: "", originalId: 0, senderPid: 0, execArgv: "", execActions: "", glyph: "", transient: false, app: "", appIcon: "", summary: "", body: "",
-  bodyRich: "", bodyLine: "", rawBody: "", source: "", groupKey: "", image: "", preview: "",
+  bodyRich: "", bodyLine: "", rawBody: "", source: "", groupKey: "", image: "",
   code: "", codes: "", link: "",
   urgency: 1, expireTimeout: 0, duration: 0, ts: 0,
   restored: false
@@ -117,7 +115,6 @@ function normalise(row) {
   // qsimage is in-process pixels; anything else must be a local path the
   // policy accepts, kept in its one canonical spelling.
   out.image = QSIMAGE.test(out.image) ? out.image : Security.localImagePath(out.image)
-  out.preview = Security.localImagePath(out.preview)
   // Derived fields are recomputed, never trusted: a stored row from an older
   // build picks up today's rendering and grouping rules.
   out.bodyRich = Markup.render(out.body)
@@ -306,6 +303,5 @@ function sanitiseForPersistence(row) {
     out.bodyRich = out.body
   }
   out.image = ""
-  out.preview = ""
   return out
 }

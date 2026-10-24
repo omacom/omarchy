@@ -118,10 +118,6 @@ for (let i = 0; i < 1000; i++) {
   // Images belong to the live sender: never persisted, never read back.
   assert.ok(!('image' in Store.persistable({ key: 'p', image: '/tmp/a.png' })))
   assert.equal(Store.restored(Store.parseLive(JSON.stringify([{ key: 'p', image: '/tmp/a.png' }]))[0]).image, '')
-  // The wide preview follows the same path policy and is never stored either.
-  assert.equal(snap({ hints: { 'omarchy-preview': '/tmp/a.png' } }).preview, '/tmp/a.png')
-  assert.equal(snap({ hints: { 'omarchy-preview': '/proc/self/environ' } }).preview, '')
-  assert.equal(Store.restored(Store.parseLive(JSON.stringify([{ key: 'p', preview: '/tmp/a.png' }]))[0]).preview, '')
   assert.equal(Store.normalise({ body: 'hello', bodyRich: '<img src="x">' }).bodyRich, 'hello')
   assert.equal(snap({ body: 'x'.repeat(100000), summary: 'y'.repeat(3000) }).body.length, 32768)
 }

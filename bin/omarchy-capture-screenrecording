@@ -435,7 +435,7 @@ stop_screenrecording() {
     # here first and ffmpeg reads it through that descriptor, whenever it starts.
     local raw_fd preview_pid=""
     if exec {raw_fd}<"$filename"; then
-      ffmpeg -y -ss 00:00:00.2 -i "/proc/self/fd/$raw_fd" -vframes 1 -vf "scale='min(960,iw)':-2" "$preview" -loglevel quiet 2>/dev/null &
+      ffmpeg -y -ss 00:00:00.2 -i "/proc/self/fd/$raw_fd" -vframes 1 -vf "scale='min(320,iw)':-2" "$preview" -loglevel quiet 2>/dev/null &
       preview_pid=$!
     fi
     finalize_recording
@@ -445,11 +445,11 @@ stop_screenrecording() {
     fi
     echo "$filename"
 
-    local preview_args=()
-    [[ -s $preview ]] && preview_args=(--preview "$preview")
+    local image_args=()
+    [[ -s $preview ]] && image_args=(--image "$preview")
 
     omarchy-notification-send "$(omarchy-i18n capture.recordingSaved)" "$(omarchy-i18n capture.recordingSavedHint)" \
-      -t 10000 "${preview_args[@]}" \
+      -t 10000 "${image_args[@]}" \
       --action "$(omarchy-i18n capture.recordingOpen)" mpv -- \
       --action Omacut omacut \
       --with "$filename"
