@@ -85,7 +85,18 @@ cleanup_update() {
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "/tmp/omarchy-update.log"
+  # The shared /tmp/omarchy-update.log can belong to another user and prevent
+  # an update from starting. Use a unique transcript in the system-managed
+  # sticky /tmp; never trust a caller-selected TMPDIR for this handoff.
+  update_log=$(mktemp /tmp/omarchy-update-log.XXXXXX) || {
+    echo "Could not create a private update log; aborting." >&2
+    exit 1
+  }
+  # Keep the transcript for postmortem diagnosis. exec preserves the original
+  # PID and signal behavior while script(1) runs the logged update.
+  printf 'Omarchy update log: %s\n' "$update_log" >&2
+  exec env OMARCHY_UPDATE_LOG_FILE="$update_log" OMARCHY_UPDATE_LOGGED=1 \
+    OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "$update_log"
 fi
 
 if ! omarchy-update-lock held; then
