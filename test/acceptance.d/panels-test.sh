@@ -21,8 +21,49 @@ hide_panels() {
   done
 }
 
+# Qt publishes its accessibility tree only while an assistive technology
+# says it is listening, which this switch announces to every app.
+set_accessibility() {
+  busctl --user set-property org.a11y.Bus /org/a11y/bus org.a11y.Status IsEnabled b "$1"
+}
+
+# Wait for a panel by its name in the accessibility tree. With no tree to ask
+# (no accessibility bus, or a Quickshell that publishes none), read the screen
+# instead. When the tree answers but never shows the panel, the screen tells
+# which broke: the panel itself, or only its accessible name.
+wait_for_panel() {
+  local name="$1" description="$2" status attempt
+
+  # The shell publishes its tree a moment after accessibility is switched on.
+  # libatspi aborts rather than return when there is no bus at all.
+  for attempt in 1 2 3 4 5; do
+    status=0
+    python "$ROOT/test/acceptance.d/atspi.py" dialog "$name" 2>/dev/null || status=$?
+    (( status > 1 )) || break
+    sleep 1
+  done
+  if (( status > 1 )); then
+    printf '# no accessibility tree; reading the screen for %s\n' "$name"
+    wait_until "$description" 15 screen_contains "$name"
+    return
+  fi
+
+  local deadline=$((SECONDS + 15))
+  until python "$ROOT/test/acceptance.d/atspi.py" dialog "$name" 2>/dev/null; do
+    if ((SECONDS >= deadline)); then
+      if screen_contains "$name"; then
+        fail "$name panel is named in the accessibility tree" "the panel is on screen but missing from the tree"
+      fi
+      fail "$description" "no $name panel in the accessibility tree or on screen"
+    fi
+    sleep 1
+  done
+  pass "$description"
+}
+
 restore_weather() {
   hide_panels
+  set_accessibility false || true
 
   if ((weather_existed)); then
     mkdir -p "$(dirname "$WEATHER_FILE")"
@@ -88,8 +129,9 @@ else
 fi
 
 # The common panel keyboard contract uses Tab to move to the next bar panel.
+set_accessibility true
 omarchy-shell shell summon omarchy.bluetooth >/dev/null
-wait_until "panel keyboard navigation starts on bluetooth" 15 screen_contains "Bluetooth"
+wait_for_panel "Bluetooth" "panel keyboard navigation starts on bluetooth"
 screenshot "success-panel-navigation-01-bluetooth"
 wtype -k Tab
 sleep 2
