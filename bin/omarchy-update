@@ -161,6 +161,11 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$PATH" OMARCHY_SUDO_NO_UPDATE=1 omarchy-update-boot || boot_verified=0
   omarchy_security_revoke_sudo_timestamp
 
+  # Pacman succeeds even when a DKMS hook fails to build a required driver,
+  # official or AUR, so the kernels the next boot can choose are checked for
+  # them last. A missing driver holds the reboot back like a boot chain would.
+  omarchy-update-verify-kernel-modules || boot_verified=0
+
   # The sleep inhibitor covers AUR builds, hooks and mise as well; releasing it
   # needs no privilege because the held command already dropped to this user.
   # Release it before offering a reboot: a confirmed reboot can terminate this
@@ -172,7 +177,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   if (( boot_verified )); then
     "$OMARCHY_PATH/bin/omarchy-update-restart" --reboot-only
   else
-    echo -e "\e[31m\nThe update is not finished: its boot files did not pass verification (see above). Do not reboot until omarchy update completes.\e[0m" >&2
+    echo -e "\e[31m\nThe update is not finished: the updated system did not pass verification (see above). Do not reboot until omarchy update completes.\e[0m" >&2
     exit 1
   fi
 fi

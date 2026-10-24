@@ -144,9 +144,11 @@ omarchy-update
   │  no-update authentication, and invalidate again
   ├─ omarchy-update-boot, with no-update authentication, and invalidate again
   │    └─ the platform's boot package proves the boot files boot the updated system
+  ├─ omarchy-update-verify-kernel-modules
+  │    └─ package verifiers prove their required drivers exist for the stock and fallback kernels
   ├─ omarchy-update-stay-awake stop
   │    └─ release the sleep inhibitor and restore shell idle state, if changed
-  └─ offer the unprivileged reboot prompt, only when the boot files were verified
+  └─ offer the unprivileged reboot prompt, only when the boot files and drivers were verified
 ```
 
 Important behavior:
@@ -168,6 +170,7 @@ Important behavior:
 - A failure should leave enough output in `/tmp/omarchy-update.log` and the
   terminal transcript to debug.
 - The boot check is the [lifecycle dispatch](lifecycle-dispatch.md) operation `update-verify`, a no-op on platforms whose boot chain needs no handling of its own, x86 included: nothing runs and nothing asks for root. It is the last sudo-capable step, after AUR packages, so it also covers the initramfs rebuilds they trigger; since it follows third-party build code, it authenticates through the no-update wrapper like AUR does, which on a platform that implements it without passwordless sudo is one more prompt. When it fails, the update finishes its remaining steps, then exits non-zero without the reboot prompt: the update is not finished. A machine without its platform's boot package at all predates it: the update warns that its boot files were not verified and finishes. There is no check before the packages change: where `omarchy-hw-platform` can't tell the platform, the update installs its packages, and the update then fails verification, without the reboot prompt.
+- The driver check covers what a boot check can't see: pacman exits successfully even when a DKMS PostTransaction hook fails, so a new kernel can be installed without a driver its hardware requires. `omarchy-update-verify-kernel-modules` runs as the user after the boot check. It runs the verifiers that installed compatibility packages ship under `/usr/lib/omarchy/` (a fixed list in the command), passing the `modules.order` of each installed `linux-omarchy` and `linux` package; `linux` is the fallback kept for recovery, and other kernels are left to the user. Module directories preserved from earlier boots are not checked. A machine without any of those packages queries nothing. A failure fails the update the same way a failed boot check does, without the reboot prompt, so the previous kernel stays the one booted. An unreadable package database fails the check rather than skipping it. Nothing is rolled back.
 
 ## Path 2: direct `sudo pacman -Syu` attempt
 
@@ -314,6 +317,7 @@ scripts.
 | `omarchy-update-orphan-pkgs` | Lists orphans and prompts before removal unless passed `-y`, as the update pipeline does; standalone noninteractive mode only reports. | **Keep for now.** Automates cleanup during updates and supports standalone review. |
 | `omarchy-update-analyze-logs` | Scans `/tmp/omarchy-update.log` for known failure patterns, currently initramfs generation. | **Keep/expand.** Useful safety net; should grow only for high-signal checks. |
 | `omarchy-update-boot` | Hidden helper that runs the platform's `update-verify` lifecycle operation through `omarchy-lifecycle-dispatch`, with `sudo` only when the platform implements it. | **Keep internal/hidden.** Keeps platform boot checks out of the pipeline and stubbable in tests. |
+| `omarchy-update-verify-kernel-modules` | Hidden helper that runs the verifiers of installed compatibility packages against the stock and fallback kernels, so a driver a DKMS hook failed to build holds back the reboot. | **Keep internal/hidden.** Read-only and unprivileged; stubbable in tests. |
 | `omarchy-update-restart` | Restarts components selected by `restart-*-required` markers, always restarts the shell, and prompts for reboot after kernel/Hyprland updates. Internal phase flags let the update finish sudo-capable restarts before user hooks and defer only the unprivileged reboot prompt. | **Keep.** Important final step; may eventually include service-restart checks. |
 | `omarchy-update-firmware` | Manual firmware update command using fwupd. Not part of the normal update pipeline. | **Keep separate.** Firmware is not a routine system update step. |
 | `omarchy-update-time` | Restarts `systemd-timesyncd`. | **Question.** Not really an update command. Consider renaming/moving under system/time maintenance. |

@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# omarchy:summary=Verify required hardware modules for the kernels an update leaves to boot
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Compatibility packages that build a required driver with DKMS ship a verifier
+# here. Pacman returns success even when a DKMS PostTransaction hook fails, so
+# omarchy update asks each verifier whether its module exists for the kernels
+# the next boot can choose. A verifier reads module paths on stdin and exits
+# non-zero, naming what is missing, when its module is absent.
+verifier_names=(
+  verify-snd-hda-macbookpro
+  verify-facetimehd
+)
+
+# The stock kernel and the Arch kernel kept as its fallback. Other kernels are
+# alternatives the user chose, and their drivers are the user's to manage.
+kernel_packages=(
+  linux-omarchy
+  linux
+)
+
+# --root validates a staged installation instead of the running system.
+root=/
+if [[ ${1:-} == "--root" ]] && (( $# == 2 )) && [[ -d $2 ]]; then
+  root=$2
+elif (( $# )); then
+  echo "Usage: ${0##*/} [--root DIR]" >&2
+  exit 2
+fi
+
+verifiers=()
+for name in "${verifier_names[@]}"; do
+  verifier="${root%/}/usr/lib/omarchy/$name"
+  [[ ! -x $verifier ]] || verifiers+=("$verifier")
+done
+(( ${#verifiers[@]} )) || exit 0
+
+installed=$(pacman --root "$root" -Qq)
+
+# Only the module directories pacman owns describe what the next boot loads;
+# directories preserved from earlier boots do not.
+# An installed kernel whose modules can't be resolved fails the check, so a
+# database error can't leave it unverified.
+targets=""
+for kernel in "${kernel_packages[@]}"; do
+  grep -Fxq "$kernel" <<< "$installed" || continue
+  files=$(pacman --root "$root" -Qlq "$kernel")
+  kernel_targets=""
+  while IFS= read -r file; do
+    target=${file#"${root%/}/"}
+    if [[ $target =~ ^usr/lib/modules/[^/]+/modules\.order$ ]]; then
+      kernel_targets+="$target"$'\n'
+    fi
+  done <<< "$files"
+  if [[ -z $kernel_targets ]]; then
+    echo "ERROR: Cannot determine the modules of $kernel for hardware verification." >&2
+    exit 1
+  fi
+  targets+=$kernel_targets
+done
+[[ -n $targets ]] || exit 0
+
+failed=false
+for verifier in "${verifiers[@]}"; do
+  if ! "$verifier" --modules-root "${root%/}/usr/lib/modules" <<< "$targets"; then
+    failed=true
+  fi
+done
+
+if [[ $failed == "true" ]]; then
+  echo "Required hardware drivers are missing for an installed kernel. Repair the driver packages, or keep booting the current kernel, before rebooting." >&2
+  exit 1
+fi
