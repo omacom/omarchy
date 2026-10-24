@@ -140,7 +140,7 @@ Item {
       Button {
         visible: root.saved
         iconText: "󰑓"
-        tooltipText: "Reset to default"
+        tooltipText: Commons.I18n.t("touchpad.resetToDefault")
         foreground: root.foreground
         accent: root.accent
         focusable: true

@@ -31,7 +31,7 @@ ColumnLayout {
   }
 
   PanelSectionHeader {
-    text: "TRY IT"
+    text: Commons.I18n.t("touchpad.tryIt")
     foreground: root.foreground
     font.letterSpacing: 1
   }
@@ -68,7 +68,7 @@ ColumnLayout {
           anchors.left: parent.left
           anchors.leftMargin: Style.spacing.md
           textFormat: Text.PlainText
-          text: "Scroll test line " + (index + 1)
+          text: Commons.I18n.t("touchpad.scrollTestLine").arg(Commons.I18n.formatNumber(index + 1))
           color: index % 10 === 0 ? root.accent : root.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.bodySmall
@@ -107,7 +107,7 @@ ColumnLayout {
       Text {
         anchors.horizontalCenter: parent.horizontalCenter
         textFormat: Text.PlainText
-        text: root.lastClick === "" ? "Tap or click here" : root.lastClick
+        text: root.lastClick === "" ? Commons.I18n.t("touchpad.tapOrClickHere") : root.lastClick
         color: root.lastClick === "" ? root.dim : root.foreground
         font.family: Style.font.family
         font.pixelSize: Style.font.title
@@ -117,7 +117,7 @@ ColumnLayout {
       Text {
         anchors.horizontalCenter: parent.horizontalCenter
         textFormat: Text.PlainText
-        text: root.clickCount > 0 ? root.clickCount + (root.clickCount === 1 ? " click" : " clicks") : "Try one, two, and three fingers"
+        text: root.clickCount > 0 ? Commons.I18n.tn("touchpad.clicks", root.clickCount).arg(Commons.I18n.formatNumber(root.clickCount)) : Commons.I18n.t("touchpad.tryFingers")
         color: root.dim
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
@@ -152,7 +152,7 @@ ColumnLayout {
     Caption {
       anchors.centerIn: parent
       width: implicitWidth
-      text: dragArea.drag.active ? "Dragging" : "Drag the dot"
+      text: dragArea.drag.active ? Commons.I18n.t("touchpad.dragging") : Commons.I18n.t("touchpad.dragTheDot")
     }
 
     Rectangle {

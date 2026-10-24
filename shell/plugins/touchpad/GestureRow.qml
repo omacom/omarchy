@@ -97,7 +97,7 @@ Item {
 
       Button {
         iconText: "󰆴"
-        tooltipText: "Remove gesture"
+        tooltipText: Commons.I18n.t("touchpad.removeGesture")
         focusable: true
         foreground: root.foreground
         accent: root.accent

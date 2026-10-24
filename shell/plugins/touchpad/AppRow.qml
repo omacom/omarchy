@@ -47,7 +47,7 @@ Item {
     TextField {
       id: matchField
       text: root.app.match
-      placeholderText: "Window class, e.g. firefox"
+      placeholderText: Commons.I18n.t("touchpad.windowClassExample")
       foreground: root.foreground
       accent: root.accent
       Layout.preferredWidth: Style.space(220)
@@ -79,7 +79,7 @@ Item {
 
     Button {
       iconText: "󰆴"
-      tooltipText: "Remove"
+      tooltipText: Commons.I18n.t("touchpad.remove")
       focusable: true
       foreground: root.foreground
       accent: root.accent

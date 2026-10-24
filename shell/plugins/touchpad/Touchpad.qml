@@ -355,7 +355,7 @@ Item {
 
   FloatingWindow {
     id: window
-    title: "Touchpad"
+    title: Commons.I18n.t("touchpad.title")
     color: root.background
     implicitWidth: Style.space(1040)
     implicitHeight: Style.space(700)
@@ -452,7 +452,7 @@ Item {
 
               Text {
                 textFormat: Text.PlainText
-                text: "Touchpad"
+                text: Commons.I18n.t("touchpad.title")
                 color: root.foreground
                 font.family: Style.font.family
                 font.pixelSize: Style.font.heading
@@ -475,7 +475,7 @@ Item {
                 selected: root.page === modelData.id
                 foreground: root.foreground
                 accent: root.accent
-                tooltipText: "Ctrl+Tab or " + (index + 1)
+                tooltipText: Commons.I18n.t("touchpad.ctrlTabOr").arg(Commons.I18n.formatNumber(index + 1))
                 onClicked: root.page = modelData.id
               }
             }
@@ -484,14 +484,14 @@ Item {
 
             Button {
               Layout.fillWidth: true
-              text: root.confirmingReset ? "Really reset?" : "Reset all"
+              text: root.confirmingReset ? Commons.I18n.t("touchpad.reallyReset") : Commons.I18n.t("touchpad.resetAll")
               iconText: "󰑓"
               leftAlign: true
               focusable: true
               bordered: root.confirmingReset
               foreground: root.confirmingReset ? Commons.Color.urgent : root.dim
               accent: root.accent
-              tooltipText: root.confirmingReset ? "Click again to restore every Omarchy default" : "Restore every Omarchy default"
+              tooltipText: root.confirmingReset ? Commons.I18n.t("touchpad.resetAllConfirm") : Commons.I18n.t("touchpad.resetAllHint")
               onClicked: {
                 if (root.confirmingReset) root.resetAll()
                 else root.confirmingReset = true
@@ -528,7 +528,7 @@ Item {
 
               Text {
                 textFormat: Text.PlainText
-                text: root.devices.length === 0 ? "No touchpad detected"
+                text: root.devices.length === 0 ? Commons.I18n.t("touchpad.noTouchpadDetected")
                   : root.devices.map(Model.deviceLabel).join(", ")
                 color: root.dim
                 font.family: Style.font.family
@@ -541,7 +541,7 @@ Item {
             Text {
               visible: root.devices.length > 0
               textFormat: Text.PlainText
-              text: root.disabledName === "" ? "On" : "Off"
+              text: root.disabledName === "" ? Commons.I18n.t("touchpad.on") : Commons.I18n.t("touchpad.off")
               color: root.dim
               font.family: Style.font.family
               font.pixelSize: Style.font.bodySmall
@@ -590,7 +590,7 @@ Item {
 
               Text {
                 textFormat: Text.PlainText
-                text: "Your ~/.config/hypr/input.lua also sets some of these; they are marked here. Anything you change in this window overrides it, and resetting a setting hands it back to input.lua."
+                text: Commons.I18n.t("touchpad.inputLuaOverrides")
                 color: root.foreground
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -599,7 +599,7 @@ Item {
               }
 
               Button {
-                text: "Edit input.lua"
+                text: Commons.I18n.t("touchpad.editInputLua")
                 bordered: true
                 focusable: true
                 foreground: root.foreground
@@ -633,7 +633,7 @@ Item {
               id: scrollingPage
 
               Section {
-                title: "Scrolling"
+                title: Commons.I18n.t("touchpad.scrolling")
                 foreground: root.foreground
 
                 Repeater {
@@ -644,7 +644,7 @@ Item {
 
               Text {
                 textFormat: Text.PlainText
-                text: "Terminals scroll at their own speed on top of this one; adjust them under App Scrolling."
+                text: Commons.I18n.t("touchpad.terminalScrollNote")
                 color: root.dim
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -658,7 +658,7 @@ Item {
               id: clickingPage
 
               Section {
-                title: "Tapping and clicking"
+                title: Commons.I18n.t("touchpad.tappingAndClicking")
                 foreground: root.foreground
 
                 Repeater {
@@ -673,8 +673,8 @@ Item {
               id: pointerPage
 
               Section {
-                title: "Pointer"
-                subtitle: "These apply to touchpads only, so a mouse keeps its own speed."
+                title: Commons.I18n.t("touchpad.pointer")
+                subtitle: Commons.I18n.t("touchpad.pointerSubtitle")
                 foreground: root.foreground
 
                 Repeater {
@@ -689,14 +689,14 @@ Item {
               id: gesturesPage
 
               Section {
-                title: "Gestures"
-                subtitle: "Swipe or pinch with several fingers. Pick how many, which way, and an optional key to hold so one swipe can do two things."
+                title: Commons.I18n.t("touchpad.gestures")
+                subtitle: Commons.I18n.t("touchpad.gesturesSubtitle")
                 foreground: root.foreground
 
                 Text {
                   visible: root.doc.gestures.bindings.length === 0
                   textFormat: Text.PlainText
-                  text: "No gestures yet. Add one, or start from a suggestion below."
+                  text: Commons.I18n.t("touchpad.noGestures")
                   color: root.dim
                   font.family: Style.font.family
                   font.pixelSize: Style.font.bodySmall
@@ -737,7 +737,7 @@ Item {
 
                 Button {
                   id: addGestureButton
-                  text: "Add gesture"
+                  text: Commons.I18n.t("touchpad.addGesture")
                   iconText: "󰐕"
                   bordered: true
                   focusable: true
@@ -772,7 +772,7 @@ Item {
               Text {
                 visible: root.overrides.gestures > 0
                 textFormat: Text.PlainText
-                text: "Your input.lua adds " + root.overrides.gestures + (root.overrides.gestures === 1 ? " gesture" : " gestures")
+                text: Commons.I18n.tn("touchpad.inputLuaGestures", root.overrides.gestures).arg(Commons.I18n.formatNumber(root.overrides.gestures))
                   + " of its own. A gesture here replaces any of those that use the same swipe."
                 color: root.accent
                 font.family: Style.font.family
@@ -782,8 +782,8 @@ Item {
               }
 
               Section {
-                title: "Workspace swipe"
-                subtitle: "How the Workspaces gesture feels as it follows your fingers."
+                title: Commons.I18n.t("touchpad.workspaceSwipe")
+                subtitle: Commons.I18n.t("touchpad.workspaceSwipeSubtitle")
                 foreground: root.foreground
 
                 Repeater {
@@ -814,14 +814,14 @@ Item {
               id: appsPage
 
               Section {
-                title: "Per-app scroll speed"
-                subtitle: "Multiplies the scroll speed inside matching windows. The match is a regular expression on the window class."
+                title: Commons.I18n.t("touchpad.perAppScroll")
+                subtitle: Commons.I18n.t("touchpad.perAppScrollSubtitle")
                 foreground: root.foreground
 
                 Text {
                   visible: root.apps.length === 0
                   textFormat: Text.PlainText
-                  text: "Every app scrolls at the global speed."
+                  text: Commons.I18n.t("touchpad.noAppScroll")
                   color: root.dim
                   font.family: Style.font.family
                   font.pixelSize: Style.font.bodySmall
@@ -872,7 +872,7 @@ Item {
 
                 TextField {
                   id: customApp
-                  placeholderText: "Or type a window class"
+                  placeholderText: Commons.I18n.t("touchpad.typeWindowClass")
                   foreground: root.foreground
                   accent: root.accent
                   Layout.fillWidth: true
@@ -885,7 +885,7 @@ Item {
                 }
 
                 Button {
-                  text: "Add"
+                  text: Commons.I18n.t("touchpad.add")
                   iconText: "󰐕"
                   bordered: true
                   focusable: true
@@ -901,7 +901,7 @@ Item {
 
               Button {
                 visible: root.doc.apps !== null
-                text: "Restore defaults"
+                text: Commons.I18n.t("touchpad.restoreDefaults")
                 iconText: "󰑓"
                 focusable: true
                 foreground: root.dim
@@ -912,7 +912,7 @@ Item {
               Text {
                 visible: root.overrides.appScroll
                 textFormat: Text.PlainText
-                text: "Your input.lua also sets scroll_touchpad rules. For an app listed here, the speed here wins."
+                text: Commons.I18n.t("touchpad.inputLuaScrollRules")
                 color: root.accent
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -928,7 +928,7 @@ Item {
               Text {
                 visible: root.devices.length === 0
                 textFormat: Text.PlainText
-                text: "No touchpad is connected right now. Settings saved here apply when one appears."
+                text: Commons.I18n.t("touchpad.notConnected")
                 color: root.dim
                 font.family: Style.font.family
                 font.pixelSize: Style.font.bodySmall
@@ -982,7 +982,7 @@ Item {
               }
 
               Section {
-                title: "Troubleshooting"
+                title: Commons.I18n.t("touchpad.troubleshooting")
                 foreground: root.foreground
 
                 RowLayout {
@@ -997,7 +997,7 @@ Item {
 
                     Text {
                       textFormat: Text.PlainText
-                      text: "Touchpad stopped responding?"
+                      text: Commons.I18n.t("touchpad.stoppedResponding")
                       color: root.foreground
                       font.family: Style.font.family
                       font.pixelSize: Style.font.subtitle
@@ -1006,7 +1006,7 @@ Item {
 
                     Text {
                       textFormat: Text.PlainText
-                      text: "Reload its driver. Asks for your password."
+                      text: Commons.I18n.t("touchpad.reloadDriverHint")
                       color: root.dim
                       font.family: Style.font.family
                       font.pixelSize: Style.font.caption
@@ -1016,7 +1016,7 @@ Item {
                   }
 
                   Button {
-                    text: "Reset driver"
+                    text: Commons.I18n.t("touchpad.resetDriver")
                     bordered: true
                     focusable: true
                     foreground: root.foreground
@@ -1037,7 +1037,7 @@ Item {
 
                     Text {
                       textFormat: Text.PlainText
-                      text: "Settings file"
+                      text: Commons.I18n.t("touchpad.settingsFile")
                       color: root.foreground
                       font.family: Style.font.family
                       font.pixelSize: Style.font.subtitle
@@ -1046,7 +1046,7 @@ Item {
 
                     Text {
                       textFormat: Text.PlainText
-                      text: "~/.config/omarchy/touchpad.json holds everything changed here."
+                      text: Commons.I18n.t("touchpad.settingsFileHint")
                       color: root.dim
                       font.family: Style.font.family
                       font.pixelSize: Style.font.caption
@@ -1056,7 +1056,7 @@ Item {
                   }
 
                   Button {
-                    text: "Open"
+                    text: Commons.I18n.t("touchpad.open")
                     bordered: true
                     focusable: true
                     foreground: root.foreground
