@@ -12,6 +12,8 @@ import hashlib
 import json
 import math
 import os
+import signal
+import subprocess
 import sys
 import tempfile
 import threading
@@ -26,7 +28,9 @@ from typing import Any
 
 AGENT_ID = "kimi"
 AGENT_NAME = "Kimi"
-AUTH_HELP = "Set KIMI_API_KEY or sign in to Kimi (run `kimi login`)."
+PI_AUTH_HELP = "Sign in to Kimi in Pi with `/login kimi-coding`."
+AUTH_HELP = "Set KIMI_API_KEY, run `kimi login`, or sign in to Kimi in Pi with `/login kimi-coding`."
+PI_AUTH_TIMEOUT_SECONDS = 15
 USAGE_URL = os.environ.get("KIMI_USAGE_URL") or (
   os.environ.get("KIMI_CODE_BASE_URL", "https://api.kimi.com/coding/v1").rstrip("/") + "/usages"
 )
@@ -295,6 +299,66 @@ def refresh_credentials(auth: dict[str, str] | None = None) -> dict[str, Any]:
     return credentials
 
 
+def pi_signed_in() -> bool:
+  # An explicit Kimi home selects an account; never borrow Pi's account.
+  if os.environ.get("KIMI_CODE_HOME"):
+    return False
+  directory = Path(os.environ.get("PI_CODING_AGENT_DIR") or Path.home() / ".pi" / "agent").expanduser()
+  try:
+    stored = json.loads((directory / "auth.json").read_text())
+  except (OSError, ValueError, RecursionError):
+    return False
+  entry = stored.get("kimi-coding") if isinstance(stored, dict) else None
+  return isinstance(entry, dict) and entry.get("type") in ("oauth", "api_key")
+
+
+def pi_api_key(auth: dict[str, str] | None = None) -> str:
+  # Check for a sign-in before invoking Omarchy's lazy Pi launcher: an unused
+  # provider's background refresh must not install Pi. Only Pi resolves the
+  # credential and owns refresh, locking and writes to its store.
+  if not pi_signed_in():
+    raise KimiError(AUTH_HELP)
+  try:
+    with subprocess.Popen(
+      ["pi", "auth", "check", "--provider", "kimi-coding", "--json", "--credentials"],
+      stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True,
+    ) as process:
+      try:
+        output, _ = process.communicate(timeout=PI_AUTH_TIMEOUT_SECONDS)
+      except subprocess.TimeoutExpired:
+        # A Pi API-key command can inherit stdout; stop the whole lookup so
+        # such a child cannot keep the collector waiting on the pipe.
+        try:
+          os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+          pass
+        process.communicate()
+        raise
+  except FileNotFoundError:
+    raise KimiError("Pi is not available on PATH. " + AUTH_HELP) from None
+  except subprocess.TimeoutExpired:
+    raise KimiError("Pi Kimi credential lookup timed out; try again. " + PI_AUTH_HELP) from None
+  except OSError:
+    raise KimiError("Could not run Pi credential lookup; check the Pi installation. " + AUTH_HELP) from None
+  try:
+    data = json.loads(output)
+  except (ValueError, UnicodeError):
+    data = {}
+  if not isinstance(data, dict):
+    data = {}
+  if process.returncode == 1 and data.get("status") == "not_ready":
+    raise KimiError(AUTH_HELP)
+  if process.returncode == 2 and data.get("status") == "invalid":
+    raise KimiError("Pi could not resolve Kimi credentials. " + PI_AUTH_HELP)
+  key = data.get("credentials")
+  if (process.returncode != 0 or data.get("status") != "ready" or data.get("provider") != "kimi-coding"
+      or data.get("authType") not in ("oauth", "api_key") or not isinstance(key, str) or not key.strip()):
+    raise KimiError("Pi credential lookup failed; update Pi to a version with `pi auth check`. " + PI_AUTH_HELP)
+  if auth is not None:
+    auth.update(key=key, help=PI_AUTH_HELP)
+  return key
+
+
 def api_key(auth: dict[str, str] | None = None) -> str:
   key = os.environ.get("KIMI_API_KEY", "").strip()
   if key:
@@ -305,7 +369,7 @@ def api_key(auth: dict[str, str] | None = None) -> str:
   if auth is not None:
     auth["key"] = str(credentials.get("access_token") or "")
   if not credentials.get("access_token"):
-    raise KimiError(AUTH_HELP)
+    return pi_api_key(auth)
   if not token_fresh(credentials):
     credentials = refresh_credentials(auth)
   return str(credentials.get("access_token") or "")
@@ -314,7 +378,7 @@ def api_key(auth: dict[str, str] | None = None) -> str:
 # -------------------------------------------------------------------- quota
 
 
-def quota(key: str) -> dict[str, Any]:
+def quota(key: str, auth_help: str = "") -> dict[str, Any]:
   url, trusted = trusted_url(USAGE_URL)
   headers = {"Accept": "application/json"}
   if trusted:
@@ -325,7 +389,9 @@ def quota(key: str) -> dict[str, Any]:
       decoded = json.load(response)
   except urllib.error.HTTPError as error:
     if error.code in (401, 403):
-      remedy = "Update or unset KIMI_API_KEY." if os.environ.get("KIMI_API_KEY", "").strip() else "Sign in again with `kimi login`."
+      remedy = auth_help or (
+        "Update or unset KIMI_API_KEY." if os.environ.get("KIMI_API_KEY", "").strip() else "Sign in again with `kimi login`."
+      )
       raise KimiError("Kimi rejected the credentials. " + remedy) from error
     if error.code == 404:
       raise KimiError("Kimi usage endpoint not available. Try Kimi for Coding.") from error
@@ -494,7 +560,7 @@ def main() -> int:
       if not args.force and 0 <= age < PROBE_REUSE_SECONDS * 1000:
         limits, fetched_at = cached["limits"], cached["fetchedAt"]
       else:
-        limits, fetched_at = to_limits(quota(key)), int(time.time() * 1000)
+        limits, fetched_at = to_limits(quota(key, auth.get("help", ""))), int(time.time() * 1000)
         try:
           write_json(path, {"limits": limits, "fetchedAt": fetched_at})
         except OSError:

@@ -111,7 +111,7 @@ limits = scanner.to_limits(payload)
 summary["limits"] = limits
 
 os.environ["KIMI_API_KEY"] = "kimi_env"
-scanner.quota = lambda key: payload
+scanner.quota = lambda key, auth_help="": payload
 sys.argv = ["omarchy-agent-usage-kimi", "--limits-only"]
 out = io.StringIO()
 with redirect_stdout(out):
