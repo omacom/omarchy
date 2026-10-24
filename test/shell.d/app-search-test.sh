@@ -154,4 +154,23 @@ assert(
   openMatch[1].includes('root.appLibrary.refreshIcons()'),
   'menu refreshes the shared icon index when opened'
 )
+
+const refreshIconsMatch = appLibraryQml.match(/function refreshIcons\(\) \{([\s\S]*?)\n  \}/)
+assert(
+  refreshIconsMatch &&
+    /if \(iconIndexScan\.running\) \{[\s\S]*?root\.pendingIconIndexRescan = true[\s\S]*?\}[\s\S]*?iconIndexScan\.running = true/.test(refreshIconsMatch[1]),
+  'app library queues an icon rescan when a scan is already running, instead of dropping the request'
+)
+const debounceMatch = appLibraryQml.match(/id: iconIndexDebounce[\s\S]*?onTriggered: \{([\s\S]*?)\n    \}/)
+assert(
+  debounceMatch &&
+    /if \(iconIndexScan\.running\) \{[\s\S]*?root\.pendingIconIndexRescan = true[\s\S]*?\} else \{[\s\S]*?iconIndexScan\.running = true/.test(debounceMatch[1]),
+  'app library queues a debounced icon rescan that fires while a scan is running'
+)
+const iconScanExitMatch = appLibraryQml.match(/id: iconIndexScan[\s\S]*?onExited: \{([\s\S]*?)\n    \}/)
+assert(
+  iconScanExitMatch &&
+    /root\.iconIndex = root\.pendingIconIndex[\s\S]*?if \(root\.pendingIconIndexRescan\) \{[\s\S]*?root\.pendingIconIndexRescan = false[\s\S]*?iconIndexDebounce\.restart\(\)/.test(iconScanExitMatch[1]),
+  'app library schedules a follow-up scan when the in-flight scan exits with a rescan queued'
+)
 JS

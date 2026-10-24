@@ -71,7 +71,11 @@ Item {
   // The shell may start before first-install packages have finished placing
   // their icons; consumers call this when they open so icons appear live.
   function refreshIcons() {
-    if (!iconIndexScan.running) iconIndexScan.running = true
+    if (iconIndexScan.running) {
+      root.pendingIconIndexRescan = true
+      return
+    }
+    iconIndexScan.running = true
   }
 
   function launch(desktopId, name) {
@@ -214,6 +218,8 @@ Item {
     onExited: root.loadDesktopHiddenEntries(hiddenEntryOutput.text)
   }
 
+  property bool pendingIconIndexRescan: false
+
   Process {
     id: iconIndexScan
     command: ["bash", "-c", root.iconIndexScanCommand()]
@@ -221,7 +227,13 @@ Item {
     onStarted: root.pendingIconIndex = ({})
     // Swapping the property re-evaluates every iconSource() binding, so
     // newly found icons appear without rebuilding the list.
-    onExited: root.iconIndex = root.pendingIconIndex
+    onExited: {
+      root.iconIndex = root.pendingIconIndex
+      if (root.pendingIconIndexRescan) {
+        root.pendingIconIndexRescan = false
+        iconIndexDebounce.restart()
+      }
+    }
   }
 
   // Coalesces bursts of app-list changes (a package install touches many
@@ -229,7 +241,13 @@ Item {
   Timer {
     id: iconIndexDebounce
     interval: 750
-    onTriggered: if (!iconIndexScan.running) iconIndexScan.running = true
+    onTriggered: {
+      if (iconIndexScan.running) {
+        root.pendingIconIndexRescan = true
+      } else {
+        iconIndexScan.running = true
+      }
+    }
   }
 
   FileView {
