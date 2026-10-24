@@ -373,6 +373,10 @@ local active_border_color = { colors = { "rgba(33ccffee)", "rgba(00ff99ee)" }, a
 
 The input method's candidate window is drawn by Fcitx's classicui, from `default/themed/fcitx5-theme.conf.tpl`. `omarchy-theme-set-fcitx5` copies the rendered file to `~/.local/share/fcitx5/themes/omarchy/theme.conf`, links fcitx5's neutral grey page and menu glyphs beside it, and asks a running Fcitx to reload classicui without starting one. Setup and the migration run it with `--activate`, which also points `Theme` and `DarkTheme` in `~/.config/fcitx5/conf/classicui.conf` at `omarchy`, writing through a symlinked file. It replaces only fcitx5's stock `default` and `default-dark`, which a configtool save writes even when only the font changed, so a theme the user installed is kept. Theme switches never reselect it, so choosing fcitx5's own theme afterwards sticks.
 
+## Zen Browser
+
+Zen is styled from `default/themed/zen.css.tpl`: the theme background replaces Zen's space gradient, controls and tabs take T3 Code's row states (a 6% foreground lift on hover, an 18% accent tint when selected or pressed), and Zen's shadows are dropped. `omarchy-theme-set-zen` copies the rendered file into every profile listed in `~/.zen`, `~/.config/zen` and the Flatpak's `profiles.ini` as `chrome/omarchy.css`, and appends the window transparency mode as one value: opaque is solid, transparent is the 0.985 Omarchy gives its windows, glassy is the terminals' 0.65. Only the browser chrome turns see-through; web pages are drawn over it and never fade. It imports the file at the top of `chrome/userChrome.css` and sets `toolkit.legacyUserProfileCustomizations.stylesheets` and `zen.widget.linux.transparency` in `user.js`, both between `omarchy-zen begin` and `omarchy-zen end` markers, so the user's own CSS and prefs stay and `omarchy-theme-set-zen --remove` gives the files back as they were. Theme switches and `omarchy-hyprland-window-transparency` run it. Zen reads `userChrome.css` only when it starts, so a running Zen picks up the change when next opened.
+
 ## Adding or overriding theme files
 
 - Add palette values to `themes/<name>/colors.toml`.
