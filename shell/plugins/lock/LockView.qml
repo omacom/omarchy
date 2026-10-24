@@ -218,6 +218,18 @@ Item {
             event.accepted = true
           }
         }
+
+        // After a failed attempt the field shows the error and no cursor, and a
+        // click on it changes nothing because it already has focus, so it looks
+        // dead. Clicking it means "let me try again": drop the error and make
+        // sure keys land here. The passive grab leaves the press to TextInput.
+        TapHandler {
+          onTapped: {
+            root.wakeRequested()
+            if (root.failureMessage.length > 0) root.clearFailureRequested()
+            passwordInput.forceActiveFocus()
+          }
+        }
       }
 
       Text {
