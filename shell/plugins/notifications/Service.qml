@@ -344,12 +344,24 @@ Item {
     return place.y + (place.height || Style.space(58)) <= room
   }
 
+  // Past cards that do not fit: the rest of a long deck can be out of reach
+  // while the next deck, opened in its place, is not.
   function moveSelection(step) {
     var order = keyboardOrder()
-    var at = order.indexOf(keyboardKey)
-    var next = at + step
-    if (next < 0 || next >= order.length || !reachable(order[next])) return
-    selectCard(order[next])
+    for (var next = order.indexOf(keyboardKey) + step; next >= 0 && next < order.length; next += step) {
+      if (reachable(order[next])) { selectCard(order[next]); return }
+    }
+  }
+
+  // Selecting a card shows its buttons and opening its deck can open its body,
+  // so it grows after reachable() said yes. Once it has, step back if it no
+  // longer fits.
+  function keepSelectionInReach() {
+    if (!keyboardMode || reachable(keyboardKey)) return
+    var order = keyboardOrder()
+    for (var i = order.indexOf(keyboardKey) - 1; i >= 0; i--) {
+      if (reachable(order[i])) { selectCard(order[i]); return }
+    }
   }
 
   // The card's buttons in Delivery.deeds' order, which the card draws and
@@ -411,6 +423,7 @@ Item {
     } else {
       commit(function() { service.heights[key] = h })
     }
+    if (key === keyboardKey) keepSelectionInReach()
   }
 
   // ------------------------------------------------------- the scene clock

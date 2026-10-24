@@ -493,19 +493,31 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.ok(!JSON.stringify(s.historyEntries).includes('938271'))
 }
 
-{ // The keyboard stops at the last card that fits on screen: the deck does not scroll.
+{ // The keyboard only selects cards that fit on screen: the deck does not scroll.
   const s = newCapacityScope()
-  s.admit(...[1, 2, 3, 4, 5].map(id => s.fakeNotification(id, 'Card ' + id)))
+  const other = s.fakeNotification(9, 'Other app')
+  other.appName = 'Other'
+  s.admit(other, ...[1, 2, 3, 4, 5].map(id => s.fakeNotification(id, 'Card ' + id)))
   Object.assign(s, { Layout, gap: 6, targetDisplayName: 'fixture-display', marginsFor: () => ({ top: 10, right: 10 }),
-    Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] } })
-  runIn(s, 'layoutWith', 'reachable', 'moveSelection', 'keyboardOrder')
+    Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] }, keyboardMode: true })
+  runIn(s, 'layoutWith', 'reachable', 'moveSelection', 'keepSelectionInReach', 'keyboardOrder')
   for (const row of s.toasts.rows) s.heights[row.key] = 100
   Object.defineProperty(s, 'layout', { get: () => s.layoutWith(true, s.openDeck) })
   s.selectCard = key => { s.keyboardKey = key; s.openDeck = Layout.groupKeyFor(s.toasts.get(s.rowIndexFor(key))) }
+  const summary = () => s.toasts.get(s.rowIndexFor(s.keyboardKey)).summary
   s.selectCard(s.keyboardOrder()[0])
-  for (let i = 0; i < 5; i++) s.moveSelection(1)
-  // 300 tall, 10 down, 6 apart: two 100-tall cards fit, the third would end at 322.
-  assert.equal(s.keyboardOrder().indexOf(s.keyboardKey), 1)
+  s.moveSelection(1)
+  // 300 tall, 10 down, 6 apart: two 100-tall cards fit, the third would end at 322...
+  assert.equal(summary(), 'Card 4')
+  // ...so Down skips the rest of that deck for the next one, which fits once it opens.
+  s.moveSelection(1)
+  assert.equal(summary(), 'Other app')
+  s.moveSelection(-1)
+  assert.equal(summary(), 'Card 4')
+  // A selected card that grows past the bottom (its buttons, its body) gives way.
+  s.heights[s.keyboardKey] = 200
+  s.keepSelectionInReach()
+  assert.equal(summary(), 'Card 5')
 }
 
 for (const held of [true, false]) { // Capacity: at most 100 live senders, held or deferred.
