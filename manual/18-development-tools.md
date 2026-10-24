@@ -49,6 +49,10 @@ If you already have a `[settings]` table, add the entry there; extend an existin
 
 _Remove Preinstalls_ has mise skip Omarchy's tool declarations for your user, by adding them to `ignored_config_paths` in `~/.config/mise/miserc.toml`. _Restore Preinstalls_ removes that line again. Tools you declare yourself, in your own config or in a project's `mise.toml`, keep working either way. If you choose a default agent or set up Python after removing the preinstalls, that tool is added to your own config. Both apply only to your user; other users on the machine keep their own choice.
 
+## Kujo
+
+[Kujo](https://kujolang.ai) is a programming language and runtime for AI-native software and local automation. It is included on new Omarchy installations. Run `kujo --version` to check the installed version and `kujo run script.kujo` to run a program.
+
 ## Docker
 
 [Docker](https://www.docker.com/) hardly needs any introduction. It allows you to run isolated containers, and Omarchy installs everything needed to run it well, including Docker itself and [Docker Compose](https://docs.docker.com/compose/).
