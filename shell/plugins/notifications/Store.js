@@ -35,12 +35,14 @@ function snapshot(n, key, urgencyEnum) {
   var found = Detect.scan(id.summary, id.body)
   // The hint may arrive as a list, which normalise() would read as no string.
   var argv = Security.parseExecArgv(hints["omarchy-exec-argv"])
+  var actions = Security.parseExecActions(hints["omarchy-actions"])
   return normalise({
     key: key,
     originalId: n.id || 0,
     // A terminal relaying a notification owns a window; its pid says which.
     senderPid: Number(hints["sender-pid"] || 0) || 0,
     execArgv: argv ? JSON.stringify(argv) : "",
+    execActions: actions ? JSON.stringify(actions) : "",
     glyph: hints["omarchy-glyph"],
     transient: hints["transient"] === true || hints["transient"] === 1,
     app: raw.app,
@@ -63,7 +65,7 @@ function snapshot(n, key, urgencyEnum) {
 }
 
 // The fields an in-place update (replaces_id) must write through to the row.
-var ROLES = ["originalId", "senderPid", "execArgv", "glyph", "transient", "app", "appIcon", "summary", "body", "rawBody", "bodyRich",
+var ROLES = ["originalId", "senderPid", "execArgv", "execActions", "glyph", "transient", "app", "appIcon", "summary", "body", "rawBody", "bodyRich",
              "bodyLine", "source", "groupKey", "image", "urgency",
              "expireTimeout", "duration", "ts",
              "code", "codes", "link"]
@@ -84,7 +86,7 @@ var RESTORE_GRACE = 20000
 // from the first row it sees and silently drops keys that row lacked, so every
 // row goes through normalise() and carries every field.
 var SHAPE = {
-  key: "", originalId: 0, senderPid: 0, execArgv: "", glyph: "", transient: false, app: "", appIcon: "", summary: "", body: "",
+  key: "", originalId: 0, senderPid: 0, execArgv: "", execActions: "", glyph: "", transient: false, app: "", appIcon: "", summary: "", body: "",
   bodyRich: "", bodyLine: "", rawBody: "", source: "", groupKey: "", image: "",
   code: "", codes: "", link: "",
   urgency: 1, expireTimeout: 0, duration: 0, ts: 0,
@@ -107,6 +109,8 @@ function normalise(row) {
   out.glyph = Security.safeGlyph(out.glyph)
   var argv = Security.parseExecArgv(out.execArgv)
   out.execArgv = argv ? JSON.stringify(argv) : ""
+  var actions = Security.parseExecActions(out.execActions)
+  out.execActions = actions ? JSON.stringify(actions) : ""
   out.codes = out.codes.split(" ").slice(0, Security.MAX_CODES).join(" ")
   // qsimage is in-process pixels; anything else must be a local path the
   // policy accepts, kept in its one canonical spelling.
@@ -154,13 +158,13 @@ var HISTORY_ROW_CHARS = 4096
 // What a stored row keeps. Derived text is recomputed on restore; codes,
 // links and images never persist, so a stored row cannot assert a
 // capability.
-var STORED = ["key", "originalId", "senderPid", "execArgv", "glyph", "app", "appIcon", "summary", "body",
+var STORED = ["key", "originalId", "senderPid", "execArgv", "execActions", "glyph", "app", "appIcon", "summary", "body",
               "rawBody", "source", "groupKey", "urgency", "expireTimeout", "duration", "ts"]
 
 function storedSize(row) { return JSON.stringify(row).length }
 
 // Long text is cut until the row fits: the body first, then the click
-// command, then the summary.
+// command and buttons, then the summary.
 function persistable(row, limit) {
   var clean = sanitiseForPersistence(row), out = {}
   for (var i = 0; i < STORED.length; i++) out[STORED[i]] = clean[STORED[i]]
@@ -170,7 +174,7 @@ function persistable(row, limit) {
     out.body = out.body.slice(0, Math.floor(out.body.length * 3 / 4))
     out.rawBody = out.rawBody.slice(0, Math.floor(out.rawBody.length * 3 / 4))
   }
-  if (storedSize(out) > limit) out.execArgv = ""
+  if (storedSize(out) > limit) { out.execArgv = ""; out.execActions = "" }
   while (storedSize(out) > limit && out.summary)
     out.summary = out.summary.slice(0, Math.floor(out.summary.length * 3 / 4))
   return out

@@ -23,6 +23,7 @@ Item {
   property bool sole: false                  // the only card on screen
   property bool paused: false
   property bool hovered: false
+  property bool selected: false              // the keyboard's card
   property double now: Date.now()
   property real cardWidth: Style.space(380)
   property var actions: []                   // what the sender put on the wire
@@ -66,6 +67,8 @@ Item {
   signal dismissed()
   signal codeCopied(string code)
   signal actionInvoked(string identifier)
+  signal execInvoked(int index)
+  signal linkOpened()
 
   readonly property bool critical: row.urgency === 2
   readonly property color dimColor: Qt.darker(Commons.Color.notifications.text, 1.4)
@@ -109,15 +112,16 @@ Item {
     return out
   }
 
-  // What the card found in its own text first, then the sender's actions.
+  // Buttons an Omarchy sender asked for (--action), as commands the shell runs.
+  readonly property var execActions: Security.parseExecActions(row.execActions) || []
+
+  // Every button, in Delivery.deeds' order, with the code labels translated.
   readonly property var allDeeds: {
-    var out = []
-    for (var c = 0; c < foundCodes.length; c++)
-      out.push({ kind: "code", value: foundCodes[c],
-                 label: foundCodes.length > 1 ? I18n.t("notifications.copyThisCode").arg(foundCodes[c])
-                                              : I18n.t("notifications.copyCode") })
-    for (var i = 0; i < actions.length; i++)
-      out.push({ kind: "action", label: String(actions[i].text || ""), value: String(actions[i].id) })
+    var out = Delivery.deeds(row, actions)
+    for (var i = 0; i < out.length; i++)
+      if (out[i].kind === "code")
+        out[i].label = foundCodes.length > 1 ? I18n.t("notifications.copyThisCode").arg(out[i].value)
+                                             : I18n.t("notifications.copyCode")
     return out
   }
 
@@ -126,13 +130,14 @@ Item {
   readonly property var marks: {
     var out = []
     if (String(row.code || "")) out.push("\u{f0306}")
-    if (actions.length > 0) out.push("\u{f0cfd}")
+    if (actions.length > 0 || execActions.length > 0) out.push("\u{f0cfd}")
     return out
   }
 
   function doDeed(deed) {
     var kind = String(deed.kind || "")
     if (kind === "action") { actionInvoked(String(deed.value)); return }
+    if (kind === "exec") { execInvoked(Number(deed.value)); return }
     codeCopied(String(deed.value))
     copiedCode = String(deed.value)
     tick.restart()
@@ -223,6 +228,15 @@ Item {
     color: Commons.Color.notifications.background
     borderSpec: Border.surfaceSpec("notifications", "border", Commons.Color.notifications.border,
                                    Math.max(1, Style.space(2)))
+  }
+
+  // The keyboard's card is tinted with the theme's hover fill, buttons and all.
+  Rectangle {
+    anchors.fill: plate
+    anchors { leftMargin: plate.borderLeft; rightMargin: plate.borderRight
+              topMargin: plate.borderTop; bottomMargin: plate.borderBottom }
+    visible: card.selected
+    color: Style.hoverFillFor(Commons.Color.notifications.text, Commons.Color.accent)
   }
 
   Item {
@@ -500,49 +514,66 @@ Item {
           maximumLineCount: card.bodyLines
           elide: Text.ElideRight
           // Second gate: Markup already drops anchors it will not vouch for.
-          onLinkActivated: function(url) { Security.openExternalUrl(url) }
+          onLinkActivated: function(url) { card.linkOpened(); Security.openExternalUrl(url) }
         }
       }
     }
 
-    // The button row under the body, drawn in the card because the surface is
-    // clipped. It shows only under the pointer in an open deck. It spans the
-    // content under the mark too, and keeps the side padding below it.
+    // The buttons, as a bar along the card's bottom edge: a hairline above,
+    // equal segments split by hairlines, three to a line, and a short last line
+    // stretched across. Drawn in the card because the surface is clipped, and
+    // only under the pointer, or the keyboard, in an open deck.
     Item {
       id: deedArea
       anchors { left: parent.left; right: parent.right; bottom: parent.bottom
-                leftMargin: plate.contentLeftInset + Style.space(12)
-                rightMargin: plate.contentRightInset + Style.space(12)
-                bottomMargin: plate.contentBottomInset + Style.space(12) }
+                leftMargin: plate.borderLeft; rightMargin: plate.borderRight
+                bottomMargin: plate.borderBottom }
 
       readonly property bool shown: card.hovered && card.expanded && card.allDeeds.length > 0
+      readonly property int columns: Math.max(1, Math.min(3, card.allDeeds.length))
+      readonly property int rows: Math.ceil(card.allDeeds.length / columns)
+      readonly property real rule: 1
+      readonly property color ruleColor: Qt.rgba(card.dimColor.r, card.dimColor.g, card.dimColor.b, 0.35)
+      readonly property real segmentHeight: Style.spacing.controlHeight + Style.space(6)
+      readonly property real barHeight: rows * (rule + segmentHeight)
       // What the state asks for; the drawn height is whatever slack the
-      // scene has given the card so far. The card already pads its text at
-      // the bottom; extraPadding tops that up to the side padding.
-      readonly property real extraPadding: Style.space(12) - card.contentPaddingY
-      readonly property real wanted: shown ? deedRow.implicitHeight + Style.space(10) + extraPadding : 0
-      height: Math.max(0, card.drawnHeight - card.fixedHeight - extraPadding)
+      // scene has given the card so far.
+      readonly property real wanted: shown ? barHeight : 0
+      height: Math.max(0, card.drawnHeight - card.fixedHeight)
       visible: height > 0
       clip: true
 
-      // Right-aligned and wrapping: laid out right to left over the reversed
-      // list, so one line still reads in order.
-      Flow {
+      Item {
         id: deedRow
         anchors.bottom: parent.bottom
         width: parent.width
-        layoutDirection: Qt.RightToLeft
-        spacing: Style.space(6)
+        height: deedArea.barHeight
         opacity: deedArea.shown ? 1 : 0
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
 
         Repeater {
-          model: card.allDeeds.slice().reverse()
+          model: card.allDeeds
           DeedButton {
             required property var modelData
+            required property int index
+            readonly property int line: Math.floor(index / deedArea.columns)
+            readonly property int slot: index % deedArea.columns
+            readonly property int perLine: line < deedArea.rows - 1 ? deedArea.columns
+                                           : card.allDeeds.length - line * deedArea.columns
+            // Where the segment starts in reading order; the first action
+            // sits on the right in a right-to-left language.
+            readonly property real start: Math.round(slot * deedRow.width / perLine)
             deed: modelData
             toast: card
+            hint: card.selected && index < 9 ? String(index + 1) : ""
+            rule: deedArea.rule
+            ruleColor: deedArea.ruleColor
+            leftRule: slot > 0
+            width: Math.round((slot + 1) * deedRow.width / perLine) - start
+            x: card.LayoutMirroring.enabled ? deedRow.width - start - width : start
+            y: line * (deedArea.rule + deedArea.segmentHeight)
+            height: deedArea.rule + deedArea.segmentHeight
           }
         }
       }

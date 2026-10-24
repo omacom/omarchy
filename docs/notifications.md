@@ -92,15 +92,15 @@ flags map onto that call:
 |---|---|---|
 | `-g` / `--glyph` | hint `omarchy-glyph` | Nerd Font glyph for the icon slot when no image icon resolves |
 | `--exec <program> [args…]` | hint `omarchy-exec-argv` | the click command; consumes the rest of the line, so it comes last. Each word is a discrete argument the shell runs without re-parsing (see below) |
+| `--action <label> <program> [words…]` | hint `omarchy-actions` | a button, up to three; the first is also the click. Its words end at the next `--action`, `--with` or `--exec`. Cannot be combined with `--exec` |
+| `--with <args…>` | appended to every action | the data the actions act on; consumes the rest of the line, so it comes last |
 | `--image` | hint `image-path` | the standard freedesktop image hint |
 | `-i` / `--icon` | `app_icon` | themed icon name for the toast |
 | `--app-name` | `app_name` | defaults to `omarchy-action` |
 | `-u` / `--urgency` | hint `urgency` (byte) | `low`/`normal`/`critical`; defaults to `low` |
 | `-t` / `--expire-time` | `expire_timeout` | milliseconds on screen; server default otherwise |
 
-Unknown flags are a hard error, not a silent pass-through: `--exec` is the only
-door to a click command, and there is no generic option pass-through to smuggle
-one through.
+Unknown flags are a hard error, not a silent pass-through: `--exec` and `--action` are the only doors to a command, and there is no generic option pass-through to smuggle one through.
 
 The defaults are the point: an unadorned `omarchy-notification-send "Done"`
 is a low-urgency user-action toast that pops through DND and is treated as
@@ -164,6 +164,21 @@ build the `omarchy-exec-argv` hint. (The leading `--` on the `busctl` call is a
 belt for `busctl`'s own getopt, which would otherwise read a dash-leading value
 as a `busctl` option; the summary/body themselves are never parsed as options.)
 
+### Buttons
+
+`--action` adds a button that runs a command, the way `--exec` makes the card click run one:
+
+```bash
+omarchy-notification-send "Screen recording saved" "$name" \
+  --action "Play" mpv -- \
+  --action "Show in folder" nautilus --select \
+  --with "$filename"
+```
+
+The two halves follow the click-command rule. An action's own words are literals written at the call site, so they can end at the next `--action`, `--with` or `--exec` without being mistaken for data. Untrusted data goes once, after `--with`, which takes the rest of the line and is appended to every action's argv: a filename that reads `--action` stays part of the filename. Options go before the first `--action`, as anything after it is an action's word.
+
+The buttons ride as the `omarchy-actions` hint (`[{"label", "argv"}]`, each argv checked like `omarchy-exec-argv`), and the first action's argv is also set as the click command. Like the click, they are not libnotify actions: the shell runs them itself and stores them with the row, so the sender exits at once and a card restored after a shell restart, or brought back from history, keeps its buttons. The card shows them as a bar along its bottom edge while it is hovered in an open deck, with a mark beside the title the rest of the time.
+
 ## Helper commands
 
 - `omarchy-notification-wait [timeout]` — polls until the shell answers IPC
@@ -176,9 +191,9 @@ as a `busctl` option; the summary/body themselves are never parsed as options.)
 - `omarchy-notification-weather` — despite the name, not a sender: it toggles
   the `omarchy.weather` shell panel.
 
-Keybindings live in `default/hypr/bindings/utilities.lua`: `Super+comma`
-variants map to the IPC methods `dismissOne`, `dismissAll`, `invokeLast`,
-`showHistory` (put the last few back on screen), and the silencing toggle.
+Keybindings live in `default/hypr/bindings/utilities.lua`: `Super+comma` variants map to the IPC methods `dismissOne`, `dismissAll`, `invokeLast`, `showHistory` (put the last few back on screen), `keyboard`, and the silencing toggle.
+
+`keyboard` (`Super+Ctrl+comma`) is the only way the notifications take the keyboard: a card that grabbed focus as it arrived would swallow whatever you were typing. It selects the newest card and opens its deck, and the surface on that display takes exclusive keyboard focus. Arrows (or `j`/`k`, `Tab`) move through the cards deck by deck, `1`–`9` press a button in `Delivery.deeds` order (the card numbers them), `Enter` clicks the card, `Delete` dismisses it and selects the next, and `Escape`, any choice, or ten idle seconds end it. While it lasts the deck stays open and new cards wait, as under the pointer. `invokeAction <n>` presses button `n` on the newest card without the mode.
 
 The `notifications` IPC target also answers `ping` (used by `omarchy-notification-wait`), `dismiss <summary>`, `count`, and two for scripts and visual checks: `expand` (open the deck and hover its front card, as the pointer would) and `probe` (what the daemon thinks is true).
 
