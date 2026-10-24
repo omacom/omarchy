@@ -278,12 +278,17 @@ export XDG_CONFIG_HOME=$work/config
 session_env=$XDG_CONFIG_HOME/uwsm/env.d/50-omarchy-language
 printf '#da_DK.UTF-8 UTF-8\n' >"$OMARCHY_LOCALE_GEN"
 
-# Stub the outside world: locale-gen records its argument, notifications
-# record their text, and omarchy-language itself is the real one via PATH.
+# Stub the outside world: localedef records the locale it adds and lists those
+# as its archive, notifications record their text, and omarchy-language itself
+# is the real one via PATH.
 mkdir -p "$work/stubs"
-cat >"$work/stubs/locale-gen" <<'STUB'
+cat >"$work/stubs/localedef" <<'STUB'
 #!/bin/bash
-echo "$@" >>"$LOCALE_GEN_LOG"
+if [[ $1 == "--list-archive" ]]; then
+  sed 's/\.UTF-8$/.utf8/' "$LOCALE_GEN_LOG"
+  exit
+fi
+echo "${@: -1}" >>"$LOCALE_GEN_LOG"
 STUB
 cat >"$work/stubs/omarchy-notification-send" <<'STUB'
 #!/bin/bash
@@ -400,7 +405,7 @@ da_changed_raw=$(jq -r '."language.changed"' "$ROOT/default/i18n/da/cli.json")
 assert_bash_equal "$(omarchy-i18n language.changed 'Research & Development')" "${da_changed_raw//%1/"Research & Development"}" "omarchy-i18n keeps ampersands in arguments literal"
 
 # With the locale already generated, picking the language needs no
-# privilege at all: no password prompt, no locale-gen.
+# privilege at all: no password prompt, no localedef.
 cat >"$work/stubs/locale" <<'STUB'
 #!/bin/bash
 if [[ $1 == "-a" ]]; then printf 'en_US.utf8\nda_DK.utf8\n'; else echo "LANG=da_DK.UTF-8"; fi
