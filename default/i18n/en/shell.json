@@ -47,6 +47,7 @@
   "agents.modelWeekly": "%1 Weekly",
   "agents.mostlyModel": "Mostly %1",
   "agents.nameAccount": "Name this account. It signs in through a private window, so your browser's current account isn't picked up.",
+  "agents.outOfCredits": "Out of credits",
   "agents.pasteCode": "If the page shows a code instead of finishing, paste it here.",
   "agents.placeholderCode": "Code",
   "agents.placeholderWork": "Work",
