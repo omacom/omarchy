@@ -48,6 +48,12 @@ INI
 run_migration "$foot_home" "$foot_home/.config"
 foot_section=$(awk '/^\[/ { s = $0 } /^include=.*foot\/local\.ini/ { print s; exit }' "$foot_home/.config/foot/foot.ini")
 [[ $foot_section == "[main]" ]] || fail "migration adds the Foot overlay include to [main]" "include landed in section: $foot_section"
+font_line=$(grep -n '^font=' "$foot_home/.config/foot/foot.ini" | head -1 | cut -d: -f1)
+include_line=$(grep -n 'foot/local\.ini' "$foot_home/.config/foot/foot.ini" | head -1 | cut -d: -f1)
+[[ $include_line -gt $font_line ]] ||
+  fail "Foot overlay include comes after the shared font line" "font:$font_line include:$include_line"
+grep -qx 'include=~/.config/foot/local.ini' "$foot_home/.config/foot/foot.ini" ||
+  fail "Foot include uses ~ so the shared config does not carry this home" "$(grep include= "$foot_home/.config/foot/foot.ini")"
 [[ $(grep -c 'foot/local\.ini' "$foot_home/.config/foot/foot.ini") -eq 1 ]] ||
   fail "migration adds the Foot include once" "$(cat "$foot_home/.config/foot/foot.ini")"
 run_migration "$foot_home" "$foot_home/.config"
