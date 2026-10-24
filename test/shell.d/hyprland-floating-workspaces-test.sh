@@ -487,6 +487,21 @@ assert(video.floating and has_tag(video, "omarchy-mode-floated"), "a window leav
 fi
 pass "a window leaving fullscreen on a floating workspace floats"
 
+# A window that was already floated preserves its position when leaving fullscreen.
+printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
+if ! run_lua '
+local prefloated = window("0x1", 1, { floating = false, fullscreen = 2, tags = { "omarchy-mode-floated" } })
+require("default.hypr.workspace-layouts")
+local s = state()
+prefloated.fullscreen = 0
+s.subscriptions["window.fullscreen"][1](prefloated)
+assert(prefloated.floating, "a previously floated window leaving fullscreen stayed tiled")
+assert(not s.placed["0x1"], "a window leaving fullscreen that was already floated was re-placed")
+'; then
+  fail "a window leaving fullscreen that was already floated preserves its position"
+fi
+pass "a window leaving fullscreen that was already floated preserves its position"
+
 # A window opening on a floating workspace floats from its first frame through
 # a window rule, which tags it the way rules do, with a trailing "*". The mode
 # claims it as it opens, so it tiles again when the workspace stops floating,

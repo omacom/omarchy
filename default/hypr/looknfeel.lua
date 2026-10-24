@@ -110,7 +110,7 @@ hl.config({
     disable_scale_notification = true,
     focus_on_activate = true,
     anr_missed_pings = 3,
-    on_focus_under_fullscreen = 1,
+    on_focus_under_fullscreen = 2,
     initial_workspace_tracking = 0,
     -- Let a fresh shell re-acquire the session lock after the lock client
     -- died, so omarchy-restart-shell can recover the LOCK failsafe.
