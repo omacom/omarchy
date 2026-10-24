@@ -36,7 +36,7 @@ assert(
 )
 assert(
   themeSet.indexOf('shell_ipc background prepare') !== -1 &&
-    themeSet.indexOf('shell_ipc background prepare') < themeSet.indexOf('\nomarchy-theme-set-templates\n'),
+    themeSet.indexOf('shell_ipc background prepare') < themeSet.search(/\n(?:[A-Z_]+=\S+ )*omarchy-theme-set-templates\n/),
   'theme set hands the shell its next background before rendering templates'
 )
 assert(

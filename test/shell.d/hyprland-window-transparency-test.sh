@@ -184,6 +184,37 @@ grep -qx 'background-opacity = 0.65' "$ghostty_dir/ghostty.conf" &&
   fail "glassy ghostty is see-through and loads the GTK backdrop blur"
 pass "glassy terminals get a see-through, blurred background"
 
+# Ghostty's KDE blur toggle cannot cancel the shared GTK backdrop filter on
+# Hyprland. The managed app stylesheet must opt out too, without changing GTK.
+grep -qF 'backdrop-filter: none;' "$ROOT/default/gtk/no-blur.css" || fail "Ghostty's no-blur stylesheet cancels GTK backdrop blur"
+cp "$gtk_css" "$tmpdir/gtk-before-ghostty.css"
+for blur in false zero last-false last-true; do
+  blur_dir="$tmpdir/ghostty-$blur"
+  mkdir -p "$blur_dir"
+  printf 'background = #000000\ngtk-custom-css = /keep/custom.css\n' >"$blur_dir/ghostty.conf"
+  case "$blur" in
+    false) printf '  background-blur = false # opt out\n' >>"$blur_dir/ghostty.conf" ;;
+    zero) printf 'background-blur = 0\n' >>"$blur_dir/ghostty.conf" ;;
+    last-false) printf 'background-blur = 20\nbackground-blur = false\n' >>"$blur_dir/ghostty.conf" ;;
+    last-true) printf 'background-blur = false\nbackground-blur = 20\n' >>"$blur_dir/ghostty.conf" ;;
+  esac
+  cp "$blur_dir/ghostty.conf" "$tmpdir/ghostty-$blur-before.conf"
+  run omarchy-theme-set-glass "$blur_dir"
+  run omarchy-theme-set-glass "$blur_dir"
+  if [[ $blur == "last-true" ]]; then
+    expected_css="glass.css"
+  else
+    expected_css="no-blur.css"
+  fi
+  grep -qx "gtk-custom-css = $ROOT/default/gtk/$expected_css" "$blur_dir/ghostty.conf" || fail "$blur Ghostty uses the effective blur setting for GTK CSS"
+  (( $(grep -c 'omarchy-glass begin' "$blur_dir/ghostty.conf") == 1 )) || fail "$blur Ghostty gets its managed CSS once"
+  grep -qx 'gtk-custom-css = /keep/custom.css' "$blur_dir/ghostty.conf" || fail "$blur Ghostty preserves custom CSS"
+  cmp -s "$gtk_css" "$tmpdir/gtk-before-ghostty.css" || fail "$blur Ghostty does not change shared GTK CSS"
+  HOME="$home_dir" XDG_STATE_HOME="$tmpdir/no-glass" OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" omarchy-theme-set-glass "$blur_dir"
+  cmp -s "$tmpdir/ghostty-$blur-before.conf" "$blur_dir/ghostty.conf" || fail "$blur leaving Glassy restores Ghostty byte for byte"
+done
+pass "Ghostty blur opt-outs override shared GTK blur while keeping other GTK apps unchanged"
+
 run omarchy-hyprland-window-transparency transparent
 run omarchy-theme-set-glass "$theme_dir"
 diff -r "$tmpdir/theme-before" "$theme_dir" || fail "leaving glassy restores the terminal files"
@@ -249,6 +280,13 @@ else
   skip "script is not installed"
 fi
 
-grep -qx 'blur=yes' "$ROOT/default/themed/foot.ini.tpl" || fail "foot starts ready to blur"
+# Check generated defaults rather than literal template lines: declarations
+# may override blur, but a stock theme must still be ready for Glassy at launch.
+next_theme="$home_dir/.local/state/omarchy/current/next-theme"
+mkdir -p "$next_theme"
+printf 'background = "#102030"\nforeground = "#ffffff"\n' >"$next_theme/colors.toml"
+run omarchy-theme-set-templates
+grep -qx 'blur=yes' "$next_theme/foot.ini" || fail "foot starts ready to blur"
+(( $(grep -c '^blur=' "$next_theme/foot.ini") == 1 )) || fail "foot starts with exactly one blur setting"
 grep -qx 'dynamic_background_opacity yes' "$ROOT/default/themed/kitty.conf.tpl" || fail "kitty starts ready to change opacity"
 pass "foot and kitty start ready for glass, since they read that only at launch"
