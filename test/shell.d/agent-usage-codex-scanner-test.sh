@@ -10,6 +10,12 @@ require_command rg
 # Every fixture home lives under one scratch directory, cleaned up at exit.
 SCRATCH=$(mktemp -d)
 trap 'rm -rf "$SCRATCH"' EXIT
+
+# Run a scratch copy of the collector with its 8s RPC timeout shortened to
+# 0.5s; the stall scenarios only need it to give up, not wait the full bound.
+collector="$SCRATCH/omarchy-agent-usage-codex"
+sed 's/timeout=8/timeout=0.5/g' "$ROOT/bin/omarchy-agent-usage-codex" >"$collector"
+chmod +x "$collector"
 TEST_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
 
 # A fixture home signed in to Codex, with an empty bin/ for its CLI.
@@ -68,7 +74,7 @@ cat >"$session" <<EOF
 EOF
 
 result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" CODEX_ARGS_FILE="$TEST_HOME/codex-args" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
-  "$ROOT/bin/omarchy-agent-usage-codex")
+  "$collector")
 
 # NUL-separated, so the assertion sees argument boundaries: a single "-a on-request"
 # would flatten to the same text as two arguments but is not a policy codex accepts.
@@ -134,7 +140,7 @@ cat >"$PI_HOME/.omp/profiles/codex/agent/sessions/project/omp-profile.jsonl" <<E
 EOF
 
 result=$(HOME="$PI_HOME" CODEX_HOME="$PI_HOME/.codex" XDG_DATA_HOME="$PI_HOME/.local/share" \
-  PATH="$PI_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+  PATH="$PI_HOME/bin:$PATH" "$collector")
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "77" ]] ||
   fail "Codex collector counts Pi fork, OMP, and profile usage once" "$result"
@@ -160,7 +166,7 @@ git -C "$GIT_HOME" init -q
 printf '*\n' >"$GIT_HOME/.gitignore"
 
 result=$(HOME="$GIT_HOME" CODEX_HOME="$GIT_HOME/.codex" XDG_DATA_HOME="$GIT_HOME/.local/share" \
-  PATH="$GIT_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+  PATH="$GIT_HOME/bin:$PATH" "$collector")
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "8" ]] ||
   fail "Codex collector counts pi sessions when HOME is a git checkout" "$result"
@@ -205,7 +211,7 @@ conn.close()
 PY
 
 result=$(HOME="$OPENCODE_HOME" CODEX_HOME="$OPENCODE_HOME/.codex" XDG_DATA_HOME="$OPENCODE_HOME/.local/share" \
-  PATH="$OPENCODE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+  PATH="$OPENCODE_HOME/bin:$PATH" "$collector")
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "155" ]] ||
   fail "Codex collector counts OpenAI usage, reasoning included, from opencode sessions" "$result"
@@ -250,7 +256,7 @@ conn.close()
 PY
 
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
-  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+  PATH="$CACHE_HOME/bin:$PATH" "$collector")
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "5" ]] ||
   fail "Codex collector writes a fresh local-stats cache on first scan" "$result"
@@ -268,7 +274,7 @@ pass "Codex collector writes a local-stats cache on first scan"
 jq '.schemaVersion = 1 | .stats.todayTotalTokens = 999' "$cache_file" >"$CACHE_HOME/old-cache.json"
 mv "$CACHE_HOME/old-cache.json" "$cache_file"
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
-  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "5" && $(jq -r '.schemaVersion' "$cache_file") == "2" ]] ||
   fail "Codex collector invalidates pre-deduplication cached totals" "$result"
 pass "Codex collector invalidates pre-deduplication cached totals"
@@ -277,7 +283,7 @@ pass "Codex collector invalidates pre-deduplication cached totals"
 # rewrite instead of emitting a garbage record.
 printf '[]' >"$cache_file"
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
-  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+  PATH="$CACHE_HOME/bin:$PATH" "$collector")
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "5" ]] ||
   fail "Codex collector recovers from a corrupt cache file" "$result"
@@ -311,7 +317,7 @@ conn.close()
 PY
 
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
-  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "5" ]] ||
   fail "Codex collector --limits-only reuses cached local stats" "$result"
@@ -321,7 +327,7 @@ pass "Codex collector --limits-only reuses cached local stats"
 
 # --force must ignore the cache and pick up the new message.
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
-  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
+  PATH="$CACHE_HOME/bin:$PATH" "$collector" --force)
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "15" ]] ||
   fail "Codex collector --force rescans past the cache" "$result"
@@ -329,7 +335,7 @@ pass "Codex collector --force rescans past the cache"
 
 # The forced scan refreshed the cache, so a following --limits-only sees it.
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
-  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "15" ]] ||
   fail "Codex collector --limits-only sees a refreshed cache after --force" "$result"
@@ -361,7 +367,7 @@ conn.close()
 PY
 touch -d "2 hours ago" "$cache_file"
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
-  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "25" ]] ||
   fail "Codex collector --limits-only rescans when the cache is stale" "$result"
@@ -395,7 +401,7 @@ conn.close()
 PY
 
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
-  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+  PATH="$CACHE_HOME/bin:$PATH" "$collector")
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "25" ]] ||
   fail "Codex collector no-flag reuses a seconds-old cache" "$result"
@@ -404,7 +410,7 @@ result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CAC
 # cache that old must already be past the no-flag reuse window.
 touch -d "30 seconds ago" "$cache_file"
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
-  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+  PATH="$CACHE_HOME/bin:$PATH" "$collector")
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "35" ]] ||
   fail "Codex collector no-flag rescans past the concurrent-run window" "$result"
@@ -436,7 +442,7 @@ conn.close()
 PY
 touch -d "10 minutes ago" "$cache_file"
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
-  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "35" ]] ||
   fail "Codex collector --limits-only reuses a scan the no-flag mode would refresh" "$result"
@@ -447,7 +453,7 @@ pass "Codex collector --limits-only reuses a scan the no-flag mode would refresh
 # envelope's scanDate must turn it into a miss.
 jq -c '.scanDate = "1999-01-01"' "$cache_file" >"$cache_file.tmp" && mv "$cache_file.tmp" "$cache_file"
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
-  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "45" ]] ||
   fail "Codex collector treats a cache from another day as a miss" "$result"
@@ -482,7 +488,7 @@ conn.close()
 PY
 touch -d "@$(( $(date +%s) + 3600 ))" "$cache_file"
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
-  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$CACHE_HOME/bin:$PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "55" ]] ||
   fail "Codex collector treats a future-dated cache as a miss" "$result"
@@ -518,7 +524,7 @@ conn.close()
 PY
 
 result=$(HOME="$FRESH_HOME" CODEX_HOME="$FRESH_HOME/.codex" XDG_CACHE_HOME="$FRESH_HOME/.cache" XDG_DATA_HOME="$FRESH_HOME/.local/share" \
-  PATH="$FRESH_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$FRESH_HOME/bin:$PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "7" ]] ||
   fail "Codex collector --limits-only falls back to a full scan without a cache" "$result"
@@ -572,7 +578,7 @@ conn.close()
 PY
 
 result=$(HOME="$MALFORMED_HOME" CODEX_HOME="$MALFORMED_HOME/.codex" XDG_CACHE_HOME="$MALFORMED_HOME/.cache" XDG_DATA_HOME="$MALFORMED_HOME/.local/share" \
-  PATH="$MALFORMED_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+  PATH="$MALFORMED_HOME/bin:$PATH" "$collector")
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "12" ]] ||
   fail "Codex collector counts good opencode rows past malformed ones" "$result"
@@ -610,7 +616,7 @@ PY
 # XDG_CACHE_HOME points at a regular file, so mkdir inside cache_root fails.
 touch "$UNWRITABLE_HOME/not-a-dir"
 result=$(HOME="$UNWRITABLE_HOME" CODEX_HOME="$UNWRITABLE_HOME/.codex" XDG_CACHE_HOME="$UNWRITABLE_HOME/not-a-dir" XDG_DATA_HOME="$UNWRITABLE_HOME/.local/share" \
-  PATH="$UNWRITABLE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+  PATH="$UNWRITABLE_HOME/bin:$PATH" "$collector")
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "3" ]] ||
   fail "Codex collector still prints a complete record when the cache is unwritable" "$result"
@@ -637,7 +643,7 @@ conn.close()
 PY
 
 result=$(HOME="$INTERRUPTED_HOME" CODEX_HOME="$INTERRUPTED_HOME/.codex" XDG_CACHE_HOME="$INTERRUPTED_HOME/.cache" XDG_DATA_HOME="$INTERRUPTED_HOME/.local/share" \
-  PATH="$INTERRUPTED_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+  PATH="$INTERRUPTED_HOME/bin:$PATH" "$collector")
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "0" ]] ||
   fail "Codex collector reports what it could read from a broken database" "$result"
@@ -671,7 +677,7 @@ conn.close()
 PY
 
 result=$(HOME="$INTERRUPTED_HOME" CODEX_HOME="$INTERRUPTED_HOME/.codex" XDG_CACHE_HOME="$INTERRUPTED_HOME/.cache" XDG_DATA_HOME="$INTERRUPTED_HOME/.local/share" \
-  PATH="$INTERRUPTED_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$INTERRUPTED_HOME/bin:$PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "9" ]] ||
   fail "Codex collector does not reuse a snapshot from an interrupted scan" "$result"
@@ -682,7 +688,7 @@ pass "Codex collector does not cache an interrupted opencode scan"
 started=$(date +%s)
 result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
   CODEX_ACCOUNT_READ_HANGS=1 CODEX_RATE_LIMITS='{"planType":"pro","primary":{"usedPercent":36,"windowDurationMins":10080}}' \
-  "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  "$collector" --limits-only)
 (( $(date +%s) - started < 4 )) || fail "Codex collector doesn't wait on account/read when the limits name the plan"
 [[ $(jq -c '{tierLabel, usageStatusText, limits: [.limits[] | {label, percent}]}' <<<"$result") == '{"tierLabel":"pro","usageStatusText":"","limits":[{"label":"Weekly (7-day)","percent":0.36}]}' ]] ||
   fail "Codex collector reads limits even when account/read never answers" "$result"
@@ -693,16 +699,39 @@ pass "Codex collector reads limits even when account/read never answers"
 result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
   CODEX_RATE_LIMITS='{"planType":"pro","primary":{"usedPercent":42,"windowDurationMins":10080}}' \
   CODEX_RESET_CREDITS='{"availableCount":2,"credits":[{"status":"available","expiresAt":2000000000},{"status":"available","expiresAt":1900000000},{"status":"used","expiresAt":1800000000}]}' \
-  "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  "$collector" --limits-only)
 [[ $(jq -c '.resetCredits' <<<"$result") == '{"available":2,"nextExpiresAt":"2030-03-17T17:46:40+00:00"}' ]] ||
   fail "Codex collector reports its available free resets" "$result"
 pass "Codex collector reports its available free resets"
+
+# A Business seat with a spend cap and no rate windows reports the cap alone,
+# with no inferred frequency and a share taken from the amounts.
+result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
+  CODEX_RATE_LIMITS='{"planType":"business","primary":null,"secondary":null,"individualLimit":{"limit":"6000","used":"1037.07","remainingPercent":83,"resetsAt":1793491200}}' \
+  "$collector" --limits-only)
+jq -e '
+  (.limits | length) == 1
+  and .limits[0].label == "Spend limit"
+  and ((.limits[0].percent - (1037.07 / 6000)) | fabs) < 0.000001
+  and .limits[0].resetsAt == "2026-11-01T00:00:00+00:00"
+' <<<"$result" >/dev/null ||
+  fail "Codex collector reports a Business spend cap with its supplied reset time" "$result"
+pass "Codex collector reports a Business spend cap with its supplied reset time"
+
+# A zero cap cannot be divided into usage. Use the reported percentage
+# instead: 40% remaining means 60% used. This is a synthetic edge case.
+result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
+  CODEX_RATE_LIMITS='{"planType":"business","individualLimit":{"limit":"0","used":"0","remainingPercent":40,"resetsAt":1793491200}}' \
+  "$collector" --limits-only)
+jq -e '[.limits[] | select(.label == "Spend limit") | .percent] == [0.6]' <<<"$result" >/dev/null ||
+  fail "Codex collector uses the reported percentage when the spend cap is zero" "$result"
+pass "Codex collector uses the reported percentage when the spend cap is zero"
 
 # A home nobody is signed in to answers with an error, which reads as a
 # sign-in to restore rather than as missing numbers.
 result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
   CODEX_LIMITS_ERROR="codex account authentication required to read rate limits" \
-  "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  "$collector" --limits-only)
 [[ $(jq -r '.usageStatusText' <<<"$result") == "Waiting for auth" ]] ||
   fail "Codex collector reports a missing sign-in as one" "$result"
 pass "Codex collector reports a missing sign-in as one"
@@ -737,7 +766,7 @@ EOF
 chmod +x "$BATCHED_HOME/bin/codex"
 
 result=$(HOME="$BATCHED_HOME" CODEX_HOME="$BATCHED_HOME/.codex" XDG_CACHE_HOME="$BATCHED_HOME/.cache" XDG_DATA_HOME="$BATCHED_HOME/.local/share" \
-  PATH="$BATCHED_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+  PATH="$BATCHED_HOME/bin:$PATH" "$collector")
 
 [[ $(jq -c '{tierLabel, usageStatusText, limits: [.limits[] | {label, percent}]}' <<<"$result") == '{"tierLabel":"plus","usageStatusText":"","limits":[{"label":"5h window","percent":0.05}]}' ]] ||
   fail "Codex collector reads replies batched with notifications" "$result"
@@ -757,7 +786,7 @@ tempfile.TemporaryFile = no_space
 EOF
 
 result=$(HOME="$BATCHED_HOME" CODEX_HOME="$BATCHED_HOME/.codex" XDG_CACHE_HOME="$BATCHED_HOME/.cache" XDG_DATA_HOME="$BATCHED_HOME/.local/share" \
-  PYTHONPATH="$NO_TEMP_PYTHON" PATH="$BATCHED_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
+  PYTHONPATH="$NO_TEMP_PYTHON" PATH="$BATCHED_HOME/bin:$PATH" "$collector" --force)
 
 [[ $(jq -c '[.limits[] | .percent]' <<<"$result") == '[0.05]' ]] ||
   fail "Codex collector probes without temporary space" "$result"
@@ -770,7 +799,7 @@ pass "Codex collector probes without temporary space"
 LAUNCH_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
 SAFE_PATH="$LAUNCH_HOME/tools"
 mkdir -p "$SAFE_PATH"
-for tool in python3 rg; do
+for tool in python3 rg jq; do
   if command -v "$tool" >/dev/null; then
     ln -s "$(command -v "$tool")" "$SAFE_PATH/$tool"
   fi
@@ -792,7 +821,7 @@ STUB
 chmod +x "$LAUNCH_HOME/bin/mise"
 
 result=$(HOME="$LAUNCH_HOME" CODEX_HOME="$LAUNCH_HOME/.codex" MISE_CALLS_FILE="$LAUNCH_HOME/mise-calls" XDG_DATA_HOME="$LAUNCH_HOME/.local/share" \
-  PATH="$LAUNCH_HOME/bin:$SAFE_PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$LAUNCH_HOME/bin:$SAFE_PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.usageStatusText' <<<"$result") == "Codex unavailable" ]] ||
   fail "Codex collector reports Codex unavailable when only the launcher exists" "$result"
@@ -813,7 +842,7 @@ STUB
 
 rm -f "$LAUNCH_HOME/mise-calls"
 result=$(HOME="$LAUNCH_HOME" CODEX_HOME="$LAUNCH_HOME/.codex" CODEX_ARGS_FILE="$LAUNCH_HOME/codex-args" XDG_DATA_HOME="$LAUNCH_HOME/.local/share" \
-  PATH="$LAUNCH_HOME/bin:$SAFE_PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$LAUNCH_HOME/bin:$SAFE_PATH" "$collector" --limits-only)
 
 [[ -f $LAUNCH_HOME/codex-args && $(cat "$LAUNCH_HOME/mise-calls") == "which codex" ]] ||
   fail "Codex collector probes the binary mise which reports" "$result"
@@ -833,7 +862,7 @@ STUB
 chmod +x "$LINK_HOME/bin/mise"
 
 result=$(HOME="$LINK_HOME" CODEX_HOME="$LINK_HOME/.codex" CODEX_ARGS_FILE="$LINK_HOME/codex-args" XDG_DATA_HOME="$LINK_HOME/.local/share" \
-  PATH="$LINK_HOME/bin:$SAFE_PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$LINK_HOME/bin:$SAFE_PATH" "$collector" --limits-only)
 
 [[ -f $LINK_HOME/codex-args && ! -s $LINK_HOME/mise-calls ]] ||
   fail "Codex collector probes a symlinked codex without invoking mise" "$result"
@@ -853,7 +882,7 @@ chmod +x "$SHIM_HOME/bin/mise"
 ln -s "$SHIM_HOME/bin/mise" "$SHIM_HOME/.local/share/mise/shims/codex"
 
 result=$(HOME="$SHIM_HOME" CODEX_HOME="$SHIM_HOME/.codex" MISE_CALLS_FILE="$SHIM_HOME/mise-calls" XDG_DATA_HOME="$SHIM_HOME/.local/share" \
-  PATH="$SHIM_HOME/bin:$SAFE_PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$SHIM_HOME/bin:$SAFE_PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.usageStatusText' <<<"$result") == "Codex unavailable" ]] ||
   fail "Codex collector reports Codex unavailable when only a mise shim exists" "$result"
@@ -870,7 +899,7 @@ mkdir -p "$NOAUTH_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$NOAUTH_HOME/bin/codex"
 
 result=$(HOME="$NOAUTH_HOME" CODEX_HOME="$NOAUTH_HOME/.codex" CODEX_ARGS_FILE="$NOAUTH_HOME/codex-args" XDG_DATA_HOME="$NOAUTH_HOME/.local/share" \
-  PATH="$NOAUTH_HOME/bin:$PATH" env -u OPENAI_API_KEY -u CODEX_API_KEY -u CODEX_ACCESS_TOKEN "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$NOAUTH_HOME/bin:$PATH" env -u OPENAI_API_KEY -u CODEX_API_KEY -u CODEX_ACCESS_TOKEN "$collector" --limits-only)
 
 [[ ! -e $NOAUTH_HOME/codex-args ]] ||
   fail "Codex collector does not spawn app-server without credentials" "$result"
@@ -886,7 +915,7 @@ cp "$TEST_HOME/bin/codex" "$KEYRING_HOME/bin/codex"
 printf 'cli_auth_credentials_store = "keyring"\n' >"$KEYRING_HOME/.codex/config.toml"
 
 result=$(HOME="$KEYRING_HOME" CODEX_HOME="$KEYRING_HOME/.codex" CODEX_ARGS_FILE="$KEYRING_HOME/codex-args" XDG_DATA_HOME="$KEYRING_HOME/.local/share" \
-  PATH="$KEYRING_HOME/bin:$PATH" env -u OPENAI_API_KEY -u CODEX_API_KEY -u CODEX_ACCESS_TOKEN "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$KEYRING_HOME/bin:$PATH" env -u OPENAI_API_KEY -u CODEX_API_KEY -u CODEX_ACCESS_TOKEN "$collector" --limits-only)
 
 [[ -e $KEYRING_HOME/codex-args ]] ||
   fail "Codex collector probes the app-server when the keyring store is configured" "$result"
@@ -898,7 +927,7 @@ for store in "'keyring'" '"file"'; do
   rm -f "$KEYRING_HOME/codex-args"
   printf 'model = "gpt-5"\ncli_auth_credentials_store = %s\n' "$store" >"$KEYRING_HOME/.codex/config.toml"
   HOME="$KEYRING_HOME" CODEX_HOME="$KEYRING_HOME/.codex" CODEX_ARGS_FILE="$KEYRING_HOME/codex-args" XDG_DATA_HOME="$KEYRING_HOME/.local/share" \
-    PATH="$KEYRING_HOME/bin:$PATH" env -u OPENAI_API_KEY -u CODEX_API_KEY -u CODEX_ACCESS_TOKEN "$ROOT/bin/omarchy-agent-usage-codex" --limits-only >/dev/null
+    PATH="$KEYRING_HOME/bin:$PATH" env -u OPENAI_API_KEY -u CODEX_API_KEY -u CODEX_ACCESS_TOKEN "$collector" --limits-only >/dev/null
   if [[ $store == "'keyring'" ]]; then
     [[ -e $KEYRING_HOME/codex-args ]] || fail "Codex collector reads a single-quoted keyring store as TOML"
   else
@@ -913,7 +942,7 @@ mkdir -p "$TOKEN_HOME/bin" "$TOKEN_HOME/.codex"
 cp "$TEST_HOME/bin/codex" "$TOKEN_HOME/bin/codex"
 
 result=$(HOME="$TOKEN_HOME" CODEX_HOME="$TOKEN_HOME/.codex" CODEX_ARGS_FILE="$TOKEN_HOME/codex-args" XDG_DATA_HOME="$TOKEN_HOME/.local/share" \
-  PATH="$TOKEN_HOME/bin:$PATH" env -u OPENAI_API_KEY -u CODEX_API_KEY CODEX_ACCESS_TOKEN=x "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$TOKEN_HOME/bin:$PATH" env -u OPENAI_API_KEY -u CODEX_API_KEY CODEX_ACCESS_TOKEN=x "$collector" --limits-only)
 
 [[ -e $TOKEN_HOME/codex-args ]] ||
   fail "Codex collector probes the app-server when CODEX_ACCESS_TOKEN is set" "$result"
@@ -925,7 +954,7 @@ mkdir -p "$APIKEY_HOME/bin" "$APIKEY_HOME/.codex"
 cp "$TEST_HOME/bin/codex" "$APIKEY_HOME/bin/codex"
 
 result=$(HOME="$APIKEY_HOME" CODEX_HOME="$APIKEY_HOME/.codex" CODEX_ARGS_FILE="$APIKEY_HOME/codex-args" XDG_DATA_HOME="$APIKEY_HOME/.local/share" \
-  PATH="$APIKEY_HOME/bin:$PATH" env -u CODEX_API_KEY -u CODEX_ACCESS_TOKEN OPENAI_API_KEY=x "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$APIKEY_HOME/bin:$PATH" env -u CODEX_API_KEY -u CODEX_ACCESS_TOKEN OPENAI_API_KEY=x "$collector" --limits-only)
 
 [[ ! -e $APIKEY_HOME/codex-args ]] ||
   fail "Codex collector does not spawn app-server for an API key alone" "$result"
@@ -943,7 +972,7 @@ EOF
 chmod +x "$EXIT_HOME/bin/codex"
 
 result=$(HOME="$EXIT_HOME" CODEX_HOME="$EXIT_HOME/.codex" XDG_CACHE_HOME="$EXIT_HOME/.cache" XDG_DATA_HOME="$EXIT_HOME/.local/share" \
-  PATH="$EXIT_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$EXIT_HOME/bin:$PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.usageStatusText' <<<"$result") == "Codex limits unavailable" ]] ||
   fail "Codex collector reports limits unavailable when app-server rejects argv" "$result"
@@ -964,7 +993,7 @@ EOF
 chmod +x "$DEAD_HOME/bin/codex"
 
 result=$(HOME="$DEAD_HOME" CODEX_HOME="$DEAD_HOME/.codex" XDG_CACHE_HOME="$DEAD_HOME/.cache" XDG_DATA_HOME="$DEAD_HOME/.local/share" \
-  PATH="$DEAD_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$DEAD_HOME/bin:$PATH" "$collector" --limits-only)
 
 help=$(jq -r '.authHelpText' <<<"$result")
 [[ $help == "Codex app-server exited before initialize" ]] ||
@@ -983,7 +1012,7 @@ EOF
 chmod +x "$HALF_HOME/bin/codex"
 
 result=$(HOME="$HALF_HOME" CODEX_HOME="$HALF_HOME/.codex" XDG_CACHE_HOME="$HALF_HOME/.cache" XDG_DATA_HOME="$HALF_HOME/.local/share" \
-  PATH="$HALF_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$HALF_HOME/bin:$PATH" "$collector" --limits-only)
 
 help=$(jq -r '.authHelpText' <<<"$result")
 [[ $help == "Codex app-server exited before initialized" ]] ||
@@ -999,7 +1028,7 @@ EOF
 chmod +x "$SILENT_HOME/bin/codex"
 
 result=$(HOME="$SILENT_HOME" CODEX_HOME="$SILENT_HOME/.codex" XDG_CACHE_HOME="$SILENT_HOME/.cache" XDG_DATA_HOME="$SILENT_HOME/.local/share" \
-  PATH="$SILENT_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$SILENT_HOME/bin:$PATH" "$collector" --limits-only)
 
 help=$(jq -r '.authHelpText' <<<"$result")
 [[ $help == "Run \`codex login\` to authenticate." ]] ||
@@ -1022,7 +1051,7 @@ EOF
 chmod +x "$STALL_HOME/bin/codex"
 
 result=$(HOME="$STALL_HOME" CODEX_HOME="$STALL_HOME/.codex" XDG_CACHE_HOME="$STALL_HOME/.cache" XDG_DATA_HOME="$STALL_HOME/.local/share" \
-  PATH="$STALL_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$STALL_HOME/bin:$PATH" "$collector" --limits-only)
 
 help=$(jq -r '.authHelpText' <<<"$result")
 [[ $help != "Run \`codex login\` to authenticate." ]] ||
@@ -1040,7 +1069,7 @@ sed 's/^while read/echo "WARN codex_core: startup notice" >\&2\nwhile read/' "$S
 chmod +x "$NOISY_HOME/bin/codex"
 
 result=$(HOME="$NOISY_HOME" CODEX_HOME="$NOISY_HOME/.codex" XDG_CACHE_HOME="$NOISY_HOME/.cache" XDG_DATA_HOME="$NOISY_HOME/.local/share" \
-  PATH="$NOISY_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$NOISY_HOME/bin:$PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.authHelpText' <<<"$result") == "Codex app-server did not answer account/rateLimits/read" ]] ||
   fail "Codex collector reports a stall, not an exit, when a live app-server has logged" "$result"
@@ -1057,7 +1086,7 @@ EOF
 chmod +x "$CHATTY_HOME/bin/codex"
 
 result=$(HOME="$CHATTY_HOME" CODEX_HOME="$CHATTY_HOME/.codex" XDG_CACHE_HOME="$CHATTY_HOME/.cache" XDG_DATA_HOME="$CHATTY_HOME/.local/share" \
-  PATH="$CHATTY_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$CHATTY_HOME/bin:$PATH" "$collector" --limits-only)
 
 [[ $(jq -r '.authHelpText' <<<"$result") == "codex app-server exited: "*"error: failed to start app-server" ]] ||
   fail "Codex collector keeps the CLI's final error past its startup logging" "$result"
@@ -1094,7 +1123,7 @@ sed -i "1a {\"timestamp\":\"$timestamp\",\"type\":\"session_meta\",\"payload\":{
   "$PROVIDER_HOME/.codex/sessions/$(date +%Y/%m/%d)/rollout-fork.jsonl"
 
 result=$(HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_HOME/.codex" XDG_CACHE_HOME="$PROVIDER_HOME/.cache" XDG_DATA_HOME="$PROVIDER_HOME/.local/share" \
-  PATH="$PROVIDER_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+  PATH="$PROVIDER_HOME/bin:$PATH" "$collector")
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "153" ]] ||
   fail "Codex collector counts only subscription-backed native sessions" "$result"
@@ -1123,7 +1152,7 @@ this is plain non-json text that should be skipped by the prefilter
 EOF
 
 result=$(HOME="$PREFILTER_HOME" CODEX_HOME="$PREFILTER_HOME/.codex" XDG_CACHE_HOME="$PREFILTER_HOME/.cache" XDG_DATA_HOME="$PREFILTER_HOME/.local/share" \
-  PATH="$PREFILTER_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
+  PATH="$PREFILTER_HOME/bin:$PATH" "$collector" --force)
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "100" ]] ||
   fail "Codex collector computes total tokens across models with prefilter" "$result"
@@ -1157,7 +1186,7 @@ EOF
 run_incremental() {
   HOME="$INCREMENTAL_HOME" CODEX_HOME="$INCREMENTAL_HOME/.codex" XDG_CACHE_HOME="$INCREMENTAL_HOME/.cache" \
     XDG_DATA_HOME="$INCREMENTAL_HOME/.local/share" PATH="$INCREMENTAL_HOME/bin:$PATH" \
-    "$ROOT/bin/omarchy-agent-usage-codex" "$@"
+    "$collector" "$@"
 }
 
 # The aggregate scan cache would answer the next run on its own, and it is the

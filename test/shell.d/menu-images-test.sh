@@ -10,12 +10,15 @@ require_command setsid
 tmp=$(mktemp -d)
 lazy_groups=()
 cleanup() {
-  local status=$? gate group running attempt
+  local status=$? state_dir group running attempt
   trap - EXIT
   # Release every fixture gate, including on an assertion failure. Each lazy
   # invocation owns a private process group, so its detached pool is tracked.
-  for gate in "$tmp"/lazy-state*/gate; do
-    [[ ! -d ${gate%/*} ]] || touch "$gate"
+  # Glob the state directories, not the gate files: a gate that does not
+  # exist yet cannot match, and its workers would wait out the poll below.
+  for state_dir in "$tmp"/lazy-state*/; do
+    [[ -d $state_dir ]] || continue
+    touch "$state_dir/gate"
   done
   for attempt in {1..500}; do
     running=false

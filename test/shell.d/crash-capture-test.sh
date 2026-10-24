@@ -389,7 +389,7 @@ const items = menu.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarc
 const byId = Object.fromEntries(items.map(item => [item.id, item]))
 
 assertEqual(
-  byId['trigger.toggle.crash-capture'].action,
+  byId['trigger.toggle.crash-capture-on'].action,
   'omarchy-toggle-crash-capture',
   'menu toggles crash capture from Trigger > Toggle'
 )

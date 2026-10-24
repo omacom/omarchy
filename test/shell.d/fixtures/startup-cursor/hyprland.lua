@@ -18,7 +18,9 @@ require("default.hypr.autostart")
 hl.config({
   misc = { disable_hyprland_logo = true, disable_splash_rendering = true, background_color = "rgb(000000)", disable_watchdog_warning = true },
   xwayland = { enabled = false },
-  cursor = { enable_hyprcursor = false },
+  -- Software cursor: a hardware cursor is rendered by the parent
+  -- compositor and never lands in this compositor's own screenshots.
+  cursor = { enable_hyprcursor = false, no_hardware_cursors = true },
 })
 hl.monitor({ output = "", mode = "640x480@60", position = "auto", scale = 1 })
 hl.layer_rule({ match = { namespace = "omarchy-background" }, no_anim = true })

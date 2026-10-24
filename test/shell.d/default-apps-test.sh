@@ -125,6 +125,9 @@ for setup_command in \
   ln -s omarchy-test-setup-call "$mock_bin/$setup_command"
 done
 
+# The real browser installer below calls the platform's post-install hook; on a
+# Mac with the platform package installed that would run, so answer it here.
+printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-lifecycle-dispatch"
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"

@@ -164,6 +164,10 @@ end
 -- run a bind that Hyprland only reports as Lua.
 o.bind_commands = {}
 
+-- The Lua expression each function bind stands for, for binds with no command
+-- to run instead. The menu dispatches it as `hyprctl dispatch <expression>`.
+o.bind_expressions = {}
+
 -- Hand the launcher the focused window's pid, which it would otherwise ask
 -- Hyprland for, to open the new terminal in that terminal's directory.
 function o.launch_terminal()
@@ -206,11 +210,76 @@ function o.bind_toggle(keys, description, toggle, options)
   o.bind(keys, description, "omarchy-toggle-" .. toggle, options)
 end
 
+-- Bind one action to a key's press and another to its release, as for
+-- push-to-talk. Hyprland skips a plain release bind once another key or mouse
+-- button is released during the hold, or once the modifiers have changed, so
+-- typing while holding the key would never run the release. The release half
+-- here is transparent and ignores modifiers, and runs only after its own press
+-- did, so letting go of the key without the rest of the chord does nothing. It
+-- is also non-consuming: a release bind that ignores modifiers would otherwise
+-- take the key from apps whenever it is pressed with other modifiers, such as
+-- Shift+F9, or without them, such as a plain x for SUPER + X.
+function o.bind_hold(keys, press_description, press, release_description, release, options)
+  local held = false
+  press, release = command_from(press, press_description), command_from(release, release_description)
+
+  local function run(dispatcher)
+    if type(dispatcher) == "string" then
+      hl.exec_cmd(dispatcher)
+    elseif type(dispatcher) == "function" then
+      dispatcher()
+    else
+      hl.dispatch(dispatcher)
+    end
+  end
+
+  local function on_press()
+    held = true
+    run(press)
+  end
+
+  local function on_release()
+    if held then
+      held = false
+      run(release)
+    end
+  end
+
+  if type(press) == "string" then
+    o.bind_commands[on_press] = press
+  end
+  if type(release) == "string" then
+    o.bind_commands[on_release] = release
+  end
+
+  local press_options, release_options = {}, {}
+  for key, value in pairs(options or {}) do
+    press_options[key], release_options[key] = value, value
+  end
+  -- Options that change when the press half fires would break the release half.
+  for _, key in ipairs({ "repeating", "long_press", "click", "drag" }) do
+    release_options[key] = nil
+  end
+  release_options.release, release_options.transparent = true, true
+  release_options.ignore_mods, release_options.non_consuming = true, true
+
+  o.bind(keys, press_description, on_press, press_options)
+  o.bind(keys, release_description, on_release, release_options)
+end
+
 function o.notify(message)
   return "omarchy-notification-send -u low " .. shell_quote(message)
 end
 
+-- What makes apps float on their own account, so a floating workspace can
+-- leave their floating to them: the class and title patterns of rules that
+-- float them, the tags rules float, and the patterns of rules that tag them.
+o.floating_apps = { class = {}, title = {}, tags = {}, tagged = {} }
+-- Helpers reload before workspace modes, so discard the previous config's hook.
+o.floating_apps_changed = nil
+
 function o.window(match, rules)
+  local floating_changed = false
   rules.match = rules.match or {}
 
   if type(match) == "string" then
@@ -221,10 +290,40 @@ function o.window(match, rules)
     end
   end
 
+  if rules.float == true then
+    -- Only a rule floating a tag alone floats everything with that tag; one
+    -- that also names a class or title floats just those, recorded below.
+    if type(rules.match.tag) == "string" and rules.match.class == nil and rules.match.title == nil then
+      o.floating_apps.tags[rules.match.tag] = true
+      floating_changed = true
+    end
+    for _, key in ipairs({ "class", "title" }) do
+      if type(rules.match[key]) == "string" then
+        table.insert(o.floating_apps[key], rules.match[key])
+        floating_changed = true
+      end
+    end
+  end
+
+  if type(rules.tag) == "string" and rules.tag:sub(1, 1) == "+" then
+    local tag = rules.tag:sub(2)
+    o.floating_apps.tagged[tag] = o.floating_apps.tagged[tag] or {}
+    for _, key in ipairs({ "class", "title" }) do
+      if type(rules.match[key]) == "string" then
+        table.insert(o.floating_apps.tagged[tag], { key = key, pattern = rules.match[key] })
+        floating_changed = true
+      end
+    end
+  end
+
   hl.window_rule(rules)
+  if floating_changed and o.floating_apps_changed then
+    o.floating_apps_changed()
+  end
 end
 
--- Opt a window in to Omarchy's standard active/inactive transparency.
+-- Opt a window in to Omarchy's standard active/inactive transparency. The tag
+-- lets Appearance > Windows > Window Opacity turn these windows opaque or glassy.
 function o.transparent_window(match, opacity)
-  o.window(match, { opacity = opacity or "0.985 0.96" })
+  o.window(match, { opacity = opacity or "0.985 0.96", tag = "+transparent-window" })
 end

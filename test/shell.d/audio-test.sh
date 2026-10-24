@@ -57,4 +57,107 @@ assertEqual(audio.matchingMprisStreamLabel('Chromium', players), 'Chromium', 'au
 assertEqual(audio.unmatchedMprisStreamLabel('audio-src', players, streams), 'Spotify', 'audio uses unmatched MPRIS player for generic streams')
 assertEqual(audio.streamLabel(streams[1], players, streams), 'Spotify', 'audio labels generic streams from MPRIS')
 assert(audio.streamRepresentsPlayer(streams[1], players[0], players, streams), 'audio links generic streams to active player')
+
+// A virtual source is untyped in Quickshell (no audio); PulseAudio's source
+// listing is what names it a source.
+const availability = { virtual_mic: true, 'alsa_input.usb': false }
+assert(audio.isUntypedSource({ name: 'virtual_mic', isSink: false, isStream: false }, availability), 'audio finds an untyped source PulseAudio lists')
+assert(audio.isUntypedSource({ name: 'unplugged_virtual', isSink: false, isStream: false }, { unplugged_virtual: false }), 'an untyped source PulseAudio lists as unavailable is still a source')
+assert(!audio.isUntypedSource({ name: 'v4l2_input.camera', isSink: false, isStream: false }, availability), 'audio skips an untyped node PulseAudio does not list')
+assert(!audio.isUntypedSource({ name: 'virtual_mic', audio: {}, isSink: false, isStream: false }, availability), 'a typed source is not untyped')
+assert(!audio.isUntypedSource({ name: 'virtual_mic', isSink: false, isStream: true }, availability), 'a stream is never an untyped source')
+assert(!audio.isUntypedSource({ name: '', isSink: false, isStream: false }, { '': true }), 'a nameless node is never an untyped source')
+assert(!audio.isUntypedSource({ name: 'virtual_mic', isSink: false, isStream: false }, {}), 'nothing is untyped before the listing')
+
+const nodes = requireFromRoot('shell/Commons/AudioNodesModel.js')
+
+for (const name of ['quickshell', 'quickshell-peak-monitor'])
+  assert(nodes.isShellLevelMeter(name), 'audio knows the shell meter ' + name)
+for (const name of ['Firefox', 'quickshell-other', '', undefined])
+  assert(!nodes.isShellLevelMeter(name), 'audio counts ' + name + ' as a recording')
+
+// Platform hints: none by default, whole-name patterns, and "replaced" only
+// while its replacement exists.
+const none = nodes.parsePlatformAudio('')
+assertDeepEqual([none.hidden.length, none.replaced.length], [0, 0], 'audio has no platform hints without the file')
+for (const text of ['not json', '[]', 'null', '{"hidden": "x"}', '{"replaced": [1, {"node": "a"}, {"node": "(", "by": "b"}]}']) {
+  const parsed = nodes.parsePlatformAudio(text)
+  assertEqual(parsed.hidden.length + parsed.replaced.length, 0, 'audio ignores platform hints ' + text)
+}
+const hints = nodes.parsePlatformAudio(JSON.stringify({
+  hidden: ['dsp_capture\\.[a-z]+', 'raw_speakers', '(', 7],
+  replaced: [{ node: 'dsp_mic\\.[0-9]+', by: 'stereo_mic' }]
+}))
+assertEqual(hints.hidden.length, 2, 'audio skips invalid hidden patterns')
+const names = ['dsp_capture.mic', 'dsp_mic.1', 'stereo_mic', 'raw_speakers']
+assert(nodes.platformHidesNode('dsp_capture.mic', hints, names), 'platform hints hide a matching node')
+assert(nodes.platformHidesNode('raw_speakers', hints, []), 'platform hints hide a literal name')
+assert(!nodes.platformHidesNode('raw_speakers.monitor', hints, []), 'platform patterns match whole names only')
+assert(!nodes.platformHidesNode('xdsp_capture.mic', hints, []), 'platform patterns are anchored at the start')
+assert(nodes.platformHidesNode('dsp_mic.1', hints, names), 'platform hints hide a replaced node while its replacement exists')
+assert(!nodes.platformHidesNode('dsp_mic.1', hints, ['dsp_mic.1']), 'platform hints keep a replaced node without its replacement')
+assert(!nodes.platformHidesNode('stereo_mic', hints, names), 'platform hints keep the replacement')
+for (const name of ['Firefox', 'alsa_input.pci-0000_00_1f.3.analog-stereo', '', undefined])
+  assert(!nodes.platformHidesNode(name, hints, names), 'platform hints keep ' + name)
+assert(!nodes.platformHidesNode('dsp_capture.mic', none, names), 'no platform hints hide nothing')
+
+// An untyped source's level is read from wpctl.
+assertDeepEqual(nodes.parseWpctlVolume('Volume: 0.50\n'), { volume: 0.5, muted: false }, 'audio reads a wpctl volume')
+assertDeepEqual(nodes.parseWpctlVolume('Volume: 1.00 [MUTED]'), { volume: 1, muted: true }, 'audio reads a muted wpctl volume')
+for (const text of ['', 'Translate ID error: 404', 'Volume: loud', 'Volume: 0.50 [muted]'])
+  assertEqual(nodes.parseWpctlVolume(text), null, 'audio rejects wpctl output ' + JSON.stringify(text))
+
+// Source wiring (no Quickshell here): the hints come from the fixed platform
+// root, and the audio code names no platform or hardware of its own.
+const fs = require('fs')
+const read = (file) => fs.readFileSync(path.join(root, file), 'utf8')
+const audioNodes = read('shell/Commons/AudioNodes.qml')
+assert(/path: "\/usr\/share\/omarchy-platform\/audio\.json"/.test(audioNodes) && !/Quickshell\.env|OMARCHY_/.test(audioNodes),
+  'audio reads the platform hints from the fixed platform root')
+assert(/onLoadFailed: \{\s*missing = true\s*root\.hints = Model\.parsePlatformAudio\(""\)/.test(audioNodes), 'a removed hints file hides nothing')
+assert(/property var hints: Model\.parsePlatformAudio\(hintsFile\.text\(\)\)/.test(audioNodes), 'audio reads the platform hints synchronously at startup')
+const sources = ['shell/plugins/panels/audio/Panel.qml', 'shell/plugins/panels/audio/Model.js', 'shell/Commons/AudioNodes.qml',
+  'shell/Commons/AudioNodesModel.js', 'shell/Commons/UntypedInput.qml', 'shell/plugins/bar/widgets/Microphone.qml',
+  'bin/omarchy-audio-input-set-default', 'bin/omarchy-audio-sink-availability']
+for (const file of sources)
+  assert(!/apple|asahi|macbook|j[0-9]{3}|omarchy-hw-|platform-sound/i.test(read(file)), file + ' names no platform')
+
+const panel = read('shell/plugins/panels/audio/Panel.qml')
+assert(/inputPeakNode: inputViaWpctl \? null : source/.test(panel) && /inputLevelShown: !!inputPeakNode/.test(panel) &&
+  /visible: root\.inputLevelShown[^}]*inputPeakMonitor\.peak/.test(panel),
+  'the input level bar is hidden when the input is driven through wpctl')
+assert(!/Timer \{[^}]*repeat: true[^}]*resolveVolumeSink/.test(panel), 'no timer polls the volume sink')
+assert(panel.includes('onNodesChanged: volumeSinkResolveTimer.restart()') && /target: Pipewire\.linkGroups\s*function onValuesChanged\(\) \{ volumeSinkResolveTimer\.restart\(\) \}/.test(panel),
+  'node and link changes resolve the volume sink again')
+{
+  const body = panel.match(/function resolveVolumeSink\(\) \{([\s\S]*?)\n  \}/)[1]
+  const resolve = new Function('sink', 'volumeSinkProc', 'state', body.replace(/\b(volumeSinkName|volumeSinkStale|volumeSinkGeneration|volumeSinkRequest)\b/g, 'state.$1'))
+  const finished = new Function('root', 'text', panel.match(/onStreamFinished: \{\s*(if \(root\.volumeSinkRequest[^\n]*)/)[1])
+  const proc = { running: false }
+  const state = { volumeSinkName: '', volumeSinkStale: false, volumeSinkGeneration: 0, volumeSinkRequest: -1 }
+  resolve({ name: 'alsa_output.pci-0000_00_1f.3.analog-stereo' }, proc, state)
+  assert(!proc.running && state.volumeSinkName === 'alsa_output.pci-0000_00_1f.3.analog-stereo', 'a hardware output resolves to itself without the script')
+  resolve({ name: 'omarchy_speaker_tuning' }, proc, state)
+  assert(proc.running, 'a DSP output resolves through the script')
+  resolve({ name: 'omarchy_speaker_tuning' }, proc, state)
+  assert(state.volumeSinkStale, 'a change during a resolve is marked for a rerun')
+  {
+    // Quickshell still reports the process running while it signals exit.
+    const exited = new Function('root', 'Qt', panel.match(/id: volumeSinkProc[\s\S]*?onExited: \{([\s\S]*?)\n    \}/)[1])
+    const deferred = []
+    const sink = { name: 'omarchy_speaker_tuning' }
+    state.resolveVolumeSink = () => resolve(sink, proc, state)
+    const requestBefore = state.volumeSinkRequest
+    exited(state, { callLater: callback => deferred.push(callback) })
+    proc.running = false
+    assert(deferred.length === 1 && !state.volumeSinkStale, 'the rerun waits until the read has exited')
+    deferred.shift()()
+    assert(proc.running && state.volumeSinkRequest > requestBefore, 'a change during a resolve runs it again afterwards')
+  }
+  resolve({ name: 'alsa_output.usb-headset' }, proc, state)
+  finished(state, 'alsa_output.speakers\n')
+  assertEqual(state.volumeSinkName, 'alsa_output.usb-headset', 'a script read that predates a switch to hardware cannot overwrite it')
+}
+assert(/path: [^\n]*"\/easyeffects\/db\/easyeffectsrc"\s*watchChanges: true\s*printErrors: false\s*onFileChanged: volumeSinkResolveTimer\.restart\(\)/.test(panel),
+  "EasyEffects' configured output is watched, since an idle EasyEffects resolves through it")
 JS

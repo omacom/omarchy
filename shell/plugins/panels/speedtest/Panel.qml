@@ -149,7 +149,7 @@ Item {
       }
 
       if (!root.expectedStop && exitCode !== 0) {
-        root.error = root.stderrText || "Speed test failed"
+        root.error = root.stderrText || I18n.t("speedtest.failed")
         root.phase = ""
         root.running = false
         return
@@ -177,7 +177,7 @@ Item {
       onStreamFinished: {
         var fields = String(text || "").trim().split("\t")
         if (fields[0] === "wifi") root.connectionName = fields[1] || "Wi-Fi"
-        else if (fields[0] === "ethernet") root.connectionName = "Ethernet"
+        else if (fields[0] === "ethernet") root.connectionName = I18n.t("network.ethernet")
       }
     }
   }
@@ -186,9 +186,9 @@ Item {
     fontFamily: Style.font.family
     layerNamespace: "omarchy-network-speedtest"
     title: root.connectionName
-    leftLabel: "DOWNLOAD"
-    rightLabel: "UPLOAD"
-    runAgainTooltip: "Measure again via fast.com"
+    leftLabel: I18n.t("speedtest.download")
+    rightLabel: I18n.t("speedtest.upload")
+    runAgainTooltip: I18n.t("speedtest.measureAgainVia").arg("fast.com")
     running: root.running
     leftValue: root.downloadValue
     rightValue: root.uploadValue

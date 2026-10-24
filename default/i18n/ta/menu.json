@@ -1,0 +1,1166 @@
+{
+  "root": {
+    "label": "செல்"
+  },
+  "apps": {
+    "label": "செயலிகள்"
+  },
+  "learn": {
+    "label": "கற்க"
+  },
+  "appearance": {
+    "label": "தோற்றம்"
+  },
+  "trigger": {
+    "label": "தூண்டு"
+  },
+  "setup": {
+    "label": "அமைப்பு"
+  },
+  "install": {
+    "label": "நிறுவு"
+  },
+  "remove": {
+    "label": "நீக்கு"
+  },
+  "update": {
+    "label": "புதுப்பி"
+  },
+  "about": {
+    "label": "பற்றி"
+  },
+  "system": {
+    "label": "கணினி"
+  },
+  "system.screensaver": {
+    "label": "திரைசேமிப்பு"
+  },
+  "system.lock": {
+    "label": "பூட்டு"
+  },
+  "system.suspend": {
+    "label": "இடைநிறுத்து"
+  },
+  "system.hibernate": {
+    "label": "உறக்கம்"
+  },
+  "system.logout": {
+    "label": "வெளியேறு"
+  },
+  "system.reboot": {
+    "label": "மறுதொடக்கம்"
+  },
+  "system.shutdown": {
+    "label": "அணை"
+  },
+  "learn.keybindings": {
+    "label": "விசைப்பிணைப்புகள்"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "சமூகம்"
+  },
+  "appearance.theme": {
+    "label": "தீம்"
+  },
+  "appearance.background": {
+    "label": "பின்னணி"
+  },
+  "appearance.font": {
+    "label": "எழுத்துரு"
+  },
+  "appearance.top-bar": {
+    "label": "மெனு பட்டை"
+  },
+  "appearance.top-bar.hide": {
+    "label": "பட்டையை மறை"
+  },
+  "appearance.top-bar.show": {
+    "label": "பட்டையைக் காட்டு"
+  },
+  "appearance.top-bar.position": {
+    "label": "பட்டை நிலை"
+  },
+  "appearance.top-bar.background": {
+    "label": "பட்டை பின்னணி"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "ஒளிபுகா பட்டை"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "கண்ணாடி பட்டை"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "தெளிவான பட்டை"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "பட்டை குறிகாட்டிகள்"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "கடிகாரம்"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "ஞாயிறு 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "ஞாயிறு 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "ஞாயிறு 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "ஞாயிறு 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "ஞாயிறு 3 மே 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "ஞாயிறு 3 மே 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 மே W18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 மே W18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "மேல் பட்டை"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "கீழ் பட்டை"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "இடது பட்டை"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "வலது பட்டை"
+  },
+  "appearance.windows.corners": {
+    "label": "சாளர மூலைகள்"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "தீம் மூலைகள்"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "கூர்மையான மூலைகள்"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "வட்டமான மூலைகள்"
+  },
+  "appearance.windows.transparency": {
+    "label": "சாளர ஒளிபுகாமை"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "ஒளிபுகா சாளரங்கள்"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "ஒளிபுகும் சாளரங்கள்"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "கண்ணாடி சாளரங்கள்"
+  },
+  "appearance.branding.screensaver": {
+    "label": "திரைசேமிப்பு"
+  },
+  "appearance.branding.about": {
+    "label": "பற்றி"
+  },
+  "appearance.branding.about.text": {
+    "label": "உரையைத் திருத்து"
+  },
+  "appearance.branding.about.image": {
+    "label": "படத்திலிருந்து அமை"
+  },
+  "appearance.branding.about.default": {
+    "label": "இயல்புநிலையை மீட்டமை"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "உரையைத் திருத்து"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "படத்திலிருந்து அமை"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "இயல்புநிலையை மீட்டமை"
+  },
+  "appearance.dock": {
+    "label": "டாக்"
+  },
+  "appearance.dock.autohide": {
+    "label": "தானாக மறையும் Dock"
+  },
+  "appearance.dock.always-on": {
+    "label": "எப்போதும் தெரியும் Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Dock நிலை"
+  },
+  "appearance.dock.position.top": {
+    "label": "மேல் Dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "கீழ் Dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "இடது Dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "வலது Dock"
+  },
+  "appearance.workspace-layout": {
+    "label": "பணியிட அமைப்பு",
+    "title": "இயல்புநிலை பணியிட அமைப்பு"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "அடுக்குதல்"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "உருட்டுதல்"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "மிதக்கும்"
+  },
+  "appearance.unlock": {
+    "label": "திற"
+  },
+  "trigger.toggle": {
+    "label": "மாற்று"
+  },
+  "trigger.emoji": {
+    "label": "எமோஜி"
+  },
+  "trigger.clipboard-history": {
+    "label": "கிளிப்போர்டு வரலாறு"
+  },
+  "trigger.reminder": {
+    "label": "நினைவூட்டல்"
+  },
+  "trigger.capture": {
+    "label": "பதிவு செய்"
+  },
+  "trigger.capture.screenshot": {
+    "label": "திரைப்பிடிப்பு"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "திரைப்பதிவை நிறுத்து"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "திரைப்பதிவு"
+  },
+  "trigger.capture.text": {
+    "label": "உரை"
+  },
+  "trigger.capture.qr": {
+    "label": "QR குறியீடு"
+  },
+  "trigger.capture.color": {
+    "label": "நிறம்"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "ஒலி இல்லாமல்"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "டெஸ்க்டாப் ஒலியுடன்"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "டெஸ்க்டாப் + மைக் ஒலியுடன்"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "டெஸ்க்டாப் + மைக் ஒலி + வெப்கேமுடன்"
+  },
+  "trigger.transcode": {
+    "label": "மாற்றுக்குறியீடு"
+  },
+  "trigger.share": {
+    "label": "பகிர்"
+  },
+  "trigger.hardware": {
+    "label": "வன்பொருள்"
+  },
+  "trigger.tests": {
+    "label": "வேக சோதனை"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "தொடுதள அதிர்வு"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "குறைவு"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "நடுத்தரம்"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "அதிகம்"
+  },
+  "trigger.reminder.set": {
+    "label": "ஒன்றை அமை"
+  },
+  "trigger.reminder.show": {
+    "label": "அனைத்தையும் காட்டு"
+  },
+  "trigger.reminder.clear": {
+    "label": "அனைத்தையும் அழி"
+  },
+  "trigger.share.clipboard": {
+    "label": "கிளிப்போர்டு"
+  },
+  "trigger.share.file": {
+    "label": "கோப்பு"
+  },
+  "trigger.share.folder": {
+    "label": "கோப்புறை"
+  },
+  "trigger.share.receive": {
+    "label": "பெறு"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "வலையமைப்பு வேக சோதனை"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "வட்டு வேக சோதனை"
+  },
+  "setup.monitors": {
+    "label": "திரைகள்"
+  },
+  "setup.keybindings": {
+    "label": "விசைப்பிணைப்புகள்"
+  },
+  "setup.input": {
+    "label": "உள்ளீடு"
+  },
+  "setup.typing": {
+    "label": "தட்டச்சு"
+  },
+  "setup.typing.keyboard": {
+    "label": "விசைப்பலகை அமைப்புகள்"
+  },
+  "setup.typing.input": {
+    "label": "உள்ளீட்டு முறைகள்"
+  },
+  "setup.language": {
+    "label": "மொழி"
+  },
+  "setup.network": {
+    "label": "வலையமைப்பு"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "தனிப்பயன்"
+  },
+  "setup.network.qr": {
+    "label": "QR குறியீடு"
+  },
+  "setup.default": {
+    "label": "இயல்புநிலைகள்"
+  },
+  "setup.default.agent": {
+    "label": "ஏஜென்ட்",
+    "title": "இயல்புநிலை Agent"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "உலாவி",
+    "title": "இயல்புநிலை உலாவி"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "சொல்வதெழுதுதல்",
+    "title": "இயல்புநிலை சொல்வதெழுதுதல்"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "முனையம்",
+    "title": "இயல்புநிலை முனையம்"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "திருத்தி",
+    "title": "இயல்புநிலை திருத்தி"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "செருகுநிரல்கள்"
+  },
+  "setup.plugin.enable": {
+    "label": "செருகுநிரலை இயக்கு"
+  },
+  "setup.plugin.disable": {
+    "label": "செருகுநிரலை முடக்கு"
+  },
+  "setup.plugin.add": {
+    "label": "செருகுநிரலைச் சேர்"
+  },
+  "setup.plugin.clone": {
+    "label": "செருகுநிரலை நகலெடு"
+  },
+  "setup.plugin.remove": {
+    "label": "செருகுநிரலை நீக்கு"
+  },
+  "setup.security": {
+    "label": "பாதுகாப்பு"
+  },
+  "setup.config": {
+    "label": "உள்ளமைவு"
+  },
+  "setup.security.fingerprint": {
+    "label": "கைரேகை"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "sudo இல்லாத Docker"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "கடவுச்சொல் இல்லாத Sudo"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "நேரடி தொடக்கம்"
+  },
+  "setup.reset": {
+    "label": "கணினியை மீட்டமை"
+  },
+  "install.package": {
+    "label": "தொகுப்பு"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "சேவை"
+  },
+  "install.development": {
+    "label": "மேம்பாடு"
+  },
+  "install.editor": {
+    "label": "திருத்தி"
+  },
+  "install.style": {
+    "label": "பாணி"
+  },
+  "install.style.theme": {
+    "label": "தீம்"
+  },
+  "install.style.background": {
+    "label": "பின்னணி"
+  },
+  "install.style.font": {
+    "label": "எழுத்துரு"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "விளையாட்டு"
+  },
+  "install.browser": {
+    "label": "உலாவி"
+  },
+  "install.webapp": {
+    "label": "இணைய செயலி"
+  },
+  "install.terminal": {
+    "label": "முனையம்"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "முன்நிறுவல்கள்"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Chromium கணக்கு"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xbox கட்டுப்படுத்திகள்"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch விளையாட்டு தொடக்கி"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "தொகுப்பு"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "நீக்கு"
+  },
+  "remove.dictation": {
+    "label": "சொல்வதெழுதுதல்"
+  },
+  "remove.service": {
+    "label": "சேவைகள்",
+    "title": "நீக்கு"
+  },
+  "remove.development": {
+    "label": "மேம்பாடு",
+    "title": "நீக்கு"
+  },
+  "remove.theme": {
+    "label": "தீம்"
+  },
+  "remove.gaming": {
+    "label": "விளையாட்டு",
+    "title": "நீக்கு"
+  },
+  "remove.browser": {
+    "label": "உலாவி",
+    "title": "நீக்கு"
+  },
+  "remove.webapp": {
+    "label": "இணைய செயலி"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "முன்நிறுவல்கள்"
+  },
+  "remove.security": {
+    "label": "பாதுகாப்பு",
+    "title": "நீக்கு"
+  },
+  "remove.security.fingerprint": {
+    "label": "கைரேகை"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "sudo இல்லாத Docker"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xbox கட்டுப்படுத்திகள் (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "நீக்கு"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "நீக்கு"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "நீக்கு"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "சேனல்"
+  },
+  "update.config": {
+    "label": "உள்ளமைவு",
+    "title": "இயல்புநிலைக்கு மீட்டமை"
+  },
+  "update.themes": {
+    "label": "கூடுதல் தீம்கள்"
+  },
+  "update.process": {
+    "label": "செயல்முறை",
+    "title": "மறுதொடக்கம்"
+  },
+  "update.hardware": {
+    "label": "வன்பொருள்",
+    "title": "மறுதொடக்கம்"
+  },
+  "update.firmware": {
+    "label": "நிலைபொருள்"
+  },
+  "update.password": {
+    "label": "கடவுச்சொல்"
+  },
+  "update.timezone": {
+    "label": "நேர மண்டலம்"
+  },
+  "update.time": {
+    "label": "நேரம்"
+  },
+  "update.channel.stable": {
+    "label": "நிலையானது"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "ஒலி"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "தொடுதளம்"
+  },
+  "update.password.drive": {
+    "label": "இயக்கக குறியாக்கம்"
+  },
+  "update.password.user": {
+    "label": "பயனர்"
+  },
+  "system.reboot-boot-menu": {
+    "label": "துவக்க மெனுவுக்கு மறுதொடக்கம்"
+  }
+}

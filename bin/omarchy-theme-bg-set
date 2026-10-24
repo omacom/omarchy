@@ -20,6 +20,6 @@ fi
 # Create symlink to the new background media
 ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
 
-# Update the live shell background immediately when it is running. The
-# background plugin also polls this symlink, but IPC avoids the visible delay.
+# Update the live shell background when it is running. Nothing watches the
+# symlink, so this is how the shell learns of the new background.
 omarchy-shell -q background set "$BACKGROUND"

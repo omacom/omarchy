@@ -247,6 +247,19 @@ process_alive() {
 
 mkdir -p "$TMPDIR/bin" "$TMPDIR/home/.local/state/omarchy"
 
+# capture.sh bounds its reads at 2s; the stall scenarios shorten that bound
+# here instead of waiting it out. Other durations pass through untouched.
+cat >"$TMPDIR/bin/timeout" <<'SH'
+#!/bin/bash
+args=()
+for arg in "$@"; do
+  [[ $arg == "2s" ]] && arg="0.3s"
+  args+=("$arg")
+done
+exec /usr/bin/timeout "${args[@]}"
+SH
+chmod +x "$TMPDIR/bin/timeout"
+
 cat >"$TMPDIR/bin/wl-copy" <<'SH'
 #!/bin/bash
 cat >"$WL_COPY_OUT"
@@ -298,6 +311,8 @@ capture_output=$(printf 'closing app copy' | WL_PASTE_TEXT="stale read" XDG_RUNT
 [[ $capture_output == '{"type":"text","text":"closing app copy"}' ]] || fail "clipboard capture records watched text from stdin"
 pass "clipboard capture records watched text from stdin"
 
+# The stall scenarios below rely on the timeout stub shortening capture.sh's
+# 2s read bounds; the outer 4s timeout only guards against them not firing.
 if capture_output=$(printf 'watched copy after stalled types' | WL_PASTE_STALL="list-types" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" timeout --preserve-status 4s "$ROOT/shell/plugins/clipboard/capture.sh" text); then
   capture_status=0
 else
@@ -329,7 +344,7 @@ pass "clipboard snapshot text read stalled midway uses its internal timeout"
 pass "clipboard snapshot stalled midway emits no partial entry"
 
 for watched_mime in text image/png; do
-  if capture_output=$({ printf 'copy whose owner never closes'; sleep 5; } | XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" timeout --preserve-status 4s "$ROOT/shell/plugins/clipboard/capture.sh" "$watched_mime"); then
+  if capture_output=$({ printf 'copy whose owner never closes'; sleep 1; } | XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" timeout --preserve-status 4s "$ROOT/shell/plugins/clipboard/capture.sh" "$watched_mime"); then
     capture_status=0
   else
     capture_status=$?

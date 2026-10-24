@@ -3,6 +3,7 @@
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 require_compositor "same-path background fallback"
+require_uncovered_background "same-path background fallback"
 require_command quickshell
 require_command grim
 require_command magick

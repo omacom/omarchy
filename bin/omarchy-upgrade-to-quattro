@@ -807,6 +807,11 @@ install_omarchy_quattro_packages() {
   if [[ -f /usr/share/omarchy/install/omarchy-base.packages ]]; then
     log "Installing Omarchy quattro default package set"
     mapfile -t base_packages < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' /usr/share/omarchy/install/omarchy-base.packages)
+    # Some base packages have no aarch64 build.
+    if [[ $(uname -m) != "x86_64" && -f /usr/share/omarchy/install/omarchy-x86_64-only.packages ]]; then
+      mapfile -t base_packages < <(printf '%s\n' "${base_packages[@]}" |
+        grep -vxF -f <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' /usr/share/omarchy/install/omarchy-x86_64-only.packages))
+    fi
     if (( ${#base_packages[@]} )); then
       as_root pacman -S --needed --noconfirm --ask 4 --overwrite='*' "${base_packages[@]}"
       mark_packages_explicit "${base_packages[@]}"
@@ -1802,6 +1807,8 @@ copy_missing_config_defaults() {
   while IFS= read -r -d '' source_path; do
     rel="${source_path#$source_dir/}"
     is_retired_config_file "$rel" && continue
+    # The input migration preserves working shortcuts in existing IME profiles.
+    [[ $rel == "fcitx5/config" ]] && continue
 
     target_path="$target_dir/$rel"
     [[ -e $target_path || -L $target_path ]] && continue
@@ -2066,6 +2073,10 @@ if command -v xdg-user-dirs-update >/dev/null 2>&1; then
   xdg-user-dirs-update --set TEMPLATES "$HOME" || true
   xdg-user-dirs-update --set PUBLICSHARE "$HOME" || true
   xdg-user-dirs-update --set DESKTOP "$HOME" || true
+  for dir in DOWNLOAD:Downloads PICTURES:Pictures VIDEOS:Videos DOCUMENTS:Documents MUSIC:Music; do
+    grep -q "^XDG_${dir%%:*}_DIR=" "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" 2>/dev/null ||
+      { mkdir -p "$HOME/${dir#*:}" && xdg-user-dirs-update --set "${dir%%:*}" "$HOME/${dir#*:}"; } || true
+  done
 fi
 rmdir "$HOME/Templates" "$HOME/Public" "$HOME/Desktop" 2>/dev/null || true
 touch "$HOME/.config/gtk-3.0/bookmarks"
@@ -2287,7 +2298,7 @@ if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
 fi
 if command -v xdg-settings >/dev/null 2>&1; then
-  env -u BROWSER xdg-settings set default-web-browser chromium.desktop || true
+  env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser chromium.desktop || true
 fi
 if command -v xdg-mime >/dev/null 2>&1; then
   xdg-mime default HEY.desktop x-scheme-handler/mailto || true

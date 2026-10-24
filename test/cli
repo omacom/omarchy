@@ -239,7 +239,7 @@ assert_output_contains "pkg add help resolves" "$output" "omarchy-pkg-add"
 assert_output_contains "pkg add help shows direct route" "$output" "omarchy pkg add <packages...>"
 
 output=$("$CLI" system reboot --help)
-assert_output_contains "system command help is safe" "$output" "omarchy-system-reboot"
+assert_output_contains "system command help is safe" "$output" "omarchy-system"
 
 output=$("$CLI" dev benchmark cli --repeat=1)
 assert_output_contains "benchmark command runs" "$output" "Omarchy CLI benchmark"
@@ -522,7 +522,7 @@ pass "claude theme activation preserves configured settings"
 make_tmpdir THEME_TMPDIR
 OMARCHY_PATH="$ROOT" HOME="$THEME_TMPDIR" OMARCHY_THEME_HEADLESS=1 "$ROOT/bin/omarchy-theme-set" "Tokyo Night"
 background_path=$(readlink -f "$THEME_TMPDIR/.local/state/omarchy/current/background" 2>/dev/null || true)
-expected_background="$THEME_TMPDIR/.local/state/omarchy/current/theme/backgrounds/0-winding-road.webp"
+expected_background="$THEME_TMPDIR/.local/state/omarchy/current/theme/backgrounds/0-liftoff.webp"
 [[ $background_path == "$expected_background" ]] || fail "headless theme set creates current background symlink"
 [[ -f $background_path ]] || fail "headless theme background target exists"
 [[ ! -e $THEME_TMPDIR/.config/omarchy/current ]] || fail "headless theme set avoids config current state"
@@ -541,6 +541,10 @@ case "$1" in
     [[ $2 == "-F" ]] && echo "session-1"
     exit 0
     ;;
+  source-file)
+    cat >>"${TMUX_LOG:-/dev/null}"
+    exit 0
+    ;;
   set-environment|set-option|refresh-client)
     echo "$*" >>"${TMUX_LOG:-/dev/null}"
     exit 0
@@ -556,7 +560,7 @@ EOF
 chmod +x "$FAKE_BIN/tmux"
 
 TMUX_LOG="$PI_TMPDIR/tmux.log" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
-grep -q 'set-environment -g COLORFGBG 0;15' "$PI_TMPDIR/tmux.log" || fail "tmux sync reads mode from colors.toml"
+grep -Fxq "'set-environment' '-g' 'COLORFGBG' '0;15'" "$PI_TMPDIR/tmux.log" || fail "tmux sync reads mode from colors.toml"
 pass "tmux sync reads mode from colors.toml"
 
 cat >"$FAKE_BIN/pgrep" <<'EOF'
@@ -573,11 +577,19 @@ chmod +x "$FAKE_BIN/pkill"
 
 cat >"$FAKE_BIN/sleep" <<'EOF'
 #!/bin/bash
-exit 0
+while [[ -n $HUNK_SETTLED && ! -e $HUNK_SETTLED ]]; do
+  /usr/bin/sleep 0.01
+done
 EOF
 chmod +x "$FAKE_BIN/sleep"
 
-HUNK_RUNNING=1 PKILL_LOG="$PI_TMPDIR/pkill.log" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-hunk"
+HUNK_RUNNING=1 HUNK_SETTLED="$PI_TMPDIR/hunk-settled" PKILL_LOG="$PI_TMPDIR/pkill.log" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-hunk"
+[[ $(grep -c -- '-WINCH -x hunk' "$PI_TMPDIR/pkill.log") == "1" ]] || fail "hunk sync returns before its settled nudge"
+touch "$PI_TMPDIR/hunk-settled"
+for _ in {1..200}; do
+  [[ $(grep -c -- '-WINCH -x hunk' "$PI_TMPDIR/pkill.log") == "2" ]] && break
+  /usr/bin/sleep 0.01
+done
 [[ $(grep -c -- '-WINCH -x hunk' "$PI_TMPDIR/pkill.log") == "2" ]] || fail "hunk sync signals running hunk sessions"
 pass "hunk sync signals running hunk sessions"
 
@@ -626,7 +638,7 @@ for binary in \
   omarchy-update \
   omarchy-theme-set \
   omarchy-capture-screenshot \
-  omarchy-system-reboot \
+  omarchy-system \
   omarchy-pkg-add; do
   [[ -x $ROOT/bin/$binary ]] || fail "binary is executable: $binary"
   pass "binary is executable: $binary"
@@ -749,3 +761,116 @@ assert_output_contains "a --help behind -- belongs to the command and still forw
 
 output=$("$TMPDIR/omarchy" parenthelp --helpme x--help)
 assert_output_contains "help lookalike tokens do not trigger help" "$output" "parenthelp-parent-ran args=[--helpme x--help]"
+
+# Alias and metadata-moved routes resolve by loading only the commands that can
+# own a route under their first word, then dispatch exactly like a full load.
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Fast alias test\n'
+  printf '# omarchy:aliases=omarchy fastalias | omarchy fastalias deep\n'
+  printf 'echo "fastalias-ran args=[$*]"\n'
+} >"$TMPDIR/omarchy-zz-fastalias-target"
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Fast group test\n'
+  printf '# omarchy:group=fastgroup\n'
+  printf '# omarchy:name=moved\n'
+  printf 'echo "fastgroup-ran args=[$*]"\n'
+} >"$TMPDIR/omarchy-zz-elsewhere"
+chmod +x "$TMPDIR/omarchy-zz-fastalias-target" "$TMPDIR/omarchy-zz-elsewhere"
+
+output=$("$TMPDIR/omarchy" fastalias one two)
+assert_output_contains "an alias route dispatches with its arguments" "$output" "fastalias-ran args=[one two]"
+output=$("$TMPDIR/omarchy" fastalias deep three)
+assert_output_contains "the longest alias route wins" "$output" "fastalias-ran args=[three]"
+output=$("$TMPDIR/omarchy" fastgroup moved four)
+assert_output_contains "a metadata-moved route dispatches" "$output" "fastgroup-ran args=[four]"
+output=$("$TMPDIR/omarchy" fastalias --help)
+assert_output_contains "help on an alias route still renders from the full table" "$output" "omarchy-zz-fastalias-target"
+
+# The candidates-only path must agree with a full load on every edge of the
+# metadata parser: tabs in an alias count as spaces, and colliding routes are
+# won by whichever command the full load's glob registers first.
+{
+  printf '#!/bin/bash\n\n# omarchy:summary=Tab alias root\n# omarchy:aliases=omarchy tabroute\n'
+  printf 'echo "tabroute-root-ran args=[$*]"\n'
+} >"$TMPDIR/omarchy-zz-tabroute-root"
+{
+  printf '#!/bin/bash\n\n# omarchy:summary=Tab alias deep\n# omarchy:aliases=omarchy\ttabroute deep\n'
+  printf 'echo "tabroute-deep-ran args=[$*]"\n'
+} >"$TMPDIR/omarchy-zz-tabroute-deep"
+{
+  printf '#!/bin/bash\n\n# omarchy:summary=Collision first\n# omarchy:aliases=omarchy collideprobe\n'
+  printf 'echo "collide-a-b-ran"\n'
+} >"$TMPDIR/omarchy-zz-a-b"
+{
+  printf '#!/bin/bash\n\n# omarchy:summary=Collision second\n# omarchy:aliases=omarchy collideprobe\n'
+  printf 'echo "collide-aa-ran"\n'
+} >"$TMPDIR/omarchy-zz-aa"
+chmod +x "$TMPDIR"/omarchy-zz-tabroute-* "$TMPDIR/omarchy-zz-a-b" "$TMPDIR/omarchy-zz-aa"
+
+output=$("$TMPDIR/omarchy" tabroute deep payload)
+assert_output_contains "a tab-separated alias still wins as the longer route" "$output" "tabroute-deep-ran args=[payload]"
+
+for locale in C "$(locale -a 2>/dev/null | grep -iE '^en_US\.utf-?8$' | head -1)"; do
+  [[ -n $locale ]] || continue
+  ran=$(LC_ALL=$locale "$TMPDIR/omarchy" collideprobe)
+  helped=$(LC_ALL=$locale "$TMPDIR/omarchy" collideprobe --help)
+  expected=$( [[ $helped == *omarchy-zz-aa* ]] && echo collide-aa-ran || echo collide-a-b-ran )
+  [[ $ran == "$expected" ]] || fail "a colliding alias runs the command help names under LC_ALL=$locale"
+done
+pass "a colliding alias runs the command help names"
+
+# The fast path only reads candidate headers: an unrelated command that can't
+# be read goes unnoticed by an alias dispatch, while help, which loads the
+# whole table, trips over it.
+# Root reads through the permission, so this check only means something for
+# an ordinary user.
+if (( EUID != 0 )); then
+  printf '#!/bin/bash\n\n# omarchy:summary=Unreadable unrelated command\necho unrelated\n' >"$TMPDIR/omarchy-zz-unreadable"
+  chmod 111 "$TMPDIR/omarchy-zz-unreadable"
+  stderr=$("$TMPDIR/omarchy" fastalias one 2>&1 >/dev/null)
+  [[ $stderr != *"Permission denied"* ]] || fail "an alias dispatch reads only the commands that can own its route"
+  stderr=$("$TMPDIR/omarchy" fastalias --help 2>&1 >/dev/null)
+  [[ $stderr == *"Permission denied"* ]] || fail "alias help still loads the whole table"
+  chmod 755 "$TMPDIR/omarchy-zz-unreadable"
+  rm -f "$TMPDIR/omarchy-zz-unreadable"
+  pass "an alias dispatch reads only the commands that can own its route"
+fi
+
+# The same guarantee against the real command table, timed: an alias dispatch
+# that loads every header costs what help on it costs (about 190ms either way
+# before the candidates-only path, against 13ms after). Timing both in the same
+# run keeps the check independent of how fast the machine is.
+make_tmpdir ROUTER_BIN
+cp -a "$ROOT/bin/." "$ROUTER_BIN/"
+# The real header, so the alias resolves as shipped, over a body that takes no
+# screenshot.
+{
+  awk 'NR == 1 || /^#/ || /^[[:space:]]*$/ { print; next } { exit }' "$ROOT/bin/omarchy-capture-screenshot"
+  printf 'echo screenshot-stub-ran\n'
+} >"$ROUTER_BIN/omarchy-capture-screenshot"
+
+fastest_ms() {
+  local best="" start end elapsed
+
+  for _ in 1 2 3 4 5; do
+    start=$EPOCHREALTIME
+    "$@" >/dev/null 2>&1
+    end=$EPOCHREALTIME
+    elapsed=$(( (${end/[.,]/} - ${start/[.,]/}) / 1000 ))
+    if [[ -z $best ]] || (( elapsed < best )); then
+      best=$elapsed
+    fi
+  done
+  echo "$best"
+}
+
+[[ $("$ROUTER_BIN/omarchy" screenshot) == "screenshot-stub-ran" ]] || fail "omarchy screenshot dispatches to the capture command"
+alias_ms=$(fastest_ms "$ROUTER_BIN/omarchy" screenshot)
+full_ms=$(fastest_ms "$ROUTER_BIN/omarchy" screenshot --help)
+if (( alias_ms * 4 > full_ms )); then
+  printf 'omarchy screenshot took %dms; loading the whole table for its help took %dms.\n' "$alias_ms" "$full_ms" >&2
+  fail "an alias dispatch costs a fraction of loading the whole command table"
+fi
+pass "an alias dispatch costs a fraction of loading the whole command table (${alias_ms}ms vs ${full_ms}ms)"

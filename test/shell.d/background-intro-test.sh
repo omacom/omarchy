@@ -96,11 +96,16 @@ PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" CO
 
 rm "$marker"
 : >"$command_log"
+# This case runs a scratch copy with the five-second OWE window shortened
+# to one second; it proves the wait gives up, not the window's real length.
+boot_intro_fast="$test_tmp/boot-intro-fast"
+sed 's/SECONDS + 5/SECONDS + 1/' "$ROOT/bin/omarchy-theme-bg-boot-intro" >"$boot_intro_fast"
+chmod +x "$boot_intro_fast"
 started=$SECONDS
-if ! PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_FAIL=unavailable OMARCHY_SESSION_ID=unavailable-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"; then
+if ! PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_FAIL=unavailable OMARCHY_SESSION_ID=unavailable-boot "$boot_intro_fast"; then
   fail "an unavailable OWE settles startup rather than requesting another launcher"
 fi
-(( SECONDS - started >= 4 && SECONDS - started <= 7 )) || fail "startup waits only through the five-second window" "$((SECONDS - started))"
+(( SECONDS - started >= 1 && SECONDS - started <= 3 )) || fail "startup waits only through the OWE window" "$((SECONDS - started))"
 [[ $(<"$marker") == "unavailable-boot" ]] || fail "an unavailable OWE still settles the session"
 ! grep -q '^owe: intro ' "$command_log" || fail "an unavailable OWE never starts an intro"
 PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OMARCHY_SESSION_ID=unavailable-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"

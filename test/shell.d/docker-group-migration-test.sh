@@ -47,11 +47,12 @@ cat >"$stub_bin/gum" <<'STUB'
 [[ $1 == confirm ]] && exit 0
 exit 0
 STUB
-cat >"$stub_bin/omarchy-system-reboot" <<'STUB'
+cat >"$stub_bin/omarchy-system" <<'STUB'
 #!/bin/bash
+[[ $1 == "reboot" ]] || exit 2
 touch "${REBOOT_CALLED:?}"
 STUB
-chmod +x "$stub_bin/id" "$stub_bin/sudo" "$stub_bin/gpasswd" "$stub_bin/gum" "$stub_bin/omarchy-system-reboot"
+chmod +x "$stub_bin/id" "$stub_bin/sudo" "$stub_bin/gpasswd" "$stub_bin/gum" "$stub_bin/omarchy-system"
 
 reboot_flag="$home/.local/state/omarchy/reboot-required"
 gpasswd_calls="$test_dir/gpasswd-calls"

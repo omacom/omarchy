@@ -1,0 +1,8 @@
+# Apps open links through xdg-open or the desktop portal, and both run the
+# handler listed here. Route them through omarchy-launch-browser, which hands
+# the link to the running default browser and focuses its window. The default
+# browser itself stays in mimeapps.list, which this desktop-specific list is
+# read before.
+[Default Applications]
+x-scheme-handler/http=omarchy-browser.desktop
+x-scheme-handler/https=omarchy-browser.desktop

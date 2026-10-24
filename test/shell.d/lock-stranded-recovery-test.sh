@@ -15,8 +15,8 @@ assert(
 )
 
 assert(
-  /id: strandedLockCheckProc[\s\S]*omarchy-hyprland-session-locked/.test(serviceQml),
-  'the startup check goes through the shared session lock helper'
+  /id: strandedLockCheckProc[\s\S]*omarchy-hyprland-session-lock-stranded \\"\$PPID\\"/.test(serviceQml),
+  'the startup check asks whether a lock has no live locker, skipping this shell'
 )
 
 // "No output to read" taken for "unlocked" leaves the failsafe up for good.
@@ -32,8 +32,21 @@ assert(
 
 // omarchy-restart-shell re-locks a fresh shell, possibly mid-question.
 assert(
-  /root\.strandedLock = exitCode === 0 && !root\.locked && !root\.lockRequested/.test(serviceQml),
+  /root\.strandedLock = exitCode === 0 && !root\.currentlyLocked\(\)/.test(serviceQml),
   'a lock this shell took while the check was in flight is not stranded'
+)
+
+// A locked binding that missed a change once read locked after an unlock, and
+// the lock before suspend took that for done. Decisions read the state afresh.
+assert(
+  /function currentlyLocked\(\) \{\s*return lockRequested \|\| sessionLock\.locked \|\| sessionLock\.secure\s*\}/.test(serviceQml),
+  'the lock state is read from the session lock itself, not a cached binding'
+)
+assert(
+  /function lock\(\): string \{[\s\S]*?if \(!root\.currentlyLocked\(\) && !root\.beginLock\(\)\) return "failed"/.test(serviceQml)
+    && /function isLocked\(\): string \{\s*return root\.currentlyLocked\(\)/.test(serviceQml)
+    && /locked: root\.currentlyLocked\(\),/.test(serviceQml),
+  'lock, isLocked, and status decide from the current lock state'
 )
 
 assert(
@@ -60,12 +73,12 @@ assert(
 
 // A lock this shell owns ends the search.
 assert(
-  /function checkStrandedLock\(\) \{\s*if \(strandedLockResolved \|\| strandedLockCheckProc\.running\) return[\s\S]*if \(locked \|\| lockRequested\) \{\s*strandedLockResolved = true/.test(serviceQml),
+  /function checkStrandedLock\(\) \{\s*if \(strandedLockResolved \|\| strandedLockCheckProc\.running\) return[\s\S]*if \(currentlyLocked\(\)\) \{\s*strandedLockResolved = true/.test(serviceQml),
   'a lock this shell took is not treated as stranded'
 )
 
 assert(
-  /function recoverStrandedLock\(\) \{\s*if \(!strandedLock \|\| locked \|\| !passwordPamConfigured\) return/.test(serviceQml),
+  /function recoverStrandedLock\(\) \{\s*if \(!strandedLock \|\| currentlyLocked\(\) \|\| !passwordPamConfigured\) return/.test(serviceQml),
   'recovery is skipped unless a stranded lock is waiting and PAM can authenticate it'
 )
 

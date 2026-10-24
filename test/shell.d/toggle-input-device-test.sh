@@ -118,6 +118,9 @@ hl = {
   device = function(opts)
     table.insert(seen, opts)
   end,
+  -- toggles.lua goes on to restore workspace layouts, which looks at the open
+  -- windows; these reloads have none.
+  get_windows = function() return {} end,
 }
 
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
@@ -149,6 +152,7 @@ hl = {
   device = function(opts)
     table.insert(seen, opts)
   end,
+  get_windows = function() return {} end,
 }
 os.execute = function()
   executed = true
@@ -275,7 +279,10 @@ printf 'elan-touchpad\n' >"$reload_state/touchpad-disabled-name"
 
 HOME="$reload_home" XDG_STATE_HOME="$reload_home/.local/state" OMARCHY_PATH="$ROOT" lua - <<'LUA'
 local disabled = {}
-hl = { device = function(opts) table.insert(disabled, opts) end }
+hl = {
+  device = function(opts) table.insert(disabled, opts) end,
+  get_windows = function() return {} end,
+}
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
 require("default.hypr.toggles")
 assert(#disabled == 1, "only the current name-file disable is applied")

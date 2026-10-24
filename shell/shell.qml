@@ -1,3 +1,4 @@
+//@ pragma OmarchyLoadPatch
 import QtQuick
 import QtQml.Models
 import Quickshell
@@ -46,11 +47,12 @@ ShellRoot {
     },
     bar: {
       position: "top",
-      transparent: false,
-      centerAnchor: "omarchy.clock",
+      background: "opaque",
       layout: {
         left: [{ id: "omarchy.menu" }, { id: "omarchy.workspaces" }],
+        centerBegin: [],
         center: [{ id: "omarchy.clock", format: "dddd HH:mm" }],
+        centerEnd: [],
         right: [{ id: "omarchy.audio" }]
       }
     },
@@ -439,12 +441,26 @@ ShellRoot {
     return api
   }
 
+  // A copy of the active bar's per-screen thickness (screen name -> number),
+  // so a plugin holds no reference into the bar. A bar that reports none
+  // gives an empty map.
+  function detachedBarSizes(sizes) {
+    var copy = ({})
+    if (!Util.isPlainObject(sizes)) return copy
+    for (var name in sizes) {
+      var size = Number(sizes[name])
+      if (size > 0) copy[name] = size
+    }
+    return copy
+  }
+
   function pluginBarStateFor(cacheKey, pluginId) {
     if (_pluginBarStateApis[cacheKey]) return _pluginBarStateApis[cacheKey]
     var api = pluginBarStateApiComponent.createObject(null, { ownerPluginId: pluginId })
     if (!api) return null
     api.barHidden = Qt.binding(function() { return shell.bar ? shell.bar.barHidden === true : false })
     api.barSize = Qt.binding(function() { return shell.bar ? Math.max(0, shell.bar.barSize || 0) : 0 })
+    api.barSizes = Qt.binding(function() { return shell.bar ? shell.detachedBarSizes(shell.bar.screenBarSizes) : ({}) })
     api.fontFamily = Qt.binding(function() { return shell.bar ? String(shell.bar.fontFamily || "") : "" })
     api.position = Qt.binding(function() { return shell.bar ? String(shell.bar.position || "top") : "top" })
     var next = ({})
@@ -456,7 +472,7 @@ ShellRoot {
 
   function pluginFirstPartyServiceFor(cacheKey, pluginId, requestedId) {
     var id = String(requestedId || "")
-    var allowed = ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications"]
+    var allowed = ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications", "omarchy.remote-session"]
     if (allowed.indexOf(id) === -1) return null
     var proxyKey = cacheKey + "::" + id
     if (_pluginFirstPartyServiceApis[proxyKey]) return _pluginFirstPartyServiceApis[proxyKey]
@@ -490,6 +506,10 @@ ShellRoot {
       _selectPlayer: function(playerKey) {
         var target = service()
         if (target && typeof target.selectPlayer === "function") target.selectPlayer(playerKey)
+      },
+      _refresh: function() {
+        var target = service()
+        if (target && typeof target.refresh === "function") target.refresh()
       }
     })
     if (!api) return null
@@ -512,6 +532,14 @@ ShellRoot {
     api.sourcePlayers = Qt.binding(function() {
       var target = service()
       return target && Array.isArray(target.sourcePlayers) ? target.sourcePlayers : []
+    })
+    api.active = Qt.binding(function() {
+      var target = service()
+      return target ? target.active === true : false
+    })
+    api.peers = Qt.binding(function() {
+      var target = service()
+      return target && Array.isArray(target.peers) ? target.peers : []
     })
     var next = ({})
     for (var existing in _pluginFirstPartyServiceApis) next[existing] = _pluginFirstPartyServiceApis[existing]
@@ -588,7 +616,7 @@ ShellRoot {
     // property, even though the resulting proxy is otherwise acyclic.
     var firstPartyServices = ({})
     if (barCapabilities) {
-      var serviceIds = ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications"]
+      var serviceIds = ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications", "omarchy.remote-session"]
       for (var i = 0; i < serviceIds.length; i++) {
         var serviceId = serviceIds[i]
         firstPartyServices[serviceId] = shell.pluginFirstPartyServiceFor(cacheKey, key, serviceId)
@@ -1072,11 +1100,11 @@ ShellRoot {
   function updateEntryInline(moduleName, settings) {
     var stripped = Util.canonicalWidgetId(moduleName)
     var copy = JSON.parse(JSON.stringify(shellConfig || builtinShellConfig))
-    if (!Util.isPlainObject(copy.bar)) copy.bar = { layout: { left: [], center: [], right: [] } }
-    if (!Util.isPlainObject(copy.bar.layout)) copy.bar.layout = { left: [], center: [], right: [] }
+    if (!Util.isPlainObject(copy.bar)) copy.bar = { layout: {} }
+    if (!Util.isPlainObject(copy.bar.layout)) copy.bar.layout = {}
     if (!Array.isArray(copy.plugins)) copy.plugins = []
 
-    var sections = ["left", "center", "right"]
+    var sections = Util.barSections
     var foundInLayout = false
     var dirty = false
     for (var s = 0; s < sections.length; s++) {
@@ -1752,6 +1780,12 @@ ShellRoot {
       return "ok"
     }
 
+    // Super+I goes through the bar's reader, which keeps a choice made before
+    // any text field has focus until one does.
+    function cycleInput(direction: string): string {
+      return Commons.InputMethodState.cycle(direction === "back") ? "ok" : "not running"
+    }
+
     function rescanPlugins(): void {
       shell.reloadPlugins()
     }
@@ -1761,9 +1795,11 @@ ShellRoot {
       return "ok"
     }
 
+    // Named for the two-state toggle it once was; it now cycles the bar
+    // background from clear to glassy to opaque and around.
     function toggleBarTransparency(): string {
-      if (shell.bar && typeof shell.bar.toggleTransparency === "function") {
-        shell.bar.toggleTransparency()
+      if (shell.bar && typeof shell.bar.cycleBackground === "function") {
+        shell.bar.cycleBackground()
         return "ok"
       }
       return "no-bar"

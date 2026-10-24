@@ -92,7 +92,6 @@ python)
   echo -e "Removing Python...\n"
   mise uninstall python --all
   mise rm -g python
-  rm -rf ~/.local/bin/uv ~/.local/bin/uvx ~/.cargo/bin/uv 2>/dev/null || true
   ;;
 elixir|phoenix)
   echo -e "Removing Elixir/Erlang...\n"
@@ -110,7 +109,15 @@ zig)
   ;;
 rust)
   echo -e "Removing Rust...\n"
-  rustup self uninstall -y 2>/dev/null || true
+  # Call rustup by path: ~/.cargo/bin may be off PATH, and mise links the
+  # rustup toolchain as its own rust install with shims that shadow rustup.
+  if ! "$HOME/.cargo/bin/rustup" self uninstall -y; then
+    echo "Failed to remove Rust." >&2
+    exit 1
+  fi
+
+  rm -rf "$HOME/.local/share/mise/installs/rust"
+  mise reshim
   ;;
 java)
   echo -e "Removing Java...\n"

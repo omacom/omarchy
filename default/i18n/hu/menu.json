@@ -1,0 +1,1166 @@
+{
+  "root": {
+    "label": "Mehet"
+  },
+  "apps": {
+    "label": "Appok"
+  },
+  "learn": {
+    "label": "Tanulás"
+  },
+  "appearance": {
+    "label": "Megjelenés"
+  },
+  "trigger": {
+    "label": "Indító"
+  },
+  "setup": {
+    "label": "Beállítás"
+  },
+  "install": {
+    "label": "Telepítés"
+  },
+  "remove": {
+    "label": "Eltávolítás"
+  },
+  "update": {
+    "label": "Frissítés"
+  },
+  "about": {
+    "label": "Névjegy"
+  },
+  "system": {
+    "label": "Rendszer"
+  },
+  "system.screensaver": {
+    "label": "Képernyővédő"
+  },
+  "system.lock": {
+    "label": "Zárolás"
+  },
+  "system.suspend": {
+    "label": "Felfüggesztés"
+  },
+  "system.hibernate": {
+    "label": "Hibernálás"
+  },
+  "system.logout": {
+    "label": "Kijelentkezés"
+  },
+  "system.reboot": {
+    "label": "Újraindítás"
+  },
+  "system.shutdown": {
+    "label": "Kikapcsolás"
+  },
+  "learn.keybindings": {
+    "label": "Billentyűk"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Közösség"
+  },
+  "appearance.theme": {
+    "label": "Téma"
+  },
+  "appearance.background": {
+    "label": "Háttér"
+  },
+  "appearance.font": {
+    "label": "Betűtípus"
+  },
+  "appearance.top-bar": {
+    "label": "Menüsor"
+  },
+  "appearance.top-bar.hide": {
+    "label": "Sáv elrejtése"
+  },
+  "appearance.top-bar.show": {
+    "label": "Sáv mutatása"
+  },
+  "appearance.top-bar.position": {
+    "label": "Sáv helye"
+  },
+  "appearance.top-bar.background": {
+    "label": "Sáv háttere"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "Átlátszatlan sáv"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "Üveges sáv"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "Átlátszó sáv"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "Sávjelzők"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "Óra"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Vasárnap 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Vasárnap 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Vasárnap 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Vasárnap 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "Vas 3 máj 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "Vas 3 máj 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 máj H18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 máj H18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "Felső sáv"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "Alsó sáv"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "Bal sáv"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "Jobb sáv"
+  },
+  "appearance.windows.corners": {
+    "label": "Ablaksarkok"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "Témasarkok"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "Éles sarkok"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "Lekerekített sarkok"
+  },
+  "appearance.windows.transparency": {
+    "label": "Ablak átlátszósága"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "Átlátszatlan ablakok"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "Átlátszó ablakok"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "Üveges ablakok"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Képernyővédő"
+  },
+  "appearance.branding.about": {
+    "label": "Névjegy"
+  },
+  "appearance.branding.about.text": {
+    "label": "Szöveg szerkesztése"
+  },
+  "appearance.branding.about.image": {
+    "label": "Képből beállítás"
+  },
+  "appearance.branding.about.default": {
+    "label": "Alap visszaállítása"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Szöveg szerkesztése"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Képből beállítás"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Alap visszaállítása"
+  },
+  "appearance.dock": {
+    "label": "Dokk"
+  },
+  "appearance.dock.autohide": {
+    "label": "Automatikus dokk"
+  },
+  "appearance.dock.always-on": {
+    "label": "Állandó dokk"
+  },
+  "appearance.dock.position": {
+    "label": "Dokk helye"
+  },
+  "appearance.dock.position.top": {
+    "label": "Felső dokk"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Alsó dokk"
+  },
+  "appearance.dock.position.left": {
+    "label": "Bal dokk"
+  },
+  "appearance.dock.position.right": {
+    "label": "Jobb dokk"
+  },
+  "appearance.workspace-layout": {
+    "label": "Munkaterület-kiosztás",
+    "title": "Alapértelmezett munkaterület-kiosztás"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "Mozaik"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "Görgetés"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "Lebegő"
+  },
+  "appearance.unlock": {
+    "label": "Feloldás"
+  },
+  "trigger.toggle": {
+    "label": "Kapcsoló"
+  },
+  "trigger.emoji": {
+    "label": "Emoji"
+  },
+  "trigger.clipboard-history": {
+    "label": "Vágólap-előzmény"
+  },
+  "trigger.reminder": {
+    "label": "Emlékeztető"
+  },
+  "trigger.capture": {
+    "label": "Rögzítés"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Képernyőkép"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Felvétel leállítása"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Képernyőfelvétel"
+  },
+  "trigger.capture.text": {
+    "label": "Szöveg"
+  },
+  "trigger.capture.qr": {
+    "label": "QR-kód"
+  },
+  "trigger.capture.color": {
+    "label": "Szín"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Hang nélkül"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "Asztali hanggal"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "Asztali + mikrofonhanggal"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "Asztali + mikrofonhanggal + webkamera"
+  },
+  "trigger.transcode": {
+    "label": "Átkódolás"
+  },
+  "trigger.share": {
+    "label": "Megosztás"
+  },
+  "trigger.hardware": {
+    "label": "Hardver"
+  },
+  "trigger.tests": {
+    "label": "Sebességteszt"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Érintőpad-rezgés"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "alacsony"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "közepes"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "magas"
+  },
+  "trigger.reminder.set": {
+    "label": "Új beállítása"
+  },
+  "trigger.reminder.show": {
+    "label": "Összes mutatása"
+  },
+  "trigger.reminder.clear": {
+    "label": "Összes törlése"
+  },
+  "trigger.share.clipboard": {
+    "label": "Vágólap"
+  },
+  "trigger.share.file": {
+    "label": "Fájl"
+  },
+  "trigger.share.folder": {
+    "label": "Mappa"
+  },
+  "trigger.share.receive": {
+    "label": "Fogadás"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Hálózati sebességteszt"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Lemez sebességteszt"
+  },
+  "setup.monitors": {
+    "label": "Monitorok"
+  },
+  "setup.keybindings": {
+    "label": "Billentyűk"
+  },
+  "setup.input": {
+    "label": "Bevitel"
+  },
+  "setup.typing": {
+    "label": "Gépelés"
+  },
+  "setup.typing.keyboard": {
+    "label": "Billentyűzetkiosztás"
+  },
+  "setup.typing.input": {
+    "label": "Beviteli módok"
+  },
+  "setup.language": {
+    "label": "Nyelv"
+  },
+  "setup.network": {
+    "label": "Hálózat"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "Egyéni"
+  },
+  "setup.network.qr": {
+    "label": "QR-kód"
+  },
+  "setup.default": {
+    "label": "Alapértelmezések"
+  },
+  "setup.default.agent": {
+    "label": "Ügynök",
+    "title": "Alapértelmezett ügynök"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "Böngésző",
+    "title": "Alapértelmezett böngésző"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Diktálás",
+    "title": "Alapértelmezett diktálás"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Terminál",
+    "title": "Alapértelmezett terminál"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Szerkesztő",
+    "title": "Alapértelmezett szerkesztő"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Bővítmények"
+  },
+  "setup.plugin.enable": {
+    "label": "Bővítmény bekapcsolása"
+  },
+  "setup.plugin.disable": {
+    "label": "Bővítmény kikapcsolása"
+  },
+  "setup.plugin.add": {
+    "label": "Bővítmény hozzáadása"
+  },
+  "setup.plugin.clone": {
+    "label": "Bővítmény klónozása"
+  },
+  "setup.plugin.remove": {
+    "label": "Bővítmény eltávolítása"
+  },
+  "setup.security": {
+    "label": "Biztonság"
+  },
+  "setup.config": {
+    "label": "Konfiguráció"
+  },
+  "setup.security.fingerprint": {
+    "label": "Ujjlenyomat"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH-ügynök"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Sudo nélküli Docker"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Jelszó nélküli sudo"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "Közvetlen indítás"
+  },
+  "setup.reset": {
+    "label": "Gép visszaállítása"
+  },
+  "install.package": {
+    "label": "Csomag"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "Szolgáltatás"
+  },
+  "install.development": {
+    "label": "Fejlesztés"
+  },
+  "install.editor": {
+    "label": "Szerkesztő"
+  },
+  "install.style": {
+    "label": "Stílus"
+  },
+  "install.style.theme": {
+    "label": "Téma"
+  },
+  "install.style.background": {
+    "label": "Háttér"
+  },
+  "install.style.font": {
+    "label": "Betűtípus"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Játék"
+  },
+  "install.browser": {
+    "label": "Böngésző"
+  },
+  "install.webapp": {
+    "label": "Webapp"
+  },
+  "install.terminal": {
+    "label": "Terminál"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Előtelepítettek"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Chromium-fiók"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xbox kontrollerek"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch játékindító"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Csomag"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "Eltávolítás"
+  },
+  "remove.dictation": {
+    "label": "Diktálás"
+  },
+  "remove.service": {
+    "label": "Szolgáltatások",
+    "title": "Eltávolítás"
+  },
+  "remove.development": {
+    "label": "Fejlesztés",
+    "title": "Eltávolítás"
+  },
+  "remove.theme": {
+    "label": "Téma"
+  },
+  "remove.gaming": {
+    "label": "Játék",
+    "title": "Eltávolítás"
+  },
+  "remove.browser": {
+    "label": "Böngésző",
+    "title": "Eltávolítás"
+  },
+  "remove.webapp": {
+    "label": "Webapp"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Előtelepítettek"
+  },
+  "remove.security": {
+    "label": "Biztonság",
+    "title": "Eltávolítás"
+  },
+  "remove.security.fingerprint": {
+    "label": "Ujjlenyomat"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Sudo nélküli Docker"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH-ügynök"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xbox kontrollerek (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Eltávolítás"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Eltávolítás"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Eltávolítás"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Csatorna"
+  },
+  "update.config": {
+    "label": "Konfiguráció",
+    "title": "Visszaállítás alapra"
+  },
+  "update.themes": {
+    "label": "Extra témák"
+  },
+  "update.process": {
+    "label": "Folyamat",
+    "title": "Újraindítás"
+  },
+  "update.hardware": {
+    "label": "Hardver",
+    "title": "Újraindítás"
+  },
+  "update.firmware": {
+    "label": "Firmware"
+  },
+  "update.password": {
+    "label": "Jelszó"
+  },
+  "update.timezone": {
+    "label": "Időzóna"
+  },
+  "update.time": {
+    "label": "Idő"
+  },
+  "update.channel.stable": {
+    "label": "Stabil"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "Hang"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Érintőpad"
+  },
+  "update.password.drive": {
+    "label": "Meghajtótitkosítás"
+  },
+  "update.password.user": {
+    "label": "Felhasználó"
+  },
+  "system.reboot-boot-menu": {
+    "label": "Újraindítás a bootmenübe"
+  }
+}

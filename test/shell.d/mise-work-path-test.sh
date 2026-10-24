@@ -97,7 +97,7 @@ env \
 
 [[ -d $install_home/Work/tries ]] || fail "installer creates the work and tries directories"
 [[ ! -e $install_home/Work/.mise.toml ]] || fail "installer does not create a trusted Work Mise config"
-[[ $(<"$install_log") == "use -g node@latest" ]] || fail "installer only invokes Mise for the global Node setup"
+[[ ! -e $install_log ]] || fail "installer leaves Node to the lazy system declaration"
 pass "new installs do not add project bin directories to PATH"
 
 stock_home="$test_dir/stock-home"

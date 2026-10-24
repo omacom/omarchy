@@ -212,21 +212,41 @@ pass "selection updates are atomic for concurrent readers"
 
 lua <<'LUA'
 local root = os.getenv("ROOT")
-local configured, bindings = false, {}
+local selected, installed, bindings = nil, true, {}
+io.popen = function(command)
+  assert(command == "omarchy-default-dictation 2>/dev/null")
+  return { read = function() return selected end, close = function() end }
+end
 o = {
-  shell_succeeds = function(command)
-    assert(command == "omarchy-default-dictation")
-    return configured
+  cmd_missing = function(command)
+    assert(command == selected)
+    return not installed
   end,
   bind = function(...) table.insert(bindings, {...}) end,
+  bind_hold = function(keys, _, press, _, release, options)
+    table.insert(bindings, { keys, press, options })
+    table.insert(bindings, { keys, release, options })
+  end,
 }
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "unconfigured dictation leaves application keys available")
-configured = true
+selected = "some-backend"
 dofile(root .. "/default/hypr/bindings/dictation.lua")
-assert(#bindings == 5, "any configured backend receives the same bindings")
+assert(#bindings == 5, "any installed backend receives the same bindings")
+local function binds(keys, command)
+  for _, binding in ipairs(bindings) do
+    if binding[1] == keys and binding[2] == command then return true end
+  end
+end
+for _, keys in ipairs({ "F9", "ALT + Alt_R" }) do
+  assert(binds(keys, "omarchy-dictation start") and binds(keys, "omarchy-dictation stop"),
+    keys .. " starts dictation on press and stops it on release")
+end
+bindings, installed = {}, false
+dofile(root .. "/default/hypr/bindings/dictation.lua")
+assert(#bindings == 0, "a selected backend that is not installed leaves application keys available")
 LUA
-pass "dictation shortcuts require a selection without limiting backend names"
+pass "dictation shortcuts require an installed selection without limiting backend names"
 
 # Fresh users receive the backend choice through the settings package's skel.
 cp "$ROOT/config/omarchy/defaults/dictation" "$config"

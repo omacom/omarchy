@@ -33,3 +33,89 @@ if grep -F 'skip-first-run-update-notification' "$ROOT/install/user/first-run/wi
 fi
 
 pass "first-run uses one lifecycle completion marker"
+
+# systemctl enables none of a list when one unit in it is unknown, so a unit
+# missing from a build must cost first-run only that unit.
+cat >"$mock_bin/systemctl" <<'SH'
+#!/bin/bash
+[[ $* != *"$OMARCHY_TEST_MISSING_UNIT"* ]] || exit 1
+printf '%s\n' "$*" >>"$OMARCHY_TEST_CALLS"
+SH
+cat >"$mock_bin/omarchy-hook-install" <<'SH'
+#!/bin/bash
+echo "hook $*" >>"$OMARCHY_TEST_CALLS"
+SH
+chmod +x "$mock_bin/systemctl" "$mock_bin/omarchy-hook-install"
+
+enable_user_units() {
+  rm -f "$test_tmp/calls"
+  PATH="$mock_bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" OMARCHY_TEST_MISSING_UNIT="$1" \
+    bash "$ROOT/install/user/first-run/enable-user-units.sh"
+}
+
+enable_user_units no-such-unit || fail "first-run enables its user units"
+clean_run=$(<"$test_tmp/calls")
+grep -Fq 'hook theme-set' <<<"$clean_run" || fail "first-run installs the theme hook"
+mapfile -t units < <(sed -n 's/^--user enable --now //p' <<<"$clean_run")
+
+for unit in "${units[@]}"; do
+  [[ $unit != *" "* ]] || fail "first-run enables each unit on its own" "$unit"
+  if enable_user_units "$unit"; then
+    fail "first-run reports a unit it could not enable" "$unit"
+  fi
+  [[ $(<"$test_tmp/calls") == "$(grep -Fvx -- "--user enable --now $unit" <<<"$clean_run")" ]] ||
+    fail "a unit missing from the build costs first-run only that unit" "$unit"
+done
+(( ${#units[@]} > 1 )) || fail "first-run enables each unit on its own"
+pass "a unit missing from the build costs first-run only that unit"
+
+# First run offers an update only when there is one. A fresh install from
+# current media is already current, and a critical toast that leads to
+# "nothing to do" teaches people to dismiss the next one.
+cat >"$mock_bin/nm-online" <<'SH'
+#!/bin/bash
+exit 0
+SH
+# Like the real one, it looks for Omarchy's package with checkupdates.
+cat >"$mock_bin/omarchy-update-available" <<'SH'
+#!/bin/bash
+checkupdates >/dev/null
+exit "$OMARCHY_TEST_OMARCHY_UPDATE"
+SH
+cat >"$mock_bin/checkupdates" <<'SH'
+#!/bin/bash
+echo checkupdates >>"$OMARCHY_TEST_CALLS"
+exit "$OMARCHY_TEST_CHECKUPDATES"
+SH
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_CALLS"
+SH
+chmod +x "$mock_bin/nm-online" "$mock_bin/omarchy-update-available" \
+  "$mock_bin/checkupdates" "$mock_bin/omarchy-notification-send"
+
+# Arguments: OMARCHY_PATH, omarchy-update-available's exit status, then
+# checkupdates'.
+offers_update() {
+  : >"$test_tmp/calls"
+  OMARCHY_PATH="$1" PATH="$mock_bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" \
+    OMARCHY_TEST_OMARCHY_UPDATE="$2" OMARCHY_TEST_CHECKUPDATES="$3" \
+    bash -c 'source "$1"; wait' _ "$ROOT/install/user/first-run/wifi.sh"
+  grep -Fq 'Update System' "$test_tmp/calls"
+}
+
+installed=/usr/share/omarchy
+checkout="$test_tmp/omarchy-checkout"
+
+if offers_update "$installed" 1 2; then
+  fail "first run offers no update when nothing is pending"
+fi
+[[ $(grep -c '^checkupdates$' "$test_tmp/calls") == 1 ]] ||
+  fail "first run syncs the package databases once"
+offers_update "$installed" 1 0 || fail "first run offers an update when packages are pending"
+offers_update "$installed" 1 1 || fail "first run offers an update when it cannot tell whether one is pending"
+offers_update "$checkout" 0 2 || fail "first run offers an update when a development checkout is behind"
+if offers_update "$checkout" 1 2; then
+  fail "first run offers no update when a current checkout has nothing pending"
+fi
+pass "first run offers an update only when there is one"

@@ -14,6 +14,16 @@ var DOCUMENT_EXTENSIONS = {
   pages: true, numbers: true, key: true
 }
 
+function translator(tr) {
+  return typeof tr === "function" ? tr : function(key, english) { return english }
+}
+
+// Display numbers go through the shell's I18n.formatNumber when QML passes
+// it; Node tests leave it out and get plain English digits.
+function formatter(fmt) {
+  return typeof fmt === "function" ? fmt : function(v, d) { return d === undefined ? String(v) : Number(v).toFixed(d) }
+}
+
 function parseStatus(raw) {
   var text = String(raw || "").trim()
   if (text === "") return defaultStatus()
@@ -69,9 +79,10 @@ function fileGlyph(name) {
   return "󰈔"
 }
 
-function formatBytes(bytes) {
+function formatBytes(bytes, fmt) {
+  var f = formatter(fmt)
   var value = Number(bytes || 0)
-  if (!isFinite(value) || value <= 0) return "0 B"
+  if (!isFinite(value) || value <= 0) return f(0) + " B"
   var units = ["B", "KB", "MB", "GB", "TB"]
   var index = 0
   while (value >= 1000 && index < units.length - 1) {
@@ -79,43 +90,47 @@ function formatBytes(bytes) {
     index++
   }
   var decimals = value >= 100 || index === 0 ? 0 : (value >= 10 ? 1 : 2)
-  return value.toFixed(decimals).replace(/\.0+$/, "").replace(/(\.\d)0$/, "$1") + " " + units[index]
+  // Rounding through Number drops the trailing zeros ("1.50" reads 1.5).
+  return f(Number(value.toFixed(decimals))) + " " + units[index]
 }
 
-function formatPercent(value) {
+function formatPercent(value, fmt) {
+  var f = formatter(fmt)
   var number = Number(value || 0)
-  if (!isFinite(number) || number <= 0) return "0%"
-  if (number >= 10) return Math.round(number) + "%"
-  return number.toFixed(1).replace(/\.0$/, "") + "%"
+  if (!isFinite(number) || number <= 0) return f(0) + "%"
+  if (number >= 10) return f(Math.round(number)) + "%"
+  return f(Number(number.toFixed(1))) + "%"
 }
 
-function usageText(usedBytes, quotaBytes, quotaKnown) {
+function usageText(usedBytes, quotaBytes, quotaKnown, tr, fmt) {
   if (quotaKnown && Number(quotaBytes || 0) > 0) {
-    return formatBytes(usedBytes) + " of " + formatBytes(quotaBytes)
+    return translator(tr)("dropbox.usedOfQuota", "%1 of %2").replace("%1", formatBytes(usedBytes, fmt)).replace("%2", formatBytes(quotaBytes, fmt))
   }
-  return formatBytes(usedBytes)
+  return formatBytes(usedBytes, fmt)
 }
 
-function relativeTime(timestampSec, nowMs) {
+function relativeTime(timestampSec, nowMs, tr, fmt) {
+  var t = translator(tr)
+  var f = formatter(fmt)
   var ts = Number(timestampSec || 0)
-  if (!isFinite(ts) || ts <= 0) return "Unknown time"
-  var now = nowMs === undefined ? Date.now() : Number(nowMs)
+  if (!isFinite(ts) || ts <= 0) return t("dropbox.unknownTime", "Unknown time")
+  var now = nowMs === undefined || nowMs === null ? Date.now() : Number(nowMs)
   var diff = Math.max(0, Math.floor((now - ts * 1000) / 1000))
-  if (diff < 60) return "Just now"
+  if (diff < 60) return t("dropbox.justNow", "Just now")
   var minutes = Math.floor(diff / 60)
-  if (minutes < 60) return minutes + "m ago"
+  if (minutes < 60) return t("dropbox.minutesAgo", "%1m ago").replace("%1", f(minutes))
   var hours = Math.floor(minutes / 60)
-  if (hours < 24) return hours + "h ago"
+  if (hours < 24) return t("dropbox.hoursAgo", "%1h ago").replace("%1", f(hours))
   var days = Math.floor(hours / 24)
-  if (days < 30) return days + "d ago"
+  if (days < 30) return t("dropbox.daysAgo", "%1d ago").replace("%1", f(days))
   var months = Math.floor(days / 30)
-  if (months < 12) return months + "mo ago"
-  return Math.floor(days / 365) + "y ago"
+  if (months < 12) return t("dropbox.monthsAgo", "%1mo ago").replace("%1", f(months))
+  return t("dropbox.yearsAgo", "%1y ago").replace("%1", f(Math.floor(days / 365)))
 }
 
-function fileMeta(file, nowMs) {
+function fileMeta(file, nowMs, tr, fmt) {
   if (!file) return ""
-  var parts = [relativeTime(file.modifiedTs, nowMs)]
+  var parts = [relativeTime(file.modifiedTs, nowMs, tr, fmt)]
   var folder = String(file.folder || "")
   if (folder !== "") parts.push(folder)
   return parts.join(" · ")

@@ -15,7 +15,6 @@ bolt
 brightnessctl
 btop
 chromium
-clang
 cliamp
 cups
 cups-filters
@@ -34,8 +33,13 @@ eza
 fakeroot
 fastfetch
 fcitx5
+fcitx5-chewing
+fcitx5-chinese-addons
 fcitx5-gtk
+fcitx5-hangul
+fcitx5-mozc
 fcitx5-qt
+fcitx5-table-extra
 fd
 ffmpeg
 ffmpegthumbnailer
@@ -43,6 +47,7 @@ fontconfig
 foot
 fzf
 git
+gliff
 gnome-keyring
 gnome-themes-extra
 grim
@@ -65,7 +70,6 @@ inotify-tools
 inxi
 networkmanager
 jq
-kdenlive
 kernel-modules-hook
 lazygit
 less
@@ -73,7 +77,6 @@ libsecret
 libvips
 libyaml
 libreoffice-fresh
-llvm
 localsend
 lua51
 luarocks
@@ -92,12 +95,12 @@ noto-fonts-cjk
 noto-fonts-emoji
 nss-mdns
 nvim
-obs-studio
 obsidian
 omacalc
 omacut
 omawrite
 omarchy-nvim
+omarchy-hyprland-titlebars
 omasnap
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe
@@ -124,6 +127,7 @@ quickshell
 ripgrep
 ruby
 sddm
+signed
 slurp
 socat
 starship
@@ -155,7 +159,6 @@ woff2-font-awesome
 xdg-desktop-portal-gtk
 xdg-desktop-portal-hyprland
 xdg-terminal-exec
-xournalpp
 yaru-icon-theme
 yay
 yt-dlp

@@ -27,11 +27,19 @@ assert(/target\.kind === "signin"\) signInAgain\(/.test(panelSource) && /target\
 assert(/target\.kind === "autoswitch"\) setSwitchMode\(/.test(panelSource), 'Enter on Autoswitch flips the switch mode')
 assert(/keyColumn = use >= 0 \? use : /.test(panelSource), 'moving up or down onto an account lands on Use')
 assert(/Qt\.callLater\(function\(\) \{ if \(picking\) pointAt\("choice", 0\) \}\)/.test(panelSource), 'picking an agent to add starts with the first one focused')
-assert(!/opacity: stale \?/.test(panelSource) && /"Last updated " \+ root\.formatDuration/.test(panelSource), 'stale limits say how old they are only on hover')
+assert(!/opacity: stale \?/.test(panelSource) && /I18n\.t\("agents\.lastUpdatedAgo"\)\.arg\(root\.formatDuration/.test(panelSource), 'stale limits say how old they are only on hover')
 assert(/onPickingChanged: resetKeys\(\)/.test(panelSource), 'the cursor starts over when the agent list comes or goes')
 assert(!/t === "a" \|\| t === "A"/.test(panelSource), 'adding an account has no hotkey; the + is the way in')
 assert(/if \(!accounts\[a\]\.active\) \{/.test(panelSource) && /if \(row\.length > 0\) rows\.push\(row\)/.test(panelSource), 'the active account with nothing to fix is not a keyboard stop')
-assert(/text: section\.provider \? String\(section\.provider\.authHelpText \|\| section\.provider\.usageStatusText \|\| ""\) : ""/.test(panelSource), 'the trouble line falls back to the usage status when a record has no auth help')
+assert(/text: section\.provider \? \(root\.helpDisplayText\(section\.provider\.authHelpText\) \|\| root\.statusDisplayText\(section\.provider\.usageStatusText\) \|\| ""\) : ""/.test(panelSource), 'the trouble line falls back to the usage status when a record has no auth help')
+assert(/case "Run `codex login` to authenticate\.":\s*return Commons\.I18n\.t\("agents\.helpRunToAuthenticate"\)\.arg\("`codex login`"\)/.test(panelSource), 'known collector help lines are translated at display, commands kept verbatim')
+// A reworded collector line would silently fall back to English, so every
+// fixed help line the collectors cache must still be one the panel maps.
+for (const name of ['claude', 'codex', 'grok', 'fireworks']) {
+  const collector = fs.readFileSync(root + '/bin/omarchy-agent-usage-' + name, 'utf8')
+  const help = collector.match(/^AUTH_HELP = "([^"]+)"$/m)
+  assert(help && panelSource.includes('case ' + JSON.stringify(help[1]) + ':'), name + ' auth help is translated in the panel')
+}
 const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
 assert(/var from = Math\.min\(0\.8, \(threshold - 15\) \/ 100\)/.test(mainSource), 'faster checks start 15 points below the switch threshold')
 assert(/rows\.push\(\[\{ kind: "provider", index: p \}\]\)/.test(panelSource), "every agent's header is a keyboard stop")

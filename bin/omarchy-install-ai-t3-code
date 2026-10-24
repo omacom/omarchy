@@ -1,15 +1,69 @@
 #!/bin/bash
 
 # omarchy:summary=Install T3 Code and point it at the Omarchy palette
+# omarchy:args=[stable|nightly] [--no-launch]
 # omarchy:requires-sudo=true
 
 set -e
 
 T3CODE_HOME="${T3CODE_HOME:-$HOME/.t3}"
 T3CODE_STATE_DIR="$T3CODE_HOME/userdata"
+T3CODE_APPIMAGE="$HOME/.local/share/t3code/T3-Code.AppImage"
+
+# The app's own `t3` launcher appears only after its first launch, so run the
+# bundled CLI from the mounted AppImage the same way that launcher does.
+t3_cli() {
+  local mount="" status=0
+  t3_cli_work=$(mktemp -d)
+  "$T3CODE_APPIMAGE" --appimage-mount >"$t3_cli_work/mount" 2>/dev/null &
+  t3_cli_mounter=$!
+  # The runtime stays mounted until killed, and a background job ignores
+  # Ctrl-C, so an interrupted install has to unmount it on the way out too.
+  trap 'kill "$t3_cli_mounter" 2>/dev/null; rm -rf "$t3_cli_work"' EXIT
+  trap 'exit 130' INT TERM
+  # The runtime prints its mount point first.
+  while kill -0 "$t3_cli_mounter" 2>/dev/null; do
+    mount=$(head -n 1 "$t3_cli_work/mount")
+    [[ -d $mount ]] && break
+    mount=""
+    sleep 0.05
+  done
+  if [[ -n $mount ]]; then
+    ELECTRON_RUN_AS_NODE=1 "$mount/t3code" "$mount/resources/app.asar/apps/server/dist/bin.mjs" "$@" || status=$?
+  else
+    echo "Could not open $T3CODE_APPIMAGE." >&2
+    status=1
+  fi
+  kill "$t3_cli_mounter" 2>/dev/null || true
+  wait "$t3_cli_mounter" 2>/dev/null || true
+  rm -rf "$t3_cli_work"
+  trap - EXIT INT TERM
+  return "$status"
+}
+
+channel=""
+launch=1
+for arg in "$@"; do
+  if [[ $arg == "--no-launch" ]]; then
+    launch=0
+  else
+    channel=$arg
+  fi
+done
+
+if [[ -z $channel ]]; then
+  stable=$(omarchy-i18n t3code.stable)
+  nightly=$(omarchy-i18n t3code.nightly)
+  choice=$(gum choose --header "$(omarchy-i18n t3code.selectChannel)" "$stable" "$nightly")
+  if [[ $choice == "$nightly" ]]; then
+    channel="nightly"
+  else
+    channel="stable"
+  fi
+fi
 
 echo "Installing T3 Code..."
-omarchy-pkg-add t3code-bin
+omarchy-install-t3code-app "$channel"
 
 echo "Matching T3 Code to the current theme..."
 mkdir -p "$T3CODE_STATE_DIR"
@@ -21,11 +75,19 @@ fi
 
 omarchy-theme-set-t3code
 
-# The packaged CLI selects the published palette before the app's first launch.
-t3 theme set omarchy --base-dir "$T3CODE_HOME"
+# Selects the published palette before the app's first launch.
+t3_cli theme set omarchy --base-dir "$T3CODE_HOME"
 
-echo "Opening T3 Code..."
-setsid uwsm-app -- gtk-launch t3code >/dev/null 2>&1 &
+# Only once the app is in place and themed. Until then a package is still
+# there, so the migration that replaces it stays pending and retries the lot.
+omarchy-pkg-drop t3code-bin t3code-nightly-bin
+
+# A migration replaces the app underneath a T3 Code that may already be
+# running, so it leaves opening the new one to the user.
+if ((launch)); then
+  echo "Opening T3 Code..."
+  setsid uwsm-app -- gtk-launch t3code >/dev/null 2>&1 &
+fi
 
 echo ""
-echo "T3 Code has been installed."
+echo "T3 Code has been installed. It updates itself; switch between Stable and Nightly in its settings."

@@ -45,6 +45,9 @@ ShellRoot {
     interval: 250
     running: true
     onTriggered: {
+      if (!Quickshell.env("NETWORK_TEST_PREVIEW"))
+        test.check(panel.testContent === null, "closed panel has not built its content")
+      test.check(panel.testEnsureContent() !== null && panel.testContent !== null, "panel content builds on demand")
       test.check(panel.kind === "wifi", "connected Wi-Fi fixture")
       test.check(panel.connectivity === "full", "normal connectivity")
       test.check(!panel.testButton.visible && !panel.testBarButton.active, "no false portal banner")
@@ -61,9 +64,9 @@ ShellRoot {
   function portalChecks() {
     check(panel.hasCaptivePortal && panel.restricted, "native portal activates restricted mode")
     check(panel.testButton.visible, "portal button visible")
-    check(panel.testButton.text === "Open Captive Portal", "prominent action label")
+    check(panel.testButton.text === "Sign into network", "prominent action label")
     check(panel.icon === "󰤩" && panel.testBarButton.active, "blocked bar icon and warning color")
-    check(panel.testMeta.text === "SIGN-IN REQUIRED", "status replaces cheerful connection phrase")
+    check(panel.testMeta.text === "" && !panel.testMeta.visible, "hero leaves the portal to the sign-in button instead of the cheerful connection phrase")
     check(panel.testTitle.text === "Guest Wi-Fi", "connected SSID survives missing route details")
     check(panel.testPoll.running && panel.testPoll.interval === 10000, "restricted recheck runs while closed")
     var before = NetworkMock.checks
@@ -150,7 +153,8 @@ ShellRoot {
     onTriggered: {
       var path = Quickshell.env("NETWORK_TEST_SCREENSHOT")
       if (!path) return
-      var card = panel.testKeys.parent.parent
+      // Content root -> Loader -> content holder -> card.
+      var card = panel.testKeys.parent.parent.parent
       card.grabToImage(function(result) {
         test.check(result.saveToFile(path), "save fresh preview screenshot")
         Qt.quit()

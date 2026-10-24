@@ -164,6 +164,10 @@ PopupWindow {
     Item {
       id: contentHolder
       anchors.fill: parent
+      // Right-to-left languages read the card mirrored; the card itself
+      // stays where the bar puts it.
+      LayoutMirroring.enabled: Commons.I18n.rightToLeft
+      LayoutMirroring.childrenInherit: true
       anchors.topMargin: card.contentTopInset
       anchors.rightMargin: card.contentRightInset
       anchors.bottomMargin: card.contentBottomInset

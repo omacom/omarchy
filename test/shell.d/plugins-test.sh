@@ -147,8 +147,8 @@ for (const manifestPath of manifests) {
     check(manifest.barWidget && typeof manifest.barWidget.allowMultiple === 'boolean', `${manifest.id} barWidget allowMultiple must be boolean`)
     if (manifest.barWidget && manifest.barWidget.defaultSection !== undefined) {
       check(
-        ['left', 'center', 'right'].includes(manifest.barWidget.defaultSection),
-        `${manifest.id} barWidget defaultSection must be left, center, or right`
+        ['left', 'centerBegin', 'center', 'centerEnd', 'right'].includes(manifest.barWidget.defaultSection),
+        `${manifest.id} barWidget defaultSection must be left, centerBegin, center, centerEnd, or right`
       )
     }
   }

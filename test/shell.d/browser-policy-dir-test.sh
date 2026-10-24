@@ -103,6 +103,8 @@ browser_policy_setup_dir "$planted_dir"
 [[ -d $planted_dir ]] || fail "policy setup leaves the managed directory in place"
 mode=$(stat -c '%a' "$planted_dir")
 [[ $mode == "755" ]] || fail "policy setup leaves the managed directory 0755" "mode=$mode"
+[[ $(jq '.DefaultBrowserSettingEnabled' "$planted_dir/omarchy.json") == "false" ]] ||
+  fail "policy setup hides the default browser setting"
 pass "policy setup drops non-root files and non-empty subdirectories"
 
 owned=$test_tmp/not-root
@@ -328,3 +330,18 @@ grep -F 'browser_policy_firefox_policy_file_ok' "${migrations[0]}" >/dev/null ||
 grep -F '/opt/zen-browser/distribution' "$ROOT/install/helpers/browser-policy.sh" >/dev/null ||
   fail "the shared helper names the Zen distribution directory"
 pass "a migration locks existing policy directories"
+
+fx_merge=$test_tmp/fx-merge
+mkdir -p "$fx_merge"
+printf '{"policies": {"DisableTelemetry": true}}\n' >"$fx_merge/policies.json"
+as_root() { unprivileged_as_root "$@"; }
+# Temp files are user-owned; trust them as the root-owned file they stand in for.
+browser_policy_firefox_policy_file_ok() { [[ -f $1 && ! -L $1 ]]; }
+browser_policy_firefox_skip_default_check "$fx_merge"
+browser_policy_firefox_skip_default_check "$fx_merge"
+[[ $(jq -c '.policies' "$fx_merge/policies.json") == '{"DisableTelemetry":true,"DontCheckDefaultBrowser":true}' ]] ||
+  fail "Firefox's default browser check is added beside an administrator's policies" "$(cat "$fx_merge/policies.json")"
+printf 'not json\n' >"$fx_merge/policies.json"
+browser_policy_firefox_skip_default_check "$fx_merge"
+[[ $(<"$fx_merge/policies.json") == "not json" ]] || fail "an unreadable Firefox policies.json is left alone"
+pass "Firefox's default browser check is merged into existing policies"

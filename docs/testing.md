@@ -62,11 +62,17 @@ Assertions are TAP-flavored and blunt:
 
 The runner compensates for that early exit: `./test/shell` continues past a failing file and summarizes the failures at the end. Aborting the whole run at the first bad file once let a single packaging failure mask 114 of 134 files. Failure granularity is therefore per file inside a run, per assertion inside a file.
 
+Each file's output is kept in a fresh directory under `$TMPDIR` (`omarchy-test-shell.*`), whose path the runner prints at the end, next to each failed file. Read a failure from its log there; running the suite again only to see output is never needed.
+
+`base-test.sh` unsets `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, `XDG_DATA_HOME` and `XDG_STATE_HOME`, so a test that points `HOME` at a scratch directory cannot reach the real home through them; a desktop session exports all four. A test that needs one sets it itself.
+
 The runner also lists files with skipped checks, including files that ran some checks or later failed. Skips do not fail a run. When no files fail, a run with skips is reported as completed without failures rather than having passed every check.
 
 ## Compositor-dependent tests
 
 Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines. `require_compositor "description"` handles this: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
+
+A test that reads the background layer's pixels off the first output also calls `require_uncovered_background "description"`, which skips unless that output's workspace is empty: in a working session a window covers the background and the test would read the window. Run such tests on an empty workspace.
 
 The probe is more than an environment check, because `WAYLAND_DISPLAY` only
 proves the variable was inherited. Sandboxes pass the environment through
@@ -83,6 +89,21 @@ writing a core dump as debris.
 Gate only what needs gating — put `require_compositor` in files whose runtime
 half needs a live session, and keep static analysis of the same area in code
 that runs unconditionally before or beside it.
+
+## Performance guards
+
+A handful of tests fail when a fast path gets slow again. Each prefers a count that is the same on every machine over a wall-clock time. Where it has to time something it takes the fastest of several runs, and either compares two paths timed in the same run or scales its budget with `process_speed_percent` from `base-test.sh`: how long 100 fork/execs take here against the 25ms they take on the laptop the budgets were set on. A machine more than 8x slower skips the timing (`require_comparable_speed`) rather than guess.
+
+- `test/shell.d/shell-idle-spawn-test.sh` starts a second shell on the default config, waits for its startup work to go quiet, then fails if it starts any process over 30 idle seconds, naming each command line. A preloaded shim (`fixtures/idle-shell/exec-log.c`, built with `cc` at test time) logs every exec, fork and spawn the shell and its descendants make, so a probe that lives for a millisecond is caught, and nothing outside the shell's process tree can be. A command that legitimately runs while idle is allowed with `allow` in that file, only while its reason holds and at most as often as the reason implies. The test watches Hyprland, UPower and NetworkManager events meanwhile; a spawn that coincides with one is given a second window before it fails, and the events are printed with it. The test shell gets stubs for everything that would act on the session (signals, power profiles, `bash -l`). Compositor-gated, and skipped without a C compiler.
+- `test/cli` times `omarchy screenshot` against help for it on a copy of the real command table, and fails unless the alias dispatch costs under a quarter of the full load (13ms against 190ms today).
+- `test/shell.d/menu-guard-budget-test.sh` runs the shipped menu's guard batch on this machine's real hardware: the batch within 200ms (about 50ms today) and each guard alone within 100ms (the slowest is about 30ms), scaled to the machine, listing the slowest guards when either fails. Skipped without `$XDG_RUNTIME_DIR`, which holds the package snapshot the menu relies on.
+- `test/shell.d/theme-set-budget-test.sh` runs the whole `omarchy-theme-set` in a scratch home where every app is a stub given its real cost (a running Hunk, VS Code's Electron boot, three tmux sessions). It fails when either theme's switch takes over 500ms scaled to the machine (about 80ms today), starts more than a handful of tmux clients, starts VS Code to list its extensions, or waits for Hunk's settle nudge.
+
+Override a budget through the environment variable named at the top of each file when measuring something slower on purpose.
+
+## Companion checkouts
+
+Some checks hold Omarchy's scripts against the packages in the separate omarchy-pkgs repository (or the installer in omarchy-iso). `find_omarchy_pkgs` sets `OMARCHY_PKGS_ROOT` to that checkout's `pkgbuilds/` directory. When `OMARCHY_PKGS_PATH` is set, only it (the checkout or its `pkgbuilds/`) is tried, and an override that doesn't resolve fails the test, so a typo never turns package checks into skips. Without the override, the usual places beside this checkout and `~/Work/omacom` are tried; finding none returns 1, and the test skips only the checks that need it, the same way a missing compositor is handled, so the suite stays green on a machine with just this repository. Point `OMARCHY_PKGS_PATH` at the checkout when running from a worktree or an unusual location.
 
 ## Unit-testing shell JavaScript from bash
 
@@ -119,6 +140,7 @@ only a live session can prove.
   executables (`sudo`, `tmux`, `gsettings`, helper commands) that log their
   arguments to a file, prepend it to `PATH`, and then run the real script
   under test. Assertions grep the call log and the files the script wrote.
+- **Login shells drop the stubs.** A `bash -l` rereads `/etc/profile`, which resets `OMARCHY_PATH` from `/etc/omarchy.conf` and puts that checkout's `bin/` ahead of the stub directory, so a command run through one reaches the real commands again. Commands that start `bash -lc` (`omarchy-theme-set` runs its app retints that way) need a `bash` stub that drops the `-l`.
 - **Fake `$HOME`, real `$OMARCHY_PATH`.** Anything touching user state runs
   with `HOME` pointed at a `mktemp -d` directory (cleaned up via
   `trap ... EXIT`) and `OMARCHY_PATH="$ROOT"`, so tests exercise the checkout

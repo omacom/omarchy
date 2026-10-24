@@ -38,12 +38,13 @@ printf '\n' >>"$OMARCHY_DEV_UNLINK_TEST_LOG"
 SH
 chmod +x "$stub_bin/gum"
 
-cat >"$stub_bin/omarchy-system-reboot" <<'SH'
+cat >"$stub_bin/omarchy-system" <<'SH'
 #!/bin/bash
+[[ $1 == "reboot" ]] || exit 2
 
 printf 'reboot\n' >>"$OMARCHY_DEV_UNLINK_TEST_LOG"
 SH
-chmod +x "$stub_bin/omarchy-system-reboot"
+chmod +x "$stub_bin/omarchy-system"
 
 run_unlink() {
   HOME="$test_tmp/home" \

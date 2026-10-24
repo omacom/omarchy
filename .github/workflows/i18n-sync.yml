@@ -1,0 +1,443 @@
+name: Sync translations
+
+# Keeps the 49 translations converged with English without blocking it.
+# Extraction runs without credentials and ships a patch; a trusted job
+# vets and publishes it to the i18n-sync branch; one credential-less Muse
+# runner per pending language translates; a single collect job lands
+# everything as one auto-merging pull request. Modeled on omarchy-site's
+# translate-news workflow; keep the Muse install pin in step with it.
+#
+# Repository settings this needs: the MUSE_API_KEY Actions secret, and an
+# I18N_SYNC_TOKEN secret (a fine-grained PAT with contents + pull-requests
+# write on this repo) so the bot's pull request triggers checks — PRs
+# created with GITHUB_TOKEN do not. Without it, the PR still opens but a
+# human must nudge it (close/reopen or push) before auto-merge can pass.
+# "Allow auto-merge" must be enabled, with i18n-check as a required status
+# check on quattro. Runs where extraction touched executable code never
+# auto-merge; they wait for a human review instead.
+on:
+  push:
+    branches: [quattro]
+    paths:
+      - 'default/i18n/en/**'
+      - 'default/omarchy/omarchy-menu.jsonc'
+      - 'default/hypr/bindings/**'
+      - 'manual/*.md'
+      - 'shell/**'
+      - 'bin/**'
+  workflow_dispatch:
+  schedule:
+    # Retry unfinished translations without delaying English.
+    - cron: '41 3 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: i18n-sync
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      locales: ${{ steps.pending.outputs.locales }}
+      extract: ${{ steps.pending.outputs.extract }}
+      has_work: ${{ steps.pending.outputs.has_work }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: quattro
+          persist-credentials: false
+      - name: Find pending translations and embedded English
+        id: pending
+        run: |
+          python3 scripts/i18n-sync.py pending > "$RUNNER_TEMP/pending.json"
+          python3 scripts/i18n-sync.py extract-scan > "$RUNNER_TEMP/scan.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          directory = Path(os.environ['RUNNER_TEMP'])
+          pending = json.loads((directory / 'pending.json').read_text())
+          scan = json.loads((directory / 'scan.json').read_text())
+          extract = bool(scan['candidates'] or scan['menuCatalogStale'] or scan.get('keybindingsCatalogStale'))
+          if extract:
+              # New English keys make every language pending.
+              registry = json.loads(Path('default/i18n/locales.json').read_text())
+              locales = sorted(code for code in registry if code != 'en')
+          else:
+              locales = pending['locales']
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f"locales={json.dumps(locales)}\n")
+              out.write(f"extract={'true' if extract else 'false'}\n")
+              out.write(f"has_work={'true' if locales or extract else 'false'}\n")
+          PY
+
+  extract:
+    needs: prepare
+    if: needs.prepare.outputs.extract == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: quattro
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install Muse
+        run: |
+          mkdir -p "$RUNNER_TEMP/muse-bin"
+          curl --fail --silent --show-error --location https://api.meta.ai/muse-launcher.sh --output "$RUNNER_TEMP/muse-bin/muse"
+          echo "c6db294799a190ca380da274beb3b9c0e160e0da9681a3d364ce8b0e5fa3a4bc  $RUNNER_TEMP/muse-bin/muse" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/muse-bin/muse"
+          MUSE_LAUNCHER_INSTALL=1 "$RUNNER_TEMP/muse-bin/muse"
+          echo "MUSE_NO_AUTO_UPDATE=1" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/muse-bin" >> "$GITHUB_PATH"
+      - name: Configure Muse
+        env:
+          MUSE_API_KEY: ${{ secrets.MUSE_API_KEY }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          key = os.environ.get('MUSE_API_KEY')
+          if not key:
+              raise SystemExit('Add the MUSE_API_KEY Actions secret to enable automatic translations.')
+          config = Path.home() / '.config/muse'
+          config.mkdir(parents=True, exist_ok=True)
+          auth = config / 'auth.json'
+          auth.write_text(json.dumps({'schema_version': 1, 'providers': {'meta': {'api_key': key}}}))
+          auth.chmod(0o600)
+          PY
+      - name: Extract embedded English into the catalogs
+        env:
+          MUSE_MODEL: ${{ vars.MUSE_MODEL || 'muse-spark-1.3-contributor' }}
+        run: python3 scripts/i18n-sync.py extract-apply --model "$MUSE_MODEL"
+      - name: Remove Muse credentials
+        if: always()
+        run: rm -f "$HOME/.config/muse/auth.json"
+      - name: Package extraction as a patch
+        run: |
+          mkdir -p "$RUNNER_TEMP/extraction"
+          git add -A -- bin shell default/i18n/en default/i18n/extract-allowlist.json
+          git diff --cached --binary --no-renames > "$RUNNER_TEMP/extraction/extract.patch"
+          if git diff --cached --name-only | grep -qE '^(bin|shell)/'; then
+            echo true > "$RUNNER_TEMP/extraction/code-touched.txt"
+          else
+            echo false > "$RUNNER_TEMP/extraction/code-touched.txt"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extraction
+          path: |
+            ${{ runner.temp }}/extraction/extract.patch
+            ${{ runner.temp }}/extraction/code-touched.txt
+          retention-days: 3
+          if-no-files-found: error
+
+  # Applies the extraction patch and runs every check that loads its code, with
+  # no credentials: an extraction may change bin/ or shell/, and the i18n test
+  # require()s shell JavaScript, so nothing that runs here may hold a token.
+  validate-extract:
+    needs: [prepare, extract]
+    if: needs.prepare.outputs.extract == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: quattro
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: extraction
+          path: ${{ runner.temp }}/extraction
+      - name: Apply the extraction and check it
+        run: |
+          if [ -s "$RUNNER_TEMP/extraction/extract.patch" ]; then
+            git apply --index "$RUNNER_TEMP/extraction/extract.patch"
+          fi
+          python3 scripts/i18n-sync.py extract-scan --check
+          I18N_STRUCTURAL=1 bash test/shell.d/i18n-test.sh
+          for f in $(git diff --cached --name-only -- bin/); do bash -n "$f"; done
+
+  # Publishes the vetted extraction to the i18n-sync branch. This job holds the
+  # write token, so it runs no repository code: only git, and the path check
+  # written inline here, on the same patch validate-extract checked.
+  publish-extract:
+    needs: [prepare, extract, validate-extract]
+    if: ${{ always() && !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.has_work == 'true' && (needs.extract.result == 'success' || needs.extract.result == 'skipped') && (needs.validate-extract.result == 'success' || needs.validate-extract.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      code_touched: ${{ steps.publish.outputs.code_touched }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: quattro
+          token: ${{ secrets.I18N_SYNC_TOKEN || github.token }}
+      - name: Download extraction patch
+        if: needs.prepare.outputs.extract == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: extraction
+          path: ${{ runner.temp }}/extraction
+      - name: Publish the extraction to the sync branch
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.I18N_SYNC_TOKEN || github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          code_touched=false
+          if [ -s "$RUNNER_TEMP/extraction/extract.patch" ]; then
+            # Decide from the patch itself, not from anything the
+            # credential-less extraction job reported about it.
+            code_touched=$(python3 - <<'PY'
+          import os, subprocess, sys
+          from pathlib import Path
+          patch = Path(os.environ['RUNNER_TEMP']) / 'extraction/extract.patch'
+          out = subprocess.run(['git', 'apply', '--numstat', '-z', str(patch)], check=True, capture_output=True).stdout
+          allowed = ('bin/', 'shell/', 'default/i18n/en/', 'default/i18n/extract-allowlist.json')
+          code = False
+          for record in out.split(b'\0'):
+              if not record:
+                  continue
+              path = record.decode().split('\t', 2)[2]
+              if not path.startswith(allowed) or '..' in Path(path).parts:
+                  sys.exit(f'extraction patch contains a disallowed path: {path}')
+              code = code or path.startswith(('bin/', 'shell/'))
+          print('true' if code else 'false')
+          PY
+            )
+            git apply --index "$RUNNER_TEMP/extraction/extract.patch"
+            git commit -m 'Extract embedded English into catalogs'
+          fi
+          echo "code_touched=$code_touched" >> "$GITHUB_OUTPUT"
+          # Executable changes must never ride an auto-merge an earlier run
+          # enabled: turn it off, and make sure it is off, before they reach
+          # the branch. A failure here stops the run before the push.
+          if [ "$code_touched" = true ]; then
+            # Only this repository's own sync branch, filtered by GitHub
+            # itself: owner:branch matches exactly that head, where gh pr list
+            # --head also matches forks and pages before any local filter.
+            pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls?head=$GITHUB_REPOSITORY_OWNER:i18n-sync&base=quattro&state=open" --jq '.[0].number // empty')
+            if [ -n "$pr" ]; then
+              if [ "$(gh pr view "$pr" --json autoMergeRequest --jq '.autoMergeRequest != null')" = true ]; then
+                gh pr merge --disable-auto "$pr"
+              fi
+              if [ "$(gh pr view "$pr" --json autoMergeRequest --jq '.autoMergeRequest != null')" != false ]; then
+                echo "Could not turn off auto-merge on #$pr; not publishing executable changes." >&2
+                exit 1
+              fi
+            fi
+          fi
+          git checkout -B i18n-sync
+          git push --force origin i18n-sync
+
+  translate:
+    needs: [prepare, publish-extract]
+    if: needs.prepare.outputs.locales != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        locale: ${{ fromJSON(needs.prepare.outputs.locales) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: i18n-sync
+          persist-credentials: false
+      - name: Install Muse
+        run: |
+          mkdir -p "$RUNNER_TEMP/muse-bin"
+          curl --fail --silent --show-error --location https://api.meta.ai/muse-launcher.sh --output "$RUNNER_TEMP/muse-bin/muse"
+          echo "c6db294799a190ca380da274beb3b9c0e160e0da9681a3d364ce8b0e5fa3a4bc  $RUNNER_TEMP/muse-bin/muse" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/muse-bin/muse"
+          MUSE_LAUNCHER_INSTALL=1 "$RUNNER_TEMP/muse-bin/muse"
+          echo "MUSE_NO_AUTO_UPDATE=1" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/muse-bin" >> "$GITHUB_PATH"
+      - name: Configure Muse
+        env:
+          MUSE_API_KEY: ${{ secrets.MUSE_API_KEY }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          key = os.environ.get('MUSE_API_KEY')
+          if not key:
+              raise SystemExit('Add the MUSE_API_KEY Actions secret to enable automatic translations.')
+          config = Path.home() / '.config/muse'
+          config.mkdir(parents=True, exist_ok=True)
+          auth = config / 'auth.json'
+          auth.write_text(json.dumps({'schema_version': 1, 'providers': {'meta': {'api_key': key}}}))
+          auth.chmod(0o600)
+          PY
+      - name: Translate this language's pending units
+        continue-on-error: true
+        env:
+          MUSE_MODEL: ${{ vars.MUSE_MODEL || 'muse-spark-1.3-contributor' }}
+          LOCALE: ${{ matrix.locale }}
+        run: python3 scripts/i18n-sync.py translate --locale "$LOCALE" --concurrency 2 --model "$MUSE_MODEL" --done-file "$RUNNER_TEMP/done.json"
+      - name: Package only this language's translations
+        env:
+          LOCALE: ${{ matrix.locale }}
+        run: python3 scripts/i18n-sync.py pack "$LOCALE" "$RUNNER_TEMP/translations" --done-file "$RUNNER_TEMP/done.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: translations-${{ matrix.locale }}
+          path: |
+            ${{ runner.temp }}/translations/*.patch
+            ${{ runner.temp }}/translations/*.done.json
+          retention-days: 3
+          if-no-files-found: error
+      - name: Remove Muse credentials
+        if: always()
+        run: rm -f "$HOME/.config/muse/auth.json"
+
+  # Collects every language's patch and validates the result, with no
+  # credentials: the sync branch can carry an unreviewed extraction, and the
+  # i18n test loads its code. The outcome leaves as a patch for land.
+  collect:
+    needs: [prepare, publish-extract, translate]
+    # Keep valid results even if a different language runner failed.
+    if: ${{ always() && !cancelled() && needs.prepare.result == 'success' && needs.publish-extract.result == 'success' && needs.prepare.outputs.has_work == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: i18n-sync
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Download completed languages
+        if: needs.prepare.outputs.locales != '[]'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: translations-*
+          path: ${{ runner.temp }}/translations
+          merge-multiple: true
+      - name: Collect completed translations
+        if: needs.prepare.outputs.locales != '[]'
+        env:
+          EXPECTED_LOCALES: ${{ needs.prepare.outputs.locales }}
+        run: |
+          expected=$(python3 -c "import json,sys; print(','.join(json.loads(sys.argv[1])))" "$EXPECTED_LOCALES")
+          python3 scripts/i18n-sync.py collect "$RUNNER_TEMP/translations" --expected "$expected"
+      - name: Validate combined translations
+        run: I18N_STRUCTURAL=1 bash test/shell.d/i18n-test.sh
+      - name: Package the collected translations
+        run: |
+          mkdir -p "$RUNNER_TEMP/collected"
+          git diff --cached --binary --no-renames > "$RUNNER_TEMP/collected/translations.patch"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: collected
+          path: ${{ runner.temp }}/collected/translations.patch
+          retention-days: 3
+          if-no-files-found: error
+      - name: Report translations still pending
+        if: always()
+        run: |
+          python3 scripts/i18n-sync.py pending > "$RUNNER_TEMP/pending.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          pending = json.loads((Path(os.environ['RUNNER_TEMP']) / 'pending.json').read_text())
+          total = sum(job['count'] for job in pending['jobs'].values())
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write(f"Pending translation units: **{total}** across {len(pending['locales'])} languages.\n\n")
+              out.write('English remains the fallback while translations catch up. Unfinished work is retried on the next run.\n')
+          PY
+
+  # Lands the collected translations as one pull request. This job holds the
+  # write token, so it runs no repository code: only git, gh, and the path
+  # check written inline here.
+  land:
+    needs: [prepare, publish-extract, collect]
+    if: ${{ always() && !cancelled() && needs.collect.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: i18n-sync
+          fetch-depth: 0
+          token: ${{ secrets.I18N_SYNC_TOKEN || github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: collected
+          path: ${{ runner.temp }}/collected
+      - name: Commit and open the auto-merging pull request
+        env:
+          GH_TOKEN: ${{ secrets.I18N_SYNC_TOKEN || github.token }}
+          CODE_TOUCHED: ${{ needs.publish-extract.outputs.code_touched }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if [ -s "$RUNNER_TEMP/collected/translations.patch" ]; then
+            # Translations, the manifest, and translated manual chapters only.
+            python3 - <<'PY'
+          import os, re, subprocess, sys
+          from pathlib import Path
+          patch = Path(os.environ['RUNNER_TEMP']) / 'collected/translations.patch'
+          out = subprocess.run(['git', 'apply', '--numstat', '-z', str(patch)], check=True, capture_output=True).stdout
+          allowed = re.compile(r'^(default/i18n/(?!en/)[a-zA-Z-]+/(menu|shell|cli|keybindings)\.json|default/i18n/translation-manifest\.json|manual/(?!en/)[a-zA-Z-]+/[^/]+\.md)$')
+          for record in out.split(b'\0'):
+              if not record:
+                  continue
+              path = record.decode().split('\t', 2)[2]
+              if not allowed.match(path):
+                  sys.exit(f'collected translations contain a disallowed path: {path}')
+          PY
+            git apply --index "$RUNNER_TEMP/collected/translations.patch"
+          fi
+          git fetch origin quattro
+          changed=false
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update translations'
+            changed=true
+          fi
+          git push origin i18n-sync
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls?head=$GITHUB_REPOSITORY_OWNER:i18n-sync&base=quattro&state=open" --jq '.[0].number // empty')
+          if [ -z "$pr" ]; then
+            if [ "$changed" = true ] || [ "$(git rev-list --count origin/quattro..HEAD)" -gt 0 ]; then
+              pr=$(gh pr create --base quattro --head i18n-sync --title 'Update translations' --body 'Automated translation sync: extracts embedded English into the catalogs and fills pending translations for all 49 languages. Generated by the Sync translations workflow; merges automatically once i18n-check passes.')
+              pr=$(basename "$pr")
+            fi
+          fi
+          if [ -n "$pr" ]; then
+            if [ "$CODE_TOUCHED" = true ]; then
+              # An earlier run may have enabled auto-merge on this pull
+              # request; executable changes must wait for a person.
+              if [ "$(gh pr view "$pr" --json autoMergeRequest --jq '.autoMergeRequest != null')" = true ]; then
+                gh pr merge --disable-auto "$pr"
+              fi
+              gh pr comment "$pr" --body 'This sync includes an automated extraction that changed executable code under `bin/` or `shell/`, so auto-merge is off: please review those hunks before merging.'
+              echo "Extraction touched code; PR #$pr waits for human review."
+            else
+              gh pr merge --auto --squash "$pr" || echo "Auto-merge could not be enabled for #$pr (enable 'Allow auto-merge' in repository settings); the PR is left open for a human."
+            fi
+          fi

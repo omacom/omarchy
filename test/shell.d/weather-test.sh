@@ -31,6 +31,13 @@ assertEqual(weather.wttrLocationQuery('Malibu', 'nope', -118.7804), 'Malibu', 'w
 assertEqual(weather.wttrLocationQuery('', null, null), '', 'weather falls back to IP auto-detect without a location')
 assertEqual(weather.wttrLocationQuery('  ', null, null), '', 'weather treats a blank location as unset')
 
+const unset = weather.parseLocationFile('')
+const detected = weather.parseLocationFile('{"name":"Amsterdam","latitude":52.37403,"longitude":4.88969,"country":"NL","timezone":"Europe/Amsterdam"}')
+assertDeepEqual(detected, { name: 'Amsterdam', latitude: 52.37403, longitude: 4.88969 }, 'weather reads a geo.omarchy.org answer with the weather.json parser')
+assertDeepEqual(weather.effectiveLocation(unset, detected), detected, 'weather reports for the detected place when none is stored')
+assertDeepEqual(weather.effectiveLocation({ name: 'New York', latitude: null, longitude: null }, detected).name, 'New York', 'weather keeps a stored name over the detected place')
+assertDeepEqual(weather.effectiveLocation({ name: '', latitude: 34.02577, longitude: -118.7804 }, detected).latitude, 34.02577, 'weather keeps stored coordinates over the detected place')
+
 assertDeepEqual(
   weather.parseGeocodingResults(JSON.stringify({
     results: [
@@ -182,3 +189,14 @@ pass "weather location rejects malformed coordinates"
 weather_location --clear
 [[ ! -e "$test_tmp/.local/state/omarchy/settings/weather.json" ]] || fail "weather location clear removes the state file"
 pass "weather location clear removes the state file"
+
+mkdir -p "$test_tmp/bin"
+cat >"$test_tmp/bin/curl" <<'EOF'
+#!/bin/bash
+printf '%s\n' "${@: -1}" >>"$HOME/curl-urls"
+printf '%s\n' '{"name":"Amsterdam","latitude":52.37403,"longitude":4.88969,"country":"NL","timezone":"Europe/Amsterdam"}'
+EOF
+chmod +x "$test_tmp/bin/curl"
+[[ $(PATH="$test_tmp/bin:$PATH" weather_location) == "Amsterdam" ]] || fail "weather location names the place geo.omarchy.org detected"
+[[ $(cat "$test_tmp/curl-urls") == "https://geo.omarchy.org/" ]] || fail "weather location asks only geo.omarchy.org" "$(cat "$test_tmp/curl-urls")"
+pass "weather location names the place geo.omarchy.org detected when none is stored"

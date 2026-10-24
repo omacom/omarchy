@@ -103,6 +103,8 @@ mkdir -p "$fresh_home"
 fresh_output=$(run_application_bindings "$fresh_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$fresh_output" || fail "default application bindings include essentials"
 grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$fresh_output" || fail "default application bindings include preinstalled web apps"
+grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$fresh_output" || fail "default application bindings include the preinstalled calculator"
+grep -Fq $'XF86Calculator	Calculator' <<<"$fresh_output" || fail "default application bindings include the calculator hardware key"
 pass "default application bindings load from package defaults"
 
 grep -F 'hl.dsp.send_key_state({ mods = mods, key = key, state = "down" })' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
@@ -122,19 +124,25 @@ pass "universal clipboard shortcuts avoid virtual keyboard modifier merging"
 removed_home="$tmpdir/removed-home"
 mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
-removed_output=$(run_application_bindings "$removed_home")
+removed_output=$(run_omarchy_bindings "$removed_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$removed_output" || fail "preinstall removal keeps essential bindings"
 if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$removed_output"; then
   fail "preinstall removal skips preinstalled web app bindings"
+fi
+if grep -Fq $'	Calculator' <<<"$removed_output"; then
+  fail "preinstall removal skips calculator bindings"
 fi
 pass "preinstall removal flag skips optional application bindings"
 
 variable_home="$tmpdir/variable-home"
 mkdir -p "$variable_home"
-variable_output=$(run_application_bindings "$variable_home" 'omarchy_preinstalled_bindings = false')
+variable_output=$(run_omarchy_bindings "$variable_home" 'omarchy_preinstalled_bindings = false')
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$variable_output" || fail "preinstalled binding variable keeps essential bindings"
 if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$variable_output"; then
   fail "preinstalled binding variable skips optional application bindings"
+fi
+if grep -Fq $'	Calculator' <<<"$variable_output"; then
+  fail "preinstalled binding variable skips calculator bindings"
 fi
 pass "preinstalled binding variable skips optional application bindings"
 
@@ -158,6 +166,10 @@ echo future-backend
 SH
 chmod +x "$missing_bin/omarchy-default-dictation"
 dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
+if grep -Fq 'dictation' <<<"$dictation_output"; then fail "a selected backend that is not installed leaves application shortcuts available"; fi
+printf '#!/bin/bash\nexit 0\n' > "$missing_bin/future-backend"
+chmod +x "$missing_bin/future-backend"
+dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
 for binding in \
   $'SUPER + CTRL + X\tToggle dictation' \
   $'F9\tStart dictation (push-to-talk)' \
@@ -166,7 +178,7 @@ for binding in \
   $'ALT + Alt_R\tStop dictation (push-to-talk)'; do
   grep -Fq "$binding" <<<"$dictation_output" || fail "dictation bindings load for any selected backend" "$binding"
 done
-pass "dictation bindings require a selection without hardcoding backends"
+pass "dictation bindings require an installed selection without hardcoding backends"
 
 # Lazydocker is optional on new installs, while existing installs keep the hotkey.
 lazydocker_bin="$tmpdir/lazydocker-bin"

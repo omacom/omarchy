@@ -822,6 +822,26 @@ def limit_window(window):
   }
 
 
+# A spend cap can be returned without any rate windows, as observed on a
+# Business seat. Its snapshot gives a reset time but no period, so don't
+# infer a frequency from the plan or date. Use the amounts for the share;
+# remainingPercent only has whole-percent precision.
+def spend_limit(snapshot):
+  if not isinstance(snapshot, dict):
+    return None
+  try:
+    cap = float(snapshot.get("limit"))
+    used = float(snapshot.get("used")) / cap if cap > 0 else 1 - float(snapshot.get("remainingPercent")) / 100
+  except (TypeError, ValueError):
+    return None
+  reset = snapshot.get("resetsAt")
+  return {
+    "label": "Spend limit",
+    "percent": max(0.0, min(1.0, used)),
+    "resetsAt": datetime.fromtimestamp(number(reset), timezone.utc).isoformat() if reset else "",
+  }
+
+
 def codex_rpc_help(proc, stderr_file, exc):
   """Explain an app-server RPC failure: a live server's stall, a dead one's own
   stderr, or the login hint when it died saying nothing."""
@@ -960,6 +980,9 @@ def fetch_codex_rpc(home=None):
       entry = limit_window(window)
       if entry:
         result["limits"].append(entry)
+    entry = spend_limit(limits.get("individualLimit"))
+    if entry:
+      result["limits"].append(entry)
 
     # OpenAI hands out free "full reset" credits that wipe the rate limits on
     # demand and lapse after a month. Worth knowing about before a limit bites.

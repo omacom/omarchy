@@ -54,7 +54,7 @@ collect() {
 # Accounts can be signed in to someone else since they were added; the
 # records name them from the registry, so bring it up to date first.
 accounts_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/accounts"
-if [[ -f $accounts_dir/claude.json || -f $accounts_dir/codex.json || -f $accounts_dir/grok.json ]]; then
+if [[ -d $accounts_dir ]]; then
   "$OMARCHY_PATH/bin/omarchy-agent-account-state" refresh
 fi
 

@@ -106,8 +106,30 @@ for virt in vm none; do
   HOME="$test_home" OMARCHY_PATH="$ROOT" bash "$ROOT/install/user/hardware/vm-no-animations.sh" >/dev/null
   if [[ $virt == "vm" ]]; then
     [[ -f $animations_flag ]] || fail "a VM install turns animations off"
+    [[ -f ${animations_flag%/*}/window-opaque.lua ]] || fail "a VM install starts with opaque windows"
   else
     [[ ! -f $animations_flag ]] || fail "a machine that is not a VM keeps its animations"
+    [[ ! -f ${animations_flag%/*}/window-opaque.lua ]] || fail "a machine that is not a VM keeps transparent windows"
   fi
 done
-pass "a VM install starts without animations"
+pass "a VM install starts without animations and with opaque windows"
+
+# Animations off no longer makes windows opaque. The migration takes that rule
+# out of a saved flag, keeping anything else in it, and keeps those windows
+# opaque through Window Opacity instead.
+migration_home=$(mktemp -d)
+migration_flags="$migration_home/.local/state/omarchy/toggles/hypr"
+mkdir -p "$migration_flags"
+printf 'hl.config({ animations = { enabled = false } })\n\no.window(".*", { opacity = "1 1" })\n-- mine\n' >"$migration_flags/no-animations.lua"
+for _ in 1 2; do
+  HOME="$migration_home" XDG_STATE_HOME="" OMARCHY_PATH="$ROOT" bash -euo pipefail "$ROOT/migrations/1791705142.sh" >/dev/null
+done
+! grep -q 'opacity' "$migration_flags/no-animations.lua" || fail "the migration drops the opacity rule from a saved animations flag"
+grep -qx -- '-- mine' "$migration_flags/no-animations.lua" || fail "the migration keeps the rest of a saved animations flag"
+[[ -f $migration_flags/window-opaque.lua ]] || fail "the migration keeps windows opaque where animations are off"
+rm -f "$migration_flags/window-opaque.lua"
+printf 'x\n' >"$migration_flags/window-glassy.lua"
+HOME="$migration_home" XDG_STATE_HOME="" OMARCHY_PATH="$ROOT" bash -euo pipefail "$ROOT/migrations/1791705142.sh" >/dev/null
+[[ ! -f $migration_flags/window-opaque.lua ]] || fail "the migration leaves a chosen transparency alone"
+rm -rf "$migration_home"
+pass "the migration moves opaque windows from the animations flag to Window Opacity"

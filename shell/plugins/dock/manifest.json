@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.dock",
+  "name": "Dock",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "App dock shown on floating workspaces",
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "Dock.qml"
+  }
+}

@@ -74,4 +74,9 @@ assert(
     /function prepareBackground[\s\S]*?requestNativeSize\(path\)/.test(backgroundQml),
   'background never probes videos and probes a prepared frame ahead of its transition'
 )
+
+assert(
+  /id: revealAnimation[\s\S]*?duration: Style\.duration\(840\)/.test(backgroundQml),
+  'background reveal takes 840ms'
+)
 JS

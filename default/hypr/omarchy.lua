@@ -5,9 +5,12 @@ local require_optional = require("default.hypr.require_optional")
 
 -- Use Omarchy defaults, but don't edit these directly.
 require("default.hypr.autostart")
+require("default.hypr.monitor-workspaces")
 if _G.omarchy_default_bindings ~= false then
   require("default.hypr.bindings.media")
   require("default.hypr.bindings.clipboard")
+  require("default.hypr.bindings.input-method")
+  require("default.hypr.bindings.jis")
   require("default.hypr.bindings.tiling")
   require("default.hypr.bindings.utilities")
   require("default.hypr.bindings.dictation")
