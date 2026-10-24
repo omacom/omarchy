@@ -31,6 +31,7 @@ QtObject {
   id: root
 
   property int cornerRadius: 0
+  property real cornerRoundingPower: 2
   property int gapsOut: 5
 
   // ---------------------------------------------------------- state tokens
@@ -368,6 +369,7 @@ QtObject {
 
   function refresh() {
     hyprctlProc.running = true
+    roundingPowerProc.running = true
     gapsOutProc.running = true
     animationsProc.running = true
   }
@@ -383,6 +385,16 @@ QtObject {
       if (isFinite(n) && n >= 0) cornerRadius = n
     } catch (e) {
       // hyprctl missing / Hyprland not running — leave the previous value.
+    }
+  }
+
+  function applyRoundingPowerJson(raw) {
+    try {
+      var json = JSON.parse(raw || "{}")
+      if (typeof json.float === "number" && isFinite(json.float))
+        cornerRoundingPower = Math.max(1, Math.min(json.float, 10))
+    } catch (e) {
+      // Keep the previous value when Hyprland is unavailable.
     }
   }
 
@@ -459,6 +471,13 @@ QtObject {
     barScaleWithFont = nextBarScaleWithFont
     spacingOverrides = spacingOut
     styleOverrides = styleOut
+  }
+
+  property Process roundingPowerProc: Process {
+    command: ["hyprctl", "-j", "getoption", "decoration:rounding_power"]
+    stdout: StdioCollector {
+      onStreamFinished: root.applyRoundingPowerJson(text)
+    }
   }
 
   property Process hyprctlProc: Process {
