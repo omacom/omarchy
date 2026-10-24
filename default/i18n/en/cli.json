@@ -70,6 +70,8 @@
   "crash.captureEnabled": "Crash capture enabled",
   "crash.diagnose": "Click to diagnose with AI",
   "crash.processCrashed": "Process crashed: %1",
+  "ddcBlank.disabled": "Monitors now sleep with DPMS",
+  "ddcBlank.enabled": "Monitors now sleep over DDC/CI",
   "default.browserSet": "%1 is now the default browser",
   "default.editorSet": "%1 is now the default editor",
   "default.terminalSet": "%1 is now the default terminal",
