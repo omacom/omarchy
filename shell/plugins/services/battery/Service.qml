@@ -52,6 +52,10 @@ Item {
     warningProcess.running = true
   }
 
+  function dismissLowBatteryWarningOnAc() {
+    Quickshell.execDetached(["bash", "-c", "omarchy-power-present && omarchy-notification-dismiss 'Time to recharge'"])
+  }
+
   function applyPowerProfile() {
     pendingPowerSource = UPower.onBattery ? "battery" : "ac"
     if (!powerProfileProcess.running) runPendingPowerProfile()
@@ -83,7 +87,10 @@ Item {
     }
   }
 
-  Process { id: warningProcess }
+  Process {
+    id: warningProcess
+    onExited: root.dismissLowBatteryWarningOnAc()
+  }
 
   Process {
     id: powerProfileProcess
@@ -137,6 +144,7 @@ Item {
     target: UPower
     function onOnBatteryChanged() {
       root.checkBattery()
+      root.dismissLowBatteryWarningOnAc()
       root.applyPowerProfile()
       root.refreshPowerProfile()
     }
