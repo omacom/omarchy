@@ -19,5 +19,10 @@ omarchy-update-pacman -Suu --noconfirm
 
 # Ensure this platform's default packages are installed
 default_packages=$(omarchy-pkg-defaults)
+# pipewire-jack conflicts with jack and jack2, and --noconfirm answers that with
+# no and fails the whole transaction, so a machine that kept either keeps it.
+if omarchy-pkg-present jack2 || omarchy-pkg-present jack; then
+  default_packages=$(grep -vx pipewire-jack <<<"$default_packages")
+fi
 mapfile -t packages <<<"$default_packages"
 omarchy-update-pacman -Syu --noconfirm --needed "${packages[@]}"
