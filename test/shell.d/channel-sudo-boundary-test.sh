@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 copy_boundary_file bin/omarchy-channel-set
 copy_boundary_file bin/omarchy-refresh-pacman
+copy_boundary_file bin/omarchy-apply-pacman
 copy_boundary_file bin/omarchy-update
 export OMARCHY_UPDATE_LOGGED=1
 
@@ -83,8 +84,9 @@ for platform in aarch64 aarch64-apple; do
     reset_boundary
     SUDO_TEST_PLATFORM=$platform run_channel "$channel" || fail "$platform $channel failed" "$(<"$boundary_tmp/output")"
     assert_scoped_channel "$platform $channel"
-    grep -Fqx "step:cp -f $root/$templates/pacman-$pacman_channel.conf /etc/pacman.conf" "$SUDO_TEST_LOG" ||
-      fail "$platform $channel copies its own template" "$(<"$SUDO_TEST_LOG")"
+    # The caller renders from the platform's template; root copies the result.
+    grep -Eq "^step:cp $root/$templates/pacman-$pacman_channel.conf [^ ]+/pacman.conf\$" "$SUDO_TEST_LOG" ||
+      fail "$platform $channel renders its own template" "$(<"$SUDO_TEST_LOG")"
   done
 done
 pass "aarch64 platforms switch to every channel they have templates for through their own templates"

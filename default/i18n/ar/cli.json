@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 س",
   "battery.durationHoursMinutes": "%1 س %2 د",
   "battery.durationMinutes": "%1 د",
+  "battery.fullyCharged": "مشحونة بالكامل",
   "battery.holdingAt": "ثابتة عند %1",
   "battery.lowBody": "انخفضت البطارية إلى %1%",
   "battery.lowTitle": "حان وقت الشحن!",

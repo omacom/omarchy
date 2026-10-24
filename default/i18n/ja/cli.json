@@ -32,6 +32,7 @@
   "battery.durationHours": "%1時間",
   "battery.durationHoursMinutes": "%1時間%2分",
   "battery.durationMinutes": "%1分",
+  "battery.fullyCharged": "満充電",
   "battery.holdingAt": "%1で維持中",
   "battery.lowBody": "バッテリー残量が %1% まで低下しています",
   "battery.lowTitle": "充電してください！",

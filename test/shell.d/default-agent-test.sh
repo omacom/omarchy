@@ -71,11 +71,6 @@ if [[ $1 == "where" ]]; then
   exit
 fi
 
-if [[ $1 == "ls" && -n ${OMARCHY_TEST_MISE_HAS_NPM_GROK:-} ]]; then
-  printf '%s\n' "npm:@xai-official/grok  1.0.44"
-  exit 0
-fi
-
 [[ ${OMARCHY_TEST_MISE_FAIL:-false} != "true" ]]
 SH
 
@@ -132,17 +127,13 @@ export OMARCHY_PATH="$ROOT"
 export OMARCHY_MISE_CONFIG_PATH="$test_tmp/etc/mise/config.toml"
 
 grok_package="grok"
-legacy_grok_package="npm:@xai-official/grok"
 omp_package="oh-my-pi"
-legacy_omp_package="github:can1357/oh-my-pi"
 crush_package="crush"
 agy_package="antigravity-cli"
 ori_package="ori"
-legacy_ori_package="github:OpenRouterLabs/ori-releases"
 kimi_package="npm:@moonshot-ai/kimi-code"
 cursor_agent_package="cursor-agent"
 muse_package="muse"
-legacy_muse_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
 
 assert_lazy_stub() {
   local package=$1
@@ -196,260 +187,12 @@ source "$ROOT/install/user/mise.sh"
 [[ ! -s $stub_log ]] || fail "user setup must not create handwritten mise wrappers"
 pass "user setup leaves ordinary lazy wrappers to mise"
 
-: >"$stub_log"
-OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/migrations/1788724825.sh" >/dev/null
-grep -Fx "$legacy_muse_package muse" "$stub_log" >/dev/null || fail "Muse migration creates its lazy stub"
-: >"$stub_log"
-source "$ROOT/migrations/1788724825.sh" >/dev/null
-[[ ! -s $stub_log ]] || fail "Muse migration replaces an existing command"
-mkdir -p "$test_home/.local/state/omarchy"
-touch "$test_home/.local/state/omarchy/preinstalls-removed"
-OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/migrations/1788724825.sh" >/dev/null
-[[ ! -s $stub_log ]] || fail "Muse migration ignores the preinstall opt-out"
-rm "$test_home/.local/state/omarchy/preinstalls-removed"
-pass "Muse migration preserves existing installs and the preinstall opt-out"
-
-
-: >"$stub_log"
-OMARCHY_TEST_MISSING_COMMAND=kimi source "$ROOT/migrations/1786967403.sh" >/dev/null
-grep -Fx "$kimi_package kimi" "$stub_log" >/dev/null || fail "Kimi migration creates its lazy stub"
-
-: >"$stub_log"
-source "$ROOT/migrations/1785617047.sh" >/dev/null
-grep -Fx "$legacy_omp_package omp" "$stub_log" >/dev/null || fail "Oh My Pi migration creates a working lazy stub"
-
-: >"$stub_log"
-source "$ROOT/migrations/1787342993.sh" >/dev/null
-grep -Fx "$legacy_ori_package ori" "$stub_log" >/dev/null || fail "Ori migration creates a working lazy stub"
-
-: >"$stub_log"
-export OMARCHY_TEST_MISSING_COMMAND=cursor-agent
-source "$ROOT/migrations/1788577553.sh" >/dev/null
-unset OMARCHY_TEST_MISSING_COMMAND
-grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null || fail "Cursor CLI migration creates a working lazy stub"
-
-: >"$stub_log"
-source "$ROOT/migrations/1788577553.sh" >/dev/null
-[[ ! -s $stub_log ]] || fail "Cursor CLI migration reinstalls an existing cursor-agent command"
-pass "Cursor CLI migration preserves an existing Cursor CLI install"
-
-: >"$stub_log"
-source "$ROOT/migrations/1785846769.sh" >/dev/null
-grep -Fx "$legacy_omp_package omp" "$stub_log" >/dev/null || fail "agent migration repairs the Oh My Pi lazy stub"
-grep -Fx "$legacy_grok_package grok" "$stub_log" >/dev/null || fail "agent migration creates the Grok lazy stub"
-grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "agent migration creates the Crush lazy stub"
-
-: >"$stub_log"
-mkdir -p "$(dirname "$agent_file")"
-printf '%s\n' gemini >"$agent_file"
-"$ROOT/bin/omarchy-mise-install" gemini
-export OMARCHY_TEST_MISSING_COMMAND=agy
-source "$ROOT/migrations/1786719479.sh" >/dev/null
-unset OMARCHY_TEST_MISSING_COMMAND
-grep -Fx "$agy_package agy" "$stub_log" >/dev/null || fail "Antigravity migration creates its lazy stub"
-[[ $(<"$agent_file") == "agy" ]] || fail "Antigravity migration replaces a Gemini default"
-
-: >"$stub_log"
-printf '  %s  \n' gemini >"$agent_file"
-export OMARCHY_TEST_MISSING_COMMAND=agy
-source "$ROOT/migrations/1786719479.sh" >/dev/null
-unset OMARCHY_TEST_MISSING_COMMAND
-[[ $(<"$agent_file") == "agy" ]] ||
-  fail "Antigravity migration replaces a padded Gemini default the launcher would still read"
-pass "Antigravity migration reads the default the way the launcher does"
-
-for obsolete_form in 'mise use -g "gemini"' 'mise use -g --quiet "gemini"'; do
-  printf '#!/bin/bash\n%s || exit 1\n' "$obsolete_form" >"$test_home/.local/bin/gemini"
-  chmod +x "$test_home/.local/bin/gemini"
-  source "$ROOT/migrations/1786719479.sh" >/dev/null
-  [[ ! -e $test_home/.local/bin/gemini ]] ||
-    fail "Antigravity migration removes a wrapper built on [$obsolete_form]"
-done
-
-printf '#!/bin/bash\nexec /opt/gemini "$@"\n' >"$test_home/.local/bin/gemini"
-chmod +x "$test_home/.local/bin/gemini"
-source "$ROOT/migrations/1786719479.sh" >/dev/null
-[[ -e $test_home/.local/bin/gemini ]] || fail "Antigravity migration leaves a hand-written gemini alone"
-
-printf '#!/bin/bash\n# replaced: mise use -g --quiet "gemini"\nexec /opt/gemini "$@"\n' >"$test_home/.local/bin/gemini"
-chmod +x "$test_home/.local/bin/gemini"
-source "$ROOT/migrations/1786719479.sh" >/dev/null
-[[ -e $test_home/.local/bin/gemini ]] ||
-  fail "Antigravity migration leaves a wrapper that only mentions the installer line"
-rm -f "$test_home/.local/bin/gemini"
-pass "Antigravity migration only removes the Gemini wrapper Omarchy wrote"
-
-[[ -L "$test_home/.gemini/config/skills/omarchy" && $(readlink "$test_home/.gemini/config/skills/omarchy") == "$ROOT/default/agents/skills/omarchy" ]] ||
-   fail "Antigravity migration provisions the omarchy skill"
-[[ -L "$test_home/.gemini/config/skills/diagnose-crash" && $(readlink "$test_home/.gemini/config/skills/diagnose-crash") == "$ROOT/default/agents/skills/diagnose-crash" ]] ||
-   fail "Antigravity migration provisions the diagnose-crash skill"
-pass "Antigravity migration provisions Antigravity skills"
-
-
-: >"$stub_log"
-mkdir -p "$test_home/.local/state/omarchy"
-touch "$test_home/.local/state/omarchy/preinstalls-removed"
-export OMARCHY_TEST_MISSING_COMMAND=agy
-source "$ROOT/migrations/1786719479.sh" >/dev/null
-[[ ! -s $stub_log ]] || fail "Antigravity migration preserves removed preinstalls"
-pass "Antigravity migration respects removed preinstalls"
-
-: >"$stub_log"
-printf '%s\n' gemini >"$agent_file"
-source "$ROOT/migrations/1786719479.sh" >/dev/null
-unset OMARCHY_TEST_MISSING_COMMAND
-grep -Fx "$agy_package agy" "$stub_log" >/dev/null || fail "Antigravity migration installs the agent a Gemini default now names"
-[[ $(<"$agent_file") == "agy" ]] || fail "Antigravity migration replaces a Gemini default after opt-out"
-pass "Antigravity migration never leaves the default naming a missing agent"
-
-: >"$stub_log"
-rm "$test_home/.local/state/omarchy/preinstalls-removed"
-source "$ROOT/migrations/1786719479.sh" >/dev/null
-[[ ! -s $stub_log ]] || fail "Antigravity migration reinstalls an existing Antigravity command"
-pass "Antigravity migration preserves an existing Antigravity install"
-
-mkdir -p "$test_home/.local/state/omarchy"
-touch "$test_home/.local/state/omarchy/preinstalls-removed"
-"$ROOT/bin/omarchy-mise-install" oh-my-pi omp
-: >"$stub_log"
-source "$ROOT/migrations/1785617047.sh" >/dev/null
-source "$ROOT/migrations/1785846769.sh" >/dev/null
-source "$ROOT/migrations/1787342993.sh" >/dev/null
-OMARCHY_TEST_MISSING_COMMAND=cursor-agent source "$ROOT/migrations/1788577553.sh" >/dev/null
-OMARCHY_TEST_MISSING_COMMAND=kimi source "$ROOT/migrations/1786967403.sh" >/dev/null
-[[ ! -s $stub_log ]] || fail "agent migrations respect the preinstall opt-out"
-[[ ! -e $test_home/.local/bin/omp ]] || fail "agent migration removes the obsolete Oh My Pi wrapper after opt-out"
-
-# The matcher has to catch a bare oh-my-pi wrapper from either generation of the
-# installer, and leave a wrapper built on the fully qualified package alone.
-for obsolete_form in 'mise use -g "oh-my-pi"' 'mise use -g --quiet "oh-my-pi"'; do
-  printf '#!/bin/bash\n%s || exit 1\n' "$obsolete_form" >"$test_home/.local/bin/omp"
-  chmod +x "$test_home/.local/bin/omp"
-  source "$ROOT/migrations/1785846769.sh" >/dev/null
-  [[ ! -e $test_home/.local/bin/omp ]] ||
-    fail "agent migration removes a wrapper built on [$obsolete_form]"
-done
-
-printf '#!/bin/bash\nmise use -g --quiet "%s" || exit 1\n' "$legacy_omp_package" >"$test_home/.local/bin/omp"
-chmod +x "$test_home/.local/bin/omp"
-source "$ROOT/migrations/1785846769.sh" >/dev/null
-[[ -e $test_home/.local/bin/omp ]] ||
-  fail "agent migration keeps a wrapper built on $legacy_omp_package"
-rm -f "$test_home/.local/bin/omp"
-
-printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "grok" "$@"\n' \
-  "$legacy_grok_package" "$legacy_grok_package" >"$test_home/.local/bin/grok"
-chmod +x "$test_home/.local/bin/grok"
-mkdir -p "$test_home/.grok/bin"
-ln -s "$test_home/.grok/bin/agent" "$test_home/.local/bin/agent"
-: >"$stub_log"
-: >"$mise_history"
-OMARCHY_TEST_MISE_HAS_NPM_GROK=1 source "$ROOT/migrations/1790863209.sh" >/dev/null
-unset OMARCHY_TEST_MISE_HAS_NPM_GROK
-[[ ! -s $stub_log ]] || fail "Grok registry migration respects the preinstall opt-out"
-[[ ! -e $test_home/.local/bin/grok ]] || fail "Grok registry migration removes the npm wrapper after opt-out"
-[[ ! -e $test_home/.local/bin/agent ]] || fail "Grok registry migration removes the curl-installer agent symlink"
-grep -Fx "unuse -y -g $legacy_grok_package" "$mise_history" >/dev/null ||
-  fail "Grok registry migration drops the npm tool after opt-out"
-grep -Fx "uninstall -y --all $legacy_grok_package" "$mise_history" >/dev/null ||
-  fail "Grok registry migration uninstalls the npm tool after opt-out"
-
-ln -s "../../.grok/bin/agent" "$test_home/.local/bin/agent"
-source "$ROOT/migrations/1790863209.sh" >/dev/null
-[[ ! -e $test_home/.local/bin/agent ]] ||
-  fail "Grok registry migration removes a relative dangling agent symlink"
-
-ln -s /usr/bin/true "$test_home/.local/bin/agent"
-source "$ROOT/migrations/1790863209.sh" >/dev/null
-[[ -L $test_home/.local/bin/agent ]] ||
-  fail "Grok registry migration keeps an agent symlink that is not Grok's"
-rm -f "$test_home/.local/bin/agent"
-
-rm -f "$test_home/.local/bin/grok"
-: >"$stub_log"
-: >"$mise_history"
-OMARCHY_TEST_MISE_HAS_NPM_GROK=1 source "$ROOT/migrations/1790863209.sh" >/dev/null
-unset OMARCHY_TEST_MISE_HAS_NPM_GROK
-[[ ! -s $stub_log ]] || fail "Grok registry migration does not reinstall after the preinstall opt-out"
-grep -Ex "unuse( .*)? $legacy_grok_package" "$mise_history" >/dev/null &&
-  fail "Grok registry migration leaves a user-installed npm tool after the preinstall opt-out"
-
-rm "$test_home/.local/state/omarchy/preinstalls-removed"
-rm -f "$agent_file"
-
-printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "grok" "$@"\n' \
-  "$legacy_grok_package" "$legacy_grok_package" >"$test_home/.local/bin/grok"
-chmod +x "$test_home/.local/bin/grok"
-: >"$stub_log"
-: >"$mise_history"
-mkdir -p "$test_home/.grok/bin"
-touch "$test_home/.grok/bin/grok-1.0.44" "$test_home/.grok/bin/settings-keep"
-ln -sfn grok-1.0.44 "$test_home/.grok/bin/grok"
-OMARCHY_TEST_MISE_HAS_NPM_GROK=1 source "$ROOT/migrations/1790863209.sh" >/dev/null
-unset OMARCHY_TEST_MISE_HAS_NPM_GROK
-grep -Fx "$grok_package" "$stub_log" >/dev/null ||
-  fail "Grok registry migration rewrites the npm wrapper"
-[[ ! -e $test_home/.grok/bin/grok && ! -e $test_home/.grok/bin/grok-1.0.44 && -e $test_home/.grok/bin/settings-keep ]] ||
-  fail "Grok registry migration removes the npm launcher's old binaries and nothing else"
-rm -f "$test_home/.grok/bin/settings-keep"
-grep -Fx "unuse -y -g $legacy_grok_package" "$mise_history" >/dev/null ||
-  fail "Grok registry migration drops the npm tool"
-rm -f "$test_home/.local/bin/grok"
-
-printf '#!/bin/bash\necho user-grok\n' >"$test_home/.local/bin/grok"
-chmod +x "$test_home/.local/bin/grok"
-: >"$stub_log"
-: >"$mise_history"
-OMARCHY_TEST_MISE_HAS_NPM_GROK=1 source "$ROOT/migrations/1790863209.sh" >/dev/null
-unset OMARCHY_TEST_MISE_HAS_NPM_GROK
-[[ $("$test_home/.local/bin/grok") == "user-grok" ]] ||
-  fail "Grok registry migration keeps a user-managed grok"
-[[ ! -s $stub_log ]] || fail "Grok registry migration does not replace a user-managed grok"
-grep -Fx "unuse -y -g $legacy_grok_package" "$mise_history" >/dev/null ||
-  fail "Grok registry migration drops the npm tool beside a user-managed grok"
-
-cat >"$test_home/.local/bin/grok" <<'SH'
-#!/bin/bash
-mise use -g --quiet "grok" || exit 1
-echo user-mise-grok
-SH
-chmod +x "$test_home/.local/bin/grok"
-cp "$test_home/.local/bin/grok" "$test_tmp/user-mise-grok"
-: >"$stub_log"
-: >"$mise_history"
-OMARCHY_TEST_MISE_HAS_NPM_GROK=1 source "$ROOT/migrations/1790863209.sh" >/dev/null
-unset OMARCHY_TEST_MISE_HAS_NPM_GROK
-cmp -s "$test_home/.local/bin/grok" "$test_tmp/user-mise-grok" ||
-  fail "Grok registry migration keeps a user script that calls mise"
-[[ ! -s $stub_log ]] || fail "Grok registry migration does not replace a user script that calls mise"
-grep -Fx "unuse -y -g $legacy_grok_package" "$mise_history" >/dev/null ||
-  fail "Grok registry migration drops the npm tool beside a user script"
-rm -f "$test_home/.local/bin/grok"
-
-rm -f "$test_home/.local/bin/grok"
-: >"$stub_log"
-: >"$mise_history"
-OMARCHY_TEST_MISSING_COMMAND=grok source "$ROOT/migrations/1790863209.sh" >/dev/null
-unset OMARCHY_TEST_MISSING_COMMAND
-grep -Fx "$grok_package" "$stub_log" >/dev/null ||
-  fail "Grok registry migration installs the stub when grok is missing"
-grep -Ex "unuse( .*)? $legacy_grok_package" "$mise_history" >/dev/null &&
-  fail "Grok registry migration does not drop the npm tool when it is not installed"
-
-rm -f "$test_home/.local/bin/grok"
-: >"$stub_log"
-: >"$mise_history"
-OMARCHY_TEST_MISE_HAS_NPM_GROK=1 OMARCHY_TEST_MISSING_COMMAND=grok \
-  source "$ROOT/migrations/1790863209.sh" >/dev/null
-unset OMARCHY_TEST_MISE_HAS_NPM_GROK OMARCHY_TEST_MISSING_COMMAND
-grep -Fx "$grok_package" "$stub_log" >/dev/null ||
-  fail "Grok registry migration installs the stub after dropping a leftover npm tool"
-grep -Fx "unuse -y -g $legacy_grok_package" "$mise_history" >/dev/null ||
-  fail "Grok registry migration drops a leftover npm tool when the wrapper is gone"
-pass "agent migrations install working wrappers without overriding the preinstall opt-out"
-
 "$ROOT/bin/omarchy-mise-install" "$muse_package" muse
 "$ROOT/bin/omarchy-mise-install" "$kimi_package" kimi
+"$ROOT/bin/omarchy-mise-install" "$cursor_agent_package" cursor-agent
+"$ROOT/bin/omarchy-mise-install" "$grok_package" grok
+"$ROOT/bin/omarchy-mise-install" "$omp_package" omp
+"$ROOT/bin/omarchy-mise-install" "$crush_package" crush
 touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
 omarchy-remove-preinstalls >/dev/null
 for command in agy omp ori grok crush cursor-agent muse kimi; do

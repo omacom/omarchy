@@ -27,10 +27,12 @@ printf '%s\n' "${line#*:}"
 exit "${line%%:*}"
 EOF
 
-cat >"$tmp_dir/tzupdate" <<'EOF'
+# Answers like geo.omarchy.org, or fails like curl -f with no network.
+cat >"$tmp_dir/curl" <<'EOF'
 #!/bin/bash
-[[ -n ${TZ_GUESS:-} ]] || exit 1
-printf '%s\n' "$TZ_GUESS"
+printf '%s\n' "${@: -1}" >>"$GUM_DIR/curl-urls"
+[[ -n ${TZ_GUESS:-} ]] || exit 22
+printf '{"name":"","latitude":null,"longitude":null,"country":"","timezone":"%s"}\n' "$TZ_GUESS"
 EOF
 
 cat >"$tmp_dir/timedatectl" <<'EOF'
@@ -74,7 +76,7 @@ printf 'hostname=%s\n' "${hostname:-}"
 printf 'timezone=%s\n' "${timezone:-}"
 EOF
 
-chmod +x "$tmp_dir/gum" "$tmp_dir/tzupdate" "$tmp_dir/timedatectl" "$tmp_dir/driver"
+chmod +x "$tmp_dir/gum" "$tmp_dir/curl" "$tmp_dir/timedatectl" "$tmp_dir/driver"
 export PATH="$tmp_dir:$PATH"
 export GUM_DIR="$tmp_dir" GUM_SCRIPT="$tmp_dir/script" GUM_ARGS="$tmp_dir/args" GUM_COUNT="$tmp_dir/count"
 export NOTICES="$tmp_dir/notices" MARKER="$tmp_dir/marker"
@@ -254,7 +256,8 @@ assert_status 0 "timezone prompt accepts the geo guess"
 [[ $(field timezone) == "Europe/Copenhagen" ]] || fail "timezone prompt keeps the chosen timezone"
 grep -qF -- '--selected Europe/Copenhagen' "$GUM_ARGS" || fail "timezone prompt preselects the geo guess"
 grep -qF UTC "$tmp_dir/stdin.1" || fail "timezone prompt offers the system timezone list"
-pass "timezone prompt preselects the geo guess when one is available"
+[[ $(sort -u "$tmp_dir/curl-urls") == "https://geo.omarchy.org/" ]] || fail "timezone prompt asks only geo.omarchy.org" "$(cat "$tmp_dir/curl-urls")"
+pass "timezone prompt preselects geo.omarchy.org's timezone when it answers"
 
 # An unnetworked first boot has no guess, and the fallback has to survive `set -e`
 run_prompt omarchy_prompt_timezone "0:America/Chicago"

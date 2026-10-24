@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 j",
   "battery.durationHoursMinutes": "%1 j %2 m",
   "battery.durationMinutes": "%1 m",
+  "battery.fullyCharged": "Terisi penuh",
   "battery.holdingAt": "Ditahan di %1",
   "battery.lowBody": "Baterai tersisa %1%",
   "battery.lowTitle": "Saatnya mengisi daya!",

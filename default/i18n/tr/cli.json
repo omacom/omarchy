@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 sa",
   "battery.durationHoursMinutes": "%1 sa %2 dk",
   "battery.durationMinutes": "%1 dk",
+  "battery.fullyCharged": "Tamamen dolu",
   "battery.holdingAt": "%1 seviyesinde tutuluyor",
   "battery.lowBody": "Pil %1% düzeyine düştü",
   "battery.lowTitle": "Şarj zamanı!",

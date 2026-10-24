@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 घं",
   "battery.durationHoursMinutes": "%1 घं %2 मि",
   "battery.durationMinutes": "%1 मि",
+  "battery.fullyCharged": "पूरी चार्ज",
   "battery.holdingAt": "%1 पर रोकी गई",
   "battery.lowBody": "बैटरी %1% रह गई है",
   "battery.lowTitle": "रिचार्ज करने का समय है!",

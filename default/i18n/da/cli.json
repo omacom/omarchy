@@ -32,6 +32,7 @@
   "battery.durationHours": "%1 t",
   "battery.durationHoursMinutes": "%1 t %2 min",
   "battery.durationMinutes": "%1 min",
+  "battery.fullyCharged": "Fuldt opladet",
   "battery.holdingAt": "Holder ved %1",
   "battery.lowBody": "Batteriet er nede på %1%",
   "battery.lowTitle": "Tid til at oplade!",

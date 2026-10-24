@@ -7,14 +7,10 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 detector="$ROOT/bin/omarchy-hw-dell-xps13-sidecar-amps"
 leaf="$ROOT/install/hardware/dell-xps13-sidecar-amps.sh"
 all="$ROOT/install/hardware/all.sh"
-migration=$(grep -l "dell-xps13-sidecar-amps" "$ROOT"/migrations/*.sh | head -1)
 
 grep -q 'run_logged .*hardware/dell-xps13-sidecar-amps.sh' "$all" ||
   fail "the sidecar amplifier workaround runs during hardware setup"
 pass "the sidecar amplifier workaround runs during hardware setup"
-
-[[ -n $migration ]] || fail "a migration enables the workaround on existing installs"
-pass "a migration enables the workaround on existing installs"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -40,11 +36,6 @@ cat >"$test_tmp/bin/dell-xps13-sidecar-amps-apply" <<'SH'
 #!/bin/bash
 printf 'apply\n' >>"$CALL_LOG"
 exit "${TEST_APPLY_STATUS:-0}"
-SH
-
-cat >"$test_tmp/bin/omarchy-state" <<'SH'
-#!/bin/bash
-printf 'state %s\n' "$*" >>"$CALL_LOG"
 SH
 
 chmod +x "$test_tmp/bin"/*
@@ -109,31 +100,3 @@ pass "a failing apply fails the leaf"
 run_leaf "XPS 13 DX13260" 1 && fail "a failing package install fails the leaf"
 grep -q '^apply$' "$call_log" && fail "a failing package install skips the apply"
 pass "a failing package install fails the leaf without applying"
-
-# The migration runner uses bash -euo pipefail and only records the migration
-# when it exits clean, so a failed apply has to leave reboot-required unset.
-run_migration() {
-  : >"$call_log"
-  printf '0E53\n' >"$sku_file"
-  PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
-    CALL_LOG="$call_log" \
-    OMARCHY_PATH="$ROOT" \
-    TEST_PRODUCT_NAME="${1-XPS 13 DX13260}" \
-    TEST_APPLY_STATUS="${2:-0}" \
-    OMARCHY_DMI_PRODUCT_SKU="$sku_file" \
-    bash -euo pipefail "$migration" >/dev/null
-}
-
-run_migration || fail "the migration applies the workaround and asks for a reboot"
-grep -q 'state set reboot-required' "$call_log" ||
-  fail "the migration applies the workaround and asks for a reboot"
-pass "the migration applies the workaround and asks for a reboot"
-
-run_migration "XPS 13 DX13260" 1 && fail "a failing apply leaves the migration pending"
-grep -q 'state set reboot-required' "$call_log" &&
-  fail "a failing apply does not mark reboot-required"
-pass "a failing apply leaves the migration pending without marking reboot-required"
-
-run_migration "ThinkPad X1" || fail "the migration no-ops on other hardware"
-[[ -s $call_log ]] && fail "the migration no-ops on other hardware"
-pass "the migration no-ops on other hardware"

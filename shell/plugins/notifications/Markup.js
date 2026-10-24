@@ -92,13 +92,12 @@ function linkify(escaped) {
 }
 
 // The body as drawn: the permitted subset, newlines honoured, and bare URLs
-// made clickable when the sender did not mark them up.
+// made clickable unless the sender wrote its own links.
 function render(body) {
   var text = decodeEntities(body)
-  var hadMarkup = /<\/?(a|b|i|u|s|em|strong|br)\b/i.test(text)
-  var out = escapeAll(text)
-  out = unescapeAllowed(out)
-  if (!hadMarkup) out = linkify(out)
+  // StyledText has no <em>.
+  var out = unescapeAllowed(escapeAll(text)).replace(/<(\/?)em>/gi, "<$1i>")
+  if (!/<a\b/i.test(out)) out = linkify(out)
   return out.replace(/\r?\n/g, "<br/>")
 }
 
@@ -113,7 +112,7 @@ function oneLine(body) {
 }
 
 // Only a browser's leading anchor names a site; any other app's is just a link.
-var BROWSERS = /^(google chrome|chromium|brave|brave browser|microsoft edge|vivaldi|opera|helium|firefox|zen|librewolf)$/i
+var BROWSERS = /^(google chrome|chromium|brave|brave browser|brave origin|microsoft edge|vivaldi|opera|helium|firefox|zen|librewolf)$/i
 function isBrowser(app) {
   return BROWSERS.test(String(app || "").trim())
 }
@@ -143,12 +142,4 @@ function regroup(row) {
   var source = String(row.source || "")
   if (isBrowser(app) && source && source !== app && hostname(source)) return "web:" + hostname(source)
   return "app:" + slug(app)
-}
-
-// Qt's Text ignores linkColor for rich text, so the colour goes in the markup.
-// Applied at draw time: the theme may have changed since the row was stored.
-function colourLinks(html, colour) {
-  if (!colour) return String(html || "")
-  return String(html || "").replace(/<a\s+href="([^"]*)"[^>]*>/gi,
-                                    '<a href="$1" style="color:' + colour + ';">')
 }
