@@ -18,6 +18,28 @@ Item {
   property int maxValue: 100
   property bool hasProgress: true
   property int duration: 1200
+  property string inputSession: ""
+  property int inputSerial: -1
+
+  function updateInputNotice() {
+    var selection = Commons.InputMethodState.state.switch
+    if (!selection || typeof selection.session !== "string" || typeof selection.serial !== "number") return
+    if (selection.session !== inputSession) {
+      inputSession = selection.session
+      inputSerial = selection.serial
+      return
+    }
+    if (selection.serial <= inputSerial) return
+    inputSerial = selection.serial
+    var name = OsdModel.inputLanguage(selection, Qt.locale)
+    if (name) root.show("keyboard", name, "", "100", "", "1000")
+  }
+
+  Component.onCompleted: updateInputNotice()
+  Connections {
+    target: Commons.InputMethodState
+    function onStateChanged() { root.updateInputNotice() }
+  }
 
   readonly property bool mediaOsd: iconKey.indexOf("media") === 0 || iconKey.indexOf("player") === 0
 

@@ -1,6 +1,7 @@
 pragma Singleton
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 
 Singleton {
@@ -11,6 +12,24 @@ Singleton {
     if (!watcher.running) return false
     watcher.write(back ? "cycle back\n" : "cycle\n")
     return true
+  }
+
+  function refreshLayouts(event) {
+    if (watcher.running)
+      watcher.write(event ? "layout " + JSON.stringify(event.data) + "\n" : "layouts\n")
+  }
+
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (event.name === "activelayout") root.refreshLayouts(event)
+      else if (event.name === "configreloaded") root.refreshLayouts()
+    }
+  }
+
+  Connections {
+    target: InputDevices
+    function onChanged() { root.refreshLayouts() }
   }
 
   // One reader and pending selection for every monitor's keyboard widget.
