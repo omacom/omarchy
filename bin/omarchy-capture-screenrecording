@@ -497,7 +497,13 @@ finalize_recording() {
     #
     # loudnorm declares 192 kHz output, so without -ar the AAC encoder writes
     # 96 kHz from a 48 kHz recording.
-    args+=(-ar 48000 -af "volume=enable='lt(t,0.4)':volume=0,afade=t=in:st=0.4:d=0.05,loudnorm=I=-14:TP=-1.5:LRA=11")
+    #
+    # Without measured values loudnorm runs in dynamic mode: 100 ms frames with a
+    # 3 s lookahead, and at EOF it flushes that buffer with gain steps it never
+    # gets to smooth — a spike one buffer length before the end, and the quiet
+    # tail mis-gained either way. Pad 3 s of silence so the flush happens on
+    # padding, and let -shortest trim it back to the video (#15443).
+    args+=(-ar 48000 -af "volume=enable='lt(t,0.4)':volume=0,afade=t=in:st=0.4:d=0.05,apad=pad_dur=3,loudnorm=I=-14:TP=-1.5:LRA=11" -shortest)
   fi
 
   local processed="${latest%.mp4}-processed.mp4"
