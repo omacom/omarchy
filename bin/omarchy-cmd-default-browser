@@ -58,4 +58,25 @@ if [[ -z $browser || $browser == "omarchy-browser.desktop" ]]; then
   browser=$(XDG_CURRENT_DESKTOP= xdg-mime query default x-scheme-handler/https 2>/dev/null)
 fi
 
-[[ -n $browser && $browser != "omarchy-browser.desktop" ]] && echo "$browser"
+if [[ -n $browser && $browser != "omarchy-browser.desktop" ]]; then
+  echo "$browser"
+  exit 0
+fi
+
+# A handler that is no longer installed leaves both of them settling on
+# omarchy-browser.desktop, so take the first installed browser that registers
+# for https links instead.
+for data_dir in "${data_dirs[@]}"; do
+  [[ -f $data_dir/applications/mimeinfo.cache ]] || continue
+
+  entries=$(sed -n 's|^x-scheme-handler/https=||p' "$data_dir/applications/mimeinfo.cache")
+  IFS=';' read -ra entries <<<"$entries"
+  for entry in "${entries[@]}"; do
+    if [[ -n $entry && $entry != "omarchy-browser.desktop" ]] && installed "$entry"; then
+      echo "$entry"
+      exit 0
+    fi
+  done
+done
+
+exit 1

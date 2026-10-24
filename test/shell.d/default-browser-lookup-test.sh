@@ -70,3 +70,25 @@ printf '[Default Applications]\nx-scheme-handler/http=missing.desktop\n' >"$XDG_
   fail "default browser unsets BROWSER before asking xdg-settings"
 
 pass "default browser reads mimeapps.list and falls back to xdg-settings"
+
+# With the listed handler gone, xdg-settings and xdg-mime both settle on the
+# routing entry, which only hands links back to omarchy-launch-browser.
+for command in xdg-settings xdg-mime; do
+  printf '#!/bin/bash\necho omarchy-browser.desktop\n' >"$mock_bin/$command"
+done
+chmod +x "$mock_bin"/*
+echo "Exec=omarchy-launch-browser %U" >"$XDG_DATA_HOME/applications/omarchy-browser.desktop"
+printf '[MIME Cache]\nx-scheme-handler/https=omarchy-browser.desktop;\n' >"$XDG_DATA_HOME/applications/mimeinfo.cache"
+printf '[MIME Cache]\nx-scheme-handler/https=missing.desktop;brave-browser.desktop;\n' >"$XDG_DATA_DIRS/applications/mimeinfo.cache"
+
+[[ $(omarchy-cmd-default-browser) == "brave-browser.desktop" ]] ||
+  fail "default browser falls back to an installed https handler when the listed one is gone"
+
+rm "$XDG_DATA_DIRS/applications/mimeinfo.cache"
+
+if browser=$(omarchy-cmd-default-browser); then
+  fail "default browser fails when no browser is installed" "$browser"
+fi
+[[ -z $browser ]] || fail "default browser prints nothing when no browser is installed" "$browser"
+
+pass "default browser falls back to an installed browser when the listed one is gone"
