@@ -379,6 +379,7 @@ assertDeepEqual(
     'remove.theme',
     'remove.gaming',
     'remove.browser',
+    'remove.agents',
     'remove.webapp',
     'remove.tui',
     'remove.windows',
