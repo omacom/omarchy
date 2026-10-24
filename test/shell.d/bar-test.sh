@@ -729,6 +729,26 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+
+// #15346: a custom command whose JSON text is empty renders nothing. The
+// parsed output arrives from Util.parseModuleJson: a JSON object, or
+// { text: <raw> } when the output is not JSON at all.
+assertEqual(bar.customCommandLabel('{"text":"","class":"ok"}', { text: '', class: 'ok' }), '',
+  'an empty text renders nothing, not the module\'s own JSON')
+assertEqual(bar.customCommandLabel('{"text":"42%","class":"ok"}', { text: '42%', class: 'ok' }), '42%',
+  'the JSON text is the label')
+assertEqual(bar.customCommandLabel('plain text', { text: 'plain text' }), 'plain text',
+  'output that did not parse shows as it came')
+assertEqual(bar.customCommandLabel('', {}), '',
+  'no output renders nothing')
+// Unchanged on purpose: a JSON object with no text field, and a JSON scalar,
+// have no label to use.
+assertEqual(bar.customCommandLabel('{"class":"ok"}', { class: 'ok' }), '{"class":"ok"}',
+  'JSON without a text field still shows the raw output')
+assertEqual(bar.customCommandLabel('123', 123), '123',
+  'a JSON scalar still shows the raw output')
+assertEqual(bar.customCommandLabel('{"text":null}', { text: null }), '{"text":null}',
+  'a null text still shows the raw output')
 JS
 
 put_tmp=$(mktemp -d)
