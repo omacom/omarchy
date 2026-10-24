@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# omarchy:summary=Append and reopen a local scratch note
+# omarchy:group=scratch
+# omarchy:args=add <text> | paste | show | path | open
+# omarchy:examples=omarchy scratch add "call the dentist" | omarchy scratch paste | omarchy scratch show
+
+set -euo pipefail
+
+scratch_file() {
+  local root="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy"
+  mkdir -p "$root"
+  printf '%s\n' "$root/scratch.md"
+}
+
+usage() {
+  echo "Usage: omarchy-scratch add <text>" >&2
+  echo "       omarchy-scratch paste" >&2
+  echo "       omarchy-scratch show" >&2
+  echo "       omarchy-scratch path" >&2
+  echo "       omarchy-scratch open" >&2
+}
+
+append_line() {
+  local text="$*"
+  text="${text#"${text%%[![:space:]]*}"}"
+  text="${text%"${text##*[![:space:]]}"}"
+  if [[ -z $text ]]; then
+    echo "Nothing to add" >&2
+    exit 1
+  fi
+  text=${text//$'\n'/ }
+  text=${text//$'\r'/ }
+  local file
+  file=$(scratch_file)
+  printf -- '- %s  %s\n' "$(date '+%Y-%m-%d %H:%M')" "$text" >>"$file"
+  printf '%s\n' "$file"
+}
+
+case "${1:-}" in
+  add)
+    shift
+    append_line "$@" >/dev/null
+    omarchy-notification-send -g "note" "Saved to scratch" "$*" || true
+    ;;
+  paste)
+    text=$(wl-paste --no-newline 2>/dev/null || true)
+    if [[ -z ${text:-} ]]; then
+      echo "Clipboard is empty" >&2
+      exit 1
+    fi
+    append_line "$text" >/dev/null
+    omarchy-notification-send -g "note" "Clipboard saved to scratch" || true
+    ;;
+  show)
+    file=$(scratch_file)
+    if [[ ! -s $file ]]; then
+      echo "Nothing saved yet"
+      omarchy-notification-send -g "note" "Scratch" "Nothing saved yet" || true
+      exit 0
+    fi
+    body=$(tail -n 8 "$file")
+    printf '%s\n' "$body"
+    omarchy-notification-send -g "note" "Scratch" "$body" || true
+    ;;
+  path)
+    scratch_file
+    ;;
+  open)
+    file=$(scratch_file)
+    touch "$file"
+    exec "${EDITOR:-nvim}" "$file"
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

@@ -369,6 +369,21 @@
   "trigger.transcode": {
     "label": "Transcode"
   },
+  "trigger.scratch": {
+    "label": "Scratch"
+  },
+  "trigger.scratch.add": {
+    "label": "Add Note"
+  },
+  "trigger.scratch.open": {
+    "label": "Open Note"
+  },
+  "trigger.scratch.paste": {
+    "label": "Save Clipboard"
+  },
+  "trigger.scratch.show": {
+    "label": "Show Recent"
+  },
   "trigger.share": {
     "label": "Share"
   },
