@@ -210,6 +210,10 @@ grep -F 'exit "$exit_status"' <<<"$cleanup_body" >/dev/null ||
   fail "Omarchy 4 upgrade preserves the failing exit status"
 grep -F '>&2' <<<"$cleanup_body" >/dev/null ||
   fail "Omarchy 4 upgrade reports an aborted run on stderr"
+# The keepalive refreshes the timestamp for the whole run, so cleanup must
+# invalidate it: otherwise the upgrade's authorization outlives the script.
+grep -F '/usr/bin/sudo -k' <<<"$cleanup_body" >/dev/null ||
+  fail "Omarchy 4 upgrade invalidates the cached sudo timestamp on exit"
 started_line=$(grep -n '^upgrade_started=1$' "$upgrade_to_quattro" | cut -d: -f1)
 completed_line=$(grep -n '^upgrade_completed=1$' "$upgrade_to_quattro" | cut -d: -f1)
 suppress_line=$(grep -n '^suppress_hyprland_config_reload$' "$upgrade_to_quattro" | cut -d: -f1)
@@ -221,6 +225,66 @@ last_step_line=$(grep -n '^restore_hyprland_config_reload$' "$upgrade_to_quattro
 (( started_line < suppress_line )) || fail "the upgrade is marked started before the first mutation"
 (( completed_line > last_step_line )) || fail "the upgrade is marked complete only after the last step"
 pass "Omarchy 4 upgrade reports an aborted run instead of exiting silently"
+
+# The banner is not the only thing cleanup owes: it invalidates the cached
+# credential before it exits, and keeps the exit status. Run the extracted
+# function against a sudo stub — the absolute path is rewritten so the stub
+# can answer, which the check above still pins in the source.
+cleanup_dir=$(mktemp -d)
+mkdir -p "$cleanup_dir/bin"
+# The stub's refresh marks its start and holds until cleanup revokes, or for a
+# second if cleanup is waiting on it, so an orphaned refresh always logs last.
+cat >"$cleanup_dir/bin/sudo" <<'EOF'
+#!/bin/bash
+if [[ $* == "-n true" ]]; then
+  : >"$CLEANUP_LOG.refreshing"
+  for _ in {1..20}; do
+    ! grep -qx 'sudo -k' "$CLEANUP_LOG" 2>/dev/null || break
+    sleep 0.05
+  done
+fi
+printf 'sudo %s\n' "$*" >>"$CLEANUP_LOG"
+EOF
+chmod +x "$cleanup_dir/bin/sudo"
+keepalive_block=$(awk '$0 == "trap cleanup_on_exit EXIT" { inside = 1; next } inside { print } inside && $0 == "fi" { exit }' "$upgrade_to_quattro")
+{
+  printf 'set -euo pipefail\n'
+  printf 'cleanup_on_exit() {\n'
+  sed 's|/usr/bin/sudo|sudo|g' <<<"$cleanup_body"
+  printf '}\n'
+  printf 'hyprland_config_reload_suppressed=0\n'
+  printf 'sudo_keepalive_pid=""\n'
+  printf 'upgrade_started=0\n'
+  printf 'upgrade_completed=0\n'
+  printf 'restore_hyprland_config_reload() { :; }\n'
+  printf '%s\n' "$keepalive_block"
+  printf '(( EUID == 0 )) || for _ in {1..100}; do [[ ! -e $CLEANUP_LOG.refreshing ]] || break; sleep 0.05; done\n'
+  printf 'false || cleanup_on_exit\n'
+  printf 'echo "cleanup returned instead of exiting"\n'
+} >"$cleanup_dir/run.sh"
+
+status=0
+CLEANUP_LOG="$cleanup_dir/calls" PATH="$cleanup_dir/bin:$PATH" \
+  bash "$cleanup_dir/run.sh" >"$cleanup_dir/out" 2>&1 || status=$?
+(( status == 1 )) ||
+  fail "cleanup preserves the failing exit status" "status=$status $(cat "$cleanup_dir/out")"
+# Root has no cached credential to clear, so cleanup_on_exit skips the call.
+if (( EUID == 0 )); then
+  skip "cleanup invalidates the cached credential on exit (root clears nothing)"
+else
+  # A refresh that outlived the keepalive would log after the revoke.
+  for _ in {1..100}; do
+    ! grep -qx 'sudo -n true' "$cleanup_dir/calls" || break
+    sleep 0.05
+  done
+  grep -qx 'sudo -n true' "$cleanup_dir/calls" && [[ $(tail -n 1 "$cleanup_dir/calls") == "sudo -k" ]] ||
+    fail "cleanup invalidates the cached credential after the last refresh" "$(cat "$cleanup_dir/calls" "$cleanup_dir/out")"
+fi
+if grep -q 'cleanup returned instead of exiting' "$cleanup_dir/out"; then
+  fail "cleanup exits rather than returning"
+fi
+rm -rf "$cleanup_dir"
+pass "Omarchy 4 upgrade invalidates the cached credential on exit"
 
 # Ordering alone would still pass if either retired entry point came back, so
 # name them: the reboot is the cutover, and nothing may swap the shell out from
