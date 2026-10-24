@@ -57,8 +57,8 @@
         "textCodeBlock.background": "{{ background }}",
         "textLink.activeForeground": "{{ bright_blue }}",
         "textLink.foreground": "{{ blue }}",
-        "textPreformat.foreground": "{{ cyan }}",
-        "textPreformat.background": "{{ background }}",
+        "textPreformat.foreground": "{{ foreground }}",
+        "textPreformat.background": "{{ muted }}40",
         "textSeparator.foreground": "{{ muted }}",
 
         "toolbar.hoverBackground": "{{ muted }}60",
