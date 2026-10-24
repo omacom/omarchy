@@ -602,7 +602,7 @@ EOF
 show_commands_help() {
   cat <<'EOF'
 Usage:
-  omarchy commands [--all] [--json] [--markdown] [--check]
+  omarchy commands [--all] [--json] [--markdown] [--man] [--check]
 
 List commands known to the Omarchy command center.
 
@@ -610,6 +610,7 @@ Options:
   --all       Include commands explicitly marked hidden
   --json      Emit machine-readable JSON
   --markdown  Emit a Markdown command table
+  --man       Emit an omarchy(1) man page of non-hidden commands
   --check     Validate command metadata and route collisions
 EOF
 }
@@ -692,6 +693,130 @@ show_commands_markdown() {
       "$(markdown_escape "${COMMAND_BINARY[$key]}")" \
       "$(markdown_escape "${COMMAND_SUMMARY[$key]}")"
   done < <(sorted_keys "$include_all")
+}
+
+# Escapes text for groff. Byte-wise under LC_ALL=C so it behaves the same in any build locale.
+# Nerd Font glyphs (Private Use Area) become <icon> rather than vanishing, so a flag keeps its value.
+# Code mode also turns hyphens into \- (after backslashes became \e, so never \e-), lets long
+# a|b|c enums break at each pipe, and keeps quotes from splitting .B/.I arguments.
+man_escape() {
+  local LC_ALL=C
+  local value="$1"
+  local code="${2:-false}"
+  local icon=$'((\xee[\x80-\xbf]|\xef[\x80-\xa3])[\x80-\xbf]|(\xf3[\xb0-\xbf]|\xf4[\x80-\x8f])[\x80-\xbf][\x80-\xbf])+'
+
+  while [[ $value =~ $icon ]]; do
+    value="${value/"${BASH_REMATCH[0]}"/<icon>}"
+  done
+
+  value="${value//\\/'\e'}"
+  value="${value//—/'\(em'}"
+  value="${value//–/'\(en'}"
+  value="${value//‘/'\(oq'}"
+  value="${value//’/'\(cq'}"
+  value="${value//“/'\(lq'}"
+  value="${value//”/'\(rq'}"
+  value="${value//…/...}"
+  [[ $value == [.\']* ]] && value='\&'"$value"
+
+  if [[ $code == "true" ]]; then
+    value="${value//-/'\-'}"
+    value="${value//|/'|\:'}"
+    value="${value//\"/'\(dq'}"
+  fi
+
+  printf '%s' "$value"
+}
+
+show_commands_man() {
+  local version="Omarchy"
+  local keys=()
+  local groups=()
+  local group=""
+  local key=""
+  local title=""
+  local notes=""
+  local aliases=""
+  local alias=""
+  local example=""
+
+  [[ -r $OMARCHY_BIN_DIR/../version ]] && version=$(<"$OMARCHY_BIN_DIR/../version")
+
+  mapfile -t keys < <(sorted_keys false)
+  mapfile -t groups < <(for key in "${keys[@]}"; do printf '%s\n' "${COMMAND_GROUP[$key]}"; done | LC_ALL=C sort -u)
+
+  printf '.TH OMARCHY 1 "%(%Y-%m-%d)T" "%s" "Omarchy Manual"\n' "${SOURCE_DATE_EPOCH:--1}" "$(man_escape "$version")"
+  cat <<'EOF'
+.SH NAME
+omarchy \- Omarchy command center
+.SH SYNOPSIS
+.B omarchy
+.I command
+[args...]
+.br
+.B omarchy commands
+[\-\-all] [\-\-json] [\-\-markdown] [\-\-man] [\-\-check]
+.br
+.B omarchy
+.I group
+\-\-help
+.br
+.B omarchy
+.I group command
+\-\-help
+.SH DESCRIPTION
+.B omarchy
+is the command center for an Omarchy system: a single entry point routing to the group and command binaries that manage themes, hardware, Hyprland, packages, and general system state.
+.PP
+Run
+.B omarchy commands
+for a live list,
+.B omarchy commands \-\-all
+to include hidden commands, or
+.BI "omarchy " group " \-\-help"
+for help on a specific group.
+.SH COMMANDS
+EOF
+
+  for group in "${groups[@]}"; do
+    title="${GROUP_DESCRIPTIONS[$group]:-${group^} commands}"
+    printf '.SS %s \\- %s\n' "$(man_escape "$group")" "$(man_escape "$title")"
+
+    for key in "${keys[@]}"; do
+      [[ ${COMMAND_GROUP[$key]} == "$group" ]] || continue
+
+      printf '.B %s\n' "$(man_escape "${COMMAND_ROUTE[$key]}" true)"
+      [[ -n ${COMMAND_ARGS[$key]} ]] && printf '.I %s\n' "$(man_escape "${COMMAND_ARGS[$key]}" true)"
+      echo ".RS 4"
+      man_escape "${COMMAND_SUMMARY[$key]}"
+      echo ""
+
+      notes=""
+      [[ ${COMMAND_REQUIRES_SUDO[$key]} == "true" ]] && notes="Requires sudo."
+      if [[ -n ${COMMAND_ALIASES[$key]} ]]; then
+        aliases=""
+        while IFS= read -r alias; do
+          aliases+="${aliases:+, }$(man_escape "$alias" true)"
+        done < <(pipe_values_as_lines "${COMMAND_ALIASES[$key]}")
+        notes+="${notes:+ }Alias: $aliases"
+      fi
+      [[ -n $notes ]] && printf '.br\n%s\n' "$notes"
+
+      while IFS= read -r example; do
+        printf '.br\nExample: %s\n' "$(man_escape "$example" true)"
+      done < <(examples_as_lines "${COMMAND_EXAMPLES[$key]}")
+
+      echo ".RE"
+      echo ".PP"
+    done
+  done
+
+  cat <<'EOF'
+.SH SEE ALSO
+.UR https://manual.omarchy.org
+Omarchy Manual
+.UE
+EOF
 }
 
 emit_command_record() {
@@ -794,6 +919,7 @@ parse_commands_args() {
   local include_all="false"
   local json="false"
   local markdown="false"
+  local man="false"
   local check="false"
 
   shift
@@ -808,6 +934,9 @@ parse_commands_args() {
       ;;
     --markdown)
       markdown="true"
+      ;;
+    --man)
+      man="true"
       ;;
     --check)
       check="true"
@@ -831,6 +960,8 @@ parse_commands_args() {
     show_commands_json "$include_all"
   elif [[ $markdown == "true" ]]; then
     show_commands_markdown "$include_all"
+  elif [[ $man == "true" ]]; then
+    show_commands_man
   else
     show_commands "$include_all"
   fi
