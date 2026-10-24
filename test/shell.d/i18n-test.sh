@@ -372,8 +372,8 @@ grep -q "$da_changed" "$NOTIFY_LOG" && pass "the language-change notification ar
 da_battery=$(jq -r '."battery.lowBody"' "$ROOT/default/i18n/da/cli.json" | sed 's/%1/12/')
 assert_bash_equal "$(omarchy-i18n battery.lowBody 12)" "$da_battery" "omarchy-i18n substitutes %1 and keeps a literal percent sign"
 
-# Plural entries pick their form by count, and plain-number arguments take
-# the language's decimal separator and digits.
+# Plural selection is separate from formatting: names remain text, while
+# explicitly formatted numbers take the language's separator and digits.
 plural_root=$work/plural-root
 mkdir -p "$plural_root/default/i18n/en" "$plural_root/default/i18n/ru" "$plural_root/default/i18n/fa"
 cp "$ROOT/default/i18n/plural.jq" "$ROOT/default/i18n/locales.json" "$plural_root/default/i18n/"
@@ -385,11 +385,19 @@ assert_bash_equal "$(plural en --count 1 files.count 1)" "1 file" "omarchy-i18n 
 assert_bash_equal "$(plural en --count 3 files.count 3)" "3 files" "omarchy-i18n --count picks the English plural"
 assert_bash_equal "$(plural ru --count 21 files.count 21) / $(plural ru --count 22 files.count 22) / $(plural ru --count 25 files.count 25)" "21 файл / 22 файла / 25 файлов" "omarchy-i18n --count follows Russian plural rules"
 assert_bash_equal "$(plural ru files.count 5)" "5 файла" "a plural entry without --count reads its other form"
-assert_bash_equal "$(plural ru power.rate 13.1)" "13,1 Вт" "a number argument takes the language's decimal separator"
-assert_bash_equal "$(plural fa --count 2 files.count 13.5)" "۱۳٫۵ files" "a number argument takes the language's digits, with the English entry as fallback"
+assert_bash_equal "$(plural ru power.rate "$(plural ru --number 13.1)")" "13,1 Вт" "a number argument takes the language's decimal separator"
+assert_bash_equal "$(plural fa --count 2 files.count "$(plural fa --number 13.5)")" "۱۳٫۵ files" "a number argument takes the language's digits, with the English entry as fallback"
 assert_bash_equal "$(plural ru power.rate 10.0.0.1)" "10.0.0.1 Вт" "an argument that is not a plain number passes through"
 assert_bash_equal "$(plural ru --number 13.1) $(plural fa --number 13.5)" "13,1 ۱۳٫۵" "omarchy-i18n --number writes one number in the language"
 assert_bash_equal "$(plural en power.rate --foo) | $(plural en power.rate -n)" "--foo W | -n W" "an argument that starts with a dash is text, not a jq option"
+assert_bash_equal "$(plural ru power.rate 13.1)" "13.1 Вт" "a dotted name stays literal in a decimal-comma language"
+assert_bash_equal "$(plural fa --count 2 files.count 1942)" "1942 files" "a numeric name stays literal even with plural selection and an English fallback"
+assert_bash_equal "$(plural fa missing.key 13.1)" "missing.key" "a missing key still falls back to itself"
+mixed=$(jq -r '."reminder.customInMinutes".other' "$ROOT/default/i18n/fa/cli.json")
+mixed=${mixed//%1/13.1}
+mixed=${mixed//%2/۲}
+echo fa >"$work/plural-language"
+assert_bash_equal "$(OMARCHY_LANGUAGE_FILE=$work/plural-language omarchy-i18n --count 2 reminder.customInMinutes 13.1 "$(plural fa --number 2)")" "$mixed" "a numeric reminder name stays literal beside a localized count"
 if plural en --count many files.count 2>/dev/null; then
   fail "omarchy-i18n rejects a non-numeric count"
 else

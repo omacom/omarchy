@@ -27,11 +27,11 @@ format_duration() {
   if [[ -z $minutes ]] || (( minutes <= 0 )); then
     return
   elif (( minutes < 60 )); then
-    omarchy-i18n battery.durationMinutes "$minutes"
+    omarchy-i18n battery.durationMinutes "$(omarchy-i18n --number "$minutes")"
   elif (( minutes % 60 == 0 )); then
-    omarchy-i18n battery.durationHours "$(( minutes / 60 ))"
+    omarchy-i18n battery.durationHours "$(omarchy-i18n --number "$(( minutes / 60 ))")"
   else
-    omarchy-i18n battery.durationHoursMinutes "$(( minutes / 60 ))" "$(( minutes % 60 ))"
+    omarchy-i18n battery.durationHoursMinutes "$(omarchy-i18n --number "$(( minutes / 60 ))")" "$(omarchy-i18n --number "$(( minutes % 60 ))")"
   fi
 }
 
@@ -175,7 +175,7 @@ elif [[ $ac_online == "true" ]] && (( percentage >= 100 )); then
   battery_full=true
 fi
 
-parts=("$(omarchy-i18n battery.statusLabel "$percentage")")
+parts=("$(omarchy-i18n battery.statusLabel "$(omarchy-i18n --number "$percentage")")")
 
 if [[ $charge_holding == "true" ]]; then
   if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then

@@ -10,4 +10,4 @@ now=$(date +%s)
 day_time=$(LC_TIME=$locale date -d "@$now" +"%A %H:%M")
 day_month_year=$(LC_TIME=$locale date -d "@$now" +"%d %B %Y")
 
-omarchy-notification-send -g  -u low "$(omarchy-i18n time.now "$day_time" "$day_month_year" "$(date -d "@$now" +%V)")"
+omarchy-notification-send -g  -u low "$(omarchy-i18n time.now "$day_time" "$day_month_year" "$(omarchy-i18n --number "$(date -d "@$now" +%V)")")"

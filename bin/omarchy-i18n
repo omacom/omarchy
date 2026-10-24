@@ -14,10 +14,9 @@ set -euo pipefail
 # unexpected means English, the default.
 #
 # --count picks the form of a plural entry ({"one": ..., "other": ...}) by
-# the language's plural rules in default/i18n/plural.jq. Arguments that are
-# plain numbers are written with the language's decimal separator and
-# digits from the registry, so "13.1" reads "13,1" in Danish. --number
-# prints one number that way, for text that is not a catalog string.
+# the language's plural rules in default/i18n/plural.jq. Arguments are text,
+# including names that look like numbers. Format numeric values explicitly
+# with --number to use the language's decimal separator and digits.
 
 count=null
 number_only=0
@@ -61,13 +60,13 @@ english_catalog=$i18n/en/cli.json
 registry=$i18n/locales.json
 [[ -f $registry ]] || registry=/dev/null
 
-# One jq run picks the string and localizes the arguments; the results come
+# One jq run picks the string and, for --number, formats the number; the results come
 # back NUL-separated so a string may itself span lines. The -- after --args
 # keeps an argument that starts with a dash (a label like "-work") from being
 # read as a jq option.
 parts=()
 mapfile -d '' parts < <(jq -j -n -L "$i18n" \
-  --arg key "$key" --arg language "$language" --argjson count "$count" \
+  --arg key "$key" --arg language "$language" --argjson count "$count" --argjson number_only "$number_only" \
   --slurpfile lang "$language_catalog" --slurpfile en "$english_catalog" --slurpfile registry "$registry" '
   include "plural";
   def present: . != null and . != "";
@@ -77,7 +76,7 @@ mapfile -d '' parts < <(jq -j -n -L "$i18n" \
      else [$key, "en"] end) as [$entry, $from]
   | (if $count == null then (if ($entry | type) == "object" then $entry.other else $entry end)
      else ($entry | plural_pick($from; $count)) end) as $string
-  | [$string // $key] + ($ARGS.positional | map(localize_number($r.decimal // "."; $r.zeroDigit // "0")))
+  | [$string // $key] + ($ARGS.positional | if $number_only == 1 then map(localize_number($r.decimal // "."; $r.zeroDigit // "0")) else . end)
   | map(tostring + "\u0000") | add
 ' --args -- "$@" 2>/dev/null) || true
 
