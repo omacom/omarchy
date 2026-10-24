@@ -4,9 +4,10 @@ source "$(dirname "$0")/base-test.sh"
 
 test_bin=$(mktemp -d)
 monitors_file=$(mktemp)
+platform_root=$(mktemp -d)
 
 cleanup() {
-  rm -rf "$test_bin"
+  rm -rf "$test_bin" "$platform_root"
   rm -f "$monitors_file"
 }
 trap cleanup EXIT
@@ -28,6 +29,11 @@ echo 1.5
 EOF
 
 chmod +x "$test_bin"/*
+
+# The built-in pattern comes from a copy reading a fixture platform root (none
+# unless a case writes one), whatever the machine running the suite has.
+platform_root_copy "$ROOT/bin/omarchy-hw-display-builtin-pattern" \
+  "$test_bin/omarchy-hw-display-builtin-pattern" "$platform_root"
 
 # The panel reads this output by line index, so every case has to answer with
 # the same number of lines. A helper that dies mid-script drops its line and
@@ -115,3 +121,21 @@ monitor_state "$clamshell"
 [[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
   fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
 pass "monitor state lists every display with its enabled and focused state"
+
+# A panel on a firmware framebuffer is an Unknown output: the platform names
+# it, and it then reads as the internal monitor.
+framebuffer='[
+  { "name": "Unknown-1", "mirrorOf": "none", "disabled": false, "focused": false, "width": 2880, "height": 1864 },
+  { "name": "DP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 2560, "height": 1440 }
+]'
+monitor_state "$framebuffer"
+assert_line 1 "" "monitor state finds no internal monitor without the platform's name for it"
+assert_line 2 Unknown-1 "monitor state takes an unnamed Unknown output for an external one"
+printf 'builtin-connector Unknown-1\n' >"$platform_root/displays.conf"
+monitor_state "$framebuffer"
+assert_line_count "monitor state answers every line with a platform-named panel"
+assert_line 1 Unknown-1 "monitor state names a platform-named internal monitor"
+assert_line 2 DP-1 "monitor state names the external monitor beside a platform-named panel"
+assert_line 3 Unknown-1 "monitor state reports a platform-named internal monitor enabled"
+rm -f "$platform_root/displays.conf"
+pass "monitor state honours a platform-named built-in connector"

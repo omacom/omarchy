@@ -9,7 +9,8 @@ DISABLE_TOGGLE="internal-monitor-disable"
 
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
 # The first active external monitor
-EXTERNAL=$(hyprctl monitors -j | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not).name' | head -n 1)
+EXTERNAL=$(hyprctl monitors -j | jq -r --arg builtin "$(omarchy-hw-display-builtin-pattern)" \
+  '.[] | select(.name | test($builtin) | not).name' | head -n 1)
 
 on() {
   if [[ -z $EXTERNAL ]]; then

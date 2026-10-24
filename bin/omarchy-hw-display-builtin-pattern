@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# omarchy:summary=Print the regular expression that matches the built-in display's connector names.
+# omarchy:hidden=true
+
+# eDP, LVDS and DSI connectors are built-in panels. A platform whose panel shows
+# up under another connector type (a firmware framebuffer such as simpledrm
+# registers an Unknown one) names it in its displays.conf (see
+# docs/file-layout.md). The pattern works for both Bash's =~ and jq's test().
+displays_conf=/usr/share/omarchy-platform/displays.conf
+names=()
+if [[ -r $displays_conf ]]; then
+  # \r in IFS: a file saved with CRLF line ends reads the same.
+  while IFS=$' \t\r' read -r directive argument extra || [[ -n $directive ]]; do
+    # Only plain connector names, so none needs escaping beyond its dots.
+    [[ $directive == "builtin-connector" && -z $extra && $argument =~ ^[A-Za-z0-9_-][A-Za-z0-9._-]*$ ]] || continue
+    names+=("${argument//./\\.}")
+  done <"$displays_conf"
+fi
+
+pattern='(eDP|LVDS|DSI)-.*'
+for name in "${names[@]}"; do
+  pattern+="|$name"
+done
+printf '^(%s)$\n' "$pattern"

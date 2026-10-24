@@ -8,8 +8,8 @@ focused_monitor=$(printf '%s\n' "$monitors_json" | jq -r '[.[] | select(.focused
 
 { omarchy-brightness-display --monitor "$focused_monitor" 2>/dev/null; echo; } | head -n 1
 
-printf '%s\n' "$monitors_json" | jq -r '
-  def internal: test("^(eDP|LVDS|DSI)-");
+printf '%s\n' "$monitors_json" | jq -r --arg builtin "$(omarchy-hw-display-builtin-pattern)" '
+  def internal: test($builtin);
   ([.[] | select(.name | internal)][0].name // ""),
   ([.[] | select((.name | internal) | not)][0].name // ""),
   ([.[] | select((.name | internal) and .disabled != true)][0].name // ""),

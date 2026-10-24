@@ -2,4 +2,5 @@
 
 # omarchy:summary=Print the name of the built-in laptop display, including disabled outputs.
 
-hyprctl monitors all -j | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-")).name' | head -n 1
+hyprctl monitors all -j | jq -r --arg builtin "$(omarchy-hw-display-builtin-pattern)" \
+  '.[] | select(.name | test($builtin)).name' | head -n 1

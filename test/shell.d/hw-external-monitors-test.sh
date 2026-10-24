@@ -23,8 +23,15 @@ write_connectors() {
   done
 }
 
+# A copy of the pattern helper reads its platform file from a fixture root
+# (none unless a case writes one).
+platform_root="$test_tmp/platform"
+mkdir -p "$platform_root" "$test_tmp/bin"
+platform_root_copy "$ROOT/bin/omarchy-hw-display-builtin-pattern" \
+  "$test_tmp/bin/omarchy-hw-display-builtin-pattern" "$platform_root"
+
 has_external_monitor() {
-  OMARCHY_DRM_PATH="$drm_path" "$ROOT/bin/omarchy-hw-external-monitors"
+  OMARCHY_DRM_PATH="$drm_path" PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hw-external-monitors"
 }
 
 write_connectors
@@ -59,3 +66,18 @@ pass "physical monitor detection ignores disconnected external displays"
 write_connectors DP-1 connected
 has_external_monitor || fail "external-only systems still report a connected display"
 pass "physical monitor detection still supports external-only systems"
+
+# A panel on a firmware framebuffer is an Unknown connector: external until
+# the platform names it, then built in, on any card.
+write_connectors Unknown-1 connected
+has_external_monitor || fail "an unnamed Unknown connector counts as external"
+printf 'builtin-connector Unknown-1\n' >"$platform_root/displays.conf"
+if has_external_monitor; then
+  fail "a platform-named built-in connector is not an external display"
+fi
+write_connectors Unknown-1 connected DP-1 connected
+has_external_monitor || fail "external display is found alongside a platform-named panel"
+write_connectors Unknown-1 connected Unknown-2 connected
+has_external_monitor || fail "only the named connector is built in"
+rm -f "$platform_root/displays.conf"
+pass "physical monitor detection honours a platform-named built-in connector"
