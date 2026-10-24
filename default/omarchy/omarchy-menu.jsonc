@@ -43,7 +43,8 @@
 
   // Learn
   "learn.keybindings": {"icon":"","label":"Keybindings","action":"omarchy-menu-keybindings"},
-  "learn.omarchy": {"icon":"","label":"Omarchy","action":"omarchy-launch-webapp 'https://omarchy.org/manual/'"},
+  "learn.omarchy": {"icon":"","label":"Omarchy Manual","action":"omarchy-launch-webapp 'https://omarchy.org/manual/'"},
+  "learn.omarchy-guided": {"icon":"󰑴","label":"Omarchy (Guided)","action":"uwsm-app -- learn-omarchy"},
   "learn.hyprland": {"icon":"","label":"Hyprland","action":"omarchy-launch-webapp 'https://wiki.hypr.land/'"},
   "learn.arch": {"icon":"󰣇","label":"Arch","action":"omarchy-launch-webapp 'https://wiki.archlinux.org/title/Main_page'"},
   "learn.neovim": {"icon":"","label":"Neovim","action":"omarchy-launch-webapp 'https://www.lazyvim.org/keymaps'"},
