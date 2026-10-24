@@ -56,6 +56,12 @@ expected=$(printf 'START\0%s\0browser\0--app=https://example.test/a b' "$test_tm
   fail "the handoff sends the working directory and arguments as Chromium's singleton expects" "$(od -c <"$received")"
 pass "a command line is handed to the running browser over its singleton socket"
 
+# A feature turned off for the whole browser is already off in the running one.
+echo "--disable-features=ElasticOverscroll" >>"$flags_file"
+"$ROOT/bin/omarchy-cmd-browser-handoff" chromium https://example.test ||
+  fail "a flags file that turns a feature off still hands off"
+pass "a flags file that turns a feature off still hands off"
+
 ! "$ROOT/bin/omarchy-cmd-browser-handoff" chromium --user-data-dir=/elsewhere https://example.test ||
   fail "another data directory is left to a browser of its own"
 mkdir -p "$test_tmp/wrapper"
