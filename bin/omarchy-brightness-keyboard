@@ -11,14 +11,20 @@ fi
 
 direction="${1:-up}"
 
-# Find keyboard backlight device (look for *kbd_backlight* pattern in leds class).
+# Prefer the ThinkPad firmware LED when it exists. Another *kbd_backlight*
+# node (a dock, for example) must not hide it.
+leds_root=/sys/class/leds
 device=""
-for candidate in /sys/class/leds/*kbd_backlight*; do
-  if [[ -e $candidate ]]; then
-    device="$(basename "$candidate")"
-    break
-  fi
-done
+if [[ -e $leds_root/tpacpi::kbd_backlight ]]; then
+  device="tpacpi::kbd_backlight"
+else
+  for candidate in "$leds_root"/*kbd_backlight*; do
+    if [[ -e $candidate ]]; then
+      device="$(basename "$candidate")"
+      break
+    fi
+  done
+fi
 
 if [[ -z $device ]]; then
   echo "No keyboard backlight device found" >&2
@@ -29,6 +35,11 @@ if [[ $direction == "off" ]]; then
   brightnessctl -sd "$device" set 0 >/dev/null
   exit 0
 elif [[ $direction == "restore" ]]; then
+  # ThinkPad firmware keys never reach Hyprland. The watcher stores the last
+  # firmware level; prefer that over brightnessctl's save, which is often 0.
+  if [[ $device == "tpacpi::kbd_backlight" ]] && omarchy-thinkpad-keyboard-backlight --restore; then
+    exit 0
+  fi
   brightnessctl -rd "$device" >/dev/null
   exit 0
 fi
