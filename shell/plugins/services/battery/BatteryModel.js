@@ -9,14 +9,38 @@ function isDischarging(device, onBattery, dischargingState) {
 
 function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, alreadyNotified) {
   var level = batteryPercentage(device)
-  if (level < 0) return { level: level, notify: false, notifiedLowBattery: false }
+  if (level < 0) return { level: level, notify: false, dismiss: false, notifiedLowBattery: false }
 
   var low = isDischarging(device, onBattery, dischargingState) && level <= threshold
   return {
     level: level,
     notify: low && !alreadyNotified,
+    dismiss: !low,
     notifiedLowBattery: low
   }
+}
+
+function isLowBatteryWarning(row) {
+  return !!row && row.app === "omarchy-action" && row.appIcon === "battery-caution"
+}
+
+function hasLowBatteryWarning(rows) {
+  for (var i = 0; i < rows.length; i++) {
+    if (isLowBatteryWarning(rows[i])) return true
+  }
+  return false
+}
+
+function lowBatteryWarningsToDismiss(rows, recovered, low) {
+  var dismiss = []
+  if (!recovered && !low) return dismiss
+  var kept = false
+  for (var i = 0; i < rows.length; i++) {
+    if (!isLowBatteryWarning(rows[i])) continue
+    if (recovered || kept) dismiss.push(i)
+    else kept = true
+  }
+  return dismiss
 }
 
 function parseActiveProfile(text) {
@@ -43,6 +67,8 @@ if (typeof module !== "undefined") {
     batteryPercentage: batteryPercentage,
     isDischarging: isDischarging,
     shouldWarnLowBattery: shouldWarnLowBattery,
+    hasLowBatteryWarning: hasLowBatteryWarning,
+    lowBatteryWarningsToDismiss: lowBatteryWarningsToDismiss,
     parseActiveProfile: parseActiveProfile,
     profileAfterRead: profileAfterRead,
     isPowerSaverOnBattery: isPowerSaverOnBattery

@@ -22,6 +22,8 @@ Item {
   property int powerProfileSignals: 0
   property int powerProfileReadSignals: 0
   readonly property bool powerSaverOnBattery: BatteryModel.isPowerSaverOnBattery(UPower.onBattery, activePowerProfile)
+  readonly property var notificationService: shell ? shell.firstPartyServiceFor("omarchy.notifications") : null
+  property bool lowBatteryRecovered: false
 
   PersistentProperties {
     id: persisted
@@ -40,11 +42,27 @@ Item {
   function checkBattery() {
     var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
     persisted.notifiedLowBattery = state.notifiedLowBattery
+    lowBatteryRecovered = state.dismiss
     if (state.notify) sendLowBatteryWarning(state.level)
+    reconcileLowBatteryWarnings()
+  }
+
+  function popupRows() {
+    var rows = []
+    var model = notificationService ? notificationService.popupModel : null
+    for (var i = 0; model && i < model.count; i++) rows.push(model.get(i))
+    return rows
+  }
+
+  function reconcileLowBatteryWarnings() {
+    if (!notificationService) return
+    var dismiss = BatteryModel.lowBatteryWarningsToDismiss(popupRows(), lowBatteryRecovered, persisted.notifiedLowBattery)
+    for (var i = dismiss.length - 1; i >= 0; i--) notificationService.dismissPopup(dismiss[i])
   }
 
   function sendLowBatteryWarning(level) {
     if (warningProcess.running) return
+    if (BatteryModel.hasLowBatteryWarning(popupRows())) return
     warningProcess.command = [
       "omarchy-battery-low",
       String(level)
@@ -84,6 +102,17 @@ Item {
   }
 
   Process { id: warningProcess }
+
+  Connections {
+    target: UPower.displayDevice
+    function onIsPresentChanged() { root.checkBattery() }
+    function onStateChanged() { root.checkBattery() }
+  }
+
+  Connections {
+    target: root.notificationService ? root.notificationService.popupModel : null
+    function onCountChanged() { Qt.callLater(root.reconcileLowBatteryWarnings) }
+  }
 
   Process {
     id: powerProfileProcess

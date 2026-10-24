@@ -15,18 +15,56 @@ assert(!battery.isDischarging({ isPresent: true, state: discharging }, false, di
 
 assertDeepEqual(
   battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, true, discharging, 10, false),
-  { level: 8, notify: true, notifiedLowBattery: true },
+  { level: 8, notify: true, dismiss: false, notifiedLowBattery: true },
   'battery warns once under threshold'
 )
 assertDeepEqual(
   battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, true, discharging, 10, true),
-  { level: 8, notify: false, notifiedLowBattery: true },
+  { level: 8, notify: false, dismiss: false, notifiedLowBattery: true },
   'battery keeps low-battery notified state'
 )
 assertDeepEqual(
   battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.4, state: discharging }, true, discharging, 10, true),
-  { level: 40, notify: false, notifiedLowBattery: false },
+  { level: 40, notify: false, dismiss: true, notifiedLowBattery: false },
   'battery clears notified state after recovery'
+)
+
+const charging = 2
+assertDeepEqual(
+  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.06, state: charging }, false, discharging, 10, false),
+  { level: 6, notify: false, dismiss: true, notifiedLowBattery: false },
+  'battery does not warn while plugged in and clears a stale warning'
+)
+assertDeepEqual(
+  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.06, state: charging }, false, discharging, 10, true),
+  { level: 6, notify: false, dismiss: true, notifiedLowBattery: false },
+  'battery clears the warning on plugging in'
+)
+assertDeepEqual(
+  battery.shouldWarnLowBattery({ isPresent: false, percentage: 0 }, false, discharging, 10, false),
+  { level: -1, notify: false, dismiss: false, notifiedLowBattery: false },
+  'battery leaves notifications alone without a battery'
+)
+
+const warning = { app: 'omarchy-action', appIcon: 'battery-caution', summary: 'Time to recharge!' }
+const translatedWarning = { app: 'omarchy-action', appIcon: 'battery-caution', summary: 'Hora de carregar!' }
+const other = { app: 'omarchy-action', appIcon: 'audio-volume-high', summary: 'Time to recharge!' }
+assert(battery.hasLowBatteryWarning([other, warning]), 'battery finds a warning already on screen')
+assert(!battery.hasLowBatteryWarning([other]), 'battery matches the warning by sender and icon, not title')
+assertDeepEqual(
+  battery.lowBatteryWarningsToDismiss([warning, other, translatedWarning], true, false),
+  [0, 2],
+  'battery dismisses every warning once recovered, whatever its language'
+)
+assertDeepEqual(
+  battery.lowBatteryWarningsToDismiss([warning, other, translatedWarning], false, true),
+  [2],
+  'battery keeps only the newest warning while low'
+)
+assertDeepEqual(
+  battery.lowBatteryWarningsToDismiss([warning, translatedWarning], false, false),
+  [],
+  'battery leaves warnings alone before it knows the battery state'
 )
 
 const reply = profile => JSON.stringify({ type: 's', data: profile })
