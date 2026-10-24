@@ -9,7 +9,8 @@ require_command quickshell
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/bin" "$stage/home/.local/state/omarchy/current"
-ln -s "$stage/deleted.png" "$stage/home/.local/state/omarchy/current/background"
+printf 'not an image\n' >"$stage/broken.png"
+ln -s "$stage/broken.png" "$stage/home/.local/state/omarchy/current/background"
 for component in Commons Ui; do
   ln -s "$ROOT/shell/$component" "$stage/$component"
 done
@@ -25,9 +26,10 @@ exit 0
 SH
 chmod +x "$stage/bin/omarchy-theme-bg-boot-intro"
 
+# Past the fixture's own 2.5 s backstop, so its failure message is what reports a hang.
 output=$(HOME="$stage/home" PATH="$stage/bin:$PATH" timeout 6 quickshell -p "$stage" --no-color 2>&1) || fail "failed background startup exits cleanly" "$output"
-[[ $output == *"RESULT pass"* ]] || fail "a missing wallpaper reveals the desktop within the startup deadline" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "an unreadable wallpaper reveals the desktop within the startup deadline" "$output"
 if rg -q 'RESULT fail|ReferenceError|TypeError|Unable to assign|Binding loop' <<<"$output"; then
   fail "failed background startup has no QML errors" "$output"
 fi
-pass "a missing wallpaper reveals the desktop within the startup deadline"
+pass "an unreadable wallpaper reveals the desktop within the startup deadline"

@@ -133,6 +133,14 @@ pass "the shell launches with Quickshell's config watcher and reload popup off"
 [[ $(<"$qs_env_log") == *"background=$startup_wallpaper" ]] || fail "the shell receives the resolved wallpaper path before startup" "$(<"$qs_env_log")"
 pass "the selected wallpaper can decode as soon as Quickshell starts"
 
+# A theme without a wallpaper removes the link; the startup cover must not be
+# handed the link's own path as an image.
+rm "$launch_home/.local/state/omarchy/current/background"
+launch_shell '0' || fail "a launch without a wallpaper succeeds"
+[[ $(<"$qs_env_log") == *"background=unset" ]] || fail "the shell gets no startup wallpaper when there is no link" "$(<"$qs_env_log")"
+pass "the shell gets no startup wallpaper when there is no link"
+ln -s "$startup_wallpaper" "$launch_home/.local/state/omarchy/current/background"
+
 # Qt leaves through _exit(), so Quickshell's crash handler never relaunches it.
 launch_shell $'255\n0' || fail "a shell that died on a Wayland error is relaunched"
 [[ $(launches) == 2 ]] || fail "the dead shell is relaunched exactly once" "$(<"$qs_log")"

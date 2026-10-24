@@ -203,7 +203,7 @@ Item {
 
   Process {
     id: startupBackground
-    command: ["readlink", "-f", Quickshell.env("HOME") + "/.local/state/omarchy/current/background"]
+    command: ["readlink", "-e", Quickshell.env("HOME") + "/.local/state/omarchy/current/background"]
     stdout: StdioCollector { id: startupBackgroundOut }
     onExited: function(exitCode) {
       var path = String(startupBackgroundOut.text || "").trim()
