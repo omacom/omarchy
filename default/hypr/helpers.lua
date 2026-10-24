@@ -190,8 +190,18 @@ function o.exec_on_start(command)
   end)
 end
 
+-- Not o.launch: autostart waits for the shell's notification service so apps
+-- that probe it once at startup find it. That wait is only correct at login.
+-- A leading Hyprland exec rule (`[workspace 4 silent]`, `[float]`, ...) stays
+-- in front of the helper: Hyprland consumes it from the start of the exec
+-- string, and anywhere else it is an argument to the launched program.
 function o.launch_on_start(command)
-  o.exec_on_start(o.launch(command))
+  local rule, rest = command:match("^(%b[])%s+(.*)$")
+  if rule and rest ~= "" then
+    o.exec_on_start(rule .. " omarchy-launch-autostart " .. rest)
+  else
+    o.exec_on_start("omarchy-launch-autostart " .. command)
+  end
 end
 
 function o.launch_webapp(url)
