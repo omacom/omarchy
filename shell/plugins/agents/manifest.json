@@ -6,9 +6,10 @@
   "author": "Omarchy",
   "license": "MIT",
   "description": "Claude Code, Codex, Grok, Fireworks, and Kimi usage, limits, and pace in a native Omarchy bar panel.",
-  "kinds": ["bar-widget"],
+  "kinds": ["service", "bar-widget"],
   "activation": "on-demand",
   "entryPoints": {
+    "service": "Main.qml",
     "barWidget": "Panel.qml"
   },
   "barWidget": {

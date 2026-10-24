@@ -28,7 +28,10 @@ Panel {
 
   // Every subscription on one page, limits first: the question this panel
   // answers is how much room is left, and where.
-  readonly property var providers: usage.enabledProviders
+  // One usage service per shell, not one per monitor: each bar builds its own
+  // panel, and a Main inside every panel polled the providers once per screen.
+  readonly property var usage: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.agents") : null
+  readonly property var providers: usage ? usage.enabledProviders : []
 
   property bool cursorActive: false
 
@@ -162,7 +165,7 @@ Panel {
     if (from < 0) return
     var to = clamp(from + dy, 0, providers.length - 1)
     if (to === from) return
-    usage.moveProvider(providers[from].providerId, to)
+    if (usage) usage.moveProvider(providers[from].providerId, to)
     Qt.callLater(function() { pointAt("provider", to) })
   }
 
@@ -191,7 +194,7 @@ Panel {
     var to = dragTarget
     dragProviderId = ""
     dragTarget = -1
-    if (id === "" || to < 0) return
+    if (id === "" || to < 0 || !usage) return
     usage.moveProvider(id, to)
     Qt.callLater(function() { pointAt("provider", to) })
   }
@@ -229,7 +232,7 @@ Panel {
   }
 
   function refreshNow() {
-    usage.refreshAll(true)
+    if (usage) usage.refreshAll(true)
   }
 
   // ------------------------------------------------------------ adding
@@ -322,7 +325,7 @@ Panel {
         addResult = tagged[2]
         addStage = tagged[1]
         if (tagged[1] === "done") {
-          usage.refreshLimits()
+          if (usage) usage.refreshLimits()
           addDoneTimer.restart()
           // Nothing to show yet means the sign-in is what counts as set up.
           if (providers.length === 0 && !checkProcess.running) {
@@ -706,7 +709,7 @@ Panel {
   // every agent, now that they no longer get charts of their own.
 
   readonly property var summaryPhrases: {
-    var rev = usage.dataRevision
+    var rev = usage ? usage.dataRevision : 0
     var week = 0
     var today = 0
     var prompts = 0
@@ -780,7 +783,7 @@ Panel {
 
   // Only speaks up when the numbers cover more than this machine.
   function footerText() {
-    if (usage.syncStatusText !== "") return usage.syncStatusText
+    if (usage && usage.syncStatusText !== "") return usage.syncStatusText
     for (var i = 0; i < providers.length; i++) {
       var count = Number(providers[i].syncDeviceCount || 0)
       if (providers[i].syncEnabled && count > 0)
@@ -863,14 +866,24 @@ Panel {
     if (providers.length === 0 && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
-    usage.refreshLimits()
+    if (usage) usage.refreshLimits()
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
-  Main {
-    id: usage
-    settings: root.settings
+  // A Binding to the service's settings would outlive this panel: Qt leaves
+  // the last value behind, and the shared poll kept running with no widget.
+  property var attachedUsage: null
+
+  function attachUsage(next) {
+    if (attachedUsage === next) return
+    if (attachedUsage) attachedUsage.detachPanel(root)
+    attachedUsage = next
+    if (next) next.attachPanel(root)
   }
+
+  onUsageChanged: attachUsage(usage)
+  Component.onCompleted: attachUsage(usage)
+  Component.onDestruction: attachUsage(null)
 
   Process {
     id: checkProcess
