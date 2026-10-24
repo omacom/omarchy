@@ -95,28 +95,11 @@ stub_dir=$(mktemp -d)
 trap 'rm -rf "$stub_dir"' EXIT
 
 # `pacman -Q` resolves a name through what installed packages provide, so gvim
-# answers for vim and bash answers for sh. A set built from `pacman -Qq` alone
+# answers for vim and bash answers for sh. A set built from package names alone
 # would miss both and offer to install what is already there.
-#
-# `-Qi` wraps a long list onto indented continuation lines whenever COLUMNS is
-# set, so gvim's provides arrive the way a wrapped terminal would emit them.
 cat >"$stub_dir/pacman" <<'STUB'
 #!/bin/bash
 case "$1" in
--Qq)
-  printf '%s\n' bash gvim
-  ;;
--Qi)
-  cat <<'INFO'
-Name            : bash
-Provides        : sh
-Version         : 5.3.0-1
-Name            : gvim
-Provides        : vim=9.2.0849-1
-                  xxd
-Version         : 9.2-1
-INFO
-  ;;
 -Q)
   if [[ $2 == "--" ]]; then
     shift 2
@@ -124,13 +107,32 @@ INFO
     shift
   fi
   for want in "$@"; do
-    case "${want%%[<>=]*}" in bash | gvim | sh | vim | xxd) ;; *) exit 1 ;; esac
+    case "${want%%[<>=]*}" in bash | filesystem | gvim | sh | vim | xxd) ;; *) exit 1 ;; esac
   done
   ;;
 esac
 exit 0
 STUB
 chmod +x "$stub_dir/pacman"
+
+# expac prints one record per installed package: the format with %n replaced by
+# the name and %S by what the package provides, versions already dropped, the
+# items joined by the -l delimiter. filesystem provides nothing, so its %S is
+# empty, and gvim comes after it.
+cat >"$stub_dir/expac" <<'STUB'
+#!/bin/bash
+[[ $1 == "-l" ]] || exit 1
+delim=$2 format=$3
+while read -r name provides; do
+  record=${format//%n/$name}
+  printf '%b\n' "${record//%S/${provides// /$delim}}"
+done <<'PACKAGES'
+bash sh
+filesystem
+gvim vim xxd
+PACKAGES
+STUB
+chmod +x "$stub_dir/expac"
 printf '#!/bin/bash\nexit 0\n' >"$stub_dir/gvim"
 chmod +x "$stub_dir/gvim"
 
@@ -151,16 +153,18 @@ assert_helper_agrees() {
   ((real == shadowed)) || fail "$description" "$helper $*: real=$real shadowed=$shadowed"
 }
 
-# vim, sh and xxd are provided rather than installed, and xxd only appears on a
-# wrapped continuation line; bash>=1 is a version constraint no set can answer.
-pkg_cases=("bash" "vim" "sh" "xxd" "absent" "bash vim" "bash absent" "bash>=1" "vim>=1" "")
+# vim, sh and xxd are provided rather than installed. filesystem provides
+# nothing, and the empty line that leaves in expac's output must cost neither
+# it nor gvim, which comes after. bash>=1 is a version constraint no set can
+# answer.
+pkg_cases=("bash" "vim" "sh" "xxd" "filesystem" "gvim" "absent" "bash vim" "bash absent" "bash>=1" "vim>=1" "")
 for helper in omarchy-pkg-present omarchy-pkg-missing; do
   for case in "${pkg_cases[@]}"; do
     read -r -a argv <<<"$case"
     assert_helper_agrees "guard prelude resolves packages as pacman does" "$helper" "${argv[@]}"
   done
 done
-pass "guard prelude resolves packages through provides, wrapping, and constraints as pacman does"
+pass "guard prelude resolves packages through provides and constraints as pacman does"
 
 # cd is a shell builtin `command -v` finds and a PATH search does not.
 cmd_cases=("gvim" "cd" "absent" "gvim absent" "gvim cd" "")
@@ -282,7 +286,7 @@ pulled=$(<"$git_calls")
 pass "omarchy-theme-update pulls each clone by its whole path"
 
 # The package set is cached across batches, keyed on the local database
-# directory. Each case gets its own runtime dir and database, and a pacman
+# directory. Each case gets its own runtime dir and database, and an expac
 # that logs every query, so what is checked is when the set gets rebuilt and
 # whether a stale one could ever answer.
 cache_root=$(mktemp -d)
@@ -290,27 +294,26 @@ trap 'rm -rf "$stub_dir" "$themes_home" "$git_calls" "$cache_root"' EXIT
 
 cache_bin="$cache_root/bin"
 mkdir -p "$cache_bin"
-cat >"$cache_bin/pacman" <<'STUB'
+# Each package's name, then what it provides: vim for gvim, and for the rest
+# the empty line expac leaves.
+cat >"$cache_bin/expac" <<'STUB'
 #!/bin/bash
-echo "$1" >>"$PACMAN_LOG"
-case "$1" in
--Qq)
-  ls "$FIXTURE_DB/local" | sed 's/-[^-]*-[^-]*$//'
-  ;;
--Qi)
-  [[ -z ${PACMAN_QI_FAILS:-} ]] || exit 1
-  # A transaction landing while the set is being read.
-  case "${PACMAN_DURING_QI:-}" in
-  install) mkdir -p "$FIXTURE_DB/local/zen-browser-bin-1.0-1" ;;
-  lock) touch "$FIXTURE_DB/db.lck" ;;
-  esac
-  if [[ -d $FIXTURE_DB/local/gvim-9.2-1 ]]; then
-    printf 'Name            : gvim\nProvides        : vim=9.2-1\n'
+echo "$*" >>"$EXPAC_LOG"
+for entry in "$FIXTURE_DB"/local/*; do
+  name=${entry##*/}
+  name=${name%-*-*}
+  if [[ $name == "gvim" ]]; then
+    printf '%s\n' "$name" vim
+  else
+    printf '%s\n' "$name" ""
   fi
-  ;;
-*)
-  exit 1
-  ;;
+  # A query that dies part way has printed only the packages it reached.
+  [[ -z ${EXPAC_FAILS:-} ]] || exit 1
+done
+# A transaction landing while the set is being read.
+case "${EXPAC_DURING:-}" in
+install) mkdir -p "$FIXTURE_DB/local/zen-browser-bin-1.0-1" ;;
+lock) touch "$FIXTURE_DB/db.lck" ;;
 esac
 STUB
 # pacman.conf's DBPath, which pacman-conf prints with a trailing slash.
@@ -319,7 +322,7 @@ cat >"$cache_bin/pacman-conf" <<'STUB'
 [[ $1 == "DBPath" ]] || exit 1
 echo "$FIXTURE_DB/"
 STUB
-chmod +x "$cache_bin/pacman" "$cache_bin/pacman-conf"
+chmod +x "$cache_bin/expac" "$cache_bin/pacman-conf"
 
 cache_script=$(node -e '
   const path = require("path")
@@ -338,37 +341,38 @@ cache_case() {
 }
 
 # Runs the batch for a case, printing its answers on one line and leaving the
-# pacman queries it made in $dir/pacman.log.
+# expac queries it made in $dir/expac.log.
 batch() {
   local dir=$1
   shift
-  : >"$dir/pacman.log"
-  env PATH="$cache_bin:$PATH" PACMAN_LOG="$dir/pacman.log" FIXTURE_DB="$dir/db" OMARCHY_PACMAN_DB_PATH="$dir/db" \
+  : >"$dir/expac.log"
+  env PATH="$cache_bin:$PATH" EXPAC_LOG="$dir/expac.log" FIXTURE_DB="$dir/db" OMARCHY_PACMAN_DB_PATH="$dir/db" \
     XDG_RUNTIME_DIR="$dir/runtime" "$@" bash -e -c "$cache_script" | sort | tr '\n' ' '
 }
 
 queried() {
-  [[ -s $1/pacman.log ]]
+  [[ -s $1/expac.log ]]
 }
 
 dir=$(cache_case reuse)
-[[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "a first batch answers from pacman" "$(batch "$dir")"
-queried "$dir" || fail "a first batch asks pacman"
+[[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "a first batch answers from expac" "$(batch "$dir")"
+queried "$dir" || fail "a first batch asks expac"
 [[ -f $dir/runtime/omarchy-menu-packages ]] || fail "a first batch stores the package set"
-[[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "a cached batch answers as pacman did, provides included"
-! queried "$dir" || fail "a batch over an unchanged database does not ask pacman" "$(<"$dir/pacman.log")"
-pass "a batch over an unchanged package database answers from the stored set without asking pacman"
+! grep -q '^$' "$dir/runtime/omarchy-menu-packages" || fail "the stored set carries no empty lines"
+[[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "a cached batch answers as expac did, provides included"
+! queried "$dir" || fail "a batch over an unchanged database does not ask expac" "$(<"$dir/expac.log")"
+pass "a batch over an unchanged package database answers from the stored set without asking expac"
 
 # Upgrades rename an entry, installs add one and removals drop one; each has
 # to be seen by the very next batch.
 mkdir "$dir/db/local/zen-browser-bin-1.0-1"
 [[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:1 " ]] || fail "an install shows on the next batch" "$(batch "$dir")"
-queried "$dir" || fail "an install makes the next batch ask pacman"
+queried "$dir" || fail "an install makes the next batch ask expac"
 rmdir "$dir/db/local/gvim-9.2-1"
 [[ $(batch "$dir") == "bash:w:1 vim:w:0 zen:w:1 " ]] || fail "a removal shows on the next batch, provides included" "$(batch "$dir")"
 mv "$dir/db/local/bash-5.3-1" "$dir/db/local/bash-5.3-2"
 batch "$dir" >/dev/null
-queried "$dir" || fail "an upgrade makes the next batch ask pacman"
+queried "$dir" || fail "an upgrade makes the next batch ask expac"
 pass "installs, removals and upgrades reach the very next batch"
 
 # Without the test seam the database is wherever pacman.conf puts it, so a
@@ -379,7 +383,7 @@ batch "$dir" OMARCHY_PACMAN_DB_PATH= >/dev/null
 mkdir "$dir/db/local/zen-browser-bin-1.0-1"
 [[ $(batch "$dir" OMARCHY_PACMAN_DB_PATH=) == "bash:w:1 vim:w:1 zen:w:1 " ]] ||
   fail "an install in the database pacman-conf names reaches the next batch" "$(batch "$dir" OMARCHY_PACMAN_DB_PATH=)"
-queried "$dir" || fail "an install in the database pacman-conf names makes the next batch ask pacman"
+queried "$dir" || fail "an install in the database pacman-conf names makes the next batch ask expac"
 pass "the stamp follows the database pacman.conf's DBPath names"
 
 # A database pacman is still writing must not be remembered: the entry can
@@ -390,40 +394,40 @@ touch "$dir/db/db.lck"
 [[ ! -e $dir/runtime/omarchy-menu-packages ]] || fail "a batch during a transaction stores nothing"
 rm "$dir/db/db.lck"
 batch "$dir" >/dev/null
-queried "$dir" || fail "the batch after a transaction asks pacman"
+queried "$dir" || fail "the batch after a transaction asks expac"
 [[ -f $dir/runtime/omarchy-menu-packages ]] || fail "the batch after a transaction stores the set"
 pass "a set read while pacman holds its lock is used once and never stored"
 
 # A transaction that starts or finishes while the set is read leaves a set
-# that may be missing its packages; the checks after the queries catch both.
+# that may be missing its packages; the checks after the query catch both.
 for during in install lock; do
   dir=$(cache_case "during-$during")
-  batch "$dir" PACMAN_DURING_QI="$during" >/dev/null
-  queried "$dir" || fail "a batch asks pacman before a transaction lands mid-read ($during)"
+  batch "$dir" EXPAC_DURING="$during" >/dev/null
+  queried "$dir" || fail "a batch asks expac before a transaction lands mid-read ($during)"
   [[ ! -e $dir/runtime/omarchy-menu-packages ]] || fail "a set read across a transaction is never stored ($during)"
   rm -f "$dir/db/db.lck"
   [[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:$([[ $during == "install" ]] && echo 1 || echo 0) " ]] ||
     fail "the batch after a mid-read transaction answers from a fresh set ($during)" "$(batch "$dir")"
-  queried "$dir" || fail "the batch after a mid-read transaction asks pacman again ($during)"
+  queried "$dir" || fail "the batch after a mid-read transaction asks expac again ($during)"
 done
 pass "a set read across a transaction that lands mid-read is used once and never stored"
 
-# A failed query answers for its own batch, as before, but an empty or
-# provide-less set stored now would hide rows until the next transaction.
+# A failed query answers for its own batch with what it had printed, but a
+# partial set stored now would hide rows until the next transaction.
 dir=$(cache_case failed)
-[[ $(batch "$dir" PACMAN_QI_FAILS=1) == "bash:w:1 vim:w:0 zen:w:0 " ]] || fail "a failed query answers for its own batch" "$(batch "$dir" PACMAN_QI_FAILS=1)"
+[[ $(batch "$dir" EXPAC_FAILS=1) == "bash:w:1 vim:w:0 zen:w:0 " ]] || fail "a failed query answers for its own batch" "$(batch "$dir" EXPAC_FAILS=1)"
 [[ ! -e $dir/runtime/omarchy-menu-packages ]] || fail "a failed query is never stored"
 [[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "the batch after a failed query asks again" "$(batch "$dir")"
-pass "a set from a failed pacman query is never stored"
+pass "a set from a failed expac query is never stored"
 
 # A set stored under another stamp is never believed.
 dir=$(cache_case stale)
 printf '%s\n' "0:0:0:0" bash gvim vim zen-browser-bin >"$dir/runtime/omarchy-menu-packages"
 [[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "a set stored under another stamp is ignored" "$(batch "$dir")"
-queried "$dir" || fail "a set stored under another stamp makes the batch ask pacman"
+queried "$dir" || fail "a set stored under another stamp makes the batch ask expac"
 pass "a set stored under another database stamp is ignored and replaced"
 
 dir=$(cache_case no-runtime)
 [[ $(batch "$dir" XDG_RUNTIME_DIR=) == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "a batch without a runtime dir still answers"
 [[ -z $(ls -A "$dir/runtime") ]] || fail "a batch without a runtime dir stores nothing"
-pass "a batch without a runtime dir asks pacman and stores nothing"
+pass "a batch without a runtime dir asks expac and stores nothing"
