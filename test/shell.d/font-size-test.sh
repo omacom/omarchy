@@ -32,7 +32,8 @@ pass "stock terminal configs leave size to the local overlay"
 
 mkdir -p "$tmpdir/bin"
 printf '#!/bin/bash\nexit 1\n' >"$tmpdir/bin/pgrep"
-chmod +x "$tmpdir/bin/pgrep"
+printf '#!/bin/bash\nexit 0\n' >"$tmpdir/bin/pkill"
+chmod +x "$tmpdir/bin/pgrep" "$tmpdir/bin/pkill"
 export HOME="$home" XDG_CONFIG_HOME="$home/.config" PATH="$tmpdir/bin:$ROOT/bin:$PATH"
 
 output=$(omarchy-font-size)
@@ -50,8 +51,8 @@ pass "omarchy font size 11 writes every terminal overlay"
 
 grep -Fq 'config-file = ?"~/.config/ghostty/local"' "$home/.config/ghostty/config" ||
   fail "ghostty config includes the local overlay"
-grep -Fq 'globinclude ~/.config/kitty/local.conf' "$home/.config/kitty/kitty.conf" ||
-  fail "kitty config globincludes the local overlay"
+grep -qx 'globinclude local.conf' "$home/.config/kitty/kitty.conf" ||
+  fail "kitty config globincludes the local overlay" "$(grep globinclude "$home/.config/kitty/kitty.conf" || true)"
 grep -Fq 'foot/local.ini' "$home/.config/foot/foot.ini" ||
   fail "foot config includes the local overlay"
 pass "omarchy font size ensures shared configs include the overlays"
