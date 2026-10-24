@@ -136,6 +136,16 @@ BorderSurface {
 
   Behavior on color { ColorAnimation { duration: Style.duration(120) } }
 
+  // Held down, the button gives a little, so a click is felt as well as seen.
+  scale: mouseArea.pressed ? 0.97 : 1
+  Behavior on scale {
+    NumberAnimation {
+      duration: Style.duration(160)
+      easing.type: Easing.Bezier
+      easing.bezierCurve: Style.easeOut
+    }
+  }
+
   ToolTip {
     visible: root.tooltipText !== "" && mouseArea.containsMouse
     text: root.tooltipText
