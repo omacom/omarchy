@@ -12,8 +12,6 @@ Die Dateien sind genau das, was der Assistent des Installers selbst schreibt. De
 |------|----------|---------|
 | `user_configuration.json` | Ja | Platte, Hostname, Zeitzone, Tastatur |
 | `user_credentials.json` | Ja | Benutzername und Passwort-Hash |
-| `user_full_name.txt` | Nein | Vollständiger Name für Git |
-| `user_email_address.txt` | Nein | E-Mail für Git |
 | `user_encrypt_installation.txt` | Nein | `true`, wenn die Konfiguration einen `disk_encryption`-Block trägt |
 | `authorized_keys` | Nein | Öffentliche SSH-Schlüssel, einer pro Zeile |
 | `tailscale_authkey` | Nein | Tailscale-Auth-Schlüssel, um beim ersten Boot deinem Tailnet beizutreten |

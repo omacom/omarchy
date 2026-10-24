@@ -12,8 +12,6 @@ Els fitxers són exactament el que escriu l'assistent del mateix instal·lador, 
 |------|----------|---------|
 | `user_configuration.json` | Sí | Disc, nom d'amfitrió, zona horària, teclat |
 | `user_credentials.json` | Sí | Nom d'usuari i hash de la contrasenya |
-| `user_full_name.txt` | No | Nom complet de Git |
-| `user_email_address.txt` | No | Correu electrònic de Git |
 | `user_encrypt_installation.txt` | No | `true` quan la configuració conté un bloc `disk_encryption` |
 | `authorized_keys` | No | Claus públiques SSH, una per línia |
 | `tailscale_authkey` | No | Clau d'autenticació de Tailscale per unir-se a la teva tailnet a la primera arrencada |

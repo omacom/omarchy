@@ -12,8 +12,6 @@
 |------|----------|---------|
 | `user_configuration.json` | نعم | القرص، اسم المضيف، المنطقة الزمنية، لوحة المفاتيح |
 | `user_credentials.json` | نعم | اسم المستخدم وتجزئة كلمة المرور |
-| `user_full_name.txt` | لا | الاسم الكامل لـ Git |
-| `user_email_address.txt` | لا | بريد Git |
 | `user_encrypt_installation.txt` | لا | `true` عندما يحمل التكوين كتلة `disk_encryption` |
 | `authorized_keys` | لا | مفاتيح SSH العامة، واحدة في كل سطر |
 | `tailscale_authkey` | لا | مفتاح مصادقة Tailscale للانضمام إلى tailnet الخاص بك عند الإقلاع الأول |

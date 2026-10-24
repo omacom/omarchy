@@ -12,8 +12,6 @@ Fail-fail ialah tepat apa yang ditulis oleh wizard pemasang itu sendiri, jadi ca
 |------|----------|---------|
 | `user_configuration.json` | Ya | Cakera, nama hos, zon masa, papan kekunci |
 | `user_credentials.json` | Ya | Nama pengguna dan hash kata laluan |
-| `user_full_name.txt` | Tidak | Nama penuh Git |
-| `user_email_address.txt` | Tidak | Emel Git |
 | `user_encrypt_installation.txt` | Tidak | `true` apabila konfigurasi membawa blok `disk_encryption` |
 | `authorized_keys` | Tidak | Kekunci awam SSH, satu setiap baris |
 | `tailscale_authkey` | Tidak | Kekunci auth Tailscale untuk menyertai tailnet anda semasa but pertama |

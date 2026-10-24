@@ -8,11 +8,11 @@
   "learn": {
     "label": "Lär"
   },
+  "appearance": {
+    "label": "Utseende"
+  },
   "trigger": {
     "label": "Utlös"
-  },
-  "style": {
-    "label": "Stil"
   },
   "setup": {
     "label": "Installation"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Gemenskap"
   },
-  "trigger.appearance": {
-    "label": "Utseende"
+  "appearance.theme": {
+    "label": "Tema"
   },
-  "trigger.appearance.animations": {
-    "label": "Animeringar"
+  "appearance.background": {
+    "label": "Bakgrund"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Typsnitt"
+  },
+  "appearance.top-bar": {
     "label": "Menyfält"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Dölj fält"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Visa fält"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Placera fält"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Fältbakgrund"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Ogenomskinligt fält"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Glasfält"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Klart fält"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Fältindikatorer"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Batteriprocent"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Klocka"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Söndag 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Söndag 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Söndag 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Söndag 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "sön 3 maj 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "sön 3 maj 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 maj V18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 maj V18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Övre fält"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Nedre fält"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Vänsterfält"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Högerfält"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Dölj dock automatiskt"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Alltid synlig dock"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Dockplacering"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Övre dock"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Nedre dock"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Vänsterdock"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Högerdock"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Fönstermellanrum"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Fönsterhörn"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Temahörn"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Skarpa hörn"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Rundade hörn"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Fönsteropacitet"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Ogenomskinliga fönster"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Genomskinliga fönster"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Glasfönster"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1-fönster-förhållande"
+  "appearance.branding.screensaver": {
+    "label": "Skärmsläckare"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Om"
+  },
+  "appearance.branding.about.text": {
+    "label": "Redigera text"
+  },
+  "appearance.branding.about.image": {
+    "label": "Från bild"
+  },
+  "appearance.branding.about.default": {
+    "label": "Återställ standard"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Redigera text"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Från bild"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Återställ standard"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Dölj dock automatiskt"
+  },
+  "appearance.dock.always-on": {
+    "label": "Alltid synlig dock"
+  },
+  "appearance.dock.position": {
+    "label": "Dockplacering"
+  },
+  "appearance.dock.position.top": {
+    "label": "Övre dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Nedre dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "Vänsterdock"
+  },
+  "appearance.dock.position.right": {
+    "label": "Högerdock"
+  },
+  "appearance.workspace-layout": {
     "label": "Arbetsytelayout",
     "title": "Standardlayout för arbetsyta"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Kakling"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Rullning"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Flytande"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr-temasynk"
+  "appearance.unlock": {
+    "label": "Lås upp"
   },
   "trigger.toggle": {
     "label": "Växla"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Håll vaken"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Aviseringar"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Nattljus"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Skärmsläckare"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Kraschregistrering"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Hastighetstest"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Bärbar skärm"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Spegla skärm"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Hybrid GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Styrplatta"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Styrplattehaptik"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "hög"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Pekskärm"
   },
   "trigger.reminder.set": {
     "label": "Skapa en"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Diskhastighetstest"
-  },
-  "style.theme": {
-    "label": "Tema"
-  },
-  "style.background": {
-    "label": "Bakgrund"
-  },
-  "style.unlock": {
-    "label": "Lås upp"
-  },
-  "style.font": {
-    "label": "Typsnitt"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Skärmsläckare"
-  },
-  "style.about": {
-    "label": "Om"
-  },
-  "style.about.text": {
-    "label": "Redigera text"
-  },
-  "style.about.image": {
-    "label": "Från bild"
-  },
-  "style.about.default": {
-    "label": "Återställ standard"
-  },
-  "style.screensaver.text": {
-    "label": "Redigera text"
-  },
-  "style.screensaver.image": {
-    "label": "Från bild"
-  },
-  "style.screensaver.default": {
-    "label": "Återställ standard"
   },
   "setup.monitors": {
     "label": "Skärmar"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1210,8 +1162,5 @@
   },
   "system.reboot-boot-menu": {
     "label": "Starta om till startmenyn"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
   }
 }

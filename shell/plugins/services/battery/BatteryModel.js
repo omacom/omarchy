@@ -34,17 +34,12 @@ function profileAfterRead(current, replyText, signalsAtStart, signalsNow) {
   return signalsAtStart === signalsNow ? parseActiveProfile(replyText) : current
 }
 
-function isPowerSaverOnBattery(onBattery, profile) {
-  return !!onBattery && profile === "power-saver"
-}
-
 if (typeof module !== "undefined") {
   module.exports = {
     batteryPercentage: batteryPercentage,
     isDischarging: isDischarging,
     shouldWarnLowBattery: shouldWarnLowBattery,
     parseActiveProfile: parseActiveProfile,
-    profileAfterRead: profileAfterRead,
-    isPowerSaverOnBattery: isPowerSaverOnBattery
+    profileAfterRead: profileAfterRead
   }
 }

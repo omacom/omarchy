@@ -12,8 +12,6 @@ A fájlok pont azt jelentik, amit a telepítő saját varázslója ír, így a k
 |------|----------|---------|
 | `user_configuration.json` | Igen | Lemez, hosztnév, időzóna, billentyűzet |
 | `user_credentials.json` | Igen | Felhasználónév és jelszó-hash |
-| `user_full_name.txt` | Nem | Git teljes név |
-| `user_email_address.txt` | Nem | Git e-mail |
 | `user_encrypt_installation.txt` | Nem | `true`, amikor a konfiguráció egy `disk_encryption` blokkot hordoz |
 | `authorized_keys` | Nem | SSH nyilvános kulcsok, soronként egy |
 | `tailscale_authkey` | Nem | Tailscale hitelesítési kulcs a tailnethez való csatlakozáshoz első indításkor |

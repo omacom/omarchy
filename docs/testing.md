@@ -23,7 +23,7 @@ the end and exits non-zero.
   `$HOME`.
 - **`./test/shell`** — runs every `test/shell.d/*-test.sh` (except
   `base-test.sh` itself). Each file is an independent suite covering one area:
-  a shell plugin, a `bin/` command, a config invariant, or a still-live migration. This is where new tests go.
+  a shell plugin, a `bin/` command, or a config invariant. This is where new tests go.
 - **Acceptance** — everything that needs a real desktop doing real things.
   Deliberately excluded from `./test/all`; it runs in a VM, not the
   development session.
@@ -62,11 +62,17 @@ Assertions are TAP-flavored and blunt:
 
 The runner compensates for that early exit: `./test/shell` continues past a failing file and summarizes the failures at the end. Aborting the whole run at the first bad file once let a single packaging failure mask 114 of 134 files. Failure granularity is therefore per file inside a run, per assertion inside a file.
 
+Each file's output is kept in a fresh directory under `$TMPDIR` (`omarchy-test-shell.*`), whose path the runner prints at the end, next to each failed file. Read a failure from its log there; running the suite again only to see output is never needed.
+
+`base-test.sh` unsets `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, `XDG_DATA_HOME` and `XDG_STATE_HOME`, so a test that points `HOME` at a scratch directory cannot reach the real home through them; a desktop session exports all four. A test that needs one sets it itself.
+
 The runner also lists files with skipped checks, including files that ran some checks or later failed. Skips do not fail a run. When no files fail, a run with skips is reported as completed without failures rather than having passed every check.
 
 ## Compositor-dependent tests
 
 Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines. `require_compositor "description"` handles this: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
+
+A test that reads the background layer's pixels off the first output also calls `require_uncovered_background "description"`, which skips unless that output's workspace is empty: in a working session a window covers the background and the test would read the window. Run such tests on an empty workspace.
 
 The probe is more than an environment check, because `WAYLAND_DISPLAY` only
 proves the variable was inherited. Sandboxes pass the environment through
@@ -139,11 +145,7 @@ only a live session can prove.
   with `HOME` pointed at a `mktemp -d` directory (cleaned up via
   `trap ... EXIT`) and `OMARCHY_PATH="$ROOT"`, so tests exercise the checkout
   without touching the developer's machine.
-- **Migrations run directly.** A migration test builds the legacy state in a
-  fake `$HOME`, runs `bash -euo pipefail "$ROOT/migrations/<ts>.sh"`, and
-  asserts the resulting state — including running it twice to prove
-  idempotence, and once against non-legacy state to prove it leaves user
-  customization alone. Keep that test while the migration is still being written or bugfixed, if it calls an Omarchy helper whose interface can still change, or if it is a security-sensitive privileged repair. Once a one-shot rewrite has shipped in a tagged release and is frozen, drop the test even when that rewrite used sudo, pacman, or limine-mkinitcpio. Keep the migration itself for late-updaters. Tests of `omarchy-migrate`, the login notifier, and `omarchy-upgrade-to-quattro` stay.
+- **Migrations get no suite test.** A migration runs once per machine and is frozen once it ships, so a test of it guards nothing for long. Check it by hand against a scratch `$HOME` while writing it (see [`agents/skills/migrations.md`](../agents/skills/migrations.md)). When a migration needs logic worth a test, put that logic in a `bin/` command and test the command. Tests of `omarchy-migrate`, the login notifier, and `omarchy-upgrade-to-quattro` stay.
 - **Assert the invariant, not the snapshot.** Config tests pin the property a
   test is named for (this widget stays adjacent to that one) rather than whole
   structures, so unrelated churn does not fail them.

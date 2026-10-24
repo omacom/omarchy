@@ -8,11 +8,11 @@
   "learn": {
     "label": "Belajar"
   },
+  "appearance": {
+    "label": "Penampilan"
+  },
   "trigger": {
     "label": "Pencetus"
-  },
-  "style": {
-    "label": "Gaya"
   },
   "setup": {
     "label": "Persediaan"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Komuniti"
   },
-  "trigger.appearance": {
-    "label": "Penampilan"
+  "appearance.theme": {
+    "label": "Tema"
   },
-  "trigger.appearance.animations": {
-    "label": "Animasi"
+  "appearance.background": {
+    "label": "Latar Belakang"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Fon"
+  },
+  "appearance.top-bar": {
     "label": "Bar Menu"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Sembunyi Bar"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Papar Bar"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Kedudukan Bar"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Latar Bar"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Bar Legap"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Bar Kaca"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Bar Jernih"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Penunjuk Bar"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Peratus Bateri"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Jam"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Ahad 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Ahad 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Ahad 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Ahad 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Ahad 3 Mei 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Ahad 3 Mei 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 Mei W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 Mei W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Bar Atas"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Bar Bawah"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Bar Kiri"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Bar Kanan"
   },
-  "trigger.appearance.dock": {
-    "label": "Dok"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Dok Auto-sembunyi"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Dok Sentiasa Papar"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Kedudukan Dok"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Dok Atas"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Dok Bawah"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Dok Kiri"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Dok Kanan"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Jurang Tetingkap"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Sudut Tetingkap"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Sudut Tema"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Sudut Tajam"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Sudut Bulat"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Kelegapan Tetingkap"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Tetingkap Legap"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Tetingkap Lutsinar"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Tetingkap Kaca"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "Nisbah 1-Tetingkap"
+  "appearance.branding.screensaver": {
+    "label": "Tabir Skrin"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Perihal"
+  },
+  "appearance.branding.about.text": {
+    "label": "Sunting Teks"
+  },
+  "appearance.branding.about.image": {
+    "label": "Tetapkan dari Imej"
+  },
+  "appearance.branding.about.default": {
+    "label": "Pulihkan Lalai"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Sunting Teks"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Tetapkan dari Imej"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Pulihkan Lalai"
+  },
+  "appearance.dock": {
+    "label": "Dok"
+  },
+  "appearance.dock.autohide": {
+    "label": "Dok Auto-sembunyi"
+  },
+  "appearance.dock.always-on": {
+    "label": "Dok Sentiasa Papar"
+  },
+  "appearance.dock.position": {
+    "label": "Kedudukan Dok"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dok Atas"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dok Bawah"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dok Kiri"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dok Kanan"
+  },
+  "appearance.workspace-layout": {
     "label": "Susun Atur Ruang Kerja",
     "title": "Susun Atur Ruang Kerja Lalai"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Jubinan"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Penatalan"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Terapung"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Segerak Tema Herdr"
+  "appearance.unlock": {
+    "label": "Buka Kunci"
   },
   "trigger.toggle": {
     "label": "Togol"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Kekal Jaga"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Pemberitahuan"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Cahaya Malam"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Tabir Skrin"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Tangkapan Ranap"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Ujian Kelajuan"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Paparan Laptop"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Paparan Cermin"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "GPU Hibrid"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Pad Sentuh"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Haptik Pad Sentuh"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "tinggi"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Skrin Sentuh"
   },
   "trigger.reminder.set": {
     "label": "Tetapkan Satu"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Ujian Kelajuan Cakera"
-  },
-  "style.theme": {
-    "label": "Tema"
-  },
-  "style.background": {
-    "label": "Latar Belakang"
-  },
-  "style.unlock": {
-    "label": "Buka Kunci"
-  },
-  "style.font": {
-    "label": "Fon"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Tabir Skrin"
-  },
-  "style.about": {
-    "label": "Perihal"
-  },
-  "style.about.text": {
-    "label": "Sunting Teks"
-  },
-  "style.about.image": {
-    "label": "Tetapkan dari Imej"
-  },
-  "style.about.default": {
-    "label": "Pulihkan Lalai"
-  },
-  "style.screensaver.text": {
-    "label": "Sunting Teks"
-  },
-  "style.screensaver.image": {
-    "label": "Tetapkan dari Imej"
-  },
-  "style.screensaver.default": {
-    "label": "Pulihkan Lalai"
   },
   "setup.monitors": {
     "label": "Monitor"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1210,8 +1162,5 @@
   },
   "system.reboot-boot-menu": {
     "label": "But semula ke Menu But"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
   }
 }

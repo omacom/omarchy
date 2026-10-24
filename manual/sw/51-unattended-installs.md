@@ -12,8 +12,6 @@ Faili ni sawa kabisa na zile ambazo mwongozaji wa kisakinishaji huandika, kwa hi
 |------|----------|---------|
 | `user_configuration.json` | Ndiyo | Diski, jina la mwenyeji, eneo la saa, kibodi |
 | `user_credentials.json` | Ndiyo | Jina la mtumiaji na hash ya nenosiri |
-| `user_full_name.txt` | Hapana | Jina kamili la Git |
-| `user_email_address.txt` | Hapana | Barua pepe ya Git |
 | `user_encrypt_installation.txt` | Hapana | `true` wakati usanidi unabeba kizuizi cha `disk_encryption` |
 | `authorized_keys` | Hapana | Funguo za umma za SSH, moja kwa kila mstari |
 | `tailscale_authkey` | Hapana | Ufunguo wa uthibitishaji wa Tailscale kwa kujiunga na tailnet yako kwenye kuwasha wa kwanza |

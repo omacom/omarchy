@@ -12,8 +12,6 @@ De bestanden zijn precies wat de wizard van het installatieprogramma zelf schrij
 |------|----------|---------|
 | `user_configuration.json` | Ja | Schijf, hostnaam, tijdzone, toetsenbord |
 | `user_credentials.json` | Ja | Gebruikersnaam en wachtwoord-hash |
-| `user_full_name.txt` | Nee | Volledige naam voor Git |
-| `user_email_address.txt` | Nee | E-mailadres voor Git |
 | `user_encrypt_installation.txt` | Nee | `true` wanneer de configuratie een `disk_encryption`-blok draagt |
 | `authorized_keys` | Nee | Openbare SSH-sleutels, één per regel |
 | `tailscale_authkey` | Nee | Tailscale-authsleutel om bij de eerste opstart lid te worden van je tailnet |

@@ -12,8 +12,6 @@ Faili ir tieši tie, ko raksta paša instalētāja vednis, tāpēc vieglākais v
 |------|----------|---------|
 | `user_configuration.json` | Jā | Disks, saimniekdatora nosaukums, laika josla, tastatūra |
 | `user_credentials.json` | Jā | Lietotājvārds un paroles jaucējkods |
-| `user_full_name.txt` | Nē | Git pilns vārds |
-| `user_email_address.txt` | Nē | Git e-pasts |
 | `user_encrypt_installation.txt` | Nē | `true`, kad konfigurācija satur `disk_encryption` bloku |
 | `authorized_keys` | Nē | SSH publiskās atslēgas, pa vienai rindā |
 | `tailscale_authkey` | Nē | Tailscale autorizācijas atslēga, lai pirmajā sāknēšanā pievienotos jūsu tailnet |

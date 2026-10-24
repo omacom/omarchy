@@ -12,8 +12,6 @@ Các tệp chính xác là những gì trình hướng dẫn của chính trình
 |------|----------|---------|
 | `user_configuration.json` | Có | Đĩa, tên máy, múi giờ, bàn phím |
 | `user_credentials.json` | Có | Tên người dùng và hash mật khẩu |
-| `user_full_name.txt` | Không | Họ tên đầy đủ cho Git |
-| `user_email_address.txt` | Không | Email cho Git |
 | `user_encrypt_installation.txt` | Không | `true` khi cấu hình mang một khối `disk_encryption` |
 | `authorized_keys` | Không | Các khóa công khai SSH, mỗi dòng một khóa |
 | `tailscale_authkey` | Không | Khóa xác thực Tailscale để tham gia tailnet của bạn trong lần khởi động đầu tiên |

@@ -12,8 +12,6 @@ Omarchy ISO는 키보드 앞에 아무도 없이 스스로 설치할 수 있습�
 |------|----------|---------|
 | `user_configuration.json` | 예 | 디스크, 호스트 이름, 시간대, 키보드 |
 | `user_credentials.json` | 예 | 사용자 이름과 비밀번호 해시 |
-| `user_full_name.txt` | 아니오 | Git 전체 이름 |
-| `user_email_address.txt` | 아니오 | Git 이메일 |
 | `user_encrypt_installation.txt` | 아니오 | 설정에 `disk_encryption` 블록이 있을 때 `true` |
 | `authorized_keys` | 아니오 | SSH 공개 키, 한 줄에 하나씩 |
 | `tailscale_authkey` | 아니오 | 첫 부팅에서 tailnet에 참여하기 위한 Tailscale 인증 키 |

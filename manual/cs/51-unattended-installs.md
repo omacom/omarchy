@@ -12,8 +12,6 @@ Soubory jsou přesně tytéž, které zapíše vlastní průvodce instalátoru, 
 |------|----------|---------|
 | `user_configuration.json` | Ano | Disk, název hostitele, časové pásmo, klávesnice |
 | `user_credentials.json` | Ano | Uživatelské jméno a hash hesla |
-| `user_full_name.txt` | Ne | Úplné jméno pro Git |
-| `user_email_address.txt` | Ne | E-mail pro Git |
 | `user_encrypt_installation.txt` | Ne | Hodnota `true`, pokud konfigurace obsahuje blok `disk_encryption` |
 | `authorized_keys` | Ne | Veřejné klíče SSH, jeden na řádku |
 | `tailscale_authkey` | Ne | Autorizační klíč Tailscale pro připojení k vašemu tailnetu při prvním spuštění |

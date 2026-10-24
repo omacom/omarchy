@@ -12,8 +12,6 @@ Ang mga file ay eksaktong kung ano ang isinusulat ng sariling wizard ng installe
 |------|----------|---------|
 | `user_configuration.json` | Oo | Disk, hostname, timezone, keyboard |
 | `user_credentials.json` | Oo | Username at hash ng password |
-| `user_full_name.txt` | Hindi | Buong pangalan para sa Git |
-| `user_email_address.txt` | Hindi | Email para sa Git |
 | `user_encrypt_installation.txt` | Hindi | `true` kapag dala ng konpigurasyon ang isang block na `disk_encryption` |
 | `authorized_keys` | Hindi | Mga pampublikong key ng SSH, isa bawat linya |
 | `tailscale_authkey` | Hindi | Auth key ng Tailscale para sumali sa tailnet mo sa unang boot |

@@ -12,8 +12,6 @@ Datoteke su točno ono što vlastiti čarobnjak instalacijskog programa upisuje,
 |------|----------|---------|
 | `user_configuration.json` | Da | Disk, ime hosta, vremenska zona, tipkovnica |
 | `user_credentials.json` | Da | Korisničko ime i hash lozinke |
-| `user_full_name.txt` | Ne | Puno ime za Git |
-| `user_email_address.txt` | Ne | E-pošta za Git |
 | `user_encrypt_installation.txt` | Ne | `true` kad konfiguracija nosi blok `disk_encryption` |
 | `authorized_keys` | Ne | SSH javni ključevi, jedan po retku |
 | `tailscale_authkey` | Ne | Tailscale autentifikacijski ključ za pridruživanje vašem tailnetu pri prvom pokretanju |

@@ -33,13 +33,14 @@ assert(staleMenu.length === 0, 'English menu catalog mirrors the menu definition
 const orphanMenu = Object.keys(enMenu).filter((id) => id !== 'root' && !menuItems.some((item) => item.id === id))
 assert(orphanMenu.length === 0, 'English menu catalog has no orphan ids', JSON.stringify(orphanMenu))
 
-// I18N_STRUCTURAL=1 is the pull-request gate: individual PRs only add the
+// Structural by default, as every gate runs it: individual PRs only add the
 // English side, so missing translations are pending work for the sync
 // workflow rather than failures. So are translations the manifest marks
 // stale (their English changed since) and orphans awaiting pruning —
 // an English-only edit must never wedge on 49 other languages. Structure
-// of what IS current must still hold either way.
-const structural = process.env.I18N_STRUCTURAL === '1'
+// of what IS current must still hold either way. I18N_STRICT=1 also wants
+// every catalog complete, as it is right after a sync.
+const structural = process.env.I18N_STRICT !== '1'
 const crypto = require('crypto')
 const manifest = readJson('translation-manifest.json')
 // A plural entry hashes as Python's json.dumps(sort_keys=True) writes it.
@@ -471,11 +472,11 @@ fi
 
 require_command python3
 
-if [[ ${I18N_STRUCTURAL:-} == "1" ]]; then
-  skip "no translations are pending (structural mode)"
-else
+if [[ ${I18N_STRICT:-} == "1" ]]; then
   pending_locales=$(python3 "$ROOT/scripts/i18n-sync.py" pending | jq -c '.locales')
   assert_bash_equal "$pending_locales" "[]" "no translations are pending"
+else
+  skip "no translations are pending (structural mode)"
 fi
 
 extract_candidates=$(python3 "$ROOT/scripts/i18n-sync.py" extract-scan | jq -c '.candidates | length')

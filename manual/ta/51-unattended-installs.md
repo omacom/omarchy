@@ -12,8 +12,6 @@ Omarchy ISO விசைப்பலகையில் யாரும் இல
 |------|----------|---------|
 | `user_configuration.json` | ஆம் | வட்டு, புரவலன் பெயர், நேர மண்டலம், விசைப்பலகை |
 | `user_credentials.json` | ஆம் | பயனர்பெயர் மற்றும் கடவுச்சொல் ஹாஷ் |
-| `user_full_name.txt` | இல்லை | Git முழுப் பெயர் |
-| `user_email_address.txt` | இல்லை | Git மின்னஞ்சல் |
 | `user_encrypt_installation.txt` | இல்லை | உள்ளமைவு ஒரு `disk_encryption` தொகுதியைக் கொண்டிருக்கும்போது `true` |
 | `authorized_keys` | இல்லை | SSH பொது விசைகள், ஒரு வரிக்கு ஒன்று |
 | `tailscale_authkey` | இல்லை | முதல் துவக்கத்தில் உங்கள் tailnet-இல் சேர்வதற்கான Tailscale auth விசை |

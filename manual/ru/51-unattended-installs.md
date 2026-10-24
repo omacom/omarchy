@@ -12,8 +12,6 @@ ISO Omarchy может установить себя без кого-либо з
 |------|----------|---------|
 | `user_configuration.json` | Да | Диск, имя хоста, часовой пояс, клавиатура |
 | `user_credentials.json` | Да | Имя пользователя и хеш пароля |
-| `user_full_name.txt` | Нет | Полное имя для Git |
-| `user_email_address.txt` | Нет | Email для Git |
 | `user_encrypt_installation.txt` | Нет | `true`, когда конфигурация содержит блок `disk_encryption` |
 | `authorized_keys` | Нет | Публичные ключи SSH, по одному на строку |
 | `tailscale_authkey` | Нет | Ключ аутентификации Tailscale для присоединения к вашему tailnet при первой загрузке |

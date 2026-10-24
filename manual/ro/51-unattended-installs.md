@@ -12,8 +12,6 @@ Fișierele sunt exact ceea ce scrie propriul asistent al programului de instalar
 |------|----------|---------|
 | `user_configuration.json` | Da | Disc, nume de gazdă, fus orar, tastatură |
 | `user_credentials.json` | Da | Nume de utilizator și hashul parolei |
-| `user_full_name.txt` | Nu | Numele complet Git |
-| `user_email_address.txt` | Nu | E-mail Git |
 | `user_encrypt_installation.txt` | Nu | `true` când configurația conține un bloc `disk_encryption` |
 | `authorized_keys` | Nu | Chei publice SSH, câte una pe rând |
 | `tailscale_authkey` | Nu | Cheie de autentificare Tailscale pentru alăturarea la tailnetul tău la prima pornire |
