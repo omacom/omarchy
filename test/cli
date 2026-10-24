@@ -874,3 +874,73 @@ if (( alias_ms * 4 > full_ms )); then
   fail "an alias dispatch costs a fraction of loading the whole command table"
 fi
 pass "an alias dispatch costs a fraction of loading the whole command table (${alias_ms}ms vs ${full_ms}ms)"
+
+eyes_home=$(mktemp -d)
+TMPDIRS+=("$eyes_home")
+eyes_bin=$(mktemp -d)
+TMPDIRS+=("$eyes_bin")
+cat >"$eyes_bin/curl" << 'SH'
+#!/bin/bash
+echo "curl $*" >>"$HOME/curl.log"
+for arg in "$@"; do
+  if [[ $arg == *"/api/tags" ]]; then
+    printf '{"models":[{"name":"moondream:latest"}]}\n'
+    exit 0
+  fi
+done
+# The payload arrives as -d @file; answer from what it asks.
+payload=""
+prev=""
+for arg in "$@"; do
+  [[ $prev == "-d" ]] && payload=${arg#@}
+  prev=$arg
+done
+prompt=$(jq -r .prompt "$payload")
+if [[ $prompt == *"Reply with only a JSON object"* ]]; then
+  printf '{"response":"{\\"x\\": 620, \\"y\\": 310}"}\n'
+elif [[ $prompt == *"does this error mean"* ]]; then
+  printf '{"response":"It means the build cannot find that file."}\n'
+else
+  printf '{"response":"A code editor with an error dialog."}\n'
+fi
+exit 0
+SH
+cat >"$eyes_bin/hyprctl" << 'SH'
+#!/bin/bash
+printf '{"class":"%s"}\n' "${EYES_TEST_CLASS:-code}"
+exit 0
+SH
+printf '#!/bin/bash\nprintf "PNG" >"${@: -1}"\nexit 0\n' >"$eyes_bin/grim"
+printf '#!/bin/bash\necho "0,0 100x100"\nexit 0\n' >"$eyes_bin/slurp"
+printf '#!/bin/bash\nexit 0\n' >"$eyes_bin/hyprpicker"
+printf '#!/bin/bash\ncat >"$HOME/clipboard.txt"\nexit 0\n' >"$eyes_bin/wl-copy"
+printf '#!/bin/bash\nexit 0\n' >"$eyes_bin/omarchy-notification-send"
+chmod +x "$eyes_bin"/*
+eyes_run() {
+  env HOME="$eyes_home" PATH="$eyes_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-capture-eyes" "$@"
+}
+
+eyes_out=$(eyes_run describe)
+[[ $eyes_out == "A code editor with an error dialog." ]] || fail "eyes describes the screen through the local model" "$eyes_out"
+grep -q "/api/generate" "$eyes_home/curl.log" || fail "eyes asks the local model endpoint"
+eyes_out=$(eyes_run ask "what does this error mean")
+[[ $eyes_out == *"cannot find that file"* ]] || fail "eyes answers a question about the screen" "$eyes_out"
+eyes_out=$(eyes_run locate "the export button")
+[[ $eyes_out == *"62% across, 31% down"* ]] || fail "eyes locates an element as a screen position" "$eyes_out"
+eyes_out=$(eyes_run describe --copy)
+grep -q "error dialog" "$eyes_home/clipboard.txt" || fail "eyes copies its answer on request"
+
+# Near a password manager, eyes stays shut and never calls the model.
+: >"$eyes_home/curl.log"
+if EYES_TEST_CLASS="org.1password" eyes_run describe >/dev/null 2>&1; then
+  fail "eyes refuses to look near a password manager"
+fi
+[[ -s $eyes_home/curl.log ]] && fail "eyes does not call the model near a password manager"
+
+# With nothing answering locally, eyes says how to set it up instead of failing vaguely.
+mkdir -p "$eyes_bin/down"
+printf '#!/bin/bash\nexit 7\n' >"$eyes_bin/down/curl"
+chmod +x "$eyes_bin/down/curl"
+eyes_err=$(env HOME="$eyes_home" PATH="$eyes_bin/down:$eyes_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-capture-eyes" describe 2>&1 >/dev/null || true)
+[[ $eyes_err == *"omarchy capture eyes setup"* ]] || fail "eyes explains setup when no model answers" "$eyes_err"
+pass "eyes describes, answers, locates, and stays shut near secrets"
