@@ -91,10 +91,11 @@ cat >"$mock_bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_CALLS"
 SH
-# Only an administrator is offered an update; these cases run as one.
+# Only an administrator is offered an update; these cases run as one unless
+# TEST_ADMIN says otherwise.
 cat >"$mock_bin/omarchy-sudo-allowed" <<'SH'
 #!/bin/bash
-exit 0
+[[ ${TEST_ADMIN:-yes} == "yes" ]]
 SH
 chmod +x "$mock_bin/nm-online" "$mock_bin/omarchy-update-available" \
   "$mock_bin/checkupdates" "$mock_bin/omarchy-notification-send" "$mock_bin/omarchy-sudo-allowed"
@@ -124,3 +125,11 @@ if offers_update "$checkout" 1 2; then
   fail "first run offers no update when a current checkout has nothing pending"
 fi
 pass "first run offers an update only when there is one"
+
+# Only an administrator can install it, and another account doesn't even sync
+# the package databases to look.
+if TEST_ADMIN=no offers_update "$installed" 1 0; then
+  fail "first run offers no update to an account that isn't an administrator"
+fi
+! grep -qx checkupdates "$test_tmp/calls" || fail "first run doesn't check for updates for an account that isn't an administrator"
+pass "first run offers an update only to an administrator"
