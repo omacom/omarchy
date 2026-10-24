@@ -27,7 +27,9 @@ set_compose_identity() {
   KEY="<Multi_key> <space> <$key> :" LINE="<Multi_key> <space> <$key> : \"$value\"" \
     awk 'index($0, ENVIRON["KEY"]) == 1 { print ENVIRON["LINE"]; found = 1; next } { print } END { if (!found) print ENVIRON["LINE"] }' \
     "$file" >"$file.new"
-  mv "$file.new" "$file"
+  # Copy back over the original rather than renaming, so it keeps its permissions.
+  cat "$file.new" >"$file"
+  rm "$file.new"
 }
 
 if [[ -n ${name//[[:space:]]/} ]]; then
@@ -47,7 +49,8 @@ fi
 echo
 if omarchy-cmd-missing gh; then
   echo "The GitHub CLI (gh) is not installed, so skipping GitHub sign-in."
-elif gh auth status >/dev/null 2>&1; then
+# gh's own record of sign-ins, read directly: running gh would install it first.
+elif grep -qs "^github.com:" "${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}/hosts.yml"; then
   echo "Already signed in to GitHub."
 elif gum confirm "Sign in to GitHub?"; then
   gh auth login
