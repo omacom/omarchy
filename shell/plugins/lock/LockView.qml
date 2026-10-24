@@ -76,6 +76,11 @@ Item {
   onInputEnabledChanged: {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
+  // Qt hands focus back to a re-enabled field only if nothing took it during
+  // the password check, so take it back once the check is over.
+  onAuthenticatingPasswordChanged: {
+    if (inputEnabled && !authenticatingPassword) Qt.callLater(forcePasswordFocus)
+  }
   Component.onCompleted: {
     syncPasswordText()
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
@@ -167,6 +172,15 @@ Item {
           width: 2
           color: Commons.Color.lock.text
           visible: passwordInput.cursorVisible
+        }
+
+        // Suspending drops keyboard focus from this field while the lock is
+        // still up, and nothing puts it back: focus is only taken in
+        // Component.onCompleted and when inputEnabled changes, and inputEnabled
+        // is already true by then. Take it back so the machine wakes ready to
+        // type instead of needing a click first.
+        onActiveFocusChanged: {
+          if (!activeFocus && root.inputEnabled) Qt.callLater(root.forcePasswordFocus)
         }
 
         onTextChanged: {
