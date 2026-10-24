@@ -45,6 +45,27 @@ PanelWindow {
   property int padding: Style.spacing.popupPadding
   property int contentWidth: Style.space(280)
   property int contentHeight: Style.space(200)
+
+  // The card's height on screen. Content that arrives after the panel is up
+  // (a Wi-Fi scan, Bluetooth devices turning up) grows the card toward it
+  // rather than snapping it taller, cropping the new rows as it goes. Just
+  // after opening it snaps, while freshly built content first measures itself.
+  property real drawnHeight: contentHeight
+  property bool heightLive: false
+  Behavior on drawnHeight {
+    enabled: root.heightLive && root.morph >= 1
+    NumberAnimation {
+      duration: Style.duration(200)
+      easing.type: Easing.Bezier
+      easing.bezierCurve: Style.easeOut
+    }
+  }
+
+  Timer {
+    id: heightSettle
+    interval: 60
+    onTriggered: root.heightLive = root.open
+  }
   property var borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
   property bool centerOnBar: false
   property bool open: false
@@ -221,25 +242,25 @@ PanelWindow {
     var x = 0, y = 0
     if (centerOnBar && (barPos === "top" || barPos === "bottom")) {
       x = screenW / 2 - contentWidth / 2
-      y = barPos === "bottom" ? screenH - barThickness - contentHeight - gap : barThickness + gap
+      y = barPos === "bottom" ? screenH - barThickness - drawnHeight - gap : barThickness + gap
     } else if (centerOnBar) {
       x = barPos === "left" ? barThickness + gap : screenW - barThickness - contentWidth - gap
-      y = screenH / 2 - contentHeight / 2
+      y = screenH / 2 - drawnHeight / 2
     } else if (barPos === "bottom") {
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = screenH - barThickness - contentHeight - gap
+      y = screenH - barThickness - drawnHeight - gap
     } else if (barPos === "left") {
       x = barThickness + gap
-      y = anchorScreenPos.y + anchorH / 2 - contentHeight / 2
+      y = anchorScreenPos.y + anchorH / 2 - drawnHeight / 2
     } else if (barPos === "right") {
       x = screenW - barThickness - contentWidth - gap
-      y = anchorScreenPos.y + anchorH / 2 - contentHeight / 2
+      y = anchorScreenPos.y + anchorH / 2 - drawnHeight / 2
     } else { // "top" (default)
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
       y = barThickness + gap
     }
     x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
-    y = Math.max(margin, Math.min(y, screenH - contentHeight - margin))
+    y = Math.max(margin, Math.min(y, screenH - drawnHeight - margin))
     return Qt.point(Math.round(x), Math.round(y))
   }
 
@@ -247,8 +268,8 @@ PanelWindow {
   // bar-facing edge nearest the icon it hangs from.
   readonly property point growOrigin: {
     var x = Math.max(0, Math.min(anchorScreenPos.x + anchorW / 2 - cardOrigin.x, contentWidth))
-    var y = Math.max(0, Math.min(anchorScreenPos.y + anchorH / 2 - cardOrigin.y, contentHeight))
-    if (barPos === "bottom") return Qt.point(x, contentHeight)
+    var y = Math.max(0, Math.min(anchorScreenPos.y + anchorH / 2 - cardOrigin.y, drawnHeight))
+    if (barPos === "bottom") return Qt.point(x, drawnHeight)
     if (barPos === "left") return Qt.point(0, y)
     if (barPos === "right") return Qt.point(contentWidth, y)
     return Qt.point(x, 0)
@@ -260,7 +281,9 @@ PanelWindow {
   // Coordinate on `open`, not `visible`. `visible` lags into the fade-out
   // animation, which made ownership transfer to a sibling popup race.
   onOpenChanged: {
+    heightLive = false
     if (open) {
+      heightSettle.restart()
       if (content) contentRequested = true
       focusPrimed = false
       beginFocusPrime()
@@ -463,9 +486,10 @@ PanelWindow {
     x: root.morphed(root.morphFrom.x, root.cardOrigin.x)
     y: root.morphed(root.morphFrom.y, root.cardOrigin.y)
     width: root.morphed(root.morphFrom.width, root.contentWidth)
-    height: root.morphed(root.morphFrom.height, root.contentHeight)
-    // While it morphs, the content keeps its own size and the card crops it.
-    clip: root.morph < 1
+    height: root.morphed(root.morphFrom.height, root.drawnHeight)
+    // While it morphs or grows, the content keeps its own size and the card
+    // crops it.
+    clip: root.morph < 1 || root.drawnHeight < root.contentHeight - 0.5
     color: Commons.Color.popups.background
     borderSpec: root.borderSpec
     padding: root.padding
