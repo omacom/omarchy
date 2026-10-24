@@ -52,6 +52,13 @@ const entries = [
     comment: 'Remote desktop control',
     keywords: ['remote', 'desktop', 'control'],
     id: 'com.rustdesk.RustDesk.desktop'
+  },
+  {
+    name: 'YouTube',
+    genericName: '',
+    comment: 'Video sharing',
+    keywords: [],
+    id: 'youtube.desktop'
   }
 ]
 
@@ -74,8 +81,30 @@ assert(
 const acronymMatches = search.sortedEntries(entries, 'gc').map(row => search.entryName(row.entry))
 assertEqual(acronymMatches[0], 'Google Contacts', 'short acronym matching still works')
 
+const camelAcronymMatches = search.sortedEntries(entries, 'yt').map(row => search.entryName(row.entry))
+assertEqual(camelAcronymMatches[0], 'YouTube', 'camel-case acronym matching works')
+
 const directMatches = search.sortedEntries(entries, 'obs').map(row => search.entryName(row.entry))
 assertEqual(directMatches[0], 'OBS Studio', 'direct app-name matching still works')
+
+const accentedEntries = [
+  { name: 'Calculator', id: 'calc.desktop' },
+  { name: 'Área de Trabalho Remota', id: 'chrome-rdp.desktop' },
+  { name: 'Aether', id: 'aether.desktop' },
+  { name: 'Zenity', id: 'zenity.desktop' }
+]
+const areaMatches = search.sortedEntries(accentedEntries, 'area').map(row => search.entryName(row.entry))
+assertDeepEqual(areaMatches, ['Área de Trabalho Remota'], 'unaccented query matches accented app name')
+
+const accentedQueryMatches = search.sortedEntries(accentedEntries, 'área').map(row => search.entryName(row.entry))
+assertDeepEqual(accentedQueryMatches, ['Área de Trabalho Remota'], 'accented query matches accented app name')
+
+const sortedAccentNames = search.sortedEntries(accentedEntries, '').map(row => search.entryName(row.entry))
+assertDeepEqual(
+  sortedAccentNames,
+  ['Aether', 'Área de Trabalho Remota', 'Calculator', 'Zenity'],
+  'diacritic sorting places accented entries alphabetically instead of after Z'
+)
 
 // The menu's Apps submenu is the launcher now: app rows launch and uninstall
 // through the shared app library instead of running commands themselves.
