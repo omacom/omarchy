@@ -8,6 +8,19 @@ grep -q '^ConditionPathIsDirectory=/sys/class/bluetooth$' "$ROOT/default/systemd
   fail "bt-agent is skipped on machines without Bluetooth hardware"
 pass "bt-agent is skipped on machines without Bluetooth hardware"
 
+grep -Fx 'ExecStart=/usr/bin/omarchy-bluetooth-agent' "$ROOT/default/systemd/user/bt-agent.service" >/dev/null || \
+  fail "bt-agent runs the Omarchy agent that accepts RequestAuthorization"
+grep -q 'bt-agent -c' "$ROOT/default/systemd/user/bt-agent.service" && \
+  fail "bt-agent must not use bluez-tools bt-agent (it rejects RequestAuthorization)"
+[[ -x $ROOT/bin/omarchy-bluetooth-agent ]] || fail "omarchy-bluetooth-agent is executable"
+grep -q 'RequestAuthorization' "$ROOT/bin/omarchy-bluetooth-agent" || \
+  fail "omarchy-bluetooth-agent implements RequestAuthorization"
+grep -q 'any_adapter_pairable' "$ROOT/bin/omarchy-bluetooth-agent" || \
+  fail "omarchy-bluetooth-agent gates pairing on adapter Pairable"
+grep -q 'AuthorizeService' "$ROOT/bin/omarchy-bluetooth-agent" || \
+  fail "omarchy-bluetooth-agent still implements AuthorizeService"
+pass "bt-agent auto-accepts Just Works authorization via omarchy-bluetooth-agent"
+
 run_node_test <<'JS'
 const fs = require('fs')
 const bluetooth = requireFromRoot('shell/plugins/panels/bluetooth/Model.js')
@@ -48,7 +61,24 @@ assert(/sibling\.owesDiscoveryStop = true/.test(stopTimer[0]), 'bluetooth moves 
 // The debt clears when BlueZ confirms discovery down, and a destroyed
 // instance hands it to a surviving sibling instead of taking it to the grave.
 assert(/onDiscoveringChanged[\s\S]{0,120}owesDiscoveryStop = false/.test(panelSource), 'bluetooth settles the stop it owes once discovery is confirmed down')
-assert(/Component\.onDestruction: \{[\s\S]{0,400}owesDiscoveryStop = true[\s\S]{0,200}discovering = false/.test(panelSource), 'bluetooth passes the stop it owes to a sibling when an instance is destroyed')
+assert(/Component\.onDestruction: \{[\s\S]{0,600}owesDiscoveryStop = true[\s\S]{0,200}discovering = false/.test(panelSource), 'bluetooth passes the stop it owes to a sibling when an instance is destroyed')
+
+// Pairable is the agent's consent window. BlueZ defaults it true forever; the
+// panel must clear that at load/close and only raise it while open.
+assert(/function syncPairable\(\)/.test(panelSource), 'bluetooth has syncPairable')
+assert(/adapter\.pairable = keepPairable/.test(panelSource), 'bluetooth writes adapter.pairable from the open-panel policy')
+assert(/keepPairable = opened \|\| openSibling\(\) !== null/.test(panelSource), 'bluetooth raises Pairable only while a panel is open')
+assert(/onOpenedChanged:[\s\S]{0,800}syncPairable\(\)/.test(panelSource), 'bluetooth syncs Pairable when the panel opens or closes')
+assert(/Component\.onCompleted: syncPairable\(\)/.test(panelSource), 'bluetooth clears default Pairable as soon as the widget loads')
+assert(/onAdapterChanged: syncPairable\(\)/.test(panelSource), 'bluetooth syncs Pairable when the adapter appears')
+
+// A device trusted without a bond is stuck: BlueZ auto-connects it and the
+// pairing fails every few seconds, and a plain connect never opens the pairing
+// window that would let it bond. Only pair does, so trust alone must route there.
+const connectDevice = panelSource.match(/function connectDevice\(device\) \{[\s\S]*?\n  \}/)
+assert(connectDevice, 'bluetooth has connectDevice')
+assert(/if \(device\.paired \|\| device\.bonded\) runDeviceAction\(device, "connect"/.test(connectDevice[0]), 'bluetooth connects only a device with a pairing or a bond')
+assert(!/trusted/.test(connectDevice[0].replace(/\/\/.*/g, '')), 'bluetooth does not take trust alone as connectable')
 
 assert(bluetooth.isUuidLike('0000110b-0000-1000-8000-00805f9b34fb'), 'bluetooth detects UUID-like names')
 assert(bluetooth.isAddressLike('AA:BB:CC:DD:EE:FF'), 'bluetooth detects address-like names')
@@ -165,6 +195,8 @@ if [[ $1 == "show" ]]; then
   [[ -n ${2:-} && -f "$POWERED_FILE.$2" ]] && state="$POWERED_FILE.$2"
   printf '\tPowered: %s\n' "$(cat "$state")"
 fi
+# The bond is what pair waits on and trust follows; MOCK_BONDED stands in for it.
+[[ $1 == "info" ]] && printf '\tBonded: %s\n' "${MOCK_BONDED:-no}"
 exit 0
 SH
 
@@ -182,6 +214,17 @@ SH
 
 chmod +x "$mock_bin/bluetoothctl" "$mock_bin/rfkill"
 
+# omarchy-bluetooth-power / -device wrap bluetoothctl in `timeout`. macOS has no
+# GNU timeout; a passthrough stub keeps the suite hermetic on every platform.
+if ! command -v timeout >/dev/null 2>&1; then
+  cat >"$mock_bin/timeout" <<'SH'
+#!/bin/bash
+shift
+exec "$@"
+SH
+  chmod +x "$mock_bin/timeout"
+fi
+
 # $ROOT/bin so omarchy-bluetooth-device resolves the real omarchy-bluetooth-power.
 bluetooth_run() {
   local powered="$1"
@@ -190,7 +233,7 @@ bluetooth_run() {
   echo "$powered" >"$POWERED_FILE"
   : >"$device_tmp/log"
   PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" \
-    OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 "$@" ||
+    OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 OMARCHY_BLUETOOTH_BOND_WAIT_SECONDS=0 "$@" ||
     fail "$* exits cleanly with Powered: $powered"
   printf '%s' "$device_tmp/log"
 }
@@ -262,6 +305,36 @@ pass "bluetooth lifts the block before connecting"
 grep -qx "connect AA:BB:CC:DD:EE:FF" "$unpowered_log" ||
   fail "bluetooth connects once the adapter is up" "$(cat "$unpowered_log")"
 pass "bluetooth connects once the adapter is up"
+
+# Trust without a bond leaves BlueZ reconnecting a device that can never finish
+# pairing. pair/connect must wait for Bonded before trusting.
+pair_log=$(bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+grep -q "^trust " "$pair_log" &&
+  fail "bluetooth does not trust a device that never bonded" "$(cat "$pair_log")"
+pass "bluetooth does not trust a device that never bonded"
+
+awk '/^connect AA:BB:CC:DD:EE:FF$/ { connected = 1 }
+     /^info AA:BB:CC:DD:EE:FF$/ && connected { ok = 1 }
+     END { exit ok ? 0 : 1 }' "$pair_log" ||
+  fail "bluetooth checks for the bond after connecting" "$(cat "$pair_log")"
+pass "bluetooth checks for the bond after connecting"
+
+bonded_pair_log=$(MOCK_BONDED=yes bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+awk '/^info AA:BB:CC:DD:EE:FF$/ { seen = 1 }
+     /^trust AA:BB:CC:DD:EE:FF$/ && !done { ok = seen; done = 1 }
+     END { exit ok ? 0 : 1 }' "$bonded_pair_log" ||
+  fail "bluetooth trusts a device once it reports a bond" "$(cat "$bonded_pair_log")"
+pass "bluetooth trusts a device once it reports a bond"
+
+connect_log=$(bluetooth_device_log yes)
+grep -q "^trust " "$connect_log" &&
+  fail "bluetooth does not trust an unbonded device on connect" "$(cat "$connect_log")"
+pass "bluetooth does not trust an unbonded device on connect"
+
+bonded_connect_log=$(MOCK_BONDED=yes bluetooth_device_log yes)
+grep -qx "trust AA:BB:CC:DD:EE:FF" "$bonded_connect_log" ||
+  fail "bluetooth trusts a bonded device on connect" "$(cat "$bonded_connect_log")"
+pass "bluetooth trusts a bonded device on connect"
 
 # Blocking hits every radio at once, so the read has to span them too. A bare
 # bluetoothctl show reports the default controller and misses a powered dongle.
