@@ -410,6 +410,88 @@ function o.workspace_mode(spec)
   update_input()
 end
 
+-- Colors in this file are "rgb(rrggbb)" strings, the form Hyprland takes.
+local function channels(color)
+  local r, g, b = color:match("^rgb%((%x%x)(%x%x)(%x%x)%)$")
+  if not r then
+    return nil
+  end
+  return tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)
+end
+
+-- Relative luminance as WCAG defines it.
+local function luminance(color)
+  local r, g, b = channels(color)
+  if not r then
+    return 0
+  end
+
+  local function linear(c)
+    c = c / 255
+    return c <= 0.03928 and c / 12.92 or ((c + 0.055) / 1.055) ^ 2.4
+  end
+
+  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+end
+
+local MIN_CONTRAST = 3
+
+local function contrast(color, against)
+  local a, b = luminance(color), luminance(against)
+  if a < b then
+    a, b = b, a
+  end
+  return (a + 0.05) / (b + 0.05)
+end
+
+local function readable(color, against)
+  return contrast(color, against) >= MIN_CONTRAST
+end
+
+-- Mixes a color toward white for a positive amount and toward black for a
+-- negative one.
+local function shift(color, amount)
+  local r, g, b = channels(color)
+  if not r then
+    return color
+  end
+
+  local target, t = amount > 0 and 255 or 0, math.abs(amount)
+  local function mix(c)
+    return math.floor(c + (target - c) * t + 0.5)
+  end
+
+  return string.format("rgb(%02x%02x%02x)", mix(r), mix(g), mix(b))
+end
+
+-- A surface raised from the background that the foreground can still be read on.
+-- The raise goes the way a raised surface usually does -- lighter on a dark
+-- background, darker on a light one -- but a raise toward the foreground costs
+-- contrast, so it backs off toward the background until the text is readable.
+-- If even the background is too close to the foreground, it goes the other way.
+-- Should nothing reach MIN_CONTRAST, the candidate with the most contrast wins.
+local RAISE_STEPS = { 0.09, 0.06, 0.03, -0.03, -0.06, -0.09, -0.15, -0.25, -0.4, -0.6 }
+
+local function raised_surface(background, foreground)
+  local direction = luminance(background) < 0.5 and 1 or -1
+  local best, best_contrast = background, contrast(background, foreground)
+
+  for _, amount in ipairs(RAISE_STEPS) do
+    local candidate = shift(background, direction * amount)
+    local ratio = contrast(candidate, foreground)
+
+    if ratio >= MIN_CONTRAST then
+      return candidate
+    end
+
+    if ratio > best_contrast then
+      best, best_contrast = candidate, ratio
+    end
+  end
+
+  return best
+end
+
 local function theme_colors()
   local colors = {}
   -- omarchy-theme-set writes the current theme under ~/.local/state whatever
@@ -420,7 +502,7 @@ local function theme_colors()
     for line in file:lines() do
       local key, value = line:match('^%s*([%w_]+)%s*=%s*"#(%x%x%x%x%x%x)"')
       if key then
-        colors[key] = "rgb(" .. value .. ")"
+        colors[key] = "rgb(" .. value:lower() .. ")"
       end
     end
 
@@ -428,17 +510,26 @@ local function theme_colors()
   end
 
   local background = colors.background or "rgb(1a1b26)"
+  local foreground = colors.foreground or "rgb(c0caf5)"
+
   -- A titlebar in the window's own background color runs into the window, so it
   -- takes the theme's raised surface. Themes that make that the background too
   -- fall back to their selection color.
   local titlebar = colors.lighter_background
-  if not titlebar or titlebar == background then
-    titlebar = colors.selection or background
+  if not titlebar or titlebar == background or not readable(titlebar, foreground) then
+    titlebar = colors.selection
+  end
+
+  -- The title and the buttons are drawn in the foreground color, so a bar too
+  -- close to it hides them. Some themes give selection and foreground the same
+  -- color, or leave out both surfaces. Raise a surface from the background.
+  if not titlebar or not readable(titlebar, foreground) then
+    titlebar = raised_surface(background, foreground)
   end
 
   return {
     background = background,
-    foreground = colors.foreground or "rgb(c0caf5)",
+    foreground = foreground,
     titlebar = titlebar,
   }
 end

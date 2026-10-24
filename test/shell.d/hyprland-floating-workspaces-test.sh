@@ -739,6 +739,44 @@ fi
 mv "$theme.saved" "$theme"
 pass "titlebars stand out on a theme whose raised surface is its background"
 
+# The title and buttons are drawn in the foreground color, so a theme whose
+# selection color is its foreground, and which has no raised surface, would
+# draw them in the bar's own color. The bar is raised from the background
+# instead, lighter on a dark theme and darker on a light one.
+cp "$theme" "$theme.saved"
+cat >"$theme" <<'EOF'
+background = "#112233"
+selection = "#ddeeff"
+foreground = "#ddeeff"
+EOF
+if ! run_lua '
+window("0x1", 1)
+require("default.hypr.workspace-layouts")
+local bar = state().titlebar_config
+assert(bar and bar.bar_color ~= "rgb(ddeeff)", "the titlebar is drawn in the color of its own text")
+assert(bar.bar_color == "rgb(263645)", "a dark theme does not get a lighter surface: " .. tostring(bar.bar_color))
+assert(bar.col.text == "rgb(ddeeff)", "titlebar text does not follow the theme foreground")
+' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1; then
+  fail "titlebars stay readable when a dark theme's selection is its foreground"
+fi
+pass "titlebars stay readable when a dark theme's selection is its foreground"
+
+cat >"$theme" <<'EOF'
+background = "#eeeeee"
+selection = "#222222"
+foreground = "#222222"
+EOF
+if ! run_lua '
+window("0x1", 1)
+require("default.hypr.workspace-layouts")
+local bar = state().titlebar_config
+assert(bar and bar.bar_color == "rgb(d9d9d9)", "a light theme does not get a darker surface: " .. tostring(bar and bar.bar_color))
+' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1; then
+  fail "titlebars stay readable when a light theme's selection is its foreground"
+fi
+mv "$theme.saved" "$theme"
+pass "titlebars stay readable when a light theme's selection is its foreground"
+
 # omarchy-theme-set writes the current theme under ~/.local/state even when
 # XDG_STATE_HOME points elsewhere, so that is where the titlebars find it.
 other_state="$tmpdir/other-state"
