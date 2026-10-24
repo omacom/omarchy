@@ -605,14 +605,18 @@ Item {
       return
     }
     var snap = snapshot(), deckNow = deckHeight
+    var staying = 0
+    for (var r = 0; r < toasts.count; r++) if (!next[toasts.get(r).key]) staying++
     var gone = {}
     for (var d in departures) gone[d] = departures[d]
     for (var j = 0; j < keys.length; j++) {
       var from = snap[keys[j]], place = placements[keys[j]]
       if (!next[keys[j]] || gone[keys[j]] || !from) continue
-      // Over the cards closing in, and keeping its text on the way out.
+      // Under the cards closing in, so the one taking its place covers it on
+      // the way up. Its text goes first, or it would read through them; the
+      // last card keeps its words, with nothing to cover it.
       gone[keys[j]] = { y: from.y - travel, scale: from.scale, opacity: 0, height: from.height,
-                        z: 2000, front: true, hidden: place ? place.hidden === true : true,
+                        z: 0, front: staying === 0, hidden: place ? place.hidden === true : true,
                         leaving: true }
     }
     departures = gone
