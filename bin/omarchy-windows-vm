@@ -1213,7 +1213,7 @@ EOF
     exit 1
   fi
 
-  SELECTED_CORES=$(gum input --placeholder="$(omarchy-i18n windowsVm.coresPlaceholder "$TOTAL_CORES")" --value="2" --header="$(omarchy-i18n windowsVm.coresHeader)" --char-limit=2)
+  SELECTED_CORES=$(gum input --placeholder="$(omarchy-i18n windowsVm.coresPlaceholder "$(omarchy-i18n --number "$TOTAL_CORES")")" --value="2" --header="$(omarchy-i18n windowsVm.coresHeader)" --char-limit=2)
 
   # Check if user cancelled (Ctrl+C in gum input returns empty string)
   if [[ -z $SELECTED_CORES ]]; then

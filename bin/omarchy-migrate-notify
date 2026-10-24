@@ -20,7 +20,7 @@ fi
 pending_migrations=$(omarchy-migrate --pending 2>/dev/null) || exit 0
 pending_count=$(printf '%s\n' "$pending_migrations" | sed '/^[[:space:]]*$/d' | wc -l)
 
-message=$(omarchy-i18n --count "$pending_count" migrate.clickToRun "$pending_count")
+message=$(omarchy-i18n --count "$pending_count" migrate.clickToRun "$(omarchy-i18n --number "$pending_count")")
 
 # This runs from omarchy-migrate-notify.service after graphical-session.target,
 # but the target can be reached before the shell has claimed
