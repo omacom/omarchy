@@ -96,9 +96,21 @@ attempts() {
   cat "$fake_dir/count"
 }
 
-disarm=$(printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?1049l\e[?25h')
+disarm=$(printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?1049l\e[?25h\e[?2004l\e[<99u\e[=0;1u\e[>4;0m\e[?1l\e>')
 
 out=$(run_case "0 255" host)
+
+# A dropped session can leave bracketed paste and the kitty keyboard protocol
+# armed, which corrupts tty prompts (issue #15935): a paste arrives wrapped in
+# ESC[200~/201~ so a passphrase read gets the wrappers too, and Ctrl-C arrives
+# as CSI-u instead of 0x03. Each mode needs its own disarm sequence.
+for mode in $'\e[?2004l' $'\e[<99u' $'\e[=0;1u' $'\e[>4;0m' $'\e[?1l' $'\e>'; do
+  if [[ $out != *"$mode"* ]]; then
+    fail "disarm sequence covers $(printf '%q' "$mode")" "$out"
+  fi
+done
+pass "disarm sequence covers bracketed paste, kitty keyboard, modifyOtherKeys, cursor and keypad"
+
 [[ $out == *"$disarm"* ]] || fail "stray terminal modes are reset after ssh exits" "$out"
 pass "stray terminal modes are reset after ssh exits"
 
