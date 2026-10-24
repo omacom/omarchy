@@ -488,7 +488,12 @@ recording_details() {
     while (b >= 1000 && i < 4) { b /= 1000; i++ }
     printf(i == 1 ? "%d %s\n" : "%.1f %s\n", b, unit[i])
   }')
-  size=$(omarchy-i18n "capture.recordingSize$unit" "$value")
+  case $unit in
+  KB) size=$(omarchy-i18n capture.recordingSizeKB "$value") ;;
+  MB) size=$(omarchy-i18n capture.recordingSizeMB "$value") ;;
+  GB) size=$(omarchy-i18n capture.recordingSizeGB "$value") ;;
+  *) size=$(omarchy-i18n capture.recordingSizeB "$value") ;;
+  esac
 
   if [[ -n $length ]]; then
     omarchy-i18n capture.recordingDetails "$length" "$size"
