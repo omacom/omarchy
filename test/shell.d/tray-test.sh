@@ -71,3 +71,11 @@ assert(
   'the pinned icons sit against the fixed edge, and the drawer opens away from it'
 )
 JS
+
+run_node_test "tray icon layer stays enabled" <<'JS'
+const fs = require('fs')
+const src = fs.readFileSync(path.join(root, 'shell/plugins/bar/widgets/Tray.qml'), 'utf8')
+const image = src.match(/Image \{\s*id: trayIconImage[\s\S]*?\n    \}/)
+assert(image, 'tray icon image block exists')
+assert(/^\s*layer\.enabled:\s*true\s*$/m.test(image[0]), 'tray icon layer stays enabled so the tinted effect survives an attention-icon cycle')
+JS
