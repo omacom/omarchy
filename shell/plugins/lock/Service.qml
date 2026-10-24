@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Mpris
 import Quickshell.Services.Pam
 import Quickshell.Wayland
 import qs.Commons
@@ -221,6 +222,16 @@ Item {
     fingerprintResumeTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
+  }
+
+  function pauseMedia() {
+    if (!shell || !shell.shellConfig || !shell.shellConfig.lock || shell.shellConfig.lock.pauseMedia !== true) return
+
+    var players = Mpris.players ? Mpris.players.values : []
+    for (var i = 0; i < players.length; i++) {
+      var player = players[i]
+      if (player && player.isPlaying && player.canPause) player.pause()
+    }
   }
 
   function beginLock() {
@@ -511,6 +522,7 @@ Item {
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
         root.startFingerprint()
+        root.pauseMedia()
       }
     }
 
