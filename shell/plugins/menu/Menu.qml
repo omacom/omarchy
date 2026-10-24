@@ -648,7 +648,8 @@ Item {
         action: "", provider: "", score: -1, section: ""
       })
     }
-    var query = root.filterText.trim().toLowerCase()
+    var query = root.filterText.trim()
+    var matches = []
     for (var i = 0; i < root.dmenuOptions.length; i++) {
       // An option is "<label>", "<glyph>\t<label>", or
       // "<glyph>\t<label>\t<subtext>". The glyph never comes back with the
@@ -658,24 +659,32 @@ Item {
       var icon = parts.length > 1 ? parts.shift() : ""
       var label = parts.shift() || ""
       var detail = parts.join("\t")
-      if (query && label.toLowerCase().indexOf(query) < 0
-          && detail.toLowerCase().indexOf(query) < 0) continue
+      var match = query ? MenuModel.dmenuMatchScore(query, label + " " + detail) : 0
+      if (match < 0) continue
+      matches.push({ index: i, match: match, icon: icon, label: label, detail: detail })
+    }
+
+    // Best matches first; equal matches keep the caller's order.
+    matches.sort(function(a, b) { return a.match - b.match || a.index - b.index })
+
+    for (var m = 0; m < matches.length; m++) {
+      var row = matches[m]
       displayModel.append({
-        itemId: "dmenu." + i,
+        itemId: "dmenu." + row.index,
         disabled: false,
         kind: "dmenu",
-        icon: root.dmenuMultiple ? (root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[i])) !== -1 ? "✓" : "○") : icon,
+        icon: root.dmenuMultiple ? (root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[row.index])) !== -1 ? "✓" : "○") : row.icon,
         iconFont: "",
         appIcon: "",
         appId: "",
-        label: label,
+        label: row.label,
         target: "",
-        detail: detail,
+        detail: row.detail,
         path: "",
         childCount: 0,
         action: "",
         provider: "",
-        score: i,
+        score: row.index,
         section: ""
       })
     }
