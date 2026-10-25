@@ -110,3 +110,11 @@ HOME="$vesktop_home" XDG_CONFIG_HOME="$vesktop_config" "$ROOT/bin/omarchy-theme-
 cmp "$vesktop_target" "$vesktop_config/Vesktop/themes/omarchy.theme.css" || fail "alternate native data directory receives the palette"
 cmp "$vesktop_target" "$vesktop_home/.var/app/dev.vencord.Vesktop/config/vesktop/themes/omarchy.theme.css" || fail "Flatpak data directory receives the palette"
 pass "Vesktop theme refresh preserves settings, skips unchanged content, and keeps readable button text"
+
+# Theme-provided CSS need not use Omarchy's contrast placeholder or hex accents.
+for custom_css in ':root { --brand-500: rgb(10, 20, 30); }' ':root { --brand-500: var(--custom-accent); }' ':root { --background-primary: #123456; }'; do
+  printf '%s\n' "$custom_css" > "$vesktop_source"
+  HOME="$vesktop_home" XDG_CONFIG_HOME="$vesktop_config" "$ROOT/bin/omarchy-theme-set-vesktop"
+  cmp "$vesktop_source" "$vesktop_target" || fail "custom Vesktop CSS is published unchanged"
+done
+pass "custom Vesktop CSS does not require a hex accent without the contrast placeholder"

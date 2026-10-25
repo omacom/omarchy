@@ -19,17 +19,19 @@ if not source.is_file():
 css = source.read_text()
 if '{{' in css:
     raise SystemExit('Unresolved Omarchy colour tokens; keeping the previous Vesktop theme.')
-accent = re.search(r'--brand-500:\s*(#[0-9a-fA-F]{6})\b', css)
-if not accent:
-    raise SystemExit('Missing Omarchy accent; keeping the previous Vesktop theme.')
-# Choose black or white button text by measured contrast against the accent.
-def linear(value):
-    value = int(value, 16) / 255
-    return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
-color = accent[1][1:]
-luminance = sum(weight * linear(color[i:i+2]) for weight, i in ((.2126, 0), (.7152, 2), (.0722, 4)))
-on_accent = '#000000' if (luminance + .05) / .05 >= 1.05 / (luminance + .05) else '#ffffff'
-css = css.replace('__OMARCHY_ON_ACCENT__', on_accent)
+if '__OMARCHY_ON_ACCENT__' in css:
+    accent = re.search(r'--brand-500:\s*(#[0-9a-fA-F]{6})\b', css)
+    if not accent:
+        raise SystemExit('Missing Omarchy accent; keeping the previous Vesktop theme.')
+    # Choose black or white button text by measured contrast against the accent.
+    def linear(value):
+        value = int(value, 16) / 255
+        return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+    color = accent[1][1:]
+    luminance = sum(weight * linear(color[i:i+2]) for weight, i in ((.2126, 0), (.7152, 2), (.0722, 4)))
+    on_accent = '#000000' if (luminance + .05) / .05 >= 1.05 / (luminance + .05) else '#ffffff'
+    css = css.replace('__OMARCHY_ON_ACCENT__', on_accent)
+
 for data in (config / 'vesktop', config / 'Vesktop', home / '.var/app/dev.vencord.Vesktop/config/vesktop'):
     if not data.is_dir():
         continue
