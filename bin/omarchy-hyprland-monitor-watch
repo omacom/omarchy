@@ -3,15 +3,19 @@
 # omarchy:summary=Watch Hyprland monitor events and recover monitor toggles when a monitor is removed
 
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
-LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-clamshell.lock"
 MODELESS_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-modeless.lock"
+LID_INHIBIT_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-lid-inhibit.lock"
 
+# The command serializes itself, waiting its turn rather than dropping a run:
+# a lid event that lands while the poll is inside it is queued, not lost.
+# The inhibitor keeps a lock of its own, so overlapping runs never stack units.
 sync_clamshell() {
+  omarchy-hyprland-monitor-clamshell
+
   (
     flock -n 9 || exit 0
-    omarchy-hyprland-monitor-clamshell
     omarchy-system-lid-inhibit
-  ) 9>"$LOCK"
+  ) 9>"$LID_INHIBIT_LOCK"
 }
 
 sync_clamshell_after_monitor_change() {
