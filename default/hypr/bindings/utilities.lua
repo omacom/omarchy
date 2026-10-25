@@ -1,5 +1,22 @@
 o.bind("SUPER + SPACE", "Omarchy menu", { menu = "root" })
 o.bind("SUPER + ALT + SPACE", "Apps", "omarchy-shell omarchy.dock apps")
+
+-- Tapping SUPER on its own opens the apps on a floating workspace, the way the
+-- Windows key opens the start menu. Hyprland skips a plain release bind once
+-- another key or button is used during the hold, so SUPER chords never open
+-- them, and every other workspace keeps SUPER a modifier and nothing more.
+local workspace_modes = require("default.hypr.workspace-modes")
+
+local function apps_on_floating_workspace()
+  local workspace = hl.get_active_workspace()
+  if workspace and workspace_modes.floating(workspace.id) then
+    hl.exec_cmd("omarchy-shell omarchy.dock apps")
+  end
+end
+
+o.bind_commands[apps_on_floating_workspace] = "omarchy-shell omarchy.dock apps"
+o.bind("SUPER + Super_L", "Apps on a floating workspace", apps_on_floating_workspace, { release = true })
+o.bind("SUPER + Super_R", "Apps on a floating workspace", apps_on_floating_workspace, { release = true })
 o.bind("SUPER + CTRL + E", "Emojis", { panel = "omarchy.emojis" })
 o.bind("SUPER + CTRL + C", "Capture menu", { menu = "capture" })
 o.bind("SUPER + CTRL + O", "Toggle menu", { menu = "toggle" })
