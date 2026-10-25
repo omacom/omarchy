@@ -83,6 +83,27 @@ ShellRoot {
   }
 
   KeyboardPanel {
+    id: powerForm
+    anchorItem: anchor
+    bar: null
+    visible: false
+    contentHeight: 180
+    scrollOverflow: POWER_SCROLL_POLICY
+    focusTarget: powerForm.loadedContent
+    content: PanelKeyCatcher {
+      implicitHeight: 700
+      property alias profileButton: profileButton
+      Button {
+        id: profileButton
+        y: 620
+        width: 100
+        height: 40
+        text: "Power profile"
+      }
+    }
+  }
+
+  KeyboardPanel {
     id: eager
     anchorItem: anchor
     bar: null
@@ -140,6 +161,15 @@ ShellRoot {
       test.check(selectedPoint.y >= -0.5 && selectedPoint.y + selected.height <= outer.height + 0.5,
         "inner keyboard scrolling can reveal the bottom selected row without outer focus changes")
       scrolling.open = false
+
+      powerForm.open = true
+      var powerViewport = powerForm.loadedContent.parent.parent.parent.parent
+      var profile = powerForm.loadedContent.profileButton
+      powerForm.ensureItemVisible(profile)
+      var profilePoint = profile.mapToItem(powerViewport, 0, 0)
+      test.check(powerViewport.interactive && profilePoint.y >= 0 && profilePoint.y + profile.height <= powerViewport.height,
+        "the production power scroll policy keeps its lower profile controls reachable")
+      powerForm.open = false
 
       lazy.contentHeight = 220
       viewport.contentY = 0

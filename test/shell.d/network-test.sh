@@ -9,6 +9,51 @@ const fs = require('fs')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
 
+// Execute the complete binding, including its continuation lines.
+const bandPill = panelSource.slice(panelSource.indexOf('component BandPill:'))
+const bandCursor = bandPill.match(/hasCursor: ([\s\S]*?)\n\s*onHasCursorChanged:/)
+assert(bandCursor, 'band pill has a complete cursor binding before its handler')
+const bandHasCursor = new Function('root', 'slot', 'return (' + bandCursor[1] + ')')
+for (const active of [false, true]) {
+  for (const section of ['band', 'dns']) {
+    for (const auto of [false, true]) {
+      for (let index = 0; index < 3; index++) {
+        const state = {cursorActive: active, focusSection: section, bandAutoFocused: auto, bandIndex: index}
+        const lit = [0, 1, 2].filter(slot => bandHasCursor(state, slot))
+        assertDeepEqual(lit, active && section === 'band' && !auto ? [index] : [],
+          'only the selected manual band has the keyboard cursor')
+      }
+    }
+  }
+}
+
+assert(/IpcHandler[\s\S]*?function toggleNetwork\(\) \{ root\.toggleNetwork\(\) \}/.test(panelSource), 'network exposes the Wi-Fi radio toggle over IPC')
+assert(/manageIpc: false/.test(panelSource), 'network owns its IPC handler so it can extend the target methods')
+
+// Opening from the bar must call open() and nothing else. open() runs
+// refresh(true), which defers the PHY scan; a second bare refresh() defaults
+// scanWifi to false, sets scannerEnabled synchronously, and stalls the open on
+// NetworkManager's access-point flood.
+const barPress = panelSource.match(/onPressed: function\(b\) \{[\s\S]*?\n {4}\}/)
+assert(barPress, 'network bar button has an onPressed handler')
+const barPressCode = barPress[0].replace(/\/\/.*$/gm, '')
+assert(!/refresh\(/.test(barPressCode), 'network bar click opens the panel without a second refresh that would undo the deferred scan')
+
+// A closed panel has no nearby-network list to fill. Quickshell's scanner
+// re-arms RequestScan on its own timer, and every sweep takes the radio off
+// the operating channel, so a scanner left enabled behind a closed panel keeps
+// degrading the connection it is scanning from.
+const refreshFn = panelSource.match(/function refresh\(scanWifi\)[\s\S]*?\n {2}\}/)
+assert(refreshFn, 'network has a refresh() function')
+assert(/if \(opened && wifiDevice\)/.test(refreshFn[0]), 'network only touches the scanner from refresh() while its panel is open')
+
+// The 100ms deferral can outlive the panel: closing inside the window would
+// otherwise re-enable scanning from a timer nobody is watching.
+const scanRestart = panelSource.match(/id: scanRestart[\s\S]*?onTriggered: \{[\s\S]*?\n {4}\}/)
+assert(scanRestart, 'network has the deferred scan restart timer')
+assert(/root\.opened/.test(scanRestart[0]), 'network re-checks the panel before the deferred restart re-enables scanning')
+assert(/scanRestart\.stop\(\)/.test(panelSource), 'network cancels a pending scan restart when the panel closes')
+
 // scannerEnabled lives on a shared WifiDevice with no reference counting, so
 // the panel has to own what it enabled. Run the helper's own JavaScript against
 // stand-in devices: the two invariants it carries are that a closed panel never

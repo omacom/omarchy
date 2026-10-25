@@ -1790,8 +1790,8 @@ Panel {
     active: root.bandCurrent === band
     selected: root.bandEffective === band
     hasCursor: root.cursorActive && root.focusSection === "band"
-    onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
       && !root.bandAutoFocused && root.bandIndex === slot
+    onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
 
     onClicked: root.setBand(band)
 

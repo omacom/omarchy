@@ -45,6 +45,16 @@ for (const file of users) {
   assert(children.length > 0 && children.every(child => /^content:/.test(child)), `${name} builds its panel content lazily`, children.join('\n'))
 
   const source = lines.join('\n')
+  assert(!/onHasCursorChanged:[^\n]*\n\s*(?:&&|\|\|)/.test(source),
+    `${name} does not attach a cursor-binding continuation to its handler`)
+  const scrollPolicy = source.match(/^\s*scrollOverflow: (true|false)\s*$/m)
+  assert(scrollPolicy, `${name} explicitly chooses who owns overflow scrolling`)
+  if (scrollPolicy[1] === 'false') {
+    assert(/(?:ScrollView|Flickable)\s*\{[^{}]*anchors.fill: parent/.test(source),
+      `${name} keeps its full-card scroll view constrained`)
+  } else {
+    assert(/panel\.ensureItemVisible/.test(source), `${name} reveals keyboard selections in the outer viewport`)
+  }
   const mirrors = [...source.matchAll(/readonly property Item (\w+): panel\.loadedContent \? panel\.loadedContent\.(\w+) : null/g)]
   for (const [, mirror, target] of mirrors) {
     assert(mirror === target && new RegExp(`property alias ${target}: ${target}\\b`).test(source), `${name} exposes ${target} from its content`)
@@ -65,7 +75,12 @@ const fs = require('fs')
 const source = fs.readFileSync(process.env.ROOT + '/shell/plugins/panels/audio/Panel.qml', 'utf8')
 const helper = source.match(/  function ensureCursorVisible\(item\) \{[\s\S]*?\n  \}/)
 if (!helper) throw Error('missing production audio cursor helper')
-const fixture = fs.readFileSync(process.env.FIXTURE, 'utf8').replace('// AUDIO_CURSOR_HELPER', helper[0])
+const power = fs.readFileSync(process.env.ROOT + '/shell/plugins/panels/power/Panel.qml', 'utf8')
+const powerPolicy = power.match(/scrollOverflow: (true|false)/)
+if (!powerPolicy) throw Error('missing production power scroll policy')
+const fixture = fs.readFileSync(process.env.FIXTURE, 'utf8')
+  .replace('// AUDIO_CURSOR_HELPER', helper[0])
+  .replace('POWER_SCROLL_POLICY', powerPolicy[1])
 fs.writeFileSync(process.env.STAGE + '/shell.qml', fixture)
 JS
 
