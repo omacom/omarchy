@@ -1,83 +1,83 @@
 # Posnetki zaslona in snemanje
 
-Vse, kar lahko zgrabiš z zaslona, visi na tipki Print Screen. Tipka sama zase posname sliko, modifikatorji pa posnamejo posnetek, barvo ali besedilo znotraj območja. Če tvoja tipkovnica tipke Print Screen sploh nima, `Super + Ctrl + Alt + C` posname isti posnetek zaslona, `Super + Ctrl + C` pa odpre celoten nabor kot meni.
+Vse, kar lahko zgrabite z zaslona, visi na tipki Print Screen. Tipka sama po sebi posname sliko, modifikatorji pa posnamejo snemanje, barvo ali besedilo znotraj območja. Če vaša tipkovnica tipke Print Screen sploh nima, `Super + Ctrl + Alt + C` posname isti posnetek zaslona, `Super + Ctrl + C` pa odpre celoten nabor kot meni.
 
-| Bližnjica | Funkcija |
+| Hotkey | Function |
 | ------ | -------- |
 | `Print Screen` | Posnetek zaslona |
 | `Super + Ctrl + Alt + C` | Posnetek zaslona |
-| `Alt + Print Screen` | Snemanje zaslona (ali zaustavitev tistega, ki teče) |
+| `Alt + Print Screen` | Snemanje zaslona (ali zaustavitev tistega, ki se izvaja) |
 | `Super + Print Screen` | Izbirnik barv |
-| `Super + Ctrl + Print Screen` | Pridobivanje besedila iz območja |
-| `Super + Ctrl + C` | Meni za zajem |
-| `Super + Ctrl + .` | Prekodiranje slike ali videa |
+| `Super + Ctrl + Print Screen` | Izvleči besedilo iz območja |
+| `Super + Ctrl + C` | Meni za zajemanje |
+| `Super + Ctrl + .` | Prekodiraj sliko ali videoposnetek |
 
 ## Posnetki zaslona
 
-Pritisni `Print Screen` (ali `Super + Ctrl + Alt + C`) in Omasnap zajame osredotočeni monitor, preden se pojavi njegova prekrivna plast, tako da se nič ne premakne pod teboj, medtem ko meriš. Povleci prostoročno območje, klikni okno, da ga zajameš, ali klikni prazen prostor, da zajameš celoten monitor. Pred risanjem pritisni `S`, da zajameš drseče območje. Si si premislil? Znova pritisni isto tipko, da zapreš Omasnap.
+Pritisnite `Print Screen` (ali `Super + Ctrl + Alt + C`) in Omasnap zajame osredotočeni monitor, preden se pojavi njegova prekrivna plast, tako da se med merjenjem pod vami nič ne premakne. Povlecite prosto oblikovano območje, kliknite okno, da ga zajamete, ali kliknite prazen prostor, da zajamete celoten monitor. Pred risanjem pritisnite `S`, da zajamete drseče območje. Ste si premislili? Znova pritisnite isto tipko, da zaprete Omasnap.
 
-Ko izbereš območje, Omasnap shrani zajem, ga kopira v odložišče in za 10 sekund pokaže predogled. Uporabi gumb za pripenjanje v predogledu ali `Ctrl + P`, da ga obdržiš na zaslonu, ali izberi Uredi, da ga opremiš z opombami.
+Ko izberete območje, Omasnap shrani zajem, ga kopira v odložišče in pokaže obvestilo z njegovo sličico, podobno kot shranjen posnetek zaslona. Izberite Open, da si shranjeni posnetek ogledate v pregledovalniku slik, ali Edit, da ga opremite z opombami.
 
-Urejevalnik opomb lahko riše puščice, črte, oblike, poudarke, oštevilčene oznake, besedilo in varne redakcije; obreže ali izreže del slike; z OCR prebere njeno besedilo; in doda ozadje. V urejevalniku pritisni `Enter`, da kopiraš in shraniš končano datoteko PNG, `Ctrl + C`, da jo kopiraš brez shranjevanja, ali `Ctrl + S`, da jo shraniš brez kopiranja.
+Urejevalnik opomb lahko riše puščice, črte, oblike, poudarke, oštevilčene oznake, besedilo in varne redakcije; obreže ali izreže del slike; OCR-a njeno besedilo; in doda ozadje. V urejevalniku pritisnite `Enter`, da končano sliko PNG kopirate in shranite, `Ctrl + C`, da jo kopirate brez shranjevanja, ali `Ctrl + S`, da jo shranite brez kopiranja.
 
-Shranjeni posnetki zaslona privzeto pristanejo v `~/Pictures/Screenshots` z imenom, kot je `screenshot-2026-08-13_14-22-05-firefox.png`. Nastavi `OMASNAP_SCREENSHOT_DIR`, da uporabiš drugo mapo — glej [pogosta vprašanja](46-faq.md) za to, kam dati okoljske spremenljivke seje. Omasnap ustvari mapo, ko shrani prvi posnetek. Nastavi `[output] autosave = false` v `~/.config/omasnap/omasnap.conf`, da onemogočiš samodejno shranjevanje.
+Shranjeni posnetki zaslona privzeto pristanejo v `~/Pictures/Screenshots` z imenom, kot je `screenshot-2026-08-13_14-22-05-firefox.png`. Nastavite `OMASNAP_SCREENSHOT_DIR`, da uporabite drug imenik — glejte [pogosta vprašanja](46-faq.md) za to, kam postaviti okoljske spremenljivke seje. Omasnap imenik ustvari, ko shrani prvi posnetek. Nastavite `[output] autosave = false` v `~/.config/omasnap/omasnap.conf`, da onemogočite samodejno shranjevanje; zajemi se nato samo kopirajo in za 10 sekund pokažejo v predogledu, ki ga lahko s pripenjalnim gumbom ali `Ctrl + P` obdržite na zaslonu.
 
-Iz terminala `omarchy screenshot` odpre isto prekrivno plast, izbereš pa lahko tudi njen začetni način: `omarchy capture screenshot region`, `windows`, `fullscreen` ali `scroll`. Drugi argument `copy` ali `save` preskoči predogled in pošlje posnetek naravnost na to ciljno mesto. Za urejanje pred izhodom uporabi `omarchy screenshot --editor=overlay` za celozaslonski urejevalnik ali `omarchy screenshot --editor=window` za ločeno okno.
+Iz terminala `omarchy screenshot` odpre isto prekrivno plast, izberete pa lahko njen začetni način: `omarchy capture screenshot region`, `windows`, `fullscreen` ali `scroll`. Drugi argument `copy` ali `save` pošlje posnetek naravnost na to destinacijo. Za urejanje pred izhodom uporabite `omarchy screenshot --editor=overlay` za celozaslonski urejevalnik ali `omarchy screenshot --editor=window` za ločeno okno.
 
 ### Upravljanje izbirnika s tipkovnico
 
-Medtem ko je izbor odprt, miške sploh ne potrebuješ:
+Medtem ko je izbor prikazan, miške sploh ne potrebujete:
 
-| Tipka | Funkcija |
+| Key | Function |
 | --- | -------- |
-| `S` | Preklop načina drsečega območja |
-| `Super + Arrow keys` | Premikanje med okni v načinu oken |
-| `Return` | Zajem označenega okna |
-| `Ctrl + A` | Zajem celotnega osredotočenega monitorja |
-| `R` | Obnovitev zadnjega območja, narisanega v tej seji |
-| `Esc` | Zaprtje Omasnap |
+| `S` | Preklopi način drsečega območja |
+| `Super + Arrow keys` | Premikaj se med okni v okenskem načinu |
+| `Return` | Zajemi označeno okno |
+| `Ctrl + A` | Zajemi celoten osredotočeni monitor |
+| `R` | Obnovi zadnje območje, narisano v tej seji |
+| `Esc` | Zapri Omasnap |
 
-Te vezave obstajajo samo, ko je Omasnap odprt, zato ne morejo trčiti z ničemer v tvoji lastni konfiguraciji.
+Te vezave obstajajo samo, ko je Omasnap odprt, zato se ne morejo spopasti z ničimer v vaši lastni konfiguraciji.
 
 ## Snemanje zaslona
 
-`Alt + Print Screen` odpre _Sprožilec > Zajem > Snemanje zaslona_, ki vpraša, kaj želiš na zvočnem posnetku: brez zvoka, zvok namizja, namizje in mikrofon ali namizje, mikrofon in spletno kamero. Zadnja možnost se pokaže samo, če imaš kamero dejansko priklopljeno. Izberi eno in Omarchyjev izbirnik za snemanje ti omogoči, da povlečeš območje ali klikneš okno ali monitor.
+`Alt + Print Screen` odpre _Trigger > Capture > Screenrecord_, ki vas vpraša, kaj želite na zvočnem posnetku: brez zvoka, zvok namizja, zvok namizja in mikrofon ali zvok namizja, mikrofon in spletna kamera. Zadnja možnost se pojavi samo, če imate dejansko priključeno kamero. Izberite eno in Omarchyjev izbirnik snemanja vam omogoča, da povlečete območje ali kliknete okno ali monitor.
 
-Snemanje poganja gpu-screen-recorder, ki kodira na GPU pri 60fps in po potrebi preklopi na CPU. Rezultat je datoteka MP4 v `~/Videos` z imenom `screenrecording-2026-08-13_14-22-05.mp4`. Nastavi `OMARCHY_SCREENRECORD_DIR`, da to spremeniš — a upoštevaj, da mora ta mapa za razliko od mape za posnetke zaslona že obstajati, sicer se snemanje noče začeti.
+Snemanje teče na gpu-screen-recorder, ki kodira na GPU pri 60fps in se po potrebi zateče na CPU. Rezultat je MP4 v `~/Videos` z imenom `screenrecording-2026-08-13_14-22-05.mp4`. Nastavite `OMARCHY_SCREENRECORD_DIR`, da to spremenite — vendar upoštevajte, da mora ta imenik, za razliko od imenika za posnetke zaslona, že obstajati, sicer se snemanje noče začeti.
 
-Med snemanjem se v vrstici pojavi majhen kazalnik. Klikni ga, da zaustaviš snemanje. Zaustaviš lahko tudi znova z `Alt + Print Screen` ali z vnosom _Zaustavi snemanje zaslona_ pod _Sprožilec > Zajem > Snemanje zaslona_, ki se pojavi samo, ko se nekaj dejansko snema.
+Med snemanjem se v vrstici pokaže majhen indikator. Kliknite ga, da ustavite. Ustavite lahko tudi z vnovičnim `Alt + Print Screen` ali z vnosom _Stop Screenrecording_ pod _Trigger > Capture > Screenrecord_, ki se pojavi samo, ko se nekaj dejansko snema.
 
-Zaustavitev pred predajo datoteke malo pospravi: prvi kader se odreže, zvok, če obstaja, pa se normalizira na -14 LUFS, pri čemer se pok pri zajemu PipeWire na samem začetku utiša. Nato se pojavi obvestilo s sličico iz posnetka. Klikni ga, da datoteko predvajaš v mpv.
+Ustavljanje pred predajo datoteke opravi nekaj čiščenja: prvi okvir se obreže, in če je prisoten zvok, se normalizira na -14 LUFS, pri čemer se pok pri zajemu PipeWire na samem začetku utiša. Nato se pojavi obvestilo s sličico iz posnetka. Kliknite ga, da datoteko predvajate v mpv.
 
 ### Prekrivna plast spletne kamere
 
-Ko snemaš s spletno kamero, se kamera pojavi kot pripeto, obrezano portretno okno v spodnjem desnem kotu tega, kar snemaš. Če leži na nečem, kar potrebuješ, ji sproti spremeni velikost:
+Ko snemate s spletno kamero, se kamera pokaže kot pripeto, obrezano portretno okno v spodnjem desnem kotu tega, kar snemate. Če leži na nečem, kar potrebujete, ji sproti spremenite velikost:
 
-| Bližnjica | Funkcija |
+| Hotkey | Function |
 | ------ | -------- |
-| `Super + Alt + [` | Pomanjšanje prekrivne plasti spletne kamere |
-| `Super + Alt + ]` | Povečanje prekrivne plasti spletne kamere |
+| `Super + Alt + [` | Pomanjšaj prekrivno plast spletne kamere |
+| `Super + Alt + ]` | Povečaj prekrivno plast spletne kamere |
 
-Na voljo so tri velikosti — majhna, srednja in velika — bližnjice pa korakajo med njimi. Srednja je privzeta. Sorazmerne so s posnetkom, zato kamera zavzame enak delež kadra, ne glede na to, ali snemaš monitor 1080p ali 6K. In če si posnel območje in ne celotnega zaslona, se prekrivna plast zasidra v kot tega območja in ne monitorja, zato ostane znotraj posnetka.
+Na voljo so tri velikosti — majhna, srednja in velika — bližnjice pa korakajo med njimi. Srednja je privzeta. Sorazmerne so z posnetkom, tako da kamera zavzame enak delež okvira, ne glede na to, ali snemate monitor 1080p ali 6K. In če ste posneli območje namesto celotnega zaslona, se prekrivna plast zasidra v kot tega območja namesto monitorjevega, tako da ostane znotraj posnetka.
 
-Pokličeš jo lahko tudi neposredno z `omarchy-capture-webcam-resize small` ali `reset`, da se vrneš na srednjo.
+Poklicate jo lahko tudi neposredno z `omarchy-capture-webcam-resize small` ali `reset`, da se vrnete na srednjo.
 
 ## Besedilo, kode QR in barve
 
-`Super + Ctrl + Print Screen` izbere območje in z OCR prebere njegovo besedilo v odložišče. To je ustrezno obravnavano v [Pridobivanje besedila in narekovanje](11-text-extraction-dictation.md).
+`Super + Ctrl + Print Screen` izbere območje in ga OCR-a v odložišče. To je ustrezno obravnavano v [Pridobivanje besedila in narekovanje](11-text-extraction-dictation.md).
 
-_Sprožilec > Zajem > Koda QR_ naredi isti trik za kode QR. Izberi območje s kodo v njem in dekodirana vrednost gre v odložišče. Išče samo kode QR — gosta vsebina zaslona sicer rada lažno pozitivno izpade kot črtna koda. Dobro je vedeti: dekodirana vrednost gre v odložišče in nikamor drugam. Ni natisnjena, ni v obvestilu in označena je kot občutljiva, zato ne ostane v [zgodovini odložišča](08-unified-clipboard-history.md). Kode QR redno nosijo skrivnosti — na primer URI `otpauth://` za kodo za nastavitev 2FA — in tega nočeš v dnevniku. Lepljenje še vedno deluje brez težav.
+_Trigger > Capture > QR Code_ naredi isti trik za kode QR. Izberite območje s kodo v njem in dekodirana vrednost gre v odložišče. Išče samo kode QR — gosta vsebina zaslona se sicer rada lažno prepozna kot črtna koda. Vredno je vedeti: dekodirana vrednost gre v odložišče in nikamor drugam. Ni natisnjena, ni v obvestilu in je označena kot občutljiva, tako da ne ostane v [zgodovini odložišča](08-unified-clipboard-history.md). Kode QR običajno nosijo skrivnosti — na primer URI `otpauth://` za nastavitveno kodo 2FA — in tega ne želite v dnevniku. Lepljenje še vedno deluje v redu.
 
-`Super + Print Screen` (ali _Sprožilec > Zajem > Barva_) spremeni kazalec v kapalko. Klikni karkoli na zaslonu in barva pristane v odložišču. Znova pritisni bližnjico, da se umakneš brez izbire.
+`Super + Print Screen` (ali _Trigger > Capture > Color_) spremeni kazalec v kapalico. Kliknite karkoli na zaslonu in barva pristane v odložišču. Znova pritisnite bližnjico, da izstopite brez izbire.
 
-## Prekodiranje pred deljenjem
+## Prekodiranje, preden delite
 
-Posnetek zaslona 4K ali surova datoteka HEIC s telefona je pogosto prevelika, da bi ju kar poslali. `Super + Ctrl + .` (ali _Sprožilec > Prekodiraj_) to popravi. Ponudi ti mehki izbirnik datotek po `~/Pictures` in `~/Videos`, nato vpraša po formatu in velikosti.
+Posnetek zaslona 4K ali surov HEIC z vašega telefona je pogosto prevelik, da bi ga preprosto poslali. `Super + Ctrl + .` (ali _Trigger > Transcode_) to odpravi. Ponudi vam mehki izbirnik datotek po `~/Pictures` in `~/Videos`, nato pa vpraša po zapisu in velikosti.
 
-Slike gredo v jpg ali png pri visoki, srednji ali nizki, ki širino omejijo na 3160, 2160 in 1080 slikovnih pik. Videi gredo v mp4 ali animirani gif pri 4k, 1080p ali 720p. Pretvorjena datoteka se zapiše poleg izvirnika z ločljivostjo v imenu — `demo-1080p.mp4` — pot pa se kopira v odložišče kot URI datoteke, tako da jo lahko prilepiš neposredno v aplikacijo, ki sprejema spuščanje datotek.
+Slike gredo v jpg ali png pri visoki, srednji ali nizki, ki širino omejijo na 3160, 2160 in 1080 slikovnih pik. Videoposnetki gredo v mp4 ali animirani gif pri 4k, 1080p ali 720p. Pretvorjena datoteka se zapiše poleg izvirnika z ločljivostjo v imenu — `demo-1080p.mp4` — pot pa se kopira v odložišče kot URI datoteke, tako da jo lahko prilepite neposredno v aplikacijo, ki sprejema spuščanje datotek.
 
-Deluje tudi iz terminala, če že veš, kaj hočeš: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Na voljo je tudi `omarchy transcode ascii`, ki sliko spremeni v umetnost ASCII — ta je večinoma za [blagovno znamko](41-branding.md).
+Deluje tudi iz terminala, če že veste, kaj želite: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Obstaja tudi `omarchy transcode ascii`, ki sliko spremeni v umetnost ASCII — ta je večinoma za [blagovno znamko](41-branding.md).
 
 ## Pošiljanje nekam
 
-Ko imaš datoteko, `Super + Ctrl + S` odpre meni Deli in jo prek LocalSend pošlje drugi napravi v tvojem omrežju. Za to glej [grafične vmesnike](22-guis.md).
+Ko imate datoteko, `Super + Ctrl + S` odpre meni Share in jo prek LocalSend pošlje drugi napravi v vašem omrežju. Za to glejte [grafične vmesnike](22-guis.md).
