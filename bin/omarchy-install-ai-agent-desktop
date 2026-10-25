@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Install Agent Desktops to watch and control agents' background desktops
+# omarchy:args=[--monitor OUTPUT] [--port PORT] [--no-start]
+# omarchy:examples=omarchy install ai agent-desktop --monitor DP-1
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+omarchy-pkg-add agent-desktops
+agent-desktops setup "$@"
+omarchy-notification-send "$(omarchy-i18n agentDesktops.installedTitle)" "$(omarchy-i18n agentDesktops.installedBody)"
