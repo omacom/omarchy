@@ -126,6 +126,37 @@ expect("Ollama asks the daemon at the address OLLAMA_HOST names",
        [f"http://{DAEMON}/api/balance", f"http://{DAEMON}/api/me"], record)
 del os.environ["OLLAMA_HOST"]
 
+# Two daemons are two accounts: the second one's allowance never shows under
+# the first one's, neither fresh nor as a fallback, and each keeps its own.
+OTHER_DAEMON = "127.0.0.1:11435"
+OTHER_LEGACY = {
+  "included": {
+    "session": {"remaining_percent": 50, "resets_at": SESSION_RESET},
+    "weekly": {"remaining_percent": 20, "resets_at": WEEKLY_RESET},
+  },
+  "purchased": {"balance_usd": 0},
+}
+sandbox()
+cloud()
+os.environ["OLLAMA_HOST"] = DAEMON
+ollama()
+os.environ["OLLAMA_HOST"] = OTHER_DAEMON
+record, requests = ollama("--limits-only", routes={**ROUTES, f"{OTHER_DAEMON}/api/balance": OTHER_LEGACY, f"{OTHER_DAEMON}/api/me": {"plan": "free"}})
+expect("Ollama asks the second daemon and reads the second account's allowance",
+       [[request["url"] for request in requests], record["tierLabel"], [entry["percent"] for entry in record["limits"]]],
+       [[f"http://{OTHER_DAEMON}/api/balance", f"http://{OTHER_DAEMON}/api/me"], "Free", [0.5, 0.8]], record)
+expect("Ollama keeps each daemon's allowance under its own daemon",
+       len(limits_cache_files("ollama")), 2, record)
+
+# A third daemon that cannot answer shows no allowance at all: another
+# daemon's numbers are never a fallback.
+os.environ["OLLAMA_HOST"] = "127.0.0.1:11436"
+record, requests = ollama()
+expect("Ollama shows no allowance for a daemon that cannot answer, and none of another's either",
+       [record["limits"], record["tierLabel"], record["usageStatusText"]],
+       [[], "", "Waiting for auth"], record)
+del os.environ["OLLAMA_HOST"]
+
 # A machine that never used Ollama Cloud doesn't ask the daemon either: the
 # panel skips the record, and nothing was asked for.
 sandbox()

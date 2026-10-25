@@ -21,6 +21,7 @@ import argparse
 import math
 import os
 import sys
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -115,9 +116,32 @@ def daemon_endpoint(path: str) -> str:
   return url if trusted_endpoint(url) else ""
 
 
+def daemon_identity() -> str:
+  """The daemon's address, normalized: one daemon under two spellings is one
+  daemon, and two daemons are two accounts.
+
+  The scheme and the host are folded to lower case and the port kept, so
+  `127.0.0.1:11434` and `http://127.0.0.1:11434` are one address, and
+  `http://127.0.0.1:11435` is another.
+  """
+  parts = urllib.parse.urlsplit(daemon_base())
+  try:
+    port = parts.port
+  except ValueError:
+    port = None
+  host = (parts.hostname or "").lower()
+  if ":" in host:
+    host = f"[{host}]"
+  address = f"{parts.scheme.lower()}://{host}"
+  return f"{address}:{port}" if port else address
+
+
 def cache_identity(access_key: str) -> str:
   # The daemon's account is its own: its numbers never show under a key's.
-  return access_key if access_key else DAEMON_IDENTITY
+  # The daemon's address is part of that identity: another daemon holds
+  # another account, and its numbers never show under this one's, nor as
+  # this one's fallback.
+  return access_key if access_key else f"{DAEMON_IDENTITY}@{daemon_identity()}"
 
 
 def api_key() -> str:
