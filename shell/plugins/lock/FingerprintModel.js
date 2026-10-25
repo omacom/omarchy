@@ -11,6 +11,12 @@ var ERROR_RETRY_CAP_MS = 40000
 var UNAVAILABLE_AFTER = 3
 // Abort before the D-Bus claim timeout, while allowing slow device opens.
 var REACH_TIMEOUT_MS = 20000
+// A rejection waits this long for the completion that would unmask it as
+// pam_fprintd's unknown error, which follows its message at once; a miss is
+// confirmed sooner by the next prompt or by MaxTries, so only an unusable
+// swipe waits the whole hold.
+var REJECT_HOLD_MS = 400
+var REJECTED_SHOW_MS = 2500
 // Monotonic timers pause across suspend; a wall-clock gap detects resume.
 var SLEEP_GAP_MS = 2000
 // Ignore transient misses while the asynchronous resume restart lands.
@@ -79,6 +85,8 @@ if (typeof module !== "undefined") {
     FPRINTD_IDLE_EXIT_MS: FPRINTD_IDLE_EXIT_MS,
     UNAVAILABLE_AFTER: UNAVAILABLE_AFTER,
     REACH_TIMEOUT_MS: REACH_TIMEOUT_MS,
+    REJECT_HOLD_MS: REJECT_HOLD_MS,
+    REJECTED_SHOW_MS: REJECTED_SHOW_MS,
     SLEEP_GAP_MS: SLEEP_GAP_MS,
     RESUME_GRACE_MS: RESUME_GRACE_MS,
     spannedSleep: spannedSleep,

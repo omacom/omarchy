@@ -149,9 +149,54 @@ ShellRoot {
       check(!service.fingerprintAuthenticating && !reach.running, "the reach bound closes a stuck attempt")
       check(service.lockRequested, "a timeout never unlocks")
 
+      // pam_fprintd names a rejected finger only in translated prose, so the
+      // service reads what follows the error message instead of the text.
+      var hold = timer(service, 400, false)
+      var rejected = timer(service, 2500, false)
+      var blank = timer(service, 5000, false)
+      service.fingerprintUnreachedStreak = 0
+      service.fingerprintAuthenticating = true
+      service.fingerprintAttemptReachedDevice = false
+      reach.start()
+      blank.stop()
+      service.handleFingerprintMessage(true)
+      check(service.fingerprintAttemptReachedDevice && !reach.running, "an error message proves the claim reached the reader")
+      check(hold.running && !service.fingerprintRejected && service.fingerprintRejections === 0, "an error message holds the rejection until what follows tells a finger from a fault")
+      service.handleFingerprintMessage(false)
+      check(!hold.running && service.fingerprintRejected && service.fingerprintRejections === 1, "the prompt for the next try confirms a missed finger")
+      check(rejected.running, "a shown rejection clears itself after a moment")
+      check(blank.running, "a rejection re-arms the blank countdown")
+      service.handleFingerprintMessage(true)
+      service.handleFingerprintMessage(false)
+      check(service.fingerprintRejections === 2, "every miss counts so the icon shakes again")
+      service.handleFingerprintMessage(true)
+      hold.triggered()
+      check(!hold.running && service.fingerprintRejections === 3, "an unusable swipe shows once the hold runs out")
+      service.handleFingerprintMessage(true)
+      service.handleFingerprintFinished(PamResult.MaxTries)
+      check(service.fingerprintRejections === 4 && !service.fingerprintAuthenticating, "a third miss shows as the attempt completes with MaxTries")
+      check(service.lockRequested, "a rejected finger never unlocks")
+      rejected.triggered()
+      check(!service.fingerprintRejected && service.fingerprintRejections === 4, "the rejection clears when its timer runs out and keeps its count")
+
+      service.fingerprintAuthenticating = true
+      service.fingerprintAttemptPromptedAtMs = Date.now()
+      service.handleFingerprintMessage(true)
+      service.handleFingerprintFinished(PamResult.Failed)
+      check(!hold.running && !service.fingerprintRejected && service.fingerprintRejections === 4, "pam_fprintd's unknown error, Failed right after its message, is not a finger")
+      service.fingerprintAuthenticating = true
+      service.handleFingerprintMessage(true)
+      service.settleFingerprintAttempt(true)
+      check(!hold.running && !service.fingerprintRejected, "a device error drops a held rejection")
+
+      service.handleFingerprintMessage(true)
+      service.handleFingerprintMessage(false)
+      check(service.fingerprintRejected && hold.running === false && rejected.running, "a rejection is pending for the unlock reset")
+      service.handleFingerprintMessage(true)
       service.lockRequested = false
       service.resetAuthenticationState()
       check(!retry.running && !reach.running && !recheck.running, "unlock reset stops every fingerprint timer")
+      check(!service.fingerprintRejected && service.fingerprintRejections === 0 && !rejected.running && !hold.running, "unlock reset clears the rejection, its count and its timers")
       service.applyFingerprintProbe("Daemon is restarting")
       check(!recheck.running, "an unknown probe outside the lock cannot restart it")
     } finally {

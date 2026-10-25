@@ -209,6 +209,7 @@ Item {
     fingerprintRecheckTimer.stop()
     fingerprintRetryTimer.stop()
     fingerprintReachTimer.stop()
+    fingerprintRejectHoldTimer.stop()
     fingerprintRejectedTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
@@ -400,11 +401,30 @@ Item {
     fingerprintReachTimer.stop()
   }
 
-  // pam_fprintd reports a no-match or an unusable swipe as an error message
-  // and keeps the attempt open for the next touch. Wake the displays so the
-  // feedback is seen even when the touch landed on a blanked lock.
-  function noteFingerprintRejected() {
+  // pam_fprintd reports a no-match or an unusable swipe as an error message,
+  // but so is its one error with no finger behind it, "An unknown error
+  // occurred", and the strings are translated, so the text cannot tell them
+  // apart. What follows the message can: a miss with tries left starts the
+  // next verify and prompts again, a third miss completes with MaxTries, an
+  // unusable swipe leaves the attempt open, and the unknown error completes
+  // with Failed at once. So the rejection is held until a prompt or MaxTries
+  // confirms it or the hold runs out, and a completion inside the hold that
+  // is not MaxTries drops it. Every message proves the claim reached the
+  // reader, since pam_fprintd only speaks after a verify result.
+  function handleFingerprintMessage(isError) {
+    if (isError) {
+      noteFingerprintReachedDevice()
+      fingerprintRejectHoldTimer.restart()
+      return
+    }
+    if (fingerprintRejectHoldTimer.running) showFingerprintRejected()
     noteFingerprintReachedDevice()
+  }
+
+  // Wake the displays so the feedback is seen even when the touch landed on
+  // a blanked lock.
+  function showFingerprintRejected() {
+    fingerprintRejectHoldTimer.stop()
     fingerprintRejections += 1
     fingerprintRejected = true
     fingerprintRejectedTimer.restart()
@@ -420,6 +440,7 @@ Item {
 
   // onError and onCompleted can both fire; settle each attempt once.
   function settleFingerprintAttempt(deviceError) {
+    fingerprintRejectHoldTimer.stop()
     if (!fingerprintAuthenticating) return
     fingerprintAuthenticating = false
     fingerprintReachTimer.stop()
@@ -450,6 +471,10 @@ Item {
   }
 
   function handleFingerprintFinished(result) {
+    if (fingerprintRejectHoldTimer.running) {
+      if (result === PamResult.MaxTries) showFingerprintRejected()
+      else fingerprintRejectHoldTimer.stop()
+    }
     if (result === PamResult.Success && lockRequested) {
       // A match after a run of misses is the recovery too; the unlock resets
       // the streak without settling, so log it here or it leaves no trace.
@@ -585,10 +610,7 @@ Item {
     config: "omarchy-lock-fingerprint"
     user: root.userName
 
-    onPamMessage: {
-      if (messageIsError) root.noteFingerprintRejected()
-      else root.noteFingerprintReachedDevice()
-    }
+    onPamMessage: root.handleFingerprintMessage(messageIsError)
 
     onCompleted: function(result) {
       root.handleFingerprintFinished(result)
@@ -632,12 +654,17 @@ Item {
     onTriggered: root.startFingerprint()
   }
   Timer {
+    id: fingerprintRejectHoldTimer
+    interval: FingerprintModel.REJECT_HOLD_MS
+    repeat: false
+    onTriggered: root.showFingerprintRejected()
+  }
+  Timer {
     id: fingerprintRejectedTimer
-    interval: 2500
+    interval: FingerprintModel.REJECTED_SHOW_MS
     repeat: false
     onTriggered: root.fingerprintRejected = false
   }
-
 
   // Detect resume both during an active attempt and during backoff.
   Timer {
