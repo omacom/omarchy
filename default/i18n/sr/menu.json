@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Корисник"
   },
-  "system.reboot-boot-menu": {
-    "label": "Поново покрени у Boot мени"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Прикажи % батерије"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Сакриј % батерије"
+  },
+  "appearance.windows": {
+    "label": "Прозори"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Размаци прозора укључени"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Размаци прозора искључени"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Размера за 1 прозор укључена"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Размера за 1 прозор искључена"
+  },
+  "appearance.branding": {
+    "label": "Брендирање"
+  },
+  "appearance.animations-on": {
+    "label": "Анимације укључене"
+  },
+  "appearance.animations-off": {
+    "label": "Анимације искључене"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Остани будан"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Дозволи спавање"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Обавештења укључена"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Утишај обавештења"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Ноћно светло укључено"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Ноћно светло искључено"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Чувар екрана укључен"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Чувар екрана искључен"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Хватање падова укључено"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Искључи снимање пада"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Укључи екран лаптопа"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Искључи екран лаптопа"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Укључи пресликавање екрана"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Искључи пресликавање екрана"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Пребаци на хибридни GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Пребаци на интегрисани GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Укључи тачпед"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Искључи тачпед"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Укључи екран на додир"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Искључи екран на додир"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Кернел"
   }
 }

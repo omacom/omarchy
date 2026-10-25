@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Vartotojas"
   },
-  "system.reboot-boot-menu": {
-    "label": "Perkrauti į įkrovos meniu"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Rodyti baterijos %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Slėpti baterijos %"
+  },
+  "appearance.windows": {
+    "label": "Langai"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Langų tarpai įjungti"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Langų tarpai išjungti"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1 lango santykis įjungtas"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1 lango santykis išjungtas"
+  },
+  "appearance.branding": {
+    "label": "Prekės ženklas"
+  },
+  "appearance.animations-on": {
+    "label": "Animacijos įjungtos"
+  },
+  "appearance.animations-off": {
+    "label": "Animacijos išjungtos"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Nemiegoti"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Leisti miegoti"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Pranešimai įjungti"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Nutildyti pranešimus"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nakties šviesa įjungta"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nakties šviesa išjungta"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Ekrano užsklanda įjungta"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Ekrano užsklanda išjungta"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Strigčių fiksavimas įjungtas"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Branduolys"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Išjungti strigčių fiksavimą"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Įjungti nešiojamojo ekraną"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Išjungti nešiojamojo ekraną"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Įjungti ekrano dubliavimą"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Išjungti ekrano dubliavimą"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Perjungti į hibridinę GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Perjungti į integruotą GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Įjungti jutiklinį kilimėlį"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Išjungti jutiklinį kilimėlį"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Įjungti jutiklinį ekraną"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Išjungti jutiklinį ekraną"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
   }
 }

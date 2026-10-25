@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Lietotājs"
   },
-  "system.reboot-boot-menu": {
-    "label": "Restartēt uz sāknēšanas izvēlni"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Rādīt akumulatora %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Slēpt akumulatora %"
+  },
+  "appearance.windows": {
+    "label": "Logi"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Logu atstarpes ieslēgtas"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Logu atstarpes izslēgtas"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1 loga proporcija ieslēgta"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1 loga proporcija izslēgta"
+  },
+  "appearance.branding": {
+    "label": "Zīmols"
+  },
+  "appearance.animations-on": {
+    "label": "Animācijas ieslēgtas"
+  },
+  "appearance.animations-off": {
+    "label": "Animācijas izslēgtas"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Palikt nomodā"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Atļaut miegu"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Paziņojumi ieslēgti"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Apklusināt paziņojumus"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nakts gaisma ieslēgta"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nakts gaisma izslēgta"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Ekrānsaudzētājs ieslēgts"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Ekrānsaudzētājs izslēgts"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Avāriju fiksēšana ieslēgta"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kodols"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Avārijas ieraksts izslēgts"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Klēpjdatora ekrāns ieslēgts"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Klēpjdatora ekrāns izslēgts"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Ekrāna spoguļošana ieslēgta"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Ekrāna spoguļošana izslēgta"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Pārslēgt uz hibrīdo GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Pārslēgt uz integrēto GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Ieslēgt skārienpaliktni"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Izslēgt skārienpaliktni"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Ieslēgt skārienekrānu"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Izslēgt skārienekrānu"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
   }
 }

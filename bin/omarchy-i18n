@@ -48,7 +48,10 @@ i18n=$OMARCHY_PATH/default/i18n
 language_file=${OMARCHY_LANGUAGE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/language}
 language=en
 if [[ -f $language_file ]]; then
-  candidate=$(head -n 1 "$language_file" | tr -d '[:space:]')
+  # Builtins only: head and tr would cost two process starts on every lookup.
+  candidate=
+  read -r candidate <"$language_file" || true
+  candidate=${candidate//[[:space:]]/}
   if [[ $candidate =~ ^[a-z]{2,3}(-[A-Za-z]{2})?$ && -f $i18n/$candidate/cli.json ]]; then
     language=$candidate
   fi

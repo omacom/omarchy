@@ -1414,6 +1414,8 @@ apply_system_transition() {
   # root-equivalent, so it is opt-in now (Setup > Security > Sudoless Docker);
   # re-granting it on upgrade would silently undo that default for everyone.
 
+  # A channel's base list may still pick the stock power-profiles-daemon, whose
+  # powerprofilesctl runs mise's python3; the Omarchy build ships it fixed.
   if [[ -f /usr/bin/powerprofilesctl ]]; then
     as_root sed -i '/env python3/ c\#!/bin/python3' /usr/bin/powerprofilesctl || true
   fi

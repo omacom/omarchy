@@ -1,45 +1,45 @@
 # Savo temos kūrimas
 
-Gali pridėti savo temas į `~/.config/omarchy/themes`. Tiesiog nukopijuok vieną iš esamų kaip pagrindą (žiūrėk į `/usr/share/omarchy/themes`), tada tobulink iki soties. Kol tavo tema yra tame aplanke, ji bus įtraukta į temų pasirinkimo meniu.
+Savo temas galite įtraukti į `~/.config/omarchy/themes`. Tiesiog nukopijuokite vieną iš esamų kaip pagrindą (žiūrėkite `/usr/share/omarchy/themes`), tada koreguokite pagal savo skonį. Kol tema bus tame aplanke, ji bus įtraukta į temų pasirinkimo meniu.
 
-Pagrindinis failas, kurį turi koreguoti, yra `colors.toml`. Jis apibrėžia spalvų rinkinį, iš kurio tada generuojamos konfigūracijos terminalui (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian ir visam Omarchy apvalkalui (viršutinei juostai, meniu, pranešimams, OSD ir užrakinimo ekranui).
+Pagrindinis failas, kurį turite pakoreguoti, yra `colors.toml`. Jis apibrėžia spalvų rinkinį, kuris tada naudojamas terminalo (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian ir visos Omarchy aplinkos (viršutinės juostos, meniu, pranešimų, OSD ir užrakto ekrano) konfigūracijoms generuoti.
 
-Taip pat gali naudoti pridėtą Aether programą, kad sukurtum naują temą naudodamas mielą GUI sąsają spalvoms žaisti ir fonams ieškoti. Tiesiog paleisk ją iš programų tinklelio su `Super + Alt + Space`.
+Norėdami sukurti naują temą, taip pat galite naudoti pateiktą Aether programą su miela GUI sąsaja, kurioje galėsite žaisti su spalvomis ir ieškoti fonų. Tiesiog paleiskite ją iš programų tinklelio paspaudę `Super + Alt + Space`.
 
 ### Ką gali turėti įdiegta tema
 
-Tema, kurią pats parašai `~/.config/omarchy/themes`, gali turėti ką nori — tai tavo kompiuteris ir tavo failas, o Omarchy visa tai pritaiko.
+Tema, kurią patys parašote `~/.config/omarchy/themes`, gali turėti ką tik norite — tai jūsų kompiuteris ir jūsų failas, o Omarchy pritaikys viską.
 
-Tema, kurią įdiegi iš svetimos saugyklos su `omarchy theme install`, pasilieka viską, kas yra spalva, ir praranda saujelę failų, kurie tavo kompiuteryje vykdytų kodą: bet kurį `.lua` failą, terminalo konfigūracijas (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`) ir `vscode.json`. Temos `hyprland.lua` yra Lua, kurį tavo kompozitorius paleidžia prisijungiant, terminalo konfigūracija įvardija programą, kurią tavo terminalas paleidžia, o `vscode.json` įvardija diegiamą VSCode plėtinį. Svetimos temos įdiegimas turėtų keisti tai, kaip tavo darbalaukis atrodo, niekad tai, ką jis paleidžia.
+Tema, kurią įdiegiate iš kažkieno kito repozitorijos su `omarchy theme install`, išlaiko viską, kas yra spalva, ir praranda saujelę failų, kurie jūsų kompiuteryje vykdytų kodą: bet kurį `.lua` failą, terminalo konfigūracijas (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`) ir `vscode.json`. Temos `hyprland.lua` yra Lua, kurią jūsų kompozitorius paleidžia prisijungiant, terminalo konfigūracija įvardija programą, kurią jūsų terminalas paleidžia, o `vscode.json` įvardija įdiegtiną VSCode plėtinį. Kažkieno kito temos įdiegimas turėtų pakeisti tai, kaip atrodo jūsų darbalaukis, bet niekada — tai, ką jis vykdo.
 
-Visa kita vis tiek veikia tiksliai taip, kaip temos autorius parašė — `btop.theme`, `chromium.theme`, `helix.toml`, `icons.theme`, `shell.toml`, fonai ir peržiūros visi išsaugomi. Tik tai, kas buvo išmesta, tavo kompiuteryje iš naujo generuojama iš `colors.toml`.
+Visa kita ir toliau veikia lygiai taip, kaip parašė temos autorius — `btop.theme`, `chromium.theme`, `helix.toml`, `icons.theme`, `shell.toml`, fonai ir peržiūros išlieka. Tik tai, kas buvo pašalinta, jūsų kompiuteryje iš naujo sugeneruojama iš `colors.toml`.
 
-Omarchy jiedu atskiria pagal tai, ar tema viduje turi savą git saugyklą — tai yra tai, ką `omarchy theme install` palieka klonuodamas. Todėl tema, kurią parašei, lieka tavo, o ta, kurią atsisiuntei iš interneto, lieka spalvomis.
+Omarchy juodu atskiria pagal tai, ar tema savo viduje turi nuosavą git repozitoriją, kurią `omarchy theme install` palieka klonuodama. Taigi jūsų parašyta tema lieka jūsų, o parsisiųstoji iš interneto lieka spalvomis.
 
-### Šviesus režimas
+### Šviesusis režimas
 
-Jei kuri šviesaus režimo temą, `colors.toml` viršuje nustatyk `mode = "light"`. Tada ji visoms programoms automatiškai bus suporuota su šviesiu režimu. (Senasis būdas temos šaknyje numesti tuščią failą pavadinimu `light.mode` taip pat vis dar veikia.)
+Jei kuriate šviesiojo režimo temą, `colors.toml` viršuje nustatykite `mode = "light"`. Tada ji visoms programoms bus automatiškai susieta su šviesiuoju režimu. (Senasis būdas — į savo temos šakninį katalogą įmesti tuščią failą pavadinimu `light.mode` — taip pat vis dar veikia.)
 
 ### Piktogramų spalvos
 
-Jei norėtum failų tvarkyklės piktogramas spalvomis derinti prie savo temos, pridėk failą pavadinimu `icons.theme` su piktogramų rinkinio, kurį nori naudoti, pavadinimu. Pagal numatytuosius parinktys yra: `Yaru Yaru-blue Yaru-dark Yaru-magenta Yaru-olive Yaru-prussiangreen Yaru-purple Yaru-red Yaru-sage Yaru-wartybrown Yaru-yellow`.
+Jei norite failų tvarkyklės piktogramų spalvas suderinti su savo tema, pridėkite failą pavadinimu `icons.theme` su norimo naudoti piktogramų rinkinio pavadinimu. Pagal numatytuosius nustatymus galimos šios parinktys: `Yaru Yaru-blue Yaru-dark Yaru-magenta Yaru-olive Yaru-prussiangreen Yaru-purple Yaru-red Yaru-sage Yaru-wartybrown Yaru-yellow`.
 
-### Atrakinimo paveikslėlis
+### Atrakinimo vaizdas
 
-Temos, pateikiamos su `unlock.png` ir `preview-unlock.png` paveikslėliais, bus išvardytos po _Stilius > Atrakinti_. Tavo `unlock.png` pageidautina turėtų būti skaidrus png. O peržiūros paveikslėlį gali sukurti naudodamas `omarchy plymouth preview`.
+Temos, pateiktos su `unlock.png` ir `preview-unlock.png` vaizdais, bus rodomos skiltyje _Appearance > Unlock_. Jūsų `unlock.png` pageidautina turėtų būti skaidrus png. O peržiūros vaizdą galite sukurti naudodami `omarchy plymouth preview`.
 
-### Programų, kurių Omarchy neapima, teminimas
+### Programų, kurių Omarchy neapima, temų kūrimas
 
-Jei naudoji programą, kurios tame sąraše nėra, gali Omarchy išmokyti ją teminti pats su šablonu. Numesk failą į `~/.config/omarchy/themed/`, pavadintą pagal konfigūraciją, kurią jis generuoja, plius `.tpl` plėtinį, ir parašyk konfigūraciją su `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` iki `{{ color15 }}` ir likusia palete kaip vietaženkliais. Kaskart pakeitus temą, failas sugeneruojamas iš naujo su tos temos spalvomis.
+Jei naudojate programą, kurios nėra tame sąraše, galite patys išmokyti Omarchy ją teminti naudodami šabloną. Įmeskite failą į `~/.config/omarchy/themed/`, pavadintą pagal jo generuojamą konfigūraciją su plėtiniu `.tpl`, ir parašykite konfigūraciją su `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` iki `{{ color15 }}` ir likusia palete kaip rezervuotomis vietomis. Kiekvieną kartą perjungus temas, failas iš naujo sugeneruojamas su tos temos spalvomis.
 
-Tame aplanke yra pilnai pakomentuotas `alacritty.toml.tpl.sample`, nuo kurio gali kopijuoti — jis išvardija kiekvieną kintamąjį, kurį gali naudoti, plius `_strip` ir `_rgb` modifikatorius programoms, norinčioms savo spalvų be `#` arba dešimtainiu RGB. Tavo šablonai turi pirmenybę prieš pačios Omarchy, todėl gali tai naudoti ir tam, kad pakeistum, kaip teminama įmontuota programa.
+Tame aplanke yra išsamiai pakomentuotas `alacritty.toml.tpl.sample`, nuo kurio galite kopijuoti — jame surašyti visi kintamieji, kuriuos galite naudoti, taip pat `_strip` ir `_rgb` modifikatoriai programoms, kurios nori spalvų be `#` arba dešimtainiu RGB formatu. Jūsų šablonai turi pirmenybę prieš Omarchy šablonus, todėl taip taip pat galite perrašyti, kaip temą gauna integruota programa.
 
 ### Savo temos platinimas
 
-Jei nori platinti savo temą, kad kiti galėtų ją naudoti, turi ją įdėti į viešą git serverį, pavyzdžiui, GitHub. Tada žmonės gali ją įdiegti Omarchy meniu per _Įdiegti > Stilius > Tema_ naudodami tą URL. Rekomenduojama laikytis pavadinimų konvencijos `omarchy-[themename]-theme`, nes po įdiegimo tema temų pasirinkimo meniu teisingai rodysis tiesiog kaip `[themename]`.
+Jei norite platinti savo temą, kad ją galėtų naudoti kiti, turite ją įkelti į viešą git serverį, pavyzdžiui, GitHub. Tada žmonės galės ją įdiegti Omarchy meniu per _Install > Style > Theme_, naudodami tą URL. Rekomenduojama laikytis pavadinimų tvarkos `omarchy-[themename]-theme`, nes po įdiegimo temų pasirinkimo meniu tema bus teisingai rodoma tik kaip `[themename]`.
 
-Tas likęs `[themename]` tampa temos katalogo pavadinimu, todėl jis turi būti toks, kurį Omarchy gali saugiai perduoti: jis turi prasidėti raide, skaitmeniu arba pabraukimu, o likusi dalis gali turėti raides, skaitmenis, `.`, `_`, `+` ir `-`. Didžiosios raidės tau paverčiamos mažosiomis, bet visa kita — tarpas, kabutė, neangliškas simbolis — įdiegimo metu atmetama, užuot paversta katalogo pavadinimu. Todėl `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme` ir `omarchy-c++-theme` visos įsidiegia gerai.
+Tas likęs `[themename]` tampa temos katalogo pavadinimu, todėl jis turi būti toks, kurį Omarchy galėtų saugiai perduoti: jis turi prasidėti raide, skaitmeniu arba pabraukimo brūkšniu, o likusią dalį gali sudaryti raidės, skaitmenys, `.`, `_`, `+` ir `-`. Didžiosios raidės jums bus paverstos mažosiomis, tačiau visa kita — tarpas, kabutė, neangliškas rašmuo — diegimo metu bus atmesta, o ne paversta katalogo pavadinimu. Taigi `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme` ir `omarchy-c++-theme` įsidiegia be problemų.
 
-Atmink, kad kai ji įdiegiama iš saugyklos, bet kuris jos pateikiamas `.lua`, terminalo konfigūracija ar `vscode.json` išmetamas, todėl temos aplink juos nestatyk.
+Atminkite, kad vos įdiegus iš repozitorijos, bet koks jos pateikiamas `.lua`, terminalo konfigūracija arba `vscode.json` yra pašalinamas, todėl temos aplink juos nekurkite.
 
-Savo temą į [papildomų temų puslapį](https://omarchy.org/themes/) gali įtraukti atsiuntęs pull requestą į [omarchy-site saugyklą](https://github.com/omacom-io/omarchy-site).
+Savo temą galite įtraukti į [papildomų temų puslapį](https://omarchy.org/themes/) pateikdami pull request į [omarchy-site repozitoriją](https://github.com/omacom-io/omarchy-site).

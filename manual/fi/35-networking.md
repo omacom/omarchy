@@ -1,45 +1,45 @@
 # Verkko
 
-Omarchyn verkkoa hallinnoi NetworkManager, ja käytät sitä [yläpalkin](05-the-top-bar.md) verkkokuvakkeesta tai näppäinyhdistelmällä `Super + Ctrl + W`.
+Omarchyssa verkkoyhteydet hoitaa NetworkManager, ja sitä käytät [yläpalkin](05-the-top-bar.md) verkkokuvakkeesta tai näppäinyhdistelmällä `Super + Ctrl + N`.
 
-Paneeli etsii Wi-Fi-verkot, näyttää signaalin voimakkuuden ja yhdistää. Ethernet ei vaadi mitään — kytke kaapeli, ja se toimii. Jos pysyt mieluummin terminaalissa, `nmtui` tarjoaa samat säädöt, ja tarjolla on myös `omarchy network` -komentoryhmä.
+Paneeli etsii Wi-Fi-verkkoja, näyttää signaalin voimakkuuden ja muodostaa yhteyden. Ethernet ei tarvitse mitään — kytke kaapeli ja se toimii. Jos pysyt mieluummin terminaalissa, `nmtui` tarjoaa samat säädöt, ja käytössä on myös `omarchy network` -komentoryhmä.
 
 ## Wi-Fin jakaminen
 
-Sen sijaan, että lukisit pitkän salasanan ääneen, valitse _Asetukset > Verkko > QR-koodi_, kun olet Wi-Fi-verkossa. Ruudulle ilmestyy QR-koodi, jonka mikä tahansa puhelimen kamera voi skannata liittyäkseen. Se on yksi niistä asioista, joita käytät useammin kuin kuvittelisit, kun tiedät sen olevan olemassa.
+Sen sijaan että lukisit pitkän salasanan ääneen, avaa _Määritys > Verkko > QR-koodi_ ollessasi Wi-Fi-verkossa. Näytölle tulee QR-koodi, jonka mikä tahansa puhelimen kamera voi skannata liittyäkseen verkkoon. Se on yksi niistä asioista, joita käytät odotettua enemmän, kun tiedät sen olevan siellä.
 
 Jos tarvitset itse salasanan, `omarchy network password <interface>` tulostaa sen.
 
 ## DNS
 
-Omarchy käyttää verkosi DHCP:n kautta jakamaa DNS:ää. Voit ohittaa sen koko koneella kohdassa _Asetukset > Verkko > DNS_, jossa Cloudflare ja Google ovat yhden napsautuksen päässä. Valitse _Mukautettu_, jos haluat kirjoittaa omat palvelimesi.
+Omarchy käyttää sitä DNS-palvelua, jonka verkkosi jakaa DHCP:n kautta. Voit ohittaa sen koko koneelle kohdassa _Määritys > Verkko > DNS_, jossa Cloudflare ja Google ovat yhden napsautuksen päässä. Valitse _Mukautettu_ kirjoittaaksesi omat palvelimesi.
 
-Terminaalissa `omarchy dns` tulostaa nykyisen palveluntarjoajan ja `omarchy dns Cloudflare` asettaa sen.
+Terminaalista `omarchy dns` tulostaa nykyisen palveluntarjoajan ja `omarchy dns Cloudflare` asettaa sellaisen.
 
-## Wi-Fi-kaistan kiinnittäminen
+## Wi-Fi-taajuusalueen kiinnittäminen
 
-Jos reitittimesi laittaa 2,4 GHz, 5 GHz ja 6 GHz samalle verkkonimelle, kannettavasi saattaa toisinaan roikkua hitaassa kaistassa. `omarchy network band` näyttää, millä kaistalla olet, ja `omarchy network band 5` kiinnittää sen. Palauta automaattivalinta arvolla `auto`.
+Jos reitittimesi laittaa 2.4GHz, 5GHz ja 6GHz samaan verkon nimeen, kannettavasi roikkuu joskus hitaassa vaihtoehdossa. `omarchy network band` näyttää, millä taajuusalueella olet, ja `omarchy network band 5` kiinnittää sen. Käytä `auto`-vaihtoehtoa antaaksesi sen valita uudelleen.
 
-Tämä kiinnittää kaistan, ei tiettyä tukiasemaa, joten vaellat tukiasemien välillä normaalisti.
+Tämä kiinnittää taajuusalueen tietyn tukiaseman sijaan, joten jatkat normaalia siirtymistä tukiasemien välillä.
 
 ## Kuinka nopea se on?
 
-_Käynnistä > Nopeustesti > Verkon nopeustesti_ mittaa todellisen lähetys- ja latausnopeutesi kahdella mittarilla. Terminaalissa se on `omarchy network speedtest down` tai `up`. (Samassa valikossa vieressä on myös levyn nopeustesti, jos testaat toista pullonkaulaa.)
+_Laukaisin > Nopeustesti > Verkon nopeustesti_ mittaa todellisen lataus- ja lähetysnopeutesi kahdella mittarilla. Terminaalista se on `omarchy network speedtest down` tai `up`. (Valikossa sen vieressä on levyn nopeustesti, jos mittaat toista pullonkaulaa.)
 
 ## Palomuuri
 
-Palomuuri on oletuksena päällä ja estää kaiken saapuvan liikenteen yhtä poikkeusta lukuun ottamatta: porttia 53317, jotta [LocalSend](22-guis.md) toimii heti.
+Palomuuri on oletuksena käytössä ja estää kaiken saapuvan liikenteen yhdellä poikkeuksella: portti 53317, jotta [LocalSend](22-guis.md) toimii heti käytössä.
 
-SSH on pois päältä, kunnes otat sen käyttöön kohdassa _Asetukset > Turvallisuus > SSHD_, mikä käynnistää demoniin, avaa portin 22 väsytyshyökkäyksiä vastaan rajoitettuna ja valtuuttaa avaimen. Myös Docker on lukittu, joten kontit eivät voi vahingossa paljastaa itseään maailmalle. Katso koko tarina kohdasta [turvallisuus](48-security.md).
+SSH on pois päältä, kunnes otat sen käyttöön kohdassa _Määritys > Tietoturva > SSHD_, mikä käynnistää taustapalvelun, avaa portin 22 nopeusrajoitettuna raakaa voimaa käyttäviä hyökkäyksiä vastaan ja valtuuttaa avaimen. Docker on myös lukittu, joten säiliöt eivät voi vahingossa paljastaa itseään maailmalle. Katso koko tarina kohdasta [tietoturva](48-security.md).
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) on mesh-VPN, joka tekee kaikkien tietokoneidesi ja palvelimiesi tavoittamisen internetin yli yksinkertaista ja turvallista. Asenna se kohdasta _Asenna > Palvelu > Tailscale_.
+[Tailscale](https://tailscale.com/) on mesh-VPN, joka tekee kaikkien tietokoneidesi ja palvelimiesi tavoittamisesta internetin kautta yksinkertaista ja turvallista. Asenna se kohdasta _Asenna > Palvelu > Tailscale_.
 
-Saat palkkiin Tailscale-paneelin, joka yhdistää ja katkaisee tailnet-yhteyden, vaihtaa tilin ja valitsee poistumissolmun — omat koneesi ja Mullvad-alueet näkyvät molemmat listassa. Se myös selaa koneitasi, ja siellä Taildrop asuu: valitse kone ja paina `s` lähettääksesi sille tiedostoja tai `c`, `n` ja `d` kopioidaksesi sen IP-osoitteen, nimen tai koko DNS-nimen. Terminaalivaste on `omarchy tailscale send <machine> [file...]`, ja sinulle lähetetyt tiedostot päätyvät automaattisesti kansioon `~/Downloads`. Ilmoitus saapumisesta odottaa, kunnes napsautat sen auki tai hylkäät sen, joten tiedosto, joka saapuu poissa ollessasi, on yhä vastattavissa palatessasi.
+Saat palkkiin Tailscale-paneelin, joka yhdistää ja katkaisee yhteyden tailnetiin, vaihtaa tilejä ja valitsee poistumissolmun — omat koneesi ja Mullvad-alueet näkyvät molemmat luettelossa. Se myös selaa koneitasi, ja siellä Taildrop asuu: valitse kone ja paina `s` lähettääksesi sille tiedostoja tai `c`, `n` ja `d` kopioidaksesi sen IP-osoitteen, nimen tai täyden DNS-nimen. Terminaalin vastine on `omarchy tailscale send <machine> [file...]`, ja sinulle lähetetyt tiedostot saapuvat automaattisesti kansioon `~/Downloads`. Saapumisesta ilmoittava ilmoitus odottaa, kunnes napsautat sen auki tai hylkäät sen, joten tiedosto, joka ilmestyy ollessasi poissa koneelta, on edelleen vastattavissa palatessasi.
 
-Asennus lisää myös verkkosovelluksen Tailscalen hallintakonsoliin.
+Sen asentaminen lisää myös verkkosovelluksen Tailscale-hallintakonsolille.
 
 ## Kun se lakkaa toimimasta
 
-Ennen uudelleenkäynnistystä yritä käynnistää syyllinen osa uudelleen yksinään. Kohdassa _Päivitä > Laitteisto_ ovat Wi-Fi, Bluetooth, Audio ja Trackpad, ja yhden niistä uudelleenlataaminen selvittää useimmat ”toimi viisi minuuttia sitten” -tilanteet. Katso [vianmääritys](45-troubleshooting.md).
+Ennen uudelleenkäynnistystä kokeile käynnistää viallinen osa uudelleen yksinään. Kohdassa _Päivitä > Laitteisto_ ovat Wi-Fi, Bluetooth, Audio ja Trackpad, ja yhden niistä uudelleenlataaminen selvittää useimmat ”se toimi viisi minuuttia sitten” -tilanteet. Katso [vianmääritys](45-troubleshooting.md).
