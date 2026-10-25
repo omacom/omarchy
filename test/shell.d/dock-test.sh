@@ -32,16 +32,19 @@ const items = dock.buildItems(['chromium', 'Alacritty'], [
   app('chromium', 2),
   app('signal', 3),
   app('org.omarchy.agent', 4, { hasEntry: false }),
-  app('foot', 5, { workspaceId: -98 })
+  app('foot', 5, { workspaceId: -98 }),
+  app('street-brawl-companion', 8, { hasEntry: false }),
+  app('polkit-helper', 9, { noDisplay: true })
 ])
 assertDeepEqual(
   items.map(item => [item.key, item.pinned, item.windows.map(window => window.id)]),
   [
     ['chromium', true, [2]],
     ['Alacritty', true, []],
-    ['signal', false, [1, 3]]
+    ['signal', false, [1, 3]],
+    ['street-brawl-companion', false, [8]]
   ],
-  'dock lists pinned apps first, then running apps grouped by app, leaving out helpers and special workspaces'
+  'dock lists pinned apps first, then running apps grouped by app, with or without an entry, leaving out helpers and special workspaces'
 )
 
 assert(!dock.isDockWindow(app('foot', 6, { workspaceId: 0 })), 'dock leaves out windows without a regular workspace')
