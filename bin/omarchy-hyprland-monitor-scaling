@@ -71,15 +71,70 @@ normalize_scale() {
   awk 'NR == 1 { printf "%g\n", $0 }'
 }
 
+# Strip comments without changing line numbers, so a commented-out rule cannot
+# be mistaken for an active one.
+monitor_config_without_comments() {
+  sed -E -e 's/--\[\[[^]]*\]\]//g' -e 's/--.*$//' "$1"
+}
+
+monitor_rule_line() {
+  local output_re="$1"
+  local monitor_lua="$2"
+
+  monitor_config_without_comments "$monitor_lua" |
+    grep -nE "^[[:space:]]*hl\.monitor\(.*output[[:space:]]*=[[:space:]]*\"$output_re\"" |
+    head -1 | cut -d: -f1
+}
+
+monitor_has_output() {
+  local output_re="$1"
+  local monitor_lua="$2"
+
+  monitor_config_without_comments "$monitor_lua" |
+    grep -qE "output[[:space:]]*=[[:space:]]*\"$output_re\""
+}
+
+# Update the focused output's rule, or append one when it has none. Only the
+# scale changes; the catch-all and other outputs are left alone.
+persist_output_scale() {
+  local active_monitor="$1"
+  local new_scale="$2"
+  local monitor_lua="$3"
+  local rule_line="$4"
+  local output_re="${active_monitor//./\\.}"
+  local rule_code
+
+  if [[ -n $rule_line ]]; then
+    rule_code="$(monitor_config_without_comments "$monitor_lua" | sed -n "${rule_line}p")"
+    if grep -qE '(^|[{,;[:space:]])scale[[:space:]]*=' <<<"$rule_code"; then
+      sed -i -E "${rule_line}s/([{,;[:space:]]scale[[:space:]]*=[[:space:]]*)[^,}[:space:]]+/\1${new_scale}/" "$monitor_lua"
+    else
+      sed -i -E "${rule_line}s/([[:space:]]*\}[[:space:]]*\))/, scale = ${new_scale}\1/" "$monitor_lua"
+    fi
+  elif monitor_has_output "$output_re" "$monitor_lua"; then
+    echo "Not persisting scale: monitor rule for $active_monitor is not on one line" >&2
+  else
+    # No rule for this output yet: add one. The catch-all remains the fallback.
+    [[ -n $(tail -c 1 "$monitor_lua") ]] && printf '\n' >>"$monitor_lua"
+    printf 'hl.monitor({ output = "%s", mode = "preferred", position = "auto", scale = %s })\n' \
+      "$active_monitor" "$new_scale" >>"$monitor_lua"
+  fi
+}
+
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
-  local monitor_info="$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')"
+  local monitors_json="$(hyprctl monitors -j)"
+  local monitor_info="$(echo "$monitors_json" | jq -e -c '.[] | select(.focused == true)')"
   local active_monitor="$(echo "$monitor_info" | jq -r '.name')"
   local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
   local width="$(echo "$monitor_info" | jq -r '.width')"
   local height="$(echo "$monitor_info" | jq -r '.height')"
   local refresh_rate="$(echo "$monitor_info" | jq -r '.refreshRate')"
+  local monitor_count="$(echo "$monitors_json" | jq 'length')"
+  local monitor_lua="$HOME/.config/hypr/monitors.lua"
+  local output_re
+  local rule_line
 
   # active_monitor is written into the Lua string eval'd below, so only a plain
   # connector name may pass; a hostile output name could execute otherwise.
@@ -92,23 +147,31 @@ set_scale() {
   # GTK only honors integer GDK_SCALE values, so persist the nearest whole
   # factor even when the monitor scale itself is fractional.
   local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
-  local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
-  # Persist to monitors.lua if the user still has Omarchy's generic catch-all
-  # defaults, so the scale survives reboots.
-  if [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
-    sed -i -E \
-      -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
-      -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
-      "$monitor_lua"
-  elif [[ -f $monitor_lua ]] && grep -Eq '^hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("auto"|[0-9.]+) \}\)' "$monitor_lua"; then
-    sed -i -E \
-      -e "s|^(hl\.monitor\(\{ output = \"\", mode = \"preferred\", position = \"auto\", scale = )([^ ]+)( \}\))|\\1${new_scale}\\3|" \
-      -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
-      "$monitor_lua"
+  if [[ -f $monitor_lua ]]; then
+    output_re="${active_monitor//./\\.}"
+    rule_line="$(monitor_rule_line "$output_re" "$monitor_lua")"
+
+    # A rule for the focused output is where its scale belongs. The legacy
+    # knob and catch-all are only for a single output without its own rule.
+    if [[ -n $rule_line ]] || (( monitor_count > 1 )) || monitor_has_output "$output_re" "$monitor_lua"; then
+      persist_output_scale "$active_monitor" "$new_scale" "$monitor_lua" "$rule_line"
+    elif grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
+      sed -i -E \
+        -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
+        -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
+        "$monitor_lua"
+    elif grep -Eq '^hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("auto"|[0-9.]+) \}\)' "$monitor_lua"; then
+      sed -i -E \
+        -e "s|^(hl\.monitor\(\{ output = \"\", mode = \"preferred\", position = \"auto\", scale = )([^ ]+)( \}\))|\\1${new_scale}\\3|" \
+        -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
+        "$monitor_lua"
+    else
+      persist_output_scale "$active_monitor" "$new_scale" "$monitor_lua" "$rule_line"
+    fi
   fi
 }
 
