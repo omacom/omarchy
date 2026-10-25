@@ -77,9 +77,10 @@ expect("Ollama counts ollama-cloud usage from pi and omp, merging model tags", [
   "kimi-k3": {"inputTokens": 20, "outputTokens": 5, "cacheReadInputTokens": 4, "cacheCreationInputTokens": 1},
 }], record)
 
-# In use here, but no key to ask for the account's limits.
+# In use here, but no key to ask for the account's limits: the local daemon
+# is asked for the account it holds, and that one request is all that is made.
 expect("Ollama in use without a key waits for auth", [record["ready"], record["usageStatusText"], record["limitsStale"], ollama.requests],
-       [True, "Waiting for auth", False, 0], record)
+       [True, "Waiting for auth", False, 1], record)
 
 # A configured model prefix restricts the local stats to matching models, and
 # a scan only answers for the filter it applied: the same filter reuses it,
