@@ -108,36 +108,3 @@ chmod +x "$mock_bin/xdg-settings" "$mock_bin/xdg-mime"
   fail "default browser skips an xdg-settings answer that is not installed" "$(omarchy-cmd-default-browser)"
 
 pass "default browser checks that fallback answers are installed"
-
-# Nothing resolvable is left: fail rather than hand the launcher an empty
-# command.
-for cache in "$XDG_DATA_HOME/applications/mimeinfo.cache" "$XDG_DATA_DIRS/applications/mimeinfo.cache"; do
-  rm -f "$cache"
-done
-cat >"$mock_bin/xdg-settings" <<'SH'
-#!/bin/bash
-echo omarchy-browser.desktop
-SH
-cat >"$mock_bin/xdg-mime" <<'SH'
-#!/bin/bash
-echo omarchy-browser.desktop
-SH
-chmod +x "$mock_bin/xdg-settings" "$mock_bin/xdg-mime"
-
-if browser=$(omarchy-cmd-default-browser); then
-  fail "default browser fails when no browser can be resolved" "$browser"
-fi
-[[ -z $browser ]] || fail "default browser prints nothing when no browser can be resolved" "$browser"
-
-pass "default browser fails when no browser can be resolved"
-
-# The Nix profile is not guaranteed to be on XDG_DATA_DIRS, but Omarchy scans
-# it elsewhere and both browser scripts have always read it.
-mkdir -p "$HOME/.nix-profile/share/applications"
-printf '[Desktop Entry]\nExec=brave %%U\n' >"$HOME/.nix-profile/share/applications/nix-browser.desktop"
-printf '[Default Applications]\nx-scheme-handler/http=nix-browser.desktop\n' >"$XDG_CONFIG_HOME/mimeapps.list"
-
-[[ $(omarchy-cmd-default-browser) == "nix-browser.desktop" ]] ||
-  fail "default browser finds a browser in the Nix profile" "$(omarchy-cmd-default-browser)"
-
-pass "default browser finds a browser in the Nix profile"

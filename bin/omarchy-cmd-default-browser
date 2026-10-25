@@ -7,9 +7,7 @@
 # does, desktop-specific list first, taking the first listed entry that is
 # installed. xdg-settings reaches the same answer through several shell scripts
 # in ~70ms, which every browser and web app launch would otherwise pay.
-# The session's Nix profile is not always on XDG_DATA_DIRS, but Omarchy scans
-# it for hidden entries and the browser launcher has always read it.
-IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}:$HOME/.nix-profile/share"
+IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 IFS=: read -ra config_dirs <<<"${XDG_CONFIG_HOME:-$HOME/.config}:${XDG_CONFIG_DIRS:-/etc/xdg}"
 IFS=: read -ra desktops <<<"${XDG_CURRENT_DESKTOP:-}"
 

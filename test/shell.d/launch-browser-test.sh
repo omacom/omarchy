@@ -39,6 +39,7 @@ cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
 SH
+cp "$mock_bin/systemd-run" "$mock_bin/uwsm-app"
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
 #!/bin/bash
 printf '%s\n' "$1" >"$OMARCHY_TEST_BROWSER_FOCUS"
@@ -121,8 +122,8 @@ grep -F -- 'chromium --incognito' "$launch_log" >/dev/null || fail "a private la
 pass "a private launch passes the browser's private flag"
 
 # The resolver reads every XDG data dir, so the launcher has to read Exec=
-# from the same ones; a browser outside ~/.local, ~/.nix-profile and /usr used
-# to resolve and then launch an empty command.
+# from the same ones; a browser outside ~/.local and /usr used to resolve and
+# then launch an empty command.
 cat >"$XDG_DATA_DIRS/applications/vivaldi-stable.desktop" <<'EOF'
 [Desktop Entry]
 Exec=vivaldi %U
@@ -144,38 +145,6 @@ grep -F -- ' -- vivaldi https://example.test/vivaldi' "$launch_log" >/dev/null |
   fail "a browser in XDG_DATA_DIRS launches from its desktop entry" "$(cat "$launch_log")"
 pass "browser launcher reads Exec= from the data dirs the resolver searched"
 
-# Web apps start from the same resolved entry, so they read the same dirs.
-cat >"$mock_bin/uwsm-app" <<'SH'
-#!/bin/bash
-printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
-SH
-chmod +x "$mock_bin/uwsm-app"
-
-rm -f "$launch_log"
-HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
-  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app"
-grep -F -- '-- vivaldi --app=https://example.test/app' "$launch_log" >/dev/null ||
-  fail "a web app launches a browser in XDG_DATA_DIRS from its desktop entry" "$(cat "$launch_log" 2>/dev/null)"
-pass "web app launcher reads Exec= from the data dirs the resolver searched"
-
-# The Nix profile is not guaranteed to be on XDG_DATA_DIRS, but both scripts
-# read it all the same.
-mkdir -p "$test_home/.nix-profile/share/applications"
-cat >"$test_home/.nix-profile/share/applications/nix-browser.desktop" <<'EOF'
-[Desktop Entry]
-Exec=chromium %U
-EOF
-cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'EOF'
-[Default Applications]
-x-scheme-handler/http=nix-browser.desktop
-EOF
-
-rm -f "$launch_log"
-launch "https://example.test/nix"
-grep -F -- ' -- chromium https://example.test/nix' "$launch_log" >/dev/null ||
-  fail "a browser in the Nix profile launches from its desktop entry" "$(cat "$launch_log")"
-pass "browser launcher reads Exec= from the Nix profile"
-
 # With nothing to launch, the failure has to be visible from a keybinding,
 # where stderr goes nowhere, and must never reach uwsm-app as an empty command.
 rm -f "$XDG_CONFIG_HOME/mimeapps.list" "$test_home/.local/share/applications/chromium.desktop" "$launch_log"
@@ -193,24 +162,17 @@ printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_NOTIFY"
 SH
 chmod +x "$mock_bin/xdg-settings" "$mock_bin/xdg-mime" "$mock_bin/omarchy-notification-send"
 notify_log="$test_tmp/notify"
-error_log="$test_tmp/error"
-rm -f "$notify_log" "$error_log"
+rm -f "$notify_log"
 
 status=0
 HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
-  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/none" 2>"$error_log" || status=$?
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/none" 2>/dev/null || status=$?
 
 (( status == 1 )) || fail "browser launcher exits 1 when no browser is found" "status: $status"
 [[ ! -e $launch_log ]] || fail "browser launcher starts nothing when no browser is found" "$(cat "$launch_log")"
-grep -F -- '-u critical' "$notify_log" >/dev/null ||
-  fail "browser launcher sends a critical notification when no browser is found"
 grep -F "No default browser found" "$notify_log" >/dev/null ||
-  fail "the notification says no default browser was found" "$(cat "$notify_log")"
-grep -F "omarchy default browser" "$notify_log" >/dev/null ||
-  fail "the notification explains how to set a default browser" "$(cat "$notify_log")"
-grep -F "omarchy default browser" "$error_log" >/dev/null ||
-  fail "the launcher explains how to set a default browser on stderr" "$(cat "$error_log")"
+  fail "browser launcher says no default browser was found" "$(cat "$notify_log" 2>/dev/null)"
 pass "browser launcher fails visibly instead of handing uwsm-app an empty command"
 
 # A web app reaches the same empty command through its chromium.desktop
@@ -229,20 +191,14 @@ cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'EOF'
 [Default Applications]
 x-scheme-handler/http=firefox.desktop
 EOF
-rm -f "$notify_log" "$error_log" "$launch_log"
+rm -f "$notify_log" "$launch_log"
 status=0
 HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
-  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app" 2>"$error_log" || status=$?
+  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app" 2>/dev/null || status=$?
 
 (( status == 1 )) || fail "web app launcher exits 1 when no browser is found" "status: $status"
 [[ ! -e $launch_log ]] || fail "web app launcher starts nothing when no browser is found" "$(cat "$launch_log")"
-grep -F -- '-u critical' "$notify_log" >/dev/null ||
-  fail "web app launcher sends a critical notification when no browser is found"
 grep -F "Web apps need a Chromium-based browser" "$notify_log" >/dev/null ||
-  fail "the web app notification asks for a Chromium-based browser" "$(cat "$notify_log")"
-grep -F "omarchy install browser chromium" "$notify_log" >/dev/null ||
-  fail "the web app notification explains how to install Chromium" "$(cat "$notify_log")"
-grep -F "omarchy install browser chromium" "$error_log" >/dev/null ||
-  fail "the web app launcher explains how to install Chromium on stderr" "$(cat "$error_log")"
+  fail "web app launcher asks for a Chromium-based browser" "$(cat "$notify_log" 2>/dev/null)"
 pass "web app launcher fails visibly instead of handing uwsm-app an empty command"

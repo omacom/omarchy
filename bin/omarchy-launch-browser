@@ -7,7 +7,7 @@ default_browser=$(omarchy-cmd-default-browser)
 
 # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, in
 # the same order, so the command always comes from the entry that was checked.
-IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}:$HOME/.nix-profile/share"
+IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 browser_exec=""
 for data_dir in "${data_dirs[@]}"; do
   entry="$data_dir/applications/$default_browser"
