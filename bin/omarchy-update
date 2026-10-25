@@ -36,6 +36,8 @@ export PATH OMARCHY_UPDATE_SUDO_SESSION=1
 
 update_stay_awake_stopped=0
 sudo_keepalive_pid=""
+failed_units_before=""
+snapshot_taken=0
 
 # Ask for the password once, then keep sudo's timestamp fresh so long package
 # downloads, migrations, hooks, and mise never outlast it and prompt again.
@@ -80,6 +82,7 @@ cleanup_update() {
   if (( update_stay_awake_stopped == 0 )); then
     omarchy-update-stay-awake stop || status=1
   fi
+  [[ -z $failed_units_before ]] || rm -rf "$failed_units_before"
   omarchy_security_exit_with_revoked_sudo "$status"
 }
 
@@ -95,6 +98,24 @@ fi
 trap 'echo ""; echo -e "\033[0;31mSomething went wrong during the update!\n\nPlease review the output above carefully, correct the error, and retry the update.\n\nIf you need assistance, get help from the community at https://omarchy.org/discord\033[0m"' ERR
 trap cleanup_update EXIT
 omarchy_security_install_signal_exit_traps
+
+# The units that had already failed, so the health report at the end can tell
+# them from units this update broke. A list that could not be read is left
+# out, and the report then treats every failed unit in that scope as unknown.
+record_failed_units() {
+  local list="$failed_units_before/$1" units
+  shift
+
+  units=$(timeout --kill-after=1 5 systemctl "$@" --failed --plain --no-legend 2>/dev/null) || return 0
+  awk 'NF { print $1 }' <<<"$units" >"$list" || rm -f "$list"
+}
+
+if failed_units_before=$(mktemp -d /tmp/omarchy-update-failed-units.XXXXXX 2>/dev/null); then
+  record_failed_units system
+  record_failed_units user --user
+else
+  failed_units_before=""
+fi
 
 omarchy-update-requires-free-space
 
@@ -112,8 +133,11 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # 127 means Snapper is deliberately absent. Any other failure already said
   # what went wrong, and a missing snapshot is not worth blocking an update
   # over, but it must not pass for one either.
-  omarchy-snapshot create || (($? == 127)) ||
+  if omarchy-snapshot create; then
+    snapshot_taken=1
+  elif (( $? != 127 )); then
     echo -e "\e[33mContinuing the update without a snapshot.\e[0m" >&2
+  fi
 
   omarchy-update-stay-awake start
 
@@ -168,6 +192,15 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # Awake marker.
   omarchy-update-stay-awake stop
   update_stay_awake_stopped=1
+
+  # Report whether the desktop and services answer before the reboot offer.
+  # The report is information only, so nothing it finds may end the update.
+  # It is told which units had failed before the update and whether there is
+  # a snapshot to return to, so its advice fits this update. A snapshot only
+  # counts once the boot files passed: with them unverified the update says not
+  # to reboot, and the report must not say to reboot into the snapshot.
+  OMARCHY_UPDATE_HEALTH_BASELINE="$failed_units_before" OMARCHY_UPDATE_HEALTH_SNAPSHOT="$(( snapshot_taken && boot_verified ))" \
+    omarchy-update-health || true
 
   if (( boot_verified )); then
     "$OMARCHY_PATH/bin/omarchy-update-restart" --reboot-only

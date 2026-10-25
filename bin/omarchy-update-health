@@ -1,0 +1,249 @@
+#!/bin/bash
+
+# omarchy:summary=Check that the desktop and system services answer after an update
+# omarchy:alias=omarchy up health
+
+# Read-only probes, run at the end of omarchy update and on demand. Each one
+# passes, fails, or is skipped with its reason, and each runs under a timeout
+# so a wedged service is reported rather than waited on. The report is only
+# information: it never prompts, never starts or changes anything, and exits 0
+# whatever it found, so an unattended update is never held up by it.
+#
+# omarchy update passes two things in: OMARCHY_UPDATE_HEALTH_BASELINE, a
+# directory listing the units that had already failed before it, one file per
+# scope (system, user), and OMARCHY_UPDATE_HEALTH_SNAPSHOT=1 when it took a
+# snapshot first.
+
+# timeout takes 0 as no limit at all and fails on anything that is not a
+# number, so only a positive number is used.
+probe_timeout=${OMARCHY_UPDATE_HEALTH_TIMEOUT:-5}
+if [[ ! $probe_timeout =~ ^([0-9]+\.?[0-9]*|\.[0-9]+)$ || ! $probe_timeout =~ [1-9] ]]; then
+  probe_timeout=5
+fi
+runtime_dir=${XDG_RUNTIME_DIR:-}
+baseline=${OMARCHY_UPDATE_HEALTH_BASELINE:-}
+failed=()
+
+# Only what a probe prints on stdout is read; a warning on stderr, such as
+# nmcli's after an upgrade replaced NetworkManager under it, is kept aside as
+# the reason if the probe fails.
+probe_errors=$(mktemp 2>/dev/null) || probe_errors=/dev/null
+trap '[[ $probe_errors == /dev/null ]] || rm -f "$probe_errors"' EXIT
+
+report() {
+  local result="$1" name="$2" detail="${3:-}"
+
+  case $result in
+    passed) printf '  \e[32mpassed\e[0m   %s' "$name" ;;
+    failed) printf '  \e[31mfailed\e[0m   %s' "$name"; failed+=("$name") ;;
+    skipped) printf '  \e[33mskipped\e[0m  %s' "$name" ;;
+    noted) printf '  \e[34mnoted\e[0m    %s' "$name" ;;
+  esac
+  [[ -z $detail ]] || printf ' (%s)' "$detail"
+  printf '\n'
+}
+
+first_line() {
+  local text="$1"
+
+  text=${text#"${text%%[!$'\n']*}"}
+  printf '%s' "${text%%$'\n'*}"
+}
+
+# Runs a command under the probe timeout, leaving its stdout in probe_output.
+# probe_reason is the first line of that on success, and on failure the first
+# line of what it printed to stderr, else to stdout, else its exit status.
+probe() {
+  local status=0 errors=""
+
+  probe_output=$(timeout --kill-after=1 "$probe_timeout" "$@" 2>"$probe_errors") || status=$?
+  if (( status == 124 || status == 137 )); then
+    probe_reason="no answer within ${probe_timeout}s"
+    return "$status"
+  fi
+
+  (( status == 0 )) || errors=$(first_line "$(<"$probe_errors")")
+  probe_reason=${errors:-$(first_line "$probe_output")}
+  if [[ -z $probe_reason ]] && (( status != 0 )); then
+    probe_reason="exited with status $status"
+  fi
+
+  return "$status"
+}
+
+check() {
+  local name="$1"
+  shift
+
+  if probe "$@"; then
+    report passed "$name"
+  else
+    report failed "$name" "$probe_reason"
+  fi
+}
+
+# Failed units are listed by name, since that is where a look starts. Units
+# that had already failed before the update are noted, not failed: the update
+# did not break them, and rolling it back would not mend them. Without that
+# list nothing tells the two apart, so every failed unit fails the check.
+check_failed_units() {
+  local name="$1" scope="$2" unit
+  local -a units new=() old=()
+  shift 2
+
+  if ! probe systemctl "$@" --failed --no-legend --plain; then
+    report failed "$name" "$probe_reason"
+    return
+  fi
+
+  mapfile -t units < <(awk 'NF { print $1 }' <<<"$probe_output")
+  if [[ -z $baseline || ! -r $baseline/$scope ]]; then
+    if (( ${#units[@]} == 0 )); then
+      report passed "$name"
+    else
+      report failed "$name" "${units[*]}; these may predate any update"
+    fi
+    return
+  fi
+
+  for unit in "${units[@]}"; do
+    if grep -qxF -- "$unit" "$baseline/$scope"; then
+      old+=("$unit")
+    else
+      new+=("$unit")
+    fi
+  done
+
+  if (( ${#new[@]} == 0 )); then
+    report passed "$name"
+  else
+    report failed "$name" "${new[*]}"
+  fi
+  (( ${#old[@]} == 0 )) || report noted "$name" "already failed before the update: ${old[*]}"
+}
+
+user_bus=0
+[[ -z $runtime_dir || ! -S $runtime_dir/bus ]] || user_bus=1
+
+# The shell and the notification server live in the Wayland session. An
+# update from a TTY or over SSH while no desktop is running has none to check.
+wayland_session=0
+if [[ -n $runtime_dir ]]; then
+  for socket in "$runtime_dir"/wayland-[0-9]*; do
+    [[ ! -S $socket ]] || wayland_session=1
+  done
+fi
+
+# hyprctl reaches the compositor through its instance signature. One left over
+# from an earlier session, say in a tmux server, or none at all over SSH, is
+# replaced by the newest instance whose socket is still there.
+signature=${HYPRLAND_INSTANCE_SIGNATURE:-}
+if [[ -z $runtime_dir ]]; then
+  signature=""
+elif [[ -z $signature || ! -S $runtime_dir/hypr/$signature/.socket.sock ]]; then
+  signature=$(find "$runtime_dir/hypr" -mindepth 2 -maxdepth 2 -name .socket.sock -type s -printf '%T@ %h\n' 2>/dev/null |
+    sort -n | tail -n 1 | cut -d' ' -f2-)
+  signature=${signature##*/}
+fi
+
+echo -e "\e[32m\nChecking system health\e[0m"
+
+if [[ -z $signature ]]; then
+  report skipped "Hyprland" "no Hyprland session"
+else
+  check "Hyprland" env HYPRLAND_INSTANCE_SIGNATURE="$signature" hyprctl version
+fi
+
+# The shell answers on the socket of the checkout the session started from,
+# which a caller opened after omarchy dev link or unlink may not share. The
+# user manager holds the session's own OMARCHY_PATH.
+if (( ! wayland_session )); then
+  report skipped "Omarchy shell" "no Wayland session"
+else
+  session_path=""
+  if (( user_bus )) && probe systemctl --user show-environment; then
+    session_path=$(sed -n 's/^OMARCHY_PATH=//p' <<<"$probe_output" | tail -n 1)
+  fi
+  check "Omarchy shell" env OMARCHY_PATH="${session_path:-$OMARCHY_PATH}" omarchy-shell shell ping
+fi
+
+# --auto-start=no: an activatable notification service must not be started
+# by the question, which would also pass a server that was not running.
+if (( ! wayland_session )); then
+  report skipped "Notifications" "no Wayland session"
+elif (( ! user_bus )); then
+  report skipped "Notifications" "no user bus"
+else
+  check "Notifications" busctl --user --auto-start=no call org.freedesktop.Notifications /org/freedesktop/Notifications \
+    org.freedesktop.Notifications GetServerInformation
+fi
+
+# PipeWire is socket activated and pulls WirePlumber in, so its socket is
+# there on every login and asking wpctl would start both. Only a running pair
+# is asked; one that failed is a failure, one never started is skipped.
+if (( ! user_bus )); then
+  report skipped "Audio" "no user bus"
+else
+  probe systemctl --user is-active pipewire.service wireplumber.service
+  mapfile -t states <<<"$probe_output"
+  if (( ${#states[@]} != 2 )); then
+    report failed "Audio" "$probe_reason"
+  elif [[ ${states[0]} == "failed" || ${states[1]} == "failed" ]]; then
+    report failed "Audio" "pipewire.service is ${states[0]}, wireplumber.service is ${states[1]}"
+  elif [[ ${states[0]} != "active" ]]; then
+    report skipped "Audio" "PipeWire is not running"
+  elif [[ ${states[1]} != "active" ]]; then
+    report failed "Audio" "PipeWire is running, but WirePlumber is not"
+  elif ! probe wpctl status; then
+    report failed "Audio" "$probe_reason"
+  elif [[ $probe_output != *WirePlumber* ]]; then
+    report failed "Audio" "PipeWire answers, but WirePlumber is not connected"
+  else
+    report passed "Audio"
+  fi
+fi
+
+# nmcli localizes its states, so pin the locale before matching them. Any
+# connected state passes: a network that only reaches the local site still
+# has a working NetworkManager.
+if ! probe env LC_ALL=C nmcli -t -f STATE general; then
+  report failed "Network" "$probe_reason"
+elif [[ $probe_output == connected* ]]; then
+  report passed "Network"
+else
+  report failed "Network" "NetworkManager reports $probe_reason"
+fi
+
+check_failed_units "System services" system
+if (( ! user_bus )); then
+  report skipped "User services" "no user bus"
+else
+  check_failed_units "User services" user --user
+fi
+
+check "Package database" pacman -Dkq
+
+if ! probe omarchy-version; then
+  report failed "Omarchy" "$probe_reason"
+elif [[ -z $probe_output ]]; then
+  report failed "Omarchy" "no version found"
+else
+  report passed "Omarchy" "$probe_reason"
+fi
+
+echo
+if (( ${#failed[@]} > 0 )); then
+  summary=${failed[0]}
+  for name in "${failed[@]:1}"; do
+    summary+=", $name"
+  done
+  echo -e "\e[33mFailed checks: $summary\e[0m"
+  echo "These checks only report: nothing was changed or rolled back."
+  # Only a snapshot this update took is one to point at.
+  if [[ ${OMARCHY_UPDATE_HEALTH_SNAPSHOT:-} == "1" ]]; then
+    echo "If the update left the system broken, reboot, pick the snapshot from before it in the Limine menu, then run omarchy snapshot restore."
+  fi
+  echo
+fi
+
+exit 0

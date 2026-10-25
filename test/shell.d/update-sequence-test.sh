@@ -30,6 +30,7 @@ steps=(
   omarchy-update-analyze-logs
   omarchy-shell
   omarchy-update-available
+  omarchy-update-health
   omarchy-update-restart
 )
 
@@ -43,6 +44,11 @@ if [[ ${0##*/} == "omarchy-update-orphan-pkgs" ]]; then
 fi
 if [[ ${0##*/} == "omarchy-shell" ]]; then
   printf '%s\n' "$*" >"$STEP_LOG.shell-args"
+fi
+if [[ ${0##*/} == "omarchy-update-health" ]]; then
+  baseline=${OMARCHY_UPDATE_HEALTH_BASELINE:-}
+  [[ -n $baseline && -d $baseline ]] || baseline=missing
+  printf 'snapshot=%s baseline=%s\n' "${OMARCHY_UPDATE_HEALTH_SNAPSHOT:-}" "$baseline" >"$STEP_LOG.health"
 fi
 [[ ${FAILING_STEP:-} != "${0##*/}" ]] || exit 1
 STUB
@@ -87,6 +93,7 @@ expected_steps() {
     omarchy-update-aur-pkgs \
     omarchy-update-boot \
     omarchy-update-stay-awake \
+    omarchy-update-health \
     omarchy-update-restart
 }
 
@@ -99,6 +106,26 @@ pass "an unattended update approves orphan removal"
 [[ $(cat "$test_tmp/steps.shell-args") == "-q omarchy.system-update clear" ]] ||
   fail "a finished update clears the shell update indicator" "$(cat "$test_tmp/steps.shell-args")"
 pass "a finished update clears the shell update indicator without rechecking"
+
+# The health report hears which units had failed before the update, from a
+# list the update removes again, and that a snapshot was taken.
+read -r health_snapshot health_baseline <"$test_tmp/steps.health"
+[[ $health_snapshot == "snapshot=1" ]] || fail "the health report hears the update took a snapshot" "$health_snapshot"
+[[ $health_baseline == baseline=/* ]] || fail "the health report gets the units that had failed before" "$health_baseline"
+[[ ! -e ${health_baseline#baseline=} ]] || fail "the update removes its list of units that had failed before"
+pass "the health report hears what failed before the update and that a snapshot was taken"
+
+FAILING_STEP=omarchy-snapshot run_update -y || fail "an update without a snapshot reports a failure"
+grep -qx 'snapshot=0 .*' "$test_tmp/steps.health" ||
+  fail "the health report hears the update took no snapshot" "$(cat "$test_tmp/steps.health")"
+pass "the health report hears when the update took no snapshot"
+
+# With the boot files unverified the update says not to reboot, so the report
+# must not be told there is a snapshot to reboot into.
+FAILING_STEP=omarchy-update-boot run_update -y && fail "an update whose boot files failed verification reports success"
+grep -qx 'snapshot=0 .*' "$test_tmp/steps.health" ||
+  fail "the health report hears no snapshot when the boot files failed verification" "$(cat "$test_tmp/steps.health")"
+pass "the health report hears no snapshot when the boot files failed verification"
 
 grep -q '^omarchy-update-system-pkgs unattended=1$' "$test_tmp/steps" ||
   fail "-y does not mark the update unattended"
@@ -123,3 +150,13 @@ for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-
   fi
 done
 pass "a blocked package upgrade stops the update before it migrates"
+
+# The health report is information only. Whatever it finds, or however it
+# fails, the update still finishes and still offers the reboot.
+FAILING_STEP=omarchy-update-health run_update -y ||
+  fail "a failing health report fails the update" "$(cat "$test_tmp/err")"
+diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
+  fail "a failing health report changes the steps an update runs" "$(cat "$test_tmp/order")"
+! grep -q 'Something went wrong during the update' "$test_tmp/out" "$test_tmp/err" ||
+  fail "a failing health report is reported as a failed update"
+pass "a failing health report still lets the update finish and offer the reboot"
