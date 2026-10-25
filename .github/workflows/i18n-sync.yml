@@ -25,6 +25,7 @@ on:
       - 'manual/*.md'
       - 'shell/**'
       - 'bin/**'
+      - 'install/**'
   workflow_dispatch:
   schedule:
     # Retry unfinished translations without delaying English.
@@ -124,9 +125,9 @@ jobs:
       - name: Package extraction as a patch
         run: |
           mkdir -p "$RUNNER_TEMP/extraction"
-          git add -A -- bin shell default/i18n/en default/i18n/extract-allowlist.json
+          git add -A -- bin install shell default/i18n/en default/i18n/extract-allowlist.json
           git diff --cached --binary --no-renames > "$RUNNER_TEMP/extraction/extract.patch"
-          if git diff --cached --name-only | grep -qE '^(bin|shell)/'; then
+          if git diff --cached --name-only | grep -qE '^(bin|install|shell)/'; then
             echo true > "$RUNNER_TEMP/extraction/code-touched.txt"
           else
             echo false > "$RUNNER_TEMP/extraction/code-touched.txt"
@@ -141,7 +142,7 @@ jobs:
           if-no-files-found: error
 
   # Applies the extraction patch and runs every check that loads its code, with
-  # no credentials: an extraction may change bin/ or shell/, and the i18n test
+  # no credentials: an extraction may change bin/, install/ or shell/, and the i18n test
   # require()s shell JavaScript, so nothing that runs here may hold a token.
   validate-extract:
     needs: [prepare, extract]
@@ -169,7 +170,7 @@ jobs:
           fi
           python3 scripts/i18n-sync.py extract-scan --check
           I18N_STRUCTURAL=1 bash test/shell.d/i18n-test.sh
-          for f in $(git diff --cached --name-only -- bin/); do bash -n "$f"; done
+          for f in $(git diff --cached --name-only -- bin/ install/); do bash -n "$f"; done
 
   # Publishes the vetted extraction to the i18n-sync branch. This job holds the
   # write token, so it runs no repository code: only git, and the path check
@@ -211,7 +212,7 @@ jobs:
           from pathlib import Path
           patch = Path(os.environ['RUNNER_TEMP']) / 'extraction/extract.patch'
           out = subprocess.run(['git', 'apply', '--numstat', '-z', str(patch)], check=True, capture_output=True).stdout
-          allowed = ('bin/', 'shell/', 'default/i18n/en/', 'default/i18n/extract-allowlist.json')
+          allowed = ('bin/', 'install/', 'shell/', 'default/i18n/en/', 'default/i18n/extract-allowlist.json')
           code = False
           for record in out.split(b'\0'):
               if not record:
@@ -219,7 +220,7 @@ jobs:
               path = record.decode().split('\t', 2)[2]
               if not path.startswith(allowed) or '..' in Path(path).parts:
                   sys.exit(f'extraction patch contains a disallowed path: {path}')
-              code = code or path.startswith(('bin/', 'shell/'))
+              code = code or path.startswith(('bin/', 'install/', 'shell/'))
           print('true' if code else 'false')
           PY
             )
@@ -435,7 +436,7 @@ jobs:
               if [ "$(gh pr view "$pr" --json autoMergeRequest --jq '.autoMergeRequest != null')" = true ]; then
                 gh pr merge --disable-auto "$pr"
               fi
-              gh pr comment "$pr" --body 'This sync includes an automated extraction that changed executable code under `bin/` or `shell/`, so auto-merge is off: please review those hunks before merging.'
+              gh pr comment "$pr" --body 'This sync includes an automated extraction that changed executable code under `bin/`, `install/` or `shell/`, so auto-merge is off: please review those hunks before merging.'
               echo "Extraction touched code; PR #$pr waits for human review."
             else
               gh pr merge --auto --squash "$pr" || echo "Auto-merge could not be enabled for #$pr (enable 'Allow auto-merge' in repository settings); the PR is left open for a human."

@@ -26,7 +26,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           git fetch origin "$BASE_REF"
-          if git diff --name-only "origin/$BASE_REF...HEAD" | grep -qE '^(default/i18n/|default/omarchy/omarchy-menu\.jsonc|shell/|bin/|manual/|scripts/i18n-sync\.py|test/shell\.d/i18n-test\.sh|\.github/workflows/i18n-)'; then
+          if git diff --name-only "origin/$BASE_REF...HEAD" | grep -qE '^(default/i18n/|default/omarchy/omarchy-menu\.jsonc|shell/|bin/|install/|manual/|scripts/i18n-sync\.py|test/shell\.d/i18n-test\.sh|\.github/workflows/i18n-)'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
