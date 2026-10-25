@@ -12,19 +12,25 @@ gnome-keyring-daemon drops the file as invalid/unrecognized format.
 
 This utility parses the cleartext keyfile, folds unescaped continuation lines
 under 'secret=' into standard GLib-escaped sequences (\\n, \\\\), ensures the
-[keyring] header sits at line 1, and commits changes atomically with mode 0600.
+[keyring] header is the first group, and commits changes atomically with mode 0600.
 Encrypted binary keyrings (GnomeKeyring\n\r\0) are strictly untouched.
 """
 
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 
+# The only valid top-level keys inside an item section [N] per gkm-secret-textual.c
+KNOWN_ITEM_KEY_RE = re.compile(
+    r"^(?:item-type|display-name|secret|binary-secret|ctime|mtime)\s*="
+)
+
 
 def escape_keyfile_string(value: str) -> str:
-    """Escape backslashes and newlines per GLib GKeyFile specification."""
+    """Escape backslashes and control characters per GLib GKeyFile specification."""
     # Order matters: escape backslashes first, then control characters
     return (
         value.replace("\\", "\\\\")
@@ -43,9 +49,17 @@ def repair_keyring_content(content: str) -> tuple[str, bool]:
     if not lines:
         return content, False
 
-    # Invariant: Must begin with [keyring] header
-    first_non_empty = next((line.strip() for line in lines if line.strip()), "")
-    if not first_non_empty.startswith("[keyring]"):
+    # Invariant: Must have [keyring] as the first section header, ignoring
+    # any leading comments or blank lines.
+    first_header = next(
+        (
+            line.strip()
+            for line in lines
+            if line.strip().startswith("[") and line.strip().endswith("]")
+        ),
+        "",
+    )
+    if first_header != "[keyring]":
         # Do not modify encrypted binary keyrings or foreign formats
         return content, False
 
@@ -73,52 +87,33 @@ def repair_keyring_content(content: str) -> tuple[str, bool]:
         line = raw_line.rstrip("\r\n")
         stripped = line.strip()
 
-        # Check for section header
+        # Section header always terminates the current item / secret
         if stripped.startswith("[") and stripped.endswith("]"):
             flush_secret()
             output_lines.append(raw_line)
             continue
 
-        # Check for comments or blank lines
-        if not stripped or stripped.startswith("#"):
-            flush_secret()
-            output_lines.append(raw_line)
+        if in_secret:
+            # Check if this line is another known item key (e.g. ctime=, mtime=)
+            if KNOWN_ITEM_KEY_RE.match(stripped):
+                flush_secret()
+                # Fall through to process this known key line below
+            else:
+                # Continuation of multiline secret: preserves interior blank lines,
+                # lines containing '=' (e.g. base64 padding '=='), and comments '#'
+                secret_acc.append(line)
+                continue
+
+        # Outside of secret accumulation:
+        if stripped.startswith("secret="):
+            _, val = line.split("secret=", 1)
+            in_secret = True
+            secret_acc.append(val)
             continue
 
-        # Check for key=value
-        if "=" in line:
-            key, val = line.split("=", 1)
-            key_clean = key.strip()
-            if key_clean == "secret":
-                flush_secret()
-                in_secret = True
-                secret_acc.append(val)
-                continue
-            else:
-                flush_secret()
-                output_lines.append(raw_line)
-                continue
-
-        # Continuation line without key=
-        if in_secret:
-            secret_acc.append(line)
-        else:
-            output_lines.append(raw_line)
+        output_lines.append(raw_line)
 
     flush_secret()
-
-    # Enforce header at line 1
-    if output_lines:
-        first_idx = next((i for i, l in enumerate(output_lines) if l.strip()), 0)
-        if output_lines[first_idx].strip() != "[keyring]":
-            header_idx = next(
-                (i for i, l in enumerate(output_lines) if l.strip() == "[keyring]"),
-                None,
-            )
-            if header_idx is not None:
-                header_line = output_lines.pop(header_idx)
-                output_lines.insert(0, header_line)
-                modified = True
 
     return "".join(output_lines), modified
 
