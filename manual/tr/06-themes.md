@@ -1,12 +1,12 @@
 # Temalar
 
-Omarchy yirmi iki güzel temayla birlikte gelir. Bunlar arasında Omarchy Menu (`Super + Space`) içindeki _Appearance > Theme_ üzerinden seçim yapabilir veya `Super + Ctrl + T` kullanarak doğrudan tema seçicisine atlayabilirsiniz.
+Omarchy yirmi iki güzel temayla birlikte gelir. Bunlar arasında Omarchy Menüsü'ndeki (`Super + Space`) _Appearance > Theme_ üzerinden seçim yapabilir veya `Super + Ctrl + T` kullanarak doğrudan tema seçiciye atlayabilirsiniz.
 
-Her tema masaüstünü, terminali, neovim'i, etkinlik ekranını (btop), Chromium'u ve Omarchy kabuğunun tamamını şekillendirir: üst çubuk, menü, bildirimler, OSD ve kilit ekranı. (Obsidian için, uygulama içindeki _Appearance > Themes_ üzerinden Omarchy temasını manuel olarak seçmeniz gerekir).
+Her tema masaüstünü, terminali, neovim'i, etkinlik ekranını (btop), Chromium'u ve tüm Omarchy kabuğunu biçimlendirir: üst çubuk, menü, bildirimler, OSD ve kilit ekranı. (Obsidian için, uygulama içindeki _Appearance > Themes_ üzerinden Omarchy temasını manuel olarak seçmelisiniz).
 
 Temaların, `Super + Ctrl + W` kullanarak aralarında seçim yapabileceğiniz bir dizi arka plan görseli vardır.
 
-Daha da fazla temayı [ekstra temalar sayfasında](https://omarchy.org/themes/) bulabilir, hatta [kendi temanızı yapabilirsiniz](43-making-your-own-theme.md).
+Daha da fazla temayı [ek temalar sayfasında](https://omarchy.org/themes/) bulabilir, hatta [kendi temanızı yapabilirsiniz](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Kilit Açma Ekranları
 
-Temaların ayrıca, önyükleme sırasında şifre çözme işlemi için kullanılan özel bir kilit açma tasarımı da olabilir. Bunlardan birini _Appearance > Unlock_ altında seçebilirsiniz. Şöyle görünürler:
+Temaların ayrıca önyükleme şifre çözme işlemi için kullanılan özel bir kilit açma tasarımı da olabilir. Bunlardan birini _Appearance > Unlock_ altında seçebilirsiniz. Şöyle görünürler:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

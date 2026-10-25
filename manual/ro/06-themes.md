@@ -1,12 +1,12 @@
 # Teme
 
-Omarchy vine cu douăzeci și două de teme frumoase. Poți alege dintre ele prin _Aspect > Temă_ din Meniul Omarchy (`Super + Space`) sau poți sări direct la selectorul de teme folosind `Super + Ctrl + T`.
+Omarchy vine cu douăzeci și două de teme frumoase. Poți alege dintre ele din _Aspect > Temă_ în Meniul Omarchy (`Super + Space`) sau poți merge direct la selectorul de teme folosind `Super + Ctrl + T`.
 
-Fiecare temă stilizează desktopul, terminalul, neovim, ecranul de activitate (btop), Chromium și întregul shell Omarchy: bara superioară, meniul, notificările, OSD-ul și ecranul de blocare. (Pentru Obsidian, trebuie să selectezi manual tema Omarchy prin _Aspect > Teme_ din interiorul aplicației).
+Fiecare temă stilizează desktopul, terminalul, neovim, ecranul de activitate (btop), Chromium și întregul shell Omarchy: bara superioară, meniul, notificările, OSD și ecranul de blocare. (Pentru Obsidian, trebuie să selectezi manual tema Omarchy din _Aspect > Teme_ în interiorul aplicației).
 
 Temele au un set de imagini de fundal între care poți alege folosind `Super + Ctrl + W`.
 
-Poți găsi și mai multe teme pe [pagina cu teme suplimentare](https://omarchy.org/themes/) sau chiar îți poți [crea propria temă](43-making-your-own-theme.md).
+Poți găsi și mai multe teme pe [pagina cu teme suplimentare](https://omarchy.org/themes/) sau chiar să [îți creezi propria temă](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Deblocări
 
-Temele pot avea și un design personalizat de deblocare, care este folosit pentru procesul de decriptare la pornire. Poți selecta unul dintre ele în _Aspect > Deblocare_. Arată așa:
+Temele pot avea și un design personalizat de deblocare, folosit pentru procesul de decriptare la pornire. Poți selecta unul dintre ele din _Aspect > Deblocare_. Arată astfel:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

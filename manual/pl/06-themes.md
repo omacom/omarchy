@@ -1,12 +1,12 @@
 # Motywy
 
-Omarchy jest dostarczane z dwudziestoma dwoma pięknymi motywami. Możesz wybierać między nimi przez _Wygląd > Motyw_ w Menu Omarchy (`Super + Space`) lub przejść bezpośrednio do wyboru motywu za pomocą `Super + Ctrl + T`.
+Omarchy zawiera dwadzieścia dwa piękne motywy. Możesz wybierać spośród nich przez _Wygląd > Motyw_ w Menu Omarchy (`Super + Space`) albo przejść bezpośrednio do wyboru motywu za pomocą `Super + Ctrl + T`.
 
-Każdy motyw stylizuje pulpit, terminal, neovim, ekran aktywności (btop), Chromium oraz całą powłokę Omarchy: górny pasek, menu, powiadomienia, OSD i ekran blokady. (W przypadku Obsidian musisz ręcznie wybrać motyw Omarchy przez _Wygląd > Motywy_ wewnątrz aplikacji).
+Każdy motyw stylizuje pulpit, terminal, Neovim, ekran aktywności (btop), Chromium oraz całą powłokę Omarchy: górny pasek, menu, powiadomienia, OSD i ekran blokady. (W przypadku Obsidian musisz ręcznie wybrać motyw Omarchy przez _Wygląd > Motywy_ wewnątrz aplikacji).
 
 Motywy mają zestaw obrazów tła, spośród których możesz wybierać za pomocą `Super + Ctrl + W`.
 
-Jeszcze więcej motywów znajdziesz na [stronie z dodatkowymi motywami](https://omarchy.org/themes/) lub możesz nawet [stworzyć własny motyw](43-making-your-own-theme.md).
+Jeszcze więcej motywów znajdziesz na [stronie z dodatkowymi motywami](https://omarchy.org/themes/), a możesz nawet [stworzyć własny motyw](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Odblokowanie
+### Ekrany odblokowania
 
-Motywy mogą mieć również własny projekt odblokowania, który jest używany podczas procesu odszyfrowywania przy rozruchu. Możesz wybrać jeden z nich w _Wygląd > Odblokowanie_. Wyglądają tak:
+Motywy mogą też mieć własny projekt ekranu odblokowania, który jest używany podczas procesu odszyfrowywania przy rozruchu. Możesz wybrać jeden z nich w _Wygląd > Odblokowanie_. Wyglądają tak:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

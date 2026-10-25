@@ -1,12 +1,12 @@
 # Tema
 
-Omarchy disertakan dengan dua puluh dua tema yang cantik. Anda boleh memilih antaranya melalui _Penampilan > Tema_ dalam Menu Omarchy (`Super + Space`) atau terus lompat ke pemilih tema menggunakan `Super + Ctrl + T`.
+Omarchy disertakan dengan dua puluh dua tema yang cantik. Anda boleh memilih antaranya melalui _Appearance > Theme_ dalam Menu Omarchy (`Super + Space`) atau terus lompat ke pemilih tema menggunakan `Super + Ctrl + T`.
 
-Setiap tema menggayakan desktop, terminal, neovim, skrin aktiviti (btop), Chromium, dan keseluruhan cangkerang Omarchy: bar atas, menu, pemberitahuan, OSD, dan skrin kunci. (Untuk Obsidian, anda mesti memilih tema Omarchy secara manual melalui _Penampilan > Tema_ di dalam aplikasi).
+Setiap tema menggayakan desktop, terminal, neovim, skrin aktiviti (btop), Chromium, dan keseluruhan cangkerang Omarchy: bar atas, menu, pemberitahuan, OSD, dan skrin kunci. (Untuk Obsidian, anda mesti memilih tema Omarchy secara manual melalui _Appearance > Themes_ di dalam aplikasi).
 
-Tema mempunyai satu set imej latar belakang yang boleh anda pilih antaranya menggunakan `Super + Ctrl + W`.
+Tema mempunyai satu set imej latar belakang yang boleh anda pilih menggunakan `Super + Ctrl + W`.
 
-Anda boleh menemui lebih banyak lagi tema di [halaman tema tambahan](https://omarchy.org/themes/) atau malah [buat tema anda sendiri](43-making-your-own-theme.md).
+Anda boleh temui lebih banyak tema di [halaman tema tambahan](https://omarchy.org/themes/) atau malah [buat tema anda sendiri](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Buka Kunci
 
-Tema juga boleh mempunyai reka bentuk buka kunci tersuai, yang digunakan untuk proses penyahsulitan but. Anda boleh memilih salah satu daripadanya di bawah _Penampilan > Buka Kunci_. Rupa bentuknya seperti ini:
+Tema juga boleh mempunyai reka bentuk buka kunci tersuai, yang digunakan untuk proses penyahsulitan but. Anda boleh memilih salah satu daripadanya di bawah _Appearance > Unlock_. Rupanya seperti ini:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

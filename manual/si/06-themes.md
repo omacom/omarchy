@@ -1,12 +1,12 @@
 # තේමා
 
-Omarchy ලස්සන තේමා විසිදෙකක් සමග එයි. Omarchy Menu එකේ (`Super + Space`) _පෙනුම > තේමාව_ හරහා ඔබට ඒ අතරින් තෝරා ගත හැකිය, නැතහොත් `Super + Ctrl + T` භාවිතයෙන් තේමා තෝරනය වෙත කෙලින්ම යා හැකිය.
+Omarchy සමඟ ලස්සන තේමා විසි දෙකක් ලැබේ. Omarchy Menu එකේ _පෙනුම > තේමාව_ හරහා ඔබට ඒවා අතරින් තෝරා ගත හැක (`Super + Space`), නැතහොත් `Super + Ctrl + T` භාවිතයෙන් තේමා තේරීම වෙත කෙලින්ම යා හැක.
 
-සෑම තේමාවක්ම desktop එක, terminal එක, neovim, ක්‍රියාකාරකම් තිරය (btop), Chromium, සහ සම්පූර්ණ Omarchy shell එක: ඉහළ තීරුව, menu එක, දැනුම්දීම්, OSD, සහ අගුළු තිරය හැඩගන්වයි. (Obsidian සඳහා, app එක ඇතුළත _පෙනුම > තේමා_ හරහා ඔබ Omarchy තේමාව අතින් තෝරා ගත යුතුය).
+එක් එක් තේමාව desktop එක, terminal එක, neovim, activity screen එක (btop), Chromium, සහ සම්පූර්ණ Omarchy shell එකම හැඩගස්වයි: top bar එක, menu එක, notifications, OSD, සහ lock screen එක. (Obsidian සඳහා, app එක ඇතුළත _පෙනුම > තේමා_ හරහා ඔබ අතින්ම Omarchy තේමාව තෝරා ගත යුතුය).
 
-තේමාවලට පසුබිම් රූප කට්ටලයක් ඇති අතර, `Super + Ctrl + W` භාවිතයෙන් ඔබට ඒ අතරින් තෝරා ගත හැකිය.
+තේමාවලට background images කට්ටලයක් ඇති අතර, `Super + Ctrl + W` භාවිතයෙන් ඔබට ඒවා අතරින් තෝරා ගත හැක.
 
-ඔබට [අමතර තේමා පිටුවේ](https://omarchy.org/themes/) තවත් තේමා සොයා ගත හැකිය, නැතහොත් [ඔබේම තේමාවක් සාදා ගත හැකිය](43-making-your-own-theme.md).
+[අමතර තේමා පිටුවේ](https://omarchy.org/themes/) ඔබට තවත් තේමා සොයා ගත හැක, නැතහොත් [ඔබේම තේමාවක් සාදා ගන්න](43-making-your-own-theme.md) පවා හැක.
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### අගුළු ඇරීම්
 
-තේමාවලට boot විකේතන ක්‍රියාවලිය සඳහා භාවිතා කරන අභිරුචි අගුළු ඇරීමේ සැලසුමක්ද තිබිය හැකිය. _පෙනුම > අගුළු ඇරීම_ යටතේ ඔබට මේවායින් එකක් තෝරා ගත හැකිය. ඒවා මේ ආකාරයෙන් පෙනේ:
+තේමාවලට boot decryption ක්‍රියාවලිය සඳහා භාවිතා කරන custom unlock design එකක් ද තිබිය හැක. _පෙනුම > අගුළු ඇරීම_ යටතේ ඔබට ඒවායින් එකක් තෝරා ගත හැක. ඒවා මේ වගේ පෙනේ:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

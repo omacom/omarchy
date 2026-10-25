@@ -1,12 +1,12 @@
 # Thèmes
 
-Omarchy est livré avec vingt-deux magnifiques thèmes. Vous pouvez choisir parmi eux via _Apparence > Thème_ dans le menu Omarchy (`Super + Space`) ou accéder directement au sélecteur de thème avec `Super + Ctrl + T`.
+Omarchy est livré avec vingt-deux magnifiques thèmes. Vous pouvez choisir entre eux via _Apparence > Thème_ dans le menu Omarchy (`Super + Space`) ou accéder directement au sélecteur de thèmes avec `Super + Ctrl + T`.
 
-Chaque thème stylise le bureau, le terminal, neovim, l'écran d'activité (btop), Chromium et l'intégralité de l'interface Omarchy : barre supérieure, menu, notifications, OSD et écran de verrouillage. (Pour Obsidian, vous devez sélectionner manuellement le thème Omarchy via _Apparence > Thèmes_ dans l'application).
+Chaque thème habille le bureau, le terminal, neovim, l'écran d'activité (btop), Chromium et l'ensemble du shell Omarchy : la barre supérieure, le menu, les notifications, l'OSD et l'écran de verrouillage. (Pour Obsidian, vous devez sélectionner manuellement le thème Omarchy via _Apparence > Thèmes_ dans l'application).
 
 Les thèmes disposent d'un ensemble d'images d'arrière-plan parmi lesquelles vous pouvez choisir avec `Super + Ctrl + W`.
 
-Vous trouverez encore plus de thèmes sur [la page des thèmes supplémentaires](https://omarchy.org/themes/) ou vous pouvez même [créer votre propre thème](43-making-your-own-theme.md).
+Vous pouvez trouver encore plus de thèmes sur [la page des thèmes supplémentaires](https://omarchy.org/themes/) ou même [créer votre propre thème](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Déverrouillages
 
-Les thèmes peuvent aussi avoir un design de déverrouillage personnalisé, utilisé pour le processus de déchiffrement au démarrage. Vous pouvez en choisir un dans _Apparence > Déverrouillage_. Voici à quoi ils ressemblent :
+Les thèmes peuvent aussi avoir un design de déverrouillage personnalisé, utilisé pour le processus de déchiffrement au démarrage. Vous pouvez en sélectionner un sous _Apparence > Déverrouillage_. Voici à quoi ils ressemblent :
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

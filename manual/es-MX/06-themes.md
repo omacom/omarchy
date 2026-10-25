@@ -1,12 +1,12 @@
 # Temas
 
-Omarchy viene con veintidós temas hermosos. Puedes elegir entre ellos a través de _Apariencia > Tema_ en el Menú de Omarchy (`Super + Space`) o ir directamente al selector de temas usando `Super + Ctrl + T`.
+Omarchy incluye veintidós temas hermosos. Puedes elegir entre ellos desde _Apariencia > Tema_ en el menú de Omarchy (`Super + Space`) o ir directo al selector de temas con `Super + Ctrl + T`.
 
-Cada tema le da estilo al escritorio, la terminal, neovim, la pantalla de actividad (btop), Chromium y a todo el shell de Omarchy: la barra superior, el menú, las notificaciones, el OSD y la pantalla de bloqueo. (Para Obsidian, debes seleccionar manualmente el tema de Omarchy a través de _Apariencia > Temas_ dentro de la app).
+Cada tema le da estilo al escritorio, la terminal, neovim, la pantalla de actividad (btop), Chromium y a toda la shell de Omarchy: barra superior, menú, notificaciones, OSD y pantalla de bloqueo. (En Obsidian, debes seleccionar manualmente el tema de Omarchy desde _Apariencia > Temas_ dentro de la app).
 
-Los temas tienen un conjunto de imágenes de fondo entre las que puedes elegir usando `Super + Ctrl + W`.
+Los temas tienen un conjunto de imágenes de fondo entre las que puedes elegir con `Super + Ctrl + W`.
 
-Puedes encontrar aún más temas en [la página de temas extra](https://omarchy.org/themes/) o incluso [crear tu propio tema](43-making-your-own-theme.md).
+Puedes encontrar aún más temas en [la página de temas adicionales](https://omarchy.org/themes/) o incluso [crear tu propio tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Desbloqueos
 
-Los temas también pueden tener un diseño de desbloqueo personalizado, que se usa para el proceso de descifrado durante el arranque. Puedes seleccionar uno de estos en _Apariencia > Desbloqueo_. Se ven así:
+Los temas también pueden tener un diseño de desbloqueo personalizado, que se usa para el proceso de descifrado al arrancar. Puedes seleccionar uno de estos en _Apariencia > Desbloqueo_. Se ven así:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

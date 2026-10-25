@@ -1,10 +1,10 @@
 # Temas
 
-O Omarchy inclui vinte e dois temas bonitos. Pode selecionar entre eles através de _Aparência > Tema_ no Menu Omarchy (`Super + Space`) ou saltar diretamente para o seletor de temas usando `Super + Ctrl + T`.
+O Omarchy inclui vinte e dois temas bonitos. Pode selecionar entre eles em _Aparência > Tema_ no Menu do Omarchy (`Super + Space`) ou ir diretamente para o seletor de temas com `Super + Ctrl + T`.
 
-Cada tema define o estilo do ambiente de trabalho, do terminal, do Neovim, do ecrã de atividade (btop), do Chromium e de toda a shell do Omarchy: barra superior, menu, notificações, OSD e ecrã de bloqueio. (No Obsidian, tem de selecionar manualmente o tema Omarchy através de _Aparência > Temas_ dentro da aplicação).
+Cada tema define o estilo do ambiente de trabalho, do terminal, do neovim, do ecrã de atividade (btop), do Chromium e de todo o shell do Omarchy: barra superior, menu, notificações, OSD e ecrã de bloqueio. (No Obsidian, tem de selecionar manualmente o tema do Omarchy em _Aparência > Temas_ dentro da aplicação).
 
-Os temas têm um conjunto de imagens de fundo entre as quais pode escolher usando `Super + Ctrl + W`.
+Os temas têm um conjunto de imagens de fundo entre as quais pode escolher com `Super + Ctrl + W`.
 
 Pode encontrar ainda mais temas na [página de temas extra](https://omarchy.org/themes/) ou até [criar o seu próprio tema](43-making-your-own-theme.md).
 
@@ -67,7 +67,7 @@ _White_
 
 ### Desbloqueios
 
-Os temas também podem ter um design de desbloqueio personalizado, que é utilizado no processo de desencriptação durante o arranque. Pode selecionar um destes em _Aparência > Desbloqueio_. São assim:
+Os temas também podem ter um design de desbloqueio personalizado, utilizado no processo de desencriptação no arranque. Pode selecionar um deles em _Aparência > Desbloqueio_. Têm este aspeto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

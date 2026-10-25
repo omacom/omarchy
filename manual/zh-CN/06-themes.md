@@ -1,12 +1,12 @@
 # 主题
 
-Omarchy 自带二十二个精美的主题。你可以通过 Omarchy 菜单（`Super + Space`）中的 _Appearance > Theme_ 在它们之间选择，或者使用 `Super + Ctrl + T` 直接跳转到主题选择器。
+Omarchy 内置二十二款精美主题。你可以通过 Omarchy 菜单（`Super + Space`）中的_外观 > 主题_在它们之间进行选择，也可以直接使用 `Super + Ctrl + T` 跳转到主题选择器。
 
-每个主题都会为桌面、终端、neovim、活动屏幕（btop）、Chromium 以及整个 Omarchy shell 设置样式：顶部栏、菜单、通知、OSD 和锁屏。（对于 Obsidian，你必须在应用内通过 _Appearance > Themes_ 手动选择 Omarchy 主题）。
+每个主题都会为桌面、终端、neovim、活动屏幕（btop）、Chromium 以及整个 Omarchy shell 设置样式：顶栏、菜单、通知、OSD 和锁屏。（对于 Obsidian，你必须在应用内通过_外观 > 主题_手动选择 Omarchy 主题）。
 
-主题有一组背景图片，你可以使用 `Super + Ctrl + W` 在它们之间挑选。
+主题带有一组背景图片，你可以使用 `Super + Ctrl + W` 在它们之间进行选择。
 
-你可以在[额外主题页面](https://omarchy.org/themes/)找到更多主题，甚至可以[制作你自己的主题](43-making-your-own-theme.md)。
+你可以在[额外主题页面](https://omarchy.org/themes/)上找到更多主题，甚至可以[制作你自己的主题](43-making-your-own-theme.md)。
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### 解锁界面
 
-主题还可以拥有自定义的解锁设计，用于启动解密过程。你可以在 _Appearance > Unlock_ 下选择其中一个。它们看起来像这样：
+主题还可以拥有自定义的解锁设计，用于开机解密过程。你可以在_外观 > 解锁_下选择其中一款。它们看起来像这样：
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

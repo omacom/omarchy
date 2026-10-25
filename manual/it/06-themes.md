@@ -1,10 +1,10 @@
 # Temi
 
-Omarchy include ventidue bellissimi temi. Puoi scegliere tra di essi tramite _Aspetto > Tema_ nel Menu Omarchy (`Super + Space`) o passare direttamente al selettore dei temi usando `Super + Ctrl + T`.
+Omarchy include ventidue bellissimi temi. Puoi scegliere tra loro tramite _Aspetto > Tema_ nel Menu di Omarchy (`Super + Space`) o passare direttamente al selettore dei temi usando `Super + Ctrl + T`.
 
 Ogni tema definisce lo stile del desktop, del terminale, di neovim, della schermata delle attività (btop), di Chromium e dell'intera shell di Omarchy: barra superiore, menu, notifiche, OSD e schermata di blocco. (Per Obsidian, devi selezionare manualmente il tema Omarchy tramite _Aspetto > Temi_ all'interno dell'app).
 
-I temi hanno una serie di immagini di sfondo tra cui puoi scegliere usando `Super + Ctrl + W`.
+I temi includono una serie di immagini di sfondo tra cui puoi scegliere usando `Super + Ctrl + W`.
 
 Puoi trovare ancora più temi sulla [pagina dei temi extra](https://omarchy.org/themes/) o persino [creare il tuo tema](43-making-your-own-theme.md).
 
@@ -67,7 +67,7 @@ _White_
 
 ### Sblocchi
 
-I temi possono avere anche un design di sblocco personalizzato, utilizzato per il processo di decrittografia all'avvio. Puoi selezionarne uno in _Aspetto > Sblocco_. Si presentano così:
+I temi possono avere anche un design di sblocco personalizzato, usato per il processo di decrittografia all'avvio. Puoi selezionarne uno in _Aspetto > Sblocco_. Hanno questo aspetto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

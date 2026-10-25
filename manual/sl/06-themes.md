@@ -1,10 +1,10 @@
 # Teme
 
-Omarchy vključuje dvaindvajset čudovitih tem. Med njimi lahko izbirate prek _Videz > Tema_ v meniju Omarchy (`Super + Space`) ali pa skočite neposredno do izbirnika tem s `Super + Ctrl + T`.
+Omarchy ima dvaindvajset čudovitih tem. Med njimi lahko izbirate prek _Videz > Tema_ v meniju Omarchy (`Super + Space`) ali pa skočite neposredno na izbirnik tem z uporabo `Super + Ctrl + T`.
 
-Vsaka tema oblikuje namizje, terminal, neovim, zaslon aktivnosti (btop), Chromium in celotno lupino Omarchy: zgornjo vrstico, meni, obvestila, OSD in zaklenjeni zaslon. (V Obsidianu morate temo Omarchy ročno izbrati prek _Videz > Teme_ v aplikaciji).
+Vsaka tema oblikuje namizje, terminal, neovim, zaslon aktivnosti (btop), Chromium in celotno lupino Omarchy: zgornjo vrstico, meni, obvestila, OSD in zaklenjeni zaslon. (Pri Obsidian morate temo Omarchy ročno izbrati prek _Videz > Teme_ v aplikaciji).
 
-Teme imajo nabor slik za ozadje, med katerimi lahko izbirate s `Super + Ctrl + W`.
+Teme imajo nabor slik za ozadje, med katerimi lahko izbirate z uporabo `Super + Ctrl + W`.
 
 Še več tem najdete na [strani z dodatnimi temami](https://omarchy.org/themes/) ali pa celo [ustvarite svojo temo](43-making-your-own-theme.md).
 
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Odklenitve
+### Odklepanja
 
-Teme imajo lahko tudi oblikovanje odklenitve po meri, ki se uporablja pri postopku dešifriranja ob zagonu. Eno od teh lahko izberete pod _Videz > Odklenitev_. Videti so takole:
+Teme imajo lahko tudi oblikovanje za odklepanje po meri, ki se uporablja za postopek dešifriranja ob zagonu. Eno od teh lahko izberete pod _Videz > Odklep_. Videti so takole:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

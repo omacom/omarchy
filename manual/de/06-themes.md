@@ -1,10 +1,10 @@
 # Themes
 
-Omarchy bringt zweiundzwanzig wunderschöne Themes mit. Du kannst im Omarchy Menu über _Appearance > Theme_ zwischen ihnen wählen (`Super + Space`) oder mit `Super + Ctrl + T` direkt zur Theme-Auswahl springen.
+Omarchy wird mit zweiundzwanzig wunderschönen Themes ausgeliefert. Du kannst zwischen ihnen über _Darstellung > Theme_ im Omarchy Menu (`Super + Space`) wählen oder mit `Super + Ctrl + T` direkt zur Theme-Auswahl springen.
 
-Jedes Theme gestaltet den Desktop, das Terminal, neovim, den Aktivitätsbildschirm (btop), Chromium und die gesamte Omarchy-Shell: obere Leiste, Menü, Benachrichtigungen, OSD und den Sperrbildschirm. (Für Obsidian musst du das Omarchy-Theme in der App manuell über _Appearance > Themes_ auswählen).
+Jedes Theme gestaltet den Desktop, das Terminal, neovim, die Aktivitätsanzeige (btop), Chromium und die gesamte Omarchy-Shell: obere Leiste, Menü, Benachrichtigungen, OSD und den Sperrbildschirm. (Für Obsidian musst du das Omarchy-Theme manuell über _Darstellung > Themes_ in der App auswählen).
 
-Themes bringen eine Reihe von Hintergrundbildern mit, zwischen denen du mit `Super + Ctrl + W` wählen kannst.
+Themes haben eine Reihe von Hintergrundbildern, zwischen denen du mit `Super + Ctrl + W` wählen kannst.
 
 Noch mehr Themes findest du auf [der Seite mit zusätzlichen Themes](https://omarchy.org/themes/) oder du kannst sogar [dein eigenes Theme erstellen](43-making-your-own-theme.md).
 
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Entsperrdesigns
+### Unlock-Designs
 
-Themes können auch ein eigenes Entsperrdesign haben, das für die Entschlüsselung beim Start verwendet wird. Du kannst eines davon unter _Appearance > Unlock_ auswählen. Sie sehen so aus:
+Themes können auch ein eigenes Unlock-Design haben, das für die Entschlüsselung beim Booten verwendet wird. Du kannst eines davon unter _Darstellung > Unlock_ auswählen. Sie sehen so aus:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

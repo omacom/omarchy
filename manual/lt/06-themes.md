@@ -1,8 +1,8 @@
 # Temos
 
-Kartu su Omarchy pateikiamos dvidešimt dvi gražios temos. Jas galite pasirinkti „Omarchy“ meniu (`Super + Space`) eidami į _Išvaizda > Tema_ arba pereiti tiesiai prie temų pasirinkimo paspaudę `Super + Ctrl + T`.
+Omarchy pateikiama su dvidešimt dviem gražiomis temomis. Jas galite pasirinkti per _Išvaizda > Tema_ Omarchy Menu (`Super + Space`) arba tiesiai pereiti prie temų pasirinkimo paspaudę `Super + Ctrl + T`.
 
-Kiekviena tema pakeičia darbalaukio, terminalo, neovim, veiklos ekrano (btop), Chromium ir visos Omarchy aplinkos stilių: viršutinę juostą, meniu, pranešimus, OSD ir užrakinimo ekraną. (Naudodami Obsidian, Omarchy temą programoje turite pasirinkti rankiniu būdu eidami į _Išvaizda > Temos_).
+Kiekviena tema stilizuoja darbalaukį, terminalą, neovim, aktyvumo ekraną (btop), Chromium ir visą Omarchy apvalkalą: viršutinę juostą, meniu, pranešimus, OSD ir užrakinimo ekraną. (Obsidian programoje Omarchy temą turite pasirinkti rankiniu būdu per _Išvaizda > Temos_ pačioje programoje).
 
 Temos turi foninių paveikslėlių rinkinį, iš kurio galite rinktis paspaudę `Super + Ctrl + W`.
 
@@ -67,7 +67,7 @@ _White_
 
 ### Atrakinimo ekranai
 
-Temos taip pat gali turėti pritaikytą atrakinimo dizainą, naudojamą įkrovos iššifravimo procese. Vieną iš jų galite pasirinkti eidami į _Išvaizda > Atrakinimas_. Jie atrodo taip:
+Temos taip pat gali turėti pasirinktinį atrakinimo dizainą, naudojamą įkrovos iššifravimo procese. Vieną iš jų galite pasirinkti per _Išvaizda > Atrakinimas_. Jie atrodo taip:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

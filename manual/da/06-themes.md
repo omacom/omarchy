@@ -67,7 +67,7 @@ _White_
 
 ### Oplåsninger
 
-Temaer kan også have et brugerdefineret oplåsningsdesign, som bruges til opstartsdekrypteringsprocessen. Du kan vælge et af dem under _Udseende > Oplåsning_. De ser sådan ud:
+Temaer kan også have et brugerdefineret oplåsningsdesign, som bruges til dekrypteringsprocessen under opstart. Du kan vælge et af dem under _Udseende > Lås op_. De ser sådan ud:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

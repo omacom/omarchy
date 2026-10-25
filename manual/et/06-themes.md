@@ -1,12 +1,12 @@
 # Teemad
 
-Omarchy sisaldab kakskümmend kaks ilusat teemat. Nende vahel saate valida Omarchy menüüst (`Super + Space`) valiku _Välimus > Teema_ kaudu või hüpata otse teemavalijasse klahvikombinatsiooniga `Super + Ctrl + T`.
+Omarchyga on kaasas kakskümmend kaks ilusat teemat. Saad nende vahel valida Omarchy menüüs (`Super + Space`) valiku _Välimus > Teema_ kaudu või hüpata otse teemavalijasse, kasutades klahve `Super + Ctrl + T`.
 
-Iga teema kujundab töölaua, terminali, neovimi, tegevuskuva (btop), Chromiumi ja kogu Omarchy kesta: ülemise riba, menüü, teavitused, OSD ja lukustuskuva. (Obsidianis peate Omarchy teema käsitsi valima rakenduse sees valiku _Välimus > Teemad_ kaudu).
+Iga teema kujundab töölaua, terminali, neovimi, tegevusekraani (btop), Chromiumi ja kogu Omarchy kesta: ülemise riba, menüü, teavitused, OSD ja lukustuskuva. (Obsidiani puhul pead Omarchy teema käsitsi valima rakendusesiseselt valiku _Välimus > Teemad_ kaudu).
 
-Teemadel on taustapiltide komplekt, mille vahel saate valida klahvikombinatsiooniga `Super + Ctrl + W`.
+Teemadel on hulk taustapilte, mille vahel saad valida, kasutades klahve `Super + Ctrl + W`.
 
-Veel rohkem teemasid leiate [täiendavate teemade lehelt](https://omarchy.org/themes/) või saate isegi [oma teema luua](43-making-your-own-theme.md).
+Veel rohkem teemasid leiad [lisateemade lehelt](https://omarchy.org/themes/) või võid isegi [oma teema teha](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Avamiskuvad
+### Avamiskujundused
 
-Teemadel võib olla ka kohandatud avamiskujundus, mida kasutatakse alglaadimise dekrüpteerimisprotsessi jaoks. Saate ühe neist valida valiku _Välimus > Avamine_ alt. Need näevad välja sellised:
+Teemadel võib olla ka kohandatud avamiskujundus, mida kasutatakse alglaadimise dekrüpteerimise protsessis. Saad ühe neist valida valiku _Välimus > Avamine_ alt. Need näevad välja sellised:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

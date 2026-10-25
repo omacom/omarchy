@@ -1,12 +1,12 @@
 # Motivy
 
-Omarchy přichází s dvaceti dvěma nádhernými motivy. Můžete si mezi nimi vybrat přes _Vzhled > Motiv_ v Omarchy Menu (`Super + Space`) nebo přejít rovnou do výběru motivu pomocí `Super + Ctrl + T`.
+Omarchy přichází s dvaadvaceti krásnými motivy. Vybírat mezi nimi můžete přes _Vzhled > Motiv_ v Omarchy Menu (`Super + Space`) nebo přejít rovnou na výběr motivu pomocí `Super + Ctrl + T`.
 
-Každý motiv upravuje vzhled plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého shellu Omarchy: horní lišty, nabídky, oznámení, OSD a zamykací obrazovky. (Pro Obsidian musíte motiv Omarchy vybrat ručně přes _Vzhled > Motivy_ uvnitř aplikace).
+Každý motiv upravuje vzhled plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého shellu Omarchy: horní lišty, nabídky, oznámení, OSD a zamykací obrazovky. (U Obsidianu musíte motiv Omarchy vybrat ručně přes _Vzhled > Motivy_ uvnitř aplikace).
 
-Motivy mají sadu obrázků na pozadí, mezi kterými si můžete vybírat pomocí `Super + Ctrl + W`.
+Motivy mají sadu obrázků na pozadí, mezi kterými můžete vybírat pomocí `Super + Ctrl + W`.
 
-Ještě více motivů najdete na [stránce s dalšími motivy](https://omarchy.org/themes/) nebo si dokonce můžete [vytvořit vlastní motiv](43-making-your-own-theme.md).
+Ještě více motivů najdete na [stránce s dalšími motivy](https://omarchy.org/themes/) nebo si dokonce [vytvořte vlastní motiv](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Odemykání
+### Odemknutí
 
-Motivy mohou mít také vlastní vzhled odemykání, který se používá při dešifrování during spouštění systému. Jeden z nich si můžete vybrat v části _Vzhled > Odemykání_. Vypadají takto:
+Motivy mohou mít také vlastní design odemknutí, který se používá pro proces dešifrování při spouštění. Jeden z nich si můžete vybrat pod _Vzhled > Odemknutí_. Vypadají takto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

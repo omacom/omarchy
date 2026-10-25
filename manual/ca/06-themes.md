@@ -1,12 +1,12 @@
 # Temes
 
-Omarchy inclou vint-i-dos temes preciosos. Pots triar entre ells a través d'_Aparença > Tema_ al menú d'Omarchy (`Super + Space`) o anar directament al selector de temes amb `Super + Ctrl + T`.
+Omarchy inclou vint-i-dos temes preciosos. Pots triar entre ells a través d'_Aspecte > Tema_ al menú d'Omarchy (`Super + Space`) o anar directament al selector de temes amb `Super + Ctrl + T`.
 
-Cada tema dona estil a l'escriptori, el terminal, neovim, la pantalla d'activitat (btop), Chromium i tota la interfície d'Omarchy: la barra superior, el menú, les notificacions, l'OSD i la pantalla de bloqueig. (Per a Obsidian, has de seleccionar manualment el tema d'Omarchy a través d'_Aparença > Temes_ dins de l'aplicació).
+Cada tema dona estil a l'escriptori, el terminal, neovim, la pantalla d'activitat (btop), Chromium i tota la interfície d'Omarchy: la barra superior, el menú, les notificacions, l'OSD i la pantalla de bloqueig. (Per a Obsidian, has de seleccionar manualment el tema d'Omarchy a través d'_Aspecte > Temes_ dins de l'aplicació).
 
 Els temes tenen un conjunt d'imatges de fons entre les quals pots triar amb `Super + Ctrl + W`.
 
-Pots trobar encara més temes a [la pàgina de temes extra](https://omarchy.org/themes/) o fins i tot [crear el teu propi tema](43-making-your-own-theme.md).
+Pots trobar encara més temes a [la pàgina de temes addicionals](https://omarchy.org/themes/) o fins i tot [crear el teu propi tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Desbloquejos
 
-Els temes també poden tenir un disseny de desbloqueig personalitzat, que s'utilitza per al procés de desxifratge a l'arrencada. En pots seleccionar un a _Aparença > Desbloqueig_. Tenen aquest aspecte:
+Els temes també poden tenir un disseny de desbloqueig personalitzat, que s'utilitza per al procés de desxifratge d'arrencada. Pots seleccionar-ne un a _Aspecte > Desbloqueig_. Tenen aquest aspecte:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

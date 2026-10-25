@@ -1,12 +1,12 @@
 # Témák
 
-Az Omarchy huszonkét gyönyörű témával érkezik. Ezek közül az Omarchy menüben (`Super + Space`) az _Appearance > Theme_ pontban választhatsz, vagy a `Super + Ctrl + T` billentyűkombinációval közvetlenül a témaválasztóhoz ugorhatsz.
+Az Omarchy huszonkét gyönyörű témával érkezik. Közülük az Omarchy menü (`Super + Space`) _Megjelenés > Téma_ pontjában választhatsz, vagy közvetlenül a témaválasztóhoz ugorhatsz a `Super + Ctrl + T` billentyűkombinációval.
 
-Mindegyik téma meghatározza az asztal, a terminál, a neovim, az aktivitásképernyő (btop), a Chromium és az egész Omarchy felület megjelenését: a felső sávét, a menüét, az értesítésekét, az OSD-ét és a zárolási képernyőét. (Az Obsidianban kézzel kell kiválasztanod az Omarchy témát az alkalmazáson belül az _Appearance > Themes_ pontban.)
+Minden téma formázza az asztalt, a terminált, a neovimt, a tevékenységképernyőt (btop), a Chromiumot és a teljes Omarchy felületet: a felső sávot, a menüt, az értesítéseket, az OSD-t és a zárolási képernyőt. (Az Obsidian esetében manuálisan kell kiválasztanod az Omarchy témát az alkalmazáson belül a _Megjelenés > Témák_ alatt).
 
-A témákhoz háttérképek készlete is tartozik, amelyek közül a `Super + Ctrl + W` billentyűkombinációval választhatsz.
+A témákhoz háttérképek készlete tartozik, amelyek közül a `Super + Ctrl + W` billentyűkombinációval választhatsz.
 
-Még több témát találsz a [további témák oldalán](https://omarchy.org/themes/), vagy akár [saját témát is készíthetsz](43-making-your-own-theme.md).
+Még több témát találsz [a további témák oldalán](https://omarchy.org/themes/), vagy akár [saját témát is készíthetsz](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Feloldások
+### Feloldóképernyők
 
-A témákhoz egyedi feloldási megjelenés is tartozhat, amelyet a rendszerindításkor zajló visszafejtési folyamat használ. Ezek közül az _Appearance > Unlock_ pontban választhatsz egyet. Így néznek ki:
+A témák egyéni feloldási dizájnnal is rendelkezhetnek, amelyet a rendszerindításkori visszafejtési folyamat használ. Ezek közül a _Megjelenés > Feloldás_ alatt választhatsz egyet. Így néznek ki:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

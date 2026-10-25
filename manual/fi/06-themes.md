@@ -1,12 +1,12 @@
 # Teemat
 
-Omarchyn mukana tulee kaksikymmentäkaksi kaunista teemaa. Voit valita niiden välillä Omarchy-valikon kohdasta _Appearance > Theme_ (`Super + Space`) tai hypätä suoraan teemanvalitsimeen näppäinyhdistelmällä `Super + Ctrl + T`.
+Omarchyn mukana tulee kaksikymmentäkaksi kaunista teemaa. Voit valita niiden välillä Omarchy-valikon kohdasta _Ulkoasu > Teema_ (`Super + Space`) tai siirtyä suoraan teemanvalitsimeen näppäinyhdistelmällä `Super + Ctrl + T`.
 
-Jokainen teema tyylittelee työpöydän, terminaalin, neovimin, aktiviteettinäkymän (btop), Chromiumin ja koko Omarchy-kuoren: yläpalkin, valikon, ilmoitukset, OSD:n ja lukitusnäytön. (Obsidianissa sinun on valittava Omarchy-teema manuaalisesti sovelluksen kohdasta _Appearance > Themes_).
+Jokainen teema tyylittää työpöydän, terminaalin, neovimin, aktiivisuusnäytön (btop), Chromiumin ja koko Omarchy-kuoren: yläpalkin, valikon, ilmoitukset, OSD:n ja lukitusnäytön. (Obsidianissa sinun täytyy valita Omarchy-teema manuaalisesti sovelluksen sisältä kohdasta _Ulkoasu > Teemat_). 
 
-Teemoissa on valikoima taustakuvia, joiden välillä voit valita näppäinyhdistelmällä `Super + Ctrl + W`.
+Teemoissa on joukko taustakuvia, joista voit valita näppäinyhdistelmällä `Super + Ctrl + W`.
 
-Löydät vielä lisää teemoja [lisäteemojen sivulta](https://omarchy.org/themes/) tai voit jopa [tehdä oman teemasi](43-making-your-own-theme.md).
+Lisää teemoja löydät [lisäteemojen sivulta](https://omarchy.org/themes/) tai voit jopa [tehdä oman teemasi](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Lukituksen avaukset
 
-Teemoissa voi olla myös mukautettu lukituksen avauksen ulkoasu, jota käytetään käynnistyksen salauksenpurkuprosessissa. Voit valita sellaisen kohdasta _Appearance > Unlock_. Ne näyttävät tältä:
+Teemoissa voi olla myös mukautettu lukituksen avauksen ulkoasu, jota käytetään käynnistyksen salauksenpurkuprosessissa. Voit valita sellaisen kohdasta _Ulkoasu > Lukituksen avaus_. Ne näyttävät tältä:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
