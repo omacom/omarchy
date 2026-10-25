@@ -351,9 +351,9 @@ local function forget_maximized(window)
   end
 end
 
--- A window waiting behind a maximized one is maximized again when it is brought
--- forward, from the dock or any other way, and the other one waits in its turn.
--- A fullscreen window keeps the screen.
+-- A window waiting behind a maximized one is maximized again when the user
+-- brings it forward, from the dock or any other way, and the other one waits in
+-- its turn. A fullscreen window keeps the screen.
 local function restore_maximized(window)
   local id = window.workspace and window.workspace.id
   if (window.fullscreen or 0) ~= 0 or not has_tag(window, MAXIMIZED_TAG) or not floating_workspace(id) then
@@ -367,6 +367,20 @@ local function restore_maximized(window)
   end
 
   hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", action = "set", window = window }))
+end
+
+-- An app asking for focus is not the user bringing its window forward. Electron
+-- apps take focus back right after the browser opens a link from them, and
+-- maximizing them again would hide the browser behind them. Hyprland marks a
+-- window urgent just before it gives it the focus its app asked for, and never
+-- for focus the user moves.
+local asked_for_focus = nil
+
+local function on_urgent(window)
+  asked_for_focus = window.address
+  hl.timer(function()
+    asked_for_focus = nil
+  end, { type = "oneshot", timeout = 1 })
 end
 
 -- The workspace is passed in when a window is still on its way to it.
@@ -442,11 +456,17 @@ local function watch()
     end, { type = "oneshot", timeout = 1 })
   end)
 
-  -- Focus is still moving when this fires. Let it land first.
+  hl.on("window.urgent", on_urgent)
+
+  -- Focus is still moving when this fires. Let it land first: a window leaving
+  -- the minimized ones passes focus to the one beneath it on its way back.
   hl.on("window.active", function(window)
-    if window and has_tag(window, MAXIMIZED_TAG) then
+    if window and has_tag(window, MAXIMIZED_TAG) and asked_for_focus ~= window.address then
       hl.timer(function()
-        restore_maximized(window)
+        local active = hl.get_active_window()
+        if active and active.address == window.address then
+          restore_maximized(window)
+        end
       end, { type = "oneshot", timeout = 1 })
     end
   end)
