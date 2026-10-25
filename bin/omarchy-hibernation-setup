@@ -40,6 +40,9 @@ fi
 MKINITCPIO_CONF="/etc/mkinitcpio.conf.d/omarchy_resume.conf"
 SWAP_FILE="/swap/swapfile"
 RESUME_DROP_IN="/etc/limine-entry-tool.d/resume.conf"
+VERIFY_UNIT_SOURCE="$OMARCHY_PATH/default/systemd/system/omarchy-hibernation-verify-resume.service"
+VERIFY_UNIT_DEST=/etc/systemd/system/omarchy-hibernation-verify-resume.service
+NOTIFY_UNIT=/usr/lib/systemd/user/omarchy-hibernation-resume-notify.service
 
 install_root_file() {
   local source="$1"
@@ -69,6 +72,24 @@ safe_stage_path() {
   suffix=${stage#"$prefix"}
   [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
 }
+
+# Ship the boot-time resume-offset consistency check (issue #14379) on every
+# setup run, including the already-configured early exit below: btrfs can move
+# the swapfile between setups and a stale resume_offset= then makes resume
+# silently cold-boot. The root oneshot compares the boot parameter against the
+# live swapfile mapping and drops a /run flag that the user-session notify unit
+# turns into a toast; user unit ships in /usr/lib/systemd/user/ with the package.
+install_root_file "$VERIFY_UNIT_SOURCE" "$VERIFY_UNIT_DEST" 0644
+systemctl daemon-reload
+systemctl enable --quiet omarchy-hibernation-verify-resume.service
+if [[ -n ${SUDO_USER:-} ]]; then
+  user_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+  if [[ -n $user_home ]]; then
+    wants_dir="$user_home/.config/systemd/user/graphical-session.target.wants"
+    sudo -u "$SUDO_USER" mkdir -p -- "$wants_dir"
+    sudo -u "$SUDO_USER" ln -sfn "$NOTIFY_UNIT" "$wants_dir/omarchy-hibernation-resume-notify.service"
+  fi
+fi
 
 # Check if hibernation is already configured
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then

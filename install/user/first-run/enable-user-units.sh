@@ -24,6 +24,7 @@ for unit in \
   omarchy-recover-internal-monitor.service \
   omarchy-sleep-lock.service \
   omarchy-migrate-notify.service \
+  omarchy-hibernation-resume-notify.service \
   omarchy-fcitx5.service \
   omarchy-crash-watch.service; do
   systemctl --user enable --now "$unit" || failed=1

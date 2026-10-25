@@ -15,6 +15,20 @@ if ! gum confirm "Remove hibernation setup?"; then
   exit 0
 fi
 
+# Tear down the boot-time resume-offset check symmetrically (issue #14379).
+# The verify/notify scripts stay in /usr/bin with the package; they no-op
+# without a resume_offset= boot parameter.
+systemctl disable --quiet omarchy-hibernation-verify-resume.service 2>/dev/null || true
+sudo rm -f /etc/systemd/system/omarchy-hibernation-verify-resume.service
+sudo rm -f /run/omarchy/resume-offset-stale
+if [[ -n ${SUDO_USER:-} ]]; then
+  user_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+  if [[ -n $user_home ]]; then
+    sudo -u "$SUDO_USER" rm -f \
+      "$user_home/.config/systemd/user/graphical-session.target.wants/omarchy-hibernation-resume-notify.service"
+  fi
+fi
+
 SWAP_SUBVOLUME="/swap"
 SWAP_FILE="$SWAP_SUBVOLUME/swapfile"
 
