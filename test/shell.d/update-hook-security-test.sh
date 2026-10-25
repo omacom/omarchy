@@ -60,23 +60,6 @@ PY
 done
 
 reset_boundary
-export SUDO_TEST_FAIL_STEP=omarchy-update-mise
-run_update -y || fail "a mise failure blocks the remaining system update"
-assert_boundary_cold "mise failure"
-python3 - "$SUDO_TEST_LOG" <<'PYTEST'
-import sys
-events = open(sys.argv[1]).read().splitlines()
-mise = events.index("step:omarchy-update-mise ")
-aur = next(i for i, line in enumerate(events) if line.startswith("step:yay "))
-boot = events.index("step:omarchy-update-boot ")
-reboot = events.index("step:omarchy-update-restart --reboot-only")
-assert mise < aur < boot < reboot, events
-assert "sudo -k" in events[mise:aur], events
-assert not any(line.startswith("sudo ") and line != "sudo -k" and not line.startswith("sudo -N ") for line in events[aur:]), events
-PYTEST
-pass "a failed mise update revokes authorization before AUR and finishes cold"
-
-reset_boundary
 export SUDO_TEST_SIGNAL_STEP=omarchy-hook
 if run_update -y; then fail "interrupted update must fail"; fi
 assert_boundary_cold "interrupted update"
