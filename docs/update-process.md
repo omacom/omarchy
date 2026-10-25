@@ -139,7 +139,8 @@ omarchy-update
   ├─ automatically remove orphan packages and run log analysis
   ├─ clear the shell update indicator: the update just installed what it showed
   ├─ restart marked services and the shell
-  ├─ run the post-update hook, then update mise tools
+  ├─ run the post-update hook, then update mise tools (a failed tool update
+  │  warns and the update continues)
   ├─ stop the keepalive and invalidate sudo, then update AUR packages with
   │  no-update authentication, and invalidate again
   ├─ omarchy-update-boot, with no-update authentication, and invalidate again
