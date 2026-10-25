@@ -39,6 +39,7 @@ case "$*" in
   '-e no -g ipv4.addresses connection show omarchy-hotspot') printf '%s\n' "${SHARED_ADDRESS:-10.42.0.1/24}" ;;
   '--show-secrets --escape no --get-values 802-11-wireless-security.psk connection show omarchy-hotspot') printf '%s\n' 'savedpassword' ;;
   '-e no -g connection.metered connection show omarchy-hotspot') printf '%s\n' 'yes' ;;
+  '-e no -g 802-11-wireless-security.key-mgmt connection show omarchy-hotspot') printf '%s\n' 'sae' ;;
   *) exit 1 ;;
 esac
 STUB
@@ -83,7 +84,7 @@ stderr: $(<"$TEST_TMP/status.err")"
 
 declare -A values=()
 declare -A seen=()
-expected=(ap_capable ap_bands active configured iface ssid band password freq ip client_count clients max_clients upstream save_data)
+expected=(ap_capable ap_bands active configured iface ssid band password freq ip client_count clients max_clients upstream save_data security)
 index=0
 while IFS=$'\t' read -r key value; do
   [[ -n $key ]] || continue
@@ -111,6 +112,7 @@ done <"$TEST_TMP/status.out"
 (( seen[upstream] == 1 )) || fail "no-route status reports upstream"
 [[ ${values[upstream]} == "none" ]] || fail "no-route status reports upstream none" "${values[upstream]}"
 [[ ${values[save_data]} == "always" ]] || fail "status reads the save-data choice from connection.metered" "${values[save_data]}"
+[[ ${values[security]} == "wpa3" ]] || fail "status reads WPA3 from an SAE profile" "${values[security]}"
 [[ ${values[ap_capable]} == "1" ]] || fail "no-route status remains AP-capable" "${values[ap_capable]}"
 [[ ${values[active]} == "0" ]] || fail "no-route status remains inactive" "${values[active]}"
 [[ ${values[configured]} == "1" ]] || fail "no-route status remains configured" "${values[configured]}"
@@ -706,6 +708,34 @@ fi
 grep -q "unknown save-data choice 'sometimes'" "$TEST_TMP/apply.out" || fail "apply names the bad save-data choice" "$(<"$TEST_TMP/apply.out")"
 ! grep -q "connection modify" "$TEST_TMP/nmcli.log" || fail "a bad save-data choice still modifies the profile"
 pass "apply rejects an unknown save-data choice before touching the profile"
+
+# apply writes key management, PMF and RSN/CCMP in one call. The ciphers are
+# pinned in every mode: unpinned, the AP picks a TKIP group cipher that Android's
+# upgraded WPA3 profile rejects, and an SAE-only AP does not start at all.
+pinned="wifi-sec.proto rsn wifi-sec.pairwise ccmp wifi-sec.group ccmp"
+for pair in "wpa2:wpa-psk wifi-sec.pmf disable" "mixed:wpa-psk wifi-sec.pmf optional" "wpa3:sae wifi-sec.pmf required"; do
+  hotspot_apply "--security=${pair%%:*}" || fail "apply accepts security ${pair%%:*}" "$(<"$TEST_TMP/apply.out")"
+  grep -qx "connection modify omarchy-hotspot wifi-sec.key-mgmt ${pair#*:} $pinned" "$TEST_TMP/nmcli.log" ||
+    fail "apply writes ${pair%%:*} with RSN/CCMP pinned" "$(<"$TEST_TMP/nmcli.log")"
+done
+pass "apply maps wpa2, mixed and wpa3 onto key management with RSN/CCMP pinned"
+
+hotspot_apply --security wpa3 || fail "apply accepts --security with a separate value" "$(<"$TEST_TMP/apply.out")"
+grep -qx "connection modify omarchy-hotspot wifi-sec.key-mgmt sae wifi-sec.pmf required $pinned" "$TEST_TMP/nmcli.log" ||
+  fail "apply reads a separate --security value" "$(<"$TEST_TMP/nmcli.log")"
+pass "apply takes --security after its operands"
+
+hotspot_apply || fail "apply without a security choice still succeeds" "$(<"$TEST_TMP/apply.out")"
+grep -qx "connection modify omarchy-hotspot wifi-sec.key-mgmt wpa-psk wifi-sec.pmf optional $pinned" "$TEST_TMP/nmcli.log" ||
+  fail "apply without a choice re-pins the saved mode" "$(<"$TEST_TMP/nmcli.log")"
+pass "apply without a security choice rewrites the saved mode with RSN/CCMP pinned"
+
+if hotspot_apply --security=wep; then
+  fail "apply accepts an unknown security choice"
+fi
+grep -q "unknown security 'wep'" "$TEST_TMP/apply.out" || fail "apply names the bad security choice" "$(<"$TEST_TMP/apply.out")"
+! grep -q "connection modify" "$TEST_TMP/nmcli.log" || fail "a bad security choice still modifies the profile"
+pass "apply rejects an unknown security choice before touching the profile"
 
 if hotspot_apply --bogus; then
   fail "apply accepts an unknown option"

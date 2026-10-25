@@ -189,6 +189,9 @@ Panel {
   // auto | always | never: whether joining devices are told to save data
   // (Model.hotspotSaveData). Prefilled from the profile like the band.
   property string hotspotSaveData: "auto"
+  // wpa2 | mixed | wpa3: how joining devices authenticate
+  // (Model.hotspotSecurity). Prefilled from the profile like the band.
+  property string hotspotSecurity: "mixed"
   property string hotspotError: ""
   property string hotspotStatusError: ""
   readonly property string hotspotMessage: hotspotError !== "" ? hotspotError : hotspotStatusError
@@ -1038,6 +1041,7 @@ Panel {
       if (next.password) hotspotPassword = next.password
       hotspotBand = Model.hotspotDefaultBand(next)
       hotspotSaveData = Model.hotspotSaveData(next)
+      hotspotSecurity = Model.hotspotSecurity(next)
       hotspotMaxClients = Model.hotspotMaxClients(next)
     }
     if ((next.active === "1") !== wasActive) syncWifiNetworks()
@@ -1051,7 +1055,7 @@ Panel {
     hotspotBusy = true
     hotspotError = ""
     hotspotActionProc.secret = hotspotPassword
-    hotspotActionProc.command = [hotspotCommand, "start", hotspotSsid.trim(), hotspotBand, hotspotLimitArgument, "--save-data=" + hotspotSaveData]
+    hotspotActionProc.command = [hotspotCommand, "start", hotspotSsid.trim(), hotspotBand, hotspotLimitArgument, "--save-data=" + hotspotSaveData, "--security=" + hotspotSecurity]
     hotspotActionProc.running = true
   }
 
@@ -1092,7 +1096,7 @@ Panel {
     hotspotBusy = true
     hotspotError = ""
     hotspotActionProc.secret = hotspotPassword
-    hotspotActionProc.command = [hotspotCommand, "apply", hotspotSsid.trim(), hotspotBand, hotspotLimitArgument, "--save-data=" + hotspotSaveData]
+    hotspotActionProc.command = [hotspotCommand, "apply", hotspotSsid.trim(), hotspotBand, hotspotLimitArgument, "--save-data=" + hotspotSaveData, "--security=" + hotspotSecurity]
     hotspotActionProc.running = true
   }
 
@@ -2365,6 +2369,30 @@ Panel {
               }
             }
           }
+
+          // How joining devices authenticate. Saved and applied like the
+          // save-data choice above.
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            text: "Security"
+            color: Qt.darker(root.bar.foreground, 1.35)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+
+          Row {
+            width: parent.width
+            spacing: Style.space(6)
+
+            Repeater {
+              model: Model.hotspotSecurityChoices
+              delegate: HotspotSecurityPill {
+                required property var modelData
+                choice: modelData
+              }
+            }
+          }
         }
 
         Text {
@@ -2645,6 +2673,26 @@ Panel {
     enabled: !root.hotspotBusy
 
     onClicked: root.hotspotSaveData = choice
+  }
+
+  // One security choice, with the same selected/active split as save-data.
+  component HotspotSecurityPill: Button {
+    required property string choice
+
+    text: Model.hotspotSecurityLabel(choice)
+    tooltipText: Model.hotspotSecurityTooltip(choice, root.hotspotActive, Model.hotspotSecurity(root.hotspot))
+    fontSize: Style.font.bodySmall
+    foreground: root.bar.foreground
+    fontFamily: root.bar.fontFamily
+    horizontalPadding: Style.spacing.controlPaddingX
+    verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+    bordered: true
+
+    active: root.hotspot.configured === "1" && Model.hotspotSecurity(root.hotspot) === choice
+    selected: root.hotspotSecurity === choice
+    enabled: !root.hotspotBusy
+
+    onClicked: root.hotspotSecurity = choice
   }
 
   // One DNS provider pill. The cursor + current visuals come entirely from

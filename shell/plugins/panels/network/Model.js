@@ -469,6 +469,31 @@ function hotspotSaveDataTooltip(choice, active, saved) {
   return text
 }
 
+// How joining devices authenticate (see omarchy-hotspot). Mixed serves WPA3
+// to devices that support it and WPA2 to the rest.
+var hotspotSecurityChoices = ["wpa2", "mixed", "wpa3"]
+
+function hotspotSecurity(status) {
+  var value = (status && status.security) || ""
+  return hotspotSecurityChoices.indexOf(value) !== -1 ? value : "mixed"
+}
+
+function hotspotSecurityLabel(choice) {
+  if (choice === "wpa2") return "WPA2"
+  if (choice === "wpa3") return "WPA3"
+  return "WPA2/WPA3"
+}
+
+// NetworkManager reads key management when the hotspot starts, so while it is
+// on air a different pick waits for the next start.
+function hotspotSecurityTooltip(choice, active, saved) {
+  var text = "WPA3 for devices that support it, WPA2 for the rest"
+  if (choice === "wpa2") text = "WPA2 only, for devices that struggle with WPA3"
+  else if (choice === "wpa3") text = "WPA3 only: strongest, but older devices can't join"
+  if (active && choice !== saved) text += " (from the next start)"
+  return text
+}
+
 function hotspotClients(status) {
   var value = (status && status.clients) || "[]"
   try {
@@ -575,6 +600,10 @@ if (typeof module !== "undefined") {
     hotspotSaveData: hotspotSaveData,
     hotspotSaveDataLabel: hotspotSaveDataLabel,
     hotspotSaveDataTooltip: hotspotSaveDataTooltip,
+    hotspotSecurityChoices: hotspotSecurityChoices,
+    hotspotSecurity: hotspotSecurity,
+    hotspotSecurityLabel: hotspotSecurityLabel,
+    hotspotSecurityTooltip: hotspotSecurityTooltip,
     hotspotClients: hotspotClients,
     hotspotMaxClients: hotspotMaxClients,
     hotspotLimitLabel: hotspotLimitLabel,

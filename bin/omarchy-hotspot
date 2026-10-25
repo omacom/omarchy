@@ -2,8 +2,8 @@
 
 # omarchy:summary=Share this machine's internet as a Wi-Fi access point (hotspot)
 # omarchy:group=network
-# omarchy:args=<status|start|stop|toggle|qr|apply|setup|teardown|alias-set|alias-remove|diagnose|generate-password> [ssid] [band] [--save-data=auto|always|never]
-# omarchy:examples=omarchy hotspot status | omarchy hotspot toggle | omarchy hotspot apply MyWifi 2.4 | omarchy hotspot apply MyWifi 2.4 --save-data=always | omarchy hotspot diagnose
+# omarchy:args=<status|start|stop|toggle|qr|apply|setup|teardown|alias-set|alias-remove|diagnose|generate-password> [ssid] [band] [--save-data=auto|always|never] [--security=wpa2|mixed|wpa3]
+# omarchy:examples=omarchy hotspot status | omarchy hotspot toggle | omarchy hotspot apply MyWifi 2.4 | omarchy hotspot apply MyWifi 2.4 --save-data=always | omarchy hotspot apply MyWifi 2.4 --security=wpa3 | omarchy hotspot diagnose
 
 # Drives NetworkManager's shared-mode AP profile so other devices can join
 # this machine and route through its upstream connection. The NM profile is
@@ -238,6 +238,39 @@ profile_save_data() {
   esac
 }
 
+# How joining devices authenticate. "mixed" is a wpa-psk profile with optional
+# PMF, which NetworkManager turns into WPA2/WPA3 transition mode (it adds SAE)
+# when the card supports it: WPA3 clients use SAE, older ones fall back to PSK.
+# "wpa2" pins PSK by disabling PMF, which SAE cannot run without; "wpa3" is SAE
+# only. Every mode pins RSN with CCMP. Left unpinned, wpa_supplicant's AP mode
+# also offers TKIP and then uses TKIP as the group cipher, which the WPA3
+# profile Android builds when it upgrades a saved network rejects, so those
+# devices never even try to associate. An SAE-only AP does not start at all
+# without the pin ("Could not generate WPA IE").
+security_args_for() {
+  local -a ciphers=(wifi-sec.proto rsn wifi-sec.pairwise ccmp wifi-sec.group ccmp)
+  case $1 in
+    wpa2) printf '%s\n' wifi-sec.key-mgmt wpa-psk wifi-sec.pmf disable "${ciphers[@]}" ;;
+    mixed) printf '%s\n' wifi-sec.key-mgmt wpa-psk wifi-sec.pmf optional "${ciphers[@]}" ;;
+    wpa3) printf '%s\n' wifi-sec.key-mgmt sae wifi-sec.pmf required "${ciphers[@]}" ;;
+    *) return 1 ;;
+  esac
+}
+
+# A missing profile reads as mixed, the default for a new hotspot.
+profile_security() {
+  case $(nm_get 802-11-wireless-security.key-mgmt connection show "$PROFILE") in
+    sae) echo "wpa3" ;;
+    wpa-psk)
+      case $(nm_get 802-11-wireless-security.pmf connection show "$PROFILE") in
+        1 | disable) echo "wpa2" ;;
+        *) echo "mixed" ;;
+      esac
+      ;;
+    *) echo "mixed" ;;
+  esac
+}
+
 profile_secret() {
   nmcli --show-secrets --escape no --get-values 802-11-wireless-security.psk \
     connection show "$PROFILE" 2>/dev/null | head -n 1 || true
@@ -401,7 +434,7 @@ station_list() {
 
 status() {
   local capable=0 active=0 configured=0 iface ssid band password freq ip clients upstream
-  local client_list client_count bands save_data="auto" aliases max_clients
+  local client_list client_count bands save_data="auto" security="mixed" aliases max_clients
 
   iface=$(ap_iface)
   if [[ -n $iface ]] && ap_capable "$iface"; then capable=1; fi
@@ -428,7 +461,10 @@ status() {
     ssid=$(profile_ssid)
     band=$(profile_band)
     password=$(profile_secret)
-    if ((configured)); then save_data=$(profile_save_data); fi
+    if ((configured)); then
+      save_data=$(profile_save_data)
+      security=$(profile_security)
+    fi
     max_clients=$(profile_max_clients)
 
     if ((active)); then
@@ -467,6 +503,7 @@ status() {
   printf 'max_clients\t%s\n' "$max_clients"
   printf 'upstream\t%s\n' "$upstream"
   printf 'save_data\t%s\n' "$save_data"
+  printf 'security\t%s\n' "$security"
 }
 
 nft_firewall_active() {
@@ -1160,14 +1197,25 @@ generate_password() {
 }
 
 # Splits start/apply arguments into positional operands (SSID, band, and any
-# later operands) and the --save-data option (auto|always|never), so an option
-# can never be read as an operand and later operands keep their slots. Sets
-# HOTSPOT_OPERANDS (array) and HOTSPOT_SAVE_DATA.
+# later operands) and the --save-data (auto|always|never) and --security
+# (wpa2|mixed|wpa3) options, so an option can never be read as an operand and
+# later operands keep their slots. Sets HOTSPOT_OPERANDS (array),
+# HOTSPOT_SAVE_DATA and HOTSPOT_SECURITY.
 parse_hotspot_args() {
   HOTSPOT_OPERANDS=()
   HOTSPOT_SAVE_DATA=""
+  HOTSPOT_SECURITY=""
   while (($#)); do
     case $1 in
+      --security=*)
+        HOTSPOT_SECURITY=${1#--security=}
+        shift
+        ;;
+      --security)
+        (($# >= 2)) || fail "--security needs a value (wpa2, mixed or wpa3)"
+        HOTSPOT_SECURITY=$2
+        shift 2
+        ;;
       --save-data=*)
         HOTSPOT_SAVE_DATA=${1#--save-data=}
         shift
@@ -1194,15 +1242,17 @@ parse_hotspot_args() {
 }
 
 # Password arrives on stdin (never argv). band is optional, default 2.4;
-# --save-data (auto|always|never) is optional and keeps the saved choice.
+# --save-data (auto|always|never) and --security (wpa2|mixed|wpa3) are optional
+# and keep the saved choice.
 # apply() writes the profile; start() writes it the same way, then brings the AP up.
 start() {
-  local ssid band save_data nm_up_error=""
+  local ssid band save_data security nm_up_error=""
   local -a apply_args
   parse_hotspot_args "$@"
   ssid=${HOTSPOT_OPERANDS[0]:-}
   band=${HOTSPOT_OPERANDS[1]:-2.4}
   save_data=$HOTSPOT_SAVE_DATA
+  security=$HOTSPOT_SECURITY
   hotspot_lock
 
   if omarchy-cmd-missing dnsmasq; then
@@ -1212,6 +1262,9 @@ start() {
   apply_args=("${HOTSPOT_OPERANDS[@]}")
   if [[ -n $save_data ]]; then
     apply_args+=("--save-data=$save_data")
+  fi
+  if [[ -n $security ]]; then
+    apply_args+=("--security=$security")
   fi
   apply "${apply_args[@]}"
   firewall_ensure
@@ -1354,12 +1407,14 @@ qr() {
 # when the user never turns the hotspot on. `apply` is idempotent: it creates
 # the profile on first use, then updates it. start() reuses this path.
 apply() {
-  local ssid band save_data password device nm_band nm_channel metered=""
+  local ssid band save_data security password device nm_band nm_channel metered=""
   local limit_given=0 limit=""
+  local -a security_args
   parse_hotspot_args "$@"
   ssid=${HOTSPOT_OPERANDS[0]:-}
   band=${HOTSPOT_OPERANDS[1]:-2.4}
   save_data=$HOTSPOT_SAVE_DATA
+  security=$HOTSPOT_SECURITY
 
   # The participant limit rides the third operand slot: "<ssid> <band> <limit>".
   # parse_hotspot_args keeps options (--save-data=…) out of the operand array,
@@ -1384,6 +1439,11 @@ apply() {
   if [[ -n $save_data ]]; then
     metered=$(save_data_for "$save_data") || fail "unknown save-data choice '$save_data' (use auto, always or never)"
   fi
+  # Unlike save-data, a missing choice still rewrites the saved mode, so every
+  # start re-pins the ciphers on a profile an older version left unpinned.
+  [[ -n $security ]] || security=$(profile_security)
+  mapfile -t security_args < <(security_args_for "$security")
+  ((${#security_args[@]})) || fail "unknown security '$security' (use wpa2, mixed or wpa3)"
   nm_channel=$(nm_channel_for "$band")
 
   if profile_configured; then
@@ -1412,6 +1472,11 @@ apply() {
       nmcli connection edit "$PROFILE" >/dev/null 2>&1 ||
       fail "could not set hotspot password"
   fi
+
+  # Like save-data, NetworkManager reads key management when the AP comes up,
+  # so a change reaches a running hotspot on its next start.
+  nmcli connection modify "$PROFILE" "${security_args[@]}" >/dev/null 2>&1 ||
+    fail "could not apply the hotspot's security"
 
   if [[ -n $metered ]]; then
     nmcli connection modify "$PROFILE" connection.metered "$metered" >/dev/null 2>&1 ||
