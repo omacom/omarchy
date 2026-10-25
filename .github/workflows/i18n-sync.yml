@@ -251,7 +251,10 @@ jobs:
 
   translate:
     needs: [prepare, publish-extract]
-    if: needs.prepare.outputs.locales != '[]'
+    # Without a status function the implicit success() also fails when an
+    # upstream job was skipped, and extract is skipped whenever there is
+    # nothing to extract, which kept every translation pending.
+    if: ${{ always() && !cancelled() && needs.prepare.result == 'success' && needs.publish-extract.result == 'success' && needs.prepare.outputs.locales != '[]' }}
     strategy:
       fail-fast: false
       matrix:
