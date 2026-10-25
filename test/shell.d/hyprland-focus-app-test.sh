@@ -15,7 +15,7 @@ cat >"$mock_bin/hyprctl" <<'SH'
 if [[ $1 == "clients" ]]; then
   printf '%s\n' "$OMARCHY_TEST_CLIENTS_JSON"
 elif [[ $1 == "dispatch" ]]; then
-  printf '%s\n' "$2" >"$OMARCHY_TEST_FOCUS_DISPATCH"
+  printf '%s\n' "$2" >>"$OMARCHY_TEST_FOCUS_DISPATCH"
 fi
 SH
 chmod +x "$mock_bin/hyprctl"
@@ -31,6 +31,7 @@ grep -F 'hl.dsp.focus({ window = "address:0xabc" })' "$dispatch_log" >/dev/null 
 
 pass "app focus follows windows across workspaces"
 
+rm -f "$dispatch_log"
 clients_json='[
   {"address":"0xviber","class":"com.viber.Viber","initialClass":"com.viber.Viber","initialTitle":"Viber"},
   {"address":"0xagent","class":"org.omarchy.agent","initialClass":"org.omarchy.agent","initialTitle":"kitty"}
@@ -58,6 +59,7 @@ fi
 
 pass "app focus restricts title matching to agent terminals"
 
+rm -f "$dispatch_log"
 clients_json='[
   {"address":"0xolder","class":"chromium","focusHistoryID":4},
   {"address":"0xrecent","class":"chromium","focusHistoryID":1}
@@ -70,3 +72,16 @@ grep -F 'hl.dsp.focus({ window = "address:0xrecent" })' "$dispatch_log" >/dev/nu
   fail "app focus picks the window focused last"
 
 pass "app focus picks the window focused last among several"
+
+# Focus alone leaves a floating window under the window it was behind, such as
+# the app a link was clicked in, so the browser opening the link stays hidden.
+rm -f "$dispatch_log"
+clients_json='[{"address":"0xbrowser","class":"chromium","floating":true}]'
+PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" \
+  OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" \
+  bash "$ROOT/bin/omarchy-hyprland-focus-app" '^chromium$'
+
+[[ $(tail -n 1 "$dispatch_log") == 'hl.dsp.window.alter_zorder({ mode = "top", window = "address:0xbrowser" })' ]] || \
+  fail "app focus raises a floating window above the windows over it" "$(cat "$dispatch_log")"
+
+pass "app focus brings a floating window to the front"
