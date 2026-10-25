@@ -40,7 +40,7 @@ end
 -- Korean keeps US letters, and Lao is non-Latin, so US still leads. Korean
 -- installs take kr104, which adds Right Alt and Right Ctrl as 한/영 and 한자;
 -- plain kr is what earlier installs saved.
-local desktop_overrides = { kr = true, ["kr:kr104"] = true, la = true }
+local desktop_overrides = { kr = true, ["kr:kr104"] = true, la = true, ["ru:phonetic_mac"] = true }
 
 function keyboard.installed()
   local values = keyboard.vconsole()
