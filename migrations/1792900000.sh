@@ -7,29 +7,33 @@ echo "Repair unescaped multiline secret corruption in GNOME Keyring"
 service="gnome-keyring-daemon.service"
 socket="gnome-keyring-daemon.socket"
 
-# Record active state and any existing persistent user masks
+# Record active state and existing masks before taking action
 service_was_active=0
 if systemctl --user is-active --quiet "$service" 2>/dev/null; then
   service_was_active=1
 fi
 
-service_was_masked=0
-if [[ $(systemctl --user is-enabled "$service" 2>/dev/null) == "masked" ]]; then
-  service_was_masked=1
+masked_service=0
+if [[ $(systemctl --user is-enabled "$service" 2>/dev/null) != masked* ]]; then
+  if systemctl --user mask --runtime "$service" >/dev/null 2>&1; then
+    masked_service=1
+  fi
 fi
 
-socket_was_masked=0
-if [[ $(systemctl --user is-enabled "$socket" 2>/dev/null) == "masked" ]]; then
-  socket_was_masked=1
+masked_socket=0
+if [[ $(systemctl --user is-enabled "$socket" 2>/dev/null) != masked* ]]; then
+  if systemctl --user mask --runtime "$socket" >/dev/null 2>&1; then
+    masked_socket=1
+  fi
 fi
 
 cleanup() {
   # Remove only temporary runtime masks created by this migration
-  if (( service_was_masked == 0 )); then
+  if (( masked_service == 1 )); then
     systemctl --user unmask --runtime "$service" >/dev/null 2>&1 || true
     rm -f "${XDG_RUNTIME_DIR:-/run/user/$UID}/systemd/user/$service" 2>/dev/null || true
   fi
-  if (( socket_was_masked == 0 )); then
+  if (( masked_socket == 1 )); then
     systemctl --user unmask --runtime "$socket" >/dev/null 2>&1 || true
     rm -f "${XDG_RUNTIME_DIR:-/run/user/$UID}/systemd/user/$socket" 2>/dev/null || true
   fi
@@ -37,19 +41,14 @@ cleanup() {
   systemctl --user daemon-reload >/dev/null 2>&1 || true
 
   # Restore daemon if it was active and not persistently masked
-  if (( service_was_active == 1 && service_was_masked == 0 )); then
+  if (( service_was_active == 1 && masked_service == 1 )); then
     systemctl --user start "$socket" "$service" >/dev/null 2>&1 || true
   fi
 }
-trap cleanup EXIT INT TERM
 
-# Apply temporary runtime masks to prevent socket/D-Bus activation during repair
-if (( service_was_masked == 0 )); then
-  systemctl --user mask --runtime "$service" >/dev/null 2>&1 || true
-fi
-if (( socket_was_masked == 0 )); then
-  systemctl --user mask --runtime "$socket" >/dev/null 2>&1 || true
-fi
+# Signal handlers exit immediately, allowing the EXIT trap to restore units once
+trap 'exit 1' INT TERM
+trap cleanup EXIT
 
 if systemctl --user is-active --quiet "$service" 2>/dev/null; then
   systemctl --user stop "$service" "$socket" >/dev/null 2>&1 || true
