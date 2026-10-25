@@ -13,7 +13,7 @@ gnome-keyring-daemon drops the file as invalid/unrecognized format.
 This utility parses the cleartext keyfile, folds unescaped continuation lines
 under 'secret=' into standard GLib-escaped sequences (\\n, \\\\), ensures the
 [keyring] header is the first group, and commits changes atomically with mode 0600.
-Encrypted binary keyrings (GnomeKeyring\n\r\0) are strictly untouched.
+Valid keyrings and encrypted binary keyrings (GnomeKeyring\n\r\0) are strictly untouched.
 """
 
 from __future__ import annotations
@@ -31,13 +31,24 @@ KNOWN_ITEM_KEY_RE = re.compile(
 
 def escape_keyfile_string(value: str) -> str:
     """Escape backslashes and control characters per GLib GKeyFile specification."""
-    # Order matters: escape backslashes first, then control characters
     return (
         value.replace("\\", "\\\\")
         .replace("\n", "\\n")
         .replace("\r", "\\r")
         .replace("\t", "\\t")
     )
+
+
+def is_bare_continuation(line: str) -> bool:
+    """Return True if a line inside an item is an invalid bare continuation line."""
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return False
+    if stripped.startswith("[") and stripped.endswith("]"):
+        return False
+    if KNOWN_ITEM_KEY_RE.match(stripped):
+        return False
+    return True
 
 
 def repair_keyring_content(content: str) -> tuple[str, bool]:
@@ -63,23 +74,58 @@ def repair_keyring_content(content: str) -> tuple[str, bool]:
         # Do not modify encrypted binary keyrings or foreign formats
         return content, False
 
+    # Pre-flight validation gate:
+    # Check if any bare continuation lines exist in the file.
+    # If the file contains no bare continuation lines, it is fully valid and
+    # must not be touched under any circumstances.
+    has_corruption = False
+    in_item = False
+    saw_secret = False
+    for raw_line in lines:
+        stripped = raw_line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            in_item = not (stripped == "[keyring]" or ":attribute" in stripped)
+            saw_secret = False
+            continue
+        if in_item:
+            if stripped.startswith("secret="):
+                saw_secret = True
+                continue
+            if saw_secret and is_bare_continuation(raw_line):
+                has_corruption = True
+                break
+
+    if not has_corruption:
+        return content, False
+
     output_lines: list[str] = []
-    modified = False
     in_secret = False
     secret_acc: list[str] = []
 
     def flush_secret() -> None:
-        nonlocal in_secret, secret_acc, modified
+        nonlocal in_secret, secret_acc
         if not in_secret:
             return
+
+        # Separate trailing blank lines and comments that belong to section formatting
+        trailing_fmt: list[str] = []
+        while len(secret_acc) > 1:
+            last_stripped = secret_acc[-1].strip()
+            if not last_stripped or last_stripped.startswith("#"):
+                trailing_fmt.insert(0, secret_acc.pop())
+            else:
+                break
+
         if len(secret_acc) > 1:
-            # Multiline secret detected: fold into single escaped line
             combined = "\n".join(secret_acc)
             escaped = escape_keyfile_string(combined)
             output_lines.append(f"secret={escaped}\n")
-            modified = True
         elif len(secret_acc) == 1:
             output_lines.append(f"secret={secret_acc[0]}\n")
+
+        for fmt_line in trailing_fmt:
+            output_lines.append(fmt_line if fmt_line.endswith("\n") else f"{fmt_line}\n")
+
         in_secret = False
         secret_acc = []
 
@@ -97,7 +143,7 @@ def repair_keyring_content(content: str) -> tuple[str, bool]:
             # Check if this line is another known item key (e.g. ctime=, mtime=)
             if KNOWN_ITEM_KEY_RE.match(stripped):
                 flush_secret()
-                # Fall through to process this known key line below
+                # Process the known key line below
             else:
                 # Continuation of multiline secret: preserves interior blank lines,
                 # lines containing '=' (e.g. base64 padding '=='), and comments '#'
@@ -115,7 +161,7 @@ def repair_keyring_content(content: str) -> tuple[str, bool]:
 
     flush_secret()
 
-    return "".join(output_lines), modified
+    return "".join(output_lines), True
 
 
 def repair_keyring_file(path: Path) -> bool:
