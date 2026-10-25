@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Socraigh do agent réamhshocraithe",
   "firstRun.fingerprintBody": "Cumasaigh sudo agus díghlasáil le do mhéarlorg.",
   "firstRun.fingerprintTitle": "Socraigh Léitheoir Méarloirg",
-  "firstRun.gitBody": "Aitheantas le haghaidh tiomantais chóid",
+  "firstRun.gitBody": "Aitheantas le haghaidh commitanna cóid.",
   "firstRun.gitTitle": "Socraigh Git",
   "firstRun.keybindingsBody": "Super + K don bhileog aicearraí.\nSuper + Space do Roghchlár Omarchy.",
   "firstRun.keybindingsTitle": "Foghlaim Aicearraí",

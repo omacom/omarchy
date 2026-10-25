@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Задайте агент по подразбиране",
   "firstRun.fingerprintBody": "Включете sudo и отключване с пръстов отпечатък.",
   "firstRun.fingerprintTitle": "Настройте четеца за пръстови отпечатъци",
-  "firstRun.gitBody": "Идентификация за комити в кода",
+  "firstRun.gitBody": "Идентификация за комити на код.",
   "firstRun.gitTitle": "Настрой Git",
   "firstRun.keybindingsBody": "Super + K за бърз справочник.\nSuper + Space за менюто на Omarchy.",
   "firstRun.keybindingsTitle": "Научи клавишните комбинации",

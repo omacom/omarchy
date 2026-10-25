@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Stel je standaardagent in",
   "firstRun.fingerprintBody": "Schakel sudo en ontgrendeling met je vingerafdruk in.",
   "firstRun.fingerprintTitle": "Vingerafdruklezer instellen",
-  "firstRun.gitBody": "Identificatie voor codecommits",
+  "firstRun.gitBody": "Identificatie voor codecommits.",
   "firstRun.gitTitle": "Git instellen",
   "firstRun.keybindingsBody": "Super + K voor spiekbriefje.\nSuper + Space voor Omarchy-menu.",
   "firstRun.keybindingsTitle": "Sneltoetsen leren",

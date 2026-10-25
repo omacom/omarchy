@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Veldu sjálfgefinn agent",
   "firstRun.fingerprintBody": "Virkjaðu sudo og aflæsingu með fingrafarinu þínu.",
   "firstRun.fingerprintTitle": "Setja upp fingrafaralesara",
-  "firstRun.gitBody": "Auðkenni fyrir kóðafærslur",
+  "firstRun.gitBody": "Auðkenni fyrir kóðaframlög.",
   "firstRun.gitTitle": "Setja upp Git",
   "firstRun.keybindingsBody": "Super + K fyrir svindlblað.\nSuper + Space fyrir Omarchy-valmynd.",
   "firstRun.keybindingsTitle": "Læra flýtilykla",

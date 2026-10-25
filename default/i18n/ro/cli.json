@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Setează agentul implicit",
   "firstRun.fingerprintBody": "Activează sudo și deblocarea cu amprenta.",
   "firstRun.fingerprintTitle": "Configurează cititorul de amprente",
-  "firstRun.gitBody": "Identificare pentru commituri de cod",
+  "firstRun.gitBody": "Identificare pentru commituri de cod.",
   "firstRun.gitTitle": "Configurare Git",
   "firstRun.keybindingsBody": "Super + K pentru ghidul rapid.\nSuper + Space pentru meniul Omarchy.",
   "firstRun.keybindingsTitle": "Învață scurtăturile",

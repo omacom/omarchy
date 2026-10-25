@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Définissez l'agent par défaut",
   "firstRun.fingerprintBody": "Activez sudo et le déverrouillage par empreinte.",
   "firstRun.fingerprintTitle": "Configurer le lecteur d'empreintes",
-  "firstRun.gitBody": "Identification pour les commits de code",
+  "firstRun.gitBody": "Identité pour vos commits.",
   "firstRun.gitTitle": "Configurer Git",
   "firstRun.keybindingsBody": "Super + K pour l’aide-mémoire.\nSuper + Space pour le menu Omarchy.",
   "firstRun.keybindingsTitle": "Apprendre les raccourcis",

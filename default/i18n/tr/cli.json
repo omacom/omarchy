@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Varsayılan ajanınızı ayarlayın",
   "firstRun.fingerprintBody": "Parmak izinizle sudo ve kilit açmayı etkinleştirin.",
   "firstRun.fingerprintTitle": "Parmak İzi Okuyucuyu Ayarla",
-  "firstRun.gitBody": "Kod commit'leri için kimlik bilgileri",
+  "firstRun.gitBody": "Kod commit'leri için kimlik bilgileri.",
   "firstRun.gitTitle": "Git'i Ayarla",
   "firstRun.keybindingsBody": "Kısayol listesi için Super + K.\nOmarchy Menüsü için Super + Space.",
   "firstRun.keybindingsTitle": "Klavye Kısayollarını Öğren",

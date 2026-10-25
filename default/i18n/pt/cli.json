@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Definir o agente predefinido",
   "firstRun.fingerprintBody": "Ative o sudo e o desbloqueio com a sua impressão digital.",
   "firstRun.fingerprintTitle": "Configurar o leitor de impressões digitais",
-  "firstRun.gitBody": "Identificação para commits de código",
+  "firstRun.gitBody": "Identificação para os seus commits de código.",
   "firstRun.gitTitle": "Configurar o Git",
   "firstRun.keybindingsBody": "Super + K para ver os atalhos.\nSuper + Space para o Menu Omarchy.",
   "firstRun.keybindingsTitle": "Aprender os atalhos de teclado",

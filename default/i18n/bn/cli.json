@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "ডিফল্ট এজেন্ট সেট করুন",
   "firstRun.fingerprintBody": "আঙুলের ছাপ দিয়ে sudo ও আনলক চালু করুন।",
   "firstRun.fingerprintTitle": "ফিঙ্গারপ্রিন্ট রিডার সেটআপ করুন",
-  "firstRun.gitBody": "কোড কমিটের জন্য পরিচয়",
+  "firstRun.gitBody": "কোড কমিটের জন্য পরিচয়।",
   "firstRun.gitTitle": "Git সেটআপ",
   "firstRun.keybindingsBody": "চিটশিটের জন্য Super + K।\nOmarchy Menu-এর জন্য Super + Space।",
   "firstRun.keybindingsTitle": "কীবাইন্ডিং শিখুন",

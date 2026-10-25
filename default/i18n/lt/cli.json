@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Nustatyti numatytąjį agentą",
   "firstRun.fingerprintBody": "Įjunkite sudo ir atrakinimą piršto atspaudu.",
   "firstRun.fingerprintTitle": "Nustatyti pirštų atspaudų skaitytuvą",
-  "firstRun.gitBody": "Tapatybės duomenys kodo pakeitimams įrašyti",
+  "firstRun.gitBody": "Tapatybė kodo įrašams.",
   "firstRun.gitTitle": "Git sąranka",
   "firstRun.keybindingsBody": "Super + K – klavišų derinių suvestinė.\nSuper + Space – Omarchy meniu.",
   "firstRun.keybindingsTitle": "Susipažinkite su deriniais",

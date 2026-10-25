@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "अपना डिफ़ॉल्ट एजेंट सेट करें",
   "firstRun.fingerprintBody": "अपने फ़िंगरप्रिंट से sudo और अनलॉक सक्षम करें।",
   "firstRun.fingerprintTitle": "फ़िंगरप्रिंट रीडर सेटअप करें",
-  "firstRun.gitBody": "कोड कमिट के लिए पहचान",
+  "firstRun.gitBody": "कोड कमिट के लिए पहचान।",
   "firstRun.gitTitle": "Git सेटअप",
   "firstRun.keybindingsBody": "चीटशीट के लिए Super + K.\nOmarchy Menu के लिए Super + Space.",
   "firstRun.keybindingsTitle": "कीबाइंडिंग सीखें",

@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Standart agentni belgilang",
   "firstRun.fingerprintBody": "Barmoq izi bilan sudo va qulfni ochishni yoqing.",
   "firstRun.fingerprintTitle": "Barmoq izi skanerini sozlash",
-  "firstRun.gitBody": "Kod commitlari uchun shaxs maʼlumotlari",
+  "firstRun.gitBody": "Kod commitlari uchun identifikatsiya.",
   "firstRun.gitTitle": "Gitni sozlash",
   "firstRun.keybindingsBody": "Super + K — tugmalar yorligʻi.\nSuper + Space — Omarchy menyusi.",
   "firstRun.keybindingsTitle": "Tugmalarni oʻrganing",

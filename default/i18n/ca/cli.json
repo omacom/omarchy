@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Defineix l'agent per defecte",
   "firstRun.fingerprintBody": "Activa sudo i el desbloqueig amb l'empremta digital.",
   "firstRun.fingerprintTitle": "Configura el lector d'empremtes digitals",
-  "firstRun.gitBody": "Identificació per als commits de codi",
+  "firstRun.gitBody": "Identitat per als commits de codi.",
   "firstRun.gitTitle": "Configura Git",
   "firstRun.keybindingsBody": "Super + K per a la guia ràpida.\nSuper + Space per al menú d'Omarchy.",
   "firstRun.keybindingsTitle": "Aprèn les dreceres",

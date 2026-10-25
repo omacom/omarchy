@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Nastavte si predvoleného agenta",
   "firstRun.fingerprintBody": "Povoľte sudo a odomykanie odtlačkom prsta.",
   "firstRun.fingerprintTitle": "Nastavenie čítačky odtlačkov prstov",
-  "firstRun.gitBody": "Identifikácia pre commity kódu",
+  "firstRun.gitBody": "Identifikácia pre commity kódu.",
   "firstRun.gitTitle": "Nastavenie Gitu",
   "firstRun.keybindingsBody": "Super + K pre prehľad skratiek.\nSuper + Space pre ponuku Omarchy.",
   "firstRun.keybindingsTitle": "Naučte sa klávesové skratky",

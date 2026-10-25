@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "පෙරනිමි agent එක සකසන්න",
   "firstRun.fingerprintBody": "ඔබේ ඇඟිලි සලකුණින් sudo සහ අගුළු ඇරීම සක්‍රීය කරන්න.",
   "firstRun.fingerprintTitle": "ඇඟිලි සලකුණු කියවනය සකසන්න",
-  "firstRun.gitBody": "කේත commit සඳහා අනන්‍යතාව",
+  "firstRun.gitBody": "කේත commits සඳහා අනන්‍යතාව.",
   "firstRun.gitTitle": "Git සකසන්න",
   "firstRun.keybindingsBody": "cheatsheet සඳහා Super + K.\nOmarchy Menu සඳහා Super + Space.",
   "firstRun.keybindingsTitle": "Keybindings ඉගෙන ගන්න",

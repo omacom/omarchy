@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "기본 에이전트 설정",
   "firstRun.fingerprintBody": "지문으로 sudo와 잠금 해제를 사용하세요.",
   "firstRun.fingerprintTitle": "지문 인식 설정",
-  "firstRun.gitBody": "코드 커밋용 신원 정보",
+  "firstRun.gitBody": "코드 커밋용 식별 정보.",
   "firstRun.gitTitle": "Git 설정",
   "firstRun.keybindingsBody": "Super + K: 치트 시트.\nSuper + Space: Omarchy 메뉴.",
   "firstRun.keybindingsTitle": "단축키 익히기",

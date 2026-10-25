@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Configura tu agente predeterminado",
   "firstRun.fingerprintBody": "Activa sudo y el desbloqueo con tu huella digital.",
   "firstRun.fingerprintTitle": "Configura el lector de huellas",
-  "firstRun.gitBody": "Identificación para commits de código",
+  "firstRun.gitBody": "Identificación para los commits de código.",
   "firstRun.gitTitle": "Configura Git",
   "firstRun.keybindingsBody": "Super + K para la guía rápida.\nSuper + Space para el menú de Omarchy.",
   "firstRun.keybindingsTitle": "Aprende los atajos de teclado",

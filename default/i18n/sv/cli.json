@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Ange standardagent",
   "firstRun.fingerprintBody": "Aktivera sudo och upplåsning med fingeravtryck.",
   "firstRun.fingerprintTitle": "Konfigurera fingeravtrycksläsare",
-  "firstRun.gitBody": "Identitet för kodcommits",
+  "firstRun.gitBody": "Identitet för kodcommits.",
   "firstRun.gitTitle": "Konfigurera Git",
   "firstRun.keybindingsBody": "Super + K för fusklapp.\nSuper + Space för Omarchy-menyn.",
   "firstRun.keybindingsTitle": "Lär dig kortkommandon",

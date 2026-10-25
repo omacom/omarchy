@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "הגדירו סוכן ברירת מחדל",
   "firstRun.fingerprintBody": "הפעילו sudo וביטול נעילה באמצעות טביעת האצבע שלכם.",
   "firstRun.fingerprintTitle": "הגדרת קורא טביעות אצבע",
-  "firstRun.gitBody": "פרטי זיהוי עבור קומיטים בקוד",
+  "firstRun.gitBody": "פרטי זיהוי עבור קומיטים בקוד.",
   "firstRun.gitTitle": "הגדרת Git",
   "firstRun.keybindingsBody": "Super + K לדף הקיצורים.\nSuper + Space לתפריט Omarchy.",
   "firstRun.keybindingsTitle": "לימוד קיצורי מקלדת",

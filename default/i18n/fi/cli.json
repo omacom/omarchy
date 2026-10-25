@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Aseta oletusagentti",
   "firstRun.fingerprintBody": "Ota käyttöön sudo ja lukituksen avaus sormenjäljellä.",
   "firstRun.fingerprintTitle": "Määritä sormenjälkilukija",
-  "firstRun.gitBody": "Koodicommitteihin käytettävät tunnistetiedot",
+  "firstRun.gitBody": "Tunnistetiedot koodin committeja varten.",
   "firstRun.gitTitle": "Määritä Git",
   "firstRun.keybindingsBody": "Super + K avaa pikanäppäinluettelon.\nSuper + Space avaa Omarchy-valikon.",
   "firstRun.keybindingsTitle": "Opettele pikanäppäimet",

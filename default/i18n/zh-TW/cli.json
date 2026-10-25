@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "設定預設 agent",
   "firstRun.fingerprintBody": "啟用以指紋使用 sudo 與解鎖。",
   "firstRun.fingerprintTitle": "設定指紋讀取器",
-  "firstRun.gitBody": "用於程式碼提交的身分資訊",
+  "firstRun.gitBody": "程式碼提交的身分資訊。",
   "firstRun.gitTitle": "設定 Git",
   "firstRun.keybindingsBody": "Super + K 查看速查表。\nSuper + Space 開啟 Omarchy Menu。",
   "firstRun.keybindingsTitle": "學習快捷鍵",

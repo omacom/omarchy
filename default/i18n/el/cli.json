@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Ορισμός προεπιλεγμένου agent",
   "firstRun.fingerprintBody": "Ενεργοποιήστε το sudo και το ξεκλείδωμα με το δακτυλικό σας αποτύπωμα.",
   "firstRun.fingerprintTitle": "Ρύθμιση αναγνώστη δακτυλικών αποτυπωμάτων",
-  "firstRun.gitBody": "Στοιχεία ταυτοποίησης για commits κώδικα",
+  "firstRun.gitBody": "Στοιχεία ταυτοποίησης για commits κώδικα.",
   "firstRun.gitTitle": "Ρύθμιση Git",
   "firstRun.keybindingsBody": "Super + K για συντομεύσεις.\nSuper + Space για το Μενού Omarchy.",
   "firstRun.keybindingsTitle": "Μάθε τις συντομεύσεις",

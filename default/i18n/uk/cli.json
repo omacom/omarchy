@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Встановіть агента за замовчуванням",
   "firstRun.fingerprintBody": "Увімкніть sudo та розблокування за відбитком пальця.",
   "firstRun.fingerprintTitle": "Налаштуйте сканер відбитків пальців",
-  "firstRun.gitBody": "Ідентифікаційні дані для комітів коду",
+  "firstRun.gitBody": "Ідентифікаційні дані для комітів коду.",
   "firstRun.gitTitle": "Налаштувати Git",
   "firstRun.keybindingsBody": "Super + K — шпаргалка.\nSuper + Space — меню Omarchy.",
   "firstRun.keybindingsTitle": "Вивчити сполучення клавіш",

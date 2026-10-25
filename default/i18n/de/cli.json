@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Standardagent festlegen",
   "firstRun.fingerprintBody": "Sudo und Entsperren per Fingerabdruck aktivieren.",
   "firstRun.fingerprintTitle": "Fingerabdruckleser einrichten",
-  "firstRun.gitBody": "Identifikation für Code-Commits",
+  "firstRun.gitBody": "Identität für Code-Commits.",
   "firstRun.gitTitle": "Git einrichten",
   "firstRun.keybindingsBody": "Super + K für die Tastenkürzel-Übersicht.\nSuper + Space für das Omarchy Menu.",
   "firstRun.keybindingsTitle": "Tastenkürzel lernen",

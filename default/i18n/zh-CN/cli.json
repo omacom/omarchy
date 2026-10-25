@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "设置默认智能体",
   "firstRun.fingerprintBody": "启用指纹 sudo 和解锁。",
   "firstRun.fingerprintTitle": "设置指纹识别器",
-  "firstRun.gitBody": "代码提交的身份信息",
+  "firstRun.gitBody": "用于代码提交的身份信息。",
   "firstRun.gitTitle": "设置 Git",
   "firstRun.keybindingsBody": "Super + K 查看速查表。\nSuper + Space 打开 Omarchy 菜单。",
   "firstRun.keybindingsTitle": "学习快捷键",

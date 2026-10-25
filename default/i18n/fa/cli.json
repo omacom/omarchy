@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "تنظیم عامل پیش‌فرض",
   "firstRun.fingerprintBody": "sudo و باز کردن قفل با اثر انگشت را فعال کنید.",
   "firstRun.fingerprintTitle": "راه‌اندازی حسگر اثر انگشت",
-  "firstRun.gitBody": "هویت برای کامیت‌های کد",
+  "firstRun.gitBody": "هویت شما برای کامیت‌های کد.",
   "firstRun.gitTitle": "راه‌اندازی Git",
   "firstRun.keybindingsBody": "Super + K برای برگهٔ تقلب.\nSuper + Space برای منوی Omarchy.",
   "firstRun.keybindingsTitle": "یادگیری میانبرها",

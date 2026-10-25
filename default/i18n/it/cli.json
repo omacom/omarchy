@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Imposta l'agente predefinito",
   "firstRun.fingerprintBody": "Abilita sudo e lo sblocco con l'impronta digitale.",
   "firstRun.fingerprintTitle": "Configura il lettore di impronte",
-  "firstRun.gitBody": "Identificazione per i commit del codice",
+  "firstRun.gitBody": "Identificazione per i commit del codice.",
   "firstRun.gitTitle": "Configura Git",
   "firstRun.keybindingsBody": "Super + K per l'elenco delle scorciatoie.\nSuper + Space per il menu Omarchy.",
   "firstRun.keybindingsTitle": "Impara le scorciatoie",

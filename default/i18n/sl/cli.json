@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Nastavite privzetega agenta",
   "firstRun.fingerprintBody": "Omogočite sudo in odklepanje s prstnim odtisom.",
   "firstRun.fingerprintTitle": "Nastavite bralnik prstnih odtisov",
-  "firstRun.gitBody": "Identifikacija za uveljavitve kode",
+  "firstRun.gitBody": "Identiteta za potrditve kode.",
   "firstRun.gitTitle": "Nastavite Git",
   "firstRun.keybindingsBody": "Super + K za pregled bližnjic.\nSuper + Space za meni Omarchy.",
   "firstRun.keybindingsTitle": "Spoznajte bližnjice",

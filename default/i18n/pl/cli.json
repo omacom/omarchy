@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Ustaw domyślnego agenta",
   "firstRun.fingerprintBody": "Włącz sudo i odblokowywanie odciskiem palca.",
   "firstRun.fingerprintTitle": "Skonfiguruj czytnik linii papilarnych",
-  "firstRun.gitBody": "Dane identyfikacyjne do commitów",
+  "firstRun.gitBody": "Tożsamość używana w commitach.",
   "firstRun.gitTitle": "Skonfiguruj Git",
   "firstRun.keybindingsBody": "Super + K otwiera ściągawkę.\nSuper + Space otwiera menu Omarchy.",
   "firstRun.keybindingsTitle": "Poznaj skróty klawiszowe",

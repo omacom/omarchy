@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Itakda ang default mong agent",
   "firstRun.fingerprintBody": "Paganahin ang sudo at pag-unlock gamit ang fingerprint mo.",
   "firstRun.fingerprintTitle": "I-setup ang Fingerprint Reader",
-  "firstRun.gitBody": "Pagkakakilanlan para sa mga commit sa code",
+  "firstRun.gitBody": "Pagkakakilanlan para sa mga code commit.",
   "firstRun.gitTitle": "I-setup ang Git",
   "firstRun.keybindingsBody": "Super + K para sa cheatsheet.\nSuper + Space para sa Omarchy Menu.",
   "firstRun.keybindingsTitle": "Alamin ang Keybindings",

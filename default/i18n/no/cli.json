@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Angi standardagent",
   "firstRun.fingerprintBody": "Aktiver sudo og opplåsing med fingeravtrykk.",
   "firstRun.fingerprintTitle": "Sett opp fingeravtrykksleser",
-  "firstRun.gitBody": "Identifikasjon for kodecommits",
+  "firstRun.gitBody": "Identitet for kodecommits.",
   "firstRun.gitTitle": "Sett opp Git",
   "firstRun.keybindingsBody": "Super + K for jukseark.\nSuper + Space for Omarchy-menyen.",
   "firstRun.keybindingsTitle": "Lær hurtigtaster",

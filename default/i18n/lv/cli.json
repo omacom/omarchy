@@ -115,7 +115,7 @@
   "firstRun.agentTitle": "Iestatiet noklusējuma aģentu",
   "firstRun.fingerprintBody": "Iespējojiet sudo un atbloķēšanu ar pirksta nospiedumu.",
   "firstRun.fingerprintTitle": "Iestatiet pirksta nospiedumu lasītāju",
-  "firstRun.gitBody": "Identifikācija koda komitiem",
+  "firstRun.gitBody": "Identifikācija koda iesniegumiem.",
   "firstRun.gitTitle": "Git iestatīšana",
   "firstRun.keybindingsBody": "Super + K — īsceļu lapa.\nSuper + Space — Omarchy izvēlne.",
   "firstRun.keybindingsTitle": "Apgūt īsceļus",
