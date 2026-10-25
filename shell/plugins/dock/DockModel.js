@@ -30,14 +30,19 @@ function pinnedIds(dockConfig, defaultsConfig) {
   return ids
 }
 
-// Only app windows on regular workspaces belong in the dock. Helpers without a
-// visible desktop entry, such as the agent window, and anything parked on a
-// special workspace, such as the scratchpad, stay out of it. A minimized window
-// always belongs, entry or not, since the dock is the only way back to it.
+// Every app window on a regular workspace belongs in the dock, including apps
+// that ship no desktop entry, such as an AppImage or an app run from its build
+// folder. Helpers stay out: an entry that hides itself from the launcher, and
+// Omarchy's own terminal windows no entry claims, such as the agent window. So
+// does anything parked on a special workspace, such as the scratchpad. A
+// minimized window always belongs, since the dock is the only way back to it.
+// A window without an entry is keyed by its app id.
 function isDockWindow(window) {
   if (!window || !window.key) return false
   if (window.minimized === true) return true
-  return window.hasEntry === true && window.workspaceId >= 1
+  if (!(window.workspaceId >= 1)) return false
+  if (window.hasEntry === true) return window.noDisplay !== true
+  return String(window.key).indexOf("org.omarchy.") !== 0
 }
 
 // Minimizing moves a window to this special workspace, and the dock brings it

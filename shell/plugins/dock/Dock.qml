@@ -68,7 +68,8 @@ Item {
       var workspace = toplevels[i].workspace
       windows.push({
         key: entry ? entry.id : toplevel.appId,
-        hasEntry: !!entry && !entry.noDisplay,
+        hasEntry: !!entry,
+        noDisplay: !!entry && entry.noDisplay,
         workspaceId: workspace ? workspace.id : -1,
         minimized: !!workspace && DockModel.isMinimizedWorkspace(workspace.name),
         address: toplevels[i].address,
