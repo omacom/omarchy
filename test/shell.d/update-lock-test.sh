@@ -463,6 +463,48 @@ migrate_as a omarchy-update-lock run bash -c ': >"$1"; chmod 444 "$1"; exec "$2"
 [[ $(cat "$machine_dir/calls-a") == "ran" ]] || fail "that update's migration ran once"
 pass "an update that started before the machine-wide lock existed runs its migrations and keeps out its account's next run"
 
+# Its migrations carry it onto the machine-wide lock for the rest of it, so
+# another account's update waits until it ends, though it holds its own alone.
+rm -f "$machine_lock" "$machine_dir/held" "$machine_dir/release"
+as_account a env OMARCHY_PATH="$machine_dir/omarchy" OMARCHY_MIGRATION_STATE="$machine_dir/state-carry" \
+  OMARCHY_MIGRATION_RECORD="$machine_dir/no-record" TEST_CALLS="$machine_dir/calls-carry" \
+  omarchy-update-lock run bash -c ': >"$3"; chmod 444 "$3"; "$4" >/dev/null; : >"$1"; until [[ -e $2 || ! -d ${2%/*} ]]; do sleep 0.05; done' _ \
+  "$machine_dir/held" "$machine_dir/release" "$machine_lock" "$ROOT/bin/omarchy-migrate" &
+holder=$!
+for _ in {1..100}; do
+  [[ -e $machine_dir/held ]] && break
+  sleep 0.05
+done
+refused b || fail "another account's update waits for the update that installs the machine-wide lock"
+release_lock
+for _ in {1..100}; do
+  as_account b omarchy-update-lock run true 2>/dev/null && break
+  sleep 0.05
+done
+as_account b omarchy-update-lock run true || fail "the machine-wide lock is free once that update ends"
+pass "the update that installs the machine-wide lock holds it until it ends"
+
+# If another account's update holds the machine-wide lock by then, that
+# update's migrations stop rather than run alongside it.
+rm -f "$machine_lock" "$machine_dir/go" "$machine_dir/a-started" "$machine_dir/a-result"
+as_account a env OMARCHY_PATH="$machine_dir/omarchy" OMARCHY_MIGRATION_STATE="$machine_dir/state-contended" \
+  OMARCHY_MIGRATION_RECORD="$machine_dir/no-record" TEST_CALLS="$machine_dir/calls-contended" \
+  omarchy-update-lock run bash -c ': >"$1"; until [[ -e $2 || ! -d ${2%/*} ]]; do sleep 0.05; done; "$4" >"$3" 2>&1; echo "rc=$?" >>"$3"' _ \
+  "$machine_dir/a-started" "$machine_dir/go" "$machine_dir/a-result" "$ROOT/bin/omarchy-migrate" &
+installing=$!
+for _ in {1..100}; do
+  [[ -e $machine_dir/a-started ]] && break
+  sleep 0.05
+done
+make_machine_lock
+hold_lock b
+touch "$machine_dir/go"
+wait "$installing" || true
+grep -q "already running" "$machine_dir/a-result" && grep -qx "rc=1" "$machine_dir/a-result" ||
+  fail "the installing update's migrations stop while another account's update holds the machine-wide lock" "$(cat "$machine_dir/a-result")"
+release_lock
+pass "the installing update's migrations stop while another account's update holds the machine-wide lock"
+
 # omarchy-migrate takes the same lock for an administrator: not while another
 # account's update or migration holds it, and as usual inside an update, which
 # already holds it. Other accounts' migrations lock nothing.

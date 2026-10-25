@@ -130,6 +130,22 @@ if omarchy-update-lock shared && ! omarchy-update-lock held; then
   exec omarchy-update-lock run "$0"
 fi
 
+# The update that installs the machine-wide lock holds only this account's
+# own, and the lock can appear before this run or during it, from a migration.
+# Carry that update onto the machine's lock for the rest of it, as soon as the
+# lock exists; another account's run holding it already stops this one.
+carried=false
+carry_update() {
+  local status=0
+  omarchy-update-lock carry || status=$?
+  case $status in
+    0) ;;
+    3) carried=true ;;
+    *) exit 1 ;;
+  esac
+}
+carry_update
+
 wait_for_pacman_transaction
 
 # An account that isn't an administrator applies only its own part of each
@@ -158,6 +174,10 @@ while IFS=$'\t' read -r name file marker <&3; do
     touch "$marker"
   fi
 done 3< <(migration_entries)
+
+if [[ $carried == false ]]; then
+  carry_update
+fi
 
 # Clear a login-time notification the user left sitting there and then resolved
 # by running migrations some other way. The substring matches both the current

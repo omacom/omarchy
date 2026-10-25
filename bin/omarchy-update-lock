@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Run a command while holding the Omarchy update lock
-# omarchy:args=<held|run|shared|busy|wait> [command] [args...]
+# omarchy:args=<held|run|shared|busy|wait|carry> [command] [args...]
 # omarchy:hidden=true
 
 set -e
@@ -113,8 +113,33 @@ case "${1:-}" in
       exec {fd}<&-
     done < <(account_locks)
     ;;
+  carry)
+    # The update that installs the machine-wide lock started without it, so it
+    # holds only this account's own. Take the machine's for it now, and leave
+    # it with a background process that lets go once the update lets go of its
+    # own, so another administrator's update can't start alongside it. Exits 3
+    # once carried, 0 when there is nothing to carry (an update that holds the
+    # machine's already), and 1 when another account's run holds it.
+    if shared && lock_is_held; then
+      held_path=$(readlink -f "/proc/$$/fd/$OMARCHY_UPDATE_LOCK_FD" 2>/dev/null || true)
+      if [[ $held_path == "$(readlink -m "$own_lock_path")" ]]; then
+        exec {machine_fd}<"$machine_lock_path"
+        if ! flock -n "$machine_fd"; then
+          echo "An Omarchy update or migration is already running."
+          exit 1
+        fi
+        (
+          exec {OMARCHY_UPDATE_LOCK_FD}<&-
+          exec {own_fd}<"$own_lock_path"
+          flock -s "$own_fd"
+        ) </dev/null >/dev/null 2>&1 &
+        exit 3
+      fi
+    fi
+    exit 0
+    ;;
   *)
-    echo "Usage: omarchy-update-lock <held|run|shared|busy|wait> [command] [args...]" >&2
+    echo "Usage: omarchy-update-lock <held|run|shared|busy|wait|carry> [command] [args...]" >&2
     exit 2
     ;;
 esac
