@@ -158,6 +158,19 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
 
+[[ $(omarchy_dock launcher) == "grid" ]] || fail "the apps button opens the grid by default"
+omarchy_dock launcher acme.start-menu >/dev/null
+jq -e '.dock.launcher == "acme.start-menu" and .dock.autohide == false' "$home/.config/omarchy/shell.json" >/dev/null ||
+  fail "dock launcher is saved" "$(cat "$home/.config/omarchy/shell.json")"
+[[ $(omarchy_dock launcher) == "acme.start-menu" ]] || fail "dock launcher reads back"
+if omarchy_dock launcher '../start menu' 2>/dev/null; then
+  fail "dock launcher takes only a plugin id"
+fi
+omarchy_dock launcher grid >/dev/null
+jq -e '.dock | has("launcher") | not' "$home/.config/omarchy/shell.json" >/dev/null ||
+  fail "dock launcher grid puts the grid back" "$(cat "$home/.config/omarchy/shell.json")"
+pass "dock launcher is set through omarchy-dock launcher"
+
 # The dock only shows on floating workspaces, and gets out of the way of a
 # fullscreen window; a maximized one only tucks it away.
 grep -qF 'dock.isFloating(workspaceId) && fullscreenMode < 2' "$ROOT/shell/plugins/dock/DockWindow.qml" ||
