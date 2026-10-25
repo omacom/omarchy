@@ -109,6 +109,55 @@ def find_command(name: str) -> str | None:
   return shutil.which(name, path=runtime_env().get("PATH"))
 
 
+def mise_shims_dir() -> str:
+  data_home = os.environ.get("MISE_DATA_DIR") or os.path.join(
+    os.environ.get("XDG_DATA_HOME") or os.path.join(str(Path.home()), ".local", "share"), "mise")
+  return os.path.join(data_home, "shims")
+
+
+def is_lazy_launcher(path: str) -> bool:
+  # omarchy-mise-install writes a regular file whose first step is `mise use
+  # -g`, and mise's shims exec `mise x`; running either installs the tool it
+  # wraps. A shim is a symlink to the mise binary itself, as is each account
+  # wrapper in mise's command-wrappers/bin, so the symlink check comes after
+  # the shim checks: a symlink elsewhere is the user's own binary.
+  if os.path.dirname(os.path.abspath(path)) == mise_shims_dir():
+    return True
+  if os.path.islink(path):
+    mise = find_command("mise")
+    return bool(mise) and os.path.realpath(path) == os.path.realpath(mise)
+  try:
+    with open(path, "rb") as handle:
+      head = handle.read(4096)
+    return b"mise use" in head or b"mise x " in head
+  except OSError:
+    return False
+
+
+def find_installed_command(name: str) -> str | None:
+  """An agent CLI already installed, never a launcher that would install or
+  update it first: the first on PATH that isn't one, else what mise names."""
+  env = runtime_env()
+  for directory in env.get("PATH", "").split(os.pathsep):
+    candidate = os.path.join(directory, name)
+    if os.path.isfile(candidate) and os.access(candidate, os.X_OK) and not is_lazy_launcher(candidate):
+      return candidate
+  # `mise which` only prints a binary that is already installed, so it is the
+  # safe way to resolve a tool managed by mise without running the launcher.
+  # `mise which` can resolve a configured `latest` over the network; a usage
+  # probe stays offline.
+  mise = find_command("mise")
+  if mise:
+    try:
+      out = subprocess.run([mise, "which", name], capture_output=True, text=True, env=dict(env, MISE_OFFLINE="1"), timeout=10)
+      resolved = out.stdout.strip()
+      if out.returncode == 0 and os.path.isfile(resolved) and not is_lazy_launcher(resolved):
+        return resolved
+    except Exception:
+      pass
+  return None
+
+
 # --------------------------------------------------------- untrusted values
 
 
