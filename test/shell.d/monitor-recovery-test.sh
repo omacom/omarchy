@@ -67,9 +67,9 @@ pass "clamshell helper detects closed-lid external monitor state"
 # A mirrored external is absent from plain `monitors`, so asking without `all`
 # reads as a disconnect and hands the mirror toggle straight to recovery.
 grep -F 'hyprctl monitors all -j' "$monitor_external_active" >/dev/null
-grep -F 'select(.name | test("^(eDP|LVDS|DSI)-") | not)' "$monitor_external_active" >/dev/null
+grep -F 'select(.name | test("^(eDP|LVDS|DSI)-|^FALLBACK$|^HEADLESS-") | not)' "$monitor_external_active" >/dev/null
 grep -F 'select(.disabled == false)' "$monitor_external_active" >/dev/null
-pass "active external monitor helper sees mirrors and ignores monitors disabled on purpose"
+pass "active external monitor helper sees mirrors, ignores disabled monitors and synthesized outputs"
 
 grep -F 'omarchy-hyprland-monitor-internal recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
 grep -F 'omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null

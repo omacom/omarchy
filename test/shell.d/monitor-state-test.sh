@@ -108,6 +108,22 @@ assert_line 3 "" "monitor state reports the internal monitor disabled"
 assert_line 4 "" "monitor state reports no mirror while clamshelled"
 pass "monitor state separates a disabled internal monitor from a missing one"
 
+# With the panel off and nothing plugged in Hyprland stands up its FALLBACK
+# placeholder, and remote-desktop sessions add HEADLESS-* outputs. Neither is
+# a monitor the panel can name as external.
+synthesized='[
+  { "name": "eDP-1", "mirrorOf": "none", "disabled": true, "focused": false, "width": 0, "height": 0 },
+  { "name": "FALLBACK", "mirrorOf": "none", "disabled": false, "focused": true, "width": 1920, "height": 1080 },
+  { "name": "HEADLESS-1", "mirrorOf": "none", "disabled": false, "focused": false, "width": 1920, "height": 1080 }
+]'
+
+monitor_state "$synthesized"
+assert_line_count "monitor state answers every line under synthesized outputs"
+assert_line 1 eDP-1 "monitor state still names the internal monitor"
+assert_line 2 "" "monitor state names no external monitor when only synthesized outputs exist"
+assert_line 4 "" "monitor state reports no mirror under synthesized outputs"
+pass "monitor state keeps FALLBACK and headless outputs out of the external slot"
+
 monitor_state "$extended"
 [[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":true,"focused":false,"width":1920,"height":1080},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
   fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
