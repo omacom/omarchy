@@ -301,9 +301,10 @@ end
 -- it, whatever their order, but hands a click to whichever is highest in that
 -- order. Anything that raises the maximized window, a click on it or an app
 -- asking for focus, leaves it above windows still drawn over it, and they pass
--- every click through to it. So the order is kept to what is on screen.
+-- every click through to it. So the order is kept to what is on screen. A true
+-- fullscreen window keeps the screen to itself and is left alone.
 local function maximized_on_floating_workspace(window)
-  return window ~= nil and window.floating and (window.fullscreen or 0) ~= 0 and window.workspace ~= nil
+  return window ~= nil and window.floating and (window.fullscreen or 0) == 1 and window.workspace ~= nil
     and floating_workspace(window.workspace.id)
 end
 

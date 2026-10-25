@@ -679,6 +679,11 @@ active = maximized
 move(maximized, true)
 browser.allowed_over_fullscreen = true
 assert(click() == browser, "a click on a window drawn over the maximized one went through it")
+
+-- A true fullscreen window clicked keeps the browser over it as it is.
+maximized.fullscreen = 2
+click(maximized)
+assert(browser.allowed_over_fullscreen, "a click on a true fullscreen window restacked the windows over it")
 LUA
 
 if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROOT" \
