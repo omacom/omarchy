@@ -109,19 +109,17 @@ def find_command(name: str) -> str | None:
   return shutil.which(name, path=runtime_env().get("PATH"))
 
 
-def mise_shims_dir() -> str:
-  data_home = os.environ.get("MISE_DATA_DIR") or os.path.join(
-    os.environ.get("XDG_DATA_HOME") or os.path.join(str(Path.home()), ".local", "share"), "mise")
-  return os.path.join(data_home, "shims")
+def _mise_shims_dir() -> str:
+  return os.path.join(os.environ.get("MISE_DATA_DIR") or str(data_home() / "mise"), "shims")
 
 
-def is_lazy_launcher(path: str) -> bool:
+def _is_lazy_launcher(path: str) -> bool:
   # omarchy-mise-install writes a regular file whose first step is `mise use
   # -g`, and mise's shims exec `mise x`; running either installs the tool it
   # wraps. A shim is a symlink to the mise binary itself, as is each account
   # wrapper in mise's command-wrappers/bin, so the symlink check comes after
   # the shim checks: a symlink elsewhere is the user's own binary.
-  if os.path.dirname(os.path.abspath(path)) == mise_shims_dir():
+  if os.path.dirname(os.path.abspath(path)) == _mise_shims_dir():
     return True
   if os.path.islink(path):
     mise = find_command("mise")
@@ -140,7 +138,7 @@ def find_installed_command(name: str) -> str | None:
   env = runtime_env()
   for directory in env.get("PATH", "").split(os.pathsep):
     candidate = os.path.join(directory, name)
-    if os.path.isfile(candidate) and os.access(candidate, os.X_OK) and not is_lazy_launcher(candidate):
+    if os.path.isfile(candidate) and os.access(candidate, os.X_OK) and not _is_lazy_launcher(candidate):
       return candidate
   # `mise which` only prints a binary that is already installed, so it is the
   # safe way to resolve a tool managed by mise without running the launcher.
@@ -151,7 +149,7 @@ def find_installed_command(name: str) -> str | None:
     try:
       out = subprocess.run([mise, "which", name], capture_output=True, text=True, env=dict(env, MISE_OFFLINE="1"), timeout=10)
       resolved = out.stdout.strip()
-      if out.returncode == 0 and os.path.isfile(resolved) and not is_lazy_launcher(resolved):
+      if out.returncode == 0 and os.path.isfile(resolved) and not _is_lazy_launcher(resolved):
         return resolved
     except Exception:
       pass
