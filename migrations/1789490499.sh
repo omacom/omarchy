@@ -1,27 +1,20 @@
-echo "Restore the input group for users who opted into Voxtype's evdev hotkey"
+echo "Point Voxtype evdev hotkey users at the Hyprland dictation binds"
 
-# 1787865477 dropped the blanket input grant, which was right: membership gives
-# raw read/write access to /dev/input/event*, so any process running as the user
-# can capture keystrokes. It kept the group for the two opt-in features that
-# need it, Xbox controllers and ydotool, but Voxtype's own hotkey is a third and
-# was missed (#12013).
+# 1787865477 dropped the blanket input grant: membership gives raw read/write
+# access to /dev/input/event*, so any process running as the user can capture
+# keystrokes. Someone who set Voxtype's `[hotkey] enabled = true` read
+# /dev/input through that grant, so their hotkey stopped responding while the
+# daemon kept running and reporting itself ready (#12013).
 #
-# Omarchy's Voxtype setup does not regress: default/voxtype/config.toml ships
-# `[hotkey] enabled = false` and binds dictation through the compositor, which
-# needs no membership. Someone who set `enabled = true` reads /dev/input
-# directly, so their hotkey stopped responding while the daemon kept running and
-# reporting itself ready. Push-to-talk on a bare modifier such as RIGHTCTRL
-# can't be done with Hyprland binds (hyprwm/Hyprland#6946), so that
-# configuration has no compositor-side fallback.
-#
-# Gated on the opt-in rather than on the package: restoring the grant for every
-# Voxtype user would hand raw input access back to the majority who never
-# needed it.
+# Told, not regranted: Hyprland now binds hold Right Alt and hold F9 for
+# push-to-talk, and Super + Ctrl + X to toggle, none of which need the group.
+# Handing input back through sudo on the strength of user-writable config would
+# undo 1787865477 for a feature that no longer needs it.
 
 if omarchy-cmd-present voxtype &&
-  ! id -nG "$USER" | grep -qw input &&
+  ! id -nG | grep -qw input &&
   [[ $(RUST_LOG=off voxtype config get hotkey.enabled 2>/dev/null) == "true" ]]; then
-  sudo gpasswd -a "$USER" input >/dev/null
-  echo "Restored $USER to the input group for the Voxtype hotkey. Log out and back in to apply."
-  omarchy-state set reboot-required
+  message="Voxtype's own hotkey can no longer read the keyboard. Hold Right Alt or F9 to dictate, or toggle with Super + Ctrl + X, and set [hotkey] enabled = false in ~/.config/voxtype/config.toml."
+  echo "  $message"
+  omarchy-notification-send -u critical "Voxtype hotkey stopped working" "$message" || true
 fi
