@@ -18,12 +18,13 @@ const windows = [
   { address: '0xb', parent: '' },
   { address: '0xe', parent: '', focusHistory: 0 },
   { address: '0xa', parent: '' },
-  { address: '0xf', parent: '0xa' }
+  { address: '0xf', parent: '0xa' },
+  { address: '0xg', parent: '', shown: false, focusHistory: 2 }
 ]
 assertDeepEqual(
   switcher.orderWindows(['f', 'b', 'a'], windows).map(window => window.address),
   ['0xb', '0xa', '0xe', '0xd'],
-  'windows list in the order last used, those not used since the shell started after them by focus history, dialogs left out'
+  'windows list in the order last used, those not used since the shell started after them by focus history, dialogs and windows never shown left out'
 )
 assertEqual(switcher.dialogFor(['b', 'f'], windows, '0xa').address, '0xf', 'an owner comes up with its dialog')
 assertEqual(switcher.dialogFor([], windows, '0xb'), null, 'a window with no dialog comes up alone')

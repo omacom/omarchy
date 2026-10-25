@@ -40,17 +40,21 @@ function rankOf(order) {
 
 // The windows to list, most recently used first: every window with no owner,
 // whatever workspace or monitor it is on. A dialog comes up with its owner
-// rather than on its own. A window the order has not seen used since the
-// shell started goes after those it has, in Hyprland's own focus history.
+// rather than on its own, and a window that was never put on screen is left
+// out: Wine names hidden windows of its own, such as each game's "Default IME",
+// and Hyprland reports them without ever showing them. A window the order has
+// not seen used since the shell started goes after those it has, in Hyprland's
+// own focus history.
 //
-// windows: [{ address, parent, focusHistory }], parent the owner's address or
-// empty, focusHistory Hyprland's focusHistoryID when known.
+// windows: [{ address, parent, shown, focusHistory }], parent the owner's
+// address or empty, shown false for a window never put on screen,
+// focusHistory Hyprland's focusHistoryID when known.
 function orderWindows(order, windows) {
   var rank = rankOf(order)
   var listed = []
   for (var i = 0; i < (windows || []).length; i++) {
     var window = windows[i]
-    if (!window || !normalizeAddress(window.address) || normalizeAddress(window.parent)) continue
+    if (!window || !normalizeAddress(window.address) || normalizeAddress(window.parent) || window.shown === false) continue
     listed.push({ window: window, index: i, rank: rank[normalizeAddress(window.address)] })
   }
 

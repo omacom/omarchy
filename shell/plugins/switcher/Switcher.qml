@@ -143,6 +143,7 @@ Item {
       windows.push({
         address: SwitcherModel.normalizeAddress(toplevel.address),
         parent: owner ? SwitcherModel.normalizeAddress(owner.address) : "",
+        shown: !!toplevel.wayland,
         focusHistory: typeof ipc.focusHistoryID === "number" ? ipc.focusHistoryID : undefined,
         toplevel: toplevel
       })
