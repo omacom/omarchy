@@ -282,8 +282,15 @@ local function claim_opened(window)
   end
 end
 
--- A maximized window has a floating workspace to itself until another one
--- opens there, which brings it back to its own size so the two can share it.
+local function same_app(window, other)
+  return (window.pid or 0) > 0 and window.pid == other.pid
+end
+
+-- A maximized window has a floating workspace to itself until another app
+-- opens a window there, which brings it back to its own size so the two can
+-- share it. A window the maximized app opens itself leaves it maximized: an
+-- XWayland app's dropdown menus, Steam's among them, open as windows of their
+-- own, and a dialog belongs over the window it came from.
 local function unmaximize_others(window)
   local id = window.workspace and window.workspace.id
   if not floating_workspace(id) then
@@ -291,7 +298,7 @@ local function unmaximize_others(window)
   end
 
   for _, other in ipairs(hl.get_workspace_windows(tostring(id))) do
-    if other.address ~= window.address and (other.fullscreen or 0) == 1 then
+    if other.address ~= window.address and (other.fullscreen or 0) == 1 and not same_app(window, other) then
       hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", action = "unset", window = other }))
     end
   end
