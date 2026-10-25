@@ -290,6 +290,17 @@ grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp D6 04' "$call_log" 
 ! grep -F 'hl.dsp.dpms' "$call_log" >/dev/null || fail "a monitor asleep over DDC/CI is not also turned off with DPMS"
 pass "the ddc-blank toggle sleeps an external monitor over DDC/CI instead of DPMS"
 
+# The lock and the asleep markers live in the private runtime directory; a
+# shared one would let another user plant a symlink where the lock is opened.
+# Without it the toggle is ignored and DPMS blanks as before.
+: >"$call_log"
+CALL_LOG="$call_log" HOME="$home_dir" DPMS_STATE="$dpms_state" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  env -u XDG_RUNTIME_DIR "$brightness_display" off
+grep -F 'hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \
+  fail "without a runtime directory the toggle is ignored and DPMS blanks" "$(<"$call_log")"
+! grep -F ' setvcp D6 ' "$call_log" >/dev/null || fail "no DDC sleep without a runtime directory to track it in"
+pass "without a private runtime directory the toggle is ignored and DPMS blanks"
+
 : >"$call_log"
 MONITORS_JSON='[{"name":"eDP-1","disabled":false,"dpmsStatus":true},{"name":"HDMI-A-1","disabled":false,"dpmsStatus":true}]' run_power off
 grep -F 'hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \

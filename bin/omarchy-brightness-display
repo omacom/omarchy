@@ -89,13 +89,22 @@ ddc_blank_monitors() {
 # reopened before the wake would otherwise leave them dark: DPMS still reads
 # them as on). Blank and wake share one lock: the lock screen starts them
 # without waiting for one another, and a slow blank that fails over to DPMS
-# must not turn the displays off after a newer wake has lit them.
-blank_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-ddc-blank"
+# must not turn the displays off after a newer wake has lit them. Both live
+# in the private runtime directory: a shared directory would let another
+# user plant a symlink where the lock is opened. Without one there is nowhere
+# safe to put them and the displays keep DPMS.
+blank_dir=""
+[[ -n ${XDG_RUNTIME_DIR:-} ]] && blank_dir="$XDG_RUNTIME_DIR/omarchy-ddc-blank"
 
+# Waits for the lock however long the other side holds it. A wake must run
+# after the blank in flight, and giving up after a timeout would mean acting
+# without the ordering the lock is for; nothing holds it longer than its DDC
+# writes, which the I2C layer bounds.
 ddc_blank_lock() {
-  mkdir -p "$blank_dir" 2>/dev/null || return 0
-  exec {blank_fd}>"$blank_dir/.lock" || return 0
-  flock -w 10 "$blank_fd" || true
+  [[ -n $blank_dir ]] || return 1
+  mkdir -m 700 -p "$blank_dir" 2>/dev/null || return 1
+  exec {blank_fd}>>"$blank_dir/.lock" || return 1
+  flock "$blank_fd"
 }
 
 ddc_blank_marker() {
@@ -104,6 +113,7 @@ ddc_blank_marker() {
 
 ddc_blank_asleep() {
   local marker
+  [[ -n $blank_dir ]] || return 0
   for marker in "$blank_dir"/*; do
     [[ -f $marker ]] && cat "$marker"
   done
@@ -159,17 +169,14 @@ fi
 step="$1"
 
 if [[ $step == "off" ]]; then
-  ddc_blank_lock
   # A monitor that did not take the DDC command still has to go dark: DPMS
   # then blanks everything, link drop and all, rather than leave it lit.
-  if ! names=$(ddc_blank_monitors) || ! ddc_blank_all off "$names"; then
+  if ! ddc_blank_lock || ! names=$(ddc_blank_monitors) || ! ddc_blank_all off "$names"; then
     hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
   fi
   exit 0
 elif [[ $step == "on" ]]; then
-  ddc_blank_lock
-  asleep=$(ddc_blank_asleep)
-  if [[ -n $asleep ]] && ! ddc_blank_all on "$asleep"; then
+  if ddc_blank_lock && asleep=$(ddc_blank_asleep) && [[ -n $asleep ]] && ! ddc_blank_all on "$asleep"; then
     # A monitor that ignores the DDC wake only comes back on a fresh signal,
     # so give it the modeset it would have had with DPMS.
     hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
