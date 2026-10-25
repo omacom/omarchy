@@ -202,7 +202,10 @@ The `notifications` IPC target also answers `ping` (used by `omarchy-notificatio
 Everything goes through the same sender contract, so the pieces are small:
 
 - **Low battery** — `omarchy-battery-low` sends a critical toast and runs the
-  `battery-low` hook.
+  `battery-low` hook. Critical toasts never expire, so the battery service
+  takes it back once the battery is no longer low, in process through the
+  service's `dismissWhere(app, appIcon)` and its `shown` signal: on screen,
+  held behind an open deck, restored at startup or arriving late.
 - **Crash capture** — `omarchy-crash-watch` follows the systemd-coredump
   journal stream and announces each crashed program (deduped per minute) as a
   critical toast whose click runs `omarchy-agent-crash` (via `--exec`, so a

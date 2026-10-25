@@ -665,9 +665,13 @@ Item {
     for (var i = 0; i < signals.length; i++) signals[i].connect(schedule)
   }
 
+  // A row on its way to the screen: new, restored, or let go by a held deck.
+  // History asked for again is not announced: the person wants to see it.
+  signal shown(var row)
+
   // Qt.callLater: mutating the model while a Repeater is mid-incubation
   // crashes in QV4::Object::insertMember.
-  function showRow(row) {
+  function showRow(row, replay) {
     var key = String(row.key || "")
     if (!reserveLive(key)) return
     var pending = liveKeys[key]
@@ -677,6 +681,9 @@ Item {
       pending.held = false
       held = held.filter(function(heldKey) { return heldKey !== key })
     }
+    // Before the early return, so a replacement folded into a queued insert is announced too.
+    if (replay) pending.replay = true
+    else shown(row)
     if (pending.scheduled) return
     pending.scheduled = true
     Qt.callLater(function() {
@@ -834,6 +841,25 @@ Item {
   function clearAll(reason, instant) {
     var keys = Object.keys(liveKeys)
     closeToasts(keys, reason, instant)
+    return keys.length
+  }
+
+  // Every row from this app with this icon, on screen, held or still on its
+  // way in, so another service can take back a notification that stopped being true.
+  // Replayed history stays: the person asked to see it.
+  function dismissWhere(app, appIcon) {
+    var keys = []
+    for (var key in liveKeys) {
+      var pending = liveKeys[key]
+      if (pending.replay) continue
+      var at = rowIndexFor(key)
+      var row = pending.row || (at >= 0 ? toasts.get(at) : null)
+      if (!row || row.app !== app || row.appIcon !== appIcon) continue
+      // A queued row or replacement would land after the close and bring the card back
+      pending.row = null
+      if (!leaving[key]) keys.push(key)
+    }
+    closeToasts(keys, "dismissed")
     return keys.length
   }
 
@@ -1301,7 +1327,7 @@ Item {
         row.groupKey = Markup.regroup(row)
       }
       if (!reserveLive(row.key)) break
-      showRow(row)
+      showRow(row, replay)
     }
   }
 

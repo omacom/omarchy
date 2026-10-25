@@ -333,7 +333,7 @@ function runIn(scope, ...names) {
 const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
-  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissWhere', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
 function newCapacityScope() {
@@ -348,7 +348,7 @@ function newCapacityScope() {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
     maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
     arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
-    held: [], doNotDisturb: false,
+    held: [], doNotDisturb: false, shownRows: [], shown: row => s.shownRows.push(row),
     liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
     deckDisplayName: '',
@@ -966,6 +966,78 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   assert.ok(s.toasts.rows.filter(r => r.restored).every(r => r.duration === Store.RESTORE_GRACE))
   s.loadLive('[]')
   assert.equal(s.liveEntries.length, 100, 'a second load event is ignored')
+}
+
+{ // Another service takes back its own notification wherever it is: on screen, held, or on its way in.
+  const s = newCapacityScope()
+  const warning = id => Object.assign(s.fakeNotification(id, 'Low ' + id, 2), { appName: 'omarchy-action', appIcon: 'battery-caution' })
+  const other = s.fakeNotification(9, 'Other', 2)
+  s.admit(warning(1), other)
+  assert.equal(s.shownRows.length, 2, 'each row on its way to the screen is announced')
+  s.handleNotification(warning(2))
+  s.pointerHolding = true
+  s.handleNotification(warning(3))
+  assert.equal(s.held.length, 1)
+  assert.equal(s.dismissWhere('omarchy-action', 'battery-caution'), 3)
+  assert.equal(s.dismissWhere('omarchy-action', 'battery-caution'), 0, 'nothing is left to close twice')
+  s.pointerHolding = false
+  s.releaseHeld()
+  s.drainCallLater()
+  s.finishLeaving()
+  assert.deepEqual(summaries(s.toasts.rows), ['Other'], 'the shown, pending and held warnings are all gone')
+  assert.equal(s.liveCount(), 1)
+}
+
+{ // A listener that closes a row as it is announced keeps it off screen, restored rows included.
+  const s = newCapacityScope()
+  s.shown = row => { if (row.appIcon === 'battery-caution') s.dismissWhere(row.app, row.appIcon) }
+  s.restoreRows([{ key: 'old-warning', summary: 'Low', app: 'omarchy-action', appIcon: 'battery-caution', urgency: 2 },
+    { key: 'kept', summary: 'Kept' }], false)
+  s.drainCallLater()
+  assert.deepEqual(summaries(s.toasts.rows), ['Kept'])
+  assert.equal(s.liveCount(), 1)
+}
+
+{ // A replacement can't bring back a card closed as it was announced, nor slip past as a new kind of card.
+  const s = newCapacityScope()
+  const warning = Object.assign(s.fakeNotification(1, 'Low', 2), { appName: 'omarchy-action', appIcon: 'battery-caution' })
+  const other = s.fakeNotification(2, 'Other', 2)
+  s.admit(warning, other)
+  s.shown = row => { if (row.appIcon === 'battery-caution') s.dismissWhere(row.app, row.appIcon) }
+  warning.replace({ body: 'Battery at 6%' })
+  other.replace({ appName: 'omarchy-action', appIcon: 'battery-caution' })
+  s.drainCallLater()
+  s.finishLeaving()
+  assert.equal(s.toasts.count, 0)
+  assert.equal(s.liveCount(), 0)
+}
+
+{ // History asked for again is not announced, so nothing takes it back.
+  const s = newCapacityScope()
+  s.restoreRows([{ key: 'old-warning', summary: 'Low', app: 'omarchy-action', appIcon: 'battery-caution', urgency: 2 }], true)
+  s.drainCallLater()
+  assert.equal(s.shownRows.length, 0)
+  assert.equal(s.dismissWhere('omarchy-action', 'battery-caution'), 0)
+  assert.equal(s.toasts.count, 1)
+}
+
+{ // A replacement can't revive a card already on its way out, nor one folded into a queued insert.
+  const s = newCapacityScope()
+  const warning = Object.assign(s.fakeNotification(1, 'Low', 2), { appName: 'omarchy-action', appIcon: 'battery-caution' })
+  s.admit(warning)
+  assert.equal(s.dismissWhere('omarchy-action', 'battery-caution'), 1)
+  s.shown = row => { if (row.appIcon === 'battery-caution') s.dismissWhere(row.app, row.appIcon) }
+  warning.replace({ body: 'Battery at 6%' })
+  s.drainCallLater()
+  s.finishLeaving()
+  assert.equal(s.toasts.count, 0, 'the leaving card stays gone')
+
+  const late = s.fakeNotification(2, 'Ordinary', 2)
+  s.handleNotification(late)
+  late.replace({ appName: 'omarchy-action', appIcon: 'battery-caution' })
+  s.drainCallLater()
+  assert.equal(s.toasts.count, 0, 'a queued card that became a warning is caught')
+  assert.equal(s.liveCount(), 0)
 }
 
 console.log('notification logic: passed')
