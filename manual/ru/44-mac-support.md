@@ -6,7 +6,7 @@
 
 В простом тесте мы добились прироста производительности на 36% на MacBook Pro 2019 года просто за счёт установки Omarchy.
 
- ![macbook-omarchy](images/macbook-omarchy.webp)
+ ![macbook-omarchy](../images/macbook-omarchy.webp)
 
 ### Установка Omarchy на Mac
 

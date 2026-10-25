@@ -8,28 +8,28 @@
 
 Чтобы установить рядом с Windows, введите `disk management` в меню «Пуск» и выберите вариант **Create and format hard disk partitions**.
 
- ![dual-boot-1](images/dual-boot-1.webp)
+ ![dual-boot-1](../images/dual-boot-1.webp)
 
 Найдите подходящий раздел, щёлкните правой кнопкой и выберите **Shrink Volume**.
 
-![dual-boot-2](images/dual-boot-2.webp)
+![dual-boot-2](../images/dual-boot-2.webp)
 
  Введите размер, на который хотите сжать том. Обратите внимание: это будет размер вашей будущей установки Omarchy, включая загрузочный раздел.
 
- ![dual-boot-3](images/dual-boot-3.webp)
+ ![dual-boot-3](../images/dual-boot-3.webp)
 
 Когда закончите, вы должны увидеть что-то вроде этого, где секция в 50GB — это место, куда мы в этом примере установим Omarchy.
 
- ![dual-boot-4](images/dual-boot-4.webp)
+ ![dual-boot-4](../images/dual-boot-4.webp)
 
 ## Установка Omarchy
 
 Процесс установки Omarchy фактически такой же, как обычно. После выбора диска вам будет предложен вариант **Free space install**. Выберите этот вариант, чтобы не стереть весь диск.
 
- ![dual-boot-5](images/dual-boot-5.webp)
+ ![dual-boot-5](../images/dual-boot-5.webp)
 
 Подтвердите, что всё выглядит хорошо, и дождитесь завершения установки как обычно. Здесь же можно выбрать установку без шифрования (не рекомендуется), как и при установке на весь диск.
- ![dual-boot-6](images/dual-boot-6.webp)
+ ![dual-boot-6](../images/dual-boot-6.webp)
 
 ## Добавление других установок в загрузчик
 
@@ -41,4 +41,4 @@
 
 Важно отметить, что этот метод установки несовместим с Bitlocker, поскольку он шифрует весь диск, а не только раздел. Если вы столкнётесь с ошибкой о том, что Bitlocker включён, загрузитесь в Windows, перейдите в **Settings -> Privacy & Security -> Device encryption** и отключите Bitlocker. Расшифровка диска может занять некоторое время.
 
- ![dual-boot-7](images/dual-boot-7.webp)
+ ![dual-boot-7](../images/dual-boot-7.webp)

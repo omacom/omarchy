@@ -8,6 +8,8 @@ Read more at [omarchy.org](https://omarchy.org).
 
 The manual lives in [`manual/`](manual/), which is its authoritative source.
 
+- Russian translation: [`manual/ru/`](manual/ru/01-welcome-to-omarchy.md)
+
 - [Welcome to Omarchy!](manual/01-welcome-to-omarchy.md)
 
 **The Basics**

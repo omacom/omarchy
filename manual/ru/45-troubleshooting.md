@@ -32,6 +32,6 @@ Omarchy рассчитывает на дисплей высокого разре
 
 Для появления расширенного окна подтверждения в Settings > Advanced > Use Hardware Acceleration должно быть включено аппаратное ускорение. _Примечание: для этого требуется перезагрузка._
 
- ![troubleshooting-1password](images/troubleshooting-1password.webp)
+ ![troubleshooting-1password](../images/troubleshooting-1password.webp)
 
 Или если вы не запускали 1Password с момента загрузки, запрос не появится.

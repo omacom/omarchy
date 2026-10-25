@@ -8,11 +8,11 @@ _Вы должны отключить Secure Boot и/или TPM в BIOS. Вы д
 
 Затем ответьте на вопросы настройки и подтвердите их вот так:
 
- ![install-config](images/install-config.webp)
+ ![install-config](../images/install-config.webp)
 
 Затем выберите диск для установки, откиньтесь назад и смотрите шоу установки. На самых быстрых современных машинах это можно сделать менее чем за минуту, но даже на более старом компьютере это не должно занять больше 5 минут.
 
- ![install-done](images/install-done.webp)
+ ![install-done](../images/install-done.webp)
 
 Теперь вы готовы к Omarchy!
 
