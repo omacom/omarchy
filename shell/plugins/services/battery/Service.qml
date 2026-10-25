@@ -12,11 +12,6 @@ Item {
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
   readonly property int batteryThreshold: 10
-  readonly property var notificationService: shell ? shell.firstPartyServiceFor("omarchy.notifications") : null
-  // A known battery that isn't low: any low battery warning still around is stale
-  property bool batteryRecovered: false
-  // Not persisted: after a reload the flag above still suppresses a new warning, so a restored one is the only one
-  property bool warnedThisShell: false
   property string pendingPowerSource: ""
   // Follows power-profiles-daemon's change signals, so nothing polls it.
   // Quickshell never attaches that listener if the daemon failed when the
@@ -44,24 +39,11 @@ Item {
   function checkBattery() {
     var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
     persisted.notifiedLowBattery = state.notifiedLowBattery
-    batteryRecovered = state.recovered
-    if (state.recovered) warnedThisShell = false
     if (state.notify) sendLowBatteryWarning(state.level)
-    if (state.recovered) dismissLowBatteryWarning()
-  }
-
-  // In process, so it reaches a warning held behind an open deck or not yet inserted, and spawns nothing
-  function dismissLowBatteryWarning() {
-    // A clone of the notifications plugin from before dismissWhere has no way to take it back
-    if (notificationService && typeof notificationService.dismissWhere === "function")
-      notificationService.dismissWhere(BatteryModel.WARNING_APP, BatteryModel.WARNING_ICON)
   }
 
   function sendLowBatteryWarning(level) {
     if (warningProcess.running) return
-    // One restored from before a shell restart is replaced rather than stacked
-    dismissLowBatteryWarning()
-    warnedThisShell = true
     warningProcess.command = [
       "omarchy-battery-low",
       String(level)
@@ -148,24 +130,6 @@ Item {
     repeat: true
     triggeredOnStart: true
     onTriggered: root.checkBattery()
-  }
-
-  // A warning restored at startup, released by a held deck, or delivered after the charger went in
-  Connections {
-    target: root.notificationService
-    ignoreUnknownSignals: true
-    function onShown(row) {
-      if (!BatteryModel.isLowBatteryWarning(row)) return
-      if (root.batteryRecovered) root.dismissLowBatteryWarning()
-      // Restored after this shell already warned: the fresh warning is the one to keep
-      else if (row.restored && root.warnedThisShell) root.notificationService.closeToast(row.key, "dismissed")
-    }
-  }
-
-  Connections {
-    target: UPower.displayDevice
-    function onIsPresentChanged() { root.checkBattery() }
-    function onStateChanged() { root.checkBattery() }
   }
 
   Connections {

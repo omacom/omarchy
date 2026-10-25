@@ -15,42 +15,19 @@ assert(!battery.isDischarging({ isPresent: true, state: discharging }, false, di
 
 assertDeepEqual(
   battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, true, discharging, 10, false),
-  { level: 8, notify: true, recovered: false, notifiedLowBattery: true },
+  { level: 8, notify: true, notifiedLowBattery: true },
   'battery warns once under threshold'
 )
 assertDeepEqual(
   battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, true, discharging, 10, true),
-  { level: 8, notify: false, recovered: false, notifiedLowBattery: true },
+  { level: 8, notify: false, notifiedLowBattery: true },
   'battery keeps low-battery notified state'
 )
 assertDeepEqual(
   battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.4, state: discharging }, true, discharging, 10, true),
-  { level: 40, notify: false, recovered: true, notifiedLowBattery: false },
+  { level: 40, notify: false, notifiedLowBattery: false },
   'battery clears notified state after recovery'
 )
-assertDeepEqual(
-  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging + 1 }, false, discharging, 10, true),
-  { level: 8, notify: false, recovered: true, notifiedLowBattery: false },
-  'battery counts plugging in as recovered'
-)
-assertDeepEqual(
-  battery.shouldWarnLowBattery({ isPresent: false }, true, discharging, 10, true),
-  { level: -1, notify: false, recovered: false, notifiedLowBattery: false },
-  'battery waits for a known level on battery before calling a warning stale'
-)
-assertDeepEqual(
-  battery.shouldWarnLowBattery({ isPresent: false }, false, discharging, 10, true),
-  { level: -1, notify: false, recovered: true, notifiedLowBattery: false },
-  'battery calls a warning stale on AC without a known level'
-)
-assertDeepEqual(
-  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging + 1 }, true, discharging, 10, true),
-  { level: 8, notify: false, recovered: false, notifiedLowBattery: false },
-  'battery keeps the warning while low on battery in a state UPower has not settled'
-)
-assert(battery.isLowBatteryWarning({ app: 'omarchy-action', appIcon: 'battery-caution', summary: 'Zeit zum Aufladen!' }), 'battery knows its warning in any language')
-assert(!battery.isLowBatteryWarning({ app: 'omarchy-action', appIcon: 'dialog-information' }), 'battery leaves other omarchy toasts alone')
-assert(!battery.isLowBatteryWarning({ app: 'other-app', appIcon: 'battery-caution' }), 'battery leaves other senders alone')
 
 const reply = profile => JSON.stringify({ type: 's', data: profile })
 assertEqual(battery.parseActiveProfile(reply('power-saver')), 'power-saver', 'battery parses the busctl profile reply')
