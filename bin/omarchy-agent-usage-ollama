@@ -122,13 +122,18 @@ def daemon_identity() -> str:
 
   The scheme and the host are folded to lower case and the port kept, so
   `127.0.0.1:11434` and `http://127.0.0.1:11434` are one address, and
-  `http://127.0.0.1:11435` is another.
+  `http://127.0.0.1:11435` is another. An address that won't parse is kept
+  as it was written: it is asked nothing of, and it must not take the
+  collector down with it.
   """
-  parts = urllib.parse.urlsplit(daemon_base())
+  raw = daemon_base()
   try:
+    parts = urllib.parse.urlsplit(raw)
     port = parts.port
   except ValueError:
-    port = None
+    # A malformed address ("http://[::1") is one the daemon can't be asked
+    # at, the same as any other address that won't parse.
+    return raw
   host = (parts.hostname or "").lower()
   if ":" in host:
     host = f"[{host}]"

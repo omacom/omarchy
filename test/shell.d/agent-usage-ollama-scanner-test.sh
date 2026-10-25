@@ -364,8 +364,18 @@ expect("Ollama points at a key when the daemon can't be asked",
        ["Waiting for auth", True], record)
 del os.environ["OLLAMA_HOST"]
 
+# An address that won't parse asks nothing and takes nothing down: the local
+# usage is still shown, and the limits wait for a sign-in.
+os.environ["OLLAMA_HOST"] = "http://[::1"
+record = ollama(routes=DAEMON_ROUTES)
+expect("Ollama keeps the local usage when the daemon's address is malformed",
+       [record["ready"], record["todayTotalTokens"], record["usageStatusText"], ollama.requests],
+       [True, 19, "Waiting for auth", []], record)
+del os.environ["OLLAMA_HOST"]
+
 # A daemon on this machine over plain HTTP is asked; the address the daemon
 # takes is the one it is given.
+
 os.environ["OLLAMA_HOST"] = "127.0.0.1:11434"
 record = ollama(routes=DAEMON_ROUTES)
 expect("Ollama asks the daemon at the address OLLAMA_HOST names",
