@@ -25,7 +25,7 @@ desktop_exec() {
 # A launcher of the user's own can open web apps when its Exec= runs a
 # Chromium-based browser, directly or through a wrapper script naming one.
 chromium_based() {
-  local program=$(desktop_exec "$1" "${data_dirs[@]}" ~/.nix-profile/share)
+  local program=$(desktop_exec "$1" "${data_dirs[@]}")
 
   [[ -n $program ]] || return 1
   [[ ${program##*/} =~ $chromium_browsers ]] ||
