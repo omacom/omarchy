@@ -30,6 +30,7 @@ run omarchy-hyprland-window-transparency glassy
 cmp -s "$ROOT/default/hypr/toggles/window-glassy.lua" "$toggles_dir/window-glassy.lua" || fail "glassy windows are loaded after the theme"
 grep -qx 'hyprctl reload' "$tmpdir/commands.log" || fail "new transparency reloads Hyprland"
 grep -q '^omarchy-restart-btop ' "$tmpdir/commands.log" || fail "new transparency reloads running btop windows"
+! grep -q '^omarchy-notification-send' "$tmpdir/commands.log" || fail "new transparency is shown, not announced"
 pass "glassy windows override the theme"
 
 run omarchy-hyprland-window-transparency opaque
@@ -77,7 +78,7 @@ run omarchy-hyprland-window-transparency glassy
 run omarchy-hyprland-window-transparency transparent
 [[ $(od -An -c "$gtk_css" | tr -d ' \n') == 'label{color:red;}' ]] || fail "leaving glassy restores GTK CSS without a final newline"
 
-# A GTK config that cannot be written fails the change rather than announcing it.
+# A GTK config that cannot be written fails the change.
 printf 'label { color: red; }\n' >"$gtk_css"
 chmod a-w "$gtk_css"
 : >"$tmpdir/commands.log"
@@ -86,7 +87,6 @@ if run omarchy-hyprland-window-transparency glassy 2>/dev/null; then
   fail "a GTK config that cannot be written fails the change"
 fi
 chmod u+w "$gtk_css"
-! grep -q '^omarchy-notification-send' "$tmpdir/commands.log" || fail "a failed change is not announced"
 [[ $(run omarchy-hyprland-window-transparency) == "transparent" ]] || fail "a failed change keeps the previous choice"
 run omarchy-hyprland-window-transparency transparent
 pass "glassy GTK apps get a backdrop blur, and leaving glassy takes it out"
@@ -204,14 +204,20 @@ if command -v script >/dev/null; then
   script_pid=$!
   for _ in {1..50}; do pgrep -P "$script_pid" >/dev/null && break; sleep 0.1; done
 
-  # Only the foot lookup is faked; finding its shell goes to the real pgrep.
+  # Only the foot lookup is faked; anything else goes to the real pgrep. Every
+  # call is logged, since each one scans the whole process table.
   real_pgrep=$(command -v pgrep)
-  printf '#!/bin/bash\nif [[ $1 == "-x" && $2 == "foot" ]]; then echo %s; else exec %s "$@"; fi\n' "$script_pid" "$real_pgrep" >"$tmpdir/foot-bin/pgrep"
+  printf '#!/bin/bash\necho "$*" >>%q\nif [[ $1 == "-x" && $2 == "foot" ]]; then echo %s; else exec %q "$@"; fi\n' "$tmpdir/pgrep.log" "$script_pid" "$real_pgrep" >"$tmpdir/foot-bin/pgrep"
   chmod +x "$tmpdir/foot-bin/pgrep"
 
   set_foot() {
+    : >"$tmpdir/pgrep.log"
     HOME="$foot_home" PATH="$tmpdir/foot-bin:$ROOT/bin:$PATH" omarchy-theme-set-foot
     sleep 0.3
+    # A kernel without CONFIG_PROC_CHILDREN needs a second scan for the shells.
+    scans=1
+    [[ -e /proc/$script_pid/task/$script_pid/children ]] || scans=2
+    (( $(wc -l <"$tmpdir/pgrep.log") == scans )) || fail "a foot retint scans the processes once" "$(cat "$tmpdir/pgrep.log")"
   }
 
   set_foot
@@ -219,8 +225,26 @@ if command -v script >/dev/null; then
   printf '# omarchy-glass begin\n[colors-dark]\nalpha=0.65\nblur=yes\n# omarchy-glass end\n' >>"$foot_theme/foot.ini"
   set_foot
   grep -qF $'\e]11;[65]#102030' "$tmpdir/typescript" || fail "running foot terminals turn glassy"
+  pass "running foot terminals take the theme's background alpha, found in one process scan"
+
+  # A kernel without CONFIG_PROC_CHILDREN has no children list. A foot pid with
+  # no /proc entry stands in for that, and its shell is then found by pgrep -P.
+  missing_pid=4194303
+  if [[ ! -e /proc/$missing_pid ]]; then
+    shell_pid=$(pgrep -P "$script_pid" | head -1)
+    mkdir -p "$tmpdir/no-children-bin"
+    printf '#!/bin/bash\nif [[ $1 == "-x" && $2 == "foot" ]]; then echo %s; elif [[ $1 == "-P" && $2 == %s ]]; then echo %s; else exit 1; fi\n' \
+      "$missing_pid" "$missing_pid" "$shell_pid" >"$tmpdir/no-children-bin/pgrep"
+    chmod +x "$tmpdir/no-children-bin/pgrep"
+    printf 'background = "#203040"\nforeground = "#ffffff"\n' >"$foot_theme/colors.toml"
+    HOME="$foot_home" PATH="$tmpdir/no-children-bin:$ROOT/bin:$PATH" omarchy-theme-set-foot
+    sleep 0.3
+    grep -qF '#203040' "$tmpdir/typescript" || fail "foot terminals retint without the kernel's children list"
+    pass "foot terminals retint without the kernel's children list"
+  else
+    skip "foot terminals retint without the kernel's children list: pid $missing_pid exists"
+  fi
   kill "$script_pid" 2>/dev/null || true
-  pass "running foot terminals take the theme's background alpha"
 else
   skip "script is not installed"
 fi

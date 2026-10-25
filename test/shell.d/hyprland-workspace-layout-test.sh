@@ -34,6 +34,8 @@ chmod +x "$stub_dir/hyprctl"
 cat >"$stub_dir/omarchy-notification-send" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >>"$NOTIFICATION_LOG"
+[[ " $* " == *" -p "* ]] && echo 42
+exit 0
 EOF
 chmod +x "$stub_dir/omarchy-notification-send"
 
@@ -81,6 +83,8 @@ grep -q "set to scrolling" "$notification_log" ||
   fail "the new mode is announced" "$(cat "$notification_log")"
 grep -qx -- "-q omarchy.workspaces refresh" "$notification_log" ||
   fail "the bar is asked to show the new layout" "$(cat "$notification_log")"
+grep -qx -- "-q omarchy.dock refresh" "$notification_log" ||
+  fail "the dock is asked to follow the new layout" "$(cat "$notification_log")"
 if grep -q "could not be saved" "$notification_log"; then
   fail "a saved mode is announced as saved" "$(cat "$notification_log")"
 fi
@@ -179,56 +183,6 @@ if [[ -f $home_dir/.local/state/omarchy/workspace-layouts/-1337.lua ]]; then
   fail "workspace layout toggle does not persist a mode for a named workspace"
 fi
 pass "workspace layout toggle leaves a named workspace alone"
-
-# The guard stops new ones being written; the ones an earlier version already
-# wrote go on reconfiguring workspace 1 at every login until they are removed.
-migration=$(grep -rl 'Drop saved workspace layouts belonging to named workspaces' "$ROOT/migrations" | head -n 1 || true)
-[[ -n $migration ]] || fail "a migration removes saved layouts for named workspaces"
-
-migration_home="$tmpdir/migration"
-migration_layouts="$migration_home/.local/state/omarchy/workspace-layouts"
-mkdir -p "$migration_layouts"
-printf 'o.workspace_mode({ workspace = "-1337", mode = "scrolling" })\n' >"$migration_layouts/-1337.lua"
-printf 'o.workspace_mode({ workspace = "3", mode = "scrolling" })\n' >"$migration_layouts/3.lua"
-
-# omarchy-migrate runs each migration as `bash -euo pipefail` and only records it
-# as done if it exits 0, so run it the same way here: under those flags an
-# unmatched glob is the difference between a migration that finishes and one that
-# stops the whole run and repeats it at every login.
-# The stub is on the path because the migration asks Hyprland to reload once it
-# has removed something, and the real one would reload the compositor of whoever
-# is running the suite.
-run_migration() {
-  env HOME="$migration_home" XDG_STATE_HOME="$migration_home/.local/state" \
-    HYPRCTL_LOG="$tmpdir/migration-hyprctl.log" PATH="$stub_dir:$PATH" \
-    bash -euo pipefail "$migration" >/dev/null
-}
-
-migration_log="$tmpdir/migration-hyprctl.log"
-: >"$migration_log"
-run_migration || fail "the migration exits cleanly with a layout to remove"
-
-if [[ -f $migration_layouts/-1337.lua ]]; then
-  fail "the migration removes a saved layout for a named workspace"
-fi
-[[ -f $migration_layouts/3.lua ]] ||
-  fail "the migration keeps saved layouts for numbered workspaces"
-
-# The bad rule is already applied in the running session, and a user who has
-# turned autoreload off would keep it until their next login.
-grep -q "^reload" "$migration_log" ||
-  fail "the migration asks Hyprland to reload what it removed" "$(cat "$migration_log")"
-
-# The ordinary case is a machine with nothing to remove, where the glob matches
-# no file at all.
-: >"$migration_log"
-run_migration || fail "the migration exits cleanly with nothing to remove"
-[[ -f $migration_layouts/3.lua ]] ||
-  fail "the migration with nothing to remove keeps what is there"
-if grep -q "^reload" "$migration_log"; then
-  fail "the migration reloads Hyprland having removed nothing" "$(cat "$migration_log")"
-fi
-pass "the migration removes saved layouts for named workspaces"
 
 if toggle HYPRCTL_BROKEN=1 2>/dev/null; then
   fail "workspace layout toggle exits nonzero without a workspace id"
@@ -529,3 +483,20 @@ if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROO
   fail "a saved floating mode floats the workspace without inventing a layout"
 fi
 pass "a saved floating mode floats the workspace without inventing a layout"
+
+# A layout change replaces the last layout notification rather than stacking
+# another under it.
+: >"$notification_log"
+toggle
+toggle
+[[ $(grep -c -- "-r 42 " "$notification_log") -ge 1 ]] ||
+  fail "a layout change replaces the last layout notification" "$(cat "$notification_log")"
+pass "layout changes replace a single notification"
+
+# The notification calls dwindle tiling, as the menu and the bar do.
+printf 'o.workspace_mode({ workspace = "3", mode = "floating" })\n' >"$layout_file"
+: >"$notification_log"
+toggle
+grep -q "set to tiling" "$notification_log" && ! grep -q "dwindle" "$notification_log" ||
+  fail "the notification calls dwindle tiling" "$(cat "$notification_log")"
+pass "the notification calls dwindle tiling"

@@ -120,8 +120,8 @@ for helper in omarchy-provision-user omarchy-hook-install omarchy-notification-w
   printf '#!/bin/bash\nexit 0\n' >"$first_bin/$helper"
 done
 chmod +x "$first_bin"/*
-for script in welcome.sh wifi.sh enable-user-units.sh gnome-theme.sh gtk-primary-paste.sh audio-tuning.sh; do
-  printf 'exit 0\n' >"$first_root/install/user/first-run/$script"
+for script in "$ROOT"/install/user/first-run/*.sh; do
+  printf 'exit 0\n' >"$first_root/install/user/first-run/${script##*/}"
 done
 
 first_run() {

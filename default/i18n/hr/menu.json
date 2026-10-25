@@ -1,0 +1,1289 @@
+{
+  "root": {
+    "label": "Kreni"
+  },
+  "apps": {
+    "label": "Aplikacije"
+  },
+  "learn": {
+    "label": "Nauči"
+  },
+  "appearance": {
+    "label": "Izgled"
+  },
+  "trigger": {
+    "label": "Pokreni"
+  },
+  "setup": {
+    "label": "Postavke"
+  },
+  "install": {
+    "label": "Instaliraj"
+  },
+  "remove": {
+    "label": "Ukloni"
+  },
+  "update": {
+    "label": "Ažuriraj"
+  },
+  "about": {
+    "label": "O programu"
+  },
+  "system": {
+    "label": "Sustav"
+  },
+  "system.screensaver": {
+    "label": "Čuvar zaslona"
+  },
+  "system.lock": {
+    "label": "Zaključaj"
+  },
+  "system.suspend": {
+    "label": "Obustavi"
+  },
+  "system.hibernate": {
+    "label": "Hibernacija"
+  },
+  "system.logout": {
+    "label": "Odjavi se"
+  },
+  "system.reboot": {
+    "label": "Ponovno pokreni"
+  },
+  "system.shutdown": {
+    "label": "Isključi"
+  },
+  "learn.keybindings": {
+    "label": "Prečaci"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Zajednica"
+  },
+  "appearance.theme": {
+    "label": "Tema"
+  },
+  "appearance.background": {
+    "label": "Pozadina"
+  },
+  "appearance.font": {
+    "label": "Font"
+  },
+  "appearance.top-bar": {
+    "label": "Traka izbornika"
+  },
+  "appearance.top-bar.hide": {
+    "label": "Sakrij traku"
+  },
+  "appearance.top-bar.show": {
+    "label": "Prikaži traku"
+  },
+  "appearance.top-bar.position": {
+    "label": "Položaj trake"
+  },
+  "appearance.top-bar.background": {
+    "label": "Pozadina trake"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "Neprozirna traka"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "Staklena traka"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "Prozirna traka"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "Pokazatelji trake"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "Sat"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Nedjelja 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Nedjelja 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Nedjelja 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Nedjelja 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "Ned 3. svi 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "Ned 3. svi 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3. svi T18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03. svi T18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "Gornja traka"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "Donja traka"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "Lijeva traka"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "Desna traka"
+  },
+  "appearance.windows.corners": {
+    "label": "Kutovi prozora"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "Kutovi teme"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "Oštri kutovi"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "Zaobljeni kutovi"
+  },
+  "appearance.windows.transparency": {
+    "label": "Neprozirnost prozora"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "Neprozirni prozori"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "Prozirni prozori"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "Stakleni prozori"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Čuvar zaslona"
+  },
+  "appearance.branding.about": {
+    "label": "O programu"
+  },
+  "appearance.branding.about.text": {
+    "label": "Uredi tekst"
+  },
+  "appearance.branding.about.image": {
+    "label": "Postavi sa slike"
+  },
+  "appearance.branding.about.default": {
+    "label": "Vrati zadano"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Uredi tekst"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Postavi sa slike"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Vrati zadano"
+  },
+  "appearance.dock": {
+    "label": "Dok"
+  },
+  "appearance.dock.autohide": {
+    "label": "Auto-sakrij dock"
+  },
+  "appearance.dock.always-on": {
+    "label": "Uvijek vidljiv dock"
+  },
+  "appearance.dock.position": {
+    "label": "Položaj docka"
+  },
+  "appearance.dock.position.top": {
+    "label": "Gornji dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Donji dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "Lijevi dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "Desni dock"
+  },
+  "appearance.workspace-layout": {
+    "label": "Raspored radnog prostora",
+    "title": "Zadani raspored radnog prostora"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "Popločavanje"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "Pomicanje"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "Plutanje"
+  },
+  "appearance.unlock": {
+    "label": "Otključaj"
+  },
+  "trigger.toggle": {
+    "label": "Prebaci"
+  },
+  "trigger.emoji": {
+    "label": "Emoji"
+  },
+  "trigger.clipboard-history": {
+    "label": "Povijest međuspremnika"
+  },
+  "trigger.reminder": {
+    "label": "Podsjetnik"
+  },
+  "trigger.capture": {
+    "label": "Snimaj"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Snimka zaslona"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Zaustavi snimanje zaslona"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Snimanje zaslona"
+  },
+  "trigger.capture.text": {
+    "label": "Tekst"
+  },
+  "trigger.capture.qr": {
+    "label": "QR kod"
+  },
+  "trigger.capture.color": {
+    "label": "Boja"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Bez zvuka"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "Sa zvukom radne površine"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "Sa zvukom radne površine + mikrofona"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "Sa zvukom radne površine + mikrofona + web-kamera"
+  },
+  "trigger.transcode": {
+    "label": "Transkodiraj"
+  },
+  "trigger.share": {
+    "label": "Dijeli"
+  },
+  "trigger.hardware": {
+    "label": "Hardver"
+  },
+  "trigger.tests": {
+    "label": "Test brzine"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Haptika dodirne plohe"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "nisko"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "srednje"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "visoko"
+  },
+  "trigger.reminder.set": {
+    "label": "Postavi jedan"
+  },
+  "trigger.reminder.show": {
+    "label": "Prikaži sve"
+  },
+  "trigger.reminder.clear": {
+    "label": "Očisti sve"
+  },
+  "trigger.share.clipboard": {
+    "label": "Međuspremnik"
+  },
+  "trigger.share.file": {
+    "label": "Datoteka"
+  },
+  "trigger.share.folder": {
+    "label": "Mapa"
+  },
+  "trigger.share.receive": {
+    "label": "Primi"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Test brzine mreže"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Test brzine diska"
+  },
+  "setup.monitors": {
+    "label": "Monitori"
+  },
+  "setup.keybindings": {
+    "label": "Prečaci"
+  },
+  "setup.input": {
+    "label": "Unos"
+  },
+  "setup.typing": {
+    "label": "Tipkanje"
+  },
+  "setup.typing.keyboard": {
+    "label": "Rasporedi tipkovnice"
+  },
+  "setup.typing.input": {
+    "label": "Načini unosa"
+  },
+  "setup.language": {
+    "label": "Jezik"
+  },
+  "setup.network": {
+    "label": "Mreža"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "Prilagođeno"
+  },
+  "setup.network.qr": {
+    "label": "QR kod"
+  },
+  "setup.default": {
+    "label": "Zadane postavke"
+  },
+  "setup.default.agent": {
+    "label": "Agent",
+    "title": "Zadani agent"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "Preglednik",
+    "title": "Zadani preglednik"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Diktiranje",
+    "title": "Zadano diktiranje"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Terminal",
+    "title": "Zadani terminal"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Uređivač",
+    "title": "Zadani uređivač"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Dodaci"
+  },
+  "setup.plugin.enable": {
+    "label": "Omogući dodatak"
+  },
+  "setup.plugin.disable": {
+    "label": "Onemogući dodatak"
+  },
+  "setup.plugin.add": {
+    "label": "Dodaj dodatak"
+  },
+  "setup.plugin.clone": {
+    "label": "Kloniraj dodatak"
+  },
+  "setup.plugin.remove": {
+    "label": "Ukloni dodatak"
+  },
+  "setup.security": {
+    "label": "Sigurnost"
+  },
+  "setup.config": {
+    "label": "Konfiguracija"
+  },
+  "setup.security.fingerprint": {
+    "label": "Otisak prsta"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker bez sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Sudo bez lozinke"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "Izravno pokretanje"
+  },
+  "setup.reset": {
+    "label": "Resetiraj računalo"
+  },
+  "install.package": {
+    "label": "Paket"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "Usluga"
+  },
+  "install.development": {
+    "label": "Razvoj"
+  },
+  "install.editor": {
+    "label": "Uređivač"
+  },
+  "install.style": {
+    "label": "Stil"
+  },
+  "install.style.theme": {
+    "label": "Tema"
+  },
+  "install.style.background": {
+    "label": "Pozadina"
+  },
+  "install.style.font": {
+    "label": "Font"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Igre"
+  },
+  "install.browser": {
+    "label": "Preglednik"
+  },
+  "install.webapp": {
+    "label": "Web-aplikacija"
+  },
+  "install.terminal": {
+    "label": "Terminal"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Predinstalacije"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Chromium račun"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xbox upravljači"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch Game Launcher"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Paket"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "Ukloni"
+  },
+  "remove.dictation": {
+    "label": "Diktiranje"
+  },
+  "remove.service": {
+    "label": "Usluge",
+    "title": "Ukloni"
+  },
+  "remove.development": {
+    "label": "Razvoj",
+    "title": "Ukloni"
+  },
+  "remove.theme": {
+    "label": "Tema"
+  },
+  "remove.gaming": {
+    "label": "Igre",
+    "title": "Ukloni"
+  },
+  "remove.browser": {
+    "label": "Preglednik",
+    "title": "Ukloni"
+  },
+  "remove.webapp": {
+    "label": "Web-aplikacija"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Predinstalacije"
+  },
+  "remove.security": {
+    "label": "Sigurnost",
+    "title": "Ukloni"
+  },
+  "remove.security.fingerprint": {
+    "label": "Otisak prsta"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker bez sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xbox upravljači (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Ukloni"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Ukloni"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Ukloni"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Kanal"
+  },
+  "update.config": {
+    "label": "Konfiguracija",
+    "title": "Vrati na zadano"
+  },
+  "update.themes": {
+    "label": "Dodatne teme"
+  },
+  "update.process": {
+    "label": "Proces",
+    "title": "Ponovno pokreni"
+  },
+  "update.hardware": {
+    "label": "Hardver",
+    "title": "Ponovno pokreni"
+  },
+  "update.firmware": {
+    "label": "Firmver"
+  },
+  "update.password": {
+    "label": "Lozinka"
+  },
+  "update.timezone": {
+    "label": "Vremenska zona"
+  },
+  "update.time": {
+    "label": "Vrijeme"
+  },
+  "update.channel.stable": {
+    "label": "Stabilno"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Ljuska"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Ljuska"
+  },
+  "update.hardware.audio": {
+    "label": "Zvuk"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Dodirna ploha"
+  },
+  "update.password.drive": {
+    "label": "Šifriranje diska"
+  },
+  "update.password.user": {
+    "label": "Korisnik"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Prikaži % baterije"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Sakrij % baterije"
+  },
+  "appearance.windows": {
+    "label": "Prozori"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Razmaci prozora uključeni"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Razmaci prozora isključeni"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Omjer jednog prozora uključen"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Omjer jednog prozora isključen"
+  },
+  "appearance.branding": {
+    "label": "Brendiranje"
+  },
+  "appearance.animations-on": {
+    "label": "Animacije uključene"
+  },
+  "appearance.animations-off": {
+    "label": "Animacije isključene"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Ostani budan"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Dopusti spavanje"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Obavijesti uključene"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Utišaj obavijesti"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Noćno svjetlo uključeno"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Noćno svjetlo isključeno"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Čuvar zaslona uključen"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Čuvar zaslona isključen"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Snimanje rušenja uključeno"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Isključi snimanje rušenja"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Uključi zaslon prijenosnika"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Isključi zaslon prijenosnika"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Uključi zrcaljenje zaslona"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Isključi zrcaljenje zaslona"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Prebaci na hibridni GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Prebaci na integrirani GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Omogući dodirnu plohu"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Onemogući dodirnu plohu"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Omogući dodirni zaslon"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Onemogući dodirni zaslon"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  }
+}

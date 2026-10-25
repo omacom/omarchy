@@ -1414,6 +1414,8 @@ apply_system_transition() {
   # root-equivalent, so it is opt-in now (Setup > Security > Sudoless Docker);
   # re-granting it on upgrade would silently undo that default for everyone.
 
+  # A channel's base list may still pick the stock power-profiles-daemon, whose
+  # powerprofilesctl runs mise's python3; the Omarchy build ships it fixed.
   if [[ -f /usr/bin/powerprofilesctl ]]; then
     as_root sed -i '/env python3/ c\#!/bin/python3' /usr/bin/powerprofilesctl || true
   fi
@@ -2073,6 +2075,10 @@ if command -v xdg-user-dirs-update >/dev/null 2>&1; then
   xdg-user-dirs-update --set TEMPLATES "$HOME" || true
   xdg-user-dirs-update --set PUBLICSHARE "$HOME" || true
   xdg-user-dirs-update --set DESKTOP "$HOME" || true
+  for dir in DOWNLOAD:Downloads PICTURES:Pictures VIDEOS:Videos DOCUMENTS:Documents MUSIC:Music; do
+    grep -q "^XDG_${dir%%:*}_DIR=" "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" 2>/dev/null ||
+      { mkdir -p "$HOME/${dir#*:}" && xdg-user-dirs-update --set "${dir%%:*}" "$HOME/${dir#*:}"; } || true
+  done
 fi
 rmdir "$HOME/Templates" "$HOME/Public" "$HOME/Desktop" 2>/dev/null || true
 touch "$HOME/.config/gtk-3.0/bookmarks"
@@ -2294,7 +2300,7 @@ if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
 fi
 if command -v xdg-settings >/dev/null 2>&1; then
-  env -u BROWSER xdg-settings set default-web-browser chromium.desktop || true
+  env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser chromium.desktop || true
 fi
 if command -v xdg-mime >/dev/null 2>&1; then
   xdg-mime default HEY.desktop x-scheme-handler/mailto || true

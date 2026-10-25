@@ -263,7 +263,7 @@ assert(/function close\(\) \{\s*\n\s*setCenterHoverRevealSuppressed\(false\)/.te
 assert(/width: Math\.max\(calendarScroll\.width, gridColumn\.width\)/.test(panelSource), 'calendar scrolls rather than clipping the grid on a narrow popup')
 assert(/enabled: !root\.viewingCurrentMonth/.test(panelSource) && /onClicked: root\.goToToday\(\)/.test(panelSource), 'calendar hero returns to today once the view has stepped away')
 assert(!/clampMonth/.test(panelSource), 'calendar steps freely into future months')
-assert(/Qt\.formatDate\(root\.today, "MMMM d"\)/.test(panelSource), 'calendar hero spells out today')
+assert(/root\.today\.toLocaleDateString\(root\.labelLocale, Commons\.I18n\.t\("clock\.dayMonthFormat"\)\)/.test(panelSource), 'calendar hero spells out today')
 assert(/id: yearLabel/.test(panelSource) && /root\.yearDone/.test(panelSource), 'calendar panel shows the year progress bar')
 
 // The memento mori bar is opt-in: double-tapping the year bar asks for an age,
@@ -276,7 +276,7 @@ assert(/readonly property int lifeExpectancy: Model\.parseLifeExpectancy\(settin
 assert(/id: expectancyField/.test(panelSource) && /id: bornField/.test(panelSource), 'calendar offers both inputs')
 assert(/visible: root\.editingLife\s*\n\s*anchors\.horizontalCenter: parent\.horizontalCenter/.test(panelSource), 'calendar centers the inputs over the bar they replace')
 assert(/visible: root\.birthYear > 0/.test(panelSource), 'calendar hides the life bar until a birth year is known')
-assert(/text: "LIFE"/.test(panelSource) && /root\.lifeDone/.test(panelSource), 'calendar shows the life bar')
+assert(/I18n\.t\("clock\.life"\)/.test(panelSource) && /root\.lifeDone/.test(panelSource), 'calendar shows the life bar')
 assert(/text: "Memento Mori"/.test(panelSource), 'calendar names the life bar on hover')
 assert(/onDoubleTapped: root\.clearLife\(\)/.test(panelSource), 'calendar puts the life bar away when it is double-tapped')
 assert(/persistSettings\(\{ birthYear: 0 \}\)/.test(panelSource), 'calendar clears the birth year to hide the life bar')
@@ -309,6 +309,17 @@ assert(/readonly property real labelWidth:/.test(fs.readFileSync(root + '/shell/
 // A horizontal wheel reports angleDelta.y === 0; without the guard every one
 // of them would read as a forward step.
 assert(/if \(event\.angleDelta\.y === 0\) return/.test(panelSource), 'calendar ignores wheel events with no vertical delta')
+
+// Qt.formatDate/formatDateTime and a bare Qt.locale() take names from the
+// system LANG, which only follows a language switch after the next login;
+// the clock formats through the Omarchy language's formatLocale instead.
+const panelCode = panelSource.replace(/^\s*\/\/.*$/gm, '')
+for (const [name, source] of [['Panel.qml', panelCode], ['BarWidget.qml', widgetSource]]) {
+  assert(!/Qt\.format(Date|Time|DateTime)\(/.test(source), `clock ${name} does not format with the system locale`)
+  assert(!/Qt\.locale\(\)/.test(source), `clock ${name} does not read the system locale`)
+}
+assert(/date\.toLocaleString\(root\.formatLocale,/.test(widgetSource), 'bar clock formats with the Omarchy language')
+assert(/standaloneMonthName\(viewMonth/.test(panelCode), 'calendar title uses the standalone month name')
 JS
 
 shell_json=$(cd "$ROOT" && jq -r '[.bar.layout.center[].id] | join(",")' config/omarchy/shell.json)

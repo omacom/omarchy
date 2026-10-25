@@ -239,7 +239,7 @@ assert_output_contains "pkg add help resolves" "$output" "omarchy-pkg-add"
 assert_output_contains "pkg add help shows direct route" "$output" "omarchy pkg add <packages...>"
 
 output=$("$CLI" system reboot --help)
-assert_output_contains "system command help is safe" "$output" "omarchy-system-reboot"
+assert_output_contains "system command help is safe" "$output" "omarchy-system"
 
 output=$("$CLI" dev benchmark cli --repeat=1)
 assert_output_contains "benchmark command runs" "$output" "Omarchy CLI benchmark"
@@ -522,7 +522,7 @@ pass "claude theme activation preserves configured settings"
 make_tmpdir THEME_TMPDIR
 OMARCHY_PATH="$ROOT" HOME="$THEME_TMPDIR" OMARCHY_THEME_HEADLESS=1 "$ROOT/bin/omarchy-theme-set" "Tokyo Night"
 background_path=$(readlink -f "$THEME_TMPDIR/.local/state/omarchy/current/background" 2>/dev/null || true)
-expected_background="$THEME_TMPDIR/.local/state/omarchy/current/theme/backgrounds/0-winding-road.webp"
+expected_background="$THEME_TMPDIR/.local/state/omarchy/current/theme/backgrounds/0-liftoff.webp"
 [[ $background_path == "$expected_background" ]] || fail "headless theme set creates current background symlink"
 [[ -f $background_path ]] || fail "headless theme background target exists"
 [[ ! -e $THEME_TMPDIR/.config/omarchy/current ]] || fail "headless theme set avoids config current state"
@@ -638,7 +638,7 @@ for binary in \
   omarchy-update \
   omarchy-theme-set \
   omarchy-capture-screenshot \
-  omarchy-system-reboot \
+  omarchy-system \
   omarchy-pkg-add; do
   [[ -x $ROOT/bin/$binary ]] || fail "binary is executable: $binary"
   pass "binary is executable: $binary"
@@ -837,3 +837,40 @@ if (( EUID != 0 )); then
   rm -f "$TMPDIR/omarchy-zz-unreadable"
   pass "an alias dispatch reads only the commands that can own its route"
 fi
+
+# The same guarantee against the real command table, timed: an alias dispatch
+# that loads every header costs what help on it costs (about 190ms either way
+# before the candidates-only path, against 13ms after). Timing both in the same
+# run keeps the check independent of how fast the machine is.
+make_tmpdir ROUTER_BIN
+cp -a "$ROOT/bin/." "$ROUTER_BIN/"
+# The real header, so the alias resolves as shipped, over a body that takes no
+# screenshot.
+{
+  awk 'NR == 1 || /^#/ || /^[[:space:]]*$/ { print; next } { exit }' "$ROOT/bin/omarchy-capture-screenshot"
+  printf 'echo screenshot-stub-ran\n'
+} >"$ROUTER_BIN/omarchy-capture-screenshot"
+
+fastest_ms() {
+  local best="" start end elapsed
+
+  for _ in 1 2 3 4 5; do
+    start=$EPOCHREALTIME
+    "$@" >/dev/null 2>&1
+    end=$EPOCHREALTIME
+    elapsed=$(( (${end/[.,]/} - ${start/[.,]/}) / 1000 ))
+    if [[ -z $best ]] || (( elapsed < best )); then
+      best=$elapsed
+    fi
+  done
+  echo "$best"
+}
+
+[[ $("$ROUTER_BIN/omarchy" screenshot) == "screenshot-stub-ran" ]] || fail "omarchy screenshot dispatches to the capture command"
+alias_ms=$(fastest_ms "$ROUTER_BIN/omarchy" screenshot)
+full_ms=$(fastest_ms "$ROUTER_BIN/omarchy" screenshot --help)
+if (( alias_ms * 4 > full_ms )); then
+  printf 'omarchy screenshot took %dms; loading the whole table for its help took %dms.\n' "$alias_ms" "$full_ms" >&2
+  fail "an alias dispatch costs a fraction of loading the whole command table"
+fi
+pass "an alias dispatch costs a fraction of loading the whole command table (${alias_ms}ms vs ${full_ms}ms)"

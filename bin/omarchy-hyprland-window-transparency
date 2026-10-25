@@ -36,15 +36,10 @@ if (( $# == 0 )); then
   exit 0
 fi
 
-case $1 in
-  opaque) LABEL="Opaque windows" ;;
-  transparent) LABEL="Transparent windows" ;;
-  glassy) LABEL="Glassy windows" ;;
-  *)
-    echo "Usage: omarchy-hyprland-window-transparency [opaque|transparent|glassy]" >&2
-    exit 1
-    ;;
-esac
+if [[ ! $1 =~ ^(opaque|transparent|glassy)$ ]]; then
+  echo "Usage: omarchy-hyprland-window-transparency [opaque|transparent|glassy]" >&2
+  exit 1
+fi
 
 # A theme switch renders the next theme's terminal files from the saved choice
 # and then replaces the current theme, so the choice and the glass written into
@@ -67,4 +62,3 @@ hyprctl reload >/dev/null || exit 1
 omarchy-restart-terminal
 omarchy-theme-set-foot
 omarchy-restart-btop
-omarchy-notification-send -g 󰂵 "$LABEL"

@@ -71,7 +71,9 @@ BorderSurface {
   // Reserve the largest border any visual state can paint. Otherwise a
   // borderless idle button grows by a pixel per side on hover/focus and
   // relayouts neighboring controls.
-  implicitWidth: row.implicitWidth + horizontalPadding * 2 + _reservedBorderLeft + _reservedBorderRight
+  // Measured from the label's natural width rather than the row, which
+  // narrows the label when the button is held narrower than that.
+  implicitWidth: _contentNaturalWidth + horizontalPadding * 2 + _reservedBorderLeft + _reservedBorderRight
   implicitHeight: row.implicitHeight + verticalPadding * 2 + _reservedBorderTop + _reservedBorderBottom
   radius: Style.cornerRadius
 
@@ -104,6 +106,12 @@ BorderSurface {
     Border.left(_selectedBorderSpec),
     bordered ? Border.left(_normalBorderSpec) : 0)
   readonly property real _reservedContentLeftInset: _reservedBorderLeft + leftPadding
+  readonly property real _iconRoom: iconGlyph.visible ? iconGlyph.implicitWidth + (label.visible ? row.spacing : 0) : 0
+  readonly property real _contentNaturalWidth: _iconRoom + (label.visible ? label.implicitWidth : 0)
+  // A translated label can outgrow a button laid out at a fixed width (a
+  // grid of equal pills): it first spends half the padding, then shrinks to
+  // fit, and elides only when even the smallest size does not.
+  readonly property real _labelRoom: width - horizontalPadding - _reservedBorderLeft - _reservedBorderRight - _iconRoom
   readonly property var _borderSpec: _showFocusRing ? _focusBorderSpec
     : hot                      ? _hoverBorderSpec
     : selected                 ? (Border.controlHasWidth("selected") ? _selectedBorderSpec : (bordered ? _normalBorderSpec : Border.none()))
@@ -127,6 +135,16 @@ BorderSurface {
   borderSpec: _borderSpec
 
   Behavior on color { ColorAnimation { duration: Style.duration(120) } }
+
+  // Held down, the button gives a little, so a click is felt as well as seen.
+  scale: mouseArea.pressed ? 0.97 : 1
+  Behavior on scale {
+    NumberAnimation {
+      duration: Style.duration(160)
+      easing.type: Easing.Bezier
+      easing.bezierCurve: Style.easeOut
+    }
+  }
 
   ToolTip {
     visible: root.tooltipText !== "" && mouseArea.containsMouse
@@ -160,6 +178,7 @@ BorderSurface {
     spacing: Style.spacing.controlGap
 
     Text {
+      id: iconGlyph
       textFormat: Text.PlainText
       visible: root.iconText !== ""
       text: root.iconText
@@ -173,13 +192,14 @@ BorderSurface {
       RotationAnimation on rotation {
         from: 0
         to: 360
-        duration: 900
+        duration: Style.duration(900)
         loops: Animation.Infinite
         running: root.iconSpinning && !Style.reduceMotion
       }
     }
 
     Text {
+      id: label
       textFormat: Text.PlainText
       visible: root.text !== ""
       text: root.text
@@ -187,6 +207,10 @@ BorderSurface {
       font.family: root.fontFamily
       font.pixelSize: root.fontSize
       font.bold: root.selected
+      width: Math.max(0, Math.min(implicitWidth, root._labelRoom))
+      fontSizeMode: Text.HorizontalFit
+      minimumPixelSize: Math.round(root.fontSize * 0.75)
+      elide: Text.ElideRight
       anchors.verticalCenter: parent.verticalCenter
     }
   }
@@ -194,6 +218,9 @@ BorderSurface {
   MouseArea {
     id: mouseArea
     anchors.fill: parent
+    // Undoes the press scale, so the button only looks smaller: a press near
+    // its edge still counts as a click when it's let go there.
+    scale: 1 / root.scale
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     acceptedButtons: Qt.LeftButton | Qt.RightButton

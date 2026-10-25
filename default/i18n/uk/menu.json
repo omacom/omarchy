@@ -1,0 +1,1289 @@
+{
+  "root": {
+    "label": "Перейти"
+  },
+  "apps": {
+    "label": "Програми"
+  },
+  "learn": {
+    "label": "Навчання"
+  },
+  "appearance": {
+    "label": "Вигляд"
+  },
+  "trigger": {
+    "label": "Дії"
+  },
+  "setup": {
+    "label": "Налаштування"
+  },
+  "install": {
+    "label": "Встановити"
+  },
+  "remove": {
+    "label": "Видалити"
+  },
+  "update": {
+    "label": "Оновити"
+  },
+  "about": {
+    "label": "Про програму"
+  },
+  "system": {
+    "label": "Система"
+  },
+  "system.screensaver": {
+    "label": "Заставка"
+  },
+  "system.lock": {
+    "label": "Заблокувати"
+  },
+  "system.suspend": {
+    "label": "Сон"
+  },
+  "system.hibernate": {
+    "label": "Гібернація"
+  },
+  "system.logout": {
+    "label": "Вийти"
+  },
+  "system.reboot": {
+    "label": "Перезавантажити"
+  },
+  "system.shutdown": {
+    "label": "Вимкнути"
+  },
+  "learn.keybindings": {
+    "label": "Сполучення клавіш"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Спільнота"
+  },
+  "appearance.theme": {
+    "label": "Тема"
+  },
+  "appearance.background": {
+    "label": "Фон"
+  },
+  "appearance.font": {
+    "label": "Шрифт"
+  },
+  "appearance.top-bar": {
+    "label": "Панель меню"
+  },
+  "appearance.top-bar.hide": {
+    "label": "Сховати панель"
+  },
+  "appearance.top-bar.show": {
+    "label": "Показати панель"
+  },
+  "appearance.top-bar.position": {
+    "label": "Положення панелі"
+  },
+  "appearance.top-bar.background": {
+    "label": "Фон панелі"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "Непрозора панель"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "Скляна панель"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "Прозора панель"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "Індикатори панелі"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "Годинник"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Неділя 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Неділя 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Неділя 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Неділя 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "Нд 3 тра 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "Нд 3 тра 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 тра W18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 тра W18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "Панель зверху"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "Панель знизу"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "Панель ліворуч"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "Панель праворуч"
+  },
+  "appearance.windows.corners": {
+    "label": "Кути вікон"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "Кути теми"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "Гострі кути"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "Заокруглені кути"
+  },
+  "appearance.windows.transparency": {
+    "label": "Непрозорість вікон"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "Непрозорі вікна"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "Прозорі вікна"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "Скляні вікна"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Заставка"
+  },
+  "appearance.branding.about": {
+    "label": "Про програму"
+  },
+  "appearance.branding.about.text": {
+    "label": "Редагувати текст"
+  },
+  "appearance.branding.about.image": {
+    "label": "Встановити зображення"
+  },
+  "appearance.branding.about.default": {
+    "label": "Відновити типові"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Редагувати текст"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Встановити зображення"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Відновити типові"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Автоприховування Dock"
+  },
+  "appearance.dock.always-on": {
+    "label": "Завжди видимий Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Положення Dock"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock зверху"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock знизу"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock ліворуч"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock праворуч"
+  },
+  "appearance.workspace-layout": {
+    "label": "Схема робочого простору",
+    "title": "Типова схема робочого простору"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "Мозаїка"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "Прокручування"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "Плаваючі"
+  },
+  "appearance.unlock": {
+    "label": "Розблокувати"
+  },
+  "trigger.toggle": {
+    "label": "Перемикати"
+  },
+  "trigger.emoji": {
+    "label": "Емоджі"
+  },
+  "trigger.clipboard-history": {
+    "label": "Історія буфера обміну"
+  },
+  "trigger.reminder": {
+    "label": "Нагадування"
+  },
+  "trigger.capture": {
+    "label": "Захоплення"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Знімок екрана"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Зупинити запис екрана"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Запис екрана"
+  },
+  "trigger.capture.text": {
+    "label": "Текст"
+  },
+  "trigger.capture.qr": {
+    "label": "QR-код"
+  },
+  "trigger.capture.color": {
+    "label": "Колір"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Без звуку"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "Зі звуком робочого столу"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "Зі звуком столу й мікрофона"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "Зі звуком столу, мікрофона й вебкамери"
+  },
+  "trigger.transcode": {
+    "label": "Перекодувати"
+  },
+  "trigger.share": {
+    "label": "Поділитися"
+  },
+  "trigger.hardware": {
+    "label": "Обладнання"
+  },
+  "trigger.tests": {
+    "label": "Тест швидкості"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Вібрація тачпада"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "низький"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "середній"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "високий"
+  },
+  "trigger.reminder.set": {
+    "label": "Створити"
+  },
+  "trigger.reminder.show": {
+    "label": "Показати всі"
+  },
+  "trigger.reminder.clear": {
+    "label": "Очистити всі"
+  },
+  "trigger.share.clipboard": {
+    "label": "Буфер обміну"
+  },
+  "trigger.share.file": {
+    "label": "Файл"
+  },
+  "trigger.share.folder": {
+    "label": "Тека"
+  },
+  "trigger.share.receive": {
+    "label": "Отримати"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Тест швидкості мережі"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Тест швидкості диска"
+  },
+  "setup.monitors": {
+    "label": "Монітори"
+  },
+  "setup.keybindings": {
+    "label": "Сполучення клавіш"
+  },
+  "setup.input": {
+    "label": "Введення"
+  },
+  "setup.typing": {
+    "label": "Набір тексту"
+  },
+  "setup.typing.keyboard": {
+    "label": "Розкладки клавіатури"
+  },
+  "setup.typing.input": {
+    "label": "Методи введення"
+  },
+  "setup.language": {
+    "label": "Мова"
+  },
+  "setup.network": {
+    "label": "Мережа"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "Власний"
+  },
+  "setup.network.qr": {
+    "label": "QR-код"
+  },
+  "setup.default": {
+    "label": "Типові"
+  },
+  "setup.default.agent": {
+    "label": "Агент",
+    "title": "Типовий агент"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "Браузер",
+    "title": "Типовий браузер"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Диктування",
+    "title": "Типове диктування"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Термінал",
+    "title": "Типовий термінал"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Редактор",
+    "title": "Типовий редактор"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Плагіни"
+  },
+  "setup.plugin.enable": {
+    "label": "Увімкнути плагін"
+  },
+  "setup.plugin.disable": {
+    "label": "Вимкнути плагін"
+  },
+  "setup.plugin.add": {
+    "label": "Додати плагін"
+  },
+  "setup.plugin.clone": {
+    "label": "Клонувати плагін"
+  },
+  "setup.plugin.remove": {
+    "label": "Видалити плагін"
+  },
+  "setup.security": {
+    "label": "Безпека"
+  },
+  "setup.config": {
+    "label": "Конфігурація"
+  },
+  "setup.security.fingerprint": {
+    "label": "Відбиток пальця"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker без sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Sudo без пароля"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "Пряме завантаження"
+  },
+  "setup.reset": {
+    "label": "Скинути комп'ютер"
+  },
+  "install.package": {
+    "label": "Пакет"
+  },
+  "install.ai": {
+    "label": "ШІ"
+  },
+  "install.service": {
+    "label": "Служба"
+  },
+  "install.development": {
+    "label": "Розробка"
+  },
+  "install.editor": {
+    "label": "Редактор"
+  },
+  "install.style": {
+    "label": "Стиль"
+  },
+  "install.style.theme": {
+    "label": "Тема"
+  },
+  "install.style.background": {
+    "label": "Фон"
+  },
+  "install.style.font": {
+    "label": "Шрифт"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Ігри"
+  },
+  "install.browser": {
+    "label": "Браузер"
+  },
+  "install.webapp": {
+    "label": "Вебзастосунок"
+  },
+  "install.terminal": {
+    "label": "Термінал"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Попередньо встановлені"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Обліковий запис Chromium"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Контролери Xbox"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "Лаунчер ігор RetroArch"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Пакет"
+  },
+  "remove.ai": {
+    "label": "ШІ",
+    "title": "Видалити"
+  },
+  "remove.dictation": {
+    "label": "Диктування"
+  },
+  "remove.service": {
+    "label": "Служби",
+    "title": "Видалити"
+  },
+  "remove.development": {
+    "label": "Розробка",
+    "title": "Видалити"
+  },
+  "remove.theme": {
+    "label": "Тема"
+  },
+  "remove.gaming": {
+    "label": "Ігри",
+    "title": "Видалити"
+  },
+  "remove.browser": {
+    "label": "Браузер",
+    "title": "Видалити"
+  },
+  "remove.webapp": {
+    "label": "Вебзастосунок"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Попередньо встановлені"
+  },
+  "remove.security": {
+    "label": "Безпека",
+    "title": "Видалити"
+  },
+  "remove.security.fingerprint": {
+    "label": "Відбиток пальця"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker без sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Контролери Xbox (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Видалити"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Видалити"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Видалити"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Канал"
+  },
+  "update.config": {
+    "label": "Конфігурація",
+    "title": "Скинути до типових"
+  },
+  "update.themes": {
+    "label": "Додаткові теми"
+  },
+  "update.process": {
+    "label": "Процес",
+    "title": "Перезапустити"
+  },
+  "update.hardware": {
+    "label": "Обладнання",
+    "title": "Перезапустити"
+  },
+  "update.firmware": {
+    "label": "Прошивка"
+  },
+  "update.password": {
+    "label": "Пароль"
+  },
+  "update.timezone": {
+    "label": "Часовий пояс"
+  },
+  "update.time": {
+    "label": "Час"
+  },
+  "update.channel.stable": {
+    "label": "Стабільний"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Оболонка"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Оболонка"
+  },
+  "update.hardware.audio": {
+    "label": "Звук"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Тачпад"
+  },
+  "update.password.drive": {
+    "label": "Шифрування диска"
+  },
+  "update.password.user": {
+    "label": "Користувач"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Показати % батареї"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Сховати % батареї"
+  },
+  "appearance.windows": {
+    "label": "Вікна"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Проміжки вікон: увімк."
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Проміжки вікон: вимк."
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Пропорція 1 вікна: увімк."
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Пропорція 1 вікна: вимк."
+  },
+  "appearance.branding": {
+    "label": "Брендинг"
+  },
+  "appearance.animations-on": {
+    "label": "Анімації: увімк."
+  },
+  "appearance.animations-off": {
+    "label": "Анімації: вимк."
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Не спати"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Дозволити сон"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Сповіщення: увімк."
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Без сповіщень"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Нічне світло: увімк."
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Нічне світло: вимк."
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Заставка: увімк."
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Заставка: вимк."
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Запис збоїв: увімк."
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Вимкнути захоплення збоїв"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Увімкнути дисплей ноутбука"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Вимкнути дисплей ноутбука"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Увімкнути дублювання дисплея"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Вимкнути дублювання дисплея"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Перейти на гібридний GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Перейти на інтегрований GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Увімкнути тачпад"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Вимкнути тачпад"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Увімкнути сенсорний екран"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Вимкнути сенсорний екран"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Ядро"
+  }
+}

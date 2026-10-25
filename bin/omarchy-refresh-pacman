@@ -36,17 +36,43 @@ if ! platform=$(omarchy-hw-platform); then
   exit 1
 fi
 templates=$(omarchy_pacman_templates "$platform") || exit 1
-[[ -n $channel ]] || channel=$(omarchy_pacman_default_channel "$platform") || exit 1
+if [[ -z $channel ]]; then
+  channel=$(omarchy-channel-current) || exit 1
+  case "$channel" in
+    stable | rc | edge) ;;
+    # A linked checkout uses the edge packages, just like channel-set dev.
+    dev) channel=edge ;;
+    unknown) channel=$(omarchy_pacman_default_channel "$platform") || exit 1 ;;
+    *)
+      echo "Cannot tell this machine's channel. No repository configuration changed." >&2
+      exit 1
+      ;;
+  esac
+fi
 if [[ ! -f $templates/pacman-$channel.conf || ! -f $templates/mirrorlist-$channel ]]; then
   echo "Omarchy has no $channel channel for $platform. No repository configuration changed." >&2
   exit 1
 fi
 
+# Render the channel templates plus this machine's regional additions as the
+# caller, so root only copies finished files. The scratch directory goes on
+# every exit, including a failed render, a refused sudo prompt, or a signal;
+# revoking the sudo timestamp stays the last thing the exit path does.
+rendered=$(mktemp -d)
+cleanup_refresh() {
+  local status=$?
+  rm -rf "$rendered"
+  omarchy_security_exit_with_revoked_sudo "$status"
+}
+trap cleanup_refresh EXIT
+"$OMARCHY_PATH/bin/omarchy-apply-pacman" --render "$channel" "$rendered"
+
 sudo cp -f /etc/pacman.conf /etc/pacman.conf.bak
 sudo cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
 echo "Setting channel to $channel"
-sudo cp -f "$templates/pacman-$channel.conf" /etc/pacman.conf
-sudo cp -f "$templates/mirrorlist-$channel" /etc/pacman.d/mirrorlist
+sudo cp -f "$rendered/pacman.conf" /etc/pacman.conf
+sudo cp -f "$rendered/mirrorlist" /etc/pacman.d/mirrorlist
+rm -rf "$rendered"
 
 # Allow user customization of /etc/pacman.conf before the upgrade runs, so
 # custom repositories and IgnorePkg entries shape the downgrade-capable
@@ -58,5 +84,16 @@ PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" \
   "$OMARCHY_PATH/bin/omarchy-hook" pre-refresh-pacman
 omarchy_security_revoke_sudo_timestamp
 
+# Stable and rc publish omarchy and omarchy-settings; the -dev pair is edge's.
+# A stable or rc repository can still list an old -dev build (stable's listed
+# 4.0.0.r1832 from August to October 2026), and -uu would move an edge machine
+# onto it here, before omarchy-channel-set swaps the pair. That build predates
+# command-scoped sudo, so the switch would stop short of its swap and leave the
+# machine there. The -dev pair is left to the swap.
+ignore=()
+if [[ $channel == "stable" || $channel == "rc" ]]; then
+  ignore=(--ignore omarchy-dev,omarchy-settings-dev)
+fi
+
 # Reset all package DBs and then update
-omarchy-update-pacman -Syyuu --noconfirm
+omarchy-update-pacman -Syyuu --noconfirm "${ignore[@]}"
