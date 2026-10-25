@@ -1,0 +1,50 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+ROOT="$ROOT" run_node_test <<'JS'
+const switcher = requireFromRoot('shell/plugins/switcher/SwitcherModel.js')
+
+let order = []
+for (const address of ['0xA', 'b', '0xc', 'a']) order = switcher.touch(order, address)
+assertDeepEqual(order, ['a', 'c', 'b'], 'the window focused last goes first, whichever way Hyprland writes its address')
+assertDeepEqual(switcher.demote(order, '0xa'), ['c', 'b', 'a'], 'a minimized window goes to the back')
+assertDeepEqual(switcher.forget(order, 'c'), ['a', 'b'], 'a closed window leaves the order')
+
+const windows = [
+  { address: '0xd', parent: '', focusHistory: 1 },
+  { address: '0xb', parent: '' },
+  { address: '0xe', parent: '', focusHistory: 0 },
+  { address: '0xa', parent: '' },
+  { address: '0xf', parent: '0xa' }
+]
+assertDeepEqual(
+  switcher.orderWindows(['f', 'b', 'a'], windows).map(window => window.address),
+  ['0xb', '0xa', '0xe', '0xd'],
+  'windows list in the order last used, those not used since the shell started after them by focus history, dialogs left out'
+)
+assertEqual(switcher.dialogFor(['b', 'f'], windows, '0xa').address, '0xf', 'an owner comes up with its dialog')
+assertEqual(switcher.dialogFor([], windows, '0xb'), null, 'a window with no dialog comes up alone')
+
+assertEqual(switcher.startIndex(3, 1, true), 1, 'Tab starts on the window used before the focused one')
+assertEqual(switcher.startIndex(3, 1, false), 0, 'with nothing focused, Tab starts on the window used last')
+assertEqual(switcher.startIndex(1, 1, true), 0, 'a lone window stays picked')
+assertEqual(switcher.startIndex(3, -1, true), 2, 'Shift + Tab starts from the other end')
+assertEqual(switcher.stepIndex(2, 3, 1), 0, 'Tab wraps past the last window')
+assertEqual(switcher.stepIndex(0, 3, -1), 2, 'Shift + Tab wraps past the first window')
+assertEqual(switcher.indexAfterRemoval(2, 0, 3), 1, 'the pick stays on its window when one before it closes')
+assertEqual(switcher.indexAfterRemoval(2, 2, 2), 1, 'the pick moves back when the last window closes')
+
+const options = { maxWidth: 500, maxHeight: 1000, thumbHeight: 100, minThumbHeight: 40, gap: 10, padding: 0, header: 0, minAspect: 0.5, maxAspect: 2.5 }
+const wrapped = switcher.layout([2, 2, 2], options)
+assertDeepEqual(wrapped.rows, [[0, 1], [2]], 'thumbnails wrap onto a new row when the row is full')
+assertEqual(wrapped.items[2].x, 105, 'a short row is centered')
+assertEqual(switcher.rowNeighbor(wrapped, 0, 1), 2, 'Down goes to the nearest thumbnail in the row below')
+assertEqual(switcher.rowNeighbor(wrapped, 2, 1), 2, 'Down stays put on the last row')
+const shrunk = switcher.layout([2, 2, 2, 2, 2, 2], Object.assign({}, options, { maxHeight: 150 }))
+assert(shrunk.height <= 150 && shrunk.thumbHeight < 100, 'thumbnails shrink until the rows fit')
+JS
+
+pass "the window switcher orders, picks and lays out windows the way Windows does"

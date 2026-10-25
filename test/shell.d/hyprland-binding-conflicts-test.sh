@@ -122,12 +122,9 @@ duplicate_signatures() {
   cut -f1 | sort | uniq -d
 }
 
-# Deliberate stacking: Hyprland runs both dispatchers, so cycling to the next
-# window also raises it. Anything else sharing a chord is a collision.
-allowed_duplicates=(
-  "ALT+SHIFT+TAB"
-  "ALT+TAB"
-)
+# Deliberate stacking, where Hyprland is meant to run both dispatchers. None
+# today: anything sharing a chord is a collision.
+allowed_duplicates=()
 
 is_allowed_duplicate() {
   local signature="$1" allowed

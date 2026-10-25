@@ -58,8 +58,8 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Ctrl + Alt + Z` | Zoom fully out from screen |
 | `Super + /` | Step forward through monitor scaling options |
 | `Super + Alt + /` | Step backward through monitor scaling options |
-| `Alt + Tab` | Cycle forward through windows on the active workspace |
-| `Alt + Shift + Tab` | Cycle backward through windows on the active workspace |
+| `Alt + Tab` | Switch to the window you used before; hold `Alt` and keep tapping `Tab` to pick from every open window, on any workspace or monitor, then let go of `Alt` |
+| `Alt + Shift + Tab` | Step backward through the window switcher |
 | `Ctrl + Alt + Tab`| Cycle focus forward through monitors |
 | `Ctrl + Alt + Shift + Tab`| Cycle focus backwards through monitors |
 

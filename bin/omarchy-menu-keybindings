@@ -453,10 +453,9 @@ static_bindings() {
 }
 
 # Actions Omarchy binds to a second chord meant as an alternative, named one at
-# a time. A rule would be wrong here: Alt + Tab and Shift + Alt + Tab both say
-# "Reveal active window on top" while cycling opposite ways, and a media key is
-# nobody's idea of an alternative to a Super chord. Only chords a user reaches
-# for interchangeably belong on one row.
+# a time. A rule would be wrong here: two chords can share a description while
+# doing opposite things, and a media key is nobody's idea of an alternative to a
+# Super chord. Only chords a user reaches for interchangeably belong on one row.
 alternative_chord_actions() {
   cat <<'ACTIONS'
 Close window
