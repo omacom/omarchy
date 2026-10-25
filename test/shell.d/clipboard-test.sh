@@ -280,9 +280,9 @@ elif [[ $1 == "--type" && $2 == "text" ]]; then
 fi
 SH
 
-cat >"$TMPDIR/bin/wtype" <<'SH'
+cat >"$TMPDIR/bin/hyprctl" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >"$WTYPE_OUT"
+printf '%s\n' "$*" >>"$HYPRCTL_OUT"
 SH
 
 cat >"$TMPDIR/bin/omarchy-launch-browser" <<'SH'
@@ -301,7 +301,7 @@ cat >"$TMPDIR/bin/omasnap" <<'SH'
 printf '%s\n' "$*" >"$OMASNAP_OUT"
 SH
 
-chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wl-paste" "$TMPDIR/bin/wtype" "$TMPDIR/bin/omarchy-launch-browser" "$TMPDIR/bin/omarchy-launch-editor" "$TMPDIR/bin/omasnap"
+chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wl-paste" "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/omarchy-launch-browser" "$TMPDIR/bin/omarchy-launch-editor" "$TMPDIR/bin/omasnap"
 
 capture_output=$(XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh")
 [[ $capture_output == '{"type":"text","text":"terminal copy"}' ]] || fail "clipboard capture records normal text events"
@@ -530,36 +530,38 @@ kill "$owner_pid" 2>/dev/null || true
 process_gone "$watch_pid" || fail "clipboard watcher dies with its owner via pdeathsig"
 pass "clipboard watcher dies with its owner via pdeathsig"
 
+shift_insert_through_hyprland=$'dispatch hl.dsp.send_key_state({ mods = "SHIFT", key = "Insert", state = "down" })\ndispatch hl.dsp.send_key_state({ mods = "SHIFT", key = "Insert", state = "up" })'
+
 jq -n --arg text "$(printf 'large block line 1\nlarge block line 2\n')" '[{type:"text", text:"ignored"}, {type:"text", text:$text}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 
-WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+WL_COPY_OUT="$TMPDIR/copied" HYPRCTL_OUT="$TMPDIR/hyprctl" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 1
 
 [[ $(<"$TMPDIR/copied") == "$(printf 'large block line 1\nlarge block line 2')" ]] || fail "clipboard paste helper copies history entry text"
 pass "clipboard paste helper copies history entry text"
 
-[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "clipboard paste helper pastes history entries with shift insert"
+[[ $(<"$TMPDIR/hyprctl") == "$shift_insert_through_hyprland" ]] || fail "clipboard paste helper pastes history entries with shift insert"
 pass "clipboard paste helper pastes history entries with shift insert"
 
-rm -f "$TMPDIR/wtype"
-WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+rm -f "$TMPDIR/hyprctl"
+WL_COPY_OUT="$TMPDIR/copied" HYPRCTL_OUT="$TMPDIR/hyprctl" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --history-index 1
 
 [[ $(<"$TMPDIR/copied") == "$(printf 'large block line 1\nlarge block line 2')" ]] || fail "clipboard paste helper copy-only copies history entry text"
 pass "clipboard paste helper copy-only copies history entry text"
 
-[[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard paste helper copy-only skips typing"
+[[ ! -e "$TMPDIR/hyprctl" ]] || fail "clipboard paste helper copy-only skips typing"
 pass "clipboard paste helper copy-only skips typing"
 
 printf 'image-data' >"$TMPDIR/image.png"
-rm -f "$TMPDIR/wtype"
-WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$PATH" \
+rm -f "$TMPDIR/hyprctl"
+WL_COPY_OUT="$TMPDIR/copied" HYPRCTL_OUT="$TMPDIR/hyprctl" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-file" --copy-only image/png "$TMPDIR/image.png"
 
 [[ $(<"$TMPDIR/copied") == "image-data" ]] || fail "clipboard file paste helper copy-only copies file content"
 pass "clipboard file paste helper copy-only copies file content"
 
-[[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard file paste helper copy-only skips paste keystroke"
+[[ ! -e "$TMPDIR/hyprctl" ]] || fail "clipboard file paste helper copy-only skips paste keystroke"
 pass "clipboard file paste helper copy-only skips paste keystroke"
 
 jq -n --arg url 'https://example.com/docs' --arg text "$(printf 'plain text\nsecond line')" --arg image "$TMPDIR/image.png" \
