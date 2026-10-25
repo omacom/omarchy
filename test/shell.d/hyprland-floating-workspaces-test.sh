@@ -770,6 +770,29 @@ assert(bar and bar.bar_color == "rgb(223344)", "titlebars missed the theme with 
 fi
 pass "titlebars follow the theme when XDG_STATE_HOME points elsewhere"
 
+# A tap of Super opens the apps on a floating workspace and nowhere else.
+if ! run_lua '
+local ran, binds = {}, {}
+hl.bind = function(keys, dispatcher) binds[keys] = dispatcher end
+hl.unbind = function() end
+-- The other bindings only need their dispatchers to exist.
+local any = setmetatable({}, { __index = function(t) return t end, __call = function(_, spec) return spec end })
+setmetatable(hl.dsp, { __index = function() return any end })
+hl.dsp.exec_cmd = function(command) return command end
+hl.exec_cmd = function(command) table.insert(ran, command) end
+require("default.hypr.workspace-layouts")
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/utilities.lua")
+state().active.id = 1
+binds["SUPER + Super_L"]()
+assert(ran[1] == "omarchy-shell omarchy.dock apps", "a tap of Super on a floating workspace did not open the apps: " .. tostring(ran[1]))
+state().active.id = 2
+binds["SUPER + Super_R"]()
+assert(#ran == 1, "a tap of Super opened the apps on a tiled workspace")
+'; then
+  fail "a tap of Super opens the apps on a floating workspace only"
+fi
+pass "a tap of Super opens the apps on a floating workspace only"
+
 run_node_test <<'JS'
 const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')
 assert(source.includes('function onActiveWorkspaceChanged() { root.showActiveMode() }'), 'a workspace switch shows the cached layout instead of running the script')
