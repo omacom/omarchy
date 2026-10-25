@@ -948,6 +948,23 @@ assert(
   /function openExistingMenu\([\s\S]*?root\.evaluateGuards\(\)/.test(menuQml),
   'menu still evaluates guards on every open, settled or not'
 )
+
+const keybindingHints = menu.parseKeybindingHints([
+  'SUPER + CTRL + L\tomarchy-system-lock',
+  'SUPER + ALT + L\tomarchy-system-lock',
+  'SUPER + SHIFT + RETURN\tuwsm-app -- omarchy-launch-browser',
+  'XF86AudioMute\tomarchy-audio-output-volume  mute-toggle',
+  'SUPER + code:10\ttoString',
+  'not a bind',
+  ''
+].join('\n'))
+assertEqual(menu.keybindingHintFor(keybindingHints, 'omarchy-system-lock'), 'Super + Ctrl + L', 'a keybinding hint names the first chord bound to the command')
+assertEqual(menu.keybindingHintFor(keybindingHints, 'omarchy-launch-browser'), 'Super + Shift + Return', 'a keybinding hint ignores the uwsm-app launcher prefix')
+assertEqual(menu.keybindingHintFor(keybindingHints, 'omarchy-audio-output-volume mute-toggle'), 'XF86AudioMute', 'a keybinding hint keeps mixed-case key names and spacing-insensitive commands')
+assertEqual(menu.keybindingHintFor(keybindingHints, 'toString'), 'Super + code:10', 'a keybinding hint treats Object member names as plain commands')
+assertEqual(menu.keybindingHintFor(keybindingHints, 'constructor'), '', 'an unbound command spelled like an Object member gets no hint')
+assertEqual(menu.keybindingHintFor(keybindingHints, 'omarchy-launch-editor'), '', 'an unbound command gets no hint')
+assertEqual(menu.keybindingHintFor(menu.parseKeybindingHints(''), 'omarchy-system-lock'), '', 'a missing bind file gives no hints')
 JS
 
 font_charset=$(fc-query --format='%{charset}' "$ROOT/default/fonts/omarchy/omarchy.ttf")

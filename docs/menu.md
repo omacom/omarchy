@@ -142,6 +142,14 @@ Adding a provider means adding an entry to the `providers` map in `Menu.qml`
 (script, icon, `actionFor`, optionally `volatile`) and pointing a submenu at
 it with `provider:`.
 
+## Keybinding hints
+
+The selected row names the key that runs its action, as a small line under its label (`Super + Ctrl + L` under Lock). The hint is derived, not declared: `o.bind` in `default/hypr/helpers.lua` remembers the command each chord runs, `hl.unbind` forgets it, and once the whole config has loaded (`hyprland.start` and every `config.reloaded`) Hyprland writes them to `~/.local/state/omarchy/keybinding-commands`, one `<keys>\t<command>` line per bind. Because the file is written after the user's `hypr/bindings.lua` has run, a rebound key shows its new chord on the next open without any menu change.
+
+`MenuModel.parseKeybindingHints` reads that file and `keybindingHintFor` matches a row's `action` against the commands, ignoring the `uwsm-app --` launcher prefix and runs of whitespace; when several chords run the same command, the first one bound (a default, before the user's additions) is shown. Binds that run a dispatcher or a Lua function with no `o.bind_commands` entry have no command to match, so no row shows them. The menu re-reads the file on every open, since Hyprland may write it after the shell first looked, and holds room for one hint line in the card height so moving the cursor never resizes it.
+
+`omarchy-toggle-menu-keybinding-hints` (Toggle > Key Hints On/Off) turns the hints off and on through the `menu-keybinding-hints-off` toggle flag.
+
 ## Driving the menu from the CLI
 
 `bin/omarchy-menu` is a thin wrapper over the standard plugin IPC surface:
