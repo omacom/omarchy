@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Print the first active external display that is not a mirror
+# omarchy:hidden=true
+
+monitors=$(omarchy-hyprland-monitor-snapshot) || exit 2
+# Plain `hyprctl monitors` omits disabled outputs and mirrors. Keep that
+# selection while sharing the `all` snapshot needed by recovery helpers.
+jq -r '[.[] | select((.name | test("^(eDP|LVDS|DSI)-") | not)
+  and .disabled == false and (.mirrorOf == null or .mirrorOf == "none" or .mirrorOf == ""))][0].name // empty' <<<"$monitors"

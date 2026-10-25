@@ -7,9 +7,13 @@ TOGGLE="internal-monitor-mirror"
 TOGGLE_FLAG="$HOME/.local/state/omarchy/toggles/hypr/$TOGGLE.lua"
 DISABLE_TOGGLE="internal-monitor-disable"
 
-INTERNAL=$(omarchy-hyprland-monitor-laptop)
-# The first active external monitor
-EXTERNAL=$(hyprctl monitors -j | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not).name' | head -n 1)
+OMARCHY_MONITOR_SNAPSHOT=$(omarchy-hyprland-monitor-snapshot) || exit 2
+export OMARCHY_MONITOR_SNAPSHOT
+if [[ ${1:-} == "on" || ${1:-} == "toggle" ]]; then
+  INTERNAL=$(omarchy-hyprland-monitor-laptop) || exit 2
+  # The first active external monitor
+  EXTERNAL=$(omarchy-hyprland-monitor-external) || exit 2
+fi
 
 on() {
   if [[ -z $EXTERNAL ]]; then
