@@ -49,4 +49,4 @@ mkdir -p "$(dirname "$helper_file")" || exit 1
 printf '%s\n' "$helper" >"$helper_file" || exit 1
 
 echo "$helper is now the default AUR helper"
-omarchy-notification-send "$helper is now the default AUR helper" || true
+omarchy-notification-send "$(omarchy-i18n default.aurHelperSet "$helper")" || true
