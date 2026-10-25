@@ -72,6 +72,7 @@ case "$1" in
         echo true
         ;;
       --abbrev-ref)
+        [[ $4 == "quattro@{upstream}" ]] || exit 1
         [[ ${TEST_GIT_UPSTREAM:-origin/quattro} != "none" ]] || exit 1
         echo "${TEST_GIT_UPSTREAM:-origin/quattro}"
         ;;
@@ -79,6 +80,10 @@ case "$1" in
         exit 1
         ;;
     esac
+    ;;
+  for-each-ref)
+    [[ $3 == "refs/heads/quattro" ]] || exit 1
+    echo "${TEST_GIT_REMOTE:-origin}"
     ;;
   rev-list)
     echo "${TEST_GIT_BEHIND:-0}"
@@ -179,7 +184,7 @@ fi
 [[ $status -eq 0 ]] || fail "update checker exits successfully when dev commits are available"
 grep -Fx 'omarchy-dev-checkout 2 new commits on origin/quattro' "$stdout" >/dev/null ||
   fail "update checker reports available dev commits" "$(cat "$stdout")"
-grep -Fx -- "-C $test_tmp/checkout fetch --quiet" "$git_log" >/dev/null ||
+grep -Fx -- "-C $test_tmp/checkout fetch --quiet origin" "$git_log" >/dev/null ||
   fail "update checker fetches the dev checkout upstream" "$(cat "$git_log")"
 pass "update checker detects new commits in the dev checkout"
 
@@ -211,3 +216,38 @@ grep -Fx 'omarchy-dev-checkout 1 new commit on origin/quattro' "$stdout" >/dev/n
   fail "update checker reports cached dev commits after a fetch failure" "$(cat "$stdout")"
 [[ ! -s $stderr ]] || fail "update checker keeps dev fetch failures quiet" "$(cat "$stderr")"
 pass "update checker uses cached dev state when fetching is unavailable"
+
+: >"$git_log"
+if capture_checker "$stdout" "$stderr" \
+  TEST_CHECKUPDATES=none \
+  TEST_INSTALLED_PACKAGE=none \
+  TEST_OMARCHY_PATH="$test_tmp/checkout" \
+  TEST_GIT_BEHIND=3; then
+  status=0
+else
+  status=$?
+fi
+grep -Fx -- "-C $test_tmp/checkout rev-list --count quattro..origin/quattro" "$git_log" >/dev/null ||
+  fail "update checker counts commits on the quattro branch" "$(cat "$git_log")"
+pass "update checker queries commits specifically against the quattro branch"
+
+: >"$git_log"
+if capture_checker "$stdout" "$stderr" \
+  TEST_CHECKUPDATES=none \
+  TEST_INSTALLED_PACKAGE=none \
+  TEST_OMARCHY_PATH="$test_tmp/checkout" \
+  TEST_GIT_REMOTE=upstream \
+  TEST_GIT_UPSTREAM=upstream/quattro \
+  TEST_GIT_BEHIND=4; then
+  status=0
+else
+  status=$?
+fi
+[[ $status -eq 0 ]] || fail "update checker exits successfully when commits are on upstream"
+grep -Fx 'omarchy-dev-checkout 4 new commits on upstream/quattro' "$stdout" >/dev/null ||
+  fail "update checker reports available dev commits on upstream" "$(cat "$stdout")"
+grep -Fx -- "-C $test_tmp/checkout fetch --quiet upstream" "$git_log" >/dev/null ||
+  fail "update checker fetches the remote configured for quattro" "$(cat "$git_log")"
+grep -Fx -- "-C $test_tmp/checkout rev-list --count quattro..upstream/quattro" "$git_log" >/dev/null ||
+  fail "update checker counts commits against upstream quattro" "$(cat "$git_log")"
+pass "update checker fetches the remote configured for quattro"

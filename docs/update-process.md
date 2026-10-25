@@ -153,7 +153,7 @@ Important behavior:
 
 - Protected update entrypoints require the session's canonical `OMARCHY_PATH` to match their own checkout or the packaged `/usr/bin` entrypoint before selecting commands or the sudo wrapper. This preserves intentionally trusted development checkouts while rejecting a command paired with a different source root. System phases use a fixed command search path; user PATH is restored for hooks and mise.
 - Mixed-trust update entrypoints start Bash in privileged mode, discard `BASH_ENV`, `ENV`, and exported-function records before launching helpers, and reject an ordinary `bash path/to/command` invocation. Run them as executables (normally through the `omarchy` CLI); `/usr/bin/bash -p path/to/command` is the explicit interpreter form. This keeps shell startup injection from replacing the no-update sudo boundary.
-- In dev-link mode, `omarchy update` fast-forwards the active checkout from its configured upstream before changing system packages or running migrations.
+- In dev-link mode, `omarchy update` fast-forwards the `quattro` branch from its configured upstream before changing system packages or running migrations. When on a feature branch, `quattro` is updated in-place without altering the working directory, so developers must merge or rebase separately to receive source changes in their active files.
 - The update asks for the sudo password once, right after confirmation. It first invalidates any existing timestamp so that prompt always belongs to this update, then a background keepalive refreshes the timestamp every minute so long downloads, migrations, hooks, and mise never outlast it. Everything except AUR shares that one authorization: package prune, snapshot, stay-awake, keyring, system packages, migrations, orphan removal, service restarts, the post-update hook, and mise. Stay-awake sees `OMARCHY_UPDATE_SUDO_SESSION=1`, uses that authorization non-interactively whatever its stdin is, and leaves it to the update instead of revoking it. The authorization runs a command rather than `sudo -v`, so passwordless sudo still needs no prompt. Standalone commands that keep their own cold boundary, such as `omarchy-refresh-pacman`, still revoke if a post-update hook calls them.
 - AUR builds run third-party PKGBUILD code, so they run last and never see the update's authorization. The update stops the keepalive, invalidates the timestamp, and runs yay with the no-update wrapper as its sudo command and its credential loop disabled; an AUR install prompts per command without publishing a reusable timestamp. The timestamp is invalidated again afterwards and on every exit.
 - This lifecycle controls authorization created by the protected workflow. `sudo -N` prevents cache updates but can use an existing valid credential, and `sudo -k` revokes the current session's timestamp. It does not isolate the account from unrelated concurrent authentication in another workflow.
@@ -252,9 +252,7 @@ omarchy-update-available
 - `omarchy-dev`, when installed
 - otherwise `omarchy`, when installed
 
-The dev check fetches the checkout's configured upstream before comparing it
-with `HEAD`. A failed fetch is quiet and falls back to the existing remote-
-tracking state.
+The dev check fetches the checkout's configured upstream before comparing it with the main branch (`quattro`). A failed fetch is quiet and falls back to the existing remote-tracking state.
 
 Exit codes:
 
@@ -266,16 +264,8 @@ update icon launches `omarchy-update` in a floating terminal.
 
 ## Channels and versions
 
-Updates install whatever the active channel points at. `omarchy-channel-set
-<stable|rc|edge|dev>` switches channels: the three package channels select
-which pacman repo the mirrorlist points at (and swap between the `omarchy` and
-`omarchy-dev` packages through a guard-allowed pacman run), while `dev` links
-the runtime to a git checkout via the dev-link mechanism, after which
-`omarchy update` fast-forwards that checkout instead of upgrading a package.
-The refresh before that swap ignores `omarchy-dev` and `omarchy-settings-dev` on stable and rc, so an old build of them still listed in those repositories can't replace an edge machine's tree before the swap installs the release.
-Channel switching runs the `pre-refresh-pacman` hook once, during its refresh
-step: cold, behind the no-update wrapper, after the package config is re-synced
-and before the refresh transaction. It does not run if the switch fails earlier.
+Updates install whatever the active channel points at. `omarchy-channel-set <stable|rc|edge|dev>` switches channels: the three package channels select which pacman repo the mirrorlist points at (and swap between the `omarchy` and `omarchy-dev` packages through a guard-allowed pacman run), while `dev` links the runtime to a git checkout via the dev-link mechanism, after which `omarchy update` fast-forwards that checkout's `quattro` branch instead of upgrading a package (developers on feature branches merge or rebase `quattro` separately to update active files). The refresh before that swap ignores `omarchy-dev` and `omarchy-settings-dev` on stable and rc, so an old build of them still listed in those repositories can't replace an edge machine's tree before the swap installs the release.
+Channel switching runs the `pre-refresh-pacman` hook once, during its refresh step: cold, behind the no-update wrapper, after the package config is re-synced and before the refresh transaction. It does not run if the switch fails earlier.
 
 Every platform has its own pacman.conf and mirrorlist for each channel it offers (x86_64 and aarch64 stable, rc and edge; Apple Silicon edge alone, below), and a channel change or install finalization copies them into place whole, the same way on every platform (`install/helpers/pacman.sh`); a channel change backs up the old pair first. x86_64's are `default/pacman/pacman-<channel>.conf` and `mirrorlist-<channel>`; Snapdragon and other aarch64 machines use `default/pacman/aarch64/`, the same files with Arch Linux ARM's repositories and Omarchy's mirror of them for that channel (`arm-mirror.omarchy.org`, `arm-rc-mirror.omarchy.org`, `arm-stable-mirror.omarchy.org`), Omarchy's repository ahead of Arch Linux ARM's, as x86_64 puts it ahead of Arch's (migration 1791403252 reorders existing machines the same way, and a refresh can then move a package Omarchy also publishes to Omarchy's build, downgrading it if that build is older); Apple Silicon uses `default/pacman/aarch64-apple/`, which puts Omarchy and Asahi ALARM ahead of Arch Linux ARM. Apple Silicon's packages are published for edge alone so far, so it has edge templates only; adding its stable or rc template is what opens that channel there. A channel change refuses a channel without both files for the platform before anything changes. On aarch64, `omarchy-channel-set` refuses to link a dev checkout without `bin/omarchy-hw-platform` and `install/helpers/pacman.sh`, whose own refresh would write the x86_64 templates. `omarchy-reinstall-pkgs` resets to the platform's default channel (`omarchy_pacman_default_channel`: stable, or edge on Apple Silicon) and installs its default packages; install finalization does the same when the install's channel has no templates for the platform.
 
@@ -297,7 +287,7 @@ scripts.
 | `omarchy-update-stay-awake` | Hidden helper that starts or stops update-owned sleep and idle inhibition, restoring only the state it changed. | **Keep internal/hidden.** Keeps inhibitor ownership and cleanup together. |
 | `omarchy-update-status` | Hidden compatibility helper that clears the shell update indicator. `omarchy-update` clears it directly now; an update started by an older `omarchy-update` still calls this after its upgrade. | **Temporary.** Keep only for updates started before the change. |
 | `omarchy-update-confirm` | Gum confirmation copy for `omarchy update`. | **Question.** Could be inlined into `omarchy-update`; separate file only helps keep copy isolated. |
-| `omarchy-update-dev` | Fast-forwards the active dev-linked checkout from its configured upstream; no-ops for package-backed installs. | **Keep.** Runs before package updates so a checkout conflict stops the update before system mutation. |
+| `omarchy-update-dev` | Fast-forwards the `quattro` branch in the dev-linked checkout from its configured upstream (in-place when on a feature branch); no-ops for package-backed installs. | **Keep.** Runs before package updates so a checkout conflict stops the update before system mutation. |
 | `omarchy-update-keyring` | Ensures Omarchy keyring and Arch keyring (and Arch Linux ARM keyring on aarch64, where installed) are current before the main transaction. | **Keep, but review.** It uses targeted `pacman -Sy` for keyring bootstrapping; acceptable for this special case but should remain tightly scoped. |
 | `omarchy-update-system-pkgs` | Runs `omarchy-update-pacman -Syu --noconfirm` with `--overwrite '/usr/share/omarchy/*'`, capturing stderr to a report file; on failure it execs `omarchy-update-system-pkgs-when-conflicted`. | **Keep for now.** Small leaf command, clear/testable. |
 | `omarchy-update-system-pkgs-when-conflicted` | Hidden conflict handler: quarantines unowned conflicting files under `/var/lib/omarchy/replaced`, retries the upgrade once, restores files the upgrade didn't claim, and hands package-vs-package conflicts to an interactive pacman run (never under `-y`). | **Keep internal/hidden.** Keeps conflict recovery out of the happy path. |

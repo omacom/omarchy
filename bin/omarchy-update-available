@@ -7,11 +7,12 @@ set -euo pipefail
 updates=()
 
 if [[ $OMARCHY_PATH != "/usr/share/omarchy" ]]; then
-  upstream=$(git -C "$OMARCHY_PATH" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)
+  upstream=$(git -C "$OMARCHY_PATH" rev-parse --abbrev-ref --symbolic-full-name 'quattro@{upstream}' 2>/dev/null || true)
   if [[ -n $upstream ]]; then
-    GIT_TERMINAL_PROMPT=0 timeout 10 git -C "$OMARCHY_PATH" fetch --quiet 2>/dev/null || true
+    remote=$(git -C "$OMARCHY_PATH" for-each-ref --format='%(upstream:remotename)' refs/heads/quattro)
+    GIT_TERMINAL_PROMPT=0 timeout 10 git -C "$OMARCHY_PATH" fetch --quiet "$remote" 2>/dev/null || true
 
-    behind=$(git -C "$OMARCHY_PATH" rev-list --count "HEAD..$upstream" 2>/dev/null || echo 0)
+    behind=$(git -C "$OMARCHY_PATH" rev-list --count "quattro..$upstream" 2>/dev/null || echo 0)
     if (( behind > 0 )); then
       commit_label=commits
       (( behind == 1 )) && commit_label=commit
