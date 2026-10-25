@@ -8,18 +8,65 @@
 # Coordinates make the weather panel exact; a hand-written {"name": "Malibu"}
 # alone works too.
 #
-#   (no args)           the current location: the stored name, or the
-#                       IP-detected city when nothing is set
-#   --set <name> [lat,lon]  store a location
-#   --clear             return to IP auto-detect
+# On Wi-Fi, a location is kept for that network instead, as a "networks" entry
+# that adds its SSID and its gateway's hardware address. A name alone is shared
+# by every hotel of a chain; the gateway is one per place, and the same on all
+# of a router's bands and repeaters. The top-level location applies elsewhere.
+#
+#   (no args)           the current location: this network's or the top-level
+#                       stored name, or the IP-detected city when neither is set
+#   --set <name> [lat,lon]  store a location, for this Wi-Fi network when on one
+#   --clear             return to IP auto-detect here: forget this network's
+#                       location and the top-level one
+#   --network           this Wi-Fi network as {"ssid": ..., "gateway": ...},
+#                       the gateway empty until it resolves; nothing off Wi-Fi
 
 LOC_FILE="$HOME/.local/state/omarchy/settings/weather.json"
 COORDS_PATTERN='^(-?[0-9]+(\.[0-9]+)?),(-?[0-9]+(\.[0-9]+)?)$'
 
+device=""
+ssid=""
+gateway=""
+
+# Sets device (the connected Wi-Fi interface), ssid and gateway. The SSID is
+# nmcli's last field, so colons in it survive.
+identify_network() {
+  local line gateway_ip
+  line=$(LC_ALL=C nmcli -e no -t -f ACTIVE,DEVICE,SSID device wifi list --rescan no 2>/dev/null | sed -n 's/^yes://p' | head -n 1)
+  [[ -n $line ]] || return
+  device=${line%%:*}
+  ssid=${line#*:}
+  gateway_ip=$(ip -j -4 route show default dev "$device" 2>/dev/null | jq -r '.[0].gateway // empty' 2>/dev/null)
+  if [[ -n $gateway_ip ]]; then
+    gateway=$(ip -j neigh show "$gateway_ip" dev "$device" 2>/dev/null | jq -r '.[0].lladdr // empty' 2>/dev/null)
+  fi
+}
+
+state=$(jq -c 'objects' "$LOC_FILE" 2>/dev/null)
+[[ -n $state ]] || state='{}'
+
+has_networks() {
+  jq -e 'has("networks")' <<<"$state" >/dev/null
+}
+
+# Applies a jq filter to the state and saves it, removing the file once
+# nothing is left. The filter gets this network and $location, and others
+# for the stored networks other than this one.
+save_state() {
+  local updated
+  updated=$(jq --arg ssid "$ssid" --arg gateway "$gateway" --argjson location "${location:-null}" 'def others: [.networks[]? | objects | select(.ssid != $ssid or .gateway != $gateway)]; '"$1"' | del(.networks | select(length == 0))' <<<"$state") || exit 1
+  if [[ $updated == "{}" ]]; then
+    rm -f "$LOC_FILE"
+  else
+    mkdir -p "$(dirname "$LOC_FILE")"
+    echo "$updated" >"$LOC_FILE"
+  fi
+}
+
 case "${1:-}" in
 "")
-  name=""
-  [[ -f $LOC_FILE ]] && name=$(jq -r '.name // "" | if type == "string" then . else "" end' "$LOC_FILE" 2>/dev/null)
+  has_networks && identify_network
+  name=$(jq -r --arg ssid "$ssid" --arg gateway "$gateway" '(first(.networks[]? | objects | select($gateway != "" and .ssid == $ssid and .gateway == $gateway)) // .) | .name | strings' <<<"$state")
   if [[ -z $name ]]; then
     name=$(curl -fsS --max-time 4 https://geo.omarchy.org/ 2>/dev/null | jq -r '.name // empty' 2>/dev/null)
   fi
@@ -33,14 +80,28 @@ case "${1:-}" in
   else
     location=$(jq -n --arg name "$2" '{$name}')
   fi
-  mkdir -p "$(dirname "$LOC_FILE")"
-  echo "$location" >"$LOC_FILE"
+  identify_network
+  if [[ -z $device ]]; then
+    save_state '$location + {networks}'
+  elif [[ -n $gateway ]]; then
+    save_state '.networks = others + [{$ssid, $gateway} + $location]'
+  else
+    echo "This Wi-Fi network's gateway hasn't answered yet; try again in a moment" >&2
+    exit 1
+  fi
   ;;
 --clear)
-  rm -f "$LOC_FILE"
+  has_networks && identify_network
+  save_state 'del(.name, .latitude, .longitude) | .networks = others'
+  ;;
+--network)
+  identify_network
+  if [[ -n $device ]]; then
+    jq -nc --arg ssid "$ssid" --arg gateway "$gateway" '{$ssid, $gateway}'
+  fi
   ;;
 *)
-  echo "Usage: omarchy-weather-location [--set <name> [lat,lon]|--clear]" >&2
+  echo "Usage: omarchy-weather-location [--set <name> [lat,lon]|--clear|--network]" >&2
   exit 1
   ;;
 esac

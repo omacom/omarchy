@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Networking
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -75,7 +76,8 @@ Panel {
   property var dailyForecastReport: null
 
   // Configured location, read from the weather.json state file (owned by
-  // omarchy-weather-location). The watch makes hand edits take effect live.
+  // omarchy-weather-location): the one set for this Wi-Fi network, else the
+  // top-level one. The watch makes hand edits take effect live.
   property var configuredLocationState: ({ name: "", latitude: null, longitude: null })
   readonly property string configuredLocation: configuredLocationState.name
 
@@ -109,18 +111,72 @@ Panel {
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
-    onLoaded: root.configuredLocationState = Model.parseLocationFile(text())
+    onLoaded: root.configuredLocationState = Model.parseLocationFile(text(), root.wifiNetwork)
     onLoadFailed: root.configuredLocationState = Model.parseLocationFile("")
+  }
+
+  // This Wi-Fi network as omarchy-weather-location keys locations,
+  // { ssid, gateway }; null off Wi-Fi.
+  property var wifiNetwork: null
+  property int networkRetries: 0
+
+  // Changes when this machine joins or leaves a Wi-Fi network. A device
+  // Quickshell shows no network for still counts (see the network panel's
+  // OWE note). The network is identified once this settles (networkTimer).
+  readonly property string wifiConnection: {
+    var devices = Networking.devices ? Networking.devices.values : []
+    for (var i = 0; i < devices.length; i++) {
+      var device = devices[i]
+      if (!device || device.type !== DeviceType.Wifi || !device.connected) continue
+      var networks = device.networks ? device.networks.values : []
+      for (var j = 0; j < networks.length; j++)
+        if (networks[j] && networks[j].connected) return device.name + "/" + networks[j].name
+      return device.name
+    }
+    return ""
+  }
+  onWifiConnectionChanged: {
+    networkRetries = 0
+    networkTimer.restart()
+  }
+
+  function identifyNetwork() {
+    if (wifiConnection !== "") {
+      networkProc.running = true
+    } else {
+      wifiNetwork = null
+      locationFile.reload()
+    }
+  }
+
+  Process {
+    id: networkProc
+    command: ["omarchy-weather-location", "--network"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.wifiNetwork = Model.parseNetwork(text)
+        locationFile.reload()
+        // Just joined, the gateway may not have answered yet.
+        if (root.wifiNetwork && !root.wifiNetwork.gateway && root.networkRetries < 3) {
+          root.networkRetries++
+          networkTimer.restart()
+        }
+      }
+    }
   }
 
   // The first read can race shell startup (observed sporadically), leaving a
   // stored location unhonored until the next file write. One delayed reload
   // self-corrects; if the first read was fine it's a no-op, since identical
-  // state doesn't change locationQuery and so triggers no refetch.
+  // state doesn't change locationQuery and so triggers no refetch. The same
+  // delay lets a network just joined settle, and rides out a brief drop,
+  // before it is identified.
   Timer {
+    id: networkTimer
     interval: 1500
     running: true
-    onTriggered: locationFile.reload()
+    onTriggered: root.identifyNetwork()
   }
 
   property int forecastRetries: 0
@@ -215,7 +271,8 @@ Panel {
 
   // ---- Location editing. Clicking the location label swaps it for a search
   //      field; picking a geocoded suggestion persists name + coordinates to
-  //      the module's shell.json entry. An empty commit returns to auto.
+  //      weather.json, for this Wi-Fi network when on one. An empty commit
+  //      returns to auto.
   // The search field lives in the panel's lazily built content.
   function locationInput() {
     return panel.loadedContent ? panel.loadedContent.locationField : null
@@ -474,7 +531,13 @@ Panel {
   Process {
     id: locationSaveProc
     onExited: function(exitCode) {
-      if (exitCode !== 0 || !root.savingLocation) return
+      if (!root.savingLocation) return
+      // Refused, as on a Wi-Fi network not identified yet: drop the pick.
+      if (exitCode !== 0) {
+        root.cancelEditingLocation()
+        locationFile.reload()
+        return
+      }
 
       // FileView handles changed locations. Explicitly refresh here too so
       // saving the already-active location cannot strand the spinner.
