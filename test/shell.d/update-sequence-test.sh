@@ -20,6 +20,7 @@ steps=(
   omarchy-update-stay-awake
   omarchy-update-dev
   omarchy-update-boot
+  omarchy-update-verify-kernel-modules
   omarchy-update-keyring
   omarchy-update-system-pkgs
   omarchy-migrate
@@ -86,6 +87,7 @@ expected_steps() {
     omarchy-update-mise \
     omarchy-update-aur-pkgs \
     omarchy-update-boot \
+    omarchy-update-verify-kernel-modules \
     omarchy-update-stay-awake \
     omarchy-update-restart
 }
@@ -123,3 +125,18 @@ for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-
   fi
 done
 pass "a blocked package upgrade stops the update before it migrates"
+
+# Pacman returns success when a DKMS hook fails to build a required driver, so
+# the update can reach its end with the next boot's kernel missing one. The
+# module check then fails the update like a failed boot check: everything
+# else finishes and Stay Awake is released, but no reboot is offered.
+if FAILING_STEP=omarchy-update-verify-kernel-modules run_update -y; then
+  fail "an update whose kernels lack a required driver reports success"
+fi
+grep -q '^omarchy-update-stay-awake ' <(tail -n 1 "$test_tmp/steps") ||
+  fail "a failed module check does not release Stay Awake last" "$(cat "$test_tmp/steps")"
+grep -c '^omarchy-update-restart ' "$test_tmp/steps" | grep -qx 1 ||
+  fail "a failed module check still offers the reboot" "$(cat "$test_tmp/steps")"
+grep -q 'The update is not finished' "$test_tmp/err" ||
+  fail "a failed module check does not say the update is unfinished" "$(cat "$test_tmp/err")"
+pass "a missing required driver fails the update without offering a reboot"
