@@ -11,7 +11,9 @@
 LOGO_FILE="$HOME/.config/omarchy/branding/about.txt"
 FIT_FILE="$HOME/.local/state/omarchy/windows/about.fit"
 OMARCHY_FASTFETCH_DIR=/etc/fastfetch
-ABOUT_CONFIG="$XDG_RUNTIME_DIR/omarchy/about-fastfetch.jsonc"
+# Without a runtime directory there is nowhere private to put the translated
+# copy, so the untranslated config runs as it is.
+ABOUT_CONFIG=${XDG_RUNTIME_DIR:+$XDG_RUNTIME_DIR/omarchy/about-fastfetch.jsonc}
 
 # The logo block in the fastfetch config. The fit below reproduces this layout to
 # size the window, and the sheen has to repaint the very cells fastfetch drew the
@@ -82,6 +84,8 @@ about_heading() {
 # Rows the copy does not recognise, as after a user edit, stay as they are.
 write_about_config() {
   local headings keys
+
+  [[ -n $ABOUT_CONFIG ]] || return 0
 
   headings=$(jq -n \
     --arg hardware "$(about_heading Hardware)" --arg hardware_to "$(about_heading "$(omarchy-i18n about.hardware)")" \
