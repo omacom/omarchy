@@ -1,63 +1,67 @@
-# Scorciatoie
+# Scorciatoie da tastiera
 
-Puoi vedere tutte le principali combinazioni da tastiera con `Super + K` (combinazioni Tmux con `Super + Alt + K` e combinazioni Herdr con `Super + Ctrl + K`).
+Puoi vedere tutte le principali combinazioni di tasti con `Super + K` (combinazioni Tmux con `Super + Alt + K` e combinazioni Herdr con `Super + Ctrl + K`).
 
 ## Navigazione
 
 | Scorciatoia                  | Funzione              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | Menu Omarchy (app e tutto il resto)    |
-| `Super + Alt + Space` | Griglia app |
+| `Super + Alt + Space` | Griglia delle app |
 | `Super + Escape` | Menu di sistema (sospendi, riavvia, ecc.)  |
-| `Super + Ctrl + L` | Blocca computer |
+| `Super + Ctrl + L` | Blocca il computer |
 | `Super + W` or `Super + Q` | Chiudi finestra             |
 | `Ctrl + Alt + Del` | Chiudi tutte le finestre |
-| `Super + T`               | Attiva/disattiva finestra tra affiancata/flottante             |
-| `Super + J` | Attiva/disattiva posizione finestra (orizzontale/verticale) |
-| `Super + O`               | Attiva/disattiva estrazione finestra in fissa e flottante |
-| `Super + L`               | Scorre i layout dwindle, scorrimento e flottante |
-| `Super + Alt + L`         | Scorre i layout al contrario |
-| `Super + P`               | Attiva/disattiva stile pseudo-finestra (naturale contro allungato) |
+| `Super + T`               | Alterna finestra tra tiling/floating             |
+| `Super + J` | Alterna posizione della finestra (orizzontale/verticale) |
+| `Super + O`               | Alterna finestra a comparsa in sticky'n'floating |
+| `Super + L`               | Scorri tra i layout dwindle, scrolling e floating |
+| `Super + Alt + L`         | Scorri tra i layout in ordine inverso |
+| `Super + P`               | Alterna stile finestra pseudo (natural v stretch) |
 | `Super + F`                 | Vai a schermo intero              |
-| `Super + Alt + F`                 | Vai a piena larghezza              |
+| `Super + Alt + F`                 | Vai a larghezza intera              |
 | `Super + Ctrl + F`                 | Vai a schermo intero dentro la finestra              |
-| `Super + 1/2/3/4`         | Salta a workspace specifico     |
-| `Super + Tab` | Salta al workspace successivo |
-| `Super + Shift + Tab` | Salta al workspace precedente |
-| `Super + Ctrl + Tab` | Salta al workspace precedente in cronologia |
-| `Super + Shift + 1/2/3/4` | Sposta finestra su workspace |
-| `Super + Shift + Alt + 1/2/3/4` | Sposta finestra su workspace senza seguirla |
-| `Super + S` / `Super + Grave` | Attiva/disattiva scratchpad |
-| `Super + Alt + S` / `Super + Shift + Grave` | Sposta finestra su scratchpad |
-| `Super + Shift + Alt + Arrows` | Sposta workspace sul monitor direzionale |
-| `Super + Arrow`  | Sposta focus sulla finestra nella direzione della freccia              |
-| `Super + Shift + Arrow`  | Scambia finestra con un'altra nella direzione della freccia     |
+| `Super + 1/2/3/4`         | Vai allo workspace specifico sul monitor attivo |
+| `Super + Tab` | Vai allo workspace successivo sul monitor attivo |
+| `Super + Shift + Tab` | Vai allo workspace precedente sul monitor attivo |
+| `Super + Ctrl + Tab` | Vai allo workspace precedente sul monitor attivo |
+| `Super + Shift + 1/2/3/4` | Sposta finestra nello workspace sul monitor attivo |
+| `Super + Shift + Alt + 1/2/3/4` | Sposta finestra nello workspace sul monitor attivo senza seguirla |
+| `Super + S` | Attiva/disattiva lo scratchpad completo |
+| `Super + Alt + S` | Sposta finestra nello scratchpad completo |
+| `Super + Grave` | Attiva/disattiva la console Quake |
+| `Super + Shift + Grave` | Sposta finestra nella console Quake |
+| `Super + Shift + Ctrl + Arrows` | Sposta finestra sul monitor in quella direzione |
+| `Super + Shift + Alt + Arrows` | Sposta workspace sul monitor in quella direzione |
+| `Super + Arrow`  | Sposta il focus sulla finestra nella direzione della freccia, passando al monitor su quel lato al bordo dello schermo |
+| `Super + Shift + Arrow`  | Scambia finestra con un'altra nella direzione della freccia, inclusa una sul monitor su quel lato |
 | `Super + Minus` | Espandi finestra a sinistra |
-| `Super + Equal` | Restringi finestra a sinistra |
-| `Super + Shift + Minus` | Restringi finestra in alto |
+| `Super + Equal` | Riduci finestra a sinistra |
+| `Super + Shift + Minus` | Riduci finestra in alto |
 | `Super + Shift + Equal` | Espandi finestra in basso |
 | `Super + Alt + Minus/Equal` | Stesso ridimensionamento a passi più piccoli |
 | `Super + Ctrl + Minus/Equal` | Stesso ridimensionamento a passi più grandi |
-| `Super + Alt + Home` | Salva larghezza finestra |
-| `Super + Home` | Ripristina larghezza finestra salvata |
-| `Super + Left Mouse` | Trascina finestra in giro |
+| `Super + Alt + Home` | Salva larghezza della finestra |
+| `Super + Home` | Ripristina larghezza della finestra salvata |
+| `Super + Left Mouse` | Trascina la finestra |
 | `Super + Right Mouse` | Ridimensiona finestra |
-| `Super + Scroll Wheel` | Scorri tra i workspace |
+| `Super + Scroll Wheel` | Scorri tra gli workspace sul monitor attivo |
 | `Super + G`               | Attiva/disattiva raggruppamento finestre      |
-| `Super + Alt + G`               | Sposta finestra fuori dal gruppo      |
-| `Super + Alt + Tab`               | Scorre tra le finestre del gruppo      |
-| `Super + Alt + Shift + Tab`               | Scorre all'indietro tra le finestre del gruppo      |
-| `Super + Alt + 1/2/3/4/5`               | Salta a finestra specifica nel gruppo      |
-| `Super + Alt + Arrow`  | Sposta finestra nel gruppo nella direzione della freccia  |
-| `Super + Ctrl + Left/Right`  | Spostati tra finestre dentro un gruppo affiancato |
-| `Super + Ctrl + Z` | Ingrandisci sullo schermo (ripeti per più zoom) |
-| `Super + Ctrl + Alt + Z` | Rimpicciolisci completamente dallo schermo |
-| `Super + /` | Avanza tra le opzioni di scalatura monitor |
-| `Super + Alt + /` | Indietreggia tra le opzioni di scalatura monitor |
-| `Alt + Tab` | Scorre in avanti tra le finestre sul workspace attivo |
-| `Alt + Shift + Tab` | Scorre all'indietro tra le finestre sul workspace attivo |
-| `Ctrl + Alt + Tab`| Scorre il focus in avanti tra i monitor |
-| `Ctrl + Alt + Shift + Tab`| Scorre il focus all'indietro tra i monitor |
+| `Super + Alt + G`               | Sposta finestra fuori dal raggruppamento      |
+| `Super + Alt + Tab`               | Scorri tra le finestre nel raggruppamento      |
+| `Super + Alt + Shift + Tab`               | Scorri all'indietro tra le finestre nel raggruppamento      |
+| `Super + Alt + Scroll Wheel` | Scorri tra le finestre nel raggruppamento |
+| `Super + Alt + 1/2/3/4/5`               | Vai alla finestra specifica nel raggruppamento      |
+| `Super + Alt + Arrow`  | Sposta finestra nel raggruppamento nella direzione della freccia, inclusa una sul monitor su quel lato |
+| `Super + Ctrl + Left/Right`  | Spostati tra le finestre dentro un gruppo tiling |
+| `Super + Ctrl + Z` | Ingrandisci sullo schermo (ripeti per ingrandire di più) |
+| `Super + Ctrl + Alt + Z` | Riduci completamente lo zoom dallo schermo |
+| `Super + /` | Avanza tra le opzioni di ridimensionamento del monitor |
+| `Super + Alt + /` | Torna indietro tra le opzioni di ridimensionamento del monitor |
+| `Alt + Tab` | Scorri in avanti tra le finestre nello workspace attivo |
+| `Alt + Shift + Tab` | Scorri all'indietro tra le finestre nello workspace attivo |
+| `Ctrl + Alt + Tab`| Scorri il focus in avanti tra i monitor |
+| `Ctrl + Alt + Shift + Tab`| Scorri il focus all'indietro tra i monitor |
 
 ## Controlli di sistema
 
@@ -65,36 +69,34 @@ Puoi vedere tutte le principali combinazioni da tastiera con `Super + K` (combin
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Pannello audio    |
 | `Super + Ctrl + B`           | Pannello Bluetooth    |
-| `Super + Ctrl + W`           | Pannello Wi-Fi/rete    |
+| `Super + Ctrl + N`           | Pannello Wi-Fi/rete    |
 | `Super + Ctrl + D`           | Pannello display    |
 | `Super + Ctrl + P`           | Pannello alimentazione    |
 | `Super + Ctrl + Alt + D`           | Pannello calendario    |
 | `Super + Ctrl + Alt + E`           | Pannello orologio mondiale    |
-| `Super + Ctrl + 1-9`           | Attiva/disattiva pannello barra per posizione    |
-| `Super + Ctrl + S` | Menu Condividi (tramite LocalSend) |
-| `Super + Ctrl + T`           | Attività (btop)    |
-| `Super + Ctrl + C` | Controlli cattura (schermata/registrazione/selettore) |
-| `Super + Ctrl + O` | Menu Attiva/Disattiva |
-| `Super + Ctrl + H` | Menu Hardware |
-| `Super + Ctrl + Q` | Calcolatrice |
+| `Super + Ctrl + 1-9`           | Attiva/disattiva pannello della barra per posizione    |
+| `Super + Ctrl + S` | Menu di condivisione (tramite LocalSend) |
+| `Super + Ctrl + C` | Controlli di cattura (screenshot/registrazione/selettore) |
+| `Super + Ctrl + O` | Attiva/disattiva menu |
+| `Super + Ctrl + H` | Menu hardware |
 | `Super + Ctrl + E` | Selettore emoji |
-| `Super + Ctrl + .` | Converti media |
+| `Super + Ctrl + .` | Transcodifica media |
 | `Super + Shift + Ctrl + A` | Scegli un agente AI |
 
 ## Regolazioni
 
 | Scorciatoia                  | Funzione              |
 | ----------------------- | --------------------- |
-| `Shift + Brightness Up` | Luminosità schermo massima |
-| `Shift + Brightness Down` | Luminosità schermo minima |
-| `Alt + Brightness Up/Down` | Cambi luminosità precisi dell'1% |
-| `Alt + Volume Up/Down` | Cambi volume precisi dell'1% |
-| `Keyboard Brightness Up/Down` | Retroilluminazione tastiera più forte/più debole |
-| `Keyboard Backlight` | Scorre i livelli di retroilluminazione tastiera |
+| `Shift + Brightness Up` | Luminosità massima dello schermo |
+| `Shift + Brightness Down` | Luminosità minima dello schermo |
+| `Alt + Brightness Up/Down` | Modifiche precise della luminosità dell'1% |
+| `Alt + Volume Up/Down` | Modifiche precise del volume dell'1% |
+| `Keyboard Brightness Up/Down` | Retroilluminazione tastiera più luminosa/più tenue |
+| `Keyboard Backlight` | Scorri tra i livelli di retroilluminazione della tastiera |
 | `Alt + Play` | Brano successivo |
 | `Alt + Shift + Play` | Brano precedente |
 
-## Avviare app
+## Avvio delle app
 
 | Scorciatoia                  | Funzione              |
 | ----------------------- | --------------------- |
@@ -103,11 +105,13 @@ Puoi vedere tutte le principali combinazioni da tastiera con `Super + K` (combin
 | `Super + Ctrl + Return` | Herdr (gestore agenti) |
 | `Super + Shift + Return`           | Browser    |
 | `Super + Shift + Alt + B`           | Browser (privato/in incognito)    |
-| `Super + Shift + F`           | Gestore file    |
-| `Super + Shift + Alt + F`           | Gestore file nella directory corrente del terminale    |
+| `Super + Shift + F`           | File manager    |
+| `Super + Shift + Alt + F`           | File manager nella cwd del terminale    |
 | `Super + Shift + M`           | Musica (Spotify)    |
 | `Super + Shift + Alt + M`           | Musica (cliamp)    |
-| `Super + Shift + /`           | Gestore password (1Password)    |
+| `Super + Shift + /`           | Gestore password (1password)    |
+| `Super + Shift + Q`           | Calcolatrice (Omacalc)    |
+| `Super + Shift + T`           | Attività (btop)    |
 | `Super + Shift + N`           | Editor (Neovim)  |
 | `Super + Shift + C`           | Calendario ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | Email ([HEY](https://hey.com/))  |
@@ -136,64 +140,65 @@ Cambia/aggiungi combinazioni in `~/.config/hypr/bindings.lua`.
 | `Super + V`           | Incolla    |
 | `Super + Ctrl + V`           | Gestore appunti    |
 
-Di solito su Linux, serve `Ctrl + Shift + C/V` per copiare e incollare nel terminale e `Ctrl + C/V` per farlo ovunque altro. Queste scorciatoie appunti unificate di Omarchy funzionano ovunque.
+Di solito su Linux serve `Ctrl + Shift + C/V` per copiare e incollare nel terminale e `Ctrl + C/V` per farlo ovunque il resto. Queste scorciatoie universali per gli appunti di Omarchy funzionano ovunque.
 
 ## Cattura
 
 | Scorciatoia              | Funzione                       |
 | ------------------- | ------------------------------ |
-| `Super + Ctrl + C` | Menu Cattura (per tastiere senza tasto PrintScr) |
-| `Print Screen`            | Schermata                      |
-| `Alt + Print Screen`            | Registra schermo                     |
+| `Print Screen`            | Screenshot                      |
+| `Super + Ctrl + Alt + C`            | Screenshot (stessa azione, per tastiere senza tasto Print Screen) |
+| `Super + Ctrl + C` | Menu di cattura |
+| `Alt + Print Screen`            | Registrazione schermo                     |
 | `Super + Print Screen` | Selettore colore |
 | `Super + Ctrl + Print Screen` | Estrazione testo negli appunti |
-| `Super + Alt + [` | Rendi più piccolo l'overlay webcam durante la registrazione |
-| `Super + Alt + ]` | Rendi più grande l'overlay webcam durante la registrazione |
-| `Alt + Shift + L` | Copia URL corrente da webapp o Chromium |
-| `Alt + Shift + D` | Scarica il video sulla pagina corrente in `~/Videos` |
-| `Super + Ctrl + X` | Avvia/ferma dettatura (richiede _Impostazioni > Predefiniti > Dettatura_) |
+| `Super + Alt + [` | Rimpicciolisci l'overlay della webcam durante la registrazione |
+| `Super + Alt + ]` | Ingrandisci l'overlay della webcam durante la registrazione |
+| `Alt + Shift + L` | Copia l'URL corrente da webapp o Chromium |
+| `Alt + Shift + D` | Scarica il video nella pagina corrente in `~/Videos` |
+| `Super + Ctrl + X` | Avvia/interrompi dettatura (richiede _Setup > Defaults > Dictation_) |
 | `Right Alt` / `F9` | Dettatura push-to-talk (richiede Voxtype o Superwhisper) |
 
-Con le registrazioni schermo, la scorciatoia chiede prima quale audio vuoi, poi avvia la registrazione. Premila di nuovo per fermare. Vedi [schermate e registrazione](12-screenshots-recording.md) per i dettagli.
+Con le registrazioni schermo, la scorciatoia chiede prima quale audio vuoi, poi avvia la registrazione. Premila di nuovo per interromperla. Vedi [screenshot e registrazione](12-screenshots-recording.md) per i dettagli.
 
-Tutte le opzioni di cattura sono accessibili anche sotto _Azioni > Cattura_ nel menu Omarchy (`Super + Space`).
+Tutte le opzioni di cattura sono accessibili anche sotto _Trigger > Capture_ nel menu Omarchy (`Super + Space`).
 
 ## Notifiche
 
 | Scorciatoia                  | Funzione              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Ignora ultima notifica  |
+| `Super + ,` | Ignora l'ultima notifica  |
 | `Super + Shift + ,` | Ignora tutte le notifiche |
-| `Super + Ctrl + ,` | Attiva/disattiva silenziamento notifiche  |
-| `Super + Alt + ,` | Richiama notifica più recente  |
-| `Super + Shift + Alt + ,` | Apri cronologia notifiche  |
+| `Super + Ctrl + ,` | Controlla le notifiche con la tastiera  |
+| `Super + Alt + ,` | Richiama la notifica più recente  |
+| `Super + Shift + Alt + ,` | Apri la cronologia delle notifiche  |
+| `Super + Ctrl + Alt + ,` | Attiva/disattiva il silenziamento delle notifiche  |
 
 ## Stile
 
 | Scorciatoia                  | Funzione              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Shift + Space` | Scegli un nuovo tema  |
-| `Super + Ctrl + Space` | Scegli sfondo tema |
-| `Super + Backspace` | Attiva/disattiva trasparenza su una finestra |
-| `Super + Ctrl + Backspace` | Attiva/disattiva proporzione quadrata singola finestra |
+| `Super + Ctrl + T` | Scegli un nuovo tema (anche `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | Scegli lo sfondo del tema (anche `Super + Ctrl + Space`) |
+| `Super + Backspace` | Attiva/disattiva la trasparenza su una finestra |
+| `Super + Ctrl + Backspace` | Attiva/disattiva proporzioni quadrate per singola finestra |
 
-Le immagini di sfondo extra vivono in `~/.config/omarchy/backgrounds/<theme name>`. Disponibili anche tramite _Installa > Stile > Sfondo_ nel menu Omarchy.
+Le immagini di sfondo extra si trovano in `~/.config/omarchy/backgrounds/<theme name>`. Disponibili anche tramite _Install > Style > Background_ nel menu Omarchy.
 
-Tutte le opzioni di stile sono accessibili anche sotto _Stile_ nel menu Omarchy (`Super + Space`).
+Tutte le opzioni di stile sono accessibili anche sotto _Style_ nel menu Omarchy (`Super + Space`).
 
-## Attiva/Disattiva
+## Interruttori
 
 | Scorciatoia                  | Funzione              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | Attiva/disattiva blocco su inattività |
-| `Super + Ctrl + N` | Attiva/disattiva temperatura display luce notturna |
-| `Super + Ctrl + Delete` | Attiva/disattiva display portatile acceso/spento |
-| `Super + Ctrl + Alt + Delete` | Attiva/disattiva duplicazione display portatile |
-| `Super + Shift + Space` | Attiva/disattiva barra superiore  |
+| `Super + Ctrl + I` | Attiva/disattiva il blocco in inattività |
+| `Super + Ctrl + Delete` | Attiva/disattiva il display del laptop |
+| `Super + Ctrl + Alt + Delete` | Attiva/disattiva il mirroring del display del laptop |
+| `Super + Shift + Space` | Attiva/disattiva la barra superiore  |
 | `Shift + Mute` | Passa alla successiva uscita audio |
 | `Shift + Play` | Passa alla successiva sorgente media |
-| `Super + Shift + Backspace` | Attiva/disattiva spazi finestre |
-| `Super + Ctrl + Alt + F` | Attiva/disattiva desktop a schermo intero (barra superiore + spazi finestre) |
+| `Super + Shift + Backspace` | Attiva/disattiva gli spazi tra finestre |
+| `Super + Ctrl + Alt + F` | Attiva/disattiva desktop a schermo intero (barra superiore + spazi tra finestre) |
 
 ## Promemoria
 
@@ -207,9 +212,9 @@ Tutte le opzioni di stile sono accessibili anche sotto _Stile_ nel menu Omarchy 
 
 | Scorciatoia                  | Funzione              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Alt + T` | Mostra ora come notifica  |
-| `Super + Ctrl + Alt + B` | Mostra batteria come notifica  |
-| `Super + Ctrl + Alt + W` | Attiva/disattiva meteo come notifica  |
+| `Super + Ctrl + Alt + T` | Mostra l'ora come notifica  |
+| `Super + Ctrl + Alt + B` | Mostra la batteria come notifica  |
+| `Super + Ctrl + Alt + W` | Attiva/disattiva il meteo come notifica  |
 
 ## Tmux
 
@@ -219,24 +224,24 @@ Il tasto prefisso è `Ctrl + Space` (funziona anche `Ctrl + B`). Puoi cambiare q
 
 | Scorciatoia                  | Funzione              |
 | ----------------------- | --------------------- |
-| `Prefix + v` | Dividi pannello accanto (verticale) |
+| `Prefix + v` | Dividi pannello a fianco (verticale) |
 | `Prefix + h` | Dividi pannello sotto (orizzontale) |
-| `Prefix + x` | Uccidi pannello |
+| `Prefix + x` | Chiudi pannello |
 | `Prefix + z` | Attiva/disattiva zoom pannello (schermo intero) |
 | `Alt + Enter` | Dividi pannello sotto (senza prefisso) |
-| `Alt + Shift + Enter` | Dividi pannello accanto (senza prefisso) |
-| `Alt + Escape` | Uccidi pannello (senza prefisso) |
+| `Alt + Shift + Enter` | Dividi pannello a fianco (senza prefisso) |
+| `Alt + Escape` | Chiudi pannello (senza prefisso) |
 | `Ctrl + Alt + Arrows` | Spostati tra i pannelli |
-| `Ctrl + Alt + Shift + Arrows` | Ridimensiona pannelli |
+| `Ctrl + Alt + Shift + Arrows` | Ridimensiona i pannelli |
 
 ### Finestre
 
 | Scorciatoia                  | Funzione              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Nuova finestra |
-| `Prefix + k` | Uccidi finestra |
+| `Prefix + k` | Chiudi finestra |
 | `Prefix + r` | Rinomina finestra |
-| `Alt + 1-9` | Vai a finestra specifica |
+| `Alt + 1-9` | Vai alla finestra specifica |
 | `Alt + Arrow Left/Right` | Spostati tra le finestre |
 | `Alt + Shift + Arrow Left/Right` | Sposta finestra a sinistra/destra |
 
@@ -245,13 +250,13 @@ Il tasto prefisso è `Ctrl + Space` (funziona anche `Ctrl + B`). Puoi cambiare q
 | Scorciatoia                  | Funzione              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Nuova sessione |
-| `Prefix + K` | Uccidi sessione |
+| `Prefix + K` | Chiudi sessione |
 | `Prefix + R` | Rinomina sessione |
 | `Prefix + N` | Sessione successiva |
 | `Prefix + P` | Sessione precedente |
 | `Alt + Arrow Up/Down` | Spostati tra le sessioni |
 | `Prefix + s` | Elenca sessioni |
-| `Prefix + d` | Staccati dalla sessione |
+| `Prefix + d` | Scollegati dalla sessione |
 
 ### Modalità copia (stile vi)
 
@@ -266,37 +271,37 @@ Il tasto prefisso è `Ctrl + Space` (funziona anche `Ctrl + B`). Puoi cambiare q
 | Scorciatoia                  | Funzione              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Ricarica configurazione |
-| `Prefix + ?` | Mostra scorciatoie Tmux |
-| `Prefix + :` | Prompt comandi |
+| `Prefix + ?` | Mostra combinazioni Tmux |
+| `Prefix + :` | Prompt dei comandi |
 
-### Funzioni layout Tmux
+### Funzioni di layout Tmux
 
 Queste funzioni devono essere eseguite dentro una sessione Tmux.
 
 | Comando | Funzione |
 | ------- | -------- |
 | `tdl <ai> [<second_ai>]` | Crea layout di sviluppo con editor, AI e terminale |
-| `tdlm <ai> [<second_ai>]` | Crea layout di sviluppo per sottocartella |
-| `tsl <count> <command>` | Crea layout sciame multi-pannello |
+| `tdlm <ai> [<second_ai>]` | Crea layout di sviluppo per sottodirectory |
+| `tsl <count> <command>` | Crea layout swarm multi-pannello |
 
 ## Terminale Ghostty
 
-Il terminale Ghostty viene installato usando _Installa > Terminale_ tramite il menu Omarchy.
+Il terminale Ghostty si installa usando _Install > Terminal_ tramite il menu Omarchy.
 
 | Scorciatoia                  | Funzione              |
 | ----------------------- | --------------------- |
 | `Ctrl + Shift + E` | Nuova divisione sotto |
-| `Ctrl + Shift + O` | Nuova divisione accanto |
+| `Ctrl + Shift + O` | Nuova divisione a fianco |
 | `Ctrl + Alt + Arrows` | Spostati tra le divisioni |
 | `Super + Ctrl + Shift + Arrows` | Ridimensiona divisione di 10 righe |
 | `Super + Ctrl + Shift + Alt + Arrows` | Ridimensiona divisione di 100 righe |
 | `Ctrl + Shift + T` | Nuova scheda  |
 | `Ctrl + Shift + Arrows` | Spostati tra le schede |
-| `Alt + Numbers` | Vai a scheda specifica |
+| `Alt + Numbers` | Vai alla scheda specifica |
 | `Shift + Pg Up/Down` | Scorri la cronologia |
-| `Ctrl + Left mouse` | Apri collegamento nel browser |
+| `Ctrl + Left mouse` | Apri link nel browser |
 
-## Gestore file
+## File Manager
 
 | Scorciatoia              | Funzione                       |
 | ------------------- | ------------------------------ |
@@ -310,66 +315,66 @@ Il terminale Ghostty viene installato usando _Installa > Terminale_ tramite il m
 
 | Scorciatoia                   | Funzione                        |
 | ------------------------ | ------------------------------- |
-| `Space`                    | Mostra opzioni comandi            |
+| `Space`                    | Mostra opzioni comando            |
 | `Space Space`              | Apri file tramite ricerca fuzzy      |
 | `Space E`                  | Attiva/disattiva barra laterale                  |
 | `Space G G`                | Mostra controlli git               |
-| `Space S G`                | Cerca contenuto file             |
+| `Space S G`                | Cerca nel contenuto del file             |
 | `Ctrl + W W`               | Salta tra barra laterale ed editor |
-| `Ctrl + Left/right arrow`  | Cambia dimensione barra laterale          |
+| `Ctrl + Left/right arrow`  | Cambia dimensione della barra laterale          |
 | `Shift + H`                      | Vai alla scheda file a sinistra             |
 | `Shift + L`                      | Vai alla scheda file a destra            |
 | `Space B D`                | Chiudi scheda file                  |
 
-### Mentre sei nella barra laterale
+### Nella barra laterale
 
 | Scorciatoia                   | Funzione                        |
 | ------------------------ | ------------------------------- |
-| `A`                        | Aggiungi nuovo file nella cartella superiore      |
-| `Shift + A`                | Aggiungi nuova sottocartella nella cartella superiore    |
-| `D`                        | Elimina file/cartella evidenziata     |
-| `M`                        | Sposta file/cartella evidenziata       |
-| `R`                        | Rinomina file/cartella evidenziata     |
+| `A`                        | Aggiungi nuovo file nella directory superiore      |
+| `Shift + A`                | Aggiungi nuova sottodirectory nella directory superiore    |
+| `D`                        | Elimina file/dir evidenziati     |
+| `M`                        | Sposta file/dir evidenziati       |
+| `R`                        | Rinomina file/dir evidenziati     |
 | `?`                        | Mostra aiuto per tutti i comandi      |
 
 [Vedi tutte le scorciatoie Neovim configurate da LazyVim](https://www.lazyvim.org/keymaps).
 
 ## Emoji rapide
 
-Puoi usare `Super + Ctrl + E` per mostrare un selettore emoji completo che metterà la selezione negli appunti oppure puoi usare queste opzioni di accesso rapido.
+Puoi usare `Super + Ctrl + E` per mostrare un selettore emoji completo che metterà la selezione negli appunti, oppure puoi usare queste opzioni di accesso rapido.
 
 | Scorciatoia       | EM | Indizio       |
 | ------------ | -- | ---------- |
-| `Shift + CapsLock M S` | 😄 | smile      |
-| `Shift + CapsLock M C` | 😂 | cry        |
-| `Shift + CapsLock M L` | 😍 | love       |
-| `Shift + CapsLock M V` | ✌️ | victory    |
-| `Shift + CapsLock M H` | ❤️ | heart      |
-| `Shift + CapsLock M Y` | 👍 | yes        |
+| `Shift + CapsLock M S` | 😄 | sorriso      |
+| `Shift + CapsLock M C` | 😂 | pianto        |
+| `Shift + CapsLock M L` | 😍 | amore       |
+| `Shift + CapsLock M V` | ✌️ | vittoria    |
+| `Shift + CapsLock M H` | ❤️ | cuore      |
+| `Shift + CapsLock M Y` | 👍 | sì        |
 | `Shift + CapsLock M N` | 👎 | no         |
-| `Shift + CapsLock M F` | 🖕 | fuck       |
-| `Shift + CapsLock M W` | 🤞 | wish       |
+| `Shift + CapsLock M F` | 🖕 | vaffanculo       |
+| `Shift + CapsLock M W` | 🤞 | augurio       |
 | `Shift + CapsLock M R` | 🤘 | rock       |
-| `Shift + CapsLock M K` | 😘 | kiss       |
-| `Shift + CapsLock M E` | 🙄 | eyeroll    |
-| `Shift + CapsLock M I` | 😉 | wink       |
-| `Shift + CapsLock M P` | 🙏 | pray |
-| `Shift + CapsLock M D` | 🤤 | drool      |
-| `Shift + CapsLock M M` | 💰 | money      |
+| `Shift + CapsLock M K` | 😘 | bacio       |
+| `Shift + CapsLock M E` | 🙄 | occhi al cielo    |
+| `Shift + CapsLock M I` | 😉 | occhiolino       |
+| `Shift + CapsLock M P` | 🙏 | preghiera |
+| `Shift + CapsLock M D` | 🤤 | sbavare      |
+| `Shift + CapsLock M M` | 💰 | soldi      |
 | `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
-| `Shift + CapsLock M T` | 🥂 | toast      |
+| `Shift + CapsLock M T` | 🥂 | brindisi      |
 | `Shift + CapsLock M O` |👌 | ok |
-| `Shift + CapsLock M G` |👋 | greeting |
-| `Shift + CapsLock M A` |💪 | arm |
-| `Shift + CapsLock M B` |🤯 | blowing |
+| `Shift + CapsLock M G` |👋 | saluto |
+| `Shift + CapsLock M A` |💪 | braccio |
+| `Shift + CapsLock M B` |🤯 | esplosione |
 
 ## Completamenti rapidi
 
 | Scorciatoia       | Completamento       |
 | ------------ |  ---------- |
 | `Shift + CapsLock Space Space` | — (mdash)   |
-| `Shift + CapsLock Space N` | Il tuo nome (come inserito in configurazione)  |
-| `Shift + CapsLock Space E` | La tua email (come inserita in configurazione)  |
+| `Shift + CapsLock Space N` | Il tuo nome (come inserito durante la configurazione)  |
+| `Shift + CapsLock Space E` | La tua email (come inserita durante la configurazione)  |
 
 Puoi aggiungerne altri tuoi modificando `~/.XCompose`, poi eseguendo `omarchy-restart-xcompose` nel terminale per far rilevare le modifiche.

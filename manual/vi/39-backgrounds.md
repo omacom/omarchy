@@ -1,15 +1,15 @@
 # Hình nền
 
-Mỗi chủ đề đều đi kèm bộ hình nền riêng của nó, và bạn có thể thêm hình nền của riêng mình trong `~/.config/omarchy/backgrounds/[theme]`. Nếu bạn muốn thêm một hình nền bổ sung vào, chẳng hạn, chủ đề nord, bạn chỉ cần đặt tệp vào `~/.config/omarchy/backgrounds/nord`.
+Mỗi theme đều đi kèm bộ hình nền riêng, và bạn có thể thêm hình nền của mình vào `~/.config/omarchy/backgrounds/[theme]`. Nếu muốn thêm một hình nền phụ vào, ví dụ, theme nord, bạn chỉ cần đặt file vào `~/.config/omarchy/backgrounds/nord`.
 
-Bạn có thể làm việc này dễ dàng nhất bằng cách vào _Cài đặt > Phong cách > Hình nền_ trong Menu Omarchy. Việc đó sẽ mở thư mục nơi các hình nền cho chủ đề đó được lưu trữ. Nhấn `Super + Shift + F` để mở một trình quản lý tệp khác, tìm hình nền của bạn, sao chép nó qua. Giờ nó sẽ được đưa vào các lựa chọn hình nền mà bạn có thể chọn bằng `Super + Ctrl + Space`.
+Cách dễ nhất để làm việc này là vào _Install > Style > Background_ trong Omarchy Menu. Thao tác đó sẽ mở thư mục lưu hình nền cho theme đó. Nhấn `Super + Shift + F` để mở một trình quản lý file khác, tìm hình nền của bạn, sao chép nó sang. Giờ nó sẽ nằm trong các lựa chọn hình nền mà bạn có thể chuyển đổi bằng `Super + Ctrl + W`.
 
-Hình nền có thể là video cũng như ảnh tĩnh. Thả một tệp `mp4`, `m4v`, `mov`, `webm`, `mkv` hoặc `avi` vào cùng thư mục đó và nó sẽ xuất hiện bên cạnh các hình ảnh. Video được phát bởi engine hình nền OWE. Nó giải mã video một lần cho mọi màn hình và phát âm thanh của nó qua đầu ra âm thanh mặc định, và nó dừng phát bất cứ khi nào không có gì có thể nhìn thấy nó. Màn hình khóa vẽ cùng một bản giải mã đó, ở chế độ tắt tiếng, thông qua OWE. Một hình nền video vẫn tốn nhiều điện hơn nhiều so với một hình tĩnh.
+Hình nền có thể là video cũng như ảnh tĩnh. Thả một file `mp4`, `m4v`, `mov`, `webm`, `mkv`, hoặc `avi` vào cùng thư mục và nó sẽ xuất hiện bên cạnh các hình ảnh. Video được phát bởi công cụ hình nền OWE. Nó giải mã video một lần cho tất cả màn hình, phát âm thanh qua đầu ra âm thanh mặc định, và dừng phát bất cứ khi nào không có gì nhìn thấy nó. Hình nền video vẫn tốn nhiều điện năng hơn hẳn so với hình nền tĩnh.
 
-Các chủ đề có thể bao gồm một đoạn giới thiệu ngắn cho một hình nền tĩnh. Đối với `backgrounds/road.webp`, video tương ứng nằm ở `backgrounds/intros/road.mp4`. Nó tự động phát khi khởi động và khi chuyển sang một chủ đề có hình nền đó được chọn, rồi quay lại hình tĩnh. Video giới thiệu không xuất hiện trong bộ chọn hình nền và không bao giờ lặp lại.
+Các theme có thể bao gồm một đoạn intro ngắn cho hình nền tĩnh. Với `backgrounds/road.webp`, video tương ứng nằm tại `backgrounds/intros/road.mp4`. Nó tự động phát khi khởi động và khi chuyển sang một theme có hình nền đó được chọn, sau đó quay lại ảnh tĩnh. Video intro không xuất hiện trong trình chọn hình nền và không bao giờ lặp lại.
 
-Tắt _Kích hoạt > Giao diện > Hiệu ứng_ cũng tắt các đoạn giới thiệu hình nền. Omarchy làm việc này theo mặc định trong một máy ảo. Lệnh `omarchy theme bg intro toggle` có thể bật/tắt các đoạn giới thiệu một cách riêng biệt. Làm mới một chủ đề hoặc chọn một hình nền khác trong cùng một chủ đề sẽ không phát đoạn giới thiệu.
+Tắt _Appearance > Animations_ cũng tắt intro hình nền. Omarchy làm điều này theo mặc định trong máy ảo. Lệnh `omarchy theme bg intro toggle` có thể bật/tắt intro riêng biệt. Làm mới một theme hoặc chọn hình nền khác trong cùng theme sẽ không phát intro.
 
-Bạn có thể tìm thấy một bộ sưu tập lớn các hình nền hay ho được tuyển chọn trên https://github.com/dharmx/walls.
+Bạn có thể tìm thấy một bộ sưu tập lớn các hình nền tuyển chọn rất ngầu tại https://github.com/dharmx/walls.
 
-Hình nền video giữ một ảnh tĩnh đã lưu trong bộ nhớ đệm trên màn hình khóa trong khi quá trình phát bị tạm dừng hoặc không khả dụng. GIF động phát trên màn hình nền và hiển thị một khung hình tĩnh trên màn hình khóa.
+Màn hình khóa hiển thị một khung hình tĩnh của hình nền video, giống như cách nó hiển thị một khung hình tĩnh của GIF động.

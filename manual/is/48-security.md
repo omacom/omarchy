@@ -1,35 +1,35 @@
 # Öryggi
 
-Omarchy tekur öryggi af ákafri alvöru. Þetta á að vera stýrikerfi sem þú getur notað til að vinna _Alvöru Vinnu_ í _Alvöru Heiminum_. Þar sem að týna fartölvu getur ekki leitt til öryggisneyðar. Svo hér er það sem við gerum:
+Omarchy tekur öryggi afar alvarlega. Þetta á að vera stýrikerfi sem þú getur notað til að vinna _raunverulega vinnu_ í _raunheimum_. Þar sem það að týna fartölvu getur ekki leitt til öryggisneyðar. Svo þetta er það sem við gerum:
 
-1. *Full disksdulritun er skylda*: Þetta er mikilvægasta skrefið til að tryggja líkamlega vernd gagna þinna. Ef tölvan þín týnist eða er stolið eru gögnin fulldulrituð með stöðluðu LUKS (Linux Unified Key Setup).
-2. *Eldveggur er sjálfgefið virkur*: Öll umferð inn er lokuð sjálfgefið nema fyrir tengi 53317 fyrir [LocalSend](https://localsend.org/). Jafnvel ssh er slökkt þar til þú kveikir á því með _Uppsetning > Öryggi > SSHD_, sem opnar tengi 22 (með hraðatakmörkun gegn brute force) sem hluti af uppsetningunni. Við læsum jafnvel Docker-aðgangi með [ufw-docker](https://github.com/chaifeng/ufw-docker) uppsetningunni til að koma í veg fyrir að gámarnir þínir opnist óvart fyrir heiminum.
-3. *Arch hefur alltaf nýjustu uppfærslurnar*: Arch, undirliggjandi dreifingin sem Omarchy er byggð á, er rúllandi dreifing. Það þýðir að sérhver öryggisveikleiki sem uppgötvast og er lagfærður í einhverjum pakka verður fljótt tiltækur til uppsetningar með `omarchy-update`. Þú keyrir alltaf nýjustu, öruggustu útgáfur af öllu á þann hátt.
-4. *Omarchy viðheldur sínum eigin pökkum og spegli*: Omarchy treystir aðeins á pakka úr eigin core/extra/multilib geymslum Arch og eigin Omarchy pakkageymslu sjálfgefið. Þú getur sett upp hugbúnað beint úr AUR, en grunnuppsetningin gerir það ekki — aðeins nokkrar valkvæðar uppsetningar, eins og þriðja aðila vafrarnir, draga úr AUR.
-5. *Cloudflare verndar okkur gegn DDoS*: Öll Omarchy dreifingarinnviður — ISO-in, Omarchy pakkarnir, Arch spegillinn — eru varin á bak við ægilegan DDoS skjöld Cloudflare og hýst á CDN þeirra. Þetta veitir frábæra tiltækileika.
+1. *Dulkóðun alls disksins er skylda*: Þetta er mikilvægasta skrefið til að tryggja líkamlega vernd gagna þinna. Ef tölvan þín týnist eða henni er stolið eru gögnin að fullu dulkóðuð með hefðbundinni LUKS (Linux Unified Key Setup).
+2. *Eldveggur er virkur sjálfgefið*: Öll umferð inn er blokkuð sjálfgefið, nema á porti 53317 fyrir [LocalSend](https://localsend.org/). Jafnvel ssh er slökkt þar til þú kveikir á því í gegnum _Uppsetning > Öryggi > SSHD_, sem opnar port 22 (með hraðatakmörkun gegn hráaflsárásum) sem hluta af uppsetningunni. Við læsum meira að segja aðgang Docker með [ufw-docker](https://github.com/chaifeng/ufw-docker) uppsetningunni til að koma í veg fyrir að gámarnir þínir verði óvart opnir heiminum.
+3. *Arch er alltaf með nýjustu uppfærslurnar*: Arch, dreifingin sem Omarchy byggir á, er rúllandi dreifing. Það þýðir að allir öryggisgallar sem uppgötvast og er lagfært í einhverjum pakka verður fljótt hægt að setja upp með `omarchy-update`. Þannig keyrir þú alltaf nýjustu og öruggustu útgáfur af öllu.
+4. *Omarchy viðheldur sínum eigin pökkum og spegli*: Omarchy reiðir sig sjálfgefið aðeins á pakka úr eigin core/extra/multilib hugbúnaðarsöfnum Arch og sínu eigin Omarchy Package Repository. Þú getur sett upp hugbúnað beint úr AUR, en grunnuppsetningin gerir það ekki — aðeins örfáar valfrjálsar uppsetningar, eins og vafrarnir frá þriðju aðilum, sækja úr AUR.
+5. *Cloudflare verndar okkur gegn DDoS*: Dreifingarinnviðir Omarchy — ISO-skrárnar, Omarchy-pakkarnir, Arch-spegillinn — eru varðir á bak við ógnarsterkan DDoS-skjöld Cloudflare og hýstir á CDN þeirra. Það veitir afburða aðgengi.
 
 ## Að breyta lykilorðunum þínum
 
-Þú hefur tvö lykilorð á dulritaðri uppsetningu: það sem opnar drifið við ræsingu og það sem þú skráir þig inn og notar `sudo` með. Uppsetningin gerir þau eins. Báðum má breyta undir _Uppfæra > Lykilorð_ í Omarchy-valmyndinni — _Drifdulkóðun_ fyrir það fyrra, _Notandi_ fyrir það síðara. Að breyta driflykilorðinu biður fyrst um núverandi, svo hafðu það við höndina. Ef breyting er trufluð skaltu keyra _Drifdulkóðun_ aftur: það biður um lykilorðið sem opnar drifið núna og klárar breytinguna.
+Þú ert með tvö lykilorð á dulkóðaðri uppsetningu: annað sem opnar drifið við ræsingu og hitt sem þú skráir þig inn og notar `sudo` með. Uppsetningin gerir þau eins. Hægt er að breyta báðum undir _Uppfærsla > Lykilorð_ í Omarchy-valmyndinni — _Drifdulkóðun_ fyrir það fyrra, _Notandi_ fyrir það síðara. Þegar driflykilorðinu er breytt er fyrst beðið um það núverandi, svo hafðu það við höndina. Ef breyting rofnar skaltu keyra _Drifdulkóðun_ aftur: þá er beðið um lykilorðið sem opnar drifið núna og breytingunni er lokið.
 
-## Að láta öðrum vél sem þú hefur þegar notað
+## Að afhenda vél sem þú hefur þegar notað
 
-Ef þú ert að afhenda vélina þína einhverjum öðrum þarftu ekki að setja hana upp aftur. Keyrðu _Uppsetning > Endurstilla tölvu_ í Omarchy-valmyndinni, sláðu inn `reset` til að staðfesta og endurræstu. Það þurrkar út sérhvern notandareikning og allt í `/home`, hendir öllum pökkunum og kerfisbreytingunum sem þú gerðir frá uppsetningu, og hreinsar auðkenni vélarinnar — nettengingar, hýsilýkla og allt. Það sem kemur til baka er uppsetningarhjálpin frá fyrstu ræsingu, tilbúin fyrir nýja eiganda sinn til að slá inn eigið nafn, lykilorð og dulritunarlykilorð.
+Ef þú ert að afhenda einhverjum öðrum vélina þína þarftu ekki að setja hana upp aftur. Keyrðu _Uppsetning > Endurstilla tölvu_ í Omarchy-valmyndinni, sláðu inn `reset` til staðfestingar og endurræstu. Það þurrkar út alla notendareikninga og allt í `/home`, hendir öllum pökkum og kerfisbreytingum sem þú gerðir eftir uppsetningu og hreinsar auðkenni vélarinnar — nettengingar, hýsilkla og allt. Það sem kemur upp er uppsetningarhjálpin frá fyrstu ræsingu, tilbúin fyrir nýja eigandann að slá inn sitt eigið nafn, lykilorð og dulkóðunarlykilorð.
 
-Það virkar með því að endurheimta grunnaugnablikið sem uppsetningarforritið tekur, svo það er aðeins tiltækt á vélum uppsettum úr Omarchy ISO. Og á drifi án dulritunar er endurstilling eyðing frekar en örugg þurrkun, svo ef gögnin voru viðkvæm skaltu gera ferska uppsetningu í staðinn.
+Þetta virkar með því að endurheimta grunnmyndina sem uppsetningarforritið tekur, svo þetta er aðeins í boði á vélum sem settar voru upp af Omarchy ISO. Og á drifi án dulkóðunar er endurstilling eyðing frekar en örugg þurrkun, svo ef gögnin voru viðkvæm skaltu frekar gera ferska uppsetningu.
 
-## Sudo án lykilorðs
+## Lykilorðslaust sudo
 
-Stundum viltu að `sudo` hætti að spyrja, oftast þegar gervigreindarfulltrúi er að vinna langa lotu af kerfisvinnu fyrir þig. _Uppsetning > Öryggi > Sudo án lykilorðs_ spyr hversu lengi eigi að leyfa aðgang: **15 minutes**, **1 Hour**, **1 Day** eða **Permanently**. Rautt viðvörunartákn birtist við hlið hinna vísanna á valmyndastikunni á meðan aðgangur er virkur. Smelltu á það eða keyrðu skipunina aftur til að slökkva á aðgangi. Þú getur líka gefið þína eigin mínútutölu (frá 1 til 1440) með `omarchy-sudo-passwordless 30`, eða notað `omarchy-sudo-passwordless permanent`.
+Stundum vilt þú að `sudo` hætti að spyrja, oftast þegar AI-umboðsmaður er að vinna langt verk á kerfinu fyrir þig. _Uppsetning > Öryggi > Lykilorðslaust Sudo_ spyr hversu lengi eigi að leyfa aðgang: **15 mínútur**, **1 klukkustund**, **1 dagur** eða **Varanlega**. Rautt viðvörunartákn birtist við hliðina á hinum vísunum á valmyndastikunni á meðan aðgangur er virkur. Smelltu á það eða keyrðu skipunina aftur til að slökkva á aðganginum. Þú getur líka gefið upp þína eigin tölu mínútna (frá 1 til 1440) með `omarchy-sudo-passwordless 30`, eða notað `omarchy-sudo-passwordless permanent`.
 
-Tímasettur aðgangur rennur út sjálfkrafa, þar á meðal strax eftir að hafa vaknað úr svefni sem fór yfir tímamörkin. Að endurræsa tölvuna endar hann snemma. Varanlegur aðgangur lifir endurræsingar af og helst virkur þar til þú slekkur á honum.
+Tímabundinn aðgangur rennur út sjálfkrafa, þar á meðal strax eftir að haldið er áfram úr biðstöðu sem fór yfir tímamörkin. Að endurræsa tölvuna lýkur honum fyrr. Varanlegur aðgangur lifir endurræsingar og helst virkur þar til þú slekkur á honum.
 
-Að uppfæra eða fjarlægja stillingarpakka Omarchy endar sérhvert tímabundið leyfi áður en stuðningur við fyrningu þess breytist. Ef skipunin tilkynnir heimildar- eða hreinsunarvillu skaltu leysa hana áður en þú reynir að virkja annað leyfi; villa þýðir ekki að aðgangur án lykilorðs sé óvirkur.
+Að uppfæra eða fjarlægja stillingapakka Omarchy lýkur öllum tímabundnum heimildum áður en stuðningur við rennslutíma þeirra breytist. Ef skipunin tilkynnir heimildar- eða hreinsunarvillu skaltu leysa hana áður en þú reynir að virkja aðra heimild; villa þýðir ekki að lykilorðslaus aðgangur sé óvirkur.
 
-Vertu hreinskilinn um þetta: á meðan það er á getur allt sem keyrir sem notandinn þinn gert hvað sem er sem root án þess að vera spurt. Það er allur tilgangurinn, og það er líka öll áhættan.
+Vertu með augun opin fyrir þessu: á meðan þetta er virkt getur allt sem keyrir sem notandinn þinn gert hvað sem er sem root án þess að vera spurt. Það er allur tilgangurinn, og það er líka öll áhættan.
 
 ## Undirritunarlyklar
 
-Opinber lykill fyrir allar ISO-undirritanir og Omarchy geymslupakka er `40DFB630FF42BCFFB047046CF0134EE680CAC571` ([staðfestu á openpgp.org](https://keys.openpgp.org/search?q=pkgs%40omarchy.org)). `omarchy/omarchy-keyring` pakkinn inniheldur þetta líka og verður notaður til að rúlla út hugsanlegum uppfærslum óaðfinnanlega.
+Opinberi lykillinn fyrir allar ISO-undirritanir og Omarchy repo-pakkann er `40DFB630FF42BCFFB047046CF0134EE680CAC571` ([staðfestu á openpgp.org](https://keys.openpgp.org/search?q=pkgs%40omarchy.org)). Pakkinn `omarchy/omarchy-keyring` inniheldur þetta líka og verður notaður til að koma hugsanlegum uppfærslum út óaðfinnanlega.
 
-Þú getur fundið undirritunina fyrir sérhverja ISO-útgáfu með því að bæta .sig við slóðina. Eins og https://iso.omarchy.org/omarchy-x.x.x.iso.sig.
+Þú finnur undirritunina fyrir hvaða ISO-útgáfu sem er með því að bæta .sig við URL-slóðina. Eins og https://iso.omarchy.org/omarchy-x.x.x.iso.sig.

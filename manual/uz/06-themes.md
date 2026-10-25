@@ -1,12 +1,12 @@
 # Mavzular
 
-Omarchy yigirma ikkita goʻzal mavzu bilan keladi. Ular orasida Omarchy menyusidagi (`Super + Space`) _Uslub > Mavzu_ orqali tanlashingiz yoki `Super + Ctrl + Shift + Space` yordamida toʻgʻridan-toʻgʻri mavzu tanlovchiga sakrashingiz mumkin.
+Omarchy yigirma ikkita go'zal mavzu bilan birga keladi. Siz ular orasidan Omarchy Menu (`Super + Space`) ichidagi _Appearance > Theme_ orqali tanlashingiz yoki `Super + Ctrl + T` yordamida to'g'ridan-to'g'ri mavzu tanlagichga o'tishingiz mumkin.
 
-Har bir mavzu ish stoli, terminal, neovim, faoliyat ekrani (btop), Chromium va butun Omarchy shellini bezatadi: yuqori panel, menyu, bildirishnomalar, OSD va qulf ekran. (Obsidian uchun siz ilova ichidagi _Koʻrinish > Mavzular_ orqali Omarchy mavzusini qoʻlda tanlashingiz kerak).
+Har bir mavzu ish stolini, terminalni, neovim'ni, faollik ekranini (btop), Chromium'ni va butun Omarchy qobig'ini: yuqori panel, menyu, bildirishnomalar, OSD va qulf ekranini bezaydi. (Obsidian uchun Omarchy mavzusini ilova ichidagi _Appearance > Themes_ orqali qo'lda tanlashingiz kerak).
 
-Mavzularning `Super + Ctrl + Space` yordamida tanlash mumkin boʻlgan fon rasmlari toʻplami bor.
+Mavzularning fon rasmlari to'plami bor, ular orasidan `Super + Ctrl + W` yordamida tanlashingiz mumkin.
 
-Siz [qoʻshimcha mavzular sahifasida](https://omarchy.org/themes/) yanada koʻproq mavzular topishingiz yoki hattoki [oʻz mavzuingizni yaratishingiz](43-making-your-own-theme.md) mumkin.
+Yanada ko'proq mavzularni [qo'shimcha mavzular sahifasida](https://omarchy.org/themes/) topishingiz yoki hatto [o'z mavzuingizni yaratishingiz](43-making-your-own-theme.md) mumkin.
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Qulfdan ochishlar
+### Qulfdan ochish ekranlari
 
-Mavzular yuklanish shifrini ochish jarayonida ishlatiladigan maxsus qulfdan ochish dizayniga ham ega boʻlishi mumkin. Ulardan birini _Uslub > Qulfdan ochish_ ostida tanlashingiz mumkin. Ular mana bunday koʻrinadi:
+Mavzularda yuklanish paytidagi shifrni ochish jarayoni uchun ishlatiladigan maxsus qulfdan ochish dizayni ham bo'lishi mumkin. Ulardan birini _Appearance > Unlock_ ostida tanlashingiz mumkin. Ular quyidagicha ko'rinadi:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

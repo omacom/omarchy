@@ -1,12 +1,12 @@
-# Designs
+# Themes
 
-Omarchy kommt mit zweiundzwanzig wunderschönen Designs. Du kannst zwischen ihnen über _Stil > Design_ im Omarchy-Menü (`Super + Space`) wählen oder direkt mit `Super + Ctrl + Shift + Space` zur Design-Auswahl springen.
+Omarchy bringt zweiundzwanzig wunderschöne Themes mit. Du kannst im Omarchy Menu über _Appearance > Theme_ zwischen ihnen wählen (`Super + Space`) oder mit `Super + Ctrl + T` direkt zur Theme-Auswahl springen.
 
-Jedes Design gestaltet den Desktop, das Terminal, Neovim, den Aktivitätsbildschirm (btop), Chromium und die gesamte Omarchy-Shell: Menüleiste, Menü, Benachrichtigungen, OSD und den Sperrbildschirm. (Für Obsidian musst du das Omarchy-Design manuell über _Appearance > Themes_ in der App auswählen.)
+Jedes Theme gestaltet den Desktop, das Terminal, neovim, den Aktivitätsbildschirm (btop), Chromium und die gesamte Omarchy-Shell: obere Leiste, Menü, Benachrichtigungen, OSD und den Sperrbildschirm. (Für Obsidian musst du das Omarchy-Theme in der App manuell über _Appearance > Themes_ auswählen).
 
-Designs haben eine Reihe von Hintergrundbildern, zwischen denen du mit `Super + Ctrl + Space` wählen kannst.
+Themes bringen eine Reihe von Hintergrundbildern mit, zwischen denen du mit `Super + Ctrl + W` wählen kannst.
 
-Noch mehr Designs findest du auf [der Seite für zusätzliche Designs](https://omarchy.org/themes/) oder du kannst sogar [dein eigenes Design erstellen](43-making-your-own-theme.md).
+Noch mehr Themes findest du auf [der Seite mit zusätzlichen Themes](https://omarchy.org/themes/) oder du kannst sogar [dein eigenes Theme erstellen](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Entsperr-Designs
+### Entsperrdesigns
 
-Designs können auch ein benutzerdefiniertes Entsperr-Design haben, das für den Boot-Entschlüsselungsprozess verwendet wird. Du kannst eines davon unter _Stil > Entsperren_ auswählen. Sie sehen so aus:
+Themes können auch ein eigenes Entsperrdesign haben, das für die Entschlüsselung beim Start verwendet wird. Du kannst eines davon unter _Appearance > Unlock_ auswählen. Sie sehen so aus:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

@@ -1,12 +1,12 @@
 # Tema
 
-Omarchy hadir dengan dua puluh dua tema yang indah. Anda dapat memilih di antara mereka melalui _Gaya > Tema_ dalam Menu Omarchy (`Super + Space`) atau langsung menuju pemilih tema menggunakan `Super + Ctrl + Shift + Space`.
+Omarchy dilengkapi dengan dua puluh dua tema yang indah. Kamu bisa memilih di antaranya melalui _Penampilan > Tema_ di Menu Omarchy (`Super + Space`) atau langsung membuka pemilih tema menggunakan `Super + Ctrl + T`.
 
-Setiap tema memberi gaya pada desktop, terminal, neovim, layar aktivitas (btop), Chromium, dan seluruh shell Omarchy: bilah atas, menu, notifikasi, OSD, dan layar kunci. (Untuk Obsidian, Anda harus memilih tema Omarchy secara manual melalui _Appearance > Themes_ di dalam aplikasi).
+Setiap tema memberi gaya pada desktop, terminal, neovim, layar aktivitas (btop), Chromium, dan seluruh shell Omarchy: bilah atas, menu, notifikasi, OSD, dan layar kunci. (Untuk Obsidian, kamu harus memilih tema Omarchy secara manual melalui _Penampilan > Tema_ di dalam aplikasi tersebut).
 
-Tema memiliki serangkaian gambar latar belakang yang dapat Anda pilih menggunakan `Super + Ctrl + Space`.
+Tema memiliki serangkaian gambar latar belakang yang bisa kamu pilih menggunakan `Super + Ctrl + W`.
 
-Anda dapat menemukan lebih banyak tema di [halaman tema tambahan](https://omarchy.org/themes/) atau bahkan [buat tema Anda sendiri](43-making-your-own-theme.md).
+Kamu bisa menemukan lebih banyak tema lagi di [halaman tema tambahan](https://omarchy.org/themes/) atau bahkan [membuat tema kamu sendiri](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Buka Kunci
 
-Tema juga dapat memiliki desain buka kunci kustom, yang digunakan untuk proses dekripsi boot. Anda dapat memilih salah satunya di bawah _Gaya > Buka Kunci_. Mereka terlihat seperti ini:
+Tema juga bisa memiliki desain buka kunci khusus, yang digunakan untuk proses dekripsi saat boot. Kamu bisa memilih salah satunya di _Penampilan > Buka Kunci_. Tampilannya seperti ini:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

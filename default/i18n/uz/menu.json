@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Foydalanuvchi"
   },
-  "system.reboot-boot-menu": {
-    "label": "Yuklanish menyusiga qayta yuklash"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Batareya % koʻrsatish"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Batareya % yashirish"
+  },
+  "appearance.windows": {
+    "label": "Oynalar"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Oyna oraliqlari yoniq"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Oyna oraliqlari oʻchiq"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-oyna nisbati yoniq"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-oyna nisbati oʻchiq"
+  },
+  "appearance.branding": {
+    "label": "Brending"
+  },
+  "appearance.animations-on": {
+    "label": "Animatsiyalar yoniq"
+  },
+  "appearance.animations-off": {
+    "label": "Animatsiyalar oʻchiq"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Uygʻoq turish"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Uyquga ruxsat berish"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Bildirishnomalar yoniq"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Bildirishnomalarni jim qilish"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Tungi yorugʻlik yoniq"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Tungi yorugʻlik oʻchiq"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Ekran saqlagich yoniq"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Ekran saqlagich oʻchiq"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Nosozlik yozuvi yoniq"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Nosozlik qaydini oʻchirish"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Noutbuk ekranini yoqish"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Noutbuk ekranini oʻchirish"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Ekran aksini yoqish"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Ekran aksini oʻchirish"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Gibrid GPUga oʻtish"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Integratsiyalangan GPUga oʻtish"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Tachpadni yoqish"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Tachpadni oʻchirish"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Sensor ekranni yoqish"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Sensor ekranni oʻchirish"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Yadro"
   }
 }

@@ -1,10 +1,10 @@
 # Temaer
 
-Omarchy leveres med toogtyve smukke temaer. Du kan vælge mellem dem via _Stil > Tema_ i Omarchy-menuen (`Super + Space`) eller hoppe direkte til temavælgeren med `Super + Ctrl + Shift + Space`.
+Omarchy leveres med toogtyve smukke temaer. Du kan vælge mellem dem via _Udseende > Tema_ i Omarchy-menuen (`Super + Space`) eller hoppe direkte til temavælgeren med `Super + Ctrl + T`.
 
-Hvert tema stiler skrivebordet, terminalen, neovim, aktivitetsskærmen (btop), Chromium og hele Omarchy-shell'en: menulinjen, menuen, notifikationerne, OSD'en og låseskærmen. (Til Obsidian skal du manuelt vælge Omarchy-temaet via _Appearance > Themes_ inde i appen).
+Hvert tema styler skrivebordet, terminalen, neovim, aktivitetsskærmen (btop), Chromium og hele Omarchy-skallen: øverste bjælke, menu, notifikationer, OSD og låseskærmen. (Til Obsidian skal du manuelt vælge Omarchy-temaet via _Udseende > Temaer_ inde i appen).
 
-Temaer har et sæt baggrundsbilleder, som du kan vælge imellem med `Super + Ctrl + Space`.
+Temaer har et sæt baggrundsbilleder, som du kan vælge imellem med `Super + Ctrl + W`.
 
 Du kan finde endnu flere temaer på [siden med ekstra temaer](https://omarchy.org/themes/) eller endda [lave dit eget tema](43-making-your-own-theme.md).
 
@@ -67,7 +67,7 @@ _White_
 
 ### Oplåsninger
 
-Temaer kan også have et brugerdefineret oplåsningsdesign, som bruges til boot-dekrypteringsprocessen. Du kan vælge ét af dem under _Stil > Lås op_. De ser sådan her ud:
+Temaer kan også have et brugerdefineret oplåsningsdesign, som bruges til opstartsdekrypteringsprocessen. Du kan vælge et af dem under _Udseende > Oplåsning_. De ser sådan ud:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

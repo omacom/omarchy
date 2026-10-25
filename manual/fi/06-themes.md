@@ -1,12 +1,12 @@
 # Teemat
 
-Omarchyssa on kaksikymmentäkaksi kaunista teemaa. Voit valita niiden välillä Omarchy-valikon kohdasta _Tyyli > Teema_ (`Super + Space`) tai hypätä suoraan teeman valitsimeen yhdistelmällä `Super + Ctrl + Shift + Space`.
+Omarchyn mukana tulee kaksikymmentäkaksi kaunista teemaa. Voit valita niiden välillä Omarchy-valikon kohdasta _Appearance > Theme_ (`Super + Space`) tai hypätä suoraan teemanvalitsimeen näppäinyhdistelmällä `Super + Ctrl + T`.
 
-Jokainen teema tyylittelee työpöydän, päätteen, neovimin, aktiivisuusnäytön (btop), Chromiumin ja koko Omarchyn kuoren: yläpalkin, valikon, ilmoitukset, OSD:n ja lukitusruudun. (Obsidianissa sinun on valittava Omarchy-teema manuaalisesti sovelluksen kohdasta _Ulkoasu > Teemat_.)
+Jokainen teema tyylittelee työpöydän, terminaalin, neovimin, aktiviteettinäkymän (btop), Chromiumin ja koko Omarchy-kuoren: yläpalkin, valikon, ilmoitukset, OSD:n ja lukitusnäytön. (Obsidianissa sinun on valittava Omarchy-teema manuaalisesti sovelluksen kohdasta _Appearance > Themes_).
 
-Teemoissa on joukko taustakuvia, joista voit valita yhdistelmällä `Super + Ctrl + Space`.
+Teemoissa on valikoima taustakuvia, joiden välillä voit valita näppäinyhdistelmällä `Super + Ctrl + W`.
 
-Löydät vielä enemmän teemoja [lisäteemasivulta](https://omarchy.org/themes/) tai voit jopa [tehdä oman teemasi](43-making-your-own-theme.md).
+Löydät vielä lisää teemoja [lisäteemojen sivulta](https://omarchy.org/themes/) tai voit jopa [tehdä oman teemasi](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Salauksenpurku
+### Lukituksen avaukset
 
-Teemoissa voi olla myös mukautettu salauksenpurun malli, jota käytetään käynnistysajan salauksenpurkuprosessissa. Voit valita yhden näistä kohdasta _Tyyli > Salauksenpurku_. Ne näyttävät tältä:
+Teemoissa voi olla myös mukautettu lukituksen avauksen ulkoasu, jota käytetään käynnistyksen salauksenpurkuprosessissa. Voit valita sellaisen kohdasta _Appearance > Unlock_. Ne näyttävät tältä:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

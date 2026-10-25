@@ -1,10 +1,10 @@
 # Teme
 
-Omarchy dolazi s dvadeset i dvije lijepe teme. Između njih možete birati putem _Stil > Tema_ u Omarchy izborniku (`Super + Space`) ili izravno skočiti u birač tema pomoću `Super + Ctrl + Shift + Space`.
+Omarchy dolazi s dvadeset dvije prekrasne teme. Možete birati između njih putem _Izgled > Tema_ u izborniku Omarchy (`Super + Space`) ili izravno otići na odabir teme pomoću `Super + Ctrl + T`.
 
-Svaka tema stilizira radnu površinu, terminal, neovim, zaslon aktivnosti (btop), Chromium i cijelu Omarchy ljusku: gornju traku, izbornik, obavijesti, OSD i zaključani zaslon. (Za Obsidian morate ručno odabrati Omarchy temu putem _Appearance > Themes_ unutar aplikacije).
+Svaka tema stilizira radnu površinu, terminal, neovim, zaslon aktivnosti (btop), Chromium i cijelu Omarchy ljusku: gornju traku, izbornik, obavijesti, OSD i zaključani zaslon. (Za Obsidian morate ručno odabrati Omarchy temu putem _Izgled > Teme_ unutar aplikacije).
 
-Teme imaju skup pozadinskih slika između kojih možete birati pomoću `Super + Ctrl + Space`.
+Teme imaju skup pozadinskih slika između kojih možete birati pomoću `Super + Ctrl + W`.
 
 Još više tema možete pronaći na [stranici s dodatnim temama](https://omarchy.org/themes/) ili čak [izraditi vlastitu temu](43-making-your-own-theme.md).
 
@@ -67,7 +67,7 @@ _White_
 
 ### Otključavanja
 
-Teme mogu imati i prilagođeni dizajn otključavanja, koji se koristi za postupak dešifriranja pri pokretanju. Jedan od njih možete odabrati pod _Stil > Otključaj_. Izgledaju ovako:
+Teme mogu imati i prilagođeni dizajn otključavanja, koji se koristi za postupak dešifriranja pri pokretanju. Jedan od njih možete odabrati pod _Izgled > Otključavanje_. Izgledaju ovako:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

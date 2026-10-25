@@ -1,12 +1,12 @@
 # Motivy
 
-Omarchy přichází s dvaadvaceti krásnými motivy. Můžete si mezi nimi vybírat přes _Styl > Motiv_ v nabídce Omarchy (`Super + Space`) nebo skočit přímo do výběru motivu pomocí `Super + Ctrl + Shift + Space`.
+Omarchy přichází s dvaceti dvěma nádhernými motivy. Můžete si mezi nimi vybrat přes _Vzhled > Motiv_ v Omarchy Menu (`Super + Space`) nebo přejít rovnou do výběru motivu pomocí `Super + Ctrl + T`.
 
-Každý motiv stylizuje plochu, terminál, neovim, obrazovku aktivity (btop), Chromium a celý shell Omarchy: horní panel, nabídku, oznámení, OSD a zamykací obrazovku. (Pro Obsidian musíte motiv Omarchy vybrat ručně přes _Appearance > Themes_ uvnitř aplikace).
+Každý motiv upravuje vzhled plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého shellu Omarchy: horní lišty, nabídky, oznámení, OSD a zamykací obrazovky. (Pro Obsidian musíte motiv Omarchy vybrat ručně přes _Vzhled > Motivy_ uvnitř aplikace).
 
-Motivy mají sadu obrázků na pozadí, mezi kterými si můžete vybírat pomocí `Super + Ctrl + Space`.
+Motivy mají sadu obrázků na pozadí, mezi kterými si můžete vybírat pomocí `Super + Ctrl + W`.
 
-Ještě více motivů najdete na [stránce s dalšími motivy](https://omarchy.org/themes/) nebo si dokonce [vytvořte vlastní motiv](43-making-your-own-theme.md).
+Ještě více motivů najdete na [stránce s dalšími motivy](https://omarchy.org/themes/) nebo si dokonce můžete [vytvořit vlastní motiv](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Odemykání
 
-Motivy mohou mít také vlastní návrh odemykání, který se používá pro dešifrovací proces při spuštění. Jeden z nich můžete vybrat v _Styl > Odemknout_. Vypadají takto:
+Motivy mohou mít také vlastní vzhled odemykání, který se používá při dešifrování during spouštění systému. Jeden z nich si můžete vybrat v části _Vzhled > Odemykání_. Vypadají takto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

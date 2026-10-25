@@ -1,10 +1,10 @@
 # Téamaí
 
-Tagann dhá théama is fiche áille le Omarchy. Is féidir leat roghnú eatarthu trí _Stíl > Téama_ i Roghchlár Omarchy (`Super + Space`) nó léim go díreach chuig an roghnóir téama le `Super + Ctrl + Shift + Space`.
+Tagann Omarchy le dhá théama álainn is fiche. Is féidir leat roghnú eatarthu via _Dealramh > Téama_ i Roghchlár Omarchy (`Super + Space`) nó léim díreach chuig an roghnóir téamaí ag úsáid `Super + Ctrl + T`.
 
-Stílíonn gach téama an deasc, an teirminéal, neovim, an scáileán gníomhaíochta (btop), Chromium, agus blaosc iomlán Omarchy: barra barr, roghchlár, fógraí, OSD, agus an scáileán glasa. (Do Obsidian, caithfidh tú téama Omarchy a roghnú de láimh trí _Appearance > Themes_ taobh istigh den aip).
+Tugann gach téama stíl don deasc, don teirminéal, do neovim, don scáileán gníomhaíochta (btop), do Chromium, agus don bhlaosc iomlán Omarchy: an barra uachtarach, an roghchlár, na fógraí, OSD, agus an scáileán glais. (Maidir le Obsidian, ní mór duit téama Omarchy a roghnú de láimh via _Dealramh > Téamaí_ taobh istigh den aip).
 
-Tá tacar íomhánna cúlra ag téamaí ar féidir leat roghnú eatarthu le `Super + Ctrl + Space`.
+Tá sraith íomhánna cúlra ag téamaí ar féidir leat roghnú eatarthu ag úsáid `Super + Ctrl + W`.
 
 Is féidir leat níos mó téamaí fós a fháil ar [leathanach na dtéamaí breise](https://omarchy.org/themes/) nó fiú [do théama féin a dhéanamh](43-making-your-own-theme.md).
 
@@ -67,7 +67,7 @@ _White_
 
 ### Díghlasálacha
 
-Is féidir dearadh díghlasála saincheaptha a bheith ag téamaí freisin, a úsáidtear don phróiseas díchriptithe tosaithe. Is féidir leat ceann díobh seo a roghnú faoi _Stíl > Díghlasáil_. Tá cuma orthu mar seo:
+Is féidir dearadh díghlasála saincheaptha a bheith ag téamaí freisin, a úsáidtear don phróiseas díchriptithe ag am tosaithe. Is féidir leat ceann acu seo a roghnú faoi _Dealramh > Díghlasáil_. Seo mar a fhéachann siad:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

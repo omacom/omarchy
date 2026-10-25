@@ -1,35 +1,35 @@
 # Drošība
 
-Omarchy drošību uztver ārkārtīgi nopietni. Šai ir jābūt operētājsistēmai, ko varat izmantot _Īstam darbam_ _Īstajā pasaulē_. Kur klēpjdatora pazaudēšana nevar izraisīt drošības ārkārtas situāciju. Tāpēc lūk, ko mēs darām:
+Omarchy uztver drošību ārkārtīgi nopietni. Šai ir jābūt operētājsistēmai, ko varat izmantot, lai veiktu _Īstu Darbu_ _Īstajā Pasaulē_. Kur klēpjdatora pazaudēšana nevar izvērsties drošības ārkārtas situācijā. Lūk, ko mēs darām:
 
-1. *Pilna diska šifrēšana ir obligāta*: tas ir vissvarīgākais solis jūsu datu fiziskās aizsardzības nodrošināšanai. Ja jūsu dators tiek pazaudēts vai nozagts, dati ir pilnībā šifrēti, izmantojot standarta LUKS (Linux Unified Key Setup).
-2. *Ugunsmūris ir iespējots pēc noklusējuma*: visa ienākošā datplūsma pēc noklusējuma ir bloķēta, izņemot portu 53317 [LocalSend](https://localsend.org/). Pat ssh ir izslēgts, līdz to ieslēdzat sadaļā _Iestatīšana > Drošība > SSHD_, kas iestatīšanas ietvaros atver 22. portu (ar ātruma ierobežojumu pret brutālu spēku). Mēs pat noslēdzam Docker piekļuvi, izmantojot [ufw-docker](https://github.com/chaifeng/ufw-docker) iestatījumu, lai novērstu, ka jūsu konteineri nejauši tiek atklāti pasaulei.
-3. *Arch vienmēr ir jaunākie atjauninājumi*: Arch, pamatā esošā izplatīšana, uz kuras Omarchy ir būvēta, ir ritoša izplatīšana. Tas nozīmē, ka jebkura drošības ievainojamība, kas tiek atklāta un izlabota jebkurā pakotnē, ātri ir pieejama instalēšanai, izmantojot `omarchy-update`. Tā jūs vienmēr darbināt jaunākās, drošākās visa versijas.
-4. *Omarchy uztur savas pakotnes un spoguli*: Omarchy pēc noklusējuma paļaujas tikai uz pakotnēm no paša Arch core/extra/multilib repozitorijiem un sava Omarchy pakotņu repozitorija. Programmatūru varat instalēt tieši no AUR, bet bāzes instalācija tā nedara — tikai dažas izvēles instalācijas, piemēram, trešo pušu pārlūki, ņem no AUR.
-5. *Cloudflare mūs aizsargā no DDoS*: visa Omarchy izplatīšanas infrastruktūra — ISO, Omarchy pakotnes, Arch spogulis — ir aizsargāta aiz Cloudflare iespaidīgā DDoS vairoga un viesota viņu CDN. Tas nodrošina lielisku pieejamību.
+1. *Pilna diska šifrēšana ir obligāta*: Šis ir vissvarīgākais solis jūsu datu fiziskajai aizsardzībai. Ja jūsu dators tiek pazaudēts vai nozagts, dati ir pilnībā šifrēti, izmantojot standarta LUKS (Linux Unified Key Setup).
+2. *Ugunsmūris ir iespējots pēc noklusējuma*: Visa ienākošā datplūsma pēc noklusējuma ir bloķēta, izņemot 53317. portu [LocalSend](https://localsend.org/) vajadzībām. Pat ssh ir izslēgts, līdz to ieslēdzat sadaļā _Iestatīšana > Drošība > SSHD_, kas iestatīšanas ietvaros atver 22. portu (ar ātruma ierobežojumu pret brutāla spēka uzbrukumiem). Mēs pat ierobežojam Docker piekļuvi, izmantojot [ufw-docker](https://github.com/chaifeng/ufw-docker) iestatījumu, lai jūsu konteineri nejauši netiktu atklāti visai pasaulei.
+3. *Arch vienmēr ir jaunākie atjauninājumi*: Arch, pamatā esošā distribūcija, uz kuras balstīta Omarchy, ir distribūcija ar nepārtrauktiem atjauninājumiem. Tas nozīmē, ka jebkura atklāta un izlabota drošības ievainojamība jebkurā pakotnē ir ātri pieejama instalēšanai, izmantojot `omarchy-update`. Tādējādi jūs vienmēr izmantojat jaunākās, visdrošākās visa versijas.
+4. *Omarchy uztur savas pakotnes un spoguli*: Omarchy pēc noklusējuma paļaujas tikai uz pakotnēm no Arch paša core/extra/multilib repozitorijiem un sava Omarchy pakotņu repozitorija. Programmatūru varat instalēt tieši no AUR, bet bāzes instalācija to nedara — tikai dažas izvēles instalācijas, piemēram, trešo pušu pārlūkprogrammas, izmanto AUR.
+5. *Cloudflare mūs aizsargā pret DDoS*: Omarchy izplatīšanas infrastruktūra — ISO, Omarchy pakotnes, Arch spogulis — ir aizsargāta aiz Cloudflare iespaidīgā DDoS vairoga un viesota viņu CDN. Tas nodrošina izcilu pieejamību.
 
 ## Paroļu maiņa
 
-Šifrētā instalācijā jums ir divas paroles: tā, kas sāknēšanas laikā atbloķē disku, un tā, ar ko piesakāties un izmantojat `sudo`. Iestatīšana tās padara vienādas. Abas var mainīt Omarchy izvēlnē sadaļā _Atjaunināt > Parole_ — _Diska šifrēšana_ pirmajai, _Lietotājs_ otrajai. Diska paroles maiņa vispirms prasa pašreizējo, tāpēc turiet to pa rokai. Ja maiņa tiek pārtraukta, palaidiet _Diska šifrēšana_ vēlreiz: tā prasa paroli, kas tagad atbloķē disku, un pabeidz maiņu.
+Šifrētā instalācijā jums ir divas paroles: viena, kas sāknēšanas laikā atbloķē disku, un otra, ar kuru piesakāties un lietojat `sudo`. Iestatīšana padara tās vienādas. Abas var mainīt Omarchy izvēlnes sadaļā _Atjaunināšana > Parole_ — pirmo ar _Diska šifrēšana_, otro ar _Lietotājs_. Mainot diska paroli, vispirms tiek prasīta pašreizējā parole, tāpēc turiet to pa rokai. Ja maiņa tiek pārtraukta, palaidiet _Diska šifrēšana_ vēlreiz: tā prasīs paroli, kas pašlaik atbloķē disku, un pabeigs maiņu.
 
-## Jau lietotas iekārtas nodošana tālāk
+## Datora, ko jau esat lietojis, nodošana citam
 
-Ja nododat savu iekārtu kādam citam, jums tā nav jāpārinstalē. Omarchy izvēlnē palaidiet _Iestatīšana > Atiestatīt datoru_, ierakstiet `reset`, lai apstiprinātu, un pārstartējiet. Tas notīra katru lietotāja kontu un visu mapē `/home`, izmet visas pakotnes un sistēmas izmaiņas, ko veicāt kopš instalēšanas, un notīra iekārtas identitāti — tīkla savienojumus, saimnieka atslēgas un visu. Augšā atgriežas pirmās sāknēšanas iestatīšanas vednis, gatavs jaunajam īpašniekam ievadīt savu vārdu, paroli un šifrēšanas paroli.
+Ja nododat savu datoru kādam citam, tas nav jāinstalē no jauna. Palaidiet Omarchy izvēlnē _Iestatīšana > Atiestatīt datoru_, ierakstiet `reset`, lai apstiprinātu, un pārstartējiet. Tas izdzēš katru lietotāja kontu un visu, kas atrodas `/home`, atmet visas pakotnes un sistēmas izmaiņas, ko esat veicis kopš instalēšanas, un notīra datora identitāti — tīkla savienojumus, resursdatora atslēgas un visu pārējo. Pēc tam atkal parādās pirmās sāknēšanas iestatīšanas vednis, kas ir gatavs, lai jaunais īpašnieks ievadītu savu vārdu, paroli un šifrēšanas paroli.
 
-Tas darbojas, atjaunojot bāzlīnijas momentuzņēmumu, ko instalētājs uzņem, tāpēc tas ir pieejams tikai iekārtās, kas instalētas no Omarchy ISO. Un diskā bez šifrēšanas atiestatīšana ir dzēšana, nevis droša izdzēšana, tāpēc, ja dati bija sensitīvi, tā vietā veiciet svaigu instalēšanu.
+Tas darbojas, atjaunojot bāzes momentuzņēmumu, ko izveido instalētājs, tāpēc tas ir pieejams tikai datoros, kas instalēti no Omarchy ISO. Un diskā bez šifrēšanas atiestatīšana ir dzēšana, nevis droša izdzēšana, tāpēc, ja dati bija sensitīvi, tā vietā veiciet svaigu instalēšanu.
 
 ## Sudo bez paroles
 
-Dažkārt vēlaties, lai `sudo` pārstāj prasīt, visbiežāk, kad AI aģents jums veic garu sistēmas darba posmu. _Iestatīšana > Drošība > Sudo bez paroles_ jautā, cik ilgi atļaut piekļuvi: **15 minūtes**, **1 stunda**, **1 diena** vai **pastāvīgi**. Kamēr piekļuve ir aktīva, blakus pārējiem izvēlņu joslas rādītājiem parādās sarkana brīdinājuma ikona. Noklikšķiniet to vai palaidiet komandu vēlreiz, lai piekļuvi izslēgtu. Varat arī padot savu minūšu skaitu (no 1 līdz 1440) ar `omarchy-sudo-passwordless 30` vai izmantot `omarchy-sudo-passwordless permanent`.
+Dažreiz vēlaties, lai `sudo` pārstātu prasīt paroli, visbiežāk tad, kad AI aģents jūsu vietā ilgstoši veic sistēmas darbus. _Iestatīšana > Drošība > Sudo bez paroles_ prasa, cik ilgi atļaut piekļuvi: **15 minūtes**, **1 stunda**, **1 diena** vai **Pastāvīgi**. Kamēr piekļuve ir aktīva, blakus pārējiem izvēlnes joslas indikatoriem parādās sarkana brīdinājuma ikona. Noklikšķiniet uz tās vai palaidiet komandu vēlreiz, lai piekļuvi izslēgtu. Varat arī norādīt savu minūšu skaitu (no 1 līdz 1440) ar `omarchy-sudo-passwordless 30` vai izmantot `omarchy-sudo-passwordless permanent`.
 
-Laikā ierobežota piekļuve automātiski beidzas, tostarp tūlīt pēc atsākšanas no apturēšanas, kas šķērsoja termiņu. Datora restartēšana to beidz priekšlaicīgi. Pastāvīga piekļuve pārdzīvo pārstartēšanas un paliek iespējota, līdz to atspējojat.
+Piekļuve ar laika ierobežojumu automātiski beidzas, tostarp tūlīt pēc atsākšanas no miega režīma, kas šķērsoja termiņu. Datora restartēšana to pārtrauc priekšlaicīgi. Pastāvīga piekļuve saglabājas pēc pārstartēšanas un paliek iespējota, līdz to atspējojat.
 
-Omarchy iestatījumu pakotnes atjaunināšana vai noņemšana beidz jebkuru pagaidu piešķīrumu pirms tā termiņa beigām atbalsta maiņas. Ja komanda ziņo par autorizācijas vai tīrīšanas kļūdu, atrisiniet to pirms mēģināt iespējot citu piešķīrumu; kļūda nenozīmē, ka piekļuve bez paroles ir neaktīva.
+Omarchy iestatījumu pakotnes atjaunināšana vai noņemšana pārtrauc jebkuru pagaidu piešķīrumu, pirms mainās tā derīguma termiņa atbalsts. Ja komanda ziņo par autorizācijas vai tīrīšanas kļūdu, novērsiet to, pirms mēģināt iespējot citu piešķīrumu; kļūda nenozīmē, ka piekļuve bez paroles ir neaktīva.
 
-Par šo skaidru acu priekšā: kamēr tas ir ieslēgts, jebkas, kas darbojas kā jūsu lietotājs, var darīt jebko kā root, neprasīts. Tā ir visa būtība, un tas ir arī viss risks.
+Skatieties uz to ar atvērtām acīm: kamēr tā ir ieslēgta, jebkas, kas darbojas ar jūsu lietotāju, var darīt jebko kā root, neko neprasot. Tāds ir viss tās mērķis, un tāds ir arī viss tās risks.
 
-## Paraksta atslēgas
+## Parakstīšanas atslēgas
 
-Publiskā atslēga visiem ISO parakstiem un Omarchy repozitorija pakotnei ir `40DFB630FF42BCFFB047046CF0134EE680CAC571` ([pārbaudiet vietnē openpgp.org](https://keys.openpgp.org/search?q=pkgs%40omarchy.org)). Pakotne `omarchy/omarchy-keyring` arī to satur un tiks izmantota, lai nemanāmi ieviestu jebkurus iespējamos atjauninājumus.
+Publiskā atslēga visiem ISO parakstiem un Omarchy repo pakotnēm ir `40DFB630FF42BCFFB047046CF0134EE680CAC571` ([pārbaudīt vietnē openpgp.org](https://keys.openpgp.org/search?q=pkgs%40omarchy.org)). Pakotnē `omarchy/omarchy-keyring` tā arī ir iekļauta, un tā tiks izmantota, lai nemanāmi ieviestu jebkādus iespējamos atjauninājumus.
 
-Jebkura ISO laidiena parakstu varat atrast, URL pievienojot .sig. Piemēram, https://iso.omarchy.org/omarchy-x.x.x.iso.sig.
+Jebkura ISO laidiena parakstu varat atrast, pievienojot URL .sig. Piemēram, https://iso.omarchy.org/omarchy-x.x.x.iso.sig.

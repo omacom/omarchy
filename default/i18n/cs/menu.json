@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Uživatel"
   },
-  "system.reboot-boot-menu": {
-    "label": "Restartovat do spouštěcí nabídky"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Zobrazit % baterie"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Skrýt % baterie"
+  },
+  "appearance.windows": {
+    "label": "Okna"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Mezery oken zapnuté"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Mezery oken vypnuté"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Poměr 1 okna zapnutý"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Poměr 1 okna vypnutý"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.animations-on": {
+    "label": "Animace zapnuté"
+  },
+  "appearance.animations-off": {
+    "label": "Animace vypnuté"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Zůstat vzhůru"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Povolit spánek"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Oznámení zapnutá"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Ztišit oznámení"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Noční světlo zapnuté"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Noční světlo vypnuté"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Spořič obrazovky zapnutý"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Spořič obrazovky vypnutý"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Zachytávání pádů zapnuté"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Vypnout záznam pádů"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Zapnout displej notebooku"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Vypnout displej notebooku"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Zapnout zrcadlení displeje"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Vypnout zrcadlení displeje"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Přepnout na hybridní GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Přepnout na integrovanou GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Zapnout touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Vypnout touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Zapnout dotykovou obrazovku"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Vypnout dotykovou obrazovku"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Jádro"
   }
 }

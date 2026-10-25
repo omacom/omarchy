@@ -1,12 +1,12 @@
 # Témák
 
-Az Omarchy huszonkét gyönyörű témával érkezik. Közülük az Omarchy menüben (`Super + Space`) a _Stílus > Téma_ pontból választhatsz, vagy a `Super + Ctrl + Shift + Space` kombinációval egyenesen a témaválasztóhoz ugorhatsz.
+Az Omarchy huszonkét gyönyörű témával érkezik. Ezek közül az Omarchy menüben (`Super + Space`) az _Appearance > Theme_ pontban választhatsz, vagy a `Super + Ctrl + T` billentyűkombinációval közvetlenül a témaválasztóhoz ugorhatsz.
 
-Minden téma formázza az asztalt, a terminált, a neovimet, az activity képernyőt (btop), a Chromiumot és a teljes Omarchy shellt: a felső sávot, a menüt, az értesítéseket, az OSD-t és a zárolási képernyőt. (Az Obsidian esetén az alkalmazáson belül az _Appearance > Themes_ pontban kézzel kell kiválasztanod az Omarchy témát).
+Mindegyik téma meghatározza az asztal, a terminál, a neovim, az aktivitásképernyő (btop), a Chromium és az egész Omarchy felület megjelenését: a felső sávét, a menüét, az értesítésekét, az OSD-ét és a zárolási képernyőét. (Az Obsidianban kézzel kell kiválasztanod az Omarchy témát az alkalmazáson belül az _Appearance > Themes_ pontban.)
 
-A témáknak háttérképek készlete is van, amelyek között a `Super + Ctrl + Space` kombinációval választhatsz.
+A témákhoz háttérképek készlete is tartozik, amelyek közül a `Super + Ctrl + W` billentyűkombinációval választhatsz.
 
-Még több témát találsz [az extra témák oldalán](https://omarchy.org/themes/), vagy [készíthetsz saját témát](43-making-your-own-theme.md).
+Még több témát találsz a [további témák oldalán](https://omarchy.org/themes/), vagy akár [saját témát is készíthetsz](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Feloldások
 
-A témáknak egyedi feloldási mintájuk is lehet, amelyet a rendszer indulásakor a visszafejtési folyamat használ. Ezek közül az _Stílus > Feloldás_ pontban választhatsz egyet. Így néznek ki:
+A témákhoz egyedi feloldási megjelenés is tartozhat, amelyet a rendszerindításkor zajló visszafejtési folyamat használ. Ezek közül az _Appearance > Unlock_ pontban választhatsz egyet. Így néznek ki:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

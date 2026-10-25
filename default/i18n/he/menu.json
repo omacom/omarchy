@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "משתמש"
   },
-  "system.reboot-boot-menu": {
-    "label": "הפעל מחדש לתפריט האתחול"
+  "appearance.windows.gaps-on": {
+    "label": "מרווחי חלונות פעילים"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "מרווחי חלונות כבויים"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "יחס חלון יחיד פעיל"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "יחס חלון יחיד כבוי"
+  },
+  "appearance.branding": {
+    "label": "מיתוג"
+  },
+  "appearance.animations-on": {
+    "label": "אנימציות פעילות"
+  },
+  "appearance.animations-off": {
+    "label": "אנימציות כבויות"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "הישאר ער"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "אפשר שינה"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "התראות פעילות"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "השתק התראות"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "תאורת לילה פעילה"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "תאורת לילה כבויה"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "שומר מסך פעיל"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "שומר מסך כבוי"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "לכידת קריסות פעילה"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "לכידת קריסות כבויה"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "מסך מחשב נייד פעיל"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "מסך מחשב נייד כבוי"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "שיקוף מסך פעיל"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "הצג אחוזי סוללה"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "הסתר אחוזי סוללה"
+  },
+  "appearance.windows": {
+    "label": "חלונות"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "כיבוי שיקוף מסך"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "מעבר ל-GPU היברידי"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "מעבר ל-GPU משולב"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "הפעלת משטח מגע"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "השבתת משטח מגע"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "הפעלת מסך מגע"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "השבתת מסך מגע"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "ליבה"
   }
 }

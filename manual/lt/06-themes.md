@@ -1,12 +1,12 @@
 # Temos
 
-Omarchy pateikiama su dvidešimt dviem gražiomis temomis. Tarp jų galite rinktis per _Stilius > Tema_ Omarchy meniu (`Super + Space`) arba šokti tiesiai į temų parinkiklį naudodami `Super + Ctrl + Shift + Space`.
+Kartu su Omarchy pateikiamos dvidešimt dvi gražios temos. Jas galite pasirinkti „Omarchy“ meniu (`Super + Space`) eidami į _Išvaizda > Tema_ arba pereiti tiesiai prie temų pasirinkimo paspaudę `Super + Ctrl + T`.
 
-Kiekviena tema stilizuoja darbalaukį, terminalą, neovim, veiklos ekraną (btop), Chromium ir visą Omarchy apvalkalą: viršutinę juostą, meniu, pranešimus, OSD ir užrakinimo ekraną. (Obsidian atveju Omarchy temą turite rankiniu būdu pasirinkti per _Appearance > Themes_ programos viduje).
+Kiekviena tema pakeičia darbalaukio, terminalo, neovim, veiklos ekrano (btop), Chromium ir visos Omarchy aplinkos stilių: viršutinę juostą, meniu, pranešimus, OSD ir užrakinimo ekraną. (Naudodami Obsidian, Omarchy temą programoje turite pasirinkti rankiniu būdu eidami į _Išvaizda > Temos_).
 
-Temos turi foninių paveikslėlių rinkinį, iš kurio galite rinktis naudodami `Super + Ctrl + Space`.
+Temos turi foninių paveikslėlių rinkinį, iš kurio galite rinktis paspaudę `Super + Ctrl + W`.
 
-Dar daugiau temų galite rasti [papildomų temų puslapyje](https://omarchy.org/themes/) arba net [susikurti savo temą](43-making-your-own-theme.md).
+Dar daugiau temų rasite [papildomų temų puslapyje](https://omarchy.org/themes/) arba netgi galite [susikurti savo temą](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Atrakinimai
+### Atrakinimo ekranai
 
-Temos taip pat gali turėti pasirinktinį atrakinimo dizainą, kuris naudojamas paleidimo iššifravimo procesui. Vieną iš jų galite pasirinkti po _Stilius > Atrakinti_. Jie atrodo taip:
+Temos taip pat gali turėti pritaikytą atrakinimo dizainą, naudojamą įkrovos iššifravimo procese. Vieną iš jų galite pasirinkti eidami į _Išvaizda > Atrakinimas_. Jie atrodo taip:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

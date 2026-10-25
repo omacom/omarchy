@@ -1,15 +1,15 @@
 # Pozadia
 
-Každá téma sa dodáva s vlastnou sadou pozadí a vy si môžete pridať vlastné do `~/.config/omarchy/backgrounds/[theme]`. Ak chcete pridať ďalší obrázok pozadia napríklad do témy nord, stačí vložiť súbor do `~/.config/omarchy/backgrounds/nord`.
+Každá téma sa dodáva s vlastnou sadou pozadí a ďalšie vlastné si môžete pridať do `~/.config/omarchy/backgrounds/[theme]`. Ak chcete pridať ďalší obrázok pozadia napríklad k téme nord, jednoducho vložíte súbor do `~/.config/omarchy/backgrounds/nord`.
 
-Najjednoduchšie to urobíte tak, že prejdete do časti _Inštalovať > Style > Background_ v ponuke Omarchy. Tým sa otvorí priečinok, v ktorom sú uložené pozadia pre danú tému. Stlačte `Super + Shift + F`, ak chcete spustiť ďalší správca súborov, nájdite svoje pozadie a skopírujte ho tam.  Teraz bude zahrnuté medzi pozadiami, medzi ktorými môžete vyberať skratkou `Super + Ctrl + Space`.
+Najjednoduchšie to urobíte tak, že v Omarchy Menu prejdete na _Install > Style > Background_. Tým sa otvorí priečinok, v ktorom sú uložené pozadia pre danú tému. Stlačte `Super + Shift + F`, čím spustíte ďalší správca súborov, nájdite svoje pozadie a skopírujte ho tam. Teraz bude súčasťou ponuky pozadí, medzi ktorými môžete vyberať pomocou `Super + Ctrl + W`.
 
-Pozadia môžu byť videá aj statické obrázky. Vložte súbor `mp4`, `m4v`, `mov`, `webm`, `mkv` alebo `avi` do rovnakého priečinka a zobrazí sa vedľa obrázkov. Videá prehráva nástroj na tapety OWE. Dekóduje video raz pre všetky monitory a prehráva jeho zvuk cez predvolený zvukový výstup a zastaví prehrávanie vždy, keď ho nič nevidí. Zamknutá obrazovka kreslí to isté dekódované video, stlmené, cez OWE. Video tapeta stále stojí oveľa viac energie než statická tapeta.
+Pozadia môžu byť videá aj statické obrázky. Vložte súbor `mp4`, `m4v`, `mov`, `webm`, `mkv` alebo `avi` do rovnakého priečinka a zobrazí sa spolu s obrázkami. Videá prehráva engine tapiet OWE. Dekóduje video raz pre všetky monitory a prehráva jeho zvuk cez predvolený zvukový výstup a zastaví prehrávanie vždy, keď ho nič nevidí. Video pozadie stále spotrebúva oveľa viac energie ako statické.
 
-Témy môžu obsahovať krátky úvod pre statické pozadie. Pre `backgrounds/road.webp` sa zodpovedajúce video nachádza na `backgrounds/intros/road.mp4`. Prehrá sa automaticky pri zavádzaní a pri prepnutí na tému s vybraným týmto pozadím a potom sa vráti na statický obrázok. Úvodné videá zostávajú mimo výberu pozadia a nikdy sa neopakujú v slučke.
+Témy môžu obsahovať krátke intro pre statické pozadie. Pre `backgrounds/road.webp` sa zodpovedajúce video nachádza v `backgrounds/intros/road.mp4`. Prehrá sa automaticky pri spustení a pri prepnutí na tému s vybratým daným pozadím, potom sa vráti na statický obrázok. Intro videá sa nezobrazujú vo výbere pozadí a nikdy sa neopakujú v slučke.
 
-Vypnutie možnosti _Akcie > Vzhľad > Animácie_ vypne aj úvody pozadí. Omarchy to predvolene robí vo virtuálnom stroji. Príkaz `omarchy theme bg intro toggle` môže úvody prepínať samostatne. Obnovenie témy alebo výber iného pozadia v rámci tej istej témy úvod neprehrá.
+Vypnutie _Appearance > Animations_ vypne aj intrá pozadí. Omarchy to vo virtuálnom počítači robí predvolene. Príkaz `omarchy theme bg intro toggle` môže intrá prepínať samostatne. Obnovenie témy alebo výber iného pozadia v rámci tej istej témy intro neprehrá.
 
-Obrovskú zbierku skvelých vybraných pozadí nájdete na https://github.com/dharmx/walls.
+Obrovskú zbierku skvelých starostlivo vybraných pozadí nájdete na https://github.com/dharmx/walls.
 
-Videopozadia si na zamknutej obrazovke ponechávajú uložený statický obrázok, kým je prehrávanie pozastavené alebo nedostupné. Animované súbory GIF sa prehrávajú na pracovnej ploche a na zamknutej obrazovke zobrazujú statický snímok.
+Uzamknutá obrazovka zobrazuje statický snímok video pozadia, rovnako ako zobrazuje statický snímok animovaného GIF.

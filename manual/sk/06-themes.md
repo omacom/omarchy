@@ -1,12 +1,12 @@
 # Témy
 
-Omarchy prichádza s dvadsiatimi dvomi krásnymi témami. Môžete si medzi nimi vybrať cez _Štýl > Téma_ v menu Omarchy (`Super + Space`) alebo skočiť priamo k výberu tém pomocou `Super + Ctrl + Shift + Space`.
+Omarchy prichádza s dvadsiatimi dvomi krásnymi témami. Môžete si medzi nimi vybrať cez _Vzhľad > Téma_ v Omarchy Menu (`Super + Space`) alebo prejsť priamo do výberu tém pomocou `Super + Ctrl + T`.
 
-Každá téma štylizuje pracovnú plochu, terminál, neovim, obrazovku aktivity (btop), Chromium a celý shell Omarchy: hornú lištu, menu, upozornenia, OSD a uzamykaciu obrazovku. (Pri Obsidian musíte tému Omarchy vybrať ručne cez _Appearance > Themes_ vnútri aplikácie).
+Každá téma upravuje vzhľad pracovnej plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého prostredia Omarchy: horného panela, ponuky, oznámení, OSD a obrazovky uzamknutia. (V prípade Obsidian musíte tému Omarchy vybrať ručne cez _Vzhľad > Témy_ priamo v aplikácii).
 
-Témy majú sadu obrázkov pozadia, medzi ktorými si môžete vyberať pomocou `Super + Ctrl + Space`.
+Témy majú sadu obrázkov na pozadí, medzi ktorými si môžete vyberať pomocou `Super + Ctrl + W`.
 
-Ešte viac tém nájdete na [stránke s extra témami](https://omarchy.org/themes/) alebo si dokonca môžete [vytvoriť vlastnú tému](43-making-your-own-theme.md).
+Ešte viac tém nájdete na [stránke s ďalšími témami](https://omarchy.org/themes/) alebo si môžete dokonca [vytvoriť vlastnú tému](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Odomknutia
+### Odomykanie
 
-Témy môžu mať aj vlastný návrh odomknutia, ktorý sa používa na proces dešifrovania pri spustení. Jeden z nich si môžete vybrať pod _Štýl > Odomknúť_. Vyzerajú takto:
+Témy môžu mať aj vlastný dizajn odomykania, ktorý sa používa pri procese dešifrovania počas zavádzania systému. Jeden z nich si môžete vybrať v časti _Vzhľad > Odomykanie_. Vyzerajú takto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

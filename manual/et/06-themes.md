@@ -1,12 +1,12 @@
 # Teemad
 
-Omarchyga tuleb kaasa kakskümmend kaks ilusat teemat. Saad nende vahel valida Omarchy menüüs _Stiil > Teema_ kaudu (`Super + Space`) või hüpata otse teemavalija juurde `Super + Ctrl + Shift + Space` abil.
+Omarchy sisaldab kakskümmend kaks ilusat teemat. Nende vahel saate valida Omarchy menüüst (`Super + Space`) valiku _Välimus > Teema_ kaudu või hüpata otse teemavalijasse klahvikombinatsiooniga `Super + Ctrl + T`.
 
-Iga teema stiilib töölaua, terminali, neovimi, aktiivsusekraani (btop), Chromiumi ja kogu Omarchy kesta: menüüriba, menüü, teavitused, OSD ja lukuekraani. (Obsidiani puhul pead rakenduses käsitsi valima Omarchy teema _Appearance > Themes_ kaudu).
+Iga teema kujundab töölaua, terminali, neovimi, tegevuskuva (btop), Chromiumi ja kogu Omarchy kesta: ülemise riba, menüü, teavitused, OSD ja lukustuskuva. (Obsidianis peate Omarchy teema käsitsi valima rakenduse sees valiku _Välimus > Teemad_ kaudu).
 
-Teemadel on taustapiltide kogum, mille vahel saad valida `Super + Ctrl + Space` abil.
+Teemadel on taustapiltide komplekt, mille vahel saate valida klahvikombinatsiooniga `Super + Ctrl + W`.
 
-Rohkem teemasid leiad [lisateemade lehelt](https://omarchy.org/themes/) või saad isegi [oma teema teha](43-making-your-own-theme.md).
+Veel rohkem teemasid leiate [täiendavate teemade lehelt](https://omarchy.org/themes/) või saate isegi [oma teema luua](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Ava lukk kujundused
+### Avamiskuvad
 
-Teemadel võib olla ka kohandatud luku avamise kujundus, mida kasutatakse käivitamise dekrüpteerimisprotsessiks. Saad ühe neist valida _Stiil > Ava lukk_ alt. Need näevad välja nii:
+Teemadel võib olla ka kohandatud avamiskujundus, mida kasutatakse alglaadimise dekrüpteerimisprotsessi jaoks. Saate ühe neist valida valiku _Välimus > Avamine_ alt. Need näevad välja sellised:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

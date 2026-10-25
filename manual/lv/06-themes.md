@@ -1,12 +1,12 @@
-# Tēmas
+# Motīvi
 
-Omarchy nāk ar divdesmit divām skaistām tēmām. Tu vari izvēlēties starp tām, izmantojot _Stils > Tēma_ Omarchy izvēlnē (`Super + Space`) vai lekt tieši uz tēmu atlasītāju, izmantojot `Super + Ctrl + Shift + Space`.
+Omarchy komplektā ir divdesmit divi skaisti motīvi. Tos varat izvēlēties Omarchy Menu sadaļā _Appearance > Theme_ (`Super + Space`) vai doties tieši uz motīvu atlasītāju ar `Super + Ctrl + T`.
 
-Katra tēma veido darbvirsmu, termināli, neovim, aktivitāšu ekrānu (btop), Chromium un visu Omarchy čaulu: augšējo joslu, izvēlni, paziņojumus, OSD un bloķēšanas ekrānu. (Obsidian gadījumā tev pašam jāatlasa Omarchy tēma, izmantojot _Appearance > Themes_ lietotnes iekšpusē).
+Katrs motīvs noformē darbvirsmu, termināli, neovim, aktivitāšu ekrānu (btop), Chromium un visu Omarchy apvalku: augšējo joslu, izvēlni, paziņojumus, OSD un bloķēšanas ekrānu. (Obsidian gadījumā Omarchy motīvs lietotnē jāatlasa manuāli sadaļā _Appearance > Themes_).
 
-Tēmām ir fona attēlu kopa, starp kurām vari izvēlēties, izmantojot `Super + Ctrl + Space`.
+Motīviem ir fona attēlu kopa, starp kuriem varat izvēlēties ar `Super + Ctrl + W`.
 
-Vēl vairāk tēmu vari atrast [papildu tēmu lapā](https://omarchy.org/themes/) vai pat [izveidot savu tēmu](43-making-your-own-theme.md).
+Vēl vairāk motīvu atradīsiet [papildu motīvu lapā](https://omarchy.org/themes/) vai pat varat [izveidot savu motīvu](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Atbloķēšanas ekrāni
+### Atslēgšanas ekrāni
 
-Tēmām var būt arī pielāgots atbloķēšanas dizains, ko izmanto sāknēšanas atšifrēšanas procesā. Tu vari atlasīt vienu no tiem zem _Stils > Atbloķēt_. Tie izskatās šādi:
+Motīviem var būt arī pielāgots atslēgšanas dizains, ko izmanto sāknēšanas atšifrēšanas procesā. Tādu varat izvēlēties sadaļā _Appearance > Unlock_. Tie izskatās šādi:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

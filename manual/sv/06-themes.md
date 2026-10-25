@@ -1,12 +1,12 @@
 # Teman
 
-Omarchy levereras med tjugotvå vackra teman. Du kan välja mellan dem via _Style > Theme_ i Omarchy-menyn (`Super + Space`) eller hoppa direkt till temaväljaren med `Super + Ctrl + Shift + Space`.
+Omarchy levereras med tjugotvå vackra teman. Du kan välja mellan dem via _Utseende > Tema_ i Omarchy Menu (`Super + Space`) eller hoppa direkt till temaväljaren med `Super + Ctrl + T`.
 
-Varje tema stylar skrivbordet, terminalen, neovim, aktivitetsskärmen (btop), Chromium och hela Omarchy-skalet: menyfältet, menyn, aviseringarna, OSD och låsskärmen. (För Obsidian måste du manuellt välja Omarchy-temat via _Appearance > Themes_ inuti appen).
+Varje tema stylar skrivbordet, terminalen, neovim, aktivitetsskärmen (btop), Chromium och hela Omarchy-skalet: den övre listen, menyn, aviseringar, OSD och låsskärmen. (För Obsidian måste du manuellt välja Omarchy-temat via _Utseende > Teman_ inuti appen).
 
-Teman har en uppsättning bakgrundsbilder som du kan välja mellan med `Super + Ctrl + Space`.
+Teman har en uppsättning bakgrundsbilder som du kan välja mellan med `Super + Ctrl + W`.
 
-Du kan hitta ännu fler teman på [sidan med extra teman](https://omarchy.org/themes/) eller till och med [göra ditt eget tema](43-making-your-own-theme.md).
+Du hittar ännu fler teman på [sidan med extra teman](https://omarchy.org/themes/) eller kan till och med [skapa ditt eget tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Upplåsningar
 
-Teman kan också ha en anpassad upplåsningsdesign, som används för uppstartsdekrypteringsprocessen. Du kan välja en av dessa under _Style > Unlock_. De ser ut så här:
+Teman kan också ha en anpassad upplåsningsdesign, som används för dekrypteringsprocessen vid uppstart. Du kan välja en av dessa under _Utseende > Upplåsning_. De ser ut så här:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

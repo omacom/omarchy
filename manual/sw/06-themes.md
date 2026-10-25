@@ -1,12 +1,12 @@
 # Mandhari
 
-Omarchy huja na mandhari ishirini na mbili nzuri. Unaweza kuchagua kati yake kupitia _Mtindo > Mandhari_ katika Menyu ya Omarchy (`Super + Space`) au kuruka moja kwa moja hadi kichaguzi cha mandhari ukitumia `Super + Ctrl + Shift + Space`.
+Omarchy inakuja na mandhari ishirini na mbili nzuri. Unaweza kuchagua kati yazo kupitia _Muonekano > Mandhari_ katika Menyu ya Omarchy (`Super + Space`) au kwenda moja kwa moja kwenye kichaguzi cha mandhari kwa kutumia `Super + Ctrl + T`.
 
-Kila mandhari huweka mtindo kwenye eneo-kazi, terminali, neovim, skrini ya shughuli (btop), Chromium, na shell yote ya Omarchy: upau wa juu, menyu, arifa, OSD, na skrini ya kufunga. (Kwa Obsidian, lazima uchague mwenyewe mandhari ya Omarchy kupitia _Appearance > Themes_ ndani ya programu).
+Kila mandhari huweka mtindo kwenye eneo-kazi, terminal, neovim, skrini ya shughuli (btop), Chromium, na ganda zima la Omarchy: upau wa juu, menyu, arifa, OSD, na skrini ya kufunga. (Kwa Obsidian, lazima uchague mwenyewe mandhari ya Omarchy kupitia _Muonekano > Mandhari_ ndani ya programu).
 
-Mandhari yana seti ya picha za mandhari ya nyuma ambazo unaweza kuchagua kati yake ukitumia `Super + Ctrl + Space`.
+Mandhari zina seti ya picha za mandharinyuma ambazo unaweza kuchagua kati yazo kwa kutumia `Super + Ctrl + W`.
 
-Unaweza kupata mandhari zaidi kwenye [ukurasa wa mandhari za ziada](https://omarchy.org/themes/) au hata [kutengeneza mandhari yako mwenyewe](43-making-your-own-theme.md).
+Unaweza kupata mandhari zaidi hata kwenye [ukurasa wa mandhari za ziada](https://omarchy.org/themes/) au hata [kutengeneza mandhari yako mwenyewe](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Kufungua
 
-Mandhari yanaweza pia kuwa na muundo maalum wa kufungua, ambao hutumiwa kwa mchakato wa kusimbua wakati wa kuwasha. Unaweza kuchagua moja ya hizi chini ya _Mtindo > Fungua_. Zinaonekana kama hivi:
+Mandhari pia zinaweza kuwa na muundo maalum wa kufungua, ambao hutumika kwa mchakato wa kusimbua wakati wa kuwasha. Unaweza kuchagua mojawapo ya hizi chini ya _Muonekano > Kufungua_. Zinaonekana kama hivi:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

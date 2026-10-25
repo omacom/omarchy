@@ -1,82 +1,83 @@
 # Zrzuty ekranu i nagrywanie
 
-Wszystko, co da się zgarnąć z ekranu, wisi na klawiszu Print Screen. Sam klawisz robi zrzut, a modyfikatory robią nagranie, pobierają kolor albo tekst wewnątrz obszaru. Jeśli twoja klawiatura w ogóle nie ma klawisza Print Screen, `Super + Ctrl + C` otwiera ten sam zestaw jako menu.
+Wszystko, co możesz przechwycić z ekranu, wisi na klawiszu Print Screen. Sam klawisz robi zdjęcie, a modyfikatory robią nagranie, kolor albo tekst wewnątrz regionu. Jeśli twoja klawiatura w ogóle nie ma klawisza Print Screen, `Super + Ctrl + Alt + C` robi ten sam zrzut ekranu, a `Super + Ctrl + C` otwiera cały zestaw jako menu.
 
-| Skrót | Funkcja |
+| Hotkey | Function |
 | ------ | -------- |
 | `Print Screen` | Zrzut ekranu |
-| `Alt + Print Screen` | Nagrywanie ekranu (albo zatrzymanie trwającego) |
-| `Super + Print Screen` | Wybór koloru |
-| `Super + Ctrl + Print Screen` | Wyciąganie tekstu z obszaru |
+| `Super + Ctrl + Alt + C` | Zrzut ekranu |
+| `Alt + Print Screen` | Nagrywanie ekranu (lub zatrzymanie tego, które trwa) |
+| `Super + Print Screen` | Próbnik kolorów |
+| `Super + Ctrl + Print Screen` | Wyodrębnij tekst z regionu |
 | `Super + Ctrl + C` | Menu przechwytywania |
-| `Super + Ctrl + .` | Transkodowanie obrazu lub wideo |
+| `Super + Ctrl + .` | Transkoduj zdjęcie lub wideo |
 
 ## Zrzuty ekranu
 
-Naciśnij `Print Screen`, a Omasnap przechwytuje skupiony monitor, zanim pojawi się jego nakładka, więc nic nie przesuwa się pod tobą, gdy celujesz. Przeciągnij dowolny obszar, kliknij okno, żeby je przechwycić, albo kliknij otwartą przestrzeń, żeby przechwycić cały monitor. Naciśnij `S` przed rysowaniem, żeby przechwycić przewijany obszar. Zmieniłeś zdanie? Naciśnij `Print Screen` ponownie, żeby odrzucić Omasnap.
+Naciśnij `Print Screen` (lub `Super + Ctrl + Alt + C`), a Omasnap przechwyci monitor z fokusem, zanim pojawi się jego nakładka, więc nic nie przesunie się pod tobą, gdy celujesz. Przeciągnij dowolny region, kliknij okno, aby je przechwycić, lub kliknij pustą przestrzeń, aby przechwycić cały monitor. Naciśnij `S` przed rysowaniem, aby przechwycić region przewijany. Zmieniłeś zdanie? Naciśnij ten sam klawisz jeszcze raz, aby zamknąć Omasnap.
 
-Po wybraniu obszaru Omasnap zapisuje zrzut, kopiuje go do schowka i pokazuje podgląd na 10 sekund. Użyj przycisku przypinania podglądu lub `Ctrl + P`, żeby trzymać go na ekranie, albo wybierz Edit, żeby go opatrzeć adnotacjami.
+Po wybraniu obszaru Omasnap zapisuje przechwycenie, kopiuje je do schowka i pokazuje podgląd przez 10 sekund. Użyj przycisku przypinania w podglądzie lub `Ctrl + P`, aby zostawić go na ekranie, albo wybierz Edit, aby dodać adnotacje.
 
-Edytor adnotacji może rysować strzałki, linie, kształty, podświetlenia, numerowane znaczniki, tekst oraz bezpieczne anonimizacje; przycinać lub wycinać część obrazu; OCR-ować jego tekst; oraz dodawać tło. W edytorze naciśnij `Enter`, żeby skopiować i zapisać gotowy PNG, `Ctrl + C`, żeby skopiować bez zapisywania, albo `Ctrl + S`, żeby zapisać bez kopiowania.
+Edytor adnotacji potrafi rysować strzałki, linie, kształty, wyróżnienia, numerowane znaczniki, tekst i bezpieczne redakcje; przycinać lub wycinać część obrazu; odczytywać jego tekst przez OCR; oraz dodawać tło. W edytorze naciśnij `Enter`, aby skopiować i zapisać gotowy PNG, `Ctrl + C`, aby skopiować go bez zapisywania, lub `Ctrl + S`, aby zapisać go bez kopiowania.
 
-Zapisane zrzuty ekranu trafiają domyślnie do `~/Pictures/Screenshots`, z nazwą taką jak `screenshot-2026-08-13_14-22-05-firefox.png`. Ustaw `OMASNAP_SCREENSHOT_DIR`, żeby użyć innego katalogu — zob. [FAQ](46-faq.md), gdzie umieszczać zmienne środowiskowe sesji. Omasnap tworzy katalog, gdy zapisuje pierwszy zrzut. Ustaw `[output] autosave = false` w `~/.config/omasnap/omasnap.conf`, żeby wyłączyć automatyczne zapisywanie.
+Zapisane zrzuty ekranu lądują domyślnie w `~/Pictures/Screenshots`, z nazwą taką jak `screenshot-2026-08-13_14-22-05-firefox.png`. Ustaw `OMASNAP_SCREENSHOT_DIR`, aby użyć innego katalogu — zobacz [FAQ](46-faq.md), aby dowiedzieć się, gdzie umieszczać zmienne środowiskowe sesji. Omasnap tworzy katalog, gdy zapisuje pierwszy zrzut. Ustaw `[output] autosave = false` w `~/.config/omasnap/omasnap.conf`, aby wyłączyć automatyczne zapisywanie.
 
-Z terminala `omarchy screenshot` otwiera tę samą nakładkę i możesz wybrać jej tryb startowy: `omarchy capture screenshot region`, `windows`, `fullscreen` albo `scroll`. Drugi argument `copy` lub `save` pomija podgląd i wysyła zrzut prosto do tego miejsca. Aby edytować przed wyjściem, użyj `omarchy screenshot --editor=overlay` dla edytora pełnoekranowego albo `omarchy screenshot --editor=window` dla osobnego okna.
+Z terminala `omarchy screenshot` otwiera tę samą nakładkę, a możesz wybrać jej tryb startowy: `omarchy capture screenshot region`, `windows`, `fullscreen` lub `scroll`. Drugi argument `copy` lub `save` pomija podgląd i wysyła zrzut prosto do tego miejsca docelowego. Aby edytować przed wyjściem, użyj `omarchy screenshot --editor=overlay` dla edytora pełnoekranowego lub `omarchy screenshot --editor=window` dla osobnego okna.
 
-### Sterowanie selektorem z klawiatury
+### Obsługa selektora z klawiatury
 
-Gdy wybór jest aktywny, wcale nie musisz używać myszy:
+Gdy zaznaczenie jest otwarte, w ogóle nie musisz używać myszy:
 
-| Klawisz | Funkcja |
+| Key | Function |
 | --- | -------- |
-| `S` | Przewijany tryb obszaru |
-| `Super + Arrow keys` | Poruszanie się między oknami w trybie okna |
-| `Return` | Przechwycenie podświetlonego okna |
-| `Ctrl + A` | Przechwycenie pełnego skupionego monitora |
-| `R` | Przywrócenie ostatniego obszaru narysowanego w tej sesji |
-| `Esc` | Odrzucenie Omasnap |
+| `S` | Przełącz tryb regionu przewijanego |
+| `Super + Arrow keys` | Poruszaj się między oknami w trybie Window |
+| `Return` | Przechwyć podświetlone okno |
+| `Ctrl + A` | Przechwyć cały monitor z fokusem |
+| `R` | Przywróć ostatni region narysowany w tej sesji |
+| `Esc` | Zamknij Omasnap |
 
-Przypisania te istnieją tylko, gdy Omasnap jest otwarty, więc nie mogą kolidować z niczym w twojej własnej konfiguracji.
+Te powiązania istnieją tylko, gdy Omasnap jest otwarty, więc nie mogą kolidować z niczym w twojej własnej konfiguracji.
 
 ## Nagrywanie ekranu
 
-`Alt + Print Screen` otwiera _Akcje > Przechwyć > Nagraj ekran_, który pyta, co ma trafić na ścieżkę dźwiękową: brak dźwięku, dźwięk pulpitu, dźwięk pulpitu z mikrofonem albo dźwięk pulpitu z mikrofonem i kamerą internetową. Ta ostatnia opcja pokazuje się tylko, gdy faktycznie masz podłączoną kamerę. Wybierasz jedną, a selektor nagrywania Omarchy pozwala ci przeciągnąć obszar albo kliknąć okno lub monitor.
+`Alt + Print Screen` otwiera _Trigger > Capture > Screenrecord_, które pyta, co chcesz mieć na ścieżce dźwiękowej: brak dźwięku, dźwięk pulpitu, pulpit plus mikrofon lub pulpit plus mikrofon plus kamera internetowa. Ta ostatnia opcja pojawia się tylko, jeśli faktycznie masz podłączoną kamerę. Wybierz jedną, a selektor nagrywania Omarchy pozwoli ci przeciągnąć region lub kliknąć okno albo monitor.
 
-Nagrywanie działa na gpu-screen-recorder, który koduje na GPU w 60 fps i w razie potrzeby wraca do CPU. Wynikiem jest MP4 w `~/Videos`, o nazwie `screenrecording-2026-08-13_14-22-05.mp4`. Ustaw `OMARCHY_SCREENRECORD_DIR`, żeby to zmienić — ale zwróć uwagę, że w przeciwieństwie do katalogu zrzutów ekranu ten katalog musi już istnieć, inaczej nagrywanie nie wystartuje.
+Nagrywanie działa na gpu-screen-recorder, który koduje na GPU przy 60fps i w razie potrzeby przechodzi na CPU. Wynikiem jest MP4 w `~/Videos`, o nazwie `screenrecording-2026-08-13_14-22-05.mp4`. Ustaw `OMARCHY_SCREENRECORD_DIR`, aby to zmienić — ale pamiętaj, że w przeciwieństwie do katalogu zrzutów ekranu ten musi już istnieć, inaczej nagrywanie odmówi startu.
 
-Gdy nagrywasz, na pasku pojawia się mały wskaźnik. Kliknij go, żeby zatrzymać. Możesz też zatrzymać przez ponowne `Alt + Print Screen` albo przez wpis _Zatrzymaj nagrywanie_ pod _Akcje > Przechwyć > Nagraj ekran_, który pojawia się tylko, gdy coś faktycznie się nagrywa.
+Podczas nagrywania w pasku pojawia się mały wskaźnik. Kliknij go, aby zatrzymać. Możesz też zatrzymać ponownie przez `Alt + Print Screen` albo przez pozycję _Stop Screenrecording_ w _Trigger > Capture > Screenrecord_, która pojawia się tylko, gdy coś faktycznie się nagrywa.
 
-Zatrzymanie robi trochę porządków, zanim wręczy ci plik: pierwsza klatka jest przycinana, a jeśli jest dźwięk, jest on normalizowany do -14 LUFS z wyciszonym trzaskiem przechwytywania PipeWire na samym początku. Potem pojawia się powiadomienie z miniaturą z nagrania. Kliknij je, żeby odtworzyć plik w mpv.
+Zatrzymanie robi trochę porządków, zanim odda ci plik: pierwsza klatka jest przycinana, a jeśli jest dźwięk, jest normalizowany do -14 LUFS, z wyciszonym trzaskiem przechwytywania PipeWire na samym początku. Potem pojawia się powiadomienie z miniaturą z nagrania. Kliknij je, aby odtworzyć plik w mpv.
 
 ### Nakładka kamery internetowej
 
-Gdy nagrywasz z kamerą internetową, kamera pojawia się jako przypięte, przycięte okno portretowe w prawym dolnym rogu tego, co nagrywasz. Jeśli siedzi na czymś, czego potrzebujesz, zmień jej rozmiar w locie:
+Gdy nagrywasz z kamerą internetową, kamera pojawia się jako przypięte, przycięte okno portretowe w prawym dolnym rogu tego, co nagrywasz. Jeśli leży na czymś, czego potrzebujesz, zmień jej rozmiar w locie:
 
-| Skrót | Funkcja |
+| Hotkey | Function |
 | ------ | -------- |
-| `Super + Alt + [` | Zmniejszenie nakładki kamery internetowej |
-| `Super + Alt + ]` | Powiększenie nakładki kamery internetowej |
+| `Super + Alt + [` | Zmniejsz nakładkę kamery internetowej |
+| `Super + Alt + ]` | Powiększ nakładkę kamery internetowej |
 
-Są trzy rozmiary — mały, średni i duży — a skróty przechodzą między nimi. Średni jest domyślny. Są proporcjonalne do nagrania, więc kamera zajmuje ten sam udział klatki, czy nagrywasz monitor 1080p, czy 6K. A jeśli nagrałeś obszar, a nie cały ekran, nakładka kotwiczy się w rogu tego obszaru, a nie monitora, więc pozostaje wewnątrz ujęcia.
+Są trzy rozmiary — mały, średni i duży — a skróty klawiszowe przechodzą między nimi. Średni jest domyślny. Są proporcjonalne do nagrania, więc kamera zajmuje tę samą część kadru, niezależnie od tego, czy nagrywasz monitor 1080p, czy 6K. A jeśli nagrałeś region, a nie cały ekran, nakładka kotwiczy się do rogu tego regionu, a nie monitora, więc zostaje wewnątrz ujęcia.
 
-Możesz też wywołać ją bezpośrednio przez `omarchy-capture-webcam-resize small` albo `reset`, żeby wrócić do średniego.
+Możesz też wywołać to bezpośrednio przez `omarchy-capture-webcam-resize small` lub `reset`, aby wrócić do średniego.
 
 ## Tekst, kody QR i kolory
 
-`Super + Ctrl + Print Screen` wybiera obszar i OCR-uje go do schowka. Jest to porządnie opisane w [Wyciąganie tekstu i dyktowanie](11-text-extraction-dictation.md).
+`Super + Ctrl + Print Screen` zaznacza region i odczytuje go przez OCR do schowka. Jest to porządnie opisane w [Wyodrębnianie tekstu i dyktowanie](11-text-extraction-dictation.md).
 
-_Akcje > Przechwyć > Kod QR_ robi tę samą sztukę dla kodów QR. Wybierasz obszar z kodem, a zdekodowana wartość trafia do schowka. Szuka tylko kodów QR — gęsta treść ekranu ma w zwyczaju inaczej fałszywie udawać kod kreskowy. Warto wiedzieć: zdekodowana wartość trafia do schowka i nigdzie indziej. Nie jest drukowana, nie ma jej w powiadomieniu i jest oznaczona jako wrażliwa, więc nie zostaje w [historii schowka](08-unified-clipboard-history.md). Kody QR rutynowo niosą tajemnice — na przykład URI `otpauth://` za kodem 2FA — a nie chcesz tego w logu. Wklejanie działa normalnie.
+_Trigger > Capture > QR Code_ robi tę samą sztuczkę dla kodów QR. Zaznacz region z kodem, a zdekodowana wartość trafi do schowka. Szuka tylko kodów QR — gęsta treść ekranu ma zwyczaj fałszywie wychodzić jako kod kreskowy w przeciwnym razie. Warto wiedzieć: zdekodowana wartość trafia do schowka i nigdzie indziej. Nie jest wypisywana, nie ma jej w powiadomieniu i jest oznaczona jako wrażliwa, więc nie zostaje w [historii schowka](08-unified-clipboard-history.md). Kody QR rutynowo niosą sekrety — na przykład URI `otpauth://` stojące za kodem konfiguracji 2FA — a nie chcesz tego w logu. Wklejanie nadal działa bez problemu.
 
-`Super + Print Screen` (albo _Akcje > Przechwyć > Kolor_) zmienia kursor w kroplomierz. Kliknij cokolwiek na ekranie, a kolor trafi do schowka. Naciśnij skrót ponownie, żeby się wycofać bez wybierania.
+`Super + Print Screen` (lub _Trigger > Capture > Color_) zamienia kursor w kroplomierz. Kliknij cokolwiek na ekranie, a kolor wyląduje w schowku. Naciśnij skrót jeszcze raz, aby wycofać się bez wybierania.
 
 ## Transkodowanie przed udostępnieniem
 
-Nagranie ekranu 4K albo surowy HEIC z telefonu często jest za duży, żeby po prostu go wysłać. `Super + Ctrl + .` (albo _Akcje > Transkoduj_) to naprawia. Oferuje ci rozmyty wybór plików w `~/Pictures` i `~/Videos`, a potem pyta o format i rozmiar.
+Nagranie ekranu 4K albo surowy HEIC z telefonu jest często zbyt duże, aby po prostu je wysłać. `Super + Ctrl + .` (lub _Trigger > Transcode_) to naprawia. Oferuje rozmyty selektor plików po `~/Pictures` i `~/Videos`, a potem pyta o format i rozmiar.
 
-Obrazy trafiają do jpg lub png w wariancie wysokim, średnim albo niskim, które ograniczają szerokość odpowiednio do 3160, 2160 i 1080 pikseli. Wideo trafiają do mp4 albo animowanego gifa w rozdzielczości 4k, 1080p albo 720p. Skonwertowany plik jest zapisywany obok oryginału z rozdzielczością w nazwie — `demo-1080p.mp4` — a ścieżka jest kopiowana do schowka jako file URI, więc możesz wkleić ją bezpośrednio do aplikacji przyjmującej przeciągane pliki.
+Zdjęcia idą do jpg lub png w jakości wysokiej, średniej lub niskiej, które ograniczają szerokość do 3160, 2160 i 1080 pikseli. Wideo idzie do mp4 lub animowanego gif w 4k, 1080p lub 720p. Przekonwertowany plik jest zapisywany obok oryginału, z rozdzielczością w nazwie — `demo-1080p.mp4` — a ścieżka jest kopiowana do schowka jako URI pliku, więc możesz wkleić ją bezpośrednio do aplikacji przyjmującej upuszczanie plików.
 
-Działa też z terminala, jeśli już wiesz, czego chcesz: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Jest też `omarchy transcode ascii`, które zmienia obraz w sztukę ASCII — służy głównie do [brandingu](41-branding.md).
+Działa to też z terminala, jeśli już wiesz, czego chcesz: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Jest też `omarchy transcode ascii`, które zamienia obraz w sztukę ASCII — to jest głównie do [brandingu](41-branding.md).
 
-## Wysyłanie gdzieś dalej
+## Wysyłanie tego gdzieś
 
-Gdy masz już plik, `Super + Ctrl + S` otwiera menu Udostępnij i wysyła go na inne urządzenie w twojej sieci przez LocalSend. Zob. [GUIs](22-guis.md) w tej sprawie.
+Gdy już masz plik, `Super + Ctrl + S` otwiera menu Share i wysyła go do innego urządzenia w twojej sieci przez LocalSend. Zobacz [GUIs](22-guis.md) w tej sprawie.

@@ -1,15 +1,15 @@
-# Taustat
+# Taustakuvat
 
-Jokaiseen teemaan kuuluu oma taustakokoelmansa, ja voit lisätä omia lisätiedostojasi kansioon `~/.config/omarchy/backgrounds/[theme]`. Jos haluat lisätä lisätä taustakuvan esimerkiksi nord-teemaan, laitat tiedoston vain kansioon `~/.config/omarchy/backgrounds/nord`.
+Jokaisen teeman mukana tulee omat taustakuvansa, ja voit lisätä omia lisäkuvia kansioon `~/.config/omarchy/backgrounds/[theme]`. Jos haluat lisätä ylimääräisen taustakuvan esimerkiksi nord-teemaan, laita tiedosto vain kansioon `~/.config/omarchy/backgrounds/nord`.
 
-Helpoiten teet sen valitsemalla Omarchy-valikosta _Asenna > Tyyli > Tausta_. Se avaa kansion, jossa kyseisen teeman taustoja säilytetään. Paina `Super + Shift + F` käynnistääksesi toisen tiedostonhallinnan, etsi taustasi ja kopioi se sinne.  Nyt se on mukana taustoissa, joista voit valita näppäimillä `Super + Ctrl + Space`.
+Helpoiten teet tämän valitsemalla Omarchy Menu -valikossa _Install > Style > Background_. Se avaa kansion, jossa kyseisen teeman taustakuvia säilytetään. Paina `Super + Shift + F` käynnistääksesi toisen tiedostonhallinnan, etsi taustakuvasi ja kopioi se sinne. Nyt se on mukana taustakuvavaihtoehdoissa, joiden välillä voit valita näppäimillä `Super + Ctrl + W`.
 
-Taustat voivat olla videoita yhtä hyvin kuin still-kuvia. Pudota `mp4`-, `m4v`-, `mov`-, `webm`-, `mkv`- tai `avi`-tiedosto samaan kansioon, niin se ilmestyy kuvien rinnalle. Videoita toistaa OWE-taustakuvamoottori. Se purkaa videon kerran kaikille näytöille ja toistaa sen äänen oletusäänilähdön kautta, ja se pysäyttää toiston aina, kun mikään ei voi nähdä sitä. Lukitusruutu piirtää saman purun mykistettynä OWE:n kautta. Videotausta kuluttaa silti paljon enemmän virtaa kuin still-tausta.
+Taustakuvat voivat olla myös videoita still-kuvien ohella. Pudota `mp4`-, `m4v`-, `mov`-, `webm`-, `mkv`- tai `avi`-tiedosto samaan kansioon, niin se näkyy kuvien rinnalla. Videoita toistaa OWE wallpaper engine. Se purkaa videon kerran kaikkia näyttöjä varten, toistaa sen äänen oletusäänilähdön kautta ja pysäyttää toiston aina, kun mikään ei voi nähdä sitä. Videotaustakuva kuluttaa silti paljon enemmän virtaa kuin still-taustakuva.
 
-Teemoihin voi sisältyä lyhyt intro still-taustalle. Tiedostolle `backgrounds/road.webp` vastaava video sijaitsee polussa `backgrounds/intros/road.mp4`. Se toistuu automaattisesti käynnistyksen yhteydessä ja vaihdettaessa teemaan, jossa kyseinen tausta on valittuna, ja palaa sitten still-kuvaan. Introvideot pysyvät poissa taustavalitsimesta eivätkä koskaan silmukoidu.
+Teemat voivat sisältää lyhyen intron still-taustakuvalle. Tiedostolle `backgrounds/road.webp` vastaava video on polussa `backgrounds/intros/road.mp4`. Se toistuu automaattisesti käynnistyksessä ja vaihdettaessa teemaan, jossa kyseinen taustakuva on valittuna, ja palaa sitten still-kuvaan. Introvideot eivät näy taustakuvavalitsimessa eivätkä koskaan toistu silmukassa.
 
-_Käynnistä > Ulkoasu > Animaatiot_ -valinnan poistaminen käytöstä poistaa käytöstä myös taustaintrot. Omarchy tekee näin oletuksena virtuaalikoneessa. Komento `omarchy theme bg intro toggle` voi kytkeä introt erikseen. Teeman päivittäminen tai toisen taustan valitseminen samassa teemassa ei toista introa.
+_Appearance > Animations_ -asetuksen poistaminen käytöstä poistaa käytöstä myös taustakuvien introt. Omarchy tekee tämän oletuksena virtuaalikoneessa. `omarchy theme bg intro toggle` -komennolla voit kytkeä introt erikseen päälle tai pois. Teeman päivittäminen tai toisen taustakuvan valitseminen saman teeman sisällä ei toista introa.
 
-Löydät valtavan kokoelman hienosti kuratoituja taustoja osoitteesta https://github.com/dharmx/walls.
+Löydät valtavan kokoelman hienoja kuratoituja taustakuvia osoitteesta https://github.com/dharmx/walls.
 
-Videotaustat säilyttävät välimuistissa olevan still-kuvan lukitusruudulla, kun toisto on keskeytetty tai ei käytettävissä. Animoidut GIFit toistuvat työpöydällä ja näyttävät still-ruudun lukitusruudulla.
+Lukitusnäyttö näyttää videotaustakuvasta still-kehyksen, samalla tavalla kuin se näyttää animoidusta GIF-tiedostosta still-kehyksen.

@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Uporabnik"
   },
-  "system.reboot-boot-menu": {
-    "label": "Znova zaženi v zagonski meni"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Izklopi zajem zrušitev"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Vklopi zaslon prenosnika"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Izklopi zaslon prenosnika"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Vklopi zrcaljenje zaslona"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Izklopi zrcaljenje zaslona"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Preklopi na hibridni GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Preklopi na integrirani GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Omogoči sledilno ploščico"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Onemogoči sledilno ploščico"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Omogoči zaslon na dotik"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Onemogoči zaslon na dotik"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Prikaži % baterije"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Skrij % baterije"
+  },
+  "appearance.windows": {
+    "label": "Okna"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Razmiki oken vklopljeni"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Razmiki oken izklopljeni"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Razmerje enega okna vklopljeno"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Razmerje enega okna izklopljeno"
+  },
+  "appearance.branding": {
+    "label": "Blagovna znamka"
+  },
+  "appearance.animations-on": {
+    "label": "Animacije vklopljene"
+  },
+  "appearance.animations-off": {
+    "label": "Animacije izklopljene"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Prepreči spanje"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Dovoli spanje"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Obvestila vklopljena"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Utišaj obvestila"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nočna svetloba vklopljena"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nočna svetloba izklopljena"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Ohranjevalnik zaslona vklopljen"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Ohranjevalnik zaslona izklopljen"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Zajem sesutij vklopljen"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Jedro"
   }
 }

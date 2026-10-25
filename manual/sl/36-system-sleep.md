@@ -1,19 +1,21 @@
 # Spanje sistema
 
-Omarchy privzeto omogoča Spanje in Mirovanje, če pa imate s katerim od njiju na vašem računalniku težave, ju lahko izklopite.
+Omarchy privzeto omogoča mirovanje in hibernacijo, če pa imaš na svojem računalniku težave s katerim od njiju, ju lahko izklopiš.
 
-### Profili porabe energije
+Na računalnikih z NVIDIA GB10, kot sta DGX Spark in ASUS Ascent GX10, sta mirovanje in hibernacija izklopljena, enako kot v NVIDIA DGX OS, ker spanje na tej strojni opremi še ni dokazano delovalo. Preklop mirovanja in nastavitev hibernacije tam ne veljata. Če želiš spanje znova vklopiti, s `sudo rm` odstrani `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf`; možnost Mirovanje se nato vrne v meni, hibernacijo pa lahko nastaviš kot na drugih računalnikih. Z ukazom `sudo omarchy apply hardware --install-user "$USER"` datoteko vrneš nazaj.
 
-Na prenosniku si Omarchy zapomni vaš profil porabe energije posebej za priklopljenost na napajanje in delovanje na baterijo ter med njima preklaplja, ko priklopite in odklopite. Takoj po namestitvi to pomeni zmogljivost na AC in uravnoteženo na baterijo.
+### Profili napajanja
 
-S `omarchy powerprofiles list` lahko vidite, kaj vaš računalnik ponuja, in s `omarchy powerprofiles set autodetect power-saver` nastavite tistega, ki ga želite za stanje, v katerem ste trenutno. Če želite nastaviti drugo stanje, ne da bi kaj odklopili, ga poimenujte neposredno: `omarchy powerprofiles set battery power-saver`. Kar koli izberete, to boste dobili nazaj naslednjič, ko boste v tem stanju.
+Na prenosniku si Omarchy zapomni tvoj profil napajanja ločeno za delovanje na napajanje iz omrežja in delovanje na baterijo ter med njima preklaplja, ko vklopiš ali izklopiš napajanje. Privzeto to pomeni zmogljivost na izmeničnem napajanju in uravnoteženo delovanje na baterijo.
 
-### Preklopi Spanje
+Kaj tvoj računalnik ponuja, lahko vidiš z `omarchy powerprofiles list`, želeni profil za stanje, v katerem si trenutno, pa nastaviš z `omarchy powerprofiles set autodetect power-saver`. Če želiš nastaviti drugo stanje, ne da bi karkoli izklopil, ga poimenuj neposredno: `omarchy powerprofiles set battery power-saver`. Kar izbereš, dobiš nazaj ob naslednjem prehodu v to stanje.
 
-Spanje preklopite tako, da v terminalu zaženete `omarchy toggle suspend`. To samo prikaže/skrije možnost pod _Sistem_ (ali `Super + Esc`), nato pa lahko vidite, ali na vašem sistemu deluje dosledno. Če ne, jo lahko z istim ukazom spet skrijete.
+### Vklop/izklop mirovanja
 
-### Preklopi Mirovanje
+Mirovanje vklopiš ali izklopiš z ukazom `omarchy toggle suspend` v terminalu. To samo prikaže/skrije možnost pod _System_ (ali `Super + Esc`), nato pa lahko vidiš, ali na tvojem sistemu deluje zanesljivo. Če ne, jo z istim ukazom znova skriješ.
 
-Mirovanje nastavite tako, da v terminalu zaženete `omarchy hibernation setup`. Mirovanje ustvari podvolumen /swap na vašem zagonskem pogonu v velikosti vaše dodeljene fizične pomnilniške kapacitete RAM, zato poskrbite, da imate dovolj prostora. Na računalniku z 32 GB boste za ta volumen vedno potrebovali več kot 32 GB prostega prostora. Mirovanje zahteva tudi privzeti zagonski nalagalnik Limine.
+### Vklop/izklop hibernacije
 
-Ko je nastavljeno, boste možnost mirovanja videli pod _Sistem_ (ali `Super + Esc`) in nato lahko vidite, ali na vašem sistemu deluje dosledno. Če ne, jo lahko spet odstranite z `omarchy hibernation remove`.
+Hibernacijo nastaviš z ukazom `omarchy hibernation setup` v terminalu. Hibernacija na tvojem zagonskem pogonu ustvari podzvezek /swap v velikosti tvojega fizičnega pomnilnika RAM, zato poskrbi, da imaš dovolj prostega prostora. Na računalniku z 32GB boš za ta zvezek vedno potreboval 32GB+ prostega prostora. Hibernacija zahteva tudi privzeti zagonski nalagalnik Limine.
+
+Ko je nastavljena, boš pod _System_ (ali `Super + Esc`) videl možnost hibernacije, nato pa lahko vidiš, ali na tvojem sistemu deluje zanesljivo. Če ne, jo lahko znova odstraniš z ukazom `omarchy hibernation remove`.

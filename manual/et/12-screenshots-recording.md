@@ -1,82 +1,83 @@
-# Ekraanitõmmised ja salvestamine
+# Ekraanipildid ja salvestamine
 
-Kõik, mida saad ekraanilt haarata, sõltub Print Screen klahvist. Üks klahv omaette teeb pildi ja modifikaatorid teevad salvestuse, värvi või piirkonna sees oleva teksti. Kui su klaviatuuril pole Print Screen klahvi üldse, avab `Super + Ctrl + C` sama kogumi menüüna.
+Kõik, mida ekraanilt haarata saad, ripub Print Screen klahvi küljes. Üks klahv üksi teeb pildi ja modifikaatorid teevad salvestuse, värvi või piirkonna sees oleva teksti. Kui sinu klaviatuuril Print Screen klahvi üldse pole, teeb `Super + Ctrl + Alt + C` sama ekraanipildi ja `Super + Ctrl + C` avab kogu komplekti menüüna.
 
 | Kiirklahv | Funktsioon |
 | ------ | -------- |
-| `Print Screen` | Ekraanitõmmis |
-| `Alt + Print Screen` | Ekraanisalvestus (või peatab töötava) |
+| `Print Screen` | Ekraanipilt |
+| `Super + Ctrl + Alt + C` | Ekraanipilt |
+| `Alt + Print Screen` | Ekraanisalvestus (või peata käimasolev) |
 | `Super + Print Screen` | Värvivalija |
 | `Super + Ctrl + Print Screen` | Eralda tekst piirkonnast |
-| `Super + Ctrl + C` | Jäädvusta menüü |
+| `Super + Ctrl + C` | Jäädvustamise menüü |
 | `Super + Ctrl + .` | Kodeeri pilt või video ümber |
 
-## Ekraanitõmmised
+## Ekraanipildid
 
-Vajuta `Print Screen` ja Omasnap jäädvustab fookuses oleva kuvari enne, kui selle pealiskiht ilmub, nii et miski ei nihku su all sihtides. Lohista vabakäelise piirkonna, klõpsa akent selle jäädvustamiseks või klõpsa tühja ruumi kogu kuvari jäädvustamiseks. Vajuta `S` enne joonistamist, et jäädvustada keriv piirkond. Muutsid meelt? Vajuta `Print Screen` uuesti, et Omasnap sulgeda.
+Vajuta `Print Screen` (või `Super + Ctrl + Alt + C`) ja Omasnap jäädvustab fookuses monitori enne, kui selle kattekiht ilmub, nii et sihtimise ajal ei nihku sinu all midagi. Lohista vabakäeline piirkond, klõpsa selle jäädvustamiseks aknal või klõpsa kogu monitori jäädvustamiseks tühjal alal. Keritava piirkonna jäädvustamiseks vajuta enne joonistamist `S`. Muutsid meelt? Omasnap'i sulgemiseks vajuta uuesti sama klahvi.
 
-Pärast ala valimist salvestab Omasnap jäädvustuse, kopeerib selle lõikelauale ja näitab eelvaadet 10 sekundi jooksul. Kasuta eelvaate kinnitusnuppu või `Ctrl + P`, et see ekraanile jätta, või vali Edit selle annoteerimiseks.
+Pärast ala valimist salvestab Omasnap tõmmise, kopeerib selle lõikelauale ja näitab 10 sekundit eelvaadet. Ekraanile hoidmiseks kasuta eelvaate kinnitusnuppu või `Ctrl + P`, või vali selle annoteerimiseks Edit.
 
-Annotatsiooniredaktor saab joonistada nooli, jooni, kujundeid, esiletõste, nummerdatud tähiseid ja teksti ning turvalisi redaktsioone; kärpida või lõigata osa pildist välja; OCR-ida selle teksti; ja lisada tausta. Redaktoris vajuta `Enter`, et valmis PNG kopeerida ja salvestada, `Ctrl + C`, et kopeerida ilma salvestamata, või `Ctrl + S`, et salvestada ilma kopeerimata.
+Annoteerimisredaktor oskab joonistada nooli, jooni, kujundeid, esiletõste ja nummerdatud tähiseid, lisada teksti ja turvalisi varjamisi; pilti kärpida või sellest osa välja lõigata; selle teksti OCR-iga lugeda; ja tausta lisada. Redaktoris vajuta valmis PNG kopeerimiseks ja salvestamiseks `Enter`, salvestamata kopeerimiseks `Ctrl + C` või kopeerimata salvestamiseks `Ctrl + S`.
 
-Salvestatud ekraanitõmmised maanduvad vaikimisi `~/Pictures/Screenshots`-i, sellise nimega nagu `screenshot-2026-08-13_14-22-05-firefox.png`. Sea `OMASNAP_SCREENSHOT_DIR`, et kasutada teist kataloogi — vt [KKK](46-faq.md) selle kohta, kuhu seansi keskkonnamuutujad panna. Omasnap loob kataloogi, kui salvestab esimese tõmmise. Sea `[output] autosave = false` failis `~/.config/omasnap/omasnap.conf`, et automaatne salvestamine keelata.
+Salvestatud ekraanipildid jõuavad vaikimisi kausta `~/Pictures/Screenshots`, nimega nagu `screenshot-2026-08-13_14-22-05-firefox.png`. Teise kataloogi kasutamiseks määra `OMASNAP_SCREENSHOT_DIR` — vaata [KKK](46-faq.md), et teada saada, kuhu seansi keskkonnamuutujad panna. Omasnap loob kataloogi, kui salvestab esimese pildi. Automaatse salvestamise keelamiseks määra failis `~/.config/omasnap/omasnap.conf` väärtus `[output] autosave = false`.
 
-Terminalist avab `omarchy screenshot` sama pealiskihi ja saad valida selle algrežiimi: `omarchy capture screenshot region`, `windows`, `fullscreen` või `scroll`. Teine argument `copy` või `save` jätab eelvaate vahele ja saadab tõmmise otse sellesse sihtkohta. Enne väljundit muutmiseks kasuta `omarchy screenshot --editor=overlay` täisekraani redaktori jaoks või `omarchy screenshot --editor=window` eraldi akna jaoks.
+Terminalist avab `omarchy screenshot` sama kattekihi ja valida saad selle algrežiimi: `omarchy capture screenshot region`, `windows`, `fullscreen` või `scroll`. Teine argument `copy` või `save` jätab eelvaate vahele ja saadab pildi otse sihtkohta. Enne väljastamist muutmiseks kasuta täisekraaniredaktori jaoks käsku `omarchy screenshot --editor=overlay` või eraldi akna jaoks käsku `omarchy screenshot --editor=window`.
 
 ### Valija juhtimine klaviatuurilt
 
-Kui valik on üleval, ei pea sa hiirt üldse kasutama:
+Kuni valik on üleval, ei pea sa üldse hiirt kasutama:
 
 | Klahv | Funktsioon |
 | --- | -------- |
-| `S` | Lülita keriva piirkonna režiim |
-| `Super + Arrow keys` | Liigu akende vahel Window režiimis |
+| `S` | Lülita keritava piirkonna režiim sisse/välja |
+| `Super + Arrow keys` | Liigu aknarežiimis akende vahel |
 | `Return` | Jäädvusta esiletõstetud aken |
-| `Ctrl + A` | Jäädvusta täielik fookuses olev kuvar |
-| `R` | Taasta viimane selles seansis joonistatud piirkond |
+| `Ctrl + A` | Jäädvusta kogu fookuses monitor |
+| `R` | Taasta selles seansis viimati joonistatud piirkond |
 | `Esc` | Sulge Omasnap |
 
-Need seosed eksisteerivad ainult seni, kuni Omasnap on avatud, nii et need ei saa millegagi sinu enda seadistuses kokku põrkuda.
+Need seosed on olemas ainult seni, kuni Omasnap on avatud, nii et need ei saa sinu enda konfiguratsioonis millegagi kokku põrgata.
 
-## Ekraanisalvestus
+## Ekraani salvestamine
 
-`Alt + Print Screen` avab _Käivita > Jäädvusta > Ekraanisalvestus_, mis küsib, mida soovid heliribale: heli pole, töölaua heli, töölaud pluss mikrofon või töölaud pluss mikrofon pluss veebikaamera. See viimane ilmub ainult siis, kui sul on päriselt kaamera ühendatud. Vali üks ja Omarchy salvestusvalija laseb sul piirkonna lohistada või aknal või kuvaril klõpsata.
+`Alt + Print Screen` avab _Trigger > Capture > Screenrecord_, mis küsib, mida sa heliribale soovid: heli ei ole, töölaua heli, töölaud pluss mikrofon või töölaud pluss mikrofon pluss veebikaamera. Viimane ilmub ainult siis, kui sul on kaamera tegelikult ühendatud. Vali üks ja Omarchy salvestusvalija laseb sul piirkonna lohistada või aknal või monitoril klõpsata.
 
-Salvestamine töötab gpu-screen-recorderil, mis kodeerib GPU-l 60fps ja läheb vajaduse korral CPU juurde tagasi. Tulemus on MP4 failis `~/Videos`, nimega `screenrecording-2026-08-13_14-22-05.mp4`. Sea `OMARCHY_SCREENRECORD_DIR`, et seda muuta — kuid pane tähele, et erinevalt ekraanitõmmiste kataloogist peab see juba olemas olema, muidu keeldub salvestamine algamast.
+Salvestus töötab gpu-screen-recorder peal, mis kodeerib GPU peal 60fps ja langeb vajadusel tagasi CPU peale. Tulemus on MP4 kaustas `~/Videos`, nimega `screenrecording-2026-08-13_14-22-05.mp4`. Selle muutmiseks määra `OMARCHY_SCREENRECORD_DIR` — aga pane tähele, et erinevalt ekraanipiltide kataloogist peab see juba olemas olema, muidu keeldub salvestus käivitumast.
 
-Kui salvestad, ilmub ribale väike näidik. Klõpsa seda peatamiseks. Saad peatada ka `Alt + Print Screen` abil uuesti või kirje _Peata ekraanisalvestus_ alt _Käivita > Jäädvusta > Ekraanisalvestus_, mis ilmub ainult siis, kui midagi päriselt salvestatakse.
+Salvestamise ajal ilmub ribale väike indikaator. Peatamiseks klõpsa seda. Peatada saad ka uuesti `Alt + Print Screen` vajutades või kirje _Stop Screenrecording_ alt _Trigger > Capture > Screenrecord_, mis ilmub ainult seni, kuni midagi tegelikult salvestatakse.
 
-Peatamine teeb enne faili üleandmist veidi koristustööd: esimene kaader kärbitakse ja kui on heli, normaliseeritakse see -14 LUFS-ini, PipeWire'i jäädvustuse plõks päris alguses vaigistatuna. Seejärel ilmub teavitus koos pisipildiga salvestusest. Klõpsa seda, et fail mpv-s esitada.
+Peatamine teeb enne faili üleandmist natuke koristustööd: esimene kaader kärbitakse maha ja kui heli on olemas, normaliseeritakse see -14 LUFS peale ning PipeWire jäädvustuse plõks päris alguses vaigistatakse. Seejärel ilmub teavitus koos salvestuse pisipildiga. Faili mpv-s esitamiseks klõpsa seda.
 
-### Veebikaamera pealiskiht
+### Veebikaamera kattekiht
 
-Kui salvestad veebikaameraga, ilmub kaamera kinnitatud, kärbitud portreeaknana selle alumisse paremasse nurka, mida salvestad. Kui see asub millegi peal, mida vajad, muuda selle suurust lennult:
+Kui salvestad veebikaameraga, ilmub kaamera kinnitatud, kärbitud portreeaknana salvestatava paremas alanurgas. Kui see istub millegi vajaliku peal, muuda selle suurust käigu pealt:
 
 | Kiirklahv | Funktsioon |
 | ------ | -------- |
-| `Super + Alt + [` | Tee veebikaamera pealiskiht väiksemaks |
-| `Super + Alt + ]` | Tee veebikaamera pealiskiht suuremaks |
+| `Super + Alt + [` | Tee veebikaamera kattekiht väiksemaks |
+| `Super + Alt + ]` | Tee veebikaamera kattekiht suuremaks |
 
-On kolm suurust — väike, keskmine ja suur — ja kiirklahvid astuvad nende vahel. Keskmine on vaikimisi. Need on salvestusega proportsionaalsed, nii et kaamera võtab sama osa kaadrist, olenemata sellest, kas salvestad 1080p kuvarit või 6K kuvarit. Ja kui salvestasid piirkonna, mitte kogu ekraani, ankurdub pealiskiht selle piirkonna nurga, mitte kuvari nurga külge, nii et see jääb kaadri sisse.
+Suurusi on kolm — väike, keskmine ja suur — ja kiirklahvid astuvad nende vahel. Keskmine on vaikimisi. Need on salvestuse suhtes proportsionaalsed, nii et kaamera võtab kaadrist sama osa, olenemata sellest, kas salvestad 1080p monitori või 6K monitori. Ja kui salvestasid terve ekraani asemel piirkonna, ankurdub kattekiht selle piirkonna nurga, mitte monitori nurga külge, nii et see jääb pildi sisse.
 
-Saad seda kutsuda ka otse `omarchy-capture-webcam-resize small` abil või `reset`, et keskmise juurde tagasi minna.
+Seda saad ka otse kutsuda käsuga `omarchy-capture-webcam-resize small` või keskmise juurde tagasi minemiseks käsuga `reset`.
 
 ## Tekst, QR-koodid ja värvid
 
-`Super + Ctrl + Print Screen` valib piirkonna ja OCR-ib selle lõikelauale. See on korralikult käsitletud dokumendis [Teksti eraldamine ja dikteerimine](11-text-extraction-dictation.md).
+`Super + Ctrl + Print Screen` valib piirkonna ja OCR-ib selle lõikelauale. Seda käsitletakse korralikult jaotises [Teksti eraldamine ja dikteerimine](11-text-extraction-dictation.md).
 
-_Käivita > Jäädvusta > QR-kood_ teeb QR-koodide puhul sama trikki. Vali piirkond koos koodiga ja dekrüptitud väärtus läheb lõikelauale. See otsib ainult QR-koode — tihedal ekraanisisul on kombeks muidu triipkoodina valpositiivselt läbi käia. Tasub teada: dekrüptitud väärtus läheb lõikelauale ja mitte kuskile mujale. Seda ei prindita, see pole teavituses ja see on tähistatud tundlikuna, nii et see ei jää [lõikelaua ajaloosse](08-unified-clipboard-history.md) pidama. QR-koodid kannavad rutiinselt saladusi — näiteks `otpauth://` URI 2FA seadistuskoodi taga — ja sa ei taha seda logisse. Kleepimine töötab endiselt hästi.
+_Trigger > Capture > QR Code_ teeb sama triki QR-koodidega. Vali piirkond, milles kood on, ja dekodeeritud väärtus läheb lõikelauale. See otsib ainult QR-koode — tihe ekraanisisu kipub muidu vöötkoodina valepositiivselt läbi minema. Tasub teada: dekodeeritud väärtus läheb lõikelauale ja mitte kuhugi mujale. Seda ei prindita, seda pole teavituses ja see on märgitud tundlikuks, nii et see ei jää [lõikelaua ajalukku](08-unified-clipboard-history.md) pidama. QR-koodid kannavad rutiinselt saladusi — näiteks 2FA seadistuskoodi taga olev `otpauth://` URI — ja sa ei taha seda logisse. Kleebimine töötab endiselt hästi.
 
-`Super + Print Screen` (või _Käivita > Jäädvusta > Värv_) muudab kursori pipetiks. Klõpsa ekraanil mida iganes ja värv maandub lõikelaual. Vajuta kiirklahvi uuesti, et valimata tagasi minna.
+`Super + Print Screen` (või _Trigger > Capture > Color_) muudab kursori pipetiks. Klõpsa ekraanil ükskõik mida ja värv jõuab lõikelauale. Valimata taganemiseks vajuta uuesti kiirklahvi.
 
 ## Ümberkodeerimine enne jagamist
 
-4K ekraanisalvestus või töötlemata HEIC telefonist on sageli liiga suur, et lihtsalt saata. `Super + Ctrl + .` (või _Käivita > Kodeeri ümber_) parandab selle. See pakub sulle hägusa failivalija `~/Pictures` ja `~/Videos` kohal, seejärel küsib vormingut ja suurust.
+4K ekraanisalvestus või töötlemata HEIC sinu telefonist on sageli lihtsalt saatmiseks liiga suur. `Super + Ctrl + .` (või _Trigger > Transcode_) parandab selle. See pakub sulle häguse failivalija kaustade `~/Pictures` ja `~/Videos` kohal ning küsib seejärel vormingut ja suurust.
 
-Pildid lähevad jpg või png vormingusse kõrge, keskmise või madala korral, mis piiravad laiuse 3160, 2160 ja 1080 pikslini. Videod lähevad mp4 või animeeritud gif vormingusse 4k, 1080p või 720p korral. Teisendatud fail kirjutatakse originaali kõrvale eraldusvõimega nimes — `demo-1080p.mp4` — ja tee kopeeritakse lõikelauale faili URI-na, nii et saad selle otse rakendusse kleepida, mis võtab vastu failide kukutamist.
+Pildid lähevad jpg või png vormingusse kõrge, keskmise või madala tasemega, mis piiravad laiuse vastavalt 3160, 2160 ja 1080 piksliga. Videod lähevad mp4 või animeeritud gif vormingusse 4k, 1080p või 720p tasemega. Teisendatud fail kirjutatakse originaali kõrvale, eraldusvõime nimes — `demo-1080p.mp4` — ja tee kopeeritakse lõikelauale faili URI-na, nii et saad selle otse failide kukutamist vastu võtvasse rakendusse kleepida.
 
-See töötab ka terminalist, kui juba tead, mida soovid: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Olemas on ka `omarchy transcode ascii`, mis muudab pildi ASCII kunstiks — see on enamasti [brändingu](41-branding.md) jaoks.
+See töötab ka terminalist, kui tead juba, mida soovid: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Olemas on ka `omarchy transcode ascii`, mis muudab pildi ASCII kunstiks — see on enamasti [brändingu](41-branding.md) jaoks.
 
-## Selle saatmine kuhugi
+## Kuskile saatmine
 
-Kui fail on olemas, avab `Super + Ctrl + S` menüü Jaga ja saadab selle teisele seadmele su võrgus LocalSendi kaudu. Selle kohta vt [GUI-d](22-guis.md).
+Kui fail on sul olemas, avab `Super + Ctrl + S` menüü Share ja saadab selle LocalSend kaudu sinu võrgus olevale teisele seadmele. Selle kohta vaata [GUIs](22-guis.md).

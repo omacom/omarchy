@@ -1,12 +1,12 @@
 # Teme
 
-Omarchy je dobavljen z dvaindvajsetimi čudovitimi temami. Med njimi lahko izbirate prek _Style > Theme_ v meniju Omarchy (`Super + Space`) ali neposredno skočite do izbirnika teme s `Super + Ctrl + Shift + Space`.
+Omarchy vključuje dvaindvajset čudovitih tem. Med njimi lahko izbirate prek _Videz > Tema_ v meniju Omarchy (`Super + Space`) ali pa skočite neposredno do izbirnika tem s `Super + Ctrl + T`.
 
-Vsaka tema oblikuje namizje, terminal, neovim, zaslon dejavnosti (btop), Chromium in celotno lupino Omarchy: menijsko vrstico, meni, obvestila, OSD in zaklenjeni zaslon. (Za Obsidian morate temo Omarchy ročno izbrati prek _Appearance > Themes_ znotraj aplikacije).
+Vsaka tema oblikuje namizje, terminal, neovim, zaslon aktivnosti (btop), Chromium in celotno lupino Omarchy: zgornjo vrstico, meni, obvestila, OSD in zaklenjeni zaslon. (V Obsidianu morate temo Omarchy ročno izbrati prek _Videz > Teme_ v aplikaciji).
 
-Teme imajo nabor ozadij, med katerimi lahko izbirate s `Super + Ctrl + Space`.
+Teme imajo nabor slik za ozadje, med katerimi lahko izbirate s `Super + Ctrl + W`.
 
-Še več tem najdete na [strani z dodatnimi temami](https://omarchy.org/themes/) ali celo [izdelate lastno temo](43-making-your-own-theme.md).
+Še več tem najdete na [strani z dodatnimi temami](https://omarchy.org/themes/) ali pa celo [ustvarite svojo temo](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Odklepanja
+### Odklenitve
 
-Teme lahko imajo tudi zasnovo za odklepanje po meri, ki se uporabi za postopek dešifriranja ob zagonu. Eno od teh lahko izberete pod _Style > Unlock_. Videti so takole:
+Teme imajo lahko tudi oblikovanje odklenitve po meri, ki se uporablja pri postopku dešifriranja ob zagonu. Eno od teh lahko izberete pod _Videz > Odklenitev_. Videti so takole:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

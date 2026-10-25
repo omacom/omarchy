@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy 通常透過快捷鍵和 Omarchy 選單（`Super + Space`）來控制。但你也可以透過 `omarchy` CLI 來控制它。當你讓 AI 代理程式和你一起處理自訂或設定時，這特別有幫助。
+Omarchy 通常是透過快捷鍵與 Omarchy 選單（`Super + Space`）來控制。不過你也可以透過 `omarchy` CLI 來控制它。當你讓 AI agent 陪你一起進行自訂或設定時，這特別有幫助。
 
-這個 CLI 可以存取所有透過選單以及其他方式使用的內部工具。在終端機中執行 `omarchy`，你就可以看到所有可用的東西。
+CLI 可以取用選單以及其他各處所使用的所有內部工具。你只要在終端機裡執行 `omarchy`，就能看到所有可用的項目。
 
-它看起來像這樣：
+看起來大概會像這樣：
 
 ```
 ~ ❯ omarchy
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-而你可以深入每一個群組：
+而且你可以更深入地查看每個群組：
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-每一個指令也都接受 `--help`，無論你問的是一整個群組（`omarchy capture --help`）還是單一個指令（`omarchy capture screenshot --help`）。
+每個命令也都支援 `--help`，無論你要查詢的是整個群組（`omarchy capture --help`）還是單一命令（`omarchy capture screenshot --help`）。
 
 ### 從終端機開啟選單
 
-Omarchy 選單也可以用腳本控制，這對你自己的快捷鍵很有用。`omarchy menu` 會在根目錄開啟它，而你可以透過命名直接跳到樹狀結構中的任何一點：`omarchy menu summon style.theme` 會直接前往主題選擇器，`omarchy menu toggle system` 會開啟系統選單，若它已經開啟則再次關閉，而 `omarchy menu close` 會把它收起來。
+Omarchy 選單同樣可以用 script 控制，這在你設定自己的按鍵綁定時很方便。`omarchy menu` 會從根層級開啟它，而你只要為它命名，就能直接跳到樹狀結構中的任何位置：`omarchy menu summon appearance.theme` 會直接前往主題選擇器，`omarchy menu toggle system` 會開啟系統選單、如果選單已經開啟則再次將它關閉，而 `omarchy menu close` 則會將它收起來。

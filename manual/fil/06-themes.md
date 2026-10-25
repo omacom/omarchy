@@ -1,12 +1,12 @@
 # Mga Tema
 
-Ang Omarchy ay may kasamang dalawampu't dalawang magagandang tema. Maaari kang mamili sa pagitan ng mga ito sa pamamagitan ng _Estilo > Tema_ sa Menu ng Omarchy (`Super + Space`) o direktang tumalon sa tagapili ng tema gamit ang `Super + Ctrl + Shift + Space`.
+May kasama nang dalawampu't dalawang magagandang tema ang Omarchy. Mapipili mo ang mga ito sa pamamagitan ng _Hitsura > Tema_ sa Omarchy Menu (`Super + Space`) o dumiretso ka na sa tagapili ng tema gamit ang `Super + Ctrl + T`.
 
-Bawat tema ay nag-i-istilo sa desktop, terminal, neovim, activity screen (btop), Chromium, at sa buong shell ng Omarchy: top bar, menu, mga notipikasyon, OSD, at lock screen. (Para sa Obsidian, kailangan mong manu-manong piliin ang tema ng Omarchy sa pamamagitan ng _Appearance > Themes_ sa loob ng app).
+Iniistilo ng bawat tema ang desktop, terminal, neovim, activity screen (btop), Chromium, at ang buong Omarchy shell: top bar, menu, mga notification, OSD, at ang lock screen. (Para sa Obsidian, kailangan mong manu-manong piliin ang Omarchy theme sa pamamagitan ng _Hitsura > Mga Tema_ sa loob ng app).
 
-Ang mga tema ay may set ng mga background image na maaari mong pagpilian gamit ang `Super + Ctrl + Space`.
+May set ng mga background image ang mga tema na mapipili mo gamit ang `Super + Ctrl + W`.
 
-Makakahanap ka ng higit pang mga tema sa [pahina ng mga dagdag na tema](https://omarchy.org/themes/) o kahit [gumawa ng sarili mong tema](43-making-your-own-theme.md).
+Makakahanap ka pa ng mas maraming tema sa [pahina ng mga karagdagang tema](https://omarchy.org/themes/) o kahit [gumawa ng sarili mong tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Mga Unlock
 
-Ang mga tema ay maaari ring magkaroon ng custom na disenyo ng unlock, na ginagamit para sa proseso ng boot decryption. Maaari kang pumili ng isa sa mga ito sa ilalim ng _Estilo > I-unlock_. Ganito ang hitsura ng mga ito:
+Maaari ring magkaroon ang mga tema ng custom na disenyo para sa unlock, na ginagamit para sa proseso ng decryption habang nagbu-boot. Mapipili mo ang isa sa mga ito sa ilalim ng _Hitsura > Unlock_. Ganito ang hitsura ng mga ito:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

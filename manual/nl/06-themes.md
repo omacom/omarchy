@@ -1,12 +1,12 @@
 # Thema's
 
-Omarchy wordt geleverd met tweeëntwintig prachtige thema's. Je kunt ertussen kiezen via _Stijl > Thema_ in het Omarchy-menu (`Super + Space`) of direct naar de themakiezer springen met `Super + Ctrl + Shift + Space`.
+Omarchy wordt geleverd met tweeëntwintig prachtige thema's. Je kunt ertussen kiezen via _Uiterlijk > Thema_ in het Omarchy Menu (`Super + Space`) of direct naar de themakiezer springen met `Super + Ctrl + T`.
 
-Elk thema stijlt het bureaublad, de terminal, neovim, het activiteitenscherm (btop), Chromium en de volledige Omarchy-shell: bovenbalk, menu, meldingen, OSD en het vergrendelscherm. (Voor Obsidian moet je het Omarchy-thema handmatig selecteren via _Appearance > Themes_ in de app).
+Elk thema geeft stijl aan het bureaublad, de terminal, neovim, het activiteitenscherm (btop), Chromium en de volledige Omarchy-shell: bovenbalk, menu, meldingen, OSD en het vergrendelscherm. (Voor Obsidian moet je het Omarchy-thema handmatig selecteren via _Uiterlijk > Thema's_ in de app zelf).
 
-Thema's hebben een set achtergrondafbeeldingen waaruit je kunt kiezen met `Super + Ctrl + Space`.
+Thema's hebben een set achtergrondafbeeldingen waaruit je kunt kiezen met `Super + Ctrl + W`.
 
-Je kunt nog meer thema's vinden op [de pagina met extra thema's](https://omarchy.org/themes/) of zelfs [je eigen thema maken](43-making-your-own-theme.md).
+Je vindt nog meer thema's op [de pagina met extra thema's](https://omarchy.org/themes/) of je kunt zelfs [je eigen thema maken](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Ontgrendelingen
+### Ontgrendelschermen
 
-Thema's kunnen ook een aangepast ontgrendelingsontwerp hebben, dat wordt gebruikt voor het opstart-ontsleutelingsproces. Je kunt er een selecteren onder _Stijl > Ontgrendelen_. Ze zien er zo uit:
+Thema's kunnen ook een aangepast ontgrendelontwerp hebben, dat wordt gebruikt voor het ontsleutelingsproces bij het opstarten. Je kunt er een selecteren onder _Uiterlijk > Ontgrendelen_. Ze zien er zo uit:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

@@ -1,12 +1,12 @@
 # Temas
 
-O Omarchy vem com vinte e dois temas lindos. Você pode selecionar entre eles via _Estilo > Tema_ no Menu do Omarchy (`Super + Space`) ou pular direto para o seletor de temas usando `Super + Ctrl + Shift + Space`.
+O Omarchy vem com vinte e dois temas lindos. Você pode escolher entre eles em _Appearance > Theme_ no Menu do Omarchy (`Super + Space`) ou ir direto para o seletor de temas usando `Super + Ctrl + T`.
 
-Cada tema estiliza o desktop, o terminal, o neovim, a tela de atividade (btop), o Chromium e todo o shell do Omarchy: barra superior, menu, notificações, OSD e tela de bloqueio. (Para o Obsidian, você deve selecionar manualmente o tema do Omarchy via _Aparência > Temas_ dentro do aplicativo).
+Cada tema define o estilo da área de trabalho, do terminal, do neovim, da tela de atividade (btop), do Chromium e de todo o shell do Omarchy: barra superior, menu, notificações, OSD e tela de bloqueio. (No Obsidian, você precisa selecionar manualmente o tema do Omarchy em _Appearance > Themes_ dentro do aplicativo).
 
-Os temas têm um conjunto de imagens de fundo entre as quais você pode escolher usando `Super + Ctrl + Space`.
+Os temas têm um conjunto de imagens de fundo entre as quais você pode escolher usando `Super + Ctrl + W`.
 
-Você pode encontrar ainda mais temas em [a página de temas extras](https://omarchy.org/themes/) ou até [fazer seu próprio tema](43-making-your-own-theme.md).
+Você pode encontrar ainda mais temas na [página de temas extras](https://omarchy.org/themes/) ou até [criar seu próprio tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,7 +67,7 @@ _White_
 
 ### Desbloqueios
 
-Os temas também podem ter um design de desbloqueio personalizado, usado no processo de descriptografia na inicialização. Você pode selecionar um deles em _Estilo > Desbloqueio_. Eles se parecem com isto:
+Os temas também podem ter um design de desbloqueio personalizado, que é usado no processo de descriptografia da inicialização. Você pode selecionar um deles em _Appearance > Unlock_. Eles são assim:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "صارف"
   },
-  "system.reboot-boot-menu": {
-    "label": "بوٹ مینو میں ری بوٹ کریں"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "بیٹری % دکھائیں"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "بیٹری % چھپائیں"
+  },
+  "appearance.windows": {
+    "label": "ونڈوز"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "ڈسپلے مررنگ بند"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "ہائبرڈ GPU پر جائیں"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "انٹیگریٹڈ GPU پر جائیں"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "ٹچ پیڈ فعال کریں"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "ٹچ پیڈ غیر فعال کریں"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "ٹچ اسکرین فعال کریں"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "ٹچ اسکرین غیر فعال کریں"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "کرنل"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "ونڈو گیپس آن"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "ونڈو گیپس آف"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-ونڈو تناسب آن"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-ونڈو تناسب آف"
+  },
+  "appearance.branding": {
+    "label": "برانڈنگ"
+  },
+  "appearance.animations-on": {
+    "label": "اینیمیشنز آن"
+  },
+  "appearance.animations-off": {
+    "label": "اینیمیشنز آف"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "بیدار رہیں"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "سونے دیں"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "اطلاعات آن"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "اطلاعات خاموش"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "نائٹ لائٹ آن"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "نائٹ لائٹ آف"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "اسکرین سیور آن"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "اسکرین سیور آف"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "کریش کیپچر آن"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "کریش کیپچر آف"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "لیپ ٹاپ ڈسپلے آن"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "لیپ ٹاپ ڈسپلے آف"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "ڈسپلے مررنگ آن"
   }
 }
