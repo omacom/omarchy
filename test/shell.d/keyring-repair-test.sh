@@ -65,19 +65,20 @@ line3_with_backslash\slash	with	tab
 
 # interior comment in secret
 line4_end
+ctime=1700000000
+mtime=1700000000
 
-# Separator comment before section 3
+[2:attribute0]
+name=service
+type=string
+value=roundtrip_test
+
 [3]
 item-type=0
 display-name=Claude Safe Storage
 secret=N6r6grCAlNU4IRv3ZhcX8Q==
 mtime=1700000000
 ctime=1700000000
-
-[2:attribute0]
-name=service
-type=string
-value=roundtrip_test
 EOF
 
 python3 "$repair"
@@ -91,10 +92,6 @@ grep -Fq 'secret=N6r6grCAlNU4IRv3ZhcX8Q==' "$OMARCHY_KEYRING_DIR/Default_keyring
 # Assert multiline folded onto single escaped line
 grep -Fq 'secret=line1_val\nline2_with_equals=abc==\nline3_with_backslash\\slash\twith\ttab\n\n# interior comment in secret\nline4_end' "$OMARCHY_KEYRING_DIR/Default_keyring.keyring" ||
   fail "multiline secret was cut short or incorrectly escaped"
-
-# Assert separator comment between sections was preserved outside secret
-grep -Fq '# Separator comment before section 3' "$OMARCHY_KEYRING_DIR/Default_keyring.keyring" ||
-  fail "separator comment between sections was lost"
 
 # Assert no stray continuation lines remain
 ! grep -Fxq 'line2_with_equals=abc==' "$OMARCHY_KEYRING_DIR/Default_keyring.keyring" ||

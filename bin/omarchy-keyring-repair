@@ -107,24 +107,12 @@ def repair_keyring_content(content: str) -> tuple[str, bool]:
         if not in_secret:
             return
 
-        # Separate trailing blank lines and comments that belong to section formatting
-        trailing_fmt: list[str] = []
-        while len(secret_acc) > 1:
-            last_stripped = secret_acc[-1].strip()
-            if not last_stripped or last_stripped.startswith("#"):
-                trailing_fmt.insert(0, secret_acc.pop())
-            else:
-                break
-
         if len(secret_acc) > 1:
             combined = "\n".join(secret_acc)
             escaped = escape_keyfile_string(combined)
             output_lines.append(f"secret={escaped}\n")
         elif len(secret_acc) == 1:
             output_lines.append(f"secret={secret_acc[0]}\n")
-
-        for fmt_line in trailing_fmt:
-            output_lines.append(fmt_line if fmt_line.endswith("\n") else f"{fmt_line}\n")
 
         in_secret = False
         secret_acc = []
