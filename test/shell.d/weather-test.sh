@@ -138,7 +138,7 @@ test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
 # Off Wi-Fi, or on $WIFI_SSID behind a gateway at $WIFI_GATEWAY, unresolved
-# while that is empty.
+# while that is empty, and routed over IPv6 alone with $WIFI_IPV6_ONLY.
 mkdir -p "$test_tmp/bin"
 cat >"$test_tmp/bin/nmcli" <<'EOF'
 #!/bin/bash
@@ -146,12 +146,14 @@ cat >"$test_tmp/bin/nmcli" <<'EOF'
 EOF
 cat >"$test_tmp/bin/ip" <<'EOF'
 #!/bin/bash
-if [[ $* == *route* ]]; then
+if [[ $* == *"-6 route"* ]]; then
+  echo '[{"dst":"default","gateway":"fe80::1","dev":"wlan0"}]'
+elif [[ $* == *route* && -z ${WIFI_IPV6_ONLY:-} ]]; then
   echo '[{"dst":"default","gateway":"192.168.1.254","dev":"wlan0"}]'
-elif [[ -n ${WIFI_GATEWAY:-} ]]; then
-  echo "[{\"dst\":\"192.168.1.254\",\"lladdr\":\"$WIFI_GATEWAY\",\"state\":[\"REACHABLE\"]}]"
-else
+elif [[ $* == *route* || -z ${WIFI_GATEWAY:-} ]]; then
   echo '[]'
+else
+  echo "[{\"lladdr\":\"$WIFI_GATEWAY\",\"state\":[\"REACHABLE\"]}]"
 fi
 EOF
 chmod +x "$test_tmp/bin/nmcli" "$test_tmp/bin/ip"
@@ -208,6 +210,7 @@ pass "weather location names this Wi-Fi network's location, else the top-level o
 
 [[ $(on_wifi Cottage 02:00:00:00:00:01 --network) == '{"ssid":"Cottage","gateway":"02:00:00:00:00:01"}' ]] || fail "weather location identifies this Wi-Fi network"
 [[ -z $(weather_location --network) ]] || fail "weather location identifies no network off Wi-Fi"
+[[ $(WIFI_IPV6_ONLY=1 on_wifi Lab 02:00:00:00:00:04 --network) == '{"ssid":"Lab","gateway":"02:00:00:00:00:04"}' ]] || fail "weather location identifies an IPv6-only Wi-Fi network by its IPv6 gateway"
 pass "weather location identifies this Wi-Fi network by SSID and gateway"
 
 before=$(cat "$weather_file")

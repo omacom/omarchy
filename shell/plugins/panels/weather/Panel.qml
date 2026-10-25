@@ -540,8 +540,10 @@ Panel {
       }
 
       // FileView handles changed locations. Explicitly refresh here too so
-      // saving the already-active location cannot strand the spinner.
-      locationFile.reload()
+      // saving the already-active location cannot strand the spinner. The
+      // network is identified again first, so a gateway that answered only
+      // after the panel gave up on it still finds the entry just saved.
+      root.identifyNetwork()
       if (!root.savingLocationQueryStarted) {
         root.savingLocationQueryStarted = true
         root.forecastRetries = 0

@@ -29,17 +29,20 @@ ssid=""
 gateway=""
 
 # Sets device (the connected Wi-Fi interface), ssid and gateway. The SSID is
-# nmcli's last field, so colons in it survive.
+# nmcli's last field, so colons in it survive. The gateway is the IPv4 one,
+# or on an IPv6-only network the IPv6 one.
 identify_network() {
-  local line gateway_ip
+  local line family gateway_ip
   line=$(LC_ALL=C nmcli -e no -t -f ACTIVE,DEVICE,SSID device wifi list --rescan no 2>/dev/null | sed -n 's/^yes://p' | head -n 1)
   [[ -n $line ]] || return
   device=${line%%:*}
   ssid=${line#*:}
-  gateway_ip=$(ip -j -4 route show default dev "$device" 2>/dev/null | jq -r '.[0].gateway // empty' 2>/dev/null)
-  if [[ -n $gateway_ip ]]; then
-    gateway=$(ip -j neigh show "$gateway_ip" dev "$device" 2>/dev/null | jq -r '.[0].lladdr // empty' 2>/dev/null)
-  fi
+  for family in -4 -6; do
+    gateway_ip=$(ip -j "$family" route show default dev "$device" 2>/dev/null | jq -r '.[0].gateway // empty' 2>/dev/null)
+    [[ -n $gateway_ip ]] || continue
+    gateway=$(ip -j "$family" neigh show "$gateway_ip" dev "$device" 2>/dev/null | jq -r '.[0].lladdr // empty' 2>/dev/null)
+    break
+  done
 }
 
 state=$(jq -c 'objects' "$LOC_FILE" 2>/dev/null)
