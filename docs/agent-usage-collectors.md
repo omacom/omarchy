@@ -12,7 +12,7 @@ New collectors build on the shared module, [`shell/plugins/agents/collectors.py`
   - `--limits-only` (the panel's near-limit refresh) reuses a local scan for `LIMITS_ONLY_REUSE_SECONDS = 900`, but asks for limits like a normal run.
   - `--force` (a person pressing refresh) reuses nothing.
 - The record is printed on stdout. Diagnostics go to stderr and never carry a credential.
-- A collector never writes to an agent's own files. Credentials are only read, and a token is refreshed only where the agent's own CLI does the same under its lock, never by rewriting another harness's store.
+- A collector never writes to an agent's own files. Credentials are only read, and a token is refreshed only where the agent's own CLI does the same under its lock, or by running that CLI to do it (the Claude collector runs `claude auth status`), never by rewriting another harness's store.
 
 ## The shared module
 
@@ -77,7 +77,7 @@ The panel acts on a small vocabulary in `usageStatusText`, so the same situation
 | `""` | Healthy, or a failed check that kept the last good limits (`limitsStale` says the rest) |
 | `"Waiting for auth"` | The agent is in use but has no credential for its limits |
 | `"Sign-in expired"` | The credential was refused, or a refresh token lapsed; signing in again is needed |
-| `"Limits paused"` | An access token lapsed that the agent's own CLI renews the next time it runs; signing in again is not needed |
+| `"Limits paused"` | An access token lapsed that the agent's own CLI renews the next time it runs (or didn't renew when the collector ran it); signing in again is not needed |
 | `"<Name> limits unavailable"` | A check failed with nothing kept to show |
 | `"<Name> unavailable"` | The agent's stats source failed (an unreadable database, a billing API that answered nothing) with nothing kept to show |
 | `"Balance unavailable"` | A prepaid balance couldn't be read and none was kept |

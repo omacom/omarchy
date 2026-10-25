@@ -19,6 +19,7 @@ import datetime as dt
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.request
@@ -35,6 +36,7 @@ from collectors import (  # noqa: E402
   LimitsCache,
   Stats,
   account_entry,
+  age_below,
   base_record,
   cache_root,
   cached_scan,
@@ -45,6 +47,8 @@ from collectors import (  # noqa: E402
   claude_code_scan_match,
   emit,
   empty_bucket,
+  find_installed_command,
+  now_ms,
   number,
   obj,
   open_json,
@@ -54,10 +58,14 @@ from collectors import (  # noqa: E402
   recent_dates,
   registered_accounts,
   claude_code_usage,
+  limits_cache_path,
+  runtime_env,
   scan_opencode,
   scan_pi_sessions,
+  stamp,
   today as today_string,
   warn,
+  write_json,
 )
 
 AGENT_ID = "claude"
@@ -68,6 +76,16 @@ USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage"
 # numbers this recent still describes the account; only older ones are
 # reported as stale.
 CURRENT_ENOUGH_SECONDS = 900
+# Before 2.1.301 a command as short as `claude auth status` could exit in the
+# middle of a token refresh and sign the home out, and 2.1.278 did not refresh
+# at all, so an older CLI is never run to refresh: a lost sign-in is worse
+# than paused limits.
+REFRESH_MIN_VERSION = (2, 1, 301)
+# A CLI that couldn't refresh (offline, refused) is asked again for the same
+# sign-in at most this often, not on every panel refresh.
+REFRESH_RETRY_SECONDS = 1800
+# Far past the second a refresh takes; only a stalled network reaches it.
+REFRESH_TIMEOUT_SECONDS = 20
 
 
 def config_dir() -> Path:
@@ -409,10 +427,70 @@ def profile_path(home: Path) -> Path:
   legacy = home / ".config.json"
   if legacy.exists():
     return legacy
-  configured = os.environ.get("CLAUDE_CONFIG_DIR")
-  if home == expand_path("~/.claude") and not (configured and expand_path(configured) == home):
+  if default_home(home):
     return Path.home() / ".claude.json"
   return home / ".claude.json"
+
+
+# Whether the CLI reaches this home with no CLAUDE_CONFIG_DIR: ~/.claude,
+# unless the environment points it there by name.
+def default_home(home: Path) -> bool:
+  configured = os.environ.get("CLAUDE_CONFIG_DIR")
+  return home == expand_path("~/.claude") and not (configured and expand_path(configured) == home)
+
+
+# Only the Claude Code CLI renews the access token, from the refresh token,
+# and only when it runs. Claude Code in the Claude desktop app keeps a sign-in
+# of its own, so a machine that only uses it never runs the CLI and its token
+# stays lapsed. `claude auth status` asks the model nothing and refreshes on
+# the way, so it is run for a home whose refresh token still holds. The CLI
+# rewrites the file itself, under its own lock: the refresh token changes with
+# every use, so a collector that refreshed or wrote it would take it from the
+# CLI. Whether it ran: the caller reads the credentials again to see.
+def refresh_sign_in(home: Path, cache_name: str, force: bool) -> bool:
+  attempt = limits_cache_path(AGENT_ID, cache_name, kind="refresh")
+  if not force and age_below(stamp(read_json(attempt).get("attemptedAtMs")) / 1000, REFRESH_RETRY_SECONDS):
+    return False
+  try:
+    write_json(attempt, {"attemptedAtMs": now_ms()})
+  except Exception as exc:
+    # Without the stamp, every panel refresh would run the CLI again.
+    warn(f"could not stamp the sign-in refresh ({exc})")
+    return False
+  claude = find_installed_command("claude")
+  if not claude:
+    return False
+  env = refresh_env(home)
+  try:
+    version = subprocess.run([claude, "--version"], capture_output=True, text=True, env=env, stdin=subprocess.DEVNULL, timeout=REFRESH_TIMEOUT_SECONDS).stdout
+  except (OSError, subprocess.SubprocessError):
+    return False
+  found = re.match(r"\s*(\d+)\.(\d+)\.(\d+)", version)
+  if not found or tuple(int(part) for part in found.groups()) < REFRESH_MIN_VERSION:
+    minimum = ".".join(map(str, REFRESH_MIN_VERSION))
+    warn(f"Claude Code is older than {minimum} or names no version, so it is not run to refresh the sign-in")
+    return False
+  try:
+    subprocess.run([claude, "auth", "status"], capture_output=True, env=env, stdin=subprocess.DEVNULL, timeout=REFRESH_TIMEOUT_SECONDS)
+  except (OSError, subprocess.SubprocessError) as exc:
+    warn(f"claude auth status failed ({type(exc).__name__})")
+  return True
+
+
+# Run inside a Claude Code session (CLAUDECODE, CLAUDE_CODE_*), the CLI takes
+# that session's sign-in, and with an Anthropic key, token or base URL
+# (ANTHROPIC_*) another credential altogether: either way it never refreshes
+# this home's file. CLAUDE_CONFIG_DIR names the home, unless it is the one the
+# CLI reaches without it, whose profile lives elsewhere. A run nobody asked
+# for sends nothing but the refresh: no telemetry, error report or update check.
+def refresh_env(home: Path) -> dict[str, str]:
+  env = {name: value for name, value in runtime_env().items()
+         if name != "CLAUDECODE" and not name.startswith(("CLAUDE_CODE_", "ANTHROPIC_"))}
+  env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+  env.pop("CLAUDE_CONFIG_DIR", None)
+  if not default_home(home):
+    env["CLAUDE_CONFIG_DIR"] = str(home)
+  return env
 
 
 # The rate-limit tier names the ceiling, not the plan: a Team premium seat
@@ -592,12 +670,13 @@ def probe_limits(access_token: str) -> dict[str, Any]:
   return {"ok": True, "limits": limits}
 
 
-def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms: int, force: bool, cache_name: str = "claude-limits.json") -> dict[str, Any]:
+def collect_limits(home: Path, force: bool, cache_name: str = "claude-limits.json") -> dict[str, Any]:
+  access_token, expires_at_ms, refresh_expires_at_ms, plan = oauth_login(home)
   # `live` says the numbers came from Anthropic just now (or within the reuse
   # window) rather than from a cache kept past a failed or impossible probe.
   # `fetchedAtMs` says when they were measured, so a stale account can say
   # how old they are.
-  result = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP, "live": False, "fetchedAtMs": 0}
+  result = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP, "live": False, "fetchedAtMs": 0, "plan": plan}
 
   # A panel that is opened and shut repeatedly must not turn into a request
   # per flick, so recent probe results are reused for a short window — and
@@ -611,20 +690,24 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
 
   # Probing needs a live token and only the Claude Code CLI can mint one: it
   # refreshes the credential file when it runs, so a machine left alone long
-  # enough finds the saved token lapsed. Say so — an empty limits list with
-  # nothing else set hides the whole section and explains nothing — and keep
-  # showing the last numbers, resetting elapsed windows to zero.
+  # enough finds the saved token lapsed. A lapsed access token is routine, not
+  # a sign-out, so while the refresh token holds the CLI is run to renew it.
+  if access_token and 0 < expires_at_ms <= time.time() * 1000 < refresh_expires_at_ms and refresh_sign_in(home, cache_name, force):
+    access_token, expires_at_ms, refresh_expires_at_ms, result["plan"] = oauth_login(home)
+
+  # Without a live token, say so — an empty limits list with nothing else set
+  # hides the whole section and explains nothing — and keep showing the last
+  # numbers, resetting elapsed windows to zero.
   if access_token == "":
     result["limits"] = fallback
     result["usageStatusText"] = "Waiting for auth"
     return result
   if expires_at_ms > 0 and expires_at_ms <= time.time() * 1000:
     result["limits"] = fallback
-    # A lapsed access token is routine, not a sign-out: it lives about eight
-    # hours, and the CLI mints a new one from the refresh token the next time
-    # it runs. Only a lapsed *refresh* token is a sign-in a person must redo,
-    # and saying so either way sends people to `claude auth login` nightly --
-    # which does not restore anything the CLI would not have restored itself.
+    # Only a lapsed *refresh* token is a sign-in a person must redo, and
+    # saying so for a lapsed access token sends people to `claude auth login`
+    # nightly -- which does not restore anything the CLI would not have
+    # restored itself.
     if refresh_expires_at_ms > time.time() * 1000:
       result["usageStatusText"] = "Limits paused"
       result["authHelpText"] = (
@@ -687,7 +770,6 @@ def current_account_id(home: Path) -> str:
 
 def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
   home = expand_path(account["home"]) if account.get("home") else expand_path("~/.claude")
-  access_token, expires_at_ms, refresh_expires_at_ms, plan = oauth_login(home)
   # Keyed by the subscription, not the label: forget "Work" and add a different
   # "Work", and the new one must never fall back on the old one's allowance.
   # Who the home is signed in as now, not when it was added: a `claude auth
@@ -701,8 +783,8 @@ def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
     cache_name = "claude-limits.json"
   else:
     cache_name = f"claude-limits-{key}.json"
-  limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, force, cache_name)
-  return account_entry(account, limits, plan)
+  limits = collect_limits(home, force, cache_name)
+  return account_entry(account, limits, limits["plan"])
 
 
 # -------------------------------------------------------------------- record
@@ -729,13 +811,13 @@ def main() -> int:
     limits = {key: current[key] for key in ("limits", "usageStatusText", "authHelpText", "retryAdvised")}
     stale, fetched_at = current["stale"], current["fetchedAt"]
   else:
-    access_token, expires_at_ms, refresh_expires_at_ms, plan = oauth_login(claude_dir)
     # Keyed by who the home is signed in as, as a registered primary is, so
     # signing in to another subscription never shows the last one's numbers
     # and registering the home later keeps its cache.
     identity = re.sub(r"[^A-Za-z0-9_-]", "", current_account_id(claude_dir))
     cache_name = f"claude-limits-{identity}.json" if identity else "claude-limits.json"
-    limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, args.force, cache_name)
+    limits = collect_limits(claude_dir, args.force, cache_name)
+    plan = limits["plan"]
     stale, fetched_at = not limits["live"] and bool(limits["limits"]), limits["fetchedAtMs"]
     # Asking for a sign-in only makes sense where Claude Code is in use: its
     # config home or profile exists, or there is local usage. A machine that

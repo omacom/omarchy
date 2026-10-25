@@ -14,6 +14,8 @@ source "$SHELL_TEST_DIR/agent-usage-helpers.sh"
 agent_sandbox
 
 python3 - <<'PY'
+from unittest.mock import patch
+
 from agent_usage_fixtures import *
 
 USAGE = "api.anthropic.com/api/oauth/usage"
@@ -22,8 +24,8 @@ ROUTES = {USAGE: {"five_hour": {"utilization": 40.0, "resets_at": iso_in(3600)},
 
 # The sign-in the Claude Code CLI leaves: an access token living about eight
 # hours, and the refresh token behind it about thirty days.
-def signed_in(token="token", expires=None, refresh_expires=0):
-  write_json(home() / ".claude" / ".credentials.json", {"claudeAiOauth": {
+def signed_in(token="token", expires=None, refresh_expires=0, where=None):
+  write_json((where or home() / ".claude") / ".credentials.json", {"claudeAiOauth": {
     "accessToken": token, "expiresAt": ms_in(3600) if expires is None else expires, "refreshTokenExpiresAt": refresh_expires,
     "subscriptionType": "max", "rateLimitTier": "default_claude_max_5x",
   }})
@@ -42,6 +44,51 @@ def labels(record):
 # The single-account cache, planted as an earlier probe left it.
 def kept_limits(fetched_ago, limits):
   write_json(cache_root() / "claude-limits.json", {"fetchedAtMs": ms_in(-fetched_ago), "limits": limits})
+
+
+# Only the interpreter and file tools, so no claude or mise on this machine
+# can answer for the stand-in CLI.
+CLI_BIN = Path(os.environ["SANDBOX"]) / "claude-cli"
+os.environ["PATH"] = f"{CLI_BIN}:{Path(os.environ['SANDBOX']) / 'tools'}"
+
+
+# A stand-in Claude Code CLI that logs every run to ~/claude-calls, names its
+# version, and on `auth status` renews the access token of the home
+# CLAUDE_CONFIG_DIR names (else ~/.claude) when RENEWS.
+FAKE_CLAUDE = r'''
+import json, os, sys, time
+from pathlib import Path
+with open(Path.home() / "claude-calls", "a") as log:
+  log.write(json.dumps({"args": sys.argv[1:], "env": dict(os.environ)}) + "\n")
+if sys.argv[1:] == ["--version"]:
+  print(VERSION + " (Claude Code)")
+elif sys.argv[1:] == ["auth", "status"] and RENEWS:
+  path = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / ".credentials.json"
+  credentials = json.loads(path.read_text())
+  credentials["claudeAiOauth"].update(accessToken="renewed", expiresAt=int(time.time() * 1000) + 8 * 3600 * 1000)
+  path.write_text(json.dumps(credentials))
+'''
+
+
+def fake_claude(renews=False, version="2.1.310"):
+  CLI_BIN.mkdir(exist_ok=True)
+  (CLI_BIN / "claude").write_text(f"#!/usr/bin/python3\nVERSION, RENEWS = {version!r}, {renews!r}\n{FAKE_CLAUDE}")
+  (CLI_BIN / "claude").chmod(0o755)
+
+
+# The CLI runs logged since the last call, and the log emptied.
+def cli_calls():
+  log = home() / "claude-calls"
+  calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+  log.unlink(missing_ok=True)
+  return calls
+
+
+def cli_args():
+  return [call["args"] for call in cli_calls()]
+
+
+REFRESH = [["--version"], ["auth", "status"]]
 
 
 # ------------------------------------------------------------ the answer
@@ -170,15 +217,18 @@ WINDOWS = [
   {"label": "Session (5-hour)", "percent": 0.31, "resetsAt": iso_in(-3 * 3600)},
   {"label": "Weekly (7-day)", "percent": 0.11, "resetsAt": iso_in(3 * 3600)},
 ]
+fake_claude()
 
 # Both tokens lapsed is a genuine sign-out. It used to return an empty limits
 # list and no status at all, which hides the panel's whole limits section
-# without saying why. Nothing is asked of Anthropic.
+# without saying why. Nothing is asked of Anthropic, nor of the CLI, which
+# has nothing left to refresh with.
 signed_in(expires=1000, refresh_expires=1000)
 kept_limits(3600, WINDOWS)
 record, http = claude()
 check("Claude collector reports an expired sign-in instead of hiding the section, asking nothing",
-      record["usageStatusText"] == "Sign-in expired" and "claude auth login" in record["authHelpText"] and http.count == 0, record)
+      record["usageStatusText"] == "Sign-in expired" and "claude auth login" in record["authHelpText"]
+      and http.count == 0 and cli_args() == [], record)
 expect("Claude collector keeps cached windows and resets just the elapsed one",
        [(entry["label"], entry["percent"], entry["resetsAt"]) for entry in record["limits"]],
        [("Session (5-hour)", 0.0, ""), ("Weekly (7-day)", 0.11, WINDOWS[1]["resetsAt"])], record)
@@ -191,13 +241,57 @@ check("Claude collector resets a wholly elapsed cache to zero, with its guidance
       and "last known" in record["authHelpText"], record)
 
 # A machine left overnight finds the access token lapsed and the refresh
-# token fine: routine, and nothing a person fixes by signing in again.
+# token fine: routine, and nothing a person fixes by signing in again. The
+# CLI is run to refresh it, and one that renews nothing leaves it paused.
 signed_in(expires=1000, refresh_expires=ms_in(30 * 86400))
 kept_limits(3600, WINDOWS)
 record, http = claude()
-check("Claude collector calls a lapsed access token paused, not signed out",
+check("Claude collector calls a lapsed access token the CLI didn't renew paused, not signed out",
       record["usageStatusText"] == "Limits paused" and "claude auth login" not in record["authHelpText"]
-      and labels(record) == ["Session (5-hour)", "Weekly (7-day)"] and http.count == 0, record)
+      and labels(record) == ["Session (5-hour)", "Weekly (7-day)"] and http.count == 0 and cli_args() == REFRESH, record)
+
+# The CLI is asked again for the same sign-in once the half hour is up, not on
+# every panel refresh, unless refresh is pressed.
+claude("--limits-only")
+expect("Claude collector runs the CLI once per half hour", cli_args(), [])
+claude("--force")
+expect("Claude collector runs the CLI again when refresh is pressed", cli_args(), REFRESH)
+write_json(next(cache_root().glob("claude-refresh-*.json")), {"attemptedAtMs": ms_in(-1801)})
+claude("--limits-only")
+expect("Claude collector runs the CLI again half an hour on", cli_args(), REFRESH)
+
+# Before 2.1.301 `claude auth status` could exit mid-refresh and sign the
+# home out, so an older CLI is only asked its version.
+fake_claude(renews=True, version="2.1.300")
+with contextlib.redirect_stderr(io.StringIO()):
+  record, _ = claude()
+expect("Claude collector never refreshes with a CLI older than 2.1.301",
+       [record["usageStatusText"], cli_args()], ["Limits paused", [["--version"]]], record)
+
+# A CLI that renews the token unpauses the limits, probed with the new token.
+# It runs without the variables that would hand it a Claude Code session's
+# sign-in or another credential, and with no CLAUDE_CONFIG_DIR for
+# ~/.claude, whose profile is ~/.claude.json rather than one inside it.
+fake_claude(renews=True)
+SESSION_VARS = {"CLAUDECODE": "1", "CLAUDE_CODE_ENTRYPOINT": "claude-desktop", "ANTHROPIC_BASE_URL": DEAD_PROXY}
+with patch.dict(os.environ, SESSION_VARS):
+  record, http = claude()
+expect("Claude collector probes with the token the CLI renewed",
+       [record["usageStatusText"], record["limitsStale"], [request["headers"]["authorization"] for request in http.requests]],
+       ["", False, ["Bearer renewed"]], record)
+expect("Claude collector runs the CLI clear of a session's variables and the default home's config dir",
+       [[name for name in call["env"] if name in {*SESSION_VARS, "CLAUDE_CONFIG_DIR"}] for call in cli_calls()], [[], []])
+
+# Another account's home is refreshed in place, the CLI pointed at it.
+side = home() / "side"
+signed_in(token="side-token", expires=1000, refresh_expires=ms_in(30 * 86400), where=side)
+write_json(side / ".claude.json", {"oauthAccount": {"accountUuid": "acct-side"}})
+accounts = registry("claude", [{"id": "main", "primary": True}, {"id": "side", "home": str(side)}], active="main")
+record, _ = claude()
+expect("Claude collector refreshes another account's lapsed token in its own home",
+       [[entry["usageStatusText"] for entry in record["accounts"]], [call["env"].get("CLAUDE_CONFIG_DIR") for call in cli_calls()]],
+       [["", ""], [str(side.resolve())] * 2], record)
+accounts.unlink()
 
 # A signed-out machine says so, and still shows what it last knew.
 (home() / ".claude" / ".credentials.json").unlink()
