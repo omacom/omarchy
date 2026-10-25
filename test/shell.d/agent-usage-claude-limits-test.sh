@@ -14,6 +14,7 @@ source "$SHELL_TEST_DIR/agent-usage-helpers.sh"
 agent_sandbox
 
 python3 - <<'PY'
+import subprocess
 from unittest.mock import patch
 
 from agent_usage_fixtures import *
@@ -54,7 +55,7 @@ os.environ["PATH"] = f"{CLI_BIN}:{Path(os.environ['SANDBOX']) / 'tools'}"
 
 # A stand-in Claude Code CLI that logs every run to ~/claude-calls, names its
 # version, and on `auth status` renews the access token of the home
-# CLAUDE_CONFIG_DIR names (else ~/.claude) when RENEWS.
+# CLAUDE_CONFIG_DIR names (else ~/.claude) when RENEWS, DELAY seconds on.
 FAKE_CLAUDE = r'''
 import json, os, sys, time
 from pathlib import Path
@@ -63,6 +64,7 @@ with open(Path.home() / "claude-calls", "a") as log:
 if sys.argv[1:] == ["--version"]:
   print(VERSION + " (Claude Code)")
 elif sys.argv[1:] == ["auth", "status"] and RENEWS:
+  time.sleep(DELAY)
   path = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / ".credentials.json"
   credentials = json.loads(path.read_text())
   credentials["claudeAiOauth"].update(accessToken="renewed", expiresAt=int(time.time() * 1000) + 8 * 3600 * 1000)
@@ -70,9 +72,9 @@ elif sys.argv[1:] == ["auth", "status"] and RENEWS:
 '''
 
 
-def fake_claude(renews=False, version="2.1.310"):
+def fake_claude(renews=False, version="2.1.310", delay=0):
   CLI_BIN.mkdir(exist_ok=True)
-  (CLI_BIN / "claude").write_text(f"#!/usr/bin/python3\nVERSION, RENEWS = {version!r}, {renews!r}\n{FAKE_CLAUDE}")
+  (CLI_BIN / "claude").write_text(f"#!/usr/bin/python3\nVERSION, RENEWS, DELAY = {version!r}, {renews!r}, {delay!r}\n{FAKE_CLAUDE}")
   (CLI_BIN / "claude").chmod(0o755)
 
 
@@ -281,6 +283,17 @@ expect("Claude collector probes with the token the CLI renewed",
        ["", False, ["Bearer renewed"]], record)
 expect("Claude collector runs the CLI clear of a session's variables and the default home's config dir",
        [[name for name in call["env"] if name in {*SESSION_VARS, "CLAUDE_CONFIG_DIR"}] for call in cli_calls()], [[], []])
+
+# Two runs at once, the panel's own and one someone started, refresh once:
+# the second waits for the first and finds the token renewed.
+signed_in(expires=1000, refresh_expires=ms_in(30 * 86400))
+fake_claude(renews=True, delay=1.5)
+runs = [subprocess.Popen([ROOT / "bin" / "omarchy-agent-usage-claude", "--force"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for _ in range(2)]
+for run in runs:
+  run.wait(timeout=60)
+expect("Claude collector runs the CLI once for two runs at once", cli_args().count(["auth", "status"]), 1)
+fake_claude(renews=True)
 
 # Another account's home is refreshed in place, the CLI pointed at it.
 side = home() / "side"

@@ -47,6 +47,7 @@ from collectors import (  # noqa: E402
   claude_code_scan_match,
   emit,
   empty_bucket,
+  exclusive_lock,
   find_installed_command,
   now_ms,
   number,
@@ -446,35 +447,40 @@ def default_home(home: Path) -> bool:
 # the way, so it is run for a home whose refresh token still holds. The CLI
 # rewrites the file itself, under its own lock: the refresh token changes with
 # every use, so a collector that refreshed or wrote it would take it from the
-# CLI. Whether it ran: the caller reads the credentials again to see.
-def refresh_sign_in(home: Path, cache_name: str, force: bool) -> bool:
+# CLI. The caller reads the credentials again to see what came of it.
+def refresh_sign_in(home: Path, cache_name: str, force: bool) -> None:
   attempt = limits_cache_path(AGENT_ID, cache_name, kind="refresh")
-  if not force and age_below(stamp(read_json(attempt).get("attemptedAtMs")) / 1000, REFRESH_RETRY_SECONDS):
-    return False
-  try:
-    write_json(attempt, {"attemptedAtMs": now_ms()})
-  except Exception as exc:
-    # Without the stamp, every panel refresh would run the CLI again.
-    warn(f"could not stamp the sign-in refresh ({exc})")
-    return False
-  claude = find_installed_command("claude")
-  if not claude:
-    return False
-  env = refresh_env(home)
-  try:
-    version = subprocess.run([claude, "--version"], capture_output=True, text=True, env=env, stdin=subprocess.DEVNULL, timeout=REFRESH_TIMEOUT_SECONDS).stdout
-  except (OSError, subprocess.SubprocessError):
-    return False
-  found = re.match(r"\s*(\d+)\.(\d+)\.(\d+)", version)
-  if not found or tuple(int(part) for part in found.groups()) < REFRESH_MIN_VERSION:
-    minimum = ".".join(map(str, REFRESH_MIN_VERSION))
-    warn(f"Claude Code is older than {minimum} or names no version, so it is not run to refresh the sign-in")
-    return False
-  try:
-    subprocess.run([claude, "auth", "status"], capture_output=True, env=env, stdin=subprocess.DEVNULL, timeout=REFRESH_TIMEOUT_SECONDS)
-  except (OSError, subprocess.SubprocessError) as exc:
-    warn(f"claude auth status failed ({type(exc).__name__})")
-  return True
+  # One run at a time, or two would race each other for the refresh token. A
+  # run that waited on another finds the token renewed, or the attempt
+  # stamped, and runs nothing.
+  with exclusive_lock(attempt.with_name(attempt.name + ".lock")):
+    if not 0 < oauth_login(home)[1] <= time.time() * 1000:
+      return
+    if not force and age_below(stamp(read_json(attempt).get("attemptedAtMs")) / 1000, REFRESH_RETRY_SECONDS):
+      return
+    try:
+      write_json(attempt, {"attemptedAtMs": now_ms()})
+    except Exception as exc:
+      # Without the stamp, every panel refresh would run the CLI again.
+      warn(f"could not stamp the sign-in refresh ({exc})")
+      return
+    claude = find_installed_command("claude")
+    if not claude:
+      return
+    env = refresh_env(home)
+    try:
+      version = subprocess.run([claude, "--version"], capture_output=True, text=True, env=env, stdin=subprocess.DEVNULL, timeout=REFRESH_TIMEOUT_SECONDS).stdout
+    except (OSError, subprocess.SubprocessError):
+      return
+    found = re.match(r"\s*(\d+)\.(\d+)\.(\d+)", version)
+    if not found or tuple(int(part) for part in found.groups()) < REFRESH_MIN_VERSION:
+      minimum = ".".join(map(str, REFRESH_MIN_VERSION))
+      warn(f"Claude Code is older than {minimum} or names no version, so it is not run to refresh the sign-in")
+      return
+    try:
+      subprocess.run([claude, "auth", "status"], capture_output=True, env=env, stdin=subprocess.DEVNULL, timeout=REFRESH_TIMEOUT_SECONDS)
+    except (OSError, subprocess.SubprocessError) as exc:
+      warn(f"claude auth status failed ({type(exc).__name__})")
 
 
 # Run inside a Claude Code session (CLAUDECODE, CLAUDE_CODE_*), the CLI takes
@@ -692,7 +698,8 @@ def collect_limits(home: Path, force: bool, cache_name: str = "claude-limits.jso
   # refreshes the credential file when it runs, so a machine left alone long
   # enough finds the saved token lapsed. A lapsed access token is routine, not
   # a sign-out, so while the refresh token holds the CLI is run to renew it.
-  if access_token and 0 < expires_at_ms <= time.time() * 1000 < refresh_expires_at_ms and refresh_sign_in(home, cache_name, force):
+  if access_token and 0 < expires_at_ms <= time.time() * 1000 < refresh_expires_at_ms:
+    refresh_sign_in(home, cache_name, force)
     access_token, expires_at_ms, refresh_expires_at_ms, result["plan"] = oauth_login(home)
 
   # Without a live token, say so — an empty limits list with nothing else set
