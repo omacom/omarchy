@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:summary=Paste Voxtype dictation through Hyprland
+# omarchy:args=<begin|end>
+# omarchy:hidden=true
+
+# Voxtype runs `begin` as its pre_output_command and `end` as its
+# post_output_command. In clipboard mode it only copies the transcript, and
+# `end` pastes it with Shift+Insert from Hyprland, which XWayland apps receive
+# intact where wtype's typing arrives as Escape and digits. Voxtype also runs
+# post_output_command after cancelled and empty recordings, so `end` pastes
+# only after a `begin`. Type and paste modes deliver the text themselves, so
+# `begin` arms nothing there.
+
+marker="${XDG_RUNTIME_DIR:-/tmp}/omarchy-voxtype-output"
+
+case "${1:-}" in
+  begin)
+    if [[ $(voxtype config get output.mode) == "clipboard" ]]; then
+      : >"$marker"
+    else
+      rm -f "$marker"
+    fi
+    ;;
+  end)
+    if [[ -e $marker ]]; then
+      rm -f "$marker"
+      # Voxtype's own paste mode gives the clipboard as long to settle.
+      sleep 0.1
+      omarchy-hyprland-send-shortcut SHIFT Insert
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy-voxtype-output <begin|end>" >&2
+    exit 1
+    ;;
+esac
