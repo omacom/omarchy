@@ -11,12 +11,10 @@ const utilQml = fs.readFileSync(path.join(root, 'shell/Commons/Util.qml'), 'utf8
 const mediaQml = fs.readFileSync(path.join(root, 'shell/Ui/BackgroundMedia.qml'), 'utf8')
 const backgroundQml = fs.readFileSync(path.join(root, 'shell/plugins/background/Background.qml'), 'utf8')
 const lockQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/LockView.qml'), 'utf8')
-const lockFeedQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/LockFeedSurface.qml'), 'utf8')
 const themeSwitcher = fs.readFileSync(path.join(root, 'bin/omarchy-theme-switcher'), 'utf8')
 const quattroUpgrade = fs.readFileSync(path.join(root, 'bin/omarchy-upgrade-to-quattro'), 'utf8')
 const barTextColor = fs.readFileSync(path.join(root, 'bin/omarchy-bar-text-color'), 'utf8')
 const menuImages = fs.readFileSync(path.join(root, 'bin/omarchy-menu-images'), 'utf8')
-const lockService = fs.readFileSync(path.join(root, 'shell/plugins/lock/Service.qml'), 'utf8')
 const batteryService = fs.readFileSync(path.join(root, 'shell/plugins/services/battery/Service.qml'), 'utf8')
 const themeSet = fs.readFileSync(path.join(root, 'bin/omarchy-theme-set'), 'utf8')
 const directImageList = fs.readFileSync(path.join(root, 'shell/plugins/image-picker/list.sh'), 'utf8')
@@ -45,25 +43,6 @@ assert(
     !backgroundQml.includes('MediaPlayer') &&
     !lockQml.includes('MediaPlayer'),
   'no shell surface builds a Qt Multimedia pipeline'
-)
-assert(
-  /^import Owe\.LockFeed$/m.test(lockFeedQml) &&
-    lockFeedQml.includes('LockFeed {') &&
-    lockQml.includes('source: "LockFeedSurface.qml"') &&
-    lockQml.includes('active: root.feedActive') &&
-    /feedActive: root\.video && root\.loadBackground && !root\.displaysBlank && !root\.powerSaverActive/.test(lockQml),
-  'the lock screen shows video through the OWE lock feed, loaded so a missing module costs only the video'
-)
-assert(
-  !/^import Owe\./m.test(lockQml),
-  'the lock view itself carries no foreign import, so the lock still loads without the feed module'
-)
-assert(
-  lockQml.includes('path: root.loadBackground ? (root.video ? root.videoPosterPath : root.backgroundPath) : ""') &&
-    lockQml.indexOf('id: feedLoader') > lockQml.indexOf('MultiEffect {') &&
-    lockQml.includes('visible: root.video') &&
-    !lockQml.includes('wallpaper.video'),
-  'the lock screen keeps its image effect for stills and shows the feed for videos'
 )
 assert(
   !mediaQml.includes('mipmap'),
@@ -124,30 +103,7 @@ assert(
   'theme changes disable both transition snapshots whenever either side is a video'
 )
 assert(
-  /function onScreensChanged\(\) \{[\s\S]*?root\.displaysBlank = false/.test(lockService),
-  'a display coming back gives up the blank state instead of freezing a visible wallpaper'
-)
-assert(
-  lockService.includes('function screenBlank(screenName)') &&
-    lockService.includes('function applyMonitorDpms(text)') &&
-    lockService.includes('command: ["hyprctl", "monitors", "-j"]') &&
-    lockService.includes('running: root.locked && root.videoBackground') &&
-    /displaysBlank: root\.screenBlank\(lockSurface\.screen/.test(lockService) &&
-    /function runWake\(\) \{[\s\S]*?root\.monitorDpmsKnown = false/.test(lockService) &&
-    /function runBlank\(\) \{[\s\S]*?root\.monitorDpmsKnown = false/.test(lockService),
-  'a locked video wallpaper follows what each panel actually did, not only what the lock asked for'
-)
-assert(
-  /feedActive: root\.video && root\.loadBackground && !root\.displaysBlank && !root\.powerSaverActive/.test(lockQml) &&
-    /displaysBlank: root\.screenBlank\(/.test(lockService) &&
-    /powerSaverActive: root\.powerSaverActive/.test(lockService) &&
-    /function runBlank\(\) \{\s*\n\s*root\.displaysBlank = true/.test(lockService) &&
-    /function runWake\(\) \{\s*\n\s*root\.displaysBlank = false/.test(lockService),
-  'the lock feed stops once displays go dark or power-saver is active'
-)
-assert(
   batteryService.includes('property string activePowerProfile') &&
-    batteryService.includes('powerSaverOnBattery: BatteryModel.isPowerSaverOnBattery(UPower.onBattery, activePowerProfile)') &&
     /function onProfileChanged\(\) \{\s*root\.powerProfileSignals\+\+\s*root\.activePowerProfile = root\.profileName\(PowerProfiles\.profile\)/.test(batteryService) &&
     batteryService.includes('root.activePowerProfile = BatteryModel.profileAfterRead(root.activePowerProfile, text, root.powerProfileReadSignals, root.powerProfileSignals)') &&
     /if \(powerProfileReadProcess\.running\) \{\s*powerProfileReadPending = true/.test(batteryService) &&
@@ -158,7 +114,7 @@ assert(
     !/Timer \{[^}]*refreshPowerProfile/.test(batteryService) &&
     batteryService.includes('function refreshPowerProfile(): void { root.refreshPowerProfile() }') &&
     fs.readFileSync(path.join(root, 'bin/omarchy-powerprofiles-set'), 'utf8').includes('omarchy-shell -q battery refreshPowerProfile'),
-  'the battery service tracks the active power-saver profile'
+  'the battery service tracks the active power profile'
 )
 assert(
   themeSwitcher.includes("-iname '*.mp4'") &&
@@ -281,7 +237,6 @@ timeout_marker=$(find "$timeout_cache/omarchy/image-selector" -maxdepth 1 -type 
 [[ -z $timeout_marker ]] || fail "a timed out video is left to retry rather than remembered as failed"
 
 grep -qx 'owe' "$ROOT/install/omarchy-base.packages" || fail "OWE is a base package"
-grep -qx 'owe-lockfeed' "$ROOT/install/omarchy-base.packages" || fail "the OWE lock feed module is a base package"
 # Qt Multimedia ships for building apps; the shell itself plays video through OWE.
 if grep -rqs 'import QtMultimedia' "$ROOT/shell"; then
   fail "Qt Multimedia is no longer needed by the shell"
@@ -292,8 +247,7 @@ pass "direct picker generates and reuses still thumbnails"
 pass "direct picker omits videos whose thumbnails cannot be generated"
 pass "a rejected video is remembered so it costs nothing on the next open"
 pass "a timed out video is left to retry"
-pass "a locked video wallpaper follows the panels' real DPMS state"
-pass "OWE and its lock feed module are declared"
+pass "OWE is a base package"
 
 source <(awk '
   /^(is_video_path|snapshot_background_path|background_transition_uses_snapshots|choose_theme_background|choose_staged_theme_background|set_theme_background)\(\) \{/ { copying=1 }

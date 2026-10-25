@@ -8,11 +8,11 @@
   "learn": {
     "label": "Öğren"
   },
+  "appearance": {
+    "label": "Görünüm"
+  },
   "trigger": {
     "label": "Tetikle"
-  },
-  "style": {
-    "label": "Stil"
   },
   "setup": {
     "label": "Ayarlar"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Topluluk"
   },
-  "trigger.appearance": {
-    "label": "Görünüm"
+  "appearance.theme": {
+    "label": "Tema"
   },
-  "trigger.appearance.animations": {
-    "label": "Animasyonlar"
+  "appearance.background": {
+    "label": "Arka Plan"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Yazı Tipi"
+  },
+  "appearance.top-bar": {
     "label": "Menü Çubuğu"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Çubuğu Gizle"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Çubuğu Göster"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Çubuk Konumu"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Çubuk Arka Planı"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Opak Çubuk"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Cam Çubuk"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Şeffaf Çubuk"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Çubuk Göstergeleri"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Pil Yüzdesi"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Saat"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Pazar 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Pazar 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Pazar 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Pazar 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Paz 3 Mayıs 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Paz 3 Mayıs 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 Mayıs H18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 Mayıs H18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Üst Çubuk"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Alt Çubuk"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Sol Çubuk"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Sağ Çubuk"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Otomatik Gizle"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Her Zaman Açık"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Dock Konumu"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Üst Dock"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Alt Dock"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Sol Dock"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Sağ Dock"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Pencere Boşlukları"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Pencere Köşeleri"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Tema Köşeleri"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Keskin Köşeler"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Yuvarlak Köşeler"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Pencere Opaklığı"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Opak Pencereler"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Şeffaf Pencereler"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Cam Pencereler"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1-Pencere Oranı"
+  "appearance.branding.screensaver": {
+    "label": "Ekran Koruyucu"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Hakkında"
+  },
+  "appearance.branding.about.text": {
+    "label": "Metni Düzenle"
+  },
+  "appearance.branding.about.image": {
+    "label": "Görüntüden Ayarla"
+  },
+  "appearance.branding.about.default": {
+    "label": "Varsayılanı Geri Yükle"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Metni Düzenle"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Görüntüden Ayarla"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Varsayılanı Geri Yükle"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Otomatik Gizle"
+  },
+  "appearance.dock.always-on": {
+    "label": "Her Zaman Açık"
+  },
+  "appearance.dock.position": {
+    "label": "Dock Konumu"
+  },
+  "appearance.dock.position.top": {
+    "label": "Üst Dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Alt Dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "Sol Dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "Sağ Dock"
+  },
+  "appearance.workspace-layout": {
     "label": "Çalışma Alanı Düzeni",
     "title": "Varsayılan Çalışma Alanı Düzeni"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Döşeme"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Kaydırma"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Yüzen"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr Tema Eşitlemesi"
+  "appearance.unlock": {
+    "label": "Kilidi Aç"
   },
   "trigger.toggle": {
     "label": "Aç/Kapat"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Uyanık Tut"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Bildirimler"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Gece Işığı"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Ekran Koruyucu"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Çökme Yakalama"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Hız Testi"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Dizüstü Ekranı"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Ekranı Yansıt"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Hibrit GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Dokunmatik Yüzey"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Dokunmatik Titreşim"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "yüksek"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Dokunmatik Ekran"
   },
   "trigger.reminder.set": {
     "label": "Oluştur"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Disk Hız Testi"
-  },
-  "style.theme": {
-    "label": "Tema"
-  },
-  "style.background": {
-    "label": "Arka Plan"
-  },
-  "style.unlock": {
-    "label": "Kilidi Aç"
-  },
-  "style.font": {
-    "label": "Yazı Tipi"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Ekran Koruyucu"
-  },
-  "style.about": {
-    "label": "Hakkında"
-  },
-  "style.about.text": {
-    "label": "Metni Düzenle"
-  },
-  "style.about.image": {
-    "label": "Görüntüden Ayarla"
-  },
-  "style.about.default": {
-    "label": "Varsayılanı Geri Yükle"
-  },
-  "style.screensaver.text": {
-    "label": "Metni Düzenle"
-  },
-  "style.screensaver.image": {
-    "label": "Görüntüden Ayarla"
-  },
-  "style.screensaver.default": {
-    "label": "Varsayılanı Geri Yükle"
   },
   "setup.monitors": {
     "label": "Monitörler"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1208,10 +1160,130 @@
   "update.password.user": {
     "label": "Kullanıcı"
   },
-  "system.reboot-boot-menu": {
-    "label": "Önyükleme Menüsüne Yeniden Başlat"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Pil Yüzdesini Göster"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Pil Yüzdesini Gizle"
+  },
+  "appearance.windows": {
+    "label": "Pencereler"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Pencere Boşlukları Açık"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Pencere Boşlukları Kapalı"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Tek Pencere Oranı Açık"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Tek Pencere Oranı Kapalı"
+  },
+  "appearance.branding": {
+    "label": "Markalama"
+  },
+  "appearance.animations-on": {
+    "label": "Animasyonlar Açık"
+  },
+  "appearance.animations-off": {
+    "label": "Animasyonlar Kapalı"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Uyanık Kal"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Uykuya İzin Ver"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Bildirimler Açık"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Bildirimleri Sessize Al"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Gece Işığı Açık"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Gece Işığı Kapalı"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Ekran Koruyucu Açık"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Ekran Koruyucu Kapalı"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Çökme Yakalama Açık"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Çökme Kaydını Kapat"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Dizüstü Ekranını Aç"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Dizüstü Ekranını Kapat"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Ekran Yansıtmayı Aç"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Ekran Yansıtmayı Kapat"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Hibrit GPU'ya Geç"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Tümleşik GPU'ya Geç"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Touchpad'i Etkinleştir"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Touchpad'i Devre Dışı Bırak"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Dokunmatik Ekranı Etkinleştir"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Dokunmatik Ekranı Devre Dışı Bırak"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Çekirdek"
   }
 }

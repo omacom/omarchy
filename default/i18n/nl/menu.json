@@ -8,11 +8,11 @@
   "learn": {
     "label": "Leer"
   },
+  "appearance": {
+    "label": "Weergave"
+  },
   "trigger": {
     "label": "Activeren"
-  },
-  "style": {
-    "label": "Stijl"
   },
   "setup": {
     "label": "Instellen"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Gemeenschap"
   },
-  "trigger.appearance": {
-    "label": "Weergave"
+  "appearance.theme": {
+    "label": "Thema"
   },
-  "trigger.appearance.animations": {
-    "label": "Animaties"
+  "appearance.background": {
+    "label": "Achtergrond"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Lettertype"
+  },
+  "appearance.top-bar": {
     "label": "Menubalk"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Balk verbergen"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Balk tonen"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Balkpositie"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Balkachtergrond"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Ondoorzichtige balk"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Glazen balk"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Doorzichtige balk"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Balkindicatoren"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Batterijpercentage"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Klok"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Zondag 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Zondag 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Zondag 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Zondag 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Zo 3 mei 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Zo 3 mei 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 mei W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 mei W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Balk boven"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Balk onder"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Balk links"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Balk rechts"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Dock auto-verbergen"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Dock altijd zichtbaar"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Dockpositie"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Dock boven"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Dock onder"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Dock links"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Dock rechts"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Vensterafstand"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Vensterhoeken"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Themahoeken"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Scherpe hoeken"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Ronde hoeken"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Vensterdekking"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Ondoorzichtige vensters"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Doorzichtige vensters"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Glazen vensters"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1-venster verhouding"
+  "appearance.branding.screensaver": {
+    "label": "Schermbeveiliging"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Over"
+  },
+  "appearance.branding.about.text": {
+    "label": "Tekst bewerken"
+  },
+  "appearance.branding.about.image": {
+    "label": "Uit afbeelding instellen"
+  },
+  "appearance.branding.about.default": {
+    "label": "Standaard herstellen"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Tekst bewerken"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Uit afbeelding instellen"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Standaard herstellen"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Dock auto-verbergen"
+  },
+  "appearance.dock.always-on": {
+    "label": "Dock altijd zichtbaar"
+  },
+  "appearance.dock.position": {
+    "label": "Dockpositie"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock boven"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock onder"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock links"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock rechts"
+  },
+  "appearance.workspace-layout": {
     "label": "Werkbladindeling",
     "title": "Standaard werkbladindeling"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Tegelen"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Scrollen"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Zwevend"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr-themasync"
+  "appearance.unlock": {
+    "label": "Ontgrendelen"
   },
   "trigger.toggle": {
     "label": "Schakelen"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Wakker blijven"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Meldingen"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Nachtlicht"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Schermbeveiliging"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Crashregistratie"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Snelheidstest"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Laptopscherm"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Scherm spiegelen"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Hybride GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Touchpad"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Touchpad-haptiek"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "hoog"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Aanraakscherm"
   },
   "trigger.reminder.set": {
     "label": "Een instellen"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Schijfsnelheidstest"
-  },
-  "style.theme": {
-    "label": "Thema"
-  },
-  "style.background": {
-    "label": "Achtergrond"
-  },
-  "style.unlock": {
-    "label": "Ontgrendelen"
-  },
-  "style.font": {
-    "label": "Lettertype"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Schermbeveiliging"
-  },
-  "style.about": {
-    "label": "Over"
-  },
-  "style.about.text": {
-    "label": "Tekst bewerken"
-  },
-  "style.about.image": {
-    "label": "Uit afbeelding instellen"
-  },
-  "style.about.default": {
-    "label": "Standaard herstellen"
-  },
-  "style.screensaver.text": {
-    "label": "Tekst bewerken"
-  },
-  "style.screensaver.image": {
-    "label": "Uit afbeelding instellen"
-  },
-  "style.screensaver.default": {
-    "label": "Standaard herstellen"
   },
   "setup.monitors": {
     "label": "Monitoren"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -855,7 +807,7 @@
     "label": "JavaScript"
   },
   "install.development.go": {
-    "label": "Ga"
+    "label": "Go"
   },
   "install.development.php": {
     "label": "PHP"
@@ -1066,7 +1018,7 @@
     "title": "Verwijderen"
   },
   "remove.development.go": {
-    "label": "Ga"
+    "label": "Go"
   },
   "remove.development.php": {
     "label": "PHP",
@@ -1208,10 +1160,130 @@
   "update.password.user": {
     "label": "Gebruiker"
   },
-  "system.reboot-boot-menu": {
-    "label": "Opnieuw opstarten naar opstartmenu"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Accupercentage tonen"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Accupercentage verbergen"
+  },
+  "appearance.windows": {
+    "label": "Vensters"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Vensterafstand aan"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Vensterafstand uit"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-vensterverhouding aan"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-vensterverhouding uit"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.animations-on": {
+    "label": "Animaties aan"
+  },
+  "appearance.animations-off": {
+    "label": "Animaties uit"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Wakker blijven"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Slaapstand toestaan"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Meldingen aan"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Meldingen dempen"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nachtlicht aan"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nachtlicht uit"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Schermbeveiliging aan"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Schermbeveiliging uit"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Crashopname aan"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Crashregistratie uit"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Laptopscherm aan"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Laptopscherm uit"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Scherm spiegelen aan"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Scherm spiegelen uit"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Naar hybride GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Naar geïntegreerde GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Touchpad inschakelen"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Touchpad uitschakelen"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Touchscreen inschakelen"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Touchscreen uitschakelen"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
   }
 }

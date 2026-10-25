@@ -76,13 +76,13 @@ assert(
   'bar stays mapped while hidden so revealing it does not rebuild the surface'
 )
 assert(
-  /exclusionMode: root\.barHidden \? ExclusionMode\.Ignore : ExclusionMode\.Auto/.test(barSource),
+  /exclusionMode: root\.barHidden \? ExclusionMode\.Ignore : ExclusionMode\.Normal/.test(barSource),
   'a hidden bar reserves no space for itself'
 )
 for (const edge of ['top', 'bottom', 'left', 'right']) {
   assert(
-    new RegExp(`${edge}: root\\.barHidden && root\\.position === "${edge}" \\? -barWindow\\.thickness : 0`).test(barSource),
-    `a hidden bar parks past the ${edge} edge by its whole thickness`
+    new RegExp(`${edge}: root\\.barHidden && root\\.position === "${edge}" \\? -barWindow\\.parkDistance : 0`).test(barSource),
+    `a hidden bar parks its whole surface past the ${edge} edge`
   )
 }
 
@@ -114,12 +114,13 @@ assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 
 // Revealing the indicators can slide a neighbouring widget under a stationary
 // pointer; collapsing the peek on that un-hover re-opens it and stutters the
-// bar, so the peek stays held while the pointer is anywhere on the bar.
+// bar, so the peek stays held while the pointer is on the bar short of the
+// center box's end.
 const revealTimer = barSource.slice(barSource.indexOf('id: centerSectionRevealTimer'))
 const revealTimerBody = revealTimer.slice(0, revealTimer.indexOf('\n  }'))
 assert(
   /onTriggered: if \(!root\.barHovered\) root\.centerSectionRevealHeld = false/.test(revealTimerBody),
-  'the indicator peek stays held while the pointer is anywhere on the bar'
+  'the indicator peek stays held while the pointer is on the bar'
 )
 
 // The whole-bar hover has to come from an ancestor of the sections. A sibling
@@ -128,9 +129,33 @@ assert(
 const barLoader = barSource.slice(barSource.indexOf('sourceComponent: root.vertical ? verticalBar : horizontalBar'))
 const barLoaderBody = barLoader.slice(0, barLoader.indexOf('\n    }'))
 assert(
-  /setBarHovered\(hovered\)/.test(barLoaderBody),
+  /peeking: hovered && BarModel\.peeksAt\(point\.position, barWindow\.peekEdge, root\.vertical\)\s*onPeekingChanged: root\.setBarHovered\(peeking\)/.test(barLoaderBody),
   'the whole-bar hover handler is a child of the bar loader, above both orientations'
 )
+
+// Hovering the clock, or anything past it, leaves the indicators hidden; the
+// rest of the bar up to the clock's start opens them.
+assertEqual(bar.peeksAt({ x: 400, y: 10 }, 1000, false), true, 'the peek opens left of the clock')
+assertEqual(bar.peeksAt({ x: 1200, y: 10 }, 1000, false), false, 'the peek stays shut over and right of the clock')
+assertEqual(bar.peeksAt({ x: 1200, y: 400 }, 600, true), true, 'a vertical bar opens the peek above the clock')
+assertEqual(bar.peeksAt({ x: 10, y: 800 }, 600, true), false, 'a vertical bar keeps the peek shut below the clock')
+assertEqual(bar.peeksAt(null, 1000, false), false, 'no pointer opens no peek')
+
+// Beside a display notch, indicators right of the clock pull its end toward
+// the start as they reveal. A stationary pointer between the two ends has to
+// keep the peek open rather than close it, slide the clock back and reopen it.
+const notchBoxEnd = revealed => revealed ? 900 : 1000
+function peekRun(pointers) {
+  let edge = notchBoxEnd(false)
+  return pointers.map(pointer => {
+    const held = bar.peeksAt(pointer, edge, false)
+    edge = bar.nextPeekEdge(edge, notchBoxEnd(held), held)
+    return held
+  })
+}
+const between = { x: 950, y: 10 }
+assertEqual(peekRun([between, between, between, between]).join(), 'true,true,true,true', 'a reveal that moves the clock does not close the peek under a still pointer')
+assertEqual(peekRun([between, { x: 1050, y: 10 }, { x: 1050, y: 10 }]).join(), 'true,false,false', 'leaving past the clock closes the peek for good')
 
 // A widget that grows (the indicator peek, a drawer) has to know which of its
 // edges stays put, and that is the side its list is anchored by.
@@ -158,7 +183,7 @@ for (const [name, body] of [['slot', moduleSlot], ['spacer', dragSpacer]]) {
 // Unplugging a monitor tears its bar down mid-hover with no leave event, which
 // would leave that surface counted forever and the peek stuck open.
 assert(
-  /Component\.onDestruction: if \(hovered\) root\.setBarHovered\(false\)/.test(barLoaderBody),
+  /Component\.onDestruction: if \(peeking\) root\.setBarHovered\(false\)/.test(barLoaderBody),
   'a bar torn down while hovered gives its hover back'
 )
 
@@ -177,8 +202,8 @@ assert(
   'the pointer coming onto any bar opens the peek, and leaving the last one re-runs the collapse'
 )
 
-// The peek opens from anywhere on the bar, widgets included, so no narrower
-// hover area opens it as well.
+// The peek opens from the bar up to the center box's end, widgets included,
+// so no narrower hover area opens it as well.
 const opensPeek = barSource.split('\n').filter(line => /centerSectionRevealHeld = true/.test(line))
 assertEqual(opensPeek.length, 1, 'exactly one line in the bar opens the indicator peek')
 assert(setBarHoveredBody.includes(opensPeek[0].trim()), 'only the whole-bar hover opens the peek')
@@ -288,9 +313,10 @@ assertDeepEqual(
   'vertical bars resolve free space along their vertical axis'
 )
 assertEqual(bar.nearestDropTarget([], { x: 10, y: 10 }, false), null, 'bar reports no insertion edge without targets')
+// The window spans its screen, so the strip, not the window, bounds a drop.
 assert(
-  /contentItem\.mapFromItem\(null, scenePoint\.x, scenePoint\.y\)[\s\S]*?return null/.test(barSource),
-  'bar rejects free-space drops after the pointer leaves the bar'
+  /if \(moduleRemoveDistance\(windowScreenPoint\(scenePoint, sourceWindow\)\) > 0\) return null/.test(barSource),
+  'bar rejects free-space drops after the pointer leaves the bar strip'
 )
 assert(
   /BarModel\.centerDropTarget\(onBar, root\.centerBoxDropRect\(box\), scenePoint, root\.vertical, sourceSlot\)/.test(barSource) &&
@@ -325,6 +351,28 @@ assertDeepEqual(strayConfig.bar.layout.left, [42, 'a', {}, 'c', 'b'], 'the move 
 const aliasConfig = { bar: { layout: { left: ['clock', 'b'] } } }
 assertEqual(bar.moveEntry(aliasConfig, { from: { region: 'left', index: 0, id: 'omarchy.clock' }, to: { region: 'left', index: -1 } }, entry => entry === 'clock' ? { id: 'omarchy.clock' } : entry), true, 'an entry is matched by the id the bar knows it by')
 assertDeepEqual(aliasConfig.bar.layout.left, ['b', 'clock'], 'and moved as it is written')
+
+// A widget dragged off the bar leaves just its own entry, found as a move
+// finds it.
+let removeConfig = moveLayout()
+assertEqual(bar.removeEntry(removeConfig, { region: 'left', index: 2, id: 'b' }), true, 'a widget dragged off the bar leaves the layout')
+assertDeepEqual(moved(removeConfig), { left: ['a', 'bx', 'c'], right: ['d'] }, 'the second of two entries with one id goes when it is the one dragged off')
+removeConfig = moveLayout()
+assertEqual(bar.removeEntry(removeConfig, { region: 'left', index: 0, id: 'b' }), false, 'a layout that changed since the drag started is left alone')
+assertEqual(bar.removeEntry(removeConfig, { region: 'centerEnd', index: 0, id: 'b' }), false, 'a removal from a section the config lacks changes nothing')
+assertEqual(bar.removeEntry(removeConfig, { region: 'left', index: 9, id: 'b' }), false, 'a removal past the end of the section changes nothing')
+assertDeepEqual(moved(removeConfig), moved(moveLayout()), 'a removal that does not apply leaves the layout as it was')
+const strayRemoval = { bar: { layout: { left: [42, 'a', {}, 'b', 'c'] } } }
+assertEqual(bar.removeEntry(strayRemoval, { region: 'left', index: 1, id: 'b' }), true, 'a removal counts by the bar\'s indexes past entries it leaves out')
+assertDeepEqual(strayRemoval.bar.layout.left, [42, 'a', {}, 'c'], 'and leaves the entries it left out alone')
+
+// Removal arms only once the drag is well clear of the bar strip.
+assertEqual(bar.dragDistanceOutside({ x: 400, y: 12 }, 1000, 26), 0, 'a drag along the bar is no distance off it')
+assertEqual(bar.dragDistanceOutside({ x: 0, y: 26 }, 1000, 26), 0, 'the strip\'s own edge still counts as on the bar')
+assertEqual(bar.dragDistanceOutside({ x: 400, y: 86 }, 1000, 26), 60, 'a drag below a top bar is measured from the strip\'s inner edge')
+assertEqual(bar.dragDistanceOutside({ x: 1030, y: 66 }, 1000, 26), 50, 'a drag off a corner is the straight-line distance past it')
+assertEqual(bar.dragDistanceOutside({ x: -20, y: 12 }, 1000, 26), 20, 'a drag off the end of the bar counts too')
+assertEqual(bar.dragDistanceOutside({ x: NaN, y: 12 }, 1000, 26), 0, 'a point with no position is no distance off')
 
 // Horizontal bar: indicators in centerBegin, the clock alone in the center box
 // at 340-400, weather in centerEnd, the menu far off in the left section.

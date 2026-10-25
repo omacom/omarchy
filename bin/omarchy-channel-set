@@ -47,11 +47,33 @@ validate_dev_checkout() {
   fi
 }
 
+# The dev channel refreshes pacman with the checkout's own tools. A checkout
+# without this machine's region profile would silently drop its repositories.
+validate_dev_region() {
+  local checkout="$1" region_file="${OMARCHY_REGION_FILE:-/etc/omarchy/region}" region=global
+
+  [[ -f $region_file ]] && region=$(<"$region_file")
+  [[ $region == "global" ]] && return 0
+
+  # The refresh after linking needs a runnable helper and every fragment, not
+  # just a directory with the region's name: dev refreshes edge, and leaving
+  # dev later refreshes stable or rc with this checkout's tools.
+  local profile="$checkout/default/regions/$region/pacman" fragment supported=true
+  [[ -x $checkout/bin/omarchy-apply-pacman ]] || supported=false
+  for fragment in omarchy-{stable,rc,edge}.prepend mirrorlist-{stable,rc,edge}.prepend; do
+    [[ -r $profile/$fragment ]] || supported=false
+  done
+  if ! $supported; then
+    fail "$checkout does not support the '$region' region, so switching would drop its package repositories. Check out a branch with default/regions/$region, or remove $region_file to use global defaults."
+  fi
+}
+
 link_dev_checkout() {
   local checkout="$1" required
   # Skip file contents only old history holds, like retired theme videos; git
   # fetches whatever a checkout needs when it needs it.
   [[ -d $checkout/.git ]] || git clone --filter=blob:none https://github.com/omacom/omarchy.git "$checkout"
+  validate_dev_region "$checkout"
 
   # Check the destination before changing /etc/omarchy.conf or sudo's path.
   # An existing checkout is not pulled automatically and may predate this policy.
@@ -88,12 +110,30 @@ link_dev_checkout() {
 # /usr/bin/sudo and publish a timestamp, and the destination's own updater
 # authenticates the same way. Neither may run from a flow that has just run
 # user hooks: stop at a consistent point and say how to finish from a fresh
-# session.
+# session. That depends on whether the destination's packages are in: a
+# transaction before the swap can have replaced the tree too.
 stop_for_older_destination() {
-  cat >&2 <<EOF
+  local installed listed line
+  local -a names=()
+
+  # omarchy-dev provides omarchy, so this lists whichever pair is installed.
+  installed=$(pacman -Q omarchy omarchy-settings 2>/dev/null) || true
+  while read -r line; do
+    names+=("${line%% *}")
+  done <<<"$installed"
+  listed=${installed//$'\n'/, }
+
+  if [[ ${names[*]} == "${packages[*]}" ]]; then
+    cat >&2 <<EOF
 The destination predates command-scoped sudo, so this switch stops before its update.
-Packages are switched. Run 'omarchy update' from a new terminal to finish, then reboot if prompted.
+Packages are switched to $listed. Run 'omarchy update' from a new terminal to finish, then reboot if prompted.
 EOF
+  else
+    cat >&2 <<EOF
+A package transaction replaced Omarchy with a release that predates command-scoped sudo, so this switch stops before installing ${packages[*]}.
+Installed now: ${listed:-neither omarchy nor omarchy-settings}. Run 'omarchy channel set $channel' from a new terminal to finish, then reboot if prompted.
+EOF
+  fi
   exit 3
 }
 
