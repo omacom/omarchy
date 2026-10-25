@@ -165,7 +165,10 @@ ShellRoot {
       powerForm.open = true
       var powerViewport = powerForm.loadedContent.parent.parent.parent.parent
       var profile = powerForm.loadedContent.profileButton
+      powerForm.contentHeight = 900
       powerForm.ensureItemVisible(profile)
+      powerForm.contentHeight = 180
+      powerViewport.revealFocusedItem()
       var profilePoint = profile.mapToItem(powerViewport, 0, 0)
       test.check(powerViewport.interactive && profilePoint.y >= 0 && profilePoint.y + profile.height <= powerViewport.height,
         "the production power scroll policy keeps its lower profile controls reachable")

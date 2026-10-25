@@ -57,7 +57,11 @@ PanelWindow {
   // Panels with an existing full-card ScrollView/Flickable must keep their
   // constrained viewport so their keyboard cursor can scroll it normally.
   property bool scrollOverflow: false
-  function ensureItemVisible(item) { contentViewport.revealItem(item) }
+  property Item scrollCursorItem: null
+  function ensureItemVisible(item) {
+    scrollCursorItem = item
+    contentViewport.revealItem(item)
+  }
 
   // The card's height on screen. Content that arrives after the panel is up
   // (a Wi-Fi scan, Bluetooth devices turning up) grows the card toward it
@@ -656,7 +660,9 @@ PanelWindow {
       }
       function revealFocusedItem() {
         var window = contentHolder.Window.window
-        revealItem(window ? window.activeFocusItem : null)
+        var item = window ? window.activeFocusItem : null
+        if (!item || item.height > height) item = root.scrollCursorItem
+        revealItem(item)
       }
       onHeightChanged: Qt.callLater(revealFocusedItem)
       onContentHeightChanged: Qt.callLater(revealFocusedItem)
