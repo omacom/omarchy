@@ -1,9 +1,30 @@
 #!/bin/bash
+# systemd-sleep runs this as "pre" before the freezer suspends, and "post"
+# after resume, while user.slice is still frozen.
+#
+# The lock screen starts fprintd while logind's suspend is already running.
+# fprintd then logs "Failed to install a sleep delay inhibitor"
+# (OperationInProgress) and keeps its claim. Frozen that way, the claim is
+# wedged across resume (https://gitlab.freedesktop.org/libfprint/fprintd/-/issues/173)
+# and the lock screen's finger times out. Stop the daemon before sleep.
+# D-Bus starts a fresh one when the lock screen asks after thaw.
+#
+# The post path used to `systemctl --no-block try-restart`. That job can
+# stop the daemon the lock screen has just opened. A restart from inside
+# this hook also waits on the sleep transaction that is waiting on this
+# hook. After resume, do nothing.
+#
+# A stop that fails, or fprintd that is already stopped, must not fail the
+# sleep. TimeoutStopSec on fprintd is 3s; the timeout is the backstop.
 
-# Suspend can wedge fprintd's claim; restart it after resume to clear it.
-# Upstream: https://gitlab.freedesktop.org/libfprint/fprintd/-/issues/173
-
-if [[ $1 == "post" ]]; then
-  # user.slice stays frozen until this hook returns; enqueue rather than wait.
-  systemctl --no-block try-restart fprintd.service 2>/dev/null || true
-fi
+case ${1:-} in
+pre)
+  if systemctl --quiet is-active fprintd.service; then
+    timeout 5 systemctl stop fprintd.service || true
+    sleep 0.2
+  fi
+  ;;
+post)
+  ;;
+esac
+exit 0
