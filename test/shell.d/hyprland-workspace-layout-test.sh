@@ -65,6 +65,12 @@ toggle_back() {
     PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-workspace-layout-toggle" "$@"
 }
 
+cycle() {
+  env HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" \
+    HYPRCTL_LOG="$log_file" NOTIFICATION_LOG="$notification_log" \
+    PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-workspace-layout-cycle" "$@"
+}
+
 saved_mode() {
   sed -n 's/.*mode = "\([a-z]*\)".*/\1/p' "$layout_file" 2>/dev/null
 }
@@ -500,3 +506,216 @@ toggle
 grep -q "set to tiling" "$notification_log" && ! grep -q "dwindle" "$notification_log" ||
   fail "the notification calls dwindle tiling" "$(cat "$notification_log")"
 pass "the notification calls dwindle tiling"
+
+# Super + L, Super + Alt + L, and a click on the bar's mark all move through the
+# layouts the cycle names, so leaving one out takes it out of reach of all three.
+[[ $(cycle) == "dwindle scrolling floating" ]] ||
+  fail "the cycle names every layout until it is set" "$(cycle)"
+cycle dwindle scrolling >/dev/null
+[[ $(cycle) == "dwindle scrolling" ]] ||
+  fail "the cycle keeps the layouts it is given" "$(cycle)"
+grep -qx -- "-q omarchy.workspaces refreshCycle" "$notification_log" ||
+  fail "the bar is asked to read the cycle again" "$(cat "$notification_log")"
+
+# dwindle is the default here, so cycling on to it forgets the workspace's own
+# layout and the mode file goes away: that is what wrapping looks like.
+printf 'o.workspace_mode({ workspace = "3", mode = "dwindle" })\n' >"$layout_file"
+: >"$log_file"
+toggle
+[[ $(saved_mode) == "scrolling" ]] ||
+  fail "a two-layout cycle goes on to the next layout it names" "saved: $(cat "$layout_file")"
+: >"$log_file"
+toggle
+[[ ! -e $layout_file ]] ||
+  fail "a two-layout cycle wraps round to the first" "saved: $(cat "$layout_file")"
+applied dwindle || fail "the layout wrapped round to is applied" "$(cat "$log_file")"
+toggle_back back
+[[ $(saved_mode) == "scrolling" ]] ||
+  fail "going back from the first layout wraps to the last" "saved: $(cat "$layout_file")"
+pass "the cycle follows the layouts it names"
+
+# One layout in the cycle is nowhere to go, so the press leaves the workspace as
+# it is rather than re-applying the layout already on screen. The bar's mark for
+# the workspace you are on stops being a button for the same reason.
+cycle dwindle >/dev/null
+rm -f "$layout_file"
+: >"$log_file"
+: >"$notification_log"
+toggle
+if grep -q "workspace_mode" "$log_file"; then
+  fail "a cycle of one layout applies nothing" "$(cat "$log_file")"
+fi
+if grep -q "set to" "$notification_log"; then
+  fail "a cycle of one layout announces nothing" "$(cat "$notification_log")"
+fi
+[[ ! -e $layout_file ]] || fail "a cycle of one layout saves nothing" "$(cat "$layout_file")"
+pass "a cycle of one layout does nothing"
+
+# A cycle of one layout must not strand a workspace on a layout it no longer
+# holds: that press brings it into the cycle, and is the only one that does
+# anything then.
+printf 'o.workspace_mode({ workspace = "3", mode = "floating" })\n' >"$layout_file"
+: >"$log_file"
+: >"$notification_log"
+toggle
+[[ ! -e $layout_file ]] ||
+  fail "a one-layout cycle brings a workspace it leaves out into it" "saved: $(cat "$layout_file")"
+applied dwindle || fail "the layout the one-layout cycle names is applied" "$(cat "$log_file")"
+grep -q "set to tiling" "$notification_log" ||
+  fail "the layout a workspace is brought into is announced" "$(cat "$notification_log")"
+pass "a one-layout cycle brings a workspace it leaves out into it"
+
+# A workspace already on a layout the cycle no longer names, such as one left
+# floating before floating was taken out of it, takes the first layout going on
+# and the last going back.
+cycle dwindle scrolling >/dev/null
+printf 'o.workspace_mode({ workspace = "3", mode = "floating" })\n' >"$layout_file"
+: >"$log_file"
+toggle
+[[ ! -e $layout_file ]] ||
+  fail "a layout left out of the cycle is cycled out of" "saved: $(cat "$layout_file")"
+applied dwindle || fail "the first layout in the cycle is applied" "$(cat "$log_file")"
+
+printf 'o.workspace_mode({ workspace = "3", mode = "floating" })\n' >"$layout_file"
+toggle_back back
+[[ $(saved_mode) == "scrolling" ]] ||
+  fail "going back from a layout left out of the cycle takes the last" "saved: $(cat "$layout_file")"
+pass "a workspace on a layout the cycle leaves out moves into it"
+
+# A file edited by hand can name a layout the cycle cannot hold, name one twice,
+# or name nothing. Repeat a mode and the cycle would stop on it twice, so what is
+# read back is what the command would accept.
+printf 'dwindle sideways\ndwindle\n' >"$home_dir/.local/state/omarchy/workspace-layout-cycle"
+[[ $(cycle) == "dwindle" ]] || fail "a layout the cycle cannot hold is ignored" "$(cycle)"
+
+# Only a whole name counts, in lower case, however the file spaces them out.
+printf 'Dwindle\tscrolling\n  scrolling  \n\n' >"$home_dir/.local/state/omarchy/workspace-layout-cycle"
+[[ $(cycle) == "scrolling" ]] || fail "a whole layout name is read whatever the spacing" "$(cycle)"
+
+# A hand-edited file often ends without a newline, and losing the last layout to
+# that would leave the commands on every layout while the bar reads one: the two
+# would disagree about whether a press can change anything.
+printf 'dwindle' >"$home_dir/.local/state/omarchy/workspace-layout-cycle"
+[[ $(cycle) == "dwindle" ]] ||
+  fail "a cycle file with no final newline still names its last layout" "$(cycle)"
+printf 'dwindle scrolling' >"$home_dir/.local/state/omarchy/workspace-layout-cycle"
+[[ $(cycle) == "dwindle scrolling" ]] ||
+  fail "a cycle file with no final newline names every layout it holds" "$(cycle)"
+
+printf 'sideways\nnonsense\n' >"$home_dir/.local/state/omarchy/workspace-layout-cycle"
+[[ $(cycle) == "dwindle scrolling floating" ]] ||
+  fail "a cycle file with no layout to hold means every layout" "$(cycle)"
+
+: >"$home_dir/.local/state/omarchy/workspace-layout-cycle"
+[[ $(cycle) == "dwindle scrolling floating" ]] ||
+  fail "an empty cycle file means every layout" "$(cycle)"
+
+# A cycle path that is not a file at all reads as no cycle rather than breaking
+# the command the bar and the keys depend on.
+rm -f "$home_dir/.local/state/omarchy/workspace-layout-cycle"
+mkdir -p "$home_dir/.local/state/omarchy/workspace-layout-cycle"
+[[ $(cycle) == "dwindle scrolling floating" ]] ||
+  fail "a cycle that is not a file means every layout" "$(cycle)"
+
+# Saving over that must fail rather than move the scratch file into the
+# directory and report a cycle that was never saved.
+if cycle dwindle 2>/dev/null; then
+  fail "the cycle refuses to save over something that is not a file"
+fi
+[[ -z $(find "$home_dir/.local/state/omarchy/workspace-layout-cycle" -mindepth 1 -print -quit) ]] ||
+  fail "a refused save leaves nothing in the way"
+[[ -z $(find "$home_dir/.local/state/omarchy" -name ".workspace-layout-cycle.*" -print -quit) ]] ||
+  fail "a refused save leaves no scratch file"
+rmdir "$home_dir/.local/state/omarchy/workspace-layout-cycle"
+pass "a hand-edited cycle file is read back"
+
+if cycle sideways 2>/dev/null; then
+  fail "the cycle refuses a layout it cannot hold"
+fi
+[[ $(cycle) == "dwindle scrolling floating" ]] ||
+  fail "a refused layout leaves the cycle as it was" "$(cycle)"
+cycle dwindle dwindle scrolling >/dev/null
+[[ $(cycle) == "dwindle scrolling" ]] || fail "a repeated layout is kept once" "$(cycle)"
+pass "the cycle refuses a layout it cannot hold"
+
+# A state directory that cannot be made leaves the cycle unsaved and says so by
+# failing, rather than reporting a choice that will not survive.
+blocked="$tmpdir/cycle-blocked"
+printf 'not a directory\n' >"$blocked"
+if env HOME="$home_dir" XDG_STATE_HOME="$blocked" PATH="$stub_dir:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-hyprland-workspace-layout-cycle" floating 2>/dev/null; then
+  fail "the cycle refuses to save where there is nowhere to save"
+fi
+pass "the cycle refuses to save where there is nowhere to save"
+
+# A save that fails must not take the saved cycle with it: an empty file would
+# read as every layout, putting the excluded ones back within reach.
+cycle dwindle scrolling >/dev/null
+layout_state="$home_dir/.local/state/omarchy"
+if (( EUID != 0 )); then
+  chmod 500 "$layout_state"
+  if cycle dwindle 2>/dev/null; then
+    chmod 700 "$layout_state"
+    fail "the cycle refuses to save where it cannot write"
+  fi
+  chmod 700 "$layout_state"
+  [[ $(cycle) == "dwindle scrolling" ]] ||
+    fail "a failed save leaves the saved cycle as it was" "$(cycle)"
+  [[ -s $layout_state/workspace-layout-cycle ]] ||
+    fail "a failed save leaves no empty cycle file"
+  [[ -z $(find "$layout_state" -name ".workspace-layout-cycle.*" -print -quit) ]] ||
+    fail "a failed save leaves no scratch file"
+  pass "a failed save leaves the saved cycle as it was"
+else
+  skip "a failed save leaves the saved cycle as it was"
+fi
+
+# The cycle lives under the same state home as the saved modes, so a session that
+# moves XDG_STATE_HOME keeps the choice with the layouts it applies to.
+cycle_state="$tmpdir/cycle-state"
+env HOME="$home_dir" XDG_STATE_HOME="$cycle_state" NOTIFICATION_LOG="$notification_log" \
+  PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-workspace-layout-cycle" floating
+[[ $(cat "$cycle_state/omarchy/workspace-layout-cycle") == "floating" ]] ||
+  fail "the cycle is saved under XDG_STATE_HOME"
+pass "the cycle is saved under XDG_STATE_HOME"
+
+# The bar reads the same file to decide whether the mark for the workspace it
+# shows can do anything, so a file it cannot make sense of must read as every
+# layout rather than as a cycle the commands would not follow.
+run_node_test <<'JS'
+const model = requireFromRoot('shell/plugins/bar/widgets/WorkspacesModel.js')
+
+const everyLayout = ['dwindle', 'scrolling', 'floating']
+
+assertDeepEqual(model.parseCycle(''), everyLayout, 'no cycle file means every layout')
+assertDeepEqual(model.parseCycle(' \n\t '), everyLayout, 'a blank cycle file means every layout')
+assertDeepEqual(model.parseCycle(undefined), everyLayout, 'a missing file text means every layout')
+assertDeepEqual(model.parseCycle(null), everyLayout, 'a file read as null means every layout')
+assertDeepEqual(model.parseCycle(42), everyLayout, 'a file read as something else means every layout')
+assertDeepEqual(model.parseCycle('dwindle'), ['dwindle'], 'a cycle names the one layout it holds')
+assertDeepEqual(model.parseCycle('dwindle scrolling'), ['dwindle', 'scrolling'], 'a cycle keeps the layouts it names, in order')
+assertDeepEqual(model.parseCycle('scrolling\ndwindle'), ['scrolling', 'dwindle'], 'a cycle keeps the order it was written in')
+assertDeepEqual(model.parseCycle('dwindle\tscrolling\n\nfloating'), everyLayout, 'any spacing separates the layouts')
+assertDeepEqual(model.parseCycle('dwindle dwindle scrolling'), ['dwindle', 'scrolling'], 'a layout named twice is kept once')
+assertDeepEqual(model.parseCycle('Dwindle'), everyLayout, 'a layout name in the wrong case is not a layout')
+assertDeepEqual(model.parseCycle('dwin'), everyLayout, 'part of a layout name is not a layout')
+assertDeepEqual(model.parseCycle('sideways nonsense'), everyLayout, 'a file naming no layout to hold means every layout')
+assertDeepEqual(model.parseCycle('sideways floating'), ['floating'], 'a layout the cycle cannot hold is ignored')
+assertDeepEqual(model.parseCycle('floating sideways floating'), ['floating'], 'ignored and repeated layouts leave the ones that count once')
+
+// A cycle the widget holds is its own: defaulting must not hand back the
+// module's list itself, or changing one widget's cycle would change the default.
+model.parseCycle('dwindle').push('floating')
+assertDeepEqual(model.parseCycle(''), everyLayout, 'a cycle the widget changed leaves the default alone')
+
+// Whether a press on the shown workspace's mark would change anything, which is
+// what decides if it is a button. A cycle of one layout is a readout on that
+// layout and a way back out of any other.
+assertEqual(model.canChange(everyLayout, 'dwindle'), true, 'a cycle of every layout can move on')
+assertEqual(model.canChange(['dwindle', 'scrolling'], 'scrolling'), true, 'a two-layout cycle can move on')
+assertEqual(model.canChange(['dwindle'], 'dwindle'), false, 'a one-layout cycle does nothing on its own layout')
+assertEqual(model.canChange(['dwindle'], 'floating'), true, 'a one-layout cycle moves a workspace on another layout into it')
+assertEqual(model.canChange(['dwindle'], 'scrolling'), true, 'a one-layout cycle moves a workspace on any other layout into it')
+assertEqual(model.canChange([], 'dwindle'), false, 'an empty cycle cannot move anything')
+assertEqual(model.canChange(undefined, 'dwindle'), false, 'a missing cycle cannot move anything')
+JS
