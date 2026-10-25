@@ -83,6 +83,12 @@
   "appearance.theme": {
     "label": "Theme"
   },
+  "appearance.theme-next": {
+    "label": "Next Theme"
+  },
+  "appearance.theme-prev": {
+    "label": "Previous Theme"
+  },
   "appearance.background": {
     "label": "Background"
   },

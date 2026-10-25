@@ -54,6 +54,8 @@
 
   // Appearance
   "appearance.theme": {"icon":"󰸌","label":"Theme","aliases":["theme","themes"],"action":"omarchy-shell shell summon omarchy.image-picker '{\"source\":\"themes\"}'"},
+  "appearance.theme-next": {"icon":"󰸌","label":"Next Theme","action":"omarchy-theme-next"},
+  "appearance.theme-prev": {"icon":"󰸌","label":"Previous Theme","action":"omarchy-theme-prev"},
   "appearance.background": {"icon":"","label":"Background","aliases":["background","wallpaper"],"action":"background=$(omarchy-theme-bg-switcher); [[ -n $background ]] && omarchy-theme-bg-set \"$background\""},
   "appearance.font": {"icon":"","label":"Font","provider":"fonts"},
   "appearance.top-bar": {"icon":"󰍜","label":"Menu Bar"},
