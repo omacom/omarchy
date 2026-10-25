@@ -44,10 +44,10 @@ while (($#)); do
 done
 
 if (( interactive )); then
-  echo "Set the name and email used for your git commits."
+  omarchy-i18n gitSetup.intro
   echo
-  name=$(gum input --value "$name" --placeholder "Your full name" --prompt "Full name> ")
-  email=$(gum input --value "$email" --placeholder "you@example.com" --prompt "Email address> ")
+  name=$(gum input --no-show-help --value "$name" --placeholder "$(omarchy-i18n gitSetup.namePlaceholder)" --prompt "$(omarchy-i18n gitSetup.namePrompt)")
+  email=$(gum input --no-show-help --value "$email" --placeholder "you@example.com" --prompt "$(omarchy-i18n gitSetup.emailPrompt)")
   set_name=1 set_email=1
 fi
 
@@ -88,12 +88,12 @@ fi
 if (( interactive )); then
   echo
   if omarchy-cmd-missing gh; then
-    echo "The GitHub CLI (gh) is not installed, so skipping GitHub sign-in."
+    omarchy-i18n gitSetup.ghMissing
   # Only a gh that has signed in before is asked, as running the lazy shim installs it.
   elif grep -qs "^github.com:" "${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}/hosts.yml" &&
     gh auth status --hostname github.com >/dev/null 2>&1; then
-    echo "Already signed in to GitHub."
-  elif gum confirm "Sign in to GitHub?"; then
+    omarchy-i18n gitSetup.ghSignedIn
+  elif gum confirm --no-show-help --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n gitSetup.ghSignIn)"; then
     gh auth login
   fi
 fi

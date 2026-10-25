@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Användare"
   },
-  "system.reboot-boot-menu": {
-    "label": "Starta om till startmenyn"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Kraschloggning av"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Laptopskärm på"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Laptopskärm av"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Skärmspegling på"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Skärmspegling av"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Växla till hybrid-GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Växla till integrerad GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Aktivera styrplatta"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Inaktivera styrplatta"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Aktivera pekskärm"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Inaktivera pekskärm"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kärna"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Visa batteri %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Dölj batteri %"
+  },
+  "appearance.windows": {
+    "label": "Fönster"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Fönstermellanrum på"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Fönstermellanrum av"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-fönsterformat på"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-fönsterformat av"
+  },
+  "appearance.branding": {
+    "label": "Varumärke"
+  },
+  "appearance.animations-on": {
+    "label": "Animationer på"
+  },
+  "appearance.animations-off": {
+    "label": "Animationer av"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Håll vaken"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Tillåt viloläge"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Aviseringar på"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Tysta aviseringar"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nattljus på"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nattljus av"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Skärmsläckare på"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Skärmsläckare av"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Kraschinsamling på"
   }
 }

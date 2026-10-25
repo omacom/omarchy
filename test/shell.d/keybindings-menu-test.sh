@@ -51,16 +51,16 @@ keybindings() {
     bash "$menu" --print
 }
 
-# Closing a window and toggling the scratchpad are two of the actions Omarchy
-# binds twice on purpose. The last bind carries the longest description Omarchy
-# ships, which is what puts a row closest to the width the menu allows.
+# Closing a window is one of the actions Omarchy binds twice on purpose. The
+# last bind carries the longest description Omarchy ships, which is what puts a
+# row closest to the width the menu allows.
 stub_hyprctl <<BINDS
 $(lua_bind 64 "SUPER + W" "Close window")
 $(lua_bind 64 "SUPER + Q" "Close window")
 $(lua_bind 64 "SUPER + F" "Full screen")
 $(lua_bind 64 "SUPER + I" "Switch input language")
 $(lua_bind 64 "SUPER + S" "Toggle scratchpad")
-$(lua_bind 64 "SUPER + grave" "Toggle scratchpad")
+$(lua_bind 64 "SUPER + grave" "Toggle Quake console")
 $(exec_bind 73 "SUPER SHIFT ALT + 0" "Move window silently to workspace 10" "true")
 BINDS
 
@@ -98,7 +98,7 @@ grep -q '^SUPER + W / SUPER + Q' <<<"$rendered" ||
 pass "the chord declared first leads a shared row"
 
 # Hyprland calls the key left of 1 "grave". Nobody reads their keyboard that way.
-grep -q 'SUPER + S / SUPER + ~  *→ Toggle scratchpad' <<<"$rendered" ||
+grep -q 'SUPER + ~  *→ Toggle Quake console' <<<"$rendered" ||
   fail "the grave key reads as the symbol printed on it" "$rendered"
 ! grep -q 'grave' <<<"$rendered" ||
   fail "no entry still says grave" "$rendered"
@@ -141,13 +141,13 @@ bind
 	key: 
 	keycode: 49
 	catchall: false
-	description: Toggle scratchpad
+	description: Toggle Quake console
 	dispatcher: exec
 	arg: true
 BINDS
 
 rendered=$(keybindings)
-grep -q 'SUPER + ~  *→ Toggle scratchpad' <<<"$rendered" ||
+grep -q 'SUPER + ~  *→ Toggle Quake console' <<<"$rendered" ||
   fail "a keycode resolves to the symbol printed on the key too" "$rendered"
 pass "a keycode resolves to the symbol printed on the key too"
 
@@ -236,8 +236,6 @@ pass "chords whose dispatch is unknown stay apart"
 expected_alternatives=(
   "Close window"
   "Calculator"
-  "Toggle scratchpad"
-  "Move window to scratchpad"
 )
 
 eval "$(sed -n '/^alternative_chord_actions()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings")"

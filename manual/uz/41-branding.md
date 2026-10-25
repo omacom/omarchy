@@ -1,55 +1,55 @@
-# Branding
+# Brending
 
-Omarchy sizga ham yuklash ochilishi, ham ekran saqlagich, ham haqida ekrani uchun kompaniya logotipingizni yoki shaxsiy rasmingizni oʻrnatish imkonini beradi.
+Omarchy sizga kompaniyangiz logotipini yoki shaxsiy rasmingizni yuklanishda qulfni ochish ekrani, ekran saqlagichi va "Haqida" ekrani uchun o'rnatish imkonini beradi.
 
-### Yuklash ochilishi
+### Yuklanishda qulfni ochish
 
-Maxsus logotipingiz va ranglaringiz qanday koʻrinishini koʻrish uchun `omarchy plymouth preview` dan foydalanishingiz mumkin. Bu orqa fon rangini, matn rangini, logotip png sini va oldindan koʻrish rasmi uchun yoʻlni oladi:
+Maxsus logotipingiz va ranglaringiz qanday ko'rinishini ko'rish uchun `omarchy plymouth preview` dan foydalanishingiz mumkin. U fon rangini, matn rangini, logo png faylini va ko'rib chiqish rasmi uchun yo'lni qabul qiladi:
 
 ```
 omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
 ```
 
-Keyin sozlashni `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png` bilan qoʻllang, bu SDDM kirish ekraniga ham bir xil ranglar va logotipni beradi. Agar qaytarishni istasangiz, `omarchy plymouth reset` dan foydalanishingiz mumkin.
+Keyin `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png` bilan sozlamani qo'llang; bu SDDM kirish ekraniga ham xuddi shu ranglar va logotipni beradi. Agar qaytarishni istasangiz, `omarchy plymouth reset` dan foydalanishingiz mumkin.
 
  ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
 
-### Ekran saqlagich
+### Ekran saqlagichi
 
-Ekran saqlagich uchun ishlatiladigan logotipni _Uslub > Ekran saqlagich_ ostida oʻzgartirishingiz mumkin. Bu ASCII logotip, shuning uchun matnni toʻgʻridan-toʻgʻri tahrirlashingiz mumkin, lekin unga png yoki svg rasmini ham berishingiz mumkin va biz uni ASCII ga aylantiramiz. Bu juda salqin koʻrinadi.
+Ekran saqlagichi uchun ishlatiladigan logotipni _Tashqi ko'rinish > Brending > Ekran saqlagichi_ bo'limida o'zgartirishingiz mumkin. Bu ASCII logotip, shuning uchun matnni to'g'ridan-to'g'ri tahrirlashingiz mumkin, lekin unga png yoki svg rasm ham berishingiz mumkin, biz esa uni ASCII ga aylantiramiz. Juda zo'r ko'rinadi.
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
-Bu menyuda uchta yozuv mavjud:
+O'sha menyuda uchta band bor:
 
-- **Matnni tahrirlash** muharriringizda `~/.config/omarchy/branding/screensaver.txt` ni ochadi. Istaganingizni yozing yoki joylashtiring — ASCII sanʼati, ismingiz, qoʻpol soʻz. Saqlang va chiqing va ekran saqlagich darhol ishga tushadi, shunda koʻrishingiz mumkin.
-- **Rasmdan oʻrnatish** png yoki svg uchun fayl tanlagichni ochadi, uni ASCII ga aylantiradi va natijani koʻrsatadi. Aniq siluetga ega logotiplar fotosuratlarga qaraganda ancha yaxshiroq ishlaydi.
-- **Standartni tiklash** Omarchy logotipini qayta qoʻyadi.
+- **Matnni tahrirlash** muharriringizda `~/.config/omarchy/branding/screensaver.txt` ni ochadi. Xohlaganingizni yozing yoki joylashtiring — ASCII san'at, ismingiz, qo'pol bir so'z. Saqlang va chiqing, ekran saqlagichi uni ko'rishingiz uchun darhol ishga tushadi.
+- **Rasmdan o'rnatish** png yoki svg uchun fayl tanlagichni ochadi, uni ASCII ga aylantiradi va natijani ko'rsatadi. Aniq siluetga ega logotiplar fotosuratlarga qaraganda ancha yaxshi ishlaydi.
+- **Standartni tiklash** Omarchy logotipini qaytarib qo'yadi.
 
-### Haqida ekrani
+### "Haqida" ekrani
 
-Xuddi shu uchta variant Omarchy menyusidan oladigan _Haqida_ ekrani uchun _Uslub > Haqida_ ostida joylashgan va ular bir xil ishlaydi — fayl `~/.config/omarchy/branding/about.txt` va Haqida oynasi har bir oʻzgarishdan keyin paydo boʻladi. Haqida sanʼati ekran saqlagichga qaraganda kichikroq oʻlchamga aylantiriladi, chunki u displeyingizni toʻldirish oʻrniga oynaga sigʻishi kerak.
+Xuddi shu uchta variant Omarchy menyusidan oladigan _Haqida_ ekraningiz uchun _Tashqi ko'rinish > Brending > Haqida_ bo'limida ham bor va ular xuddi shunday ishlaydi — fayl `~/.config/omarchy/branding/about.txt`, "Haqida" oynasi esa har bir o'zgarishdan keyin ochiladi. "Haqida" rasmi ekran saqlagichinikiga qaraganda kichikroq o'lchamga aylantiriladi, chunki u butun displeyni to'ldirmasdan, oynaga sig'ishi kerak.
 
-Oyna ochiq boʻlganda har bir necha soniyalarda yashil nur sanʼat boʻylab qiyshayib oʻtadi va keyin uni yana harakatsiz qoldiradi. Oʻzingizning sanʼatingiz ham uni oladi, agar undagi har bir belgi bir ustun kengligida boʻlsa — _Rasmdan oʻrnatish_ chiqaradigan har narsa shunday. Emoji yoki ikki kenglik belgilaridan tuzilgan sanʼat uning oʻrniga harakatsiz qoladi va agar siz oʻzingizning fastfetch konfiguratsiyangizni saqlasangiz, ekran ham shunday boʻladi: bunday hollarda harakatsiz logotip animatsiyaning muvaffaqiyatsiz boʻlish oʻrniga yoʻldan chetlanganidir, chunki ular boʻylab nurni surish chiziqning qolgan qismini notoʻgʻri joyga tushirardi.
+Oyna ochiq ekan, har bir necha soniyada rasm ustidan yashil shu'la egilib o'tadi va keyin uni yana harakatsiz qoldiradi. Sizning o'z rasmingiz ham shuni oladi, basharti undagi har bir belgi bir ustun kengligida bo'lsa — _Rasmdan o'rnatish_ yaratgan har qanday narsa shunday. Emoji yoki qo'sh kenglikdagi belgilardan qurilgan rasm buning o'rniga harakatsiz qoladi, agar o'zingizning fastfetch konfiguratsiyangizni saqlasangiz, ekran ham shunday qoladi: bunday hollarda harakatsiz logotip animatsiya ishlamay qolgani emas, balki u yo'ldan chetga chiqayotgani, chunki shu'lani ular ustidan sirpantirish qatorning qolgan qismini noto'g'ri joyga tushirib qo'ygan bo'lardi.
 
  ![branding-about](images/branding-about.webp)
 
-### Rasmlarni oʻzingiz aylantirish
+### Rasmlarni o'zingiz aylantirish
 
-_Rasmdan oʻrnatish_ variantlari ikkalasi ham `omarchy transcode ascii` ni chaqirmoqda xolos, agar aylantirish ustidan nazorat istasangiz, uni toʻgʻridan-toʻgʻri ishlatishingiz mumkin:
+Ikkala _Rasmdan o'rnatish_ varianti ham shunchaki `omarchy transcode ascii` ni chaqiradi, aylantirishni nazorat qilishni istasangiz, uni to'g'ridan-to'g'ri ham ishga tushirishingiz mumkin:
 
 ```
 omarchy transcode ascii ~/logo.svg ~/.config/omarchy/branding/screensaver.txt --width 100
 ```
 
-Bu terminal ustunlari va qatorlarda `--width` va `--height` ni, `braille` (standart va ancha nozik) yoki `block` dan birining `--mode` ini, qaysi piksellar logotipning bir qismi sifatida hisoblanishini hal qiladigan `--threshold` foizni va logotipingiz qoramtir fonda och boʻlganda `--invert` ni oladi. Agar aylantirish parcha sifatida chiqsa, chegara odatda burilishi kerak boʻlgan tutqichdir.
+U terminal ustunlari va qatorlarida `--width` va `--height` ni, `braille` (standart va ancha nozikroq) yoki `block` dan biri bo'lgan `--mode` ni, qaysi piksellar logotipning bir qismi deb hisoblanishini hal qilish uchun foiz ko'rinishidagi `--threshold` ni va logotipingiz to'q fonda och rangda bo'lganda `--invert` ni qabul qiladi. Agar aylantirish dog' bo'lib chiqsa, odatda burash kerak bo'lgan tugma threshold hisoblanadi.
 
-### Logotip oʻrniga soʻzlar
+### Logotip o'rniga so'zlar
 
-`omarchy ascii` matnni Delta Corps Priest 1 da chizadi, Omarchy soʻz markasining oʻzi chizilgan FIGlet shrifti, shunday qilib ekran saqlagich rasm koʻrsatish oʻrniga biror narsa aytishi mumkin:
+`omarchy ascii` matnni Delta Corps Priest 1 da, Omarchy so'z belgisi chizilgan FIGlet shriftida chizadi, shuning uchun ekran saqlagichi rasm ko'rsatish o'rniga biror narsa deyishi mumkin:
 
 ```
 omarchy ascii "Back in five" > ~/.config/omarchy/branding/screensaver.txt
 ```
 
-Bu matnni argumentlar sifatida oladi yoki hech narsa berilmaganda uni quvurdan oʻqiydi. Shrift faqat harflar va boʻshliqlarni oʻz ichiga oladi — u raqamlar yoki tinish belgilarisiz chizilgan — shuning uchun boshqa har narsa tushirib qoldiriladi va jimgina yutilish oʻrniga stderr da nomlanadi.
+U matnni argumentlar sifatida qabul qiladi yoki hech narsa berilmasa, uni pipe orqali o'qiydi. Shrift faqat harflar va bo'shliqlarni o'z ichiga oladi — u raqamlar va tinish belgilarisiz chizilgan — shuning uchun boshqa har qanday narsa jimgina yutib yuborilmasdan, tashlab yuboriladi va stderr da nomi aytiladi.

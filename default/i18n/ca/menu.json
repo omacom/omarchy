@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Usuari"
   },
-  "system.reboot-boot-menu": {
-    "label": "Reinicia al menú d'arrencada"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Desactiva la captura d'errors"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Activa la pantalla del portàtil"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Desactiva la pantalla del portàtil"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Activa la duplicació de pantalla"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Desactiva la duplicació de pantalla"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Canvia a la GPU híbrida"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Canvia a la GPU integrada"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Activa el touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Desactiva el touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Activa la pantalla tàctil"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Desactiva la pantalla tàctil"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Mostra el % de bateria"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Amaga el % de bateria"
+  },
+  "appearance.windows": {
+    "label": "Finestres"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Espais entre finestres activats"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Espais entre finestres desactivats"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Proporció d'1 finestra activada"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Proporció d'1 finestra desactivada"
+  },
+  "appearance.branding": {
+    "label": "Marca"
+  },
+  "appearance.animations-on": {
+    "label": "Animacions activades"
+  },
+  "appearance.animations-off": {
+    "label": "Animacions desactivades"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Mantén despert"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Permet la suspensió"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Notificacions activades"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Silencia les notificacions"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Llum nocturna activada"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Llum nocturna desactivada"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Estalvi de pantalla activat"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Estalvi de pantalla desactivat"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Captura de fallades activada"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Nucli"
   }
 }

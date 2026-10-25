@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "ผู้ใช้"
   },
-  "system.reboot-boot-menu": {
-    "label": "รีบูตไปยังเมนูบูต"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "แสดง % แบตเตอรี่"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "ซ่อน % แบตเตอรี่"
+  },
+  "appearance.windows": {
+    "label": "หน้าต่าง"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "เปิดช่องว่างหน้าต่าง"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "ปิดช่องว่างหน้าต่าง"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "เปิดสัดส่วนหน้าต่างเดียว"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "ปิดสัดส่วนหน้าต่างเดียว"
+  },
+  "appearance.branding": {
+    "label": "แบรนด์"
+  },
+  "appearance.animations-on": {
+    "label": "เปิดแอนิเมชัน"
+  },
+  "appearance.animations-off": {
+    "label": "ปิดแอนิเมชัน"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "ห้ามพักเครื่อง"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "ให้พักเครื่องได้"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "เปิดการแจ้งเตือน"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "เงียบการแจ้งเตือน"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "เปิดแสงกลางคืน"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "ปิดแสงกลางคืน"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "เปิดพักหน้าจอ"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "ปิดพักหน้าจอ"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "เปิดบันทึกการขัดข้อง"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "ปิดบันทึกการขัดข้อง"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "เปิดจอแล็ปท็อป"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "ปิดจอแล็ปท็อป"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "เปิดสะท้อนหน้าจอ"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "ปิดการสะท้อนจอ"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "ใช้ GPU ไฮบริด"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "ใช้ GPU ในตัว"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "เปิดทัชแพด"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "ปิดทัชแพด"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "เปิดจอสัมผัส"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "ปิดจอสัมผัส"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "เคอร์เนล"
   }
 }
