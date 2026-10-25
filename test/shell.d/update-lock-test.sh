@@ -484,6 +484,22 @@ done
 as_account b omarchy-update-lock run true || fail "the machine-wide lock is free once that update ends"
 pass "the update that installs the machine-wide lock holds it until it ends"
 
+# The lock can also come from one of that update's migrations, which carries
+# the update onto it before the next migration runs.
+mkdir -p "$machine_dir/installs/migrations"
+printf ': >"$TEST_LOCK"; chmod 444 "$TEST_LOCK"\n' >"$machine_dir/installs/migrations/100-lock.sh"
+printf 'if flock -n "$TEST_LOCK" true; then echo free; else echo held; fi >>"$TEST_CALLS"\n' >"$machine_dir/installs/migrations/200-next.sh"
+rm -f "$machine_lock"
+as_account a env OMARCHY_PATH="$machine_dir/installs" OMARCHY_MIGRATION_STATE="$machine_dir/state-installs" \
+  OMARCHY_MIGRATION_RECORD="$machine_dir/no-record" TEST_CALLS="$machine_dir/calls-installs" TEST_LOCK="$machine_lock" \
+  omarchy-update-lock run "$ROOT/bin/omarchy-migrate" >/dev/null || fail "an update whose migration creates the machine-wide lock runs its migrations"
+[[ $(cat "$machine_dir/calls-installs") == "held" ]] || fail "the migration after the one that creates the machine-wide lock runs with it held"
+for _ in {1..100}; do
+  as_account b omarchy-update-lock run true 2>/dev/null && break
+  sleep 0.05
+done
+pass "an update carries onto the machine-wide lock right after the migration that creates it"
+
 # If another account's update holds the machine-wide lock by then, that
 # update's migrations stop rather than run alongside it.
 rm -f "$machine_lock" "$machine_dir/go" "$machine_dir/a-started" "$machine_dir/a-result"
