@@ -50,6 +50,8 @@ Item {
   property string pendingPassword: ""
   property string failureMessage: ""
   property int failedAttempts: 0
+  // Bumped on every failed attempt, password or fingerprint, to shake the field.
+  property int failureCount: 0
   property string backgroundPath: ""
   property string videoPosterPath: ""
   property int backgroundVersion: 0
@@ -195,6 +197,7 @@ Item {
     pendingPassword = ""
     failureMessage = ""
     failedAttempts = 0
+    failureCount = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
     fingerprintUnreachedStreak = 0
@@ -382,6 +385,17 @@ Item {
     pendingPassword = ""
     failedAttempts += 1
     failureMessage = I18n.t("lock.authenticationFailed").arg(I18n.formatNumber(failedAttempts))
+    failureCount += 1
+    runWake()
+  }
+
+  // A touch that does not match otherwise leaves the lock silent, and the
+  // blank countdown darkens the panel while the user is still retrying.
+  function handleFingerprintMismatch() {
+    if (!lockRequested) return
+
+    failureMessage = I18n.t("lock.fingerprintNotRecognized")
+    failureCount += 1
     runWake()
   }
 
@@ -515,6 +529,7 @@ Item {
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
+        failureCount: root.failureCount
         inputEnabled: root.lockRequested
         loadBackground: root.locked
         passwordText: root.enteredPassword
@@ -592,6 +607,7 @@ Item {
 
     onPamMessage: {
       if (!messageIsError) root.noteFingerprintReachedDevice()
+      else if (root.fingerprintAttemptReachedDevice) root.handleFingerprintMismatch()
     }
 
     onCompleted: function(result) {
