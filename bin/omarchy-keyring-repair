@@ -1,0 +1,179 @@
+#!/usr/bin/python3
+# omarchy:summary=Repair corrupted multiline secrets in Omarchy cleartext default keyring
+# omarchy:hidden=true
+"""Normalizes corrupted cleartext GNOME Keyring files without data loss.
+
+In gnome-keyring up through 1:51.1-1, generate_item() in
+pkcs11/secret-store/gkm-secret-textual.c writes the 'secret' property using
+g_key_file_set_value() without newline or backslash escaping. Applications
+storing multiline payloads (such as Proton VPN SSO or FlutterSecureStorage)
+cause raw continuation lines to be written to disk. On subsequent starts,
+gnome-keyring-daemon drops the file as invalid/unrecognized format.
+
+This utility parses the cleartext keyfile, folds unescaped continuation lines
+under 'secret=' into standard GLib-escaped sequences (\\n, \\\\), ensures the
+[keyring] header sits at line 1, and commits changes atomically with mode 0600.
+Encrypted binary keyrings (GnomeKeyring\n\r\0) are strictly untouched.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+
+def escape_keyfile_string(value: str) -> str:
+    """Escape backslashes and newlines per GLib GKeyFile specification."""
+    # Order matters: escape backslashes first, then control characters
+    return (
+        value.replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
+
+
+def repair_keyring_content(content: str) -> tuple[str, bool]:
+    """Parse GKeyFile format and fold unescaped multiline secret continuation lines.
+
+    Returns (repaired_content, was_modified).
+    """
+    lines = content.splitlines(keepends=True)
+    if not lines:
+        return content, False
+
+    # Invariant: Must begin with [keyring] header
+    first_non_empty = next((line.strip() for line in lines if line.strip()), "")
+    if not first_non_empty.startswith("[keyring]"):
+        # Do not modify encrypted binary keyrings or foreign formats
+        return content, False
+
+    output_lines: list[str] = []
+    modified = False
+    in_secret = False
+    secret_acc: list[str] = []
+
+    def flush_secret() -> None:
+        nonlocal in_secret, secret_acc, modified
+        if not in_secret:
+            return
+        if len(secret_acc) > 1:
+            # Multiline secret detected: fold into single escaped line
+            combined = "\n".join(secret_acc)
+            escaped = escape_keyfile_string(combined)
+            output_lines.append(f"secret={escaped}\n")
+            modified = True
+        elif len(secret_acc) == 1:
+            output_lines.append(f"secret={secret_acc[0]}\n")
+        in_secret = False
+        secret_acc = []
+
+    for raw_line in lines:
+        line = raw_line.rstrip("\r\n")
+        stripped = line.strip()
+
+        # Check for section header
+        if stripped.startswith("[") and stripped.endswith("]"):
+            flush_secret()
+            output_lines.append(raw_line)
+            continue
+
+        # Check for comments or blank lines
+        if not stripped or stripped.startswith("#"):
+            flush_secret()
+            output_lines.append(raw_line)
+            continue
+
+        # Check for key=value
+        if "=" in line:
+            key, val = line.split("=", 1)
+            key_clean = key.strip()
+            if key_clean == "secret":
+                flush_secret()
+                in_secret = True
+                secret_acc.append(val)
+                continue
+            else:
+                flush_secret()
+                output_lines.append(raw_line)
+                continue
+
+        # Continuation line without key=
+        if in_secret:
+            secret_acc.append(line)
+        else:
+            output_lines.append(raw_line)
+
+    flush_secret()
+
+    # Enforce header at line 1
+    if output_lines:
+        first_idx = next((i for i, l in enumerate(output_lines) if l.strip()), 0)
+        if output_lines[first_idx].strip() != "[keyring]":
+            header_idx = next(
+                (i for i, l in enumerate(output_lines) if l.strip() == "[keyring]"),
+                None,
+            )
+            if header_idx is not None:
+                header_line = output_lines.pop(header_idx)
+                output_lines.insert(0, header_line)
+                modified = True
+
+    return "".join(output_lines), modified
+
+
+def repair_keyring_file(path: Path) -> bool:
+    if not path.is_file():
+        return False
+
+    try:
+        raw_bytes = path.read_bytes()
+        # Binary encrypted keyring check (GnomeKeyring header)
+        if raw_bytes.startswith(b"GnomeKeyring\n\r\0") or raw_bytes.startswith(b"GNUPG"):
+            return False
+
+        text = raw_bytes.decode("utf-8", errors="surrogateescape")
+    except OSError:
+        return False
+
+    repaired_text, modified = repair_keyring_content(text)
+    if not modified:
+        return False
+
+    # Atomic write with mode 0600
+    tmp_path = path.with_name(f".{path.name}.tmp.{os.getpid()}")
+    try:
+        tmp_path.write_text(repaired_text, encoding="utf-8", errors="surrogateescape")
+        os.chmod(tmp_path, 0o600)
+        os.replace(tmp_path, path)
+        return True
+    except OSError as err:
+        sys.stderr.write(f"omarchy-keyring-repair: failed to commit {path}: {err}\n")
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+        return False
+
+
+def main() -> int:
+    keyring_dir = Path(os.environ.get("OMARCHY_KEYRING_DIR", Path.home() / ".local/share/keyrings"))
+    if not keyring_dir.is_dir():
+        return 0
+
+    repaired_any = False
+    for keyring_file in keyring_dir.glob("*.keyring"):
+        if repair_keyring_file(keyring_file):
+            repaired_any = True
+
+    if repaired_any:
+        sys.stderr.write("omarchy-keyring-repair: recovered corrupt multiline secrets\n")
+
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception as exc:  # pylint: disable=broad-except
+        sys.stderr.write(f"omarchy-keyring-repair: unexpected error: {exc}\n")
+        sys.exit(0)
