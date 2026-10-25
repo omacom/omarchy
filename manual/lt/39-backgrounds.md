@@ -1,15 +1,15 @@
 # Fonai
 
-Kiekviena tema pateikiama su savo fonų rinkiniu, o savų galite pridėti į `~/.config/omarchy/backgrounds/[theme]`. Jei norite, pavyzdžiui, prie nord temos pridėti papildomą fono paveikslėlį, tiesiog įdėkite failą į `~/.config/omarchy/backgrounds/nord`.
+Kiekviena tema pateikiama su savo fonų rinkiniu, o papildomų savo fonų galite pridėti į `~/.config/omarchy/backgrounds/[theme]`. Jei norite pridėti papildomą fono paveikslėlį, tarkime, nord temai, tiesiog įdėkite failą į `~/.config/omarchy/backgrounds/nord`.
 
-Lengviausia tai padaryti Omarchy Menu pasirinkus _Install > Style > Background_. Taip atversite aplanką, kuriame saugomi tos temos fonai. Paspauskite `Super + Shift + F`, kad paleistumėte kitą failų tvarkyklę, suraskite savo foną ir jį nukopijuokite. Dabar jis bus įtrauktas į fonų, tarp kurių galite rinktis naudodami `Super + Ctrl + W`, sąrašą.
+Paprasčiausia tai padaryti Omarchy meniu nuėjus į _Įdiegimas > Stilius > Fonas_. Taip atsidarys aplankas, kuriame saugomi tos temos fonai. Paspauskite `Super + Shift + F`, kad paleistumėte kitą failų tvarkyklę, suraskite savo foną ir jį nukopijuokite. Dabar jis bus įtrauktas į fonų pasirinkimus, tarp kurių galite rinktis naudodami `Super + Ctrl + W`.
 
-Fonai gali būti ir vaizdo įrašai, ne tik nejudantys vaizdai. Į tą patį aplanką įdėkite `mp4`, `m4v`, `mov`, `webm`, `mkv` arba `avi` failą ir jis atsiras šalia paveikslėlių. Vaizdo įrašus leidžia OWE fono variklis. Jis vieną kartą išdekoduoja vaizdo įrašą visiems monitoriams, leidžia jo garsą per numatytąją garso išvestį ir sustabdo atkūrimą, kai niekas negali jo matyti. Vaizdo fonas vis tiek naudoja gerokai daugiau energijos nei nejudantis.
+Fonai gali būti ne tik nejudantys paveikslėliai, bet ir vaizdo įrašai. Įdėkite `mp4`, `m4v`, `mov`, `webm`, `mkv` arba `avi` failą į tą patį aplanką, ir jis atsiras greta paveikslėlių. Vaizdo įrašus leidžia OWE fonų variklis. Jis iškoduoja vaizdo įrašą vieną kartą visiems monitoriams, garsą leidžia per numatytąją garso išvestį ir sustabdo atkūrimą, kai jo niekas negali matyti. Vaizdo fonas vis tiek eikvoja kur kas daugiau energijos nei nejudantis.
 
-Temose gali būti trumpa nejudančio fono įžanga. Jei fonas yra `backgrounds/road.webp`, jam skirtas vaizdo įrašas yra `backgrounds/intros/road.mp4`. Jis automatiškai leidžiamas paleidžiant sistemą ir perjungiant į temą, kurioje pasirinktas tas fonas, o paskui grįžtama prie nejudančio vaizdo. Įžangos vaizdo įrašai nerodomi fonų rinkiklyje ir niekada neleidžiami ciklu.
+Temos gali turėti trumpą įžangą nejudančiam fonui. Failui `backgrounds/road.webp` atitinkamas vaizdo įrašas yra `backgrounds/intros/road.mp4`. Jis automatiškai paleidžiamas paleidžiant sistemą ir perjungiant į temą su pasirinktu tuo fonu, o paskui grįžtama prie nejudančio paveikslėlio. Įžanginiai vaizdo įrašai nerodomi fonų rinkiklyje ir niekada nekartojami ciklu.
 
-Išjungus _Appearance > Animations_ taip pat išjungiamos fonų įžangos. Omarchy tai pagal numatytuosius nustatymus daro virtualioje mašinoje. Komanda `omarchy theme bg intro toggle` gali įžangas perjungti atskirai. Atnaujinus temą arba toje pačioje temoje pasirinkus kitą foną, įžanga neleidžiama.
+Išjungus _Išvaizda > Animacijos_, išjungiamos ir fonų įžangos. Omarchy tai pagal numatytuosius nustatymus daro virtualioje mašinoje. Komanda `omarchy theme bg intro toggle` gali perjungti įžangas atskirai. Atnaujinant temą arba pasirenkant kitą foną toje pačioje temoje įžanga nepaleidžiama.
 
-Didžiulę kruopščiai atrinktų įspūdingų fonų kolekciją galite rasti adresu https://github.com/dharmx/walls.
+Didžiulę šaunių, atrinktų fonų kolekciją rasite [dharmx/walls](https://github.com/dharmx/walls).
 
-Užrakinimo ekranas rodo nejudantį vaizdo fono kadrą, taip pat, kaip rodo nejudantį animuoto GIF kadrą.
+Užrakinimo ekranas rodo nejudantį vaizdo fono kadrą, lygiai taip pat, kaip rodo nejudantį animuoto GIF kadrą.

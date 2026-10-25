@@ -1,15 +1,15 @@
-# Taustad
+# Taustapildid
 
-Igal teemal on oma taustapiltide komplekt ja sa saad lisada enda omasid kausta `~/.config/omarchy/backgrounds/[theme]`. Kui soovid lisada näiteks nord-teemale täiendava taustapildi, pane fail lihtsalt kausta `~/.config/omarchy/backgrounds/nord`.
+Iga teemaga on kaasas oma taustapiltide komplekt ja sa saad enda omi lisada kausta `~/.config/omarchy/backgrounds/[theme]`. Kui tahad lisada täiendava taustapildi näiteks nord teemale, pane fail lihtsalt kausta `~/.config/omarchy/backgrounds/nord`.
 
-Kõige lihtsam on seda teha Omarchy menüüs valiku _Install > Style > Background_ kaudu. See avab kausta, kus selle teema taustapilte hoitakse. Vajuta `Super + Shift + F`, et avada teine failihaldur, leia oma taustapilt ja kopeeri see sinna. Nüüd on see valikus taustapiltide hulgas, mille vahel saad valida klahvikombinatsiooniga `Super + Ctrl + W`.
+Kõige lihtsam on seda teha, kui lähed Omarchy menüüs valikuni _Paigalda > Stiil > Taust_. See avab kausta, kus selle teema taustapildid asuvad. Vajuta `Super + Shift + F`, et käivitada teine failihaldur, leia oma taustapilt ja kopeeri see sinna. Nüüd on see valikute hulgas, mille vahel saad valida klahvidega `Super + Ctrl + W`.
 
-Taustad võivad olla nii videod kui ka liikumatud pildid. Pane samasse kausta `mp4`, `m4v`, `mov`, `webm`, `mkv` või `avi` fail ja see ilmub piltide kõrvale. Videoid esitab OWE taustapildimootor. See dekodeerib video üks kord kõigi monitoride jaoks ja esitab selle heli vaikimisi heliväljundi kaudu ning peatab taasesituse alati, kui seda pole näha. Videotaustapilt tarbib endiselt palju rohkem energiat kui liikumatu taustapilt.
+Taustapildid võivad olla nii videod kui ka liikumatud pildid. Pane samasse kausta `mp4`, `m4v`, `mov`, `webm`, `mkv` või `avi` fail ja see ilmub piltide kõrvale. Videoid esitab OWE taustapildimootor. See dekodeerib video üks kord kõigi monitoride jaoks ja esitab selle heli vaikimisi heliväljundi kaudu ning peatab esituse iga kord, kui seda pole näha. Videotaustapilt kulutab siiski palju rohkem energiat kui liikumatu taustapilt.
 
-Teemad võivad sisaldada liikumatule taustapildile lühikest sissejuhatust. Faili `backgrounds/road.webp` puhul asub sobiv video aadressil `backgrounds/intros/road.mp4`. See esitatakse automaatselt käivitamisel ja selle taustapildiga valitud teemale lülitumisel ning naaseb seejärel liikumatu pildi juurde. Sissejuhatavad videod ei ilmu taustapiltide valijasse ega kordu kunagi.
+Teemad võivad sisaldada liikumatu taustapildi jaoks lühikest sissejuhatust. Faili `backgrounds/road.webp` puhul asub sobiv video failis `backgrounds/intros/road.mp4`. See esitatakse automaatselt käivitamisel ja selle valitud taustapildiga teemale lülitumisel, seejärel naaseb see liikumatu pildi juurde. Sissejuhatavad videod ei ilmu taustapildi valijasse ega kordu kunagi.
 
-Valiku _Appearance > Animations_ väljalülitamine lülitab välja ka taustade sissejuhatused. Omarchy teeb seda virtuaalmasinas vaikimisi. Käsk `omarchy theme bg intro toggle` saab sissejuhatusi eraldi sisse ja välja lülitada. Teema värskendamine või teise tausta valimine sama teema sees sissejuhatust ei esita.
+Valiku _Välimus > Animatsioonid_ väljalülitamine lülitab välja ka taustapiltide sissejuhatused. Omarchy teeb seda vaikimisi virtuaalmasinas. Käsk `omarchy theme bg intro toggle` saab sissejuhatusi eraldi sisse ja välja lülitada. Teema värskendamine või teise taustapildi valimine sama teema piires sissejuhatust ei esita.
 
-Suure valiku lahedaid, hoolikalt valitud taustapilte leiad aadressilt https://github.com/dharmx/walls.
+Suure kogumiku lahedaid, hoolikalt valitud taustapilte leiad kogumikust [dharmx/walls](https://github.com/dharmx/walls).
 
-Lukustuskuva näitab videotaustast liikumatut kaadrit samamoodi, nagu see näitab animeeritud GIF-ist liikumatut kaadrit.
+Lukustuskuva näitab videotaustapildist liikumatut kaadrit, samamoodi nagu see näitab animeeritud GIF-ist liikumatut kaadrit.
