@@ -38,6 +38,10 @@ if [[ ${1:-} == "auth" && ${2:-} == "login" ]]; then
   echo '{"claudeAiOauth":{"rateLimitTier":"default_claude_max_5x","subscriptionType":"max"}}' >"$home/.credentials.json"
   exit 0
 fi
+if [[ -n ${OMARCHY_TEST_SHOW_PATH:-} ]]; then
+  echo "$PATH"
+  exit 0
+fi
 echo "claude home=${CLAUDE_CONFIG_DIR:-default} args=$*"
 SH
 
@@ -218,6 +222,10 @@ pass "use makes an account active and says so"
 [[ $(omarchy-agent-account-exec claude --version) == "claude home=$work args=--version" ]] || fail "claude at a prompt starts as the active account"
 [[ $(CLAUDE_CONFIG_DIR=/elsewhere omarchy-agent-account-exec claude) == "claude home=/elsewhere args=" ]] || fail "an explicit CLAUDE_CONFIG_DIR wins over the active account"
 [[ $(omarchy-agent-account-exec codex) == "codex home=default args=" ]] || fail "codex stays on its primary until switched"
+# mise strips its shims before running a wrapper, so the agent would only see
+# tools installed before it started.
+[[ :$(MISE_DATA_DIR="$test_tmp/mise" OMARCHY_TEST_SHOW_PATH=1 omarchy-agent-account-exec claude): == *":$test_tmp/mise/shims:"* ]] ||
+  fail "an agent finds mise tools installed after it started"
 pass "account dispatch follows the active account"
 
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=$work args=--permission-mode auto" ]] ||
