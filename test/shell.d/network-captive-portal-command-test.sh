@@ -37,14 +37,23 @@ fi'
 # Reports a portal for the first TEST_NMCLI_PORTAL_CHECKS checks (two by
 # default), then full connectivity. Like the real nmcli it answers in the
 # session's language, so only the C locale reads "full".
-stub nmcli 'count=$(( $(cat "$TEST_NMCLI_COUNT" 2>/dev/null || echo 0) + 1 )); echo "$count" > "$TEST_NMCLI_COUNT"
+# The active connections are one Wi-Fi link, which turns into another after
+# TEST_NETWORK_SWITCH_AFTER looks when that is set, as a switch to another
+# network would.
+stub nmcli 'if [[ " $* " == *" connection "* ]]; then
+  looks=$(( $(cat "$TEST_NETWORK_LOOKS" 2>/dev/null || echo 0) + 1 )); echo "$looks" > "$TEST_NETWORK_LOOKS"
+  if [[ -n ${TEST_NETWORK_SWITCH_AFTER:-} ]] && (( looks > TEST_NETWORK_SWITCH_AFTER )); then echo "guest-b:802-11-wireless"; else echo "hotel-a:802-11-wireless"; fi
+  echo "tunnel:wireguard"
+  exit 0
+fi
+count=$(( $(cat "$TEST_NMCLI_COUNT" 2>/dev/null || echo 0) + 1 )); echo "$count" > "$TEST_NMCLI_COUNT"
 if [[ ${LC_ALL:-} != "C" ]]; then echo vollständig; elif (( count > ${TEST_NMCLI_PORTAL_CHECKS:-2} )); then echo full; else echo portal; fi'
 
 # Runs in a session locale other than C, where the nmcli stub answers in
 # translation, so every run below only finishes if the command reads C.
 run_portal() {
-  rm -f "$stage/log" "$stage/webapp" "$stage/count" "$stage/closed" "$stage/looks"
-  TEST_LOG="$stage/log" TEST_WEBAPP_LOG="$stage/webapp" TEST_NMCLI_COUNT="$stage/count" TEST_CLOSED="$stage/closed" TEST_LOOKS="$stage/looks" XDG_RUNTIME_DIR="$stage" \
+  rm -f "$stage/log" "$stage/webapp" "$stage/count" "$stage/closed" "$stage/looks" "$stage/network-looks"
+  TEST_LOG="$stage/log" TEST_WEBAPP_LOG="$stage/webapp" TEST_NMCLI_COUNT="$stage/count" TEST_CLOSED="$stage/closed" TEST_LOOKS="$stage/looks" TEST_NETWORK_LOOKS="$stage/network-looks" XDG_RUNTIME_DIR="$stage" \
     TEST_TAILSCALE_STATUS="$1" TEST_CURL_STATUS="${2:-0}" LC_ALL=C.UTF-8 \
     OMARCHY_PATH="$ROOT" PATH="$stage/bin:$ROOT/bin:$PATH" timeout 20 "$ROOT/bin/omarchy-network-captive-portal" ${TEST_AUTO:+--auto} "http://ping.omacom.io/nm-check.txt"
 }
@@ -65,11 +74,11 @@ close='hyprctl dispatch hl.dsp.window.close({ window = "class:^chrome-ping[.]oma
 run_portal '{"ExitNodeStatus":{"ID":"node","Online":true}}'
 expected="curl $toggle?enabled=false
 notify -g  Tailscale exit node paused It comes back once you're signed in
-$close
 curl $toggle?enabled=true
-notify -g  Tailscale exit node restored"
-portal_opened && [[ $(<"$stage/log") == "$expected" ]] || fail "pauses the exit node, opens the portal window, then closes it and restores the node once online" "$(<"$stage/log")"
-pass "pauses the exit node, opens the portal window, then closes it and restores the node once online"
+notify -g  Tailscale exit node restored
+$close"
+portal_opened && [[ $(<"$stage/log") == "$expected" ]] || fail "pauses the exit node, opens the portal window, then restores the node and closes the window once online" "$(<"$stage/log")"
+pass "pauses the exit node, opens the portal window, then restores the node and closes the window once online"
 [[ $(<"$stage/count") == 3 ]] || fail "re-checks until connectivity is full, then stops" "$(<"$stage/count")"
 pass "re-checks until connectivity is full, then stops"
 
@@ -85,7 +94,7 @@ pass "does not restore an exit node it failed to pause"
 # Well past the old ten-minute cap: the exit node stays paused until online.
 TEST_NMCLI_PORTAL_CHECKS=400 run_portal '{"ExitNodeStatus":{"ID":"node","Online":true}}'
 [[ $(<"$stage/count") == 401 ]] || fail "keeps checking through a slow sign-in" "$(<"$stage/count")"
-[[ $(tail -1 "$stage/log") == "notify -g  Tailscale exit node restored" ]] || fail "restores the exit node only once a slow sign-in completes" "$(<"$stage/log")"
+grep -Fxq "notify -g  Tailscale exit node restored" "$stage/log" || fail "restores the exit node only once a slow sign-in completes" "$(<"$stage/log")"
 pass "keeps the exit node paused until a slow sign-in completes"
 
 # A second click while the first is still watching only reopens the portal.
@@ -111,6 +120,24 @@ exec 8>&-
 [[ ! -e $stage/webapp && ! -e $stage/log ]] || fail "a later automatic launch opens no second window" "$(cat "$stage/webapp" "$stage/log" 2>/dev/null)"
 pass "a later automatic launch opens no second window"
 
+# Leaving the network ends a watch that never saw a sign-in: the exit node
+# comes back, the window is closed, and the lock is free for the next network.
+TEST_NMCLI_PORTAL_CHECKS=100000 TEST_NETWORK_SWITCH_AFTER=3 run_portal '{"ExitNodeStatus":{"ID":"node","Online":true}}'
+[[ $(<"$stage/count") == 3 ]] || fail "stops checking once the network it signed in for is gone" "$(<"$stage/count")"
+grep -Fxq "notify -g  Tailscale exit node restored" "$stage/log" && grep -Fxq "$close" "$stage/log" ||
+  fail "restores the exit node and closes the window after leaving the network" "$(<"$stage/log")"
+pass "leaving the network ends the watch, restores the exit node and closes the window"
+
+# An automatic launch made while a watch for a network just left still holds
+# the lock waits for it to let go, then signs in to the new portal.
+( exec 8>"$stage/omarchy-network-captive-portal.lock"; flock -n 8; /usr/bin/sleep 1 ) &
+holder=$!
+/usr/bin/sleep 0.2
+TEST_AUTO=1 run_portal '{"ExitNodeStatus":null}'
+wait "$holder"
+portal_opened && [[ $(<"$stage/log") == "$close" ]] || fail "an automatic launch takes over once the old watch lets go" "$(<"$stage/log")"
+pass "an automatic launch takes over once the old watch lets go"
+
 # Online before the browser maps its window: the window still closes.
 TEST_WINDOW_AFTER=4 TEST_NMCLI_PORTAL_CHECKS=0 run_portal '{"ExitNodeStatus":null}'
 portal_opened && [[ $(<"$stage/log") == "$close" ]] || fail "closes a portal window that maps after the sign-in completed" "$(<"$stage/log")"
@@ -120,7 +147,7 @@ pass "closes a portal window that maps after the sign-in completed"
 # until the browser exits, and the wait for the sign-in must not wait on it.
 TEST_WEBAPP_BLOCKS=1 run_portal '{"ExitNodeStatus":{"ID":"node","Online":true}}' || fail "does not wait on a launcher that stays in the foreground"
 pkill -f '^captive-portal-test-browser' || true
-portal_opened && [[ $(tail -1 "$stage/log") == "notify -g  Tailscale exit node restored" ]] || fail "re-checks and restores the exit node while the browser is still open" "$(<"$stage/log")"
+portal_opened && grep -Fxq "notify -g  Tailscale exit node restored" "$stage/log" || fail "re-checks and restores the exit node while the browser is still open" "$(<"$stage/log")"
 pass "does not wait on a launcher that stays in the foreground"
 
 # A browser that fails to start leaves nothing to sign in with: stop and

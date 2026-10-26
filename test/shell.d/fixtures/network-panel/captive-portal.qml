@@ -139,10 +139,13 @@ ShellRoot {
 
   // The runner counts browser launches: the button above made one, this
   // portal makes the second with no click, and the earlier portals made none
-  // before the setting was on.
+  // before the setting was on. The setting turned on again while the portal
+  // is already up, as at shell start, makes the third.
   function autoSignInChecks() {
     check(panel.autoSignIn, "auto sign-in reads its inline setting")
     check(panel.hasCaptivePortal, "auto sign-in portal is detected")
+    panel.settings = ({})
+    panel.settings = ({ autoSignIn: true })
     if (failed) { Qt.quit(); return }
     console.log("RESULT pass")
     var preview = Quickshell.env("NETWORK_TEST_PREVIEW")

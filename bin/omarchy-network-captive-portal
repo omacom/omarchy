@@ -91,28 +91,39 @@ close_portal_window() {
   done
 }
 
+# The connections a sign-in belongs to. VPNs come and go on their own, so
+# only the links themselves count.
+active_network() {
+  LC_ALL=C nmcli -t -f UUID,TYPE connection show --active 2>/dev/null |
+    grep -Ev ':(vpn|wireguard|loopback)$' | sort || true
+}
+
+online() {
+  # nmcli translates its answer, so read it in the C locale.
+  [[ $(LC_ALL=C timeout 5 nmcli networking connectivity check 2>/dev/null) == "full" ]]
+}
+
 # Nothing on the machine changes when the sign-in completes, so ask
 # NetworkManager to re-check: often while a sign-in is likely, then gently
 # until it is done. Its connectivity state updates as it does, which is what
-# the panel shows. Joining any other working network ends the wait too.
+# the panel shows. Joining any other working network ends the wait too, and so
+# does leaving this one: a portal window closed without signing in must not
+# hold the lock against the next network's sign-in.
 wait_until_online() {
-  local fast_until=$(( SECONDS + 300 ))
+  local fast_until=$(( SECONDS + 300 )) network ticks=0
+  network=$(active_network)
 
-  # nmcli translates its answer, so read it in the C locale.
-  until [[ $(LC_ALL=C timeout 5 nmcli networking connectivity check 2>/dev/null) == "full" ]]; do
+  until (( ticks % (SECONDS < fast_until ? 1 : 7) == 0 )) && online; do
     if portal_window_failed; then
       exit 1
     fi
-    if (( SECONDS < fast_until )); then
-      sleep 2
-    else
-      sleep 15
-    fi
+    [[ $(active_network) == "$network" ]] || return 0
+    sleep 2
+    ticks=$(( ticks + 1 ))
   done
 }
 
-exec 9>"$lock"
-if flock -n 9; then
+sign_in() {
   trap restore_exit_node EXIT
 
   if exit_node_active && set_exit_node_enabled false; then
@@ -122,10 +133,26 @@ if flock -n 9; then
 
   open_portal_window
   wait_until_online
+  # Hand the exit node back and let the next sign-in start before waiting on
+  # the window to close.
+  restore_exit_node
+  flock -u 9
   close_portal_window
+}
+
+exec 9>"$lock"
+if flock -n 9; then
+  sign_in
+elif (( auto )); then
+  # A held lock is mostly another screen's panel signing in to this same
+  # portal, and then this launch adds nothing. A watch on a network just left
+  # lets go within a couple of seconds, so wait that long before deciding, and
+  # skip the window if that wait ended with the internet already reachable.
+  if flock -w 5 9 && ! online; then
+    sign_in
+  fi
 else
   # An earlier launch is already holding the pause and watching for the
-  # sign-in. A click only brings the portal back up; an automatic launch, made
-  # by another screen's panel for the same portal, adds nothing.
-  (( auto )) || open_portal_window
+  # sign-in, so a click only brings the portal back up.
+  open_portal_window
 fi
