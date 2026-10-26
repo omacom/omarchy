@@ -503,7 +503,7 @@ local function window(address, options)
     pinned = false,
     fullscreen = options and options.fullscreen or 0,
     allowed_over_fullscreen = true,
-    tags = {},
+    tags = options and options.tags or {},
     workspace = { id = 3 },
   }
   table.insert(stack, created)
@@ -547,7 +547,18 @@ hl = {
     return found
   end,
   get_windows = function(filter)
-    return filter and {} or stack
+    if not filter then
+      return stack
+    end
+    local found = {}
+    for _, candidate in ipairs(stack) do
+      for _, tag in ipairs(candidate.tags) do
+        if tag == filter.tag then
+          table.insert(found, candidate)
+        end
+      end
+    end
+    return found
   end,
   get_active_window = function() return active end,
   dispatch = function(action)
@@ -636,7 +647,7 @@ local bind = binds["mouse:272"]
 assert(not bind or bind.options.non_consuming, "watching clicks kept them from the window under the pointer")
 
 maximized = window("0xA", { fullscreen = 1 })
-browser = window("0xB")
+browser = window("0xB", { tags = { "omarchy-mode-floated" } })
 active = browser
 
 -- The browser brought up over the maximized window takes a click on itself.
@@ -684,6 +695,17 @@ assert(click() == browser, "a click on a window drawn over the maximized one wen
 maximized.fullscreen = 2
 click(maximized)
 assert(browser.allowed_over_fullscreen, "a click on a true fullscreen window restacked the windows over it")
+
+-- A dialog over the maximized window, such as the file picker its app waits on,
+-- floats on its own account and belongs over it: a click on the maximized window
+-- leaves it there, and a click on the dialog reaches it.
+maximized.fullscreen = 1
+local picker = window("0xC")
+click(picker)
+click(maximized)
+assert(picker.allowed_over_fullscreen, "a click on the maximized window hid the dialog over it")
+assert(index_of(picker) > index_of(maximized), "the dialog drawn over the maximized window was left under it")
+assert(click() == picker, "a click on the dialog over the maximized window went through it")
 LUA
 
 if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROOT" \

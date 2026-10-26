@@ -344,11 +344,22 @@ local function keep_over(window)
 end
 
 -- Brings a maximized window to the front, as a click on it does on Windows: the
--- windows that were over it wait behind it until they are brought forward.
+-- windows the mode floated over it wait behind it until they are brought
+-- forward. One floating on its own account, such as a dialog or a portal's
+-- file picker, belongs over the maximized window, which its app may block until
+-- it closes, so it stays there and is put back above it for the clicks on it.
 local function bring_forward(window)
-  local over = drawn_over(window)
+  local over, mine = drawn_over(window), claimed()
   for index = #over, 1, -1 do
-    restack(over[index], "bottom")
+    if mine[over[index].address] then
+      restack(over[index], "bottom")
+    end
+  end
+
+  for _, other in ipairs(over) do
+    if not mine[other.address] then
+      restack(other, "top")
+    end
   end
 end
 
