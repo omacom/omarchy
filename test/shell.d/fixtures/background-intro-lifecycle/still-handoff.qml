@@ -23,9 +23,9 @@ ShellRoot {
     command: ["touch", Quickshell.env("INTRO_TEST_MARK")]
   }
 
-  // A login: the intro launcher is still running when the background
-  // service appears, then OWE takes the background for the intro video and
-  // hands it back once the launcher has finished.
+  // A login whose intro ends on a still: the launcher is still running
+  // when the background service appears, then OWE takes the background for
+  // the intro and hands it back once the launcher has finished.
   Timer {
     interval: 100
     running: true
@@ -40,7 +40,7 @@ ShellRoot {
     }
   }
   Timer {
-    interval: 1300
+    interval: 2300
     running: true
     onTriggered: {
       test.check(intro.startupSettled, "the launcher has finished")
@@ -48,7 +48,7 @@ ShellRoot {
     }
   }
   Timer {
-    interval: 1400
+    interval: 2400
     running: true
     onTriggered: {
       test.check(!intro.cover && !intro.themeToken, "the handed-back background releases the cover")
@@ -56,7 +56,7 @@ ShellRoot {
     }
   }
   Timer {
-    interval: 2400
+    interval: 3400
     running: true
     onTriggered: {
       if (!test.failed) console.log("RESULT pass")
