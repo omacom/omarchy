@@ -55,7 +55,7 @@ Panel {
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t)
+    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.batteryInfo.hold)
   }
 
   function profileIcon(name) {
@@ -74,6 +74,9 @@ Panel {
     var device = UPower.displayDevice
     return Model.chargeThresholdActive(device, root.discharging, upowerStates())
   }
+  // Heat and cold replace the charge-limit cell with the cell temperature.
+  // A charge window or an inhibit still shows the cap that is holding.
+  readonly property bool holdNamesTemperature: Model.holdNamesTemperature(batteryInfo.hold)
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
 
@@ -453,12 +456,12 @@ Panel {
             width: (parent.width - parent.spacing) / 2
             spacing: Style.spacing.labelGap
             InfoPair {
-              label: root.chargeThresholdActive ? Commons.I18n.t("power.chargeLimit") : (root.discharging ? Commons.I18n.t("power.timeLeft") : Commons.I18n.t("power.timeToFull"))
-              value: root.chargeThresholdActive ? (root.reading(root.batteryInfo.threshold) || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
+              label: root.holdNamesTemperature ? Commons.I18n.t("power.temperature") : (root.chargeThresholdActive ? Commons.I18n.t("power.chargeLimit") : (root.discharging ? Commons.I18n.t("power.timeLeft") : Commons.I18n.t("power.timeToFull")))
+              value: root.holdNamesTemperature ? (root.reading(root.batteryInfo.temperature) || "-") : (root.chargeThresholdActive ? (root.reading(root.batteryInfo.threshold) || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—")))
             }
             InfoPair {
               label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
-              value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
+              value: root.chargeThresholdActive ? Model.holdLabel(root.batteryInfo.hold, Commons.I18n.t) : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
             }
           }
         }

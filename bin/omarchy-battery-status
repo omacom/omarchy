@@ -81,13 +81,20 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   print rounded
 }')
 state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 
-# Read the thresholds from the battery UPower resolved rather than a BAT* glob,
-# which misses every battery with another name.
-[[ -n $threshold_end || ! -r $battery_path/charge_control_end_threshold ]] || threshold_end=$(<"$battery_path/charge_control_end_threshold")
-[[ -n $threshold_start || ! -r $battery_path/charge_control_start_threshold ]] || threshold_start=$(<"$battery_path/charge_control_start_threshold")
+# UPower's charge-*-threshold follows the udev hwdb default CHARGE_LIMIT=75,80
+# even when that cap is not the one the battery is enforcing. The battery's
+# own sysfs attributes win; UPower fills in only when they are absent (#7374).
+threshold_end=""
+threshold_start=""
+if [[ -r $battery_path/charge_control_end_threshold ]]; then
+  threshold_end=$(<"$battery_path/charge_control_end_threshold")
+fi
+if [[ -r $battery_path/charge_control_start_threshold ]]; then
+  threshold_start=$(<"$battery_path/charge_control_start_threshold")
+fi
+[[ -n $threshold_end ]] || threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+[[ -n $threshold_start ]] || threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 # The time to full counts to this battery's own limit, never another one's.
 charge_limit=${threshold_end:-100}
 [[ -n $threshold_end ]] || threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
@@ -138,6 +145,58 @@ if [[ $ac_online == "true" && -n $threshold_end ]]; then
   fi
 fi
 
+# The bracketed word is the charge behaviour the kernel has selected.
+charge_behaviour=""
+if [[ -r $battery_path/charge_behaviour ]]; then
+  behaviour_raw=$(<"$battery_path/charge_behaviour")
+  if [[ $behaviour_raw == *'['*']'* ]]; then
+    charge_behaviour=${behaviour_raw#*[}
+    charge_behaviour=${charge_behaviour%%]*}
+  else
+    charge_behaviour=$behaviour_raw
+  fi
+fi
+
+# power_supply temp is decidegrees Celsius: 469 is 46.9°C.
+temp_decideg=""
+if [[ -r $battery_path/temp ]]; then
+  temp_decideg=$(<"$battery_path/temp")
+fi
+temperature=""
+if [[ $temp_decideg =~ ^-?[0-9]+$ ]]; then
+  temperature=$(awk -v t="$temp_decideg" 'BEGIN {
+    s = sprintf("%.1f", t / 10)
+    sub(/\.0$/, "", s)
+    printf "%s°C", s
+  }')
+fi
+
+# A plugged-in pause has more than one cause, and each named cause is a whole
+# translated phrase. Sitting on a charge window (a start below the end, both
+# under 100%) is optimized charging. A single cap, or inhibit-charge selected,
+# is a limit. Otherwise a hot cell is heat and a freezing cell is cold. The
+# SMC does not export its reason bit, so heat is the cell temperature at which
+# Apple Silicon pauses with the cap still at 100%: 45°C, seen on a MacBook Air
+# M1 (J313) while the SMC logged a temperature stop. A battery that is actually
+# sitting on its cap keeps that name when it is also warm.
+hold_reason=""
+if [[ $charge_holding == "true" ]]; then
+  at_cap=false
+  if [[ $threshold_end =~ ^[0-9]+$ && $percentage =~ ^[0-9]+$ ]] && (( threshold_end < 100 && percentage + 1 >= threshold_end )); then
+    at_cap=true
+  fi
+
+  if [[ $at_cap == "true" && $threshold_start =~ ^[0-9]+$ ]] && (( threshold_start > 0 && threshold_start < threshold_end )); then
+    hold_reason=optimizing
+  elif [[ $at_cap == "true" || $charge_behaviour == "inhibit-charge" ]]; then
+    hold_reason=limit
+  elif [[ $temp_decideg =~ ^-?[0-9]+$ ]] && (( temp_decideg >= 450 )); then
+    hold_reason=heat
+  elif [[ $temp_decideg =~ ^-?[0-9]+$ ]] && (( temp_decideg <= 0 )); then
+    hold_reason=cold
+  fi
+fi
+
 if [[ $shell_output == "true" ]]; then
   printf 'percentage\t%s\n' "${percentage}%"
   if [[ $charge_holding == "true" ]]; then
@@ -163,6 +222,9 @@ if [[ $shell_output == "true" ]]; then
     fi
   fi
 
+  [[ -n $temperature ]] && printf 'temperature\t%s\n' "$temperature"
+  [[ -n $hold_reason ]] && printf 'hold\t%s\n' "$hold_reason"
+
   exit 0
 fi
 
@@ -181,13 +243,20 @@ fi
 parts=("$(omarchy-i18n battery.statusLabel "$percentage")")
 
 if [[ $charge_holding == "true" ]]; then
-  if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then
-    threshold_label="$(omarchy-i18n --number "$threshold_start")-$(omarchy-i18n --number "$threshold_end")%"
-  else
-    threshold_label="$(omarchy-i18n --number "$threshold_end")%"
-  fi
-
-  parts+=("$(omarchy-i18n battery.holdingAt "$threshold_label")")
+  case $hold_reason in
+    heat) parts+=("$(omarchy-i18n battery.holdingHeat)") ;;
+    cold) parts+=("$(omarchy-i18n battery.holdingCold)") ;;
+    optimizing) parts+=("$(omarchy-i18n battery.holdingOptimizing)") ;;
+    limit) parts+=("$(omarchy-i18n battery.holdingLimit)") ;;
+    *)
+      if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then
+        threshold_label="$(omarchy-i18n --number "$threshold_start")-$(omarchy-i18n --number "$threshold_end")%"
+      else
+        threshold_label="$(omarchy-i18n --number "$threshold_end")%"
+      fi
+      parts+=("$(omarchy-i18n battery.holdingAt "$threshold_label")")
+      ;;
+  esac
 elif [[ $battery_full == "true" ]]; then
   parts+=("$(omarchy-i18n battery.fullyCharged)")
 elif [[ -n $time_remaining && $state == "charging" ]]; then
