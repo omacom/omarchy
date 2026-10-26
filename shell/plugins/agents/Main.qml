@@ -11,7 +11,20 @@ Item {
   id: root
   visible: false
 
-  property var settings: ({})
+  // The shell creates this once as the plugin's service, and every bar's
+  // panel attaches to it. Settings come from the panels still attached, and
+  // are null while none is, so nothing polls before the first arrives or
+  // after the widget leaves the last bar.
+  property var panels: []
+  property var settings: panels.length > 0 ? panels[panels.length - 1].settings : null
+
+  function attachPanel(panel) {
+    if (panels.indexOf(panel) < 0) panels = panels.concat([panel])
+  }
+
+  function detachPanel(panel) {
+    panels = panels.filter(function(p) { return p !== panel })
+  }
 
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string usageDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/usage"
@@ -147,7 +160,7 @@ Item {
 
   Timer {
     interval: root.nearLimit ? Math.min(180, root.refreshIntervalSec) * 1000 : root.refreshIntervalSec * 1000
-    running: true
+    running: root.settings !== null
     repeat: true
     triggeredOnStart: true
     onTriggered: root.runUpdate(root.nearLimit ? "limits" : "normal")
@@ -187,6 +200,10 @@ Item {
   }
 
   function runUpdate(kind, agentIds) {
+    // The service outlives a widget taken off every bar, and then no panel
+    // hands it settings. Every poll comes through here (the refresh timer,
+    // the limits retry, a queued rerun), so this one guard stops them all.
+    if (root.settings === null) return
     if (updateProcess.running) {
       // Collapse queued requests to one full rerun; a forced refresh outranks
       // the cheaper kinds it might have been queued behind.
