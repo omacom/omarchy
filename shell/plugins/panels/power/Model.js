@@ -78,13 +78,33 @@ function batteryIcon(device, onBattery, states) {
   return defaultIcons[index]
 }
 
-function modeLabel(device, onBattery, states, tr) {
+// hold is the battery script's reason for a pause: heat, cold, optimizing,
+// limit, or empty when the pause has no reading behind it. Each phrase is a
+// whole catalog string so a translation can reorder the parenthesis.
+function holdLabel(reason, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (reason === "heat") return t("power.holdingHeat", "Holding (Heat)")
+  if (reason === "cold") return t("power.holdingCold", "Holding (Cold)")
+  if (reason === "optimizing") return t("power.holdingOptimizing", "Holding (Optimizing)")
+  if (reason === "limit") return t("power.holdingLimit", "Holding (Limit)")
+  return t("power.holding", "Holding")
+}
+
+function holdNamesTemperature(reason) {
+  return reason === "heat" || reason === "cold"
+}
+
+function modeLabel(device, onBattery, states, tr, holdReason) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var d = device || {}
   if (!d.isPresent) return ""
 
   var percentage = d.isPresent ? d.percentage : 0
-  if (chargeThresholdActive(d, onBattery, states)) return t("power.threshold", "Threshold")
+  if (chargeThresholdActive(d, onBattery, states)) {
+    if (holdReason === "heat" || holdReason === "cold" || holdReason === "optimizing" || holdReason === "limit")
+      return holdLabel(holdReason, tr)
+    return t("power.threshold", "Threshold")
+  }
   if (onBattery) return t("power.onBattery", "On battery")
   if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
   return t("power.charging", "Charging")
@@ -120,6 +140,8 @@ if (typeof module !== "undefined") {
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
     batteryIcon: batteryIcon,
+    holdLabel: holdLabel,
+    holdNamesTemperature: holdNamesTemperature,
     modeLabel: modeLabel,
     profileLabel: profileLabel,
     localizeReading: localizeReading
