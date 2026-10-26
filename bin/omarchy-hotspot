@@ -188,12 +188,12 @@ recorded_iface() {
 
 ap_iface() {
   local dev
-  dev=$(nm_get GENERAL.DEVICE connection show "$PROFILE" 2>/dev/null | head -n 1)
+  dev=$(nm_get GENERAL.DEVICE connection show "$PROFILE" 2>/dev/null | head -n 1) || true
   if [[ $dev != "--" ]] && wifi_device_present "$dev" && { profile_active || ap_capable "$dev"; }; then
     printf '%s\n' "$dev"
     return
   fi
-  dev=$(nm_get connection.interface-name connection show "$PROFILE" 2>/dev/null | head -n 1)
+  dev=$(nm_get connection.interface-name connection show "$PROFILE" 2>/dev/null | head -n 1) || true
   if [[ $dev != "--" ]] && wifi_device_present "$dev" && ap_capable "$dev"; then
     printf '%s\n' "$dev"
     return
@@ -252,7 +252,9 @@ status() {
   local capable=0 active=0 configured=0 iface ssid band password freq ip clients upstream
   local client_list client_count bands
 
-  iface=$(ap_iface)
+  # Without NetworkManager there is no AP to offer, but the panel still
+  # needs the status lines to say so.
+  iface=$(ap_iface) || iface=""
   if [[ -n $iface ]] && ap_capable "$iface"; then capable=1; fi
   if profile_active; then active=1; fi
   if profile_configured; then configured=1; fi
