@@ -253,6 +253,9 @@ if (( EUID != 0 )); then
   nmcli_log=$(<"$NMCLI_LOG")
   [[ $nmcli_log != *"ifname p2p-dev-wlan9"* && $nmcli_log != *"connection.interface-name p2p-dev-wlan9"* ]] || fail "Wi-Fi selection never falls back to a P2P device"
   pass "NM profile create and reuse follow the selected Wi-Fi interface"
+  # The PSK reaches nmcli on stdin only: argv shows in ps to every user.
+  [[ $nmcli_log != *savedpassword* ]] || fail "the hotspot PSK never appears on nmcli's argv" "$nmcli_log"
+  pass "the hotspot PSK never appears on nmcli's argv"
 else
   skip "running as root; apply would take the host hotspot lock"
   # Stand in for the profile apply would have saved; later tests read it.
