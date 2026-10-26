@@ -510,7 +510,7 @@ assert((panelSource.match(/Model\.hotspotCredentialsError\(hotspotSsid, hotspotP
 assert(/id: hotspotQrButton\s+visible: root\.hotspotActive/.test(panelSource), 'network hides the hotspot QR unless the AP is on')
 assert(/readonly property int hotspotFocusMax: hotspotActive \? 2 : 1/.test(panelSource), 'network drops QR from the keyboard cycle while the AP is off')
 assert(!/hotspotQrButton\.containsMouse|hotspotCogButton\.containsMouse/.test(panelSource), 'network does not bind a hover state Button does not expose')
-assert(/id: hotspotCogButton[\s\S]*?tooltipText: root\.hotspotSetupOpen \? "Hide hotspot settings" : "Hotspot settings"/.test(panelSource), 'network labels the hotspot settings button through the button tooltip')
+assert(/id: hotspotCogButton[\s\S]*?tooltipText: root\.hotspotSetupOpen \? Commons\.I18n\.t\("network\.hideHotspotSettings"\) : Commons\.I18n\.t\("network\.hotspotSettings"\)/.test(panelSource), 'network labels the hotspot settings button through the button tooltip')
 assert(!/wifi-sec\.psk "\$password"/.test(hotspotSource), 'hotspot never puts the PSK on nmcli argv')
 assert(/apply "\$ssid" "\$band"/.test(hotspotSource), 'hotspot start writes the profile through apply')
 JS

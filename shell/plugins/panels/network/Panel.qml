@@ -1953,7 +1953,7 @@ Panel {
 
           PanelSectionHeader {
             id: hotspotHeader
-            text: root.hotspotActive ? "HOTSPOT ACTIVE" : "HOTSPOT"
+            text: root.hotspotActive ? Commons.I18n.t("network.hotspotActive") : Commons.I18n.t("network.hotspot")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
             anchors.left: parent.left
@@ -2030,7 +2030,7 @@ Panel {
             textFormat: Text.PlainText
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: root.hotspotActive ? "Sharing my internet" : "Share my internet"
+            text: root.hotspotActive ? Commons.I18n.t("network.hotspotSharing") : Commons.I18n.t("network.hotspotShare")
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
@@ -2060,7 +2060,7 @@ Panel {
               root.hotspotFocusIndex = 2
             }
 
-            tooltipText: "Show QR code"
+            tooltipText: Commons.I18n.t("network.showQrCode")
           }
 
           Button {
@@ -2087,7 +2087,7 @@ Panel {
               root.hotspotFocusIndex = 1
             }
 
-            tooltipText: root.hotspotSetupOpen ? "Hide hotspot settings" : "Hotspot settings"
+            tooltipText: root.hotspotSetupOpen ? Commons.I18n.t("network.hideHotspotSettings") : Commons.I18n.t("network.hotspotSettings")
           }
 
           ToggleSwitch {
@@ -2108,7 +2108,7 @@ Panel {
 
             PanelToolTip {
               visible: hotspotToggle.containsMouse
-              text: root.hotspotActive ? "Turn the hotspot off" : "Start the hotspot"
+              text: root.hotspotActive ? Commons.I18n.t("network.turnHotspotOff") : Commons.I18n.t("network.startHotspot")
               fontFamily: root.bar.fontFamily
             }
           }
@@ -2142,7 +2142,7 @@ Panel {
             id: hotspotSsidField
             width: parent.width
             enabled: !root.hotspotBusy
-            placeholderText: "Hotspot name (SSID)"
+            placeholderText: Commons.I18n.t("network.hotspotName")
             font.family: Style.font.family
             font.pixelSize: Style.font.body
             foreground: root.bar.foreground
@@ -2161,7 +2161,7 @@ Panel {
               width: parent.width - Style.space(120)
               enabled: !root.hotspotBusy
               password: !root.hotspotPasswordVisible
-              placeholderText: "Password (8+ characters)"
+              placeholderText: Commons.I18n.t("network.hotspotPasswordPlaceholder")
               font.family: Style.font.family
               font.pixelSize: Style.font.body
               foreground: root.bar.foreground
@@ -2176,7 +2176,7 @@ Panel {
               width: Style.space(34)
               height: Style.spacing.controlHeight
               iconText: root.hotspotPasswordVisible ? "" : ""
-              tooltipText: root.hotspotPasswordVisible ? "Hide password" : "Show password"
+              tooltipText: root.hotspotPasswordVisible ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
               iconSize: Style.font.subtitle
@@ -2191,7 +2191,7 @@ Panel {
               width: Style.space(34)
               height: Style.spacing.controlHeight
               iconText: ""
-              tooltipText: "Random password"
+              tooltipText: Commons.I18n.t("network.randomPassword")
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
               iconSize: Style.font.subtitle
@@ -2206,7 +2206,7 @@ Panel {
               width: Style.space(34)
               height: Style.spacing.controlHeight
               iconText: "󰄬"
-              tooltipText: "Apply credentials"
+              tooltipText: Commons.I18n.t("network.applyCredentials")
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
               iconSize: Style.font.subtitle
