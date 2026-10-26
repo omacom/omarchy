@@ -58,6 +58,66 @@ grep -F 'config/snapper.sh' "$ROOT/install/config/all.sh" >/dev/null ||
   fail "config phase normalizes Snapper"
 pass "system setup normalizes Snapper during fresh installs"
 
+# omarchy-snapshot create must run the Limine sync and only claim the
+# snapshot is bootable when the sync accepted it (#16498).
+snapshot_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp" "$snapshot_tmp"' EXIT
+snapshot_bin="$snapshot_tmp/bin"
+mkdir -p "$snapshot_bin"
+
+cat >"$snapshot_bin/sudo" <<'STUB'
+#!/bin/bash
+exec "$@"
+STUB
+chmod +x "$snapshot_bin/sudo"
+
+cat >"$snapshot_bin/snapper" <<'STUB'
+#!/bin/bash
+if [[ $1 == --csvout && $2 == list-configs ]]; then
+  echo 'config,subvolume'
+  echo 'root,/'
+  exit 0
+fi
+exit 0
+STUB
+chmod +x "$snapshot_bin/snapper"
+
+cat >"$snapshot_bin/limine-snapper-sync" <<'STUB'
+#!/bin/bash
+printf 'limine-snapper-sync %s\n' "$*" >>"$SNAPSHOT_LOG"
+if [[ -n ${FAKE_SYNC_FAILS:-} ]]; then
+  echo "limine-snapper-sync: ROOT_SUBVOLUME_PATH does not match" >&2
+  exit 1
+fi
+exit 0
+STUB
+chmod +x "$snapshot_bin/limine-snapper-sync"
+
+run_snapshot_create() {
+  SNAPSHOT_LOG="$snapshot_tmp/calls.log" \
+  FAKE_SYNC_FAILS="${1:-}" \
+  PATH="$snapshot_bin:$PATH" \
+  OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-snapshot" create
+}
+
+out=$(run_snapshot_create 2>"$snapshot_tmp/err.log")
+grep -F 'limine-snapper-sync' "$snapshot_tmp/calls.log" >/dev/null ||
+  fail "snapshot create runs the Limine boot-menu sync"
+grep -F 'Snapshots can be selected during boot.' <<<"$out" >/dev/null ||
+  fail "snapshot create reports a bootable snapshot when the sync succeeds"
+pass "snapshot create syncs the boot menu and reports the snapshot as bootable"
+
+out=$(run_snapshot_create 1 2>"$snapshot_tmp/err.log")
+rc=$?
+if grep -F 'Snapshots can be selected during boot.' <<<"$out" >/dev/null; then
+  fail "snapshot create hides the bootable claim when the sync rejects the entry"
+fi
+grep -F 'journalctl -t limine-snapper-sync' "$snapshot_tmp/err.log" >/dev/null ||
+  fail "snapshot create warns and points at the sync journal when the sync fails"
+((rc == 0)) || fail "a failed boot-menu sync warns without failing the update"
+pass "snapshot create warns instead of claiming success when the sync fails"
+
 # The PKGBUILDs live in the omarchy-pkgs checkout, wherever this machine keeps it.
 if find_omarchy_pkgs; then
   pkgs_root=$OMARCHY_PKGS_ROOT

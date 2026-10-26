@@ -41,7 +41,16 @@ create)
     sudo snapper -c "$config" cleanup number
   done
 
-  echo "Snapshots can be selected during boot."
+  # The snapshot only helps if it reaches the boot menu. The sync normally
+  # runs from its own service, but a mismatched /etc/default/limine makes it
+  # reject every entry while this script kept reporting success, so run it
+  # here and say what actually happened. The snapshot itself exists either
+  # way, so a failed sync warns without failing the update that paid for it.
+  if sudo limine-snapper-sync; then
+    echo "Snapshots can be selected during boot."
+  else
+    echo -e "\e[33mSnapshot created, but limine-snapper-sync could not add it to the boot menu. Check journalctl -t limine-snapper-sync.\e[0m" >&2
+  fi
   ;;
 restore)
   sudo limine-snapper-restore
