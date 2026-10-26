@@ -20,8 +20,8 @@ function touch(order, address) {
   return [key].concat(without(order, key))
 }
 
-// A minimized window goes last, as minimizing sends it to the back on Windows:
-// Alt + Tab right after minimizing goes to the window that was under it.
+// The window just minimized goes behind the others, so of the minimized
+// windows, which orderWindows lists last, the one minimized last comes last.
 function demote(order, address) {
   var key = normalizeAddress(address)
   if (!key) return order || []
@@ -38,58 +38,141 @@ function rankOf(order) {
   return rank
 }
 
+// Omarchy's own helpers stay out of the switcher, as they do out of the dock:
+// the Quake console, which Super + grave brings up, and the screensaver.
+var HELPER_WORKSPACES = ["special:qconsole", "special:screensaver"]
+var HELPER_APP_IDS = ["org.omarchy.screensaver"]
+
+function isHelper(window) {
+  return HELPER_WORKSPACES.indexOf(String(window.workspace || "")) >= 0
+    || HELPER_APP_IDS.indexOf(String(window.appId || "")) >= 0
+}
+
+// Each window's owner, keyed by address, for the windows whose owner is open.
+function parentsOf(windows) {
+  var known = {}
+  for (var i = 0; i < (windows || []).length; i++) {
+    if (windows[i]) known[normalizeAddress(windows[i].address)] = true
+  }
+  var parents = {}
+  for (var j = 0; j < (windows || []).length; j++) {
+    var window = windows[j]
+    if (!window) continue
+    var parent = normalizeAddress(window.parent)
+    if (parent && known[parent]) parents[normalizeAddress(window.address)] = parent
+  }
+  return parents
+}
+
+function chainIn(parents, address) {
+  var chain = []
+  var seen = {}
+  var current = normalizeAddress(address)
+  while (current && !seen[current]) {
+    seen[current] = true
+    chain.unshift(current)
+    current = parents[current]
+  }
+  return chain
+}
+
+// The window and its owners, the topmost owner first.
+function lineage(windows, address) {
+  return chainIn(parentsOf(windows), address)
+}
+
+// The window a dialog belongs to, through any dialogs between: the window
+// itself when it has no owner.
+function ownerOf(windows, address) {
+  return lineage(windows, address)[0] || ""
+}
+
+function historyOf(window) {
+  return typeof window.focusHistory === "number" ? window.focusHistory : Infinity
+}
+
 // The windows to list, most recently used first: every window with no owner,
 // whatever workspace or monitor it is on. A dialog comes up with its owner
-// rather than on its own, and a window that was never put on screen is left
-// out: Wine names hidden windows of its own, such as each game's "Default IME",
-// and Hyprland reports them without ever showing them. A window the order has
-// not seen used since the shell started goes after those it has, in Hyprland's
-// own focus history.
+// rather than on its own, and counts as its owner being used, so a window
+// whose dialog was in front comes first. A window that was never put on screen
+// is left out: Wine names hidden windows of its own, such as each game's
+// "Default IME", and Hyprland reports them without ever showing them. A window
+// the order has not seen used since the shell started goes after those it has,
+// in Hyprland's own focus history. Minimized windows go last, as minimizing
+// sends a window to the back on Windows, so Alt + Tab right after minimizing
+// goes to the window that was under it.
 //
-// windows: [{ address, parent, shown, focusHistory }], parent the owner's
-// address or empty, shown false for a window never put on screen,
-// focusHistory Hyprland's focusHistoryID when known.
+// windows: [{ address, parent, shown, minimized, workspace, appId,
+// focusHistory }], parent the owner's address or empty, shown false for a
+// window never put on screen, workspace its workspace's name, focusHistory
+// Hyprland's focusHistoryID when known.
 function orderWindows(order, windows) {
   var rank = rankOf(order)
+  var parents = parentsOf(windows)
+  var groups = {}
   var listed = []
   for (var i = 0; i < (windows || []).length; i++) {
     var window = windows[i]
-    if (!window || !normalizeAddress(window.address) || normalizeAddress(window.parent) || window.shown === false) continue
-    listed.push({ window: window, index: i, rank: rank[normalizeAddress(window.address)] })
+    var address = window ? normalizeAddress(window.address) : ""
+    if (!address || parents[address] || window.shown === false || isHelper(window)) continue
+    groups[address] = { window: window, index: i, rank: Infinity, history: Infinity }
+    listed.push(groups[address])
+  }
+
+  for (var j = 0; j < (windows || []).length; j++) {
+    var member = windows[j]
+    if (!member || member.shown === false) continue
+    var group = groups[chainIn(parents, member.address)[0]]
+    if (!group) continue
+    var memberRank = rank[normalizeAddress(member.address)]
+    if (memberRank !== undefined) group.rank = Math.min(group.rank, memberRank)
+    group.history = Math.min(group.history, historyOf(member))
   }
 
   listed.sort(function(left, right) {
-    var leftKnown = left.rank !== undefined
-    var rightKnown = right.rank !== undefined
-    if (leftKnown !== rightKnown) return leftKnown ? -1 : 1
-    if (leftKnown) return left.rank - right.rank
-    var leftHistory = typeof left.window.focusHistory === "number" ? left.window.focusHistory : Infinity
-    var rightHistory = typeof right.window.focusHistory === "number" ? right.window.focusHistory : Infinity
-    if (leftHistory !== rightHistory) return leftHistory < rightHistory ? -1 : 1
+    var leftMinimized = left.window.minimized === true
+    var rightMinimized = right.window.minimized === true
+    if (leftMinimized !== rightMinimized) return leftMinimized ? 1 : -1
+    if (left.rank !== right.rank) return left.rank < right.rank ? -1 : 1
+    if (left.history !== right.history) return left.history < right.history ? -1 : 1
     return left.index - right.index
   })
 
   return listed.map(function(entry) { return entry.window })
 }
 
-// The dialog to bring up with an owner: the one of its open dialogs used last,
-// or null when it has none.
+// The dialog to bring up with an owner, or null when it has none: the one of
+// its dialogs used last, or else the one opened deepest, and then any dialog
+// open on top of that one, as that is what it is waiting on.
 function dialogFor(order, windows, address) {
-  var owner = normalizeAddress(address)
-  var rank = rankOf(order)
+  return deepestDialog(rankOf(order), windows, parentsOf(windows), normalizeAddress(address), {})
+}
+
+function deepestDialog(rank, windows, parents, top, seen) {
+  if (!top || seen[top]) return null
+  seen[top] = true
+
   var best = null
   var bestRank = Infinity
+  var bestDepth = 0
   for (var i = 0; i < (windows || []).length; i++) {
     var window = windows[i]
-    if (!window || normalizeAddress(window.parent) !== owner || !owner) continue
+    if (!window || window.shown === false) continue
+    var chain = chainIn(parents, window.address)
+    var at = chain.indexOf(top)
+    var depth = chain.length - 1 - at
+    if (at < 0 || depth <= 0) continue
     var windowRank = rank[normalizeAddress(window.address)]
     if (windowRank === undefined) windowRank = Infinity
-    if (!best || windowRank < bestRank) {
+    if (!best || windowRank < bestRank || (windowRank === bestRank && depth > bestDepth)) {
       best = window
       bestRank = windowRank
+      bestDepth = depth
     }
   }
-  return best
+
+  if (!best) return null
+  return deepestDialog(rank, windows, parents, normalizeAddress(best.address), seen) || best
 }
 
 // Where the first press lands. Tab goes to the window used before the one in
@@ -100,6 +183,16 @@ function startIndex(count, delta, firstIsFocused) {
   if (count <= 0) return -1
   if (delta < 0) return count - 1
   return firstIsFocused && count > 1 ? 1 : 0
+}
+
+// The index in orderWindows(order, windows) the first press lands on, focused
+// the window with the keyboard, or empty. A focused dialog counts as its owner,
+// as the list holds the owner.
+function firstPick(order, windows, focused, delta) {
+  var entries = orderWindows(order, windows)
+  var owner = focused ? ownerOf(windows, focused) : ""
+  var firstIsFocused = entries.length > 0 && !!owner && normalizeAddress(entries[0].address) === owner
+  return startIndex(entries.length, delta, firstIsFocused)
 }
 
 function stepIndex(index, count, delta) {
@@ -234,9 +327,12 @@ if (typeof module !== "undefined") {
     touch: touch,
     demote: demote,
     forget: forget,
+    ownerOf: ownerOf,
+    lineage: lineage,
     orderWindows: orderWindows,
     dialogFor: dialogFor,
     startIndex: startIndex,
+    firstPick: firstPick,
     stepIndex: stepIndex,
     indexAfterRemoval: indexAfterRemoval,
     layout: layout,

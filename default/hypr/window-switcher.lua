@@ -22,12 +22,14 @@ local function window_at(address)
 end
 
 -- A minimized window comes back onto the workspace in front of the user, the
--- way the dock brings it back.
+-- way the dock brings it back. Like the dock, it stays put when that workspace
+-- is a named one, and the switch goes no further: focusing it where it is
+-- would only open the minimized windows' special workspace.
 local function bring_back_minimized(window)
   local monitor = hl.get_active_monitor()
   local workspace = monitor and monitor.active_workspace
   if not workspace or workspace.id < 1 then
-    return
+    return false
   end
 
   hl.dispatch(hl.dsp.window.set_prop({ prop = "no_anim", value = "1", window = window }))
@@ -35,31 +37,26 @@ local function bring_back_minimized(window)
   hl.timer(function()
     hl.dispatch(hl.dsp.window.set_prop({ prop = "no_anim", value = "unset", window = window }))
   end, { type = "oneshot", timeout = 400 })
+  return true
 end
 
--- Focus the window and put it on top of the others. A window on a workspace
--- out of view brings its workspace into view, and one on a hidden special
--- workspace, such as the scratchpad, shows it. Given a dialog, its owner comes
--- up first so the dialog stays on top of it.
-function M.activate(address, owner_address)
+-- Focus each window given in turn and put it on top of the others, so the last
+-- ends up focused in front. A window on a workspace out of view brings its
+-- workspace into view, and one on a hidden special workspace, such as the
+-- scratchpad, shows it. A dialog comes after the windows it belongs to, the
+-- topmost owner first, so it stays on top of them.
+function M.activate(...)
+  local addresses = { ... }
   return function()
-    local window = window_at(address)
-    if not window then
-      return
-    end
-
-    local targets = { window }
-    local owner = window_at(owner_address)
-    if owner then
-      table.insert(targets, 1, owner)
-    end
-
-    for _, target in ipairs(targets) do
-      if target.workspace and target.workspace.name == MINIMIZED_WORKSPACE then
-        bring_back_minimized(target)
+    for _, address in ipairs(addresses) do
+      local target = window_at(address)
+      if target then
+        if target.workspace and target.workspace.name == MINIMIZED_WORKSPACE and not bring_back_minimized(target) then
+          return
+        end
+        hl.dispatch(hl.dsp.focus({ window = target }))
+        hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top", window = target }))
       end
-      hl.dispatch(hl.dsp.focus({ window = target }))
-      hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top", window = target }))
     end
   end
 end

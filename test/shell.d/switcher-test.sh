@@ -19,15 +19,31 @@ const windows = [
   { address: '0xe', parent: '', focusHistory: 0 },
   { address: '0xa', parent: '' },
   { address: '0xf', parent: '0xa' },
-  { address: '0xg', parent: '', shown: false, focusHistory: 2 }
+  { address: '0xg', parent: '', shown: false, focusHistory: 2 },
+  { address: '0xq', parent: '', workspace: 'special:qconsole' },
+  { address: '0xs', parent: '', appId: 'org.omarchy.screensaver' }
 ]
+const addresses = list => list.map(window => window.address)
 assertDeepEqual(
-  switcher.orderWindows(['f', 'b', 'a'], windows).map(window => window.address),
+  addresses(switcher.orderWindows(['b', 'f', 'a'], windows)),
   ['0xb', '0xa', '0xe', '0xd'],
-  'windows list in the order last used, those not used since the shell started after them by focus history, dialogs and windows never shown left out'
+  'windows list in the order last used, those not used since the shell started after them by focus history, dialogs, helpers and windows never shown left out'
 )
+assertDeepEqual(addresses(switcher.orderWindows(['f', 'b'], windows)).slice(0, 2), ['0xa', '0xb'], 'a window whose dialog was used last comes first')
+
+const pick = (order, list, focused, delta = 1) => switcher.orderWindows(order, list)[switcher.firstPick(order, list, focused, delta)].address
+assertEqual(pick(['f', 'a', 'b'], windows, '0xf'), '0xb', 'Tab from a focused dialog goes past its owner to the window used before')
+assertEqual(pick(['f', 'a', 'b'], windows, ''), '0xa', 'with nothing focused, Tab goes to the window used last')
+
+const minimized = [{ address: 'a', minimized: true }, { address: 'b' }, { address: 'c' }]
+assertDeepEqual(addresses(switcher.orderWindows(['b', 'a'], minimized)), ['b', 'c', 'a'], 'a minimized window goes after every other, unused ones too')
+assertEqual(switcher.orderWindows([], minimized).pop().address, 'a', 'a minimized window goes last before anything is used')
+
 assertEqual(switcher.dialogFor(['b', 'f'], windows, '0xa').address, '0xf', 'an owner comes up with its dialog')
 assertEqual(switcher.dialogFor([], windows, '0xb'), null, 'a window with no dialog comes up alone')
+const nested = windows.concat([{ address: '0xh', parent: '0xf' }])
+assertEqual(switcher.dialogFor(['b', 'f'], nested, '0xa').address, '0xh', 'an owner comes up with the dialog open on top of its dialog')
+assertDeepEqual(switcher.lineage(nested, '0xh'), ['a', 'f', 'h'], 'a dialog comes up after the windows it belongs to')
 
 assertEqual(switcher.startIndex(3, 1, true), 1, 'Tab starts on the window used before the focused one')
 assertEqual(switcher.startIndex(3, 1, false), 0, 'with nothing focused, Tab starts on the window used last')

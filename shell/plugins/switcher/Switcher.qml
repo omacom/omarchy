@@ -94,6 +94,7 @@ Item {
       } else if (name === "activewindowv2") {
         root.focusReported = true
         root.order = SwitcherModel.touch(root.order, event.data)
+        root.settleActivation(event.data)
       } else if (name === "closewindow") {
         root.order = SwitcherModel.forget(root.order, event.data)
       } else if (name === "movewindowv2") {
@@ -140,10 +141,14 @@ Item {
       var toplevel = toplevels[j]
       var ipc = toplevel.lastIpcObject || {}
       var owner = toplevel.wayland && toplevel.wayland.parent ? byWayland.get(toplevel.wayland.parent) : null
+      var workspace = toplevel.workspace ? String(toplevel.workspace.name) : ""
       windows.push({
         address: SwitcherModel.normalizeAddress(toplevel.address),
         parent: owner ? SwitcherModel.normalizeAddress(owner.address) : "",
         shown: !!toplevel.wayland,
+        minimized: workspace === "special:minimized",
+        workspace: workspace,
+        appId: toplevel.wayland ? String(toplevel.wayland.appId || "") : "",
         focusHistory: typeof ipc.focusHistoryID === "number" ? ipc.focusHistoryID : undefined,
         toplevel: toplevel
       })
@@ -156,20 +161,42 @@ Item {
     Hyprland.refreshToplevels()
 
     var windows = root.windowsNow()
-    for (var i = 0; i < windows.length; i++) {
-      if (windows[i].toplevel.activated) root.order = SwitcherModel.touch(root.order, windows[i].address)
-    }
+    var focused = root.focusedAddress(windows)
+    if (focused) root.order = SwitcherModel.touch(root.order, focused)
 
     var entries = SwitcherModel.orderWindows(root.order, windows)
     if (entries.length === 0) return
 
     root.entries = entries
-    var firstIsFocused = root.focusReported ? entries[0].toplevel.activated : entries[0].focusHistory === 0
-    root.selected = SwitcherModel.startIndex(entries.length, delta, firstIsFocused)
+    root.selected = SwitcherModel.firstPick(root.order, windows, focused, delta)
     root.sticky = sticky
     root.revealed = false
     root.active = true
     revealTimer.restart()
+  }
+
+  // The window with the keyboard. One just picked counts until Hyprland reports
+  // it focused, so a quick second Alt + Tab goes back rather than to it again.
+  function focusedAddress(windows) {
+    var activation = root.pendingActivation || root.lastActivation
+    if (activation && !activation.settled && Date.now() - activation.at < 1000) return activation.target
+    for (var i = 0; i < windows.length; i++) {
+      if (windows[i].toplevel.activated) return windows[i].address
+    }
+    if (root.focusReported) return ""
+    for (var j = 0; j < windows.length; j++) {
+      if (windows[j].focusHistory === 0) return windows[j].address
+    }
+    return ""
+  }
+
+  // An activation is done once its window has the keyboard, or once another
+  // window took it first.
+  function settleActivation(address) {
+    var activation = root.lastActivation
+    if (!activation || activation.settled) return
+    var key = SwitcherModel.normalizeAddress(address)
+    if (key === activation.target || activation.windows.indexOf(key) < 0) activation.settled = true
   }
 
   function step(delta) {
@@ -202,12 +229,15 @@ Item {
   }
 
   // A window with a dialog open comes back with the dialog on top and focused,
-  // as the dialog is what it is waiting on.
+  // as the dialog is what it is waiting on, and with any dialog between them.
   function activate(address) {
-    var dialog = SwitcherModel.dialogFor(root.order, root.windowsNow(), address)
+    var windows = root.windowsNow()
+    var dialog = SwitcherModel.dialogFor(root.order, windows, address)
+    var target = SwitcherModel.normalizeAddress(dialog ? dialog.address : address)
     var activation = {
-      target: dialog ? dialog.address : address,
-      owner: dialog ? address : "",
+      target: target,
+      windows: SwitcherModel.lineage(windows, target),
+      settled: false,
       at: Date.now()
     }
     root.order = SwitcherModel.touch(root.order, activation.target)
@@ -228,7 +258,8 @@ Item {
   }
 
   function dispatchActivation(activation) {
-    Hyprland.dispatch("o.window_switcher.activate(\"0x" + activation.target + "\", \"" + (activation.owner ? "0x" + activation.owner : "") + "\")")
+    var addresses = activation.windows.map(function(address) { return "\"0x" + address + "\"" })
+    Hyprland.dispatch("o.window_switcher.activate(" + addresses.join(", ") + ")")
   }
 
   // Should Hyprland never report the surface gone, the window still comes.
