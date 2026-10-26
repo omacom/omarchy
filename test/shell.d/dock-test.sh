@@ -52,6 +52,10 @@ assert(
   dock.isDockWindow(app('xeyes', 7, { hasEntry: false, workspaceId: -99, minimized: true })),
   'dock keeps a minimized window without a desktop entry, so it can come back'
 )
+assert(
+  ['hyprland-share-picker', 'ch.wysbd.hyprland-preview-share-picker', 'TUI.float'].every(key => !dock.isDockWindow(app(key, 10, { hasEntry: false }))),
+  'dock leaves out the share pickers and TUI windows no desktop entry claims'
+)
 assertEqual(dock.dropIndex(2, 0, 40, 6), 2, 'dock keeps a barely dragged app in its slot')
 assertEqual(dock.dropIndex(2, 85, 40, 6), 4, 'dock lands a dragged app as many slots on as the pointer went')
 assertEqual(dock.dropIndex(2, -500, 40, 6), 0, 'dock lands an app dragged past the start in the first slot')
