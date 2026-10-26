@@ -23,6 +23,15 @@ local function holds_screen(window)
   return window.mapped and window.xwayland and (window.fullscreen or 0) >= 2
 end
 
+-- Omarchy hands the screen to a window focused under a fullscreen one
+-- (misc.on_focus_under_fullscreen = 1), so a game left for a window on its own
+-- workspace may no longer be fullscreen by the time focus is reported. The
+-- window now fullscreen on that workspace took the screen from it.
+local function lost_screen_to(previous, window)
+  return previous.mapped and previous.xwayland and (window.fullscreen or 0) >= 2
+    and previous.workspace and window.workspace and previous.workspace.id == window.workspace.id
+end
+
 hl.on("window.active", function(window)
   if not window then
     return
@@ -37,7 +46,7 @@ hl.on("window.active", function(window)
   local previous = last_active and hl.get_window("address:" .. last_active)
   last_active = window.address
 
-  if previous and previous.address ~= window.address and previous.pid ~= window.pid and holds_screen(previous) then
+  if previous and previous.address ~= window.address and previous.pid ~= window.pid and (holds_screen(previous) or lost_screen_to(previous, window)) then
     locked[previous.address] = true
     set_focus_on_activate(previous, "0")
   end
