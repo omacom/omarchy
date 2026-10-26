@@ -501,6 +501,47 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+
+// A third-party panel's bar facade lists only its own plugin's targets, so a
+// click on another module must reach the host bar, which presses it only while
+// that plugin's panel is the open one.
+{
+  const hit = new Function('target', 'source', 'x', 'y',
+    utilSource.match(/function itemContainsPoint\(target, source, x, y\) \{([\s\S]*?)\n  \}/)[1])
+  const clickItem = (x, width, parent = null, clip = false) => ({
+    x, width, parent, clip, visible: true, enabled: true, opacity: 1,
+    mapFromItem(source, px, py) {
+      for (let node = this; node; node = node.parent) px -= node.x
+      return { x: px, y: py }
+    },
+    contains(p) { return p.x >= 0 && p.x < this.width && p.y >= 0 && p.y < 24 }
+  })
+  const panelSource = fs.readFileSync(root + '/shell/Ui/KeyboardPanel.qml', 'utf8')
+  const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
+  const panelForward = new Function('root', 'Qt', 'pressTargetAt', 'barPoint', 'px', 'py', 'button',
+    panelSource.match(/function forwardBarClick\(px, py, button\) \{([\s\S]*?)\n    \}/)[1])
+  const hostForward = new Function('root', 'clickTargets', 'Util', 'Qt', 'pluginId', 'window', 'x', 'y', 'button',
+    barSource.match(/function forwardPluginBarClick\(pluginId, window, x, y, button\) \{([\s\S]*?)\n  \}/)[1])
+  const Qt = { LeftButton: 1, RightButton: 2, MiddleButton: 4 }
+  const barWindow = { contentItem: {} }
+  const pressed = []
+  const network = Object.assign(clickItem(200, 25), { mapToItem() {}, triggerPress(button) { pressed.push(button) } })
+  const panelOwner = {}
+  const host = {
+    activePopout: panelOwner,
+    pluginOwnsBarObject: (id, target) => id === 'user.audio' && target === panelOwner,
+    targetBelongsToWindow: (target, window) => window === barWindow
+  }
+  const facade = {
+    forwardBarClick: (window, x, y, button) =>
+      hostForward(host, [network], { itemContainsPoint: hit }, Qt, 'user.audio', window, x, y, button)
+  }
+  const clickBar = () => panelForward({ anchorWindow: barWindow, bar: facade }, Qt, () => null,
+    (x, y) => ({ x, y }), 210, 12, Qt.LeftButton)
+  assert(clickBar() && pressed.length === 1, 'third-party panel hands a bar click to another module')
+  host.activePopout = {}
+  assert(!clickBar() && pressed.length === 1, 'host forwards a plugin click only while its panel is open')
+}
 JS
 
 put_tmp=$(mktemp -d)
