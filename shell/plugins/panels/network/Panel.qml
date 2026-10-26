@@ -2397,7 +2397,7 @@ Panel {
     id: pill
     required property string limit
 
-    text: Model.hotspotLimitLabel(limit)
+    text: Model.hotspotLimitLabel(limit, Commons.I18n.t, Commons.I18n.tn, Commons.I18n.formatNumber)
     fontSize: Style.font.bodySmall
     foreground: root.bar.foreground
     fontFamily: root.bar.fontFamily

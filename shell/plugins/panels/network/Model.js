@@ -473,8 +473,12 @@ function hotspotMaxClients(status) {
   return String(clients)
 }
 
-function hotspotLimitLabel(limit) {
-  return String(limit || "") === "" ? "Unlimited" : String(limit) + " devices"
+function hotspotLimitLabel(limit, tr, trn, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var tn = typeof trn === "function" ? trn : function(key, count, english) { return count === 1 ? english.one : english.other }
+  if (String(limit || "") === "") return t("network.hotspotUnlimited", "Unlimited")
+  var count = Number(limit)
+  return tn("network.hotspotDevices", count, { one: "%1 device", other: "%1 devices" }).replace("%1", formatter(fmt)(count))
 }
 
 // True once the AP is serving as many clients as its limit allows, so the
