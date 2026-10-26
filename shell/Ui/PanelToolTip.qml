@@ -27,8 +27,22 @@ ToolTip {
 
   readonly property var panelBorderSpec: Border.localOrSurfaceSpec("tooltip", "border", panelBorder, Commons.Color.tooltip.border, Style.normalBorderWidth)
 
+  // A tooltip is a glance, and an unbounded one stops being readable well
+  // before it stops growing. `text` was laid out on a single line at whatever
+  // width it asked for, so a long string grew past the panel it belongs to.
+  // Bar widget tooltips are drawn by Bar.qml, not here.
+  //
+  // Capping the control rather than the Text is what makes this safe: the
+  // control's implicitWidth still derives from the unwrapped text, so
+  // Math.min() reads a value that does not depend on the width it sets, and
+  // there is no binding loop. Anything shorter than the cap is untouched.
+  property real maximumWidth: Style.space(320)
+
   delay: 400
   padding: 0
+  width: Math.min(implicitWidth, maximumWidth)
+  // The style centres on implicitWidth, which stays unwrapped; centre on the capped width.
+  x: parent ? Math.round((parent.width - width) / 2) : 0
 
   background: BorderSurface {
     color: root.panelBackground
@@ -42,6 +56,9 @@ ToolTip {
     color: root.panelForeground
     font.family: root.fontFamily
     font.pixelSize: root.fontSize
+    // The control hands this its width; wrapping is what turns that cap into
+    // more lines instead of clipped text.
+    wrapMode: Text.Wrap
     leftPadding: Border.left(root.panelBorderSpec) + Style.spacing.controlPaddingX
     rightPadding: Border.right(root.panelBorderSpec) + Style.spacing.controlPaddingX
     topPadding: Border.top(root.panelBorderSpec) + Style.spacing.controlPaddingY
