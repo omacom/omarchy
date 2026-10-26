@@ -241,6 +241,7 @@ Panel {
     savingLocation = false
     savingLocationQueryStarted = false
     locationSuggestions = []
+    geocodePendingQuery = ""
     geocodeDebounce.stop()
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
@@ -299,15 +300,17 @@ Panel {
   function requestGeocode() {
     var locationField = root.locationInput()
     var query = locationField ? locationField.text.trim() : ""
+    geocodePendingQuery = query
     if (query.length < 2) {
       locationSuggestions = []
       return
     }
-    geocodePendingQuery = query
     if (!geocodeProc.running) startGeocode()
   }
 
   function startGeocode() {
+    if (!editingLocation || savingLocation || geocodeProc.running || geocodePendingQuery.length < 2) return
+    geocodeDebounce.stop()
     geocodeActiveQuery = geocodePendingQuery
     geocodeProc.command = ["curl", "-fsS", "--max-time", "5",
       "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(geocodeActiveQuery) + "&count=5&language=en&format=json"]
@@ -458,8 +461,13 @@ Panel {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        root.locationSuggestions = root.editingLocation ? Model.parseGeocodingResults(text) : []
-        root.suggestionIndex = 0
+        // The field can change while this request is in flight, including
+        // before the next debounce fires. Only publish matching suggestions.
+        var locationField = root.locationInput()
+        if (root.editingLocation && !root.savingLocation && locationField && root.geocodeActiveQuery === locationField.text.trim()) {
+          root.locationSuggestions = Model.parseGeocodingResults(text)
+          root.suggestionIndex = 0
+        }
         if (root.geocodePendingQuery !== root.geocodeActiveQuery) Qt.callLater(root.startGeocode)
       }
     }
@@ -676,7 +684,15 @@ Panel {
               foreground: root.bar.foreground
               font.family: root.bar.fontFamily
 
-              onTextChanged: if (root.editingLocation && !root.savingLocation) geocodeDebounce.restart()
+              onTextChanged: {
+                if (root.editingLocation && !root.savingLocation) {
+                  // Enter during the debounce must not commit the old city.
+                  root.locationSuggestions = []
+                  root.suggestionIndex = 0
+                  root.geocodePendingQuery = locationField.text.trim()
+                  geocodeDebounce.restart()
+                }
+              }
 
               Keys.onPressed: function(event) {
                 if (event.key === Qt.Key_Escape) {
