@@ -69,6 +69,11 @@ assertDeepEqual(
   ['chromium', 'slack', 'Alacritty', 'signal', 'spotify-not-installed'],
   'dock pins a running app dragged in among the pins'
 )
+assertDeepEqual(
+  dock.pinsAfterMove(['chromium', 'street-brawl-companion', 'Alacritty'], ['chromium', 'Alacritty'], 'street-brawl-companion', false),
+  ['chromium', 'Alacritty'],
+  'dock moves an app without a desktop entry without pinning it'
+)
 
 assertDeepEqual(
   dock.orderWithKeyAt(['chromium', 'Alacritty', 'signal'], 'obsidian', 1),

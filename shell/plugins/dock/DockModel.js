@@ -152,6 +152,17 @@ function pinsInOrder(order, pinned, allPinned) {
   return result
 }
 
+// The pins to save once key has moved in the dock's order. Moving an app pins
+// it, so it keeps the slot it was given, but only an app with a desktop entry
+// can be pinned: a pin is launched from its entry, and the dock leaves out pins
+// it cannot launch. An app without one keeps its slot for the session only.
+function pinsAfterMove(order, pinnedKeys, key, hasEntry) {
+  var pinned = {}
+  for (var i = 0; i < (pinnedKeys || []).length; i++) pinned[pinnedKeys[i]] = true
+  if (hasEntry === true) pinned[key] = true
+  return pinsInOrder(order, pinned, pinnedKeys)
+}
+
 // The window a click on an app brings forward. Windows on the workspace in
 // front of the user come first, then minimized ones, which come back to it,
 // and only then those on other workspaces. Clicking again while one of them
@@ -190,6 +201,7 @@ if (typeof module !== "undefined") {
     orderWithKeyAt: orderWithKeyAt,
     dropIndex: dropIndex,
     pinsInOrder: pinsInOrder,
+    pinsAfterMove: pinsAfterMove,
     pickWindow: pickWindow
   }
 }
