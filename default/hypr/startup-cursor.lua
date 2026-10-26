@@ -50,11 +50,30 @@ function omarchy_startup_cursor_restore(loaded)
   end
 end
 
+-- Reveal the cursor even if the desktop never asks for it.
+local function arm_recovery()
+  hl.timer(function()
+    if omarchy_startup_cursor_pending then
+      omarchy_startup_cursor.restoring = false
+      omarchy_startup_cursor_restore()
+    end
+  end, { timeout = 15000, type = "oneshot" })
+end
+
+-- A load without monitors arms recovery when one arrives instead:
+-- `Hyprland --verify-config` loads without monitors and never gets one, and a
+-- timer left at its exit crashes it (https://github.com/hyprwm/Hyprland/issues/16591).
+local awaiting_monitor = false
+hl.on("monitor.added", function()
+  if awaiting_monitor and omarchy_startup_cursor_pending then arm_recovery() end
+  awaiting_monitor = false
+end)
+
 hl.on("config.reloaded", function()
   local recover = false
+  local cold = #hl.get_monitors() == 0
   if omarchy_startup_cursor_pending == nil then
     -- An ordinary reload must not hide the pointer, but an interrupted reveal survives.
-    local cold = #hl.get_monitors() == 0
     local session = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
     local interrupted = session and os.getenv("OMARCHY_STARTUP_CURSOR_SESSION") == session
     recover = not cold and not interrupted and os.getenv("XCURSOR_THEME") == "omarchy-startup"
@@ -88,12 +107,7 @@ hl.on("config.reloaded", function()
   if omarchy_startup_cursor_pending then
     -- Keep the temporary cursor private to the compositor, including GSettings.
     hl.config({ cursor = { invisible = true, enable_hyprcursor = false, sync_gsettings_theme = false } })
-    hl.timer(function()
-      if omarchy_startup_cursor_pending then
-        omarchy_startup_cursor.restoring = false
-        omarchy_startup_cursor_restore()
-      end
-    end, { timeout = 15000, type = "oneshot" })
+    if cold then awaiting_monitor = true else arm_recovery() end
     if recover then omarchy_startup_cursor_restore() end
   end
 end)
