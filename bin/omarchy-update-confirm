@@ -39,12 +39,14 @@ for device in "$ipv4_device" "$ipv4_default_device" "$ipv6_device" "$ipv6_defaul
   [[ -n $device ]] || continue
   [[ $(nmcli -g GENERAL.METERED device show "$device" 2>/dev/null) == yes* ]] || continue
 
+  # A remembered network is settled, but traffic can still leave by another
+  # family's link, so keep looking until one needs the warning.
   uuid=$(nmcli -g GENERAL.CON-UUID device show "$device" 2>/dev/null)
   if [[ -n $uuid ]] && ! grep -qxF "$uuid" "$metered_networks" 2>/dev/null; then
     metered_uuid=$uuid
     metered_name=$(nmcli -g GENERAL.CONNECTION device show "$device" 2>/dev/null | sed 's/\\:/:/g')
+    break
   fi
-  break
 done
 
 lines=(

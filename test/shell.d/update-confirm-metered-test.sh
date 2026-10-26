@@ -40,6 +40,15 @@ fi
 STUB
 cat >"$stub_bin/nmcli" <<'STUB'
 #!/bin/bash
+# usb0 is a second NetworkManager link when $TEST_USB0_UUID names its profile.
+if [[ $5 == "usb0" && -n ${TEST_USB0_UUID:-} ]]; then
+  case $2 in
+    GENERAL.METERED) echo "yes (guessed)" ;;
+    GENERAL.CON-UUID) echo "$TEST_USB0_UUID" ;;
+    GENERAL.CONNECTION) echo "$TEST_USB0_NAME" ;;
+  esac
+  exit 0
+fi
 [[ $5 == "wlan0" ]] || exit 10
 case $2 in
   GENERAL.METERED) echo "$TEST_METERED" ;;
@@ -115,6 +124,13 @@ grep -qx "v6-uuid" "$remembered" || fail "an IPv6-only metered network is not re
 TEST_V4_EMPTY=1 confirm "yes (guessed)" v6-uuid "Poco X6" yes || fail "a remembered IPv6-only network is not confirmed" "$(cat "$test_tmp/out")"
 ! warned || fail "a remembered IPv6-only network warns again" "$(cat "$test_tmp/out")"
 pass "an IPv6-only metered network is remembered after confirming"
+
+# IPv4 leaves by a hotspot already confirmed, IPv6 by a different metered
+# link: the remembered one must not hide the other.
+TEST_ROUTE6_DEV=usb0 TEST_ROUTE6_DEFAULT=usb0 TEST_USB0_UUID=tether-uuid TEST_USB0_NAME="USB Tether" \
+  confirm "yes (guessed)" phone-uuid "Redmi Note 13" no || true
+grep -q "USB Tether is a mobile hotspot" "$test_tmp/out" || fail "a remembered IPv4 network hides an unremembered IPv6 one" "$(cat "$test_tmp/out")"
+pass "a remembered network does not hide another family's metered link"
 
 readonly_home="$test_tmp/readonly-home"
 mkdir -p "$readonly_home"
