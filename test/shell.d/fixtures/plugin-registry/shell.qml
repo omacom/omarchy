@@ -83,11 +83,16 @@ ShellRoot {
     scan += block("firstparty", "/first/bar", manifest("omarchy.bar", ["bar"], { bar: "Bar.qml" }))
     scan += block("firstparty", "/first/panels/grouped", manifest("omarchy.grouped-panel", ["panel"], { panel: "Panel.qml" }))
     scan += block("firstparty", "/first/hybrid", manifest("omarchy.hybrid", ["menu", "bar-widget"], { menu: "Menu.qml", barWidget: "Widget.qml" }))
+    var futureAuth = manifest("omarchy.future-auth", ["service"], { service: "Service.qml" })
+    futureAuth.omarchy = { capabilities: ["authentication"] }
+    scan += block("firstparty", "/first/future-auth", futureAuth)
     scan += block("thirdparty", "/third/panel", manifest("third.panel", ["panel"], { panel: "Panel.qml" }))
     scan += block("thirdparty", "/third/widget", manifest("third.widget", ["bar-widget"], { barWidget: "Widget.qml" }, { defaultSection: "left" }))
     scan += block("thirdparty", "/third/center-widget", manifest("third.center-widget", ["bar-widget"], { barWidget: "Widget.qml" }))
     scan += block("thirdparty", "/third/right-widget", manifest("third.right-widget", ["bar-widget"], { barWidget: "Widget.qml" }, { defaultSection: "right" }))
     scan += block("thirdparty", "/third/hybrid", manifest("third.hybrid", ["overlay", "bar-widget"], { overlay: "Overlay.qml", barWidget: "Widget.qml" }))
+    scan += block("thirdparty", "/third/begin-widget", manifest("third.begin-widget", ["bar-widget"], { barWidget: "Widget.qml" }, { defaultSection: "centerBegin" }))
+    scan += block("thirdparty", "/third/legacy-center", manifest("third.legacy-center", ["bar-widget"], { barWidget: "Widget.qml" }, { defaultSection: "center" }))
     var localWidget = manifest("local.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })
     localWidget.omarchy = { clonedFrom: "omarchy.first-widget" }
     scan += block("thirdparty", "/third/local-widget", localWidget)
@@ -100,10 +105,19 @@ ShellRoot {
     var localPanel = manifest("local.grouped-panel", ["panel"], { panel: "Panel.qml" })
     localPanel.omarchy = { clonedFrom: "omarchy.grouped-panel" }
     scan += block("thirdparty", "/third/local-panel", localPanel)
+    var localTray = manifest("local.tray", ["bar-widget"], { barWidget: "Tray.qml" })
+    localTray.omarchy = { clonedFrom: "omarchy.tray" }
+    scan += block("thirdparty", "/third/local-tray", localTray)
     var localBar = manifest("local.bar", ["bar"], { bar: "Bar.qml" })
     localBar.omarchy = { clonedFrom: "omarchy.bar" }
     scan += block("thirdparty", "/third/local-bar", localBar)
     scan += block("thirdparty", "/third/bar", manifest("third.bar", ["bar"], { bar: "Bar.qml" }))
+    var localFutureAuth = manifest("local.future-auth", ["service"], { service: "Service.qml" })
+    localFutureAuth.omarchy = { clonedFrom: "omarchy.future-auth" }
+    scan += block("thirdparty", "/third/local-future-auth", localFutureAuth)
+    var spoofedAuth = manifest("third.spoofed-auth", ["service"], { service: "Service.qml" })
+    spoofedAuth.omarchy = { capabilities: ["authentication"] }
+    scan += block("thirdparty", "/third/spoofed-auth", spoofedAuth)
     scan += block("thirdparty", "/third/shadow", manifest("omarchy.first-widget", ["panel"], { panel: "Panel.qml" }))
     scan += block("thirdparty", "/third/reserved", manifest("omarchy.reserved", ["panel"], { panel: "Panel.qml" }))
     scan += block("thirdparty", "/third/unsafe", manifest("third.unsafe", ["panel"], { panel: "../Panel.qml" }))
@@ -117,23 +131,32 @@ ShellRoot {
     root.assertDeepEqual(pluginIds(), [
       "local.bar",
       "local.first-widget",
+      "local.future-auth",
       "local.grouped-panel",
       "local.hybrid",
+      "local.tray",
       "local.weather",
       "omarchy.bar",
       "omarchy.first-widget",
+      "omarchy.future-auth",
       "omarchy.grouped-panel",
       "omarchy.hybrid",
       "third.bar",
+      "third.begin-widget",
       "third.center-widget",
       "third.hybrid",
+      "third.legacy-center",
       "third.panel",
       "third.right-widget",
+      "third.spoofed-auth",
       "third.widget"
     ], "registry merges valid first-party and third-party manifests")
 
     root.assertTrue(registry.installedPlugins["omarchy.first-widget"].__isFirstParty === true, "first-party manifests are stamped")
     root.assertTrue(registry.installedPlugins["third.panel"].__isFirstParty === false, "third-party manifests are stamped")
+    root.assertDeepEqual(registry.installedPlugins["omarchy.future-auth"].__hostCapabilities, ["authentication"], "trusted manifests stamp authentication capability")
+    root.assertDeepEqual(registry.installedPlugins["local.future-auth"].__hostCapabilities, ["authentication"], "clones inherit trusted host capabilities")
+    root.assertDeepEqual(registry.installedPlugins["third.spoofed-auth"].__hostCapabilities, [], "third-party manifests cannot self-grant host capabilities")
     root.assertEqual(registry.installedPlugins["omarchy.grouped-panel"].__sourceDir, "/first/panels/grouped", "grouped plugin source paths are preserved")
     root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.panel"], "panel"), "file:///third/panel/Panel.qml", "entryPointUrl resolves plugin-relative paths")
     root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.widget"], "barWidget"), "file:///third/widget/Widget.qml", "entryPointUrl resolves bar widget paths")
@@ -175,7 +198,8 @@ ShellRoot {
       bar: {
         layout: {
           left: [{ id: "omarchy.workspaces" }, { id: "omarchy.menu" }],
-          center: [{ id: "omarchy.weather" }, { id: "omarchy.clock" }],
+          center: [{ id: "omarchy.clock" }],
+          centerEnd: [{ id: "omarchy.weather" }, { id: "omarchy.elsewhen" }],
           right: [{ id: "omarchy.tray" }]
         }
       },
@@ -189,16 +213,26 @@ ShellRoot {
     )
     registry.setEnabled("third.center-widget", true)
     root.assertDeepEqual(
-      root.config.bar.layout.center,
-      [{ id: "omarchy.weather" }, { id: "third.center-widget" }, { id: "omarchy.clock" }],
-      "widgets without a default section use the center anchor"
+      root.config.bar.layout.centerEnd,
+      [{ id: "omarchy.weather" }, { id: "third.center-widget" }, { id: "omarchy.elsewhen" }],
+      "widgets without a default section land after the weather, beside the center box"
     )
+    root.assertDeepEqual(root.config.bar.layout.center, [{ id: "omarchy.clock" }], "widgets without a default section leave the center box alone")
     registry.setEnabled("third.right-widget", true)
     root.assertDeepEqual(
       root.config.bar.layout.right,
       [{ id: "omarchy.tray" }, { id: "third.right-widget" }],
       "right widgets use the right anchor"
     )
+    registry.setEnabled("third.begin-widget", true)
+    root.assertDeepEqual(root.config.bar.layout.centerBegin, [{ id: "third.begin-widget" }], "a widget can default to a section hanging off the center box")
+    registry.setEnabled("third.legacy-center", true)
+    root.assertDeepEqual(
+      root.config.bar.layout.centerEnd,
+      [{ id: "omarchy.weather" }, { id: "third.legacy-center" }, { id: "third.center-widget" }, { id: "omarchy.elsewhen" }],
+      "a manifest written for the old center lands beside the clock, not in its box"
+    )
+    root.assertDeepEqual(root.config.bar.layout.center, [{ id: "omarchy.clock" }], "a manifest written for the old center leaves the box alone")
 
     root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
     registry.setEnabled("third.right-widget", true)
@@ -214,6 +248,28 @@ ShellRoot {
     root.assertEqual(registry.setBarWidget("third.widget", "size", 7, {}), "", "registry sets widget options")
     root.assertEqual(root.config.bar.layout.right[0].size, 7, "registry persists widget options")
 
+    // The tray section is a section of its own, in the tray's drawer.
+    root.assertEqual(registry.moveBarWidget("third.widget", { section: "tray" }), "", "registry moves widgets into the tray section")
+    root.assertDeepEqual(root.config.bar.layout.right, [], "a widget moved into the tray section leaves its section")
+    root.assertDeepEqual(root.config.bar.layout.tray, [{ id: "third.widget", size: 7 }], "the tray section keeps the widget's settings")
+    root.assertEqual(registry.setBarWidget("third.widget", "size", 9, {}), "", "registry finds widgets in the tray section")
+    root.assertEqual(root.config.bar.layout.tray[0].size, 9, "registry sets options on widgets in the tray section")
+    registry.setEnabled("third.widget", true)
+    root.assertDeepEqual(root.config.bar.layout.right, [], "enabling a widget in the tray section does not add it to the bar again")
+    root.assertEqual(registry.moveBarWidget("third.widget", { section: "right" }), "", "registry moves widgets out of the tray section")
+    root.assertDeepEqual(root.config.bar.layout.tray, [], "a widget moved out of the tray section leaves it")
+
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [{ id: "omarchy.tray" }], tray: [{ id: "third.widget" }] } }, plugins: [] }
+    root.assertEqual(registry.moveBarWidget("omarchy.tray", { section: "tray" }), "the tray cannot go in its own drawer", "registry keeps the tray out of its own drawer")
+    root.assertEqual(registry.moveBarWidget("omarchy.tray", { after: "third.widget" }), "the tray cannot go in its own drawer", "registry keeps the tray out of its own drawer when placed beside a widget in it")
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "omarchy.tray" }], "a refused tray move leaves the tray where it was")
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [{ id: "local.tray" }], tray: [] } }, plugins: [] }
+    root.assertEqual(registry.moveBarWidget("local.tray", { section: "tray" }), "the tray cannot go in its own drawer", "registry keeps a tray clone out of its own drawer")
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [], tray: [] } }, plugins: [] }
+    root.assertTrue(!registry.setEnabled("local.tray", true, { section: "tray" }), "enabling a tray into its own drawer is refused")
+    root.assertEqual(registry.lastEnableError, "the tray cannot go in its own drawer", "a refused tray enable says why")
+    root.assertDeepEqual(root.config.bar.layout.right, [], "a refused tray enable changes nothing")
+
     root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
     registry.setEnabled("third.widget", true, { section: "right", index: 0 })
     root.assertDeepEqual(root.config.bar.layout.right, [{ id: "third.widget" }], "enabling with placement is one registry transition")
@@ -221,7 +277,7 @@ ShellRoot {
     // A bar the placement's neighbour is not on still gets the widget.
     root.config = {
       version: 1,
-      bar: { layout: { left: [], center: [{ id: "omarchy.weather" }], right: [] } },
+      bar: { layout: { left: [], center: [], centerEnd: [{ id: "omarchy.weather" }], right: [] } },
       plugins: []
     }
     root.assertTrue(
@@ -233,14 +289,14 @@ ShellRoot {
       "could not find target widget omarchy.first-widget",
       "a refused enable names the target it could not find"
     )
-    root.assertDeepEqual(root.config.bar.layout.center, [{ id: "omarchy.weather" }], "a refused enable places nothing")
+    root.assertDeepEqual(root.config.bar.layout.centerEnd, [{ id: "omarchy.weather" }], "a refused enable places nothing")
     root.assertEqual(
       registry.putBarWidget("third.center-widget", { after: "omarchy.first-widget" }),
       "",
       "put accepts a placement target the bar does not carry"
     )
     root.assertDeepEqual(
-      root.config.bar.layout.center,
+      root.config.bar.layout.centerEnd,
       [{ id: "omarchy.weather" }, { id: "third.center-widget" }],
       "put falls back to the section anchor when its target is missing"
     )
@@ -265,7 +321,7 @@ ShellRoot {
     // The anchor a fallback lands against is as clonable as the target.
     root.config = {
       version: 1,
-      bar: { layout: { left: [], center: [{ id: "local.weather" }, { id: "omarchy.clock" }], right: [] } },
+      bar: { layout: { left: [], center: [], centerEnd: [{ id: "local.weather" }, { id: "omarchy.elsewhen" }], right: [] } },
       plugins: []
     }
     root.assertEqual(
@@ -274,8 +330,8 @@ ShellRoot {
       "put falls back past a cloned anchor"
     )
     root.assertDeepEqual(
-      root.config.bar.layout.center,
-      [{ id: "local.weather" }, { id: "third.center-widget" }, { id: "omarchy.clock" }],
+      root.config.bar.layout.centerEnd,
+      [{ id: "local.weather" }, { id: "third.center-widget" }, { id: "omarchy.elsewhen" }],
       "a cloned anchor still anchors the section it was cloned into"
     )
 
@@ -306,10 +362,10 @@ ShellRoot {
     )
 
     // Refusing an id the scan has not reached would fail the migration.
-    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
+    root.config = { version: 1, bar: { layout: { left: [], center: [], centerEnd: [], right: [] } }, plugins: [] }
     registry.scanning = true
     root.assertEqual(registry.putBarWidget("third.absent", {}), "not ready", "put waits for a scan that has not reached its widget")
-    root.assertDeepEqual(root.config.bar.layout.center, [], "put places nothing while it is still waiting")
+    root.assertDeepEqual(root.config.bar.layout.centerEnd, [], "put places nothing while it is still waiting")
     root.assertEqual(registry.putBarWidget("third.center-widget", {}), "", "put places a widget the scan has already read")
     registry.scanning = false
 
@@ -426,7 +482,7 @@ ShellRoot {
     root.assertTrue(!registry.inBar("omarchy.first-widget"), "inBar follows the widget out of the layout")
     root.assertTrue(registry.isEnabled("omarchy.first-widget"), "a first-party widget stays loadable off the bar")
     registry.setEnabled("omarchy.first-widget", true)
-    root.assertDeepEqual(root.config.bar.layout.center, [{ id: "omarchy.first-widget" }], "a widget without a default section falls back to center")
+    root.assertDeepEqual(root.config.bar.layout.centerEnd, [{ id: "omarchy.first-widget" }], "a widget without a default section falls back to centerEnd")
 
     root.config = {
       version: 1,

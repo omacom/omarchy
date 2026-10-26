@@ -21,7 +21,7 @@ trap cleanup EXIT
 require_compositor "lock fingerprint indicator test"
 
 if ! command -v quickshell >/dev/null 2>&1; then
-  pass "quickshell not installed; skipping lock fingerprint indicator test"
+  skip "quickshell not installed; skipping lock fingerprint indicator test"
   exit 0
 fi
 

@@ -5,20 +5,38 @@
 
 FRAMEWORK16_THEME=$HOME/.local/state/omarchy/current/theme/keyboard.rgb
 
+# QMK hue and saturation on a 0-255 scale. The floating-point steps follow
+# Python's colorsys.rgb_to_hsv, which this replaces to save starting Python on
+# every theme switch, so every colour truncates to the same values it always did.
+hex_to_qmk_hue_saturation() {
+  awk -v r=$((16#${1:0:2})) -v g=$((16#${1:2:2})) -v b=$((16#${1:4:2})) 'BEGIN {
+    r /= 255; g /= 255; b /= 255
+    maxc = r; if (g > maxc) maxc = g; if (b > maxc) maxc = b
+    minc = r; if (g < minc) minc = g; if (b < minc) minc = b
+    if (maxc == minc) { print 0, 0; exit }
+
+    s = (maxc - minc) / maxc
+    rc = (maxc - r) / (maxc - minc)
+    gc = (maxc - g) / (maxc - minc)
+    bc = (maxc - b) / (maxc - minc)
+    if (r == maxc) h = bc - gc
+    else if (g == maxc) h = 2.0 + rc - bc
+    else h = 4.0 + gc - rc
+
+    h = h / 6.0
+    h -= int(h)
+    if (h < 0) h += 1.0
+    print int(h * 255), int(s * 255)
+  }'
+}
+
 if omarchy-cmd-present qmk_hid && [[ -f $FRAMEWORK16_THEME ]]; then
   hex=$(cat "$FRAMEWORK16_THEME")
   hex="${hex#\#}"
 
   [[ $hex =~ ^[0-9A-Fa-f]{6}$ ]] || exit 0
 
-  # Convert hex to QMK HSV (0-255 scale) using Python's colorsys
-  read -r h s <<< $(python3 -c "
-import sys, colorsys
-hex = sys.argv[1]
-r, g, b = int(hex[:2],16)/255, int(hex[2:4],16)/255, int(hex[4:6],16)/255
-h, s, v = colorsys.rgb_to_hsv(r, g, b)
-print(int(h * 255), int(s * 255))
-" "$hex")
+  read -r h s <<<"$(hex_to_qmk_hue_saturation "$hex")"
 
   qmk_hid via --rgb-effect 1 2>/dev/null
   qmk_hid via --rgb-hue "$h" 2>/dev/null

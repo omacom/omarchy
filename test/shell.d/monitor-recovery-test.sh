@@ -60,7 +60,8 @@ grep -F 'hyprctl monitors all -j' "$ROOT/bin/omarchy-hyprland-monitor-modeless" 
 pass "modeless helper sees mirrors and ignores monitors disabled on purpose"
 
 grep -F 'omarchy-hw-laptop-closed && omarchy-hw-external-monitors' "$hw_clamshell" >/dev/null
-grep -F '/proc/acpi/button/lid/*/state' "$hw_laptop_closed" >/dev/null
+grep -F 'org.freedesktop.login1.Manager LidClosed' "$hw_laptop_closed" >/dev/null
+grep -F 'OMARCHY_ACPI_LID_PATH:-/proc/acpi/button/lid' "$hw_laptop_closed" >/dev/null
 pass "clamshell helper detects closed-lid external monitor state"
 
 # A mirrored external is absent from plain `monitors`, so asking without `all`
@@ -69,6 +70,32 @@ grep -F 'hyprctl monitors all -j' "$monitor_external_active" >/dev/null
 grep -F 'select(.name | test("^(eDP|LVDS|DSI)-") | not)' "$monitor_external_active" >/dev/null
 grep -F 'select(.disabled == false)' "$monitor_external_active" >/dev/null
 pass "active external monitor helper sees mirrors and ignores monitors disabled on purpose"
+
+if command -v jq >/dev/null 2>&1; then
+  external_tmp=$(mktemp -d)
+  cat >"$external_tmp/hyprctl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$OMARCHY_TEST_MONITORS"
+SH
+  chmod +x "$external_tmp/hyprctl"
+
+  external_active() {
+    PATH="$external_tmp:$PATH" OMARCHY_TEST_MONITORS="$1" "$monitor_external_active"
+  }
+
+  external_active '[{"name":"eDP-1","disabled":true},{"name":"HDMI-A-1","disabled":false}]' ||
+    fail "active external monitor helper sees a connected external monitor"
+
+  # Unplugging the last external monitor while the panel is off leaves Hyprland's
+  # FALLBACK placeholder behind, which must not keep the panel from recovering.
+  ! external_active '[{"name":"eDP-1","disabled":true},{"name":"FALLBACK","disabled":false}]' ||
+    fail "active external monitor helper ignores Hyprland's FALLBACK output"
+
+  rm -rf "$external_tmp"
+  pass "active external monitor helper ignores Hyprland's FALLBACK output"
+else
+  skip "active external monitor helper ignores Hyprland's FALLBACK output"
+fi
 
 grep -F 'omarchy-hyprland-monitor-internal recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
 grep -F 'omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
@@ -99,6 +126,10 @@ pass "internal mirror helper recovers when no active external display remains"
 
 grep -F 'switch:on:Lid Switch", nil, "omarchy-system-lid-close"' "$utilities" >/dev/null
 grep -F 'switch:off:Lid Switch", nil, "omarchy-hyprland-monitor-clamshell"' "$utilities" >/dev/null
+grep -F 'switch:on:Apple SMC power/lid events", nil, "omarchy-system-lid-close"' "$utilities" >/dev/null ||
+  fail "closing an Apple Silicon lid runs the same lid-close as any laptop"
+grep -F 'switch:off:Apple SMC power/lid events", nil, "omarchy-hyprland-monitor-clamshell"' "$utilities" >/dev/null ||
+  fail "opening an Apple Silicon lid restores the panel like any laptop"
 pass "lid switch bindings lock on close and reconcile clamshell display state"
 
 grep -F 'omarchy-hyprland-monitor-clamshell >/dev/null 2>&1 || true' "$system_wake" >/dev/null

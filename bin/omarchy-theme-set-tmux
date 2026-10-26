@@ -11,17 +11,61 @@ if ! tmux list-sessions >/dev/null 2>&1; then
   exit 0
 fi
 
-set_tmux_environment() {
+# Every setting reaches the tmux server as one script. A tmux client per
+# variable per session costs several hundred forks on each theme switch.
+TMUX_COMMANDS=()
+TMUX_SESSIONS=()
+declare -A THEME_COLORS=()
+
+# tmux takes single-quoted text literally; a single quote inside one closes
+# it, joins a double-quoted quote, and reopens it. The quoting stays in this
+# shell: a command substitution per argument would fork once per argument.
+queue_tmux_command() {
+  local argument quoted line="" quote="'"
+
+  for argument in "$@"; do
+    quoted="${argument//$quote/$quote\"$quote\"$quote}"
+    line+="${line:+ }$quote$quoted$quote"
+  done
+
+  TMUX_COMMANDS+=("$line")
+}
+
+queue_tmux_environment() {
   local key="$1"
   local value="$2"
   local session
 
-  tmux set-environment -g "$key" "$value" 2>/dev/null || return 0
+  queue_tmux_command set-environment -g "$key" "$value"
+
+  for session in "${TMUX_SESSIONS[@]}"; do
+    queue_tmux_command set-environment -t "$session" "$key" "$value"
+  done
+}
+
+# source-file reports a line that fails, such as a session that closed in the
+# meantime, and carries on with the rest.
+apply_tmux_commands() {
+  (( ${#TMUX_COMMANDS[@]} > 0 )) || return 0
+
+  printf '%s\n' "${TMUX_COMMANDS[@]}" | tmux source-file - >/dev/null 2>&1 || true
+}
+
+load_tmux_sessions() {
+  local session
 
   while IFS= read -r session; do
-    [[ -n $session ]] || continue
-    tmux set-environment -t "$session" "$key" "$value" 2>/dev/null || true
+    [[ -n $session ]] && TMUX_SESSIONS+=("$session")
   done < <(tmux list-sessions -F "#{session_id}" 2>/dev/null)
+}
+
+# One resolver run covers every colour below.
+load_theme_colors() {
+  local key value
+
+  while IFS=$'\t' read -r key value; do
+    THEME_COLORS[$key]="$value"
+  done < <(omarchy-theme-color --file "$COLORS_TOML" --all 2>/dev/null)
 }
 
 sync_theme_environment() {
@@ -31,50 +75,42 @@ sync_theme_environment() {
 
   while IFS=$'\t' read -r key value; do
     [[ -n $key && -n $value ]] || continue
-    set_tmux_environment "$key" "$value"
+    queue_tmux_environment "$key" "$value"
   done < <(awk -F'"' '/hl\.env\("[A-Z0-9_]+", "[^"]+"\)/ { print $2 "\t" $4 }' "$GUM_ENV")
 }
 
 sync_colorfgbg() {
   local colorfgbg="15;0"
 
-  # theme_color resolves mode from colors.toml, a legacy light.mode file, or
-  # background luminance, so a bare light check covers all theme styles.
-  if [[ $(theme_color mode) == "light" ]]; then
+  # omarchy-theme-color resolves mode from colors.toml, a legacy light.mode
+  # file, or background luminance, so a bare light check covers all theme styles.
+  if [[ ${THEME_COLORS[mode]} == "light" ]]; then
     colorfgbg="0;15"
   fi
 
-  set_tmux_environment COLORFGBG "$colorfgbg"
+  queue_tmux_environment COLORFGBG "$colorfgbg"
 }
 
 theme_osc_sequences() {
   omarchy-theme-osc "$COLORS_TOML"
 }
 
-theme_color() {
-  omarchy-theme-color --file "$COLORS_TOML" "$@"
-}
-
 sync_tmux_window_style() {
-  local background foreground cursor
+  local foreground="${THEME_COLORS[foreground]}"
+  local background="${THEME_COLORS[background]}"
+  local cursor="${THEME_COLORS[cursor]}"
 
-  [[ -f $COLORS_TOML ]] || return
+  [[ -f $COLORS_TOML && -n $foreground && -n $background ]] || return
 
-  foreground=$(theme_color foreground)
-  background=$(theme_color background)
-  cursor=$(theme_color cursor)
-
-  [[ -n $foreground && -n $background ]] || return
-
-  tmux set-option -g window-style "fg=$foreground,bg=$background" 2>/dev/null || true
-  tmux set-option -g window-active-style "fg=$foreground,bg=$background" 2>/dev/null || true
+  queue_tmux_command set-option -g window-style "fg=$foreground,bg=$background"
+  queue_tmux_command set-option -g window-active-style "fg=$foreground,bg=$background"
 
   # Apps like nvim clear the per-pane cursor colour with OSC 112. Without a
   # global fallback, tmux then resets the outer terminal's cursor, which in
   # terminals that can't reload their config (foot) restores the colour from
   # whatever theme was active when the terminal launched.
   if [[ -n $cursor ]]; then
-    tmux set-option -g cursor-colour "$cursor" 2>/dev/null || true
+    queue_tmux_command set-option -g cursor-colour "$cursor"
   fi
 }
 
@@ -112,9 +148,13 @@ refresh_tmux_clients() {
   done < <(tmux list-clients -F "#{client_name}" 2>/dev/null)
 }
 
+load_tmux_sessions
+load_theme_colors
+
 sync_theme_environment
 sync_colorfgbg
 sync_tmux_window_style
+apply_tmux_commands
 sync_tmux_pane_colors
 signal_tmux_panes
 refresh_tmux_clients

@@ -33,6 +33,10 @@ jq -e --arg path "$ROOT/bin/omarchy-chromium-ytdlp-host" '
 ' "$manifest_path" >/dev/null
 pass "yt-dlp native host manifest uses Omarchy host path and extension id"
 
+[[ -f $test_home/.config/BraveSoftware/Brave-Origin/NativeMessagingHosts/com.omarchy.ytdlp.json ]] ||
+  fail "yt-dlp native host installer covers Brave Origin"
+pass "yt-dlp native host installer covers Brave Origin"
+
 parse_result=$(bash -c '
   OMARCHY_PATH="$3"
   source "$1"
@@ -168,7 +172,9 @@ pass "yt-dlp native host keeps a real file after a forged OMARCHY_FILE record"
 # stubbed tools so the yt-dlp invocation and the toast's click command are covered
 # too: a record template that carried the title again would pass every test above.
 fake_root="$TMPDIR/fake"
-mkdir -p "$fake_root/bin"
+mkdir -p "$fake_root/bin" "$fake_root/default"
+# A real install root carries the i18n catalogs omarchy-i18n reads.
+ln -s "$ROOT/default/i18n" "$fake_root/default/i18n"
 fake_dir="$TMPDIR/fake-videos"
 mkdir -p "$fake_dir"
 fake_file="$fake_dir/Real_Clip [id].mp4"

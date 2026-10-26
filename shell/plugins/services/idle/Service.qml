@@ -4,6 +4,7 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import "IdleModel.js" as IdleModel
+import qs.Commons
 
 Item {
   id: root
@@ -16,12 +17,16 @@ Item {
   readonly property string stayAwakeStatePath: stayAwakeStateDir + "/stay-awake"
   readonly property int defaultScreensaverSeconds: 150
   readonly property int defaultLockSeconds: 300
-  readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle ? shell.shellConfig.idle : ({})
+  readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
+    ? shell.shellConfig.idle : (shell && shell.idleConfig ? shell.idleConfig : ({}))
   readonly property int screensaverTimeoutSeconds: secondsFromConfig(idleConfig.screensaver, defaultScreensaverSeconds)
   readonly property int lockTimeoutSeconds: secondsFromConfig(idleConfig.lock, defaultLockSeconds)
-  readonly property int firstIdleTimeoutSeconds: Math.min(screensaverTimeoutSeconds, lockTimeoutSeconds)
-  readonly property int screensaverDelaySeconds: Math.max(0, screensaverTimeoutSeconds - firstIdleTimeoutSeconds)
-  readonly property int lockDelaySeconds: Math.max(0, lockTimeoutSeconds - firstIdleTimeoutSeconds)
+  readonly property bool screensaverEnabled: screensaverTimeoutSeconds > 0
+  readonly property bool lockEnabled: lockTimeoutSeconds > 0
+  readonly property bool idleTimersEnabled: screensaverEnabled || lockEnabled
+  readonly property int firstIdleTimeoutSeconds: IdleModel.firstIdleTimeout(screensaverTimeoutSeconds, lockTimeoutSeconds)
+  readonly property int screensaverDelaySeconds: IdleModel.delayAfterFirstIdle(screensaverTimeoutSeconds, firstIdleTimeoutSeconds)
+  readonly property int lockDelaySeconds: IdleModel.delayAfterFirstIdle(lockTimeoutSeconds, firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property string screensaverClass: "org.omarchy.screensaver"
 
@@ -90,11 +95,23 @@ Item {
     root.screensaverStartedThisCycle = false
     resetScreensaverWindows()
 
-    if (root.screensaverDelaySeconds === 0) launchScreensaver()
-    else screensaverTimer.restart()
+    // Set this cycle's deadlines once: a bound interval would restart a pending
+    // timer from the moment shell.json changes, locking early or late.
+    if (root.screensaverEnabled) {
+      if (root.screensaverDelaySeconds === 0) launchScreensaver()
+      else {
+        screensaverTimer.interval = root.screensaverDelaySeconds * 1000
+        screensaverTimer.restart()
+      }
+    }
 
-    if (root.lockDelaySeconds === 0) lockSystem("lock-timeout-immediate")
-    else lockTimer.restart()
+    if (root.lockEnabled) {
+      if (root.lockDelaySeconds === 0) lockSystem("lock-timeout-immediate")
+      else {
+        lockTimer.interval = root.lockDelaySeconds * 1000
+        lockTimer.restart()
+      }
+    }
   }
 
   function cancelIdleCycle(reason) {
@@ -171,7 +188,7 @@ Item {
 
   function handleIdleChanged() {
     logEvent("idle-monitor", idleMonitor.isIdle ? "idle" : "active")
-    if (!root.idleEnabled) return
+    if (!root.idleEnabled || !root.idleTimersEnabled) return
 
     if (idleMonitor.isIdle) startIdleCycle()
     else handleActiveSignal()
@@ -247,26 +264,27 @@ Item {
     return applyStayAwake(!value, true, "ipc")
   }
 
+  // With both timeouts at 0 the monitor stops reporting, so nothing else would end a running cycle.
+  onIdleTimersEnabledChanged: if (!idleTimersEnabled) cancelIdleCycle("idle-timers-disabled")
+
   IdleMonitor {
     id: idleMonitor
-    enabled: root.idleEnabled
-    timeout: root.firstIdleTimeoutSeconds
+    enabled: root.idleEnabled && root.idleTimersEnabled
+    timeout: Math.max(1, root.firstIdleTimeoutSeconds)
     respectInhibitors: true
     onIsIdleChanged: root.handleIdleChanged()
   }
 
   Timer {
     id: screensaverTimer
-    interval: root.screensaverDelaySeconds * 1000
     repeat: false
-    onTriggered: root.launchScreensaver()
+    onTriggered: if (root.screensaverEnabled) root.launchScreensaver()
   }
 
   Timer {
     id: lockTimer
-    interval: root.lockDelaySeconds * 1000
     repeat: false
-    onTriggered: if (root.idleEnabled && root.idledThisCycle) root.lockSystem("lock-timeout")
+    onTriggered: if (root.idleEnabled && root.idledThisCycle && root.lockEnabled) root.lockSystem("lock-timeout")
   }
 
   Timer {
@@ -334,7 +352,7 @@ Item {
     refreshStayAwakeState()
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "idle"
 
     function status(): string {

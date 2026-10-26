@@ -14,7 +14,7 @@ import QtQuick
 //       onActivateRequested: root.activateCursor()
 //       onCloseRequested: root.close()
 //       onDeleteRequested: root.deleteSelected()
-//       onTextKey: function(t) { if (t === "r") root.refresh() }
+//       onTextKey: function(t, modifiers) { if (t === "r") root.refresh() }
 //
 //       Column { ... panel content ... }
 //     }
@@ -34,14 +34,19 @@ Item {
   id: root
 
   property bool blocked: false
+  // Panels that let items be reordered set this, and Ctrl+Up/Down (or
+  // Ctrl+k/j) then asks to move the current item instead of the cursor.
+  property bool reorderable: false
 
   signal moveRequested(int dx, int dy)
+  signal reorderRequested(int dy)
   signal activateRequested()
   signal returnRequested()
   signal closeRequested()
   signal deleteRequested()
   signal tabRequested(int direction)
-  signal textKey(string text)
+  // The held modifiers ride along, so a panel can tell Alt+T from T.
+  signal textKey(string text, int modifiers)
 
   focus: true
   Keys.priority: Keys.BeforeItem
@@ -56,16 +61,26 @@ Item {
       event.accepted = true
       return
     }
+    if (reorderable && (event.modifiers & Qt.ControlModifier)) {
+      var up = event.key === Qt.Key_Up || event.key === Qt.Key_K
+      var down = event.key === Qt.Key_Down || event.key === Qt.Key_J
+      if (up || down) {
+        reorderRequested(down ? 1 : -1); event.accepted = true; return
+      }
+    }
     if (event.key === Qt.Key_Down || event.text === "j") {
       moveRequested(0, 1); event.accepted = true; return
     }
     if (event.key === Qt.Key_Up || event.text === "k") {
       moveRequested(0, -1); event.accepted = true; return
     }
-    if (event.key === Qt.Key_Right || event.text === "l") {
+    // In a mirrored (right-to-left) panel, Left moves forward along a row.
+    var right = event.key === Qt.Key_Right || event.text === "l"
+    var left = event.key === Qt.Key_Left || event.text === "h"
+    if (LayoutMirroring.enabled ? left : right) {
       moveRequested(1, 0); event.accepted = true; return
     }
-    if (event.key === Qt.Key_Left || event.text === "h") {
+    if (LayoutMirroring.enabled ? right : left) {
       moveRequested(-1, 0); event.accepted = true; return
     }
     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -75,11 +90,11 @@ Item {
     if (event.key === Qt.Key_Space) {
       activateRequested(); event.accepted = true; return
     }
-    if (event.text === "x" || event.text === "X") {
+    if (event.key === Qt.Key_Delete || event.text === "x" || event.text === "X") {
       deleteRequested(); event.accepted = true; return
     }
     if (event.text && event.text.length === 1) {
-      textKey(event.text)
+      textKey(event.text, event.modifiers)
     }
   }
 }

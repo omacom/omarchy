@@ -81,13 +81,13 @@ SH
   rm -rf "$poison_dir"
   pass "root omarchy-dns resolves system helpers from a trusted PATH, not the invocation PATH"
 else
-  pass "no unprivileged user namespace; skipping the root trusted-PATH probe"
+  skip "no unprivileged user namespace; skipping the root trusted-PATH probe"
 fi
 
 # require_root returns immediately for root, so the stubs below would not stand
 # between the script and the host's real NetworkManager and resolved config.
 if (( EUID == 0 )); then
-  pass "running as root; skipping the elevation checks, which would rewrite this machine's DNS"
+  skip "running as root; skipping the elevation checks, which would rewrite this machine's DNS"
   exit 0
 fi
 

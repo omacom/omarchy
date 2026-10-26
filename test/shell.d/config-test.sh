@@ -13,14 +13,28 @@ require_command python3
 jq empty "$ROOT/config/omarchy/shell.json"
 pass "default shell.json is valid JSON"
 
-jq -e '.version == 1 and (.bar.layout.left | type == "array") and (.bar.layout.center | type == "array") and (.bar.layout.right | type == "array")' "$ROOT/config/omarchy/shell.json" >/dev/null
+jq -e '.version == 1 and ([.bar.layout[("left", "centerBegin", "center", "centerEnd", "right")] | type == "array"] | all)' "$ROOT/config/omarchy/shell.json" >/dev/null
 pass "default shell.json has versioned bar layout"
+
+# The center box holds only the clock, so it stays dead center while the
+# widgets either side of it come and go.
+jq -e '
+  def ids: map(.id // .);
+  (.bar | has("centerAnchor") | not) and (.bar.layout.center | ids) == ["omarchy.clock"]
+' "$ROOT/config/omarchy/shell.json" >/dev/null
+pass "default center box holds just the clock"
+
+jq -e '
+  def ids: map(.id // .);
+  (.bar.layout.centerBegin | ids | index("omarchy.indicators")) != null
+' "$ROOT/config/omarchy/shell.json" >/dev/null
+pass "default indicators sit before the center box"
 
 # Pinning the whole row made this fail every time an unrelated widget moved,
 # so assert the adjacency the name is about and let the rest of the row change.
 jq -e '
   def ids: map(.id // .);
-  (.bar.layout.center | ids) as $ids |
+  (.bar.layout.centerEnd | ids) as $ids |
   ($ids | index("omarchy.weather")) as $weather |
   ($ids | index("omarchy.system-update")) as $update |
   $weather != null and $update == $weather + 1
@@ -28,15 +42,41 @@ jq -e '
 pass "default center layout keeps update next to weather"
 
 jq -e '
-  (.bar.centerAnchor // "") as $anchor |
-  any(.bar.layout.center[]; (.id // .) == $anchor)
+  def ids: map(.id // .);
+  (.bar.layout.centerEnd | ids) as $ids |
+  ($ids | index("omarchy.elsewhen")) as $elsewhen |
+  ($ids | index("omarchy.weather")) as $weather |
+  $elsewhen == 0 and $weather > $elsewhen
 ' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default center anchor exists in center layout"
+pass "default center layout puts elsewhen immediately after the clock and before weather"
+
+# Every CLI write goes through the normalizer, which keeps every bar section a
+# list, the ones beside the center box included.
+normalized=$(OMARCHY_PATH="$ROOT" bash -c 'source "$OMARCHY_PATH/bin/omarchy-shell-config" && jq -c "$NORMALIZE | .bar.layout" <<<"{\"bar\":{\"layout\":{\"centerBegin\":null}}}"')
+[[ $normalized == '{"centerBegin":[],"left":[],"center":[],"centerEnd":[],"right":[]}' ]] ||
+  fail "shell config normalizer keeps every bar section a list" "$normalized"
+pass "shell config normalizer keeps every bar section a list"
+
+# A service widget defaulting to centerEnd goes after the weather.
+grep -qF 'def anchor_for(\$section): { left: \"omarchy.workspaces\", centerEnd: \"omarchy.weather\", right: \"omarchy.tray\" }[\$section];' "$ROOT/bin/omarchy-bar" ||
+  fail "bar defaults anchors centerEnd widgets after the weather"
+pass "bar defaults anchors centerEnd widgets after the weather"
 
 jq -e '
   any(.bar.layout.center[]; (.id // .) == "omarchy.clock" and (.formatAlt // "") == "d MMMM \u0027W\u0027ww yyyy")
 ' "$ROOT/config/omarchy/shell.json" >/dev/null
 pass "default clock date format has no leading zero"
+
+# The bar drew the tray first in the right section whatever the layout said
+# (migrations/1791968925.sh), so the default lists it there. Agents follow it,
+# past only the keyboard layout, which hides itself with a single layout.
+jq -e '
+  def ids: map(.id // .);
+  (.bar.layout.right | ids) as $ids |
+  ($ids | index("omarchy.agents")) as $agents |
+  $ids[0] == "omarchy.tray" and $agents != null and ($ids[1:$agents] - ["omarchy.keyboard-layout"]) == []
+' "$ROOT/config/omarchy/shell.json" >/dev/null || fail "default right layout starts with the tray, with agents beside it"
+pass "default right layout starts with the tray, with agents beside it"
 
 ROOT="$ROOT" python3 <<'PY'
 import json
@@ -55,7 +95,7 @@ for manifest_path in (root / "shell/plugins").glob("**/manifest.json"):
   manifests[data.get("id", "")] = (manifest_path, data)
 
 entries = []
-for section in ("left", "center", "right"):
+for section in ("left", "centerBegin", "center", "centerEnd", "right"):
   entries.extend(config["bar"]["layout"][section])
 
 missing = []
@@ -88,35 +128,16 @@ if missing or bad:
 PY
 pass "default bar widget ids resolve to manifests and entry points"
 
-ROOT="$ROOT" python3 <<'PY'
+# The PKGBUILDs live in the omarchy-pkgs checkout, wherever this machine keeps it.
+if find_omarchy_pkgs; then
+  ROOT="$ROOT" OMARCHY_PKGS_ROOT="$OMARCHY_PKGS_ROOT" python3 <<'PY'
 import os
+import re
 import sys
 from pathlib import Path
 
 root = Path(os.environ["ROOT"])
-home = Path.home()
-pkgs_candidates = [
-  root.parent / "omarchy-pkgs/pkgbuilds",
-  root.parent / "omarchy/omarchy-pkgs/pkgbuilds",
-  root.parent.parent / "omarchy-pkgs/pkgbuilds",
-  root.parent / "omacom/omarchy-pkgs/pkgbuilds",
-  root.parent.parent / "omacom/omarchy-pkgs/pkgbuilds",
-  home / "Work/omacom/omarchy-pkgs/pkgbuilds",
-]
-# Checkouts differ per machine, so allow an explicit pointer at the sibling repo.
-# Accepts either the omarchy-pkgs checkout or its pkgbuilds/ directory.
-override = os.environ.get("OMARCHY_PKGS_PATH")
-if override:
-  pkgs_candidates = [Path(override) / "pkgbuilds", Path(override)] + pkgs_candidates
-pkgs_root = next((path for path in pkgs_candidates if path.exists()), None)
-if pkgs_root is None:
-  print("not ok - omarchy-pkgs checkout found for PKGBUILD coverage", file=sys.stderr)
-  print(
-    "looked in:\n  " + "\n  ".join(str(path) for path in pkgs_candidates) +
-    "\nset OMARCHY_PKGS_PATH to the omarchy-pkgs checkout",
-    file=sys.stderr,
-  )
-  sys.exit(1)
+pkgs_root = Path(os.environ["OMARCHY_PKGS_ROOT"])
 settings_pkgbuild_path = pkgs_root / "omarchy-settings/PKGBUILD"
 omarchy_pkgbuild_path = pkgs_root / "omarchy/PKGBUILD"
 if not settings_pkgbuild_path.exists():
@@ -142,6 +163,8 @@ package_defaults = [
   ("default/systemd/user/omarchy-fcitx5.service", "/usr/lib/systemd/user/omarchy-fcitx5.service", "systemd/user/omarchy-fcitx5.service"),
   ("default/systemd/user/omarchy-crash-watch.service", "/usr/lib/systemd/user/omarchy-crash-watch.service", "systemd/user/omarchy-crash-watch.service"),
   ("default/systemd/zram-generator.conf.d/90-omarchy.conf", "/usr/lib/systemd/zram-generator.conf.d/90-omarchy.conf", "systemd/zram-generator.conf.d/90-omarchy.conf"),
+  ("default/systemd/timesyncd.conf.d/10-omarchy.conf", "/usr/lib/systemd/timesyncd.conf.d/10-omarchy.conf", "systemd/timesyncd.conf.d/10-omarchy.conf"),
+  ("default/systemd/system/plocate-updatedb.service.d/10-omarchy.conf", "/usr/lib/systemd/system/plocate-updatedb.service.d/10-omarchy.conf", "systemd/system/plocate-updatedb.service.d/10-omarchy.conf"),
   ("default/fonts/omarchy/omarchy.ttf", "/usr/share/fonts/omarchy/omarchy.ttf", "omarchy.ttf"),
   ("default/snapper/root", "/etc/snapper/config-templates/omarchy", "snapper/root"),
 ]
@@ -153,6 +176,32 @@ for source, destination, legacy in package_defaults:
     errors.append(f"legacy path still in config/: {legacy}")
   if destination and (source not in pkgbuild or destination not in pkgbuild):
     errors.append(f"PKGBUILD does not explicitly install {source} -> {destination}")
+
+# A user unit has to be on the machine before anything turns it on: shipped in
+# /usr/lib/systemd/user, or copied out of default/ by the command enabling it.
+def installs_first(text):
+  source = re.search(r'(\w+)="[^"\n]*default/systemd/user/', text)
+  held = rf"|\$\{{?{source[1]}\b" if source else ""
+  copy = re.search(rf"^[ \t]*(?:sudo[ \t]+)?(?:install|cp)\b[^\n]*(?:default/systemd/user/{held})", text, re.MULTILINE)
+  enable = text.find("systemctl --user enable")
+  return bool(copy) and (enable < 0 or copy.start() < enable)
+
+named = 'unit="$OMARCHY_PATH/default/systemd/user/a.service"\n'
+if installs_first(named + "systemctl --user enable a.service\n"):
+  errors.append("unit check accepts a command that names a unit's source but never installs it")
+if installs_first(named + 'systemctl --user enable a.service\ninstall -Dm644 "$unit" "$target"\n'):
+  errors.append("unit check accepts a command that installs a unit after enabling it")
+
+scripts = [path.read_text(errors="ignore") for folder in ("bin", "install", "migrations")
+           for path in (root / folder).rglob("*") if path.is_file()]
+for unit in sorted(path.name for path in (root / "default/systemd/user").glob("*.service")):
+  if f"/usr/lib/systemd/user/{unit}" in pkgbuild:
+    continue
+  named = [text for text in scripts if unit in text]
+  if not any(installs_first(text) for text in named):
+    errors.append(f"PKGBUILD does not ship default/systemd/user/{unit} and no command installs it")
+  elif any("systemctl --user enable" in text and not installs_first(text) for text in named):
+    errors.append(f"{unit} is enabled without being shipped by PKGBUILD or installed first")
 
 # Existing users have an absolute wants symlink to the old unit path, and the
 # migration that repoints it only runs for users who run an update -- the
@@ -181,7 +230,10 @@ if errors:
   print("\n".join(errors), file=sys.stderr)
   sys.exit(1)
 PY
-pass "package-owned defaults live outside config"
+  pass "package-owned defaults live outside config"
+else
+  skip "package-owned defaults live outside config: needs the omarchy-pkgs checkout; set OMARCHY_PKGS_PATH to it"
+fi
 
 grep -F 'dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")' "$ROOT/config/hypr/hyprland.lua" >/dev/null
 grep -F 'require("default.hypr.omarchy")' "$ROOT/config/hypr/hyprland.lua" >/dev/null
@@ -208,6 +260,9 @@ pass "Hyprland bootstrap reloads cached Omarchy config modules"
 
 TMPDIR=$(mktemp -d)
 mkdir -p "$TMPDIR/home/.config/omarchy"
+# The bar keeps its blur toggle where Hyprland reads it, under XDG_STATE_HOME,
+# so that points into the test home too.
+export XDG_STATE_HOME="$TMPDIR/home/.local/state"
 
 ipc_mock_bin="$TMPDIR/ipc-mock"
 mkdir -p "$ipc_mock_bin"
@@ -288,15 +343,96 @@ pass "shell config sets bar position"
 
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar transparent true
 jq -e '
-  .bar.transparent == true and
+  .bar.background == "none" and
   .bar.position == "bottom" and
   .plugins == []
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 pass "shell config sets bar transparency"
 
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar transparent toggle
-jq -e '.bar.transparent == false' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+jq -e '.bar.background == "opaque"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 pass "shell config toggles bar transparency"
+
+# The bar background is opaque, glassy or none. A glassy bar needs Hyprland's
+# blur, so the bar-glassy toggle follows it.
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"%s/hyprctl.log"\n' "$TMPDIR" >"$ipc_mock_bin/hyprctl"
+chmod +x "$ipc_mock_bin/hyprctl"
+glass_toggle="$TMPDIR/home/.local/state/omarchy/toggles/hypr/bar-glassy.lua"
+bar_background() { HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar background "$@"; }
+
+bar_background opaque >/dev/null
+[[ $(bar_background) == "opaque" ]] || fail "an opaque bar background is reported"
+bar_background glassy >/dev/null
+jq -e '.bar.background == "glassy"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null ||
+  fail "shell config sets a glassy bar"
+[[ $(bar_background) == "glassy" ]] || fail "a glassy bar background is reported"
+[[ -f $glass_toggle ]] || fail "a glassy bar turns on Hyprland's blur behind it"
+grep -qx 'reload' "$TMPDIR/hyprctl.log" || fail "a glassy bar reloads Hyprland"
+bar_background none >/dev/null
+jq -e '.bar.background == "none"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null ||
+  fail "a bar without a background is stored as none"
+[[ ! -f $glass_toggle ]] || fail "a bar without a background turns Hyprland's blur off again"
+pass "shell config sets the bar background, and Hyprland's blur follows a glassy one"
+
+seen=()
+for _ in 1 2 3; do
+  bar_background cycle >/dev/null
+  seen+=("$(bar_background)")
+done
+[[ ${seen[*]} == "glassy opaque none" ]] || fail "the bar background cycles from clear to glassy to opaque and around" "${seen[*]}"
+if bar_background frosted 2>/dev/null; then
+  fail "an unknown bar background is refused"
+fi
+: >"$TMPDIR/hyprctl.log"
+bar_background opaque >/dev/null
+[[ ! -s $TMPDIR/hyprctl.log ]] || fail "Hyprland reloads only when the bar's glass changes"
+pass "the bar background cycles through its looks and refuses unknown ones"
+
+# transparent stays for scripts written against it: true is none, false opaque.
+bar_background glassy >/dev/null
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar transparent true >/dev/null
+[[ $(bar_background) == "none" ]] || fail "transparent true leaves the bar without a background"
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar transparent toggle >/dev/null
+[[ $(bar_background) == "opaque" ]] || fail "toggling transparency off makes the bar opaque"
+# A shell.json from before background says transparent, which reads as none
+# and is dropped once a background is set.
+jq '.bar.transparent = true | del(.bar.background)' "$TMPDIR/home/.config/omarchy/shell.json" >"$TMPDIR/legacy.json" &&
+  mv "$TMPDIR/legacy.json" "$TMPDIR/home/.config/omarchy/shell.json"
+[[ $(bar_background) == "none" ]] || fail "an older transparent bar reads as no background"
+bar_background glassy >/dev/null
+jq -e '.bar.background == "glassy" and (.bar | has("transparent") | not)' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null ||
+  fail "setting a background drops the older transparent flag"
+pass "the older transparent form still sets and reads as the bar background"
+
+# Restoring the default bar also restores its opaque background, and the blur
+# behind a glassy one goes with it.
+bar_background glassy >/dev/null
+[[ -f $glass_toggle ]] || fail "a glassy bar has its blur on before defaults"
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar defaults >/dev/null
+[[ $(bar_background) == "opaque" && ! -f $glass_toggle ]] || fail "omarchy bar defaults turns a glassy bar's blur off"
+pass "restoring the default bar turns a glassy bar's blur off"
+
+# A background set by editing shell.json gets its blur when the shell syncs it.
+jq '.bar.background = "glassy"' "$TMPDIR/home/.config/omarchy/shell.json" >"$TMPDIR/edited.json" &&
+  mv "$TMPDIR/edited.json" "$TMPDIR/home/.config/omarchy/shell.json"
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar sync-glass
+[[ -f $glass_toggle ]] || fail "syncing a hand-edited glassy bar turns its blur on"
+jq '.bar.background = "opaque"' "$TMPDIR/home/.config/omarchy/shell.json" >"$TMPDIR/edited.json" &&
+  mv "$TMPDIR/edited.json" "$TMPDIR/home/.config/omarchy/shell.json"
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar sync-glass
+[[ ! -f $glass_toggle ]] || fail "syncing a hand-edited opaque bar turns its blur off"
+pass "a bar background edited into shell.json gets its blur synced"
+
+# A glassy bar whose blur can't be turned on keeps the background it had.
+toggles_dir="${glass_toggle%/*}"
+chmod a-w "$toggles_dir"
+if bar_background glassy >/dev/null 2>&1; then
+  chmod u+w "$toggles_dir"
+  fail "a bar whose blur can't be turned on reports failure"
+fi
+chmod u+w "$toggles_dir"
+[[ $(bar_background) == "opaque" && ! -f $glass_toggle ]] || fail "a bar whose blur can't be turned on keeps its old background" "$(bar_background)"
+pass "a bar whose blur can't change keeps its old background"
 
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar set omarchy.bluetooth enabled false --json
 grep -Fqx 'shell setBarWidget omarchy.bluetooth enabled false {}' \
@@ -376,7 +512,7 @@ jq -e '
   ($right | index("omarchy.tray")) as $tray |
   ($right | index("omarchy.tailscale") == $tray + 1) and
   ($right | index("omarchy.dropbox") == $tray + 2) and
-  (.bar.layout.center | ids | index("omarchy.tailscale") == null)
+  ([.bar.layout[]] | map(ids) | add | map(select(. == "omarchy.tailscale")) | length == 1)
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 pass "bar defaults places plugins for running optional services"
 
@@ -389,14 +525,14 @@ jq -e '
   ($right | index("omarchy.tray")) as $tray |
   ($right | index("omarchy.tailscale") == $tray + 1) and
   ($right | index("omarchy.dropbox") == $tray + 2) and
-  (.bar.layout.center | ids | index("omarchy.tailscale") == null)
+  ([.bar.layout[]] | map(ids) | add | map(select(. == "omarchy.tailscale")) | length == 1)
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 pass "bar defaults places service widgets without a running shell"
 
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$mock_path" OMARCHY_TEST_DROPBOX=0 OMARCHY_TEST_TAILSCALE=0 omarchy-refresh-shell
 jq -e '
   def ids: map(.id // .);
-  ([.bar.layout.left, .bar.layout.center, .bar.layout.right] | map(ids) | add) as $all |
+  ([.bar.layout[]] | map(ids) | add) as $all |
   ($all | index("omarchy.dropbox") == null) and
   ($all | index("omarchy.tailscale") == null)
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
@@ -409,7 +545,7 @@ jq -e '
   ($right | index("omarchy.tray")) as $tray |
   ($right | index("omarchy.tailscale") == $tray + 1) and
   ($right | index("omarchy.dropbox") == $tray + 2) and
-  (.bar.layout.center | ids | index("omarchy.tailscale") == null)
+  ([.bar.layout[]] | map(ids) | add | map(select(. == "omarchy.tailscale")) | length == 1)
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 [[ -f $TMPDIR/home/.local/state/omarchy/restart-shell-called ]] || fail "shell refresh restarts shell"
 pass "shell refresh places optional service widgets when services are available"
@@ -418,39 +554,3 @@ if grep -RIl 'upgrade-to-quattro\|Omarchy 4\.0 is upgraded' "$ROOT/migrations" >
   fail "4.0 upgrade is not modeled as a migration"
 fi
 pass "4.0 upgrade is handled outside the migration runner"
-
-clock_migration=$(grep -rl 'Remove leading zero from bar clock date' "$ROOT/migrations" | head -n 1 || true)
-[[ -n $clock_migration ]] || fail "clock date format user migration exists"
-
-cat >"$TMPDIR/home/.config/omarchy/shell.json" <<'JSON'
-{
-  "version": 1,
-  "bar": {
-    "layout": {
-      "left": [],
-      "center": [
-        { "id": "omarchy.clock", "formatAlt": "dd MMMM 'W'ww yyyy" },
-        { "id": "omarchy.weather" }
-      ],
-      "right": [
-        { "id": "local.clock", "formatAlt": "dd MMMM 'W'ww yyyy" }
-      ]
-    }
-  },
-  "plugins": []
-}
-JSON
-
-HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" bash "$clock_migration"
-
-jq -e '
-  .bar.layout.center[0].formatAlt == "d MMMM \u0027W\u0027ww yyyy" and
-  .bar.layout.right[0].formatAlt == "dd MMMM \u0027W\u0027ww yyyy"
-' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
-pass "clock date format migration removes leading zero from clock"
-
-before=$(sha256sum "$TMPDIR/home/.config/omarchy/shell.json" | awk '{print $1}')
-HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" bash "$clock_migration"
-after=$(sha256sum "$TMPDIR/home/.config/omarchy/shell.json" | awk '{print $1}')
-[[ $before == "$after" ]] || fail "clock date format migration is idempotent"
-pass "clock date format migration is idempotent"

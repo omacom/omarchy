@@ -36,9 +36,19 @@ for (const state of ['full', 'unknown', 'none', undefined]) {
 }
 const url = new URL(network.captivePortalUrl)
 assertEqual(url.protocol, 'http:', 'browser entry point uses plain HTTP so a portal can intercept it')
-assertEqual(url.hostname, 'ping.archlinux.org', 'browser entry point is fixed rather than portal-supplied')
+assertEqual(url.hostname, 'ping.omacom.io', 'browser entry point is fixed rather than portal-supplied')
 assertEqual(url.username + url.password, '', 'browser entry point contains no credentials')
 JS
+
+# The browser must open the URL NetworkManager probes, or a portal that only
+# intercepts the probed host would never show its sign-in page.
+nm_conf="$ROOT/etc/NetworkManager/conf.d/omarchy-connectivity.conf"
+nm_uri=$(sed -n 's/^uri=//p' "$nm_conf")
+panel_uri=$(sed -n 's/^var captivePortalUrl = "\(.*\)"$/\1/p' "$ROOT/shell/plugins/panels/network/Model.js")
+[[ -n $nm_uri && $nm_uri == "$panel_uri" ]] || fail "NetworkManager probes the URL the panel opens ($nm_uri vs $panel_uri)"
+pass "NetworkManager probes the URL the panel opens"
+[[ $(sed -n 's/^response=\(.*\)$/[\1]/p' "$nm_conf") == "[]" ]] || fail "NetworkManager expects the endpoint's empty 204"
+pass "NetworkManager expects the endpoint's empty 204"
 
 require_compositor "network captive-portal runtime test"
 require_command quickshell
@@ -60,11 +70,19 @@ let source = fs.readFileSync(`${root}/shell/plugins/panels/network/Panel.qml`, '
 // and expose private IDs in the disposable copy, never in production code.
 source = source.replace('import Quickshell.Networking', 'import Quickshell.Networking\nimport "../mocks"')
 source = source.replace(/\bNetworking\./g, 'NetworkMock.')
+// The panel's content is built lazily, so its private IDs are exposed from
+// the content root and mirrored on the panel once the test builds it.
+source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
+      property alias testButton: portalAction
+      property alias testTitle: heroSsid
+`)
 source = source.replace('  id: root', `  id: root
-  property alias testButton: portalAction
-  property alias testKeys: keyCatcher
-  property alias testMeta: heroMeta
-  property alias testTitle: heroSsid
+  function testEnsureContent() { return panel.ensureContent() }
+  readonly property Item testContent: panel.loadedContent
+  readonly property Item testButton: panel.loadedContent ? panel.loadedContent.testButton : null
+  readonly property Item testKeys: panel.loadedContent
+  readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
+  readonly property Item testTitle: panel.loadedContent ? panel.loadedContent.testTitle : null
   property alias testPoll: connectivityPoll
   property alias testBarButton: button`)
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)
@@ -78,8 +96,8 @@ done
 # Normal assertions keep the details empty to exercise missing-route handling.
 printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type\\twifi\\niface\\ttest-wifi\\nssid\\tGuest Wi-Fi\\nip\\t192.0.2.10\\ngateway\\t192.0.2.1\\n"\nfi\n' > "$stage/bin/omarchy-network-status"
 chmod +x "$stage/bin/omarchy-network-status"
-printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_BROWSER_LOG"\n' > "$stage/bin/omarchy-launch-browser"
-chmod +x "$stage/bin/omarchy-launch-browser"
+printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_BROWSER_LOG"\n' > "$stage/bin/omarchy-network-captive-portal"
+chmod +x "$stage/bin/omarchy-network-captive-portal"
 
 # All networking and external actions are mocked; the real connection and
 # browser are never touched, and the fixture writes only to its scratch HOME.
@@ -91,5 +109,5 @@ if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding l
   fail "network portal fixture has no QML errors" "$output"
 fi
 [[ -f $stage/browser.log ]] || fail "portal action launches the browser"
-[[ $(<"$stage/browser.log") == "http://ping.archlinux.org/nm-check.txt" ]] || fail "portal opens exactly one fixed HTTP URL"
+[[ $(<"$stage/browser.log") == "http://ping.omacom.io/nm-check.txt" ]] || fail "portal opens exactly one fixed HTTP URL"
 pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, and browser argv work in QML"

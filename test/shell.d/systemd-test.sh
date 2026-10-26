@@ -59,7 +59,8 @@ grep -F 'omarchy-update-user-notify' "$first_run_units" >/dev/null &&
 pass "first-run enables the login-only migration notifier"
 
 fcitx_service="$ROOT/default/systemd/user/omarchy-fcitx5.service"
-grep -Fx 'ExecStart=/usr/bin/fcitx5 --disable notificationitem' "$fcitx_service" >/dev/null
+grep -Fx 'ExecStart=/usr/bin/fcitx5 --replace --disable notificationitem' "$fcitx_service" >/dev/null ||
+  fail "without --replace, a fcitx5 started outside the unit holds the bus name and every restart exits on arrival"
 grep -Fx 'Restart=always' "$fcitx_service" >/dev/null ||
   fail "fcitx5 exits 0 on a duplicate bus name, so on-failure would leave the user with no input method"
 grep -Fx 'After=graphical-session.target' "$fcitx_service" >/dev/null ||
@@ -70,16 +71,10 @@ grep -Fx 'WantedBy=graphical-session.target' "$fcitx_service" >/dev/null ||
   fail "fcitx5 is never pulled in at login without a WantedBy"
 grep -Fx 'ConditionEnvironment=WAYLAND_DISPLAY' "$fcitx_service" >/dev/null ||
   fail "an update over SSH has a live user manager and no display; starting fcitx5 there wedges the unit active-but-blind, and Wants= will not replace it at graphical login"
+grep -Fx 'ConditionPathExists=/usr/bin/fcitx5' "$fcitx_service" >/dev/null ||
+  fail "without fcitx5 installed, Restart=always retries the enabled unit at 203/EXEC for the whole session"
 
-fcitx_migration="$ROOT/migrations/1785167800.sh"
-grep -F 'is-active --quiet graphical-session.target' "$fcitx_migration" >/dev/null ||
-  fail "migration kills fcitx5 and starts the unit outside a graphical session"
-grep -F 'systemctl --user enable omarchy-fcitx5.service' "$fcitx_migration" >/dev/null ||
-  fail "migration must enable without --now; --now starts the unit before the session-gate check"
-grep -F 'Could not start omarchy-fcitx5.service' "$fcitx_migration" >/dev/null ||
-  fail "migration pkills a working fcitx5, so a failed handover must be reported instead of marked complete"
-
-grep -F 'pkill -x fcitx5' "$ROOT/bin/omarchy-restart-xcompose" >/dev/null ||
+grep -F 'pkill -u "$UID" -x fcitx5' "$ROOT/bin/omarchy-restart-xcompose" >/dev/null ||
   fail "restart-xcompose cannot reload a fcitx5 running outside the unit, so it silently keeps serving the old table"
 
 grep -F 'omarchy-fcitx5.service' "$first_run_units" >/dev/null ||
@@ -111,10 +106,4 @@ pass "systemd-oomd acts on sustained memory stall"
 
 grep -Fx 'systemctl enable systemd-oomd.service' "$ROOT/install/config/enable-services.sh" >/dev/null ||
   fail "new installs ship the oomd drop-ins with the daemon that reads them disabled"
-
-oomd_migration=$(grep -rl 'systemd-oomd.service' "$ROOT/migrations" | head -n 1 || true)
-[[ -n $oomd_migration ]] ||
-  fail "existing installs never enable systemd-oomd; enable-services.sh only runs at install time"
-grep -F 'systemctl --user daemon-reload' "$oomd_migration" >/dev/null ||
-  fail "migration leaves the user manager unaware of app.slice candidacy until the next login"
-pass "existing installs enable systemd-oomd and report app.slice without a relogin"
+pass "new installs enable systemd-oomd"

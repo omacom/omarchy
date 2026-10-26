@@ -64,8 +64,8 @@ while (( $# > 0 )); do
   esac
 done
 
-[[ -z $section || $section =~ ^(left|center|right)$ ]] ||
-  fail "section must be left, center, or right"
+[[ -z $section || $section =~ ^(left|centerBegin|center|centerEnd|tray|right)$ ]] ||
+  fail "section must be left, centerBegin, center, centerEnd, tray, or right"
 [[ -z $index || $index =~ ^[0-9]+$ ]] ||
   fail "index must be a non-negative integer"
 [[ -z $before || -z $after ]] || fail "use only one of --before or --after"

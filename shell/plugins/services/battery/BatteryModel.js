@@ -19,10 +19,27 @@ function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, al
   }
 }
 
+function parseActiveProfile(text) {
+  // busctl --json=short prints {"type":"s","data":"balanced"}; an empty or
+  // malformed reply (daemon not running) reads as no active profile.
+  try {
+    return String(JSON.parse(text).data || "").trim()
+  } catch (e) {
+    return ""
+  }
+}
+
+function profileAfterRead(current, replyText, signalsAtStart, signalsNow) {
+  // A change signal that arrived during the read is newer than its reply.
+  return signalsAtStart === signalsNow ? parseActiveProfile(replyText) : current
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     batteryPercentage: batteryPercentage,
     isDischarging: isDischarging,
-    shouldWarnLowBattery: shouldWarnLowBattery
+    shouldWarnLowBattery: shouldWarnLowBattery,
+    parseActiveProfile: parseActiveProfile,
+    profileAfterRead: profileAfterRead
   }
 }

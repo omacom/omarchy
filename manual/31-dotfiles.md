@@ -37,11 +37,13 @@ Omarchy fires hooks at a handful of moments, and you can hang your own scripts o
 | Event | When it runs |
 | ----- | ------------ |
 | `post-boot` | Right after the desktop has started |
-| `post-update` | During `omarchy update`, after packages and migrations |
-| `pre-refresh-pacman` | Before `omarchy refresh pacman` re-syncs the package config |
+| `post-update` | Near the end of `omarchy update`, after packages, migrations, and service restarts, before mise tools are updated |
+| `pre-refresh-pacman` | After `omarchy refresh pacman` re-syncs the package config, before it updates packages; a channel switch runs it during that same refresh step |
 | `theme-set` | After a theme change (theme name in `$1`) |
 | `font-set` | After a font change (font name in `$1`) |
 | `battery-low` | When the battery gets low (percentage in `$1`) |
+
+The `pre-refresh-pacman` hook is where custom repositories or `IgnorePkg` lines belong, since it runs before the package transaction. Both update-related hooks run as your user after Omarchy clears its cached sudo authorization, so a hook that uses `sudo` needs its own authorization and may ask for your password.
 
 Each of those directories already holds a `.sample` file showing the shape of a hook — drop the `.sample` from the name to put it to work. To install a script you've written elsewhere, use `omarchy hook install post-boot ~/my-hook`, which copies it in and makes it executable.
 
@@ -66,10 +68,11 @@ Look, this is your computer. You can do whatever you want with it, but I would a
 
 You can change just about everything that way, like the default keybindings. Just edit `~/.config/hypr/bindings.lua` to, say, replace [Obsidian](https://obsidian.md/) with [Joplin](https://joplinapp.org/) (install with `omarchy-pkg-add joplin-bin`):
 
+```lua
+o.rebind("SUPER + SHIFT + O", "Joplin", "joplin-desktop")
 ```
-hl.unbind("SUPER + SHIFT + O")
-o.bind("SUPER + SHIFT + O", "Joplin", "joplin-desktop")
-```
+
+`o.rebind` removes the existing binding before adding its replacement. It takes the same arguments as `o.bind`, including launch helpers and binding options. Use `o.bind` to add a binding, or `hl.unbind` to remove one without replacing it.
 
 If you insist on hacking on the internal Omarchy files, switch to the dev channel via _Update > Channel > Dev_. That links Omarchy to a git checkout of the source code in `~/omarchy`, which you're free to change to your heart's content. Ain't nobody here to tell you what to do!
 

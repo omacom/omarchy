@@ -22,7 +22,7 @@ cat >"$mock_bin/omarchy-font-set" <<'SH'
 printf 'font:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
 SH
 
-for command in omarchy-pkg-aur-add omarchy-install-emacs omazed omarchy-theme-set-vscode omarchy-install-gaming-gpu-lib32; do
+for command in omarchy-pkg-aur-add omarchy-install-emacs omazed omarchy-theme-set-vscode omarchy-install-gaming-gpu-lib32 omarchy-lifecycle-dispatch; do
   cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 exit 0
