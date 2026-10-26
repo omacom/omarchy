@@ -321,10 +321,14 @@ function shouldLimitHotspot(scan) {
 
 // Writes connection.metered ($2) on profile $1 and reapplies it to interface
 // $3, so the running link changes without reconnecting. With $4 set, a
-// profile that already has its own setting is left alone.
+// profile that already has its own setting is left alone. The reapply only
+// happens while $3 still runs $1: otherwise the saved setting waits for the
+// profile's next connection rather than touching another link.
 var meteredScript =
   "if [ -n \"$4\" ] && [ \"$(nmcli -g connection.metered connection show uuid \"$1\")\" != unknown ]; then exit 0; fi;" +
-  " nmcli connection modify uuid \"$1\" connection.metered \"$2\" && nmcli device reapply \"$3\""
+  " nmcli connection modify uuid \"$1\" connection.metered \"$2\" || exit;" +
+  " [ \"$(nmcli -g GENERAL.CON-UUID device show \"$3\" 2>/dev/null)\" = \"$1\" ] || exit 0;" +
+  " nmcli device reapply \"$3\""
 
 function throughputState(previous, next, now) {
   var prev = previous || {}

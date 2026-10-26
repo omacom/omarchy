@@ -717,14 +717,18 @@ Panel {
     }
   }
 
-  function setMetered(connection, value, onlyIfUnset) {
-    if (!connection || !wifiDevice) return
+  // The adapter is fixed when the change is asked for, so a write queued
+  // behind another one still reapplies to the link that runs the profile,
+  // even if a different adapter has become wifiDevice by then.
+  function setMetered(connection, value, onlyIfUnset, device) {
+    var iface = device || (wifiDevice ? wifiDevice.name : "")
+    if (!connection || !iface) return
     if (meteredProc.running) {
-      pendingMetered = { connection: connection, value: value, onlyIfUnset: onlyIfUnset }
+      pendingMetered = { connection: connection, value: value, onlyIfUnset: onlyIfUnset, device: iface }
       return
     }
     meteredProc.command = ["bash", "-c", Model.meteredScript, "omarchy-network-metered",
-      connection, value, wifiDevice.name, onlyIfUnset ? "1" : ""]
+      connection, value, iface, onlyIfUnset ? "1" : ""]
     meteredProc.running = true
   }
 
@@ -1277,7 +1281,7 @@ Panel {
     onExited: {
       var next = root.pendingMetered
       root.pendingMetered = null
-      if (next) Qt.callLater(function() { root.setMetered(next.connection, next.value, next.onlyIfUnset) })
+      if (next) Qt.callLater(function() { root.setMetered(next.connection, next.value, next.onlyIfUnset, next.device) })
       else root.scanHotspots()
     }
   }

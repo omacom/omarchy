@@ -400,8 +400,6 @@ assertEqual(network.shouldLimitHotspot(Object.assign({}, limitScan, { limit: 'no
 assertEqual(network.shouldLimitHotspot(Object.assign({}, limitScan, { limit: 'yes' })), false, 'network leaves an already limited profile alone')
 assertEqual(network.shouldLimitHotspot(Object.assign({}, limitScan, { active: false })), false, 'network does not limit an ordinary network')
 assertEqual(network.shouldLimitHotspot(Object.assign({}, limitScan, { connection: '' })), false, 'network needs a profile to limit')
-assert(/connection\.metered\)?[^;]*!= unknown/.test(network.meteredScript), 'network rechecks the profile before limiting it on its own')
-assert(/nmcli device reapply "\$3"/.test(network.meteredScript), 'network reapplies the setting without reconnecting')
 assert(/tooltipText: Model\.isMetered\(root\.hotspotMetered\) \? Commons\.I18n\.t\("network\.unlimitData"\) : Commons\.I18n\.t\("network\.limitData"\)/.test(panelSource), 'network offers to lift the limit on a metered network and to set one otherwise')
 assert(/tooltipText: root\.hotspotLink \? Commons\.I18n\.t\("network\.runSpeedTestMobileData"\) : Commons\.I18n\.t\("network\.runSpeedTest"\)/.test(panelSource), 'network warns that a speed test over a phone hotspot uses mobile data')
 assert(/autoLimitedConnection !== scan\.connection/.test(panelSource), 'network limits a profile on its own only once')
@@ -410,10 +408,48 @@ assert(hotspotProcBlock && /onStreamFinished: if \(hotspotScanProc\.request === 
 assert(hotspotProcBlock && /onExited: if \(request !== root\.hotspotRequest\) Qt\.callLater\(root\.scanHotspots\)/.test(hotspotProcBlock[0]), 'network reruns a hotspot read requested while one was running')
 const connectionKeyHandler = panelSource.match(/onConnectionKeyChanged: \{[\s\S]*?\n {2}\}/)
 assert(connectionKeyHandler && /hotspotConnection = ""/.test(connectionKeyHandler[0]), 'network forgets the old profile before the data limit can act on a new link')
+// The metered script against an nmcli stub: $STUB_METERED is the profile's
+// own setting and $STUB_DEVICE_UUID the profile the interface runs now.
+{
+  const os = require('os')
+  const { spawnSync } = require('child_process')
+  const stubDir = fs.mkdtempSync(os.tmpdir() + '/network-metered-')
+  fs.writeFileSync(stubDir + '/nmcli', '#!/bin/bash\necho "$*" >>"$STUB_LOG"\ncase "$*" in\n  "-g connection.metered connection show uuid "*) echo "$STUB_METERED" ;;\n  "-g GENERAL.CON-UUID device show "*) echo "$STUB_DEVICE_UUID" ;;\nesac\n', { mode: 0o755 })
+  const runMetered = (args, env) => {
+    const log = stubDir + '/log'
+    fs.writeFileSync(log, '')
+    const result = spawnSync('bash', ['-c', network.meteredScript, 'omarchy-network-metered', ...args], { env: Object.assign({}, process.env, { PATH: stubDir + ':' + process.env.PATH, STUB_LOG: log }, env) })
+    return { status: result.status, calls: fs.readFileSync(log, 'utf8') }
+  }
+  let run = runMetered(['phone-uuid', 'yes', 'wlan0', ''], { STUB_METERED: 'unknown', STUB_DEVICE_UUID: 'phone-uuid' })
+  assert(/connection modify uuid phone-uuid connection\.metered yes/.test(run.calls) && /device reapply wlan0/.test(run.calls), 'network saves the data limit and reapplies it to the link running the profile')
+  run = runMetered(['phone-uuid', 'yes', 'wlan0', ''], { STUB_METERED: 'unknown', STUB_DEVICE_UUID: 'home-uuid' })
+  assert(/connection modify uuid phone-uuid/.test(run.calls) && !/device reapply/.test(run.calls) && run.status === 0, 'network saves but does not reapply when the interface now runs another profile')
+  run = runMetered(['phone-uuid', 'yes', 'wlan0', '1'], { STUB_METERED: 'no', STUB_DEVICE_UUID: 'phone-uuid' })
+  assert(!/connection modify/.test(run.calls), 'network leaves a profile with its own setting alone when limiting on its own')
+  fs.rmSync(stubDir, { recursive: true, force: true })
+}
+
 const setMeteredFn = panelSource.match(/function setMetered\([\s\S]*?\n {2}\}/)
-assert(setMeteredFn && /if \(meteredProc\.running\) \{\s*pendingMetered = /.test(setMeteredFn[0]), 'network queues a data limit write that arrives during another')
-const meteredProcBlock = panelSource.match(/id: meteredProc[\s\S]*?\n {2}\}/)
-assert(meteredProcBlock && /root\.setMetered\(next\.connection, next\.value, next\.onlyIfUnset\)/.test(meteredProcBlock[0]), 'network runs the queued data limit write once the running one exits')
+const meteredExited = panelSource.match(/id: meteredProc\s+onExited: \{([\s\S]*?)\n {4}\}/)
+assert(setMeteredFn && meteredExited, 'network has a queued data limit write path')
+if (setMeteredFn && meteredExited) {
+  let wifiDevice = { name: 'wlan0' }
+  let pendingMetered = null
+  const meteredProc = { running: true, command: [] }
+  const Model = network
+  const root = {}
+  eval(setMeteredFn[0])
+  root.setMetered = setMetered
+  Object.defineProperty(root, 'pendingMetered', { get: () => pendingMetered, set: value => { pendingMetered = value } })
+  root.scanHotspots = () => {}
+  setMetered('phone-uuid', 'yes', false)
+  wifiDevice = { name: 'wlan1' }
+  meteredProc.running = false
+  new Function('root', 'Qt', meteredExited[1])(root, { callLater: fn => fn() })
+  assertEqual(meteredProc.command[4], 'phone-uuid', 'network runs the queued data limit write once the running one exits')
+  assertEqual(meteredProc.command[6], 'wlan0', 'network reapplies a queued data limit to the adapter it was asked for')
+}
 assert(/else if \(headerIndex === dataHeaderIndex\) toggleDataLimit\(\)/.test(panelSource), 'network reaches the data limit action from the keyboard')
 
 assertEqual(network.connectionIcon('wifi', 80, 'full', true), network.hotspotIcon, 'network draws the chain for a hotspot link')
