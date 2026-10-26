@@ -20,7 +20,7 @@ Ink-blue surfaces, warm text, and jade selections keep the landscape and applica
 
 The theme uses Omarchy’s native `colors.toml` templates for applications and the shell, with `Yaru-prussiangreen` icons. It requires no application-specific overrides.
 
-The semantic hues are balanced in [OKLab](https://bottosson.github.io/posts/oklab/), following [OKSolar’s](https://meat.io/oksolar) approach to perceived lightness. Foreground text has 11.63:1 contrast against the background; syntax colors and muted text retain at least 4.56:1 contrast against the selection background.
+The semantic hues are balanced in [OKLab](https://bottosson.github.io/posts/oklab/), following [OKSolar’s](https://meat.io/oksolar) approach to perceived lightness. Foreground text has 11.63:1 contrast against the background. Muted text has 7.45:1 contrast against the background and 5.01:1 against the selection background; syntax colors retain at least 4.58:1 over selections.
 
 ## Wallpapers
 
