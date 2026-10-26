@@ -385,6 +385,14 @@
     "one": "%1 · %2GHz · %3 CLIENT",
     "other": "%1 · %2GHz · %3 CLIENTS"
   },
+  "network.hotspotOnAirClientsFull": {
+    "one": "%1 · %2GHz · %3 CLIENT/%4 FULL",
+    "other": "%1 · %2GHz · %3 CLIENTS/%4 FULL"
+  },
+  "network.hotspotOnAirClientsLimit": {
+    "one": "%1 · %2GHz · %3 CLIENT/%4",
+    "other": "%1 · %2GHz · %3 CLIENTS/%4"
+  },
   "network.hotspotPasswordPlaceholder": "Password (8+ characters)",
   "network.hotspotPasswordTooLong": "Password can't exceed 63 characters",
   "network.hotspotPasswordTooShort": "Password needs 8+ characters",
