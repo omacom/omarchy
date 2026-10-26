@@ -29,6 +29,8 @@ end
 -- etc/mkinitcpio.conf.d/omarchy_hooks.conf and default/hypr/input.lua.
 local non_latin_layouts =
   " af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np rs ru sy th tj ua "
+-- us variants that can't type Latin letters either: Russian phonetic and Cherokee.
+local non_latin_us_variants = " chr rus "
 
 local vconsole = read_vconsole()
 local kb_layout = vconsole.XKBLAYOUT or "us"
@@ -38,8 +40,30 @@ local kb_options = ""
 -- A greeter that can't type Latin letters can't take a password either, so a
 -- non-Latin layout gets us in front, reachable back with Left Alt + Right Alt.
 if non_latin_layouts:find(" " .. kb_layout:match("^[^,]*") .. " ", 1, true) then
-  kb_layout = "us," .. kb_layout
-  kb_variant = "," .. kb_variant
+  -- Variants pair with layouts by position. Move an existing us entry and its
+  -- variant to the front instead of adding a duplicate toggle stop.
+  local layouts, variants = {}, {}
+  for layout in (kb_layout .. ","):gmatch("([^,]*),") do
+    layouts[#layouts + 1] = layout
+  end
+  for variant in (kb_variant .. ","):gmatch("([^,]*),") do
+    variants[#variants + 1] = variant
+  end
+
+  local us_variant = ""
+  for i, layout in ipairs(layouts) do
+    if layout == "us" and not non_latin_us_variants:find(" " .. (variants[i] or "") .. " ", 1, true) then
+      us_variant = variants[i] or ""
+      table.remove(layouts, i)
+      if variants[i] then table.remove(variants, i) end
+      break
+    end
+  end
+
+  table.insert(layouts, 1, "us")
+  table.insert(variants, 1, us_variant)
+  kb_layout = table.concat(layouts, ",")
+  kb_variant = table.concat(variants, ",")
   kb_options = "grp:alts_toggle"
 end
 

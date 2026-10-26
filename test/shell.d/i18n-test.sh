@@ -33,13 +33,14 @@ assert(staleMenu.length === 0, 'English menu catalog mirrors the menu definition
 const orphanMenu = Object.keys(enMenu).filter((id) => id !== 'root' && !menuItems.some((item) => item.id === id))
 assert(orphanMenu.length === 0, 'English menu catalog has no orphan ids', JSON.stringify(orphanMenu))
 
-// I18N_STRUCTURAL=1 is the pull-request gate: individual PRs only add the
+// Structural by default, as every gate runs it: individual PRs only add the
 // English side, so missing translations are pending work for the sync
 // workflow rather than failures. So are translations the manifest marks
 // stale (their English changed since) and orphans awaiting pruning —
 // an English-only edit must never wedge on 49 other languages. Structure
-// of what IS current must still hold either way.
-const structural = process.env.I18N_STRUCTURAL === '1'
+// of what IS current must still hold either way. I18N_STRICT=1 also wants
+// every catalog complete, as it is right after a sync.
+const structural = process.env.I18N_STRICT !== '1'
 const crypto = require('crypto')
 const manifest = readJson('translation-manifest.json')
 // A plural entry hashes as Python's json.dumps(sort_keys=True) writes it.
@@ -117,7 +118,12 @@ assert(unreferencedShell.length === 0, 'every shell catalog key is referenced', 
 const unknownShell = [...shellKeys].filter((key) => !Object.hasOwn(enShell, key))
 assert(unknownShell.length === 0, 'every referenced shell key exists in the English catalog', JSON.stringify(unknownShell))
 
-const cliKeys = collectKeys(path.join(root, 'bin'), [''], /omarchy-i18n (?:--count \S+ )?([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g)
+const cliKeyPattern = /omarchy-i18n (?:--count \S+ )?([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g
+const cliKeys = collectKeys(path.join(root, 'bin'), [''], cliKeyPattern)
+for (const key of collectKeys(path.join(root, 'install'), ['.sh', '.hook'], cliKeyPattern)) cliKeys.add(key)
+for (const key of collectKeys(path.join(root, 'default'), ['.py'], cliKeyPattern)) cliKeys.add(key)
+for (const key of collectKeys(path.join(root, 'etc'), ['.jsonc'], cliKeyPattern)) cliKeys.add(key)
+for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh'], /omarchy_form_text ([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g)) cliKeys.add(key)
 const unreferencedCli = Object.keys(enCli).filter((key) => !cliKeys.has(key))
 assert(unreferencedCli.length === 0, 'every cli catalog key is referenced', JSON.stringify(unreferencedCli))
 const unknownCli = [...cliKeys].filter((key) => !Object.hasOwn(enCli, key))
@@ -176,7 +182,9 @@ const englishTexts = {}
 for (const file of englishManual) englishTexts[file] = fs.readFileSync(path.join(manualDir, file), 'utf8')
 const bagOf = (items) => JSON.stringify([...items].sort())
 const fencesOf = (text) => [...text.matchAll(/```[^\n]*\n([\s\S]*?)```/g)].map((m) => m[1])
-const urlsOf = (text) => text.match(/https?:\/\/[^\s)]+/g) || []
+// The published manual's autolinks leave trailing ASCII punctuation out of a
+// bare URL but keep 。 or । in it, and a (destination) keeps it all.
+const urlsOf = (text) => [...text.matchAll(/https?:\/\/[^\s)`]+/g)].map((m) => text[m.index - 1] === '(' ? m[0] : m[0].replace(/[.,;:!?]+$/, ''))
 const relDestsOf = (text) => [...text.matchAll(/\]\((?!<?https?:\/\/)([^)\s]+)/g)].map((m) => m[1])
 const protectedInlineOf = (text) => [...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1])
   .filter((span) => /[/~$]/.test(span) || span.startsWith('omarchy ') || span.startsWith('omarchy-'))
@@ -194,6 +202,12 @@ const fencedChapter = englishManual.find((file) => englishTexts[file].includes('
 assert(manualProblems(englishTexts[fencedChapter], englishTexts[fencedChapter].replace(/```[^\n]*\n/, '$&echo tampered\n')).length > 0, 'the manual integrity check catches a changed code block')
 const linkedChapter = englishManual.find((file) => /\]\(\d\d-[a-z0-9-]+\.md\)/.test(englishTexts[file]))
 assert(manualProblems(englishTexts[linkedChapter], englishTexts[linkedChapter].replace(/\]\(\d\d-[a-z0-9-]+\.md\)/, '](99-missing.md)')).length > 0, 'the manual integrity check catches a broken chapter link')
+assert(['https://example.org/walls を参照してください。', 'ดูที่ https://example.org/walls', 'https://example.org/walls. पर देखें']
+  .every((translated) => manualProblems('See https://example.org/walls.', translated).length === 0) &&
+  ['参照: https://example.org/walls。', 'देखें https://example.org/walls।', 'دیکھیں https://example.org/walls۔', 'See https://example.org/other.']
+    .every((translated) => manualProblems('See https://example.org/walls.', translated).length > 0) &&
+  manualProblems('[LocalSend](https://localsend.org/)', '[LocalSend](https://localsend.org/ダウンロード)').length > 0 &&
+  manualProblems('[dharmx/walls](https://github.com/dharmx/walls).', '[dharmx/walls](https://github.com/dharmx/walls.)。').length > 0, 'the manual integrity check ignores the full stop the published link drops, not one it keeps')
 for (const code of codes) {
   if (code === 'en') continue
   const dir = path.join(manualDir, code)
@@ -471,11 +485,11 @@ fi
 
 require_command python3
 
-if [[ ${I18N_STRUCTURAL:-} == "1" ]]; then
-  skip "no translations are pending (structural mode)"
-else
+if [[ ${I18N_STRICT:-} == "1" ]]; then
   pending_locales=$(python3 "$ROOT/scripts/i18n-sync.py" pending | jq -c '.locales')
   assert_bash_equal "$pending_locales" "[]" "no translations are pending"
+else
+  skip "no translations are pending (structural mode)"
 fi
 
 extract_candidates=$(python3 "$ROOT/scripts/i18n-sync.py" extract-scan | jq -c '.candidates | length')

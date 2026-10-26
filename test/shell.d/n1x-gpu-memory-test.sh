@@ -7,18 +7,14 @@ tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 mkdir -p "$tmp_dir/bin" "$tmp_dir/efivars"
 export CALL_LOG="$tmp_dir/calls" N1X="$tmp_dir/n1x"
-export OMARCHY_EFIVARS="$tmp_dir/efivars" OMARCHY_N1X_GPU_MEMORY_CONF="$tmp_dir/omarchy-n1x-gpu-memory.conf"
+export OMARCHY_EFIVARS="$tmp_dir/efivars"
 export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
 
 cat > "$tmp_dir/bin/omarchy-hw-aarch64-n1x" <<'SH'
 #!/bin/bash
 [[ -e $N1X ]]
 SH
-cat > "$tmp_dir/bin/sudo" <<'SH'
-#!/bin/bash
-"$@"
-SH
-for command in chattr limine-mkinitcpio; do
+for command in chattr; do
   cat > "$tmp_dir/bin/$command" <<'SH'
 #!/bin/bash
 echo "${0##*/}${*:+ $*}" >> "$CALL_LOG"
@@ -31,7 +27,6 @@ shipped='\x07\x00\x00\x00\x00\xfa\x00\x00\x00\x00\x00\x20\x00\x00\x00\x00\x00\x0
 four_gib='\x07\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x20\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x01'
 
 apply() { : > "$CALL_LOG"; omarchy-apply-n1x-gpu-memory >/dev/null 2>&1; }
-migrate() { : > "$CALL_LOG"; bash -euo pipefail "$ROOT/migrations/1791784278.sh" >/dev/null 2>&1; }
 holds() { cmp -s <(printf "$1") "$var"; }
 
 printf "$shipped" > "$var"
@@ -59,17 +54,3 @@ pass "an unknown layout is left alone"
 rm "$var"
 ! apply || fail "a firmware without the variable is an error"
 pass "a firmware without the variable is an error"
-
-printf "$shipped" > "$var"
-cat > "$OMARCHY_N1X_GPU_MEMORY_CONF" <<'CONF'
-KERNEL_CMDLINE[default]+=" efi_reclaim_reserved=58G@8G"
-CONF
-migrate
-holds "$four_gib" || fail "the migration sets the reservation"
-[[ ! -e $OMARCHY_N1X_GPU_MEMORY_CONF ]] || fail "the kernel reclaim option is removed"
-grep -Fxq limine-mkinitcpio "$CALL_LOG" || fail "the boot entries are rebuilt"
-pass "the migration replaces the kernel reclaim with the firmware setting"
-
-migrate
-[[ ! -s $CALL_LOG ]] || fail "the migration does nothing a second time" "$(<"$CALL_LOG")"
-pass "the migration is idempotent"

@@ -49,9 +49,9 @@ end
 -- read. It still has to leave a rule behind, or the console would open unseeded.
 assert(#rules > 0, "console is ruled even before a monitor can be read")
 assert(current().on_created_empty:find("omarchy%-agent"), "console is seeded with the default agent")
-assert(current().on_created_empty:find("^%[workspace special:scratchpad silent%]"),
+assert(current().on_created_empty:find("^%[workspace special:qconsole silent%]"),
   "the seed is pinned to the console rather than trusting the spawn to inherit it")
-assert(current().workspace == "special:scratchpad")
+assert(current().workspace == "special:qconsole")
 
 local function rescale(height, scale, bar)
   monitor = { width = 1920, height = height, scale = scale, transform = 0, reserved = { top = bar, bottom = 0, left = 0, right = 0 } }
@@ -161,14 +161,14 @@ assert(left == 435 and right == 435 and bottom == 525, "a half turn is still lan
 local acer = { name = "HDMI-A-1", width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 30, bottom = 0, left = 0, right = 0 } }
 monitor = dell
 handlers["monitor.layout_changed"]()
-handlers["workspace.special_active"]({ name = "special:scratchpad" }, acer)
+handlers["workspace.special_active"]({ name = "special:qconsole" }, acer)
 top, right, bottom, left = gaps()
 assert(left == 435 and right == 435 and bottom == 525, "opening on 1080p after a 6K fit resizes the box")
 assert(1920 - left - right > 0 and 1080 - 30 - bottom > 0, "1080p leftover is never negative")
 
 -- follow_mouse onto the 6K while the console is already showing on 1080p must
 -- not steal the rule; that is what oversized the Dell after a hop.
-workspace = { name = "special:scratchpad", visible = true, monitor = acer, windows = 1 }
+workspace = { name = "special:qconsole", visible = true, monitor = acer, windows = 1 }
 monitor = dell
 written = #rules
 handlers["monitor.focused"](dell)
@@ -178,7 +178,7 @@ assert(#rules == written, "focus on another output does not rewrite an open cons
 -- handle then answers nil to everything, and preferring it blindly would leave
 -- the console stranded at the gaps of the monitor that is gone. The rule is
 -- still the 1080p one here, so only refitting on the Dell can satisfy this.
-workspace = { name = "special:scratchpad", visible = true, monitor = expired, windows = 1 }
+workspace = { name = "special:qconsole", visible = true, monitor = expired, windows = 1 }
 monitor = dell
 handlers["monitor.layout_changed"]()
 top, right, bottom, left = gaps()
@@ -186,18 +186,18 @@ assert(left == 1807 and right == 1807 and bottom == 1265,
   "a console whose output vanished refits on the monitor that is still there")
 
 -- Back onto the 1080p panel for the window-count checks below.
-workspace = { name = "special:scratchpad", visible = true, monitor = acer, windows = 1 }
+workspace = { name = "special:qconsole", visible = true, monitor = acer, windows = 1 }
 monitor = acer
 handlers["monitor.layout_changed"]()
 top, right, bottom, left = gaps()
 assert(left == 435 and right == 435 and bottom == 525, "and refits again once it is back on a live output")
 
 -- One window reads as a console and keeps the panel. A second app has turned
--- the scratchpad into a workspace, and a workspace wants the whole width.
-workspace = { name = "special:scratchpad", visible = true, monitor = acer, windows = 2 }
+-- the console into a workspace, and a workspace wants the whole width.
+workspace = { name = "special:qconsole", visible = true, monitor = acer, windows = 2 }
 handlers["window.open"]()
 top, right, bottom, left = gaps()
-assert(left == 0 and right == 0, "a second app on the scratchpad restores the full width")
+assert(left == 0 and right == 0, "a second app on the console restores the full width")
 assert(bottom == 525, "and the console keeps its half-height drop")
 
 workspace.windows = 3
@@ -210,7 +210,7 @@ handlers["window.destroy"]()
 top, right, bottom, left = gaps()
 assert(left == 435 and right == 435, "closing back down to one window recenters the panel")
 
--- An empty scratchpad is about to be seeded with a single agent, so it is sized
+-- An empty console is about to be seeded with a single agent, so it is sized
 -- as a console rather than as a workspace.
 workspace.windows = 0
 handlers["window.destroy"]()
@@ -220,22 +220,22 @@ assert(left == 435 and right == 435, "an empty console is still a console")
 -- A hidden console is refitted on its way back in, so the count does not have to
 -- be chased while it is off screen; every window on the desktop would otherwise
 -- rewrite the rule.
-workspace = { name = "special:scratchpad", visible = false, monitor = acer, windows = 4 }
+workspace = { name = "special:qconsole", visible = false, monitor = acer, windows = 4 }
 monitor = dell
 written = #rules
 handlers["window.open"]()
 assert(#rules == written, "a window opening elsewhere does not rewrite a hidden console")
 
--- A scratchpad nothing has opened yet has no workspace to read at all, and is
+-- A console nothing has opened yet has no workspace to read at all, and is
 -- sized as the console the seed is about to put a single agent into.
 workspace = nil
 monitor = { width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 0, bottom = 0, left = 0, right = 0 } }
 handlers["monitor.layout_changed"]()
 top, right, bottom, left = gaps()
-assert(left == 420 and right == 420 and bottom == 540, "a scratchpad that does not exist yet is sized as a console")
+assert(left == 420 and right == 420 and bottom == 540, "a console that does not exist yet is sized as a console")
 
 -- Back to a console on screen for the move and float checks.
-workspace = { name = "special:scratchpad", visible = true, monitor = acer, windows = 1 }
+workspace = { name = "special:qconsole", visible = true, monitor = acer, windows = 1 }
 monitor = acer
 handlers["monitor.layout_changed"]()
 top, right, bottom, left = gaps()
@@ -260,7 +260,7 @@ handlers["window.update_rules"]()
 top, right, bottom, left = gaps()
 assert(left == 435 and right == 435, "floating it again recenters the panel")
 
--- Sending an app onto the scratchpad (Super+Alt+S) or off it (Super+Shift+1)
+-- Sending an app onto the console (Super+Shift+Grave) or off it (Super+Shift+1)
 -- does not open or destroy anything, so the move itself has to refit.
 workspace.floats, workspace.windows = 0, 2
 handlers["window.move_to_workspace"]()
