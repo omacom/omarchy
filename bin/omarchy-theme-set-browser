@@ -61,7 +61,15 @@ policy_pid=$!
 declare -A running_names=()
 running_args=""
 while read -r name args; do
-  running_names[$name]=1
+  if [[ $name == "brave" ]]; then
+    # Brave Origin's process is named plain "brave"; only count plain brave
+    # when the process is not Brave Origin.
+    if [[ $args != *"/opt/brave-origin-bin/"* ]]; then
+      running_names[brave]=1
+    fi
+  else
+    running_names[$name]=1
+  fi
   running_args+="$args"$'\n'
 done < <(ps -eo comm=,args=)
 
@@ -80,15 +88,16 @@ done
 wait "$policy_pid" || failed=1
 
 # Refresh each running browser in parallel, so one slow launch doesn't
-# serialize the rest.
+# serialize the rest. A timeout bounds the refresh so an unresponsive
+# or non-terminating instance never stalls the theme switch.
 refresh_pids=()
 for command in "${browsers_to_refresh[@]}"; do
-  "$command" --refresh-platform-policy --no-startup-window &>/dev/null &
+  timeout 5 "$command" --refresh-platform-policy --no-startup-window &>/dev/null &
   refresh_pids+=("$!")
 done
 
 for pid in "${refresh_pids[@]}"; do
-  wait "$pid"
+  wait "$pid" 2>/dev/null || true
 done
 
 exit "$failed"
