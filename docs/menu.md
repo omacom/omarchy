@@ -12,11 +12,7 @@ without restarting the shell. Rendering and behavior live in
 also load — the shell tests in `test/shell.d/menu-test.sh` and
 `menu-guards-test.sh` exercise it directly.
 
-JSONC here means JSON plus comments and trailing commas, stripped by the
-parser rather than a real JSONC grammar: only whole-line `//` comments are
-removed, so an inline trailing comment breaks the parse. A file that fails to
-parse contributes no entries — a broken user extension silently drops every
-user entry while the shipped menu keeps working.
+JSONC here means JSON plus `//` and `/* */` comments, trailing commas and an optional BOM, removed by `stripJsonc` in one string-aware pass before `JSON.parse`, so a comment at the end of a value's line is fine. A file that still fails to parse contributes no entries — a broken user extension silently drops every user entry while the shipped menu keeps working.
 
 ## Entry schema
 

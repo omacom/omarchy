@@ -63,7 +63,8 @@ assertDeepEqual(
     searchTerms: [],
     when: '',
     checked: '',
-    disabled: ''
+    disabled: '',
+    specified: ['label', 'aliases', 'description', 'action']
   },
   'menu normalizes parsed items'
 )
