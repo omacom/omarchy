@@ -395,9 +395,13 @@ assert(/function openHotspotSetup\(\) \{ root\.openHotspotSetup\(\) \}/.test(pan
 assert(/if \(\(next\.active === "1"\) !== wasActive\) syncWifiNetworks\(\)/.test(panelSource), 'network re-syncs the wifi list when the hotspot active state changes')
 assert(/focusSection === "hotspot"/.test(panelSource), 'network has a keyboard cursor zone for the hotspot section')
 assert(/stderr: StdioCollector \{ id: hotspotErr; waitForEnd: true \}/.test(panelSource), 'network surfaces the hotspot command stderr')
-assert(/omarchy hotspot diagnose` for details/.test(panelSource), 'network points hotspot failures at the diagnose command')
 assert(/stderr: StdioCollector \{ id: hotspotStatusErr; waitForEnd: true \}/.test(panelSource), 'network collects hotspot status stderr')
 assert(/readonly property string hotspotMessage: hotspotError !== "" \? hotspotError : hotspotStatusError/.test(panelSource), 'network keeps action errors ahead of status errors')
+// Panel code extracted below reads its messages from the English catalog,
+// with String.prototype.arg filling %1 as QML's does.
+if (!String.prototype.arg) String.prototype.arg = function(value) { return this.replace('%1', value) }
+const englishShell = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
+const englishCommons = { I18n: { t: key => englishShell[key] } }
 const updateHotspotSource = panelSource.match(/function updateHotspot\(raw, exitCode, errorOutput\) \{[\s\S]*?\n {2}\}/)
 assert(updateHotspotSource, 'network accepts a hotspot process result')
 if (updateHotspotSource) {
@@ -409,6 +413,7 @@ if (updateHotspotSource) {
   let hotspotBand = ''
   let hotspotStatusError = ''
   const Model = network
+  const Commons = englishCommons
   function syncWifiNetworks() {}
   eval(updateHotspotSource[0])
 
@@ -427,6 +432,17 @@ if (updateHotspotSource) {
   updateHotspot('  \n', 0, '')
   assert(hotspot === lastGood && hotspotSsid === lastSsid, 'network preserves hotspot state after empty status')
   assertEqual(hotspotStatusError, 'Hotspot status returned no data', 'network reports empty hotspot status')
+}
+
+const hotspotActionFailureSource = panelSource.match(/function hotspotActionFailure\(kind, reason\) \{[\s\S]*?\n {2}\}/)
+assert(hotspotActionFailureSource, 'network has one place that words a failed hotspot action')
+if (hotspotActionFailureSource) {
+  const Commons = englishCommons
+  eval(hotspotActionFailureSource[0])
+  assertEqual(hotspotActionFailure('stop'), 'Failed to stop hotspot', 'network words a failed stop before its reason arrives')
+  assertEqual(hotspotActionFailure('apply', 'no dnsmasq'), 'Failed to apply hotspot: no dnsmasq', 'network carries the command reason for a failed apply')
+  assertEqual(hotspotActionFailure('start', ''), 'Failed to start hotspot (run `omarchy hotspot diagnose` for details)', 'network points a silent start failure at diagnose')
+  assertEqual(hotspotActionFailure('', 'busy'), 'Failed to start hotspot: busy', 'network treats an unnamed action as a start')
 }
 
 const resetHotspotErrorsSource = panelSource.match(/function resetHotspotErrors\(\) \{[\s\S]*?\n {2}\}/)
@@ -533,7 +549,7 @@ const hotspotApplyIndex = panelSource.indexOf('id: hotspotApplyBtn', hotspotSetu
 const hotspotMessageIndex = panelSource.indexOf('id: hotspotMessageText')
 assert(hotspotSetupBodyIndex >= 0 && hotspotApplyIndex > hotspotSetupBodyIndex && hotspotMessageIndex > hotspotApplyIndex, 'network keeps status errors outside the collapsed setup body')
 
-assert((panelSource.match(/Model\.hotspotCredentialsError\(hotspotSsid, hotspotPassword\)/g) || []).length === 2, 'network shares hotspot credential validation between start and apply')
+assert((panelSource.match(/Model\.hotspotCredentialsError\(hotspotSsid, hotspotPassword, Commons\.I18n\.t\)/g) || []).length === 2, 'network shares hotspot credential validation between start and apply')
 assert(/id: hotspotQrButton\s+visible: root\.hotspotActive/.test(panelSource), 'network hides the hotspot QR unless the AP is on')
 assert(/readonly property int hotspotFocusMax: hotspotActive \? 2 : 1/.test(panelSource), 'network drops QR from the keyboard cycle while the AP is off')
 assert(!/hotspotQrButton\.containsMouse|hotspotCogButton\.containsMouse/.test(panelSource), 'network does not bind a hover state Button does not expose')
