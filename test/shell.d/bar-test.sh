@@ -799,6 +799,58 @@ put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" \
 [[ $put_output == "omarchy.keyboard-layout is on the bar" ]] || fail "put reports the placed widget" "$put_output"
 pass "put places a widget through a ready shell"
 
+# Exercise the shipped traversal with a root whose backing-window callback is
+# unavailable. This is an offline callback contract, not a native Qt crash test.
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const source = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
+
+// Let the JS compiler find the end of each function, including nested blocks,
+// strings and comments. Neither QML indentation nor the traversal's spelling
+// determines whether the behavioral assertions below pass.
+function compileFunction(name) {
+  const declarations = [...source.matchAll(new RegExp('^[ \t]*function\\s+' + name + '\\s*\\(', 'gm'))]
+  if (declarations.length !== 1) throw new Error('expected one function ' + name)
+  const start = declarations[0].index
+  for (let end = source.indexOf('}', start); end >= 0; end = source.indexOf('}', end + 1)) {
+    try {
+      return new vm.Script(source.slice(start, end + 1), {filename: 'Bar.qml:' + name})
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error
+    }
+  }
+  throw new Error('cannot compile function ' + name)
+}
+const functions = ['polishHiddenItem', 'updateHiddenLayout'].map(compileFunction)
+
+for (const populated of [false, true]) {
+  let rootCalls = 0
+  const polished = new Set()
+  const item = children => ({children, ensurePolished() { polished.add(this) }})
+  const leaf = item([]), sibling = item([]), layout = item([leaf])
+  const proxyRoot = {
+    children: populated ? [layout, sibling] : [],
+    ensurePolished() {
+      rootCalls++
+      throw new Error('proxy root polished without its backing window')
+    }
+  }
+  const context = vm.createContext({
+    contentItem: proxyRoot,
+    hiddenLayoutWindow: {contentItem: {}, width: 1280, height: 26},
+    backingWindowVisible: false,
+    hiddenLayoutQueued: true
+  })
+  for (const fn of functions) fn.runInContext(context)
+  context.updateHiddenLayout()
+  assertEqual(rootCalls, 0, `hidden ${populated ? 'populated' : 'empty'} proxy root is never polished`)
+  assert(populated
+    ? polished.size === 3 && [leaf, layout, sibling].every(child => polished.has(child))
+    : polished.size === 0, 'hidden layout polishes all descendants without requiring a proxy callback')
+}
+JS
+
 # The plugin facade resolves only its own currently live widgets.
 run_node_test <<'JS'
 const fs = require('fs')
