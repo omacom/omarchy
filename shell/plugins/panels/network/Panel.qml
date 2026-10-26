@@ -2337,7 +2337,7 @@ Panel {
           Text {
             textFormat: Text.PlainText
             width: parent.width
-            text: "Ask joining devices to save data"
+            text: Commons.I18n.t("network.hotspotSaveDataHeading")
             color: Qt.darker(root.bar.foreground, 1.35)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
@@ -2621,8 +2621,8 @@ Panel {
   component HotspotSaveDataPill: Button {
     required property string choice
 
-    text: Model.hotspotSaveDataLabel(choice)
-    tooltipText: Model.hotspotSaveDataTooltip(choice, root.hotspotActive, Model.hotspotSaveData(root.hotspot))
+    text: Model.hotspotSaveDataLabel(choice, Commons.I18n.t)
+    tooltipText: Model.hotspotSaveDataTooltip(choice, root.hotspotActive, Model.hotspotSaveData(root.hotspot), Commons.I18n.t)
     fontSize: Style.font.bodySmall
     foreground: root.bar.foreground
     fontFamily: root.bar.fontFamily

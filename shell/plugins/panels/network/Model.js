@@ -462,19 +462,21 @@ function hotspotSaveData(status) {
   return hotspotSaveDataChoices.indexOf(value) !== -1 ? value : "auto"
 }
 
-function hotspotSaveDataLabel(choice) {
-  if (choice === "always") return "Always"
-  if (choice === "never") return "Never"
-  return "Auto"
+function hotspotSaveDataLabel(choice, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (choice === "always") return t("network.hotspotSaveDataAlways", "Always")
+  if (choice === "never") return t("network.hotspotSaveDataNever", "Never")
+  return t("network.bandAuto", "Auto")
 }
 
 // dnsmasq reads the choice when the hotspot starts, so while it is on air a
 // different pick waits for the next start.
-function hotspotSaveDataTooltip(choice, active, saved) {
-  var text = "Tell joining devices to save data only when this computer's connection is metered"
-  if (choice === "always") text = "Always tell joining devices to save data"
-  else if (choice === "never") text = "Never tell joining devices to save data"
-  if (active && choice !== saved) text += " (from the next start)"
+function hotspotSaveDataTooltip(choice, active, saved, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var text = t("network.hotspotSaveDataAutoTooltip", "Tell joining devices to save data only when this computer's connection is metered")
+  if (choice === "always") text = t("network.hotspotSaveDataAlwaysTooltip", "Always tell joining devices to save data")
+  else if (choice === "never") text = t("network.hotspotSaveDataNeverTooltip", "Never tell joining devices to save data")
+  if (active && choice !== saved) text = t("network.fromNextStart", "%1 (from the next start)").replace("%1", text)
   return text
 }
 
