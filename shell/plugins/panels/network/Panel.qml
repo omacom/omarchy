@@ -2103,20 +2103,20 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
             text: {
               if (root.hotspotBusy) {
-                if (root.hotspotActionKind === "stop") return "STOPPING…"
-                if (root.hotspotActionKind === "apply") return "SAVING…"
-                return "STARTING…"
+                if (root.hotspotActionKind === "stop") return Commons.I18n.t("network.hotspotStopping")
+                if (root.hotspotActionKind === "apply") return Commons.I18n.t("network.hotspotSaving")
+                return Commons.I18n.t("network.hotspotStarting")
               }
               if (root.hotspotActive) {
-                var band = root.hotspot.band || root.hotspotBand
-                var s = root.hotspotSsid + " \u00b7 " + band + "GHz"
-                if (root.hotspotClients.length > 0) {
-                  s += " \u00b7 " + root.hotspotClients.length + " CLIENT"
-                  if (root.hotspotClients.length > 1) s += "S"
-                }
-                return s
+                var band = String(root.hotspot.band || root.hotspotBand)
+                var bandNumber = Number(band)
+                if (band !== "" && isFinite(bandNumber)) band = Commons.I18n.formatNumber(bandNumber)
+                var count = root.hotspotClients.length
+                if (count === 0) return Commons.I18n.t("network.hotspotOnAir").arg(root.hotspotSsid).arg(band)
+                return Commons.I18n.tn("network.hotspotOnAirClients", count)
+                  .arg(root.hotspotSsid).arg(band).arg(Commons.I18n.formatNumber(count))
               }
-              return root.hotspotConfigured ? "OFF" : "NOT CONFIGURED"
+              return root.hotspotConfigured ? Commons.I18n.t("network.hotspotOff") : Commons.I18n.t("network.hotspotNotConfigured")
             }
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
