@@ -30,12 +30,14 @@ read -r address floating < <(
 
 [[ -n $address ]] || exit 1
 
-hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || \
-  hyprctl dispatch focuswindow "address:$address" >/dev/null
-
-# Focus leaves a floating window where it was in the stacking order, under any
-# window over it, such as the app a link was clicked in. Raise it the way the
-# dock does.
-if [[ $floating == "true" ]]; then
-  hyprctl dispatch "hl.dsp.window.alter_zorder({ mode = \"top\", window = \"address:$address\" })" >/dev/null 2>&1
+if hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || \
+  hyprctl dispatch focuswindow "address:$address" >/dev/null; then
+  # Focus leaves a floating window where it was in the stacking order, under
+  # any window over it, such as the app a link was clicked in. Raise it the way
+  # the dock does.
+  if [[ $floating == "true" ]]; then
+    hyprctl dispatch "hl.dsp.window.alter_zorder({ mode = \"top\", window = \"address:$address\" })" >/dev/null 2>&1
+  fi
+else
+  exit 1
 fi

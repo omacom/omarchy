@@ -16,6 +16,7 @@ if [[ $1 == "clients" ]]; then
   printf '%s\n' "$OMARCHY_TEST_CLIENTS_JSON"
 elif [[ $1 == "dispatch" ]]; then
   printf '%s\n' "$2" >>"$OMARCHY_TEST_FOCUS_DISPATCH"
+  [[ -z ${OMARCHY_TEST_DISPATCH_FAILS:-} ]]
 fi
 SH
 chmod +x "$mock_bin/hyprctl"
@@ -85,3 +86,15 @@ PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" \
   fail "app focus raises a floating window above the windows over it" "$(cat "$dispatch_log")"
 
 pass "app focus brings a floating window to the front"
+
+# A window Hyprland would not focus, either way of asking, is a failure for the
+# caller to see, as it was before floating windows were raised too.
+rm -f "$dispatch_log"
+clients_json='[{"address":"0xtiled","class":"chromium","floating":false}]'
+if PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" \
+  OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" OMARCHY_TEST_DISPATCH_FAILS=1 \
+  bash "$ROOT/bin/omarchy-hyprland-focus-app" '^chromium$'; then
+  fail "app focus reports success for a tiled window it could not focus"
+fi
+
+pass "app focus fails when Hyprland will not focus the window"
