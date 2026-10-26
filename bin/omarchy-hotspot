@@ -242,7 +242,7 @@ station_list() {
     mac=$(awk '{ for (i = 1; i <= NF; i++) if ($i == "Station") { print $(i + 1); break } }' <<<"$line")
     signal=$(awk '{ for (i = 1; i <= NF; i++) if ($i == "signal:") { gsub(/[^0-9-]/, "", $(i + 1)); print $(i + 1); break } }' <<<"$line")
     [[ -n $mac ]] || continue
-    [[ $first == 1 ]] || printf '\n'
+    [[ $first == "1" ]] || printf '\n'
     first=0
     printf '%s\t%s' "$mac" "${signal:-0}"
   done <<<"$block"
@@ -401,7 +401,7 @@ hotspot_state_dir_usable() {
   local message=$1 mode
   [[ -d $HOTSPOT_STATE_DIR && ! -L $HOTSPOT_STATE_DIR ]] || fail "$message"
   if (( EUID == 0 )); then
-    [[ $(stat -c %u -- "$HOTSPOT_STATE_DIR") == 0 ]] || fail "$message"
+    [[ $(stat -c %u -- "$HOTSPOT_STATE_DIR") == "0" ]] || fail "$message"
     mode=$(stat -c %a -- "$HOTSPOT_STATE_DIR")
     (( (8#$mode & 022) == 0 )) || fail "$message"
   fi
@@ -425,7 +425,7 @@ hotspot_state_file_usable() {
   [[ -e $file || -L $file ]] || return 0
   [[ -f $file && ! -L $file && -r $file ]] || fail "$message"
   if (( EUID == 0 )); then
-    [[ $(stat -c %u -- "$file") == 0 ]] || fail "$message"
+    [[ $(stat -c %u -- "$file") == "0" ]] || fail "$message"
   fi
   mode=$(stat -c %a -- "$file")
   (( (8#$mode & 022) == 0 )) || fail "$message"
@@ -902,7 +902,7 @@ forwarding_other_user() {
   while IFS= read -r name; do
     [[ -n $name && $name != "$PROFILE" ]] || continue
     for method in ipv4.method ipv6.method; do
-      [[ $(nm_get "$method" connection show "$name" | head -n 1) != shared ]] || {
+      [[ $(nm_get "$method" connection show "$name" | head -n 1) != "shared" ]] || {
         printf 'NetworkManager connection %s\n' "$name"
         return 0
       }
@@ -1046,7 +1046,7 @@ hotspot_release() {
   # together at the end.
   local -a failed=()
   (forwarding_restore) || failed+=("IPv4 forwarding restore")
-  [[ $(firewall_backend) != ufw ]] || (firewall_remove) || failed+=("firewall rule removal")
+  [[ $(firewall_backend) != "ufw" ]] || (firewall_remove) || failed+=("firewall rule removal")
   ((${#failed[@]} == 0)) || fail "could not release hotspot host state: ${failed[*]}"
 }
 
@@ -1126,7 +1126,7 @@ apply() {
 
   IFS= read -r password || true
   [[ -n $ssid ]] || fail "SSID required"
-  [[ ${#password} -ge 8 && ${#password} -le 63 ]] ||
+  (( ${#password} >= 8 && ${#password} <= 63 )) ||
     fail "password must be 8-63 characters"
   nm_band=$(nm_band_for "$band") || fail "unknown band '$band' (use 2.4, 5 or 6)"
   nm_channel=$(nm_channel_for "$band")
