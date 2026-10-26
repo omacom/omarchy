@@ -1,0 +1,13 @@
+#!/bin/bash
+
+build() {
+  add_binary setleds
+  add_runscript
+}
+
+help() {
+  cat <<EOF
+Turns Num Lock on before the disk password is asked, so a numpad types digits
+at the LUKS prompt. The graphical session already starts with Num Lock on.
+EOF
+}

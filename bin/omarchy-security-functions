@@ -49,6 +49,19 @@ omarchy_security_sanitize_bash_environment() {
   fi
 }
 
+# sudo drops OMARCHY_PATH. The script's own path is the root: a packaged
+# command resolves under /usr/share/omarchy, a dev checkout under its tree.
+omarchy_security_adopt_root() {
+  [[ -n ${OMARCHY_PATH:-} ]] && return 0
+  local command_source
+  command_source=$(/usr/bin/readlink -e -- "$1") || return 1
+  case $command_source in
+    */bin/*) OMARCHY_PATH=${command_source%/bin/*} ;;
+    *) return 1 ;;
+  esac
+  export OMARCHY_PATH
+}
+
 omarchy_security_require_source_root() {
   local command_source command_name=${1##*/}
   command_source=$(/usr/bin/readlink -e -- "$1") || return 1

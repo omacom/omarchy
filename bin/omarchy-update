@@ -16,6 +16,7 @@ source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
 omarchy_security_require_privileged_bash_startup || exit 126
 set -e
 omarchy_security_sanitize_bash_environment "$0" "$@"
+omarchy_security_adopt_root "$0" || exit 126
 omarchy_security_require_source_root "$0"
 # Logging and lock acquisition re-exec this command with a sanitized PATH.
 # Preserve the caller's path only for the later hook/mise phases.

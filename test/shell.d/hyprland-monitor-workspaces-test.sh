@@ -326,6 +326,8 @@ world.handlers["hyprland.start"]()
 
 hl.dispatch(m.focus(3))
 check(shows("DP-1") == 13 and on(13) == "DP-1" and shows("eDP-1") == 1, "Super + 3 opens the focused monitor'"'"'s third workspace")
+hl.dispatch(m.focus(3))
+check(shows("DP-1") == 13, "a repeated Super + 3 stays on the workspace it just opened")
 
 window("0xa", 13)
 world.active_window = "0xa"

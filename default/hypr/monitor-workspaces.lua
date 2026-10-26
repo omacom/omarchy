@@ -442,6 +442,12 @@ function M.focus(slot, monitor_name)
     end
 
     local id = M.workspace_id(monitor, slot)
+    -- A held Super+number repeats. Focusing the workspace already on screen
+    -- again is what sends Hyprland back to the previous one.
+    local current = monitor.active_workspace
+    if current and current.id == id then
+      return
+    end
     reclaim(monitor, id)
     hl.dispatch(hl.dsp.focus({ workspace = tostring(id) }))
   end, "o.workspaces.focus(" .. slot .. (monitor_name and ", " .. literal(monitor_name) or "") .. ")")
