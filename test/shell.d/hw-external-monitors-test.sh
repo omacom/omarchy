@@ -59,3 +59,73 @@ pass "physical monitor detection ignores disconnected external displays"
 write_connectors DP-1 connected
 has_external_monitor || fail "external-only systems still report a connected display"
 pass "physical monitor detection still supports external-only systems"
+
+write_named_connectors() {
+  rm -rf "$drm_path"
+  mkdir -p "$drm_path"
+
+  while (( $# )); do
+    mkdir -p "$drm_path/$1"
+    printf '%s\n' "$2" >"$drm_path/$1/status"
+    shift 2
+  done
+}
+
+# Back a card with a USB interface whose parent device has the given vendor, as sysfs does.
+attach_usb_device() {
+  local card="$1" vendor="$2" usb="$test_tmp/usb-$1"
+
+  rm -rf "$usb"
+  mkdir -p "$usb/1-3:1.0" "$drm_path/$card"
+  printf '%s\n' "$vendor" >"$usb/idVendor"
+  ln -sfn "$usb/1-3:1.0" "$drm_path/$card/device"
+}
+
+write_named_connectors card0-USB-1 connected
+attach_usb_device card0 05ac
+if has_external_monitor; then
+  fail "a Touch Bar USB DRM connector is not an external display"
+fi
+pass "physical monitor detection ignores a USB Touch Bar connector"
+
+write_named_connectors card1-eDP-1 connected card0-USB-1 connected
+attach_usb_device card0 05ac
+if has_external_monitor; then
+  fail "a T1 Touch Bar on a second DRM card is not an external display"
+fi
+pass "physical monitor detection ignores a T1 Touch Bar alongside an internal panel"
+
+write_named_connectors card0-eDP-1 connected card1-DP-1 disconnected card2-USB-2 connected
+attach_usb_device card2 05ac
+if has_external_monitor; then
+  fail "a T2 Touch Bar on its own DRM card is not an external display"
+fi
+pass "physical monitor detection ignores a T2 Touch Bar alongside an internal panel"
+
+write_named_connectors card1-eDP-1 connected card0-USB-1 connected
+mkdir -p "$test_tmp/usb-device" "$drm_path/card0"
+printf '05ac\n' >"$test_tmp/usb-device/idVendor"
+ln -sfn "$test_tmp/usb-device" "$drm_path/card0/device"
+if has_external_monitor; then
+  fail "a Touch Bar whose driver binds the whole USB device is not an external display"
+fi
+pass "physical monitor detection ignores a Touch Bar bound to its USB device"
+
+write_named_connectors card1-eDP-1 connected card0-USB-1 connected card1-DP-1 connected
+attach_usb_device card0 05ac
+has_external_monitor || fail "a real DP display still counts when a Touch Bar is present"
+pass "physical monitor detection still finds DP when a Touch Bar is present"
+
+write_named_connectors card1-eDP-1 connected card0-USB-1 disconnected card1-HDMI-A-1 connected
+attach_usb_device card0 05ac
+has_external_monitor || fail "HDMI still counts when the Touch Bar is disconnected"
+pass "physical monitor detection still finds HDMI when a Touch Bar is disconnected"
+
+write_named_connectors card0-eDP-1 connected card3-USB-1 connected
+attach_usb_device card3 1d50
+has_external_monitor || fail "a GUD USB display is an external display"
+pass "physical monitor detection still finds a non-Apple USB display"
+
+write_named_connectors card0-eDP-1 connected card3-USB-1 connected
+has_external_monitor || fail "a USB connector with no USB device behind it is an external display"
+pass "physical monitor detection still finds a USB connector it cannot identify as a Touch Bar"
