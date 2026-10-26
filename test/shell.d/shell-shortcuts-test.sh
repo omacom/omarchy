@@ -99,7 +99,7 @@ expect_binding $'global\tomarchy:audio.mute-toggle\tMute' "the mute key toggles 
 expect_binding $'global\tomarchy:brightness.raise\tBrightness up' "the brightness up key steps the backlight in the shell"
 expect_binding $'global\tomarchy:brightness.lower\tBrightness down' "the brightness down key steps the backlight in the shell"
 expect_binding $'global\tomarchy:ipc.media.playPause\tPlay' "the play key reaches the media service directly"
-expect_binding $'global\tomarchy:ipc.notifications.dismissOne\tDismiss last notification' "dismissing a notification reaches the service directly"
+expect_binding $'global\tomarchy:ipc.notifications.act\tDismiss, invoke, or focus last notification' "acting on a notification reaches the service directly"
 ! grep -E $'^exec\tomarchy-shell (media|notifications) ' <<<"$bindings" ||
   fail "default media and notification keys reach their services through global shortcuts"
 pass "default bindings toggle menus and panels through global shortcuts"

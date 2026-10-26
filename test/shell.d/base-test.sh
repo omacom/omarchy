@@ -5,16 +5,33 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   exit 1
 fi
 
-ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+# Physical, so a checkout reached through a symlink still passes commands that
+# refuse a non-canonical source root.
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 SHELL_TEST_DIR="$ROOT/test/shell.d"
 
 export ROOT
+
+# Commands under test belong to this checkout, never to the one the running
+# session points OMARCHY_PATH at; the agent usage collectors load their
+# shared module from it.
+export OMARCHY_PATH=$ROOT
 
 # Commands print user-facing text in the language picked under Setup >
 # Language, so pin tests to English (a missing file means English) rather than
 # whatever the machine running them is set to. Tests of other languages point
 # this at a file of their own.
 export OMARCHY_LANGUAGE_FILE=$ROOT/test/.no-language
+
+# Tests point HOME at a scratch directory, but a desktop session also exports
+# the XDG base directories, which would keep pointing at the real home: a
+# migration under test would then edit or delete the user's own files. Unset,
+# they follow HOME. A test that wants one sets it itself.
+unset XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME
+
+# Run from inside an agent session, the agent's own account home would leak
+# into tests of agent accounts the same way.
+unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME
 
 pass() {
   printf 'ok - %s\n' "$1"
@@ -95,6 +112,21 @@ require_compositor() {
   exit 0
 }
 
+# For tests that read the background layer's pixels off the first output: any
+# window on its workspace covers them, so in a working session the test would
+# read the window instead. Run them on an empty workspace.
+require_uncovered_background() {
+  local description="$1" workspace
+
+  workspace=$(hyprctl -j monitors | jq '.[0].activeWorkspace.id')
+  if (( $(hyprctl -j clients | jq --argjson ws "$workspace" '[.[] | select(.workspace.id == $ws)] | length') == 0 )); then
+    return 0
+  fi
+
+  skip "windows cover the background on the first output; skipping $description"
+  exit 0
+}
+
 # Finds the pkgbuilds/ directory of the omarchy-pkgs checkout, which some tests
 # hold Omarchy's scripts against, and sets OMARCHY_PKGS_ROOT to it. The checkout
 # lives in its own repository, wherever this machine keeps it.
@@ -145,6 +177,7 @@ fake_platform() {
 
   case $platform in
     aarch64-apple) compatible=(apple,j416c apple,t6021 apple,arm-platform) ;;
+    aarch64-qualcomm) compatible=(lenovo,yoga-slim7x qcom,x1e80100) ;;
     aarch64) compatible=(raspberrypi,5-model-b brcm,bcm2712) ;;
     x86) machine=x86_64 ;;
     *) fail "fake_platform knows the platform $platform" ;;
