@@ -36,16 +36,32 @@ assert(scanRestart, 'network has the deferred scan restart timer')
 assert(/root\.opened/.test(scanRestart[0]), 'network re-checks the panel before the deferred restart re-enables scanning')
 assert(/scanRestart\.stop\(\)/.test(panelSource), 'network cancels a pending scan restart when the panel closes')
 
+// Releasing the scanner blocks the GUI thread for a few hundred ms. Run from
+// the close handler it delays the fade-out and unmap of every close, so the
+// release waits for the popup to be hidden, and still re-checks the panel so a
+// quick reopen keeps scanning.
+const openedChanged = panelSource.match(/onOpenedChanged: \{[\s\S]*?\n {2}\}/)
+assert(openedChanged, 'network has an onOpenedChanged handler')
+const closeBranch = openedChanged[0].split(/\} else \{/)[1].replace(/\/\/.*$/gm, '')
+assert(!/setScannerEnabled\(/.test(closeBranch), 'network does not release the scanner synchronously while the closing popup is still on screen')
+assert(/onVisibleChanged: if \(!visible && !root\.opened\) scannerRelease\.restart\(\)/.test(panelSource), 'network releases the scanner once the closed popup is hidden')
+const scannerRelease = panelSource.match(/id: scannerRelease[\s\S]*?onTriggered:[^\n]*/)
+assert(scannerRelease && /if \(!root\.opened\) root\.setScannerEnabled\(false\)/.test(scannerRelease[0]), 'network re-checks the panel before the deferred scanner release')
+
 // scannerEnabled lives on a shared WifiDevice with no reference counting, so
 // the panel has to own what it enabled. Run the helper's own JavaScript against
 // stand-in devices: the two invariants it carries are that a closed panel never
 // takes a device, and that adopting a new one releases the previous.
 const scannerHelper = panelSource.match(/function setScannerEnabled\(enabled\) \{[\s\S]*?\n {2}\}/)
 assert(scannerHelper, 'network has a scanner ownership helper')
+const heldElsewhereHelper = panelSource.match(/function scannerHeldElsewhere\(device\) \{[\s\S]*?\n {2}\}/)
+assert(heldElsewhereHelper, 'network can see whether another instance holds the scanner')
 
 var opened = false
 var wifiDevice = { scannerEnabled: false }
 var scannerDevice = null
+var bar = null
+eval(heldElsewhereHelper[0])
 eval(scannerHelper[0])
 
 setScannerEnabled(true)
@@ -74,6 +90,65 @@ assert(
   'network releases the scanner it owns when the widget is destroyed'
 )
 assert(!/wifiDevice\.scannerEnabled\s*=/.test(panelSource), 'network writes scanner state through its owned device reference rather than the moving wifiDevice reference')
+
+// The release waits for the fade-out, so switching the popout to the panel on
+// another monitor opens it, and restarts its scan, before the closed one lets
+// go of the same device. Run the helpers, the release timer and the
+// destruction handler against two instances on one stand-in device.
+const releaseBody = scannerRelease[0].split('onTriggered:')[1]
+const destructionBody = panelSource.match(/Component\.onDestruction: \{([\s\S]*?)\n {2}\}/)[1]
+const scannerInstances = []
+const scannerBar = { moduleWidgets: id => id === 'omarchy.network' ? scannerInstances.slice() : [] }
+function scannerInstance() {
+  const instance = { opened: false, wifiDevice: null, scannerDevice: null, bar: scannerBar, moduleName: 'omarchy.network' }
+  instance.root = instance
+  new Function('instance', 'with (instance) {\n' +
+    heldElsewhereHelper[0] + '\n' + scannerHelper[0] + '\n' +
+    'instance.setScannerEnabled = setScannerEnabled\n' +
+    'instance.releaseScanner = function() { ' + releaseBody + ' }\n' +
+    'instance.destroy = function() { ' + destructionBody + ' }\n' +
+  '}')(instance)
+  scannerInstances.push(instance)
+  return instance
+}
+
+const sharedScanner = { scannerEnabled: false }
+const monitorA = scannerInstance()
+const monitorB = scannerInstance()
+monitorA.wifiDevice = monitorB.wifiDevice = sharedScanner
+
+monitorA.opened = true
+monitorA.setScannerEnabled(true)
+monitorA.opened = false
+monitorB.opened = true
+monitorB.setScannerEnabled(false)
+monitorB.setScannerEnabled(true)
+monitorA.releaseScanner()
+assert(
+  sharedScanner.scannerEnabled === true && monitorA.scannerDevice === null && monitorB.scannerDevice === sharedScanner,
+  'network keeps scanning for a panel opened on another monitor while the closed one fades out'
+)
+
+monitorB.opened = false
+monitorA.opened = true
+monitorA.setScannerEnabled(false)
+monitorA.setScannerEnabled(true)
+monitorB.releaseScanner()
+assert(sharedScanner.scannerEnabled === true, 'network keeps scanning when the panel switches back before the other release fires')
+
+monitorA.opened = false
+monitorA.releaseScanner()
+assert(sharedScanner.scannerEnabled === false, 'network turns the scanner off once the last instance holding it closes')
+
+// A bar reload destroys every instance with the panel still open; the first
+// to go must leave the scan to the other, and the last must still end it.
+monitorA.opened = monitorB.opened = true
+monitorA.setScannerEnabled(true)
+monitorB.setScannerEnabled(true)
+monitorA.destroy()
+assert(sharedScanner.scannerEnabled === true, 'network leaves the scanner on for a surviving instance when one is destroyed')
+monitorB.destroy()
+assert(sharedScanner.scannerEnabled === false, 'network turns the scanner off when the last instance holding it is destroyed')
 
 // A row is a primitive snapshot that can outlive its WifiNetwork, and
 // disconnect() falls back to the live connection when handed null, so row
