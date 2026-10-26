@@ -209,6 +209,9 @@ Item {
     steps.push("hl.dsp.window.alter_zorder({ mode = \"top\", " + target + " })")
     var dispatch = function(step) { return "hyprctl dispatch " + Util.shellQuote(step) }
     var command = steps.map(dispatch).join(" && ")
+    // A maximized window on a floating workspace comes in front of the windows
+    // drawn over it, which focus alone misses when it has the focus already.
+    command += " && hyprctl eval " + Util.shellQuote("o.bring_forward(\"" + address + "\")")
     if (after.length > 0) command += "; sleep 0.4; " + after.map(dispatch).join("; ")
     Util.execDetached(command)
   }

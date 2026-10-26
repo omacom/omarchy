@@ -418,6 +418,16 @@ local function on_active(window)
   end, { type = "oneshot", timeout = 1 })
 end
 
+-- The dock brings a window forward by focusing it, and focusing the window
+-- that has the focus already changes nothing Hyprland reports, so the dock
+-- asks here too: `hyprctl eval 'o.bring_forward("0x…")'`.
+function o.bring_forward(address)
+  local window = hl.get_window("address:" .. address)
+  if maximized_on_floating_workspace(window) then
+    bring_forward(window)
+  end
+end
+
 -- The workspace is passed in when a window is still on its way to it.
 local function arrange(windows, workspace)
   local floating = {}

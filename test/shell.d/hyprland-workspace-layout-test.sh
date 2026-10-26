@@ -560,6 +560,7 @@ hl = {
     end
     return found
   end,
+  get_window = function(selector) return by_address(selector) end,
   get_active_window = function() return active end,
   dispatch = function(action)
     if action.zorder then
@@ -696,10 +697,17 @@ maximized.fullscreen = 2
 click(maximized)
 assert(browser.allowed_over_fullscreen, "a click on a true fullscreen window restacked the windows over it")
 
+-- The dock bringing forward the maximized window that has the focus already,
+-- which Hyprland reports nothing for, still brings it in front of the browser.
+maximized.fullscreen = 1
+asks_for_focus(browser)
+asks_for_focus(maximized)
+o.bring_forward("0xA")
+assert(not browser.allowed_over_fullscreen, "the dock left the browser over the focused maximized window")
+
 -- A dialog over the maximized window, such as the file picker its app waits on,
 -- floats on its own account and belongs over it: a click on the maximized window
 -- leaves it there, and a click on the dialog reaches it.
-maximized.fullscreen = 1
 local picker = window("0xC")
 click(picker)
 click(maximized)
