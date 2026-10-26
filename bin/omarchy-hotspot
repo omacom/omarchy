@@ -298,7 +298,7 @@ normalize_client_mac() {
 # the user can type.
 valid_client_alias() {
   local alias=$1
-  [[ -n $alias && ${#alias} -le 64 ]] || return 1
+  [[ -n $alias ]] && (( ${#alias} <= 64 )) || return 1
   [[ $alias != *[[:cntrl:]]* ]]
 }
 
