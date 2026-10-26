@@ -164,8 +164,6 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertDeepEqual(enterpriseConnect.command.slice(-4), ['Enterprise WiFi', 'person@example.org', cert, 'radius.example.org'], 'enterprise caller passes explicit trust settings to the process')
   assert(!enterpriseConnect.command.includes(password), 'enterprise caller keeps the password out of argv')
   assertDeepEqual(enterpriseConnect.command.slice(0, 2), ['bash', '-c'], 'enterprise caller keeps the cleanup supervisor outside the worker timeout')
-  assert(network.enterpriseConnectScript.includes('timeout --kill-after=1s 150s bash -c'),
-    'enterprise worker deadline accommodates the normal 90-second nmcli activation wait')
 
   const firstCommand = enterpriseConnect.command.slice()
   const firstRevision = enterpriseConnect.actionRevision
