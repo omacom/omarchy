@@ -525,11 +525,19 @@ Panel {
 
   onConnectionKeyChanged: Qt.callLater(checkConnectivity)
   onConnectivityChecksEnabledChanged: Qt.callLater(checkConnectivity)
+  // The bar hands a panel its settings after creating it, so a shell started
+  // behind a portal, or the option turned on while behind one, only sees the
+  // setting change. Either change can launch; the command's lock keeps it to
+  // one sign-in window.
+  function autoSignInIfPortal() {
+    if (!hasCaptivePortal || !autoSignIn || passwordSsid !== "") return false
+    openCaptivePortal(true)
+    return true
+  }
+
+  onAutoSignInChanged: autoSignInIfPortal()
   onHasCaptivePortalChanged: {
-    if (hasCaptivePortal && autoSignIn && passwordSsid === "") {
-      openCaptivePortal(true)
-      return
-    }
+    if (autoSignInIfPortal()) return
     if (hasCaptivePortal && opened && passwordSsid === "") {
       focusSection = "portal"
       cursorActive = true
