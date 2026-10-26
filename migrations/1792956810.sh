@@ -13,9 +13,18 @@ if [[ -f $staged_icons ]] && is_missing_gray_yaru "$(<"$staged_icons")"; then
   printf 'Adwaita\n' >"$staged_icons"
 fi
 
-if [[ -n ${DBUS_SESSION_BUS_ADDRESS:-} ]]; then
-  current=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null || true)
-  if is_missing_gray_yaru "${current//\'/}"; then
-    gsettings set org.gnome.desktop.interface icon-theme "Adwaita"
+current_icon_theme() {
+  local current
+  current=$(gsettings get org.gnome.desktop.interface icon-theme)
+  printf '%s\n' "${current//\'/}"
+}
+
+# A run without a user session to write the setting through stays pending, so
+# the next run fixes it instead of marking it done.
+if is_missing_gray_yaru "$(current_icon_theme)"; then
+  gsettings set org.gnome.desktop.interface icon-theme "Adwaita"
+  if is_missing_gray_yaru "$(current_icon_theme)"; then
+    echo "Could not set the icon theme to Adwaita; run omarchy-migrate again from your desktop session" >&2
+    exit 1
   fi
 fi
