@@ -321,6 +321,7 @@ hl = {
     subscriptions[event] = subscriptions[event] or {}
     table.insert(subscriptions[event], callback)
   end,
+  bind = function() end,
   timer = function(callback) callback() end,
   get_active_workspace = function() return active end,
   get_config = function(key) return config[key] end,
