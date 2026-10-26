@@ -175,10 +175,11 @@ fi
 # translated phrase. Sitting on a charge window (a start below the end, both
 # under 100%) is optimized charging. A single cap, or inhibit-charge selected,
 # is a limit. Otherwise a hot cell is heat and a freezing cell is cold. The
-# SMC does not export its reason bit, so heat is the cell temperature at which
-# Apple Silicon pauses with the cap still at 100%: 45°C, seen on a MacBook Air
-# M1 (J313) while the SMC logged a temperature stop. A battery that is actually
-# sitting on its cap keeps that name when it is also warm.
+# SMC does not export its reason bit. On a MacBook Air M1 (J313) it stops
+# charging with the cap still at 100% once the cell is in the mid-40s, and the
+# pause continues while the cell cools back through that range (still holding
+# at 44.5°C). 40°C is the floor that covers that whole pause. A battery that
+# is actually sitting on its cap keeps that name when it is also warm.
 hold_reason=""
 if [[ $charge_holding == "true" ]]; then
   at_cap=false
@@ -190,7 +191,7 @@ if [[ $charge_holding == "true" ]]; then
     hold_reason=optimizing
   elif [[ $at_cap == "true" || $charge_behaviour == "inhibit-charge" ]]; then
     hold_reason=limit
-  elif [[ $temp_decideg =~ ^-?[0-9]+$ ]] && (( temp_decideg >= 450 )); then
+  elif [[ $temp_decideg =~ ^-?[0-9]+$ ]] && (( temp_decideg >= 400 )); then
     hold_reason=heat
   elif [[ $temp_decideg =~ ^-?[0-9]+$ ]] && (( temp_decideg <= 0 )); then
     hold_reason=cold

@@ -254,6 +254,14 @@ grep -Fx $'hold\theat' <<<"$heat_shell" >/dev/null || fail "a hot cell with no c
 grep -Fx $'temperature\t46.9°C' <<<"$heat_shell" >/dev/null || fail "battery status reports the cell temperature" "$heat_shell"
 heat_line=$(OMARCHY_POWER_SUPPLY_PATH="$reason_dir/power" PATH="$reason_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $heat_line == "Battery 54%  ·  Holding (Heat)  ·  38Wh" ]] || fail "the status line names a heat hold" "$heat_line"
+# The pause continues while the cell cools back through the mid-40s.
+printf '445\n' >"$reason_dir/power/macsmc-battery/temp"
+cooling_shell=$(OMARCHY_POWER_SUPPLY_PATH="$reason_dir/power" PATH="$reason_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'hold\theat' <<<"$cooling_shell" >/dev/null || fail "a cell cooling through 44.5°C is still a heat hold" "$cooling_shell"
+printf '390\n' >"$reason_dir/power/macsmc-battery/temp"
+warm_shell=$(OMARCHY_POWER_SUPPLY_PATH="$reason_dir/power" PATH="$reason_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -q $'^hold\t' <<<"$warm_shell" && fail "a 39°C pause with no cap stays unnamed" "$warm_shell"
+printf '469\n' >"$reason_dir/power/macsmc-battery/temp"
 pass "battery status names a heat hold and ignores the hwdb charge limit"
 
 # Sitting on a charge window is optimizing, including when the cell is also hot.
