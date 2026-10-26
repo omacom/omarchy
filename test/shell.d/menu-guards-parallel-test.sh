@@ -55,6 +55,36 @@ export -f omarchy-dns omarchy-hyprland-corners
   fail "a captured reader keeps exactly what \$(...) keeps" "got: $shape_result"
 pass "a captured reader keeps exactly what \$(...) keeps"
 
+# A command several guards run first runs once, and each of them answers from
+# the status it left, negated, chained or alone, exactly as running it again
+# would. A guard that hands it to another shell, pipes its output or reads
+# `$?` after it runs its own.
+probe_script=$(node -e '
+  const path = require("path")
+  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+  process.stdout.write(menu.guardScript({
+    alone: { id: "alone", when: "omarchy-test-yes" },
+    negated: { id: "negated", when: "! omarchy-test-yes" },
+    either: { id: "either", when: "omarchy-test-no || true" },
+    failed: { id: "failed", checked: "omarchy-test-no" },
+    both: { id: "both", disabled: "omarchy-test-yes && false" },
+    quoted: { id: "quoted", when: "bash -c '"'"'true && omarchy-test-yes && true'"'"'" },
+    grouped: { id: "grouped", when: "{ omarchy-test-yes; } | grep -qx yes" },
+    status: { id: "status", when: "omarchy-test-no || (( $? == 3 ))" }
+  }))
+')
+probe_log="$parallel_root/probe.log"
+probe_result=$(PROBE_LOG="$probe_log" bash -c '
+omarchy-test-yes() { echo yes >>"$PROBE_LOG"; echo yes; }
+omarchy-test-no() { echo no >>"$PROBE_LOG"; return 3; }
+export -f omarchy-test-yes omarchy-test-no
+'"$probe_script" | sort | tr '\n' ' ')
+[[ $probe_result == "alone:w:1 both:d:0 either:w:1 failed:c:0 grouped:w:1 negated:w:0 quoted:w:1 status:w:1 " ]] ||
+  fail "a probed command answers every guard as running it would" "got: $probe_result"
+[[ $(sort "$probe_log" | tr '\n' ' ') == "no no yes yes yes " ]] ||
+  fail "a command several guards run first runs once per batch" "ran: $(tr '\n' ' ' <"$probe_log")"
+pass "a command several guards run first runs once per batch and answers each of them"
+
 # The batch is done only when every group is: a slow guard's line still
 # arrives before it exits.
 slow_script=$(node -e '

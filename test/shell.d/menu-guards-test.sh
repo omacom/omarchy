@@ -65,6 +65,60 @@ assert(
   'guard script captures nothing when no guard uses the plain substitution'
 )
 
+// A command several guards run first starts once too, and each of them tests
+// the status it left. Anywhere else it runs as written: inside [[ ]], quotes
+// or a piped group it is not a command of the guard's own shell, after a `cd`
+// it may answer differently, and `$?`, `$_` or PIPESTATUS read more than
+// whether it was zero.
+const kept = [
+  '[[ -n $HOME && omarchy-hw-x86 && -n $HOME ]]',
+  "bash -c 'true && omarchy-hw-x86 && true'",
+  '{ omarchy-hw-x86; } | grep -q x86',
+  'cd / && omarchy-hw-x86',
+  'omarchy-hw-x86 || (( $? == 2 ))',
+  'omarchy-hw-x86 || (( PIPESTATUS[0] == 2 ))',
+  'omarchy-hw-x86 && [[ $_ == omarchy-hw-x86 ]]'
+]
+const probed = menu.guardScript(Object.assign({
+  a: { id: 'a', when: 'omarchy-hw-x86 && omarchy-pkg-missing steam' },
+  b: { id: 'b', when: '! omarchy-hw-x86' },
+  c: { id: 'c', disabled: 'omarchy-hw-x86 || omarchy-hw-laptop' }
+}, Object.fromEntries(kept.map((when, i) => [`k${i}`, { id: `k${i}`, when }]))))
+assertEqual(
+  (probed.match(/^exec \{__omarchy_probe_fd_\d+\}< <\(omarchy-hw-x86 /gm) || []).length,
+  1,
+  'guard script runs a command several guards test once for the whole batch'
+)
+assert(
+  /^if \{ ! \[\[ \$\{__omarchy_probe_\d+-\} == 0 \]\]; \}/m.test(probed)
+    && (probed.match(/^if \{[^\n]*omarchy-hw-x86/gm) || []).length === kept.length
+    && kept.every(when => probed.includes(`if { ${when}; }`)),
+  'guard script tests the status in every guard that runs the command first, and leaves every other form as written'
+)
+
+// Only a command some guard runs unconditionally is started early: one that
+// every guard puts behind another condition may never have run at all. And
+// only the bare form is taken; a pipe, a redirection, a quoted argument or a
+// capture is left to run as written, as are the helpers answered inside bash.
+const unprobed = menu.guardScript({
+  a: { id: 'a', when: 'omarchy-hw-x86 && omarchy-hw-touchpad' },
+  b: { id: 'b', when: 'omarchy-hw-laptop && omarchy-hw-touchpad' },
+  c: { id: 'c', when: 'omarchy-dns | grep -q Cloudflare' },
+  d: { id: 'd', when: 'omarchy-dns | grep -q Google' },
+  e: { id: 'e', when: 'omarchy-hyprland-corners >/dev/null' },
+  f: { id: 'f', when: 'omarchy-hyprland-corners >/dev/null' },
+  g: { id: 'g', when: 'omarchy-toggle-enabled "bar off"' },
+  h: { id: 'h', when: 'omarchy-toggle-enabled "bar off"' },
+  i: { id: 'i', when: 'omarchy-pkg-present steam' },
+  j: { id: 'j', when: 'omarchy-pkg-present steam' },
+  k: { id: 'k', when: 'cd / && [[ -d etc ]]' },
+  l: { id: 'l', when: 'cd / && [[ -d usr ]]' }
+})
+assert(
+  !/__omarchy_probe_/.test(unprobed),
+  'guard script starts nothing early that a guard does not run unconditionally in its bare form'
+)
+
 // Every reader named in the shipped menu has to be listed, or it silently
 // keeps forking once per row that reads it.
 const fs = require('fs')
