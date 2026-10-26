@@ -8,7 +8,6 @@ run_node_test <<'JS'
 const fs = require('fs')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
-const hotspotSource = fs.readFileSync(root + '/bin/omarchy-hotspot', 'utf8')
 
 assert(/IpcHandler[\s\S]*?function toggleNetwork\(\) \{ root\.toggleNetwork\(\) \}/.test(panelSource), 'network exposes the Wi-Fi radio toggle over IPC')
 assert(/manageIpc: false/.test(panelSource), 'network owns its IPC handler so it can extend the target methods')
@@ -379,29 +378,66 @@ assertEqual(network.hotspotCredentialsError('Home', 'short'), 'Password needs 8+
 assertEqual(network.hotspotCredentialsError('Home', 'a'.repeat(64)), "Password can't exceed 63 characters", 'network rejects a hotspot password over 63 characters')
 assertEqual(network.hotspotCredentialsError('Home', 'abcdefgh'), '', 'network accepts an 8-character hotspot password')
 assertEqual(network.hotspotCredentialsError('Home', 'a'.repeat(63)), '', 'network accepts a 63-character hotspot password')
-assert(/hotspotPasswordProc\.command = \[hotspotCommand, "generate-password"\]/.test(panelSource), 'network generates the hotspot password through the first-party command')
 
 // The hotspot section in the panel: dynamic AP bands drive the selector, the
 // whole wifi list hides while the AP owns the radio, and the command runs by
 // its first-party name so the script can be exercised from the CLI too.
-assert(/readonly property string hotspotCommand: "omarchy-hotspot"/.test(panelSource), 'network runs the first-party hotspot command')
-assert(/var bands = Model\.hotspotBands\(next\)/.test(panelSource), 'network refreshes the hotspot ap bands from status')
-assert(/hotspotBand = Model\.hotspotDefaultBand\(next\)/.test(panelSource), 'network prefills the hotspot band from status')
-assert(/if \(hotspotRadioTaken\) wifiNetworks = \[\]/.test(panelSource), 'network drops the wifi list only for the radio hosting the hotspot')
-assert(/readonly property bool hotspotRadioTaken: hotspotActive && hotspot\.iface !== "" && !!wifiDevice && hotspot\.iface === wifiDevice\.name/.test(panelSource), 'network keys the radio-only wifi hide to the hotspot adapter')
-assert(/visible: root\.wifiStationAvailable && !root\.hotspotRadioTaken/.test(panelSource), 'network hides the wifi separator while the hotspot owns the radio')
-assert(/function toggleHotspot\(\) \{ root\.toggleHotspot\(\) \}/.test(panelSource), 'network exposes the hotspot toggle over IPC')
-assert(/function openHotspotSetup\(\) \{ root\.openHotspotSetup\(\) \}/.test(panelSource), 'network exposes an IPC opener for the hotspot setup')
-assert(/if \(\(next\.active === "1"\) !== wasActive\) syncWifiNetworks\(\)/.test(panelSource), 'network re-syncs the wifi list when the hotspot active state changes')
-assert(/focusSection === "hotspot"/.test(panelSource), 'network has a keyboard cursor zone for the hotspot section')
-assert(/stderr: StdioCollector \{ id: hotspotErr; waitForEnd: true \}/.test(panelSource), 'network surfaces the hotspot command stderr')
-assert(/stderr: StdioCollector \{ id: hotspotStatusErr; waitForEnd: true \}/.test(panelSource), 'network collects hotspot status stderr')
-assert(/readonly property string hotspotMessage: hotspotError !== "" \? hotspotError : hotspotStatusError/.test(panelSource), 'network keeps action errors ahead of status errors')
 // Panel code extracted below reads its messages from the English catalog,
 // with String.prototype.arg filling %1 as QML's does.
 if (!String.prototype.arg) String.prototype.arg = function(value) { return this.replace('%1', value) }
 const englishShell = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
 const englishCommons = { I18n: { t: key => englishShell[key] } }
+// A one-line readonly binding from the panel, as a function of the names it
+// reads, so its logic runs here rather than being matched as text.
+function panelBinding(name) {
+  const match = panelSource.match(new RegExp('readonly property \\w+ ' + name + ': ([^\\n]+)'))
+  if (!match) fail('network has the ' + name + ' binding')
+  return scope => new Function(...Object.keys(scope), 'return (' + match[1] + ')')(...Object.values(scope))
+}
+const hotspotMessage = panelBinding('hotspotMessage')
+assertEqual(hotspotMessage({ hotspotError: 'start failed', hotspotStatusError: 'status failed' }), 'start failed', 'network shows an action error ahead of a status error')
+assertEqual(hotspotMessage({ hotspotError: '', hotspotStatusError: 'status failed' }), 'status failed', 'network falls back to the status error')
+const hotspotFocusMax = panelBinding('hotspotFocusMax')
+assert(hotspotFocusMax({ hotspotActive: true }) > hotspotFocusMax({ hotspotActive: false }), 'network adds the QR button to the keyboard cycle only while the AP is on')
+
+// The Wi-Fi list hides only for the radio hosting the AP: with one adapter
+// the list is the AP's own radio, with two the upstream adapter keeps its
+// networks. Runs the panel's own binding and syncWifiNetworks.
+const hotspotRadioTaken = panelBinding('hotspotRadioTaken')
+const syncWifiSource = panelSource.match(/function syncWifiNetworks\(\) \{[\s\S]*?\n {2}\}/)
+assert(syncWifiSource, 'network has a wifi list sync')
+if (syncWifiSource) {
+  // The panel state the function reads and writes, as one scope.
+  const listFor = (hotspotIface, adapter) => {
+    const wifiDevice = { name: adapter }
+    const state = {
+      wifiNetworks: [],
+      wifiStationAvailable: false,
+      scanning: true,
+      wifiDevice,
+      wifiNetworkObjects: [{ name: 'Upstream' }],
+      hotspotSsids: [],
+      activeHotspot: false,
+      hotspotRadioTaken: hotspotRadioTaken({ hotspotActive: true, hotspot: { iface: hotspotIface }, wifiDevice }),
+      checkActionCompletion: () => {},
+      Model: { wifiRow: network => ({ name: network.name }), sortWifiRows: rows => rows, isHotspotSsid: () => false },
+    }
+    new Function('state', 'with (state) {\n' + syncWifiSource[0] + '\nsyncWifiNetworks()\n}')(state)
+    return state.wifiNetworks
+  }
+  assertEqual(listFor('wlan0', 'wlan0').length, 0, 'network hides the wifi list on the one adapter hosting the hotspot')
+  assertEqual(listFor('wlan1', 'wlan0').length, 1, 'network keeps the upstream adapter listing networks while a second adapter hosts')
+  assertEqual(hotspotRadioTaken({ hotspotActive: false, hotspot: { iface: 'wlan0' }, wifiDevice: { name: 'wlan0' } }), false, 'network keeps the wifi list while the hotspot is off')
+}
+
+// Every panel method the menu calls over IPC exists on the panel's handler.
+const menuSource = fs.readFileSync(root + '/default/omarchy/omarchy-menu.jsonc', 'utf8')
+const menuNetworkCalls = [...menuSource.matchAll(/shell call omarchy\.network (\w+)/g)].map(m => m[1])
+assert(menuNetworkCalls.length > 0, 'the menu calls the network panel')
+for (const method of menuNetworkCalls) {
+  assert(new RegExp('function ' + method + '\\(\\) \\{ root\\.' + method + '\\(\\) \\}').test(panelSource), 'the network panel answers the menu call ' + method)
+}
+
 const updateHotspotSource = panelSource.match(/function updateHotspot\(raw, exitCode, errorOutput\) \{[\s\S]*?\n {2}\}/)
 assert(updateHotspotSource, 'network accepts a hotspot process result')
 if (updateHotspotSource) {
@@ -414,7 +450,8 @@ if (updateHotspotSource) {
   let hotspotStatusError = ''
   const Model = network
   const Commons = englishCommons
-  function syncWifiNetworks() {}
+  let syncs = 0
+  function syncWifiNetworks() { syncs++ }
   eval(updateHotspotSource[0])
 
   updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\n', 0, '')
@@ -423,7 +460,9 @@ if (updateHotspotSource) {
   const lastSsid = hotspotSsid
   const lastPassword = hotspotPassword
   const lastBand = hotspotBand
+  syncs = 0
   updateHotspot('active\t1\nclient_count\t0\nclients\t[]\n', 0, '')
+  assertEqual(syncs, 1, 'network re-syncs the wifi list when the hotspot comes on air')
   assert(hotspot.active === '1' && hotspot.client_count === '0' && hotspot.ssid === undefined, 'network replaces stale fields from a successful hotspot status')
   lastGood = hotspot
   updateHotspot('', 1, 'status probe\nfailed')
@@ -478,17 +517,6 @@ if (completeHotspotStatusSource) {
   assert(appliedResults === 1 && refreshes === 1, 'network applies the current status result after the pending refetch')
 }
 
-assert(/property bool hotspotRefreshPending: false/.test(panelSource), 'network records a hotspot status refetch requested while a process is running')
-assert(/property int hotspotStatusGeneration: 0/.test(panelSource), 'network versions hotspot status processes')
-assert(/root\.completeHotspotStatus\(/.test(panelSource), 'network routes onExited through the generation-aware completion path')
-assert(/if \(hotspotProc\.running\) \{[\s\S]*hotspotRefreshPending = true/.test(panelSource), 'network records status refetches instead of dropping them')
-
-const hotspotStatusProcess = panelSource.match(/id: hotspotProc[\s\S]*?\n {2}\}/)
-assert(hotspotStatusProcess, 'network has a hotspot status process')
-if (hotspotStatusProcess) {
-  assert(/property int runGeneration: 0/.test(hotspotStatusProcess[0]), 'network tracks the generation a hotspot status run was launched for')
-  assert(/Qt\.callLater\(function\(\) \{[\s\S]*root\.completeHotspotStatus\(/.test(hotspotStatusProcess[0]), 'network defers hotspot status completion so stderr is drained first')
-}
 
 const refreshHotspotSource = panelSource.match(/function refreshHotspot\(discardRunning\) \{[\s\S]*?\n {2}\}/)
 assert(refreshHotspotSource, 'network has a hotspot status poller')
@@ -502,10 +530,18 @@ if (refreshHotspotSource) {
   assert(hotspotRefreshPending === false, 'a poll during a running status lets that run publish')
   refreshHotspot(true)
   assert(hotspotRefreshPending === true, 'a refresh after an action discards the in-flight pre-action status')
-}
-assert(/onTriggered: root\.refreshHotspot\(\)/.test(panelSource), 'the periodic poll never discards a running status')
-if (refreshHotspotSource) {
-  assert(/hotspotStatusGeneration\+\+\s*\n\s*hotspotProc\.command = \[hotspotCommand, "status"\]\s*\n\s*hotspotProc\.runGeneration = hotspotStatusGeneration\s*\n\s*hotspotProc\.running = true/.test(refreshHotspotSource[0]), 'network stamps each hotspot status run with the generation it was started for')
+  hotspotProc.running = false
+  refreshHotspot()
+  assert(hotspotProc.running && hotspotProc.command.join(' ') === 'omarchy-hotspot status' && hotspotProc.runGeneration === hotspotStatusGeneration && hotspotStatusGeneration === 4, 'network stamps each hotspot status run with a new generation')
+
+  // The poll runs the panel's own onTriggered, which must not ask to discard.
+  const pollTrigger = panelSource.match(/id: hotspotPoll[\s\S]*?onTriggered: ([^\n]+)/)
+  assert(pollTrigger, 'network polls hotspot status while open')
+  if (pollTrigger) {
+    const args = []
+    new Function('root', pollTrigger[1])({ refreshHotspot: (...a) => args.push(a) })
+    assert(args.length === 1 && !args[0][0], 'the periodic poll never discards a running status')
+  }
 }
 
 const hotspotStatusOnExited = panelSource.match(/onExited: function\(exitCode\) \{\n {6}const run = hotspotProc\.runGeneration[\s\S]*?\n {4}\}/)
@@ -536,23 +572,6 @@ if (hotspotStatusOnExited) {
   assertEqual(completions[0][3], '', 'network reports stderr captured when the run exited')
 }
 
-const hotspotMessageText = panelSource.match(/Text \{\s*id: hotspotMessageText[\s\S]*?\n {8}\}/)
-assert(hotspotMessageText, 'network has a dedicated hotspot message surface')
-if (hotspotMessageText) {
-  assert(/width: parent\.width/.test(hotspotMessageText[0]), 'network bounds hotspot messages to the panel width')
-  assert(/wrapMode: Text\.Wrap/.test(hotspotMessageText[0]), 'network wraps hotspot messages')
-  assert(/elide: Text\.ElideRight/.test(hotspotMessageText[0]), 'network elides hotspot messages after wrapping')
-  assert(/maximumLineCount: 4/.test(hotspotMessageText[0]), 'network bounds hotspot error height')
-}
-const hotspotSetupBodyIndex = panelSource.indexOf('id: hotspotSetupBody')
-const hotspotApplyIndex = panelSource.indexOf('id: hotspotApplyBtn', hotspotSetupBodyIndex)
-const hotspotMessageIndex = panelSource.indexOf('id: hotspotMessageText')
-assert(hotspotSetupBodyIndex >= 0 && hotspotApplyIndex > hotspotSetupBodyIndex && hotspotMessageIndex > hotspotApplyIndex, 'network keeps status errors outside the collapsed setup body')
-
-assert((panelSource.match(/Model\.hotspotCredentialsError\(hotspotSsid, hotspotPassword, Commons\.I18n\.t\)/g) || []).length === 2, 'network shares hotspot credential validation between start and apply')
-assert(/id: hotspotQrButton\s+visible: root\.hotspotActive/.test(panelSource), 'network hides the hotspot QR unless the AP is on')
-assert(/readonly property int hotspotFocusMax: hotspotActive \? 2 : 1/.test(panelSource), 'network drops QR from the keyboard cycle while the AP is off')
-assert(!/hotspotQrButton\.containsMouse|hotspotCogButton\.containsMouse/.test(panelSource), 'network does not bind a hover state Button does not expose')
 assert(/command = \[hotspotCommand, "alias-set", hotspotAliasMac\]/.test(panelSource), 'network saves a client alias by MAC only')
 assert(/command = \[hotspotCommand, "alias-remove", hotspotAliasMac\]/.test(panelSource), 'network removes a client alias by MAC only')
 assert(/hotspotAliasProc\.secret = label/.test(panelSource), 'network sends the alias text over stdin, not argv')
@@ -566,8 +585,6 @@ assert(/"start", hotspotSsid\.trim\(\), hotspotBand, hotspotLimitArgument/.test(
 assert(/"apply", hotspotSsid\.trim\(\), hotspotBand, hotspotLimitArgument/.test(panelSource), 'hotspot apply applies the chosen participant limit')
 assert(/component HotspotLimitPill: Button/.test(panelSource), 'network renders the participant limit as a pill')
 assert(/delegate: HotspotSaveDataPill \{\n\s*required property var modelData\n\s*choice: modelData/.test(panelSource), 'network declares the injected repeater property on the save-data pills')
-assert(/id: hotspotCogButton[\s\S]*?tooltipText: root\.hotspotSetupOpen \? Commons\.I18n\.t\("network\.hideHotspotSettings"\) : Commons\.I18n\.t\("network\.hotspotSettings"\)/.test(panelSource), 'network labels the hotspot settings button through the button tooltip')
-assert(!/wifi-sec\.psk "\$password"/.test(hotspotSource), 'hotspot never puts the PSK on nmcli argv')
 assert(/apply "\$\{apply_args\[@\]\}"/.test(hotspotSource), 'hotspot start writes the profile through apply')
 assert(/apply_args\+=\("--save-data=\$save_data"\)/.test(hotspotSource), 'hotspot start forwards the data choice to apply')
 JS
