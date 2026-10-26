@@ -32,7 +32,7 @@ mise install --include-lazy    # Install all configured tools, including lazy to
 
 Run `omarchy update` to update installed tools with the rest of Omarchy. The `mup` alias updates mise-managed tools only. To add another tool to your own configuration, use `mise use -g <tool>`.
 
-Python setup also installs `uv` through mise. Removing the Python development environment leaves `uv` available as an independent tool.
+Python setup installs `uv` through mise and sets no global Python, so `python` stays Arch's own interpreter, which packaged apps and AUR builds rely on. Pick another version per project with `uv` or a project's `mise.toml`. Removing the Python development environment leaves `uv` available as an independent tool.
 
 ### Using your own installation
 
