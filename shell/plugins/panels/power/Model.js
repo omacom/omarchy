@@ -45,16 +45,20 @@ function profileIcon(name) {
   return "󰂄"
 }
 
-function batteryFraction(device) {
-  return device && device.isPresent ? Math.max(0, Math.min(1, device.percentage)) : 0
+// kernelLevel is the battery service's kernelPercentage: the status script's
+// percentage while UPower's full charge is latched, -1 while UPower's holds.
+function batteryFraction(device, kernelLevel) {
+  if (!(device && device.isPresent)) return 0
+  var fraction = typeof kernelLevel === "number" && kernelLevel >= 0 ? kernelLevel / 100 : device.percentage
+  return Math.max(0, Math.min(1, fraction))
 }
 
-function chargeThresholdActive(device, onBattery, states) {
+function chargeThresholdActive(device, onBattery, states, kernelLevel) {
   var d = device || {}
   var s = states || {}
   if (!(d && d.isPresent && !onBattery)) return false
 
-  var fraction = batteryFraction(d)
+  var fraction = batteryFraction(d, kernelLevel)
   if (d.state === s.Discharging) return false
   if (d.state === s.PendingCharge) return true
   if (d.state === s.FullyCharged && fraction < 0.99) return true
@@ -63,14 +67,14 @@ function chargeThresholdActive(device, onBattery, states) {
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
-function batteryIcon(device, onBattery, states) {
+function batteryIcon(device, onBattery, states, kernelLevel) {
   var d = device || {}
   if (!d.isPresent) return ""
 
   var chargingIcons = ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
   var defaultIcons = ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
-  var index = Math.max(0, Math.min(9, Math.floor(d.percentage * 10)))
-  var threshold = chargeThresholdActive(d, onBattery, states)
+  var index = Math.max(0, Math.min(9, Math.floor(batteryFraction(d, kernelLevel) * 10)))
+  var threshold = chargeThresholdActive(d, onBattery, states, kernelLevel)
 
   if (threshold) return defaultIcons[index]
   if (d.state === states.FullyCharged) return "󰂅"
@@ -78,13 +82,13 @@ function batteryIcon(device, onBattery, states) {
   return defaultIcons[index]
 }
 
-function modeLabel(device, onBattery, states, tr) {
+function modeLabel(device, onBattery, states, tr, kernelLevel) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var d = device || {}
   if (!d.isPresent) return ""
 
-  var percentage = d.isPresent ? d.percentage : 0
-  if (chargeThresholdActive(d, onBattery, states)) return t("power.threshold", "Threshold")
+  var percentage = batteryFraction(d, kernelLevel)
+  if (chargeThresholdActive(d, onBattery, states, kernelLevel)) return t("power.threshold", "Threshold")
   if (onBattery) return t("power.onBattery", "On battery")
   if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
   return t("power.charging", "Charging")

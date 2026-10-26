@@ -257,6 +257,22 @@ keyboard_widget_polls() {
   '
 }
 
+# Whether UPower on this machine has latched the battery's energy-full far
+# above its design capacity, which the battery service reads past by running
+# the status script as the charge moves. The script asks UPower the same way.
+battery_latched() {
+  local candidate info
+
+  while read -r candidate; do
+    [[ -n $candidate ]] || continue
+    info=$(upower -i "$candidate" 2>/dev/null) || continue
+    grep -qE '^\s*power supply:\s+yes' <<<"$info" || continue
+    awk '/energy-full:/ { full = $2 } /energy-full-design:/ { design = $2 } END { exit !(design > 0 && full > design * 2) }' <<<"$info"
+    return
+  done < <(upower -e 2>/dev/null | grep '/battery_')
+  return 1
+}
+
 add_allowances() {
   # Per-screen widgets are counted afresh each time, since a monitor can be
   # plugged in while the test watches.
@@ -276,6 +292,15 @@ add_allowances() {
   if keyboard_widget_polls; then
     allow '(^|/)hyprctl -j devices$' $(( screens * (IDLE_WINDOW / 10 + 1) )) \
       "the keyboard widget's 10s check of a seat with several keyboards, or none it can read"
+  fi
+
+  # The battery service reads the kernel's charge registers through the
+  # status script while UPower's energy-full is latched (a MacBook after a
+  # Smart Battery blip), once per tenth of a point UPower's percentage moves:
+  # UPower refreshes every 30s, and sooner on a charger event.
+  if battery_latched; then
+    allow '/bin/omarchy-battery-status --shell$' $(( IDLE_WINDOW / 30 + 2 )) \
+      "the battery service's re-read while UPower's energy-full is latched"
   fi
 
   # While a remote session is active its end has to be polled for, every 2s:
