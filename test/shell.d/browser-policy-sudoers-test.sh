@@ -138,7 +138,7 @@ mkdir -p "$setter_bin"
 # theme below takes the writer path.
 policy_tmp="$test_tmp/policies"
 mkdir -p "$policy_tmp/a"
-printf '{"BrowserThemeColor": "#ff0000", "BrowserColorScheme": "device"}\n' > "$policy_tmp/a/color.json"
+printf '{"BrowserThemeColor": "#ff0000"}\n' > "$policy_tmp/a/color.json"
 
 cat >"$setter_bin/omarchy-theme-set-browser-policy" <<'SH'
 #!/bin/bash
