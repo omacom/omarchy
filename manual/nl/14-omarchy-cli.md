@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy wordt meestal bediend via de sneltoetsen en het Omarchy-menu (`Super + Space`). Maar je kunt het ook bedienen via de `omarchy` CLI. Dit is bijzonder handig wanneer je een AI-agent met je laat werken aan aanpassing of configuratie.
+Omarchy wordt meestal bediend via de sneltoetsen en het Omarchy-menu (`Super + Space`). Maar je kunt het ook bedienen via de `omarchy` CLI. Dit is vooral handig wanneer je een AI-agent met je laat meewerken aan aanpassingen of configuratie.
 
-De CLI heeft toegang tot alle interne tooling die zowel via het menu als anderszins wordt gebruikt. Je kunt alles zien wat beschikbaar is door `omarchy` uit te voeren in de terminal.
+De CLI heeft toegang tot alle interne tooling die zowel via het menu als anderszins wordt gebruikt. Je kunt alles zien wat beschikbaar is door `omarchy` in de terminal uit te voeren.
 
 Het ziet er ongeveer zo uit:
 
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-En je kunt dieper duiken in elke groep:
+En je kunt dieper in elke groep duiken:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Elk commando accepteert ook `--help`, of je nu een hele groep vraagt (`omarchy capture --help`) of een enkel commando (`omarchy capture screenshot --help`).
+Elke opdracht accepteert ook `--help`, of je nu een hele groep vraagt (`omarchy capture --help`) of een enkele opdracht (`omarchy capture screenshot --help`).
 
-### Het menu openen vanaf de terminal
+### Het menu openen vanuit de terminal
 
-Het Omarchy-menu is ook scriptbaar, wat handig is voor je eigen keybindings. `omarchy menu` opent het bij de root, en je kunt rechtstreeks naar elk punt in de boom springen door het te benoemen: `omarchy menu summon style.theme` gaat direct naar de themakiezer, `omarchy menu toggle system` opent het systeemmenu en sluit het weer als het al open is, en `omarchy menu close` bergt het op.
+Het Omarchy-menu is ook scriptbaar, wat handig is voor je eigen toetsbindingen. `omarchy menu` opent het bij de root, en je kunt rechtstreeks naar elk punt in de boom springen door het te benoemen: `omarchy menu summon appearance.theme` gaat direct naar de themakiezer, `omarchy menu toggle system` opent het systeemmenu en sluit het weer als het al openstaat, en `omarchy menu close` bergt het weg.

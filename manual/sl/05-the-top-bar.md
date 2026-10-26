@@ -1,117 +1,120 @@
-# Menijska vrstica
+# Zgornja vrstica
 
-Trak vzdolž vrha vašega zaslona je vrstica Omarchy. To ni privita vrstica stanja, ampak del lupine Omarchy, enega samega dolgo delujočega procesa Quickshell, ki riše tudi meni, obvestila, pojavna okna OSD in zaklenjeni zaslon. Zato se odlično ujema s temo vsega drugega in zato se plošča odpre v hipu, namesto da bi pognala novo aplikacijo.
+Pas vzdolž vrha zaslona je vrstica Omarchy. Ni privita statusna vrstica, ampak del lupine Omarchy, edinega dolgo živečega procesa Quickshell, ki riše tudi meni, obvestila, pojavna okna OSD in zaklenjeni zaslon. Zato se popolnoma ujema z vsem ostalim in zato se plošča odpre takoj, namesto da bi zagnala novo aplikacijo.
 
-To je tudi edini del namizja, ki je vedno na zaslonu, zato je vredno vedeti, kaj počnejo vsi tisti majhni glifi.
+Je tudi edini del namizja, ki je vedno na zaslonu, zato je vredno vedeti, kaj počnejo vsi ti majhni glifi.
 
-## Kaj je na njej privzeto
+## Kaj je privzeto na njej
 
-Vrstica ima tri odseke. Na levi sedita logotip Omarchy (zaganjalnik menija) in kazalniki delovnih prostorov. Na sredini dobite kazalnike stanja, uro, Elsewhen (svetovno uro), vreme in značko za posodobitev Omarchyja. Na desni: razpored tipkovnice (ko je konfiguriranih več), sistemski pladenj, agenti, bluetooth, omrežje, zvok, zaslon in napajanje.
+Vrstica ima tri razdelke. Na levi sta logotip Omarchy (zaganjalnik menija) in kazalniki delovnih površin. Na sredini dobite kazalnike stanja, uro, Elsewhen (svetovno uro), vreme in značko za posodobitev Omarchy. Na desni: sistemska vrstica, postavitev tipkovnice (kadar je konfiguriranih več), agenti, bluetooth, omrežje, zvok, zaslon in napajanje.
 
-Nekaj od teh se prikaže le, ko imajo kaj za povedati. Razpored tipkovnice se pojavi le, če ste konfigurirali več kot en razpored. Značka za posodobitev se pojavi le, ko čaka posodobitev Omarchyja. Ikona agentov pa se pojavi prvič, ko Omarchy najde uporabo kodiranja z AI na računalniku (glejte [AI](17-ai.md)).
+Nekaj od teh se prikaže le, kadar imajo kaj povedati. Postavitev tipkovnice se prikaže le, če ste konfigurirali več postavitev. Značka za posodobitev se prikaže le, kadar čaka posodobitev Omarchy. Ikona agentov pa se prikaže prvič, ko Omarchy najde uporabo kodiranja z AI na napravi (glejte [AI](17-ai.md)).
 
 ## Klikanje naokoli
 
-Skoraj vsak gradnik naredi nekaj ob levem, desnem in srednjem kliku, več pa se jih odzove na drsenje. To je del, ki ga ljudje zgrešijo — desni in srednji gumb sta tam, kjer se skriva veliko dobrih stvari.
+Skoraj vsak pripomoček naredi nekaj ob levem, desnem in srednjem kliku, več pa se jih odzove tudi na drsenje. To je del, ki ga ljudje zgrešijo — na desnem in srednjem gumbu se skriva veliko dobrega.
 
-| Gradnik | Levi | Desni | Srednji / drsenje |
+| Pripomoček | Levi | Desni | Srednji / drsenje |
 | --- | --- | --- | --- |
 | Meni | Meni Omarchy | Nov terminal | — |
-| Delovni prostori | Osredotoči ta delovni prostor | — | Drsenje: naslednji/prejšnji delovni prostor |
-| Ura | Pojavno okno koledarja | Kroženje med formati zapisa | Srednji: izbirnik časovnega pasu |
+| Delovne površine | Osredotoči to delovno površino na tem monitorju | — | Drsenje: naslednja/prejšnja delovna površina |
+| Ura | Pojavno okno koledarja | Preklopi obliko oznake | Srednji: izbirnik časovnega pasu |
 | Vreme | Pojavno okno napovedi | Celotno vreme kot obvestilo | Srednji: osveži |
-| Zvok | Zvočna plošča | Utišaj | Srednji: plošča · drsenje: glasnost |
-| Mikrofon | Utišaj mikrofon | — | Srednji: zvočna plošča · drsenje: vhodna glasnost |
-| Omrežje | Omrežna plošča | — | — |
-| Bluetooth | Plošča Bluetooth | Preklopi radio | — |
-| Zaslon | Plošča zaslona | — | Drsenje: svetlost |
-| Napajanje | Plošča napajanja | Preklopi odstotek baterije | — |
-| Mediji | Predvajaj/premor | Pojavno okno z naslovnico | Srednji: naprej · drsenje: nazaj/naprej |
-| Agenti | Plošča agentov | Zaženi svojega agenta | Srednji: naslednja naročnina |
-| Pladenj | Lebdenje razkrije predal | Desni klik na ševron za upravljanje | — |
+| Zvok | Plošča za zvok | Utišaj | Srednji: plošča · drsenje: glasnost |
+| Mikrofon | Utišaj mikrofon | — | Srednji: plošča za zvok · drsenje: vhodna glasnost |
+| Omrežje | Plošča za omrežje | — | — |
+| Bluetooth | Plošča za Bluetooth | Vklopi/izklopi radio | — |
+| Zaslon | Plošča za zaslon | — | Drsenje: svetlost |
+| Napajanje | Plošča za napajanje | Preklopi odstotek baterije | — |
+| Mediji | Predvajaj/premor | Pojavno okno z naslovnico | Srednji: naslednje · drsenje: prejšnje/naslednje |
+| Agenti | Plošča za agente | Zaženi svojega agenta | Srednji: naslednja naročnina |
+| Sistemska vrstica | Zadržite kazalec, da razkrijete predal | Desni klik na ševron za upravljanje | — |
 | Posodobitev Omarchy | Zaženi posodobitev | — | — |
 
-Vse v tej tabeli ni na vaši vrstici takoj po namestitvi. Gradnik za medije (MPRIS trenutno predvaja z drsečim zapisom skladbe in izvajalca) in gradnik za mikrofon sta vgrajena, vendar privzeto izklopljena — dodajte ju, če ju želite, kot je opisano spodaj.
+Ni vse v tej tabeli privzeto na vaši vrstici. Pripomoček za medije (MPRIS zdaj predvaja, s premikajočo se skladbo in izvajalcem) in pripomoček za mikrofon sta vgrajena, a privzeto izklopljena — dodajte ju, če ju želite, kot je opisano spodaj.
 
 ## Plošče
 
-Klik ikone v vrstici odpre ploščo, ki je pravo pojavno okno z drsniki, seznami in navigacijo s tipkovnico namesto orodjarnega namiga. Vsaka ima tudi bližnjico, tako da vam nikoli ni treba meriti na glif s 16 slikovnimi pikami:
+Klik na ikono vrstice odpre ploščo, ki je pravo pojavno okno z drsniki, seznami in navigacijo s tipkovnico namesto namiga orodja. Vsaka ima tudi bližnjico, tako da vam nikoli ni treba meriti na 16-pikselni glif:
 
 | Bližnjica | Plošča |
 | --- | --- |
 | `Super + Ctrl + A` | Zvok |
-| `Super + Ctrl + W` | Omrežje |
+| `Super + Ctrl + N` | Omrežje |
 | `Super + Ctrl + B` | Bluetooth |
 | `Super + Ctrl + D` | Zaslon |
 | `Super + Ctrl + P` | Napajanje |
 | `Super + Ctrl + Alt + D` | Koledar |
 | `Super + Ctrl + Alt + E` | Svetovna ura |
-| `Super + Ctrl + 1-9` | Preklopi n-to ploščo v desnem odseku |
+| `Super + Ctrl + 1-9` | Preklopi n-to ploščo v desnem razdelku |
 
-Plošče niso odčitki. Na njih stvari dejansko naredite:
+Plošče niso izpisi. Na njih dejansko naredite stvar:
 
-- **Zvok** ima glavni drsnik glasnosti, izbirnik izhodne naprave in mešalnik po aplikacijah, tako da lahko utišate tisti en zavihek v brskalniku, ne da bi se dotaknili vsega drugega.
-- **Omrežje** išče Wi-Fi, prikazuje moč signala, se povezuje in vam omogoča, da izberete ponudnika DNS.
-- **Bluetooth** navede vaše naprave s povezovanjem/prekinjanjem in ravmi baterije.
+- **Zvok** ima glavni drsnik za glasnost, izbirnik izhodne naprave in mešalnik za posamezne aplikacije, tako da lahko utišate tisti en zavihek brskalnika, ne da bi se dotaknili vsega drugega.
+- **Omrežje** išče Wi-Fi, prikazuje moč signala, povezuje in vam omogoča izbiro ponudnika DNS.
+- **Bluetooth** navede vaše naprave s povezavo/prekinitvijo in ravnmi baterije.
 - **Napajanje** prikazuje statistiko baterije, preklaplja profile napajanja (zapomni si ločeno izbiro za baterijo in AC) in izpiše nekaj informacij o sistemu.
-- **Zaslon** nosi drsnik svetlosti, velikost besedila, prednastavitve skaliranja zaslona in — ko imate več kot en zaslon — kontrolnike po zaslonu. Za globljo zgodbo glejte [zasloni](33-monitors.md).
-- **Ura** odpre mesečno mrežo s številkami tednov ISO in pomikom po mesecih.
+- **Zaslon** ima drsnik za svetlost, velikost besedila, prednastavitve skaliranja monitorja in — kadar imate več zaslonov — kontrolnike za posamezen monitor. Glejte [monitorji](33-monitors.md) za globljo zgodbo.
+- **Ura** odpre mesečno mrežo s številkami tednov ISO in pomikanjem po mesecih.
+- **Svetovna ura** ima vrstico za vsako mesto, z njegovim vremenom in tem, kako mu gre dan. Iskanje najde tudi mesta, ne le časovne pasove, zato je Fort Lauderdale Fort Lauderdale in ne New York. Če vrstica na vrhu imenuje napačno mesto, jo kliknite in povejte, kje ste; izberite kraj v drugem časovnem pasu in tudi sistemska ura se premakne tja, kar pride prav med potovanjem. Zadržite kazalec nad mestom in kliknite gumb osebe, da poveste, kdo tam živi — navadna imena ali ročaje `@` GitHub, da pripeljete zraven njihove obraze.
 
-Vsaka plošča sprejme tipkovnico prav tako kot miško: puščice se premikajo, Return aktivira, Tab naredi korak do sosednje plošče in Escape zapre.
+Vsaka plošča sprejme tipkovnico kot tudi miško: puščice se premikajo, Return aktivira, Tab se pomakne na sosednjo ploščo, Escape pa zapre.
 
-`Super + Ctrl + 1-9` šteje plošče od leve proti desni v desnem odseku, pri čemer preskoči pladenj, saj nima lastne plošče. Število se torej ujema z ikono, na katero bi pokazali.
+`Super + Ctrl + 1-9` šteje plošče od leve proti desni v desnem razdelku, pri čemer preskoči sistemsko vrstico, saj ta nima svoje plošče. Tako se številka ujema z ikono, na katero bi pokazali.
 
 ### Tailscale in Dropbox
 
-Še dva gradnika se pojavita v vrstici šele, ko ustrezno storitev namestite iz **Install → Service**, in oba sta vredna poznavanja, saj počneta več kot poročata o stanju.
+Še dva pripomočka se na vrstici prikažeta le, ko iz **Namesti → Storitev** namestite ustrezno storitev, in oba je vredno poznati, ker naredita več kot le poročata o stanju.
 
-Plošča **Tailscale** povezuje in prekinja tailnet, preklaplja med računi in izbere izhodno vozlišče (v tem seznamu se pojavijo tako vaši lastni stroji kot regije Mullvad). Preiskuje tudi vaše stroje — in ko je en izbran, `s` mu pošlje datoteke prek Taildropa, kar je najhitrejši način, da datoteko premaknete v telefon ali drug prenosnik. `c` kopira IP stroja, `n` njegovo ime in `d` njegovo polno ime DNS. Na vsaki vrstici stroja je tudi gumb za pošiljanje, če raje klikate. Enako iz terminala je `omarchy tailscale send <machine> [file...]`.
+Plošča **Tailscale** povezuje in prekinja tailnet, preklaplja med računi in izbere izhodno vozlišče (vaše lastne naprave in regije Mullvad so oboje na tem seznamu). Prebrska tudi vaše naprave — in ko je ena izbrana, `s` pošlje datoteke nanjo prek Taildrop, kar je najhitrejši način za premik datoteke na telefon ali drug prenosnik. `c` kopira IP naprave, `n` njeno ime in `d` njeno polno ime DNS. Na vsaki vrstici naprave je tudi gumb za pošiljanje, če raje klikate. Enako iz terminala je `omarchy tailscale send <machine> [file...]`.
 
-Plošča **Dropbox** obravnava prijavo, prikazuje, koliko prostora za shranjevanje ste porabili, in navede nedavno sinhronizirane datoteke.
+Plošča **Dropbox** skrbi za prijavo, prikazuje, koliko prostora za shranjevanje ste porabili, in navede nedavno sinhronizirane datoteke.
 
-Odstranitev katere koli storitve njen gradnik vzame iz vrstice.
+Če katero od storitev odstranite, gre z vrstice tudi njen pripomoček.
 
 ## Kazalniki
 
-Majhna gruča na sredini je gradnik kazalnikov. To so statusni glifi za načine, ki ste jih vklopili: ne moti, nočna svetloba, [opomnik](09-reminders.md) v vrsti, aktivno snemanje zaslona, ostanek budnega stanja in [narekovanje](11-text-extraction-dictation.md). Svetijo, ko je način aktifven, sicer pa ostanejo stran — z miško pojdite levo od ure (nad njo na navpični vrstici), da pokukate med neaktivne. Klik kazalnika ta način preklopi. Še eden je samo statusni: oddaljena seja sveti rdeče, medtem ko je nekdo povezan s tem računalnikom prek gliffa.
+Mala skupina na sredini je pripomoček kazalnikov. To so glifi stanja za načine, ki ste jih vklopili: ne moti, nočna luč, [opomnik](09-reminders.md) v čakalni vrsti, aktivno snemanje zaslona, ostani buden in [narekovanje](11-text-extraction-dictation.md). Zasvetijo, kadar je način aktiven, sicer pa se umaknejo s poti — zadržite kazalec kjer koli na vrstici, da pokukate v neaktivne. Klik na kazalnik preklopi ta način. Še eden je samo za stanje: oddaljena seja sveti rdeče, medtem ko je nekdo povezan s to napravo prek gliff.
 
-Če želite, da bi bili vedno vidni, nastavite `alwaysShow` na `true` na gradniku. In če vas zanimajo samo nekateri od njih, navedite tiste, ki jih želite, v `items`: `["Dnd", "Reminder", "NightLight"]`. Imate lahko več kot en gradnik kazalnikov, tako da različni odseki prikazujejo različne podmnožice.
+Če želite, da so vedno vidni, nastavite `alwaysShow` na `true` na pripomočku. In če vas zanimajo le nekateri, navedite želene v `items`: `["Dnd", "Reminder", "NightLight"]`. Imate lahko več kot en pripomoček kazalnikov, tako da lahko različni razdelki prikazujejo različne podnabore.
 
-## Prerazporejanje vrstice
+## Preurejanje vrstice
 
-Vrstica se konfigurira sama. Za premikanje stvari vam ni treba odpirati konfiguracijske datoteke.
+Vrstica se konfigurira sama. Za premikanje stvari vam ni treba odpreti konfiguracijske datoteke.
 
-Primite prazen košček vrstice okoli sredine in ga povlecite proti drugemu robu zaslona, in vrstica se prestavi tja — levo, desno, zgoraj ali spodaj vse deluje, vsak gradnik pa se prilagodi (navpične vrstice padejo nazaj v kompaktne oblike samo z ikonami). Enako vlečenje začne klik-in-držanje. Dvokliknite z levim na isti prazen prostor, da ozadje vrstice krožite od prosojnega do steklenega in neprosojnega. In povlecite kateri koli gradnik, da ga prerazporedite ali vržete v drug odsek.
+Primite prazen del vrstice okoli sredine in ga povlecite proti drugemu robu zaslona in vrstica se premakne tja — levo, desno, zgoraj ali spodaj deluje vse, vsak pripomoček pa se prilagodi (navpične vrstice preidejo na kompaktne oblike samo z ikonami). Klik-in-zadrži začne enak vlek. Dvakrat levo kliknite isti prazen prostor, da preklopite ozadje vrstice od prozornega do steklenega do neprozornega. In povlecite kateri koli pripomoček, da ga preuredite ali vržete v drug razdelek; drugi pripomočki se razmaknejo, da naredijo prostor, kjer bo pristal.
 
-Gradnik, ki ga želite imeti pri roki, a ne vedno na očeh, lahko spravite v predal pladnja: povlecite ga na pladenj in predal se odpre, da ga sprejme. Tam sedi za ikonami aplikacij, pokaže se ob vsakem odprtju predala in predal drži odprt, dokler je odprta njegova plošča. Povlecite ga nazaj na vrstico, da ga vrnete.
+Sredina vrstice je okvir: kar je v njem, ostane na sredini kot ena skupina, pripomočki na obeh straneh pa visijo z njegovih robov. Med vlečenjem pripomočka se okvir prikaže kot obris ali kot črta čez vrstico, kadar je prazen, in lahko spustite vanj ali ob njega. Kadar bi spust pristal v okvirju, okvir zraste in vzame pripomoček vanj.
 
-Če raje izberete iz menija, ima **Trigger → Appearance → Menu Bar** položaj, **Bar Background** pa izbere, kako se vrstica nariše: **Opaque Bar**, **Glassy Bar** (prosojna, s tem, kar je za njo, zamegljenim) ali **Clear Bar**.
+Pripomoček, ki ga želite imeti pri roki, a ne vedno na očeh, lahko gre v predal sistemske vrstice: povlecite ga na sistemsko vrstico in predal se odpre, da ga sprejme. Tam sedi za ikonami aplikacij, prikaže se, kadar koli se prikaže predal, in drži svoj predal odprt, medtem ko je njegova plošča odprta. Povlecite ga nazaj na vrstico, da ga vrnete.
 
-Enake stvari imajo ukaze, kar je tisto, kar želite za namestitev z [dotfiles](31-dotfiles.md):
+Če raje izbirate iz menija, ima **Videz → Vrstica menija** položaj, **Ozadje vrstice** pa izbere, kako je vrstica narisana: **Neprozorna vrstica**, **Steklena vrstica** (prozorna, s tem, kar je za njo, zamegljenim) ali **Prozorna vrstica**.
+
+Iste stvari imajo ukaze, kar želite za nastavitev [dotfiles](31-dotfiles.md):
 
 ```bash
 omarchy bar position bottom
 omarchy bar background glassy  # opaque, glassy, none, or cycle
-omarchy bar move omarchy.clock --section center --index 0
+omarchy bar move omarchy.weather --section centerBegin --index 0
 omarchy bar move omarchy.bluetooth --section tray  # into the tray's drawer
 omarchy bar set omarchy.clock format "HH:mm"
 omarchy bar defaults          # back to the shipped layout
 ```
 
-Za dodajanje ali odstranjevanje gradnika v celoti uporabite ukaze za vtičnike. `omarchy plugin list` izpiše vsak gradnik, ki ga lupina pozna, z njegovim id-jem, nato pa:
+Za dodajanje ali odstranjevanje pripomočka v celoti uporabite ukaze vtičnikov. `omarchy plugin list` izpiše vsak pripomoček, ki ga lupina pozna, z njegovim id, nato pa:
 
 ```bash
-omarchy plugin enable omarchy.media --section center
+omarchy plugin enable omarchy.media --section centerEnd
 omarchy plugin disable omarchy.weather
 ```
 
 ## Skrivanje vrstice
 
-`Super + Shift + Space` vrstico izklopi in znova vklopi, ne da bi ubil lupino — plošče in bližnjice še naprej delujejo, samo slikovne pike dobite nazaj. Je tudi v meniju pod **Trigger → Appearance → Menu Bar → Hide Bar**.
+`Super + Shift + Space` preklopi vrstico izklopljeno in nazaj vklopljeno, ne da bi ubil lupino — plošče in bližnjice še naprej delujejo, le piksle dobite nazaj. Je tudi v meniju pod **Videz → Vrstica menija → Skrij vrstico**.
 
 ## Konfiguracijska datoteka
 
-Vse se shrani v `~/.config/omarchy/shell.json` pod tipko `bar`. Tu je okrajšana različica:
+Vse je shranjeno v `~/.config/omarchy/shell.json`, pod ključem `bar`. Tukaj je okleščena različica:
 
 ```json
 {
@@ -119,20 +122,21 @@ Vse se shrani v `~/.config/omarchy/shell.json` pod tipko `bar`. Tu je okrajšana
   "bar": {
     "position": "top",
     "background": "opaque",
-    "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [{ "id": "omarchy.menu" }, { "id": "omarchy.workspaces" }],
+      "centerBegin": [{ "id": "omarchy.indicators" }],
       "center": [{ "id": "omarchy.clock", "format": "HH:mm" }],
+      "centerEnd": [{ "id": "omarchy.weather" }],
       "right": [{ "id": "omarchy.audio" }, { "id": "omarchy.power" }]
     }
   }
 }
 ```
 
-Vsak gradnik je en vnos v eni od treh tabel postavitve, njegove nastavitve pa sedijo vdelano na tem vnosu — ni ločene datoteke z nastavitvami in ni podobiekta `config`. Ure `format`, `formatAlt` (v kar kroži desni klik) in `verticalFormat` vsi živijo prav tam na `{ "id": "omarchy.clock" }`.
+Vsak pripomoček je en vnos v eni od petih tabel postavitve, njegove nastavitve pa sedijo neposredno na tem vnosu — ni ločene datoteke z nastavitvami in ni podobjekta `config`. `format`, `formatAlt` (na kar preklopi desni klik) in `verticalFormat` ure živijo tam na `{ "id": "omarchy.clock" }`.
 
-`centerAnchor` imenuje edini sredinski gradnik, ki se pripne na natančno sredino zaslona, drugi pa ga obdajo. Tako ura ostane točno na sredini, tudi ko vreme in značka za posodobitev prihajata in odhajata. Če ga nastavite na prazen niz, je seznam na sredini samo usredinjen kot skupina.
+`center` je okvir na sredini vrstice: vse v njem je na zaslonu na sredini kot ena skupina. `centerBegin` in `centerEnd` visita na obeh straneh okvirja, tako ura ostane točno na sredini, tudi ko vreme in značka za posodobitev prihajata in odhajata. Dajte več kot en pripomoček v `center` in bodo skupaj na sredini; pustite ga praznega in `centerBegin` ter `centerEnd` se srečata na sredini vrstice.
 
-Eno pravilo, ki si ga je vredno zapomniti: **ko imate svoj `shell.json`, je kanoničen**. Dokler ničesar ne prilagodite, lupina bere Omarchyjevo privzeto datoteko. Trenutek, ko povlečete gradnik, zaženete `omarchy bar` ali datoteko uredite sami, postane vaša — ni globokega združevanja, zato novi privzeti gradniki v prihodnjih izdajah Omarchyja ne bodo samodejno prikazani v vaši vrstici. `omarchy bar defaults` dobavljeno postavitev vrne, kadar koli želite čist list.
+Eno pravilo, ki si ga je vredno zapomniti: **ko imate svoj `shell.json`, je kanoničen**. Dokler ničesar ne prilagodite, lupina bere privzeto datoteko Omarchy. V trenutku, ko povlečete pripomoček, zaženete `omarchy bar` ali sami uredite datoteko, je vaša — ni globokega združevanja, zato se novi privzeti pripomočki v prihodnjih izdajah Omarchy ne bodo samodejno prikazali na vaši vrstici. `omarchy bar defaults` vrne privzeto postavitev, kadar koli želite čist začetek.
 
-Ista datoteka hrani tudi vaše timingse nedejavnosti na zgornji ravni, zunaj tipke `bar`: `idle.screensaver` in `idle.lock`, oba v sekundah od tistega, ko ste postali nedejavni. Privzeti ohranjevalnik torej začne pri 150 sekundah, zaklepanje pa pri 300.
+Ista datoteka hrani tudi vaše čase nedejavnosti na zgornji ravni, zunaj ključa `bar`: `idle.screensaver` in `idle.lock`, oboje v sekundah od vaše nedejavnosti. Privzeti ohranjevalnik zaslona se tako vklopi pri 150 sekundah, zaklepanje pa pri 300.

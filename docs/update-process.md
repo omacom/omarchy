@@ -139,10 +139,10 @@ omarchy-update
   ├─ automatically remove orphan packages and run log analysis
   ├─ clear the shell update indicator: the update just installed what it showed
   ├─ restart marked services and the shell
-  ├─ run the post-update hook, then update mise tools
-  ├─ stop the keepalive and invalidate sudo, then update AUR packages with
-  │  no-update authentication, and invalidate again
-  ├─ omarchy-update-boot, with no-update authentication, and invalidate again
+  ├─ run the post-update hook, then update mise tools (a failed tool update
+  │  warns and the update continues)
+  ├─ update AUR packages
+  ├─ omarchy-update-boot, then stop the keepalive and invalidate sudo
   │    └─ the platform's boot package proves the boot files boot the updated system
   ├─ omarchy-update-stay-awake stop
   │    └─ release the sleep inhibitor and restore shell idle state, if changed
@@ -154,12 +154,12 @@ Important behavior:
 - Protected update entrypoints require the session's canonical `OMARCHY_PATH` to match their own checkout or the packaged `/usr/bin` entrypoint before selecting commands or the sudo wrapper. This preserves intentionally trusted development checkouts while rejecting a command paired with a different source root. System phases use a fixed command search path; user PATH is restored for hooks and mise.
 - Mixed-trust update entrypoints start Bash in privileged mode, discard `BASH_ENV`, `ENV`, and exported-function records before launching helpers, and reject an ordinary `bash path/to/command` invocation. Run them as executables (normally through the `omarchy` CLI); `/usr/bin/bash -p path/to/command` is the explicit interpreter form. This keeps shell startup injection from replacing the no-update sudo boundary.
 - In dev-link mode, `omarchy update` fast-forwards the active checkout from its configured upstream before changing system packages or running migrations.
-- The update asks for the sudo password once, right after confirmation. It first invalidates any existing timestamp so that prompt always belongs to this update, then a background keepalive refreshes the timestamp every minute so long downloads, migrations, hooks, and mise never outlast it. Everything except AUR shares that one authorization: package prune, snapshot, stay-awake, keyring, system packages, migrations, orphan removal, service restarts, the post-update hook, and mise. Stay-awake sees `OMARCHY_UPDATE_SUDO_SESSION=1`, uses that authorization non-interactively whatever its stdin is, and leaves it to the update instead of revoking it. The authorization runs a command rather than `sudo -v`, so passwordless sudo still needs no prompt. Standalone commands that keep their own cold boundary, such as `omarchy-refresh-pacman`, still revoke if a post-update hook calls them.
-- AUR builds run third-party PKGBUILD code, so they run last and never see the update's authorization. The update stops the keepalive, invalidates the timestamp, and runs yay with the no-update wrapper as its sudo command and its credential loop disabled; an AUR install prompts per command without publishing a reusable timestamp. The timestamp is invalidated again afterwards and on every exit.
+- The update asks for the sudo password once, right after confirmation. It first invalidates any existing timestamp so that prompt always belongs to this update, then a background keepalive refreshes the timestamp every minute so long downloads, migrations, hooks, and mise never outlast it. Everything shares that one authorization: package prune, snapshot, stay-awake, keyring, system packages, migrations, orphan removal, service restarts, the post-update hook, mise, AUR packages, and the boot check. No step asks for the password again. Stay-awake sees `OMARCHY_UPDATE_SUDO_SESSION=1`, uses that authorization non-interactively whatever its stdin is, and leaves it to the update instead of revoking it. The authorization runs a command rather than `sudo -v`, so passwordless sudo still needs no prompt. Standalone commands that keep their own cold boundary, such as `omarchy-refresh-pacman`, still revoke if a post-update hook calls them.
+- AUR packages build against the upgraded system, so they run after it, under the same authorization as everything else. The update stops the keepalive and invalidates the timestamp after the boot check, and again on every exit.
 - This lifecycle controls authorization created by the protected workflow. `sudo -N` prevents cache updates but can use an existing valid credential, and `sudo -k` revokes the current session's timestamp. It does not isolate the account from unrelated concurrent authentication in another workflow.
 - Sleep inhibition authenticates before detaching, drops the held command back to the caller, and closes both update lock descriptors before the persistent process starts. Cleanup accepts only caller-owned, mode-0600, single-link state and revalidates the recorded PID, process start time, owner, and random token immediately before every signal.
-- Channel switching establishes the same boundary before dev link/unlink, refresh and package operations. It keeps the wrapper first when changing source roots, carries the original user PATH into update hooks and mise, and checks after each package transaction that the wrapper still exists before any further privileged step, since a transaction can replace the running tree with a release that predates it; when it is gone, or the destination otherwise lacks it, the switch stops after the package switch with instructions to run that release's update from a fresh session rather than letting a bare `sudo` or an updater that authenticates without `--no-update` publish a timestamp. Failed and interrupted channel switches revoke on exit.
-- `-y` exports `OMARCHY_UPDATE_UNATTENDED=1` and suppresses Omarchy confirmation prompts. Conflict handoff reports and skips instead of blocking. Orphan packages are automatically removed during every update. Privileged commands still require the one sudo authorization, and AUR installs can prompt separately.
+- Channel switching establishes the same boundary before dev link/unlink, refresh and package operations. It keeps the wrapper first when changing source roots, carries the original user PATH into update hooks and mise, and checks after each package transaction that the wrapper still exists before any further privileged step, since a transaction can replace the running tree with a release that predates it; when it is gone, or the destination otherwise lacks it, the switch stops with instructions for a fresh session, naming what is installed: that release's update once the destination's packages are in, or the switch again when a transaction before the swap replaced the tree, rather than letting a bare `sudo` or an updater that authenticates without `--no-update` publish a timestamp. Failed and interrupted channel switches revoke on exit.
+- `-y` exports `OMARCHY_UPDATE_UNATTENDED=1` and suppresses Omarchy confirmation prompts. Conflict handoff reports and skips instead of blocking. Orphan packages are automatically removed during every update. Privileged commands still require the one sudo authorization.
 - The free-space requirement uses a 10 GiB threshold and stops the update before
   confirmation when it is not met. If free space cannot be determined, the
   check is silently skipped. Set `OMARCHY_UPDATE_FORCE=1` to bypass the check.
@@ -167,7 +167,7 @@ Important behavior:
   `omarchy-migrate` after pacman finishes.
 - A failure should leave enough output in `/tmp/omarchy-update.log` and the
   terminal transcript to debug.
-- The boot check is the [lifecycle dispatch](lifecycle-dispatch.md) operation `update-verify`, a no-op on platforms whose boot chain needs no handling of its own, x86 included: nothing runs and nothing asks for root. It is the last sudo-capable step, after AUR packages, so it also covers the initramfs rebuilds they trigger; since it follows third-party build code, it authenticates through the no-update wrapper like AUR does, which on a platform that implements it without passwordless sudo is one more prompt. When it fails, the update finishes its remaining steps, then exits non-zero without the reboot prompt: the update is not finished. A machine without its platform's boot package at all predates it: the update warns that its boot files were not verified and finishes. There is no check before the packages change: where `omarchy-hw-platform` can't tell the platform, the update installs its packages, and the update then fails verification, without the reboot prompt.
+- The boot check is the [lifecycle dispatch](lifecycle-dispatch.md) operation `update-verify`, a no-op on platforms whose boot chain needs no handling of its own, x86 included: nothing runs and nothing asks for root. It is the last sudo-capable step, after AUR packages, so it also covers the initramfs rebuilds they trigger. When it fails, the update finishes its remaining steps, then exits non-zero without the reboot prompt: the update is not finished. A machine without its platform's boot package at all predates it: the update warns that its boot files were not verified and finishes. There is no check before the packages change: where `omarchy-hw-platform` can't tell the platform, the update installs its packages, and the update then fails verification, without the reboot prompt.
 
 ## Path 2: direct `sudo pacman -Syu` attempt
 
@@ -272,35 +272,12 @@ which pacman repo the mirrorlist points at (and swap between the `omarchy` and
 `omarchy-dev` packages through a guard-allowed pacman run), while `dev` links
 the runtime to a git checkout via the dev-link mechanism, after which
 `omarchy update` fast-forwards that checkout instead of upgrading a package.
+The refresh before that swap ignores `omarchy-dev` and `omarchy-settings-dev` on stable and rc, so an old build of them still listed in those repositories can't replace an edge machine's tree before the swap installs the release.
 Channel switching runs the `pre-refresh-pacman` hook once, during its refresh
 step: cold, behind the no-update wrapper, after the package config is re-synced
 and before the refresh transaction. It does not run if the switch fails earlier.
 
-Every platform has its own pacman.conf and mirrorlist for each channel it
-offers (x86_64 stable, rc and edge; aarch64 edge alone, below), and a channel
-change or install finalization copies them into place whole, the same way on
-every platform (`install/helpers/pacman.sh`); a channel change backs up
-the old pair first.
-x86_64's are `default/pacman/pacman-<channel>.conf` and
-`mirrorlist-<channel>`; Snapdragon and other aarch64 machines use
-`default/pacman/aarch64/`, Omarchy's repository ahead of Arch Linux ARM's, as
-x86_64 puts it ahead of Arch's (migration 1791403252 reorders existing
-machines the same way, and a refresh can then move a package Omarchy also
-publishes to Omarchy's build, downgrading it if that build is older); Apple
-Silicon uses `default/pacman/aarch64-apple/`, which puts Omarchy and Asahi ALARM
-ahead of Arch Linux ARM. Omarchy publishes aarch64 packages on edge alone so
-far, and the `omarchy` and `omarchy-settings` packages there for stable and rc
-are the release line, which has no aarch64 support, so ARM platforms have edge
-templates only: switching an ARM machine to stable or rc would replace its
-runtime with one that cannot run it. Adding a stable or rc template once a
-release supports aarch64 is what opens that channel. A channel change refuses a
-channel without both files for the platform before anything changes. On aarch64,
-`omarchy-channel-set` refuses to link a dev checkout without
-`bin/omarchy-hw-platform` and `install/helpers/pacman.sh`, whose own refresh
-would write the x86_64 templates. `omarchy-reinstall-pkgs` resets to the
-platform's default channel (`omarchy_pacman_default_channel`: stable, or edge on
-aarch64) and installs its default packages; install finalization does the same
-when the install's channel has no templates for the platform.
+Every platform has its own pacman.conf and mirrorlist for each channel it offers (x86_64 and aarch64 stable, rc and edge; Apple Silicon edge alone, below), and a channel change or install finalization copies them into place whole, the same way on every platform (`install/helpers/pacman.sh`); a channel change backs up the old pair first. x86_64's are `default/pacman/pacman-<channel>.conf` and `mirrorlist-<channel>`; Snapdragon and other aarch64 machines use `default/pacman/aarch64/`, the same files with Arch Linux ARM's repositories and Omarchy's mirror of them for that channel (`arm-mirror.omarchy.org`, `arm-rc-mirror.omarchy.org`, `arm-stable-mirror.omarchy.org`), Omarchy's repository ahead of Arch Linux ARM's, as x86_64 puts it ahead of Arch's (migration 1791403252 reorders existing machines the same way, and a refresh can then move a package Omarchy also publishes to Omarchy's build, downgrading it if that build is older); Apple Silicon uses `default/pacman/aarch64-apple/`, which puts Omarchy and Asahi ALARM ahead of Arch Linux ARM. Apple Silicon's packages are published for edge alone so far, so it has edge templates only; adding its stable or rc template is what opens that channel there. A channel change refuses a channel without both files for the platform before anything changes. On aarch64, `omarchy-channel-set` refuses to link a dev checkout without `bin/omarchy-hw-platform` and `install/helpers/pacman.sh`, whose own refresh would write the x86_64 templates. `omarchy-reinstall-pkgs` resets to the platform's default channel (`omarchy_pacman_default_channel`: stable, or edge on Apple Silicon) and installs its default packages; install finalization does the same when the install's channel has no templates for the platform.
 
 There is no version file at runtime. `omarchy-version` derives the version from
 `pacman -Q` on whichever package is installed, or reports `dev (<hash>)` for a

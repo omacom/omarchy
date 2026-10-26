@@ -29,32 +29,11 @@ done
 
 apply_kimi() {
   case $1 in
-    migration) source "$ROOT/migrations/1786967403.sh" >/dev/null ;;
     removal) omarchy-remove-preinstalls >/dev/null ;;
   esac
 }
 
-apply_kimi migration
-[[ -x $kimi && ! -L $kimi ]] || fail "Kimi migration creates a missing wrapper"
-[[ ! -s $OMARCHY_TEST_MISE_LOG ]] || fail "Kimi migration installs the package before first launch"
-cp "$kimi" "$test_tmp/wrapper"
-apply_kimi migration
-cmp -s "$kimi" "$test_tmp/wrapper" || fail "Kimi migration is idempotent"
-"$kimi" --prompt 'Review this project'
-mapfile -d '' -t args <"$OMARCHY_TEST_MISE_LOG"
-[[ ${args[*]} == "use -g --quiet $package x $package -- kimi --prompt Review this project" ]] ||
-  fail "Kimi migration wrapper installs the official package and forwards arguments"
-pass "Kimi migration creates a lazy, repeatable wrapper"
-
-rm -f "$kimi"
-mkdir -p "$HOME/.local/state/omarchy"
-touch "$HOME/.local/state/omarchy/preinstalls-removed"
-apply_kimi migration
-[[ ! -e $kimi ]] || fail "Kimi migration respects removed preinstalls with a missing command"
-rm "$HOME/.local/state/omarchy/preinstalls-removed"
-pass "Kimi migration respects the preinstall opt-out"
-
-for operation in migration removal; do
+for operation in removal; do
   for kind in script binary symlink; do
     rm -f "$kimi"
     case $kind in

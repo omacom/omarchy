@@ -1,12 +1,12 @@
 # Temaer
 
-Omarchy leveres med tjueto vakre temaer. Du kan velge mellom dem via _Stil > Tema_ i Omarchy-menyen (`Super + Space`) eller hoppe direkte til temavelgeren med `Super + Ctrl + Shift + Space`.
+Omarchy kommer med tjueto vakre temaer. Du kan velge mellom dem via _Utseende > Tema_ i Omarchy-menyen (`Super + Space`) eller hoppe rett til temavelgeren med `Super + Ctrl + T`.
 
-Hvert tema styler skrivebordet, terminalen, neovim, aktivitetsskjermen (btop), Chromium og hele Omarchy-skallet: menylinjen, menyen, varslene, OSD-en og låseskjermen. (For Obsidian må du manuelt velge Omarchy-temaet via _Appearance > Themes_ inne i appen).
+Hvert tema styler skrivebordet, terminalen, neovim, aktivitetsskjermen (btop), Chromium og hele Omarchy-skallet: topplinjen, menyen, varsler, OSD og låseskjermen. (For Obsidian må du manuelt velge Omarchy-temaet via _Utseende > Temaer_ inne i appen).
 
-Temaer har et sett med bakgrunnsbilder du kan velge mellom med `Super + Ctrl + Space`.
+Temaer har et sett med bakgrunnsbilder som du kan velge mellom med `Super + Ctrl + W`.
 
-Du kan finne enda flere temaer på [siden med ekstra temaer](https://omarchy.org/themes/) eller til og med [lage ditt eget tema](43-making-your-own-theme.md).
+Du finner enda flere temaer på [siden med ekstra temaer](https://omarchy.org/themes/) eller til og med [lage ditt eget tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Opplåsinger
 
-Temaer kan også ha et egendefinert opplåsingsdesign, som brukes til oppstartsdekrypteringsprosessen. Du kan velge ett av disse under _Stil > Lås opp_. De ser slik ut:
+Temaer kan også ha et tilpasset opplåsingsdesign, som brukes til dekrypteringsprosessen ved oppstart. Du kan velge ett av disse under _Utseende > Opplåsing_. De ser slik ut:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

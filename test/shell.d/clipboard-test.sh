@@ -583,5 +583,5 @@ pass "clipboard open helper writes text entries to a temporary file"
 OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-open" --history-index 2
 
-[[ $(<"$TMPDIR/omasnap") == "$TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
+[[ $(<"$TMPDIR/omasnap") == "--notify $TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
