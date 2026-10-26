@@ -389,7 +389,7 @@ shared_base() {
   address=${address%% *}
   prefix=${address##*/}
   address=${address%/*}
-  [[ $prefix == 24 ]] || fail "hotspot subnet '$address/$prefix' is not a /24"
+  [[ $prefix == "24" ]] || fail "hotspot subnet '$address/$prefix' is not a /24"
   [[ $address =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || fail "invalid hotspot address '$address'"
   base=${address%.*}
   [[ $base != "$address" && $base =~ ^([0-9]{1,3}\.){2}[0-9]{1,3}$ ]] ||
@@ -1166,7 +1166,7 @@ apply() {
   local ssid=$1 band=${2:-2.4} password device nm_band nm_channel
   local limit_given=0 limit=${3-}
 
-  [[ $# -lt 3 ]] || limit_given=1
+  (( $# < 3 )) || limit_given=1
   hotspot_lock
 
   device=$(ap_iface)
