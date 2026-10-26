@@ -17,6 +17,7 @@ url=${1:?Usage: omarchy-network-captive-portal [--auto] <url>}
 tailscale_socket=/var/run/tailscale/tailscaled.sock
 lock=${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy-network-captive-portal.lock
 paused_exit_node=0
+network=""
 
 # An exit node routes the portal's sign-in page into a tunnel the portal is
 # still blocking. tailscaled's own toggle (the one Tailscale's apps use) turns
@@ -103,6 +104,18 @@ online() {
   [[ $(LC_ALL=C timeout 5 nmcli networking connectivity check 2>/dev/null) == "full" ]]
 }
 
+# Whether a link the sign-in started on is gone. One coming up beside it, a
+# VM bridge say, leaves the portal where it was.
+network_left() {
+  local now link
+  now=$(active_network)
+  while IFS= read -r link; do
+    [[ -n $link ]] || continue
+    grep -Fxq -- "$link" <<<"$now" || return 0
+  done <<<"$network"
+  return 1
+}
+
 # Nothing on the machine changes when the sign-in completes, so ask
 # NetworkManager to re-check: often while a sign-in is likely, then gently
 # until it is done. Its connectivity state updates as it does, which is what
@@ -110,14 +123,14 @@ online() {
 # does leaving this one: a portal window closed without signing in must not
 # hold the lock against the next network's sign-in.
 wait_until_online() {
-  local fast_until=$(( SECONDS + 300 )) network ticks=0
+  local fast_until=$(( SECONDS + 300 )) ticks=0
   network=$(active_network)
 
   until (( ticks % (SECONDS < fast_until ? 1 : 7) == 0 )) && online; do
     if portal_window_failed; then
       exit 1
     fi
-    [[ $(active_network) == "$network" ]] || return 0
+    network_left && return 0
     sleep 2
     ticks=$(( ticks + 1 ))
   done
@@ -133,10 +146,10 @@ sign_in() {
 
   open_portal_window
   wait_until_online
-  # Hand the exit node back and let the next sign-in start before waiting on
-  # the window to close.
+  # The exit node comes back first. The lock stays held until the window is
+  # closed: the next sign-in opens a window of the same class, which this
+  # cleanup would otherwise close too.
   restore_exit_node
-  flock -u 9
   close_portal_window
 }
 
@@ -146,9 +159,10 @@ if flock -n 9; then
 elif (( auto )); then
   # A held lock is mostly another screen's panel signing in to this same
   # portal, and then this launch adds nothing. A watch on a network just left
-  # lets go within a couple of seconds, so wait that long before deciding, and
-  # skip the window if that wait ended with the internet already reachable.
-  if flock -w 5 9 && ! online; then
+  # notices within a check and closes its window within a few seconds more, so
+  # wait that long before deciding, and skip the window if that wait ended
+  # with the internet already reachable.
+  if flock -w 15 9 && ! online; then
     sign_in
   fi
 else

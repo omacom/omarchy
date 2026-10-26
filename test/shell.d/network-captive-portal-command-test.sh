@@ -32,6 +32,8 @@ stub hyprctl 'if [[ $1 == "clients" ]]; then
   if [[ -e $TEST_CLOSED ]] || (( looks < ${TEST_WINDOW_AFTER:-1} )); then echo "[]"; else echo "[{\"class\":\"chrome-ping.omacom.io__nm-check.txt-Default\"}]"; fi
 else
   printf "hyprctl %s\n" "$*" >> "$TEST_LOG"
+  # The close has to happen while the sign-in still holds its lock.
+  if flock -n "$XDG_RUNTIME_DIR/omarchy-network-captive-portal.lock" true; then echo "lock already free at close" >> "$TEST_LOG"; fi
   touch "$TEST_CLOSED"
 fi'
 # Reports a portal for the first TEST_NMCLI_PORTAL_CHECKS checks (two by
@@ -39,10 +41,11 @@ fi'
 # session's language, so only the C locale reads "full".
 # The active connections are one Wi-Fi link, which turns into another after
 # TEST_NETWORK_SWITCH_AFTER looks when that is set, as a switch to another
-# network would.
+# network would. TEST_NETWORK_EXTRA_AFTER adds a VM bridge beside it instead.
 stub nmcli 'if [[ " $* " == *" connection "* ]]; then
   looks=$(( $(cat "$TEST_NETWORK_LOOKS" 2>/dev/null || echo 0) + 1 )); echo "$looks" > "$TEST_NETWORK_LOOKS"
   if [[ -n ${TEST_NETWORK_SWITCH_AFTER:-} ]] && (( looks > TEST_NETWORK_SWITCH_AFTER )); then echo "guest-b:802-11-wireless"; else echo "hotel-a:802-11-wireless"; fi
+  if [[ -n ${TEST_NETWORK_EXTRA_AFTER:-} ]] && (( looks > TEST_NETWORK_EXTRA_AFTER )); then echo "virbr0:bridge"; fi
   echo "tunnel:wireguard"
   exit 0
 fi
@@ -127,6 +130,11 @@ TEST_NMCLI_PORTAL_CHECKS=100000 TEST_NETWORK_SWITCH_AFTER=3 run_portal '{"ExitNo
 grep -Fxq "notify -g  Tailscale exit node restored" "$stage/log" && grep -Fxq "$close" "$stage/log" ||
   fail "restores the exit node and closes the window after leaving the network" "$(<"$stage/log")"
 pass "leaving the network ends the watch, restores the exit node and closes the window"
+
+# A connection coming up beside the portal's link is not leaving it.
+TEST_NMCLI_PORTAL_CHECKS=6 TEST_NETWORK_EXTRA_AFTER=2 run_portal '{"ExitNodeStatus":null}'
+[[ $(<"$stage/count") == 7 ]] || fail "keeps watching when another connection comes up beside the portal" "$(<"$stage/count")"
+pass "keeps watching when another connection comes up beside the portal"
 
 # An automatic launch made while a watch for a network just left still holds
 # the lock waits for it to let go, then signs in to the new portal.
