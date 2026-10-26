@@ -796,6 +796,41 @@ run_isolated "$TEST_TMP/reconcile-unreadable-driver.sh"
 [[ ! -s $PRIVILEGED_LOG ]] || fail "an unreadable rules file leaves the ownership state decisive" "$(<"$PRIVILEGED_LOG")"
 pass "an unreadable rules file leaves complete ownership state authoritative"
 
+# Rules as UFW itself writes them for a user who allowed the hotspot's traffic
+# by hand: the comment lives on the tuple line, or on the rule for an app
+# profile. Each narrower variant leaves some hotspot traffic unhandled.
+write_ufw_style_rules() {
+  local forward=$1
+  {
+    printf '%s\n' '### tuple ### allow udp 67 0.0.0.0/0 any 0.0.0.0/0 in_wlan2'
+    printf '%s\n' '-A ufw-user-input -i wlan2 -p udp --dport 67 -j ACCEPT'
+    printf '%s\n' '-A ufw-user-input -i wlan2 -p udp --dport 53 -s 10.55.0.0/24 -j ACCEPT'
+    printf '%s\n' "-A ufw-user-input -i wlan2 -p tcp --dport 53 -s 10.55.0.0/24 -j ACCEPT -m comment --comment 'dapp_DNS'"
+    printf '%s\n' "$forward"
+  } >"$UFW_RULES_FILE"
+}
+cat >"$TEST_TMP/restricted-present-driver.sh" <<'DRIVER'
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+firewall_rules_present wlan2 10.55.0.0/24
+DRIVER
+rm -f "$TEST_STATE_DIR/firewall.state"
+write_ufw_style_rules '-A ufw-user-forward -i wlan2 -s 10.55.0.0/24 -j ACCEPT'
+run_isolated "$TEST_TMP/restricted-present-driver.sh" || fail "unrestricted rules written by UFW satisfy presence"
+for forward in \
+  '-A ufw-user-forward -i wlan2 -o eth0 -s 10.55.0.0/24 -j ACCEPT' \
+  '-A ufw-user-forward -i wlan2 -s 10.55.0.0/24 -p tcp --dport 443 -j ACCEPT' \
+  '-A ufw-user-forward -i wlan2 -s 10.55.0.0/24 -d 192.168.1.0/24 -j ACCEPT' \
+  '-A ufw-user-forward -i wlan2 -s 10.55.0.0/24 -j DROP' \
+  '-A ufw-user-forward -i wlan2 -s 10.55.0.0/24 -j ufw-user-limit'; do
+  write_ufw_style_rules "$forward"
+  if run_isolated "$TEST_TMP/restricted-present-driver.sh"; then
+    fail "a restricted forwarding rule does not satisfy presence" "$forward"
+  fi
+done
+pass "only an unrestricted ACCEPT rule stands in for a hotspot rule"
+
 extract_function() {
   local name=$1 source=$2 destination=$3
   awk -v name="$name" '
