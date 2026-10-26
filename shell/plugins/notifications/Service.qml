@@ -853,17 +853,34 @@ Item {
     return true
   }
 
-  // The newest card, by what it offers: with no button it is dismissed, with
-  // one that button is pressed, and with several it takes the keyboard so
-  // you can pick.
+  // The newest card, by what it offers, its click counting as one: with
+  // nothing it is dismissed, with one thing that is done, and with more it
+  // takes the keyboard so you can pick.
   function actOnNewest() {
     var key = newestLive()
     if (!key) return false
-    var count = deedsFor(key).length
-    if (count === 0) closeToast(key, "dismissed", true)
-    else if (count === 1) runDeed(key, 0)
-    else startKeyboard(key)
+    var deeds = deedsFor(key).length
+    var click = clickable(key)
+    if (deeds + (click ? 1 : 0) > 1) startKeyboard(key)
+    else if (click) activate(key, true)
+    else if (deeds) runDeed(key, 0)
+    else closeToast(key, "dismissed", true)
     return true
+  }
+
+  // Whether a click does something of the card's own: Omarchy's --exec
+  // command, the sender's default action, or a site to go to. Focusing an
+  // app by its name alone does not count.
+  function clickable(key) {
+    var at = rowIndexFor(key)
+    if (at < 0) return false
+    var row = toasts.get(at)
+    if (Security.parseExecArgv(row.execArgv)) return true
+    var ref = refs[key]
+    var actions = (ref && ref.actions) || []
+    for (var i = 0; i < Math.min(actions.length, Security.MAX_ACTIONS); i++)
+      if (String(actions[i].identifier) === "default") return true
+    return !!(Markup.hostname(row.source) || String(row.link || ""))
   }
 
   // What the sender said can be done with this notification. A restored row
