@@ -1219,10 +1219,6 @@ start() {
   save_data=$HOTSPOT_SAVE_DATA
   hotspot_lock
 
-  if omarchy-cmd-missing dnsmasq; then
-    fail "dnsmasq is missing; run 'omarchy migrate' to install the hotspot dependency"
-  fi
-
   apply_args=("${HOTSPOT_OPERANDS[@]}")
   if [[ -n $save_data ]]; then
     apply_args+=("--save-data=$save_data")
@@ -1501,8 +1497,8 @@ teardown() {
   ((${#failed[@]} == 0)) || fail "could not tear down hotspot: ${failed[*]}"
 }
 
-# One-time setup: ensure the firewall rules a shared connection needs and
-# report dependency readiness. Privileged via sudo/pkexec.
+# One-time setup: ensure the firewall rules a shared connection needs.
+# Privileged via sudo/pkexec.
 setup() {
   require_root setup
   hotspot_lock
@@ -1521,11 +1517,6 @@ setup() {
       echo "hotspot: no active firewall found; nothing to configure"
       ;;
   esac
-  if omarchy-cmd-present dnsmasq; then
-    echo "hotspot: dnsmasq present (NetworkManager shared connections)"
-  else
-    echo "hotspot: dnsmasq missing - run 'omarchy migrate' to install the hotspot dependency" >&2
-  fi
 }
 
 diagnose() {
