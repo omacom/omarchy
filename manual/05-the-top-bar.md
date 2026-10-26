@@ -133,7 +133,7 @@ All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here
 }
 ```
 
-Every widget is one entry in one of the five layout arrays, and its settings sit inline on that entry — there's no separate settings file and no `config` sub-object. The clock's `format`, `formatAlt` (what right-click cycles to), and `verticalFormat` all live right there on `{ "id": "omarchy.clock" }`.
+Every widget is one entry in one of the five layout arrays, and its settings sit inline on that entry — there's no separate settings file and no `config` sub-object. The clock's `format`, `formatAlt` (what right-click cycles to), and `verticalFormat` all live right there on `{ "id": "omarchy.clock" }`. The weather widget takes an `onRightClick` command the same way custom command modules do, so `{ "id": "omarchy.weather", "onRightClick": "omarchy-launch-webapp https://example.com/forecast" }` opens your own forecast page instead of the notification.
 
 `center` is the box in the middle of the bar: everything in it is centered on the screen as one group. `centerBegin` and `centerEnd` hang off either side of the box, which is how the clock stays dead center even as the weather and update badge come and go. Put more than one widget in `center` and they're centered together; leave it empty and `centerBegin` and `centerEnd` meet in the middle of the bar.
 
