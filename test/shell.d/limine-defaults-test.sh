@@ -18,6 +18,12 @@ grep -Fxq 'BOOT_ORDER="linux-t2, linux-omarchy, linux-omarchy-*, *, *fallback, S
   fail "packaged Limine defaults protect T2 Macs and prefer the exact Omarchy kernel elsewhere"
 pass "packaged Limine defaults protect T2 Macs and prefer the exact Omarchy kernel elsewhere"
 
+# usbcore is built into the kernel, so only the command line can turn off USB
+# autosuspend (#906); a modprobe.d option never reaches it.
+grep -Fq 'KERNEL_CMDLINE[default]+=" usbcore.autosuspend=-1"' "$packaged_defaults" ||
+  fail "the packaged Limine defaults turn off USB autosuspend"
+pass "packaged Limine defaults turn off USB autosuspend"
+
 limine_template="$ROOT/default/limine/limine.conf"
 grep -Fxq 'timeout: 1' "$limine_template" ||
   fail "the Limine template still waits out a long boot menu timeout"
