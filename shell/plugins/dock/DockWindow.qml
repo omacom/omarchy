@@ -273,9 +273,15 @@ PanelWindow {
     // where it belongs at once.
     property real tuck: window.tucked ? window.slotSize + window.gap : 0
 
+    // Tucking away is quicker than coming back. A gentler curve than
+    // Style.easeOut, which crosses the short slide in a frame or two.
     Behavior on tuck {
+      id: tuckMotion
       enabled: window.shown
-      NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+      NumberAnimation {
+        duration: Style.duration(tuckMotion.targetValue > 0 ? 120 : 180)
+        easing.type: Easing.OutCubic
+      }
     }
 
     x: window.position === "left" ? window.gap - tuck
@@ -345,7 +351,7 @@ PanelWindow {
 
     Behavior on displayedShift {
       enabled: window.animateShifts
-      NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
     }
 
     transform: Translate {
@@ -373,7 +379,7 @@ PanelWindow {
       scale: appsSlot.hovered ? 1.15 : 1
       transformOrigin: window.popOrigin
 
-      Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+      Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
 
       Grid {
         readonly property int square: Math.round(window.iconSize * 0.22)
@@ -423,7 +429,7 @@ PanelWindow {
     // where they were shown.
     Behavior on displayedShift {
       enabled: window.animateShifts && ((window.dragging && !appSlot.lifted) || window.insertIndex >= 0)
-      NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
     }
 
     z: lifted ? 1 : 0
@@ -508,16 +514,18 @@ PanelWindow {
       scale: appSlot.lifted || appSlot.hovered ? 1.15 : 1
       transformOrigin: window.popOrigin
 
-      Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+      Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
     }
 
+    // With animations off it holds still rather than spinning through
+    // zero-length steps.
     SequentialAnimation {
-      running: appSlot.launching
+      running: appSlot.launching && !Style.reduceMotion
       loops: Animation.Infinite
       onRunningChanged: if (!running) appSlot.pulse = 1
 
-      NumberAnimation { target: appSlot; property: "pulse"; from: 1; to: window.idleOpacity; duration: 500; easing.type: Easing.InOutSine }
-      NumberAnimation { target: appSlot; property: "pulse"; to: 1; duration: 500; easing.type: Easing.InOutSine }
+      NumberAnimation { target: appSlot; property: "pulse"; from: 1; to: window.idleOpacity; duration: Style.duration(500); easing.type: Easing.InOutSine }
+      NumberAnimation { target: appSlot; property: "pulse"; to: 1; duration: Style.duration(500); easing.type: Easing.InOutSine }
     }
   }
 

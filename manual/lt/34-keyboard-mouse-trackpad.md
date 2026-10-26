@@ -1,6 +1,6 @@
 # Klaviatūra, pelė, jutiklinis kilimėlis
 
-Hyprland leidžia konfigūruoti visas savo įvestis labai detaliai. Gali padaryti klaviatūros kartojimą viršgarsinį greitą arba priversti jutiklinį kilimėlį naudoti natūralų slinktį. Tai viską keiti `~/.config/hypr/input.lua`, kurį taip pat gali pasiekti per _Nuostatos > Įvestis_ Omarchy meniu (`Super + Space`). Viskas, ką ten nustatysi, pakeičia Omarchy numatytuosius.
+Hyprland leidžia labai detaliai sukonfigūruoti visus įvesties įrenginius. Galite nustatyti supersoniškai greitą klaviatūros kartojimą arba priversti jutiklinį kilimėlį naudoti natūralų slinkimą. Visa tai keičiate faile `~/.config/hypr/input.lua`, kurį taip pat galite pasiekti per _Setup > Input_ Omarchy meniu (`Super + Space`). Viskas, ką ten nustatysite, pakeičia Omarchy numatytuosius nustatymus.
 
 Štai pavyzdys:
 
@@ -35,9 +35,9 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-Visas įvesties parinktis gali [pamatyti](https://wiki.hypr.land/Configuring/Basics/Variables/#input) Hyprland wiki apie įvestis.
+Galite [peržiūrėti visas įvesties parinktis](https://wiki.hypr.land/Configuring/Basics/Variables/#input) Hyprland wiki puslapyje apie įvestis.
 
-CapsLock veikia kaip įprastas Caps Lock, o `Shift + CapsLock` yra compose klavišas [greitiems emoji](07-hotkeys.md#quick-emojis) ir [kitiems užbaigimams](07-hotkeys.md#quick-completions). Jei mieliau norėtum compose klavišo kur kitur, pakeisk `omarchy:shift_caps_compose` į `kb_options`. Pavyzdžiui, tai perkelia compose klavišą į Right Alt:
+CapsLock veikia kaip įprastas Caps Lock, o `Shift + CapsLock` yra komponavimo klavišas [sparčiųjų jaustukų](07-hotkeys.md#quick-emojis) ir [kitų užbaigimų](07-hotkeys.md#quick-completions) funkcijoms. Jei komponavimo klavišą verčiau turėtumėte kitur, `kb_options` pakeiskite `omarchy:shift_caps_compose`. Pavyzdžiui, tai perkelia komponavimo klavišą į Right Alt:
 
 ```lua
 hl.config({
@@ -49,31 +49,31 @@ hl.config({
 
 ### Jutiklinio kilimėlio gestai
 
-Taip pat gali įjungti [jutiklinio kilimėlio gestus](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), pavyzdžiui, braukimą trimis pirštais, kad pakeistum darbo sritis:
+Taip pat galite įjungti [jutiklinio kilimėlio gestus](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), pavyzdžiui, braukimą trimis pirštais darbo erdvėms keisti:
 
 ```lua
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 ```
 
-Dell XPS nešiojamuosiuose su haptiniu jutikliniu kilimėliu taip pat gali nustatyti spustelėjimo stiprumą į žemą, vidutinį arba aukštą skiltyje _Veiksmai > Aparatinė įranga > Kilimėlio vibracija_.
+Dell XPS nešiojamuosiuose kompiuteriuose su haptiniu jutikliniu kilimėliu spustelėjimo stiprumą taip pat galite nustatyti į žemą, vidutinį arba aukštą skiltyje _Trigger > Hardware > Touchpad Haptics_.
 
 ### Rašymas kinų, japonų ir kitomis kalbomis
 
-Pasirink japonų, korėjiečių, kinų (supaprastintą, Pinyin) arba kinų (tradicinę, Zhuyin), kai diegimo programa klausia apie tavo klaviatūrą. Omarchy automatiškai sukonfigūruoja klaviatūrą ir atitinkamą įvesties variklį, įskaitant pirmojo paleidimo sąranką neprisijungus. Japonų kalba naudoja Mozc, korėjiečių — standartinį dviejų rinkinių Hangul, supaprastinta kinų — Pinyin, o tradicinė kinų — Chewing standartinį Zhuyin išdėstymą. Japonų (JAV klaviatūra) teikia Mozc su JAV klaviatūros išdėstymu.
+Kai diegimo programa paklaus apie jūsų klaviatūrą, pasirinkite japonų, korėjiečių, kinų (supaprastintą, Pinyin), Taivano (Zhuyin) arba Honkongo (Cangjie). Omarchy automatiškai sukonfigūruoja klaviatūrą ir atitinkamą įvesties variklį, taip pat ir neprisijungus atliekamos pirmojo paleidimo sąrankos metu. Japonų kalba naudoja Mozc, korėjiečių kalba naudoja standartinį dviejų rinkinių Hangul, supaprastinta kinų kalba naudoja Pinyin, Taivanas naudoja standartinį Chewing Zhuyin išdėstymą, o Honkongas naudoja Cangjie su Honkongo rašmenų formomis. Japanese (US keyboard) suteikia Mozc su US klaviatūros išdėstymu. Hangul, Zhuyin ir Cangjie klavišai lieka standartinėse vietose, net kai lotyniškas raides rašote su Dvorak, Colemak arba AZERTY. Jei Hangul arba Chewing pridėjote anksčiau, panaikinkite jų pasirinkimą ir pasirinkite iš naujo skiltyje _Setup > Typing > Input Methods_, kad jų klavišai būtų perkelti ten; Omarchy palieka ramybėje variklį, su kuriuo jau rašote.
 
-Rašymas prasideda lotyniškuoju režimu. Paspausk `Super + I`, kad pereitum per sukonfigūruotus įvesties metodus, ir `Super + Shift + I`, kad eitumei atgal. Bakstelėk `Shift` vieną, kad iš įvesties metodo, pavyzdžiui, Pinyin, išeitis į lotyniškas raides, ir bakstelėk jį dar kartą, kad grįžtu, taip, kaip veikia Sogou, Microsoft Pinyin ir macOS; `Shift` kartu su raide vis dar įveda didžiąją raidę. Japonų klaviatūrose 全角/半角 perjungia įvestį, 変換 įjungia, o 無変換 išjungia. Korėjiečių klaviatūros išdėstyme tam skirti 한/영 ir 한자 klavišai perjungia Hangul ir konvertuoja į Hanja. `Ctrl + Space` lieka prieinamas Tmux ir Herdr; `Shift + CapsLock` lieka compose klavišas.
+Rašymas prasideda lotyniškos abėcėlės režimu. Paspauskite `Super + I`, kad pereitumėte per sukonfigūruotus įvesties metodus, ir `Super + Shift + I`, kad pereitumėte atgal. Bakstelėkite vieną `Shift`, kad išeitumėte iš tokio įvesties metodo kaip Pinyin į lotyniškas raides, ir bakstelėkite jį dar kartą, kad grįžtumėte – taip, kaip veikia Sogou, Microsoft Pinyin ir macOS; `Shift` kartu su raide vis tiek rašo didžiąją raidę. Japonų klaviatūrose 全角/半角 perjungia įvestį, 変換 ją įjungia, o 無変換 ją išjungia. Su korėjiečių kalba 한/영 perjungia Hangul, o 한자 konvertuoja į Hanja, nesvarbu, ar jūsų klaviatūra turi tam skirtus klavišus, ar siunčia jiems Right Alt ir Right Ctrl, kaip daro daugelis nešiojamųjų kompiuterių, todėl Right Alt ir Right Ctrl ten nėra paprasti modifikatoriai; diktavimo funkcija „paspausk ir kalbėk“ lieka priskirta F9. `Ctrl + Space` lieka prieinamas Tmux ir Herdr; `Shift + CapsLock` lieka komponavimo klavišu.
 
-Klaviatūros indikatorius pasirodo juostos dešinėje, kai turi kelis klaviatūros išdėstymus ar įvesties metodus. Spustelėk jį, kad perjungtum įvesties kalbas; japonų kalba rodo あ hiraganai. Japonų simbolių pasirinkimams pereik prie japonų kalbos, įvesk žodį, pavyzdžiui, `nihongo`, tada du kartus paspausk Space. Paspausk Enter, kad priimtum savo pasirinkimą. Jei taip pat turi kelis klaviatūros išdėstymus, dešiniuoju pelės klavišu spustelėk indikatorių, kad juos peržvelgtum.
+Klaviatūros indikatorius atsiranda juostos dešinėje, kai turite kelis klaviatūros išdėstymus arba įvesties metodus. Spustelėkite jį, kad perjungtumėte įvesties kalbas; japonų kalba hiraganai rodo あ. Norėdami pasirinkti japonų rašmenis, perjunkite į japonų kalbą, įveskite tokį žodį kaip `nihongo`, tada dukart paspauskite Space. Paspauskite Enter, kad patvirtintumėte savo pasirinkimą. Jei taip pat turite kelis klaviatūros išdėstymus, dešiniuoju pelės mygtuku spustelėkite indikatorių, kad pereitumėte per juos.
 
-Naudok _Nuostatos > Rašymas > Klaviatūros išdėstymai_, kad pasirinktum išdėstymus, pavyzdžiui, anglų ir prancūzų, iš tų pačių pasirinkimų, siūlomų diegimo metu. Naudok _Nuostatos > Rašymas > Įvesties metodai_, kad pasirinktum, kurie kompozicijos varikliai aktyvūs. Abu rinkikliai atsidaro Omarchy meniu viduje su pažymėtais tavo esamais pasirinkimais. Spustelėk arba paspausk Enter, kad perjungtum pasirinkimą; kiekvienas pakeitimas pritaikomas iškart. Atžymėjus įvesties metodą jis pašalinamas iš ciklo jo neišdiegiant; klaviatūra lieka prieinama.
+Naudokite _Setup > Typing > Keyboard Layouts_, kad pasirinktumėte tokius išdėstymus kaip anglų ir prancūzų, iš tų pačių pasirinkimų, kurie siūlomi diegimo metu. Naudokite _Setup > Typing > Input Methods_, kad pasirinktumėte, kurie komponavimo varikliai yra aktyvūs. Abu parinkikliai atsidaro Omarchy meniu, o jūsų dabartiniai pasirinkimai yra pažymėti. Spustelėkite arba paspauskite Enter, kad perjungtumėte pasirinkimą; kiekvienas pakeitimas pritaikomas iš karto. Panaikinus įvesties metodo pasirinkimą, jis pašalinamas iš ciklo jo neišdiegiant; klaviatūra lieka prieinama.
 
-Paleisk `omarchy setup keyboard` arba `omarchy setup input`, kad atvertum tuos pačius rinkiklius. Kad iš komandinės eilutės prijungtum vieną kalbą, naudok `omarchy setup input mozc`, `hangul`, `pinyin` arba `chewing`. Tavo pasirinktiniai perjungimo klavišai išsaugomi. Alternatyvių variklių išdėstymų ar klavišų atvejais įdiek `fcitx5-configtool` su `omarchy pkg add fcitx5-configtool` ir paleisk jį iš terminalo. Įvesties kalbos pasirinkimas nekeičia darbalaukio kalbos.
+Paleiskite `omarchy setup keyboard` arba `omarchy setup input`, kad atidarytumėte tuos pačius parinkiklius. Norėdami iš komandinės eilutės pridėti vieną kalbą, naudokite `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` arba `cangjie5`. Quick, Boshiamy ir Array yra tame pačiame pakete kaip Cangjie ir rodomi Input Methods parinkiklyje. Jūsų pasirinktiniai perjungimo klavišai išsaugomi. Norėdami naudoti alternatyvius variklių išdėstymus arba klavišus, įdiekite `fcitx5-configtool` naudodami `omarchy pkg add fcitx5-configtool` ir paleiskite jį iš terminalo. Įvesties kalbos pasirinkimas nepakeičia darbalaukio kalbos. Japonų, korėjiečių arba kinų kalbos pasirinkimas skiltyje _Setup > Language_ prideda jos įvesties metodą, kai dar neturite jokio.
 
-Naudok `Super + I`, kad pereitum per įvesties metodus arba klaviatūros išdėstymus, ir `Super + Shift + I`, kad eitum atgal kitu keliu, tad su trimis sukonfigūruotomis gali judėti tarp dviejų kaimynų. Įvesties indikatorius pasirodo juostos dešinėje tik tada, kai sukonfigūruota daugiau nei vienas įvesties metodas ar išdėstymas. Šis darbalaukio susiejimas veikia kartu su tavo esamais Fcitx perjungimo klavišais; gali jį perrašyti `~/.config/hypr/bindings.lua`. Įvesties varikliai ir compose sekos naudoja [Fcitx5](https://fcitx-im.org/) paslaugą, jau veikiančią kiekvienoje sesijoje.
+Naudokite `Super + I`, kad pereitumėte per įvesties metodus arba klaviatūros išdėstymus, ir `Super + Shift + I`, kad eitumėte atgal kita kryptimi, tad turėdami sukonfigūruotus tris, galite judėti tarp dviejų kaimyninių. Įvesties indikatorius juostos dešinėje rodomas tik tada, kai sukonfigūruotas daugiau nei vienas įvesties metodas arba išdėstymas. Šis darbalaukio susiejimas veikia kartu su jūsų esamais Fcitx perjungimo klavišais; galite jį pakeisti faile `~/.config/hypr/bindings.lua`. Įvesties varikliai ir komponavimo sekos naudoja [Fcitx5](https://fcitx-im.org/) paslaugą, jau veikiančią kiekvienoje sesijoje.
 
-### Naudok ALT kaip SUPER
+### ALT naudojimas vietoj SUPER
 
-Kai kuriose klaviatūrose nėra patogu naudoti pagrindinį meta klavišą (Windows/cmd klavišą) kaip SUPER. Vietoje to gali tai pakeisti į ALT naudodamas šį pakeitimą:
+Kai kuriose klaviatūrose nėra patogu naudoti pagrindinį meta klavišą (Windows/cmd klavišą) kaip SUPER. Galite tai pakeisti į ALT naudodami šį pakeitimą:
 
 ```lua
 hl.config({

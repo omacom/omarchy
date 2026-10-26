@@ -44,7 +44,7 @@ function parseActiveApSignal(raw) {
 
 // A known plain-HTTP endpoint lets the network redirect the browser to its
 // login page. Never execute or automatically open an untrusted Location header.
-var captivePortalUrl = "http://ping.archlinux.org/nm-check.txt"
+var captivePortalUrl = "http://ping.omacom.io/nm-check.txt"
 
 function connectivityState(kind, connectivity, states, checksEnabled) {
   if (kind === "disconnected") return "none"
@@ -258,6 +258,15 @@ function pingPacketLossPercent(samples) {
   return Math.round((lost / values.length) * 100)
 }
 
+// Ping and loss only mean something once the internet is reachable. Behind a
+// portal, on a limited link or offline every probe is lost by design, so the
+// rows read "--" instead of a "Timeout" and "100%" that just restate that.
+function internetPingReadable(samples, connectivity) {
+  var values = Array.isArray(samples) ? samples : []
+  if (connectivity === "portal" || connectivity === "limited" || connectivity === "none") return false
+  return values.length > 0
+}
+
 function formatPacketLoss(percent, hasSamples, fmt) {
   var f = formatter(fmt)
   if (hasSamples === false) return "--"
@@ -453,19 +462,21 @@ function hotspotSaveData(status) {
   return hotspotSaveDataChoices.indexOf(value) !== -1 ? value : "auto"
 }
 
-function hotspotSaveDataLabel(choice) {
-  if (choice === "always") return "Always"
-  if (choice === "never") return "Never"
-  return "Auto"
+function hotspotSaveDataLabel(choice, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (choice === "always") return t("network.hotspotSaveDataAlways", "Always")
+  if (choice === "never") return t("network.hotspotSaveDataNever", "Never")
+  return t("network.bandAuto", "Auto")
 }
 
 // dnsmasq reads the choice when the hotspot starts, so while it is on air a
 // different pick waits for the next start.
-function hotspotSaveDataTooltip(choice, active, saved) {
-  var text = "Tell joining devices to save data only when this computer's connection is metered"
-  if (choice === "always") text = "Always tell joining devices to save data"
-  else if (choice === "never") text = "Never tell joining devices to save data"
-  if (active && choice !== saved) text += " (from the next start)"
+function hotspotSaveDataTooltip(choice, active, saved, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var text = t("network.hotspotSaveDataAutoTooltip", "Tell joining devices to save data only when this computer's connection is metered")
+  if (choice === "always") text = t("network.hotspotSaveDataAlwaysTooltip", "Always tell joining devices to save data")
+  else if (choice === "never") text = t("network.hotspotSaveDataNeverTooltip", "Never tell joining devices to save data")
+  if (active && choice !== saved) text = t("network.fromNextStart", "%1 (from the next start)").replace("%1", text)
   return text
 }
 
@@ -515,8 +526,12 @@ function hotspotMaxClients(status) {
   return String(clients)
 }
 
-function hotspotLimitLabel(limit) {
-  return String(limit || "") === "" ? "Unlimited" : String(limit) + " devices"
+function hotspotLimitLabel(limit, tr, trn, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var tn = typeof trn === "function" ? trn : function(key, count, english) { return count === 1 ? english.one : english.other }
+  if (String(limit || "") === "") return t("network.hotspotUnlimited", "Unlimited")
+  var count = Number(limit)
+  return tn("network.hotspotDevices", count, { one: "%1 device", other: "%1 devices" }).replace("%1", formatter(fmt)(count))
 }
 
 // True once the AP is serving as many clients as its limit allows, so the
@@ -581,6 +596,7 @@ if (typeof module !== "undefined") {
     throughputState: throughputState,
     pingLatencyState: pingLatencyState,
     pingPacketLossPercent: pingPacketLossPercent,
+    internetPingReadable: internetPingReadable,
     formatPacketLoss: formatPacketLoss,
     formatBytes: formatBytes,
     formatRate: formatRate,

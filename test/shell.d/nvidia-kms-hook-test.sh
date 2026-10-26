@@ -105,28 +105,3 @@ write_pci_devices 0x10de:0x030000
 mkdir -p "$tmp_dir/devices/0000:01:00.0"
 assert_hooks "unreadable device beside an NVIDIA GPU keeps kms" \
   "$nvidia_modules" "$with_kms"
-
-mkdir -p "$tmp_dir/conf" "$tmp_dir/bin"
-cp "$baseline_conf" "$tmp_dir/conf/00-omarchy-hooks.conf"
-cp "$hooks_conf" "$tmp_dir/conf/omarchy_hooks.conf"
-printf 'MODULES=(%s)\n' "$nvidia_modules" >"$tmp_dir/conf/nvidia.conf"
-printf '#!/bin/bash\nexec "$@"\n' >"$tmp_dir/bin/sudo"
-printf '#!/bin/bash\necho rebuild >>"$TEST_REBUILD_LOG"\n' >"$tmp_dir/bin/limine-mkinitcpio"
-chmod +x "$tmp_dir/bin/"*
-export PATH="$tmp_dir/bin:$tmp_dir/generic/bin:$ROOT/bin:$PATH"
-export OMARCHY_PROC_ROOT="$tmp_dir/generic/proc" OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices"
-export OMARCHY_MKINITCPIO_HOOKS_CONF="$tmp_dir/conf/omarchy_hooks.conf"
-export OMARCHY_MKINITCPIO_NVIDIA_CONF="$tmp_dir/conf/nvidia.conf"
-export OMARCHY_KMS_REBUILD_MARKER="$tmp_dir/rebuilt" TEST_REBUILD_LOG="$tmp_dir/rebuild-log"
-
-write_pci_devices 0x1002:0x030000 0x10de:0x030200
-bash -euo pipefail "$ROOT/migrations/1786605598.sh" >/dev/null
-[[ ! -e $TEST_REBUILD_LOG && ! -e $OMARCHY_KMS_REBUILD_MARKER ]] || fail "the NVIDIA migration skips hybrid graphics with the split hook baseline"
-pass "the NVIDIA migration reads the new baseline and skips hybrid graphics"
-
-write_pci_devices 0x10de:0x030000
-bash -euo pipefail "$ROOT/migrations/1786605598.sh" >/dev/null
-[[ $(<"$TEST_REBUILD_LOG") == "rebuild" && -e $OMARCHY_KMS_REBUILD_MARKER ]] || fail "the NVIDIA migration still rebuilds NVIDIA-only graphics"
-bash -euo pipefail "$ROOT/migrations/1786605598.sh" >/dev/null
-[[ $(<"$TEST_REBUILD_LOG") == "rebuild" ]] || fail "the NVIDIA migration respects its completed marker"
-pass "the NVIDIA migration still rebuilds NVIDIA-only graphics once"

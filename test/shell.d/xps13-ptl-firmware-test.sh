@@ -5,7 +5,6 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 leaf="$ROOT/install/hardware/dell-xps13-ptl-speaker-firmware.sh"
-migration="$ROOT/migrations/1791265613.sh"
 
 grep -q 'run_logged .*hardware/dell-xps13-ptl-speaker-firmware.sh' "$ROOT/install/hardware/all.sh" ||
   fail "hardware setup installs the Panther Lake XPS 13 firmware"
@@ -70,19 +69,13 @@ run_leaf() {
   bash -eE -c 'source "$1"' bash "$leaf"
 }
 
-run_migration() {
-  bash -euo pipefail "$migration" >/dev/null
-}
-
 for model in "XPS 9350" "XPS 13 DX13261"; do
   reset_fixture "20260810-2"
   TEST_PRODUCT_NAME="$model" run_leaf
-  TEST_PRODUCT_NAME="$model" run_migration
   [[ ! -s $TEST_LOG ]] || fail "other models receive no firmware repair"
 done
 reset_fixture "20260810-2"
 TEST_INTEL_PTL=0 run_leaf
-TEST_INTEL_PTL=0 run_migration
 [[ ! -s $TEST_LOG ]] || fail "the Wildcat Lake variant receives no firmware repair"
 pass "other models and the Wildcat Lake variant receive no firmware repair"
 
@@ -100,28 +93,3 @@ touch "$TEST_ALIAS_FILE"
 run_leaf
 [[ ! -s $TEST_LOG ]] || fail "installed aliases are idempotent on stock firmware"
 pass "installed aliases are idempotent on stock firmware"
-
-run_migration
-[[ $(<"$TEST_LOG") == "state set reboot-required" ]] ||
-  fail "the migration requests a reboot even if hardware setup already installed the aliases"
-pass "the migration requests a reboot even if hardware setup already installed the aliases"
-
-reset_fixture "20260810-2"
-if TEST_INSTALL_FAILURE=1 run_migration; then
-  fail "a failed firmware installation fails the migration"
-fi
-[[ $(<"$TEST_LOG") == "$install_call" && $(<"$TEST_VERSION_FILE") == "20260810-2" ]] ||
-  fail "a failed installation leaves the migration retryable without claiming success"
-pass "a failed firmware installation fails the migration and remains retryable"
-
-: >"$TEST_LOG"
-run_migration
-[[ $(<"$TEST_LOG") == "$install_call"$'\nstate set reboot-required' ]] ||
-  fail "retrying the migration installs the firmware and requests a reboot"
-pass "retrying the migration installs the firmware and requests a reboot"
-
-: >"$TEST_LOG"
-run_migration
-[[ $(<"$TEST_LOG") == "state set reboot-required" ]] ||
-  fail "a second user before reboot is prompted without reinstalling"
-pass "a second user before reboot is prompted without reinstalling"

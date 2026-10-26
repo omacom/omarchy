@@ -8,11 +8,11 @@
   "learn": {
     "label": "Навчання"
   },
+  "appearance": {
+    "label": "Вигляд"
+  },
   "trigger": {
     "label": "Дії"
-  },
-  "style": {
-    "label": "Стиль"
   },
   "setup": {
     "label": "Налаштування"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Спільнота"
   },
-  "trigger.appearance": {
-    "label": "Вигляд"
+  "appearance.theme": {
+    "label": "Тема"
   },
-  "trigger.appearance.animations": {
-    "label": "Анімації"
+  "appearance.background": {
+    "label": "Фон"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Шрифт"
+  },
+  "appearance.top-bar": {
     "label": "Панель меню"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Сховати панель"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Показати панель"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Положення панелі"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Фон панелі"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Непрозора панель"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Скляна панель"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Прозора панель"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Індикатори панелі"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Відсоток батареї"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Годинник"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Неділя 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Неділя 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Неділя 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Неділя 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Нд 3 тра 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Нд 3 тра 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 тра W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 тра W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Панель зверху"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Панель знизу"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Панель ліворуч"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Панель праворуч"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Автоприховування Dock"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Завжди видимий Dock"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Положення Dock"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Dock зверху"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Dock знизу"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Dock ліворуч"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Dock праворуч"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Відступи вікон"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Кути вікон"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Кути теми"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Гострі кути"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Заокруглені кути"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Непрозорість вікон"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Непрозорі вікна"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Прозорі вікна"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Скляні вікна"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "Співвідношення 1 вікна"
+  "appearance.branding.screensaver": {
+    "label": "Заставка"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Про програму"
+  },
+  "appearance.branding.about.text": {
+    "label": "Редагувати текст"
+  },
+  "appearance.branding.about.image": {
+    "label": "Встановити зображення"
+  },
+  "appearance.branding.about.default": {
+    "label": "Відновити типові"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Редагувати текст"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Встановити зображення"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Відновити типові"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Автоприховування Dock"
+  },
+  "appearance.dock.always-on": {
+    "label": "Завжди видимий Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Положення Dock"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock зверху"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock знизу"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock ліворуч"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock праворуч"
+  },
+  "appearance.workspace-layout": {
     "label": "Схема робочого простору",
     "title": "Типова схема робочого простору"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Мозаїка"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Прокручування"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Плаваючі"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Синхронізація теми Herdr"
+  "appearance.unlock": {
+    "label": "Розблокувати"
   },
   "trigger.toggle": {
     "label": "Перемикати"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Не засинати"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Сповіщення"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Нічне світло"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Заставка"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Перехоплення збоїв"
   },
   "trigger.emoji": {
     "label": "Емоджі"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Тест швидкості"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Дисплей ноутбука"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Дублювання дисплея"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Гібридний GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Тачпад"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Вібрація тачпада"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "високий"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Сенсорний екран"
   },
   "trigger.reminder.set": {
     "label": "Створити"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Тест швидкості диска"
-  },
-  "style.theme": {
-    "label": "Тема"
-  },
-  "style.background": {
-    "label": "Фон"
-  },
-  "style.unlock": {
-    "label": "Розблокувати"
-  },
-  "style.font": {
-    "label": "Шрифт"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Заставка"
-  },
-  "style.about": {
-    "label": "Про програму"
-  },
-  "style.about.text": {
-    "label": "Редагувати текст"
-  },
-  "style.about.image": {
-    "label": "Встановити зображення"
-  },
-  "style.about.default": {
-    "label": "Відновити типові"
-  },
-  "style.screensaver.text": {
-    "label": "Редагувати текст"
-  },
-  "style.screensaver.image": {
-    "label": "Встановити зображення"
-  },
-  "style.screensaver.default": {
-    "label": "Відновити типові"
   },
   "setup.monitors": {
     "label": "Монітори"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1208,10 +1160,130 @@
   "update.password.user": {
     "label": "Користувач"
   },
-  "system.reboot-boot-menu": {
-    "label": "Перезавантажити в меню завантаження"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Показати % батареї"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Сховати % батареї"
+  },
+  "appearance.windows": {
+    "label": "Вікна"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Проміжки вікон: увімк."
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Проміжки вікон: вимк."
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Пропорція 1 вікна: увімк."
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Пропорція 1 вікна: вимк."
+  },
+  "appearance.branding": {
+    "label": "Брендинг"
+  },
+  "appearance.animations-on": {
+    "label": "Анімації: увімк."
+  },
+  "appearance.animations-off": {
+    "label": "Анімації: вимк."
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Не спати"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Дозволити сон"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Сповіщення: увімк."
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Без сповіщень"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Нічне світло: увімк."
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Нічне світло: вимк."
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Заставка: увімк."
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Заставка: вимк."
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Запис збоїв: увімк."
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Вимкнути захоплення збоїв"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Увімкнути дисплей ноутбука"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Вимкнути дисплей ноутбука"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Увімкнути дублювання дисплея"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Вимкнути дублювання дисплея"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Перейти на гібридний GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Перейти на інтегрований GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Увімкнути тачпад"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Вимкнути тачпад"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Увімкнути сенсорний екран"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Вимкнути сенсорний екран"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Ядро"
   }
 }

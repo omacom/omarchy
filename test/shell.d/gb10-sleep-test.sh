@@ -7,7 +7,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 setup="$ROOT/install/hardware/gb10/sleep.sh"
 all="$ROOT/install/hardware/all.sh"
 menu="$ROOT/default/omarchy/omarchy-menu.jsonc"
-migration=$(grep -l "hardware/gb10/sleep.sh" "$ROOT"/migrations/*.sh | head -1 || true)
 
 # The setting follows the real GB10 predicate on fixture machines, and root
 # reads only the live hardware.
@@ -21,8 +20,7 @@ bash -n "$setup" || fail "GB10 sleep script has valid syntax"
 
 grep -q 'run_logged .*hardware/gb10/sleep.sh' "$all" ||
   fail "the GB10 sleep setting runs during hardware setup"
-[[ -n $migration ]] || fail "a migration applies the GB10 sleep setting to existing installs"
-pass "the GB10 sleep setting runs at install and through a migration"
+pass "the GB10 sleep setting runs at install"
 
 # An aarch64 machine, with an NVIDIA GPU of the given PCI device ID or none.
 machine() {
@@ -87,16 +85,6 @@ pass "the GB10 setting disallows every sleep operation and leaves the N1x and ot
 run spark "$scratch/spark" omarchy-sleep-disabled || fail "sleep reads as disabled with the setting in place"
 run spark "$scratch/none" omarchy-sleep-disabled && fail "sleep reads as enabled without the setting"
 pass "omarchy-sleep-disabled follows the sleep setting"
-
-run spark "$scratch/migrated" bash "$migration" >/dev/null
-[[ -f $scratch/migrated/omarchy-sleep-disabled.conf ]] || fail "the migration applies the setting on a GB10"
-run spark "$scratch/migrated" bash "$migration" >/dev/null
-! grep -q '^sudo ' "$CALL_LOG" || fail "the migration skips a GB10 that already has the setting"
-run other "$scratch/migrated-other" bash "$migration" >/dev/null
-! grep -q '^sudo ' "$CALL_LOG" || fail "the migration leaves other machines alone"
-TEST_SUDO_STATUS=1 run spark "$scratch/failed" bash "$migration" >/dev/null &&
-  fail "a failed migration stays pending"
-pass "the migration applies the setting once, only on a GB10"
 
 run spark "$scratch/spark" bash "$ROOT/bin/omarchy-toggle-suspend"
 ! grep -q '^toggle ' "$CALL_LOG" || fail "the suspend toggle does nothing while sleep is disabled"

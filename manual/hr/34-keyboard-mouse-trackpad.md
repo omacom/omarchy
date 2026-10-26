@@ -1,6 +1,6 @@
-# Tipkovnica, miš, dodirna ploha
+# Tipkovnica, miš, dodirna pločica
 
-Hyprland ti omogućuje konfiguriranje svih unosa do najsitnijih detalja. Možeš promijeniti ponavljanje tipkovnice da bude nadzvučno brzo ili natjerati dodirnu plohu da koristi prirodno pomicanje. Sve to mijenjaš u `~/.config/hypr/input.lua`, do čega možeš doći i putem _Postavke > Unos_ u izborniku Omarchy (`Super + Space`). Sve što tamo postaviš zamjenjuje Omarchyjeve zadane postavke.
+Hyprland vam omogućuje detaljno konfiguriranje svih unosa. Možete postaviti ponavljanje tipkovnice da bude nadzvučno brzo ili postaviti dodirnu pločicu na prirodno pomicanje. Sve to mijenjate u `~/.config/hypr/input.lua`, do čega možete doći i putem _Setup > Input_ u Omarchy izborniku (`Super + Space`). Sve što tamo postavite zamjenjuje zadane postavke Omarchyja.
 
 Evo primjera:
 
@@ -35,9 +35,9 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-Možeš [vidjeti sve opcije unosa](https://wiki.hypr.land/Configuring/Basics/Variables/#input) na Hyprland wikiju za unose.
+Možete [vidjeti sve opcije unosa](https://wiki.hypr.land/Configuring/Basics/Variables/#input) na Hyprland wikiju za unose.
 
-CapsLock radi kao normalan Caps Lock, a `Shift + CapsLock` compose je tipka za [brze emojije](07-hotkeys.md#quick-emojis) i [druga dovršavanja](07-hotkeys.md#quick-completions). Ako bi radije da compose tipka bude drugdje, zamijeni `omarchy:shift_caps_compose` u `kb_options`. Na primjer, ovo premješta compose tipku na Right Alt:
+CapsLock radi kao obični Caps Lock, a `Shift + CapsLock` je tipka za sastavljanje za [brze emojije](07-hotkeys.md#quick-emojis) i [ostala dovršavanja](07-hotkeys.md#quick-completions). Ako radije želite tipku za sastavljanje negdje drugdje, zamijenite `omarchy:shift_caps_compose` u `kb_options`. Na primjer, ovo pomiče tipku za sastavljanje na Right Alt:
 
 ```lua
 hl.config({
@@ -47,33 +47,33 @@ hl.config({
 })
 ```
 
-### Geste dodirne plohe
+### Geste dodirne pločice
 
-Možeš uključiti i [geste dodirne plohe](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), poput prelazenja s tri prsta za promjenu radnih prostora:
+Možete uključiti i [geste dodirne pločice](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), kao što je povlačenje s tri prsta za promjenu radnih prostora:
 
 ```lua
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 ```
 
-Na prijenosnicima Dell XPS s haptičkom dodirnom plohom također možeš postaviti jačinu klika na nisku, srednju ili visoku pod _Pokreni > Hardver > Haptika dodirne plohe_.
+Na prijenosnim računalima Dell XPS s haptičkom dodirnom pločicom možete postaviti i jačinu klika na nisku, srednju ili visoku pod _Trigger > Hardware > Touchpad Haptics_.
 
 ### Tipkanje na kineskom, japanskom i drugim jezicima
 
-Odaberi japanski, korejski, kineski (pojednostavljeni, Pinyin) ili kineski (tradicionalni, Zhuyin) kad instalater pita za tipkovnicu. Omarchy automatski konfigurira tipkovnicu i odgovarajući mehanizam unosa, uključujući tijekom izvanmrežnog postavljanja pri prvom pokretanju. Japanski koristi Mozc, korejski koristi standardni dvodijelni Hangul, pojednostavljeni kineski koristi Pinyin, a tradicionalni kineski koristi Chewingov standardni Zhuyin raspored. Japanese (US keyboard) pruža Mozc s US rasporedom tipkovnice.
+Odaberite japanski, korejski, kineski (pojednostavljeni, Pinyin), Taiwan (Zhuyin) ili Hong Kong (Cangjie) kada vas instalacijski program pita za tipkovnicu. Omarchy automatski konfigurira tipkovnicu i odgovarajući mehanizam unosa, uključujući tijekom izvanmrežnog prvog pokretanja. Japanski koristi Mozc, korejski koristi standardni dvosložni Hangul, pojednostavljeni kineski koristi Pinyin, Taiwan koristi standardni Chewingov raspored Zhuyin, a Hong Kong koristi Cangjie s hongkonškim oblicima znakova. Japanese (US keyboard) pruža Mozc s US rasporedom tipkovnice. Tipke za Hangul, Zhuyin i Cangjie ostaju na svojim standardnim položajima čak i kada latinična slova tipkate s rasporedima Dvorak, Colemak ili AZERTY. Ako ste prije ovoga dodali Hangul ili Chewing, odznačite ga i ponovno odaberite pod _Setup > Typing > Input Methods_ kako biste mu tipke premjestili tamo; Omarchy ne dira mehanizam kojim već tipkate.
 
-Tipkanje počinje u latinici. Pritisni `Super + I` za cikličko kretanje kroz konfigurirane načine unosa, a `Super + Shift + I` za cikličko kretanje unatrag. Dodirni `Shift` samostalno za izlaz iz načina unosa poput Pinyina u latinicu i dodirni ga ponovno za povratak, onako kako rade Sogou, Microsoft Pinyin i macOS; `Shift` plus slovo i dalje upisuje veliko slovo. Na japanskim tipkovnicama 全角/半角 prebacuje unos, 変換 ga uključuje, a 無変換 ga isključuje. Na korejskom rasporedu tipkovnice namjenske tipke 한/영 i 한자 prebacuju Hangul i pretvaraju u Hanja. `Ctrl + Space` ostaje dostupan za Tmux i Herdr; `Shift + CapsLock` ostaje compose tipka.
+Tipkanje počinje u latiničnom načinu. Pritisnite `Super + I` za kruženje kroz konfigurirane metode unosa, a `Super + Shift + I` za kruženje unatrag. Dodirnite sam `Shift` da biste izašli iz metode unosa kao što je Pinyin na latinična slova i dodirnite ga ponovno za povratak, na način na koji rade Sogou, Microsoft Pinyin i macOS; `Shift` plus slovo i dalje tipka veliko slovo. Na japanskim tipkovnicama 全角/半角 prebacuje unos, 変換 ga uključuje, a 無変換 ga isključuje. Kod korejskog 한/영 prebacuje Hangul, a 한자 pretvara u Hanja, bez obzira ima li vaša tipkovnica namjenske tipke ili za njih šalje Right Alt i Right Ctrl, kao što to rade mnoga prijenosna računala, pa Right Alt i Right Ctrl tamo nisu obični modifikatori; diktiranje pritiskom za govor ostaje na F9. `Ctrl + Space` ostaje dostupan za Tmux i Herdr; `Shift + CapsLock` ostaje tipka za sastavljanje.
 
-Pokazatelj tipkovnice pojavljuje se desno na traci kad imaš više rasporeda tipkovnice ili načina unosa. Klikni ga za prebacivanje jezika unosa; japanski prikazuje あ za hiraganu. Za odabire japanskih znakova prebaci se na japanski, upiši riječ poput `nihongo`, a zatim dvaput pritisni Space. Pritisni Enter za prihvaćanje odabira. Ako također imaš više rasporeda tipkovnice, desnom tipkom miša klikni pokazatelj za cikličko kretanje kroz njih.
+Pokazatelj tipkovnice pojavljuje se na desnoj strani trake kada imate više rasporeda tipkovnice ili metoda unosa. Kliknite ga za promjenu jezika unosa; japanski prikazuje あ za hiraganu. Za odabir japanskih znakova prebacite se na japanski, utipkajte riječ kao što je `nihongo`, zatim dvaput pritisnite Space. Pritisnite Enter za prihvaćanje odabira. Ako također imate više rasporeda tipkovnice, desnom tipkom miša kliknite pokazatelj za kruženje kroz njih.
 
-Koristi _Postavke > Tipkanje > Rasporedi tipkovnice_ za odabir rasporeda poput engleskog i francuskog, iz istih odabira ponuđenih tijekom instalacije. Koristi _Postavke > Tipkanje > Načini unosa_ za odabir koji su mehanizmi sastavljanja aktivni. Oba birača otvaraju se unutar izbornika Omarchy s tvojim trenutnim odabirima označenima. Klikni ili pritisni Enter za prebacivanje odabira; svaka promjena primjenjuje se odmah. Poništavanje odabira načina unosa uklanja ga iz ciklusa bez deinstalacije; tipkovnica ostaje dostupna.
+Koristite _Setup > Typing > Keyboard Layouts_ za odabir rasporeda kao što su English i French, među istim odabirima ponuđenima tijekom instalacije. Koristite _Setup > Typing > Input Methods_ za odabir aktivnih mehanizama za sastavljanje. Oba se birača otvaraju unutar Omarchy izbornika s označenim vašim trenutačnim odabirima. Kliknite ili pritisnite Enter za uključivanje ili isključivanje odabira; svaka se promjena odmah primjenjuje. Odznačivanje metode unosa uklanja je iz ciklusa bez deinstaliranja; tipkovnica ostaje dostupna.
 
-Pokreni `omarchy setup keyboard` ili `omarchy setup input` za otvaranje istih birača. Za dodavanje jednog jezika iz naredbenog retka koristi `omarchy setup input mozc`, `hangul`, `pinyin` ili `chewing`. Tvoje prilagođene tipke za prebacivanje su sačuvane. Za alternativne rasporede ili tipke mehanizma instaliraj `fcitx5-configtool` s `omarchy pkg add fcitx5-configtool` i pokreni ga iz terminala. Odabir jezika unosa ne mijenja jezik radne površine.
+Pokrenite `omarchy setup keyboard` ili `omarchy setup input` za otvaranje istih birača. Za dodavanje jednog jezika iz naredbenog retka koristite `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` ili `cangjie5`. Quick, Boshiamy i Array dolaze u istom paketu kao Cangjie i pojavljuju se u biraču Input Methods. Vaše prilagođene tipke za prebacivanje zadržavaju se. Za alternativne rasporede ili tipke mehanizama instalirajte `fcitx5-configtool` pomoću `omarchy pkg add fcitx5-configtool` i pokrenite ga iz terminala. Odabir jezika unosa ne mijenja jezik radne površine. Odabir japanskog, korejskog ili kineskog pod _Setup > Language_ dodaje njegovu metodu unosa kada je još nemate.
 
-Koristi `Super + I` za cikličko kretanje kroz načine unosa ili rasporede tipkovnice, a `Super + Shift + I` za povratak drugim smjerom, pa s tri konfigurirana možeš se kretati između dva susjeda. Pokazatelj unosa pojavljuje se desno na traci samo kad je konfigurirano više od jednog načina unosa ili rasporeda. Ovo vezanje radne površine radi zajedno s tvojim postojećim Fcitx tipkama za prebacivanje; možeš ga prebrisati u `~/.config/hypr/bindings.lua`. Mehanizmi unosa i sekvence sastavljanja koriste uslugu [Fcitx5](https://fcitx-im.org/) koja već radi u svakoj sesiji.
+Koristite `Super + I` za kruženje kroz metode unosa ili rasporede tipkovnice, a `Super + Shift + I` za povratak u drugom smjeru, pa se s tri konfigurirana možete kretati između dvaju susjeda. Pokazatelj unosa pojavljuje se na desnoj strani trake samo kada je konfigurirano više od jedne metode unosa ili rasporeda. Ova poveznica radne površine radi zajedno s vašim postojećim tipkama za prebacivanje Fcitxa; možete je nadjačati u `~/.config/hypr/bindings.lua`. Mehanizmi unosa i sekvence sastavljanja koriste uslugu [Fcitx5](https://fcitx-im.org/) koja već radi u svakoj sesiji.
 
-### Korištenje ALT kao SUPER
+### Korištenje tipke ALT kao SUPER
 
-Na nekim tipkovnicama nije prikladno koristiti primarnu meta tipku (tipku Windows/cmd) kao SUPER. To možeš promijeniti u ALT umjesto toga koristeći ovu promjenu:
+Na nekim tipkovnicama nije praktično koristiti primarnu meta tipku (tipku Windows/cmd) kao SUPER. Umjesto toga to možete promijeniti na ALT pomoću ove promjene:
 
 ```lua
 hl.config({

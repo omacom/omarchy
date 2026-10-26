@@ -1,12 +1,12 @@
 # Teme
 
-Omarchy je dobavljen z dvaindvajsetimi čudovitimi temami. Med njimi lahko izbirate prek _Style > Theme_ v meniju Omarchy (`Super + Space`) ali neposredno skočite do izbirnika teme s `Super + Ctrl + Shift + Space`.
+Omarchy ima dvaindvajset čudovitih tem. Med njimi lahko izbirate prek _Videz > Tema_ v meniju Omarchy (`Super + Space`) ali pa skočite neposredno na izbirnik tem z uporabo `Super + Ctrl + T`.
 
-Vsaka tema oblikuje namizje, terminal, neovim, zaslon dejavnosti (btop), Chromium in celotno lupino Omarchy: menijsko vrstico, meni, obvestila, OSD in zaklenjeni zaslon. (Za Obsidian morate temo Omarchy ročno izbrati prek _Appearance > Themes_ znotraj aplikacije).
+Vsaka tema oblikuje namizje, terminal, neovim, zaslon aktivnosti (btop), Chromium in celotno lupino Omarchy: zgornjo vrstico, meni, obvestila, OSD in zaklenjeni zaslon. (Pri Obsidian morate temo Omarchy ročno izbrati prek _Videz > Teme_ v aplikaciji).
 
-Teme imajo nabor ozadij, med katerimi lahko izbirate s `Super + Ctrl + Space`.
+Teme imajo nabor slik za ozadje, med katerimi lahko izbirate z uporabo `Super + Ctrl + W`.
 
-Še več tem najdete na [strani z dodatnimi temami](https://omarchy.org/themes/) ali celo [izdelate lastno temo](43-making-your-own-theme.md).
+Še več tem najdete na [strani z dodatnimi temami](https://omarchy.org/themes/) ali pa celo [ustvarite svojo temo](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Odklepanja
 
-Teme lahko imajo tudi zasnovo za odklepanje po meri, ki se uporabi za postopek dešifriranja ob zagonu. Eno od teh lahko izberete pod _Style > Unlock_. Videti so takole:
+Teme imajo lahko tudi oblikovanje za odklepanje po meri, ki se uporablja za postopek dešifriranja ob zagonu. Eno od teh lahko izberete pod _Videz > Odklep_. Videti so takole:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
