@@ -365,11 +365,16 @@
   "network.hidePassword": "Hide password",
   "network.hotspot": "HOTSPOT",
   "network.hotspotActive": "HOTSPOT ACTIVE",
+  "network.hotspotDevices": {
+    "one": "%1 device",
+    "other": "%1 devices"
+  },
   "network.hotspotName": "Hotspot name (SSID)",
   "network.hotspotPasswordPlaceholder": "Password (8+ characters)",
   "network.hotspotSettings": "Hotspot settings",
   "network.hotspotShare": "Share my internet",
   "network.hotspotSharing": "Sharing my internet",
+  "network.hotspotUnlimited": "Unlimited",
   "network.identity": "Identity (user@domain)",
   "network.ipAddress": "IP Address",
   "network.knownNetworks": "KNOWN NETWORKS",
