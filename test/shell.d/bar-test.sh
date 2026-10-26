@@ -30,6 +30,21 @@ if ! perl -0ne 'exit(/onPressAndHold:\s*function[^{]*\{[^}]*?\bpressed\b[^}]*?\b
 fi
 pass "bar move ignores a press-and-hold propagated from a widget above"
 
+# The move flag lives on the bar root, so a Loader swap or remap can destroy
+# the gesture area without released/canceled. The area has to cancel on the
+# way down, and a later press has to dismiss a move that leaked anyway.
+if ! perl -0ne 'exit(/component CenterGestureArea: MouseArea \{.*?Component\.onDestruction:\s*if\s*\(\s*dragging\s*\)\s*root\.clearBarMove\(\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move clears when the gesture area is destroyed mid-drag"
+fi
+pass "bar move clears when the gesture area is destroyed mid-drag"
+
+if ! perl -0ne 'exit(/component CenterGestureArea: MouseArea \{.*?onPressed:\s*function[^{]*\{[^}]*barMoveActive[^}]*root\.clearBarMove\(\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move dismisses a leftover ghost on a new press"
+fi
+pass "bar move dismisses a leftover ghost on a new press"
+
 # Every click target registration used to resync every plugin api inline. With
 # six monitors' worth of widgets that is hundreds of full walks at startup, so
 # the change handlers coalesce into one deferred resync and ownership lookups
