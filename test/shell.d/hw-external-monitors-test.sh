@@ -59,3 +59,23 @@ pass "physical monitor detection ignores disconnected external displays"
 write_connectors DP-1 connected
 has_external_monitor || fail "external-only systems still report a connected display"
 pass "physical monitor detection still supports external-only systems"
+
+# A connected USB connector on a card bound to the given driver, linked as sysfs links it.
+write_usb_card() {
+  local card="$1" driver="$2"
+  mkdir -p "$drm_path/$card-USB-1" "$drm_path/$card" "$test_tmp/drivers/$driver" "$test_tmp/devices/$card"
+  printf 'connected\n' >"$drm_path/$card-USB-1/status"
+  ln -s "../../drivers/$driver" "$test_tmp/devices/$card/driver"
+  ln -s "../../devices/$card" "$drm_path/$card/device"
+}
+
+write_connectors eDP-1 connected
+write_usb_card card2 appletbdrm
+if has_external_monitor; then
+  fail "the T2 Touch Bar is not an external display"
+fi
+pass "physical monitor detection ignores the T2 Touch Bar"
+
+write_usb_card card3 apple
+has_external_monitor || fail "an external display on a USB connector is found beside the Touch Bar"
+pass "physical monitor detection still finds external displays on USB connectors"
