@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.memory-bandwidth",
+  "name": "Memory bandwidth",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Live memory bandwidth dials. Summon with: omarchy-shell shell summon omarchy.memory-bandwidth",
+  "kinds": [
+    "panel"
+  ],
+  "entryPoints": {
+    "panel": "Panel.qml"
+  }
+}

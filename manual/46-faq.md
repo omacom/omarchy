@@ -38,6 +38,10 @@ Those all live in [networking](35-networking.md).
 
 _Trigger > Speed Test > Disk Speed Test_ measures live read and write speed on your drive, or `omarchy disk speedtest` from the terminal.
 
+### How do I check memory bandwidth?
+
+_Trigger > Speed Test > Memory Bandwidth_ measures how fast the machine can read memory. The left dial is a single core. The right dial is the best result from the sweep, and the line under it says how many cores were tested. From the terminal it's `omarchy memory bandwidth`.
+
 ### Why can't I sign into my Google account in Chromium?
 
 The plain open source Chromium build doesn't ship with the OAuth credentials that Google requires for account sign-in. Run _Install > Service > Chromium Account_ in the Omarchy menu to add them, restart the browser, and the sign-in will go through.
