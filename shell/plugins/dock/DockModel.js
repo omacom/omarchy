@@ -30,19 +30,33 @@ function pinnedIds(dockConfig, defaultsConfig) {
   return ids
 }
 
+// Windows of the desktop itself that no desktop entry claims, so they name no
+// app: Omarchy's own terminal windows, such as the agent window, and the
+// classes its TUI apps share; Hyprland's own dialogs, such as its share picker
+// and its prompt for an app that stopped responding; and the preview share
+// picker Omarchy has the portal use instead.
+var DESKTOP_APP_ID_PREFIXES = ["org.omarchy.", "hyprland-"]
+var DESKTOP_APP_IDS = ["TUI.float", "TUI.tile", "ch.wysbd.hyprland-preview-share-picker"]
+
+function isDesktopAppId(appId) {
+  var id = String(appId || "")
+  if (DESKTOP_APP_IDS.indexOf(id) >= 0) return true
+  return DESKTOP_APP_ID_PREFIXES.some(function(prefix) { return id.indexOf(prefix) === 0 })
+}
+
 // Every app window on a regular workspace belongs in the dock, including apps
 // that ship no desktop entry, such as an AppImage or an app run from its build
 // folder. Helpers stay out: an entry that hides itself from the launcher, and
-// Omarchy's own terminal windows no entry claims, such as the agent window. So
-// does anything parked on a special workspace, such as the scratchpad. A
-// minimized window always belongs, since the dock is the only way back to it.
-// A window without an entry is keyed by its app id.
+// the desktop's own windows no entry claims. So does anything parked on a
+// special workspace, such as the scratchpad. A minimized window always
+// belongs, since the dock is the only way back to it. A window without an
+// entry is keyed by its app id.
 function isDockWindow(window) {
   if (!window || !window.key) return false
   if (window.minimized === true) return true
   if (!(window.workspaceId >= 1)) return false
   if (window.hasEntry === true) return window.noDisplay !== true
-  return String(window.key).indexOf("org.omarchy.") !== 0
+  return !isDesktopAppId(window.key)
 }
 
 // Minimizing moves a window to this special workspace, and the dock brings it
