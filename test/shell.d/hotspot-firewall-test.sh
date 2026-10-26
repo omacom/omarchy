@@ -49,11 +49,6 @@ case "${1:-}" in
 esac
 STUB
 
-cat >"$STUB_BIN/omarchy-cmd-missing" <<'STUB'
-#!/bin/bash
-[[ ${1:-} == "dnsmasq" ]] && (( ${DNSMASQ_PRESENT:-1} == 0 ))
-STUB
-
 cat >"$STUB_BIN/systemctl" <<'STUB'
 #!/bin/bash
 case "${1:-}:${2:-}" in
