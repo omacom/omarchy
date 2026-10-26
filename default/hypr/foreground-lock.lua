@@ -14,6 +14,8 @@ local M = {}
 
 local locked = {}
 local last_active = nil
+-- Whether the window last active held the screen at any point while it was.
+local last_active_held = false
 
 local function set_focus_on_activate(window, value)
   hl.dispatch(hl.dsp.window.set_prop({ prop = "focus_on_activate", value = value, window = window }))
@@ -25,10 +27,12 @@ end
 
 -- Omarchy hands the screen to a window focused under a fullscreen one
 -- (misc.on_focus_under_fullscreen = 1), so a game left for a window on its own
--- workspace may no longer be fullscreen by the time focus is reported. The
--- window now fullscreen on that workspace took the screen from it.
+-- workspace may no longer be fullscreen by the time focus is reported. If it
+-- held the screen while it was active, the window now fullscreen on that
+-- workspace took the screen from it. A windowed app that starts a fullscreen
+-- game, such as Steam, never held it.
 local function lost_screen_to(previous, window)
-  return previous.mapped and previous.xwayland and (window.fullscreen or 0) >= 2
+  return last_active_held and previous.mapped and previous.xwayland and (window.fullscreen or 0) >= 2
     and previous.workspace and window.workspace and previous.workspace.id == window.workspace.id
 end
 
@@ -44,11 +48,21 @@ hl.on("window.active", function(window)
   end
 
   local previous = last_active and hl.get_window("address:" .. last_active)
-  last_active = window.address
-
   if previous and previous.address ~= window.address and previous.pid ~= window.pid and (holds_screen(previous) or lost_screen_to(previous, window)) then
     locked[previous.address] = true
     set_focus_on_activate(previous, "0")
+  end
+
+  if window.address ~= last_active then
+    last_active = window.address
+    last_active_held = false
+  end
+  last_active_held = last_active_held or holds_screen(window)
+end)
+
+hl.on("window.fullscreen", function(window)
+  if window and window.address == last_active and holds_screen(window) then
+    last_active_held = true
   end
 end)
 
