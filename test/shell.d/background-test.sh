@@ -55,7 +55,7 @@ assert(
   'background derives its decode size from the screen in physical pixels'
 )
 assert(
-  backgroundQml.includes('["magick", "identify", "-ping", "-format", "%w %h", sizeProbe.path]') &&
+  backgroundQml.includes('["magick", "identify", "-ping", "-format", "%w %h\\n", sizeProbe.path]') &&
     backgroundQml.includes('if (native.width > 0 && (native.width < decodeWidth || native.height < decodeHeight)) return Qt.size(native.width, native.height)'),
   'background reads the wallpaper header and never decodes larger than the native size'
 )
