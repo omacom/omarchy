@@ -17,6 +17,9 @@
 run_shell() {
   local startup_background
   startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
+  # Add user plugin directory to QML import path so third-party plugins
+  # can import qs.Commons, qs.Ui, and other shared modules
+  export QML_IMPORT_PATH="${QML_IMPORT_PATH:+${QML_IMPORT_PATH}:}${HOME}/.config/omarchy/plugins"
   OMARCHY_STARTUP_BACKGROUND="$startup_background" QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
