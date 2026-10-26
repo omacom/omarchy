@@ -32,12 +32,15 @@ fi
 
 if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
   mkdir -p ~/.config/kitty
+  kitty_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
   if grep -qE '^[[:space:]]*font_family[[:space:]]+' ~/.config/kitty/kitty.conf 2>/dev/null; then
-    kitty_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
     sed --follow-symlinks -i -E "s/^[[:space:]]*font_family[[:space:]]+.*/font_family $kitty_font_name/" ~/.config/kitty/kitty.conf
   else
     printf '\nfont_family %s\n' "$font_name" >>~/.config/kitty/kitty.conf
   fi
+  for face in bold italic bold_italic; do
+    sed --follow-symlinks -i -E "/^[[:space:]]*${face}_font[[:space:]]+auto([[:space:]]|$)/! s/^[[:space:]]*${face}_font[[:space:]]+.*/${face}_font $kitty_font_name/" ~/.config/kitty/kitty.conf
+  done
   pkill -USR1 kitty
 fi
 
