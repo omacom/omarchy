@@ -1,45 +1,45 @@
 # Tarmoq
 
-Omarchy-da tarmoq bilan NetworkManager shugʻullanadi va siz uni [yuqori paneldagi](05-the-top-bar.md) tarmoq belgisidan yoki `Super + Ctrl + W` bilan boshqarasz.
+Omarchy'da tarmoq NetworkManager tomonidan boshqariladi, va siz uni [yuqori panel](05-the-top-bar.md)dagi tarmoq belgisidan yoki `Super + Ctrl + N` bilan boshqarasiz.
 
-Bu panel Wi-Fi tarmoqlarni qidiradi, signal kuchini koʻrsatadi va ulanadi. Ethernet umuman hech narsa talab qilmaydi — uni ulang va ishlaydi. Agar terminalda qolishni afzal koʻrsangiz, `nmtui` sizga bir xil boshqaruvni beradi va `omarchy network` buyruqlar guruhi ham mavjud.
+Ushbu panel Wi-Fi tarmoqlarini qidiradi, signal kuchini ko'rsatadi va ulanadi. Ethernet umuman hech narsani talab qilmaydi — kabelni ulang va u ishlaydi. Agar terminalda qolishni afzal ko'rsangiz, `nmtui` sizga xuddi shu boshqaruvlarni beradi, va `omarchy network` buyruqlar guruhi ham bor.
 
-## Wi-Fi-ingizni ulashish
+## Wi-Fi'ingizni ulashish
 
-Uzoq parolni ovoz chiqarib oʻqish oʻrniga, Wi-Fi-da boʻlganingizda _Sozlash > Tarmoq > QR kod_ ni ishga tushiring. Bu ekranga istalgan telefon kamerasi skanerlab ulanishi mumkin boʻlgan QR kod chiqaradi. Bu mavjudligini bilganingizdan keyin kutilgandan koʻproq ishlatadigan narsalardan biridir.
+Uzoq parolni ovoz chiqarib o'qish o'rniga, Wi-Fi'ga ulanganingizda _Sozlash > Tarmoq > QR Code_ ni ishga tushiring. Bu ekranga istalgan telefon kamerasi skanerlab ulanishi mumkin bo'lgan QR kodni chiqaradi. Bu — borligini bilganingizdan keyin kutilganidan ko'proq ishlatadigan narsalardan biri.
 
-Agar sizga parolning oʻzi haqiqatan kerak boʻlsa, `omarchy network password <interface>` uni chop etadi.
+Agar sizga aynan parolning o'zi kerak bo'lsa, `omarchy network password <interface>` uni chiqaradi.
 
 ## DNS
 
-Omarchy sizning tarmogʻingiz DHCP orqali bergan DNS-dan foydalanadi. Butun mashina uchun buni _Sozlash > Tarmoq > DNS_ ostida bekor qilishingiz mumkin, u yerda Cloudflare va Google bir bosishda mavjud. Oʻz serverlaringizni yozish uchun _Maxsus_ ni tanlang.
+Omarchy tarmog'ingiz DHCP orqali bergan DNS'dan foydalanadi. Siz buni butun mashina uchun _Sozlash > Tarmoq > DNS_ ostida o'zgartirishingiz mumkin, bu yerda Cloudflare va Google bir bosishda mavjud. O'zingizning serverlaringizni kiritish uchun _Custom_ ni tanlang.
 
-Terminaldan `omarchy dns` joriy provayderni chop etadi va `omarchy dns Cloudflare` birini oʻrnatadi.
+Terminaldan, `omarchy dns` joriy provayderni chiqaradi va `omarchy dns Cloudflare` birini o'rnatadi.
 
-## Wi-Fi diapazonini qotirib qoʻyish
+## Wi-Fi diapazonini qotirish
 
-Agar routeringiz 2.4GHz, 5GHz va 6GHz ni bir xil tarmoq nomiga qoʻysa, noutbukingiz baʼzan sekinrogʻiga yopishib qoladi. `omarchy network band` qaysi diapazonda ekaningizni koʻrsatadi va `omarchy network band 5` uni qotirib qoʻyadi. Uni yana tanlashiga ruxsat berish uchun `auto` dan foydalaning.
+Agar routeringiz 2.4GHz, 5GHz va 6GHz ni bir xil tarmoq nomiga qo'ysa, noutbukingiz ba'zan sekiniga yopishib qoladi. `omarchy network band` qaysi diapazonda ekanligingizni ko'rsatadi, va `omarchy network band 5` uni qotiradi. Yana o'zi tanlashiga ruxsat berish uchun `auto` dan foydalaning.
 
-Bu muayyan kirish nuqtasi emas, diapazonni qotirib qoʻyadi, shuning uchun siz APlar oʻrtasida odatdagidek roumingda qolasiz.
+Bu muayyan kirish nuqtasini emas, diapazonni qotiradi, shuning uchun siz AP'lar orasida odatdagidek rouming qilishda davom etasiz.
 
-## Qanchalik tez?
+## U qanchalik tez?
 
-_Ishga tushirish > Tezlik testi > Tarmoq tezligi testi_ sizning yuqoriga va pastga haqiqiy tezligingizni bir juft tsiferblat bilan oʻlchaydi. Terminaldan bu `omarchy network speedtest down` yoki `up`. (Agar boshqa tor joyini benchmark qilayotgan boʻlsangiz, oʻsha menyuda uning yonida disk tezligi testi joylashgan.)
+_Trigger > Speed Test > Network Speed Test_ haqiqiy yuklab olish va yuklash tezligingizni bir juft siferblat bilan o'lchaydi. Terminaldan bu `omarchy network speedtest down` yoki `up`. (Agar boshqa tor bo'g'inni benchmark qilayotgan bo'lsangiz, o'sha menyuda uning yonida disk tezligi testi ham bor.)
 
 ## Firewall
 
-Firewall standart holatda yoqilgan va barcha kiruvchi trafigi bloklaydi, bitta istisno bilan: 53317 port, shuning uchun [LocalSend](22-guis.md) qutidan chiqqan zahoti ishlaydi.
+Firewall sukut bo'yicha yoqilgan va barcha kiruvchi trafikni bloklaydi, bitta istisno bilan: 53317-port, shuning uchun [LocalSend](22-guis.md) qutidan chiqqan holda ishlaydi.
 
-SSH siz uni _Sozlash > Xavfsizlik > SSHD_ bilan yoqquningizga qadar oʻchirilgan boʻladi, bu demonni ishga tushiradi, brute force ga qarshi tezlik cheklangan holda 22 portini ochadi va kalitni avtorizatsiya qiladi. Docker ham yopilgan, shuning uchun konteynerlar tasodifan dunyoga oʻzlarini ochib qoʻya olmaydi. Toʻliq hikoyani [xavfsizlikda](48-security.md) koʻring.
+SSH siz uni _Sozlash > Xavfsizlik > SSHD_ bilan yoqmaguningizcha o'chirilgan bo'ladi, bu daemon'ni ishga tushiradi, 22-portni brute force'ga qarshi tezlik cheklovi bilan ochadi va kalitni avtorizatsiya qiladi. Docker ham qulflangan, shuning uchun konteynerlar tasodifan o'zlarini dunyoga ochib yubora olmaydi. Butun hikoya uchun [xavfsizlik](48-security.md) ga qarang.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) sizning barcha kompyuterlaringiz va serverlaringizga internet orqali yetishni oddiy va xavfsiz qiladigan mesh VPN. Uni _Oʻrnatish > Xizmat > Tailscale_ bilan oʻrnating.
+[Tailscale](https://tailscale.com/) — barcha kompyuterlaringiz va serverlaringizga internet orqali yetib borishni sodda va xavfsiz qiladigan mesh VPN. Uni _O'rnatish > Xizmat > Tailscale_ bilan o'rnating.
 
-Bu sizga panelda Tailscale panelini beradi, u tailnet ni ulaydi va uzadi, hisoblarni almashtiradi va chiqish tugunini tanlaydi — oʻzingizning mashinalaringiz va Mullvad hududlari roʻyxatda koʻrinadi. Bu ham mashinalaringizni koʻrib chiqadi va Taildrop shu yerda yashaydi: mashinani tanlang va unga fayllar yuborish uchun `s` ni, uning IP sini, ismini yoki toʻliq DNS nomini nusxalash uchun `c`, `n` va `d` ni bosing. Terminal ekvivalenti `omarchy tailscale send <machine> [file...]` va sizga yuborilgan fayllar avtomatik `~/Downloads` ga tushadi. Yetib kelganini eʼlon qiladigan bildirishnoma siz uni ochish uchun bosguningizcha yoki rad etguningizcha kutadi, shuning uchun siz mashinadan uzoqda ekaningizda kelgan fayl qaytganda javob berish uchun hamon shu yerda boʻladi.
+Bu sizga panelda Tailscale panelini beradi, u tailnet'ga ulanadi va undan uziladi, hisoblarni almashtiradi va chiqish tugunini tanlaydi — ro'yxatda o'zingizning mashinalaringiz ham, Mullvad mintaqalari ham chiqadi. U shuningdek mashinalaringizni ko'rib chiqadi, va Taildrop aynan shu yerda yashaydi: mashinani tanlang va unga fayllar yuborish uchun `s` ni bosing, yoki uning IP, nomi yoki to'liq DNS nomini nusxalash uchun `c`, `n` va `d` ni bosing. Terminaldagi muqobili `omarchy tailscale send <machine> [file...]`, va sizga yuborilgan fayllar avtomatik ravishda `~/Downloads` ga tushadi. Kelganlik haqidagi bildirishnoma siz uni bosib ochmaguningizcha yoki rad etmaguningizcha kutadi, shuning uchun siz mashinadan uzoqda bo'lganingizda kelgan fayl, qaytganingizda javob berishingiz uchun hali ham shu yerda bo'ladi.
 
-Uni oʻrnatish Tailscale admin konsoli uchun veb-ilovani ham qoʻshadi.
+Uni o'rnatish Tailscale admin konsoli uchun veb-ilovani ham qo'shadi.
 
-## U ishlashni toʻxtatganda
+## U ishlashdan to'xtaganda
 
-Qayta yuklashdan oldin, aybdor boʻlakni oʻz-oʻzidan qayta ishga tushirishni sinab koʻring. _Yangilash > Qurilmalar_ da Wi-Fi, Bluetooth, Audio va Trackpad mavjud va ulardan birini qayta yuklash aksariyat «besh daqiqa oldin ishlayotgandi» holatlarini bartaraf etadi. [Muammolarni hal qilishni](45-troubleshooting.md) koʻring.
+Qayta yuklashdan oldin, buzilgan qismni o'zini alohida qayta ishga tushirib ko'ring. _Yangilash > Uskuna_ da Wi-Fi, Bluetooth, Audio va Trackpad bor, va ulardan birini qayta yuklash ko'pchilik "besh daqiqa oldin ishlayotgan edi" holatlarini tozalaydi. [muammolarni bartaraf etish](45-troubleshooting.md) ga qarang.

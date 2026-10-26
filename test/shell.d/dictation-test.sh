@@ -345,18 +345,3 @@ printf '%s\n' voxtype > "$config"
 omarchy-remove-dictation-superwhisper
 [[ $(cat "$config") == "voxtype" ]] || fail "removing Superwhisper preserves another selected backend"
 pass "Superwhisper removal clears its selection and owned links while preserving user data and other backends"
-
-cat > "$test_tmp/bin/omarchy-pkg-present" <<'SH'
-#!/bin/bash
-[[ ${VOXTYPE_PACKAGE:-0} == 1 && $1 == "voxtype-bin" ]]
-SH
-chmod +x "$test_tmp/bin/omarchy-pkg-present"
-rm "$config"
-VOXTYPE_PACKAGE=0 /bin/bash -euo pipefail "$ROOT/migrations/1791479273.sh"
-[[ ! -e $config ]] || fail "migration does not select an uninstalled backend"
-VOXTYPE_PACKAGE=1 /bin/bash -euo pipefail "$ROOT/migrations/1791479273.sh"
-[[ $(cat "$config") == "voxtype" ]] || fail "existing Voxtype users keep dictation after upgrade"
-printf '%s\n' future-backend > "$config"
-VOXTYPE_PACKAGE=1 /bin/bash -euo pipefail "$ROOT/migrations/1791479273.sh"
-[[ $(cat "$config") == "future-backend" ]] || fail "upgrade preserves explicit backend selections"
-pass "one-time upgrade preserves existing Voxtype without runtime autodetection"

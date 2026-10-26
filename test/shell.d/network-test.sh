@@ -189,6 +189,13 @@ assertEqual(network.formatPacketLoss(2), '2%', 'network formats packet loss')
 assertEqual(network.formatPacketLoss(0), '0%', 'network formats zero packet loss')
 assertEqual(network.formatPacketLoss(0, false), '--', 'network holds the packet loss row before the first sample')
 assertEqual(network.formatPacketLoss(0, true), '0%', 'network reports zero loss once samples exist')
+assertEqual(network.internetPingReadable([], 'full'), false, 'network hides ping before the first sample')
+assertEqual(network.internetPingReadable([null, null], 'full'), true, 'network still reports lost probes on a working connection')
+assertEqual(network.internetPingReadable([null, 12], 'full'), true, 'network shows ping once a probe comes back')
+assertEqual(network.internetPingReadable([12], 'portal'), false, 'network hides ping behind a captive portal')
+assertEqual(network.internetPingReadable([12], 'limited'), false, 'network hides ping on a limited connection')
+assertEqual(network.internetPingReadable([12], 'none'), false, 'network hides ping when offline')
+assertEqual(network.internetPingReadable([12], 'unknown'), true, 'network shows ping when connectivity checks are off')
 
 const rows = network.sortWifiRows([
   { ssid: 'Open', connected: false, known: false, signal: 95 },
@@ -506,7 +513,7 @@ assert((panelSource.match(/Model\.hotspotCredentialsError\(hotspotSsid, hotspotP
 assert(/id: hotspotQrButton\s+visible: root\.hotspotActive/.test(panelSource), 'network hides the hotspot QR unless the AP is on')
 assert(/readonly property int hotspotFocusMax: hotspotActive \? 2 : 1/.test(panelSource), 'network drops QR from the keyboard cycle while the AP is off')
 assert(!/hotspotQrButton\.containsMouse|hotspotCogButton\.containsMouse/.test(panelSource), 'network does not bind a hover state Button does not expose')
-assert(/id: hotspotCogButton[\s\S]*?tooltipText: root\.hotspotSetupOpen \? "Hide hotspot settings" : "Hotspot settings"/.test(panelSource), 'network labels the hotspot settings button through the button tooltip')
+assert(/id: hotspotCogButton[\s\S]*?tooltipText: root\.hotspotSetupOpen \? Commons\.I18n\.t\("network\.hideHotspotSettings"\) : Commons\.I18n\.t\("network\.hotspotSettings"\)/.test(panelSource), 'network labels the hotspot settings button through the button tooltip')
 assert(!/wifi-sec\.psk "\$password"/.test(hotspotSource), 'hotspot never puts the PSK on nmcli argv')
 assert(/apply "\$ssid" "\$band"/.test(hotspotSource), 'hotspot start writes the profile through apply')
 JS

@@ -58,18 +58,7 @@ setup_chromium() {
     append_line "$conf" '--use-angle=gles-egl' || return
   fi
 
-  if chromium_args "$conf" | grep -E -- '(^|[[:space:]])--enable-features=([^[:space:]]*,)?AcceleratedVideoDecoder([,:<[:space:]]|$)' >/dev/null; then
-    return 0
-  fi
-
-  if chromium_args "$conf" | grep -E -- '(^|[[:space:]])--enable-features=' >/dev/null; then
-    # Extend the feature list itself, ahead of any neighbouring switch or comment.
-    sed -i --follow-symlinks -E \
-      -e 's/^(([^#]*[[:space:]])?--enable-features=[^[:space:]#]*)/\1,AcceleratedVideoDecoder/' \
-      -e 's/--enable-features=,AcceleratedVideoDecoder/--enable-features=AcceleratedVideoDecoder/' "$conf"
-  else
-    append_line "$conf" '--enable-features=AcceleratedVideoDecoder'
-  fi
+  omarchy-chromium-add-feature AcceleratedVideoDecoder
 }
 
 if omarchy-hw-aarch64-qualcomm; then
