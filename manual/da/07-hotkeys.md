@@ -4,7 +4,7 @@ Du kan se alle de vigtigste tastaturgenveje med `Super + K` (Tmux-genveje med `S
 
 ## Navigation
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | Omarchy-menu (apps og alt andet)    |
 | `Super + Alt + Space` | App-oversigt |
@@ -12,31 +12,31 @@ Du kan se alle de vigtigste tastaturgenveje med `Super + K` (Tmux-genveje med `S
 | `Super + Ctrl + L` | Lås computer |
 | `Super + W` or `Super + Q` | Luk vindue             |
 | `Ctrl + Alt + Del` | Luk alle vinduer |
-| `Super + T`               | Skift vindue mellem tiling/flydende             |
+| `Super + T`               | Skift vindue mellem tiling/floating             |
 | `Super + J` | Skift vinduesposition (vandret/lodret) |
-| `Super + O`               | Skift vindue til sticky'n'floating |
-| `Super + L`               | Skift mellem layoutene dwindle, scrolling og floating |
-| `Super + Alt + L`         | Skift mellem layoutene i omvendt rækkefølge |
-| `Super + P`               | Skift pseudo-vinduesstil (naturlig vs. strakt) |
+| `Super + O`               | Slå pop-ud-vindue til/fra som sticky'n'floating |
+| `Super + L`               | Skift cyklisk mellem layoutene dwindle, scrolling og floating |
+| `Super + Alt + L`         | Skift cyklisk mellem layoutene i omvendt rækkefølge |
+| `Super + P`               | Skift pseudo-vinduesstil (naturlig vs. stræk) |
 | `Super + F`                 | Gå til fuld skærm              |
 | `Super + Alt + F`                 | Gå til fuld bredde              |
 | `Super + Ctrl + F`                 | Gå til fuld skærm inde i vinduet              |
-| `Super + 1/2/3/4`         | Spring til et bestemt workspace på den fokuserede skærm |
-| `Super + Tab` | Spring til næste workspace på den fokuserede skærm |
-| `Super + Shift + Tab` | Spring til forrige workspace på den fokuserede skærm |
-| `Super + Ctrl + Tab` | Spring til tidligere workspace på den fokuserede skærm |
-| `Super + Shift + 1/2/3/4` | Flyt vindue til workspace på den fokuserede skærm |
-| `Super + Shift + Alt + 1/2/3/4` | Flyt vindue til workspace på den fokuserede skærm uden at følge med |
-| `Super + S` | Skift fuld scratchpad |
+| `Super + 1/2/3/4`         | Spring til et bestemt arbejdsområde på den fokuserede skærm |
+| `Super + Tab` | Spring til næste arbejdsområde på den fokuserede skærm |
+| `Super + Shift + Tab` | Spring til forrige arbejdsområde på den fokuserede skærm |
+| `Super + Ctrl + Tab` | Spring til tidligere arbejdsområde på den fokuserede skærm |
+| `Super + Shift + 1/2/3/4` | Flyt vindue til arbejdsområde på den fokuserede skærm |
+| `Super + Shift + Alt + 1/2/3/4` | Flyt vindue til arbejdsområde på den fokuserede skærm uden at følge med |
+| `Super + S` | Slå fuld scratchpad til/fra |
 | `Super + Alt + S` | Flyt vindue til fuld scratchpad |
-| `Super + Grave` | Skift Quake-konsol |
+| `Super + Grave` | Slå Quake-konsol til/fra |
 | `Super + Shift + Grave` | Flyt vindue til Quake-konsol |
 | `Super + Shift + Ctrl + Arrows` | Flyt vindue til skærmen i den retning |
-| `Super + Shift + Alt + Arrows` | Flyt workspace til skærmen i den retning |
-| `Super + Arrow`  | Flyt fokus til vindue i pilens retning, og kryds til skærmen på den side ved skærmens kant |
+| `Super + Shift + Alt + Arrows` | Flyt arbejdsområde til skærmen i den retning |
+| `Super + Arrow`  | Flyt fokus til vinduet i pilens retning, og kryds til skærmen på den side ved skærmkanten |
 | `Super + Shift + Arrow`  | Byt vindue med et andet i pilens retning, herunder et på skærmen på den side |
-| `Super + Minus` | Udvid vindue til venstre |
-| `Super + Equal` | Formindsk vindue til venstre |
+| `Super + Minus` | Udvid vindue mod venstre |
+| `Super + Equal` | Formindsk vindue mod venstre |
 | `Super + Shift + Minus` | Formindsk vindue opad |
 | `Super + Shift + Equal` | Udvid vindue nedad |
 | `Super + Alt + Minus/Equal` | Samme ændring af størrelse i mindre trin |
@@ -45,12 +45,12 @@ Du kan se alle de vigtigste tastaturgenveje med `Super + K` (Tmux-genveje med `S
 | `Super + Home` | Gendan gemt vinduesbredde |
 | `Super + Left Mouse` | Træk vindue rundt |
 | `Super + Right Mouse` | Ændr vinduesstørrelse |
-| `Super + Scroll Wheel` | Rul gennem workspaces på den fokuserede skærm |
-| `Super + G`               | Skift vinduesgruppering      |
+| `Super + Scroll Wheel` | Rul gennem arbejdsområder på den fokuserede skærm |
+| `Super + G`               | Slå vinduesgruppering til/fra      |
 | `Super + Alt + G`               | Flyt vindue ud af gruppering      |
-| `Super + Alt + Tab`               | Skift mellem vinduer i gruppering      |
-| `Super + Alt + Shift + Tab`               | Skift baglæns mellem vinduer i gruppering      |
-| `Super + Alt + Scroll Wheel` | Skift mellem vinduer i gruppering |
+| `Super + Alt + Tab`               | Skift cyklisk mellem vinduer i gruppering      |
+| `Super + Alt + Shift + Tab`               | Skift cyklisk baglæns mellem vinduer i gruppering      |
+| `Super + Alt + Scroll Wheel` | Skift cyklisk mellem vinduer i gruppering |
 | `Super + Alt + 1/2/3/4/5`               | Spring til et bestemt vindue i gruppering      |
 | `Super + Alt + Arrow`  | Flyt vindue ind i gruppering i pilens retning, herunder et på skærmen på den side |
 | `Super + Ctrl + Left/Right`  | Flyt mellem vinduer i en tiling-gruppe |
@@ -58,26 +58,26 @@ Du kan se alle de vigtigste tastaturgenveje med `Super + K` (Tmux-genveje med `S
 | `Super + Ctrl + Alt + Z` | Zoom helt ud fra skærmen |
 | `Super + /` | Gå frem gennem indstillinger for skærmskalering |
 | `Super + Alt + /` | Gå tilbage gennem indstillinger for skærmskalering |
-| `Alt + Tab` | Skift fremad gennem vinduer på det aktive workspace |
-| `Alt + Shift + Tab` | Skift baglæns gennem vinduer på det aktive workspace |
-| `Ctrl + Alt + Tab`| Skift fokus fremad gennem skærme |
-| `Ctrl + Alt + Shift + Tab`| Skift fokus baglæns gennem skærme |
+| `Alt + Tab` | Skift cyklisk frem gennem vinduer på det aktive arbejdsområde |
+| `Alt + Shift + Tab` | Skift cyklisk tilbage gennem vinduer på det aktive arbejdsområde |
+| `Ctrl + Alt + Tab`| Skift cyklisk fokus frem gennem skærme |
+| `Ctrl + Alt + Shift + Tab`| Skift cyklisk fokus tilbage gennem skærme |
 
 ## Systemstyring
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Lydpanel    |
 | `Super + Ctrl + B`           | Bluetooth-panel    |
-| `Super + Ctrl + N`           | Wifi/netværkspanel    |
+| `Super + Ctrl + N`           | Wi-Fi/netværkspanel    |
 | `Super + Ctrl + D`           | Skærmpanel    |
 | `Super + Ctrl + P`           | Strømpanel    |
 | `Super + Ctrl + Alt + D`           | Kalenderpanel    |
 | `Super + Ctrl + Alt + E`           | Verdensurpanel    |
-| `Super + Ctrl + 1-9`           | Skift bjælkepanel efter position    |
+| `Super + Ctrl + 1-9`           | Slå bjælkepanel til/fra efter position    |
 | `Super + Ctrl + S` | Delingsmenu (via LocalSend) |
-| `Super + Ctrl + C` | Optagelsesstyring (skærmbillede/-optagelse/vælger) |
-| `Super + Ctrl + O` | Skift menu |
+| `Super + Ctrl + C` | Optagelseskontroller (skærmbillede/-optagelse/vælger) |
+| `Super + Ctrl + O` | Slå menu til/fra |
 | `Super + Ctrl + H` | Hardwaremenu |
 | `Super + Ctrl + E` | Emoji-vælger |
 | `Super + Ctrl + .` | Transkod medier |
@@ -85,26 +85,26 @@ Du kan se alle de vigtigste tastaturgenveje med `Super + K` (Tmux-genveje med `S
 
 ## Justeringer
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Shift + Brightness Up` | Maksimal skærmlysstyrke |
 | `Shift + Brightness Down` | Minimal skærmlysstyrke |
 | `Alt + Brightness Up/Down` | Præcise ændringer af lysstyrke på 1 % |
 | `Alt + Volume Up/Down` | Præcise ændringer af lydstyrke på 1 % |
-| `Keyboard Brightness Up/Down` | Tastaturbaggrundslys lysere/mørkere |
-| `Keyboard Backlight` | Skift mellem niveauer for tastaturbaggrundslys |
+| `Keyboard Brightness Up/Down` | Tastaturbaggrundsbelysning lysere/mørkere |
+| `Keyboard Backlight` | Skift cyklisk mellem niveauerne for tastaturbaggrundsbelysning |
 | `Alt + Play` | Næste nummer |
 | `Alt + Shift + Play` | Forrige nummer |
 
 ## Start af apps
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Terminal    |
 | `Super + Alt + Return` | Tmux-terminal |
 | `Super + Ctrl + Return` | Herdr (agent manager) |
 | `Super + Shift + Return`           | Browser    |
-| `Super + Shift + Alt + B`           | Browser (privat/inkognito)    |
+| `Super + Shift + Alt + B`           | Browser (privat/incognito)    |
 | `Super + Shift + F`           | Filhåndtering    |
 | `Super + Shift + Alt + F`           | Filhåndtering i terminalens cwd    |
 | `Super + Shift + M`           | Musik (Spotify)    |
@@ -133,84 +133,84 @@ Skift/tilføj genveje i `~/.config/hypr/bindings.lua`.
 
 ## Universel udklipsholder
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + C`           | Kopiér    |
+| `Super + C`           | Kopier    |
 | `Super + X`           | Klip (ikke i terminal)    |
-| `Super + V`           | Sæt ind    |
+| `Super + V`           | Indsæt    |
 | `Super + Ctrl + V`           | Udklipsholderhåndtering    |
 
-Normalt på Linux skal du bruge `Ctrl + Shift + C/V` til at kopiere og sætte ind i terminalen og `Ctrl + C/V` til at gøre det alle andre steder. Disse forenede Omarchy-genveje til udklipsholderen virker overalt.
+Normalt på Linux skal du bruge `Ctrl + Shift + C/V` for at kopiere/indsætte i terminalen og `Ctrl + C/V` for at gøre det alle andre steder. Disse samlede Omarchy-udklipsholdergenveje virker overalt.
 
 ## Optagelse
 
-| Genvej              | Funktion                       |
+| Hotkey              | Function                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | Skærmbillede                      |
-| `Super + Ctrl + Alt + C`            | Skærmbillede (samme optagelse, til tastaturer uden Print Screen-tast) |
+| `Super + Ctrl + Alt + C`            | Skærmbillede (samme optagelse, til tastaturer uden en Print Screen-tast) |
 | `Super + Ctrl + C` | Optagelsesmenu |
 | `Alt + Print Screen`            | Skærmoptagelse                     |
 | `Super + Print Screen` | Farvevælger |
-| `Super + Ctrl + Print Screen` | Tekstudtræk til udklipsholder |
+| `Super + Ctrl + Print Screen` | Tekstudtræk til udklipsholderen |
 | `Super + Alt + [` | Gør webcam-overlay mindre under optagelse |
 | `Super + Alt + ]` | Gør webcam-overlay større under optagelse |
-| `Alt + Shift + L` | Kopiér aktuel URL fra webapp eller Chromium |
+| `Alt + Shift + L` | Kopier den aktuelle URL fra webapp eller Chromium |
 | `Alt + Shift + D` | Download videoen på den aktuelle side til `~/Videos` |
-| `Super + Ctrl + X` | Start/stop diktering (kræver _Setup > Defaults > Dictation_) |
+| `Super + Ctrl + X` | Start/stop diktering (kræver _Opsætning > Standarder > Diktering_) |
 | `Right Alt` / `F9` | Push-to-talk-diktering (kræver Voxtype eller Superwhisper) |
 
-Ved skærmoptagelser spørger genvejen først, hvilken lyd du vil have, og starter derefter optagelsen. Tryk på den igen for at stoppe. Se [skærmbilleder og optagelse](12-screenshots-recording.md) for detaljerne.
+Med skærmoptagelser spørger genvejen først, hvilken lyd du vil have, og starter derefter optagelsen. Tryk på den igen for at stoppe. Se [skærmbilleder og optagelse](12-screenshots-recording.md) for detaljerne.
 
-Alle optagelsesmuligheder er også tilgængelige under _Trigger > Capture_ i Omarchy-menuen (`Super + Space`).
+Alle optagelsesmuligheder er også tilgængelige under _Udløser > Optagelse_ i Omarchy-menuen (`Super + Space`).
 
 ## Notifikationer
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Afvis seneste notifikation  |
+| `Super + ,` | Handl på den seneste notifikation: afvis den, tryk på dens eneste knap, eller vælg en af dens knapper  |
 | `Super + Shift + ,` | Afvis alle notifikationer |
 | `Super + Ctrl + ,` | Styr notifikationer med tastaturet  |
-| `Super + Alt + ,` | Fremkald seneste notifikation  |
+| `Super + Alt + ,` | Afvis seneste notifikation  |
 | `Super + Shift + Alt + ,` | Åbn notifikationshistorik  |
-| `Super + Ctrl + Alt + ,` | Slå lydløsgørelse af notifikationer til/fra  |
+| `Super + Ctrl + Alt + ,` | Slå lydløs tilstand for notifikationer til/fra  |
 
 ## Stil
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + T` | Vælg et nyt tema (også `Super + Ctrl + Shift + Space`) |
 | `Super + Ctrl + W` | Vælg temabaggrund (også `Super + Ctrl + Space`) |
 | `Super + Backspace` | Slå gennemsigtighed til/fra på et vindue |
-| `Super + Ctrl + Backspace` | Slå kvadratisk format til/fra for et enkelt vindue |
+| `Super + Ctrl + Backspace` | Slå kvadratisk format for enkelt vindue til/fra |
 
-Ekstra baggrundsbilleder ligger i `~/.config/omarchy/backgrounds/<theme name>`. Også tilgængelige via _Install > Style > Background_ i Omarchy-menuen.
+Ekstra baggrundsbilleder ligger i `~/.config/omarchy/backgrounds/<theme name>`. Også tilgængelig via _Installer > Stil > Baggrund_ i Omarchy-menuen.
 
-Alle stilmuligheder er også tilgængelige under _Style_ i Omarchy-menuen (`Super + Space`).
+Alle stilmuligheder er også tilgængelige under _Stil_ i Omarchy-menuen (`Super + Space`).
 
-## Skift
+## Til/fra-indstillinger
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | Slå låsning ved inaktivitet til/fra |
+| `Super + Ctrl + I` | Slå lås ved inaktivitet til/fra |
 | `Super + Ctrl + Delete` | Slå bærbar skærm til/fra |
 | `Super + Ctrl + Alt + Delete` | Slå spejling af bærbar skærm til/fra |
-| `Super + Shift + Space` | Slå topbjælken til/fra  |
-| `Shift + Mute` | Skift til næste lydudgang |
+| `Super + Shift + Space` | Slå den øverste bjælke til/fra  |
+| `Shift + Mute` | Skift til næste lydoutput |
 | `Shift + Play` | Skift til næste mediekilde |
 | `Super + Shift + Backspace` | Slå vinduesmellemrum til/fra |
-| `Super + Ctrl + Alt + F` | Slå fuldskærmsskrivebord til/fra (topbjælke + vinduesmellemrum) |
+| `Super + Ctrl + Alt + F` | Slå fuldskærmsskrivebord til/fra (øverste bjælke + vinduesmellemrum) |
 
 ## Påmindelser
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + R` | Opret en påmindelse  |
+| `Super + Ctrl + R` | Angiv en påmindelse  |
 | `Super + Ctrl + Alt + R` | Se alle påmindelser  |
 | `Super + Ctrl + Shift + R` | Ryd alle påmindelser  |
 
-## Meddelelser
+## Varsler
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + Alt + T` | Vis klokkeslæt som notifikation  |
 | `Super + Ctrl + Alt + B` | Vis batteri som notifikation  |
@@ -222,21 +222,21 @@ Præfikstasten er `Ctrl + Space` (`Ctrl + B` virker også). Du kan ændre disse 
 
 ### Ruder
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Prefix + v` | Del rude ved siden af (lodret) |
-| `Prefix + h` | Del rude nedenunder (vandret) |
+| `Prefix + v` | Opdel rude ved siden af (lodret) |
+| `Prefix + h` | Opdel rude nedenunder (vandret) |
 | `Prefix + x` | Luk rude |
 | `Prefix + z` | Slå rudezoom til/fra (fuld skærm) |
-| `Alt + Enter` | Del rude nedenunder (intet præfiks) |
-| `Alt + Shift + Enter` | Del rude ved siden af (intet præfiks) |
-| `Alt + Escape` | Luk rude (intet præfiks) |
+| `Alt + Enter` | Opdel rude nedenunder (uden præfiks) |
+| `Alt + Shift + Enter` | Opdel rude ved siden af (uden præfiks) |
+| `Alt + Escape` | Luk rude (uden præfiks) |
 | `Ctrl + Alt + Arrows` | Flyt mellem ruder |
 | `Ctrl + Alt + Shift + Arrows` | Ændr størrelse på ruder |
 
 ### Vinduer
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Nyt vindue |
 | `Prefix + k` | Luk vindue |
@@ -247,7 +247,7 @@ Præfikstasten er `Ctrl + Space` (`Ctrl + B` virker også). Du kan ændre disse 
 
 ### Sessioner
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Ny session |
 | `Prefix + K` | Luk session |
@@ -256,19 +256,19 @@ Præfikstasten er `Ctrl + Space` (`Ctrl + B` virker også). Du kan ændre disse 
 | `Prefix + P` | Forrige session |
 | `Alt + Arrow Up/Down` | Flyt mellem sessioner |
 | `Prefix + s` | Vis sessioner |
-| `Prefix + d` | Kobl fra session |
+| `Prefix + d` | Frigør fra session |
 
 ### Kopieringstilstand (vi-stil)
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Gå til kopieringstilstand |
 | `v` | Begynd markering (i kopieringstilstand) |
-| `y` | Kopiér markering (i kopieringstilstand) |
+| `y` | Kopier markering (i kopieringstilstand) |
 
 ### Generelt
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Genindlæs konfiguration |
 | `Prefix + ?` | Vis Tmux-tastaturgenveje |
@@ -278,17 +278,17 @@ Præfikstasten er `Ctrl + Space` (`Ctrl + B` virker også). Du kan ændre disse 
 
 Disse funktioner skal køres inde i en Tmux-session.
 
-| Kommando | Funktion |
+| Command | Function |
 | ------- | -------- |
 | `tdl <ai> [<second_ai>]` | Opret dev-layout med editor, AI og terminal |
 | `tdlm <ai> [<second_ai>]` | Opret dev-layout pr. undermappe |
 | `tsl <count> <command>` | Opret swarm-layout med flere ruder |
 
-## Ghostty Terminal
+## Ghostty-terminal
 
-Ghostty-terminalen installeres med _Install > Terminal_ via Omarchy-menuen.
+Ghostty-terminal installeres ved hjælp af _Installer > Terminal_ via Omarchy-menuen.
 
-| Genvej                  | Funktion              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Ctrl + Shift + E` | Ny opdeling nedenunder |
 | `Ctrl + Shift + O` | Ny opdeling ved siden af |
@@ -303,32 +303,32 @@ Ghostty-terminalen installeres med _Install > Terminal_ via Omarchy-menuen.
 
 ## Filhåndtering
 
-| Genvej              | Funktion                       |
+| Hotkey              | Function                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Gå til sti                     |
 | `Space`               | Forhåndsvis fil (pile navigerer) |
-| `Backspace`      | Gå én mappe tilbage             |
+| `Backspace`      | Gå en mappe tilbage             |
 
 ## Neovim (med lazyvim)
 
 ### Navigation
 
-| Genvej                   | Funktion                        |
+| Hotkey                   | Function                        |
 | ------------------------ | ------------------------------- |
 | `Space`                    | Vis kommandomuligheder            |
 | `Space Space`              | Åbn fil via fuzzy-søgning      |
 | `Space E`                  | Slå sidebjælke til/fra                  |
-| `Space G G`                | Vis git-styring               |
+| `Space G G`                | Vis git-kontroller               |
 | `Space S G`                | Søg i filindhold             |
 | `Ctrl + W W`               | Spring mellem sidebjælke og editor |
-| `Ctrl + Left/right arrow`  | Ændr størrelse på sidebjælke          |
-| `Shift + H`                      | Gå til filfane til venstre             |
-| `Shift + L`                      | Gå til filfane til højre            |
+| `Ctrl + Left/right arrow`  | Ændr sidebjælkens størrelse          |
+| `Shift + H`                      | Gå til venstre filfane             |
+| `Shift + L`                      | Gå til højre filfane            |
 | `Space B D`                | Luk filfane                  |
 
-### I sidebjælken
+### Mens du er i sidebjælken
 
-| Genvej                   | Funktion                        |
+| Hotkey                   | Function                        |
 | ------------------------ | ------------------------------- |
 | `A`                        | Tilføj ny fil i overordnet mappe      |
 | `Shift + A`                | Tilføj ny undermappe i overordnet mappe    |
@@ -337,13 +337,13 @@ Ghostty-terminalen installeres med _Install > Terminal_ via Omarchy-menuen.
 | `R`                        | Omdøb fremhævet fil/mappe     |
 | `?`                        | Vis hjælp til alle kommandoer      |
 
-[Se alle Neovim-genveje konfigureret af LazyVim](https://www.lazyvim.org/keymaps).
+[Se alle Neovim-genvejstasterne konfigureret af LazyVim](https://www.lazyvim.org/keymaps).
 
 ## Hurtige emojis
 
 Du kan bruge `Super + Ctrl + E` til at vise en komplet emoji-vælger, der lægger det valgte på udklipsholderen, eller du kan bruge disse hurtigadgangsmuligheder.
 
-| Genvej       | EM | Ledetråd       |
+| Hotkey       | EM | Clue       |
 | ------------ | -- | ---------- |
 | `Shift + CapsLock M S` | 😄 | smil      |
 | `Shift + CapsLock M C` | 😂 | gråd        |
@@ -371,10 +371,10 @@ Du kan bruge `Super + Ctrl + E` til at vise en komplet emoji-vælger, der lægge
 
 ## Hurtige fuldførelser
 
-| Genvej       | Fuldførelse       |
+| Hotkey       | Completion       |
 | ------------ |  ---------- |
-| `Shift + CapsLock Space Space` | — (tankestreg)   |
-| `Shift + CapsLock Space N` | Dit navn (som indtastet under opsætning)  |
-| `Shift + CapsLock Space E` | Din e-mail (som indtastet under opsætning)  |
+| `Shift + CapsLock Space Space` | — (lang tankestreg)   |
+| `Shift + CapsLock Space N` | Dit navn (som angivet under opsætningen)  |
+| `Shift + CapsLock Space E` | Din e-mail (som angivet under opsætningen)  |
 
 Du kan tilføje flere af dine egne ved at redigere `~/.XCompose` og derefter køre `omarchy-restart-xcompose` i terminalen for at få ændringerne registreret.

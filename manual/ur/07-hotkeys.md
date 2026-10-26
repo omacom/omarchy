@@ -1,6 +1,6 @@
 # ہاٹ کیز
 
-آپ `Super + K` کے ساتھ تمام اہم کی بورڈ بائنڈنگز دیکھ سکتے ہیں (Tmux بائنڈنگز `Super + Alt + K` کے ساتھ اور Herdr بائنڈنگز `Super + Ctrl + K` کے ساتھ)۔
+آپ تمام اہم کی بورڈ بائنڈنگز `Super + K` کے ساتھ دیکھ سکتے ہیں (Tmux بائنڈنگز `Super + Alt + K` کے ساتھ اور Herdr بائنڈنگز `Super + Ctrl + K` کے ساتھ)۔
 
 ## نیویگیشن
 
@@ -14,19 +14,19 @@
 | `Ctrl + Alt + Del` | تمام ونڈوز بند کریں |
 | `Super + T`               | ونڈو کو ٹائلنگ/فلوٹنگ کے درمیان ٹوگل کریں             |
 | `Super + J` | ونڈو کی پوزیشن ٹوگل کریں (افقی/عمودی) |
-| `Super + O`               | ونڈو کو sticky'n'floating میں پاپ کرنا ٹوگل کریں |
+| `Super + O`               | پوپنگ ونڈو کو sticky'n'floating میں ٹوگل کریں |
 | `Super + L`               | dwindle، scrolling، اور floating لے آؤٹس میں چکر لگائیں |
-| `Super + Alt + L`         | لے آؤٹس میں الٹی سمت میں چکر لگائیں |
+| `Super + Alt + L`         | لے آؤٹس میں الٹی ترتیب میں چکر لگائیں |
 | `Super + P`               | pseudo ونڈو اسٹائل ٹوگل کریں (natural بمقابلہ stretch) |
 | `Super + F`                 | فل اسکرین پر جائیں              |
 | `Super + Alt + F`                 | فل چوڑائی پر جائیں              |
 | `Super + Ctrl + F`                 | ونڈو کے اندر فل اسکرین پر جائیں              |
 | `Super + 1/2/3/4`         | فوکس شدہ مانیٹر پر مخصوص ورک اسپیس پر جائیں |
-| `Super + Tab` | فوکس شدہ مانیٹر پر اگلی ورک اسپیس پر جائیں |
-| `Super + Shift + Tab` | فوکس شدہ مانیٹر پر پچھلی ورک اسپیس پر جائیں |
+| `Super + Tab` | فوکس شدہ مانیٹر پر اگلے ورک اسپیس پر جائیں |
+| `Super + Shift + Tab` | فوکس شدہ مانیٹر پر پچھلے ورک اسپیس پر جائیں |
 | `Super + Ctrl + Tab` | فوکس شدہ مانیٹر پر سابقہ ورک اسپیس پر جائیں |
 | `Super + Shift + 1/2/3/4` | ونڈو کو فوکس شدہ مانیٹر پر ورک اسپیس پر منتقل کریں |
-| `Super + Shift + Alt + 1/2/3/4` | ونڈو کو فوکس شدہ مانیٹر پر ورک اسپیس پر پیچھے جائے بغیر منتقل کریں |
+| `Super + Shift + Alt + 1/2/3/4` | ونڈو کو فوکس شدہ مانیٹر پر ورک اسپیس پر منتقل کریں، پیچھے جائے بغیر |
 | `Super + S` | فل scratchpad ٹوگل کریں |
 | `Super + Alt + S` | ونڈو کو فل scratchpad پر منتقل کریں |
 | `Super + Grave` | Quake کنسول ٹوگل کریں |
@@ -34,13 +34,13 @@
 | `Super + Shift + Ctrl + Arrows` | ونڈو کو اس سمت والے مانیٹر پر منتقل کریں |
 | `Super + Shift + Alt + Arrows` | ورک اسپیس کو اس سمت والے مانیٹر پر منتقل کریں |
 | `Super + Arrow`  | تیر کی سمت والی ونڈو پر فوکس منتقل کریں، اسکرین کے کنارے پر اس طرف والے مانیٹر تک جاتے ہوئے |
-| `Super + Shift + Arrow`  | ونڈو کو تیر کی سمت والی دوسری ونڈو سے تبدیل کریں، بشمول اس طرف والے مانیٹر پر موجود ونڈو |
+| `Super + Shift + Arrow`  | تیر کی سمت والی دوسری ونڈو سے ونڈو تبدیل کریں، بشمول اس طرف والے مانیٹر پر موجود ونڈو |
 | `Super + Minus` | ونڈو کو بائیں پھیلائیں |
 | `Super + Equal` | ونڈو کو بائیں سکڑیں |
 | `Super + Shift + Minus` | ونڈو کو اوپر سکڑیں |
 | `Super + Shift + Equal` | ونڈو کو نیچے پھیلائیں |
-| `Super + Alt + Minus/Equal` | چھوٹے مراحل میں وہی سائز تبدیل کرنا |
-| `Super + Ctrl + Minus/Equal` | بڑے مراحل میں وہی سائز تبدیل کرنا |
+| `Super + Alt + Minus/Equal` | چھوٹے مراحل میں یہی سائز تبدیل کرنا |
+| `Super + Ctrl + Minus/Equal` | بڑے مراحل میں یہی سائز تبدیل کرنا |
 | `Super + Alt + Home` | ونڈو کی چوڑائی محفوظ کریں |
 | `Super + Home` | محفوظ شدہ ونڈو کی چوڑائی بحال کریں |
 | `Super + Left Mouse` | ونڈو کو گھسیٹ کر ادھر ادھر لے جائیں |
@@ -49,19 +49,19 @@
 | `Super + G`               | ونڈو گروپنگ ٹوگل کریں      |
 | `Super + Alt + G`               | ونڈو کو گروپنگ سے باہر منتقل کریں      |
 | `Super + Alt + Tab`               | گروپنگ میں ونڈوز کے درمیان چکر لگائیں      |
-| `Super + Alt + Shift + Tab`               | گروپنگ میں ونڈوز کے درمیان الٹی سمت میں چکر لگائیں      |
+| `Super + Alt + Shift + Tab`               | گروپنگ میں ونڈوز کے درمیان الٹا چکر لگائیں      |
 | `Super + Alt + Scroll Wheel` | گروپنگ میں ونڈوز کے درمیان چکر لگائیں |
 | `Super + Alt + 1/2/3/4/5`               | گروپنگ میں مخصوص ونڈو پر جائیں      |
 | `Super + Alt + Arrow`  | ونڈو کو تیر کی سمت میں گروپنگ میں منتقل کریں، بشمول اس طرف والے مانیٹر پر موجود ونڈو |
-| `Super + Ctrl + Left/Right`  | ٹائلنگ گروپ کے اندر ونڈوز کے درمیان منتقل ہوں |
+| `Super + Ctrl + Left/Right`  | ٹائلنگ گروپ کے اندر ونڈوز کے درمیان جائیں |
 | `Super + Ctrl + Z` | اسکرین پر زوم ان کریں (مزید زوم کے لیے دہرائیں) |
 | `Super + Ctrl + Alt + Z` | اسکرین سے مکمل زوم آؤٹ کریں |
 | `Super + /` | مانیٹر اسکیلنگ کے اختیارات میں آگے بڑھیں |
-| `Super + Alt + /` | مانیٹر اسکیلنگ کے اختیارات میں پیچھے بڑھیں |
+| `Super + Alt + /` | مانیٹر اسکیلنگ کے اختیارات میں پیچھے جائیں |
 | `Alt + Tab` | فعال ورک اسپیس پر ونڈوز میں آگے چکر لگائیں |
-| `Alt + Shift + Tab` | فعال ورک اسپیس پر ونڈوز میں پیچھے کی طرف چکر لگائیں |
+| `Alt + Shift + Tab` | فعال ورک اسپیس پر ونڈوز میں الٹا چکر لگائیں |
 | `Ctrl + Alt + Tab`| مانیٹرز میں فوکس آگے چکر لگائیں |
-| `Ctrl + Alt + Shift + Tab`| مانیٹرز میں فوکس پیچھے کی طرف چکر لگائیں |
+| `Ctrl + Alt + Shift + Tab`| مانیٹرز میں فوکس الٹا چکر لگائیں |
 
 ## سسٹم کنٹرولز
 
@@ -81,7 +81,7 @@
 | `Super + Ctrl + H` | ہارڈویئر مینو |
 | `Super + Ctrl + E` | ایموجی پکر |
 | `Super + Ctrl + .` | میڈیا ٹرانس کوڈ کریں |
-| `Super + Shift + Ctrl + A` | ایک AI ایجنٹ منتخب کریں |
+| `Super + Shift + Ctrl + A` | AI ایجنٹ منتخب کریں |
 
 ## ایڈجسٹمنٹس
 
@@ -104,11 +104,11 @@
 | `Super + Alt + Return` | Tmux ٹرمینل |
 | `Super + Ctrl + Return` | Herdr (ایجنٹ مینیجر) |
 | `Super + Shift + Return`           | براؤزر    |
-| `Super + Shift + Alt + B`           | براؤزر (پرائیویٹ/انکگنیٹو)    |
+| `Super + Shift + Alt + B`           | براؤزر (پرائیویٹ/incognito)    |
 | `Super + Shift + F`           | فائل مینیجر    |
 | `Super + Shift + Alt + F`           | ٹرمینل کے cwd میں فائل مینیجر    |
-| `Super + Shift + M`           | Music (Spotify)    |
-| `Super + Shift + Alt + M`           | Music (cliamp)    |
+| `Super + Shift + M`           | موسیقی (Spotify)    |
+| `Super + Shift + Alt + M`           | موسیقی (cliamp)    |
 | `Super + Shift + /`           | پاس ورڈ مینیجر (1password)    |
 | `Super + Shift + Q`           | کیلکولیٹر (Omacalc)    |
 | `Super + Shift + T`           | سرگرمی (btop)    |
@@ -118,11 +118,11 @@
 | `Super + Shift + Alt + E`           | نئی ای میل ([HEY](https://hey.com/))  |
 | `Super + Shift + A`           | AI (ChatGPT)  |
 | `Super + Shift + Alt + A`           | AI (Grok)  |
-| `Super + Shift + G`           | Messenger (Signal)  |
+| `Super + Shift + G`           | میسنجر (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
 | `Super + Shift + S`           | Google Maps  |
-| `Super + Shift + Alt + G`           | Messenger (WhatsApp)  |
-| `Super + Shift + Ctrl + G`           | Messenger (Google)  |
+| `Super + Shift + Alt + G`           | میسنجر (WhatsApp)  |
+| `Super + Shift + Ctrl + G`           | میسنجر (Google)  |
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | تحریر (Omawrite)  |
 | `Super + Shift + X`           | X |
@@ -136,28 +136,28 @@
 | ہاٹ کی                  | فنکشن              |
 | ----------------------- | --------------------- |
 | `Super + C`           | کاپی    |
-| `Super + X`           | کٹ (ٹرمینل میں نہیں)    |
+| `Super + X`           | کاٹیں (ٹرمینل میں نہیں)    |
 | `Super + V`           | پیسٹ    |
 | `Super + Ctrl + V`           | کلپ بورڈ مینیجر    |
 
-عام طور پر Linux پر، آپ کو ٹرمینل میں کاپی'n'پیسٹ کے لیے `Ctrl + Shift + C/V` اور باقی ہر جگہ اس کے لیے `Ctrl + C/V` درکار ہوتا ہے۔ یہ Omarchy کی متحد کلپ بورڈ ہاٹ کیز ہر جگہ کام کرتی ہیں۔
+عام طور پر Linux پر، آپ کو ٹرمینل میں copy'n'paste کرنے کے لیے `Ctrl + Shift + C/V` اور باقی ہر جگہ کرنے کے لیے `Ctrl + C/V` کی ضرورت ہوتی ہے۔ یہ Omarchy کی متحد کلپ بورڈ ہاٹ کیز ہر جگہ کام کرتی ہیں۔
 
 ## کیپچر
 
 | ہاٹ کی              | فنکشن                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | اسکرین شاٹ                      |
-| `Super + Ctrl + Alt + C`            | اسکرین شاٹ (وہی شاٹ، ان کی بورڈز کے لیے جن میں کوئی Print Screen کی نہیں ہے) |
+| `Super + Ctrl + Alt + C`            | اسکرین شاٹ (وہی شاٹ، ان کی بورڈز کے لیے جن میں Print Screen کی نہیں ہے) |
 | `Super + Ctrl + C` | کیپچر مینو |
 | `Alt + Print Screen`            | اسکرین ریکارڈ                     |
 | `Super + Print Screen` | رنگ منتخب کرنے والا |
-| `Super + Ctrl + Print Screen` | کلپ بورڈ پر متن نکالنا |
-| `Super + Alt + [` | ریکارڈنگ کے دوران ویب کیم اوورلے کو چھوٹا کریں |
-| `Super + Alt + ]` | ریکارڈنگ کے دوران ویب کیم اوورلے کو بڑا کریں |
-| `Alt + Shift + L` | ویب ایپ یا Chromium سے موجودہ URL کاپی کریں |
+| `Super + Ctrl + Print Screen` | متن نکال کر کلپ بورڈ پر |
+| `Super + Alt + [` | ریکارڈنگ کے دوران webcam اوورلے کو چھوٹا کریں |
+| `Super + Alt + ]` | ریکارڈنگ کے دوران webcam اوورلے کو بڑا کریں |
+| `Alt + Shift + L` | webapp یا Chromium سے موجودہ URL کاپی کریں |
 | `Alt + Shift + D` | موجودہ صفحے پر موجود ویڈیو کو `~/Videos` میں ڈاؤن لوڈ کریں |
-| `Super + Ctrl + X` | ڈکٹیشن شروع/بند کریں (درکار ہے _Setup > Defaults > Dictation_) |
-| `Right Alt` / `F9` | پش-ٹو-ٹاک ڈکٹیشن (Voxtype یا Superwhisper درکار ہے) |
+| `Super + Ctrl + X` | ڈکٹیشن شروع/بند کریں (_Setup > Defaults > Dictation_ درکار ہے) |
+| `Right Alt` / `F9` | Push-to-talk ڈکٹیشن (Voxtype یا Superwhisper درکار ہے) |
 
 اسکرین ریکارڈنگز کے ساتھ، ہاٹ کی پہلے پوچھتی ہے کہ آپ کون سی آڈیو چاہتے ہیں، پھر ریکارڈنگ شروع کرتی ہے۔ روکنے کے لیے اسے دوبارہ دبائیں۔ تفصیلات کے لیے [اسکرین شاٹس اور ریکارڈنگ](12-screenshots-recording.md) دیکھیں۔
 
@@ -167,23 +167,23 @@
 
 | ہاٹ کی                  | فنکشن              |
 | ----------------------- | --------------------- |
-| `Super + ,` | تازہ ترین اطلاع مسترد کریں  |
+| `Super + ,` | تازہ ترین اطلاع پر عمل کریں: اسے مسترد کریں، اس کا واحد بٹن دبائیں، یا اس کے بٹنوں میں سے ایک منتخب کریں  |
 | `Super + Shift + ,` | تمام اطلاعات مسترد کریں |
 | `Super + Ctrl + ,` | کی بورڈ سے اطلاعات کنٹرول کریں  |
-| `Super + Alt + ,` | تازہ ترین اطلاع کو بلائیں  |
-| `Super + Shift + Alt + ,` | اطلاع کی تاریخ کھولیں  |
+| `Super + Alt + ,` | تازہ ترین اطلاع مسترد کریں  |
+| `Super + Shift + Alt + ,` | اطلاعات کی تاریخ کھولیں  |
 | `Super + Ctrl + Alt + ,` | اطلاعات خاموش کرنا ٹوگل کریں  |
 
 ## اسٹائل
 
 | ہاٹ کی                  | فنکشن              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + T` | نئی تھیم منتخب کریں (بھی `Super + Ctrl + Shift + Space`) |
-| `Super + Ctrl + W` | تھیم کا پس منظر منتخب کریں (بھی `Super + Ctrl + Space`) |
+| `Super + Ctrl + T` | نیا تھیم منتخب کریں (یہ بھی `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | تھیم کا پس منظر منتخب کریں (یہ بھی `Super + Ctrl + Space`) |
 | `Super + Backspace` | ونڈو پر شفافیت ٹوگل کریں |
-| `Super + Ctrl + Backspace` | سنگل-ونڈو مربع تناسب ٹوگل کریں |
+| `Super + Ctrl + Backspace` | سنگل ونڈو کے مربع تناسب کو ٹوگل کریں |
 
-اضافی پس منظر کی تصاویر `~/.config/omarchy/backgrounds/<theme name>` میں رہتی ہیں۔ Omarchy مینو میں _Install > Style > Background_ کے ذریعے بھی دستیاب ہیں۔
+اضافی پس منظر کی تصاویر `~/.config/omarchy/backgrounds/<theme name>` میں رہتی ہیں۔ Omarchy مینو میں _Install > Style > Background_ کے ذریعے بھی دستیاب ہے۔
 
 تمام اسٹائل اختیارات Omarchy مینو (`Super + Space`) میں _Style_ کے تحت بھی دستیاب ہیں۔
 
@@ -191,14 +191,14 @@
 
 | ہاٹ کی                  | فنکشن              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | غیر فعال ہونے پر لاک کرنا ٹوگل کریں |
+| `Super + Ctrl + I` | بیکار ہونے پر لاک کرنا ٹوگل کریں |
 | `Super + Ctrl + Delete` | لیپ ٹاپ ڈسپلے آن/آف ٹوگل کریں |
-| `Super + Ctrl + Alt + Delete` | لیپ ٹاپ ڈسپلے مررنگ ٹوگل کریں |
+| `Super + Ctrl + Alt + Delete` | لیپ ٹاپ ڈسپلے کی mirroring ٹوگل کریں |
 | `Super + Shift + Space` | اوپر والی بار ٹوگل کریں  |
 | `Shift + Mute` | اگلے آڈیو آؤٹ پٹ پر جائیں |
 | `Shift + Play` | اگلے میڈیا ذریعے پر جائیں |
-| `Super + Shift + Backspace` | ونڈو کے خلا ٹوگل کریں |
-| `Super + Ctrl + Alt + F` | فل اسکرین ڈیسک ٹاپ ٹوگل کریں (اوپر والی بار + ونڈو کے خلا) |
+| `Super + Shift + Backspace` | ونڈو کے فاصلے ٹوگل کریں |
+| `Super + Ctrl + Alt + F` | فل اسکرین ڈیسک ٹاپ ٹوگل کریں (اوپر والی بار + ونڈو کے فاصلے) |
 
 ## یاد دہانیاں
 
@@ -218,7 +218,7 @@
 
 ## Tmux
 
-پریفکس کی `Ctrl + Space` ہے (`Ctrl + B` بھی کام کرتا ہے)۔ آپ ان بائنڈنگز کو `~/.config/tmux/tmux.conf` میں تبدیل کر سکتے ہیں۔
+Prefix کی `Ctrl + Space` ہے (`Ctrl + B` بھی کام کرتا ہے)۔ آپ ان بائنڈنگز کو `~/.config/tmux/tmux.conf` میں تبدیل کر سکتے ہیں۔
 
 ### پینز
 
@@ -228,10 +228,10 @@
 | `Prefix + h` | پین کو نیچے تقسیم کریں (افقی) |
 | `Prefix + x` | پین ختم کریں |
 | `Prefix + z` | پین زوم ٹوگل کریں (فل اسکرین) |
-| `Alt + Enter` | پین کو نیچے تقسیم کریں (پریفکس کے بغیر) |
-| `Alt + Shift + Enter` | پین کو ساتھ تقسیم کریں (پریفکس کے بغیر) |
-| `Alt + Escape` | پین ختم کریں (پریفکس کے بغیر) |
-| `Ctrl + Alt + Arrows` | پینز کے درمیان منتقل ہوں |
+| `Alt + Enter` | پین کو نیچے تقسیم کریں (Prefix کے بغیر) |
+| `Alt + Shift + Enter` | پین کو ساتھ تقسیم کریں (Prefix کے بغیر) |
+| `Alt + Escape` | پین ختم کریں (Prefix کے بغیر) |
+| `Ctrl + Alt + Arrows` | پینز کے درمیان جائیں |
 | `Ctrl + Alt + Shift + Arrows` | پینز کا سائز تبدیل کریں |
 
 ### ونڈوز
@@ -242,8 +242,8 @@
 | `Prefix + k` | ونڈو ختم کریں |
 | `Prefix + r` | ونڈو کا نام تبدیل کریں |
 | `Alt + 1-9` | مخصوص ونڈو پر جائیں |
-| `Alt + Arrow Left/Right` | ونڈوز کے درمیان منتقل ہوں |
-| `Alt + Shift + Arrow Left/Right` | ونڈو کو بائیں/دائیں منتقل کریں |
+| `Alt + Arrow Left/Right` | ونڈوز کے درمیان جائیں |
+| `Alt + Shift + Arrow Left/Right` | ونڈو بائیں/دائیں منتقل کریں |
 
 ### سیشنز
 
@@ -254,9 +254,9 @@
 | `Prefix + R` | سیشن کا نام تبدیل کریں |
 | `Prefix + N` | اگلا سیشن |
 | `Prefix + P` | پچھلا سیشن |
-| `Alt + Arrow Up/Down` | سیشنز کے درمیان منتقل ہوں |
+| `Alt + Arrow Up/Down` | سیشنز کے درمیان جائیں |
 | `Prefix + s` | سیشنز کی فہرست |
-| `Prefix + d` | سیشن سے الگ ہوں |
+| `Prefix + d` | سیشن سے الگ ہو جائیں |
 
 ### کاپی موڈ (vi-style)
 
@@ -282,7 +282,7 @@
 | ------- | -------- |
 | `tdl <ai> [<second_ai>]` | ایڈیٹر، AI، اور ٹرمینل کے ساتھ dev لے آؤٹ بنائیں |
 | `tdlm <ai> [<second_ai>]` | ہر ذیلی ڈائریکٹری کے لیے dev لے آؤٹ بنائیں |
-| `tsl <count> <command>` | ملٹی-پین swarm لے آؤٹ بنائیں |
+| `tsl <count> <command>` | ملٹی پین swarm لے آؤٹ بنائیں |
 
 ## Ghostty ٹرمینل
 
@@ -290,13 +290,13 @@ Ghostty ٹرمینل Omarchy مینو کے ذریعے _Install > Terminal_ اس�
 
 | ہاٹ کی                  | فنکشن              |
 | ----------------------- | --------------------- |
-| `Ctrl + Shift + E` | نیچے نئی تقسیم |
-| `Ctrl + Shift + O` | ساتھ نئی تقسیم |
-| `Ctrl + Alt + Arrows` | تقسیموں کے درمیان منتقل ہوں |
-| `Super + Ctrl + Shift + Arrows` | تقسیم کا سائز 10 لائنوں سے تبدیل کریں |
-| `Super + Ctrl + Shift + Alt + Arrows` | تقسیم کا سائز 100 لائنوں سے تبدیل کریں |
+| `Ctrl + Shift + E` | نیا اسپلٹ نیچے |
+| `Ctrl + Shift + O` | نیا اسپلٹ ساتھ |
+| `Ctrl + Alt + Arrows` | اسپلٹس کے درمیان جائیں |
+| `Super + Ctrl + Shift + Arrows` | اسپلٹ کا سائز 10 لائنوں سے تبدیل کریں |
+| `Super + Ctrl + Shift + Alt + Arrows` | اسپلٹ کا سائز 100 لائنوں سے تبدیل کریں |
 | `Ctrl + Shift + T` | نیا ٹیب  |
-| `Ctrl + Shift + Arrows` | ٹیبز کے درمیان منتقل ہوں |
+| `Ctrl + Shift + Arrows` | ٹیبز کے درمیان جائیں |
 | `Alt + Numbers` | مخصوص ٹیب پر جائیں |
 | `Shift + Pg Up/Down` | تاریخ اسکرول کریں |
 | `Ctrl + Left mouse` | براؤزر میں لنک کھولیں |
@@ -306,7 +306,7 @@ Ghostty ٹرمینل Omarchy مینو کے ذریعے _Install > Terminal_ اس�
 | ہاٹ کی              | فنکشن                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | راستے پر جائیں                     |
-| `Space`               | فائل کا پیش نظارہ کریں (تیر نیویگیٹ کرتے ہیں) |
+| `Space`               | فائل کا پیش نظارہ (تیر نیویگیٹ کرتے ہیں) |
 | `Backspace`      | ایک فولڈر پیچھے جائیں             |
 
 ## Neovim (w/ lazyvim)
@@ -317,16 +317,16 @@ Ghostty ٹرمینل Omarchy مینو کے ذریعے _Install > Terminal_ اس�
 | ------------------------ | ------------------------------- |
 | `Space`                    | کمانڈ کے اختیارات دکھائیں            |
 | `Space Space`              | fuzzy تلاش کے ذریعے فائل کھولیں      |
-| `Space E`                  | سائیڈبار ٹوگل کریں                  |
+| `Space E`                  | سائیڈ بار ٹوگل کریں                  |
 | `Space G G`                | git کنٹرولز دکھائیں               |
 | `Space S G`                | فائل کے مواد میں تلاش کریں             |
-| `Ctrl + W W`               | سائیڈبار اور ایڈیٹر کے درمیان جائیں |
-| `Ctrl + Left/right arrow`  | سائیڈبار کا سائز تبدیل کریں          |
+| `Ctrl + W W`               | سائیڈ بار اور ایڈیٹر کے درمیان جائیں |
+| `Ctrl + Left/right arrow`  | سائیڈ بار کا سائز تبدیل کریں          |
 | `Shift + H`                      | بائیں فائل ٹیب پر جائیں             |
 | `Shift + L`                      | دائیں فائل ٹیب پر جائیں            |
 | `Space B D`                | فائل ٹیب بند کریں                  |
 
-### جب سائیڈبار میں ہوں
+### سائیڈ بار میں ہوتے ہوئے
 
 | ہاٹ کی                   | فنکشن                        |
 | ------------------------ | ------------------------------- |
@@ -337,7 +337,7 @@ Ghostty ٹرمینل Omarchy مینو کے ذریعے _Install > Terminal_ اس�
 | `R`                        | نمایاں فائل/ڈائریکٹری کا نام تبدیل کریں     |
 | `?`                        | تمام کمانڈز کے لیے مدد دکھائیں      |
 
-[LazyVim کے ذریعے ترتیب دی گئی تمام Neovim ہاٹ کیز دیکھیں](https://www.lazyvim.org/keymaps)۔
+[LazyVim کے ذریعے ترتیب دی گئی تمام Neovim ہاٹ کیز دیکھیں](https://www.lazyvim.org/keymaps).
 
 ## فوری ایموجیز
 
@@ -352,29 +352,29 @@ Ghostty ٹرمینل Omarchy مینو کے ذریعے _Install > Terminal_ اس�
 | `Shift + CapsLock M H` | ❤️ | دل      |
 | `Shift + CapsLock M Y` | 👍 | ہاں        |
 | `Shift + CapsLock M N` | 👎 | نہیں         |
-| `Shift + CapsLock M F` | 🖕 | fuck       |
+| `Shift + CapsLock M F` | 🖕 | گالی       |
 | `Shift + CapsLock M W` | 🤞 | خواہش       |
-| `Shift + CapsLock M R` | 🤘 | rock       |
+| `Shift + CapsLock M R` | 🤘 | راک       |
 | `Shift + CapsLock M K` | 😘 | بوسہ       |
 | `Shift + CapsLock M E` | 🙄 | آنکھیں گھمانا    |
 | `Shift + CapsLock M I` | 😉 | آنکھ مارنا       |
 | `Shift + CapsLock M P` | 🙏 | دعا |
 | `Shift + CapsLock M D` | 🤤 | رال ٹپکنا      |
 | `Shift + CapsLock M M` | 💰 | پیسہ      |
-| `Shift + CapsLock M X` | 🎉 | xellebrate |
+| `Shift + CapsLock M X` | 🎉 | جشن |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
 | `Shift + CapsLock M T` | 🥂 | ٹوسٹ      |
-| `Shift + CapsLock M O` |👌 | ok |
+| `Shift + CapsLock M O` |👌 | ٹھیک ہے |
 | `Shift + CapsLock M G` |👋 | سلام |
 | `Shift + CapsLock M A` |💪 | بازو |
-| `Shift + CapsLock M B` |🤯 | دھماکا |
+| `Shift + CapsLock M B` |🤯 | دماغ اڑنا |
 
-## فوری تکمیل
+## فوری تکمیلات
 
 | ہاٹ کی       | تکمیل       |
 | ------------ |  ---------- |
 | `Shift + CapsLock Space Space` | — (mdash)   |
-| `Shift + CapsLock Space N` | آپ کا نام (جیسا کہ سیٹ اپ پر درج کیا گیا تھا)  |
-| `Shift + CapsLock Space E` | آپ کا ای میل (جیسا کہ سیٹ اپ پر درج کیا گیا تھا)  |
+| `Shift + CapsLock Space N` | آپ کا نام (جیسا کہ سیٹ اپ پر درج کیا گیا)  |
+| `Shift + CapsLock Space E` | آپ کا ای میل (جیسا کہ سیٹ اپ پر درج کیا گیا)  |
 
 آپ `~/.XCompose` میں ترمیم کر کے اپنے مزید شامل کر سکتے ہیں، پھر تبدیلیاں لاگو کرانے کے لیے ٹرمینل میں `omarchy-restart-xcompose` چلائیں۔
