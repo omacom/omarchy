@@ -34,10 +34,13 @@ else
 fi
 
 # GTK falls back to Adwaita when the named icon theme is missing, but Qt does
-# not, so the shell would draw no icon for an app without one of its own.
+# not, so the shell would draw no icon for an app without one of its own. Icon
+# themes are looked up where the icon theme spec puts them: ~/.icons, then the
+# icons folder of each XDG data directory.
 icon_theme_installed() {
-  local dir
-  for dir in /usr/share/icons "$HOME/.local/share/icons" "$HOME/.icons"; do
+  local dir data_dirs
+  IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for dir in "$HOME/.icons" "${data_dirs[@]/%//icons}"; do
     [[ -f $dir/$1/index.theme ]] && return 0
   done
   return 1
