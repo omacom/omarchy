@@ -519,16 +519,21 @@ pass "windows the open rule floats tile again when the workspace stops floating"
 
 # A maximized window on a floating workspace comes back to its own size when
 # another app opens a window there, but not when it opens one itself, such as
-# a dropdown menu. One on a tiled workspace is left maximized.
+# a dropdown menu, nor for a dialog the open rule passes over, such as the
+# portal's file picker. One on a tiled workspace is left maximized.
 printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
 if ! run_lua '
 require("default.hypr.workspace-layouts")
+local opened = { "omarchy-mode-opened*" }
 local maximized = window("0x1", 1, { floating = true, fullscreen = 1, pid = 100 })
 local tiled_max = window("0x2", 2, { fullscreen = 1 })
-local menu = window("0x5", 1, { floating = true, pid = 100 })
+local menu = window("0x5", 1, { floating = true, pid = 100, tags = opened })
 state().subscriptions["window.open"][1](menu)
 assert(maximized.fullscreen == 1, "a maximized window was unmaximized when its own app opened a menu")
-local opening = window("0x3", 1, { floating = true, pid = 200 })
+local picker = window("0x6", 1, { floating = true, pid = 300 })
+state().subscriptions["window.open"][1](picker)
+assert(maximized.fullscreen == 1, "a maximized window was unmaximized when a file picker opened over it")
+local opening = window("0x3", 1, { floating = true, pid = 200, tags = opened })
 state().subscriptions["window.open"][1](opening)
 assert(maximized.fullscreen == 0, "a maximized window stayed maximized when another opened on its floating workspace")
 local next_door = window("0x4", 2)

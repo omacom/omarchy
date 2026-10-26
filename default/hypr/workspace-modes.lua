@@ -277,9 +277,10 @@ local function claim_opened(window)
       -- The next window the rule opens steps on from this one.
       cascade = (cascade + 1) % 5
       sync_open_rules()
-      return
+      return true
     end
   end
+  return false
 end
 
 local function same_app(window, other)
@@ -288,9 +289,10 @@ end
 
 -- A maximized window has a floating workspace to itself until another app
 -- opens a window there, which brings it back to its own size so the two can
--- share it. A window the maximized app opens itself leaves it maximized: an
--- XWayland app's dropdown menus, Steam's among them, open as windows of their
--- own, and a dialog belongs over the window it came from.
+-- share it. Only a window the mode opens counts: a dialog, a portal's file
+-- picker, or an app with a float rule of its own opens over the maximized
+-- window and leaves it be. Nor does one the maximized app opens itself: an
+-- XWayland app's dropdown menus open as windows of their own.
 local function unmaximize_others(window)
   local id = window.workspace and window.workspace.id
   if not floating_workspace(id) then
@@ -355,8 +357,9 @@ local function watch()
   input.follow_mouse = hl.get_config("input.follow_mouse")
 
   hl.on("window.open", function(window)
-    claim_opened(window)
-    unmaximize_others(window)
+    if claim_opened(window) then
+      unmaximize_others(window)
+    end
     arrange({ window })
   end)
 
