@@ -649,6 +649,7 @@ Item {
       })
     }
     var query = root.filterText.trim().toLowerCase()
+    var dmenuRows = []
     for (var i = 0; i < root.dmenuOptions.length; i++) {
       // An option is "<label>", "<glyph>\t<label>", or
       // "<glyph>\t<label>\t<subtext>". The glyph never comes back with the
@@ -658,9 +659,9 @@ Item {
       var icon = parts.length > 1 ? parts.shift() : ""
       var label = parts.shift() || ""
       var detail = parts.join("\t")
-      if (query && label.toLowerCase().indexOf(query) < 0
-          && detail.toLowerCase().indexOf(query) < 0) continue
-      displayModel.append({
+      var tier = MenuModel.dmenuTier(query, label, detail)
+      if (tier < 0) continue
+      dmenuRows.push({ tier: tier, index: i, row: {
         itemId: "dmenu." + i,
         disabled: false,
         kind: "dmenu",
@@ -677,8 +678,12 @@ Item {
         provider: "",
         score: i,
         section: ""
-      })
+      } })
     }
+
+    // Tiers never interleave; original option order is kept inside a tier.
+    dmenuRows.sort(function(a, b) { return a.tier !== b.tier ? a.tier - b.tier : a.index - b.index })
+    for (var k = 0; k < dmenuRows.length; k++) displayModel.append(dmenuRows[k].row)
 
     layoutSerial += 1
 
