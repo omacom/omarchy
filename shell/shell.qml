@@ -1172,6 +1172,7 @@ ShellRoot {
   }
 
   function summon(pluginId, payloadJson) {
+    shell.dismissScreensaver()
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
     if (!id) return false
     var plugins = shell.pluginRegistry.installedPlugins
@@ -1603,7 +1604,18 @@ ShellRoot {
   // The IPC targets an ipc shortcut may name, and the service that owns each.
   readonly property var ipcShortcutServices: ({ media: "omarchy.media", notifications: "omarchy.notifications" })
 
+  function dismissScreensaver() {
+    var idle = shell.serviceFor("omarchy.idle")
+    if (idle && typeof idle.dismissScreensaver === "function") {
+      idle.dismissScreensaver("shell")
+    } else {
+      Util.execArgv(["pkill", "-f", "[o]marchy-launch-screensaver"])
+      Util.execArgv(["pkill", "-f", "[o]rg.omarchy.screensaver"])
+    }
+  }
+
   function runShortcut(entry) {
+    shell.dismissScreensaver()
     if (entry.kind === "menu") {
       shell.toggle("omarchy.menu", JSON.stringify({ menu: entry.target }))
     } else if (entry.kind === "ipc") {
