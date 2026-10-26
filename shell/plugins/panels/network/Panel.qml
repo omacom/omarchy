@@ -2365,7 +2365,7 @@ Panel {
           Text {
             textFormat: Text.PlainText
             width: parent.width
-            text: "Security"
+            text: Commons.I18n.t("network.hotspotSecurityHeading")
             color: Qt.darker(root.bar.foreground, 1.35)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
@@ -2670,7 +2670,7 @@ Panel {
     required property string choice
 
     text: Model.hotspotSecurityLabel(choice)
-    tooltipText: Model.hotspotSecurityTooltip(choice, root.hotspotActive, Model.hotspotSecurity(root.hotspot))
+    tooltipText: Model.hotspotSecurityTooltip(choice, root.hotspotActive, Model.hotspotSecurity(root.hotspot), Commons.I18n.t)
     fontSize: Style.font.bodySmall
     foreground: root.bar.foreground
     fontFamily: root.bar.fontFamily

@@ -497,11 +497,12 @@ function hotspotSecurityLabel(choice) {
 
 // NetworkManager reads key management when the hotspot starts, so while it is
 // on air a different pick waits for the next start.
-function hotspotSecurityTooltip(choice, active, saved) {
-  var text = "WPA3 for devices that support it, WPA2 for the rest"
-  if (choice === "wpa2") text = "WPA2 only, for devices that struggle with WPA3"
-  else if (choice === "wpa3") text = "WPA3 only: strongest, but older devices can't join"
-  if (active && choice !== saved) text += " (from the next start)"
+function hotspotSecurityTooltip(choice, active, saved, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var text = t("network.hotspotSecurityMixedTooltip", "WPA3 for devices that support it, WPA2 for the rest")
+  if (choice === "wpa2") text = t("network.hotspotSecurityWpa2Tooltip", "WPA2 only, for devices that struggle with WPA3")
+  else if (choice === "wpa3") text = t("network.hotspotSecurityWpa3Tooltip", "WPA3 only: strongest, but older devices can't join")
+  if (active && choice !== saved) text = t("network.fromNextStart", "%1 (from the next start)").replace("%1", text)
   return text
 }
 
