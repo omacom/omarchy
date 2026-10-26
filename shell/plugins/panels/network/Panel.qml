@@ -439,10 +439,14 @@ Panel {
   }
 
   // Bar pill state, derived from the native NetworkManager service so the
-  // icon reflects connection changes without polling. Wired is preferred
-  // when both are up, matching the default-route device.
+  // icon reflects connection changes without polling. A connected wired
+  // management link (e.g. Apple T2) need not carry the Internet route.
   readonly property var wiredDevice: findDevice(DeviceType.Wired)
   readonly property string kind: {
+    if (Commons.NetworkStatus.kind === "wifi" &&
+        (connectedWifiNetwork || (wifiDevice && wifiDevice.connected))) return "wifi"
+    if (Commons.NetworkStatus.kind === "ethernet" &&
+        wiredDevice && wiredDevice.connected) return "ethernet"
     if (wiredDevice && wiredDevice.connected) return "ethernet"
     if (connectedWifiNetwork) return "wifi"
     // NetworkManager can leave the active profile out of the device's

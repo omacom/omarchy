@@ -98,6 +98,23 @@ assertEqual(network.connectionIcon('wifi', 80), network.wifiIconFor(80), 'networ
 // of flickering to disconnected.
 const kindBinding = panelSource.match(/readonly property string kind: \{[\s\S]*?\n {2}\}/)
 assert(kindBinding, 'network has a kind binding')
+const connectionKind = new Function('wiredDevice', 'connectedWifiNetwork', 'wifiDevice', 'Commons',
+  kindBinding[0].slice(kindBinding[0].indexOf('{') + 1, -1))
+const connected = { connected: true }
+const route = kind => ({ NetworkStatus: { kind } })
+assertEqual(connectionKind(connected, connected, connected, route('wifi')), 'wifi', 'network follows Wi-Fi routing despite a connected wired management link')
+assertEqual(connectionKind(connected, connected, connected, route('ethernet')), 'ethernet', 'network still prefers Ethernet when it carries the route')
+assertEqual(connectionKind(connected, null, connected, route('wifi')), 'wifi', 'routed Wi-Fi survives a missing OWE scan-list connection')
+assertEqual(connectionKind(connected, null, null, route('wifi')), 'ethernet', 'stale routed Wi-Fi cannot outlive the native connection')
+assertEqual(connectionKind(null, null, null, route('ethernet')), 'disconnected', 'a stale route cannot leave a disconnected device showing connected')
+
+const statusSource = fs.readFileSync(root + '/shell/Commons/NetworkStatus.qml', 'utf8')
+const update = statusSource.match(/function update\(raw\) \{[\s\S]*?\n {2}\}/)[0]
+const applyStatus = new Function('raw', 'readPending', 'events',
+  'let kind = ""; (' + update + ')(raw); return kind')
+assertEqual(applyStatus('wifi\tCafe\t80\t5200\n', false, { running: true }), 'wifi', 'route status accepts the existing helper protocol')
+assertEqual(applyStatus('ethernet\teth0\t\t\n', true, { running: true }), '', 'route status discards a sample superseded by a route event')
+assertEqual(applyStatus('wifi\tCafe\t80\t5200\n', false, { running: false }), '', 'route status does not retain a sample after its monitor exits')
 assert(/if \(wifiDevice && wifiDevice\.connected\) return "wifi"/.test(kindBinding[0]), 'network keeps showing Wi-Fi while the device is connected but no network is listed as connected')
 assert(
   kindBinding[0].indexOf('connectedWifiNetwork) return "wifi"') < kindBinding[0].indexOf('wifiDevice.connected) return "wifi"'),
