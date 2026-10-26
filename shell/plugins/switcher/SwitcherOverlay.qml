@@ -61,6 +61,14 @@ OverlayWindow {
 
     Keys.onPressed: function(event) {
       var switcher = window.switcher
+      // A key that comes without Alt held means Alt was let go and the release
+      // never arrived, so the switch ends here the way letting go would have.
+      if (!switcher.sticky && event.key !== Qt.Key_Alt && !(event.modifiers & Qt.AltModifier)) {
+        if (event.key === Qt.Key_Escape) switcher.cancel()
+        else switcher.commit()
+        event.accepted = true
+        return
+      }
       var forward = window.mirrored ? Qt.Key_Left : Qt.Key_Right
       var back = window.mirrored ? Qt.Key_Right : Qt.Key_Left
       if (event.key === forward || event.key === Qt.Key_Tab) {
