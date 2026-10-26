@@ -393,19 +393,22 @@ const hotspotRadioTaken = panelBinding('hotspotRadioTaken')
 const syncWifiSource = panelSource.match(/function syncWifiNetworks\(\) \{[\s\S]*?\n {2}\}/)
 assert(syncWifiSource, 'network has a wifi list sync')
 if (syncWifiSource) {
+  // The panel state the function reads and writes, as one scope.
   const listFor = (hotspotIface, adapter) => {
-    let wifiNetworks = []
-    let wifiStationAvailable = false
-    let scanning = true
     const wifiDevice = { name: adapter }
-    const wifiNetworkObjects = [{ ssid: 'Upstream' }]
-    const Model = { wifiRow: network => ({ ssid: network.ssid }), sortWifiRows: rows => rows }
-    const hotspot = { iface: hotspotIface }
-    const hotspotRadioTakenNow = hotspotRadioTaken({ hotspotActive: true, hotspot, wifiDevice })
-    const run = new Function('wifiNetworkObjects', 'Model', 'wifiDevice', 'hotspotRadioTaken', 'checkActionCompletion', 'state',
-      syncWifiSource[0].replace(/\b(wifiNetworks|wifiStationAvailable|scanning)\b/g, 'state.$1') + '\nsyncWifiNetworks()')
-    const state = { wifiNetworks, wifiStationAvailable, scanning }
-    run(wifiNetworkObjects, Model, wifiDevice, hotspotRadioTakenNow, () => {}, state)
+    const state = {
+      wifiNetworks: [],
+      wifiStationAvailable: false,
+      scanning: true,
+      wifiDevice,
+      wifiNetworkObjects: [{ name: 'Upstream' }],
+      hotspotSsids: [],
+      activeHotspot: false,
+      hotspotRadioTaken: hotspotRadioTaken({ hotspotActive: true, hotspot: { iface: hotspotIface }, wifiDevice }),
+      checkActionCompletion: () => {},
+      Model: { wifiRow: network => ({ name: network.name }), sortWifiRows: rows => rows, isHotspotSsid: () => false },
+    }
+    new Function('state', 'with (state) {\n' + syncWifiSource[0] + '\nsyncWifiNetworks()\n}')(state)
     return state.wifiNetworks
   }
   assertEqual(listFor('wlan0', 'wlan0').length, 0, 'network hides the wifi list on the one adapter hosting the hotspot')
