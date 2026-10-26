@@ -122,7 +122,8 @@ function clamp(value, low, high) {
 // Lay the thumbnails out in rows the way Windows does: every thumbnail the
 // same height and as wide as its window is for that height, within limits,
 // rows filled left to right and each centered. When the rows do not fit, the
-// thumbnails shrink until they do.
+// thumbnails shrink until they do, and when they still do not, the height
+// stops at maxHeight and the rows scroll: contentHeight is all of them.
 //
 // aspects: each window's width over its height.
 // options: maxWidth, maxHeight, thumbHeight, minThumbHeight, minAspect,
@@ -136,6 +137,8 @@ function layout(aspects, options) {
     thumbHeight = Math.max(minThumbHeight, Math.floor(thumbHeight * 0.9))
     result = rowsFor(aspects, thumbHeight, options)
   }
+  result.contentHeight = result.height
+  result.height = Math.min(result.height, Math.max(0, options.maxHeight))
   return result
 }
 
@@ -213,6 +216,18 @@ function rowNeighbor(laidOut, index, delta) {
   return best
 }
 
+// Where the rows scroll to, from contentY, to show the thumbnail at index
+// whole. They move only as far as that takes.
+function scrollFor(laidOut, index, contentY) {
+  var item = laidOut && laidOut.items ? laidOut.items[index] : null
+  var limit = laidOut ? Math.max(0, laidOut.contentHeight - laidOut.height) : 0
+  var y = clamp(contentY || 0, 0, limit)
+  if (!item) return y
+  if (item.y < y) return item.y
+  if (item.y + item.height > y + laidOut.height) return clamp(item.y + item.height - laidOut.height, 0, limit)
+  return y
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     normalizeAddress: normalizeAddress,
@@ -225,6 +240,7 @@ if (typeof module !== "undefined") {
     stepIndex: stepIndex,
     indexAfterRemoval: indexAfterRemoval,
     layout: layout,
-    rowNeighbor: rowNeighbor
+    rowNeighbor: rowNeighbor,
+    scrollFor: scrollFor
   }
 }

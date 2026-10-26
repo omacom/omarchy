@@ -46,6 +46,14 @@ assertEqual(switcher.rowNeighbor(wrapped, 0, 1), 2, 'Down goes to the nearest th
 assertEqual(switcher.rowNeighbor(wrapped, 2, 1), 2, 'Down stays put on the last row')
 const shrunk = switcher.layout([2, 2, 2, 2, 2, 2], Object.assign({}, options, { maxHeight: 150 }))
 assert(shrunk.height <= 150 && shrunk.thumbHeight < 100, 'thumbnails shrink until the rows fit')
+
+const tall = switcher.layout(new Array(40).fill(2), Object.assign({}, options, { maxHeight: 150 }))
+assertEqual(tall.height, 150, 'rows that do not fit at the smallest thumbnails stop at the height there is')
+assert(tall.contentHeight > tall.height, 'and scroll through the rest')
+const last = tall.items[39]
+assertEqual(switcher.scrollFor(tall, 39, 0), tall.contentHeight - tall.height, 'the rows scroll down to show the last thumbnail picked')
+assertEqual(switcher.scrollFor(tall, 0, tall.contentHeight - tall.height), 0, 'and back up to show the first')
+assertEqual(switcher.scrollFor(tall, 20, tall.items[20].y - 5), tall.items[20].y - 5, 'a thumbnail in view stays where it is')
 JS
 
 pass "the window switcher orders, picks and lays out windows the way Windows does"

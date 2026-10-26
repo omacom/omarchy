@@ -120,143 +120,169 @@ OverlayWindow {
     // Clicks between thumbnails stay on the card.
     MouseArea { anchors.fill: parent }
 
-    Item {
-      id: grid
+    // Rows that do not fit scroll, following the pick, with no motion: the
+    // switcher is up for a moment and the keys step fast.
+    Flickable {
+      id: rows
       x: card.contentLeftInset
       y: card.contentTopInset
       width: window.laidOut.width
       height: window.laidOut.height
+      contentWidth: width
+      contentHeight: window.laidOut.contentHeight
+      boundsBehavior: Flickable.StopAtBounds
+      clip: true
 
-      Repeater {
-        model: window.switcher.entries
+      function follow() {
+        contentY = SwitcherModel.scrollFor(window.laidOut, window.switcher.selected, contentY)
+      }
 
-        delegate: Item {
-          id: item
+      Connections {
+        target: window.switcher
+        function onSelectedChanged() { rows.follow() }
+      }
 
-          required property var modelData
-          required property int index
+      Connections {
+        target: window
+        function onLaidOutChanged() { rows.follow() }
+      }
 
-          readonly property var place: window.laidOut.items[index] || ({ x: 0, y: 0, width: 0, height: 0 })
-          readonly property bool selected: index === window.switcher.selected
-          readonly property var toplevel: modelData.toplevel
-          readonly property real aspect: preview.hasContent && preview.sourceSize.height > 0
-            ? preview.sourceSize.width / preview.sourceSize.height
-            : window.aspects[index] || 16 / 9
+      Item {
+        id: grid
+        width: window.laidOut.width
+        height: window.laidOut.contentHeight
 
-          x: window.mirrored ? grid.width - place.x - place.width : place.x
-          y: place.y
-          width: place.width
-          height: place.height
+        Repeater {
+          model: window.switcher.entries
 
-          Rectangle {
-            anchors.fill: parent
-            radius: window.cornerRadius
-            color: item.selected ? window.selectedBackground : (hover.containsMouse || closeArea.containsMouse ? Style.hoverFill : "transparent")
-            border.width: item.selected ? Math.max(1, Style.space(2)) : 0
-            border.color: window.selectedBorder
-          }
+          delegate: Item {
+            id: item
 
-          // The title leaves room for the close button, which shows on hover.
-          Row {
-            id: header
-            anchors.left: parent.left
-            anchors.right: closeButton.left
-            anchors.top: parent.top
-            anchors.leftMargin: window.itemPadding
-            anchors.rightMargin: Style.spacing.md
-            anchors.topMargin: window.itemPadding
-            height: window.headerHeight - Style.spacing.md
-            spacing: Style.spacing.md
+            required property var modelData
+            required property int index
 
-            Image {
-              width: window.iconSize
-              height: window.iconSize
-              anchors.verticalCenter: parent.verticalCenter
-              source: window.switcher.iconFor(item.modelData)
-              sourceSize: Qt.size(width, height)
-              asynchronous: true
-              smooth: true
+            readonly property var place: window.laidOut.items[index] || ({ x: 0, y: 0, width: 0, height: 0 })
+            readonly property bool selected: index === window.switcher.selected
+            readonly property var toplevel: modelData.toplevel
+            readonly property real aspect: preview.hasContent && preview.sourceSize.height > 0
+              ? preview.sourceSize.width / preview.sourceSize.height
+              : window.aspects[index] || 16 / 9
+
+            x: window.mirrored ? grid.width - place.x - place.width : place.x
+            y: place.y
+            width: place.width
+            height: place.height
+
+            Rectangle {
+              anchors.fill: parent
+              radius: window.cornerRadius
+              color: item.selected ? window.selectedBackground : (hover.containsMouse || closeArea.containsMouse ? Style.hoverFill : "transparent")
+              border.width: item.selected ? Math.max(1, Style.space(2)) : 0
+              border.color: window.selectedBorder
             }
 
-            Text {
-              width: parent.width - window.iconSize - parent.spacing
-              anchors.verticalCenter: parent.verticalCenter
-              text: item.toplevel ? item.toplevel.title : ""
-              textFormat: Text.PlainText
-              color: item.selected ? window.selectedText : window.foreground
-              font.family: Style.font.menuFamily
-              font.pixelSize: Style.font.body
-              elide: Text.ElideRight
-              horizontalAlignment: Text.AlignLeft
-            }
-          }
+            // The title leaves room for the close button, which shows on hover.
+            Row {
+              id: header
+              anchors.left: parent.left
+              anchors.right: closeButton.left
+              anchors.top: parent.top
+              anchors.leftMargin: window.itemPadding
+              anchors.rightMargin: Style.spacing.md
+              anchors.topMargin: window.itemPadding
+              height: window.headerHeight - Style.spacing.md
+              spacing: Style.spacing.md
 
-          Item {
-            id: thumbArea
-            x: window.itemPadding
-            y: window.itemPadding + window.headerHeight
-            width: parent.width - window.itemPadding * 2
-            height: parent.height - window.itemPadding * 2 - window.headerHeight
+              Image {
+                width: window.iconSize
+                height: window.iconSize
+                anchors.verticalCenter: parent.verticalCenter
+                source: window.switcher.iconFor(item.modelData)
+                sourceSize: Qt.size(width, height)
+                asynchronous: true
+                smooth: true
+              }
 
-            ScreencopyView {
-              id: preview
-              anchors.centerIn: parent
-              width: Math.min(parent.width, parent.height * item.aspect)
-              height: Math.min(parent.height, parent.width / item.aspect)
-              captureSource: item.toplevel ? item.toplevel.wayland : null
-              live: true
-            }
-
-            // A window with nothing to capture yet shows its app's icon.
-            Image {
-              anchors.centerIn: parent
-              visible: !preview.hasContent
-              width: Math.min(parent.width, parent.height) * 0.5
-              height: width
-              source: window.switcher.iconFor(item.modelData)
-              sourceSize: Qt.size(width, height)
-              asynchronous: true
-              smooth: true
-            }
-          }
-
-          // Hovering marks a thumbnail without moving the pick, so a pointer
-          // resting where the switcher opens never fights the keys.
-          MouseArea {
-            id: hover
-            anchors.fill: parent
-            hoverEnabled: true
-            onClicked: {
-              window.switcher.select(item.index)
-              window.switcher.commit()
-            }
-          }
-
-          Rectangle {
-            id: closeButton
-            visible: hover.containsMouse || closeArea.containsMouse
-            anchors.top: parent.top
-            anchors.right: parent.right
-            anchors.margins: window.itemPadding - Style.spacing.xs
-            width: window.headerHeight - Style.spacing.xs
-            height: width
-            radius: window.cornerRadius
-            color: closeArea.containsMouse ? Commons.Color.urgent : "transparent"
-
-            Text {
-              anchors.centerIn: parent
-              text: "×"
-              textFormat: Text.PlainText
-              color: closeArea.containsMouse ? Commons.Color.background : window.foreground
-              font.family: Style.font.menuFamily
-              font.pixelSize: Style.font.heading
+              Text {
+                width: parent.width - window.iconSize - parent.spacing
+                anchors.verticalCenter: parent.verticalCenter
+                text: item.toplevel ? item.toplevel.title : ""
+                textFormat: Text.PlainText
+                color: item.selected ? window.selectedText : window.foreground
+                font.family: Style.font.menuFamily
+                font.pixelSize: Style.font.body
+                elide: Text.ElideRight
+                horizontalAlignment: Text.AlignLeft
+              }
             }
 
+            Item {
+              id: thumbArea
+              x: window.itemPadding
+              y: window.itemPadding + window.headerHeight
+              width: parent.width - window.itemPadding * 2
+              height: parent.height - window.itemPadding * 2 - window.headerHeight
+
+              ScreencopyView {
+                id: preview
+                anchors.centerIn: parent
+                width: Math.min(parent.width, parent.height * item.aspect)
+                height: Math.min(parent.height, parent.width / item.aspect)
+                captureSource: item.toplevel ? item.toplevel.wayland : null
+                live: true
+              }
+
+              // A window with nothing to capture yet shows its app's icon.
+              Image {
+                anchors.centerIn: parent
+                visible: !preview.hasContent
+                width: Math.min(parent.width, parent.height) * 0.5
+                height: width
+                source: window.switcher.iconFor(item.modelData)
+                sourceSize: Qt.size(width, height)
+                asynchronous: true
+                smooth: true
+              }
+            }
+
+            // Hovering marks a thumbnail without moving the pick, so a pointer
+            // resting where the switcher opens never fights the keys.
             MouseArea {
-              id: closeArea
+              id: hover
               anchors.fill: parent
               hoverEnabled: true
-              onClicked: window.switcher.closeEntry(item.index)
+              onClicked: {
+                window.switcher.select(item.index)
+                window.switcher.commit()
+              }
+            }
+
+            Rectangle {
+              id: closeButton
+              visible: hover.containsMouse || closeArea.containsMouse
+              anchors.top: parent.top
+              anchors.right: parent.right
+              anchors.margins: window.itemPadding - Style.spacing.xs
+              width: window.headerHeight - Style.spacing.xs
+              height: width
+              radius: window.cornerRadius
+              color: closeArea.containsMouse ? Commons.Color.urgent : "transparent"
+
+              Text {
+                anchors.centerIn: parent
+                text: "×"
+                textFormat: Text.PlainText
+                color: closeArea.containsMouse ? Commons.Color.background : window.foreground
+                font.family: Style.font.menuFamily
+                font.pixelSize: Style.font.heading
+              }
+
+              MouseArea {
+                id: closeArea
+                anchors.fill: parent
+                hoverEnabled: true
+                onClicked: window.switcher.closeEntry(item.index)
+              }
             }
           }
         }
