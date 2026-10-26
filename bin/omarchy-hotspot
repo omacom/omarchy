@@ -788,20 +788,32 @@ firewall_rules_file_match() {
     dns-tcp) protocol=tcp port=53 need_source=1 ;;
     forward) chain="ufw-user-forward" need_source=1 ;;
   esac
+  # A rule only stands in for ours when it accepts everything ours would: the
+  # same interface, source, protocol and port, an ACCEPT target, and no other
+  # match. A narrower rule (one port, one output interface, one destination)
+  # or a non-ACCEPT target leaves hotspot traffic unhandled.
   LC_ALL=C awk -v iface="$iface" -v subnet="$subnet" -v comment="$comment" -v owner_only="$owner_only" -v protocol="$protocol" -v port="$port" -v chain="$chain" -v need_source="$need_source" '
     owner_only == 1 && index($0, comment) == 0 { next }
     $1 == "-A" && $2 == chain {
+      line = $0
+      gsub(/ -m comment --comment ('\''[^'\'']*'\''|"[^"]*"|[^ ]+)/, "", line)
+      n = split(line, field, " ")
       scoped = 0
       matched_source = (need_source == 0)
       matched_protocol = (protocol == "")
       matched_port = (port == "")
-      for (i = 3; i < NF; i++) {
-        if ($i == "-i" && $(i + 1) == iface) scoped = 1
-        if ($i == "-s" && $(i + 1) == subnet) matched_source = 1
-        if ($i == "-p" && $(i + 1) == protocol) matched_protocol = 1
-        if ($i == "--dport" && $(i + 1) == port) matched_port = 1
+      accepted = 0
+      extra = 0
+      for (i = 3; i <= n; i += 2) {
+        if (i == n) extra = 1
+        else if (field[i] == "-i" && field[i + 1] == iface) scoped = 1
+        else if (field[i] == "-s" && need_source == 1 && field[i + 1] == subnet) matched_source = 1
+        else if (field[i] == "-p" && protocol != "" && field[i + 1] == protocol) matched_protocol = 1
+        else if (field[i] == "--dport" && port != "" && field[i + 1] == port) matched_port = 1
+        else if (field[i] == "-j" && field[i + 1] == "ACCEPT") accepted = 1
+        else extra = 1
       }
-      if (scoped && matched_source && matched_protocol && matched_port) found = 1
+      if (scoped && matched_source && matched_protocol && matched_port && accepted && !extra) found = 1
     }
     END { exit found ? 0 : 1 }
   ' <<<"$rules"

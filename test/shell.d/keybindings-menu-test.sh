@@ -51,16 +51,16 @@ keybindings() {
     bash "$menu" --print
 }
 
-# Closing a window and toggling the scratchpad are two of the actions Omarchy
-# binds twice on purpose. The last bind carries the longest description Omarchy
-# ships, which is what puts a row closest to the width the menu allows.
+# Closing a window is one of the actions Omarchy binds twice on purpose. The
+# last bind carries the longest description Omarchy ships, which is what puts a
+# row closest to the width the menu allows.
 stub_hyprctl <<BINDS
 $(lua_bind 64 "SUPER + W" "Close window")
 $(lua_bind 64 "SUPER + Q" "Close window")
 $(lua_bind 64 "SUPER + F" "Full screen")
 $(lua_bind 64 "SUPER + I" "Switch input language")
 $(lua_bind 64 "SUPER + S" "Toggle scratchpad")
-$(lua_bind 64 "SUPER + grave" "Toggle scratchpad")
+$(lua_bind 64 "SUPER + grave" "Toggle Quake console")
 $(exec_bind 73 "SUPER SHIFT ALT + 0" "Move window silently to workspace 10" "true")
 BINDS
 
@@ -98,7 +98,7 @@ grep -q '^SUPER + W / SUPER + Q' <<<"$rendered" ||
 pass "the chord declared first leads a shared row"
 
 # Hyprland calls the key left of 1 "grave". Nobody reads their keyboard that way.
-grep -q 'SUPER + S / SUPER + ~  *→ Toggle scratchpad' <<<"$rendered" ||
+grep -q 'SUPER + ~  *→ Toggle Quake console' <<<"$rendered" ||
   fail "the grave key reads as the symbol printed on it" "$rendered"
 ! grep -q 'grave' <<<"$rendered" ||
   fail "no entry still says grave" "$rendered"
@@ -121,7 +121,7 @@ pass "no entry outgrows the width the menu gives it"
 # the entry: XF86Calculator alone belongs in the tail the menu keeps for media
 # keys, while the calculator itself sits in the body of the list.
 stub_hyprctl <<BINDS
-$(exec_bind 68 "SUPER CTRL + Q" "Calculator" "omacalc")
+$(exec_bind 65 "SUPER SHIFT + Q" "Calculator" "omacalc")
 $(exec_bind 0 "XF86Calculator" "Calculator" "omacalc")
 $(exec_bind 8 "ALT + TAB" "Reveal active window on top" "true")
 BINDS
@@ -141,13 +141,13 @@ bind
 	key: 
 	keycode: 49
 	catchall: false
-	description: Toggle scratchpad
+	description: Toggle Quake console
 	dispatcher: exec
 	arg: true
 BINDS
 
 rendered=$(keybindings)
-grep -q 'SUPER + ~  *→ Toggle scratchpad' <<<"$rendered" ||
+grep -q 'SUPER + ~  *→ Toggle Quake console' <<<"$rendered" ||
   fail "a keycode resolves to the symbol printed on the key too" "$rendered"
 pass "a keycode resolves to the symbol printed on the key too"
 
@@ -236,8 +236,6 @@ pass "chords whose dispatch is unknown stay apart"
 expected_alternatives=(
   "Close window"
   "Calculator"
-  "Toggle scratchpad"
-  "Move window to scratchpad"
 )
 
 eval "$(sed -n '/^alternative_chord_actions()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings")"
@@ -267,6 +265,25 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# A plugin that walks the window list while it loads must not wedge the scan,
+# and the binds after it must still be recovered from the Lua source.
+{
+  printf 'for _ in ipairs(hl.get_windows()) do\n  local window = nil\nend\n'
+  cat "$home/.config/hypr/hyprland.lua"
+} >"$tmpdir/hyprland.lua"
+mv "$tmpdir/hyprland.lua" "$home/.config/hypr/hyprland.lua"
+
+rm -rf "$tmpdir/cache"
+# A wedged scan is stopped by the menu's own timeout before the Terminal bind,
+# which the check below catches; the outer timeout only turns a hang into a fail.
+timeout --kill-after=1s 60s env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+  bash "$menu" --print >/dev/null 2>&1 ||
+  fail "a plugin iterating windows at load time does not wedge the keybindings scan"
+grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "a plugin iterating windows at load time does not wedge the keybindings scan (it stopped before the Terminal bind)"
+pass "a plugin iterating windows at load time does not wedge the keybindings scan"
 
 # Rows show their description in the Omarchy language: a numbered one
 # matches its %1 pattern, an unknown one stays as written, and the chord

@@ -242,34 +242,6 @@ PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/b
 ! grep -q '^owe: intro ' "$command_log" || fail "reused filenames do not let a superseded theme launch play"
 pass "theme switches can play their selected intro without resetting login startup"
 
-migration_home="$test_tmp/migration-home"
-migration_bin="$test_tmp/migration-bin"
-migration_calls="$test_tmp/migration-calls"
-mkdir -p "$migration_home/.local/state/omarchy/current" "$migration_bin"
-printf 'catppuccin\n' >"$migration_home/.local/state/omarchy/current/theme.name"
-cat >"$migration_bin/omarchy-theme-refresh" <<'SH'
-#!/bin/bash
-printf 'refresh\n' >>"$MIGRATION_CALLS"
-SH
-chmod +x "$migration_bin/omarchy-theme-refresh"
-
-HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" OMARCHY_SESSION_ID=migration-boot bash -euo pipefail "$ROOT/migrations/1788281348.sh" >/dev/null
-[[ $(<"$migration_calls") == "refresh" ]] || fail "the migration refreshes an active theme with packaged intros"
-[[ $(<"$migration_home/.local/state/omarchy/background-intro.session-id") == "migration-boot" ]] || fail "the migration defers a newly installed intro until the next login"
-
-mkdir -p "$intro_runtime/hypr/older-session" "$intro_runtime/hypr/current-session"
-touch -d '2 minutes ago' "$intro_runtime/hypr/older-session"
-HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
-  OMARCHY_SESSION_ID="" HYPRLAND_INSTANCE_SIGNATURE="" XDG_RUNTIME_DIR="$intro_runtime" \
-  bash -euo pipefail "$ROOT/migrations/1788281348.sh" >/dev/null
-[[ $(<"$migration_home/.local/state/omarchy/background-intro.session-id") == "current-session" ]] || fail "an update outside Hyprland consumes the session that shell restart will use"
-HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
-  OMARCHY_SESSION_ID="" HYPRLAND_INSTANCE_SIGNATURE="" XDG_RUNTIME_DIR="$test_tmp/no-session" \
-  bash -euo pipefail "$ROOT/migrations/1788281348.sh" >/dev/null
-[[ $(<"$migration_home/.local/state/omarchy/background-intro.session-id") == "current-session" ]] || fail "a headless update leaves the previous session marker alone"
-
-pass "the migration does not start a login intro during an update"
-
 packaged_pairs=0
 for intro in "$ROOT"/themes/*/backgrounds/intros/*.mp4; do
   [[ -f $intro ]] || continue

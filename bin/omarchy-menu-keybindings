@@ -122,9 +122,10 @@ build_lua_bind_cache() {
     LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
     LUA_BIND_ARG_MAP["$cache_key"]="$arg"
   done < <(
-    # -E keeps LUA_INIT and LUA_PATH from the environment out of the scan, which
-    # loads the user's config.
-    lua -E - <<'LUA'
+    # A config the stub cannot satisfy must not leave a runaway lua behind after
+    # the menu closes, so the scan is time-boxed. -E keeps LUA_INIT and LUA_PATH
+    # from the environment out of the scan, which loads the user's config.
+    timeout 10 lua -E - <<'LUA'
 local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
 
 local function split_keys(keys)
@@ -227,15 +228,80 @@ local function dsp_proxy(path)
   })
 end
 
+-- Stand-in for every Hyprland value the config reads while we only want its
+-- binds. It has to be safe for the loops and comparisons user configs run at
+-- load time: `ipairs` over it yields nothing (below), and comparisons,
+-- arithmetic, and concatenation degrade to harmless values instead of raising
+-- and aborting the scan halfway through the config.
 local noop
 noop = setmetatable({}, {
-  __index = function()
+  -- A collection answers its first index and `list[#list]` (which is 0) with a
+  -- stand-in and every other number with nil, so `while list[i] do` ends.
+  __index = function(_, key)
+    if type(key) == "number" and key ~= 1 and key ~= 0 then
+      return nil
+    end
+
     return noop
   end,
   __call = function()
     return noop
   end,
+  __len = function()
+    return 0
+  end,
+  __lt = function()
+    return false
+  end,
+  __le = function()
+    return false
+  end,
+  __unm = function()
+    return 0
+  end,
+  __add = function()
+    return 0
+  end,
+  __sub = function()
+    return 0
+  end,
+  __mul = function()
+    return 0
+  end,
+  __div = function()
+    return 0
+  end,
+  __mod = function()
+    return 0
+  end,
+  __idiv = function()
+    return 0
+  end,
+  __pow = function()
+    return 0
+  end,
+  __concat = function(left, right)
+    if rawequal(left, noop) then
+      return tostring(right)
+    end
+
+    return tostring(left)
+  end,
+  __tostring = function()
+    return ""
+  end,
 })
+
+-- A stub collection is empty to `ipairs`, so a loop over it never runs its
+-- body against stand-in values.
+local raw_ipairs = ipairs
+function ipairs(list)
+  if rawequal(list, noop) then
+    return function() end, list, 0
+  end
+
+  return raw_ipairs(list)
+end
 
 hl = setmetatable({
   dsp = dsp_proxy("hl.dsp"),
@@ -280,7 +346,13 @@ local file = io.open(config, "r")
 
 if file then
   file:close()
+  -- Stops a runaway loop in the config long before the timeout above, which
+  -- stays the backstop for one the hook cannot reach, such as in a coroutine.
+  debug.sethook(function()
+    error("instruction limit exceeded")
+  end, "", 50000000)
   local ok, err = pcall(dofile, config)
+  debug.sethook()
   if not ok and os.getenv("DEBUG") == "1" then
     io.stderr:write("[DEBUG] lua bind scan failed: " .. tostring(err) .. "\n")
   end
@@ -389,8 +461,6 @@ alternative_chord_actions() {
   cat <<'ACTIONS'
 Close window
 Calculator
-Toggle scratchpad
-Move window to scratchpad
 ACTIONS
 }
 
@@ -529,7 +599,7 @@ prioritize_entries() {
     if (match(line, /Resize window/))  prio = 35
     if (match(line, /Expand window/))  prio = 36
     if (match(line, /Shrink window/))  prio = 37
-    if (match(line, /scratchpad/))  prio = 38
+    if (match(line, /scratchpad|Quake console/))  prio = 38
     if (match(line, /notification/))  prio = 39
     if (match(line, /Toggle window transparency/))  prio = 40
     if (match(line, /Toggle workspace gaps/))  prio = 41
@@ -612,7 +682,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v17\n'
+    printf 'v19\n'
     leading_keyboard
     omarchy-language 2>/dev/null
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null

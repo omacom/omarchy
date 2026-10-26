@@ -50,7 +50,7 @@ Panel {
   property int internetPingPacketLoss: 0
   readonly property int pingHistoryWindow: 24
   readonly property int pingAverageWindow: 5
-  readonly property bool hasInternetPing: internetPingSamples.length > 0
+  readonly property bool hasInternetPing: Model.internetPingReadable(internetPingSamples, connectivity)
   // Every stat row stays mounted whether or not there is data behind it, so a
   // sample arriving late never reflows the grid. This says whether the numbers
   // are real yet or the row should read "--".
@@ -162,6 +162,8 @@ Panel {
   readonly property bool bandPillsVisible: canSelectBand && bandPinned
   readonly property string bandSectionTitle: Model.bandSectionTitle(bandEffective, bandCurrent, Commons.I18n.t, Commons.I18n.formatNumber)
   readonly property bool bandBusy: pendingBand !== ""
+  // The DNS pills show a choice the moment it's made, and fall back if it fails.
+  readonly property string dnsEffective: pendingDnsProvider !== "" ? pendingDnsProvider : dnsProvider
   // The speed test needs an interface to test, so its hero action only
   // appears once there is one.
   readonly property bool canRunSpeedTest: !!info.iface
@@ -615,7 +617,9 @@ Panel {
     if (!hasCaptivePortal) return
     // Explicit user action only. argv (not a shell string), and a fixed HTTP
     // URL: let the browser handle the redirect without trusting portal input.
-    Quickshell.execDetached(["omarchy-launch-browser", Model.captivePortalUrl])
+    // The command pauses a Tailscale exit node and re-checks quickly until the
+    // sign-in completes.
+    Quickshell.execDetached(["omarchy-network-captive-portal", Model.captivePortalUrl])
     close()
   }
 
@@ -857,10 +861,11 @@ Panel {
       return
     }
 
+    // The panel stays open, so the choice can be seen taking hold and another
+    // tried without reopening it.
     root.pendingDnsProvider = provider
     actionProc.command = ["bash", "-c", root.dnsCommand(provider)]
     actionProc.running = true
-    root.close()
   }
 
   function requiresCredentials(security) {
@@ -1412,14 +1417,14 @@ Panel {
     id: connectionPhraseSwap
     PropertyAnimation {
       target: panel.loadedContent ? panel.loadedContent.heroMeta : null; property: "opacity"
-      to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(150); easing.type: Easing.OutCubic
     }
     ScriptAction {
       script: root.connectionPhraseIndex = (root.connectionPhraseIndex + 1) % root.connectionPhrases.length
     }
     PropertyAnimation {
       target: panel.loadedContent ? panel.loadedContent.heroMeta : null; property: "opacity"
-      to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(200); easing.type: Easing.OutCubic
     }
   }
 
@@ -1735,7 +1740,8 @@ Panel {
             textFormat: Text.PlainText
             width: parent.width
             text: {
-              if (root.hasCaptivePortal) return Commons.I18n.t("network.signInRequiredHeader")
+              // The sign-in button right below already says what a portal needs.
+              if (root.hasCaptivePortal) return ""
               if (root.restricted) return Commons.I18n.t("network.limitedAccessHeader")
               if (root.info.type === "wifi") {
                 if (root.canDisconnect) return root.connectionPhrase.toUpperCase()
@@ -1758,41 +1764,25 @@ Panel {
 
       }
 
-      Column {
+      Button {
+        id: portalAction
         visible: root.hasCaptivePortal
         width: parent.width
-        spacing: Style.space(6)
-
-        Button {
-          id: portalAction
-          width: parent.width
-          text: Commons.I18n.t("network.openCaptivePortal")
-          iconText: "󰏌"
-          foreground: root.bar.urgent
-          accent: root.bar.urgent
-          fontFamily: root.bar.fontFamily
-          verticalPadding: Style.space(10)
-          bordered: true
-          active: true
-          hasCursor: root.cursorActive && root.focusSection === "portal"
-          onHovered: function(on) {
-            if (!on) return
-            root.cursorActive = true
-            root.focusSection = "portal"
-          }
-          onClicked: root.openCaptivePortal()
+        text: Commons.I18n.t("network.openCaptivePortal")
+        iconText: "󰏌"
+        foreground: root.bar.urgent
+        accent: root.bar.urgent
+        fontFamily: root.bar.fontFamily
+        verticalPadding: Style.space(10)
+        bordered: true
+        active: true
+        hasCursor: root.cursorActive && root.focusSection === "portal"
+        onHovered: function(on) {
+          if (!on) return
+          root.cursorActive = true
+          root.focusSection = "portal"
         }
-
-        Text {
-          width: parent.width
-          text: Commons.I18n.t("network.captivePortalHelp")
-          textFormat: Text.PlainText
-          wrapMode: Text.WordWrap
-          color: root.bar.foreground
-          opacity: 0.7
-          font.family: root.bar.fontFamily
-          font.pixelSize: Style.font.bodySmall
-        }
+        onClicked: root.openCaptivePortal()
       }
 
       // Connection details: transfer metrics first, then IP/Gateway.
@@ -1810,16 +1800,16 @@ Panel {
           // Always mounted: these two used to appear a beat after the panel
           // opened, once the first probe returned, shoving everything below
           // them down. They now hold their place and read "--" until there is
-          // a sample.
+          // a sample, and while the internet is out of reach.
           InfoLabel { text: Commons.I18n.t("network.ping") }
           DetailValue {
             text: root.formatPingLatency(root.internetPingLatency)
-            color: root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
+            color: root.hasInternetPing && root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
           }
           InfoLabel { text: Commons.I18n.t("network.packetLoss") }
           DetailValue {
             text: root.formatPacketLoss(root.internetPingPacketLoss)
-            color: root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
+            color: root.hasInternetPing && root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
           }
 
           InfoLabel { text: Commons.I18n.t("network.receiving") }
@@ -2054,7 +2044,7 @@ Panel {
 
           PanelSectionHeader {
             id: hotspotHeader
-            text: root.hotspotActive ? "HOTSPOT ACTIVE" : "HOTSPOT"
+            text: root.hotspotActive ? Commons.I18n.t("network.hotspotActive") : Commons.I18n.t("network.hotspot")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
             anchors.left: parent.left
@@ -2134,7 +2124,7 @@ Panel {
             textFormat: Text.PlainText
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: root.hotspotActive ? "Sharing my internet" : "Share my internet"
+            text: root.hotspotActive ? Commons.I18n.t("network.hotspotSharing") : Commons.I18n.t("network.hotspotShare")
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
@@ -2164,7 +2154,7 @@ Panel {
               root.hotspotFocusIndex = 2
             }
 
-            tooltipText: "Show QR code"
+            tooltipText: Commons.I18n.t("network.showQrCode")
           }
 
           Button {
@@ -2191,7 +2181,7 @@ Panel {
               root.hotspotFocusIndex = 1
             }
 
-            tooltipText: root.hotspotSetupOpen ? "Hide hotspot settings" : "Hotspot settings"
+            tooltipText: root.hotspotSetupOpen ? Commons.I18n.t("network.hideHotspotSettings") : Commons.I18n.t("network.hotspotSettings")
           }
 
           ToggleSwitch {
@@ -2212,7 +2202,7 @@ Panel {
 
             PanelToolTip {
               visible: hotspotToggle.containsMouse
-              text: root.hotspotActive ? "Turn the hotspot off" : "Start the hotspot"
+              text: root.hotspotActive ? Commons.I18n.t("network.turnHotspotOff") : Commons.I18n.t("network.startHotspot")
               fontFamily: root.bar.fontFamily
             }
           }
@@ -2248,7 +2238,7 @@ Panel {
             id: hotspotSsidField
             width: parent.width
             enabled: !root.hotspotBusy
-            placeholderText: "Hotspot name (SSID)"
+            placeholderText: Commons.I18n.t("network.hotspotName")
             font.family: Style.font.family
             font.pixelSize: Style.font.body
             foreground: root.bar.foreground
@@ -2285,7 +2275,7 @@ Panel {
               width: parent.width - Style.space(120)
               enabled: !root.hotspotBusy
               password: !root.hotspotPasswordVisible
-              placeholderText: "Password (8+ characters)"
+              placeholderText: Commons.I18n.t("network.hotspotPasswordPlaceholder")
               font.family: Style.font.family
               font.pixelSize: Style.font.body
               foreground: root.bar.foreground
@@ -2300,7 +2290,7 @@ Panel {
               width: Style.space(34)
               height: Style.spacing.controlHeight
               iconText: root.hotspotPasswordVisible ? "" : ""
-              tooltipText: root.hotspotPasswordVisible ? "Hide password" : "Show password"
+              tooltipText: root.hotspotPasswordVisible ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
               iconSize: Style.font.subtitle
@@ -2315,7 +2305,7 @@ Panel {
               width: Style.space(34)
               height: Style.spacing.controlHeight
               iconText: ""
-              tooltipText: "Random password"
+              tooltipText: Commons.I18n.t("network.randomPassword")
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
               iconSize: Style.font.subtitle
@@ -2330,7 +2320,7 @@ Panel {
               width: Style.space(34)
               height: Style.spacing.controlHeight
               iconText: "󰄬"
-              tooltipText: "Apply credentials"
+              tooltipText: Commons.I18n.t("network.applyCredentials")
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
               iconSize: Style.font.subtitle
@@ -2666,7 +2656,7 @@ Panel {
     // Map the panel's domain semantics onto Button's structural props:
     // `current DNS` is the pill's `active` fill; the keyboard cursor lights
     // up `hasCursor`.
-    active: root.dnsProvider === provider
+    active: root.dnsEffective === provider
     hasCursor: root.cursorActive && root.focusSection === "dns" && root.dnsIndex === index
 
     onHovered: function(isHovered) {

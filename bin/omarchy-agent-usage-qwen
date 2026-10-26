@@ -1,0 +1,596 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Qwen Code usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Qwen Code and Alibaba Qwen plan usage into one display-ready JSON
+record.
+
+Qwen Code records each session as JSONL under
+~/.qwen/projects/<project>/chats/<session>.jsonl (QWEN_HOME moves ~/.qwen;
+QWEN_RUNTIME_DIR or settings.json's advanced.runtimeOutputDir move the
+projects). Every API response it bills lands there as a ui_telemetry record
+carrying the model and the provider's token counts, the same records Qwen
+Code's own usage statistics are rebuilt from, and every typed prompt as a
+user record.
+
+pi, omp and opencode turns billed by Alibaba's Qwen plans count here too:
+Model Studio's Coding Plan and Token Plan, in their international and
+mainland-China forms, and omp's Qwen OAuth (portal.qwen.ai) sign-in. So do
+Claude Code's and MiniMax Code's turns sent to Model Studio's
+Anthropic-compatible API.
+
+Neither Qwen Code nor Alibaba publishes a way to read a plan's quota: the
+Coding Plan's usage shows on its console page alone, and Qwen Code reads none
+of its own. So the record carries no meters, and nothing waits on a
+credential. The agents panel only ever reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import sys
+from pathlib import Path
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  Stats,
+  UsageRow,
+  base_record,
+  cached_scan,
+  claude_code_owner,
+  emit,
+  local_day,
+  obj,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  routed_match,
+  routed_sources,
+  scan_cache_paths,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  scan_routed,
+  token_count,
+  warn,
+  write_json,
+)
+
+AGENT_ID = "qwen"
+AGENT_NAME = "Qwen Code"
+
+API_RESPONSE_EVENT = "qwen-code.api_response"
+# A request no reply answered (a refused connection, an error status) still
+# names the model and auth type it was sent with.
+API_ERROR_EVENT = "qwen-code.api_error"
+
+# Qwen Code's own rule (getEventTotalTokenCount) takes a response's total
+# when it has one, and otherwise counts thinking on top of the output only
+# where the output leaves it out: through Gemini, but not through an
+# OpenAI-style API. Qwen Code's rule leaves out openai-responses, yet it maps
+# the Responses API's output_tokens, which include reasoning_tokens, to the
+# output count.
+THOUGHTS_IN_OUTPUT_AUTH_TYPES = ("openai", "openai-responses", "qwen-oauth")
+
+# User records Qwen Code writes for text someone typed: a prompt, or a message
+# sent while a turn was still running. Goal, mention, and notification records
+# carry a subtype of their own.
+PROMPT_SUBTYPES = (None, "mid_turn_user_message")
+
+# Rows keep each record's time as written, so the index outlives the day and
+# zone it was built in; version 1 kept parsed seconds, and version 2 kept an
+# undated record undated, so it counted as today's on every day after.
+# Version 3 counted a reply's thinking twice where its output held it.
+# Version 4 kept no reply's auth type and model id, which say where it was
+# sent. Version 5 kept no failed request, which says where a prompt went that
+# no reply answered. Version 6 keyed a reply by its response id, which a
+# server that recycles ids gives different replies. Version 7 kept no mark on
+# a fork's copied records, so a fork whose file sorted first took its
+# source's records and session.
+INDEX_VERSION = 8
+INDEX_HEAD_BYTES = 4096
+
+MAX_MODEL_NAME_LEN = 120
+
+# The pi, omp and opencode provider ids whose turns Alibaba's Qwen plans bill.
+# Exact names: Alibaba's pay-as-you-go `alibaba` and `alibaba-cn` keys carry
+# no plan and are left out.
+# - opencode (models.dev) and omp: the Coding Plan, `alibaba-coding-plan` and
+#   opencode's mainland `alibaba-coding-plan-cn`.
+# - opencode and omp: the Token Plan, `alibaba-token-plan` and opencode's
+#   `alibaba-token-plan-cn`; pi names it `qwen-token-plan`, `-cn` and
+#   `-individual`.
+# - omp: `qwen-portal`, the Qwen OAuth sign-in Qwen Code also offered.
+PROVIDERS = (
+  "alibaba-coding-plan",
+  "alibaba-coding-plan-cn",
+  "alibaba-token-plan",
+  "alibaba-token-plan-cn",
+  "qwen-token-plan",
+  "qwen-token-plan-cn",
+  "qwen-token-plan-individual",
+  "qwen-portal",
+)
+
+
+def model_label(raw):
+  """A model id fit for the record: its last path segment, or None when it
+  is too long to be a real id."""
+  value = str(raw or "").rstrip("/").split("/")[-1]
+  if len(value) > MAX_MODEL_NAME_LEN:
+    return None
+  return value or "qwen"
+
+
+# ------------------------------------------------------------- locations
+
+
+def resolve_dir(value):
+  """A directory setting as Qwen Code resolves it, `~` included. A relative
+  one resolves against wherever Qwen Code was started, which this collector
+  can't know, so it is left out."""
+  if not isinstance(value, str) or not value.strip():
+    return None
+  path = Path(value.strip()).expanduser()
+  return path if path.is_absolute() else None
+
+
+def qwen_home():
+  return resolve_dir(os.environ.get("QWEN_HOME")) or (Path.home() / ".qwen")
+
+
+def runtime_output_dir(home):
+  return resolve_dir(obj(read_json(home / "settings.json").get("advanced")).get("runtimeOutputDir"))
+
+
+def runtime_dirs():
+  """Every directory whose projects/ may hold chats: QWEN_RUNTIME_DIR or the
+  configured runtimeOutputDir, where Qwen Code writes, and the Qwen home,
+  where it writes by default and where its own usage rebuild looks."""
+  home = qwen_home()
+  dirs = []
+  for candidate in (resolve_dir(os.environ.get("QWEN_RUNTIME_DIR")), runtime_output_dir(home), home):
+    if candidate is not None and candidate not in dirs:
+      dirs.append(candidate)
+  return dirs
+
+
+def chat_files():
+  files = []
+  for base in runtime_dirs():
+    try:
+      found = sorted((base / "projects").glob("*/chats/*.jsonl"))
+    except (OSError, ValueError):
+      # ValueError: a configured directory no path can name (a NUL in it).
+      continue
+    # A ledger sits beside its transcript and repeats nothing billable.
+    files.extend(path for path in found if not path.name.endswith(".ledger.jsonl") and path not in files)
+  return files
+
+
+# ------------------------------------------------------------- transcripts
+
+
+def trusted_time(*values):
+  """(time, ok): the first of `values` that is present and names a day. None
+  of them present is a record of today, and only present but untrusted
+  times are not ok, skipping the record."""
+  present = [value for value in values if value is not None]
+  for value in present:
+    if local_day(value) is not None:
+      return value, True
+  return None, not present
+
+
+def parse_line(raw, session):
+  """One transcript line as an index row, or None.
+
+  A prompt is ["p", key, time, session, copy]; a billed response is
+  ["r", key, time, session, model, input, output, cacheRead, authType,
+  modelId, copy]; a failed request is ["e", key, time, session, authType,
+  modelId, copy]. The key, the record's uuid, dedups a record a forked
+  session carries again, and copy (1 or 0) says the record is such a copy:
+  Qwen Code's forkSession marks every record it copies with a forkedFrom.
+  """
+  if b'"user"' not in raw and API_RESPONSE_EVENT.encode() not in raw and API_ERROR_EVENT.encode() not in raw:
+    return None
+  try:
+    record = json.loads(raw)
+  except (ValueError, RecursionError):
+    # RecursionError: a line nested deeper than the parser will go.
+    return None
+  if not isinstance(record, dict):
+    return None
+  session = str(record.get("sessionId") or session)
+  uuid = str(record.get("uuid") or "")
+  copy = 1 if record.get("forkedFrom") is not None else 0
+
+  if record.get("type") == "user":
+    if record.get("subtype") not in PROMPT_SUBTYPES:
+      return None
+    stamp, ok = trusted_time(record.get("timestamp"))
+    if not ok or not uuid:
+      return None
+    return ["p", uuid, stamp, session, copy]
+
+  if record.get("type") != "system" or record.get("subtype") != "ui_telemetry":
+    return None
+  event = obj(obj(record.get("systemPayload")).get("uiEvent"))
+  if event.get("event.name") == API_ERROR_EVENT and uuid:
+    stamp, _ = trusted_time(event.get("event.timestamp"), record.get("timestamp"))
+    return ["e", uuid, stamp, session, str(event.get("auth_type") or ""), str(event.get("model") or ""), copy]
+  if event.get("event.name") != API_RESPONSE_EVENT:
+    return None
+  stamp, ok = trusted_time(event.get("event.timestamp"), record.get("timestamp"))
+  model = model_label(event.get("model"))
+  if not ok or model is None:
+    return None
+  # The prompt count includes its cached part; a provider that reports only
+  # the cached part reports a fully cached prompt, as Qwen Code reads it.
+  cached = token_count(event.get("cached_content_token_count"))
+  prompt = token_count(event.get("input_token_count")) or cached
+  cached = min(cached, prompt)
+  output = token_count(event.get("output_token_count"))
+  if str(event.get("auth_type") or "") not in THOUGHTS_IN_OUTPUT_AUTH_TYPES:
+    thoughts = token_count(event.get("thoughts_token_count"))
+    total = token_count(event.get("total_token_count"))
+    if total > 0:
+      thoughts = min(thoughts, max(0, total - prompt - output))
+    output += thoughts
+  if prompt + output <= 0:
+    return None
+  # A fork copies each record verbatim, its uuid included, and a resumed
+  # session appends to its own transcript, so the uuid is what a copy shares.
+  # A server's response id is not: one that recycles short ids gives
+  # different replies the same one.
+  key = uuid or str(event.get("response_id") or "")
+  if not key:
+    return None
+  return ["r", key, stamp, session, model, prompt - cached, output, cached, str(event.get("auth_type") or ""), str(event.get("model")), copy]
+
+
+def read_digest(path, length):
+  digest = hashlib.sha1()
+  with path.open("rb") as handle:
+    digest.update(handle.read(min(length, INDEX_HEAD_BYTES)))
+  return digest.hexdigest()
+
+
+def parse_file(path, entry):
+  """The index entry for one transcript, reusing `entry` where the file only
+  grew: Qwen Code appends to a transcript and never rewrites what it wrote."""
+  stat = path.stat()
+  if entry and entry.get("size") == stat.st_size and entry.get("mtime") == stat.st_mtime_ns:
+    return entry
+  offset = 0
+  rows = []
+  if (
+    entry
+    and isinstance(entry.get("offset"), int)
+    and stat.st_size > entry["offset"]
+    and entry.get("file") == [stat.st_dev, stat.st_ino]
+    and entry.get("head") == read_digest(path, entry["offset"])
+  ):
+    offset = entry["offset"]
+    rows = list(entry.get("rows") or [])
+  with path.open("rb") as handle:
+    handle.seek(offset)
+    for raw in handle:
+      if not raw.endswith(b"\n"):
+        # A line still being written; pick it up whole next time.
+        break
+      offset += len(raw)
+      row = parse_line(raw, path.stem)
+      if row is not None:
+        # A record with no time is dated once, by when the file was last
+        # written as it is read: the index keeps it past today, and it must
+        # not count as today's on every day after. In whole milliseconds,
+        # floored: local_day rounds a float of seconds, which dates a write
+        # in the last half second of a day as the next.
+        if row[2] is None:
+          row[2] = stat.st_mtime_ns // 1_000_000
+        rows.append(row)
+  return {
+    "size": stat.st_size,
+    "mtime": stat.st_mtime_ns,
+    "file": [stat.st_dev, stat.st_ino],
+    "offset": offset,
+    "head": read_digest(path, offset),
+    "rows": rows,
+  }
+
+
+def load_index(path):
+  data = read_json(path)
+  if data.get("version") == INDEX_VERSION and isinstance(data.get("files"), dict):
+    return data["files"]
+  return {}
+
+
+# ------------------------------------------------------------------ routes
+
+# The variable Qwen Code takes an auth type's base URL from when no
+# modelProviders route names one (its AUTH_ENV_MAPPINGS). Gemini and Vertex
+# AI take none.
+BASE_URL_ENV = {"openai": "OPENAI_BASE_URL", "openai-responses": "OPENAI_BASE_URL", "anthropic": "ANTHROPIC_BASE_URL"}
+
+
+def dotenv(path):
+  """A .env file's variables, as dotenv reads them: KEY=value lines, an
+  `export ` prefix, quotes and a trailing # comment dropped."""
+  values = {}
+  try:
+    text = path.read_text(encoding="utf-8", errors="replace")
+  except (OSError, ValueError):
+    return values
+  for line in text.splitlines():
+    key, sep, value = line.strip().removeprefix("export ").partition("=")
+    key, value = key.strip(), value.strip()
+    if not sep or not key or key.startswith("#"):
+      continue
+    if value[:1] in ("'", '"', "`") and value[1:].find(value[0]) >= 0:
+      value = value[1:1 + value[1:].find(value[0])]
+    else:
+      value = value.split(" #", 1)[0].strip()
+    values[key] = value
+  return values
+
+
+def env_files(home):
+  """The .env files Qwen Code loads wherever it starts, first one first: its
+  home's, ~/.qwen's when QWEN_HOME moves the home, and ~/.env. A project's
+  own .env applies to the runs started there alone, which nothing here can
+  tell apart."""
+  files = []
+  for path in (home / ".env", Path.home() / ".qwen" / ".env", Path.home() / ".env"):
+    if path not in files:
+      files.append(path)
+  return files
+
+
+def base_urls(home):
+  """auth type -> the base URL Qwen Code sends it to when no modelProviders
+  route names one, resolved as Qwen Code resolves it: the variable from the
+  environment it starts in, else from the first .env file setting it, else
+  from settings.json's env, and without one the security.auth.baseUrl
+  /auth saved for the auth type it selected."""
+  settings = read_json(home / "settings.json")
+  layers = [dict(os.environ), *(dotenv(path) for path in env_files(home)), obj(settings.get("env"))]
+  auth = obj(obj(settings.get("security")).get("auth"))
+  saved = auth.get("baseUrl") if isinstance(auth.get("baseUrl"), str) else ""
+  urls = {}
+  for auth_type, key in BASE_URL_ENV.items():
+    url = next((str(layer[key]).strip() for layer in layers if isinstance(layer.get(key), str) and layer[key].strip()), "")
+    if not url and auth.get("selectedType") in (None, auth_type):
+      url = saved.strip()
+    if url:
+      urls[auth_type] = url
+  return urls
+
+
+def model_routes(home):
+  """(auth type, model id) -> base URL, from settings.json's modelProviders:
+  a provider id's routes, each an id and its baseUrl. A model the settings
+  list twice is sent where its first entry says, as Qwen Code picks it."""
+  routes = {}
+  providers = obj(read_json(home / "settings.json").get("modelProviders"))
+  for provider, entries in providers.items():
+    for entry in entries if isinstance(entries, list) else []:
+      entry = obj(entry)
+      url = entry.get("baseUrl")
+      if isinstance(entry.get("id"), str) and isinstance(url, str) and url.strip():
+        # A Responses route is an openai one with its wireApi set.
+        auth = "openai-responses" if provider == "openai" and entry.get("wireApi") == "responses" else str(provider)
+        routes.setdefault((auth, entry["id"]), url.strip())
+  return routes
+
+
+def selected_route(home):
+  """(auth type, model id) settings.json selects, where Qwen Code sends a
+  prompt when nothing else says: /auth's security.auth.selectedType and
+  /model's model.name."""
+  settings = read_json(home / "settings.json")
+  auth = obj(obj(settings.get("security")).get("auth")).get("selectedType")
+  model = obj(settings.get("model")).get("name")
+  return str(auth) if isinstance(auth, str) else "", str(model) if isinstance(model, str) else ""
+
+
+def route_config(home):
+  """What route_owner() decides with: the modelProviders routes, the base
+  URLs outside them, and the selected route."""
+  return model_routes(home), base_urls(home), selected_route(home)
+
+
+def harness_match():
+  """For a scan's cached_scan(match=...): a digest of where Qwen Code's
+  replies are sent, which its settings and .env files can change without a
+  transcript changing."""
+  routes, urls, selected = route_config(qwen_home())
+  config = json.dumps([sorted([*key, url] for key, url in routes.items()), sorted(urls.items()), selected])
+  return {"qwenRoutes": hashlib.sha1(config.encode("utf-8", "surrogatepass")).hexdigest()}
+
+
+def route_owner(auth_type, model, routes, urls=None):
+  """The collector that bills a reply, by the auth type Qwen Code recorded
+  for it and the base URL it was sent to: its model's modelProviders route,
+  else the base URL the auth type takes from Qwen Code's environment (urls,
+  from base_urls()). A URL is read the way every collector reads Claude
+  Code's (claude_code_owner): Alibaba's hosts are Qwen's, a provider's host
+  is that provider's, a server you run local's unless the model is a Claude
+  or an Ollama cloud one it only forwards, and a gateway nobody's. Without a
+  URL, a reply from before Qwen Code kept the type ran on Qwen Code's
+  default service, as every reply was read before, while an OpenAI-compatible
+  one went to OpenAI's API, Qwen Code's default for it (getDefaultBaseUrl),
+  and Anthropic, Gemini and Vertex AI are their own services, none of which
+  a collector here bills."""
+  if auth_type == "qwen-oauth":
+    return AGENT_ID
+  url = routes.get((auth_type, model)) or next((value for (_, routed), value in routes.items() if routed == model), "")
+  url = url or (urls or {}).get(auth_type, "")
+  if url:
+    return claude_code_owner(model, url)
+  return AGENT_ID if auth_type == "" else None
+
+
+# Where parse_line() keeps each kind of row's copy mark.
+COPY_FIELD = {"p": 4, "e": 6, "r": 10}
+
+
+def summarize(rows, owner):
+  """The usage rows `owner` bills from a transcript's index rows, in file
+  order. Qwen Code's prompts are its user records, not its replies: a reply
+  adds its tokens, and a prompt only its session and day, billed with the
+  next request sent for it, answered or not, else with the route settings.json
+  selects. Beside them, each row's (kind, key) and whether it is a fork's
+  copy."""
+  routes, urls, selected = route_config(qwen_home())
+  parsed = []
+  for row in rows:
+    try:
+      kind, key, stamp, session = row[:4]
+      day = local_day(stamp)
+      if kind == "r":
+        model = str(row[4])
+        counts = [int(value) for value in row[5:8]]
+        billed = route_owner(str(row[8]), str(row[9]), routes, urls)
+      elif kind == "e":
+        model, counts, billed = "", [0, 0, 0], route_owner(str(row[4]), str(row[5]), routes, urls)
+      elif kind == "p":
+        model, counts, billed = "", [0, 0, 0], None
+      else:
+        continue
+      copy = bool(row[COPY_FIELD[kind]])
+    except (TypeError, ValueError, IndexError, OverflowError, OSError):
+      continue
+    parsed.append([kind, key, day, str(session), model, counts, billed, copy])
+  answered = route_owner(*selected, routes, urls)
+  for entry in reversed(parsed):
+    if entry[0] in ("r", "e"):
+      answered = entry[6]
+    else:
+      entry[6] = answered
+  parsed = [entry for entry in parsed if entry[0] != "e"]
+  kept = [entry for entry in parsed if entry[2] is not None and entry[6] == owner]
+  return [
+    UsageRow(day, session, "", model, *counts, 0, prompts=0 if kind == "r" else 1)
+    for kind, key, day, session, model, counts, billed, copy in kept
+  ], [((kind, key), copy) for kind, key, day, session, model, counts, billed, copy in kept]
+
+
+def index_path():
+  # Beside the scan cache, under its digest of every directory the scan
+  # reads, so another home or runtime directory never reuses this index.
+  cache_file, _ = scan_cache_paths(AGENT_ID, runtime_dirs())
+  return cache_file.with_name(cache_file.name.replace("-scan-", "-index-", 1))
+
+
+def harness_sources():
+  return runtime_dirs()
+
+
+def harness_rows(owner):
+  """Qwen Code's usage that `owner` bills, each record counted once though a
+  resumed or branched session carries it again, and whether every
+  transcript was read."""
+  try:
+    index_file = index_path()
+  except Exception:
+    index_file = None
+  previous = load_index(index_file) if index_file else {}
+  current = {}
+  complete = True
+  originals, copies = [], []
+  for path in chat_files():
+    key = str(path)
+    try:
+      current[key] = parse_file(path, previous.get(key))
+    except OSError as exc:
+      warn(f"skipping {path}: {type(exc).__name__}")
+      complete = False
+      continue
+    rows, keys = summarize(current[key].get("rows") or [], owner)
+    for row, (row_key, copy) in zip(rows, keys):
+      (copies if copy else originals).append((row_key, row))
+  # A fork's copy counts only where its source's record is gone, whichever
+  # file name sorts first, so the record stays the session's that wrote it.
+  found, seen = [], set()
+  for row_key, row in originals + copies:
+    if row_key not in seen:
+      seen.add(row_key)
+      found.append(row)
+  if index_file and current != previous:
+    try:
+      write_json(index_file, {"version": INDEX_VERSION, "files": current})
+    except Exception as exc:
+      warn(f"could not write transcript index ({exc})")
+  return found, complete
+
+
+# pi, omp, and opencode name the provider alike.
+def billed_here(provider, model, entry):
+  return provider.lower() in PROVIDERS
+
+
+def scan(reuse=True):
+  """Qwen Code's transcripts, the Qwen plan turns in pi/omp sessions and
+  both of opencode's message stores, and Claude Code's and MiniMax Code's
+  turns sent to Model Studio. Returns (stats, complete); a scan that
+  couldn't read every source is not cached."""
+  stats = Stats()
+  # Every source runs, so one unreadable source still leaves the others.
+  transcript_rows, transcripts_complete = harness_rows(AGENT_ID)
+  for row in transcript_rows:
+    stats.add_row(row, row.model)
+  pattern = r'"provider"\s*:\s*"(' + "|".join(PROVIDERS) + r')"'
+  pi_rows, pi_complete = scan_pi_sessions(pattern, billed_here)
+  # The closing quote makes the database's prefilter match the whole id.
+  db_rows, db_complete = scan_opencode([provider + '"' for provider in PROVIDERS], billed_here)
+  routed_rows, routed_complete = scan_routed(AGENT_ID, reuse)
+  for row in pi_rows + db_rows + routed_rows:
+    # pi and opencode count each reply as the prompt that asked for it;
+    # Claude Code's rows carry their typed prompts apart.
+    stats.add_row(row, model_label(row.model) or "qwen")
+  return stats.snapshot(), transcripts_complete and pi_complete and db_complete and routed_complete
+
+
+def scan_sources():
+  # Every data path the scan reads: Qwen Code's directories, the pi/omp
+  # session roots, the opencode database, and Claude Code's and MiniMax
+  # Code's sessions.
+  return [*runtime_dirs(), *pi_session_roots(), opencode_db(), *routed_sources()]
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Print the Qwen Code usage record as JSON")
+  # --force rescans everything. --limits-only only promises fresh limits, and
+  # Qwen Code reads none, so it reuses a scan far longer than a normal run.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  # The digest covers every path the scan reads, so another home, runtime
+  # directory, session root or database never reuses this one's numbers.
+  # Where each harness sends its replies decides whose they are, so a scan
+  # only answers for the routes it was made under.
+  match = {**harness_match(), **routed_match()}
+  # A forced scan reads every Codex rollout again too.
+  max_age = scan_max_age(args.force, args.limits_only)
+  stats = cached_scan(AGENT_ID, scan_sources(), max_age, lambda: scan(reuse=max_age > 0), match=match)
+
+  # There is no quota to read, so nothing waits on a sign-in: the status stays
+  # empty and local stats show alone. A machine that never ran Qwen Code or a
+  # Qwen plan prints a record the panel skips.
+  in_use = stats["totalSessions"] > 0
+  record = base_record(AGENT_ID, AGENT_NAME, ready=in_use, hasLocalStats=in_use)
+  record.update(stats)
+  emit(record)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

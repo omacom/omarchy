@@ -53,8 +53,9 @@ for test in "${tests[@]}"; do
   fi
 done
 
-workdir=$(mktemp -d)
-trap 'rm -rf "$workdir"' EXIT
+# Every file's output is kept after the run, so a failure can be read from
+# its log rather than found by running the suite again.
+workdir=$(mktemp -d -t omarchy-test-shell.XXXXXX)
 
 run_one() {
   local test="$1"
@@ -111,7 +112,10 @@ fi
 
 if (( ${#failed[@]} > 0 )); then
   printf '\n%d of %d test files failed:\n' "${#failed[@]}" "${#tests[@]}" >&2
-  printf '  %s\n' "${failed[@]}" >&2
+  for test in "${failed[@]}"; do
+    printf '  %s (log: %s/%s.out)\n' "$test" "$workdir" "$(basename "$test")" >&2
+  done
+  printf 'Logs for every file: %s\n' "$workdir" >&2
   exit 1
 fi
 
@@ -120,3 +124,4 @@ if (( ${#skipped[@]} == 0 )); then
 else
   printf '\n%d test files completed without failures; %d had skipped checks.\n' "${#tests[@]}" "${#skipped[@]}"
 fi
+printf 'Logs for every file: %s\n' "$workdir"
