@@ -124,6 +124,7 @@ Item {
 
   property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 900)))
   property string pendingUpdateKind: ""
+  property var pendingUpdateAgentIds: null
 
   // A fifteen-minute interval can't catch an account crossing its switch
   // threshold, so while any provider with several accounts has its active one
@@ -161,8 +162,10 @@ Item {
       root.reloadRecords()
       if (root.pendingUpdateKind !== "") {
         var kind = root.pendingUpdateKind
+        var agentIds = root.pendingUpdateAgentIds
         root.pendingUpdateKind = ""
-        root.runUpdate(kind)
+        root.pendingUpdateAgentIds = null
+        root.runUpdate(kind, agentIds)
       }
     }
 
@@ -180,17 +183,25 @@ Item {
     for (var id in providers) {
       if (providers[id] && providers[id].enabled === false) command.push("--except", id)
     }
-    if (agentIds) {
+    if (agentIds && agentIds.length > 0) {
       for (var i = 0; i < agentIds.length; i++) command.push(agentIds[i])
     }
     return command
   }
 
   function runUpdate(kind, agentIds) {
+    var targeted = !!agentIds && agentIds.length > 0
     if (updateProcess.running) {
-      // Collapse queued requests to one full rerun; a forced refresh outranks
-      // the cheaper kinds it might have been queued behind.
-      if (kind === "force" || root.pendingUpdateKind === "") root.pendingUpdateKind = kind
+      // Collapse queued requests to one rerun; a forced refresh outranks the
+      // cheaper kinds, and a request for every agent widens one for a few.
+      if (root.pendingUpdateKind === "") {
+        root.pendingUpdateKind = kind
+        root.pendingUpdateAgentIds = targeted ? agentIds.slice() : null
+      } else {
+        if (kind === "force") root.pendingUpdateKind = kind
+        if (!targeted) root.pendingUpdateAgentIds = null
+        else if (root.pendingUpdateAgentIds) root.pendingUpdateAgentIds = root.pendingUpdateAgentIds.concat(agentIds.filter(function(id) { return root.pendingUpdateAgentIds.indexOf(id) < 0 }))
+      }
       return
     }
     updateProcess.command = updateCommand(kind, agentIds)
