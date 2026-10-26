@@ -69,9 +69,10 @@ slow_output=$(bash -c "$slow_script")
 grep -qx 'row7:w:1' <<<"$slow_output" || fail "guard batch waits for its slowest group" "row7 missing"
 pass "guard batch exits only after its slowest group has answered"
 
-# A group that dies part way leaves its remaining rows unanswered, and the
-# menu keeps its last complete answers only when the batch fails. Under a
-# login shell's `set -u` an unset variable kills the group mid-guard.
+# A guard can no longer take its group down: each one parses and runs in a
+# subshell of its own. Under a login shell's `set -u` an unset variable used
+# to kill the group mid-guard, leaving its remaining rows unanswered and the
+# batch failed; now it answers only its own row, and every row is answered.
 nounset_script=$(node -e '
   const path = require("path")
   const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
@@ -79,10 +80,12 @@ nounset_script=$(node -e '
   for (let i = 0; i < 20; i++) items[`row${i}`] = { id: `row${i}`, when: i === 3 ? "[[ -n $OMARCHY_TEST_UNSET ]]" : "true" }
   process.stdout.write(menu.guardScript(items))
 ')
-nounset_status=0
-env -u OMARCHY_TEST_UNSET bash -u -c "$nounset_script" >/dev/null 2>&1 || nounset_status=$?
-((nounset_status != 0)) || fail "a guard group that dies part way fails the batch"
-bash -c "$nounset_script" >/dev/null 2>&1 || fail "a batch whose groups all finish succeeds"
+nounset_result=$(env -u OMARCHY_TEST_UNSET bash -u -c "$nounset_script" 2>/dev/null)
+(($(wc -l <<<"$nounset_result") == 20)) ||
+  fail "a guard tripping set -u leaves every row answered" "got: $nounset_result"
+grep -qx 'row3:w:0' <<<"$nounset_result" || fail "a guard tripping set -u answers only its own row" "$nounset_result"
+env -u OMARCHY_TEST_UNSET bash -u -c "$nounset_script" >/dev/null 2>&1 ||
+  fail "a guard tripping set -u no longer fails the batch"
 OMARCHY_TEST_UNSET=set bash -u -c "$nounset_script" >/dev/null 2>&1 ||
   fail "the batch itself runs under set -u when no guard trips it"
-pass "a guard group that dies part way fails the whole batch, so the menu keeps its last answers"
+pass "a guard tripping set -u answers its own row and leaves its group standing"

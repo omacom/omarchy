@@ -17,7 +17,7 @@ const script = menu.guardScript(items)
 const browserSlot = `\${__omarchy_read_${menu.guardReaders.indexOf('omarchy-default-browser')}}`
 
 assert(
-  script.includes('if { omarchy-pkg-present brave-bin; } >/dev/null 2>&1; then echo setup.default.browser.brave:w:1; else echo setup.default.browser.brave:w:0; fi'),
+  script.includes("if ( eval 'omarchy-pkg-present brave-bin' ) >/dev/null 2>&1; then echo setup.default.browser.brave:w:1; else echo setup.default.browser.brave:w:0; fi"),
   'guard script reports a when: as <id>:w:<0|1>'
 )
 assert(
@@ -25,7 +25,7 @@ assert(
   'guard script reports a checked: as <id>:c:<0|1>'
 )
 assert(
-  script.includes('if { omarchy-pkg-present zen-browser-bin; } >/dev/null 2>&1; then echo install.browser.zen:d:1; else echo install.browser.zen:d:0; fi'),
+  script.includes("if ( eval 'omarchy-pkg-present zen-browser-bin' ) >/dev/null 2>&1; then echo install.browser.zen:d:1; else echo install.browser.zen:d:0; fi"),
   'guard script reports a disabled: as <id>:d:<0|1>'
 )
 assert(!/\bplain:[wcd]:/.test(script), 'guard script skips items with nothing to evaluate')
@@ -43,7 +43,7 @@ assert(
   'guard script substitutes the captured answer into the expression'
 )
 assert(
-  script.indexOf('__omarchy_read_') < script.indexOf('if { omarchy-pkg-present'),
+  script.indexOf('__omarchy_read_') < script.indexOf("if ( eval 'omarchy-pkg-present"),
   'guard script captures readers before any guard runs, since $() would trap a lazy memo in its subshell'
 )
 

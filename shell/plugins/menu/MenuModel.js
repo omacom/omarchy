@@ -564,7 +564,15 @@ function substituteGuardReaders(expression) {
 }
 
 function guardLine(id, tag, expression) {
-  return "if { " + substituteGuardReaders(expression) + "; } >/dev/null 2>&1; then echo "
+  // Each guard is parsed and run in a subshell of its own: `( eval '<expr>' )`
+  // keeps one user guard's `exit`, failure or syntax error from ending the
+  // group early, leaving every later row unanswered, or failing the batch and
+  // discarding all eight groups' answers. Such a guard now answers only its
+  // own row. The expression is single-quoted, with each `'` closed and
+  // reopened, so none of its characters are read as script syntax, and eval
+  // expands the readers' slots at run time, after the prelude captured them.
+  var quoted = "'" + substituteGuardReaders(expression).split("'").join("'\\''") + "'"
+  return "if ( eval " + quoted + " ) >/dev/null 2>&1; then echo "
     + id + ":" + tag + ":1; else echo " + id + ":" + tag + ":0; fi\n"
 }
 
@@ -587,8 +595,9 @@ var GUARD_GROUPS = 8
 // the menu never relied on: each names its row, and each is one short write
 // to the pipe, which the kernel never interleaves.
 //
-// A group that dies part way (a guard tripping a login shell's `set -u`, say)
-// has left its remaining rows unanswered, and the menu keeps the last full
+// A guard can no longer take its group down — each one parses and runs in a
+// subshell of its own — but the prelude can still fail, a killed group has
+// left its remaining rows unanswered, and the menu keeps the last full
 // set only when the batch fails. So each group is waited for by pid, and the
 // batch's status is nonzero if any of them was.
 function guardScript(items) {
