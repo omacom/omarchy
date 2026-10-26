@@ -46,19 +46,48 @@ CONF
 # LNVNB161216) hides \_SB.SSPM when _OSI("Windows 2022") is true. Linux claims
 # that string, so the SSPM mailbox never maps, every sspm_ci_set() returns
 # -ENODEV, and the I2C controller behind the internal keyboard (LENC0001 on
-# I2C2) never powers on. Dell and ASUS N1x firmware do not do this. Drop the
-# claim so SSPM enumerates and the keyboard works from the LUKS prompt.
+# I2C2) never powers on. The Dell XPS 16 and ASUS ProArt P14 firmware do not
+# do this; the ProArt P16's does (below). Drop the claim so SSPM enumerates and
+# the keyboard works from the LUKS prompt.
 # Verified on BIOS TUCN26WW: with the claim removed, SSPM_CI binds and
 # LENC0001:00 048D:83DB appears as a console keyboard.
-lenovo_n1x=0
+n1x_osi=""
 if omarchy-hw-match "15N1X11" || omarchy-hw-match "83SS"; then
-  lenovo_n1x=1
+  n1x_osi='acpi_osi="!Windows 2022"'
   cat > /etc/limine-entry-tool.d/00-omarchy-n1x-lenovo-osi.conf <<'CONF'
 # Lenovo N1x: firmware hides SSPM from an OS that claims Windows 2022, which
 # leaves the I2C keyboard unpowered. The inner quotes reach the kernel as
 # written (limine-entry-tool strips only the outer pair and does not unescape
 # \"), and keep Windows 2022 one parameter. See install/hardware/n1x.sh.
 KERNEL_CMDLINE[default]+=" acpi_osi="!Windows 2022""
+CONF
+fi
+
+# The ASUS ProArt P16 H7607BA (BIOS H7607BA.303) hides \_SB.SSPM the same
+# way, along with HFRP, SVP0, COM1-3, NH1X and NMAP: each _STA returns 0 once
+# _OSI("Windows 2022") is true. Without SSPM the I2C controllers behind the
+# keyboard, touchpad and touchscreen never power on, and linux-omarchy skips
+# the SPI controllers and the audio DSP, which need it too.
+#
+# Its only other _OSI caller is ASUS's \MSOS, whose answer the EC event
+# handler \_SB.EC0.QEVT compares with Windows 8. \MSOS tries "Windows 2022",
+# then "Windows 2001" before any later Windows, so dropping only Windows 2022
+# makes it report Windows XP: the brightness and volume hotkey events then
+# reach only ASUS WMI, which no arm64 driver handles, and the display-switch
+# one is dropped. Drop every Windows claim instead (acpi_osi=!): \MSOS then
+# falls back to Windows 8, and QEVT takes the paths it takes under Windows 11.
+#
+# Verified on BIOS 303 with acpi_osi=!: SSPM_CI binds, the keyboard
+# (MKB0001, 0B05:4B42), touchpad (093A:4F01) and touchscreen (222A:5554)
+# enumerate, and COM1-3, unhidden with SSPM, bind to 8250_mtk.
+if omarchy-hw-match "H7607BA"; then
+  n1x_osi='acpi_osi=!'
+  cat > /etc/limine-entry-tool.d/00-omarchy-n1x-asus-osi.conf <<'CONF'
+# ASUS ProArt P16 N1x: firmware hides SSPM from an OS that claims Windows 2022,
+# which leaves the I2C keyboard, touchpad and touchscreen unpowered. Claim no
+# Windows version at all, so ASUS's own version check still sees Windows 8 or
+# later. See install/hardware/n1x.sh.
+KERNEL_CMDLINE[default]+=" acpi_osi=!"
 CONF
 fi
 
@@ -130,8 +159,8 @@ if [[ -z $root_cmdline || $root_cmdline != *root=* ]]; then
   return 1
 fi
 rescue_cmdline="$root_cmdline initramfs_async=0 console=tty0 acpi=nospcr plymouth.enable=0 nomodeset module_blacklist=nvidia,nvidia_drm,nvidia_modeset,nvidia_uvm,nvidia_peermem,nouveau modprobe.blacklist=nvidia,nvidia_drm,nvidia_modeset,nvidia_uvm,nvidia_peermem,nouveau nvidia_drm.modeset=0 systemd.unit=multi-user.target fbcon=map:0 loglevel=7 ignore_loglevel systemd.show_status=1 systemd.log_target=console vt.global_cursor_default=1"
-if (( lenovo_n1x )); then
-  rescue_cmdline+=' acpi_osi="!Windows 2022"'
+if [[ -n $n1x_osi ]]; then
+  rescue_cmdline+=" $n1x_osi"
 fi
 printf '%s\n' \
   '# N1x: a text-console rescue entry sits right below the normal one; see install/hardware/n1x.sh.' \
