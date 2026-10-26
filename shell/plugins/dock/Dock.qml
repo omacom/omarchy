@@ -230,16 +230,13 @@ Item {
     return root.pinnedKeys.indexOf(key) >= 0
   }
 
-  // Moves an app to a slot in the dock's order, pinning it there; the pins are
-  // saved in the new order. The index counts the slots once the app has left
-  // its own.
+  // Moves an app to a slot in the dock's order, pinning it there when it has a
+  // desktop entry; the pins are saved in the new order. The index counts the
+  // slots once the app has left its own.
   function placeAt(key, index) {
     if (!key) return
     root.order = DockModel.orderWithKeyAt(root.shownKeys(), key, index)
-    var pinned = {}
-    root.pinnedKeys.forEach(function(other) { pinned[other] = true })
-    pinned[key] = true
-    root.savePins(DockModel.pinsInOrder(root.order, pinned, root.pinnedKeys))
+    root.savePins(DockModel.pinsAfterMove(root.order, root.pinnedKeys, key, !!DesktopEntries.byId(key)))
   }
 
   // A reorder shows at once; the saved config catches up after.
