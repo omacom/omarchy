@@ -210,7 +210,7 @@ wait "$reader" || fail "concurrent readers always see a complete selection"
 printf '%s\n' voxtype > "$config"
 pass "selection updates are atomic for concurrent readers"
 
-lua <<'LUA'
+lua - <<'LUA'
 local root = os.getenv("ROOT")
 local selected, installed, bindings = nil, true, {}
 io.popen = function(command)
@@ -254,7 +254,7 @@ cp "$ROOT/config/omarchy/defaults/dictation" "$config"
 printf '%s\n' voxtype > "$config"
 pass "fresh users get Superwhisper as their default backend"
 
-lua <<'LUA'
+lua - <<'LUA'
 local root = os.getenv("ROOT")
 package.path = root .. "/?.lua;" .. package.path
 package.loaded["default.hypr.paths"] = { config_home = "/config" }
