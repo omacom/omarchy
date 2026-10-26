@@ -21,6 +21,8 @@ Panel {
   property int profileIndex: 0
   property bool cursorActive: false
   readonly property bool showPercentage: setting("showPercentage", false) === true
+  // `omarchy toggle status-phrases` turns the rotating hero phrases into plain status text.
+  readonly property bool statusPhrases: setting("statusPhrases", true) !== false
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
   // icon-sized fraction of the slot the fallback assumes.
@@ -120,7 +122,7 @@ Panel {
 
   // Whichever list is "active" given the current power state.
   readonly property var activePhrases: {
-    if (fullyCharged) return []
+    if (!statusPhrases || fullyCharged) return []
     if (charging) return chargingPhrases
     if (discharging) return onBatteryPhrases
     return []

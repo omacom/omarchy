@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle the rotating phrases in the Power, Bluetooth and Network panels (off shows plain status text)
+# omarchy:args=[toggle|on|off|--status]
+# omarchy:examples=omarchy toggle status-phrases | omarchy toggle status-phrases off | omarchy toggle status-phrases --status
+
+sources=(omarchy.power omarchy.bluetooth omarchy.network)
+
+# A clone of a panel takes the built-in's place on the bar under its own id, so
+# the options go to the built-in and to every clone of it.
+widgets=()
+while IFS= read -r id; do
+  widgets+=("$id")
+done < <(
+  omarchy-shell shell listPlugins 2>/dev/null |
+    jq -r --argjson sources "$(printf '%s\n' "${sources[@]}" | jq -R . | jq -sc .)" \
+      '$sources[], (.[] | select(.clonedFrom as $c | $sources | index($c)) | .id)' 2>/dev/null ||
+    printf '%s\n' "${sources[@]}"
+)
+(( ${#widgets[@]} )) || widgets=("${sources[@]}")
+
+# The phrases are on unless a widget on the bar has them switched off.
+phrases_on() {
+  local widget
+  for widget in "${widgets[@]}"; do
+    [[ $(omarchy-bar get "$widget" statusPhrases 2>/dev/null) == "false" ]] && return 1
+  done
+  return 0
+}
+
+case ${1:-toggle} in
+--status) phrases_on && echo on || echo off; exit 0 ;;
+toggle) if phrases_on; then state=false; else state=true; fi ;;
+on) state=true ;;
+off) state=false ;;
+*)
+  echo "Usage: omarchy-toggle-status-phrases [toggle|on|off|--status]" >&2
+  exit 1
+  ;;
+esac
+
+# A widget that is not on the bar has nothing to set, which is fine.
+for widget in "${widgets[@]}"; do
+  omarchy-bar set "$widget" statusPhrases "$state" --json >/dev/null 2>&1 || true
+done
+
+if [[ $state == "true" ]]; then
+  omarchy-notification-send -g 󰋽 "$(omarchy-i18n statusPhrases.enabled)"
+else
+  omarchy-notification-send -g 󰋽 "$(omarchy-i18n statusPhrases.disabled)"
+fi

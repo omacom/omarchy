@@ -437,7 +437,8 @@ var GUARD_READERS = [
   "omarchy-hyprland-window-transparency",
   "omarchy-hyprland-workspace-layout-default",
   "omarchy-shell notifications isDnd",
-  "omarchy-toggle-nightlight --status"
+  "omarchy-toggle-nightlight --status",
+  "omarchy-toggle-status-phrases --status"
 ]
 
 // Package and command presence account for most of what the guards ask, and
