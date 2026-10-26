@@ -831,6 +831,30 @@ Item {
     }
   }
 
+  // Suspend freezes the shell, so the first tick after resume sees the clock
+  // jump. Wake the panel right away instead of leaving the user at a dark
+  // lock screen pressing keys to bring it back.
+  Timer {
+    id: resumeWatchTimer
+    interval: 1000
+    repeat: true
+    running: root.lockRequested
+    property double lastTick: 0
+    // Start the clock when the watch starts: a suspend requested from an
+    // unlocked session locks and sleeps within the same second, before the
+    // first tick, and a resume with lastTick still 0 would go unnoticed.
+    onRunningChanged: lastTick = running ? Date.now() : 0
+    onTriggered: {
+      var now = Date.now()
+      var resumed = lastTick > 0 && now - lastTick > interval + 2000
+      lastTick = now
+      if (resumed) {
+        root.logEvent("resume-detected")
+        root.runWake()
+      }
+    }
+  }
+
   Timer {
     id: sessionLockStabilizeTimer
     interval: 500

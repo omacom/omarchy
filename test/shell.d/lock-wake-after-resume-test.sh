@@ -42,4 +42,11 @@ assert(
   /function applyDisplayState\(text\) \{[\s\S]*?if \(!displayStateTimer\.running\) return[\s\S]*?dpmsStatus === true\) \{\s*displaysBlank = false/.test(serviceQml),
   'a lit display clears the blank state, and an answer landing after the wake stopped the poll is dropped'
 )
+
+// Resume is detected from the clock jump the frozen shell sees on its first
+// tick back, and the panel is woken without waiting for input.
+assert(
+  /id: resumeWatchTimer[\s\S]*?running: root\.lockRequested[\s\S]*?onRunningChanged: lastTick = running \? Date\.now\(\) : 0[\s\S]*?now - lastTick > interval \+ 2000[\s\S]*?if \(resumed\) \{[\s\S]*?root\.runWake\(\)/.test(serviceQml),
+  'the lock wakes the panel on its own after resume'
+)
 JS
