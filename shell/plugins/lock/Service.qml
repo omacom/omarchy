@@ -248,6 +248,14 @@ Item {
     runWake()
   }
 
+  // shell.json idle timings are seconds; QML Timer uses signed 32-bit milliseconds.
+  function blankTimeoutMs(value) {
+    if (typeof value !== "number" && typeof value !== "string") return 5000
+    var seconds = Number(value)
+    if (!isFinite(seconds) || seconds <= 0) return 5000
+    return Math.max(1, Math.floor(Math.min(seconds, 2147483.647) * 1000))
+  }
+
   function armBlankTimer() {
     idleBlankTimer.armedAt = Date.now()
     idleBlankTimer.restart()
@@ -765,7 +773,8 @@ Item {
 
   Timer {
     id: idleBlankTimer
-    interval: 5000
+    interval: root.blankTimeoutMs(root.shell && root.shell.shellConfig && root.shell.shellConfig.idle
+      ? root.shell.shellConfig.idle.lockBlank : undefined)
     repeat: false
     property double armedAt: 0
     onTriggered: {
