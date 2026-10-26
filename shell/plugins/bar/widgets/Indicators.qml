@@ -144,7 +144,7 @@ BarWidget {
     }
   }
 
-  function setIndicatorActive(entry, active) {
+  function setIndicatorActive(entry, active, revealWhenInactive) {
     var id = entryId(entry)
     if (id === "") return
 
@@ -154,19 +154,30 @@ BarWidget {
 
     indicatorActiveStates = states
 
-    var ids = orderedActiveIds(states, activeIndicatorIds)
-    // Newcomers go on the side of the active block away from the fixed edge.
-    // The other side would shove everything already showing sideways.
-    if (active && ids.indexOf(id) === -1 && hasIndicatorId(id)) {
-      if (fixedAtStart) ids.push(id)
-      else ids.unshift(id)
+    // Keep click targets in place until the revealed controls are left.
+    if (revealInactiveIndicators) {
+      if (revealWhenInactive !== false) return
+      // Status-only indicators must still appear and disappear immediately.
+      states = {}
+      for (var i = 0; i < activeIndicatorIds.length; i++) states[activeIndicatorIds[i]] = true
+      if (active) states[id] = true
+      else delete states[id]
     }
-    activeIndicatorIds = ids
-    syncActiveIndicatorModel()
+    syncActiveIndicatorOrder(states)
   }
 
-  function syncActiveIndicatorOrder() {
-    activeIndicatorIds = orderedActiveIds(indicatorActiveStates, activeIndicatorIds)
+  function syncActiveIndicatorOrder(states) {
+    states = states || indicatorActiveStates
+    var ids = orderedActiveIds(states, activeIndicatorIds)
+    // Newcomers go away from the fixed edge, without shifting existing icons.
+    for (var i = 0; i < indicatorEntries.length; i++) {
+      var id = entryId(indicatorEntries[i])
+      if (states[id] === true && ids.indexOf(id) === -1) {
+        if (fixedAtStart) ids.push(id)
+        else ids.unshift(id)
+      }
+    }
+    activeIndicatorIds = ids
     syncActiveIndicatorModel()
   }
 
@@ -191,6 +202,7 @@ BarWidget {
     syncInactiveIndicatorModel()
   }
   onFixedAtStartChanged: syncInactiveIndicatorModel()
+  onRevealInactiveIndicatorsChanged: if (!revealInactiveIndicators) syncActiveIndicatorOrder()
 
   // Only the tree for the current orientation exists (see orientationLoader
   // below); its wrapper keeps the stock sizing expressions, so the root's
@@ -468,6 +480,7 @@ BarWidget {
     readonly property string indicatorId: root.entryId(entry)
     readonly property var indicatorSettings: root.entrySettings(entry)
     readonly property var barRef: root.bar
+    readonly property bool inActiveBlock: root.activeIndicatorIds.indexOf(indicatorId) !== -1
 
     implicitWidth: indicatorSource.item && indicatorSource.item.visible ? indicatorSource.item.implicitWidth : 0
     implicitHeight: indicatorSource.item && indicatorSource.item.visible ? indicatorSource.item.implicitHeight : 0
@@ -486,6 +499,7 @@ BarWidget {
     }
     onReportActiveStateChanged: syncActiveState()
     onBarRefChanged: injectProps()
+    onInActiveBlockChanged: injectProps()
 
     Loader {
       id: indicatorSource
@@ -513,7 +527,7 @@ BarWidget {
       if ("settings" in target) target.settings = indicatorSettings
       if ("indicatorBlock" in target) target.indicatorBlock = indicatorBlock
       if ("indicatorHost" in target) target.indicatorHost = root
-      if ("activeOverride" in target) target.activeOverride = indicatorBlock === "active" ? true : null
+      if ("activeOverride" in target) target.activeOverride = indicatorBlock === "active" || inActiveBlock
     }
 
     function syncActiveState() {
@@ -525,7 +539,7 @@ BarWidget {
         else if (!activeStateObserved) return
       }
 
-      indicatorsModule.setIndicatorActive(entry, active)
+      indicatorsModule.setIndicatorActive(entry, active, indicatorSource.item ? indicatorSource.item.revealWhenInactive : true)
     }
   }
 }

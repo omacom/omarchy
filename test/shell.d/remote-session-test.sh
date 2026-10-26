@@ -39,8 +39,8 @@ assert(indicator.includes('useActiveColor: true') && indicator.includes('activeC
 assert(indicator.includes('revealWhenInactive: false'), 'remote session shows only while a session is active, not among the inactive indicators a hover reveals')
 const barIndicator = fs.readFileSync(path.join(root, 'shell/Ui/BarIndicator.qml'), 'utf8')
 assert(
-  /belongsInBlock:[^\n]*indicatorBlock === "inactive" \? !effectiveActive && revealWhenInactive/.test(barIndicator)
-    && /inactiveRevealed: !effectiveActive && revealWhenInactive &&/.test(barIndicator),
+  /belongsInBlock:[^\n]*indicatorBlock === "inactive" \? !blockActive && revealWhenInactive/.test(barIndicator)
+    && /inactiveRevealed: !active && revealWhenInactive &&/.test(barIndicator),
   'an indicator that opts out is neither placed nor revealed among the inactive ones'
 )
 assert(!indicator.includes('visible:'), 'remote session uses the shared indicator visibility and hover behavior')
