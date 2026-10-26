@@ -1,6 +1,6 @@
 # Sneltoetsen
 
-Je kunt alle belangrijkste toetsenbordcombinaties zien met `Super + K` (Tmux-combinaties met `Super + Alt + K` en Herdr-combinaties met `Super + Ctrl + K`).
+Je kunt alle belangrijke toetsenbordbindingen zien met `Super + K` (Tmux-bindingen met `Super + Alt + K` en Herdr-bindingen met `Super + Ctrl + K`).
 
 ## Navigeren
 
@@ -12,29 +12,29 @@ Je kunt alle belangrijkste toetsenbordcombinaties zien met `Super + K` (Tmux-com
 | `Super + Ctrl + L` | Computer vergrendelen |
 | `Super + W` or `Super + Q` | Venster sluiten             |
 | `Ctrl + Alt + Del` | Alle vensters sluiten |
-| `Super + T`               | Venster wisselen tussen betegeld/zwevend             |
-| `Super + J` | Vensterpositie wisselen (horizontaal/verticaal) |
-| `Super + O`               | Venster in sticky'n'floating zetten of eruit halen |
-| `Super + L`               | Door de lay-outs dwindle, scrolling en floating bladeren |
-| `Super + Alt + L`         | Door de lay-outs in omgekeerde volgorde bladeren |
-| `Super + P`               | Pseudo-vensterstijl wisselen (natuurlijk vs. uitgerekt) |
-| `Super + F`                 | Volledig scherm              |
-| `Super + Alt + F`                 | Volledige breedte              |
-| `Super + Ctrl + F`                 | Volledig scherm binnen het venster              |
-| `Super + 1/2/3/4`         | Naar een specifieke werkruimte op de gefocuste monitor springen |
-| `Super + Tab` | Naar de volgende werkruimte op de gefocuste monitor springen |
-| `Super + Shift + Tab` | Naar de vorige werkruimte op de gefocuste monitor springen |
-| `Super + Ctrl + Tab` | Naar de eerdere werkruimte op de gefocuste monitor springen |
-| `Super + Shift + 1/2/3/4` | Venster naar een werkruimte op de gefocuste monitor verplaatsen |
-| `Super + Shift + Alt + 1/2/3/4` | Venster naar een werkruimte op de gefocuste monitor verplaatsen zonder te volgen |
-| `Super + S` | Volledig kladblok in-/uitschakelen |
-| `Super + Alt + S` | Venster naar het volledige kladblok verplaatsen |
-| `Super + Grave` | Quake-console in-/uitschakelen |
-| `Super + Shift + Grave` | Venster naar de Quake-console verplaatsen |
+| `Super + T`               | Venster schakelen tussen tiling/zwevend             |
+| `Super + J` | Vensterpositie schakelen (horizontaal/verticaal) |
+| `Super + O`               | Venster schakelen naar sticky'n'floating openen |
+| `Super + L`               | Door de dwindle-, scrolling- en floating-lay-outs bladeren |
+| `Super + Alt + L`         | In omgekeerde volgorde door de lay-outs bladeren |
+| `Super + P`               | Pseudo-vensterstijl schakelen (natural v stretch) |
+| `Super + F`                 | Volledig scherm openen              |
+| `Super + Alt + F`                 | Volledige breedte openen              |
+| `Super + Ctrl + F`                 | Volledig scherm binnen venster openen              |
+| `Super + 1/2/3/4`         | Naar specifieke werkruimte op de monitor met focus springen |
+| `Super + Tab` | Naar volgende werkruimte op de monitor met focus springen |
+| `Super + Shift + Tab` | Naar vorige werkruimte op de monitor met focus springen |
+| `Super + Ctrl + Tab` | Naar eerdere werkruimte op de monitor met focus springen |
+| `Super + Shift + 1/2/3/4` | Venster naar werkruimte op de monitor met focus verplaatsen |
+| `Super + Shift + Alt + 1/2/3/4` | Venster naar werkruimte op de monitor met focus verplaatsen zonder te volgen |
+| `Super + S` | Volledig scratchpad schakelen |
+| `Super + Alt + S` | Venster naar volledig scratchpad verplaatsen |
+| `Super + Grave` | Quake-console schakelen |
+| `Super + Shift + Grave` | Venster naar Quake-console verplaatsen |
 | `Super + Shift + Ctrl + Arrows` | Venster naar de monitor in die richting verplaatsen |
 | `Super + Shift + Alt + Arrows` | Werkruimte naar de monitor in die richting verplaatsen |
-| `Super + Arrow`  | Focus verplaatsen naar het venster in de richting van de pijl, waarbij je aan de rand van het scherm oversteekt naar de monitor aan die kant |
-| `Super + Shift + Arrow`  | Venster verwisselen met een ander venster in de richting van de pijl, ook met een venster op de monitor aan die kant |
+| `Super + Arrow`  | Focus naar venster in pijlrichting verplaatsen, aan de schermrand oversteken naar de monitor aan die kant |
+| `Super + Shift + Arrow`  | Venster verwisselen met een ander in pijlrichting, inclusief een op de monitor aan die kant |
 | `Super + Minus` | Venster naar links uitbreiden |
 | `Super + Equal` | Venster naar links verkleinen |
 | `Super + Shift + Minus` | Venster naar boven verkleinen |
@@ -44,22 +44,22 @@ Je kunt alle belangrijkste toetsenbordcombinaties zien met `Super + K` (Tmux-com
 | `Super + Alt + Home` | Vensterbreedte opslaan |
 | `Super + Home` | Opgeslagen vensterbreedte herstellen |
 | `Super + Left Mouse` | Venster rondslepen |
-| `Super + Right Mouse` | Formaat van het venster wijzigen |
-| `Super + Scroll Wheel` | Door werkruimtes op de gefocuste monitor scrollen |
-| `Super + G`               | Venstergroepering in-/uitschakelen      |
-| `Super + Alt + G`               | Venster uit de groepering halen      |
-| `Super + Alt + Tab`               | Tussen vensters in de groepering bladeren      |
-| `Super + Alt + Shift + Tab`               | Achteruit tussen vensters in de groepering bladeren      |
-| `Super + Alt + Scroll Wheel` | Tussen vensters in de groepering bladeren |
-| `Super + Alt + 1/2/3/4/5`               | Naar een specifiek venster in de groepering springen      |
-| `Super + Alt + Arrow`  | Venster in de richting van de pijl in een groepering plaatsen, ook een venster op de monitor aan die kant |
-| `Super + Ctrl + Left/Right`  | Tussen vensters binnen een tegelgroep bewegen |
-| `Super + Ctrl + Z` | Inzoomen op het scherm (herhaal voor meer zoom) |
-| `Super + Ctrl + Alt + Z` | Volledig uitzoomen van het scherm |
-| `Super + /` | Vooruit door de schaalopties voor de monitor stappen |
-| `Super + Alt + /` | Achteruit door de schaalopties voor de monitor stappen |
-| `Alt + Tab` | Vooruit door vensters op de actieve werkruimte bladeren |
-| `Alt + Shift + Tab` | Achteruit door vensters op de actieve werkruimte bladeren |
+| `Super + Right Mouse` | Vensterformaat wijzigen |
+| `Super + Scroll Wheel` | Door werkruimtes op de monitor met focus scrollen |
+| `Super + G`               | Venstergroepering schakelen      |
+| `Super + Alt + G`               | Venster uit groepering verplaatsen      |
+| `Super + Alt + Tab`               | Tussen vensters in groepering bladeren      |
+| `Super + Alt + Shift + Tab`               | Achteruit tussen vensters in groepering bladeren      |
+| `Super + Alt + Scroll Wheel` | Tussen vensters in groepering bladeren |
+| `Super + Alt + 1/2/3/4/5`               | Naar specifiek venster in groepering springen      |
+| `Super + Alt + Arrow`  | Venster in pijlrichting in groepering verplaatsen, inclusief een op de monitor aan die kant |
+| `Super + Ctrl + Left/Right`  | Tussen vensters binnen een tiling-groep bewegen |
+| `Super + Ctrl + Z` | Op scherm inzoomen (herhalen voor meer zoom) |
+| `Super + Ctrl + Alt + Z` | Volledig van scherm uitzoomen |
+| `Super + /` | Stap voor stap vooruit door opties voor monitorschaling |
+| `Super + Alt + /` | Stap voor stap achteruit door opties voor monitorschaling |
+| `Alt + Tab` | Vooruit bladeren door vensters op de actieve werkruimte |
+| `Alt + Shift + Tab` | Achteruit bladeren door vensters op de actieve werkruimte |
 | `Ctrl + Alt + Tab`| Focus vooruit door monitors bladeren |
 | `Ctrl + Alt + Shift + Tab`| Focus achteruit door monitors bladeren |
 
@@ -69,19 +69,19 @@ Je kunt alle belangrijkste toetsenbordcombinaties zien met `Super + K` (Tmux-com
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Audiopaneel    |
 | `Super + Ctrl + B`           | Bluetooth-paneel    |
-| `Super + Ctrl + N`           | Wi-Fi-/netwerkpaneel    |
-| `Super + Ctrl + D`           | Beeldschermpaneel    |
+| `Super + Ctrl + N`           | Wifi/netwerkpaneel    |
+| `Super + Ctrl + D`           | Weergavepaneel    |
 | `Super + Ctrl + P`           | Energiepaneel    |
 | `Super + Ctrl + Alt + D`           | Kalenderpaneel    |
 | `Super + Ctrl + Alt + E`           | Wereldklokpaneel    |
-| `Super + Ctrl + 1-9`           | Balkpaneel op positie in-/uitschakelen    |
+| `Super + Ctrl + 1-9`           | Balkpaneel op positie schakelen    |
 | `Super + Ctrl + S` | Deelmenu (via LocalSend) |
-| `Super + Ctrl + C` | Bediening voor vastleggen (schermafbeelding/-opname/kiezer) |
-| `Super + Ctrl + O` | Menu in-/uitschakelen |
+| `Super + Ctrl + C` | Vastlegbediening (screenshot/-opname/kiezer) |
+| `Super + Ctrl + O` | Menu schakelen |
 | `Super + Ctrl + H` | Hardwaremenu |
 | `Super + Ctrl + E` | Emoji-kiezer |
 | `Super + Ctrl + .` | Media transcoderen |
-| `Super + Shift + Ctrl + A` | Een AI-agent kiezen |
+| `Super + Shift + Ctrl + A` | Kies een AI-agent |
 
 ## Aanpassingen
 
@@ -91,7 +91,7 @@ Je kunt alle belangrijkste toetsenbordcombinaties zien met `Super + K` (Tmux-com
 | `Shift + Brightness Down` | Minimale schermhelderheid |
 | `Alt + Brightness Up/Down` | Nauwkeurige helderheidsaanpassingen van 1% |
 | `Alt + Volume Up/Down` | Nauwkeurige volumeaanpassingen van 1% |
-| `Keyboard Brightness Up/Down` | Toetsenbordverlichting feller/dimmer |
+| `Keyboard Brightness Up/Down` | Toetsenbordverlichting helderder/donkerder |
 | `Keyboard Backlight` | Door de niveaus van de toetsenbordverlichting bladeren |
 | `Alt + Play` | Volgend nummer |
 | `Alt + Shift + Play` | Vorig nummer |
@@ -105,11 +105,11 @@ Je kunt alle belangrijkste toetsenbordcombinaties zien met `Super + K` (Tmux-com
 | `Super + Ctrl + Return` | Herdr (agent manager) |
 | `Super + Shift + Return`           | Browser    |
 | `Super + Shift + Alt + B`           | Browser (privé/incognito)    |
-| `Super + Shift + F`           | Bestandsbeheerder    |
-| `Super + Shift + Alt + F`           | Bestandsbeheerder in de cwd van de terminal    |
+| `Super + Shift + F`           | Bestandsbeheer    |
+| `Super + Shift + Alt + F`           | Bestandsbeheer in cwd van terminal    |
 | `Super + Shift + M`           | Muziek (Spotify)    |
 | `Super + Shift + Alt + M`           | Muziek (cliamp)    |
-| `Super + Shift + /`           | Wachtwoordbeheerder (1password)    |
+| `Super + Shift + /`           | Wachtwoordmanager (1password)    |
 | `Super + Shift + Q`           | Rekenmachine (Omacalc)    |
 | `Super + Shift + T`           | Activiteit (btop)    |
 | `Super + Shift + N`           | Editor (Neovim)  |
@@ -118,70 +118,70 @@ Je kunt alle belangrijkste toetsenbordcombinaties zien met `Super + K` (Tmux-com
 | `Super + Shift + Alt + E`           | Nieuwe e-mail ([HEY](https://hey.com/))  |
 | `Super + Shift + A`           | AI (ChatGPT)  |
 | `Super + Shift + Alt + A`           | AI (Grok)  |
-| `Super + Shift + G`           | Berichten (Signal)  |
+| `Super + Shift + G`           | Messenger (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
 | `Super + Shift + S`           | Google Maps  |
-| `Super + Shift + Alt + G`           | Berichten (WhatsApp)  |
-| `Super + Shift + Ctrl + G`           | Berichten (Google)  |
+| `Super + Shift + Alt + G`           | Messenger (WhatsApp)  |
+| `Super + Shift + Ctrl + G`           | Messenger (Google)  |
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | Schrijven (Omawrite)  |
 | `Super + Shift + X`           | X |
 | `Super + Shift + Alt + X`           | X Compose |
 | `Super + Shift + Y`           | YouTube |
 
-Wijzig/voeg combinaties toe in `~/.config/hypr/bindings.lua`.
+Wijzig/voeg bindingen toe in `~/.config/hypr/bindings.lua`.
 
 ## Universeel klembord
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + C`           | Kopiëren    |
-| `Super + X`           | Knippen (niet in de terminal)    |
+| `Super + X`           | Knippen (niet in terminal)    |
 | `Super + V`           | Plakken    |
 | `Super + Ctrl + V`           | Klembordbeheerder    |
 
-Op Linux heb je normaal gesproken `Ctrl + Shift + C/V` nodig om te kopiëren en plakken in de terminal en `Ctrl + C/V` om dat overal elders te doen. Deze uniforme klembordsneltoetsen van Omarchy werken overal.
+Normaal gesproken heb je op Linux `Ctrl + Shift + C/V` nodig om te kopiëren en plakken in de terminal en `Ctrl + C/V` om dat overal anders te doen. Deze uniforme klembordsneltoetsen van Omarchy werken overal.
 
 ## Vastleggen
 
 | Hotkey              | Function                       |
 | ------------------- | ------------------------------ |
-| `Print Screen`            | Schermafbeelding                      |
-| `Super + Ctrl + Alt + C`            | Schermafbeelding (dezelfde opname, voor toetsenborden zonder Print Screen-toets) |
-| `Super + Ctrl + C` | Menu voor vastleggen |
+| `Print Screen`            | Screenshot                      |
+| `Super + Ctrl + Alt + C`            | Screenshot (dezelfde opname, voor toetsenborden zonder Print Screen-toets) |
+| `Super + Ctrl + C` | Vastlegmenu |
 | `Alt + Print Screen`            | Schermopname                     |
-| `Super + Print Screen` | Kleurenkiezer |
-| `Super + Ctrl + Print Screen` | Tekstextractie naar het klembord |
-| `Super + Alt + [` | Webcamoverlay kleiner maken tijdens het opnemen |
-| `Super + Alt + ]` | Webcamoverlay groter maken tijdens het opnemen |
-| `Alt + Shift + L` | Huidige URL kopiëren uit een webapp of Chromium |
+| `Super + Print Screen` | Kleurkiezer |
+| `Super + Ctrl + Print Screen` | Tekstextractie naar klembord |
+| `Super + Alt + [` | Webcam-overlay kleiner maken tijdens opname |
+| `Super + Alt + ]` | Webcam-overlay groter maken tijdens opname |
+| `Alt + Shift + L` | Huidige URL kopiëren vanuit webapp of Chromium |
 | `Alt + Shift + D` | De video op de huidige pagina downloaden naar `~/Videos` |
 | `Super + Ctrl + X` | Dicteren starten/stoppen (vereist _Setup > Defaults > Dictation_) |
-| `Right Alt` / `F9` | Push-to-talk-dicteren (vereist Voxtype of Superwhisper) |
+| `Right Alt` / `F9` | Push-to-talk dicteren (vereist Voxtype of Superwhisper) |
 
-Bij schermopnamen vraagt de sneltoets eerst welke audio je wilt, en start dan met opnemen. Druk er nogmaals op om te stoppen. Zie [schermafbeeldingen en opnamen](12-screenshots-recording.md) voor de details.
+Bij schermopnames vraagt de sneltoets eerst welke audio je wilt, en start daarna de opname. Druk er opnieuw op om te stoppen. Zie [screenshots en opname](12-screenshots-recording.md) voor de details.
 
-Alle opties voor vastleggen zijn ook toegankelijk onder _Trigger > Capture_ in het Omarchy-menu (`Super + Space`).
+Alle vastlegopties zijn ook toegankelijk onder _Trigger > Capture_ in het Omarchy-menu (`Super + Space`).
 
 ## Meldingen
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Nieuwste melding afhandelen: sluit haar, druk op de enige knop, of kies een van de knoppen  |
+| `Super + ,` | Actie uitvoeren op nieuwste melding: open deze of druk op de enige knop, kies uit de opties, of sluit deze als er geen zijn  |
 | `Super + Shift + ,` | Alle meldingen sluiten |
-| `Super + Ctrl + ,` | Meldingen bedienen met het toetsenbord  |
+| `Super + Ctrl + ,` | Meldingen met het toetsenbord bedienen  |
 | `Super + Alt + ,` | Nieuwste melding sluiten  |
 | `Super + Shift + Alt + ,` | Meldingsgeschiedenis openen  |
-| `Super + Ctrl + Alt + ,` | Meldingen dempen in-/uitschakelen  |
+| `Super + Ctrl + Alt + ,` | Meldingen dempen schakelen  |
 
 ## Stijl
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + T` | Een nieuw thema kiezen (ook `Super + Ctrl + Shift + Space`) |
-| `Super + Ctrl + W` | Achtergrond van het thema kiezen (ook `Super + Ctrl + Space`) |
-| `Super + Backspace` | Transparantie op een venster in-/uitschakelen |
-| `Super + Ctrl + Backspace` | Vierkante beeldverhouding voor één venster in-/uitschakelen |
+| `Super + Ctrl + T` | Kies een nieuw thema (ook `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | Kies thema-achtergrond (ook `Super + Ctrl + Space`) |
+| `Super + Backspace` | Transparantie op een venster schakelen |
+| `Super + Ctrl + Backspace` | Vierkante verhouding voor één venster schakelen |
 
 Extra achtergrondafbeeldingen staan in `~/.config/omarchy/backgrounds/<theme name>`. Ook beschikbaar via _Install > Style > Background_ in het Omarchy-menu.
 
@@ -191,14 +191,14 @@ Alle stijlopties zijn ook toegankelijk onder _Style_ in het Omarchy-menu (`Super
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | Vergrendelen bij inactiviteit in-/uitschakelen |
-| `Super + Ctrl + Delete` | Laptopscherm aan/uit zetten |
-| `Super + Ctrl + Alt + Delete` | Laptopscherm spiegelen in-/uitschakelen |
-| `Super + Shift + Space` | De bovenbalk in-/uitschakelen  |
-| `Shift + Mute` | Naar de volgende audio-uitvoer schakelen |
-| `Shift + Play` | Naar de volgende mediabron schakelen |
-| `Super + Shift + Backspace` | Vensterafstanden in-/uitschakelen |
-| `Super + Ctrl + Alt + F` | Bureaublad op volledig scherm in-/uitschakelen (bovenbalk + vensterafstanden) |
+| `Super + Ctrl + I` | Vergrendeling bij inactiviteit schakelen |
+| `Super + Ctrl + Delete` | Laptopscherm aan/uit schakelen |
+| `Super + Ctrl + Alt + Delete` | Laptopscherm spiegelen schakelen |
+| `Super + Shift + Space` | De bovenste balk schakelen  |
+| `Shift + Mute` | Naar volgende audio-uitvoer schakelen |
+| `Shift + Play` | Naar volgende mediabron schakelen |
+| `Super + Shift + Backspace` | Venstertussenruimtes schakelen |
+| `Super + Ctrl + Alt + F` | Volledig scherm-bureaublad schakelen (bovenste balk + venstertussenruimtes) |
 
 ## Herinneringen
 
@@ -208,17 +208,17 @@ Alle stijlopties zijn ook toegankelijk onder _Style_ in het Omarchy-menu (`Super
 | `Super + Ctrl + Alt + R` | Alle herinneringen bekijken  |
 | `Super + Ctrl + Shift + R` | Alle herinneringen wissen  |
 
-## Kennisgevingen
+## Mededelingen
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + Alt + T` | Tijd als melding tonen  |
 | `Super + Ctrl + Alt + B` | Batterij als melding tonen  |
-| `Super + Ctrl + Alt + W` | Weer als melding in-/uitschakelen  |
+| `Super + Ctrl + Alt + W` | Weer als melding schakelen  |
 
 ## Tmux
 
-De prefixtoets is `Ctrl + Space` (`Ctrl + B` werkt ook). Je kunt deze combinaties wijzigen in `~/.config/tmux/tmux.conf`.
+De prefix-toets is `Ctrl + Space` (`Ctrl + B` werkt ook). Je kunt deze bindingen wijzigen in `~/.config/tmux/tmux.conf`.
 
 ### Panelen
 
@@ -226,22 +226,22 @@ De prefixtoets is `Ctrl + Space` (`Ctrl + B` werkt ook). Je kunt deze combinatie
 | ----------------------- | --------------------- |
 | `Prefix + v` | Paneel ernaast splitsen (verticaal) |
 | `Prefix + h` | Paneel eronder splitsen (horizontaal) |
-| `Prefix + x` | Paneel sluiten |
-| `Prefix + z` | Paneelzoom in-/uitschakelen (volledig scherm) |
-| `Alt + Enter` | Paneel eronder splitsen (zonder prefix) |
-| `Alt + Shift + Enter` | Paneel ernaast splitsen (zonder prefix) |
-| `Alt + Escape` | Paneel sluiten (zonder prefix) |
+| `Prefix + x` | Paneel beëindigen |
+| `Prefix + z` | Paneelzoom schakelen (volledig scherm) |
+| `Alt + Enter` | Paneel eronder splitsen (geen prefix) |
+| `Alt + Shift + Enter` | Paneel ernaast splitsen (geen prefix) |
+| `Alt + Escape` | Paneel beëindigen (geen prefix) |
 | `Ctrl + Alt + Arrows` | Tussen panelen bewegen |
-| `Ctrl + Alt + Shift + Arrows` | Formaat van panelen wijzigen |
+| `Ctrl + Alt + Shift + Arrows` | Paneelformaat wijzigen |
 
 ### Vensters
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Nieuw venster |
-| `Prefix + k` | Venster sluiten |
+| `Prefix + k` | Venster beëindigen |
 | `Prefix + r` | Venster hernoemen |
-| `Alt + 1-9` | Naar een specifiek venster gaan |
+| `Alt + 1-9` | Naar specifiek venster gaan |
 | `Alt + Arrow Left/Right` | Tussen vensters bewegen |
 | `Alt + Shift + Arrow Left/Right` | Venster naar links/rechts verplaatsen |
 
@@ -250,13 +250,13 @@ De prefixtoets is `Ctrl + Space` (`Ctrl + B` werkt ook). Je kunt deze combinatie
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Nieuwe sessie |
-| `Prefix + K` | Sessie sluiten |
+| `Prefix + K` | Sessie beëindigen |
 | `Prefix + R` | Sessie hernoemen |
 | `Prefix + N` | Volgende sessie |
 | `Prefix + P` | Vorige sessie |
 | `Alt + Arrow Up/Down` | Tussen sessies bewegen |
 | `Prefix + s` | Sessies weergeven |
-| `Prefix + d` | Loskoppelen van de sessie |
+| `Prefix + d` | Van sessie loskoppelen |
 
 ### Kopieermodus (vi-stijl)
 
@@ -271,7 +271,7 @@ De prefixtoets is `Ctrl + Space` (`Ctrl + B` werkt ook). Je kunt deze combinatie
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Configuratie herladen |
-| `Prefix + ?` | Tmux-toetscombinaties tonen |
+| `Prefix + ?` | Tmux-toetsbindingen tonen |
 | `Prefix + :` | Opdrachtprompt |
 
 ### Tmux-lay-outfuncties
@@ -280,33 +280,33 @@ Deze functies moeten binnen een Tmux-sessie worden uitgevoerd.
 
 | Command | Function |
 | ------- | -------- |
-| `tdl <ai> [<second_ai>]` | Ontwikkellay-out maken met editor, AI en terminal |
-| `tdlm <ai> [<second_ai>]` | Ontwikkellay-out per submap maken |
+| `tdl <ai> [<second_ai>]` | Dev-lay-out maken met editor, AI en terminal |
+| `tdlm <ai> [<second_ai>]` | Dev-lay-out per submap maken |
 | `tsl <count> <command>` | Swarm-lay-out met meerdere panelen maken |
 
 ## Ghostty Terminal
 
-Ghostty Terminal wordt geïnstalleerd via _Install > Terminal_ in het Omarchy-menu.
+Ghostty terminal wordt geïnstalleerd met _Install > Terminal_ via het Omarchy-menu.
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Ctrl + Shift + E` | Nieuwe splitsing eronder |
 | `Ctrl + Shift + O` | Nieuwe splitsing ernaast |
 | `Ctrl + Alt + Arrows` | Tussen splitsingen bewegen |
-| `Super + Ctrl + Shift + Arrows` | Formaat van de splitsing met 10 regels wijzigen |
-| `Super + Ctrl + Shift + Alt + Arrows` | Formaat van de splitsing met 100 regels wijzigen |
+| `Super + Ctrl + Shift + Arrows` | Formaat van splitsing met 10 regels wijzigen |
+| `Super + Ctrl + Shift + Alt + Arrows` | Formaat van splitsing met 100 regels wijzigen |
 | `Ctrl + Shift + T` | Nieuw tabblad  |
 | `Ctrl + Shift + Arrows` | Tussen tabbladen bewegen |
-| `Alt + Numbers` | Naar een specifiek tabblad gaan |
+| `Alt + Numbers` | Naar specifiek tabblad gaan |
 | `Shift + Pg Up/Down` | Door de geschiedenis scrollen |
-| `Ctrl + Left mouse` | Link in de browser openen |
+| `Ctrl + Left mouse` | Link in browser openen |
 
-## Bestandsbeheerder
+## Bestandsbeheer
 
 | Hotkey              | Function                       |
 | ------------------- | ------------------------------ |
-| `Ctrl + L`            | Naar een pad gaan                     |
-| `Space`               | Bestand voorvertonen (pijlen om te navigeren) |
+| `Ctrl + L`            | Naar pad gaan                     |
+| `Space`               | Bestand voorvertonen (pijlen navigeren) |
 | `Backspace`      | Een map teruggaan             |
 
 ## Neovim (met lazyvim)
@@ -315,38 +315,38 @@ Ghostty Terminal wordt geïnstalleerd via _Install > Terminal_ in het Omarchy-me
 
 | Hotkey                   | Function                        |
 | ------------------------ | ------------------------------- |
-| `Space`                    | Opdrachtopties tonen            |
+| `Space`                    | Commando-opties tonen            |
 | `Space Space`              | Bestand openen via fuzzy search      |
-| `Space E`                  | Zijbalk in-/uitschakelen                  |
+| `Space E`                  | Zijbalk schakelen                  |
 | `Space G G`                | Git-bediening tonen               |
-| `Space S G`                | Bestandsinhoud doorzoeken             |
+| `Space S G`                | Bestandsinhoud zoeken             |
 | `Ctrl + W W`               | Tussen zijbalk en editor springen |
-| `Ctrl + Left/right arrow`  | Formaat van de zijbalk wijzigen          |
-| `Shift + H`                      | Naar het linker bestandstabblad gaan             |
-| `Shift + L`                      | Naar het rechter bestandstabblad gaan            |
+| `Ctrl + Left/right arrow`  | Grootte van zijbalk wijzigen          |
+| `Shift + H`                      | Naar linker bestandstabblad gaan             |
+| `Shift + L`                      | Naar rechter bestandstabblad gaan            |
 | `Space B D`                | Bestandstabblad sluiten                  |
 
 ### In de zijbalk
 
 | Hotkey                   | Function                        |
 | ------------------------ | ------------------------------- |
-| `A`                        | Nieuw bestand toevoegen in de bovenliggende map      |
-| `Shift + A`                | Nieuwe submap toevoegen in de bovenliggende map    |
-| `D`                        | Gemarkeerde bestand/map verwijderen     |
-| `M`                        | Gemarkeerde bestand/map verplaatsen       |
-| `R`                        | Gemarkeerde bestand/map hernoemen     |
-| `?`                        | Help voor alle opdrachten tonen      |
+| `A`                        | Nieuw bestand in bovenliggende map toevoegen      |
+| `Shift + A`                | Nieuwe submap in bovenliggende map toevoegen    |
+| `D`                        | Gemarkeerd bestand/map verwijderen     |
+| `M`                        | Gemarkeerd bestand/map verplaatsen       |
+| `R`                        | Gemarkeerd bestand/map hernoemen     |
+| `?`                        | Help voor alle commando's tonen      |
 
 [Bekijk alle Neovim-sneltoetsen die door LazyVim zijn geconfigureerd](https://www.lazyvim.org/keymaps).
 
 ## Snelle emoji's
 
-Je kunt `Super + Ctrl + E` gebruiken om een volledige emoji-kiezer te tonen die de selectie op het klembord zet, of je kunt deze snelle toegangsopties gebruiken.
+Je kunt `Super + Ctrl + E` gebruiken om een complete emoji-kiezer te tonen die de selectie op het klembord zet, of je kunt deze snelle toegangsopties gebruiken.
 
 | Hotkey       | EM | Clue       |
 | ------------ | -- | ---------- |
-| `Shift + CapsLock M S` | 😄 | glimlach      |
-| `Shift + CapsLock M C` | 😂 | huilen        |
+| `Shift + CapsLock M S` | 😄 | lach      |
+| `Shift + CapsLock M C` | 😂 | huil        |
 | `Shift + CapsLock M L` | 😍 | liefde       |
 | `Shift + CapsLock M V` | ✌️ | overwinning    |
 | `Shift + CapsLock M H` | ❤️ | hart      |
@@ -358,16 +358,16 @@ Je kunt `Super + Ctrl + E` gebruiken om een volledige emoji-kiezer te tonen die 
 | `Shift + CapsLock M K` | 😘 | kus       |
 | `Shift + CapsLock M E` | 🙄 | oogrol    |
 | `Shift + CapsLock M I` | 😉 | knipoog       |
-| `Shift + CapsLock M P` | 🙏 | bidden |
-| `Shift + CapsLock M D` | 🤤 | kwijlen      |
+| `Shift + CapsLock M P` | 🙏 | bid |
+| `Shift + CapsLock M D` | 🤤 | kwijl      |
 | `Shift + CapsLock M M` | 💰 | geld      |
 | `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
-| `Shift + CapsLock M T` | 🥂 | toast      |
+| `Shift + CapsLock M T` | 🥂 | proost      |
 | `Shift + CapsLock M O` |👌 | ok |
-| `Shift + CapsLock M G` |👋 | begroeting |
+| `Shift + CapsLock M G` |👋 | groet |
 | `Shift + CapsLock M A` |💪 | arm |
-| `Shift + CapsLock M B` |🤯 | opblazen |
+| `Shift + CapsLock M B` |🤯 | blowing |
 
 ## Snelle aanvullingen
 
@@ -377,4 +377,4 @@ Je kunt `Super + Ctrl + E` gebruiken om een volledige emoji-kiezer te tonen die 
 | `Shift + CapsLock Space N` | Je naam (zoals ingevoerd tijdens de installatie)  |
 | `Shift + CapsLock Space E` | Je e-mail (zoals ingevoerd tijdens de installatie)  |
 
-Je kunt er zelf meer toevoegen door `~/.XCompose` te bewerken en daarna `omarchy-restart-xcompose` in de terminal uit te voeren om de wijzigingen te laten oppikken.
+Je kunt er zelf meer toevoegen door `~/.XCompose` te bewerken en vervolgens `omarchy-restart-xcompose` in de terminal uit te voeren zodat de wijzigingen worden overgenomen.
