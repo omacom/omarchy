@@ -12,8 +12,29 @@
 #
 # Exits 0 stranded, 1 unlocked, 2 undetermined. The caller passes its own pid,
 # as a crash re-execs the shell in place.
+#
+# Voxtype's dictation OSD is a Quickshell that runs for the whole session and
+# never locks, so it doesn't count; otherwise no orphan would ever be recovered
+# while dictation is installed.
 omarchy-hyprland-session-locked || exit
 
-if pgrep -u "$UID" -x 'quickshell|qs|hyprlock' | grep -qvxF "$1"; then
-  exit 2
-fi
+proc_root=${OMARCHY_PROC_ROOT:-/proc}
+
+# Read from cmdline rather than pgrep -a, which joins arguments with spaces and
+# so lets a path with a space in it pass for voxtype's.
+is_voxtype_osd() {
+  local args=() i
+
+  mapfile -d '' args 2>/dev/null <"$proc_root/$1/cmdline" || return 1
+  [[ ${args[0]-} == ?(*/)@(qs|quickshell) ]] || return 1
+
+  for ((i = 1; i < ${#args[@]} - 1; i++)); do
+    [[ ${args[i]} == "-p" && ${args[i + 1]%/} == */voxtype/quickshell ]] && return 0
+  done
+
+  return 1
+}
+
+while read -r pid; do
+  [[ $pid == "$1" ]] || is_voxtype_osd "$pid" || exit 2
+done < <(pgrep -u "$UID" -x 'quickshell|qs|hyprlock')
