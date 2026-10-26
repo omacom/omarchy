@@ -99,7 +99,8 @@ function isDuplicate(row, shown) {
 }
 
 // A restored row has no live sender, and its original timeout has long run
-// out. It gets a short grace instead; critical still waits for you.
+// out. It gets a short grace instead; critical still waits for you, unless a
+// browser sent it (see durationFor in Service.qml).
 var RESTORE_GRACE = 20000
 
 // Every field a row can have, with its default. A ListModel fixes its roles
@@ -152,8 +153,8 @@ function restored(entry) {
   var found = Detect.scan(row.summary, row.body)
   row.link = found.link
   row = normalise(row)
-  // A critical card, or a sticky one, still waits for whoever comes back.
-  row.duration = row.urgency === 2 || row.sticky ? 0 : RESTORE_GRACE
+  // A sticky card, or a non-browser critical one, still waits for whoever comes back.
+  row.duration = row.sticky || (row.urgency === 2 && !Markup.isBrowser(row.app)) ? 0 : RESTORE_GRACE
   row.restored = true
   return row
 }

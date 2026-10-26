@@ -838,6 +838,8 @@ for (const holding of [false, true]) { // Silencing closes a muted update; only 
     s.admit(n)
     s.drainCallLater()
     assert.equal(s.toasts.get(s.rowIndexFor(s.keyForOriginal(id))).duration, duration, app)
+    // Restored after a restart or replayed from history, the same rule holds.
+    assert.equal(Store.restored({ key: 'r' + id, app, urgency: 2 }).duration, duration && Store.RESTORE_GRACE, app)
   }
 }
 
