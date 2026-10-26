@@ -334,7 +334,7 @@ const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
   'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
-  'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate',
+  'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
 function newCapacityScope() {
@@ -478,6 +478,18 @@ const summaries = rows => Array.from(rows, row => row.summary)
   s.admit(both)
   assert.equal(s.act(), 'ok')
   assert.deepEqual(picking, [severalKey, s.toasts.get(0).key], 'a click and a button hand the card the keyboard')
+
+  // A native app with no actions at all still has its own window to go to.
+  const focused = []
+  s.Hyprland.toplevels = { values: [{ lastIpcObject: { class: 'signal', pid: 42, address: '0xabc' } }] }
+  s.Hyprland.dispatch = x => focused.push(x)
+  const native = s.fakeNotification(6)
+  native.actions = []
+  native.hints = { 'sender-pid': 42 }
+  s.admit(native)
+  assert.equal(s.act(), 'ok')
+  assert.equal(focused.length, 1, "a card from an app with a window open focuses that window")
+  assert.equal(s.leaving[s.toasts.get(0).key], 'activated')
 }
 
 { // A clicked card rises out before it goes; a keypress clears every card with one jump.

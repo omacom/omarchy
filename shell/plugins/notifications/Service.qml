@@ -869,8 +869,8 @@ Item {
   }
 
   // Whether a click does something of the card's own: Omarchy's --exec
-  // command, the sender's default action, or a site to go to. Focusing an
-  // app by its name alone does not count.
+  // command, the sender's default action, the sender's own window, or a site
+  // to go to. Focusing an app by its name alone does not count.
   function clickable(key) {
     var at = rowIndexFor(key)
     if (at < 0) return false
@@ -880,7 +880,7 @@ Item {
     var actions = (ref && ref.actions) || []
     for (var i = 0; i < Math.min(actions.length, Security.MAX_ACTIONS); i++)
       if (String(actions[i].identifier) === "default") return true
-    return !!(Markup.hostname(row.source) || String(row.link || ""))
+    return !!(windowForPid(row.senderPid) || Markup.hostname(row.source) || String(row.link || ""))
   }
 
   // What the sender said can be done with this notification. A restored row
