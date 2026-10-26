@@ -15,7 +15,12 @@ ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service
 # is only `pairable: true` when the user explicitly opens the omarchy
 # bluetoothPanel and starts scanning; outside that window bluez refuses
 # inbound pair attempts at a lower layer.
-ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
+# A registration lives in the bluetoothd that took it, and bt-agent stays up
+# when that daemon dies uncleanly, so restart whenever org.bluez loses its owner.
+ExecStart=/usr/bin/bash -c '/usr/bin/grep -qxF -m1 "The name org.bluez does not have an owner" < <(/usr/bin/stdbuf -oL /usr/bin/gdbus monitor --system --dest org.bluez) & /usr/bin/bt-agent -c NoInputNoOutput & wait -n; exit 1'
+# bt-agent does not exit on SIGTERM here, so stop the wrapper and SIGKILL the
+# rest; bluetoothd drops an agent along with its bus connection.
+KillMode=mixed
 Restart=on-failure
 RestartSec=2
 
