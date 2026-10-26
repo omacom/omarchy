@@ -711,7 +711,7 @@ assert_bypass() {
   assert_launched "$agent" "skips permission prompts" "$@"
 }
 
-assert_launch pi pi "Review this project"
+assert_launch pi pi -- "Review this project"
 assert_launch omp omp --auto-approve -- "Review this project"
 assert_launch opencode opencode --auto --prompt "Review this project"
 assert_launch ori ori code --interactive --prompt "Review this project"
@@ -724,7 +724,11 @@ assert_launch cursor-agent cursor-agent --yolo --trust agent -- "Review this pro
 assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=Review this project"
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
 assert_launch copilot copilot --allow-all --interactive "Review this project"
-assert_launch kimi kimi --prompt "Review this project"
+: >"$notification_history"
+assert_launch kimi kimi --yolo
+[[ $(<"$clipboard_log") == "Review this project" ]] || fail "Kimi launcher puts the prompt on the clipboard"
+mapfile -d '' -t notification_args <"$notification_history"
+[[ ${notification_args[*]} == *"Kimi takes no starting prompt"* ]] || fail "Kimi launcher says where the prompt went"
 assert_launch qwen qwen --yolo "--prompt-interactive=Review this project"
 printf '%s\n' qwen >"$agent_file"
 omarchy-agent-prompt '-n --help; echo literal'
