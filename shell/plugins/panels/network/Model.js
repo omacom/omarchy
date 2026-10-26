@@ -326,14 +326,6 @@ var meteredScript =
   "if [ -n \"$4\" ] && [ \"$(nmcli -g connection.metered connection show uuid \"$1\")\" != unknown ]; then exit 0; fi;" +
   " nmcli connection modify uuid \"$1\" connection.metered \"$2\" && nmcli device reapply \"$3\""
 
-function dataLimitTooltip(metered) {
-  return isMetered(metered) ? "Don't limit this network" : "Limit data on this network"
-}
-
-function speedTestTooltip(hotspot) {
-  return hotspot ? "Run a speed test (uses mobile data)" : "Run a speed test"
-}
-
 function throughputState(previous, next, now) {
   var prev = previous || {}
   var sample = next || {}
@@ -653,8 +645,6 @@ if (typeof module !== "undefined") {
     parseHotspotScan: parseHotspotScan,
     shouldLimitHotspot: shouldLimitHotspot,
     meteredScript: meteredScript,
-    dataLimitTooltip: dataLimitTooltip,
-    speedTestTooltip: speedTestTooltip,
     connectivityState: connectivityState,
     captivePortalUrl: captivePortalUrl,
     formatHeaderSpeed: formatHeaderSpeed,

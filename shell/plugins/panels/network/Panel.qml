@@ -1684,7 +1684,7 @@ Panel {
             id: speedAction
             visible: root.canRunSpeedTest
             iconText: "󰓅"
-            tooltipText: Model.speedTestTooltip(root.hotspotLink)
+            tooltipText: root.hotspotLink ? Commons.I18n.t("network.runSpeedTestMobileData") : Commons.I18n.t("network.runSpeedTest")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
             fontSize: Style.font.subtitle * 1.5
@@ -1700,7 +1700,7 @@ Panel {
             id: dataAction
             visible: root.canLimitData
             iconText: "󱌠"
-            tooltipText: Model.dataLimitTooltip(root.hotspotMetered)
+            tooltipText: Model.isMetered(root.hotspotMetered) ? Commons.I18n.t("network.unlimitData") : Commons.I18n.t("network.limitData")
             active: Model.isMetered(root.hotspotMetered)
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
