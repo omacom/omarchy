@@ -372,7 +372,9 @@ ShellRoot {
 
   function pluginCloneMaySummon(manifest, requestedId) {
     var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
-    var sourceId = metadata ? String(metadata.clonedFrom || "") : ""
+    // The original counts as its own source: a replacement bar hosting the
+    // stock omarchy.network must reach the same panels its clones can.
+    var sourceId = metadata && metadata.clonedFrom ? String(metadata.clonedFrom) : String((manifest && manifest.id) || "")
     var allowed = {
       "omarchy.audio": ["omarchy.osd"],
       "omarchy.media": ["omarchy.osd"],
