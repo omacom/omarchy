@@ -31,9 +31,10 @@ if (( $# != 1 )) || [[ ! $code =~ ^[a-z]{2,3}(-[A-Za-z]{2})?$ ]]; then
 fi
 
 # The code only selects a locale from the registry; nothing the caller passes
-# reaches locale.gen or locale-gen itself.
+# reaches locale.gen or locale-gen itself. The country part is optional
+# because Esperanto has no country: glibc ships it as plain eo.UTF-8.
 locale=$(jq -r --arg code "$code" '.[$code].locale // empty' "$registry")
-if [[ ! $locale =~ ^[a-z]{2,3}_[A-Z]{2}\.UTF-8$ ]]; then
+if [[ ! $locale =~ ^[a-z]{2,3}(_[A-Z]{2})?\.UTF-8$ ]]; then
   echo "Unknown language code: $code" >&2
   exit 1
 fi
