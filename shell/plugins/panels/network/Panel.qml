@@ -1003,13 +1003,33 @@ Panel {
     updateHotspot(raw, exitCode, errorOutput)
   }
 
+  // One whole sentence per action, since other languages don't build these
+  // from a verb. Without a reason the message is the bare failure; an empty
+  // reason (stderr said nothing) points at the diagnose command instead.
+  function hotspotActionFailure(kind, reason) {
+    var diagnose = "omarchy hotspot diagnose"
+    if (kind === "stop") {
+      if (reason === undefined) return Commons.I18n.t("network.hotspotStopFailed")
+      return reason !== "" ? Commons.I18n.t("network.hotspotStopFailedReason").arg(reason)
+        : Commons.I18n.t("network.hotspotStopFailedDiagnose").arg(diagnose)
+    }
+    if (kind === "apply") {
+      if (reason === undefined) return Commons.I18n.t("network.hotspotApplyFailed")
+      return reason !== "" ? Commons.I18n.t("network.hotspotApplyFailedReason").arg(reason)
+        : Commons.I18n.t("network.hotspotApplyFailedDiagnose").arg(diagnose)
+    }
+    if (reason === undefined) return Commons.I18n.t("network.hotspotStartFailed")
+    return reason !== "" ? Commons.I18n.t("network.hotspotStartFailedReason").arg(reason)
+      : Commons.I18n.t("network.hotspotStartFailedDiagnose").arg(diagnose)
+  }
+
   function updateHotspot(raw, exitCode, errorOutput) {
     var output = String(raw || "").trim()
     if (exitCode !== 0 || output === "") {
       var reason = String(errorOutput || "").replace(/\s+/g, " ").trim().slice(0, 500)
-      if (reason !== "") hotspotStatusError = "Hotspot status failed: " + reason
-      else if (exitCode !== 0) hotspotStatusError = "Hotspot status failed"
-      else hotspotStatusError = "Hotspot status returned no data"
+      if (reason !== "") hotspotStatusError = Commons.I18n.t("network.hotspotStatusFailedReason").arg(reason)
+      else if (exitCode !== 0) hotspotStatusError = Commons.I18n.t("network.hotspotStatusFailed")
+      else hotspotStatusError = Commons.I18n.t("network.hotspotStatusEmpty")
       return
     }
     hotspotStatusError = ""
@@ -1030,7 +1050,7 @@ Panel {
 
   function startHotspot() {
     if (hotspotBusy) return
-    var err = Model.hotspotCredentialsError(hotspotSsid, hotspotPassword)
+    var err = Model.hotspotCredentialsError(hotspotSsid, hotspotPassword, Commons.I18n.t)
     if (err !== "") { hotspotError = err; return }
     hotspotActionKind = "start"
     hotspotBusy = true
@@ -1071,7 +1091,7 @@ Panel {
   // profile is the single source of truth; no plaintext copy is kept.
   function applyHotspot() {
     if (hotspotBusy) return
-    var err = Model.hotspotCredentialsError(hotspotSsid, hotspotPassword)
+    var err = Model.hotspotCredentialsError(hotspotSsid, hotspotPassword, Commons.I18n.t)
     if (err !== "") { hotspotError = err; return }
     hotspotActionKind = "apply"
     hotspotBusy = true
@@ -1291,19 +1311,14 @@ Panel {
     onExited: function(exitCode) {
       root.hotspotBusy = false
       if (exitCode !== 0) {
-        var verb = root.hotspotActionKind === "stop" ? "stop"
-          : root.hotspotActionKind === "apply" ? "apply" : "start"
-        root.hotspotError = "Failed to " + verb + " hotspot"
+        var kind = root.hotspotActionKind
+        root.hotspotError = root.hotspotActionFailure(kind)
         // stderr may still be draining when the process exits, so read it
         // after the event loop settles and surface the command's own reason
         // (missing dnsmasq, unsupported band, ...) instead of a generic line.
         Qt.callLater(function() {
           var reason = String(hotspotErr.text || "").replace(/\s+/g, " ").trim()
-          if (reason !== "") {
-            root.hotspotError = "Failed to " + verb + " hotspot: " + reason
-          } else {
-            root.hotspotError = "Failed to " + verb + " hotspot (run `omarchy hotspot diagnose` for details)"
-          }
+          root.hotspotError = root.hotspotActionFailure(kind, reason)
         })
       }
       root.hotspotActionKind = ""
@@ -1967,20 +1982,20 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
             text: {
               if (root.hotspotBusy) {
-                if (root.hotspotActionKind === "stop") return "STOPPING…"
-                if (root.hotspotActionKind === "apply") return "SAVING…"
-                return "STARTING…"
+                if (root.hotspotActionKind === "stop") return Commons.I18n.t("network.hotspotStopping")
+                if (root.hotspotActionKind === "apply") return Commons.I18n.t("network.hotspotSaving")
+                return Commons.I18n.t("network.hotspotStarting")
               }
               if (root.hotspotActive) {
-                var band = root.hotspot.band || root.hotspotBand
-                var s = root.hotspotSsid + " \u00b7 " + band + "GHz"
-                if (root.hotspotClients.length > 0) {
-                  s += " \u00b7 " + root.hotspotClients.length + " CLIENT"
-                  if (root.hotspotClients.length > 1) s += "S"
-                }
-                return s
+                var band = String(root.hotspot.band || root.hotspotBand)
+                var bandNumber = Number(band)
+                if (band !== "" && isFinite(bandNumber)) band = Commons.I18n.formatNumber(bandNumber)
+                var count = root.hotspotClients.length
+                if (count === 0) return Commons.I18n.t("network.hotspotOnAir").arg(root.hotspotSsid).arg(band)
+                return Commons.I18n.tn("network.hotspotOnAirClients", count)
+                  .arg(root.hotspotSsid).arg(band).arg(Commons.I18n.formatNumber(count))
               }
-              return root.hotspotConfigured ? "OFF" : "NOT CONFIGURED"
+              return root.hotspotConfigured ? Commons.I18n.t("network.hotspotOff") : Commons.I18n.t("network.hotspotNotConfigured")
             }
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
@@ -2013,8 +2028,8 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
             wrapMode: Text.Wrap
             text: root.hotspotActive
-              ? "Sharing the Wi-Fi radio — connect by ethernet or USB tether to give clients internet."
-              : "No wired or tethered upstream — clients will connect with no internet."
+              ? Commons.I18n.t("network.hotspotSharingRadio")
+              : Commons.I18n.t("network.hotspotNoUpstream")
             color: Qt.darker(root.bar.foreground, 1.25)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption

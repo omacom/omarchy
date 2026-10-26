@@ -482,11 +482,12 @@ function hotspotClientLabel(client) {
   return label
 }
 
-function hotspotCredentialsError(ssid, password) {
-  if (String(ssid || "").trim() === "") return "Enter a hotspot name"
+function hotspotCredentialsError(ssid, password, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (String(ssid || "").trim() === "") return t("network.hotspotNameRequired", "Enter a hotspot name")
   var length = String(password || "").length
-  if (length < 8) return "Password needs 8+ characters"
-  if (length > 63) return "Password can't exceed 63 characters"
+  if (length < 8) return t("network.hotspotPasswordTooShort", "Password needs 8+ characters")
+  if (length > 63) return t("network.hotspotPasswordTooLong", "Password can't exceed 63 characters")
   return ""
 }
 
