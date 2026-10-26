@@ -123,3 +123,12 @@ for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-
   fi
 done
 pass "a blocked package upgrade stops the update before it migrates"
+
+# Optional tools may fail after system packages have already changed. Finish
+# AUR work, verify boot files and release Stay Awake before offering a reboot.
+FAILING_STEP=omarchy-update-mise run_update -y || fail "a failed mise update prevents system update completion"
+diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
+  fail "a failed mise update skips later update steps" "$(cat "$test_tmp/order")"
+grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
+assert_boundary_cold "update after mise failure"
+pass "a mise failure still finishes the update, offers a reboot and explains how to retry"

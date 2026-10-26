@@ -55,7 +55,7 @@ notification_files=("$WORKDIR/notifications/"*)
 pass "taildrop receive saves incoming files"
 
 assert_notification() {
-  local path=$1 name=${1##*/} file i key open_json='' open_index=-1 urgency_found=false glyph_found=false
+  local path=$1 name=${1##*/} file i key open_json='' open_index=-1 image_index=-1 urgency_found=false glyph='' image=''
   local headline=${2:-Received $name} body=${3:-Saved to $downloads}
   local -a args
 
@@ -63,32 +63,35 @@ assert_notification() {
     mapfile -d '' -t args <"$file"
     [[ ${args[11]} == "$headline" ]] || continue
     [[ ${args[10]} == '' && ${args[12]} == "$body" ]] ||
-      fail "taildrop receive keeps the app icon empty and reports the save location" "$name"
+      fail "taildrop receive keeps the app icon empty and reports the save location" "$name: ${args[12]}"
 
     for ((i = 15; i < 15 + 3 * ${args[14]}; i += 3)); do
       key=${args[i]}
-      [[ $key != "image-path" && $key != "image-data" ]] ||
-        fail "taildrop receive does not request a notification image preview" "$name: $key"
       case $key in
       urgency)
         urgency_found=true
         [[ ${args[i + 2]} == 2 ]] || fail "taildrop receive keeps critical urgency" "$name"
         ;;
-      omarchy-glyph)
-        glyph_found=true
-        [[ ${args[i + 2]} == 󰒊 ]] || fail "taildrop receive uses the file glyph" "$name"
-        ;;
+      omarchy-glyph) glyph=${args[i + 2]} ;;
+      image-path) image=${args[i + 2]}; image_index=$((i + 2)) ;;
       omarchy-exec-argv) open_json=${args[i + 2]}; open_index=$((i + 2)) ;;
       esac
     done
 
-    $urgency_found || fail "taildrop receive sets critical urgency" "$name"
-    $glyph_found || fail "taildrop receive sets the file glyph" "$name"
+    $urgency_found || fail "taildrop receive sets an urgency" "$name"
+    case ${name,,} in
+    *.png)
+      [[ $image == "$path" && $glyph == 󰒊 ]] || fail "taildrop receive previews images over the send glyph" "$name: image=$image glyph=$glyph"
+      ;;
+    *)
+      [[ -z $image && $glyph == 󰒊 ]] || fail "taildrop receive gives other files the send glyph" "$name: image=$image glyph=$glyph"
+      ;;
+    esac
     [[ -n $open_json ]] && jq -e --arg path "$path" '. == ["xdg-open", $path]' <<<"$open_json" >/dev/null ||
       fail "taildrop receive keeps the literal click-to-open argv" "$name: $open_json"
     for ((i = 0; i < ${#args[@]}; i++)); do
-      if [[ ${args[i]} == *"$path"* ]] && (( i != open_index )); then
-        fail "taildrop receive exposes the file path only in the open argv" "$name: ${args[i]}"
+      if [[ ${args[i]} == *"$path"* ]] && (( i != open_index && i != image_index )); then
+        fail "taildrop receive exposes the file path only in the open argv and preview" "$name: ${args[i]}"
       fi
     done
     return 0
@@ -100,7 +103,7 @@ assert_notification() {
 assert_notification "$downloads/photo.png"
 assert_notification "$downloads/Vacation Photo.PNG"
 assert_notification "$downloads/notes with space.pdf"
-pass "taildrop receive gives all files a glyph without previewing former image types"
+pass "taildrop receive previews images over the send glyph and gives other files the glyph"
 pass "taildrop receive keeps critical urgency and literal click-to-open paths"
 
 [[ -f $downloads/unrelated.txt ]] || fail "taildrop receive leaves unrelated downloads alone"
@@ -125,9 +128,15 @@ pass "taildrop receive ignores downloads that arrive while it waits"
   fail "taildrop receive empties its staging directory" "$(ls -A "$downloads/.omarchy-taildrop")"
 pass "taildrop receive empties its staging directory"
 
-# Keep upstream's localized title and save location without image previews.
+# Keep upstream's localized title and save location.
 printf 'da\n' >"$WORKDIR/language"
 printf 'png' >"$WORKDIR/outbox/Translated Image.png"
 receive 1 env OMARCHY_LANGUAGE_FILE="$WORKDIR/language"
 assert_notification "$downloads/Translated Image.png" "Modtaget Translated Image.png" "Gemt til $downloads"
-pass "taildrop receive preserves localized glyph notifications"
+pass "taildrop receive preserves localized notifications"
+
+# A save location under HOME reads as ~, not the expanded path.
+printf 'png' >"$WORKDIR/outbox/home.png"
+receive 1 env HOME="$WORKDIR"
+assert_notification "$downloads/home.png" "Received home.png" "Saved to ~/downloads"
+pass "taildrop receive shortens a save location under HOME"

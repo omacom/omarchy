@@ -1,50 +1,50 @@
 # Přepínače, nečinnost a spořič obrazovky
 
-Mnoho z toho, co denně měníte, není vlastně nastavení. Je to režim, který na hodinu zapnete a zase vypnete: noční světlo, když pracujete dlouho do noci, nerušit, když prezentujete, zůstat vzhůru, když se na něco díváte. Omarchy jim říká přepínače a všechny fungují stejně — klávesová zkratka, položka nabídky a příkaz, všechny zasahují tentýž přepínač.
+Spousta toho, co denně měníte, vlastně není nastavení. Je to režim, který na hodinu zapnete a pak zase vypnete: noční světlo, když pracujete dlouho do noci, nerušit, když prezentujete, zůstat vzhůru, když se na něco díváte. Omarchy jim říká přepínače a všechny fungují stejně — klávesová zkratka, položka v menu a příkaz, všechny míří na stejný přepínač.
 
-### Nabídka přepínačů
+### Menu přepínačů
 
-`Super + Ctrl + O` otevře přímo _Akce > Přepnout_, nebo tam můžete dojít z nabídky Omarchy (`Super + Space`). Všechno v tomto seznamu je přepínač, který můžete přepnout, aniž byste přemýšleli o tom, kde stav žije. Přepínače pro vzhled plochy sedí hned vedle, v _Akce > Vzhled_.
+`Super + Ctrl + O` otevře přímo _Trigger > Přepínače_, nebo tam můžete dojít z menu Omarchy (`Super + Space`). Vše v tom seznamu je přepínač, který můžete přepnout, aniž byste přemýšleli, kde se stav ukládá. Přepínače toho, jak desktop vypadá, sedí hned vedle, pod _Vzhledem_.
 
-Z terminálu jsou tytéž přepínače `omarchy toggle <thing>`. Samostatným spuštěním `omarchy toggle` uvidíte celou skupinu.
+Z terminálu jsou stejné přepínače `omarchy toggle <thing>`. Spusťte samotné `omarchy toggle` a uvidíte celou skupinu.
 
 | Přepínač | Klávesová zkratka | Příkaz |
 | ------ | ------ | ------- |
-| Noční světlo | `Super + Ctrl + N` | `omarchy toggle nightlight` |
-| Ztišit oznámení | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
-| Zůstat vzhůru (žádné zamykání při nečinnosti) | `Super + Ctrl + I` | `omarchy toggle idle` |
-| Záznam pádů | — | `omarchy toggle crash-capture` |
+| Noční světlo | — | `omarchy toggle nightlight` |
+| Ztlumení oznámení | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
+| Zůstat vzhůru (bez zamykání při nečinnosti) | `Super + Ctrl + I` | `omarchy toggle idle` |
+| Zachytávání pádů | — | `omarchy toggle crash-capture` |
 | Spořič obrazovky | — | `omarchy toggle screensaver` |
 | Synchronizace motivu [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
-| Panel nabídek | `Super + Shift + Space` | `omarchy toggle bar` |
+| Lišta menu | `Super + Shift + Space` | `omarchy toggle bar` |
 | Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Dotykový displej | — | `omarchy toggle touchscreen` |
-| Uspat | — | `omarchy toggle suspend` |
+| Dotyková obrazovka | — | `omarchy toggle touchscreen` |
+| Uspání | — | `omarchy toggle suspend` |
 | Hybridní GPU | — | `omarchy toggle hybrid gpu` |
 
-Přepínače touchpadu, dotykového displeje a hybridní GPU žijí v _Akce > Hardware_ (`Super + Ctrl + H`) místo v Přepnout, protože se objeví, jen když daný hardware skutečně máte. Přepínače touchpadu a dotykového displeje přežijí opětovné načtení Hyprlandu — název zakázaného zařízení se uloží do malého stavového souboru, který Hyprland při spuštění přečte, aby ho znovu zakázal.
+Přepínače touchpadu, dotykové obrazovky a hybridní GPU žijí pod _Trigger > Hardware_ (`Super + Ctrl + H`) spíše než pod Přepínači, protože se zobrazí jen tehdy, když takový hardware skutečně máte. Přepínače touchpadu a dotykové obrazovky přežijí opětovné načtení Hyprlandu — název zakázaného zařízení se uloží do malého stavového souboru, který Hyprland při spuštění přečte, aby ho znovu zakázal.
 
-_Akce > Vzhled_ obsahuje panel nabídek a animace, plus pár věcí, které nejsou příkazy `omarchy toggle`, ale chovají se stejně: procenta baterie na panelu, výchozí rozložení pracovní plochy, mezery oken (`Super + Shift + Backspace`) a čtvercový poměr pro 1 okno (`Super + Ctrl + Backspace`).
+_Vzhled_ obsahuje lištu menu a animace plus pár věcí, které nejsou příkazy `omarchy toggle`, ale chovají se stejně: procenta baterie v liště, výchozí rozložení pracovní plochy a pod _Okny_ mezery oken (`Super + Shift + Backspace`) a čtvercový poměr stran pro 1 okno (`Super + Ctrl + Backspace`).
 
-Většina z nich je jen příznakový soubor v `~/.local/state/omarchy/toggles/`. Pokud se chcete na některém větvit ve skriptu, `omarchy-toggle-enabled` vám dá návratový kód, místo abyste ho museli hledat:
+Většina z nich je jen soubor příznaku pod `~/.local/state/omarchy/toggles/`. Pokud na některý chcete ve skriptu větvit, `omarchy-toggle-enabled` vám dá návratový kód, místo abyste ho museli hledat:
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-Příznaky jsou pojmenovány podle vypnutého stavu — `screensaver-off`, `suspend-off`, `bar-off` — takže jejich přítomnost znamená, že funkce je zakázána.
+Příznaky jsou pojmenované podle vypnutého stavu — `screensaver-off`, `suspend-off`, `bar-off` — takže jejich přítomnost znamená, že je funkce zakázaná.
 
-### Ukazatele na panelu
+### Indikátory v liště
 
-Když je režim zapnutý, dostanete malý glyf uprostřed horního panelu vedle hodin. To je widget ukazatelů a nese diktování, nahrávání obrazovky, čekající připomínky, noční světlo, nerušit a zůstat vzhůru.
+Když je režim zapnutý, dostanete malý glyf uprostřed horní lišty vedle hodin. To je widget indikátorů a nese diktování, nahrávání obrazovky, čekající připomínky, noční světlo, nerušit a zůstat vzhůru.
 
-Neaktivní ukazatele jsou skryté. Najeďte na oblast kolem nich a objeví se ztlumené, takže na jeden můžete kliknout a zapnout ho, aniž byste znali jeho klávesovou zkratku. Kliknutím na aktivní ho zase vypnete. Pokud byste je raději viděli všechny neustále, nastavte `alwaysShow` na `true` u položky `omarchy.indicators` v `~/.config/omarchy/shell.json` — jak se widgety panelu konfigurují, viz [horní panel](05-the-top-bar.md).
+Neaktivní indikátory jsou skryté. Najeďte kamkoli na lištu a objeví se ztlumené, takže na některý můžete kliknout a zapnout ho, aniž byste znali jeho klávesovou zkratku. Kliknutím na aktivní ho zase vypnete. Pokud je chcete raději vidět všechny pořád, nastavte `alwaysShow` na `true` u záznamu `omarchy.indicators` v `~/.config/omarchy/shell.json` — viz [horní lištu](05-the-top-bar.md), kde je popsáno, jak se widgety lišty konfigurují.
 
 ### Noční světlo
 
-`Super + Ctrl + N` zahřeje obrazovku na 4000 K a opětovným stisknutím ji vrátí na 6500 K. Řídí ho hyprsunset, který přepínač spustí za vás, pokud už neběží.
+Noční světlo zahřeje obrazovku na 4000K a opětovným přepnutím ji vrátí na 6500K. Přepněte ho z menu přepínačů (`Super + Ctrl + O`) nebo pomocí `omarchy toggle nightlight`. Pohání ho hyprsunset, který za vás přepínač spustí, pokud už neběží.
 
-Ve výchozím nastavení hyprsunset s vaší obrazovkou nedělá vůbec nic. `~/.config/hypr/hyprsunset.conf` se dodává s identitním profilem právě proto, aby displej zůstal nedotčený, dokud nepožádáte o teplo. Pokud byste raději, aby se přepínal podle hodin, nahraďte ho časovým profilem:
+Ve výchozím nastavení hyprsunset s vaší obrazovkou nedělá vůbec nic. `~/.config/hypr/hyprsunset.conf` se dodává právě s identitním profilem, aby displej zůstal nedotčený, dokud si o teplo neřeknete. Pokud chcete raději, aby se přepínal podle hodin, nahraďte ho časovým profilem:
 
 ```
 profile {
@@ -53,19 +53,19 @@ profile {
 }
 ```
 
-Poté spouštějte hyprsunset při přihlášení přidáním `o.launch_on_start("hyprsunset")` do `~/.config/hypr/autostart.lua`. Pár 4000 K/6500 K používaný přepínačem je pevný, takže konfigurační soubor je místem, kam jdete, pokud chcete jinou teplotu.
+Pak hyprsunset spouštějte při přihlášení přidáním `o.launch_on_start("hyprsunset")` do `~/.config/hypr/autostart.lua`. Dvojice 4000K/6500K, kterou přepínač používá, je pevná, takže pokud chcete jinou teplotu, jdete do konfiguračního souboru.
 
 ### Nerušit
 
-`Super + Ctrl + ,` ztiší oznámení. Zatímco je zapnuté, nevyskakují žádné toastové zprávy a ukazatel přeškrtnutého zvonku sedí na panelu, aby vám připomínal, proč plocha ztichla.
+`Super + Ctrl + Alt + ,` ztlumí oznámení. Dokud je zapnuté, nevyskakují žádné toasty a přeškrtnutý zvonek v liště vám připomíná, proč desktop ztichl.
 
-Nic se ale neztratí. Ztišené oznámení se zapíše přímo do vaší historie oznámení, což je přesně záznam, který chcete, když se vrátíte a přemýšlíte, co jste zmeškali. Otevřete ji pomocí `Super + Shift + Alt + ,`. Zbytek příběhu oznámení viz [upozornění](10-notices.md).
+Nic se ale neztratí. Ztlumená oznámení se pozdrží: poslední pár jich vrátíte zpět na obrazovku pomocí `Super + Shift + Alt + ,`. Zbytek viz [oznámení](10-notices.md).
 
-Dva druhy zpráv se stále dostanou skrz: vlastní potvrzovací toastové zprávy Omarchy o tom, co jste právě udělali („Theme changed“, „Screenshot saved“), a kritické výstrahy odeslané z příkazového řádku. Chatovací aplikace, které označují všechno jako kritické, aby si vynutily cestu před vás, se nepočítají.
+Dva druhy zpráv se přesto dostanou skrz: vlastní potvrzovací toasty Omarchy pro něco, co jste právě udělali ("Theme changed", "Screenshot saved"), a kritická upozornění odeslaná z příkazového řádku. Chatovací aplikace, které označují vše jako kritické, aby si vynutily cestu před vás, se nekvalifikují.
 
 ### Nečinnost
 
-Shell Omarchy vlastní chování při nečinnosti a časování jsou blokem `idle` na nejvyšší úrovni v `~/.config/omarchy/shell.json`:
+Prostředí Omarchy vlastní chování při nečinnosti a časování je blok `idle` na nejvyšší úrovni v `~/.config/omarchy/shell.json`:
 
 ```json
 {
@@ -77,26 +77,26 @@ Shell Omarchy vlastní chování při nečinnosti a časování jsou blokem `idl
 }
 ```
 
-Obě čísla jsou sekundy počítané od okamžiku, kdy jste se stali nečinnými — ne od sebe navzájem. Takže s výchozími nastaveními se spořič obrazovky objeví po dvou a půl minutách a zamykací obrazovka převezme řízení po pěti minutách, ať už spořič běžel, nebo ne. Uložte soubor a shell nová časování převezme okamžitě.
+Obě čísla jsou sekundy počítané od okamžiku, kdy jste přestali být aktivní — ne od sebe navzájem. Takže ve výchozím nastavení se spořič obrazovky objeví po dvou a půl minutách a zamykací obrazovka převezme vládu v pěti minutách, ať už spořič běžel, nebo ne. Uložte soubor a prostředí si nové časování převezme hned.
 
-Pokud spořič obrazovky zavřete před lhůtou pro zamknutí, počítá se to jako aktivita a čekající zamknutí se zruší. Nebudete uzamčeni za to, že jste se podívali na svůj počítač.
+Pokud spořič odmítnete před termínem zamknutí, počítá se to jako aktivita a čekající zamknutí se zruší. Nezůstanete zamčeni venku za to, že jste se na svůj stroj jen podívali.
 
-Chcete-li úplně zastavit zamykání při nečinnosti, `Super + Ctrl + I` — nebo `omarchy toggle idle` — zapne zůstat vzhůru a na panelu se objeví ukazatel šálku kávy. Ten stiskněte před dlouhou prezentací nebo buildem, který chcete sledovat. Stiskněte ho znovu pro návrat k normálu. `omarchy toggle idle status` vypíše aktuální stav jako JSON, pokud ho potřebujete ze skriptu.
+Chcete-li zamykání při nečinnosti úplně zastavit, `Super + Ctrl + I` — nebo `omarchy toggle idle` — zapne zůstat vzhůru a v liště se objeví indikátor šálku kávy. Ten zmáčkněte před dlouhou prezentací nebo buildem, který chcete sledovat. Zmáčkněte ho znovu pro návrat do normálu. `omarchy toggle idle status` vypíše aktuální stav jako JSON, pokud ho potřebujete ze skriptu.
 
-Tady jde o zamykání a spořič obrazovky, ne o napájení. Uspání a hibernace mají vlastní nastavení v [uspání systému](36-system-sleep.md).
+Tohle je o zamykání a spořiči obrazovky, ne o napájení. Uspání a hibernace mají vlastní nastavení v [uspávání systému](36-system-sleep.md).
 
 ### Spořič obrazovky
 
 Spořič obrazovky Omarchy je ASCII art procházející náhodnými textovými efekty, jedna instance na monitor. Jakákoli klávesa nebo pohyb myši ho ukončí.
 
-Můžete ho spustit na požádání z _Systém > Spořič obrazovky_ (`Super + Esc`), což ho vynutí, i když jste spořič při nečinnosti vypnuli. Ve výchozím nastavení k němu není přiřazena žádná klávesová zkratka.
+Můžete ho spustit na vyžádání ze _Systém > Spořič obrazovky_ (`Super + Esc`), což ho vynutí, i když jste spořič při nečinnosti vypnuli. Ve výchozím nastavení k němu není přiřazena žádná klávesová zkratka.
 
-`omarchy toggle screensaver` je to, co vypne ten při nečinnosti, pokud byste raději šli přímo od práce k zamknutí. Potřebuje terminál, který umí nakonfigurovat — Alacritty, Foot, Ghostty nebo Kitty — a řekne vám to, pokud je váš výchozí terminál něco jiného.
+`omarchy toggle screensaver` je to, co vypne ten při nečinnosti, pokud chcete raději jít rovnou z práce do zamčeného stavu. Potřebuje terminál, který umí nakonfigurovat — Alacritty, Foot, Ghostty nebo Kitty — a řekne vám to, pokud je váš výchozí terminál něco jiného.
 
-Logo, které kreslí, si můžete změnit v _Styl > Spořič obrazovky_. Nahrajte png nebo svg a Omarchy ho převede na ASCII. Viz [branding](41-branding.md).
+Logo, které kreslí, si můžete změnit pod _Vzhled > Branding > Spořič obrazovky_. Nahrajte png nebo svg a Omarchy ho převede do ASCII. Viz [branding](41-branding.md).
 
 ### Zamykací obrazovka
 
-`Super + Ctrl + L` zamkne počítač. Tím se spustí zamykací obrazovka ze shellu Omarchy, zhasne displej, resetuje vaše rozložení klávesnice na první, abyste nepsali heslo ve špatné abecedě, a — pokud ho máte spuštěný — cestou ven zamkne 1Password.
+`Super + Ctrl + L` zamkne stroj. To spustí zamykací obrazovku z prostředí Omarchy, zhasne displej, resetuje rozložení klávesnice na první, abyste nepsali heslo ve špatné abecedě, a — pokud ho máte spuštěný — cestou ven zamkne 1Password.
 
-Zamykací obrazovka přijímá heslo a přijme i otisk prstu, jakmile si ho nastavíte. To a další způsoby ověřování jsou popsány v [hardwarovém ověřování](37-hardware-authentication.md).
+Zamykací obrazovka bere heslo a vezme i otisk prstu, jakmile si ho nastavíte. To a další způsoby ověření jsou popsány v [hardwarovém ověřování](37-hardware-authentication.md).
