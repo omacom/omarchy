@@ -275,7 +275,7 @@ assert(
   'image picker learns extra themes the way theme remove lists them'
 )
 assert(
-  /ConfirmDialog \{\s*id: deleteConfirm\s*anchors\.fill: parent\s*opened: root\.deleteConfirmOpen\s*z: 10\s*message: "Do you want to delete " \+ \(root\.pendingDeleteTheme \? root\.labelForPath\(root\.pendingDeleteTheme\) : ""\) \+ "\?"\s*confirmText: "Delete"/.test(imagePickerQml) &&
+  /ConfirmDialog \{\s*id: deleteConfirm\s*anchors\.fill: parent\s*opened: root\.deleteConfirmOpen\s*z: 10\s*message: Commons\.I18n\.t\("imagePicker\.deleteTheme"\)\.arg\(root\.pendingDeleteTheme \? root\.labelForPath\(root\.pendingDeleteTheme\) : ""\)\s*confirmText: Commons\.I18n\.t\("common\.delete"\)/.test(imagePickerQml) &&
     /onCanceled: root\.cancelDeleteTheme\(\)\s*onConfirmed: root\.confirmDeleteTheme\(\)/.test(imagePickerQml),
   'image picker confirms theme deletion in a faded centered dialog'
 )

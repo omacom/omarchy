@@ -16,6 +16,9 @@ CURRENT_BACKGROUND_LINK="$HOME/.local/state/omarchy/current/background"
 THEME_BACKGROUND_STATE_PATH="$HOME/.local/state/omarchy/theme-backgrounds"
 BACKGROUND_TRANSITION_CACHE="$HOME/.cache/omarchy/background-transitions"
 THEME_SET_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+THEME_SET_LOG="$HOME/.local/state/omarchy/theme-set.log"
+THEME_RETINT_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-retint.lock"
+THEME_GENERATION_PATH="$HOME/.local/state/omarchy/current/theme.generation"
 USER_THEMES_PATH="$HOME/.config/omarchy/themes"
 OMARCHY_THEMES_PATH="$OMARCHY_PATH/themes"
 
@@ -32,18 +35,40 @@ OMARCHY_THEMES_PATH="$OMARCHY_PATH/themes"
 INSTALLED_THEME_DENIED=(alacritty.toml foot.ini ghostty.conf kitty.conf vscode.json)
 IGNORED_THEME_FILES=()
 
-run_parallel() {
-  local pid
-  local pids=()
+FAILED_THEME_COMMANDS=()
 
-  for command in "$@"; do
-    bash -lc "$command" &
+# Each command is an Omarchy command on the PATH this one already has, so it
+# runs directly rather than through a login shell that rereads the profile.
+# A background command would otherwise get /dev/null as stdin, and the browser
+# policy asks for a sudo password on stdin when it is a terminal.
+run_parallel() {
+  local command index
+  local -a commands=("$@") pids=()
+
+  for command in "${commands[@]}"; do
+    "$command" <&0 8>&- &
     pids+=("$!")
   done
 
-  for pid in "${pids[@]}"; do
-    wait "$pid"
+  for index in "${!pids[@]}"; do
+    wait "${pids[$index]}" || FAILED_THEME_COMMANDS+=("${commands[$index]}")
   done
+}
+
+# A retint that fails leaves one app on the old colours while the rest of the
+# desktop moved on. The switch itself still succeeded, so this never changes
+# the exit status. Name the command on stderr, and when that is the log a
+# detached run writes, in a notification too, since nobody is watching it.
+report_failed_theme_commands() {
+  local detached="$1"
+
+  (( ${#FAILED_THEME_COMMANDS[@]} > 0 )) || return 0
+
+  echo "Theme retint failed: ${FAILED_THEME_COMMANDS[*]}" >&2
+  if [[ $detached == "detached" ]]; then
+    omarchy-notification-send -u normal "$(omarchy-i18n theme.notAppliedEverywhere)" \
+      "$(omarchy-i18n theme.commandsFailed "${FAILED_THEME_COMMANDS[*]}" "$THEME_SET_LOG")" >/dev/null 2>&1 || true
+  fi
 }
 
 shell_ipc() {
@@ -190,7 +215,7 @@ set_theme_background() {
 
   if [[ -z $CHOSEN_THEME_BACKGROUND || ! -f $CHOSEN_THEME_BACKGROUND ]]; then
     if ! choose_theme_background; then
-      omarchy-notification-send "No background was found for theme" -t 2000
+      omarchy-notification-send "$(omarchy-i18n theme.noBackground)" -t 2000
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
       return
     fi
@@ -466,6 +491,14 @@ fi
 # Swap next theme in as current
 rm -rf "$CURRENT_THEME_PATH"
 mv "$NEXT_THEME_PATH" "$CURRENT_THEME_PATH"
+# Name this switch, so its deferred retints can tell when a later one replaced
+# the theme. A directory's inode would do, except that it can be reused.
+# A token that could not be written proves nothing either way, so then the
+# retints run as if this switch were the latest.
+APPLIED_THEME_GENERATION="$$-${EPOCHREALTIME//[!0-9]/}"
+if ! printf '%s\n' "$APPLIED_THEME_GENERATION" 2>/dev/null >"$THEME_GENERATION_PATH"; then
+  APPLIED_THEME_GENERATION=""
+fi
 
 # Store theme name for reference
 echo "$THEME_NAME" >"$CURRENT_THEME_NAME_PATH"
@@ -490,14 +523,23 @@ fi
 # section, not behind slower app-retint hooks and selector cache warmups.
 flock -u 9
 
-post_theme_commands=(
+# What the user is looking at: the terminals and the programs drawn inside
+# them, plus the window borders when no intro is playing. These run as soon as
+# the theme is in place, alongside the wallpaper and bar transition.
+visible_theme_commands=(
   omarchy-restart-terminal
+  omarchy-theme-set-foot
+  omarchy-theme-set-tmux
   omarchy-restart-btop
   omarchy-restart-opencode
   omarchy-restart-helix
-  omarchy-theme-set-foot
-  omarchy-theme-set-tmux
   omarchy-theme-set-hunk
+)
+
+# Configs other apps read on their next refresh or launch: GTK, the browser
+# policy, editors, agents and the keyboard backlight. Nothing on screen waits
+# for these.
+other_theme_commands=(
   omarchy-theme-set-gnome
   omarchy-theme-set-pi
   omarchy-theme-set-claude
@@ -507,26 +549,84 @@ post_theme_commands=(
   omarchy-theme-set-vscode
   omarchy-theme-set-obsidian
   omarchy-theme-set-keyboard
+  omarchy-theme-set-fcitx5
 )
 
-if [[ $THEME_HEADLESS != "1" ]]; then
-  # Let the wallpaper and bar finish their reveal before app retints compete
-  # with decoding and the shell's frame rendering. An intro reloads Hyprland
-  # after playback; ordinary theme changes reload it with the app retints.
+theme_still_current() {
+  [[ -z $APPLIED_THEME_GENERATION ]] && return 0
+  [[ $(<"$THEME_GENERATION_PATH") == "$APPLIED_THEME_GENERATION" ]] 2>/dev/null
+}
+
+apply_other_theme_commands() {
+  local detached="${1:-}"
+
+  # Let an intro's wallpaper and bar finish their reveal before these compete
+  # with video decoding and the shell's frame rendering.
   if [[ -n $THEME_INTRO_TOKEN ]]; then
     wait_for_theme_intro themeIntroStatus "$THEME_INTRO_TOKEN" "pending"
-  else
-    post_theme_commands+=(omarchy-restart-hyprctl)
   fi
-  run_parallel "${post_theme_commands[@]}"
 
-  # Call hook on theme set
+  # Warm the background selector's thumbnails, which converts images on every
+  # core, so it too waits for the reveal. The theme picker keeps its own rows
+  # in the shell and refreshes them each time it opens.
+  omarchy-theme-bg-cache </dev/null >/dev/null 2>&1 8>&- 9>&- &
+
+  # Quick switches leave several of these batches going, and a retint such as
+  # the browser's reads its colour long before it writes it. Run the batches
+  # one at a time, and skip the retints of one whose theme was replaced while
+  # it waited, so an older theme never lands after a newer one.
+  exec 8>"$THEME_RETINT_LOCK"
+  flock 8
+  local current=false
+  if theme_still_current; then
+    current=true
+  fi
+
+  # The log starts over with each batch that retints, and a superseded one
+  # leaves it to the newer batch. An older batch's hook may still be writing to
+  # it, so every batch appends rather than writing at its own offset.
+  if [[ $detached == "detached" ]]; then
+    if [[ $current == "true" ]]; then
+      : >"$THEME_SET_LOG"
+    fi
+    exec 2>>"$THEME_SET_LOG"
+  fi
+  if [[ $current == "true" ]]; then
+    run_parallel "${other_theme_commands[@]}"
+  fi
+  exec 8>&-
+
+  # Call hook on theme set. The lock is released first: a hook may switch the
+  # theme itself, and that switch's batch needs the lock.
   omarchy-hook theme-set "$THEME_NAME" >/dev/null
+
+  # A newer switch replaced this theme during the hook, so its failures say
+  # nothing about the apps any more; the newer batch reports its own.
+  if theme_still_current; then
+    report_failed_theme_commands "$detached"
+  fi
+}
+
+if [[ $THEME_HEADLESS != "1" ]]; then
+  # An intro reloads Hyprland after playback; ordinary theme changes reload it
+  # with the terminals.
+  if [[ -z $THEME_INTRO_TOKEN ]]; then
+    visible_theme_commands+=(omarchy-restart-hyprctl)
+  fi
+  run_parallel "${visible_theme_commands[@]}"
+
+  # A switch from the theme picker, the menu or a script returns once what is
+  # on screen has changed and leaves the rest running behind it, with its
+  # output in the log. One typed in a terminal waits for everything, so the
+  # browser policy can ask for a sudo password there, and so does a caller
+  # that sets OMARCHY_THEME_WAIT=1 because it reads those app configs next.
+  if [[ -t 0 || ${OMARCHY_THEME_WAIT:-} == "1" ]]; then
+    apply_other_theme_commands
+  else
+    mkdir -p "${THEME_SET_LOG%/*}"
+    apply_other_theme_commands detached </dev/null >/dev/null 2>/dev/null 9>&- &
+  fi
 
   # Mirror the theme to herdr machines. SSH can take a while, so this never holds up the theme change.
   setsid omarchy-theme-set-herdr-machines >>"$HOME/.local/state/omarchy/theme-set-herdr-machines.log" 2>&1 </dev/null &
-
-  # Warm the background selector's thumbnails. The theme picker keeps its own
-  # rows in the shell and refreshes them each time it opens.
-  omarchy-theme-bg-cache >/dev/null 2>&1 &
 fi

@@ -5,10 +5,33 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   exit 1
 fi
 
-ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+# Physical, so a checkout reached through a symlink still passes commands that
+# refuse a non-canonical source root.
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 SHELL_TEST_DIR="$ROOT/test/shell.d"
 
 export ROOT
+
+# Commands under test belong to this checkout, never to the one the running
+# session points OMARCHY_PATH at; the agent usage collectors load their
+# shared module from it.
+export OMARCHY_PATH=$ROOT
+
+# Commands print user-facing text in the language picked under Setup >
+# Language, so pin tests to English (a missing file means English) rather than
+# whatever the machine running them is set to. Tests of other languages point
+# this at a file of their own.
+export OMARCHY_LANGUAGE_FILE=$ROOT/test/.no-language
+
+# Tests point HOME at a scratch directory, but a desktop session also exports
+# the XDG base directories, which would keep pointing at the real home: a
+# migration under test would then edit or delete the user's own files. Unset,
+# they follow HOME. A test that wants one sets it itself.
+unset XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME
+
+# Run from inside an agent session, the agent's own account home would leak
+# into tests of agent accounts the same way.
+unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME
 
 pass() {
   printf 'ok - %s\n' "$1"
@@ -89,6 +112,61 @@ require_compositor() {
   exit 0
 }
 
+# For tests that read the background layer's pixels off the first output: any
+# window on its workspace covers them, so in a working session the test would
+# read the window instead. Run them on an empty workspace.
+require_uncovered_background() {
+  local description="$1" workspace
+
+  workspace=$(hyprctl -j monitors | jq '.[0].activeWorkspace.id')
+  if (( $(hyprctl -j clients | jq --argjson ws "$workspace" '[.[] | select(.workspace.id == $ws)] | length') == 0 )); then
+    return 0
+  fi
+
+  skip "windows cover the background on the first output; skipping $description"
+  exit 0
+}
+
+# Finds the pkgbuilds/ directory of the omarchy-pkgs checkout, which some tests
+# hold Omarchy's scripts against, and sets OMARCHY_PKGS_ROOT to it. The checkout
+# lives in its own repository, wherever this machine keeps it.
+#
+# OMARCHY_PKGS_PATH names it outright (the checkout or its pkgbuilds/), and then
+# nothing else is tried: an override that doesn't resolve fails the test, so a
+# typo can't quietly turn the package checks into skips. Without the override,
+# the usual places beside this checkout are tried, and finding none returns 1 so
+# the test can skip what needs one.
+find_omarchy_pkgs() {
+  local candidate
+  local -a candidates pkgbuilds
+
+  if [[ -n ${OMARCHY_PKGS_PATH:-} ]]; then
+    candidates=("$OMARCHY_PKGS_PATH/pkgbuilds" "$OMARCHY_PKGS_PATH")
+  else
+    candidates=(
+      "$ROOT/../omarchy-pkgs/pkgbuilds"
+      "$ROOT/../omarchy/omarchy-pkgs/pkgbuilds"
+      "$ROOT/../../omarchy-pkgs/pkgbuilds"
+      "$ROOT/../omacom/omarchy-pkgs/pkgbuilds"
+      "$ROOT/../../omacom/omarchy-pkgs/pkgbuilds"
+      "$HOME/Work/omacom/omarchy-pkgs/pkgbuilds"
+    )
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    # Only */PKGBUILD is a pattern; the checkout's own path stays literal.
+    pkgbuilds=("$candidate"/*/PKGBUILD)
+    if [[ -f ${pkgbuilds[0]:-} ]]; then
+      OMARCHY_PKGS_ROOT=$(CDPATH= cd -- "$candidate" && pwd)
+      return 0
+    fi
+  done
+
+  [[ -z ${OMARCHY_PKGS_PATH:-} ]] ||
+    fail "OMARCHY_PKGS_PATH names an omarchy-pkgs checkout" "no */PKGBUILD under $OMARCHY_PKGS_PATH or its pkgbuilds/"
+  return 1
+}
+
 # Fake the hardware identity omarchy-hw-platform reads: a device tree under
 # $1/proc and a uname in $1/bin reporting the platform's CPU. Run the code under
 # test with OMARCHY_PROC_ROOT="$1/proc" and PATH="$1/bin:$ROOT/bin:...", so the
@@ -99,6 +177,7 @@ fake_platform() {
 
   case $platform in
     aarch64-apple) compatible=(apple,j416c apple,t6021 apple,arm-platform) ;;
+    aarch64-qualcomm) compatible=(lenovo,yoga-slim7x qcom,x1e80100) ;;
     aarch64) compatible=(raspberrypi,5-model-b brcm,bcm2712) ;;
     x86) machine=x86_64 ;;
     *) fail "fake_platform knows the platform $platform" ;;
@@ -139,6 +218,37 @@ platform_root_copy() {
     chmod +x "$copy" || fail "copy $script for a fixture platform root"
   grep -qF -- "$fixture" "$copy" && ! grep -qF /usr/share/omarchy-platform "$copy" ||
     fail "$(basename -- "$script") reads the platform root from the fixture"
+}
+
+# How long this machine takes to start processes, as a percentage of the
+# laptop the timing budgets were measured on (100 there, never less): the
+# fastest of three runs of 100 fork/execs of true, against the 25ms they take
+# on that laptop. A test timing process-heavy work multiplies its budget by
+# this, so a Raspberry Pi or an ARM VM gets the room its slower process starts
+# need, and only what is still several times over fails.
+process_speed_percent() {
+  local best="" start end elapsed
+
+  for _ in 1 2 3; do
+    start=$EPOCHREALTIME
+    for _ in {1..100}; do /usr/bin/true; done
+    end=$EPOCHREALTIME
+    elapsed=$(( ${end/[.,]/} - ${start/[.,]/} ))
+    if [[ -z $best ]] || (( elapsed < best )); then
+      best=$elapsed
+    fi
+  done
+  echo $(( best > 25000 ? best * 100 / 25000 : 100 ))
+}
+
+# Sets SPEED_PERCENT for a timing test, skipping the rest of the file when the
+# machine is so much slower than the reference that a budget scaled to it
+# could no longer tell a regression from the machine.
+require_comparable_speed() {
+  SPEED_PERCENT=$(process_speed_percent)
+  (( SPEED_PERCENT <= 800 )) && return 0
+  skip "processes start $(( SPEED_PERCENT / 100 ))x slower than on the reference laptop; skipping $1"
+  exit 0
 }
 
 run_node_test() {

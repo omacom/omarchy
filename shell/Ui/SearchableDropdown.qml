@@ -22,8 +22,8 @@ Item {
   property string label: ""
   property string value: ""
   property var options: []
-  property string placeholderText: "Search..."
-  property string emptyText: "No matches"
+  property string placeholderText: Commons.I18n.t("common.search")
+  property string emptyText: Commons.I18n.t("common.noMatches")
   property string triggerLabel: ""
 
   property color foreground: Commons.Color.popups.text

@@ -114,7 +114,8 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8')
 const audioNodes = read('shell/Commons/AudioNodes.qml')
 assert(/path: "\/usr\/share\/omarchy-platform\/audio\.json"/.test(audioNodes) && !/Quickshell\.env|OMARCHY_/.test(audioNodes),
   'audio reads the platform hints from the fixed platform root')
-assert(/onLoadFailed: missing = true/.test(audioNodes), 'a removed hints file hides nothing')
+assert(/onLoadFailed: \{\s*missing = true\s*root\.hints = Model\.parsePlatformAudio\(""\)/.test(audioNodes), 'a removed hints file hides nothing')
+assert(/property var hints: Model\.parsePlatformAudio\(hintsFile\.text\(\)\)/.test(audioNodes), 'audio reads the platform hints synchronously at startup')
 const sources = ['shell/plugins/panels/audio/Panel.qml', 'shell/plugins/panels/audio/Model.js', 'shell/Commons/AudioNodes.qml',
   'shell/Commons/AudioNodesModel.js', 'shell/Commons/UntypedInput.qml', 'shell/plugins/bar/widgets/Microphone.qml',
   'bin/omarchy-audio-input-set-default', 'bin/omarchy-audio-sink-availability']

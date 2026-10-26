@@ -27,16 +27,16 @@ Panel {
   property int phraseIndex: 0
 
   readonly property var activePhrases: [
-    "Filing files",
-    "Distributing data",
-    "Shuffling folders",
-    "Boxing bytes",
-    "Sorting stuff",
-    "Syncing secrets",
-    "Packing packets",
-    "Moving memories",
-    "Wrangling revisions",
-    "Cataloging chaos"
+    Commons.I18n.t("dropbox.phrase1"),
+    Commons.I18n.t("dropbox.phrase2"),
+    Commons.I18n.t("dropbox.phrase3"),
+    Commons.I18n.t("dropbox.phrase4"),
+    Commons.I18n.t("dropbox.phrase5"),
+    Commons.I18n.t("dropbox.phrase6"),
+    Commons.I18n.t("dropbox.phrase7"),
+    Commons.I18n.t("dropbox.phrase8"),
+    Commons.I18n.t("dropbox.phrase9"),
+    Commons.I18n.t("dropbox.phrase10")
   ]
   readonly property string heroPhraseText: activePhrases[phraseIndex % activePhrases.length]
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
@@ -44,7 +44,7 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color iconColor: dropbox.authenticated && dropbox.active ? foreground : dim
-  readonly property string toggleHint: dropbox.active ? "Pause syncing" : "Resume syncing"
+  readonly property string toggleHint: dropbox.active ? Commons.I18n.t("dropbox.pauseSyncing") : Commons.I18n.t("dropbox.resumeSyncing")
   readonly property color barIconColor: dropbox.authenticated && dropbox.active ? barForeground : Qt.darker(barForeground, 1.55)
   // Only claim the header cursor when the switch is actually on screen —
   // "header" stays navigable, but an absent CLI leaves nothing to highlight.
@@ -256,8 +256,8 @@ Panel {
             PanelHero {
               id: hero
               width: parent.width
-              title: "Dropbox"
-              meta: dropbox.active ? root.heroPhraseText : "Syncing paused"
+              title: Commons.I18n.t("dropbox.title")
+              meta: dropbox.active ? root.heroPhraseText : Commons.I18n.t("dropbox.syncingPaused")
               foreground: root.foreground
               fontFamily: root.fontFamily
               iconOpacity: dropbox.active ? 1.0 : 0.5
@@ -317,7 +317,7 @@ Panel {
             Column {
               width: parent.width
               spacing: Style.spacing.labelGap
-              InfoPair { label: "Stored"; value: Model.usageText(dropbox.usedBytes, dropbox.quotaBytes, dropbox.quotaKnown) }
+              InfoPair { label: Commons.I18n.t("dropbox.stored"); value: Model.usageText(dropbox.usedBytes, dropbox.quotaBytes, dropbox.quotaKnown, Commons.I18n.t, Commons.I18n.formatNumber) }
             }
           }
 
@@ -332,7 +332,7 @@ Panel {
             spacing: Style.space(10)
 
             PanelSectionHeader {
-              text: "RECENT FILES"
+              text: Commons.I18n.t("dropbox.recentFiles")
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -340,7 +340,8 @@ Panel {
             Text {
               visible: dropbox.files.length === 0
               width: parent.width
-              text: "No synced files found."
+              text: Commons.I18n.t("dropbox.noFiles")
+              textFormat: Text.PlainText
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
@@ -382,14 +383,14 @@ Panel {
     id: phraseSwap
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(150); easing.type: Easing.OutCubic
     }
     ScriptAction {
       script: root.phraseIndex = (root.phraseIndex + 1) % root.activePhrases.length
     }
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(200); easing.type: Easing.OutCubic
     }
   }
 
@@ -437,7 +438,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           Layout.fillWidth: true
-          text: dropbox.installed ? "Login to Dropbox" : "Dropbox CLI is not installed"
+          text: dropbox.installed ? Commons.I18n.t("dropbox.login") : Commons.I18n.t("dropbox.notInstalled")
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -447,7 +448,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           Layout.fillWidth: true
-          text: dropbox.installed ? "Start the authentication flow" : "Install Dropbox from the service menu"
+          text: dropbox.installed ? Commons.I18n.t("dropbox.loginHelp") : Commons.I18n.t("dropbox.installHelp")
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -470,7 +471,7 @@ Panel {
     id: fileRow
     property var file: null
     property int rowIndex: 0
-    readonly property string fileName: file ? String(file.name || "Untitled") : "Untitled"
+    readonly property string fileName: file ? String(file.name || Commons.I18n.t("dropbox.untitled")) : Commons.I18n.t("dropbox.untitled")
 
     hasCursor: root.cursorActive && root.focusSection === "files" && root.fileIndex === rowIndex
     foreground: root.foreground
@@ -520,7 +521,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           Layout.fillWidth: true
-          text: Model.fileMeta(fileRow.file)
+          text: Model.fileMeta(fileRow.file, undefined, Commons.I18n.t, Commons.I18n.formatNumber)
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

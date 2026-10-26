@@ -14,5 +14,5 @@ while IFS= read -r drive; do
   drives_with_info+="$(omarchy-drive-info "$drive")"$'\n'
 done <<<"$drives"
 
-selected_drive="$(printf "%s" "$drives_with_info" | gum choose --header "Select drive")" || exit 1
+selected_drive="$(printf "%s" "$drives_with_info" | gum choose --header "$(omarchy-i18n drive.select)")" || exit 1
 printf "%s\n" "$selected_drive" | awk '{print $1}'

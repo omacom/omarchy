@@ -30,16 +30,12 @@ cat >"$commands/noop" <<'STUB'
 exit 0
 STUB
 chmod +x "$commands/noop"
-# Post-theme retints run through bash -lc; this fixture only exercises selection and presentation.
-for command in omarchy-theme-set-templates omarchy-hook omarchy-theme-set-herdr-machines omarchy-theme-bg-cache; do
-  ln -s noop "$commands/$command"
+# This fixture only exercises selection and presentation, so every retint is
+# a no-op except the compositor reload, whose timing it checks.
+for command in "$ROOT"/bin/omarchy-restart-* "$ROOT"/bin/omarchy-theme-set-* omarchy-hook omarchy-theme-bg-cache; do
+  command=${command##*/}
+  [[ $command == omarchy-restart-hyprctl ]] || ln -sf noop "$commands/$command"
 done
-cat >"$commands/bash" <<'STUB'
-#!/bin/bash
-if [[ $1 == "-lc" && $2 == "omarchy-restart-hyprctl" ]]; then
-  omarchy-restart-hyprctl
-fi
-STUB
 cat >"$commands/omarchy-restart-hyprctl" <<'STUB'
 #!/bin/bash
 echo "hypr-reload" >>"$TEST_LOG"
@@ -98,12 +94,12 @@ if [[ $1 == intro && -n ${TEST_RELEASE:-} ]]; then
   exit 1
 fi
 STUB
-chmod +x "$commands/bash" "$commands/omarchy-restart-hyprctl" "$commands/hyprctl" "$commands/omarchy-shell" "$commands/owe"
+chmod +x "$commands/omarchy-restart-hyprctl" "$commands/hyprctl" "$commands/omarchy-shell" "$commands/owe"
 
 set_theme() {
   : >"$log"
   HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_LOG="$log" \
-    /bin/bash "$ROOT/bin/omarchy-theme-set" "$1" >"$test_tmp/stdout" 2>"$test_tmp/stderr" || fail "theme selection completes" "$(cat "$test_tmp/stderr")"
+    /bin/bash "$ROOT/bin/omarchy-theme-set" "$1" </dev/null >"$test_tmp/stdout" 2>"$test_tmp/stderr" || fail "theme selection completes" "$(cat "$test_tmp/stderr")"
 }
 wait_command() {
   for attempt in {1..100}; do

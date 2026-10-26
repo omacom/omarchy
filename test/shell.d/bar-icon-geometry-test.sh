@@ -44,6 +44,15 @@ ShellRoot {
     Qt.quit()
   }
 
+  function findItem(item, matches) {
+    if (matches(item)) return item
+    for (var i = 0; i < item.children.length; i++) {
+      var found = findItem(item.children[i], matches)
+      if (found) return found
+    }
+    return null
+  }
+
   function checkPaintedBounds(icon, name) {
     if (Math.abs(icon.opticalCenterErrorX) > 0.05 || Math.abs(icon.opticalCenterErrorY) > 0.05) {
       fail(name + " painted bounds are off center: " + icon.opticalCenterErrorX + ", " + icon.opticalCenterErrorY)
@@ -153,6 +162,19 @@ ShellRoot {
     if (Math.abs(labelledPower.glyphPaintedWidth - power.glyphPaintedWidth) > 0.05
         || Math.abs(labelledPower.glyphPaintedHeight - power.glyphPaintedHeight) > 0.05) {
       fail("the battery percentage changes the icon's size")
+      return false
+    }
+    // The percentage reads before the icon: "100% 󰁹", not "󰁹 100%".
+    var percentLabel = findItem(labelledPower, function(item) { return item.text === "100%" })
+    var batteryGlyph = findItem(labelledPower, function(item) { return item.paintedSize !== undefined && item.text === "󰁹" })
+    if (!percentLabel || !batteryGlyph) {
+      fail("the battery percentage fixture has a label and a glyph")
+      return false
+    }
+    var labelRight = percentLabel.mapToItem(labelledPower, percentLabel.implicitWidth, 0).x
+    var glyphLeft = batteryGlyph.mapToItem(labelledPower, batteryGlyph.paintedCenterX - batteryGlyph.paintedWidth / 2, 0).x
+    if (labelRight > glyphLeft) {
+      fail("the battery percentage ends at " + labelRight + ", past the icon's left edge at " + glyphLeft)
       return false
     }
     if (vector.implicitWidth !== Style.bar.iconSlot || vector.opticalSize !== Style.bar.iconCanvas) {

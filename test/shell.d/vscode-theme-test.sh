@@ -107,3 +107,16 @@ rm -f "$EXTENSIONS/extensions.json"
 LISTED_EXTENSIONS="bjarne.hackerman-omarchy" run_vscode_sync
 [[ $(editor_calls) == "--list-extensions" ]] || fail "VS Code theme sync asks the editor when it has no extension registry" "$(editor_calls)"
 pass "VS Code theme sync asks the editor when it has no extension registry"
+
+# omarchy-theme-set reports a retint that exits non-zero, so skipping an
+# editor by its toggle must still succeed.
+SKIP_BIN="$TEST_HOME/skip-bin"
+mkdir -p "$SKIP_BIN"
+cat >"$SKIP_BIN/omarchy-toggle-enabled" <<'EOF2'
+#!/bin/bash
+[[ $1 == "skip-cursor-theme-changes" ]]
+EOF2
+chmod +x "$SKIP_BIN/omarchy-toggle-enabled"
+EDITOR_PROBE_LOG="$TEST_HOME/editor-probes.log" PATH="$SKIP_BIN:$FAKE_BIN:$ROOT/bin:$PATH" HOME="$TEST_HOME" \
+  "$ROOT/bin/omarchy-theme-set-vscode" || fail "VS Code theme sync succeeds when the last editor is skipped by its toggle"
+pass "VS Code theme sync succeeds when the last editor is skipped by its toggle"

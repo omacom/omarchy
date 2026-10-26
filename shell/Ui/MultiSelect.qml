@@ -28,9 +28,9 @@ Item {
   property var options: []
   property var optionsCommand: []
   property string optionsCommandCwd: ""
-  property string placeholderText: "Search..."
-  property string emptyText: "No options"
-  property string noSelectionText: "None selected"
+  property string placeholderText: Commons.I18n.t("common.search")
+  property string emptyText: Commons.I18n.t("common.noOptions")
+  property string noSelectionText: Commons.I18n.t("common.noneSelected")
   property string triggerLabel: ""
   property bool showLabel: true
 
@@ -129,7 +129,7 @@ Item {
     for (var j = 0; j < arr.length; j++)
       labels.push(byValue[String(arr[j])] || String(arr[j]))
     if (labels.length <= 3) return labels.join(", ")
-    return arr.length + " selected"
+    return Commons.I18n.tn("multiSelect.selectedCount", arr.length).arg(Commons.I18n.formatNumber(arr.length))
   }
 
   property var filtered: resolvedOptions
@@ -164,7 +164,7 @@ Item {
         var parsed = JSON.parse(raw)
         return { options: parsed, error: "" }
       } catch (e) {
-        return { options: [], error: "Options command emitted invalid JSON" }
+        return { options: [], error: Commons.I18n.t("multiSelect.invalidJson") }
       }
     }
     var out = []
@@ -206,7 +206,7 @@ Item {
       if (!root.loadingOptions) return
       optionsProcess.running = false
       root.loadingOptions = false
-      root.optionsError = "Options command timed out"
+      root.optionsError = Commons.I18n.t("multiSelect.timedOut")
     }
   }
 
@@ -247,7 +247,7 @@ Item {
       refreshTimeoutTimer.stop()
       if (exitCode !== 0) {
         root.loadingOptions = false
-        root.optionsError = "Options command exited " + exitCode
+        root.optionsError = Commons.I18n.t("multiSelect.exited").arg(Commons.I18n.formatNumber(exitCode))
       }
     }
   }
@@ -464,7 +464,7 @@ Item {
                   RotationAnimator on rotation {
                     running: root.loadingOptions && !Style.reduceMotion
                     from: 0; to: 360
-                    duration: 800
+                    duration: Style.duration(800)
                     loops: Animation.Infinite
                   }
                 }
@@ -493,7 +493,7 @@ Item {
               textFormat: Text.PlainText
               anchors.centerIn: parent
               visible: resultList.count === 0
-              text: root.loadingOptions ? "Loading…" : (root.optionsError !== "" ? root.optionsError : root.emptyText)
+              text: root.loadingOptions ? Commons.I18n.t("common.loading") : (root.optionsError !== "" ? root.optionsError : root.emptyText)
               color: Qt.darker(root.foreground, 1.6)
               font.family: root.fontFamily
               font.pixelSize: Style.font.body

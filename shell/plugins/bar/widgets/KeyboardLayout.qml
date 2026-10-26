@@ -19,9 +19,7 @@ BarWidget {
   // naming one that has been unplugged.
   property string keyboardName: ""
   property string typedKeyboardName: ""
-  // Keyboards on the seat, buttons and virtual ones excluded, and whether the
-  // last reading left that shape in doubt.
-  property int keyboardCount: 0
+  // Whether the last reading left the seat's shape in doubt.
   property bool keyboardUnresolved: false
   // Nothing to read or switch on the single-layout install most people run, so
   // the widget ships on the bar and stays out of the way until there are two.
@@ -147,10 +145,14 @@ BarWidget {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        // A reading that failed leaves the seat in doubt, so the timer below
+        // asks again: a device change is announced once, and nothing else
+        // would bring the label back to it.
         let listed
         try {
           listed = JSON.parse(text || "{}").keyboards
         } catch (e) {
+          root.keyboardUnresolved = true
           return
         }
 
@@ -158,7 +160,10 @@ BarWidget {
         // string parses into the same shape a seat with no keyboards would.
         // Tell them apart by the list itself, so only a reading that reached
         // hyprctl gets to speak for the seat.
-        if (!Array.isArray(listed)) return
+        if (!Array.isArray(listed)) {
+          root.keyboardUnresolved = true
+          return
+        }
 
         const typed = root.typedKeyboards(listed)
         const kb = root.selectKeyboard(typed)
@@ -177,7 +182,6 @@ BarWidget {
         }
 
         root.keyboardUnresolved = false
-        root.keyboardCount = typed.length
         root.keyboardName = String(kb.name || "")
         root.multipleLayouts = kb.layout === undefined || String(kb.layout).indexOf(",") !== -1
         root.layoutsRead = true
@@ -228,16 +232,21 @@ BarWidget {
     }
   }
 
-  // Which keyboard on a crowded seat the label is describing can change without
-  // Hyprland announcing it, since a device arriving or leaving raises no event
-  // of its own, and that can only be learned by asking. Poll while there is that
-  // ambiguity, until a first reading lands so a query that failed at login still
-  // recovers, and while a reading has left the seat's shape in doubt. The
-  // one-keyboard install has none of those, and is left alone rather than
-  // spawning hyprctl forever for an answer that cannot change.
+  // Which keyboard on a crowded seat the label is describing changes when a
+  // device arrives or leaves, which Hyprland raises no event for, so read the
+  // seat again whenever /dev/input changes.
+  Connections {
+    target: InputDevices
+    function onChanged() { root.refresh() }
+  }
+
+  // Ask again until a first reading lands, so a query that failed at login
+  // still recovers, and while a reading has left the seat's shape in doubt. A
+  // settled seat has neither, and is left alone rather than spawning hyprctl
+  // forever for an answer only a device change can alter.
   Timer {
     interval: 10000
-    running: !root.keyboardName || root.keyboardUnresolved || root.keyboardCount > 1
+    running: !root.keyboardName || root.keyboardUnresolved || !InputDevices.healthy
     repeat: true
     onTriggered: root.refresh()
   }
