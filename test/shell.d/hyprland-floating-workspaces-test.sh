@@ -780,6 +780,8 @@ local any = setmetatable({}, { __index = function(t) return t end, __call = func
 setmetatable(hl.dsp, { __index = function() return any end })
 hl.dsp.exec_cmd = function(command) return command end
 hl.exec_cmd = function(command) table.insert(ran, command) end
+local active_window = nil
+hl.get_active_window = function() return active_window end
 require("default.hypr.workspace-layouts")
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/utilities.lua")
 state().active.id = 1
@@ -788,10 +790,14 @@ assert(ran[1] == "omarchy-shell omarchy.dock apps", "a tap of Super on a floatin
 state().active.id = 2
 binds["SUPER + Super_R"]()
 assert(#ran == 1, "a tap of Super opened the apps on a tiled workspace")
+state().active.id = 1
+active_window = { fullscreen = 2 }
+binds["SUPER + Super_L"]()
+assert(#ran == 1, "a tap of Super opened the apps over a fullscreen window")
 '; then
-  fail "a tap of Super opens the apps on a floating workspace only"
+  fail "a tap of Super opens the apps on a floating workspace only, and not over a fullscreen window"
 fi
-pass "a tap of Super opens the apps on a floating workspace only"
+pass "a tap of Super opens the apps on a floating workspace only, and not over a fullscreen window"
 
 run_node_test <<'JS'
 const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')
