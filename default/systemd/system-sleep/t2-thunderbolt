@@ -37,9 +37,23 @@ tb_downstream_bridges() {
   local up dev
   for up in $(tb_upstream_bridges); do
     for dev in "$up"/0000:*; do
-      [[ -r $dev/class && $(<"$dev/class") == 0x060400 ]] && echo "$dev"
+      [[ -r $dev/class && $(<"$dev/class") == "0x060400" ]] && echo "$dev"
     done
   done
+}
+
+# Removing a controller takes everything behind it off the bus at once, a
+# drive on its USB-C ports included, so a mounted filesystem or active swap
+# there would lose its device under it. Such a controller is left in place and
+# resumes the slow way.
+has_mounted_storage() {
+  local bridge blk
+  bridge=$(readlink -f "$1")
+  for blk in /sys/block/*; do
+    [[ $(readlink -f "$blk") == "$bridge"/* ]] || continue
+    [[ -n $(lsblk -nro MOUNTPOINTS "/dev/${blk##*/}" 2>/dev/null | tr -d '[:space:]') ]] && return 0
+  done
+  return 1
 }
 
 has_children() {
@@ -72,12 +86,12 @@ rescan_unit=omarchy-t2-thunderbolt-rescan.service
 release_stale_crtcs() {
   local card state holder crtc session tty="" found=0
   for card in /sys/class/drm/card[0-9]*; do
-    [[ -r $card/device/vendor && $(<"$card/device/vendor") == 0x1002 ]] || continue
+    [[ -r $card/device/vendor && $(<"$card/device/vendor") == "0x1002" ]] || continue
     state=/sys/kernel/debug/dri/${card##*card}/state
     [[ -r $state ]] || continue
     while read -r holder crtc; do
       [[ $crtc == "(null)" ]] && continue
-      [[ -e $card-$holder && $(<"$card-$holder/status") == disconnected ]] && found=1
+      [[ -e $card-$holder && $(<"$card-$holder/status") == "disconnected" ]] && found=1
     done < <(awk '/^connector\[/{c=$2} c && /^\tcrtc=/{sub(/.*crtc=/,""); print c, $0; c=""}' "$state")
   done
   (( found )) || return 0
@@ -114,6 +128,10 @@ case $1 in
     systemctl stop "$rescan_unit" 2>/dev/null || true
     count=0
     for dev in $(tb_upstream_bridges); do
+      if has_mounted_storage "$dev"; then
+        echo "t2-thunderbolt: leaving ${dev##*/} in place, a drive behind it is mounted"
+        continue
+      fi
       echo 1 > "$dev/remove" && count=$((count + 1))
     done
     # A controller the last resume's rescan has not brought back yet is still
