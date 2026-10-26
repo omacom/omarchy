@@ -126,10 +126,14 @@ case $1 in
     # A rescan still running from the last resume must not put a controller
     # back on the bus after this removal, or the next resume waits on it again.
     systemctl stop "$rescan_unit" 2>/dev/null || true
+    # The count is every controller the resume must find again, a kept one
+    # included: the rescan stops once that many are back, and a kept one alone
+    # must not stand in for one still powering up.
     count=0
     for dev in $(tb_upstream_bridges); do
       if has_mounted_storage "$dev"; then
         echo "t2-thunderbolt: leaving ${dev##*/} in place, a drive behind it is mounted"
+        count=$((count + 1))
         continue
       fi
       echo 1 > "$dev/remove" && count=$((count + 1))
