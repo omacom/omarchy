@@ -67,6 +67,10 @@ Foreground text measures **11.63:1** contrast against the main background; muted
 
 A running Omarchy desktop is still required to verify the bar, menu, terminal, editor, notifications, and lock screen together before release.
 
+Testing prompt for an agent working from the Omarchy source checkout:
+
+> Read `AGENTS.md` and `agents/skills/visual-verification.md`, then activate Qianli Jiangshan from this checkout and test all four wallpapers, the bar, launcher, notifications, terminal ANSI colors and selections, Neovim syntax, and lock-screen readability on the running Omarchy desktop. Save screenshots, report any readability or consistency issues with reproduction steps, and restore the previous theme afterward without publishing or submitting anything.
+
 ## Artwork and attribution
 
 **Wang Ximeng (王希孟), *A Thousand Li of Rivers and Mountains* (千里江山图), 1113.** Ink and color on silk, handscroll, 51.3 × 1191.5 cm. Collection: The Palace Museum, Beijing. This theme is an independent tribute and is not affiliated with the museum.
