@@ -201,3 +201,55 @@ if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/
 fi
 
 pass "battery status owns capacity and remaining calculations"
+
+# omarchy-battery-charge-limit works on the same battery: the machine's own,
+# not a wireless mouse's that enumerates first.
+limit_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$hold_dir" "$limit_dir"' EXIT
+
+mkdir -p "$limit_dir/bin"
+printf 'true\n' >"$limit_dir/enabled"
+cat >"$limit_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_hidpp_battery_0"
+  echo "/org/freedesktop/UPower/devices/battery_CMB0"
+elif [[ $2 == */battery_hidpp_battery_0 ]]; then
+  echo "  power supply:         no"
+else
+  echo "  power supply:         yes"
+fi
+STUB
+cat >"$limit_dir/bin/busctl" <<'STUB'
+#!/bin/bash
+
+[[ $3 == */battery_CMB0 ]] || { echo "Unknown object '$3'." >&2; exit 1; }
+if [[ $1 == "call" ]]; then
+  [[ -z ${OMARCHY_TEST_REFUSE:-} ]] || { echo "Call failed: Not authorized" >&2; exit 1; }
+  printf '%s\n' "$7" >"$LIMIT_DIR/enabled"
+  exit 0
+fi
+case "$5" in
+  ChargeThresholdSupported) echo "b ${OMARCHY_TEST_SUPPORTED:-true}" ;;
+  ChargeThresholdEnabled) echo "b $(<"$LIMIT_DIR/enabled")" ;;
+  ChargeEndThreshold) echo "u 80" ;;
+esac
+STUB
+chmod +x "$limit_dir/bin/upower" "$limit_dir/bin/busctl"
+
+limit_output=$(LIMIT_DIR=$limit_dir PATH="$limit_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-charge-limit" off)
+[[ $limit_output == $'limit\toff\nend\t80' ]] || fail "charge limit off turns the machine's battery limit off and prints the new state" "$limit_output"
+limit_output=$(LIMIT_DIR=$limit_dir PATH="$limit_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-charge-limit")
+[[ $limit_output == $'limit\toff\nend\t80' ]] || fail "charge limit reads the state it set" "$limit_output"
+pass "charge limit sets and reads the machine battery's limit"
+
+limit_output=$(OMARCHY_TEST_SUPPORTED=false LIMIT_DIR=$limit_dir PATH="$limit_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-charge-limit")
+[[ -z $limit_output ]] || fail "a battery without a charge limit prints nothing" "$limit_output"
+pass "charge limit prints nothing for a battery without one"
+
+if OMARCHY_TEST_REFUSE=1 LIMIT_DIR=$limit_dir PATH="$limit_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-charge-limit" on >/dev/null 2>"$limit_dir/error"; then
+  fail "a refused UPower call fails the command"
+fi
+grep -F "Not authorized" "$limit_dir/error" >/dev/null || fail "a refused UPower call keeps its error" "$(<"$limit_dir/error")"
+pass "charge limit fails with UPower's error when the change is refused"

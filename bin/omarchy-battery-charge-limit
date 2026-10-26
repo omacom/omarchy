@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set the battery charge limit that UPower and the laptop firmware support
+# omarchy:args=[on|off]
+
+case "${1:-}" in
+  "" | on | off)
+    ;;
+  *)
+    echo "Usage: omarchy-battery-charge-limit [on|off]" >&2
+    exit 2
+    ;;
+esac
+
+# Same battery as omarchy-battery-status: the first UPower battery that powers
+# the machine, since a wireless mouse or keyboard is a battery_ device too.
+battery=""
+while read -r candidate; do
+  [[ -n $candidate ]] || continue
+  if upower -i "$candidate" 2>/dev/null | grep -qE '^\s*power supply:\s+yes'; then
+    battery=$candidate
+    break
+  fi
+done < <(upower -e 2>/dev/null | grep '/battery_')
+
+battery_property() {
+  local reply
+  reply=$(busctl get-property org.freedesktop.UPower "$battery" org.freedesktop.UPower.Device "$1") || return 1
+  echo "${reply#* }"
+}
+
+# No battery, or one whose firmware has no charge limit, prints nothing.
+[[ -n $battery ]] || exit 0
+supported=$(battery_property ChargeThresholdSupported) || exit 1
+[[ $supported == "true" ]] || exit 0
+
+if [[ -n ${1:-} ]]; then
+  if [[ $1 == "on" ]]; then
+    enable=true
+  else
+    enable=false
+  fi
+  busctl call org.freedesktop.UPower "$battery" org.freedesktop.UPower.Device EnableChargeThreshold b "$enable" || exit 1
+fi
+
+enabled=$(battery_property ChargeThresholdEnabled) || exit 1
+end=$(battery_property ChargeEndThreshold) || exit 1
+
+if [[ $enabled == "true" ]]; then
+  printf 'limit\ton\n'
+else
+  printf 'limit\toff\n'
+fi
+printf 'end\t%s\n' "$end"

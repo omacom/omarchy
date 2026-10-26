@@ -20,6 +20,18 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
+  property string cursorSection: "profiles"
+  property bool chargeLimitOn: false
+  property int chargeLimitEnd: 0
+  property int chargeLimitIndex: 0
+  property string chargeLimitReadError: ""
+  property string chargeLimitSetError: ""
+  property bool discardChargeLimitRead: false
+  property bool chargeLimitAvailable: false
+  readonly property var chargeLimitOptions: [
+    { value: "on", label: Commons.I18n.formatNumber(chargeLimitEnd) + "%" },
+    { value: "off", label: Commons.I18n.formatNumber(100) + "%" }
+  ]
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
@@ -47,6 +59,24 @@ Panel {
     if (profileIndex < 0 || profileIndex >= profiles.length) return
     setProfile(profiles[profileIndex])
   }
+
+  function moveCursor(dx, dy) {
+    if (!cursorActive) { cursorActive = true; return }
+    var next = Model.moveCursor(
+      { section: cursorSection, chargeIndex: chargeLimitIndex, profileIndex: profileIndex },
+      dx, dy, { available: chargeLimitAvailable, on: chargeLimitOn }, profiles)
+    cursorSection = next.section
+    chargeLimitIndex = next.chargeIndex
+    profileIndex = next.profileIndex
+  }
+
+  function activateCursor() {
+    if (!cursorActive) return
+    if (cursorSection === "chargeLimit" && chargeLimitAvailable) setChargeLimit(chargeLimitIndex === 0)
+    else activateSelectedProfile()
+  }
+
+  onChargeLimitAvailableChanged: if (!chargeLimitAvailable && cursorSection === "chargeLimit") cursorSection = "profiles"
 
   function batteryIcon() {
     var device = UPower.displayDevice
@@ -145,6 +175,23 @@ Panel {
     if (!batteryProc.running) batteryProc.running = true
     if (!profilesProc.running) profilesProc.running = true
     if (!systemProc.running) systemProc.running = true
+    if (!chargeLimitProc.running && !chargeLimitSetProc.running) chargeLimitProc.running = true
+  }
+
+  function updateChargeLimit(raw) {
+    var limit = Model.parseChargeLimit(raw)
+    chargeLimitOn = limit.on
+    chargeLimitEnd = limit.end
+    chargeLimitAvailable = limit.available
+  }
+
+  function setChargeLimit(on) {
+    if (chargeLimitSetProc.running) return
+    chargeLimitSetError = ""
+    // A read started before this change would land after it with the old state.
+    if (chargeLimitProc.running) discardChargeLimitRead = true
+    chargeLimitSetProc.command = ["omarchy-battery-charge-limit", on ? "on" : "off"]
+    chargeLimitSetProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -206,6 +253,7 @@ Panel {
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
       cursorActive = false
+      cursorSection = "profiles"
     }
   }
 
@@ -235,6 +283,29 @@ Panel {
 
   Process {
     id: actionProc
+    onExited: root.refresh()
+  }
+
+  Process {
+    id: chargeLimitProc
+    command: ["omarchy-battery-charge-limit"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (root.discardChargeLimitRead) {
+          root.discardChargeLimitRead = false
+          return
+        }
+        root.updateChargeLimit(text)
+      }
+    }
+    stderr: StdioCollector { waitForEnd: true; onStreamFinished: root.chargeLimitReadError = text.trim() }
+  }
+
+  Process {
+    id: chargeLimitSetProc
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: if (text.trim() !== "") root.updateChargeLimit(text) }
+    stderr: StdioCollector { waitForEnd: true; onStreamFinished: root.chargeLimitSetError = text.trim() }
     onExited: root.refresh()
   }
 
@@ -313,12 +384,8 @@ Panel {
       property alias heroStatus: heroStatus
       anchors.fill: parent
       implicitHeight: column.implicitHeight
-      onMoveRequested: function(dx, dy) {
-        if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dx !== 0) root.selectProfileByDelta(dx)
-        else if (dy !== 0) root.selectProfileByDelta(dy)
-      }
-      onActivateRequested: if (root.cursorActive) root.activateSelectedProfile()
+      onMoveRequested: function(dx, dy) { root.moveCursor(dx, dy) }
+      onActivateRequested: root.activateCursor()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -460,7 +527,52 @@ Panel {
               label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
               value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
             }
+
+            Item {
+              visible: root.chargeLimitAvailable
+              width: parent.width
+              implicitHeight: chargeLimitChoice.implicitHeight
+
+              InfoLabel {
+                text: Commons.I18n.t("power.chargeTo")
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              ButtonGroup {
+                id: chargeLimitChoice
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.space(6)
+                options: root.chargeLimitOptions
+                value: root.chargeLimitOn ? "on" : "off"
+                focusable: false
+                cursorIndex: root.cursorActive && root.cursorSection === "chargeLimit" ? root.chargeLimitIndex : -1
+                foreground: root.bar.foreground
+                background: "transparent"
+                fontFamily: root.bar.fontFamily
+                fontSize: Style.font.bodySmall
+                onChanged: function(value) { root.setChargeLimit(value === "on") }
+                onHovered: function(index, isHovered) {
+                  if (!isHovered) return
+                  root.cursorActive = true
+                  root.cursorSection = "chargeLimit"
+                  root.chargeLimitIndex = index
+                }
+              }
+            }
           }
+        }
+
+        Text {
+          visible: text !== ""
+          width: parent.width
+          textFormat: Text.PlainText
+          text: root.chargeLimitSetError || root.chargeLimitReadError
+          color: root.bar.urgent
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.WordWrap
         }
 
         // ---------- Power profile picker ----------
@@ -503,11 +615,12 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
                 active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && root.profileIndex === index
+                hasCursor: root.cursorActive && root.cursorSection === "profiles" && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
+                    root.cursorSection = "profiles"
                     root.profileIndex = index
                   }
                 }

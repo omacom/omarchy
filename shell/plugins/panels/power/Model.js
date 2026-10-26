@@ -20,6 +20,37 @@ function parseKeyValue(raw) {
   return next
 }
 
+// The battery's charge limit as omarchy-battery-charge-limit prints it. Only an
+// end threshold below 100 is a limit worth offering against a full charge.
+function parseChargeLimit(raw) {
+  var info = parseKeyValue(raw)
+  var end = parseInt(info.end, 10) || 0
+  return { on: info.limit === "on", end: end, available: end > 0 && end < 100 }
+}
+
+// One cursor walks two rows: the charge limit choice above the profiles. Up
+// and Down switch rows when the charge limit row shows, landing on the value
+// in force; otherwise they walk the profiles, as Left and Right do.
+function moveCursor(cursor, dx, dy, chargeLimit, profiles) {
+  var next = { section: cursor.section, chargeIndex: cursor.chargeIndex, profileIndex: cursor.profileIndex }
+  var limit = chargeLimit || {}
+  if (next.section === "chargeLimit" && !limit.available) next.section = "profiles"
+
+  if (limit.available && dy !== 0) {
+    if (dy < 0 && next.section !== "chargeLimit") {
+      next.section = "chargeLimit"
+      next.chargeIndex = limit.on ? 0 : 1
+    } else if (dy > 0) {
+      next.section = "profiles"
+    }
+    return next
+  }
+
+  if (next.section === "chargeLimit") next.chargeIndex = clampIndex(next.chargeIndex + dx, 2)
+  else next.profileIndex = selectProfileIndex(next.profileIndex, dx !== 0 ? dx : dy, profiles)
+  return next
+}
+
 function parseProfiles(raw, previousIndex) {
   var lines = String(raw || "").split("\n")
   var list = []
@@ -116,6 +147,8 @@ if (typeof module !== "undefined") {
     selectProfileIndex: selectProfileIndex,
     parseKeyValue: parseKeyValue,
     parseProfiles: parseProfiles,
+    parseChargeLimit: parseChargeLimit,
+    moveCursor: moveCursor,
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
