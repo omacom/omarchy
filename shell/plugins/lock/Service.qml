@@ -45,6 +45,9 @@ Item {
   property int fingerprintRetryBackoffMs: 0
   // Outputs the lock last saw, so only a display arriving counts as a wake.
   property int knownScreenCount: 0
+  // Whether the lock has turned the displays off. A key pressed at a dark panel
+  // is there to wake it, so the view keeps that key out of the password field.
+  property bool displaysBlank: false
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -254,6 +257,7 @@ Item {
   }
 
   function runWake() {
+    displaysBlank = false
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
     resumeFingerprint()
@@ -348,8 +352,31 @@ Item {
   }
 
   function runBlank() {
+    displaysBlank = true
     pauseFingerprint()
     if (!blankProcess.running) blankProcess.running = true
+  }
+
+  // Clears the blank state once Hyprland reports a display lit again without
+  // the lock's own wake, so a panel relit behind the lock's back (a hotplug, a
+  // resume that kept the outputs on) does not keep eating the first key.
+  function applyDisplayState(text) {
+    // An answer still in flight when a wake stopped the poll is stale.
+    if (!displayStateTimer.running) return
+    var monitors
+    try {
+      monitors = JSON.parse(String(text || ""))
+    } catch (error) {
+      return
+    }
+    if (!Array.isArray(monitors)) return
+    for (var i = 0; i < monitors.length; i++) {
+      var monitor = monitors[i]
+      if (monitor && !monitor.disabled && monitor.dpmsStatus === true) {
+        displaysBlank = false
+        return
+      }
+    }
   }
 
   function submitPassword(value) {
@@ -522,6 +549,7 @@ Item {
         onSubmitPassword: function(password) { root.submitPassword(password) }
         onClearFailureRequested: root.failureMessage = ""
         onWakeRequested: root.runWake()
+        displaysBlank: root.displaysBlank
       }
 
     }
@@ -761,6 +789,26 @@ Item {
   Process {
     id: blankProcess
     command: ["bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
+  }
+
+  // Quickshell exposes no DPMS signal, so the display state is asked of
+  // Hyprland only while the lock has the displays off.
+  Process {
+    id: displayStateProcess
+    command: ["hyprctl", "monitors", "-j"]
+    stdout: StdioCollector {
+      onStreamFinished: root.applyDisplayState(text)
+    }
+  }
+
+  Timer {
+    id: displayStateTimer
+    interval: 3000
+    repeat: true
+    running: root.lockRequested && root.displaysBlank
+    onTriggered: {
+      if (!displayStateProcess.running) displayStateProcess.running = true
+    }
   }
 
   Timer {
