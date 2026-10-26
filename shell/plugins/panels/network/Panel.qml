@@ -2320,7 +2320,7 @@ Panel {
             id: hotspotAliasField
             width: parent.width
             enabled: !root.hotspotAliasBusy
-            placeholderText: "Name this device"
+            placeholderText: Commons.I18n.t("network.nameClient")
             font.family: Style.font.family
             font.pixelSize: Style.font.body
             foreground: root.bar.foreground
@@ -2338,7 +2338,7 @@ Panel {
             Button {
               width: parent.width - Style.space(120)
               height: Style.spacing.controlHeight
-              text: "Save"
+              text: Commons.I18n.t("network.saveClientName")
               enabled: !root.hotspotAliasBusy
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
@@ -2353,7 +2353,7 @@ Panel {
               width: Style.space(34)
               height: Style.spacing.controlHeight
               iconText: "\u232b"
-              tooltipText: "Remove this name"
+              tooltipText: Commons.I18n.t("network.removeClientName")
               enabled: !root.hotspotAliasBusy
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
@@ -2368,7 +2368,7 @@ Panel {
               width: Style.space(34)
               height: Style.spacing.controlHeight
               iconText: "\u2715"
-              tooltipText: "Cancel"
+              tooltipText: Commons.I18n.t("common.cancel")
               enabled: !root.hotspotAliasBusy
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
