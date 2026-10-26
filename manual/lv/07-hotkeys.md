@@ -1,102 +1,104 @@
-# Karstie taustiņi
+# Īsinājumtaustiņi
 
-Tu vari redzēt visas galvenās tastatūras piesaistes ar `Super + K` (Tmux piesaistes ar `Super + Alt + K` un Herdr piesaistes ar `Super + Ctrl + K`).
+Visus galvenos tastatūras īsinājumtaustiņus varat redzēt ar `Super + K` (Tmux īsinājumtaustiņus ar `Super + Alt + K` un Herdr īsinājumtaustiņus ar `Super + Ctrl + K`).
 
 ## Navigācija
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | Omarchy izvēlne (lietotnes un viss pārējais)    |
 | `Super + Alt + Space` | Lietotņu režģis |
-| `Super + Escape` | Sistēmas izvēlne (iemidzināt, restartēt utt.)  |
+| `Super + Escape` | Sistēmas izvēlne (miega režīms, restartēšana u.c.)  |
 | `Super + Ctrl + L` | Bloķēt datoru |
 | `Super + W` or `Super + Q` | Aizvērt logu             |
 | `Ctrl + Alt + Del` | Aizvērt visus logus |
-| `Super + T`               | Pārslēgt logu starp mozaīku/peldošu             |
-| `Super + J` | Pārslēgt loga pozīciju (horizontāli/vertikāli) |
-| `Super + O`               | Pārslēgt loga izcelšanu lipīgā un peldošā             |
-| `Super + L`               | Ciklēt cauri dwindle, ritināšanas un peldošajam izkārtojumam |
-| `Super + Alt + L`         | Ciklēt cauri izkārtojumiem pretējā virzienā |
-| `Super + P`               | Pārslēgt pseidologa stilu (dabīgs pret izstieptu) |
-| `Super + F`                 | Iet pilnekrānā              |
-| `Super + Alt + F`                 | Iet pilna platuma režīmā              |
-| `Super + Ctrl + F`                 | Iet pilnekrānā loga iekšpusē              |
-| `Super + 1/2/3/4`         | Lēkt uz konkrētu darbvietu     |
-| `Super + Tab` | Lēkt uz nākamo darbvietu |
-| `Super + Shift + Tab` | Lēkt uz iepriekšējo darbvietu |
-| `Super + Ctrl + Tab` | Lēkt uz bijušo darbvietu |
-| `Super + Shift + 1/2/3/4` | Pārvietot logu uz darbvietu |
-| `Super + Shift + Alt + 1/2/3/4` | Pārvietot logu uz darbvietu, nesekojot |
-| `Super + S` / `Super + Grave` | Pārslēgt piegružu darbvietu |
-| `Super + Alt + S` / `Super + Shift + Grave` | Pārvietot logu uz piegružu darbvietu |
-| `Super + Shift + Alt + Arrows` | Pārvietot darbvietas uz virziena monitoru |
-| `Super + Arrow`  | Pārvietot fokusu uz logu bultiņas virzienā              |
-| `Super + Shift + Arrow`  | Samainīt logu ar citu bultiņas virzienā     |
-| `Super + Minus` | Izvērst logu pa kreisi |
-| `Super + Equal` | Sarukt logu pa kreisi |
-| `Super + Shift + Minus` | Sarukt logu uz augšu |
-| `Super + Shift + Equal` | Izvērst logu uz leju |
-| `Super + Alt + Minus/Equal` | Tā pati izmēru maiņa mazākos soļos |
-| `Super + Ctrl + Minus/Equal` | Tā pati izmēru maiņa lielākos soļos |
+| `Super + T`               | Pārslēgt logu starp mozaīkas/peldošo režīmu             |
+| `Super + J` | Pārslēgt loga novietojumu (horizontāli/vertikāli) |
+| `Super + O`               | Pārslēgt loga izcelšanu lipīgajā un peldošajā režīmā |
+| `Super + L`               | Cikliski pārslēgties starp dwindle, scrolling un floating izkārtojumiem |
+| `Super + Alt + L`         | Cikliski pārslēgties starp izkārtojumiem pretējā secībā |
+| `Super + P`               | Pārslēgt pseidologa stilu (dabiskais pret izstiepto) |
+| `Super + F`                 | Pilnekrāna režīms              |
+| `Super + Alt + F`                 | Pilna platuma režīms              |
+| `Super + Ctrl + F`                 | Pilnekrāna režīms loga iekšpusē              |
+| `Super + 1/2/3/4`         | Pāriet uz konkrētu darbvietu fokusētajā monitorā |
+| `Super + Tab` | Pāriet uz nākamo darbvietu fokusētajā monitorā |
+| `Super + Shift + Tab` | Pāriet uz iepriekšējo darbvietu fokusētajā monitorā |
+| `Super + Ctrl + Tab` | Pāriet uz agrāko darbvietu fokusētajā monitorā |
+| `Super + Shift + 1/2/3/4` | Pārvietot logu uz darbvietu fokusētajā monitorā |
+| `Super + Shift + Alt + 1/2/3/4` | Pārvietot logu uz darbvietu fokusētajā monitorā, nesekojot tam |
+| `Super + S` | Pārslēgt pilno scratchpad |
+| `Super + Alt + S` | Pārvietot logu uz pilno scratchpad |
+| `Super + Grave` | Pārslēgt Quake konsoli |
+| `Super + Shift + Grave` | Pārvietot logu uz Quake konsoli |
+| `Super + Shift + Ctrl + Arrows` | Pārvietot logu uz monitoru tajā virzienā |
+| `Super + Shift + Alt + Arrows` | Pārvietot darbvietu uz monitoru tajā virzienā |
+| `Super + Arrow`  | Pārvietot fokusu uz logu bultiņas virzienā, ekrāna malā šķērsojot uz monitoru tajā pusē |
+| `Super + Shift + Arrow`  | Apmainīt logu vietām ar citu bultiņas virzienā, tostarp logu monitorā tajā pusē |
+| `Super + Minus` | Izplest logu pa kreisi |
+| `Super + Equal` | Sašaurināt logu pa kreisi |
+| `Super + Shift + Minus` | Sašaurināt logu uz augšu |
+| `Super + Shift + Equal` | Izplest logu uz leju |
+| `Super + Alt + Minus/Equal` | Tā pati izmēra maiņa mazākos soļos |
+| `Super + Ctrl + Minus/Equal` | Tā pati izmēra maiņa lielākos soļos |
 | `Super + Alt + Home` | Saglabāt loga platumu |
 | `Super + Home` | Atjaunot saglabāto loga platumu |
 | `Super + Left Mouse` | Vilkt logu apkārt |
 | `Super + Right Mouse` | Mainīt loga izmēru |
-| `Super + Scroll Wheel` | Ritināt cauri darbvietām |
+| `Super + Scroll Wheel` | Ritināt cauri darbvietām fokusētajā monitorā |
 | `Super + G`               | Pārslēgt logu grupēšanu      |
-| `Super + Alt + G`               | Pārvietot logu ārā no grupējuma      |
-| `Super + Alt + Tab`               | Ciklēt starp logiem grupējumā      |
-| `Super + Alt + Shift + Tab`               | Ciklēt atpakaļ starp logiem grupējumā      |
-| `Super + Alt + 1/2/3/4/5`               | Lēkt uz konkrētu logu grupējumā      |
-| `Super + Alt + Arrow`  | Pārvietot logu grupējumā bultiņas virzienā  |
-| `Super + Ctrl + Left/Right`  | Pārvietoties starp logiem mozaīkas grupas iekšpusē |
-| `Super + Ctrl + Z` | Pietuvināt ekrānā (atkārtot, lai pietuvinātu vairāk) |
-| `Super + Ctrl + Alt + Z` | Pilnībā attālināt no ekrāna |
-| `Super + /` | Soļot uz priekšu cauri monitora mērogošanas opcijām |
-| `Super + Alt + /` | Soļot atpakaļ cauri monitora mērogošanas opcijām |
-| `Alt + Tab` | Ciklēt uz priekšu cauri logiem aktīvajā darbvietā |
-| `Alt + Shift + Tab` | Ciklēt atpakaļ cauri logiem aktīvajā darbvietā |
-| `Ctrl + Alt + Tab`| Ciklēt fokusu uz priekšu cauri monitoriem |
-| `Ctrl + Alt + Shift + Tab`| Ciklēt fokusu atpakaļ cauri monitoriem |
+| `Super + Alt + G`               | Izņemt logu no grupēšanas      |
+| `Super + Alt + Tab`               | Cikliski pārslēgties starp logiem grupējumā      |
+| `Super + Alt + Shift + Tab`               | Cikliski pārslēgties atpakaļ starp logiem grupējumā      |
+| `Super + Alt + Scroll Wheel` | Cikliski pārslēgties starp logiem grupējumā |
+| `Super + Alt + 1/2/3/4/5`               | Pāriet uz konkrētu logu grupējumā      |
+| `Super + Alt + Arrow`  | Pārvietot logu grupējumā bultiņas virzienā, tostarp logu monitorā tajā pusē |
+| `Super + Ctrl + Left/Right`  | Pārvietoties starp logiem mozaīkas grupā |
+| `Super + Ctrl + Z` | Tuvināt ekrānu (atkārtot, lai tuvinātu vēl vairāk) |
+| `Super + Ctrl + Alt + Z` | Pilnībā attālināt ekrānu |
+| `Super + /` | Iet uz priekšu cauri monitora mērogošanas opcijām |
+| `Super + Alt + /` | Iet atpakaļ cauri monitora mērogošanas opcijām |
+| `Alt + Tab` | Cikliski iet uz priekšu cauri logiem aktīvajā darbvietā |
+| `Alt + Shift + Tab` | Cikliski iet atpakaļ cauri logiem aktīvajā darbvietā |
+| `Ctrl + Alt + Tab`| Cikliski pārvietot fokusu uz priekšu cauri monitoriem |
+| `Ctrl + Alt + Shift + Tab`| Cikliski pārvietot fokusu atpakaļ cauri monitoriem |
 
-## Sistēmas vadīklas
+## Sistēmas vadība
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Audio panelis    |
 | `Super + Ctrl + B`           | Bluetooth panelis    |
-| `Super + Ctrl + W`           | Wi-Fi/tīkla panelis    |
+| `Super + Ctrl + N`           | Wi-Fi/tīkla panelis    |
 | `Super + Ctrl + D`           | Displeja panelis    |
 | `Super + Ctrl + P`           | Barošanas panelis    |
 | `Super + Ctrl + Alt + D`           | Kalendāra panelis    |
 | `Super + Ctrl + Alt + E`           | Pasaules pulksteņa panelis    |
 | `Super + Ctrl + 1-9`           | Pārslēgt joslas paneli pēc pozīcijas    |
-| `Super + Ctrl + S` | Koplietošanas izvēlne (izmantojot LocalSend) |
-| `Super + Ctrl + T`           | Aktivitāte (btop)    |
-| `Super + Ctrl + C` | Uzņemšanas vadīklas (ekrānuzņēmums/-ieraksts/atlasītājs) |
-| `Super + Ctrl + O` | Pārslēgu izvēlne |
+| `Super + Ctrl + S` | Kopīgošanas izvēlne (ar LocalSend) |
+| `Super + Ctrl + C` | Tveršanas vadīklas (ekrānuzņēmums/-ieraksts/izvēlētājs) |
+| `Super + Ctrl + O` | Pārslēgt izvēlni |
 | `Super + Ctrl + H` | Aparatūras izvēlne |
-| `Super + Ctrl + Q` | Kalkulators |
-| `Super + Ctrl + E` | Emocijzīmju atlasītājs |
+| `Super + Ctrl + E` | Emocijzīmju izvēlētājs |
 | `Super + Ctrl + .` | Pārkodēt multividi |
 | `Super + Shift + Ctrl + A` | Izvēlēties AI aģentu |
 
 ## Pielāgojumi
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Shift + Brightness Up` | Maksimālais ekrāna spilgtums |
 | `Shift + Brightness Down` | Minimālais ekrāna spilgtums |
-| `Alt + Brightness Up/Down` | Precīzas 1% spilgtuma maiņas |
-| `Alt + Volume Up/Down` | Precīzas 1% skaļuma maiņas |
-| `Keyboard Brightness Up/Down` | Tastatūras fona apgaismojums spilgtāks/blāvāks |
-| `Keyboard Backlight` | Ciklēt tastatūras fona apgaismojuma līmeņus |
-| `Alt + Play` | Nākamais ieraksts |
-| `Alt + Shift + Play` | Iepriekšējais ieraksts |
+| `Alt + Brightness Up/Down` | Precīzas 1% spilgtuma izmaiņas |
+| `Alt + Volume Up/Down` | Precīzas 1% skaļuma izmaiņas |
+| `Keyboard Brightness Up/Down` | Spilgtāks/blāvāks tastatūras aizmugurapgaismojums |
+| `Keyboard Backlight` | Cikliski pārslēgt tastatūras aizmugurapgaismojuma līmeņus |
+| `Alt + Play` | Nākamais skaņdarbs |
+| `Alt + Shift + Play` | Iepriekšējais skaņdarbs |
 
 ## Lietotņu palaišana
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Terminālis    |
 | `Super + Alt + Return` | Tmux terminālis |
@@ -104,89 +106,92 @@ Tu vari redzēt visas galvenās tastatūras piesaistes ar `Super + K` (Tmux pies
 | `Super + Shift + Return`           | Pārlūks    |
 | `Super + Shift + Alt + B`           | Pārlūks (privāts/inkognito)    |
 | `Super + Shift + F`           | Failu pārvaldnieks    |
-| `Super + Shift + Alt + F`           | Failu pārvaldnieks termināla cwd    |
+| `Super + Shift + Alt + F`           | Failu pārvaldnieks termināļa cwd mapē    |
 | `Super + Shift + M`           | Mūzika (Spotify)    |
 | `Super + Shift + Alt + M`           | Mūzika (cliamp)    |
 | `Super + Shift + /`           | Paroļu pārvaldnieks (1password)    |
+| `Super + Shift + Q`           | Kalkulators (Omacalc)    |
+| `Super + Shift + T`           | Aktivitāte (btop)    |
 | `Super + Shift + N`           | Redaktors (Neovim)  |
 | `Super + Shift + C`           | Kalendārs ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | E-pasts ([HEY](https://hey.com/))  |
 | `Super + Shift + Alt + E`           | Jauns e-pasts ([HEY](https://hey.com/))  |
 | `Super + Shift + A`           | AI (ChatGPT)  |
 | `Super + Shift + Alt + A`           | AI (Grok)  |
-| `Super + Shift + G`           | Kurjers (Signal)  |
+| `Super + Shift + G`           | Ziņojumapmaiņa (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
 | `Super + Shift + S`           | Google Maps  |
-| `Super + Shift + Alt + G`           | Kurjers (WhatsApp)  |
-| `Super + Shift + Ctrl + G`           | Kurjers (Google)  |
+| `Super + Shift + Alt + G`           | Ziņojumapmaiņa (WhatsApp)  |
+| `Super + Shift + Ctrl + G`           | Ziņojumapmaiņa (Google)  |
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | Rakstīšana (Omawrite)  |
 | `Super + Shift + X`           | X |
 | `Super + Shift + Alt + X`           | X Compose |
 | `Super + Shift + Y`           | YouTube |
 
-Maini/pievieno piesaistes failā `~/.config/hypr/bindings.lua`.
+Mainiet/pievienojiet īsinājumtaustiņus failā `~/.config/hypr/bindings.lua`.
 
 ## Universālā starpliktuve
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + C`           | Kopēt    |
 | `Super + X`           | Izgriezt (ne terminālī)    |
 | `Super + V`           | Ielīmēt    |
 | `Super + Ctrl + V`           | Starpliktuves pārvaldnieks    |
 
-Parasti Linux tev ir nepieciešams `Ctrl + Shift + C/V`, lai kopētu un ielīmētu terminālī, un `Ctrl + C/V`, lai to darītu visur citur. Šīs Omarchy vienotās starpliktuves karstās taustiņu kombinācijas darbojas visur.
+Parasti Linux sistēmā terminālī kopēšanai un ielīmēšanai nepieciešams `Ctrl + Shift + C/V`, bet visur citur — `Ctrl + C/V`. Šie Omarchy vienotie starpliktuves īsinājumtaustiņi darbojas visur.
 
-## Uzņemšana
+## Tveršana
 
-| Karstā taustiņa kombinācija              | Funkcija                       |
+| Īsinājumtaustiņš              | Funkcija                       |
 | ------------------- | ------------------------------ |
-| `Super + Ctrl + C` | Uzņemšanas izvēlne (tastatūrām bez pogas PrintScr) |
 | `Print Screen`            | Ekrānuzņēmums                      |
+| `Super + Ctrl + Alt + C`            | Ekrānuzņēmums (tas pats uzņēmums tastatūrām bez Print Screen taustiņa) |
+| `Super + Ctrl + C` | Tveršanas izvēlne |
 | `Alt + Print Screen`            | Ekrāna ieraksts                     |
-| `Super + Print Screen` | Krāsu atlasītājs |
-| `Super + Ctrl + Print Screen` | Teksta iegūšana starpliktuvē |
-| `Super + Alt + [` | Ierakstīšanas laikā padarīt tīmekļa kameras pārklājumu mazāku |
-| `Super + Alt + ]` | Ierakstīšanas laikā padarīt tīmekļa kameras pārklājumu lielāku |
-| `Alt + Shift + L` | Kopēt pašreizējo URL no tīmekļa lietotnes vai Chromium |
-| `Alt + Shift + D` | Lejupielādēt video pašreizējā lapā uz `~/Videos` |
-| `Super + Ctrl + X` | Sākt/apturēt diktēšanu (nepieciešams _Iestatīšana > Noklusējumi > Diktēšana_) |
-| `Right Alt` / `F9` | Diktēšana, turot nospiestu (nepieciešams Voxtype vai Superwhisper) |
+| `Super + Print Screen` | Krāsu izvēlētājs |
+| `Super + Ctrl + Print Screen` | Teksta izvilkšana uz starpliktuvi |
+| `Super + Alt + [` | Padarīt tīmekļkameras pārklājumu mazāku ieraksta laikā |
+| `Super + Alt + ]` | Padarīt tīmekļkameras pārklājumu lielāku ieraksta laikā |
+| `Alt + Shift + L` | Kopēt pašreizējo URL no tīmekļlietotnes vai Chromium |
+| `Alt + Shift + D` | Lejupielādēt pašreizējās lapas video uz `~/Videos` |
+| `Super + Ctrl + X` | Sākt/apturēt diktēšanu (nepieciešams _Setup > Defaults > Dictation_) |
+| `Right Alt` / `F9` | Diktēšana ar nospiestu taustiņu (nepieciešams Voxtype vai Superwhisper) |
 
-Ekrāna ierakstiem karstā taustiņa kombinācija vispirms jautā, kādu audio tu vēlies, pēc tam sāk ierakstīšanu. Nospied to vēlreiz, lai apturētu. Skat. [ekrānuzņēmumi un ierakstīšana](12-screenshots-recording.md) detalēm.
+Izmantojot ekrāna ierakstus, īsinājumtaustiņš vispirms jautā, kuru audio vēlaties, un pēc tam sāk ierakstīšanu. Nospiediet to vēlreiz, lai apturētu. Sīkāku informāciju skatiet sadaļā [ekrānuzņēmumi un ieraksts](12-screenshots-recording.md).
 
-Visām uzņemšanas opcijām var piekļūt arī zem _Palaist > Uzņemt_ Omarchy izvēlnē (`Super + Space`).
+Visas tveršanas opcijas ir pieejamas arī Omarchy izvēlnē sadaļā _Trigger > Capture_ (`Super + Space`).
 
 ## Paziņojumi
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + ,` | Noraidīt jaunāko paziņojumu  |
 | `Super + Shift + ,` | Noraidīt visus paziņojumus |
-| `Super + Ctrl + ,` | Pārslēgt paziņojumu klusināšanu  |
+| `Super + Ctrl + ,` | Vadīt paziņojumus ar tastatūru  |
 | `Super + Alt + ,` | Izsaukt jaunāko paziņojumu  |
 | `Super + Shift + Alt + ,` | Atvērt paziņojumu vēsturi  |
+| `Super + Ctrl + Alt + ,` | Pārslēgt paziņojumu apklusināšanu  |
 
 ## Stils
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Shift + Space` | Izvēlēties jaunu tēmu  |
-| `Super + Ctrl + Space` | Izvēlēties tēmas fonu |
-| `Super + Backspace` | Pārslēgt caurspīdīgumu logam |
-| `Super + Ctrl + Backspace` | Pārslēgt viena loga kvadrāta attiecību |
+| `Super + Ctrl + T` | Izvēlēties jaunu tēmu (arī `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | Izvēlēties tēmas fonu (arī `Super + Ctrl + Space`) |
+| `Super + Backspace` | Pārslēgt loga caurspīdīgumu |
+| `Super + Ctrl + Backspace` | Pārslēgt viena loga kvadrātveida proporcijas |
 
-Papildu fona attēli dzīvo `~/.config/omarchy/backgrounds/<theme name>`. Pieejami arī, izmantojot _Instalēt > Stils > Fons_ Omarchy izvēlnē.
+Papildu fona attēli atrodas mapē `~/.config/omarchy/backgrounds/<theme name>`. Pieejami arī Omarchy izvēlnē sadaļā _Install > Style > Background_.
 
-Visām stila opcijām var piekļūt arī zem _Stils_ Omarchy izvēlnē (`Super + Space`).
+Visas stila opcijas ir pieejamas arī Omarchy izvēlnē sadaļā _Style_ (`Super + Space`).
 
 ## Pārslēgi
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + I` | Pārslēgt bloķēšanu dīkstāvē |
-| `Super + Ctrl + N` | Pārslēgt nakts apgaismojuma displeja temperatūru |
 | `Super + Ctrl + Delete` | Pārslēgt klēpjdatora displeju ieslēgtu/izslēgtu |
 | `Super + Ctrl + Alt + Delete` | Pārslēgt klēpjdatora displeja spoguļošanu |
 | `Super + Shift + Space` | Pārslēgt augšējo joslu  |
@@ -197,55 +202,55 @@ Visām stila opcijām var piekļūt arī zem _Stils_ Omarchy izvēlnē (`Super +
 
 ## Atgādinājumi
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + R` | Iestatīt atgādinājumu  |
-| `Super + Ctrl + Alt + R` | Redzēt visus atgādinājumus  |
+| `Super + Ctrl + Alt + R` | Skatīt visus atgādinājumus  |
 | `Super + Ctrl + Shift + R` | Notīrīt visus atgādinājumus  |
 
-## Paziņojumi
+## Informatīvie paziņojumi
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + Alt + T` | Rādīt laiku kā paziņojumu  |
-| `Super + Ctrl + Alt + B` | Rādīt bateriju kā paziņojumu  |
+| `Super + Ctrl + Alt + B` | Rādīt akumulatoru kā paziņojumu  |
 | `Super + Ctrl + Alt + W` | Pārslēgt laikapstākļus kā paziņojumu  |
 
 ## Tmux
 
-Prefiksa taustiņš ir `Ctrl + Space` (`Ctrl + B` arī darbojas). Tu vari mainīt šīs piesaistes failā `~/.config/tmux/tmux.conf`.
+Prefiksa taustiņš ir `Ctrl + Space` (`Ctrl + B` arī darbojas). Šos īsinājumtaustiņus varat mainīt failā `~/.config/tmux/tmux.conf`.
 
 ### Rūtis
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + v` | Sadalīt rūti blakus (vertikāli) |
-| `Prefix + h` | Sadalīt rūti zemāk (horizontāli) |
-| `Prefix + x` | Nogalināt rūti |
+| `Prefix + h` | Sadalīt rūti zem (horizontāli) |
+| `Prefix + x` | Beigt rūti |
 | `Prefix + z` | Pārslēgt rūts tālummaiņu (pilnekrāna) |
-| `Alt + Enter` | Sadalīt rūti zemāk (bez prefiksa) |
+| `Alt + Enter` | Sadalīt rūti zem (bez prefiksa) |
 | `Alt + Shift + Enter` | Sadalīt rūti blakus (bez prefiksa) |
-| `Alt + Escape` | Nogalināt rūti (bez prefiksa) |
+| `Alt + Escape` | Beigt rūti (bez prefiksa) |
 | `Ctrl + Alt + Arrows` | Pārvietoties starp rūtīm |
 | `Ctrl + Alt + Shift + Arrows` | Mainīt rūšu izmēru |
 
 ### Logi
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Jauns logs |
-| `Prefix + k` | Nogalināt logu |
+| `Prefix + k` | Beigt logu |
 | `Prefix + r` | Pārdēvēt logu |
-| `Alt + 1-9` | Doties uz konkrētu logu |
+| `Alt + 1-9` | Pāriet uz konkrētu logu |
 | `Alt + Arrow Left/Right` | Pārvietoties starp logiem |
 | `Alt + Shift + Arrow Left/Right` | Pārvietot logu pa kreisi/pa labi |
 
 ### Sesijas
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Jauna sesija |
-| `Prefix + K` | Nogalināt sesiju |
+| `Prefix + K` | Beigt sesiju |
 | `Prefix + R` | Pārdēvēt sesiju |
 | `Prefix + N` | Nākamā sesija |
 | `Prefix + P` | Iepriekšējā sesija |
@@ -253,123 +258,123 @@ Prefiksa taustiņš ir `Ctrl + Space` (`Ctrl + B` arī darbojas). Tu vari mainī
 | `Prefix + s` | Uzskaitīt sesijas |
 | `Prefix + d` | Atvienoties no sesijas |
 
-### Kopēšanas režīms (vi stila)
+### Kopēšanas režīms (vi stilā)
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
-| `Prefix + [` | Ienākt kopēšanas režīmā |
+| `Prefix + [` | Ieslēgt kopēšanas režīmu |
 | `v` | Sākt atlasi (kopēšanas režīmā) |
 | `y` | Kopēt atlasi (kopēšanas režīmā) |
 
 ### Vispārīgi
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Pārlādēt konfigurāciju |
-| `Prefix + ?` | Rādīt Tmux taustiņu piesaistes |
+| `Prefix + ?` | Rādīt Tmux īsinājumtaustiņus |
 | `Prefix + :` | Komandu uzvedne |
 
 ### Tmux izkārtojuma funkcijas
 
-Šīs funkcijas ir jāpalaiž Tmux sesijas iekšpusē.
+Šīs funkcijas jāpalaiž Tmux sesijas iekšpusē.
 
 | Komanda | Funkcija |
 | ------- | -------- |
 | `tdl <ai> [<second_ai>]` | Izveidot izstrādes izkārtojumu ar redaktoru, AI un termināli |
-| `tdlm <ai> [<second_ai>]` | Izveidot izstrādes izkārtojumu katrai apakšdirektorijai |
-| `tsl <count> <command>` | Izveidot daudzu rūšu spieta izkārtojumu |
+| `tdlm <ai> [<second_ai>]` | Izveidot izstrādes izkārtojumu katrai apakšmapei |
+| `tsl <count> <command>` | Izveidot vairākrūšu spieta izkārtojumu |
 
 ## Ghostty terminālis
 
-Ghostty terminālis tiek instalēts, izmantojot _Instalēt > Terminālis_, izmantojot Omarchy izvēlni.
+Ghostty terminālis tiek instalēts Omarchy izvēlnē sadaļā _Install > Terminal_.
 
-| Karstā taustiņa kombinācija                  | Funkcija              |
+| Īsinājumtaustiņš                  | Funkcija              |
 | ----------------------- | --------------------- |
-| `Ctrl + Shift + E` | Jauns dalījums zemāk |
-| `Ctrl + Shift + O` | Jauns dalījums blakus |
-| `Ctrl + Alt + Arrows` | Pārvietoties starp dalījumiem |
-| `Super + Ctrl + Shift + Arrows` | Mainīt dalījuma izmēru par 10 rindām |
-| `Super + Ctrl + Shift + Alt + Arrows` | Mainīt dalījuma izmēru par 100 rindām |
+| `Ctrl + Shift + E` | Jauns sadalījums zem |
+| `Ctrl + Shift + O` | Jauns sadalījums blakus |
+| `Ctrl + Alt + Arrows` | Pārvietoties starp sadalījumiem |
+| `Super + Ctrl + Shift + Arrows` | Mainīt sadalījuma izmēru par 10 rindām |
+| `Super + Ctrl + Shift + Alt + Arrows` | Mainīt sadalījuma izmēru par 100 rindām |
 | `Ctrl + Shift + T` | Jauna cilne  |
 | `Ctrl + Shift + Arrows` | Pārvietoties starp cilnēm |
-| `Alt + Numbers` | Doties uz konkrētu cilni |
+| `Alt + Numbers` | Pāriet uz konkrētu cilni |
 | `Shift + Pg Up/Down` | Ritināt vēsturi |
 | `Ctrl + Left mouse` | Atvērt saiti pārlūkā |
 
 ## Failu pārvaldnieks
 
-| Karstā taustiņa kombinācija              | Funkcija                       |
+| Īsinājumtaustiņš              | Funkcija                       |
 | ------------------- | ------------------------------ |
-| `Ctrl + L`            | Doties uz ceļu                     |
-| `Space`               | Priekšskatīt failu (bultiņas navigē) |
-| `Backspace`      | Doties atpakaļ vienu mapi             |
+| `Ctrl + L`            | Pāriet uz ceļu                     |
+| `Space`               | Priekšskatīt failu (navigācija ar bultiņām) |
+| `Backspace`      | Atgriezties vienu mapi atpakaļ             |
 
 ## Neovim (ar lazyvim)
 
 ### Navigācija
 
-| Karstā taustiņa kombinācija                   | Funkcija                        |
+| Īsinājumtaustiņš                   | Funkcija                        |
 | ------------------------ | ------------------------------- |
 | `Space`                    | Rādīt komandu opcijas            |
-| `Space Space`              | Atvērt failu, izmantojot izplūdušu meklēšanu      |
+| `Space Space`              | Atvērt failu ar izplūdušo meklēšanu      |
 | `Space E`                  | Pārslēgt sānjoslu                  |
 | `Space G G`                | Rādīt git vadīklas               |
-| `Space S G`                | Meklēt faila saturu             |
-| `Ctrl + W W`               | Lēkt starp sānjoslu un redaktoru |
+| `Space S G`                | Meklēt faila saturā             |
+| `Ctrl + W W`               | Pāriet starp sānjoslu un redaktoru |
 | `Ctrl + Left/right arrow`  | Mainīt sānjoslas izmēru          |
-| `Shift + H`                      | Doties uz kreiso faila cilni             |
-| `Shift + L`                      | Doties uz labo faila cilni            |
+| `Shift + H`                      | Pāriet uz kreiso faila cilni             |
+| `Shift + L`                      | Pāriet uz labo faila cilni            |
 | `Space B D`                | Aizvērt faila cilni                  |
 
-### Kamēr esi sānjoslā
+### Esot sānjoslā
 
-| Karstā taustiņa kombinācija                   | Funkcija                        |
+| Īsinājumtaustiņš                   | Funkcija                        |
 | ------------------------ | ------------------------------- |
-| `A`                        | Pievienot jaunu failu vecāku direktorijā      |
-| `Shift + A`                | Pievienot jaunu apakšdirektoriju vecāku direktorijā    |
-| `D`                        | Dzēst izgaismoto failu/direktoriju     |
-| `M`                        | Pārvietot izgaismoto failu/direktoriju       |
-| `R`                        | Pārdēvēt izgaismoto failu/direktoriju     |
+| `A`                        | Pievienot jaunu failu vecākmapē      |
+| `Shift + A`                | Pievienot jaunu apakšmapi vecākmapē    |
+| `D`                        | Dzēst iezīmēto failu/mapi     |
+| `M`                        | Pārvietot iezīmēto failu/mapi       |
+| `R`                        | Pārdēvēt iezīmēto failu/mapi     |
 | `?`                        | Rādīt palīdzību visām komandām      |
 
-[Skat. visus Neovim karstos taustiņus, ko konfigurē LazyVim](https://www.lazyvim.org/keymaps).
+[Skatiet visus Neovim īsinājumtaustiņus, ko konfigurē LazyVim](https://www.lazyvim.org/keymaps).
 
 ## Ātrās emocijzīmes
 
-Tu vari izmantot `Super + Ctrl + E`, lai parādītu pilnīgu emocijzīmju atlasītāju, kas atlasi ievietos starpliktuvē, vai tu vari izmantot šīs ātrās piekļuves opcijas.
+Varat izmantot `Super + Ctrl + E`, lai parādītu pilnu emocijzīmju izvēlētāju, kas atlasi ievietos starpliktuvē, vai arī varat izmantot šīs ātrās piekļuves opcijas.
 
-| Karstā taustiņa kombinācija       | EM | Norāde       |
+| Īsinājumtaustiņš       | EM | Norāde       |
 | ------------ | -- | ---------- |
-| `Shift + CapsLock M S` | 😄 | smile      |
-| `Shift + CapsLock M C` | 😂 | cry        |
-| `Shift + CapsLock M L` | 😍 | love       |
-| `Shift + CapsLock M V` | ✌️ | victory    |
-| `Shift + CapsLock M H` | ❤️ | heart      |
-| `Shift + CapsLock M Y` | 👍 | yes        |
-| `Shift + CapsLock M N` | 👎 | no         |
+| `Shift + CapsLock M S` | 😄 | smaids      |
+| `Shift + CapsLock M C` | 😂 | raudāt        |
+| `Shift + CapsLock M L` | 😍 | mīlestība       |
+| `Shift + CapsLock M V` | ✌️ | uzvara    |
+| `Shift + CapsLock M H` | ❤️ | sirds      |
+| `Shift + CapsLock M Y` | 👍 | jā        |
+| `Shift + CapsLock M N` | 👎 | nē         |
 | `Shift + CapsLock M F` | 🖕 | fuck       |
-| `Shift + CapsLock M W` | 🤞 | wish       |
-| `Shift + CapsLock M R` | 🤘 | rock       |
-| `Shift + CapsLock M K` | 😘 | kiss       |
-| `Shift + CapsLock M E` | 🙄 | eyeroll    |
-| `Shift + CapsLock M I` | 😉 | wink       |
-| `Shift + CapsLock M P` | 🙏 | pray |
-| `Shift + CapsLock M D` | 🤤 | drool      |
-| `Shift + CapsLock M M` | 💰 | money      |
+| `Shift + CapsLock M W` | 🤞 | vēlēšanās       |
+| `Shift + CapsLock M R` | 🤘 | roks       |
+| `Shift + CapsLock M K` | 😘 | skūpsts       |
+| `Shift + CapsLock M E` | 🙄 | acu bolīšana    |
+| `Shift + CapsLock M I` | 😉 | mirkšķināšana       |
+| `Shift + CapsLock M P` | 🙏 | lūgt |
+| `Shift + CapsLock M D` | 🤤 | siekalošanās      |
+| `Shift + CapsLock M M` | 💰 | nauda      |
 | `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
-| `Shift + CapsLock M T` | 🥂 | toast      |
+| `Shift + CapsLock M T` | 🥂 | tosts      |
 | `Shift + CapsLock M O` |👌 | ok |
-| `Shift + CapsLock M G` |👋 | greeting |
-| `Shift + CapsLock M A` |💪 | arm |
-| `Shift + CapsLock M B` |🤯 | blowing |
+| `Shift + CapsLock M G` |👋 | sveiciens |
+| `Shift + CapsLock M A` |💪 | roka |
+| `Shift + CapsLock M B` |🤯 | sprādziens |
 
-## Ātrie pabeigumi
+## Ātrie papildinājumi
 
-| Karstā taustiņa kombinācija       | Pabeigums       |
+| Īsinājumtaustiņš       | Papildinājums       |
 | ------------ |  ---------- |
 | `Shift + CapsLock Space Space` | — (mdash)   |
-| `Shift + CapsLock Space N` | Tavs vārds (kā ievadīts iestatīšanā)  |
-| `Shift + CapsLock Space E` | Tavs e-pasts (kā ievadīts iestatīšanā)  |
+| `Shift + CapsLock Space N` | Jūsu vārds (kā ievadīts iestatīšanas laikā)  |
+| `Shift + CapsLock Space E` | Jūsu e-pasts (kā ievadīts iestatīšanas laikā)  |
 
-Tu vari pievienot vairāk savu, rediģējot `~/.XCompose`, pēc tam palaižot `omarchy-restart-xcompose` terminālī, lai izmaiņas tiktu uztvertas.
+Varat pievienot vēl savus, rediģējot `~/.XCompose` un pēc tam terminālī palaižot `omarchy-restart-xcompose`, lai izmaiņas tiktu uztvertas.

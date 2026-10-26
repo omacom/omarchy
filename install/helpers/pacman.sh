@@ -19,14 +19,13 @@ omarchy_pacman_templates() {
   esac
 }
 
-# The channel a machine takes when none is named: stable, except on aarch64.
-# Omarchy publishes aarch64 packages on edge alone so far, and the stable and rc
-# packages there are the release line, which has no aarch64 support, so ARM
-# platforms have edge templates only until a release does.
+# The channel a machine takes when none is named: stable, except on Apple
+# Silicon, which has edge templates only: its Omarchy packages and Asahi ALARM
+# are published for edge alone so far.
 omarchy_pacman_default_channel() {
   case ${1:-} in
-    x86) echo stable ;;
-    aarch64 | aarch64-apple | aarch64-qualcomm | aarch64-n1x | aarch64-gb10) echo edge ;;
+    x86 | aarch64 | aarch64-qualcomm | aarch64-n1x | aarch64-gb10) echo stable ;;
+    aarch64-apple) echo edge ;;
     *)
       echo "Error: Unknown platform '${1:-}'." >&2
       return 1

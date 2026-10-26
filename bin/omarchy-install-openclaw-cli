@@ -317,15 +317,18 @@ case "$mode" in
 esac
 
 # Refused before anything is installed or touched: the command's name, what
-# PATH finds, and a gateway running another OpenClaw all have to be clear.
+# PATH finds, and a gateway running another OpenClaw all have to be clear. Each
+# is an OpenClaw of the user's own, and these refusals exit with a status no
+# tool run here uses, so the migration can tell them from a failed setup.
+users_own=79
 if ! command_ours; then
   echo "$command_path is not the OpenClaw Omarchy set up. Move it aside, then run omarchy-install-openclaw-cli --now again." >&2
-  exit 1
+  exit "$users_own"
 fi
 if ! path_clear; then
   echo "Another openclaw is on PATH at $(foreign_openclaw), which Omarchy could run instead of $runtime_command." >&2
   echo "Remove it, then run omarchy-install-openclaw-cli --now again." >&2
-  exit 1
+  exit "$users_own"
 fi
 
 # A runtime that already answers is never reinstalled: it may be past the
@@ -337,7 +340,7 @@ fi
 if [[ $seeding == "true" ]] && foreign_gateway; then
   echo "The OpenClaw gateway service runs another OpenClaw, which setting one up in $prefix would take over." >&2
   echo "Remove that gateway with 'openclaw gateway uninstall', then run omarchy-install-openclaw-cli --now again." >&2
-  exit 1
+  exit "$users_own"
 fi
 
 if ! omarchy-pkg-present openclaw; then
