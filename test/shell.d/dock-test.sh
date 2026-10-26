@@ -109,6 +109,9 @@ assertEqual(dock.pickWindow(foot, 3), 1, 'dock restores a minimized window befor
 assertEqual(dock.pickWindow(foot.map((w, i) => Object.assign({}, w, { activated: i === 2 })), 4), 1, 'dock cycles from the window here to the minimized one')
 assertEqual(dock.pickWindow([], 4), -1, 'dock has no window to pick for an app that is not running')
 
+assert(dock.isLauncher({ kinds: ['menu'] }) && dock.isLauncher({ kinds: ['bar-widget', 'panel'] }), 'dock hands the apps button to a menu or panel plugin')
+assert(!dock.isLauncher({ kinds: ['bar-widget'] }) && !dock.isLauncher(undefined), 'dock keeps the apps button from a plugin the shell cannot open')
+
 JS
 
 home="$TMPDIR/home"

@@ -147,6 +147,16 @@ function pinsInOrder(order, pinned, allPinned) {
   return result
 }
 
+// A plugin can take the apps button over only if the shell opens and closes
+// it, as it does a menu, a panel or an overlay. Any other kind, such as a bar
+// widget, would leave the button doing nothing.
+var LAUNCHER_KINDS = ["menu", "panel", "overlay"]
+
+function isLauncher(manifest) {
+  var kinds = manifest && Array.isArray(manifest.kinds) ? manifest.kinds : []
+  return kinds.some(function(kind) { return LAUNCHER_KINDS.indexOf(kind) >= 0 })
+}
+
 // The window a click on an app brings forward. Windows on the workspace in
 // front of the user come first, then minimized ones, which come back to it,
 // and only then those on other workspaces. Clicking again while one of them
@@ -185,6 +195,7 @@ if (typeof module !== "undefined") {
     orderWithKeyAt: orderWithKeyAt,
     dropIndex: dropIndex,
     pinsInOrder: pinsInOrder,
+    isLauncher: isLauncher,
     pickWindow: pickWindow
   }
 }

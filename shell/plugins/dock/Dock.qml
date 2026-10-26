@@ -219,21 +219,23 @@ Item {
     for (var i = 0; i < windows.length; i++) windows[i].toplevel.close()
   }
 
-  // A menu plugin named under dock.launcher takes the apps button over, the
-  // way a start menu hangs from its taskbar: it is toggled from the button and
-  // from `omarchy-shell omarchy.dock apps`, and told where the button is. One
-  // that is not installed or is switched off leaves the grid in its place.
+  // A menu, panel or overlay plugin named under dock.launcher takes the apps
+  // button over, the way a start menu hangs from its taskbar: it is toggled
+  // from the button and from `omarchy-shell omarchy.dock apps`, and told where
+  // the button is. One that is not installed, is switched off, or is of
+  // another kind leaves the grid in its place.
   readonly property string launcherId: typeof dockConfig.launcher === "string" ? dockConfig.launcher.trim() : ""
   readonly property string launcher: {
     var registry = shell ? shell.pluginRegistry : null
     if (!root.launcherId || !registry) return ""
     var id = registry.resolveEnabledId(root.launcherId)
-    return registry.installedPlugins[id] && registry.isEnabled(id) ? id : ""
+    return DockModel.isLauncher(registry.installedPlugins[id]) && registry.isEnabled(id) ? id : ""
   }
   readonly property bool appsOpen: root.launcher ? root.shell.isPluginOpen(root.launcher) : appGrid.opened
-  // The screen the apps were last opened on, whose dock stays out while they
-  // are open.
+  // The screen the apps were opened on from its dock, whose dock stays out
+  // while they are open. Opened any other way, they hold no dock out.
   property var appsScreen: null
+  onAppsOpenChanged: if (!appsOpen) appsScreen = null
 
   // From a screen's dock, or from the focused screen when there is none.
   function toggleApps(window) {

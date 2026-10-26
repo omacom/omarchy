@@ -99,7 +99,7 @@ The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
 ## Dock launcher
 
-`dock.launcher` in `shell.json` (`omarchy dock launcher <plugin-id>`) names a `menu` plugin that the dock's apps button opens in place of the built-in app grid. The button, `omarchy-shell omarchy.dock apps`, and a tap of Super on a floating workspace toggle it with `shell.toggle()`, and clicking anything else in the dock hides it. An auto-hidden dock stays out on that screen while the launcher is open. A launcher that is not installed or is switched off leaves the grid in its place.
+`dock.launcher` in `shell.json` (`omarchy dock launcher <plugin-id>`) names a `menu`, `panel` or `overlay` plugin that the dock's apps button opens in place of the built-in app grid. The button, `omarchy-shell omarchy.dock apps`, and a tap of Super on a floating workspace toggle it with `shell.toggle()`, and clicking anything else in the dock hides it. An auto-hidden dock stays out on that screen while the launcher is open. A launcher that is not installed, is switched off, or is of another kind leaves the grid in its place.
 
 `open(payloadJson)` receives where to hang from, in logical pixels relative to the screen:
 
