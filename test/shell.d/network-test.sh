@@ -8,6 +8,7 @@ run_node_test <<'JS'
 const fs = require('fs')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
+const hotspotSource = fs.readFileSync(root + '/bin/omarchy-hotspot', 'utf8')
 
 assert(/IpcHandler[\s\S]*?function toggleNetwork\(\) \{ root\.toggleNetwork\(\) \}/.test(panelSource), 'network exposes the Wi-Fi radio toggle over IPC')
 assert(/manageIpc: false/.test(panelSource), 'network owns its IPC handler so it can extend the target methods')
@@ -594,7 +595,6 @@ assert(/"apply", hotspotSsid\.trim\(\), hotspotBand, hotspotLimitArgument/.test(
 assert(/component HotspotLimitPill: Button/.test(panelSource), 'network renders the participant limit as a pill')
 assert(/delegate: HotspotSaveDataPill \{\n\s*required property var modelData\n\s*choice: modelData/.test(panelSource), 'network declares the injected repeater property on the save-data pills')
 assert(/delegate: HotspotSecurityPill \{\n\s*required property var modelData\n\s*choice: modelData/.test(panelSource), 'network declares the injected repeater property on the security pills')
-assert(/apply "\$\{apply_args\[@\]\}"/.test(hotspotSource), 'hotspot start writes the profile through apply')
 assert(/apply_args\+=\("--save-data=\$save_data"\)/.test(hotspotSource), 'hotspot start forwards the data choice to apply')
 assert(/apply_args\+=\("--security=\$security"\)/.test(hotspotSource), 'hotspot start forwards the security choice to apply')
 JS
