@@ -570,7 +570,10 @@
   },
   "setup.default.browser": {
     "label": "Browser",
-    "title": "Default Browser"
+    "title": "Default Browser",
+    "vivaldi": {
+      "label": "Vivaldi"
+    }
   },
   "setup.default.browser.chromium": {
     "label": "Chromium"
@@ -756,7 +759,10 @@
     "label": "Gaming"
   },
   "install.browser": {
-    "label": "Browser"
+    "label": "Browser",
+    "vivaldi": {
+      "label": "Vivaldi"
+    }
   },
   "install.webapp": {
     "label": "Web App"
@@ -1010,7 +1016,10 @@
   },
   "remove.browser": {
     "label": "Browser",
-    "title": "Remove"
+    "title": "Remove",
+    "vivaldi": {
+      "label": "Vivaldi"
+    }
   },
   "remove.webapp": {
     "label": "Web App"
