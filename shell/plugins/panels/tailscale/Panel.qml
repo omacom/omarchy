@@ -17,6 +17,7 @@ Panel {
   // opens. Code inside the content reaches its own ids directly.
   readonly property Item panelFlick: panel.loadedContent ? panel.loadedContent.panelFlick : null
   readonly property Item hero: panel.loadedContent ? panel.loadedContent.hero : null
+  readonly property Item exitNodeNoticeRow: panel.loadedContent ? panel.loadedContent.exitNodeNoticeRow : null
   readonly property Item exitNodeColumn: panel.loadedContent ? panel.loadedContent.exitNodeColumn : null
   readonly property Item mullvadSearch: panel.loadedContent ? panel.loadedContent.mullvadSearch : null
   readonly property Item mullvadRegionColumn: panel.loadedContent ? panel.loadedContent.mullvadRegionColumn : null
@@ -392,6 +393,7 @@ Panel {
       peerList.rememberPosition()
       scrollItemIntoView(peerList)
     } else if (focusSection === "exitNodes" && exitNodeColumn && exitNodeIndex >= 0 && exitNodeIndex < exitNodeColumn.children.length) scrollItemIntoView(exitNodeColumn.children[exitNodeIndex])
+    else if (focusSection === "exitNodeNotice" && exitNodeNoticeRow) scrollItemIntoView(exitNodeNoticeRow)
   }
 
   function scrollMullvadRegionCursorIntoView() {
@@ -557,6 +559,7 @@ Panel {
       id: keyCatcher
       property alias panelFlick: panelFlick
       property alias hero: hero
+      property alias exitNodeNoticeRow: exitNodeNoticeRow
       property alias exitNodeColumn: exitNodeColumn
       property alias mullvadSearch: mullvadSearch
       property alias mullvadRegionColumn: mullvadRegionColumn
@@ -653,6 +656,7 @@ Panel {
           // The selected exit node is offline, so Tailscale is dropping all
           // internet traffic; clicking or Enter stops using it.
           CursorSurface {
+            id: exitNodeNoticeRow
             visible: tailscale.exitNodeOffline
             hasCursor: root.cursorActive && root.focusSection === "exitNodeNotice"
             width: parent.width

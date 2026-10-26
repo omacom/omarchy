@@ -41,6 +41,10 @@ Item {
   property bool exitNodeOffline: false
   property string exitNodeName: ""
   property string exitNodeId: ""
+  // Bumped when an account switch starts and ends; a status launched under an
+  // older value may describe the previous account, so it is dropped.
+  property int _accountEpoch: 0
+  property int _statusEpoch: 0
   property bool accountsAccessDenied: false
   property string actionStatus: ""
   property string lastError: ""
@@ -208,6 +212,7 @@ Item {
       _statusOutput = ""
       _statusError = ""
       refreshing = true
+      _statusEpoch = _accountEpoch
       _statusFullPeers = fullPeers === true || peersWanted || _pendingFullPeers
       if (_statusFullPeers) _pendingFullPeers = false
       statusProcess.command = _statusFullPeers
@@ -400,6 +405,7 @@ Item {
     _switchOutput = ""
     _switchError = ""
     switchingAccountId = accountId
+    clearExitNodeStatus()
     switchProcess.command = ["tailscale", "switch", accountId]
     switchProcess.running = true
   }
@@ -425,9 +431,18 @@ Item {
     exitNodeProcess.running = true
   }
 
+  // The offline notice belongs to the account it was read from; forget it
+  // when the account changes so it cannot act on the next one.
+  function clearExitNodeStatus() {
+    _accountEpoch++
+    exitNodeOffline = false
+    exitNodeName = ""
+    exitNodeId = ""
+  }
+
   // Works without the node's peer row, which can vanish while it is offline.
   function clearExitNode() {
-    if (!installed || !running || exitNodeProcess.running) return
+    if (!installed || !running || !exitNodeOffline || switchProcess.running || exitNodeProcess.running) return
     _exitNodeOutput = ""
     _exitNodeError = ""
     exitNodeProcess.command = ["tailscale", "set", "--exit-node="]
@@ -567,7 +582,9 @@ Item {
       root.refreshing = false
       var stdout = String(statusStdout.text || root._statusOutput || "")
       var stderr = String(statusStderr.text || root._statusError || "")
-      if (exitCode === 0) root.parseStatus(stdout)
+      if (root._statusEpoch !== root._accountEpoch) {
+        // Started before an account switch; the refresh after it replaces this.
+      } else if (exitCode === 0) root.parseStatus(stdout)
       else {
         root.resetUnavailable("Disconnected")
         root.lastError = stderr.trim()
@@ -678,6 +695,7 @@ Item {
         root._lastAccountsRefreshMs = 0
       }
       root.switchingAccountId = ""
+      root.clearExitNodeStatus()
       delayedRefresh.restart()
     }
   }
