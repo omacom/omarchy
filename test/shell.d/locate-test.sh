@@ -27,7 +27,7 @@ directives = [line.strip() for line in drop_in.read_text().splitlines() if line.
 check(len(directives) == 3 and directives[:2] == ["[Service]", "ExecStart="] and directives[2].startswith("ExecStart="),
       "locate drop-in replaces the command and preserves upstream service restrictions")
 command = shlex.split(directives[2].removeprefix("ExecStart="))
-options = ["--prune-bind-mounts=no", "--add-prunepaths=/.snapshots"]
+options = ["--prune-bind-mounts=no", "--add-prunepaths=/.snapshots", "--add-prunefs=fuse.rclone smb3 ceph"]
 check(command == ["/usr/bin/updatedb", *options],
       "locate service runs updatedb directly with fixed Btrfs options")
 check("ConditionACPower=true" in (root / "etc/systemd/system/plocate-updatedb.service.d/ac-only.conf").read_text(),
@@ -77,6 +77,8 @@ with tempfile.TemporaryDirectory(prefix="omarchy-locate-") as scratch:
   debug = result.stdout + result.stderr
   check("prune_bind_mounts\\000\n0\\000" in debug and "/.snapshots\\000" in debug,
         "real updatedb overrides bind-mount pruning and adds root snapshots to exclusions")
+  check(all(fs + "\\000" in debug.upper() for fs in ("FUSE.RCLONE", "SMB3", "CEPH")),
+        "updatedb is configured to skip network and FUSE filesystems missing from Arch's defaults")
   entries = subprocess.check_output(["plocate", "--database", str(database), ""], text=True).splitlines()
   check(str(visible) in entries and str(hidden) not in entries,
         "real locate indexes current files and preserves literal administrator exclusions")
