@@ -1123,7 +1123,7 @@ Panel {
     if (hotspotAliasMac === "") return
     var label = hotspotAliasDraft.trim()
     if (label.length > 64 || /[\u0000-\u001f\u007f]/.test(label)) {
-      hotspotError = "Alias must be 1-64 characters without control characters"
+      hotspotError = Commons.I18n.t("network.clientNameInvalid").arg(Commons.I18n.formatNumber(1)).arg(Commons.I18n.formatNumber(64))
       return
     }
     if (label === "") {
@@ -1359,7 +1359,7 @@ Panel {
     onExited: function(exitCode) {
       root.hotspotAliasBusy = false
       if (exitCode !== 0) {
-        root.hotspotError = "Failed to save the hotspot alias"
+        root.hotspotError = Commons.I18n.t("network.clientNameSaveFailed")
         Qt.callLater(function() {
           var reason = String(hotspotAliasErr.text || "").replace(/\s+/g, " ").trim().slice(0, 500)
           if (reason !== "") root.hotspotError = reason
