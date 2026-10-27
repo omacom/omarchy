@@ -34,7 +34,7 @@ ShellRoot {
         if (harness.tick === 9) service.panelOpen = true
         if (harness.tick === 48) {
           harness.check(service.detailWorker.name === "alpha" && service.detailMetrics.invocations && service.detailMetrics.invocations.value === 42, "reopening during cancellation reloads the same Worker")
-          harness.check(!service.metricsLoading && service.metricsError === "", "reopened Worker completes without stale cancellation errors")
+          harness.check(!service.metricsLoading && !service.metricsError, "reopened Worker completes without stale cancellation errors")
           Qt.quit()
         }
       } else if (harness.scenario === "native-install" || harness.scenario === "foreign-only") {
@@ -59,8 +59,8 @@ ShellRoot {
         if (harness.tick === 8) service.openWorkerDetail({name: "beta", logsEnabled: true})
         if (harness.tick === 24) {
           harness.check(service.detailMetrics.invocations && service.detailMetrics.invocations.value === 42, "replacement Worker metrics loaded")
-          harness.check(service.metricsError === "", "cancelled Worker cannot poison replacement metrics")
-          harness.check(service._detailCache.beta && service._detailCache.beta.metricsError === "", "replacement cache has no stale error")
+          harness.check(!service.metricsError, "cancelled Worker cannot poison replacement metrics")
+          harness.check(service._detailCache.beta && !service._detailCache.beta.metricsError, "replacement cache has no stale error")
           Qt.quit()
         }
       }
@@ -90,19 +90,19 @@ ShellRoot {
           service.refresh()
         }
         if (harness.tick === 30) {
-          harness.check(service.tokenValid && service.lastError === "", "refresh recovers after failed verification")
+          harness.check(service.tokenValid && !service.lastError, "refresh recovers after failed verification")
           Qt.quit()
         }
       } else if (harness.scenario === "pagination" || harness.scenario === "pagination-failure") {
         if (harness.tick === 10 && harness.scenario === "pagination-failure") {
           harness.check(service.workers.length === 0 && service.zones.length === 0, "failed second page never publishes an incomplete list")
-          harness.check(service.workersError !== "" && service.zonesError !== "", "failed pages report errors")
+          harness.check(!!service.workersError && !!service.zonesError, "failed pages report errors")
           service.refreshResources()
         }
         if (harness.tick === 24) {
           harness.check(service.workers.length === 102, "all Worker pages load")
           harness.check(service.zones.length === 52, "all account-scoped domain pages load")
-          harness.check(service.workersError === "" && service.zonesError === "", "complete lists clear errors")
+          harness.check(!service.workersError && !service.zonesError, "complete lists clear errors")
           Qt.quit()
         }
       } else if (harness.scenario === "repeat-detail") {
@@ -112,11 +112,11 @@ ShellRoot {
         if (harness.tick === 20) { service.closeWorkerDetail(); service.openWorkerDetail({name: "gamma", logsEnabled: true}) }
         if (harness.tick === 24) {
           harness.check(service._detailName === "gamma" && service.detailWorker.name === "gamma", "latest selection wins repeated open and close")
-          harness.check(service.metricsError === "" && service._detailCache.gamma && service.detailMetrics.invocations.value === 42, "reopened Worker retains its successful cache")
+          harness.check(!service.metricsError && service._detailCache.gamma && service.detailMetrics.invocations.value === 42, "reopened Worker retains its successful cache")
           service.refreshWorkerDetail()
         }
         if (harness.tick === 30) {
-          harness.check(!service.metricsLoading && service.metricsError === "", "repeated detail refresh completes")
+          harness.check(!service.metricsLoading && !service.metricsError, "repeated detail refresh completes")
           Qt.quit()
         }
       } else if (harness.scenario === "login-race") {
@@ -146,7 +146,7 @@ ShellRoot {
           service.openWorkerDetail({name: "stalled", logsEnabled: false})
         }
         if (harness.tick === 18) {
-          harness.check(!service.versionsLoading && service.versionsError !== "", "stalled versions time out even without Worker logs")
+          harness.check(!service.versionsLoading && !!service.versionsError, "stalled versions time out even without Worker logs")
           harness.check(service.deploymentsLoaded, "stalled deployment call finishes loading state")
           service.openWorkerDetail({name: "beta", logsEnabled: true})
         }
@@ -166,23 +166,23 @@ ShellRoot {
         if (harness.tick === 4) service.openWorkerDetail({name: "beta", logsEnabled: true})
         if (harness.tick === 18) {
           harness.check(service.detailMetrics.invocations && service.detailMetrics.invocations.value === 42 && service.detailMetrics.errors, "an older cf still loads metrics")
-          harness.check(service.metricsError === "" && service.telemetryCommand === "observability", "an older cf switches to observability")
-          harness.check(service._detailCache.beta && service._detailCache.beta.metricsError === "", "the retried load is cached complete")
+          harness.check(!service.metricsError && service.telemetryCommand === "observability", "an older cf switches to observability")
+          harness.check(service._detailCache.beta && !service._detailCache.beta.metricsError, "the retried load is cached complete")
           service.openWorkerDetail({name: "gamma", logsEnabled: true})
         }
         if (harness.tick === 28) {
-          harness.check(service.detailMetrics.invocations && service.metricsError === "", "the next Worker asks an older cf directly")
+          harness.check(service.detailMetrics.invocations && !service.metricsError, "the next Worker asks an older cf directly")
           Qt.quit()
         }
       } else if (harness.scenario === "errors-query") {
         if (harness.tick === 4) service.openWorkerDetail({name: "errorfail", logsEnabled: true})
         if (harness.tick === 18) {
-          harness.check(service.metricsError !== "", "failed errors query is explained even when usage succeeds later")
-          harness.check(service._detailCache.errorfail && service._detailCache.errorfail.metricsError !== "", "cached detail preserves errors-query failure")
+          harness.check(!!service.metricsError, "failed errors query is explained even when usage succeeds later")
+          harness.check(service._detailCache.errorfail && !!service._detailCache.errorfail.metricsError, "cached detail preserves errors-query failure")
           service.openWorkerDetail({name: "beta", logsEnabled: true})
         }
         if (harness.tick === 28) {
-          harness.check(service.metricsError === "", "next Worker starts without the prior query failure")
+          harness.check(!service.metricsError, "next Worker starts without the prior query failure")
           Qt.quit()
         }
       }

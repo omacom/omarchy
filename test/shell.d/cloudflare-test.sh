@@ -10,11 +10,11 @@ const cloudflare = requireFromRoot('shell/plugins/panels/cloudflare/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/cloudflare/Panel.qml', 'utf8')
 
 // Exercise the actual metrics-column binding with partial telemetry results.
-const metricsVisibility = panelSource.match(/visible: (SharedService\.metricsError === ""[^\n]*)/)
+const metricsVisibility = panelSource.match(/visible: (!SharedService\.metricsError \|\|[^\n]*)/)
 assert(metricsVisibility, 'cloudflare metrics column has a testable visibility binding')
 const showMetrics = new Function('SharedService', 'return (' + metricsVisibility[1] + ')')
-assert(showMetrics({ metricsError: 'Could not load error metrics', detailMetrics: { invocations: { value: 42 }, cpu: { value: 3 } } }), 'cloudflare keeps successful metrics visible when another query fails')
-assert(!showMetrics({ metricsError: 'Could not load metrics', detailMetrics: {} }), 'cloudflare hides empty metric rows when every query fails')
+assert(showMetrics({ metricsError: { key: 'cloudflare.errorMetricsFailed', args: [] }, detailMetrics: { invocations: { value: 42 }, cpu: { value: 3 } } }), 'cloudflare keeps successful metrics visible when another query fails')
+assert(!showMetrics({ metricsError: { key: 'cloudflare.metricsFailed', args: [] }, detailMetrics: {} }), 'cloudflare hides empty metric rows when every query fails')
 
 // whoami
 

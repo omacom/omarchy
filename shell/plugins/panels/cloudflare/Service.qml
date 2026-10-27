@@ -26,7 +26,7 @@ Item {
       _whoamiAgain = false
       refreshing = false
       loginCode = ""
-      actionStatus = ""
+      actionStatus = null
       delayedRefresh.stop()
       pollWatchdog.stop()
       suspendPanel()
@@ -67,12 +67,15 @@ Item {
   property string selectedAccountId: ""
   property var zones: []
   property var workers: []
-  property string zonesError: ""
-  property string workersError: ""
-  property string actionStatus: ""
+  // Messages stay untranslated until the panel shows them: a catalog key with
+  // its arguments (message()), or text cf printed (cliMessage()). The panel
+  // translates them in its bindings, so a language switch reaches them too.
+  property var zonesError: null
+  property var workersError: null
+  property var actionStatus: null
   // The device code `cf auth login` asks you to confirm in the browser.
   property string loginCode: ""
-  property string lastError: ""
+  property var lastError: null
 
   // Worker detail view. `detailWorker` is the Worker on screen; the detail
   // properties below hold whichever Worker was loaded last (`_detailName`),
@@ -82,9 +85,9 @@ Item {
   // refetch.
   property var detailWorker: null
   property var detailMetrics: ({})
-  property string metricsError: ""
-  property string _usageError: ""
-  property string _errorQueryError: ""
+  property var metricsError: null
+  property var _usageError: null
+  property var _errorQueryError: null
   // cf 1.0 renamed `observability` to `o11y`. Ask with the new name and
   // switch for the session when an older cf does not know it.
   property string telemetryCommand: "o11y"
@@ -92,7 +95,7 @@ Item {
   property var detailLive: ({})
   property string detailDeployedOn: ""
   property string detailSource: ""
-  property string versionsError: ""
+  property var versionsError: null
   property bool deploymentsLoaded: false
   // A replacement load waits for cancelled calls to exit; count that wait
   // as loading so the view never flashes its empty state in between.
@@ -145,6 +148,16 @@ Item {
   function elideStatus(text) {
     var value = Model.stripAnsi(text).replace(/\s+/g, " ").trim()
     return value.length > 140 ? value.substring(0, 137) + "…" : value
+  }
+
+  function message(key, args) {
+    return { key: key, args: args || [] }
+  }
+
+  // What cf printed, or the fallback message when it printed nothing.
+  function cliMessage(text, fallback) {
+    var value = elideStatus(String(text || ""))
+    return value !== "" ? { text: value } : fallback
   }
 
   // cf is a Node CLI: plain JSON needs colors off, and NO_COLOR alone is
@@ -204,7 +217,7 @@ Item {
     }
     var result = Model.parseJson(stdout)
     if (exitCode !== 0 || !result.ok || !Array.isArray(result.value)) {
-      var error = elideStatus(stderr || (kind === "zones" ? I18n.t("cloudflare.listDomainsFailed") : I18n.t("cloudflare.listWorkersFailed")))
+      var error = cliMessage(stderr, kind === "zones" ? message("cloudflare.listDomainsFailed") : message("cloudflare.listWorkersFailed"))
       if (kind === "zones") zonesError = error
       else workersError = error
       return
@@ -216,7 +229,7 @@ Item {
       return
     }
     // Bound automatic requests even if a server keeps returning full pages.
-    var partial = fullPage ? I18n.t("cloudflare.listTruncated") : ""
+    var partial = fullPage ? message("cloudflare.listTruncated") : null
     if (kind === "zones") {
       zones = Model.parseZones(JSON.stringify(items), process.accountId).zones
       zonesError = partial
@@ -240,13 +253,13 @@ Item {
   function applyWhoami(raw) {
     var parsed = Model.parseWhoami(raw)
     if (!parsed.ok) {
-      lastError = I18n.t("cloudflare.statusFailed")
+      lastError = message("cloudflare.statusFailed")
       return
     }
     authenticated = parsed.authenticated
     tokenValid = parsed.tokenValid
     statusText = parsed.message
-    lastError = ""
+    lastError = null
     if (authenticated && !tokenValid) {
       // cf cannot distinguish an offline verification from a rejected token.
       // Retain the last known account and resources until verification succeeds.
@@ -326,10 +339,10 @@ Item {
     detailDeployedOn = worker.deployedOn || ""
     detailSource = ""
     deploymentsLoaded = false
-    metricsError = ""
-    _usageError = ""
-    _errorQueryError = ""
-    versionsError = ""
+    metricsError = null
+    _usageError = null
+    _errorQueryError = null
+    versionsError = null
     loadWorkerDetail(worker)
   }
 
@@ -426,7 +439,7 @@ Item {
 
     detailWatchdog.restart()
     if (!worker.logsEnabled) {
-      metricsError = I18n.t("cloudflare.turnOnLogs")
+      metricsError = message("cloudflare.turnOnLogs")
       return
     }
     var to = Date.now()
@@ -455,23 +468,23 @@ Item {
     return true
   }
 
-  function setMetricsError(source, message) {
-    if (source === "usage") _usageError = message
-    else _errorQueryError = message
+  function setMetricsError(source, error) {
+    if (source === "usage") _usageError = error
+    else _errorQueryError = error
     metricsError = _usageError || _errorQueryError
   }
 
   function applyMetrics(raw, source) {
     var parsed = Model.parseMetrics(raw)
     if (!parsed.ok) {
-      setMetricsError(source, source === "usage" ? I18n.t("cloudflare.metricsFailed") : I18n.t("cloudflare.errorMetricsFailed"))
+      setMetricsError(source, source === "usage" ? message("cloudflare.metricsFailed") : message("cloudflare.errorMetricsFailed"))
       return
     }
     var metrics = {}
     for (var key in detailMetrics) metrics[key] = detailMetrics[key]
     for (var alias in parsed.metrics) metrics[alias] = parsed.metrics[alias]
     detailMetrics = metrics
-    setMetricsError(source, "")
+    setMetricsError(source, null)
   }
 
   // Called from each call's exit handler, where the loading bindings have
@@ -484,7 +497,7 @@ Item {
   }
 
   function copyVersion(version) {
-    if (version) copyToClipboard(version.id, I18n.t("cloudflare.copiedVersion").arg(version.shortId))
+    if (version) copyToClipboard(version.id, message("cloudflare.copiedVersion", [version.shortId]))
   }
 
   function selectAccount(id) {
@@ -495,8 +508,8 @@ Item {
     selectedAccountId = accountId
     zones = []
     workers = []
-    zonesError = ""
-    workersError = ""
+    zonesError = null
+    workersError = null
     refreshResources()
   }
 
@@ -506,8 +519,8 @@ Item {
     if (!available || !installed || loginProcess.running) return
     _loginOutput = ""
     loginCode = ""
-    lastError = ""
-    actionStatus = I18n.t("cloudflare.approveSignIn")
+    lastError = null
+    actionStatus = message("cloudflare.approveSignIn")
     loginProcess.generation = _lifecycleGeneration
     loginProcess.command = cliCommand.concat(["auth", "login"])
     loginProcess.running = true
@@ -517,7 +530,7 @@ Item {
     _loginOutput += String(data || "") + "\n"
     if (loginCode !== "") return
     loginCode = Model.parseLoginCode(_loginOutput)
-    if (loginCode !== "") actionStatus = I18n.t("cloudflare.confirmCode")
+    if (loginCode !== "") actionStatus = message("cloudflare.confirmCode")
   }
 
   function openUrl(url) {
@@ -536,24 +549,24 @@ Item {
     openUrl(Model.workerDashboardUrl(selectedAccountId, worker))
   }
 
-  function copyToClipboard(value, message) {
+  function copyToClipboard(value, status) {
     var text = String(value || "")
     if (text === "") return
     Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(text) + " | wl-copy"])
-    actionStatus = message
+    actionStatus = status
     actionStatusTimer.restart()
   }
 
   function copyZoneId(zone) {
-    if (zone) copyToClipboard(zone.id, I18n.t("cloudflare.copiedZoneId").arg(zone.name))
+    if (zone) copyToClipboard(zone.id, message("cloudflare.copiedZoneId", [zone.name]))
   }
 
   // A Worker without a public workers.dev route has nothing better to copy
   // than its name, which is what wrangler and cf take anyway.
   function copyWorker(worker) {
     if (!worker) return
-    if (worker.url !== "") copyToClipboard(worker.url, I18n.t("cloudflare.copiedUrl").arg(worker.name))
-    else copyToClipboard(worker.name, I18n.t("cloudflare.copiedName").arg(worker.name))
+    if (worker.url !== "") copyToClipboard(worker.url, message("cloudflare.copiedUrl", [worker.name]))
+    else copyToClipboard(worker.name, message("cloudflare.copiedName", [worker.name]))
   }
 
   Timer {
@@ -592,9 +605,9 @@ Item {
     interval: 25000
     repeat: false
     onTriggered: {
-      if (usageProcess.running) root.setMetricsError("usage", I18n.t("cloudflare.metricsTimedOut"))
-      if (errorsProcess.running) root.setMetricsError("errors", I18n.t("cloudflare.errorMetricsTimedOut"))
-      if (versionsProcess.running) root.versionsError = I18n.t("cloudflare.versionsTimedOut")
+      if (usageProcess.running) root.setMetricsError("usage", root.message("cloudflare.metricsTimedOut"))
+      if (errorsProcess.running) root.setMetricsError("errors", root.message("cloudflare.errorMetricsTimedOut"))
+      if (versionsProcess.running) root.versionsError = root.message("cloudflare.versionsTimedOut")
       var processes = [usageProcess, errorsProcess, versionsProcess, deploymentsProcess]
       for (var i = 0; i < processes.length; i++) {
         if (processes[i].running) {
@@ -623,7 +636,7 @@ Item {
     id: actionStatusTimer
     interval: 2200
     repeat: false
-    onTriggered: root.actionStatus = ""
+    onTriggered: root.actionStatus = null
   }
 
   Process {
@@ -669,7 +682,7 @@ Item {
       var stdout = String(whoamiStdout.text || root._whoamiOutput || "")
       var stderr = String(whoamiStderr.text || root._whoamiError || "")
       if (exitCode === 0) root.applyWhoami(stdout)
-      else root.lastError = root.elideStatus(stderr || stdout || I18n.t("cloudflare.statusFailed"))
+      else root.lastError = root.cliMessage(stderr || stdout, root.message("cloudflare.statusFailed"))
     }
   }
 
@@ -715,7 +728,7 @@ Item {
       if (generation !== root._detailGeneration) return
       if (exitCode !== 0 && root.retryOlderTelemetry(usageProcess, String(usageStderr.text || ""))) return
       if (exitCode === 0) root.applyMetrics(String(usageStdout.text || root._usageOutput || ""), "usage")
-      else root.setMetricsError("usage", root._usageError || I18n.t("cloudflare.metricsFailed"))
+      else root.setMetricsError("usage", root._usageError || root.message("cloudflare.metricsFailed"))
       root.detailProcessDone()
     }
   }
@@ -732,7 +745,7 @@ Item {
       if (generation !== root._detailGeneration) return
       if (exitCode !== 0 && root.retryOlderTelemetry(errorsProcess, String(errorsStderr.text || ""))) return
       if (exitCode === 0) root.applyMetrics(String(errorsStdout.text || root._errorsOutput || ""), "errors")
-      else root.setMetricsError("errors", root._errorQueryError || I18n.t("cloudflare.errorMetricsFailed"))
+      else root.setMetricsError("errors", root._errorQueryError || root.message("cloudflare.errorMetricsFailed"))
       root.detailProcessDone()
     }
   }
@@ -750,9 +763,9 @@ Item {
       var parsed = exitCode === 0 ? Model.parseVersions(String(versionsStdout.text || root._versionsOutput || ""), 10) : null
       if (parsed && parsed.ok) {
         root.detailVersions = parsed.versions
-        root.versionsError = ""
+        root.versionsError = null
       } else {
-        root.versionsError = root.versionsError || root.elideStatus(String(versionsStderr.text || root._versionsError || "") || I18n.t("cloudflare.listVersionsFailed"))
+        root.versionsError = root.versionsError || root.cliMessage(versionsStderr.text || root._versionsError, root.message("cloudflare.listVersionsFailed"))
       }
       root.detailProcessDone()
     }
@@ -792,10 +805,10 @@ Item {
       root.loginCode = ""
       if (!root.available || generation !== root._lifecycleGeneration) return
       if (exitCode !== 0) {
-        root.lastError = root.elideStatus(root._loginOutput || I18n.t("cloudflare.signInFailed"))
-        root.actionStatus = ""
+        root.lastError = root.cliMessage(root._loginOutput, root.message("cloudflare.signInFailed"))
+        root.actionStatus = null
       } else {
-        root.actionStatus = I18n.t("cloudflare.signedIn")
+        root.actionStatus = root.message("cloudflare.signedIn")
         actionStatusTimer.restart()
       }
       delayedRefresh.restart()

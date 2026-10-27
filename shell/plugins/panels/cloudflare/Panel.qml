@@ -55,6 +55,17 @@ Panel {
     if (SharedService.detailSource === "") return I18n.t("cloudflare.deployed").arg(when)
     return I18n.t("cloudflare.deployedVia").arg(when).arg(SharedService.detailSource)
   }
+  // The service keeps its messages untranslated; read here, inside bindings, so
+  // a language switch also reaches a message already on screen.
+  function messageText(message) {
+    if (!message) return ""
+    if (message.key === undefined) return message.text
+    var text = I18n.t(message.key)
+    for (var i = 0; i < message.args.length; i++) text = text.arg(message.args[i])
+    return text
+  }
+  readonly property string actionStatusText: messageText(SharedService.actionStatus)
+  readonly property string lastErrorText: messageText(SharedService.lastError)
   // The service keeps its status in English for IPC; this is how it reads here.
   readonly property string statusLabel: {
     switch (SharedService.statusText) {
@@ -443,10 +454,10 @@ Panel {
 
           Text {
             textFormat: Text.PlainText
-            visible: SharedService.actionStatus !== "" || SharedService.lastError !== ""
+            visible: root.actionStatusText !== "" || root.lastErrorText !== ""
             width: parent.width
-            text: SharedService.actionStatus !== "" ? SharedService.actionStatus : SharedService.lastError
-            color: SharedService.lastError !== "" && SharedService.actionStatus === "" ? root.urgent : root.dim
+            text: root.actionStatusText !== "" ? root.actionStatusText : root.lastErrorText
+            color: root.lastErrorText !== "" && root.actionStatusText === "" ? root.urgent : root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
             wrapMode: Text.WordWrap
@@ -477,7 +488,7 @@ Panel {
             visible: root.signedIn && !root.inWorker
             title: I18n.t("cloudflare.workers")
             count: SharedService.workers.length
-            error: SharedService.workersError
+            error: root.messageText(SharedService.workersError)
             loading: SharedService.loadingResources
             loadingText: I18n.t("cloudflare.loadingWorkers")
             emptyText: I18n.t("cloudflare.noWorkers")
@@ -516,7 +527,7 @@ Panel {
             visible: root.signedIn && !root.inWorker
             title: I18n.t("cloudflare.domains")
             count: SharedService.zones.length
-            error: SharedService.zonesError
+            error: root.messageText(SharedService.zonesError)
             loading: SharedService.loadingResources
             loadingText: I18n.t("cloudflare.loadingDomains")
             emptyText: I18n.t("cloudflare.noDomains")
@@ -564,9 +575,9 @@ Panel {
 
             Text {
               textFormat: Text.PlainText
-              visible: SharedService.metricsError !== ""
+              visible: !!SharedService.metricsError
               width: parent.width
-              text: SharedService.metricsError
+              text: root.messageText(SharedService.metricsError)
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
@@ -574,7 +585,7 @@ Panel {
             }
 
             Column {
-              visible: SharedService.metricsError === "" || Object.keys(SharedService.detailMetrics).length > 0
+              visible: !SharedService.metricsError || Object.keys(SharedService.detailMetrics).length > 0
               width: parent.width
               spacing: Style.space(12)
 
@@ -613,7 +624,7 @@ Panel {
             visible: root.inWorker
             title: I18n.t("cloudflare.versions")
             count: SharedService.detailVersions.length
-            error: SharedService.versionsError
+            error: root.messageText(SharedService.versionsError)
             loading: SharedService.versionsLoading
             loadingText: I18n.t("cloudflare.loadingVersions")
             loadingHeight: root.versionsLoadingHeight
