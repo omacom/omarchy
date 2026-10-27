@@ -24,7 +24,8 @@ Panel {
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
   // icon-sized fraction of the slot the fallback assumes.
-  readonly property real openPanelIndicatorWidth: showPercentage && !button.vertical ? button.glyphPaintedWidth : 0
+  readonly property real openPanelIndicatorWidth: showPercentage && !button.vertical
+    ? (button.iconComponent ? button.componentPaintedWidth : button.glyphPaintedWidth) : 0
   readonly property bool batteryPresent: {
     var device = UPower.displayDevice
     return !!(device && device.isPresent)
@@ -283,11 +284,40 @@ Panel {
     }
   }
 
+  Component {
+    id: chargeHoldIcon
+
+    Item {
+      width: Style.bar.iconCanvas
+      height: Style.bar.iconCanvas
+
+      Text {
+        anchors.centerIn: parent
+        text: root.batteryIcon()
+        textFormat: Text.PlainText
+        color: root.bar ? root.bar.foreground : Commons.Color.foreground
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.bar.iconFont
+      }
+
+      Text {
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        text: ""
+        textFormat: Text.PlainText
+        color: root.bar ? root.bar.foreground : Commons.Color.foreground
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.bar.iconFont * 0.6
+      }
+    }
+  }
+
   BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
     text: root.batteryIcon()
+    iconComponent: root.chargeThresholdActive ? chargeHoldIcon : null
     labelText: root.showPercentage && !vertical ? Commons.I18n.formatNumber(Math.round(root.batteryFraction * 100)) + "%" : ""
     slotSize: Style.bar.iconSlot * (root.showPercentage && !vertical ? 2 : 1)
     tooltipText: ""

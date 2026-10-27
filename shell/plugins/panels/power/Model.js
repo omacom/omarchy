@@ -70,10 +70,8 @@ function batteryIcon(device, onBattery, states) {
   var chargingIcons = ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
   var defaultIcons = ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
   var index = Math.max(0, Math.min(9, Math.floor(d.percentage * 10)))
-  var threshold = chargeThresholdActive(d, onBattery, states)
-
-  if (threshold) return defaultIcons[index]
-  if (d.state === states.FullyCharged) return "󰂅"
+  if (chargeThresholdActive(d, onBattery, states)) return defaultIcons[index]
+  // The device state can lag behind UPower during plug and unplug events.
   if (!onBattery) return chargingIcons[index]
   return defaultIcons[index]
 }

@@ -1,0 +1,2 @@
+singleton UPower 1.0 UPower.qml
+singleton UPowerDeviceState 1.0 UPowerDeviceState.qml
