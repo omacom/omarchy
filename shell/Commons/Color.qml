@@ -105,6 +105,10 @@ QtObject {
     property color selectedBackground: root.composed("menu.selected-background", "menu.selected-background-alpha", root.foreground, 0.08)
     property color selectedText: root.pick("menu.selected-text", root.accent)
     property color selectedBorder: root.composed("menu.selected-border", "menu.selected-border-alpha", root.foreground, 0.0)
+    // Dim for `disabled:` rows: kept listed but unselectable. The default
+    // matches the muted-emphasis family; themes can pick their own so an
+    // unavailable row reads differently without redefining the whole surface.
+    property real disabledAlpha: root.pickAlpha("menu.disabled-alpha", 0.4)
   }
   // polkit + lock share a single border-alpha across border / border-active /
   // border-error: the three states are mutually exclusive in time, so one

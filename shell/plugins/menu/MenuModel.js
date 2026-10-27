@@ -305,11 +305,32 @@ function isDisabled(disabledResults, entry) {
   return !!(disabledResults && disabledResults[entry.id])
 }
 
-// A disabled row is software you already have, which is the same thing the ✓
-// says everywhere else in the menu, so it earns the same marker.
+// A summon can name its starting row by id or by ordinal. At open time the
+// rows may not exist yet -- provider menus fill after open() -- so the QML
+// side parks the request and re-resolves when the rows land. Pure part
+// here: the display row ids in display order, the request, the answer is
+// the display index the request names, or -1 when it names nothing
+// currently on screen. The caller clamps the ordinal to the display
+// length and settles on a selectable row.
+function resolveInitialRow(displayRowIds, initialId, initialIndex) {
+  var idx = -1
+  if (initialId) {
+    for (var i = 0; i < displayRowIds.length; i++) {
+      if (displayRowIds[i] === initialId) { idx = i; break }
+    }
+  }
+  if (idx < 0 && typeof initialIndex === "number" && initialIndex >= 0) idx = initialIndex
+  return idx
+}
+
+// A row that declares what its ✓ means (`checked:`) owns the marker: a
+// dimmed sibling is unavailable, not a second current choice. The disabled
+// fallback mark ("you already have this") only applies to rows whose single
+// statement is their disabled-ness -- exactly the install submenus' shape.
 function labelFor(entry, checkedResults, disabledResults) {
   if (!entry) return ""
-  var marked = (entry.checked && checkedResults && checkedResults[entry.id]) || isDisabled(disabledResults, entry)
+  var marked = (entry.checked && checkedResults && checkedResults[entry.id])
+    || (!entry.checked && isDisabled(disabledResults, entry))
   return marked ? entry.label + " ✓" : entry.label
 }
 
@@ -699,6 +720,7 @@ if (typeof module !== "undefined") {
     swapProviderRows: swapProviderRows,
     item: item,
     resolveRoute: resolveRoute,
+    resolveInitialRow: resolveInitialRow,
     slugify: slugify,
     depthFor: depthFor,
     pathFor: pathFor,
