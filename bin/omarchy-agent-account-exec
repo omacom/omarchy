@@ -45,5 +45,12 @@ if ! agent_binary=$(type -P "$provider"); then
   fi
   agent_binary=$(mise which "$provider")
 fi
-export PATH="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/command-wrappers/bin:$PATH"
+# mise also drops its shims, leaving only the tools installed at launch. A
+# long-lived agent needs them back to find tools installed after it started.
+mise_data_dir=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
+PATH="$mise_data_dir/command-wrappers/bin:$PATH"
+if [[ :$PATH: != *":$mise_data_dir/shims:"* ]]; then
+  PATH="$PATH:$mise_data_dir/shims"
+fi
+export PATH
 exec "$agent_binary" "$@"

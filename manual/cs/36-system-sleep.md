@@ -1,19 +1,21 @@
-# Spánek systému
+# Uspání systému
 
-Omarchy ve výchozím nastavení povoluje uspání i hibernaci, ale pokud vám na vašem počítači některá z nich dělá potíže, můžete je vypnout.
+Omarchy má ve výchozím nastavení povolené pozastavení i hibernaci, ale pokud s některou z těchto možností máte na svém počítači problémy, můžete je vypnout.
+
+Na počítačích s NVIDIA GB10, jako jsou DGX Spark a ASUS Ascent GX10, jsou pozastavení a hibernace vypnuté, stejně jako v DGX OS od NVIDIA, protože u tohoto hardwaru zatím nebylo prokázáno, že uspání funguje. Přepínač pozastavení ani nastavení hibernace se tam neuplatní. Chcete-li uspání znovu zapnout, odstraňte `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` pomocí `sudo rm`; Pozastavení se pak vrátí do nabídky a hibernaci lze nastavit stejně jako na ostatních počítačích. Spuštěním `sudo omarchy apply hardware --install-user "$USER"` soubor vrátíte zpět.
 
 ### Profily napájení
 
-U notebooku si Omarchy pamatuje profil napájení zvlášť pro provoz ze sítě a pro provoz z baterie a při zapojování a odpojování napájení mezi oběma přepíná. Hned po instalaci to znamená výkon při provozu ze sítě a vyvážený režim při provozu z baterie.
+Na notebooku si Omarchy pamatuje váš profil napájení zvlášť pro napájení ze sítě a pro běh na baterii a přepíná mezi nimi, jak napájení připojujete a odpojujete. Ve výchozím nastavení to znamená výkon při napájení ze sítě a vyvážený režim na baterii.
 
-Nabídku svého počítače si můžete prohlédnout příkazem `omarchy powerprofiles list` a požadovaný profil pro stav, ve kterém právě jste, nastavit příkazem `omarchy powerprofiles set autodetect power-saver`. Chcete-li nastavit druhý stav, aniž byste něco odpojovali, pojmenujte ho přímo: `omarchy powerprofiles set battery power-saver`. Co si vyberete, to dostanete zpět, až se příště v daném stavu ocitnete.
+Co váš počítač nabízí, zjistíte pomocí `omarchy powerprofiles list`, a profil, který chcete pro stav, v němž se právě nacházíte, nastavíte pomocí `omarchy powerprofiles set autodetect power-saver`. Chcete-li nastavit druhý stav, aniž byste cokoli odpojovali, pojmenujte ho přímo: `omarchy powerprofiles set battery power-saver`. Ať vyberete cokoli, přesně to dostanete zpět, až se příště ocitnete v daném stavu.
 
-### Přepnutí uspání
+### Přepnutí pozastavení
 
-Uspání přepnete spuštěním příkazu `omarchy toggle suspend` z terminálu. Tím se pouze zobrazí/skryje volba v části _Systém_ (nebo po stisku `Super + Esc`), takže pak můžete vyzkoušet, zda na vašem systému funguje spolehlivě. Pokud ne, stejným příkazem ji opět skryjete.
+Pozastavení přepnete spuštěním `omarchy toggle suspend` z terminálu. Tím se pouze zobrazí/skryje možnost v nabídce _System_ (nebo `Super + Esc`), a pak můžete vyzkoušet, zda na vašem systému funguje spolehlivě. Pokud ne, stejným příkazem ji zase skryjete.
 
 ### Přepnutí hibernace
 
-Hibernaci nastavíte spuštěním příkazu `omarchy hibernation setup` z terminálu. Hibernace vytvoří na spouštěcí jednotce podsvazek /swap o velikosti přidělené fyzické paměti RAM, takže si ověřte, že máte dostatek volného místa. U počítače s 32 GB budete pro tento svazek vždy potřebovat více než 32 GB volného místa. Hibernace vyžaduje také výchozí zavaděč Limine.
+Hibernaci nastavíte spuštěním `omarchy hibernation setup` z terminálu. Hibernace vytvoří na vašem spouštěcím disku podsvazek /swap o velikosti vaší fyzické paměti RAM, takže se ujistěte, že máte dostatek volného místa nazbyt. Na počítači s 32GB pamětí budete pro tento svazek vždy potřebovat 32GB+ volného místa. Hibernace také vyžaduje výchozí zavaděč Limine.
 
-Po nastavení uvidíte volbu hibernace v části _Systém_ (nebo po stisku `Super + Esc`), takže pak můžete vyzkoušet, zda na vašem systému funguje spolehlivě. Pokud ne, odstraníte ji opět spuštěním příkazu `omarchy hibernation remove`.
+Po nastavení uvidíte možnost hibernace v nabídce _System_ (nebo `Super + Esc`), a pak můžete vyzkoušet, zda na vašem systému funguje spolehlivě. Pokud ne, můžete ji zase odstranit spuštěním `omarchy hibernation remove`.

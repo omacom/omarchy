@@ -1,83 +1,85 @@
 # Bližnjice
 
-Vse glavne vezave tipkovnice si lahko ogledate s `Super + K` (vezave Tmux s `Super + Alt + K` in vezave Herdr s `Super + Ctrl + K`).
+Vse glavne bližnjice na tipkovnici si lahko ogledate z `Super + K` (bližnjice za Tmux s `Super + Alt + K` in bližnjice za Herdr s `Super + Ctrl + K`).
 
 ## Navigacija
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
-| `Super + Space`           | Meni Omarchy (aplikacije in vse drugo)    |
+| `Super + Space`           | Meni Omarchy (aplikacije in vse ostalo)    |
 | `Super + Alt + Space` | Mreža aplikacij |
-| `Super + Escape` | Sistemski meni (spanje, ponovni zagon itd.)  |
+| `Super + Escape` | Sistemski meni (zaustavitev, ponovni zagon itd.)  |
 | `Super + Ctrl + L` | Zakleni računalnik |
 | `Super + W` or `Super + Q` | Zapri okno             |
 | `Ctrl + Alt + Del` | Zapri vsa okna |
-| `Super + T`               | Preklopi okno med ploščicami/lebdenjem             |
+| `Super + T`               | Preklopi okno med tlakovanjem in lebdenjem             |
 | `Super + J` | Preklopi položaj okna (vodoravno/navpično) |
-| `Super + O`               | Preklopi izskakanje okna v lepljivo in lebdeče |
-| `Super + L`               | Kroži skozi postavitve dwindle, drsenje in lebdenje |
-| `Super + Alt + L`         | Kroži skozi postavitve v obratni smeri |
-| `Super + P`               | Preklopi psevdoslog okna (naravno proti raztezanjem) |
-| `Super + F`                 | Pojdi na celoten zaslon              |
-| `Super + Alt + F`                 | Pojdi na celotno širino              |
-| `Super + Ctrl + F`                 | Pojdi na celoten zaslon znotraj okna              |
-| `Super + 1/2/3/4`         | Skoči na določen delovni prostor     |
-| `Super + Tab` | Skoči na naslednji delovni prostor |
-| `Super + Shift + Tab` | Skoči na prejšnji delovni prostor |
-| `Super + Ctrl + Tab` | Skoči na nekdanji delovni prostor |
-| `Super + Shift + 1/2/3/4` | Premakni okno na delovni prostor |
-| `Super + Shift + Alt + 1/2/3/4` | Premakni okno na delovni prostor, ne da bi mu sledil |
-| `Super + S` / `Super + Grave` | Preklopi scratchpad |
-| `Super + Alt + S` / `Super + Shift + Grave` | Premakni okno na scratchpad |
-| `Super + Shift + Alt + Arrows` | Premakni delovne prostore na zaslon v smeri |
-| `Super + Arrow`  | Premakni žarišče na okno v smeri puščice              |
-| `Super + Shift + Arrow`  | Zamenjaj okno z drugim v smeri puščice     |
-| `Super + Minus` | Razširi okno levo |
-| `Super + Equal` | Skrči okno levo |
-| `Super + Shift + Minus` | Skrči okno gor |
-| `Super + Shift + Equal` | Razširi okno dol |
+| `Super + O`               | Preklopi dvignjeno okno v sticky'n'floating |
+| `Super + L`               | Kroži med postavitvami dwindle, scrolling in floating |
+| `Super + Alt + L`         | Kroži med postavitvami v obratnem vrstnem redu |
+| `Super + P`               | Preklopi slog psevdo okna (naravno proti raztegnjenemu) |
+| `Super + F`                 | Preklopi na cel zaslon              |
+| `Super + Alt + F`                 | Razširi na celotno širino              |
+| `Super + Ctrl + F`                 | Cel zaslon znotraj okna              |
+| `Super + 1/2/3/4`         | Skoči na določen delovni prostor na izbranem monitorju |
+| `Super + Tab` | Skoči na naslednji delovni prostor na izbranem monitorju |
+| `Super + Shift + Tab` | Skoči na prejšnji delovni prostor na izbranem monitorju |
+| `Super + Ctrl + Tab` | Skoči na nekdanji delovni prostor na izbranem monitorju |
+| `Super + Shift + 1/2/3/4` | Premakni okno na delovni prostor na izbranem monitorju |
+| `Super + Shift + Alt + 1/2/3/4` | Premakni okno na delovni prostor na izbranem monitorju brez sledenja |
+| `Super + S` | Preklopi celotni scratchpad |
+| `Super + Alt + S` | Premakni okno na celotni scratchpad |
+| `Super + Grave` | Preklopi konzolo Quake |
+| `Super + Shift + Grave` | Premakni okno v konzolo Quake |
+| `Super + Shift + Ctrl + Arrows` | Premakni okno na monitor v tisti smeri |
+| `Super + Shift + Alt + Arrows` | Premakni delovni prostor na monitor v tisti smeri |
+| `Super + Arrow`  | Premakni fokus na okno v smeri puščice, ob robu zaslona preide na monitor na tisti strani |
+| `Super + Shift + Arrow`  | Zamenjaj okno z drugim v smeri puščice, vključno z oknom na monitorju na tisti strani |
+| `Super + Minus` | Razširi okno v levo |
+| `Super + Equal` | Skrči okno z leve |
+| `Super + Shift + Minus` | Skrči okno navzgor |
+| `Super + Shift + Equal` | Razširi okno navzdol |
 | `Super + Alt + Minus/Equal` | Enako spreminjanje velikosti v manjših korakih |
 | `Super + Ctrl + Minus/Equal` | Enako spreminjanje velikosti v večjih korakih |
 | `Super + Alt + Home` | Shrani širino okna |
 | `Super + Home` | Obnovi shranjeno širino okna |
-| `Super + Left Mouse` | Povleci okno naokoli |
+| `Super + Left Mouse` | Vleci okno naokoli |
 | `Super + Right Mouse` | Spremeni velikost okna |
-| `Super + Scroll Wheel` | Drsi skozi delovne prostore |
+| `Super + Scroll Wheel` | Drsi med delovnimi prostori na izbranem monitorju |
 | `Super + G`               | Preklopi združevanje oken      |
 | `Super + Alt + G`               | Premakni okno iz skupine      |
 | `Super + Alt + Tab`               | Kroži med okni v skupini      |
 | `Super + Alt + Shift + Tab`               | Kroži nazaj med okni v skupini      |
+| `Super + Alt + Scroll Wheel` | Kroži med okni v skupini |
 | `Super + Alt + 1/2/3/4/5`               | Skoči na določeno okno v skupini      |
-| `Super + Alt + Arrow`  | Premakni okno v skupino v smeri puščice  |
-| `Super + Ctrl + Left/Right`  | Premikanje med okni znotraj skupine ploščic |
-| `Super + Ctrl + Z` | Približaj zaslon (ponovi za več približanja) |
-| `Super + Ctrl + Alt + Z` | Popolnoma oddalji zaslon |
-| `Super + /` | Korači naprej skozi možnosti skaliranja zaslona |
-| `Super + Alt + /` | Korači nazaj skozi možnosti skaliranja zaslona |
-| `Alt + Tab` | Kroži naprej skozi okna na aktivnem delovnem prostoru |
-| `Alt + Shift + Tab` | Kroži nazaj skozi okna na aktivnem delovnem prostoru |
-| `Ctrl + Alt + Tab`| Kroži žarišče naprej skozi zaslone |
-| `Ctrl + Alt + Shift + Tab`| Kroži žarišče nazaj skozi zaslone |
+| `Super + Alt + Arrow`  | Premakni okno v skupino v smeri puščice, vključno z oknom na monitorju na tisti strani |
+| `Super + Ctrl + Left/Right`  | Premikaj se med okni znotraj skupine tlakovanja |
+| `Super + Ctrl + Z` | Povečaj zaslon (ponovi za večjo povečavo) |
+| `Super + Ctrl + Alt + Z` | Popolnoma pomanjšaj zaslon |
+| `Super + /` | Korak naprej med možnostmi skaliranja monitorja |
+| `Super + Alt + /` | Korak nazaj med možnostmi skaliranja monitorja |
+| `Alt + Tab` | Kroži naprej med okni na aktivnem delovnem prostoru |
+| `Alt + Shift + Tab` | Kroži nazaj med okni na aktivnem delovnem prostoru |
+| `Ctrl + Alt + Tab`| Kroži fokus naprej med monitorji |
+| `Ctrl + Alt + Shift + Tab`| Kroži fokus nazaj med monitorji |
 
-## Sistemski kontrolniki
+## Sistemske kontrole
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + A`           | Zvočna plošča    |
-| `Super + Ctrl + B`           | Plošča Bluetooth    |
-| `Super + Ctrl + W`           | Plošča Wifi/omrežja    |
-| `Super + Ctrl + D`           | Plošča zaslona    |
-| `Super + Ctrl + P`           | Plošča napajanja    |
-| `Super + Ctrl + Alt + D`           | Plošča koledarja    |
-| `Super + Ctrl + Alt + E`           | Plošča svetovne ure    |
+| `Super + Ctrl + A`           | Plošča za zvok    |
+| `Super + Ctrl + B`           | Plošča za Bluetooth    |
+| `Super + Ctrl + N`           | Plošča za Wi-Fi/omrežje    |
+| `Super + Ctrl + D`           | Plošča za zaslon    |
+| `Super + Ctrl + P`           | Plošča za napajanje    |
+| `Super + Ctrl + Alt + D`           | Plošča s koledarjem    |
+| `Super + Ctrl + Alt + E`           | Plošča s svetovno uro    |
 | `Super + Ctrl + 1-9`           | Preklopi ploščo vrstice po položaju    |
-| `Super + Ctrl + S` | Meni Deli (prek LocalSend) |
-| `Super + Ctrl + T`           | Dejavnost (btop)    |
-| `Super + Ctrl + C` | Kontrolniki za zajem (posnetek zaslona/snemanje/izbirnik) |
-| `Super + Ctrl + O` | Meni za preklop |
+| `Super + Ctrl + S` | Meni za deljenje (prek LocalSend) |
+| `Super + Ctrl + C` | Kontrole zajema (posnetek zaslona/snemanje/izbirnik) |
+| `Super + Ctrl + O` | Preklopi meni |
 | `Super + Ctrl + H` | Meni strojne opreme |
-| `Super + Ctrl + Q` | Kalkulator |
-| `Super + Ctrl + E` | Izbirnik emoji |
+| `Super + Ctrl + E` | Izbirnik emodžijev |
 | `Super + Ctrl + .` | Prekodiraj medije |
 | `Super + Shift + Ctrl + A` | Izberi agenta AI |
 
@@ -90,24 +92,26 @@ Vse glavne vezave tipkovnice si lahko ogledate s `Super + K` (vezave Tmux s `Sup
 | `Alt + Brightness Up/Down` | Natančne spremembe svetlosti za 1 % |
 | `Alt + Volume Up/Down` | Natančne spremembe glasnosti za 1 % |
 | `Keyboard Brightness Up/Down` | Osvetlitev tipkovnice svetlejša/temnejša |
-| `Keyboard Backlight` | Kroži med ravnmi osvetlitve tipkovnice |
+| `Keyboard Backlight` | Kroži med stopnjami osvetlitve tipkovnice |
 | `Alt + Play` | Naslednja skladba |
 | `Alt + Shift + Play` | Prejšnja skladba |
 
-## Zaganjanje aplikacij
+## Zagon aplikacij
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Terminal    |
 | `Super + Alt + Return` | Terminal Tmux |
-| `Super + Ctrl + Return` | Herdr (upravljavec agentov) |
+| `Super + Ctrl + Return` | Herdr (upravitelj agentov) |
 | `Super + Shift + Return`           | Brskalnik    |
-| `Super + Shift + Alt + B`           | Brskalnik (zasebno/anonimno)    |
-| `Super + Shift + F`           | Upravljalnik datotek    |
-| `Super + Shift + Alt + F`           | Upravljalnik datotek v cwd terminala    |
+| `Super + Shift + Alt + B`           | Brskalnik (zasebno/brez beleženja)    |
+| `Super + Shift + F`           | Upravitelj datotek    |
+| `Super + Shift + Alt + F`           | Upravitelj datotek v cwd terminala    |
 | `Super + Shift + M`           | Glasba (Spotify)    |
 | `Super + Shift + Alt + M`           | Glasba (cliamp)    |
 | `Super + Shift + /`           | Upravitelj gesel (1password)    |
+| `Super + Shift + Q`           | Kalkulator (Omacalc)    |
+| `Super + Shift + T`           | Dejavnost (btop)    |
 | `Super + Shift + N`           | Urejevalnik (Neovim)  |
 | `Super + Shift + C`           | Koledar ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | E-pošta ([HEY](https://hey.com/))  |
@@ -136,84 +140,85 @@ Spremenite/dodajte vezave v `~/.config/hypr/bindings.lua`.
 | `Super + V`           | Prilepi    |
 | `Super + Ctrl + V`           | Upravitelj odložišča    |
 
-Običajno v Linuxu za kopiranje in lepljenje v terminalu potrebujete `Ctrl + Shift + C/V`, povsod drugje pa `Ctrl + C/V`. Te poenotene bližnjice Omarchyja za odložišče delujejo povsod.
+Običajno v Linuxu potrebujete `Ctrl + Shift + C/V` za kopiranje in lepljenje v terminalu in `Ctrl + C/V` za to povsod drugje. Te poenotene bližnjice Omarchy za odložišče delujejo povsod.
 
 ## Zajem
 
 | Bližnjica              | Funkcija                       |
 | ------------------- | ------------------------------ |
-| `Super + Ctrl + C` | Meni za zajem (za tipkovnice brez gumba PrintScr) |
 | `Print Screen`            | Posnetek zaslona                      |
+| `Super + Ctrl + Alt + C`            | Posnetek zaslona (isti posnetek, za tipkovnice brez tipke Print Screen) |
+| `Super + Ctrl + C` | Meni za zajem |
 | `Alt + Print Screen`            | Snemanje zaslona                     |
-| `Super + Print Screen` | Izbirnik barve |
+| `Super + Print Screen` | Izbirnik barv |
 | `Super + Ctrl + Print Screen` | Izvlečenje besedila v odložišče |
-| `Super + Alt + [` | Med snemanjem pomanjšaj prekrivanje spletne kamere |
+| `Super + Alt + [` | Med snemanjem zmanjšaj prekrivanje spletne kamere |
 | `Super + Alt + ]` | Med snemanjem povečaj prekrivanje spletne kamere |
-| `Alt + Shift + L` | Kopiraj trenutni URL iz spletne aplikacije ali Chromiuma |
-| `Alt + Shift + D` | Prenesi video na trenutni strani v `~/Videos` |
-| `Super + Ctrl + X` | Začni/ustavi narekovanje (zahteva _Setup > Defaults > Dictation_) |
-| `Right Alt` / `F9` | Narekovanje pritisni-za-govor (zahteva Voxtype ali Superwhisper) |
+| `Alt + Shift + L` | Kopiraj trenutni URL iz spletne aplikacije ali Chromium |
+| `Alt + Shift + D` | Prenesi videoposnetek na trenutni strani v `~/Videos` |
+| `Super + Ctrl + X` | Začni/ustavi diktiranje (zahteva _Nastavitev > Privzeto > Diktiranje_) |
+| `Right Alt` / `F9` | Diktiranje s pritiskom za govor (zahteva Voxtype ali Superwhisper) |
 
-Pri snemanjih zaslona bližnjica najprej vpraša, kateri zvok želite, nato začne snemati. Znova jo pritisnite, da ustavite. Za podrobnosti glejte [posnetki zaslona in snemanje](12-screenshots-recording.md).
+Pri snemanju zaslona bližnjica najprej vpraša, kateri zvok želite, nato začne snemati. Pritisnite jo znova, da ustavite. Za podrobnosti si oglejte [posnetki zaslona in snemanje](12-screenshots-recording.md).
 
-Vse možnosti zajema so dostopne tudi pod _Trigger > Capture_ v meniju Omarchy (`Super + Space`).
+Vse možnosti zajema so dostopne tudi pod _Sprožilec > Zajem_ v meniju Omarchy (`Super + Space`).
 
 ## Obvestila
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Odpusti zadnje obvestilo  |
-| `Super + Shift + ,` | Odpusti vsa obvestila |
-| `Super + Ctrl + ,` | Preklopi utišanje obvestil  |
-| `Super + Alt + ,` | Prikliči najnovejše obvestilo  |
+| `Super + ,` | Ukrepaj ob najnovejšem obvestilu: odpri ga ali pritisni njegov edini gumb, izberi med njegovimi možnostmi ali ga zavrzi, če nima nobene  |
+| `Super + Shift + ,` | Zavrzi vsa obvestila |
+| `Super + Ctrl + ,` | Upravljaj obvestila s tipkovnico  |
+| `Super + Alt + ,` | Zavrzi najnovejše obvestilo  |
 | `Super + Shift + Alt + ,` | Odpri zgodovino obvestil  |
+| `Super + Ctrl + Alt + ,` | Preklopi utišanje obvestil  |
 
 ## Slog
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Shift + Space` | Izberi novo temo  |
-| `Super + Ctrl + Space` | Izberi ozadje teme |
+| `Super + Ctrl + T` | Izberi novo temo (tudi `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | Izberi ozadje teme (tudi `Super + Ctrl + Space`) |
 | `Super + Backspace` | Preklopi prosojnost okna |
-| `Super + Ctrl + Backspace` | Preklopi razmerje kvadrata enega okna |
+| `Super + Ctrl + Backspace` | Preklopi kvadratno razmerje stranic enega okna |
 
-Dodatne slike ozadja živijo v `~/.config/omarchy/backgrounds/<theme name>`. Na voljo tudi prek _Install > Style > Background_ v meniju Omarchy.
+Dodatne slike ozadja so v `~/.config/omarchy/backgrounds/<theme name>`. Na voljo tudi prek _Namesti > Slog > Ozadje_ v meniju Omarchy.
 
-Vse možnosti sloga so dostopne tudi pod _Style_ v meniju Omarchy (`Super + Space`).
+Vse možnosti sloga so dostopne tudi pod _Slog_ v meniju Omarchy (`Super + Space`).
 
 ## Preklopi
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | Preklopi zaklepanje v nedejavnosti |
-| `Super + Ctrl + N` | Preklopi temperaturo prikaza nočne svetlobe |
-| `Super + Ctrl + Delete` | Preklopi zaslon prenosnika vklop/izklop |
+| `Super + Ctrl + I` | Preklopi zaklepanje ob nedejavnosti |
+| `Super + Ctrl + Delete` | Vklopi/izklopi zaslon prenosnika |
 | `Super + Ctrl + Alt + Delete` | Preklopi zrcaljenje zaslona prenosnika |
-| `Super + Shift + Space` | Preklopi menijsko vrstico  |
+| `Super + Shift + Space` | Preklopi zgornjo vrstico  |
 | `Shift + Mute` | Preklopi na naslednji zvočni izhod |
 | `Shift + Play` | Preklopi na naslednji medijski vir |
-| `Super + Shift + Backspace` | Preklopi razmike oken |
-| `Super + Ctrl + Alt + F` | Preklopi celozaslonsko namizje (menijska vrstica + razmiki oken) |
+| `Super + Shift + Backspace` | Preklopi vrzeli med okni |
+| `Super + Ctrl + Alt + F` | Preklopi celozaslonsko namizje (zgornja vrstica + vrzeli med okni) |
 
 ## Opomniki
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + R` | Nastavi opomnik  |
-| `Super + Ctrl + Alt + R` | Ogled vseh opomnikov  |
+| `Super + Ctrl + Alt + R` | Oglej si vse opomnike  |
 | `Super + Ctrl + Shift + R` | Počisti vse opomnike  |
 
-## Opozorila
+## Kratka obvestila
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Alt + T` | Pokaži uro kot obvestilo  |
-| `Super + Ctrl + Alt + B` | Pokaži baterijo kot obvestilo  |
+| `Super + Ctrl + Alt + T` | Prikaži čas kot obvestilo  |
+| `Super + Ctrl + Alt + B` | Prikaži baterijo kot obvestilo  |
 | `Super + Ctrl + Alt + W` | Preklopi vreme kot obvestilo  |
 
 ## Tmux
 
-Predpona je `Ctrl + Space` (deluje tudi `Ctrl + B`). Te vezave lahko spremenite v `~/.config/tmux/tmux.conf`.
+Tipka predpone je `Ctrl + Space` (deluje tudi `Ctrl + B`). Te vezave lahko spremenite v `~/.config/tmux/tmux.conf`.
 
 ### Podokna
 
@@ -221,52 +226,52 @@ Predpona je `Ctrl + Space` (deluje tudi `Ctrl + B`). Te vezave lahko spremenite 
 | ----------------------- | --------------------- |
 | `Prefix + v` | Razdeli podokno ob strani (navpično) |
 | `Prefix + h` | Razdeli podokno spodaj (vodoravno) |
-| `Prefix + x` | Ubij podokno |
+| `Prefix + x` | Zapri podokno |
 | `Prefix + z` | Preklopi povečavo podokna (cel zaslon) |
 | `Alt + Enter` | Razdeli podokno spodaj (brez predpone) |
 | `Alt + Shift + Enter` | Razdeli podokno ob strani (brez predpone) |
-| `Alt + Escape` | Ubij podokno (no prefix) |
-| `Ctrl + Alt + Arrows` | Premikanje med podokni |
-| `Ctrl + Alt + Shift + Arrows` | Spremeni velikost podoken |
+| `Alt + Escape` | Zapri podokno (brez predpone) |
+| `Ctrl + Alt + Arrows` | Premikaj se med podokni |
+| `Ctrl + Alt + Shift + Arrows` | Spreminjaj velikost podoken |
 
 ### Okna
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Novo okno |
-| `Prefix + k` | Ubij okno |
+| `Prefix + k` | Zapri okno |
 | `Prefix + r` | Preimenuj okno |
 | `Alt + 1-9` | Pojdi na določeno okno |
-| `Alt + Arrow Left/Right` | Premikanje med okni |
-| `Alt + Shift + Arrow Left/Right` | Premakni okno levo/desno |
+| `Alt + Arrow Left/Right` | Premikaj se med okni |
+| `Alt + Shift + Arrow Left/Right` | Premakni okno v levo/desno |
 
 ### Seje
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Nova seja |
-| `Prefix + K` | Ubij sejo |
+| `Prefix + K` | Zapri sejo |
 | `Prefix + R` | Preimenuj sejo |
 | `Prefix + N` | Naslednja seja |
 | `Prefix + P` | Prejšnja seja |
-| `Alt + Arrow Up/Down` | Premikanje med sejami |
+| `Alt + Arrow Up/Down` | Premikaj se med sejami |
 | `Prefix + s` | Seznam sej |
-| `Prefix + d` | Odklopi sejo |
+| `Prefix + d` | Odpni se od seje |
 
-### Način kopiranja (slog vi)
+### Način kopiranja (v slogu vi)
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Vstopi v način kopiranja |
-| `v` | Začni izbor (v načinu kopiranja) |
-| `y` | Kopiraj izbor (v načinu kopiranja) |
+| `v` | Začni izbiro (v načinu kopiranja) |
+| `y` | Kopiraj izbiro (v načinu kopiranja) |
 
 ### Splošno
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Znova naloži konfiguracijo |
-| `Prefix + ?` | Pokaži vezave tipk Tmux |
+| `Prefix + ?` | Prikaži bližnjice za Tmux |
 | `Prefix + :` | Ukazni poziv |
 
 ### Funkcije postavitve Tmux
@@ -275,101 +280,101 @@ Te funkcije je treba zagnati znotraj seje Tmux.
 
 | Ukaz | Funkcija |
 | ------- | -------- |
-| `tdl <ai> [<second_ai>]` | Ustvari razvijalsko postavitev z urejevalnikom, AI in terminalom |
-| `tdlm <ai> [<second_ai>]` | Ustvari razvijalsko postavitev na podimenik |
+| `tdl <ai> [<second_ai>]` | Ustvari razvojno postavitev z urejevalnikom, AI in terminalom |
+| `tdlm <ai> [<second_ai>]` | Ustvari razvojno postavitev za vsako podmapo |
 | `tsl <count> <command>` | Ustvari postavitev roja z več podokni |
 
 ## Terminal Ghostty
 
-Terminal Ghostty se namesti z uporabo _Install > Terminal_ prek menija Omarchy.
+Terminal Ghostty namestite z uporabo _Namesti > Terminal_ prek menija Omarchy.
 
 | Bližnjica                  | Funkcija              |
 | ----------------------- | --------------------- |
-| `Ctrl + Shift + E` | Nova razdelitev spodaj |
-| `Ctrl + Shift + O` | Nova razdelitev ob strani |
-| `Ctrl + Alt + Arrows` | Premikanje med razdelitvami |
-| `Super + Ctrl + Shift + Arrows` | Spremeni velikost razdelitve za 10 vrstic |
-| `Super + Ctrl + Shift + Alt + Arrows` | Spremeni velikost razdelitve za 100 vrstic |
+| `Ctrl + Shift + E` | Nova delitev spodaj |
+| `Ctrl + Shift + O` | Nova delitev ob strani |
+| `Ctrl + Alt + Arrows` | Premikaj se med delitvami |
+| `Super + Ctrl + Shift + Arrows` | Spremeni velikost delitve za 10 vrstic |
+| `Super + Ctrl + Shift + Alt + Arrows` | Spremeni velikost delitve za 100 vrstic |
 | `Ctrl + Shift + T` | Nov zavihek  |
-| `Ctrl + Shift + Arrows` | Premikanje med zavihki |
+| `Ctrl + Shift + Arrows` | Premikaj se med zavihki |
 | `Alt + Numbers` | Pojdi na določen zavihek |
 | `Shift + Pg Up/Down` | Drsi po zgodovini |
 | `Ctrl + Left mouse` | Odpri povezavo v brskalniku |
 
-## Upravljalnik datotek
+## Upravitelj datotek
 
 | Bližnjica              | Funkcija                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Pojdi na pot                     |
-| `Space`               | Predogled datoteke (puščice navigirajo) |
-| `Backspace`      | Pojdi nazaj za eno mapo             |
+| `Space`               | Predogled datoteke (navigacija s puščicami) |
+| `Backspace`      | Vrni se za eno mapo nazaj             |
 
-## Neovim (z lazyvim)
+## Neovim (w/ lazyvim)
 
 ### Navigacija
 
 | Bližnjica                   | Funkcija                        |
 | ------------------------ | ------------------------------- |
-| `Space`                    | Pokaži možnosti ukazov            |
-| `Space Space`              | Odpri datoteko z nejasnim iskanjem      |
+| `Space`                    | Prikaži možnosti ukazov            |
+| `Space Space`              | Odpri datoteko z mehkim iskanjem      |
 | `Space E`                  | Preklopi stransko vrstico                  |
-| `Space G G`                | Pokaži kontrole git               |
-| `Space S G`                | Išči po vsebini datotek             |
-| `Ctrl + W W`               | Skoči med stransko vrstico in urejevalnikom |
+| `Space G G`                | Prikaži kontrole git               |
+| `Space S G`                | Išči po vsebini datoteke             |
+| `Ctrl + W W`               | Skači med stransko vrstico in urejevalnikom |
 | `Ctrl + Left/right arrow`  | Spremeni velikost stranske vrstice          |
 | `Shift + H`                      | Pojdi na levi zavihek datoteke             |
 | `Shift + L`                      | Pojdi na desni zavihek datoteke            |
 | `Space B D`                | Zapri zavihek datoteke                  |
 
-### Medtem ko ste v stranski vrstici
+### V stranski vrstici
 
 | Bližnjica                   | Funkcija                        |
 | ------------------------ | ------------------------------- |
-| `A`                        | Dodaj novo datoteko v nadrejeni imenik      |
-| `Shift + A`                | Dodaj nov podimenik v nadrejeni imenik    |
-| `D`                        | Izbriši označeno datoteko/imenik     |
-| `M`                        | Premakni označeno datoteko/imenik       |
-| `R`                        | Preimenuj označeno datoteko/imenik     |
-| `?`                        | Pokaži pomoč za vse ukaze      |
+| `A`                        | Dodaj novo datoteko v nadrejeno mapo      |
+| `Shift + A`                | Dodaj novo podmapo v nadrejeno mapo    |
+| `D`                        | Izbriši označeno datoteko/mapo     |
+| `M`                        | Premakni označeno datoteko/mapo       |
+| `R`                        | Preimenuj označeno datoteko/mapo     |
+| `?`                        | Prikaži pomoč za vse ukaze      |
 
-[Oglejte si vse bližnjice Neovima, ki jih konfigurira LazyVim](https://www.lazyvim.org/keymaps).
+[Oglejte si vse bližnjice za Neovim, ki jih nastavi LazyVim](https://www.lazyvim.org/keymaps).
 
-## Hitri emoji
+## Hitri emodžiji
 
-S `Super + Ctrl + E` lahko prikažete celovit izbirnik emoji, ki izbor da v odložišče, ali uporabite te možnosti hitrega dostopa.
+Uporabite lahko `Super + Ctrl + E` za prikaz celotnega izbirnika emodžijev, ki bo izbiro dal v odložišče, ali pa uporabite te možnosti hitrega dostopa.
 
 | Bližnjica       | EM | Namig       |
 | ------------ | -- | ---------- |
-| `Shift + CapsLock M S` | 😄 | nasmeh      |
-| `Shift + CapsLock M C` | 😂 | jok        |
-| `Shift + CapsLock M L` | 😍 | ljubezen       |
-| `Shift + CapsLock M V` | ✌️ | zmaga    |
-| `Shift + CapsLock M H` | ❤️ | srce      |
-| `Shift + CapsLock M Y` | 👍 | da        |
+| `Shift + CapsLock M S` | 😄 | smile      |
+| `Shift + CapsLock M C` | 😂 | cry        |
+| `Shift + CapsLock M L` | 😍 | love       |
+| `Shift + CapsLock M V` | ✌️ | victory    |
+| `Shift + CapsLock M H` | ❤️ | heart      |
+| `Shift + CapsLock M Y` | 👍 | yes        |
 | `Shift + CapsLock M N` | 👎 | no         |
 | `Shift + CapsLock M F` | 🖕 | fuck       |
-| `Shift + CapsLock M W` | 🤞 | želja       |
+| `Shift + CapsLock M W` | 🤞 | wish       |
 | `Shift + CapsLock M R` | 🤘 | rock       |
-| `Shift + CapsLock M K` | 😘 | poljub       |
-| `Shift + CapsLock M E` | 🙄 | zavijanje z očmi    |
-| `Shift + CapsLock M I` | 😉 | mežik       |
-| `Shift + CapsLock M P` | 🙏 | moli |
-| `Shift + CapsLock M D` | 🤤 | slini      |
-| `Shift + CapsLock M M` | 💰 | denar      |
-| `Shift + CapsLock M X` | 🎉 | praznuj |
+| `Shift + CapsLock M K` | 😘 | kiss       |
+| `Shift + CapsLock M E` | 🙄 | eyeroll    |
+| `Shift + CapsLock M I` | 😉 | wink       |
+| `Shift + CapsLock M P` | 🙏 | pray |
+| `Shift + CapsLock M D` | 🤤 | drool      |
+| `Shift + CapsLock M M` | 💰 | money      |
+| `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
 | `Shift + CapsLock M T` | 🥂 | toast      |
 | `Shift + CapsLock M O` |👌 | ok |
-| `Shift + CapsLock M G` |👋 | pozdrav |
-| `Shift + CapsLock M A` |💪 | roka |
-| `Shift + CapsLock M B` |🤯 | razneseno |
+| `Shift + CapsLock M G` |👋 | greeting |
+| `Shift + CapsLock M A` |💪 | arm |
+| `Shift + CapsLock M B` |🤯 | blowing |
 
-## Hitra dokončanja
+## Hitra dopolnjevanja
 
-| Bližnjica       | Dokončanje       |
+| Bližnjica       | Dopolnitev       |
 | ------------ |  ---------- |
 | `Shift + CapsLock Space Space` | — (mdash)   |
-| `Shift + CapsLock Space N` | Vaše ime (kot vneseno ob nastavitvi)  |
-| `Shift + CapsLock Space E` | Vaša e-pošta (kot vnesena ob nastavitvi)  |
+| `Shift + CapsLock Space N` | Vaše ime (kot ste ga vnesli ob namestitvi)  |
+| `Shift + CapsLock Space E` | Vaš e-poštni naslov (kot ste ga vnesli ob namestitvi)  |
 
-Več lastnih dodate z urejanjem `~/.XCompose`, nato pa v terminalu zaženete `omarchy-restart-xcompose`, da se spremembe upoštevajo.
+Svoje lahko dodate z urejanjem `~/.XCompose`, nato pa v terminalu zaženete `omarchy-restart-xcompose`, da spremembe začnejo veljati.
