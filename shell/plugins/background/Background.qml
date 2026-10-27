@@ -421,6 +421,7 @@ Item {
         anchors.fill: parent
         path: root.displayedBackground
         version: root.reloadVersion
+        versionKey: "background"
         cached: true
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)

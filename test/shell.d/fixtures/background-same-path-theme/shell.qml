@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Commons
 import "plugins/background" as BackgroundPlugin
 
 ShellRoot {
@@ -10,6 +11,18 @@ ShellRoot {
   readonly property string themePath: Quickshell.env("HOME") + "/.local/state/omarchy/current/theme/backgrounds/1-same-name.png"
 
   BackgroundPlugin.Background { id: background }
+
+  // The lock keeps the wallpaper decoded ahead of time under its own version,
+  // at the size the desktop decodes it too (here the file's own size).
+  Image {
+    id: lockPredecode
+    visible: false
+    source: Util.fileUrl(shell.themePath) + "?v=1"
+    sourceSize: Qt.size(128, 128)
+    fillMode: Image.PreserveAspectCrop
+    asynchronous: true
+    cache: true
+  }
 
   function finish(ok, message) {
     var payload = JSON.stringify({ ok: ok, message: message })
@@ -46,7 +59,7 @@ ShellRoot {
       ticks += 1
       var base = shell.firstBase()
       if (!swapped) {
-        if (base && base.ready && background.displayedBackground === shell.themePath) {
+        if (base && base.ready && background.displayedBackground === shell.themePath && lockPredecode.status === Image.Ready) {
           swapped = true
           swapTheme.running = true
         } else if (ticks > 50) {
