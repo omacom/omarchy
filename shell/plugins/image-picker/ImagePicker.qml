@@ -68,6 +68,28 @@ Item {
   property color labelPill: Qt.rgba(dimColor.r, dimColor.g, dimColor.b, 0.9)
   property color labelText: contrast(foreground, dimColor) >= 4.5 ? foreground
     : (contrast(Qt.rgba(0, 0, 0, 1), dimColor) >= contrast(Qt.rgba(1, 1, 1, 1), dimColor) ? "black" : "white")
+  // Labels lean like the cards: their top edge runs ahead by the same share
+  // of their height as a card's does.
+  readonly property real labelShear: -skewOffset / expandedHeight
+
+  // A label's background, behind its parent Text: slanted like the cards and
+  // rounded only as far as Hyprland rounds windows (Style.cornerRadius).
+  component LabelPill: Rectangle {
+    id: pill
+    property color fill
+    property real shear
+    z: -1
+    visible: parent.text !== ""
+    anchors.centerIn: parent
+    width: parent.contentWidth + Style.space(24)
+    height: parent.contentHeight + Style.space(8)
+    radius: Math.min(Style.cornerRadius, height / 2)
+    color: fill
+    antialiasing: true
+    transform: Matrix4x4 {
+      matrix: Qt.matrix4x4(1, pill.shear, 0, -pill.shear * pill.height / 2, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+    }
+  }
   property int expandedWidth: 768
   property int expandedHeight: 475
   property int sliceWidth: 108
@@ -955,6 +977,23 @@ Item {
                 }
               }
 
+              // The image's own resolution, when the rows carry it, so it
+              // can be judged against the screen.
+              Text {
+                textFormat: Text.PlainText
+                visible: item.selected && text !== ""
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: Style.space(14)
+                anchors.right: parent.right
+                anchors.rightMargin: item.width - item.bottomRight + Style.space(18)
+                text: item.imageData && item.imageData.size ? item.imageData.size.replace("x", " × ") : ""
+                color: root.labelText
+                font.pixelSize: Style.font.body
+                font.weight: Font.DemiBold
+
+                LabelPill { fill: root.labelPill; shear: root.labelShear }
+              }
+
               MouseArea {
                 anchors.fill: parent
                 enabled: root.layoutSettled
@@ -977,15 +1016,7 @@ Item {
           font.pixelSize: Style.font.heading
           font.weight: Font.DemiBold
 
-          Rectangle {
-            z: -1
-            visible: parent.text !== ""
-            anchors.centerIn: parent
-            width: parent.contentWidth + Style.space(24)
-            height: parent.contentHeight + Style.space(8)
-            radius: height / 2
-            color: root.labelPill
-          }
+          LabelPill { fill: root.labelPill; shear: root.labelShear }
         }
 
         Text {
@@ -1003,15 +1034,7 @@ Item {
           horizontalAlignment: Text.AlignHCenter
           elide: Text.ElideRight
 
-          Rectangle {
-            z: -1
-            visible: parent.text !== ""
-            anchors.centerIn: parent
-            width: parent.contentWidth + Style.space(24)
-            height: parent.contentHeight + Style.space(8)
-            radius: height / 2
-            color: root.labelPill
-          }
+          LabelPill { fill: root.labelPill; shear: root.labelShear }
         }
 
         Text {
@@ -1027,15 +1050,7 @@ Item {
           horizontalAlignment: Text.AlignHCenter
           elide: Text.ElideRight
 
-          Rectangle {
-            z: -1
-            visible: parent.text !== ""
-            anchors.centerIn: parent
-            width: parent.contentWidth + Style.space(24)
-            height: parent.contentHeight + Style.space(8)
-            radius: height / 2
-            color: root.labelPill
-          }
+          LabelPill { fill: root.labelPill; shear: root.labelShear }
         }
     }
 

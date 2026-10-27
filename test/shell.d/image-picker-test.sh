@@ -31,6 +31,9 @@ assertDeepEqual(
   'image picker parses rows and dedupes by file name'
 )
 
+assertEqual(picker.loadRows('/t/a.png\t/c/a.jpg\t3840x2160')[0].size, '3840x2160', 'image picker reads an image size column')
+assertEqual(picker.loadRows('/t/a.png\t/c/a.jpg\tbig')[0].size, undefined, 'image picker ignores a size that is not WIDTHxHEIGHT')
+
 assert(picker.itemMatches(images, 0, 'river'), 'image picker matches file names')
 assert(picker.itemMatches(images, 1, 'Gruvbox Dark'), 'image picker matches labels case-insensitively')
 assert(!picker.itemMatches(images, 2, 'river'), 'image picker rejects non-matching filters')

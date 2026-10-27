@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Open a generic image selector menu
-# omarchy:args=[--selected <image>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] [--print-rows] [--views <json>] <image-dir>...
+# omarchy:args=[--selected <image>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] [--print-rows] [--sizes] [--views <json>] <image-dir>...
 
 selected_image=""
 print_name=false
@@ -13,10 +13,11 @@ preload=false
 cache_only=false
 print_rows=false
 views=""
+sizes=false
 image_dirs=()
 
 usage() {
-  echo "Usage: omarchy-menu-images [--selected <image>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] [--print-rows] [--views <json>] <image-dir>..."
+  echo "Usage: omarchy-menu-images [--selected <image>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] [--print-rows] [--sizes] [--views <json>] <image-dir>..."
 }
 
 while (( $# > 0 )); do
@@ -60,6 +61,10 @@ while (( $# > 0 )); do
       ;;
     --print-rows)
       print_rows=true
+      shift
+      ;;
+    --sizes)
+      sizes=true
       shift
       ;;
     --views)
@@ -123,7 +128,10 @@ index_file="$cache_dir/index.tsv"
 rows=""
 mkdir -p "$cache_dir"
 
-cache_key=$(printf '%s' "$image_dirs_env" | md5sum | cut -d ' ' -f 1)
+# Rows with sizes carry a third column, so they are cached apart.
+cache_input=$image_dirs_env
+[[ $sizes == "true" ]] && cache_input+=$'\n--sizes'
+cache_key=$(printf '%s' "$cache_input" | md5sum | cut -d ' ' -f 1)
 rows_cache_file="$cache_dir/$cache_key.rows"
 rows_signature_file="$cache_dir/$cache_key.signature"
 rows_fast_signature_file="$cache_dir/$cache_key.fast-signature"
@@ -320,6 +328,22 @@ if [[ $rows_cache_hit != true && -f $rows_cache_file && -f $rows_signature_file 
   rows=$(<"$rows_cache_file")
   printf '%s' "$rows_fast_signature" >"$rows_fast_signature_file"
 elif [[ $rows_cache_hit != true ]]; then
+  # --sizes adds each still image's own WIDTHxHEIGHT as a third column, read
+  # from the headers of every image in one vipsheader run and matched back by
+  # path, so a file it cannot read simply goes without.
+  declare -A image_sizes=()
+  if [[ $sizes == "true" ]]; then
+    still_images=()
+    for image in "${image_files[@]}"; do
+      is_video_path "$image" || still_images+=("$image")
+    done
+    if (( ${#still_images[@]} > 0 )); then
+      while IFS= read -r header; do
+        [[ $header =~ ^(.*):\ ([0-9]+)x([0-9]+)\  ]] && image_sizes[${BASH_REMATCH[1]}]="${BASH_REMATCH[2]}x${BASH_REMATCH[3]}"
+      done < <(vipsheader "${still_images[@]}" 2>/dev/null)
+    fi
+  fi
+
   for image in "${image_files[@]}"; do
     thumbnail=$(thumbnail_for "$image")
     [[ -n $thumbnail ]] || continue
@@ -333,10 +357,12 @@ elif [[ $rows_cache_hit != true ]]; then
       rows_cacheable=false
     fi
 
+    row="$image"$'\t'"$thumbnail"
+    [[ -n ${image_sizes[$image]:-} ]] && row+=$'\t'"${image_sizes[$image]}"
     if [[ -z $rows ]]; then
-      rows="$image"$'\t'"$thumbnail"
+      rows=$row
     else
-      rows+=$'\n'"$image"$'\t'"$thumbnail"
+      rows+=$'\n'"$row"
     fi
   done
 
@@ -344,16 +370,18 @@ elif [[ $rows_cache_hit != true ]]; then
 
   if [[ -s $pending_file || -s $pending_video_file ]]; then
     pruned=""
-    while IFS=$'\t' read -r row_image row_thumbnail; do
+    while IFS=$'\t' read -r row_image row_thumbnail row_size; do
       if [[ ! -e $row_thumbnail ]]; then
         rows_cacheable=false
         continue
       fi
 
+      row="$row_image"$'\t'"$row_thumbnail"
+      [[ -n $row_size ]] && row+=$'\t'"$row_size"
       if [[ -z $pruned ]]; then
-        pruned="$row_image"$'\t'"$row_thumbnail"
+        pruned=$row
       else
-        pruned+=$'\n'"$row_image"$'\t'"$row_thumbnail"
+        pruned+=$'\n'"$row"
       fi
     done <<<"$rows"
     rows="$pruned"

@@ -160,7 +160,7 @@ if [[ ${1:-} == "--rows" ]]; then
   # The picker reads the view, then the image to select, then the rows.
   printf '%s\n' "$view"
   printf '%s\n' "$(current_in_view)"
-  omarchy-menu-images --lazy-thumbnails --print-rows "${dirs[@]}"
+  omarchy-menu-images --lazy-thumbnails --sizes --print-rows "${dirs[@]}"
 else
   view=""
   read -r view 2>/dev/null <"$view_file"
@@ -179,7 +179,8 @@ else
   selected=""
   [[ $view == "all" ]] && selected=$(current_in_view)
 
-  omarchy-menu-images "${flags[@]}" \
+  # --sizes lets the picker show each background's resolution.
+  omarchy-menu-images "${flags[@]}" --sizes \
     --selected "${selected:-$current_background}" \
     --views "{\"current\":\"$view\",\"command\":[\"omarchy-theme-bg-switcher\",\"--rows\"],\"views\":[$views]}" \
     "${dirs[@]}"

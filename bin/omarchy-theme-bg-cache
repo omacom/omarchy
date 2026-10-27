@@ -6,5 +6,6 @@ theme_name=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 
 omarchy-menu-images \
   --cache-only \
+  --sizes \
   "$HOME/.local/state/omarchy/current/theme/backgrounds" \
   "$HOME/.config/omarchy/backgrounds/$theme_name"
