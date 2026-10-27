@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Bruker"
   },
-  "system.reboot-boot-menu": {
-    "label": "Start på nytt til oppstartsmeny"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Vis batteri %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Skjul batteri %"
+  },
+  "appearance.windows": {
+    "label": "Vinduer"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Vindusmellomrom på"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Vindusmellomrom av"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-vindusforhold på"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-vindusforhold av"
+  },
+  "appearance.branding": {
+    "label": "Merkevare"
+  },
+  "appearance.animations-on": {
+    "label": "Animasjoner på"
+  },
+  "appearance.animations-off": {
+    "label": "Animasjoner av"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Hold våken"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Tillat hvilemodus"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Varsler på"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Demp varsler"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nattlys på"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nattlys av"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Skjermsparer på"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Skjermsparer av"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Krasjopptak på"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kjerne"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Krasjfangst av"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Laptopskjerm på"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Laptopskjerm av"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Skjermspeiling på"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Skjermspeiling av"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Bytt til hybrid GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Bytt til integrert GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Aktiver pekeplate"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Deaktiver pekeplate"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Aktiver berøringsskjerm"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Deaktiver berøringsskjerm"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
   }
 }

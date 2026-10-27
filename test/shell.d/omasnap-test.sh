@@ -34,28 +34,28 @@ chmod +x "$stub_bin/omasnap"
 capture_log="$test_tmp/capture.log"
 OMASNAP_TEST_LOG="$capture_log" PATH="$stub_bin:$PATH" \
   "$ROOT/bin/omarchy-capture-screenshot"
-[[ $(<"$capture_log") == $'\t' ]] || fail "the default screenshot opens Omasnap without extra arguments"
+[[ $(<"$capture_log") == $'\t--notify' ]] || fail "the default screenshot opens Omasnap announcing saved shots with buttons"
 
 : >"$capture_log"
 OMASNAP_TEST_LOG="$capture_log" OMARCHY_SCREENSHOT_DIR="$test_tmp/legacy-output" PATH="$stub_bin:$PATH" \
   "$ROOT/bin/omarchy-capture-screenshot" windows copy
-[[ $(<"$capture_log") == "$test_tmp/legacy-output"$'\twindows --copy' ]] ||
+[[ $(<"$capture_log") == "$test_tmp/legacy-output"$'\t--notify windows --copy' ]] ||
   fail "the screenshot command maps the legacy directory and copy argument to Omasnap"
 
 : >"$capture_log"
 OMASNAP_TEST_LOG="$capture_log" OMARCHY_SCREENSHOT_DIR="$test_tmp/legacy-output" OMASNAP_SCREENSHOT_DIR="$test_tmp/native-output" PATH="$stub_bin:$PATH" \
   "$ROOT/bin/omarchy-capture-screenshot" fullscreen save
-[[ $(<"$capture_log") == "$test_tmp/native-output"$'\tfullscreen --save' ]] ||
+[[ $(<"$capture_log") == "$test_tmp/native-output"$'\t--notify fullscreen --save' ]] ||
   fail "the native Omasnap directory wins while legacy save syntax still works"
 
 : >"$capture_log"
 OMASNAP_TEST_LOG="$capture_log" PATH="$stub_bin:$PATH" \
   "$ROOT/bin/omarchy-capture-screenshot" region slurp
-[[ $(<"$capture_log") == $'\tregion' ]] || fail "the former default slurp argument remains a harmless compatibility no-op"
+[[ $(<"$capture_log") == $'\t--notify region' ]] || fail "the former default slurp argument remains a harmless compatibility no-op"
 
 : >"$capture_log"
 OMASNAP_TEST_LOG="$capture_log" PATH="$stub_bin:$PATH" \
   "$ROOT/bin/omarchy-capture-screenshot" scroll --save
-[[ $(<"$capture_log") == $'\tscroll --save' ]] || fail "native Omasnap modes and flags pass through unchanged"
+[[ $(<"$capture_log") == $'\t--notify scroll --save' ]] || fail "native Omasnap modes and flags pass through unchanged"
 
 pass "the Omarchy screenshot route delegates compatible arguments to Omasnap"

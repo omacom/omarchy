@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Użytkownik"
   },
-  "system.reboot-boot-menu": {
-    "label": "Uruchom ponownie do menu rozruchowego"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Wyłącz przechwytywanie awarii"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Włącz ekran laptopa"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Wyłącz ekran laptopa"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Włącz klonowanie ekranu"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Wyłącz klonowanie ekranu"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Przełącz na hybrydowe GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Przełącz na zintegrowane GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Włącz touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Wyłącz touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Włącz ekran dotykowy"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Wyłącz ekran dotykowy"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Pokaż % baterii"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Ukryj % baterii"
+  },
+  "appearance.windows": {
+    "label": "Okna"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Włącz odstępy okien"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Wyłącz odstępy okien"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Włącz proporcje 1 okna"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Wyłącz proporcje 1 okna"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.animations-on": {
+    "label": "Włącz animacje"
+  },
+  "appearance.animations-off": {
+    "label": "Wyłącz animacje"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Nie usypiaj"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Zezwól na uśpienie"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Włącz powiadomienia"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Wycisz powiadomienia"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Włącz światło nocne"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Wyłącz światło nocne"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Włącz wygaszacz ekranu"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Wyłącz wygaszacz ekranu"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Włącz przechwytywanie awarii"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Jądro"
   }
 }

@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Gebruiker"
   },
-  "system.reboot-boot-menu": {
-    "label": "Opnieuw opstarten naar opstartmenu"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Accupercentage tonen"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Accupercentage verbergen"
+  },
+  "appearance.windows": {
+    "label": "Vensters"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Vensterafstand aan"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Vensterafstand uit"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-vensterverhouding aan"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-vensterverhouding uit"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.animations-on": {
+    "label": "Animaties aan"
+  },
+  "appearance.animations-off": {
+    "label": "Animaties uit"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Wakker blijven"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Slaapstand toestaan"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Meldingen aan"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Meldingen dempen"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nachtlicht aan"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nachtlicht uit"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Schermbeveiliging aan"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Schermbeveiliging uit"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Crashopname aan"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Crashregistratie uit"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Laptopscherm aan"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Laptopscherm uit"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Scherm spiegelen aan"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Scherm spiegelen uit"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Naar hybride GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Naar geïntegreerde GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Touchpad inschakelen"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Touchpad uitschakelen"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Touchscreen inschakelen"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Touchscreen uitschakelen"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
   }
 }

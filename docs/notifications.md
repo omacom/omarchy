@@ -201,8 +201,7 @@ The `notifications` IPC target also answers `ping` (used by `omarchy-notificatio
 
 Everything goes through the same sender contract, so the pieces are small:
 
-- **Low battery** — `omarchy-battery-low` sends a critical toast and runs the
-  `battery-low` hook.
+- **Low battery** — `omarchy-battery-low` sends a normal toast that expires after 30 seconds (paused, like any card, while the deck is open) and runs the `battery-low` hook. Not critical: a critical toast never expires and comes back on every shell start, so the warning would outlive the charger going in. As an `omarchy-action` toast it still gets through Do Not Disturb.
 - **Crash capture** — `omarchy-crash-watch` follows the systemd-coredump
   journal stream and announces each crashed program (deduped per minute) as a
   critical toast whose click runs `omarchy-agent-crash` (via `--exec`, so a

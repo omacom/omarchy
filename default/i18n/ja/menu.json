@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "ユーザー"
   },
-  "system.reboot-boot-menu": {
-    "label": "ブートメニューで再起動"
+  "appearance.windows.gaps-on": {
+    "label": "ウィンドウ間隔 オン"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "ウィンドウ間隔 オフ"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1ウィンドウ比率 オン"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1ウィンドウ比率 オフ"
+  },
+  "appearance.branding": {
+    "label": "ブランディング"
+  },
+  "appearance.animations-on": {
+    "label": "アニメーション オン"
+  },
+  "appearance.animations-off": {
+    "label": "アニメーション オフ"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "スリープ防止"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "スリープ許可"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "通知 オン"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "通知をミュート"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "ナイトライト オン"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "ナイトライト オフ"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "スクリーンセーバー オン"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "スクリーンセーバー オフ"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "クラッシュキャプチャ オン"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "クラッシュキャプチャ オフ"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "ノートPC画面 オン"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "ノートPC画面 オフ"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "ディスプレイミラーリング オン"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "バッテリー % を表示"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "バッテリー % を非表示"
+  },
+  "appearance.windows": {
+    "label": "ウィンドウ"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "ミラーリングをオフ"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "ハイブリッドGPUに切替"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "内蔵GPUに切替"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "タッチパッドを有効化"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "タッチパッドを無効化"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "タッチスクリーンを有効化"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "タッチスクリーンを無効化"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "カーネル"
   }
 }

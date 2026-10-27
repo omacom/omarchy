@@ -98,6 +98,9 @@ for (let i = 0; i < 1000; i++) {
   // A restored row cannot claim a site either unless it came from a browser.
   assert.equal(Store.restored({ key: 'r', app: 'Chat', source: 'bank.example' }).groupKey, 'app:chat')
   assert.equal(Store.restored({ key: 'r', app: 'Chromium', source: 'app.slack.com' }).groupKey, 'web:app.slack.com')
+  // An unnamed sender's toasts each stand alone rather than stacking.
+  for (const app of ['omarchy-action', 'notify-send'])
+    assert.notEqual(Store.restored({ key: 'a', app }).groupKey, Store.restored({ key: 'b', app }).groupKey, app)
 }
 
 { // `-i name` is an icon name, not a picture; only the strict charset is kept.
@@ -331,6 +334,7 @@ const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
   'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
 function newCapacityScope() {
@@ -353,7 +357,7 @@ function newCapacityScope() {
     displayNames: ['fixture-display'], focusedDisplayName: 'fixture-display',
     Quickshell: { screens: [] }, Hyprland: { monitorFor: screen => screen.monitor },
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
-    Security: S, Delivery, Store,
+    Security: S, Delivery, Store, Markup: M,
     NotificationUrgency: { Critical: 2, Normal: 1, Low: 0 },
     Qt: { callLater: f => later.push(f),
       md5: value => require('node:crypto').createHash('md5').update(value).digest('hex') },
@@ -434,6 +438,58 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.equal(senders[3].expiries, 1)
   for (const sender of senders.slice(0, 3)) assert.equal(sender.dismissals, 1)
   for (const sender of senders) assert.equal(sender.closeAttempts, 1)
+}
+
+{ // Acting on the newest card dismisses it bare, presses its lone button, or picks among several.
+  const s = newCapacityScope()
+  const picking = []
+  s.startKeyboard = key => { picking.push(key); return true }
+  assert.equal(s.act(), 'none')
+  const bare = s.fakeNotification(1), single = s.fakeNotification(2), several = s.fakeNotification(3)
+  let pressed = 0
+  bare.actions = []
+  single.actions = [{ identifier: 'open', text: 'Open', invoke: () => { pressed += 1 } }]
+  several.actions = [{ identifier: 'reply', text: 'Reply' }, { identifier: 'archive', text: 'Archive' }]
+  s.admit(bare, single, several)
+  const [severalKey, singleKey, bareKey] = s.toasts.rows.map(row => row.key)
+  assert.equal(s.act(), 'ok')
+  assert.deepEqual(picking, [severalKey], 'several buttons hand that card the keyboard')
+  assert.equal(s.leaving[severalKey], undefined)
+  s.closeToast(severalKey, 'dismissed')
+  assert.equal(s.act(), 'ok')
+  assert.equal(pressed, 1, 'a lone button is pressed')
+  assert.equal(s.leaving[singleKey], 'activated')
+  assert.equal(s.act(), 'ok')
+  assert.equal(s.leaving[bareKey], 'dismissed', 'a card with no buttons is dismissed')
+
+  // A web notification's only action is its click: it opens rather than going away.
+  const web = s.fakeNotification(4)
+  let opened = 0
+  web.actions = [{ identifier: 'default', text: 'Activate', invoke: () => { opened += 1 } }]
+  s.admit(web)
+  const webKey = s.toasts.get(0).key
+  assert.equal(s.act(), 'ok')
+  assert.equal(opened, 1, 'a card whose one action is its click is clicked')
+  assert.equal(s.leaving[webKey], 'activated')
+
+  // Its click and a button make two things to choose from.
+  const both = s.fakeNotification(5)
+  both.actions = [{ identifier: 'default', text: 'Activate' }, { identifier: 'reply', text: 'Reply' }]
+  s.admit(both)
+  assert.equal(s.act(), 'ok')
+  assert.deepEqual(picking, [severalKey, s.toasts.get(0).key], 'a click and a button hand the card the keyboard')
+
+  // A native app with no actions at all still has its own window to go to.
+  const focused = []
+  s.Hyprland.toplevels = { values: [{ lastIpcObject: { class: 'signal', pid: 42, address: '0xabc' } }] }
+  s.Hyprland.dispatch = x => focused.push(x)
+  const native = s.fakeNotification(6)
+  native.actions = []
+  native.hints = { 'sender-pid': 42 }
+  s.admit(native)
+  assert.equal(s.act(), 'ok')
+  assert.equal(focused.length, 1, "a card from an app with a window open focuses that window")
+  assert.equal(s.leaving[s.toasts.get(0).key], 'activated')
 }
 
 { // A clicked card rises out before it goes; a keypress clears every card with one jump.
@@ -744,12 +800,13 @@ for (const replay of [false, true]) { // Replay and startup restore share held r
 
 { // Repeated replay creates distinct cards; restore cannot overwrite an admitted key.
   const s = newCapacityScope()
-  s.restoreRows([{ key: 'same', summary: 'Original' }], true)
-  s.restoreRows([{ key: 'same', summary: 'Replay' }], true)
-  s.restoreRows([{ key: 'same', summary: 'Stale startup' }], false)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Original' }], true)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Replay' }], true)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Stale startup' }], false)
   s.drainCallLater()
   assert.deepEqual(summaries(s.toasts.rows), ['Replay', 'Original'])
   assert.equal(new Set(s.toasts.rows.map(r => r.key)).size, 2)
+  assert.equal(new Set(s.toasts.rows.map(r => r.groupKey)).size, 2, 'the replayed card is its own deck')
 }
 
 { // Clearing pending rows cancels their callbacks even if replay reuses the exact key.

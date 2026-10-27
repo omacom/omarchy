@@ -1,37 +1,41 @@
-# Visasisho
+# Masasisho
 
-Omarchy na vifurushi vyako huhifadhiwa vikiwa vya kisasa kupitia _Sasisha > Omarchy_ katika menyu ya Omarchy (`Super + Space`).
+Omarchy na vifurushi vyako huwekwa vikiwa vya kisasa kupitia _Sasisha > Omarchy_ katika menyu ya Omarchy (`Super + Space`).
 
-Omarchy yenyewe husakinishwa kama vifurushi vya kawaida vya pacman kutoka [Hifadhi ya Vifurushi ya Omarchy](https://github.com/omacom-io/omarchy-pkgs), hivyo sasisho husakinisha [toleo jipya zaidi la Omarchy](https://github.com/omacom/omarchy/releases), huendesha uhamaji wowote unaosubiri kuweka mfumo wako sawia na jipya zaidi, na husasisha vifurushi vyote vya mfumo kutoka [Kioo cha Arch cha Omarchy](https://github.com/omacom-io/omarchy-mirror) na [AUR](https://aur.archlinux.org/) (kama umesakinisha vifurushi vyovyote vya AUR).
+Omarchy yenyewe husakinishwa kama vifurushi vya kawaida vya pacman kutoka [Hifadhi ya Vifurushi ya Omarchy](https://github.com/omacom-io/omarchy-pkgs), kwa hivyo sasisho husakinisha [toleo jipya zaidi la Omarchy](https://github.com/omacom/omarchy/releases), huendesha uhamishaji wowote unaosubiri ili kuweka mfumo wako ukiendana na toleo jipya zaidi, na husasisha vifurushi vyote vya mfumo kutoka [Kioo cha Omarchy Arch](https://github.com/omacom-io/omarchy-mirror) na [AUR](https://aur.archlinux.org/) (ikiwa umesakinisha vifurushi vyovyote vya AUR).
 
-Wakati matoleo mapya yanapofanywa, aikoni ya mshale wa duara itaonekana kulia kwa saa yako. Ibofye na mchakato wa kusasisha utaanza.
+Matoleo mapya yanapotolewa, aikoni ya mshale wa duara itaonekana kulia kwa saa yako. Ibofye na mchakato wa kusasisha utaanza.
 
 ![update-available](images/update-available.webp)
 
-### Vituo vinne
+### Njia nne
 
-Omarchy husasishwa kupitia vituo vinne: stable, RC, edge, na dev. Usakinishaji mpya huanza kwenye kituo cha stable, ambacho hufuata [matoleo rasmi](https://github.com/omacom/omarchy/releases/), pamoja na [kioo thabiti cha Arch cha Omarchy](https://github.com/omacom-io/omarchy-mirror) kinachoendesha mwezi mmoja nyuma ya jipya zaidi, hivyo tunaweza kunasa kutokuingiliana kokote kupya kunakohitaji mabadiliko ya usanidi kabla hayajasababisha matatizo kwa watu.
+Omarchy husasishwa kupitia njia nne: stable, RC, edge, na dev. Usakinishaji mpya huanza kwenye njia ya stable, ambayo hufuata [matoleo rasmi](https://github.com/omacom/omarchy/releases/), pamoja na [kioo thabiti cha Omarchy Arch](https://github.com/omacom-io/omarchy-mirror) ambacho kiko nyuma kwa mwezi mmoja dhidi ya toleo jipya zaidi, ili tuweze kugundua kutopatana kupya kokote kunakohitaji mabadiliko ya usanidi kabla hakujasababisha matatizo kwa watu.
 
-Lakini kama ungependa kusaidia kuona masuala hayo yanayowezekana, unaweza kuendesha kwenye kituo cha edge. Hiyo itaweka vifurushi vyako vya Omarchy kufuata majenzi mapya zaidi ya uendelezaji, na inakuwezesha kusasisha hadi vifurushi vya hivi karibuni vya Arch mara vinapopatikana. Unapaswa kufanya hili tu kama una uzoefu na Linux, na unajua jinsi ya kurejesha mfumo wenye matatizo.
+Lakini kama ungependa kusaidia kugundua matatizo hayo yanayoweza kutokea, unaweza kutumia njia ya edge. Hiyo itaweka vifurushi vyako vya Omarchy vikifuata matoleo mapya zaidi ya uendelezaji, na itakuruhusu kusasisha hadi vifurushi vipya zaidi vya Arch mara tu vinapopatikana. Unapaswa kufanya hivi tu ikiwa una uzoefu na Linux, na unajua jinsi ya kurejesha mfumo wenye matatizo.
 
-Kabla ya toleo lolote kubwa jipya, tutakuwa tunafanya uhakiki wa mwisho kwa kutumia kituo cha RC. Kama una nia ya kusaidia na ung'arishaji wa mwisho, njoo uhangae katika #omarchy-release-candidates kwenye Discord.
+Kabla ya toleo lolote kubwa jipya, tutakuwa tunafanya uthibitishaji wa mwisho kwa kutumia njia ya RC. Kama una nia ya kusaidia katika ukamilishaji wa mwisho, njoo ujiunge nasi katika #omarchy-release-candidates kwenye Discord.
 
-Mwishowe, kuna kituo cha dev, ambacho huunganisha Omarchy moja kwa moja na nakala ya git ya msimbo wa chanzo katika `~/omarchy`, pamoja na vifurushi vya edge. Unapaswa kutumia kituo hiki tu kama wewe ni mtumiaji mwenye uzoefu wa Linux, unafanya kazi moja kwa moja kwenye Omarchy, na uko tayari kuvumilia kuvunjika.
+Mwishowe, kuna njia ya dev, ambayo huunganisha Omarchy moja kwa moja na nakala ya git ya msimbo asilia katika `~/omarchy`, ikiunganishwa na vifurushi vya edge. Unapaswa kutumia njia hii tu ikiwa wewe ni mtumiaji wa Linux mwenye uzoefu, unafanya kazi moja kwa moja kwenye Omarchy, na uko tayari kuvumilia kuharibika kwa mfumo.
 
-Unaweza kubadilisha kati ya vituo kwa kutumia _Sasisha > Kituo_ kutoka menyu ya Omarchy (au `omarchy-channel-set` katika terminali).
+Unaweza kubadilisha kati ya njia kwa kutumia _Sasisha > Njia_ kutoka menyu ya Omarchy (au `omarchy-channel-set` katika terminal).
 
-### Visasisho vya firmware
+### Kubadilisha kernel
 
-Vifurushi vyako si kitu pekee kinachochakaa. Kompyuta mpakato nyingi na vifaa vya pembeni husafirisha firmware ya BIOS, SSD, na doki kupitia Huduma ya Firmware ya Muuzaji wa Linux, na _Sasisha > Firmware_ katika menyu ya Omarchy itachukua na kusakinisha chochote ambacho vifaa vyako vinasubiri. Husakinisha `fwupd` mara ya kwanza unapoiendesha. Firmware nyingi zinaweza kuandikwa tu wakati wa kuwashwa upya, hivyo usishangae kuombwa kimoja.
+Omarchy huwasha kernel yake yenyewe ya `linux-omarchy`, lakini unaweza kuweka nyingine zimesakinishwa kando yake, kama kernel ya kawaida ya Arch ya `linux` au toleo la majaribio unalolijaribu. Kunapokuwa na zaidi ya moja, _Sasisha > Kernel_ katika menyu ya Omarchy huziordhesha huku ikiwa na alama ya tiki kando ya ile inayowasha kwa chaguo-msingi. Chagua nyingine, ingiza nenosiri lako mara moja, nayo itawasha baada ya kuwasha upya kunakofuata. Kernel nyingine hubaki kwenye menyu ya kuwasha, kwa hivyo bado unaweza kuchagua moja mwenyewe ikiwa chaguo-msingi kipya kitakupa matatizo. Katika terminal, ni `omarchy-kernel` kuona chaguo-msingi la sasa, `omarchy-kernel list` kwa kile kilichosakinishwa, na `omarchy-kernel set <kernel>` kubadilisha.
 
-### Onyo kuhusu visasisho vya moja kwa moja vya pacman/yay
+### Masasisho ya firmware
 
-Kama tayari unaifahamu Arch, unaweza kujaribiwa kuendesha tu `pacman -Syu` au `yay -Syu` mwenyewe, lakini kama utafanya hivyo, utakosa picha ya haraka, uhamaji, na visasisho vya usanidi ambavyo Omarchy huendesha pamoja na vifurushi vipya. Ndiyo maana Omarchy kwa kweli itasimamisha uboreshaji wa moja kwa moja wa mfumo na kukuelekeza kwenye `omarchy update` badala yake. (Kama kwa kweli unajua unachofanya, mlinzi atakuambia jinsi ya kuikwepa kwa muamala mmoja.)
+Vifurushi vyako siyo pekee vinavyopitwa na wakati. Kompyuta mpakato nyingi na vifaa vya pembeni husafirisha firmware ya BIOS, SSD, na dock kupitia Linux Vendor Firmware Service, na _Sasisha > Firmware_ katika menyu ya Omarchy italeta na kusakinisha chochote ambacho maunzi yako yanasubiri. Husakinisha `fwupd` mara ya kwanza unapoiendesha. Firmware nyingi zinaweza kuandikwa tu wakati wa kuwasha upya, kwa hivyo usishangae ukiombwa kufanya hivyo.
 
-### Kurudisha nyuma visasisho vibaya
+### Onyo kuhusu masasisho ya moja kwa moja ya pacman/yay
 
-Kama utawahi kuwa na tatizo baada ya kufanya sasisho, unaweza kurudisha mfumo wako nyuma hadi picha ya haraka iliyochukuliwa kabla ya sasisho. Anzisha upya tu na uchague picha ya haraka katika menyu ya upakiaji wa kuwasha kutoka kabla hujanza sasisho.
+Kama tayari unaifahamu Arch, unaweza kujaribiwa kuendesha tu `pacman -Syu` au `yay -Syu` mwenyewe, lakini ukifanya hivyo, utakosa snapshot, uhamishaji, na masasisho ya usanidi ambayo Omarchy huendesha pamoja na vifurushi vipya. Ndiyo maana Omarchy itasimamisha kweli uboreshaji wa moja kwa moja wa mfumo na kukuelekeza kwenye `omarchy update` badala yake. (Kama kweli unajua unachofanya, kilinzi kitakuambia jinsi ya kukipita kwa muamala mmoja.)
+
+### Kurejesha masasisho mabaya
+
+Kama utawahi kupata tatizo baada ya kufanya sasisho, unaweza kurudisha mfumo wako kwenye snapshot iliyochukuliwa kabla ya sasisho. Washa upya tu na uchague snapshot katika menyu ya upakiaji wa kuwasha kutoka kabla ya kuanza sasisho.
 
 ![bootloader](images/bootloader.webp)
 
-Kama kwa namna fulani faili zako za usanidi zimeharibika, unaweza pia kufanya usakinishaji upya wa Omarchy kwa kutumia `omarchy reinstall` katika terminali. Hii itasakinisha upya vifurushi vyote chaguomsingi vya Omarchy, kukuweka kwenye stable na kushusha vifurushi vyovyote ambavyo ni vipya sana, na kuweka upya faili zote za usanidi. Kumbuka kwamba mabadiliko yako yote ya usanidi wa mtumiaji kwa chaguomsingi za Omarchy yataandikwa juu kwa kufanya hivi!
+Kama kwa namna fulani faili zako za usanidi zimeharibika, unaweza pia kusakinisha upya Omarchy kwa kutumia `omarchy reinstall` katika terminal. Hii itasakinisha upya vifurushi vyote chaguo-msingi vya Omarchy, itakuweka kwenye stable na kushusha toleo la vifurushi vyovyote ambavyo ni vipya kupita kiasi, na kuweka upya faili zote za usanidi. Kumbuka kwamba mabadiliko yako yote ya usanidi wa mtumiaji kwenye chaguo-msingi za Omarchy yatafutwa kwa kufanya hivi!

@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Käyttäjä"
   },
-  "system.reboot-boot-menu": {
-    "label": "Käynnistä uudelleen käynnistysvalikkoon"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Näytä akun %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Piilota akun %"
+  },
+  "appearance.windows": {
+    "label": "Ikkunat"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Ikkunavälit päällä"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Ikkunavälit pois"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-ikkunan suhde päällä"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-ikkunan suhde pois"
+  },
+  "appearance.branding": {
+    "label": "Brändäys"
+  },
+  "appearance.animations-on": {
+    "label": "Animaatiot päällä"
+  },
+  "appearance.animations-off": {
+    "label": "Animaatiot pois"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Pysy hereillä"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Salli lepotila"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Ilmoitukset päällä"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Hiljennä ilmoitukset"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Yövalo päällä"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Yövalo pois"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Näytönsäästäjä päällä"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Näytönsäästäjä pois"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Kaatumistallennus päällä"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Kaatumiskaappaus pois"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Kannettavan näyttö päälle"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Kannettavan näyttö pois"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Näytön peilaus päälle"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Näytön peilaus pois"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Vaihda hybridi-GPU:hun"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Vaihda integroituun GPU:hun"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Ota kosketuslevy käyttöön"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Poista kosketuslevy käytöstä"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Ota kosketusnäyttö käyttöön"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Poista kosketusnäyttö käytöstä"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Ydin"
   }
 }

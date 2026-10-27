@@ -1,45 +1,45 @@
 # Vytvorenie vlastnej témy
 
-Vlastné témy môžete pridávať do `~/.config/omarchy/themes`. Stačí skopírovať jednu z existujúcich tém ako základ (pozrite sa do `/usr/share/omarchy/themes`) a potom si ju upravte podľa svojho gusta. Pokiaľ je vaša téma vo vnútri toho priečinka, bude zahrnutá do ponuky výberu témy.
+Vlastné témy môžete pridať do `~/.config/omarchy/themes`. Jednoducho si ako základ skopírujte niektorú z existujúcich tém (pozrite sa do `/usr/share/omarchy/themes`) a potom ju upravte podľa svojich predstáv. Pokiaľ bude vaša téma v tomto priečinku, objaví sa v ponuke na výber témy.
 
-Hlavný súbor, ktorý musíte upraviť, je `colors.toml`. Ten definuje sadu farieb, ktorá sa potom používa na generovanie konfigurácií pre terminál (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian a celý shell Omarchy (horná lišta, ponuka, upozornenia, OSD a zamknutá obrazovka).
+Hlavný súbor, ktorý musíte upraviť, je `colors.toml`. Ten definuje sadu farieb, ktorá sa potom použije na vygenerovanie konfigurácií pre terminál (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian a celé prostredie Omarchy (horná lišta, ponuka, oznámenia, OSD a uzamykacia obrazovka).
 
-Môžete tiež použiť priloženú aplikáciu Aether na vytvorenie novej témy pomocou príjemného grafického rozhrania, v ktorom sa môžete hrať s farbami a hľadať pozadia. Stačí ju spustiť zo siete aplikácií skratkou `Super + Alt + Space`.
+Na vytvorenie novej témy môžete použiť aj priloženú aplikáciu Aether s pôvabným GUI rozhraním, v ktorom sa môžete hrať s farbami a vyhľadávať pozadia. Jednoducho ju spustite z mriežky aplikácií pomocou `Super + Alt + Space`.
 
 ### Čo môže obsahovať nainštalovaná téma
 
-Téma, ktorú si sami napíšete v `~/.config/omarchy/themes`, môže obsahovať, čokoľvek chcete — je to váš stroj a váš súbor a Omarchy použije všetko z toho.
+Téma, ktorú si sami napíšete v `~/.config/omarchy/themes`, môže obsahovať, čokoľvek chcete — je to váš počítač a váš súbor a Omarchy použije všetko z nej.
 
-Téma, ktorú si nainštalujete z repozitára niekoho iného príkazom `omarchy theme install`, si zachová všetko, čo je farba, a stratí tú hŕstku súborov, ktoré by na vašom stroji spúšťali kód: akýkoľvek súbor `.lua`, konfigurácie terminálu (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`) a `vscode.json`. Súbor `hyprland.lua` témy je kód Lua, ktorý váš kompozitor spúšťa pri prihlásení, konfigurácia terminálu udáva program, ktorý váš terminál spúšťa, a `vscode.json` udáva rozšírenie VSCode, ktoré sa má nainštalovať. Inštalácia témy niekoho iného by mala zmeniť to, ako vaša pracovná plocha vyzerá, nikdy to, čo spúšťa.
+Téma, ktorú si nainštalujete z cudzieho repozitára pomocou `omarchy theme install`, si zachová všetko, čo sa týka farieb, a stratí hŕstku súborov, ktoré by na vašom počítači spúšťali kód: akýkoľvek súbor `.lua`, konfigurácie terminálu (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`) a `vscode.json`. `hyprland.lua` témy je Lua, ktoré váš kompozitor spúšťa pri prihlásení, konfigurácia terminálu uvádza program, ktorý váš terminál spúšťa, a `vscode.json` uvádza rozšírenie VSCode, ktoré sa má nainštalovať. Inštalácia cudzej témy má zmeniť vzhľad vašej pracovnej plochy, nikdy nie to, čo sa na nej spúšťa.
 
-Všetko ostatné naďalej funguje presne tak, ako to autor témy napísal — `btop.theme`, `chromium.theme`, `helix.toml`, `icons.theme`, `shell.toml`, pozadia a ukážky zostávajú všetky zachované. Len to, čo bolo zahodené, sa na vašom stroji znova vygeneruje zo súboru `colors.toml`.
+Všetko ostatné naďalej funguje presne tak, ako to autor témy napísal — `btop.theme`, `chromium.theme`, `helix.toml`, `icons.theme`, `shell.toml`, pozadia aj ukážky zostávajú zachované. Len to, čo bolo vynechané, sa na vašom počítači znovu vygeneruje z `colors.toml`.
 
-Omarchy ich rozlišuje podľa toho, či má téma vo vnútri vlastný git repozitár, čo je to, čo `omarchy theme install` zanechá po klonovaní. Takže téma, ktorú ste napísali, zostáva vašou, a tá, ktorú ste si stiahli z internetu, zostáva pri farbách.
+Omarchy ich od seba rozlišuje podľa toho, či má téma vo vnútri vlastný git repozitár, čo je to, čo po sebe zanechá `omarchy theme install`, keď repozitár naklonuje. Téma, ktorú ste napísali vy, tak zostane vaša a tá, ktorú ste si stiahli z internetu, zostane len farbami.
 
 ### Svetlý režim
 
-Ak vytvárate tému v svetlom režime, nastavte `mode = "light"` na začiatok svojho súboru `colors.toml`. Potom sa automaticky spáruje so svetlým režimom pre všetky aplikácie. (Starý spôsob, keď ste do koreňa svojej témy vložili prázdny súbor s názvom `light.mode`, stále funguje tiež.)
+Ak vytvárate tému so svetlým režimom, nastavte na začiatku súboru `colors.toml` hodnotu `mode = "light"`. Potom sa automaticky spáruje so svetlým režimom pre všetky aplikácie. (Starý spôsob, teda vloženie prázdneho súboru s názvom `light.mode` do koreňového priečinka témy, stále funguje tiež.)
 
 ### Farby ikon
 
-Ak chcete farebne zladiť ikony správcu súborov s vašou témou, pridajte súbor s názvom `icons.theme` s názvom sady ikon, ktorú chcete používať. Predvolene sú možnosti: `Yaru Yaru-blue Yaru-dark Yaru-magenta Yaru-olive Yaru-prussiangreen Yaru-purple Yaru-red Yaru-sage Yaru-wartybrown Yaru-yellow`.
+Ak chcete farebne zladiť ikony správcu súborov so svojou témou, pridajte súbor s názvom `icons.theme` obsahujúci názov sady ikon, ktorú chcete použiť. Predvolene sú k dispozícii tieto možnosti: `Yaru Yaru-blue Yaru-dark Yaru-magenta Yaru-olive Yaru-prussiangreen Yaru-purple Yaru-red Yaru-sage Yaru-wartybrown Yaru-yellow`.
 
-### Obrázok na odomknutie
+### Obrázok odomknutia
 
-Témy dodávané s obrázkami `unlock.png` a `preview-unlock.png` budú uvedené v časti _Štýl > Odomknúť_. Váš súbor `unlock.png` by mal byť najlepšie priehľadný png. A ukážkový obrázok môžete vytvoriť príkazom `omarchy plymouth preview`.
+Témy dodávané s obrázkami `unlock.png` a `preview-unlock.png` budú uvedené v časti _Vzhľad > Odomknutie_. Váš `unlock.png` by mal byť najlepšie priehľadný png. A ukážkový obrázok môžete vytvoriť pomocou `omarchy plymouth preview`.
 
-### Tematizácia aplikácií, ktoré Omarchy nepokrýva
+### Témovanie aplikácií, ktoré Omarchy nepokrýva
 
-Ak používate aplikáciu, ktorá nie je v tom zozname, môžete Omarchy naučiť, aby ju tematizoval sám, pomocou šablóny. Vložte súbor do `~/.config/omarchy/themed/` pomenovaný podľa konfigurácie, ktorú generuje, plus príponu `.tpl`, a napíšte konfiguráciu so zástupnými symbolmi `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` až `{{ color15 }}` a zvyšok palety. Zakaždým, keď prepnete témy, súbor sa znova vygeneruje s farbami danej témy.
+Ak používate aplikáciu, ktorá nie je v tomto zozname, môžete Omarchy naučiť témovať ju sami pomocou šablóny. Vložte do `~/.config/omarchy/themed/` súbor pomenovaný podľa konfigurácie, ktorú generuje, s príponou `.tpl` a napíšte konfiguráciu s použitím `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` až `{{ color15 }}` a zvyšku palety ako zástupných symbolov. Pri každom prepnutí témy sa súbor znovu vygeneruje s farbami danej témy.
 
-V tom priečinku je plne okomentovaný súbor `alacritty.toml.tpl.sample`, z ktorého môžete kopírovať — uvádza každú premennú, ktorú môžete použiť, plus modifikátory `_strip` a `_rgb` pre aplikácie, ktoré chcú svoje farby bez `#` alebo ako desatinné RGB. Vaše šablóny majú prednosť pred vlastnými šablónami Omarchy, takže toto môžete použiť aj na prepísanie toho, ako sa tematizuje vstavaná aplikácia.
+V tomto priečinku nájdete plne okomentovaný súbor `alacritty.toml.tpl.sample`, z ktorého môžete vychádzať — uvádza všetky premenné, ktoré môžete použiť, plus modifikátory `_strip` a `_rgb` pre aplikácie, ktoré chcú svoje farby bez `#` alebo ako desiatkové RGB. Vaše šablóny majú prednosť pred vlastnými šablónami Omarchy, takže to môžete použiť aj na prepísanie spôsobu, akým sa témuje vstavaná aplikácia.
 
 ### Distribúcia vašej témy
 
-Ak chcete svoju tému distribuovať, aby ju mohli používať aj ostatní, musíte ju umiestniť na verejný git server, napríklad GitHub. Potom si ju ľudia môžu nainštalovať cez _Inštalovať > Style > Theme_ v ponuke Omarchy pomocou tej adresy URL. Odporúča sa, aby ste dodržali konvenciu pomenovania `omarchy-[themename]-theme`, keďže téma sa po inštalácii v ponuke výberu témy správne zobrazí ako len `[themename]`.
+Ak chcete svoju tému distribuovať, aby ju mohli používať aj ostatní, musíte ju umiestniť na verejný git server, napríklad GitHub. Potom si ju ľudia môžu nainštalovať pomocou _Inštalácia > Štýl > Téma_ v ponuke Omarchy s použitím tejto URL. Odporúča sa dodržiavať konvenciu pomenovania `omarchy-[themename]-theme`, pretože sa téma po inštalácii v ponuke na výber témy správne zobrazí len ako `[themename]`.
 
-Ten zvyšný `[themename]` sa stane názvom adresára témy, takže musí byť taký, ktorý Omarchy dokáže bezpečne odovzdávať ďalej: musí začínať písmenom, číslicou alebo podčiarkovníkom a zvyšok môže obsahovať písmená, číslice, `.`, `_`, `+` a `-`. Veľké písmená sa pre vás premenia na malé, ale čokoľvek iné — medzera, úvodzovka, neanglický znak — sa pri inštalácii odmietne, namiesto toho, aby sa premenilo na názov adresára. Takže `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme` a `omarchy-c++-theme` sa všetky nainštalujú v poriadku.
+Tento zvyšný `[themename]` sa stane názvom priečinka témy, takže musí ísť o názov, ktorý Omarchy môže bezpečne odovzdávať ďalej: musí začínať písmenom, číslicou alebo podčiarkovníkom a zvyšok môže obsahovať písmená, číslice, `.`, `_`, `+` a `-`. Veľké písmená sa za vás prevedú na malé, ale čokoľvek iné — medzera, úvodzovka, neanglický znak — sa pri inštalácii odmietne, namiesto toho, aby sa z toho stal názov priečinka. Takže `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme` aj `omarchy-c++-theme` sa nainštalujú bez problémov.
 
-Pamätajte, že akonáhle sa nainštaluje z repozitára, akýkoľvek súbor `.lua`, konfigurácia terminálu alebo `vscode.json`, ktorý dodáva, sa zahodí, takže tému okolo nich nebudujte.
+Pamätajte, že akonáhle sa téma nainštaluje z repozitára, akékoľvek súbory `.lua`, konfigurácia terminálu alebo `vscode.json`, ktoré obsahuje, sa vynechajú, takže tému okolo nich nestavajte.
 
-Vašu tému môžete pridať na [stránku s ďalšími témami](https://omarchy.org/themes/) zaslaním pull requestu do [repozitára omarchy-site](https://github.com/omacom-io/omarchy-site).
+Svoju tému môžete pridať na [stránku s ďalšími témami](https://omarchy.org/themes/) zaslaním pull requestu do [repozitára omarchy-site](https://github.com/omacom-io/omarchy-site).
