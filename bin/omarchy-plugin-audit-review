@@ -10,14 +10,24 @@ report=$1
 [[ -t 0 && -t 1 ]] || exit 1
 
 show_page() {
+  local selected=${1:-}
+  local -a status
   # Gum's pager adds its own frame. Use Omarchy's existing less dependency
   # for borderless, wrapping details and disable its shell/editor escapes.
-  awk '
+  # Select and color in one writer so an early pager exit has one SIGPIPE to
+  # handle. A failed writer or pager must still abort the review.
+  awk -v selected="$selected" '
+    /^\[(HIGH|MEDIUM|LOW)\]/ { showing = ($0 == selected) }
+    /^Summary:/ { showing = 0 }
+    selected != "" && !showing { next }
     /^\[HIGH\]/ { print "\033[31;1m" $0 "\033[0m"; next }
     /^\[MEDIUM\]/ { print "\033[33;1m" $0 "\033[0m"; next }
     /^\[LOW\]/ { print "\033[36;1m" $0 "\033[0m"; next }
     { print }
-  ' | LESS= LESSSECURE=1 less -c -R -~ -P 'Arrows scroll / q returns'
+  ' "$report" | LESS= LESSSECURE=1 less -c -R -~ -P 'Arrows scroll / q returns' || {
+    status=("${PIPESTATUS[@]}")
+    (( status[0] == 141 && status[1] == 0 ))
+  }
 }
 
 mapfile -t findings < <(grep -E '^\[(HIGH|MEDIUM|LOW)\]' "$report" || true)
@@ -78,17 +88,13 @@ while :; do
     'Cancel') exit 1 ;;
     'Install plugin') exit 0 ;;
     'View full report')
-      show_page <"$report"
+      show_page
       ;;
     finding:*)
       index=${decision#finding:}
       [[ $index =~ ^[0-9]+$ ]] && (( index < ${#findings[@]} )) || exit 1
       # Only the selected finding's description and evidence go to the pager.
-      awk -v selected="${findings[index]}" '
-        /^\[(HIGH|MEDIUM|LOW)\]/ { showing = ($0 == selected) }
-        /^Summary:/ { showing = 0 }
-        showing { print }
-      ' "$report" | show_page
+      show_page "${findings[index]}"
       ;;
     *) exit 1 ;;
   esac

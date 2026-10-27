@@ -145,8 +145,12 @@ fi
 # private (0700), unpredictable parent for both the checkout and audit report.
 audit_workspace=$(mktemp -d /tmp/omarchy-plugin-add.XXXXXXXXXX)
 readonly audit_workspace
+install_workspace=""
 cleanup_audit() {
   rm -rf -- "$audit_workspace"
+  if [[ -n $install_workspace ]]; then
+    rm -rf -- "$install_workspace"
+  fi
 }
 trap cleanup_audit EXIT
 trap 'exit 129' HUP
@@ -181,7 +185,11 @@ if [[ -e $target || -L $target ]]; then
 fi
 
 mkdir -p "$PLUGINS_DIR"
-mv "$stage" "$target"
+# /tmp may be on a different filesystem. Copy accepted files into a hidden,
+# private destination-side workspace, then publish with a single rename.
+install_workspace=$(mktemp -d "$PLUGINS_DIR/.add.XXXXXXXXXX")
+cp -a -- "$stage" "$install_workspace/checkout"
+mv -T -- "$install_workspace/checkout" "$target"
 cleanup_audit
 echo "Added $id into $target"
 
