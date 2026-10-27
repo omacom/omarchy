@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Native messaging host: stream the current theme palette to the browser extension
+# omarchy:hidden=true
+
+# One event loop owns stdin, inotify and stdout. No child watcher, shared output
+# lock, temporary file, or desktop command is needed.
+exec /usr/bin/python "$OMARCHY_PATH/default/chromium/theme-sync-host.py"

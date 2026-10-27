@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Theme Sync · local test</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { max-width: 52rem; margin: 2rem auto; padding: 0 1.5rem; font: 1rem/1.6 system-ui, sans-serif; background: var(--omarchy-background, Canvas); color: var(--omarchy-foreground, CanvasText); }
+  h1 { font-size: 1.75rem; line-height: 1.2; }
+  h2 { margin-top: 2rem; font-size: 1.125rem; }
+  p { max-width: 65ch; }
+  a { color: inherit; text-underline-offset: .2em; }
+  a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+  code { overflow-wrap: anywhere; }
+  pre { padding: 1rem; border: 1px solid; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .875rem; }
+  iframe { width: 100%; height: 24rem; border: 1px solid; box-sizing: border-box; }
+  body.embedded { margin: .75rem; padding: 0 .5rem; }
+  .embedded h1 { font-size: 1.25rem; }
+</style>
+<body>
+  <h1>Theme Sync local test</h1>
+  <p id="instructions">Sharing starts off. Click <strong>Omarchy Theme Sync</strong> in Chromium’s extensions menu and approve this site. Click again to revoke it.</p>
+  <p>Current origin: <code id="origin"></code></p>
+  <pre id="state" aria-live="polite">Waiting for page initialization.</pre>
+  <section id="frames">
+    <h2>Frame isolation</h2>
+    <p>The frame below must have no injected API or properties. Same-origin scripts can still inspect an approved parent's DOM.</p>
+  </section>
+  <p id="other"></p>
+  <script>
+    function render() {
+      const api = window.omarchy;
+      document.querySelector('#origin').textContent = location.origin;
+      document.querySelector('#state').textContent = JSON.stringify({
+        sharing: !!api,
+        mode: api?.mode ?? null,
+        theme: api?.theme ?? null,
+        colors: api?.colors() ?? {},
+      }, null, 2);
+    }
+    document.addEventListener('omarchythemechange', render);
+    if (window === window.top) {
+      const frame = document.createElement('iframe');
+      frame.src = '/';
+      frame.title = 'Unshared same-site frame';
+      document.querySelector('#frames').appendChild(frame);
+      const link = document.createElement('a');
+      const url = new URL(location.href);
+      url.hostname = location.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
+      link.href = url.href;
+      link.textContent = 'Open the same page on a different origin (requires its own approval)';
+      document.querySelector('#other').appendChild(link);
+    } else {
+      document.body.classList.add('embedded');
+      document.querySelector('h1').textContent = 'Embedded frame';
+      document.querySelector('#instructions').textContent = 'No API or properties should be injected here.';
+      document.querySelector('#origin').parentElement.hidden = true;
+      document.querySelector('#frames').remove();
+    }
+    render();
+  </script>
+</body>
+</html>

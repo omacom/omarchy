@@ -20,7 +20,7 @@ mkdir -p "$stub_bin" "$test_tmp/home" "$omarchy_path/install/helpers" "$omarchy_
 printf 'browser_policy_setup_dir() { :; }\nas_root() { sudo "$@"; }\n' >"$omarchy_path/install/helpers/browser-policy.sh"
 cp "$ROOT/config/chromium-flags.conf" "$omarchy_path/config/"
 
-for command in omarchy-pkg-add omarchy-pkg-aur-add omarchy-install-chromium-copy-url omarchy-install-chromium-ytdlp omarchy-theme-set-browser omarchy-lifecycle-dispatch; do
+for command in omarchy-pkg-add omarchy-pkg-aur-add omarchy-install-chromium-copy-url omarchy-install-chromium-ytdlp omarchy-install-chromium-theme-sync omarchy-theme-set-browser omarchy-lifecycle-dispatch; do
   printf '#!/bin/bash\nexit 0\n' >"$stub_bin/$command"
 done
 cat >"$stub_bin/sudo" <<'SH'
@@ -41,7 +41,7 @@ reset_opt() {
 
 run() {
   : >"$calls"
-  HOME="$test_tmp/home" OMARCHY_PATH="$omarchy_path" OMARCHY_OPT_PATH="$opt_path" \
+  HOME="$test_tmp/home" XDG_CONFIG_HOME="$test_tmp/home/.config" OMARCHY_PATH="$omarchy_path" OMARCHY_OPT_PATH="$opt_path" \
     TEST_LOG="$calls" PATH="$stub_bin:$PATH" "$@" >/dev/null
 }
 

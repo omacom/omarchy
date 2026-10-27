@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Launch a disposable Chromium profile, native host, and loopback test page.
+# This is a manual development harness, not the graphical acceptance suite.
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+exec /usr/bin/python "$ROOT/test/shell.d/fixtures/chromium-theme-sync/local-browser.py" "$ROOT" "$@"

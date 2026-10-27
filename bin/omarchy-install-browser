@@ -6,6 +6,8 @@
 
 set -e
 
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+
 source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
 
 opt_path="${OMARCHY_OPT_PATH:-/opt}"
@@ -31,10 +33,13 @@ link_widevine_cdm() {
 }
 
 copy_chromium_flags() {
-  mkdir -p ~/.config
-  cp -f "$OMARCHY_PATH/config/chromium-flags.conf" "$1"
+  mkdir -p -- "$(dirname -- "$1")"
+  if [[ ! -e $1 && ! -L $1 ]]; then
+    cp -- "$OMARCHY_PATH/config/chromium-flags.conf" "$1"
+  fi
   omarchy-install-chromium-copy-url
   omarchy-install-chromium-ytdlp
+  omarchy-install-chromium-theme-sync "$1"
   omarchy-install-video-decode
 }
 
@@ -49,7 +54,7 @@ chromium)
   omarchy-pkg-add chromium
 
   setup_chromium_policy_directory /etc/chromium/policies/managed
-  copy_chromium_flags ~/.config/chromium-flags.conf
+  copy_chromium_flags "$CONFIG_HOME/chromium-flags.conf"
   omarchy-theme-set-browser
   omarchy-lifecycle-dispatch post-install chromium
   announce_browser_installed "Chromium"
@@ -59,7 +64,7 @@ chrome)
   omarchy-pkg-aur-add google-chrome || exit 1
 
   setup_chromium_policy_directory /etc/opt/chrome/policies/managed
-  copy_chromium_flags ~/.config/chrome-flags.conf
+  copy_chromium_flags "$CONFIG_HOME/chrome-flags.conf"
   omarchy-theme-set-browser
   omarchy-lifecycle-dispatch post-install chrome
   announce_browser_installed "Chrome"
@@ -69,7 +74,7 @@ edge)
   omarchy-pkg-aur-add microsoft-edge-stable-bin || exit 1
 
   setup_chromium_policy_directory /etc/opt/edge/policies/managed
-  copy_chromium_flags ~/.config/microsoft-edge-stable-flags.conf
+  copy_chromium_flags "$CONFIG_HOME/microsoft-edge-stable-flags.conf"
   omarchy-theme-set-browser
   omarchy-lifecycle-dispatch post-install edge
   announce_browser_installed "Edge"
@@ -79,7 +84,7 @@ brave)
   omarchy-pkg-aur-add brave-bin || exit 1
 
   setup_chromium_policy_directory /etc/brave/policies/managed
-  copy_chromium_flags ~/.config/brave-flags.conf
+  copy_chromium_flags "$CONFIG_HOME/brave-flags.conf"
   link_widevine_cdm brave-bin
   omarchy-theme-set-browser
   omarchy-lifecycle-dispatch post-install brave
@@ -90,7 +95,7 @@ brave-origin)
   omarchy-pkg-aur-add brave-origin-bin || exit 1
 
   setup_chromium_policy_directory /etc/brave/policies/managed
-  copy_chromium_flags ~/.config/brave-origin-flags.conf
+  copy_chromium_flags "$CONFIG_HOME/brave-origin-flags.conf"
   link_widevine_cdm brave-origin-bin
   omarchy-theme-set-browser
   omarchy-lifecycle-dispatch post-install brave-origin
