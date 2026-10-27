@@ -14,11 +14,16 @@ mkdir -p "$OMARCHY_PATH/themes/nord/backgrounds" "$HOME/.config/omarchy/themes/f
 
 printf 'aurora' >"$OMARCHY_PATH/themes/nord/backgrounds/1-aurora.png"
 printf 'shared' >"$OMARCHY_PATH/themes/nord/backgrounds/2-shared.jpg"
+# Sorts first with the same bytes as 1-aurora.png, but the picker cannot show it.
+printf 'aurora' >"$OMARCHY_PATH/themes/nord/backgrounds/0-aurora.bak"
 printf 'shared' >"$HOME/.config/omarchy/themes/fjord/backgrounds/copy.jpg"
 # Same content as 2-shared.jpg, so its quoted name goes through the hashing.
 printf 'shared' >"$HOME/.config/omarchy/themes/fjord/backgrounds/a'\$(touch pwned)'.jpg"
 printf 'forged' >"$HOME/.config/omarchy/themes/fjord/backgrounds/x"$'\n''1	..	y.jpg	hostname'
-ln -s "$OMARCHY_PATH/themes/nord/backgrounds/1-aurora.png" "$HOME/.local/state/omarchy/current/background"
+# omarchy-theme-set copies the theme's backgrounds, so the current one is a copy.
+mkdir -p "$HOME/.local/state/omarchy/current/theme/backgrounds"
+cp "$OMARCHY_PATH/themes/nord/backgrounds/1-aurora.png" "$HOME/.local/state/omarchy/current/theme/backgrounds/"
+ln -s "$HOME/.local/state/omarchy/current/theme/backgrounds/1-aurora.png" "$HOME/.local/state/omarchy/current/background"
 
 # The rows themselves come from omarchy-menu-images, covered by its own test.
 printf '#!/bin/bash\nprintf "rows %%s\\n" "${@: -1}"\n' >"$tmp/bin/omarchy-menu-images"
@@ -33,7 +38,7 @@ all="$XDG_CACHE_HOME/omarchy/backgrounds-all"
 [[ $(readlink "$all/nord · 1.png") == "$OMARCHY_PATH/themes/nord/backgrounds/1-aurora.png" ]] ||
   fail "all themes links to the theme's file"
 [[ $(sed -n 1p <<<"$output") == "all" && $(sed -n 2p <<<"$output") == "$all/nord · 1.png" ]] ||
-  fail "a view selects the current background first: $output"
+  fail "a view selects the current background, matched by content: $output"
 [[ $(<"$HOME/.local/state/omarchy/background-switcher-view") == "all" ]] ||
   fail "a fetched view is remembered for the next open"
 

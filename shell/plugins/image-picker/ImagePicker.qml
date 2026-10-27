@@ -206,13 +206,16 @@ Item {
   function switchView(step) {
     if (!hasViews || !requestActive) return
     viewIndex = (viewIndex + step + views.length) % views.length
+    // A running command keeps the serial it started with, so its output can
+    // never pass for a later opening's.
+    if (viewProc.running) viewProc.queuedSerial = requestSerial
+    else startView()
+  }
+
+  function startView() {
     viewProc.serial = requestSerial
-    if (viewProc.running) {
-      viewProc.queued = true
-    } else {
-      viewProc.command = viewCommand.concat([String(views[viewIndex].id)])
-      viewProc.running = true
-    }
+    viewProc.command = viewCommand.concat([String(views[viewIndex].id)])
+    viewProc.running = true
   }
 
   // Titles in the picker's own catalog; any other title is shown as given.
@@ -694,7 +697,7 @@ Item {
   Process {
     id: viewProc
     property int serial: 0
-    property bool queued: false
+    property int queuedSerial: 0
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -702,13 +705,13 @@ Item {
           root.loadView(String(text || ""))
       }
     }
-    // A switch made while a view loads starts once that process has gone.
+    // A switch made while a view loads starts once that process has gone,
+    // unless the picker it was made in has closed since.
     onRunningChanged: {
-      if (running || !queued) return
-      queued = false
-      if (serial !== root.requestSerial || !root.hasViews) return
-      command = root.viewCommand.concat([String(root.views[root.viewIndex].id)])
-      running = true
+      if (running || !queuedSerial) return
+      var queued = queuedSerial
+      queuedSerial = 0
+      if (queued === root.requestSerial && root.requestActive && root.hasViews) root.startView()
     }
   }
 

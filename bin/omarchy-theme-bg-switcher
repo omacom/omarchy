@@ -32,12 +32,17 @@ all_backgrounds_dir() {
     return
   fi
 
-  # Paths holding a tab or newline would break the tab-separated records.
+  # Only media the picker shows, so a stray copy (say a .bak) never claims a
+  # wallpaper's content. Paths holding a tab or newline would break the
+  # tab-separated records.
   # Only files that share a size are hashed, in one md5sum run, in order.
   list=$(
     # find lists each source in turn; numbering them keeps that order (stock
     # themes first) while sorting each source's files by name.
-    find -L "${sources[@]}" -maxdepth 1 -type f ! -path $'*\n*' ! -path $'*\t*' -printf '%h\t%s\t%f\t%p\n' 2>/dev/null |
+    find -L "${sources[@]}" -maxdepth 1 -type f ! -path $'*\n*' ! -path $'*\t*' \
+      \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' \
+         -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
+      -printf '%h\t%s\t%f\t%p\n' 2>/dev/null |
       awk -F '\t' '$1 != last { last = $1; source++ } { print source "\t" $0 }' |
       sort -t $'\t' -k1,1n -k4,4 |
       awk -F '\t' '
@@ -87,6 +92,25 @@ all_backgrounds_dir() {
   printf '%s\n' "$dir"
 }
 
+# Prints the entry in dirs showing the current background. omarchy-theme-set
+# copies a theme's backgrounds, and All themes lists one copy of each, so a
+# file with the same content counts when the file itself is not there.
+current_in_view() {
+  local match="" size candidate
+
+  [[ -n $current_background ]] || return 0
+  match=$(find -L "${dirs[@]}" -maxdepth 1 -type f -samefile "$current_background" -print -quit 2>/dev/null)
+  if [[ -z $match ]] && size=$(stat -L -c '%s' "$current_background" 2>/dev/null); then
+    while IFS= read -r -d '' candidate; do
+      if cmp -s "$candidate" "$current_background"; then
+        match=$candidate
+        break
+      fi
+    done < <(find -L "${dirs[@]}" -maxdepth 1 -type f -size "${size}c" -print0 2>/dev/null)
+  fi
+  printf '%s' "$match"
+}
+
 # Sets dirs to the folders that make up a view.
 set_view_dirs() {
   if [[ $1 == "all" ]]; then
@@ -105,9 +129,7 @@ if [[ ${1:-} == "--rows" ]]; then
 
   # The picker reads the view, then the image to select, then the rows.
   printf '%s\n' "$view"
-  selected=""
-  [[ -n $current_background ]] && selected=$(find -L "${dirs[@]}" -maxdepth 1 -type f -samefile "$current_background" -print -quit 2>/dev/null)
-  printf '%s\n' "$selected"
+  printf '%s\n' "$(current_in_view)"
   omarchy-menu-images --lazy-thumbnails --print-rows "${dirs[@]}"
 else
   view=""
@@ -121,8 +143,12 @@ else
   [[ $view == "all" ]] && flags+=(--lazy-thumbnails --show-labels --filterable)
   views='[{"id":"theme","title":"imagePicker.viewTheme"},{"id":"all","title":"imagePicker.viewAllThemes","labels":true,"filterable":true}]'
 
+  # omarchy-menu-images finds the current background itself, except as a copy.
+  selected=""
+  [[ $view == "all" ]] && selected=$(current_in_view)
+
   omarchy-menu-images "${flags[@]}" \
-    --selected "$current_background" \
+    --selected "${selected:-$current_background}" \
     --views "{\"current\":\"$view\",\"command\":[\"omarchy-theme-bg-switcher\",\"--rows\"],\"views\":$views}" \
     "${dirs[@]}"
 fi

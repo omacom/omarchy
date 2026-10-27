@@ -353,16 +353,16 @@ updateCtx.updateThemeRows('after-delete-rows')
 assertEqual(updateCtx.awaitingDeleteRefresh, false, 'the post-delete refresh loading rows releases the apply guard')
 
 // Views: Up and Down switch between image sets by running an Omarchy command.
-const viewFunctions = ['setViews', 'switchView', 'loadView']
+const viewFunctions = ['setViews', 'switchView', 'startView', 'loadView']
   .map(name => imagePickerQml.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}`))[0])
   .join('\n')
 const viewRoot = { requestActive: true, requestSerial: 4, filterText: 'x', loaded: null, views: [], viewCommand: [], viewIndex: 0,
   showLabels: false, filterable: false, selectedImage: '',
   get hasViews() { return this.views.length > 1 },
   loadRows(rows) { this.loaded = rows } }
-const viewProc = { running: false, queued: false }
+const viewProc = { running: false, serial: 0, queuedSerial: 0 }
 const viewContext = { root: viewRoot, viewProc }
-require('vm').runInNewContext(`with (root) { ${viewFunctions}; root.setViews = setViews; root.switchView = switchView; root.loadView = loadView }`, viewContext)
+require('vm').runInNewContext(`with (root) { ${viewFunctions}; root.setViews = setViews; root.switchView = switchView; root.startView = startView; root.loadView = loadView }`, viewContext)
 const views = [{ id: 'theme', title: 't' }, { id: 'all', title: 'a', labels: true, filterable: true }]
 
 viewRoot.setViews({ current: 'all', command: ['sh', '-c', 'id'], views })
@@ -373,9 +373,28 @@ assertEqual(viewRoot.viewIndex, 1, 'views open on the current view')
 viewRoot.switchView(1)
 assertEqual(viewRoot.viewIndex, 0, 'Down wraps past the last view')
 assertDeepEqual(viewProc.command, ['omarchy-theme-bg-switcher', '--rows', 'theme'], 'a view runs its command with the view id')
-assert(viewProc.running && !viewProc.queued, 'switching starts the view command')
+assert(viewProc.running && viewProc.serial === 4, 'switching starts the view command for this opening')
 viewRoot.switchView(-1)
-assert(viewProc.queued && viewRoot.viewIndex === 1, 'a switch while one loads is queued for the latest view')
+assert(viewProc.queuedSerial === 4 && viewRoot.viewIndex === 1, 'a switch while one loads is queued for the latest view')
+
+// The process-exit handler that starts a queued switch.
+const restartBody = imagePickerQml.match(/onRunningChanged: \{([\s\S]*?)\n    \}/)[1]
+const restart = require('vm').runInNewContext(`(function () { with (viewProc) { ${restartBody} } })`, viewContext)
+viewProc.running = false
+viewRoot.requestActive = false
+restart()
+assert(!viewProc.running && viewProc.queuedSerial === 0, 'a switch queued in a picker that has closed never starts')
+viewRoot.requestActive = true
+viewRoot.requestSerial = 5
+viewProc.running = true
+viewRoot.switchView(1)
+assertEqual(viewProc.serial, 4, 'a running command keeps the opening it started for, so its output is not taken for a later one')
+viewProc.running = false
+restart()
+assert(viewProc.running && viewProc.serial === 5, 'the queued switch starts for the current opening')
+viewRoot.switchView(-1)
+viewProc.running = false
+viewProc.queuedSerial = 0
 
 viewRoot.loadView('theme\n/themes/b.png\n/themes/a.png\t/c/a.jpg')
 assertEqual(viewRoot.loaded, null, 'output for a view already moved past is dropped')
