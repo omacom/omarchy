@@ -118,6 +118,7 @@ or `omarchy.power`. There is no `bar` target.
 | `togglePanelAt <section> <index>`     | toggle the panel at a bar position; any center section counts `centerBegin`, `center` and `centerEnd` as one |
 | `call <id> <method> <arg>`            | call an already-loaded plugin   |
 | `rescanPlugins`                       | re-walk plugin dirs and hot-reload plugin code |
+| `pausePlugins`                        | stop loading plugin QML until the shell restarts (used by the package-update guard) |
 | `reloadConfig`                        | reload shell.json               |
 | `applyTheme <colorsB64> <shellB64>`   | push theme colors + shell.toml  |
 | `toggleBarTransparency`               | cycle the bar background from clear to glassy to opaque |
@@ -134,6 +135,13 @@ or `omarchy.power`. There is no `bar` target.
 `setPluginEnabled` takes a string; only literal `"true"` enables. Methods
 answer on stdout with exit 0 — `ok` on success, `unknown` or an error
 string on a miss.
+
+`pausePlugins` is for package transactions. `/usr/share/omarchy` is
+replaced while the shell runs, and loading newly installed plugin QML
+into the old engine can fail on types that engine does not have. A paused
+shell keeps its already-loaded plugins working and is restarted when the
+transaction completes; it never resumes the old engine against the new
+tree.
 
 ## shell.json
 
