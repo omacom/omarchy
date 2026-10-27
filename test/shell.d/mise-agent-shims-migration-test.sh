@@ -9,7 +9,7 @@ require_command mise
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 migration="$ROOT/migrations/1792504295.sh"
-agents=(qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode)
+agents=(qwen dsh mcode goose kiro-cli freebuff kilo devin amp commandcode)
 
 # The settings package ships the declarations before migrations run.
 system_dir="$test_tmp/etc/mise"
