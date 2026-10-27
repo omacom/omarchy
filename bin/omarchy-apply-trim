@@ -1,0 +1,255 @@
+#!/bin/bash
+
+# omarchy:summary=Let TRIM reach the drive: allow discards through LUKS and trim free space weekly
+# omarchy:args=[--backlog]
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+# An SSD only learns that a block is free when the system discards (TRIMs) it.
+# Without that it keeps every block it was ever written as live data, and
+# sustained writes slow down as its free pool runs out: a Samsung 990 PRO wrote
+# 2.07 GB/s through LUKS while dirty and 6.57 GB/s right after a discard.
+# Encrypted installs made before the installer stored allow-discards in the
+# LUKS2 header never discard anything: dm-crypt drops every discard unless its
+# mapping allows them, so btrfs never turns on discard=async and fstrim reports
+# the operation unsupported.
+#
+# The omarchy package's pacman hook runs this once per machine, as root:
+#
+#   1. On a LUKS2 root without allow-discards, it stores allow-discards and
+#      no-read-workqueue in the header, the same persistent flags the installer
+#      sets on new installs. Every activation (the encrypt hook, sd-encrypt,
+#      systemd-cryptsetup) applies them from the next boot on, with no change
+#      to the kernel cmdline or the boot entries, and with no passphrase:
+#      writing the header's flags does not need the volume key. A volume with
+#      authenticated encryption (dm-integrity) is left alone: it cannot
+#      discard, and libcryptsetup refuses to open it with the flag set.
+#   2. It enables fstrim.timer, the weekly trim most distributions enable.
+#   3. It queues one trim of all free space for the next boot, where the
+#      discards reach the drive (omarchy-trim-backlog.service runs --backlog).
+#
+# It then records that it ran and never runs again, so an owner who removes the
+# flag keeps it removed: `sudo cryptsetup refresh --persistent <mapping>` with
+# the passphrase rewrites the header's flags to only those it is given.
+# Discards let an observer of the raw disk see which blocks are free, which
+# reveals filesystem type and usage patterns but no contents (cryptsetup FAQ
+# 5.19); every major distribution and the installer accept that trade.
+
+set -uo pipefail
+
+if (( EUID == 0 )); then
+  export PATH=/usr/local/bin:/usr/bin:/bin
+  state_dir=/var/lib/omarchy/trim
+elif [[ -n ${OMARCHY_TRIM_STATE_DIR:-} ]]; then
+  # Only a non-root test may move the state, so no environment variable can
+  # make a real machine apply this twice or skip it.
+  state_dir=$OMARCHY_TRIM_STATE_DIR
+else
+  echo "omarchy-apply-trim must run as root" >&2
+  exit 1
+fi
+
+applied=$state_dir/applied
+backlog=$state_dir/backlog
+
+# The block devices the mounted root filesystem is on: every member of a
+# btrfs, as the kernel reports them for the mounted filesystem (so a clone
+# with the same UUID never counts), or the mount source of anything else.
+root_devices() {
+  local fstype source
+
+  fstype=$(findmnt -no FSTYPE /) || return 1
+  if [[ $fstype == "btrfs" ]]; then
+    btrfs filesystem show / 2>/dev/null |
+      awk '$1 == "devid" { for (i = 1; i < NF; i++) if ($i == "path") print $(i + 1) }'
+  else
+    source=$(findmnt -no SOURCE /) || return 1
+    printf '%s\n' "${source%%\[*}"
+  fi
+}
+
+# Every dm-crypt mapping under the root filesystem, one per line: under each
+# of its devices, everything they sit on, so LUKS under LVM or a btrfs over two
+# LUKS volumes is covered. Fails when any device cannot be read, rather than
+# answer for part of the stack.
+root_crypt_mappings() {
+  local devices device stack="" below
+
+  devices=$(root_devices) || return 1
+  [[ -n $devices ]] || return 1
+  for device in $devices; do
+    below=$(lsblk -nlpso NAME,TYPE "$device") || return 1
+    stack+=$below$'\n'
+  done
+  awk '$2 == "crypt" && !seen[$1]++ { print $1 }' <<<"$stack"
+}
+
+# "<type> <device> <flags...>" for a dm-crypt mapping, from `cryptsetup
+# status`: type LUKS2, LUKS1 or PLAIN, the device under it, and its live
+# activation flags (discards, no_read_workqueue, ...).
+crypt_status() {
+  cryptsetup status "$1" 2>/dev/null | awk '
+    $1 == "type:" { type = $2 }
+    $1 == "device:" { device = $2 }
+    $1 == "flags:" { $1 = ""; flags = $0 }
+    END { if (type == "" || device == "") exit 1; print type, device flags }'
+}
+
+# A chroot or a container (an image build, pacstrap, a container booted from a
+# snapshot): package hooks and units run there for some other machine, whose
+# storage this must not touch.
+foreign_root() {
+  systemd-detect-virt --quiet --chroot || systemd-detect-virt --quiet --container
+}
+
+# The persistent activation flags in a LUKS2 header, as luksDump prints them.
+header_flags() {
+  cryptsetup luksDump "$1" 2>/dev/null | awk '$1 == "Flags:" { $1 = ""; print; exit }'
+}
+
+# Add allow-discards and no-read-workqueue to the persistent flags of the LUKS2
+# header on <device>, keeping any flags it already has. The cryptsetup command
+# line only writes these flags while opening or refreshing a mapping, which
+# needs the passphrase; libcryptsetup's crypt_persistent_flags_set needs only
+# the header, and writes it under the same metadata lock and with the same
+# two-copy commit as `cryptsetup config`. Exits 3, writing nothing, for a
+# header with authenticated encryption.
+add_header_flags() {
+  python3 - "$1" <<'PY'
+import ctypes, json, os, subprocess, sys
+
+CRYPT_ACTIVATE_ALLOW_DISCARDS = 1 << 3
+CRYPT_ACTIVATE_NO_READ_WORKQUEUE = 1 << 24
+CRYPT_FLAGS_ACTIVATION = 0
+
+lib = ctypes.CDLL("libcryptsetup.so.12")
+lib.crypt_init.argtypes = [ctypes.POINTER(ctypes.c_void_p), ctypes.c_char_p]
+lib.crypt_load.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_void_p]
+lib.crypt_persistent_flags_get.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_uint32)]
+lib.crypt_persistent_flags_set.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_uint32]
+lib.crypt_free.argtypes = [ctypes.c_void_p]
+
+def check(result, call):
+    if result < 0:
+        sys.exit(f"{call}: {os.strerror(-result)}")
+
+cd = ctypes.c_void_p()
+check(lib.crypt_init(ctypes.byref(cd), sys.argv[1].encode()), "crypt_init")
+try:
+    check(lib.crypt_load(cd, b"LUKS2", None), "crypt_load")
+    # Authenticated encryption (dm-integrity) cannot discard: libcryptsetup
+    # refuses to open such a volume at all once allow-discards is set.
+    dump = subprocess.run(["cryptsetup", "luksDump", "--dump-json-metadata", sys.argv[1]],
+                          capture_output=True, text=True, check=True).stdout
+    if any("integrity" in segment for segment in json.loads(dump)["segments"].values()):
+        sys.exit(3)
+    flags = ctypes.c_uint32()
+    check(lib.crypt_persistent_flags_get(cd, CRYPT_FLAGS_ACTIVATION, ctypes.byref(flags)), "crypt_persistent_flags_get")
+    wanted = CRYPT_ACTIVATE_ALLOW_DISCARDS | CRYPT_ACTIVATE_NO_READ_WORKQUEUE
+    check(lib.crypt_persistent_flags_set(cd, CRYPT_FLAGS_ACTIVATION, flags.value | wanted), "crypt_persistent_flags_set")
+finally:
+    lib.crypt_free(cd)
+PY
+}
+
+# Steps 1-3 above. Any step that cannot finish leaves no record, so the next
+# package update tries again; nothing here fails the update itself.
+apply() {
+  local mappings mapping status type device live timer
+
+  [[ ! -e $applied ]] || return 0
+
+  foreign_root && return 0
+
+  if ! mappings=$(root_crypt_mappings); then
+    echo "omarchy-apply-trim: cannot find the root filesystem's devices; trying again on the next update" >&2
+    return 0
+  fi
+
+  for mapping in $mappings; do
+    if ! status=$(crypt_status "$mapping"); then
+      echo "omarchy-apply-trim: cannot read the dm-crypt mapping $mapping; trying again on the next update" >&2
+      return 0
+    fi
+    read -r type device live <<<"$status"
+    # Already passing discards (the cmdline or crypttab allows them): leave it
+    # exactly as its owner set it up.
+    [[ " $live " != *" discards "* ]] || continue
+    case $type in
+      LUKS2)
+        [[ " $(header_flags "$device") " != *" allow-discards "* ]] || continue
+        add_header_flags "$device"
+        status=$?
+        if (( status == 3 )); then
+          echo "omarchy-apply-trim: $device uses authenticated encryption (dm-integrity), which cannot pass discards; leaving it as it is" >&2
+          continue
+        fi
+        if (( status != 0 )) || [[ " $(header_flags "$device") " != *" allow-discards "* ]]; then
+          echo "omarchy-apply-trim: could not store allow-discards in the LUKS2 header of $device; trying again on the next update" >&2
+          return 0
+        fi
+        echo "Stored allow-discards and no-read-workqueue in the LUKS2 header of $device; they apply from the next boot"
+        ;;
+      LUKS1)
+        echo "omarchy-apply-trim: $device is LUKS1, whose header has no persistent flags; its discards stay off unless the cmdline allows them" >&2
+        ;;
+      PLAIN)
+        echo "omarchy-apply-trim: $mapping is plain dm-crypt, which has no header to store flags in; its discards stay off unless the cmdline allows them" >&2
+        ;;
+      *)
+        # libcryptsetup answers "n/a" when it could not read the header.
+        echo "omarchy-apply-trim: cannot tell what kind of dm-crypt mapping $mapping is ($type); trying again on the next update" >&2
+        return 0
+        ;;
+    esac
+  done
+
+  # A masked timer is its owner's choice. Any other failure is tried again.
+  timer=$(systemctl is-enabled fstrim.timer 2>/dev/null)
+  if [[ $timer == masked* ]]; then
+    echo "omarchy-apply-trim: fstrim.timer is masked; leaving it masked" >&2
+  elif ! systemctl enable --now --quiet fstrim.timer; then
+    echo "omarchy-apply-trim: could not enable fstrim.timer; trying again on the next update" >&2
+    return 0
+  fi
+
+  install -d -m 0755 "$state_dir"
+  : >"$backlog"
+  : >"$applied"
+}
+
+# Step 3, run at boot by omarchy-trim-backlog.service while the backlog is
+# queued: trim every mounted filesystem's free space once, the way
+# fstrim.service does weekly. A mapping under the root whose header allows
+# discards but whose live table does not yet is waiting for the reboot that
+# applies them, so the backlog waits with it. Filesystems on devices that take
+# no discards are skipped quietly, as fstrim.service skips them.
+backlog() {
+  local mappings mapping status type device live
+
+  [[ -e $backlog ]] || return 0
+  foreign_root && return 0
+  mappings=$(root_crypt_mappings) || return 1
+
+  for mapping in $mappings; do
+    status=$(crypt_status "$mapping") || return 1
+    read -r type device live <<<"$status"
+    if [[ $type == LUKS2 && " $live " != *" discards "* &&
+      " $(header_flags "$device") " == *" allow-discards "* ]]; then
+      echo "$mapping does not pass discards until the next boot; trimming then"
+      return 0
+    fi
+  done
+
+  fstrim --listed-in /etc/fstab:/proc/self/mountinfo --verbose --quiet-unsupported || return 1
+  rm -f "$backlog"
+}
+
+case ${1:-} in
+  "") apply ;;
+  --backlog) backlog ;;
+  *)
+    echo "Usage: omarchy-apply-trim [--backlog]" >&2
+    exit 1
+    ;;
+esac

@@ -1,0 +1,14 @@
+# Queued once per machine by omarchy-apply-trim, which the omarchy package's
+# pacman hook runs; the condition keeps every other boot to a stat().
+[Unit]
+Description=Trim the free space the drive was never told about
+Documentation=man:fstrim(8)
+ConditionPathExists=/var/lib/omarchy/trim/backlog
+ConditionVirtualization=!container
+After=local-fs.target
+
+[Service]
+# exec, not oneshot: boot does not wait for the trim to finish.
+Type=exec
+ExecStart=/usr/bin/omarchy-apply-trim --backlog
+IOSchedulingClass=idle
