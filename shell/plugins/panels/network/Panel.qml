@@ -21,6 +21,11 @@ Panel {
   function close() {
     root.controller.hide()
     cancelPasswordPrompt()
+    manageSsid = ""
+  }
+
+  function toggleManage(ssid) {
+    manageSsid = manageSsid === ssid ? "" : ssid
   }
 
   function cancelPasswordPrompt() {
@@ -98,6 +103,42 @@ Panel {
   property string passwordSsid: ""
   property string passwordText: ""
   property string identityText: ""
+  // Whether the passphrase is shown in clear text. Lives here, next to
+  // passwordText, and NOT on the row: syncWifiNetworks() hands the ListView a
+  // fresh array on every scan, which rebuilds every delegate, so anything kept
+  // on the row would silently snap back to its default mid-typing.
+  property bool showPassword: false
+  // Keyboard path for the eye button, which is mouse-only (PanelActionButton is
+  // not focusable, and the key catcher is blocked while the prompt is open):
+  // Ctrl+E in either prompt field toggles the reveal. Returns whether the key
+  // was consumed so the field's own handling is skipped for it.
+  function handleRevealKey(event) {
+    if (!(event.modifiers & Qt.ControlModifier) || event.key !== Qt.Key_E) return false
+    showPassword = !showPassword
+    event.accepted = true
+    return true
+  }
+  // Connected row currently expanded to show its Disconnect / Forget actions.
+  property string manageSsid: ""
+  // Keyboard cursor inside that action row: `manageFocused` is true while the
+  // cursor sits on the buttons rather than the network row, `manageIndex`
+  // picks the button (0 = Disconnect, 1 = Forget). Kept on root, like
+  // manageSsid, because the row delegates are rebuilt on every scan.
+  property bool manageFocused: false
+  property int manageIndex: 0
+  // True while the row at `index` is the connected one with its action row open
+  // and idle. Those buttons sit between that row and the next, so the keyboard
+  // cursor has to walk through them in both directions, not just on the way down.
+  function manageOpenAt(index) {
+    if (manageSsid === "" || busy || index < 0 || index >= wifiNetworks.length) return false
+    var n = wifiNetworks[index]
+    return !!(n && n.connected && n.ssid === manageSsid)
+  }
+  // The same, for the keyboard-selected row.
+  readonly property bool selectedManageOpen: manageOpenAt(selectedIndex)
+  onManageSsidChanged: { manageFocused = false; manageIndex = 0 }
+  onSelectedIndexChanged: manageFocused = false
+  onSelectedManageOpenChanged: if (!selectedManageOpen) manageFocused = false
 
   // ConnectionFailReason values as a plain object, so Model.js helpers stay
   // pure JS and Node-testable.
@@ -125,7 +166,6 @@ Panel {
   property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
-  readonly property bool headerHasDisconnect: false
   readonly property bool canShareWifi: info.type === "wifi" && canShareNetwork(connectedWifiNetwork)
   // The hero switch is the Wi-Fi radio, so it only exists when there is a
   // radio to switch. On a wired box it would otherwise sit there reading
@@ -198,6 +238,25 @@ Panel {
     var max = Math.max(0, headerActionCount - 1)
     if (headerIndex > max) headerIndex = max
     if (headerIndex < 0) headerIndex = 0
+  }
+
+  // Move the keyboard cursor to the first stop from the top of the panel:
+  // header actions, then the band switch, then the DNS row. The Wi-Fi list is
+  // never the start, it is reached by walking down.
+  function focusTopmost() {
+    wifiActionFocused = false
+    manageFocused = false
+    if (hasCaptivePortal) {
+      focusSection = "portal"
+    } else if (headerActionCount > 0) {
+      focusSection = "header"
+      headerIndex = 0
+    } else if (canSelectBand) {
+      focusSection = "band"
+      bandAutoFocused = true
+    } else {
+      focusSection = "dns"
+    }
   }
 
   function selectHeaderByDelta(delta) {
@@ -323,6 +382,7 @@ Panel {
   // KeyboardPanel primes layer-shell focus whenever the panel opens. That's
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
+    manageSsid = ""
     if (opened) {
       refresh(true)
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
@@ -337,6 +397,8 @@ Panel {
       // the 100ms window reuses the running timer and re-enables the scanner
       // almost immediately, undoing the deferral #6605 restored.
       scanRestart.stop()
+      scanDone.stop()
+      scanning = false
       // Reset throughput tracking so the next open doesn't compute a fake
       // rate from a sample taken minutes ago.
       prevSampleTime = 0
@@ -357,6 +419,9 @@ Panel {
   // The KeyboardPanel's focusTarget covers initial popup-open; this handles
   // the inline-editor case where focus was handed off to a child.
   onPasswordSsidChanged: {
+    // Always start a prompt hidden: covers close, cancel, connect and
+    // switching to another network's prompt.
+    showPassword = false
     if (passwordSsid === "" && opened) {
       passwordText = ""
       Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
@@ -412,8 +477,53 @@ Panel {
     return net.security !== WifiSecurityType.Wpa2Eap && net.security !== WifiSecurityType.WpaEap
   }
 
+  // Up/down within the wifi section. While the connected row's Disconnect /
+  // Forget buttons are open, the buttons take the place of that row as a
+  // cursor stop: the row itself is only highlighted before the actions have
+  // been revealed. Arriving at it from above or below lands straight on the
+  // buttons, and leaving them goes straight on to the neighbouring row in the
+  // direction pressed (up → the row above, down → the row below), never back
+  // onto the connected row. Esc closes the actions and leaves the cursor on
+  // the row. Up from the top row escapes to the DNS row rather than wrapping
+  // around to the bottom of the list.
+  function moveWifiCursor(dy) {
+    // Cursor on the connected row with its actions already open (mouse hover,
+    // or arriving from the DNS row): down steps into the buttons.
+    if (!manageFocused && dy > 0 && selectedManageOpen) {
+      manageFocused = true
+      manageIndex = 0
+      return
+    }
+    if (dy < 0 && selectedIndex <= 0) {
+      manageFocused = false
+      focusSection = "dns"
+      wifiActionFocused = false
+      return
+    }
+    // Nowhere further down to go from the last row's buttons.
+    if (manageFocused && dy > 0 && selectedIndex >= wifiNetworks.length - 1) return
+
+    // Decide whether the neighbour is the row with open actions before the
+    // index moves, and apply it after: changing selectedIndex resets
+    // manageFocused.
+    var intoActions = manageOpenAt(selectedIndex + dy)
+    selectByDelta(dy)
+    if (intoActions) {
+      manageFocused = true
+      manageIndex = 0
+    }
+  }
+
   function selectWifiActionByDelta(delta) {
     if (selectedIndex < 0 || selectedIndex >= wifiNetworks.length) return
+    if (manageFocused) {
+      manageIndex = Math.max(0, Math.min(1, manageIndex + delta))
+      return
+    }
+    if (selectedManageOpen) {
+      if (delta > 0) { manageFocused = true; manageIndex = 0 }
+      return
+    }
     if (!canForgetNetwork(wifiNetworks[selectedIndex])) {
       wifiActionFocused = false
       return
@@ -423,17 +533,35 @@ Panel {
   }
 
   // Enter/Space on the highlighted row. Mirrors row-click semantics:
-  // connected → disconnect, credentials-required/unknown → prompt,
+  // connected → toggle Disconnect/Forget actions, credentials-required/unknown → prompt,
   // passwordless/known → connect.
   function activateSelected() {
     if (busy || selectedIndex < 0 || selectedIndex >= wifiNetworks.length) return
     var net = wifiNetworks[selectedIndex]
     if (!net) return
+    if (manageFocused && selectedManageOpen) {
+      if (manageIndex === 0) disconnectRow(net.ssid)
+      else forget(net)
+      return
+    }
     if (wifiActionFocused && canForgetNetwork(net)) { forget(net); return }
     // Only act on a row that still resolves. disconnect() falls back to
     // connectedWifiNetwork when handed null, so a row left stale by scan churn
     // would otherwise tear down whatever is connected now instead.
-    if (net.connected) { disconnectRow(net.ssid); return }
+    if (net.connected) {
+      toggleManage(net.ssid)
+      // Opening the actions from the keyboard puts the cursor straight on
+      // Disconnect, so the next Enter finishes the job. (toggleManage resets
+      // manageFocused/manageIndex via onManageSsidChanged, so this has to come
+      // after it.) h/l move to Forget, j/k walk on to the next/previous row
+      // (skipping this one), Esc closes the actions and leaves the cursor on
+      // the row.
+      if (manageSsid === net.ssid) {
+        manageFocused = true
+        manageIndex = 0
+      }
+      return
+    }
     if (requiresCredentials(net.security) && !net.known) { openPasswordPrompt(net.ssid); return }
     connectDirectly(net.ssid)
   }
@@ -586,9 +714,10 @@ Panel {
     }
     // A closed panel has no nearby-network list to fill, and bare refresh()
     // reaches here from action completion, timeouts and construction.
+    var willScan = false
     if (opened && wifiDevice) {
       if (scanWifi) {
-        scanning = true
+        willScan = true
         setScannerEnabled(false)
         scanRestart.start()
       } else {
@@ -596,6 +725,10 @@ Panel {
       }
     }
     syncWifiNetworks()
+    // After the sync: syncWifiNetworks() clears `scanning`, so raising the flag
+    // before it meant "Scanning Wi-Fi…" never showed. Now it stays up until
+    // fresh results land (onWifiNetworkObjectsChanged) or scanDone fires.
+    if (willScan) scanning = true
   }
 
   function formatHeaderSpeed(mbps) {
@@ -791,6 +924,7 @@ Panel {
   }
 
   function openPasswordPrompt(ssid) {
+    manageSsid = ""
     if (passwordSsid !== ssid) {
       passwordText = ""
       identityText = ""
@@ -815,6 +949,7 @@ Panel {
 
   function runNetworkAction(kind, network, callback) {
     if (actionKind !== "" || !network) return
+    manageSsid = ""
     var ssid = network.name || ""
     actionSsid = ssid
     actionKind = kind
@@ -950,6 +1085,8 @@ Panel {
       if (root.opened && root.wifiDevice) {
         root.setScannerEnabled(true)
         scanDone.start()
+      } else {
+        root.scanning = false
       }
     }
   }
@@ -1128,8 +1265,14 @@ Panel {
 
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) {
+          // First key press after opening: reveal the cursor on the topmost
+          // thing on screen instead of wherever the panel parked it (the
+          // first Wi-Fi row), so j/k walks the whole panel from the top.
+          // Decided now rather than at open time, because the header actions
+          // and band section only exist once the panel has its data.
           root.cursorActive = true
-          if (dy >= 0) return
+          root.focusTopmost()
+          return
         }
         if (dy !== 0) {
           // Hidden sections drop out of the keyboard chain entirely.
@@ -1186,15 +1329,15 @@ Panel {
             } else if (root.wifiNetworks.length > 0) {
               root.focusSection = "wifi"
               if (root.selectedIndex < 0) root.selectedIndex = 0
+              // Landing on the connected row with its actions open: go straight
+              // to the buttons, the row is not a stop any more.
+              if (root.selectedManageOpen) {
+                root.manageFocused = true
+                root.manageIndex = 0
+              }
             }
           } else {  // wifi
-            // k from the top row escapes back up to the DNS row rather than
-            // wrapping around to the bottom of the list.
-            if (dy < 0 && root.selectedIndex <= 0) {
-              root.focusSection = "dns"
-              root.wifiActionFocused = false
-            }
-            else root.selectByDelta(dy)
+            root.moveWifiCursor(dy)
           }
         }
         if (dx !== 0) {
@@ -1213,10 +1356,13 @@ Panel {
           else root.activateSelected()
         }
       }
-      onCloseRequested: root.close()
+      onCloseRequested: {
+        if (root.manageSsid !== "") root.manageSsid = ""
+        else root.close()
+      }
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
-        if (t === "r" || t === "R") root.refresh()
+        if (t === "r" || t === "R") root.refresh(true)
         else if (t === "w" || t === "W") root.toggleNetwork()
       }
 
@@ -1586,7 +1732,7 @@ Panel {
           width: parent.width
           spacing: Style.space(6)
 
-          readonly property int count: 4
+          readonly property int count: root.dnsProviders.length
           readonly property real cellWidth: (width - spacing * (count - 1)) / count
 
           DnsProviderPill {
@@ -1694,6 +1840,31 @@ Panel {
     }
   }
 
+  // An icon centred in a fixed-width slot by its *ink*, not by its advance box.
+  // Nerd Font glyphs carry different side bearings, so two icons centred by box
+  // (or by Text.AlignHCenter) land a pixel apart even in identical slots, which
+  // shows plainly when one sits right under the other (lock above, Forget below).
+  // The tight bounding rect is the glyph's real extent; x puts its middle on the
+  // slot's middle, whatever the glyph or size.
+  component SlotGlyph: Text {
+    id: glyph
+    property real slotWidth: 0
+    readonly property rect ink: glyphMetrics.tightBoundingRect
+
+    textFormat: Text.PlainText
+    font.family: root.bar.fontFamily
+    // Until the font has measured anything (empty rect), fall back to the box.
+    x: Math.round(ink.width > 0
+      ? (slotWidth - ink.width) / 2 - ink.x
+      : (slotWidth - implicitWidth) / 2)
+
+    TextMetrics {
+      id: glyphMetrics
+      font: glyph.font
+      text: glyph.text
+    }
+  }
+
   // One Wi-Fi band pill. `active` (fill) is the band actually in use and
   // `selected` (bold) is the pinned choice; with Automatic on nothing is
   // pinned, so only the live band lights up and the two can no longer read as
@@ -1759,14 +1930,14 @@ Panel {
 
   // A single Wi-Fi network entry. Collapses to a one-line pill normally;
   // expands inline to a passphrase prompt when the user picks a network that
-  // requires credentials we do not have. Clicking a connected row
-  // disconnects.
+  // requires credentials we do not have. Clicking a connected row expands
+  // its Disconnect / Forget actions.
   component NetworkRow: CursorSurface {
     id: row
     required property var net
     required property int index
 
-    readonly property bool isConnected: net && net.connected
+    readonly property bool isConnected: !!(net && net.connected)
     readonly property bool isKnown: !!(net && net.known)
     readonly property bool requiresCredentials: net ? root.requiresCredentials(net.security) : false
     readonly property bool isEnterprise: net
@@ -1776,6 +1947,16 @@ Panel {
     readonly property bool isSelected: root.focusSection === "wifi" && root.selectedIndex === index
     readonly property bool forgetFocused: isSelected && root.wifiActionFocused && canForget
     readonly property bool forgetVisible: canForget && (!requiresCredentials || forgetFocused || rightMouse.containsMouse)
+
+    // Width of the right-edge icon slot. The lock (or forget target) in the row
+    // and the Forget icon in the actions below it both use it and both end at
+    // the row's 10px inset, so the two icons share one centre line.
+    readonly property real actionSlotWidth: Style.space(22)
+
+    // Keyboard cursor is on this row's Disconnect/Forget buttons. The row keeps
+    // its own cursor look meanwhile: the buttons live inside the row's card, so
+    // the card stays highlighted and the button gets its own ring on top.
+    readonly property bool manageActionFocused: isManageOpen && isSelected && root.manageFocused
 
     hasCursor: root.cursorActive && isSelected && !root.wifiActionFocused
     current: isConnected
@@ -1787,6 +1968,18 @@ Panel {
     readonly property bool isBusy: root.actionKind !== "" && root.actionSsid === (net ? net.ssid : "")
     readonly property bool isFailed: root.failureReason !== "" && root.failureSsid === (net ? net.ssid : "")
     readonly property bool isPasswordOpen: root.passwordSsid !== "" && root.passwordSsid === (net ? net.ssid : "")
+    readonly property bool isManageOpen: isConnected && !isBusy && root.manageSsid !== "" && root.manageSsid === (net ? net.ssid : "")
+
+    // Hovering a Disconnect/Forget button with the mouse moves the same
+    // cursor the keyboard drives, so both always highlight the same button.
+    function focusManageAction(i) {
+      root.cursorActive = true
+      root.focusSection = "wifi"
+      root.selectedIndex = row.index
+      root.wifiActionFocused = false
+      root.manageFocused = true
+      root.manageIndex = i
+    }
 
     function submitCredentials() {
       if (!net || root.busy || root.passwordText.length === 0) return
@@ -1797,6 +1990,7 @@ Panel {
     Connections {
       target: row.net ? root.networkForSsid(row.net.ssid) : null
       function onConnectionFailed(reason) {
+        if (!row.net) return
         // Background auto-connect retries fire this too; only reprompt for
         // the connect started from this panel. Checked before
         // failNetworkAction, which clears the action state.
@@ -1835,7 +2029,9 @@ Panel {
       return Qt.darker(root.bar.foreground, 1.5)
     }
 
-    implicitHeight: rowBody.implicitHeight + (isPasswordOpen ? passwordPanel.implicitHeight + Style.spacing.md : 0)
+    implicitHeight: rowBody.implicitHeight
+      + (isPasswordOpen ? passwordPanel.implicitHeight + Style.spacing.md : 0)
+      + (isManageOpen ? managePanel.implicitHeight + Style.spacing.md : 0)
 
     MouseArea {
       id: rowMouse
@@ -1851,7 +2047,7 @@ Panel {
       // Move the cursor here when the mouse enters; mouse leaving doesn't
       // clear it (so the cursor stays where the mouse last was and
       // subsequent j/k pick up from this row).
-      onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = false }
+      onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = false; root.manageFocused = false }
 
       onClicked: {
         if (!row.net) return
@@ -1862,7 +2058,7 @@ Panel {
         root.selectedIndex = row.index
         root.wifiActionFocused = false
         if (row.isConnected) {
-          root.disconnectRow(row.net.ssid)
+          root.toggleManage(row.net.ssid)
           return
         }
         if (row.requiresCredentials && !row.isKnown) {
@@ -1900,21 +2096,18 @@ Panel {
       Item {
         id: rightAction
         visible: row.requiresCredentials || row.canForget
-        width: Style.space(22)
+        width: row.actionSlotWidth
         implicitHeight: lockIndicator.implicitHeight
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
 
-        Text {
+        SlotGlyph {
           id: lockIndicator
-          textFormat: Text.PlainText
           visible: row.requiresCredentials || row.forgetVisible
-          width: parent.width
+          slotWidth: parent.width
           anchors.verticalCenter: parent.verticalCenter
-          horizontalAlignment: Text.AlignHCenter
-          text: row.forgetVisible ? "󰅙" : "󰌾"
+          text: row.forgetVisible ? "󰆴" : "󰌾"
           color: row.forgetVisible ? root.bar.urgent : Qt.darker(root.bar.foreground, 1.4)
-          font.family: root.bar.fontFamily
           font.pixelSize: Style.font.subtitle
         }
 
@@ -1934,12 +2127,12 @@ Panel {
           acceptedButtons: Qt.LeftButton
           enabled: row.canForget && !root.busy
           cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-          onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = true }
+          onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = true; root.manageFocused = false }
           onClicked: if (row.net) root.forget(row.net)
         }
 
         PanelToolTip {
-          visible: rightMouse.containsMouse || row.forgetFocused
+          visible: rightMouse.containsMouse
           text: Commons.I18n.t("network.forgetNetwork")
           fontFamily: root.bar.fontFamily
         }
@@ -1993,6 +2186,198 @@ Panel {
       }
     }
 
+    // Inline actions for the connected network — revealed by clicking its row
+    // or pressing Enter on it. Forget (red) removes the saved profile, which
+    // also drops the connection; Disconnect keeps the profile so the network
+    // can be rejoined later.
+    // Keyboard: Enter on the row opens this and lands on Disconnect, h/l pick
+    // Disconnect or Forget, Enter fires, k / Esc go back to the row.
+    // Both buttons read the same cursor state (keyboard AND mouse hover go
+    // through row.focusManageAction), so whatever is highlighted is what
+    // Enter hits.
+    Item {
+      id: managePanel
+      visible: row.isManageOpen
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.top: rowMouse.bottom
+      anchors.leftMargin: Style.space(10)
+      anchors.rightMargin: Style.space(10)
+      anchors.topMargin: Style.space(4)
+      implicitHeight: manageActions.implicitHeight
+      height: implicitHeight
+
+      RowLayout {
+        id: manageActions
+        anchors.left: parent.left
+        anchors.right: parent.right
+        spacing: Style.space(8)
+
+        // Disconnect: a soft tonal button. Idle it is a quiet rounded fill; under
+        // the cursor (keyboard or mouse, same state) a real Button draws the
+        // hover chrome behind the icon and label, so it is the same look and the
+        // same code path as a hovered DNS pill. The icon and label keep the
+        // normal foreground colour.
+        Item {
+          id: disconnectAction
+          Layout.fillWidth: true
+          Layout.preferredWidth: 1
+          implicitHeight: Math.max(disconnectIcon.implicitHeight, disconnectLabel.implicitHeight)
+            + 2 * (Style.spacing.controlPaddingY + Style.space(2))
+          enabled: !root.busy
+          opacity: enabled ? 1.0 : 0.5
+
+          readonly property bool hasCursor: root.cursorActive
+            && row.manageActionFocused && root.manageIndex === 0
+          // Icon and label keep the normal foreground colour in every state.
+          readonly property color content: root.bar.foreground
+
+          // Small tactile press (90ms OutCubic).
+          scale: disconnectMouse.pressed ? 0.98 : 1.0
+          Behavior on scale {
+            NumberAnimation { duration: Style.duration(90); easing.type: Easing.OutCubic }
+          }
+
+          // Idle: exactly an idle DnsProviderPill (bordered Button, no cursor),
+          // so it matches Custom / DHCP when nothing is hovered.
+          Button {
+            anchors.fill: parent
+            opacity: disconnectAction.hasCursor ? 0.0 : 1.0
+            visible: opacity > 0.01
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            bordered: true
+            hasCursor: false
+            Behavior on opacity {
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+            }
+          }
+
+          // Hover / keyboard cursor: the default hover chrome (same as a
+          // hovered DnsProviderPill), fading in over the idle one. Clicks and
+          // hover are handled by disconnectMouse on top, which drives the
+          // shared cursor.
+          Button {
+            anchors.fill: parent
+            opacity: disconnectAction.hasCursor ? 1.0 : 0.0
+            visible: opacity > 0.01
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            bordered: true
+            hasCursor: true
+            Behavior on opacity {
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+            }
+          }
+
+          RowLayout {
+            anchors.centerIn: parent
+            spacing: Style.space(8)
+
+            Text {
+              id: disconnectIcon
+              textFormat: Text.PlainText
+              Layout.alignment: Qt.AlignVCenter
+              text: "󰤮"
+              color: disconnectAction.content
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.title
+            }
+
+            Text {
+              id: disconnectLabel
+              textFormat: Text.PlainText
+              Layout.alignment: Qt.AlignVCenter
+              text: Commons.I18n.t("network.disconnect")
+              color: disconnectAction.content
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.body
+              font.letterSpacing: 0.4
+            }
+          }
+
+          MouseArea {
+            id: disconnectMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onContainsMouseChanged: if (containsMouse) row.focusManageAction(0)
+            onClicked: if (row.net) root.disconnectRow(row.net.ssid)
+          }
+
+          // Mouse hover only, like the Forget tooltip; the keyboard cursor
+          // already has the button's own highlight.
+          PanelToolTip {
+            visible: disconnectMouse.containsMouse
+            text: Commons.I18n.t("network.disconnect")
+            fontFamily: root.bar.fontFamily
+          }
+        }
+
+        // Forget: icon only, no box. The highlight appears on hover/cursor.
+        Item {
+          id: forgetAction
+          Layout.fillWidth: false
+          Layout.alignment: Qt.AlignVCenter
+          // Same width slot as the lock above it, and the actions row ends at
+          // the same inset as the row body, so the trash icon sits directly
+          // under the lock. Height still follows Disconnect.
+          Layout.preferredWidth: row.actionSlotWidth
+          Layout.preferredHeight: disconnectAction.implicitHeight
+          enabled: !root.busy
+          opacity: enabled ? 1.0 : 0.4
+
+          readonly property bool hasCursor: root.cursorActive
+            && row.manageActionFocused && root.manageIndex === 1
+          // The slot is narrow, so the ring and the hit area are a small square
+          // centred on the icon; they stretch a few px past the slot, well
+          // inside the row's inset.
+          readonly property real hitSize: Math.min(Style.space(28), height)
+
+          // Same Button hover chrome as the DNS pills, tinted urgent (the same
+          // foreground/accent override the captive-portal button uses).
+          Button {
+            anchors.centerIn: parent
+            width: forgetAction.hitSize
+            height: forgetAction.hitSize
+            visible: forgetAction.hasCursor
+            foreground: root.bar.urgent
+            accent: root.bar.urgent
+            fontFamily: root.bar.fontFamily
+            bordered: true
+            hasCursor: forgetAction.hasCursor
+          }
+
+          // Same ink-centering as the lock above, so the two icons are on one
+          // vertical line.
+          SlotGlyph {
+            slotWidth: parent.width
+            anchors.verticalCenter: parent.verticalCenter
+            text: "󰆴"
+            color: root.bar.urgent
+            font.pixelSize: Style.font.title
+          }
+
+          MouseArea {
+            id: forgetMouse
+            anchors.centerIn: parent
+            width: forgetAction.hitSize
+            height: forgetAction.hitSize
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onContainsMouseChanged: if (containsMouse) row.focusManageAction(1)
+            onClicked: if (row.net) root.forget(row.net)
+          }
+
+          PanelToolTip {
+            visible: forgetMouse.containsMouse
+            text: Commons.I18n.t("network.forgetNetwork")
+            fontFamily: root.bar.fontFamily
+          }
+        }
+      }
+    }
+
     // Inline passphrase prompt — shown when we hit a protected network we
     // don't have saved credentials for, or when a connect fails because the
     // saved passphrase is wrong. Submitting (Enter or the check button) fires
@@ -2013,9 +2398,8 @@ Panel {
         id: idField
         visible: row.isEnterprise && !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: connectPwBtn.left
+        anchors.right: parent.right
         anchors.top: parent.top
-        anchors.rightMargin: Style.space(6)
         placeholderText: Commons.I18n.t("network.identity")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -2028,6 +2412,7 @@ Panel {
         onAccepted: pwField.forceActiveFocus()
         onTextChanged: if (row.isPasswordOpen && text !== root.identityText) root.identityText = text
         Keys.onEscapePressed: root.cancelPasswordPrompt()
+        Keys.onPressed: function(event) { root.handleRevealKey(event) }
 
         onVisibleChanged: if (visible) Qt.callLater(forceActiveFocus)
         Component.onCompleted: if (visible) Qt.callLater(forceActiveFocus)
@@ -2037,11 +2422,11 @@ Panel {
         id: pwField
         visible: !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: connectPwBtn.left
+        anchors.right: revealPwBtn.left
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
-        password: true
+        password: !root.showPassword
         placeholderText: Commons.I18n.t("network.passphrase")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -2054,6 +2439,7 @@ Panel {
         onAccepted: row.submitCredentials()
         onTextChanged: if (row.isPasswordOpen && text !== root.passwordText) root.passwordText = text
         Keys.onEscapePressed: root.cancelPasswordPrompt()
+        Keys.onPressed: function(event) { root.handleRevealKey(event) }
 
         onVisibleChanged: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
         Component.onCompleted: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
@@ -2075,10 +2461,30 @@ Panel {
           anchors.fill: parent
           horizontalAlignment: Text.AlignHCenter
           verticalAlignment: Text.AlignVCenter
-          text: row.isFailed ? Commons.I18n.t("network.wrongPassword") : Commons.I18n.t("network.connecting")
+          text: row.isFailed ? (root.failureReason || Commons.I18n.t("network.wrongPassword")) : Commons.I18n.t("network.connecting")
           color: row.isFailed ? root.bar.urgent : root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
+        }
+      }
+
+      // Eye toggle: shows/hides the passphrase being typed. Sits on the
+      // passphrase field's row, immediately left of the connect button.
+      PanelActionButton {
+        id: revealPwBtn
+        visible: !row.isBusy && !row.isFailed
+        anchors.right: connectPwBtn.left
+        anchors.rightMargin: Style.space(6)
+        anchors.verticalCenter: pwField.verticalCenter
+        iconText: root.showPassword ? "󰈉" : "󰈈"
+        tooltipText: (root.showPassword
+          ? Commons.I18n.t("network.hidePassword")
+          : Commons.I18n.t("network.showPassword")) + " (Ctrl+E)"
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        onClicked: {
+          root.showPassword = !root.showPassword
+          pwField.forceActiveFocus()
         }
       }
 
@@ -2089,8 +2495,8 @@ Panel {
         id: connectPwBtn
         visible: !row.isBusy && !row.isFailed
         anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
+        anchors.verticalCenter: pwField.verticalCenter
+        enabled: !!row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
         iconText: "󰄬"
         tooltipText: Commons.I18n.t("network.connect")
         foreground: root.bar.foreground

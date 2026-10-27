@@ -258,15 +258,6 @@ function pingPacketLossPercent(samples) {
   return Math.round((lost / values.length) * 100)
 }
 
-// Ping and loss only mean something once the internet is reachable. Behind a
-// portal, on a limited link or offline every probe is lost by design, so the
-// rows read "--" instead of a "Timeout" and "100%" that just restate that.
-function internetPingReadable(samples, connectivity) {
-  var values = Array.isArray(samples) ? samples : []
-  if (connectivity === "portal" || connectivity === "limited" || connectivity === "none") return false
-  return values.length > 0
-}
-
 function formatPacketLoss(percent, hasSamples, fmt) {
   var f = formatter(fmt)
   if (hasSamples === false) return "--"
@@ -311,6 +302,17 @@ function formatBytes(bytes, fmt) {
 
 function formatRate(bytesPerSec, fmt) {
   return formatBytes(bytesPerSec, fmt) + "/s"
+}
+
+// Whether the internet ping/packet-loss rows have anything honest to show.
+// Needs at least one probe (a lost probe counts: it is real loss on a working
+// link), and a connectivity state in which the probe target is reachable by
+// design. Behind a captive portal, on a limited link, or offline the target
+// is not reachable, so the rows read "--" instead of reporting phantom loss.
+// "unknown" means connectivity checks are off, so there is nothing to second-guess.
+function internetPingReadable(samples, connectivity) {
+  if (!Array.isArray(samples) || samples.length === 0) return false
+  return connectivity === "full" || connectivity === "unknown"
 }
 
 // `hasSamples` false means no probe has come back yet, which is different from
@@ -435,11 +437,11 @@ if (typeof module !== "undefined") {
     throughputState: throughputState,
     pingLatencyState: pingLatencyState,
     pingPacketLossPercent: pingPacketLossPercent,
-    internetPingReadable: internetPingReadable,
     formatPacketLoss: formatPacketLoss,
     formatBytes: formatBytes,
     formatRate: formatRate,
     formatPingLatency: formatPingLatency,
+    internetPingReadable: internetPingReadable,
     wifiRow: wifiRow,
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
