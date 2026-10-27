@@ -132,17 +132,21 @@ ShellRoot {
     if (bar && "barConfig" in bar)
       bar.barConfig = shell.barConfigFor(shell.activeBarManifest)
   }
+  // The default shell.json is package-owned: it changes only when an update
+  // replaces /usr/share/omarchy. Watching it made a running shell apply the
+  // new plugin list while the tree was still being written, so the old engine
+  // lazily loaded new plugin QML it could not compile (#16126). Read it at
+  // startup; the update restarts the shell once the transaction is complete.
   FileView {
     id: defaultsFile
     path: shell.defaultsPath
-    watchChanges: true
+    watchChanges: false
     printErrors: false
     onLoaded: shell.loadDefaults(text())
     onLoadFailed: function(error) {
       console.warn("default shell.json load failed: " + error + " path=" + shell.defaultsPath)
       shell.loadDefaults("")
     }
-    onFileChanged: reload()
   }
 
   FileView {
