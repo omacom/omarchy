@@ -1,0 +1,5 @@
+/* An explicit Ghostty blur opt-out must also undo Glassy's shared GTK blur.
+   Ghostty loads this after user GTK CSS and reloads it with its config. */
+window {
+  backdrop-filter: none;
+}
