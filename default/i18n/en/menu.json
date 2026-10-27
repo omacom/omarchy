@@ -207,7 +207,7 @@
     "label": "Opaque Windows"
   },
   "appearance.windows.transparency.transparent": {
-    "label": "Transparent Windows"
+    "label": "Theme Windows"
   },
   "appearance.windows.transparency.glassy": {
     "label": "Glassy Windows"

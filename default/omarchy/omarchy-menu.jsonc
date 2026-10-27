@@ -95,7 +95,7 @@
   "appearance.windows.corners.rounded": {"icon":"󰘇","label":"Rounded Corners","checked":"[[ $(omarchy-hyprland-corners) == \"rounded\" ]]","action":"omarchy-hyprland-corners rounded"},
   "appearance.windows.transparency": {"icon":"󰂵","label":"Window Opacity"},
   "appearance.windows.transparency.opaque": {"icon":"󰝤","label":"Opaque Windows","checked":"[[ $(omarchy-hyprland-window-transparency) == \"opaque\" ]]","action":"omarchy-hyprland-window-transparency opaque"},
-  "appearance.windows.transparency.transparent": {"icon":"󰝣","label":"Transparent Windows","checked":"[[ $(omarchy-hyprland-window-transparency) == \"transparent\" ]]","action":"omarchy-hyprland-window-transparency transparent"},
+  "appearance.windows.transparency.transparent": {"icon":"󰝣","label":"Theme Windows","checked":"[[ $(omarchy-hyprland-window-transparency) == \"transparent\" ]]","action":"omarchy-hyprland-window-transparency transparent"},
   "appearance.windows.transparency.glassy": {"icon":"󰂵","label":"Glassy Windows","checked":"[[ $(omarchy-hyprland-window-transparency) == \"glassy\" ]]","action":"omarchy-hyprland-window-transparency glassy"},
   "appearance.windows.one-window-ratio-on": {"icon":"","label":"1-Window Ratio On","when":"! omarchy-hyprland-toggle-enabled single-window-aspect-ratio","action":"omarchy-hyprland-window-single-square-aspect-toggle"},
   "appearance.windows.one-window-ratio-off": {"icon":"","label":"1-Window Ratio Off","when":"omarchy-hyprland-toggle-enabled single-window-aspect-ratio","action":"omarchy-hyprland-window-single-square-aspect-toggle"},
