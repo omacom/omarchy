@@ -368,6 +368,14 @@ cleanup_on_exit() {
 
   if [[ -n ${sudo_keepalive_pid:-} ]]; then
     kill "$sudo_keepalive_pid" 2>/dev/null || true
+    wait "$sudo_keepalive_pid" 2>/dev/null || true
+  fi
+
+  # Stopping the keepalive is not enough: the timestamp it refreshed stays
+  # valid for the sudo timeout, so the upgrade's authorization would outlive
+  # the script. Invalidate it here, as omarchy update does on every exit.
+  if (( EUID != 0 )); then
+    /usr/bin/sudo -k >/dev/null 2>&1 || true
   fi
 
   # set -e aborts without a word, and the last thing on screen is a green
@@ -384,7 +392,18 @@ trap cleanup_on_exit EXIT
 
 if (( EUID != 0 )); then
   sudo -v
-  while true; do sudo -n true; sleep 60; done 2>/dev/null &
+  # Bash holds the TERM trap until a refresh in flight finishes, so once cleanup
+  # has waited for this loop, no refresh can land after its sudo -k.
+  (
+    sleep_pid=""
+    trap '[[ -z $sleep_pid ]] || kill "$sleep_pid" 2>/dev/null; exit 0' TERM
+    while true; do
+      sudo -n true
+      sleep 60 &
+      sleep_pid=$!
+      wait "$sleep_pid"
+    done
+  ) 2>/dev/null &
   sudo_keepalive_pid=$!
 fi
 
