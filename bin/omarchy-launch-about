@@ -22,6 +22,16 @@ LOGO_PAD_LEFT=2
 LOGO_PAD_TOP=2
 LOGO_PAD_RIGHT=6
 
+# Use the About branding only for Omarchy's default config. A custom fastfetch
+# config owns its logo, layout and colors, and already opts out of fit/sheen.
+about_fastfetch() {
+  if custom_fastfetch_config; then
+    fastfetch "$@"
+  else
+    fastfetch --logo-type file --logo "$LOGO_FILE" "$@"
+  fi
+}
+
 # The content is measured once and then goes on living: an uptime that turns
 # minutes into hours and hours into days, a version string that grows, a module
 # that shows up on the next boot. A window fitted to exactly what was measured
