@@ -78,7 +78,7 @@ Panel {
     if (brightnessAvailable) list.push("brightness")
     list.push("textsize")
     list.push("scale")
-    if (displays.length > 1) list.push("monitors")
+    if (displays.length > 0) list.push("monitors")
     return list
   }
 
@@ -805,14 +805,14 @@ Panel {
 
           // ---------- Monitors ----------
           PanelSeparator {
-            visible: root.displays.length > 1
+            visible: root.displays.length > 0
             foreground: root.bar.foreground
           }
 
           Column {
             width: parent.width
             spacing: Style.space(10)
-            visible: root.displays.length > 1
+            visible: root.displays.length > 0
 
             PanelSectionHeader {
               text: Commons.I18n.t("monitor.displays")
@@ -904,17 +904,32 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
       }
 
-      Text {
-        textFormat: Text.PlainText
-        text: monitorRow.display.focused
-          ? Commons.I18n.t("monitor.displayFocused").arg(monitorRow.display.name)
-          : monitorRow.display.name
-        color: root.bar.foreground
-        font.family: root.bar.fontFamily
-        font.pixelSize: Style.font.body
-        elide: Text.ElideRight
+      Column {
         width: parent.width - Style.space(22) - Style.space(14) - Style.space(16)
         anchors.verticalCenter: parent.verticalCenter
+
+        Text {
+          textFormat: Text.PlainText
+          text: monitorRow.display.focused
+            ? Commons.I18n.t("monitor.displayFocused").arg(Model.displayName(monitorRow.display, Commons.I18n.t))
+            : Model.displayName(monitorRow.display, Commons.I18n.t)
+          color: root.bar.foreground
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.body
+          elide: Text.ElideRight
+          width: parent.width
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          text: monitorRow.display.name
+          color: root.bar.foreground
+          opacity: 0.65
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+          width: parent.width
+        }
       }
 
       Text {
