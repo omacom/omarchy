@@ -20,6 +20,7 @@ systemctl --user daemon-reload
 failed=0
 for unit in \
   bt-agent.service \
+  mpris-proxy.service \
   owed.service \
   omarchy-recover-internal-monitor.service \
   omarchy-sleep-lock.service \
