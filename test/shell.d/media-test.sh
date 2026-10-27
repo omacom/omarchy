@@ -54,20 +54,43 @@ assertEqual(media.volumeOsdIcon(48, false), 'volume-high', 'volume OSD shows the
 assertEqual(media.volumeOsdIcon(48, true), 'volume-muted', 'volume OSD shows muted when muted')
 assertEqual(media.volumeOsdIcon(0, false), 'volume-muted', 'volume OSD shows muted at zero')
 
-// Only an ALSA sink is its own physical sink. Any other default sink, a DSP
-// chain or EasyEffects above all, needs omarchy-audio-output-sink's live
-// resolution on every press, so its keys fall back to the script.
+// The active-sink lookup the volume keys defer to.
+const speakers = { name: 'alsa_output.pci.speakers', isSink: true }
+const headset = { name: 'alsa_output.usb.headset', isSink: true }
+const hdmi = { name: 'alsa_output.pci.hdmi', isSink: true }
+const stream = (role) => ({ ready: true, isStream: true, isSink: false, type: 'Stream/Output/Audio', properties: role ? { 'media.role': role } : {} })
+const link = (source, target, active) => ({ source: source, target: target, active: active !== false })
+assert(media.isCommunicationStream(stream('phone')), 'media detects a phone stream')
+assert(media.isCommunicationStream(stream('Communication')), 'media detects a communication stream')
+assert(!media.isCommunicationStream(stream('music')), 'media rejects a music stream')
+assert(!media.isCommunicationStream({ isStream: true }), 'media rejects a stream without a role')
+assertEqual(media.activeVolumeSink(speakers, []), null, 'no links answer the default sink')
+assertEqual(media.activeVolumeSink(speakers, [link(stream(), headset)]), headset, 'a stream on another output answers that output')
+assertEqual(media.activeVolumeSink(speakers, [link(stream(), speakers)]), null, 'a stream on the default sink answers the default')
+assertEqual(media.activeVolumeSink(speakers, [link(stream('phone'), headset)]), headset, 'a call on another output answers that output')
+assertEqual(media.activeVolumeSink(speakers, [link(stream('phone'), speakers), link(stream(), hdmi)]), speakers, 'a call on the default sink outranks music elsewhere')
+assertEqual(media.activeVolumeSink(speakers, [link(stream(), headset), link(stream('phone'), hdmi)]), hdmi, 'a call outranks background playback')
+assertEqual(media.activeVolumeSink(speakers, [link(stream('phone'), headset, false)]), null, 'a link that is not up is not followed')
+assertEqual(media.activeVolumeSink(speakers, [link({ isStream: false, isSink: true, type: 'Audio/Sink' }, headset)]), null, 'a non-stream source is not followed')
+assertEqual(media.activeVolumeSink(speakers, [link(stream(), { name: 'monitor', isSink: false })]), null, 'a stream linked to a non-sink is not followed')
+
+// The shell reads the sink each stream is linked to from PipeWire's link groups
+// synchronously and defers to the script for any non-default output, so the
+// script's corked-aware resolution steps the right sink; the fast path stays on
+// the default sink only.
 const fs = require('fs')
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/services/media/Service.qml'), 'utf8')
 assert(
   serviceQml.includes('readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null') &&
-    /function handleVolumeKey\(action\) \{\s*var audio = volumeSink && volumeSink\.audio\s*if \(!audio\) return false/.test(serviceQml) &&
-    !serviceQml.includes('volumeSinkName'),
-  'volume keys act in the shell only on an ALSA sink and otherwise defer to the script'
+    serviceQml.includes('MediaModel.activeVolumeSink(defaultSink, activeLinksSnapshot())') &&
+    serviceQml.includes('Pipewire.linkGroups') &&
+    serviceQml.includes('PwLinkState.Active') &&
+    !serviceQml.includes('activeSinkName'),
+  'volume keys fast-path only the default sink and defer to the script for another output'
 )
 const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
 assert(
-  /if \(!media \|\| !media\.handleVolumeKey\(entry\.target\)\)\s*Util\.execArgv\(\["omarchy-audio-output-volume", entry\.target\]\)/.test(shellQml),
-  'a volume key the shell declines runs omarchy-audio-output-volume'
+  /if \(!media \|\| !media\.handleVolumeKey\(entry\.target\)\)\s*Util\.execArgv\(\["omarchy-audio-output-volume", "--follow-active", entry\.target\]\)/.test(shellQml),
+  'a volume key the shell declines runs omarchy-audio-output-volume --follow-active'
 )
 JS
