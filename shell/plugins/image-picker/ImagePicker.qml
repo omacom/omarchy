@@ -223,6 +223,7 @@ Item {
     switch (String(view.title)) {
     case "imagePicker.viewTheme": return Commons.I18n.t("imagePicker.viewTheme")
     case "imagePicker.viewAllThemes": return Commons.I18n.t("imagePicker.viewAllThemes")
+    case "imagePicker.viewMine": return Commons.I18n.t("imagePicker.viewMine")
     }
     return String(view.title)
   }

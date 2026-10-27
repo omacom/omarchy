@@ -5,13 +5,35 @@
 # omarchy:name=bg-switcher
 # omarchy:aliases=omarchy background
 
-# Up and Down in the picker switch between this theme's backgrounds and every
-# installed theme's. The picker fetches the other view with `--rows <view>`,
-# which also remembers it as the view to open next time.
+# Up and Down in the picker switch between this theme's backgrounds, every
+# installed theme's, and the user's own loose ones in
+# ~/.config/omarchy/backgrounds when there are any. The picker fetches another
+# view with `--rows <view>`, which also remembers it as the view to open next.
 
 theme_name=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 current_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
 view_file="$HOME/.local/state/omarchy/background-switcher-view"
+mine_dir="$HOME/.config/omarchy/backgrounds"
+
+# Whether mine_dir holds media of its own, not just per-theme folders. A glob,
+# so opening the switcher starts no process for it.
+has_mine() {
+  local files
+  shopt -s nullglob nocaseglob
+  files=("$mine_dir"/*.{jpg,jpeg,png,gif,bmp,webp,mp4,m4v,mov,webm,mkv,avi})
+  shopt -u nullglob nocaseglob
+  (( ${#files[@]} > 0 ))
+}
+
+# Prints the view to show: all and mine as asked, while mine has media,
+# otherwise theme.
+known_view() {
+  if [[ $1 == "all" ]] || { [[ $1 == "mine" ]] && has_mine; }; then
+    printf '%s' "$1"
+  else
+    printf '%s' "theme"
+  fi
+}
 
 # Every installed theme's backgrounds as one folder of "<theme> · <n>" links,
 # so the picker labels each by its theme. Files with the same content are
@@ -115,14 +137,15 @@ current_in_view() {
 set_view_dirs() {
   if [[ $1 == "all" ]]; then
     dirs=("$(all_backgrounds_dir)")
+  elif [[ $1 == "mine" ]]; then
+    dirs=("$mine_dir")
   else
     dirs=("$HOME/.local/state/omarchy/current/theme/backgrounds" "$HOME/.config/omarchy/backgrounds/$theme_name")
   fi
 }
 
 if [[ ${1:-} == "--rows" ]]; then
-  view=${2:-theme}
-  [[ $view == "all" ]] || view="theme"
+  view=$(known_view "${2:-}")
   mkdir -p "${view_file%/*}"
   printf '%s\n' "$view" >"$view_file"
   set_view_dirs "$view"
@@ -134,14 +157,16 @@ if [[ ${1:-} == "--rows" ]]; then
 else
   view=""
   read -r view 2>/dev/null <"$view_file"
-  [[ $view == "all" ]] || view="theme"
+  view=$(known_view "$view")
   set_view_dirs "$view"
 
-  # All themes is labelled and filterable by theme name; it can hold hundreds
-  # of images, so its thumbnails are made in the background.
+  # All themes and the user's own backgrounds are labelled and filterable;
+  # either can hold hundreds of images, so their thumbnails are made in the
+  # background.
   flags=()
-  [[ $view == "all" ]] && flags+=(--lazy-thumbnails --show-labels --filterable)
-  views='[{"id":"theme","title":"imagePicker.viewTheme"},{"id":"all","title":"imagePicker.viewAllThemes","labels":true,"filterable":true}]'
+  [[ $view != "theme" ]] && flags+=(--lazy-thumbnails --show-labels --filterable)
+  views='{"id":"theme","title":"imagePicker.viewTheme"},{"id":"all","title":"imagePicker.viewAllThemes","labels":true,"filterable":true}'
+  has_mine && views+=',{"id":"mine","title":"imagePicker.viewMine","labels":true,"filterable":true}'
 
   # omarchy-menu-images finds the current background itself, except as a copy.
   selected=""
@@ -149,6 +174,6 @@ else
 
   omarchy-menu-images "${flags[@]}" \
     --selected "${selected:-$current_background}" \
-    --views "{\"current\":\"$view\",\"command\":[\"omarchy-theme-bg-switcher\",\"--rows\"],\"views\":$views}" \
+    --views "{\"current\":\"$view\",\"command\":[\"omarchy-theme-bg-switcher\",\"--rows\"],\"views\":[$views]}" \
     "${dirs[@]}"
 fi
