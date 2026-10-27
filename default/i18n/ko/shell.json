@@ -86,8 +86,6 @@
     "other": "오늘 토큰 %1개"
   },
   "agents.unknownModel": "알 수 없음",
-  "agents.usageNotUpdated": "사용량이 아직 업데이트되지 않았습니다.",
-  "agents.usageUnavailable": "사용량을 사용할 수 없음",
   "agents.use": "사용",
   "agents.waitingForAuth": "인증 대기 중",
   "agents.windowLimit": "한도",

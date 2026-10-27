@@ -86,8 +86,6 @@
     "other": "今日 %1 トークン"
   },
   "agents.unknownModel": "不明",
-  "agents.usageNotUpdated": "使用量はまだ更新されていません。",
-  "agents.usageUnavailable": "使用量を取得できません",
   "agents.use": "使用",
   "agents.waitingForAuth": "認証を待機中",
   "agents.windowLimit": "上限",

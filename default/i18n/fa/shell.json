@@ -93,8 +93,6 @@
     "other": "%1 توکن امروز"
   },
   "agents.unknownModel": "نامشخص",
-  "agents.usageNotUpdated": "مصرف هنوز به‌روز نشده است.",
-  "agents.usageUnavailable": "مصرف در دسترس نیست",
   "agents.use": "استفاده",
   "agents.waitingForAuth": "در انتظار احراز هویت",
   "agents.windowLimit": "محدودیت",

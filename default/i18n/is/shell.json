@@ -93,8 +93,6 @@
     "other": "%1 tákn í dag"
   },
   "agents.unknownModel": "Óþekkt",
-  "agents.usageNotUpdated": "Notkun hefur ekki verið uppfærð enn.",
-  "agents.usageUnavailable": "Notkun ekki tiltæk",
   "agents.use": "Nota",
   "agents.waitingForAuth": "Bíður eftir auðkenningu",
   "agents.windowLimit": "Takmark",

@@ -93,8 +93,6 @@
     "other": "%1 token ma"
   },
   "agents.unknownModel": "Ismeretlen",
-  "agents.usageNotUpdated": "A használat még nem frissült.",
-  "agents.usageUnavailable": "Használat nem elérhető",
   "agents.use": "Használ",
   "agents.waitingForAuth": "Hitelesítésre vár",
   "agents.windowLimit": "Korlát",

@@ -93,8 +93,6 @@
     "other": "%1 tokens vandaag"
   },
   "agents.unknownModel": "Onbekend",
-  "agents.usageNotUpdated": "Verbruik is nog niet bijgewerkt.",
-  "agents.usageUnavailable": "Verbruik niet beschikbaar",
   "agents.use": "Gebruiken",
   "agents.waitingForAuth": "Wachten op authenticatie",
   "agents.windowLimit": "Limiet",

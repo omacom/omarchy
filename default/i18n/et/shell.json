@@ -93,8 +93,6 @@
     "other": "%1 tokenit täna"
   },
   "agents.unknownModel": "Teadmata",
-  "agents.usageNotUpdated": "Kasutust pole veel värskendatud.",
-  "agents.usageUnavailable": "Kasutus pole saadaval",
   "agents.use": "Kasuta",
   "agents.waitingForAuth": "Ootan autentimist",
   "agents.windowLimit": "Limiit",

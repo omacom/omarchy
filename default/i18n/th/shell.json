@@ -86,8 +86,6 @@
     "other": "วันนี้ %1 โทเค็น"
   },
   "agents.unknownModel": "ไม่ทราบ",
-  "agents.usageNotUpdated": "ยังไม่อัปเดตยอดใช้งาน",
-  "agents.usageUnavailable": "ไม่มียอดใช้งาน",
   "agents.use": "ใช้",
   "agents.waitingForAuth": "รอการยืนยันตัวตน",
   "agents.windowLimit": "ขีดจำกัด",

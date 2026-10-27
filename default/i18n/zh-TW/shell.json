@@ -86,8 +86,6 @@
     "other": "今日 %1 個 token"
   },
   "agents.unknownModel": "未知",
-  "agents.usageNotUpdated": "用量尚未更新。",
-  "agents.usageUnavailable": "用量無法取得",
   "agents.use": "使用",
   "agents.waitingForAuth": "等待驗證",
   "agents.windowLimit": "限制",

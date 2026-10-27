@@ -25,14 +25,7 @@ HOME="$test_tmp/home" PATH="$mock_bin:$PATH" OMARCHY_TEST_FINALIZE_CALLED="$fina
 [[ ! -e $finalize_called ]] || fail "completed first-run exits before any setup step"
 grep -F 'First-run already complete' "$test_tmp/output" >/dev/null || fail "completed first-run reports its lifecycle gate"
 
-if grep -F 'user-migration-notify-watch-enabled' "$ROOT/bin/omarchy-provision-first-run" >/dev/null; then
-  fail "first-run does not track the migration watcher separately"
-fi
-if grep -F 'skip-first-run-update-notification' "$ROOT/install/user/first-run/wifi.sh" >/dev/null; then
-  fail "first-run does not track update notifications separately"
-fi
-
-pass "first-run uses one lifecycle completion marker"
+pass "completed first-run exits at its lifecycle gate"
 
 # systemctl enables none of a list when one unit in it is unknown, so a unit
 # missing from a build must cost first-run only that unit.

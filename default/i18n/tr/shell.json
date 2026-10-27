@@ -93,8 +93,6 @@
     "other": "Bugün %1 token"
   },
   "agents.unknownModel": "Bilinmeyen",
-  "agents.usageNotUpdated": "Kullanım henüz güncellenmedi.",
-  "agents.usageUnavailable": "Kullanım kullanılamıyor",
   "agents.use": "Kullan",
   "agents.waitingForAuth": "Kimlik doğrulama bekleniyor",
   "agents.windowLimit": "Sınır",

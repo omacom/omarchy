@@ -1,6 +1,6 @@
 # Kiirklahvid
 
-Kõiki peamisi klaviatuuri sidumisi näed klahvidega `Super + K` (Tmux sidumisi `Super + Alt + K` ja Herdr sidumisi `Super + Ctrl + K`).
+Kõiki peamisi klahvikombinatsioone näed klahvidega `Super + K` (Tmuxi seosed klahvidega `Super + Alt + K` ja Herdr seosed klahvidega `Super + Ctrl + K`).
 
 ## Navigeerimine
 
@@ -12,31 +12,31 @@ Kõiki peamisi klaviatuuri sidumisi näed klahvidega `Super + K` (Tmux sidumisi 
 | `Super + Ctrl + L` | Lukusta arvuti |
 | `Super + W` or `Super + Q` | Sulge aken             |
 | `Ctrl + Alt + Del` | Sulge kõik aknad |
-| `Super + T`               | Lülita aken plaatimise/ujuva režiimi vahel             |
+| `Super + T`               | Lülita aken plaaditud/ujuva režiimi vahel             |
 | `Super + J` | Lülita akna asendit (horisontaalne/vertikaalne) |
-| `Super + O`               | Lülita aken kleepuvaks ujuvaks hüpikaknaks |
-| `Super + L`               | Sirvi läbi dwindle-, kerimis- ja ujuvpaigutuse |
-| `Super + Alt + L`         | Sirvi paigutusi vastupidises järjekorras |
+| `Super + O`               | Lülita akna välja hüppamine kleepuvasse ja ujuvasse režiimi |
+| `Super + L`               | Vaheta järjest dwindle, scrolling ja floating paigutusi |
+| `Super + Alt + L`         | Vaheta paigutusi vastupidises järjekorras |
 | `Super + P`               | Lülita pseudoakna stiili (loomulik vs venitatud) |
 | `Super + F`                 | Mine täisekraanile              |
 | `Super + Alt + F`                 | Mine täislaiusesse              |
-| `Super + Ctrl + F`                 | Mine täisekraanile akna sees              |
-| `Super + 1/2/3/4`         | Hüppa kindlale tööruumile fokuseeritud monitoril |
-| `Super + Tab` | Hüppa järgmisele tööruumile fokuseeritud monitoril |
-| `Super + Shift + Tab` | Hüppa eelmisele tööruumile fokuseeritud monitoril |
-| `Super + Ctrl + Tab` | Hüppa varasemale tööruumile fokuseeritud monitoril |
-| `Super + Shift + 1/2/3/4` | Liiguta aken tööruumile fokuseeritud monitoril |
-| `Super + Shift + Alt + 1/2/3/4` | Liiguta aken tööruumile fokuseeritud monitoril ilma järgnemata |
-| `Super + S` | Lülita täielikku scratchpadi |
-| `Super + Alt + S` | Liiguta aken täielikku scratchpadi |
-| `Super + Grave` | Lülita Quake konsooli |
-| `Super + Shift + Grave` | Liiguta aken Quake konsooli |
-| `Super + Shift + Ctrl + Arrows` | Liiguta aken selles suunas asuvale monitorile |
-| `Super + Shift + Alt + Arrows` | Liiguta tööruum selles suunas asuvale monitorile |
-| `Super + Arrow`  | Liiguta fookus noole suunas asuvale aknale, liikudes ekraani serval selle külje monitorile |
-| `Super + Shift + Arrow`  | Vaheta aken noole suunas asuva aknaga, kaasa arvatud selle külje monitoril olevaga |
+| `Super + Ctrl + F`                 | Mine akna sees täisekraanile              |
+| `Super + 1/2/3/4`         | Hüppa kindlale tööalale fokuseeritud monitoril |
+| `Super + Tab` | Hüppa järgmisele tööalale fokuseeritud monitoril |
+| `Super + Shift + Tab` | Hüppa eelmisele tööalale fokuseeritud monitoril |
+| `Super + Ctrl + Tab` | Hüppa varasemale tööalale fokuseeritud monitoril |
+| `Super + Shift + 1/2/3/4` | Teisalda aken fokuseeritud monitori tööalale |
+| `Super + Shift + Alt + 1/2/3/4` | Teisalda aken fokuseeritud monitori tööalale ilma kaasa minemata |
+| `Super + S` | Lülita täielik scratchpad |
+| `Super + Alt + S` | Teisalda aken täielikku scratchpad'i |
+| `Super + Grave` | Lülita Quake konsool |
+| `Super + Shift + Grave` | Teisalda aken Quake konsooli |
+| `Super + Shift + Ctrl + Arrows` | Teisalda aken selles suunas asuvale monitorile |
+| `Super + Shift + Alt + Arrows` | Teisalda tööala selles suunas asuvale monitorile |
+| `Super + Arrow`  | Teisalda fookus noole suunas asuvale aknale, liikudes ekraani serval sellel küljel asuvale monitorile |
+| `Super + Shift + Arrow`  | Vaheta aken noole suunas asuva teise aknaga, sealhulgas sellel küljel asuval monitoril oleva aknaga |
 | `Super + Minus` | Laienda akent vasakule |
-| `Super + Equal` | Kahanda akent vasakult |
+| `Super + Equal` | Kahanda akent vasakule |
 | `Super + Shift + Minus` | Kahanda akent üles |
 | `Super + Shift + Equal` | Laienda akent alla |
 | `Super + Alt + Minus/Equal` | Sama suuruse muutmine väiksemate sammudega |
@@ -45,42 +45,42 @@ Kõiki peamisi klaviatuuri sidumisi näed klahvidega `Super + K` (Tmux sidumisi 
 | `Super + Home` | Taasta salvestatud akna laius |
 | `Super + Left Mouse` | Lohista akent ringi |
 | `Super + Right Mouse` | Muuda akna suurust |
-| `Super + Scroll Wheel` | Keri läbi tööruumide fokuseeritud monitoril |
-| `Super + G`               | Lülita akende grupeerimist      |
-| `Super + Alt + G`               | Liiguta aken grupeerimisest välja      |
-| `Super + Alt + Tab`               | Sirvi grupeeringu aknaid      |
-| `Super + Alt + Shift + Tab`               | Sirvi grupeeringu aknaid tahapoole      |
-| `Super + Alt + Scroll Wheel` | Sirvi grupeeringu aknaid |
-| `Super + Alt + 1/2/3/4/5`               | Hüppa kindlale aknale grupeeringus      |
-| `Super + Alt + Arrow`  | Liiguta aken noole suunas grupeeringusse, kaasa arvatud selle külje monitoril olev |
-| `Super + Ctrl + Left/Right`  | Liigu plaatimisrühma akende vahel |
+| `Super + Scroll Wheel` | Keri fokuseeritud monitori tööalasid |
+| `Super + G`               | Lülita akende rühmitamine      |
+| `Super + Alt + G`               | Teisalda aken rühmitusest välja      |
+| `Super + Alt + Tab`               | Vaheta järjest rühmituses olevaid aknaid      |
+| `Super + Alt + Shift + Tab`               | Vaheta rühmituses olevaid aknaid tagurpidi järjest      |
+| `Super + Alt + Scroll Wheel` | Vaheta järjest rühmituses olevaid aknaid |
+| `Super + Alt + 1/2/3/4/5`               | Hüppa kindla akna juurde rühmituses      |
+| `Super + Alt + Arrow`  | Teisalda aken noole suunas rühmitusse, sealhulgas sellel küljel asuval monitoril oleva akna puhul |
+| `Super + Ctrl + Left/Right`  | Liigu plaaditud rühma akende vahel |
 | `Super + Ctrl + Z` | Suumi ekraani sisse (korda suurema suumi jaoks) |
 | `Super + Ctrl + Alt + Z` | Suumi ekraanilt täielikult välja |
-| `Super + /` | Liigu edasi läbi monitori skaleerimisvalikute |
-| `Super + Alt + /` | Liigu tagasi läbi monitori skaleerimisvalikute |
-| `Alt + Tab` | Sirvi aknad aktiivsel tööruumil edasi |
-| `Alt + Shift + Tab` | Sirvi aknad aktiivsel tööruumil tahapoole |
-| `Ctrl + Alt + Tab`| Sirvi fookust monitoride vahel edasi |
-| `Ctrl + Alt + Shift + Tab`| Sirvi fookust monitoride vahel tahapoole |
+| `Super + /` | Liigu monitori skaleerimise valikutes edasi |
+| `Super + Alt + /` | Liigu monitori skaleerimise valikutes tagasi |
+| `Alt + Tab` | Vaheta aktiivse tööala aknaid edasi järjest |
+| `Alt + Shift + Tab` | Vaheta aktiivse tööala aknaid tagurpidi järjest |
+| `Ctrl + Alt + Tab`| Liiguta fookust monitoride vahel edasi |
+| `Ctrl + Alt + Shift + Tab`| Liiguta fookust monitoride vahel tagurpidi |
 
-## Süsteemijuhtimine
+## Süsteemi juhtimine
 
 | Kiirklahv                  | Funktsioon              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Helipaneel    |
 | `Super + Ctrl + B`           | Bluetooth paneel    |
-| `Super + Ctrl + N`           | Wi-Fi/võrgupaneel    |
-| `Super + Ctrl + D`           | Kuvapaneel    |
+| `Super + Ctrl + N`           | Wi-Fi/võrgu paneel    |
+| `Super + Ctrl + D`           | Ekraanipaneel    |
 | `Super + Ctrl + P`           | Toitepaneel    |
 | `Super + Ctrl + Alt + D`           | Kalendripaneel    |
 | `Super + Ctrl + Alt + E`           | Maailmakella paneel    |
 | `Super + Ctrl + 1-9`           | Lülita ribapaneeli asendi järgi    |
-| `Super + Ctrl + S` | Jagamismenüü (LocalSend kaudu) |
-| `Super + Ctrl + C` | Jäädvustamise juhtnupud (ekraanipilt/-salvestus/valija) |
-| `Super + Ctrl + O` | Lülita menüüd |
+| `Super + Ctrl + S` | Jagamismenüü (LocalSendi kaudu) |
+| `Super + Ctrl + C` | Salvestamise juhtimine (ekraanipilt/-salvestus/valija) |
+| `Super + Ctrl + O` | Lülita menüü |
 | `Super + Ctrl + H` | Riistvaramenüü |
-| `Super + Ctrl + E` | Emotikonivalija |
-| `Super + Ctrl + .` | Transkoodi meediat |
+| `Super + Ctrl + E` | Emoji valija |
+| `Super + Ctrl + .` | Transkoodi meedia |
 | `Super + Shift + Ctrl + A` | Vali AI agent |
 
 ## Reguleerimine
@@ -91,8 +91,8 @@ Kõiki peamisi klaviatuuri sidumisi näed klahvidega `Super + K` (Tmux sidumisi 
 | `Shift + Brightness Down` | Ekraani minimaalne heledus |
 | `Alt + Brightness Up/Down` | Täpsed 1% heleduse muudatused |
 | `Alt + Volume Up/Down` | Täpsed 1% helitugevuse muudatused |
-| `Keyboard Brightness Up/Down` | Klaviatuuri taustvalgus heledamaks/tumedamaks |
-| `Keyboard Backlight` | Sirvi klaviatuuri taustvalguse tasemeid |
+| `Keyboard Brightness Up/Down` | Klaviatuuri taustvalgustus heledamaks/tumedamaks |
+| `Keyboard Backlight` | Vaheta järjest klaviatuuri taustvalgustuse tasemeid |
 | `Alt + Play` | Järgmine lugu |
 | `Alt + Shift + Play` | Eelmine lugu |
 
@@ -101,7 +101,7 @@ Kõiki peamisi klaviatuuri sidumisi näed klahvidega `Super + K` (Tmux sidumisi 
 | Kiirklahv                  | Funktsioon              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Terminal    |
-| `Super + Alt + Return` | Tmux terminal |
+| `Super + Alt + Return` | Tmuxi terminal |
 | `Super + Ctrl + Return` | Herdr (agentide haldur) |
 | `Super + Shift + Return`           | Brauser    |
 | `Super + Shift + Alt + B`           | Brauser (privaatne/inkognito)    |
@@ -115,7 +115,7 @@ Kõiki peamisi klaviatuuri sidumisi näed klahvidega `Super + K` (Tmux sidumisi 
 | `Super + Shift + N`           | Redaktor (Neovim)  |
 | `Super + Shift + C`           | Kalender ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | E-post ([HEY](https://hey.com/))  |
-| `Super + Shift + Alt + E`           | Uus e-post ([HEY](https://hey.com/))  |
+| `Super + Shift + Alt + E`           | Uus e-kiri ([HEY](https://hey.com/))  |
 | `Super + Shift + A`           | AI (ChatGPT)  |
 | `Super + Shift + Alt + A`           | AI (Grok)  |
 | `Super + Shift + G`           | Sõnumirakendus (Signal)  |
@@ -129,7 +129,7 @@ Kõiki peamisi klaviatuuri sidumisi näed klahvidega `Super + K` (Tmux sidumisi 
 | `Super + Shift + Alt + X`           | X Compose |
 | `Super + Shift + Y`           | YouTube |
 
-Muuda/lisa sidumisi failis `~/.config/hypr/bindings.lua`.
+Muuda/lisa seoseid failis `~/.config/hypr/bindings.lua`.
 
 ## Universaalne lõikelaud
 
@@ -140,39 +140,39 @@ Muuda/lisa sidumisi failis `~/.config/hypr/bindings.lua`.
 | `Super + V`           | Kleebi    |
 | `Super + Ctrl + V`           | Lõikelaua haldur    |
 
-Tavaliselt pead Linuxis terminalis kopeerimiseks ja kleepimiseks kasutama `Ctrl + Shift + C/V` ja kõikjal mujal `Ctrl + C/V`. Need Omarchy ühtsed lõikelaua kiirklahvid töötavad kõikjal.
+Tavaliselt on Linuxis terminalis kopeerimiseks ja kleepimiseks vaja `Ctrl + Shift + C/V` ja kõikjal mujal `Ctrl + C/V`. Need Omarchy ühtsed lõikelaua kiirklahvid töötavad kõikjal.
 
-## Jäädvustamine
+## Salvestamine
 
 | Kiirklahv              | Funktsioon                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | Ekraanipilt                      |
-| `Super + Ctrl + Alt + C`            | Ekraanipilt (sama võte klaviatuuridele, millel pole Print Screen klahvi) |
-| `Super + Ctrl + C` | Jäädvustusmenüü |
+| `Super + Ctrl + Alt + C`            | Ekraanipilt (sama võte klaviatuuridele, millel puudub Print Screen klahv) |
+| `Super + Ctrl + C` | Salvestusmenüü |
 | `Alt + Print Screen`            | Ekraanisalvestus                     |
 | `Super + Print Screen` | Värvivalija |
 | `Super + Ctrl + Print Screen` | Teksti eraldamine lõikelauale |
 | `Super + Alt + [` | Tee veebikaamera ülekate salvestamise ajal väiksemaks |
 | `Super + Alt + ]` | Tee veebikaamera ülekate salvestamise ajal suuremaks |
 | `Alt + Shift + L` | Kopeeri praegune URL veebirakendusest või Chromiumist |
-| `Alt + Shift + D` | Laadi praegusel lehel olev video alla kausta `~/Videos` |
-| `Super + Ctrl + X` | Alusta/peata dikteerimist (nõuab _Setup > Defaults > Dictation_) |
+| `Alt + Shift + D` | Laadi praeguse lehe video alla kausta `~/Videos` |
+| `Super + Ctrl + X` | Käivita/peata dikteerimine (nõuab _Setup > Defaults > Dictation_) |
 | `Right Alt` / `F9` | Push-to-talk dikteerimine (nõuab Voxtype'i või Superwhisperit) |
 
-Ekraanisalvestiste puhul küsib kiirklahv esmalt, millist heli soovid, seejärel alustab salvestamist. Vajuta seda uuesti, et peatada. Vt üksikasju lehelt [ekraanipildid ja salvestamine](12-screenshots-recording.md).
+Ekraanisalvestuste puhul küsib kiirklahv esmalt, millist heli soovid, ja alustab seejärel salvestamist. Peatamiseks vajuta seda uuesti. Vaata üksikasju jaotisest [ekraanipildid ja salvestamine](12-screenshots-recording.md).
 
-Kõik jäädvustusvalikud on saadaval ka Omarchy menüüs (`Super + Space`) jaotuses _Trigger > Capture_.
+Kõik salvestusvalikud on saadaval ka Omarchy menüüs (`Super + Space`) jaotises _Trigger > Capture_.
 
 ## Teavitused
 
 | Kiirklahv                  | Funktsioon              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Loobu viimasest teavitusest  |
-| `Super + Shift + ,` | Loobu kõigist teavitustest |
-| `Super + Ctrl + ,` | Juhti teavitusi klaviatuuriga  |
-| `Super + Alt + ,` | Käivita viimane teavitus  |
+| `Super + ,` | Tegutse viimase teavituse põhjal: ava see või vajuta selle ainsat nuppu, vali selle valikute hulgast või eira seda, kui valikuid pole  |
+| `Super + Shift + ,` | Eira kõiki teavitusi |
+| `Super + Ctrl + ,` | Juhi teavitusi klaviatuuriga  |
+| `Super + Alt + ,` | Eira viimast teavitust  |
 | `Super + Shift + Alt + ,` | Ava teavituste ajalugu  |
-| `Super + Ctrl + Alt + ,` | Lülita teavituste vaigistamist  |
+| `Super + Ctrl + Alt + ,` | Lülita teavituste vaigistamine  |
 
 ## Stiil
 
@@ -180,25 +180,25 @@ Kõik jäädvustusvalikud on saadaval ka Omarchy menüüs (`Super + Space`) jaot
 | ----------------------- | --------------------- |
 | `Super + Ctrl + T` | Vali uus teema (ka `Super + Ctrl + Shift + Space`) |
 | `Super + Ctrl + W` | Vali teema taust (ka `Super + Ctrl + Space`) |
-| `Super + Backspace` | Lülita akna läbipaistvust |
-| `Super + Ctrl + Backspace` | Lülita ühe akna ruudukujulist kuvasuhet |
+| `Super + Backspace` | Lülita akna läbipaistvus |
+| `Super + Ctrl + Backspace` | Lülita ühe akna ruudukujuline kuvasuhe |
 
-Täiendavad taustapildid asuvad kaustas `~/.config/omarchy/backgrounds/<theme name>`. Saadaval ka Omarchy menüü jaotuse _Install > Style > Background_ kaudu.
+Lisataustapildid asuvad kaustas `~/.config/omarchy/backgrounds/<theme name>`. Saadaval ka Omarchy menüüs jaotises _Install > Style > Background_.
 
-Kõik stiilivalikud on saadaval ka Omarchy menüüs (`Super + Space`) jaotuses _Style_.
+Kõik stiilivalikud on saadaval ka Omarchy menüüs (`Super + Space`) jaotises _Style_.
 
 ## Lülitid
 
 | Kiirklahv                  | Funktsioon              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | Lülita jõudeolekul lukustamist |
+| `Super + Ctrl + I` | Lülita jõudeolekul lukustamine |
 | `Super + Ctrl + Delete` | Lülita sülearvuti ekraan sisse/välja |
-| `Super + Ctrl + Alt + Delete` | Lülita sülearvuti ekraani peegeldamist |
-| `Super + Shift + Space` | Lülita ülemist riba  |
+| `Super + Ctrl + Alt + Delete` | Lülita sülearvuti ekraani peegeldamine |
+| `Super + Shift + Space` | Lülita ülemine riba  |
 | `Shift + Mute` | Lülitu järgmisele heliväljundile |
 | `Shift + Play` | Lülitu järgmisele meediaallikale |
-| `Super + Shift + Backspace` | Lülita aknavahesid |
-| `Super + Ctrl + Alt + F` | Lülita täisekraani töölauda (ülemine riba + aknavahed) |
+| `Super + Shift + Backspace` | Lülita aknavahed |
+| `Super + Ctrl + Alt + F` | Lülita täisekraani töölaud (ülemine riba + aknavahed) |
 
 ## Meeldetuletused
 
@@ -206,31 +206,31 @@ Kõik stiilivalikud on saadaval ka Omarchy menüüs (`Super + Space`) jaotuses _
 | ----------------------- | --------------------- |
 | `Super + Ctrl + R` | Määra meeldetuletus  |
 | `Super + Ctrl + Alt + R` | Vaata kõiki meeldetuletusi  |
-| `Super + Ctrl + Shift + R` | Kustuta kõik meeldetuletused  |
+| `Super + Ctrl + Shift + R` | Tühjenda kõik meeldetuletused  |
 
 ## Teated
 
 | Kiirklahv                  | Funktsioon              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Alt + T` | Kuva kellaaega teavitusena  |
-| `Super + Ctrl + Alt + B` | Kuva akut teavitusena  |
-| `Super + Ctrl + Alt + W` | Lülita ilma teavitusena kuvamist  |
+| `Super + Ctrl + Alt + T` | Näita kellaaega teavitusena  |
+| `Super + Ctrl + Alt + B` | Näita akut teavitusena  |
+| `Super + Ctrl + Alt + W` | Lülita ilm teavitusena  |
 
 ## Tmux
 
-Eesliiteklahv on `Ctrl + Space` (`Ctrl + B` töötab ka). Neid sidumisi saad muuta failis `~/.config/tmux/tmux.conf`.
+Prefiksiklahv on `Ctrl + Space` (`Ctrl + B` töötab ka). Neid seoseid saad muuta failis `~/.config/tmux/tmux.conf`.
 
 ### Paanid
 
 | Kiirklahv                  | Funktsioon              |
 | ----------------------- | --------------------- |
-| `Prefix + v` | Jaga paan kõrvuti (vertikaalselt) |
+| `Prefix + v` | Jaga paan kõrvale (vertikaalselt) |
 | `Prefix + h` | Jaga paan alla (horisontaalselt) |
 | `Prefix + x` | Sulge paan |
-| `Prefix + z` | Lülita paani suumi (täisekraan) |
-| `Alt + Enter` | Jaga paan alla (ilma eesliiteta) |
-| `Alt + Shift + Enter` | Jaga paan kõrvuti (ilma eesliiteta) |
-| `Alt + Escape` | Sulge paan (ilma eesliiteta) |
+| `Prefix + z` | Lülita paani suum (täisekraan) |
+| `Alt + Enter` | Jaga paan alla (ilma prefiksita) |
+| `Alt + Shift + Enter` | Jaga paan kõrvale (ilma prefiksita) |
+| `Alt + Escape` | Sulge paan (ilma prefiksita) |
 | `Ctrl + Alt + Arrows` | Liigu paanide vahel |
 | `Ctrl + Alt + Shift + Arrows` | Muuda paanide suurust |
 
@@ -241,9 +241,9 @@ Eesliiteklahv on `Ctrl + Space` (`Ctrl + B` töötab ka). Neid sidumisi saad muu
 | `Prefix + c` | Uus aken |
 | `Prefix + k` | Sulge aken |
 | `Prefix + r` | Nimeta aken ümber |
-| `Alt + 1-9` | Mine kindlale aknale |
+| `Alt + 1-9` | Mine kindla akna juurde |
 | `Alt + Arrow Left/Right` | Liigu akende vahel |
-| `Alt + Shift + Arrow Left/Right` | Liiguta akent vasakule/paremale |
+| `Alt + Shift + Arrow Left/Right` | Teisalda aken vasakule/paremale |
 
 ### Seansid
 
@@ -256,7 +256,7 @@ Eesliiteklahv on `Ctrl + Space` (`Ctrl + B` töötab ka). Neid sidumisi saad muu
 | `Prefix + P` | Eelmine seanss |
 | `Alt + Arrow Up/Down` | Liigu seansside vahel |
 | `Prefix + s` | Loetle seansid |
-| `Prefix + d` | Lahku seansist |
+| `Prefix + d` | Ühenda seansist lahti |
 
 ### Kopeerimisrežiim (vi-stiilis)
 
@@ -271,27 +271,27 @@ Eesliiteklahv on `Ctrl + Space` (`Ctrl + B` töötab ka). Neid sidumisi saad muu
 | Kiirklahv                  | Funktsioon              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Laadi konfiguratsioon uuesti |
-| `Prefix + ?` | Kuva Tmux klahvisidumised |
+| `Prefix + ?` | Näita Tmuxi klahviseoseid |
 | `Prefix + :` | Käsuviip |
 
-### Tmux paigutuse funktsioonid
+### Tmuxi paigutusfunktsioonid
 
-Neid funktsioone tuleb käitada Tmux seansi sees.
+Neid funktsioone tuleb käivitada Tmuxi seansi sees.
 
 | Käsk | Funktsioon |
 | ------- | -------- |
 | `tdl <ai> [<second_ai>]` | Loo arenduspaigutus redaktori, AI ja terminaliga |
-| `tdlm <ai> [<second_ai>]` | Loo arenduspaigutus iga alamkataloogi kohta |
-| `tsl <count> <command>` | Loo mitme paaniga sülemipaigutus |
+| `tdlm <ai> [<second_ai>]` | Loo arenduspaigutus iga alamkausta kohta |
+| `tsl <count> <command>` | Loo mitme paaniga swarm-paigutus |
 
-## Ghostty Terminal
+## Ghostty terminal
 
-Ghostty terminal installitakse Omarchy menüü jaotuse _Install > Terminal_ kaudu.
+Ghostty terminal installitakse Omarchy menüü kaudu jaotises _Install > Terminal_.
 
 | Kiirklahv                  | Funktsioon              |
 | ----------------------- | --------------------- |
-| `Ctrl + Shift + E` | Uus jaotus allpool |
-| `Ctrl + Shift + O` | Uus jaotus kõrval |
+| `Ctrl + Shift + E` | Uus jaotus alla |
+| `Ctrl + Shift + O` | Uus jaotus kõrvale |
 | `Ctrl + Alt + Arrows` | Liigu jaotuste vahel |
 | `Super + Ctrl + Shift + Arrows` | Muuda jaotuse suurust 10 rea võrra |
 | `Super + Ctrl + Shift + Alt + Arrows` | Muuda jaotuse suurust 100 rea võrra |
@@ -305,21 +305,21 @@ Ghostty terminal installitakse Omarchy menüü jaotuse _Install > Terminal_ kaud
 
 | Kiirklahv              | Funktsioon                       |
 | ------------------- | ------------------------------ |
-| `Ctrl + L`            | Mine teele                     |
-| `Space`               | Faili eelvaade (nooltega navigeerimine) |
+| `Ctrl + L`            | Mine teekonnale                     |
+| `Space`               | Faili eelvaade (nooled navigeerivad) |
 | `Backspace`      | Mine üks kaust tagasi             |
 
-## Neovim (koos LazyVimiga)
+## Neovim (koos lazyvimiga)
 
 ### Navigeerimine
 
 | Kiirklahv                   | Funktsioon                        |
 | ------------------------ | ------------------------------- |
-| `Space`                    | Kuva käsuvalikud            |
-| `Space Space`              | Ava fail hägusotsinguga      |
+| `Space`                    | Näita käsuvalikuid            |
+| `Space Space`              | Ava fail hägusa otsinguga      |
 | `Space E`                  | Lülita külgriba                  |
-| `Space G G`                | Kuva git juhtnuppe               |
-| `Space S G`                | Otsi faili sisu             |
+| `Space G G`                | Näita git juhtnuppe               |
+| `Space S G`                | Otsi faili sisust             |
 | `Ctrl + W W`               | Hüppa külgriba ja redaktori vahel |
 | `Ctrl + Left/right arrow`  | Muuda külgriba suurust          |
 | `Shift + H`                      | Mine vasakpoolsele failivahekaardile             |
@@ -330,18 +330,18 @@ Ghostty terminal installitakse Omarchy menüü jaotuse _Install > Terminal_ kaud
 
 | Kiirklahv                   | Funktsioon                        |
 | ------------------------ | ------------------------------- |
-| `A`                        | Lisa uus fail emakataloogi      |
-| `Shift + A`                | Lisa uus alamkataloog emakataloogi    |
-| `D`                        | Kustuta esiletõstetud fail/kataloog     |
-| `M`                        | Liiguta esiletõstetud faili/kataloogi       |
-| `R`                        | Nimeta esiletõstetud fail/kataloog ümber     |
-| `?`                        | Kuva kõigi käskude abi      |
+| `A`                        | Lisa uus fail emakausta      |
+| `Shift + A`                | Lisa uus alamkaust emakausta    |
+| `D`                        | Kustuta esiletõstetud fail/kaust     |
+| `M`                        | Teisalda esiletõstetud fail/kaust       |
+| `R`                        | Nimeta esiletõstetud fail/kaust ümber     |
+| `?`                        | Näita kõigi käskude abi      |
 
-[Vt kõiki LazyVimi seadistatud Neovimi kiirklahve](https://www.lazyvim.org/keymaps).
+[Vaata kõiki LazyVimi seadistatud Neovimi kiirklahve](https://www.lazyvim.org/keymaps).
 
-## Kiired emotikonid
+## Kiired emojid
 
-Saad kasutada klahve `Super + Ctrl + E`, et kuvada täielik emotikonivalija, mis paneb valiku lõikelauale, või kasutada neid kiire juurdepääsu valikuid.
+Saad kasutada klahve `Super + Ctrl + E`, et näidata täielikku emoji valijat, mis paneb valiku lõikelauale, või saad kasutada neid kiirpääsuvalikuid.
 
 | Kiirklahv       | EM | Vihje       |
 | ------------ | -- | ---------- |
@@ -355,26 +355,26 @@ Saad kasutada klahve `Super + Ctrl + E`, et kuvada täielik emotikonivalija, mis
 | `Shift + CapsLock M F` | 🖕 | fuck       |
 | `Shift + CapsLock M W` | 🤞 | soov       |
 | `Shift + CapsLock M R` | 🤘 | rock       |
-| `Shift + CapsLock M K` | 😘 | suudlus       |
+| `Shift + CapsLock M K` | 😘 | musi       |
 | `Shift + CapsLock M E` | 🙄 | silmade pööritamine    |
-| `Shift + CapsLock M I` | 😉 | pilgutus       |
+| `Shift + CapsLock M I` | 😉 | silmapilgutus       |
 | `Shift + CapsLock M P` | 🙏 | palve |
 | `Shift + CapsLock M D` | 🤤 | ilastamine      |
 | `Shift + CapsLock M M` | 💰 | raha      |
-| `Shift + CapsLock M X` | 🎉 | pidu |
+| `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
-| `Shift + CapsLock M T` | 🥂 | toast      |
+| `Shift + CapsLock M T` | 🥂 | tervitus      |
 | `Shift + CapsLock M O` |👌 | ok |
 | `Shift + CapsLock M G` |👋 | tervitus |
-| `Shift + CapsLock M A` |💪 | käsi |
+| `Shift + CapsLock M A` |💪 | käsivars |
 | `Shift + CapsLock M B` |🤯 | plahvatus |
 
-## Kiirtäiendused
+## Kiirtäiendid
 
-| Kiirklahv       | Täiendus       |
+| Kiirklahv       | Täiend       |
 | ------------ |  ---------- |
 | `Shift + CapsLock Space Space` | — (mdash)   |
 | `Shift + CapsLock Space N` | Sinu nimi (nagu seadistamisel sisestatud)  |
-| `Shift + CapsLock Space E` | Sinu e-post (nagu seadistamisel sisestatud)  |
+| `Shift + CapsLock Space E` | Sinu e-posti aadress (nagu seadistamisel sisestatud)  |
 
-Saad enda omi lisada, muutes faili `~/.XCompose`, seejärel käitades terminalis käsu `omarchy-restart-xcompose`, et muudatused rakenduksid.
+Saad ise rohkem lisada, muutes faili `~/.XCompose`, seejärel käivitades terminalis `omarchy-restart-xcompose`, et muudatused kasutusele võetaks.

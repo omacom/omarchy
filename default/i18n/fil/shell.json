@@ -93,8 +93,6 @@
     "other": "%1 token ngayong araw"
   },
   "agents.unknownModel": "Hindi kilala",
-  "agents.usageNotUpdated": "Hindi pa na-update ang paggamit.",
-  "agents.usageUnavailable": "Hindi available ang paggamit",
   "agents.use": "Gamitin",
   "agents.waitingForAuth": "Naghihintay ng auth",
   "agents.windowLimit": "Limitasyon",

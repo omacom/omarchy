@@ -100,8 +100,6 @@
     "other": "%1 токена данас"
   },
   "agents.unknownModel": "Непознато",
-  "agents.usageNotUpdated": "Потрошња још није ажурирана.",
-  "agents.usageUnavailable": "Потрошња није доступна",
   "agents.use": "Користи",
   "agents.waitingForAuth": "Чека се аутентификација",
   "agents.windowLimit": "Ограничење",

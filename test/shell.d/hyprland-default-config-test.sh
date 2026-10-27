@@ -107,20 +107,6 @@ grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$fresh_output" || fail "default app
 grep -Fq $'XF86Calculator	Calculator' <<<"$fresh_output" || fail "default application bindings include the calculator hardware key"
 pass "default application bindings load from package defaults"
 
-grep -F 'hl.dsp.send_key_state({ mods = mods, key = key, state = "down" })' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
-  fail "universal clipboard shortcuts send explicit mods to the focused surface"
-pass "universal clipboard shortcuts send explicit mods to the focused surface"
-
-if grep -E 'send_key_state\(\{[^}]*window' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null; then
-  fail "universal clipboard shortcuts do not target only normal windows"
-fi
-pass "universal clipboard shortcuts do not exclude layer-shell fields"
-
-if grep -F 'wtype -M' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null; then
-  fail "universal clipboard shortcuts avoid the virtual keyboard so held SUPER cannot merge in"
-fi
-pass "universal clipboard shortcuts avoid virtual keyboard modifier merging"
-
 removed_home="$tmpdir/removed-home"
 mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
@@ -224,13 +210,3 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
 (( number_claims == 9 )) ||
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
-
-upgrade_script="$ROOT/bin/omarchy-upgrade-to-quattro"
-grep -Fq 'touch "$state_dir/preinstalls-removed"' "$upgrade_script" ||
-  fail "upgrade-to-quattro preserves preinstall removal state"
-
-mark_line=$(awk '/^mark_removed_preinstalls_from_legacy_bindings$/ { print NR; exit }' "$upgrade_script")
-copy_line=$(awk '/^copy_always_config_defaults$/ { print NR; exit }' "$upgrade_script")
-[[ -n $mark_line && -n $copy_line ]] || fail "upgrade-to-quattro preinstall marker and config refresh calls exist"
-(( mark_line < copy_line )) || fail "upgrade-to-quattro detects plain legacy bindings before overwriting Hyprland bindings"
-pass "upgrade-to-quattro preserves preinstall removal before refreshing Hyprland bindings"

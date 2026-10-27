@@ -100,8 +100,6 @@
     "two": "שני טוקנים היום"
   },
   "agents.unknownModel": "לא ידוע",
-  "agents.usageNotUpdated": "השימוש טרם עודכן.",
-  "agents.usageUnavailable": "השימוש אינו זמין",
   "agents.use": "השתמשו",
   "agents.waitingForAuth": "ממתין לאימות",
   "agents.windowLimit": "מגבלה",

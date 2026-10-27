@@ -93,8 +93,6 @@
     "other": "இன்று %1 டோக்கன்கள்"
   },
   "agents.unknownModel": "அறியப்படாதது",
-  "agents.usageNotUpdated": "பயன்பாடு இன்னும் புதுப்பிக்கப்படவில்லை.",
-  "agents.usageUnavailable": "பயன்பாடு கிடைக்கவில்லை",
   "agents.use": "பயன்படுத்தவும்",
   "agents.waitingForAuth": "அங்கீகாரத்திற்காகக் காத்திருக்கிறது",
   "agents.windowLimit": "வரம்பு",

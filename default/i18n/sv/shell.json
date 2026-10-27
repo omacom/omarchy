@@ -93,8 +93,6 @@
     "other": "%1 tokens i dag"
   },
   "agents.unknownModel": "Okänd",
-  "agents.usageNotUpdated": "Användningen har inte uppdaterats än.",
-  "agents.usageUnavailable": "Användning otillgänglig",
   "agents.use": "Använd",
   "agents.waitingForAuth": "Väntar på autentisering",
   "agents.windowLimit": "Gräns",

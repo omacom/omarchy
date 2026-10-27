@@ -1,45 +1,45 @@
 # Tarmoq
 
-Omarchy'da tarmoq NetworkManager tomonidan boshqariladi, va siz uni [yuqori panel](05-the-top-bar.md)dagi tarmoq belgisidan yoki `Super + Ctrl + N` bilan boshqarasiz.
+Omarchy'da tarmoq NetworkManager tomonidan boshqariladi, siz esa uni [yuqori panel](05-the-top-bar.md)dagi tarmoq belgisidan yoki `Super + Ctrl + N` bilan boshqarasiz.
 
-Ushbu panel Wi-Fi tarmoqlarini qidiradi, signal kuchini ko'rsatadi va ulanadi. Ethernet umuman hech narsani talab qilmaydi — kabelni ulang va u ishlaydi. Agar terminalda qolishni afzal ko'rsangiz, `nmtui` sizga xuddi shu boshqaruvlarni beradi, va `omarchy network` buyruqlar guruhi ham bor.
+O'sha panel Wi-Fi tarmoqlarini qidiradi, signal kuchini ko'rsatadi va ulanadi. Ethernet uchun hech narsa kerak emas — kabelni ulang va u ishlaydi. Agar terminalda qolishni afzal ko'rsangiz, `nmtui` xuddi o'sha boshqaruvlarni beradi, shuningdek `omarchy network` buyruqlar guruhi ham bor.
 
 ## Wi-Fi'ingizni ulashish
 
-Uzoq parolni ovoz chiqarib o'qish o'rniga, Wi-Fi'ga ulanganingizda _Sozlash > Tarmoq > QR Code_ ni ishga tushiring. Bu ekranga istalgan telefon kamerasi skanerlab ulanishi mumkin bo'lgan QR kodni chiqaradi. Bu — borligini bilganingizdan keyin kutilganidan ko'proq ishlatadigan narsalardan biri.
+Uzun parolni ovoz chiqarib o'qib o'tirmasdan, Wi-Fi'ga ulangan paytingizda _Setup > Network > QR Code_ ni ishga tushiring. Bu ekranga istalgan telefon kamerasi skanerlab qo'shila oladigan QR code chiqaradi. Bu — borligini bilib olganingizdan keyin kutilganidan ko'proq ishlatadigan narsalardan biri.
 
-Agar sizga aynan parolning o'zi kerak bo'lsa, `omarchy network password <interface>` uni chiqaradi.
+Agar sizga aynan parolning o'zi kerak bo'lsa, `omarchy network password <interface>` uni chiqarib beradi.
 
 ## DNS
 
-Omarchy tarmog'ingiz DHCP orqali bergan DNS'dan foydalanadi. Siz buni butun mashina uchun _Sozlash > Tarmoq > DNS_ ostida o'zgartirishingiz mumkin, bu yerda Cloudflare va Google bir bosishda mavjud. O'zingizning serverlaringizni kiritish uchun _Custom_ ni tanlang.
+Omarchy tarmog'ingiz DHCP orqali bergan DNS'dan foydalanadi. Buni butun mashina uchun _Setup > Network > DNS_ ostida o'zgartirishingiz mumkin, u yerda Cloudflare va Google bir bosishda tayyor. O'zingizning serverlaringizni yozish uchun _Custom_ ni tanlang.
 
-Terminaldan, `omarchy dns` joriy provayderni chiqaradi va `omarchy dns Cloudflare` birini o'rnatadi.
+Terminaldan `omarchy dns` joriy providerni chiqaradi va `omarchy dns Cloudflare` bittasini o'rnatadi.
 
-## Wi-Fi diapazonini qotirish
+## Wi-Fi bandini qotirib qo'yish
 
-Agar routeringiz 2.4GHz, 5GHz va 6GHz ni bir xil tarmoq nomiga qo'ysa, noutbukingiz ba'zan sekiniga yopishib qoladi. `omarchy network band` qaysi diapazonda ekanligingizni ko'rsatadi, va `omarchy network band 5` uni qotiradi. Yana o'zi tanlashiga ruxsat berish uchun `auto` dan foydalaning.
+Agar routeringiz 2.4GHz, 5GHz va 6GHz'ni bitta tarmoq nomi ostida bersa, noutbukingiz ba'zan sekiniga yopishib qoladi. `omarchy network band` qaysi bandda ekaningizni ko'rsatadi, `omarchy network band 5` esa uni qotirib qo'yadi. U yana o'zi tanlashiga ruxsat berish uchun `auto` dan foydalaning.
 
-Bu muayyan kirish nuqtasini emas, diapazonni qotiradi, shuning uchun siz AP'lar orasida odatdagidek rouming qilishda davom etasiz.
+Bu muayyan access point'ni emas, bandni qotiradi, shuning uchun siz AP'lar orasida odatdagidek rouming qilib yuraverasiz.
 
 ## U qanchalik tez?
 
-_Trigger > Speed Test > Network Speed Test_ haqiqiy yuklab olish va yuklash tezligingizni bir juft siferblat bilan o'lchaydi. Terminaldan bu `omarchy network speedtest down` yoki `up`. (Agar boshqa tor bo'g'inni benchmark qilayotgan bo'lsangiz, o'sha menyuda uning yonida disk tezligi testi ham bor.)
+_Trigger > Speed Test > Network Speed Test_ bir juft shkalalar bilan haqiqiy yuklab olish va yuklash tezligingizni o'lchaydi. Terminaldan bu `omarchy network speedtest down` yoki `up`. U Omarchy'ning o'z xizmati bilan o'lchaydi va faqat o'zining test uzatishlarini hisobga oladi. Boshqa yuklab olishlar o'tkazish qobiliyati uchun raqobat qilishi mumkin, lekin ular speed-test natijasiga qo'shilmaydi. (Agar boshqa tor joyni benchmark qilayotgan bo'lsangiz, o'sha menyuda uning yonida disk speed test'i ham turibdi.)
 
 ## Firewall
 
-Firewall sukut bo'yicha yoqilgan va barcha kiruvchi trafikni bloklaydi, bitta istisno bilan: 53317-port, shuning uchun [LocalSend](22-guis.md) qutidan chiqqan holda ishlaydi.
+Firewall sukut bo'yicha yoqilgan bo'ladi va barcha kiruvchi traffic'ni bloklaydi, bitta istisno bilan: 53317-port, shunda [LocalSend](22-guis.md) qutidan chiqqan zahoti ishlaydi.
 
-SSH siz uni _Sozlash > Xavfsizlik > SSHD_ bilan yoqmaguningizcha o'chirilgan bo'ladi, bu daemon'ni ishga tushiradi, 22-portni brute force'ga qarshi tezlik cheklovi bilan ochadi va kalitni avtorizatsiya qiladi. Docker ham qulflangan, shuning uchun konteynerlar tasodifan o'zlarini dunyoga ochib yubora olmaydi. Butun hikoya uchun [xavfsizlik](48-security.md) ga qarang.
+SSH uni _Setup > Security > SSHD_ bilan yoqmaguningizcha o'chiq turadi, bu daemon'ni ishga tushiradi, brute force'ga qarshi rate-limited qilingan 22-portni ochadi va kalitni avtorizatsiya qiladi. Docker ham qattiq yopilgan, shuning uchun container'lar tasodifan o'zlarini dunyoga ochib qo'ya olmaydi. Butun hikoya uchun [security](48-security.md) ga qarang.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) — barcha kompyuterlaringiz va serverlaringizga internet orqali yetib borishni sodda va xavfsiz qiladigan mesh VPN. Uni _O'rnatish > Xizmat > Tailscale_ bilan o'rnating.
+[Tailscale](https://tailscale.com/) — barcha kompyuterlaringiz va serverlaringizga internet orqali yetib borishni oddiy va xavfsiz qiladigan mesh VPN. Uni _Install > Service > Tailscale_ bilan o'rnating.
 
-Bu sizga panelda Tailscale panelini beradi, u tailnet'ga ulanadi va undan uziladi, hisoblarni almashtiradi va chiqish tugunini tanlaydi — ro'yxatda o'zingizning mashinalaringiz ham, Mullvad mintaqalari ham chiqadi. U shuningdek mashinalaringizni ko'rib chiqadi, va Taildrop aynan shu yerda yashaydi: mashinani tanlang va unga fayllar yuborish uchun `s` ni bosing, yoki uning IP, nomi yoki to'liq DNS nomini nusxalash uchun `c`, `n` va `d` ni bosing. Terminaldagi muqobili `omarchy tailscale send <machine> [file...]`, va sizga yuborilgan fayllar avtomatik ravishda `~/Downloads` ga tushadi. Kelganlik haqidagi bildirishnoma siz uni bosib ochmaguningizcha yoki rad etmaguningizcha kutadi, shuning uchun siz mashinadan uzoqda bo'lganingizda kelgan fayl, qaytganingizda javob berishingiz uchun hali ham shu yerda bo'ladi.
+Bu sizga panelda Tailscale panelini beradi, u tailnet'ga ulanadi va undan uziladi, account'larni almashtiradi va exit node tanlaydi — ro'yxatda o'zingizning mashinalaringiz ham, Mullvad region'lari ham chiqadi. U mashinalaringizni ham ko'rib chiqadi va Taildrop aynan o'sha yerda yashaydi: mashinani tanlang va unga fayllar yuborish uchun `s` ni bosing, yoki uning IP'si, nomi yoki to'liq DNS nomini nusxalash uchun `c`, `n` va `d` ni bosing. Terminaldagi muqobili `omarchy tailscale send <machine> [file...]`, sizga yuborilgan fayllar esa avtomatik ravishda `~/Downloads` ga tushadi. Kelganini e'lon qiladigan bildirishnoma siz uni ochish uchun bosmaguningizcha yoki yopib yubormaguningizcha kutib turadi, shuning uchun siz mashina oldida yo'qligingizda kelib tushgan fayl qaytib kelganingizda ham javob berishingiz uchun o'sha yerda turadi.
 
-Uni o'rnatish Tailscale admin konsoli uchun veb-ilovani ham qo'shadi.
+Uni o'rnatish Tailscale admin console uchun web app ham qo'shadi.
 
 ## U ishlashdan to'xtaganda
 
-Qayta yuklashdan oldin, buzilgan qismni o'zini alohida qayta ishga tushirib ko'ring. _Yangilash > Uskuna_ da Wi-Fi, Bluetooth, Audio va Trackpad bor, va ulardan birini qayta yuklash ko'pchilik "besh daqiqa oldin ishlayotgan edi" holatlarini tozalaydi. [muammolarni bartaraf etish](45-troubleshooting.md) ga qarang.
+Reboot qilishdan oldin, aybdor bo'lakning o'zini qayta ishga tushirib ko'ring. _Update > Hardware_ da Wi-Fi, Bluetooth, Audio va Trackpad bor, ulardan birini qayta yuklash ko'pchilik "besh daqiqa oldin ishlayotgandi" vaziyatlarini to'g'rilaydi. [troubleshooting](45-troubleshooting.md) ga qarang.

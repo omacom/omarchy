@@ -86,8 +86,6 @@
     "other": "%1 token hôm nay"
   },
   "agents.unknownModel": "Không rõ",
-  "agents.usageNotUpdated": "Mức dùng chưa được cập nhật.",
-  "agents.usageUnavailable": "Chưa có mức dùng",
   "agents.use": "Dùng",
   "agents.waitingForAuth": "Đang chờ xác thực",
   "agents.windowLimit": "Giới hạn",

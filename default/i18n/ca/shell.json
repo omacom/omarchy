@@ -100,8 +100,6 @@
     "other": "%1 tokens avui"
   },
   "agents.unknownModel": "Desconegut",
-  "agents.usageNotUpdated": "L'ús encara no s'ha actualitzat.",
-  "agents.usageUnavailable": "Ús no disponible",
   "agents.use": "Utilitza",
   "agents.waitingForAuth": "Esperant autenticació",
   "agents.windowLimit": "Límit",

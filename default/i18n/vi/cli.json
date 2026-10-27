@@ -1,4 +1,14 @@
 {
+  "about.ageUptimeUpdate": "Tuổi / Thời gian hoạt động / Cập nhật",
+  "about.days": {
+    "other": "%1 ngày"
+  },
+  "about.hardware": "Phần cứng",
+  "about.osAge": "Tuổi hệ điều hành",
+  "about.software": "Phần mềm",
+  "about.update": "Cập nhật",
+  "about.updatedAt": "%1 lúc %2",
+  "about.uptime": "Thời gian hoạt động",
   "agents.addFailed": "Không thể thêm tài khoản %1",
   "agents.added": "Đã thêm %1.",
   "agents.allOver": "Tất cả tài khoản %1 đều trên %2%",

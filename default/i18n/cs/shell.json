@@ -100,8 +100,6 @@
     "other": "%1 tokenů dnes"
   },
   "agents.unknownModel": "Neznámý",
-  "agents.usageNotUpdated": "Využití zatím nebylo aktualizováno.",
-  "agents.usageUnavailable": "Využití nedostupné",
   "agents.use": "Použít",
   "agents.waitingForAuth": "Čekání na ověření",
   "agents.windowLimit": "Limit",

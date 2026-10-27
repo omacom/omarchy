@@ -93,8 +93,6 @@
     "other": "%1 token σήμερα"
   },
   "agents.unknownModel": "Άγνωστο",
-  "agents.usageNotUpdated": "Η χρήση δεν έχει ενημερωθεί ακόμα.",
-  "agents.usageUnavailable": "Η χρήση δεν είναι διαθέσιμη",
   "agents.use": "Χρησιμοποίησε",
   "agents.waitingForAuth": "Αναμονή για εξουσιοδότηση",
   "agents.windowLimit": "Όριο",

@@ -93,8 +93,6 @@
     "other": "%1 токена днес"
   },
   "agents.unknownModel": "Неизвестен",
-  "agents.usageNotUpdated": "Употребата още не е обновена.",
-  "agents.usageUnavailable": "Употребата не е налична",
   "agents.use": "Използвай",
   "agents.waitingForAuth": "Изчаква удостоверяване",
   "agents.windowLimit": "Лимит",

@@ -1,63 +1,63 @@
 # Kekunci Pintas
 
-Anda boleh melihat semua pengikatan papan kekunci utama dengan `Super + K` (pengikatan Tmux dengan `Super + Alt + K` dan pengikatan Herdr dengan `Super + Ctrl + K`).
+Anda boleh melihat semua kekunci utama dengan `Super + K` (kekunci Tmux dengan `Super + Alt + K` dan kekunci Herdr dengan `Super + Ctrl + K`).
 
 ## Navigasi
 
 | Kekunci Pintas                  | Fungsi              |
 | ----------------------- | --------------------- |
-| `Super + Space`           | Menu Omarchy (aplikasi dan segala-galanya yang lain)    |
+| `Super + Space`           | Menu Omarchy (aplikasi dan segala-galanya)    |
 | `Super + Alt + Space` | Grid aplikasi |
-| `Super + Escape` | Menu sistem (gantung, mulakan semula, dsb.)  |
+| `Super + Escape` | Menu sistem (gantung, mulakan semula, dsb)  |
 | `Super + Ctrl + L` | Kunci komputer |
 | `Super + W` atau `Super + Q` | Tutup tetingkap             |
 | `Ctrl + Alt + Del` | Tutup semua tetingkap |
 | `Super + T`               | Togol tetingkap antara jubin/terapung             |
 | `Super + J` | Togol kedudukan tetingkap (mendatar/menegak) |
-| `Super + O`               | Togol tetingkap timbul menjadi sticky'n'floating |
+| `Super + O`               | Togol tetingkap timbul kepada sticky'n'floating |
 | `Super + L`               | Kitar melalui susun atur dwindle, scrolling, dan floating |
-| `Super + Alt + L`         | Kitar melalui susun atur dalam arah terbalik |
-| `Super + P`               | Togol gaya tetingkap pseudo (natural v stretch) |
-| `Super + F`                 | Pergi ke skrin penuh              |
-| `Super + Alt + F`                 | Pergi ke lebar penuh              |
-| `Super + Ctrl + F`                 | Pergi ke skrin penuh di dalam tetingkap              |
+| `Super + Alt + L`         | Kitar melalui susun atur secara songsang |
+| `Super + P`               | Togol gaya tetingkap pseudo (natural lwn stretch) |
+| `Super + F`                 | Pergi skrin penuh              |
+| `Super + Alt + F`                 | Pergi lebar penuh              |
+| `Super + Ctrl + F`                 | Pergi skrin penuh di dalam tetingkap              |
 | `Super + 1/2/3/4`         | Lompat ke ruang kerja tertentu pada monitor yang difokuskan |
 | `Super + Tab` | Lompat ke ruang kerja seterusnya pada monitor yang difokuskan |
 | `Super + Shift + Tab` | Lompat ke ruang kerja sebelumnya pada monitor yang difokuskan |
 | `Super + Ctrl + Tab` | Lompat ke ruang kerja terdahulu pada monitor yang difokuskan |
-| `Super + Shift + 1/2/3/4` | Alihkan tetingkap ke ruang kerja pada monitor yang difokuskan |
-| `Super + Shift + Alt + 1/2/3/4` | Alihkan tetingkap ke ruang kerja pada monitor yang difokuskan tanpa mengikutinya |
+| `Super + Shift + 1/2/3/4` | Alih tetingkap ke ruang kerja pada monitor yang difokuskan |
+| `Super + Shift + Alt + 1/2/3/4` | Alih tetingkap ke ruang kerja pada monitor yang difokuskan tanpa mengikutinya |
 | `Super + S` | Togol scratchpad penuh |
-| `Super + Alt + S` | Alihkan tetingkap ke scratchpad penuh |
+| `Super + Alt + S` | Alih tetingkap ke scratchpad penuh |
 | `Super + Grave` | Togol konsol Quake |
-| `Super + Shift + Grave` | Alihkan tetingkap ke konsol Quake |
-| `Super + Shift + Ctrl + Arrows` | Alihkan tetingkap ke monitor dalam arah tersebut |
-| `Super + Shift + Alt + Arrows` | Alihkan ruang kerja ke monitor dalam arah tersebut |
-| `Super + Arrow`  | Alihkan fokus ke tetingkap dalam arah anak panah, melintasi ke monitor di sisi tersebut di tepi skrin |
-| `Super + Shift + Arrow`  | Tukar tetingkap dengan tetingkap lain dalam arah anak panah, termasuk yang berada pada monitor di sisi tersebut |
+| `Super + Shift + Grave` | Alih tetingkap ke konsol Quake |
+| `Super + Shift + Ctrl + Arrows` | Alih tetingkap ke monitor ke arah itu |
+| `Super + Shift + Alt + Arrows` | Alih ruang kerja ke monitor ke arah itu |
+| `Super + Arrow`  | Alih fokus ke tetingkap ke arah anak panah, melintasi ke monitor di sebelah itu di tepi skrin |
+| `Super + Shift + Arrow`  | Tukar tetingkap dengan tetingkap lain ke arah anak panah, termasuk yang berada pada monitor di sebelah itu |
 | `Super + Minus` | Kembangkan tetingkap ke kiri |
 | `Super + Equal` | Kecilkan tetingkap ke kiri |
 | `Super + Shift + Minus` | Kecilkan tetingkap ke atas |
 | `Super + Shift + Equal` | Kembangkan tetingkap ke bawah |
-| `Super + Alt + Minus/Equal` | Pengubahan saiz yang sama dalam langkah yang lebih kecil |
-| `Super + Ctrl + Minus/Equal` | Pengubahan saiz yang sama dalam langkah yang lebih besar |
+| `Super + Alt + Minus/Equal` | Pengubahan saiz yang sama dalam langkah lebih kecil |
+| `Super + Ctrl + Minus/Equal` | Pengubahan saiz yang sama dalam langkah lebih besar |
 | `Super + Alt + Home` | Simpan lebar tetingkap |
 | `Super + Home` | Pulihkan lebar tetingkap yang disimpan |
 | `Super + Left Mouse` | Seret tetingkap ke sekeliling |
 | `Super + Right Mouse` | Ubah saiz tetingkap |
-| `Super + Scroll Wheel` | Tatal melalui ruang kerja pada monitor yang difokuskan |
+| `Super + Scroll Wheel` | Skrol melalui ruang kerja pada monitor yang difokuskan |
 | `Super + G`               | Togol pengumpulan tetingkap      |
-| `Super + Alt + G`               | Alihkan tetingkap keluar daripada kumpulan      |
-| `Super + Alt + Tab`               | Kitar antara tetingkap dalam kumpulan      |
-| `Super + Alt + Shift + Tab`               | Kitar ke belakang antara tetingkap dalam kumpulan      |
-| `Super + Alt + Scroll Wheel` | Kitar antara tetingkap dalam kumpulan |
-| `Super + Alt + 1/2/3/4/5`               | Lompat ke tetingkap tertentu dalam kumpulan      |
-| `Super + Alt + Arrow`  | Alihkan tetingkap ke dalam kumpulan dalam arah anak panah, termasuk yang berada pada monitor di sisi tersebut |
+| `Super + Alt + G`               | Alih tetingkap keluar daripada pengumpulan      |
+| `Super + Alt + Tab`               | Kitar antara tetingkap dalam pengumpulan      |
+| `Super + Alt + Shift + Tab`               | Kitar ke belakang antara tetingkap dalam pengumpulan      |
+| `Super + Alt + Scroll Wheel` | Kitar antara tetingkap dalam pengumpulan |
+| `Super + Alt + 1/2/3/4/5`               | Lompat ke tetingkap tertentu dalam pengumpulan      |
+| `Super + Alt + Arrow`  | Alih tetingkap ke dalam pengumpulan ke arah anak panah, termasuk yang berada pada monitor di sebelah itu |
 | `Super + Ctrl + Left/Right`  | Bergerak antara tetingkap di dalam kumpulan jubin |
-| `Super + Ctrl + Z` | Zum masuk pada skrin (ulangi untuk zum yang lebih banyak) |
+| `Super + Ctrl + Z` | Zum masuk pada skrin (ulangi untuk zum lebih besar) |
 | `Super + Ctrl + Alt + Z` | Zum keluar sepenuhnya daripada skrin |
-| `Super + /` | Melangkah ke hadapan melalui pilihan penskalaan monitor |
-| `Super + Alt + /` | Melangkah ke belakang melalui pilihan penskalaan monitor |
+| `Super + /` | Maju selangkah melalui pilihan penskalaan monitor |
+| `Super + Alt + /` | Undur selangkah melalui pilihan penskalaan monitor |
 | `Alt + Tab` | Kitar ke hadapan melalui tetingkap pada ruang kerja aktif |
 | `Alt + Shift + Tab` | Kitar ke belakang melalui tetingkap pada ruang kerja aktif |
 | `Ctrl + Alt + Tab`| Kitar fokus ke hadapan melalui monitor |
@@ -76,8 +76,8 @@ Anda boleh melihat semua pengikatan papan kekunci utama dengan `Super + K` (peng
 | `Super + Ctrl + Alt + E`           | Panel jam dunia    |
 | `Super + Ctrl + 1-9`           | Togol panel bar mengikut kedudukan    |
 | `Super + Ctrl + S` | Menu kongsi (melalui LocalSend) |
-| `Super + Ctrl + C` | Kawalan tangkapan (screenshot/-recording/picker) |
-| `Super + Ctrl + O` | Menu togol |
+| `Super + Ctrl + C` | Kawalan tangkapan (tangkapan skrin/rakaman/pemilih) |
+| `Super + Ctrl + O` | Togol menu |
 | `Super + Ctrl + H` | Menu perkakasan |
 | `Super + Ctrl + E` | Pemilih emoji |
 | `Super + Ctrl + .` | Transkod media |
@@ -129,37 +129,37 @@ Anda boleh melihat semua pengikatan papan kekunci utama dengan `Super + K` (peng
 | `Super + Shift + Alt + X`           | X Compose |
 | `Super + Shift + Y`           | YouTube |
 
-Tukar/tambah pengikatan dalam `~/.config/hypr/bindings.lua`.
+Tukar/tambah ikatan dalam `~/.config/hypr/bindings.lua`.
 
-## Papan klip universal
+## Papan keratan universal
 
 | Kekunci Pintas                  | Fungsi              |
 | ----------------------- | --------------------- |
 | `Super + C`           | Salin    |
 | `Super + X`           | Potong (bukan dalam terminal)    |
 | `Super + V`           | Tampal    |
-| `Super + Ctrl + V`           | Pengurus papan klip    |
+| `Super + Ctrl + V`           | Pengurus papan keratan    |
 
-Biasanya pada Linux, anda memerlukan `Ctrl + Shift + C/V` untuk copy'n'paste dalam terminal dan `Ctrl + C/V` untuk melakukannya di tempat lain. Kekunci pintas papan klip bersepadu Omarchy ini berfungsi di mana-mana sahaja.
+Biasanya di Linux, anda memerlukan `Ctrl + Shift + C/V` untuk copy'n'paste dalam terminal dan `Ctrl + C/V` untuk melakukannya di tempat lain. Kekunci pintas papan keratan bersepadu Omarchy ini berfungsi di mana-mana.
 
 ## Tangkapan
 
 | Kekunci Pintas              | Fungsi                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | Tangkapan skrin                      |
-| `Super + Ctrl + Alt + C`            | Tangkapan skrin (tangkapan yang sama, untuk papan kekunci yang tiada kekunci Print Screen) |
+| `Super + Ctrl + Alt + C`            | Tangkapan skrin (tangkapan yang sama, untuk papan kekunci tanpa kekunci Print Screen) |
 | `Super + Ctrl + C` | Menu tangkapan |
 | `Alt + Print Screen`            | Rakaman skrin                     |
 | `Super + Print Screen` | Pemilih warna |
-| `Super + Ctrl + Print Screen` | Pengekstrakan teks ke papan klip |
-| `Super + Alt + [` | Jadikan tindanan webcam lebih kecil semasa merakam |
-| `Super + Alt + ]` | Jadikan tindanan webcam lebih besar semasa merakam |
+| `Super + Ctrl + Print Screen` | Pengekstrakan teks ke papan keratan |
+| `Super + Alt + [` | Kecilkan tindanan webcam semasa merakam |
+| `Super + Alt + ]` | Besarkan tindanan webcam semasa merakam |
 | `Alt + Shift + L` | Salin URL semasa daripada webapp atau Chromium |
 | `Alt + Shift + D` | Muat turun video pada halaman semasa ke `~/Videos` |
-| `Super + Ctrl + X` | Mula/hentikan imlak (memerlukan _Setup > Defaults > Dictation_) |
+| `Super + Ctrl + X` | Mula/henti imlak (memerlukan _Setup > Defaults > Dictation_) |
 | `Right Alt` / `F9` | Imlak push-to-talk (memerlukan Voxtype atau Superwhisper) |
 
-Dengan rakaman skrin, kekunci pintas terlebih dahulu akan bertanya audio mana yang anda mahukan, kemudian mula merakam. Tekannya sekali lagi untuk berhenti. Lihat [tangkapan skrin dan rakaman](12-screenshots-recording.md) untuk butirannya.
+Dengan rakaman skrin, kekunci pintas mula-mula bertanya audio mana yang anda mahu, kemudian mula merakam. Tekannya lagi untuk berhenti. Lihat [tangkapan skrin dan rakaman](12-screenshots-recording.md) untuk butirannya.
 
 Semua pilihan tangkapan juga boleh diakses di bawah _Trigger > Capture_ dalam menu Omarchy (`Super + Space`).
 
@@ -167,12 +167,12 @@ Semua pilihan tangkapan juga boleh diakses di bawah _Trigger > Capture_ dalam me
 
 | Kekunci Pintas                  | Fungsi              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Ketepikan pemberitahuan terbaharu  |
-| `Super + Shift + ,` | Ketepikan semua pemberitahuan |
+| `Super + ,` | Bertindak pada pemberitahuan terkini: bukanya atau tekan satu-satunya butangnya, pilih daripada pilihannya, atau abaikannya apabila ia tiada pilihan  |
+| `Super + Shift + ,` | Abaikan semua pemberitahuan |
 | `Super + Ctrl + ,` | Kawal pemberitahuan dengan papan kekunci  |
-| `Super + Alt + ,` | Seru pemberitahuan paling terkini  |
+| `Super + Alt + ,` | Abaikan pemberitahuan terkini  |
 | `Super + Shift + Alt + ,` | Buka sejarah pemberitahuan  |
-| `Super + Ctrl + Alt + ,` | Togol menyenyapkan pemberitahuan  |
+| `Super + Ctrl + Alt + ,` | Togol senyapkan pemberitahuan  |
 
 ## Gaya
 
@@ -183,7 +183,7 @@ Semua pilihan tangkapan juga boleh diakses di bawah _Trigger > Capture_ dalam me
 | `Super + Backspace` | Togol ketelusan pada tetingkap |
 | `Super + Ctrl + Backspace` | Togol aspek segi empat sama tetingkap tunggal |
 
-Imej latar belakang tambahan terdapat dalam `~/.config/omarchy/backgrounds/<theme name>`. Juga tersedia melalui _Install > Style > Background_ dalam menu Omarchy.
+Imej latar belakang tambahan berada dalam `~/.config/omarchy/backgrounds/<theme name>`. Juga tersedia melalui _Install > Style > Background_ dalam menu Omarchy.
 
 Semua pilihan gaya juga boleh diakses di bawah _Style_ dalam menu Omarchy (`Super + Space`).
 
@@ -192,8 +192,8 @@ Semua pilihan gaya juga boleh diakses di bawah _Style_ dalam menu Omarchy (`Supe
 | Kekunci Pintas                  | Fungsi              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + I` | Togol penguncian semasa melahu |
-| `Super + Ctrl + Delete` | Togol paparan komputer riba hidup/mati |
-| `Super + Ctrl + Alt + Delete` | Togol pencerminan paparan komputer riba |
+| `Super + Ctrl + Delete` | Togol paparan laptop hidup/mati |
+| `Super + Ctrl + Alt + Delete` | Togol pencerminan paparan laptop |
 | `Super + Shift + Space` | Togol bar atas  |
 | `Shift + Mute` | Tukar kepada output audio seterusnya |
 | `Shift + Play` | Tukar kepada sumber media seterusnya |
@@ -218,19 +218,19 @@ Semua pilihan gaya juga boleh diakses di bawah _Style_ dalam menu Omarchy (`Supe
 
 ## Tmux
 
-Kekunci awalan ialah `Ctrl + Space` (`Ctrl + B` juga berfungsi). Anda boleh menukar pengikatan ini dalam `~/.config/tmux/tmux.conf`.
+Kekunci awalan ialah `Ctrl + Space` (`Ctrl + B` juga berfungsi). Anda boleh menukar ikatan ini dalam `~/.config/tmux/tmux.conf`.
 
 ### Anak tetingkap
 
 | Kekunci Pintas                  | Fungsi              |
 | ----------------------- | --------------------- |
-| `Prefix + v` | Pisahkan anak tetingkap di sebelah (menegak) |
-| `Prefix + h` | Pisahkan anak tetingkap di bawah (mendatar) |
-| `Prefix + x` | Bunuh anak tetingkap |
+| `Prefix + v` | Belah anak tetingkap di sebelah (menegak) |
+| `Prefix + h` | Belah anak tetingkap di bawah (mendatar) |
+| `Prefix + x` | Matikan anak tetingkap |
 | `Prefix + z` | Togol zum anak tetingkap (skrin penuh) |
-| `Alt + Enter` | Pisahkan anak tetingkap di bawah (tanpa awalan) |
-| `Alt + Shift + Enter` | Pisahkan anak tetingkap di sebelah (tanpa awalan) |
-| `Alt + Escape` | Bunuh anak tetingkap (tanpa awalan) |
+| `Alt + Enter` | Belah anak tetingkap di bawah (tanpa awalan) |
+| `Alt + Shift + Enter` | Belah anak tetingkap di sebelah (tanpa awalan) |
+| `Alt + Escape` | Matikan anak tetingkap (tanpa awalan) |
 | `Ctrl + Alt + Arrows` | Bergerak antara anak tetingkap |
 | `Ctrl + Alt + Shift + Arrows` | Ubah saiz anak tetingkap |
 
@@ -239,31 +239,31 @@ Kekunci awalan ialah `Ctrl + Space` (`Ctrl + B` juga berfungsi). Anda boleh menu
 | Kekunci Pintas                  | Fungsi              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Tetingkap baharu |
-| `Prefix + k` | Bunuh tetingkap |
+| `Prefix + k` | Matikan tetingkap |
 | `Prefix + r` | Namakan semula tetingkap |
 | `Alt + 1-9` | Pergi ke tetingkap tertentu |
 | `Alt + Arrow Left/Right` | Bergerak antara tetingkap |
-| `Alt + Shift + Arrow Left/Right` | Alihkan tetingkap ke kiri/kanan |
+| `Alt + Shift + Arrow Left/Right` | Alih tetingkap ke kiri/kanan |
 
 ### Sesi
 
 | Kekunci Pintas                  | Fungsi              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Sesi baharu |
-| `Prefix + K` | Bunuh sesi |
+| `Prefix + K` | Matikan sesi |
 | `Prefix + R` | Namakan semula sesi |
 | `Prefix + N` | Sesi seterusnya |
 | `Prefix + P` | Sesi sebelumnya |
 | `Alt + Arrow Up/Down` | Bergerak antara sesi |
 | `Prefix + s` | Senaraikan sesi |
-| `Prefix + d` | Tanggalkan daripada sesi |
+| `Prefix + d` | Nyahsambung daripada sesi |
 
 ### Mod salin (gaya vi)
 
 | Kekunci Pintas                  | Fungsi              |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Masuk mod salin |
-| `v` | Mulakan pemilihan (dalam mod salin) |
+| `v` | Mula pemilihan (dalam mod salin) |
 | `y` | Salin pemilihan (dalam mod salin) |
 
 ### Umum
@@ -271,14 +271,14 @@ Kekunci awalan ialah `Ctrl + Space` (`Ctrl + B` juga berfungsi). Anda boleh menu
 | Kekunci Pintas                  | Fungsi              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Muat semula konfigurasi |
-| `Prefix + ?` | Tunjukkan pengikatan kekunci Tmux |
-| `Prefix + :` | Gesaan perintah |
+| `Prefix + ?` | Tunjukkan kekunci Tmux |
+| `Prefix + :` | Gesaan arahan |
 
 ### Fungsi susun atur Tmux
 
 Fungsi-fungsi ini mesti dijalankan di dalam sesi Tmux.
 
-| Perintah | Fungsi |
+| Arahan | Fungsi |
 | ------- | -------- |
 | `tdl <ai> [<second_ai>]` | Cipta susun atur dev dengan editor, AI, dan terminal |
 | `tdlm <ai> [<second_ai>]` | Cipta susun atur dev bagi setiap subdirektori |
@@ -290,15 +290,15 @@ Terminal Ghostty dipasang menggunakan _Install > Terminal_ melalui menu Omarchy.
 
 | Kekunci Pintas                  | Fungsi              |
 | ----------------------- | --------------------- |
-| `Ctrl + Shift + E` | Pisahan baharu di bawah |
-| `Ctrl + Shift + O` | Pisahan baharu di sebelah |
-| `Ctrl + Alt + Arrows` | Bergerak antara pisahan |
-| `Super + Ctrl + Shift + Arrows` | Ubah saiz pisahan sebanyak 10 baris |
-| `Super + Ctrl + Shift + Alt + Arrows` | Ubah saiz pisahan sebanyak 100 baris |
+| `Ctrl + Shift + E` | Belahan baharu di bawah |
+| `Ctrl + Shift + O` | Belahan baharu di sebelah |
+| `Ctrl + Alt + Arrows` | Bergerak antara belahan |
+| `Super + Ctrl + Shift + Arrows` | Ubah saiz belahan sebanyak 10 baris |
+| `Super + Ctrl + Shift + Alt + Arrows` | Ubah saiz belahan sebanyak 100 baris |
 | `Ctrl + Shift + T` | Tab baharu  |
 | `Ctrl + Shift + Arrows` | Bergerak antara tab |
 | `Alt + Numbers` | Pergi ke tab tertentu |
-| `Shift + Pg Up/Down` | Tatal sejarah |
+| `Shift + Pg Up/Down` | Skrol sejarah |
 | `Ctrl + Left mouse` | Buka pautan dalam pelayar |
 
 ## Pengurus Fail
@@ -306,7 +306,7 @@ Terminal Ghostty dipasang menggunakan _Install > Terminal_ melalui menu Omarchy.
 | Kekunci Pintas              | Fungsi                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Pergi ke laluan                     |
-| `Space`               | Pratonton fail (anak panah menavigasi) |
+| `Space`               | Pratonton fail (anak panah untuk navigasi) |
 | `Backspace`      | Kembali satu folder             |
 
 ## Neovim (w/ lazyvim)
@@ -315,8 +315,8 @@ Terminal Ghostty dipasang menggunakan _Install > Terminal_ melalui menu Omarchy.
 
 | Kekunci Pintas                   | Fungsi                        |
 | ------------------------ | ------------------------------- |
-| `Space`                    | Tunjukkan pilihan perintah            |
-| `Space Space`              | Buka fail melalui carian kabur      |
+| `Space`                    | Tunjukkan pilihan arahan            |
+| `Space Space`              | Buka fail melalui carian fuzzy      |
 | `Space E`                  | Togol bar sisi                  |
 | `Space G G`                | Tunjukkan kawalan git               |
 | `Space S G`                | Cari kandungan fail             |
@@ -326,22 +326,22 @@ Terminal Ghostty dipasang menggunakan _Install > Terminal_ melalui menu Omarchy.
 | `Shift + L`                      | Pergi ke tab fail kanan            |
 | `Space B D`                | Tutup tab fail                  |
 
-### Semasa di bar sisi
+### Semasa dalam bar sisi
 
 | Kekunci Pintas                   | Fungsi                        |
 | ------------------------ | ------------------------------- |
 | `A`                        | Tambah fail baharu dalam direktori induk      |
 | `Shift + A`                | Tambah subdirektori baharu dalam direktori induk    |
 | `D`                        | Padam fail/direktori yang diserlahkan     |
-| `M`                        | Alihkan fail/direktori yang diserlahkan       |
+| `M`                        | Alih fail/direktori yang diserlahkan       |
 | `R`                        | Namakan semula fail/direktori yang diserlahkan     |
-| `?`                        | Tunjukkan bantuan untuk semua perintah      |
+| `?`                        | Tunjukkan bantuan untuk semua arahan      |
 
-[Lihat semua kekunci pintas Neovim yang dikonfigurasikan oleh LazyVim](https://www.lazyvim.org/keymaps).
+[Lihat semua kekunci Neovim yang dikonfigurasikan oleh LazyVim](https://www.lazyvim.org/keymaps).
 
 ## Emoji Pantas
 
-Anda boleh menggunakan `Super + Ctrl + E` untuk menunjukkan pemilih emoji lengkap yang akan meletakkan pilihan pada papan klip atau anda boleh menggunakan pilihan capaian pantas ini.
+Anda boleh menggunakan `Super + Ctrl + E` untuk menunjukkan pemilih emoji lengkap yang akan meletakkan pilihan pada papan keratan atau anda boleh menggunakan pilihan akses pantas ini.
 
 | Kekunci Pintas       | EM | Petunjuk       |
 | ------------ | -- | ---------- |
@@ -363,7 +363,7 @@ Anda boleh menggunakan `Super + Ctrl + E` untuk menunjukkan pemilih emoji lengka
 | `Shift + CapsLock M M` | 💰 | wang      |
 | `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
-| `Shift + CapsLock M T` | 🥂 | roti bakar      |
+| `Shift + CapsLock M T` | 🥂 | bersulang      |
 | `Shift + CapsLock M O` |👌 | ok |
 | `Shift + CapsLock M G` |👋 | sapaan |
 | `Shift + CapsLock M A` |💪 | lengan |
@@ -377,4 +377,4 @@ Anda boleh menggunakan `Super + Ctrl + E` untuk menunjukkan pemilih emoji lengka
 | `Shift + CapsLock Space N` | Nama anda (seperti yang dimasukkan semasa persediaan)  |
 | `Shift + CapsLock Space E` | E-mel anda (seperti yang dimasukkan semasa persediaan)  |
 
-Anda boleh menambah lagi milik anda sendiri dengan menyunting `~/.XCompose`, kemudian menjalankan `omarchy-restart-xcompose` dalam terminal untuk membolehkan perubahan tersebut diambil.
+Anda boleh menambah lebih banyak sendiri dengan menyunting `~/.XCompose`, kemudian menjalankan `omarchy-restart-xcompose` dalam terminal untuk perubahan diambil.

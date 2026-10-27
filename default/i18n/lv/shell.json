@@ -100,8 +100,6 @@
     "zero": "%1 tokenu šodien"
   },
   "agents.unknownModel": "Nezināms",
-  "agents.usageNotUpdated": "Patēriņš vēl nav atjaunināts.",
-  "agents.usageUnavailable": "Patēriņš nav pieejams",
   "agents.use": "Lietot",
   "agents.waitingForAuth": "Gaida autorizāciju",
   "agents.windowLimit": "Limits",
