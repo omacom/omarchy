@@ -8,4 +8,6 @@ if omarchy-hw-vm; then
   mkdir -p "$HOME/.local/state/omarchy/toggles/hypr"
   cp "$OMARCHY_PATH/default/hypr/toggles/no-animations.lua" "$HOME/.local/state/omarchy/toggles/hypr/"
   cp "$OMARCHY_PATH/default/hypr/toggles/window-opaque.lua" "$HOME/.local/state/omarchy/toggles/hypr/"
+  # Theme setup imported the GTK backdrop blur for see-through windows already.
+  omarchy-theme-set-glass
 fi

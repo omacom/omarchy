@@ -109,13 +109,15 @@ glass ghostty.conf '' \
   '^[[:space:]]*background-opacity[[:space:]]*=' 'background-opacity = 0.65' \
   '' "gtk-custom-css = $OMARCHY_PATH/default/gtk/glass.css" || status=1
 
-# Other GTK apps, such as Nautilus, read the user's gtk.css at launch, so the
-# same backdrop blur is imported there. It follows the mode alone, so a theme
-# switch, which names the theme it is rendering, leaves it be.
+# Other GTK apps, such as Nautilus, read the user's gtk.css at launch, and GTK
+# only asks the compositor for blur under a CSS backdrop-filter, so the same
+# backdrop blur is imported there while windows are see-through. Opaque windows
+# need none. It follows the mode alone, so a theme switch, which names the theme
+# it is rendering, leaves it be.
 if (( $# == 0 )); then
   gtk_css="${XDG_CONFIG_HOME:-$HOME/.config}/gtk-4.0/gtk.css"
   remove_block "$gtk_css" "/*" " */" || status=1
-  if [[ $GLASSY == "true" ]]; then
+  if [[ ! -f $TOGGLES_DIR/window-opaque.lua ]]; then
     { mkdir -p "${gtk_css%/*}" &&
       append_block "$gtk_css" "/*" " */" "@import url(\"file://$OMARCHY_PATH/default/gtk/glass.css\");"; } || status=1
   fi
