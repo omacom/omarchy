@@ -7,7 +7,10 @@ shell via `omarchy-launch-shell`; restart it with `omarchy-restart-shell`.
 IPC is the canonical way for CLIs to talk to a running shell —
 `omarchy-shell` forwards a call and fails when the shell is not running
 (`-q` makes it quiet best-effort; `OMARCHY_SHELL_IPC_TIMEOUT` bounds the
-wait).
+wait). A non-quiet call whose target or function is missing from the running
+shell also raises a desktop notification, at most once every five minutes per
+action: during a package update the old shell may not have the newly installed
+plugin yet, and a dead keybinding should say so.
 
 ## Plugin manifest
 
