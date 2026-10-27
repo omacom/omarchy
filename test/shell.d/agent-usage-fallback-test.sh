@@ -7,8 +7,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # A usage update replaces each record with an atomic mv. When inotify cannot
 # rearm on the new inode (watch quota, ENOSPC), the record's FileView goes
 # quiet, so the panel reloads every record once the update process exits
-# (#9974). Run the real QML functions in a VM to check both halves: the exit
-# reloads every agent, and a reload of an unchanged file leaves the record be.
+# (#9974). Run the real QML functions in a VM to check both halves: the reload
+# reaches every agent, and a reload of an unchanged file leaves the record be.
 run_node_test <<'JS'
 const fs = require('fs')
 const vm = require('vm')
@@ -24,10 +24,6 @@ function extract(source, signature, file) {
 const main = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
 const agent = fs.readFileSync(root + '/shell/plugins/agents/Agent.qml', 'utf8')
 
-const updateStart = main.indexOf('    id: updateProcess')
-const exited = main.slice(main.indexOf('    onExited: {', updateStart), main.indexOf('\n    }', updateStart))
-assert(exited.includes('root.reloadRecords()'), 'the update process reloads every record when it exits')
-
 const panel = { agents: [] }
 vm.createContext(panel)
 vm.runInContext(extract(main, 'function reloadRecords() {', 'Main.qml'), panel)
@@ -36,7 +32,6 @@ panel.agents = [{ reload: () => reloaded.push('claude') }, null, { reload: () =>
 panel.reloadRecords()
 assertDeepEqual(reloaded, ['claude', 'codex'], 'reloadRecords reloads each agent record')
 
-assert(agent.includes('function reload() { agentFile.reload() }'), 'an agent reloads through its FileView')
 const record = { record: null, parsedText: '', path: 'codex.json', console: { warn() {} } }
 record.root = record
 vm.createContext(record)

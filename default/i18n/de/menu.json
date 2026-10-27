@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Benutzer"
   },
-  "system.reboot-boot-menu": {
-    "label": "Neustart ins Boot-Menü"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Absturzerfassung aus"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Laptop-Display an"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Laptop-Display aus"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Spiegelung an"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Spiegelung aus"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Zu Hybrid-GPU wechseln"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Zu integrierter GPU wechseln"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Touchpad aktivieren"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Touchpad deaktivieren"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Touchscreen aktivieren"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Touchscreen deaktivieren"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Akku % anzeigen"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Akku % ausblenden"
+  },
+  "appearance.windows": {
+    "label": "Fenster"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Fensterabstände an"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Fensterabstände aus"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-Fenster-Verhältnis an"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-Fenster-Verhältnis aus"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.animations-on": {
+    "label": "Animationen an"
+  },
+  "appearance.animations-off": {
+    "label": "Animationen aus"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Wach bleiben"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Ruhemodus zulassen"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Benachrichtigungen an"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Benachrichtigungen stummschalten"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nachtlicht an"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nachtlicht aus"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Bildschirmschoner an"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Bildschirmschoner aus"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Absturzerfassung an"
   }
 }

@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Pengguna"
   },
-  "system.reboot-boot-menu": {
-    "label": "But semula ke Menu But"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Papar % Bateri"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Sembunyi % Bateri"
+  },
+  "appearance.windows": {
+    "label": "Tetingkap"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Jarak Tetingkap Hidup"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Jarak Tetingkap Mati"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Nisbah 1-Tetingkap Hidup"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Nisbah 1-Tetingkap Mati"
+  },
+  "appearance.branding": {
+    "label": "Penjenamaan"
+  },
+  "appearance.animations-on": {
+    "label": "Animasi Hidup"
+  },
+  "appearance.animations-off": {
+    "label": "Animasi Mati"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Kekal Berjaga"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Benarkan Tidur"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Pemberitahuan Hidup"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Senyapkan Pemberitahuan"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Lampu Malam Hidup"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Lampu Malam Mati"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Penyelamat Skrin Hidup"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Penyelamat Skrin Mati"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Tangkapan Ranap Hidup"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Matikan Tangkap Ranap"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Hidupkan Paparan Laptop"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Matikan Paparan Laptop"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Hidupkan Pencerminan Paparan"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Matikan Pencerminan Paparan"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Tukar ke GPU Hibrid"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Tukar ke GPU Bersepadu"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Dayakan Pad Sentuh"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Nyahdayakan Pad Sentuh"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Dayakan Skrin Sentuh"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Nyahdayakan Skrin Sentuh"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
   }
 }

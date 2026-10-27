@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Gumagamit"
   },
-  "system.reboot-boot-menu": {
-    "label": "I-reboot sa Boot Menu"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Ipakita ang Baterya %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Itago ang Baterya %"
+  },
+  "appearance.windows": {
+    "label": "Mga Bintana"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Mga Puwang ng Bintana Naka-on"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Mga Puwang ng Bintana Naka-off"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Ratio ng 1 Bintana Naka-on"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Ratio ng 1 Bintana Naka-off"
+  },
+  "appearance.branding": {
+    "label": "Tatak"
+  },
+  "appearance.animations-on": {
+    "label": "Mga Animasyon Naka-on"
+  },
+  "appearance.animations-off": {
+    "label": "Mga Animasyon Naka-off"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Manatiling Gising"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Hayaang Matulog"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Mga Notipikasyon Naka-on"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Patahimikin ang mga Notipikasyon"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nightlight Naka-on"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nightlight Naka-off"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Screensaver Naka-on"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Screensaver Naka-off"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Crash Capture Naka-on"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Crash Capture Naka-off"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Laptop Display Naka-on"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Laptop Display Naka-off"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Display Mirroring Naka-on"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Display Mirroring Naka-off"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Lumipat sa Hybrid GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Lumipat sa Integrated GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "I-enable ang Touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "I-disable ang Touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "I-enable ang Touchscreen"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "I-disable ang Touchscreen"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
   }
 }

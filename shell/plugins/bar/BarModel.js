@@ -463,15 +463,31 @@ function roomLengths(extent, shares) {
   return lengths
 }
 
+// The bar leaves out layout entries that aren't widgets, so it counts a
+// section by the widgets in it. Where the widget the bar draws at `index`
+// sits among a section's raw entries, or past them all for one past the last
+// widget; -1 for an index further out than that.
+function rawEntryIndex(entries, index, normalize) {
+  var widgets = 0
+  for (var i = 0; i < entries.length; i++) {
+    if (!normalize(entries[i])) continue
+    if (widgets === index) return i
+    widgets++
+  }
+  return index === widgets ? entries.length : -1
+}
+
+function entryNormalizer(normalizeEntry) {
+  return typeof normalizeEntry === "function" ? normalizeEntry : function(entry) { return entryId(entry) ? entry : null }
+}
+
 // Moves a dragged widget's entry in a shell config. `move` is
 // { from: { region, index, id }, to: { region, index } }, with indexes into
-// the sections as the bar draws them and `to.index` -1 for the end of the
-// section. The bar leaves out entries that aren't widgets, so the indexes
-// count only those `normalizeEntry` keeps, and an entry at `from` that
-// doesn't have the dragged widget's id leaves the config alone. Returns
-// whether the layout changed.
+// the sections as the bar draws them (rawEntryIndex) and `to.index` -1 for
+// the end of the section. An entry at `from` that doesn't have the dragged
+// widget's id leaves the config alone. Returns whether the layout changed.
 function moveEntry(config, move, normalizeEntry) {
-  var normalize = typeof normalizeEntry === "function" ? normalizeEntry : function(entry) { return entryId(entry) ? entry : null }
+  var normalize = entryNormalizer(normalizeEntry)
   if (!isPlainObject(config) || !move || !move.from || !move.to) return false
   if (sections.indexOf(move.from.region) === -1 || sections.indexOf(move.to.region) === -1) return false
   if (!isPlainObject(config.bar)) config.bar = {}
@@ -480,24 +496,12 @@ function moveEntry(config, move, normalizeEntry) {
   if (!Array.isArray(layout[move.from.region])) layout[move.from.region] = []
   if (!Array.isArray(layout[move.to.region])) layout[move.to.region] = []
 
-  // Where the widget the bar draws at `index` sits among the raw entries, or
-  // past them all for one past the last widget.
-  function rawIndex(entries, index) {
-    var widgets = 0
-    for (var i = 0; i < entries.length; i++) {
-      if (!normalize(entries[i])) continue
-      if (widgets === index) return i
-      widgets++
-    }
-    return index === widgets ? entries.length : -1
-  }
-
   var fromEntries = layout[move.from.region]
   var toEntries = layout[move.to.region]
-  var fromIndex = rawIndex(fromEntries, Number(move.from.index))
+  var fromIndex = rawEntryIndex(fromEntries, Number(move.from.index), normalize)
   if (fromIndex < 0 || fromIndex >= fromEntries.length || entryId(normalize(fromEntries[fromIndex])) !== String(move.from.id)) return false
 
-  var toIndex = Number(move.to.index) >= 0 ? rawIndex(toEntries, Number(move.to.index)) : toEntries.length
+  var toIndex = Number(move.to.index) >= 0 ? rawEntryIndex(toEntries, Number(move.to.index), normalize) : toEntries.length
   if (toIndex < 0) toIndex = toEntries.length
   var sameSection = fromEntries === toEntries
   if (sameSection && fromIndex < toIndex) toIndex -= 1
@@ -506,6 +510,40 @@ function moveEntry(config, move, normalizeEntry) {
   var entry = fromEntries.splice(fromIndex, 1)[0]
   toEntries.splice(toIndex, 0, entry)
   return true
+}
+
+// Drops a widget dragged off the bar from a shell config. `from` is
+// { region, index, id }, as moveEntry's. Just the layout entry goes, the way
+// a move only moves it: a clone dragged off vanishes rather than bringing
+// back the widget it shadows, as disabling it in settings would. Returns
+// whether the layout changed.
+function removeEntry(config, from, normalizeEntry) {
+  var normalize = entryNormalizer(normalizeEntry)
+  if (!isPlainObject(config) || !from || sections.indexOf(from.region) === -1) return false
+  var layout = isPlainObject(config.bar) && isPlainObject(config.bar.layout) ? config.bar.layout : null
+  var entries = layout && Array.isArray(layout[from.region]) ? layout[from.region] : null
+  if (!entries) return false
+
+  var index = rawEntryIndex(entries, Number(from.index), normalize)
+  if (index < 0 || index >= entries.length || entryId(normalize(entries[index])) !== String(from.id)) return false
+  entries.splice(index, 1)
+  return true
+}
+
+// How far a point sits outside a bar strip `width` by `height` at the
+// origin, in pixels. Zero anywhere over the strip, so a drag along the bar
+// never arms removal; past it, the straight-line distance to the nearest
+// edge, so escaping by a corner takes the same pull as going straight off.
+function dragDistanceOutside(point, width, height) {
+  var x = Number(point && point.x)
+  var y = Number(point && point.y)
+  var w = Number(width)
+  var h = Number(height)
+  if (!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h)) return 0
+
+  var dx = x < 0 ? -x : (x > w ? x - w : 0)
+  var dy = y < 0 ? -y : (y > h ? y - h : 0)
+  return Math.sqrt(dx * dx + dy * dy)
 }
 
 // Display cutouts (a camera notch at the top of a laptop panel) are described
@@ -616,14 +654,14 @@ function barSizeFor(sizes, screenName, fallback) {
 }
 
 // The indicator peek opens over the bar from its start up to where the center
-// box ends, and stays shut past it, over the panel icons. `position` is the
-// pointer's point on the bar surface.
+// box starts, and stays shut past it, over the clock and the panel icons.
+// `position` is the pointer's point on the bar surface.
 function peeksAt(position, edge, vertical) {
   if (!position) return false
   return (vertical ? position.y : position.x) < edge
 }
 
-// Revealing the indicators can move the center box's end: beside a display
+// Revealing the indicators can move the center box's start: beside a display
 // notch the center sections hang off the right section, so indicators in
 // centerEnd or the right section pull it toward the start. An edge that
 // followed would slip out from under a stationary pointer and close the peek,
@@ -657,6 +695,8 @@ if (typeof module !== "undefined") {
     fadeShares: fadeShares,
     roomLengths: roomLengths,
     moveEntry: moveEntry,
+    removeEntry: removeEntry,
+    dragDistanceOutside: dragDistanceOutside,
     navigationRegions: navigationRegions,
     slotEdge: slotEdge,
     sections: sections,

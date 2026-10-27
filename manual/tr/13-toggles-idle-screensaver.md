@@ -1,50 +1,50 @@
-# Aç/Kapat, Boşta ve Ekran Koruyucu
+# Açma/Kapama Düğmeleri, Boşta Kalma ve Ekran Koruyucu
 
-Günden güne değiştirdiğiniz şeylerin çoğu aslında bir ayar değildir. Bir saatliğine açıp tekrar kapattığınız bir moddur: geç çalışırken gece ışığı, sunum yaparken rahatsız etme, bir şey izlerken uyanık tut. Omarchy bunlara aç/kapat der ve hepsi aynı şekilde çalışır — bir kısayol, bir menü girdisi ve bir komut, hepsi aynı anahtara basar.
+Günlük olarak değiştirdiğiniz şeylerin çoğu aslında bir ayar değildir. Bir saatliğine açıp sonra tekrar kapattığınız bir moddur: geç saatlere kadar çalışırken gece ışığı, sunum yaparken rahatsız etme, bir şey izlerken uyanık kalma. Omarchy bunlara açma/kapama düğmeleri diyor ve hepsi aynı şekilde çalışıyor — bir kısayol tuşu, bir menü girdisi ve bir komut, hepsi aynı düğmeye basıyor.
 
-### Aç/kapat menüsü
+### Açma/kapama menüsü
 
-`Super + Ctrl + O`, _Tetikle > Aç/Kapat_ öğesini doğrudan açar veya oraya Omarchy menüsünden (`Super + Space`) gidebilirsiniz. Bu listedeki her şey, durumun nerede yaşadığını düşünmeden çevirebileceğiniz bir anahtardır. Masaüstünün nasıl göründüğüne ilişkin anahtarlar yanında, _Tetikle > Görünüm_ altında oturur.
+`Super + Ctrl + O` doğrudan _Trigger > Toggle_ menüsünü açar ya da Omarchy menüsünden (`Super + Space`) oraya yürüyebilirsiniz. O listedeki her şey, durumun nerede yaşadığını düşünmeden çevirebileceğiniz bir düğmedir. Masaüstünün nasıl göründüğüne dair düğmeler onun yanında, _Appearance_ altında yer alır.
 
-Terminalden, aynı anahtarlar `omarchy toggle <thing>` şeklindedir. Tüm grubu görmek için `omarchy toggle` komutunu tek başına çalıştırın.
+Terminalden aynı düğmeler `omarchy toggle <thing>` şeklindedir. Grubun tamamını görmek için tek başına `omarchy toggle` çalıştırın.
 
-| Aç/Kapat | Kısayol | Komut |
+| Açma/Kapama | Kısayol Tuşu | Komut |
 | ------ | ------ | ------- |
-| Gece Işığı | `Super + Ctrl + N` | `omarchy toggle nightlight` |
-| Bildirimleri sessize al | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
-| Uyanık tut (boşta kilidi yok) | `Super + Ctrl + I` | `omarchy toggle idle` |
-| Çökme Yakalama | — | `omarchy toggle crash-capture` |
-| Ekran Koruyucu | — | `omarchy toggle screensaver` |
-| [Herdr](https://herdr.dev) tema eşitlemesi | — | `omarchy toggle theme sync` |
-| Menü Çubuğu | `Super + Shift + Space` | `omarchy toggle bar` |
-| Dokunmatik Yüzey | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Dokunmatik Ekran | — | `omarchy toggle touchscreen` |
-| Uyku | — | `omarchy toggle suspend` |
+| Gece ışığı | — | `omarchy toggle nightlight` |
+| Bildirimleri sessize al | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
+| Uyanık kal (boşta kilidi yok) | `Super + Ctrl + I` | `omarchy toggle idle` |
+| Çökme yakalama | — | `omarchy toggle crash-capture` |
+| Ekran koruyucu | — | `omarchy toggle screensaver` |
+| [Herdr](https://herdr.dev) tema senkronizasyonu | — | `omarchy toggle theme sync` |
+| Menü çubuğu | `Super + Shift + Space` | `omarchy toggle bar` |
+| Dokunmatik yüzey | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Dokunmatik ekran | — | `omarchy toggle touchscreen` |
+| Askıya al | — | `omarchy toggle suspend` |
 | Hibrit GPU | — | `omarchy toggle hybrid gpu` |
 
-Dokunmatik yüzey, dokunmatik ekran ve hibrit GPU anahtarları, Aç/Kapat altında değil _Tetikle > Donanım_ (`Super + Ctrl + H`) altında yaşar, çünkü bunlar yalnızca o donanıma gerçekten sahip olduğunuzda ortaya çıkar. Dokunmatik yüzey ve dokunmatik ekran anahtarları Hyprland yeniden yüklemesinden sağ çıkar — devre dışı bırakılmış cihazın adı, Hyprland'in başlangıçta onu tekrar devre dışı bırakmak için okuduğu küçük bir durum dosyasına kaydedilir.
+Dokunmatik yüzey, dokunmatik ekran ve hibrit GPU düğmeleri Toggle altında değil, _Trigger > Hardware_ (`Super + Ctrl + H`) altında yaşar, çünkü yalnızca o donanıma gerçekten sahipseniz görünürler. Dokunmatik yüzey ve dokunmatik ekran düğmeleri bir Hyprland yeniden yüklemesinden sağ çıkar — devre dışı bırakılan cihazın adı, Hyprland'ın başlangıçta okuyup cihazı yeniden devre dışı bırakmak için kullandığı küçük bir durum dosyasına kaydedilir.
 
-_Tetikle > Görünüm_, menü çubuğu ve Animasyonlar ile, `omarchy toggle` komutları olmayan ancak aynı şekilde davranan birkaç şeyi tutar: çubuktaki Pil Yüzdesi, varsayılan Çalışma Alanı Düzeni, Pencere Boşlukları (`Super + Shift + Backspace`) ve 1-pencere kare oranı (`Super + Ctrl + Backspace`).
+_Appearance_ menü çubuğunu ve animasyonları barındırır, ayrıca `omarchy toggle` komutu olmayan ama aynı şekilde davranan birkaç şeyi de: çubuktaki pil yüzdesi, varsayılan çalışma alanı düzeni ve _Windows_ altında pencere boşlukları (`Super + Shift + Backspace`) ile 1 pencerelik kare en-boy oranı (`Super + Ctrl + Backspace`).
 
-Bunların çoğu `~/.local/state/omarchy/toggles/` altında sadece bir bayrak dosyasıdır. Bir betikte birine dallanmak isterseniz, `omarchy-toggle-enabled` sizi arayışa çıkarmak yerine size bir çıkış kodu verir:
+Bunların çoğu `~/.local/state/omarchy/toggles/` altında bir bayrak dosyasından ibarettir. Bir betikte birine göre dallanmak isterseniz, `omarchy-toggle-enabled` size gidip aramak zorunda kalmadan bir çıkış kodu verir:
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-Bayraklar kapalı duruma göre adlandırılır — `screensaver-off`, `suspend-off`, `bar-off` — böylece varlıkları özelliğin devre dışı olduğu anlamına gelir.
+Bayraklar kapalı durum için adlandırılır — `screensaver-off`, `suspend-off`, `bar-off` — yani varlıkları özelliğin devre dışı olduğu anlamına gelir.
 
 ### Çubuktaki göstergeler
 
-Bir mod açıkken, saatin yanında üst çubuğun ortasında küçük bir simge alırsınız. Bu, göstergeler widget'ıdır ve dikte, ekran kaydı, bekleyen hatırlatıcılar, gece ışığı, rahatsız etme ve uyanık tutu taşır.
+Bir mod açık olduğunda, üst çubuğun ortasında saatin yanında küçük bir simge alırsınız. Bu, göstergeler aracıdır ve dikteyi, ekran kaydını, bekleyen hatırlatıcıları, gece ışığını, rahatsız etmeyi ve uyanık kalmayı taşır.
 
-Aktif olmayan göstergeler gizlidir. Etraflarındaki alana gelin, soluk bir şekilde belirirler, böylece kısayolunu bilmeden birini açmak için tıklayabilirsiniz. Aktif birine tıklamak onu tekrar kapatır. Hepsini her zaman görmeyi tercih ederseniz, `~/.config/omarchy/shell.json` içindeki `omarchy.indicators` girdisinde `alwaysShow` seçeneğini `true` olarak ayarlayın — çubuk widget'larının nasıl yapılandırılacağı için bkz. [üst çubuk](05-the-top-bar.md).
+Etkin olmayan göstergeler gizlidir. Çubuğun herhangi bir yerinde fareyle üzerine gelin, soluk şekilde belirirler; böylece kısayol tuşunu bilmeden birine tıklayıp açabilirsiniz. Etkin birine tıklamak onu tekrar kapatır. Hepsini her zaman görmek isterseniz, `~/.config/omarchy/shell.json` içindeki `omarchy.indicators` girdisinde `alwaysShow` değerini `true` olarak ayarlayın — çubuk araçlarının nasıl yapılandırıldığı için bkz. [üst çubuk](05-the-top-bar.md).
 
-### Gece Işığı
+### Gece ışığı
 
-`Super + Ctrl + N` ekranı 4000K'ya ısıtır ve ona tekrar basmak onu 6500K'ya geri getirir. Aç/kapat, zaten çalışmıyorsa sizin için başlattığı hyprsunset tarafından sürülür.
+Gece ışığı ekranı 4000K'ye ısıtır ve tekrar açıp kapamak onu 6500K'ye geri getirir. Açma/kapama menüsünden (`Super + Ctrl + O`) ya da `omarchy toggle nightlight` ile çevirin. hyprsunset tarafından çalıştırılır ve düğme, zaten çalışmıyorsa onu sizin için başlatır.
 
-Varsayılan olarak hyprsunset ekranınıza hiçbir şey yapmaz. `~/.config/hypr/hyprsunset.conf`, siz sıcaklık isteyene kadar ekran dokunulmadan kalsın diye tam olarak bir kimlik profiliyle gönderilir. Saate göre değişmesini tercih ederseniz, bunu bir zaman profiliyle değiştirin:
+Varsayılan olarak hyprsunset ekranınıza hiçbir şey yapmaz. `~/.config/hypr/hyprsunset.conf` tam olarak bir kimlik profiliyle gelir, böylece siz sıcaklık istemedikçe ekran el değmemiş kalır. Saate göre değişmesini tercih ederseniz, bunu bir zaman profiliyle değiştirin:
 
 ```
 profile {
@@ -53,19 +53,19 @@ profile {
 }
 ```
 
-Ardından `~/.config/hypr/autostart.lua` dosyasına `o.launch_on_start("hyprsunset")` ekleyerek hyprsunset'ı oturum açmada başlatın. Aç/kapat tarafından kullanılan 4000K/6500K çifti sabittir, bu yüzden farklı bir sıcaklık isterseniz gidilecek yer yapılandırma dosyasıdır.
+Ardından `~/.config/hypr/autostart.lua` dosyasına `o.launch_on_start("hyprsunset")` ekleyerek hyprsunset'i oturum açışta başlatın. Düğmenin kullandığı 4000K/6500K çifti sabittir, yani farklı bir sıcaklık istiyorsanız gideceğiniz yer yapılandırma dosyasıdır.
 
-### Rahatsız Etme
+### Rahatsız etme
 
-`Super + Ctrl + ,` bildirimleri sessize alır. Açıkken hiçbir bildirim belirmez ve üstü çizili çan göstergesi, masaüstünün neden sessizleştiğini hatırlatmak için çubukta oturur.
+`Super + Ctrl + Alt + ,` bildirimleri sessize alır. Açıkken hiçbir bildirim baloncuğu çıkmaz ve üstü çizili zil göstergesi, masaüstünün neden sessizliğe gömüldüğünü hatırlatmak için çubukta oturur.
 
-Ancak hiçbir şey kaybolmaz. Sessize alınmış bir bildirim doğrudan bildirim geçmişinize yazılır; bu, geri geldiğinizde neyi kaçırdığınızı merak ettiğinizde tam olarak isteyeceğiniz kayıttır. Onu `Super + Shift + Alt + ,` ile açın. Bildirim hikayesinin geri kalanı için bkz. [bildirimler](10-notices.md).
+Yine de hiçbir şey kaybolmaz. Sessize alınan bildirimler geri tutulur: son birkaçını `Super + Shift + Alt + ,` ile tekrar ekrana getirin. Geri kalanı için bkz. [bildirimler](10-notices.md).
 
-İki tür mesaj yine de geçer: Omarchy'nin az önce yaptığınız bir şey için kendi onay bildirimleri ("Theme changed", "Screenshot saved") ve komut satırından gönderilen kritik uyarılar. Önünüze geçmek için her şeyi kritik olarak işaretleyen sohbet uygulamaları buna uygun değildir.
+İki tür mesaj yine de geçer: Omarchy'nin az önce yaptığınız bir şey için kendi onay baloncukları ("Theme changed", "Screenshot saved") ve komut satırından gönderilen kritik uyarılar. Her şeyi önünüze zorla çıkmak için kritik olarak işaretleyen sohbet uygulamaları buna hak kazanmaz.
 
-### Boşta
+### Boşta kalma
 
-Omarchy kabuğu boşta davranışına sahiptir ve zamanlamalar `~/.config/omarchy/shell.json` içinde üst düzey bir `idle` bloğudur:
+Boşta kalma davranışının sahibi Omarchy kabuğudur ve zamanlamalar `~/.config/omarchy/shell.json` içinde üst düzey bir `idle` bloğudur:
 
 ```json
 {
@@ -77,26 +77,26 @@ Omarchy kabuğu boşta davranışına sahiptir ve zamanlamalar `~/.config/omarch
 }
 ```
 
-Her iki sayı da boşta kaldığınız andan itibaren sayılan saniyelerdir — birbirinden değil. Böylece varsayılanlarla, ekran koruyucu iki buçuk dakika sonra devreye girer ve kilit ekranı, ekran koruyucu çalışsa da çalışmasa da beş dakikada devreye alır. Dosyayı kaydedin, kabuk yeni zamanlamaları hemen alır.
+Her iki sayı da boşta kaldığınız andan itibaren sayılan saniyelerdir — birbirlerinden itibaren değil. Yani varsayılanlarla ekran koruyucu iki buçuk dakika sonra çıkar ve ekran koruyucu çalışmış olsun ya da olmasın kilit ekranı beş dakikada devralır. Dosyayı kaydedin, kabuk yeni zamanlamaları hemen alır.
 
-Kilit süresinden önce ekran koruyucuyu kapatırsanız, bu aktivite sayılır ve bekleyen kilit iptal edilir. Makinenize göz attığınız için dışarı kilitlenmezsiniz.
+Kilit son tarihinden önce ekran koruyucuyu kapatırsanız, bu etkinlik sayılır ve bekleyen kilit iptal edilir. Makinenize göz attığınız için dışarıda kilitli kalmazsınız.
 
-Boşta kilitlenmeyi tamamen durdurmak için, `Super + Ctrl + I` — veya `omarchy toggle idle` — uyanık tutu açar ve çubukta kahve fincanı göstergesi görünür. Uzun bir sunum veya izlemek istediğiniz bir derleme öncesi basılacak olan budur. Normale dönmek için tekrar basın. Bir betikten ihtiyacınız olursa `omarchy toggle idle status` geçerli durumu JSON olarak yazar.
+Boşta kilitlemeyi tamamen durdurmak için `Super + Ctrl + I` — ya da `omarchy toggle idle` — uyanık kalmayı açar ve çubukta kahve fincanı göstergesi belirir. Uzun bir sunumdan ya da izlemek istediğiniz bir derlemeden önce basılacak düğme budur. Normale dönmek için tekrar basın. Bir betikten ihtiyacınız olursa `omarchy toggle idle status` geçerli durumu JSON olarak yazdırır.
 
-Bu, kilitleme ve ekran koruyucu ile ilgilidir, güçle değil. Uyku ve hazırda bekletmenin [sistem uykusu](36-system-sleep.md) bölümünde kendi kurulumları vardır.
+Bu, güçle değil kilitleme ve ekran koruyucuyla ilgilidir. Askıya alma ve hazırda bekletmenin [sistem uykusu](36-system-sleep.md) içinde kendi kurulumları vardır.
 
-### Ekran Koruyucu
+### Ekran koruyucu
 
-Omarchy'nin Ekran Koruyucusu, monitör başına bir örnek olmak üzere rastgele metin efektlerinden geçen ASCII sanatıdır. Herhangi bir tuş veya fare hareketi ondan çıkar.
+Omarchy'nin ekran koruyucusu, rastgele metin efektlerinden geçen ASCII sanatıdır, monitör başına bir örnek çalışır. Herhangi bir tuş ya da fare hareketi ondan çıkar.
 
-Onu _Sistem > Ekran Koruyucu_ (`Super + Esc`) yoluyla isteğe bağlı olarak başlatabilirsiniz; bu, boşta ekran koruyucuyu kapatmış olsanız bile onu zorla açar. Varsayılan olarak ona bağlı bir kısayol yoktur.
+Onu _System > Screensaver_ (`Super + Esc`) üzerinden isteğe bağlı başlatabilirsiniz; bu, boşta ekran koruyucuyu kapatmış olsanız bile onu zorla çıkarır. Varsayılan olarak ona bağlı bir kısayol tuşu yoktur.
 
-`omarchy toggle screensaver`, doğrudan çalışmadan kilitli duruma gitmeyi tercih ederseniz boşta olanı kapatan şeydir. Nasıl yapılandırılacağını bildiği bir terminale ihtiyaç duyar — Alacritty, Foot, Ghostty veya Kitty — ve varsayılan terminaliniz başka bir şeyse bunu size söyler.
+Çalışmaktan doğrudan kilitli duruma geçmeyi tercih ederseniz, boşta olanı kapatan şey `omarchy toggle screensaver` komutudur. Nasıl yapılandıracağını bildiği bir terminale ihtiyacı vardır — Alacritty, Foot, Ghostty ya da Kitty — ve varsayılan terminaliniz başka bir şeyse size bunu söyler.
 
-Çizdiği logo, _Stil > Ekran Koruyucu_ altında sizindir değiştirmek. Bir png veya svg yükleyin, Omarchy onu ASCII'ye dönüştürür. Bkz. [markalama](41-branding.md).
+Çizdiği logo değiştirmeniz için sizindir, _Appearance > Branding > Screensaver_ altındadır. Bir png ya da svg yükleyin, Omarchy onu ASCII'ye dönüştürür. Bkz. [markalama](41-branding.md).
 
 ### Kilit ekranı
 
-`Super + Ctrl + L` makineyi kilitler. Bu, Omarchy kabuğundan kilit ekranını çalıştırır, ekranı karartır, parolanızı yanlış alfabede yazmamanız için klavye düzeninizi ilkine sıfırlar ve — çalıştırıyorsanız — çıkışta 1Password'ü kilitler.
+`Super + Ctrl + L` makineyi kilitler. Bu, Omarchy kabuğundan kilit ekranını çalıştırır, ekranı karartır, parolanızı yanlış alfabede yazmamanız için klavye düzeninizi ilk düzene sıfırlar ve — çalıştırıyorsanız — çıkış yolunda 1Password'ü kilitler.
 
-Kilit ekranı bir parola alır ve birini kurduktan sonra Parmak İzi de alır. Bu ve kimlik doğrulamanın diğer yolları [donanım kimlik doğrulama](37-hardware-authentication.md) bölümünde ele alınmıştır.
+Kilit ekranı bir parola alır ve bir parmak izi ayarladıktan sonra onu da alır. Bu ve kimlik doğrulamanın diğer yolları [donanım kimlik doğrulaması](37-hardware-authentication.md) içinde ele alınır.
