@@ -411,3 +411,54 @@ for config in nested_table semicolon block_comment; do
   grep -F 'scale = 1.25' "$eval_log" >/dev/null || fail "clamshell recovery reads the scale out of a ${config//_/ } rule"
   pass "clamshell recovery reads a ${config//_/ } rule"
 done
+
+# The mode the user chose for the panel survives re-enabling it; "preferred"
+# would let Hyprland settle on a lower refresh rate.
+write_internal_monitor_mode_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", mode = "2880x1800@120", position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "highres", position = "auto-right", scale = 1 })
+LUA
+}
+
+write_internal_monitor_mode_config
+remember_scale 1.75
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'mode = "2880x1800@120"' "$eval_log" >/dev/null || fail "clamshell recovery keeps the mode of the internal rule"
+pass "clamshell recovery keeps the mode of the internal rule"
+
+write_internal_monitor_mode_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=2 run_clamshell
+grep -F 'mode = "2880x1800@120"' "$eval_log" >/dev/null || fail "scale sync keeps the mode of the internal rule"
+pass "scale sync keeps the mode of the internal rule"
+
+# A rule that names no mode for the panel defers to the catch-all, as the scale does.
+cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "highrr", position = "auto-right", scale = 1 })
+LUA
+remember_scale 1.75
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'mode = "highrr"' "$eval_log" >/dev/null || fail "clamshell recovery takes the catch-all mode when the internal rule has none"
+pass "clamshell recovery takes the catch-all mode when the internal rule has none"
+
+# No rule names a mode, or the value is not a plain mode string: "preferred".
+for config in write_commented_catch_all_var_config write_internal_monitor_var_config; do
+  "$config"
+  remember_scale 1.75
+  : >"$eval_log"
+  OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+  grep -F 'mode = "preferred"' "$eval_log" >/dev/null || fail "clamshell recovery falls back to preferred ($config)"
+done
+cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", mode = "x\"}); os.exit()", position = "auto", scale = 1.25 })
+LUA
+remember_scale 1.75
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'os.exit' "$eval_log" >/dev/null && fail "clamshell recovery writes a mode that is not a plain mode string"
+grep -F 'mode = "preferred"' "$eval_log" >/dev/null || fail "clamshell recovery falls back to preferred for an unsafe mode"
+pass "clamshell recovery falls back to preferred when no usable mode is configured"

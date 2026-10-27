@@ -164,13 +164,31 @@ read_monitor_position() {
   echo auto
 }
 
+# The mode the user's rules give the panel, so re-enabling it does not drop a
+# chosen refresh rate or resolution: "preferred" lets Hyprland pick, and what it
+# picks can be a lower refresh rate than the one configured. Like the scale, an
+# internal rule that names a mode settles it and only a rule that names none
+# defers to the catch-all.
+read_monitor_mode() {
+  local mode
+  mode=$(configured_internal_monitor_value mode)
+  [[ -n $mode ]] || mode=$(configured_monitor_value "" mode)
+  if [[ $mode =~ ^[[:alnum:]_.@+-]+$ ]]; then
+    echo "$mode"
+    return
+  fi
+
+  echo preferred
+}
+
 enable_internal_output() {
   [[ -n $INTERNAL ]] || return 0
   local scale="${1:-}"
-  local position
+  local mode position
   [[ -n $scale ]] || scale=$(read_monitor_scale)
+  mode=$(read_monitor_mode)
   position=$(read_monitor_position)
-  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", mode = \"preferred\", position = \"$position\", scale = $scale })" >/dev/null 2>&1 || true
+  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", mode = \"$mode\", position = \"$position\", scale = $scale })" >/dev/null 2>&1 || true
 }
 
 sync_internal_scale() {
