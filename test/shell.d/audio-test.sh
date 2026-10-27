@@ -126,6 +126,12 @@ const panel = read('shell/plugins/panels/audio/Panel.qml')
 assert(/inputPeakNode: inputViaWpctl \? null : source/.test(panel) && /inputLevelShown: !!inputPeakNode/.test(panel) &&
   /visible: root\.inputLevelShown[^}]*inputPeakMonitor\.peak/.test(panel),
   'the input level bar is hidden when the input is driven through wpctl')
+for (const name of ['audio', 'monitor']) {
+  const qml = read('shell/plugins/panels/' + name + '/Panel.qml')
+  assert(/ScrollBar\.vertical\.policy: panelColumn\.implicitHeight > height \? ScrollBar\.AlwaysOn : ScrollBar\.AlwaysOff/.test(qml) &&
+    /width: scrollArea\.availableWidth - \(scrollArea\.ScrollBar\.vertical\.policy === ScrollBar\.AlwaysOn \? scrollArea\.ScrollBar\.vertical\.width : 0\)/.test(qml),
+    'the ' + name + ' panel shows its scrollbar while it overflows and keeps rows clear of it')
+}
 assert(!/Timer \{[^}]*repeat: true[^}]*resolveVolumeSink/.test(panel), 'no timer polls the volume sink')
 assert(panel.includes('onNodesChanged: volumeSinkResolveTimer.restart()') && /target: Pipewire\.linkGroups\s*function onValuesChanged\(\) \{ volumeSinkResolveTimer\.restart\(\) \}/.test(panel),
   'node and link changes resolve the volume sink again')
