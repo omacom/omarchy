@@ -138,9 +138,53 @@ Item {
     root.screensaverWindowCount = next.count
   }
 
+  // The screensaver windows Hyprland has open right now. The openwindow and
+  // closewindow events are what arm a cycle, but one of them can go missing,
+  // and a window tracked from an event that has since closed must not keep a
+  // cycle armed, or hold off the launch grace fallback, for the rest of the
+  // session. Answers null when the list cannot be read, so a caller falls back
+  // to what the events tracked.
+  function liveScreensaverWindows() {
+    try {
+      var toplevels = Hyprland.toplevels.values
+      var entries = []
+      for (var i = 0; i < toplevels.length; i++) {
+        var toplevel = toplevels[i]
+        entries.push({
+          address: toplevel ? String(toplevel.address || "") : "",
+          // Null, not empty, when the wayland handle is not attached yet: the
+          // app id is unknown at that point, and the model keeps a window the
+          // raw openwindow already tracked rather than dropping it.
+          appId: toplevel && toplevel.wayland ? String(toplevel.wayland.appId || "") : null
+        })
+      }
+      return IdleModel.screensaverWindowsFrom(entries, root.screensaverClass, root.screensaverWindows)
+    } catch (error) {
+      return null
+    }
+  }
+
+  // Replace the tracked set with what Hyprland actually has, before a decision
+  // that rests on it, so a window whose close event never arrived cannot outlive
+  // the window itself.
+  function syncScreensaverWindows() {
+    var live = liveScreensaverWindows()
+    if (!live) return
+
+    if (live.count !== root.screensaverWindowCount) {
+      logEvent("screensaver-windows", "live=" + live.count + " tracked=" + root.screensaverWindowCount)
+    }
+
+    root.screensaverWindows = live.windows
+    root.screensaverWindowCount = live.count
+  }
+
+  // A window opening no longer cancels the launch grace re-check. By the time
+  // that fires the screensaver has either stayed up, which keeps the cycle
+  // armed, or gone with the user's return, which ends it, and the re-check is
+  // what ends a cycle whose closewindow event never arrives.
   function handleScreensaverWindowOpened(address) {
     setScreensaverWindow(address, true)
-    screensaverLaunchGraceTimer.stop()
   }
 
   function handleScreensaverWindowClosed(address) {
@@ -153,6 +197,33 @@ Item {
     // as activity and cancel the pending lock; the lock timer is only allowed
     // to fire while the screensaver remains up.
     root.cancelIdleCycle("screensaver-dismissed")
+  }
+
+  // The toplevel list is the live record of which windows exist, and it changes
+  // when the screensaver window goes away even if its closewindow event never
+  // arrives. Watching it there ends a cycle whose close event was missed, so the
+  // pending lock cannot fire later while the user works. A window that is still
+  // up keeps the cycle armed.
+  //
+  // Every window the live list says has gone is handed to the same handler the
+  // closewindow path uses, rather than cancelling here: what a dismissal means
+  // stays in one place, and a reason recorded for it stays the same whichever
+  // path noticed first.
+  function handleToplevelsChanged() {
+    if (!root.idledThisCycle || !root.screensaverStartedThisCycle) return
+
+    // The launch window belongs to the grace timer, which is what decides
+    // whether the screensaver came up at all.
+    if (screensaverLaunchGraceTimer.running) return
+
+    var tracked = root.screensaverWindows
+    syncScreensaverWindows()
+
+    var gone = []
+    for (var address in tracked) {
+      if (tracked[address] && !root.screensaverWindows[address]) gone.push(address)
+    }
+    for (var i = 0; i < gone.length; i++) root.handleScreensaverWindowClosed(gone[i])
   }
 
   function eventParts(event, count) {
@@ -174,12 +245,23 @@ Item {
   function handleActiveSignal() {
     if (!root.idledThisCycle) return
 
+    // Ask Hyprland what the screensaver is doing now rather than trusting the
+    // windows the events have accumulated: a closewindow that never arrived
+    // would otherwise keep an active user inside an idle cycle all session.
+    syncScreensaverWindows()
+
     // Starting the screensaver can make the compositor report activity. Keep
     // the lock timer running once the screensaver exists (or during its short
     // launch grace); Hyprland window events cancel the cycle if it exits before
     // the normal lock deadline.
     if (root.screensaverStartedThisCycle && (root.screensaverWindowCount > 0 || screensaverLaunchGraceTimer.running)) {
       logEvent("idle-monitor-active", "screensaver cycle remains armed")
+
+      // Re-check once the grace window has passed. Activity that dismissed the
+      // screensaver leaves it gone by then, so a cycle that should have ended
+      // does not wait for an idle transition that may never come: the monitor
+      // is already active and stays that way while the user works.
+      if (root.screensaverWindowCount > 0) screensaverLaunchGraceTimer.restart()
       return
     }
 
@@ -292,6 +374,8 @@ Item {
     interval: 3000
     repeat: false
     onTriggered: {
+      root.syncScreensaverWindows()
+
       if (root.idleEnabled && root.idledThisCycle && root.screensaverStartedThisCycle && root.screensaverWindowCount === 0 && !idleMonitor.isIdle) {
         root.cancelIdleCycle("screensaver-not-running")
       }
@@ -301,6 +385,11 @@ Item {
   Connections {
     target: Hyprland
     function onRawEvent(event) { root.handleHyprlandEvent(event) }
+  }
+
+  Connections {
+    target: Hyprland.toplevels
+    function onValuesChanged() { root.handleToplevelsChanged() }
   }
 
   Process {
