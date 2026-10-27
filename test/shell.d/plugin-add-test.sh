@@ -175,3 +175,58 @@ for good in \
     fail "plugin add did not reach git clone for a legitimate URL: $good" "$output"
 done
 pass "plugin add lets legitimate git URLs reach git clone"
+
+# A static audit happens after cloning and validation, but before the checkout is
+# moved into the live plugin directory. `--yes` remains scriptable and prints the
+# report instead of needing a TTY decision.
+audited="$TMPDIR/audited"
+write_plugin "$audited" "acme.audited" "Audited"
+git -C "$audited" init -q
+git -C "$audited" add .
+git -C "$audited" -c user.name=Test -c user.email=test@example.com commit -qm "Initial"
+output=$(HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" \
+  omarchy-plugin-add "$audited" --yes 2>&1) ||
+  fail "plugin add completes after a clean audit" "$output"
+grep -qF "Plugin security audit" <<<"$output" ||
+  fail "plugin add prints the pre-install audit" "$output"
+grep -qF "[INFO] No heuristic findings" <<<"$output" ||
+  fail "plugin add reports the clean audit result" "$output"
+[[ -d $test_home/.config/omarchy/plugins/acme.audited ]] ||
+  fail "plugin add installs only after the audit completes"
+pass "plugin add audits the staged checkout before installing it"
+
+# Interactive installs render the report and require an explicit choice after it.
+if script -qec true /dev/null >/dev/null 2>&1; then
+  cat >"$stub_dir/gum" <<'STUB'
+#!/bin/bash
+case "$1" in
+style) cat ;;
+pager) cat ;;
+choose)
+  while (( $# )); do
+    if [[ $1 == "--header" ]]; then printf '%s\n' "$2" >&2; fi
+    shift
+  done
+  printf 'Install plugin\n'
+  ;;
+*) exit 1 ;;
+esac
+STUB
+  chmod +x "$stub_dir/gum"
+  interactive="$TMPDIR/interactive"
+  write_plugin "$interactive" "acme.interactive" "Interactive"
+  git -C "$interactive" init -q
+  git -C "$interactive" add .
+  git -C "$interactive" -c user.name=Test -c user.email=test@example.com commit -qm "Initial"
+  status=0
+  raw=$(HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" \
+    script -qec "omarchy-plugin-add $interactive" /dev/null) || status=$?
+  output=$(tr -d '\r' <<<"$raw")
+  (( status == 0 )) || fail "interactive plugin add installs after accepting its audit" "$output"
+  grep -qF "4/4 Review plugin" <<<"$output" || fail "interactive plugin add renders the audit" "$output"
+  [[ -d $test_home/.config/omarchy/plugins/acme.interactive ]] ||
+    fail "interactive plugin add installs after the audit choice"
+  pass "interactive plugin add asks for a decision after rendering the audit"
+else
+  skip "script -qec unavailable; skipping the interactive audit flow"
+fi
