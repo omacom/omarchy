@@ -108,6 +108,21 @@ transaction setup path; it only aborts with instructions.
 
 The `omarchy` package also installs ALPM hooks for `omarchy-settings` / `omarchy-settings-dev` installs and upgrades. The pre-transaction hook runs `omarchy-hyprland-reload-guard pause` to disable live Hyprland config reloads while `/usr/share/omarchy/default/hypr/**` is replaced. The post-transaction hook runs `omarchy-hyprland-reload-guard resume`, forces one `hyprctl reload`, and restores the session's previous `misc.disable_autoreload` and `debug.suppress_errors` values. A session whose Hyprland binary the same transaction replaced is left paused with errors hidden instead: it predates the new config, and both settings go away when it restarts on the new binary.
 
+A second pair of hooks protects the shell while `/usr/share/omarchy/shell/**`
+is replaced. The pre-transaction hook runs `omarchy-shell-reload-guard pause`,
+which asks each running shell to stop loading plugin QML. A shell that predates
+that IPC method is stopped cleanly instead, unless the session is locked:
+stopping a live lock client would strand the session behind Hyprland's
+failsafe. The post-transaction hook restarts the shell in each session the
+guard touched, so the new tree is loaded by a fresh engine rather than hot-
+reloaded into the old one.
+
+Hooks are read before the transaction starts, so the pair cannot protect the
+upgrade that installs it. That first upgrade is covered by the shell restart at
+the end of `omarchy update`, and `omarchy-shell` reports a missing target
+instead of failing silently when the mixed-version shell is used in the
+meantime.
+
 ## Path 1: `omarchy update`
 
 High-level flow:
