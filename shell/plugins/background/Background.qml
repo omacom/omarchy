@@ -46,6 +46,17 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  // A switch that arrives while an OWE intro covers the desktop finds this
+  // layer suspended, still holding the wallpaper from before the intro. Drawn
+  // at once, that stale wallpaper would flash until the outgoing cover decodes.
+  // Leave the base out until the cover is ready, so OWE's last intro frame
+  // shows through the transparent window instead.
+  property bool resumeCover: false
+  // When an intro ends because the background changed, this layer resumes
+  // before the theme switch has sent its transition. The wallpaper from before
+  // the intro has usually been deleted with its theme by then, and recovering
+  // it at once would switch to the new wallpaper with no transition.
+  property double resumedAt: 0
   readonly property bool ready: {
     if (isVideo(displayedBackground)) return true
     if (backgrounds.instances.length === 0) return false
@@ -79,6 +90,16 @@ Item {
 
   function recoverBackground(failedPath) {
     if (!failedPath || failedPath !== displayedBackground) return
+    // A transition in flight replaces this path anyway, with its outgoing
+    // cover on screen meanwhile. Resuming from an intro reloads a path the
+    // theme swap has deleted; recovering it would switch instantly and cut
+    // the transition short.
+    if (incomingBackground && currentBackground !== failedPath) return
+    if (Date.now() - resumedAt < 500) {
+      failedBackground = failedPath
+      recoverGraceTimer.restart()
+      return
+    }
     failedBackground = failedPath
     if (recoverProc.running) return
     recoverVersion = backgroundVersion
@@ -107,6 +128,9 @@ Item {
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
     if (!path || (!force && finalPath === currentBackground)) return
+    resumeCover = suspended && !instant && fromPath !== "" && !isVideo(path)
+    if (resumeCover) resumeCoverTimer.restart()
+    else resumeCoverTimer.stop()
     if (path !== preparedBackground) preparedBackground = ""
     preparedBackgroundTimer.stop()
     lastTransitionPath = path
@@ -284,6 +308,7 @@ Item {
 
     function setSuspended(value: string): void {
       root.suspended = value === "true"
+      if (!root.suspended) root.resumedAt = Date.now()
     }
 
     function transition(fromPath: string, path: string): void {
@@ -306,6 +331,22 @@ Item {
     interval: 5000
     repeat: false
     onTriggered: root.preparedBackground = ""
+  }
+
+  // Give a theme switch that ended an intro time to send its transition.
+  Timer {
+    id: recoverGraceTimer
+    interval: 500
+    repeat: false
+    onTriggered: root.recoverBackground(root.failedBackground)
+  }
+
+  // A cover that never loads must not leave the base out for good.
+  Timer {
+    id: resumeCoverTimer
+    interval: 2000
+    repeat: false
+    onTriggered: root.resumeCover = false
   }
 
   Timer {
@@ -412,6 +453,7 @@ Item {
         cached: true
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)
+        visible: !(root.resumeCover && root.oldBackground !== "" && oldFrame.status !== Image.Ready)
         onFailedChanged: if (failed) root.recoverBackground(path)
         onReadyChanged: {
           panel.readyFrames = 0
@@ -420,6 +462,7 @@ Item {
             root.oldBackground = ""
             root.preparedBackground = ""
             root.finishingTransition = false
+            root.resumeCover = false
             root.pruneNativeSizes()
           }
         }
