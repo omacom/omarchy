@@ -66,6 +66,11 @@ ShellRoot {
   property bool userConfigUnreadable: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
+  // Set by the package-update guard before /usr/share/omarchy is replaced.
+  // No plugin QML may load from the tree while it is half-written: an old
+  // engine can lazily compile new plugin code that references types it does
+  // not have (#16126). The shell is restarted after the transaction.
+  property bool pluginsPaused: false
 
   Timer {
     id: localPluginReloadTimer
@@ -933,6 +938,7 @@ ShellRoot {
   }
 
   function ensureService(pluginId) {
+    if (shell.pluginsPaused) return null
     var key = String(pluginId)
     if (_services[key]) return _services[key]
     var manifest = pluginRegistry && pluginRegistry.installedPlugins
@@ -985,6 +991,7 @@ ShellRoot {
   }
 
   function _syncServices() {
+    if (shell.pluginsPaused) return
     if (!pluginRegistry || !pluginRegistry.installedPlugins) return
     var plugins = pluginRegistry.installedPlugins
     for (var id in plugins) {
@@ -1186,6 +1193,13 @@ ShellRoot {
   function summon(pluginId, payloadJson) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
     if (!id) return false
+    if (shell.pluginsPaused && !shell.isBarWidgetPanelPlugin(id)) {
+      var loaded = shell.panelLoaders[id]
+      if (!loaded || !loaded.item) {
+        console.warn("summon: plugin loads are paused, not summoning:", id)
+        return false
+      }
+    }
     var plugins = shell.pluginRegistry.installedPlugins
     if (!plugins[id]) {
       console.warn("summon: unknown plugin", id)
@@ -1337,6 +1351,7 @@ ShellRoot {
   ListModel { id: panelEntryModel }
 
   function syncPanelEntries() {
+    if (shell.pluginsPaused) return
     var wanted = ({})
     var order = []
     var entries = computePanelEntries()
@@ -1449,6 +1464,7 @@ ShellRoot {
   property var pluginWidgetComponents: ({})
 
   function syncPluginWidgets() {
+    if (shell.pluginsPaused) return
     var plugins = shell.pluginRegistry.installedPlugins
     var seen = ({})
 
@@ -1520,6 +1536,10 @@ ShellRoot {
   }
 
   function reloadPlugins() {
+    if (shell.pluginsPaused) {
+      shell.pluginReloadPending = true
+      return
+    }
     if (shell.pluginReloading || shell.pluginRegistry.scanning) {
       shell.pluginReloadPending = true
       return
@@ -1532,6 +1552,10 @@ ShellRoot {
   }
 
   function finishPluginReload() {
+    if (shell.pluginsPaused) {
+      shell.pluginReloadPending = true
+      return
+    }
     if (!shell.pluginReloading) return
     if (shell.pluginRegistry.scanning) {
       shell.pluginReloadPending = true
@@ -1548,6 +1572,11 @@ ShellRoot {
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
+      if (shell.pluginsPaused) {
+        shell.pluginReloadPending = true
+        shell.pluginReloading = false
+        return
+      }
       if (shell.pluginReloadPending) {
         shell.pluginReloadPending = false
         shell.pluginReloading = false
@@ -1569,6 +1598,7 @@ ShellRoot {
   }
 
   function loadPluginWidget(registryKey, url, meta) {
+    if (shell.pluginsPaused) return
     // Claim the key before the component exists. Qt.createComponent is
     // asynchronous and syncPluginWidgets runs several times while the shell
     // starts, so without a marker the later passes cannot tell a load in
@@ -1577,6 +1607,7 @@ ShellRoot {
 
     var comp = Qt.createComponent(url, Component.Asynchronous)
     function finalize() {
+      if (shell.pluginsPaused) return
       if (comp.status === Component.Ready) {
         shell.barWidgetRegistry.register(registryKey, comp, meta)
         shell.setPluginWidgetComponent(registryKey, { url: url, component: comp })
@@ -1819,6 +1850,14 @@ ShellRoot {
 
     function rescanPlugins(): void {
       shell.reloadPlugins()
+    }
+
+    // Package updates replace the plugin tree in place. Freeze loads until
+    // the update restarts this shell instead of compiling new plugin QML in
+    // the old engine (#16126).
+    function pausePlugins(): string {
+      shell.pluginsPaused = true
+      return "ok"
     }
 
     function reloadConfig(): string {
