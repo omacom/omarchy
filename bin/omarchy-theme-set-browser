@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Apply the current theme color to Chromium, Chrome, Edge, and Brave
+# omarchy:summary=Apply the current theme color to Chromium, Chrome, Edge, Brave, and Helium
 # omarchy:hidden=true
 
 source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
@@ -70,7 +70,7 @@ chrome=google-chrome-stable
 omarchy-cmd-present "$chrome" || chrome=google-chrome
 
 browsers_to_refresh=()
-for browser in chromium:chromium "chrome:$chrome" msedge:microsoft-edge-stable brave:brave; do
+for browser in chromium:chromium "chrome:$chrome" msedge:microsoft-edge-stable brave:brave helium:helium-browser; do
   [[ -n ${running_names[${browser%%:*}]:-} ]] && omarchy-cmd-present "${browser#*:}" && browsers_to_refresh+=("${browser#*:}")
 done
 # Match on the binary path: the running process is named plain "brave", and a
