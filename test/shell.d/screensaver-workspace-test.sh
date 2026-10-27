@@ -94,7 +94,7 @@ pass "focus returns without waiting for a close that has already happened"
 
 # The launcher's workspace only holds for the first map. A terminal mapped again as it closes falls back to
 # the class rule, which must keep it off the regular workspaces where its fullscreen rule would take over.
-fallback=$(OMARCHY_PATH="$ROOT" lua <<'LUA'
+fallback=$(OMARCHY_PATH="$ROOT" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 hl = setmetatable({
   window_rule = function(rule)

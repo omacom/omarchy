@@ -12,7 +12,7 @@ shortcuts="$ROOT/default/omarchy/shortcuts"
 # line per binding: "global <name>" for a global shortcut, "exec <command>" for
 # a command, then its description.
 list_bindings() {
-  HOME="$(mktemp -d)" OMARCHY_PATH="$ROOT" lua <<'LUA'
+  HOME="$(mktemp -d)" OMARCHY_PATH="$ROOT" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
