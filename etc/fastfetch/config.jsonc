@@ -139,7 +139,7 @@
       "type": "command",
       "key": "󱦟 OS Age",
       "keyColor": "magenta",
-      "text": "days=$(( ($(date +%s) - $(stat -c %W /)) / 86400 )); omarchy-i18n --count \"$days\" about.days \"$days\""
+      "text": "days=$(( ($(date +%s) - $(stat -c %W /var/log)) / 86400 )); omarchy-i18n --count \"$days\" about.days \"$days\""
     },
     {
       "type": "command",
