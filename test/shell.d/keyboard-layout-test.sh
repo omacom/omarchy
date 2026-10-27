@@ -5,7 +5,17 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
+const fs = require('fs')
 const model = requireFromRoot('shell/plugins/bar/widgets/KeyboardLayoutModel.js')
+const keyboardSource = fs.readFileSync(root + '/shell/plugins/bar/widgets/KeyboardLayout.qml', 'utf8')
+const widgetButtonSource = fs.readFileSync(root + '/shell/Ui/WidgetButton.qml', 'utf8')
+
+assert(/property real labelVerticalOffset:\s*0/.test(widgetButtonSource), 'bar labels expose a targeted vertical alignment offset')
+assert(/anchors\.verticalCenterOffset:\s*root\.labelVerticalOffset/.test(widgetButtonSource), 'bar labels apply their vertical alignment offset')
+assert(
+  /labelVerticalOffset:\s*root\.vertical\s*\?\s*0\s*:\s*Math\.max\(1,\s*Math\.round\(Style\.font\.caption\s*\/\s*10\)\)/.test(keyboardSource),
+  'the horizontal keyboard label corrects its caption-font optical center by the caption size, not spacing'
+)
 
 const japanese = { methods: ['keyboard-us', 'mozc'], current: 'mozc', name: 'Mozc', language: 'ja' }
 assertEqual(model.inputLabel(japanese, 'EN'), 'あ', 'Japanese input has a distinct active label')
