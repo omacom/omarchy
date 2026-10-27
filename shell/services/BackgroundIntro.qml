@@ -192,6 +192,11 @@ Item {
         var status = JSON.parse(frameStatusOut.text)
         if (status.kind === "video" && status.ready && !status.has_transition && status.time_pos > 0)
           root.revealTheme()
+        // OWE draws a still itself when the shell was not up for its
+        // handoff, and keeps the shell's background off meanwhile. Once no
+        // intro is coming, that still is the desktop to reveal.
+        else if (!token && root.startupSettled && status.kind === "still" && status.ready)
+          root.revealTheme()
       } catch (e) {}
     }
   }
