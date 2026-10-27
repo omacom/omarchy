@@ -32,6 +32,15 @@ function eventParts(event, count) {
   return String(event && event.data ? event.data : "").split(",")
 }
 
+function hasRealScreen(screens) {
+  var list = screens || []
+  for (var i = 0; i < list.length; i++) {
+    var screen = list[i]
+    if (screen && screen.name && screen.name !== "FALLBACK" && screen.width > 0 && screen.height > 0) return true
+  }
+  return false
+}
+
 function screensaverWindowsAfter(windows, address, visible) {
   var key = String(address || "")
   if (!key) {
@@ -69,6 +78,7 @@ if (typeof module !== "undefined") {
     firstIdleTimeout: firstIdleTimeout,
     delayAfterFirstIdle: delayAfterFirstIdle,
     eventParts: eventParts,
+    hasRealScreen: hasRealScreen,
     screensaverWindowsAfter: screensaverWindowsAfter
   }
 }

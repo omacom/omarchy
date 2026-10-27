@@ -56,6 +56,11 @@ assert(
   'idle ends a running cycle when both timeouts are set to 0'
 )
 
+assert(idle.hasRealScreen([{ name: 'DP-1', width: 1920, height: 1080 }]), 'idle counts a real output')
+assert(!idle.hasRealScreen([]), 'idle sees no output in an empty list')
+assert(!idle.hasRealScreen([{ name: 'FALLBACK', width: 1920, height: 1080 }]), 'idle ignores the FALLBACK placeholder')
+assert(!idle.hasRealScreen([{ name: '', width: 0, height: 0 }]), 'idle ignores a screen without a valid output')
+
 assertDeepEqual(idle.eventParts({ data: 'a,b,c' }, 2), ['a', 'b', 'c'], 'idle parses raw event data')
 assertDeepEqual(
   idle.eventParts({ parse: function(count) { return ['parsed', count] } }, 4),
