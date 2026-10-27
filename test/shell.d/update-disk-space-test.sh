@@ -9,18 +9,25 @@ unset OMARCHY_UPDATE_FORCE
 unset TEST_AVAILABLE_BYTES
 unset TEST_DF_INVALID
 
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
-
-stub_bin="$test_tmp/bin"
-test_home="$test_tmp/home"
+source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
+test_tmp="$boundary_tmp"
+stub_bin="$SUDO_TEST_ROOT/bin"
+test_home="$SUDO_TEST_HOME"
 runtime_dir="$test_tmp/runtime"
 snapshot_marker="$test_tmp/snapshot"
 gum_marker="$test_tmp/gum"
-mkdir -p "$stub_bin" "$test_home" "$runtime_dir"
+mkdir -p "$runtime_dir"
+for command in omarchy-update omarchy-update-requires-free-space omarchy-update-confirm omarchy-i18n; do
+  rm -f "$stub_bin/$command"
+  copy_boundary_file "bin/$command"
+done
+# The confirmation prompt reads its text from the English catalog.
+mkdir -p "$SUDO_TEST_ROOT/default/i18n/en"
+cp "$ROOT/default/i18n/en/cli.json" "$SUDO_TEST_ROOT/default/i18n/en/cli.json"
+cp "$ROOT/default/i18n/plural.jq" "$ROOT/default/i18n/locales.json" "$SUDO_TEST_ROOT/default/i18n/"
 
 run_update() {
-  HOME="$test_home" \
+  SUDO_TEST_HOME="$test_home" \
   XDG_RUNTIME_DIR="$runtime_dir" \
   PATH="$stub_bin:$ROOT/bin:$PATH" \
   LC_ALL=C \
@@ -30,13 +37,14 @@ run_update() {
   SNAPSHOT_MARKER="$snapshot_marker" \
   GUM_MARKER="$gum_marker" \
   GUM_STATUS=${GUM_STATUS:-1} \
-    "$ROOT/bin/omarchy-update" "$@"
+    "$SUDO_TEST_ROOT/bin/omarchy-update" "$@"
 }
 
 write_stub() {
   local name="$1"
   local body="$2"
 
+  rm -f "$stub_bin/$name"
   cat >"$stub_bin/$name" <<SH
 #!/bin/bash
 $body
@@ -75,6 +83,7 @@ for command in \
   omarchy-update-aur-pkgs \
   omarchy-update-mise \
   omarchy-update-orphan-pkgs \
+  omarchy-update-boot \
   omarchy-hook \
   omarchy-update-analyze-logs \
   omarchy-shell \
@@ -129,7 +138,7 @@ pass "disk-space threshold includes the exact boundary"
 
 rm -f "$snapshot_marker" "$gum_marker"
 GUM_STATUS=0 TEST_AVAILABLE_BYTES=$((10 * 1024 * 1024 * 1024)) run_update >/dev/null
-grep -q "confirm Continue with update?" "$gum_marker" ||
+grep -q "confirm --affirmative Yes --negative No Continue with update?" "$gum_marker" ||
   fail "interactive update with enough space uses the normal confirmation prompt"
 [[ -f $snapshot_marker ]] || fail "accepting the normal confirmation starts the update"
 pass "interactive update keeps the normal confirmation prompt when space is sufficient"

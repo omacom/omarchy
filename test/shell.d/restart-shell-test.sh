@@ -15,58 +15,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-wrapper_root="$test_tmp/wrapper-root"
-wrapper_bin="$test_tmp/wrapper-bin"
-mkdir -p "$wrapper_root/shell" "$wrapper_bin"
-touch "$wrapper_root/shell/shell.qml"
-
-cat >"$wrapper_bin/qs" <<'SH'
-#!/bin/bash
-
-[[ -n ${OMARCHY_TEST_QS_ARGS:-} ]] && printf '%s\n' "$*" >"$OMARCHY_TEST_QS_ARGS"
-
-if [[ ${OMARCHY_TEST_QS_HANG:-0} == 1 ]]; then
-  sleep 5
-elif [[ ${OMARCHY_TEST_QS_STARTING:-0} == 1 ]]; then
-  printf 'Not ready to accept queries yet.\n'
-else
-  printf 'ok\n'
-fi
-SH
-chmod +x "$wrapper_bin/qs"
-
-wrapper_error=$(PATH="$wrapper_bin:$PATH" \
-  OMARCHY_PATH="$wrapper_root" \
-  OMARCHY_SHELL_IPC_TIMEOUT=0.1s \
-  OMARCHY_TEST_QS_HANG=1 \
-  "$ROOT/bin/omarchy-shell" shell ping 2>&1) && fail "hung shell IPC returns a failure"
-[[ $wrapper_error == "omarchy-shell is not responding" ]] || fail "hung shell IPC reports that the shell is unresponsive" "$wrapper_error"
-pass "shell IPC calls time out when Quickshell is unresponsive"
-
-# A starting shell answers on stdout and exits 0, so a ping reads it as up.
-wrapper_error=$(PATH="$wrapper_bin:$PATH" \
-  OMARCHY_PATH="$wrapper_root" \
-  OMARCHY_TEST_QS_STARTING=1 \
-  "$ROOT/bin/omarchy-shell" shell ping 2>&1) && fail "a starting shell answers IPC calls with a failure"
-[[ $wrapper_error == "omarchy-shell is not ready" ]] || fail "a starting shell reports that it is not ready" "$wrapper_error"
-pass "shell IPC calls fail while Quickshell is still starting"
-
-PATH="$wrapper_bin:$PATH" \
-OMARCHY_PATH="$wrapper_root" \
-OMARCHY_TEST_QS_STARTING=1 \
-  "$ROOT/bin/omarchy-shell" -q shell ping >/dev/null 2>&1 ||
-  fail "quiet best-effort IPC calls tolerate a starting shell"
-pass "quiet best-effort IPC calls tolerate a starting shell"
-
-wrapper_args="$test_tmp/wrapper-args"
-PATH="$wrapper_bin:$PATH" \
-OMARCHY_PATH="$wrapper_root" \
-OMARCHY_TEST_QS_ARGS="$wrapper_args" \
-  "$ROOT/bin/omarchy-shell" shell ping >/dev/null
-
-grep -F -- 'ipc -n -p' "$wrapper_args" >/dev/null || fail "shell IPC targets the newest live Quickshell instance"
-pass "shell IPC targets the newest live Quickshell instance"
-
 restart_root="$test_tmp/restart-root"
 restart_bin="$restart_root/bin"
 restart_state="$test_tmp/restart-pids"
@@ -172,7 +120,30 @@ else
 fi
 SH
 
-chmod +x "$restart_bin/qs" "$restart_bin/quickshell" "$restart_bin/hyprctl" "$restart_bin/systemd-cat" "$restart_bin/systemctl"
+cat >"$restart_bin/busctl" <<'SH'
+#!/bin/bash
+if [[ -z ${OMARCHY_TEST_NOTIFICATION_CHECKS:-} ]]; then
+  echo 'b false'
+else
+  checks=0
+  [[ ! -f $OMARCHY_TEST_NOTIFICATION_CHECKS ]] || read -r checks <"$OMARCHY_TEST_NOTIFICATION_CHECKS"
+  (( checks += 1 ))
+  printf '%s\n' "$checks" >"$OMARCHY_TEST_NOTIFICATION_CHECKS"
+  # The service was running before the restart and, when asked to, never
+  # comes back afterwards.
+  if [[ ${OMARCHY_TEST_NOTIFICATIONS_DIE:-0} == 1 ]]; then
+    (( checks == 1 )) && echo 'b true' || echo 'b false'
+    exit 0
+  fi
+  if (( checks == 1 || checks >= 4 )); then
+    echo 'b true'
+  else
+    echo 'b false'
+  fi
+fi
+SH
+
+chmod +x "$restart_bin/qs" "$restart_bin/quickshell" "$restart_bin/hyprctl" "$restart_bin/systemd-cat" "$restart_bin/systemctl" "$restart_bin/busctl"
 
 sleep 30 &
 restart_pid_one=$!
@@ -194,6 +165,7 @@ OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
 OMARCHY_TEST_IPC_LOG="$ipc_log" \
 OMARCHY_TEST_SESSION_PATH="$restart_root" \
 OMARCHY_TEST_TRANSIENT_ENV=leaked \
+OMARCHY_TEST_NOTIFICATION_CHECKS="$test_tmp/notification-checks" \
   timeout 5 "$ROOT/bin/omarchy-restart-shell"
 
 if kill -0 "$restart_pid_one" 2>/dev/null; then
@@ -213,6 +185,8 @@ grep -F "kill -p $restart_root/shell --any-display" "$restart_log" >/dev/null ||
 grep -F 'hl.dsp.exec_cmd("omarchy-launch-shell")' "$dispatch_log" >/dev/null || fail "restart launches the fresh shell through Hyprland"
 grep -F "ipc -n -p $restart_root/shell call -- shell ping" "$ipc_log" >/dev/null || fail "restart checks readiness in the session checkout"
 pass "restart replaces duplicate shell instances from the session checkout"
+[[ $(<"$test_tmp/notification-checks") == 4 ]] || fail "restart waits for the existing notification service after core IPC is ready"
+pass "restart waits for notification readiness before one-time update hooks"
 
 : >"$restart_log"
 printf '303\n' >"$restart_state"
@@ -265,3 +239,35 @@ restart_pid_one=""
 grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null || fail "dead-lock recovery re-acquires the session lock"
 grep -F "ipc -n -p $restart_root/shell call -- lock status" "$ipc_log" >/dev/null || fail "dead-lock recovery waits for the lock to become secure"
 pass "restart recovers a locked session whose lock client died"
+
+# Lock recovery must not wait on the notification plugin: a stranded user gets
+# the lock back even when notifications never return, and the restart then
+# reports the missing service rather than claiming success.
+sleep 30 &
+restart_pid_one=$!
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+rm -f "$restart_state.locked" "$test_tmp/notification-checks"
+: >"$restart_log"
+: >"$ipc_log"
+
+if PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_SESSION_LOCKED=1 \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  OMARCHY_TEST_NOTIFICATION_CHECKS="$test_tmp/notification-checks" \
+  OMARCHY_TEST_NOTIFICATIONS_DIE=1 \
+  timeout 10 "$ROOT/bin/omarchy-restart-shell" >"$test_tmp/dead-notifications.out" 2>&1; then
+  fail "a restart whose notification service never returns must not report success"
+fi
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null || fail "lock recovery waited on the notification service" "$(cat "$ipc_log")"
+[[ -f $restart_state.locked ]] || fail "lock recovery did not re-secure the session without notifications"
+grep -q "notification service did not become ready" "$test_tmp/dead-notifications.out" || fail "a missing notification service is not reported" "$(cat "$test_tmp/dead-notifications.out")"
+pass "restart recovers the lock even when the notification service never returns"

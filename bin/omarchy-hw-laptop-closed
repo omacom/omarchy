@@ -3,9 +3,45 @@
 # omarchy:summary=Returns true when the laptop lid is closed
 # omarchy:hidden=true
 
-for state in /proc/acpi/button/lid/*/state; do
-  [[ -r $state ]] || continue
-  [[ $(< "$state") == *"closed"* ]] && exit 0
-done
+acpi_lid="${OMARCHY_ACPI_LID_PATH:-/proc/acpi/button/lid}"
+input_class="${OMARCHY_INPUT_CLASS_PATH:-/sys/class/input}"
+
+shopt -s nullglob
+acpi_states=("$acpi_lid"/*/state)
+input_switches=("$input_class"/*/capabilities/sw)
+shopt -u nullglob
+
+# An input device that reports a lid switch: SW_LID, bit 0 of the last word
+# of its switch bitmap.
+has_lid_switch() {
+  local switches word
+  local -a words
+
+  for switches in "${input_switches[@]}"; do
+    [[ -r $switches ]] || continue
+    read -r -a words <"$switches" || true
+    (( ${#words[@]} )) || continue
+    word=${words[-1]}
+    [[ $word =~ ^[0-9a-fA-F]+$ ]] || continue
+    (( 16#$word & 1 )) && return 0
+  done
+  return 1
+}
+
+if (( ${#acpi_states[@]} )); then
+  # An ACPI lid reports its own state.
+  for state in "${acpi_states[@]}"; do
+    [[ -r $state ]] || continue
+    [[ $(<"$state") == *"closed"* ]] && exit 0
+  done
+elif has_lid_switch; then
+  # Elsewhere (Apple Silicon's SMC, for one) only logind reads the switch. Ask
+  # it only then: it answers "open" when it tracks no lid. This runs in sudo's
+  # and polkit's PAM stack where fingerprint login is set up, so a stalled
+  # logind must not hold up every sudo.
+  lid_state=$(busctl --timeout=2 get-property org.freedesktop.login1 \
+    /org/freedesktop/login1 org.freedesktop.login1.Manager LidClosed 2>/dev/null)
+  [[ $lid_state == "b true" ]] && exit 0
+fi
 
 exit 1

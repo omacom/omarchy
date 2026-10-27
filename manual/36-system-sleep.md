@@ -2,6 +2,8 @@
 
 Omarchy enables suspend and hibernation by default, but if you're having issues with either on your machine, you can toggle them off.
 
+On NVIDIA GB10 machines, such as the DGX Spark and the ASUS Ascent GX10, suspend and hibernation are turned off, as they are in NVIDIA's DGX OS, because sleep hasn't been shown to work on that hardware yet. The suspend toggle and hibernation setup don't apply there. To turn sleep back on, remove `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` with `sudo rm`; Suspend then returns to the menu, and hibernation can be set up as on other machines. Running `sudo omarchy apply hardware --install-user "$USER"` puts the file back.
+
 ### Power profiles
 
 On a laptop, Omarchy remembers your power profile separately for plugged in and running on battery, and switches between the two as you plug and unplug. Out of the box that means performance on AC and balanced on battery.

@@ -1,0 +1,1289 @@
+{
+  "root": {
+    "label": "Fara"
+  },
+  "apps": {
+    "label": "Forrit"
+  },
+  "learn": {
+    "label": "Læra"
+  },
+  "appearance": {
+    "label": "Útlit"
+  },
+  "trigger": {
+    "label": "Kveikja"
+  },
+  "setup": {
+    "label": "Uppsetning"
+  },
+  "install": {
+    "label": "Setja upp"
+  },
+  "remove": {
+    "label": "Fjarlægja"
+  },
+  "update": {
+    "label": "Uppfæra"
+  },
+  "about": {
+    "label": "Um"
+  },
+  "system": {
+    "label": "Kerfi"
+  },
+  "system.screensaver": {
+    "label": "Skjáverji"
+  },
+  "system.lock": {
+    "label": "Læsa"
+  },
+  "system.suspend": {
+    "label": "Svefn"
+  },
+  "system.hibernate": {
+    "label": "Dvala"
+  },
+  "system.logout": {
+    "label": "Útskrá"
+  },
+  "system.reboot": {
+    "label": "Endurræsa"
+  },
+  "system.shutdown": {
+    "label": "Slökkva"
+  },
+  "learn.keybindings": {
+    "label": "Flýtilyklar"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Samfélag"
+  },
+  "appearance.theme": {
+    "label": "Þema"
+  },
+  "appearance.background": {
+    "label": "Bakgrunnur"
+  },
+  "appearance.font": {
+    "label": "Leturgerð"
+  },
+  "appearance.top-bar": {
+    "label": "Valmyndastika"
+  },
+  "appearance.top-bar.hide": {
+    "label": "Fela stiku"
+  },
+  "appearance.top-bar.show": {
+    "label": "Sýna stiku"
+  },
+  "appearance.top-bar.position": {
+    "label": "Staðsetja stiku"
+  },
+  "appearance.top-bar.background": {
+    "label": "Bakgrunnur stiku"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "Ógegnsæ stika"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "Glerstika"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "Tær stika"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "Vísar stiku"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "Klukka"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Sunnudagur 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Sunnudagur 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Sunnudagur 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Sunnudagur 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "Sun 3. maí 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "Sun 3. maí 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3. maí V18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03. maí V18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "Efsta stika"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "Neðsta stika"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "Vinstri stika"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "Hægri stika"
+  },
+  "appearance.windows.corners": {
+    "label": "Gluggahorn"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "Þemahorn"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "Skörp horn"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "Rúnnuð horn"
+  },
+  "appearance.windows.transparency": {
+    "label": "Ógegnsæi glugga"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "Ógegnsæir gluggar"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "Gegnsæir gluggar"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "Glergluggar"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Skjáverji"
+  },
+  "appearance.branding.about": {
+    "label": "Um"
+  },
+  "appearance.branding.about.text": {
+    "label": "Breyta texta"
+  },
+  "appearance.branding.about.image": {
+    "label": "Stilla frá mynd"
+  },
+  "appearance.branding.about.default": {
+    "label": "Endurheimta sjálfgildi"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Breyta texta"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Stilla frá mynd"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Endurheimta sjálfgildi"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Fela dock sjálfkrafa"
+  },
+  "appearance.dock.always-on": {
+    "label": "Alltaf sýnilegt dock"
+  },
+  "appearance.dock.position": {
+    "label": "Staðsetning docks"
+  },
+  "appearance.dock.position.top": {
+    "label": "Efsta dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Neðsta dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "Vinstri dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "Hægri dock"
+  },
+  "appearance.workspace-layout": {
+    "label": "Vinnusvæðaskipun",
+    "title": "Sjálfgefin vinnusvæðaskipun"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "Flísalögn"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "Skrunun"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "Fljótandi"
+  },
+  "appearance.unlock": {
+    "label": "Opna"
+  },
+  "trigger.toggle": {
+    "label": "Víxla"
+  },
+  "trigger.emoji": {
+    "label": "Emoji"
+  },
+  "trigger.clipboard-history": {
+    "label": "Klippiborðssaga"
+  },
+  "trigger.reminder": {
+    "label": "Áminning"
+  },
+  "trigger.capture": {
+    "label": "Fanga"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Skjámynd"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Stöðva skjáupptöku"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Skjáupptaka"
+  },
+  "trigger.capture.text": {
+    "label": "Texti"
+  },
+  "trigger.capture.qr": {
+    "label": "QR-kóði"
+  },
+  "trigger.capture.color": {
+    "label": "Litur"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Án hljóðs"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "Með skjáborðshljóði"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "Með skjáborðs- + hljóðnemahljóði"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "Með skjáborðs- + hljóðnemahljóði + vefmyndavél"
+  },
+  "trigger.transcode": {
+    "label": "Umkóða"
+  },
+  "trigger.share": {
+    "label": "Deila"
+  },
+  "trigger.hardware": {
+    "label": "Vélbúnaður"
+  },
+  "trigger.tests": {
+    "label": "Hraðapróf"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Snertisvörun flatar"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "lágt"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "miðlungs"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "hátt"
+  },
+  "trigger.reminder.set": {
+    "label": "Búa til eina"
+  },
+  "trigger.reminder.show": {
+    "label": "Sýna allar"
+  },
+  "trigger.reminder.clear": {
+    "label": "Hreinsa allt"
+  },
+  "trigger.share.clipboard": {
+    "label": "Klippiborð"
+  },
+  "trigger.share.file": {
+    "label": "Skrá"
+  },
+  "trigger.share.folder": {
+    "label": "Mappa"
+  },
+  "trigger.share.receive": {
+    "label": "Taka á móti"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Nethraðapróf"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Diskahraðapróf"
+  },
+  "setup.monitors": {
+    "label": "Skjár"
+  },
+  "setup.keybindings": {
+    "label": "Flýtilyklar"
+  },
+  "setup.input": {
+    "label": "Inntak"
+  },
+  "setup.typing": {
+    "label": "Innsláttur"
+  },
+  "setup.typing.keyboard": {
+    "label": "Lyklaborðskipan"
+  },
+  "setup.typing.input": {
+    "label": "Innsláttaraðferðir"
+  },
+  "setup.language": {
+    "label": "Tungumál"
+  },
+  "setup.network": {
+    "label": "Net"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "Sérsniðið"
+  },
+  "setup.network.qr": {
+    "label": "QR-kóði"
+  },
+  "setup.default": {
+    "label": "Sjálfgildi"
+  },
+  "setup.default.agent": {
+    "label": "Fulltrúi",
+    "title": "Sjálfgefinn agent"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "Vafri",
+    "title": "Sjálfgefinn vafri"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Upplestur",
+    "title": "Sjálfgefinn upplestur"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Útstöð",
+    "title": "Sjálfgefinn terminal"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Ritill",
+    "title": "Sjálfgefinn ritill"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Viðbætur"
+  },
+  "setup.plugin.enable": {
+    "label": "Virkja viðbót"
+  },
+  "setup.plugin.disable": {
+    "label": "Slökkva á viðbót"
+  },
+  "setup.plugin.add": {
+    "label": "Bæta viðbót við"
+  },
+  "setup.plugin.clone": {
+    "label": "Klóna viðbót"
+  },
+  "setup.plugin.remove": {
+    "label": "Fjarlægja viðbót"
+  },
+  "setup.security": {
+    "label": "Öryggi"
+  },
+  "setup.config": {
+    "label": "Stillingar"
+  },
+  "setup.security.fingerprint": {
+    "label": "Fingrafar"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker án sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Sudo án lykilorðs"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "Bein ræsing"
+  },
+  "setup.reset": {
+    "label": "Endurstilla tölvu"
+  },
+  "install.package": {
+    "label": "Pakki"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "Þjónusta"
+  },
+  "install.development": {
+    "label": "Þróun"
+  },
+  "install.editor": {
+    "label": "Ritill"
+  },
+  "install.style": {
+    "label": "Stíll"
+  },
+  "install.style.theme": {
+    "label": "Þema"
+  },
+  "install.style.background": {
+    "label": "Bakgrunnur"
+  },
+  "install.style.font": {
+    "label": "Leturgerð"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Leikir"
+  },
+  "install.browser": {
+    "label": "Vafri"
+  },
+  "install.webapp": {
+    "label": "Vefforrit"
+  },
+  "install.terminal": {
+    "label": "Útstöð"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Foruppsett"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Chromium-reikningur"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xbox-stýringar"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch-leikjaræsi"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Pakki"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "Fjarlægja"
+  },
+  "remove.dictation": {
+    "label": "Upplestur"
+  },
+  "remove.service": {
+    "label": "Þjónustur",
+    "title": "Fjarlægja"
+  },
+  "remove.development": {
+    "label": "Þróun",
+    "title": "Fjarlægja"
+  },
+  "remove.theme": {
+    "label": "Þema"
+  },
+  "remove.gaming": {
+    "label": "Leikir",
+    "title": "Fjarlægja"
+  },
+  "remove.browser": {
+    "label": "Vafri",
+    "title": "Fjarlægja"
+  },
+  "remove.webapp": {
+    "label": "Vefforrit"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Foruppsett"
+  },
+  "remove.security": {
+    "label": "Öryggi",
+    "title": "Fjarlægja"
+  },
+  "remove.security.fingerprint": {
+    "label": "Fingrafar"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker án sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xbox-stýringar (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Fjarlægja"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Fjarlægja"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Fjarlægja"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Rás"
+  },
+  "update.config": {
+    "label": "Stillingar",
+    "title": "Endurstilla í sjálfgildi"
+  },
+  "update.themes": {
+    "label": "Viðbótarþemu"
+  },
+  "update.process": {
+    "label": "Ferli",
+    "title": "Endurræsa"
+  },
+  "update.hardware": {
+    "label": "Vélbúnaður",
+    "title": "Endurræsa"
+  },
+  "update.firmware": {
+    "label": "Fastbúnaður"
+  },
+  "update.password": {
+    "label": "Lykilorð"
+  },
+  "update.timezone": {
+    "label": "Tímabelti"
+  },
+  "update.time": {
+    "label": "Tími"
+  },
+  "update.channel.stable": {
+    "label": "Stöðugt"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "Hljóð"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Snertiflötur"
+  },
+  "update.password.drive": {
+    "label": "Drifdulkóðun"
+  },
+  "update.password.user": {
+    "label": "Notandi"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Sýna rafhlöðu %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Fela rafhlöðu %"
+  },
+  "appearance.windows": {
+    "label": "Gluggar"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Gluggabil á"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Gluggabil af"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-glugga hlutfall á"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-glugga hlutfall af"
+  },
+  "appearance.branding": {
+    "label": "Vörumerking"
+  },
+  "appearance.animations-on": {
+    "label": "Hreyfimyndir á"
+  },
+  "appearance.animations-off": {
+    "label": "Hreyfimyndir af"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Halda vakandi"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Leyfa svefn"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Tilkynningar á"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Þagga tilkynningar"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Næturbirta á"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Næturbirta af"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Skjáhvíld á"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Skjáhvíld af"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Hrunupptaka á"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kjarni"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Hrunskráning af"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Fartölvuskjár á"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Fartölvuskjár af"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Skjáspeglun á"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Skjáspeglun af"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Skipta í tvinn-GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Skipta í innbyggðan GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Virkja snertiborð"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Afvirkja snertiborð"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Virkja snertiskjá"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Afvirkja snertiskjá"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  }
+}

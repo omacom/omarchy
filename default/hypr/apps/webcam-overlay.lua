@@ -16,10 +16,8 @@ o.window("^WebcamOverlay-large$", {
 -- The dedicated app id keeps this out of mpv's generic centered floating rules,
 -- so the camera appears at its final corner position.
 o.window({ class = "^WebcamOverlay-(small|medium|large)$", title = "^WebcamOverlay$" }, {
-  tag = "-default-opacity",
   float = true,
   pin = true,
   no_initial_focus = true,
   no_dim = true,
-  opacity = "1 1",
 })

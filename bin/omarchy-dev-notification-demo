@@ -1,0 +1,94 @@
+#!/usr/bin/python3
+# omarchy:summary=Play a realistic run of notifications to look at the notification UI
+# omarchy:hidden=true
+"""A realistic run of notifications, sent straight onto the session bus as an
+app would: a stack building, a code to copy, a link to open, and the apps this
+desktop has icons for. The senders mimic what really notifies this desktop
+(Chrome web apps, chat apps, a terminal); the words are invented and the only
+people named are Omarchy's own."""
+import subprocess
+import time
+
+from gi.repository import Gio, GLib
+
+BUS_NAME = "org.freedesktop.Notifications"
+BUS_PATH = "/org/freedesktop/Notifications"
+GAP = 3.2
+
+# Chrome sends every web app as "Google Chrome"; the leading origin anchor is
+# what tells the sites apart. The Campfire burst arrives faster than the pace
+# so a stack builds. The system apps are ones this desktop has icons for, so a
+# letter tile there means a bug.
+NOTIFICATIONS = [
+  dict(web="3.basecamp.com", summary="Omarchy",
+       body="DHH: notification decks just landed on edge, worth a look before the call"),
+  dict(app="Signal", icon="signal-desktop", summary="Ryan Hughes",
+       body="I have to show you the new notifications, are you around later?"),
+  dict(web="app.hey.com", summary="New Email in Imbox",
+       body="Re: Omarchy 4.5 release notes"),
+  dict(web="x.com", summary="DHH",
+       body="replied to your post: this is the part everyone gets wrong"),
+  dict(web="3.basecamp.com", summary="Omarchy", gap=0.7,
+       body="Ryan Hughes: pushed the spacing pass, take a look"),
+  dict(web="3.basecamp.com", summary="Omarchy", gap=0.7,
+       body="DHH: the two-line ones finally breathe"),
+  dict(web="3.basecamp.com", summary="Omarchy", gap=0.7,
+       body="Ryan Hughes: one more go at the icon size and I think that is it"),
+  dict(web="3.basecamp.com", summary="Omarchy",
+       body="DHH: ship it, latest build is up at https://omarchy.org"),
+  dict(app="Grok Bot", icon="grok-bot", summary="Grok Bot", actions=["default=View"],
+       body="2 things need you since lunch: DHH asked about the 4.5 release notes, "
+            "and the Omapager PR has a new review waiting on you."),
+  dict(web="3.basecamp.com", summary="DHH assigned you a to-do",
+       body="Record the notifications demo for the 4.5 release notes"),
+  dict(web="app.hey.com", summary="New Email in Imbox",
+       body="Your Basecamp verification code is 482913"),
+  dict(app="foot", icon="foot", summary="Tests passed",
+       body="412 passed, 0 failed in <b>2m 14s</b>"),
+  dict(app="Omarchy", icon="omarchy", summary="Omarchy 4.5 is out",
+       body="Notification decks, one-click codes, and a lot more"),
+  dict(app="Spotify", icon="spotify", summary="Now playing",
+       body="Money for Nothing - Dire Straits"),
+  dict(web="x.com", summary="3 people liked your post",
+       body="“the notification daemon is the whole desktop in miniature”"),
+  dict(app="Signal", icon="signal-desktop", summary="DHH",
+       body="seriously, you are going to want to see this one"),
+  dict(app="Omarchy", icon="system-software-update", summary="Updates available",
+       body="14 packages, including linux 7.2.8 and hyprland 0.56.2"),
+  dict(app="Snapshots", icon="LimineSnapperSync", summary="Snapshot complete",
+       body="pre-update root snapshot written in 4s"),
+  dict(app="ApexShot", icon="apexshot", summary="Screenshot saved",
+       body="~/Screenshots/ApexShot-2026-09-03_22-41-08.png"),
+]
+
+
+def send(bus, n):
+  app, icon, body = n.get("app", ""), n.get("icon", ""), n["body"]
+  if n.get("web"):
+    app, icon = "Google Chrome", "google-chrome"
+    body = '<a href="https://%s/">%s</a>\n\n%s' % (n["web"], n["web"], body)
+  actions = []
+  for action in n.get("actions", []):
+    key, _, label = action.partition("=")
+    actions += [key, label]
+  hints = {"desktop-entry": GLib.Variant("s", icon)}
+  bus.call_sync(BUS_NAME, BUS_PATH, BUS_NAME, "Notify",
+                GLib.Variant("(susssasa{sv}i)", (app, 0, icon, n["summary"], body, actions, hints, -1)),
+                GLib.VariantType("(u)"), Gio.DBusCallFlags.NONE, 5000, None)
+
+
+def main():
+  bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+  # Off screen, not forgotten: history keeps what was there.
+  subprocess.run(["omarchy-shell", "-q", "notifications", "dismissAll"], check=False)
+  time.sleep(0.4)
+  try:
+    for n in NOTIFICATIONS:
+      send(bus, n)
+      time.sleep(n.get("gap", GAP))
+  except KeyboardInterrupt:
+    pass
+
+
+if __name__ == "__main__":
+  main()
