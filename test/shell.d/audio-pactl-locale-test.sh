@@ -21,7 +21,7 @@ SH
 cat >"$work/bin/omarchy-audio-tuning" <<'SH'
 #!/bin/bash
 case ${1:-} in
-  fronted-sink) exit 1 ;;
+  hidden-sink) exit 1 ;;
   *) exit 0 ;;
 esac
 SH

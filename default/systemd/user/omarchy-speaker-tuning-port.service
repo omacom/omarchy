@@ -1,0 +1,18 @@
+[Unit]
+Description=Omarchy speaker tuning headphone-jack follower
+Documentation=https://github.com/omacom/omarchy/blob/master/docs/audio-tuning.md
+# Only installed for a tuning whose speakers share a sink with the headphone jack.
+# Plugging in headphones there switches the sink's port rather than the default
+# sink, so without this the headphones would play through the speaker tuning.
+# It lives and dies with the tuning host.
+After=omarchy-speaker-tuning.service
+BindsTo=omarchy-speaker-tuning.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-audio-tuning follow-port
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=omarchy-speaker-tuning.service
