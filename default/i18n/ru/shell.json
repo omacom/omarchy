@@ -107,8 +107,6 @@
     "other": "%1 токена сегодня"
   },
   "agents.unknownModel": "Неизвестная",
-  "agents.usageNotUpdated": "Статистика ещё не обновлена.",
-  "agents.usageUnavailable": "Статистика недоступна",
   "agents.use": "Использовать",
   "agents.waitingForAuth": "Ожидание авторизации",
   "agents.windowLimit": "Лимит",

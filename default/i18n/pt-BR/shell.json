@@ -100,8 +100,6 @@
     "other": "%1 tokens hoje"
   },
   "agents.unknownModel": "Desconhecido",
-  "agents.usageNotUpdated": "O uso ainda não foi atualizado.",
-  "agents.usageUnavailable": "Uso indisponível",
   "agents.use": "Usar",
   "agents.waitingForAuth": "Aguardando autenticação",
   "agents.windowLimit": "Limite",

@@ -93,8 +93,6 @@
     "other": "%1 tokens i dag"
   },
   "agents.unknownModel": "Ukendt",
-  "agents.usageNotUpdated": "Forbrug er ikke opdateret endnu.",
-  "agents.usageUnavailable": "Forbrug ikke tilgængeligt",
   "agents.use": "Brug",
   "agents.waitingForAuth": "Venter på godkendelse",
   "agents.windowLimit": "Grænse",

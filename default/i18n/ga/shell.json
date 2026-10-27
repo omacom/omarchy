@@ -114,8 +114,6 @@
     "two": "Dhá thóicean inniu"
   },
   "agents.unknownModel": "Anaithnid",
-  "agents.usageNotUpdated": "Níor nuashonraíodh an úsáid fós.",
-  "agents.usageUnavailable": "Úsáid gan fáil",
   "agents.use": "Úsáid",
   "agents.waitingForAuth": "Ag fanacht le fíordheimhniú",
   "agents.windowLimit": "Teorainn",

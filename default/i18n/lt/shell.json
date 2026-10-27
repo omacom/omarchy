@@ -100,8 +100,6 @@
     "other": "%1 žetonų šiandien"
   },
   "agents.unknownModel": "Nežinomas",
-  "agents.usageNotUpdated": "Naudojimas dar neatnaujintas.",
-  "agents.usageUnavailable": "Naudojimas nepasiekiamas",
   "agents.use": "Naudoti",
   "agents.waitingForAuth": "Laukiama autorizacijos",
   "agents.windowLimit": "Limitas",

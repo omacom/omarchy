@@ -28,7 +28,7 @@ Panel {
 
   // Every subscription on one page, limits first: the question this panel
   // answers is how much room is left, and where.
-  readonly property var providers: usage.enabledProviders
+  readonly property var providers: usage.subscribedProviders
 
   property bool cursorActive: false
 
@@ -435,13 +435,12 @@ Panel {
     return status === "Sign-in expired" || status === "Waiting for auth"
   }
 
-  function otherTrouble(item) {
+  // Whatever keeps the numbers from being current, said quietly beneath the
+  // last ones known: they stay on show until a check succeeds again.
+  function usageNote(item) {
     var status = String(item && item.usageStatusText || "")
-    return status !== "" && status !== "Limits paused" && !needsSignIn(item) ? status : ""
-  }
-
-  function pausedWithoutLimits(item) {
-    return !!item && item.usageStatusText === "Limits paused" && limitWindows(item).length === 0
+    if (status === "" || needsSignIn(item)) return ""
+    return helpDisplayText(item.authHelpText) || statusDisplayText(status)
   }
 
   // Sign an account that's already here in again, following along in the
@@ -723,6 +722,7 @@ Panel {
     var sessions = 0
     var byDay = {}
     var byModel = {}
+    var providers = usage.enabledProviders
     for (var i = 0; i < providers.length; i++) {
       var p = providers[i]
       var days = p.recentDays || []
@@ -791,6 +791,7 @@ Panel {
   // Only speaks up when the numbers cover more than this machine.
   function footerText() {
     if (usage.syncStatusText !== "") return usage.syncStatusText
+    var providers = usage.enabledProviders
     for (var i = 0; i < providers.length; i++) {
       var count = Number(providers[i].syncDeviceCount || 0)
       if (providers[i].syncEnabled && count > 0)
@@ -1436,8 +1437,8 @@ Panel {
       }
     }
 
-    // Sign-in and endpoint trouble for a single-account provider; with
-    // several, each account says so on its own line.
+    // A sign-in to redo for a single-account provider; with several, each
+    // account says so on its own line.
     TextLink {
       visible: !section.multi && root.needsSignIn(section.provider)
       picked: root.hasKey("providerSignin", section.providerIndex)
@@ -1447,23 +1448,6 @@ Panel {
       onClicked: root.signInAgain(section.provider, null)
     }
 
-    Text {
-      visible: !section.multi && root.otherTrouble(section.provider) !== ""
-      width: parent.width
-      textFormat: Text.PlainText
-      // Shown for the status, so a record with no help to offer says the status rather than nothing.
-      text: section.provider ? (root.helpDisplayText(section.provider.authHelpText) || root.statusDisplayText(section.provider.usageStatusText) || "") : ""
-      color: root.urgent
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-      wrapMode: Text.WordWrap
-    }
-
-    UnavailableUsage {
-      visible: !section.multi && root.pausedWithoutLimits(section.provider)
-      width: parent.width
-      record: section.provider
-    }
 
     Column {
       visible: !section.multi && section.windows.length > 0
@@ -1549,6 +1533,12 @@ Panel {
       }
     }
 
+    UsageNote {
+      visible: !section.multi && text !== ""
+      width: parent.width
+      record: section.provider
+    }
+
     Repeater {
       model: section.multi ? section.accounts : []
 
@@ -1571,11 +1561,6 @@ Panel {
           width: parent.width
           spacing: Style.space(12)
 
-          UnavailableUsage {
-            width: parent.width
-            record: accountBlock.modelData
-          }
-
           Repeater {
             model: root.displayWindows({ limits: accountBlock.modelData.limits || [] })
 
@@ -1586,6 +1571,12 @@ Panel {
               stale: accountBlock.modelData.stale === true
               fetchedAt: Number(accountBlock.modelData.fetchedAt || 0)
             }
+          }
+
+          UsageNote {
+            visible: text !== ""
+            width: parent.width
+            record: accountBlock.modelData
           }
         }
       }
@@ -1838,8 +1829,8 @@ Panel {
         }
       }
 
-      // Bounded by the actions on the right: the plan and any trouble shorten
-      // first, and the Sign-in required link keeps its whole width.
+      // Bounded by the actions on the right: the plan shortens first, and the
+      // Sign-in required link keeps its whole width.
       Row {
         id: detailRow
         visible: !head.editing
@@ -1857,14 +1848,10 @@ Panel {
             - (signInLink.visible ? signInLink.implicitWidth + detailRow.spacing : 0)))
           elide: Text.ElideRight
           text: {
-            var parts = []
             var detail = root.accountDetail(head.account)
-            if (detail !== "") parts.push(detail)
-            var trouble = root.otherTrouble(head.account)
-            if (trouble !== "") parts.push(root.statusDisplayText(trouble))
-            return parts.length > 0 ? "· " + parts.join(" · ") : ""
+            return detail !== "" ? "· " + detail : ""
           }
-          color: root.otherTrouble(head.account) !== "" ? root.urgent : root.dim
+          color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
         }
@@ -1961,28 +1948,15 @@ Panel {
     }
   }
 
-  // With no measured windows, leave a place to discover how to get usage.
-  component UnavailableUsage: Item {
-    id: unavailable
+  // The reason the numbers above it aren't current, and what to do about it.
+  component UsageNote: Text {
     property var record: null
-    visible: root.pausedWithoutLimits(record)
-    implicitHeight: unavailableLabel.implicitHeight
-
-    Text {
-      id: unavailableLabel
-      text: Commons.I18n.t("agents.usageUnavailable")
-      textFormat: Text.PlainText
-      color: root.dim
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
-    }
-
-    HoverHandler { id: unavailableHover }
-
-    PanelToolTip {
-      visible: unavailableHover.hovered && unavailable.visible
-      text: unavailable.record ? (root.helpDisplayText(unavailable.record.authHelpText) || Commons.I18n.t("agents.usageNotUpdated")) : ""
-    }
+    text: root.usageNote(record)
+    textFormat: Text.PlainText
+    color: root.dim
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+    wrapMode: Text.WordWrap
   }
 
   // One line per limit window: title, meter, percentage, and reset. A

@@ -107,8 +107,6 @@
     "two": "%1 žetona danes"
   },
   "agents.unknownModel": "Neznano",
-  "agents.usageNotUpdated": "Poraba še ni bila posodobljena.",
-  "agents.usageUnavailable": "Poraba ni na voljo",
   "agents.use": "Uporabi",
   "agents.waitingForAuth": "Čakanje na overitev",
   "agents.windowLimit": "Omejitev",

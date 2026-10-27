@@ -100,8 +100,6 @@
     "other": "%1 de tokenuri azi"
   },
   "agents.unknownModel": "Necunoscut",
-  "agents.usageNotUpdated": "Utilizarea nu a fost actualizată încă.",
-  "agents.usageUnavailable": "Utilizare indisponibilă",
   "agents.use": "Folosește",
   "agents.waitingForAuth": "Se așteaptă autentificarea",
   "agents.windowLimit": "Limită",

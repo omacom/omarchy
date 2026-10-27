@@ -93,8 +93,6 @@
     "other": "আজ %1টি টোকেন"
   },
   "agents.unknownModel": "অজানা",
-  "agents.usageNotUpdated": "ব্যবহার এখনো আপডেট হয়নি।",
-  "agents.usageUnavailable": "ব্যবহার পাওয়া যাচ্ছে না",
   "agents.use": "ব্যবহার করুন",
   "agents.waitingForAuth": "প্রমাণীকরণের অপেক্ষায়",
   "agents.windowLimit": "সীমা",

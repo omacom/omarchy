@@ -121,8 +121,6 @@
     "zero": "لا رموز اليوم"
   },
   "agents.unknownModel": "غير معروف",
-  "agents.usageNotUpdated": "لم يُحدّث الاستخدام بعد.",
-  "agents.usageUnavailable": "الاستخدام غير متاح",
   "agents.use": "استخدم",
   "agents.waitingForAuth": "بانتظار المصادقة",
   "agents.windowLimit": "الحد",

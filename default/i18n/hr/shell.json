@@ -100,8 +100,6 @@
     "other": "%1 tokena danas"
   },
   "agents.unknownModel": "Nepoznat",
-  "agents.usageNotUpdated": "Potrošnja još nije ažurirana.",
-  "agents.usageUnavailable": "Potrošnja nije dostupna",
   "agents.use": "Koristite",
   "agents.waitingForAuth": "Čekanje na autorizaciju",
   "agents.windowLimit": "Ograničenje",

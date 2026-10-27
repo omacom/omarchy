@@ -93,8 +93,6 @@
     "other": "Bugun %1 ta token"
   },
   "agents.unknownModel": "Nomaʼlum",
-  "agents.usageNotUpdated": "Foydalanish hali yangilanmagan.",
-  "agents.usageUnavailable": "Foydalanish maʼlumoti yoʻq",
   "agents.use": "Ishlatish",
   "agents.waitingForAuth": "Avtorizatsiya kutilmoqda",
   "agents.windowLimit": "Cheklov",

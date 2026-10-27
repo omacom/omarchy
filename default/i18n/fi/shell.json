@@ -93,8 +93,6 @@
     "other": "%1 tokenia tänään"
   },
   "agents.unknownModel": "Tuntematon",
-  "agents.usageNotUpdated": "Käyttöä ei ole vielä päivitetty.",
-  "agents.usageUnavailable": "Käyttö ei saatavilla",
   "agents.use": "Käytä",
   "agents.waitingForAuth": "Odotetaan todennusta",
   "agents.windowLimit": "Raja",

@@ -93,8 +93,6 @@
     "other": "आज %1 टोकन"
   },
   "agents.unknownModel": "अज्ञात",
-  "agents.usageNotUpdated": "उपयोग अभी तक अपडेट नहीं हुआ है।",
-  "agents.usageUnavailable": "उपयोग अनुपलब्ध है",
   "agents.use": "उपयोग करें",
   "agents.waitingForAuth": "प्रमाणीकरण की प्रतीक्षा है",
   "agents.windowLimit": "सीमा",

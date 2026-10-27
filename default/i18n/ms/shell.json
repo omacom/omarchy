@@ -86,8 +86,6 @@
     "other": "%1 token hari ini"
   },
   "agents.unknownModel": "Tidak diketahui",
-  "agents.usageNotUpdated": "Penggunaan belum dikemas kini.",
-  "agents.usageUnavailable": "Penggunaan tidak tersedia",
   "agents.use": "Guna",
   "agents.waitingForAuth": "Menunggu pengesahan",
   "agents.windowLimit": "Had",

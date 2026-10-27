@@ -93,8 +93,6 @@
     "other": "අද ටෝකන %1ක්"
   },
   "agents.unknownModel": "නොදන්නා",
-  "agents.usageNotUpdated": "භාවිතය තවම යාවත්කාලීන වී නැත.",
-  "agents.usageUnavailable": "භාවිතය ලබාගත නොහැක",
   "agents.use": "භාවිත කරන්න",
   "agents.waitingForAuth": "සත්‍යාපනය එනතුරු බලා සිටී",
   "agents.windowLimit": "සීමාව",

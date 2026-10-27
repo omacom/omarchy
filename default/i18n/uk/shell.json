@@ -107,8 +107,6 @@
     "other": "%1 токена сьогодні"
   },
   "agents.unknownModel": "Невідома",
-  "agents.usageNotUpdated": "Використання ще не оновлено.",
-  "agents.usageUnavailable": "Використання недоступне",
   "agents.use": "Використати",
   "agents.waitingForAuth": "Очікування авторизації",
   "agents.windowLimit": "Ліміт",
