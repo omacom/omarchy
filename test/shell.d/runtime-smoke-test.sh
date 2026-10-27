@@ -294,6 +294,21 @@ esac
 SH
 chmod +x "$SCRATCH_BIN/curl"
 
+# Counts the transparent bar's wallpaper samples.
+text_color_calls="$SCRATCH_DIR/text-color.calls"
+cat >"$SCRATCH_BIN/omarchy-bar-text-color" <<SH
+#!/bin/bash
+echo "\$*" >>"$text_color_calls"
+echo "#ffffff"
+SH
+chmod +x "$SCRATCH_BIN/omarchy-bar-text-color"
+
+state_dir="$SCRATCH_HOME/.local/state/omarchy"
+mkdir -p "$state_dir/current/theme"
+: >"$state_dir/current/theme/a.png"
+: >"$state_dir/current/theme/b.png"
+ln -s "$state_dir/current/theme/a.png" "$state_dir/current/background"
+
 start_scratch_shell
 wait_scratch_shell
 
@@ -319,6 +334,44 @@ jq -e '
   fail_with_log "shell IPC lists plugin metadata"
 }
 pass "shell IPC lists plugin metadata"
+
+# Plugins save their own state beside current/. That must not make the
+# transparent bar sample the wallpaper again; repointing the background must.
+text_color_count() {
+  if [[ -f $text_color_calls ]]; then
+    wc -l <"$text_color_calls"
+  else
+    echo 0
+  fi
+}
+
+bar_background() {
+  HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-bar" background "$@"
+}
+
+bar_background none >/dev/null
+for _ in {1..50}; do
+  (( $(text_color_count) > 0 )) && break
+  sleep 0.1
+done
+(( $(text_color_count) > 0 )) || fail_with_log "transparent bar samples the wallpaper when turned on"
+sleep 0.5
+before=$(text_color_count)
+
+printf '{}' >"$state_dir/unrelated.tmp"
+mv "$state_dir/unrelated.tmp" "$state_dir/unrelated.json"
+sleep 1
+(( $(text_color_count) == before )) ||
+  fail_with_log "unrelated state writes re-sample the wallpaper (was $before, now $(text_color_count))"
+
+ln -nsf "$state_dir/current/theme/b.png" "$state_dir/current/background"
+for _ in {1..50}; do
+  (( $(text_color_count) > before )) && break
+  sleep 0.1
+done
+(( $(text_color_count) > before )) || fail_with_log "repointing the background re-samples the wallpaper"
+bar_background opaque >/dev/null
+pass "unrelated state writes leave the transparent bar alone"
 
 jq '.name = "After Hot Reload"' "$hot_reload_dir/manifest.json" >"$hot_reload_dir/manifest.json.tmp"
 mv "$hot_reload_dir/manifest.json.tmp" "$hot_reload_dir/manifest.json"
