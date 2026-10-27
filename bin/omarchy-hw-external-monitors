@@ -3,10 +3,14 @@
 # omarchy:summary=Returns true when an external monitor is physically connected.
 
 drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+builtin=$(omarchy-hw-display-builtin-pattern)
 
 for status in "$drm_path"/card*-*/status; do
   [[ -e $status ]] || continue
-  [[ $status =~ -(eDP|LVDS|DSI)-[^/]+/status$ ]] && continue
+  connector=${status%/status}
+  connector=${connector##*/}
+  connector=${connector#card*-}
+  [[ $connector =~ $builtin ]] && continue
   [[ $(< $status) == "connected" ]] && exit 0
 done
 exit 1

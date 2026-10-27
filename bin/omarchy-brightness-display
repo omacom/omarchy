@@ -32,7 +32,8 @@ backlight_brightness() {
 [[ -n $monitor ]] || monitor="$(omarchy-hyprland-monitor-focused 2>/dev/null || true)"
 
 monitor_is_internal() {
-  [[ $monitor =~ ^(eDP|LVDS|DSI)- ]]
+  local builtin
+  builtin=$(omarchy-hw-display-builtin-pattern) && [[ $monitor =~ $builtin ]]
 }
 
 use_apple_display() {

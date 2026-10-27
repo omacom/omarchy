@@ -67,7 +67,7 @@ pass "clamshell helper detects closed-lid external monitor state"
 # A mirrored external is absent from plain `monitors`, so asking without `all`
 # reads as a disconnect and hands the mirror toggle straight to recovery.
 grep -F 'hyprctl monitors all -j' "$monitor_external_active" >/dev/null
-grep -F 'select(.name | test("^(eDP|LVDS|DSI)-") | not)' "$monitor_external_active" >/dev/null
+grep -F 'select(.name | test($builtin) | not)' "$monitor_external_active" >/dev/null
 grep -F 'select(.disabled == false)' "$monitor_external_active" >/dev/null
 pass "active external monitor helper sees mirrors and ignores monitors disabled on purpose"
 
@@ -78,6 +78,11 @@ if command -v jq >/dev/null 2>&1; then
 printf '%s\n' "$OMARCHY_TEST_MONITORS"
 SH
   chmod +x "$external_tmp/hyprctl"
+  # A copy of the pattern helper reads its platform file from a fixture root
+  # (none unless a case writes one).
+  mkdir -p "$external_tmp/platform"
+  platform_root_copy "$ROOT/bin/omarchy-hw-display-builtin-pattern" \
+    "$external_tmp/omarchy-hw-display-builtin-pattern" "$external_tmp/platform"
 
   external_active() {
     PATH="$external_tmp:$PATH" OMARCHY_TEST_MONITORS="$1" "$monitor_external_active"
@@ -90,6 +95,13 @@ SH
   # FALLBACK placeholder behind, which must not keep the panel from recovering.
   ! external_active '[{"name":"eDP-1","disabled":true},{"name":"FALLBACK","disabled":false}]' ||
     fail "active external monitor helper ignores Hyprland's FALLBACK output"
+
+  # A platform-named panel counts as internal too, beside the FALLBACK output.
+  printf 'builtin-connector Unknown-1\n' >"$external_tmp/platform/displays.conf"
+  ! external_active '[{"name":"Unknown-1","disabled":true},{"name":"FALLBACK","disabled":false}]' ||
+    fail "active external monitor helper ignores a named built-in panel and FALLBACK"
+  external_active '[{"name":"Unknown-1","disabled":true},{"name":"DP-1","disabled":false}]' ||
+    fail "active external monitor helper sees an external monitor beside a named built-in panel"
 
   rm -rf "$external_tmp"
   pass "active external monitor helper ignores Hyprland's FALLBACK output"

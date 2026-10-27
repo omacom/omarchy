@@ -60,6 +60,8 @@ platform_root="$test_tmp/platform"
 mkdir -p "$platform_root" "$test_tmp/copy"
 brightness_display="$test_tmp/copy/omarchy-brightness-display"
 platform_root_copy "$ROOT/bin/omarchy-brightness-display" "$brightness_display" "$platform_root"
+platform_root_copy "$ROOT/bin/omarchy-hw-display-builtin-pattern" \
+  "$mock_bin/omarchy-hw-display-builtin-pattern" "$platform_root"
 sed -i "s|/sys/class/drm|$test_tmp/drm|g" "$brightness_display"
 grep -qF "$test_tmp/drm/card" "$brightness_display" || fail "omarchy-brightness-display reads DRM connectors from the fixture"
 
@@ -194,3 +196,24 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+# A panel on a firmware framebuffer is an Unknown connector. Unnamed, it is an
+# external monitor and is probed over DDC; once the platform names it, it is
+# the built-in panel and uses the kernel backlight.
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/"*
+: >"$call_log"
+DDC_CONNECTOR=DP-1 run_brightness --monitor Unknown-1 >/dev/null 2>&1 || true
+grep -F ' detect --brief' "$call_log" >/dev/null || fail "an unnamed Unknown connector is probed over DDC"
+printf 'builtin-connector Unknown-1\n' >"$platform_root/displays.conf"
+: >"$call_log"
+brightness=$(run_brightness --monitor Unknown-1)
+(( brightness == 40 )) || fail "a platform-named built-in connector uses the kernel backlight" "actual: $brightness"
+! grep -F 'ddcutil' "$call_log" >/dev/null || fail "a platform-named built-in connector probes no DDC" "$(<"$call_log")"
+run_brightness --no-osd --monitor Unknown-1 +5%
+grep -F 'brightnessctl -d mock_backlight' "$call_log" | grep -v -- ' -m$' >/dev/null ||
+  fail "a platform-named built-in connector sets the kernel backlight" "$(<"$call_log")"
+brightness=$(FOCUSED_MONITOR=Unknown-1 run_brightness)
+(( brightness == 40 )) || fail "the focused platform-named panel uses the kernel backlight" "actual: $brightness"
+rm -f "$platform_root/displays.conf"
+pass "a platform-named built-in connector uses the kernel backlight"
+
