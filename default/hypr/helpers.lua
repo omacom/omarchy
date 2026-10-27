@@ -135,6 +135,17 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
+-- Shell prefix that stamps a launch with the focused workspace and the time,
+-- so launch-workspace.lua can open its windows there.
+function o.launch_workspace_env()
+  local workspace = hl.get_active_special_workspace() or hl.get_active_workspace()
+  if not workspace then
+    return ""
+  end
+
+  return "export OMARCHY_LAUNCH_WORKSPACE=" .. shell_quote(workspace.name) .. " OMARCHY_LAUNCH_TIME=" .. os.time() .. "; "
+end
+
 function o.bind(keys, description, dispatcher, options)
   local opts = options or {}
 
@@ -144,8 +155,14 @@ function o.bind(keys, description, dispatcher, options)
 
   dispatcher = command_from(dispatcher, description)
 
+  -- Run at press time so the command carries the workspace it was launched
+  -- from; see launch-workspace.lua.
   if type(dispatcher) == "string" then
-    dispatcher = hl.dsp.exec_cmd(dispatcher)
+    local command = dispatcher
+    dispatcher = function()
+      hl.exec_cmd(o.launch_workspace_env() .. command)
+    end
+    o.bind_commands[dispatcher] = command
   end
 
   hl.bind(keys, dispatcher, opts)

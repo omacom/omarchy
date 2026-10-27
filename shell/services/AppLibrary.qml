@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 import "AppSearch.js" as AppSearch
@@ -74,23 +75,32 @@ Item {
     if (!iconIndexScan.running) iconIndexScan.running = true
   }
 
+  // Stamp a launch with the focused workspace so Hyprland opens its windows
+  // there even if you switch away while it starts (default/hypr/launch-workspace.lua).
+  function launchWorkspaceEnv() {
+    var workspace = Hyprland.focusedWorkspace
+    if (!workspace || !workspace.name) return ""
+    return "export OMARCHY_LAUNCH_WORKSPACE=" + Util.shellQuote(String(workspace.name)) + " OMARCHY_LAUNCH_TIME=$EPOCHSECONDS; "
+  }
+
   function launch(desktopId, name) {
     var id = String(desktopId || "")
     if (!id) return
     root.beginLaunchFeedback(name)
+    var env = root.launchWorkspaceEnv()
     // A terminal app goes through Omarchy's TUI launcher, which names its
     // terminal window after the command (org.omarchy.nvim), so the dock and
     // titlebars can tell Neovim from the terminal it runs in.
     var command = root.terminalCommand(DesktopEntries.byId(id))
     if (command.length > 0) {
-      Util.execDetached("omarchy-launch-tui " + command.map(function(word) { return Util.shellQuote(word) }).join(" "))
+      Util.execDetached(env + "omarchy-launch-tui " + command.map(function(word) { return Util.shellQuote(word) }).join(" "))
       return
     }
     // Start gtk-launch inside a scope under app-graphical.slice so apps do not
     // inherit wayland-wm@.service. Keeping gtk-launch as the desktop-entry
     // resolver supports IDs with spaces and entries that UWSM rejects.
     // Keep the .desktop suffix or ids like org.telegram.desktop won't resolve.
-    Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(id + ".desktop"))
+    Util.execDetached(env + "uwsm-app -- gtk-launch " + Util.shellQuote(id + ".desktop"))
   }
 
   // The command a terminal entry runs, without the field codes it leaves for a

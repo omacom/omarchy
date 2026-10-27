@@ -19,6 +19,7 @@ end
 require("default.hypr.envs")
 require("default.hypr.looknfeel")
 require("default.hypr.qconsole")
+require("default.hypr.launch-workspace")
 require("default.hypr.input")
 require("default.hypr.windows")
 require("default.hypr.dictation-backend")
