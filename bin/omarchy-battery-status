@@ -52,13 +52,38 @@ while read -r candidate; do
 done < <(upower -e 2>/dev/null | grep '/battery_')
 [[ -z $battery ]] && exit 0
 
-percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
-capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
-energy=$(awk '/^ *energy:/ { print $2; exit }' <<<"$battery_info")
-energy_full=$(awk '/energy-full:/ { print $2; exit }' <<<"$battery_info")
-upower_hours=$(awk '/time to (empty|full)/ { print ($5 ~ /^minute/ ? $4 / 60 : $4); exit }' <<<"$battery_info")
-power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
-native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
+# Keep the first match for each field, with one pass over the UPower report.
+mapfile -t battery_fields < <(awk '
+  !percentage_seen && /percentage/ { percentage = int($2); percentage_seen = 1 }
+  !capacity_seen && /energy-full:/ { capacity = sprintf("%d", $2); energy_full = $2; capacity_seen = 1 }
+  !energy_seen && /^ *energy:/ { energy = $2; energy_seen = 1 }
+  !remaining_seen && /time to (empty|full)/ { hours = ($5 ~ /^minute/ ? $4 / 60 : $4); remaining_seen = 1 }
+  !rate_seen && /energy-rate/ { rate = $2; rate_seen = 1 }
+  !native_seen && /native-path/ { native = $2; native_seen = 1 }
+  !state_seen && /state/ { state = $2; state_seen = 1 }
+  !start_seen && /charge-start-threshold:/ { start = $2; gsub(/%/, "", start); start = int(start); start_seen = 1 }
+  !end_seen && /charge-end-threshold:/ { end = $2; gsub(/%/, "", end); end = int(end); end_seen = 1 }
+  END {
+    print percentage
+    print capacity
+    print energy
+    print energy_full
+    print hours
+    print rate
+    print native
+    print state
+    print start_seen ? start : ""
+    print end_seen ? end : ""
+  }
+' <<<"$battery_info")
+
+percentage=${battery_fields[0]}
+capacity=${battery_fields[1]}
+energy=${battery_fields[2]}
+energy_full=${battery_fields[3]}
+upower_hours=${battery_fields[4]}
+power_rate_raw=${battery_fields[5]}
+native_path=${battery_fields[6]}
 battery_path="$power_supply_path/$native_path"
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
@@ -80,9 +105,9 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   sub(/\.0$/, "", rounded)
   print rounded
 }')
-state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+state=${battery_fields[7]}
+threshold_start=${battery_fields[8]}
+threshold_end=${battery_fields[9]}
 
 # Read the thresholds from the battery UPower resolved rather than a BAT* glob,
 # which misses every battery with another name.
