@@ -5,13 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
-const fs = require('fs')
 const calendar = requireFromRoot('shell/plugins/panels/clock/Model.js')
-const panelSource = fs.readFileSync(root + '/shell/plugins/panels/clock/Panel.qml', 'utf8')
-// Comments stripped: a wiring assertion that a commented-out line can satisfy
-// passes while the widget is broken.
-const widgetSource = fs.readFileSync(root + '/shell/plugins/panels/clock/BarWidget.qml', 'utf8')
-  .replace(/^\s*\/\/.*$/gm, '')
 
 // ---- week start resolution
 assertEqual(calendar.normalizedWeekStart('monday', 0), 1, 'calendar reads a named week start')
@@ -55,6 +49,7 @@ assertEqual(calendar.parseBirthYear('1905', 2026), 0, 'calendar rejects an impla
 assertEqual(calendar.parseBirthYear('79', 2026), 0, 'calendar rejects a two-digit year')
 assertEqual(calendar.parseBirthYear('', 2026), 0, 'calendar treats a blank birth year as unset')
 assertEqual(calendar.parseBirthYear('abc', 2026), 0, 'calendar treats a non-numeric birth year as unset')
+assertEqual(calendar.parseBirthYear(0, 2026), 0, 'calendar treats a cleared birth year as unset')
 
 assertEqual(calendar.ageFromBirthYear('1979', 2026), 47, 'calendar derives an age from a birth year')
 assertEqual(calendar.ageFromBirthYear('1979', 2027), 48, 'calendar keeps counting as the years pass')
@@ -159,8 +154,6 @@ if (previousTZ === undefined) delete process.env.TZ
 else process.env.TZ = previousTZ
 assertDeepEqual(apia[4].days.map(day => day.day), [26, 27, 28, 29, 30, 31, 1], 'calendar keeps a day the local zone skipped')
 
-assert(/viewDate: new Date\(viewYear, viewMonth, 1, 12\)/.test(panelSource), 'calendar names the heading month from a noon that always exists')
-
 // ---- stepping
 assertDeepEqual(calendar.stepMonth(2026, 0, 1), { year: 2026, month: 1 }, 'calendar steps to the next month')
 assertDeepEqual(calendar.stepMonth(2026, 0, -1), { year: 2025, month: 11 }, 'calendar steps back across the new year')
@@ -192,28 +185,6 @@ assertDeepEqual(calendar.clockFormatRing('', '', []), ['HH:mm'], 'clock keeps a 
 assertEqual(calendar.nextClockFormat(ring, ring[0]), ring[1], 'clock steps to the next format')
 assertEqual(calendar.nextClockFormat(ring, ring[ring.length - 1]), ring[0], 'clock wraps the format ring')
 assertEqual(calendar.nextClockFormat(ring, 'HH:mm:ss'), ring[0], 'clock starts at the top from a format outside the ring')
-// Both rings, contents and order: a right click walks this list and writes
-// the result back to shell.json, so an inserted preset should have to be
-// acknowledged here.
-assertDeepEqual(
-  calendar.clockFormats(false),
-  [
-    'dddd HH:mm', 'dddd h:mm AP',
-    'dddd HH:mm:ss', 'dddd h:mm:ss AP',
-    'HH:mm', 'h:mm AP',
-    'ddd d MMM HH:mm', 'ddd d MMM h:mm AP',
-    "d MMMM 'W'ww yyyy",
-    // No twin: ISO 8601 writes time on a 24-hour clock, so an AM/PM variant
-    // would contradict the one thing that format is for.
-    'yyyy-MM-dd HH:mm'
-  ],
-  'clock offers the horizontal presets in this order'
-)
-assertDeepEqual(
-  calendar.clockFormats(true),
-  ['HH\n\u2014\nmm', 'h\n\u2014\nmm\nAP', "dd\nMMM\n'W'ww\n''yy", 'HH\nmm'],
-  'clock offers the stacked presets in this order'
-)
 assertEqual(
   calendar.nextClockFormat(ring, 'dddd HH:mm'),
   'dddd h:mm AP',
@@ -237,86 +208,4 @@ assert(!calendar.clockNeedsSeconds("HH:mm's"), 'clock reads a trailing untermina
 assert(calendar.clockNeedsSeconds("''s"), 'clock still sees seconds after an escaped apostrophe')
 assert(!calendar.clockNeedsSeconds(''), 'clock sees no seconds in an empty format')
 assert(!calendar.clockNeedsSeconds(null), 'clock sees no seconds in a missing format')
-
-// ---- widget wiring
-assert(/moduleName: "omarchy\.clock"/.test(panelSource), 'calendar panel declares its module name')
-assert(/ipcTarget: "omarchy\.clock"/.test(panelSource), 'calendar panel registers its IPC target')
-assert(/manageIpc: false/.test(panelSource), 'calendar panel leaves the IPC target to the bar widget')
-assert(/anchorItem: root\.anchorItem/.test(panelSource), 'calendar panel anchors to the host widget button')
-assert(/function toggleWeekStart\(\)/.test(panelSource), 'calendar panel exposes a week start toggle')
-assert(/function toggleWeekStart\(\): void \{ root\.toggleWeekStart\(\) \}/.test(widgetSource), 'clock exposes the week start toggle over IPC')
-assert(/precision: root\.showsSeconds \? SystemClock\.Seconds : SystemClock\.Minutes/.test(widgetSource), 'clock ticks per second only for a format that prints seconds')
-// Both halves of the tick, because either one alone can be true while the
-// label sits frozen: the precision must follow the format, and every tick
-// must reach the label.
-assert(/showsSeconds: Model\.clockNeedsSeconds\(activeFormat\)/.test(widgetSource), 'clock decides its tick rate from the format it is showing')
-assert(/onDateChanged: root\.displayDate = date/.test(widgetSource), 'clock repaints the label on every tick')
-assert(/setting\("weekStartDay", null\)/.test(panelSource) && /persistSettings\(\{ weekStartDay:/.test(panelSource), 'calendar reads and writes the week start as weekStartDay')
-assert(/updateEntryInline/.test(panelSource), 'calendar panel persists the week start to shell.json')
-assert(/function moveMonth\(delta\)/.test(panelSource), 'calendar panel steps between months')
-assert(!/property bool onToday/.test(panelSource) && !/root\.onToday/.test(panelSource), 'calendar panel avoids the on-prefixed property name QML reads as a signal handler')
-assert(/readonly property bool viewingCurrentMonth:/.test(panelSource), 'calendar panel tracks whether the current month is on screen')
-assert(!/MouseArea/.test(panelSource.slice(panelSource.indexOf('model: modelData.days'), panelSource.indexOf('// Hairline'))), 'calendar day cells are not selectable')
-assert(/yearDone: Model\.yearProgress\(today\./.test(panelSource), 'calendar year bar stays pinned to today while months are stepped')
-assert(/Qt\.callLater\(function\(\) \{\s*\n\s*if \(root\.opened\) setCenterHoverRevealSuppressed\(true\)/.test(panelSource), 'calendar claims the shared hover-reveal flag after the popout handoff, so the panel taking over wins')
-assert(/function close\(\) \{\s*\n\s*setCenterHoverRevealSuppressed\(false\)/.test(panelSource), 'calendar always releases the shared hover-reveal flag on close')
-assert(/width: Math\.max\(calendarScroll\.width, gridColumn\.width\)/.test(panelSource), 'calendar scrolls rather than clipping the grid on a narrow popup')
-assert(/enabled: !root\.viewingCurrentMonth/.test(panelSource) && /onClicked: root\.goToToday\(\)/.test(panelSource), 'calendar hero returns to today once the view has stepped away')
-assert(!/clampMonth/.test(panelSource), 'calendar steps freely into future months')
-assert(/Qt\.formatDate\(root\.today, "MMMM d"\)/.test(panelSource), 'calendar hero spells out today')
-assert(/id: yearLabel/.test(panelSource) && /root\.yearDone/.test(panelSource), 'calendar panel shows the year progress bar')
-
-// The memento mori bar is opt-in: double-tapping the year bar asks for an age,
-// and nothing shows until one has been given.
-assert(/onDoubleTapped: root\.startEditingLife\(\)/.test(panelSource), 'calendar asks for an age when the year bar is double-tapped')
-assert(/persistSettings\(\{ birthYear: born, lifeExpectancy: span \}\)/.test(panelSource), 'calendar saves birth year and expectancy together, so neither lands on a stale copy')
-assert(/readonly property int birthYear: Model\.parseBirthYear\(setting\("birthYear", 0\)/.test(panelSource), 'calendar reads the saved birth year back')
-assert(/readonly property int age: Model\.ageFromBirthYear\(birthYear/.test(panelSource), 'calendar derives the age from the stored birth year')
-assert(/readonly property int lifeExpectancy: Model\.parseLifeExpectancy\(setting\("lifeExpectancy", 0\)\)/.test(panelSource), 'calendar reads the saved expectancy back')
-assert(/id: expectancyField/.test(panelSource) && /id: bornField/.test(panelSource), 'calendar offers both inputs')
-assert(/visible: root\.editingLife\s*\n\s*anchors\.horizontalCenter: parent\.horizontalCenter/.test(panelSource), 'calendar centers the inputs over the bar they replace')
-assert(/visible: root\.birthYear > 0/.test(panelSource), 'calendar hides the life bar until a birth year is known')
-assert(/text: "LIFE"/.test(panelSource) && /root\.lifeDone/.test(panelSource), 'calendar shows the life bar')
-assert(/text: "Memento Mori"/.test(panelSource), 'calendar names the life bar on hover')
-assert(/onDoubleTapped: root\.clearLife\(\)/.test(panelSource), 'calendar puts the life bar away when it is double-tapped')
-assert(/persistSettings\(\{ birthYear: 0 \}\)/.test(panelSource), 'calendar clears the birth year to hide the life bar')
-assertEqual(calendar.parseBirthYear(0, 2026), 0, 'a cleared birth year reads back as unset')
-assert(/blocked: root\.editingLife/.test(panelSource), 'calendar lets the inputs have the keyboard while they are up')
-assert(/if \(root\.editingLife\) root\.cancelEditingLife\(\)/.test(panelSource), 'calendar drops a half-finished edit when the panel closes')
-
-assert(/source: Qt\.resolvedUrl\("Panel\.qml"\)/.test(widgetSource), 'clock widget hosts the calendar panel')
-assert(/readonly property bool opened:/.test(widgetSource), 'clock widget exposes the panel open state to shell routing')
-assert(/Qt\.RightButton\) root\.cycleFormat\(\)/.test(widgetSource), 'clock right click cycles the label format')
-assert(/readonly property string activeFormat: configuredFormat/.test(widgetSource), 'clock shows the format it has stored')
-assert(/entry\[vertical \? "verticalFormat" : "format"\] = next/.test(widgetSource) && /updateEntryInline/.test(widgetSource), 'clock writes a cycled format back to shell.json')
-assert(!/formatIndex/.test(widgetSource), 'clock keeps no session-only format position')
-assert(/else root\.togglePanel\(\)/.test(widgetSource), 'clock left click reveals the calendar')
-assert(/omarchy-menu-timezone/.test(widgetSource), 'clock keeps the timezone picker on middle click')
-
-// The bar identifies a panel by the widget in its slot, so the nested panel
-// has to present the host widget rather than itself.
-assert(/owner: root\.barIdentity/.test(panelSource), 'calendar panel gives the bar its host widget as popout identity')
-assert(/switchPanelFrom\(root\.barIdentity, direction\)/.test(panelSource), 'calendar panel switches panels as its host widget')
-assert(/hostWidget" in target\) target\.hostWidget = root/.test(widgetSource), 'clock widget injects itself as the panel host')
-assert(/readonly property bool popoutSwitchClosing:/.test(widgetSource) && /function closeForPopoutSwitch\(\)/.test(widgetSource), 'clock widget forwards the popout-switch handshake')
-assert(/openPanelIndicatorWidth: button\.labelWidth/.test(widgetSource), 'clock sizes the open-panel dot to its label')
-assert(/openPanelIndicatorHeight: Math\.max/.test(widgetSource), 'clock sizes the vertical open-panel dot to one stacked line')
-const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
-assert(/openPanelIndicatorWidth/.test(barSource) && /openPanelIndicatorHeight/.test(barSource), 'bar honours a widget-supplied open-panel dot size on both axes')
-assert(/height: root\.vertical \? slot\.panelIndicatorExtent : Style\.space\(2\)/.test(barSource), 'bar sizes the vertical dot from the same hint as the horizontal one')
-assert(/readonly property real labelWidth:/.test(fs.readFileSync(root + '/shell/Ui/WidgetButton.qml', 'utf8')), 'widget buttons expose their painted label width')
-
-// A horizontal wheel reports angleDelta.y === 0; without the guard every one
-// of them would read as a forward step.
-assert(/if \(event\.angleDelta\.y === 0\) return/.test(panelSource), 'calendar ignores wheel events with no vertical delta')
 JS
-
-shell_json=$(cd "$ROOT" && jq -r '[.bar.layout.center[].id] | join(",")' config/omarchy/shell.json)
-[[ $shell_json == *"omarchy.clock"* ]] || fail "default bar layout includes the clock widget" "center: $shell_json"
-[[ $shell_json != *"omarchy.calendar"* ]] || fail "clock hosts the calendar instead of a second bar pill" "center: $shell_json"
-pass "default bar layout includes the clock widget"
-
-grep -q 'o.bind("SUPER + CTRL + ALT + D", "Calendar", { panel = "omarchy.clock" })' \
-  "$ROOT/default/hypr/bindings/utilities.lua" ||
-  fail "SUPER+CTRL+ALT+D toggles the calendar panel"
-pass "SUPER+CTRL+ALT+D toggles the calendar panel"

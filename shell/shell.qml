@@ -48,10 +48,11 @@ ShellRoot {
     bar: {
       position: "top",
       background: "opaque",
-      centerAnchor: "omarchy.clock",
       layout: {
         left: [{ id: "omarchy.menu" }, { id: "omarchy.workspaces" }],
+        centerBegin: [],
         center: [{ id: "omarchy.clock", format: "dddd HH:mm" }],
+        centerEnd: [],
         right: [{ id: "omarchy.audio" }]
       }
     },
@@ -60,6 +61,8 @@ ShellRoot {
 
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
+  // shell.json has text the shell could not use; persisting would replace it with defaults.
+  property bool userConfigUnreadable: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
@@ -90,6 +93,7 @@ ShellRoot {
         console.warn("shell.json parse failed, using defaults:", e)
       }
     }
+    userConfigUnreadable = !!userText.trim() && !user
     shellConfig = user || defaults
   }
 
@@ -115,6 +119,10 @@ ShellRoot {
     var payload = JSON.parse(JSON.stringify(nextConfig))
     payload.version = 1
     shellConfig = payload
+    if (userConfigUnreadable) {
+      console.warn("shell.json is unreadable, not overwriting it; fix it to save bar changes")
+      return
+    }
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
@@ -1099,11 +1107,11 @@ ShellRoot {
   function updateEntryInline(moduleName, settings) {
     var stripped = Util.canonicalWidgetId(moduleName)
     var copy = JSON.parse(JSON.stringify(shellConfig || builtinShellConfig))
-    if (!Util.isPlainObject(copy.bar)) copy.bar = { layout: { left: [], center: [], right: [] } }
-    if (!Util.isPlainObject(copy.bar.layout)) copy.bar.layout = { left: [], center: [], right: [] }
+    if (!Util.isPlainObject(copy.bar)) copy.bar = { layout: {} }
+    if (!Util.isPlainObject(copy.bar.layout)) copy.bar.layout = {}
     if (!Array.isArray(copy.plugins)) copy.plugins = []
 
-    var sections = ["left", "center", "right"]
+    var sections = Util.barSections
     var foundInLayout = false
     var dirty = false
     for (var s = 0; s < sections.length; s++) {

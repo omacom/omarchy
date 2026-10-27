@@ -12,6 +12,7 @@ ButtonGroup 1.0 ButtonGroup.qml
 ConfirmDialog 1.0 ConfirmDialog.qml
 CursorSurface 1.0 CursorSurface.qml
 Dropdown 1.0 Dropdown.qml
+FilterInput 1.0 FilterInput.qml
 IconContentBounds 1.0 IconContentBounds.qml
 KeyboardPanel 1.0 KeyboardPanel.qml
 MultiSelect 1.0 MultiSelect.qml
@@ -32,6 +33,7 @@ PointerMoveGate 1.0 PointerMoveGate.qml
 ScreenMoveRemap 1.0 ScreenMoveRemap.qml
 PopupCard 1.0 PopupCard.qml
 SearchableDropdown 1.0 SearchableDropdown.qml
+SizedImage 1.0 SizedImage.qml
 SpeedTestOverlay 1.0 SpeedTestOverlay.qml
 TextField 1.0 TextField.qml
 Toggle 1.0 Toggle.qml

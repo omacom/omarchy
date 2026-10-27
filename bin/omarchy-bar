@@ -3,7 +3,7 @@
 # omarchy:summary=Configure the bar and its widget layout
 # omarchy:group=bar
 # omarchy:args=use <id> | reset | defaults | position [top|bottom|left|right] | background [opaque|glassy|none|cycle] | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement] | get <id> <key>
-# omarchy:examples=omarchy bar use local.neon-bar | omarchy bar put omarchy.keyboard-layout --after omarchy.clock | omarchy bar move omarchy.clock --section center --index 0 | omarchy bar set omarchy.clock format HH:mm
+# omarchy:examples=omarchy bar use local.neon-bar | omarchy bar put omarchy.keyboard-layout --after omarchy.clock | omarchy bar move omarchy.weather --section centerBegin --index 0 | omarchy bar set omarchy.clock format HH:mm
 
 set -euo pipefail
 
@@ -31,12 +31,17 @@ Usage: omarchy bar <command> [args...]
   get <id> <key>                       Print a per-widget option
 
 Placement:
-  --section <left|center|right>        Target section
+  --section <section>                  Target section: left, centerBegin,
+                                       center, centerEnd, tray, or right;
+                                       tray is the tray's drawer
   --index <n>                          Target index
   --before <id>                        Insert before a widget
   --after <id>                         Insert after a widget
   --from-section <section>             Source section
   --from-index <n>                     Source index
+
+The center section is the box in the middle of the bar: its widgets are
+centered as one group. centerBegin and centerEnd hang off the box's two edges.
 
 Enable and disable widgets with 'omarchy plugin enable' and
 'omarchy plugin disable'.
@@ -49,7 +54,7 @@ Examples:
   omarchy bar use local.neon-bar
   omarchy bar put omarchy.keyboard-layout --after omarchy.clock
   omarchy bar move omarchy.media left
-  omarchy bar move omarchy.clock --section center --index 0
+  omarchy bar move omarchy.weather --section centerBegin --index 0
   omarchy bar set omarchy.clock format HH:mm
 USAGE
 }
@@ -63,7 +68,8 @@ bar_option_exists() {
 }
 
 validate_section() {
-  [[ $1 =~ ^(left|center|right)$ ]] || fail "section must be left, center, or right"
+  [[ $1 =~ ^(left|centerBegin|center|centerEnd|tray|right)$ ]] ||
+    fail "section must be left, centerBegin, center, centerEnd, tray, or right"
 }
 
 validate_index() {
@@ -182,11 +188,9 @@ cmd_defaults() {
   commit "$NORMALIZE
     | .bar = \$defaults[0].bar
     | def entry_id: if type == \"object\" then (.id // \"\" | tostring) else tostring end;
-      def anchor_for(\$section): { left: \"omarchy.workspaces\", center: \"omarchy.weather\", right: \"omarchy.tray\" }[\$section];
+      def anchor_for(\$section): { left: \"omarchy.workspaces\", centerEnd: \"omarchy.weather\", right: \"omarchy.tray\" }[\$section];
       reduce \$widgets[] as \$widget (.;
-        .bar.layout.left = (.bar.layout.left | map(select(entry_id != \$widget.id)))
-        | .bar.layout.center = (.bar.layout.center | map(select(entry_id != \$widget.id)))
-        | .bar.layout.right = (.bar.layout.right | map(select(entry_id != \$widget.id)))
+        .bar.layout |= map_values(if type == \"array\" then map(select(entry_id != \$widget.id)) end)
         | (.bar.layout[\$widget.section] | map(entry_id) | index(anchor_for(\$widget.section))) as \$anchor
         | (\$anchor | if . == null then (.bar.layout[\$widget.section] | length) else . + 1 end) as \$index
         | .bar.layout[\$widget.section] = (
@@ -289,12 +293,13 @@ sync_glass() {
 bar_widget_default_section() {
   local catalog
   catalog=$(omarchy-plugin-catalog 2>/dev/null) || {
-    echo "center"
+    echo "centerEnd"
     return 0
   }
+  # A manifest's center means beside the clock, which is centerEnd.
   jq -r --arg id "$1" '
-    map(select(.id == $id))[0].barWidget.defaultSection // "center"
-    | if IN("left", "center", "right") then . else "center" end
+    map(select(.id == $id))[0].barWidget.defaultSection // "centerEnd"
+    | if IN("left", "centerBegin", "centerEnd", "tray", "right") then . else "centerEnd" end
   ' <<<"$catalog"
 }
 

@@ -26,3 +26,7 @@ if omarchy-cmd-present omarchy-nvim-refresh; then
 elif omarchy-cmd-present omarchy-nvim-setup; then
   omarchy-nvim-setup --force
 fi
+
+# /etc/skel holds the shared defaults, so put the Snapdragon video decoding
+# settings back.
+omarchy-install-video-decode

@@ -1,17 +1,18 @@
--- The scratchpad, presented as a Quake console: a dimmed overlay that drops
--- down over whatever workspace you are on. Its bindings live in
--- bindings/tiling.lua, and its slide is animated below.
+-- The Quake console: a dimmed overlay that drops down over whatever workspace
+-- you are on. It is its own special workspace, separate from the full-size
+-- scratchpad on Super + S. Its bindings live in bindings/tiling.lua, and its
+-- slide is animated below.
 
 -- How much of the usable screen the console covers, measured from the top.
 local share = 0.5
 
 -- A console holding a single window is boxed into a centered panel this many
 -- times wider than it is tall, rather than stretched the width of the screen.
--- A second app on the scratchpad gets the full width back: two windows splitting
+-- A second app on the console gets the full width back: two windows splitting
 -- a half-width column is worse than the band this replaced.
 local box = 2
 
-local SCRATCHPAD = "special:scratchpad"
+local CONSOLE = "special:qconsole"
 
 -- Seed the console with the default agent the first time it opens, rather than
 -- at boot, so nothing is running until it is wanted. The exec rule has to pin
@@ -20,7 +21,7 @@ local SCRATCHPAD = "special:scratchpad"
 -- Omarchy ships without a default agent, and omarchy-agent exits without
 -- opening anything when none is set, so until one is picked this just opens an
 -- empty console.
-local seed = "[workspace special:scratchpad silent] omarchy-agent"
+local seed = "[workspace " .. CONSOLE .. " silent] omarchy-agent"
 
 -- Dimming only applies while a special workspace is open, so the console gets
 -- its separation from the workspace underneath without costing anything the
@@ -47,7 +48,7 @@ local function cover(side, bottom)
   beside, below = side, bottom
 
   hl.workspace_rule({
-    workspace = SCRATCHPAD,
+    workspace = CONSOLE,
     gaps_in = 0,
     gaps_out = { top = 0, right = side, bottom = bottom, left = side },
 
@@ -63,12 +64,12 @@ local function cover(side, bottom)
 end
 
 -- One window reads as a console and gets the panel. A second app has turned the
--- scratchpad into a workspace, and a workspace wants the whole width. Only tiled
+-- console into a workspace, and a workspace wants the whole width. Only tiled
 -- windows count: the gaps are what size the panel, and a floating window on top
 -- of the console is not laid out by them.
 local function alone()
   local tiled = 0
-  for _, window in ipairs(hl.get_workspace_windows(SCRATCHPAD)) do
+  for _, window in ipairs(hl.get_workspace_windows(CONSOLE)) do
     if not window.floating then
       tiled = tiled + 1
     end
@@ -117,7 +118,7 @@ end
 -- onto another screen must not resize a console that is already showing. While
 -- it is hidden there is nothing to size but the output that will show it next.
 local function console_monitor()
-  local ws = hl.get_workspace(SCRATCHPAD)
+  local ws = hl.get_workspace(CONSOLE)
   local mon = ws and ws.visible and ws.monitor
 
   if mon and mon.scale and mon.scale > 0 then
@@ -154,20 +155,20 @@ end)
 -- output last happened to be focused when the rule was written, so these two
 -- take the monitor they are handed rather than looking one up.
 hl.on("workspace.special_active", function(ws, mon)
-  if ws and ws.name == SCRATCHPAD then
+  if ws and ws.name == CONSOLE then
     refit(mon)
   end
 end)
 
 hl.on("workspace.move_to_monitor", function(ws, mon)
-  if ws and ws.name == SCRATCHPAD then
+  if ws and ws.name == CONSOLE then
     refit(mon)
   end
 end)
 
 -- The panel is only centered while the console holds one tiled window, so the
 -- count has to be rechecked as apps come and go: opened and closed, moved on or
--- off (Super+Alt+S, Super+Shift+1), and floated or tiled (Super+T, Super+O).
+-- off (Super+Shift+Grave, Super+Shift+1), and floated or tiled (Super+T, Super+O).
 -- window.close is left out, since it still counts the window on its way out and
 -- window.destroy follows it anyway. Measured on Hyprland 0.56.2, a move is
 -- trailed by several window.update_rules, as is a float toggle, and the last of
@@ -178,7 +179,7 @@ end)
 -- by workspace.special_active, and every window opened anywhere on the desktop
 -- would otherwise rewrite the rule.
 local function recount()
-  local ws = hl.get_workspace(SCRATCHPAD)
+  local ws = hl.get_workspace(CONSOLE)
   if ws and ws.visible then
     refit()
   end

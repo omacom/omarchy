@@ -34,12 +34,10 @@ case "${bios_vendor,,}" in
     ;;
 esac
 
-existing_entry=$(efibootmgr | grep -E "^Boot[0-9A-Fa-f]+\*? Omarchy([[:space:]]|$)" | head -1)
+boot_num=$(omarchy-boot-direct --number | head -1)
 
-if [[ -n $existing_entry ]]; then
-  boot_num=$(echo "$existing_entry" | sed -n 's/^Boot\([0-9A-Fa-f]\+\).*/\1/p')
-
-  if gum confirm "Disable direct boot (remove Omarchy EFI entry)?"; then
+if [[ -n $boot_num ]]; then
+  if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n directBoot.disable)"; then
     echo "Removing EFI boot entry $boot_num"
     sudo efibootmgr --bootnum "$boot_num" --delete-bootnum >/dev/null
   fi
@@ -57,7 +55,7 @@ else
   disk=$(echo "$boot_source" | sed 's/p\?[0-9]*$//')
   part=$(echo "$boot_source" | grep -o 'p\?[0-9]*$' | sed 's/^p//')
 
-  if gum confirm "Setup direct boot (so snapshot booting must be done via bios)?"; then
+  if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n directBoot.setup)"; then
     echo "Creating EFI boot entry for $uki_file"
 
     sudo efibootmgr --create \
