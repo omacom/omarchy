@@ -435,11 +435,14 @@ Panel {
     return status === "Sign-in expired" || status === "Waiting for auth"
   }
 
-  // Whatever keeps the numbers from being current, said quietly beneath the
-  // last ones known: they stay on show until a check succeeds again.
+  // Whatever keeps the numbers from being current, said beside the last ones
+  // known: they stay on show until a check succeeds again. A failed refresh
+  // with numbers kept may leave the status empty and say why only in its help.
   function usageNote(item) {
-    var status = String(item && item.usageStatusText || "")
-    if (status === "" || needsSignIn(item)) return ""
+    if (!item || needsSignIn(item)) return ""
+    var status = String(item.usageStatusText || "")
+    var stale = item.limitsStale === true || item.stale === true
+    if (status === "" && !(stale && String(item.authHelpText || "") !== "")) return ""
     return helpDisplayText(item.authHelpText) || statusDisplayText(status)
   }
 

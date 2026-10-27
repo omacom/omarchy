@@ -27,6 +27,10 @@ for (const status of ['Sign-in expired', 'Waiting for auth']) {
 assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: 'Limits paused', authHelpText: 'Start Grok to refresh it.'}),
   'Start Grok to refresh it.', 'paused limits stay on show with a note saying how to refresh them')
 assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: ''}), '', 'current limits carry no note')
+assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: '', limitsStale: true, authHelpText: "Couldn't reach Grok's usage endpoint."}),
+  "Couldn't reach Grok's usage endpoint.", 'a failed refresh that kept its limits still says why')
+assertEqual(signIn.usageNote({usageStatusText: '', stale: true, authHelpText: 'Endpoint returned 500.'}),
+  'Endpoint returned 500.', 'an account whose refresh failed still says why')
 
 // Local history alone feeds the summary; a section needs a subscription to show.
 const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
