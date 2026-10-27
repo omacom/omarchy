@@ -79,4 +79,22 @@ assert(
   /id: revealAnimation[\s\S]*?duration: Style\.duration\(840\)/.test(backgroundQml),
   'background reveal takes 840ms'
 )
+const maybeStartReveal = backgroundQml.match(/function maybeStartReveal\(\) \{[\s\S]*?\n      \}\n/)
+assert(
+  maybeStartReveal && maybeStartReveal[0].includes('root.startReveal(panel)') && !maybeStartReveal[0].includes('revealProgress'),
+  'a screen that decodes after the reveal has started joins it'
+)
+const startReveal = backgroundQml.match(/function startReveal\(panel\) \{[\s\S]*?\n  \}\n/)
+const beginReveal = backgroundQml.match(/function beginReveal\(\) \{[\s\S]*?\n  \}\n/)
+assert(
+  startReveal && /panel\.maskReady = true[\s\S]*for \(var other of backgrounds\.instances\)[\s\S]*revealWaitTimer\.restart\(\)[\s\S]*pendingThemeFallbackTimer\.restart\(\)[\s\S]*beginReveal\(\)/.test(startReveal[0]) &&
+    beginReveal && /applyPendingTheme\(\)\s*revealAnimation\.restart\(\)/.test(beginReveal[0]) &&
+    /revealWaitTimer\.stop\(\)\s*revealAnimation\.stop\(\)/.test(backgroundQml) &&
+    /id: revealWaitTimer[\s\S]*?onTriggered: root\.beginReveal\(\)/.test(backgroundQml),
+  'background reveal waits briefly for the attached screens still decoding, and keeps the theme fallback from firing mid-wait'
+)
+assert(
+  /function onBackgroundVersionChanged\(\) \{\s*panel\.maskReady = false\s*Qt\.callLater\(panel\.maybeStartReveal\)/.test(backgroundQml),
+  'every transition, even one that keeps the incoming path, makes each screen ready for it afresh'
+)
 JS
