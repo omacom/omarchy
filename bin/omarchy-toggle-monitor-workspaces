@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle between per-monitor and global workspace numbering
+# omarchy:args=[toggle|on|off]
+# omarchy:examples=omarchy toggle monitor-workspaces | omarchy toggle monitor-workspaces off
+
+set -euo pipefail
+
+if (( $# > 1 )); then
+  echo "Usage: omarchy-toggle-monitor-workspaces [toggle|on|off]" >&2
+  exit 1
+fi
+
+FLAG="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/no-monitor-workspaces"
+ENABLED=on
+[[ -f $FLAG ]] && ENABLED=off
+
+case ${1:-toggle} in
+  toggle)
+    if [[ $ENABLED == "on" ]]; then
+      NEW=off
+    else
+      NEW=on
+    fi
+    ;;
+  on|off) NEW=$1 ;;
+  *)
+    echo "Usage: omarchy-toggle-monitor-workspaces [toggle|on|off]" >&2
+    exit 1
+    ;;
+esac
+
+if [[ $NEW == "$ENABLED" ]]; then
+  exit 0
+fi
+
+set_mode() {
+  if [[ $1 == "off" ]]; then
+    mkdir -p "$(dirname "$FLAG")"
+    touch "$FLAG"
+  else
+    rm -f "$FLAG"
+  fi
+}
+
+set_mode "$NEW"
+if ! hyprctl reload >/dev/null; then
+  set_mode "$ENABLED"
+  echo "Could not reload Hyprland; workspace numbering was not changed" >&2
+  exit 1
+fi
+
+omarchy-shell -q omarchy.workspaces refresh
+if [[ $NEW == "on" ]]; then
+  omarchy-notification-send -g 󱂬 "$(omarchy-i18n workspaces.perMonitorEnabled)"
+else
+  omarchy-notification-send -g 󱂬 "$(omarchy-i18n workspaces.globalEnabled)"
+fi

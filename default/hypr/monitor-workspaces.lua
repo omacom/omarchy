@@ -30,7 +30,11 @@ local STATE_DIR = paths.state_home .. "/omarchy"
 local STATE_FILE = STATE_DIR .. "/monitor-workspaces"
 local MERGED_FILE = STATE_DIR .. "/monitor-workspaces-merged"
 
-local M = { slots = SLOTS }
+-- Enabled by default; opting out restores Hyprland's global workspace ids.
+-- Read at config load, before bindings are built and reload reconciliation runs.
+local disabled = io.open(STATE_DIR .. "/toggles/no-monitor-workspaces", "r")
+local M = { slots = SLOTS, enabled = disabled == nil }
+if disabled then disabled:close() end
 
 -- Identity -> block, kept across sessions.
 local blocks = {}
@@ -81,7 +85,13 @@ local function load_merged()
   file:close()
 end
 
-load_merged()
+if M.enabled then
+  load_merged()
+else
+  -- Global ids now belong where the user puts them. Do not later restore an
+  -- unplug origin belonging to a different workspace that reused the same id.
+  os.remove(MERGED_FILE)
+end
 
 local function save_merged()
   local ids = {}
@@ -296,6 +306,8 @@ end
 
 -- The workspace id of a slot on a monitor.
 function M.workspace_id(monitor, slot)
+  if not M.enabled then return slot end
+
   local by_connector = assign(connected())
   return (by_connector[monitor.name] or 0) * SLOTS + slot
 end
@@ -432,6 +444,11 @@ end
 -- Go to a slot on a monitor, the focused one unless named.
 function M.focus(slot, monitor_name)
   return action(function()
+    if not M.enabled then
+      hl.dispatch(hl.dsp.focus({ workspace = tostring(slot) }))
+      return
+    end
+
     local monitor = target_monitor(monitor_name)
     if not monitor then
       return
@@ -458,7 +475,7 @@ function M.move_window(slot, follow)
     end
 
     local id = M.workspace_id(monitor, slot)
-    reclaim(monitor, id)
+    if M.enabled then reclaim(monitor, id) end
     hl.dispatch(hl.dsp.window.move({ workspace = tostring(id), follow = follow ~= false, window = "address:" .. window.address }))
   end, "o.workspaces.move_window(" .. slot .. (follow == false and ", false" or "") .. ")")
 end
@@ -482,6 +499,7 @@ function M.move_to_monitor(direction)
     local id = workspace.id
     local from = hl.get_active_monitor()
     hl.dispatch(hl.dsp.workspace.move({ monitor = target.name }))
+    if not M.enabled then return end
 
     local moved = hl.get_workspace(id)
     if not moved or not moved.monitor or (from and moved.monitor.name == from.name) then
@@ -525,6 +543,8 @@ end
 -- on a workspace of its own. `added` names a monitor that just arrived, which
 -- leaves whatever Hyprland put it on; `gone` one being removed.
 function M.reconcile(added, gone)
+  if not M.enabled then return end
+
   local monitors = connected(gone)
   if #monitors == 0 then
     return
@@ -669,6 +689,8 @@ function M.reconcile(added, gone)
 end
 
 hl.on("hyprland.start", function()
+  if not M.enabled then return end
+
   -- Windows don't outlive a session, so neither do the workspaces that held them.
   merged = {}
   save_merged()
@@ -678,7 +700,7 @@ end)
 -- A workspace created under a remembered number is a new one; the one that
 -- came from elsewhere has gone.
 hl.on("workspace.created", function(workspace)
-  if workspace and merged[workspace.id] then
+  if M.enabled and workspace and merged[workspace.id] then
     merged[workspace.id] = nil
     save_merged()
   end

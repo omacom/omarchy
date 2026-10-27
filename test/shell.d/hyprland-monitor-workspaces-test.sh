@@ -232,6 +232,18 @@ hl = {
   },
 }
 
+function set_global(global)
+  local directory = os.getenv("XDG_STATE_HOME") .. "/omarchy/toggles"
+  os.execute("mkdir -p " .. o.shell_quote(directory))
+  local path = directory .. "/no-monitor-workspaces"
+  if global then
+    local file = assert(io.open(path, "w"))
+    file:close()
+  else
+    os.remove(path)
+  end
+end
+
 -- A fresh config load, as a reload or the next session gives.
 function load_module()
   package.loaded["default.hypr.monitor-workspaces"] = nil
@@ -287,6 +299,94 @@ run_lua() {
   mkdir -p "$state/omarchy"
   ROOT="$ROOT" XDG_STATE_HOME="$state" lua -e "dofile('$tmpdir/fake.lua')" -e "$2"
 }
+
+# --- Global numbering opt-out -------------------------------------------------
+
+run_lua global-focus '
+plug("eDP-1", 0, "Laptop", 1)
+plug("DP-1", 1, "Portrait", 6)
+world.focused = "eDP-1"
+window("0xa", 1)
+window("0xb", 6)
+set_global(true)
+local m = load_module()
+check(not m.enabled, "the opt-out disables per-monitor numbering")
+check(m.workspace_id(hl.get_monitor("DP-1"), 6) == 6, "slot 6 is global id 6")
+hl.dispatch(m.focus(6))
+check(world.focused == "DP-1" and shows("DP-1") == 6, "global focus crosses monitors")
+hl.dispatch(m.focus(1, "DP-1"))
+check(world.focused == "eDP-1" and shows("eDP-1") == 1, "a bar monitor hint does not reclaim a global id")
+check(on(1) == "eDP-1" and on(6) == "DP-1" and world.swaps == 0, "focus leaves monitor assignments alone")
+check(o.bind_expressions[m.focus(6)] == "o.workspaces.focus(6)", "the menu replays global number actions")
+' || fail "global number actions focus the workspace on its own monitor"
+pass "global number actions focus the workspace on its own monitor"
+
+run_lua global-move '
+plug("eDP-1", 0, "Laptop", 1)
+plug("DP-1", 1, "Portrait", 6)
+world.focused = "eDP-1"
+world.neighbours["DP-1"] = { l = "eDP-1" }
+window("0xa", 1)
+window("0xb", 6)
+world.active_window = "0xa"
+set_global(true)
+local m = load_module()
+hl.dispatch(m.move_window(6, false))
+check(world.windows["0xa"].workspace == 6 and world.focused == "eDP-1", "silent moves use global id 6")
+hl.dispatch(m.move_window(6))
+check(world.focused == "DP-1" and on(6) == "DP-1", "following a move crosses monitors without reclaiming")
+hl.dispatch(m.move_to_monitor("l"))
+check(world.windows["0xa"].workspace == 6 and on(6) == "eDP-1", "moving a workspace keeps its global number")
+' || fail "global window and workspace moves keep ids and follow semantics"
+pass "global window and workspace moves keep ids and follow semantics"
+
+run_lua global-events '
+plug("eDP-1", 0, "Laptop", 1)
+plug("DP-1", 1, "Portrait", 6)
+world.focused = "eDP-1"
+window("0xa", 6)
+set_global(true)
+local m = load_module()
+world.handlers["hyprland.start"]()
+world.handlers["config.reloaded"]()
+world.handlers["workspace.created"]({ id = 6 })
+world.handlers["monitor.added"](hl.get_monitor("DP-1"))
+check(on(6) == "DP-1" and shows("DP-1") == 6, "start, reload and hotplug preserve custom numbering")
+check(state_file() == "", "global mode never allocates monitor blocks")
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+check(world.windows["0xa"].workspace == 6 and on(6) == "eDP-1", "unplug does not renumber global workspaces")
+' || fail "global mode never reconciles on start, reload or hotplug"
+pass "global mode never reconciles on start, reload or hotplug"
+
+run_lua scope-transitions '
+plug("eDP-1", 0, "Laptop", 1)
+plug("DP-1", 1, "Portrait", 6)
+world.focused = "DP-1"
+window("0xa", 6)
+local m = load_module()
+check(m.enabled, "per-monitor remains the default")
+m.reconcile()
+check(world.windows["0xa"].workspace == 16, "per-monitor reconciliation adopts the existing workspace")
+local saved = state_file()
+local merged_path = os.getenv("XDG_STATE_HOME") .. "/omarchy/monitor-workspaces-merged"
+local merged_file = assert(io.open(merged_path, "w"))
+merged_file:write("16\t2\tLaptop\n")
+merged_file:close()
+set_global(true)
+m = load_module()
+check(io.open(merged_path, "r") == nil, "global ids discard stale unplug origins, not physical monitor blocks")
+world.handlers["config.reloaded"]()
+check(world.windows["0xa"].workspace == 16 and on(16) == "DP-1", "disabling keeps existing ids and windows")
+check(state_file() == saved, "disabling preserves physical monitor assignments for re-enable")
+check(m.workspace_id(hl.get_monitor("DP-1"), 6) == 6, "reload switches number actions to global")
+set_global(false)
+m = load_module()
+world.handlers["config.reloaded"]()
+check(m.workspace_id(hl.get_monitor("DP-1"), 6) == 16, "re-enable restores the saved block")
+check(world.windows["0xa"].workspace == 16 and state_file() == saved, "round trip preserves windows and block identity")
+' || fail "per-monitor to global to per-monitor survives config reloads"
+pass "per-monitor to global to per-monitor survives config reloads"
 
 # --- Which monitor owns which block -------------------------------------------
 
