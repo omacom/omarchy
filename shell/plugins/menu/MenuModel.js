@@ -635,6 +635,50 @@ function dmenuValue(option) {
   return parts.join("\t")
 }
 
+// Punctuation, symbols, emoji and spaces separate words; letters in any script
+// and digits make them up.
+var dmenuWordSeparator = /[\s\x00-\x2f\x3a-\x40\x5b-\x60\x7b-\x7f\u00a0-\u00bf\u2000-\u2bff\u3000-\u303f\ufe00-\ufe0f\uff00-\uff0f\ud800-\udfff]+/
+
+function dmenuWords(value) {
+  return String(value || "").split(dmenuWordSeparator).filter(Boolean)
+}
+
+// Picker search: every word of the query must match the option text, in any
+// order and ignoring punctuation, so "super o" and "super+o" find
+// "SUPER + O". A query word made only of symbols, like "+", matches as a
+// substring. Returns -1 for no match, else a score where lower is better:
+// whole-word matches beat word prefixes, which beat bare substrings, and
+// earlier words break ties.
+function dmenuMatchScore(query, text) {
+  var haystack = String(text || "").toLowerCase()
+  var words = dmenuWords(haystack)
+  var terms = []
+  var parts = String(query || "").toLowerCase().trim().split(/\s+/)
+  for (var p = 0; p < parts.length; p++) {
+    var split = dmenuWords(parts[p])
+    terms = terms.concat(split.length > 0 ? split : [parts[p]])
+  }
+  var score = 0
+
+  for (var i = 0; i < terms.length; i++) {
+    var term = terms[i]
+    if (!term) continue
+
+    var exact = words.indexOf(term)
+    var prefix = -1
+    for (var w = 0; prefix < 0 && w < words.length; w++) {
+      if (words[w].indexOf(term) === 0) prefix = w
+    }
+
+    if (exact >= 0) score += exact
+    else if (prefix >= 0) score += 1000 + prefix
+    else if (haystack.indexOf(term) >= 0) score += 2000
+    else return -1
+  }
+
+  return score
+}
+
 function dmenuSelections(options, selected, preserveOrder) {
   var available = options.map(dmenuValue)
   return (preserveOrder ? selected : available).filter(function(value, index, values) {
@@ -716,6 +760,7 @@ if (typeof module !== "undefined") {
     matchesQuery: matchesQuery,
     searchScore: searchScore,
     dmenuValue: dmenuValue,
+    dmenuMatchScore: dmenuMatchScore,
     dmenuSelections: dmenuSelections,
     toggleDmenuSelection: toggleDmenuSelection,
     displayRow: displayRow,
