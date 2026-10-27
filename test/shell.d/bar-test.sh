@@ -510,6 +510,35 @@ assert(
   /height: root\.vertical \? slot\.panelIndicatorExtent : Style\.space\(2\)/.test(indicator),
   'bar sizes the open-panel mark from the same content hint on both axes'
 )
+// Run the mark's length binding itself, so a formula fed the wrong slot
+// dimension fails here rather than only on screen.
+const extentMatch = barSource.match(/readonly property real panelIndicatorExtent: \{([\s\S]*?)\n    \}\n/)
+assert(extentMatch, 'bar defines the open-panel mark length')
+const Style = { space: px => px }
+const indicatorExtent = ({ vertical = false, widgetWidth = 0, widgetHeight = 0, activeItem = null, panelIndicatorItem = null }) =>
+  new Function('root', 'slot', 'Style', 'activeItem', 'panelIndicatorItem', extentMatch[1])(
+    { vertical }, { widgetWidth, widgetHeight }, Style, activeItem, panelIndicatorItem
+  )
+assertEqual(indicatorExtent({ widgetWidth: 21, widgetHeight: 30 }), 12, 'a 21px status slot keeps its 12px mark')
+assertEqual(indicatorExtent({ widgetWidth: 27, widgetHeight: 30 }), 15, 'a 27px icon slot keeps its 15px mark')
+assertEqual(indicatorExtent({ widgetWidth: 200, widgetHeight: 30 }), 188, 'a wide module is underlined across its content')
+assertEqual(indicatorExtent({ widgetWidth: 10, widgetHeight: 30 }), 10, 'a narrow slot still gets the minimum mark')
+assertEqual(indicatorExtent({ vertical: true, widgetWidth: 200, widgetHeight: 40 }), 22, 'a vertical bar keeps the 55% mark along the module')
+assertEqual(
+  indicatorExtent({ widgetWidth: 200, widgetHeight: 30, activeItem: { openPanelIndicatorWidth: 30 } }),
+  30,
+  'a module\'s own width hint wins over the default'
+)
+assertEqual(
+  indicatorExtent({ vertical: true, widgetWidth: 30, widgetHeight: 200, activeItem: { openPanelIndicatorWidth: 30, openPanelIndicatorHeight: 18 } }),
+  18,
+  'a vertical bar reads the height hint, not the width one'
+)
+assertEqual(
+  indicatorExtent({ widgetWidth: 200, widgetHeight: 30, panelIndicatorItem: { width: 20, height: 20 } }),
+  11,
+  'a module naming a mark item is measured from that item, not the whole module'
+)
 
 assertEqual(bar.normalizePosition('left'), 'left', 'bar accepts valid positions')
 assertEqual(bar.normalizePosition('sideways'), 'top', 'bar defaults invalid positions')

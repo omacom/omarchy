@@ -2839,7 +2839,13 @@ Item {
       var key = root.vertical ? "openPanelIndicatorHeight" : "openPanelIndicatorWidth"
       var hint = activeItem && key in activeItem ? activeItem[key] : undefined
       if (hint !== undefined && hint !== null && hint > 0) return Math.round(hint)
-      return Math.max(Style.space(10), Math.round((root.vertical ? slot.widgetHeight : slot.widgetWidth) * 0.55))
+      if (root.vertical) return Math.max(Style.space(10), Math.round(slot.widgetHeight * 0.55))
+      // An icon slot keeps its short mark; a module wider than one (a row of
+      // readouts, an icon with a count) is underlined across its content,
+      // inside the padding most leave either side. The two meet at one icon,
+      // so the mark grows smoothly with the module rather than jumping.
+      var width = slot.widgetWidth
+      return Math.max(Style.space(10), Math.round(width * 0.55), Math.round(width - Style.space(12)))
     }
     // A module holding several things a panel can open from (the tray's
     // icons) names the one whose panel is open, and the mark sits under it
