@@ -32,6 +32,8 @@ if grep -F 'skip-first-run-update-notification' "$ROOT/install/user/first-run/wi
   fail "first-run does not track update notifications separately"
 fi
 
+grep -F 'first-run/chromium-copy-url.sh' "$ROOT/bin/omarchy-provision-first-run" >/dev/null ||
+  fail "first-run does not repair the Copy URL shortcut after install-time migration stamping"
 pass "first-run uses one lifecycle completion marker"
 
 # systemctl enables none of a list when one unit in it is unknown, so a unit
