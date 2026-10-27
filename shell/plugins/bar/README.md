@@ -18,6 +18,14 @@ The bar config lives under the `bar:` key of [`~/.config/omarchy/shell.json`](..
 
 The bar is configured directly on the bar itself: drag empty bar space (or click-and-hold) to move the bar to another screen edge, double-left-click empty center-bar space to cycle the bar background from clear to glassy to opaque, and drag widgets to reorder them. The `omarchy bar position`, `omarchy bar background`, `omarchy bar move`, and `omarchy bar set` commands do the same from scripts. Enable or disable widgets with `omarchy plugin enable` and `omarchy plugin disable` (widget ids come from `omarchy plugin list`).
 
+A widget entry may carry `minBarWidth`, the shortest bar in logical pixels it is worth drawing on. The same layout is drawn on every screen, so a set of widgets that fits a wide display can run out of room on a laptop or handheld panel; give the ones you can do without there a `minBarWidth` and they are left off those bars only:
+
+```json
+{ "id": "omarchy.active-window", "minBarWidth": 1600 }
+```
+
+It is measured along the bar's run, so a left or right bar is judged by its height. Widgets without the setting are drawn on every bar as before.
+
 Example `shell.json` (bar subtree only shown):
 
 ```json

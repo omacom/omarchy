@@ -392,6 +392,70 @@ function layoutWidgets(layout, memo) {
   return { sections: bySection, keys: Object.keys(next).sort(), entries: entries }
 }
 
+// The keys a bar of this length shows. A widget entry carrying `minBarWidth`
+// is left off any bar shorter than that, so one layout can serve a wide
+// display and a narrow one without its sections running into each other.
+// The same array comes back when nothing is dropped, so a bar wide enough for
+// every widget rebinds nothing.
+function fittingKeys(keys, entries, barLength) {
+  var list = Array.isArray(keys) ? keys : []
+  var length = Number(barLength)
+  if (!isFinite(length) || length <= 0) return list
+  var source = isPlainObject(entries) ? entries : {}
+  var kept = list.filter(function(key) {
+    var entry = source[key]
+    var min = isPlainObject(entry) ? Number(entry.minBarWidth) : NaN
+    return !isFinite(min) || min <= 0 || length >= min
+  })
+  return kept.length === list.length ? list : kept
+}
+
+// Where the center box sits along a horizontal bar, given the room left
+// between the sections anchored to the bar's two edges. The centered group --
+// centerBegin, the box, centerEnd -- stays centered while it fits in that
+// room, and slides along it rather than overprinting a neighbour once it does
+// not. A group wider than the room itself starts where the room does and runs
+// past its end: nothing can be laid out without overlap at that point, and
+// `minBarWidth` is what keeps a bar out of it.
+function centerBoxX(barWidth, boxWidth, beginWidth, endWidth, startInset, endInset) {
+  var ideal = Math.round((Number(barWidth) - Number(boxWidth)) / 2)
+  var start = Number(startInset)
+  var end = Number(endInset)
+  if (!isFinite(start) || !isFinite(end) || end <= start) return ideal
+  var lowest = start + Number(beginWidth)
+  var highest = end - Number(endWidth) - Number(boxWidth)
+  if (!isFinite(lowest) || !isFinite(highest)) return ideal
+  if (highest < lowest) return Math.round(lowest)
+  return Math.round(Math.max(lowest, Math.min(ideal, highest)))
+}
+
+// Where a drag's landing places fall in the list a bar actually shows. A
+// place is an index into the configured section, which is what a drop is
+// saved against and what names the room (`region:index`), but a bar that
+// leaves a widget out (fittingKeys) shows fewer rows than the section has.
+// The place keeps its own number -- drag state is keyed by it -- and gains
+// the position to open the gap at.
+function spacerPlaces(places, keys, shownKeys) {
+  var list = Array.isArray(keys) ? keys : []
+  var gaps = Array.isArray(places) ? places : []
+  var shown = Array.isArray(shownKeys) ? shownKeys : list
+  if (shown.length === list.length) return gaps.slice()
+  var kept = Object.create(null)
+  for (var s = 0; s < shown.length; s++) kept[String(shown[s])] = true
+  // shownBefore[p] is how many of the section's first p widgets this bar draws.
+  var shownBefore = []
+  var count = 0
+  for (var i = 0; i <= list.length; i++) {
+    shownBefore.push(count)
+    if (i < list.length && kept[String(list[i])]) count++
+  }
+  return gaps.map(function(place) {
+    var index = Math.round(Number(place))
+    if (!isFinite(index)) return { at: 0, place: place }
+    return { at: shownBefore[Math.max(0, Math.min(list.length, index))], place: place }
+  })
+}
+
 // The rows a section's model shows: one per widget, under its key
 // (layoutWidgets), and a spacer before the widget at each index in `places`,
 // or after the last for the section's length. A row holds nothing but its
@@ -400,7 +464,11 @@ function layoutWidgets(layout, memo) {
 // rows added, moved and removed.
 function sectionRows(keys, places, memo) {
   var list = Array.isArray(keys) ? keys : []
-  var gaps = (Array.isArray(places) ? places : []).slice().sort(function(a, b) { return a - b })
+  // A bare number is a place whose position in the shown list is itself, which
+  // is every bar that leaves no widget out (spacerPlaces).
+  var gaps = (Array.isArray(places) ? places : []).map(function(entry) {
+    return isPlainObject(entry) ? { at: Number(entry.at), place: entry.place } : { at: Number(entry), place: entry }
+  }).sort(function(a, b) { return a.at - b.at })
   var state = memo || {}
   var cache = state.rows || Object.create(null)
   var next = Object.create(null)
@@ -413,8 +481,8 @@ function sectionRows(keys, places, memo) {
 
   var g = 0
   for (var i = 0; i <= list.length; i++) {
-    for (; g < gaps.length && gaps[g] <= i; g++)
-      show("room:" + gaps[g], { key: "room:" + gaps[g], kind: "spacer", place: gaps[g] })
+    for (; g < gaps.length && gaps[g].at <= i; g++)
+      show("room:" + gaps[g].place, { key: "room:" + gaps[g].place, kind: "spacer", place: gaps[g].place })
     if (i === list.length) break
     show(String(list[i]), { key: String(list[i]), kind: "widget" })
   }
@@ -692,6 +760,9 @@ if (typeof module !== "undefined") {
     dropRoom: dropRoom,
     sectionRows: sectionRows,
     layoutWidgets: layoutWidgets,
+    fittingKeys: fittingKeys,
+    spacerPlaces: spacerPlaces,
+    centerBoxX: centerBoxX,
     fadeShares: fadeShares,
     roomLengths: roomLengths,
     moveEntry: moveEntry,

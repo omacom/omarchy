@@ -1772,6 +1772,10 @@ Item {
     // right section, leaves the indicator peek shut.
     property real peekEdge: 0
 
+    // How long the bar runs on this screen, in logical pixels, which is what a
+    // widget's `minBarWidth` is measured against (BarModel.fittingKeys).
+    readonly property int barLength: root.vertical ? height : width
+
     // The surface spans its screen at all times, transparent past the strip
     // it paints; a drag toggles only its input region. Growing the surface
     // for a drag instead flashes the strip's stale buffer stretched across
@@ -1904,9 +1908,15 @@ Item {
           window: barWindow
           pool: horizontalPool
           drawn: !barWindow.centerBesideRight
+          // The room left between the sections anchored to the bar's two
+          // edges. The centered group slides along it rather than running
+          // into them once it no longer fits in the middle.
+          startInset: leftModules.x + leftModules.width + Style.space(4)
+          endInset: rightModules.x - Style.space(4)
         }
 
         LeftModules {
+          id: leftModules
           window: barWindow
           pool: horizontalPool
           anchors.left: parent.left
@@ -2247,6 +2257,10 @@ Item {
     // False where a display notch has moved the center sections beside the
     // right one.
     property bool drawn: true
+    // The span along the bar the centered group may use. Left at zero it is
+    // centered on the bar as before, which is what the vertical bar does.
+    property real startInset: 0
+    property real endInset: 0
 
     CenterGestureArea { anchors.fill: parent }
 
@@ -2255,6 +2269,8 @@ Item {
       window: centerRoot.window
       pool: centerRoot.pool
       active: centerRoot.drawn
+      startInset: centerRoot.startInset
+      endInset: centerRoot.endInset
     }
   }
 
@@ -2272,6 +2288,9 @@ Item {
     // shows nothing.
     property bool active: true
     property bool besideRight: false
+    // The room the centered group is held within (BarModel.centerBoxX).
+    property real startInset: 0
+    property real endInset: 0
 
     implicitWidth: root.vertical ? root.barSize : beginList.width + centerBox.width + endList.width
     implicitHeight: root.vertical ? beginList.height + centerBox.height + endList.height : root.barSize
@@ -2322,7 +2341,7 @@ Item {
       active: sections.active
       fixedEdge: sections.besideRight ? "end" : "center"
       crossSize: root.vertical ? sections.width : sections.height
-      x: root.vertical ? 0 : (sections.besideRight ? beginList.width : Math.round((sections.width - width) / 2))
+      x: root.vertical ? 0 : (sections.besideRight ? beginList.width : BarModel.centerBoxX(sections.width, width, beginList.width, endList.width, sections.startInset, sections.endInset))
       y: root.vertical ? Math.round((sections.height - height) / 2) : 0
     }
   }
@@ -2547,7 +2566,15 @@ Item {
     // Kept between updates, so a row stays the same object for as long as it
     // is shown (BarModel.sectionRows).
     property var rowMemo: ({})
-    readonly property var listRows: BarModel.sectionRows(keys, root.sectionSpacers(region, window), rowMemo)
+    // The keys this bar has room for: a widget carrying `minBarWidth` is left
+    // off a bar narrower than that, so one layout serves a wide display and a
+    // narrow one (BarModel.fittingKeys).
+    readonly property var shownKeys: BarModel.fittingKeys(keys, root.layoutWidgets.entries, window ? window.barLength : 0)
+    // A drag's places index the configured section; this bar may show fewer
+    // widgets than that, so they are mapped onto what it draws before the gaps
+    // are opened (BarModel.spacerPlaces).
+    readonly property var spacerRooms: BarModel.spacerPlaces(root.sectionSpacers(region, window), keys, shownKeys)
+    readonly property var listRows: BarModel.sectionRows(shownKeys, spacerRooms, rowMemo)
 
     visible: listRows.length > 0
     flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
@@ -2582,7 +2609,7 @@ Item {
             required property var modelData
             widgetKey: modelData.key
             region: moduleListRoot.region
-            fixedEdge: BarModel.slotEdge(moduleListRoot.keys.length, moduleListRoot.keys.indexOf(modelData.key), moduleListRoot.fixedEdge, moduleListRoot.firstEdge, moduleListRoot.lastEdge)
+            fixedEdge: BarModel.slotEdge(moduleListRoot.shownKeys.length, moduleListRoot.shownKeys.indexOf(modelData.key), moduleListRoot.fixedEdge, moduleListRoot.firstEdge, moduleListRoot.lastEdge)
             pool: moduleListRoot.pool
             window: moduleListRoot.window
           }
