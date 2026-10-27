@@ -68,6 +68,18 @@ HOME="$tmp/home" XDG_RUNTIME_DIR="$tmp" PATH="$tmp/bin:$ROOT/bin:$PATH" "$ROOT/b
   fail "omarchy-display-text-size reset clears base-size in symlinked shell.toml" "$(<"$tmp/dots/shell.toml")"
 pass "omarchy-display-text-size preserves symlinked shell and terminal configs"
 
+# A leading zero is decimal, not octal: 018 is 18px (with no octal error), and 0024 is out of range.
+text_size_err="$(HOME="$tmp/home" XDG_RUNTIME_DIR="$tmp" PATH="$tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-display-text-size" 018 2>&1 >/dev/null)"
+[[ -z $text_size_err ]] ||
+  fail "omarchy-display-text-size reads a leading zero without octal errors" "$text_size_err"
+grep -Fxq 'base-size = 18' "$tmp/dots/shell.toml" ||
+  fail "omarchy-display-text-size writes the size without its leading zero" "$(<"$tmp/dots/shell.toml")"
+grep -Fxq 'size = 14' "$tmp/dots/alacritty.toml" ||
+  fail "omarchy-display-text-size scales terminals using the decimal value" "$(<"$tmp/dots/alacritty.toml")"
+! HOME="$tmp/home" XDG_RUNTIME_DIR="$tmp" PATH="$tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-display-text-size" 0024 >/dev/null 2>&1 ||
+  fail "omarchy-display-text-size rejects a leading-zero size above MAX"
+pass "omarchy-display-text-size reads a leading zero as decimal"
+
 # Clipboard helpers fail cleanly on missing --history-index value instead of looping.
 for helper in omarchy-clipboard-open omarchy-clipboard-paste-text; do
   if timeout 2s "$ROOT/bin/$helper" --history-index >/dev/null 2>&1; then
