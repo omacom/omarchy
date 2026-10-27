@@ -325,7 +325,7 @@ Panel {
           usage.refreshLimits()
           addDoneTimer.restart()
           // Nothing to show yet means the sign-in is what counts as set up.
-          if (providers.length === 0 && !checkProcess.running) {
+          if (usage.enabledProviders.length === 0 && !checkProcess.running) {
             addChecks = ({})
             checkProcess.running = true
           }
@@ -837,7 +837,9 @@ Panel {
       if (addChecks[id] !== "first") return true
     return false
   }
-  readonly property bool blankSlate: providers.length === 0 && !anySignedIn
+  // Local history counts as set up, so a machine with no subscription still
+  // gets its summary rather than the picker.
+  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
@@ -874,7 +876,7 @@ Panel {
   onOpenedChanged: if (opened) {
     if (addStage !== "running") addStage = ""
     resetKeys()
-    if (providers.length === 0 && !checkProcess.running) checkProcess.running = true
+    if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
     usage.refreshLimits()
