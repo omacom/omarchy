@@ -20,6 +20,16 @@ assert(
   'background theme transition applies pending colors even if image reveal stalls'
 )
 
+// The transparent bar samples its text color against appliedBackground. A
+// theme switch must move it together with the new palette, not when the
+// incoming frame starts loading, or the bar samples the old theme's colors.
+assert(
+  /if \(!withTheme\) appliedBackground = finalPath/.test(backgroundQml) &&
+    /transitionBackground\(fromPath, path, finalPath, false, true, true\)/.test(backgroundQml) &&
+    /function applyPendingTheme\(\) \{[\s\S]*?Color\.loadShell\(pendingShellRaw\)[\s\S]*?appliedBackground = currentBackground[\s\S]*?pendingThemeVersion = -1/.test(backgroundQml),
+  'background moves the applied wallpaper with the theme colors, and at once for a plain wallpaper change'
+)
+
 const themeSet = fs.readFileSync(path.join(root, 'bin/omarchy-theme-set'), 'utf8')
 
 // The next background decodes while the theme stages, rather than after the
