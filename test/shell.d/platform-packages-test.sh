@@ -164,7 +164,7 @@ for platform in aarch64 x86; do
   : >"$STUB_LOG"
   OMARCHY_PROC_ROOT="$work/$platform/proc" PATH="$work/stubs:$work/$platform/bin:$ROOT/bin:$PATH" \
     omarchy-reinstall-pkgs
-  expected="-Syu --noconfirm --needed $(tr '\n' ' ' <"$work/$platform.packages")"
+  expected="-Syu --noconfirm --ask 4 --needed $(tr '\n' ' ' <"$work/$platform.packages")"
   [[ $(tail -n 1 "$STUB_LOG") == "${expected% }" ]] ||
     fail "$platform: reinstall installs the platform's default set" "$(tail -n 1 "$STUB_LOG")"
 done
@@ -178,7 +178,7 @@ export STUB_LOG="$work/provided.log" STUB_INSTALLED="$work/installed" STUB_PROVI
 { grep -vx -e uwsm -e btop "$work/x86.packages"; echo rwsm-git; } >"$STUB_INSTALLED"
 echo uwsm >"$STUB_PROVIDED"
 OMARCHY_PROC_ROOT="$work/x86/proc" PATH="$work/stubs:$work/x86/bin:$ROOT/bin:$PATH" omarchy-reinstall-pkgs
-expected="-Syu --noconfirm --needed $(grep -vx uwsm "$work/x86.packages" | tr '\n' ' ')"
+expected="-Syu --noconfirm --ask 4 --needed $(grep -vx uwsm "$work/x86.packages" | tr '\n' ' ')"
 [[ $(tail -n 1 "$STUB_LOG") == "${expected% }" ]] ||
   fail "reinstall leaves out a default another package provides" "$(tail -n 1 "$STUB_LOG")"
 unset STUB_INSTALLED STUB_PROVIDED
@@ -204,9 +204,9 @@ reinstall_on() {
 }
 for platform in x86 aarch64 aarch64-apple; do
   reinstall_on "$platform" || fail "$platform: reinstall completes" "$(cat "$work/channel.out")"
-  if [[ $platform == "x86" ]]; then expected_channel=stable; else expected_channel=edge; fi
+  if [[ $platform == "aarch64-apple" ]]; then expected_channel=edge; else expected_channel=stable; fi
   [[ $(head -n 1 "$STUB_LOG") == "refresh $expected_channel" ]] || fail "$platform: reinstall refreshes on $expected_channel" "$(cat "$STUB_LOG")"
-  expected="-Syu --noconfirm --needed $(tr '\n' ' ' <"$work/$platform.packages")"
+  expected="-Syu --noconfirm --ask 4 --needed $(tr '\n' ' ' <"$work/$platform.packages")"
   [[ $(tail -n 1 "$STUB_LOG") == "${expected% }" ]] || fail "$platform: reinstall installs the platform's set"
 done
 pass "omarchy-reinstall-pkgs explicitly refreshes the platform's default channel"
@@ -214,7 +214,7 @@ pass "omarchy-reinstall-pkgs explicitly refreshes the platform's default channel
 if REFRESH_FAILS=1 reinstall_on aarch64; then
   fail "reinstall stops when the refresh fails"
 fi
-[[ $(cat "$STUB_LOG") == "refresh edge" ]] || fail "reinstall runs nothing after a failed refresh" "$(cat "$STUB_LOG")"
+[[ $(cat "$STUB_LOG") == "refresh stable" ]] || fail "reinstall runs nothing after a failed refresh" "$(cat "$STUB_LOG")"
 pass "omarchy-reinstall-pkgs stops when the refresh fails"
 
 export STUB_LOG="$work/undetected.log"

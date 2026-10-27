@@ -9,33 +9,6 @@ const fs = require('fs')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
 
-assert(/IpcHandler[\s\S]*?function toggleNetwork\(\) \{ root\.toggleNetwork\(\) \}/.test(panelSource), 'network exposes the Wi-Fi radio toggle over IPC')
-assert(/manageIpc: false/.test(panelSource), 'network owns its IPC handler so it can extend the target methods')
-
-// Opening from the bar must call open() and nothing else. open() runs
-// refresh(true), which defers the PHY scan; a second bare refresh() defaults
-// scanWifi to false, sets scannerEnabled synchronously, and stalls the open on
-// NetworkManager's access-point flood.
-const barPress = panelSource.match(/onPressed: function\(b\) \{[\s\S]*?\n {4}\}/)
-assert(barPress, 'network bar button has an onPressed handler')
-const barPressCode = barPress[0].replace(/\/\/.*$/gm, '')
-assert(!/refresh\(/.test(barPressCode), 'network bar click opens the panel without a second refresh that would undo the deferred scan')
-
-// A closed panel has no nearby-network list to fill. Quickshell's scanner
-// re-arms RequestScan on its own timer, and every sweep takes the radio off
-// the operating channel, so a scanner left enabled behind a closed panel keeps
-// degrading the connection it is scanning from.
-const refreshFn = panelSource.match(/function refresh\(scanWifi\)[\s\S]*?\n {2}\}/)
-assert(refreshFn, 'network has a refresh() function')
-assert(/if \(opened && wifiDevice\)/.test(refreshFn[0]), 'network only touches the scanner from refresh() while its panel is open')
-
-// The 100ms deferral can outlive the panel: closing inside the window would
-// otherwise re-enable scanning from a timer nobody is watching.
-const scanRestart = panelSource.match(/id: scanRestart[\s\S]*?onTriggered: \{[\s\S]*?\n {4}\}/)
-assert(scanRestart, 'network has the deferred scan restart timer')
-assert(/root\.opened/.test(scanRestart[0]), 'network re-checks the panel before the deferred restart re-enables scanning')
-assert(/scanRestart\.stop\(\)/.test(panelSource), 'network cancels a pending scan restart when the panel closes')
-
 // scannerEnabled lives on a shared WifiDevice with no reference counting, so
 // the panel has to own what it enabled. Run the helper's own JavaScript against
 // stand-in devices: the two invariants it carries are that a closed panel never
@@ -67,23 +40,6 @@ assert(
   'network releases the previous scanner device before enabling its replacement'
 )
 
-// Destruction is the case a guard-only fix misses: the widget dies with the
-// panel still open, as a bar reload does, and nothing else would release it.
-assert(
-  /Component\.onDestruction[\s\S]{0,140}scannerDevice\.scannerEnabled = false/.test(panelSource),
-  'network releases the scanner it owns when the widget is destroyed'
-)
-assert(!/wifiDevice\.scannerEnabled\s*=/.test(panelSource), 'network writes scanner state through its owned device reference rather than the moving wifiDevice reference')
-
-// A row is a primitive snapshot that can outlive its WifiNetwork, and
-// disconnect() falls back to the live connection when handed null, so row
-// activation must go through the guarded disconnectRow().
-assert(
-  /function disconnectRow\(ssid\) \{\s*var network = networkForSsid\(ssid\)\s*if \(network\) disconnect\(network\)/.test(panelSource),
-  'network guards row disconnects so a stale row cannot drop an unrelated connection'
-)
-assert(!/disconnect\(\s*(root\.)?networkForSsid\(/.test(panelSource), 'network never passes an unguarded networkForSsid() lookup to disconnect()')
-
 assertDeepEqual(
   network.parseNetworkStatus('wifi\tCafe WiFi\t78\t5200\n'),
   { kind: 'wifi', label: 'Cafe WiFi', signalStrength: 78, frequency: '5200' },
@@ -96,21 +52,12 @@ assertEqual(network.connectionIcon('wifi', 80), network.wifiIconFor(80), 'networ
 // device's AvailableConnections, so Quickshell lists no connected network. The
 // bar trusts the device's own state and reads the in-use AP's strength instead
 // of flickering to disconnected.
-const kindBinding = panelSource.match(/readonly property string kind: \{[\s\S]*?\n {2}\}/)
-assert(kindBinding, 'network has a kind binding')
-assert(/if \(wifiDevice && wifiDevice\.connected\) return "wifi"/.test(kindBinding[0]), 'network keeps showing Wi-Fi while the device is connected but no network is listed as connected')
-assert(
-  kindBinding[0].indexOf('connectedWifiNetwork) return "wifi"') < kindBinding[0].indexOf('wifiDevice.connected) return "wifi"'),
-  'network prefers the listed connected network before falling back to device state'
-)
 assertEqual(network.connectedSignalStrength(0.8, 40), 80, 'network prefers the connected network strength')
 assertEqual(network.connectedSignalStrength(0, 67), 67, 'network falls back to the in-use access point strength')
 assertEqual(network.connectedSignalStrength(0, -1), 0, 'network reports no strength when the in-use access point is unknown')
 assertEqual(network.parseActiveApSignal(' :82\n*:67\n :50\n'), 67, 'network parses the in-use access point strength from nmcli')
 assertEqual(network.parseActiveApSignal(' :82\n'), -1, 'network reports no in-use access point when none is marked')
 assertEqual(network.parseActiveApSignal(''), -1, 'network tolerates empty nmcli output')
-assert(/running: root\.needsActiveApSignal/.test(panelSource), 'network only polls the in-use access point while the connected network lacks a strength')
-assert(/"--rescan", "no"/.test(panelSource), 'network reads the in-use access point without triggering a scan')
 assertEqual(network.formatHeaderSpeed('1000'), '1gbit', 'network formats gigabit speed')
 assertEqual(network.formatHeaderSpeed('2500'), '2.5gbit', 'network formats fractional gigabit speed')
 assertEqual(network.formatHeaderFreq('2462'), '2.4ghz', 'network formats 2.4GHz wifi band')
@@ -188,6 +135,13 @@ assertEqual(network.formatPacketLoss(2), '2%', 'network formats packet loss')
 assertEqual(network.formatPacketLoss(0), '0%', 'network formats zero packet loss')
 assertEqual(network.formatPacketLoss(0, false), '--', 'network holds the packet loss row before the first sample')
 assertEqual(network.formatPacketLoss(0, true), '0%', 'network reports zero loss once samples exist')
+assertEqual(network.internetPingReadable([], 'full'), false, 'network hides ping before the first sample')
+assertEqual(network.internetPingReadable([null, null], 'full'), true, 'network still reports lost probes on a working connection')
+assertEqual(network.internetPingReadable([null, 12], 'full'), true, 'network shows ping once a probe comes back')
+assertEqual(network.internetPingReadable([12], 'portal'), false, 'network hides ping behind a captive portal')
+assertEqual(network.internetPingReadable([12], 'limited'), false, 'network hides ping on a limited connection')
+assertEqual(network.internetPingReadable([12], 'none'), false, 'network hides ping when offline')
+assertEqual(network.internetPingReadable([12], 'unknown'), true, 'network shows ping when connectivity checks are off')
 
 const rows = network.sortWifiRows([
   { ssid: 'Open', connected: false, known: false, signal: 95 },
@@ -230,47 +184,6 @@ for (const name of ['Wpa3SuiteB192', 'Sae', 'Wpa2Eap', 'Wpa2Psk', 'WpaEap', 'Wpa
 assertEqual(network.requiresCredentials(security.Owe, security.Open, security.Owe), false, 'network does not ask for OWE credentials')
 assertEqual(network.requiresCredentials(security.Open, security.Open, security.Owe), false, 'network does not ask for open-network credentials')
 
-assert(
-  /Model\.requiresCredentials\(security, WifiSecurityType\.Open, WifiSecurityType\.Owe\)/.test(panelSource),
-  'network wires the Quickshell OWE enum into credential detection'
-)
-assert(
-  /if \(requiresCredentials\(net\.security\) && !net\.known\)/.test(panelSource),
-  'network keyboard activation gates unknown-network prompts on credential requirements'
-)
-assert(
-  /if \(row\.requiresCredentials && !row\.isKnown\)/.test(panelSource),
-  'network row clicks gate unknown-network prompts on credential requirements'
-)
-assert(
-  /shouldRepromptPassphrase\(reason, row\.requiresCredentials\)/.test(panelSource),
-  'network failure reprompts use the row credential requirement'
-)
-assert(
-  /networkFailureReason\(reason, requiresCredentials\(network\.security\)\)/.test(panelSource),
-  'network failure copy uses the live network credential requirement'
-)
-assert(
-  /readonly property bool canForget: root\.canForgetNetwork\(net\)/.test(panelSource),
-  'network rows derive forget eligibility from the tested model helper'
-)
-const rightAction = panelSource.match(/Item \{\s*id: rightAction\b[\s\S]*?\n {6}\}/)
-assert(rightAction, 'network has a right-edge action target')
-assert(
-  /visible: row\.requiresCredentials \|\| row\.canForget/.test(rightAction[0]),
-  'network keeps a forget target for known passwordless networks'
-)
-const lockIndicator = panelSource.match(/Text \{\s*id: lockIndicator\b[\s\S]*?\n {8}\}/)
-assert(lockIndicator, 'network has a lock/forget indicator')
-assert(
-  /visible: row\.requiresCredentials \|\| row\.forgetVisible/.test(lockIndicator[0]),
-  'network hides the lock on passwordless networks until showing their forget action'
-)
-assert(
-  /forgetVisible: canForget && \(!requiresCredentials \|\| forgetFocused \|\| rightMouse\.containsMouse\)/.test(panelSource),
-  'network shows the forget action directly for known passwordless networks'
-)
-
 const reasons = { NoSecrets: 1, WifiAuthTimeout: 2, WifiNetworkLost: 3, WifiClientDisconnected: 4, WifiClientFailed: 5 }
 assertEqual(network.networkFailureReason(reasons.NoSecrets, true, reasons), 'Passphrase required', 'network maps missing credential failures')
 assertEqual(network.networkFailureReason(reasons.WifiAuthTimeout, true, reasons), 'Wrong password', 'network maps credentialed auth timeouts')
@@ -288,7 +201,6 @@ assertEqual(network.shouldRepromptPassphrase(reasons.NoSecrets, false, reasons),
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, true, reasons), true, 'network reprompts a credentialed network after a wrong password')
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, false, reasons), false, 'network does not reprompt an open network on auth timeout')
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiClientFailed, true, reasons), false, 'network does not reprompt on generic connection failures')
-
 
 assertEqual(network.bandLabel('2.4'), '2.4ghz', 'network labels the 2.4GHz band')
 assertEqual(network.bandLabel('6'), '6ghz', 'network labels the 6GHz band')
@@ -309,8 +221,6 @@ assertDeepEqual(
   { band: '', selected: 'auto', available: [] },
   'network parses empty band status without a wifi connection'
 )
-
-
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')

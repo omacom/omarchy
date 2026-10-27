@@ -139,12 +139,13 @@
       "type": "command",
       "key": "󱦟 OS Age",
       "keyColor": "magenta",
-      "text": "echo $(( ($(date +%s) - $(stat -c %W /)) / 86400 )) days"
+      "text": "days=$(( ($(date +%s) - $(stat -c %W /)) / 86400 )); omarchy-i18n --count \"$days\" about.days \"$days\""
     },
     {
-      "type": "uptime",
+      "type": "command",
       "key": "󱫐 Uptime",
-      "keyColor": "magenta"
+      "keyColor": "magenta",
+      "text": "up=$(cut -d. -f1 /proc/uptime); d=$((up / 86400)); h=$((up % 86400 / 3600)); m=$((up % 3600 / 60)); if [ \"$d\" -gt 0 ]; then omarchy-i18n agents.durationDaysHours \"$d\" \"$h\"; elif [ \"$h\" -gt 0 ]; then omarchy-i18n battery.durationHoursMinutes \"$h\" \"$m\"; else omarchy-i18n battery.durationMinutes \"$m\"; fi"
     },
     {
       "type": "command",
