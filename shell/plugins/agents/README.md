@@ -15,16 +15,18 @@ Every subscription on one page, limits first.
   token counts add up to across every agent: tokens this week and today, the
   most used model, the busiest day, and today's prompts and sessions. Its
   corner has + to add a subscription and >_ to start the default agent.
-- **One section per agent** — its mark, name, and plan, then a compact line
+- **One section per subscription** — an agent with limits, a balance, a plan,
+  or accounts to show gets one; local history alone only feeds the hero's
+  line. Its mark, name, and plan, then a compact line
   per limit window: its meter and the time until it resets (the exact percentage
   on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
   limit) is a tick on that window's meter rather than a line of its own; the
   row's tooltip names it. A lapsed or missing Claude, Codex, or Grok sign-in
   shows a _Sign-in required_ link that signs that account in again from the
-  panel; any other agent's sign-in trouble, and other endpoint trouble, shows
-  under the name in the urgent color, with what to do on hover. Limits kept
-  from an earlier check after a failed one look the same, and their tooltip
-  says how old they are.
+  panel. Any other trouble — a paused token, another agent's sign-in, an
+  endpoint that didn't answer — leaves the last known limits on show, with a
+  small info mark beside the name whose tooltip says why they aren't current
+  and what to do; each meter's tooltip says how old it is.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
   lines. An _ACTIVE_ label marks the account new sessions start as; the

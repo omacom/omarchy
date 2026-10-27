@@ -15,6 +15,8 @@ if omarchy-pkg-present power-profiles-daemon && omarchy-pkg-missing omarchy-powe
   # start it through D-Bus activation, or fail when it is masked.
   if systemctl is-active --quiet power-profiles-daemon.service; then
     sudo systemctl try-restart power-profiles-daemon.service
-    omarchy-powerprofiles-set autodetect
+    # Switching needs polkit's active-session grant, which an update over SSH
+    # lacks; omarchy-powerprofiles-init applies it at the next login instead.
+    omarchy-powerprofiles-set autodetect || echo "The power profile will be applied at the next login"
   fi
 fi

@@ -3576,8 +3576,9 @@ def open_json(request: urllib.request.Request, timeout: float = 10, limit: int =
       # its Content-Length, with the rest still owed.
       owed = getattr(response, "length", None)
   except urllib.error.HTTPError as error:
+    # An error's body drips like any other; past the deadline it is left out.
     try:
-      body = error.read(limit) or b""
+      body = _read_by(error.fp, limit, deadline) if error.fp else b""
     except Exception:
       body = b""
     raise HttpError(status=error.code, body=body, headers=error.headers) from error

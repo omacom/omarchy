@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Pengguna"
   },
-  "system.reboot-boot-menu": {
-    "label": "Mulai ulang ke Menu Boot"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Rekam Crash Nonaktif"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Layar Laptop Aktif"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Layar Laptop Nonaktif"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Pencerminan Layar Aktif"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Pencerminan Layar Nonaktif"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Beralih ke GPU Hybrid"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Beralih ke GPU Terintegrasi"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Aktifkan Touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Nonaktifkan Touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Aktifkan Layar Sentuh"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Nonaktifkan Layar Sentuh"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Tampilkan % Baterai"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Sembunyikan % Baterai"
+  },
+  "appearance.windows": {
+    "label": "Jendela"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Celah Jendela Aktif"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Celah Jendela Nonaktif"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Rasio 1 Jendela Aktif"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Rasio 1 Jendela Nonaktif"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.animations-on": {
+    "label": "Animasi Aktif"
+  },
+  "appearance.animations-off": {
+    "label": "Animasi Nonaktif"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Tetap Terjaga"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Izinkan Tidur"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Notifikasi Aktif"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Senyapkan Notifikasi"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Lampu Malam Aktif"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Lampu Malam Nonaktif"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Screensaver Aktif"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Screensaver Nonaktif"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Tangkapan Crash Aktif"
   }
 }

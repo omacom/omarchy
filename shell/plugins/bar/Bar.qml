@@ -3041,15 +3041,15 @@ Item {
         suppressClick = false
         pressedX = mouse.x
         pressedY = mouse.y
-        hold(root.moduleClickTargetAt(slot, mouse.x, mouse.y))
+        hold(root.moduleClickTargetAt(slot, mouse.x, mouse.y), mouse.button)
         root.finishBarSettle()
         root.clearBarDrag()
       }
 
-      function hold(target) {
-        if (heldTarget && heldTarget !== target && "held" in heldTarget) heldTarget.held = false
-        heldTarget = target && "held" in target ? target : null
-        if (heldTarget) heldTarget.held = true
+      function hold(target, button) {
+        if (heldTarget && heldTarget !== target && "heldButtons" in heldTarget) heldTarget.heldButtons = Qt.NoButton
+        heldTarget = target && "heldButtons" in target ? target : null
+        if (heldTarget) heldTarget.heldButtons = button
       }
 
       onPositionChanged: function(mouse) {

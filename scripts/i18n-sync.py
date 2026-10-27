@@ -35,7 +35,8 @@ RETRIES = 2
 MAX_ITEMS = 20
 MAX_CHARS = 8000
 PLACEHOLDERS = re.compile(r"%(\d)")
-URL_RE = re.compile(r"https?://[^\s)]+")
+URL_RE = re.compile(r"https?://[^\s)`]+")
+SENTENCE_END = ".,;:!?"
 HEADING_RE = re.compile(r"^#{1,6} ", re.M)
 
 
@@ -517,13 +518,20 @@ def protected_inline(text):
     return Counter(kept)
 
 
+def urls_of(text):
+    # The published manual's autolinks leave trailing ASCII punctuation out
+    # of a bare URL but keep 。 or । in it, and a (destination) keeps it all.
+    return [m.group() if text[:m.start()].endswith("(") else m.group().rstrip(SENTENCE_END)
+            for m in URL_RE.finditer(text)]
+
+
 def validate_manual(source, value):
     from collections import Counter
     if not isinstance(value, str) or not value.strip():
         raise SyncError("empty translation")
     if len(HEADING_RE.findall(source)) != len(HEADING_RE.findall(value)):
         raise SyncError("heading count changed")
-    if sorted(URL_RE.findall(source)) != sorted(URL_RE.findall(value)):
+    if sorted(urls_of(source)) != sorted(urls_of(value)):
         raise SyncError("URLs changed")
     if Counter(FENCE_RE.findall(source)) != Counter(FENCE_RE.findall(value)):
         raise SyncError("code block contents changed")

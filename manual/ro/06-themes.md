@@ -1,12 +1,12 @@
 # Teme
 
-Omarchy vine cu douăzeci și două de teme frumoase. Poți selecta dintre ele prin _Stil > Temă_ în meniul Omarchy (`Super + Space`) sau poți sări direct la selectorul de teme folosind `Super + Ctrl + Shift + Space`.
+Omarchy vine cu douăzeci și două de teme frumoase. Poți alege dintre ele din _Aspect > Temă_ în Meniul Omarchy (`Super + Space`) sau poți merge direct la selectorul de teme folosind `Super + Ctrl + T`.
 
-Fiecare temă stilizează desktopul, terminalul, neovim, ecranul de activitate (btop), Chromium și întregul shell Omarchy: bara de sus, meniul, notificările, OSD-ul și ecranul de blocare. (Pentru Obsidian, trebuie să selectezi manual tema Omarchy prin _Appearance > Themes_ în interiorul aplicației).
+Fiecare temă stilizează desktopul, terminalul, neovim, ecranul de activitate (btop), Chromium și întregul shell Omarchy: bara superioară, meniul, notificările, OSD și ecranul de blocare. (Pentru Obsidian, trebuie să selectezi manual tema Omarchy din _Aspect > Teme_ în interiorul aplicației).
 
-Temele au un set de imagini de fundal dintre care poți alege folosind `Super + Ctrl + Space`.
+Temele au un set de imagini de fundal între care poți alege folosind `Super + Ctrl + W`.
 
-Poți găsi și mai multe teme pe [pagina cu teme suplimentare](https://omarchy.org/themes/) sau îți poți [face chiar tema ta](43-making-your-own-theme.md).
+Poți găsi și mai multe teme pe [pagina cu teme suplimentare](https://omarchy.org/themes/) sau chiar să [îți creezi propria temă](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Deblocări
 
-Temele pot avea și un design personalizat de deblocare, care este folosit pentru procesul de decriptare la pornire. Poți selecta unul dintre ele sub _Stil > Deblochează_. Arată așa:
+Temele pot avea și un design personalizat de deblocare, folosit pentru procesul de decriptare la pornire. Poți selecta unul dintre ele din _Aspect > Deblocare_. Arată astfel:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

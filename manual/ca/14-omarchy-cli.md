@@ -1,10 +1,10 @@
-# CLI d'Omarchy
+# Omarchy CLI
 
-Omarchy normalment es controla mitjançant les dreceres i el menú d'Omarchy (`Super + Space`). Però també el podeu controlar mitjançant la CLI `omarchy`. Això és especialment útil quan teniu un agent d'IA treballant amb vosaltres en la personalització o la configuració.
+Normalment, Omarchy es controla amb les tecles d'accés ràpid i el menú d'Omarchy (`Super + Space`). Però també el pots controlar amb la CLI `omarchy`. Això és especialment útil quan tens un agent d'IA treballant amb tu en la personalització o la configuració.
 
-La CLI té accés a totes les eines internes que es fan servir tant des del menú com d'altres maneres. Podeu veure tot el que hi ha disponible executant `omarchy` al terminal.
+La CLI té accés a totes les eines internes que s'utilitzen tant des del menú com d'altres maneres. Pots veure tot el que hi ha disponible executant `omarchy` al terminal.
 
-És una cosa així:
+Té un aspecte semblant a aquest:
 
 ```
 ~ ❯ omarchy
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-I podeu aprofundir en cada grup:
+I pots aprofundir en cada grup:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Cada ordre també accepta `--help`, tant si demaneu a tot un grup (`omarchy capture --help`) com a una sola ordre (`omarchy capture screenshot --help`).
+Cada comanda també accepta `--help`, tant si preguntes per un grup sencer (`omarchy capture --help`) com per una sola comanda (`omarchy capture screenshot --help`).
 
 ### Obrir el menú des del terminal
 
-El menú d'Omarchy també es pot programar, cosa útil per a les vostres pròpies dreceres. `omarchy menu` l'obre a l'arrel, i podeu saltar directament a qualsevol punt de l'arbre anomenant-lo: `omarchy menu summon style.theme` va directament al selector de temes, `omarchy menu toggle system` obre el menú del sistema i el torna a tancar si ja és obert, i `omarchy menu close` el desa.
+El menú d'Omarchy també es pot controlar amb scripts, cosa que va molt bé per a les teves pròpies assignacions de tecles. `omarchy menu` l'obre a l'arrel, i pots anar directament a qualsevol punt de l'arbre anomenant-lo: `omarchy menu summon appearance.theme` va directe al selector de temes, `omarchy menu toggle system` obre el menú del sistema i el torna a tancar si ja és obert, i `omarchy menu close` el tanca.

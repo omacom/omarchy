@@ -1,10 +1,10 @@
 # Pikanäppäimet
 
-Näet kaikki tärkeimmät näppäimistösidokset yhdistelmällä `Super + K` (Tmux-sidokset yhdistelmällä `Super + Alt + K` ja Herdr-sidokset yhdistelmällä `Super + Ctrl + K`).
+Näet kaikki tärkeimmät näppäinsidonnat näppäimillä `Super + K` (Tmux-sidonnat näppäimillä `Super + Alt + K` ja Herdr-sidonnat näppäimillä `Super + Ctrl + K`).
 
 ## Navigointi
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | Omarchy-valikko (sovellukset ja kaikki muu)    |
 | `Super + Alt + Space` | Sovellusruudukko |
@@ -12,201 +12,205 @@ Näet kaikki tärkeimmät näppäimistösidokset yhdistelmällä `Super + K` (Tm
 | `Super + Ctrl + L` | Lukitse tietokone |
 | `Super + W` or `Super + Q` | Sulje ikkuna             |
 | `Ctrl + Alt + Del` | Sulje kaikki ikkunat |
-| `Super + T`               | Vaihda ikkuna laatoitus/kelluva             |
-| `Super + J` | Vaihda ikkunan sijaintia (vaaka/pysty) |
-| `Super + O`               | Vaihda ponnauttaminen tahmasessa-kelluvassa |
-| `Super + L`               | Kierrä dwindle-, vieritys- ja kelluva-asettelua |
-| `Super + Alt + L`         | Kierrä asetteluja käänteiseen suuntaan |
-| `Super + P`               | Vaihda vale-ikkunan tyyliä (luonnollinen vast. venytetty) |
-| `Super + F`                 | Mene koko ruutuun              |
-| `Super + Alt + F`                 | Mene koko leveyteen              |
-| `Super + Ctrl + F`                 | Mene koko ruutuun ikkunan sisällä              |
-| `Super + 1/2/3/4`         | Hyppää tiettyyn työtilaan     |
-| `Super + Tab` | Hyppää seuraavaan työtilaan |
-| `Super + Shift + Tab` | Hyppää edelliseen työtilaan |
-| `Super + Ctrl + Tab` | Hyppää entiseen työtilaan |
-| `Super + Shift + 1/2/3/4` | Siirrä ikkuna työtilaan |
-| `Super + Shift + Alt + 1/2/3/4` | Siirrä ikkuna työtilaan seuraamatta |
-| `Super + S` / `Super + Grave` | Vaihda scratchpad |
-| `Super + Alt + S` / `Super + Shift + Grave` | Siirrä ikkuna scratchpadiin |
-| `Super + Shift + Alt + Arrows` | Siirrä työtilat suuntaiseen näyttöön |
-| `Super + Arrow`  | Siirrä kohdistus nuolen suunnan ikkunaan              |
-| `Super + Shift + Arrow`  | Vaihda ikkuna nuolen suunnan toisen kanssa     |
-| `Super + Minus` | Laajenna ikkuna vasemmalle |
-| `Super + Equal` | Kutista ikkunaa vasemmalle |
-| `Super + Shift + Minus` | Kutista ikkunaa ylöspäin |
-| `Super + Shift + Equal` | Laajenna ikkuna alas |
+| `Super + T`               | Vaihda ikkuna laatoituksen/kellunnan välillä             |
+| `Super + J` | Vaihda ikkunan asentoa (vaaka/pysty) |
+| `Super + O`               | Vaihda ikkunan nostamista kiinnitetyksi ja kelluvaksi |
+| `Super + L`               | Kierrä dwindle-, scrolling- ja floating-asettelujen läpi |
+| `Super + Alt + L`         | Kierrä asettelujen läpi päinvastaisessa järjestyksessä |
+| `Super + P`               | Vaihda pseudoikkunan tyyliä (natural v stretch) |
+| `Super + F`                 | Siirry koko näyttöön              |
+| `Super + Alt + F`                 | Siirry täyteen leveyteen              |
+| `Super + Ctrl + F`                 | Siirry koko näyttöön ikkunan sisällä              |
+| `Super + 1/2/3/4`         | Siirry tiettyyn työtilaan kohdistetulla näytöllä |
+| `Super + Tab` | Siirry seuraavaan työtilaan kohdistetulla näytöllä |
+| `Super + Shift + Tab` | Siirry edelliseen työtilaan kohdistetulla näytöllä |
+| `Super + Ctrl + Tab` | Siirry aiempaan työtilaan kohdistetulla näytöllä |
+| `Super + Shift + 1/2/3/4` | Siirrä ikkuna työtilaan kohdistetulla näytöllä |
+| `Super + Shift + Alt + 1/2/3/4` | Siirrä ikkuna työtilaan kohdistetulla näytöllä seuraamatta mukana |
+| `Super + S` | Vaihda täysi scratchpad |
+| `Super + Alt + S` | Siirrä ikkuna täyteen scratchpadiin |
+| `Super + Grave` | Vaihda Quake-konsoli |
+| `Super + Shift + Grave` | Siirrä ikkuna Quake-konsoliin |
+| `Super + Shift + Ctrl + Arrows` | Siirrä ikkuna siihen suuntaan olevalle näytölle |
+| `Super + Shift + Alt + Arrows` | Siirrä työtila siihen suuntaan olevalle näytölle |
+| `Super + Arrow`  | Siirrä kohdistus nuolen suuntaiseen ikkunaan, ylittäen näytön reunalla sille puolelle olevalle näytölle |
+| `Super + Shift + Arrow`  | Vaihda ikkuna nuolen suuntaisen toisen kanssa, mukaan lukien sillä puolella olevalla näytöllä oleva |
+| `Super + Minus` | Laajenna ikkunaa vasemmalle |
+| `Super + Equal` | Pienennä ikkunaa vasemmalle |
+| `Super + Shift + Minus` | Pienennä ikkunaa ylöspäin |
+| `Super + Shift + Equal` | Laajenna ikkunaa alaspäin |
 | `Super + Alt + Minus/Equal` | Sama koon muuttaminen pienemmin askelin |
 | `Super + Ctrl + Minus/Equal` | Sama koon muuttaminen suuremmin askelin |
 | `Super + Alt + Home` | Tallenna ikkunan leveys |
 | `Super + Home` | Palauta tallennettu ikkunan leveys |
 | `Super + Left Mouse` | Vedä ikkunaa ympäriinsä |
 | `Super + Right Mouse` | Muuta ikkunan kokoa |
-| `Super + Scroll Wheel` | Vieritä työtilojen läpi |
-| `Super + G`               | Vaihda ikkunoiden ryhmitys      |
-| `Super + Alt + G`               | Siirrä ikkuna pois ryhmästä      |
-| `Super + Alt + Tab`               | Kierrä ryhmän ikkunoiden välillä      |
-| `Super + Alt + Shift + Tab`               | Kierrä taaksepäin ryhmän ikkunoiden välillä      |
-| `Super + Alt + 1/2/3/4/5`               | Hyppää ryhmän tiettyyn ikkunaan      |
-| `Super + Alt + Arrow`  | Siirrä ikkuna ryhmään nuolen suuntaan  |
-| `Super + Ctrl + Left/Right`  | Liiku laatoitusryhmän ikkunoiden välillä |
-| `Super + Ctrl + Z` | Lähennä ruutuun (toista lisää suurennusta) |
-| `Super + Ctrl + Alt + Z` | Zoomaa täysin ulos ruudusta |
-| `Super + /` | Askella eteenpäin näytön skaalausvaihtoehtojen läpi |
-| `Super + Alt + /` | Askella taaksepäin näytön skaalausvaihtoehtojen läpi |
+| `Super + Scroll Wheel` | Selaa työtiloja kohdistetulla näytöllä |
+| `Super + G`               | Vaihda ikkunoiden ryhmittely      |
+| `Super + Alt + G`               | Siirrä ikkuna pois ryhmittelystä      |
+| `Super + Alt + Tab`               | Kierrä ryhmittelyn ikkunoiden välillä      |
+| `Super + Alt + Shift + Tab`               | Kierrä taaksepäin ryhmittelyn ikkunoiden välillä      |
+| `Super + Alt + Scroll Wheel` | Kierrä ryhmittelyn ikkunoiden välillä |
+| `Super + Alt + 1/2/3/4/5`               | Siirry tiettyyn ikkunaan ryhmittelyssä      |
+| `Super + Alt + Arrow`  | Siirrä ikkuna ryhmittelyyn nuolen suuntaan, mukaan lukien sillä puolella olevalla näytöllä oleva |
+| `Super + Ctrl + Left/Right`  | Siirry ikkunoiden välillä laatoitusryhmän sisällä |
+| `Super + Ctrl + Z` | Lähennä näyttöä (toista lisätäksesi zoomausta) |
+| `Super + Ctrl + Alt + Z` | Loitonna kokonaan näytöstä |
+| `Super + /` | Siirry eteenpäin näytön skaalausvaihtoehdoissa |
+| `Super + Alt + /` | Siirry taaksepäin näytön skaalausvaihtoehdoissa |
 | `Alt + Tab` | Kierrä eteenpäin aktiivisen työtilan ikkunoiden läpi |
 | `Alt + Shift + Tab` | Kierrä taaksepäin aktiivisen työtilan ikkunoiden läpi |
 | `Ctrl + Alt + Tab`| Kierrä kohdistusta eteenpäin näyttöjen läpi |
 | `Ctrl + Alt + Shift + Tab`| Kierrä kohdistusta taaksepäin näyttöjen läpi |
 
-## Järjestelmänsäätimet
+## Järjestelmän hallinta
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Äänipaneeli    |
 | `Super + Ctrl + B`           | Bluetooth-paneeli    |
-| `Super + Ctrl + W`           | Wifi/verkko-paneeli    |
+| `Super + Ctrl + N`           | Wifi-/verkkopaneeli    |
 | `Super + Ctrl + D`           | Näyttöpaneeli    |
 | `Super + Ctrl + P`           | Virtapaneeli    |
 | `Super + Ctrl + Alt + D`           | Kalenteripaneeli    |
 | `Super + Ctrl + Alt + E`           | Maailmankellopaneeli    |
 | `Super + Ctrl + 1-9`           | Vaihda palkkipaneelia sijainnin mukaan    |
-| `Super + Ctrl + S` | Jaa-valikko (LocalSendin kautta) |
-| `Super + Ctrl + T`           | Aktiivisuus (btop)    |
-| `Super + Ctrl + C` | Kaappaussäätimet (kuvakaappaus/-tallennus/valitsin) |
-| `Super + Ctrl + O` | Vaihtokytkinvalikko |
+| `Super + Ctrl + S` | Jakovalikko (LocalSendin kautta) |
+| `Super + Ctrl + C` | Kaappauksen hallinta (kuvakaappaus/-tallennus/valitsin) |
+| `Super + Ctrl + O` | Vaihda valikko |
 | `Super + Ctrl + H` | Laitteistovalikko |
-| `Super + Ctrl + Q` | Laskin |
-| `Super + Ctrl + E` | Emoji-valitsin |
+| `Super + Ctrl + E` | Emojivalitsin |
 | `Super + Ctrl + .` | Muunna media |
-| `Super + Shift + Ctrl + A` | Valitse tekoälyagentti |
+| `Super + Shift + Ctrl + A` | Valitse AI-agentti |
 
 ## Säädöt
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Shift + Brightness Up` | Ruudun enimmäiskirkkaus |
-| `Shift + Brightness Down` | Ruudun vähimmäiskirkkaus |
-| `Alt + Brightness Up/Down` | Tarkat 1 %:n kirkkausmuutokset |
-| `Alt + Volume Up/Down` | Tarkat 1 %:n äänenvoimakkuusmuutokset |
-| `Keyboard Brightness Up/Down` | Näppäimistön taustavalo kirkkaampi/himmeämpi |
-| `Keyboard Backlight` | Kierrä näppäimistön taustavalotasoja |
+| `Shift + Brightness Up` | Näytön enimmäiskirkkaus |
+| `Shift + Brightness Down` | Näytön vähimmäiskirkkaus |
+| `Alt + Brightness Up/Down` | Tarkat 1% kirkkausmuutokset |
+| `Alt + Volume Up/Down` | Tarkat 1% äänenvoimakkuuden muutokset |
+| `Keyboard Brightness Up/Down` | Näppäimistön taustavalo kirkkaammaksi/himmeämmäksi |
+| `Keyboard Backlight` | Kierrä näppäimistön taustavalon tasoja |
 | `Alt + Play` | Seuraava kappale |
 | `Alt + Shift + Play` | Edellinen kappale |
 
 ## Sovellusten käynnistäminen
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Pääte    |
 | `Super + Alt + Return` | Tmux-pääte |
-| `Super + Ctrl + Return` | Herdr (agentinhallinta) |
+| `Super + Ctrl + Return` | Herdr (agenttien hallinta) |
 | `Super + Shift + Return`           | Selain    |
 | `Super + Shift + Alt + B`           | Selain (yksityinen/incognito)    |
-| `Super + Shift + F`           | Tiedostojenhallinta    |
-| `Super + Shift + Alt + F`           | Tiedostojenhallinta päätteen cwd:ssä    |
+| `Super + Shift + F`           | Tiedostonhallinta    |
+| `Super + Shift + Alt + F`           | Tiedostonhallinta päätteen cwd:ssä    |
 | `Super + Shift + M`           | Musiikki (Spotify)    |
 | `Super + Shift + Alt + M`           | Musiikki (cliamp)    |
 | `Super + Shift + /`           | Salasanojen hallinta (1password)    |
+| `Super + Shift + Q`           | Laskin (Omacalc)    |
+| `Super + Shift + T`           | Aktiivisuus (btop)    |
 | `Super + Shift + N`           | Editori (Neovim)  |
 | `Super + Shift + C`           | Kalenteri ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | Sähköposti ([HEY](https://hey.com/))  |
-| `Super + Shift + Alt + E`           | Uusi viesti ([HEY](https://hey.com/))  |
+| `Super + Shift + Alt + E`           | Uusi sähköposti ([HEY](https://hey.com/))  |
 | `Super + Shift + A`           | AI (ChatGPT)  |
 | `Super + Shift + Alt + A`           | AI (Grok)  |
-| `Super + Shift + G`           | Viestin (Signal)  |
+| `Super + Shift + G`           | Viestintä (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
 | `Super + Shift + S`           | Google Maps  |
-| `Super + Shift + Alt + G`           | Viestin (WhatsApp)  |
-| `Super + Shift + Ctrl + G`           | Viestin (Google)  |
+| `Super + Shift + Alt + G`           | Viestintä (WhatsApp)  |
+| `Super + Shift + Ctrl + G`           | Viestintä (Google)  |
 | `Super + Shift + O`           | Obsidian  |
-| `Super + Shift + W`           | Kirjoitus (Omawrite)  |
+| `Super + Shift + W`           | Kirjoittaminen (Omawrite)  |
 | `Super + Shift + X`           | X |
 | `Super + Shift + Alt + X`           | X Compose |
 | `Super + Shift + Y`           | YouTube |
 
-Muuta/lisää sidoksia tiedostossa `~/.config/hypr/bindings.lua`.
+Muuta/lisää sidontoja tiedostossa `~/.config/hypr/bindings.lua`.
 
 ## Yleinen leikepöytä
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + C`           | Kopioi    |
 | `Super + X`           | Leikkaa (ei päätteessä)    |
 | `Super + V`           | Liitä    |
 | `Super + Ctrl + V`           | Leikepöydän hallinta    |
 
-Linuxissa tarvitset yleensä pääätteessä kopiointiin ja liittämiseen yhdistelmän `Ctrl + Shift + C/V` ja kaikkialla muualla yhdistelmän `Ctrl + C/V`. Nämä Omarchyn yhtenäiset leikepöydän pikanäppäimet toimivat kaikkialla.
+Yleensä Linuxissa tarvitset näppäimet `Ctrl + Shift + C/V` kopiointiin ja liittämiseen päätteessä ja näppäimet `Ctrl + C/V` siihen kaikkialla muualla. Nämä Omarchyn yhtenäiset leikepöydän pikanäppäimet toimivat kaikkialla.
 
 ## Kaappaus
 
-| Pikanäppäin              | Toiminto                       |
+| Hotkey              | Function                       |
 | ------------------- | ------------------------------ |
-| `Super + Ctrl + C` | Kaappausvalikko (näppäimistöille ilman PrintScr-painiketta) |
 | `Print Screen`            | Kuvakaappaus                      |
-| `Alt + Print Screen`            | Ruuduntallennus                     |
-| `Super + Print Screen` | Värinvalitsin |
+| `Super + Ctrl + Alt + C`            | Kuvakaappaus (sama otos näppäimistöille, joissa ei ole Print Screen -näppäintä) |
+| `Super + Ctrl + C` | Kaappausvalikko |
+| `Alt + Print Screen`            | Näytön tallennus                     |
+| `Super + Print Screen` | Värivalitsin |
 | `Super + Ctrl + Print Screen` | Tekstin poiminta leikepöydälle |
-| `Super + Alt + [` | Tee verkkokameran peitosta pienempi tallennettaessa |
-| `Super + Alt + ]` | Tee verkkokameran peitosta suurempi tallennettaessa |
-| `Alt + Shift + L` | Kopioi nykyinen URL verkkosovelluksesta tai Chromiumista |
-| `Alt + Shift + D` | Lataa nykyisen sivun video hakemistoon `~/Videos` |
-| `Super + Ctrl + X` | Aloita/lopeta sanelu (vaati _Asetukset > Oletukset > Sanelu_) |
-| `Right Alt` / `F9` | Paina-puhuaksesi-sanelu (vaatii Voxtypen tai Superwhisperin) |
+| `Super + Alt + [` | Pienennä verkkokameran peittokuvaa tallennuksen aikana |
+| `Super + Alt + ]` | Suurenna verkkokameran peittokuvaa tallennuksen aikana |
+| `Alt + Shift + L` | Kopioi nykyinen URL web-sovelluksesta tai Chromiumista |
+| `Alt + Shift + D` | Lataa nykyisellä sivulla oleva video kansioon `~/Videos` |
+| `Super + Ctrl + X` | Käynnistä/pysäytä sanelu (vaatii kohdan _Setup > Defaults > Dictation_) |
+| `Right Alt` / `F9` | Push-to-talk-sanelu (vaatii Voxtypen tai Superwhisperin) |
 
-Ruuduntallennuksien kohdalla pikanäppäin kysyy ensin, minkä äänen haluat, ja aloittaa sitten tallennuksen. Paina sitä uudelleen pysäyttääksesi. Katso yksityiskohdat kohdasta [kuvakaappaukset ja tallennus](12-screenshots-recording.md).
+Näyttötallennuksissa pikanäppäin kysyy ensin, mitä ääntä haluat, ja aloittaa sitten tallennuksen. Paina sitä uudelleen lopettaaksesi. Katso yksityiskohdat kohdasta [kuvakaappaukset ja tallennus](12-screenshots-recording.md).
 
-Kaikki kaappausvaihtoehdot ovat saatavilla myös Omarchy-valikon kohdassa _Käynnistä > Kaappaus_ (`Super + Space`).
+Kaikki kaappausvaihtoehdot ovat käytettävissä myös Omarchy-valikon kohdassa _Trigger > Capture_ (`Super + Space`).
 
 ## Ilmoitukset
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Hylkää viimeisin ilmoitus  |
+| `Super + ,` | Toimi uusimman ilmoituksen mukaan: avaa se tai paina sen ainoaa painiketta, valitse sen vaihtoehdoista tai hylkää se, kun siinä ei ole yhtään  |
 | `Super + Shift + ,` | Hylkää kaikki ilmoitukset |
-| `Super + Ctrl + ,` | Vaihda ilmoitusten hiljentäminen  |
-| `Super + Alt + ,` | Kutsu viimeisin ilmoitus  |
+| `Super + Ctrl + ,` | Hallitse ilmoituksia näppäimistöllä  |
+| `Super + Alt + ,` | Hylkää uusin ilmoitus  |
 | `Super + Shift + Alt + ,` | Avaa ilmoitushistoria  |
+| `Super + Ctrl + Alt + ,` | Vaihda ilmoitusten mykistäminen  |
 
 ## Tyyli
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Shift + Space` | Valitse uusi teema  |
-| `Super + Ctrl + Space` | Valitse teeman tausta |
+| `Super + Ctrl + T` | Valitse uusi teema (myös `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | Valitse teeman tausta (myös `Super + Ctrl + Space`) |
 | `Super + Backspace` | Vaihda ikkunan läpinäkyvyys |
-| `Super + Ctrl + Backspace` | Vaihda yhden ikkunan neliönäkökulma |
+| `Super + Ctrl + Backspace` | Vaihda yhden ikkunan neliömäinen kuvasuhde |
 
-Lisätaustakuvat ovat hakemistossa `~/.config/omarchy/backgrounds/<theme name>`. Saatavilla myös Omarchy-valikon kohdasta _Asenna > Tyyli > Tausta_.
+Lisätaustakuvat sijaitsevat kansiossa `~/.config/omarchy/backgrounds/<theme name>`. Saatavilla myös Omarchy-valikon kohdasta _Install > Style > Background_.
 
-Kaikki tyylivaihtoehdot ovat saatavilla myös Omarchy-valikon kohdassa _Tyyli_ (`Super + Space`).
+Kaikki tyylivaihtoehdot ovat käytettävissä myös Omarchy-valikon kohdassa _Style_ (`Super + Space`).
 
-## Vaihtokytkimet
+## Kytkimet
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | Vaihda lukitus joutilaana |
-| `Super + Ctrl + N` | Vaihda yövalon näytön lämpötila |
-| `Super + Ctrl + Delete` | Vaihda kannettavan näyttö päälle/pois |
+| `Super + Ctrl + I` | Vaihda lukitus joutilaana ollessa |
+| `Super + Ctrl + Delete` | Kytke kannettavan näyttö päälle/pois |
 | `Super + Ctrl + Alt + Delete` | Vaihda kannettavan näytön peilaus |
 | `Super + Shift + Space` | Vaihda yläpalkki  |
-| `Shift + Mute` | Vaihda seuraavaan äänen ulostuloon |
+| `Shift + Mute` | Vaihda seuraavaan äänilähtöön |
 | `Shift + Play` | Vaihda seuraavaan medialähteeseen |
-| `Super + Shift + Backspace` | Vaihda ikkunoiden välit |
-| `Super + Ctrl + Alt + F` | Vaihda koko ruudun työpöytä (yläpalkki + ikkunoiden välit) |
+| `Super + Shift + Backspace` | Vaihda ikkunavälit |
+| `Super + Ctrl + Alt + F` | Vaihda koko näytön työpöytä (yläpalkki + ikkunavälit) |
 
 ## Muistutukset
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + R` | Aseta muistutus  |
 | `Super + Ctrl + Alt + R` | Näytä kaikki muistutukset  |
 | `Super + Ctrl + Shift + R` | Tyhjennä kaikki muistutukset  |
 
-## Huomiot
+## Huomautukset
 
-
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + Alt + T` | Näytä aika ilmoituksena  |
 | `Super + Ctrl + Alt + B` | Näytä akku ilmoituksena  |
@@ -214,132 +218,132 @@ Kaikki tyylivaihtoehdot ovat saatavilla myös Omarchy-valikon kohdassa _Tyyli_ (
 
 ## Tmux
 
-Etuliitenäppäin on `Ctrl + Space` (`Ctrl + B` toimii myös). Voit muuttaa näitä sidoksia tiedostossa `~/.config/tmux/tmux.conf`.
+Etuliitenäppäin on `Ctrl + Space` (`Ctrl + B` toimii myös). Voit muuttaa näitä sidontoja tiedostossa `~/.config/tmux/tmux.conf`.
 
-### Paneelit
+### Ruudut
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Prefix + v` | Jaa paneeli viereen (pysty) |
-| `Prefix + h` | Jaa paneeli alapuolelle (vaaka) |
-| `Prefix + x` | Tapa paneeli |
-| `Prefix + z` | Vaihda paneelin suurennus (koko ruutu) |
-| `Alt + Enter` | Jaa paneeli alapuolelle (ilman etuliitettä) |
-| `Alt + Shift + Enter` | Jaa paneeli viereen (ilman etuliitettä) |
-| `Alt + Escape` | Tapa paneeli (ilman etuliitettä) |
-| `Ctrl + Alt + Arrows` | Liiku paneelien välillä |
-| `Ctrl + Alt + Shift + Arrows` | Muuta paneelien kokoa |
+| `Prefix + v` | Jaa ruutu viereen (pystysuora) |
+| `Prefix + h` | Jaa ruutu alle (vaakasuora) |
+| `Prefix + x` | Sulje ruutu |
+| `Prefix + z` | Vaihda ruudun zoomaus (koko näyttö) |
+| `Alt + Enter` | Jaa ruutu alle (ei etuliitettä) |
+| `Alt + Shift + Enter` | Jaa ruutu viereen (ei etuliitettä) |
+| `Alt + Escape` | Sulje ruutu (ei etuliitettä) |
+| `Ctrl + Alt + Arrows` | Siirry ruutujen välillä |
+| `Ctrl + Alt + Shift + Arrows` | Muuta ruutujen kokoa |
 
 ### Ikkunat
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Uusi ikkuna |
-| `Prefix + k` | Tapa ikkuna |
+| `Prefix + k` | Sulje ikkuna |
 | `Prefix + r` | Nimeä ikkuna uudelleen |
 | `Alt + 1-9` | Siirry tiettyyn ikkunaan |
-| `Alt + Arrow Left/Right` | Liiku ikkunoiden välillä |
-| `Alt + Shift + Arrow Left/Right` | Siirrä ikkuna vasemmalle/oikealle |
+| `Alt + Arrow Left/Right` | Siirry ikkunoiden välillä |
+| `Alt + Shift + Arrow Left/Right` | Siirrä ikkunaa vasemmalle/oikealle |
 
 ### Istunnot
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Uusi istunto |
-| `Prefix + K` | Tapa istunto |
+| `Prefix + K` | Lopeta istunto |
 | `Prefix + R` | Nimeä istunto uudelleen |
 | `Prefix + N` | Seuraava istunto |
 | `Prefix + P` | Edellinen istunto |
-| `Alt + Arrow Up/Down` | Liiku istuntojen välillä |
+| `Alt + Arrow Up/Down` | Siirry istuntojen välillä |
 | `Prefix + s` | Listaa istunnot |
 | `Prefix + d` | Irrota istunnosta |
 
 ### Kopiointitila (vi-tyyli)
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Siirry kopiointitilaan |
 | `v` | Aloita valinta (kopiointitilassa) |
 | `y` | Kopioi valinta (kopiointitilassa) |
 
-### Yleinen
+### Yleistä
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Prefix + q` | Lataa määritys uudelleen |
-| `Prefix + ?` | Näytä Tmux-pikanäppäimet |
+| `Prefix + q` | Lataa asetukset uudelleen |
+| `Prefix + ?` | Näytä Tmux-näppäinsidonnat |
 | `Prefix + :` | Komentokehote |
 
 ### Tmux-asettelufunktiot
 
-Nämä funktiot on ajettava Tmux-istunnon sisällä.
+Nämä funktiot on suoritettava Tmux-istunnon sisällä.
 
-| Komento | Toiminto |
+| Command | Function |
 | ------- | -------- |
-| `tdl <ai> [<second_ai>]` | Luo kehittäjäasettelua editorilla, tekoälyllä ja pääätteellä |
-| `tdlm <ai> [<second_ai>]` | Luo kehittäjäasettelua alihakemistoja kohti |
-| `tsl <count> <command>` | Luo monipaneelin parvi-asettelua |
+| `tdl <ai> [<second_ai>]` | Luo dev-asettelu editorilla, AI:lla ja päätteellä |
+| `tdlm <ai> [<second_ai>]` | Luo dev-asettelu alikansiota kohden |
+| `tsl <count> <command>` | Luo moniruutuinen swarm-asettelu |
 
 ## Ghostty-pääte
 
-Ghostty-pääte asennetaan Omarchy-valikon kohdasta _Asenna > Pääte_.
+Ghostty-pääte asennetaan Omarchy-valikon kohdan _Install > Terminal_ kautta.
 
-| Pikanäppäin                  | Toiminto              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Ctrl + Shift + E` | Uusi jako alapuolelle |
+| `Ctrl + Shift + E` | Uusi jako alle |
 | `Ctrl + Shift + O` | Uusi jako viereen |
-| `Ctrl + Alt + Arrows` | Liiku jakojen välillä |
+| `Ctrl + Alt + Arrows` | Siirry jakojen välillä |
 | `Super + Ctrl + Shift + Arrows` | Muuta jaon kokoa 10 rivillä |
 | `Super + Ctrl + Shift + Alt + Arrows` | Muuta jaon kokoa 100 rivillä |
 | `Ctrl + Shift + T` | Uusi välilehti  |
-| `Ctrl + Shift + Arrows` | Liiku välilehtien välillä |
+| `Ctrl + Shift + Arrows` | Siirry välilehtien välillä |
 | `Alt + Numbers` | Siirry tiettyyn välilehteen |
-| `Shift + Pg Up/Down` | Vieritä historiaa |
+| `Shift + Pg Up/Down` | Selaa historiaa |
 | `Ctrl + Left mouse` | Avaa linkki selaimessa |
 
-## Tiedostojenhallinta
+## Tiedostonhallinta
 
-| Pikanäppäin              | Toiminto                       |
+| Hotkey              | Function                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Siirry polkuun                     |
-| `Space`               | Esikatselu tiedosto (nuolet navigoivat) |
-| `Backspace`      | Palaa kansio taaksepäin             |
+| `Space`               | Esikatsele tiedostoa (nuolet navigoivat) |
+| `Backspace`      | Palaa yksi kansio takaisin             |
 
-## Neovim (jossa lazyvim)
+## Neovim (LazyVimillä)
 
 ### Navigointi
 
-| Pikanäppäin                   | Toiminto                        |
+| Hotkey                   | Function                        |
 | ------------------------ | ------------------------------- |
 | `Space`                    | Näytä komentovaihtoehdot            |
 | `Space Space`              | Avaa tiedosto sumealla haulla      |
 | `Space E`                  | Vaihda sivupalkki                  |
-| `Space G G`                | Näytä git-säätimet               |
-| `Space S G`                | Hae tiedoston sisältöä             |
+| `Space G G`                | Näytä git-hallinta               |
+| `Space S G`                | Hae tiedoston sisällöstä             |
 | `Ctrl + W W`               | Hyppää sivupalkin ja editorin välillä |
 | `Ctrl + Left/right arrow`  | Muuta sivupalkin kokoa          |
-| `Shift + H`                      | Siirry vasemmalle tiedostovälilehdelle             |
-| `Shift + L`                      | Siirry oikealle tiedostovälilehdelle            |
+| `Shift + H`                      | Siirry vasempaan tiedostovälilehteen             |
+| `Shift + L`                      | Siirry oikeaan tiedostovälilehteen            |
 | `Space B D`                | Sulje tiedostovälilehti                  |
 
 ### Sivupalkissa ollessa
 
-| Pikanäppäin                   | Toiminto                        |
+| Hotkey                   | Function                        |
 | ------------------------ | ------------------------------- |
-| `A`                        | Lisää uusi tiedosto ylähakemistoon      |
-| `Shift + A`                | Lisää uusi alihakemisto ylähakemistoon    |
-| `D`                        | Poista korostettu tiedosto/hakemisto     |
-| `M`                        | Siirrä korostettua tiedostoa/hakemistoa       |
-| `R`                        | Nimeä korostettu tiedosto/hakemisto uudelleen     |
+| `A`                        | Lisää uusi tiedosto yläkansioon      |
+| `Shift + A`                | Lisää uusi alikansio yläkansioon    |
+| `D`                        | Poista korostettu tiedosto/kansio     |
+| `M`                        | Siirrä korostettu tiedosto/kansio       |
+| `R`                        | Nimeä korostettu tiedosto/kansio uudelleen     |
 | `?`                        | Näytä ohje kaikille komennoille      |
 
 [Katso kaikki LazyVimin määrittämät Neovim-pikanäppäimet](https://www.lazyvim.org/keymaps).
 
-## Nopeat emojit
+## Pikaemojit
 
-Voit käyttää yhdistelmää `Super + Ctrl + E` näyttääksesi koko emoji-valitsimen, joka laittaa valinnan leikepöydälle, tai voit käyttää näitä nopean käytön vaihtoehtoja.
+Voit näyttää täydellisen emojivalitsimen näppäimillä `Super + Ctrl + E`, joka kopioi valinnan leikepöydälle, tai voit käyttää näitä pikavalintoja.
 
-| Pikanäppäin       | EM | Vihje       |
+| Hotkey       | EM | Clue       |
 | ------------ | -- | ---------- |
 | `Shift + CapsLock M S` | 😄 | hymy      |
 | `Shift + CapsLock M C` | 😂 | itku        |
@@ -348,29 +352,29 @@ Voit käyttää yhdistelmää `Super + Ctrl + E` näyttääksesi koko emoji-vali
 | `Shift + CapsLock M H` | ❤️ | sydän      |
 | `Shift + CapsLock M Y` | 👍 | kyllä        |
 | `Shift + CapsLock M N` | 👎 | ei         |
-| `Shift + CapsLock M F` | 🖕 | fuck       |
+| `Shift + CapsLock M F` | 🖕 | vittu       |
 | `Shift + CapsLock M W` | 🤞 | toive       |
 | `Shift + CapsLock M R` | 🤘 | rock       |
 | `Shift + CapsLock M K` | 😘 | suukko       |
-| `Shift + CapsLock M E` | 🙄 | eyeroll    |
-| `Shift + CapsLock M I` | 😉 | wink       |
-| `Shift + CapsLock M P` | 🙏 | rukoilija |
-| `Shift + CapsLock M D` | 🤤 | drool      |
+| `Shift + CapsLock M E` | 🙄 | silmänpyöritys    |
+| `Shift + CapsLock M I` | 😉 | silmänisku       |
+| `Shift + CapsLock M P` | 🙏 | rukoile |
+| `Shift + CapsLock M D` | 🤤 | kuolaa      |
 | `Shift + CapsLock M M` | 💰 | raha      |
-| `Shift + CapsLock M X` | 🎉 | xellebrate |
+| `Shift + CapsLock M X` | 🎉 | juhli |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
 | `Shift + CapsLock M T` | 🥂 | malja      |
 | `Shift + CapsLock M O` |👌 | ok |
 | `Shift + CapsLock M G` |👋 | tervehdys |
-| `Shift + CapsLock M A` |💪 | käsi |
-| `Shift + CapsLock M B` |🤯 | räjähdys |
+| `Shift + CapsLock M A` |💪 | käsivarsi |
+| `Shift + CapsLock M B` |🤯 | pään räjähdys |
 
-## Nopeat täydennykset
+## Pikatäydennykset
 
-| Pikanäppäin       | Täydennys       |
+| Hotkey       | Completion       |
 | ------------ |  ---------- |
-| `Shift + CapsLock Space Space` | — (mdash)   |
-| `Shift + CapsLock Space N` | Nimesi (sellaisena kuin se syötettiin asennuksessa)  |
-| `Shift + CapsLock Space E` | Sähköpostisi (sellaisena kuin se syötettiin asennuksessa)  |
+| `Shift + CapsLock Space Space` | — (pitkä viiva)   |
+| `Shift + CapsLock Space N` | Nimesi (kuten asennuksessa syötettiin)  |
+| `Shift + CapsLock Space E` | Sähköpostisi (kuten asennuksessa syötettiin)  |
 
-Voit lisätä omiasi lisää muokkaamalla tiedostoa `~/.XCompose` ja ajamalla sitten pääätteessä komennon `omarchy-restart-xcompose`, jotta muutokset poimitaan.
+Voit lisätä omiasi muokkaamalla tiedostoa `~/.XCompose` ja suorittamalla sitten päätteessä komennon `omarchy-restart-xcompose`, jotta muutokset tulevat käyttöön.

@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Χρήστης"
   },
-  "system.reboot-boot-menu": {
-    "label": "Επανεκκίνηση στο μενού εκκίνησης"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Καταγραφή σφαλμάτων ανενεργή"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Οθόνη φορητού ενεργή"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Οθόνη φορητού ανενεργή"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Κατοπτρισμός οθόνης ενεργός"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Κατοπτρισμός οθόνης ανενεργός"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Μετάβαση σε υβριδική GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Μετάβαση σε ενσωματωμένη GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Ενεργοποίηση επιφάνειας αφής"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Απενεργοποίηση επιφάνειας αφής"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Ενεργοποίηση οθόνης αφής"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Απενεργοποίηση οθόνης αφής"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Πυρήνας"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Εμφάνιση % μπαταρίας"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Απόκρυψη % μπαταρίας"
+  },
+  "appearance.windows": {
+    "label": "Παράθυρα"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Κενά παραθύρων ενεργά"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Κενά παραθύρων ανενεργά"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Αναλογία 1 παραθύρου ενεργή"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Αναλογία 1 παραθύρου ανενεργή"
+  },
+  "appearance.branding": {
+    "label": "Επωνυμία"
+  },
+  "appearance.animations-on": {
+    "label": "Κινήσεις ενεργές"
+  },
+  "appearance.animations-off": {
+    "label": "Κινήσεις ανενεργές"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Μείνε ξύπνιος"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Επίτρεψε ύπνο"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Ειδοποιήσεις ενεργές"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Σίγαση ειδοποιήσεων"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Νυχτερινός φωτισμός ενεργός"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Νυχτερινός φωτισμός ανενεργός"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Προφύλαξη οθόνης ενεργή"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Προφύλαξη οθόνης ανενεργή"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Καταγραφή σφαλμάτων ενεργή"
   }
 }

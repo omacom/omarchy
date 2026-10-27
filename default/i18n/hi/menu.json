@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "उपयोगकर्ता"
   },
-  "system.reboot-boot-menu": {
-    "label": "बूट मेनू में रीबूट"
+  "appearance.windows.gaps-on": {
+    "label": "विंडो गैप चालू"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "विंडो गैप बंद"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-विंडो अनुपात चालू"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-विंडो अनुपात बंद"
+  },
+  "appearance.branding": {
+    "label": "ब्रांडिंग"
+  },
+  "appearance.animations-on": {
+    "label": "एनिमेशन चालू"
+  },
+  "appearance.animations-off": {
+    "label": "एनिमेशन बंद"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "जागते रहें"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "स्लीप होने दें"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "सूचनाएं चालू"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "सूचनाएं शांत करें"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "नाइटलाइट चालू"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "नाइटलाइट बंद"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "स्क्रीनसेवर चालू"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "स्क्रीनसेवर बंद"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "क्रैश कैप्चर चालू"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "क्रैश कैप्चर बंद"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "लैपटॉप डिस्प्ले चालू"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "लैपटॉप डिस्प्ले बंद"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "डिस्प्ले मिररिंग चालू"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "बैटरी % दिखाएँ"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "बैटरी % छिपाएँ"
+  },
+  "appearance.windows": {
+    "label": "विंडो"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "डिस्प्ले मिररिंग बंद करें"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Hybrid GPU पर स्विच करें"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Integrated GPU पर स्विच करें"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "टचपैड चालू करें"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "टचपैड बंद करें"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "टचस्क्रीन चालू करें"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "टचस्क्रीन बंद करें"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "कर्नेल"
   }
 }
