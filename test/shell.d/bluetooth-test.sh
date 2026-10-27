@@ -280,3 +280,44 @@ pass "bluetooth counts a secondary controller as on"
 grep -q 'AutoEnable=false' "$ROOT/install/hardware/bluetooth.sh" &&
   fail "bluetooth install leaves AutoEnable at its default"
 pass "bluetooth install leaves AutoEnable at its default"
+
+
+# Desired on/off is mirrored under XDG state and re-applied after login (#13342).
+state_home="$device_tmp/state"
+mkdir -p "$state_home"
+export XDG_STATE_HOME="$state_home"
+
+off_log=$(bluetooth_power yes off)
+state_file="$state_home/omarchy/bluetooth-power"
+[[ $(<"$state_file") == "off" ]] || fail "bluetooth remembers off preference" "$(cat "$state_file" 2>/dev/null || true)"
+pass "bluetooth remembers off preference"
+
+on_log=$(bluetooth_power no on)
+[[ $(<"$state_file") == "on" ]] || fail "bluetooth remembers on preference" "$(cat "$state_file")"
+pass "bluetooth remembers on preference"
+
+: >"$device_tmp/log"
+PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" \
+  OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 \
+  "$ROOT/bin/omarchy-bluetooth-power" restore ||
+  fail "bluetooth restore exits cleanly for on preference"
+grep -qx "rfkill unblock bluetooth" "$device_tmp/log" ||
+  fail "bluetooth restore re-applies on" "$(cat "$device_tmp/log")"
+pass "bluetooth restore re-applies on"
+
+printf 'off\n' >"$state_file"
+: >"$device_tmp/log"
+PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" \
+  OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 \
+  "$ROOT/bin/omarchy-bluetooth-power" restore ||
+  fail "bluetooth restore exits cleanly for off preference"
+grep -qx "rfkill block bluetooth" "$device_tmp/log" ||
+  fail "bluetooth restore re-applies off" "$(cat "$device_tmp/log")"
+pass "bluetooth restore re-applies off"
+
+restore_unit="$ROOT/default/systemd/user/omarchy-bluetooth-power-restore.service"
+grep -Fxq 'ExecStart=/usr/bin/omarchy-bluetooth-power restore' "$restore_unit" ||
+  fail "bluetooth power restore unit invokes restore"
+grep -Fq 'omarchy-bluetooth-power-restore.service' "$ROOT/install/user/first-run/enable-user-units.sh" ||
+  fail "first-run enables bluetooth power restore"
+pass "bluetooth power restore unit is installed and enabled at first-run"
