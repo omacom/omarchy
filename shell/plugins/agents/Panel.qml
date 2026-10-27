@@ -1425,6 +1425,14 @@ Panel {
         font.bold: true
       }
 
+      UsageNote {
+        anchors.left: sectionName.right
+        anchors.leftMargin: Style.space(8)
+        anchors.verticalCenter: sectionName.verticalCenter
+        visible: !section.multi && message !== ""
+        record: section.provider
+      }
+
       Text {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
@@ -1533,12 +1541,6 @@ Panel {
       }
     }
 
-    UsageNote {
-      visible: !section.multi && text !== ""
-      width: parent.width
-      record: section.provider
-    }
-
     Repeater {
       model: section.multi ? section.accounts : []
 
@@ -1571,12 +1573,6 @@ Panel {
               stale: accountBlock.modelData.stale === true
               fetchedAt: Number(accountBlock.modelData.fetchedAt || 0)
             }
-          }
-
-          UsageNote {
-            visible: text !== ""
-            width: parent.width
-            record: accountBlock.modelData
           }
         }
       }
@@ -1844,6 +1840,7 @@ Panel {
           textFormat: Text.PlainText
           visible: text !== ""
           width: Math.max(0, Math.min(implicitWidth, detailRow.width
+            - (accountNote.visible ? accountNote.implicitWidth + detailRow.spacing : 0)
             - (signInDot.visible ? signInDot.implicitWidth + detailRow.spacing : 0)
             - (signInLink.visible ? signInLink.implicitWidth + detailRow.spacing : 0)))
           elide: Text.ElideRight
@@ -1854,6 +1851,11 @@ Panel {
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
+        }
+
+        UsageNote {
+          id: accountNote
+          record: head.account
         }
 
         // The dot is punctuation, not part of the link.
@@ -1948,15 +1950,27 @@ Panel {
     }
   }
 
-  // The reason the numbers above it aren't current, and what to do about it.
+  // A mark beside the name when the numbers aren't current, with why and
+  // what to do on hover.
   component UsageNote: Text {
+    id: noteMark
     property var record: null
-    text: root.usageNote(record)
+    readonly property string message: root.usageNote(record)
+    visible: message !== ""
+    text: "󰋽"
     textFormat: Text.PlainText
     color: root.dim
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
-    wrapMode: Text.WordWrap
+
+    HoverHandler { id: noteHover }
+
+    PanelToolTip {
+      visible: noteHover.hovered && noteMark.visible
+      // Capped through implicitWidth, which the tooltip centers itself by.
+      implicitWidth: Math.min(implicitContentWidth + leftPadding + rightPadding, Style.space(320))
+      text: noteMark.message
+    }
   }
 
   // One line per limit window: title, meter, percentage, and reset. A

@@ -25,8 +25,8 @@ Every subscription on one page, limits first.
   shows a _Sign-in required_ link that signs that account in again from the
   panel. Any other trouble — a paused token, another agent's sign-in, an
   endpoint that didn't answer — leaves the last known limits on show, with a
-  quiet note beneath them saying why they aren't current and what to do; their
-  tooltip says how old they are.
+  small info mark beside the name whose tooltip says why they aren't current
+  and what to do; each meter's tooltip says how old it is.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
   lines. An _ACTIVE_ label marks the account new sessions start as; the
