@@ -107,6 +107,8 @@ Install rows should therefore carry `disabled:` with the presence check, not
 `when:`; Remove rows are the opposite, hiding via `when:` what is not there
 to remove. `menu-test.sh` enforces the Install side of this convention.
 
+An `action` is not a guard, but a dead one — a stale or renamed command left over from an older config — fails as silently as an unevaluated guard used to: the menu closes, nothing runs, and nothing says why. Every plain action (only a command and plain words after it — no variables, quotes, or operators) therefore rides in the same batch, reporting `<id>:a:<0|1>`, and the shell warns in its journal about the visible rows whose command came back missing. Actions with anything to interpret are left unwarned rather than risk naming the wrong command. A batch of only action checks skips the package snapshot, since a `command -v` builtin needs none of it.
+
 ## Providers
 
 A submenu with `provider: "name"` gets its rows at runtime instead of from

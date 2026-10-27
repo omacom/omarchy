@@ -576,8 +576,50 @@ function guardLine(id, tag, expression) {
 // (~195ms to ~55ms once the package set was cached); more stopped paying.
 var GUARD_GROUPS = 8
 
+// An `action:` runs through `bash -lc` with nobody reading its stderr, so a
+// stale or renamed command closes the menu and does nothing else -- no error,
+// no journal line, and a whole menu of them reads as a dead desktop. The
+// guard batch already answers "is this executable" for a `when:`, so every
+// plain action asks the same of its command and the menu warns about the rows
+// that came back dead. Only an unambiguous shape is asked: one plain command
+// with plain words after it. Anything with a variable, a quote, or an
+// operator could make the first word not the program that runs, and stays
+// unwarned rather than warned about wrongly.
+var PLAIN_ACTION = /^[A-Za-z0-9_./][A-Za-z0-9_./:@+-]*( [A-Za-z0-9_./:@+-]+)*$/
+
+function actionCommandToken(action) {
+  var command = String(action || "").trim()
+  if (!PLAIN_ACTION.test(command)) return ""
+  return command.split(" ")[0]
+}
+
+function deadActionIds(results, whenResults, checkedItems, currentItems) {
+  var ids = []
+  var keys = Object.keys(results || {})
+  for (var i = 0; i < keys.length; i++) {
+    var id = keys[i]
+    if (results[id] !== false) continue
+    if (whenResults && whenResults[id] === false) continue
+    if (checkedItems || currentItems) {
+      var checked = checkedItems && checkedItems[id]
+      var current = currentItems && currentItems[id]
+      if (!checked || !current || checked.action !== current.action) continue
+    }
+    ids.push(id)
+  }
+  return ids
+}
+
+function deadActionWarning(item) {
+  if (!item) return ""
+  var label = (typeof item.label === "string" && item.label) ? item.label : item.id
+  return "Menu row '" + label + "' (" + item.id + ") runs '" + item.action
+    + "', which is not installed or not executable -- the row will do nothing when chosen"
+}
+
 // One bash script for every `when:`, `checked:` and `disabled:` in the menu,
-// reporting `<id>:<w|c|d>:<0|1>` per line. Speed is the whole point: the menu
+// and for every plain `action:`'s command, reporting `<id>:<w|c|d|a>:<0|1>`
+// per line. Speed is the whole point: the menu
 // opens on the last evaluation's answers, so however long this takes is how
 // long a row can contradict the state it describes.
 //
@@ -601,16 +643,24 @@ function guardScript(items) {
     if (entry.when) lines.push(guardLine(ids[i], "w", entry.when))
     if (entry.checked) lines.push(guardLine(ids[i], "c", entry.checked))
     if (entry.disabled) lines.push(guardLine(ids[i], "d", entry.disabled))
+    var actionToken = actionCommandToken(entry.action)
+    if (actionToken) lines.push(guardLine(ids[i], "a", "command -v " + actionToken))
   }
   if (lines.length === 0) return ""
 
+  // The prelude exists for the guards: the package snapshot answers the
+  // presence helpers and the readers feed the substituted expressions. An
+  // action check is one `command -v` builtin and needs neither, so a batch of
+  // only action checks -- a plugin menu whose rows are all actions, say --
+  // skips the prelude rather than build the package set for it.
+  var guarded = lines.some(function(line) { return /:[wcd]:/.test(line) })
+  var script = (guarded ? guardPrelude(lines.join("")) : "") + "__omarchy_groups=()\n"
   var groups = []
   for (var j = 0; j < lines.length; j++) {
     var group = j % GUARD_GROUPS
     groups[group] = (groups[group] || "") + lines[j]
   }
 
-  var script = guardPrelude(lines.join("")) + "__omarchy_groups=()\n"
   for (var k = 0; k < groups.length; k++) script += "{\n" + groups[k] + "} &\n__omarchy_groups+=($!)\n"
   return script + "__omarchy_failed=0\n"
     + 'for __omarchy_group in "${__omarchy_groups[@]}"; do wait "$__omarchy_group" || __omarchy_failed=1; done\n'
@@ -719,6 +769,9 @@ if (typeof module !== "undefined") {
     dmenuSelections: dmenuSelections,
     toggleDmenuSelection: toggleDmenuSelection,
     displayRow: displayRow,
-    applyTranslations: applyTranslations
+    applyTranslations: applyTranslations,
+    actionCommandToken: actionCommandToken,
+    deadActionIds: deadActionIds,
+    deadActionWarning: deadActionWarning
   }
 }

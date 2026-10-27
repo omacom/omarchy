@@ -65,6 +65,104 @@ assert(
   'guard script captures nothing when no guard uses the plain substitution'
 )
 
+// A dead action — a stale or renamed command left in a row's `action:` — used
+// to close the menu with nothing anywhere saying why. The batch now answers
+// for plain actions too, and the menu warns in the journal about the rows
+// whose command came back missing.
+assertEqual(
+  menu.actionCommandToken('omarchy-system-reboot'),
+  'omarchy-system-reboot',
+  'action lint names the command of a plain action'
+)
+assertEqual(
+  menu.actionCommandToken('omarchy-system logout'),
+  'omarchy-system',
+  'action lint names only the command, not its arguments'
+)
+assertEqual(
+  menu.actionCommandToken('/home/user/helper --flag'),
+  '/home/user/helper',
+  'action lint names an absolute path command'
+)
+assertEqual(menu.actionCommandToken('systemctl suspend'), 'systemctl', 'action lint names any plain command')
+
+// Anything with structure could make the first word not the program that
+// runs, so it is left alone rather than cried about wrongly.
+for (const tricky of [
+  '',
+  '   ',
+  'FOO=1 omarchy-system logout',
+  'omarchy-system logout | cat',
+  'omarchy-system logout && omarchy-system suspend',
+  'omarchy-system logout; omarchy-system suspend',
+  'omarchy-system logout > /dev/null',
+  'echo "rebooting"',
+  'omarchy-system logout # comment',
+  '$HELPER',
+  'omarchy-system  logout'
+]) {
+  assertEqual(menu.actionCommandToken(tricky), '', `action lint skips the unplain action ${JSON.stringify(tricky)}`)
+}
+
+const withActions = menu.guardScript({
+  good: { id: 'good', label: 'Logout', action: 'omarchy-system logout' },
+  bad: { id: 'bad', label: 'Reboot', action: 'omarchy-system-reboot' },
+  tricky: { id: 'tricky', label: 'Tricky', action: 'omarchy-system-reboot | cat' },
+  guardy: { id: 'guardy', label: 'Guarded', when: 'omarchy-pkg-present bash', action: 'omarchy-system logout' }
+})
+assert(
+  withActions.includes('if { command -v omarchy-system; } >/dev/null 2>&1; then echo good:a:1; else echo good:a:0; fi'),
+  'guard script asks the batch whether a plain action\'s command exists'
+)
+assert(
+  withActions.includes('then echo bad:a:1; else echo bad:a:0; fi'),
+  'guard script asks the batch about an action whose command ships nowhere'
+)
+assert(!/\btricky:a:/.test(withActions), 'guard script leaves an unplain action unwarned')
+assert(
+  withActions.indexOf('__omarchy_pkg_db') < withActions.indexOf('command -v omarchy-system'),
+  'action checks ride behind the same prelude the guards share'
+)
+assertEqual(
+  menu.guardScript({ plain: { id: 'plain', label: 'No guards', action: '' } }),
+  '',
+  'guard script is still empty when nothing in the menu can be asked anything'
+)
+
+// An action check is one `command -v` builtin; a batch of only those needs
+// neither the package snapshot nor the readers, and a menu whose rows are all
+// actions should not pay for building either.
+const only = menu.guardScript({ bad: { id: 'bad', label: 'Reboot', action: 'omarchy-system-reboot' } })
+assert(only.includes('echo bad:a:0'), 'an action-only batch still asks its checks')
+assert(!only.includes('__omarchy_pkg_db') && !only.includes('pacman'), 'an action-only batch skips the package snapshot')
+assert(!only.includes('__omarchy_read_'), 'an action-only batch captures no readers')
+
+// What the menu does with the answers: warn once per dead row, naming the
+// row, its id, and the command that is gone, while skipping rows that `when:`
+// hid and answers from a batch whose row has already changed.
+assertDeepEqual(menu.deadActionIds({ a: true, b: false, c: false }), ['b', 'c'], 'dead action ids lists what came back missing')
+assertDeepEqual(
+  menu.deadActionIds({ a: false, b: false, c: false }, { a: false, b: true }),
+  ['b', 'c'],
+  'dead action ids skips rows that when: hid'
+)
+assertDeepEqual(
+  menu.deadActionIds(
+    { same: false, fixed: false, dropped: false },
+    {},
+    { same: { action: 'gone' }, fixed: { action: 'gone' }, dropped: { action: 'gone' } },
+    { same: { action: 'gone' }, fixed: { action: 'replacement' } }
+  ),
+  ['same'],
+  'dead action ids discards stale answers for rows whose action changed or disappeared'
+)
+const warning = menu.deadActionWarning({ id: 'system.reboot', label: 'Reboot', action: 'omarchy-system-reboot' })
+assert(
+  warning.includes('Reboot') && warning.includes('system.reboot') && warning.includes('omarchy-system-reboot'),
+  'the warning names the row, its id, and the command that is gone'
+)
+assertEqual(menu.deadActionWarning(undefined), '', 'the warning survives a row the menu no longer has')
+
 // Every reader named in the shipped menu has to be listed, or it silently
 // keeps forking once per row that reads it.
 const fs = require('fs')
@@ -201,6 +299,26 @@ printf "survived\n"' 2>/dev/null)
 [[ $(head -n 2 <<<"$errexit_result" | sort) == $'hit:c:1\nmiss:c:0' && $(tail -n 1 <<<"$errexit_result") == "survived" ]] ||
   fail "guard batch survives a failing reader under errexit" "got: $errexit_result"
 pass "guard batch survives a reader that exits nonzero under errexit"
+
+# The action answers come from the same batch machinery, so run one for real:
+# a command the stub PATH has reports present, a command nothing has reports
+# missing, and the batch still exits 0 so the menu keeps the answers.
+action_script=$(node -e '
+  const path = require("path")
+  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+  process.stdout.write(menu.guardScript({
+    hit: { id: "hit", label: "Logout", action: "omarchy-menu-action-stub logout" },
+    miss: { id: "miss", label: "Reboot", action: "omarchy-menu-action-absent" }
+  }))
+')
+printf '#!/bin/bash\nexit 0\n' >"$stub_dir/omarchy-menu-action-stub"
+chmod +x "$stub_dir/omarchy-menu-action-stub"
+action_status=0
+action_result=$(XDG_RUNTIME_DIR="" PATH="$stub_dir:$PATH" bash -c "$action_script") || action_status=$?
+[[ $(sort <<<"$action_result") == $'hit:a:1\nmiss:a:0' ]] && (( action_status == 0 )) ||
+  fail "the batch answers for plain actions through real bash" "status=$action_status got: $action_result"
+pass "the batch answers whether each plain action's command exists"
+
 
 # Update > Extra Themes runs omarchy-theme-update, which pulls the themes that
 # came from a git clone and skips everything else, so the guard has to answer
