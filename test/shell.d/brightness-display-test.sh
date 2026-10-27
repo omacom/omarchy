@@ -155,6 +155,27 @@ if PATH="$mock_bin:$PATH" "$ROOT/bin/omarchy-hyprland-monitor-focused-apple"; th
 fi
 pass "named Apple display is detected independently of focus"
 
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "monitors -j" ]]; then
+  printf '%s\n' '[{"name":"eDP-1","disabled":false,"dpmsStatus":true}]'
+fi
+SH
+chmod +x "$mock_bin/hyprctl"
+: >"$call_log"
+run_brightness --no-osd on >/dev/null
+if grep -F "dispatch hl.dsp.dpms({ action = \"enable\" })" "$call_log" >/dev/null; then
+  fail "on skips DPMS enable when every panel already reports lit"
+fi
+pass "on skips DPMS enable when every panel already reports lit"
+
+: >"$call_log"
+run_brightness --no-osd --force on >/dev/null
+grep -F "dispatch hl.dsp.dpms({ action = \"enable\" })" "$call_log" >/dev/null || \
+  fail "--force on dispatches DPMS enable despite stale dpmsStatus"
+pass "--force on dispatches DPMS enable despite stale dpmsStatus"
+
 # A platform whose display driver has no DDC channel says so: an external
 # monitor whose connector has no ddc node is not probed and never dims the
 # built-in panel in its place.
@@ -194,3 +215,18 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "monitors -j" ]]; then
+  printf '%s\n' '[{"name":"eDP-1","disabled":false,"dpmsStatus":false}]'
+fi
+SH
+chmod +x "$mock_bin/hyprctl"
+: >"$call_log"
+run_brightness --no-osd on >/dev/null
+if ! grep -F "dispatch hl.dsp.dpms({ action = \"enable\" })" "$call_log" >/dev/null; then
+  fail "on dispatches DPMS enable when an enabled panel reports dark"
+fi
+pass "on dispatches DPMS enable when an enabled panel reports dark"
