@@ -12,6 +12,10 @@ Item {
   id: root
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  // The shell host, for the launch OSD. Showing and closing it in process
+  // keeps the two in order; as detached omarchy-shell calls, a close could
+  // reach the OSD before its show and strand it on screen.
+  property var host: null
 
   property var configuredHiddenEntryIds: ({})
   property var desktopHiddenEntryIds: ({})
@@ -186,7 +190,7 @@ Item {
     launchDelay.stop()
     launchTimeout.stop()
     if (root.launchOsdOpen) {
-      Quickshell.execDetached(["omarchy-shell", "osd", "close"])
+      if (root.host) root.host.hide("omarchy.osd")
       root.launchOsdOpen = false
     }
   }
@@ -257,7 +261,7 @@ Item {
     onTriggered: {
       if (root.toplevelCount() > root.launchToplevelCount || ToplevelManager.activeToplevel !== root.launchActiveToplevel) return
       root.launchOsdOpen = true
-      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 })])
+      if (root.host) root.host.summon("omarchy.osd", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 }))
     }
   }
 

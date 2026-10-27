@@ -21,7 +21,7 @@ ShellRoot {
   // own empty copies.
   property PluginRegistry pluginRegistry: PluginRegistry { }
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
-  property AppLibrary appLibrary: AppLibrary { }
+  property AppLibrary appLibrary: AppLibrary { host: shell }
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
   property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
 
