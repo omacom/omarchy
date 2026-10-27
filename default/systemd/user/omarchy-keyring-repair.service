@@ -1,0 +1,17 @@
+[Unit]
+Description=Repair Omarchy's passwordless default keyring
+# Must run before session apps ask the Secret Service for items. Autostarted
+# gnome-keyring and the first libsecret client both land after
+# graphical-session-pre; repairing the on-disk keyring here keeps a corrupt
+# cleartext file or a password-protected replacement from stranding autologin.
+DefaultDependencies=no
+After=default.target
+Before=graphical-session-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-keyring-repair
+RemainAfterExit=yes
+
+[Install]
+WantedBy=graphical-session-pre.target
