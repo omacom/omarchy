@@ -24,6 +24,37 @@ assertDeepEqual(
 assertDeepEqual(audio.rowSnapshot(undefined), [], 'audio projects a missing list to no rows')
 assert(audio.nodeRow({ id: 7, name: 'bluez_output' }).name === 'bluez_output', 'audio rows carry the node name that identifies them')
 
+const mic = { id: 43, name: 'alsa_input', audio: {} }
+const virtualMic = { id: 44, name: 'virtual_mic' }
+const sourcePorts = audio.parseSourcePorts(JSON.stringify([
+  { name: mic.name, active_port: 'internal', ports: [
+    { name: 'internal', description: 'Internal Microphone', availability: 'availability unknown' },
+    { name: 'headset', description: 'Headset Microphone', availability: 'available' },
+    { name: 'unplugged', description: 'Unplugged Microphone', availability: 'not available' }
+  ] },
+  { name: virtualMic.name, ports: [] }
+]))
+assertDeepEqual(audio.sourceRows([mic, virtualMic], sourcePorts), [
+  { id: 43, name: 'alsa_input', port: 'internal', portLabel: 'Internal Microphone', portActive: true },
+  { id: 43, name: 'alsa_input', port: 'headset', portLabel: 'Headset Microphone', portActive: false },
+  { id: 44, name: 'virtual_mic', port: '', portLabel: '', portActive: true }
+], 'inputs expose usable ports as primitive rows and retain portless virtual sources')
+sourcePorts.alsa_input.activePort = 'headset'
+sourcePorts.alsa_input.ports[1].availability = 'not available'
+assertDeepEqual(audio.sourceRows([mic], sourcePorts).map(row => [row.port, row.portActive]),
+  [['internal', false], ['headset', true]], 'an unavailable active input port stays visible until the route changes')
+sourcePorts.alsa_input.activePort = 'internal'
+assertDeepEqual(audio.sourceRows([mic], sourcePorts).map(row => row.port), ['internal'],
+  'unplugging the headset removes its inactive port')
+sourcePorts.alsa_input.ports[1].availability = 'available'
+assertEqual(audio.sourceRows([mic], sourcePorts).length, 2, 'replugging the headset restores its selectable port')
+assertDeepEqual(audio.sourceRows([{ id: 45, name: 'new_mic' }, null, {}], {}),
+  [{ id: 45, name: 'new_mic', port: '', portLabel: '', portActive: true }],
+  'a newly discovered input is usable before its port listing arrives')
+for (const raw of ['', 'not json', '{}', 'null'])
+  assertEqual(audio.parseSourcePorts(raw), null, 'failed source reads do not replace the last port listing')
+assertDeepEqual(audio.parseSourcePorts('[]'), {}, 'a successful empty source listing clears removed inputs')
+
 assertEqual(audio.outputVolumeName(0, false), 'Silenced', 'audio labels silent output')
 assertEqual(audio.outputVolumeName(0.9, false), 'Party mode', 'audio labels loud output')
 assertEqual(audio.outputVolumeName(0.5, true), 'Muted', 'audio labels muted output')
@@ -123,6 +154,23 @@ for (const file of sources)
   assert(!/apple|asahi|macbook|j[0-9]{3}|omarchy-hw-|platform-sound/i.test(read(file)), file + ' names no platform')
 
 const panel = read('shell/plugins/panels/audio/Panel.qml')
+{
+  const activateBody = panel.match(/function activateCursor\(\) \{([\s\S]*?)\n  \}/)[1]
+  const activate = new Function('state', 'nodeFor', 'setDefaultSource',
+    activateBody.replace(/\b(focusSection|selectedIndex|displayAudioSources)\b/g, 'state.$1'))
+  let selected
+  const row = { id: mic.id, name: mic.name, port: 'headset' }
+  activate({ focusSection: 'input', selectedIndex: 0, displayAudioSources: [row] },
+    () => mic, (node, port) => { selected = [node.id, port] })
+  assertDeepEqual(selected, [43, 'headset'], 'activating an input row carries its selected port')
+
+  const selectBody = panel.match(/function setDefaultSource\([^)]*\) \{([\s\S]*?)\n  \}/)[1]
+  const select = new Function('node', 'port', 'Pipewire', 'Quickshell', selectBody)
+  let command
+  select(mic, selected[1], {}, { execDetached: args => { command = args } })
+  assertDeepEqual(command, ['omarchy-audio-input-set-default', '43', 'alsa_input', 'headset'],
+    'input selection passes the port to the real CLI boundary')
+}
 assert(/inputPeakNode: inputViaWpctl \? null : source/.test(panel) && /inputLevelShown: !!inputPeakNode/.test(panel) &&
   /visible: root\.inputLevelShown[^}]*inputPeakMonitor\.peak/.test(panel),
   'the input level bar is hidden when the input is driven through wpctl')

@@ -49,7 +49,7 @@ Panel {
     for (var i = 0; i < nodes.length; i++) {
       var n = nodes[i]
       if (!n || n.isSink || n.isStream) continue
-      if (!isAudioSource(n) && !Model.isUntypedSource(n, sourceAvailability)) continue
+      if (!isAudioSource(n) && !Model.isUntypedSource(n, sourcePorts)) continue
       var name = n.name || ""
       if (name === "quickshell" || platformHides(n)) continue
       list.push(n)
@@ -73,7 +73,8 @@ Panel {
 
   property var sinkAvailability: ({})
   property bool sinkAvailabilityLoaded: false
-  property var sourceAvailability: ({})
+  property var sourcePorts: ({})
+  property bool sourcePortsStale: false
 
   // Identify true playback streams without reading node.properties here:
   // PwNode.properties is invalid until the node is bound, and reading it while
@@ -358,7 +359,7 @@ Panel {
     if (focusSection === "input") {
       if (selectedIndex === -1) { toggleInputMute(); return }
       var src = nodeFor(displayAudioSources[selectedIndex])
-      if (src) setDefaultSource(src)
+      if (src) setDefaultSource(src, displayAudioSources[selectedIndex].port)
       return
     }
     if (focusSection === "streams" && selectedIndex >= 0) {
@@ -369,6 +370,7 @@ Panel {
 
   onOpenedChanged: {
     if (opened) {
+      refreshSourcePorts()
       refreshDisplayAudioModels()
       focusSection = "output"
       selectedIndex = -1  // first keyboard cursor reveal starts on the output slider
@@ -383,6 +385,7 @@ Panel {
   onAudioSinksChanged: scheduleDisplayAudioModelRefresh()
   onAudioSourcesChanged: scheduleDisplayAudioModelRefresh()
   onAudioStreamsChanged: scheduleDisplayAudioModelRefresh()
+  onSourcePortsChanged: scheduleDisplayAudioModelRefresh()
 
   function rowSnapshot(list) {
     return Model.rowSnapshot(list)
@@ -403,7 +406,7 @@ Panel {
   function refreshDisplayAudioModels() {
     if (!opened) return
     displayAudioSinks = rowSnapshot(audioSinks)
-    displayAudioSources = rowSnapshot(audioSources)
+    displayAudioSources = Model.sourceRows(audioSources, sourcePorts)
     displayAudioStreams = rowSnapshot(audioStreams)
     clampCursor()
   }
@@ -554,15 +557,16 @@ Panel {
     }
   }
 
-  function setDefaultSource(node) {
+  function setDefaultSource(node, port) {
     if (!node) return
     // Quickshell refuses an untyped node; the command below still selects it.
-    if (node.audio) Pipewire.preferredDefaultAudioSource = node
+    if (node.audio && !port) Pipewire.preferredDefaultAudioSource = node
     if (node.id !== undefined && node.name) {
       Quickshell.execDetached([
         "omarchy-audio-input-set-default",
         String(node.id),
-        String(node.name)
+        String(node.name),
+        String(port || "")
       ])
     }
   }
@@ -576,6 +580,16 @@ Panel {
   function updateSinkAvailability(raw) {
     sinkAvailability = Model.parseSinkAvailability(raw)
     sinkAvailabilityLoaded = true
+  }
+
+  function refreshSourcePorts() {
+    if (!opened) return
+    if (sourcePortsProc.running) {
+      sourcePortsStale = true
+      return
+    }
+    sourcePortsStale = false
+    sourcePortsProc.running = true
   }
 
   function friendlyDeviceLabel(text) {
@@ -679,12 +693,30 @@ Panel {
   }
 
   Process {
-    id: sourceAvailabilityProc
-    command: ["omarchy-audio-sink-availability", "sources"]
+    id: sourcePortsProc
+    command: ["pactl", "--format=json", "list", "sources"]
+    environment: ({ LC_ALL: "C" })
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.sourceAvailability = Model.parseSinkAvailability(text)
+      onStreamFinished: {
+        var next = Model.parseSourcePorts(text)
+        if (next !== null) root.sourcePorts = next
+      }
     }
+    onExited: if (root.sourcePortsStale) Qt.callLater(root.refreshSourcePorts)
+  }
+
+  Connections {
+    target: UntypedInput
+    function onSourcesChanged() {
+      if (root.opened) sourcePortsRefreshTimer.restart()
+    }
+  }
+
+  Timer {
+    id: sourcePortsRefreshTimer
+    interval: 100
+    onTriggered: root.refreshSourcePorts()
   }
 
   Process {
@@ -711,7 +743,6 @@ Panel {
     triggeredOnStart: true
     onTriggered: {
       if (!sinkAvailabilityProc.running) sinkAvailabilityProc.running = true
-      if (!sourceAvailabilityProc.running) sourceAvailabilityProc.running = true
     }
   }
 
@@ -1081,6 +1112,9 @@ Panel {
                 required property int index
                 width: panelColumn.width
                 node: root.nodeFor(modelData)
+                port: modelData.port
+                portLabel: modelData.portLabel
+                portActive: modelData.portActive
                 rowIndex: index
               }
             }
@@ -1190,8 +1224,11 @@ Panel {
     id: sourceRow
     required property var node
     required property int rowIndex
+    required property string port
+    required property string portLabel
+    required property bool portActive
 
-    readonly property bool isActive: root.source && node && root.source.id === node.id
+    readonly property bool isActive: root.source && node && root.source.id === node.id && portActive
     hasCursor: root.cursorActive && root.focusSection === "input" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(sourceRow)
     current: isActive
@@ -1222,7 +1259,7 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: root.nodeLabel(sourceRow.node)
+        text: sourceRow.portLabel || root.nodeLabel(sourceRow.node)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.body
@@ -1242,7 +1279,7 @@ Panel {
         root.focusSection = "input"
         root.selectedIndex = sourceRow.rowIndex
       }
-      onClicked: root.setDefaultSource(sourceRow.node)
+      onClicked: root.setDefaultSource(sourceRow.node, sourceRow.port)
     }
   }
 

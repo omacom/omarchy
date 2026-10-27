@@ -45,6 +45,49 @@ function rowSnapshot(list) {
   return rows
 }
 
+function parseSourcePorts(raw) {
+  var sources
+  try { sources = JSON.parse(raw) } catch (e) { return null }
+  if (!Array.isArray(sources)) return null
+
+  var next = {}
+  for (var i = 0; i < sources.length; i++) {
+    var source = sources[i]
+    if (!source || !source.name) continue
+    next[source.name] = {
+      activePort: String(source.active_port || ""),
+      ports: Array.isArray(source.ports) ? source.ports : []
+    }
+  }
+  return next
+}
+
+// Keep the node identity primitive, just as rowSnapshot does. One source may
+// expose several jacks; selecting its default node alone never switches them.
+function sourceRows(list, sourcePorts) {
+  var rows = []
+  var values = list || []
+  for (var i = 0; i < values.length; i++) {
+    var row = nodeRow(values[i])
+    if (!row) continue
+    var info = sourcePorts[row.name]
+    var ports = info ? info.ports : []
+    if (ports.length === 0) {
+      rows.push({ id: row.id, name: row.name, port: "", portLabel: "", portActive: true })
+      continue
+    }
+    for (var j = 0; j < ports.length; j++) {
+      var port = ports[j]
+      if (!port || !port.name) continue
+      var active = port.name === info.activePort
+      if (port.availability === "not available" && !active) continue
+      rows.push({ id: row.id, name: row.name, port: String(port.name),
+        portLabel: String(port.description || port.name), portActive: active })
+    }
+  }
+  return rows
+}
+
 // tr is an optional translate(key, english) from the QML side (I18n.t);
 // without it the English text stands, which is what the Node tests assert.
 function outputVolumeName(volume, muted, tr) {
@@ -279,6 +322,8 @@ if (typeof module !== "undefined") {
     isAudioSource: isAudioSource,
     nodeRow: nodeRow,
     rowSnapshot: rowSnapshot,
+    parseSourcePorts: parseSourcePorts,
+    sourceRows: sourceRows,
     outputVolumeName: outputVolumeName,
     parseSinkAvailability: parseSinkAvailability,
     friendlyDeviceLabel: friendlyDeviceLabel,

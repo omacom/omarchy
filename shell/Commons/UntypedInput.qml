@@ -15,6 +15,10 @@ import "AudioNodesModel.js" as Model
 Singleton {
   id: root
 
+  // The audio panel shares this subscription to refresh jack availability and
+  // active ports, including when the default input has native volume support.
+  signal sourcesChanged()
+
   readonly property var source: Pipewire.defaultAudioSource
   // The default input is untyped, so this drives it.
   readonly property bool active: !!source && !source.audio
@@ -46,7 +50,7 @@ Singleton {
     pendingVolume = null
     pendingMute = null
     quickExits = 0
-    events.running = nodeId >= 0
+    events.running = true
     refresh()
   }
 
@@ -129,14 +133,18 @@ Singleton {
     id: events
     command: ["pactl", "subscribe"]
     environment: ({ LC_ALL: "C" })
-    onRunningChanged: if (running) root.subscribedAt = Date.now()
+    onRunningChanged: if (running) {
+      root.subscribedAt = Date.now()
+      root.sourcesChanged()
+    }
     onExited: {
       root.quickExits = Date.now() - root.subscribedAt < 1000 ? root.quickExits + 1 : 0
-      if (root.nodeId >= 0 && root.quickExits < 5) resubscribe.start()
+      if (root.quickExits < 5) resubscribe.start()
     }
     stdout: SplitParser {
       onRead: function(line) {
         if (String(line).indexOf(" on source #") !== -1) root.refresh()
+        if (/ on (source|card|server) #/.test(String(line))) root.sourcesChanged()
       }
     }
   }
@@ -144,7 +152,7 @@ Singleton {
   Timer {
     id: resubscribe
     interval: 2000
-    onTriggered: if (root.nodeId >= 0 && !events.running) {
+    onTriggered: if (!events.running) {
       events.running = true
       root.refresh()
     }

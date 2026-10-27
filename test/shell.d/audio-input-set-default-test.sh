@@ -15,6 +15,9 @@ SH
 cat >"$work/bin/pactl" <<'SH'
 #!/bin/bash
 printf 'pactl %s\n' "$*" >>"$CALLS"
+if [[ ${1:-} == "set-source-port" && ${REJECT_PORT:-0} == 1 ]]; then
+  exit 1
+fi
 if [[ $* == "list source-outputs" ]]; then
   [[ ${LC_ALL:-} == C ]] || echo "pactl read outside the C locale" >>"$CALLS"
   cat "$OUTPUTS"
@@ -74,3 +77,18 @@ OUT
 PATH="$work/bin:$PATH" "$ROOT/bin/omarchy-audio-input-set-default" 43 alsa_input.pci-0000_00_1f.3.analog-stereo
 [[ $(moved) == "12 13 14 " ]] || fail 'input set-default still moves every other recording' "$(moved)"
 pass 'input set-default still moves every other recording'
+
+: >"$CALLS"
+PATH="$work/bin:$PATH" "$ROOT/bin/omarchy-audio-input-set-default" 43 alsa_input analog-input-headset-mic
+mapfile -t calls <"$CALLS"
+[[ ${calls[0]} == 'pactl set-source-port alsa_input analog-input-headset-mic' ]] || fail 'input selection switches the port before the default source'
+[[ ${calls[1]} == 'wpctl set-default 43' && ${calls[2]} == 'pactl set-default-source alsa_input' ]] || fail 'input port selection keeps the selected source as default'
+[[ $(moved) == "12 13 14 " ]] || fail 'input port selection moves active recordings to the chosen source'
+pass 'input port selection switches the route, selects the source and moves recordings'
+
+: >"$CALLS"
+if PATH="$work/bin:$PATH" REJECT_PORT=1 "$ROOT/bin/omarchy-audio-input-set-default" 43 alsa_input disappeared-port; then
+  fail 'a disappearing input port is reported as a failed selection'
+fi
+[[ $(<"$CALLS") == 'pactl set-source-port alsa_input disappeared-port' ]] || fail 'a failed port switch leaves defaults and recordings alone'
+pass 'a failed input port switch leaves defaults and recordings alone'

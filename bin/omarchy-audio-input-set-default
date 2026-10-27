@@ -1,15 +1,22 @@
 #!/bin/bash
 
-# omarchy:summary=Set the default audio input and move active streams
-# omarchy:args=<node-id> <source-name>
+# omarchy:summary=Set the default audio input and port, and move active streams
+# omarchy:args=<node-id> <source-name> [port-name]
 # omarchy:examples=omarchy audio input set default 43 alsa_input.pci-0000_00_1f.3.analog-stereo
 
 node_id=${1:-}
 source_name=${2:-}
+port_name=${3:-}
 
 if [[ -z $node_id || -z $source_name ]]; then
-  echo "Usage: omarchy-audio-input-set-default <node-id> <source-name>" >&2
+  echo "Usage: omarchy-audio-input-set-default <node-id> <source-name> [port-name]" >&2
   exit 1
+fi
+
+# Select the route through WirePlumber, which remembers the device's route.
+# If it disappeared during a hotplug, leave the current default and streams alone.
+if [[ -n $port_name ]]; then
+  pactl set-source-port "$source_name" "$port_name" || exit 1
 fi
 
 wpctl set-default "$node_id" 2>/dev/null || true
