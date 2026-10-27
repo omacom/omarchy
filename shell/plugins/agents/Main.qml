@@ -203,7 +203,7 @@ Item {
   // Opening the panel wants the numbers that go stale on the wire, not
   // another walk over every transcript on disk — the collectors reuse their
   // recent scans in this mode.
-  function refreshLimits() { runUpdate("limits") }
+  function refreshLimits(agentIds) { runUpdate("limits", agentIds) }
 
   // ------------------------------------------------------------- providers
 
