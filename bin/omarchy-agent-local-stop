@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Stop serving the local model and free its memory
+
+exec omarchy-agent-local-state stop "$@"

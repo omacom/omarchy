@@ -1,0 +1,734 @@
+#!/usr/bin/python3
+# omarchy:summary=Install, serve, and remove local models for the coding agents
+# omarchy:args=<list|add|use|start|stop|status|remove|serve> [recipe] [--events] [--wait]
+# omarchy:hidden=true
+"""The engine behind `omarchy agent local`.
+
+A recipe (default/agents/local/recipes/*.json, or the same shape in
+~/.config/omarchy/agents/local/recipes/) pins everything one model needs on
+one kind of hardware: the platforms it was tuned and measured on, the memory
+it peaks at, a container image by digest, the model repositories by revision,
+and the exact command that serves them. Only recipes that fit this machine are
+offered: the platform matches and the model's peak memory fits in RAM minus a
+reserve left for everything else (16 GiB unless local.json's
+memoryReserveGiB says otherwise).
+
+Adding one installs what it needs the first time it's needed (Podman, and the
+NVIDIA container toolkit for its GPU), pulls the image, and downloads the
+weights into Omarchy's own directory rather than a shared cache, so removing it
+takes exactly what it added. Containers run under rootless Podman as the user:
+no daemon, no docker group, no re-login.
+
+One model serves at a time, always on 127.0.0.1:8888, as a transient systemd
+user unit. pi's `local` provider points there, so switching models never
+touches an agent's config beyond naming the model. While the server starts,
+`serve` writes its stage to $XDG_RUNTIME_DIR/omarchy/agents/local.json, which
+the agents panel watches: starting, loading, compiling, warming, ready, or
+failed with the reason.
+"""
+
+from __future__ import annotations
+
+import argparse
+import glob
+import http.client
+import json
+import os
+import re
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+PORT = 8888
+UNIT = "omarchy-agent-local"
+CONTAINER = "omarchy-agent-local"
+DEFAULT_RESERVE_GIB = 16
+GIB = 1024**3
+
+HOME = Path.home()
+OMARCHY_PATH = Path(os.environ["OMARCHY_PATH"])
+CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config")
+DATA_HOME = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local" / "share")
+STATE_HOME = Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local" / "state")
+CACHE_HOME = Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache")
+RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+
+RECIPE_DIRS = [OMARCHY_PATH / "default" / "agents" / "local" / "recipes", CONFIG_HOME / "omarchy" / "agents" / "local" / "recipes"]
+SETTINGS = CONFIG_HOME / "omarchy" / "agents" / "local.json"
+MODELS_DIR = DATA_HOME / "omarchy" / "agents" / "local" / "models"
+STATE_DIR = STATE_HOME / "omarchy" / "agents" / "local"
+INSTALLED_DIR = STATE_DIR / "installed"
+ACTIVE_FILE = STATE_DIR / "active"
+PACKAGES_FILE = STATE_DIR / "packages"
+KERNEL_CACHE_DIR = CACHE_HOME / "omarchy" / "agents" / "local"
+RUNTIME_STATE = RUNTIME_DIR / "omarchy" / "agents" / "local.json"
+HF_HUB = Path(os.environ.get("HF_HOME") or CACHE_HOME / "huggingface") / "hub"
+PI_MODELS = HOME / ".pi" / "agent" / "models.json"
+PI_SETTINGS = HOME / ".pi" / "agent" / "settings.json"
+DEFAULT_AGENT = CONFIG_HOME / "omarchy" / "defaults" / "agent"
+
+EVENTS = False
+
+
+# ---------------------------------------------------------------- output
+
+# Looked up as "omarchy-i18n <key>", the form the catalog check finds
+# references by, with the English standing in when the lookup can't run.
+def tr(lookup: str, english: str, *args: Any) -> str:
+  key = lookup.split()[1]
+  values = [str(arg) for arg in args]
+  try:
+    text = subprocess.run(["omarchy-i18n", key, *values], capture_output=True, text=True, check=True).stdout.strip()
+  except (OSError, subprocess.CalledProcessError):
+    text = ""
+  if not text or text == key:
+    text = english
+    for index in range(len(values), 0, -1):
+      text = text.replace(f"%{index}", values[index - 1])
+  return text
+
+
+def say(text: str) -> None:
+  print(f"@@omarchy status {text}" if EVENTS else text, flush=True)
+
+
+def progress(done: int, total: int, text: str) -> None:
+  if EVENTS:
+    print(f"@@omarchy progress {done} {total} {text}", flush=True)
+
+
+def fail(text: str) -> None:
+  if EVENTS:
+    print(f"@@omarchy error {text}", flush=True)
+    subprocess.run(["omarchy-notification-send", "-g", "󰚩", "-u", "critical", tr("omarchy-i18n agents.localFailed", "Couldn't set up the local model"), text], check=False)
+  else:
+    print(text, file=sys.stderr)
+  sys.exit(1)
+
+
+def done(text: str) -> None:
+  if EVENTS:
+    print(f"@@omarchy done {text}", flush=True)
+    subprocess.run(["omarchy-notification-send", "-g", "󰚩", text], check=False)
+  else:
+    print(text)
+
+
+def human_gb(n: int) -> str:
+  return f"{n / 1e9:.1f} GB"
+
+
+# ---------------------------------------------------------------- files
+
+def read_json(path: Path, default: Any = None) -> Any:
+  try:
+    return json.loads(path.read_text())
+  except (OSError, ValueError):
+    return default
+
+
+def write_json(path: Path, data: Any) -> None:
+  path.parent.mkdir(parents=True, exist_ok=True)
+  with tempfile.NamedTemporaryFile("w", dir=path.parent, delete=False, prefix=f".{path.name}.") as tmp:
+    json.dump(data, tmp, indent=2)
+    tmp.write("\n")
+  os.replace(tmp.name, path)
+
+
+def read_text(path: Path) -> str:
+  try:
+    return path.read_text().strip()
+  except OSError:
+    return ""
+
+
+# ---------------------------------------------------------------- recipes and fit
+
+def recipes() -> dict[str, dict]:
+  found: dict[str, dict] = {}
+  for directory in RECIPE_DIRS:
+    for path in sorted(directory.glob("*.json")):
+      recipe = read_json(path)
+      if isinstance(recipe, dict) and recipe.get("id") == path.stem:
+        found[recipe["id"]] = recipe
+  return found
+
+
+def recipe_or_fail(recipe_id: str) -> dict:
+  recipe = recipes().get(recipe_id)
+  if not recipe:
+    fail(f"No local model recipe named {recipe_id!r}. See: omarchy agent local list")
+  return recipe
+
+
+def platform() -> str:
+  try:
+    return subprocess.run(["omarchy-hw-platform"], capture_output=True, text=True, check=True).stdout.strip()
+  except (OSError, subprocess.CalledProcessError):
+    return ""
+
+
+def mem_total_bytes() -> int:
+  for line in Path("/proc/meminfo").read_text().splitlines():
+    if line.startswith("MemTotal:"):
+      return int(line.split()[1]) * 1024
+  return 0
+
+
+def reserve_gib() -> float:
+  settings = read_json(SETTINGS, {})
+  value = settings.get("memoryReserveGiB") if isinstance(settings, dict) else None
+  return float(value) if isinstance(value, (int, float)) and value >= 0 else DEFAULT_RESERVE_GIB
+
+
+def budget_gib() -> float:
+  return mem_total_bytes() / GIB - reserve_gib()
+
+
+def fit(recipe: dict) -> tuple[bool, str]:
+  """Whether a recipe can run here, and if not, why (for the panel's hover)."""
+  if platform() not in recipe.get("platforms", []):
+    return False, "not tuned for this hardware"
+  need = recipe.get("memoryGiB", 0)
+  if need > budget_gib():
+    return False, f"needs {need} GiB, {budget_gib():.0f} GiB left after the {reserve_gib():g} GiB reserve"
+  return True, ""
+
+
+def model_dir(model: dict) -> Path:
+  return MODELS_DIR / model["repo"].replace("/", "--") / model["revision"]
+
+
+def installed() -> dict[str, dict]:
+  return {path.stem: read_json(path, {}) for path in sorted(INSTALLED_DIR.glob("*.json"))}
+
+
+def active() -> str:
+  return read_text(ACTIVE_FILE)
+
+
+# ---------------------------------------------------------------- runtime state
+
+def unit_active() -> bool:
+  return subprocess.run(["systemctl", "--user", "is-active", "--quiet", UNIT], check=False).returncode == 0
+
+
+def server_answers() -> bool:
+  try:
+    with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/v1/models", timeout=3) as response:
+      return response.status == 200
+  except (OSError, urllib.error.URLError):
+    return False
+
+
+def runtime_state() -> dict:
+  state = read_json(RUNTIME_STATE, {}) or {}
+  if not unit_active():
+    stage = "failed" if state.get("stage") == "failed" else "stopped"
+    return {**state, "stage": stage}
+  return state or {"stage": "starting"}
+
+
+def write_runtime(stage: str, **fields: Any) -> None:
+  write_json(RUNTIME_STATE, {"stage": stage, "recipe": active(), "port": PORT, "since": int(time.time()), **fields})
+
+
+# ---------------------------------------------------------------- list
+
+def cmd_list(as_json: bool) -> None:
+  state = runtime_state()
+  current = active()
+  have = installed()
+  rows = []
+  for recipe in recipes().values():
+    fits, why = fit(recipe)
+    if not fits and recipe["id"] not in have:
+      continue
+    rows.append({
+      "id": recipe["id"],
+      "name": recipe["name"],
+      "engine": recipe.get("engine", ""),
+      "summary": recipe.get("summary", ""),
+      "memoryGiB": recipe.get("memoryGiB"),
+      "context": recipe.get("context"),
+      "speed": recipe.get("speed", {}),
+      "downloadBytes": recipe["image"].get("downloadBytes", 0) + sum(m.get("bytes", 0) for m in recipe["models"]),
+      "diskBytes": recipe["image"].get("bytes", 0) + sum(m.get("bytes", 0) for m in recipe["models"]),
+      "fits": fits,
+      "why": why,
+      "installed": recipe["id"] in have,
+      "active": recipe["id"] == current,
+      "stage": state.get("stage") if recipe["id"] == current else "stopped",
+    })
+  if as_json:
+    print(json.dumps({"budgetGiB": round(budget_gib(), 1), "reserveGiB": reserve_gib(), "models": rows}, indent=2))
+    return
+  if not rows:
+    print(f"No local model recipe fits this machine ({platform() or 'unknown platform'}, {budget_gib():.0f} GiB after the reserve).")
+    return
+  for row in rows:
+    flags = []
+    if row["active"]:
+      flags.append(row["stage"])
+    elif row["installed"]:
+      flags.append("installed")
+    print(f"{row['id']:32} {row['name']} · {row['engine']} · {row['memoryGiB']} GiB · {human_gb(row['downloadBytes'])} download" + (f"  [{', '.join(flags)}]" if flags else ""))
+
+
+# ---------------------------------------------------------------- add: system dependencies
+
+def missing_packages(recipe: dict) -> list[str]:
+  wanted = ["podman"]
+  if recipe.get("gpu", "nvidia") == "nvidia":
+    wanted.append("nvidia-container-toolkit")
+  return [pkg for pkg in wanted if subprocess.run(["pacman", "-Q", pkg], capture_output=True, check=False).returncode != 0]
+
+
+def cdi_ready() -> bool:
+  return any(Path(p).exists() for p in ("/etc/cdi/nvidia.yaml", "/var/run/cdi/nvidia.yaml"))
+
+
+def run_as_root(script: str) -> bool:
+  """sudo where a terminal can take its password (or none is needed), polkit otherwise."""
+  if sys.stdin.isatty() or subprocess.run(["sudo", "-n", "true"], capture_output=True, check=False).returncode == 0:
+    runner = ["sudo"]
+  else:
+    runner = ["pkexec"]
+  return subprocess.run([*runner, "/bin/bash", "-c", script], check=False).returncode == 0
+
+
+def ensure_dependencies(recipe: dict) -> None:
+  packages = missing_packages(recipe)
+  steps = []
+  if packages:
+    say(tr("omarchy-i18n agents.localInstallingRuntime", "Installing the container runtime…"))
+    steps.append(f"{shutil.which('omarchy-pkg-add')} {' '.join(packages)}")
+  if recipe.get("gpu", "nvidia") == "nvidia" and (packages or not cdi_ready()):
+    # The toolkit's own unit writes /var/run/cdi/nvidia.yaml, and refreshes it
+    # whenever the driver changes; it runs at boot, so start it once now.
+    steps.append("systemctl start nvidia-cdi-refresh.service")
+  if steps and not run_as_root(" && ".join(steps)):
+    fail(tr("omarchy-i18n agents.localRuntimeFailed", "Installing the container runtime didn't finish."))
+  if packages:
+    previous = set(read_text(PACKAGES_FILE).split())
+    PACKAGES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PACKAGES_FILE.write_text(" ".join(sorted(previous | set(packages))) + "\n")
+  if recipe.get("gpu", "nvidia") == "nvidia" and not cdi_ready():
+    fail(tr("omarchy-i18n agents.localRuntimeFailed", "Installing the container runtime didn't finish."))
+  user = os.environ.get("USER") or HOME.name
+  if not any(line.startswith(f"{user}:") for line in Path("/etc/subuid").read_text().splitlines() if line):
+    fail(f"Rootless containers need a range for {user} in /etc/subuid and /etc/subgid.")
+
+
+# ---------------------------------------------------------------- add: image
+
+def image_present(ref: str) -> bool:
+  return subprocess.run(["podman", "image", "exists", ref], check=False).returncode == 0
+
+
+def pull_image(recipe: dict) -> None:
+  """Pull through Podman's Docker-compatible API on a private socket, which reports bytes per layer."""
+  ref = recipe["image"]["ref"]
+  if image_present(ref):
+    return
+  total = recipe["image"].get("downloadBytes") or 1
+  label = tr("omarchy-i18n agents.localDownloadingEngine", "Downloading the engine (%1)…", human_gb(total))
+  say(label)
+  sock = RUNTIME_DIR / f"omarchy-agent-local-{os.getpid()}.sock"
+  env = {k: v for k, v in os.environ.items() if k != "INVOCATION_ID"}  # no 5-minute "inside systemd" pull timeout
+  service = subprocess.Popen(["podman", "system", "service", "--time=0", f"unix://{sock}"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+  try:
+    for _ in range(50):
+      if sock.exists():
+        break
+      time.sleep(0.1)
+    conn = http.client.HTTPConnection("localhost", timeout=3600)
+    conn.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    conn.sock.connect(str(sock))
+    name, digest = ref.split("@", 1)
+    conn.request("POST", f"/v1.41/images/create?fromImage={urllib.parse.quote(name)}&tag={urllib.parse.quote(digest)}")
+    response = conn.getresponse()
+    layers: dict[str, int] = {}
+    sizes: dict[str, int] = {}
+    last = 0.0
+    error = ""
+    for raw in response:
+      try:
+        event = json.loads(raw)
+      except ValueError:
+        continue
+      if event.get("error"):
+        error = event["error"]
+      layer = event.get("id", "")
+      detail = event.get("progressDetail") or {}
+      if detail.get("total"):
+        sizes[layer] = detail["total"]
+      if event.get("status") == "Downloading" and "current" in detail:
+        layers[layer] = detail["current"]
+      elif event.get("status") in ("Download complete", "Already exists") and layer:
+        layers[layer] = sizes.get(layer, layers.get(layer, 0))
+      now = time.monotonic()
+      if now - last > 0.5:
+        progress(min(sum(layers.values()), total), total, label)
+        last = now
+    if error or not image_present(ref):
+      fail(tr("omarchy-i18n agents.localDownloadFailed", "The download didn't finish.") + (f" {error}" if error else ""))
+    progress(total, total, label)
+  finally:
+    service.terminate()
+    service.wait()
+    sock.unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------- add: weights
+
+def hf_files(model: dict) -> list[dict]:
+  url = f"https://huggingface.co/api/models/{model['repo']}/tree/{model['revision']}?recursive=true"
+  try:
+    with urllib.request.urlopen(url, timeout=60) as response:
+      return [entry for entry in json.load(response) if entry.get("type") == "file"]
+  except (OSError, ValueError, urllib.error.URLError) as error:
+    fail(tr("omarchy-i18n agents.localDownloadFailed", "The download didn't finish.") + f" {model['repo']}: {error}")
+    return []
+
+
+def cached_copy(model: dict, name: str, size: int) -> Path | None:
+  """A file already in the Hugging Face cache at this exact revision, which can be copied instead of downloaded."""
+  for snapshot in glob.glob(str(HF_HUB / "models--*" / "snapshots" / model["revision"])):
+    path = Path(snapshot) / name
+    try:
+      if path.resolve().stat().st_size == size:
+        return path.resolve()
+    except OSError:
+      continue
+  return None
+
+
+def download_models(recipe: dict) -> None:
+  plan = []
+  for model in recipe["models"]:
+    target = model_dir(model)
+    if (target / ".complete").exists():
+      continue
+    for entry in hf_files(model):
+      plan.append((model, target, entry["path"], entry.get("size", 0)))
+  if not plan:
+    return
+  total = sum(size for *_, size in plan) or 1
+  label = tr("omarchy-i18n agents.localDownloadingWeights", "Downloading the model (%1)…", human_gb(total))
+  say(label)
+  got = 0
+  for model, target, name, size in plan:
+    dest = target / name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists() and dest.stat().st_size == size:
+      got += size
+      continue
+    # On btrfs, Omarchy's default, a reflink shares the blocks: instant, and
+    # either copy can go without the other.
+    cached = cached_copy(model, name, size)
+    if cached and subprocess.run(["cp", "--reflink=auto", str(cached), str(dest)], capture_output=True, check=False).returncode == 0:
+      got += size
+      progress(got, total, label)
+      continue
+    part = dest.with_name(dest.name + ".part")
+    offset = part.stat().st_size if part.exists() else 0
+    request = urllib.request.Request(f"https://huggingface.co/{model['repo']}/resolve/{model['revision']}/{urllib.parse.quote(name)}")
+    if offset:
+      request.add_header("Range", f"bytes={offset}-")
+    try:
+      with urllib.request.urlopen(request, timeout=60) as response, open(part, "ab" if offset and response.status == 206 else "wb") as out:
+        written = offset if response.status == 206 else 0
+        last = 0.0
+        while chunk := response.read(1 << 20):
+          out.write(chunk)
+          written += len(chunk)
+          now = time.monotonic()
+          if now - last > 0.5:
+            progress(got + written, total, label)
+            last = now
+    except (OSError, urllib.error.URLError) as error:
+      fail(tr("omarchy-i18n agents.localDownloadFailed", "The download didn't finish.") + f" {error}")
+    if part.stat().st_size != size:
+      fail(tr("omarchy-i18n agents.localDownloadFailed", "The download didn't finish.") + f" {name} is {part.stat().st_size} bytes, expected {size}.")
+    os.replace(part, dest)
+    got += size
+    progress(got, total, label)
+  for model in recipe["models"]:
+    model_dir(model).mkdir(parents=True, exist_ok=True)
+    (model_dir(model) / ".complete").touch()
+  progress(total, total, label)
+
+
+# ---------------------------------------------------------------- pi
+
+def configure_pi(recipe: dict) -> None:
+  """Point pi's `local` provider at the served model and make it pi's default."""
+  models = read_json(PI_MODELS, {}) or {}
+  providers = models.setdefault("providers", {})
+  entry = {
+    "id": recipe["id"],
+    "name": f"{recipe['name']} · local",
+    "reasoning": recipe.get("reasoning", True),
+    "contextWindow": recipe.get("context", 131072),
+    "maxTokens": recipe.get("maxTokens", 32768),
+    "input": ["text", "image"] if recipe.get("vision") else ["text"],
+    "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+    **recipe.get("pi", {}),
+  }
+  providers["local"] = {"baseUrl": f"http://127.0.0.1:{PORT}/v1", "apiKey": "local", "api": "openai-completions", "models": [entry]}
+  write_json(PI_MODELS, models)
+  settings = read_json(PI_SETTINGS, {}) or {}
+  settings.update({"defaultProvider": "local", "defaultModel": recipe["id"]})
+  write_json(PI_SETTINGS, settings)
+
+
+def unconfigure_pi() -> None:
+  models = read_json(PI_MODELS, {}) or {}
+  local = models.get("providers", {}).get("local", {})
+  if local.get("baseUrl") == f"http://127.0.0.1:{PORT}/v1":
+    del models["providers"]["local"]
+    write_json(PI_MODELS, models)
+  settings = read_json(PI_SETTINGS, {}) or {}
+  if settings.get("defaultProvider") == "local":
+    settings.pop("defaultProvider", None)
+    settings.pop("defaultModel", None)
+    write_json(PI_SETTINGS, settings)
+
+
+def ensure_pi() -> None:
+  if subprocess.run(["mise", "where", "pi"], capture_output=True, check=False).returncode != 0:
+    say(tr("omarchy-i18n agents.installingCli", "Installing the %1 CLI…", "Pi"))
+    if subprocess.run(["mise", "install", "pi"], capture_output=True, check=False).returncode != 0:
+      fail(tr("omarchy-i18n agents.installCliFailed", "Installing the %1 CLI didn't finish.", "Pi"))
+  if not read_text(DEFAULT_AGENT):
+    DEFAULT_AGENT.parent.mkdir(parents=True, exist_ok=True)
+    DEFAULT_AGENT.write_text("pi\n")
+
+
+# ---------------------------------------------------------------- add / use / remove
+
+def cmd_add(recipe_id: str) -> None:
+  recipe = recipe_or_fail(recipe_id)
+  fits, why = fit(recipe)
+  if not fits:
+    fail(f"{recipe['name']} can't run here: {why}.")
+  ensure_dependencies(recipe)
+  pull_image(recipe)
+  download_models(recipe)
+  write_json(INSTALLED_DIR / f"{recipe_id}.json", {
+    "image": recipe["image"]["ref"],
+    "models": [str(model_dir(m)) for m in recipe["models"]],
+    "cache": str(KERNEL_CACHE_DIR / recipe_id),
+    "installedAt": int(time.time()),
+  })
+  ensure_pi()
+  use(recipe)
+  done(tr("omarchy-i18n agents.localAdded", "%1 is ready to serve locally.", recipe["name"]))
+
+
+def use(recipe: dict) -> None:
+  ACTIVE_FILE.parent.mkdir(parents=True, exist_ok=True)
+  ACTIVE_FILE.write_text(recipe["id"] + "\n")
+  configure_pi(recipe)
+  start()
+
+
+def cmd_use(recipe_id: str) -> None:
+  recipe = recipe_or_fail(recipe_id)
+  if recipe_id not in installed():
+    fail(f"{recipe['name']} isn't installed. Add it with: omarchy agent local add {recipe_id}")
+  stop()
+  use(recipe)
+
+
+def cmd_remove(recipe_id: str) -> None:
+  have = installed()
+  record = have.pop(recipe_id, None)
+  if record is None:
+    fail(f"No local model {recipe_id!r} is installed.")
+  if active() == recipe_id:
+    stop()
+    ACTIVE_FILE.unlink(missing_ok=True)
+    unconfigure_pi()
+  still_used_models = {path for other in have.values() for path in other.get("models", [])}
+  for path in record.get("models", []):
+    if path not in still_used_models:
+      shutil.rmtree(path, ignore_errors=True)
+      parent = Path(path).parent
+      if parent.is_dir() and not any(parent.iterdir()):
+        parent.rmdir()
+  if record.get("image") not in {other.get("image") for other in have.values()}:
+    subprocess.run(["podman", "rmi", "--force", record["image"]], capture_output=True, check=False)
+  if record.get("cache"):
+    shutil.rmtree(record["cache"], ignore_errors=True)
+  (INSTALLED_DIR / f"{recipe_id}.json").unlink(missing_ok=True)
+  if not have:
+    # The last one gone: the packages Omarchy installed for it go too. Podman's
+    # own storage stays, since other containers of the user's may live there.
+    packages = read_text(PACKAGES_FILE).split()
+    if packages:
+      if run_as_root(f"{shutil.which('omarchy-pkg-drop')} {' '.join(packages)}"):
+        PACKAGES_FILE.unlink(missing_ok=True)
+  print(f"Removed {recipe_id}.")
+
+
+# ---------------------------------------------------------------- start / stop / serve
+
+def start() -> None:
+  if unit_active():
+    return
+  RUNTIME_STATE.unlink(missing_ok=True)
+  write_runtime("starting")
+  subprocess.run(["systemctl", "--user", "reset-failed", UNIT], capture_output=True, check=False)
+  result = subprocess.run([
+    "systemd-run", "--user", "--quiet", f"--unit={UNIT}", "--collect",
+    "--description=Omarchy local model server",
+    "-p", "KillMode=mixed", "-p", "TimeoutStopSec=60",
+    f"--setenv=OMARCHY_PATH={OMARCHY_PATH}", f"--setenv=PATH={os.environ.get('PATH', '')}",
+    os.path.abspath(sys.argv[0]), "serve",
+  ], check=False)
+  if result.returncode != 0:
+    write_runtime("failed", reason="systemd-run failed")
+    fail("Couldn't start the local model server.")
+
+
+def stop() -> None:
+  subprocess.run(["systemctl", "--user", "stop", UNIT], capture_output=True, check=False)
+  subprocess.run(["podman", "rm", "--force", "--ignore", CONTAINER], capture_output=True, check=False)
+  if RUNTIME_STATE.exists():
+    write_runtime("stopped")
+
+
+def expand(value: str, recipe: dict) -> str:
+  return value.replace("{reserveGiB}", f"{reserve_gib():g}").replace("{model}", recipe["id"])
+
+
+def warm_up(recipe: dict) -> None:
+  """A short and a long prompt, so first-start kernel compiles happen now rather than on the user's first prompt."""
+  long_prompt = " ".join(["The quick brown fox jumps over the lazy dog."] * 600)
+  for prompt in ("Say hi.", f"Count the foxes.\n\n{long_prompt}"):
+    body = json.dumps({"model": recipe["id"], "max_tokens": 8, "messages": [{"role": "user", "content": prompt}], "chat_template_kwargs": {"enable_thinking": False}}).encode()
+    request = urllib.request.Request(f"http://127.0.0.1:{PORT}/v1/chat/completions", body, {"Content-Type": "application/json"})
+    try:
+      urllib.request.urlopen(request, timeout=900).read()
+    except (OSError, urllib.error.URLError):
+      return
+
+
+def cmd_serve() -> None:
+  """Run the active recipe's container in the foreground (the systemd unit's main process), and track its stage."""
+  recipe = recipe_or_fail(active())
+  cache = KERNEL_CACHE_DIR / recipe["id"]
+  cache.mkdir(parents=True, exist_ok=True)
+  args = [
+    "podman", "run", "--rm", "--replace", "--name", CONTAINER,
+    "--security-opt=label=disable", "--ipc=host",
+    "--ulimit", "stack=67108864",
+    "--memory", f"{int(budget_gib())}g",
+    "-p", f"127.0.0.1:{PORT}:{recipe.get('port', PORT)}",
+  ]
+  if recipe.get("gpu", "nvidia") == "nvidia":
+    args += ["--device", "nvidia.com/gpu=all"]
+  for key, value in recipe.get("env", {}).items():
+    args += ["-e", f"{key}={expand(value, recipe)}"]
+  for model in recipe["models"]:
+    args += ["-v", f"{model_dir(model)}:{model['mount']}:ro"]
+  if recipe.get("cache"):
+    args += ["-v", f"{cache}:{recipe['cache']}"]
+  args += [recipe["image"]["ref"], *[expand(a, recipe) for a in recipe["command"]]]
+
+  stages = [(re.compile(s["match"]), s["stage"]) for s in recipe.get("stages", [])]
+  write_runtime("starting")
+  container = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+  signal.signal(signal.SIGTERM, lambda *_: container.terminate())
+  tail: list[str] = []
+  ready = threading.Event()
+
+  def watch_ready() -> None:
+    while container.poll() is None and not server_answers():
+      time.sleep(2)
+    if container.poll() is None:
+      write_runtime("warming")
+      warm_up(recipe)
+      if container.poll() is None:
+        ready.set()
+        write_runtime("ready")
+
+  threading.Thread(target=watch_ready, daemon=True).start()
+  assert container.stdout
+  # Podman logs the container's output to the journal itself, under this unit.
+  for line in container.stdout:
+    tail = (tail + [line.rstrip()])[-20:]
+    if ready.is_set():
+      continue
+    for pattern, stage in stages:
+      if pattern.search(line):
+        write_runtime(stage)
+  code = container.wait()
+  if code in (0, 143, -15) or read_json(RUNTIME_STATE, {}).get("stage") == "stopped":
+    write_runtime("stopped")
+  else:
+    write_runtime("failed", reason=next((l for l in reversed(tail) if l.strip()), f"exit code {code}"))
+  sys.exit(0)
+
+
+def cmd_status(wait: bool) -> None:
+  last = None
+  while True:
+    state = runtime_state()
+    if state.get("stage") != last:
+      last = state.get("stage")
+      print(f"@@omarchy state {last}" if EVENTS else json.dumps(state), flush=True)
+    if not wait or last in ("ready", "failed", "stopped"):
+      return
+    time.sleep(1)
+
+
+# ---------------------------------------------------------------- main
+
+def main() -> None:
+  global EVENTS
+  parser = argparse.ArgumentParser(prog="omarchy-agent-local-state")
+  parser.add_argument("command", choices=["list", "add", "use", "start", "stop", "status", "remove", "serve"])
+  parser.add_argument("recipe", nargs="?")
+  parser.add_argument("--events", action="store_true")
+  parser.add_argument("--json", action="store_true")
+  parser.add_argument("--wait", action="store_true")
+  opts = parser.parse_args()
+  EVENTS = opts.events
+
+  if opts.command in ("add", "use", "remove") and not opts.recipe:
+    parser.error(f"{opts.command} needs a recipe id")
+  if opts.command == "list":
+    cmd_list(opts.json)
+  elif opts.command == "add":
+    cmd_add(opts.recipe)
+  elif opts.command == "use":
+    cmd_use(opts.recipe)
+  elif opts.command == "remove":
+    cmd_remove(opts.recipe)
+  elif opts.command == "start":
+    if not active():
+      fail("No local model is installed. Add one with: omarchy agent local add <recipe>")
+    start()
+  elif opts.command == "stop":
+    stop()
+  elif opts.command == "status":
+    cmd_status(opts.wait)
+  elif opts.command == "serve":
+    cmd_serve()
+
+
+if __name__ == "__main__":
+  main()

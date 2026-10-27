@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Download a local model and serve it to pi
+# omarchy:args=[--events] <recipe>
+# omarchy:examples=omarchy agent local add qwen3.8-27b-tensorfold
+
+exec omarchy-agent-local-state add "$@"

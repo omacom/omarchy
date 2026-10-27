@@ -67,7 +67,10 @@ Panel {
       var choices = []
       for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
       rows.push(choices)
+    } else if (addStage === "local") {
+      for (var m = 0; m < localOffered.length; m++) rows.push([{ kind: "localModel", index: m }])
     } else if (addStage === "") {
+      if (localActive) rows.push([{ kind: "localToggle", index: 0 }, { kind: "localRemove", index: 0 }])
       // Accounts count in the same order as accountEntries. Only what can be
       // done is a stop: one that isn't active offers Autoswitch beside Use, a
       // lapsed sign-in comes first, and the active account with nothing to
@@ -243,8 +246,12 @@ Panel {
   readonly property var addProviders: [
     { providerId: "claude", providerName: "Claude Code" },
     { providerId: "codex", providerName: "Codex" },
-    { providerId: "grok", providerName: "Grok" }
+    { providerId: "grok", providerName: "Grok" },
+    { providerId: "local", providerName: Commons.I18n.t("agents.localName") }
   ]
+  // A download's bytes so far and in all, while adding a local model.
+  property double addProgressDone: 0
+  property double addProgressTotal: 0
   property string addStage: ""
   property string addProvider: ""
   property var addChecks: ({})
@@ -268,14 +275,118 @@ Panel {
     addStage = "pick"
     addChecks = ({})
     if (!checkProcess.running) checkProcess.running = true
+    refreshLocal()
   }
 
   function chooseAddProvider(id) {
     var state = addChecks[id] || ""
     if (state === "") return
     addProvider = id
-    if (state === "additional") addStage = "name"
+    if (id === "local") addStage = "local"
+    else if (state === "additional") addStage = "name"
     else startAdd("")
+  }
+
+  // ------------------------------------------------------------ local models
+  //
+  // A local model is added like a subscription: Local among the choices,
+  // then the models tuned for this machine, then the download while the
+  // panel follows omarchy-agent-local-add --events. Once added, its server
+  // gets a section of its own, whose stage the panel follows from the state
+  // file the server writes as it starts.
+
+  // `omarchy agent local list --json`: every recipe that fits this machine,
+  // and whether it's installed or being served.
+  property var localModels: []
+  property double localReserveGiB: 16
+  readonly property var localOffered: localModels.filter(function(m) { return m.fits && !m.installed })
+  readonly property var localActive: {
+    for (var i = 0; i < localModels.length; i++)
+      if (localModels[i].active) return localModels[i]
+    return null
+  }
+  // starting, loading, compiling, warming, ready, stopped, or failed.
+  property var localRuntime: ({})
+  readonly property string localStage: localActive ? String(localRuntime.stage || "stopped") : ""
+  readonly property bool localBusy: ["starting", "loading", "compiling", "warming"].indexOf(localStage) >= 0
+  property bool localConfirmRemove: false
+  // The Local models usage record, once pi has run on the model, carries the
+  // server's controls in its own section; until then they get one of their own.
+  readonly property bool localHasRecord: {
+    for (var i = 0; i < providers.length; i++)
+      if (providers[i].providerId === "local") return true
+    return false
+  }
+
+  function refreshLocal() {
+    if (!localListProcess.running) localListProcess.running = true
+  }
+
+  function setLocalCheck() {
+    var checks = Object.assign({}, addChecks)
+    checks.local = localOffered.length > 0 ? "first" : ""
+    addChecks = checks
+  }
+
+  function startLocalAdd(model) {
+    if (!model || addStage === "running") return
+    addStatus = Commons.I18n.t("agents.starting")
+    addCode = ""
+    addUrl = ""
+    addNeedsPaste = false
+    addResult = ""
+    addProgressDone = 0
+    addProgressTotal = 0
+    addStage = "running"
+    addProcess.command = ["omarchy-agent-local-add", "--events", model.id]
+    addProcess.running = true
+  }
+
+  function localStageText(stage) {
+    switch (stage) {
+    case "starting": return Commons.I18n.t("agents.localStarting")
+    case "loading": return Commons.I18n.t("agents.localLoading")
+    case "compiling": return Commons.I18n.t("agents.localCompiling")
+    case "warming": return Commons.I18n.t("agents.localWarming")
+    case "ready": return Commons.I18n.t("agents.localReady")
+    case "failed": return Commons.I18n.t("agents.localFailed")
+    default: return Commons.I18n.t("agents.localStopped")
+    }
+  }
+
+  function localDetail(model) {
+    if (!model) return ""
+    return Commons.I18n.t("agents.localDetail")
+      .arg(model.engine)
+      .arg(Commons.I18n.formatNumber(Math.round(Number(model.context || 0) / 1024), 0))
+      .arg(Commons.I18n.formatNumber(Number(model.memoryGiB || 0), 0))
+  }
+
+  function localSpeed(model) {
+    return model && model.speed && model.speed.code ? Commons.I18n.t("agents.localSpeed").arg(model.speed.code) : ""
+  }
+
+  function localDownload(model) {
+    return Commons.I18n.t("agents.localDownload").arg(Commons.I18n.formatNumber(Number(model.downloadBytes || 0) / 1e9, 1))
+  }
+
+  function toggleLocal() {
+    if (!localActive) return
+    localRuntime = { stage: localBusy || localStage === "ready" ? "stopped" : "starting" }
+    Util.execArgv([localBusy || localStage === "ready" ? "omarchy-agent-local-stop" : "omarchy-agent-local-start"])
+  }
+
+  // Removing deletes tens of gigabytes, so the link asks once more first.
+  function removeLocal() {
+    if (!localActive) return
+    if (!localConfirmRemove) {
+      localConfirmRemove = true
+      localConfirmTimer.restart()
+      return
+    }
+    localConfirmRemove = false
+    localRemoveProcess.command = ["omarchy-agent-local-remove", localActive.id]
+    localRemoveProcess.running = true
   }
 
   function startAdd(label) {
@@ -314,11 +425,20 @@ Panel {
   // browser (Grok), and an invitation to paste one back (Claude).
   function handleAddLine(line) {
     var text = String(line).replace(/\u001b\[[0-9;]*m/g, "")
+    var bytes = text.match(/^@@omarchy progress (\d+) (\d+) (.*)$/)
+    if (bytes) {
+      addProgressDone = Number(bytes[1])
+      addProgressTotal = Number(bytes[2])
+      addStatus = bytes[3]
+      return
+    }
     var tagged = text.match(/^@@omarchy (status|done|error) (.*)$/)
     if (tagged) {
       if (tagged[1] === "status") {
         addStatus = tagged[2]
+        addProgressTotal = 0
       } else {
+        if (addProvider === "local") refreshLocal()
         addResult = tagged[2]
         addStage = tagged[1]
         if (tagged[1] === "done") {
@@ -393,6 +513,9 @@ Panel {
     if (!target) refreshNow()
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
+    else if (target.kind === "localModel") startLocalAdd(localOffered[target.index])
+    else if (target.kind === "localToggle") toggleLocal()
+    else if (target.kind === "localRemove") removeLocal()
     else if (target.kind === "launch") launchAgent()
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
@@ -830,10 +953,10 @@ Panel {
   // set one up.
   readonly property bool anySignedIn: {
     for (var id in addChecks)
-      if (addChecks[id] !== "first") return true
+      if (addChecks[id] === "additional") return true
     return false
   }
-  readonly property bool blankSlate: providers.length === 0 && !anySignedIn
+  readonly property bool blankSlate: providers.length === 0 && !anySignedIn && !localActive
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
@@ -845,7 +968,9 @@ Panel {
   // Adding takes over the hero's line, and the cursor starts over.
   readonly property string addHeading: picking || addProvider === ""
     ? Commons.I18n.t("agents.addAccount")
-    : Commons.I18n.t("agents.addProviderAccount").arg(addProviderName(addProvider))
+    : addProvider === "local"
+      ? Commons.I18n.t("agents.addLocalModel")
+      : Commons.I18n.t("agents.addProviderAccount").arg(addProviderName(addProvider))
   onAddStageChanged: {
     phraseSwap.stop()
     if (hero) hero.metaOpacity = 1.0
@@ -862,7 +987,10 @@ Panel {
     cursorActive = false
     keyRow = 0
     keyColumn = 0
-    Qt.callLater(function() { if (picking) pointAt("choice", 0) })
+    Qt.callLater(function() {
+      if (picking) pointAt("choice", 0)
+      else if (addStage === "local") pointAt("localModel", 0)
+    })
   }
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -871,6 +999,7 @@ Panel {
     if (addStage !== "running") addStage = ""
     resetKeys()
     if (providers.length === 0 && !checkProcess.running) checkProcess.running = true
+    refreshLocal()
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
     usage.refreshLimits()
@@ -908,6 +1037,55 @@ Panel {
         root.addStage = "error"
       }
     }
+  }
+
+  Process {
+    id: localListProcess
+    running: false
+    command: ["omarchy-agent-local-list", "--json"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var listing = JSON.parse(text)
+          root.localModels = listing.models || []
+          root.localReserveGiB = Number(listing.reserveGiB || 16)
+        } catch (e) {
+          root.localModels = []
+        }
+        root.setLocalCheck()
+        // The state file may have appeared since it was last watched.
+        localRuntimeFile.reload()
+      }
+    }
+  }
+
+  Process {
+    id: localRemoveProcess
+    running: false
+    onExited: root.refreshLocal()
+  }
+
+  Timer {
+    id: localConfirmTimer
+    interval: 4000
+    onTriggered: root.localConfirmRemove = false
+  }
+
+  // The server writes its stage here as it starts, so the spinner follows
+  // the file rather than asking.
+  FileView {
+    id: localRuntimeFile
+    path: Quickshell.env("XDG_RUNTIME_DIR") + "/omarchy/agents/local.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      var before = String(root.localRuntime.recipe || "")
+      try { root.localRuntime = JSON.parse(text()) } catch (e) { root.localRuntime = ({}) }
+      // Another model being served is news the listing hasn't caught up with.
+      if (String(root.localRuntime.recipe || "") !== before) root.refreshLocal()
+    }
+    onLoadFailed: root.localRuntime = ({})
   }
 
   Timer {
@@ -1093,6 +1271,11 @@ Panel {
             width: column.width
           }
 
+          LocalSection {
+            visible: root.addStage === "" && root.localActive !== null && !root.localHasRecord
+            width: column.width
+          }
+
           Repeater {
             id: providerSections
             model: root.addStage === "" ? root.providers : []
@@ -1266,6 +1449,108 @@ Panel {
       }
     }
 
+    // Local: the models tuned for this machine, one row each.
+    Column {
+      visible: root.addStage === "local"
+      width: parent.width
+      spacing: Style.space(14)
+
+      Text {
+        width: parent.width
+        text: root.localOffered.length > 0
+          ? Commons.I18n.t("agents.localIntro").arg(Commons.I18n.formatNumber(root.localReserveGiB, 0))
+          : root.localModels.length > 0 ? Commons.I18n.t("agents.localAllAdded") : Commons.I18n.t("agents.localNoneFit")
+        textFormat: Text.PlainText
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
+      }
+
+      Repeater {
+        model: root.addStage === "local" ? root.localOffered : []
+
+        Item {
+          id: localChoice
+          required property var modelData
+          required property int index
+          readonly property bool hasCursor: root.hasKey("localModel", index)
+          width: parent.width
+          implicitHeight: localChoiceBody.implicitHeight
+          onHasCursorChanged: if (hasCursor) root.revealItem(localChoice)
+
+          CursorSurface {
+            anchors.fill: parent
+            anchors.margins: -Style.space(6)
+            z: -1
+            hasCursor: localChoice.hasCursor
+            foreground: root.foreground
+          }
+
+          Column {
+            id: localChoiceBody
+            width: parent.width
+            spacing: Style.space(3)
+
+            Item {
+              width: parent.width
+              implicitHeight: localChoiceName.implicitHeight
+
+              Text {
+                id: localChoiceName
+                anchors.left: parent.left
+                textFormat: Text.PlainText
+                text: localChoice.modelData.name
+                color: localChoice.hasCursor ? Commons.Color.accent : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+              }
+
+              Text {
+                anchors.right: parent.right
+                anchors.baseline: localChoiceName.baseline
+                textFormat: Text.PlainText
+                text: root.localSpeed(localChoice.modelData)
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+            }
+
+            Text {
+              width: parent.width
+              textFormat: Text.PlainText
+              text: localChoice.modelData.summary
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
+
+            Text {
+              width: parent.width
+              textFormat: Text.PlainText
+              text: root.localDetail(localChoice.modelData) + " · " + root.localDownload(localChoice.modelData)
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+            }
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            anchors.margins: -Style.space(6)
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onEntered: root.pointAt("localModel", localChoice.index)
+            onClicked: root.startLocalAdd(localChoice.modelData)
+          }
+        }
+      }
+    }
+
     // Running: what's happening, and whatever the sign-in needs from you.
     Column {
       visible: root.addStage === "running"
@@ -1280,6 +1565,31 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
         wrapMode: Text.WordWrap
+      }
+
+      // A local model's download: how far, and how much is left.
+      Column {
+        visible: root.addProgressTotal > 0
+        width: parent.width
+        spacing: Style.space(6)
+
+        Meter {
+          width: parent.width
+          value: root.addProgressTotal > 0 ? root.addProgressDone / root.addProgressTotal : 0
+        }
+
+        Text {
+          width: parent.width
+          textFormat: Text.PlainText
+          text: Commons.I18n.t("agents.localProgress")
+            .arg(Commons.I18n.formatNumber(root.addProgressDone / 1e9, 1))
+            .arg(Commons.I18n.formatNumber(root.addProgressTotal / 1e9, 1))
+            .arg(Commons.I18n.formatNumber(Math.floor(100 * root.addProgressDone / Math.max(1, root.addProgressTotal)), 0))
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          horizontalAlignment: Text.AlignRight
+        }
       }
 
       Column {
@@ -1434,6 +1744,11 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
       }
+    }
+
+    LocalServer {
+      visible: !!section.provider && section.provider.providerId === "local" && root.localActive !== null
+      width: parent.width
     }
 
     // Sign-in and endpoint trouble for a single-account provider; with
@@ -1593,6 +1908,157 @@ Panel {
   }
 
   // A provider's mark, falling back to the bar glyph when it ships none.
+  // Local models before pi has run on one: the section the usage record
+  // would give it, with just the server.
+  component LocalSection: Column {
+    spacing: Style.space(16)
+
+    PanelSeparator { foreground: root.foreground }
+
+    Item {
+      width: parent.width
+      implicitHeight: Math.max(localMark.height, localTitle.implicitHeight)
+
+      ProviderIcon {
+        id: localMark
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        provider: ({ providerId: "local" })
+      }
+
+      Text {
+        id: localTitle
+        anchors.left: localMark.right
+        anchors.leftMargin: Style.space(10)
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: Commons.I18n.t("agents.localModels")
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        font.bold: true
+      }
+    }
+
+    LocalServer { width: parent.width }
+  }
+
+  // The local model being served: its name and its stage (a spinner while it
+  // starts, which takes minutes), what runs it, then Start/Stop and Remove.
+  component LocalServer: Column {
+    spacing: Style.space(6)
+
+    Item {
+      width: parent.width
+      implicitHeight: localName.implicitHeight
+
+      Text {
+        id: localName
+        anchors.left: parent.left
+        anchors.right: localState.left
+        anchors.rightMargin: Style.space(10)
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: root.localActive ? root.localActive.name : ""
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        elide: Text.ElideRight
+      }
+
+      Row {
+        id: localState
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(6)
+
+        Spinner {
+          anchors.verticalCenter: parent.verticalCenter
+          visible: root.localBusy
+          running: root.localBusy && root.opened
+          color: root.foreground
+        }
+
+        Text {
+          anchors.verticalCenter: parent.verticalCenter
+          textFormat: Text.PlainText
+          text: root.localStageText(root.localStage)
+          color: root.localStage === "failed" ? root.urgent : (root.localStage === "ready" ? root.foreground : root.dim)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+
+          MouseArea {
+            id: localStateMouse
+            anchors.fill: parent
+            hoverEnabled: root.localStage === "failed"
+          }
+
+          PanelToolTip {
+            visible: localStateMouse.containsMouse && String(root.localRuntime.reason || "") !== ""
+            text: String(root.localRuntime.reason || "")
+          }
+        }
+      }
+    }
+
+    Text {
+      width: parent.width
+      textFormat: Text.PlainText
+      text: root.localDetail(root.localActive)
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      elide: Text.ElideRight
+    }
+
+    Row {
+      spacing: Style.space(14)
+
+      TextLink {
+        picked: root.hasKey("localToggle")
+        text: root.localBusy || root.localStage === "ready" ? Commons.I18n.t("agents.localStop") : Commons.I18n.t("agents.localStart")
+        tooltip: root.localBusy || root.localStage === "ready" ? Commons.I18n.t("agents.localStopHint") : ""
+        onClicked: root.toggleLocal()
+      }
+
+      TextLink {
+        picked: root.hasKey("localRemove")
+        text: root.localConfirmRemove ? Commons.I18n.t("agents.localRemoveConfirm") : Commons.I18n.t("agents.localRemove")
+        idleColor: root.localConfirmRemove ? root.urgent : root.dim
+        tooltip: root.localActive ? Commons.I18n.t("agents.localRemoveHint").arg(Commons.I18n.formatNumber(Number(root.localActive.diskBytes || 0) / 1e9, 0)) : ""
+        onClicked: root.removeLocal()
+      }
+    }
+  }
+
+  // A circle with a gap, turning: something is happening and will take a while.
+  component Spinner: Item {
+    id: spinner
+    property bool running: false
+    property color color: root.foreground
+    implicitWidth: Style.font.caption
+    implicitHeight: Style.font.caption
+
+    Text {
+      id: spinnerGlyph
+      anchors.centerIn: parent
+      textFormat: Text.PlainText
+      text: ""
+      color: spinner.color
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+
+      RotationAnimator on rotation {
+        from: 0
+        to: 360
+        duration: Style.duration(1000)
+        loops: Animation.Infinite
+        easing.type: Easing.Linear
+        running: spinner.running && spinner.visible && !Style.reduceMotion
+      }
+    }
+  }
+
   component ProviderIcon: Item {
     id: mark
     property var provider: null

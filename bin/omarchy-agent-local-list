@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=List the local models tuned for this machine
+# omarchy:args=[--json]
+
+exec omarchy-agent-local-state list "$@"

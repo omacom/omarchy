@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Start serving the local model
+
+exec omarchy-agent-local-state start "$@"

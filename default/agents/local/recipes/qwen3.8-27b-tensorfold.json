@@ -1,0 +1,50 @@
+{
+  "id": "qwen3.8-27b-tensorfold",
+  "name": "Qwen3.8 27B",
+  "engine": "TensorFold",
+  "summary": "Qwen's 27B coding model in 4-bit, with DFlash2 drafts and a 200k context",
+  "source": "https://github.com/MiaAI-Lab/Qwen3.8-27B-DGX-Spark-TensorFold",
+  "platforms": ["aarch64-n1x", "aarch64-gb10"],
+  "memoryGiB": 34,
+  "context": 204800,
+  "vision": true,
+  "pi": {
+    "thinkingLevelMap": { "minimal": "low", "low": "low", "medium": "medium", "high": "xhigh", "xhigh": "xhigh", "max": null },
+    "compat": { "supportsDeveloperRole": false }
+  },
+  "speed": { "code": "65–85", "prose": "30–40", "prefill": "950–1,400" },
+  "image": {
+    "ref": "ghcr.io/miaai-lab/qwen3.8-27b-dgx-spark-tensorfold@sha256:043d192b9e1725f55c5439fc9672055de891433e5b31448ed8963918e3c460e9",
+    "downloadBytes": 11362514143,
+    "bytes": 24821863465
+  },
+  "models": [
+    { "mount": "/models/target", "repo": "TensorFold/Qwen3.8-27B-MLX-4bit", "revision": "22d8d538154e0e5b6f8dcb1fcc74a60a0798104c", "bytes": 16081520999 },
+    { "mount": "/models/draft", "repo": "z-lab/Qwen3.8-27B-DFlash2", "revision": "50307d4c4cde6860d4eee73e2547cd786fe8e8a4", "bytes": 3849113002 }
+  ],
+  "cache": "/cache",
+  "port": 8888,
+  "env": {
+    "HF_HUB_OFFLINE": "1",
+    "TENSORFOLD_NO_UPDATE_CHECK": "1",
+    "TENSORFOLD_KV_DTYPE": "fp8",
+    "TENSORFOLD_KV_POOL_GIB": "7",
+    "TENSORFOLD_MEMORY_RESERVE_GIB": "{reserveGiB}",
+    "TENSORFOLD_MAX_IMAGES": "50",
+    "TENSORFOLD_IMAGE_TOKENS": "16384",
+    "TENSORFOLD_VIDEO_TOKENS": "16384"
+  },
+  "command": [
+    "tensorfold", "serve", "/models/target",
+    "--drafter", "/models/draft",
+    "--host", "0.0.0.0", "--port", "8888",
+    "--name", "{model}",
+    "--parallel", "1", "--context", "204800",
+    "--temperature", "1.0", "--top-p", "0.95", "--top-k", "20",
+    "--prefill-fp8", "--vision", "--thinking"
+  ],
+  "stages": [
+    { "match": "\\[tensorfold\\] loading", "stage": "loading" },
+    { "match": "\\[tensorfold\\] building CUDA extension", "stage": "compiling" }
+  ]
+}

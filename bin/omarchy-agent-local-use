@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Serve another installed local model
+# omarchy:args=<recipe>
+
+exec omarchy-agent-local-state use "$@"

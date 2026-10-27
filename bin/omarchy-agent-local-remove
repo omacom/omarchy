@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Remove a local model and everything it installed
+# omarchy:args=<recipe>
+
+exec omarchy-agent-local-state remove "$@"
