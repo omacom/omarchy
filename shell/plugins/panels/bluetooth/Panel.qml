@@ -104,6 +104,19 @@ Panel {
   readonly property bool headerHasCursor: cursorActive && focusSection === "header"
   readonly property string toggleHint: root.adapter && root.adapter.enabled ? Commons.I18n.t("bluetooth.turnOff") : Commons.I18n.t("bluetooth.turnOn")
 
+  // "files" is a fixed one-row section pinned under the hero switch. It owns
+  // the Object Push receiver: omarchy-bluetooth-files enables the user unit
+  // whose agent stores pushes from paired devices into the downloads
+  // directory. The unit is the state — the switch reads it back with `is-on`
+  // instead of keeping a copy that could drift from systemd.
+  readonly property bool filesHasCursor: cursorActive && focusSection === "files"
+  readonly property string fileReceiveHint: fileReceiveActive ? "Stop accepting files" : "Accept files from paired devices"
+  property bool fileReceiveActive: false
+  property bool fileReceiveBusy: false
+  property bool fileReceiveToggleNeedsQuery: false
+  property bool fileReceiveSettlementPending: false
+  property string fileReceiveQueryPurpose: "refresh"
+
   readonly property color hoverFill: bar
     ? Style.hoverFillFor(bar.foreground, Commons.Color.accent)
     : "transparent"
@@ -112,6 +125,7 @@ Panel {
     : "transparent"
 
   function sectionCount(section) {
+    if (section === "files") return 1
     if (section === "connected") return connectedDevices.length
     if (section === "known") return knownDevices.length
     if (section === "discovered") return discoveredDevices.length
@@ -119,6 +133,7 @@ Panel {
   }
 
   function sectionVisible(section) {
+    if (section === "files") return true
     if (section === "connected") return connectedDevices.length > 0
     if (section === "known") return knownDevices.length > 0
     if (section === "discovered") return adapter && adapter.discovering && discoveredDevices.length > 0
@@ -126,7 +141,9 @@ Panel {
   }
 
   readonly property var visibleSections: {
-    return Model.visibleSections(deviceGroups, adapter && adapter.discovering)
+    // "files" sits directly under the hero switch, ahead of the device
+    // sections, so j/k reaches it before any device row.
+    return ["files"].concat(Model.visibleSections(deviceGroups, adapter && adapter.discovering))
   }
 
   function devicesForSection(section) {
@@ -364,6 +381,38 @@ Panel {
     actionFocused = false
   }
 
+  function setFilesCursor() {
+    cursorActive = true
+    focusSection = "files"
+    actionFocused = false
+  }
+
+  // The helper reports systemd's active state by exit code. Serialise queries
+  // so a refresh already in flight cannot answer a toggle with stale state.
+  function refreshFileReceive() {
+    if (fileReceiveBusy || fileStateProc.running) return
+    fileReceiveQueryPurpose = "refresh"
+    fileStateProc.running = true
+  }
+
+  function startFileReceiveQuery(purpose) {
+    fileReceiveQueryPurpose = purpose
+    fileStateProc.running = true
+  }
+
+  // Decide direction from a fresh helper query, not the panel's last display
+  // value. The switch stays busy through the tracked unit change and a second
+  // query that confirms the resulting state.
+  function toggleFileReceive() {
+    if (fileReceiveBusy) return
+    fileReceiveBusy = true
+    if (fileStateProc.running) {
+      fileReceiveToggleNeedsQuery = true
+      return
+    }
+    startFileReceiveQuery("toggle")
+  }
+
   function moveCursorH(delta) {
     if (!cursorActive) { cursorActive = true; return }
     if (focusSection !== "known" && focusSection !== "connected") return
@@ -376,6 +425,10 @@ Panel {
   function activateCursor() {
     if (focusSection === "header") {
       toggleBluetooth()
+      return
+    }
+    if (focusSection === "files") {
+      toggleFileReceive()
       return
     }
     if (actionFocused) {
@@ -412,6 +465,7 @@ Panel {
       // from another monitor, or one leaked by an instance that could not
       // finish its own stop — so this close settles it either way.
       if (adapter !== null && adapter.discovering) owesDiscoveryStop = true
+      refreshFileReceive()
       if (connectedDevices.length > 0) { focusSection = "connected"; selectedIndex = 0 }
       else if (knownDevices.length > 0) { focusSection = "known"; selectedIndex = 0 }
       else if (discoveredDevices.length > 0) { focusSection = "discovered"; selectedIndex = 0 }
@@ -585,6 +639,61 @@ Panel {
     onTriggered: root.pendingActions = ({})
   }
 
+  // The receiver's state lives in systemd, not in the panel: read it when the
+  // popup opens, right after a switch, and every few seconds while it is up so
+  // a unit stopped from a terminal shows up too.
+  Process {
+    id: fileStateProc
+    command: ["omarchy-bluetooth-files", "is-on"]
+    onExited: function(exitCode) {
+      if (root.fileReceiveToggleNeedsQuery) {
+        root.fileReceiveToggleNeedsQuery = false
+        root.startFileReceiveQuery("toggle")
+        return
+      }
+      if (root.fileReceiveSettlementPending) {
+        root.fileReceiveSettlementPending = false
+        root.startFileReceiveQuery("settle")
+        return
+      }
+
+      if (root.fileReceiveQueryPurpose === "toggle") {
+        root.fileReceiveActive = exitCode === 0
+        fileChangeProc.command = [
+          "omarchy-bluetooth-files",
+          exitCode === 0 ? "off" : "on"
+        ]
+        fileChangeProc.running = true
+      } else if (root.fileReceiveQueryPurpose === "settle") {
+        root.fileReceiveActive = exitCode === 0
+        root.fileReceiveBusy = false
+      } else if (!root.fileReceiveBusy) {
+        root.fileReceiveActive = exitCode === 0
+      }
+    }
+  }
+
+  Process {
+    id: fileChangeProc
+    running: false
+    command: []
+    onExited: function(exitCode) {
+      if (fileStateProc.running) {
+        root.fileReceiveSettlementPending = true
+        return
+      }
+      root.startFileReceiveQuery("settle")
+    }
+  }
+
+  Timer {
+    id: fileStatePoll
+    interval: 5000
+    running: root.opened
+    repeat: true
+    onTriggered: root.refreshFileReceive()
+  }
+
   Timer {
     id: audioSwitchTimer
     interval: 500
@@ -647,6 +756,7 @@ Panel {
     function hide() { root.close() }
     function toggle() { root.toggle() }
     function toggleBluetooth() { root.toggleBluetooth() }
+    function toggleFiles() { root.toggleFileReceive() }
   }
 
   BarIconButton {
@@ -755,6 +865,79 @@ Panel {
               id: heroStatus
               textFormat: Text.PlainText
               text: root.heroStatusText.toUpperCase()
+              color: Qt.darker(root.bar.foreground, 1.4)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              font.letterSpacing: 1.2
+              elide: Text.ElideRight
+              width: parent.width
+            }
+          }
+        }
+
+        // ---------- File receive: Bluetooth Object Push ----------
+        PanelSeparator {
+          foreground: root.bar.foreground
+        }
+
+        Item {
+          width: parent.width
+          implicitHeight: Math.max(fileIcon.implicitHeight, fileLabels.implicitHeight, fileSwitch.implicitHeight)
+
+          Text {
+            id: fileIcon
+            textFormat: Text.PlainText
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            // The glyph the root menu uses for Share > Receive.
+            text: "󰥦"
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.display
+            opacity: root.fileReceiveActive ? 1.0 : 0.5
+          }
+
+          ToggleSwitch {
+            id: fileSwitch
+            checked: root.fileReceiveActive
+            busy: root.fileReceiveBusy
+            hasCursor: root.filesHasCursor
+            foreground: root.bar.foreground
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            onHovered: function(on) { if (on) root.setFilesCursor() }
+            onToggled: root.toggleFileReceive()
+
+            PanelToolTip {
+              visible: fileSwitch.containsMouse
+              text: root.fileReceiveHint
+              fontFamily: root.bar.fontFamily
+            }
+          }
+
+          Column {
+            id: fileLabels
+            anchors.left: fileIcon.right
+            anchors.leftMargin: Style.space(14)
+            anchors.right: parent.right
+            anchors.rightMargin: fileSwitch.width + Style.space(12)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(2)
+
+            Text {
+              text: "Accept files"
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.title
+              font.bold: true
+              elide: Text.ElideRight
+              width: parent.width
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              text: root.fileReceiveActive ? "PUSH · ON" : "PUSH · OFF"
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.caption
