@@ -1,6 +1,10 @@
 local paths = require("default.hypr.paths")
 local require_all = require("default.hypr.require_all")
 
+-- Load saved geometry before explicit disable/mirror/clamshell toggle rules.
+-- Managed state is read as data and never joins the config watch set.
+require("default.hypr.monitor-layout-state").apply()
+
 local toggles_dir = paths.state_home .. "/omarchy/toggles/hypr"
 package.path = toggles_dir .. "/?.lua;" .. package.path
 

@@ -76,3 +76,36 @@ assertDeepEqual(
 
 assertDeepEqual(monitor.parseDisplays('{'), { displays: [], enabledDisplayCount: 0 }, 'monitor handles invalid display JSON')
 JS
+
+run_node_test <<'JS'
+const monitor = requireFromRoot('shell/plugins/panels/monitor/Model.js')
+for (const [width, height] of [[3840, 2160], [2560, 1664]]) {
+  assertEqual(monitor.availableScales(['1', '1.25', '1.6', '2', '2.5', '3', '4'], width, height).includes('2.5'), true, `monitor retains 2.5 for ${width}x${height}`)
+}
+JS
+
+run_node_test <<'JS'
+const fs = require('fs')
+const panel = fs.readFileSync(path.join(root, 'shell/plugins/panels/monitor/Panel.qml'), 'utf8')
+const horizontal = panel.match(/function moveCursorH\(delta\) \{([\s\S]*?)\n  \}/)[1]
+const handler = panel.match(/onMoveRequested: function\(dx, dy\) \{([\s\S]*?)\n      \}/)[1]
+for (const section of ['scaletarget', 'scale']) {
+  const state = {
+    cursorActive: true, focusSection: section, selectedIndex: 0,
+    sectionCount: () => 3,
+    moveCursor: () => { throw new Error('unexpected vertical move') }
+  }
+  state.moveCursorH = new Function('delta', `with (this) { ${horizontal} }`).bind(state)
+  const move = new Function('root', 'dx', 'dy', handler).bind(null, state)
+  move(1, 0)
+  assertEqual(state.selectedIndex, 1, `${section}: Right/l reaches second button`)
+  move(1, 0)
+  move(1, 0)
+  assertEqual(state.selectedIndex, 2, `${section}: horizontal movement clamps at last button`)
+  move(-1, 0)
+  assertEqual(state.selectedIndex, 1, `${section}: Left/h returns to previous button`)
+  move(-1, 0)
+  move(-1, 0)
+  assertEqual(state.selectedIndex, 0, `${section}: horizontal movement clamps at first button`)
+}
+JS
