@@ -6,4 +6,4 @@ CURRENT_THEME_NAME=$(cat "$HOME/.local/state/omarchy/current/theme.name")
 THEME_USER_BACKGROUNDS="$HOME/.config/omarchy/backgrounds/$CURRENT_THEME_NAME"
 
 mkdir -p "$THEME_USER_BACKGROUNDS"
-nautilus "$THEME_USER_BACKGROUNDS"
+omarchy-launch-filemanager "$THEME_USER_BACKGROUNDS"
