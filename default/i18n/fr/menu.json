@@ -8,11 +8,11 @@
   "learn": {
     "label": "Apprendre"
   },
+  "appearance": {
+    "label": "Apparence"
+  },
   "trigger": {
     "label": "Déclencher"
-  },
-  "style": {
-    "label": "Style"
   },
   "setup": {
     "label": "Configuration"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Communauté"
   },
-  "trigger.appearance": {
-    "label": "Apparence"
+  "appearance.theme": {
+    "label": "Thème"
   },
-  "trigger.appearance.animations": {
-    "label": "Animations"
+  "appearance.background": {
+    "label": "Arrière-plan"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Police"
+  },
+  "appearance.top-bar": {
     "label": "Barre de menu"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Masquer la barre"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Afficher la barre"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Position de la barre"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Fond de la barre"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Barre opaque"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Barre vitrée"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Barre transparente"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Indicateurs de barre"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Pourcentage batterie"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Horloge"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Dimanche 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Dimanche 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Dimanche 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Dimanche 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "dim. 3 mai 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "dim. 3 mai 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 mai S18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 mai S18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Barre du haut"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Barre du bas"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Barre de gauche"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Barre de droite"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Dock auto-masqué"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Dock toujours visible"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Position du dock"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Dock du haut"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Dock du bas"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Dock de gauche"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Dock de droite"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Espacements fenêtres"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Coins des fenêtres"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Coins du thème"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Coins vifs"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Coins arrondis"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Opacité des fenêtres"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Fenêtres opaques"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Fenêtres transparentes"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Fenêtres vitrées"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "Ratio 1 fenêtre"
+  "appearance.branding.screensaver": {
+    "label": "Écran de veille"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "À propos"
+  },
+  "appearance.branding.about.text": {
+    "label": "Modifier le texte"
+  },
+  "appearance.branding.about.image": {
+    "label": "Depuis une image"
+  },
+  "appearance.branding.about.default": {
+    "label": "Restaurer défaut"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Modifier le texte"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Depuis une image"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Restaurer défaut"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Dock auto-masqué"
+  },
+  "appearance.dock.always-on": {
+    "label": "Dock toujours visible"
+  },
+  "appearance.dock.position": {
+    "label": "Position du dock"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock du haut"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock du bas"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock de gauche"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock de droite"
+  },
+  "appearance.workspace-layout": {
     "label": "Disposition des espaces",
     "title": "Disposition d'espace par défaut"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Mosaïque"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Défilement"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Flottant"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Synchro thème Herdr"
+  "appearance.unlock": {
+    "label": "Déverrouiller"
   },
   "trigger.toggle": {
     "label": "Basculer"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Rester éveillé"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Notifications"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Éclairage nocturne"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Écran de veille"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Capture de crash"
   },
   "trigger.emoji": {
     "label": "Émoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Test de vitesse"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Écran du portable"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Recopie d'écran"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "GPU hybride"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Pavé tactile"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Haptique pavé tactile"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "élevé"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Écran tactile"
   },
   "trigger.reminder.set": {
     "label": "En créer un"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Test débit disque"
-  },
-  "style.theme": {
-    "label": "Thème"
-  },
-  "style.background": {
-    "label": "Arrière-plan"
-  },
-  "style.unlock": {
-    "label": "Déverrouiller"
-  },
-  "style.font": {
-    "label": "Police"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Écran de veille"
-  },
-  "style.about": {
-    "label": "À propos"
-  },
-  "style.about.text": {
-    "label": "Modifier le texte"
-  },
-  "style.about.image": {
-    "label": "Depuis une image"
-  },
-  "style.about.default": {
-    "label": "Restaurer défaut"
-  },
-  "style.screensaver.text": {
-    "label": "Modifier le texte"
-  },
-  "style.screensaver.image": {
-    "label": "Depuis une image"
-  },
-  "style.screensaver.default": {
-    "label": "Restaurer défaut"
   },
   "setup.monitors": {
     "label": "Écrans"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1208,10 +1160,130 @@
   "update.password.user": {
     "label": "Utilisateur"
   },
-  "system.reboot-boot-menu": {
-    "label": "Redémarrer sur le menu de démarrage"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Capture de plantage désactivée"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "trigger.hardware.laptop-display-on": {
+    "label": "Écran portable activé"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Écran portable désactivé"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Duplication d'écran activée"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Duplication d'écran désactivée"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Passer au GPU hybride"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Passer au GPU intégré"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Activer le pavé tactile"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Désactiver le pavé tactile"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Activer l'écran tactile"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Désactiver l'écran tactile"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Noyau"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Afficher % batterie"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Masquer % batterie"
+  },
+  "appearance.windows": {
+    "label": "Fenêtres"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Espacement fenêtres activé"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Espacement fenêtres désactivé"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Ratio 1 fenêtre activé"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Ratio 1 fenêtre désactivé"
+  },
+  "appearance.branding": {
+    "label": "Image de marque"
+  },
+  "appearance.animations-on": {
+    "label": "Animations activées"
+  },
+  "appearance.animations-off": {
+    "label": "Animations désactivées"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Rester éveillé"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Autoriser la veille"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Notifications activées"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Couper les notifications"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Éclairage nocturne activé"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Éclairage nocturne désactivé"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Écran de veille activé"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Écran de veille désactivé"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Capture des plantages activée"
   }
 }

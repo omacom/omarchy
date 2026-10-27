@@ -8,11 +8,11 @@
   "learn": {
     "label": "Opi"
   },
+  "appearance": {
+    "label": "Ulkoasu"
+  },
   "trigger": {
     "label": "Käynnistä"
-  },
-  "style": {
-    "label": "Tyyli"
   },
   "setup": {
     "label": "Asetukset"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Yhteisö"
   },
-  "trigger.appearance": {
-    "label": "Ulkoasu"
+  "appearance.theme": {
+    "label": "Teema"
   },
-  "trigger.appearance.animations": {
-    "label": "Animaatiot"
+  "appearance.background": {
+    "label": "Tausta"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Fontti"
+  },
+  "appearance.top-bar": {
     "label": "Valikkopalkki"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Piilota palkki"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Näytä palkki"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Palkin sijainti"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Palkin tausta"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Peittävä palkki"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Lasinen palkki"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Läpinäkyvä palkki"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Palkin ilmaisimet"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Akun prosentti"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Kello"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Sunnuntai 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Sunnuntai 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Sunnuntai 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Sunnuntai 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Su 3. toukokuuta 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Su 3. toukokuuta 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3. toukokuuta V18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03. toukokuuta V18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Yläpalkki"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Alapalkki"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Vasen palkki"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Oikea palkki"
   },
-  "trigger.appearance.dock": {
-    "label": "Telakka"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Piilota Dock automaattisesti"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Dock aina näkyvissä"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Dockin sijainti"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Dock ylhäällä"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Dock alhaalla"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Dock vasemmalla"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Dock oikealla"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Ikkunoiden välit"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Ikkunan kulmat"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Teeman kulmat"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Terävät kulmat"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Pyöristetyt kulmat"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Ikkunan peittävyys"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Peittävät ikkunat"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Läpinäkyvät ikkunat"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Lasiset ikkunat"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1 ikkunan suhde"
+  "appearance.branding.screensaver": {
+    "label": "Näytönsäästäjä"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Tietoja"
+  },
+  "appearance.branding.about.text": {
+    "label": "Muokkaa tekstiä"
+  },
+  "appearance.branding.about.image": {
+    "label": "Aseta kuvasta"
+  },
+  "appearance.branding.about.default": {
+    "label": "Palauta oletus"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Muokkaa tekstiä"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Aseta kuvasta"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Palauta oletus"
+  },
+  "appearance.dock": {
+    "label": "Telakka"
+  },
+  "appearance.dock.autohide": {
+    "label": "Piilota Dock automaattisesti"
+  },
+  "appearance.dock.always-on": {
+    "label": "Dock aina näkyvissä"
+  },
+  "appearance.dock.position": {
+    "label": "Dockin sijainti"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock ylhäällä"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock alhaalla"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock vasemmalla"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock oikealla"
+  },
+  "appearance.workspace-layout": {
     "label": "Työtilan asettelu",
     "title": "Oletustyötilan asettelu"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Laatoitus"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Vieritys"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Kelluva"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr-teeman synkronointi"
+  "appearance.unlock": {
+    "label": "Avaa lukitus"
   },
   "trigger.toggle": {
     "label": "Kytke"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Pysy hereillä"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Ilmoitukset"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Yövalo"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Näytönsäästäjä"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Kaatumisten tallennus"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Nopeustesti"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Kannettavan näyttö"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Peilaa näyttö"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Hybridi-GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Kosketuslevy"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Kosketuslevyn haptiikka"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "korkea"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Kosketusnäyttö"
   },
   "trigger.reminder.set": {
     "label": "Aseta"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Levyn nopeustesti"
-  },
-  "style.theme": {
-    "label": "Teema"
-  },
-  "style.background": {
-    "label": "Tausta"
-  },
-  "style.unlock": {
-    "label": "Avaa lukitus"
-  },
-  "style.font": {
-    "label": "Fontti"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Näytönsäästäjä"
-  },
-  "style.about": {
-    "label": "Tietoja"
-  },
-  "style.about.text": {
-    "label": "Muokkaa tekstiä"
-  },
-  "style.about.image": {
-    "label": "Aseta kuvasta"
-  },
-  "style.about.default": {
-    "label": "Palauta oletus"
-  },
-  "style.screensaver.text": {
-    "label": "Muokkaa tekstiä"
-  },
-  "style.screensaver.image": {
-    "label": "Aseta kuvasta"
-  },
-  "style.screensaver.default": {
-    "label": "Palauta oletus"
   },
   "setup.monitors": {
     "label": "Näytöt"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -855,7 +807,7 @@
     "label": "JavaScript"
   },
   "install.development.go": {
-    "label": "Siirry"
+    "label": "Go"
   },
   "install.development.php": {
     "label": "PHP"
@@ -1066,7 +1018,7 @@
     "title": "Poista"
   },
   "remove.development.go": {
-    "label": "Siirry"
+    "label": "Go"
   },
   "remove.development.php": {
     "label": "PHP",
@@ -1208,10 +1160,130 @@
   "update.password.user": {
     "label": "Käyttäjä"
   },
-  "system.reboot-boot-menu": {
-    "label": "Käynnistä uudelleen käynnistysvalikkoon"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Näytä akun %"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Piilota akun %"
+  },
+  "appearance.windows": {
+    "label": "Ikkunat"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Ikkunavälit päällä"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Ikkunavälit pois"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-ikkunan suhde päällä"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-ikkunan suhde pois"
+  },
+  "appearance.branding": {
+    "label": "Brändäys"
+  },
+  "appearance.animations-on": {
+    "label": "Animaatiot päällä"
+  },
+  "appearance.animations-off": {
+    "label": "Animaatiot pois"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Pysy hereillä"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Salli lepotila"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Ilmoitukset päällä"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Hiljennä ilmoitukset"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Yövalo päällä"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Yövalo pois"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Näytönsäästäjä päällä"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Näytönsäästäjä pois"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Kaatumistallennus päällä"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Kaatumiskaappaus pois"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Kannettavan näyttö päälle"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Kannettavan näyttö pois"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Näytön peilaus päälle"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Näytön peilaus pois"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Vaihda hybridi-GPU:hun"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Vaihda integroituun GPU:hun"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Ota kosketuslevy käyttöön"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Poista kosketuslevy käytöstä"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Ota kosketusnäyttö käyttöön"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Poista kosketusnäyttö käytöstä"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Ydin"
   }
 }

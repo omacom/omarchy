@@ -42,6 +42,9 @@ Item {
   // Reached with the jump box; the panel never saves them.
   property var sessionCities: []
   property var jumpOptions: []          // the whole zone catalogue, unfiltered
+  // The panel's geocoder lookups, so the jump box can reach any town.
+  property var placesFor: function(text) { return [] }
+  property var placesPending: function(text) { return false }
 
   // Always shown, always labelled, drawn in the accent like the hero globe's marker.
   property var homeRow: []
@@ -50,7 +53,9 @@ Item {
 
   property string pendingJump: ""       // waiting on coordinates to arrive
 
-  signal jumpRequested(string label, string zone)
+  signal jumpRequested(string label, string zone, var place)
+  // The jump box's query changed; the panel looks up its places.
+  signal placeSearchRequested(string text)
   // The jump box closed; the host should take the keyboard back.
   signal jumpDismissed()
   signal exitRequested()
@@ -160,17 +165,39 @@ Item {
     return -1
   }
 
-  function goTo(label, zone) {
+  function nameTaken(label) {
+    var name = String(label).toLowerCase()
+    for (var i = 0; i < allCities.length; i++) if (String(allCities[i][0]).toLowerCase() === name) return true
+    return false
+  }
+
+  // A search result may be one of several towns of one name - Springfield,
+  // Illinois and Springfield, Missouri - and the globe holds one city per name,
+  // so the picked place is found by where it is. One whose name the globe
+  // already uses for somewhere else joins under a name of its own, and the
+  // globe sets off for its coordinates straight away.
+  function goTo(label, zone, place) {
+    var pinned = !!place && place.lat !== undefined
     var i = indexOfCity(label, zone)
+    if (i >= 0 && pinned && !Model.nearPlace({ lat: allCities[i][2], lon: allCities[i][3] }, place)) i = -1
+    if (i < 0 && pinned && nameTaken(label)) {
+      var named = Model.regionalName(label, place.region)
+      // With no region to tell them apart the name still finds the other
+      // town, so the globe only flies to the coordinates picked.
+      if (named === label) { flyTo(place.lat, place.lon); pendingJump = ""; return }
+      label = named
+      i = indexOfCity(label, zone)
+    }
     if (i >= 0) {
       selectedKey = keyAt(i)
       flyTo(allCities[i][2], allCities[i][3])
       pendingJump = ""
       return
     }
-    // Not on the globe yet: ask for it, and fly once its coordinates land.
+    // Not on the globe yet: ask for it, and select it once it lands.
+    if (pinned) flyTo(place.lat, place.lon)
     pendingJump = label + "|" + zone
-    jumpRequested(label, zone)
+    jumpRequested(label, zone, place || null)
   }
 
   onAllCitiesChanged: {
@@ -589,11 +616,15 @@ Item {
     buttonText: Commons.I18n.t("elsewhen.jumpToCity")
     loadingText: Commons.I18n.t("elsewhen.loadingCities")
     offsetLabel: function(zoneId) { return Model.utcOffsetLabel(root.offsets[zoneId], root.words) }
+    placesFor: function(text) { return root.placesFor(text) }
+    placesPending: function(text) { return root.placesPending(text) }
+    placeLimit: 2
+    onQueryChanged: if (active) root.placeSearchRequested(query)
     foreground: root.foreground
     dim: root.dim
     fainter: root.fainter
     fontFamily: root.fontFamily
-    onPicked: function(label, id) { root.goTo(label, id) }
+    onPicked: function(label, id, place) { root.goTo(label, id, place) }
     onDismissed: root.jumpDismissed()
   }
 

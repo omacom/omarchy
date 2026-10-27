@@ -1,6 +1,6 @@
 # Keyboard, Mouse, Trackpad
 
-Hyprland memungkinkan kamu mengonfigurasi semua masukanmu dengan sangat detail. Kamu dapat mengubah pengulangan keyboard menjadi sangat cepat atau membuat trackpad menggunakan pengguliran alami. Kamu mengubah semuanya di `~/.config/hypr/input.lua`, yang juga dapat kamu capai melalui _Pengaturan > Masukan_ di menu Omarchy (`Super + Space`). Apa pun yang kamu atur di sana menggantikan bawaan Omarchy.
+Hyprland memungkinkan Anda mengonfigurasi semua input Anda secara sangat terperinci. Anda dapat mengubah pengulangan keyboard menjadi secepat kilat atau membuat trackpad menggunakan pengguliran alami. Anda mengubah semuanya di `~/.config/hypr/input.lua`, yang juga dapat Anda jangkau melalui _Setup > Input_ di menu Omarchy (`Super + Space`). Apa pun yang Anda atur di sana menggantikan default Omarchy.
 
 Berikut contohnya:
 
@@ -35,9 +35,9 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-Kamu dapat [melihat semua pilihan masukan](https://wiki.hypr.land/Configuring/Basics/Variables/#input) di wiki Hyprland untuk masukan.
+Anda dapat [melihat semua opsi input](https://wiki.hypr.land/Configuring/Basics/Variables/#input) di wiki Hyprland untuk input.
 
-CapsLock bekerja sebagai Caps Lock biasa, dan `Shift + CapsLock` adalah tombol compose untuk [emoji cepat](07-hotkeys.md#quick-emojis) dan [pelengkapan lain](07-hotkeys.md#quick-completions). Jika kamu lebih suka tombol compose di tempat lain, ganti `omarchy:shift_caps_compose` di `kb_options`. Misalnya, ini memindahkan tombol compose ke Right Alt:
+CapsLock berfungsi sebagai Caps Lock biasa, dan `Shift + CapsLock` adalah tombol compose untuk [emoji cepat](07-hotkeys.md#quick-emojis) dan [penyelesaian cepat lainnya](07-hotkeys.md#quick-completions). Jika Anda lebih suka tombol compose berada di tempat lain, ganti `omarchy:shift_caps_compose` di `kb_options`. Misalnya, ini memindahkan tombol compose ke Right Alt:
 
 ```lua
 hl.config({
@@ -47,33 +47,33 @@ hl.config({
 })
 ```
 
-### Gerakan trackpad
+### Gestur trackpad
 
-Kamu juga dapat mengaktifkan [gerakan touchpad](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), seperti menggesek dengan tiga jari untuk mengubah ruang kerja:
+Anda juga dapat mengaktifkan [gestur touchpad](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), seperti menggeser dengan tiga jari untuk berpindah workspace:
 
 ```lua
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 ```
 
-Pada laptop Dell XPS dengan touchpad haptik, kamu juga dapat mengatur kekuatan klik ke rendah, sedang, atau tinggi di bawah _Pemicu > Perangkat Keras > Haptik Touchpad_.
+Pada laptop Dell XPS dengan touchpad haptic, Anda juga dapat mengatur kekuatan klik ke low, mid, atau high di bawah _Trigger > Hardware > Touchpad Haptics_.
 
 ### Mengetik dalam bahasa Mandarin, Jepang, dan bahasa lainnya
 
-Pilih Jepang, Korea, Mandarin (Sederhana, Pinyin), atau Mandarin (Tradisional, Zhuyin) saat pemasang menanyakan keyboard-mu. Omarchy mengonfigurasi keyboard dan mesin masukan yang cocok secara otomatis, termasuk selama penyiapan boot pertama offline. Jepang menggunakan Mozc, Korea menggunakan Hangul dua set standar, Mandarin Sederhana menggunakan Pinyin, dan Mandarin Tradisional menggunakan pengaturan Zhuyin standar Chewing. Jepang (keyboard AS) menyediakan Mozc dengan tata letak keyboard AS.
+Pilih Japanese, Korean, Chinese (Simplified, Pinyin), Taiwan (Zhuyin), atau Hong Kong (Cangjie) saat installer menanyakan keyboard Anda. Omarchy mengonfigurasi keyboard dan mesin input yang cocok secara otomatis, termasuk selama penyiapan offline saat boot pertama. Japanese menggunakan Mozc, Korean menggunakan Hangul two-set standar, Simplified Chinese menggunakan Pinyin, Taiwan menggunakan susunan Zhuyin standar dari Chewing, dan Hong Kong menggunakan Cangjie dengan bentuk karakter Hong Kong. Japanese (US keyboard) menyediakan Mozc dengan tata letak keyboard US. Tombol Hangul, Zhuyin, dan Cangjie tetap berada di posisi standarnya bahkan saat Anda mengetik huruf Latin dengan Dvorak, Colemak, atau AZERTY. Jika Anda menambahkan Hangul atau Chewing sebelum ini, batalkan pilihannya lalu pilih kembali di bawah _Setup > Typing > Input Methods_ untuk memindahkan tombol-tombolnya ke sana; Omarchy membiarkan mesin yang sudah Anda gunakan untuk mengetik apa adanya.
 
-Pengetikan dimulai dalam mode Latin. Tekan `Super + I` untuk berputar melalui metode masukan yang dikonfigurasi, dan `Super + Shift + I` untuk berputar kembali. Ketuk `Shift` sendiri untuk keluar dari metode masukan seperti Pinyin ke huruf Latin, dan ketuk lagi untuk kembali, seperti cara Sogou, Microsoft Pinyin, dan macOS bekerja; `Shift` ditambah huruf tetap mengetik huruf kapital. Pada keyboard Jepang, 全角/半角 mengalihkan masukan, 変換 menyalakannya, dan 無変換 mematikannya. Pada tata letak keyboard Korea, tombol khusus 한/영 dan 한자 mengalihkan Hangul dan mengonversi ke Hanja. `Ctrl + Space` tetap tersedia untuk Tmux dan Herdr; `Shift + CapsLock` tetap tombol compose.
+Pengetikan dimulai dalam mode Latin. Tekan `Super + I` untuk beralih bergiliran melalui metode input yang telah dikonfigurasi, dan `Super + Shift + I` untuk beralih kembali. Ketuk `Shift` sendiri untuk keluar dari metode input seperti Pinyin ke huruf Latin, dan ketuk lagi untuk kembali, seperti cara kerja Sogou, Microsoft Pinyin, dan macOS; `Shift` ditambah sebuah huruf tetap mengetik huruf kapital. Pada keyboard Japanese, 全角/半角 mengalihkan input, 変換 mengaktifkannya, dan 無変換 menonaktifkannya. Dengan Korean, 한/영 beralih ke Hangul dan 한자 mengonversi ke Hanja, baik keyboard Anda memiliki tombol khusus maupun mengirim Right Alt dan Right Ctrl untuk tombol-tombol tersebut, seperti yang dilakukan banyak laptop, jadi Right Alt dan Right Ctrl bukan modifier biasa di sana; push-to-talk dikte tetap berada di F9. `Ctrl + Space` tetap tersedia untuk Tmux dan Herdr; `Shift + CapsLock` tetap menjadi tombol compose.
 
-Indikator keyboard muncul di kanan bilah saat kamu memiliki beberapa tata letak keyboard atau metode masukan. Klik untuk beralih bahasa masukan; Jepang menampilkan あ untuk hiragana. Untuk pilihan karakter Jepang, beralih ke Jepang, ketik kata seperti `nihongo`, kemudian tekan Space dua kali. Tekan Enter untuk menerima pilihanmu. Jika kamu juga memiliki beberapa tata letak keyboard, klik kanan indikator untuk memutarnya.
+Indikator keyboard muncul di sebelah kanan bar saat Anda memiliki beberapa tata letak keyboard atau metode input. Klik indikator tersebut untuk beralih bahasa input; Japanese menampilkan あ untuk hiragana. Untuk pilihan karakter Japanese, beralihlah ke Japanese, ketik kata seperti `nihongo`, lalu tekan Space dua kali. Tekan Enter untuk menerima pilihan Anda. Jika Anda juga memiliki beberapa tata letak keyboard, klik kanan indikator tersebut untuk beralih bergiliran di antara tata letak tersebut.
 
-Gunakan _Pengaturan > Pengetikan > Tata Letak Keyboard_ untuk memilih tata letak seperti Inggris dan Prancis, dari pilihan yang sama yang ditawarkan selama pemasangan. Gunakan _Pengaturan > Pengetikan > Metode Masukan_ untuk memilih mesin komposisi mana yang aktif. Kedua pemilih terbuka di dalam menu Omarchy dengan pilihan saat ini dicentang. Klik atau tekan Enter untuk mengalihkan pilihan; setiap perubahan berlaku segera. Membatalkan pilihan metode masukan menghapusnya dari siklus tanpa mencopotnya; keyboard tetap tersedia.
+Gunakan _Setup > Typing > Keyboard Layouts_ untuk memilih tata letak seperti English dan French, dari pilihan yang sama yang ditawarkan selama instalasi. Gunakan _Setup > Typing > Input Methods_ untuk memilih mesin komposisi mana yang aktif. Kedua pemilih terbuka di dalam menu Omarchy dengan pilihan Anda saat ini dalam keadaan tercentang. Klik atau tekan Enter untuk mengalihkan sebuah pilihan; setiap perubahan langsung berlaku. Membatalkan pilihan sebuah metode input akan menghapusnya dari siklus tanpa menghapus instalasinya; keyboard tetap tersedia.
 
-Jalankan `omarchy setup keyboard` atau `omarchy setup input` untuk membuka pemilih yang sama. Untuk menambahkan satu bahasa dari baris perintah, gunakan `omarchy setup input mozc`, `hangul`, `pinyin`, atau `chewing`. Tombol pengalihan kustommu dipertahankan. Untuk tata letak atau tombol mesin alternatif, pasang `fcitx5-configtool` dengan `omarchy pkg add fcitx5-configtool` dan luncurkan dari terminal. Memilih bahasa masukan tidak mengubah bahasa desktop.
+Jalankan `omarchy setup keyboard` atau `omarchy setup input` untuk membuka pemilih yang sama. Untuk menambahkan satu bahasa dari baris perintah, gunakan `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing`, atau `cangjie5`. Quick, Boshiamy, dan Array hadir dalam paket yang sama dengan Cangjie dan muncul di pemilih Input Methods. Tombol peralihan kustom Anda tetap dipertahankan. Untuk tata letak atau tombol mesin alternatif, instal `fcitx5-configtool` dengan `omarchy pkg add fcitx5-configtool` dan jalankan dari terminal. Memilih bahasa input tidak mengubah bahasa desktop. Memilih Japanese, Korean, atau Chinese di bawah _Setup > Language_ akan menambahkan metode inputnya saat Anda belum memilikinya.
 
-Gunakan `Super + I` untuk berputar melalui metode masukan atau tata letak keyboard, dan `Super + Shift + I` untuk kembali ke arah lain, jadi dengan tiga yang dikonfigurasi kamu dapat bergerak di antara dua tetangga. Indikator masukan muncul di kanan bilah hanya saat lebih dari satu metode masukan atau tata letak dikonfigurasi. Ikatan desktop ini bekerja bersama tombol pengalihan Fcitx yang ada; kamu dapat menimpanya di `~/.config/hypr/bindings.lua`. Mesin masukan dan urutan compose menggunakan layanan [Fcitx5](https://fcitx-im.org/) yang sudah berjalan di setiap sesi.
+Gunakan `Super + I` untuk beralih bergiliran melalui metode input atau tata letak keyboard, dan `Super + Shift + I` untuk kembali ke arah sebaliknya, jadi dengan tiga yang dikonfigurasi Anda dapat berpindah di antara dua tetangga. Indikator input muncul di sebelah kanan bar hanya saat lebih dari satu metode input atau tata letak dikonfigurasi. Binding desktop ini bekerja bersama tombol peralihan Fcitx Anda yang sudah ada; Anda dapat menimpanya di `~/.config/hypr/bindings.lua`. Mesin input dan urutan compose menggunakan layanan [Fcitx5](https://fcitx-im.org/) yang sudah berjalan di setiap sesi.
 
 ### Gunakan ALT sebagai SUPER
 
-Pada beberapa keyboard, tidak nyaman menggunakan tombol meta primer (tombol Windows/cmd) sebagai SUPER. Kamu dapat mengubah ini menjadi ALT sebagai gantinya menggunakan perubahan ini:
+Pada beberapa keyboard, tidak nyaman menggunakan tombol meta utama (tombol Windows/cmd) sebagai SUPER. Anda dapat mengubahnya menjadi ALT sebagai gantinya menggunakan perubahan ini:
 
 ```lua
 hl.config({

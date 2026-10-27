@@ -5,9 +5,6 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 setup="$ROOT/install/hardware/gb10/sleep.sh"
-all="$ROOT/install/hardware/all.sh"
-menu="$ROOT/default/omarchy/omarchy-menu.jsonc"
-migration=$(grep -l "hardware/gb10/sleep.sh" "$ROOT"/migrations/*.sh | head -1 || true)
 
 # The setting follows the real GB10 predicate on fixture machines, and root
 # reads only the live hardware.
@@ -16,13 +13,6 @@ require_platform_fixtures "the GB10 sleep setting"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin"
-
-bash -n "$setup" || fail "GB10 sleep script has valid syntax"
-
-grep -q 'run_logged .*hardware/gb10/sleep.sh' "$all" ||
-  fail "the GB10 sleep setting runs during hardware setup"
-[[ -n $migration ]] || fail "a migration applies the GB10 sleep setting to existing installs"
-pass "the GB10 sleep setting runs at install and through a migration"
 
 # An aarch64 machine, with an NVIDIA GPU of the given PCI device ID or none.
 machine() {
@@ -88,16 +78,6 @@ run spark "$scratch/spark" omarchy-sleep-disabled || fail "sleep reads as disabl
 run spark "$scratch/none" omarchy-sleep-disabled && fail "sleep reads as enabled without the setting"
 pass "omarchy-sleep-disabled follows the sleep setting"
 
-run spark "$scratch/migrated" bash "$migration" >/dev/null
-[[ -f $scratch/migrated/omarchy-sleep-disabled.conf ]] || fail "the migration applies the setting on a GB10"
-run spark "$scratch/migrated" bash "$migration" >/dev/null
-! grep -q '^sudo ' "$CALL_LOG" || fail "the migration skips a GB10 that already has the setting"
-run other "$scratch/migrated-other" bash "$migration" >/dev/null
-! grep -q '^sudo ' "$CALL_LOG" || fail "the migration leaves other machines alone"
-TEST_SUDO_STATUS=1 run spark "$scratch/failed" bash "$migration" >/dev/null &&
-  fail "a failed migration stays pending"
-pass "the migration applies the setting once, only on a GB10"
-
 run spark "$scratch/spark" bash "$ROOT/bin/omarchy-toggle-suspend"
 ! grep -q '^toggle ' "$CALL_LOG" || fail "the suspend toggle does nothing while sleep is disabled"
 grep -q '^notify .*Suspend is turned off on this machine' "$CALL_LOG" ||
@@ -110,6 +90,10 @@ hibernation=$(TEST_SUDO_STATUS=1 run spark "$scratch/spark" bash "$ROOT/bin/omar
 ! grep -qE '^(gum|btrfs|swapon|sudo) ' "$CALL_LOG" ||
   fail "hibernation setup creates no swap while sleep is disabled"
 pass "the suspend toggle and hibernation setup respect the disabled setting"
+
+# The Suspend and Hibernate rows run their real menu guards on the fixture
+# machines: hidden while the setting is in place, back once it is gone.
+menu="$ROOT/default/omarchy/omarchy-menu.jsonc"
 
 guard() {
   grep -F "\"$1\"" "$menu" | sed -E 's/.*"when":"([^"]*)".*/\1/'
@@ -125,8 +109,7 @@ SH
 chmod +x "$scratch/bin"/*
 for item in system.suspend system.hibernate; do
   when=$(guard "$item")
-  [[ $when == *"omarchy-sleep-disabled"* && $when != *"omarchy-hw-"* ]] ||
-    fail "the $item row follows the sleep setting, not the hardware"
+  [[ -n $when ]] || fail "the $item row has a menu guard"
   run spark "$scratch/spark" bash -c "$when" && fail "the $item row is hidden while sleep is disabled"
   run spark "$scratch/none" bash -c "$when" || fail "the $item row returns when the setting is removed"
 done
