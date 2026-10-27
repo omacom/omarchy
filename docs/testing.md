@@ -32,6 +32,8 @@ A new shell test only needs the right name: drop `<area>-test.sh` into
 `test/shell.d/` and `./test/shell` picks it up automatically. Shared fixtures
 live under `test/shell.d/fixtures/`.
 
+`.github/workflows/test.yml` runs `./test/all` on every pull request and on every push to `quattro`, in an Arch container that boots systemd and allows user namespaces, so the tests that need either run there instead of skipping. It checks out `omarchy-pkgs` and `omarchy-iso` beside the repo for the tests that read them, and runs the suite as an ordinary user with no sudo.
+
 ## The base-test.sh contract
 
 Every shell test starts the same way:
