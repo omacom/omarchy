@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const monitor = requireFromRoot('shell/plugins/panels/monitor/Model.js')
+const fs = require('fs')
 
 assertEqual(monitor.clampBrightness(0), 1, 'monitor clamps minimum brightness')
 assertEqual(monitor.clampBrightness(101), 100, 'monitor clamps maximum brightness')
@@ -75,4 +76,25 @@ assertDeepEqual(
 )
 
 assertDeepEqual(monitor.parseDisplays('{'), { displays: [], enabledDisplayCount: 0 }, 'monitor handles invalid display JSON')
+
+const twoDisplays = [
+  { name: 'eDP-1', enabled: true, focused: true, width: 2880, height: 1800, scale: 2 },
+  { name: 'DP-1', enabled: true, focused: false, width: 2560, height: 1440, scale: 1.25 }
+]
+assertEqual(monitor.scaleDisplay(twoDisplays, 'DP-1', 'eDP-1').scale, 1.25,
+  'monitor uses the selected, unfocused display scale')
+assertEqual(monitor.scaleDisplay(twoDisplays, '', 'eDP-1').name, 'eDP-1',
+  'monitor starts with the focused display')
+assertEqual(monitor.scaleDisplay(twoDisplays, 'DP-1', 'eDP-1').width, 2560,
+  'monitor uses the selected display mode for scale presets')
+assertEqual(monitor.scaleDisplay([twoDisplays[0], { ...twoDisplays[1], enabled: false }], 'DP-1', 'eDP-1').name, 'eDP-1',
+  'monitor falls back when the selected display is disabled')
+
+const panelSource = fs.readFileSync(root + '/shell/plugins/panels/monitor/Panel.qml', 'utf8')
+const movement = panelSource.match(/onMoveRequested: function\(dx, dy\) \{([\s\S]*?)\n      \}\n      onActivateRequested:/)
+assert(movement, 'monitor panel exposes its keyboard movement handler')
+const cursor = { cursorActive: true, focusSection: 'scaleTargets', selectedIndex: 0,
+  moveCursorH(delta) { this.selectedIndex += delta } }
+new Function('root', 'dx', 'dy', movement[1])(cursor, 1, 0)
+assertEqual(cursor.selectedIndex, 1, 'keyboard right reaches the second display selector')
 JS

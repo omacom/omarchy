@@ -27,6 +27,9 @@ Panel {
   property string monitorScale: ""
   property var displays: []
   property int enabledDisplayCount: 0
+  property string selectedScaleMonitor: ""
+  readonly property var scaleDisplay: Model.scaleDisplay(displays, selectedScaleMonitor, focusedMonitor)
+  readonly property var scaleDisplays: displays.filter(function(display) { return display && display.enabled })
 
   // Carry sub-notch touchpad deltas between wheel events.
   property real wheelAccumulator: 0
@@ -35,6 +38,7 @@ Panel {
   //   "brightness" - single slider row, selectedIndex = -1 sentinel
   //                  (mirrors Audio's slider rows). Only present if a
   //                  controllable backlight was detected.
+  //   "scaleTargets" - enabled displays to scale independently.
   //   "scale"      - 6 Button scale presets; treated as a single
   //                  horizontal row from j/k's perspective. h/l moves
   //                  between presets, identical to bluetooth's header.
@@ -44,11 +48,8 @@ Panel {
   // signal so keyboard cursor and pointer share one highlight.
   readonly property var scalePresets: ["1", "1.25", "1.6", "2", "3", "4"]
   readonly property var scaleValues: {
-    for (var i = 0; i < displays.length; i++) {
-      var display = displays[i]
-      if (display && display.focused)
-        return Model.availableScales(scalePresets, display.width, display.height)
-    }
+    if (scaleDisplay)
+      return Model.availableScales(scalePresets, scaleDisplay.width, scaleDisplay.height)
     return scalePresets
   }
   property string focusSection: "scale"
@@ -77,6 +78,7 @@ Panel {
     var list = []
     if (brightnessAvailable) list.push("brightness")
     list.push("textsize")
+    if (scaleDisplays.length > 1) list.push("scaleTargets")
     list.push("scale")
     if (displays.length > 1) list.push("monitors")
     return list
@@ -85,6 +87,7 @@ Panel {
   function sectionCount(section) {
     if (section === "brightness") return 0  // only the slider sentinel at -1
     if (section === "textsize") return 0    // slider sentinel at -1, like brightness
+    if (section === "scaleTargets") return scaleDisplays.length
     if (section === "scale") return scaleValues.length
     if (section === "monitors") return displays.length
     return 0
@@ -92,7 +95,7 @@ Panel {
 
   function sectionIsSingleRow(section) {
     // brightness and text size are lone sliders; scale presets sit horizontally.
-    return section === "brightness" || section === "textsize" || section === "scale"
+    return section === "brightness" || section === "textsize" || section === "scaleTargets" || section === "scale"
   }
 
   function sectionFirstIndex(section) {
@@ -130,14 +133,15 @@ Panel {
     }
   }
 
-  // h/l: in scale section, walks the preset row; everywhere else, no-op
+  // h/l: in the scale sections, walks the display or preset row; elsewhere, no-op
   // because adjustBrightness handles horizontal motion on the brightness
   // slider.
   function moveCursorH(delta) {
-    if (focusSection !== "scale") return
+    if (focusSection !== "scale" && focusSection !== "scaleTargets") return
     var next = selectedIndex + delta
     if (next < 0) next = 0
-    if (next > scaleValues.length - 1) next = scaleValues.length - 1
+    var count = sectionCount(focusSection)
+    if (next > count - 1) next = count - 1
     selectedIndex = next
   }
 
@@ -148,6 +152,10 @@ Panel {
   }
 
   function activateCursor() {
+    if (focusSection === "scaleTargets" && selectedIndex >= 0 && selectedIndex < scaleDisplays.length) {
+      selectedScaleMonitor = scaleDisplays[selectedIndex].name
+      return
+    }
     if (focusSection === "scale" && selectedIndex >= 0 && selectedIndex < scaleValues.length) {
       setScale(scaleValues[selectedIndex])
       return
@@ -268,20 +276,13 @@ Panel {
   }
 
   function activeScaleIndex() {
-    for (var i = 0; i < displays.length; i++) {
-      var display = displays[i]
-      if (display && display.focused)
-        return Model.matchingScaleIndex(scaleValues, monitorScale, display.width, display.height)
-    }
-    return -1
+    if (!scaleDisplay) return -1
+    var current = scaleDisplay.scale === undefined ? monitorScale : scaleDisplay.scale
+    return Model.matchingScaleIndex(scaleValues, current, scaleDisplay.width, scaleDisplay.height)
   }
 
   function effectiveScale(scale) {
-    for (var i = 0; i < displays.length; i++) {
-      var display = displays[i]
-      if (display && display.focused)
-        return Model.cleanScale(scale, display.width, display.height)
-    }
+    if (scaleDisplay) return Model.cleanScale(scale, scaleDisplay.width, scaleDisplay.height)
     return normalizeScale(scale)
   }
 
@@ -296,6 +297,10 @@ Panel {
     var parsed = Model.parseDisplays(displaysJson)
     root.displays = parsed.displays
     root.enabledDisplayCount = parsed.enabledDisplayCount
+    if (root.selectedScaleMonitor && !parsed.displays.some(function(display) {
+      return display && display.enabled && display.name === root.selectedScaleMonitor
+    }))
+      root.selectedScaleMonitor = ""
   }
 
   function toggleDisplay(name, enabled) {
@@ -315,7 +320,10 @@ Panel {
   }
 
   function setScale(scale) {
-    actionProc.command = ["bash", "-c", "omarchy-hyprland-monitor-scaling " + scale]
+    if (!scaleDisplay) return
+    actionProc.command = root.enabledDisplayCount > 1
+      ? ["omarchy-hyprland-monitor-scaling", "--monitor", scaleDisplay.name, String(scale)]
+      : ["omarchy-hyprland-monitor-scaling", String(scale)]
     if (!actionProc.running) actionProc.running = true
   }
 
@@ -366,6 +374,7 @@ Panel {
   // the cursor until hover or the first navigation key.
   onOpenedChanged: {
     if (opened) {
+      selectedScaleMonitor = ""
       refresh()
       if (brightnessAvailable) {
         focusSection = "brightness"
@@ -381,6 +390,7 @@ Panel {
   onBrightnessAvailableChanged: clampCursor()
   onDisplaysChanged: clampCursor()
   onScaleValuesChanged: clampCursor()
+  onScaleDisplaysChanged: clampCursor()
   onVisibleSectionsChanged: clampCursor()
 
   // Only poll while the panel is open; the bar glyph tracks monitor count via
@@ -512,7 +522,7 @@ Panel {
         else if (dx !== 0) {
           if (root.focusSection === "brightness") root.adjustBrightness(dx * 5)
           else if (root.focusSection === "textsize") root.adjustTextSize(dx)
-          else if (root.focusSection === "scale") root.moveCursorH(dx)
+          else if (root.focusSection === "scale" || root.focusSection === "scaleTargets") root.moveCursorH(dx)
         }
       }
       onActivateRequested: if (root.cursorActive) root.activateCursor()
@@ -760,14 +770,13 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
               }
 
-              // Name the monitor SCALE targets, since it only applies to the
-              // focused one.
+              // The presets below apply to the selected display.
               Text {
                 id: scaleMonitor
                 textFormat: Text.PlainText
-                text: root.focusedMonitor
+                text: root.scaleDisplay ? root.scaleDisplay.name : ""
                 // Only worth naming when more than one display is in play.
-                visible: root.focusedMonitor !== "" && root.enabledDisplayCount > 1
+                visible: root.scaleDisplay !== null && root.enabledDisplayCount > 1
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -775,6 +784,38 @@ Panel {
                 anchors.right: parent.right
                 anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
+              }
+            }
+
+            Flow {
+              id: scaleTargets
+              width: parent.width
+              spacing: Style.spacing.xs
+              visible: root.scaleDisplays.length > 1
+              height: visible ? childrenRect.height : 0
+
+              Repeater {
+                model: root.scaleDisplays
+
+                Button {
+                  required property var modelData
+                  required property int index
+
+                  text: modelData.name
+                  fontSize: Style.font.caption
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  bordered: true
+                  selected: root.scaleDisplay !== null && root.scaleDisplay.name === modelData.name
+                  hasCursor: root.cursorActive && root.focusSection === "scaleTargets" && root.selectedIndex === index
+                  onClicked: root.selectedScaleMonitor = modelData.name
+                  onHovered: function(isHovered) {
+                    if (!isHovered || root.reflowingText) return
+                    root.cursorActive = true
+                    root.focusSection = "scaleTargets"
+                    root.selectedIndex = index
+                  }
+                }
               }
             }
 

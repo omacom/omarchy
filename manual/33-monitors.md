@@ -20,6 +20,8 @@ Changes to `GDK_SCALE` apply to applications started after the change (and GTK o
 
 You can also quickly step through the major monitor scaling ratios (1x, 1.25x, 1.6x, 2x, 3x, 4x) using `Super + /` to go higher and `Super + Alt + /` to go lower. If you have the default configuration, these changes will also persist past reboot.
 
+With more than one screen, open **Display** in the top bar, choose the screen under **Scale**, then pick its scaling ratio. Each screen keeps its own ratio in `~/.config/hypr/monitors.lua` without changing the default for the others. The scaling hotkeys change the focused screen, and `omarchy hyprland monitor scaling --monitor DP-1 1.25` sets a particular output. `GDK_SCALE` is shared by GTK/XWayland applications rather than set per screen; adjust it separately in `monitors.lua` if needed.
+
 ### Making text bigger or smaller
 
 Monitor scaling changes the size of everything. If all you want is bigger or smaller _text_, there's a single knob for that:
