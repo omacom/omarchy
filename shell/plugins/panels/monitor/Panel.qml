@@ -38,11 +38,30 @@ Panel {
   //   "scale"      - 6 Button scale presets; treated as a single
   //                  horizontal row from j/k's perspective. h/l moves
   //                  between presets, identical to bluetooth's header.
-  //   "monitors"   - vertical display row list for enabling/disabling displays;
-  //                  j/k walks each row.
+  //   "monitors"   - vertical display row list; each display row carries a
+  //                  row of 0/90/180/270-degree rotation pills. Mouse: click a
+  //                  degree, right-click enables or disables the display.
+  //                  Keyboard: j/k walks rows, h/l points a degree (starting
+  //                  at the row's current one), Enter applies the pointed
+  //                  degree (a disabled row toggles on and off instead).
   // Mouse hover on a target updates root state via the components' `hovered`
   // signal so keyboard cursor and pointer share one highlight.
   readonly property var scalePresets: ["1", "1.25", "1.6", "2", "3", "4"]
+  // Per-display rotation in degrees. Hyprland's wl_output_transform maps
+  // 0 -> 0, 90 -> 1, 180 -> 2, 270 -> 3 (omarchy-hyprland-monitor-rotation
+  // applies and persists it).
+  readonly property var rotationValues: [0, 90, 180, 270]
+  // Absolute path of the rotation CLI, resolved once at start-up; QuickShell's
+  // Process does not search PATH for bare program names.
+  property string rotationBin: ""
+  // Rotation action bookkeeping: if the action exits failed, the panel reverts
+  // the live change so state and config never disagree. The prev value is the
+  // RAW wl_output_transform (0-7), because the degree vocabulary cannot express
+  // flipped orientations (4-7) and a failed save must restore exactly what was
+  // there.
+  property string rotationActionName: ""
+  property int rotationActionPrevRaw: 0
+  property bool rotationActionValid: false
   readonly property var scaleValues: {
     for (var i = 0; i < displays.length; i++) {
       var display = displays[i]
@@ -53,6 +72,9 @@ Panel {
   }
   property string focusSection: "scale"
   property int selectedIndex: 0
+  // Degree the h/l cursor points at while a display row is selected; it is
+  // independent of selectedIndex, which keeps pointing the row's pill.
+  property int rotationPointer: 0
   property bool cursorActive: false
 
   // Text size slider — curated macOS-style notches (px). The panel snaps to
@@ -107,38 +129,62 @@ Panel {
     if (sIdx < 0) {
       focusSection = sections[0]
       selectedIndex = sectionFirstIndex(focusSection)
-      return
-    }
-    var inSingleRow = sectionIsSingleRow(focusSection)
-    var max = inSingleRow ? 0 : sectionCount(focusSection) - 1
-
-    if (delta > 0) {
-      if (!inSingleRow && selectedIndex < max) { selectedIndex = selectedIndex + 1; return }
-      if (sIdx < sections.length - 1) {
-        focusSection = sections[sIdx + 1]
-        selectedIndex = sectionFirstIndex(focusSection)
-      }
     } else {
-      if (!inSingleRow && selectedIndex > 0) { selectedIndex = selectedIndex - 1; return }
-      if (sIdx > 0) {
-        var prev = sections[sIdx - 1]
-        focusSection = prev
-        // Coming up from below — land on the last navigable row of the prev
-        // section, or its sentinel for single-row sections.
-        selectedIndex = sectionIsSingleRow(prev) ? sectionFirstIndex(prev) : sectionCount(prev) - 1
+      var inSingleRow = sectionIsSingleRow(focusSection)
+      var max = inSingleRow ? 0 : sectionCount(focusSection) - 1
+
+      if (delta > 0) {
+        if (!inSingleRow && selectedIndex < max) {
+          selectedIndex = selectedIndex + 1
+        } else if (sIdx < sections.length - 1) {
+          focusSection = sections[sIdx + 1]
+          selectedIndex = sectionFirstIndex(focusSection)
+        }
+      } else {
+        if (!inSingleRow && selectedIndex > 0) {
+          selectedIndex = selectedIndex - 1
+        } else if (sIdx > 0) {
+          var prev = sections[sIdx - 1]
+          focusSection = prev
+          // Coming up from below — land on the last navigable row of the prev
+          // section, or its sentinel for single-row sections.
+          selectedIndex = sectionIsSingleRow(prev) ? sectionFirstIndex(prev) : sectionCount(prev) - 1
+        }
       }
     }
+    if (focusedDisplaysRowValid()) syncRotationPointer()
+  }
+
+  function focusedDisplaysRowValid() {
+    return focusSection === "monitors" && selectedIndex >= 0 && selectedIndex < displays.length
   }
 
   // h/l: in scale section, walks the preset row; everywhere else, no-op
   // because adjustBrightness handles horizontal motion on the brightness
   // slider.
   function moveCursorH(delta) {
-    if (focusSection !== "scale") return
-    var next = selectedIndex + delta
-    if (next < 0) next = 0
-    if (next > scaleValues.length - 1) next = scaleValues.length - 1
-    selectedIndex = next
+    if (focusSection === "scale") {
+      var next = selectedIndex + delta
+      if (next < 0) next = 0
+      if (next > scaleValues.length - 1) next = scaleValues.length - 1
+      selectedIndex = next
+      return
+    }
+    if (focusSection === "monitors" && selectedIndex >= 0 && selectedIndex < displays.length) {
+      rotationPointer = (rotationPointer + delta + rotationValues.length) % rotationValues.length
+    }
+  }
+
+  // Land the h/l pointer on the row's currently applied degree so the first
+  // Enter at a new row is a no-op, not a surprise flip.
+  function syncRotationPointer() {
+    if (focusSection !== "monitors" || selectedIndex < 0 || selectedIndex >= displays.length) return
+    var display = displays[selectedIndex]
+    var degree = display ? Model.transformToDegrees(display.transform || 0) : 0
+    for (var i = 0; i < rotationValues.length; i++) {
+      if (rotationValues[i] === degree) { rotationPointer = i; return }
+    }
+    rotationPointer = 0
   }
 
   function adjustBrightness(delta) {
@@ -154,7 +200,15 @@ Panel {
     }
     if (focusSection === "monitors" && selectedIndex >= 0 && selectedIndex < displays.length) {
       var d = displays[selectedIndex]
-      if (d) toggleDisplay(d.name, d.enabled)
+      if (!d) return
+      if (d.enabled) {
+        // Enter applies the pointed degree (usually equal to the row's
+        // current one, since syncRotationPointer starts there).
+        setRotation(d.name, rotationValues[rotationPointer])
+        syncRotationPointer()
+      } else {
+        toggleDisplay(d.name, d.enabled)
+      }
     }
     // brightness: no separate action; the slider value is the action.
   }
@@ -248,6 +302,40 @@ Panel {
     root.brightnessSetQueued = false
     setBrightnessProc.command = ["omarchy-brightness-display", "--no-osd", "--monitor", root.focusedMonitor, percent + "%"]
     setBrightnessProc.running = true
+  }
+
+  function setRotation(name, degrees) {
+    if (!name || !rotationBin) return
+    // Absolute argv, no shell: the display name is untrusted input (it comes
+    // from hyprctl state), so it must never be spliced into a command line.
+    // A panel action already in flight owns the onExited bookkeeping, so a
+    // second rotation request is rejected instead of overwriting it.
+    if (actionProc.running) {
+      console.log("[monitor] ignoring rotation for " + name + " while a panel action is in flight")
+      return
+    }
+    var prevRaw = 0
+    var found = false
+    for (var i = 0; i < displays.length; i++) {
+      if (displays[i] && displays[i].name === name) { prevRaw = Number(displays[i].transform) || 0; found = true; break }
+    }
+    rotationActionName = name
+    rotationActionPrevRaw = prevRaw
+    rotationActionValid = found
+    actionProc.command = [rotationBin, name, String(degrees)]
+    if (!actionProc.running) actionProc.running = true
+  }
+
+  function displayRotation(display) {
+    return Model.transformToDegrees(display ? display.transform : 0)
+  }
+
+  function nextRotation(display) {
+    var current = root.displayRotation(display)
+    for (var i = 0; i < root.rotationValues.length; i++) {
+      if (root.rotationValues[i] === current) return root.rotationValues[(i + 1) % root.rotationValues.length]
+    }
+    return 90
   }
 
   function previewBrightness(value) {
@@ -359,7 +447,10 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  Component.onCompleted: refresh()
+  Component.onCompleted: {
+    refresh()
+    if (!rotationBinProc.running) rotationBinProc.running = true
+  }
 
   // KeyboardPanel primes focus at open-time, so SUPER-bound IPC summons land
   // with j/k ready to navigate. Keep a default landing point, but don't paint
@@ -375,6 +466,7 @@ Panel {
         selectedIndex = 0
       }
       cursorActive = false
+      syncRotationPointer()
     }
   }
 
@@ -439,10 +531,41 @@ Panel {
     }
   }
 
+  // Resolve the rotation CLI to an absolute path once, up front.
+  Process {
+    id: rotationBinProc
+    command: ["/bin/bash", "-c",
+      "p=$(command -v omarchy-hyprland-monitor-rotation 2>/dev/null); if [ -n \"$p\" ]; then printf %s \"$p\"; elif [ -x /usr/share/omarchy/bin/omarchy-hyprland-monitor-rotation ]; then printf %s /usr/share/omarchy/bin/omarchy-hyprland-monitor-rotation; fi"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var line = String(text || "").trim()
+        if (line) root.rotationBin = line
+      }
+    }
+  }
+
   Process {
     id: actionProc
     stdout: StdioCollector { waitForEnd: true }
     onRunningChanged: if (!running) root.refresh()
+    onExited: function(exitCode) {
+      if (!rotationActionName) return
+      if (exitCode === 0) { rotationActionName = ""; return }
+      var name = rotationActionName
+      var prevRaw = rotationActionPrevRaw
+      var valid = rotationActionValid
+      rotationActionName = ""
+      // A failed action leaves no live change behind: put the display back.
+      // Restore the raw wl_output_transform (flipped values 4-7 included) via
+      // a live-only eval - the config already holds the pre-action rule.
+      console.log("[monitor] rotation action exited", exitCode, "- restoring raw transform", prevRaw, "on", name)
+      if (valid) {
+        var output = '"' + String(name).replace(/[\\"]/g, "\\$&") + '"'
+        actionProc.command = ["hyprctl", "eval", "hl.monitor({ output = " + output + ", transform = " + prevRaw + " })"]
+        actionProc.running = true
+      }
+    }
   }
 
   // Applies text size via the CLI, which rewrites the shell override file;
@@ -512,7 +635,7 @@ Panel {
         else if (dx !== 0) {
           if (root.focusSection === "brightness") root.adjustBrightness(dx * 5)
           else if (root.focusSection === "textsize") root.adjustTextSize(dx)
-          else if (root.focusSection === "scale") root.moveCursorH(dx)
+          else root.moveCursorH(dx)
         }
       }
       onActivateRequested: if (root.cursorActive) root.activateCursor()
@@ -820,16 +943,71 @@ Panel {
               fontFamily: root.bar.fontFamily
             }
 
+            Text {
+              textFormat: Text.PlainText
+              text: Commons.I18n.t("monitor.displaysHint")
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              letterSpacing: 1.2
+              opacity: 0.7
+            }
+
             Repeater {
               model: root.displays
 
-              MonitorRow {
+              Item {
+                id: rotationBlock
                 required property var modelData
                 required property int index
 
+                // The display this block describes. Named to survive the
+                // inner Repeater's `display` binding without self-reference.
+                readonly property var columnDisplay: modelData
+
                 width: panelColumn.width
-                display: modelData
-                rowIndex: index
+                implicitHeight: monitorHeader.implicitHeight + (
+                  columnDisplay && columnDisplay.enabled
+                  ? Style.space(4) + rotationPills.implicitHeight
+                  : 0
+                )
+
+                MonitorRow {
+                  id: monitorHeader
+                  width: parent.width
+                  anchors.left: parent.left
+                  anchors.top: parent.top
+                  display: columnDisplay
+                  rowIndex: index
+                }
+
+                Grid {
+                  id: rotationPills
+                  anchors.left: parent.left
+                  anchors.leftMargin: Style.space(6) + Style.space(22)
+                  anchors.top: monitorHeader.bottom
+                  anchors.topMargin: Style.space(4)
+                  width: parent.width - Style.space(6) - Style.space(22)
+                  visible: columnDisplay && columnDisplay.enabled
+                  columns: root.rotationValues.length
+                  spacing: Style.spacing.xs
+
+                  Repeater {
+                    model: root.rotationValues
+
+                    RotationPill {
+                      required property int modelData
+                      required property int index
+
+                      display: columnDisplay
+                      degree: modelData
+                      degreeIndex: index
+                      width: (parent.width - parent.spacing * (root.rotationValues.length - 1))
+                              / root.rotationValues.length
+                    }
+                  }
+                }
               }
             }
           }
@@ -866,6 +1044,29 @@ Panel {
       root.focusSection = "scale"
       root.selectedIndex = pill.scaleIndex
     }
+  }
+
+  component RotationPill: Button {
+    id: pill
+    required property var display
+    required property int degree
+    required property int degreeIndex
+
+    text: Commons.I18n.formatNumber(degree) + "°"
+    fontSize: Style.font.caption
+    foreground: root.bar.foreground
+    fontFamily: root.bar.fontFamily
+    horizontalPadding: Style.spacing.sm
+    verticalPadding: Style.spacing.controlPaddingY
+    bordered: true
+    enabled: display && display.enabled
+    opacity: (display && display.enabled) ? 1.0 : 0.4
+
+    active: display && root.displayRotation(display) === degree
+    hasCursor: root.cursorActive && root.focusSection === "monitors"
+      && root.selectedIndex === rotationBlock.index && root.rotationPointer === degreeIndex
+    onClicked: if (display && display.enabled)
+      root.setRotation(display.name, degree)
   }
 
   component MonitorRow: CursorSurface {
@@ -932,13 +1133,21 @@ Panel {
     MouseArea {
       anchors.fill: parent
       hoverEnabled: true
-      cursorShape: monitorRow.canToggle ? Qt.PointingHandCursor : Qt.ArrowCursor
+      cursorShape: monitorRow.display ? Qt.PointingHandCursor : Qt.ArrowCursor
       onContainsMouseChanged: if (containsMouse && !root.reflowingText) {
         root.cursorActive = true
         root.focusSection = "monitors"
         root.selectedIndex = monitorRow.rowIndex
       }
-      onClicked: if (monitorRow.canToggle) root.toggleDisplay(monitorRow.display.name, monitorRow.display.enabled)
+      onClicked: function(mouse) {
+        if (mouse.button === Qt.RightButton) {
+          if (monitorRow.canToggle) root.toggleDisplay(monitorRow.display.name, monitorRow.display.enabled)
+          return
+        }
+        if (monitorRow.display && monitorRow.display.enabled) {
+          root.setRotation(monitorRow.display.name, root.nextRotation(monitorRow.display))
+        }
+      }
     }
   }
 }
