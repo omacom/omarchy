@@ -41,6 +41,7 @@ QtObject {
   property var _popoutCardFor: null
   property var _switchPanelFrom: null
   property var _targetBelongsToWindow: null
+  property var _forwardBarClick: null
   property var _moduleWidgets: null
   property var _run: null
   property var _setCenterHoverRevealSuppressed: null
@@ -88,6 +89,12 @@ QtObject {
 
   function targetBelongsToWindow(target, window) {
     return _targetBelongsToWindow ? _targetBelongsToWindow(target, window) : false
+  }
+
+  // Presses the bar module at (x, y) in window's content, which this facade's
+  // clickTargets cannot reach when it belongs to another widget.
+  function forwardBarClick(window, x, y, button) {
+    return _forwardBarClick ? !!_forwardBarClick(window, x, y, button) : false
   }
 
   function moduleWidgets(id) {

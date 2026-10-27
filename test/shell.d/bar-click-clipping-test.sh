@@ -38,6 +38,35 @@ drawer.visible = true
 drawer.enabled = false
 assert(!hit(hiddenButton, null, 170, 12), 'disabled ancestors prevent forwarded clicks')
 
+// A third-party panel's bar facade lists only its own plugin's targets, so a
+// click on another module must reach the host bar, which presses it only while
+// that plugin's panel is the open one.
+const panelSource = fs.readFileSync(root + '/shell/Ui/KeyboardPanel.qml', 'utf8')
+const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
+const panelForward = new Function('root', 'Qt', 'pressTargetAt', 'barPoint', 'px', 'py', 'button',
+  panelSource.match(/function forwardBarClick\(px, py, button\) \{([\s\S]*?)\n    \}/)[1])
+const hostForward = new Function('root', 'clickTargets', 'Util', 'Qt', 'pluginId', 'window', 'x', 'y', 'button',
+  barSource.match(/function forwardPluginBarClick\(pluginId, window, x, y, button\) \{([\s\S]*?)\n  \}/)[1])
+const Qt = { LeftButton: 1, RightButton: 2, MiddleButton: 4 }
+const barWindow = { contentItem: {} }
+const pressed = []
+const network = Object.assign(item(200, 25), { mapToItem() {}, triggerPress(button) { pressed.push(button) } })
+const panelOwner = {}
+const host = {
+  activePopout: panelOwner,
+  pluginOwnsBarObject: (id, target) => id === 'user.audio' && target === panelOwner,
+  targetBelongsToWindow: (target, window) => window === barWindow
+}
+const facade = {
+  forwardBarClick: (window, x, y, button) =>
+    hostForward(host, [network], { itemContainsPoint: hit }, Qt, 'user.audio', window, x, y, button)
+}
+const clickBar = () => panelForward({ anchorWindow: barWindow, bar: facade }, Qt, () => null,
+  (x, y) => ({ x, y }), 210, 12, Qt.LeftButton)
+assert(clickBar() && pressed.length === 1, 'third-party panel hands a bar click to another module')
+host.activePopout = {}
+assert(!clickBar() && pressed.length === 1, 'host forwards a plugin click only while its panel is open')
+
 for (const file of ['shell/plugins/bar/Bar.qml', 'shell/Ui/KeyboardPanel.qml']) {
   assert(fs.readFileSync(root + '/' + file, 'utf8').includes('Util.itemContainsPoint(target,'),
     file + ' checks clipping when forwarding bar clicks')
