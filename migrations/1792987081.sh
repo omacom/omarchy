@@ -5,6 +5,7 @@ portal_config="$portal_dir/hyprland-portals.conf"
 
 if [[ -f $portal_config ]]; then
   if ! grep -q '^org.freedesktop.impl.portal.Inhibit=' "$portal_config"; then
+    [[ -n $(tail -c1 "$portal_config") ]] && echo >> "$portal_config"
     echo "org.freedesktop.impl.portal.Inhibit=none" >> "$portal_config"
   fi
 else
@@ -12,5 +13,5 @@ else
 fi
 
 if systemctl --user is-active --quiet xdg-desktop-portal.service 2>/dev/null; then
-  systemctl --user restart xdg-desktop-portal.service || true
+  systemctl --user restart xdg-desktop-portal.service
 fi
