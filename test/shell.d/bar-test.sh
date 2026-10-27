@@ -319,7 +319,7 @@ assert(
   'bar rejects free-space drops after the pointer leaves the bar strip'
 )
 assert(
-  /BarModel\.centerDropTarget\(onBar, root\.centerBoxDropRect\(box\), scenePoint, root\.vertical, sourceSlot\)/.test(barSource) &&
+  /BarModel\.centerDropTarget\(onBar, root\.centerBoxDropRect\(box\), scenePoint, root\.vertical, sourceSlot, root\.barEnds\(sourceWindow\)\)/.test(barSource) &&
     /region: slot\.region,/.test(barSource),
   'bar uses nearest insertion targeting, aware of the center box, for widget and free-space drops'
 )
@@ -398,6 +398,13 @@ assertDeepEqual(bar.centerDropTarget([menu, clock], box, { x: 410 }, false), { r
 const grown = { x: 320, y: 0, width: 100, height: 26 }
 assertDeepEqual(bar.centerDropTarget(full, grown, { x: 325 }, false), { slot: boxClock, after: false }, 'a drop over the room the box has opened still lands in it')
 assertDeepEqual(bar.centerDropTarget([menu, clock], grown, { x: 430 }, false), { region: 'centerEnd', after: false }, 'off the box, its widgets are out of reach')
+// An emptied left or right section has no widget to drop beside; the bar's
+// own ends stand for it.
+const ends = { start: 0, end: 800 }
+assertDeepEqual(bar.centerDropTarget([clock, weather], box, { x: 10 }, false, null, ends), { region: 'left', after: false }, 'near the start of the bar with the left section empty, a drop starts it')
+assertDeepEqual(bar.centerDropTarget([menu, clock], box, { x: 790 }, false, null, ends), { region: 'right', after: true }, 'near the end of the bar with the right section empty, a drop ends it')
+assertDeepEqual(bar.centerDropTarget([menu, clock], box, { x: 10 }, false, null, ends), { slot: menuSlot, after: false }, 'a left section with widgets is dropped into beside them')
+assertDeepEqual(bar.centerDropTarget([clock, weather], box, { x: 330 }, false, null, ends), { region: 'centerBegin', after: true }, 'beside the box, a drop still starts centerBegin with the left section empty')
 
 // An empty box takes no room, so a drop reaches into it over the bar's
 // thickness, centered on it, over the widgets either side of it as well.

@@ -1091,7 +1091,15 @@ Item {
     if (drawer) return drawer
     var onBar = candidates.filter(function(row) { return row.region !== "tray" })
     var box = sourceWindow ? root.centerBoxFor(sourceWindow) : null
-    return BarModel.centerDropTarget(onBar, root.centerBoxDropRect(box), scenePoint, root.vertical, sourceSlot)
+    return BarModel.centerDropTarget(onBar, root.centerBoxDropRect(box), scenePoint, root.vertical, sourceSlot, root.barEnds(sourceWindow))
+  }
+
+  // The bar's ends along it, in scene coordinates. Its window spans the
+  // screen along the bar, so they are the window's own.
+  function barEnds(window) {
+    var content = window ? window.contentItem : null
+    if (!content) return null
+    return { start: 0, end: root.vertical ? content.height : content.width }
   }
 
   // Where a drop lands in the tray's drawer section on a bar surface, in
