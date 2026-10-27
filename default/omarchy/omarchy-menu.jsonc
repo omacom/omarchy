@@ -122,6 +122,9 @@
   "appearance.workspace-layout.floating": {"icon":"󰔶","label":"Floating","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"floating\" ]]","action":"omarchy-hyprland-workspace-layout-default floating"},
   "appearance.animations-on": {"icon":"󰗘","label":"Animations On","when":"omarchy-hyprland-toggle-enabled no-animations","action":"omarchy-toggle-animations"},
   "appearance.animations-off": {"icon":"󰗘","label":"Animations Off","when":"! omarchy-hyprland-toggle-enabled no-animations","action":"omarchy-toggle-animations"},
+  "appearance.intros": {"icon":"󰕧","label":"Background Intros","aliases":["intro","intros"],"when":"! omarchy-hyprland-toggle-enabled no-animations"},
+  "appearance.intros.on-theme": {"icon":"󰸌","label":"On Theme Change","checked":"omarchy-theme-bg-intro status","action":"omarchy-theme-bg-intro toggle"},
+  "appearance.intros.on-select": {"icon":"󰋩","label":"On Background Change","when":"omarchy-theme-bg-intro status","checked":"omarchy-theme-bg-intro select status","action":"omarchy-theme-bg-intro select toggle"},
   "appearance.unlock": {"icon":"󰟵","label":"Unlock","aliases":["unlock"],"action":"unlock=$(omarchy-plymouth-switcher); if [[ $unlock == default ]]; then omarchy-launch-floating-terminal-with-presentation omarchy-plymouth-reset; elif [[ -n $unlock ]]; then omarchy-launch-floating-terminal-with-presentation \"omarchy-plymouth-set-by-theme $(printf %q \"$unlock\")\"; fi"},
 
   // Trigger

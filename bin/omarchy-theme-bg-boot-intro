@@ -83,11 +83,19 @@ animations_off() {
 }
 
 theme_switch=false
+on_select=false
 intro_prepared=false
 expected_background=""
 expected_theme=""
 case ${1:-} in
   "") ;;
+  --on-select)
+    # A wallpaper picked within the current theme, with the opt-in flag on.
+    # Plays its clip once, never touching the once-per-login marker.
+    on_select=true
+    expected_background=$(readlink -f "${2:-}" 2>/dev/null) || exit 1
+    [[ -f $expected_background ]] || exit 1
+    ;;
   --prepare-theme)
     prepare_theme_intro "${2:-}"
     exit 0
@@ -110,10 +118,23 @@ case ${1:-} in
     [[ -n $expected_theme ]] || exit 1
     ;;
   *)
-    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--resolve-startup|--prepare-theme theme|--theme-switch background theme-id [prepared]]" >&2
+    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--resolve-startup|--prepare-theme theme|--theme-switch background theme-id [prepared]|--on-select background]" >&2
     exit 1
     ;;
 esac
+
+if [[ $on_select == true ]]; then
+  omarchy-toggle-enabled background-intros-on-select || exit 0
+  [[ ! -f $toggle ]] && ! animations_off || exit 0
+  # A newer selection, or a theme switch in flight, owns the desktop now.
+  [[ $(readlink -f "$current_background_link" 2>/dev/null) == "$expected_background" ]] || exit 0
+  intro=$(resolve_intro "$expected_background" || true)
+  [[ -n $intro ]] || exit 0
+  timeout 1 owe status >/dev/null 2>&1 || exit 0
+  [[ $(readlink -f "$current_background_link" 2>/dev/null) == "$expected_background" ]] || exit 0
+  owe intro --start first-frame "$intro"
+  exit 0
+fi
 
 if [[ $theme_switch == false ]]; then
   mkdir -p "$(dirname "$marker")"
