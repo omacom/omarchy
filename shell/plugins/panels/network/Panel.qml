@@ -211,6 +211,7 @@ Panel {
   }
 
   ShellIpc {
+    enabled: root.ipcOwner
     target: "omarchy.network"
 
     function open() { root.open() }
