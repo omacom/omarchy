@@ -186,7 +186,11 @@ The bar's sections run along it in the order `left`, `centerBegin`, `center`, `c
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
 user `shell.json` exists, defaults are used verbatim. Once the user
-customizes, `shell.json` is canonical — there is no deep-merge.
+customizes, `shell.json` is canonical — there is no deep-merge. The
+packaged default is read when the shell starts and is not watched: an
+update replaces it and then restarts the shell, so a running shell never
+applies a half-installed plugin list. The user's
+`~/.config/omarchy/shell.json` is watched and applies immediately.
 
 `shell.json` is shell configuration; theme tokens live in `shell.toml`
 (next section). Both are current — they answer different questions. A
