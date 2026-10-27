@@ -20,8 +20,8 @@ if ! rea uninstall --purge-data; then
   fi
 fi
 
-mise uninstall rea --all
-mise rm -g rea
+mise uninstall npm:rea-agents --all
+mise rm -g npm:rea-agents
 
 echo ""
 echo "REA has been removed."

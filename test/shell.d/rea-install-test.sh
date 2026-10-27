@@ -49,16 +49,16 @@ calls() {
 
 : >"$log"
 run omarchy-install-ai-rea || fail "installing REA succeeds" "$(cat "$test_tmp/output")"
-[[ $(calls) == "mise install node|mise use -g rea [age=0]|rea --version|npx -y rea-agents@6.7.0 setup" ]] ||
+[[ $(calls) == "mise install node|mise use -g npm:rea-agents[allow_low_downloads=true] [age=0]|rea --version|npx -y rea-agents@6.7.0 setup" ]] ||
   fail "the install prepares Node, adds REA without a cooldown, then sets up agents through npx at the same version" "$(calls)"
 grep -q 'REA has been installed.' "$test_tmp/output" || fail "a finished setup reports the install"
 pass "the installer prepares the default Node runtime, adds REA, and registers the installed version through npx"
 
 : >"$log"
-if OMARCHY_TEST_FAIL="mise use -g rea" run omarchy-install-ai-rea; then
+if OMARCHY_TEST_FAIL="mise use -g npm:rea-agents[allow_low_downloads=true]" run omarchy-install-ai-rea; then
   fail "a failed download fails the install"
 fi
-[[ $(calls) == "mise install node|mise use -g rea [age=0]" ]] || fail "setup does not start after a failed download" "$(calls)"
+[[ $(calls) == "mise install node|mise use -g npm:rea-agents[allow_low_downloads=true] [age=0]" ]] || fail "setup does not start after a failed download" "$(calls)"
 pass "a failed download stops the install before setup"
 
 : >"$log"
@@ -70,12 +70,12 @@ pass "a cancelled setup keeps REA and says how to register it later"
 : >"$log"
 printf 'ignored_config_paths = ["%s"]\n' "$OMARCHY_MISE_CONFIG_PATH" >"$HOME/.config/mise/miserc.toml"
 run omarchy-install-ai-rea || fail "installing REA without default tools succeeds" "$(cat "$test_tmp/output")"
-[[ $(calls) == "mise ls --current --json node|mise use -g node|mise use -g rea [age=0]|rea --version|npx -y rea-agents@6.7.0 setup" ]] ||
+[[ $(calls) == "mise ls --current --json node|mise use -g node|mise use -g npm:rea-agents[allow_low_downloads=true] [age=0]|rea --version|npx -y rea-agents@6.7.0 setup" ]] ||
   fail "the install selects Node when the user opted out of defaults" "$(calls)"
 pass "the installer selects Node when the user opted out of default tools"
 
 : >"$log"
 TEST_NODE_SELECTED=1 run omarchy-install-ai-rea || fail "installing REA with a selected Node succeeds" "$(cat "$test_tmp/output")"
-[[ $(calls) == "mise ls --current --json node|mise install node|mise use -g rea [age=0]|rea --version|npx -y rea-agents@6.7.0 setup" ]] ||
+[[ $(calls) == "mise ls --current --json node|mise install node|mise use -g npm:rea-agents[allow_low_downloads=true] [age=0]|rea --version|npx -y rea-agents@6.7.0 setup" ]] ||
   fail "the install preserves an existing Node selection after opt-out" "$(calls)"
 pass "the installer keeps an existing Node selection after opting out of default tools"

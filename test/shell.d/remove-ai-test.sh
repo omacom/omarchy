@@ -246,7 +246,7 @@ fresh_home
 : >"$TEST_LOG"
 "$ROOT/bin/omarchy-remove-ai-rea" </dev/null >"$tmp_dir/rea-output" 2>&1 ||
   fail "removing REA succeeds" "$(cat "$tmp_dir/rea-output")"
-[[ $(paste -sd '|' "$TEST_LOG") == "rea:uninstall --purge-data|mise:uninstall rea --all|mise:rm -g rea" ]] ||
+[[ $(paste -sd '|' "$TEST_LOG") == "rea:uninstall --purge-data|mise:uninstall npm:rea-agents --all|mise:rm -g npm:rea-agents" ]] ||
   fail "REA removal unregisters agents before mise removes it" "$(cat "$TEST_LOG")"
 pass "REA removal unregisters agents, then uninstalls it and drops it from mise"
 
@@ -276,7 +276,7 @@ fresh_home
 : >"$TEST_LOG"
 TEST_REA_FAIL="rea:uninstall --purge-data" TEST_GUM_STATUS=0 script -qec "'$ROOT/bin/omarchy-remove-ai-rea'" /dev/null >"$tmp_dir/rea-output" 2>&1 ||
   fail "agreeing to go on removes REA" "$(cat "$tmp_dir/rea-output")"
-[[ $(paste -sd '|' "$TEST_LOG") == "rea:uninstall --purge-data|mise:uninstall rea --all|mise:rm -g rea" ]] ||
+[[ $(paste -sd '|' "$TEST_LOG") == "rea:uninstall --purge-data|mise:uninstall npm:rea-agents --all|mise:rm -g npm:rea-agents" ]] ||
   fail "agreeing removes REA from mise anyway" "$(cat "$TEST_LOG")"
 grep -q 'server named rea' "$tmp_dir/rea-output" || fail "REA removal says which agent entries to check by hand"
 pass "REA removal can continue after failed unregistration when the user agrees"

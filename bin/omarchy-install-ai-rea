@@ -19,8 +19,9 @@ else
 fi
 
 # Like the other agent tools, take REA's newest release without waiting out a
-# release cooldown.
-MISE_MINIMUM_RELEASE_AGE=0 mise use -g rea
+# release cooldown. mise refuses npm packages with under 1,000 weekly downloads,
+# and npm reports none for rea-agents, so approve it by name.
+MISE_MINIMUM_RELEASE_AGE=0 mise use -g "npm:rea-agents[allow_low_downloads=true]"
 version=$(rea --version)
 
 # Setup registers the command it was launched from, and mise's shim launches
