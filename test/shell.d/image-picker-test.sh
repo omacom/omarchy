@@ -351,4 +351,36 @@ updateCtx.deleteSelectionPath = '/p/alpha.png'
 updateCtx.themeRows = 'new-rows'
 updateCtx.updateThemeRows('after-delete-rows')
 assertEqual(updateCtx.awaitingDeleteRefresh, false, 'the post-delete refresh loading rows releases the apply guard')
+
+// Views: Up and Down switch between image sets by running an Omarchy command.
+const viewFunctions = ['setViews', 'switchView', 'loadView']
+  .map(name => imagePickerQml.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}`))[0])
+  .join('\n')
+const viewRoot = { requestActive: true, requestSerial: 4, filterText: 'x', loaded: null, views: [], viewCommand: [], viewIndex: 0,
+  showLabels: false, filterable: false, selectedImage: '',
+  get hasViews() { return this.views.length > 1 },
+  loadRows(rows) { this.loaded = rows } }
+const viewProc = { running: false, queued: false }
+const viewContext = { root: viewRoot, viewProc }
+require('vm').runInNewContext(`with (root) { ${viewFunctions}; root.setViews = setViews; root.switchView = switchView; root.loadView = loadView }`, viewContext)
+const views = [{ id: 'theme', title: 't' }, { id: 'all', title: 'a', labels: true, filterable: true }]
+
+viewRoot.setViews({ current: 'all', command: ['sh', '-c', 'id'], views })
+assertEqual(viewRoot.views.length, 0, 'views refuse a command that is not an Omarchy command')
+viewRoot.setViews({ current: 'all', command: ['omarchy-theme-bg-switcher', '--rows'], views })
+assertEqual(viewRoot.viewIndex, 1, 'views open on the current view')
+
+viewRoot.switchView(1)
+assertEqual(viewRoot.viewIndex, 0, 'Down wraps past the last view')
+assertDeepEqual(viewProc.command, ['omarchy-theme-bg-switcher', '--rows', 'theme'], 'a view runs its command with the view id')
+assert(viewProc.running && !viewProc.queued, 'switching starts the view command')
+viewRoot.switchView(-1)
+assert(viewProc.queued && viewRoot.viewIndex === 1, 'a switch while one loads is queued for the latest view')
+
+viewRoot.loadView('theme\n/themes/b.png\n/themes/a.png\t/c/a.jpg')
+assertEqual(viewRoot.loaded, null, 'output for a view already moved past is dropped')
+viewRoot.loadView('all\n/themes/b.png\n/themes/a.png\t/c/a.jpg\n/themes/b.png\t/c/b.jpg')
+assertEqual(viewRoot.selectedImage, '/themes/b.png', 'a view selects the image it names')
+assertEqual(viewRoot.loaded, '/themes/a.png\t/c/a.jpg\n/themes/b.png\t/c/b.jpg', 'a view loads the rows after it')
+assert(viewRoot.showLabels && viewRoot.filterable && viewRoot.filterText === '', 'a loaded view takes its labels and filter and clears the old filter')
 JS

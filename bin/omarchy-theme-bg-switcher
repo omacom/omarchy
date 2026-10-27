@@ -5,10 +5,124 @@
 # omarchy:name=bg-switcher
 # omarchy:aliases=omarchy background
 
+# Up and Down in the picker switch between this theme's backgrounds and every
+# installed theme's. The picker fetches the other view with `--rows <view>`,
+# which also remembers it as the view to open next time.
+
 theme_name=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 current_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
+view_file="$HOME/.local/state/omarchy/background-switcher-view"
 
-omarchy-menu-images \
-  --selected "$current_background" \
-  "$HOME/.local/state/omarchy/current/theme/backgrounds" \
-  "$HOME/.config/omarchy/backgrounds/$theme_name"
+# Every installed theme's backgrounds as one folder of "<theme> · <n>" links,
+# so the picker labels each by its theme. Files with the same content are
+# listed once. Like omarchy-menu-images' rows, the folder is trusted while no
+# source directory's mtime has changed, so an unchanged open costs one stat.
+all_backgrounds_dir() {
+  local dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/backgrounds-all"
+  local sources signature list
+
+  shopt -s nullglob
+  sources=("$OMARCHY_PATH"/themes/*/backgrounds "$HOME"/.config/omarchy/themes/*/backgrounds "$HOME"/.config/omarchy/backgrounds/*/)
+  shopt -u nullglob
+  sources=("${sources[@]%/}")
+
+  signature=$(stat -L -c '%Y %n' "${sources[@]}" 2>/dev/null)
+  if [[ -d $dir && $signature == "$(cat "$dir.signature" 2>/dev/null)" ]]; then
+    printf '%s\n' "$dir"
+    return
+  fi
+
+  # Paths holding a tab or newline would break the tab-separated records.
+  # Only files that share a size are hashed, in one md5sum run, in order.
+  list=$(
+    # find lists each source in turn; numbering them keeps that order (stock
+    # themes first) while sorting each source's files by name.
+    find -L "${sources[@]}" -maxdepth 1 -type f ! -path $'*\n*' ! -path $'*\t*' -printf '%h\t%s\t%f\t%p\n' 2>/dev/null |
+      awk -F '\t' '$1 != last { last = $1; source++ } { print source "\t" $0 }' |
+      sort -t $'\t' -k1,1n -k4,4 |
+      awk -F '\t' '
+        NF != 5 { next }
+        {
+          n = ++rows
+          theme = $2
+          sub(/\/backgrounds$/, "", theme)
+          sub(/.*\//, "", theme)
+          size[n] = $3; owner[n] = theme; ext[n] = $4; path[n] = $5; count[$3]++
+        }
+        END {
+          # -z ends each line with NUL and leaves names unescaped, so a hash
+          # is matched to its file by name rather than by output order.
+          command = "md5sum -z --"
+          for (i = 1; i <= rows; i++) {
+            if (count[size[i]] < 2) continue
+            quoted = path[i]
+            gsub(/'\''/, "'\''\\'\'''\''", quoted)
+            command = command " '\''" quoted "'\''"
+            hashes++
+          }
+          if (hashes) {
+            RS = "\0"
+            while ((command | getline line) > 0) hash[substr(line, 35)] = substr(line, 1, 32)
+            close(command)
+          }
+          for (i = 1; i <= rows; i++) {
+            k = (path[i] in hash) ? hash[path[i]] : "path:" path[i]
+            if (seen[k]++) continue
+            sub(/.*\./, "", ext[i])
+            print owner[i] " · " ++number[owner[i]] "." ext[i] "\t" path[i]
+          }
+        }'
+  )
+
+  if [[ $list != "$(cat "$dir.list" 2>/dev/null)" ]]; then
+    rm -rf "$dir"
+    mkdir -p "$dir"
+    while IFS=$'\t' read -r name target; do
+      [[ -n $name ]] && ln -s "$target" "$dir/$name"
+    done <<<"$list"
+    printf '%s' "$list" >"$dir.list"
+  fi
+  printf '%s' "$signature" >"$dir.signature"
+
+  printf '%s\n' "$dir"
+}
+
+# Sets dirs to the folders that make up a view.
+set_view_dirs() {
+  if [[ $1 == "all" ]]; then
+    dirs=("$(all_backgrounds_dir)")
+  else
+    dirs=("$HOME/.local/state/omarchy/current/theme/backgrounds" "$HOME/.config/omarchy/backgrounds/$theme_name")
+  fi
+}
+
+if [[ ${1:-} == "--rows" ]]; then
+  view=${2:-theme}
+  [[ $view == "all" ]] || view="theme"
+  mkdir -p "${view_file%/*}"
+  printf '%s\n' "$view" >"$view_file"
+  set_view_dirs "$view"
+
+  # The picker reads the view, then the image to select, then the rows.
+  printf '%s\n' "$view"
+  selected=""
+  [[ -n $current_background ]] && selected=$(find -L "${dirs[@]}" -maxdepth 1 -type f -samefile "$current_background" -print -quit 2>/dev/null)
+  printf '%s\n' "$selected"
+  omarchy-menu-images --lazy-thumbnails --print-rows "${dirs[@]}"
+else
+  view=""
+  read -r view 2>/dev/null <"$view_file"
+  [[ $view == "all" ]] || view="theme"
+  set_view_dirs "$view"
+
+  # All themes is labelled and filterable by theme name; it can hold hundreds
+  # of images, so its thumbnails are made in the background.
+  flags=()
+  [[ $view == "all" ]] && flags+=(--lazy-thumbnails --show-labels --filterable)
+  views='[{"id":"theme","title":"imagePicker.viewTheme"},{"id":"all","title":"imagePicker.viewAllThemes","labels":true,"filterable":true}]'
+
+  omarchy-menu-images "${flags[@]}" \
+    --selected "$current_background" \
+    --views "{\"current\":\"$view\",\"command\":[\"omarchy-theme-bg-switcher\",\"--rows\"],\"views\":$views}" \
+    "${dirs[@]}"
+fi

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Open a generic image selector menu
-# omarchy:args=[--selected <image>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] [--print-rows] <image-dir>...
+# omarchy:args=[--selected <image>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] [--print-rows] [--views <json>] <image-dir>...
 
 selected_image=""
 print_name=false
@@ -12,10 +12,11 @@ prepare_only=false
 preload=false
 cache_only=false
 print_rows=false
+views=""
 image_dirs=()
 
 usage() {
-  echo "Usage: omarchy-menu-images [--selected <image>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] [--print-rows] <image-dir>..."
+  echo "Usage: omarchy-menu-images [--selected <image>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] [--print-rows] [--views <json>] <image-dir>..."
 }
 
 while (( $# > 0 )); do
@@ -60,6 +61,15 @@ while (( $# > 0 )); do
     --print-rows)
       print_rows=true
       shift
+      ;;
+    --views)
+      if (( $# < 2 )); then
+        usage >&2
+        exit 1
+      fi
+
+      views="$2"
+      shift 2
       ;;
     --help|-h)
       usage
@@ -388,8 +398,15 @@ if [[ $preload == true ]]; then
   exit 0
 fi
 
-if ! open_result=$(omarchy-shell image-selector open \
-     "" \
+# Views let the picker switch to other image sets with Up and Down; see
+# openViews in shell.qml for the JSON it takes.
+if [[ -n $views ]]; then
+  open_call=(openViews "$(printf '%s' "$views" | base64 -w 0)")
+else
+  open_call=(open "")
+fi
+
+if ! open_result=$(omarchy-shell image-selector "${open_call[@]}" \
      "$rows_b64" \
      "$selected_list_image" \
      "$selection_file" \

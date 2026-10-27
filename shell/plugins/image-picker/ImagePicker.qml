@@ -25,6 +25,11 @@ Item {
   property bool imagesLoaded: false
   property bool opened: false
   property bool showLabels: false
+  // Image sets Up and Down switch between, from openViews in shell.qml.
+  property var views: []
+  property int viewIndex: 0
+  property var viewCommand: []
+  readonly property bool hasViews: views.length > 1
   property bool filterable: false
   property bool layoutSettled: false
   property bool neighborImagesEnabled: false
@@ -187,6 +192,51 @@ Item {
     return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
   }
 
+  function setViews(next) {
+    var valid = !!next && Array.isArray(next.views) && next.views.length > 1
+      && Array.isArray(next.command) && /^omarchy-[a-z0-9-]+$/.test(String(next.command[0] || ""))
+    views = valid ? next.views : []
+    viewCommand = valid ? next.command.map(String) : []
+    viewIndex = 0
+    for (var i = 0; i < views.length; i++) {
+      if (String(views[i].id) === String(next.current)) viewIndex = i
+    }
+  }
+
+  function switchView(step) {
+    if (!hasViews || !requestActive) return
+    viewIndex = (viewIndex + step + views.length) % views.length
+    viewProc.serial = requestSerial
+    if (viewProc.running) {
+      viewProc.queued = true
+    } else {
+      viewProc.command = viewCommand.concat([String(views[viewIndex].id)])
+      viewProc.running = true
+    }
+  }
+
+  // Titles in the picker's own catalog; any other title is shown as given.
+  function viewTitle(view) {
+    switch (String(view.title)) {
+    case "imagePicker.viewTheme": return Commons.I18n.t("imagePicker.viewTheme")
+    case "imagePicker.viewAllThemes": return Commons.I18n.t("imagePicker.viewAllThemes")
+    }
+    return String(view.title)
+  }
+
+  // A view's output is its id, the image to select, then rows, one per line.
+  // Output for a view the user has already moved past is dropped.
+  function loadView(output) {
+    var lines = output.split("\n")
+    var view = views[viewIndex]
+    if (!view || lines[0] !== String(view.id)) return
+    showLabels = view.labels === true
+    filterable = view.filterable === true
+    filterText = ""
+    selectedImage = lines[1] || ""
+    loadRows(lines.slice(2).join("\n"), false)
+  }
+
   function updateFilter(nextFilterText) {
     filterText = nextFilterText
 
@@ -283,7 +333,7 @@ Item {
     }
   }
 
-  function openSelector(nextImageDirs, nextImageRows, nextSelectedImage, nextSelectionFile, nextDoneFile, nextShowLabels, nextFilterable) {
+  function openSelector(nextImageDirs, nextImageRows, nextSelectedImage, nextSelectionFile, nextDoneFile, nextShowLabels, nextFilterable, nextViews) {
     deleteConfirmOpen = false
     pendingDeleteTheme = ""
     deleteSelectionPath = ""
@@ -296,6 +346,7 @@ Item {
     themeOpenPending = false
 
     imageDirs = nextImageDirs
+    setViews(nextViews)
     imageRows = nextImageRows
     selectedImage = nextSelectedImage
     selectionFile = nextSelectionFile
@@ -601,7 +652,7 @@ Item {
     var doneF = String(args.doneFile || "")
     var labels = args.showLabels === true || args.showLabels === "true"
     var filter = args.filterable === true || args.filterable === "true"
-    openSelector(dirs, rows, sel, selFile, doneF, labels, filter)
+    openSelector(dirs, rows, sel, selFile, doneF, labels, filter, args.views)
   }
 
   function close() {
@@ -637,6 +688,27 @@ Item {
     onExited: {
       if (root.applySerial === root.requestSerial)
         root.opened = false
+    }
+  }
+
+  Process {
+    id: viewProc
+    property int serial: 0
+    property bool queued: false
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (viewProc.serial === root.requestSerial && root.requestActive)
+          root.loadView(String(text || ""))
+      }
+    }
+    // A switch made while a view loads starts once that process has gone.
+    onRunningChanged: {
+      if (running || !queued) return
+      queued = false
+      if (serial !== root.requestSerial || !root.hasViews) return
+      command = root.viewCommand.concat([String(root.views[root.viewIndex].id)])
+      running = true
     }
   }
 
@@ -730,6 +802,9 @@ Item {
               event.accepted = true
             } else if (root.filterable && Util.editsFilter(event, root.filterText)) {
               root.updateFilter(Util.editedFilter(event, root.filterText))
+              event.accepted = true
+            } else if (root.hasViews && (event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
+              root.switchView(event.key === Qt.Key_Up ? -1 : 1)
               event.accepted = true
             } else if (Util.readingKey(event) === Qt.Key_Left || (event.key === Qt.Key_Tab && event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab) {
               root.selectAdjacent(-1)
@@ -865,6 +940,29 @@ Item {
                 onClicked: item.selected ? root.applySelected() : root.select(item.imageIndex)
               }
             }
+          }
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          visible: root.hasViews
+          anchors.bottom: carousel.top
+          anchors.bottomMargin: Style.space(16)
+          anchors.horizontalCenter: carousel.horizontalCenter
+          text: root.hasViews ? "↑  " + root.viewTitle(root.views[root.viewIndex]) + (viewProc.running ? "…" : "") + "  ↓" : ""
+          color: root.labelText
+          opacity: viewProc.running ? 0.6 : 1
+          font.pixelSize: Style.font.heading
+          font.weight: Font.DemiBold
+
+          Rectangle {
+            z: -1
+            visible: parent.text !== ""
+            anchors.centerIn: parent
+            width: parent.contentWidth + Style.space(24)
+            height: parent.contentHeight + Style.space(8)
+            radius: height / 2
+            color: root.labelPill
           }
         }
 

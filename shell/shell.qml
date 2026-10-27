@@ -1716,6 +1716,32 @@ ShellRoot {
       return shell.summon("omarchy.image-picker", payload) ? "ok" : "unknown"
     }
 
+    // open() with views that Up and Down switch between, as base64 JSON:
+    // {"current": id, "command": [argv...], "views": [{"id", "title",
+    // "labels", "filterable"}]}. A "title" in the picker's catalog is translated. The picker runs the
+    // command, which must be an omarchy- command, with the id appended to get
+    // a view: its id, the image to select, then rows, one per line.
+    function openViews(viewsB64: string,
+                       imageRowsB64: string,
+                       selectedImage: string,
+                       selectionFile: string,
+                       doneFile: string,
+                       showLabels: string,
+                       filterable: string): string {
+      var views = null
+      try { views = JSON.parse(Util.decodeBase64(viewsB64)) } catch (e) { return "invalid views" }
+      var payload = JSON.stringify({
+        imageRows: Util.decodeBase64(imageRowsB64),
+        selectedImage: selectedImage,
+        selectionFile: selectionFile,
+        doneFile: doneFile,
+        showLabels: showLabels,
+        filterable: filterable,
+        views: views
+      })
+      return shell.summon("omarchy.image-picker", payload) ? "ok" : "unknown"
+    }
+
     function preload(imageRowsB64: string,
                      selectedImage: string,
                      showLabels: string,
