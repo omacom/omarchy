@@ -237,6 +237,28 @@ process_gone() {
   return 1
 }
 
+# wtype gives each new key named by -k, -P or -p the next keycode in its keymap. GTK3 and
+# WebKitGTK never match bindings on the highest keycode, so Insert must not be the last key.
+insert_below_highest_wtype_keycode() {
+  local args key i
+  local keymap=()
+
+  mapfile -t args <"$1"
+  for (( i = 0; i < ${#args[@]}; i++ )); do
+    case ${args[i]} in
+      -k | -P | -p)
+        key=${args[++i]}
+        [[ " ${keymap[*]} " == *" $key "* ]] || keymap+=("$key")
+        ;;
+      -M | -m | -s | -d)
+        (( ++i ))
+        ;;
+    esac
+  done
+
+  [[ " ${keymap[*]} " == *" Insert "* && ${keymap[-1]} != "Insert" ]]
+}
+
 process_alive() {
   local pid=$1
   local stat
@@ -282,7 +304,7 @@ SH
 
 cat >"$TMPDIR/bin/wtype" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >"$WTYPE_OUT"
+printf '%s\n' "$@" >"$WTYPE_OUT"
 SH
 
 cat >"$TMPDIR/bin/omarchy-launch-browser" <<'SH'
@@ -538,7 +560,10 @@ WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH=
 [[ $(<"$TMPDIR/copied") == "$(printf 'large block line 1\nlarge block line 2')" ]] || fail "clipboard paste helper copies history entry text"
 pass "clipboard paste helper copies history entry text"
 
-[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "clipboard paste helper pastes history entries with shift insert"
+insert_below_highest_wtype_keycode "$TMPDIR/wtype" || fail "clipboard paste helper keeps Insert below the highest wtype keycode"
+pass "clipboard paste helper keeps Insert below the highest wtype keycode"
+
+[[ $(<"$TMPDIR/wtype") == "$(printf '%s\n' -M shift -k Insert -m shift -p VoidSymbol)" ]] || fail "clipboard paste helper pastes history entries with shift insert"
 pass "clipboard paste helper pastes history entries with shift insert"
 
 rm -f "$TMPDIR/wtype"
@@ -561,6 +586,15 @@ pass "clipboard file paste helper copy-only copies file content"
 
 [[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard file paste helper copy-only skips paste keystroke"
 pass "clipboard file paste helper copy-only skips paste keystroke"
+
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-file" image/png "$TMPDIR/image.png"
+
+insert_below_highest_wtype_keycode "$TMPDIR/wtype" || fail "clipboard file paste helper keeps Insert below the highest wtype keycode"
+pass "clipboard file paste helper keeps Insert below the highest wtype keycode"
+
+[[ $(<"$TMPDIR/wtype") == "$(printf '%s\n' -M shift -k Insert -m shift -p VoidSymbol)" ]] || fail "clipboard file paste helper pastes with shift insert"
+pass "clipboard file paste helper pastes with shift insert"
 
 jq -n --arg url 'https://example.com/docs' --arg text "$(printf 'plain text\nsecond line')" --arg image "$TMPDIR/image.png" \
   '[{type:"text", text:$url}, {type:"text", text:$text}, {type:"image", mime:"image/png", path:$image}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"

@@ -57,7 +57,9 @@ fi
 sleep 0.15
 
 if [[ $use_shift_insert == "true" ]]; then
-  wtype -M shift -k Insert -m shift 2>/dev/null || true
+  # GTK3 and WebKitGTK skip the highest keycode when matching bindings, so a keymap holding only
+  # Insert never pastes. Releasing VoidSymbol, never pressed, adds a higher key without typing it.
+  wtype -M shift -k Insert -m shift -p VoidSymbol 2>/dev/null || true
 else
   wtype "$text" 2>/dev/null || true
 fi
