@@ -80,11 +80,17 @@ working. The username prefix keeps a shared clone from colliding with anyone
 else's. Saving files in any installed plugin reloads its code automatically,
 and removing an active clone switches back to its built-in source.
 
-For a bar widget, on and off means its place in the bar. Everything else is
-loaded by default when it is built in, so `shell.json` records only the
-deviation: a third-party plugin you added under `plugins[]`, a built-in you
-switched off under `disabledPlugins[]`. A full bar has no off state: enabling
-one replaces the active bar, and it is therefore never offered under Disable.
+For a bar widget, on and off means its place in the bar: a direct placement in
+the layout, or a live widget slot registered by a host plugin such as a group or
+drawer. Loading its component or service through `plugins[]` alone is not a
+placement. A hosted widget reports `canDisable: false`, since its host owns that
+placement and the shell cannot restore it after a disable and re-enable.
+
+Everything else is loaded by default when it is built in, so `shell.json`
+records only the deviation: a third-party plugin you added under `plugins[]`, a
+built-in you switched off under `disabledPlugins[]`. A full bar has no off
+state: enabling one replaces the active bar, and it is therefore never offered
+under Disable.
 Bar widgets may set `barWidget.defaultSection` to `left`, `centerBegin`, `centerEnd`, `tray`, or `right`; widgets that omit it default to `centerEnd`, beside the center box rather than in it. A manifest's `center` means beside the clock and lands in `centerEnd` too, so a new widget never pushes the clock off center.
 
 Plugins run as **unsandboxed code** inside `omarchy-shell`. Adding warns you before cloning, plugins land disabled so you can review the code before `omarchy plugin enable`, and updates show a diff before touching anything. Commands confirm in a terminal even when given arguments; without one they refuse rather than guess. Add `--yes` to skip every prompt (the path for scripts and agents). The scoped interfaces remove direct access to authentication services and avoid handing generic cross-plugin service factories to replacement bars, but visual plugins can still traverse ordinary objects in their shared QML scene. Plugin code also has the same user-level file and process access as the shell.
