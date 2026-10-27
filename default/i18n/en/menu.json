@@ -878,6 +878,9 @@
   "install.ai.ollama": {
     "label": "Ollama"
   },
+  "install.ai.opencode": {
+    "label": "OpenCode Desktop"
+  },
   "install.ai.openclaw": {
     "label": "OpenClaw"
   },
@@ -1096,6 +1099,9 @@
   },
   "remove.ai.ollama": {
     "label": "Ollama"
+  },
+  "remove.ai.opencode": {
+    "label": "OpenCode Desktop"
   },
   "remove.ai.openclaw": {
     "label": "OpenClaw"
