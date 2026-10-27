@@ -258,6 +258,16 @@ ShellRoot {
     root.assertDeepEqual(root.config.bar.layout.tray, [], "a widget moved out of the tray section leaves it")
 
     root.config = { version: 1, bar: { layout: { left: [], center: [], right: [{ id: "omarchy.tray" }], tray: [{ id: "third.widget" }] } }, plugins: [] }
+    root.assertTrue(registry.setEnabled("third.widget", false), "registry disables widgets in the tray section")
+    root.assertDeepEqual(root.config.bar.layout.tray, [], "disabling a widget in the tray section removes it from the drawer")
+    root.assertTrue(!registry.inBar("third.widget"), "a widget disabled from the tray section is no longer in the bar")
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [{ id: "omarchy.tray" }, { id: "third.widget" }], tray: [{ id: "third.widget" }] } }, plugins: [] }
+    registry.setEnabled("third.widget", false)
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "omarchy.tray" }], "disabling a widget removes it from its section")
+    root.assertDeepEqual(root.config.bar.layout.tray, [], "disabling a widget also removes its copy in the tray section")
+    root.assertTrue(!registry.inBar("third.widget"), "a widget placed twice is no longer in the bar once disabled")
+
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [{ id: "omarchy.tray" }], tray: [{ id: "third.widget" }] } }, plugins: [] }
     root.assertEqual(registry.moveBarWidget("omarchy.tray", { section: "tray" }), "the tray cannot go in its own drawer", "registry keeps the tray out of its own drawer")
     root.assertEqual(registry.moveBarWidget("omarchy.tray", { after: "third.widget" }), "the tray cannot go in its own drawer", "registry keeps the tray out of its own drawer when placed beside a widget in it")
     root.assertDeepEqual(root.config.bar.layout.right, [{ id: "omarchy.tray" }], "a refused tray move leaves the tray where it was")
@@ -402,6 +412,16 @@ ShellRoot {
     root.assertDeepEqual(root.config.bar.layout.center, [{ id: "local.first-widget" }], "clone replacement normalizes string entries")
     registry.setEnabled("local.first-widget", false)
     root.assertDeepEqual(root.config.bar.layout.center, [{ id: "omarchy.first-widget" }], "clone restoration normalizes string entries")
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [], right: [{ id: "omarchy.tray" }, { id: "local.first-widget", size: 4 }], tray: [{ id: "local.first-widget" }] } },
+      plugins: []
+    }
+    registry.setEnabled("local.first-widget", false)
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "omarchy.tray" }, { id: "omarchy.first-widget", size: 4 }], "disabling a clone restores its source in its first place")
+    root.assertDeepEqual(root.config.bar.layout.tray, [], "disabling a clone also removes its copy in the tray section")
+    root.assertTrue(!registry.inBar("local.first-widget"), "a clone placed twice is no longer in the bar once disabled")
 
     root.config = {
       version: 1,
