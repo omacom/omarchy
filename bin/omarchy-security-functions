@@ -10,13 +10,18 @@ fi
 
 omarchy_security_require_privileged_bash_startup() {
   [[ $- == *p* ]] || return 1
+  # The caller is this check's parent, under the number this /proc gives it.
+  # arch-chroot runs the installer in a new PID namespace beneath the outer
+  # /proc, where $$ names no process, or someone else's.
   /usr/bin/env -i /usr/bin/bash -p -c '
-    mapfile -d "" -t argv <"/proc/$1/cmdline" || exit 1
-    executable=$(/usr/bin/readlink -e -- "/proc/$1/exe") || exit 1
+    stat=$(</proc/self/stat) || exit 1
+    read -r _ caller _ <<<"${stat##*) }"
+    mapfile -d "" -t argv <"/proc/$caller/cmdline" || exit 1
+    executable=$(/usr/bin/readlink -e -- "/proc/$caller/exe") || exit 1
     [[ $executable == "/usr/bin/bash" &&
       ( ${argv[0]:-} == "/bin/bash" || ${argv[0]:-} == "/usr/bin/bash" ) &&
       ${argv[1]:-} == "-p" ]]
-  ' omarchy-bash-startup "$$"
+  ' omarchy-bash-startup
 }
 
 omarchy_security_sanitize_bash_environment() {

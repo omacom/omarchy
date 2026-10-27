@@ -34,6 +34,7 @@ lib32-nvidia-utils
 pipewire
 pipewire-alsa
 pipewire-jack
+pipewire-libcamera
 pipewire-pulse
 qt6-wayland
 snapper
@@ -59,12 +60,16 @@ linux-firmware-marvell
 # Dell laptop support packages
 dell-xps-touchpad-haptics
 dell-xps13-sidecar-amps
+linux-firmware-cirrus-dx13260
+
+# ASUS laptop support packages
+asus-proart-p14-speaker-firmware
 
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2
 
 # T2 MacBook support packages
-apple-bcm-firmware
+apple-bcm-firmware-fetcher
 apple-t2-audio-config
 linux-t2
 linux-t2-headers

@@ -26,7 +26,7 @@ declare -A ROUTE_IS_ALIAS
 declare -A BINARY_TO_KEY
 declare -A GROUP_DESCRIPTIONS
 
-GROUP_DESCRIPTIONS[agent]="AI coding agent usage data"
+GROUP_DESCRIPTIONS[agent]="AI coding agents, their usage, and subscription accounts"
 GROUP_DESCRIPTIONS[ascii]="Text drawn as ASCII art"
 GROUP_DESCRIPTIONS[audio]="Audio input and output controls"
 GROUP_DESCRIPTIONS[bar]="Omarchy shell bar layout and settings"
@@ -46,8 +46,10 @@ GROUP_DESCRIPTIONS[finalize]="Finalize user setup"
 GROUP_DESCRIPTIONS[default]="Default application selection"
 GROUP_DESCRIPTIONS[dev]="Omarchy development tools"
 GROUP_DESCRIPTIONS[disk]="Disk performance helpers"
+GROUP_DESCRIPTIONS[dictation]="Dictation recording"
 GROUP_DESCRIPTIONS[display]="Display and text scaling"
 GROUP_DESCRIPTIONS[dns]="DNS resolver configuration"
+GROUP_DESCRIPTIONS[dock]="Dock shown on floating workspaces"
 GROUP_DESCRIPTIONS[drive]="Drive selection and encryption"
 GROUP_DESCRIPTIONS[file]="File selection helpers"
 GROUP_DESCRIPTIONS[font]="Font management"
@@ -59,6 +61,8 @@ GROUP_DESCRIPTIONS[hyprland]="Hyprland window, monitor, and toggle controls"
 GROUP_DESCRIPTIONS[install]="Optional software installers"
 GROUP_DESCRIPTIONS[installed]="Installed optional service checks"
 GROUP_DESCRIPTIONS[launch]="Application launchers"
+GROUP_DESCRIPTIONS[kernel]="Default boot kernel selection"
+GROUP_DESCRIPTIONS[language]="Display language and system locale"
 GROUP_DESCRIPTIONS[menu]="Omarchy menu commands"
 GROUP_DESCRIPTIONS[migrate]="Migration runner"
 GROUP_DESCRIPTIONS[monitor]="Monitor status helpers"
@@ -312,6 +316,15 @@ register_command() {
   IFS="$old_ifs"
 }
 
+reset_commands() {
+  COMMAND_KEYS=()
+  ROUTE_COLLISIONS=()
+  COMMAND_ROUTE=() COMMAND_FALLBACK_ROUTE=() COMMAND_BINARY=() COMMAND_GROUP=() COMMAND_NAME=()
+  COMMAND_SUMMARY=() COMMAND_USAGE=() COMMAND_ARGS=() COMMAND_EXAMPLES=() COMMAND_REQUIRES_SUDO=()
+  COMMAND_HIDDEN=() COMMAND_ALIASES=() COMMAND_HAS_SUMMARY=() COMMAND_METADATA_ERRORS=()
+  ROUTE_TO_KEY=() ROUTE_IS_ALIAS=() BINARY_TO_KEY=()
+}
+
 load_commands() {
   local file=""
 
@@ -320,6 +333,32 @@ load_commands() {
     register_command "$file"
   done
 
+}
+
+# Only a command whose route starts with "omarchy <first>" can resolve a route
+# beginning with that word: one in the <first> group by filename or metadata, or
+# one with an alias under it. Loading just those resolves aliases and
+# metadata-moved routes without reading every header. A superset is harmless,
+# and they register in the same order a full load would use.
+load_route_candidates() {
+  local first="$1"
+  local -A seen=()
+  local file=""
+
+  [[ $first =~ ^[[:alnum:]][[:alnum:]_-]*$ ]] || return 1
+
+  for file in "$OMARCHY_BIN_DIR/omarchy-$first"-*; do
+    seen["$file"]=1
+  done
+  while IFS= read -r file; do
+    seen["$file"]=1
+  done < <(grep -l -E -e "omarchy:group=$first([^[:alnum:]_-]|$)" -e "omarchy:alias(es)?=.*omarchy[[:space:]]+$first([[:space:]]|\||$)" "$OMARCHY_BIN_DIR"/omarchy-* 2>/dev/null)
+
+  # The full load's own glob, so colliding routes register in the same order.
+  for file in "$OMARCHY_BIN_DIR"/omarchy-*; do
+    [[ -n ${seen[$file]} && -f $file && -x $file ]] || continue
+    register_command "$file"
+  done
 }
 
 load_command_by_binary() {
@@ -369,6 +408,20 @@ command_requires_args() {
 
   required="${required// /}"
   [[ -n $required ]]
+}
+
+# A command whose documented arguments are all flags can't take a word, so a
+# word after it names something else: `omarchy agent account` is the account
+# commands, not an argument to omarchy-agent.
+command_takes_only_flags() {
+  local key="$1"
+  local args="${COMMAND_ARGS[$key]}"
+  local token=""
+
+  [[ -n $args ]] || return 1
+  for token in $args; do
+    [[ $token == -* || $token == "[-"* ]] || return 1
+  done
 }
 
 load_group_commands() {
@@ -956,6 +1009,17 @@ dispatch_fast_or_help() {
     remaining=("${args[@]:DIRECT_RESOLVED_COUNT}")
     binary_path="$OMARCHY_BIN_DIR/$DIRECT_RESOLVED_BINARY"
 
+    if (( ${#remaining[@]} == 1 || ${#remaining[@]} == 2 )) && [[ ${remaining[0]} != -* ]] &&
+      { (( ${#remaining[@]} == 1 )) || remaining_has_help_flag "${remaining[1]}"; } &&
+      group_has_child_commands "${DIRECT_RESOLVED_BINARY#omarchy-}-${remaining[0]}"; then
+      load_command_by_binary "$DIRECT_RESOLVED_BINARY"
+      key="${BINARY_TO_KEY[$DIRECT_RESOLVED_BINARY]}"
+      if [[ -n $key ]] && command_takes_only_flags "$key"; then
+        load_commands
+        show_prefix_help "$DIRECT_RESOLVED_ROUTE ${remaining[0]}" && return 0
+      fi
+    fi
+
     if remaining_has_help_flag "${remaining[@]}"; then
       if ! load_command_by_binary "$DIRECT_RESOLVED_BINARY"; then
         echo "Binary is missing or not executable: $DIRECT_RESOLVED_BINARY" >&2
@@ -1005,6 +1069,15 @@ dispatch_fast_or_help() {
     return 0
   fi
 
+  # Help lists related commands from the whole table, so only a route that runs
+  # its command takes the candidates-only path.
+  if ! remaining_has_help_flag "$@" && load_route_candidates "$1" && resolve_route "$#" "$@" &&
+    ! { (( RESOLVED_COUNT == $# )) && command_requires_args "$RESOLVED_KEY"; }; then
+    dispatch_or_help "$@"
+    return
+  fi
+
+  reset_commands
   load_commands
   dispatch_or_help "$@"
 }
@@ -1079,6 +1152,9 @@ main() {
   case "$1" in
   --help | -h)
     show_main_help
+    ;;
+  logout | reboot | shutdown)
+    dispatch_fast_or_help system "$@"
     ;;
   commands)
     load_commands

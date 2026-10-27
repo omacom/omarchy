@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 copy_boundary_file bin/omarchy-channel-set
 copy_boundary_file bin/omarchy-refresh-pacman
+copy_boundary_file bin/omarchy-apply-pacman
 copy_boundary_file bin/omarchy-update
 export OMARCHY_UPDATE_LOGGED=1
 
@@ -69,6 +70,51 @@ for channel in stable rc edge dev; do
   pass "$channel starts cold, authorizes the switch per command, runs the refresh hook cold, hands off to one update authorization and exits cold"
 done
 
+# Every aarch64 platform switches to each channel it has templates for, copying
+# its own: Apple Silicon to edge and dev, every other one to all four.
+for platform in aarch64 aarch64-apple; do
+  case $platform in
+    aarch64-apple) templates=default/pacman/aarch64-apple channels="edge dev" ;;
+    *) templates=default/pacman/aarch64 channels="stable rc edge dev" ;;
+  esac
+  for channel in $channels; do
+    # dev refreshes from the checkout it links, on edge.
+    pacman_channel=$channel root=$SUDO_TEST_ROOT
+    [[ $channel != "dev" ]] || pacman_channel=edge root=$SUDO_TEST_HOME/omarchy
+    reset_boundary
+    SUDO_TEST_PLATFORM=$platform run_channel "$channel" || fail "$platform $channel failed" "$(<"$boundary_tmp/output")"
+    assert_scoped_channel "$platform $channel"
+    # The caller renders from the platform's template; root copies the result.
+    grep -Eq "^step:cp $root/$templates/pacman-$pacman_channel.conf [^ ]+/pacman.conf\$" "$SUDO_TEST_LOG" ||
+      fail "$platform $channel renders its own template" "$(<"$SUDO_TEST_LOG")"
+  done
+done
+pass "aarch64 platforms switch to every channel they have templates for through their own templates"
+
+# Apple Silicon has edge templates alone: it refuses stable and rc before
+# anything changes.
+for channel in stable rc; do
+  reset_boundary
+  if SUDO_TEST_PLATFORM=aarch64-apple run_channel "$channel"; then fail "aarch64-apple accepted $channel"; fi
+  if grep -Eq '^step:|^sudo -N ' "$SUDO_TEST_LOG"; then fail "aarch64-apple $channel was refused before any change" "$(<"$SUDO_TEST_LOG")"; fi
+  grep -q "Omarchy has no $channel channel for aarch64-apple" "$boundary_tmp/output" || fail "aarch64-apple $channel: the refusal says why" "$(<"$boundary_tmp/output")"
+  assert_boundary_cold "aarch64-apple $channel"
+done
+pass "Apple Silicon refuses stable and rc before any change"
+
+# A channel the platform has no template for stops before anything, the dev
+# confirmation included.
+mv "$SUDO_TEST_ROOT/default/pacman/aarch64-apple/pacman-edge.conf" "$boundary_tmp/saved-template"
+for channel in edge dev; do
+  reset_boundary
+  if SUDO_TEST_PLATFORM=aarch64-apple run_channel "$channel"; then fail "a channel without a template was accepted ($channel)"; fi
+  if grep -Eq '^step:|^sudo -N ' "$SUDO_TEST_LOG"; then fail "$channel was refused before any change" "$(<"$SUDO_TEST_LOG")"; fi
+  grep -q "Omarchy has no edge channel for aarch64-apple" "$boundary_tmp/output" || fail "the refusal says why" "$(<"$boundary_tmp/output")"
+  assert_boundary_cold "missing template $channel"
+done
+mv "$boundary_tmp/saved-template" "$SUDO_TEST_ROOT/default/pacman/aarch64-apple/pacman-edge.conf"
+pass "a channel without a template for the platform is refused before any change"
+
 reset_boundary
 wrapper="$SUDO_TEST_HOME/omarchy/default/omarchy/sudo-no-update/sudo"
 mv "$wrapper" "$boundary_tmp/saved-wrapper"
@@ -81,6 +127,40 @@ assert_boundary_cold "stale checkout"
 mv "$boundary_tmp/saved-wrapper" "$wrapper"
 pass "a stale dev checkout is rejected before linking or privileged work"
 
+# On aarch64 the checkout's own refresh keeps the machine's repositories only
+# once it tells platforms apart: a checkout without that is refused the same way.
+checkout="$SUDO_TEST_HOME/omarchy"
+for required in bin/omarchy-hw-platform install/helpers/pacman.sh; do
+  for platform in aarch64; do
+    reset_boundary
+    mv "$checkout/$required" "$boundary_tmp/saved-required"
+    if SUDO_TEST_PLATFORM=$platform run_channel dev; then fail "$platform: a dev checkout without $required was accepted"; fi
+    mv "$boundary_tmp/saved-required" "$checkout/$required"
+    if grep -Eq '^step:omarchy-(dev-link|state)|^step:pacman|^sudo -N ' "$SUDO_TEST_LOG"; then
+      fail "$platform: a dev checkout without $required changed the system before rejection" "$(<"$SUDO_TEST_LOG")"
+    fi
+    grep -q "Update the checkout before switching to dev; on $platform it needs $required" "$boundary_tmp/output" ||
+      fail "$platform: the rejection names $required" "$(<"$boundary_tmp/output")"
+    assert_boundary_cold "$platform checkout without $required"
+  done
+done
+pass "on aarch64 a dev checkout that can't keep the machine's repositories is rejected before linking"
+
+# The checkout's own refresh copies its own templates, so one without them for
+# this platform is refused before linking.
+template=$checkout/default/pacman/aarch64/mirrorlist-edge
+mv "$template" "$boundary_tmp/saved-template"
+reset_boundary
+if SUDO_TEST_PLATFORM=aarch64 run_channel dev; then fail "a dev checkout without its templates was accepted"; fi
+mv "$boundary_tmp/saved-template" "$template"
+if grep -Eq '^step:omarchy-(dev-link|state)|^step:pacman|^sudo -N ' "$SUDO_TEST_LOG"; then
+  fail "a dev checkout without its templates changed the system before rejection" "$(<"$SUDO_TEST_LOG")"
+fi
+grep -q "Update the checkout before switching to dev; it has no edge templates for aarch64" "$boundary_tmp/output" ||
+  fail "the rejection names the missing templates" "$(<"$boundary_tmp/output")"
+assert_boundary_cold "checkout without templates"
+pass "a dev checkout without its templates for the platform is rejected before linking"
+
 reset_boundary
 OMARCHY_PATH="$SUDO_TEST_HOME/omarchy" run_channel stable || fail "leaving dev failed" "$(<"$boundary_tmp/output")"
 assert_scoped_channel "dev to stable"
@@ -90,11 +170,13 @@ pass "leaving dev preserves no-update sudo through unlink and hands off to the p
 # package is installed. Its updater authenticates without --no-update, so the
 # switch must not launch it: it stops at a consistent point with instructions.
 reset_boundary
+export SUDO_TEST_INSTALLED=$'omarchy 4.0.5-1\nomarchy-settings 4.0.5-1'
 mv "$SUDO_TEST_ROOT/default/omarchy/sudo-no-update/sudo" "$boundary_tmp/saved-package-wrapper"
 mv "$SUDO_TEST_ROOT/bin/omarchy-update" "$boundary_tmp/saved-package-update"
 ln -s test-step "$SUDO_TEST_ROOT/bin/omarchy-update"
 if OMARCHY_PATH="$SUDO_TEST_HOME/omarchy" run_channel stable; then fail "an older packaged destination was updated with ordinary sudo" "$(<"$SUDO_TEST_LOG")"; fi
 grep -q "predates command-scoped sudo" "$boundary_tmp/output" || fail "an older packaged destination was not reported" "$(<"$boundary_tmp/output")"
+grep -Fq "Packages are switched to omarchy 4.0.5-1, omarchy-settings 4.0.5-1." "$boundary_tmp/output" || fail "an older packaged destination does not name what is installed" "$(<"$boundary_tmp/output")"
 grep -q "Run 'omarchy update' from a new terminal to finish" "$boundary_tmp/output" || fail "an older packaged destination lacks recovery guidance" "$(<"$boundary_tmp/output")"
 grep -Fxq 'step:omarchy-dev-unlink --no-reboot' "$SUDO_TEST_LOG" || fail "the package switch was not completed before stopping" "$(<"$SUDO_TEST_LOG")"
 grep -Fxq 'step:omarchy-state set reboot-required' "$SUDO_TEST_LOG" || fail "leaving dev for an older release did not mark the reboot" "$(<"$SUDO_TEST_LOG")"
@@ -121,16 +203,32 @@ cp "$SUDO_TEST_ROOT/default/omarchy/sudo-no-update/sudo" "$boundary_tmp/saved-pa
 for pattern in 'pacman -Syyuu*' 'pacman -S --needed*'; do
   reset_boundary
   export SUDO_TEST_REMOVE_WRAPPER_STEP=$pattern
+  # The refresh can only have left an older tree of either flavour; the swap
+  # leaves the destination's packages.
+  if [[ $pattern == "pacman -Syyuu*" ]]; then
+    export SUDO_TEST_INSTALLED=$'omarchy-dev 4.0.0.r1832.g23dab9e-1\nomarchy-settings-dev 4.0.0.r1832.g23dab9e-1'
+  else
+    export SUDO_TEST_INSTALLED=$'omarchy 4.0.6rc1-1\nomarchy-settings 4.0.6rc1-1'
+  fi
   if run_channel rc; then fail "a downgrade during '$pattern' was not detected" "$(<"$SUDO_TEST_LOG")"; fi
   unset SUDO_TEST_REMOVE_WRAPPER_STEP
   grep -q "predates command-scoped sudo" "$boundary_tmp/output" || fail "downgrade during '$pattern' was not reported" "$(<"$boundary_tmp/output")"
+  if [[ $pattern == "pacman -Syyuu*" ]]; then
+    if grep -q "Packages are switched" "$boundary_tmp/output"; then fail "a refresh that replaced the tree was reported as a finished package switch" "$(<"$boundary_tmp/output")"; fi
+    grep -Fq "stops before installing omarchy omarchy-settings." "$boundary_tmp/output" || fail "a stop before the swap does not say so" "$(<"$boundary_tmp/output")"
+    grep -Fq "Installed now: omarchy-dev 4.0.0.r1832.g23dab9e-1, omarchy-settings-dev 4.0.0.r1832.g23dab9e-1." "$boundary_tmp/output" || fail "a stop before the swap does not name what is installed" "$(<"$boundary_tmp/output")"
+    grep -Fq "Run 'omarchy channel set rc' from a new terminal to finish" "$boundary_tmp/output" || fail "a stop before the swap does not say to rerun the switch" "$(<"$boundary_tmp/output")"
+  else
+    grep -Fq "Packages are switched to omarchy 4.0.6rc1-1, omarchy-settings 4.0.6rc1-1." "$boundary_tmp/output" || fail "a stop after the swap does not name what is installed" "$(<"$boundary_tmp/output")"
+    grep -Fq "Run 'omarchy update' from a new terminal to finish" "$boundary_tmp/output" || fail "a stop after the swap does not say to update" "$(<"$boundary_tmp/output")"
+  fi
   if grep -q '^unwrapped-sudo ' "$SUDO_TEST_LOG"; then fail "downgrade during '$pattern' reached ordinary sudo" "$(<"$SUDO_TEST_LOG")"; fi
   if grep -q '^step:omarchy-dev-unlink' "$SUDO_TEST_LOG"; then fail "downgrade during '$pattern' still unlinked" "$(<"$SUDO_TEST_LOG")"; fi
   if grep -q '^step:omarchy-update ' "$SUDO_TEST_LOG"; then fail "downgrade during '$pattern' still updated" "$(<"$SUDO_TEST_LOG")"; fi
   python3 - "$SUDO_TEST_LOG" "$pattern" <<'PY'
 import sys
 events = open(sys.argv[1]).read().splitlines()
-transactions = [e for e in events if e.startswith('step:pacman ')]
+transactions = [e for e in events if e.startswith('step:pacman ') and not e.startswith('step:pacman -Q ')]
 assert len(transactions) == (1 if sys.argv[2].startswith('pacman -Syyuu') else 2), events
 assert all(e in ('sudo -h', 'sudo -k') or e.startswith('sudo -N ') for e in events if e.startswith('sudo ')), events
 PY

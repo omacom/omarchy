@@ -6,6 +6,41 @@ function labelForPath(path) {
   return nameForPath(path).replace(/[-_]+/g, " ").replace(/\b\w/g, function(match) { return match.toUpperCase() })
 }
 
+// Extra (user-installed) theme names, one per line, as listed from the user
+// themes directory: the set omarchy-theme-remove can delete.
+function parseThemeNames(text) {
+  var names = []
+  var lines = String(text || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var name = lines[i].trim()
+    if (name) names.push(name)
+  }
+  return names
+}
+
+// A user directory shadowing a stock theme holds customizations, not an
+// extra theme: removing it from here would silently revert to stock (and a
+// shadow can even list twice, once per preview extension), so only themes
+// with no stock twin can be deleted from the picker.
+function canDeleteTheme(name, extraNames, stockNames) {
+  if (!name || !Array.isArray(extraNames) || extraNames.indexOf(name) === -1) return false
+  return !Array.isArray(stockNames) || stockNames.indexOf(name) === -1
+}
+
+// Where selection lands when the selected image goes away: the previous
+// match in list order, or the next one when the first match is deleted.
+function replacementSelectionPath(images, selectedIndex, filterText) {
+  var values = Array.isArray(images) ? images : []
+  if (selectedIndex < 0 || selectedIndex >= values.length) return ""
+  for (var i = selectedIndex - 1; i >= 0; i--) {
+    if (itemMatches(values, i, filterText)) return values[i].filePath
+  }
+  for (var i = selectedIndex + 1; i < values.length; i++) {
+    if (itemMatches(values, i, filterText)) return values[i].filePath
+  }
+  return ""
+}
+
 function loadRows(rows) {
   var images = []
   var seen = {}
@@ -82,16 +117,61 @@ function nextSelectedIndexForFilter(images, selectedIndex, filterText) {
   return firstMatchingIndex(images, filterText)
 }
 
+function matchingIndices(images, filterText) {
+  var indices = []
+  for (var i = 0; i < images.length; i++) {
+    if (itemMatches(images, i, filterText)) indices.push(i)
+  }
+  return indices
+}
+
+// Keep the rendered carousel independent of the size of the collection.
+function visibleWindow(indices, selectedIndex, radius) {
+  var position = indices.indexOf(selectedIndex)
+  if (position < 0) position = 0
+  var items = []
+  for (var i = Math.max(0, position - radius); i < Math.min(indices.length, position + radius + 1); i++) {
+    items.push({ imageIndex: indices[i], relativeIndex: i - position })
+  }
+  return items
+}
+
+// Preserve overlapping delegates as selection moves, including their decoded
+// images. Replacing the entire model on every keypress makes previews flicker.
+function syncWindow(model, items) {
+  var wanted = {}
+  for (var i = 0; i < items.length; i++) wanted[items[i].imageIndex] = true
+  for (var i = model.count - 1; i >= 0; i--) {
+    if (!wanted[model.get(i).imageIndex]) model.remove(i)
+  }
+  for (var i = 0; i < items.length; i++) {
+    var existing = i
+    while (existing < model.count && model.get(existing).imageIndex !== items[i].imageIndex) existing++
+    if (existing === model.count) {
+      model.insert(i, items[i])
+    } else {
+      if (existing !== i) model.move(existing, i, 1)
+      model.setProperty(i, "relativeIndex", items[i].relativeIndex)
+    }
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     nameForPath: nameForPath,
     labelForPath: labelForPath,
+    parseThemeNames: parseThemeNames,
+    canDeleteTheme: canDeleteTheme,
+    replacementSelectionPath: replacementSelectionPath,
     loadRows: loadRows,
     itemMatches: itemMatches,
     firstMatchingIndex: firstMatchingIndex,
     filteredPosition: filteredPosition,
     selectedFilteredPosition: selectedFilteredPosition,
     indexForSelectedImage: indexForSelectedImage,
-    nextSelectedIndexForFilter: nextSelectedIndexForFilter
+    nextSelectedIndexForFilter: nextSelectedIndexForFilter,
+    matchingIndices: matchingIndices,
+    visibleWindow: visibleWindow,
+    syncWindow: syncWindow
   }
 }

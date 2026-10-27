@@ -28,7 +28,8 @@ EOF
 }
 
 now_us() {
-  local now="${EPOCHREALTIME/./}"
+  # EPOCHREALTIME uses the locale's decimal separator, a comma in many.
+  local now="${EPOCHREALTIME//[!0-9]/}"
   printf '%s' "$now"
 }
 

@@ -34,6 +34,7 @@ brightness lower
 ipc media.playPause
 ipc media.next
 ipc media.previous
+ipc notifications.act
 ipc notifications.dismissOne
 ipc notifications.dismissAll
 ipc notifications.invokeLast

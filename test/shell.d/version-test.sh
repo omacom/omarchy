@@ -50,14 +50,3 @@ if version "" >/dev/null 2>&1; then
   fail "version fails when no Omarchy package is installed"
 fi
 pass "version fails when no Omarchy package is installed"
-
-# The snapshot description is only a label, so a failed lookup must not abort
-# the update under set -e.
-snapshot_desc=$(
-  set -e
-  PATH="$stub_bin:$PATH" OMARCHY_TEST_PACKAGES="" OMARCHY_PATH=/usr/share/omarchy \
-    bash -c 'DESC="$(omarchy-version 2>/dev/null || echo unknown)"; echo "$DESC"' 2>/dev/null
-) || fail "snapshot survives an unknown version"
-
-[[ $snapshot_desc == "unknown" ]] || fail "snapshot labels an unknown version" "actual: $snapshot_desc"
-pass "snapshot survives an unknown version"

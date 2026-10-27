@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Superwhisper dictation and its desktop integration
+# omarchy:requires-sudo=true
+
+set -e
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+
+systemctl --user disable --now superwhisper.service 2>/dev/null || true
+omarchy-shell -q shell setPluginEnabled superwhisper.panel false >/dev/null
+omarchy-pkg-drop superwhisper-bin
+systemctl --user daemon-reload
+
+# Remove the package setup's links, preserving independently installed copies
+# and the user's preferences, history, and models.
+unlink_package_link() {
+  if [[ -L $1 && $(readlink "$1") == "$2" ]]; then
+    rm "$1"
+  fi
+}
+
+unlink_package_link "$HOME/.local/bin/superwhisper" /usr/bin/superwhisper
+unlink_package_link "$data_home/superwhisper/app/current" /opt/superwhisper
+unlink_package_link "$config_home/omarchy/plugins/superwhisper-panel" /opt/superwhisper/assets/omarchy-plugin/superwhisper-panel
+for agent in .agents .claude .codex .pi/agent; do
+  unlink_package_link "$HOME/$agent/skills/superwhisper" /opt/superwhisper/assets/agent-skill/superwhisper
+done
+
+backend_config="$config_home/omarchy/defaults/dictation"
+if [[ -f $backend_config && $(< "$backend_config") == "superwhisper" ]]; then
+  rm "$backend_config"
+fi
+
+omarchy-shell -q shell rescanPlugins
+hyprctl reload >/dev/null
+if systemctl --user -q is-active omarchy-fcitx5.service; then
+  systemctl --user restart omarchy-fcitx5.service
+fi

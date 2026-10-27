@@ -5,9 +5,11 @@ matching guide before starting:
 
 - [`agents/skills/command-metadata.md`](agents/skills/command-metadata.md) - adding or changing commands in `bin/`
 - [`agents/skills/install-scripts.md`](agents/skills/install-scripts.md) - working under `install/` or on system/user setup commands
+- [`agents/skills/mise-tools.md`](agents/skills/mise-tools.md) - adding or changing mise-managed tools
 - [`agents/skills/shell-dev.md`](agents/skills/shell-dev.md) - editing the Quickshell desktop under `shell/`
 - [`agents/skills/icon-font.md`](agents/skills/icon-font.md) - adding branded glyphs to `default/fonts/omarchy/omarchy.ttf`
 - [`agents/skills/acceptance-tests.md`](agents/skills/acceptance-tests.md) - writing or running graphical acceptance tests under `test/acceptance.d/`
+- [`agents/skills/motion.md`](agents/skills/motion.md) - adding or changing any animation or transition in `shell/`
 - [`agents/skills/visual-verification.md`](agents/skills/visual-verification.md) - verifying any change with a visual effect in the running UI
 - [`agents/skills/migrations.md`](agents/skills/migrations.md) - creating or changing migrations under `migrations/`
 
@@ -63,6 +65,33 @@ guidance does not drift from the router.
 - `$OMARCHY_PATH` is set at the top level by the uwsm session environment and is always available to Omarchy runtime code.
 - Commands in `bin/` and Quickshell QML should rely on `$OMARCHY_PATH` / `Quickshell.env("OMARCHY_PATH")`; do not derive fallback paths from `HOME`, `Quickshell.shellDir`, or re-export/default `OMARCHY_PATH` manually.
 
+# Platforms
+
+Omarchy runs on x86 and aarch64 (ARM). A platform name is the CPU architecture, then a hardware family only when that family needs handling of its own:
+
+- `x86` - every x86_64 machine
+- `aarch64` - every ARM machine without a family of its own (Raspberry Pis and ARM VMs today)
+- `aarch64-apple` - Apple Silicon Macs
+- `aarch64-qualcomm` - Snapdragon laptops
+- `aarch64-n1x` - NVIDIA N1x laptops
+- `aarch64-gb10` - NVIDIA GB10 desktops (DGX Spark, ASUS Ascent GX10)
+
+A new family is named `aarch64-<family>` (e.g. `aarch64-qualcomm`, `aarch64-n1x`) and is added only once it needs code of its own, so `aarch64*` always means ARM. `omarchy-hw-platform` prints the most specific name. Use these exact names wherever a platform is named: package lists, pacman template directories, image manifests, dispatch registration, tests and docs. Never introduce `generic`, `arm64`, `apple-silicon` or other spellings; the old `apple-silicon`, `generic-aarch64` and `generic` are read only for compatibility with older image builders.
+
+Ask a helper; don't read `uname -m` or the device tree in feature code:
+
+- `omarchy-hw-x86` / `omarchy-hw-aarch64` - the CPU architecture. Use them for binary and ABI availability: a package with no aarch64 build, an x86 guest VM, multilib.
+- `omarchy-hw-aarch64-apple`, `omarchy-hw-aarch64-qualcomm`, `omarchy-hw-aarch64-n1x`, `omarchy-hw-aarch64-gb10` (one per family) - built on `omarchy-hw-platform`, image-build aware. Use them for hardware behaviour that the whole family shares; a single model's quirks stay behind `omarchy-hw-match` on its DMI name, or behind `omarchy-hw-match-device-tree` on its device-tree compatible string where models share a DMI name. `omarchy-hw-apple-silicon` and `omarchy-hw-n1x` are hidden aliases kept for the omarchy-mac packages and older N1x images; don't use them in new code.
+
+Where platform code lives:
+
+- Packages: `install/omarchy-base.packages` for everyone, `install/omarchy-aarch64.packages` for every ARM machine, `install/omarchy-<platform>.packages` for one family, and base packages with no aarch64 build in `install/omarchy-x86_64-only.packages`. `omarchy-pkg-defaults` composes them.
+- Pacman templates: `default/pacman/` for x86, `default/pacman/<platform>/` for each ARM platform.
+- Hardware setup: `install/hardware/<vendor-or-family>/`, gated by a predicate. `install/hardware/apple/` holds Intel Mac quirks; Apple Silicon's own setup ships in the omarchy-mac packages.
+- Boot chains Omarchy can't drive generically: a platform package behind `omarchy-lifecycle-dispatch` ([`docs/lifecycle-dispatch.md`](docs/lifecycle-dispatch.md)). Platforms that boot Limine with UKIs like x86 keep the generic path.
+
+The experience should be the same on every platform. When a package or feature is missing or broken on one, the default is to get it fixed upstream (an aarch64 build, a bug report, a patch to the maintainer) and leave the gap visible meanwhile, not to paper over it. When asked for a platform workaround, say so and propose the upstream fix first. Hiding a menu entry or skipping a package is fine only for things that can't exist there (an x86 guest VM, an x86-only proprietary binary). Alternative packages and platform-only replacements are a last resort, used only when upstream can't or won't fix it, with the reason written next to the code.
+
 # Privileged Commands
 
 - Follow the "Privilege Escalation" section of `default/agents/skills/omarchy/SKILL.md`. It draws the
@@ -80,7 +109,7 @@ Use these instead of raw shell commands:
 
 - `omarchy-cmd-missing` / `omarchy-cmd-present` - check for commands
 - `omarchy-pkg-missing` / `omarchy-pkg-present` - check for packages (don't use these if you can just use `omarchy-pkg-add`/`omarchy-pkg-drop`)
-- `omarchy-pkg-add` - install packages (handles both pacman and AUR)
+- `omarchy-pkg-add` - install packages from the configured pacman repos, Omarchy's included; use `omarchy-pkg-aur-add` for AUR packages
 - `omarchy-pkg-drop` - remove packages; use this instead of raw `pacman -R*`
 - `omarchy-notification-send` - send desktop notifications; do not call `notify-send` directly
 - `omarchy-hw-asus-rog` - detect ASUS ROG hardware (and similar `hw-*` commands)
@@ -88,6 +117,11 @@ Use these instead of raw shell commands:
 Commands installed by Omarchy's default package set are runtime invariants. Invoke them directly; do not add defensive `omarchy-cmd-present` / `omarchy-cmd-missing` checks around them. Use command-presence helpers only for genuinely optional dependencies or code that can run before the default package set is installed.
 
 Exceptions are allowed for migration and package-helper scripts where the helper may not be available yet, where the helper itself is being implemented, or where direct package-manager behavior is required.
+
+# Background Work
+
+- Long-running code (the shell, daemons, watchers) reacts to events instead of polling with a timer. Polling is the last resort, for state with no change signal; [`agents/skills/shell-dev.md`](agents/skills/shell-dev.md) lists the event sources and the push-refresh pattern.
+- `test/shell.d/shell-idle-spawn-test.sh` fails when an idle shell starts any process, and other tests hold the router, menu guards and theme switch to budgets; see "Performance guards" in [`docs/testing.md`](docs/testing.md).
 
 # Menu
 
@@ -111,6 +145,27 @@ test entry points:
 - `./test/all` - aggregate runner for CLI and shell tests; it intentionally does not run graphical acceptance tests
 - `./test/cli` - CLI routing, command metadata, theme helpers, and safe dispatch coverage
 - `./test/shell` - all Omarchy shell tests under `test/shell.d/`
+
+How to run them without wasting runs:
+
+- Run the files for what you changed directly: `bash test/shell.d/<area>-test.sh`. A change inside one plugin or command runs that area's files (and `i18n-test.sh` when catalog strings changed), not `./test/shell`.
+- Run `./test/shell` or `./test/all` only when the change reaches shared code (`shell/Commons/`, `base-test.sh`, the runners, a widely used `bin/` helper), and then once, at the end.
+- Always write the whole output to a log file and read it from there: `bash test/shell.d/<area>-test.sh >/tmp/<area>.log 2>&1`. Never pipe a test run straight through `grep`, `head` or `tail`: what they drop is gone, and getting it back costs a whole run. `./test/shell` keeps every file's log and prints the directory at the end; read a failure from its log.
+- Run a test again only after changing something it covers. Never rerun to see output, to confirm a pass, or in the hope that a failure goes away.
+- For a failure in a file you did not touch, run that one file once on the base branch (in a worktree, or with `git stash`). If it fails there too, it was already broken: report it and leave it out of this change.
+- Tests that use the live session (`require_compositor`, `shell-idle-spawn-test.sh`) read the real desktop, so the user working at it can fail them. One that fails in a full run and passes alone is session noise: say so; do not loop on it.
+
+When to add a test. A test earns its place only by catching a regression nothing else would; every one costs a maintainer to read and everyone a slower suite. Before writing one, name the breakage it would catch. If the answer is "someone edits the line I just added", don't write it.
+
+- No test for a small declarative change: a menu row, a config value, a package-list entry, a string, a rename. Those need no test of their own, and certainly not a new file.
+- Don't restate the implementation: grepping the source or config for the string you just added, asserting a value equals itself, or re-reading the file you edited to confirm the edit is there.
+- A test must fail without your change. Revert the fix, or reason it through, and check that the test goes red for the reason the change exists. One that stays green guards nothing.
+- Don't test your own stub. If a fake binary or fixture the test writes provides the behaviour under test, nothing real is tested.
+- No change-detectors: snapshots of large output, file lists, or exact counts that break whenever someone adds an unrelated entry.
+- Extend the area's existing test file (`git grep` the command or function under `test/`) rather than adding a new `*-test.sh`, and follow its style.
+- Keep tests in proportion to the change. A few lines of change rarely justify more than a few lines of test, and usually none.
+- No test for a migration. It runs once and is frozen once it ships; test logic it needs by moving that logic into a `bin/` command.
+- Do test real logic: parsing, routing, a guard on hardware without the feature, the edge case a fix handles. A bug fix with logic in it gets the one test that fails on the base branch and passes with the fix.
 
 New Omarchy shell tests should live in `test/shell.d/*-test.sh` so `./test/shell` picks them up automatically. Source `test/shell.d/base-test.sh` for shared root-path discovery, assertions, and Node test helpers.
 

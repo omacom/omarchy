@@ -101,4 +101,4 @@ For plugin development, see the [shell reference](https://github.com/omacom/omar
 
 Once you've made something you like, put it in a public git repo. That's the whole distribution mechanism — anyone can then run `omarchy plugin add` against your URL and have it running in seconds.
 
-To help people actually find it, list it at [omarchyplugins.com](https://omarchyplugins.com). That's the community directory of Omarchy shell plugins, and it's the first place to look when you're wondering whether someone has already built the widget you're about to write. Browse it before you start!
+To help people actually find it, list it at [plugins.omarchy.org](https://plugins.omarchy.org). That's the marketplace for Omarchy shell plugins, and it's the first place to look when you're wondering whether someone has already built the widget you're about to write. Browse it before you start!

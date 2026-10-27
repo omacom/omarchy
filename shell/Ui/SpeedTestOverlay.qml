@@ -4,6 +4,7 @@ import QtQuick.Shapes
 import Quickshell
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // Centered speed test overlay shared by the network and disk speed tests. No
@@ -14,6 +15,10 @@ import qs.Ui
 // track the live readings. Callers name the dials, the unit, and the scale.
 PanelWindow {
   id: root
+  // Right-to-left languages read this window mirrored.
+  Binding { target: root.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
+  Binding { target: root.contentItem; property: "LayoutMirroring.childrenInherit"; value: true }
+
 
   required property string fontFamily
   required property bool running
@@ -22,7 +27,7 @@ PanelWindow {
   property string unit: "Mbps"
   property string title: ""
   property string layerNamespace: "omarchy-speed-test"
-  property string runAgainTooltip: "Measure again"
+  property string runAgainTooltip: Commons.I18n.t("speedtest.measureAgain")
   property real leftValue: 0
   property real rightValue: 0
   property bool leftLive: false
@@ -164,7 +169,7 @@ PanelWindow {
         // Centered on the dial pair. Fades rather than unmounts while a run
         // is in flight, so the cluster never shifts.
         Button {
-          text: "Run Again"
+          text: Commons.I18n.t("speedtest.runAgain")
           tooltipText: root.runAgainTooltip
           bordered: true
           enabled: !root.running
@@ -288,7 +293,7 @@ PanelWindow {
       // round caps would leave a stray dot at the foot of the scale.
       ShapePath {
         strokeWidth: dial.arcWidth * 3
-        strokeColor: dial.arcVisible ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.18) : "transparent"
+        strokeColor: dial.arcVisible ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.18) : "transparent"
         fillColor: "transparent"
         capStyle: ShapePath.RoundCap
 
@@ -305,7 +310,7 @@ PanelWindow {
       // Value: fills behind the needle.
       ShapePath {
         strokeWidth: dial.arcWidth
-        strokeColor: dial.arcVisible ? Color.accent : "transparent"
+        strokeColor: dial.arcVisible ? Commons.Color.accent : "transparent"
         fillColor: "transparent"
         capStyle: ShapePath.RoundCap
 
@@ -356,8 +361,8 @@ PanelWindow {
         radius: width / 2
 
         gradient: Gradient {
-          GradientStop { position: 0.0; color: Color.accent }
-          GradientStop { position: 0.55; color: Color.accent }
+          GradientStop { position: 0.0; color: Commons.Color.accent }
+          GradientStop { position: 0.55; color: Commons.Color.accent }
           GradientStop { position: 1.0; color: "transparent" }
         }
       }
@@ -372,13 +377,8 @@ PanelWindow {
       Text {
         textFormat: Text.PlainText
         anchors.horizontalCenter: parent.horizontalCenter
-        // Both branches go through the locale: a reading is a measurement, so
-        // its separators follow the system's number conventions rather than the
-        // interface language. toFixed would have hardcoded a dot below 10 while
-        // everything above it was already grouped for the locale.
-        text: dial.reading < 10
-          ? dial.reading.toLocaleString(Qt.locale(), 'f', 1)
-          : Math.round(dial.reading).toLocaleString(Qt.locale(), 'f', 0)
+        // Written in the interface language's decimal separator and digits.
+        text: Commons.I18n.formatNumber(dial.reading, dial.reading < 10 ? 1 : 0)
         color: root.onScrim
         font.family: root.fontFamily
         font.pixelSize: Style.font.display

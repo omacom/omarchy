@@ -11,7 +11,7 @@
 state_file = "auto"
 
 [hotkey]
-# Hotkey is configured in Hyprland. Default is Super + Ctrl + X
+# Hotkeys are configured in Hyprland: hold Right Alt or F9, or toggle with Super + Ctrl + X.
 enabled = false
 
 [audio]

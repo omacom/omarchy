@@ -57,7 +57,7 @@ state_dir="$HOME/.local/state/omarchy"
 mkdir -p "$state_dir"
 
 if omarchy-done check finalize-user && (( force == 0 )); then
-  echo "User finalization already complete (rerun with --force to refresh)."
+  echo "User finalization already complete."
   exit 0
 fi
 
@@ -107,6 +107,14 @@ mkdir -p ~/Downloads ~/Pictures ~/Videos ~/.config/gtk-3.0
 xdg-user-dirs-update --set TEMPLATES "$HOME"
 xdg-user-dirs-update --set PUBLICSHARE "$HOME"
 xdg-user-dirs-update --set DESKTOP "$HOME"
+# Name the rest now, so a first login in another language does not create
+# translated folders beside the English ones Omarchy made and bookmarked. A
+# folder the user already named, in any language, stays theirs.
+for dir in DOWNLOAD:Downloads PICTURES:Pictures VIDEOS:Videos DOCUMENTS:Documents MUSIC:Music; do
+  # Created too: xdg-user-dirs resets a named folder that does not exist.
+  grep -q "^XDG_${dir%%:*}_DIR=" "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" 2>/dev/null ||
+    { mkdir -p "$HOME/${dir#*:}" && xdg-user-dirs-update --set "${dir%%:*}" "$HOME/${dir#*:}"; }
+done
 rmdir ~/Templates ~/Public ~/Desktop 2>/dev/null || true
 touch ~/.config/gtk-3.0/bookmarks
 for dir in Downloads Projects Pictures Videos; do
@@ -117,7 +125,7 @@ done
 source "$OMARCHY_INSTALL/user/all.sh"
 
 omarchy-refresh-applications
-env -u BROWSER xdg-settings set default-web-browser chromium.desktop
+env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser chromium.desktop
 xdg-mime default HEY.desktop x-scheme-handler/mailto
 
 if (( first_install )); then
