@@ -153,6 +153,110 @@ qml_matches "$shell_qml" 'allowOwnService *&& *shell\.pluginOwnsTarget\( *key, *
   fail "cloned widgets cannot use a source id to reach their own service"
 pass "service facades resolve enabled clones without widening replacement-bar access"
 
+# Bars write their own layout, so a configured entry alone cannot bound the
+# bar-entry service grant. The manifest, authentication, and hosting checks
+# live in BarEntryServiceBoundary.js; these assertions pin the wiring, and the
+# runtime block below exercises the module's real logic.
+qml_matches "$shell_qml" 'import *"services/BarEntryServiceBoundary\.js" *as *BarEntryServiceBoundary' ||
+  fail "the bar entry service boundary is not a shared module"
+qml_matches "$shell_qml" 'function barWidgetEntryServiceId\([^}]*BarEntryServiceBoundary\.hostedWidgetServiceId\(' ||
+  fail "bar entry service lookups do not go through the shared boundary module"
+qml_matches "$shell_qml" 'if *\( *!owns\( *requestedId *\) *\) *return *null[^}]*barWidgetEntryServiceId\( *requestedId *\)' ||
+  fail "per-entry facade service lookups bypass the shared boundary module"
+pass "bar entry service lookups route through the shared boundary module"
+
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const mod = {}
+vm.createContext(mod)
+vm.runInContext(
+  fs.readFileSync(path.join(root, 'shell/services/BarEntryServiceBoundary.js'), 'utf8'),
+  mod
+)
+
+function registry(manifests, enabledClone) {
+  return {
+    installedPlugins: manifests,
+    resolveEnabledId: function(id) {
+      for (var key in manifests) {
+        var m = manifests[key]
+        if (m.omarchy && m.omarchy.clonedFrom === id && key === enabledClone) return key
+      }
+      return id
+    }
+  }
+}
+function entries(ids) {
+  return function(id) { return ids.indexOf(String(id)) !== -1 }
+}
+const authNo = function() { return false }
+const authYes = function() { return true }
+
+const widget = { kinds: ['service', 'bar-widget'] }
+const widgetClone = { kinds: ['service', 'bar-widget'], omarchy: { clonedFrom: 'acme.thing' } }
+const serviceOnly = { kinds: ['service'] }
+const firstParty = { kinds: ['service'], __isFirstParty: true }
+const authWidget = { kinds: ['bar-widget'] }
+const mediaSource = { kinds: ['service', 'bar-widget'], __isFirstParty: true }
+const mediaClone = { kinds: ['service', 'bar-widget'], omarchy: { clonedFrom: 'omarchy.media' } }
+
+assert(
+  mod.hostedWidgetServiceId('acme.thing', registry({ 'acme.thing': widget }), authNo, entries(['acme.thing'])) === 'acme.thing',
+  'a hosted third-party bar widget resolves by its own id'
+)
+assert(
+  mod.hostedWidgetServiceId('acme.thing', registry({ 'local.thing': widgetClone }, 'local.thing'), authNo, entries(['acme.thing'])) === 'local.thing',
+  'a hosted built-in entry resolves to its enabled clone'
+)
+assert(
+  mod.hostedWidgetServiceId('local.thing', registry({ 'local.thing': widgetClone }, 'local.thing'), authNo, entries(['acme.thing'])) === 'local.thing',
+  'a clone naming itself resolves through the hosted built-in entry'
+)
+assert(
+  mod.hostedWidgetServiceId('acme.thing', registry({ 'acme.thing': widget }), authNo, entries([])) === null,
+  'an unhosted widget resolves to nothing'
+)
+assert(
+  mod.hostedWidgetServiceId('omarchy.idle', registry({ 'omarchy.idle': firstParty }), authNo, entries(['omarchy.idle'])) === null,
+  'a first-party service stays out of reach even when staged into the layout'
+)
+assert(
+  mod.hostedWidgetServiceId('acme.svc', registry({ 'acme.svc': serviceOnly }), authNo, entries(['acme.svc'])) === null,
+  'a service-only plugin stays out of reach'
+)
+assert(
+  mod.hostedWidgetServiceId('acme.lock', registry({ 'acme.lock': authWidget }), authYes, entries(['acme.lock'])) === null,
+  'an authentication service stays out of reach'
+)
+assert(
+  mod.hostedWidgetServiceId('local.thing', registry({ 'local.thing': widgetClone }, 'local.thing'), authNo, entries(['local.thing'])) === 'local.thing',
+  'a clone entry configured directly in the layout resolves'
+)
+assert(
+  mod.hostedWidgetServiceId('local.thing', registry({ 'local.thing': widgetClone }, 'local.thing'), authNo, entries([])) === null,
+  'an enabled clone with no hosted entry under any of its names resolves to nothing'
+)
+assert(
+  mod.hostedWidgetServiceId('omarchy.media', registry({ 'omarchy.media': mediaSource, 'local.media': mediaClone }, 'local.media'), authNo, entries(['omarchy.media'])) === null,
+  'a first-party service stays behind the narrow proxy when asked by its built-in name, clone or not'
+)
+assert(
+  mod.hostedWidgetServiceId('omarchy.media', registry({ 'omarchy.media': mediaSource, 'local.media': mediaClone }, 'local.media'), authNo, entries(['local.media'])) === null,
+  'a first-party service hosted directly under its clone id stays behind the narrow proxy when asked by the built-in name'
+)
+assert(
+  mod.hostedWidgetServiceId('local.media', registry({ 'omarchy.media': mediaSource, 'local.media': mediaClone }, 'local.media'), authNo, entries(['omarchy.media'])) === 'local.media',
+  'a first-party clone naming itself reaches its own service, as pluginOwnsTarget grants under the trusted bar'
+)
+assert(
+  mod.hostedWidgetServiceId('local.media', registry({ 'omarchy.media': mediaSource, 'local.media': mediaClone }, 'local.media'), authNo, entries(['local.media'])) === 'local.media',
+  'a first-party clone naming itself reaches its own service when the layout hosts the clone entry directly'
+)
+JS
+
+pass "bar entry service boundary behavior"
+
 require_compositor "plugin authentication boundary runtime test"
 
 if ! command -v quickshell >/dev/null 2>&1; then
