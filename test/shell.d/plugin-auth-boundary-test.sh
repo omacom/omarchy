@@ -8,9 +8,8 @@ TMPDIR=""
 QS_PID=""
 
 cleanup() {
-  if [[ -n $QS_PID ]] && kill -0 "$QS_PID" 2>/dev/null; then
-    kill "$QS_PID" 2>/dev/null || true
-    wait "$QS_PID" 2>/dev/null || true
+  if [[ -n $QS_PID ]]; then
+    stop_process_group "$QS_PID"
   fi
   if [[ -n $TMPDIR && -d $TMPDIR ]]; then
     rm -rf "$TMPDIR"
@@ -175,7 +174,7 @@ HOME="$TMPDIR/home" \
 XDG_CONFIG_HOME="$TMPDIR/home/.config" \
 XDG_CACHE_HOME="$TMPDIR/home/.cache" \
 XDG_STATE_HOME="$TMPDIR/home/.local/state" \
-  quickshell -p "$config_dir" --no-color >"$log" 2>&1 &
+  setsid quickshell -p "$config_dir" --no-color >"$log" 2>&1 &
 QS_PID=$!
 
 for _ in {1..80}; do
