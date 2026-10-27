@@ -408,6 +408,9 @@ Panel {
 
   onOpenedChanged: {
     if (opened) {
+      // Every visit gets its own LE pass, and adopting a running session keeps
+      // the stop this instance owes for it.
+      leScanPhase = "idle"
       // Adopt a discovery session that is already running — a popout handoff
       // from another monitor, or one leaked by an instance that could not
       // finish its own stop — so this close settles it either way.
@@ -418,6 +421,10 @@ Panel {
       else { focusSection = "header" }
       actionFocused = false
       cursorActive = false
+    } else {
+      // A pass still in flight is stopped with the panel; the next visit scans
+      // again from the top.
+      leScanPhase = "idle"
     }
   }
 
@@ -502,6 +509,43 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
+  // Idle until a panel visit asks for the LE pass, then "running" while that
+  // pass is in flight and "done" once discovery belongs to the retry below.
+  // The dual inquiry adapter.discovering asks BlueZ for can come back without
+  // the BLE-only peripherals that are advertising — see bin/omarchy-bluetooth-scan
+  // — so the panel puts one bounded LE pass in front of its usual scan.
+  property string leScanPhase: "idle"
+
+  // Bounded on both ends: the pass announces itself done when it exits, and the
+  // watchdog below covers an exit that never arrives, so a script that is
+  // missing or wedged cannot leave the panel unable to scan at all.
+  Timer {
+    id: leScanStart
+    interval: 250
+    repeat: true
+    triggeredOnStart: true
+    // BlueZ gives an adapter one discovery session, so the pass has to wait for
+    // a session another client holds before it can have one of its own.
+    running: root.opened && root.leScanPhase === "idle" && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering
+    onTriggered: root.leScanPhase = "running"
+  }
+
+  Process {
+    id: leScan
+    running: root.leScanPhase === "running"
+    command: ["omarchy-bluetooth-scan"]
+    onExited: if (root.leScanPhase === "running") root.leScanPhase = "done"
+  }
+
+  Timer {
+    id: leScanWatchdog
+    // Longer than the pass's own bound, so this only fires for a process that
+    // never reports its exit.
+    interval: 25000
+    running: root.leScanPhase === "running"
+    onTriggered: root.leScanPhase = "done"
+  }
+
   // BlueZ rejects StartDiscovery while the adapter is still powering up, and
   // discovery can also time out on its own. While the panel is open, keep
   // nudging it back on so an enabled adapter is always scanning.
@@ -510,7 +554,7 @@ Panel {
     interval: 1000
     repeat: true
     triggeredOnStart: true
-    running: root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering
+    running: root.leScanPhase === "done" && root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering
     onTriggered: {
       root.owesDiscoveryStop = true
       root.adapter.discovering = true
