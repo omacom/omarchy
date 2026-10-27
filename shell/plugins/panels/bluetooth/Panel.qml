@@ -24,6 +24,49 @@ Panel {
 
   readonly property var adapter: Bluetooth.defaultAdapter
 
+  // BlueZ unregisters a soft-blocked adapter instead of holding it powered
+  // down, so Bluetooth.defaultAdapter goes null and on its own cannot tell
+  // "Bluetooth is off" from "this machine has no radio". rfkill can: a blocked
+  // radio is still listed, hardware that was never there lists nothing. The
+  // probe is one-shot on the two events that can change that answer — the
+  // widget loading, and the adapter appearing or disappearing — never on a
+  // timer, so it costs one process per event instead of one per tick forever.
+  //
+  // "blocked" | "present" | "absent" | "unknown"
+  property string radioState: "unknown"
+
+  readonly property bool radioBlocked: radioState === "blocked"
+
+  function refreshRadioState() {
+    if (adapter !== null) {
+      // An adapter BlueZ has registered can only mean the radio is unblocked.
+      radioState = "present"
+      return
+    }
+    radioProbe.running = true
+  }
+
+  Process {
+    id: radioProbe
+    command: [
+      "bash", "-c",
+      "out=$(rfkill list bluetooth 2>/dev/null); " +
+      "if [[ -z $out ]]; then echo absent; " +
+      "elif grep -q 'Soft blocked: yes' <<<\"$out\"; then echo blocked; " +
+      "else echo present; fi"
+    ]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var state = String(line).trim()
+        if (state === "blocked" || state === "present" || state === "absent") root.radioState = state
+      }
+    }
+  }
+
+  onAdapterChanged: refreshRadioState()
+
+  Component.onCompleted: refreshRadioState()
+
   // True while this instance owes BlueZ a StopDiscovery: set when it starts
   // discovery (or opens onto a session already running) and cleared once
   // discovery is confirmed down after close. Ownership, not state — BlueZ's
@@ -57,7 +100,9 @@ Panel {
   readonly property var discoveredDevices: deviceGroups.discovered || []
 
   readonly property string icon: {
-    if (!adapter) return ""
+    // No adapter reaches the bar only while the radio is rfkill-blocked, so
+    // this is the off state rather than missing hardware.
+    if (!adapter) return "󰂲"
     if (!adapter.enabled) return "󰂲"
     if (connectedDevices.length > 0) return "󰂱"
     return "󰂯"
@@ -76,7 +121,7 @@ Panel {
   ]
   readonly property bool rotatingPhrases: adapter && adapter.enabled
   readonly property string heroStatusText: {
-    if (!adapter) return Commons.I18n.t("bluetooth.noAdapter")
+    if (!adapter) return Commons.I18n.t(radioBlocked ? "bluetooth.turnedOff" : "bluetooth.noAdapter")
     if (!adapter.enabled) return Commons.I18n.t("bluetooth.turnedOff")
     return activePhrases[phraseIndex % activePhrases.length]
   }
@@ -498,7 +543,7 @@ Panel {
     if (selectedIndex < 0) selectedIndex = 0
   }
 
-  visible: adapter !== null
+  visible: adapter !== null || radioBlocked
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -634,7 +679,15 @@ Panel {
   // switch only moves once BlueZ catches up, so a second click inside that window
   // would re-read the old state and undo the first.
   function toggleBluetooth() {
-    if (!adapter) return
+    if (!adapter) {
+      // The block is what removed the adapter, so BlueZ has nothing to read a
+      // direction from and rfkill decides. "present" here means the radio came
+      // up but BlueZ has not registered the adapter yet — the window right
+      // after an unblock — so the only way left is off.
+      if (radioState === "blocked") Quickshell.execDetached(["omarchy-bluetooth-power", "on"])
+      else if (radioState === "present") Quickshell.execDetached(["omarchy-bluetooth-power", "off"])
+      return
+    }
     Quickshell.execDetached(["omarchy-bluetooth-power", adapter.enabled ? "off" : "on"])
   }
 
@@ -715,7 +768,7 @@ Panel {
           // header's only cursor target.
           ToggleSwitch {
             id: powerSwitch
-            visible: !!root.adapter
+            visible: !!root.adapter || root.radioBlocked
             checked: !!root.adapter && root.adapter.enabled
             hasCursor: root.headerHasCursor
             foreground: root.bar.foreground
@@ -871,7 +924,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           visible: root.connectedDevices.length === 0 && root.scrollRows.length === 0
-          text: !root.adapter ? Commons.I18n.t("bluetooth.noBluetoothAdapter")
+          text: !root.adapter ? Commons.I18n.t(root.radioBlocked ? "bluetooth.turnOnToScan" : "bluetooth.noBluetoothAdapter")
               : !root.adapter.enabled ? Commons.I18n.t("bluetooth.turnOnToScan")
               : Commons.I18n.t("bluetooth.scanning")
           color: Qt.darker(root.bar.foreground, 1.5)
