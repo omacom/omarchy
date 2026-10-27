@@ -4,6 +4,17 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# Bar buttons carry Qt Accessible roles, names and a press action so screen
+# readers and AT-SPI clients can find and operate them. The fixture creates no
+# window, so it runs offscreen, without a compositor; with no platform theme,
+# so a GTK theme can't abort it looking for a display.
+if command -v quickshell >/dev/null 2>&1; then
+  require_command jq
+  QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME='' run_qml_fixture bar-accessibility "bar buttons expose accessible roles, names and a press action" Ui Commons
+else
+  skip "quickshell not installed; skipping bar accessibility checks"
+fi
+
 require_quickshell "bar widget contract test"
 require_command python3
 

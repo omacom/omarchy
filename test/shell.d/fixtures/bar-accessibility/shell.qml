@@ -1,29 +1,3 @@
-#!/bin/bash
-
-set -euo pipefail
-
-source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
-
-# Bar buttons carry Qt Accessible roles, names and a press action so screen
-# readers and AT-SPI clients can find and operate them.
-
-if ! command -v quickshell >/dev/null 2>&1; then
-  skip "quickshell not installed; skipping bar accessibility runtime test"
-  exit 0
-fi
-
-TMPDIR=$(mktemp -d)
-cleanup() {
-  if [[ -d $TMPDIR ]]; then
-    rm -rf "$TMPDIR"
-  fi
-}
-trap cleanup EXIT
-
-ln -s "$ROOT/shell/Ui" "$TMPDIR/Ui"
-ln -s "$ROOT/shell/Commons" "$TMPDIR/Commons"
-
-cat >"$TMPDIR/shell.qml" <<'QML'
 import QtQuick
 import Quickshell
 import qs.Ui
@@ -31,12 +5,22 @@ import qs.Ui
 ShellRoot {
   id: root
 
+  readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   readonly property string glyph: String.fromCodePoint(0xe900)
   property var failures: []
   property var presses: []
 
   function same(actual, expected, message) {
     if (actual !== expected) failures.push(message + " expected=" + JSON.stringify(expected) + " actual=" + JSON.stringify(actual))
+  }
+
+  function shellQuote(value) {
+    return "'" + String(value).replace(/'/g, "'\\''") + "'"
+  }
+
+  function writeResult() {
+    var payload = JSON.stringify({ ok: failures.length === 0, failures: failures })
+    if (resultPath) Quickshell.execDetached(["bash", "-c", "printf '%s' " + shellQuote(payload) + " > " + shellQuote(resultPath)])
   }
 
   Item {
@@ -81,16 +65,6 @@ ShellRoot {
     inertWidget.Accessible.pressAction()
     same(presses.join(","), "widget:" + Qt.LeftButton + ",icon:" + Qt.LeftButton, "press is a left click, only on enabled interactive buttons")
 
-    console.log(failures.length === 0 ? "RESULT pass" : "RESULT fail " + failures.join("; "))
-    Qt.quit()
+    writeResult()
   }
 }
-QML
-
-# No window is created, so this runs offscreen, without a compositor.
-output=$(QT_QPA_PLATFORM=offscreen timeout 15 quickshell -p "$TMPDIR" --no-color 2>&1) ||
-  fail "bar accessibility fixture exits cleanly" "$output"
-
-grep -q "RESULT pass" <<<"$output" ||
-  fail "bar buttons expose accessible roles, names and a press action" "$output"
-pass "bar buttons expose accessible roles, names and a press action"
