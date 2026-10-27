@@ -837,18 +837,26 @@ Panel {
     refresh()
   }
 
+  function isEnterpriseSecurity(security) {
+    return security === WifiSecurityType.Wpa2Eap || security === WifiSecurityType.WpaEap
+  }
+
   function failNetworkAction(network, reason) {
     if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
     actionTimeout.stop()
     failureSsid = actionSsid
-    failureReason = networkFailureReason(reason, requiresCredentials(network.security))
+    failureReason = networkFailureReason(
+      reason,
+      requiresCredentials(network.security),
+      isEnterpriseSecurity(network.security)
+    )
     actionSsid = ""
     actionKind = ""
     refresh()
   }
 
-  function networkFailureReason(reason, needsCredentials) {
-    return Model.networkFailureReason(reason, needsCredentials, connectionFailReasons, Commons.I18n.t)
+  function networkFailureReason(reason, needsCredentials, isEnterprise) {
+    return Model.networkFailureReason(reason, needsCredentials, connectionFailReasons, Commons.I18n.t, isEnterprise)
   }
 
   function shouldRepromptPassphrase(reason, needsCredentials) {
@@ -2075,7 +2083,7 @@ Panel {
           anchors.fill: parent
           horizontalAlignment: Text.AlignHCenter
           verticalAlignment: Text.AlignVCenter
-          text: row.isFailed ? Commons.I18n.t("network.wrongPassword") : Commons.I18n.t("network.connecting")
+          text: row.isFailed ? (root.failureReason || Commons.I18n.t("network.wrongPassword")) : Commons.I18n.t("network.connecting")
           color: row.isFailed ? root.bar.urgent : root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
