@@ -1261,10 +1261,22 @@ Item {
         else if (tag === "c") nextChecked[id] = value
         else if (tag === "d") nextDisabled[id] = value
       }
+      // Rebuilding recreates every row, and a click pressed on one just
+      // before is lost with it. The menu was already built from the previous
+      // results when it opened, so leave it alone unless one changed. Guards
+      // report in whatever order they finish, so compare by id, not by order.
+      var differs = function(next, shown) {
+        var ids = Object.keys(next)
+        if (ids.length !== Object.keys(shown).length) return true
+        return ids.some(function(id) { return next[id] !== shown[id] })
+      }
+      var changed = differs(nextWhen, root.whenResults)
+          || differs(nextChecked, root.checkedResults)
+          || differs(nextDisabled, root.disabledResults)
       root.whenResults = nextWhen
       root.checkedResults = nextChecked
       root.disabledResults = nextDisabled
-      if (root.opened) root.rebuildDisplay()
+      if (root.opened && changed) root.rebuildDisplay()
       // Run the evaluation that had to stand aside. Deferred by a turn so the
       // process is settled before its command is set again.
       if (root.guardsPending) Qt.callLater(function() { root.evaluateGuards() })
