@@ -75,6 +75,10 @@ pass "copy-url native host installer registers the stable extension id"
   fail "copy-url native host installer covers Brave Origin"
 pass "copy-url native host installer covers Brave Origin"
 
+[[ -f $test_home/.config/vivaldi/NativeMessagingHosts/com.omarchy.copy_url.json ]] ||
+  fail "copy-url native host installer covers Vivaldi"
+pass "copy-url native host installer covers Vivaldi"
+
 # Chromium ships in the base packages, so fresh installs do not go through
 # omarchy-install-browser, and they mark every migration as already applied.
 # The user install still has to register the host itself.
