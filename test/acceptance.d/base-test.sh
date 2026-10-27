@@ -81,6 +81,16 @@ layer_absent() {
   ! layer_present "$1"
 }
 
+# Any bar panel: each maps as omarchy-keyboard-panel-<module>. The dismissal
+# twin on the other monitors shares the prefix but is not a panel.
+keyboard_panel_present() {
+  hyprctl -j layers | jq -e '[.. | objects | select((.namespace? // "") | test("^omarchy-keyboard-panel(-.+)?$")) | select(.namespace != "omarchy-keyboard-panel-dismiss")] | length > 0'
+}
+
+keyboard_panel_absent() {
+  ! keyboard_panel_present
+}
+
 # Fullscreen overlays map on the overlay layer and unmap when closed.
 layer_on_overlay() {
   hyprctl -j layers | jq -e --arg ns "$1" '[.[].levels["3"][]? | select(.namespace == $ns)] | length > 0'
