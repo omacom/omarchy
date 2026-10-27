@@ -90,6 +90,14 @@ screen_width=${BASH_REMATCH[1]}
 screen_height=${BASH_REMATCH[2]}
 ((screen_width > 0 && screen_height > 0 && bar_size > 0)) || fallback
 
+# Only the bar strip's mean colour is needed, so sample on a canvas no wider than
+# 1920 px; a 6K or 8K screen would otherwise add a full-size intermediate image.
+if ((screen_width > 1920)); then
+  screen_height=$(((screen_height * 1920 + screen_width - 1) / screen_width))
+  bar_size=$(((bar_size * 1920 + screen_width - 1) / screen_width))
+  screen_width=1920
+fi
+
 case "$position" in
 top)
   crop="${screen_width}x${bar_size}+0+0"
@@ -111,9 +119,20 @@ esac
 
 # Sample the first frame only. Without the selector a video background makes
 # ImageMagick decode the whole file and emit one value per frame, and the match
-# below then fails into the fallback colour.
-pixel=$(magick "$background_path[0]" -auto-orient \
-  -resize "${screen_width}x${screen_height}^" \
+# below then fails into the fallback colour. Let JPEG decode at about canvas size
+# and box-scale to the canvas, so a 6K or 8K photo fits the limit without a
+# second full-size resize buffer. Box scaling still averages every source pixel;
+# point sampling would alias on fine stripes and pick the wrong text color. Do
+# not let an oversized image spill its pixel cache into a memory map or /tmp (a
+# tmpfs on Omarchy); fall back to the configured text color when the bounded
+# sample cannot finish cheaply.
+pixel=$(MAGICK_MEMORY_LIMIT=512MiB \
+  MAGICK_MAP_LIMIT=0 \
+  MAGICK_DISK_LIMIT=0 \
+  MAGICK_TIME_LIMIT=5 \
+  MAGICK_THREAD_LIMIT=2 \
+  timeout --kill-after=1s 5s magick -define jpeg:size="${screen_width}x${screen_height}" "$background_path[0]" -auto-orient \
+  -scale "${screen_width}x${screen_height}^" \
   -gravity center -extent "${screen_width}x${screen_height}" \
   -gravity NorthWest -crop "$crop" +repage \
   -resize '1x1!' -format '%[fx:int(255*r)],%[fx:int(255*g)],%[fx:int(255*b)]' info:- 2>/dev/null || true)

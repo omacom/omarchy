@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "کاربر"
   },
-  "system.reboot-boot-menu": {
-    "label": "راه‌اندازی مجدد به منوی بوت"
+  "appearance.windows.gaps-on": {
+    "label": "فاصله پنجره‌ها روشن"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "فاصله پنجره‌ها خاموش"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "نسبت تک‌پنجره روشن"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "نسبت تک‌پنجره خاموش"
+  },
+  "appearance.branding": {
+    "label": "برندینگ"
+  },
+  "appearance.animations-on": {
+    "label": "انیمیشن روشن"
+  },
+  "appearance.animations-off": {
+    "label": "انیمیشن خاموش"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "بیدار بمان"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "اجازه خواب"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "اعلان‌ها روشن"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "سکوت اعلان‌ها"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "نور شب روشن"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "نور شب خاموش"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "محافظ صفحه روشن"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "محافظ صفحه خاموش"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "ثبت خرابی روشن"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "ثبت خرابی خاموش"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "نمایشگر لپ‌تاپ روشن"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "نمایشگر لپ‌تاپ خاموش"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "نمایش آینه‌ای روشن"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "نمایش درصد باتری"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "پنهان‌کردن درصد باتری"
+  },
+  "appearance.windows": {
+    "label": "پنجره‌ها"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "خاموش کردن نمایش آینه‌ای"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "تغییر به GPU هیبریدی"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "تغییر به GPU مجتمع"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "فعال‌سازی تاچ‌پد"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "غیرفعال‌سازی تاچ‌پد"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "فعال‌سازی صفحه لمسی"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "غیرفعال‌سازی صفحه لمسی"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "کرنل"
   }
 }

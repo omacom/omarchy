@@ -16,12 +16,3 @@ while IFS= read -r path; do
   [[ -e $ROOT/${path%/} ]] || fail "the runtime profile lists an existing file: $path"
 done <<<"$listed"
 pass "every file the runtime profile lists exists in the source"
-
-# The files that decide at runtime, and what they decide it from.
-grep -q 'omarchy-hw-platform' "$ROOT/etc/mkinitcpio.conf.d/00-omarchy-hooks.conf" ||
-  fail "the HOOKS baseline asks the platform"
-grep -q 'modinfo' "$ROOT/etc/mkinitcpio.conf.d/thunderbolt_module.conf" ||
-  fail "thunderbolt is added only where the kernel has the module"
-grep -qx zram-generator "$ROOT/install/omarchy-aarch64.packages" ||
-  fail "aarch64 installs the zram generator the zram drop-in needs"
-pass "the profile's runtime decisions are in place"

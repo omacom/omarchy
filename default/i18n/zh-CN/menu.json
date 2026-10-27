@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "用户"
   },
-  "system.reboot-boot-menu": {
-    "label": "重启到启动菜单"
+  "appearance.windows.gaps-on": {
+    "label": "窗口间距开"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "窗口间距关"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "单窗口比例开"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "单窗口比例关"
+  },
+  "appearance.branding": {
+    "label": "品牌标识"
+  },
+  "appearance.animations-on": {
+    "label": "动画开"
+  },
+  "appearance.animations-off": {
+    "label": "动画关"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "保持唤醒"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "允许睡眠"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "通知开"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "静默通知"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "夜灯开"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "夜灯关"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "屏保开"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "屏保关"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "崩溃捕获开"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "崩溃捕获关"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "笔记本屏幕开"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "笔记本屏幕关"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "屏幕镜像开"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "显示电池 %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "隐藏电池 %"
+  },
+  "appearance.windows": {
+    "label": "窗口"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "关闭镜像显示"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "切换至 Hybrid GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "切换至集成 GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "启用触控板"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "禁用触控板"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "启用触摸屏"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "禁用触摸屏"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "内核"
   }
 }

@@ -12,61 +12,30 @@ function groupKeyFor(row) {
   return String(row.groupKey || row.source || row.app || "?")
 }
 
-// One deck in "all" mode; one per sender in "source" mode.
-function deckKeyFor(row, stacking) {
-  return stacking === "source" ? groupKeyFor(row) : "all"
-}
-
-// A deck shows every notification. Grouping is a count on the newest card from
-// each source, not hiding the rest, so there is still a stack to expand.
-function groupRows(rows) {
-  var counts = {}, seen = {}, items = [], i, key
-  for (i = 0; i < rows.length; i++) {
-    key = groupKeyFor(rows[i])
-    counts[key] = (counts[key] || 0) + 1
-  }
-  for (i = 0; i < rows.length; i++) {
-    key = groupKeyFor(rows[i])
-    items.push({ key: rows[i].key, row: rows[i], count: seen[key] ? 1 : counts[key] })
-    seen[key] = true
-  }
-  return items
-}
-
 // Rows are newest-first. Returns:
 //   decks:      [{ key, rows: [row...] }] in display order, newest deck first
-//   placements: { rowKey: { y, height, scale, opacity, z, front, hidden, count } }
+//   placements: { rowKey: { y, height, scale, opacity, z, front, hidden } }
 //   height:     total height the deck area occupies
 function compute(rows, opts) {
-  var stacking = opts.stacking || "all"
   var expanded = !!opts.expanded
   var gap = opts.gap || 6
   var deckGap = opts.deckGap || 12
   var heightOf = opts.heightOf || function() { return 76 }
   var order = [], byKey = {}
   for (var i = 0; i < rows.length; i++) {
-    var key = deckKeyFor(rows[i], stacking)
+    var key = groupKeyFor(rows[i])
     if (!byKey[key]) { byKey[key] = { key: key, rows: [] }; order.push(key) }
     byKey[key].rows.push(rows[i])
   }
 
-  var decks = []
-  for (var d = 0; d < order.length; d++) {
-    var deck = byKey[order[d]]
-    // In "source" mode the deck already separates senders.
-    deck.items = stacking === "source"
-      ? deck.rows.map(function(r) { return { key: r.key, row: r, count: 1 } })
-      : groupRows(deck.rows)
-    decks.push(deck)
-  }
+  var decks = order.map(function(key) { return byKey[key] })
 
   var placements = {}
   var y = 0
 
   for (var k = 0; k < decks.length; k++) {
-    var items = decks[k].items
-    var open = expanded && (stacking !== "source" || opts.openDeck === decks[k].key
-                            || opts.openDeck === undefined)
+    var items = decks[k].rows
+    var open = expanded && (opts.openDeck === undefined || opts.openDeck === decks[k].key)
     var deckTop = y
     // Shut, every card takes the front card's height, so a taller one behind
     // does not hang out below the stack.
@@ -78,7 +47,7 @@ function compute(rows, opts) {
         var height = heightOf(item.key)
         placements[item.key] = {
           y: y, scale: 1, opacity: 1, z: 1000 - r, front: r === 0,
-          hidden: false, height: height, count: item.count
+          hidden: false, height: height
         }
         y += height + gap
       } else {
@@ -90,8 +59,7 @@ function compute(rows, opts) {
           opacity: r === 0 ? 1 : (drawn ? (r === VISIBLE - 1 ? FADE : 0.85) : 0),
           z: 1000 - r,
           front: r === 0,
-          hidden: !drawn,
-          count: item.count
+          hidden: !drawn
         }
       }
     }
@@ -99,7 +67,7 @@ function compute(rows, opts) {
     if (!open) y = deckTop + frontHeight + Math.min(items.length - 1, VISIBLE - 1) * PEEK
     else y -= gap
 
-    if (k < decks.length - 1) y += (stacking === "source" ? deckGap : gap)
+    if (k < decks.length - 1) y += deckGap
   }
 
   return { decks: decks, placements: placements, height: Math.max(0, y) }

@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Пользователь"
   },
-  "system.reboot-boot-menu": {
-    "label": "Перезагрузка в меню загрузки"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Показать % батареи"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Скрыть % батареи"
+  },
+  "appearance.windows": {
+    "label": "Окна"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Зазоры окон: вкл."
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Зазоры окон: выкл."
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Пропорции 1 окна: вкл."
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Пропорции 1 окна: выкл."
+  },
+  "appearance.branding": {
+    "label": "Брендинг"
+  },
+  "appearance.animations-on": {
+    "label": "Анимации: вкл."
+  },
+  "appearance.animations-off": {
+    "label": "Анимации: выкл."
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Не спать"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Разрешить сон"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Уведомления: вкл."
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Заглушить уведомления"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Ночной свет: вкл."
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Ночной свет: выкл."
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Заставка: вкл."
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Заставка: выкл."
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Захват сбоев: вкл."
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Выключить захват сбоев"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Включить экран ноутбука"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Выключить экран ноутбука"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Включить дублирование экрана"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Выключить дублирование экрана"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Перейти на гибридный GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Перейти на встроенный GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Включить тачпад"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Выключить тачпад"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Включить сенсорный экран"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Выключить сенсорный экран"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Ядро"
   }
 }

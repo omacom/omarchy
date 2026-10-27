@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Користувач"
   },
-  "system.reboot-boot-menu": {
-    "label": "Перезавантажити в меню завантаження"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Показати % батареї"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Сховати % батареї"
+  },
+  "appearance.windows": {
+    "label": "Вікна"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Проміжки вікон: увімк."
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Проміжки вікон: вимк."
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Пропорція 1 вікна: увімк."
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Пропорція 1 вікна: вимк."
+  },
+  "appearance.branding": {
+    "label": "Брендинг"
+  },
+  "appearance.animations-on": {
+    "label": "Анімації: увімк."
+  },
+  "appearance.animations-off": {
+    "label": "Анімації: вимк."
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Не спати"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Дозволити сон"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Сповіщення: увімк."
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Без сповіщень"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Нічне світло: увімк."
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Нічне світло: вимк."
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Заставка: увімк."
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Заставка: вимк."
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Запис збоїв: увімк."
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Вимкнути захоплення збоїв"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Увімкнути дисплей ноутбука"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Вимкнути дисплей ноутбука"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Увімкнути дублювання дисплея"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Вимкнути дублювання дисплея"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Перейти на гібридний GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Перейти на інтегрований GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Увімкнути тачпад"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Вимкнути тачпад"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Увімкнути сенсорний екран"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Вимкнути сенсорний екран"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Ядро"
   }
 }

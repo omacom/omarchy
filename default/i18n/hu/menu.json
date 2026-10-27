@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Felhasználó"
   },
-  "system.reboot-boot-menu": {
-    "label": "Újraindítás a bootmenübe"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Összeomlásrögzítés ki"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Laptopkijelző be"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Laptopkijelző ki"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Kijelzőtükrözés be"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Kijelzőtükrözés ki"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Váltás hibrid GPU-ra"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Váltás integrált GPU-ra"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Érintőpad bekapcsolása"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Érintőpad kikapcsolása"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Érintőképernyő bekapcsolása"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Érintőképernyő kikapcsolása"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Akkuszázalék megjelenítése"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Akkuszázalék elrejtése"
+  },
+  "appearance.windows": {
+    "label": "Ablakok"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Ablakközök be"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Ablakközök ki"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-ablakos arány be"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-ablakos arány ki"
+  },
+  "appearance.branding": {
+    "label": "Arculat"
+  },
+  "appearance.animations-on": {
+    "label": "Animációk be"
+  },
+  "appearance.animations-off": {
+    "label": "Animációk ki"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Ébren tartás"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Alvás engedélyezése"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Értesítések be"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Értesítések némítása"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Éjszakai fény be"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Éjszakai fény ki"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Képernyővédő be"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Képernyővédő ki"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Összeomlásrögzítés be"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
   }
 }
