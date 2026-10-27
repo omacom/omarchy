@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "packageType": "bundle",
+  "id": "web-developer",
+  "name": "Web Developer",
+  "version": "1.0.0",
+  "description": "A local web project setup with official packages and the AUR package symfony-cli.",
+  "packages": ["libyaml", "rlwrap"],
+  "aurPackages": ["symfony-cli"],
+  "plugins": [],
+  "skills": ["skills/web-setup"],
+  "config": [
+    {
+      "source": "config/editorconfig",
+      "target": "~/.config/omarchy-bundles/web-developer/editorconfig"
+    }
+  ],
+  "conflicts": [],
+  "project": {
+    "layout": ["src", "public"],
+    "create": "project/create.sh"
+  }
+}

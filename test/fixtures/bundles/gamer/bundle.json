@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "packageType": "bundle",
+  "id": "gamer",
+  "name": "Gamer",
+  "version": "1.0.0",
+  "description": "Steam, Lutris, and GameMode.",
+  "packages": ["steam", "lutris", "gamemode"],
+  "aurPackages": [],
+  "plugins": [],
+  "skills": [],
+  "config": [],
+  "conflicts": []
+}

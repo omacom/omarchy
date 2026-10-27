@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# omarchy:summary=Validate a bundle folder against the bundle.json schema
+# omarchy:group=bundle
+# omarchy:args=<bundle-folder>
+# omarchy:examples=omarchy bundle validate ./my-bundle
+
+set -euo pipefail
+
+BUNDLE_CMD=omarchy-bundle-validate
+# shellcheck source=omarchy-bundle-lib
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/omarchy-bundle-lib"
+
+if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+  cat <<USAGE
+Usage: omarchy bundle validate <bundle-folder>
+
+Checks bundle.json: schemaVersion 1, the required fields, safe relative
+paths that exist, and no unknown keys. Exits 0 when the folder is valid.
+USAGE
+  exit 0
+fi
+
+[[ $# -eq 1 ]] || bundle_fail "Usage: omarchy bundle validate <bundle-folder>"
+bundle_validate "$1"
+echo "Valid bundle: $(jq -r '.id + " " + .version' "$1/bundle.json")"
+exit 0

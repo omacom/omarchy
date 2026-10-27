@@ -1,0 +1,147 @@
+#!/bin/bash
+
+# omarchy:summary=Replace a bundle's config files with the copies from the installed bundle
+# omarchy:group=bundle
+# omarchy:args=<id> [--dry-run] [--yes]
+# omarchy:examples=omarchy bundle reset web-developer
+
+set -euo pipefail
+
+BUNDLE_CMD=omarchy-bundle-reset
+BUNDLE_ASSUME_YES=0
+# shellcheck source=omarchy-bundle-lib
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/omarchy-bundle-lib"
+
+dry_run=0
+bundle_id=""
+
+while (( $# > 0 )); do
+  case "$1" in
+  --dry-run)
+    dry_run=1
+    shift
+    ;;
+  --yes | -y)
+    BUNDLE_ASSUME_YES=1
+    shift
+    ;;
+  -h | --help)
+    cat <<USAGE
+Usage: omarchy bundle reset <id> [--dry-run] [--yes]
+
+Writes each config file from the installed bundle over the live target.
+A live file that differs is moved to <target>.bak.<timestamp> first.
+USAGE
+    exit 0
+    ;;
+  -*)
+    bundle_fail "unknown reset option: $1"
+    ;;
+  *)
+    [[ -z $bundle_id ]] || bundle_fail "unexpected argument: $1"
+    bundle_id="$1"
+    shift
+    ;;
+  esac
+done
+
+if (( dry_run == 0 )); then
+  bundle_ledger_lock
+fi
+ledger=$(bundle_ledger_read)
+
+if [[ -z $bundle_id ]]; then
+  bundle_interactive || bundle_fail "a bundle id is required"
+  bundle_id=$(jq -r '.bundles | keys[]' <<<"$ledger" | sort | gum choose --header "Reset which bundle?") || bundle_fail "cancelled"
+  [[ -n $bundle_id ]] || bundle_fail "nothing selected"
+fi
+
+bundle_valid_id "$bundle_id" || bundle_fail "invalid bundle id '$bundle_id'"
+jq -e --arg id "$bundle_id" '.bundles[$id] != null' <<<"$ledger" >/dev/null \
+  || bundle_fail "bundle '$bundle_id' is not installed"
+
+name=$(jq -r --arg id "$bundle_id" '.bundles[$id].name' <<<"$ledger")
+version=$(jq -r --arg id "$bundle_id" '.bundles[$id].version' <<<"$ledger")
+dest="$(bundle_data_root)/$bundle_id"
+manifest="$dest/bundle.json"
+[[ -f $manifest ]] || bundle_fail "bundle '$bundle_id' is not installed"
+bundle_validate "$dest"
+
+plan=$(mktemp)
+trap 'rm -f -- "$plan"' EXIT
+jq -n '{configs:[]}' >"$plan"
+now=$(date +%s)
+
+while IFS= read -r entry; do
+  [[ -n $entry ]] || continue
+  source_rel=$(jq -r '.source' <<<"$entry")
+  target_raw=$(jq -r '.target' <<<"$entry")
+  target=$(bundle_config_target "$target_raw") || bundle_fail "config target must stay under your home directory: $target_raw"
+  source_file="$dest/$source_rel"
+  [[ -f $source_file ]] || bundle_fail "config source not found: $source_rel"
+  backup=""
+  if [[ -L $target || ( -e $target && ! -f $target ) ]]; then
+    action=replace
+    backup="$target.bak.$now"
+    [[ ! -e $backup ]] || backup="$target.bak.$now.$$"
+    note="replace, backup $backup"
+  elif [[ -f $target ]] && cmp -s -- "$target" "$source_file"; then
+    action=keep
+    note="already the bundle version"
+  elif [[ -f $target ]]; then
+    action=replace
+    backup="$target.bak.$now"
+    [[ ! -e $backup ]] || backup="$target.bak.$now.$$"
+    note="replace, backup $backup"
+  else
+    action=copy
+    note="copy"
+  fi
+  jq --arg source "$source_rel" --arg target "$target" --arg action "$action" \
+    --arg note "$note" --arg backup "$backup" \
+    '.configs += [{source:$source, target:$target, action:$action, note:$note, backup:$backup}]' \
+    "$plan" >"$plan.next"
+  mv -f -- "$plan.next" "$plan"
+done < <(jq -c '.config[]' "$manifest")
+
+echo "Bundle: $name ($bundle_id) $version"
+echo
+echo "Config:"
+jq -r 'if (.configs | length) == 0 then "  (none)" else .configs[] |
+  "  \(if .action == "replace" then "~" elif .action == "copy" then "+" else "=" end) \(.target)  (\(.note))"
+end' "$plan"
+
+if (( dry_run )); then
+  echo
+  echo "Dry run: nothing was reset."
+  exit 0
+fi
+
+bundle_confirm "Reset this bundle's config files?" || bundle_fail "aborted"
+
+updated="$ledger"
+while IFS= read -r row; do
+  [[ -n $row ]] || continue
+  action=$(jq -r '.action' <<<"$row")
+  source_rel=$(jq -r '.source' <<<"$row")
+  target=$(jq -r '.target' <<<"$row")
+  backup=$(jq -r '.backup' <<<"$row")
+  source_file="$dest/$source_rel"
+  if [[ $action == replace ]]; then
+    mv -- "$target" "$backup"
+  fi
+  if [[ $action == replace || $action == copy ]]; then
+    install -D -m 644 -- "$source_file" "$target"
+  fi
+  sha256=$(bundle_file_sha256 "$target")
+  updated=$(jq -c --arg id "$bundle_id" --arg target "$target" --arg source "$source_rel" --arg sha256 "$sha256" '
+    .configs[$target] = {
+      owners: (((.configs[$target].owners // []) + [$id]) | unique),
+      user_owned: false,
+      source: $source,
+      sha256: $sha256
+    }
+  ' <<<"$updated")
+done < <(jq -c '.configs[]' "$plan")
+bundle_ledger_write "$updated"
+echo "Reset $bundle_id config."

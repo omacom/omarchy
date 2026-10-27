@@ -1,0 +1,539 @@
+#!/bin/bash
+
+# omarchy:summary=Install an Omarchy bundle from a folder or git URL
+# omarchy:group=bundle
+# omarchy:args=<path|git-url|publisher/name[@version]> [--dry-run] [--yes]
+# omarchy:examples=omarchy bundle add ./my-bundle | omarchy bundle add --dry-run https://example.test/bundle.git
+
+set -euo pipefail
+
+BUNDLE_CMD=omarchy-bundle-add
+BUNDLE_ASSUME_YES=0
+# shellcheck source=omarchy-bundle-lib
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/omarchy-bundle-lib"
+
+export GIT_TERMINAL_PROMPT=0
+export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
+
+dry_run=0
+spec=""
+
+while (( $# > 0 )); do
+  case "$1" in
+  --dry-run)
+    dry_run=1
+    shift
+    ;;
+  --yes | -y)
+    BUNDLE_ASSUME_YES=1
+    shift
+    ;;
+  -h | --help)
+    cat <<USAGE
+Usage: omarchy bundle add <path|git-url|publisher/name[@version]> [--dry-run] [--yes]
+
+Copies a bundle into ~/.local/share/omarchy-bundles and records ownership
+in the bundle ledger. Installs missing packages, then plugins. New plugins
+are enabled with --yes. Otherwise you are asked once whether to enable
+them. A bundle with an introduction sends a notification that opens it.
+Does not run any file from the bundle.
+USAGE
+    exit 0
+    ;;
+  -*)
+    bundle_fail "unknown add option: $1"
+    ;;
+  *)
+    [[ -z $spec ]] || bundle_fail "unexpected argument: $1"
+    spec="$1"
+    shift
+    ;;
+  esac
+done
+
+if [[ -z $spec ]]; then
+  bundle_interactive || bundle_fail "a bundle path or git URL is required"
+  spec=$(gum input --prompt "Bundle path or git URL: ") || bundle_fail "cancelled"
+  [[ -n $spec ]] || bundle_fail "a bundle path or git URL is required"
+fi
+
+kind=$(bundle_classify_source "$spec")
+workdir=$(mktemp -d)
+commit=""
+source_label=""
+bundle_dir=""
+created_dest=0
+committed=0
+rollback_repo=()
+rollback_aur=()
+cleanup() {
+  local link file plugin_id
+  if (( committed == 0 && created_dest == 1 )) && [[ -f ${plan:-} ]]; then
+    while IFS= read -r link; do
+      [[ -n $link && -L $link ]] && rm -f -- "$link"
+    done < <(jq -r '.skills[] | select(.action == "link") | .path' "$plan" 2>/dev/null || true)
+    while IFS= read -r row; do
+      [[ -n $row ]] || continue
+      file=$(jq -r '.target' <<<"$row")
+      expected=$(jq -r '.sha256 // empty' <<<"$row")
+      [[ -n $file && -f $file && ! -L $file && -n $expected ]] || continue
+      current=$(sha256sum -- "$file" | awk '{print $1}')
+      [[ $current == "$expected" ]] && rm -f -- "$file"
+    done < <(jq -c '.configs[] | select(.action == "copy" and .sha256 != "")' "$plan" 2>/dev/null || true)
+    if [[ -f ${resolved:-} ]]; then
+      while IFS= read -r plugin_id; do
+        [[ -n $plugin_id ]] || continue
+        omarchy-plugin-remove --yes -- "$plugin_id" >/dev/null 2>&1 || true
+      done < <(jq -r '.[] | select(.added == true) | .id' "$resolved" 2>/dev/null || true)
+    fi
+    rm -rf -- "$dest"
+  fi
+  if (( committed == 0 )); then
+    if (( ${#rollback_aur[@]} > 0 || ${#rollback_repo[@]} > 0 )); then
+      # Skip the drop when the explicit mark fails. -Rns would otherwise
+      # remove a dependency that another bundle still owns.
+      if bundle_protect_owned_packages "${rollback_repo[@]}" "${rollback_aur[@]}"; then
+        if (( ${#rollback_aur[@]} > 0 )); then
+          omarchy-pkg-aur-drop "${rollback_aur[@]}" >/dev/null 2>&1 || true
+        fi
+        if (( ${#rollback_repo[@]} > 0 )); then
+          omarchy-pkg-drop "${rollback_repo[@]}" >/dev/null 2>&1 || true
+        fi
+      fi
+    fi
+  fi
+  rm -rf -- "$workdir"
+}
+trap cleanup EXIT
+
+case "$kind" in
+path)
+  bundle_dir=$(realpath -m -- "$(bundle_expand_home "$spec")")
+  source_label="$bundle_dir"
+  ;;
+git)
+  source_label=$(bundle_redact_url "$spec")
+  bundle_warn_git_source "$(bundle_plain "$source_label")"
+  omarchy-git-url-check "$spec" || exit 1
+  bundle_dir="$workdir/checkout"
+  if ! git clone -- "$spec" "$bundle_dir"; then
+    bundle_fail "failed to clone $spec"
+  fi
+  commit=$(git -C "$bundle_dir" rev-parse HEAD)
+  ;;
+registry)
+  bundle_fail "registry not available yet"
+  ;;
+*)
+  bundle_fail "bundle source not found: $spec"
+  ;;
+esac
+
+bundle_validate "$bundle_dir"
+snapshot="$workdir/snapshot"
+bundle_copy_tree "$bundle_dir" "$snapshot"
+bundle_validate "$snapshot"
+bundle_dir="$snapshot"
+
+id=$(jq -r '.id' "$bundle_dir/bundle.json")
+name=$(jq -r '.name' "$bundle_dir/bundle.json")
+version=$(jq -r '.version' "$bundle_dir/bundle.json")
+if (( dry_run == 0 )); then
+  bundle_ledger_lock
+fi
+ledger=$(bundle_ledger_read)
+if jq -e --arg id "$id" '.bundles[$id] != null' <<<"$ledger" >/dev/null; then
+  bundle_fail "bundle '$id' is already installed"
+fi
+dest="$(bundle_data_root)/$id"
+[[ ! -e $dest ]] || bundle_fail "bundle directory already exists: $dest"
+
+while IFS= read -r other; do
+  [[ -n $other ]] || continue
+  if jq -e --arg other "$other" '.conflicts | index($other) != null' "$bundle_dir/bundle.json" >/dev/null; then
+    bundle_fail "bundle '$id' conflicts with installed bundle '$other'"
+  fi
+  other_manifest="$(bundle_data_root)/$other/bundle.json"
+  if [[ -f $other_manifest ]] && jq -e --arg id "$id" '.conflicts | index($id) != null' "$other_manifest" >/dev/null; then
+    bundle_fail "installed bundle '$other' conflicts with '$id'"
+  fi
+done < <(jq -r '.bundles | keys[]' <<<"$ledger")
+
+bundle_load_explicit_packages
+plan="$workdir/plan.json"
+jq -n \
+  --arg id "$id" --arg name "$name" --arg version "$version" --arg source "$source_label" \
+  '{id:$id, name:$name, version:$version, source:$source, packages:[], plugins:[], skills:[], configs:[]}' \
+  >"$plan"
+
+append_plan() {
+  jq "$@" "$plan" >"$plan.next"
+  mv -f -- "$plan.next" "$plan"
+}
+
+queue_package() {
+  local pkg="$1" source="$2" action user_owned note
+  if jq -e --arg pkg "$pkg" '.packages[$pkg] != null' <<<"$ledger" >/dev/null; then
+    user_owned=$(jq -r --arg pkg "$pkg" '.packages[$pkg].user_owned' <<<"$ledger")
+    if bundle_package_present "$pkg"; then
+      action=keep
+      note="already present"
+    else
+      action=install
+      note="install"
+    fi
+  elif bundle_package_present "$pkg"; then
+    action=keep
+    # Already on the system, whether or not pacman calls it explicit. This
+    # bundle did not install it, so removal must not pass it to pacman -Rns.
+    user_owned=true
+    if bundle_is_explicit "$pkg"; then
+      note="already present, installed by you"
+    else
+      note="already present"
+    fi
+  else
+    action=install
+    user_owned=false
+    note="install"
+  fi
+  # shellcheck disable=SC2016
+  append_plan \
+    --arg name "$pkg" --arg action "$action" --arg note "$note" --arg source "$source" \
+    --argjson user_owned "$user_owned" \
+    '.packages += [{name:$name, action:$action, note:$note, user_owned:$user_owned, source:$source}]'
+}
+
+while IFS= read -r pkg; do
+  [[ -n $pkg ]] || continue
+  queue_package "$pkg" repo
+done < <(jq -r '.packages[]' "$bundle_dir/bundle.json")
+
+while IFS= read -r pkg; do
+  [[ -n $pkg ]] || continue
+  queue_package "$pkg" aur
+done < <(jq -r '.aurPackages[]' "$bundle_dir/bundle.json")
+
+while IFS= read -r plugin; do
+  [[ -n $plugin ]] || continue
+  resolved_id=""
+  plugin_fetch=$plugin
+  plugin_source=$(bundle_redact_url "$plugin")
+  if bundle_git_url "$plugin"; then
+    if resolved_id=$(bundle_plugin_id_for_url "$plugin" "$ledger") && bundle_plugin_present "$resolved_id"; then
+      action=keep
+      if jq -e --arg id "$resolved_id" '.plugins[$id] != null' <<<"$ledger" >/dev/null; then
+        user_owned=$(jq -r --arg id "$resolved_id" '.plugins[$id].user_owned' <<<"$ledger")
+        note="already present"
+      else
+        user_owned=true
+        note="already present, installed by you"
+      fi
+    else
+      action=add
+      user_owned=false
+      note="install"
+      resolved_id=""
+    fi
+  elif jq -e --arg id "$plugin" '.plugins[$id] != null' <<<"$ledger" >/dev/null; then
+    action=keep
+    resolved_id=$plugin
+    user_owned=$(jq -r --arg id "$plugin" '.plugins[$id].user_owned' <<<"$ledger")
+    note="already present"
+  elif bundle_plugin_present "$plugin"; then
+    action=keep
+    resolved_id=$plugin
+    user_owned=true
+    note="already present, installed by you"
+  else
+    bundle_fail "plugin '$plugin' is not installed; give a git URL"
+  fi
+  # shellcheck disable=SC2016
+  append_plan \
+    --arg source "$plugin_source" --arg fetch "$plugin_fetch" --arg id "$resolved_id" \
+    --arg action "$action" --arg note "$note" --argjson user_owned "$user_owned" \
+    '.plugins += [{source:$source, fetch:$fetch, id:$id, action:$action, note:$note, user_owned:$user_owned}]'
+done < <(jq -r '.plugins[]' "$bundle_dir/bundle.json")
+
+mapfile -t skill_dirs < <(bundle_skill_dirs)
+while IFS= read -r skill; do
+  [[ -n $skill ]] || continue
+  link_name="${id}-$(basename -- "$skill")"
+  if (( ${#skill_dirs[@]} == 0 )); then
+    # shellcheck disable=SC2016
+    append_plan \
+      --arg name "$link_name" --arg skill "$skill" \
+      '.skills += [{name:$name, skill:$skill, path:"", target:"", action:"skip", note:"no agent skill folder exists yet", user_owned:false}]'
+    continue
+  fi
+  for dir in "${skill_dirs[@]}"; do
+    path="$dir/$link_name"
+    target="$dest/$skill"
+    if jq -e --arg path "$path" '.skills[$path] != null' <<<"$ledger" >/dev/null; then
+      user_owned=$(jq -r --arg path "$path" '.skills[$path].user_owned' <<<"$ledger")
+      if [[ -e $path || -L $path ]]; then
+        action=keep
+        note="already present"
+      else
+        action="link"
+        note="link"
+      fi
+    elif [[ -e $path || -L $path ]]; then
+      action=keep
+      user_owned=true
+      note="already present, yours"
+    else
+      action="link"
+      user_owned=false
+      note="link"
+    fi
+    # shellcheck disable=SC2016
+    append_plan \
+      --arg name "$link_name" --arg skill "$skill" --arg path "$path" --arg target "$target" \
+      --arg action "$action" --arg note "$note" --argjson user_owned "$user_owned" \
+      '.skills += [{name:$name, skill:$skill, path:$path, target:$target, action:$action, note:$note, user_owned:$user_owned}]'
+  done
+done < <(jq -r '.skills[]' "$bundle_dir/bundle.json")
+
+while IFS= read -r entry; do
+  [[ -n $entry ]] || continue
+  source_rel=$(jq -r '.source' <<<"$entry")
+  target_raw=$(jq -r '.target' <<<"$entry")
+  target=$(bundle_config_target "$target_raw") || bundle_fail "config target must stay under your home directory: $target_raw"
+  if jq -e --arg target "$target" '.configs[$target] != null' <<<"$ledger" >/dev/null; then
+    user_owned=$(jq -r --arg target "$target" '.configs[$target].user_owned' <<<"$ledger")
+    if [[ -e $target || -L $target ]]; then
+      action=keep
+      note="already present"
+    elif [[ $user_owned == true ]]; then
+      action=keep
+      note="missing, left alone because it was yours"
+    else
+      action=copy
+      note="copy"
+    fi
+  elif [[ -e $target || -L $target ]]; then
+    action=keep
+    user_owned=true
+    note="already present, yours"
+  else
+    action=copy
+    user_owned=false
+    note="copy"
+  fi
+  sha256=""
+  if [[ $action == copy ]]; then
+    sha256=$(bundle_file_sha256 "$bundle_dir/$source_rel")
+  fi
+  # shellcheck disable=SC2016
+  append_plan \
+    --arg source "$source_rel" --arg target "$target" --arg action "$action" --arg note "$note" \
+    --arg sha256 "$sha256" --argjson user_owned "$user_owned" \
+    '.configs += [{source:$source, target:$target, action:$action, note:$note, sha256:$sha256, user_owned:$user_owned}]'
+done < <(jq -c '.config[]' "$bundle_dir/bundle.json")
+
+echo "Bundle: $(bundle_plain "$name") ($(bundle_plain "$id")) $(bundle_plain "$version")"
+echo "Source: $(bundle_plain "$source_label")"
+echo
+echo "Packages:"
+jq -r 'if ([.packages[] | select(.source != "aur")] | length) == 0 then "  (none)" else .packages[] | select(.source != "aur") | "  \(if .action == "install" then "+" else "=" end) \(.name)  (\(.note))" end' "$plan" | bundle_show
+echo
+echo "AUR packages:"
+jq -r 'if ([.packages[] | select(.source == "aur")] | length) == 0 then "  (none)" else .packages[] | select(.source == "aur") | "  \(if .action == "install" then "+" else "=" end) \(.name)  (\(.note))" end' "$plan" | bundle_show
+echo
+echo "Plugins:"
+jq -r 'if (.plugins | length) == 0 then "  (none)" else .plugins[] | "  \(if .action == "add" then "+" else "=" end) \(if .id != "" then .id else .source end)  (\(.note))" end' "$plan" | bundle_show
+new_plugins=$(jq '[.plugins[] | select(.action == "add")] | length' "$plan")
+if (( new_plugins > 0 )); then
+  cat >&2 <<'WARN'
+
+⚠️  Plugins run as arbitrary, unsandboxed code inside your long-lived
+  omarchy-shell process. Only add repos you trust, and review the code
+  before you enable it.
+
+WARN
+  while IFS= read -r plugin_line; do
+    [[ -n $plugin_line ]] || continue
+    printf '      URL: %s\n' "$(bundle_plain "$plugin_line")" >&2
+  done < <(jq -r '.plugins[] | select(.action == "add") | .source' "$plan")
+  if (( BUNDLE_ASSUME_YES )); then
+    echo "New plugins are enabled."
+  else
+    echo "You will be asked whether to enable the new plugins."
+  fi
+fi
+echo
+echo "Skills:"
+jq -r 'if (.skills | length) == 0 then "  (none)" else .skills[] | "  \(if .action == "link" then "+" else "=" end) \(.name)  (\(.note))" end' "$plan" | bundle_show
+echo
+echo "Config:"
+jq -r 'if (.configs | length) == 0 then "  (none)" else .configs[] | "  \(if .action == "copy" then "+" else "=" end) \(.target)  (\(.note))" end' "$plan" | bundle_show
+echo
+echo "No conflicts with installed bundles."
+echo
+echo "Introduction:"
+introduction=$(jq -r 'if has("introduction") then .introduction else "" end' "$bundle_dir/bundle.json")
+if [[ -n $introduction ]]; then
+  echo "  $(bundle_plain "$introduction")  (notification after install)"
+else
+  echo "  (none)"
+fi
+
+if (( dry_run )); then
+  echo
+  echo "Dry run: nothing was installed."
+  exit 0
+fi
+
+bundle_confirm "Install this bundle?" || bundle_fail "aborted"
+
+enable_plugins=0
+if (( new_plugins > 0 )); then
+  if (( BUNDLE_ASSUME_YES )); then
+    enable_plugins=1
+  elif bundle_confirm "Enable this bundle's plugins?"; then
+    enable_plugins=1
+  else
+    echo "Leaving the new plugins disabled."
+  fi
+fi
+
+sha=$(bundle_tree_sha256 "$bundle_dir")
+
+mapfile -t repo_install < <(jq -r '.packages[] | select(.action == "install" and .source != "aur") | .name' "$plan")
+mapfile -t aur_install < <(jq -r '.packages[] | select(.action == "install" and .source == "aur") | .name' "$plan")
+if (( ${#repo_install[@]} > 0 )); then
+  omarchy-pkg-add "${repo_install[@]}"
+  rollback_repo=("${repo_install[@]}")
+fi
+if (( ${#aur_install[@]} > 0 )); then
+  omarchy-pkg-aur-add "${aur_install[@]}"
+  rollback_aur=("${aur_install[@]}")
+fi
+
+bundle_copy_tree "$bundle_dir" "$dest"
+created_dest=1
+
+resolved="$workdir/plugins.json"
+echo '[]' >"$resolved"
+while IFS= read -r row; do
+  [[ -n $row ]] || continue
+  action=$(jq -r '.action' <<<"$row")
+  plugin_source=$(jq -r '.source' <<<"$row")
+  plugin_fetch=$(jq -r '.fetch // empty' <<<"$row")
+  [[ -n $plugin_fetch ]] || plugin_fetch=$plugin_source
+  user_owned=$(jq -r '.user_owned' <<<"$row")
+  if [[ $action == add ]]; then
+    plugin_add_args=(--yes)
+    if (( enable_plugins )); then
+      plugin_add_args+=(--enable)
+    fi
+    plugin_add_args+=(-- "$plugin_fetch")
+    set +e
+    output=$(omarchy-plugin-add "${plugin_add_args[@]}")
+    plugin_status=$?
+    set -e
+    plugin_id=$(sed -n 's/^Added \([^ ][^ ]*\) into .*/\1/p' <<<"$output" | head -n 1)
+    user_owned=false
+    # Record the id before failing. plugin-add moves the plugin into place
+    # and prints Added before rescan and enable, and cleanup only removes
+    # ids already listed here.
+    if [[ -n $plugin_id ]]; then
+      plugin_commit=$(git -C "$(bundle_plugins_dir)/$plugin_id" rev-parse HEAD 2>/dev/null || true)
+      jq --arg id "$plugin_id" --arg source "$plugin_source" --arg commit "$plugin_commit" \
+        --argjson user_owned "$user_owned" --argjson added true \
+        '. += [{id:$id, source:$source, user_owned:$user_owned, added:$added, commit:$commit}]' "$resolved" >"$resolved.next"
+      mv -f -- "$resolved.next" "$resolved"
+    fi
+    if (( plugin_status != 0 )); then
+      bundle_fail "failed to add plugin $plugin_source"
+    fi
+    [[ -n $plugin_id ]] || bundle_fail "could not read the id omarchy-plugin-add installed for $plugin_source"
+    continue
+  fi
+  plugin_id=$(jq -r '.id // empty' <<<"$row")
+  [[ -n $plugin_id ]] || plugin_id=$plugin_source
+  jq --arg id "$plugin_id" --arg source "$plugin_source" --argjson user_owned "$user_owned" --argjson added false \
+    '. += [{id:$id, source:$source, user_owned:$user_owned, added:$added, commit:""}]' "$resolved" >"$resolved.next"
+  mv -f -- "$resolved.next" "$resolved"
+done < <(jq -c '.plugins[]' "$plan")
+
+while IFS= read -r row; do
+  [[ -n $row ]] || continue
+  action=$(jq -r '.action' <<<"$row")
+  path=$(jq -r '.path' <<<"$row")
+  target=$(jq -r '.target' <<<"$row")
+  [[ $action == link ]] || continue
+  ln -s -- "$target" "$path"
+done < <(jq -c '.skills[]' "$plan")
+
+while IFS= read -r row; do
+  [[ -n $row ]] || continue
+  action=$(jq -r '.action' <<<"$row")
+  [[ $action == copy ]] || continue
+  source_rel=$(jq -r '.source' <<<"$row")
+  target=$(jq -r '.target' <<<"$row")
+  if [[ -e $target || -L $target ]]; then
+    echo "Leaving $(bundle_plain "$target") in place." >&2
+    jq --arg target "$target" '
+      .configs |= map(if .target == $target then .action = "keep" | .user_owned = true | .sha256 = "" | .note = "already present, yours" else . end)
+    ' "$plan" >"$plan.next"
+    mv -f -- "$plan.next" "$plan"
+    continue
+  fi
+  install -D -m 644 -- "$dest/$source_rel" "$target"
+done < <(jq -c '.configs[]' "$plan")
+
+receipt=$(bundle_receipt_json "$source_label" "$version" "$sha" "$commit" "$name")
+updated=$(jq -c \
+  --arg id "$id" \
+  --argjson receipt "$receipt" \
+  --slurpfile plugins "$resolved" \
+  --slurpfile plan "$plan" \
+  '
+  .bundles[$id] = $receipt
+  | reduce $plan[0].packages[] as $item (.;
+      if .packages[$item.name] then
+        .packages[$item.name].owners = ((.packages[$item.name].owners + [$id]) | unique)
+      else
+        .packages[$item.name] = {owners: [$id], user_owned: $item.user_owned, source: $item.source}
+      end)
+  | reduce $plugins[0][] as $item (.;
+      if .plugins[$item.id] then
+        .plugins[$item.id].owners = ((.plugins[$item.id].owners + [$id]) | unique)
+      else
+        .plugins[$item.id] = {
+          owners: [$id],
+          user_owned: $item.user_owned,
+          source: $item.source,
+          commit: (if ($item.commit // "") == "" then null else $item.commit end)
+        }
+      end)
+  | reduce ($plan[0].skills[] | select(.path != "")) as $item (.;
+      if .skills[$item.path] then
+        .skills[$item.path].owners = ((.skills[$item.path].owners + [$id]) | unique)
+      else
+        .skills[$item.path] = {owners: [$id], user_owned: $item.user_owned, target: $item.target}
+      end)
+  | reduce $plan[0].configs[] as $item (.;
+      if .configs[$item.target] then
+        .configs[$item.target].owners = ((.configs[$item.target].owners + [$id]) | unique)
+      else
+        .configs[$item.target] = {
+          owners: [$id],
+          user_owned: $item.user_owned,
+          source: $item.source,
+          sha256: (if $item.sha256 == "" then null else $item.sha256 end)
+        }
+      end)
+  ' <<<"$ledger")
+bundle_ledger_write "$updated"
+committed=1
+echo "Installed $id into $dest"
+if [[ -n $introduction ]]; then
+  if ! omarchy-notification-send -u normal -t 0 \
+    "Bundle $name installed" "Click to see the introduction." \
+    --exec omarchy-bundle-introduction -- "$id"; then
+    echo "Installed $id, but the introduction notification could not be sent." >&2
+  fi
+fi

@@ -49,6 +49,7 @@ The manual lives in [`manual/`](manual/), which is its authoritative source.
 - [Updates](manual/30-updates.md)
 - [Dotfiles](manual/31-dotfiles.md)
 - [Shell plugins](manual/32-shell-plugins.md)
+- [Bundles](manual/52-bundles.md)
 - [Monitors](manual/33-monitors.md)
 - [Keyboard, Mouse, Trackpad](manual/34-keyboard-mouse-trackpad.md)
 - [Networking](manual/35-networking.md)
