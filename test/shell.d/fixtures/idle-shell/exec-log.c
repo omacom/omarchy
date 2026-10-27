@@ -83,7 +83,11 @@ static void record_as(pid_t pid, pid_t parent, char *const argv[]) {
   if (!log_path[0]) return;
 
   int saved_errno = errno;
-  char line[8192];
+  // Not a stack buffer: this path runs in a vfork child, on the 8 KB stack glibc gives that helper,
+  // and 8 KB of local overflows it into the parent's frames (the parent's clone return address, at
+  // least). Static keeps the promise above that nothing here allocates, and vfork suspends the
+  // parent until the child execs, so there is one writer at a time (#15390).
+  static char line[8192];
   size_t cap = sizeof(line) - 1, at = 0;
 
   at = put_number(line, at, cap, (long)pid);
