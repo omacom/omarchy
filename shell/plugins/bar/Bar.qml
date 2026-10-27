@@ -1552,8 +1552,10 @@ Item {
     }
   }
 
+  // FileView also fires for any change in its path's parent directory, so watch
+  // a path inside current/: every plugin writes to ~/.local/state/omarchy.
   FileView {
-    path: root.stateHome + "/omarchy/current"
+    path: root.stateHome + "/omarchy/current/theme"
     watchChanges: true
     printErrors: false
     onFileChanged: root.scheduleTransparentForegroundRefresh()
