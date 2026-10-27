@@ -324,8 +324,10 @@ assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
 // x86_64 binaries (vendor builds for x86_64 alone, Windows games under Wine)
 // hide only off x86_64. Dropbox's x86_64 client runs under box64 on ARM, which
 // needs 4K pages, so it hides only where pages are larger. Spotify installs its
-// web player where its client can't run, so it never hides. Any other `when:`
-// here is a row that went back to vanishing once installed.
+// web player where its client can't run, so it never hides. The MLX row hides
+// off every machine that is not an Apple Silicon Mac, since its packages run
+// MLX on the Mac's GPU and its Core ML models on the Neural Engine. Any other
+// `when:` here is a row that went back to vanishing once installed.
 const windowsGuard = 'omarchy-hw-x86'
 const x86OnlyInstalls = ['install.windows', 'install.browser.edge', 'install.gaming.minecraft', 'install.gaming.heroic', 'install.gaming.geforce-now', 'install.gaming.battlenet', 'install.gaming.lutris']
 const fourKPageGuard = '[[ $(getconf PAGESIZE) == 4096 ]]'
@@ -334,8 +336,13 @@ assertDeepEqual(
     .filter(item => item.id.startsWith('install.') && item.action && item.when)
     .map(item => item.id)
     .sort(),
-  [...x86OnlyInstalls, 'install.service.dropbox', 'install.service.chromium-account'].sort(),
+  [...x86OnlyInstalls, 'install.service.dropbox', 'install.service.chromium-account', 'install.ai.mlx'].sort(),
   'menu never hides an Install row because the software is already there'
+)
+assertEqual(
+  defaultById['install.ai.mlx'].when,
+  'omarchy-hw-aarch64-apple',
+  'menu hides the MLX row off every machine that is not an Apple Silicon Mac'
 )
 assert(
   x86OnlyInstalls.every(id => defaultById[id].when === windowsGuard),
