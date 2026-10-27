@@ -78,7 +78,7 @@ assert_fails grep -Eq 'pacman -R' "$n1x" "kernels are removed through omarchy-pk
 assert_succeeds grep -Fq 'MODULES+=(i2c_mt65xx i2c_hid_acpi)' "$n1x" "the internal keyboard works at the LUKS prompt"
 assert_succeeds grep -Fq 'KERNEL_CMDLINE[default]+=" mem_sleep_default=s2idle"' "$n1x" "suspend to idle instead of the firmware's deep sleep"
 assert_succeeds grep -Fq 'power_wrap_drv.usb4_release=0 pci=hpbussize=0x80,hpmmiosize=32M,hpmmioprefsize=32G' "$n1x" "USB4 host routers stay powered with room for docks"
-assert_succeeds grep -Fq 'if omarchy-hw-match "H7407BA"; then' "$n1x" "the ProArt keeps the USB4 settings validated on it"
+assert_succeeds grep -Fq 'if omarchy-hw-match "H7407BA" || omarchy-hw-match "H7607BA"; then' "$n1x" "the ProArt P14 and P16 keep the USB4 settings validated on them"
 assert_succeeds grep -Fq 'KERNEL_CMDLINE[default]+=" power_wrap_drv.usb4_release=0 pci=hpbussize=0x20"' "$n1x" "other N1x laptops keep USB4 powered with the bus numbers tested on the XPS 16"
 assert_succeeds grep -Fq 'ATTR{vendor}=="0x10de", ATTR{device}=="0x22cf", ATTR{power/control}="on"' "$n1x" "USB4 tunnel root ports stay awake for docks plugged in later"
 assert_fails grep -Fq 'KERNEL_CMDLINE[default]+=" console=tty0' "$n1x" "the installer pins the console on every aarch64 install, not n1x.sh again"

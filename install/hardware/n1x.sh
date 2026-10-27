@@ -68,16 +68,18 @@ RULES
 # prompt, like any other accessory.
 #
 # The ASUS ProArt P14's settings are validated with a CalDigit TS4 on all three
-# ports. Other N1x laptops (the Dell XPS 16) set aside fewer bus numbers, as
-# tested there with a TS4, and do not get the root-port rule below until it is
-# tested on them.
+# ports. The ProArt P16 has the same three USB4 host routers (ACPI NVDA8100,
+# \_SB.UBF0-UBF2) and three 10de:22cf tunnel root ports and takes them too; a
+# Surface Thunderbolt 4 Dock's PCIe switch comes up behind one there. Other N1x
+# laptops (the Dell XPS 16) set aside fewer bus numbers, as tested there with a
+# TS4, and do not get the root-port rule below until it is tested on them.
 #
 # The tunnel root ports (10de:22cf) cannot signal a hotplug from D3hot or
 # D3cold, so once one has runtime-suspended, a PCIe tunnel that comes up behind
 # it is never enumerated: the dock is authorized but its Ethernet never
 # appears, until something happens to read the port's config space. Keep the
 # three of them in D0.
-if omarchy-hw-match "H7407BA"; then
+if omarchy-hw-match "H7407BA" || omarchy-hw-match "H7607BA"; then
   cat > /etc/limine-entry-tool.d/00-omarchy-n1x-usb4.conf <<'CONF'
 # N1x: keep the USB4 host routers powered and leave room for docks behind them;
 # see install/hardware/n1x.sh.
