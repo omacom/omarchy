@@ -7,6 +7,9 @@ echo "Add the agents widget to the bar"
 # machines without Claude Code or Codex never see it.
 
 config_file="$HOME/.config/omarchy/shell.json"
+if [[ -L $config_file ]]; then
+  config_file=$(readlink -f -- "$config_file")
+fi
 
 if [[ -s $config_file ]]; then
   tmp=$(mktemp)
