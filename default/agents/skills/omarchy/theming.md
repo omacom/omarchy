@@ -76,4 +76,5 @@ omarchy theme set catppuccin-custom
 omarchy font list               # Available fonts
 omarchy font current            # Current font
 omarchy font set <name>         # Change font
+omarchy font hinting [style]    # Show or set hinting: none, slight, medium, full, reset
 ```
