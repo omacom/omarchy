@@ -983,7 +983,7 @@ Item {
       width: parent.width * 0.3
       height: parent.height
       color: root.accent
-      NumberAnimation on x { from: -sweep.width; to: bar.width; duration: 1300; loops: Animation.Infinite; running: sweep.visible && !Style.reduceMotion }
+      NumberAnimation on x { from: -sweep.width; to: bar.width; duration: Style.duration(1300); loops: Animation.Infinite; running: sweep.visible && !Style.reduceMotion }
     }
   }
 
@@ -1019,8 +1019,8 @@ Item {
           SequentialAnimation on opacity {
             running: cardRoot.pulse && cardRoot.visible && !Style.reduceMotion
             loops: Animation.Infinite
-            NumberAnimation { to: 0.35; duration: 800; easing.type: Easing.InOutSine }
-            NumberAnimation { to: 1; duration: 800; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 0.35; duration: Style.duration(800); easing.type: Easing.InOutSine }
+            NumberAnimation { to: 1; duration: Style.duration(800); easing.type: Easing.InOutSine }
           }
         }
         Text {
@@ -1177,8 +1177,8 @@ Item {
         running: tile.active && !Style.reduceMotion
         loops: Animation.Infinite
         onRunningChanged: if (!running) art.scale = 1
-        NumberAnimation { to: 1.1; duration: 650; easing.type: Easing.InOutSine }
-        NumberAnimation { to: 1; duration: 650; easing.type: Easing.InOutSine }
+        NumberAnimation { to: 1.1; duration: Style.duration(650); easing.type: Easing.InOutSine }
+        NumberAnimation { to: 1; duration: Style.duration(650); easing.type: Easing.InOutSine }
       }
     }
 
@@ -1235,7 +1235,7 @@ Item {
         width: parent.width * 0.4
         height: parent.height
         color: root.accent
-        NumberAnimation on x { from: -tileSweep.width; to: tileSweep.parent.width; duration: 1000; loops: Animation.Infinite; running: tile.active && !Style.reduceMotion }
+        NumberAnimation on x { from: -tileSweep.width; to: tileSweep.parent.width; duration: Style.duration(1000); loops: Animation.Infinite; running: tile.active && !Style.reduceMotion }
       }
     }
   }
