@@ -94,6 +94,15 @@ stub_bin="$TMPDIR/bin"
 log="$TMPDIR/quickshell.log"
 mkdir -p "$test_root" "$test_home" "$stub_bin"
 cp -a "$ROOT/shell" "$test_root/shell"
+# The shell reads the platform root at a fixed path; the copy reads an empty
+# fixture instead, so a machine's own platform files (a MacBook's notch puts
+# the bar in its cutout layout) never change the layout this test checks.
+platform_root="$TMPDIR/platform"
+mkdir -p "$platform_root"
+{ grep -rlF /usr/share/omarchy-platform "$test_root/shell" || true; } |
+  xargs -r sed -i "s|/usr/share/omarchy-platform|$platform_root|g"
+! grep -rqF /usr/share/omarchy-platform "$test_root/shell" ||
+  fail "the shell copy reads a fixture platform root, not the machine's"
 ln -s "$ROOT/config" "$test_root/config"
 ln -s "$ROOT/bin" "$test_root/bin"
 
