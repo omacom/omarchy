@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Mtumiaji"
   },
-  "system.reboot-boot-menu": {
-    "label": "Washa upya kwa menyu ya kuwasha"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Onyesha % ya betri"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Ficha % ya betri"
+  },
+  "appearance.windows": {
+    "label": "Madirisha"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Washa nafasi za madirisha"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Zima nafasi za madirisha"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Washa uwiano wa dirisha 1"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Zima uwiano wa dirisha 1"
+  },
+  "appearance.branding": {
+    "label": "Chapa"
+  },
+  "appearance.animations-on": {
+    "label": "Washa uhuishaji"
+  },
+  "appearance.animations-off": {
+    "label": "Zima uhuishaji"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Baki macho"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Ruhusu usingizi"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Washa arifa"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Nyamazisha arifa"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Washa mwanga wa usiku"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Zima mwanga wa usiku"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Washa kiokoa skrini"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Zima kiokoa skrini"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Washa kunasa mivurugiko"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Zima Kunasa Hitilafu"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Washa Skrini ya Laptop"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Zima Skrini ya Laptop"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Washa Kuakisi Skrini"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Zima Kuakisi Skrini"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Badili hadi GPU Mseto"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Badili hadi GPU Jumuishi"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Washa Touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Zima Touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Washa Skrini ya Mguso"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Zima Skrini ya Mguso"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kiini"
   }
 }

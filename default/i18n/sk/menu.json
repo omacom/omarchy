@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Používateľ"
   },
-  "system.reboot-boot-menu": {
-    "label": "Reštartovať do ponuky zavádzania"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Zobraziť % batérie"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Skryť % batérie"
+  },
+  "appearance.windows": {
+    "label": "Okná"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Zapnúť medzery okien"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Vypnúť medzery okien"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Zapnúť pomer pre 1 okno"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Vypnúť pomer pre 1 okno"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.animations-on": {
+    "label": "Zapnúť animácie"
+  },
+  "appearance.animations-off": {
+    "label": "Vypnúť animácie"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Zabrániť uspaniu"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Povoliť uspanie"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Zapnúť oznámenia"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Stíšiť oznámenia"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Zapnúť nočné svetlo"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Vypnúť nočné svetlo"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Zapnúť šetrič obrazovky"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Vypnúť šetrič obrazovky"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Zapnúť záznam pádov"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Jadro"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Vypnúť zachytávanie pádov"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Zapnúť displej notebooku"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Vypnúť displej notebooku"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Zapnúť zrkadlenie displeja"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Vypnúť zrkadlenie displeja"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Prepnúť na hybridnú GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Prepnúť na integrovanú GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Zapnúť touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Vypnúť touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Zapnúť dotykovú obrazovku"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Vypnúť dotykovú obrazovku"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
   }
 }

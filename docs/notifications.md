@@ -6,9 +6,8 @@ The shell is the notification daemon: `shell/plugins/notifications/Service.qml` 
 
 | File | Role |
 |---|---|
-| `Service.qml` | The daemon: admission, quiet rules, snoozes, the scene clock, click routing, offers, IPC, one layer surface per output |
+| `Service.qml` | The daemon: admission, quiet rules, the scene clock, click routing, IPC, one layer surface per output |
 | `Toast.qml`, `DeedButton.qml` | One card and its buttons; a card is positioned by the service and animates nothing itself |
-| `NotificationPanel.qml`, `Picker.qml` | The panel and its preferences page, opened from the bar's Dnd indicator (`shell/plugins/bar/indicators/Dnd.qml`) |
 | `Store.js` | Notification snapshots, normalisation, what a stored row keeps, the stored file formats, restore |
 | `Markup.js` | Safe body markup, source lifting (`web:app.slack.com`), one-line previews |
 | `Detect.js` | Verification codes and links |
@@ -16,7 +15,6 @@ The shell is the notification daemon: `shell/plugins/notifications/Service.qml` 
 | `Icons.js` | The names a card's icon may go by: site names, symbolic icons |
 | `Layout.js` | Pure deck layout: rows in, placements out |
 | `Delivery.js` | Quiet rules, ephemeral rules, bar clearance |
-| `Settings.js` | Defaults and validation for `notifications` in `shell.json` |
 
 The JS modules also load in Node: `test/shell.d/notifications-test.sh` covers them without a compositor, along with the startup cleanup.
 
@@ -28,11 +26,11 @@ A collapsed deck draws its cards at the front card's height; hovering opens it. 
 
 Live `Notification` objects are kept in a plain JS map (`refs`), never a ListModel role, which would dangle once the server destroys the object. At most 100 are live.
 
-The surface is one fixed-width `WlrLayer.Overlay` window per output (namespace `omarchy-notifications`), input-masked to the deck. It stays mapped while idle, because a layer surface coming and going makes Hyprland re-evaluate focus and drags a scrolling layout's viewport. The exception is a fullscreen window: unless `fullscreenOverlay` is `off`, the surface unmaps over it when nothing is showing so the window can be scanned out directly.
+The surface is one fixed-width `WlrLayer.Overlay` window per output (namespace `omarchy-notifications`), input-masked to the deck. It stays mapped while idle, because a layer surface coming and going makes Hyprland re-evaluate focus and drags a scrolling layout's viewport. The exception is a fullscreen window: the surface unmaps over it when nothing is showing so the window can be scanned out directly.
 
 ## Toast lifecycle
 
-A card stays at least 5s (low), 8s (normal), or until dismissed (critical), stretched up to 30s by a longer `expire_timeout`. Its time pauses while the deck is open; a content update restarts it. Left-click activates, middle-click dismisses, the zzz beside the close mark on hover, or a right-click, opens the source's snooze choices (15 minutes, an hour, tomorrow at 8).
+A card stays at least 5s (low), 8s (normal), or until dismissed (critical), stretched up to 30s by a longer `expire_timeout`. Its time pauses while the deck is open; a content update restarts it. Left-click activates; right-click, middle-click, or the close mark on hover dismisses.
 
 A click tries, in order: the card's `omarchy-exec-argv` command; the sender's `default` action; the sender's window by pid; a window showing the source (exact class, then for a site a browser window whose title names it); the site itself; the first link in the text; `omarchy-hyprland-focus-app` by app name.
 
@@ -41,8 +39,8 @@ A click tries, in order: the card's `omarchy-exec-argv` command; the sender's `d
 The shell keeps its state in `~/.local/state/omarchy/notifications/` (0700), three JSON files it reads with `FileView` once at startup and rewrites whole:
 
 - `live.json`: the rows on screen, oldest first, put back after a shell restart with a 20s grace (critical ones still wait). At most 100.
-- `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and `historyHours` (default 24; `0` keeps none). Rows whose reason is `snoozed` or `silenced` were held back by quiet and are what the panel lists under each source.
-- `quiet.json`: `{ snoozes, dnd, silencedSince, codesBypassQuiet }`.
+- `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and 24 hours. Rows whose reason is `silenced` were held back by Do Not Disturb.
+- `quiet.json`: `{ dnd }`.
 
 `Store.persistable` decides what a row keeps: its scalar fields, never images, detected links, or derived text. Text with a verification code is stored only as the redacted placeholder, the click command and glyph included. A live row is cut to 16K characters and a history row, shown as a one-line preview, to 4K. Rows keep `execArgv` and `glyph`, so a card restored after a shell restart clicks through like the live one. Rows are re-checked the same way when read back; a file that is not an array of keyed objects, or is oversized, reads as empty, and a file that does not read back exactly as it would be written is rewritten.
 
@@ -65,23 +63,21 @@ A site's icon is never fetched: the site name comes from the notification body a
 
 Images are decoded in the shell process like every other image it draws. A sender's file path (`Security.localImagePath`) must be absolute, at most 1024 characters, free of control characters and of empty, `.` and `..` segments, and not under `/proc`, `/sys`, `/dev` or `/run` and `/var/run` (other than `/run/user/<uid>/`); `file://` URLs are accepted and decoded first. No extension is required, as Chromium's temp files (`/tmp/.org.chromium.Chromium.*/…`) have none. A native sender already runs as you and could read the file itself; a sandboxed one can only name a file for you to see. Images are never persisted, so restored and replayed cards fall back to the source's icon.
 
-## Silencing and snoozing
+## Silencing
 
-Do Not Disturb is a boolean in `quiet.json`, toggled via `omarchy-shell notifications toggleDnd` / `setDnd` / `isDnd`; `omarchy-toggle-notification-silencing` wraps the toggle. A snooze is the same quiet with an end time, per source (`groupKey`) or for everything (key `*`, which replaces Do Not Disturb).
+Do Not Disturb is a boolean in `quiet.json`, toggled via `omarchy-shell notifications toggleDnd` / `setDnd` / `isDnd`; `omarchy-toggle-notification-silencing` wraps the toggle.
 
-Three kinds of notification get through every kind of quiet:
+Three kinds of notification get through Do Not Disturb:
 
 - `app_name` = `omarchy-action`: Omarchy's own confirmation toasts for something the user just did.
 - urgency critical *and* `app_name` = `notify-send`: bare-CLI emergency alerts. Critical alone is not enough, because chat apps use it to force visibility under their own app name.
-- a detected verification code, while `codesBypassQuiet` is on.
+- a detected verification code: it was asked for a moment ago and expires in minutes.
 
-Quieted notifications are recorded as held and listed by source in the panel. Ephemeral ones (the `transient` hint, or `app_name` `notify-send`/`omarchy-action`) are dropped.
+Silenced notifications are recorded in history, so `showHistory` can put them back on screen. Ephemeral ones (the `transient` hint, or `app_name` `notify-send`/`omarchy-action`) are dropped.
 
-When the Hyprland portal starts a screen-share stream, the bell offers a timed snooze; nothing is muted automatically.
+## Appearance
 
-## Preferences
-
-Preferences live in the `notifications` object of `~/.config/omarchy/shell.json`; every key is optional, and `Settings.js` holds defaults and valid values. The preferences page writes `displayMode`/`displayName`, `fullscreenOverlay` (`all` or `off`) and `offerSnoozeWhenSharing`; `historyHours` is hand-edited. Everything else follows the desktop: text size, the theme's outer gap, the locale's time format. Colours come from the theme: `[notifications]` in `shell.toml` for cards, `[popups]` for the panel, Hyprland's `decoration:rounding` for corners.
+Notifications have no settings of their own. A new deck lands on the focused display and stays there until it empties. Everything else follows the desktop: text size, the theme's outer gap, the locale's time format. Colours come from the theme's `[notifications]` in `shell.toml`, and corners from Hyprland's `decoration:rounding`.
 
 ## The sender contract
 
@@ -96,15 +92,15 @@ flags map onto that call:
 |---|---|---|
 | `-g` / `--glyph` | hint `omarchy-glyph` | Nerd Font glyph for the icon slot when no image icon resolves |
 | `--exec <program> [args…]` | hint `omarchy-exec-argv` | the click command; consumes the rest of the line, so it comes last. Each word is a discrete argument the shell runs without re-parsing (see below) |
+| `--action <label> <program> [words…]` | hint `omarchy-actions` | a button, up to three; the first is also the click. Its words end at the next `--action`, `--with` or `--exec`. Cannot be combined with `--exec` |
+| `--with <args…>` | appended to every action | the data the actions act on; consumes the rest of the line, so it comes last |
 | `--image` | hint `image-path` | the standard freedesktop image hint |
 | `-i` / `--icon` | `app_icon` | themed icon name for the toast |
 | `--app-name` | `app_name` | defaults to `omarchy-action` |
 | `-u` / `--urgency` | hint `urgency` (byte) | `low`/`normal`/`critical`; defaults to `low` |
 | `-t` / `--expire-time` | `expire_timeout` | milliseconds on screen; server default otherwise |
 
-Unknown flags are a hard error, not a silent pass-through: `--exec` is the only
-door to a click command, and there is no generic option pass-through to smuggle
-one through.
+Unknown flags are a hard error, not a silent pass-through: `--exec` and `--action` are the only doors to a command, and there is no generic option pass-through to smuggle one through.
 
 The defaults are the point: an unadorned `omarchy-notification-send "Done"`
 is a low-urgency user-action toast that pops through DND and is treated as
@@ -168,6 +164,21 @@ build the `omarchy-exec-argv` hint. (The leading `--` on the `busctl` call is a
 belt for `busctl`'s own getopt, which would otherwise read a dash-leading value
 as a `busctl` option; the summary/body themselves are never parsed as options.)
 
+### Buttons
+
+`--action` adds a button that runs a command, the way `--exec` makes the card click run one:
+
+```bash
+omarchy-notification-send "Screen recording saved" "$name" \
+  --action "Play" mpv -- \
+  --action "Show in folder" nautilus --select \
+  --with "$filename"
+```
+
+The two halves follow the click-command rule. An action's own words are literals written at the call site, so they can end at the next `--action`, `--with` or `--exec` without being mistaken for data. Untrusted data goes once, after `--with`, which takes the rest of the line and is appended to every action's argv: a filename that reads `--action` stays part of the filename. Options go before the first `--action`, as anything after it is an action's word.
+
+The buttons ride as the `omarchy-actions` hint (`[{"label", "argv"}]`, each argv checked like `omarchy-exec-argv`), and the first action's argv is also set as the click command. Like the click, they are not libnotify actions: the shell runs them itself and stores them with the row, so the sender exits at once and a card restored after a shell restart, or brought back from history, keeps its buttons. The card shows them as a bar along its bottom edge while it is the front card of its deck, or, once a deck is open, only while it is the card hovered or selected.
+
 ## Helper commands
 
 - `omarchy-notification-wait [timeout]` — polls until the shell answers IPC
@@ -180,18 +191,17 @@ as a `busctl` option; the summary/body themselves are never parsed as options.)
 - `omarchy-notification-weather` — despite the name, not a sender: it toggles
   the `omarchy.weather` shell panel.
 
-Keybindings live in `default/hypr/bindings/utilities.lua`: `Super+comma`
-variants map to the IPC methods `dismissOne`, `dismissAll`, `invokeLast`,
-`showHistory` (put the last few back on screen), and the silencing toggle.
+Keybindings live in `default/hypr/bindings/utilities.lua`: `Super+comma` variants map to the IPC methods `dismissOne`, `dismissAll`, `invokeLast`, `showHistory` (put the last few back on screen), `keyboard`, and the silencing toggle.
 
-The `notifications` IPC target also answers `ping` (used by `omarchy-notification-wait`), `dismiss <summary>`, `count`, `openPanel`, `closePanel`, and two for scripts and visual checks: `expand` (open the deck and hover its front card, as the pointer would) and `probe` (what the daemon thinks is true).
+`keyboard` (`Super+Ctrl+comma`) is the only way the notifications take the keyboard: a card that grabbed focus as it arrived would swallow whatever you were typing. It selects the newest card and opens its deck, and the surface on that display takes exclusive keyboard focus. Arrows (or `j`/`k`, `Tab`) move through the cards deck by deck, `1`–`9` press a button in `Delivery.deeds` order (the card numbers them), `Enter` clicks the card, `Delete` dismisses it and selects the next, and `Escape`, any choice, or ten idle seconds end it. While it lasts the deck stays open and new cards wait, as under the pointer. `invokeAction <n>` presses button `n` on the newest card without the mode.
+
+The `notifications` IPC target also answers `ping` (used by `omarchy-notification-wait`), `dismiss <summary>`, `count`, and two for scripts and visual checks: `expand` (open the deck and hover its front card, as the pointer would) and `probe` (what the daemon thinks is true).
 
 ## How subsystems plug in
 
 Everything goes through the same sender contract, so the pieces are small:
 
-- **Low battery** — `omarchy-battery-low` sends a critical toast and runs the
-  `battery-low` hook.
+- **Low battery** — `omarchy-battery-low` sends a normal toast that expires after 30 seconds (paused, like any card, while the deck is open) and runs the `battery-low` hook. Not critical: a critical toast never expires and comes back on every shell start, so the warning would outlive the charger going in. As an `omarchy-action` toast it still gets through Do Not Disturb.
 - **Crash capture** — `omarchy-crash-watch` follows the systemd-coredump
   journal stream and announces each crashed program (deduped per minute) as a
   critical toast whose click runs `omarchy-agent-crash` (via `--exec`, so a

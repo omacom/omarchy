@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchyä ohjataan yleensä pikanäppäinten ja Omarchy-valikon kautta (`Super + Space`). Mutta voit ohjata sitä myös `omarchy` CLI:n kautta. Tämä on erityisen hyödyllistä, kun sinulla on tekoälyagentti työstämässä kanssasi mukautuksia tai määrityksiä.
+Omarchyä käytetään yleensä pikanäppäimillä ja Omarchy-valikolla (`Super + Space`). Mutta voit hallita sitä myös `omarchy` CLI:n kautta. Tämä on erityisen hyödyllistä, kun työskentelet tekoälyagentin kanssa mukautusten tai määritysten parissa.
 
-CLI:llä on pääsy kaikkiin sisäisiin työkaluihin, joita käytetään sekä valikon kautta että muuten. Näet kaiken saatavilla olevan ajamalla pääätteessä komennon `omarchy`.
+CLI:llä on pääsy kaikkiin sisäisiin työkaluihin, joita käytetään sekä valikon kautta että muuten. Näet kaiken saatavilla olevan ajamalla `omarchy` terminaalissa.
 
 Se näyttää suunnilleen tältä:
 
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-Ja voit sukeltaa syvemmälle jokaiseen ryhmään:
+Ja jokaiseen ryhmään voi sukeltaa syvemmälle:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Jokainen komento hyväksyy myös valitsimen `--help`, kysyitpä kokonaisen ryhmän (`omarchy capture --help`) tai yhden komennon (`omarchy capture screenshot --help`) ohjetta.
+Jokainen komento hyväksyy myös `--help`-vivun, kysyitpä sitä koko ryhmältä (`omarchy capture --help`) tai yksittäiseltä komennolta (`omarchy capture screenshot --help`).
 
-### Valikon avaaminen pääätteestä
+### Valikon avaaminen terminaalista
 
-Myös Omarchy-valikko on skriptattavissa, mikä on kätevää omia pikanäppäimiäsi varten. `omarchy menu` avaa sen juuresta, ja voit hypätä suoraan mihin tahansa puun kohtaan nimeämällä sen: `omarchy menu summon style.theme` menee suoraan teeman valitsimeen, `omarchy menu toggle system` avaa järjestelmävalikon ja sulkee sen uudelleen, jos se on jo avoinna, ja `omarchy menu close` sulkee sen kokonaan.
+Omarchy-valikko on myös skriptattavissa, mikä on kätevää omia näppäinsidoksiasi varten. `omarchy menu` avaa sen juuresta, ja voit hypätä suoraan mihin tahansa kohtaan puussa nimeämällä sen: `omarchy menu summon appearance.theme` menee suoraan teeman valitsimeen, `omarchy menu toggle system` avaa järjestelmävalikon ja sulkee sen uudelleen, jos se on jo auki, ja `omarchy menu close` sulkee sen.

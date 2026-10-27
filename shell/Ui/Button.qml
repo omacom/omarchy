@@ -136,6 +136,16 @@ BorderSurface {
 
   Behavior on color { ColorAnimation { duration: Style.duration(120) } }
 
+  // Held down, the button gives a little, so a click is felt as well as seen.
+  scale: mouseArea.pressed ? 0.97 : 1
+  Behavior on scale {
+    NumberAnimation {
+      duration: Style.duration(160)
+      easing.type: Easing.Bezier
+      easing.bezierCurve: Style.easeOut
+    }
+  }
+
   ToolTip {
     visible: root.tooltipText !== "" && mouseArea.containsMouse
     text: root.tooltipText
@@ -182,7 +192,7 @@ BorderSurface {
       RotationAnimation on rotation {
         from: 0
         to: 360
-        duration: 900
+        duration: Style.duration(900)
         loops: Animation.Infinite
         running: root.iconSpinning && !Style.reduceMotion
       }
@@ -208,6 +218,9 @@ BorderSurface {
   MouseArea {
     id: mouseArea
     anchors.fill: parent
+    // Undoes the press scale, so the button only looks smaller: a press near
+    // its edge still counts as a click when it's let go there.
+    scale: 1 / root.scale
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     acceptedButtons: Qt.LeftButton | Qt.RightButton

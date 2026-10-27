@@ -21,6 +21,11 @@
 # the variables these prompts write: keyboard, keyboard_label,
 # keyboard_input_method, keyboard_xkb_layout, username,
 # password, password_confirmation, full_name, email_address, hostname, timezone.
+#
+# Callers may also set OMARCHY_FORM_LANGUAGE (a language registry code for the
+# form's text), OMARCHY_FORM_KEYBOARD_DEFAULT (a layout label to preselect),
+# OMARCHY_FORM_TIMEZONE_DEFAULT (a timezone that beats the network's guess) and
+# OMARCHY_FORM_TIMEZONE_FALLBACK (one used only when that guess fails).
 
 OMARCHY_FORM_BACK=1
 OMARCHY_FORM_SIGNAL=130
@@ -110,11 +115,24 @@ if [[ -r $omarchy_form_defaults ]]; then
   unset omarchy_form_key omarchy_form_value
 fi
 
+# The form's strings live in Omarchy's CLI catalogs, which the live ISO carries
+# too. The caller names the language in OMARCHY_FORM_LANGUAGE; English fills in.
+omarchy_form_i18n=${OMARCHY_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}/default/i18n
+
+omarchy_form_text() {
+  local language=${OMARCHY_FORM_LANGUAGE:-en} text
+  local -a catalogs=("$omarchy_form_i18n/en/cli.json")
+  [[ $language =~ ^[a-z]{2,3}(-[A-Z]{2})?$ && -r $omarchy_form_i18n/$language/cli.json ]] &&
+    catalogs=("$omarchy_form_i18n/$language/cli.json" "${catalogs[@]}")
+  text=$(jq -rn --arg key "$1" 'first(inputs | .[$key] // empty) // empty' "${catalogs[@]}" 2>/dev/null) || text=""
+  printf '%s' "${text:-$1}"
+}
+
 omarchy_prompt_keyboard() {
   local choice status default=${OMARCHY_FORM_KEYBOARD_DEFAULT:-English (US)}
   # gum splits --selected on commas, so "Chinese (Simplified, Pinyin)" needs them escaped.
   choice=$(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | cut -d'|' -f1 |
-    gum choose --height 10 --selected "${default//,/\\,}" --header "Select keyboard layout") && status=0 || status=$?
+    gum choose --height 10 --selected "${default//,/\\,}" --header "$(omarchy_form_text setupForm.keyboardHeader)") && status=0 || status=$?
   ((status == 0)) || return $status
 
   local selection
@@ -138,19 +156,19 @@ omarchy_persist_input_selection() {
 omarchy_prompt_username() {
   local status
   while true; do
-    username=$(gum input --placeholder "Alphanumeric without spaces (like dhh)" --prompt.foreground="#845DF9" --prompt "Username> ") && status=0 || status=$?
+    username=$(gum input --placeholder "$(omarchy_form_text setupForm.usernamePlaceholder)" --prompt.foreground="#845DF9" --prompt "$(omarchy_form_text setupForm.usernamePrompt)") && status=0 || status=$?
     ((status == 0)) || return $status
 
     if [[ "$username" =~ $OMARCHY_USERNAME_PATTERN ]]; then
       if [[ "$username" =~ $OMARCHY_RESERVED_USERNAMES ]]; then
-        notice "Username is reserved for system" 1
+        notice "$(omarchy_form_text setupForm.usernameReserved)" 1
       elif omarchy_username_taken "$username"; then
-        notice "That username already exists on this machine" 1
+        notice "$(omarchy_form_text setupForm.usernameTaken)" 1
       else
         return 0
       fi
     else
-      notice "Username must be alphanumeric with no spaces" 1
+      notice "$(omarchy_form_text setupForm.usernameInvalid)" 1
     fi
   done
 }
@@ -158,21 +176,22 @@ omarchy_prompt_username() {
 omarchy_prompt_password() {
   local status
   while true; do
-    password=$(gum input --placeholder "Used for user + root, and disk encryption when enabled" --prompt.foreground="#845DF9" --password --prompt "Password> ") && status=0 || status=$?
+    password=$(gum input --placeholder "$(omarchy_form_text setupForm.passwordPlaceholder)" --prompt.foreground="#845DF9" --password --prompt "$(omarchy_form_text setupForm.passwordPrompt)") && status=0 || status=$?
     ((status == 0)) || return $status
-    password_confirmation=$(gum input --placeholder "Must match the password you just typed" --prompt.foreground="#845DF9" --password --prompt "Confirm> ") && status=0 || status=$?
+    password_confirmation=$(gum input --placeholder "$(omarchy_form_text setupForm.confirmPlaceholder)" --prompt.foreground="#845DF9" --password --prompt "$(omarchy_form_text setupForm.confirmPrompt)") && status=0 || status=$?
     ((status == 0)) || return $status
 
     if [[ -n "$password" && "$password" == "$password_confirmation" ]]; then
       return 0
     elif [[ -z "$password" ]]; then
-      notice "Your password can't be blank!" 1
+      notice "$(omarchy_form_text setupForm.passwordBlank)" 1
     else
-      notice "Passwords didn't match!" 1
+      notice "$(omarchy_form_text setupForm.passwordMismatch)" 1
     fi
   done
 }
 
+# Only ISO configurators from before omarchy-setup-git still call this.
 # Both fields are skippable with Return, so an empty value is a real answer and
 # only Esc/Ctrl+C end the prompt early.
 omarchy_prompt_identity() {
@@ -186,7 +205,7 @@ omarchy_prompt_identity() {
 omarchy_prompt_hostname() {
   local status
   while true; do
-    hostname=$(gum input --placeholder "Letters, digits, and dashes (or return for 'omarchy')" --prompt.foreground="#845DF9" --prompt "Hostname> ") && status=0 || status=$?
+    hostname=$(gum input --placeholder "$(omarchy_form_text setupForm.hostnamePlaceholder)" --prompt.foreground="#845DF9" --prompt "$(omarchy_form_text setupForm.hostnamePrompt)") && status=0 || status=$?
     ((status == 0)) || return $status
 
     if [[ -z $hostname ]]; then
@@ -195,7 +214,7 @@ omarchy_prompt_hostname() {
     elif [[ "$hostname" =~ $OMARCHY_HOSTNAME_PATTERN ]]; then
       return 0
     else
-      notice "Hostname must be 1-63 letters, digits, or dashes, and cannot start or end with a dash" 1
+      notice "$(omarchy_form_text setupForm.hostnameInvalid)" 1
     fi
   done
 }
@@ -205,14 +224,16 @@ omarchy_prompt_hostname() {
 omarchy_prompt_timezone() {
   local guess status
   # A preset install media names its timezone; otherwise ask geo.omarchy.org,
-  # Omarchy's own lookup of where this network is.
+  # Omarchy's own lookup of where this network is, and failing that take the
+  # caller's fallback, like the language's capital.
   guess=${OMARCHY_FORM_TIMEZONE_DEFAULT:-}
   [[ -n $guess ]] || guess=$(curl -fsS --max-time 5 https://geo.omarchy.org/ 2>/dev/null | jq -r '.timezone // empty' 2>/dev/null) || guess=""
+  [[ -n $guess ]] || guess=${OMARCHY_FORM_TIMEZONE_FALLBACK:-}
 
   if [[ -n $guess ]]; then
-    timezone=$(timedatectl list-timezones | gum choose --height 10 --selected "$guess" --header "Timezone") && status=0 || status=$?
+    timezone=$(timedatectl list-timezones | gum choose --height 10 --selected "$guess" --header "$(omarchy_form_text setupForm.timezoneHeader)") && status=0 || status=$?
   else
-    timezone=$(timedatectl list-timezones | gum filter --height 10 --header "Timezone") && status=0 || status=$?
+    timezone=$(timedatectl list-timezones | gum filter --height 10 --header "$(omarchy_form_text setupForm.timezoneHeader)") && status=0 || status=$?
   fi
   ((status == 0)) || return $status
 

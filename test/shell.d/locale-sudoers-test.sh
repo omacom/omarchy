@@ -5,45 +5,10 @@ set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
 
 generator="$ROOT/bin/omarchy-locale-generate"
-language="$ROOT/bin/omarchy-language"
-sudoers_file="$ROOT/etc/sudoers.d/omarchy-locale-generate"
 registry="$ROOT/default/i18n/locales.json"
 
-# Exactly one rule, naming each registry code as the whole argument. A code
-# missing would prompt again for that language; the command with its argument
-# dropped, which sudoers reads as "any arguments", would widen the grant.
-expected="%wheel ALL=(root) NOPASSWD: $(jq -r 'keys | sort | map("/usr/bin/omarchy-locale-generate " + .) | join(", ")' "$registry")"
-rules=$(grep -vE '^[[:space:]]*(#|$)' "$sudoers_file")
-[[ $rules == "$expected" ]] ||
-  fail "locale sudoers file carries exactly one rule naming each registry code" "got: $rules"
-
-if command -v visudo >/dev/null; then
-  visudo -cf "$sudoers_file" >/dev/null || fail "locale sudoers rule parses"
-fi
-pass "locale sudoers rule is scoped to the registry's languages"
-
-grep -Fx 'generator=/usr/bin/omarchy-locale-generate' "$language" >/dev/null ||
-  fail "omarchy-language elevates the path the sudoers rule names"
-# `sudo -l` alone says whether a command is permitted, which Omarchy's blanket
-# %wheel rule answers yes to; only the long listing prints the entry's tags.
-grep -E 'sudo -n -l -l' "$language" >/dev/null ||
-  fail "omarchy-language reads the grant from the long sudo listing"
-pass "omarchy-language asks sudo for the grant before prompting"
-
-# Root resolves bare helpers under sudo's secure_path, which a dev link
-# prepends a user-writable checkout bin/ to, so the helper pins PATH to system
-# directories once it holds root, and only then.
-gated=$(grep -A1 -E '^if \(\( EUID == 0 \)\); then$' "$generator" || true)
-[[ $gated == *"export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin"* ]] ||
-  fail "omarchy-locale-generate gates the trusted-PATH pin on holding root"
-# The test overrides must never reach root: root reads the packaged registry
-# and the real locale.gen.
-overrides=$(sed -n '/^if (( EUID != 0 )); then$/,/^fi$/p' "$generator")
-[[ $overrides == *'OMARCHY_LOCALE_REGISTRY'* && $overrides == *'OMARCHY_LOCALE_GEN'* ]] ||
-  fail "omarchy-locale-generate honors its test overrides only without root"
-pass "omarchy-locale-generate pins PATH and its files when it holds root"
-
-# Unprivileged runs against fixtures: locale-gen is stubbed, the registry and
+# The sudoers rule and the root half are covered in sudoers-test.sh. These
+# unprivileged runs use fixtures: locale-gen is stubbed, the registry and
 # locale.gen are overridden.
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT

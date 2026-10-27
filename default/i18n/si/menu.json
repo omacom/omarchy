@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "පරිශීලකයා"
   },
-  "system.reboot-boot-menu": {
-    "label": "බූට් මෙනුවට නැවත ආරම්භ කරන්න"
+  "appearance.windows.gaps-on": {
+    "label": "ජනෙල හිඩැස් සක්‍රිය"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "ජනෙල හිඩැස් අක්‍රිය"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-ජනෙල අනුපාතය සක්‍රිය"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-ජනෙල අනුපාතය අක්‍රිය"
+  },
+  "appearance.branding": {
+    "label": "සන්නාමකරණය"
+  },
+  "appearance.animations-on": {
+    "label": "සජීවිකරණ සක්‍රිය"
+  },
+  "appearance.animations-off": {
+    "label": "සජීවිකරණ අක්‍රිය"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "අවදියෙන් සිටින්න"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "නින්දට ඉඩ දෙන්න"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "දැනුම්දීම් සක්‍රිය"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "දැනුම්දීම් නිහඬ කරන්න"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "රාත්‍රී ආලෝකය සක්‍රිය"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "රාත්‍රී ආලෝකය අක්‍රිය"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "තිර ආරක්ෂකය සක්‍රිය"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "තිර ආරක්ෂකය අක්‍රිය"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "බිඳවැටීම් ග්‍රහණය සක්‍රිය"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "බිඳවැටීම් ග්‍රහණය අක්‍රිය"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "ලැප්ටොප් තිරය සක්‍රිය"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "ලැප්ටොප් තිරය අක්‍රිය"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "තිර පිළිබිඹු කිරීම සක්‍රිය"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "බැටරි % පෙන්වන්න"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "බැටරි % සඟවන්න"
+  },
+  "appearance.windows": {
+    "label": "කවුළු"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "තිර දර්පණය අක්‍රිය කරන්න"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "දෙමුහුන් GPU වෙත මාරු වන්න"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "ඒකාබද්ධ GPU වෙත මාරු වන්න"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "ටච්පෑඩය සක්‍රිය කරන්න"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "ටච්පෑඩය අක්‍රිය කරන්න"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "ස්පර්ශ තිරය සක්‍රිය කරන්න"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "ස්පර්ශ තිරය අක්‍රිය කරන්න"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "කර්නලය"
   }
 }

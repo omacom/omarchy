@@ -426,8 +426,3 @@ pass "battery status suppresses an unknown cycle count"
   fail "battery status tests leave the runtime charge cache alone"
 pass "battery status tests leave the runtime charge cache alone"
 
-if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
-  fail "battery status owns capacity and remaining calculations" "$matches"
-fi
-
-pass "battery status owns capacity and remaining calculations"

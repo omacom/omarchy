@@ -23,11 +23,10 @@ Item {
   property bool sole: false                  // the only card on screen
   property bool paused: false
   property bool hovered: false
+  property bool selected: false              // the keyboard's card
   property double now: Date.now()
   property real cardWidth: Style.space(380)
-  property var snoozeOptions: []             // the daemon's
   property var actions: []                   // what the sender put on the wire
-  property bool menuOpen: false
 
   // The pointer in the deck's coordinates: the deck owns hover, so cards and
   // their buttons work out what is under it themselves.
@@ -61,14 +60,15 @@ Item {
   }
 
   // The card's only duration: crossfades inside its own edges.
-  readonly property int fade: 150
+  readonly property int fade: Style.duration(150)
 
   signal expired()
   signal activated()
   signal dismissed()
-  signal snoozeRequested(int seconds)
   signal codeCopied(string code)
   signal actionInvoked(string identifier)
+  signal execInvoked(int index)
+  signal linkOpened()
 
   readonly property bool critical: row.urgency === 2
   readonly property color dimColor: Qt.darker(Commons.Color.notifications.text, 1.4)
@@ -83,12 +83,20 @@ Item {
   readonly property bool glyphLed: Delivery.summaryStartsWithGlyph(row.summary)
   readonly property real contentPaddingY: hasBody ? Style.space(10) : Style.space(7)
   // A card behind the front of a collapsed deck is a shape: the cards are
-  // translucent, so its text would read through the one in front. Only
-  // opening and closing the deck fades the text; taking or giving up the
-  // front, as cards arrive and leave, is instant.
-  property real expandShare: expanded ? 1 : 0
-  Behavior on expandShare { NumberAnimation { duration: card.fade } }
-  readonly property real contentOpacity: place.front ? 1 : expandShare
+  // translucent, so its text would read through the one in front. The text
+  // fades as the deck moves (opening, closing, a card arriving over it or
+  // leaving it the front) and jumps with it when a keypress skips the move.
+  // It goes out in half the time it comes in, so a card arriving over this one
+  // doesn't show both texts at once.
+  property real contentOpacity: expanded || place.front ? 1 : 0
+  Behavior on contentOpacity {
+    id: contentFade
+    enabled: !(card.scene && card.scene.jumping)
+    NumberAnimation {
+      duration: contentFade.targetValue > 0 ? card.fade : card.fade / 2
+      easing.type: Easing.OutCubic
+    }
+  }
 
   // The body opens in an open deck, or on hover when nothing else is on
   // screen. Never in a collapsed stack: every card there is drawn at the front
@@ -104,39 +112,31 @@ Item {
     return out
   }
 
-  // What the card found in its own text first, then the sender's actions.
+  // Buttons an Omarchy sender asked for (--action), as commands the shell runs.
+  readonly property var execActions: Security.parseExecActions(row.execActions) || []
+
+  // Every button, in Delivery.deeds' order, with the code labels translated.
   readonly property var allDeeds: {
-    var out = []
-    for (var c = 0; c < foundCodes.length; c++)
-      out.push({ kind: "code", value: foundCodes[c],
-                 label: foundCodes.length > 1 ? I18n.t("notifications.copyThisCode").arg(foundCodes[c])
-                                              : I18n.t("notifications.copyCode") })
-    for (var i = 0; i < actions.length; i++)
-      out.push({ kind: "action", label: String(actions[i].text || ""), value: String(actions[i].id) })
+    var out = Delivery.deeds(row, actions)
+    for (var i = 0; i < out.length; i++)
+      if (out[i].kind === "code")
+        out[i].label = foundCodes.length > 1 ? I18n.t("notifications.copyThisCode").arg(out[i].value)
+                                             : I18n.t("notifications.copyCode")
     return out
   }
 
-  // Marks on the headline rather than buttons: buttons cost height, and a
-  // collapsed deck draws every card at the tallest one's height.
+  // Marks on the headline. Buttons say for themselves that a card can be
+  // acted on; a verification code is marked even where they are hidden.
   readonly property var marks: {
     var out = []
     if (String(row.code || "")) out.push("\u{f0306}")
-    if (actions.length > 0) out.push("\u{f0cfd}")
-    return out
-  }
-
-  readonly property var menuDeeds: {
-    var out = []
-    for (var i = 0; i < snoozeOptions.length; i++)
-      out.push({ kind: "snooze", label: String(snoozeOptions[i].short),
-                 value: Number(snoozeOptions[i].seconds) })
     return out
   }
 
   function doDeed(deed) {
     var kind = String(deed.kind || "")
-    if (kind === "snooze") { menuOpen = false; snoozeRequested(Number(deed.value)); return }
     if (kind === "action") { actionInvoked(String(deed.value)); return }
+    if (kind === "exec") { execInvoked(Number(deed.value)); return }
     codeCopied(String(deed.value))
     copiedCode = String(deed.value)
     tick.restart()
@@ -205,8 +205,6 @@ Item {
   // The height the scene says it is right now, on the way there.
   property real drawnHeight: targetHeight
 
-  onHoveredChanged: if (!hovered) menuOpen = false
-  onExpandedChanged: if (!expanded) menuOpen = false
 
   y: scene ? scene.at(row.key, "y") : 0
   z: place.z
@@ -217,7 +215,7 @@ Item {
   // `visible` is deliberately unbound: anything derived from layout output
   // (opacity, place.hidden) closes a binding loop through `heights`. A hidden
   // card is at opacity 0 and costs no drawing; `enabled` refuses the pointer.
-  enabled: !place.hidden
+  enabled: !place.hidden && !place.leaving
 
   // BorderSurface keeps gradients and per-side border widths; content below is
   // inset by those exact widths.
@@ -229,6 +227,15 @@ Item {
     color: Commons.Color.notifications.background
     borderSpec: Border.surfaceSpec("notifications", "border", Commons.Color.notifications.border,
                                    Math.max(1, Style.space(2)))
+  }
+
+  // The keyboard's card is tinted with the theme's hover fill, buttons and all.
+  Rectangle {
+    anchors.fill: plate
+    anchors { leftMargin: plate.borderLeft; rightMargin: plate.borderRight
+              topMargin: plate.borderTop; bottomMargin: plate.borderBottom }
+    visible: card.selected
+    color: Style.hoverFillFor(Commons.Color.notifications.text, Commons.Color.accent)
   }
 
   Item {
@@ -428,11 +435,11 @@ Item {
             anchors.verticalCenter: title.verticalCenter
             spacing: Style.space(5)
 
-            // The time and the hover controls (snooze, close) share one
-            // square and crossfade, so nothing in the headline moves.
+            // The time and the hover close mark share one square and
+            // crossfade, so nothing in the headline moves.
             Item {
-              width: Math.max(stamp.implicitWidth, controls.implicitWidth)
-              height: Math.max(stamp.implicitHeight, controls.implicitHeight)
+              width: Math.max(stamp.implicitWidth, shut.implicitWidth)
+              height: Math.max(stamp.implicitHeight, shut.implicitHeight)
               anchors.verticalCenter: parent.verticalCenter
 
               Text {
@@ -445,70 +452,35 @@ Item {
                 visible: opacity > 0.01
                 font.family: Style.font.family
                 font.pixelSize: Style.font.bodySmall
-                Behavior on opacity { NumberAnimation { duration: card.fade } }
+                Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
               }
 
-              Row {
-                id: controls
+              Item {
+                id: shut
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
+                implicitWidth: closeMark.implicitWidth + Style.space(6)
+                implicitHeight: closeMark.implicitHeight
                 enabled: card.hovered
                 opacity: card.hovered ? 1 : 0
                 visible: opacity > 0.01
-                Behavior on opacity { NumberAnimation { duration: card.fade } }
+                readonly property bool hot: card.pointerOver(shut)
+                Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
 
-                // Opens the snooze choices, as a right-click does.
-                Item {
-                  id: nap
-                  anchors.verticalCenter: parent.verticalCenter
-                  implicitWidth: napMark.implicitWidth + Style.space(6)
-                  implicitHeight: napMark.implicitHeight
-                  readonly property bool hot: card.pointerOver(nap)
-
-                  Text {
-                    id: napMark
-                    anchors.centerIn: parent
-                    textFormat: Text.PlainText
-                    text: "\u{f04b2}"
-                    color: nap.hot || card.menuOpen ? Commons.Color.notifications.text : card.dimColor
-                    font.family: Style.font.family
-                    font.pixelSize: Math.round(Style.font.caption * 1.44)
-                  }
-
-                  MouseArea {
-                    anchors.fill: parent
-                    anchors.margins: -Style.space(3)
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: card.menuOpen = !card.menuOpen
-                  }
+                Text {
+                  id: closeMark
+                  anchors.centerIn: parent
+                  textFormat: Text.PlainText
+                  text: "✕"
+                  color: shut.hot ? Commons.Color.notifications.text : card.dimColor
+                  font.pixelSize: Math.round(Style.font.caption * 1.44)
                 }
 
-                Item {
-                  id: shut
-                  anchors.verticalCenter: parent.verticalCenter
-                  implicitWidth: closeMark.implicitWidth + Style.space(6)
-                  implicitHeight: closeMark.implicitHeight
-                  readonly property bool hot: card.pointerOver(shut)
-
-                  Text {
-                    id: closeMark
-                    anchors.centerIn: parent
-                    textFormat: Text.PlainText
-                    text: "✕"
-                    color: shut.hot ? Commons.Color.notifications.text : card.dimColor
-                    font.pixelSize: Math.round(Style.font.caption * 1.44)
-                  }
-
-                  MouseArea {
-                    anchors.fill: parent
-                    anchors.margins: -Style.space(3)
-                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: function(mouse) {
-                      if (mouse.button === Qt.RightButton) card.menuOpen = !card.menuOpen
-                      else card.dismissed()
-                    }
-                  }
+                MouseArea {
+                  anchors.fill: parent
+                  anchors.margins: -Style.space(3)
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: card.dismissed()
                 }
               }
             }
@@ -541,87 +513,67 @@ Item {
           maximumLineCount: card.bodyLines
           elide: Text.ElideRight
           // Second gate: Markup already drops anchors it will not vouch for.
-          onLinkActivated: function(url) { Security.openExternalUrl(url) }
+          onLinkActivated: function(url) { card.linkOpened(); Security.openExternalUrl(url) }
         }
       }
     }
 
-    // The space under the body does one job at a time: the snooze choices or
-    // the button row, drawn in the card because the surface is clipped. The
-    // row shows only under the pointer in an open deck. It spans the content
-    // under the mark too, and keeps the side padding below it.
+    // The buttons, as a bar along the card's bottom edge: a hairline above,
+    // equal segments split by hairlines, three to a line, and a short last line
+    // stretched across. Drawn in the card because the surface is clipped. In
+    // an open deck only the card under the pointer, or the keyboard, has them;
+    // otherwise the front card of each deck does.
     Item {
       id: deedArea
       anchors { left: parent.left; right: parent.right; bottom: parent.bottom
-                leftMargin: plate.contentLeftInset + Style.space(12)
-                rightMargin: plate.contentRightInset + Style.space(12)
-                bottomMargin: plate.contentBottomInset + Style.space(12) }
+                leftMargin: plate.borderLeft; rightMargin: plate.borderRight
+                bottomMargin: plate.borderBottom }
 
-      readonly property string mode: card.menuOpen ? "menu"
-                                   : (card.hovered && card.expanded
-                                      && card.allDeeds.length > 0) ? "row" : ""
-
-      readonly property real contentHeight: mode === "menu" ? menuRow.implicitHeight
-                                          : mode === "row" ? deedRow.implicitHeight : 0
+      readonly property bool shown: card.allDeeds.length > 0 && (card.expanded ? card.hovered : card.place.front)
+      readonly property int columns: Math.max(1, Math.min(3, card.allDeeds.length))
+      readonly property int rows: Math.ceil(card.allDeeds.length / columns)
+      readonly property real rule: 1
+      readonly property color ruleColor: Qt.rgba(card.dimColor.r, card.dimColor.g, card.dimColor.b, 0.35)
+      readonly property real segmentHeight: Style.spacing.controlHeight + Style.space(6)
+      readonly property real barHeight: rows * (rule + segmentHeight)
       // What the state asks for; the drawn height is whatever slack the
-      // scene has given the card so far. The card already pads its text at
-      // the bottom; extraPadding tops that up to the side padding.
-      readonly property real extraPadding: Style.space(12) - card.contentPaddingY
-      readonly property real wanted: mode === "" ? 0 : contentHeight + Style.space(10) + extraPadding
-      height: Math.max(0, card.drawnHeight - card.fixedHeight - extraPadding)
+      // scene has given the card so far.
+      readonly property real wanted: shown ? barHeight : 0
+      height: Math.max(0, card.drawnHeight - card.fixedHeight)
       visible: height > 0
       clip: true
 
-      // Right-aligned and wrapping: laid out right to left over the reversed
-      // list, so one line still reads in order.
-      Flow {
+      Item {
         id: deedRow
         anchors.bottom: parent.bottom
         width: parent.width
-        layoutDirection: Qt.RightToLeft
-        spacing: Style.space(6)
-        opacity: deedArea.mode === "row" ? 1 : 0
+        height: deedArea.barHeight
+        opacity: deedArea.shown ? 1 : 0
         visible: opacity > 0.01
-        Behavior on opacity { NumberAnimation { duration: card.fade } }
+        Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
 
         Repeater {
-          model: card.allDeeds.slice().reverse()
+          model: card.allDeeds
           DeedButton {
             required property var modelData
+            required property int index
+            readonly property int line: Math.floor(index / deedArea.columns)
+            readonly property int slot: index % deedArea.columns
+            readonly property int perLine: line < deedArea.rows - 1 ? deedArea.columns
+                                           : card.allDeeds.length - line * deedArea.columns
+            // Where the segment starts in reading order; the first action
+            // sits on the right in a right-to-left language.
+            readonly property real start: Math.round(slot * deedRow.width / perLine)
             deed: modelData
             toast: card
-          }
-        }
-      }
-
-      // The snooze choices, on one line: "Snooze" and its buttons.
-      Flow {
-        id: menuRow
-        anchors.bottom: parent.bottom
-        width: parent.width
-        spacing: Style.space(6)
-        opacity: deedArea.mode === "menu" ? 1 : 0
-        visible: opacity > 0.01
-        Behavior on opacity { NumberAnimation { duration: card.fade } }
-
-        Text {
-          textFormat: Text.PlainText
-          // As tall as the buttons beside it, so the word sits centred.
-          height: snoozeChoices.count ? snoozeChoices.itemAt(0).height : implicitHeight
-          verticalAlignment: Text.AlignVCenter
-          text: I18n.t("notifications.snooze")
-          color: card.bodyColor
-          font.family: Style.font.family
-          font.pixelSize: Style.font.body
-        }
-
-        Repeater {
-          id: snoozeChoices
-          model: card.menuOpen ? card.menuDeeds : []
-          DeedButton {
-            required property var modelData
-            deed: modelData
-            toast: card
+            hint: card.selected && index < 9 ? String(index + 1) : ""
+            rule: deedArea.rule
+            ruleColor: deedArea.ruleColor
+            leftRule: slot > 0
+            width: Math.round((slot + 1) * deedRow.width / perLine) - start
+            x: card.LayoutMirroring.enabled ? deedRow.width - start - width : start
+            y: line * (deedArea.rule + deedArea.segmentHeight)
+            height: deedArea.rule + deedArea.segmentHeight
           }
         }
       }
@@ -638,11 +590,8 @@ Item {
       cursorShape: Qt.PointingHandCursor
 
       onClicked: function(mouse) {
-        if (mouse.button === Qt.RightButton) { card.menuOpen = !card.menuOpen; return }
-        // The surface takes no keyboard focus, so a click is the way out of the menu.
-        if (card.menuOpen) { card.menuOpen = false; return }
-        if (mouse.button === Qt.MiddleButton) card.dismissed()
-        else card.activated()
+        if (mouse.button === Qt.LeftButton) card.activated()
+        else card.dismissed()
       }
     }
   }

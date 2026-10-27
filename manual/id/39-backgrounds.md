@@ -1,15 +1,15 @@
 # Latar Belakang
 
-Setiap tema dilengkapi dengan rangkaian latar belakangnya sendiri, dan kamu bisa menambahkan tambahan milikmu sendiri di `~/.config/omarchy/backgrounds/[theme]`. Jika kamu ingin menambahkan gambar latar belakang tambahan ke, misalnya, tema nord, kamu cukup meletakkan berkasnya di `~/.config/omarchy/backgrounds/nord`.
+Setiap tema dilengkapi dengan set latar belakangnya sendiri, dan Anda bisa menambahkan latar belakang tambahan milik Anda sendiri di `~/.config/omarchy/backgrounds/[theme]`. Jika Anda ingin menambahkan gambar latar belakang tambahan ke, misalnya, tema nord, Anda cukup meletakkan file tersebut di `~/.config/omarchy/backgrounds/nord`.
 
-Cara termudah melakukannya adalah dengan pergi ke _Pasang > Gaya > Latar Belakang_ di Menu Omarchy. Itu akan menampilkan folder tempat latar belakang untuk tema itu disimpan. Tekan `Super + Shift + F` untuk memulai pengelola berkas lain, temukan latar belakangmu, salin ke sana.  Sekarang itu akan disertakan dalam pilihan latar belakang yang bisa kamu pilih menggunakan `Super + Ctrl + Space`.
+Cara termudah untuk melakukannya adalah dengan membuka _Instal > Gaya > Latar Belakang_ di Omarchy Menu. Itu akan membuka folder tempat latar belakang untuk tema tersebut disimpan. Tekan `Super + Shift + F` untuk membuka file manager lain, temukan latar belakang Anda, lalu salin ke folder tersebut. Sekarang latar belakang itu akan tersedia dalam pilihan latar belakang yang bisa Anda pilih menggunakan `Super + Ctrl + W`.
 
-Latar belakang bisa berupa video maupun gambar diam. Letakkan berkas `mp4`, `m4v`, `mov`, `webm`, `mkv`, atau `avi` di folder yang sama dan itu akan muncul di samping gambar-gambar. Video diputar oleh mesin wallpaper OWE. Ia mendekode video sekali untuk semua monitor dan memutar suaranya melalui keluaran audio bawaan, dan ia menghentikan pemutaran setiap kali tidak ada yang bisa melihatnya. Layar kunci menggambar hasil dekode yang sama, tanpa suara, melalui OWE. Wallpaper video tetap menghabiskan daya jauh lebih banyak daripada yang diam.
+Latar belakang juga bisa berupa video, bukan hanya gambar diam. Letakkan file `mp4`, `m4v`, `mov`, `webm`, `mkv`, atau `avi` di folder yang sama dan file tersebut akan muncul bersama gambar-gambar lainnya. Video diputar oleh mesin wallpaper OWE. Mesin ini mendekode video satu kali untuk semua monitor dan memutar suaranya melalui output audio default, serta menghentikan pemutaran setiap kali tidak ada yang bisa melihatnya. Latar belakang video tetap mengonsumsi daya jauh lebih besar daripada latar belakang diam.
 
-Tema bisa menyertakan intro singkat untuk latar belakang diam. Untuk `backgrounds/road.webp`, video yang cocok berada di `backgrounds/intros/road.mp4`. Ia diputar otomatis saat boot dan saat beralih ke tema dengan latar belakang itu terpilih, lalu kembali ke gambar diam. Video intro tidak muncul di pemilih latar belakang dan tidak pernah berulang.
+Tema bisa menyertakan intro pendek untuk latar belakang diam. Untuk `backgrounds/road.webp`, video yang sesuai berada di `backgrounds/intros/road.mp4`. Video ini diputar otomatis saat boot dan saat beralih ke tema dengan latar belakang tersebut terpilih, lalu kembali ke gambar diam. Video intro tidak muncul di pemilih latar belakang dan tidak pernah berputar ulang.
 
-Mematikan _Pemicu > Tampilan > Animasi_ juga mematikan intro latar belakang. Omarchy melakukan ini secara bawaan di mesin virtual. Perintah `omarchy theme bg intro toggle` bisa mengalihkan intro secara terpisah. Menyegarkan tema atau memilih latar belakang lain dalam tema yang sama tidak memutar intro.
+Mematikan _Tampilan > Animasi_ juga akan mematikan intro latar belakang. Omarchy melakukan ini secara default di mesin virtual. Perintah `omarchy theme bg intro toggle` bisa mengaktifkan atau menonaktifkan intro secara terpisah. Menyegarkan tema atau memilih latar belakang lain dalam tema yang sama tidak akan memutar intro.
 
-Kamu bisa menemukan koleksi besar latar belakang keren yang terkurasi di https://github.com/dharmx/walls.
+Anda bisa menemukan koleksi besar latar belakang keren yang telah dikurasi di [dharmx/walls](https://github.com/dharmx/walls).
 
-Latar belakang video menyimpan gambar diam yang di-cache di layar kunci saat pemutaran dijeda atau tidak tersedia. GIF animasi diputar di desktop dan menunjukkan bingkai diam di layar kunci.
+Layar kunci menampilkan frame diam dari latar belakang video, sama seperti ia menampilkan frame diam dari GIF animasi.
