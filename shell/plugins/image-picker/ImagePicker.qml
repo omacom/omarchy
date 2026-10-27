@@ -55,6 +55,13 @@ Item {
   property color foreground: Commons.Color.imagePicker.text
   property color selectedBorder: Commons.Color.imagePicker.selectedBorder
   property color unselectedBorder: Commons.Color.imagePicker.unselectedBorder
+  // Text around the carousel sits on a pill of the theme background,
+  // so it reads over any wallpaper. The theme's picker text color is kept when
+  // it reaches 4.5:1 (WCAG AA) on that pill; older and light themes whose text
+  // color does not fall back to black or white, whichever contrasts more.
+  property color labelPill: Qt.rgba(dimColor.r, dimColor.g, dimColor.b, 0.9)
+  property color labelText: contrast(foreground, dimColor) >= 4.5 ? foreground
+    : (contrast(Qt.rgba(0, 0, 0, 1), dimColor) >= contrast(Qt.rgba(1, 1, 1, 1), dimColor) ? "black" : "white")
   property int expandedWidth: 768
   property int expandedHeight: 475
   property int sliceWidth: 108
@@ -168,6 +175,16 @@ Item {
         return
       }
     }
+  }
+
+  function luminance(c) {
+    function channel(v) { return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4) }
+    return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b)
+  }
+
+  function contrast(a, b) {
+    var la = luminance(a), lb = luminance(b)
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
   }
 
   function updateFilter(nextFilterText) {
@@ -860,13 +877,21 @@ Item {
           anchors.horizontalCenter: carousel.horizontalCenter
           width: root.expandedWidth
           text: root.currentLabel()
-          color: root.foreground
-          style: Text.Outline
-          styleColor: Util.alpha(root.dimColor, 0.7)
+          color: root.labelText
           font.pixelSize: Style.font.display
           font.weight: Font.DemiBold
           horizontalAlignment: Text.AlignHCenter
           elide: Text.ElideRight
+
+          Rectangle {
+            z: -1
+            visible: parent.text !== ""
+            anchors.centerIn: parent
+            width: parent.contentWidth + Style.space(24)
+            height: parent.contentHeight + Style.space(8)
+            radius: height / 2
+            color: root.labelPill
+          }
         }
 
         Text {
@@ -877,13 +902,20 @@ Item {
           anchors.horizontalCenter: carousel.horizontalCenter
           width: root.expandedWidth
           text: root.filterText
-          color: root.foreground
-          opacity: 0.85
-          style: Text.Outline
-          styleColor: Util.alpha(root.dimColor, 0.7)
+          color: root.labelText
           font.pixelSize: Style.font.title
           horizontalAlignment: Text.AlignHCenter
           elide: Text.ElideRight
+
+          Rectangle {
+            z: -1
+            visible: parent.text !== ""
+            anchors.centerIn: parent
+            width: parent.contentWidth + Style.space(24)
+            height: parent.contentHeight + Style.space(8)
+            radius: height / 2
+            color: root.labelPill
+          }
         }
     }
 
