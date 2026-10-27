@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Kasutaja"
   },
-  "system.reboot-boot-menu": {
-    "label": "Taaskäivita alglaadimismenüüsse"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Kuva aku %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Peida aku %"
+  },
+  "appearance.windows": {
+    "label": "Aknad"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Aknavahed sees"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Aknavahed väljas"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-akna suhe sees"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-akna suhe väljas"
+  },
+  "appearance.branding": {
+    "label": "Bränding"
+  },
+  "appearance.animations-on": {
+    "label": "Animatsioonid sees"
+  },
+  "appearance.animations-off": {
+    "label": "Animatsioonid väljas"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Püsi ärkvel"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Luba unerežiim"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Teavitused sees"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Vaigista teavitused"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Öövalgus sees"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Öövalgus väljas"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Ekraanisäästja sees"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Ekraanisäästja väljas"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Krahhi jäädvustus sees"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Krahhisalvestus väljas"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Sülearvuti ekraan sees"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Sülearvuti ekraan väljas"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Ekraani peegeldus sees"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Ekraani peegeldus väljas"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Lülitu hübriid-GPU-le"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Lülitu integreeritud GPU-le"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Luba puuteplaat"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Keela puuteplaat"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Luba puuteekraan"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Keela puuteekraan"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Tuum"
   }
 }

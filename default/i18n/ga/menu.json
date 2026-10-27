@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Úsáideoir"
   },
-  "system.reboot-boot-menu": {
-    "label": "Atosaigh go roghchlár tosaithe"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Taispeáin % Ceallra"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Folaigh % Ceallra"
+  },
+  "appearance.windows": {
+    "label": "Fuinneoga"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Bearnaí Fuinneoge Ar"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Bearnaí Fuinneoge As"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Cóimheas 1-Fhuinneog Ar"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Cóimheas 1-Fhuinneog As"
+  },
+  "appearance.branding": {
+    "label": "Brandáil"
+  },
+  "appearance.animations-on": {
+    "label": "Beochan Ar"
+  },
+  "appearance.animations-off": {
+    "label": "Beochan As"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Fan Dúisithe"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Ceadaigh Codladh"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Fógraí Ar"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Ciúnaigh Fógraí"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Solas Oíche Ar"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Solas Oíche As"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Spárálaí Scáileáin Ar"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Spárálaí Scáileáin As"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Gabháil Tuairteála Ar"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Gabháil Tuairteála As"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Taispeáint Ríomhaire Glúine Ar"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Taispeáint Ríomhaire Glúine As"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Scáthánú Taispeána Ar"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Scáthánú Taispeána As"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Athraigh go GPU Hibrideach"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Athraigh go GPU Comhtháite"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Cumasaigh Ceap Tadhaill"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Díchumasaigh Ceap Tadhaill"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Cumasaigh Scáileán Tadhaill"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Díchumasaigh Scáileán Tadhaill"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Eithne"
   }
 }

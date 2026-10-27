@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Utilizador"
   },
-  "system.reboot-boot-menu": {
-    "label": "Reiniciar para o menu de arranque"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Mostrar % da bateria"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Ocultar % da bateria"
+  },
+  "appearance.windows": {
+    "label": "Janelas"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Espaçamento entre janelas ativado"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Espaçamento entre janelas desativado"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Proporção de 1 janela ativada"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Proporção de 1 janela desativada"
+  },
+  "appearance.branding": {
+    "label": "Marca"
+  },
+  "appearance.animations-on": {
+    "label": "Animações ativadas"
+  },
+  "appearance.animations-off": {
+    "label": "Animações desativadas"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Manter acordado"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Permitir suspensão"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Notificações ativadas"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Silenciar notificações"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Luz noturna ativada"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Luz noturna desativada"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Proteção de ecrã ativada"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Proteção de ecrã desativada"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Captura de falhas ativada"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Desativar Captura de Falhas"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Ativar Ecrã do Portátil"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Desativar Ecrã do Portátil"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Ativar Espelhamento do Ecrã"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Desativar Espelhamento do Ecrã"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Mudar para GPU Híbrida"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Mudar para GPU Integrada"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Ativar Painel Tátil"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Desativar Painel Tátil"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Ativar Ecrã Tátil"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Desativar Ecrã Tátil"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
   }
 }

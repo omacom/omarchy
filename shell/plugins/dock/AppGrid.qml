@@ -175,7 +175,10 @@ Item {
       color: Commons.Color.menu.scrim
       opacity: root.dragging ? 0 : 1
 
-      Behavior on opacity { NumberAnimation { duration: 150 } }
+      Behavior on opacity {
+        id: scrimFade
+        NumberAnimation { duration: Style.duration(scrimFade.targetValue > 0 ? 150 : 100); easing.type: Easing.OutCubic }
+      }
     }
 
     MouseArea {
@@ -198,7 +201,10 @@ Item {
       padding: root.contentMargin
       opacity: root.dragging ? 0 : 1
 
-      Behavior on opacity { NumberAnimation { duration: 150 } }
+      Behavior on opacity {
+        id: cardFade
+        NumberAnimation { duration: Style.duration(cardFade.targetValue > 0 ? 150 : 100); easing.type: Easing.OutCubic }
+      }
 
       MouseArea {
         anchors.fill: parent

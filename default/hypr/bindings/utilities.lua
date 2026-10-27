@@ -21,11 +21,12 @@ o.bind("SUPER + CTRL + BACKSPACE", "Toggle single-window square aspect", "omarch
 o.bind_toggle("SUPER + CTRL + ALT + F", "Toggle full screen desktop", "fullscreen-desktop")
 
 -- xkbcommon names the comma keysym "comma"; the upper-case "COMMA" does not match.
-o.bind("SUPER + comma", "Dismiss last notification", { ipc = "notifications.dismissOne" })
+o.bind("SUPER + comma", "Dismiss, invoke, or focus last notification", { ipc = "notifications.act" })
 o.bind("SUPER + SHIFT + comma", "Dismiss all notifications", { ipc = "notifications.dismissAll" })
-o.bind_toggle("SUPER + CTRL + comma", "Toggle silencing notifications", "notification-silencing")
-o.bind("SUPER + ALT + comma", "Invoke last notification", { ipc = "notifications.invokeLast" })
+o.bind("SUPER + CTRL + comma", "Control notifications with the keyboard", { ipc = "notifications.keyboard" })
+o.bind("SUPER + ALT + comma", "Dismiss last notification", { ipc = "notifications.dismissOne" })
 o.bind("SUPER + SHIFT + ALT + comma", "Open notification history", { ipc = "notifications.showHistory" })
+o.bind_toggle("SUPER + CTRL + ALT + comma", "Toggle silencing notifications", "notification-silencing")
 
 o.bind_toggle("SUPER + CTRL + I", "Toggle locking on idle", "idle")
 o.bind("SUPER + CTRL + Delete", "Toggle laptop display", "omarchy-hyprland-monitor-internal toggle")

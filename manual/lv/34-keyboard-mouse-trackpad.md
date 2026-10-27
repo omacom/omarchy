@@ -1,8 +1,8 @@
 # Tastatūra, pele, skārienpaliktnis
 
-Hyprland ļauj visas savas ievades konfigurēt ļoti detalizēti. Tastatūras atkārtošanos var nomainīt uz virsskaņas ātru vai likt skārienpaliktnim izmantot dabisko ritināšanu. Visu to maināt failā `~/.config/hypr/input.lua`, kuram var piekļūt arī caur Omarchy izvēlnes (`Super + Space`) sadaļu _Iestatīšana > Input_. Viss, ko tur iestatāt, aizstāj Omarchy noklusējumus.
+Hyprland ļauj ļoti detalizēti konfigurēt visas ievades ierīces. Varat iestatīt tastatūras atkārtošanos virsskaņas ātrumā vai likt skārienpaliktnim izmantot dabisko ritināšanu. Visu to maināt failā `~/.config/hypr/input.lua`, kuram varat piekļūt arī caur _Iestatīšana > Ievade_ Omarchy izvēlnē (`Super + Space`). Viss, ko tur iestatāt, aizstāj Omarchy noklusējumus.
 
-Šeit ir piemērs:
+Lūk, piemērs:
 
 ```lua
 hl.config({
@@ -35,9 +35,9 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-Visas ievades iespējas varat [skatīt Hyprland wiki par ievadēm](https://wiki.hypr.land/Configuring/Basics/Variables/#input).
+Varat [skatīt visas ievades opcijas](https://wiki.hypr.land/Configuring/Basics/Variables/#input) Hyprland wiki lapā par ievadēm.
 
-CapsLock darbojas kā parasts Caps Lock, bet `Shift + CapsLock` ir salikšanas taustiņš [ātrajām emocijzīmēm](07-hotkeys.md#quick-emojis) un [citiem papildinājumiem](07-hotkeys.md#quick-completions). Ja labprātāk salikšanas taustiņu gribat citviet, parametrā `kb_options` aizstājiet `omarchy:shift_caps_compose`. Piemēram, šis salikšanas taustiņu pārvieto uz Right Alt:
+CapsLock darbojas kā parasts Caps Lock, un `Shift + CapsLock` ir compose taustiņš [ātrajiem emoji](07-hotkeys.md#quick-emojis) un [citām pabeigšanām](07-hotkeys.md#quick-completions). Ja compose taustiņu vēlaties citur, `kb_options` aizstājiet `omarchy:shift_caps_compose`. Piemēram, šis pārvieto compose taustiņu uz Right Alt:
 
 ```lua
 hl.config({
@@ -49,31 +49,31 @@ hl.config({
 
 ### Skārienpaliktņa žesti
 
-Varat ieslēgt arī [skārienpaliktņa žestus](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), piemēram, pavilkt ar trim pirkstiem, lai mainītu darbvietas:
+Varat arī ieslēgt [skārienpaliktņa žestus](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), piemēram, vilkšanu ar trim pirkstiem, lai mainītu darbvietas:
 
 ```lua
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 ```
 
-Dell XPS klēpjdatoros ar haptisko skārienpaliktni klikšķa spēku uz zemu, vidēju vai augstu var iestatīt arī sadaļā _Palaist > Hardware > Touchpad Haptics_.
+Dell XPS klēpjdatoros ar haptisko skārienpaliktni klikšķa stiprumu varat iestatīt uz zemu, vidēju vai augstu sadaļā _Trigger > Hardware > Touchpad Haptics_.
 
 ### Rakstīšana ķīniešu, japāņu un citās valodās
 
-Kad instalētājs prasa jūsu tastatūru, atlasiet japāņu, korejiešu, ķīniešu (vienkāršotā, Pinyin) vai ķīniešu (tradicionālā, Zhuyin) valodu. Omarchy tastatūru un atbilstošu ievades dzinēju konfigurē automātiski, arī bezsaistes pirmās palaišanas iestatīšanas laikā. Japāņu valoda izmanto Mozc, korejiešu valoda izmanto standarta divu kopu Hangul, vienkāršotā ķīniešu valoda izmanto Pinyin, bet tradicionālā ķīniešu valoda izmanto Chewing standarta Zhuyin izkārtojumu. Japanese (US keyboard) nodrošina Mozc ar ASV tastatūras izkārtojumu.
+Izvēlieties japāņu, korejiešu, ķīniešu (vienkāršotā, Pinyin), Taivānas (Zhuyin) vai Honkongas (Cangjie), kad instalētājs prasa jūsu tastatūru. Omarchy automātiski konfigurē tastatūru un atbilstošo ievades dzinēju, tostarp bezsaistes pirmās palaišanas iestatīšanas laikā. Japāņu valodai tiek izmantots Mozc, korejiešu valodai — standarta divu komplektu Hangul, vienkāršotajai ķīniešu valodai — Pinyin, Taivānai — Chewing standarta Zhuyin izkārtojums, bet Honkongai — Cangjie ar Honkongas rakstzīmju formām. Japāņu (US keyboard) nodrošina Mozc ar US tastatūras izkārtojumu. Hangul, Zhuyin un Cangjie taustiņi paliek savās standarta vietās pat tad, ja latīņu burtus rakstāt ar Dvorak, Colemak vai AZERTY. Ja Hangul vai Chewing pievienojāt pirms tam, noņemiet tā atlasi un atlasiet to no jauna sadaļā _Iestatīšana > Rakstīšana > Ievades metodes_, lai pārvietotu tā taustiņus tur; Omarchy dzinēju, ar kuru jau rakstāt, atstāj mierā.
 
-Rakstīšana sākas latīņu režīmā. Nospiediet `Super + I`, lai cikliski ietu caur konfigurētajām ievades metodēm, un `Super + Shift + I`, lai cikliski atgrieztos. Uzspiediet tikai uz `Shift`, lai no tādas ievades metodes kā Pinyin izkāptu latīņu burtiem, un uzspiediet vēlreiz, lai atgrieztos atpakaļ — tieši tā, kā darbojas Sogou, Microsoft Pinyin un macOS; `Shift` plus burts joprojām ieraksta lielo burtu. Japāņu tastatūrās 全角/半角 pārslēdz ievadi, 変換 to ieslēdz, bet 無変換 to izslēdz. Korejiešu tastatūras izkārtojumā tam paredzētie taustiņi 한/영 un 한자 pārslēdz Hangul un pārveido uz Hanja. `Ctrl + Space` paliek pieejams priekš Tmux un Herdr; `Shift + CapsLock` paliek salikšanas taustiņš.
+Rakstīšana sākas latīņu režīmā. Nospiediet `Super + I`, lai pārslēgtos cauri konfigurētajām ievades metodēm, un `Super + Shift + I`, lai pārslēgtos atpakaļ. Pieskarieties atsevišķi taustiņam `Shift`, lai izietu no tādas ievades metodes kā Pinyin uz latīņu burtiem, un pieskarieties tam vēlreiz, lai atgrieztos, tāpat kā darbojas Sogou, Microsoft Pinyin un macOS; `Shift` plus burts joprojām raksta lielo burtu. Japāņu tastatūrās 全角/半角 pārslēdz ievadi, 変換 to ieslēdz un 無変換 to izslēdz. Ar korejiešu valodu 한/영 pārslēdz Hangul un 한자 pārveido par Hanja neatkarīgi no tā, vai jūsu tastatūrai ir īpaši taustiņi vai tā tiem sūta Right Alt un Right Ctrl, kā to dara daudzi klēpjdatori, tāpēc Right Alt un Right Ctrl tur nav parasti modifikatori; diktēšanas push-to-talk paliek uz F9. `Ctrl + Space` paliek pieejams Tmux un Herdr; `Shift + CapsLock` paliek compose taustiņš.
 
-Tastatūras rādītājs parādās joslas labajā pusē, kad jums ir vairāki tastatūras izkārtojumi vai ievades metodes. Noklikšķiniet uz tā, lai pārslēgtu ievades valodas; japāņu valodā hiraganai tiek attēlots あ. Japāņu rakstu zīmju izvēlei pārslēdzieties uz japāņu valodu, ierakstiet tādu vārdu kā `nihongo`, pēc tam divreiz nospiediet Space. Nospiediet Enter, lai savu izvēli pieņemtu. Ja jums ir arī vairāki tastatūras izkārtojumi, ar labo pogu noklikšķiniet uz rādītāja, lai tos cikliski pārslēgtu.
+Tastatūras indikators parādās joslas labajā pusē, kad jums ir vairāki tastatūras izkārtojumi vai ievades metodes. Noklikšķiniet uz tā, lai pārslēgtu ievades valodas; japāņu valodai hiraganai tiek rādīts あ. Japāņu rakstzīmju izvēlēm pārslēdzieties uz japāņu valodu, ierakstiet tādu vārdu kā `nihongo`, pēc tam divreiz nospiediet Space. Nospiediet Enter, lai apstiprinātu savu izvēli. Ja jums ir arī vairāki tastatūras izkārtojumi, ar labo pogu noklikšķiniet uz indikatora, lai pārslēgtos cauri tiem.
 
-Izmantojiet _Iestatīšana > Typing > Keyboard Layouts_, lai atlasītu tādus izkārtojumus kā angļu un franču, no tām pašām izvēlēm, kas piedāvātas instalēšanas laikā. Izmantojiet _Iestatīšana > Typing > Input Methods_, lai atlasītu, kuri salikšanas dzinēji ir aktīvi. Abi atlasītāji atveras Omarchy izvēlnes iekšienē ar jūsu pašreizējām atzīmētajām izvēlēm. Noklikšķiniet vai nospiediet Enter, lai izvēli pārslēgtu; katra izmaiņa stājas spēkā nekavējoties. Ievades metodes atlases noņemšana to no cikla izņem, to neatinstalējot; tastatūra paliek pieejama.
+Izmantojiet _Iestatīšana > Rakstīšana > Tastatūras izkārtojumi_, lai atlasītu tādus izkārtojumus kā angļu un franču valoda no tām pašām izvēlēm, kas tiek piedāvātas instalēšanas laikā. Izmantojiet _Iestatīšana > Rakstīšana > Ievades metodes_, lai atlasītu, kuri kompozīcijas dzinēji ir aktīvi. Abi atlasītāji atveras Omarchy izvēlnē ar jūsu pašreizējām izvēlēm atzīmētām. Noklikšķiniet vai nospiediet Enter, lai pārslēgtu izvēli; katra izmaiņa tiek piemērota nekavējoties. Ievades metodes atlases noņemšana to izņem no cikla, to neatinstalējot; tastatūra paliek pieejama.
 
-Palaidiet `omarchy setup keyboard` vai `omarchy setup input`, lai atvērtu tādus pašus atlasītājus. Lai no komandrindas pievienotu vienu valodu, izmantojiet `omarchy setup input mozc`, `hangul`, `pinyin` vai `chewing`. Jūsu pielāgotie pārslēgšanas taustiņi tiek saglabāti. Alternatīviem dzinēja izkārtojumiem vai taustiņiem instalējiet `fcitx5-configtool` ar `omarchy pkg add fcitx5-configtool` un palaidiet to no termināļa. Ievades valodas atlase darbvirsmas valodu nemaina.
+Palaidiet `omarchy setup keyboard` vai `omarchy setup input`, lai atvērtu tos pašus atlasītājus. Lai no komandrindas pievienotu vienu valodu, izmantojiet `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` vai `cangjie5`. Quick, Boshiamy un Array nāk tajā pašā pakotnē ar Cangjie un parādās Input Methods atlasītājā. Jūsu pielāgotie pārslēgšanas taustiņi tiek saglabāti. Alternatīviem dzinēja izkārtojumiem vai taustiņiem instalējiet `fcitx5-configtool` ar `omarchy pkg add fcitx5-configtool` un palaidiet to no termināļa. Ievades valodas atlasīšana nemaina darbvirsmas valodu. Izvēloties japāņu, korejiešu vai ķīniešu valodu sadaļā _Iestatīšana > Valoda_, tiek pievienota tās ievades metode, ja jums vēl nav nevienas.
 
-Izmantojiet `Super + I`, lai cikliski ietu caur ievades metodēm vai tastatūras izkārtojumiem, un `Super + Shift + I`, lai ietu atpakaļ otrā virzienā, tāpēc ar trim konfigurētajiem jūs varat pārvietoties starp diviem kaimiņiem. Ievades rādītājs joslas labajā pusē parādās tikai tad, kad ir konfigurēta vairāk nekā viena ievades metode vai izkārtojums. Šī darbvirsmas saīsne darbojas līdzās jūsu esošajiem Fcitx pārslēgšanas taustiņiem; to varat pārrakstīt failā `~/.config/hypr/bindings.lua`. Ievades dzinēji un salikšanas secības izmanto [Fcitx5](https://fcitx-im.org/) pakalpojumu, kurš jau darbojas katrā sesijā.
+Izmantojiet `Super + I`, lai pārslēgtos cauri ievades metodēm vai tastatūras izkārtojumiem, un `Super + Shift + I`, lai ietu atpakaļ pretējā virzienā, tāpēc ar trim konfigurētām varat pārvietoties starp diviem kaimiņiem. Ievades indikators parādās joslas labajā pusē tikai tad, kad ir konfigurēta vairāk nekā viena ievades metode vai izkārtojums. Šī darbvirsmas saīsne darbojas līdzās jūsu esošajiem Fcitx pārslēgšanas taustiņiem; varat to pārrakstīt failā `~/.config/hypr/bindings.lua`. Ievades dzinēji un compose secības izmanto [Fcitx5](https://fcitx-im.org/) pakalpojumu, kas jau darbojas katrā sesijā.
 
-### ALT izmantošana kā SUPER vietā
+### ALT izmantošana kā SUPER
 
-Dažās tastatūrās nav ērti kā SUPER izmantot primāro meta taustiņu (Windows/cmd taustiņu). Tā vietā to uz ALT var nomainīt, izmantojot šo izmaiņu:
+Dažās tastatūrās nav ērti izmantot primāro meta taustiņu (Windows/cmd taustiņu) kā SUPER. Tā vietā varat to mainīt uz ALT, izmantojot šādas izmaiņas:
 
 ```lua
 hl.config({

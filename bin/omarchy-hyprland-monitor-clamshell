@@ -112,6 +112,12 @@ current_internal_scale() {
   hyprctl monitors all -j | jq -r --arg internal "$INTERNAL" '.[] | select(.name == $internal and .disabled != true) | .scale' | head -1
 }
 
+# Hyprland's FALLBACK stands in once nothing is left, so it is not somewhere to
+# run; a headless output is, and is invisible to the DRM check.
+other_output_enabled() {
+  hyprctl monitors all -j | jq -e --arg internal "$INTERNAL" 'any(.[]; .name != $internal and .name != "FALLBACK" and .disabled == false)' >/dev/null 2>&1
+}
+
 store_internal_scale() {
   local scale="$1"
   valid_scale "$scale" || return 0
@@ -168,9 +174,17 @@ enable_internal_output() {
   [[ -n $INTERNAL ]] || return 0
   local scale="${1:-}"
   local position
+  local enable=""
   [[ -n $scale ]] || scale=$(read_monitor_scale)
   position=$(read_monitor_position)
-  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", mode = \"preferred\", position = \"$position\", scale = $scale })" >/dev/null 2>&1 || true
+  # A panel turned off from the Display panel is a runtime rule carrying
+  # disabled = true and no flag, and an update of its mode, position and scale
+  # leaves that in force. Say disabled = false only while no external display
+  # is physically connected and no other output is enabled: that is the unplug
+  # this recovers from (#16307). Otherwise the choice to run elsewhere stands,
+  # and this is reached every two seconds by the docked poll.
+  omarchy-hw-external-monitors || other_output_enabled || enable="disabled = false, "
+  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", ${enable}mode = \"preferred\", position = \"$position\", scale = $scale })" >/dev/null 2>&1 || true
 }
 
 sync_internal_scale() {

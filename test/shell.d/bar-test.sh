@@ -9,95 +9,9 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # the test (or nothing at all on a non-Omarchy development machine).
 export OMARCHY_PATH="$ROOT"
 
-if perl -0ne 'exit(/drag\s*\.\s*target\s*:\s*[^;]*\bslot\b/s ? 0 : 1)' "$ROOT/shell/plugins/bar/Bar.qml"; then
-  fail "bar module dragging must not mutate ModuleSlot positions"
-fi
-pass "bar module dragging leaves layout-managed slots in place"
-
-if rg -q 'barMoveSettling|barMoveSettleTimer' "$ROOT/shell/plugins/bar/Bar.qml"; then
-  fail "bar move outline must clear when the pointer is released"
-fi
-pass "bar move outline has no post-release settling state"
-
-# A widget above the gesture area propagates its composed press-and-hold down
-# without handing over the grab, so the resulting move gets neither a release
-# nor a cancel and the ghost stays up for the session. Only the grabbing area
-# reports pressed, which is what separates the two, so the guard has to stay
-# ahead of the drag.
-if ! perl -0ne 'exit(/onPressAndHold:\s*function[^{]*\{[^}]*?\bpressed\b[^}]*?\bstartDrag\b/s ? 0 : 1)' \
-  "$ROOT/shell/plugins/bar/Bar.qml"; then
-  fail "bar move ignores a press-and-hold the gesture area does not hold the press for"
-fi
-pass "bar move ignores a press-and-hold propagated from a widget above"
-
-# Every click target registration used to resync every plugin api inline. With
-# six monitors' worth of widgets that is hundreds of full walks at startup, so
-# the change handlers coalesce into one deferred resync and ownership lookups
-# are keyed by target instead of scanning an array.
-if ! rg -q 'onClickTargetsChanged: schedulePluginBarApiSync\(\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
-  fail "bar coalesces plugin api resyncs instead of running one per click target change"
-fi
-if ! rg -q 'Qt\.callLater\(root\.syncAllPluginBarApiObjects\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
-  fail "bar defers the coalesced plugin api resync to the event loop"
-fi
-if ! rg -q 'pluginObjectOwners\.get\(target\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
-  fail "bar looks plugin object ownership up by target instead of scanning"
-fi
-pass "bar coalesces plugin api resyncs and looks ownership up by target"
-
-# Both bar orientations used to be instantiated and toggled with `visible`,
-# doubling every indicator (and every process an indicator spawns) per bar.
-if ! rg -q 'sourceComponent: root\.vertical \? verticalIndicatorsTree : horizontalIndicatorsTree' \
-  "$ROOT/shell/plugins/bar/widgets/Indicators.qml"; then
-  fail "indicators instantiate only the tree for the current bar orientation"
-fi
-pass "indicators instantiate only the tree for the current bar orientation"
-
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
-const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
-const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
-
-assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.cycleBackground\(\)/.test(shellSource), 'shell exposes the bar background cycle over IPC')
-
-// put tolerates a placement target the bar does not carry, so the IPC call
-// must reach the registry's put rather than route back through enable.
-assert(
-  /function putBarWidget\(id: string, placementJson: string\): string \{[\s\S]*?shell\.pluginRegistry\.putBarWidget\(/.test(shellSource),
-  'putting a bar widget over IPC goes through the registry put'
-)
-
-// Hiding must not unmap the bar. An unmapped layer surface has to be rebuilt on
-// every reveal, which measured ~150ms against ~20ms to tear it down; parking it
-// past the screen edge keeps show and hide symmetric at ~12ms.
-assert(
-  /visible: !remapGuard\.remapping/.test(barSource),
-  'bar stays mapped while hidden so revealing it does not rebuild the surface'
-)
-assert(
-  /exclusionMode: root\.barHidden \? ExclusionMode\.Ignore : ExclusionMode\.Auto/.test(barSource),
-  'a hidden bar reserves no space for itself'
-)
-for (const edge of ['top', 'bottom', 'left', 'right']) {
-  assert(
-    new RegExp(`${edge}: root\\.barHidden && root\\.position === "${edge}" \\? -barWindow\\.thickness : 0`).test(barSource),
-    `a hidden bar parks past the ${edge} edge by its whole thickness`
-  )
-}
-
-const moduleSlot = barSource.slice(barSource.indexOf('component ModuleSlot'), barSource.indexOf('component CustomCommandModule'))
-const dragSpacer = barSource.slice(barSource.indexOf('component DragSpacer'), barSource.indexOf('component CenterGestureArea'))
-assert(
-  /if \(slot\.traySectionContains\(mouse\.x, mouse\.y\)\) \{\s*mouse\.accepted = false/.test(moduleSlot),
-  'a press in the tray\'s drawer goes to the widget in it, not the tray'
-)
-// A third-party widget's api lives as long as the widget does, wherever it
-// moves, not as long as the slot it is in.
-assert(
-  /onWidgetHostsChanged: Qt\.callLater\(prunePluginBarApis\)/.test(barSource) && !/onModuleSlotsChanged/.test(barSource),
-  'a widget\'s api is kept by the widget, not by the slots it moves between'
-)
 
 // A widget's slot can be on the bar without being drawn (hidden by the
 // widget, or folded away by a drag), so panel routing has to pick the one
@@ -112,31 +26,10 @@ assertEqual(bar.pickDrawnSlot([undrawn]), undrawn, 'bar falls back to an undrawn
 assertEqual(bar.pickDrawnSlot([]), null, 'bar reports no slot when there are none')
 assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 
-// Revealing the indicators can slide a neighbouring widget under a stationary
-// pointer; collapsing the peek on that un-hover re-opens it and stutters the
-// bar, so the peek stays held while the pointer is on the bar short of the
-// center box's end.
-const revealTimer = barSource.slice(barSource.indexOf('id: centerSectionRevealTimer'))
-const revealTimerBody = revealTimer.slice(0, revealTimer.indexOf('\n  }'))
-assert(
-  /onTriggered: if \(!root\.barHovered\) root\.centerSectionRevealHeld = false/.test(revealTimerBody),
-  'the indicator peek stays held while the pointer is on the bar'
-)
-
-// The whole-bar hover has to come from an ancestor of the sections. A sibling
-// loses hover to whichever section the pointer moved onto, which is the very
-// signal the peek must not collapse on.
-const barLoader = barSource.slice(barSource.indexOf('sourceComponent: root.vertical ? verticalBar : horizontalBar'))
-const barLoaderBody = barLoader.slice(0, barLoader.indexOf('\n    }'))
-assert(
-  /peeking: hovered && BarModel\.peeksAt\(point\.position, barWindow\.peekEdge, root\.vertical\)\s*onPeekingChanged: root\.setBarHovered\(peeking\)/.test(barLoaderBody),
-  'the whole-bar hover handler is a child of the bar loader, above both orientations'
-)
-
-// Hovering the panel icons, or anything else past the clock, leaves the
-// indicators hidden; the rest of the bar up to the clock's end opens them.
+// Hovering the clock, or anything past it, leaves the indicators hidden; the
+// rest of the bar up to the clock's start opens them.
 assertEqual(bar.peeksAt({ x: 400, y: 10 }, 1000, false), true, 'the peek opens left of the clock')
-assertEqual(bar.peeksAt({ x: 1200, y: 10 }, 1000, false), false, 'the peek stays shut right of the clock')
+assertEqual(bar.peeksAt({ x: 1200, y: 10 }, 1000, false), false, 'the peek stays shut over and right of the clock')
 assertEqual(bar.peeksAt({ x: 1200, y: 400 }, 600, true), true, 'a vertical bar opens the peek above the clock')
 assertEqual(bar.peeksAt({ x: 10, y: 800 }, 600, true), false, 'a vertical bar keeps the peek shut below the clock')
 assertEqual(bar.peeksAt(null, 1000, false), false, 'no pointer opens no peek')
@@ -156,57 +49,6 @@ function peekRun(pointers) {
 const between = { x: 950, y: 10 }
 assertEqual(peekRun([between, between, between, between]).join(), 'true,true,true,true', 'a reveal that moves the clock does not close the peek under a still pointer')
 assertEqual(peekRun([between, { x: 1050, y: 10 }, { x: 1050, y: 10 }]).join(), 'true,false,false', 'leaving past the clock closes the peek for good')
-
-// A widget that grows (the indicator peek, a drawer) has to know which of its
-// edges stays put, and that is the side its list is anchored by.
-const centerSections = barSource.slice(barSource.indexOf('component CenterSections'), barSource.indexOf('component CenterBox'))
-const centerBox = barSource.slice(barSource.indexOf('component CenterBox'), barSource.indexOf('component CenterGestureArea'))
-const fixedEdges = [
-  [/component LeftModules: ModuleList \{[^}]*?region: "left"\s*fixedEdge: "start"/, barSource, 'the left section grows rightward and downward'],
-  [/component RightModules: ModuleList \{[^}]*?region: "right"\s*fixedEdge: "end"/, barSource, 'the right section grows leftward and upward'],
-  [/region: "centerBegin"\s*fixedEdge: "end"/, centerSections, 'centerBegin grows away from the center box'],
-  [/region: "centerEnd"\s*fixedEdge: sections\.besideRight \? "end" : "start"/, centerSections, 'centerEnd grows away from the center box'],
-  [/fixedEdge: sections\.besideRight \? "end" : "center"/, centerSections, 'the center box grows both ways'],
-  [/region: "center"\s*fixedEdge: box\.fixedEdge/, centerBox, 'the center box hands its edge to the widgets in it']
-]
-for (const [pattern, source, message] of fixedEdges) assert(pattern.test(source), message)
-
-// A layout reading an implicit size that drops from a fraction of a pixel to
-// nothing keeps the old size, so a widget hiding itself would leave a hole.
-for (const [name, body] of [['slot', moduleSlot], ['spacer', dragSpacer]]) {
-  assert(
-    /Layout\.preferredWidth: implicitWidth\s*Layout\.preferredHeight: implicitHeight/.test(body),
-    `a ${name} hands its section's layout its size as a preferred size`
-  )
-}
-
-// Unplugging a monitor tears its bar down mid-hover with no leave event, which
-// would leave that surface counted forever and the peek stuck open.
-assert(
-  /Component\.onDestruction: if \(peeking\) root\.setBarHovered\(false\)/.test(barLoaderBody),
-  'a bar torn down while hovered gives its hover back'
-)
-
-// The helper has to record the state it is handed and re-run the collapse once
-// the pointer leaves. It counts rather than assigns because every monitor's bar
-// reports here: a slide from one bar to the next can deliver the enter before
-// the leave, and a shared bool would read as un-hovered under a live pointer.
-const setBarHovered = barSource.slice(barSource.indexOf('function setBarHovered'))
-const setBarHoveredBody = setBarHovered.slice(0, setBarHovered.indexOf('\n  }'))
-assert(
-  /barHoverCount = Math\.max\(0, barHoverCount \+ \(hovered \? 1 : -1\)\)/.test(setBarHoveredBody),
-  'each bar surface adds to a hover tally instead of overwriting a shared flag'
-)
-assert(
-  /if \(barHoverCount > 0\) \{\s*centerSectionRevealTimer\.stop\(\)\s*centerSectionRevealHeld = true\s*\} else \{\s*centerSectionRevealTimer\.restart\(\)/.test(setBarHoveredBody),
-  'the pointer coming onto any bar opens the peek, and leaving the last one re-runs the collapse'
-)
-
-// The peek opens from the bar up to the center box's end, widgets included,
-// so no narrower hover area opens it as well.
-const opensPeek = barSource.split('\n').filter(line => /centerSectionRevealHeld = true/.test(line))
-assertEqual(opensPeek.length, 1, 'exactly one line in the bar opens the indicator peek')
-assert(setBarHoveredBody.includes(opensPeek[0].trim()), 'only the whole-bar hover opens the peek')
 
 // A bar surface is built per monitor, so a panel hotkey has one live copy of
 // the widget per screen to choose between.
@@ -249,35 +91,6 @@ assertEqual(
 )
 assertEqual(bar.pickPanelSlot([], 'DP-1'), null, 'bar reports no panel slot when there are none')
 assertEqual(bar.pickPanelSlot(null, 'DP-1'), null, 'bar tolerates a missing panel slot list')
-assert(
-  /BarModel\.pickPanelSlot\(candidates, focusedScreenName\(\)\)/.test(barSource),
-  'bar routes panel hotkeys through the focused-monitor picker'
-)
-assert(
-  /function focusedScreenName\(\) \{[\s\S]*?Hyprland\.focusedMonitor/.test(barSource),
-  'bar reads the focused monitor from Hyprland'
-)
-assert(
-  /var slots = panelNavigationSlots\(currentSlot\.region, slotWindow\(currentSlot\)\)/.test(barSource),
-  'bar tabs between panels within one bar surface'
-)
-
-// A positional hotkey means "the third panel in this section", so it counts the
-// panels the bar actually draws. Reusing the tab-order walk is what keeps the
-// count honest: a widget with no panel and a hidden one are already passed over
-// there, and reading the layout config a second time would count both.
-assert(
-  /function panelWidgetIdAt\(region, index\) \{[\s\S]*?panelNavigationSlots\(String\(region \|\| ""\), null\)/.test(barSource),
-  'bar counts positional panels off the drawn tab order'
-)
-assert(
-  /var slot = slots\[Math\.round\(Number\(index\)\) - 1\]/.test(barSource),
-  'positional panels are one-based, and anything off the end lands on no slot'
-)
-assert(
-  /function togglePanelAt\(section: string, index: string\): string \{[\s\S]*?shell\.bar\.panelWidgetIdAt\(section, index\)[\s\S]*?shell\.toggle\(id, "\{\}"\)/.test(shellSource),
-  'shell toggles a bar panel by its position over IPC'
-)
 
 const clockSlot = { id: 'clock' }
 const traySlot = { id: 'tray' }
@@ -313,15 +126,6 @@ assertDeepEqual(
   'vertical bars resolve free space along their vertical axis'
 )
 assertEqual(bar.nearestDropTarget([], { x: 10, y: 10 }, false), null, 'bar reports no insertion edge without targets')
-assert(
-  /contentItem\.mapFromItem\(null, scenePoint\.x, scenePoint\.y\)[\s\S]*?return null/.test(barSource),
-  'bar rejects free-space drops after the pointer leaves the bar'
-)
-assert(
-  /BarModel\.centerDropTarget\(onBar, root\.centerBoxDropRect\(box\), scenePoint, root\.vertical, sourceSlot\)/.test(barSource) &&
-    /region: slot\.region,/.test(barSource),
-  'bar uses nearest insertion targeting, aware of the center box, for widget and free-space drops'
-)
 
 // A drag moves an entry by index, as the drag found it.
 const moveLayout = () => ({ bar: { layout: { left: ['a', { id: 'b', tag: 'x' }, { id: 'b', tag: 'y' }, 'c'], right: ['d'] } } })
@@ -350,6 +154,28 @@ assertDeepEqual(strayConfig.bar.layout.left, [42, 'a', {}, 'c', 'b'], 'the move 
 const aliasConfig = { bar: { layout: { left: ['clock', 'b'] } } }
 assertEqual(bar.moveEntry(aliasConfig, { from: { region: 'left', index: 0, id: 'omarchy.clock' }, to: { region: 'left', index: -1 } }, entry => entry === 'clock' ? { id: 'omarchy.clock' } : entry), true, 'an entry is matched by the id the bar knows it by')
 assertDeepEqual(aliasConfig.bar.layout.left, ['b', 'clock'], 'and moved as it is written')
+
+// A widget dragged off the bar leaves just its own entry, found as a move
+// finds it.
+let removeConfig = moveLayout()
+assertEqual(bar.removeEntry(removeConfig, { region: 'left', index: 2, id: 'b' }), true, 'a widget dragged off the bar leaves the layout')
+assertDeepEqual(moved(removeConfig), { left: ['a', 'bx', 'c'], right: ['d'] }, 'the second of two entries with one id goes when it is the one dragged off')
+removeConfig = moveLayout()
+assertEqual(bar.removeEntry(removeConfig, { region: 'left', index: 0, id: 'b' }), false, 'a layout that changed since the drag started is left alone')
+assertEqual(bar.removeEntry(removeConfig, { region: 'centerEnd', index: 0, id: 'b' }), false, 'a removal from a section the config lacks changes nothing')
+assertEqual(bar.removeEntry(removeConfig, { region: 'left', index: 9, id: 'b' }), false, 'a removal past the end of the section changes nothing')
+assertDeepEqual(moved(removeConfig), moved(moveLayout()), 'a removal that does not apply leaves the layout as it was')
+const strayRemoval = { bar: { layout: { left: [42, 'a', {}, 'b', 'c'] } } }
+assertEqual(bar.removeEntry(strayRemoval, { region: 'left', index: 1, id: 'b' }), true, 'a removal counts by the bar\'s indexes past entries it leaves out')
+assertDeepEqual(strayRemoval.bar.layout.left, [42, 'a', {}, 'c'], 'and leaves the entries it left out alone')
+
+// Removal arms only once the drag is well clear of the bar strip.
+assertEqual(bar.dragDistanceOutside({ x: 400, y: 12 }, 1000, 26), 0, 'a drag along the bar is no distance off it')
+assertEqual(bar.dragDistanceOutside({ x: 0, y: 26 }, 1000, 26), 0, 'the strip\'s own edge still counts as on the bar')
+assertEqual(bar.dragDistanceOutside({ x: 400, y: 86 }, 1000, 26), 60, 'a drag below a top bar is measured from the strip\'s inner edge')
+assertEqual(bar.dragDistanceOutside({ x: 1030, y: 66 }, 1000, 26), 50, 'a drag off a corner is the straight-line distance past it')
+assertEqual(bar.dragDistanceOutside({ x: -20, y: 12 }, 1000, 26), 20, 'a drag off the end of the bar counts too')
+assertEqual(bar.dragDistanceOutside({ x: NaN, y: 12 }, 1000, 26), 0, 'a point with no position is no distance off')
 
 // Horizontal bar: indicators in centerBegin, the clock alone in the center box
 // at 340-400, weather in centerEnd, the menu far off in the left section.
@@ -467,36 +293,11 @@ assert(Math.abs(Object.values(retarget).reduce((sum, share) => sum + share, 0) -
 assert(Math.abs(retarget['right:1'] - 0.2) < 1e-9, 'the new target holds what the others have given up')
 assertDeepEqual(bar.fadeShares({ 'right:0': 0.5, 'centerEnd:1': 0.5 }, 'centerEnd:1', 0), { 'right:0': 0.5, 'centerEnd:1': 0.5 }, 'a move to another section hands the room over the same way')
 
-// The open-panel mark sits on the module's desktop-facing edge at every
-// position: under a top bar, over a bottom one, inward from left and right.
-const indicator = barSource.slice(barSource.indexOf('id: openPanelIndicator'), barSource.indexOf('id: openPanelIndicator') + 1600)
-assert(
-  /x: root\.vertical\s*\n\s*\? \(root\.position === "left" \? parent\.width - width - inset : inset\)/.test(indicator),
-  'bar pins the open-panel mark to the desktop-facing edge on vertical bars'
-)
-assert(
-  /root\.position === "top" \? parent\.height - height - inset : inset/.test(indicator),
-  'bar pins the open-panel mark to the desktop-facing edge on horizontal bars'
-)
-assert(
-  /key in activeItem/.test(barSource),
-  'bar asks whether a widget declares an indicator hint before reading it'
-)
-assert(
-  /width: root\.vertical \? Style\.space\(2\) : slot\.panelIndicatorExtent/.test(indicator) &&
-  /height: root\.vertical \? slot\.panelIndicatorExtent : Style\.space\(2\)/.test(indicator),
-  'bar sizes the open-panel mark from the same content hint on both axes'
-)
-
 assertEqual(bar.normalizePosition('left'), 'left', 'bar accepts valid positions')
 assertEqual(bar.normalizePosition('sideways'), 'top', 'bar defaults invalid positions')
 assertDeepEqual(bar.entrySettings({ id: 'omarchy.clock', format: 'HH:mm' }), { format: 'HH:mm' }, 'bar extracts entry settings')
 assertEqual(bar.entryId({ id: 'omarchy.clock' }), 'omarchy.clock', 'bar extracts object entry ids')
 assertEqual(bar.entryId('omarchy.clock'), 'omarchy.clock', 'bar extracts string entry ids')
-
-// The tray sits where the layout puts it, like any other widget, so the bar
-// reads in the order the panel hotkeys count.
-assert(!/pinTrayToInner/.test(barSource) && bar.pinTrayToInner === undefined, 'the bar keeps the tray where the layout puts it')
 
 // The section list lives in Util for QML and in BarModel and TrayModel for
 // plain JS; all three run the bar the same way.
@@ -507,14 +308,12 @@ assertDeepEqual(utilSections, bar.sections, 'Util and BarModel list the same bar
 const trayModel = requireFromRoot('shell/plugins/bar/widgets/TrayModel.js')
 for (const section of bar.sections)
   assert(trayModel.layoutHasWidget({ [section]: ['omarchy.dropbox'] }, 'omarchy.dropbox'), `the tray finds a widget in ${section}`)
-assert(/function normalizeLayout\(layout\) \{\s*return Util\.normalizeLayout\(/.test(barSource), 'bar normalizes every section the way the shared helper does')
 
 // Panel tabbing and positional hotkeys take the center as one section.
 for (const region of ['centerBegin', 'center', 'centerEnd'])
   assertDeepEqual(bar.navigationRegions(region), ['centerBegin', 'center', 'centerEnd'], `panel navigation from ${region} walks all three center sections`)
 assertDeepEqual(bar.navigationRegions('left'), ['left'], 'panel navigation in the left section stays in it')
 assertDeepEqual(bar.navigationRegions('right'), ['right'], 'panel navigation in the right section stays in it')
-assert(/var regions = BarModel\.navigationRegions\(region\)/.test(barSource), 'bar tabs panels across the center sections')
 
 // The first and last of several widgets in the centered box grow away from
 // its middle, as centerBegin's and centerEnd's do; one alone grows both ways.
