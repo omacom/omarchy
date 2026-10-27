@@ -1,0 +1,100 @@
+#!/bin/bash
+
+# omarchy:summary=Ensure the GTK-3 bookmarks contain Omarchy's default folders
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Both omarchy-provision-user and omarchy-upgrade-to-quattro seed these four
+# bookmarks, and they used to do it with the same per-line `grep -qxF ... ||
+# echo >>`. That is check-then-act: two concurrent runs both see a bookmark as
+# missing and both append it, so the file accumulates duplicates. No supported
+# flow runs two seeders at once today, but build the whole file in one atomic
+# step anyway so a caller cannot reintroduce the race: read whatever is there,
+# add the required entries, drop duplicate lines, and rename the result into
+# place. The rename is atomic, so a reader never sees a half-written file, the
+# required bookmarks end up present exactly once, and duplicates a user already
+# has are cleaned up -- which a lock around the old loop would not do.
+#
+# A symlinked bookmarks file is followed and its target rewritten in place, the
+# way the append this replaces would have. Renaming onto the link itself would
+# swap a symlink out for a regular file, breaking a dotfile-managed setup. If the
+# link cannot be resolved, stop rather than replace it with a regular file.
+bookmarks="$HOME/.config/gtk-3.0/bookmarks"
+if [[ -L $bookmarks ]]; then
+  if ! bookmarks=$(readlink -f "$bookmarks" 2>/dev/null); then
+    echo "Could not resolve the GTK bookmarks symlink." >&2
+    exit 1
+  fi
+fi
+
+# A directory, fifo, device, or a symlink to one would make the rename below
+# move the temporary into it (or replace it) rather than write the bookmarks
+# file. Refuse instead of silently scattering a temporary.
+if [[ -e $bookmarks && ! -f $bookmarks ]]; then
+  echo "The GTK bookmarks path is not a regular file." >&2
+  exit 1
+fi
+
+bookmark_dir=$(dirname "$bookmarks")
+temporary=""
+
+# Keep the ownership and mode the existing file already had. A plain `> file`
+# would reset the mode to the umask default, and a call made with more privilege
+# than the file's owner would otherwise leave the replacement owned by that
+# caller inside the user's home.
+preserve_existing_ownership() {
+  local mode=""
+
+  [[ -f $bookmarks ]] || return 0
+  chown --reference="$bookmarks" "$temporary" 2>/dev/null || true
+  mode=$(stat -c '%a' "$bookmarks" 2>/dev/null) || return 0
+  [[ $mode =~ ^[0-7]{3,4}$ ]] || return 0
+  chmod "$mode" "$temporary" 2>/dev/null || true
+}
+
+cleanup() {
+  [[ -z $temporary ]] || rm -f "$temporary"
+}
+trap cleanup EXIT
+
+# The bookmarks directory used to be created by the callers before invoking
+# this helper, so running it alone on a fresh profile failed at mktemp. Create
+# it here to make the helper self-contained, and report a failure rather than
+# exiting successfully, the same way the mktemp guard below does.
+if ! mkdir -p "$bookmark_dir"; then
+  echo "Could not create the GTK bookmarks directory." >&2
+  exit 1
+fi
+
+# Report a failure rather than exiting successfully: a silent skip looks
+# identical to success to a caller, and omarchy-provision-user runs under `set -e`
+# and would finalize the user having never seeded the bookmarks. The upgrade
+# caller decides for itself whether a failure is fatal.
+if ! temporary=$(mktemp "$bookmark_dir/.bookmarks.XXXXXXXX"); then
+  echo "Could not create a temporary GTK bookmarks file." >&2
+  exit 1
+fi
+
+{
+  if [[ -f $bookmarks ]]; then
+    # awk rather than cat so a file whose last line has no trailing newline is
+    # not joined onto the first default line emitted below.
+    awk '{ print }' "$bookmarks"
+  fi
+
+  for dir in Downloads Projects Pictures Videos; do
+    echo "file://$HOME/$dir $dir"
+  done
+} | awk '!seen[$0]++' >"$temporary"
+
+# Rewriting an already-correct file would churn its inode and mtime for nothing:
+# the append this replaces left a fully seeded file untouched. Stop when the
+# built result already matches what is there.
+if [[ -f $bookmarks ]] && cmp -s "$temporary" "$bookmarks"; then
+  exit 0
+fi
+
+preserve_existing_ownership
+mv "$temporary" "$bookmarks"
+temporary=""
