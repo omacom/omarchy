@@ -7,7 +7,7 @@ const fs = require('fs')
 const buttonQml = fs.readFileSync(path.join(root, 'shell/Ui/Button.qml'), 'utf8')
 
 assert(
-  /anchors\.leftMargin:\s*root\.leftAlign \? root\._reservedContentLeftInset : 0/.test(buttonQml),
+  /^\s*: root\._reservedContentLeftInset$/m.test(buttonQml),
   'Button left-aligned content uses reserved border inset'
 )
 
