@@ -28,13 +28,15 @@ fs.writeFileSync(`${stage}/network/Panel.qml`, source)
 JS
 printf '#!/bin/bash\nexit 0\n' > "$stage/bin/noop"
 chmod +x "$stage/bin/noop"
-for command in omarchy-dns omarchy-network-band omarchy-network-status; do
+for command in omarchy-dns omarchy-network-band omarchy-network-status iw; do
   ln -s noop "$stage/bin/$command"
 done
-# Answers in call order: 57, then a slow stale 11, then 33. Never touches the
-# host's NetworkManager.
+# Answers the in-use access point read in call order: 57, then a slow stale
+# 11, then 33. Other reads (the hotspot check's profile and metering) get
+# nothing and stay out of the log. Never touches the host's NetworkManager.
 cat > "$stage/bin/nmcli" <<'SH'
 #!/bin/bash
+[[ $* == *"device wifi list"* ]] || exit 0
 printf '%s\n' "$*" >> "$NETWORK_TEST_NMCLI_LOG"
 count=$(wc -l < "$NETWORK_TEST_NMCLI_LOG")
 case $count in
