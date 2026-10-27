@@ -63,9 +63,9 @@ printf '%s\n' "$args" >"$target.args"
 cat >"$target"
 SH
 
-cat >"$TMPDIR/bin/wtype" <<'SH'
+cat >"$TMPDIR/bin/hyprctl" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >"$WTYPE_OUT"
+printf '%s\n' "$*" >>"$HYPRCTL_OUT"
 SH
 
 cat >"$TMPDIR/bin/sleep" <<'SH'
@@ -73,9 +73,9 @@ cat >"$TMPDIR/bin/sleep" <<'SH'
 exit 0
 SH
 
-chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wtype" "$TMPDIR/bin/sleep"
+chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/sleep"
 
-WL_COPY_OUT="$TMPDIR/copy" WL_COPY_EMOJI_OUT="$TMPDIR/emoji" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$PATH" \
+WL_COPY_OUT="$TMPDIR/copy" WL_COPY_EMOJI_OUT="$TMPDIR/emoji" HYPRCTL_OUT="$TMPDIR/hyprctl" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
   "$ROOT/bin/omarchy-menu-emoji-insert" "😀"
 
 [[ $(<"$TMPDIR/emoji") == "😀" ]] || fail "emoji insert helper copies emoji transiently"
@@ -84,5 +84,5 @@ pass "emoji insert helper copies emoji transiently"
 [[ $(<"$TMPDIR/emoji.args") == "--type text/plain --sensitive --foreground" ]] || fail "emoji insert helper serves sensitive transient clipboard in foreground"
 pass "emoji insert helper serves transient clipboard in foreground"
 
-[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "emoji insert helper pastes with shift insert"
+[[ $(<"$TMPDIR/hyprctl") == $'dispatch hl.dsp.send_key_state({ mods = "SHIFT", key = "Insert", state = "down" })\ndispatch hl.dsp.send_key_state({ mods = "SHIFT", key = "Insert", state = "up" })' ]] || fail "emoji insert helper pastes with shift insert"
 pass "emoji insert helper pastes with shift insert"

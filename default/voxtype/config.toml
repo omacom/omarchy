@@ -58,10 +58,19 @@ translate = false
 # threads = 4
 
 [output]
-# Primary output mode: "type" or "clipboard"
-# - type: Simulates keyboard input at cursor position (requires ydotool)
-# - clipboard: Copies text to clipboard (requires wl-copy)
-mode = "type"
+# Primary output mode: "clipboard", "type" or "paste"
+# - clipboard: Copies text to the clipboard (requires wl-copy). The hooks below
+#   then paste it with Shift+Insert sent by Hyprland.
+# - type: Simulates keyboard input at the cursor through wtype. XWayland apps,
+#   such as the ChatGPT and Hermes desktop apps, receive wtype's keys as Escape
+#   and digits instead of the transcript.
+# - paste: Copies text and sends paste_keys through wtype, which XWayland apps
+#   receive as Escape.
+mode = "clipboard"
+
+# Paste the transcript after clipboard mode copies it; see omarchy-voxtype-output
+pre_output_command = "omarchy-voxtype-output begin"
+post_output_command = "omarchy-voxtype-output end"
 
 # Fall back to clipboard if typing fails
 fallback_to_clipboard = true

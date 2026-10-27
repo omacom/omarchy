@@ -345,3 +345,23 @@ printf '%s\n' voxtype > "$config"
 omarchy-remove-dictation-superwhisper
 [[ $(cat "$config") == "voxtype" ]] || fail "removing Superwhisper preserves another selected backend"
 pass "Superwhisper removal clears its selection and owned links while preserving user data and other backends"
+
+cat > "$test_tmp/bin/voxtype" <<'SH'
+#!/bin/bash
+[[ $* == "config get output.mode" ]] && echo "$VOXTYPE_MODE"
+SH
+chmod +x "$test_tmp/bin/voxtype"
+export XDG_RUNTIME_DIR="$test_tmp/run"
+mkdir -p "$XDG_RUNTIME_DIR"
+: > "$DICTATION_LOG"
+VOXTYPE_MODE=clipboard omarchy-voxtype-output end
+[[ ! -s $DICTATION_LOG ]] || fail "a cancelled recording must not paste the clipboard"
+VOXTYPE_MODE=type omarchy-voxtype-output begin
+omarchy-voxtype-output end
+[[ ! -s $DICTATION_LOG ]] || fail "type mode must not paste over the typed transcript"
+VOXTYPE_MODE=clipboard omarchy-voxtype-output begin
+omarchy-voxtype-output end
+omarchy-voxtype-output end
+expected=$'hyprctl dispatch hl.dsp.send_key_state({ mods = "SHIFT", key = "Insert", state = "down" })\nhyprctl dispatch hl.dsp.send_key_state({ mods = "SHIFT", key = "Insert", state = "up" })'
+[[ $(cat "$DICTATION_LOG") == "$expected" ]] || fail "clipboard mode pastes each transcript once through Hyprland"
+pass "Voxtype output hooks paste clipboard transcripts once and nothing else"
