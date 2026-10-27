@@ -48,6 +48,7 @@ Item {
   property var fallbackBarConfig: ({
     position: "top",
     background: "opaque",
+    glassOpacity: 35,
     layout: { left: [], centerBegin: [], center: [], centerEnd: [], right: [] }
   })
   property var layoutConfig: fallbackBarConfig.layout
@@ -57,6 +58,10 @@ Item {
   // A see-through bar that Hyprland blurs behind (the bar-glassy toggle), so
   // its theme background stays faintly. A transparent bar wins over it.
   property bool glassy: false
+  // opaque, glassy or none, as last read or scrolled to; and how much of the
+  // theme background a glassy bar keeps, in percent.
+  property string backgroundLook: "opaque"
+  property int glassOpacity: 35
   // The look the blur behind the bar was last synced for. A background set by
   // editing shell.json skips the CLI, so the bar syncs Hyprland's blur itself.
   property string glassSyncedLook: ""
@@ -86,7 +91,7 @@ Item {
   property color barForeground: useTransparentForeground ? transparentForeground : themeForeground
   property bool foregroundAnimationEnabled: true
   property color background: Commons.Color.bar.background
-  readonly property color glassBackground: Qt.rgba(background.r, background.g, background.b, Math.min(background.a, 0.35))
+  readonly property color glassBackground: Qt.rgba(background.r, background.g, background.b, Math.min(background.a, glassOpacity / 100))
   property color urgent: Commons.Color.bar.active
 
   // A theme change cross-fades the bar's colors. Cycling the background
@@ -797,6 +802,8 @@ Item {
     // opaque, glassy or none; a config from before background says
     // transparent instead.
     var look = config.background || (config.transparent === true ? "none" : "opaque")
+    backgroundLook = look
+    glassOpacity = BarModel.normalizeGlassOpacity(config.glassOpacity)
     setRequestedTransparency(look === "none")
     // A bar going clear waits for its text color before dropping its
     // background, so a glassy one stays glassy until then rather than
@@ -1045,6 +1052,24 @@ Item {
   // omarchy-bar, which keeps Hyprland's blur behind a glassy bar in step.
   function cycleBackground() {
     Util.execDetached("omarchy-bar background cycle")
+  }
+
+  // Scrolling slides the bar along one scale: clear, glassy in 10-point steps,
+  // opaque. A new look reaches Hyprland's blur through applyBarConfig.
+  function stepBackground(steps) {
+    var next = BarModel.stepBackground(root.backgroundLook, root.glassOpacity, steps)
+    if (next.background === root.backgroundLook && next.glassOpacity === root.glassOpacity) return
+
+    backgroundLook = next.background
+    glassOpacity = next.glassOpacity
+    if (root.shell && typeof root.shell.mutateShellConfig === "function") {
+      root.shell.mutateShellConfig(function(config) {
+        if (!Util.isPlainObject(config.bar)) config.bar = {}
+        config.bar.background = next.background
+        config.bar.glassOpacity = next.glassOpacity
+        delete config.bar.transparent
+      })
+    }
   }
 
   function moduleDropAtScene(scenePoint, sourceSlot) {
@@ -1823,6 +1848,20 @@ Item {
           // Unplugging a monitor destroys its bar without a leave event, which
           // would strand this surface's tally and hold the peek open for good.
           Component.onDestruction: if (peeking) root.setBarHovered(false)
+        }
+      }
+
+      // Pointer handlers need an Item parent; use the full-size loader.
+      // Touchpads send many small deltas, so step once per wheel notch.
+      WheelHandler {
+        property int pending: 0
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: function(event) {
+          pending += event.angleDelta.y
+          var steps = Math.trunc(pending / 120)
+          pending -= steps * 120
+          if (steps !== 0) root.stepBackground(steps)
         }
       }
     }
