@@ -116,6 +116,7 @@ run_watch() {
   JOURNAL_ENTRIES="$JOURNAL_ENTRIES" \
   NOTIFY_LOG="$NOTIFY_LOG" \
   HOME="$watch_home" \
+  XDG_RUNTIME_DIR="$TMPDIR/runtime" \
     "$ROOT/bin/omarchy-crash-watch" || status=$?
 
   (( status == 0 )) ||
@@ -372,6 +373,98 @@ refusal=$(HOME="$mute_home" PATH="$failing_bin:$ROOT/bin:$PATH" \
 ! grep -Fq "Muted crash notifications" <<<"$refusal" ||
   fail "a mute that could not be written still reports success, so the user believes a program is silenced when it is not"
 pass "a mute that could not be written is not reported as one"
+
+# Drive the real session guard through a terminal stub. The harness closes its
+# inherited lock descriptor; the parent must still hold it until the agent exits.
+require_command flock
+runtime="$TMPDIR/runtime"
+mkdir -p "$runtime"
+export AGENT_LAUNCH_LOG="$TMPDIR/agent-launch-log"
+export AGENT_RELEASE="$TMPDIR/agent-release"
+trap 'touch "$AGENT_RELEASE"; [[ -z ${session_pid:-} ]] || wait "$session_pid"; rm -rf "$TMPDIR"' EXIT
+cat >"$watch_bin/omarchy-agent" <<'SH'
+#!/bin/bash
+[[ $1 == --inline && $2 == --prompt ]] || exit 99
+exec 9>&-
+printf 'launched\n' >>"$AGENT_LAUNCH_LOG"
+while [[ ! -e $AGENT_RELEASE ]]; do sleep 0.02; done
+exit "${AGENT_TEST_STATUS:-0}"
+SH
+cat >"$watch_bin/omarchy-launch-tui" <<'SH'
+#!/bin/bash
+[[ $1 == --app-id=org.omarchy.agent ]] || exit 99
+shift
+exec "$@"
+SH
+cat >"$watch_bin/coredumpctl" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$watch_bin/omarchy-agent" "$watch_bin/omarchy-launch-tui" "$watch_bin/coredumpctl"
+launch_diagnosis() {
+  OMARCHY_PATH="$ROOT" PATH="$watch_bin:$ROOT/bin:$PATH" HOME="$watch_home" \
+    XDG_RUNTIME_DIR="${1:-$runtime}" \
+    "$ROOT/bin/omarchy-agent-crash" 4242 brave /usr/bin/brave SIGTRAP
+}
+launch_diagnosis &
+session_pid=$!
+for ((attempt = 0; attempt < 100; attempt++)); do
+  [[ -s $AGENT_LAUNCH_LOG ]] && break
+  sleep 0.02
+done
+[[ -s $AGENT_LAUNCH_LOG ]] || fail "diagnosis starts the inline agent"
+pass "diagnosis runs its session guard inside the agent terminal"
+
+reset_entries
+crash_entry brave /usr/bin/brave
+# An old timestamp cannot expire a live lock, even if the old TTL override is set.
+printf '%s\n' "$((EPOCHSECONDS - 3600))" >"$runtime/omarchy/crash-diagnosis/brave"
+OMARCHY_CRASH_DIAGNOSIS_SECONDS=0 run_watch
+! announced brave || fail "a live diagnosis must not expire or announce reproductions"
+[[ -f $runtime/omarchy/crash-diagnosis/brave ]] || fail "watcher must preserve the session lock inode"
+pass "a live diagnosis stays quiet regardless of elapsed time"
+
+launch_diagnosis
+(( $(wc -l <"$AGENT_LAUNCH_LOG") == 1 )) || fail "a repeated click must not launch a second agent"
+pass "repeated diagnosis launches share one active session"
+
+touch "$AGENT_RELEASE"
+wait "$session_pid"
+session_pid=""
+run_watch
+announced brave || fail "an exited diagnosis must release suppression immediately"
+[[ -f $runtime/omarchy/crash-diagnosis/brave ]] || fail "unused lock files are retained to avoid inode races"
+launch_diagnosis
+(( $(wc -l <"$AGENT_LAUNCH_LOG") == 2 )) || fail "a later diagnosis must reuse the released lock"
+pass "exiting releases suppression and permits another diagnosis"
+
+status=0
+AGENT_TEST_STATUS=23 launch_diagnosis || status=$?
+(( status == 23 )) || fail "the session wrapper must preserve agent failure status"
+run_watch
+announced brave || fail "a failed diagnosis must not leave suppression active"
+pass "agent failures release the guard and retain their exit status"
+
+# Storage failures must still reach the real inline launcher path.
+for failure in directory write; do
+  : >"$AGENT_LAUNCH_LOG"
+  if [[ $failure == directory ]]; then
+    bad_runtime="$TMPDIR/runtime-is-a-file"
+    touch "$bad_runtime"
+  else
+    bad_runtime="$TMPDIR/runtime-write-failure"
+    mkdir -p "$bad_runtime/omarchy/crash-diagnosis/brave"
+  fi
+  launch_diagnosis "$bad_runtime"
+  grep -Fxq launched "$AGENT_LAUNCH_LOG" || fail "guard $failure failure must not prevent agent launch"
+done
+pass "guard storage failures do not prevent diagnosis"
+
+# The toast must say how to dismiss without launching the agent: left-click
+# diagnoses, right-click / X dismisses (see NotificationCard).
+grep -Fq 'right-click or ✕ to dismiss' "$ROOT/bin/omarchy-crash-watch" ||
+  fail "the crash toast no longer says how to dismiss without diagnosing"
+pass "the crash toast says how to dismiss without diagnosing"
 
 skill="$ROOT/default/agents/skills/diagnose-crash/SKILL.md"
 grep -Fq 'omarchy-crash-mute' "$skill" ||
