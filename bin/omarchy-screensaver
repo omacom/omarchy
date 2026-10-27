@@ -7,6 +7,11 @@ screensaver_in_focus() {
 }
 
 exit_screensaver() {
+  # bash 5.3 runs pending traps between commands inside a running trap
+  # handler, so a second signal arriving before the exit below re-enters this
+  # handler from inside itself and recurses until the stack overflows. Ignore
+  # the exit signals for the rest of the run before doing anything else.
+  trap '' SIGINT SIGTERM SIGHUP SIGQUIT
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
   pkill -x ttfx 2>/dev/null
   pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
