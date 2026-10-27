@@ -353,16 +353,16 @@ updateCtx.updateThemeRows('after-delete-rows')
 assertEqual(updateCtx.awaitingDeleteRefresh, false, 'the post-delete refresh loading rows releases the apply guard')
 
 // Views: Up and Down switch between image sets by running an Omarchy command.
-const viewFunctions = ['setViews', 'switchView', 'startView', 'loadView']
+const viewFunctions = ['setViews', 'switchView', 'requestView', 'startView', 'loadView']
   .map(name => imagePickerQml.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}`))[0])
   .join('\n')
-const viewRoot = { requestActive: true, requestSerial: 4, filterText: 'x', loaded: null, views: [], viewCommand: [], viewIndex: 0,
+const viewRoot = { requestActive: true, requestSerial: 4, filterText: 'x', loaded: null, views: [], viewCommand: [], viewIndex: 0, viewStep: 1,
   showLabels: false, filterable: false, selectedImage: '',
   get hasViews() { return this.views.length > 1 },
   loadRows(rows) { this.loaded = rows } }
 const viewProc = { running: false, serial: 0, queuedSerial: 0 }
 const viewContext = { root: viewRoot, viewProc }
-require('vm').runInNewContext(`with (root) { ${viewFunctions}; root.setViews = setViews; root.switchView = switchView; root.startView = startView; root.loadView = loadView }`, viewContext)
+require('vm').runInNewContext(`with (root) { ${viewFunctions}; root.setViews = setViews; root.switchView = switchView; root.requestView = requestView; root.startView = startView; root.loadView = loadView }`, viewContext)
 const views = [{ id: 'theme', title: 't' }, { id: 'all', title: 'a', labels: true, filterable: true }]
 
 viewRoot.setViews({ current: 'all', command: ['sh', '-c', 'id'], views })
@@ -402,4 +402,13 @@ viewRoot.loadView('all\n/themes/b.png\n/themes/a.png\t/c/a.jpg\n/themes/b.png\t/
 assertEqual(viewRoot.selectedImage, '/themes/b.png', 'a view selects the image it names')
 assertEqual(viewRoot.loaded, '/themes/a.png\t/c/a.jpg\n/themes/b.png\t/c/b.jpg', 'a view loads the rows after it')
 assert(viewRoot.showLabels && viewRoot.filterable && viewRoot.filterText === '', 'a loaded view takes its labels and filter and clears the old filter')
+
+viewRoot.views = [{ id: 'theme' }, { id: 'all' }, { id: 'mine' }]
+viewRoot.viewIndex = 2
+viewRoot.viewStep = 1
+viewProc.running = false
+viewRoot.loaded = null
+viewRoot.loadView('mine\n\n')
+assertDeepEqual(viewRoot.views.map(view => view.id), ['theme', 'all'], 'a view that has emptied since opening is left out')
+assert(viewRoot.loaded === null && viewProc.running && viewProc.command.at(-1) === 'theme', 'Down past an emptied view moves on to the next one')
 JS

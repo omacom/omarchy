@@ -28,6 +28,7 @@ Item {
   // Image sets Up and Down switch between, from openViews in shell.qml.
   property var views: []
   property int viewIndex: 0
+  property int viewStep: 1
   property var viewCommand: []
   readonly property bool hasViews: views.length > 1
   property bool filterable: false
@@ -205,9 +206,14 @@ Item {
 
   function switchView(step) {
     if (!hasViews || !requestActive) return
+    viewStep = step
     viewIndex = (viewIndex + step + views.length) % views.length
-    // A running command keeps the serial it started with, so its output can
-    // never pass for a later opening's.
+    requestView()
+  }
+
+  // A running command keeps the serial it started with, so its output can
+  // never pass for a later opening's.
+  function requestView() {
     if (viewProc.running) viewProc.queuedSerial = requestSerial
     else startView()
   }
@@ -220,6 +226,7 @@ Item {
 
   // Titles in the picker's own catalog; any other title is shown as given.
   function viewTitle(view) {
+    if (!view) return ""
     switch (String(view.title)) {
     case "imagePicker.viewTheme": return Commons.I18n.t("imagePicker.viewTheme")
     case "imagePicker.viewAllThemes": return Commons.I18n.t("imagePicker.viewAllThemes")
@@ -229,16 +236,27 @@ Item {
   }
 
   // A view's output is its id, the image to select, then rows, one per line.
-  // Output for a view the user has already moved past is dropped.
+  // Output for a view the user has already moved past is dropped, and a view
+  // that has emptied since the picker opened is left out for the next one.
   function loadView(output) {
     var lines = output.split("\n")
     var view = views[viewIndex]
     if (!view || lines[0] !== String(view.id)) return
+    var rows = lines.slice(2).join("\n")
+    if (!rows.trim() && views.length > 1) {
+      // The index moves first, so it never points past the shorter list.
+      var gone = viewIndex
+      var remaining = views.filter(function(other, index) { return index !== gone })
+      viewIndex = (viewStep > 0 ? gone : gone - 1 + remaining.length) % remaining.length
+      views = remaining
+      requestView()
+      return
+    }
     showLabels = view.labels === true
     filterable = view.filterable === true
     filterText = ""
     selectedImage = lines[1] || ""
-    loadRows(lines.slice(2).join("\n"), false)
+    loadRows(rows, false)
   }
 
   function updateFilter(nextFilterText) {
@@ -712,7 +730,7 @@ Item {
       if (running || !queuedSerial) return
       var queued = queuedSerial
       queuedSerial = 0
-      if (queued === root.requestSerial && root.requestActive && root.hasViews) root.startView()
+      if (queued === root.requestSerial && root.requestActive && root.views.length > 0) root.startView()
     }
   }
 

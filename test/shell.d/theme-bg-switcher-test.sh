@@ -48,13 +48,15 @@ PATH="$tmp/bin:$PATH" "$ROOT/bin/omarchy-theme-bg-switcher" --rows ../../etc >/d
 
 switcher() { PATH="$tmp/bin:$PATH" "$ROOT/bin/omarchy-theme-bg-switcher" "$@"; }
 offered_views() { switcher | grep -A1 -x 'arg --views' | tail -n 1; }
-mkdir -p "$HOME/.config/omarchy/backgrounds"
-[[ $(offered_views) != *'"mine"'* ]] || fail "my backgrounds is offered only when it holds media"
+mkdir -p "$HOME/.config/omarchy/backgrounds/folder.jpg"
+ln -s "$tmp/missing.png" "$HOME/.config/omarchy/backgrounds/broken.png"
+[[ $(offered_views) != *'"mine"'* ]] || fail "my backgrounds is offered only when it holds media, not a broken link or a folder"
 printf 'mine' >"$HOME/.config/omarchy/backgrounds/sunset.JPG"
 [[ $(offered_views) == *'"id":"mine"'* ]] || fail "my backgrounds is offered once it holds media: $(offered_views)"
 [[ $(switcher --rows mine | sed -n 1p) == "mine" && $(<"$HOME/.local/state/omarchy/background-switcher-view") == "mine" ]] ||
   fail "my backgrounds is fetched and remembered"
 rm "$HOME/.config/omarchy/backgrounds/sunset.JPG"
+[[ $(switcher --rows mine | sed -n 1p) == "mine" ]] || fail "an emptied view still answers for itself, so the open picker can drop it"
 [[ $(offered_views) == *'"current":"theme"'* ]] || fail "a remembered my backgrounds that has emptied opens the theme's backgrounds"
 
 echo "ok - theme background switcher views"

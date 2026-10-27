@@ -16,16 +16,20 @@ view_file="$HOME/.local/state/omarchy/background-switcher-view"
 mine_dir="$HOME/.config/omarchy/backgrounds"
 
 # Whether mine_dir holds media of its own, not just per-theme folders. A glob,
-# so opening the switcher starts no process for it.
+# so opening the switcher starts no process for it; a broken link or a folder
+# named like an image does not count.
 has_mine() {
-  local files
+  local files file
   shopt -s nullglob nocaseglob
   files=("$mine_dir"/*.{jpg,jpeg,png,gif,bmp,webp,mp4,m4v,mov,webm,mkv,avi})
   shopt -u nullglob nocaseglob
-  (( ${#files[@]} > 0 ))
+  for file in "${files[@]}"; do
+    [[ -f $file ]] && return 0
+  done
+  return 1
 }
 
-# Prints the view to show: all and mine as asked, while mine has media,
+# Prints the view to open on: all and mine as asked, while mine has media,
 # otherwise theme.
 known_view() {
   if [[ $1 == "all" ]] || { [[ $1 == "mine" ]] && has_mine; }; then
@@ -145,7 +149,10 @@ set_view_dirs() {
 }
 
 if [[ ${1:-} == "--rows" ]]; then
-  view=$(known_view "${2:-}")
+  # Answers for the view asked for, even when it has emptied since the picker
+  # opened: the picker then drops it and moves on.
+  view=${2:-}
+  [[ $view == "all" || $view == "mine" ]] || view="theme"
   mkdir -p "${view_file%/*}"
   printf '%s\n' "$view" >"$view_file"
   set_view_dirs "$view"
