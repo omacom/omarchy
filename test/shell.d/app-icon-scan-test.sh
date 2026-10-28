@@ -24,6 +24,10 @@ const files = [
   [system, 'icons/theme/apps/shared.svg'],
   [system, 'icons/theme/apps/pngonly.png'],
   [system, 'icons/theme/apps/name with spaces.png'],
+  [system, 'icons/hicolor/16x16/apps/sized.png'],
+  [system, 'icons/hicolor/256x256/apps/sized.png'],
+  [system, 'icons/hicolor/24x24@2x/apps/sized.png'],
+  [system, 'icons/hicolor/32x32/apps/sized.png'],
   [system, 'icons/theme/actions/excluded.svg'],
   [pixmaps, 'fallback.png']
 ]
@@ -64,6 +68,7 @@ const shared = lines.filter(value => path.basename(value).startsWith('shared.'))
 assertDeepEqual(shared, [path.join(local, 'icons/theme/apps/shared.svg'), path.join(system, 'icons/theme/apps/shared.svg'), path.join(home, '.icons/theme/apps/shared.png')], 'scan preserves format preference and XDG directory precedence')
 assertDeepEqual(lines.filter(value => path.basename(value) === 'pngonly.png'), [path.join(local, 'icons/theme/apps/pngonly.png'), path.join(system, 'icons/theme/apps/pngonly.png')], 'scan preserves directory precedence for PNG-only icons')
 assert(lines.includes(path.join(system, 'icons/theme/apps/name with spaces.png')), 'scan preserves spaces in filenames')
+assertDeepEqual(lines.filter(value => path.basename(value) === 'sized.png'), ['256x256', '24x24@2x', '32x32', '16x16'].map(size => path.join(system, `icons/hicolor/${size}/apps/sized.png`)), 'scan orders PNGs within a root from largest to smallest')
 const roots = fs.readFileSync(calls, 'utf8').trim().split('\n')
 assertEqual(new Set(roots).size, 5, 'scan visits all icon roots and pixmaps')
 assertEqual(roots.length, 5, 'scan visits each root only once')
