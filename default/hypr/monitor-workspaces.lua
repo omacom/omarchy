@@ -516,6 +516,74 @@ function M.move_to_monitor(direction)
   end, "o.workspaces.move_to_monitor(" .. literal(direction) .. ")")
 end
 
+-- An id no workspace holds, for one to wait under while two trade numbers.
+local function spare_id()
+  local id = 1
+  for _, workspace in ipairs(hl.get_workspaces()) do
+    if regular(workspace) and workspace.id >= id then
+      id = workspace.id + 1
+    end
+  end
+  return id
+end
+
+-- Renumber a workspace into a block unless it is there already.
+local function join(id, block)
+  if block_of_id(id) ~= block then
+    adopt(hl.get_workspace(id), block)
+  end
+end
+
+-- Trade the active workspace for the one the monitor in a direction shows.
+-- Each joins the block of the monitor it lands on under its own slot when that
+-- is free, which is the other's old number when their slots match, and the
+-- first free one otherwise. Focus follows the workspace that went.
+function M.swap_with_monitor(direction)
+  return action(function()
+    local from = hl.get_active_monitor()
+    local target = hl.get_monitor(direction)
+    if not from or not target then
+      return
+    end
+
+    local here, there = from.active_workspace, target.active_workspace
+    if not regular(here) or not regular(there) then
+      return
+    end
+    local a, b = here.id, there.id
+
+    hl.dispatch(hl.dsp.workspace.swap_monitors({ monitor1 = from.name, monitor2 = target.name }))
+
+    -- Swapped by hand, each belongs where it was put, as in Niri.
+    if merged[a] or merged[b] then
+      merged[a], merged[b] = nil, nil
+      save_merged()
+    end
+
+    local by_connector = assign(connected())
+    local block_a, block_b = by_connector[target.name], by_connector[from.name]
+    if block_a and block_b then
+      local want_a = block_a * SLOTS + (a - 1) % SLOTS + 1
+      local want_b = block_b * SLOTS + (b - 1) % SLOTS + 1
+
+      if want_a == b and want_b == a then
+        local spare = spare_id()
+        renumber(hl.get_workspace(a), spare)
+        renumber(hl.get_workspace(b), a)
+        renumber(hl.get_workspace(spare), b)
+      elseif want_a == b then
+        join(b, block_b)
+        join(a, block_a)
+      else
+        join(a, block_a)
+        join(b, block_b)
+      end
+    end
+
+    hl.dispatch(hl.dsp.focus({ monitor = target.name }))
+  end, "o.workspaces.swap_with_monitor(" .. literal(direction) .. ")")
+end
+
 -- Move the focused window onto the workspace the monitor in that direction
 -- shows, and follow it there.
 function M.move_window_to_monitor(direction)

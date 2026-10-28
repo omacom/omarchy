@@ -212,6 +212,15 @@ hl = {
           end
         end
       end,
+      swap_monitors = function(spec)
+        return function()
+          local first, second = monitor_named(spec.monitor1), monitor_named(spec.monitor2)
+          if not first or not second then error("Monitor not found") end
+          workspace_numbered(first.active).monitor, workspace_numbered(second.active).monitor = second.name, first.name
+          first.active, second.active = second.active, first.active
+          world.swaps = world.swaps + 1
+        end
+      end,
     },
     window = {
       move = function(spec)
@@ -660,3 +669,65 @@ hl.dispatch(m.move_to_monitor("u"))
 check(world.windows["0xa"].workspace == 11 and world.focused == "DP-1", "a move toward no monitor did something")
 ' || fail "a window moves to the monitor in a direction, and nowhere when there is none"
 pass "a window moves to the monitor in a direction, and nowhere when there is none"
+
+run_lua swap '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.neighbours = { ["eDP-1"] = { u = "DP-1" }, ["DP-1"] = { d = "eDP-1" } }
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "DP-1"
+window("0xb", 11)
+world.focused = "eDP-1"
+
+hl.dispatch(m.swap_with_monitor("u"))
+check(on(1) == "eDP-1" and world.windows["0xb"].workspace == 1, "the workspace from above did not take the laptop'"'"'s number: " .. world.windows["0xb"].workspace)
+check(on(11) == "DP-1" and world.windows["0xa"].workspace == 11, "the laptop'"'"'s workspace did not take the number above: " .. world.windows["0xa"].workspace)
+check(shows("eDP-1") == 1 and shows("DP-1") == 11, "the monitors do not show the traded workspaces")
+check(world.focused == "DP-1", "focus did not follow the workspace that went")
+check(o.bind_expressions[m.swap_with_monitor("d")] == "o.workspaces.swap_with_monitor(\"d\")", "the menu can replay it")
+
+-- Different slots: each keeps its slot in the block it joins where that is
+-- free, and takes the first free one where it is not.
+world.focused = "eDP-1"
+hl.dispatch(hl.dsp.focus({ workspace = "3" }))
+window("0xc", 3)
+hl.dispatch(m.swap_with_monitor("u"))
+check(world.windows["0xc"].workspace == 13 and on(13) == "DP-1", "the third workspace did not become the third above: " .. world.windows["0xc"].workspace)
+check(world.windows["0xa"].workspace == 2 and on(2) == "eDP-1", "the workspace from above did not take the laptop'"'"'s first free slot, its own being taken: " .. world.windows["0xa"].workspace)
+
+-- Nothing is above the top monitor: no error, and nothing moves.
+world.focused = "DP-1"
+hl.dispatch(m.swap_with_monitor("u"))
+check(world.windows["0xc"].workspace == 13 and world.focused == "DP-1", "a swap toward no monitor did something")
+' || fail "swapping with the monitor in a direction trades the workspaces and their numbers"
+pass "swapping with the monitor in a direction trades the workspaces and their numbers"
+
+run_lua swap-merged '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+plug("DP-2", 2, "XENEON", 21)
+world.neighbours = { ["eDP-1"] = { u = "DP-2" }, ["DP-2"] = { d = "eDP-1" } }
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xb", 12)
+world.focused = "eDP-1"
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+check(world.windows["0xb"].workspace == 2 and on(2) == "eDP-1", "the workspace joined the laptop'"'"'s")
+
+-- Swapped by hand, it belongs where it was put, and does not go home.
+hl.dispatch(hl.dsp.focus({ workspace = "2" }))
+hl.dispatch(m.swap_with_monitor("u"))
+check(world.windows["0xb"].workspace == 22 and on(22) == "DP-2", "the swapped workspace did not join the block above: " .. world.windows["0xb"].workspace)
+
+plug("DP-3", 3, "LG", 3)
+world.handlers["monitor.added"]({ name = "DP-3" })
+check(world.windows["0xb"].workspace == 22 and on(22) == "DP-2", "the swapped workspace went home anyway: " .. world.windows["0xb"].workspace)
+' || fail "a swapped workspace stays where it was put when its monitor returns"
+pass "a swapped workspace stays where it was put when its monitor returns"
