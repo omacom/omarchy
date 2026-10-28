@@ -8,11 +8,11 @@
   "learn": {
     "label": "শিখুন"
   },
+  "appearance": {
+    "label": "চেহারা"
+  },
   "trigger": {
     "label": "ট্রিগার"
-  },
-  "style": {
-    "label": "স্টাইল"
   },
   "setup": {
     "label": "সেটআপ"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "কমিউনিটি"
   },
-  "trigger.appearance": {
-    "label": "চেহারা"
+  "appearance.theme": {
+    "label": "থিম"
   },
-  "trigger.appearance.animations": {
-    "label": "অ্যানিমেশন"
+  "appearance.background": {
+    "label": "পটভূমি"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "ফন্ট"
+  },
+  "appearance.top-bar": {
     "label": "মেনু বার"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "বার লুকান"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "বার দেখান"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "বারের অবস্থান"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "বারের পটভূমি"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "অস্বচ্ছ বার"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "কাচের মতো বার"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "স্বচ্ছ বার"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "বারের সূচক"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "ব্যাটারির শতাংশ"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "ঘড়ি"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "রবিবার 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "রবিবার 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "রবিবার 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "রবিবার 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "রবি 3 মে 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "রবি 3 মে 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 মে W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 মে W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "উপরের বার"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "নিচের বার"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "বাম বার"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "ডান বার"
   },
-  "trigger.appearance.dock": {
-    "label": "ডক"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "ডক স্বয়ংক্রিয় লুকান"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "ডক সবসময় চালু"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "ডকের অবস্থান"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "উপরের ডক"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "নিচের ডক"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "বাম ডক"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "ডান ডক"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "উইন্ডোর ফাঁক"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "উইন্ডোর কোণ"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "থিম কোণ"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "তীক্ষ্ণ কোণ"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "গোলাকার কোণ"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "উইন্ডোর অস্বচ্ছতা"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "অস্বচ্ছ উইন্ডো"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "স্বচ্ছ উইন্ডো"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "কাচের মতো উইন্ডো"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1-উইন্ডো অনুপাত"
+  "appearance.branding.screensaver": {
+    "label": "স্ক্রিনসেভার"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "সম্পর্কে"
+  },
+  "appearance.branding.about.text": {
+    "label": "টেক্সট সম্পাদনা"
+  },
+  "appearance.branding.about.image": {
+    "label": "ছবি থেকে সেট"
+  },
+  "appearance.branding.about.default": {
+    "label": "ডিফল্ট পুনরুদ্ধার"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "টেক্সট সম্পাদনা"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "ছবি থেকে সেট"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "ডিফল্ট পুনরুদ্ধার"
+  },
+  "appearance.dock": {
+    "label": "ডক"
+  },
+  "appearance.dock.autohide": {
+    "label": "ডক স্বয়ংক্রিয় লুকান"
+  },
+  "appearance.dock.always-on": {
+    "label": "ডক সবসময় চালু"
+  },
+  "appearance.dock.position": {
+    "label": "ডকের অবস্থান"
+  },
+  "appearance.dock.position.top": {
+    "label": "উপরের ডক"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "নিচের ডক"
+  },
+  "appearance.dock.position.left": {
+    "label": "বাম ডক"
+  },
+  "appearance.dock.position.right": {
+    "label": "ডান ডক"
+  },
+  "appearance.workspace-layout": {
     "label": "ওয়ার্কস্পেস লেআউট",
     "title": "ডিফল্ট ওয়ার্কস্পেস লেআউট"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "টাইলিং"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "স্ক্রলিং"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "ভাসমান"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr থিম সিঙ্ক"
+  "appearance.unlock": {
+    "label": "আনলক"
   },
   "trigger.toggle": {
     "label": "টগল"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "জাগ্রত থাকুন"
-  },
-  "trigger.toggle.notifications": {
-    "label": "বিজ্ঞপ্তি"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "নাইটলাইট"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "স্ক্রিনসেভার"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "ক্র্যাশ ক্যাপচার"
   },
   "trigger.emoji": {
     "label": "ইমোজি"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "গতি পরীক্ষা"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "ল্যাপটপ ডিসপ্লে"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "মিরর ডিসপ্লে"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "হাইব্রিড GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "টাচপ্যাড"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "টাচপ্যাড হ্যাপটিক্স"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "বেশি"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "টাচস্ক্রিন"
   },
   "trigger.reminder.set": {
     "label": "একটি সেট করুন"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "ডিস্ক গতি পরীক্ষা"
-  },
-  "style.theme": {
-    "label": "থিম"
-  },
-  "style.background": {
-    "label": "পটভূমি"
-  },
-  "style.unlock": {
-    "label": "আনলক"
-  },
-  "style.font": {
-    "label": "ফন্ট"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "স্ক্রিনসেভার"
-  },
-  "style.about": {
-    "label": "সম্পর্কে"
-  },
-  "style.about.text": {
-    "label": "টেক্সট সম্পাদনা"
-  },
-  "style.about.image": {
-    "label": "ছবি থেকে সেট"
-  },
-  "style.about.default": {
-    "label": "ডিফল্ট পুনরুদ্ধার"
-  },
-  "style.screensaver.text": {
-    "label": "টেক্সট সম্পাদনা"
-  },
-  "style.screensaver.image": {
-    "label": "ছবি থেকে সেট"
-  },
-  "style.screensaver.default": {
-    "label": "ডিফল্ট পুনরুদ্ধার"
   },
   "setup.monitors": {
     "label": "মনিটর"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1208,10 +1160,130 @@
   "update.password.user": {
     "label": "ব্যবহারকারী"
   },
-  "system.reboot-boot-menu": {
-    "label": "বুট মেনুতে রিবুট"
+  "appearance.windows.gaps-on": {
+    "label": "উইন্ডো ফাঁক চালু"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "appearance.windows.gaps-off": {
+    "label": "উইন্ডো ফাঁক বন্ধ"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-উইন্ডো অনুপাত চালু"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-উইন্ডো অনুপাত বন্ধ"
+  },
+  "appearance.branding": {
+    "label": "ব্র্যান্ডিং"
+  },
+  "appearance.animations-on": {
+    "label": "অ্যানিমেশন চালু"
+  },
+  "appearance.animations-off": {
+    "label": "অ্যানিমেশন বন্ধ"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "জেগে থাকুন"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "ঘুমাতে দিন"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "বিজ্ঞপ্তি চালু"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "বিজ্ঞপ্তি নীরব করুন"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "নাইটলাইট চালু"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "নাইটলাইট বন্ধ"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "স্ক্রিনসেভার চালু"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "স্ক্রিনসেভার বন্ধ"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "ক্র্যাশ ক্যাপচার চালু"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "ক্র্যাশ ক্যাপচার বন্ধ"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "ল্যাপটপ ডিসপ্লে চালু"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "ল্যাপটপ ডিসপ্লে বন্ধ"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "ডিসপ্লে মিররিং চালু"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "ব্যাটারি % দেখান"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "ব্যাটারি % লুকান"
+  },
+  "appearance.windows": {
+    "label": "উইন্ডো"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "ডিসপ্লে মিররিং বন্ধ"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "হাইব্রিড GPU-তে যান"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "ইন্টিগ্রেটেড GPU-তে যান"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "টাচপ্যাড চালু করুন"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "টাচপ্যাড বন্ধ করুন"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "টাচস্ক্রিন চালু করুন"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "টাচস্ক্রিন বন্ধ করুন"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "কার্নেল"
   }
 }

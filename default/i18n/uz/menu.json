@@ -8,11 +8,11 @@
   "learn": {
     "label": "Oʻrganish"
   },
+  "appearance": {
+    "label": "Koʻrinish"
+  },
   "trigger": {
     "label": "Ishga tushirish"
-  },
-  "style": {
-    "label": "Uslub"
   },
   "setup": {
     "label": "Sozlash"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Hamjamiyat"
   },
-  "trigger.appearance": {
-    "label": "Koʻrinish"
+  "appearance.theme": {
+    "label": "Mavzu"
   },
-  "trigger.appearance.animations": {
-    "label": "Animatsiyalar"
+  "appearance.background": {
+    "label": "Fon"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Shrift"
+  },
+  "appearance.top-bar": {
     "label": "Menyu paneli"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Panelni yashirish"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Panelni koʻrsatish"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Panel joyi"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Panel foni"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Shaffofmas panel"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Shishasimon panel"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Shaffof panel"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Panel koʻrsatkichlari"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Batareya foizi"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Soat"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Yakshanba 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Yakshanba 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Yakshanba 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Yakshanba 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Yak 3 may 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Yak 3 may 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 may W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 may W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Yuqori panel"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Quyi panel"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Chap panel"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Oʻng panel"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Dockni avto-yashirish"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Doim koʻrinadigan Dock"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Dock joyi"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Yuqori Dock"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Quyi Dock"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Chap Dock"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Oʻng Dock"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Oyna oraliqlari"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Oyna burchaklari"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Mavzu burchaklari"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Oʻtkir burchaklar"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Yumaloq burchaklar"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Oyna shaffofligi"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Shaffofmas oynalar"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Shaffof oynalar"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Shishasimon oynalar"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1-oyna nisbati"
+  "appearance.branding.screensaver": {
+    "label": "Ekran saqlagich"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Haqida"
+  },
+  "appearance.branding.about.text": {
+    "label": "Matnni tahrirlash"
+  },
+  "appearance.branding.about.image": {
+    "label": "Rasmdan oʻrnatish"
+  },
+  "appearance.branding.about.default": {
+    "label": "Standartni tiklash"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Matnni tahrirlash"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Rasmdan oʻrnatish"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Standartni tiklash"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Dockni avto-yashirish"
+  },
+  "appearance.dock.always-on": {
+    "label": "Doim koʻrinadigan Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Dock joyi"
+  },
+  "appearance.dock.position.top": {
+    "label": "Yuqori Dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Quyi Dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "Chap Dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "Oʻng Dock"
+  },
+  "appearance.workspace-layout": {
     "label": "Ish maydoni tartibi",
     "title": "Standart ish maydoni tartibi"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Mozaika"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Siljitish"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Suzuvchi"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr mavzu sinxronlash"
+  "appearance.unlock": {
+    "label": "Qulfdan ochish"
   },
   "trigger.toggle": {
     "label": "Almashtirish"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Uygʻoq qolish"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Bildirishnomalar"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Tungi yorugʻlik"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Ekran saqlagich"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Buzilish qaydi"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Tezlik testi"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Noutbuk ekrani"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Ekranni aks ettirish"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Gibrid GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Sensor panel"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Sensor panel tebranishi"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "yuqori"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Sensor ekran"
   },
   "trigger.reminder.set": {
     "label": "Yaratish"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Disk tezligi testi"
-  },
-  "style.theme": {
-    "label": "Mavzu"
-  },
-  "style.background": {
-    "label": "Fon"
-  },
-  "style.unlock": {
-    "label": "Qulfdan ochish"
-  },
-  "style.font": {
-    "label": "Shrift"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Ekran saqlagich"
-  },
-  "style.about": {
-    "label": "Haqida"
-  },
-  "style.about.text": {
-    "label": "Matnni tahrirlash"
-  },
-  "style.about.image": {
-    "label": "Rasmdan oʻrnatish"
-  },
-  "style.about.default": {
-    "label": "Standartni tiklash"
-  },
-  "style.screensaver.text": {
-    "label": "Matnni tahrirlash"
-  },
-  "style.screensaver.image": {
-    "label": "Rasmdan oʻrnatish"
-  },
-  "style.screensaver.default": {
-    "label": "Standartni tiklash"
   },
   "setup.monitors": {
     "label": "Monitorlar"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -855,7 +807,7 @@
     "label": "JavaScript"
   },
   "install.development.go": {
-    "label": "Oʻtish"
+    "label": "Go"
   },
   "install.development.php": {
     "label": "PHP"
@@ -1066,7 +1018,7 @@
     "title": "Olib tashlash"
   },
   "remove.development.go": {
-    "label": "Oʻtish"
+    "label": "Go"
   },
   "remove.development.php": {
     "label": "PHP",
@@ -1208,10 +1160,130 @@
   "update.password.user": {
     "label": "Foydalanuvchi"
   },
-  "system.reboot-boot-menu": {
-    "label": "Yuklanish menyusiga qayta yuklash"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Batareya % koʻrsatish"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Batareya % yashirish"
+  },
+  "appearance.windows": {
+    "label": "Oynalar"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Oyna oraliqlari yoniq"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Oyna oraliqlari oʻchiq"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-oyna nisbati yoniq"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-oyna nisbati oʻchiq"
+  },
+  "appearance.branding": {
+    "label": "Brending"
+  },
+  "appearance.animations-on": {
+    "label": "Animatsiyalar yoniq"
+  },
+  "appearance.animations-off": {
+    "label": "Animatsiyalar oʻchiq"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Uygʻoq turish"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Uyquga ruxsat berish"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Bildirishnomalar yoniq"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Bildirishnomalarni jim qilish"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Tungi yorugʻlik yoniq"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Tungi yorugʻlik oʻchiq"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Ekran saqlagich yoniq"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Ekran saqlagich oʻchiq"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Nosozlik yozuvi yoniq"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Nosozlik qaydini oʻchirish"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Noutbuk ekranini yoqish"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Noutbuk ekranini oʻchirish"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Ekran aksini yoqish"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Ekran aksini oʻchirish"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Gibrid GPUga oʻtish"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Integratsiyalangan GPUga oʻtish"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Tachpadni yoqish"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Tachpadni oʻchirish"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Sensor ekranni yoqish"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Sensor ekranni oʻchirish"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Yadro"
   }
 }

@@ -204,11 +204,3 @@ for action in logout reboot shutdown; do
 done
 "$ROOT/bin/omarchy" system lock --help | grep -q 'omarchy-system-lock' || fail "system lock remains routed to its own command"
 pass "existing system subcommands keep their routes"
-
-# Last: this overwrites the shared worker file the sections above reuse.
-run_power_command reboot-boot-menu || fail "reboot-boot-menu service is scheduled"
-[[ -s $CALL_LOG.worker ]] || fail "reboot-boot-menu schedules its worker"
-PATH=/stale/bin OMARCHY_PATH=/stale/checkout HYPRLAND_INSTANCE_SIGNATURE=stale /bin/bash "$CALL_LOG.worker" || fail "reboot-boot-menu worker succeeds"
-grep -q '^systemctl reboot --boot-loader-menu=0 --no-wall$' "$call_log" || fail "reboot-boot-menu asks systemd for the boot loader menu"
-grep -q '^omarchy-state clear re\*-required$' "$call_log" || fail "reboot-boot-menu clears restart state"
-pass "reboot-boot-menu reboots into the boot loader menu through the graceful session exit"

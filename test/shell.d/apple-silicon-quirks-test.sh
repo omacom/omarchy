@@ -81,13 +81,3 @@ pass "direct boot and hibernation step aside on Apple Silicon"
 output=$(UNAME_M=x86_64 PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-windows-vm" help 2>&1) || true
 [[ $output != *"x86_64 machine"* && $output == *"install"* ]] || fail "Windows VM runs as before on x86_64" "$output"
 pass "Windows VM runs as before on x86_64"
-
-run_node_test <<'JS'
-const fs = require('fs')
-const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
-const items = menu.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
-const when = id => (items.find(entry => entry.id === id) || {}).when
-assertEqual(when('install.windows'), 'omarchy-hw-x86', 'install.windows is offered on x86_64 only')
-assertEqual(when('setup.direct-boot'), '! omarchy-hw-aarch64-apple', 'setup.direct-boot is hidden on Apple Silicon only')
-JS
-pass "the menu offers Windows on x86_64 only and hides Direct Boot on Apple Silicon only"

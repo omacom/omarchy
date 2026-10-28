@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy parasti kontrolē, izmantojot karstās taustiņu kombinācijas un Omarchy izvēlni (`Super + Space`). Bet tu vari to kontrolēt arī, izmantojot `omarchy` CLI. Tas ir īpaši noderīgi, kad tev ir AI aģents, kas strādā ar tevi pie pielāgošanas vai konfigurēšanas.
+Omarchy parasti kontrolē ar karstajiem taustiņiem un Omarchy izvēlni (`Super + Space`). Bet to var kontrolēt arī ar `omarchy` CLI. Tas ir īpaši noderīgi, kad kopā ar tevi pie pielāgošanas vai konfigurēšanas strādā AI aģents.
 
-CLI ir piekļuve visiem iekšējiem rīkiem, ko izmanto gan caur izvēlni, gan citādi. Tu vari redzēt visu, kas ir pieejams, palaižot `omarchy` terminālī.
+CLI ir piekļuve visiem iekšējiem rīkiem, kas tiek izmantoti gan caur izvēlni, gan citādi. Visu pieejamo vari apskatīt, terminālī palaižot `omarchy`.
 
 Tas izskatās apmēram šādi:
 
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-Un tu vari iedziļināties katrā grupā:
+Un vari iedziļināties katrā grupā:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Katru komandu var izsaukt arī ar `--help`, neatkarīgi no tā, vai tu jautā visai grupai (`omarchy capture --help`) vai vienai komandai (`omarchy capture screenshot --help`).
+Katrai komandai ir arī `--help`, neatkarīgi no tā, vai jautā veselai grupai (`omarchy capture --help`) vai vienai komandai (`omarchy capture screenshot --help`).
 
-### Izvēlnes atvēršana no termināla
+### Izvēlnes atvēršana no termināļa
 
-Omarchy izvēlne ir arī skriptējama, kas ir ērti tavām taustiņu piesaistēm. `omarchy menu` atver to saknē, un tu vari lekt tieši uz jebkuru punktu kokā, nosaucot to: `omarchy menu summon style.theme` dodas tieši uz tēmu atlasītāju, `omarchy menu toggle system` atver sistēmas izvēlni un atkal to aizver, ja tā jau ir augšā, un `omarchy menu close` to novāc.
+Omarchy izvēlne ir arī skriptējama, kas noder tavām paša taustiņu kombinācijām. `omarchy menu` to atver saknē, un vari pāriet tieši uz jebkuru vietu kokā, to nosaucot: `omarchy menu summon appearance.theme` aizved tieši uz motīvu izvēli, `omarchy menu toggle system` atver sistēmas izvēlni un aizver to atkal, ja tā jau ir atvērta, un `omarchy menu close` to aizver.

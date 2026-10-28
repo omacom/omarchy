@@ -8,11 +8,11 @@
   "learn": {
     "label": "Foghlaim"
   },
+  "appearance": {
+    "label": "Cuma"
+  },
   "trigger": {
     "label": "Spreag"
-  },
-  "style": {
-    "label": "Stíl"
   },
   "setup": {
     "label": "Socrú"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Pobal"
   },
-  "trigger.appearance": {
-    "label": "Cuma"
+  "appearance.theme": {
+    "label": "Téama"
   },
-  "trigger.appearance.animations": {
-    "label": "Beochana"
+  "appearance.background": {
+    "label": "Cúlra"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Clú"
+  },
+  "appearance.top-bar": {
     "label": "Barra roghchláir"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Folaigh barra"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Taispeáin barra"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Suigh barra"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Cúlra barra"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Barra teimhneach"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Barra gloineach"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Barra glan"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Táscairí barra"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Céatadán ceallra"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Clog"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Dé Domhnaigh 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Dé Domhnaigh 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Dé Domhnaigh 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Dé Domhnaigh 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Domh 3 Beal 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Domh 3 Beal 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 Beal W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 Beal W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Barra barr"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Barra bun"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Barra ar chlé"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Barra ar dheis"
   },
-  "trigger.appearance.dock": {
-    "label": "Duga"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Uathfholaigh duga"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Duga i gcónaí air"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Suíomh duga"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Duga barr"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Duga bun"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Duga ar chlé"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Duga ar dheis"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Bearnaí fuinneog"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Cúinní fuinneog"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Cúinní téama"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Cúinní géara"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Cúinní cruinne"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Teimhneacht fuinneog"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Fuinneoga teimhneacha"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Fuinneoga trédhearcacha"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Fuinneoga gloineacha"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "Cóimheas 1-fhuinneog"
+  "appearance.branding.screensaver": {
+    "label": "Coigilteoir scáileáin"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Faisnéis"
+  },
+  "appearance.branding.about.text": {
+    "label": "Cuir téacs in eagar"
+  },
+  "appearance.branding.about.image": {
+    "label": "Socraigh ó íomhá"
+  },
+  "appearance.branding.about.default": {
+    "label": "Athchóirigh réamhshocrú"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Cuir téacs in eagar"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Socraigh ó íomhá"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Athchóirigh réamhshocrú"
+  },
+  "appearance.dock": {
+    "label": "Duga"
+  },
+  "appearance.dock.autohide": {
+    "label": "Uathfholaigh duga"
+  },
+  "appearance.dock.always-on": {
+    "label": "Duga i gcónaí air"
+  },
+  "appearance.dock.position": {
+    "label": "Suíomh duga"
+  },
+  "appearance.dock.position.top": {
+    "label": "Duga barr"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Duga bun"
+  },
+  "appearance.dock.position.left": {
+    "label": "Duga ar chlé"
+  },
+  "appearance.dock.position.right": {
+    "label": "Duga ar dheis"
+  },
+  "appearance.workspace-layout": {
     "label": "Leagan amach oibre",
     "title": "Leagan amach réamhshocraithe"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Tíliú"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Scrollú"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Foluaineach"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Sionc téama Herdr"
+  "appearance.unlock": {
+    "label": "Díghlasáil"
   },
   "trigger.toggle": {
     "label": "Scoránaigh"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Fan i do dhúis"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Fógraí"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Solas oíche"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Coigilteoir scáileáin"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Gabháil tuairte"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Tástáil luais"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Scáileán ríomhaire glúine"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Scáthánaigh scáileán"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "GPU Hibrideach"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Ceap tadhaill"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Tadhall tadhlach"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "ard"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Scáileán tadhaill"
   },
   "trigger.reminder.set": {
     "label": "Socrú ceann"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Tástáil luais diosca"
-  },
-  "style.theme": {
-    "label": "Téama"
-  },
-  "style.background": {
-    "label": "Cúlra"
-  },
-  "style.unlock": {
-    "label": "Díghlasáil"
-  },
-  "style.font": {
-    "label": "Clú"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Coigilteoir scáileáin"
-  },
-  "style.about": {
-    "label": "Faisnéis"
-  },
-  "style.about.text": {
-    "label": "Cuir téacs in eagar"
-  },
-  "style.about.image": {
-    "label": "Socraigh ó íomhá"
-  },
-  "style.about.default": {
-    "label": "Athchóirigh réamhshocrú"
-  },
-  "style.screensaver.text": {
-    "label": "Cuir téacs in eagar"
-  },
-  "style.screensaver.image": {
-    "label": "Socraigh ó íomhá"
-  },
-  "style.screensaver.default": {
-    "label": "Athchóirigh réamhshocrú"
   },
   "setup.monitors": {
     "label": "Monatóirí"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -855,7 +807,7 @@
     "label": "JavaScript"
   },
   "install.development.go": {
-    "label": "Téigh"
+    "label": "Go"
   },
   "install.development.php": {
     "label": "PHP"
@@ -1066,7 +1018,7 @@
     "title": "Bain"
   },
   "remove.development.go": {
-    "label": "Téigh"
+    "label": "Go"
   },
   "remove.development.php": {
     "label": "PHP",
@@ -1208,10 +1160,130 @@
   "update.password.user": {
     "label": "Úsáideoir"
   },
-  "system.reboot-boot-menu": {
-    "label": "Atosaigh go roghchlár tosaithe"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Taispeáin % Ceallra"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Folaigh % Ceallra"
+  },
+  "appearance.windows": {
+    "label": "Fuinneoga"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Bearnaí Fuinneoge Ar"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Bearnaí Fuinneoge As"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Cóimheas 1-Fhuinneog Ar"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Cóimheas 1-Fhuinneog As"
+  },
+  "appearance.branding": {
+    "label": "Brandáil"
+  },
+  "appearance.animations-on": {
+    "label": "Beochan Ar"
+  },
+  "appearance.animations-off": {
+    "label": "Beochan As"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Fan Dúisithe"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Ceadaigh Codladh"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Fógraí Ar"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Ciúnaigh Fógraí"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Solas Oíche Ar"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Solas Oíche As"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Spárálaí Scáileáin Ar"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Spárálaí Scáileáin As"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Gabháil Tuairteála Ar"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Gabháil Tuairteála As"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Taispeáint Ríomhaire Glúine Ar"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Taispeáint Ríomhaire Glúine As"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Scáthánú Taispeána Ar"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Scáthánú Taispeána As"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Athraigh go GPU Hibrideach"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Athraigh go GPU Comhtháite"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Cumasaigh Ceap Tadhaill"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Díchumasaigh Ceap Tadhaill"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Cumasaigh Scáileán Tadhaill"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Díchumasaigh Scáileán Tadhaill"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Eithne"
   }
 }

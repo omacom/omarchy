@@ -173,13 +173,16 @@ QtObject {
     return out
   }
 
+  // The bar's sections in the order they run along it, and tray, drawn
+  // inside the tray's drawer. The center box sits in the middle of the bar;
+  // centerBegin and centerEnd hang off its two edges.
+  readonly property var barSections: ["left", "centerBegin", "center", "centerEnd", "right", "tray"]
+
   function normalizeLayout(layout) {
     var src = isPlainObject(layout) ? layout : {}
-    return {
-      left:   normalizeLayoutSection(src.left),
-      center: normalizeLayoutSection(src.center),
-      right:  normalizeLayoutSection(src.right),
-      tray: normalizeLayoutSection(src.tray)
-    }
+    var out = {}
+    for (var i = 0; i < barSections.length; i++)
+      out[barSections[i]] = normalizeLayoutSection(src[barSections[i]])
+    return out
   }
 }

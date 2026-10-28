@@ -8,11 +8,11 @@
   "learn": {
     "label": "آموزش"
   },
+  "appearance": {
+    "label": "ظاهر"
+  },
   "trigger": {
     "label": "اجرا"
-  },
-  "style": {
-    "label": "ظاهر"
   },
   "setup": {
     "label": "تنظیمات"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "جامعه"
   },
-  "trigger.appearance": {
-    "label": "ظاهر"
+  "appearance.theme": {
+    "label": "تم"
   },
-  "trigger.appearance.animations": {
-    "label": "پویانمایی"
+  "appearance.background": {
+    "label": "پس‌زمینه"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "قلم"
+  },
+  "appearance.top-bar": {
     "label": "نوار منو"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "پنهان کردن نوار"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "نمایش نوار"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "موقعیت نوار"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "پس‌زمینه نوار"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "نوار مات"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "نوار شیشه‌ای"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "نوار شفاف"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "نشانگرهای نوار"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "درصد باتری"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "ساعت"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "یک‌شنبه 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "یک‌شنبه 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "یک‌شنبه 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "یک‌شنبه 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "یک‌شنبه 3 مه 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "یک‌شنبه 3 مه 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 مه W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 مه W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "نوار بالا"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "نوار پایین"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "نوار چپ"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "نوار راست"
   },
-  "trigger.appearance.dock": {
-    "label": "داک"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "پنهان‌شدن خودکار داک"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "داک همیشه روشن"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "موقعیت داک"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "داک بالا"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "داک پایین"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "داک چپ"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "داک راست"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "فاصله پنجره‌ها"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "گوشه‌های پنجره"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "گوشه‌های تم"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "گوشه‌های تیز"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "گوشه‌های گرد"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "کدری پنجره"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "پنجره‌های مات"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "پنجره‌های شفاف"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "پنجره‌های شیشه‌ای"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "نسبت 1 پنجره"
+  "appearance.branding.screensaver": {
+    "label": "محافظ صفحه"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "درباره"
+  },
+  "appearance.branding.about.text": {
+    "label": "ویرایش متن"
+  },
+  "appearance.branding.about.image": {
+    "label": "تنظیم از تصویر"
+  },
+  "appearance.branding.about.default": {
+    "label": "بازیابی پیش‌فرض"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "ویرایش متن"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "تنظیم از تصویر"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "بازیابی پیش‌فرض"
+  },
+  "appearance.dock": {
+    "label": "داک"
+  },
+  "appearance.dock.autohide": {
+    "label": "پنهان‌شدن خودکار داک"
+  },
+  "appearance.dock.always-on": {
+    "label": "داک همیشه روشن"
+  },
+  "appearance.dock.position": {
+    "label": "موقعیت داک"
+  },
+  "appearance.dock.position.top": {
+    "label": "داک بالا"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "داک پایین"
+  },
+  "appearance.dock.position.left": {
+    "label": "داک چپ"
+  },
+  "appearance.dock.position.right": {
+    "label": "داک راست"
+  },
+  "appearance.workspace-layout": {
     "label": "چیدمان فضای کاری",
     "title": "چیدمان پیش‌فرض فضای کاری"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "کاشی‌کاری"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "پیمایش"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "شناور"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "همگام‌سازی تم Herdr"
+  "appearance.unlock": {
+    "label": "باز کردن قفل"
   },
   "trigger.toggle": {
     "label": "روشن/خاموش"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "بیدار بمان"
-  },
-  "trigger.toggle.notifications": {
-    "label": "اعلان‌ها"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "نور شب"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "محافظ صفحه"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "ثبت خرابی"
   },
   "trigger.emoji": {
     "label": "ایموجی"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "تست سرعت"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "نمایشگر لپ‌تاپ"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "نمایش آینه‌ای"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "GPU ترکیبی"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "تاچ‌پد"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "لرزش تاچ‌پد"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "زیاد"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "صفحه لمسی"
   },
   "trigger.reminder.set": {
     "label": "تنظیم کن"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "تست سرعت دیسک"
-  },
-  "style.theme": {
-    "label": "تم"
-  },
-  "style.background": {
-    "label": "پس‌زمینه"
-  },
-  "style.unlock": {
-    "label": "باز کردن قفل"
-  },
-  "style.font": {
-    "label": "قلم"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "محافظ صفحه"
-  },
-  "style.about": {
-    "label": "درباره"
-  },
-  "style.about.text": {
-    "label": "ویرایش متن"
-  },
-  "style.about.image": {
-    "label": "تنظیم از تصویر"
-  },
-  "style.about.default": {
-    "label": "بازیابی پیش‌فرض"
-  },
-  "style.screensaver.text": {
-    "label": "ویرایش متن"
-  },
-  "style.screensaver.image": {
-    "label": "تنظیم از تصویر"
-  },
-  "style.screensaver.default": {
-    "label": "بازیابی پیش‌فرض"
   },
   "setup.monitors": {
     "label": "مانیتورها"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -855,7 +807,7 @@
     "label": "JavaScript"
   },
   "install.development.go": {
-    "label": "برو"
+    "label": "Go"
   },
   "install.development.php": {
     "label": "PHP"
@@ -1066,7 +1018,7 @@
     "title": "حذف"
   },
   "remove.development.go": {
-    "label": "برو"
+    "label": "Go"
   },
   "remove.development.php": {
     "label": "PHP",
@@ -1208,10 +1160,130 @@
   "update.password.user": {
     "label": "کاربر"
   },
-  "system.reboot-boot-menu": {
-    "label": "راه‌اندازی مجدد به منوی بوت"
+  "appearance.windows.gaps-on": {
+    "label": "فاصله پنجره‌ها روشن"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "appearance.windows.gaps-off": {
+    "label": "فاصله پنجره‌ها خاموش"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "نسبت تک‌پنجره روشن"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "نسبت تک‌پنجره خاموش"
+  },
+  "appearance.branding": {
+    "label": "برندینگ"
+  },
+  "appearance.animations-on": {
+    "label": "انیمیشن روشن"
+  },
+  "appearance.animations-off": {
+    "label": "انیمیشن خاموش"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "بیدار بمان"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "اجازه خواب"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "اعلان‌ها روشن"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "سکوت اعلان‌ها"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "نور شب روشن"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "نور شب خاموش"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "محافظ صفحه روشن"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "محافظ صفحه خاموش"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "ثبت خرابی روشن"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "ثبت خرابی خاموش"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "نمایشگر لپ‌تاپ روشن"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "نمایشگر لپ‌تاپ خاموش"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "نمایش آینه‌ای روشن"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "نمایش درصد باتری"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "پنهان‌کردن درصد باتری"
+  },
+  "appearance.windows": {
+    "label": "پنجره‌ها"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "خاموش کردن نمایش آینه‌ای"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "تغییر به GPU هیبریدی"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "تغییر به GPU مجتمع"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "فعال‌سازی تاچ‌پد"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "غیرفعال‌سازی تاچ‌پد"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "فعال‌سازی صفحه لمسی"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "غیرفعال‌سازی صفحه لمسی"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "کرنل"
   }
 }

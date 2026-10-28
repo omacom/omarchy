@@ -15,7 +15,6 @@ const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(i18nDir, rel), 'u
 
 const registry = readJson('locales.json')
 const codes = Object.keys(registry)
-assertEqual(codes.length, 50, 'i18n registry holds 50 languages')
 assert(codes[0] === 'en', 'i18n registry lists English first (the default)')
 const badRegistry = codes.filter((code) => !/^[a-z]{2,3}(-[A-Za-z]{2})?$/.test(code)
   || ['name', 'englishName', 'formatLocale', 'locale'].some((f) => typeof registry[code][f] !== 'string' || registry[code][f].length === 0)
@@ -33,13 +32,14 @@ assert(staleMenu.length === 0, 'English menu catalog mirrors the menu definition
 const orphanMenu = Object.keys(enMenu).filter((id) => id !== 'root' && !menuItems.some((item) => item.id === id))
 assert(orphanMenu.length === 0, 'English menu catalog has no orphan ids', JSON.stringify(orphanMenu))
 
-// I18N_STRUCTURAL=1 is the pull-request gate: individual PRs only add the
+// Structural by default, as every gate runs it: individual PRs only add the
 // English side, so missing translations are pending work for the sync
 // workflow rather than failures. So are translations the manifest marks
 // stale (their English changed since) and orphans awaiting pruning —
 // an English-only edit must never wedge on 49 other languages. Structure
-// of what IS current must still hold either way.
-const structural = process.env.I18N_STRUCTURAL === '1'
+// of what IS current must still hold either way. I18N_STRICT=1 also wants
+// every catalog complete, as it is right after a sync.
+const structural = process.env.I18N_STRICT !== '1'
 const crypto = require('crypto')
 const manifest = readJson('translation-manifest.json')
 // A plural entry hashes as Python's json.dumps(sort_keys=True) writes it.
@@ -117,7 +117,12 @@ assert(unreferencedShell.length === 0, 'every shell catalog key is referenced', 
 const unknownShell = [...shellKeys].filter((key) => !Object.hasOwn(enShell, key))
 assert(unknownShell.length === 0, 'every referenced shell key exists in the English catalog', JSON.stringify(unknownShell))
 
-const cliKeys = collectKeys(path.join(root, 'bin'), [''], /omarchy-i18n (?:--count \S+ )?([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g)
+const cliKeyPattern = /omarchy-i18n (?:--count \S+ )?([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g
+const cliKeys = collectKeys(path.join(root, 'bin'), [''], cliKeyPattern)
+for (const key of collectKeys(path.join(root, 'install'), ['.sh', '.hook'], cliKeyPattern)) cliKeys.add(key)
+for (const key of collectKeys(path.join(root, 'default'), ['.py'], cliKeyPattern)) cliKeys.add(key)
+for (const key of collectKeys(path.join(root, 'etc'), ['.jsonc'], cliKeyPattern)) cliKeys.add(key)
+for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh'], /omarchy_form_text ([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g)) cliKeys.add(key)
 const unreferencedCli = Object.keys(enCli).filter((key) => !cliKeys.has(key))
 assert(unreferencedCli.length === 0, 'every cli catalog key is referenced', JSON.stringify(unreferencedCli))
 const unknownCli = [...cliKeys].filter((key) => !Object.hasOwn(enCli, key))
@@ -176,7 +181,9 @@ const englishTexts = {}
 for (const file of englishManual) englishTexts[file] = fs.readFileSync(path.join(manualDir, file), 'utf8')
 const bagOf = (items) => JSON.stringify([...items].sort())
 const fencesOf = (text) => [...text.matchAll(/```[^\n]*\n([\s\S]*?)```/g)].map((m) => m[1])
-const urlsOf = (text) => text.match(/https?:\/\/[^\s)]+/g) || []
+// The published manual's autolinks leave trailing ASCII punctuation out of a
+// bare URL but keep 。 or । in it, and a (destination) keeps it all.
+const urlsOf = (text) => [...text.matchAll(/https?:\/\/[^\s)`]+/g)].map((m) => text[m.index - 1] === '(' ? m[0] : m[0].replace(/[.,;:!?]+$/, ''))
 const relDestsOf = (text) => [...text.matchAll(/\]\((?!<?https?:\/\/)([^)\s]+)/g)].map((m) => m[1])
 const protectedInlineOf = (text) => [...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1])
   .filter((span) => /[/~$]/.test(span) || span.startsWith('omarchy ') || span.startsWith('omarchy-'))
@@ -194,6 +201,12 @@ const fencedChapter = englishManual.find((file) => englishTexts[file].includes('
 assert(manualProblems(englishTexts[fencedChapter], englishTexts[fencedChapter].replace(/```[^\n]*\n/, '$&echo tampered\n')).length > 0, 'the manual integrity check catches a changed code block')
 const linkedChapter = englishManual.find((file) => /\]\(\d\d-[a-z0-9-]+\.md\)/.test(englishTexts[file]))
 assert(manualProblems(englishTexts[linkedChapter], englishTexts[linkedChapter].replace(/\]\(\d\d-[a-z0-9-]+\.md\)/, '](99-missing.md)')).length > 0, 'the manual integrity check catches a broken chapter link')
+assert(['https://example.org/walls を参照してください。', 'ดูที่ https://example.org/walls', 'https://example.org/walls. पर देखें']
+  .every((translated) => manualProblems('See https://example.org/walls.', translated).length === 0) &&
+  ['参照: https://example.org/walls。', 'देखें https://example.org/walls।', 'دیکھیں https://example.org/walls۔', 'See https://example.org/other.']
+    .every((translated) => manualProblems('See https://example.org/walls.', translated).length > 0) &&
+  manualProblems('[LocalSend](https://localsend.org/)', '[LocalSend](https://localsend.org/ダウンロード)').length > 0 &&
+  manualProblems('[dharmx/walls](https://github.com/dharmx/walls).', '[dharmx/walls](https://github.com/dharmx/walls.)。').length > 0, 'the manual integrity check ignores the full stop the published link drops, not one it keeps')
 for (const code of codes) {
   if (code === 'en') continue
   const dir = path.join(manualDir, code)
@@ -288,13 +301,19 @@ cat >"$work/stubs/omarchy-notification-send" <<'STUB'
 #!/bin/bash
 echo "$@" >>"$NOTIFY_LOG"
 STUB
-cat >"$work/stubs/dbus-update-activation-environment" <<'STUB'
-#!/bin/bash
-echo "$@" >>"$SESSION_ENV_LOG"
-STUB
 cat >"$work/stubs/locale" <<'STUB'
 #!/bin/bash
 if [[ $1 == "-a" ]]; then echo "en_US.utf8"; else echo "LANG=en_US.UTF-8"; fi
+STUB
+# A fake Hyprland session: the compositor and the shell restart record what
+# they were asked, so the test never touches a desktop it runs inside.
+cat >"$work/stubs/hyprctl" <<'STUB'
+#!/bin/bash
+echo "$@" >>"$SESSION_ENV_LOG"
+STUB
+cat >"$work/stubs/omarchy-restart-shell" <<'STUB'
+#!/bin/bash
+echo "restart" >>"$SESSION_ENV_LOG"
 STUB
 # sudo and pkexec record which one elevated and what it ran, then run it
 # as-is. sudo answers the long listing (`sudo -n -l -l`) with the
@@ -319,6 +338,7 @@ STUB
 chmod +x "$work/stubs/"*
 export PATH="$work/stubs:$PATH"
 export LOCALE_GEN_LOG=$work/locale-gen.log NOTIFY_LOG=$work/notify.log ELEVATE_LOG=$work/elevate.log SESSION_ENV_LOG=$work/session-env.log
+export HYPRLAND_INSTANCE_SIGNATURE=test
 : >"$LOCALE_GEN_LOG"; : >"$NOTIFY_LOG"; : >"$ELEVATE_LOG"; : >"$SESSION_ENV_LOG"
 
 assert_bash_equal() {
@@ -334,7 +354,7 @@ assert_bash_equal "$(omarchy-language)" "en" "omarchy-language falls back to Eng
 rm -f "$OMARCHY_LANGUAGE_FILE"
 
 list=$(omarchy-language list)
-assert_bash_equal "$(printf '%s\n' "$list" | wc -l)" "50" "omarchy-language list prints 50 rows"
+assert_bash_equal "$(printf '%s\n' "$list" | wc -l)" "$(jq length "$ROOT/default/i18n/locales.json")" "omarchy-language list prints a row for every registered language"
 assert_bash_equal "$(printf '%s\n' "$list" | head -n 1 | cut -f2)" "en" "omarchy-language list puts English first"
 assert_bash_equal "$(omarchy-language locale da)" "da_DK.UTF-8" "omarchy-language locale maps da to its glibc locale"
 
@@ -345,7 +365,7 @@ assert_bash_equal "$(cat "$ELEVATE_LOG")" "pkexec omarchy-locale-generate da" "w
 assert_bash_equal "$(cat "$OMARCHY_LANGUAGE_FILE")" "da" "omarchy-language persists the choice"
 assert_bash_equal "$(omarchy-language)" "da" "omarchy-language reads the persisted choice"
 assert_bash_equal "$(grep '^export LANG=' "$session_env")" "export LANG=da_DK.UTF-8" "omarchy-language sets the session LANG through uwsm for the next login"
-assert_bash_equal "$(cat "$SESSION_ENV_LOG")" "--systemd LANG=da_DK.UTF-8" "omarchy-language hands the new LANG to apps launched from now on"
+assert_bash_equal "$(cat "$SESSION_ENV_LOG")" $'eval hl.env("LANG", "da_DK.UTF-8", true)\nrestart' "omarchy-language hands the new LANG to Hyprland and services, then respawns the shell from it"
 assert_bash_equal "$(grep '^da_DK.UTF-8' "$OMARCHY_LOCALE_GEN")" "da_DK.UTF-8 UTF-8" "omarchy-language enables the locale in locale.gen"
 assert_bash_equal "$(cat "$LOCALE_GEN_LOG")" "da_DK.UTF-8" "omarchy-language generates the locale"
 
@@ -404,7 +424,7 @@ omarchy-language da </dev/null
 assert_bash_equal "$(cat "$OMARCHY_LANGUAGE_FILE")" "da" "already-applied locale switches without elevating"
 assert_bash_equal "$(cat "$LOCALE_GEN_LOG")" "" "already-generated locale is not regenerated"
 assert_bash_equal "$(cat "$ELEVATE_LOG")" "" "no password prompt when nothing privileged is needed"
-assert_bash_equal "$(cat "$SESSION_ENV_LOG")" "--systemd LANG=da_DK.UTF-8" "an already-generated locale still reaches the session"
+assert_bash_equal "$(head -n 1 "$SESSION_ENV_LOG")" 'eval hl.env("LANG", "da_DK.UTF-8", true)' "an already-generated locale still reaches the session"
 
 # Switching back writes the new LANG over the old one rather than adding to it.
 omarchy-language en </dev/null
@@ -464,11 +484,11 @@ fi
 
 require_command python3
 
-if [[ ${I18N_STRUCTURAL:-} == "1" ]]; then
-  skip "no translations are pending (structural mode)"
-else
+if [[ ${I18N_STRICT:-} == "1" ]]; then
   pending_locales=$(python3 "$ROOT/scripts/i18n-sync.py" pending | jq -c '.locales')
   assert_bash_equal "$pending_locales" "[]" "no translations are pending"
+else
+  skip "no translations are pending (structural mode)"
 fi
 
 extract_candidates=$(python3 "$ROOT/scripts/i18n-sync.py" extract-scan | jq -c '.candidates | length')
