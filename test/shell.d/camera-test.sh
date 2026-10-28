@@ -7,7 +7,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 helper="$ROOT/bin/omarchy-install-camera"
 leaf="$ROOT/install/hardware/qualcomm/camera.sh"
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+grant_pid=""
+trap '[[ -n $grant_pid ]] && kill "$grant_pid" 2>/dev/null || true; rm -rf "$test_tmp"' EXIT
 
 # The Snapdragon check answers from a file, so each case picks the platform.
 # Package installs are recorded instead of run.
@@ -112,9 +113,11 @@ else
   (($(wait_for_camera) < 500)) || fail "WirePlumber does not wait for a media device the seat does not hand out"
   : >"$media/media0"
   chmod 000 "$media/media0"
-  (sleep 1 && chmod 600 "$media/media0") &
+  (sleep 1 && chmod 600 "$media/media0") >/dev/null 2>&1 &
+  grant_pid=$!
   elapsed=$(wait_for_camera)
-  wait
+  wait "$grant_pid"
+  grant_pid=""
   ((elapsed >= 900 && elapsed < 4000)) || fail "WirePlumber waits until the seat's camera opens" "waited ${elapsed} ms"
   pass "WirePlumber waits for the seat's camera at login, and only for it"
 fi
