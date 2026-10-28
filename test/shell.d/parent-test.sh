@@ -258,7 +258,7 @@ pass "omarchy-parent dispatches to feature commands and shares its sudoers insta
 # sudoers and polkit directories. Every account-touching tool is stubbed; the
 # sudoers files themselves are checked by the real visudo where one exists.
 if ! unshare --user --map-root-user true 2>/dev/null; then
-  pass "no unprivileged user namespace; skipping the omarchy-parent apply and password probes"
+  skip "no unprivileged user namespace; skipping the omarchy-parent apply and password probes"
   exit 0
 fi
 

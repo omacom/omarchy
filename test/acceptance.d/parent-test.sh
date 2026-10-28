@@ -7,19 +7,28 @@
 #
 # Runs only on a child install, and only with both passwords supplied: the
 # harness (omarchy-iso-test --child) sets OMARCHY_ACCEPTANCE_SUDO_PASSWORD to
-# the parent password and OMARCHY_ACCEPTANCE_USER_PASSWORD to the kid's.
+# the parent password and OMARCHY_ACCEPTANCE_USER_PASSWORD to the kid's, and
+# names the profile it installed in OMARCHY_ACCEPTANCE_PROFILE. A run named
+# child fails here rather than skipping when it lands on any other install or
+# arrives without its passwords, and a run named anything else fails on a
+# child install. Without that designation the checks are skipped, and say so.
 
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+designated=${OMARCHY_ACCEPTANCE_PROFILE:-}
+
 if ! omarchy-profile-child; then
-  pass "child install checks skipped: not a child install"
+  [[ $designated != "child" ]] || fail "a child run lands on a child install" "the profile marker reads: $(cat /etc/omarchy/profile 2>/dev/null || echo none)"
+  skip "child install checks: not a child install"
   exit 0
 fi
+[[ -z $designated || $designated == "child" ]] || fail "a $designated run lands on a $designated install" "the profile marker reads child"
 
 if [[ -z ${OMARCHY_ACCEPTANCE_SUDO_PASSWORD:-} || -z ${OMARCHY_ACCEPTANCE_USER_PASSWORD:-} ]]; then
-  pass "child install checks skipped: set OMARCHY_ACCEPTANCE_SUDO_PASSWORD (parent) and OMARCHY_ACCEPTANCE_USER_PASSWORD (kid) to run them"
+  [[ $designated != "child" ]] || fail "a child run carries both passwords" "set OMARCHY_ACCEPTANCE_SUDO_PASSWORD (parent) and OMARCHY_ACCEPTANCE_USER_PASSWORD (kid)"
+  skip "child install checks: set OMARCHY_ACCEPTANCE_SUDO_PASSWORD (parent) and OMARCHY_ACCEPTANCE_USER_PASSWORD (kid) to run them"
   exit 0
 fi
 
@@ -75,3 +84,14 @@ sudo -n grep -qE '^auth[[:space:]]+\[success=2 default=ignore\][[:space:]]+pam_u
 sudo -n test -f /etc/pam.d/sddm.omarchy-orig || fail "the packaged login stack is kept beside the child one"
 sudo -n grep -qE '^auth[[:space:]]+requisite[[:space:]]+pam_nologin\.so' /etc/pam.d/sddm || fail "the login stack keeps the nologin check"
 pass "the parent password is wired into the lock screen and the login screen"
+
+# The helper those stacks run, against the live accounts: as the kid, with the
+# typed password on stdin the way pam_exec hands it over. The refusal comes
+# first, so the success after it leaves root's failure tally reset.
+if printf '%s' "$OMARCHY_ACCEPTANCE_USER_PASSWORD" | PAM_USER=$USER PAM_TYPE=auth /usr/bin/omarchy-parent-unlock 2>/dev/null; then
+  fail "omarchy-parent-unlock refuses the kid password"
+fi
+pass "omarchy-parent-unlock refuses the kid password"
+printf '%s' "$OMARCHY_ACCEPTANCE_SUDO_PASSWORD" | PAM_USER=$USER PAM_TYPE=auth /usr/bin/omarchy-parent-unlock 2>/dev/null ||
+  fail "omarchy-parent-unlock accepts the parent password"
+pass "omarchy-parent-unlock accepts the parent password"
