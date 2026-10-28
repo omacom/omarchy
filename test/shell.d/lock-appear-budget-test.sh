@@ -32,6 +32,35 @@ appear_ms() {
   wait_scratch_layer omarchy-lock-preview absent || return 1
 }
 
+# CPU time the scratch shell has used, in clock ticks, its render threads
+# included: utime and stime, the 14th and 15th fields of its stat.
+scratch_cpu_ticks() {
+  local stat fields
+  stat=$(</proc/"$SCRATCH_PID"/stat) || return 1
+  read -r -a fields <<<"${stat##*) }"
+  echo $(( fields[11] + fields[12] ))
+}
+
+# The lock service answers while the shell is still drawing its first frames
+# of the wallpaper, bar and dock. A GPU draws them in milliseconds; Mesa's
+# software renderer takes a second or two, and a lock timed meanwhile waits
+# for those frames. Wait until the shell uses at most one tick of CPU in
+# 200ms, for at most 10s, so only the lock is timed.
+wait_scratch_quiet() {
+  local last="" now
+  for _ in {0..50}; do
+    if ! now=$(scratch_cpu_ticks); then
+      sed -n '1,120p' "$SCRATCH_LOG" >&2
+      fail "scratch shell keeps running while it settles"
+    elif [[ -n $last ]] && (( now - last <= 1 )); then
+      return 0
+    else
+      last=$now
+      sleep 0.2
+    fi
+  done
+}
+
 # The view build and the first appearance happen once per shell start, so
 # each of their samples is a cold start; the reappearances are timed on the
 # last shell.
@@ -60,6 +89,7 @@ for round in 1 2 3; do
   [[ -n $ready_ms ]] || { sed -n '1,120p' "$SCRATCH_LOG" >&2; fail "lock service becomes available"; }
   if [[ -z $ready_best ]] || (( ready_ms < ready_best )); then ready_best=$ready_ms; fi
 
+  wait_scratch_quiet
   elapsed=$(appear_ms) || { sed -n '1,120p' "$SCRATCH_LOG" >&2; fail "lock preview appears and hides cleanly"; }
   if [[ -z $first_best ]] || (( elapsed < first_best )); then first_best=$elapsed; fi
 done
