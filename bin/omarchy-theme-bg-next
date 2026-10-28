@@ -26,6 +26,9 @@ else
   if [[ -z $CURRENT_BACKGROUND && -L $CURRENT_BACKGROUND_LINK ]]; then
     CURRENT_BACKGROUND=$(readlink "$CURRENT_BACKGROUND_LINK")
   fi
+  # A playing theme loop stands for its still.
+  [[ $CURRENT_BACKGROUND != */backgrounds/loops/* ]] ||
+    CURRENT_BACKGROUND=$(omarchy-theme-bg-loop-apply --still "$CURRENT_BACKGROUND")
 
   # Find current background index
   INDEX=-1

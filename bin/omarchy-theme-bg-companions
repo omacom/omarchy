@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# omarchy:summary=Shared helpers for a background's theme intro and loop (source this, don't run it).
+# omarchy:hidden=true
+
+# A theme still at backgrounds/<stem>.<ext> may have companions under the same
+# name: backgrounds/intros/<stem>.mp4 plays once when it arrives, and
+# backgrounds/loops/<stem>.mp4 plays in its place afterwards.
+
+theme_bg_video_extensions=(mp4 m4v mov webm mkv avi)
+
+# Print the companion video of kind intros or loops for a still.
+theme_bg_companion() {
+  local kind="$1" background stem extension companion
+
+  background=$(readlink -f "$2" 2>/dev/null) || return 1
+  [[ -f $background ]] || return 1
+  case ${background,,} in
+    *.jpg | *.jpeg | *.png | *.bmp | *.webp) ;;
+    *) return 1 ;;
+  esac
+
+  # Only a still in a backgrounds folder has a loop, which is the one place
+  # theme_bg_still_for maps back from.
+  [[ $kind != "loops" || ${background%/*} == */backgrounds ]] || return 1
+
+  stem=${background##*/}
+  stem=${stem%.*}
+  for extension in "${theme_bg_video_extensions[@]}"; do
+    companion="${background%/*}/$kind/$stem.$extension"
+    if [[ -f $companion ]]; then
+      printf '%s\n' "$companion"
+      return 0
+    fi
+  done
+  return 1
+}
+
+theme_bg_animations_off() {
+  [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool' 2>/dev/null) == "false" ]]
+}
+
+# A playing theme loop stands for its still. Print the still for a path under
+# backgrounds/loops/, or the path itself for anything else.
+theme_bg_still_for() {
+  local background="$1" stem still
+
+  if [[ $background == */backgrounds/loops/* ]]; then
+    stem=${background##*/}
+    stem=${stem%.*}
+    # Any case, as theme_bg_companion accepts it.
+    for still in "${background%/loops/*}/$stem".*; do
+      case ${still,,} in
+        *.jpg | *.jpeg | *.png | *.bmp | *.webp)
+          if [[ ${still%.*} == "${background%/loops/*}/$stem" && -f $still ]]; then
+            printf '%s\n' "$still"
+            return
+          fi
+          ;;
+      esac
+    done
+  fi
+  printf '%s\n' "$background"
+}
+
+# What the background link should name for a still: its theme loop while live
+# backgrounds are on, otherwise the still.
+theme_bg_live_target() {
+  local still="$1" loop
+
+  if [[ ! -f $HOME/.local/state/omarchy/toggles/background-loops-off ]] &&
+    loop=$(theme_bg_companion loops "$still") && ! theme_bg_animations_off; then
+    printf '%s\n' "$loop"
+  else
+    printf '%s\n' "$still"
+  fi
+}

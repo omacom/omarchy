@@ -16,7 +16,9 @@
 # generation behind that turns the next restart's IPC kill into a crash.
 run_shell() {
   local startup_background
-  startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
+  # A theme loop starts again from its still, which is what an intro pairs
+  # with; the startup intro hands the desktop back to the loop.
+  startup_background=$(omarchy-theme-bg-loop-apply --still-only)
   OMARCHY_STARTUP_BACKGROUND="$startup_background" QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
