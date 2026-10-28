@@ -117,11 +117,10 @@ if [[ -f $marker && $(<"$marker") == "$session_id" ]]; then
   exit 0
 fi
 
-marker_staged=$(mktemp "$state_home/omarchy/.background-intro.session-id.XXXXXX")
-trap 'rm -f "$marker_staged"' EXIT
-printf '%s\n' "$session_id" >"$marker_staged"
-mv -f "$marker_staged" "$marker"
-trap - EXIT
+# The shell reads the marker at startup, so it is replaced whole. The lock
+# keeps this the only writer, so a fixed staging name is safe.
+printf '%s\n' "$session_id" >"$marker.staged"
+mv -f "$marker.staged" "$marker"
 exec 9>&-
 
 if [[ -f $toggle ]] || animations_off; then
