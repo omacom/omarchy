@@ -109,13 +109,12 @@ if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding l
 fi
 log=$(<"$switch/log")
 clip="$switch/media/intros/new.mp4"
-# The prepared clip resumes; OWE re-reads the moved link for its final still.
-[[ $log == *"owe intro-prepare $clip"$'\n'"owe intro --start first-frame --refresh $clip"* ]] || fail "a background change prepares and plays its intro" "$log"
+# A background change's clip starts once OWE has re-read the moved link.
+[[ $log == "owe refresh"$'\n'"owe intro --start first-frame $clip"$'\n'* ]] || fail "a background change plays its intro" "$log"
 # Nothing plays for a still without an intro of its own.
 (( $(grep -c "^owe intro --start" <<<"$log") == 2 )) || fail "only the two intros play" "$log"
-# A clip OWE could not prepare starts the ordinary way, and Hyprland reloads
-# only once it has ended.
-[[ $log == *"owe refresh"$'\n'"owe intro --start first-frame $clip"$'\n'"owe intro done"$'\n'"reload"* ]] || fail "a theme switch reloads Hyprland after its intro" "$log"
+# A theme's prepared clip resumes, and Hyprland reloads only once it has ended.
+[[ $log == *"owe intro --start first-frame --refresh $clip"$'\n'"owe intro done"$'\n'"reload"* ]] || fail "a theme switch reloads Hyprland after its intro" "$log"
 (( $(grep -c '^reload$' <<<"$log") == 1 )) || fail "Hyprland reloads once, for the theme switch" "$log"
 snapshot=$(sed -n 's/.*SNAPSHOT //p' <<<"$output")
 [[ -n $snapshot && ! -e $snapshot ]] || fail "the playing frame's snapshot is removed once the cut has finished" "$snapshot"

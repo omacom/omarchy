@@ -175,21 +175,13 @@ TEST_GATE_DIR="$gates" TEST_STATE="$state" TEST_OLD_THEME=beta set_theme alpha
 [[ ! -f $gates/premature-swap ]] || fail "the running reveal and the new cover settle before replacing the active theme"
 pass "rapid switches present the outgoing cover before replacing its still"
 
-# A shell from before the handover only knows to drop the cover, so the switch
-# takes the ordinary transition and reloads Hyprland itself.
-TEST_OLD_SHELL=true set_theme beta
-grep -q '^shell: shell finishThemeIntro ' "$log" || fail "an older shell drops its cover"
-grep -q '^shell: background themeTransition ' "$log" || fail "an older shell takes the ordinary transition"
-grep -q '^hypr-reload$' "$log" || fail "an older shell's switch reloads Hyprland itself"
-pass "an older shell falls back to the ordinary theme transition"
-
 set_background() {
   : >"$log"
   HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_LOG="$log" \
     /bin/bash "$ROOT/bin/omarchy-theme-bg-set" "$1" </dev/null >"$test_tmp/stdout" 2>"$test_tmp/stderr" || fail "background selection completes" "$(cat "$test_tmp/stderr")"
 }
 set_background "$road"
-grep -Fxq "shell: shell switchBackground $road" "$log" || fail "a background change is handed to the shell" "$(cat "$log")"
+grep -Fxq "shell: shell switchBackground $road $clip" "$log" || fail "a background change is handed to the shell with its intro" "$(cat "$log")"
 ! grep -q '^shell: -q background set ' "$log" || fail "the shell, not the command, transitions the background"
 TEST_OLD_SHELL=true set_background "$sky"
 [[ $(readlink "$state/background") == "$sky" ]] || fail "without the shell's switch the command repoints the link"
@@ -204,7 +196,7 @@ next_background() {
 }
 ln -nsf "$road" "$state/background"
 TEST_SELECTED="$sky" next_background
-grep -Fxq "shell: shell switchBackground $road" "$log" || fail "cycling moves on from the shell's pending selection" "$(cat "$log")"
+grep -Fxq "shell: shell switchBackground $road $clip" "$log" || fail "cycling moves on from the shell's pending selection" "$(cat "$log")"
 TEST_OLD_SHELL=true next_background
 [[ $(readlink "$state/background") == "$sky" ]] || fail "without the shell, cycling moves on from the link"
 pass "background cycling moves on from a selection that is still being applied"

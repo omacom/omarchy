@@ -23,8 +23,9 @@ Item {
   property string token: ""
   property string still: ""
   property string clip: ""
-  // Null until OWE has tried to prepare the clip; false when there is none.
-  property var prepared: false
+  // Whether OWE already holds the clip decoded, as a theme switch prepares it
+  // while its templates render.
+  property bool prepared: false
   property bool linked: false
   property bool started: false
   property int serial: 0
@@ -34,26 +35,23 @@ Item {
   // A selection made while an earlier change is still covered or revealing
   // waits for it, since its outgoing frame would miss that change's cover.
   property string queuedPath: ""
+  property string queuedClip: ""
   // A theme switch reloads Hyprland once no intro plays: a reload pauses
   // video presentation.
   property bool reloadPending: false
-  // Bumped when a theme switch takes the cover, which drops background work
-  // started before it: the theme's own background wins.
-  property int epoch: 0
   // The link's next target while an earlier ln still runs, so the link always
   // ends on the latest selection.
   property string pendingLink: ""
 
   // A theme switch waits while this is set, so it cannot capture a frame from
   // under a cover or take over from a change still being set up.
-  readonly property bool busy: !!intro && (intro.themeToken !== "" || intro.revealing) || resolveProc.running || snapshotProc.running
+  readonly property bool busy: !!intro && (intro.themeToken !== "" || intro.revealing) || snapshotProc.running
 
   // The background the latest selection names. The link only moves once a
-  // change is under way, so a selection still queued or setting up is not
-  // there yet.
+  // change is under way, so a selection still queued or covered is not there
+  // yet.
   function selected() {
     if (queuedPath) return queuedPath
-    if (resolveProc.running) return resolveProc.path
     if (token && intro && token === intro.themeToken) return still
     return backgroundService ? backgroundService.currentBackground : ""
   }
@@ -63,31 +61,24 @@ Item {
     return path && !Util.isVideoPath(path) ? path : ""
   }
 
-  // A selection from the background picker or omarchy-theme-bg-set.
-  function switchTo(path) {
+  // omarchy-theme-bg-set's selection, with the intro it found for it.
+  function switchTo(path, clipPath) {
     path = String(path || "").trim()
     if (!path || !intro || !backgroundService) return "unavailable"
     if (busy) {
       queuedPath = path
-    } else {
-      resolveProc.epoch = epoch
-      resolveProc.path = path
-      resolveProc.command = ["omarchy-theme-bg-boot-intro", "--resolve-enabled", path]
-      resolveProc.running = true
+      queuedClip = clipPath
+    } else if (path !== backgroundService.currentBackground) {
+      // A playing intro hides the shell's background, so even a still
+      // without an intro of its own has to come in under the cover.
+      if (clipPath || backgroundService.suspended) {
+        begin(path, clipPath)
+      } else {
+        link(path)
+        backgroundService.setBackground(path, false)
+      }
     }
     return "ok"
-  }
-
-  function resolved(path, clipPath) {
-    if (path === backgroundService.currentBackground) return
-    // A playing intro hides the shell's background, so even a still without
-    // an intro of its own has to come in under the cover.
-    if (!clipPath && !backgroundService.suspended) {
-      link(path)
-      backgroundService.setBackground(path, false)
-      return
-    }
-    begin(path, clipPath)
   }
 
   function link(target) {
@@ -107,14 +98,12 @@ Item {
     token = "background-" + serial
     still = path
     clip = clipPath
-    prepared = clipPath ? null : false
+    prepared = false
     linked = false
     started = false
     if (backgroundService.suspended) {
-      // A playing video shows a frame only OWE can capture. It is taken
-      // before the clip is prepared into the same renderer.
+      // A playing video shows a frame only OWE can capture.
       snapshotProc.forToken = token
-      snapshotProc.epoch = epoch
       snapshotProc.file = transitionCache + "/previous-" + serial + ".ppm"
       snapshotProc.command = ["bash", "-c", 'mkdir -p "$1" && exec owe render "$2"', "_", transitionCache,
                               JSON.stringify({ cmd: "snapshot", path: snapshotProc.file })]
@@ -137,8 +126,8 @@ Item {
     token = tok
     still = stillPath
     clip = clipPath
-    prepared = clipPath ? preparedFlag === "true" : false
-    linked = false
+    prepared = preparedFlag === "true"
+    linked = true
     started = false
     own(intro.themeBackground)
     advance()
@@ -152,15 +141,6 @@ Item {
 
   function advance() {
     if (!token || !intro || token !== intro.themeToken) return
-    // OWE decodes the clip offscreen while the cover goes up.
-    if (prepared === null) {
-      if (!prepareProc.running && prepareProc.forToken !== token) {
-        prepareProc.forToken = token
-        prepareProc.command = ["owe", "intro-prepare", clip]
-        prepareProc.running = true
-      }
-      return
-    }
     var coverStatus = intro.themeCoverStatus(token)
     if (coverStatus === "loading") return
     // Moving the link cancels a playing intro and hands the desktop back to
@@ -196,10 +176,10 @@ Item {
       else Quickshell.execDetached(["rm", "-f", path])
     }
     ownedCovers = kept
-    if (queuedPath && !resolveProc.running) {
+    if (queuedPath) {
       var next = queuedPath
       queuedPath = ""
-      switchTo(next)
+      switchTo(next, queuedClip)
     }
   }
 
@@ -209,10 +189,8 @@ Item {
     target: root.intro
     function onCoverPresented() { root.advance() }
     function onThemeTokenChanged() {
-      if (root.intro.themeToken && root.intro.themeToken !== root.token) {
-        root.epoch += 1
-        root.queuedPath = ""
-      }
+      // A theme switch taking the cover brings its own background.
+      if (root.intro.themeToken && root.intro.themeToken !== root.token) root.queuedPath = ""
       Qt.callLater(root.settle)
     }
     function onRevealingChanged() { Qt.callLater(root.settle) }
@@ -231,23 +209,12 @@ Item {
   }
 
   Process {
-    id: resolveProc
-    property string path: ""
-    property int epoch: 0
-    stdout: StdioCollector { id: resolveOut }
-    onExited: {
-      if (epoch === root.epoch) root.resolved(path, String(resolveOut.text || "").trim())
-      root.settle()
-    }
-  }
-
-  Process {
     id: snapshotProc
     property string forToken: ""
-    property int epoch: 0
     property string file: ""
     onExited: function(exitCode) {
-      if (forToken !== root.token || epoch !== root.epoch) {
+      // A theme switch that took the cover meanwhile wins.
+      if (forToken !== root.token || root.intro.themeToken !== "") {
         Quickshell.execDetached(["rm", "-f", file])
       } else if (exitCode === 0) {
         root.own(file)
@@ -255,15 +222,6 @@ Item {
       } else {
         root.cover(root.displayedStill())
       }
-    }
-  }
-
-  Process {
-    id: prepareProc
-    property string forToken: ""
-    onExited: function(exitCode) {
-      if (forToken === root.token) root.prepared = exitCode === 0
-      root.advance()
     }
   }
 

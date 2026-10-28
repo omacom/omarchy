@@ -52,7 +52,7 @@ ShellRoot {
     running: true
     onTriggered: {
       test.services = ({ "omarchy.background": background })
-      test.check(sw.switchTo(test.stage + "/new.png") === "ok", "a background with an intro is accepted")
+      test.check(sw.switchTo(test.stage + "/new.png", test.stage + "/intros/new.mp4") === "ok", "a background with an intro is accepted")
     }
   }
   Timer {
@@ -80,7 +80,7 @@ ShellRoot {
     onTriggered: {
       test.check(test.linkTarget() === test.stage + "/new.png", "the link names the background with an intro")
       background.sets = []
-      sw.switchTo(test.stage + "/plain.png")
+      sw.switchTo(test.stage + "/plain.png", "")
     }
   }
   Timer {
@@ -93,7 +93,7 @@ ShellRoot {
       // An intro plays: OWE has the shell's background hidden.
       background.sets = []
       background.suspended = true
-      sw.switchTo(test.stage + "/other.png")
+      sw.switchTo(test.stage + "/other.png", "")
     }
   }
   Timer {
@@ -120,9 +120,9 @@ ShellRoot {
     running: true
     onTriggered: {
       test.check(intro.themeBackground === "" && !intro.revealing, "the cut has finished")
-      // A theme switch's handover, with a clip OWE could not prepare.
+      // A theme switch hands over the clip it prepared while its templates rendered.
       intro.prepareTheme(test.stage + "/other.png", "theme-1", "", "")
-      test.check(sw.play("theme-1", test.stage + "/new.png", test.stage + "/intros/new.mp4", "false") === "ok",
+      test.check(sw.play("theme-1", test.stage + "/new.png", test.stage + "/intros/new.mp4", "true") === "ok",
                  "a theme switch hands its intro over")
     }
   }
