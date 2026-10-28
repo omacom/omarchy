@@ -41,9 +41,15 @@ create=$(section create_user)
 pass "create_user keeps root for the parent and applies the posture"
 
 rekey=$(section rekey_luks)
-[[ $rekey == *'extra_passwords=("$parent_password")'* ]] || fail "rekey_luks hands the parent password to the shared re-key as a slot to keep"
-[[ $rekey == *'if ${CHILD_INSTALL:-false}; then'* ]] || fail "rekey_luks keys the disk to the parent only on a child install"
+[[ $rekey == *$'local -a extra_passwords\n  rekey_extra_passwords\n  luks_rekey "$device"'* ]] || fail "rekey_luks hands the parent password to the shared re-key as a slot to keep"
+extras=$(section rekey_extra_passwords)
+[[ $extras == *'extra_passwords=("$parent_password")'* ]] || fail "the extra passwords are the parent's"
+[[ $extras == *'if ${CHILD_INSTALL:-false}; then'* ]] || fail "the disk is keyed to the parent only on a child install"
+accepts=$(section rekey_accepts_password)
+[[ $accepts == *$'rekey_extra_passwords\n  luks_rekey_accepts_password "$device"'* ]] || fail "the password check before the accounts change covers the parent password"
 helper="$ROOT/install/provisioning/luks-rekey.sh"
+grep -Fq '[[ -n $(luks_slot_for "$extra" "$device") ]] || return 1' "$helper" || fail "the shared re-key refuses a changed extra password once the staged key is retired"
+grep -Fq 'Enter the same kid and parent passwords.' "$owner" || fail "a child install's refusal names both passwords"
 grep -Fq 'rekey_state_put owner_slot "$owner" extra_slots "$kept" phase owner' "$helper" || fail "the shared re-key journals the extra slots it keeps"
 grep -Fq '[[ $slot == "$owner" || " $extras " == *" $slot "* ]] && continue' "$helper" || fail "the shared re-key retires every slot but the ones it keeps"
 grep -Fq 'luks_record_slots "$(rekey_state_get owner_slot)" "${extras_kept%% *}"' "$helper" || fail "the shared re-key records the parent slot as the second kept slot"

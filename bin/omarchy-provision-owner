@@ -1120,15 +1120,21 @@ rekey_luks() {
     return 1
   fi
 
-  # A child install keys the disk to the parent password as well: that slot is
-  # what lets a parent boot a child machine whose kid has forgotten their
-  # password, and reset it from inside. The shared re-key keeps it beside the
-  # kid's and records it as the second kept slot.
-  local -a extra_passwords=()
+  local -a extra_passwords
+  rekey_extra_passwords
+  luks_rekey "$device"
+}
+
+# A child install keys the disk to the parent password as well: that slot is
+# what lets a parent boot a child machine whose kid has forgotten their
+# password, and reset it from inside. The shared re-key keeps it beside the
+# kid's and records it as the second kept slot. Sets the caller's
+# extra_passwords.
+rekey_extra_passwords() {
+  extra_passwords=()
   if ${CHILD_INSTALL:-false}; then
     extra_passwords=("$parent_password")
   fi
-  luks_rekey "$device"
 }
 
 # The re-key's fingerprint of the console keyboard layout the boot files ask for
@@ -1144,15 +1150,19 @@ luks_boot_layout() {
 }
 
 # A re-key interrupted after the staged key was retired can only finish with
-# the password the disk already holds.
+# the passwords the disk already holds, the parent's included on a child
+# install: the accounts take the form's passwords before the re-key runs, so
+# a password the disk could not follow is refused before either changes.
 rekey_accepts_password() {
   local -
   set +x
   local device
+  local -a extra_passwords
   [[ -f $REKEY_STATE ]] || return 0
   if ! device=$(luks_device) || [[ ! -e $device ]]; then
     return 0
   fi
+  rekey_extra_passwords
   luks_rekey_accepts_password "$device"
 }
 
@@ -1327,7 +1337,11 @@ run_setup() {
     fi
     confirm_form || continue
     if ! rekey_accepts_password; then
-      notice "Setup already set the disk password. Enter that same password." 4
+      if $CHILD_INSTALL; then
+        notice "Setup already set the disk passwords. Enter the same kid and parent passwords." 4
+      else
+        notice "Setup already set the disk password. Enter that same password." 4
+      fi
       continue
     fi
     break

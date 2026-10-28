@@ -89,7 +89,7 @@ sed -n '/^PROVISIONING_UNLOCK_FILES=(/,/^)/p; /^UNLOCK_OWNER=/p; /^limine_auto_u
 grep -q '^luks_auto_unlock_drop() {' "$tmp/unlock.sh" && grep -q '^limine_auto_unlock_drop() {' "$tmp/unlock.sh" &&
   grep -q '^luks_record_slots() {' "$tmp/unlock.sh" ||
   fail "omarchy-provision-owner defines the dispatched and Limine auto-unlock callbacks and the slot record"
-sed -n '/^rekey_luks() {/,/^}/p; /^run_provisioning() {/,/^}/p; /^cleanup_oem_state() {/,/^}/p
+sed -n '/^rekey_luks() {/,/^}/p; /^rekey_extra_passwords() {/,/^}/p; /^run_provisioning() {/,/^}/p; /^cleanup_oem_state() {/,/^}/p
   /^platform_ready() {/,/^}/p; /^run_setup() {/,/^}/p
   /^rekey_accepts_password() {/,/^}/p' \
   "$ROOT/bin/omarchy-provision-owner" |
@@ -903,7 +903,9 @@ pass "the re-key retires every slot but the owner's, an earlier recovery slot in
 # A child install (kids mode) keys the disk to the parent password beside the
 # kid's: both slots stay and everything else is retired, the parent's slot is
 # recorded as the second kept slot, a run killed between the two adds resumes,
-# and a retry that changed the parent password keeps only the new one.
+# a retry that changed the parent password keeps only the new one while the
+# staged key still opens the disk, and is refused before the accounts change
+# once it does not.
 child_install=true
 parent_password=parent-password
 for run_spec in "${matrix[@]}"; do
@@ -942,7 +944,30 @@ for run_spec in "${matrix[@]}"; do
   [[ -n $(opens "$owner_password") && -n $(opens other-parent-password) && -z $(opens parent-password) && $(slot_count) == "2" ]] ||
     fail "$platform $backend: the retry keeps the new parent password and retires the abandoned one" "$(cat "$tmp/log")"
   parent_password=parent-password
-  pass "$platform $backend: a child install keeps the kid's and the parent's slots, resumes between the two adds, and follows a changed parent password"
+
+  # Killed after the retire step took the staged key: root already carries the
+  # parent password of the attempt that was killed, so a retry with another
+  # one is refused at the form, before root's password could move away from
+  # the disk's, and the original parent password finishes setup.
+  last_kill=$(awk '/ killed$/ { n = $1 } END { print n }' "$tmp/trace")
+  [[ -n $last_kill ]] || fail "$platform $backend: the trace records the retired slots" "$(cat "$tmp/trace")"
+  fixture "$format"
+  if run attempt "$owner_password" "$last_kill"; then fail "$platform $backend: setup is killed after the last slot is retired"; fi
+  [[ -z $(opens "$staged_key") ]] || fail "$platform $backend: the staged key is gone after the last retire"
+  parent_password=other-parent-password
+  if run accepts "$owner_password"; then fail "$platform $backend: another parent password is refused once the staged key is retired"; fi
+  if run attempt "$owner_password"; then fail "$platform $backend: setup refuses another parent password once the staged key is retired"; fi
+  grep -q '^refused: Setup already set the disk passwords' "$tmp/screen" ||
+    fail "$platform $backend: the refusal names both passwords" "$(cat "$tmp/screen")"
+  [[ -e $tmp/provisioning/pending ]] || fail "$platform $backend: a refused parent password keeps setup pending"
+  parent_password=parent-password
+  run accepts "$owner_password" || fail "$platform $backend: the original parent password is accepted"
+  run attempt "$owner_password" || fail "$platform $backend: the original parent password completes setup" "$(cat "$tmp/log")"
+  [[ -n $(opens "$owner_password") && -n $(opens parent-password) && -z $(opens other-parent-password) && $(slot_count) == "2" ]] ||
+    fail "$platform $backend: setup finishes with the kid's and the original parent's slots" "$(cat "$tmp/log")"
+  [[ ! -e $tmp/provisioning/pending && ! -e $tmp/provisioning/luks-rekey.state ]] ||
+    fail "$platform $backend: the finished retry drops pending and the journal"
+  pass "$platform $backend: a child install keeps the kid's and the parent's slots, resumes between the two adds, follows a changed parent password while the staged key lasts, and refuses one afterwards"
 done
 child_install=false
 parent_password=""

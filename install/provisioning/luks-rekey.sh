@@ -26,7 +26,7 @@
 # choose a new password while the staged key opens the disk, even after the
 # boot step, so the kept slot is recorded only once it is final. The
 # caller removes the journal with the rest of its provisioning state, so until
-# then a retry can only use the password the disk holds.
+# then a retry can only use the passwords the disk holds.
 
 # cryptsetup open tries enrolled tokens (TPM2, FIDO2, keyring) before the key
 # and reports a token's slot whatever key it was given. Restricting it to a
@@ -109,15 +109,23 @@ luks_rekey_pending() {
   [[ -e $REKEY_STATE ]] || luks_staged_unlock_remains
 }
 
-# Whether an interrupted re-key can finish with $password. Until the staged key
-# is retired it can add any password; afterwards only one the disk holds.
+# Whether an interrupted re-key can finish with $password and the extra
+# passwords. Until the staged key is retired it can add any of them; afterwards
+# only ones the disk holds, every one of them. The caller sets the accounts'
+# passwords before the re-key runs, so an extra it could not enroll would leave
+# that account's password and the disk's apart.
 luks_rekey_accepts_password() {
   local -
   set +x
-  local device=$1
+  local device=$1 extra
+  local -a extras=("${extra_passwords[@]+"${extra_passwords[@]}"}")
 
   [[ -f $REKEY_STATE ]] || return 0
-  [[ -n $(luks_slot_for "$password" "$device") || -n $(staged_key_slot "$device") ]]
+  [[ -z $(staged_key_slot "$device") ]] || return 0
+  [[ -n $(luks_slot_for "$password" "$device") ]] || return 1
+  for extra in "${extras[@]}"; do
+    [[ -n $(luks_slot_for "$extra" "$device") ]] || return 1
+  done
 }
 
 # Record the slot $password opens, adding it with the staged key when none does.
