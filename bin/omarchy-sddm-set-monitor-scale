@@ -1,0 +1,147 @@
+#!/bin/bash
+
+# omarchy:summary=Write the SDDM greeter monitor scale
+# omarchy:args=[SCALE]
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+SCALE_FILE="${OMARCHY_SDDM_MONITOR_SCALE:-/etc/sddm/omarchy-monitor-scale}"
+MONITOR_LUA="$HOME/.config/hypr/monitors.lua"
+
+plain_scale_token() {
+  [[ $1 == "auto" ]] && return 0
+  [[ $1 =~ ^[0-9]+([.][0-9]+)?$ ]]
+}
+
+valid_scale() {
+  plain_scale_token "$1" || return 1
+  [[ $1 == "auto" ]] && return 0
+  awk -v scale="$1" 'BEGIN { exit !(scale >= 1 && scale <= 4) }'
+}
+
+unquote_scale() {
+  local value="$1"
+  [[ $value == \"*\" ]] && value="${value:1:-1}"
+  printf '%s\n' "$value"
+}
+
+# Value assigned by `local omarchy_monitor_scale = ...`, without quotes or a trailing comment.
+# An expression like `3 / 2` does not match and must not be evaluated.
+local_scale_value() {
+  local value
+  [[ -f $MONITOR_LUA ]] || return 1
+
+  value=$(sed -nE 's/^[[:space:]]*local[[:space:]]+omarchy_monitor_scale[[:space:]]*=[[:space:]]*("[^"]*"|[^"[:space:]]+)[[:space:]]*(--.*)?$/\1/p' "$MONITOR_LUA" | head -1)
+  [[ -n $value ]] || return 1
+  unquote_scale "$value"
+}
+
+# Literal scale on the catch-all rule omarchy-hyprland-monitor-scaling persists.
+# A variable reference or an expression does not match.
+catchall_scale_token() {
+  local value
+  [[ -f $MONITOR_LUA ]] || return 1
+
+  value=$(sed -nE 's/^[[:space:]]*hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("[^"]*"|[^"[:space:]]+) \}\)[[:space:]]*(--.*)?$/\1/p' "$MONITOR_LUA" | head -1)
+  [[ -n $value ]] || return 1
+  unquote_scale "$value"
+}
+
+catchall_rule_present() {
+  [[ -f $MONITOR_LUA ]] || return 1
+  grep -qE '^[[:space:]]*hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale =' "$MONITOR_LUA"
+}
+
+scale_expression_configured() {
+  [[ -f $MONITOR_LUA ]] || return 1
+  grep -qE '^[[:space:]]*local[[:space:]]+omarchy_monitor_scale[[:space:]]*=' "$MONITOR_LUA"
+}
+
+saved_scale() {
+  local value
+  [[ -f $SCALE_FILE ]] || return 1
+  IFS= read -r value <"$SCALE_FILE" || return 1
+  valid_scale "$value" || return 1
+  printf '%s\n' "$value"
+}
+
+# Sets scale from a supported rule. Exits without writing when the config is
+# only an expression or an unresolved catch-all and a valid scale is already saved.
+resolve_configured_scale() {
+  local value token
+  local catchall_unresolved=0
+
+  if catchall_rule_present; then
+    if token=$(catchall_scale_token); then
+      if valid_scale "$token"; then
+        scale=$token
+        return 0
+      fi
+      if plain_scale_token "$token"; then
+        scale="auto"
+        return 0
+      fi
+    fi
+    catchall_unresolved=1
+  fi
+
+  if value=$(local_scale_value); then
+    if valid_scale "$value"; then
+      scale=$value
+    else
+      scale="auto"
+    fi
+    return 0
+  fi
+
+  # Do not invent a numeric scale from an expression, and do not replace a
+  # saved numeric or auto scale with auto just because the rule is not a plain value.
+  if scale_expression_configured || (( catchall_unresolved )); then
+    if value=$(saved_scale); then
+      exit 0
+    fi
+    scale="auto"
+    return 0
+  fi
+
+  scale="auto"
+}
+
+scale=""
+if (($# > 0)); then
+  scale="$1"
+  if ! valid_scale "$scale"; then
+    echo "Invalid monitor scale: $scale" >&2
+    exit 1
+  fi
+else
+  resolve_configured_scale
+fi
+
+if [[ $scale != "auto" ]]; then
+  scale=$(awk -v scale="$scale" 'BEGIN { printf "%g\n", scale }')
+fi
+
+report_scale_write_failure() {
+  echo "Could not save the greeter monitor scale." >&2
+  omarchy-notification-send -g 󰍹 "Login screen scale" "Could not save the greeter monitor scale." || true
+}
+
+dest_dir=$(dirname -- "$SCALE_FILE")
+if mkdir -p "$dest_dir" 2>/dev/null && [[ -w $dest_dir ]]; then
+  if ! printf '%s\n' "$scale" >"$SCALE_FILE" || ! chmod 644 "$SCALE_FILE"; then
+    report_scale_write_failure
+    exit 1
+  fi
+else
+  # An explicit mode so a restrictive user umask cannot leave the root-owned
+  # drop-in unreadable to the sddm greeter.
+  if ! sudo install -d -m 755 "$dest_dir" ||
+    ! printf '%s\n' "$scale" | sudo tee "$SCALE_FILE" >/dev/null ||
+    ! sudo chmod 644 "$SCALE_FILE"; then
+    report_scale_write_failure
+    exit 1
+  fi
+fi
