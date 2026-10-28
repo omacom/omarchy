@@ -151,7 +151,7 @@ Item {
       '    echo;',
       '  done;',
       '  find /usr/share/pixmaps -maxdepth 1 \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null;',
-      '} | awk \'BEGIN { OFS = "\\t" } $0 == "" { root++; next } /\\.svg$/ { print 0, 0, 0, $0; next }',
+      '} | awk \'BEGIN { OFS = "\\t"; root = 0 } $0 == "" { root++; next } /\\.svg$/ { print 0, 0, 0, $0; next }',
       '  { size = 0; if (match($0, /\\/[0-9]+x[0-9]+(@[0-9]+x)?\\//)) { split(substr($0, RSTART + 1, RLENGTH - 2), d, /[x@]/); size = d[1] * (d[3] ? d[3] : 1) } print 1, root, size, $0 }\'',
       '  | sort -s -k1,1n -k2,2n -k3,3nr | cut -f4-'
     ].join(' ')
