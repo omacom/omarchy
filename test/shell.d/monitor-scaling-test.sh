@@ -19,8 +19,13 @@ cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 if [[ $1 == "monitors" && $2 == "-j" ]]; then
-  printf '[{"name":"eDP-1","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0}]' \
+  printf '[{"name":"eDP-1","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0}' \
     "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
+  if [[ -n $OMARCHY_TEST_OTHER_MONITOR_SCALE ]]; then
+    printf ',{"name":"DP-1","focused":false,"scale":%s,"width":3840,"height":2160,"refreshRate":60.0}' \
+      "$OMARCHY_TEST_OTHER_MONITOR_SCALE"
+  fi
+  printf ']'
 elif [[ $1 == "eval" ]]; then
   printf '%s\n' "$2" >"$OMARCHY_TEST_HYPRCTL_EVAL_OUT"
 else
@@ -180,3 +185,12 @@ OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
 has_rule 3 || fail "monitor scaling persists through a symlinked monitors.lua"
 pass "monitor scaling persists through a symlinked monitors.lua"
 rm "$monitor_lua"
+
+# GDK_SCALE is session-wide, so it follows the lowest monitor scale: raising
+# one screen must not oversize XWayland apps on another.
+write_monitor_config
+OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_scaling 4
+grep -Fx 'local omarchy_gdk_scale = 1' "$monitor_lua" >/dev/null || fail "monitor scaling keeps GDK scale at the lowest monitor"
+OMARCHY_TEST_MONITOR_SCALE=4 OMARCHY_TEST_OTHER_MONITOR_SCALE=3 run_scaling 2
+grep -Fx 'local omarchy_gdk_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling lowers GDK scale to the newly lowest monitor"
+pass "monitor scaling sets GDK scale from the lowest monitor"

@@ -74,7 +74,8 @@ normalize_scale() {
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
-  local monitor_info="$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')"
+  local monitors_json="$(hyprctl monitors -j)"
+  local monitor_info="$(echo "$monitors_json" | jq -e -c '.[] | select(.focused == true)')"
   local active_monitor="$(echo "$monitor_info" | jq -r '.name')"
   local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
   local width="$(echo "$monitor_info" | jq -r '.width')"
@@ -89,9 +90,12 @@ set_scale() {
   fi
 
   local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
-  # GTK only honors integer GDK_SCALE values, so persist the nearest whole
-  # factor even when the monitor scale itself is fractional.
-  local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
+  # GDK_SCALE is one value for the whole session, so it follows the lowest
+  # monitor scale: XWayland apps end up a little small on denser screens rather
+  # than oversized on the others. GTK only honors integers, so round it.
+  local new_gdk_scale="$(echo "$monitors_json" | jq -r --arg name "$active_monitor" --argjson scale "$new_scale" '
+    [.[] | select(.disabled != true) | if .name == $name then $scale else .scale end]
+    | min | . + 0.5 | floor | if . < 1 then 1 else . end')"
   local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
@@ -160,7 +164,7 @@ persist_scale() {
     return 0
   fi
 
-  # GDK_SCALE is a single session-wide value, so it follows the latest change.
+  # GDK_SCALE is a single session-wide value, set from the lowest monitor scale.
   sed -i -E \
     -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${gdk_scale}|" \
     -e 's|^hl\.env\("GDK_SCALE", "[^"]*"\)|hl.env("GDK_SCALE", "'"$gdk_scale"'")|' \
