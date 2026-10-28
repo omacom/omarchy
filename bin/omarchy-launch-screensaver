@@ -10,6 +10,12 @@ if omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
   exit 1
 fi
 
+# An open bar KeyboardPanel holds exclusive/on-demand keyboard focus and a
+# full-screen input region. That stops the screensaver window from becoming
+# active (and often from going fullscreen), so omarchy-screensaver exits within
+# a second thinking the user dismissed it (issue #13265).
+omarchy-shell shell hideOpenPanels >/dev/null 2>&1 || true
+
 focused=$(omarchy-hyprland-monitor-focused)
 terminal=$(xdg-terminal-exec --print-id)
 
