@@ -263,7 +263,6 @@
   "reset.willErase": "Ini akan memadam secara kekal:",
   "screensaver.disabled": "Tabir skrin dilumpuhkan",
   "screensaver.enabled": "Tabir skrin didayakan",
-  "screensaver.terminalOnly": "Tabir skrin hanya berfungsi dalam Alacritty, Foot, Ghostty, atau Kitty",
   "setupForm.confirmPlaceholder": "Mesti sama dengan kata laluan yang baru anda taip",
   "setupForm.confirmPrompt": "Sahkan> ",
   "setupForm.hostnameInvalid": "Nama komputer mesti 1-63 huruf, nombor atau sempang, tidak bermula/berakhir dengan sempang",

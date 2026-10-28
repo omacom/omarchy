@@ -275,7 +275,6 @@
   "reset.willErase": "פעולה זו תמחק לצמיתות:",
   "screensaver.disabled": "שומר המסך כבוי",
   "screensaver.enabled": "שומר המסך פעיל",
-  "screensaver.terminalOnly": "שומר המסך פועל רק ב-Alacritty, Foot, Ghostty או Kitty",
   "setupForm.confirmPlaceholder": "חייב להתאים לסיסמה שהזנת זה עתה",
   "setupForm.confirmPrompt": "אישור> ",
   "setupForm.hostnameInvalid": "שם המארח חייב להיות 1-63 אותיות, ספרות או מקפים, ולא יכול להתחיל או להסתיים במקף",

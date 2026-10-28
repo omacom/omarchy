@@ -269,7 +269,6 @@
   "reset.willErase": "Permanente nitong buburahin:",
   "screensaver.disabled": "Naka-disable ang screensaver",
   "screensaver.enabled": "Naka-enable ang screensaver",
-  "screensaver.terminalOnly": "Gumagana lang ang screensaver sa Alacritty, Foot, Ghostty, o Kitty",
   "setupForm.confirmPlaceholder": "Dapat tugma sa password na kaka-type mo lang",
   "setupForm.confirmPrompt": "Kumpirmahin> ",
   "setupForm.hostnameInvalid": "Dapat 1-63 titik, numero, o gitling ang hostname, at hindi nagsisimula o nagtatapos sa gitling",

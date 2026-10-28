@@ -281,7 +281,6 @@
   "reset.willErase": "Будет безвозвратно удалено:",
   "screensaver.disabled": "Заставка выключена",
   "screensaver.enabled": "Заставка включена",
-  "screensaver.terminalOnly": "Заставка работает только в Alacritty, Foot, Ghostty или Kitty",
   "setupForm.confirmPlaceholder": "Должен совпадать с только что введённым паролем",
   "setupForm.confirmPrompt": "Ещё раз> ",
   "setupForm.hostnameInvalid": "Имя компьютера: 1–63 буквы, цифры или дефисы, без дефиса в начале и в конце",

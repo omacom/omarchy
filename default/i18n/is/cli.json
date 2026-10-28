@@ -269,7 +269,6 @@
   "reset.willErase": "Þetta mun eyða til frambúðar:",
   "screensaver.disabled": "Skjáverji óvirkur",
   "screensaver.enabled": "Skjáverji virkjaður",
-  "screensaver.terminalOnly": "Skjáverji keyrir aðeins í Alacritty, Foot, Ghostty eða Kitty",
   "setupForm.confirmPlaceholder": "Verður að passa við lykilorðið sem þú slóst inn",
   "setupForm.confirmPrompt": "Staðfesta> ",
   "setupForm.hostnameInvalid": "Vélarheiti: 1-63 bókstafir, tölur eða bandstrik, ekki bandstrik fremst eða aftast",

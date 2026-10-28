@@ -269,7 +269,6 @@
   "reset.willErase": "Ez véglegesen törli a következőket:",
   "screensaver.disabled": "Képernyővédő kikapcsolva",
   "screensaver.enabled": "Képernyővédő bekapcsolva",
-  "screensaver.terminalOnly": "A képernyővédő csak Alacritty, Foot, Ghostty vagy Kitty alatt fut",
   "setupForm.confirmPlaceholder": "Írd be újra ugyanazt a jelszót",
   "setupForm.confirmPrompt": "Megerősítés> ",
   "setupForm.hostnameInvalid": "A gépnév 1-63 betű, szám vagy kötőjel lehet, és nem kezdődhet vagy végződhet kötőjellel",

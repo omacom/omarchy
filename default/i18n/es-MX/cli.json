@@ -275,7 +275,6 @@
   "reset.willErase": "Esto borrará permanentemente:",
   "screensaver.disabled": "Protector de pantalla desactivado",
   "screensaver.enabled": "Protector de pantalla activado",
-  "screensaver.terminalOnly": "El protector de pantalla solo funciona en Alacritty, Foot, Ghostty o Kitty",
   "setupForm.confirmPlaceholder": "Debe coincidir con la contraseña que escribiste",
   "setupForm.confirmPrompt": "Confirmar> ",
   "setupForm.hostnameInvalid": "El nombre debe tener de 1 a 63 letras, números o guiones, sin guion al inicio ni al final",

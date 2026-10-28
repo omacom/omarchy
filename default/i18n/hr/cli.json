@@ -275,7 +275,6 @@
   "reset.willErase": "Ovo će trajno izbrisati:",
   "screensaver.disabled": "Čuvar zaslona onemogućen",
   "screensaver.enabled": "Čuvar zaslona omogućen",
-  "screensaver.terminalOnly": "Čuvar zaslona radi samo u Alacritty, Foot, Ghostty ili Kitty",
   "setupForm.confirmPlaceholder": "Ponovno upišite istu lozinku",
   "setupForm.confirmPrompt": "Potvrda> ",
   "setupForm.hostnameInvalid": "Naziv: 1-63 slova, brojke ili crtice, ne smije počinjati ni završavati crticom",

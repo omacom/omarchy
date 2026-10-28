@@ -275,7 +275,6 @@
   "reset.willErase": "Tím se natrvalo vymaže:",
   "screensaver.disabled": "Spořič obrazovky vypnut",
   "screensaver.enabled": "Spořič obrazovky zapnut",
-  "screensaver.terminalOnly": "Spořič běží jen v Alacritty, Foot, Ghostty nebo Kitty",
   "setupForm.confirmPlaceholder": "Zadejte stejné heslo ještě jednou",
   "setupForm.confirmPrompt": "Potvrzení> ",
   "setupForm.hostnameInvalid": "Název: 1-63 písmen, číslic nebo pomlček, nesmí začínat ani končit pomlčkou",

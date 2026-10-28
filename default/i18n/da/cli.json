@@ -269,7 +269,6 @@
   "reset.willErase": "Dette sletter permanent:",
   "screensaver.disabled": "Pauseskærm deaktiveret",
   "screensaver.enabled": "Pauseskærm aktiveret",
-  "screensaver.terminalOnly": "Pauseskærmen kører kun i Alacritty, Foot, Ghostty eller Kitty",
   "setupForm.confirmPlaceholder": "Skal matche den adgangskode, du lige har skrevet",
   "setupForm.confirmPrompt": "Bekræft> ",
   "setupForm.hostnameInvalid": "Værtsnavn: 1-63 bogstaver, tal eller bindestreger, ikke bindestreg først eller sidst",

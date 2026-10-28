@@ -263,7 +263,6 @@
   "reset.willErase": "這將會永久清除：",
   "screensaver.disabled": "螢幕保護程式已停用",
   "screensaver.enabled": "螢幕保護程式已啟用",
-  "screensaver.terminalOnly": "螢幕保護程式只能在 Alacritty、Foot、Ghostty 或 Kitty 執行",
   "setupForm.confirmPlaceholder": "須與剛輸入的密碼相符",
   "setupForm.confirmPrompt": "確認> ",
   "setupForm.hostnameInvalid": "主機名稱須為 1-63 個字母、數字或連字號，且不可以連字號開頭或結尾",

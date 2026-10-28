@@ -269,7 +269,6 @@
   "reset.willErase": "Hii itafuta kabisa:",
   "screensaver.disabled": "Kiokozi cha skrini kimezimwa",
   "screensaver.enabled": "Kiokozi cha skrini kimewashwa",
-  "screensaver.terminalOnly": "Kiokozi cha skrini hufanya kazi tu katika Alacritty, Foot, Ghostty, au Kitty",
   "setupForm.confirmPlaceholder": "Lazima lilingane na nenosiri ulilocharaza sasa hivi",
   "setupForm.confirmPrompt": "Thibitisha> ",
   "setupForm.hostnameInvalid": "Jina la kompyuta: herufi, tarakimu au vistari 1-63, bila kistari mwanzoni au mwishoni",

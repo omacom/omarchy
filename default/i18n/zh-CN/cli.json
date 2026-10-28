@@ -263,7 +263,6 @@
   "reset.willErase": "这将永久删除：",
   "screensaver.disabled": "屏保已禁用",
   "screensaver.enabled": "屏保已启用",
-  "screensaver.terminalOnly": "屏保仅在 Alacritty、Foot、Ghostty 或 Kitty 中运行",
   "setupForm.confirmPlaceholder": "必须与刚输入的密码一致",
   "setupForm.confirmPrompt": "确认> ",
   "setupForm.hostnameInvalid": "主机名须为 1-63 个字母、数字或连字符，不能以连字符开头或结尾",

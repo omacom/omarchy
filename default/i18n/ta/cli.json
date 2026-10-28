@@ -269,7 +269,6 @@
   "reset.willErase": "இது நிரந்தரமாக அழிக்கும்:",
   "screensaver.disabled": "திரைசேமிப்பு முடக்கப்பட்டது",
   "screensaver.enabled": "திரைசேமிப்பு இயக்கப்பட்டது",
-  "screensaver.terminalOnly": "திரைசேமிப்பு Alacritty, Foot, Ghostty அல்லது Kitty இல் மட்டுமே இயங்கும்",
   "setupForm.confirmPlaceholder": "நீங்கள் இப்போது தட்டச்சு செய்த கடவுச்சொல்லுடன் பொருந்த வேண்டும்",
   "setupForm.confirmPrompt": "உறுதிப்படுத்து> ",
   "setupForm.hostnameInvalid": "ஹோஸ்ட் பெயர் 1-63 எழுத்துகள், இலக்கங்கள் அல்லது இடைக்கோடுகளாக இருக்க வேண்டும்; இடைக்கோட்டில் தொடங்கவோ முடியவோ கூடாது",

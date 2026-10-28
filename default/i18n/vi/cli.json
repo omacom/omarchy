@@ -263,7 +263,6 @@
   "reset.willErase": "Điều này sẽ xóa vĩnh viễn:",
   "screensaver.disabled": "Đã tắt trình bảo vệ màn hình",
   "screensaver.enabled": "Đã bật trình bảo vệ màn hình",
-  "screensaver.terminalOnly": "Trình bảo vệ màn hình chỉ chạy trong Alacritty, Foot, Ghostty hoặc Kitty",
   "setupForm.confirmPlaceholder": "Phải khớp mật khẩu vừa nhập",
   "setupForm.confirmPrompt": "Xác nhận> ",
   "setupForm.hostnameInvalid": "Tên máy phải gồm 1-63 chữ cái, chữ số hoặc dấu gạch ngang, và không được bắt đầu hoặc kết thúc bằng dấu gạch ngang",

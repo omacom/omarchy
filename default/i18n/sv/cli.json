@@ -269,7 +269,6 @@
   "reset.willErase": "Detta raderas permanent:",
   "screensaver.disabled": "Skärmsläckare inaktiverad",
   "screensaver.enabled": "Skärmsläckare aktiverad",
-  "screensaver.terminalOnly": "Skärmsläckaren körs bara i Alacritty, Foot, Ghostty eller Kitty",
   "setupForm.confirmPlaceholder": "Måste matcha lösenordet du just skrev",
   "setupForm.confirmPrompt": "Bekräfta> ",
   "setupForm.hostnameInvalid": "Värdnamn: 1-63 bokstäver, siffror eller bindestreck, inte bindestreck först eller sist",

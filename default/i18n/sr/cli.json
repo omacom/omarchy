@@ -275,7 +275,6 @@
   "reset.willErase": "Ово ће трајно обрисати:",
   "screensaver.disabled": "Чувар екрана онемогућен",
   "screensaver.enabled": "Чувар екрана омогућен",
-  "screensaver.terminalOnly": "Чувар екрана ради само у Alacritty, Foot, Ghostty или Kitty",
   "setupForm.confirmPlaceholder": "Мора да се поклапа са лозинком коју сте управо унели",
   "setupForm.confirmPrompt": "Потврда> ",
   "setupForm.hostnameInvalid": "Име рачунара: 1–63 слова, бројева или цртица, без цртице на почетку и крају",

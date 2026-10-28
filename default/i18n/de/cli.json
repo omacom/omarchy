@@ -269,7 +269,6 @@
   "reset.willErase": "Folgendes wird dauerhaft gelöscht:",
   "screensaver.disabled": "Bildschirmschoner deaktiviert",
   "screensaver.enabled": "Bildschirmschoner aktiviert",
-  "screensaver.terminalOnly": "Bildschirmschoner läuft nur in Alacritty, Foot, Ghostty oder Kitty",
   "setupForm.confirmPlaceholder": "Muss mit dem eben eingegebenen Passwort übereinstimmen",
   "setupForm.confirmPrompt": "Bestätigen> ",
   "setupForm.hostnameInvalid": "Hostname: 1-63 Buchstaben, Ziffern oder Bindestriche, kein Bindestrich am Anfang oder Ende",

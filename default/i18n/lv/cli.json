@@ -275,7 +275,6 @@
   "reset.willErase": "Tiks neatgriezeniski izdzēsts:",
   "screensaver.disabled": "Ekrānsaudzētājs izslēgts",
   "screensaver.enabled": "Ekrānsaudzētājs ieslēgts",
-  "screensaver.terminalOnly": "Ekrānsaudzētājs darbojas tikai Alacritty, Foot, Ghostty vai Kitty",
   "setupForm.confirmPlaceholder": "Jāsakrīt ar tikko ievadīto paroli",
   "setupForm.confirmPrompt": "Apstiprini> ",
   "setupForm.hostnameInvalid": "Datora nosaukums: 1–63 burti, cipari vai domuzīmes, bez domuzīmes sākumā vai beigās",
