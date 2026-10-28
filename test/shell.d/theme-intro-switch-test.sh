@@ -122,11 +122,15 @@ pass "switching themes plays the matching intro for the remembered background"
 
 set_theme beta
 [[ $(readlink "$state/background") == "$state/theme/backgrounds/1-sky.webp" ]] || fail "reselecting the current theme cycles its background"
-grep -q '^shell: background themeTransition ' "$log" || fail "same-theme cycling uses the normal still transition"
-! grep -q '^owe: intro ' "$log" || fail "same-theme cycling does not play an intro"
+grep -q '^shell: background themeTransition ' "$log" || fail "cycling to a background without an intro uses the normal still transition"
+! grep -q '^owe: intro ' "$log" || fail "cycling to a background without an intro plays none"
+set_theme beta
+wait_command '^owe: intro '
+grep -Fxq "owe: intro --start first-frame --refresh $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "cycling to a background with an intro plays it"
+wait_command '^hypr-reload$'
 OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme alpha
 ! grep -q '^owe: intro ' "$log" || fail "theme refresh does not play an intro"
-pass "same-theme cycling and refresh keep the normal background behavior"
+pass "same-theme cycling plays the next background's intro and refresh keeps the still"
 
 printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/beta"
 mkdir -p "$home/.local/state/omarchy/toggles"
@@ -205,3 +209,21 @@ done
 [[ ! -f $cover ]] || fail "the superseded intro finishes cleanup"
 (( $(grep -c '^hypr-reload$' "$log") == 1 )) || fail "the superseded intro cannot reload during a newer theme"
 pass "superseded intros do not reload the compositor"
+
+set_background() {
+  : >"$log"
+  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_LOG="$log" \
+    /bin/bash "$ROOT/bin/omarchy-theme-bg-set" "$1" </dev/null >"$test_tmp/stdout" 2>"$test_tmp/stderr" || fail "background selection completes" "$(cat "$test_tmp/stderr")"
+}
+set_background "$state/theme/backgrounds/1-sky.webp"
+grep -Fxq "shell: -q background set $state/theme/backgrounds/1-sky.webp" "$log" || fail "a background without an intro is set directly"
+! grep -q '^owe: intro ' "$log" || fail "a background without an intro plays none"
+set_background "$state/theme/backgrounds/2-road.webp"
+wait_command '^owe: intro '
+grep -Fxq "owe: intro --start first-frame --refresh $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "changing the background plays its matching intro"
+grep -q '^shell: shell prepareThemeIntro ' "$log" || fail "the outgoing background covers the desktop during the intro"
+wait_command "^shell: background setInstant $state/theme/backgrounds/2-road.webp\$"
+[[ $(readlink "$state/background") == "$state/theme/backgrounds/2-road.webp" ]] || fail "the background with an intro is selected"
+set_background "$state/theme/backgrounds/2-road.webp"
+! grep -q '^owe: intro ' "$log" || fail "reselecting the current background plays no intro"
+pass "changing backgrounds plays the selected background's matching intro"

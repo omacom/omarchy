@@ -452,7 +452,10 @@ if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
   # Resolve the staged choice while the old theme still exists. Video changes
   # switch directly to the durable path in QML, so neither side needs a copy.
   if choose_staged_theme_background; then
-    if [[ $PREVIOUS_THEME_NAME != "$THEME_NAME" && ! -f $HOME/.local/state/omarchy/toggles/background-intros-off ]] &&
+    # Reselecting the current theme cycles its background, which plays that
+    # background's intro like any other background change.
+    if [[ $PREVIOUS_THEME_NAME != "$THEME_NAME" || $(readlink "$CURRENT_BACKGROUND_LINK") != "$CHOSEN_THEME_BACKGROUND" ]] &&
+      [[ ! -f $HOME/.local/state/omarchy/toggles/background-intros-off ]] &&
       [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool') == "true" ]]; then
       THEME_BACKGROUND_INTRO=$(omarchy-theme-bg-boot-intro --resolve-only "$STAGED_THEME_BACKGROUND")
     fi
