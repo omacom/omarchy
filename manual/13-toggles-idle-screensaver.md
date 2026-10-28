@@ -95,6 +95,8 @@ You can start it on demand from _System > Screensaver_ (`Super + Esc`), which fo
 
 The logo it draws is yours to change, under _Appearance > Branding > Screensaver_. Upload a png or svg and Omarchy converts it to ASCII. See [branding](41-branding.md).
 
+While you're offline, the screensaver is a game instead: Rusty Rex, the one from Chrome's no-internet page, with the Omarchy logo running in the dinosaur's place and your screensaver branding drawn faintly in the sky. Press `Space`, `Up` or click to play: jump cacti, duck pterodactyls with `Down`, and press `Space` again after a crash. If nobody plays, it starts running on its own after a few seconds, and you can take over at any time. Moving the mouse doesn't close it; `Esc`, any other key, or a right click does. It's silent until you press `M`, and only the runs you play count towards your high score.
+
 ### The lock screen
 
 `Super + Ctrl + L` locks the machine. That runs the lock screen from the Omarchy shell, blanks the display, resets your keyboard layout to the first one so you're not typing your password in the wrong alphabet, and — if you have it running — locks 1Password on the way out.
