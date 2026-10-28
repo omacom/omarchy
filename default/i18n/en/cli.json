@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR code copied to clipboard",
   "capture.qrHelp": "Select a region containing a QR code",
   "capture.qrNone": "No QR code found",
+  "capture.recordingCut": "Cut",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Screen recording error",
   "capture.recordingKilled": "Recording process had to be force-killed. Video may be corrupted.",

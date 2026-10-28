@@ -71,6 +71,7 @@
   "capture.qrCopied": "نُسخ رمز QR إلى الحافظة",
   "capture.qrHelp": "حدد منطقة تحتوي على رمز QR",
   "capture.qrNone": "لم يُعثر على رمز QR",
+  "capture.recordingCut": "قص",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "خطأ في تسجيل الشاشة",
   "capture.recordingKilled": "اضطررنا لإنهاء عملية التسجيل بالقوة. قد يكون الفيديو تالفًا.",

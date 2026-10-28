@@ -68,6 +68,7 @@
   "capture.qrCopied": "QR kod kopiran u međuspremnik",
   "capture.qrHelp": "Odaberite područje s QR kodom",
   "capture.qrNone": "QR kod nije pronađen",
+  "capture.recordingCut": "Izreži",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Pogreška snimanja zaslona",
   "capture.recordingKilled": "Proces snimanja morao je biti prisilno zaustavljen. Video može biti oštećen.",

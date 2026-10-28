@@ -68,6 +68,7 @@
   "capture.qrCopied": "Código QR copiado para a área de transferência",
   "capture.qrHelp": "Selecione uma região com um código QR",
   "capture.qrNone": "Nenhum código QR encontrado",
+  "capture.recordingCut": "Recortar",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Erro na gravação de tela",
   "capture.recordingKilled": "O processo de gravação precisou ser encerrado à força. O vídeo pode estar corrompido.",

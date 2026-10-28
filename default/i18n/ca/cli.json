@@ -68,6 +68,7 @@
   "capture.qrCopied": "Codi QR copiat al porta-retalls",
   "capture.qrHelp": "Selecciona una regió amb un codi QR",
   "capture.qrNone": "No s'ha trobat cap codi QR",
+  "capture.recordingCut": "Retalla",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Error de gravació de pantalla",
   "capture.recordingKilled": "S'ha hagut de forçar l'aturada del procés de gravació. El vídeo pot estar malmès.",

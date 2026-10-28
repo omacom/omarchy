@@ -67,6 +67,7 @@
   "capture.qrCopied": "Msimbo wa QR umenakiliwa kwenye ubao wa kunakili",
   "capture.qrHelp": "Chagua eneo lenye msimbo wa QR",
   "capture.qrNone": "Hakuna msimbo wa QR uliopatikana",
+  "capture.recordingCut": "Kata",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Hitilafu ya kurekodi skrini",
   "capture.recordingKilled": "Mchakato wa kurekodi ulilazimika kusimamishwa kwa nguvu. Video inaweza kuwa imeharibika.",

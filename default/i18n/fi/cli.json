@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR-koodi kopioitu leikepöydälle",
   "capture.qrHelp": "Valitse alue, joka sisältää QR-koodin",
   "capture.qrNone": "QR-koodia ei löytynyt",
+  "capture.recordingCut": "Leikkaa",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Näytöntallennusvirhe",
   "capture.recordingKilled": "Tallennusprosessi piti pakottaa loppumaan. Video voi olla vioittunut.",

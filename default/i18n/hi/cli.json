@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR कोड क्लिपबोर्ड पर कॉपी किया गया",
   "capture.qrHelp": "QR कोड वाला क्षेत्र चुनें",
   "capture.qrNone": "कोई QR कोड नहीं मिला",
+  "capture.recordingCut": "काटें",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "स्क्रीन रिकॉर्डिंग त्रुटि",
   "capture.recordingKilled": "रिकॉर्डिंग प्रक्रिया को ज़बरदस्ती बंद करना पड़ा। वीडियो क्षतिग्रस्त हो सकता है।",

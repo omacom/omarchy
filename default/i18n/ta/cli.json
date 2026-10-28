@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR குறியீடு கிளிப்போர்டுக்கு நகலெடுக்கப்பட்டது",
   "capture.qrHelp": "QR குறியீடு உள்ள பகுதியைத் தேர்ந்தெடுக்கவும்",
   "capture.qrNone": "QR குறியீடு எதுவும் இல்லை",
+  "capture.recordingCut": "வெட்டு",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "திரைப்பதிவு பிழை",
   "capture.recordingKilled": "பதிவு செயல்முறை வலுக்கட்டாயமாக நிறுத்தப்பட்டது. காணொளி சிதைந்திருக்கலாம்.",

@@ -69,6 +69,7 @@
   "capture.qrCopied": "Koda QR kopirana v odložišče",
   "capture.qrHelp": "Izberite območje s kodo QR",
   "capture.qrNone": "Ni najdene kode QR",
+  "capture.recordingCut": "Izreži",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Napaka pri snemanju zaslona",
   "capture.recordingKilled": "Proces snemanja je bilo treba prisilno končati. Video je lahko poškodovan.",

@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR-code gekopieerd naar klembord",
   "capture.qrHelp": "Selecteer een gebied met een QR-code",
   "capture.qrNone": "Geen QR-code gevonden",
+  "capture.recordingCut": "Knippen",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Fout bij schermopname",
   "capture.recordingKilled": "Opnameproces moest geforceerd worden beëindigd. Video kan beschadigd zijn.",

@@ -67,6 +67,7 @@
   "capture.qrCopied": "Ο κωδικός QR αντιγράφηκε στο πρόχειρο",
   "capture.qrHelp": "Επίλεξε περιοχή με κωδικό QR",
   "capture.qrNone": "Δεν βρέθηκε κωδικός QR",
+  "capture.recordingCut": "Αποκοπή",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Σφάλμα εγγραφής οθόνης",
   "capture.recordingKilled": "Η διαδικασία εγγραφής έπρεπε να τερματιστεί βίαια. Το βίντεο μπορεί να είναι κατεστραμμένο.",

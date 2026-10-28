@@ -68,6 +68,7 @@
   "capture.qrCopied": "QR kods nokopēts starpliktuvē",
   "capture.qrHelp": "Atlasi apgabalu ar QR kodu",
   "capture.qrNone": "QR kods nav atrasts",
+  "capture.recordingCut": "Izgriezt",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Kļūda ekrāna ierakstā",
   "capture.recordingKilled": "Ieraksta process bija jāaptur piespiedu kārtā. Video var būt bojāts.",

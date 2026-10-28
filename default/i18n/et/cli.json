@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR-kood kopeeritud lõikelauale",
   "capture.qrHelp": "Vali QR-koodi sisaldav ala",
   "capture.qrNone": "QR-koodi ei leitud",
+  "capture.recordingCut": "Lõika",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Ekraanisalvestuse viga",
   "capture.recordingKilled": "Salvestus tuli sunniviisiliselt lõpetada. Video võib olla rikutud.",

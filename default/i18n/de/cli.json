@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR-Code in Zwischenablage kopiert",
   "capture.qrHelp": "Wähle einen Bereich mit einem QR-Code",
   "capture.qrNone": "Kein QR-Code gefunden",
+  "capture.recordingCut": "Ausschneiden",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Fehler bei Bildschirmaufnahme",
   "capture.recordingKilled": "Aufnahmeprozess musste erzwungen beendet werden. Video könnte beschädigt sein.",

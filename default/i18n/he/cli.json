@@ -68,6 +68,7 @@
   "capture.qrCopied": "קוד ה-QR הועתק ללוח",
   "capture.qrHelp": "בחרו אזור המכיל קוד QR",
   "capture.qrNone": "לא נמצא קוד QR",
+  "capture.recordingCut": "גזור",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "שגיאת הקלטת מסך",
   "capture.recordingKilled": "תהליך ההקלטה הופסק בכוח. ייתכן שהסרטון פגום.",

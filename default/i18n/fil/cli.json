@@ -67,6 +67,7 @@
   "capture.qrCopied": "Nakopya ang QR code sa clipboard",
   "capture.qrHelp": "Pumili ng rehiyon na may QR code",
   "capture.qrNone": "Walang nakitang QR code",
+  "capture.recordingCut": "Gupitin",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Error sa pag-record ng screen",
   "capture.recordingKilled": "Kinailangang puwersahang patayin ang proseso ng pag-record. Maaaring sira ang video.",

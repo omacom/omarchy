@@ -66,6 +66,7 @@
   "capture.qrCopied": "QR 码已复制到剪贴板",
   "capture.qrHelp": "选择包含 QR 码的区域",
   "capture.qrNone": "未找到 QR 码",
+  "capture.recordingCut": "剪切",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "录屏错误",
   "capture.recordingKilled": "录制进程必须被强制终止。视频可能已损坏。",

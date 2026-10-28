@@ -68,6 +68,7 @@
   "capture.qrCopied": "QR код копиран у клипборд",
   "capture.qrHelp": "Изаберите област са QR кодом",
   "capture.qrNone": "QR код није пронађен",
+  "capture.recordingCut": "Исеци",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Грешка снимања екрана",
   "capture.recordingKilled": "Процес снимања је морао бити присилно заустављен. Видео је можда оштећен.",

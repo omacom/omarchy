@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR-kód a vágólapra másolva",
   "capture.qrHelp": "Válassz ki egy QR-kódot tartalmazó területet",
   "capture.qrNone": "Nem található QR-kód",
+  "capture.recordingCut": "Kivágás",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Képernyőfelvétel hibája",
   "capture.recordingKilled": "A felvételi folyamatot kényszerrel le kellett állítani. A videó sérülhetett.",

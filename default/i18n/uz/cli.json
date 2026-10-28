@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR kod buferga nusxalandi",
   "capture.qrHelp": "QR kod bor hududni tanlang",
   "capture.qrNone": "QR kod topilmadi",
+  "capture.recordingCut": "Kes",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Ekran yozuvi xatosi",
   "capture.recordingKilled": "Yozuv jarayoni majburan toʻxtatildi. Video buzilgan boʻlishi mumkin.",

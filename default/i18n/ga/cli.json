@@ -70,6 +70,7 @@
   "capture.qrCopied": "Cód QR cóipeáilte go dtí an ghearrthaisce",
   "capture.qrHelp": "Roghnaigh réigiún ina bhfuil cód QR",
   "capture.qrNone": "Níor aimsíodh cód QR",
+  "capture.recordingCut": "Gearr",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Earráid taifeadta scáileáin",
   "capture.recordingKilled": "Chaith an próiseas taifeadta a mharú d'fhórsa. Seans go bhfuil an físeán truaillithe.",

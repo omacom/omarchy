@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR kodu panoya kopyalandı",
   "capture.qrHelp": "QR kodu içeren bir bölge seçin",
   "capture.qrNone": "QR kodu bulunamadı",
+  "capture.recordingCut": "Kes",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Ekran kaydı hatası",
   "capture.recordingKilled": "Kayıt işlemi zorla sonlandırılmak zorunda kaldı. Video bozuk olabilir.",

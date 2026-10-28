@@ -66,6 +66,7 @@
   "capture.qrCopied": "Đã sao chép mã QR vào bảng nhớ tạm",
   "capture.qrHelp": "Chọn vùng chứa mã QR",
   "capture.qrNone": "Không tìm thấy mã QR",
+  "capture.recordingCut": "Cắt",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Lỗi ghi màn hình",
   "capture.recordingKilled": "Đã buộc dừng tiến trình ghi. Video có thể bị lỗi.",

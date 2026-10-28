@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR-kod kopierad till urklipp",
   "capture.qrHelp": "Välj ett område med en QR-kod",
   "capture.qrNone": "Ingen QR-kod hittades",
+  "capture.recordingCut": "Klipp ut",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Fel vid skärminspelning",
   "capture.recordingKilled": "Inspelningen tvingades avslutas. Videon kan vara skadad.",

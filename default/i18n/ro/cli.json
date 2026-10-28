@@ -68,6 +68,7 @@
   "capture.qrCopied": "Cod QR copiat în clipboard",
   "capture.qrHelp": "Selectează o regiune cu un cod QR",
   "capture.qrNone": "Nu s-a găsit niciun cod QR",
+  "capture.recordingCut": "Decupează",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Eroare la înregistrarea ecranului",
   "capture.recordingKilled": "Procesul de înregistrare a fost oprit forțat. Videoclipul poate fi corupt.",

@@ -69,6 +69,7 @@
   "capture.qrCopied": "Kod QR skopiowany do schowka",
   "capture.qrHelp": "Wybierz obszar zawierający kod QR",
   "capture.qrNone": "Nie znaleziono kodu QR",
+  "capture.recordingCut": "Wytnij",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Błąd nagrywania ekranu",
   "capture.recordingKilled": "Proces nagrywania musiał zostać zakończony siłą. Wideo może być uszkodzone.",

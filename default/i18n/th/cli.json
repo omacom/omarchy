@@ -66,6 +66,7 @@
   "capture.qrCopied": "คัดลอก QR code ไปคลิปบอร์ดแล้ว",
   "capture.qrHelp": "เลือกพื้นที่ที่มี QR code",
   "capture.qrNone": "ไม่พบ QR code",
+  "capture.recordingCut": "ตัด",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "เกิดข้อผิดพลาดในการอัดหน้าจอ",
   "capture.recordingKilled": "ต้องบังคับปิดโปรเซสอัดวิดีโอ วิดีโออาจเสียหาย",

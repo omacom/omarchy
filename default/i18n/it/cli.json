@@ -68,6 +68,7 @@
   "capture.qrCopied": "Codice QR copiato negli appunti",
   "capture.qrHelp": "Seleziona un'area con un codice QR",
   "capture.qrNone": "Nessun codice QR trovato",
+  "capture.recordingCut": "Taglia",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Errore di registrazione schermo",
   "capture.recordingKilled": "La registrazione è stata chiusa forzatamente. Il video potrebbe essere danneggiato.",

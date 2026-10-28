@@ -67,6 +67,7 @@
   "capture.qrCopied": "کد QR در کلیپ‌بورد کپی شد",
   "capture.qrHelp": "ناحیه‌ای دارای کد QR انتخاب کنید",
   "capture.qrNone": "کد QR یافت نشد",
+  "capture.recordingCut": "برش",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "خطای ضبط صفحه",
   "capture.recordingKilled": "فرایند ضبط به‌اجبار متوقف شد. ویدیو ممکن است خراب شود.",

@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR কোড ক্লিপবোর্ডে কপি হয়েছে",
   "capture.qrHelp": "QR কোডসহ একটি এলাকা বেছে নিন",
   "capture.qrNone": "কোনো QR কোড পাওয়া যায়নি",
+  "capture.recordingCut": "কাটুন",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "স্ক্রিন রেকর্ডিং ত্রুটি",
   "capture.recordingKilled": "রেকর্ডিং প্রসেস জোর করে বন্ধ করতে হয়েছে। ভিডিও নষ্ট হতে পারে।",

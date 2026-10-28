@@ -67,6 +67,7 @@
   "capture.qrCopied": "QR-kode kopiert til utklippstavlen",
   "capture.qrHelp": "Velg et område som inneholder en QR-kode",
   "capture.qrNone": "Ingen QR-kode funnet",
+  "capture.recordingCut": "Klipp ut",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Feil ved skjermopptak",
   "capture.recordingKilled": "Opptaksprosessen måtte tvangsavsluttes. Videoen kan være ødelagt.",

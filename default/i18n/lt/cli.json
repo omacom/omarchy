@@ -68,6 +68,7 @@
   "capture.qrCopied": "QR kodas nukopijuotas į iškarpinę",
   "capture.qrHelp": "Pasirinkite sritį su QR kodu",
   "capture.qrNone": "QR kodo nerasta",
+  "capture.recordingCut": "Iškirpti",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Ekrano įrašo klaida",
   "capture.recordingKilled": "Įrašymo procesą teko nutraukti priverstinai. Vaizdo įrašas gali būti sugadintas.",

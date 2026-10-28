@@ -66,6 +66,7 @@
   "capture.qrCopied": "Kod QR disalin ke papan keratan",
   "capture.qrHelp": "Pilih kawasan yang mengandungi kod QR",
   "capture.qrNone": "Tiada kod QR ditemui",
+  "capture.recordingCut": "Potong",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Ralat rakaman skrin",
   "capture.recordingKilled": "Proses rakaman terpaksa dimatikan paksa. Video mungkin rosak.",

@@ -68,6 +68,7 @@
   "capture.qrCopied": "Código QR copiado al portapapeles",
   "capture.qrHelp": "Selecciona una región que contenga un código QR",
   "capture.qrNone": "No se encontró ningún código QR",
+  "capture.recordingCut": "Cortar",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Error al grabar la pantalla",
   "capture.recordingKilled": "Se tuvo que forzar el cierre de la grabación. El video podría estar dañado.",
