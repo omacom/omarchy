@@ -19,6 +19,7 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
   if ! omarchy-pkg-add \
     aether \
     cliamp \
+    herdr \
     libreoffice-fresh \
     pinta \
     obsidian \
