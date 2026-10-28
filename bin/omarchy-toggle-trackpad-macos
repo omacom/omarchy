@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle macOS-style trackpad behavior: natural scrolling and three-finger workspace swipes
+# omarchy:args=[toggle|on|off]
+# omarchy:examples=omarchy toggle trackpad-macos | omarchy toggle trackpad-macos off
+
+case ${1:-toggle} in
+toggle) omarchy-hyprland-toggle trackpad-macos toggle ;;
+on) omarchy-hyprland-toggle trackpad-macos on ;;
+off) omarchy-hyprland-toggle trackpad-macos off ;;
+*)
+  echo "Usage: omarchy-toggle-trackpad-macos [toggle|on|off]" >&2
+  exit 1
+  ;;
+esac
+
+if ! omarchy-hw-touchpad | grep -q .; then
+  omarchy-hyprland-toggle trackpad-macos off
+  omarchy-notification-send -g 󰗘 "No trackpad detected" "macOS-style trackpad behavior needs a trackpad"
+  exit 1
+fi
+
+if omarchy-hyprland-toggle-enabled trackpad-macos; then
+  omarchy-notification-send -g 󰗘 "macOS-style trackpad on" "Natural scrolling and three-finger workspace swipes enabled"
+else
+  omarchy-notification-send -g 󰗘 "macOS-style trackpad off" "Omarchy default trackpad behavior restored"
+fi
