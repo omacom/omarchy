@@ -133,3 +133,19 @@ while IFS= read -r command; do
   fi
 done < <(grep -o '"action":"omarchy-launch-install [^"]*"' "$ROOT/default/omarchy/omarchy-menu.jsonc" | sed "s/^\"action\":\"omarchy-launch-install //; s/\"\$//; s/'//g")
 pass 'installs opened in the update window ask nothing it cannot show'
+
+# A preview that could not ask the AUR says so, as one that could not ask the
+# repositories does, instead of passing for up to date.
+mock=$(mktemp -d)
+printf '#!/bin/bash\nexit 2\n' >"$mock/checkupdates"
+printf '#!/bin/bash\n[[ $1 == -Qem ]] && echo "foreign-pkg 1.0-1"\n' >"$mock/pacman"
+printf '#!/bin/bash\nexit 1\n' >"$mock/omarchy-pkg-aur-accessible"
+printf '#!/bin/bash\necho "foreign-pkg 1.0-1 -> 1.1-1"\n' >"$mock/yay"
+chmod +x "$mock"/*
+output=$(PATH="$mock:$PATH" "$ROOT/shell/plugins/update/pending.sh")
+[[ $output == "unknown" ]] || fail 'an unreachable AUR is no answer' "$output"
+printf '#!/bin/bash\nexit 0\n' >"$mock/omarchy-pkg-aur-accessible"
+output=$(PATH="$mock:$PATH" "$ROOT/shell/plugins/update/pending.sh")
+rm -rf "$mock"
+[[ $output == $'aur\tforeign-pkg\t1.0-1\t1.1-1\t' ]] || fail 'an unreachable AUR is no answer' "a reachable AUR lists its updates: $output"
+pass 'an unreachable AUR is no answer'
