@@ -425,12 +425,17 @@ function M.renumber(from, to)
   modes[from] = nil
   modes[to] = mode
 
-  os.remove(LAYOUTS_DIR .. "/" .. from .. ".lua")
+  -- The old file goes once the new one is written. A layout that cannot be
+  -- saved under the new number stays saved under the old one, as it would have
+  -- before, rather than being lost on the next reload.
   if mode then
     local saved = io.open(LAYOUTS_DIR .. "/" .. to .. ".lua", "w")
     if saved then
-      saved:write(string.format('o.workspace_mode({ workspace = "%s", mode = "%s" })\n', to, mode))
-      saved:close()
+      local written = saved:write(string.format('o.workspace_mode({ workspace = "%s", mode = "%s" })\n', to, mode)) ~= nil
+      written = saved:close() and written
+      if written then
+        os.remove(LAYOUTS_DIR .. "/" .. from .. ".lua")
+      end
     end
   else
     os.remove(LAYOUTS_DIR .. "/" .. to .. ".lua")

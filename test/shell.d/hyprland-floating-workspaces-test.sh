@@ -850,6 +850,28 @@ fi
 [[ ! -e $modes_dir/4.lua ]] || fail "the layout saved under the taken-over number is dropped"
 pass "a renumbered workspace replaces the layout saved under its new number"
 
+# A layout that cannot be saved under the new number stays saved under the old
+# one, as it would have before, rather than being lost on the next reload.
+rm -f "$modes_dir"/*.lua
+printf 'o.workspace_mode({ workspace = "12", mode = "scrolling" })\n' >"$modes_dir/12.lua"
+mkdir "$modes_dir/2.lua"
+if ! run_lua '
+local moved = window("0x1", 12)
+require("default.hypr.workspace-layouts")
+local modes = require("default.hypr.workspace-modes")
+moved.workspace.id = 2
+modes.renumber(12, 2)
+local last = {}
+for _, rule in ipairs(state().workspace_rules) do last[rule.workspace] = rule.layout end
+assert(last["2"] == "scrolling", "the new number did not get the layout for the session: " .. tostring(last["2"]))
+' TITLEBARS_INSTALLED=1; then
+  fail "a layout that cannot be saved under its new number still applies"
+fi
+grep -qxF 'o.workspace_mode({ workspace = "12", mode = "scrolling" })' "$modes_dir/12.lua" ||
+  fail "a layout that cannot be saved under its new number stays saved under the old one" "$(ls "$modes_dir")"
+rmdir "$modes_dir/2.lua"
+pass "a layout that cannot be saved under its new number stays saved under the old one"
+
 run_node_test <<'JS'
 const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')
 
