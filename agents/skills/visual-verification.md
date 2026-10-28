@@ -39,7 +39,9 @@ Run the branch's shell, not the installed one. The running shell loads plugins f
 ```bash
 WT=/path/to/worktree
 while timeout 30 quickshell kill -p "$OMARCHY_PATH/shell" --any-display >/dev/null 2>&1; do :; done
-hyprctl dispatch "hl.dsp.exec_cmd(\"env OMARCHY_PATH=$WT PATH=$WT/bin:$PATH omarchy-launch-shell\")"
+# A Lua long string lets the command keep its own quotes; Hyprland's shell
+# expands $PATH, so a PATH entry with spaces stays one value.
+hyprctl dispatch "hl.dsp.exec_cmd([[env OMARCHY_PATH=\"$WT\" PATH=\"$WT/bin:\$PATH\" omarchy-launch-shell]])"
 # A starting shell answers one ping and then drops calls while plugins load:
 # wait for several answers in a row, a second apart.
 OMARCHY_PATH=$WT PATH=$WT/bin:$PATH omarchy-shell shell ping
