@@ -78,6 +78,10 @@ printf 'XDG_RUNTIME_DIR=%s\n' "${XDG_RUNTIME_DIR:-}" >>"$FAKE_RESTART_LOG"
 printf 'WAYLAND_DISPLAY=%s\n' "${WAYLAND_DISPLAY:-}" >>"$FAKE_RESTART_LOG"
 printf 'HYPRLAND_INSTANCE_SIGNATURE=%s\n' "${HYPRLAND_INSTANCE_SIGNATURE:-}" >>"$FAKE_RESTART_LOG"
 printf 'OMARCHY_PATH=%s\n' "${OMARCHY_PATH:-}" >>"$FAKE_RESTART_LOG"
+if [[ ${FAKE_RESTART_FAIL:-0} == 1 ]]; then
+  exit 1
+fi
+exit 0
 SH
 
 cat >"$fake_bin/omarchy-hyprland-session-locked" <<'SH'
@@ -104,13 +108,17 @@ export OMARCHY_SHELL_RELOAD_GUARD_LOCKED="$fake_bin/omarchy-hyprland-session-loc
 guard="$ROOT/bin/omarchy-shell-reload-guard"
 
 start_shell() {
+  local config_root="${1:-$root_dir}"
+  local env_root="${2:-$config_root}"
+
   env WAYLAND_DISPLAY=test-display \
     HYPRLAND_INSTANCE_SIGNATURE=test-signature \
-    OMARCHY_PATH="$root_dir" \
+    OMARCHY_PATH="$env_root" \
     sleep 60 &
   shell_pid=$!
   shell_pids+=("$shell_pid")
   printf '%s\n' "$shell_pid" >"$pid_file"
+  printf '%s\n' "$config_root/shell/shell.qml" >"$config_file"
 }
 
 stop_shell() {
@@ -186,6 +194,23 @@ pass "the guard leaves a locked session's shell running"
 
 stop_shell
 : >"$restart_log"
+: >"$kill_log"
+
+# A supported shell can pause while locked, but the post-transaction restart
+# is refused to protect the lock client. Keep the state so the next restart or
+# transaction can finish the job instead of losing track of the paused shell.
+start_shell
+FAKE_QS_MODE=ok FAKE_LOCKED=1 "$guard" pause
+[[ $(state_actions) == "paused" ]] || fail "a locked session's supported shell is paused"
+[[ ! -s $kill_log ]] || fail "a locked session's supported shell is not stopped"
+FAKE_RESTART_FAIL=1 "$guard" resume
+[[ $(state_actions) == "paused" ]] || fail "a refused restart keeps the pause state"
+FAKE_RESTART_FAIL=0 "$guard" resume
+[[ -z $(state_actions) ]] || fail "a later successful restart clears the kept pause state"
+pass "a locked session keeps its pause until a later restart"
+
+stop_shell
+: >"$restart_log"
 
 # A session that logged out during the transaction has no shell to restart.
 mkdir -p "$state_dir"
@@ -196,3 +221,22 @@ printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
 [[ ! -e $state_dir/gone-session ]] || fail "a dead session's state is cleared without a restart"
 [[ ! -s $restart_log ]] || fail "a dead session is not restarted"
 pass "the guard drops state for a session that ended during the transaction"
+
+# Another Quickshell config can also live at shell/shell.qml. Its own
+# OMARCHY_PATH names a different tree, so the guard must leave it alone.
+mkdir -p "$test_tmp/foreign/shell"
+touch "$test_tmp/foreign/shell/shell.qml"
+: >"$qs_log"
+start_shell "$test_tmp/foreign" "$root_dir"
+FAKE_QS_MODE=ok "$guard" pause
+[[ ! -s $qs_log ]] || fail "the guard leaves another Quickshell config alone"
+[[ -z $(state_actions) ]] || fail "the guard records no foreign shell"
+pass "the guard only pauses Omarchy shells"
+stop_shell
+
+# A failed pacman transaction never runs PostTransaction hooks, so the update
+# command's exit path must release the pause as well.
+grep -F 'guard=$(command -v omarchy-shell-reload-guard)' "$ROOT/bin/omarchy-update" >/dev/null &&
+  grep -F '"$guard" resume' "$ROOT/bin/omarchy-update" >/dev/null ||
+  fail "a failed update resumes paused shell plugin loads"
+pass "a failed update resumes paused shell plugin loads"
