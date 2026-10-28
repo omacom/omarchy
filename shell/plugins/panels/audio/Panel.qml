@@ -383,7 +383,10 @@ Panel {
   // Clamp / repair the cursor whenever any list refreshes underneath us.
   onAudioSinksChanged: scheduleDisplayAudioModelRefresh()
   onAudioSourcesChanged: scheduleDisplayAudioModelRefresh()
-  onAudioStreamsChanged: scheduleDisplayAudioModelRefresh()
+  onAudioStreamsChanged: {
+    scheduleDisplayAudioModelRefresh()
+    if (opened) routeTargetsProc.restart()
+  }
 
   function rowSnapshot(list) {
     return Model.rowSnapshot(list)
@@ -529,24 +532,86 @@ Panel {
     if (!node) return
     var options = Model.routeOptions(root.audioSinks)
     var next = Model.nextRouteTarget(options, Model.routeTargetOf(node, root.routeTargets))
-    Quickshell.execDetached(Model.routeCommand(node.id, next))
-    routeTargetsProc.restart()
+    var targets = Object.assign({}, root.routeTargets)
+    targets[String(node.id)] = next
+    root.routeTargets = targets
+    var pending = Object.assign({}, root.pendingRoutes)
+    pending[String(node.id)] = next
+    root.pendingRoutes = pending
+    root.routeGeneration++
+    root.runNextRoute()
   }
 
-  // The routing lives in the default metadata object, so it is read back from
-  // there rather than from the node properties.
+  function runNextRoute() {
+    if (routeWriteProc.running) return
+    var ids = Object.keys(root.pendingRoutes)
+    if (ids.length === 0) {
+      routeTargetsProc.restart()
+      return
+    }
+    var id = ids[0]
+    var pending = Object.assign({}, root.pendingRoutes)
+    var target = pending[id]
+    delete pending[id]
+    root.pendingRoutes = pending
+    routeWriteProc.command = Model.routeCommand(id, target)
+    routeWriteProc.running = true
+  }
+
+  function acceptRouteSnapshot(text, generation) {
+    if (generation !== root.routeGeneration || routeWriteProc.running || Object.keys(root.pendingRoutes).length) return
+    root.routeTargets = Model.parseRouteTargets(text)
+  }
+
   property var routeTargets: ({})
+  property var pendingRoutes: ({})
+  property int routeGeneration: 0
+  property bool routeRefreshPending: false
+
+  Process {
+    id: routeWriteProc
+    onExited: (exitCode, exitStatus) => {
+      if (exitCode !== 0 || exitStatus !== 0)
+        console.warn("audio route write failed", exitCode, exitStatus)
+      Qt.callLater(root.runNextRoute)
+    }
+  }
+
+  Process {
+    id: routeChangesProc
+    running: root.opened
+    command: ["pw-metadata", "-n", "default", "-m"]
+    stdout: SplitParser {
+      onRead: data => routeTargetsProc.restart()
+    }
+  }
 
   Process {
     id: routeTargetsProc
+    property int generation: 0
+    property bool outputFinished: true
     command: ["pw-metadata", "-n", "default"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.routeTargets = Model.parseRouteTargets(text)
+      onStreamFinished: {
+        root.acceptRouteSnapshot(text, routeTargetsProc.generation)
+        routeTargetsProc.outputFinished = true
+        if (root.routeRefreshPending) Qt.callLater(routeTargetsProc.restart)
+      }
+    }
+    onExited: {
+      if (root.routeRefreshPending) Qt.callLater(restart)
     }
 
     function restart() {
-      if (running) return
+      if (!root.opened || routeWriteProc.running || Object.keys(root.pendingRoutes).length) return
+      if (running || !outputFinished) {
+        root.routeRefreshPending = true
+        return
+      }
+      root.routeRefreshPending = false
+      generation = root.routeGeneration
+      outputFinished = false
       running = true
     }
   }

@@ -44,8 +44,8 @@ assert(audio.sourceGlyph({ ready: true, properties: { 'device.icon-name': 'camer
 assertEqual(audio.friendlyStreamLabel('spotify'), 'Spotify', 'audio normalizes known stream labels')
 
 assertDeepEqual(
-  audio.routeCommand(64, 'alsa_output.analog-stereo'),
-  ['pw-metadata', '-n', 'default', '64', 'target.object', 'alsa_output.analog-stereo'],
+  audio.routeCommand(64, '101'),
+  ['pw-metadata', '-n', 'default', '64', 'target.object', '101'],
   'audio pins a stream to an output'
 )
 assertDeepEqual(
@@ -69,15 +69,47 @@ assert(audio.routeIsPinned({ id: 120 }, routeTargets), 'audio reports a pinned s
 assert(!audio.routeIsPinned({ id: 999 }, routeTargets), 'audio reports an unpinned stream')
 
 const routeSinks = [
-  { ready: true, name: 'sink.a', nickname: 'Speakers' },
-  { ready: true, name: 'sink.b', nickname: 'HDMI' }
+  { ready: true, name: 'sink.a', nickname: 'Speakers', properties: { 'object.serial': 101 } },
+  { ready: true, name: 'sink.b', nickname: 'HDMI', properties: { 'object.serial': 202 } }
 ]
-assertDeepEqual(audio.routeOptions(routeSinks), [audio.DEFAULT_ROUTE, 'sink.a', 'sink.b'], 'audio offers the default output first')
-assertEqual(audio.nextRouteTarget(audio.routeOptions(routeSinks), audio.DEFAULT_ROUTE), 'sink.a', 'audio cycles from the default to the first output')
-assertEqual(audio.nextRouteTarget(audio.routeOptions(routeSinks), 'sink.b'), audio.DEFAULT_ROUTE, 'audio cycles from the last output back to the default')
+assertDeepEqual(audio.routeOptions(routeSinks), [audio.DEFAULT_ROUTE, '101', '202'], 'audio offers the default output first')
+assertEqual(audio.nextRouteTarget(audio.routeOptions(routeSinks), audio.DEFAULT_ROUTE), '101', 'audio cycles from the default to the first output')
+assertEqual(audio.nextRouteTarget(audio.routeOptions(routeSinks), '202'), audio.DEFAULT_ROUTE, 'audio cycles from the last output back to the default')
 assertEqual(audio.routeLabel({ id: 999 }, routeSinks, null, routeTargets), 'Follow default output', 'audio labels an unpinned stream')
 assertEqual(audio.routeLabel({ id: 120 }, routeSinks, null, routeTargets), 'Speakers', 'audio labels a pinned stream by device')
 assertEqual(audio.routeLabel({ id: 999 }, routeSinks, routeSinks[1], routeTargets), 'HDMI', 'audio prefers the linked output over the pin')
+assertEqual(audio.routeLabel({ id: 120 }, routeSinks, null, { '120': '101' }), 'Speakers', 'audio resolves serial targets to device labels')
+
+{
+  const fs = require('fs')
+  const vm = require('vm')
+  const source = fs.readFileSync(path.join(root, 'shell/plugins/panels/audio/Panel.qml'), 'utf8')
+  const panel = { audioSinks: routeSinks, routeTargets: {}, pendingRoutes: {}, routeGeneration: 0 }
+  let reads = 0
+  const writer = { running: false, command: null }
+  const context = { root: panel, Model: audio, routeWriteProc: writer, routeTargetsProc: { restart() { reads++ } } }
+  for (const name of ['cycleStreamRoute', 'runNextRoute', 'acceptRouteSnapshot']) {
+    const method = source.match(new RegExp('^  function ' + name + '\\([^]*?^  \x7d', 'm'))
+    if (!method) fail('audio panel provides ' + name)
+    panel[name] = vm.runInNewContext('(' + method[0] + ')', context)
+  }
+  panel.cycleStreamRoute({ id: 120 })
+  assertEqual(writer.command[5], '101', 'first route write uses the sink serial')
+  panel.cycleStreamRoute({ id: 120 })
+  assertEqual(writer.command[5], '101', 'rapid clicks wait for the running writer')
+  assertEqual(panel.pendingRoutes['120'], '202', 'rapid clicks advance from the optimistic target')
+  assertEqual(reads, 0, 'metadata is not read before route writes complete')
+  panel.acceptRouteSnapshot('', 0)
+  assertEqual(panel.routeTargets['120'], '202', 'a stale metadata read cannot overwrite a newer click')
+  writer.running = false
+  panel.runNextRoute()
+  assertEqual(writer.command[5], '202', 'the queued route starts after the first writer finishes')
+  writer.running = false
+  panel.runNextRoute()
+  assertEqual(reads, 1, 'metadata refresh follows the final write')
+  panel.acceptRouteSnapshot("update: id:120 key:'target.object' value:'101'", 2)
+  assertEqual(panel.routeTargets['120'], '101', 'external metadata changes update the current target')
+}
 assert(audio.streamRepresentsMprisPlayer('Chromium', 'Chromium Browser'), 'audio matches related stream and MPRIS labels')
 
 const players = [

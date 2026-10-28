@@ -303,8 +303,8 @@ function routeTargetOf(node, targets) {
   return String(target)
 }
 
-function routeCommand(nodeId, sinkName) {
-  var value = !sinkName || sinkName === DEFAULT_ROUTE ? "-1" : String(sinkName)
+function routeCommand(nodeId, sinkSerial) {
+  var value = !sinkSerial || sinkSerial === DEFAULT_ROUTE ? "-1" : String(sinkSerial)
   return ["pw-metadata", "-n", "default", String(nodeId), "target.object", value]
 }
 
@@ -312,7 +312,8 @@ function routeOptions(sinks) {
   var options = [DEFAULT_ROUTE]
   var list = sinks || []
   for (var i = 0; i < list.length; i++) {
-    if (list[i] && list[i].name) options.push(String(list[i].name))
+    var serial = nodeProps(list[i])["object.serial"]
+    if (serial !== undefined && serial !== null) options.push(String(serial))
   }
   return options
 }
@@ -328,7 +329,8 @@ function nextRouteTarget(options, current) {
 function sinkNamed(sinks, name) {
   var list = sinks || []
   for (var i = 0; i < list.length; i++) {
-    if (list[i] && String(list[i].name) === String(name)) return list[i]
+    if (list[i] && (String(list[i].name) === String(name)
+      || String(nodeProps(list[i])["object.serial"]) === String(name))) return list[i]
   }
   return null
 }
