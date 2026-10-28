@@ -11,9 +11,9 @@
 hl.gesture({ fingers = 3, direction = "left", action = function() hl.dispatch(hl.dsp.focus({ workspace = "r-1" })) end })
 hl.gesture({ fingers = 3, direction = "right", action = function() hl.dispatch(hl.dsp.focus({ workspace = "r+1" })) end })
 
--- Pull the AI console down, and open the Omarchy menu by pushing up.
-hl.gesture({ fingers = 3, direction = "down", action = "special", workspace_name = "qconsole" })
-hl.gesture({ fingers = 3, direction = "up", action = function() hl.dispatch(hl.dsp.global("omarchy:menu.root")) end })
+-- Push up for the AI console, and pull down for the Omarchy menu.
+hl.gesture({ fingers = 3, direction = "up", action = "special", workspace_name = "qconsole" })
+hl.gesture({ fingers = 3, direction = "down", action = function() hl.dispatch(hl.dsp.global("omarchy:menu.root")) end })
 
 -- Move the active window around with Super held.
 hl.gesture({ fingers = 3, direction = "swipe", mods = "SUPER", action = "move" })
