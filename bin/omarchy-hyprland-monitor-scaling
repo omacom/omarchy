@@ -105,23 +105,38 @@ set_scale() {
 # its scale updated in place. Otherwise one is added after Omarchy's catch-all,
 # which stays the default for monitors without a rule of their own. Only rules
 # written on one line with a plain scale value are edited; a config holding
-# anything else for these rules (a multi-line table, a scale expression) is left
-# alone rather than risk writing broken Lua.
+# anything else for these rules (a multi-line table, a scale expression, another
+# rule naming the monitor) is left alone rather than risk broken Lua or a second
+# rule competing with the user's own.
 persist_scale() {
   local monitor_lua="$1"
   local output="$2"
   local scale="$3"
   local gdk_scale="$4"
+  local target
   local tmp
 
   [[ -f $monitor_lua ]] || return 0
 
-  tmp="$(mktemp)"
+  # Hyprland reloads on every write, so build the new file beside the real one
+  # and rename it into place, through any symlink, in one step.
+  target="$(readlink -f "$monitor_lua")"
+  tmp="$(mktemp "$target.XXXXXX")" || return 0
   if ! awk -v output="$output" -v scale="$scale" '
     function rule(name) { return "hl.monitor({ output = \"" name "\"," }
     function whole_line() { return $0 ~ /\}\)[[:space:]]*(--.*)?$/ }
-    index($0, rule(output)) == 1 {
-      if (updated || !whole_line() || !match($0, /[{, ]scale = ("[^"]*"|[A-Za-z0-9_.]+) *[,}]/)) {
+    function names_output(    code, value) {
+      code = $0
+      sub(/--.*/, "", code)
+      if (!match(code, /output[[:space:]]*=[[:space:]]*"[^"]*"/)) return 0
+      value = substr(code, RSTART, RLENGTH)
+      sub(/^[^"]*"/, "", value)
+      sub(/"$/, "", value)
+      return value == output
+    }
+    names_output() {
+      if (updated || index($0, rule(output)) != 1 || !whole_line() ||
+        !match($0, /[{, ]scale = ("[^"]*"|[A-Za-z0-9_.]+) *[,}]/)) {
         skip = 1
         exit
       }
@@ -140,18 +155,18 @@ persist_scale() {
           print "hl.monitor({ output = \"" output "\", mode = \"preferred\", position = \"auto\", scale = " scale " })"
       }
     }
-  ' "$monitor_lua" >"$tmp"; then
+  ' "$target" >"$tmp"; then
     rm -f "$tmp"
     return 0
   fi
-  cat "$tmp" >"$monitor_lua"
-  rm -f "$tmp"
 
   # GDK_SCALE is a single session-wide value, so it follows the latest change.
   sed -i -E \
     -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${gdk_scale}|" \
     -e 's|^hl\.env\("GDK_SCALE", "[^"]*"\)|hl.env("GDK_SCALE", "'"$gdk_scale"'")|' \
-    "$monitor_lua"
+    "$tmp"
+  chmod --reference="$target" "$tmp"
+  mv "$tmp" "$target"
 }
 
 scale_from_current() {

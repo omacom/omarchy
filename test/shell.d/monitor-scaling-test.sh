@@ -163,3 +163,20 @@ cp "$monitor_lua" "$test_tmp/expected.lua"
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
 cmp -s "$monitor_lua" "$test_tmp/expected.lua" || fail "monitor scaling leaves a scale expression alone"
 pass "monitor scaling leaves a scale expression alone"
+
+write_monitor_config
+printf '%s\n' 'hl.monitor({' '  output = "eDP-1", mode = "preferred", position = "auto", scale = 2,' '})' >>"$monitor_lua"
+cp "$monitor_lua" "$test_tmp/expected.lua"
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
+cmp -s "$monitor_lua" "$test_tmp/expected.lua" || fail "monitor scaling adds no rule beside a multi-line one for the monitor"
+pass "monitor scaling adds no rule beside a multi-line one for the monitor"
+
+# The rewrite replaces the file behind a symlinked monitors.lua, keeping the link.
+write_monitor_config
+mv "$monitor_lua" "$test_tmp/dotfiles-monitors.lua"
+ln -s "$test_tmp/dotfiles-monitors.lua" "$monitor_lua"
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
+[[ -L $monitor_lua ]] || fail "monitor scaling keeps a symlinked monitors.lua a symlink"
+has_rule 3 || fail "monitor scaling persists through a symlinked monitors.lua"
+pass "monitor scaling persists through a symlinked monitors.lua"
+rm "$monitor_lua"
