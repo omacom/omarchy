@@ -37,8 +37,16 @@ Item {
   // A theme switch reloads Hyprland once no intro plays: a reload pauses
   // video presentation.
   property bool reloadPending: false
+  // Bumped when a theme switch takes the cover, which drops background work
+  // started before it: the theme's own background wins.
+  property int epoch: 0
+  // The link's next target while an earlier ln still runs, so the link always
+  // ends on the latest selection.
+  property string pendingLink: ""
 
-  readonly property bool busy: !!intro && (intro.themeToken !== "" || intro.revealing)
+  // A theme switch waits while this is set, so it cannot capture a frame from
+  // under a cover or take over from a change still being set up.
+  readonly property bool busy: !!intro && (intro.themeToken !== "" || intro.revealing) || resolveProc.running || snapshotProc.running
 
   function displayedStill() {
     var path = backgroundService ? (backgroundService.displayedBackground || backgroundService.currentBackground) : ""
@@ -49,9 +57,10 @@ Item {
   function switchTo(path) {
     path = String(path || "").trim()
     if (!path || !intro || !backgroundService) return "unavailable"
-    if (busy || resolveProc.running || snapshotProc.running) {
+    if (busy) {
       queuedPath = path
     } else {
+      resolveProc.epoch = epoch
       resolveProc.path = path
       resolveProc.command = ["omarchy-theme-bg-boot-intro", "--resolve-enabled", path]
       resolveProc.running = true
@@ -64,11 +73,23 @@ Item {
     // A playing intro hides the shell's background, so even a still without
     // an intro of its own has to come in under the cover.
     if (!clipPath && !backgroundService.suspended) {
-      Quickshell.execDetached(["ln", "-nsf", path, backgroundLink])
+      link(path)
       backgroundService.setBackground(path, false)
       return
     }
     begin(path, clipPath)
+  }
+
+  function link(target) {
+    pendingLink = target
+    if (!linkProc.running) startLink()
+  }
+
+  function startLink() {
+    linkProc.target = pendingLink
+    pendingLink = ""
+    linkProc.command = ["ln", "-nsf", linkProc.target, backgroundLink]
+    linkProc.running = true
   }
 
   function begin(path, clipPath) {
@@ -83,6 +104,7 @@ Item {
       // A playing video shows a frame only OWE can capture. It is taken
       // before the clip is prepared into the same renderer.
       snapshotProc.forToken = token
+      snapshotProc.epoch = epoch
       snapshotProc.file = transitionCache + "/previous-" + serial + ".ppm"
       snapshotProc.command = ["bash", "-c", 'mkdir -p "$1" && exec owe render "$2"', "_", transitionCache,
                               JSON.stringify({ cmd: "snapshot", path: snapshotProc.file })]
@@ -134,11 +156,7 @@ Item {
     // Moving the link cancels a playing intro and hands the desktop back to
     // the shell, so it waits for the cover.
     if (!linked) {
-      if (!linkProc.running) {
-        linkProc.forToken = token
-        linkProc.command = ["ln", "-nsf", still, backgroundLink]
-        linkProc.running = true
-      }
+      if (pendingLink !== still && !(linkProc.running && linkProc.target === still)) link(still)
       return
     }
     // An earlier clip ends once the link has moved on from it.
@@ -180,7 +198,13 @@ Item {
   Connections {
     target: root.intro
     function onCoverPresented() { root.advance() }
-    function onThemeTokenChanged() { Qt.callLater(root.settle) }
+    function onThemeTokenChanged() {
+      if (root.intro.themeToken && root.intro.themeToken !== root.token) {
+        root.epoch += 1
+        root.queuedPath = ""
+      }
+      Qt.callLater(root.settle)
+    }
     function onRevealingChanged() { Qt.callLater(root.settle) }
   }
 
@@ -199,9 +223,10 @@ Item {
   Process {
     id: resolveProc
     property string path: ""
+    property int epoch: 0
     stdout: StdioCollector { id: resolveOut }
     onExited: {
-      root.resolved(path, String(resolveOut.text || "").trim())
+      if (epoch === root.epoch) root.resolved(path, String(resolveOut.text || "").trim())
       root.settle()
     }
   }
@@ -209,9 +234,10 @@ Item {
   Process {
     id: snapshotProc
     property string forToken: ""
+    property int epoch: 0
     property string file: ""
     onExited: function(exitCode) {
-      if (forToken !== root.token) {
+      if (forToken !== root.token || epoch !== root.epoch) {
         Quickshell.execDetached(["rm", "-f", file])
       } else if (exitCode === 0) {
         root.own(file)
@@ -233,9 +259,10 @@ Item {
 
   Process {
     id: linkProc
-    property string forToken: ""
+    property string target: ""
     onExited: {
-      if (forToken === root.token) root.linked = true
+      if (root.pendingLink) root.startLink()
+      else if (root.token && target === root.still) root.linked = true
       root.advance()
     }
   }
