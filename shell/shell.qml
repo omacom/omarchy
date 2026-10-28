@@ -1757,6 +1757,12 @@ ShellRoot {
       shell.bootIntro.finishTheme(token)
     }
 
+    // A switch that only held the cover over a playing intro opens it with
+    // the ordinary background cut once OWE hands the desktop back.
+    function cutThemeIntro(token: string): void {
+      shell.bootIntro.finishTheme(token, true)
+    }
+
     function themeIntroStatus(token: string): string {
       return shell.bootIntro.themeStatus(token)
     }

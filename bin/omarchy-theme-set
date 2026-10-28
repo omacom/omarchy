@@ -239,12 +239,20 @@ set_theme_background() {
       # the shell's background is suspended under it, so the swap is unseen.
       # The subshell outlives the command, so OWE's report of an intro that
       # ended early would land in the terminal after it has finished.
-      omarchy-theme-bg-boot-intro --theme-switch "$new_background" "$theme_id" "$intro_prepared" >/dev/null 2>&1 || true
+      if [[ -n $THEME_BACKGROUND_INTRO ]]; then
+        omarchy-theme-bg-boot-intro --theme-switch "$new_background" "$theme_id" "$intro_prepared" >/dev/null 2>&1 || true
+      fi
       if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$(readlink -f "$new_background")" &&
         $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
         shell_ipc background setInstant "$new_background" || true
       fi
-      shell_ipc shell finishThemeIntro "$theme_id" || true
+      # A still without an intro, which only held the cover over a playing
+      # one, opens with the ordinary background cut once OWE hands back.
+      if [[ -n $THEME_BACKGROUND_INTRO ]]; then
+        shell_ipc shell finishThemeIntro "$theme_id" || true
+      else
+        shell_ipc shell cutThemeIntro "$theme_id" || shell_ipc shell finishThemeIntro "$theme_id" || true
+      fi
       wait_for_theme_intro themeIntroStatus "$theme_id" "pending"
       # Reloading Hyprland interrupts video presentation. Wait for playback,
       # then serialize with theme selection so an old intro cannot reload

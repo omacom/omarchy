@@ -31,7 +31,7 @@ ShellRoot {
   Timer {
     interval: 200
     running: true
-    onTriggered: intro.finishTheme("switch")
+    onTriggered: intro.finishTheme("switch", true)
   }
   Timer {
     interval: 300
@@ -50,11 +50,22 @@ ShellRoot {
       retainedBackground.ready = true
     }
   }
+  // The cover opens with the background's slanted cut rather than fading.
   Timer {
     interval: 500
     running: true
     onTriggered: {
-      test.check(intro.themeToken === "", "the cover fades once the still is on screen")
+      test.check(intro.themeToken === "", "the cover opens once the still is on screen")
+      test.check(intro.themeBackground !== "" && intro.themeOpacity === 1 && intro.themeCutProgress > 0,
+                 "the cover stays drawn while the cut opens")
+      test.check(intro.themeStatus("switch") === "pending", "the switch is pending until the cut ends")
+    }
+  }
+  Timer {
+    interval: 1600
+    running: true
+    onTriggered: {
+      test.check(intro.themeBackground === "" && intro.themeStatus("switch") === "ready", "the cover is gone once the cut ends")
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()
     }

@@ -258,10 +258,12 @@ wait_command '^shell: shell finishThemeIntro '
 grep -Fxq "shell: background setInstant $state/theme/backgrounds/2-road.webp" "$log" || fail "a failed intro fades the cover to the new still"
 pass "a superseded or failed background intro keeps the latest selection on screen"
 
-# A playing intro hides the shell's background, so a still without an intro of
-# its own fades in from the playing frame under the cover instead of cutting.
+# A playing intro hides the shell's background, so the ordinary transition to a
+# still without an intro of its own would run unseen. The cover holds the
+# playing frame instead and opens with the same cut once OWE hands back.
 TEST_INTRO_PLAYING=true set_background "$state/theme/backgrounds/1-sky.webp"
-wait_command '^shell: shell finishThemeIntro '
+wait_command '^shell: shell cutThemeIntro '
+! grep -q '^shell: shell finishThemeIntro ' "$log" || fail "a still without an intro opens with the cut, not the intro fade"
 grep -q '^shell: shell prepareThemeIntro ' "$log" || fail "a background change during an intro covers the playing frame"
 grep -Fxq "shell: background setInstant $state/theme/backgrounds/1-sky.webp" "$log" || fail "the still without an intro is set under the cover"
 ! grep -qE '^owe: intro(-prepare)? ' "$log" || fail "a still without an intro plays none"
@@ -269,9 +271,10 @@ grep -Fxq "shell: background setInstant $state/theme/backgrounds/1-sky.webp" "$l
 if [[ $(<"$state/theme.name") == alpha ]]; then next_theme=beta; else next_theme=alpha; fi
 printf '%s\n' "$state/theme/backgrounds/1-sky.webp" >"$home/.local/state/omarchy/theme-backgrounds/$next_theme"
 TEST_INTRO_PLAYING=true set_theme "$next_theme"
-wait_command '^shell: shell finishThemeIntro '
+wait_command '^shell: shell cutThemeIntro '
+! grep -q '^shell: shell finishThemeIntro ' "$log" || fail "the theme's still without an intro opens with the cut, not the intro fade"
 grep -q '^shell: shell prepareThemeIntro ' "$log" || fail "a theme switch during an intro covers the playing frame"
 grep -Fxq "shell: background setInstant $state/theme/backgrounds/1-sky.webp" "$log" || fail "the theme's still without an intro is set under the cover"
 ! grep -q '^shell: background themeTransition ' "$log" || fail "no ordinary transition runs under the playing intro"
 ! grep -qE '^owe: intro(-prepare)? ' "$log" || fail "the theme's still without an intro plays none"
-pass "switching to a still without an intro while one plays fades from the playing frame"
+pass "switching to a still without an intro while one plays cuts from the playing frame"

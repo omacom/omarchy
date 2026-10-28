@@ -99,14 +99,19 @@ play_background_intro() {
 
   # The shell takes the new still as soon as the cover hides it, so OWE hands
   # the desktop back to the new background rather than flashing the old one.
-  # Played or not, the cover then fades out. A newer selection owns the shell.
+  # The cover then fades out after an intro, or opens with the ordinary cut
+  # onto a still without one. A newer selection owns the shell by then.
   (
     wait_for_cover "$token"
     if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$BACKGROUND" ]]; then
       shell_ipc background setInstant "$BACKGROUND" || true
     fi
-    omarchy-theme-bg-boot-intro --background-switch "$BACKGROUND" "$token" "$prepared" || true
-    shell_ipc shell finishThemeIntro "$token" || true
+    if [[ -n $intro ]]; then
+      omarchy-theme-bg-boot-intro --background-switch "$BACKGROUND" "$token" "$prepared" || true
+      shell_ipc shell finishThemeIntro "$token" || true
+    else
+      shell_ipc shell cutThemeIntro "$token" || shell_ipc shell finishThemeIntro "$token" || true
+    fi
     wait_for_intro "$token"
     [[ -z $owned_cover ]] || rm -f "$owned_cover"
   ) 9>&- </dev/null >/dev/null 2>&1 &
