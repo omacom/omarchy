@@ -15,8 +15,6 @@ NEXT_THEME_PATH="$HOME/.local/state/omarchy/current/next-theme"
 CURRENT_BACKGROUND_LINK="$HOME/.local/state/omarchy/current/background"
 THEME_BACKGROUND_STATE_PATH="$HOME/.local/state/omarchy/theme-backgrounds"
 BACKGROUND_TRANSITION_CACHE="$HOME/.cache/omarchy/background-transitions"
-BACKGROUND_INTRO_TOKEN_PATH="${XDG_RUNTIME_DIR:-/tmp}/omarchy-background-intro.token"
-BACKGROUND_INTRO_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-background-intro.lock"
 THEME_SET_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
 THEME_SET_LOG="$HOME/.local/state/omarchy/theme-set.log"
 THEME_RETINT_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-retint.lock"
@@ -247,17 +245,13 @@ set_theme_background() {
       wait_for_theme_intro themeIntroStatus "$theme_id" "pending"
       # Reloading Hyprland interrupts video presentation. Wait for playback,
       # then serialize with theme selection so an old intro cannot reload
-      # the compositor during the next theme's video. A background intro
-      # started since keeps this theme, so its reload waits for that video.
+      # the compositor during the next theme's video.
       (
-        flock 8
-        (
-          flock 9
-          if [[ $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
-            omarchy-restart-hyprctl
-          fi
-        ) 9>"$THEME_SET_LOCK"
-      ) 8>"$BACKGROUND_INTRO_LOCK"
+        flock 9
+        if [[ $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
+          omarchy-restart-hyprctl
+        fi
+      ) 9>"$THEME_SET_LOCK"
       [[ -z $OLD_BACKGROUND_SNAPSHOT ]] || rm -f "$OLD_BACKGROUND_SNAPSHOT"
     ) 9>&- &
     return
@@ -421,10 +415,6 @@ flock 9
 # Finish that short reveal before capturing the next outgoing cover.
 if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
   wait_for_theme_intro themeIntroStatus "$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null)" "pending"
-  # A background change in the same theme has its own intro token.
-  if [[ -s $BACKGROUND_INTRO_TOKEN_PATH ]]; then
-    wait_for_theme_intro themeIntroStatus "$(<"$BACKGROUND_INTRO_TOKEN_PATH")" "pending"
-  fi
 fi
 
 PREVIOUS_THEME_NAME=$(cat "$CURRENT_THEME_NAME_PATH" 2>/dev/null || true)

@@ -219,38 +219,26 @@ set_background "$state/theme/backgrounds/1-sky.webp"
 grep -Fxq "shell: -q background set $state/theme/backgrounds/1-sky.webp" "$log" || fail "a background without an intro is set directly"
 ! grep -q '^owe: intro ' "$log" || fail "a background without an intro plays none"
 set_background "$state/theme/backgrounds/2-road.webp"
-wait_command '^owe: intro '
-grep -Fxq "owe: intro --start first-frame --refresh $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "changing the background plays its matching intro"
-grep -q '^shell: shell prepareThemeIntro ' "$log" || fail "the outgoing background covers the desktop during the intro"
-wait_command "^shell: background setInstant $state/theme/backgrounds/2-road.webp\$"
+wait_command "^shell: -q background setInstant $state/theme/backgrounds/2-road.webp\$"
+grep -Fxq "owe: intro --start first-frame $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "changing the background plays its matching intro"
 [[ $(readlink "$state/background") == "$state/theme/backgrounds/2-road.webp" ]] || fail "the background with an intro is selected"
 set_background "$state/theme/backgrounds/2-road.webp"
 ! grep -q '^owe: intro ' "$log" || fail "reselecting the current background plays no intro"
 pass "changing backgrounds plays the selected background's matching intro"
 
-# A background intro keeps the theme, so the interrupted theme intro's reload
-# still runs, but only once the background video has finished.
-mkdir -p "$test_tmp/lake/intros"
-printf 'still\n' >"$test_tmp/lake/lake.webp"
-printf 'intro\n' >"$test_tmp/lake/intros/lake.mp4"
-printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/alpha"
-printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/beta"
-if [[ $(<"$state/theme.name") == alpha ]]; then next_theme=beta; else next_theme=alpha; fi
-theme_release="$test_tmp/theme-intro-release"
-background_release="$test_tmp/background-intro-release"
-TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$theme_release" set_theme "$next_theme"
+set_background "$state/theme/backgrounds/1-sky.webp"
+release="$test_tmp/background-release"
+TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$release" set_background "$state/theme/backgrounds/2-road.webp"
 wait_command '^owe: intro '
-TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$background_release" set_background "$test_tmp/lake/lake.webp"
-wait_command "^owe: intro .*$test_tmp/lake/intros/lake.mp4\$"
-mkdir -p "$test_tmp/pond/intros"
-printf 'still\n' >"$test_tmp/pond/pond.webp"
-printf 'intro\n' >"$test_tmp/pond/intros/pond.mp4"
-TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$background_release" set_background "$test_tmp/pond/pond.webp"
-wait_command "^owe: intro .*$test_tmp/pond/intros/pond.mp4\$"
-touch "$theme_release"
-wait_command '^shell: shell finishThemeIntro [0-9]'
-sleep 0.3
-! grep -q '^hypr-reload$' "$log" || fail "a theme reload waits for the background intro that interrupted it"
-touch "$background_release"
-wait_command '^hypr-reload$'
-pass "background intros take over from each other and defer the interrupted theme's reload"
+intro_pid=$(<"$test_tmp/intro.pid")
+set_background "$state/theme/backgrounds/1-sky.webp"
+touch "$release"
+for attempt in {1..100}; do
+  kill -0 "$intro_pid" 2>/dev/null || break
+  sleep 0.02
+done
+sleep 0.1
+! grep -q '2-road' "$log" || fail "a superseded intro leaves the newer background in place"
+TEST_OWE_FAIL=true set_background "$state/theme/backgrounds/2-road.webp"
+wait_command "^shell: -q background set $state/theme/backgrounds/2-road.webp\$"
+pass "a superseded or failed background intro keeps the latest selection on screen"

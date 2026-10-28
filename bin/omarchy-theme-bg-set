@@ -11,104 +11,38 @@ fi
 
 BACKGROUND="$(realpath "$1")"
 CURRENT_BACKGROUND_LINK="$HOME/.local/state/omarchy/current/background"
-CURRENT_THEME_PATH="$HOME/.local/state/omarchy/current/theme"
-BACKGROUND_TRANSITION_CACHE="$HOME/.cache/omarchy/background-transitions"
-THEME_SET_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
-INTRO_TOKEN_PATH="${XDG_RUNTIME_DIR:-/tmp}/omarchy-background-intro.token"
-BACKGROUND_INTRO_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-background-intro.lock"
 
 if [[ ! -f $BACKGROUND ]]; then
   echo "File does not exist: $BACKGROUND" >&2
   exit 1
 fi
 
-shell_ipc() {
-  timeout 2 omarchy-shell "$@" >/dev/null 2>&1
-}
+PREVIOUS_BACKGROUND=$(readlink -f "$CURRENT_BACKGROUND_LINK" 2>/dev/null)
 
-wait_for_intro() {
-  local token="$1" deadline=$((SECONDS + 3))
-  [[ -n $token ]] || return 0
-  while (( SECONDS < deadline )) && [[ $(omarchy-shell shell themeIntroStatus "$token" 2>/dev/null) == "pending" ]]; do
-    sleep 0.02
-  done
-}
+# Create symlink to the new background media
+ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
+
+INTRO=""
+if [[ $PREVIOUS_BACKGROUND != "$BACKGROUND" && ! -f $HOME/.local/state/omarchy/toggles/background-intros-off ]] &&
+  [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool' 2>/dev/null) == "true" ]]; then
+  INTRO=$(omarchy-theme-bg-boot-intro --resolve-only "$BACKGROUND")
+fi
 
 # Update the live shell background when it is running. Nothing watches the
 # symlink, so this is how the shell learns of the new background.
-set_background() {
-  ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
-  omarchy-shell -q background set "$BACKGROUND"
-}
-
-# Play the new still's intro the way a theme switch does: the shell covers
-# the desktop with the outgoing frame, OWE plays the clip over it, and the
-# shell takes the new still underneath before the cover fades.
-play_background_intro() {
-  local intro="$1" token snapshot="" owned_snapshot="" current prepare_pid prepared=false colors_payload shell_payload
-
-  exec 9>"$THEME_SET_LOCK"
-  flock 9
-
-  # A frame captured during another intro's opening fade misses its cover.
-  wait_for_intro "$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null)"
-  wait_for_intro "$(cat "$INTRO_TOKEN_PATH" 2>/dev/null)"
-
-  owe intro-prepare "$intro" >/dev/null 2>&1 9>&- &
-  prepare_pid=$!
-
-  mkdir -p "$BACKGROUND_TRANSITION_CACHE"
-  owned_snapshot="$BACKGROUND_TRANSITION_CACHE/previous-$$.ppm"
-  if owe render "$(jq -nc --arg path "$owned_snapshot" '{cmd: "snapshot", path: $path}')" >/dev/null 2>&1; then
-    snapshot="$owned_snapshot"
-  else
-    owned_snapshot=""
-    current=$(readlink -f "$CURRENT_BACKGROUND_LINK" 2>/dev/null || true)
-    [[ ! -f $current || ${current,,} =~ \.(mp4|m4v|mov|webm|mkv|avi)$ ]] || snapshot="$current"
-  fi
-
-  # The reveal reloads the palette it is handed, so hand it the current one.
-  colors_payload=$([[ -f $CURRENT_THEME_PATH/colors.toml ]] && base64 -w 0 "$CURRENT_THEME_PATH/colors.toml")
-  shell_payload=$([[ -f $CURRENT_THEME_PATH/shell.toml ]] && base64 -w 0 "$CURRENT_THEME_PATH/shell.toml")
-  token="background-$$-${EPOCHREALTIME//[!0-9]/}"
-
-  if ! shell_ipc shell prepareThemeIntro "$snapshot" "$token" "$colors_payload" "$shell_payload"; then
-    wait "$prepare_pid"
-    [[ -z $owned_snapshot ]] || rm -f "$owned_snapshot"
-    set_background
-    return
-  fi
-
-  printf '%s\n' "$token" >"$INTRO_TOKEN_PATH"
-  ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
-  if wait "$prepare_pid"; then
-    prepared=true
-  fi
-
-  # A theme switch's deferred compositor reload takes this lock exclusively,
-  # since reloading Hyprland would pause this video. Background intros share
-  # it, so a newer selection still takes over from a playing clip.
+if [[ -n $INTRO ]]; then
+  # OWE hides the shell's background while the intro plays, so the shell takes
+  # the new still unseen once it ends. A newer selection owns the shell by then.
   (
-    flock -s 8
-    omarchy-theme-bg-boot-intro --background-switch "$BACKGROUND" "$token" "$prepared" || true
-    if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$BACKGROUND" ]]; then
-      shell_ipc background setInstant "$BACKGROUND" || true
+    if owe intro --start first-frame "$INTRO"; then
+      update="setInstant"
+    else
+      update="set"
     fi
-    shell_ipc shell finishThemeIntro "$token" || true
-    wait_for_intro "$token"
-    [[ -z $owned_snapshot ]] || rm -f "$owned_snapshot"
-  ) 8>"$BACKGROUND_INTRO_LOCK" 9>&- </dev/null >/dev/null 2>&1 &
-}
-
-intro=""
-if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK" 2>/dev/null) != "$BACKGROUND" &&
-  ! -f $HOME/.local/state/omarchy/toggles/background-intros-off ]] &&
-  [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool' 2>/dev/null) == "true" ]]; then
-  intro=$(omarchy-theme-bg-boot-intro --resolve-only "$BACKGROUND")
-fi
-
-if [[ -n $intro ]]; then
-  play_background_intro "$intro"
+    if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$BACKGROUND" ]]; then
+      omarchy-shell -q background "$update" "$BACKGROUND"
+    fi
+  ) </dev/null >/dev/null 2>&1 &
 else
-  set_background
+  omarchy-shell -q background set "$BACKGROUND"
 fi
