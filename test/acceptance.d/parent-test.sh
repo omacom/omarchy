@@ -73,6 +73,15 @@ pass "only the browser accent write stays passwordless for the kid"
 [[ $(cat /etc/omarchy/profile) == "child" ]] || fail "the install profile marker records a child install"
 pass "the install profile marker records a child install"
 
+# The lockout the parent prompt gets: sudo and polkit authenticate root through
+# system-auth, whose faillock lines carry the options apply put there.
+grep -Eq '^auth[[:space:]]+required[[:space:]]+pam_faillock\.so preauth .*even_deny_root root_unlock_time=120' /etc/pam.d/system-auth ||
+  fail "faillock counts root before a parent password is checked"
+grep -Eq '^auth[[:space:]]+\[default=die\][[:space:]]+pam_faillock\.so authfail .*even_deny_root root_unlock_time=120' /etc/pam.d/system-auth ||
+  fail "faillock records a wrong parent password against root"
+grep -Eq '^auth[[:space:]]+include[[:space:]]+system-auth' /etc/pam.d/sudo || fail "sudo authenticates through system-auth"
+pass "wrong parent passwords count toward root's lockout"
+
 # The parent password opens the lock screen and the login screen: both PAM
 # stacks carry the helper after the kid's own password, run with seteuid, and
 # SDDM's packaged file is kept beside it. The harness proves the login itself

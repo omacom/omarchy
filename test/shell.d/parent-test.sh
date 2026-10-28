@@ -74,9 +74,52 @@ grep -Fq '== "child"' "$leaf" || fail "the install leaf only applies the posture
 grep -Fq 'run_logged "$OMARCHY_INSTALL/config/parent.sh"' "$ROOT/install/config/all.sh" || fail "the install leaf is wired into system setup"
 pass "the parental posture is gated on the child profile"
 
-grep -Eq '^even_deny_root$' "$ROOT/etc/security/faillock.conf" || fail "faillock counts root, so the parent prompt locks out like the account"
-grep -Eq '^root_unlock_time = 120$' "$ROOT/etc/security/faillock.conf" || fail "root's lockout is as short as the account's"
-pass "faillock rate-limits the parent password"
+# faillock counts root on a child install only: the options ride on
+# system-auth's preauth and authfail lines as module arguments, where an
+# omarchy-settings upgrade rewriting faillock.conf cannot reach them, and the
+# shipped faillock.conf stays upstream's. The functions run extracted against
+# a copy of the stock stack as the install's lockout step leaves it.
+! grep -q 'even_deny_root' "$ROOT/etc/security/faillock.conf" || fail "the shipped faillock.conf leaves root out of the count on every other install"
+faillock_tmp=$(mktemp -d)
+cat >"$faillock_tmp/system-auth" <<'PAM'
+#%PAM-1.0
+
+auth       required                    pam_faillock.so preauth silent deny=10 unlock_time=120
+# Optionally use requisite above if you do not want to prompt for the password
+# on locked accounts.
+-auth      [success=2 default=ignore]  pam_systemd_home.so
+auth       [success=1 default=bad]     pam_unix.so          try_first_pass nullok
+auth       [default=die]               pam_faillock.so authfail deny=10 unlock_time=120
+auth       optional                    pam_permit.so
+auth       required                    pam_env.so
+auth       required                    pam_faillock.so      authsucc
+
+account    required                    pam_unix.so
+PAM
+stock=$(<"$faillock_tmp/system-auth")
+(
+  export OMARCHY_SYSTEM_AUTH="$faillock_tmp/system-auth"
+  eval "$(sed -n '/^SYSTEM_AUTH=/p; /^ROOT_LOCKOUT=/p; /^lock_root_prompts() {/,/^}/p; /^unlock_root_prompts() {/,/^}/p' "$parent")"
+  lock_root_prompts
+  [[ $(grep -c 'pam_faillock\.so preauth silent deny=10 unlock_time=120 even_deny_root root_unlock_time=120$' "$SYSTEM_AUTH") == 1 ]] ||
+    fail "apply has faillock count root before the password is checked" "$(<"$SYSTEM_AUTH")"
+  [[ $(grep -c 'pam_faillock\.so authfail deny=10 unlock_time=120 even_deny_root root_unlock_time=120$' "$SYSTEM_AUTH") == 1 ]] ||
+    fail "apply has faillock record root's failures" "$(<"$SYSTEM_AUTH")"
+  [[ $(grep -c 'even_deny_root' "$SYSTEM_AUTH") == 2 ]] || fail "the authsucc line and the rest of the stack are untouched" "$(<"$SYSTEM_AUTH")"
+  locked=$(<"$SYSTEM_AUTH")
+  lock_root_prompts
+  [[ $(<"$SYSTEM_AUTH") == "$locked" ]] || fail "a rerun of apply adds the options once" "$(<"$SYSTEM_AUTH")"
+  unlock_root_prompts
+  [[ $(<"$SYSTEM_AUTH") == "$stock" ]] || fail "apply --remove puts the stock lines back" "$(<"$SYSTEM_AUTH")"
+  printf 'auth required pam_unix.so\n' >"$SYSTEM_AUTH"
+  lock_root_prompts 2>"$faillock_tmp/warning" || fail "a stack without pam_faillock does not fail apply"
+  grep -q '^Warning: .*pam_faillock' "$faillock_tmp/warning" || fail "a stack without pam_faillock is warned about" "$(<"$faillock_tmp/warning")"
+  [[ $(<"$SYSTEM_AUTH") == 'auth required pam_unix.so' ]] || fail "a stack without pam_faillock is left alone"
+)
+rm -rf "$faillock_tmp"
+[[ $apply_body == *lock_root_prompts* ]] || fail "apply has faillock count root"
+[[ $(sed -n '/^remove_posture() {/,/^}/p' "$parent") == *unlock_root_prompts* ]] || fail "apply --remove leaves root out of the count again"
+pass "faillock rate-limits the parent password on a child install only, through system-auth's module arguments"
 
 # The text consoles: closed by apply on a child install, reopened by --remove
 # or tty on, as a set that leaves tty1 to the display manager, and without
@@ -267,6 +310,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 stub_bin="$test_tmp/bin"
 mkdir -p "$stub_bin" "$test_tmp/sudoers.d" "$test_tmp/rules.d"
 export CALLS="$test_tmp/calls"
+printf 'auth       required                    pam_faillock.so preauth silent deny=10 unlock_time=120\nauth       [default=die]               pam_faillock.so authfail deny=10 unlock_time=120\nauth       required                    pam_faillock.so      authsucc\n' >"$test_tmp/system-auth"
 
 cat >"$stub_bin/passwd" <<'SH'
 #!/bin/bash
@@ -310,6 +354,7 @@ chmod +x "$stub_bin"/*
 run_parent() {
   : >"$CALLS"
   OMARCHY_SUDOERS_DIR="$test_tmp/sudoers.d" OMARCHY_POLKIT_RULES_DIR="$test_tmp/rules.d" OMARCHY_PARENT_CONF="$test_tmp/parent.conf" OMARCHY_PATH="$ROOT" \
+  OMARCHY_SYSTEM_AUTH="$test_tmp/system-auth" \
   PATH="$stub_bin:$PATH" unshare --user --map-root-user bash "$parent" "$@"
 }
 
@@ -321,6 +366,8 @@ run_parent apply --user kid >/dev/null || fail "omarchy-parent apply succeeds on
   fail "apply writes the kid account's grant"
 [[ -f $test_tmp/sudoers.d/00-omarchy-wheel ]] || fail "apply keeps %wheel meaningful for a future parent account"
 grep -Fq 'return ["unix-user:root"]' "$test_tmp/rules.d/40-omarchy-parent.rules" || fail "apply writes the polkit admin rule"
+[[ $(grep -c 'pam_faillock\.so \(preauth\|authfail\) .*even_deny_root root_unlock_time=120$' "$test_tmp/system-auth") == 2 ]] ||
+  fail "apply has faillock count root on the live stack" "$(<"$test_tmp/system-auth")"
 grep -qx 'wifi=parent' "$test_tmp/parent.conf" || fail "apply writes parent.conf with the Wi-Fi default"
 grep -Fq 'polkit.Result.AUTH_ADMIN_KEEP' "$test_tmp/rules.d/45-omarchy-parent-wifi.rules" || fail "apply writes the Wi-Fi rule that asks the parent"
 [[ $(<"$CALLS") == "gpasswd -d kid wheel" ]] || fail "apply takes the kid out of wheel" "calls: $(<"$CALLS")"
@@ -357,6 +404,7 @@ grep -Fq 'polkit.Result.YES' "$test_tmp/rules.d/45-omarchy-parent-wifi.rules" ||
 pass "omarchy-parent wifi hands Wi-Fi to the kid and back, kept in parent.conf"
 
 run_parent apply --remove --user kid >/dev/null || fail "apply --remove succeeds"
+! grep -q 'even_deny_root' "$test_tmp/system-auth" || fail "apply --remove leaves root out of faillock's count" "$(<"$test_tmp/system-auth")"
 [[ ! -e $test_tmp/sudoers.d/omarchy-parent && ! -e $test_tmp/sudoers.d/omarchy-parent-kid && ! -e $test_tmp/rules.d/40-omarchy-parent.rules && ! -e $test_tmp/rules.d/45-omarchy-parent-wifi.rules ]] ||
   fail "apply --remove deletes what apply wrote"
 [[ -f $test_tmp/parent.conf ]] || fail "apply --remove keeps the parent's settings"

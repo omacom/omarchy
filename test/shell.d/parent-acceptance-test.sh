@@ -27,6 +27,11 @@ auth requisite pam_nologin.so
 PAM
 cp "$test_tmp/etc/pam.d/sddm" "$test_tmp/etc/pam.d/omarchy-lock-password"
 touch "$test_tmp/etc/pam.d/sddm.omarchy-orig"
+cat >"$test_tmp/etc/pam.d/system-auth" <<'PAM'
+auth       required                    pam_faillock.so preauth silent deny=10 unlock_time=120 even_deny_root root_unlock_time=120
+auth       [default=die]               pam_faillock.so authfail deny=10 unlock_time=120 even_deny_root root_unlock_time=120
+PAM
+printf 'auth\t\tinclude\t\tsystem-auth\n' >"$test_tmp/etc/pam.d/sudo"
 
 cat >"$test_tmp/bin/sudo" <<'SH'
 #!/bin/bash
