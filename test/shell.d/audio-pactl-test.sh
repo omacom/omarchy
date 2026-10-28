@@ -18,6 +18,11 @@ cat >"$work/bin/omarchy-osd" <<'SH'
 printf 'omarchy-osd %s\n' "$*" >>"$CALLS"
 SH
 
+cat >"$work/bin/pw-metadata" <<'SH'
+#!/bin/bash
+exit 0
+SH
+
 cat >"$work/bin/omarchy-audio-tuning" <<'SH'
 #!/bin/bash
 case ${1:-} in
@@ -40,6 +45,9 @@ Sink Input #42
 		application.name = "Firefox"
 		node.name = "Firefox"
 OUT
+    ;;
+  "-f json list sink-inputs")
+    echo '[{"index": 42, "properties": {"application.name": "Firefox", "object.id": "77"}}]'
     ;;
   "-f json list sinks")
     cat <<'OUT'
@@ -92,7 +100,7 @@ calls() {
 
 : >"$CALLS"
 LC_ALL=en_US.UTF-8 omarchy-audio-output-set-default 42 alsa_output.speakers 2>/dev/null || true
-grep -qx 'C pactl list sink-inputs' "$CALLS" ||
+grep -qx 'C pactl -f json list sink-inputs' "$CALLS" ||
   fail 'audio-output-set-default reads sink-inputs in the C locale' "$(calls)"
 grep -q 'pactl move-sink-input 42 alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-set-default moves streams' "$(calls)"

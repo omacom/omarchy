@@ -215,3 +215,82 @@ const panel = read('shell/plugins/panels/audio/Panel.qml')
   assertEqual(state.volumeSinkName, 'alsa_output.usb-headset', 'a script read that predates a switch to hardware cannot overwrite it')
 }
 JS
+
+require_command jq
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+mkdir -p "$scratch/bin"
+cat >"$scratch/bin/timeout" <<'STUB'
+#!/bin/bash
+shift
+"$@"
+STUB
+cat >"$scratch/bin/wpctl" <<'STUB'
+#!/bin/bash
+printf 'wpctl %s\n' "$*" >>"$AUDIO_SWITCH_LOG"
+STUB
+cat >"$scratch/bin/pactl" <<'STUB'
+#!/bin/bash
+if [[ $* == "-f json list sink-inputs" ]]; then
+  cat "$AUDIO_INPUTS"
+elif [[ $* == "list sink-inputs" ]]; then
+  cat "${AUDIO_INPUTS%.json}.txt"
+else
+  printf 'pactl %s\n' "$*" >>"$AUDIO_SWITCH_LOG"
+fi
+STUB
+cat >"$scratch/bin/pw-metadata" <<'STUB'
+#!/bin/bash
+[[ ${AUDIO_METADATA_FAIL:-0} == "0" ]] || exit 1
+cat "$AUDIO_METADATA"
+STUB
+chmod +x "$scratch/bin/"*
+cat >"$scratch/inputs.json" <<'JSON'
+[
+  {"index":11,"properties":{"application.name":"Call","object.id":"120"}},
+  {"index":12,"properties":{"application.name":"Music","object.id":"121"}},
+  {"index":13,"properties":{"application.name":"Browser","object.id":"122"}},
+  {"index":14,"properties":{"application.name":"EasyEffects","object.id":"123"}},
+  {"index":15,"properties":{"object.id":"124"}},
+  {"index":16,"properties":{"application.name":"Unknown node"}}
+]
+JSON
+cat >"$scratch/inputs.txt" <<'INPUTS'
+Sink Input #11
+  application.name = "Call"
+  object.id = "120"
+Sink Input #12
+  application.name = "Music"
+  object.id = "121"
+Sink Input #13
+  application.name = "Browser"
+  object.id = "122"
+Sink Input #14
+  application.name = "EasyEffects"
+  object.id = "123"
+Sink Input #15
+  object.id = "124"
+Sink Input #16
+  application.name = "Unknown node"
+INPUTS
+cat >"$scratch/metadata" <<'META'
+update: id:120 key:'target.object' value:'101' type:'(null)'
+update: id:121 key:'target.object' value:'-1' type:'(null)'
+update: id:122 key:'volume' value:'0.5' type:'(null)'
+META
+export AUDIO_SWITCH_LOG="$scratch/switch.log" AUDIO_INPUTS="$scratch/inputs.json" AUDIO_METADATA="$scratch/metadata"
+PATH="$scratch/bin:$PATH" bash "$ROOT/bin/omarchy-audio-output-set-default" 42 sink.new
+expected=$(printf 'wpctl set-default 42\npactl set-default-sink sink.new\npactl move-sink-input 12 sink.new\npactl move-sink-input 13 sink.new')
+[[ $(<"$AUDIO_SWITCH_LOG") == "$expected" ]] || fail "changing the default preserves pins and DSP streams while moving followers" "$(<"$AUDIO_SWITCH_LOG")"
+pass "changing the default preserves pins and DSP streams while moving followers"
+
+printf "update: id:120 key:'target.object' value:'-1' type:'(null)'\n" >"$AUDIO_METADATA"
+: >"$AUDIO_SWITCH_LOG"
+PATH="$scratch/bin:$PATH" bash "$ROOT/bin/omarchy-audio-output-set-default" 42 sink.new
+grep -Fx 'pactl move-sink-input 11 sink.new' "$AUDIO_SWITCH_LOG" >/dev/null || fail "clearing a pin makes its stream follow the next default"
+pass "clearing a pin makes its stream follow the next default"
+
+: >"$AUDIO_SWITCH_LOG"
+AUDIO_METADATA_FAIL=1 PATH="$scratch/bin:$PATH" bash "$ROOT/bin/omarchy-audio-output-set-default" 42 sink.new
+! grep -q 'move-sink-input' "$AUDIO_SWITCH_LOG" || fail "unreadable pin metadata does not force streams onto the default"
+pass "unreadable pin metadata does not force streams onto the default"
