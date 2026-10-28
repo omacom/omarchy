@@ -15,6 +15,7 @@ CURRENT_THEME_PATH="$HOME/.local/state/omarchy/current/theme"
 BACKGROUND_TRANSITION_CACHE="$HOME/.cache/omarchy/background-transitions"
 THEME_SET_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
 INTRO_TOKEN_PATH="${XDG_RUNTIME_DIR:-/tmp}/omarchy-background-intro.token"
+BACKGROUND_INTRO_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-background-intro.lock"
 
 if [[ ! -f $BACKGROUND ]]; then
   echo "File does not exist: $BACKGROUND" >&2
@@ -27,6 +28,7 @@ shell_ipc() {
 
 wait_for_intro() {
   local token="$1" deadline=$((SECONDS + 3))
+  [[ -n $token ]] || return 0
   while (( SECONDS < deadline )) && [[ $(omarchy-shell shell themeIntroStatus "$token" 2>/dev/null) == "pending" ]]; do
     sleep 0.02
   done
@@ -83,7 +85,10 @@ play_background_intro() {
     prepared=true
   fi
 
+  # A theme switch's deferred compositor reload waits on this lock, since
+  # reloading Hyprland would pause this video.
   (
+    flock 8
     omarchy-theme-bg-boot-intro --background-switch "$BACKGROUND" "$token" "$prepared" || true
     if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$BACKGROUND" ]]; then
       shell_ipc background setInstant "$BACKGROUND" || true
@@ -91,7 +96,7 @@ play_background_intro() {
     shell_ipc shell finishThemeIntro "$token" || true
     wait_for_intro "$token"
     [[ -z $owned_snapshot ]] || rm -f "$owned_snapshot"
-  ) 9>&- </dev/null >/dev/null 2>&1 &
+  ) 8>"$BACKGROUND_INTRO_LOCK" 9>&- </dev/null >/dev/null 2>&1 &
 }
 
 intro=""
