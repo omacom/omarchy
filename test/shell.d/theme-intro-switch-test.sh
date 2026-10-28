@@ -48,9 +48,13 @@ cat >"$commands/omarchy-shell" <<'STUB'
 #!/bin/bash
 printf 'shell: %s\n' "$*" >>"$TEST_LOG"
 # A shell from before the handover knows neither call.
-if [[ $2 == "switchBackground" || $2 == "playThemeIntro" ]]; then
+if [[ $2 == "switchBackground" || $2 == "playThemeIntro" || $2 == "selectedBackground" ]]; then
   [[ ${TEST_OLD_SHELL:-false} != true ]] || exit 1
-  echo "ok"
+  if [[ $2 == "selectedBackground" ]]; then
+    echo "${TEST_SELECTED:-}"
+  else
+    echo "ok"
+  fi
 fi
 if [[ -n ${TEST_GATE_DIR:-} ]]; then
   if [[ $2 == "themeIntroBusy" && ! -f $TEST_GATE_DIR/fade-ready ]]; then
@@ -191,6 +195,19 @@ TEST_OLD_SHELL=true set_background "$sky"
 [[ $(readlink "$state/background") == "$sky" ]] || fail "without the shell's switch the command repoints the link"
 grep -Fxq "shell: -q background set $sky" "$log" || fail "without the shell's switch the background is set directly"
 pass "background changes go to the shell, or straight to the link without it"
+
+# Cycling moves on from a selection the shell has not linked yet.
+next_background() {
+  : >"$log"
+  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_LOG="$log" \
+    /bin/bash "$ROOT/bin/omarchy-theme-bg-next" </dev/null >"$test_tmp/stdout" 2>"$test_tmp/stderr" || fail "background cycling completes" "$(cat "$test_tmp/stderr")"
+}
+ln -nsf "$road" "$state/background"
+TEST_SELECTED="$sky" next_background
+grep -Fxq "shell: shell switchBackground $road" "$log" || fail "cycling moves on from the shell's pending selection" "$(cat "$log")"
+TEST_OLD_SHELL=true next_background
+[[ $(readlink "$state/background") == "$sky" ]] || fail "without the shell, cycling moves on from the link"
+pass "background cycling moves on from a selection that is still being applied"
 
 # A playing intro hides the shell's background, so a theme switch to a still
 # without an intro hands the shell its cover to open with the ordinary cut.

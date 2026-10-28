@@ -48,6 +48,16 @@ Item {
   // under a cover or take over from a change still being set up.
   readonly property bool busy: !!intro && (intro.themeToken !== "" || intro.revealing) || resolveProc.running || snapshotProc.running
 
+  // The background the latest selection names. The link only moves once a
+  // change is under way, so a selection still queued or setting up is not
+  // there yet.
+  function selected() {
+    if (queuedPath) return queuedPath
+    if (resolveProc.running) return resolveProc.path
+    if (token && intro && token === intro.themeToken) return still
+    return backgroundService ? backgroundService.currentBackground : ""
+  }
+
   function displayedStill() {
     var path = backgroundService ? (backgroundService.displayedBackground || backgroundService.currentBackground) : ""
     return path && !Util.isVideoPath(path) ? path : ""

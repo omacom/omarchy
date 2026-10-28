@@ -1765,6 +1765,12 @@ ShellRoot {
       return shell.backgroundSwitch.switchTo(path)
     }
 
+    // What the latest background selection names, ahead of the link while
+    // its change is still queued or setting up.
+    function selectedBackground(): string {
+      return shell.backgroundSwitch.selected()
+    }
+
     // A cover is up or revealing, so the screen does not yet show a frame a
     // new switch could capture as its own outgoing cover.
     function themeIntroBusy(): string {
