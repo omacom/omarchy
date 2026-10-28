@@ -11,15 +11,25 @@ if omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
 fi
 
 focused=$(omarchy-hyprland-monitor-focused)
-terminal=$(xdg-terminal-exec --print-id)
 
-case $terminal in
-*Alacritty* | *ghostty* | *foot* | *kitty*) ;;
-*)
-  omarchy-notification-send -g ✋ "$(omarchy-i18n screensaver.terminalOnly)"
-  exit 1
-  ;;
-esac
+# Tells the Amiga screensaver when the cursor warps below are over, so they aren't taken as the user moving it.
+ready=$XDG_RUNTIME_DIR/omarchy-screensaver-ready
+rm -f "$ready"
+
+# The Amiga screensaver draws its own window, so it runs whatever the terminal.
+if omarchy-toggle-enabled screensaver-amiga && [[ -d /usr/share/omarchy-amiga-screensaver/demos ]]; then
+  terminal=amiga
+else
+  terminal=$(xdg-terminal-exec --print-id)
+
+  case $terminal in
+  *Alacritty* | *ghostty* | *foot* | *kitty*) ;;
+  *)
+    omarchy-notification-send -g ✋ "$(omarchy-i18n screensaver.terminalOnly)"
+    exit 1
+    ;;
+  esac
+fi
 
 hypr_focus_monitor() {
   hyprctl dispatch "hl.dsp.focus({ monitor = \"$1\" })" >/dev/null 2>&1 || hyprctl dispatch focusmonitor "$1" >/dev/null
@@ -56,6 +66,9 @@ while read -r m special; do
   workspace=${special:-special:screensaver-$m}
 
   case $terminal in
+  amiga)
+    hypr_exec omarchy-screensaver-amiga
+    ;;
   *Alacritty*)
     hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -e omarchy-screensaver
     ;;
@@ -74,6 +87,7 @@ while read -r m special; do
 done < <(hyprctl monitors -j | jq -r '.[] | "\(.name) \(.specialWorkspace.name)"')
 
 hypr_focus_monitor "$focused"
+touch "$ready"
 
 # Emptying a special workspace focuses its monitor, so the last screensaver to close would take focus
 # with it. Hand focus back to the monitor that had it once they are all gone.

@@ -242,6 +242,9 @@
   "appearance.branding.screensaver.image": {
     "label": "Set From Image"
   },
+  "appearance.branding.screensaver.amiga": {
+    "label": "Amiga Demos"
+  },
   "appearance.branding.screensaver.default": {
     "label": "Restore Default"
   },

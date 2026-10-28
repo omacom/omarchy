@@ -1,0 +1,84 @@
+#!/bin/bash
+
+# omarchy:summary=Run the screensaver as a random Amiga demo in FS-UAE
+# omarchy:hidden=true
+
+demos=/usr/share/omarchy-amiga-screensaver/demos
+run=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/omarchy-screensaver-amiga.XXXXXX")
+
+# FS-UAE takes the keyboard for the Amiga, so every key is mapped to quitting it instead.
+keys=(
+  escape space return backspace tab delete insert home end pageup pagedown up down left right
+  lshift rshift lctrl rctrl lalt ralt lsuper rsuper capslock menu print
+  minus equals leftbracket rightbracket semicolon quote backquote comma period slash backslash
+  {a..z} {0..9} f{1..12} kp{0..9} kp_enter kp_period kp_divide kp_multiply kp_minus kp_plus
+)
+
+screensaver_in_focus() {
+  hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
+}
+
+exit_screensaver() {
+  hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
+  pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
+  rm -rf "$run"
+  exit 0
+}
+
+trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
+
+demo=$(find "$demos" -mindepth 2 -maxdepth 2 -name config.json 2>/dev/null | shuf -n 1)
+[[ -n $demo ]] || exit_screensaver
+
+dir=${demo%/config.json}
+variant_config=$dir/$(jq -r '.variants[0].config' "$demo")
+variant_state=$dir/$(jq -r '.variants[0].state' "$demo")
+
+# Each demo starts from a saved state taken once it was running, so there is no disk loading to watch.
+mkdir -p "$run/state"
+cp "$variant_state" "$run/state/"
+
+# The class in the file name lets the launcher's pgrep and the other screensavers' pkill find this one.
+config=$run/org.omarchy.screensaver.fs-uae
+{
+  sed "s|\$CONFIG|${variant_config%/*}|g" "$variant_config"
+  printf '%s\n' "fullscreen = 1" "fullscreen_mode = desktop" "volume = 0" "automatic_input_grab = 0" "middle_click_ungrab = 0" "state_dir = $run/state"
+  printf 'keyboard_key_%s = action_quit\n' "${keys[@]}"
+} >"$config"
+
+hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprctl keyword cursor:invisible true &>/dev/null
+
+SDL_VIDEO_WAYLAND_WMCLASS=org.omarchy.screensaver fs-uae "$config" --load_state=1 </dev/null &>/dev/null &
+emulator=$!
+
+# Focus changes arrive as Hyprland events. The cursor has none, so it alone is polled, once a second.
+exec {events}< <(socat -U - "UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock")
+
+# The launcher warps the cursor as it visits each monitor, so input counts only once it says it is done,
+# or after a deadline in case it never does.
+ready=$XDG_RUNTIME_DIR/omarchy-screensaver-ready
+deadline=$((SECONDS + 20))
+armed=false
+
+while kill -0 "$emulator" 2>/dev/null; do
+  line=
+  IFS= read -r -t 1 -u "$events" line
+  status=$?
+
+  # Over 128 is the timeout; any other failure means the event stream is gone.
+  ((status == 0 || status > 128)) || break
+
+  if [[ $armed == false ]]; then
+    if [[ -f $ready ]] || ((SECONDS >= deadline)); then
+      armed=true
+      cursor=$(hyprctl cursorpos)
+      screensaver_in_focus || break
+    fi
+  elif [[ $line == activewindow\>\>* && $line != activewindow\>\>org.omarchy.screensaver,* ]]; then
+    break
+  elif [[ $(hyprctl cursorpos) != "$cursor" ]]; then
+    break
+  fi
+done
+
+exit_screensaver

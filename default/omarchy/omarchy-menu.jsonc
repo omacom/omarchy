@@ -107,6 +107,7 @@
   "appearance.branding.about.default": {"icon":"","label":"Restore Default","action":"omarchy-branding-about reset"},
   "appearance.branding.screensaver.text": {"icon":"","label":"Edit Text","action":"omarchy-branding-screensaver text"},
   "appearance.branding.screensaver.image": {"icon":"","label":"Set From Image","action":"omarchy-branding-screensaver image"},
+  "appearance.branding.screensaver.amiga": {"icon":"󰊗","label":"Amiga Demos","checked":"omarchy-toggle-enabled screensaver-amiga","action":"omarchy-branding-screensaver amiga"},
   "appearance.branding.screensaver.default": {"icon":"","label":"Restore Default","action":"omarchy-branding-screensaver reset"},
   "appearance.dock": {"icon":"󱂩","label":"Dock","when":"[[ $(omarchy-hyprland-workspace-layout-current) == \"floating\" ]]"},
   "appearance.dock.autohide": {"icon":"󰈉","label":"Auto-hide Dock","when":"[[ $(omarchy-dock autohide) == \"off\" ]]","action":"omarchy-dock autohide on"},

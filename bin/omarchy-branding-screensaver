@@ -1,28 +1,46 @@
 #!/bin/bash
 
-# omarchy:summary=Edit, set, or reset screensaver branding
+# omarchy:summary=Edit, set, or reset screensaver branding, or switch to Amiga demos
 # omarchy:group=branding
 # omarchy:name=screensaver
-# omarchy:args=<image|text|reset>
-# omarchy:examples=omarchy branding screensaver image | omarchy branding screensaver text | omarchy branding screensaver reset
+# omarchy:args=<image|text|reset|amiga>
+# omarchy:examples=omarchy branding screensaver image | omarchy branding screensaver text | omarchy branding screensaver reset | omarchy branding screensaver amiga
 
 set -euo pipefail
+
+amiga_flag=$HOME/.local/state/omarchy/toggles/screensaver-amiga
 
 case "${1:-}" in
 image)
   image=$(omarchy-file-select --title "$(omarchy-i18n branding.pickScreensaverImage)" --extensions "png svg")
   if omarchy-transcode-ascii "$image" ~/.config/omarchy/branding/screensaver.txt; then
+    rm -f "$amiga_flag"
     omarchy-launch-screensaver force >/dev/null 2>&1
   fi
   ;;
 text)
-  omarchy-launch-editor ~/.config/omarchy/branding/screensaver.txt >/dev/null 2>&1 && omarchy-launch-screensaver force >/dev/null 2>&1
+  if omarchy-launch-editor ~/.config/omarchy/branding/screensaver.txt >/dev/null 2>&1; then
+    rm -f "$amiga_flag"
+    omarchy-launch-screensaver force >/dev/null 2>&1
+  fi
   ;;
 reset)
-  cp "$OMARCHY_PATH/logo.txt" ~/.config/omarchy/branding/screensaver.txt && omarchy-launch-screensaver force >/dev/null 2>&1
+  cp "$OMARCHY_PATH/logo.txt" ~/.config/omarchy/branding/screensaver.txt
+  rm -f "$amiga_flag"
+  omarchy-launch-screensaver force >/dev/null 2>&1
+  ;;
+amiga)
+  # Installing the demos asks for a password, so it happens in a terminal that picks them once they are in.
+  if omarchy-pkg-missing omarchy-amiga-screensaver; then
+    omarchy-launch-floating-terminal-with-presentation "omarchy-pkg-add omarchy-amiga-screensaver && (setsid omarchy-branding-screensaver amiga >/dev/null 2>&1 &)"
+  else
+    mkdir -p "${amiga_flag%/*}"
+    touch "$amiga_flag"
+    omarchy-launch-screensaver force >/dev/null 2>&1
+  fi
   ;;
 *)
-  echo "Usage: omarchy-branding-screensaver <image|text|reset>" >&2
+  echo "Usage: omarchy-branding-screensaver <image|text|reset|amiga>" >&2
   exit 1
   ;;
 esac
