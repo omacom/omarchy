@@ -1765,6 +1765,12 @@ ShellRoot {
       return shell.backgroundSwitch.switchTo(path, introPath)
     }
 
+    // omarchy-theme-bg-loop-apply's swap between a still and its theme loop,
+    // made only while <from> is what the shell shows and nothing is changing.
+    function replaceBackground(from: string, to: string): string {
+      return shell.backgroundSwitch.replace(from, to)
+    }
+
     // What the latest background selection names, ahead of the link while
     // its change is still queued or setting up.
     function selectedBackground(): string {

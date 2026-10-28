@@ -79,6 +79,19 @@ Item {
     return "ok"
   }
 
+  // omarchy-theme-bg-loop-apply's swap of a still for its theme loop, or of
+  // a loop back for its still. It holds only while what it read is still
+  // what the shell shows and nothing else is changing; a change that is
+  // under way starts the loop itself once it settles.
+  function replace(from, to) {
+    if (!intro || !backgroundService) return "unavailable"
+    // Moving the link cancels a playing intro.
+    if (busy || queuedPath || playProc.running || backgroundService.currentBackground !== from) return "stale"
+    link(to)
+    backgroundService.setBackground(to, false)
+    return "ok"
+  }
+
   function link(target) {
     pendingLink = target
     if (!linkProc.running) startLink()
@@ -179,6 +192,10 @@ Item {
     if (queuedPath) {
       Quickshell.execDetached(["omarchy-theme-bg-set", queuedPath])
       queuedPath = ""
+    } else if (token && !playProc.running) {
+      // The cover comes down while the clip still plays; the change ends on
+      // its still once the clip is over, which is where its theme loop begins.
+      Quickshell.execDetached(["omarchy-theme-bg-loop-apply"])
     }
   }
 

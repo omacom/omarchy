@@ -95,6 +95,30 @@ set_theme "$theme_b"
 [[ ! -e $test_home/.local/state/omarchy/escaped ]] || fail "invalid theme names cannot escape the background state directory"
 pass "invalid theme names cannot escape the background state directory"
 
+# A switch writes the background link under the lock a live background loop
+# holds while it reads and rewrites the link, so the loop of the background from
+# before the switch can't land after it.
+background_before=$(readlink "$current_state/background")
+exec 7>"$test_home/.local/state/omarchy/background-loop.lock"
+flock 7
+set_theme "$theme_a" 7>&- &
+switch_pid=$!
+for _ in {1..50}; do
+  [[ $(<"$current_state/theme.name") == "$theme_a" ]] && break
+  sleep 0.1
+done
+for _ in {1..20}; do
+  kill -0 "$switch_pid" 2>/dev/null || break
+  sleep 0.1
+done
+switch_waited=false
+[[ $(readlink "$current_state/background") == "$background_before" ]] && kill -0 "$switch_pid" 2>/dev/null && switch_waited=true
+exec 7>&-
+wait "$switch_pid"
+[[ $switch_waited == "true" ]] || fail "a theme switch waits for a running loop update before changing the background"
+[[ $(readlink "$current_state/background") != "$background_before" ]] || fail "a theme switch changes the background once the loop update is done"
+pass "a theme switch waits for a running loop update before changing the background"
+
 # Interactive switches choose before swapping the staged theme into place.
 source <(awk '
   /^(theme_background_state_file|choose_theme_background|choose_staged_theme_background)\(\) \{/ { copying=1 }
