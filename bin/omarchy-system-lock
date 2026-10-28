@@ -3,9 +3,19 @@
 # omarchy:summary=Lock the computer and turn off the display
 # omarchy:group=system
 # omarchy:name=lock
-# omarchy:examples=omarchy system lock
+# omarchy:args=[--immediate]
+# omarchy:examples=omarchy system lock | omarchy system lock --immediate
 
-omarchy-shell lock lock >/dev/null
+case "${1:-}" in
+"") lock_method=lock ;;
+--immediate) lock_method=lockImmediate ;;
+*)
+  echo "Usage: omarchy system lock [--immediate]" >&2
+  exit 1
+  ;;
+esac
+
+omarchy-shell lock "$lock_method" >/dev/null
 
 # Set keyboard layout to default (first layout)
 hyprctl switchxkblayout all 0 > /dev/null 2>&1

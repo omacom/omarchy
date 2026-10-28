@@ -214,7 +214,7 @@ Item {
     if (fingerprintPam.active) fingerprintPam.abort()
   }
 
-  function beginLock() {
+  function beginLock(immediate) {
     if (!passwordPamConfigured) {
       logEvent("lock-denied: missing-pam")
       return false
@@ -224,7 +224,8 @@ Item {
     lockRequested = true
     armBlankTimer()
     logEvent("lock-requested")
-    queueSessionLock()
+    if (immediate) requestSessionLock()
+    else queueSessionLock()
 
     Qt.callLater(function() {
       root.refreshBackground()
@@ -874,6 +875,15 @@ Item {
       // omarchy-system-sleep-lock asks for the lock before every suspend.
       if (root.currentlyLocked()) root.noteSleepRequested()
       if (!root.currentlyLocked() && !root.beginLock()) return "failed"
+      return "ok"
+    }
+
+    // Opt-in for a physical button on an already active desktop. Normal lock
+    // and suspend requests retain the display-stabilization delay.
+    function lockImmediate(): string {
+      if (!root.passwordPamConfigured) return "missing-pam"
+      // Do not accelerate a normal or suspend lock already in progress.
+      if (!root.currentlyLocked() && !root.beginLock(true)) return "failed"
       return "ok"
     }
 
