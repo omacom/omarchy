@@ -236,7 +236,9 @@ set_theme_background() {
       # theme's path, which the theme swap above deleted, and loads it again
       # when OWE hands the desktop back after the intro. While the intro plays
       # the shell's background is suspended under it, so the swap is unseen.
-      omarchy-theme-bg-boot-intro --theme-switch "$new_background" "$theme_id" "$intro_prepared" || true
+      # The subshell outlives the command, so OWE's report of an intro that
+      # ended early would land in the terminal after it has finished.
+      omarchy-theme-bg-boot-intro --theme-switch "$new_background" "$theme_id" "$intro_prepared" >/dev/null 2>&1 || true
       if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$(readlink -f "$new_background")" &&
         $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
         shell_ipc background setInstant "$new_background" || true
