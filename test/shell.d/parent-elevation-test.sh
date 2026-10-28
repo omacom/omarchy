@@ -43,10 +43,10 @@ chmod +x "$test_tmp/bin/sudo"
 
 export TEST_BASH="$BASH" TEST_RESULT="$test_tmp/result" TEST_EXPECTED_PATH="$custom_path"
 PATH="$test_tmp/bin:$PATH" OMARCHY_PATH="$custom_path" GUM_INPUT_HEADER_FOREGROUND='#ff77aa' \
-  bash "$custom_path/bin/omarchy-parent" wifi kid --user kid ||
+  bash "$custom_path/bin/omarchy-parent" apply --user kid ||
   fail "parent elevation preserves a custom installation path through env_reset"
 
-expected=$(printf '%s\n' "$custom_path" '#ff77aa' wifi kid --user kid)
+expected=$(printf '%s\n' "$custom_path" '#ff77aa' apply --user kid)
 [[ $(<"$TEST_RESULT") == "$expected" ]] ||
   fail "the elevated command loads the correct helper with its theme and arguments intact" "$(<"$TEST_RESULT")"
 pass "parent elevation preserves the installation path, gum theme and arguments through env_reset"

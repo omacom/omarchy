@@ -91,9 +91,9 @@ CONF
 )
 
 # Hold the writers' lock around a whole operation: a command that records a
-# setting and publishes what follows from it (omarchy-parent's Wi-Fi rule) runs
-# as one step, so two commands racing cannot leave the file saying one thing
-# and the rule another. The command runs in this subshell with the lock held;
+# setting and publishes what follows from it (a feature's polkit rule, say)
+# runs as one step, so two commands racing cannot leave the file saying one
+# thing and the rule another. The command runs in this subshell with the lock held;
 # the writers above see PARENT_CONF_LOCKED and do not take it again.
 conf_locked() (
   local directory lock_fd

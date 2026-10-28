@@ -28,7 +28,7 @@ wait_for_any() {
   return 1
 }
 
-# Stop the default writer immediately after it checks whether wifi exists.
+# Stop the default writer immediately after it checks whether the key exists.
 # Without a shared lock, an explicit choice can land before that writer
 # appends the default. With the fix, the setter waits and then wins.
 mkdir -p "$(dirname "$PARENT_CONF")"
@@ -43,11 +43,11 @@ bash -euo pipefail -c '
     while [[ ! -f $TEST_CONFIG_RACE/document.release ]]; do sleep 0.01; done
     return "$status"
   }
-  conf_document wifi parent "Who may change Wi-Fi networks"
+  conf_document example parent "An example setting"
 ' _ "$ROOT/install/helpers/parent.sh" &
 document_pid=$!
 worker_pids+=("$document_pid")
-wait_for_any "$test_tmp/document.checked" || fail "the default writer reaches the Wi-Fi check"
+wait_for_any "$test_tmp/document.checked" || fail "the default writer reaches the key check"
 
 bash -euo pipefail -c '
   source "$1"
@@ -55,7 +55,7 @@ bash -euo pipefail -c '
     : >"$TEST_CONFIG_RACE/setter.waiting"
     command flock "$@"
   }
-  conf_set wifi kid
+  conf_set example kid
   : >"$TEST_CONFIG_RACE/setter.done"
 ' _ "$ROOT/install/helpers/parent.sh" &
 setter_pid=$!
@@ -65,18 +65,18 @@ touch "$test_tmp/document.release"
 wait "$document_pid" || fail "the default writer completes"
 wait "$setter_pid" || fail "the explicit setter completes"
 worker_pids=()
-[[ $(conf_get wifi parent) == "kid" && $(grep -c '^wifi=' "$PARENT_CONF") == 1 ]] ||
-  fail "concurrent initialization keeps the explicit Wi-Fi choice exactly once" "$(<"$PARENT_CONF")"
-pass "concurrent default initialization cannot overwrite the parent's Wi-Fi choice"
+[[ $(conf_get example parent) == "kid" && $(grep -c '^example=' "$PARENT_CONF") == 1 ]] ||
+  fail "concurrent initialization keeps the explicit choice exactly once" "$(<"$PARENT_CONF")"
+pass "concurrent default initialization cannot overwrite the parent's explicit choice"
 
 # An already-set key survives both initialization APIs without rewriting the
-# file or its comments. No module beyond the existing Wi-Fi control is needed.
+# file or its comments.
 saved=$(<"$PARENT_CONF")
 conf_init
-conf_document wifi parent "A later default"
+conf_document example parent "A later default"
 [[ $(<"$PARENT_CONF") == "$saved" ]] || fail "initialization preserves existing settings and comments"
-conf_set wifi parent
-grep -qx '# Who may change Wi-Fi networks' "$PARENT_CONF" || fail "changing Wi-Fi preserves its documentation"
+conf_set example parent
+grep -qx '# An example setting' "$PARENT_CONF" || fail "changing a key preserves its documentation"
 mode=$(stat -c %a "$PARENT_CONF" 2>/dev/null) || mode=$(stat -f %Lp "$PARENT_CONF")
 [[ $mode == "644" ]] || fail "published parent settings remain world-readable" "$mode"
 pass "initialization is idempotent and changes preserve comments and public permissions"
@@ -86,8 +86,8 @@ pass "initialization is idempotent and changes preserve comments and public perm
 saved=$(<"$PARENT_CONF")
 exec {reader_fd}<"$PARENT_CONF"
 original_umask=$(umask)
-conf_set wifi kid
-[[ $(cat <&"$reader_fd") == "$saved" && $(conf_get wifi parent) == "kid" ]] ||
+conf_set example kid
+[[ $(cat <&"$reader_fd") == "$saved" && $(conf_get example parent) == "kid" ]] ||
   fail "publication atomically replaces the settings file"
 exec {reader_fd}<&-
 [[ $(umask) == "$original_umask" ]] || fail "settings writes preserve the caller's umask"
@@ -99,7 +99,7 @@ saved=$(<"$PARENT_CONF")
 for operation in flock sed mv; do
   (
     eval "$operation() { return 73; }"
-    if conf_set wifi parent; then
+    if conf_set example parent; then
       fail "a failed $operation reports failure"
     fi
   ) || fail "a failed $operation cannot publish a setting"
@@ -112,10 +112,10 @@ pass "lock, content-generation and publication failures preserve settings and cl
 
 # A command may hold the writers' lock around several steps: its own writes go
 # through without waiting on the lock it holds, another writer waits until it
-# is done, and the lock is released afterwards. This is how omarchy-parent
-# records a Wi-Fi choice and publishes its polkit rule as one step.
+# is done, and the lock is released afterwards. This is how a feature command
+# records a choice and publishes what follows from it as one step.
 hold_and_write() {
-  conf_set wifi kid || return
+  conf_set example kid || return
   : >"$TEST_CONFIG_RACE/holder.wrote"
   while [[ ! -f $TEST_CONFIG_RACE/holder.release ]]; do sleep 0.01; done
   conf_set screen kid
@@ -124,14 +124,14 @@ hold_and_write() {
 holder_pid=$!
 worker_pids+=("$holder_pid")
 wait_for_any "$test_tmp/holder.wrote" || fail "a locked command writes its first setting without waiting on its own lock"
-[[ $(conf_get wifi parent) == "kid" ]] || fail "a write under the held lock is published"
+[[ $(conf_get example parent) == "kid" ]] || fail "a write under the held lock is published"
 bash -euo pipefail -c '
   source "$1"
   flock() {
     : >"$TEST_CONFIG_RACE/latecomer.waiting"
     command flock "$@"
   }
-  conf_set wifi parent
+  conf_set example parent
   : >"$TEST_CONFIG_RACE/latecomer.done"
 ' _ "$ROOT/install/helpers/parent.sh" &
 late_pid=$!
@@ -143,10 +143,10 @@ touch "$test_tmp/holder.release"
 wait "$holder_pid" || fail "the locked command completes"
 wait "$late_pid" || fail "the concurrent writer completes once the lock is released"
 worker_pids=()
-[[ $(conf_get wifi kid) == "parent" && $(conf_get screen parent) == "kid" ]] ||
+[[ $(conf_get example kid) == "parent" && $(conf_get screen parent) == "kid" ]] ||
   fail "the concurrent writer's change lands after both of the locked command's writes" "$(<"$PARENT_CONF")"
-conf_set wifi kid
-[[ $(conf_get wifi parent) == "kid" ]] || fail "the lock is released after the locked command"
+conf_set example kid
+[[ $(conf_get example parent) == "kid" ]] || fail "the lock is released after the locked command"
 pass "a command can hold the writers' lock across its steps while other writers wait"
 
 # A fresh file has the same header and permission contract through either
@@ -154,8 +154,8 @@ pass "a command can hold the writers' lock across its steps while other writers 
 PARENT_CONF="$test_tmp/fresh settings/parent.conf"
 conf_init
 grep -q '^# Omarchy kids mode:' "$PARENT_CONF" || fail "a fresh settings file has the shared header"
-conf_document wifi parent "Who may change Wi-Fi networks"
-[[ $(conf_get wifi kid) == "parent" ]] || fail "a fresh file receives its default"
-conf_set wifi kid
-[[ $(conf_get wifi parent) == "kid" ]] || fail "a fresh file remains writable after initialization"
+conf_document example parent "An example setting"
+[[ $(conf_get example kid) == "parent" ]] || fail "a fresh file receives its default"
+conf_set example kid
+[[ $(conf_get example parent) == "kid" ]] || fail "a fresh file remains writable after initialization"
 pass "fresh settings initialize correctly and the lock is released after every operation"

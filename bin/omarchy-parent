@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Parental controls for child installs
-# omarchy:args=<password|apply|tty|wifi|FEATURE> ...
-# omarchy:examples=sudo omarchy-parent password | omarchy parent password | omarchy-parent apply --user kid | sudo omarchy-parent wifi kid
+# omarchy:args=<password|apply|tty|FEATURE> ...
+# omarchy:examples=sudo omarchy-parent password | omarchy parent password | omarchy-parent apply --user kid | sudo omarchy-parent tty on
 # omarchy:requires-sudo=true
 
 # The parent's side of a child install (kids mode). The parent password is root's
@@ -23,7 +23,6 @@ usage() {
 Usage: omarchy-parent password [--user NAME]
        omarchy-parent apply --user NAME [--remove]
        omarchy-parent tty <off|on>
-       omarchy-parent wifi [kid|parent] [--user NAME]
 
 password  Set or change the parent password (root's password, which sudo and
           system prompts ask for on a child install). NAME is the kid account
@@ -36,10 +35,6 @@ apply     Point sudo (Defaults rootpw) and polkit (an admin rule naming root)
           install leaf and by first-boot provisioning; idempotent. --remove
           deletes what apply wrote.
 tty       Close (off) or reopen (on) the text consoles Ctrl+Alt+F2..F6 reach.
-wifi      Who may join and change Wi-Fi networks: parent (the default) makes
-          the kid's session ask for the parent password, kid lets the kid
-          account do it alone, for the school's Wi-Fi. Kept as wifi= in
-          /etc/omarchy/parent.conf; with no argument, shows the setting.
 USAGE
   local features
   features=$(feature_commands)
@@ -73,7 +68,7 @@ case "${1:-}" in
     usage
     exit 0
     ;;
-  password|apply|tty|wifi) ;;
+  password|apply|tty) ;;
   "")
     usage >&2
     exit 1
@@ -96,8 +91,8 @@ if (( EUID != 0 )); then
   exec sudo env OMARCHY_PATH="$OMARCHY_PATH" "${gum_env[@]}" "$0" "$@"
 fi
 
-# install_sudoers, SUDOERS_DIR, and the parent.conf helpers (PARENT_CONF,
-# conf_get, conf_set, conf_document), shared with the feature commands.
+# install_sudoers and SUDOERS_DIR, and the parent.conf helpers the feature
+# commands keep their settings with.
 source "$OMARCHY_PATH/install/helpers/parent.sh"
 POLKIT_RULES_DIR="${OMARCHY_POLKIT_RULES_DIR:-/etc/polkit-1/rules.d}"
 
@@ -217,79 +212,6 @@ unlock_root_prompts() {
   sed -i -E "/pam_faillock\.so/ s/[[:space:]]+$ROOT_LOCKOUT\$//" "$SYSTEM_AUTH"
 }
 
-# Joining a Wi-Fi network is a NetworkManager settings change. Arch builds
-# NetworkManager with wheel as its no-authentication group, so on a default
-# install nobody is asked; the kid account is outside wheel and would ask the
-# parent by polkit's defaults. This rule pins the parent's choice either way,
-# for the kid account alone and for the two settings actions only, so
-# connecting to a known network, scanning, and the Wi-Fi switch stay the
-# kid's, and the hostname and global DNS actions stay the parent's.
-WIFI_RULE_NAME=45-omarchy-parent-wifi.rules
-
-wifi_mode() {
-  local mode
-  mode=$(conf_get wifi parent)
-  case "$mode" in
-    kid|parent) printf '%s\n' "$mode" ;;
-    *)
-      echo "Warning: wifi=$mode in $PARENT_CONF is neither kid nor parent; treating it as parent." >&2
-      echo parent
-      ;;
-  esac
-}
-
-install_wifi_rule() {
-  local user="$1" mode="$2" result stage
-  if [[ $mode == "kid" ]]; then
-    result=YES
-  else
-    result=AUTH_ADMIN_KEEP
-  fi
-  stage=$(mktemp)
-  # omarchy:heredoc-expands paths=none -- $user names an existing account checked by require_user; $mode and $result are fixed Wi-Fi choices, and none is a path.
-  cat >"$stage" <<WIFI
-// Omarchy kids mode: Wi-Fi on a child install, from wifi=$mode in
-// /etc/omarchy/parent.conf. Written by omarchy-parent; change it with
-// sudo omarchy-parent wifi kid|parent, not here.
-polkit.addRule(function(action, subject) {
-  if (subject.user != "$user") return;
-  if (action.id == "org.freedesktop.NetworkManager.settings.modify.system" ||
-      action.id == "org.freedesktop.NetworkManager.settings.modify.own") {
-    return polkit.Result.$result;
-  }
-});
-WIFI
-  install -m644 "$stage" "$POLKIT_RULES_DIR/$WIFI_RULE_NAME"
-  rm -f "$stage"
-}
-
-wifi_report() {
-  if [[ $(wifi_mode) == "kid" ]]; then
-    echo "wifi=kid: the kid account joins and changes Wi-Fi networks on its own."
-  else
-    echo "wifi=parent: joining or changing a Wi-Fi network asks for the parent password."
-  fi
-}
-
-# The setting and the rule that follows from it change under the writers'
-# lock as one step (conf_locked): two commands racing could otherwise leave
-# parent.conf saying one thing and the polkit rule another.
-wifi_set() {
-  local user="$1" mode="$2"
-  conf_set wifi "$mode" || fail "could not record wifi=$mode in $PARENT_CONF"
-  install_wifi_rule "$user" "$mode"
-}
-
-wifi_apply() {
-  local user="$1"
-  conf_document wifi parent \
-    "wifi: who may join and change Wi-Fi networks." \
-    "  parent  joining or changing a network asks for the parent password (default)" \
-    "  kid     the kid account may join networks and enter their passwords alone" ||
-    fail "could not document the Wi-Fi setting in $PARENT_CONF"
-  install_wifi_rule "$user" "$(wifi_mode)"
-}
-
 apply_posture() {
   local user="$1"
 
@@ -297,7 +219,6 @@ apply_posture() {
   install_sudoers omarchy-parent "$(system_sudoers)"
   install_polkit_rule
   lock_root_prompts
-  conf_locked wifi_apply "$user"
 
   # The account's own grant lands, validated, before it leaves wheel, so there
   # is never a moment without a working sudo path. 00-omarchy-wheel stays: it
@@ -317,11 +238,11 @@ apply_posture() {
 
 remove_posture() {
   local user="${1:-}"
-  rm -f "$SUDOERS_DIR/omarchy-parent" "$POLKIT_RULES_DIR/40-omarchy-parent.rules" "$POLKIT_RULES_DIR/$WIFI_RULE_NAME"
+  rm -f "$SUDOERS_DIR/omarchy-parent" "$POLKIT_RULES_DIR/40-omarchy-parent.rules"
   [[ -n $user ]] && rm -f "$SUDOERS_DIR/omarchy-parent-$user"
   unmask_consoles
   unlock_root_prompts
-  echo "Parental sudo and polkit configuration removed, the text consoles reopened, and root left out of faillock's count again. wheel membership and $PARENT_CONF are left as they are."
+  echo "Parental sudo and polkit configuration removed, the text consoles reopened, and root left out of faillock's count again. wheel membership is left as it is."
 }
 
 set_password() {
@@ -404,25 +325,6 @@ case "$command" in
       off) mask_consoles; echo "Text consoles closed." ;;
       on) unmask_consoles; echo "Text consoles reopened." ;;
       *) usage >&2; exit 1 ;;
-    esac
-    ;;
-  wifi)
-    require_child_install
-    case "${positional[0]:-}" in
-      "")
-        wifi_report
-        ;;
-      kid|parent)
-        [[ -n $user ]] || user="${SUDO_USER:-}"
-        require_user wifi
-        conf_locked wifi_set "$user" "${positional[0]}"
-        wifi_report
-        ;;
-      *)
-        echo "wifi takes kid or parent, not '${positional[0]}'." >&2
-        usage >&2
-        exit 1
-        ;;
     esac
     ;;
   -h|--help)

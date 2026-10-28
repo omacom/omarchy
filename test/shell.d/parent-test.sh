@@ -157,89 +157,6 @@ grep -q '^  tty)' "$parent" || fail "tty is dispatched"
 grep -Fq 'systemd-detect-virt --quiet --chroot' "$parent" || fail "the running-system check sees through the install chroot's bind-mounted /run"
 pass "child installs close the text consoles, and tty reopens them"
 
-# Wi-Fi: joining a network is a NetworkManager settings change that Arch's
-# NetworkManager waves through for wheel only, so the kid asks the parent
-# unless parent.conf says wifi=kid. The rule template renders for the kid
-# account and one polkit result, and answers for that account and the two
-# settings actions alone; the conf helpers run extracted against a scratch
-# file, and the rule lands from them.
-wifi_template=$(sed -n '/<<WIFI$/,/^WIFI$/p' "$parent" | sed '1d;$d')
-[[ -n $wifi_template ]] || fail "omarchy-parent carries the Wi-Fi rule template"
-render_wifi_rule() {
-  local user="$1" mode="$2" result="$3"
-  eval "cat <<WIFI
-$wifi_template
-WIFI"
-}
-PARENT_RULES_JS="$(render_wifi_rule kid parent AUTH_ADMIN_KEEP)" KID_RULES_JS="$(render_wifi_rule kid kid YES)" run_node_test <<'JS'
-function load(js) {
-  const rules = []
-  const polkit = {
-    addRule: fn => rules.push(fn),
-    addAdminRule: () => fail('the Wi-Fi rule names no admin identity'),
-    Result: { YES: 'yes', AUTH_ADMIN_KEEP: 'auth_admin_keep' },
-  }
-  new Function('polkit', js)(polkit)
-  assertEqual(rules.length, 1, 'the Wi-Fi rules file registers one rule')
-  return rules[0]
-}
-const system = { id: 'org.freedesktop.NetworkManager.settings.modify.system' }
-const own = { id: 'org.freedesktop.NetworkManager.settings.modify.own' }
-const control = { id: 'org.freedesktop.NetworkManager.network-control' }
-const dns = { id: 'org.freedesktop.NetworkManager.settings.modify.global-dns' }
-const ask = load(process.env.PARENT_RULES_JS)
-assertEqual(ask(system, { user: 'kid' }), 'auth_admin_keep', 'wifi=parent makes a new network ask the parent')
-assertEqual(ask(own, { user: 'kid' }), 'auth_admin_keep', 'wifi=parent covers a per-user profile as well')
-assertEqual(ask(control, { user: 'kid' }), undefined, 'connecting to a known network is left to the defaults')
-assertEqual(ask(dns, { user: 'kid' }), undefined, 'global DNS is not the rule\'s to answer')
-assertEqual(ask(system, { user: 'peter' }), undefined, 'other accounts are untouched')
-const allow = load(process.env.KID_RULES_JS)
-assertEqual(allow(system, { user: 'kid' }), 'yes', 'wifi=kid lets the kid join a network alone')
-assertEqual(allow(own, { user: 'kid' }), 'yes', 'wifi=kid covers a per-user profile as well')
-assertEqual(allow(dns, { user: 'kid' }), undefined, 'wifi=kid still leaves global DNS alone')
-assertEqual(allow(system, { user: 'peter' }), undefined, 'wifi=kid names the kid account only')
-JS
-
-conf_tmp=$(mktemp -d)
-export OMARCHY_PARENT_CONF="$conf_tmp/parent.conf" OMARCHY_POLKIT_RULES_DIR="$conf_tmp/rules.d"
-mkdir -p "$conf_tmp/rules.d"
-source "$ROOT/install/helpers/parent.sh"
-POLKIT_RULES_DIR="$OMARCHY_POLKIT_RULES_DIR"
-! grep -q '^conf_init() {\|^conf_set() {' "$parent" || fail "the parent.conf helpers live in the shared helper, not in omarchy-parent"
-eval "$(sed -n '/^WIFI_RULE_NAME=/p; /^wifi_mode() {/,/^}$/p; /^install_wifi_rule() {/,/^}$/p; /^wifi_report() {/,/^}$/p' "$parent")"
-wifi_doc=$(sed -n '/^  conf_document wifi parent/,/^  install_wifi_rule/p' "$parent")
-[[ $wifi_doc == *'"  parent  joining or changing a network asks for the parent password (default)"'* ]] || fail "apply documents the Wi-Fi key in parent.conf"
-conf_document wifi parent "wifi: who may join and change Wi-Fi networks." "  parent  asks (default)" "  kid     joins alone"
-grep -qx 'wifi=parent' "$PARENT_CONF" || fail "conf_document spells out the Wi-Fi default"
-grep -q '^# wifi: who may join' "$PARENT_CONF" || fail "conf_document explains the key above it"
-grep -q '^# Omarchy kids mode' "$PARENT_CONF" || fail "conf_init writes the general header first"
-mode=$(stat -c %a "$PARENT_CONF" 2>/dev/null) || mode=$(stat -f %Lp "$PARENT_CONF")
-[[ $mode == "644" ]] || fail "parent.conf is world-readable" "$mode"
-[[ $(conf_get wifi parent) == parent ]] || fail "conf_get reads the default it wrote"
-conf_set wifi kid
-conf_document wifi parent "wifi: who may join and change Wi-Fi networks."
-[[ $(conf_get wifi parent) == kid && $(grep -c '^wifi=' "$PARENT_CONF") == 1 ]] || fail "conf_set rewrites the key in place and conf_document leaves a set key alone" "$(<"$PARENT_CONF")"
-grep -q '^# wifi: who may join' "$PARENT_CONF" || fail "conf_set keeps the comments"
-conf_set screen kid
-grep -qx 'screen=kid' "$PARENT_CONF" || fail "conf_set appends a key it has not seen"
-printf 'wifi = parent   \n' >>"$PARENT_CONF"
-[[ $(conf_get wifi kid) == parent ]] || fail "conf_get takes the last value and trims spaces" "got: $(conf_get wifi kid)"
-printf 'wifi=maybe\n' >>"$PARENT_CONF"
-[[ $(wifi_mode 2>/dev/null) == parent ]] || fail "an unknown wifi value falls back to parent"
-wifi_mode 2>&1 >/dev/null | grep -q 'neither kid nor parent' || fail "an unknown wifi value is warned about"
-install_wifi_rule kid kid
-grep -Fq 'return polkit.Result.YES;' "$POLKIT_RULES_DIR/45-omarchy-parent-wifi.rules" || fail "install_wifi_rule writes the allowing rule for wifi=kid"
-grep -Fq 'subject.user != "kid"' "$POLKIT_RULES_DIR/45-omarchy-parent-wifi.rules" || fail "the rule names the kid account"
-install_wifi_rule kid parent
-grep -Fq 'return polkit.Result.AUTH_ADMIN_KEEP;' "$POLKIT_RULES_DIR/45-omarchy-parent-wifi.rules" || fail "install_wifi_rule writes the asking rule for wifi=parent"
-[[ $(wifi_report 2>/dev/null) == "wifi=parent: joining or changing a Wi-Fi network asks for the parent password." ]] || fail "wifi_report reads the file" "$(wifi_report 2>&1)"
-rm -rf "$conf_tmp"
-unset OMARCHY_PARENT_CONF OMARCHY_POLKIT_RULES_DIR
-grep -Fq 'conf_locked wifi_set "$user" "${positional[0]}"' "$parent" || fail "wifi records the setting and publishes the rule under one lock"
-grep -Fq 'conf_locked wifi_apply "$user"' "$parent" || fail "apply reads the setting and publishes the rule under one lock"
-grep -q '^conf_locked() (' "$ROOT/install/helpers/parent.sh" || fail "the shared helper can hold the lock around a whole operation"
-pass "the Wi-Fi rule asks the parent by default and hands the kid the school's network on request"
-
 # Two menu entries would hand the invoking account passwordless root, which
 # on a child install is the kid's account once a parent has typed the
 # password: they stay off the menu there.
@@ -368,8 +285,6 @@ run_parent apply --user kid >/dev/null || fail "omarchy-parent apply succeeds on
 grep -Fq 'return ["unix-user:root"]' "$test_tmp/rules.d/40-omarchy-parent.rules" || fail "apply writes the polkit admin rule"
 [[ $(grep -c 'pam_faillock\.so \(preauth\|authfail\) .*even_deny_root root_unlock_time=120$' "$test_tmp/system-auth") == 2 ]] ||
   fail "apply has faillock count root on the live stack" "$(<"$test_tmp/system-auth")"
-grep -qx 'wifi=parent' "$test_tmp/parent.conf" || fail "apply writes parent.conf with the Wi-Fi default"
-grep -Fq 'polkit.Result.AUTH_ADMIN_KEEP' "$test_tmp/rules.d/45-omarchy-parent-wifi.rules" || fail "apply writes the Wi-Fi rule that asks the parent"
 [[ $(<"$CALLS") == "gpasswd -d kid wheel" ]] || fail "apply takes the kid out of wheel" "calls: $(<"$CALLS")"
 ! ls "$test_tmp/sudoers.d"/.omarchy-parent* >/dev/null 2>&1 || fail "apply leaves no stage files behind"
 pass "omarchy-parent apply installs the posture and removes the kid from wheel"
@@ -386,28 +301,10 @@ if STUB_PROFILE=default run_parent apply --user kid >/dev/null 2>&1; then
 fi
 pass "omarchy-parent apply refuses a locked root and a non-child install"
 
-run_parent wifi kid --user kid >/dev/null || fail "wifi kid succeeds"
-grep -qx 'wifi=kid' "$test_tmp/parent.conf" || fail "wifi kid records the choice in parent.conf"
-grep -Fq 'polkit.Result.YES' "$test_tmp/rules.d/45-omarchy-parent-wifi.rules" || fail "wifi kid rewrites the rule to let the kid join"
-[[ $(SUDO_USER=kid run_parent wifi) == "wifi=kid: the kid account joins and changes Wi-Fi networks on its own." ]] || fail "wifi alone reports the setting"
-STUB_GROUPS="input" run_parent apply --user kid >/dev/null || fail "apply reruns with wifi=kid"
-grep -Fq 'polkit.Result.YES' "$test_tmp/rules.d/45-omarchy-parent-wifi.rules" || fail "a rerun of apply keeps the parent's Wi-Fi choice"
-SUDO_USER=kid run_parent wifi parent >/dev/null || fail "wifi parent succeeds from the kid's sudo"
-grep -Fq 'polkit.Result.AUTH_ADMIN_KEEP' "$test_tmp/rules.d/45-omarchy-parent-wifi.rules" || fail "wifi parent puts the prompt back"
-if run_parent wifi maybe --user kid >/dev/null 2>&1; then
-  fail "wifi rejects a value other than kid or parent"
-fi
-grep -qx 'wifi=parent' "$test_tmp/parent.conf" || fail "a rejected value leaves parent.conf alone"
-printf 'wifi=kid\n' >"$test_tmp/parent.conf"
-STUB_GROUPS="input" run_parent apply --user kid >/dev/null || fail "apply reruns after a hand edit"
-grep -Fq 'polkit.Result.YES' "$test_tmp/rules.d/45-omarchy-parent-wifi.rules" || fail "a hand-edited parent.conf takes effect at apply"
-pass "omarchy-parent wifi hands Wi-Fi to the kid and back, kept in parent.conf"
-
 run_parent apply --remove --user kid >/dev/null || fail "apply --remove succeeds"
 ! grep -q 'even_deny_root' "$test_tmp/system-auth" || fail "apply --remove leaves root out of faillock's count" "$(<"$test_tmp/system-auth")"
-[[ ! -e $test_tmp/sudoers.d/omarchy-parent && ! -e $test_tmp/sudoers.d/omarchy-parent-kid && ! -e $test_tmp/rules.d/40-omarchy-parent.rules && ! -e $test_tmp/rules.d/45-omarchy-parent-wifi.rules ]] ||
+[[ ! -e $test_tmp/sudoers.d/omarchy-parent && ! -e $test_tmp/sudoers.d/omarchy-parent-kid && ! -e $test_tmp/rules.d/40-omarchy-parent.rules ]] ||
   fail "apply --remove deletes what apply wrote"
-[[ -f $test_tmp/parent.conf ]] || fail "apply --remove keeps the parent's settings"
 pass "omarchy-parent apply --remove is the reverse of apply"
 
 export GUM_SCRIPT="$test_tmp/gum-script" GUM_COUNT="$test_tmp/gum-count"
