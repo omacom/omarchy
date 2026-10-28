@@ -769,6 +769,10 @@ PanelWindow {
             id: listRow
 
             required property var modelData
+            // The list rebuilds its rows as windows change, even mid-click, and a
+            // row on its way out no longer sees the dock window; keep it here.
+            property var host: null
+            Component.onCompleted: host = window
             readonly property var toplevel: modelData.toplevel
             readonly property bool current: !!toplevel && toplevel.activated
             readonly property string title: toplevel && toplevel.title ? toplevel.title : windowList.fallbackTitle
@@ -816,8 +820,10 @@ PanelWindow {
               cursorShape: Qt.PointingHandCursor
               onClicked: {
                 var picked = listRow.modelData
-                window.closeList()
-                if (window.dock) window.dock.bringForward(picked)
+                var host = listRow.host
+                if (!host) return
+                if (host.dock) host.dock.bringForward(picked)
+                host.closeList()
               }
             }
           }
