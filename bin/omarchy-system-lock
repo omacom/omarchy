@@ -5,7 +5,7 @@
 # omarchy:name=lock
 # omarchy:examples=omarchy system lock
 
-omarchy-shell lock lock >/dev/null
+lock_reply=$(omarchy-shell lock lock)
 
 # Set keyboard layout to default (first layout)
 hyprctl switchxkblayout all 0 > /dev/null 2>&1
@@ -19,7 +19,28 @@ if pgrep -x "1password" >/dev/null && omarchy-cmd-present 1password; then
   ) 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-1password-lock.lock" &
 fi
 
-# Avoid running screensaver when locked
+# The session lock lands half a second after the request, so wait for it to
+# cover the teardown: killing the screensaver first flashes the desktop.
+# A status call blocks until its own timeout, so hold a deadline rather than
+# count polls: a shell that stops answering must not hold the lid-close
+# caller hostage for the full timeout ten times over.
+lock_wait_budget_ms=1000
+lock_wait_deadline_ms=$((10#${EPOCHREALTIME//[!0-9]/} / 1000 + lock_wait_budget_ms))
+
+lock_wait_remaining_ms() {
+  echo $((lock_wait_deadline_ms - 10#${EPOCHREALTIME//[!0-9]/} / 1000))
+}
+
+if [[ $lock_reply == "ok" ]]; then
+  while (( $(lock_wait_remaining_ms) > 0 )); do
+    remaining=$(lock_wait_remaining_ms)
+    (( remaining > 0 )) || break
+    printf -v ipc_seconds '%d.%03d' $((remaining / 1000)) $((remaining % 1000))
+    [[ $(OMARCHY_SHELL_IPC_TIMEOUT="$ipc_seconds" omarchy-shell lock status 2>/dev/null | jq -r '.secure // empty') == "true" ]] && break
+    sleep 0.1
+  done
+fi
+
 pkill -x ttfx 2>/dev/null || true
 # ttfx handles SIGTERM asynchronously, so keep its terminal alive until it exits.
 timeout 1s pidwait -x ttfx 2>/dev/null || true
