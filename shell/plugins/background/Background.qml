@@ -221,10 +221,11 @@ Item {
       Util.execArgv(["omarchy-shell", "shell", "summon", "omarchy.image-picker", payload])
   }
 
+  // omarchy-theme-bg-set tells this service of the new background itself. A
+  // refresh here would start an ordinary transition under an intro's cover.
   Process {
     id: bgSwitchProc
     command: ["bash", "-c", "background=$(omarchy-theme-bg-switcher); [[ -n $background ]] && omarchy-theme-bg-set \"$background\""]
-    onExited: root.refreshBackground()
   }
 
   Process {

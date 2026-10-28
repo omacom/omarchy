@@ -226,6 +226,11 @@ grep -Fxq "owe: intro --start first-frame --refresh $state/theme/backgrounds/int
 token=$(awk -v cover="$state/theme/backgrounds/1-sky.webp" '$1 == "shell:" && $3 == "prepareThemeIntro" && $4 == cover { print $5; exit }' "$log")
 [[ $token == background-* ]] || fail "the outgoing background covers the desktop during the intro" "$(cat "$log")"
 grep -Fxq "shell: background setInstant $state/theme/backgrounds/2-road.webp" "$log" || fail "the shell takes the new still under the cover"
+# OWE hands the desktop back to the shell when the clip ends, so the shell must
+# already hold the new still, or the old one flashes before it arrives.
+still_line=$(grep -n '^shell: background setInstant ' "$log" | head -1 | cut -d: -f1)
+intro_line=$(grep -n '^owe: intro --start ' "$log" | head -1 | cut -d: -f1)
+(( still_line < intro_line )) || fail "the shell takes the new still before the intro plays" "$(cat "$log")"
 grep -Fxq "shell: shell finishThemeIntro $token" "$log" || fail "the cover fades out once the intro is moving"
 [[ $(readlink "$state/background") == "$state/theme/backgrounds/2-road.webp" ]] || fail "the background with an intro is selected"
 set_background "$state/theme/backgrounds/2-road.webp"
