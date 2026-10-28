@@ -5,8 +5,9 @@
 # omarchy:hidden=true
 
 # systemd-logind treats a closed lid as docked only when an external display is
-# on a connector type it lists (HDMI, DisplayPort, DVI, VGA...), and USB-C
-# displays on Apple Silicon arrive on "USB" connectors instead. Left alone,
+# on a connector type it lists (HDMI, DisplayPort, DVI, VGA...). USB-C displays
+# arrive on "USB" connectors on Apple Silicon, and on "Unknown" ones from drivers
+# with no type for theirs (nvidia-drm before 615.78.08-3 on the N1x). Left alone,
 # logind suspends a laptop still in use on one. Holding its handle-lid-switch
 # inhibitor while such a display is in use leaves the lid to Omarchy's
 # clamshell handling, as HandleLidSwitchDocked=ignore would. Once released, a
@@ -19,7 +20,8 @@ cgroup_path="${OMARCHY_CGROUP_PATH:-/proc/self/cgroup}"
 
 # Connected connectors of the external types logind does not count, by the name
 # Hyprland gives them (card2-USB-2 is USB-2). DVI-A and Composite are on its
-# list, but a missing comma there fuses them into one entry.
+# list, but a missing comma there fuses them into one entry. An internal panel
+# has a type of its own, so a connected Unknown connector is external.
 uncounted_outputs() {
   local status connector
 
@@ -29,7 +31,7 @@ uncounted_outputs() {
     connector=${connector##*/}
 
     case $connector in
-      card*-USB-* | card*-DVI-A-* | card*-Composite-*) ;;
+      card*-USB-* | card*-Unknown-* | card*-DVI-A-* | card*-Composite-*) ;;
       *) continue ;;
     esac
 

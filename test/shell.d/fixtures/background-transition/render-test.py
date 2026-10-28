@@ -88,6 +88,10 @@ background = replace_once(background, "  id: root\n", """  id: root
   function testFinish() { revealAnimation.complete() }
 """)
 background = replace_once(background, "  Component.onCompleted: refreshBackground()", "")
+# The transparent click-only layer is desktop integration, not image rendering.
+click_layer = background.index("  // OWE's video layer takes no clicks,")
+click_component = background.index("  // Inline components do not see this file's ids,")
+background = background[:click_layer] + background[click_component:]
 background = replace_once(background, "model: Quickshell.screens", "model: [{width: 160, height: 90, x: 0}, {width: 90, height: 160, x: 180}]")
 background = replace_once(background, "    PanelWindow {\n      id: panel", """    Item {
       id: panel

@@ -26,6 +26,6 @@ The runtime marker need not survive reboot: pre-removal revokes the old timed gr
 
 ## Validation
 
-The two passwordless-sudo test suites share a private filesystem and command fixture. They cover caller validation, the public prompt boundary, atomic publication, renewal failures, expiry, old callbacks, machine migration, and the source/package lock. Supply `OMARCHY_PKGS_PATH` as either a repository root or its `pkgbuilds` directory. An optional `OMARCHY_TEST_SUDOERS` path to sudo's upstream `testsudoers` executable evaluates the generated policy before and after its deadline without root or changing host policy.
+The two passwordless-sudo test suites share a private filesystem and command fixture. They cover caller validation, the public prompt boundary, atomic publication, renewal failures, expiry, old callbacks, machine migration, and the source/package lock. Supply `OMARCHY_PKGS_PATH` as either a repository root or its `pkgbuilds` directory. The package-scriptlet checks skip without a checkout, and with one that predates the settings packages' cleanup scriptlets (omacom/omarchy-pkgs#944). An optional `OMARCHY_TEST_SUDOERS` path to sudo's upstream `testsudoers` executable evaluates the generated policy before and after its deadline without root or changing host policy.
 
 These local tests do not establish release readiness. The simplified candidate needs fresh installed-package, suspend/resume, boot-cleanup, and package-removal validation in a disposable VM. The shared security library and its interface are unchanged for downstream PRs.

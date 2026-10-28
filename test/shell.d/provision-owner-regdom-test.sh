@@ -61,9 +61,9 @@ fresh_root() {
 export PATH="$stub_bin:$omarchy/bin:$PATH"
 export OMARCHY_PATH=$omarchy
 
-# The two setup functions as omarchy-provision-owner defines them, with its
-# fixed paths moved into the fixture root.
-sed -n '/^configure_timezone() {/,/^}/p; /^configure_wireless_regdom() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" |
+# The setup functions as omarchy-provision-owner defines them, with its fixed
+# paths moved into the fixture root.
+sed -n '/^configure_timezone() {/,/^}/p; /^configure_wireless_regdom() {/,/^}/p; /^configure_region() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" |
   sed -e "s|/usr/share/zoneinfo|$root/usr/share/zoneinfo|g" -e "s|/etc/|$root/etc/|g" >"$tmp/setup.sh"
 grep -q '^configure_wireless_regdom() {' "$tmp/setup.sh" || fail "omarchy-provision-owner sets the regulatory domain in setup"
 # shellcheck disable=SC1091

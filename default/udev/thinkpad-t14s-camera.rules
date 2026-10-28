@@ -1,0 +1,3 @@
+# libcamera software ISP buffers need access for the active desktop user.
+# Keep CMA heaps private: full-resolution colour buffers use system memory.
+SUBSYSTEM=="dma_heap", KERNEL=="system", TAG+="uaccess"

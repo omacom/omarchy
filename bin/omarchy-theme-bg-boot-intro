@@ -82,10 +82,7 @@ animations_off() {
   [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool' 2>/dev/null) == "false" ]]
 }
 
-theme_switch=false
-intro_prepared=false
-expected_background=""
-expected_theme=""
+
 case ${1:-} in
   "") ;;
   --prepare-theme)
@@ -96,106 +93,55 @@ case ${1:-} in
     resolve_intro "${2:-}" || true
     exit 0
     ;;
-  --resolve-startup)
+  # The clip that would play for a background, or the current one, now: none
+  # while intros or animations are off.
+  --resolve-startup | --resolve-enabled)
     if [[ ! -f $toggle ]] && ! animations_off; then
-      resolve_intro || true
+      resolve_intro "${2:-}" || true
     fi
     exit 0
     ;;
-  --theme-switch)
-    theme_switch=true
-    expected_background=$(readlink -f "${2:-}" 2>/dev/null) || exit 1
-    expected_theme=${3:-}
-    intro_prepared=${4:-false}
-    [[ -n $expected_theme ]] || exit 1
-    ;;
   *)
-    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--resolve-startup|--prepare-theme theme|--theme-switch background theme-id [prepared]]" >&2
+    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--resolve-enabled [background]|--resolve-startup|--prepare-theme theme]" >&2
     exit 1
     ;;
 esac
 
-if [[ $theme_switch == false ]]; then
-  mkdir -p "$(dirname "$marker")"
-  exec 9>"$state_home/omarchy/background-intro.lock"
-  flock 9
+mkdir -p "$(dirname "$marker")"
+exec 9>"$state_home/omarchy/background-intro.lock"
+flock 9
 
-  session_id=${OMARCHY_SESSION_ID:-${HYPRLAND_INSTANCE_SIGNATURE:-}}
-  [[ -n $session_id ]] || exit 0
-  if [[ -f $marker && $(<"$marker") == "$session_id" ]]; then
-    exit 0
-  fi
-
-  marker_staged=$(mktemp "$state_home/omarchy/.background-intro.session-id.XXXXXX")
-  trap 'rm -f "$marker_staged"' EXIT
-  printf '%s\n' "$session_id" >"$marker_staged"
-  mv -f "$marker_staged" "$marker"
-  trap - EXIT
-  exec 9>&-
-fi
-
-selection_current() {
-  [[ $(readlink -f "$current_background_link") == "$expected_background" &&
-    $(stat -Lc '%d:%i' "$current_dir/theme" 2>/dev/null) == "$expected_theme" ]]
-}
-
-if [[ $theme_switch == true ]] && ! selection_current; then
+session_id=${OMARCHY_SESSION_ID:-${HYPRLAND_INSTANCE_SIGNATURE:-}}
+[[ -n $session_id ]] || exit 0
+if [[ -f $marker && $(<"$marker") == "$session_id" ]]; then
   exit 0
 fi
 
+# The shell reads the marker at startup, so it is replaced whole. The lock
+# keeps this the only writer, so a fixed staging name is safe.
+printf '%s\n' "$session_id" >"$marker.staged"
+mv -f "$marker.staged" "$marker"
+exec 9>&-
+
 if [[ -f $toggle ]] || animations_off; then
-  [[ $theme_switch == false ]] || exit 1
   exit 0
 fi
 
 intro=$(resolve_intro || true)
 if [[ -z $intro ]]; then
-  [[ $theme_switch == false ]] || exit 1
   exit 0
 fi
 
-if [[ $theme_switch == true && $intro_prepared != "true" ]]; then
-  owe refresh >/dev/null || exit 1
-elif [[ $theme_switch == false ]]; then
-  deadline=$((SECONDS + 5))
-  while ! timeout 1 owe status >/dev/null 2>&1; do
-    if (( SECONDS >= deadline )); then
-      exit 0
-    fi
-    sleep 0.2
-  done
-  (( SECONDS < deadline )) || exit 0
-fi
-
-# The asynchronous outgoing cover must reach the compositor before playback
-# can hide the shell background. Older shells have no readiness method.
-if [[ $theme_switch == true ]]; then
-  deadline=$((SECONDS + 3))
-  while true; do
-    cover_status=$(omarchy-shell shell themeIntroCoverStatus "$expected_theme" 2>/dev/null || true)
-    case $cover_status in
-      loading)
-        (( SECONDS < deadline )) || exit 1
-        sleep 0.01
-        ;;
-      error) exit 1 ;;
-      superseded) exit 0 ;;
-      *) break ;;
-    esac
-  done
-fi
-
-if [[ $theme_switch == true ]] && ! selection_current; then
-  exit 0
-fi
+deadline=$((SECONDS + 5))
+while ! timeout 1 owe status >/dev/null 2>&1; do
+  if (( SECONDS >= deadline )); then
+    exit 0
+  fi
+  sleep 0.2
+done
+(( SECONDS < deadline )) || exit 0
 
 # A selection or setting changed while OWE was starting no longer permits this intro.
 if [[ ! -f $toggle && $intro == "$(resolve_intro || true)" ]] && ! animations_off; then
-  if [[ $theme_switch == true && $intro_prepared == "true" ]]; then
-    owe intro --start first-frame --refresh "$intro"
-  else
-    owe intro --start first-frame "$intro"
-  fi
-elif [[ $theme_switch == true ]]; then
-  exit 1
+  owe intro --start first-frame "$intro"
 fi

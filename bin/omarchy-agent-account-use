@@ -27,13 +27,15 @@ result=$(omarchy-agent-account-state use "$1" "${2:-next}") || exit 1
 
 previous=$(jq -r .previous.label <<<"$result")
 active=$(jq -r '.active.label + (if (.active.plan // "") != "" then " (" + .active.plan + ")" else "" end)' <<<"$result")
+label=$(jq -r .active.label <<<"$result")
 
 if [[ $(jq -r .previous.id <<<"$result") == "$(jq -r .active.id <<<"$result")" ]]; then
   echo "New $name sessions already use $active."
 else
   message="Running sessions stay on $previous."
   echo "New $name sessions now use $active. $message"
-  omarchy-notification-send -g 󰚩 "New $name sessions now use $active" "$message"
+  # The headline leaves out the plan, so it stays on one line.
+  omarchy-notification-send -g 󰚩 "$(omarchy-i18n agents.newSessionsUse "$name" "$label")" "$(omarchy-i18n agents.runningStayOn "$previous")"
   # The usage record's own limits describe the active account.
   omarchy-agent-usage-update --limits-only "$1" >/dev/null 2>&1 &
 fi
