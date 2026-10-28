@@ -45,6 +45,7 @@ as_user() {
       HOME="$home" \
       USER="$user" \
       LOGNAME="$user" \
+      PATH=/usr/local/bin:/usr/bin:/bin \
       XDG_RUNTIME_DIR="$runtime_dir" \
       DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus" \
       "$@"
@@ -53,6 +54,7 @@ as_user() {
       HOME="$home" \
       USER="$user" \
       LOGNAME="$user" \
+      PATH=/usr/local/bin:/usr/bin:/bin \
       XDG_RUNTIME_DIR="$runtime_dir" \
       DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus" \
       "$@"
@@ -145,9 +147,17 @@ record_instance() {
 
 pause_instance() {
   local uid="$1" runtime_dir="$2" pid="$3" config_path="$4"
-  local user home omarchy_path display signature action output
+  local user home omarchy_path display signature action output env_omarchy_path
 
   [[ $pid =~ ^[0-9]+$ ]] || return 0
+
+  # Another Quickshell config can also live at shell/shell.qml. Only touch a
+  # shell whose own OMARCHY_PATH names the tree it is running from.
+  env_omarchy_path=$(process_env "$pid" OMARCHY_PATH || true)
+  env_omarchy_path=${env_omarchy_path%/}
+  if [[ -n $env_omarchy_path && $config_path != "$env_omarchy_path/shell/shell.qml" ]]; then
+    return 0
+  fi
 
   user=$(user_for_uid "$uid") || return 0
   [[ -n $user ]] || return 0
