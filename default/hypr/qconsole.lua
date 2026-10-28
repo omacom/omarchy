@@ -194,4 +194,4 @@ hl.on("window.update_rules", recount)
 -- workspace goes: "slide top" drops it down into view, and "slide bottom"
 -- retracts it back up the way a Quake console does.
 hl.animation({ leaf = "specialWorkspaceIn", enabled = true, speed = 3, bezier = "easeOutQuint", style = "slide top" })
-hl.animation({ leaf = "specialWorkspaceOut", enabled = true, speed = 2, bezier = "easeInOutCubic", style = "slide bottom" })
+hl.animation({ leaf = "specialWorkspaceOut", enabled = true, speed = 2, bezier = "easeOutQuint", style = "slide bottom" })
