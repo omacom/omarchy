@@ -242,10 +242,15 @@ TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$theme_release" set_theme "$n
 wait_command '^owe: intro '
 TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$background_release" set_background "$test_tmp/lake/lake.webp"
 wait_command "^owe: intro .*$test_tmp/lake/intros/lake.mp4\$"
+mkdir -p "$test_tmp/pond/intros"
+printf 'still\n' >"$test_tmp/pond/pond.webp"
+printf 'intro\n' >"$test_tmp/pond/intros/pond.mp4"
+TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$background_release" set_background "$test_tmp/pond/pond.webp"
+wait_command "^owe: intro .*$test_tmp/pond/intros/pond.mp4\$"
 touch "$theme_release"
 wait_command '^shell: shell finishThemeIntro [0-9]'
 sleep 0.3
 ! grep -q '^hypr-reload$' "$log" || fail "a theme reload waits for the background intro that interrupted it"
 touch "$background_release"
 wait_command '^hypr-reload$'
-pass "a background intro defers the interrupted theme's compositor reload"
+pass "background intros take over from each other and defer the interrupted theme's reload"

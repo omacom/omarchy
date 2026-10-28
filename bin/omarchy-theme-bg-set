@@ -85,10 +85,11 @@ play_background_intro() {
     prepared=true
   fi
 
-  # A theme switch's deferred compositor reload waits on this lock, since
-  # reloading Hyprland would pause this video.
+  # A theme switch's deferred compositor reload takes this lock exclusively,
+  # since reloading Hyprland would pause this video. Background intros share
+  # it, so a newer selection still takes over from a playing clip.
   (
-    flock 8
+    flock -s 8
     omarchy-theme-bg-boot-intro --background-switch "$BACKGROUND" "$token" "$prepared" || true
     if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$BACKGROUND" ]]; then
       shell_ipc background setInstant "$BACKGROUND" || true
