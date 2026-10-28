@@ -179,7 +179,9 @@ Rules:
 5. Third-party enabled ⇔ present; for full bar options that means `bar.id`.
    First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`.
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
-7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
+7. `idle.screensaver` and `idle.lock` are seconds since user idle began;
+   `idle.inhibitWhenGamepadActive`, `idle.inhibitWhenAudioPlaying`, and
+   `idle.gamepadGrace` cover the activity the compositor cannot see.
 8. `version: 1` is required.
 
 The bar's sections run along it in the order `left`, `centerBegin`, `center`, `centerEnd`, `right`. `center` is a box in the middle of the bar whose widgets are centered as one group; `centerBegin` and `centerEnd` hang off its two edges and move out as it grows. An empty box takes no room, so the two meet in the middle of the bar. While a widget is dragged, the other widgets make room for it where it would land, and it gives up its own room unless it would land back there; the box shows as an outline, or a line across the bar when empty, that it can be dropped into or beside, and grows to take in a widget that would land in it. A drop within the bar's thickness of an empty box's middle lands in it. The tray's drawer, which opens while a widget is dragged, holds the tray section the same way: it shows as an outline, or a line when empty, and a drop over it, or within half the bar's thickness of it, lands in it. A layout written from elsewhere during a drag (`omarchy bar move`, a hand edit) that moves widgets about makes the drag let go, and the layout stays as written.
