@@ -45,7 +45,7 @@ assertEqual(subscribed({ ...historyOnly, spend: { amount: 1.25, days: [] } }), t
 // Account-wide stats merge by widest value across synced devices, but a
 // record whose today is this machine's own (todayScope) adds today up.
 const aggregateSource = ['numberValue', 'dateString', 'recentDateStrings', 'safeDeviceId', 'emptyTokenBucket',
-  'combineNumber', 'combineObjectNumbers', 'aggregateSnapshots'].map(name =>
+  'combineNumber', 'combineObjectNumbers', 'snapshotWrittenOn', 'aggregateSnapshots'].map(name =>
   mainSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
 const aggregate = new Function(aggregateSource + '\nreturn {aggregateSnapshots, recentDateStrings}')()
 const dates = aggregate.recentDateStrings()
@@ -69,6 +69,18 @@ assertEqual(byDay(local)[yesterday], 500, 'while the account history before it s
 assertEqual(local.modelUsage.m.inputTokens, 1000, 'as do the account totals')
 const account = aggregate.aggregateSnapshots([accountSnapshot('a', 100), accountSnapshot('b', 200)]).providers.openrouter
 assertEqual(account.todayTotalTokens, 200, 'a record without todayScope keeps merging today by widest value')
+// A machine that last synced yesterday still calls yesterday "today" in its
+// undated fields; only its dated history counts.
+const stale = accountSnapshot('c', 400, { todayScope: 'device' })
+stale.updatedAt = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+stale.providers.openrouter.recentDays = [{ date: yesterday, messageCount: 400 }]
+const withStale = aggregate.aggregateSnapshots([
+  accountSnapshot('a', 100, { todayScope: 'device' }), accountSnapshot('b', 200, { todayScope: 'device' }), stale
+]).providers.openrouter
+assertEqual(withStale.todayTotalTokens, 300, "a snapshot written yesterday adds nothing to today")
+assertEqual(withStale.todayTokensByModel.m, 300, 'nor to its per-model split')
+assertEqual(byDay(withStale)[yesterday], 500, 'while its dated history still merges')
+assertEqual(withStale.deviceCount, 3, 'and the machine still counts as synced')
 
 // A reworded collector line would silently fall back to English, so every
 // fixed help line the collectors cache must still be one the panel maps.

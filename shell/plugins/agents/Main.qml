@@ -807,6 +807,15 @@ Item {
     for (var key in source) target[key] = combineNumber(additive, target[key], source[key])
   }
 
+  // A snapshot's today* fields carry no date of their own, so a machine that
+  // last synced yesterday still describes yesterday in them; only a snapshot
+  // written today may feed them. Its recentDays are dated and merge as usual.
+  function snapshotWrittenOn(snapshot, today) {
+    if (!snapshot.updatedAt) return true
+    var at = new Date(snapshot.updatedAt)
+    return isNaN(at.getTime()) || dateString(at) === today
+  }
+
   function aggregateSnapshots(snapshots) {
     var dates = recentDateStrings()
     var today = dates[dates.length - 1]
@@ -841,6 +850,7 @@ Item {
     for (var i = 0; i < snapshots.length; i++) {
       var snapshot = snapshots[i]
       var device = safeDeviceId(snapshot.deviceId || "device")
+      var current = snapshotWrittenOn(snapshot, today)
       devices[device] = true
       var snapshotProviders = snapshot.providers || {}
       for (var providerId in snapshotProviders) {
@@ -855,9 +865,12 @@ Item {
         acc.hasPromptStats = acc.hasPromptStats || stats.hasPromptStats !== false
         var additive = String(stats.scope || "device") !== "account"
         var todayAdditive = String(stats.todayScope || stats.scope || "device") !== "account"
-        acc.todayPrompts = combineNumber(todayAdditive, acc.todayPrompts, stats.todayPrompts)
-        acc.todaySessions = combineNumber(todayAdditive, acc.todaySessions, stats.todaySessions)
-        acc.todayTotalTokens = combineNumber(todayAdditive, acc.todayTotalTokens, stats.todayTotalTokens)
+        if (current) {
+          acc.todayPrompts = combineNumber(todayAdditive, acc.todayPrompts, stats.todayPrompts)
+          acc.todaySessions = combineNumber(todayAdditive, acc.todaySessions, stats.todaySessions)
+          acc.todayTotalTokens = combineNumber(todayAdditive, acc.todayTotalTokens, stats.todayTotalTokens)
+          combineObjectNumbers(todayAdditive, acc.todayTokensByModel, stats.todayTokensByModel || {})
+        }
         acc.totalPrompts = combineNumber(additive, acc.totalPrompts, stats.totalPrompts)
         acc.totalSessions = combineNumber(additive, acc.totalSessions, stats.totalSessions)
         // Active days overlap between machines, so union the dates rather than
@@ -866,7 +879,6 @@ Item {
         var activeDates = Array.isArray(stats.activeDates) ? stats.activeDates : []
         for (var ad = 0; ad < activeDates.length; ad++) acc.activeDates[String(activeDates[ad])] = true
         acc.activeDays = Math.max(acc.activeDays, numberValue(stats.activeDays))
-        combineObjectNumbers(todayAdditive, acc.todayTokensByModel, stats.todayTokensByModel || {})
 
         var recent = Array.isArray(stats.recentDays) ? stats.recentDays : []
         for (var r = 0; r < recent.length; r++) {
