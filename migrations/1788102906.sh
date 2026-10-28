@@ -12,7 +12,7 @@ if [[ -f $xcompose ]] && grep -Eq "$legacy_xcompose_pattern" "$xcompose"; then
   xcompose_replacement=${packaged_xcompose//\\/\\\\}
   xcompose_replacement=${xcompose_replacement//&/\\&}
   xcompose_replacement=${xcompose_replacement//|/\\|}
-  sed -i -E "s|^([[:space:]]*include[[:space:]]+\")[^\"]*/\\.local/share/omarchy/default/xcompose\"[[:space:]]*$|\\1$xcompose_replacement\"|" "$xcompose"
+  sed -i --follow-symlinks -E "s|^([[:space:]]*include[[:space:]]+\")[^\"]*/\\.local/share/omarchy/default/xcompose\"[[:space:]]*$|\\1$xcompose_replacement\"|" "$xcompose"
   omarchy-restart-xcompose >/dev/null 2>&1 || true
 fi
 

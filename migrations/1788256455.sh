@@ -62,7 +62,7 @@ if [[ -f $polkit ]] && is_omarchy_vulnerable_stack "$polkit"; then
   # Replace only the bare pam_unix lines; keep comments, blank lines, and the
   # hardware-auth (gate / pam_fprintd / pam_u2f) lines exactly as they are.
   # sed -i renames a complete file into place, so an interrupted run never leaves polkit-1 truncated.
-  if ! sudo sed -i -E 's/^(auth|account|password|session)([[:space:]]+)required[[:space:]]+pam_unix\.so[[:space:]]*$/\1\2include system-auth/' "$polkit"; then
+  if ! sudo sed -i --follow-symlinks -E 's/^(auth|account|password|session)([[:space:]]+)required[[:space:]]+pam_unix\.so[[:space:]]*$/\1\2include system-auth/' "$polkit"; then
     echo "Could not rewrite $polkit; leaving it unchanged so the migration retries." >&2
     exit 1
   fi
