@@ -581,10 +581,14 @@ function M.swap_with_monitor(direction)
     local block_a, block_b = by_connector[target.name], by_connector[from.name]
     if block_a and block_b then
       -- Each joins the block it lands on when there is a number for it there:
-      -- its own already, the one the other leaves, or a free one. With none it
-      -- keeps its number and stays a guest, as one no block has room for does.
-      local joining_a = block_of_id(a) == block_a or block_of_id(b) == block_a or has_room(block_a)
-      local joining_b = block_of_id(b) == block_b or (block_of_id(a) == block_b and joining_a) or has_room(block_b)
+      -- its own already, a free one, or the one the other leaves, which two
+      -- trading their own blocks' numbers always have. With none it keeps its
+      -- number and stays a guest, as one no block has room for does.
+      local trade = block_of_id(a) == block_b and block_of_id(b) == block_a
+      local joining_a = trade or block_of_id(a) == block_a or has_room(block_a)
+      local joining_b = trade or block_of_id(b) == block_b or has_room(block_b)
+      joining_a = joining_a or (joining_b and block_of_id(b) == block_a)
+      joining_b = joining_b or (joining_a and block_of_id(a) == block_b)
 
       -- The one going over waits under a spare number so the other can take
       -- the number it left: the one it wants when their slots match, and the

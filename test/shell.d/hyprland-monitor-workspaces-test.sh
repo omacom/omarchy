@@ -783,3 +783,33 @@ for _, workspace in ipairs(hl.get_workspaces()) do
 end
 ' || fail "a swap into a block with no room leaves the workspace under its own number"
 pass "a swap into a block with no room leaves the workspace under its own number"
+
+run_lua swap-no-room '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+plug("DP-2", 2, "XENEON", 21)
+world.neighbours = { ["eDP-1"] = { u = "DP-1" }, ["DP-1"] = { d = "eDP-1" } }
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+for id = 1, 10 do window("0x" .. id, id) end
+world.focused = "DP-1"
+for id = 11, 20 do window("0x" .. id, id) end
+unplug("DP-2")
+fire_timers()
+world.handlers["monitor.removed"]({ name = "DP-2" })
+-- Both blocks are full, and the laptop shows a guest of the unplugged monitor.
+world.focused = "eDP-1"
+window("0xg", 21)
+world.workspaces[#world.workspaces].monitor = "eDP-1"
+monitor_named("eDP-1").active = 21
+
+hl.dispatch(m.swap_with_monitor("u"))
+check(world.windows["0xg"].workspace == 21 and on(21) == "DP-1", "the guest did not go up under its own number: " .. world.windows["0xg"].workspace)
+check(world.windows["0x11"].workspace == 11 and on(11) == "eDP-1", "the workspace from above did not keep its number: " .. world.windows["0x11"].workspace)
+for _, workspace in ipairs(hl.get_workspaces()) do
+  check(workspace.id <= 30, "a workspace was left under a spare number: " .. workspace.id)
+end
+check(world.focused == "DP-1", "focus did not follow the workspace that went")
+' || fail "a swap with no room on either side trades the workspaces and keeps their numbers"
+pass "a swap with no room on either side trades the workspaces and keeps their numbers"
