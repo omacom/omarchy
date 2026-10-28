@@ -123,7 +123,9 @@ can point a submenu at an existing provider but cannot declare a new one:
   `label\tvalue\tcurrent`, with an optional fourth field that becomes a search-only
   term for the row (the languages provider passes each language's English name, so
   searching "danish" finds the row labeled "Dansk", without making "danish" a routable command). The row whose value equals `current` gets the ✓
-  icon, and selection runs the spec's `actionFor(value)`. Row ids are
+  icon, and selection runs the spec's `actionFor(value)`. A spec with
+  `labelFontFor(value)` draws each row's label in the font family it returns;
+  the fonts provider uses it so every font previews itself. Row ids are
   `<menuId>.<slugify(value)>`, with a `-` appended on collision so two values
   that slugify alike cannot silently drop a row.
 
