@@ -25,7 +25,15 @@ refresh_running_browser() {
 failed=0
 omarchy-theme-set-browser-policy "${THEME_HEX_COLOR#\#}" || failed=1
 
+# Helium reads policies from /etc/chromium/policies/managed but applying
+# BrowserThemeColor there causes partial theming (frame vs toolbar/omnibox).
+# Remove the policy file if Helium is installed/running so it uses its own theme.
+if omarchy-cmd-present helium-browser || pgrep -x helium >/dev/null 2>&1; then
+  rm -f /etc/chromium/policies/managed/color.json 2>/dev/null || true
+fi
+
 refresh_running_browser chromium chromium
+refresh_running_browser helium helium-browser
 refresh_running_browser chrome google-chrome-stable || refresh_running_browser chrome google-chrome
 refresh_running_browser msedge microsoft-edge-stable
 refresh_running_browser brave brave
