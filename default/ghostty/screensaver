@@ -1,3 +1,5 @@
 window-padding-x = 0
 window-padding-y = 0
 window-padding-color = "extend-always"
+# A glassy theme turns ghostty see-through; the screensaver stays opaque (#16583).
+background-opacity = 1
