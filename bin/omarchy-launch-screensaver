@@ -25,6 +25,27 @@ hypr_focus_monitor() {
   hyprctl dispatch "hl.dsp.focus({ monitor = \"$1\" })" >/dev/null 2>&1 || hyprctl dispatch focusmonitor "$1" >/dev/null
 }
 
+# The branding art is a fixed number of columns wide. At the stock font size of
+# 18 it overflows displays whose logical width cannot fit it (a 2256x1504 panel
+# at 2x scale fits 77 columns; the art is 81), so the last letters run off the
+# right edge. Derive a font size per monitor instead: cell width is ~0.8x the
+# font size for the monospace fonts these configs use, so
+# font_size = logical_width / (0.8 * art_columns) fits the art exactly. Clamped
+# to [12, 18] so it never grows past the stock size or shrinks into illegibility.
+screensaver_font_size() {
+  local monitor=$1 art_columns logical_width size
+  art_columns=$(awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }' \
+    "${HOME}/.config/omarchy/branding/screensaver.txt" 2>/dev/null)
+  [[ $art_columns =~ ^[0-9]+$ && $art_columns -gt 0 ]] || art_columns=81
+  logical_width=$(hyprctl monitors -j | jq -r --arg m "$monitor" \
+    '.[] | select(.name == $m) | (.width / .scale) | floor')
+  [[ $logical_width =~ ^[0-9]+$ && $logical_width -gt 0 ]] || { printf '18\n'; return; }
+  size=$(( logical_width * 10 / (8 * art_columns) ))
+  (( size > 18 )) && size=18
+  (( size < 12 )) && size=12
+  printf '%s\n' "$size"
+}
+
 hypr_exec() {
   local command
   printf -v command '%q ' "$@"
@@ -54,19 +75,20 @@ while read -r m special; do
   hypr_focus_monitor "$m"
   # Share a special workspace that is already showing, like the scratchpad, so it is still open afterwards.
   workspace=${special:-special:screensaver-$m}
+  font_size=$(screensaver_font_size "$m")
 
   case $terminal in
   *Alacritty*)
-    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -e omarchy-screensaver
+    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -o "font.size=$font_size" -e omarchy-screensaver
     ;;
   *ghostty*)
-    hypr_exec ghostty --class=org.omarchy.screensaver --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size=18 -e omarchy-screensaver
+    hypr_exec ghostty --class=org.omarchy.screensaver --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size="$font_size" -e omarchy-screensaver
     ;;
   *foot*)
-    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" -e omarchy-screensaver
+    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" -o "font=JetBrainsMono Nerd Font:size=$font_size" -e omarchy-screensaver
     ;;
   *kitty*)
-    hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e omarchy-screensaver
+    hypr_exec kitty --class=org.omarchy.screensaver --override font_size="$font_size" --override window_padding_width=0 -e omarchy-screensaver
     ;;
   esac
 
