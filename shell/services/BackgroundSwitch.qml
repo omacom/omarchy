@@ -145,8 +145,9 @@ Item {
     if (started || playProc.running) return
     started = true
     // The shell holds the new still before OWE hands the desktop back, so the
-    // old one cannot flash between the clip and the still.
-    backgroundService.setBackground(still, true)
+    // old one cannot flash between the clip and the still. With the
+    // background plugin disabled the cover still has to come down.
+    if (backgroundService) backgroundService.setBackground(still, true)
     if (clip && coverStatus !== "error") {
       playProc.forToken = token
       playProc.command = prepared
@@ -160,10 +161,7 @@ Item {
 
   function settle() {
     if (busy) return
-    if (reloadPending && !playProc.running) {
-      reloadPending = false
-      Quickshell.execDetached(["flock", themeSetLock, "omarchy-restart-hyprctl"])
-    }
+    if (reloadPending && !playProc.running && !reloadLock.running) reloadLock.running = true
     var kept = []
     for (var path of ownedCovers) {
       if (path === intro.themeBackground) kept.push(path)
@@ -177,11 +175,25 @@ Item {
     }
   }
 
+  // A reveal clears its token just before its animation starts, so settling
+  // waits until both have changed.
   Connections {
     target: root.intro
     function onCoverPresented() { root.advance() }
-    function onThemeTokenChanged() { root.settle() }
-    function onRevealingChanged() { root.settle() }
+    function onThemeTokenChanged() { Qt.callLater(root.settle) }
+    function onRevealingChanged() { Qt.callLater(root.settle) }
+  }
+
+  // A theme switch holds this lock while it stages, and may start an intro
+  // of its own before releasing it, so the reload is decided once it is free.
+  Process {
+    id: reloadLock
+    command: ["flock", root.themeSetLock, "true"]
+    onExited: {
+      if (root.busy || playProc.running) return
+      root.reloadPending = false
+      Quickshell.execDetached(["omarchy-restart-hyprctl"])
+    }
   }
 
   Process {
