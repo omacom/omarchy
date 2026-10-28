@@ -1787,13 +1787,24 @@ Item {
     color: "transparent"
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
-    // Hyprland keeps a top-layer surface out of a fullscreen window's input
-    // only by a per-surface flag, and sets that flag back while the window
-    // stays fullscreen (a layer mapping or closing, a notification card
-    // timing out, is enough), so the bar would take the window's clicks. The
-    // bottom layer is always under the fullscreen window, for drawing and
-    // input alike.
-    readonly property bool underFullscreen: Hyprland.monitorFor(screen)?.activeWorkspace?.hasFullscreen ?? false
+
+    // Looked up through the monitor list, not monitorFor(): an output that is
+    // removed and added back, as un-mirroring does, is a new monitor object,
+    // and only the list's binding sees it.
+    readonly property var hyprlandMonitor: {
+      var monitors = Hyprland.monitors.values
+      for (var i = 0; i < monitors.length; i++) {
+        if (screen && monitors[i].name === screen.name) return monitors[i]
+      }
+      return null
+    }
+    // Hyprland keeps a top-layer surface under a fullscreen window only by a
+    // per-surface flag, and that flag is often wrong: a layer mapping or
+    // closing (a notification card timing out) sets it back, and moving the
+    // workspace to another monitor never clears it there. Then the bar takes
+    // the window's clicks or draws over it. The bottom layer is always under
+    // the fullscreen window, for drawing and input alike.
+    readonly property bool underFullscreen: hyprlandMonitor?.activeWorkspace?.hasFullscreen ?? false
     WlrLayershell.layer: underFullscreen ? WlrLayer.Bottom : WlrLayer.Top
 
     // Idle, only the strip takes input, so the clear expanse passes clicks
