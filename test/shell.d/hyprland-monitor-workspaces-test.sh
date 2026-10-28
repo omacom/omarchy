@@ -731,3 +731,25 @@ world.handlers["monitor.added"]({ name = "DP-3" })
 check(world.windows["0xb"].workspace == 22 and on(22) == "DP-2", "the swapped workspace went home anyway: " .. world.windows["0xb"].workspace)
 ' || fail "a swapped workspace stays where it was put when its monitor returns"
 pass "a swapped workspace stays where it was put when its monitor returns"
+
+run_lua swap-full '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.neighbours = { ["eDP-1"] = { u = "DP-1" }, ["DP-1"] = { d = "eDP-1" } }
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "DP-1"
+for id = 11, 20 do window("0x" .. id, id) end
+monitor_named("DP-1").active = 12
+world.focused = "eDP-1"
+
+-- The block above is full, and the slots differ: the workspace going up can
+-- only take the number the other one leaves.
+hl.dispatch(m.swap_with_monitor("u"))
+check(world.windows["0x12"].workspace == 2 and on(2) == "eDP-1", "the workspace from above did not take its slot on the laptop: " .. world.windows["0x12"].workspace)
+check(world.windows["0xa"].workspace == 12 and on(12) == "DP-1", "the workspace sent up did not take the number the other left: " .. world.windows["0xa"].workspace)
+check(on(1) == nil, "a workspace is still numbered 1")
+' || fail "a swap into a full block takes the number the other workspace left"
+pass "a swap into a full block takes the number the other workspace left"
