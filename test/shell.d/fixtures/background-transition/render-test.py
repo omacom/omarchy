@@ -17,7 +17,8 @@ import time
 from urllib.parse import urlsplit
 
 
-root, work = map(Path, sys.argv[1:])
+root, work = map(Path, sys.argv[1:3])
+scenario = sys.argv[3] if len(sys.argv) > 3 else "handoff"
 config = work / "config"
 images = work / "images"
 runtime = work / "runtime"
@@ -60,9 +61,9 @@ class DelayedImage(SimpleHTTPRequestHandler):
 
   def do_GET(self):
     request = urlsplit(self.path)
-    if request.path == "/new/portrait.png" and request.query == "v=2":
-      # Only the displayed portrait frame is slow; its incoming frame already
-      # decoded from a local file. Do not substitute a mocked ready flag.
+    if request.path == "/new/portrait.png" and (scenario != "handoff" or request.query == "v=2"):
+      # Hold the displayed frame alone, or both the incoming and displayed
+      # frames. The latter reproduces a slow output missing the shared reveal.
       (work / "waiting").touch()
       deadline = time.monotonic() + 15
       while not (work / "release").exists() and time.monotonic() < deadline:
@@ -88,6 +89,9 @@ background = replace_once(background, "  id: root\n", """  id: root
   function testFinish() { revealAnimation.complete() }
 """)
 background = replace_once(background, "  Component.onCompleted: refreshBackground()", "")
+if scenario != "handoff":
+  background = replace_once(background, "return Util.fileUrl(path)",
+    f'return "http://127.0.0.1:{port}/" + path.slice({len(str(images)) + 1})')
 # The transparent click-only layer is desktop integration, not image rendering.
 click_layer = background.index("  // OWE's video layer takes no clicks,")
 click_component = background.index("  // Inline components do not see this file's ids,")
@@ -125,8 +129,9 @@ media = replace_once(media, "Util.fileUrl(path)", f'("http://127.0.0.1:{port}/" 
 shutil.copy(root / "shell/Commons/Util.qml", config / "Commons/Util.qml")
 (config / "Commons/Style.qml").write_text("""pragma Singleton
 import QtQuick
+import Quickshell
 QtObject {
-  function duration(ms) { return 1000000 }
+  function duration(ms) { return Quickshell.env("VARIANT_RENDER_SCENARIO") === "reduced-motion" ? 0 : 1000000 }
   function scheduleRefresh() {}
 }
 """)
@@ -145,23 +150,27 @@ try:
   result = subprocess.run(
     ["quickshell", "-p", str(config), "--no-color"],
     env=dict(os.environ, XDG_RUNTIME_DIR=str(runtime), XDG_CACHE_HOME=str(work / "cache"),
-             HOME=str(work), VARIANT_RENDER_DIR=str(work)),
+             HOME=str(work), VARIANT_RENDER_DIR=str(work), VARIANT_RENDER_SCENARIO=scenario),
     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=25,
   )
   (work / "runtime.log").write_text(result.stdout)
   assert result.returncode == 0 and "PASS rendered transition" in result.stdout and "FAIL" not in result.stdout, result.stdout
   assert not any(error in result.stdout for error in ("Binding loop", "ReferenceError", "TypeError")), result.stdout
-  assert (work / "waiting").exists(), "displayed portrait frame never exercised Image.Loading"
+  assert (work / "waiting").exists(), "portrait frame never exercised Image.Loading"
 
   # Sample the center and edges of both outputs: old pixels must be the
   # authored variants (red/blue), not the white default or magenta live base.
-  for stage, colors in (("initial", (b"\xff\0\0", b"\0\0\xff")),
-                        ("captured", (b"\xff\0\0", b"\0\0\xff")),
-                        ("held", (b"\xff\xff\0", b"\0\xff\xff")),
-                        ("finished", (b"\xff\xff\0", b"\0\xff\xff")),
-                        ("reloaded", (b"\xff\0\xff", b"\xff\0\0")),
-                        ("variant-fallback", (b"\0\x80\0", b"\xff\0\0")),
-                        ("recovered", (b"\xff\0\0", b"\0\0\xff"))):
+  stages = (("initial", (b"\xff\0\0", b"\0\0\xff")),
+            ("finished", (b"\xff\xff\0", b"\0\xff\xff")))
+  if scenario == "handoff":
+    stages += (("captured", (b"\xff\0\0", b"\0\0\xff")),
+               ("held", (b"\xff\xff\0", b"\0\xff\xff")),
+               ("reloaded", (b"\xff\0\xff", b"\xff\0\0")),
+               ("variant-fallback", (b"\0\x80\0", b"\xff\0\0")),
+               ("recovered", (b"\xff\0\0", b"\0\0\xff")))
+  else:
+    stages += (("slow-incoming", (b"\xff\xff\0", b"\0\0\xff")),)
+  for stage, colors in stages:
     for points, color in ((("5,5", "80,45", "155,85"), colors[0]),
                           (("185,5", "225,80", "265,155"), colors[1])):
       for point in points:
@@ -170,12 +179,13 @@ try:
         assert actual == color, f"{stage} at {point}: expected {color!r}, got {actual!r}"
     print(f"ok - rendered {stage} pixels match both output variants")
 
-  for point, color in (("5,5", b"\xff\0\0"), ("80,45", b"\xff\xff\0"),
-                       ("155,85", b"\xff\0\0"), ("185,5", b"\0\0\xff"),
-                       ("225,80", b"\0\xff\xff"), ("265,155", b"\0\0\xff")):
-    actual = subprocess.check_output(["magick", str(work / "reveal.png"),
-      "-crop", "1x1+" + point.replace(",", "+"), "+repage", "-depth", "8", "rgb:-"])
-    assert actual == color, f"reveal at {point}: expected {color!r}, got {actual!r}"
-  print("ok - rendered reveal mask shows incoming centers and captured outgoing edges")
+  if scenario == "handoff":
+    for point, color in (("5,5", b"\xff\0\0"), ("80,45", b"\xff\xff\0"),
+                         ("155,85", b"\xff\0\0"), ("185,5", b"\0\0\xff"),
+                         ("225,80", b"\0\xff\xff"), ("265,155", b"\0\0\xff")):
+      actual = subprocess.check_output(["magick", str(work / "reveal.png"),
+        "-crop", "1x1+" + point.replace(",", "+"), "+repage", "-depth", "8", "rgb:-"])
+      assert actual == color, f"reveal at {point}: expected {color!r}, got {actual!r}"
+    print("ok - rendered reveal mask shows incoming centers and captured outgoing edges")
 finally:
   server.shutdown()

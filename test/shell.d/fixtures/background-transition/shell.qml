@@ -7,6 +7,7 @@ ShellRoot {
   id: test
   readonly property string directory: Quickshell.env("VARIANT_RENDER_DIR")
   readonly property string images: directory + "/images/"
+  readonly property string scenario: Quickshell.env("VARIANT_RENDER_SCENARIO")
   property int step: 0
   property int ticks: 0
   property bool grabbing: false
@@ -88,7 +89,25 @@ ShellRoot {
           background.transitionBackground("", test.images + "new.png", test.images + "new.png", false, false)
           test.step = 2
         })
-      } else if (test.step === 2 && wide.maskReady && portrait.maskReady &&
+      } else if (test.step === 2 && test.scenario !== "handoff" && wide.maskReady &&
+                 portrait.testIncoming.status === Image.Loading) {
+        // End the fast output's reveal while the portrait still has neither
+        // replacement frame. Reduced motion reaches this point on its own.
+        if (test.scenario !== "reduced-motion") background.testFinish()
+        test.step = 20
+      } else if (test.step === 20 && background.finishingTransition &&
+                 wide.testBase.ready && !portrait.testBase.ready &&
+                 portrait.testIncoming.status === Image.Loading) {
+        test.capture("slow-incoming", function() {
+          release.running = true
+          test.step = 21
+        })
+      } else if (test.step === 21 && background.ready && !background.incomingBackground) {
+        test.capture("finished", function() {
+          console.log("PASS rendered transition")
+          Qt.quit()
+        })
+      } else if (test.step === 2 && test.scenario === "handoff" && wide.maskReady && portrait.maskReady &&
                  wide.testIncoming.status === Image.Ready && portrait.testIncoming.status === Image.Ready) {
         background.testPause()
         // Reload the live bases with a different image. Frozen outgoing pixels

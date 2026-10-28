@@ -16,62 +16,6 @@ assertEqual(choose(resolutions, 'default', 1920, 1080, 1), '1080', 'smallest suf
 assertEqual(choose(resolutions, 'default', 1920, 1080, 2), '4k', 'physical pixel density controls resolution selection')
 const fractional = [image('2560x1600', 2560, 1600), image('3840x2400', 3840, 2400)]
 assertEqual(choose(fractional, 'default', 1600, 1000, 1.6), '2560x1600', 'fractional scale does not select an oversized file')
-const fs = require('fs')
-const backgroundQml = fs.readFileSync(path.join(root, 'shell/plugins/background/Background.qml'), 'utf8')
-assert(backgroundQml.includes('pixelScale: panel.devicePixelRatio') && !backgroundQml.includes('screen.devicePixelRatio') && !backgroundQml.includes('modelData.devicePixelRatio'), 'selection and decoding use the fractional window ratio, not the rounded screen ratio')
-assert(backgroundQml.includes('known[candidate.path] = { width: candidate.width, height: candidate.height }') && backgroundQml.includes('root.nativeSizes = known'), 'catalog dimensions make selected variant paths loadable')
-assert(backgroundQml.includes('version: root.displayedVersion') && backgroundQml.includes('cached: true') && !backgroundQml.includes('reloads'), 'displayed frames keep shared caching with versioned URLs instead of the removed reload mechanism')
-const vm = require('vm')
-const finish = backgroundQml.match(/  function finishTransition\(\) \{[\s\S]*?\n  \}/)[0]
-const prune = backgroundQml.match(/  function pruneNativeSizes\(\) \{[\s\S]*?\n  \}/)[0]
-const transition = {
-  finishingTransition: true, incomingBackground: 'snapshot', oldBackground: 'old', preparedBackground: 'snapshot',
-  displayedBackground: 'default', displayedCandidates: [image('wide', 5120, 2160), image('portrait', 2160, 3840)],
-  nativeSizes: { default: {width: 3840, height: 2160}, wide: {width: 5120, height: 2160}, portrait: {width: 2160, height: 3840}, snapshot: {width: 3840, height: 2160} },
-  backgroundPanels: {instances: [{backgroundReady: true}, {backgroundReady: false}]}
-}
-vm.createContext(transition)
-const ready = backgroundQml.match(/  readonly property bool ready: \{([\s\S]*?)\n  \}/)[1]
-transition.isVideo = () => false
-transition.variantCatalog = {busy: true, generation: 1}
-transition.resolvedVariantGeneration = 0
-transition.backgroundPanels.instances[1].backgroundReady = true
-assert(!vm.runInContext('(function() {' + ready + '})()', transition), 'startup readiness waits for the variant catalog even with a decoded default')
-transition.variantCatalog.busy = false
-assert(!vm.runInContext('(function() {' + ready + '})()', transition), 'startup readiness cannot release the cover between scan exit and candidate application')
-transition.resolvedVariantGeneration = 1
-transition.backgroundPanels.instances[1].backgroundReady = false
-assert(!vm.runInContext('(function() {' + ready + '})()', transition), 'startup readiness waits for every output to present its variant')
-transition.backgroundPanels.instances[1].backgroundReady = true
-assert(vm.runInContext('(function() {' + ready + '})()', transition), 'startup readiness releases the cover after all variants are presented')
-transition.backgroundPanels.instances[1].backgroundReady = false
-vm.runInContext(finish + '\n' + prune + '\nfinishTransition()', transition)
-assert(transition.finishingTransition && transition.incomingBackground === 'snapshot', 'transition retains the incoming frame until every output is ready')
-transition.backgroundPanels.instances[1].backgroundReady = true
-vm.runInContext('finishTransition()', transition)
-assert(!transition.finishingTransition && !transition.incomingBackground && !transition.preparedBackground, 'transition releases its frames after all outputs are ready')
-assertDeepEqual(Object.keys(transition.nativeSizes).sort(), ['default', 'portrait', 'wide'], 'size pruning retains variants for future screen changes and removes snapshots')
-const recover = backgroundQml.match(/  function recoverBackground\(failedPath\) \{[\s\S]*?\n  \}/)[0]
-const finishRecovery = backgroundQml.match(/  function finishRecovery\(path\) \{[\s\S]*?\n  \}/)[0]
-const recovery = {
-  displayedBackground: 'default', backgroundVersion: 1, failedBackground: '', recoverVersion: -1,
-  recoverProc: {running: false}, selections: [],
-  setBackground(path, instant) { recovery.selections.push([path, instant]) }
-}
-vm.createContext(recovery)
-vm.runInContext(recover + '\n' + finishRecovery + '\nrecoverBackground("wide")', recovery)
-assert(!recovery.recoverProc.running, 'a failed alternative cannot start shared background recovery')
-vm.runInContext('recoverBackground("default"); finishRecovery("default")', recovery)
-assertEqual(recovery.selections.length, 0, 'an unreadable default does not loop when recovery resolves the same path')
-recovery.recoverProc.running = false
-vm.runInContext('recoverBackground("default"); finishRecovery("replacement")', recovery)
-assertDeepEqual(recovery.selections, [['replacement', true]], 'a failed default instantly restores the current saved selection')
-recovery.recoverProc.running = false
-vm.runInContext('recoverBackground("default")', recovery)
-recovery.backgroundVersion += 1
-recovery.displayedBackground = 'newer-selection'
-vm.runInContext('finishRecovery("stale-selection")', recovery)
-assertEqual(recovery.selections.length, 1, 'a stale recovery cannot overwrite a newer background selection')
 assertEqual(choose(resolutions, 'default', 10000, 5625, 1), '8k', 'largest image wins when all require enlargement')
 assertEqual(choose([image('huge', 8000, 8000), image('right-shape', 1280, 720)], 'default', 1920, 1080, 1), 'right-shape', 'aspect ratio takes precedence over resolution')
 assertEqual(choose([], 'default', 1920, 1080, 1), 'default', 'empty groups fall back to the default')

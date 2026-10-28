@@ -497,7 +497,9 @@ Item {
         sourceItem: root.oldBackground !== "" ? base : null
         live: false
         smooth: true
-        visible: root.oldBackground !== "" && root.revealProgress < 1
+        // Another output can finish the shared reveal before this one's
+        // incoming image decodes, including with animations disabled.
+        visible: root.oldBackground !== "" && (root.revealProgress < 1 || incomingFrame.status !== Image.Ready)
       }
 
       Item {

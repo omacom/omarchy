@@ -17,9 +17,11 @@ render_dir=${OMARCHY_BACKGROUND_TEST_DIR:-$(mktemp -d /tmp/omarchy-background-re
 trap 'if (( $? == 0 )) && [[ -z ${OMARCHY_BACKGROUND_TEST_DIR:-} ]]; then rm -rf "$render_dir"; fi' EXIT
 ulimit -c 0 2>/dev/null || true
 
-if ! env -u WAYLAND_DISPLAY -u QT_QUICK_BACKEND -u QSG_RHI_BACKEND \
-  QT_QPA_PLATFORM=xcb QT_QPA_PLATFORMTHEME=basic LIBGL_ALWAYS_SOFTWARE=1 \
-  xvfb-run -a python "$SHELL_TEST_DIR/fixtures/background-transition/render-test.py" "$ROOT" "$render_dir"; then
-  fail "rendered background transitions preserve per-output frames" "Artifacts: $render_dir"
-fi
-pass "rendered backgrounds preserve per-output transitions, same-path reloads, and variant/default recovery"
+for scenario in handoff slow-incoming reduced-motion; do
+  if ! env -u WAYLAND_DISPLAY -u QT_QUICK_BACKEND -u QSG_RHI_BACKEND \
+    QT_QPA_PLATFORM=xcb QT_QPA_PLATFORMTHEME=basic LIBGL_ALWAYS_SOFTWARE=1 \
+    xvfb-run -a python "$SHELL_TEST_DIR/fixtures/background-transition/render-test.py" "$ROOT" "$render_dir/$scenario" "$scenario"; then
+    fail "rendered background transitions preserve per-output frames ($scenario)" "Artifacts: $render_dir/$scenario"
+  fi
+  pass "rendered backgrounds preserve per-output frames ($scenario)"
+done
