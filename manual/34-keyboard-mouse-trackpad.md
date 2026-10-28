@@ -56,7 +56,6 @@ Swipe on the trackpad to move around the desktop:
 | Three fingers left / right | Previous / next workspace, including empty ones |
 | Three fingers up | Toggle the AI console |
 | Three fingers down | Open the Omarchy menu |
-| `Super` + three-finger swipe | Move the active window |
 | Four fingers left / right | Move the active window to the previous / next workspace |
 | Four fingers down | Toggle fullscreen |
 

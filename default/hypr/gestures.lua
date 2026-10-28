@@ -15,9 +15,6 @@ hl.gesture({ fingers = 3, direction = "right", action = function() hl.dispatch(h
 hl.gesture({ fingers = 3, direction = "up", action = "special", workspace_name = "qconsole" })
 hl.gesture({ fingers = 3, direction = "down", action = function() hl.dispatch(hl.dsp.global("omarchy:menu.root")) end })
 
--- Move the active window around with Super held.
-hl.gesture({ fingers = 3, direction = "swipe", mods = "SUPER", action = "move" })
-
 -- Four fingers take the active window along to the neighbouring workspace.
 hl.gesture({ fingers = 4, direction = "left", action = function() hl.dispatch(hl.dsp.window.move({ workspace = "r-1" })) end })
 hl.gesture({ fingers = 4, direction = "right", action = function() hl.dispatch(hl.dsp.window.move({ workspace = "r+1" })) end })
