@@ -10,6 +10,6 @@ Themes can include a short intro for a still background. For `backgrounds/road.w
 
 Turning off _Appearance > Animations_ also turns off background intros. Omarchy does this by default in a virtual machine. The `omarchy theme bg intro toggle` command can toggle intros separately. Refreshing a theme or choosing another background within the same theme does not play an intro.
 
-You can find a huge collection of cool curated backgrounds on https://github.com/dharmx/walls.
+You can find a huge collection of cool curated backgrounds in [dharmx/walls](https://github.com/dharmx/walls).
 
 The lock screen shows a still frame of a video background, the same way it shows a still frame of an animated GIF.

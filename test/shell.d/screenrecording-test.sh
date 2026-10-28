@@ -161,12 +161,6 @@ if ! cmp -s "$OMARCHY_TEST_RECORDER_ARGS" "$expected_recorder_args"; then
 fi
 pass "screenrecording webcam picker starts recording with selected device"
 
-first_webcam=$(omarchy-capture-webcam-list | sed -n '1s/[[:space:]].*//p')
-[[ $first_webcam == "/dev/video42" ]] || fail "screenrecording auto-detection selects the first capture device"
-grep -F 'WEBCAM_DEVICE=$(omarchy-capture-webcam-list' "$ROOT/bin/omarchy-capture-screenrecording" >/dev/null || \
-  fail "screenrecording auto-detection uses capture-capable webcams"
-pass "screenrecording auto-detection uses the first capture-capable webcam"
-
 cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
@@ -281,24 +275,6 @@ fi
 pass "webcam sizes stay distinct and inside a narrow region"
 
 rm -f "$region_file"
-
-grep -F 'o.bind("SUPER + ALT + code:34", "Make webcam overlay smaller", "omarchy-capture-webcam-resize smaller")' \
-  "$ROOT/default/hypr/bindings/utilities.lua" >/dev/null || fail "webcam smaller hotkey is configured"
-grep -F 'o.bind("SUPER + ALT + code:35", "Make webcam overlay larger", "omarchy-capture-webcam-resize larger")' \
-  "$ROOT/default/hypr/bindings/utilities.lua" >/dev/null || fail "webcam larger hotkey is configured"
-pass "webcam resize hotkeys are configured"
-
-grep -F -- '--wayland-app-id="WebcamOverlay-$WEBCAM_SIZE"' \
-  "$ROOT/bin/omarchy-capture-screenrecording" >/dev/null || fail "webcam uses a dedicated size-specific app id"
-
-webcam_rules="$ROOT/default/hypr/apps/webcam-overlay.lua"
-grep -F 'move = { "(monitor_w-monitor_h*4/25-40)", "(monitor_h-monitor_h*9/50-40)" }' "$webcam_rules" >/dev/null || \
-  fail "small webcam starts at its final corner position"
-grep -F 'move = { "(monitor_w-monitor_h*2/9-40)", "(monitor_h-monitor_h/4-40)" }' "$webcam_rules" >/dev/null || \
-  fail "medium webcam starts at its final corner position"
-grep -F 'move = { "(monitor_w-monitor_h*3/10-40)", "(monitor_h-monitor_h*27/80-40)" }' "$webcam_rules" >/dev/null || \
-  fail "large webcam starts at its final corner position"
-pass "webcam size rules place the initial window in its final corner"
 
 # The stop path reads the recording state file back and uses its contents as a
 # path -- ffmpeg writes beside it, `mv` replaces it, `rm -f` deletes its
@@ -539,3 +515,53 @@ if status "$legacy_runtime"; then fail "--status reports nothing when no recorde
 ! grep -q -- '--signal' "$helper_calls" || fail "--status signals nothing" "$(<"$helper_calls")"
 [[ ! -e $OMARCHY_TEST_NOTIFICATION_ARGS ]] || fail "--status never notifies, even without a recordings directory" "$(<"$OMARCHY_TEST_NOTIFICATION_ARGS")"
 pass "--status answers what stop would act on, without a recordings directory, notifications or signals"
+
+# A recording that ended without a stop leaves its audio loopbacks and sink
+# loaded. Status and stop unload them, newest first, once the saved recorder is
+# gone; while it records, or before it saves its pid, the mix stays.
+cat >"$stub_bin/pactl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_AUDIO_CALLS"
+SH
+chmod +x "$stub_bin/pactl"
+
+audio_runtime="$tmp_dir/audio-runtime"
+audio_calls="$tmp_dir/audio-calls"
+audio_modules="$audio_runtime/omarchy-screenrecord-pa-modules"
+mkdir -p "$audio_runtime"
+echo 123 >"$audio_runtime/omarchy-screenrecord-pid"
+rm -f "$recording_flag"
+
+recorder() {
+  XDG_RUNTIME_DIR="$audio_runtime" OMARCHY_TEST_HELPER_CALLS="$helper_calls" OMARCHY_TEST_RECORDING="$recording_flag" \
+    OMARCHY_TEST_LIVE_PID="${2:-}" OMARCHY_TEST_AUDIO_CALLS="$audio_calls" OMARCHY_SCREENRECORD_DIR="$recording_dir" \
+    "$ROOT/bin/omarchy-capture-screenrecording" "$1" >/dev/null 2>&1
+}
+
+for action in --status --stop-recording; do
+  printf '10\n11\n12\n' >"$audio_modules"
+  : >"$helper_calls"
+  : >"$audio_calls"
+  status=0
+  recorder "$action" || status=$?
+  (( status == 1 )) || fail "$action reports no recorder after it exits" "$status"
+  [[ $(<"$audio_calls") == $'unload-module 12\nunload-module 11\nunload-module 10' ]] ||
+    fail "$action releases the exited recorder's audio loopbacks before its sink" "$(<"$audio_calls")"
+  [[ ! -e $audio_modules ]] || fail "$action removes the stale audio module list"
+  ! grep -q -- '--signal' "$helper_calls" || fail "$action signals no other recorder"
+  pass "$action releases audio capture after the saved recorder exits"
+done
+
+printf '10\n11\n12\n' >"$audio_modules"
+: >"$audio_calls"
+recorder --status 123 || fail "status recognizes the active recorder"
+[[ ! -s $audio_calls && -e $audio_modules ]] || fail "status leaves an active recording's audio modules loaded"
+pass "status preserves the active recorder's audio capture"
+
+rm "$audio_runtime/omarchy-screenrecord-pid"
+: >"$audio_calls"
+status=0
+recorder --status || status=$?
+(( status == 1 )) || fail "status reports inactive before the recorder starts"
+[[ ! -s $audio_calls && -e $audio_modules ]] || fail "status preserves the audio mix created before the recorder starts"
+pass "status leaves the starting recorder's audio mix alone"

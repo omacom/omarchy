@@ -15,7 +15,7 @@ Take a full-screen screenshot without opening the editor:
 omarchy capture screenshot fullscreen save
 ```
 
-The command writes to Omasnap's configured screenshot directory. Use `omarchy screenshot` for the interactive capture flow, which copies the capture and shows a timed preview. Use `omarchy screenshot --editor=overlay` to test annotation before output. Capture reference and candidate states as separate images when changing a layer-shell surface or layout, then compare both.
+The command writes to Omasnap's configured screenshot directory. Use `omarchy screenshot` for the interactive capture flow, which saves and copies the capture and shows its notification. Use `omarchy screenshot --editor=overlay` to test annotation before output. Capture reference and candidate states as separate images when changing a layer-shell surface or layout, then compare both.
 
 Record a short full-screen video for animation, transition, timing, capture, or
 screen-recording changes:

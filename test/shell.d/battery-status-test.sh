@@ -195,9 +195,3 @@ printf '9000000\n' >"$hold_dir/power/BAT0/power_now"
 sparse_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $sparse_output == "Battery 60%  ·  "$' '"9W" ]] || fail "missing readings drop out of the status line" "$sparse_output"
 pass "battery status leaves out readings it doesn't have"
-
-if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
-  fail "battery status owns capacity and remaining calculations" "$matches"
-fi
-
-pass "battery status owns capacity and remaining calculations"

@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Bruger"
   },
-  "system.reboot-boot-menu": {
-    "label": "Genstart til opstartsmenu"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Nedbrudsregistrering fra"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Bærbar skærm til"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Bærbar skærm fra"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Skærmspejling til"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Skærmspejling fra"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Skift til hybrid-GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Skift til integreret GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Aktivér touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Deaktiver touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Aktivér touchskærm"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Deaktiver touchskærm"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Vis batteri %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Skjul batteri %"
+  },
+  "appearance.windows": {
+    "label": "Vinduer"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Vinduesmellemrum til"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Vinduesmellemrum fra"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-vinduesforhold til"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-vinduesforhold fra"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.animations-on": {
+    "label": "Animationer til"
+  },
+  "appearance.animations-off": {
+    "label": "Animationer fra"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Hold vågen"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Tillad dvale"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Notifikationer til"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Slå notifikationer fra"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Natlys til"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Natlys fra"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Pauseskærm til"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Pauseskærm fra"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Nedbrudsopsamling til"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kerne"
   }
 }

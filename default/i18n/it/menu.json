@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Utente"
   },
-  "system.reboot-boot-menu": {
-    "label": "Riavvia al menu di avvio"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Disattiva registrazione crash"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Attiva display portatile"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Disattiva display portatile"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Attiva mirroring display"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Disattiva mirroring display"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Passa a GPU ibrida"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Passa a GPU integrata"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Attiva touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Disattiva touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Attiva touchscreen"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Disattiva touchscreen"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Mostra % batteria"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Nascondi % batteria"
+  },
+  "appearance.windows": {
+    "label": "Finestre"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Attiva spazi finestre"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Disattiva spazi finestre"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Attiva proporzione 1 finestra"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Disattiva proporzione 1 finestra"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.animations-on": {
+    "label": "Attiva animazioni"
+  },
+  "appearance.animations-off": {
+    "label": "Disattiva animazioni"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Resta attivo"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Consenti sospensione"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Attiva notifiche"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Silenzia notifiche"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Attiva luce notturna"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Disattiva luce notturna"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Attiva salvaschermo"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Disattiva salvaschermo"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Attiva cattura crash"
   }
 }

@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Utilisateur"
   },
-  "system.reboot-boot-menu": {
-    "label": "Redémarrer sur le menu de démarrage"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Capture de plantage désactivée"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Écran portable activé"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Écran portable désactivé"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Duplication d'écran activée"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Duplication d'écran désactivée"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Passer au GPU hybride"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Passer au GPU intégré"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Activer le pavé tactile"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Désactiver le pavé tactile"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Activer l'écran tactile"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Désactiver l'écran tactile"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Noyau"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Afficher % batterie"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Masquer % batterie"
+  },
+  "appearance.windows": {
+    "label": "Fenêtres"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Espacement fenêtres activé"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Espacement fenêtres désactivé"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Ratio 1 fenêtre activé"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Ratio 1 fenêtre désactivé"
+  },
+  "appearance.branding": {
+    "label": "Image de marque"
+  },
+  "appearance.animations-on": {
+    "label": "Animations activées"
+  },
+  "appearance.animations-off": {
+    "label": "Animations désactivées"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Rester éveillé"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Autoriser la veille"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Notifications activées"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Couper les notifications"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Éclairage nocturne activé"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Éclairage nocturne désactivé"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Écran de veille activé"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Écran de veille désactivé"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Capture des plantages activée"
   }
 }

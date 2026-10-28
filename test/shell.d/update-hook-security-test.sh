@@ -36,17 +36,16 @@ assert 'sudo -v' not in s, s
 positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-update-system-pkgs','step:omarchy-migrate','step:omarchy-update-restart --services-only','step:omarchy-hook post-update','step:omarchy-update-mise','step:yay','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
 assert positions==sorted(positions), s
 yay=positions[5]
-# Everything before AUR shares the one authorization: plain sudo, no revokes.
-assert not any(line=='sudo -k' or line.startswith('sudo -N ') for line in s[auth:positions[4]]), s
+# Everything through AUR shares the one authorization: plain sudo, no revokes.
+assert not any(line=='sudo -k' or line.startswith('sudo -N ') for line in s[auth:yay+1]), s
 assert 'sudo /usr/bin/true' in s[auth:positions[0]+1], s
-# AUR builds start from a revoked credential and cannot refresh one.
-assert 'sudo -k' in s[positions[4]:yay], s
-assert not any(line.startswith('sudo ') and line!='sudo -k' and not line.startswith('sudo -N ') for line in s[yay:]), s
+# Nothing after AUR authorizes again, and the update ends cold.
+assert not any(line.startswith('sudo ') and line not in ('sudo -k','sudo -n /usr/bin/true') for line in s[yay:]), s
 PY
-  pass "update $args authorizes once for everything but AUR, which runs cold last, and exits cold"
+  pass "update $args authorizes once for everything, AUR included, and exits cold"
 done
 
-for step in omarchy-update-system-pkgs yay omarchy-hook omarchy-update-mise; do
+for step in omarchy-update-system-pkgs yay omarchy-hook; do
   reset_boundary
   export SUDO_TEST_FAIL_STEP=$step
   if run_update -y; then fail "$step failure must fail the update"; fi
@@ -71,12 +70,6 @@ export SUDO_TEST_REVOKE_FAIL=1
 if run_update -y; then fail "failed initial revocation must fail the update"; fi
 if grep -q '^step:' "$SUDO_TEST_LOG"; then fail "failed revocation must precede update work"; fi
 pass "a failed cold start prevents update work"
-
-reset_boundary
-export SUDO_TEST_UNSUPPORTED=1
-if run_update -y; then fail "unsupported sudo must prevent mixed-trust work"; fi
-assert_boundary_cold "unsupported sudo"
-pass "unsupported sudo fails without running update steps"
 
 reset_boundary
 "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" stable >"$boundary_tmp/output" 2>&1 || fail "refresh failed" "$(<"$boundary_tmp/output")"

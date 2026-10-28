@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy عام طور پر ہاٹ کیز اور Omarchy مینیُو (`Super + Space`) کے ذریعے کنٹرول کیا جاتا ہے۔ لیکن آپ اسے `omarchy` CLI کے ذریعے بھی کنٹرول کر سکتے ہیں۔ یہ خاص طور پر اس وقت مددگار ہوتا ہے جب آپ AI ایجنٹ کو کسٹمائزیشن یا کنفیگریشن پر اپنے ساتھ کام کرا رہے ہوں۔
+Omarchy کو عام طور پر hotkeys اور Omarchy menu (`Super + Space`) کے ذریعے کنٹرول کیا جاتا ہے۔ لیکن آپ اسے `omarchy` CLI کے ذریعے بھی کنٹرول کر سکتے ہیں۔ یہ خاص طور پر اس وقت مددگار ہوتا ہے جب آپ کسی AI agent سے customization یا configuration پر اپنے ساتھ کام کروا رہے ہوں۔
 
-CLI کو ان تمام داخلی ٹولز تک رسائی حاصل ہے جو مینیُو کے ذریعے بھی استعمال ہوتے ہیں اور دوسری جگہ بھی۔ آپ ٹرمینل میں `omarchy` چلا کر دستیاب سب کچھ دیکھ سکتے ہیں۔
+CLI کو ان تمام internal tooling تک رسائی حاصل ہے جو menu کے ذریعے اور اس کے علاوہ بھی استعمال ہوتی ہیں۔ آپ terminal میں `omarchy` چلا کر ہر دستیاب چیز دیکھ سکتے ہیں۔
 
-یہ کچھ اس طرح لگتا ہے:
+یہ کچھ اس طرح نظر آتا ہے:
 
 ```
 ~ ❯ omarchy
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-اور آپ ہر گروپ پر مزید گہرائی میں جا سکتے ہیں:
+اور آپ ہر group میں مزید گہرائی تک جا سکتے ہیں:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-ہر کمانڈ `--help` بھی لیتی ہے، چاہے آپ پورا گروپ پوچھیں (`omarchy capture --help`) یا کوئی ایک کمانڈ (`omarchy capture screenshot --help`)۔
+ہر command `--help` بھی لیتا ہے، چاہے آپ پورے group سے پوچھیں (`omarchy capture --help`) یا کسی ایک command سے (`omarchy capture screenshot --help`)۔
 
-### ٹرمینل سے مینیُو کھولنا
+### Terminal سے menu کھولنا
 
-Omarchy مینیُو بھی اسکرپٹ کے قابل ہے، جو آپ کی اپنی کی بائنڈنگز کے لیے سودمند ہے۔ `omarchy menu` اسے جڑ پر کھولتا ہے، اور آپ اس کا نام دے کر درخت میں کسی بھی مقام پر براہ راست جا سکتے ہیں: `omarchy menu summon style.theme` سیدھا تھیم پِکر پر جاتا ہے، `omarchy menu toggle system` سسٹم مینیُو کھولتا ہے اور اگر یہ پہلے سے اوپر ہے تو اسے دوبارہ بند کر دیتا ہے، اور `omarchy menu close` اسے ہٹا دیتا ہے۔
+Omarchy menu کو script بھی کیا جا سکتا ہے، جو آپ کی اپنی keybindings کے لیے کارآمد ہے۔ `omarchy menu` اسے root پر کھولتا ہے، اور آپ اس کا نام دے کر tree میں سیدھا کسی بھی مقام پر جا سکتے ہیں: `omarchy menu summon appearance.theme` سیدھا theme picker پر جاتا ہے، `omarchy menu toggle system` system menu کھولتا ہے اور اگر وہ پہلے سے کھلا ہو تو اسے پھر سے بند کر دیتا ہے، اور `omarchy menu close` اسے ہٹا دیتا ہے۔

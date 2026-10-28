@@ -2,34 +2,63 @@
 
 ## Alternatīvi redaktori
 
-Omarchy pēc noklusējuma tiek piegādāts ar [Neovim](https://neovim.io/), taču, ja vēlaties ko ierastāku un pazīstamāku no plaša pielietojuma rīkiem, atveriet Omarchy izvēlni (`Super + Space`) un apskatiet iespējas sadaļā _Instalēt > Editor_. Tur sarakstā ir VSCode, Cursor, Zed, Sublime Text, Helix, Vim un Emacs. Ja neatrodat meklēto, ieskatieties sadaļā _Instalēt > Package_ un pārbaudiet, vai vajadzīgais nav pieejams kā Arch pakotne (un, ja nav, mēģiniet _Instalēt > AUR_, lai pārbaudītu AUR).
+Omarchy pēc noklusējuma nāk ar [Neovim](https://neovim.io/), bet, ja vēlies kaut ko nedaudz plašāk izplatītu un pazīstamāku, vari atvērt Omarchy Menu (`Super + Space`) un apskatīt opcijas sadaļā _Install > Editor_. Tur uzskaitīti VSCode, Cursor, Zed, Sublime Text, Helix, Vim un Emacs. Ja neatrod meklēto, ieskaties _Install > Package_ un pārbaudi, vai tā nav Arch pakotnē (un, ja nav, pamēģini _Install > AUR_, lai pārbaudītu AUR).
 
-Oriģinālais `vi` redaktors arī ir pieejams jau uzreiz. Palaidiet `vi filename`, lai rediģētu failu terminālī.
+Oriģinālais `vi` redaktors arī ir pieejams jau no kastes. Palaid `vi filename`, lai rediģētu failu terminālī.
 
-Tēmas saskaņošana tiek piedāvāta redaktoriem `VSCode`, `Cursor`, `VSCodium` un `Helix`.
+Tēmu saskaņošana tiek piedāvāta `VSCode`, `Cursor`, `VSCodium` un `Helix`.
 
-Sistēmas mēroga noklusējuma redaktoru var iestatīt sadaļā `Iestatīšana > Defaults > Editor`.
+Sistēmas mēroga noklusējuma redaktoru vari iestatīt sadaļā `Setup > Defaults > Editor`.
 
 ## Vide
 
-Omarchy atbalsta vesela lēvenia izstrādes vides iestatīšanu Omarchy izvēlnes (`Super + Space`) sadaļā _Instalēt > Development_. Tur, protams, atradīsiet _Ruby on Rails_, kā arī visas trīs galvenās JavaScript izpildvides (Node.js, Bun, Deno) un populāros PHP ietvarus, piemēram, Laravel un Symfony. Ak jā, ir arī Go, Rust, Python, Java, Elixir (ar Phoenix), .NET, OCaml, Zig, Clojure un Scala. Izvēle ir patiešām plaša!
+Omarchy atbalsta vesela lēruma izstrādes vižu iestatīšanu Omarchy Menu (`Super + Space`) sadaļā _Install > Development_. Tur, protams, atradīsi _Ruby on Rails_, bet arī visus trīs galvenos JavaScript izpildlaikus (Node.js, Bun, Deno), kā arī populārus PHP ietvarus, piemēram, Laravel un Symfony. Ak, un tur ir arī Go, Rust, Python, Java, Elixir (ar Phoenix), .NET, OCaml, Zig, Clojure un Scala. Tā ir ļoti plaša izvēle!
 
-Lielāko daļu šo vidi pārvalda [Mise](https://mise.jdx.dev/). Tas ir rīks, kas ļauj vienā datorā instalēt un palaist vairākas vienas programmēšanas valodas versijas. Tas ir kā rbenv vai rvm valodai Ruby vai virtualenv valodai Python, tikai darbojas ar veselām daudzām dažādām vidēm.
+Lielāko daļu šo vižu pārvalda [Mise](https://mise.jdx.dev/). Tas ir rīks, kas ļauj vienā iekārtā instalēt un palaist vairākas programmēšanas valodas versijas. Tas ir kā rbenv vai rvm priekš Ruby vai virtualenv priekš Python, bet darbojas daudzām dažādām vidēm.
 
-Piemēram, lai instalētu Ruby, palaidiet `mise use -g ruby`, kas gan instalēs Ruby, gan iestatīs to kā globālo noklusējumu. Vai arī, ja jūsu projektā ir .ruby-version fails, varat projekta saknē vienkārši palaist `mise i`.
+Lai instalētu, piemēram, Ruby, palaid `mise use -g ruby`, kas gan instalēs Ruby, gan iestatīs to kā globālo noklusējumu. Vai arī, ja tavam projektam ir .ruby-version fails, šī projekta saknē vari vienkārši palaist `mise i`.
+
+## Iepriekš instalēti CLI rīki
+
+Omarchy rīkus, piemēram, `gh`, `uv` un lielāko daļu [kodēšanas aģentu](17-ai.md), padara pieejamus, izmantojot [mise slinko instalēšanu](https://mise.jdx.dev/dev-tools/shims.html#lazy-tools). Pirmajā palaišanas reizē mise to instalē. Turpmākajās palaišanas reizēs tiek izmantota instalētā versija; tā nepārbauda atjauninājumu katrā palaišanas reizē.
+
+Vari arī pārbaudīt noklusējumus vai instalēt tos iepriekš:
+
+```bash
+mise ls --current              # List the tools configured for this directory
+mise install gh               # Install one tool now
+mise install --include-lazy    # Install all configured tools, including lazy tools
+```
+
+Palaid `omarchy update`, lai atjauninātu instalētos rīkus kopā ar pārējo Omarchy. Aizstājvārds `mup` atjaunina tikai mise pārvaldītos rīkus. Lai savai konfigurācijai pievienotu citu rīku, izmanto `mise use -g <tool>`.
+
+Python iestatīšana arī instalē `uv`, izmantojot mise. Python izstrādes vides noņemšana atstāj `uv` pieejamu kā neatkarīgu rīku.
+
+### Savas instalācijas izmantošana
+
+mise komandas `PATH` sarakstā ir pirms `~/.local/bin`, tāpēc rīks, ko instalēji pats, piemēram, ar Claude Code vai Cursor paša instalētāju, joprojām palaiž mise kopiju. Arī no darbvirsmas palaistās lietotnes mise komandas atrod pirms sistēmas pakotnēm, tāpēc lietotne, kas palaiž `gh`, saņem mise kopiju pat tad, ja `github-cli` instalēji ar pacman, un mise šo kopiju instalē pirmajā reizē. Lai tā vietā izmantotu savējo, atspējo mise kopiju failā `~/.config/mise/config.toml`. Piemēram, ja pats instalēji Cursor CLI:
+
+```toml
+[settings]
+disable_tools = ["cursor-agent"]
+```
+
+Ja tev jau ir `[settings]` tabula, pievieno ierakstu tur; paplašini esošo `disable_tools` sarakstu, nevis aizstāj to. Pārliecinies, ka tava instalācija ir `PATH`. Izmanto mise rīka nosaukumu, kas var atšķirties no tā komandas: piemēram, `oh-my-pi` nodrošina `omp`. Noklusējuma aģenta palaišanas rīks arī dod priekšroku lietotāja instalētam Cursor vai Muse mapē `~/.local/bin`.
+
+### Noklusējumu noņemšana un atjaunošana
+
+_Remove Preinstalls_ liek mise izlaist Omarchy rīku deklarācijas tavam lietotājam, pievienojot tās `ignored_config_paths` failā `~/.config/mise/miserc.toml`. _Restore Preinstalls_ šo rindu atkal noņem. Rīki, ko deklarē tu pats savā konfigurācijā vai projekta `mise.toml`, turpina darboties jebkurā gadījumā. Ja pēc iepriekš instalēto rīku noņemšanas izvēlēsies noklusējuma aģentu vai iestatīsi Python, šis rīks tiks pievienots tavai konfigurācijai. Abas iespējas attiecas tikai uz tavu lietotāju; citi lietotāji šajā iekārtā saglabā savu izvēli.
 
 ## Docker
 
-[Docker](https://www.docker.com/) gandrīz nemaz nav jāiepazīstina. Tas ļauj palaist izolētus konteinerus, un Omarchy instalē visu, kas nepieciešams tā labai darbībai, ieskaitot pašu Docker un [Docker Compose](https://docs.docker.com/compose/).
+[Docker](https://www.docker.com/) diez vai vajag īpaši iepazīstināt. Tas ļauj palaist izolētus konteinerus, un Omarchy instalē visu, kas vajadzīgs tā labai darbībai, tostarp pašu Docker un [Docker Compose](https://docs.docker.com/compose/).
 
-Pēc noklusējuma jūs *neesat* `docker` grupā. Šī grupa būtībā ir root piekļuve bez paroles — jebkas, kas tajā atrodas, var izpildīt `docker run -v /:/host` un pārņemt datoru, — tāpēc viens vienīgs negodīgs skripts vai atkarīga pakotne, kas darbojas jūsu vārdā, citādi būtu tikai vienas komandas attālumā no root piekļuves. Tāpēc komandrindā Docker jāpalaiž ar `sudo` (`sudo docker ps`, `sudo docker compose up`), bet grafiskie rīki, kas sazinās ar dēmonu, — Windows VM —, kad tas nepieciešams, prasa autorizāciju. Ja vēlaties atgūt iestatījuma bez grupas ērtību un saprotat kompromisu, iespējojiet to sadaļā **Iestatīšana > Security > Sudoless Docker** (vai palaidiet `omarchy-setup-security-sudoless-docker`), kas pēc brīdinājuma pievieno jūs `docker` grupai; tad vienkāršs `docker` un `d` aizstājvārds atkal darbosies bez `sudo`.
+Pēc noklusējuma tavs lietotājs *nav* `docker` grupā. Šī grupa faktiski ir root bez paroles — jebkas tajā var palaist `docker run -v /:/host` un pārņemt iekārtu —, tāpēc viens negodīgs skripts vai atkarība, kas darbojas ar tavām tiesībām, citādi būtu tikai vienas komandas attālumā no root. Tāpēc komandrindā Docker palaiž ar `sudo` (`sudo docker ps`, `sudo docker compose up`), bet grafiskie rīki, kas sazinās ar dēmonu — Windows VM —, vajadzības gadījumā prasa autorizāciju. Ja vēlies atgūt ērtības bez grupas un saproti kompromisu, iespējo to sadaļā **Setup > Security > Sudoless Docker** (vai palaid `omarchy-setup-security-sudoless-docker`), kas pēc brīdinājuma pievienos tevi `docker` grupai; tad parastais `docker` un aizstājvārds `d` atkal darbosies bez `sudo`.
 
-Biežākās datubāzes lokālai izstrādei Docker vidē var iestatīt Omarchy izvēlnē sadaļā _Instalēt > Development > Docker DB_.
+Parastās datubāzes lokālajai izstrādei Docker vari iestatīt Omarchy izvēlnē, izmantojot _Install > Development > Docker DB_.
 
 ## GitHub CLI
 
-[GitHub CLI](https://cli.github.com/) ļauj autentificēties ar savu GitHub kontu un to izmantojot klonēt privātas repozitorijas. Tas ir pieslēgts kā viens no mise aizpildītājiem ar lēnu ielādi, tāpēc pirmoreiz palaižot `gh`, tas instalē sevi pats. Lai autentificētos, palaidiet `gh auth login`. Pēc tam varat izrakstīt privātas repozitorijas ar `gh repo clone org/repo`.
+[GitHub CLI](https://cli.github.com/) ir pieejams kā `gh` darbam ar repozitorijiem, problēmām un izvilkšanas pieprasījumiem no termināļa. Palaid `gh auth login`, lai pirmajā lietošanas reizē to instalētu un autentificētos, pēc tam `gh repo clone org/repo`, lai klonētu repozitoriju. Palaid `gh --help`, lai izpētītu tā komandas.
 
-Ar šo komandu var veikt arī veselām daudzām citām GitHub darbībām. Vienkārši palaidiet `gh`, lai redzētu visu iespējamo.
-
-Ir arī lēni instalējams aizpildītājs komandai `ghui`, ar ko pārvaldīt izmaiņu pieprasījumus (pull request) termināļa saskarnē (TUI). Savukārt [lazygit](https://github.com/jesseduffield/lazygit) ir iepriekš instalēts, ja vēlaties arī pašu git vadīt no termināļa saskarnes.
+Termināļa saskarnei izvilkšanas pieprasījumiem palaid `ghui`; mise to arī instalē pirmajā lietošanas reizē. [Lazygit](https://github.com/jesseduffield/lazygit) ir iepriekš instalēts darbam ar pašu Git.

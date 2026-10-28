@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "المستخدم"
   },
-  "system.reboot-boot-menu": {
-    "label": "إعادة التشغيل إلى قائمة الإقلاع"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "إظهار نسبة البطارية %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "إخفاء نسبة البطارية %"
+  },
+  "appearance.windows": {
+    "label": "النوافذ"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "تشغيل فجوات النوافذ"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "إيقاف فجوات النوافذ"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "تشغيل نسبة النافذة الواحدة"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "إيقاف نسبة النافذة الواحدة"
+  },
+  "appearance.branding": {
+    "label": "الهوية البصرية"
+  },
+  "appearance.animations-on": {
+    "label": "تشغيل الحركات"
+  },
+  "appearance.animations-off": {
+    "label": "إيقاف الحركات"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "البقاء مستيقظًا"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "السماح بالسكون"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "تشغيل الإشعارات"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "كتم الإشعارات"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "تشغيل الإضاءة الليلية"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "إيقاف الإضاءة الليلية"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "تشغيل شاشة التوقف"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "إيقاف شاشة التوقف"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "تشغيل التقاط الأعطال"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "إيقاف التقاط الأعطال"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "تشغيل شاشة اللابتوب"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "إيقاف شاشة اللابتوب"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "تشغيل عكس الشاشة"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "إيقاف عكس الشاشة"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "التبديل إلى GPU الهجين"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "التبديل إلى GPU المدمج"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "تفعيل لوحة اللمس"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "تعطيل لوحة اللمس"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "تفعيل شاشة اللمس"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "تعطيل شاشة اللمس"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "النواة"
   }
 }
