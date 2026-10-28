@@ -89,16 +89,5 @@ hl.config({
   },
 })
 
--- Scroll nicely in the terminal. TUIs launched under their own app-id
--- (org.omarchy.agent in the console, org.omarchy.btop, TUI.float, ...) no longer
--- carry the terminal's class, but their initial title is still the terminal's
--- name, so they are matched by that to scroll at the same rate.
-local function terminal_scroll(class, title, factor)
-  o.window(class, { scroll_touchpad = factor })
-  o.window({ class = "(org\\.omarchy\\..*|TUI\\..*)", initial_title = title }, { scroll_touchpad = factor })
-end
-
-terminal_scroll("(Alacritty|kitty)", "(Alacritty|kitty)", 1.5)
--- foot only applies its scrollback multiplier to wheel clicks, not precise touchpad scrolling.
-terminal_scroll("foot", "foot", 2.0)
-terminal_scroll("com.mitchellh.ghostty", "Ghostty", 0.2)
+-- Terminal touchpad scroll speeds live in default/hypr/touchpad.lua, so the
+-- touchpad window (Setup > Config > Touchpad) can change or remove them.

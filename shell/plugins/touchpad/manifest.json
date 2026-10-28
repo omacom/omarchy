@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.touchpad",
+  "name": "Touchpad",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Touchpad scrolling, tapping, pointer, gesture, and per-app scroll settings",
+  "kinds": [
+    "panel"
+  ],
+  "entryPoints": {
+    "panel": "Touchpad.qml"
+  }
+}
