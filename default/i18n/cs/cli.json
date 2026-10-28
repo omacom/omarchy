@@ -68,7 +68,7 @@
   "capture.qrCopied": "QR kód zkopírován do schránky",
   "capture.qrHelp": "Vyberte oblast s QR kódem",
   "capture.qrNone": "QR kód nenalezen",
-  "capture.recordingCut": "Vyjmout",
+  "capture.recordingCut": "Stříhat",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Chyba nahrávání obrazovky",
   "capture.recordingKilled": "Proces nahrávání musel být násilně ukončen. Video může být poškozené.",

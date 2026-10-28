@@ -66,7 +66,7 @@
   "capture.qrCopied": "QR 碼已複製到剪貼簿",
   "capture.qrHelp": "選取含有 QR 碼的區域",
   "capture.qrNone": "找不到 QR 碼",
-  "capture.recordingCut": "剪下",
+  "capture.recordingCut": "剪輯",
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "螢幕錄影錯誤",
   "capture.recordingKilled": "錄影處理程序被迫強制結束，影片可能損毀。",
