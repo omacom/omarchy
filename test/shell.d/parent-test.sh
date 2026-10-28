@@ -204,8 +204,6 @@ menu="$ROOT/default/omarchy/omarchy-menu.jsonc"
 grep -q '"setup.security.passwordless-sudo": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Passwordless Sudo stays off a child install's menu"
 grep -q '"setup.security.sudoless-docker": {[^}]*"when":"! omarchy-profile-child && omarchy-sudo-docker --configured"' "$menu" || fail "Sudoless Docker stays off a child install's menu"
 grep -q '"setup.security.fido2": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Fido2 setup stays off a child install's menu"
-grep -q '"install": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Install stays off a child install's menu"
-grep -q '"remove": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Remove stays off a child install's menu"
 grep -q '"update.omarchy": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Update > Omarchy stays off a child install's menu"
 grep -q '"update.channel": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Update > Channel stays off a child install's menu"
 grep -q '"update.firmware": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Update > Firmware stays off a child install's menu"
@@ -215,6 +213,13 @@ if grep -q '"system": {[^}]*omarchy-profile-child' "$menu"; then
 fi
 grep -q '"update.password.parent": {[^}]*"when":"omarchy-profile-child"' "$menu" || fail "Update > Password > Parent stays on a child install"
 pass "the menu keeps the grants that would land on the kid account off a child install"
+
+# Install and Remove stay: a kid needs editors, toolchains and coding agents,
+# and anything there that touches system packages goes through sudo, which asks
+# for the parent password; mise toolchains and agents land in the kid's home.
+! grep -q '"install": {[^}]*omarchy-profile-child' "$menu" || fail "Install is on a child install's menu"
+! grep -q '"remove": {[^}]*omarchy-profile-child' "$menu" || fail "Remove is on a child install's menu"
+pass "Install and Remove stay on a child install's menu, behind the parent password where they need root"
 
 # Features plug in as omarchy-parent-<name> beside this command: help lists
 # them by summary (hidden plumbing excepted), an unknown core command is handed
