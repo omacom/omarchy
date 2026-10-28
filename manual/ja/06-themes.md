@@ -1,12 +1,12 @@
 # テーマ
 
-Omarchy には 22 の美しいテーマが付属しています。Omarchy メニューの _スタイル > テーマ_（`Super + Space`）から選ぶか、`Super + Ctrl + Shift + Space` でテーマセレクターへ直接ジャンプできます。
+Omarchy には 22 種類の美しいテーマが付属しています。Omarchy Menu (`Super + Space`) の _外観 > テーマ_ から切り替えられますし、`Super + Ctrl + T` でテーマセレクターへ直接飛ぶこともできます。
 
-各テーマはデスクトップ、ターミナル、neovim、アクティビティ画面（btop）、Chromium、そして Omarchy シェル全体（トップバー、メニュー、通知、OSD、ロック画面）のスタイルを設定します。（Obsidian については、アプリ内の _Appearance > Themes_ から Omarchy テーマを手動で選ばなければなりません）。
+各テーマは、デスクトップ、ターミナル、neovim、アクティビティ画面 (btop)、Chromium、そしてトップバー、メニュー、通知、OSD、ロック画面を含む Omarchy シェル全体のスタイルを決めます。（Obsidian については、アプリ内の _外観 > テーマ_ から Omarchy テーマを手動で選択する必要があります）。
 
-テーマには背景画像のセットがあり、`Super + Ctrl + Space` で選べます。
+テーマには背景画像のセットが用意されており、`Super + Ctrl + W` で切り替えて選べます。
 
-さらに多くのテーマは [追加テーマページ](https://omarchy.org/themes/) で見つけたり、[自分のテーマを作る](43-making-your-own-theme.md) ことさえできます。
+さらに多くのテーマは [追加テーマのページ](https://omarchy.org/themes/) で見つけられますし、[自分でテーマを作る](43-making-your-own-theme.md) こともできます。
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### アンロック
+### ロック解除画面
 
-テーマにはカスタムのアンロックデザインも用意でき、ブート時の復号プロセスに使われます。_スタイル > アンロック_ の下で 1 つ選べます。このような見た目です：
+テーマには、ブート時の復号プロセスで使われるカスタムのロック解除デザインを持たせることもできます。これらは _外観 > ロック解除_ から選択できます。見た目はこんな感じです：
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

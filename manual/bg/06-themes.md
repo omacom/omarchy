@@ -1,12 +1,12 @@
 # Теми
 
-Omarchy идва с двадесет и две красиви теми. Можеш да избираш между тях чрез _Стил > Тема_ в менюто на Omarchy (`Super + Space`) или да скочиш директно на селектора за теми със `Super + Ctrl + Shift + Space`.
+Omarchy идва с двадесет и две красиви теми. Можете да избирате между тях чрез _Облик > Тема_ в Omarchy Menu (`Super + Space`) или да отидете директно до избора на тема с `Super + Ctrl + T`.
 
-Всяка тема стилизира десктопа, терминала, neovim, екрана за активност (btop), Chromium и цялата обвивка на Omarchy: горна лента, меню, известия, OSD и екран за заключване. (За Obsidian трябва ръчно да избереш темата Omarchy чрез _Външен вид > Теми_ вътре в приложението).
+Всяка тема оформя работния плот, терминала, neovim, екрана за активност (btop), Chromium и цялата обвивка на Omarchy: горната лента, менюто, известията, OSD и заключения екран. (За Obsidian трябва ръчно да изберете темата Omarchy чрез _Appearance > Themes_ вътре в приложението).
 
-Темите имат набор от фонови изображения, между които можеш да избираш със `Super + Ctrl + Space`.
+Темите имат набор от фонови изображения, между които можете да избирате с `Super + Ctrl + W`.
 
-Можеш да намериш още теми на [страницата с допълнителни теми](https://omarchy.org/themes/) или дори [да си направиш собствена тема](43-making-your-own-theme.md).
+Можете да намерите още повече теми на [страницата с допълнителни теми](https://omarchy.org/themes/) или дори да [създадете своя собствена тема](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Отключвания
 
-Темите могат също да имат персонализиран дизайн за отключване, който се използва за процеса на дешифриране при стартиране. Можеш да избереш един от тях под _Стил > Отключи_. Изглеждат така:
+Темите могат да имат и персонализиран дизайн за отключване, който се използва за процеса на дешифриране при стартиране. Можете да изберете един от тях под _Облик > Отключване_. Изглеждат така:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

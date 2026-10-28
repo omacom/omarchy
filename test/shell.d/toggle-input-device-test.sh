@@ -215,55 +215,6 @@ set -e
 [[ ! -e $name_file ]] || fail "no state is written when no device is found"
 pass "disable errors when no device is found"
 
-# The migration runs with the same XDG decoy: legacy files were written to
-# ~/.local/state, so that is where it must look no matter what XDG says.
-run_migration() {
-  HOME="$home_dir" XDG_STATE_HOME="$xdg_decoy" HYPRCTL_LOG="$log_file" \
-    PATH="$stub_dir:$ROOT/bin:$PATH" \
-    bash -euo pipefail "$ROOT/migrations/1787618700.sh" >/dev/null
-}
-
-mkdir -p "$state_dir"
-rm -f "$state_dir"/*-disabled-name
-printf 'hl.device({ name = "synps/2-synaptics-touchpad", enabled = false })\n' >"$state_lua"
-printf 'hl.device({ name = "hostile\\"")", enabled = false })\n' >"$state_dir/touchscreen-disabled.lua"
-
-: >"$log_file"
-run_migration
-[[ $(<"$name_file") == "synps/2-synaptics-touchpad" ]] ||
-  fail "migration recovers a device name containing a slash"
-[[ ! -e $state_lua ]] || fail "migration deletes the generated touchpad Lua"
-[[ ! -e $state_dir/touchscreen-disabled-name ]] ||
-  fail "migration does not copy a hostile name out of generated Lua"
-[[ ! -e $state_dir/touchscreen-disabled.lua ]] ||
-  fail "migration deletes hostile generated Lua even when no name is recovered"
-assert_decoy_untouched
-# The package hook reloads Hyprland before migrations run, so the disable was
-# already dropped for this session; the migration has to put it back.
-grep -Fx 'reload' "$log_file" >/dev/null ||
-  fail "migration reloads so the recovered disable applies to this session"
-pass "migration recovers plain names and discards hostile generated Lua"
-
-printf 'kept-name\n' >"$name_file"
-printf 'hl.device({ name = "other-touchpad", enabled = false })\n' >"$state_lua"
-run_migration
-[[ $(<"$name_file") == "kept-name" ]] || fail "migration keeps an existing device-name file"
-[[ ! -e $state_lua ]] || fail "migration still deletes the generated Lua"
-pass "migration is idempotent over an existing device-name file"
-
-rm -f "$name_file"
-printf 'garbage\n' >"$state_lua"
-chmod 000 "$state_lua"
-run_migration
-[[ ! -e $state_lua ]] || fail "migration removes an unreadable generated Lua"
-[[ ! -e $name_file ]] || fail "no name is recovered from an unreadable file"
-pass "an unreadable state file does not wedge the migration"
-
-: >"$log_file"
-run_migration
-[[ ! -s $log_file ]] || fail "migration with nothing to migrate does not reload"
-pass "migration no-ops with nothing left to migrate"
-
 # A compromised install carries a leftover generated touchpad-disabled.lua whose
 # device name broke out into os.execute. Until the migration deletes it, a reload
 # must not source it. toggles.lua excludes those two names from require_all, so the

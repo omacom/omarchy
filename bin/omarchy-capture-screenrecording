@@ -427,15 +427,15 @@ stop_screenrecording() {
     omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingError)" "$(omarchy-i18n capture.recordingKilled)"
   else
     local filename=$(cat "$RECORDING_FILE" 2>/dev/null)
-    local preview="${filename%.mp4}-preview.png"
+    local preview="$RUNTIME_DIR/omarchy-screenrecord-preview-$$.png"
 
-    # Take the preview thumbnail from the raw recording while finalizing runs,
+    # Take the preview frame from the raw recording while finalizing runs,
     # 0.2s in: the frame the finalized video, trimmed by 0.1s, shows at 0.1s.
     # Finalizing renames its output over the file, so the raw one is held open
     # here first and ffmpeg reads it through that descriptor, whenever it starts.
     local raw_fd preview_pid=""
     if exec {raw_fd}<"$filename"; then
-      ffmpeg -y -ss 00:00:00.2 -i "/proc/self/fd/$raw_fd" -vframes 1 -q:v 2 "$preview" -loglevel quiet 2>/dev/null &
+      ffmpeg -y -ss 00:00:00.2 -i "/proc/self/fd/$raw_fd" -vframes 1 -vf "scale='min(320,iw)':-2" "$preview" -loglevel quiet 2>/dev/null &
       preview_pid=$!
     fi
     finalize_recording
@@ -445,20 +445,61 @@ stop_screenrecording() {
     fi
     echo "$filename"
 
-    omarchy-notification-send "$(omarchy-i18n capture.recordingSaved)" "$(omarchy-i18n capture.recordingSavedHint)" \
-      -t 10000 --image "${preview:-$filename}" \
-      --exec mpv -- "$filename"
+    local image_args=()
+    [[ -s $preview ]] && image_args=(--image "$preview")
 
-    # The shell loads the thumbnail into memory when the toast appears and never
-    # re-reads the file, so the preview only has to outlive that load -- not the
-    # toast. Clear it out of the recordings directory a moment later.
+    omarchy-notification-send "$(omarchy-i18n capture.recordingSaved)" "$(recording_details "$filename")" \
+      -t 10000 "${image_args[@]}" \
+      --action "$(omarchy-i18n capture.recordingOpen)" mpv -- \
+      --action "$(omarchy-i18n capture.recordingCut)" omacut \
+      --with "$filename"
+
+    # The shell loads the preview into memory when the toast appears and never
+    # re-reads the file, so it only has to outlive that load -- not the toast.
+    # A toast held back behind others appears later, so give it half a minute.
     (
-      sleep 2
+      sleep 30
       rm -f "$preview"
     ) 9>&- &
   fi
 
   rm -f "$RECORDING_FILE" "$REC_PID_FILE"
+}
+
+# How long the saved recording runs and how big it is, like "1:07 · 12.4 MB".
+# Each number goes to omarchy-i18n on its own, so it takes the language's
+# digits and decimal separator, and the units live in the catalog.
+recording_details() {
+  local seconds bytes length="" value unit size
+  seconds=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$1" 2>/dev/null)
+  if [[ $seconds =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    seconds=$(LC_ALL=C printf '%.0f' "$seconds")
+    if ((seconds >= 3600)); then
+      length=$(omarchy-i18n capture.recordingLengthHours $((seconds / 3600)) \
+        "$(printf '%02d' $((seconds % 3600 / 60)))" "$(printf '%02d' $((seconds % 60)))")
+    else
+      length=$(omarchy-i18n capture.recordingLength $((seconds / 60)) "$(printf '%02d' $((seconds % 60)))")
+    fi
+  fi
+
+  bytes=$(stat -c %s "$1" 2>/dev/null) || bytes=0
+  read -r value unit < <(awk -v b="$bytes" 'BEGIN {
+    split("B KB MB GB", unit); i = 1
+    while (b >= 1000 && i < 4) { b /= 1000; i++ }
+    printf(i == 1 ? "%d %s\n" : "%.1f %s\n", b, unit[i])
+  }')
+  case $unit in
+  KB) size=$(omarchy-i18n capture.recordingSizeKB "$value") ;;
+  MB) size=$(omarchy-i18n capture.recordingSizeMB "$value") ;;
+  GB) size=$(omarchy-i18n capture.recordingSizeGB "$value") ;;
+  *) size=$(omarchy-i18n capture.recordingSizeB "$value") ;;
+  esac
+
+  if [[ -n $length ]]; then
+    omarchy-i18n capture.recordingDetails "$length" "$size"
+  else
+    echo "$size"
+  fi
 }
 
 toggle_screenrecording_indicator() {

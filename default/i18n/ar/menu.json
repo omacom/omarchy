@@ -8,11 +8,11 @@
   "learn": {
     "label": "تعلّم"
   },
+  "appearance": {
+    "label": "المظهر"
+  },
   "trigger": {
     "label": "تشغيل"
-  },
-  "style": {
-    "label": "النمط"
   },
   "setup": {
     "label": "الإعداد"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "المجتمع"
   },
-  "trigger.appearance": {
-    "label": "المظهر"
+  "appearance.theme": {
+    "label": "السمة"
   },
-  "trigger.appearance.animations": {
-    "label": "الرسوم المتحركة"
+  "appearance.background": {
+    "label": "الخلفية"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "الخط"
+  },
+  "appearance.top-bar": {
     "label": "شريط القائمة"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "إخفاء الشريط"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "إظهار الشريط"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "موضع الشريط"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "خلفية الشريط"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "شريط معتم"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "شريط زجاجي"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "شريط شفاف"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "مؤشرات الشريط"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "نسبة البطارية"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "الساعة"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "الأحد 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "الأحد 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "الأحد 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "الأحد 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "الأحد 3 مايو 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "الأحد 3 مايو 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 مايو W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 مايو W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "شريط علوي"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "شريط سفلي"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "شريط أيسر"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "شريط أيمن"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "إخفاء Dock تلقائيًا"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Dock دائم الظهور"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "موضع Dock"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Dock علوي"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Dock سفلي"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Dock أيسر"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Dock أيمن"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "فواصل النوافذ"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "زوايا النوافذ"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "زوايا السمة"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "زوايا حادة"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "زوايا مستديرة"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "عتامة النوافذ"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "نوافذ معتمة"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "نوافذ شفافة"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "نوافذ زجاجية"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "نسبة النافذة الواحدة"
+  "appearance.branding.screensaver": {
+    "label": "شاشة التوقف"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "حول"
+  },
+  "appearance.branding.about.text": {
+    "label": "تعديل النص"
+  },
+  "appearance.branding.about.image": {
+    "label": "تعيين من صورة"
+  },
+  "appearance.branding.about.default": {
+    "label": "استعادة الافتراضي"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "تعديل النص"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "تعيين من صورة"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "استعادة الافتراضي"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "إخفاء Dock تلقائيًا"
+  },
+  "appearance.dock.always-on": {
+    "label": "Dock دائم الظهور"
+  },
+  "appearance.dock.position": {
+    "label": "موضع Dock"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock علوي"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock سفلي"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock أيسر"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock أيمن"
+  },
+  "appearance.workspace-layout": {
     "label": "تخطيط مساحة العمل",
     "title": "تخطيط مساحة العمل الافتراضي"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "تبليط"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "تمرير"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "عائم"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "مزامنة سمة Herdr"
+  "appearance.unlock": {
+    "label": "فتح القفل"
   },
   "trigger.toggle": {
     "label": "تبديل"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "البقاء مستيقظًا"
-  },
-  "trigger.toggle.notifications": {
-    "label": "الإشعارات"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "الإضاءة الليلية"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "شاشة التوقف"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "التقاط الأعطال"
   },
   "trigger.emoji": {
     "label": "إيموجي"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "اختبار السرعة"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "شاشة المحمول"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "عكس الشاشة"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "GPU هجين"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "لوحة اللمس"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "اهتزاز لوحة اللمس"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "مرتفع"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "شاشة لمس"
   },
   "trigger.reminder.set": {
     "label": "تعيين واحد"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "اختبار سرعة القرص"
-  },
-  "style.theme": {
-    "label": "السمة"
-  },
-  "style.background": {
-    "label": "الخلفية"
-  },
-  "style.unlock": {
-    "label": "فتح القفل"
-  },
-  "style.font": {
-    "label": "الخط"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "شاشة التوقف"
-  },
-  "style.about": {
-    "label": "حول"
-  },
-  "style.about.text": {
-    "label": "تعديل النص"
-  },
-  "style.about.image": {
-    "label": "تعيين من صورة"
-  },
-  "style.about.default": {
-    "label": "استعادة الافتراضي"
-  },
-  "style.screensaver.text": {
-    "label": "تعديل النص"
-  },
-  "style.screensaver.image": {
-    "label": "تعيين من صورة"
-  },
-  "style.screensaver.default": {
-    "label": "استعادة الافتراضي"
   },
   "setup.monitors": {
     "label": "الشاشات"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1208,10 +1160,130 @@
   "update.password.user": {
     "label": "المستخدم"
   },
-  "system.reboot-boot-menu": {
-    "label": "إعادة التشغيل إلى قائمة الإقلاع"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "إظهار نسبة البطارية %"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "إخفاء نسبة البطارية %"
+  },
+  "appearance.windows": {
+    "label": "النوافذ"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "تشغيل فجوات النوافذ"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "إيقاف فجوات النوافذ"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "تشغيل نسبة النافذة الواحدة"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "إيقاف نسبة النافذة الواحدة"
+  },
+  "appearance.branding": {
+    "label": "الهوية البصرية"
+  },
+  "appearance.animations-on": {
+    "label": "تشغيل الحركات"
+  },
+  "appearance.animations-off": {
+    "label": "إيقاف الحركات"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "البقاء مستيقظًا"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "السماح بالسكون"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "تشغيل الإشعارات"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "كتم الإشعارات"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "تشغيل الإضاءة الليلية"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "إيقاف الإضاءة الليلية"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "تشغيل شاشة التوقف"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "إيقاف شاشة التوقف"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "تشغيل التقاط الأعطال"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "إيقاف التقاط الأعطال"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "تشغيل شاشة اللابتوب"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "إيقاف شاشة اللابتوب"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "تشغيل عكس الشاشة"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "إيقاف عكس الشاشة"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "التبديل إلى GPU الهجين"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "التبديل إلى GPU المدمج"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "تفعيل لوحة اللمس"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "تعطيل لوحة اللمس"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "تفعيل شاشة اللمس"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "تعطيل شاشة اللمس"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "النواة"
   }
 }

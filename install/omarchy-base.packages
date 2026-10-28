@@ -101,17 +101,19 @@ omacut
 omawrite
 omarchy-nvim
 omarchy-hyprland-titlebars
+# Stock power-profiles-daemon has no cppc_cpufreq driver, so profiles do nothing
+# on ARM laptops. Back to stock once upstream merges MR !236 and !239.
+omarchy-power-profiles-daemon
+omarchy-screensaver
 omasnap
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe
-owe-lockfeed
 pacman-contrib
 pamixer
 pinta
 plocate
 plymouth
 postgresql-libs
-power-profiles-daemon
 python-gobject
 python-poetry-core
 qt6-base

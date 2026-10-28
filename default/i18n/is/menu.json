@@ -8,11 +8,11 @@
   "learn": {
     "label": "Læra"
   },
+  "appearance": {
+    "label": "Útlit"
+  },
   "trigger": {
     "label": "Kveikja"
-  },
-  "style": {
-    "label": "Stíll"
   },
   "setup": {
     "label": "Uppsetning"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Samfélag"
   },
-  "trigger.appearance": {
-    "label": "Útlit"
+  "appearance.theme": {
+    "label": "Þema"
   },
-  "trigger.appearance.animations": {
-    "label": "Hreyfingar"
+  "appearance.background": {
+    "label": "Bakgrunnur"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Leturgerð"
+  },
+  "appearance.top-bar": {
     "label": "Valmyndastika"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Fela stiku"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Sýna stiku"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Staðsetja stiku"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Bakgrunnur stiku"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Ógegnsæ stika"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Glerstika"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Tær stika"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Vísar stiku"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Rafhlöðuhlutfall"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Klukka"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Sunnudagur 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Sunnudagur 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Sunnudagur 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Sunnudagur 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Sun 3. maí 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Sun 3. maí 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3. maí V18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03. maí V18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Efsta stika"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Neðsta stika"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Vinstri stika"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Hægri stika"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Fela dock sjálfkrafa"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Alltaf sýnilegt dock"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Staðsetning docks"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Efsta dock"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Neðsta dock"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Vinstri dock"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Hægri dock"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Gluggabil"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Gluggahorn"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Þemahorn"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Skörp horn"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Rúnnuð horn"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Ógegnsæi glugga"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Ógegnsæir gluggar"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Gegnsæir gluggar"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Glergluggar"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1-gluggahlutfall"
+  "appearance.branding.screensaver": {
+    "label": "Skjáverji"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Um"
+  },
+  "appearance.branding.about.text": {
+    "label": "Breyta texta"
+  },
+  "appearance.branding.about.image": {
+    "label": "Stilla frá mynd"
+  },
+  "appearance.branding.about.default": {
+    "label": "Endurheimta sjálfgildi"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Breyta texta"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Stilla frá mynd"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Endurheimta sjálfgildi"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Fela dock sjálfkrafa"
+  },
+  "appearance.dock.always-on": {
+    "label": "Alltaf sýnilegt dock"
+  },
+  "appearance.dock.position": {
+    "label": "Staðsetning docks"
+  },
+  "appearance.dock.position.top": {
+    "label": "Efsta dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Neðsta dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "Vinstri dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "Hægri dock"
+  },
+  "appearance.workspace-layout": {
     "label": "Vinnusvæðaskipun",
     "title": "Sjálfgefin vinnusvæðaskipun"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Flísalögn"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Skrunun"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Fljótandi"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr þemasamstilling"
+  "appearance.unlock": {
+    "label": "Opna"
   },
   "trigger.toggle": {
     "label": "Víxla"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Halda vakandi"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Tilkynningar"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Næturljós"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Skjáverji"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Hrungrip"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Hraðapróf"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Fartölvuskjár"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Spegla skjá"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Blendings-GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Snertiflötur"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Snertisvörun flatar"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "hátt"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Snertiskjár"
   },
   "trigger.reminder.set": {
     "label": "Búa til eina"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "Diskahraðapróf"
-  },
-  "style.theme": {
-    "label": "Þema"
-  },
-  "style.background": {
-    "label": "Bakgrunnur"
-  },
-  "style.unlock": {
-    "label": "Opna"
-  },
-  "style.font": {
-    "label": "Leturgerð"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Skjáverji"
-  },
-  "style.about": {
-    "label": "Um"
-  },
-  "style.about.text": {
-    "label": "Breyta texta"
-  },
-  "style.about.image": {
-    "label": "Stilla frá mynd"
-  },
-  "style.about.default": {
-    "label": "Endurheimta sjálfgildi"
-  },
-  "style.screensaver.text": {
-    "label": "Breyta texta"
-  },
-  "style.screensaver.image": {
-    "label": "Stilla frá mynd"
-  },
-  "style.screensaver.default": {
-    "label": "Endurheimta sjálfgildi"
   },
   "setup.monitors": {
     "label": "Skjár"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -1208,10 +1160,130 @@
   "update.password.user": {
     "label": "Notandi"
   },
-  "system.reboot-boot-menu": {
-    "label": "Endurræsa í ræsivalmynd"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Sýna rafhlöðu %"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Fela rafhlöðu %"
+  },
+  "appearance.windows": {
+    "label": "Gluggar"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Gluggabil á"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Gluggabil af"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-glugga hlutfall á"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-glugga hlutfall af"
+  },
+  "appearance.branding": {
+    "label": "Vörumerking"
+  },
+  "appearance.animations-on": {
+    "label": "Hreyfimyndir á"
+  },
+  "appearance.animations-off": {
+    "label": "Hreyfimyndir af"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Halda vakandi"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Leyfa svefn"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Tilkynningar á"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Þagga tilkynningar"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Næturbirta á"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Næturbirta af"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Skjáhvíld á"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Skjáhvíld af"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Hrunupptaka á"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kjarni"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Hrunskráning af"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Fartölvuskjár á"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Fartölvuskjár af"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Skjáspeglun á"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Skjáspeglun af"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Skipta í tvinn-GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Skipta í innbyggðan GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Virkja snertiborð"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Afvirkja snertiborð"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Virkja snertiskjá"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Afvirkja snertiskjá"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
   }
 }
