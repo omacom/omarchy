@@ -11,30 +11,63 @@ current_background_link="$current_dir/background"
 marker="$state_home/omarchy/background-intro.session-id"
 toggle="$state_home/omarchy/toggles/background-intros-off"
 video_extensions=(mp4 m4v mov webm mkv avi)
+handoff_dir="$HOME/.cache/omarchy/background-transitions/handoffs"
 
-resolve_intro() {
+# The clip a background keeps in its directory's intros/ or outros/ under the
+# same stem. OWE plays a clip only over a still, so the login intro, which
+# starts before anything could stand in for a video, asks for stills only.
+resolve_clip() {
+  local kind="$1"
+  local stills_only="$2"
   local background
   local stem
   local extension
-  local intro
+  local clip
 
-  background=$(readlink -f "${1:-$current_background_link}" 2>/dev/null) || return 1
+  background=$(readlink -f "${3:-$current_background_link}" 2>/dev/null) || return 1
   [[ -f $background ]] || return 1
   case ${background,,} in
   *.jpg | *.jpeg | *.png | *.bmp | *.webp) ;;
+  *.mp4 | *.m4v | *.mov | *.webm | *.mkv | *.avi) [[ $stills_only != "true" ]] || return 1 ;;
   *) return 1 ;;
   esac
 
   stem=${background##*/}
   stem=${stem%.*}
   for extension in "${video_extensions[@]}"; do
-    intro="${background%/*}/intros/$stem.$extension"
-    if [[ -f $intro ]]; then
-      printf '%s\n' "$intro"
+    clip="${background%/*}/$kind/$stem.$extension"
+    if [[ -f $clip ]]; then
+      printf '%s\n' "$clip"
       return 0
     fi
   done
   return 1
+}
+
+resolve_intro() {
+  resolve_clip intros false "${1:-}"
+}
+
+resolve_login_intro() {
+  resolve_clip intros true "${1:-}"
+}
+
+# OWE plays an intro over a still and fades its last frame into that still, so
+# a video background's intro plays over the video's first frame, kept here.
+handoff_still() {
+  local video handoff
+  video=$(readlink -f "$1" 2>/dev/null) || return 1
+  [[ -f $video ]] || return 1
+  handoff="$handoff_dir/$(stat -c '%n:%s:%Y' "$video" | sha1sum | cut -c1-16).png"
+  if [[ ! -f $handoff ]]; then
+    mkdir -p "$handoff_dir"
+    if ! ffmpeg -nostdin -v error -i "$video" -frames:v 1 -y "$handoff.partial.png"; then
+      rm -f "$handoff.partial.png"
+      return 1
+    fi
+    mv -f "$handoff.partial.png" "$handoff"
+  fi
+  printf '%s\n' "$handoff"
 }
 
 # Preparation is speculative: the selected staged clip is compared again by OWE.
@@ -96,15 +129,33 @@ case ${1:-} in
     exit 0
     ;;
   # The clip that would play for a background, or the current one, now: none
-  # while intros or animations are off.
-  --resolve-startup | --resolve-enabled)
+  # while intros or animations are off. OWE prepares the login intro before
+  # the shell starts, so that one is a still's.
+  --resolve-startup)
+    if [[ ! -f $toggle ]] && ! animations_off; then
+      resolve_login_intro "${2:-}" || true
+    fi
+    exit 0
+    ;;
+  --resolve-enabled)
     if [[ ! -f $toggle ]] && ! animations_off; then
       resolve_intro "${2:-}" || true
     fi
     exit 0
     ;;
+  # The clip that plays on leaving a background, under the same settings.
+  --resolve-outro-enabled)
+    if [[ ! -f $toggle ]] && ! animations_off; then
+      resolve_clip outros false "${2:-}" || true
+    fi
+    exit 0
+    ;;
+  --handoff)
+    handoff_still "${2:-}"
+    exit
+    ;;
   *)
-    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--resolve-enabled [background]|--resolve-startup|--prepare-theme theme]" >&2
+    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--resolve-enabled [background]|--resolve-outro-enabled [background]|--resolve-startup|--prepare-theme theme|--handoff video]" >&2
     exit 1
     ;;
 esac
@@ -129,7 +180,7 @@ if [[ -f $toggle ]] || animations_off; then
   exit 0
 fi
 
-intro=$(resolve_intro || true)
+intro=$(resolve_login_intro || true)
 if [[ -z $intro ]]; then
   exit 0
 fi
@@ -144,6 +195,6 @@ done
 (( SECONDS < deadline )) || exit 0
 
 # A selection or setting changed while OWE was starting no longer permits this intro.
-if [[ ! -f $toggle && $intro == "$(resolve_intro || true)" ]] && ! animations_off; then
+if [[ ! -f $toggle && $intro == "$(resolve_login_intro || true)" ]] && ! animations_off; then
   owe intro --start first-frame "$intro"
 fi

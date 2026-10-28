@@ -191,11 +191,16 @@ set_background() {
     /bin/bash "$ROOT/bin/omarchy-theme-bg-set" "$1" </dev/null >"$test_tmp/stdout" 2>"$test_tmp/stderr" || fail "background selection completes" "$(cat "$test_tmp/stderr")"
 }
 set_background "$road"
-grep -Fxq "shell: shell switchBackground $road $clip" "$log" || fail "a background change is handed to the shell with its intro" "$(cat "$log")"
+grep -Fxq "shell: shell switchBackground $road $clip " "$log" || fail "a background change is handed to the shell with its intro" "$(cat "$log")"
 ! grep -q '^shell: -q background set ' "$log" || fail "the shell, not the command, transitions the background"
 TEST_OLD_SHELL=true set_background "$sky"
 [[ $(readlink "$state/background") == "$sky" ]] || fail "without the shell's switch the command repoints the link"
 grep -Fxq "shell: -q background set $sky" "$log" || fail "without the shell's switch the background is set directly"
+mkdir -p "$state/theme/backgrounds/outros"
+printf 'outro\n' >"$state/theme/backgrounds/outros/1-sky.mp4"
+set_background "$road"
+rm -r "$state/theme/backgrounds/outros"
+grep -Fxq "shell: shell switchBackground $road $clip $state/theme/backgrounds/outros/1-sky.mp4" "$log" || fail "a background change hands over the outgoing background's outro" "$(cat "$log")"
 pass "background changes go to the shell, or straight to the link without it"
 
 # A theme switch repoints the background too, so a background change waits
@@ -210,7 +215,7 @@ sleep 0.3
 ! grep -q ' switchBackground ' "$log" || fail "a background change waits for a running theme switch"
 touch "$release"
 wait "$holder" "$change"
-grep -Fxq "shell: shell switchBackground $sky " "$log" || fail "the background change goes ahead once the theme switch is done" "$(cat "$log")"
+grep -Fxq "shell: shell switchBackground $sky  " "$log" || fail "the background change goes ahead once the theme switch is done" "$(cat "$log")"
 pass "background changes take turns with theme switches"
 
 # Cycling moves on from a selection the shell has not linked yet.
@@ -221,7 +226,7 @@ next_background() {
 }
 ln -nsf "$road" "$state/background"
 TEST_SELECTED="$sky" next_background
-grep -Fxq "shell: shell switchBackground $road $clip" "$log" || fail "cycling moves on from the shell's pending selection" "$(cat "$log")"
+grep -Fxq "shell: shell switchBackground $road $clip " "$log" || fail "cycling moves on from the shell's pending selection" "$(cat "$log")"
 TEST_OLD_SHELL=true next_background
 [[ $(readlink "$state/background") == "$sky" ]] || fail "without the shell, cycling moves on from the link"
 pass "background cycling moves on from a selection that is still being applied"

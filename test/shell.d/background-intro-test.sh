@@ -220,6 +220,24 @@ PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/b
 [[ $(<"$marker") == "$before_marker" ]] || fail "resolving a clip leaves login startup alone"
 pass "a background's clip resolves only while intros and animations are on"
 
+# A video background's intro plays on a change but not at login, which OWE
+# starts before anything could stand in for the video. Outros sit in outros/.
+video="$intro_state/theme/backgrounds/loop.mp4"
+mkdir -p "${video%/*}/outros"
+printf 'loop\n' >"$video"
+printf 'loop intro\n' >"$theme_intro_dir/loop.mp4"
+printf 'road outro\n' >"${video%/*}/outros/road.mkv"
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-enabled "$video")
+[[ $resolved == "$theme_intro_dir/loop.mp4" ]] || fail "a video background's intro resolves for a change" "$resolved"
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-startup "$video")
+[[ -z $resolved ]] || fail "a video background has no login intro" "$resolved"
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-outro-enabled)
+[[ $resolved == "${video%/*}/outros/road.mkv" ]] || fail "the current background's outro resolves" "$resolved"
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" ANIMATIONS=off "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-outro-enabled)
+[[ -z $resolved ]] || fail "no outro resolves while animations are off"
+rm -rf "$video" "$theme_intro_dir/loop.mp4" "${video%/*}/outros"
+pass "video backgrounds resolve intros for changes only, and outros resolve under the same settings"
+
 # Picker preparation is speculative and must not consume login startup or play.
 prepare_root="$test_tmp/prepare-repo"
 prepare_backgrounds="$prepare_root/themes/demo/backgrounds"
