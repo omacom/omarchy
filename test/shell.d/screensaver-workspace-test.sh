@@ -23,7 +23,7 @@ cat >"$tmpdir/bin/hyprctl" <<'SH'
 printf '%s\n' "$*" >>"$TEST_DIR/calls"
 case "$*" in
   'monitors -j')
-    printf '[{"name":"DP-1","specialWorkspace":{"name":""}},{"name":"DP-2","specialWorkspace":{"name":"special:scratchpad"}}]\n'
+    cat "$TEST_DIR/monitors.json"
     ;;
   'clients -j')
     cat "$TEST_DIR/clients.json"
@@ -48,6 +48,7 @@ chmod +x "$tmpdir/bin/"*
 
 : >"$tmpdir/calls"
 : >"$tmpdir/spawned"
+printf '[{"name":"DP-1","specialWorkspace":{"name":""}},{"name":"DP-2","specialWorkspace":{"name":"special:scratchpad"}}]\n' >"$tmpdir/monitors.json"
 printf '[{"class":"org.omarchy.screensaver","mapped":true}]\n' >"$tmpdir/clients.json"
 
 PATH="$tmpdir/bin:$PATH" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test \
@@ -91,6 +92,16 @@ done
 (( $(grep -c 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls") == 3 )) ||
   fail "focus returns without waiting for a close that has already happened" "$(<"$tmpdir/calls")"
 pass "focus returns without waiting for a close that has already happened"
+
+# Displays switched off before the idle timeout would light up again for the screensaver.
+printf '[{"name":"DP-1","dpmsStatus":false,"specialWorkspace":{"name":""}}]\n' >"$tmpdir/monitors.json"
+: >"$tmpdir/calls"
+status=0
+PATH="$tmpdir/bin:$PATH" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test \
+  timeout 10 "$ROOT/bin/omarchy-launch-screensaver" || status=$?
+(( status == 1 )) && ! grep -q exec_cmd "$tmpdir/calls" ||
+  fail "the idle screensaver leaves displays that are off alone" "exit $status"$'\n'"$(<"$tmpdir/calls")"
+pass "the idle screensaver leaves displays that are off alone"
 
 # The launcher's workspace only holds for the first map. A terminal mapped again as it closes falls back to
 # the class rule, which must keep it off the regular workspaces where its fullscreen rule would take over.

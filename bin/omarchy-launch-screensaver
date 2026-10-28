@@ -10,6 +10,12 @@ if omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
   exit 1
 fi
 
+# Leave displays that were switched off (DPMS) before the idle timeout alone:
+# launching the screensaver would light them back up.
+if [[ $1 != "force" ]] && hyprctl monitors -j | jq -e 'length > 0 and all(.[]; .dpmsStatus == false)' >/dev/null 2>&1; then
+  exit 1
+fi
+
 focused=$(omarchy-hyprland-monitor-focused)
 terminal=$(xdg-terminal-exec --print-id)
 
