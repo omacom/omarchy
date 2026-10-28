@@ -47,6 +47,9 @@ STUB
 cat >"$commands/omarchy-shell" <<'STUB'
 #!/bin/bash
 printf 'shell: %s\n' "$*" >>"$TEST_LOG"
+if [[ $2 == "themeIntroCoverStatus" && -n ${TEST_COVER_LINK:-} ]]; then
+  printf 'cover checked on %s\n' "$(readlink "$TEST_COVER_LINK")" >>"$TEST_LOG"
+fi
 if [[ -n ${TEST_GATE_DIR:-} ]]; then
   if [[ $2 == "themeIntroStatus" && ! -f $TEST_GATE_DIR/fade-ready ]]; then
     if [[ ! -f $TEST_GATE_DIR/fade-waited ]]; then
@@ -261,8 +264,10 @@ pass "a superseded or failed background intro keeps the latest selection on scre
 # A playing intro hides the shell's background, so the ordinary transition to a
 # still without an intro of its own would run unseen. The cover holds the
 # playing frame instead and opens with the same cut once OWE hands back.
-TEST_INTRO_PLAYING=true set_background "$state/theme/backgrounds/1-sky.webp"
+TEST_INTRO_PLAYING=true TEST_COVER_LINK="$state/background" set_background "$state/theme/backgrounds/1-sky.webp"
 wait_command '^shell: shell cutThemeIntro '
+# Repointing the link cancels the playing intro, so the cover is up first.
+[[ $(grep -m1 '^cover checked on ' "$log") == "cover checked on $state/theme/backgrounds/2-road.webp" ]] || fail "the cover is on screen before the link changes" "$(cat "$log")"
 ! grep -q '^shell: shell finishThemeIntro ' "$log" || fail "a still without an intro opens with the cut, not the intro fade"
 grep -q '^shell: shell prepareThemeIntro ' "$log" || fail "a background change during an intro covers the playing frame"
 grep -Fxq "shell: background setInstant $state/theme/backgrounds/1-sky.webp" "$log" || fail "the still without an intro is set under the cover"

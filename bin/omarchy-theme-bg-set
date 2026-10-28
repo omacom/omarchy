@@ -92,6 +92,9 @@ play_background_intro() {
   fi
 
   printf '%s\n' "$token" >"$INTRO_TOKEN_PATH"
+  # Repointing the link cancels a playing intro and hands the desktop back to
+  # the shell, so the cover must be on screen first.
+  wait_for_cover "$token"
   ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
   if [[ -n $prepare_pid ]] && wait "$prepare_pid"; then
     prepared=true
@@ -102,7 +105,6 @@ play_background_intro() {
   # The cover then fades out after an intro, or opens with the ordinary cut
   # onto a still without one. A newer selection owns the shell by then.
   (
-    wait_for_cover "$token"
     if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$BACKGROUND" ]]; then
       shell_ipc background setInstant "$BACKGROUND" || true
     fi
