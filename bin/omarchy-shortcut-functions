@@ -1,0 +1,192 @@
+#!/bin/bash
+
+# omarchy:summary=Shared helpers for the omarchy-shortcut commands (source this, don't run it).
+# omarchy:hidden=true
+
+# Each shortcut an app or the user changed is a file of `field=value` lines,
+# read as data by default/hypr/shortcuts.lua.
+SHORTCUTS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/shortcuts"
+
+shortcut_fail() {
+  echo "${0##*/}: $*" >&2
+  exit 1
+}
+
+shortcut_valid_id() {
+  [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+}
+
+# One line per value: a newline or other control character would end the field.
+shortcut_valid_value() {
+  [[ $1 != *[[:cntrl:]]* ]]
+}
+
+# Hyprland reads `hl.unbind("all")` as removing every binding, and "catchall"
+# binds every key in a submap, so neither can be a shortcut's key. Nor can a
+# chord with an empty part, such as "F9 + ", which Hyprland rejects.
+shortcut_valid_keys() {
+  local chord part
+  local -a parts=()
+
+  IFS='+' read -ra parts <<<"$1+"
+  [[ $1 != *+ ]] || return 1
+  for part in "${parts[@]}"; do
+    [[ $part == *[![:space:]]* ]] || return 1
+  done
+  chord=$(shortcut_chord "$1")
+  [[ ${chord##*+} != "ALL" && ${chord##*+} != "CATCHALL" ]]
+}
+
+shortcut_hyprland_running() {
+  [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && hyprctl version >/dev/null 2>&1
+}
+
+# What Hyprland bound, Omarchy's defaults included, asked for once and shared
+# with the commands this one runs. Empty when Hyprland isn't running; an error
+# when it is but can't say, since an empty answer would make every shortcut look
+# unbound. Loaded when this file is sourced: loading it first inside $(...)
+# would delete it again when that subshell exits.
+shortcut_load_snapshot() {
+  [[ -n ${SHORTCUTS_SNAPSHOT:-} && -r $SHORTCUTS_SNAPSHOT ]] && return 0
+
+  # The path is written into Lua, so it comes from the runtime directory rather
+  # than TMPDIR and may only hold characters that need no quoting.
+  local runtime="${XDG_RUNTIME_DIR:-/tmp}"
+  [[ $runtime =~ ^[A-Za-z0-9/._-]+$ ]] || runtime=/tmp
+  SHORTCUTS_SNAPSHOT=$(mktemp "$runtime/omarchy-shortcuts.XXXXXX") || shortcut_fail "could not create a temporary file in $runtime"
+  export SHORTCUTS_SNAPSHOT
+  trap 'rm -f "$SHORTCUTS_SNAPSHOT"' EXIT
+
+  if ! shortcut_hyprland_running; then
+    echo '{"shortcuts": [], "defaults": []}' >"$SHORTCUTS_SNAPSHOT"
+  elif ! hyprctl eval "o.shortcuts.snapshot(\"$SHORTCUTS_SNAPSHOT\")" >/dev/null 2>&1 ||
+    ! jq -e '.shortcuts | type == "array"' "$SHORTCUTS_SNAPSHOT" >/dev/null 2>&1; then
+    shortcut_fail "could not read shortcuts from Hyprland; reload it with 'hyprctl reload' and try again"
+  fi
+}
+
+# The snapshot's entry for an id, or nothing.
+shortcut_snapshot() {
+  jq -c --arg id "$1" '.shortcuts[] | select(.id == $id)' "$SHORTCUTS_SNAPSHOT"
+}
+
+# A field's values from an id's registry file, one per line.
+shortcut_field() {
+  local file="$SHORTCUTS_DIR/$1"
+
+  [[ -r $file ]] || return 0
+  sed -n "s/^$2=//p" "$file"
+}
+
+shortcut_has_keys() {
+  [[ -r $SHORTCUTS_DIR/$1 ]] && grep -q '^keys=' "$SHORTCUTS_DIR/$1"
+}
+
+# The keys an id has: its chosen ones, else what Hyprland bound as its default.
+shortcut_keys() {
+  if shortcut_has_keys "$1"; then
+    shortcut_field "$1" keys | sed '/^$/d'
+  else
+    shortcut_snapshot "$1" | jq -r '.keys[]?'
+  fi
+}
+
+shortcut_known() {
+  [[ -e $SHORTCUTS_DIR/$1 || -n $(shortcut_snapshot "$1") ]]
+}
+
+shortcut_ids() {
+  {
+    jq -r '.shortcuts[].id' "$SHORTCUTS_SNAPSHOT"
+    find "$SHORTCUTS_DIR" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null
+  } | awk '!seen[$0]++' | while read -r id; do
+    shortcut_valid_id "$id" && printf '%s\n' "$id"
+  done
+}
+
+# A chord as Hyprland matches it, the same way o.chord in helpers.lua does:
+# modifiers aliased, case folded, and sorted, so "super + ctrl + x" and
+# "CTRL + SUPER + X" compare equal. A modifier key pressed alone matches with
+# the mask ignored, so it reduces to the key itself.
+shortcut_chord() {
+  local -a raw=() parts=()
+  local part key i
+
+  IFS='+' read -ra raw <<<"${1^^}"
+  for part in "${raw[@]}"; do
+    part=${part#"${part%%[![:space:]]*}"}
+    part=${part%"${part##*[![:space:]]}"}
+    [[ -n $part ]] && parts+=("$part")
+  done
+  ((${#parts[@]})) || return 0
+
+  key=${parts[-1]}
+  unset 'parts[-1]'
+  for i in "${!parts[@]}"; do
+    case ${parts[i]} in
+      CONTROL) parts[i]=CTRL ;;
+      MOD1) parts[i]=ALT ;;
+      WIN | LOGO | MOD4 | META) parts[i]=SUPER ;;
+    esac
+  done
+
+  if [[ $key =~ ^(ALT|SUPER|CONTROL|SHIFT|META|HYPER)_[LR]$ || $key == "ISO_LEVEL3_SHIFT" ]]; then
+    printf '%s\n' "$key"
+  elif ((${#parts[@]})); then
+    printf '%s+%s\n' "$(printf '%s\n' "${parts[@]}" | LC_ALL=C sort | paste -sd+)" "$key"
+  else
+    printf '%s\n' "$key"
+  fi
+}
+
+# Hyprland's live bindings as chord, description, and submap, separated by
+# \x1f so an empty field survives read, normalized like shortcut_chord.
+# Submaps count: Hyprland unbinds keys in every submap.
+shortcut_live_bindings() {
+  hyprctl binds -j 2>/dev/null | jq -r '
+    def mods: [
+      (if (.modmask / 1 | floor) % 2 == 1 then "SHIFT" else empty end),
+      (if (.modmask / 2 | floor) % 2 == 1 then "CAPS" else empty end),
+      (if (.modmask / 4 | floor) % 2 == 1 then "CTRL" else empty end),
+      (if (.modmask / 8 | floor) % 2 == 1 then "ALT" else empty end),
+      (if (.modmask / 16 | floor) % 2 == 1 then "MOD2" else empty end),
+      (if (.modmask / 32 | floor) % 2 == 1 then "MOD3" else empty end),
+      (if (.modmask / 64 | floor) % 2 == 1 then "SUPER" else empty end),
+      (if (.modmask / 128 | floor) % 2 == 1 then "MOD5" else empty end)
+    ] | sort;
+    # Release-only bindings take the key too; a press half comes first so a pair
+    # is named by what pressing it does.
+    sort_by(.release)
+    | .[]
+    | (if (.key // "") != "" then (.key | ascii_upcase) else "CODE:\(.keycode)" end) as $key
+    | (if ($key | test("^(ALT|SUPER|CONTROL|SHIFT|META|HYPER)_[LR]$|^ISO_LEVEL3_SHIFT$")) then $key
+       else ((mods + [$key]) | join("+")) end) as $chord
+    | "\($chord)\u001f\(.description // "")\u001f\(.submap // "")"
+  '
+}
+
+# Hold the registry for the rest of this command, so two apps changing
+# shortcuts at once never undo each other.
+shortcut_lock() {
+  mkdir -p "$SHORTCUTS_DIR" 2>/dev/null && { exec 9>"$SHORTCUTS_DIR/.lock"; } 2>/dev/null ||
+    shortcut_fail "could not write to $SHORTCUTS_DIR"
+  flock -w 5 9 || shortcut_fail "shortcuts are busy; try again"
+}
+
+# Chords of Omarchy's own bindings, which a shortcut may take, one per line.
+shortcut_defaults() {
+  jq -r '.defaults[]' "$SHORTCUTS_SNAPSHOT"
+}
+
+# Rebind the shortcuts with these ids now, leaving every other one alone. Ids
+# hold no characters Lua would need quoted. A Hyprland config from before named
+# shortcuts has no o.shortcuts to call, so reload it instead.
+shortcut_apply() {
+  local ids
+
+  shortcut_hyprland_running || return 0
+  ids=$(printf '"%s",' "$@")
+  hyprctl eval "o.shortcuts.apply({${ids%,}})" >/dev/null 2>&1 || hyprctl reload >/dev/null
+}
+
+shortcut_load_snapshot

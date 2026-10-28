@@ -1,0 +1,204 @@
+#!/bin/bash
+
+# omarchy:summary=Bind a named shortcut to new keys, or register an app's own shortcut
+# omarchy:args=<id> <keys>... [--description <text>] [--command <command>] [--release <command>] [--release-description <text>] [--force] [--json] [--none]
+# omarchy:examples=omarchy shortcut set omarchy.dictation.hold F9 "SUPER + R" | omarchy shortcut set com.example.app.record "SUPER + ALT + R" --description "Record" --command "example-app record" | omarchy shortcut set com.example.app.talk Super_R --description "Push to talk" --command "example-app start" --release "example-app stop"
+
+# Keys use Hyprland's syntax, as in o.bind: "SUPER + SHIFT + R", F9, code:191,
+# mouse:275, or a modifier on its own such as Super_R. Keys another binding
+# already uses are refused (exit 2) and listed; --force takes them, removing
+# them from the binding or shortcut that had them.
+
+source omarchy-shortcut-functions
+
+usage() {
+  echo "Usage: omarchy-shortcut-set <id> <keys>... [--description <text>] [--command <command>] [--release <command>] [--release-description <text>] [--force] [--json]" >&2
+  echo "       omarchy-shortcut-set <id> --none" >&2
+  exit 1
+}
+
+id="${1:-}"
+shortcut_valid_id "$id" || usage
+shift
+
+declare -a keys=()
+declare -A fields=()
+force=0
+json=0
+none=0
+
+while (($#)); do
+  case $1 in
+    --description | --command | --release | --release-description)
+      (($# >= 2)) || usage
+      field=${1#--}
+      fields[${field//-/_}]=$2
+      shift 2
+      ;;
+    --force) force=1 && shift ;;
+    --json) json=1 && shift ;;
+    --none) none=1 && shift ;;
+    --*) usage ;;
+    *) keys+=("$1") && shift ;;
+  esac
+done
+
+if ((none == (${#keys[@]} > 0))); then
+  usage
+fi
+for value in "${keys[@]}" "${fields[@]}"; do
+  shortcut_valid_value "$value" || shortcut_fail "values must be a single line"
+done
+for value in "${keys[@]}"; do
+  [[ -n ${value//[[:space:]+]/} ]] || shortcut_fail "empty keys"
+  shortcut_valid_keys "$value" || shortcut_fail "$value is not a key a shortcut can use"
+done
+
+# Only the running config knows Omarchy's defaults and every other binding, so
+# keys chosen without it could not be checked and might never bind.
+shortcut_hyprland_running || shortcut_fail "Hyprland isn't running; shortcuts can only change in a session"
+
+shortcut_lock
+
+snapshot=$(shortcut_snapshot "$id")
+# omarchy.* is Omarchy's own namespace: only the shortcuts it declares.
+if [[ $id == omarchy.* ]]; then
+  [[ -n $snapshot ]] || shortcut_fail "no Omarchy shortcut named $id"
+  ((${#fields[@]} == 0)) || shortcut_fail "$id is Omarchy's own shortcut; only its keys can change"
+else
+  for field in description command release release_description; do
+    [[ -v fields[$field] ]] || fields[$field]=$(shortcut_field "$id" "$field")
+  done
+  [[ -n ${fields[command]} ]] || shortcut_fail "$id is a new shortcut; give it a --command to run"
+  [[ -n ${fields[description]} ]] || fields[description]=$id
+fi
+
+# The same keys twice would be the same binding.
+declare -A chosen=()
+declare -a unique=()
+for value in "${keys[@]}"; do
+  chord=$(shortcut_chord "$value")
+  if [[ ! -v chosen[$chord] ]]; then
+    chosen[$chord]=$value
+    unique+=("$value")
+  fi
+done
+keys=("${unique[@]}")
+
+# What else holds the chosen keys: other named shortcuts, by their keys here or
+# in the snapshot, and every live Hyprland binding not belonging to this id.
+declare -A owned=()
+while read -r value; do
+  [[ -n $value ]] && owned[$(shortcut_chord "$value")]=1
+done < <(jq -r '.bound[]?' <<<"$snapshot")
+
+declare -a conflicts=()
+declare -A taken_from=()
+declare -A seen=()
+while read -r other; do
+  [[ $other == "$id" ]] && continue
+  while read -r value; do
+    [[ -n $value ]] || continue
+    chord=$(shortcut_chord "$value")
+    if [[ -v chosen[$chord] ]]; then
+      conflicts+=("${chosen[$chord]}"$'\x1f'"$(omarchy-shortcut-get "$other" --json | jq -r '.description // ""')"$'\x1f'"$other")
+      taken_from[$other]=1
+      seen[$chord]=1
+    fi
+  done < <(shortcut_keys "$other")
+done < <(shortcut_ids)
+
+# Only Omarchy's own bindings can be taken. Unbinding a key a submap uses
+# removes it from that submap too, and the user's own bindings, or a dictation
+# backend's, load after the shortcuts and would come back at the next reload.
+declare -A defaults=()
+while read -r chord; do
+  defaults[$chord]=1
+done < <(shortcut_defaults)
+
+declare -a fixed_conflicts=()
+while IFS=$'\x1f' read -r chord description submap; do
+  [[ -v chosen[$chord] && ! -v owned[$chord] ]] || continue
+  if [[ -n $submap ]]; then
+    fixed_conflicts+=("${chosen[$chord]}"$'\x1f'"$description"$'\x1f'$'\x1f'"$submap"$'\x1f'fixed)
+  elif [[ ! -v seen[$chord] && ! -v defaults[$chord] ]]; then
+    fixed_conflicts+=("${chosen[$chord]}"$'\x1f'"$description"$'\x1f'$'\x1f'$'\x1f'fixed)
+    seen[$chord]=1
+  elif [[ ! -v seen[$chord] ]]; then
+    conflicts+=("${chosen[$chord]}"$'\x1f'"$description"$'\x1f')
+    seen[$chord]=1
+  fi
+done < <(shortcut_live_bindings)
+
+if ((${#fixed_conflicts[@]})) || { ((${#conflicts[@]})) && ((!force)); }; then
+  if ((json)); then
+    printf '%s\n' "${conflicts[@]}" "${fixed_conflicts[@]}" | sed '/^$/d' | jq -Rn '{ conflicts: [inputs | split("\u001f") | {
+      keys: .[0], description: .[1], id: (if .[2] == "" then null else .[2] end),
+      submap: (if (.[3] // "") == "" then null else .[3] end), can_take: ((.[4] // "") != "fixed")
+    }] }'
+  else
+    for conflict in "${conflicts[@]}"; do
+      IFS=$'\x1f' read -r value description other <<<"$conflict"
+      echo "$value is already used by \"${description:-a binding}\"${other:+ ($other)}" >&2
+    done
+    for conflict in "${fixed_conflicts[@]}"; do
+      IFS=$'\x1f' read -r value description _ submap _ <<<"$conflict"
+      if [[ -n $submap ]]; then
+        echo "$value is used by \"${description:-a binding}\" in the $submap submap and can't be taken" >&2
+      else
+        echo "$value is used by \"${description:-a binding}\", bound in your own Hyprland config or by another program, and can't be taken" >&2
+      fi
+    done
+    if ((${#fixed_conflicts[@]})); then
+      echo "Choose other keys." >&2
+    else
+      echo "Choose other keys, or pass --force to take them." >&2
+    fi
+  fi
+  exit 2
+fi
+
+# Write a shortcut's file whole, then move it into place, so Hyprland never
+# reads half of one.
+write_shortcut() {
+  local target="$SHORTCUTS_DIR/$1" temporary
+  shift
+
+  temporary=$(mktemp "$SHORTCUTS_DIR/.$(basename "$target").XXXXXX" 2>/dev/null) || return 1
+  if printf '%s\n' "$@" >"$temporary" && mv -f "$temporary" "$target"; then
+    return 0
+  fi
+  rm -f "$temporary"
+  return 1
+}
+
+# This shortcut first: should a write after it fail, keys are left held twice,
+# which binds once, rather than taken from another shortcut and given to none.
+declare -a lines=()
+for field in description release_description command release; do
+  [[ -n ${fields[$field]:-} ]] && lines+=("$field=${fields[$field]}")
+done
+if ((none)); then
+  lines+=("keys=")
+else
+  for value in "${keys[@]}"; do
+    lines+=("keys=$value")
+  done
+fi
+write_shortcut "$id" "${lines[@]}" || shortcut_fail "could not save $id in $SHORTCUTS_DIR"
+
+# Taking keys from another named shortcut leaves it with the rest of its own.
+for other in "${!taken_from[@]}"; do
+  mapfile -t remaining < <(grep -v '^keys=' "$SHORTCUTS_DIR/$other" 2>/dev/null)
+  kept=0
+  while read -r value; do
+    if [[ -n $value && ! -v chosen[$(shortcut_chord "$value")] ]]; then
+      remaining+=("keys=$value")
+      kept=1
+    fi
+  done < <(shortcut_keys "$other")
+  ((kept)) || remaining+=("keys=")
+  write_shortcut "$other" "${remaining[@]}" || shortcut_fail "could not take keys from $other in $SHORTCUTS_DIR"
+done
+
+shortcut_apply "$id" "${!taken_from[@]}"

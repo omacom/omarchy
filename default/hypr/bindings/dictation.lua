@@ -7,9 +7,20 @@ if pipe then
   pipe:close()
 end
 if backend and backend:match("^[%w%-]+$") and not o.cmd_missing(backend) then
-  o.bind("SUPER + CTRL + X", "Toggle dictation", "omarchy-dictation toggle")
-  o.bind_hold("F9", "Start dictation (push-to-talk)", "omarchy-dictation start", "Stop dictation (push-to-talk)", "omarchy-dictation stop")
-  -- A modifier's mask changes between its press and release. Match the keysym
-  -- independently of that mask; AltGr layouts use a different keysym.
-  o.bind_hold("ALT + Alt_R", "Start dictation (push-to-talk)", "omarchy-dictation start", "Stop dictation (push-to-talk)", "omarchy-dictation stop", { ignore_mods = true })
+  -- Named, so apps such as the backend's settings can change these keys with
+  -- `omarchy shortcut set`. A modifier on its own, like Right Alt, is matched
+  -- independently of the modifier mask that changes between press and release;
+  -- AltGr layouts send a different keysym.
+  o.shortcut("omarchy.dictation.toggle", {
+    description = "Toggle dictation",
+    keys = "SUPER + CTRL + X",
+    command = "omarchy-dictation toggle",
+  })
+  o.shortcut("omarchy.dictation.hold", {
+    description = "Start dictation (push-to-talk)",
+    release_description = "Stop dictation (push-to-talk)",
+    keys = { "F9", "ALT + Alt_R" },
+    command = "omarchy-dictation start",
+    release = "omarchy-dictation stop",
+  })
 end

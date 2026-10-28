@@ -222,10 +222,14 @@ o = {
     assert(command == selected)
     return not installed
   end,
-  bind = function(...) table.insert(bindings, {...}) end,
-  bind_hold = function(keys, _, press, _, release, options)
-    table.insert(bindings, { keys, press, options })
-    table.insert(bindings, { keys, release, options })
+  shortcut = function(id, spec)
+    local keys = type(spec.keys) == "table" and spec.keys or { spec.keys }
+    for _, key in ipairs(keys) do
+      table.insert(bindings, { key, spec.command, id })
+      if spec.release then
+        table.insert(bindings, { key, spec.release, id })
+      end
+    end
   end,
 }
 dofile(root .. "/default/hypr/bindings/dictation.lua")
@@ -233,6 +237,8 @@ assert(#bindings == 0, "unconfigured dictation leaves application keys available
 selected = "some-backend"
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 5, "any installed backend receives the same bindings")
+assert(bindings[1][3] == "omarchy.dictation.toggle" and bindings[5][3] == "omarchy.dictation.hold",
+  "apps can change the dictation keys by name")
 local function binds(keys, command)
   for _, binding in ipairs(bindings) do
     if binding[1] == keys and binding[2] == command then return true end

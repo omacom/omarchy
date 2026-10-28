@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# omarchy:summary=Print the keys a named shortcut is bound to, one per line
+# omarchy:args=<id> [--json]
+# omarchy:examples=omarchy shortcut get omarchy.dictation.hold | omarchy shortcut get com.example.app.record --json
+
+source omarchy-shortcut-functions
+
+id="${1:-}"
+json=0
+[[ ${2:-} == "--json" ]] && json=1
+
+if [[ -z $id ]] || ! shortcut_valid_id "$id" || (($# > 2)) || { (($# == 2)) && ((!json)); }; then
+  echo "Usage: omarchy-shortcut-get <id> [--json]" >&2
+  exit 1
+fi
+
+snapshot=$(shortcut_snapshot "$id")
+# Omarchy's defaults live in the running config, so without Hyprland only keys
+# someone chose are known.
+if [[ -z $snapshot && $id == omarchy.* ]] && ! shortcut_has_keys "$id"; then
+  if shortcut_hyprland_running; then
+    shortcut_fail "no shortcut named $id"
+  else
+    shortcut_fail "Hyprland isn't running, so Omarchy's default keys for $id aren't known"
+  fi
+fi
+shortcut_known "$id" || shortcut_fail "no shortcut named $id"
+
+if ((json)); then
+  source=app
+  [[ $id == omarchy.* ]] && source=omarchy
+  shortcut_keys "$id" | jq -Rn --arg id "$id" --arg source "$source" --argjson snapshot "${snapshot:-null}" \
+    --arg description "$(shortcut_field "$id" description)" \
+    --arg release_description "$(shortcut_field "$id" release_description)" \
+    --arg command "$(shortcut_field "$id" command)" \
+    --arg release "$(shortcut_field "$id" release)" '
+      ($snapshot // { id: $id, source: $source })
+      + { keys: [inputs] }
+      + (if $snapshot == null and $source == "app" then
+          { description: $description, command: $command }
+          + (if $release_description != "" then { release_description: $release_description } else {} end)
+          + (if $release != "" then { release: $release } else {} end)
+        else {} end)'
+else
+  shortcut_keys "$id"
+fi
