@@ -89,7 +89,7 @@ sed -n '/^PROVISIONING_UNLOCK_FILES=(/,/^)/p; /^UNLOCK_OWNER=/p; /^limine_auto_u
 grep -q '^luks_auto_unlock_drop() {' "$tmp/unlock.sh" && grep -q '^limine_auto_unlock_drop() {' "$tmp/unlock.sh" &&
   grep -q '^luks_record_slots() {' "$tmp/unlock.sh" ||
   fail "omarchy-provision-owner defines the dispatched and Limine auto-unlock callbacks and the slot record"
-sed -n '/^rekey_luks() {/,/^}/p; /^run_provisioning() {/,/^}/p; /^cleanup_oem_state() {/,/^}/p
+sed -n '/^rekey_luks() {/,/^}/p; /^rekey_extra_passwords() {/,/^}/p; /^run_provisioning() {/,/^}/p; /^cleanup_oem_state() {/,/^}/p
   /^platform_ready() {/,/^}/p; /^run_setup() {/,/^}/p
   /^rekey_accepts_password() {/,/^}/p' \
   "$ROOT/bin/omarchy-provision-owner" |
@@ -109,6 +109,9 @@ PROVISIONING_DIR=$TMP/provisioning
 REKEY_STATE=$PROVISIONING_DIR/luks-rekey.state
 LOG_FILE=$TMP/log
 password=$PASSWORD
+parent_password=${PARENT_PASSWORD:-}
+extra_passwords=()
+[[ -z $parent_password ]] || extra_passwords=("$parent_password")
 
 log_step() { printf '%s\n' "$*" >>"$LOG_FILE"; }
 say() { :; }
@@ -304,6 +307,7 @@ run() {
   echo "$crash_at" >"$tmp/crash-at"
   {
     ROOT=$ROOT TMP=$tmp BACKEND=$backend DEVICE=$device MODE=$mode PASSWORD=$password CRASH_AT=$crash_at \
+      CHILD_INSTALL=${child_install:-false} PARENT_PASSWORD=${parent_password:-} \
       OMARCHY_PATH=$runtime OMARCHY_PROC_ROOT=$tmp/$platform/proc OMARCHY_LIFECYCLE_ROOT=$tmp/lifecycle \
       PATH="$tmp/$platform/bin:$PATH" bash "$tmp/attempt.sh"
   } >>"$tmp/output" 2>&1
@@ -389,7 +393,7 @@ unlock_files_present() {
 
 no_secrets_in() {
   local file
-  local -a keys=(-e "$staged_key" -e "$seller_key" -e "$owner_password" -e "other-password")
+  local -a keys=(-e "$staged_key" -e "$seller_key" -e "$owner_password" -e "other-password" -e "parent-password")
   for file in "$@"; do
     [[ -e $file ]] || continue
     ! grep -Fq "${keys[@]}" "$file" ||
@@ -895,3 +899,75 @@ run rekey "$owner_password" || fail "the re-key beside an earlier recovery slot 
 [[ -z $(opens "$staged_key") && -z $(opens "$seller_key") && -z $(opens recovery-key) && -n $(opens "$owner_password") && $(slot_count) == 1 ]] ||
   fail "every slot but the owner's is retired" "$(cat "$tmp/slots")"
 pass "the re-key retires every slot but the owner's, an earlier recovery slot included"
+
+# A child install (kids mode) keys the disk to the parent password beside the
+# kid's: both slots stay and everything else is retired, the parent's slot is
+# recorded as the second kept slot, a run killed between the two adds resumes,
+# a retry that changed the parent password keeps only the new one while the
+# staged key still opens the disk, and is refused before the accounts change
+# once it does not.
+child_install=true
+parent_password=parent-password
+for run_spec in "${matrix[@]}"; do
+  read -r platform backend <<<"$run_spec"
+  format=$backend
+  [[ $backend == "fake" ]] && format=luks2
+
+  fixture "$format"
+  run provision "$owner_password" || fail "$platform $backend: a child install's setup completes" "$(cat "$tmp/log" "$tmp/output")"
+  kid=$(opens "$owner_password")
+  parent=$(opens "$parent_password")
+  [[ -n $kid && -n $parent && $kid != "$parent" && $(slot_count) == "2" ]] ||
+    fail "$platform $backend: a child install keeps the kid's and the parent's slots and no other" "$(cat "$tmp/log")"
+  [[ -z $(opens "$staged_key") && -z $(opens "$seller_key") && ! -e $tmp/provisioning/luks-key ]] && ! unlock_files_present ||
+    fail "$platform $backend: a child install retires the staged and seller keys and the auto-unlock"
+  [[ ! -e $tmp/provisioning/pending && ! -e $tmp/provisioning/luks-rekey.state ]] ||
+    fail "$platform $backend: a child install's setup drops pending and the journal"
+  if [[ $platform == "apple" ]]; then
+    [[ $(cat "$tmp/slot-record" 2>/dev/null) == "owner=$kid"$'\n'"recovery=$parent" ]] ||
+      fail "$platform $backend: the boot package records the kid's slot as the owner's and the parent's as the second" "$(cat "$tmp/slot-record" 2>/dev/null)"
+  fi
+  no_secrets_in "$tmp/log" "$tmp/output" "$tmp/slot-record"
+
+  parent_added=$(awk '/owner key added/ { n++ } n == 2 { print $1; exit }' "$tmp/trace")
+  [[ -n $parent_added ]] || fail "$platform $backend: the parent's key is the second key added" "$(cat "$tmp/trace")"
+  fixture "$format"
+  if run provision "$owner_password" "$((parent_added - 1))"; then fail "$platform $backend: setup is killed before the parent's key"; fi
+  run provision "$owner_password" || fail "$platform $backend: a child install resumes past the kid's key" "$(cat "$tmp/log")"
+  [[ -n $(opens "$owner_password") && -n $(opens "$parent_password") && $(slot_count) == "2" ]] ||
+    fail "$platform $backend: the resumed child install keeps both slots" "$(cat "$tmp/log")"
+
+  fixture "$format"
+  if run provision "$owner_password" "$parent_added"; then fail "$platform $backend: setup is killed after the parent's key"; fi
+  parent_password=other-parent-password
+  run provision "$owner_password" || fail "$platform $backend: a child install resumes with another parent password" "$(cat "$tmp/log")"
+  [[ -n $(opens "$owner_password") && -n $(opens other-parent-password) && -z $(opens parent-password) && $(slot_count) == "2" ]] ||
+    fail "$platform $backend: the retry keeps the new parent password and retires the abandoned one" "$(cat "$tmp/log")"
+  parent_password=parent-password
+
+  # Killed after the retire step took the staged key: root already carries the
+  # parent password of the attempt that was killed, so a retry with another
+  # one is refused at the form, before root's password could move away from
+  # the disk's, and the original parent password finishes setup.
+  last_kill=$(awk '/ killed$/ { n = $1 } END { print n }' "$tmp/trace")
+  [[ -n $last_kill ]] || fail "$platform $backend: the trace records the retired slots" "$(cat "$tmp/trace")"
+  fixture "$format"
+  if run attempt "$owner_password" "$last_kill"; then fail "$platform $backend: setup is killed after the last slot is retired"; fi
+  [[ -z $(opens "$staged_key") ]] || fail "$platform $backend: the staged key is gone after the last retire"
+  parent_password=other-parent-password
+  if run accepts "$owner_password"; then fail "$platform $backend: another parent password is refused once the staged key is retired"; fi
+  if run attempt "$owner_password"; then fail "$platform $backend: setup refuses another parent password once the staged key is retired"; fi
+  grep -q '^refused: Setup already set the disk passwords' "$tmp/screen" ||
+    fail "$platform $backend: the refusal names both passwords" "$(cat "$tmp/screen")"
+  [[ -e $tmp/provisioning/pending ]] || fail "$platform $backend: a refused parent password keeps setup pending"
+  parent_password=parent-password
+  run accepts "$owner_password" || fail "$platform $backend: the original parent password is accepted"
+  run attempt "$owner_password" || fail "$platform $backend: the original parent password completes setup" "$(cat "$tmp/log")"
+  [[ -n $(opens "$owner_password") && -n $(opens parent-password) && -z $(opens other-parent-password) && $(slot_count) == "2" ]] ||
+    fail "$platform $backend: setup finishes with the kid's and the original parent's slots" "$(cat "$tmp/log")"
+  [[ ! -e $tmp/provisioning/pending && ! -e $tmp/provisioning/luks-rekey.state ]] ||
+    fail "$platform $backend: the finished retry drops pending and the journal"
+  pass "$platform $backend: a child install keeps the kid's and the parent's slots, resumes between the two adds, follows a changed parent password while the staged key lasts, and refuses one afterwards"
+done
+child_install=false
+parent_password=""

@@ -1,0 +1,338 @@
+#!/bin/bash
+
+# omarchy:summary=Parental controls for child installs
+# omarchy:args=<password|apply|tty|FEATURE> ...
+# omarchy:examples=sudo omarchy-parent password | omarchy parent password | omarchy-parent apply --user kid | sudo omarchy-parent tty on
+# omarchy:requires-sudo=true
+
+# The parent's side of a child install (kids mode). The parent password is root's
+# password: `password` sets it, and `apply` is the plumbing the install leaf
+# and first-boot provisioning call to make sudo and polkit ask for it and to
+# keep the kid account out of wheel.
+#
+# Runs as root. `sudo omarchy-parent password` is the documented shape; a bare
+# invocation (the menu's) re-execs itself under sudo, whose prompt is the parent
+# password itself. The installation path and caller's gum theme vars are
+# forwarded as `env` arguments so the same checkout and styling survive an
+# env_reset sudoers.
+
+set -euo pipefail
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-parent password [--user NAME]
+       omarchy-parent apply --user NAME [--remove]
+       omarchy-parent tty <off|on>
+
+password  Set or change the parent password (root's password, which sudo and
+          system prompts ask for on a child install). NAME is the kid account
+          that gets the parental posture afterwards; it defaults to the
+          account that invoked sudo.
+apply     Point sudo (Defaults rootpw) and polkit (an admin rule naming root)
+          at the parent password, grant the kid account sudo explicitly, take
+          it out of wheel, close the text consoles, and have faillock count
+          wrong parent passwords like wrong kid passwords. Called by the
+          install leaf and by first-boot provisioning; idempotent. --remove
+          deletes what apply wrote.
+tty       Close (off) or reopen (on) the text consoles Ctrl+Alt+F2..F6 reach.
+USAGE
+  local features
+  features=$(feature_commands)
+  if [[ -n $features ]]; then
+    echo
+    echo "Features, each switched on and off by its own command:"
+    printf '%s\n' "$features" | awk -F'\t' '{ printf "  %-9s %s\n", $1, $2 }'
+  fi
+}
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+
+# Feature commands live beside this one as omarchy-parent-<feature>, each
+# switched on and off by its own subcommand and never editing this file.
+# Anything that is not a core command goes to the matching one, ahead of any
+# elevation, since each handles its own; the `omarchy` router resolves
+# `omarchy parent <feature>` the same way on its own. Help answers here too,
+# so reading it never asks for a password.
+feature_commands() {
+  local path name
+  for path in "$OMARCHY_PATH"/bin/omarchy-parent-*; do
+    [[ -x $path ]] || continue
+    grep -q '^# omarchy:hidden=true' "$path" && continue
+    name=${path##*/omarchy-parent-}
+    printf '%s\t%s\n' "$name" "$(sed -n 's/^# omarchy:summary=//p' "$path" | head -1)"
+  done
+}
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  password|apply|tty) ;;
+  "")
+    usage >&2
+    exit 1
+    ;;
+  *)
+    if omarchy-cmd-present "omarchy-parent-$1"; then
+      feature="omarchy-parent-$1"
+      shift
+      exec "$feature" "$@"
+    else
+      echo "Unknown command: $1" >&2
+      usage >&2
+      exit 1
+    fi
+    ;;
+esac
+
+if (( EUID != 0 )); then
+  mapfile -t gum_env < <(env | grep '^GUM_' || true)
+  exec sudo env OMARCHY_PATH="$OMARCHY_PATH" "${gum_env[@]}" "$0" "$@"
+fi
+
+# install_sudoers and SUDOERS_DIR, and the parent.conf helpers the feature
+# commands keep their settings with.
+source "$OMARCHY_PATH/install/helpers/parent.sh"
+POLKIT_RULES_DIR="${OMARCHY_POLKIT_RULES_DIR:-/etc/polkit-1/rules.d}"
+
+# The browser-accent grant etc/sudoers.d/omarchy-theme-browser gives wheel,
+# re-granted to the kid account so a theme switch stays one click. Spelled
+# out as six hex digits for the same reason the shipped rule is: sudoers
+# matches arguments exactly, so this covers a color and nothing else.
+BROWSER_POLICY_COMMAND='/usr/bin/omarchy-theme-set-browser-policy [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'
+
+fail() {
+  echo "Error: $1" >&2
+  exit 1
+}
+
+require_child_install() {
+  omarchy-profile-child || fail "this is not a child install; omarchy-parent only applies to the kids mode profile"
+}
+
+# rootpw makes sudo unusable for everyone the moment root has no usable
+# password, so never install it over a locked or empty root.
+require_root_password() {
+  local status
+  status=$(passwd -S root 2>/dev/null | awk '{ print $2 }')
+  [[ $status == "P" ]] || fail "root has no usable password (passwd -S reports '${status:-none}'); set the parent password first"
+}
+
+install_polkit_rule() {
+  local target="$POLKIT_RULES_DIR/40-omarchy-parent.rules" stage
+  stage=$(mktemp)
+  cat >"$stage" <<'RULES'
+// Omarchy kids mode: administrative prompts authenticate as root, whose
+// password is the parent password, rather than as the wheel member asking.
+// Sorts before polkit's own 50-default.rules (unix-group:wheel).
+polkit.addAdminRule(function(action, subject) {
+  return ["unix-user:root"];
+});
+RULES
+  if [[ ! -f $target ]] || ! cmp -s "$stage" "$target"; then
+    install -Dm644 "$stage" "$target"
+  fi
+  rm -f "$stage"
+}
+
+system_sudoers() {
+  cat <<'SUDOERS'
+# Omarchy kids mode: the parent password is root's password. sudo asks for it
+# instead of the invoking user's, so the kid password unlocks the session but
+# never elevates. NOPASSWD grants are untouched: they skip authentication.
+Defaults rootpw
+Defaults passprompt="[sudo] parent password: "
+SUDOERS
+}
+
+account_sudoers() {
+  local user="$1"
+  printf '%s ALL=(ALL:ALL) ALL\n%s ALL=(root) NOPASSWD: %s\n' "$user" "$user" "$BROWSER_POLICY_COMMAND"
+}
+
+in_wheel() {
+  id -nG "$1" 2>/dev/null | tr ' ' '\n' | grep -qx wheel
+}
+
+# A kid with her own password can log in on a text console and work outside
+# the lock screen. Child installs close tty2..tty6 (tty1 carries the display
+# manager). --now only applies on a running system; in the install chroot the
+# mask is a file and takes effect at first boot. logind starts autovt@ttyN on a
+# switch, an alias a getty@ mask does not cover, so both are masked.
+console_units() {
+  local n
+  for n in 2 3 4 5 6; do printf 'getty@tty%s.service autovt@tty%s.service ' "$n" "$n"; done
+}
+
+# The install chroot sees the live system's /run, so the directory alone
+# would say yes there; only a booted system outside a chroot can take --now.
+systemd_running() {
+  [[ -d /run/systemd/system ]] && ! systemd-detect-virt --quiet --chroot 2>/dev/null
+}
+
+# shellcheck disable=SC2046
+mask_consoles() {
+  if systemd_running; then
+    systemctl mask --now $(console_units) >/dev/null
+  else
+    systemctl mask $(console_units) >/dev/null
+  fi
+}
+
+# shellcheck disable=SC2046
+unmask_consoles() {
+  systemctl unmask $(console_units) >/dev/null
+}
+
+# pam_faillock exempts root unless told otherwise. On a child install the
+# parent password is root's, and sudo and polkit authenticate root for it
+# through system-auth, so without even_deny_root the kid's own account would
+# be the only one that ever locks while the parent prompt could be guessed at
+# freely. The options go on the preauth and authfail lines as module
+# arguments, beside the deny and unlock_time Omarchy already sets there,
+# rather than into /etc/security/faillock.conf: that file reaches every
+# install, and it is an etc-override the omarchy-settings scriptlet rewrites
+# on every upgrade. root_unlock_time keeps root's lockout as short as the
+# account's. A stack without those lines is left alone with a warning rather
+# than failing the install.
+SYSTEM_AUTH="${OMARCHY_SYSTEM_AUTH:-/etc/pam.d/system-auth}"
+ROOT_LOCKOUT="even_deny_root root_unlock_time=120"
+
+lock_root_prompts() {
+  if [[ ! -f $SYSTEM_AUTH ]] || ! grep -Eq 'pam_faillock\.so[[:space:]]+(preauth|authfail)' "$SYSTEM_AUTH"; then
+    echo "Warning: $SYSTEM_AUTH has no pam_faillock preauth and authfail lines; wrong parent passwords are not counted." >&2
+    return 0
+  fi
+  sed -i -E "/pam_faillock\.so[[:space:]]+(preauth|authfail)/ { /even_deny_root/!s/[[:space:]]*\$/ $ROOT_LOCKOUT/; }" "$SYSTEM_AUTH"
+}
+
+unlock_root_prompts() {
+  [[ -f $SYSTEM_AUTH ]] || return 0
+  sed -i -E "/pam_faillock\.so/ s/[[:space:]]+$ROOT_LOCKOUT\$//" "$SYSTEM_AUTH"
+}
+
+apply_posture() {
+  local user="$1"
+
+  require_root_password
+  install_sudoers omarchy-parent "$(system_sudoers)"
+  install_polkit_rule
+  lock_root_prompts
+
+  # The account's own grant lands, validated, before it leaves wheel, so there
+  # is never a moment without a working sudo path. 00-omarchy-wheel stays: it
+  # is harmless with no members and keeps %wheel meaningful for a future parent
+  # account.
+  install_sudoers "omarchy-parent-$user" "$(account_sudoers "$user")"
+  if [[ ! -f $SUDOERS_DIR/00-omarchy-wheel ]]; then
+    install_sudoers 00-omarchy-wheel "%wheel ALL=(ALL:ALL) ALL"
+  fi
+  if in_wheel "$user"; then
+    gpasswd -d "$user" wheel >/dev/null
+    echo "$user has left the wheel group; the change applies at the next login."
+  fi
+
+  mask_consoles
+}
+
+remove_posture() {
+  local user="${1:-}"
+  rm -f "$SUDOERS_DIR/omarchy-parent" "$POLKIT_RULES_DIR/40-omarchy-parent.rules"
+  [[ -n $user ]] && rm -f "$SUDOERS_DIR/omarchy-parent-$user"
+  unmask_consoles
+  unlock_root_prompts
+  echo "Parental sudo and polkit configuration removed, the text consoles reopened, and root left out of faillock's count again. wheel membership is left as it is."
+}
+
+set_password() {
+  local user="$1" new confirmation
+
+  echo "The parent password is what sudo, updates, installs, and system prompts ask for."
+  echo "Keep it from the kid. It does not change the disk encryption password."
+  echo
+
+  new=$(gum input --password --header "New parent password") || exit 1
+  [[ -n $new ]] || fail "the parent password cannot be empty"
+  confirmation=$(gum input --password --header "Confirm the parent password") || exit 1
+  [[ $new == "$confirmation" ]] || fail "the passwords do not match"
+
+  printf '%s:%s\n' root "$new" | chpasswd
+  apply_posture "$user"
+
+  echo
+  echo "sudo and system prompts now ask for the parent password."
+}
+
+command="${1:-}"
+[[ -n $command ]] || { usage >&2; exit 1; }
+shift
+
+user=""
+remove=0
+positional=()
+while (($#)); do
+  case "$1" in
+    --user)
+      user="${2:-}"
+      shift 2
+      ;;
+    --remove)
+      remove=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      positional+=("$1")
+      shift
+      ;;
+  esac
+done
+
+require_user() {
+  [[ -n $user ]] || fail "$1 needs --user NAME"
+  [[ $user != "root" ]] || fail "the kid account cannot be root"
+  getent passwd "$user" >/dev/null || fail "user '$user' does not exist"
+}
+
+case "$command" in
+  password)
+    require_child_install
+    [[ -n $user ]] || user="${SUDO_USER:-}"
+    require_user password
+    set_password "$user"
+    ;;
+  apply)
+    if (( remove )); then
+      remove_posture "$user"
+    else
+      require_child_install
+      require_user apply
+      apply_posture "$user"
+    fi
+    ;;
+  tty)
+    require_child_install
+    case "${positional[0]:-}" in
+      off) mask_consoles; echo "Text consoles closed." ;;
+      on) unmask_consoles; echo "Text consoles reopened." ;;
+      *) usage >&2; exit 1 ;;
+    esac
+    ;;
+  -h|--help)
+    usage
+    ;;
+  *)
+    echo "Unknown command: $command" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

@@ -1,0 +1,106 @@
+#!/bin/bash
+#
+# Verifies the privilege posture of a child install (Omarchy's kids mode): the
+# kid account is outside wheel and holds an explicit sudo grant, sudo asks for
+# the parent password and refuses the kid's, polkit's admin identity is root,
+# and the one passwordless action left to the kid is the browser accent write.
+#
+# Runs only on a child install, and only with both passwords supplied: the
+# harness (omarchy-iso-test --child) sets OMARCHY_ACCEPTANCE_SUDO_PASSWORD to
+# the parent password and OMARCHY_ACCEPTANCE_USER_PASSWORD to the kid's, and
+# names the profile it installed in OMARCHY_ACCEPTANCE_PROFILE. A run named
+# child fails here rather than skipping when it lands on any other install or
+# arrives without its passwords, and a run named anything else fails on a
+# child install. Without that designation the checks are skipped, and say so.
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+designated=${OMARCHY_ACCEPTANCE_PROFILE:-}
+
+if ! omarchy-profile-child; then
+  [[ $designated != "child" ]] || fail "a child run lands on a child install" "the profile marker reads: $(cat /etc/omarchy/profile 2>/dev/null || echo none)"
+  skip "child install checks: not a child install"
+  exit 0
+fi
+[[ -z $designated || $designated == "child" ]] || fail "a $designated run lands on a $designated install" "the profile marker reads child"
+
+if [[ -z ${OMARCHY_ACCEPTANCE_SUDO_PASSWORD:-} || -z ${OMARCHY_ACCEPTANCE_USER_PASSWORD:-} ]]; then
+  [[ $designated != "child" ]] || fail "a child run carries both passwords" "set OMARCHY_ACCEPTANCE_SUDO_PASSWORD (parent) and OMARCHY_ACCEPTANCE_USER_PASSWORD (kid)"
+  skip "child install checks: set OMARCHY_ACCEPTANCE_SUDO_PASSWORD (parent) and OMARCHY_ACCEPTANCE_USER_PASSWORD (kid) to run them"
+  exit 0
+fi
+
+# Start from no cached credential, so each probe below proves its own password.
+sudo -K
+trap 'sudo -K' EXIT
+
+if id -nG | grep -qw wheel; then
+  fail "the kid account is outside wheel" "groups: $(id -nG)"
+fi
+pass "the kid account is outside wheel"
+
+if printf '%s\n' "$OMARCHY_ACCEPTANCE_USER_PASSWORD" | sudo -S -k -v 2>/dev/null; then
+  fail "sudo refuses the kid password"
+fi
+pass "sudo refuses the kid password"
+
+# Cache this validation for the sudo -n policy checks below. With -k, sudo -v
+# checks the password but does not update the timestamp.
+printf '%s\n' "$OMARCHY_ACCEPTANCE_SUDO_PASSWORD" | sudo -S -v 2>/dev/null ||
+  fail "sudo accepts the parent password"
+pass "sudo accepts the parent password"
+
+sudo -n grep -qx 'Defaults rootpw' /etc/sudoers.d/omarchy-parent ||
+  fail "sudo is configured to ask for root's password"
+sudo -n test -f "/etc/sudoers.d/omarchy-parent-$USER" ||
+  fail "the kid account holds its own sudo grant"
+grep -q 'return \["unix-user:root"\]' /etc/polkit-1/rules.d/40-omarchy-parent.rules ||
+  fail "polkit authenticates administrative prompts as root"
+pass "sudo and polkit are pointed at the parent password"
+
+# The long listing prints the matched entry's tags: !authenticate marks the
+# one passwordless action the kid keeps, and its absence on the DNS switch
+# shows that grant no longer reaches the account.
+sudo -n -l -l /usr/bin/omarchy-theme-set-browser-policy 000000 2>/dev/null | grep -q '!authenticate' ||
+  fail "the kid keeps the browser accent write passwordless"
+if sudo -n -l -l /usr/bin/omarchy-dns Cloudflare 2>/dev/null | grep -q '!authenticate'; then
+  fail "the DNS switch is no longer passwordless for the kid"
+fi
+pass "only the browser accent write stays passwordless for the kid"
+
+[[ $(cat /etc/omarchy/profile) == "child" ]] || fail "the install profile marker records a child install"
+pass "the install profile marker records a child install"
+
+# The lockout the parent prompt gets: sudo and polkit authenticate root through
+# system-auth, whose faillock lines carry the options apply put there.
+grep -Eq '^auth[[:space:]]+required[[:space:]]+pam_faillock\.so preauth .*even_deny_root root_unlock_time=120' /etc/pam.d/system-auth ||
+  fail "faillock counts root before a parent password is checked"
+grep -Eq '^auth[[:space:]]+\[default=die\][[:space:]]+pam_faillock\.so authfail .*even_deny_root root_unlock_time=120' /etc/pam.d/system-auth ||
+  fail "faillock records a wrong parent password against root"
+grep -Eq '^auth[[:space:]]+include[[:space:]]+system-auth' /etc/pam.d/sudo || fail "sudo authenticates through system-auth"
+pass "wrong parent passwords count toward root's lockout"
+
+# The parent password opens the lock screen and the login screen: both PAM
+# stacks carry the helper after the kid's own password, run with seteuid, and
+# SDDM's packaged file is kept beside it. The harness proves the login itself
+# by typing the parent password at SDDM on a child run.
+helper='pam_exec.so quiet seteuid expose_authtok /usr/bin/omarchy-parent-unlock'
+sudo -n grep -qF "$helper" /etc/pam.d/omarchy-lock-password || fail "the lock screen's stack hands the parent password to omarchy-parent-unlock"
+sudo -n grep -qF "$helper" /etc/pam.d/sddm || fail "the login screen's stack hands the parent password to omarchy-parent-unlock"
+sudo -n grep -qE '^auth[[:space:]]+\[success=2 default=ignore\][[:space:]]+pam_unix\.so' /etc/pam.d/sddm || fail "the login screen tries the kid's password first"
+sudo -n test -f /etc/pam.d/sddm.omarchy-orig || fail "the packaged login stack is kept beside the child one"
+sudo -n grep -qE '^auth[[:space:]]+requisite[[:space:]]+pam_nologin\.so' /etc/pam.d/sddm || fail "the login stack keeps the nologin check"
+pass "the parent password is wired into the lock screen and the login screen"
+
+# The helper those stacks run, against the live accounts: as the kid, with the
+# typed password on stdin the way pam_exec hands it over. The refusal comes
+# first, so the success after it leaves root's failure tally reset.
+if printf '%s' "$OMARCHY_ACCEPTANCE_USER_PASSWORD" | PAM_USER=$USER PAM_TYPE=auth /usr/bin/omarchy-parent-unlock 2>/dev/null; then
+  fail "omarchy-parent-unlock refuses the kid password"
+fi
+pass "omarchy-parent-unlock refuses the kid password"
+printf '%s' "$OMARCHY_ACCEPTANCE_SUDO_PASSWORD" | PAM_USER=$USER PAM_TYPE=auth /usr/bin/omarchy-parent-unlock 2>/dev/null ||
+  fail "omarchy-parent-unlock accepts the parent password"
+pass "omarchy-parent-unlock accepts the parent password"

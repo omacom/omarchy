@@ -14,6 +14,11 @@ pass() {
   printf 'ok - %s\n' "$1"
 }
 
+# A check that did not run says so, instead of counting as a pass.
+skip() {
+  printf 'ok - %s # SKIP\n' "$1"
+}
+
 fail() {
   local description="$1"
   local detail="${2:-}"

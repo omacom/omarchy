@@ -98,6 +98,10 @@ LUA
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
+adult_profile="$tmpdir/profile-default"
+printf 'default\n' >"$adult_profile"
+export OMARCHY_PROFILE_FILE="$adult_profile"
+
 fresh_home="$tmpdir/fresh-home"
 mkdir -p "$fresh_home"
 fresh_output=$(run_application_bindings "$fresh_home")
@@ -105,7 +109,29 @@ grep -Fq $'SUPER + RETURN	Terminal' <<<"$fresh_output" || fail "default applicat
 grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$fresh_output" || fail "default application bindings include preinstalled web apps"
 grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$fresh_output" || fail "default application bindings include the preinstalled calculator"
 grep -Fq $'XF86Calculator	Calculator' <<<"$fresh_output" || fail "default application bindings include the calculator hardware key"
+grep -Fq $'SUPER + SHIFT + ALT + B	Browser (private)' <<<"$fresh_output" || fail "default application bindings include private browser"
 pass "default application bindings load from package defaults"
+
+child_profile="$tmpdir/profile-child"
+printf 'child\n' >"$child_profile"
+child_home="$tmpdir/child-home"
+mkdir -p "$child_home"
+child_output=$(OMARCHY_PROFILE_FILE="$child_profile" run_application_bindings "$child_home")
+grep -Fq $'SUPER + RETURN	Terminal' <<<"$child_output" || fail "child profile keeps essential bindings"
+grep -Fq $'SUPER + SHIFT + Y	YouTube' <<<"$child_output" || fail "child profile keeps YouTube"
+if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$child_output"; then
+  fail "child profile skips ChatGPT"
+fi
+if grep -Fq $'SUPER + SHIFT + ALT + G	WhatsApp' <<<"$child_output"; then
+  fail "child profile skips WhatsApp"
+fi
+if grep -Fq $'SUPER + SHIFT + ALT + B	Browser (private)' <<<"$child_output"; then
+  fail "child profile skips private browser"
+fi
+if grep -Fq $'SUPER + SHIFT + D	Docker' <<<"$child_output"; then
+  fail "child profile skips Docker"
+fi
+pass "child profile skips adult application bindings"
 
 removed_home="$tmpdir/removed-home"
 mkdir -p "$removed_home/.local/state/omarchy"

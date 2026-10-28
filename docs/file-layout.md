@@ -371,6 +371,7 @@ the legacy finalization marker from `~/.local/state/omarchy/` into `done/`.
 finalization. It sources:
 
 - `install/config/all.sh` — theme links, lockout limits, lockscreen PAM,
+  the child install's parental posture (`omarchy-parent apply`),
   SSH command path and keepalive, docker setup,
   Snapper retention, locate index tuning, service enablement, firewall.
 - `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and
@@ -382,12 +383,15 @@ finalization. It sources:
 Logging goes to `/var/log/omarchy-install.log` via
 `install/helpers/logging.sh`.
 
+`--profile <default|child>` records the install profile as one word in `/etc/omarchy/profile` and exports it as `OMARCHY_INSTALL_PROFILE` for the leaves. `child` is kids mode, picked by the installer's "Who is this computer for?" question. At runtime `omarchy-profile-child` reads the marker for menu guards, scripts, and first-boot provisioning; a machine installed before profiles existed has no marker and counts as `default`. The marker lives in `/etc`, so a factory reset's `@factory` clone keeps a child machine a child machine.
+
 Platform-specific setup asks `omarchy-hw-platform`, which prints `x86`, `aarch64`, `aarch64-apple`, `aarch64-qualcomm`, `aarch64-n1x` or `aarch64-gb10` (the naming standard is in AGENTS.md under Platforms). It reads the vendor prefix of each token in the device tree's root `compatible` (`apple,` or `qcom,`, from `/proc/device-tree` or `/sys/firmware/devicetree/base`) and the CPU architecture, and fails when they contradict each other. A Snapdragon laptop's `qcom,` tree is `aarch64-qualcomm`. The NVIDIA N1x boots with ACPI and no device tree; it is `aarch64-n1x` when its MediaTek I2C controllers (ACPI `NVDA0200`) or its GPU (PCI `10de:2e06`) are present, and a device tree naming Apple or Qualcomm alongside them is a contradiction. An NVIDIA GB10 desktop, such as the DGX Spark, also boots with ACPI; it is `aarch64-gb10` when its GPU (PCI `10de:2e12`) is present, with the same contradictions, and an N1x signature alongside it is one too. A manifest written by an older image builder may still say `apple-silicon`, `generic-aarch64`, `generic` or `qualcomm`, which read as `aarch64-apple`, `aarch64`, `x86` and `aarch64-qualcomm`.
 
 An image built away from the machine it will run on names its target in a root-owned manifest, `/var/lib/omarchy/image/target` (`format=1`, `platform=<omarchy-hw-platform value>`, unknown keys ignored). While the root is being built rather than booted, the detector answers from the manifest and never reads the build host's device tree. The root counts as built when it shows it: no `/run/systemd/system`, PID 1's root is another one (a chroot), or PID 1 is not systemd (a PID namespace). A booted system always answers from its hardware, even with a manifest left behind, so no unit that asks the detector may use `PrivatePIDs=`. As root the detector restarts in an empty environment and ignores the fixture variables its tests use.
 
 The package lists the ISO pacstraps live at `install/omarchy-base.packages`
-and `install/omarchy-other.packages`; the ISO builder also reads them when
+and `install/omarchy-other.packages`, plus `install/omarchy-child.packages`
+for what a child install adds on top; the ISO builder also reads them when
 constructing its offline mirror.
 
 A platform's default package set is the base list, then its architecture's additions, then its own: `install/omarchy-aarch64.packages` on every aarch64 platform, then `install/omarchy-<platform>.packages` when that platform has one (`install/omarchy-aarch64-apple.packages` on Apple Silicon, `install/omarchy-aarch64-qualcomm.packages` on Snapdragon, `install/omarchy-aarch64-n1x.packages` on the N1x, `install/omarchy-aarch64-gb10.packages` on the GB10). x86 installs the base list alone. `omarchy-pkg-defaults [platform]` prints the composed set, for the running machine by default (via `omarchy-hw-platform`, so an image build gets its target's set), and `omarchy-reinstall-pkgs` installs it.
@@ -432,6 +436,7 @@ return to the packaged default.
 | Per-user file that's static but lives outside `~/.config` | `default/`, then add `install -Dm644 ... $pkgdir/etc/skel/...` in `omarchy-settings` PKGBUILD |
 | Runtime tweak that needs `$HOME` or live system state | extend `omarchy-provision-user`, or add a per-user leaf under `install/user/` and wire into `install/user/all.sh` |
 | One-time root-side setup step | `install/config/*.sh` or `install/hardware/*.sh`, wire into `install/config/all.sh` or `install/hardware/all.sh` |
+| Gate something on the install profile (kids mode) | `omarchy-profile-child`; the marker is `/etc/omarchy/profile`, written by `omarchy-apply-system --profile` |
 | One-time fix for existing installs | `migrations/<unix-timestamp>.sh` |
 | Package-owned path something else may already write | Prefer a path nothing else writes, such as a vendor drop-in under `/usr/lib`. Otherwise the `--overwrite` entry in `bin/omarchy-update-system-pkgs` has to ship a release before the file |
 | User-facing `omarchy-*` command | `bin/omarchy-<group>-<verb>` — see `GROUP_DESCRIPTIONS` in `bin/omarchy` |

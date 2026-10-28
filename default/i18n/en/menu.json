@@ -1283,6 +1283,9 @@
   "update.password.drive": {
     "label": "Drive Encryption"
   },
+  "update.password.parent": {
+    "label": "Parent"
+  },
   "update.password.user": {
     "label": "User"
   }

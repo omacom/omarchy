@@ -1,6 +1,6 @@
 # The setup form: every question Omarchy asks a human to describe their machine
-# — keyboard, account, hostname, timezone — plus the rules those answers are
-# checked against. Shared by the two places that ask them: the ISO
+# — who it is for, keyboard, account, hostname, timezone — plus the rules those
+# answers are checked against. Shared by the two places that ask them: the ISO
 # configurator's user step and this package's first-boot owner setup
 # (omarchy-provision-owner). Sourced by both, so the copies cannot drift the way
 # the keyboard list already did.
@@ -10,17 +10,19 @@
 #
 #   0    field is set, move on
 #   1    Esc — unwind to the start of the form
-#   130  Ctrl+C — a per-caller side channel (the installer arms deferred
-#        provisioning or toggles encryption; first-boot setup offers a reboot)
+#   130  Ctrl+C — a per-caller side channel (the installer toggles encryption,
+#        and armed deferred provisioning until omarchy_prompt_computer_for took
+#        that over as the first question; first-boot setup offers a reboot)
 #
 # gum is the reason those two are the whole vocabulary: Esc and Ctrl+C are the
 # only keys any gum widget exits on, and Ctrl+C arrives as a byte in raw mode,
 # so it never reaches the shell as SIGINT. Act on the status, never on a trap.
 #
 # Callers supply `notice <message> <seconds>` for validation feedback, and set
-# the variables these prompts write: keyboard, keyboard_label,
-# keyboard_input_method, keyboard_xkb_layout, username,
-# password, password_confirmation, full_name, email_address, hostname, timezone.
+# the variables these prompts write: computer_for, keyboard, keyboard_label,
+# keyboard_input_method, keyboard_xkb_layout, username, password,
+# password_confirmation, parent_password, parent_password_confirmation,
+# full_name, email_address, hostname, timezone.
 #
 # Callers may also set OMARCHY_FORM_LANGUAGE (a language registry code for the
 # form's text), OMARCHY_FORM_KEYBOARD_DEFAULT (a layout label to preselect),
@@ -128,6 +130,25 @@ omarchy_form_text() {
   printf '%s' "${text:-$1}"
 }
 
+# The first question: who the computer is for. Myself and My child pick the
+# install profile (default, child); Another owner defers the personal setup to
+# the machine's first boot. The labels come from the catalog and the values
+# are fixed, so the installer and first-boot setup read the same answer in
+# every language.
+omarchy_prompt_computer_for() {
+  local rows choice status
+  rows=$(printf '%s|me\n%s|child\n%s|other\n' \
+    "$(omarchy_form_text setupForm.computerForMyself)" \
+    "$(omarchy_form_text setupForm.computerForChild)" \
+    "$(omarchy_form_text setupForm.computerForOther)")
+  choice=$(printf '%s\n' "$rows" | cut -d'|' -f1 |
+    gum choose --height 5 --selected "$(omarchy_form_text setupForm.computerForMyself)" --header "$(omarchy_form_text setupForm.computerForHeader)") && status=0 || status=$?
+  ((status == 0)) || return $status
+
+  computer_for=$(printf '%s\n' "$rows" | awk -F'|' -v c="$choice" '$1==c{print $2; exit}')
+  [[ -n $computer_for ]] || return 1
+}
+
 omarchy_prompt_keyboard() {
   local choice status default=${OMARCHY_FORM_KEYBOARD_DEFAULT:-English (US)}
   # gum splits --selected on commas, so "Chinese (Simplified, Pinyin)" needs them escaped.
@@ -173,10 +194,20 @@ omarchy_prompt_username() {
   done
 }
 
+# `kid` asks for a child install's login password: the same rules, but the
+# placeholder no longer promises root, which the parent password owns there.
 omarchy_prompt_password() {
-  local status
+  local mode=${1:-} status label placeholder
+  if [[ $mode == "kid" ]]; then
+    label=$(omarchy_form_text setupForm.kidPasswordPrompt)
+    placeholder=$(omarchy_form_text setupForm.kidPasswordPlaceholder)
+  else
+    label=$(omarchy_form_text setupForm.passwordPrompt)
+    placeholder=$(omarchy_form_text setupForm.passwordPlaceholder)
+  fi
+
   while true; do
-    password=$(gum input --placeholder "$(omarchy_form_text setupForm.passwordPlaceholder)" --prompt.foreground="#845DF9" --password --prompt "$(omarchy_form_text setupForm.passwordPrompt)") && status=0 || status=$?
+    password=$(gum input --placeholder "$placeholder" --prompt.foreground="#845DF9" --password --prompt "$label") && status=0 || status=$?
     ((status == 0)) || return $status
     password_confirmation=$(gum input --placeholder "$(omarchy_form_text setupForm.confirmPlaceholder)" --prompt.foreground="#845DF9" --password --prompt "$(omarchy_form_text setupForm.confirmPrompt)") && status=0 || status=$?
     ((status == 0)) || return $status
@@ -187,6 +218,29 @@ omarchy_prompt_password() {
       notice "$(omarchy_form_text setupForm.passwordBlank)" 1
     else
       notice "$(omarchy_form_text setupForm.passwordMismatch)" 1
+    fi
+  done
+}
+
+# The parent password on a child install: what sudo and system prompts ask for.
+# Asked after the kid password so it can be checked against it — the split is
+# pointless when the two are the same.
+omarchy_prompt_parent_password() {
+  local status
+  while true; do
+    parent_password=$(gum input --placeholder "$(omarchy_form_text setupForm.parentPasswordPlaceholder)" --prompt.foreground="#845DF9" --password --prompt "$(omarchy_form_text setupForm.parentPasswordPrompt)") && status=0 || status=$?
+    ((status == 0)) || return $status
+    parent_password_confirmation=$(gum input --placeholder "$(omarchy_form_text setupForm.parentConfirmPlaceholder)" --prompt.foreground="#845DF9" --password --prompt "$(omarchy_form_text setupForm.confirmPrompt)") && status=0 || status=$?
+    ((status == 0)) || return $status
+
+    if [[ -z "$parent_password" ]]; then
+      notice "$(omarchy_form_text setupForm.parentPasswordBlank)" 1
+    elif [[ "$parent_password" != "$parent_password_confirmation" ]]; then
+      notice "$(omarchy_form_text setupForm.parentPasswordMismatch)" 1
+    elif [[ -n "${password:-}" && "$parent_password" == "$password" ]]; then
+      notice "$(omarchy_form_text setupForm.parentPasswordSameAsKid)" 1
+    else
+      return 0
     fi
   done
 }

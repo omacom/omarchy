@@ -50,7 +50,7 @@
   "learn.bash": {"icon":"󱆃","label":"Bash","action":"omarchy-launch-webapp 'https://devhints.io/bash'"},
   "learn.tmux-keybindings": {"icon":"","label":"Tmux","action":"omarchy-menu-tmux-keybindings"},
   "learn.herdr-keybindings": {"icon":"","label":"Herdr","action":"omarchy-menu-herdr-keybindings"},
-  "learn.community": {"icon":"󰙯","label":"Community","action":"omarchy-launch-discord-community"},
+  "learn.community": {"icon":"󰙯","label":"Community","when":"! omarchy-profile-child","action":"omarchy-launch-discord-community"},
 
   // Appearance
   "appearance.theme": {"icon":"󰸌","label":"Theme","aliases":["theme","themes"],"action":"omarchy-shell shell summon omarchy.image-picker '{\"source\":\"themes\"}'"},
@@ -253,11 +253,11 @@
   "setup.security": {"icon":"","label":"Security"},
   "setup.config": {"icon":"","label":"Config"},
   "setup.security.fingerprint": {"icon":"󰈷","label":"Fingerprint","when":"omarchy-hw-fingerprint","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-fingerprint"},
-  "setup.security.fido2": {"icon":"","label":"Fido2","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-fido2"},
+  "setup.security.fido2": {"icon":"","label":"Fido2","when":"! omarchy-profile-child","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-fido2"},
   "setup.security.sshd": {"icon":"󰣀","label":"SSHD","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-sshd"},
   "setup.security.ssh-agent": {"icon":"󰣀","label":"SSH Agent","when":"! systemctl --user -q is-enabled gcr-ssh-agent.socket","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-ssh-agent"},
-  "setup.security.sudoless-docker": {"icon":"󰡨","label":"Sudoless Docker","when":"omarchy-sudo-docker --configured","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-sudoless-docker"},
-  "setup.security.passwordless-sudo": {"icon":"󰟵","label":"Passwordless Sudo","action":"omarchy-launch-floating-terminal-with-presentation omarchy-sudo-passwordless"},
+  "setup.security.sudoless-docker": {"icon":"󰡨","label":"Sudoless Docker","when":"! omarchy-profile-child && omarchy-sudo-docker --configured","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-sudoless-docker"},
+  "setup.security.passwordless-sudo": {"icon":"󰟵","label":"Passwordless Sudo","when":"! omarchy-profile-child","action":"omarchy-launch-floating-terminal-with-presentation omarchy-sudo-passwordless"},
   "setup.config.git": {"icon":"","label":"Git","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-git"},
   "setup.config.hyprland": {"icon":"","label":"Hyprland","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/hyprland.lua\""},
   "setup.config.hyprsunset": {"icon":"","label":"Hyprsunset","action":"omarchy-launch-config-editor ~/.config/hypr/hyprsunset.conf && omarchy-restart-hyprsunset"},
@@ -431,14 +431,14 @@
   "remove.development.elixir.phoenix": {"icon":"","label":"Phoenix","when":"[[ -d $HOME/.local/share/mise/installs/elixir ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-dev-env phoenix'"},
 
   // Update
-  "update.omarchy": {"icon":"","iconFont":"omarchy","label":"Omarchy","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update"},
-  "update.channel": {"icon":"󰔫","label":"Channel"},
+  "update.omarchy": {"icon":"","iconFont":"omarchy","label":"Omarchy","when":"! omarchy-profile-child","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update"},
+  "update.channel": {"icon":"󰔫","label":"Channel","when":"! omarchy-profile-child"},
   "update.kernel": {"icon":"","label":"Kernel","when":"(( $(omarchy-kernel list | wc -l) > 1 ))","provider":"kernels"},
   "update.config": {"icon":"","label":"Config","title":"Reset to default"},
   "update.themes": {"icon":"󰸌","label":"Extra Themes","when":"omarchy-theme-extras","action":"omarchy-launch-floating-terminal-with-presentation omarchy-theme-update"},
   "update.process": {"icon":"","label":"Process","title":"Restart"},
   "update.hardware": {"icon":"󰇅","label":"Hardware","title":"Restart"},
-  "update.firmware": {"icon":"","label":"Firmware","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-firmware"},
+  "update.firmware": {"icon":"","label":"Firmware","when":"! omarchy-profile-child","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-firmware"},
   "update.password": {"icon":"","label":"Password"},
   "update.timezone": {"icon":"","label":"Timezone","action":"omarchy-menu-timezone"},
   "update.time": {"icon":"","label":"Time","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-time"},
@@ -459,4 +459,5 @@
   "update.hardware.trackpad": {"icon":"󰟸","label":"Trackpad","action":"omarchy-launch-floating-terminal-with-presentation omarchy-restart-trackpad"},
   "update.password.drive": {"icon":"","label":"Drive Encryption","action":"omarchy-launch-floating-terminal-with-presentation omarchy-drive-password"},
   "update.password.user": {"icon":"","label":"User","action":"omarchy-launch-floating-terminal-with-presentation passwd"},
+  "update.password.parent": {"icon":"","label":"Parent","when":"omarchy-profile-child","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-parent password'"},
 }
