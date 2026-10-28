@@ -47,11 +47,12 @@ set_background() {
   omarchy-shell -q background set "$BACKGROUND"
 }
 
-# Play the intro behind the same cover a theme switch uses: the shell holds the
-# outgoing frame over the desktop until OWE's video is moving, then fades it out,
-# so the desktop never shows the gap before the clip's first frame.
+# Play the intro, if there is one, behind the same cover a theme switch uses:
+# the shell holds the outgoing frame over the desktop until OWE's video is
+# moving or OWE has handed the desktop back, then fades it out, so the desktop
+# never shows the gap before the clip's first frame.
 play_background_intro() {
-  local intro="$1" previous="$2" token cover="" owned_cover="" prepare_pid prepared=false colors_payload shell_payload
+  local intro="$1" previous="$2" token cover="" owned_cover="" prepare_pid="" prepared=false colors_payload shell_payload
 
   # A theme switch must not repoint the background while the cover goes up.
   exec 9>"$THEME_SET_LOCK"
@@ -73,8 +74,10 @@ play_background_intro() {
     [[ ! -f $previous || ${previous,,} =~ \.(mp4|m4v|mov|webm|mkv|avi)$ ]] || cover="$previous"
   fi
 
-  owe intro-prepare "$intro" >/dev/null 2>&1 9>&- &
-  prepare_pid=$!
+  if [[ -n $intro ]]; then
+    owe intro-prepare "$intro" >/dev/null 2>&1 9>&- &
+    prepare_pid=$!
+  fi
 
   # The reveal reloads the palette it is handed, so hand it the current one.
   colors_payload=$([[ -f $CURRENT_THEME_PATH/colors.toml ]] && base64 -w 0 "$CURRENT_THEME_PATH/colors.toml")
@@ -82,7 +85,7 @@ play_background_intro() {
   token="background-$$-${EPOCHREALTIME//[!0-9]/}"
 
   if ! shell_ipc shell prepareThemeIntro "$cover" "$token" "$colors_payload" "$shell_payload"; then
-    wait "$prepare_pid"
+    [[ -z $prepare_pid ]] || wait "$prepare_pid"
     [[ -z $owned_cover ]] || rm -f "$owned_cover"
     set_background
     return
@@ -90,7 +93,7 @@ play_background_intro() {
 
   printf '%s\n' "$token" >"$INTRO_TOKEN_PATH"
   ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
-  if wait "$prepare_pid"; then
+  if [[ -n $prepare_pid ]] && wait "$prepare_pid"; then
     prepared=true
   fi
 
@@ -117,7 +120,10 @@ if [[ $PREVIOUS_BACKGROUND != "$BACKGROUND" && ! -f $HOME/.local/state/omarchy/t
   INTRO=$(omarchy-theme-bg-boot-intro --resolve-only "$BACKGROUND")
 fi
 
-if [[ -n $INTRO ]]; then
+# An intro still playing hides the shell's background, so an ordinary
+# transition would run unseen and end in a cut. A still without an intro of its
+# own then fades in from the playing frame under the same cover.
+if [[ -n $INTRO || $(owe status 2>/dev/null | jq -r '.intro' 2>/dev/null) == "true" ]]; then
   play_background_intro "$INTRO" "$PREVIOUS_BACKGROUND"
 else
   set_background

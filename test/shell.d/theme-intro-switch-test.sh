@@ -78,6 +78,9 @@ if [[ $1 == intro && -n ${TEST_RELEASE:-} ]]; then
   printf '%s\n' "$$" >"$TEST_INTRO_PID"
 fi
 printf 'owe: %s\n' "$*" >>"$TEST_LOG"
+if [[ $1 == status && ${TEST_INTRO_PLAYING:-false} == true ]]; then
+  echo '{"intro":true}'
+fi
 [[ ${TEST_OWE_FAIL:-false} != true ]] || exit 1
 if [[ $1 == "render" ]]; then
   [[ ${TEST_LIVE_FRAME:-false} == "true" ]] || exit 1
@@ -254,3 +257,21 @@ TEST_OWE_FAIL=true set_background "$state/theme/backgrounds/2-road.webp"
 wait_command '^shell: shell finishThemeIntro '
 grep -Fxq "shell: background setInstant $state/theme/backgrounds/2-road.webp" "$log" || fail "a failed intro fades the cover to the new still"
 pass "a superseded or failed background intro keeps the latest selection on screen"
+
+# A playing intro hides the shell's background, so a still without an intro of
+# its own fades in from the playing frame under the cover instead of cutting.
+TEST_INTRO_PLAYING=true set_background "$state/theme/backgrounds/1-sky.webp"
+wait_command '^shell: shell finishThemeIntro '
+grep -q '^shell: shell prepareThemeIntro ' "$log" || fail "a background change during an intro covers the playing frame"
+grep -Fxq "shell: background setInstant $state/theme/backgrounds/1-sky.webp" "$log" || fail "the still without an intro is set under the cover"
+! grep -qE '^owe: intro(-prepare)? ' "$log" || fail "a still without an intro plays none"
+! grep -q '^shell: -q background set ' "$log" || fail "no ordinary transition runs under the playing intro"
+if [[ $(<"$state/theme.name") == alpha ]]; then next_theme=beta; else next_theme=alpha; fi
+printf '%s\n' "$state/theme/backgrounds/1-sky.webp" >"$home/.local/state/omarchy/theme-backgrounds/$next_theme"
+TEST_INTRO_PLAYING=true set_theme "$next_theme"
+wait_command '^shell: shell finishThemeIntro '
+grep -q '^shell: shell prepareThemeIntro ' "$log" || fail "a theme switch during an intro covers the playing frame"
+grep -Fxq "shell: background setInstant $state/theme/backgrounds/1-sky.webp" "$log" || fail "the theme's still without an intro is set under the cover"
+! grep -q '^shell: background themeTransition ' "$log" || fail "no ordinary transition runs under the playing intro"
+! grep -qE '^owe: intro(-prepare)? ' "$log" || fail "the theme's still without an intro plays none"
+pass "switching to a still without an intro while one plays fades from the playing frame"

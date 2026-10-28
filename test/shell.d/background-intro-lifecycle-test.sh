@@ -58,3 +58,13 @@ released=$(grep -c '^released$' "$stage/polls" || true)
 (( covered >= 10 )) || fail "the frame poll runs while the intro covers the background ($covered owe render-status runs)"
 (( released <= 1 )) || fail "the frame poll stops once nothing waits for the intro ($released owe render-status runs in the second after the cover was released)"
 pass "the cover stays while waiting, remains off when OWE recreates the background service, and stops polling after a still intro"
+
+cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/finish-handoff.qml" "$stage/shell.qml"
+mkdir -p "$stage/home/.local/state/omarchy"
+printf 'finish-session\n' >"$stage/home/.local/state/omarchy/background-intro.session-id"
+output=$(HOME="$stage/home" PATH="$stage/bin:$PATH" OMARCHY_SESSION_ID=finish-session INTRO_TEST_LOG="$stage/starts" INTRO_TEST_COVER="$stage/cover.ppm" timeout 10 quickshell -p "$stage" --no-color 2>&1) || fail "finish handoff fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "finish handoff assertions pass" "$output"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
+  fail "finish handoff fixture has no QML errors" "$output"
+fi
+pass "a finished switch keeps its cover until OWE hands back a decoded still"

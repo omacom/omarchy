@@ -26,6 +26,9 @@ Item {
   property string themeColors: ""
   property string themeShell: ""
   property real themeOpacity: 1
+  // A finished switch whose wallpaper is still hidden or decoding keeps its
+  // cover until the wallpaper is on screen, so the fade never reveals a gap.
+  property bool themeFinishing: false
   readonly property var backgroundService: host && host.services ? host.firstPartyServiceFor("omarchy.background") : null
   readonly property bool backgroundActive: !!backgroundService && !backgroundService.suspended
   readonly property bool backgroundReady: backgroundActive && backgroundService.ready !== false
@@ -55,7 +58,10 @@ Item {
   }
 
   onDesktopReadyChanged: revealStartup()
-  onBackgroundReadyChanged: finishStartup()
+  onBackgroundReadyChanged: {
+    finishStartup()
+    if (themeFinishing && backgroundReady) revealTheme()
+  }
   Connections {
     target: root.host && root.host.pluginRegistry ? root.host.pluginRegistry : null
     function onPluginsChanged() { root.finishStartup() }
@@ -73,11 +79,13 @@ Item {
     themeColors = colors
     themeShell = shell
     themeOpacity = 1
+    themeFinishing = false
     themeFallback.restart()
   }
 
   function revealTheme() {
     if (!themeToken && !cover) return
+    themeFinishing = false
     framePoll.stop()
     themeFallback.stop()
     if (themeToken) {
@@ -99,8 +107,12 @@ Item {
     }
   }
 
+  // OWE hands the desktop back to the shell when an intro ends or is cut
+  // short, and the new still may still be decoding then.
   function finishTheme(token) {
-    if (token === themeToken) revealTheme()
+    if (token !== themeToken) return
+    if (backgroundReady || !backgroundService) revealTheme()
+    else themeFinishing = true
   }
 
   function themeStatus(token) {
@@ -118,6 +130,7 @@ Item {
   }
 
   function cancelTheme() {
+    themeFinishing = false
     framePoll.stop()
     themeFallback.stop()
     themeFade.stop()
