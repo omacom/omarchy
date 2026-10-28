@@ -8,7 +8,11 @@ hyprland="$hypr_dir/hyprland.lua"
 
 [[ -f $hyprland ]] || exit 0
 grep -qE '^[[:space:]]*omarchy_default_gestures[[:space:]]*=' "$hyprland" && exit 0
-grep -qE '^[[:space:]]*hl\.gesture[[:space:]]*\(' "$hypr_dir"/*.lua 2>/dev/null || exit 0
-grep -q '^require("default.hypr.omarchy")' "$hyprland" || exit 0
+grep -RqE --include='*.lua' '^[[:space:]]*hl\.gesture[[:space:]]*\(' "$hypr_dir" || exit 0
 
-sed -i 's/^require("default.hypr.omarchy")/-- Your own gestures replace Omarchy'"'"'s defaults.\nomarchy_default_gestures = false\n\n&/' "$hyprland"
+# The flag has to be set before the defaults load, so it goes above the line
+# that requires them, however that is spelled, or at the top of the file.
+line=$(grep -nE -m1 "^[[:space:]]*require[[:space:]]*\(?[[:space:]]*[\"']default\.hypr\.omarchy[\"']" "$hyprland" | cut -d: -f1 || true)
+
+# Follow a symlink into a dotfiles repo rather than replacing it with a copy.
+sed -i --follow-symlinks "${line:-1}i -- Your own gestures replace Omarchy's defaults.\nomarchy_default_gestures = false\n" "$hyprland"
