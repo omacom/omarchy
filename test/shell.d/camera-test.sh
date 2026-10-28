@@ -84,3 +84,37 @@ bash -c "source '$leaf'"
 grep -Fxq 'pipewire-libcamera' "$ROOT/install/omarchy-aarch64-qualcomm.packages" || fail "new Snapdragon installs get the camera backend"
 grep -Fxq 'pipewire-libcamera' "$ROOT/install/omarchy-other.packages" || fail "the ISO can supply the camera backend offline"
 pass "Snapdragon installs get the PipeWire camera backend, new and existing"
+
+# At login WirePlumber waits for the media devices the seat hands out, and only
+# until this user can open them, so libcamera finds the camera.
+media="$test_tmp/media"
+mkdir -p "$media"
+cat >"$test_tmp/bin/udevadm" <<'STUB'
+#!/bin/bash
+if [[ ${*: -1} == */media0 ]]; then
+  echo ":uaccess:seat:"
+else
+  echo ":seat:"
+fi
+STUB
+chmod +x "$test_tmp/bin/udevadm"
+wait_for_camera() {
+  local start=${EPOCHREALTIME/./}
+  OMARCHY_MEDIA_DEVICES_PATH="$media" "$ROOT/bin/omarchy-hw-wait-camera-access"
+  echo $(((${EPOCHREALTIME/./} - start) / 1000))
+}
+
+if ((EUID == 0)); then
+  skip "the login camera wait needs a user that file modes apply to"
+else
+  : >"$media/media1"
+  chmod 000 "$media/media1"
+  (($(wait_for_camera) < 500)) || fail "WirePlumber does not wait for a media device the seat does not hand out"
+  : >"$media/media0"
+  chmod 000 "$media/media0"
+  (sleep 1 && chmod 600 "$media/media0") &
+  elapsed=$(wait_for_camera)
+  wait
+  ((elapsed >= 900 && elapsed < 4000)) || fail "WirePlumber waits until the seat's camera opens" "waited ${elapsed} ms"
+  pass "WirePlumber waits for the seat's camera at login, and only for it"
+fi
