@@ -72,6 +72,10 @@ normalize_scale() {
 }
 
 set_scale() {
+  # Serialize runtime/config changes with display Preview, Keep and recovery.
+  mkdir -p "$STATE_DIR" || return 1
+  exec 8>"$STATE_DIR/monitor-config.lock"
+  flock 8 || return 1
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
   local monitor_info="$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')"
