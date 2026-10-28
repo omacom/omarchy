@@ -71,8 +71,13 @@ const account = aggregate.aggregateSnapshots([accountSnapshot('a', 100), account
 assertEqual(account.todayTotalTokens, 200, 'a record without todayScope keeps merging today by widest value')
 // A machine that last synced yesterday still calls yesterday "today" in its
 // undated fields; only its dated history counts.
+// Noon on the previous calendar day is yesterday whatever the clocks do;
+// 24 hours back is still today on a 25-hour day when daylight saving ends.
+const writtenYesterday = new Date()
+writtenYesterday.setHours(12, 0, 0, 0)
+writtenYesterday.setDate(writtenYesterday.getDate() - 1)
 const stale = accountSnapshot('c', 400, { todayScope: 'device' })
-stale.updatedAt = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+stale.updatedAt = writtenYesterday.toISOString()
 stale.providers.openrouter.recentDays = [{ date: yesterday, messageCount: 400 }]
 const withStale = aggregate.aggregateSnapshots([
   accountSnapshot('a', 100, { todayScope: 'device' }), accountSnapshot('b', 200, { todayScope: 'device' }), stale
