@@ -175,6 +175,14 @@ TEST_GATE_DIR="$gates" TEST_STATE="$state" TEST_OLD_THEME=beta set_theme alpha
 [[ ! -f $gates/premature-swap ]] || fail "the running reveal and the new cover settle before replacing the active theme"
 pass "rapid switches present the outgoing cover before replacing its still"
 
+# A shell an update could not restart only knows to drop the cover, so the
+# switch takes the ordinary transition and reloads Hyprland itself.
+TEST_OLD_SHELL=true set_theme beta
+grep -q '^shell: shell finishThemeIntro ' "$log" || fail "an older shell drops its cover"
+grep -q '^shell: background themeTransition ' "$log" || fail "an older shell takes the ordinary transition"
+grep -q '^hypr-reload$' "$log" || fail "an older shell's switch reloads Hyprland itself"
+pass "an older shell falls back to the ordinary theme transition"
+
 set_background() {
   : >"$log"
   HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_LOG="$log" \

@@ -52,7 +52,7 @@ Item {
   // yet.
   function selected() {
     if (queuedPath) return queuedPath
-    if (token && intro && token === intro.themeToken) return still
+    if (token && intro && (snapshotProc.running || token === intro.themeToken)) return still
     return backgroundService ? backgroundService.currentBackground : ""
   }
 
@@ -197,14 +197,18 @@ Item {
   }
 
   // A theme switch holds this lock while it stages, and may start an intro
-  // of its own before releasing it, so the reload is decided once it is free.
+  // of its own before releasing it. The reload is decided once the lock is
+  // taken and runs before it is released, so no new intro can start between.
   Process {
     id: reloadLock
-    command: ["flock", root.themeSetLock, "true"]
-    onExited: {
-      if (root.busy || playProc.running) return
-      root.reloadPending = false
-      Quickshell.execDetached(["omarchy-restart-hyprctl"])
+    command: ["flock", root.themeSetLock, "bash", "-c", 'echo locked; read -r go; [[ $go != reload ]] || exec omarchy-restart-hyprctl']
+    stdinEnabled: true
+    stdout: SplitParser {
+      onRead: {
+        var go = !root.busy && !playProc.running
+        if (go) root.reloadPending = false
+        reloadLock.write(go ? "reload\n" : "wait\n")
+      }
     }
   }
 
