@@ -86,6 +86,7 @@ theme_switch=false
 intro_prepared=false
 expected_background=""
 expected_theme=""
+switch_token=""
 case ${1:-} in
   "") ;;
   --prepare-theme)
@@ -106,11 +107,21 @@ case ${1:-} in
     theme_switch=true
     expected_background=$(readlink -f "${2:-}" 2>/dev/null) || exit 1
     expected_theme=${3:-}
+    switch_token=$expected_theme
     intro_prepared=${4:-false}
     [[ -n $expected_theme ]] || exit 1
     ;;
+  --background-switch)
+    # A background change keeps the theme, so only the selected background
+    # decides whether this intro is still wanted.
+    theme_switch=true
+    expected_background=$(readlink -f "${2:-}" 2>/dev/null) || exit 1
+    switch_token=${3:-}
+    intro_prepared=${4:-false}
+    [[ -n $switch_token ]] || exit 1
+    ;;
   *)
-    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--resolve-startup|--prepare-theme theme|--theme-switch background theme-id [prepared]]" >&2
+    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--resolve-startup|--prepare-theme theme|--theme-switch background theme-id [prepared]|--background-switch background token [prepared]]" >&2
     exit 1
     ;;
 esac
@@ -135,8 +146,8 @@ if [[ $theme_switch == false ]]; then
 fi
 
 selection_current() {
-  [[ $(readlink -f "$current_background_link") == "$expected_background" &&
-    $(stat -Lc '%d:%i' "$current_dir/theme" 2>/dev/null) == "$expected_theme" ]]
+  [[ $(readlink -f "$current_background_link") == "$expected_background" ]] &&
+    [[ -z $expected_theme || $(stat -Lc '%d:%i' "$current_dir/theme" 2>/dev/null) == "$expected_theme" ]]
 }
 
 if [[ $theme_switch == true ]] && ! selection_current; then
@@ -172,7 +183,7 @@ fi
 if [[ $theme_switch == true ]]; then
   deadline=$((SECONDS + 3))
   while true; do
-    cover_status=$(omarchy-shell shell themeIntroCoverStatus "$expected_theme" 2>/dev/null || true)
+    cover_status=$(omarchy-shell shell themeIntroCoverStatus "$switch_token" 2>/dev/null || true)
     case $cover_status in
       loading)
         (( SECONDS < deadline )) || exit 1

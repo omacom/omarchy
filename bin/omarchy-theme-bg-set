@@ -11,16 +11,95 @@ fi
 
 BACKGROUND="$(realpath "$1")"
 CURRENT_BACKGROUND_LINK="$HOME/.local/state/omarchy/current/background"
+CURRENT_THEME_PATH="$HOME/.local/state/omarchy/current/theme"
+BACKGROUND_TRANSITION_CACHE="$HOME/.cache/omarchy/background-transitions"
+THEME_SET_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+INTRO_TOKEN_PATH="${XDG_RUNTIME_DIR:-/tmp}/omarchy-background-intro.token"
 
 if [[ ! -f $BACKGROUND ]]; then
   echo "File does not exist: $BACKGROUND" >&2
   exit 1
 fi
 
-PREVIOUS_BACKGROUND=$(readlink -f "$CURRENT_BACKGROUND_LINK" 2>/dev/null)
+shell_ipc() {
+  timeout 2 omarchy-shell "$@" >/dev/null 2>&1
+}
 
-# Create symlink to the new background media
-ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
+wait_for_intro() {
+  local token="$1" deadline=$((SECONDS + 3))
+  [[ -n $token ]] || return 0
+  while (( SECONDS < deadline )) && [[ $(omarchy-shell shell themeIntroStatus "$token" 2>/dev/null) == "pending" ]]; do
+    sleep 0.02
+  done
+}
+
+# Update the live shell background when it is running. Nothing watches the
+# symlink, so this is how the shell learns of the new background.
+set_background() {
+  ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
+  omarchy-shell -q background set "$BACKGROUND"
+}
+
+# Play the intro behind the same cover a theme switch uses: the shell holds the
+# outgoing frame over the desktop until OWE's video is moving, then fades it out,
+# so the desktop never shows the gap before the clip's first frame.
+play_background_intro() {
+  local intro="$1" previous="$2" token cover="" owned_cover="" prepare_pid prepared=false colors_payload shell_payload
+
+  # A theme switch must not repoint the background while the cover goes up.
+  exec 9>"$THEME_SET_LOCK"
+  flock 9
+
+  # A frame captured during an earlier intro's opening fade misses its cover.
+  wait_for_intro "$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null)"
+  wait_for_intro "$(cat "$INTRO_TOKEN_PATH" 2>/dev/null)"
+
+  owe intro-prepare "$intro" >/dev/null 2>&1 9>&- &
+  prepare_pid=$!
+
+  # Cover with what the desktop shows now: the current frame of a playing
+  # video, or else the still itself.
+  mkdir -p "$BACKGROUND_TRANSITION_CACHE"
+  owned_cover="$BACKGROUND_TRANSITION_CACHE/previous-$$.ppm"
+  if owe render "$(jq -nc --arg path "$owned_cover" '{cmd: "snapshot", path: $path}')" >/dev/null 2>&1; then
+    cover="$owned_cover"
+  else
+    owned_cover=""
+    [[ ! -f $previous || ${previous,,} =~ \.(mp4|m4v|mov|webm|mkv|avi)$ ]] || cover="$previous"
+  fi
+
+  # The reveal reloads the palette it is handed, so hand it the current one.
+  colors_payload=$([[ -f $CURRENT_THEME_PATH/colors.toml ]] && base64 -w 0 "$CURRENT_THEME_PATH/colors.toml")
+  shell_payload=$([[ -f $CURRENT_THEME_PATH/shell.toml ]] && base64 -w 0 "$CURRENT_THEME_PATH/shell.toml")
+  token="background-$$-${EPOCHREALTIME//[!0-9]/}"
+
+  if ! shell_ipc shell prepareThemeIntro "$cover" "$token" "$colors_payload" "$shell_payload"; then
+    wait "$prepare_pid"
+    [[ -z $owned_cover ]] || rm -f "$owned_cover"
+    set_background
+    return
+  fi
+
+  printf '%s\n' "$token" >"$INTRO_TOKEN_PATH"
+  ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
+  if wait "$prepare_pid"; then
+    prepared=true
+  fi
+
+  # Played or not, the shell then takes the new still under the cover and
+  # fades the cover out. A newer selection owns the shell by then.
+  (
+    omarchy-theme-bg-boot-intro --background-switch "$BACKGROUND" "$token" "$prepared" || true
+    if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$BACKGROUND" ]]; then
+      shell_ipc background setInstant "$BACKGROUND" || true
+    fi
+    shell_ipc shell finishThemeIntro "$token" || true
+    wait_for_intro "$token"
+    [[ -z $owned_cover ]] || rm -f "$owned_cover"
+  ) 9>&- </dev/null >/dev/null 2>&1 &
+}
+
+PREVIOUS_BACKGROUND=$(readlink -f "$CURRENT_BACKGROUND_LINK" 2>/dev/null)
 
 INTRO=""
 if [[ $PREVIOUS_BACKGROUND != "$BACKGROUND" && ! -f $HOME/.local/state/omarchy/toggles/background-intros-off ]] &&
@@ -28,21 +107,8 @@ if [[ $PREVIOUS_BACKGROUND != "$BACKGROUND" && ! -f $HOME/.local/state/omarchy/t
   INTRO=$(omarchy-theme-bg-boot-intro --resolve-only "$BACKGROUND")
 fi
 
-# Update the live shell background when it is running. Nothing watches the
-# symlink, so this is how the shell learns of the new background.
 if [[ -n $INTRO ]]; then
-  # OWE hides the shell's background while the intro plays, so the shell takes
-  # the new still unseen once it ends. A newer selection owns the shell by then.
-  (
-    if owe intro --start first-frame "$INTRO"; then
-      update="setInstant"
-    else
-      update="set"
-    fi
-    if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$BACKGROUND" ]]; then
-      omarchy-shell -q background "$update" "$BACKGROUND"
-    fi
-  ) </dev/null >/dev/null 2>&1 &
+  play_background_intro "$INTRO" "$PREVIOUS_BACKGROUND"
 else
-  omarchy-shell -q background set "$BACKGROUND"
+  set_background
 fi

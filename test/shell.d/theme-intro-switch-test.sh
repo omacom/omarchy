@@ -219,8 +219,14 @@ set_background "$state/theme/backgrounds/1-sky.webp"
 grep -Fxq "shell: -q background set $state/theme/backgrounds/1-sky.webp" "$log" || fail "a background without an intro is set directly"
 ! grep -q '^owe: intro ' "$log" || fail "a background without an intro plays none"
 set_background "$state/theme/backgrounds/2-road.webp"
-wait_command "^shell: -q background setInstant $state/theme/backgrounds/2-road.webp\$"
-grep -Fxq "owe: intro --start first-frame $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "changing the background plays its matching intro"
+wait_command '^shell: shell finishThemeIntro '
+grep -Fxq "owe: intro --start first-frame --refresh $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "changing the background plays its matching prepared intro"
+# The outgoing still covers the desktop until the clip moves, then fades out,
+# so the gap before the clip's first frame is never shown.
+token=$(awk -v cover="$state/theme/backgrounds/1-sky.webp" '$1 == "shell:" && $3 == "prepareThemeIntro" && $4 == cover { print $5; exit }' "$log")
+[[ $token == background-* ]] || fail "the outgoing background covers the desktop during the intro" "$(cat "$log")"
+grep -Fxq "shell: background setInstant $state/theme/backgrounds/2-road.webp" "$log" || fail "the shell takes the new still under the cover"
+grep -Fxq "shell: shell finishThemeIntro $token" "$log" || fail "the cover fades out once the intro is moving"
 [[ $(readlink "$state/background") == "$state/theme/backgrounds/2-road.webp" ]] || fail "the background with an intro is selected"
 set_background "$state/theme/backgrounds/2-road.webp"
 ! grep -q '^owe: intro ' "$log" || fail "reselecting the current background plays no intro"
@@ -240,5 +246,6 @@ done
 sleep 0.1
 ! grep -q '2-road' "$log" || fail "a superseded intro leaves the newer background in place"
 TEST_OWE_FAIL=true set_background "$state/theme/backgrounds/2-road.webp"
-wait_command "^shell: -q background set $state/theme/backgrounds/2-road.webp\$"
+wait_command '^shell: shell finishThemeIntro '
+grep -Fxq "shell: background setInstant $state/theme/backgrounds/2-road.webp" "$log" || fail "a failed intro fades the cover to the new still"
 pass "a superseded or failed background intro keeps the latest selection on screen"

@@ -15,6 +15,7 @@ NEXT_THEME_PATH="$HOME/.local/state/omarchy/current/next-theme"
 CURRENT_BACKGROUND_LINK="$HOME/.local/state/omarchy/current/background"
 THEME_BACKGROUND_STATE_PATH="$HOME/.local/state/omarchy/theme-backgrounds"
 BACKGROUND_TRANSITION_CACHE="$HOME/.cache/omarchy/background-transitions"
+BACKGROUND_INTRO_TOKEN_PATH="${XDG_RUNTIME_DIR:-/tmp}/omarchy-background-intro.token"
 THEME_SET_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
 THEME_SET_LOG="$HOME/.local/state/omarchy/theme-set.log"
 THEME_RETINT_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-retint.lock"
@@ -417,6 +418,10 @@ flock 9
 # Finish that short reveal before capturing the next outgoing cover.
 if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
   wait_for_theme_intro themeIntroStatus "$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null)" "pending"
+  # A background change in the same theme names its intro with its own token.
+  if [[ -s $BACKGROUND_INTRO_TOKEN_PATH ]]; then
+    wait_for_theme_intro themeIntroStatus "$(<"$BACKGROUND_INTRO_TOKEN_PATH")" "pending"
+  fi
 fi
 
 PREVIOUS_THEME_NAME=$(cat "$CURRENT_THEME_NAME_PATH" 2>/dev/null || true)
