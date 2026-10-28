@@ -571,6 +571,12 @@ apply_other_theme_commands() {
   # in the shell and refreshes them each time it opens.
   omarchy-theme-bg-cache </dev/null >/dev/null 2>&1 8>&- 9>&- &
 
+  # Choosing the current theme again moves to its next wallpaper, so fetch that
+  # wallpaper's intro the way picking it does.
+  if [[ $THEME_HEADLESS != "1" && $PREVIOUS_THEME_NAME == "$THEME_NAME" && -n $CHOSEN_THEME_BACKGROUND ]]; then
+    omarchy-theme-bg-boot-intro --fetch "$CHOSEN_THEME_BACKGROUND" </dev/null >/dev/null 2>&1 8>&- 9>&- &
+  fi
+
   # Quick switches leave several of these batches going, and a retint such as
   # the browser's reads its colour long before it writes it. Run the batches
   # one at a time, and skip the retints of one whose theme was replaced while
