@@ -36,10 +36,11 @@ import "PanelSurface"
 // parallel axis (along-the-bar) uses the anchor's content x/y since the
 // bar window spans the full screen on that axis.
 //
-// Outside-click dismissal: an overlay MouseArea catches clicks, with the
-// QsWindow.mask subtracting the bar strip so clicks on the bar still
-// reach the bar widgets (activePopout coordinator hands off to another
-// popup if the user clicks a different bar icon).
+// Outside-click dismissal: an overlay MouseArea catches clicks, with
+// PanelSurface's input region leaving out the bar strip so clicks on the bar
+// still reach the bar widgets (activePopout coordinator hands off to another
+// popup if the user clicks a different bar icon, and the bar closes the panel
+// on a click that lands on no widget).
 PanelWindow {
   id: root
 
@@ -137,6 +138,7 @@ PanelWindow {
   property real stackZ: 0
   readonly property Item surfaceLayer: placed && screen ? PanelSurface.layers[screen.name] || null : null
   readonly property var surfaceWindow: placed && screen ? PanelSurface.windows[screen.name] || null : null
+  Component.onCompleted: PanelSurface.track(root)
   Component.onDestruction: PanelSurface.forget(root)
 
   // Panels on an output share one window, and with it one focused item. The
@@ -181,10 +183,10 @@ PanelWindow {
     function onBackingWindowVisibleChanged() { root.beginFocusPrime() }
   }
 
-  // The surface takes clicks on the whole screen while a panel is open. Clicks
-  // in the bar strip are forwarded to registered bar buttons so switching
-  // between panel icons works in one click even though it is above the bar.
-  readonly property real _barStripSize: bar ? barThickness + gap : 0
+  // The strip the bar takes on this panel's output, which the surface leaves
+  // to the bar while a panel is open; none while the bar is hidden. Only the
+  // built-in bar can say it is hidden, so PanelSurface asks a panel on it first.
+  readonly property real barStripSize: bar && bar.barHidden !== true ? barThickness + gap : 0
 
   // Track every layout change between the bar's contentItem and the
   // anchor item. `transform` updates whenever any item in that chain
@@ -253,10 +255,6 @@ PanelWindow {
   // centering the card under the icon.
   readonly property real barThickness: !bar ? 0
     : (typeof bar.barSizeFor === "function" && screen ? bar.barSizeFor(screen.name) : bar.barSize)
-  // Bar window dimensions, only for mapping overlay coordinates into
-  // bar-window content coordinates in barPoint() below.
-  readonly property real barW: anchorWindow ? anchorWindow.width : screenW
-  readonly property real barH: anchorWindow ? anchorWindow.height : 0
   readonly property point cardOrigin: {
     if (!anchorItem || !bar) return Qt.point(margin, margin)
     var x = 0, y = 0
@@ -400,11 +398,12 @@ PanelWindow {
 
   // --- outside-click dismissal --------------------------------------------
 
-  // Catches clicks anywhere in the clickable region (i.e. everywhere on
-  // screen except the bar strip, which is masked out). The card has its
-  // own MouseArea below so clicks on it don't bubble up here. Disabled
-  // during the fade-out so the dying overlay doesn't swallow clicks that
-  // were meant for the apps behind it.
+  // Catches clicks anywhere the surface takes them: everywhere on screen but
+  // the bar strip, which the surface leaves to the bar so a click there does
+  // just what it does with no panel open. The card has its own MouseArea
+  // below so clicks on it don't bubble up here. Disabled during the fade-out
+  // so the dying overlay doesn't swallow clicks that were meant for the apps
+  // behind it.
   MouseArea {
     id: dismissArea
     parent: root.surfaceLayer || cardHome
@@ -412,72 +411,7 @@ PanelWindow {
     anchors.fill: parent
     enabled: root.open
     acceptedButtons: Qt.AllButtons
-    hoverEnabled: true
-    property bool hoveringBar: false
-    cursorShape: hoveringBar ? Qt.PointingHandCursor : Qt.ArrowCursor
-
-    function inBarRegion(px, py) {
-      if (root.barPos === "bottom") return py >= root.screenH - root._barStripSize
-      if (root.barPos === "left") return px <= root._barStripSize
-      if (root.barPos === "right") return px >= root.screenW - root._barStripSize
-      return py <= root._barStripSize
-    }
-
-    function barPoint(px, py) {
-      if (root.barPos === "bottom") return Qt.point(px, py - (root.screenH - root.barH))
-      if (root.barPos === "right") return Qt.point(px - (root.screenW - root.barW), py)
-      return Qt.point(px, py)
-    }
-
-    function pressTargetAt(px, py) {
-      if (!root.anchorWindow || !root.anchorWindow.contentItem || !root.bar || !root.bar.clickTargets) return null
-      var p = barPoint(px, py)
-      var targets = root.bar.clickTargets
-      for (var i = targets.length - 1; i >= 0; i--) {
-        var target = targets[i]
-        if (!target || !target.triggerPress || target.visible === false || target.opacity === 0 || !target.mapToItem) continue
-        if (root.bar.targetBelongsToWindow && !root.bar.targetBelongsToWindow(target, root.anchorWindow)) continue
-        if (Util.itemContainsPoint(target, root.anchorWindow.contentItem, p.x, p.y)) return target
-      }
-      return null
-    }
-
-    function forwardBarClick(px, py, button) {
-      if (button !== Qt.LeftButton && button !== Qt.RightButton && button !== Qt.MiddleButton) return false
-      var target = pressTargetAt(px, py)
-      if (!target) return false
-      target.triggerPress(button)
-      return true
-    }
-
-    // This overlay takes presses on the bar strip too, so the bar button under
-    // the pointer never sees itself held; it's told, for its press feedback,
-    // the way the bar's own press handler tells it.
-    property var heldTarget: null
-    function hold(target, button) {
-      if (heldTarget && heldTarget !== target && "heldButtons" in heldTarget) heldTarget.heldButtons = Qt.NoButton
-      heldTarget = target && "heldButtons" in target ? target : null
-      if (heldTarget) heldTarget.heldButtons = button
-    }
-
-    // Every button still down, so a second button pressed or let go mid-hold
-    // leaves the first one's feedback alone.
-    onPressed: function(mouse) {
-      hold(root.focusPrimed && inBarRegion(mouse.x, mouse.y) ? pressTargetAt(mouse.x, mouse.y) : null, mouse.buttons)
-    }
-    onReleased: function(mouse) { hold(mouse.buttons ? heldTarget : null, mouse.buttons) }
-    onCanceled: hold(null)
-    onEnabledChanged: if (!enabled) hold(null)
-
-    onPositionChanged: function(mouse) { hoveringBar = inBarRegion(mouse.x, mouse.y) }
-    onExited: hoveringBar = false
-    onClicked: function(mouse) {
-      // While Exclusive is priming, Hyprland may route a click from another
-      // output here with translated coordinates. Never interpret that as a
-      // click on this output's bar.
-      if (root.focusPrimed && inBarRegion(mouse.x, mouse.y) && forwardBarClick(mouse.x, mouse.y, mouse.button)) return
-      root.close()
-    }
+    onClicked: root.close()
   }
 
   // The compositor hit-tests pointer input per output, so `dismissArea` above
