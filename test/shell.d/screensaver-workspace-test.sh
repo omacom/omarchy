@@ -102,7 +102,7 @@ hl = setmetatable({
   end,
 }, { __index = function() return function() return {} end end })
 require("default.hypr.helpers")
-require("default.hypr.apps.system")
+require("default.hypr.apps.screensaver")
 LUA
 )
 [[ $fallback == "special:screensaver silent" ]] ||
