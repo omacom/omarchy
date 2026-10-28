@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.screensaver-bounce",
+  "name": "Screensaver bounce",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "The screensaver's bouncing DVD logo, drawn over the screensaver terminal",
+  "kinds": [
+    "overlay"
+  ],
+  "entryPoints": {
+    "overlay": "Bounce.qml"
+  }
+}
