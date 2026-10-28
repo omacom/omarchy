@@ -52,6 +52,7 @@ Item {
   property var ask: null
   property string answered: ""
   property string debounced: ""
+  property string shownAuth: ""
   property bool details: false
   property double startedAt: 0
   property double finishedAt: 0
@@ -200,6 +201,12 @@ Item {
     lineCount = st.lines.length + 1
     toolCount = st.tools.length
     rev++
+    // sudo waiting on a PAM module needs the user as much as a password
+    // question does, so a window sent to the background comes back for it.
+    if (st.auth && st.auth !== shownAuth && phase === "running") {
+      shownAuth = st.auth
+      present()
+    }
     if (st.exit !== null && phase === "running") {
       follow.running = false
       finishedAt = Date.now()
