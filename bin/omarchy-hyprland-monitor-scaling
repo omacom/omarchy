@@ -103,8 +103,10 @@ set_scale() {
 # Persist the scale as a rule for this monitor alone, so other monitors keep
 # theirs and the scale survives reboots. A rule already naming the monitor has
 # its scale updated in place. Otherwise one is added after Omarchy's catch-all,
-# which stays the default for monitors without a rule of their own. Configs
-# with neither are left alone.
+# which stays the default for monitors without a rule of their own. Only rules
+# written on one line with a plain scale value are edited; a config holding
+# anything else for these rules (a multi-line table, a scale expression) is left
+# alone rather than risk writing broken Lua.
 persist_scale() {
   local monitor_lua="$1"
   local output="$2"
@@ -117,14 +119,21 @@ persist_scale() {
   tmp="$(mktemp)"
   if ! awk -v output="$output" -v scale="$scale" '
     function rule(name) { return "hl.monitor({ output = \"" name "\"," }
-    !updated && index($0, rule(output)) == 1 && match($0, /[{, ]scale = [^ ,}]+/) {
-      $0 = substr($0, 1, RSTART) "scale = " scale substr($0, RSTART + RLENGTH)
+    function whole_line() { return $0 ~ /\}\)[[:space:]]*(--.*)?$/ }
+    index($0, rule(output)) == 1 {
+      if (updated || !whole_line() || !match($0, /[{, ]scale = ("[^"]*"|[A-Za-z0-9_.]+) *[,}]/)) {
+        skip = 1
+        exit
+      }
+      tail = substr($0, RSTART, RLENGTH)
+      sub(/^[{, ]scale = ("[^"]*"|[A-Za-z0-9_.]+)/, "", tail)
+      $0 = substr($0, 1, RSTART) "scale = " scale tail substr($0, RSTART + RLENGTH)
       updated = 1
     }
-    !catch_all && index($0, rule("")) == 1 { catch_all = NR }
+    !catch_all && index($0, rule("")) == 1 { catch_all = NR; catch_all_whole = whole_line() }
     { lines[NR] = $0 }
     END {
-      if (!updated && !catch_all) exit 1
+      if (skip || (!updated && !(catch_all && catch_all_whole))) exit 1
       for (i = 1; i <= NR; i++) {
         print lines[i]
         if (!updated && i == catch_all)

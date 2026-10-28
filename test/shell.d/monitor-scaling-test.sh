@@ -149,3 +149,17 @@ grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null || fail "mo
 grep -Fx 'hl.monitor({ output = "DP-2", mode = "2560x1440@144", position = "0x0", scale = 1 })' "$monitor_lua" >/dev/null ||
   fail "monitor scaling leaves other monitors' rules alone"
 pass "monitor scaling persists per monitor"
+
+# Rules it cannot safely edit leave the config untouched instead of broken Lua.
+printf '%s\n' 'hl.monitor({ output = "",' '  mode = "preferred", position = "auto", scale = 2' '})' >"$monitor_lua"
+cp "$monitor_lua" "$test_tmp/expected.lua"
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
+cmp -s "$monitor_lua" "$test_tmp/expected.lua" || fail "monitor scaling leaves a multi-line catch-all alone"
+pass "monitor scaling leaves a multi-line catch-all alone"
+
+write_monitor_config
+printf '%s\n' 'hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = math.max(1, 2) })' >>"$monitor_lua"
+cp "$monitor_lua" "$test_tmp/expected.lua"
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
+cmp -s "$monitor_lua" "$test_tmp/expected.lua" || fail "monitor scaling leaves a scale expression alone"
+pass "monitor scaling leaves a scale expression alone"
