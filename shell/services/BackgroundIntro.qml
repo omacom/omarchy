@@ -35,7 +35,11 @@ Item {
   // same slanted cut as an ordinary background transition, not the intro fade.
   property bool themeCut: false
   property real themeCutProgress: 0
-  readonly property bool revealing: themeFade.running || themeCutReveal.running || startupFade.running
+  // A new palette restyles the whole shell in the frame it lands, and an
+  // animation started in that frame begins already advanced by its length,
+  // about 40% of the fade. The reveal starts two frames later instead.
+  property int revealDelayFrames: 0
+  readonly property bool revealing: revealDelayFrames > 0 || themeFade.running || themeCutReveal.running || startupFade.running
   // The outgoing frame reached, or failed to reach, the screen.
   signal coverPresented()
   readonly property var backgroundService: host && host.services ? host.firstPartyServiceFor("omarchy.background") : null
@@ -80,6 +84,7 @@ Item {
     framePoll.stop()
     themeFade.stop()
     themeCutReveal.stop()
+    revealDelayFrames = 0
     themeCut = false
     themeCutProgress = 0
     themeToken = token
@@ -115,10 +120,8 @@ Item {
       themeBackground = ""
       startupMediaReady = true
       revealStartup()
-    } else if (themeCut) {
-      themeCutReveal.restart()
     } else {
-      themeFade.restart()
+      revealDelayFrames = 2
     }
   }
 
@@ -132,7 +135,7 @@ Item {
   }
 
   function themeStatus(token) {
-    return token === transitionToken && (themeToken || themeFade.running || themeCutReveal.running || startupFade.running) ? "pending" : "ready"
+    return token === transitionToken && (themeToken || revealing) ? "pending" : "ready"
   }
 
   function themeCoverStatus(token) {
@@ -151,6 +154,7 @@ Item {
     themeFallback.stop()
     themeFade.stop()
     themeCutReveal.stop()
+    revealDelayFrames = 0
     themeCut = false
     themeCutProgress = 0
     themeToken = ""
@@ -206,6 +210,16 @@ Item {
       root.themeBackground = ""
       root.themeCut = false
       root.themeCutProgress = 0
+    }
+  }
+
+  FrameAnimation {
+    running: root.revealDelayFrames > 0
+    onTriggered: {
+      root.revealDelayFrames -= 1
+      if (root.revealDelayFrames > 0) return
+      if (root.themeCut) themeCutReveal.restart()
+      else themeFade.restart()
     }
   }
 
