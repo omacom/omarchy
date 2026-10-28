@@ -524,6 +524,16 @@ function M.move_to_monitor(direction)
   end, "o.workspaces.move_to_monitor(" .. literal(direction) .. ")")
 end
 
+-- Whether a block has a number with no workspace under it.
+local function has_room(block)
+  for slot = 1, SLOTS do
+    if not hl.get_workspace(block * SLOTS + slot) then
+      return true
+    end
+  end
+  return false
+end
+
 -- A free id past every monitor's block, for a workspace to wait under while
 -- two trade numbers.
 local function spare_id()
@@ -570,14 +580,26 @@ function M.swap_with_monitor(direction)
     local by_connector = assign(connected())
     local block_a, block_b = by_connector[target.name], by_connector[from.name]
     if block_a and block_b then
-      -- One waits under a spare number so the other can take the number it
-      -- left: the one it wants when their slots match, and the only free one
-      -- when the block is otherwise full.
+      -- Each joins the block it lands on when there is a number for it there:
+      -- its own already, the one the other leaves, or a free one. With none it
+      -- keeps its number and stays a guest, as one no block has room for does.
+      local joining_a = block_of_id(a) == block_a or block_of_id(b) == block_a or has_room(block_a)
+      local joining_b = block_of_id(b) == block_b or (block_of_id(a) == block_b and joining_a) or has_room(block_b)
+
+      -- The one going over waits under a spare number so the other can take
+      -- the number it left: the one it wants when their slots match, and the
+      -- only free one when the block is otherwise full.
       local slot_a, slot_b = (a - 1) % SLOTS + 1, (b - 1) % SLOTS + 1
       local spare = spare_id()
-      renumber(hl.get_workspace(a), spare)
-      adopt_slot(hl.get_workspace(b), block_b, slot_b)
-      adopt_slot(hl.get_workspace(spare), block_a, slot_a)
+      if joining_a then
+        renumber(hl.get_workspace(a), spare)
+      end
+      if joining_b then
+        adopt_slot(hl.get_workspace(b), block_b, slot_b)
+      end
+      if joining_a then
+        adopt_slot(hl.get_workspace(spare), block_a, slot_a)
+      end
     end
 
     hl.dispatch(hl.dsp.focus({ monitor = target.name }))
