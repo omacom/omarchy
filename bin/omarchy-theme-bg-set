@@ -17,6 +17,10 @@ if [[ ! -f $BACKGROUND ]]; then
   exit 1
 fi
 
+# A theme switch repoints the background too, so the two take turns.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+flock 9
+
 INTRO=$(omarchy-theme-bg-boot-intro --resolve-enabled "$BACKGROUND")
 
 # The shell sequences the change, with the intro or the ordinary transition,

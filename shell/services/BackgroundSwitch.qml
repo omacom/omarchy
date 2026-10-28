@@ -35,7 +35,6 @@ Item {
   // A selection made while an earlier change is still covered or revealing
   // waits for it, since its outgoing frame would miss that change's cover.
   property string queuedPath: ""
-  property string queuedClip: ""
   // A theme switch reloads Hyprland once no intro plays: a reload pauses
   // video presentation.
   property bool reloadPending: false
@@ -67,7 +66,6 @@ Item {
     if (!path || !intro || !backgroundService) return "unavailable"
     if (busy) {
       queuedPath = path
-      queuedClip = clipPath
     } else if (path !== backgroundService.currentBackground) {
       // A playing intro hides the shell's background, so even a still
       // without an intro of its own has to come in under the cover.
@@ -176,10 +174,11 @@ Item {
       else Quickshell.execDetached(["rm", "-f", path])
     }
     ownedCovers = kept
+    // The queued selection goes back through omarchy-theme-bg-set, which
+    // finds its intro under the settings and theme as they are now.
     if (queuedPath) {
-      var next = queuedPath
+      Quickshell.execDetached(["omarchy-theme-bg-set", queuedPath])
       queuedPath = ""
-      switchTo(next, queuedClip)
     }
   }
 

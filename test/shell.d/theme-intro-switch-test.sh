@@ -196,6 +196,21 @@ TEST_OLD_SHELL=true set_background "$sky"
 grep -Fxq "shell: -q background set $sky" "$log" || fail "without the shell's switch the background is set directly"
 pass "background changes go to the shell, or straight to the link without it"
 
+# A theme switch repoints the background too, so a background change waits
+# for one still holding the theme selection lock.
+release="$test_tmp/theme-lock-release"
+( flock 9; for attempt in {1..150}; do [[ -f $release ]] && break; sleep 0.02; done ) 9>"$test_tmp/omarchy-theme-set.lock" &
+holder=$!
+sleep 0.2
+set_background "$sky" &
+change=$!
+sleep 0.3
+! grep -q ' switchBackground ' "$log" || fail "a background change waits for a running theme switch"
+touch "$release"
+wait "$holder" "$change"
+grep -Fxq "shell: shell switchBackground $sky " "$log" || fail "the background change goes ahead once the theme switch is done" "$(cat "$log")"
+pass "background changes take turns with theme switches"
+
 # Cycling moves on from a selection the shell has not linked yet.
 next_background() {
   : >"$log"
