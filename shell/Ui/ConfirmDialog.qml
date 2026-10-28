@@ -7,8 +7,8 @@ Item {
 
   property bool opened: false
   property string message: ""
-  property string cancelText: "Cancel"
-  property string confirmText: "Confirm"
+  property string cancelText: Commons.I18n.t("common.cancel")
+  property string confirmText: Commons.I18n.t("common.confirm")
   property int selectedIndex: 1
   property color background: Commons.Color.background
   property color foreground: Commons.Color.foreground

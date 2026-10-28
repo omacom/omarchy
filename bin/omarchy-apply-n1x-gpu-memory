@@ -1,0 +1,83 @@
+#!/bin/bash
+
+# omarchy:summary=Shrink the NVIDIA N1x firmware's GPU memory reservation to 4 GiB
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# The N1x firmware sets aside a large block of RAM as the integrated GPU's
+# dedicated memory under Windows: 62.5 GiB on the Dell XPS 16, 32 GiB on the
+# Lenovo Pro 9 15N1X11. Linux's NVIDIA driver runs the GPU from system memory,
+# so the reservation sits idle and the laptop boots with half its RAM.
+# EXPOSED_DISP_FRM is the variable NVIDIA and the OEMs agreed on for sizing it,
+# so every N1x firmware has it. It takes effect at the next boot.
+#
+# NVIDIA's value for it: the reservation in MiB in the first four bytes (0xFA00
+# as the XPS 16 ships it, 0x8000 as the Lenovo ships it; 0x1000, 4 GiB, here)
+# and a last byte that has the firmware apply it. NVIDIA gave us the 16 bytes
+# between as the XPS 16 ships them; the Lenovo ships 0x40 where the XPS 16 has
+# 0x20, and boots with 4 GiB with its own byte kept. So the bytes between stay
+# as shipped, and any other value is left alone. The GPU firmware itself has
+# been seen using 80 MiB of the reservation with the XPS 16's own panel and
+# 230 MiB with a 5120x2160@120 monitor, and drawing a 5K display up to about
+# 700 MiB below the top of it, so 4 GiB leaves it room.
+
+var="${OMARCHY_EFIVARS:-/sys/firmware/efi/efivars}/EXPOSED_DISP_FRM-4b086294-0740-4f71-a7b5-85a329c7ec5f"
+# What the firmware ships between the size and the last byte.
+layouts=(
+  "00 00 00 20 00 00 00 00 00 00 00 00 01 00 00 00"
+  "00 00 00 40 00 00 00 00 00 00 00 00 01 00 00 00"
+)
+
+omarchy-hw-aarch64-n1x || exit 0
+
+if [[ ! -f $var ]]; then
+  echo "Error: the N1x firmware has no EXPOSED_DISP_FRM variable to size its GPU memory with" >&2
+  exit 1
+fi
+
+# An efivarfs file is the variable's 4 attribute bytes followed by its data.
+read -r -a bytes <<<"$(od -An -v -tx1 "$var" | tr '\n' ' ')"
+
+matched=""
+for layout in "${layouts[@]}"; do
+  if [[ ${bytes[*]:8:16} == $layout ]]; then
+    matched=$layout
+    break
+  fi
+done
+
+if (( ${#bytes[@]} != 25 )) || [[ -z $matched ]]; then
+  echo "Error: EXPOSED_DISP_FRM holds ${bytes[*]:4}, not the layout NVIDIA described; leaving it alone" >&2
+  exit 1
+fi
+
+read -r -a marker <<< "$matched"
+payload=(00 10 00 00 "${marker[@]}" 01)
+
+if [[ ${bytes[*]:4} == ${payload[*]} ]]; then
+  echo "The N1x GPU memory reservation is already set to 4 GiB"
+  exit 0
+fi
+
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+# Keep the variable's attributes; efivarfs takes them and the data in one write.
+printf "$(printf '\\x%s' "${bytes[@]:0:4}" "${payload[@]}")" >"$tmp"
+
+# efivarfs marks firmware variables immutable so a stray write can't change them.
+chattr -i "$var"
+if ! cat "$tmp" >"$var"; then
+  chattr +i "$var"
+  echo "Error: the firmware refused the new EXPOSED_DISP_FRM" >&2
+  exit 1
+fi
+chattr +i "$var"
+
+if ! cmp -s "$tmp" "$var"; then
+  echo "Error: EXPOSED_DISP_FRM did not keep the new value" >&2
+  exit 1
+fi
+
+echo "Set the N1x GPU memory reservation to 4 GiB; it takes effect at the next boot"

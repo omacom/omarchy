@@ -73,15 +73,24 @@ Panel {
   // Parsed wttr.in j1 response. Kept on failure so stale data stays visible.
   property var report: null
   property var dailyForecastReport: null
-  property string wttrLocation: ""
 
   // Configured location, read from the weather.json state file (owned by
-  // omarchy-weather-location). The query is the wttr.in path segment
-  // (coordinates when stored, else the encoded name); empty means IP
-  // auto-detect. The watch makes hand edits take effect live.
+  // omarchy-weather-location). The watch makes hand edits take effect live.
   property var configuredLocationState: ({ name: "", latitude: null, longitude: null })
   readonly property string configuredLocation: configuredLocationState.name
-  readonly property string locationQuery: Model.wttrLocationQuery(configuredLocationState.name, configuredLocationState.latitude, configuredLocationState.longitude)
+
+  // With nothing configured, where geo.omarchy.org places this network, in the
+  // same shape. Kept when a later lookup fails.
+  property var detectedLocationState: ({ name: "", latitude: null, longitude: null })
+  property bool detectingLocation: false
+  readonly property bool autoLocation: Model.isAutoLocation(configuredLocationState)
+  onAutoLocationChanged: if (autoLocation) detectLocation()
+
+  // The query is the wttr.in path segment (coordinates when known, else the
+  // encoded name); empty means wttr.in's own IP auto-detect, used only when
+  // geo.omarchy.org could not answer.
+  readonly property var locationState: Model.effectiveLocation(configuredLocationState, detectedLocationState)
+  readonly property string locationQuery: Model.wttrLocationQuery(locationState.name, locationState.latitude, locationState.longitude)
 
   // Keep the previous report visible while the new location loads. The
   // editor remains open with a spinner, so stale data is never presented
@@ -132,8 +141,9 @@ Panel {
   // wttr's current conditions when available; open-meteo's (bundled with the
   // much faster daily forecast fetch) fill the hero while wttr is in flight.
   readonly property bool hasConfiguredCoordinates: !isNaN(parseFloat(String(configuredLocationState.latitude))) && !isNaN(parseFloat(String(configuredLocationState.longitude)))
+  readonly property bool hasCoordinates: !isNaN(parseFloat(String(locationState.latitude))) && !isNaN(parseFloat(String(locationState.longitude)))
   readonly property var openMeteoCurrent: Model.openMeteoCurrentCondition(dailyForecastReport)
-  readonly property var current: (hasConfiguredCoordinates && openMeteoCurrent) ? openMeteoCurrent : ((report && report.current_condition && report.current_condition[0]) ? report.current_condition[0] : openMeteoCurrent)
+  readonly property var current: (hasCoordinates && openMeteoCurrent) ? openMeteoCurrent : ((report && report.current_condition && report.current_condition[0]) ? report.current_condition[0] : openMeteoCurrent)
   readonly property var areaInfo: report && report.nearest_area && report.nearest_area[0] ? report.nearest_area[0] : null
   readonly property var forecastDays: buildForecastDays()
   readonly property string reportCountry: areaInfo && areaInfo.country && areaInfo.country[0] ? areaInfo.country[0].value : ""
@@ -143,12 +153,18 @@ Panel {
   // Auto-refresh interval in minutes; clamped to a sane minimum.
   readonly property int refreshMinutes: Math.max(1, parseInt(setting("refreshMinutes", 15), 10) || 15)
 
-  readonly property string reportLocation:  configuredLocation || wttrLocation || (areaInfo && areaInfo.areaName && areaInfo.areaName[0] ? areaInfo.areaName[0].value : "")
-  readonly property string reportTempNum:   current ? String(useImperial ? current.temp_F : current.temp_C) : ""
+  readonly property string reportLocation:  configuredLocation || (autoLocation ? detectedLocationState.name : "") || (areaInfo && areaInfo.areaName && areaInfo.areaName[0] ? areaInfo.areaName[0].value : "")
+  readonly property string reportTempNum:   current ? displayNumber(useImperial ? current.temp_F : current.temp_C) : ""
   readonly property string tempUnit:        "°" + (useImperial ? "F" : "C")
   readonly property string reportFeels:     current ? formatTemp(useImperial ? current.FeelsLikeF : current.FeelsLikeC) : ""
-  readonly property string reportWind:      current ? (useImperial ? (current.windspeedMiles + " mph") : (current.windspeedKmph + " km/h")) : ""
-  readonly property string reportHumidity:  current ? (current.humidity + "%") : ""
+  readonly property string reportWind:      current ? (useImperial ? (displayNumber(current.windspeedMiles) + " mph") : (displayNumber(current.windspeedKmph) + " km/h")) : ""
+  readonly property string reportHumidity:  current ? (displayNumber(current.humidity) + "%") : ""
+
+  // The report's numbers arrive as strings ("13"), and blank when missing.
+  function displayNumber(value) {
+    if (value === undefined || value === null || value === "") return ""
+    return Commons.I18n.formatNumber(value)
+  }
 
   function refresh() {
     // Each full refresh cycle gets a fresh retry budget, so an earlier
@@ -156,19 +172,28 @@ Panel {
     // starve retries for the rest of the session.
     forecastRetries = 0
     dailyForecastRetries = 0
+    // Until geo.omarchy.org answers there is nothing to ask for: wait for it
+    // rather than have wttr.in look this machine up. Its answer, or its
+    // failure, refreshes again.
+    if (detectingLocation && locationQuery === "") return
     if (!forecastProc.running) forecastProc.running = true
-    if (root.locationQuery === "" && !locationProc.running) locationProc.running = true
-    // With stored coordinates this fetches open-meteo right away — no need
-    // to wait for the slow wttr response. Without them it's a no-op until
-    // wttr reports the detected area.
+    // With coordinates this fetches open-meteo right away — no need to wait
+    // for the slow wttr response. Without them it's a no-op until wttr
+    // reports the area.
     refreshDailyForecast(null)
+  }
+
+  function detectLocation() {
+    if (locationProc.running) return
+    detectingLocation = true
+    locationProc.running = true
   }
 
   function refreshDailyForecast(sourceReport) {
     if (dailyForecastProc.running) return
 
-    var lat = parseFloat(String(root.configuredLocationState.latitude))
-    var lon = parseFloat(String(root.configuredLocationState.longitude))
+    var lat = parseFloat(String(root.locationState.latitude))
+    var lon = parseFloat(String(root.locationState.longitude))
     if (isNaN(lat) || isNaN(lon)) {
       var area = sourceReport && sourceReport.nearest_area && sourceReport.nearest_area[0] ? sourceReport.nearest_area[0] : root.areaInfo
       if (!area) return
@@ -240,7 +265,6 @@ Panel {
 
   function clearLocation() {
     persistLocation("", null, null)
-    wttrLocation = ""
     cancelEditingLocation()
   }
 
@@ -315,16 +339,17 @@ Panel {
   }
 
   function formatTemp(value) {
-    return Model.formatTemp(value, useImperial)
+    return Model.formatTemp(value, useImperial, Commons.I18n.formatNumber)
   }
 
   function dayName(dateString) {
-    return Model.dayName(dateString, function(date) { return Qt.formatDate(date, "dddd") })
+    var locale = Qt.locale(Commons.I18n.formatLocale)
+    return Model.dayName(dateString, function(date) { return locale.standaloneDayName(date.getDay(), Locale.LongFormat) })
   }
 
   // Bare degree value (no unit letter), used in the forecast row.
   function bareTempForDay(day, kind) {
-    return Model.bareTempForDay(day, kind, useImperial)
+    return Model.bareTempForDay(day, kind, useImperial, Commons.I18n.formatNumber)
   }
 
   // Representative icon for a forecast day: the hourly entry nearest noon.
@@ -360,9 +385,10 @@ Panel {
           root.forecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "wttr"))
             root.finishSavingLocation()
-          // Stored coordinates already drove the fast open-meteo fetch from
-          // refresh(); only auto-detect needs the area wttr reported.
-          if (isNaN(parseFloat(String(root.configuredLocationState.latitude))))
+          // Known coordinates already drove the fast open-meteo fetch from
+          // refresh(); only a name, or wttr's own IP lookup, needs the area
+          // wttr reported.
+          if (!root.hasCoordinates)
             root.refreshDailyForecast(parsed)
         } catch (e) {
           // Keep last-good report visible, but try again shortly.
@@ -464,15 +490,24 @@ Panel {
     }
   }
 
+  // Omarchy's own lookup: city and coordinates from Cloudflare's view of
+  // this network, in weather.json's shape.
   Process {
     id: locationProc
-    command: ["curl", "-fsS", "--max-time", "4", "https://wttr.in/?format=%l"]
+    command: ["curl", "-fsS", "--max-time", "4", "https://geo.omarchy.org/"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        var raw = String(text || "").trim()
-        if (!raw) return
-        root.wttrLocation = raw.split(",")[0]
+        root.detectingLocation = false
+        var detected = Model.parseLocationFile(text)
+        var query = Model.wttrLocationQuery(detected.name, detected.latitude, detected.longitude)
+        // A new place changes locationQuery, which refreshes. An unchanged
+        // one was already fetched; a failure keeps the last place, or with
+        // none falls back to wttr.in's own lookup.
+        if (query !== "" && query !== root.locationQuery)
+          root.detectedLocationState = detected
+        else if (root.locationQuery === "")
+          root.refresh()
       }
     }
   }
@@ -483,7 +518,10 @@ Panel {
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.refresh()
+    onTriggered: {
+      if (root.autoLocation) root.detectLocation()
+      root.refresh()
+    }
   }
 
   ShellIpc {
@@ -503,7 +541,9 @@ Panel {
     owner: root.barIdentity
     bar: root.bar
     open: root.opened
-    centerOnBar: true
+    // Anchor under the widget rather than the middle of the bar, so the
+    // popup follows wherever the widget is placed.
+    centerOnBar: false
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(480))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
@@ -560,6 +600,9 @@ Panel {
           Row {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(2)
+            // A reading and its unit ("13 °C") stay in that order in a
+            // right-to-left layout too, the way bidi text keeps them.
+            LayoutMirroring.enabled: false
 
             Text {
               id: tempBig
@@ -629,7 +672,7 @@ Panel {
               id: locationField
               width: Style.space(190)
               enabled: !root.savingLocation
-              placeholderText: "Search city"
+              placeholderText: Commons.I18n.t("weather.searchCity")
               foreground: root.bar.foreground
               font.family: root.bar.fontFamily
 
@@ -672,7 +715,7 @@ Panel {
                 RotationAnimator on rotation {
                   running: root.savingLocation && !Style.reduceMotion
                   from: 0; to: 360
-                  duration: 800
+                  duration: Style.duration(800)
                   loops: Animation.Infinite
                 }
               }
@@ -696,7 +739,8 @@ Panel {
             Column {
               spacing: Style.space(5)
               Text {
-                text: "FEELS"
+                text: Commons.I18n.t("weather.feels")
+                textFormat: Text.PlainText
                 color: Qt.darker(root.bar.foreground, 1.5)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -714,7 +758,8 @@ Panel {
             Column {
               spacing: Style.space(5)
               Text {
-                text: "WIND"
+                text: Commons.I18n.t("weather.wind")
+                textFormat: Text.PlainText
                 color: Qt.darker(root.bar.foreground, 1.5)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -732,7 +777,8 @@ Panel {
             Column {
               spacing: Style.space(5)
               Text {
-                text: "HUMID"
+                text: Commons.I18n.t("weather.humid")
+                textFormat: Text.PlainText
                 color: Qt.darker(root.bar.foreground, 1.5)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -805,7 +851,8 @@ Panel {
 
       Text {
         visible: !root.current
-        text: "Fetching forecast…"
+        text: Commons.I18n.t("weather.fetching")
+        textFormat: Text.PlainText
         color: Qt.darker(root.bar.foreground, 1.5)
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.bodySmall

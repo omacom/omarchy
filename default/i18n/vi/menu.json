@@ -1,0 +1,1289 @@
+{
+  "root": {
+    "label": "Đi"
+  },
+  "apps": {
+    "label": "Ứng dụng"
+  },
+  "learn": {
+    "label": "Học"
+  },
+  "appearance": {
+    "label": "Giao diện"
+  },
+  "trigger": {
+    "label": "Kích hoạt"
+  },
+  "setup": {
+    "label": "Thiết lập"
+  },
+  "install": {
+    "label": "Cài đặt"
+  },
+  "remove": {
+    "label": "Gỡ bỏ"
+  },
+  "update": {
+    "label": "Cập nhật"
+  },
+  "about": {
+    "label": "Giới thiệu"
+  },
+  "system": {
+    "label": "Hệ thống"
+  },
+  "system.screensaver": {
+    "label": "Bảo vệ màn hình"
+  },
+  "system.lock": {
+    "label": "Khóa"
+  },
+  "system.suspend": {
+    "label": "Tạm dừng"
+  },
+  "system.hibernate": {
+    "label": "Ngủ đông"
+  },
+  "system.logout": {
+    "label": "Đăng xuất"
+  },
+  "system.reboot": {
+    "label": "Khởi động lại"
+  },
+  "system.shutdown": {
+    "label": "Tắt máy"
+  },
+  "learn.keybindings": {
+    "label": "Phím tắt"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Cộng đồng"
+  },
+  "appearance.theme": {
+    "label": "Chủ đề"
+  },
+  "appearance.background": {
+    "label": "Hình nền"
+  },
+  "appearance.font": {
+    "label": "Phông chữ"
+  },
+  "appearance.top-bar": {
+    "label": "Thanh menu"
+  },
+  "appearance.top-bar.hide": {
+    "label": "Ẩn thanh"
+  },
+  "appearance.top-bar.show": {
+    "label": "Hiện thanh"
+  },
+  "appearance.top-bar.position": {
+    "label": "Vị trí thanh"
+  },
+  "appearance.top-bar.background": {
+    "label": "Nền thanh"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "Thanh đặc"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "Thanh kính"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "Thanh trong"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "Chỉ báo thanh"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "Đồng hồ"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Chủ nhật 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Chủ nhật 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Chủ nhật 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Chủ nhật 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "CN 3 tháng 5 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "CN 3 tháng 5 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 tháng 5 W18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 tháng 5 W18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "Thanh trên"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "Thanh dưới"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "Thanh trái"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "Thanh phải"
+  },
+  "appearance.windows.corners": {
+    "label": "Góc cửa sổ"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "Góc theo chủ đề"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "Góc sắc"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "Góc bo tròn"
+  },
+  "appearance.windows.transparency": {
+    "label": "Độ mờ cửa sổ"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "Cửa sổ đặc"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "Cửa sổ trong suốt"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "Cửa sổ kính"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Bảo vệ màn hình"
+  },
+  "appearance.branding.about": {
+    "label": "Giới thiệu"
+  },
+  "appearance.branding.about.text": {
+    "label": "Sửa văn bản"
+  },
+  "appearance.branding.about.image": {
+    "label": "Đặt từ hình ảnh"
+  },
+  "appearance.branding.about.default": {
+    "label": "Khôi phục mặc định"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Sửa văn bản"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Đặt từ hình ảnh"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Khôi phục mặc định"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Tự ẩn Dock"
+  },
+  "appearance.dock.always-on": {
+    "label": "Dock luôn hiện"
+  },
+  "appearance.dock.position": {
+    "label": "Vị trí Dock"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock trên"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock dưới"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock trái"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock phải"
+  },
+  "appearance.workspace-layout": {
+    "label": "Bố cục không gian làm việc",
+    "title": "Bố cục không gian làm việc mặc định"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "Xếp ô"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "Cuộn"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "Nổi"
+  },
+  "appearance.unlock": {
+    "label": "Mở khóa"
+  },
+  "trigger.toggle": {
+    "label": "Bật/tắt"
+  },
+  "trigger.emoji": {
+    "label": "Emoji"
+  },
+  "trigger.clipboard-history": {
+    "label": "Lịch sử bảng nhớ tạm"
+  },
+  "trigger.reminder": {
+    "label": "Lời nhắc"
+  },
+  "trigger.capture": {
+    "label": "Chụp/ghi"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Chụp màn hình"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Dừng ghi màn hình"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Ghi màn hình"
+  },
+  "trigger.capture.text": {
+    "label": "Văn bản"
+  },
+  "trigger.capture.qr": {
+    "label": "Mã QR"
+  },
+  "trigger.capture.color": {
+    "label": "Màu"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Không có âm thanh"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "Có âm thanh hệ thống"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "Có âm thanh hệ thống + micro"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "Có âm thanh hệ thống + micro + webcam"
+  },
+  "trigger.transcode": {
+    "label": "Chuyển mã"
+  },
+  "trigger.share": {
+    "label": "Chia sẻ"
+  },
+  "trigger.hardware": {
+    "label": "Phần cứng"
+  },
+  "trigger.tests": {
+    "label": "Kiểm tra tốc độ"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Rung bàn di chuột"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "thấp"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "trung bình"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "cao"
+  },
+  "trigger.reminder.set": {
+    "label": "Đặt một lời nhắc"
+  },
+  "trigger.reminder.show": {
+    "label": "Hiện tất cả"
+  },
+  "trigger.reminder.clear": {
+    "label": "Xóa tất cả"
+  },
+  "trigger.share.clipboard": {
+    "label": "Bảng nhớ tạm"
+  },
+  "trigger.share.file": {
+    "label": "Tệp"
+  },
+  "trigger.share.folder": {
+    "label": "Thư mục"
+  },
+  "trigger.share.receive": {
+    "label": "Nhận"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Kiểm tra tốc độ mạng"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Kiểm tra tốc độ đĩa"
+  },
+  "setup.monitors": {
+    "label": "Màn hình"
+  },
+  "setup.keybindings": {
+    "label": "Phím tắt"
+  },
+  "setup.input": {
+    "label": "Đầu vào"
+  },
+  "setup.typing": {
+    "label": "Gõ phím"
+  },
+  "setup.typing.keyboard": {
+    "label": "Bố cục bàn phím"
+  },
+  "setup.typing.input": {
+    "label": "Bộ gõ"
+  },
+  "setup.language": {
+    "label": "Ngôn ngữ"
+  },
+  "setup.network": {
+    "label": "Mạng"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "Tùy chỉnh"
+  },
+  "setup.network.qr": {
+    "label": "Mã QR"
+  },
+  "setup.default": {
+    "label": "Mặc định"
+  },
+  "setup.default.agent": {
+    "label": "Agent",
+    "title": "Agent mặc định"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "Trình duyệt",
+    "title": "Trình duyệt mặc định"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Đọc chính tả",
+    "title": "Đọc chính tả mặc định"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Terminal",
+    "title": "Terminal mặc định"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Trình soạn thảo",
+    "title": "Trình soạn thảo mặc định"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Plugin"
+  },
+  "setup.plugin.enable": {
+    "label": "Bật plugin"
+  },
+  "setup.plugin.disable": {
+    "label": "Tắt plugin"
+  },
+  "setup.plugin.add": {
+    "label": "Thêm plugin"
+  },
+  "setup.plugin.clone": {
+    "label": "Nhân bản plugin"
+  },
+  "setup.plugin.remove": {
+    "label": "Gỡ plugin"
+  },
+  "setup.security": {
+    "label": "Bảo mật"
+  },
+  "setup.config": {
+    "label": "Cấu hình"
+  },
+  "setup.security.fingerprint": {
+    "label": "Vân tay"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker không sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Sudo không mật khẩu"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "Khởi động trực tiếp"
+  },
+  "setup.reset": {
+    "label": "Đặt lại máy"
+  },
+  "install.package": {
+    "label": "Gói"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "Dịch vụ"
+  },
+  "install.development": {
+    "label": "Phát triển"
+  },
+  "install.editor": {
+    "label": "Trình soạn thảo"
+  },
+  "install.style": {
+    "label": "Phong cách"
+  },
+  "install.style.theme": {
+    "label": "Chủ đề"
+  },
+  "install.style.background": {
+    "label": "Hình nền"
+  },
+  "install.style.font": {
+    "label": "Phông chữ"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Trò chơi"
+  },
+  "install.browser": {
+    "label": "Trình duyệt"
+  },
+  "install.webapp": {
+    "label": "Ứng dụng web"
+  },
+  "install.terminal": {
+    "label": "Terminal"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Cài sẵn"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Tài khoản Chromium"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Tay cầm Xbox"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "Trình mở game RetroArch"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Gói"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "Gỡ bỏ"
+  },
+  "remove.dictation": {
+    "label": "Đọc chính tả"
+  },
+  "remove.service": {
+    "label": "Dịch vụ",
+    "title": "Gỡ bỏ"
+  },
+  "remove.development": {
+    "label": "Phát triển",
+    "title": "Gỡ bỏ"
+  },
+  "remove.theme": {
+    "label": "Chủ đề"
+  },
+  "remove.gaming": {
+    "label": "Trò chơi",
+    "title": "Gỡ bỏ"
+  },
+  "remove.browser": {
+    "label": "Trình duyệt",
+    "title": "Gỡ bỏ"
+  },
+  "remove.webapp": {
+    "label": "Ứng dụng web"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Cài sẵn"
+  },
+  "remove.security": {
+    "label": "Bảo mật",
+    "title": "Gỡ bỏ"
+  },
+  "remove.security.fingerprint": {
+    "label": "Vân tay"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker không sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Tay cầm Xbox (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Gỡ bỏ"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Gỡ bỏ"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Gỡ bỏ"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Kênh"
+  },
+  "update.config": {
+    "label": "Cấu hình",
+    "title": "Đặt lại về mặc định"
+  },
+  "update.themes": {
+    "label": "Chủ đề bổ sung"
+  },
+  "update.process": {
+    "label": "Tiến trình",
+    "title": "Khởi động lại"
+  },
+  "update.hardware": {
+    "label": "Phần cứng",
+    "title": "Khởi động lại"
+  },
+  "update.firmware": {
+    "label": "Firmware"
+  },
+  "update.password": {
+    "label": "Mật khẩu"
+  },
+  "update.timezone": {
+    "label": "Múi giờ"
+  },
+  "update.time": {
+    "label": "Thời gian"
+  },
+  "update.channel.stable": {
+    "label": "Ổn định"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "Âm thanh"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Bàn di chuột"
+  },
+  "update.password.drive": {
+    "label": "Mã hóa ổ đĩa"
+  },
+  "update.password.user": {
+    "label": "Người dùng"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Hiện % pin"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Ẩn % pin"
+  },
+  "appearance.windows": {
+    "label": "Cửa sổ"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Bật khoảng cách cửa sổ"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Tắt khoảng cách cửa sổ"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Bật tỷ lệ 1 cửa sổ"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Tắt tỷ lệ 1 cửa sổ"
+  },
+  "appearance.branding": {
+    "label": "Thương hiệu"
+  },
+  "appearance.animations-on": {
+    "label": "Bật hoạt ảnh"
+  },
+  "appearance.animations-off": {
+    "label": "Tắt hoạt ảnh"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Giữ máy thức"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Cho phép ngủ"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Bật thông báo"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Tắt thông báo"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Bật đèn đêm"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Tắt đèn đêm"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Bật bảo vệ màn hình"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Tắt bảo vệ màn hình"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Bật ghi sự cố"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Tắt ghi sự cố"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Bật màn hình laptop"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Tắt màn hình laptop"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Bật phản chiếu màn hình"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Tắt phản chiếu màn hình"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Chuyển sang GPU lai"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Chuyển sang GPU tích hợp"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Bật bàn di chuột"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Tắt bàn di chuột"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Bật màn hình cảm ứng"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Tắt màn hình cảm ứng"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
+  }
+}

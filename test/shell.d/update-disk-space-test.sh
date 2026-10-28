@@ -17,10 +17,14 @@ runtime_dir="$test_tmp/runtime"
 snapshot_marker="$test_tmp/snapshot"
 gum_marker="$test_tmp/gum"
 mkdir -p "$runtime_dir"
-for command in omarchy-update omarchy-update-requires-free-space omarchy-update-confirm; do
+for command in omarchy-update omarchy-update-requires-free-space omarchy-update-confirm omarchy-i18n; do
   rm -f "$stub_bin/$command"
   copy_boundary_file "bin/$command"
 done
+# The confirmation prompt reads its text from the English catalog.
+mkdir -p "$SUDO_TEST_ROOT/default/i18n/en"
+cp "$ROOT/default/i18n/en/cli.json" "$SUDO_TEST_ROOT/default/i18n/en/cli.json"
+cp "$ROOT/default/i18n/plural.jq" "$ROOT/default/i18n/locales.json" "$SUDO_TEST_ROOT/default/i18n/"
 
 run_update() {
   SUDO_TEST_HOME="$test_home" \
@@ -134,7 +138,7 @@ pass "disk-space threshold includes the exact boundary"
 
 rm -f "$snapshot_marker" "$gum_marker"
 GUM_STATUS=0 TEST_AVAILABLE_BYTES=$((10 * 1024 * 1024 * 1024)) run_update >/dev/null
-grep -q "confirm Continue with update?" "$gum_marker" ||
+grep -q "confirm --affirmative Yes --negative No Continue with update?" "$gum_marker" ||
   fail "interactive update with enough space uses the normal confirmation prompt"
 [[ -f $snapshot_marker ]] || fail "accepting the normal confirmation starts the update"
 pass "interactive update keeps the normal confirmation prompt when space is sufficient"

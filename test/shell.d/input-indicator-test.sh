@@ -196,9 +196,11 @@ timers, reader, reads, failures, group_failures = [], {}, [0], [0], [0]
 real_timeout = indicator.GLib.timeout_add
 real_io_add_watch = indicator.GLib.io_add_watch
 
+# Run the reader's cadences at a fifth of their length; timers keeps the
+# requested intervals, which is what the cadence assertions check.
 def timeout(interval, fn):
   timers.append(interval)
-  return real_timeout(interval, fn)
+  return real_timeout(max(1, round(interval * 0.2)), fn)
 
 def register_reader(source, *args):
   # GLib's own loop.run() watches a signal pipe through the same call.
@@ -252,45 +254,45 @@ def scenario():
     assert 500 not in timers and 50 not in timers, timers
     live["methods"] = ["keyboard-us", "mozc"]
     save()
-    step(0.6, after_save)
+    step(0.2, after_save)
   def after_save():
     assert methods() == ["keyboard-us", "mozc"], state_lines
     assert 500 in timers, timers
     live["current"] = "mozc"
-    step(0.7, after_switch)
+    step(0.25, after_switch)
   def after_switch():
     # With two methods, a switch made inside an application is read on the next poll.
     assert state_lines[-1]["current"] == "mozc", state_lines
     # A save while polling replaces the poll rather than starting a second one.
     save()
-    step(0.4, count_polls)
+    step(0.15, count_polls)
   def count_polls():
     reads[0] = 0
-    step(2.0, polls_counted)
+    step(0.4, polls_counted)
   def polls_counted():
-    assert reads[0] <= 5, f"{reads[0]} reads in 2 s"
+    assert reads[0] <= 5, f"{reads[0]} reads in 0.4 s"
     live["methods"], live["current"] = ["keyboard-us"], "keyboard-us"
     save()
-    step(0.6, back_to_one)
+    step(0.2, back_to_one)
   def back_to_one():
     assert methods() == ["keyboard-us"], state_lines
     # A read that fails while the service runs is retried rather than left blank.
     failures[0] = 1
     save()
-    step(0.6, after_failed_read)
+    step(0.2, after_failed_read)
   def after_failed_read():
     assert methods() == [], state_lines
-    step(2.4, recovered)
+    step(0.6, recovered)
   def recovered():
     assert methods() == ["keyboard-us"], state_lines
     # A group count that times out keeps the reading on the bar.
     group_failures[0] = 1
     save()
-    step(0.6, after_failed_group_count)
+    step(0.2, after_failed_group_count)
   def after_failed_group_count():
     assert methods() == ["keyboard-us"], state_lines
     close_stdin()
-  step(1.0, single_method_settled)
+  step(0.3, single_method_settled)
 
 os.environ.pop("FCITX_CONFIG_HOME", None)
 with patch.dict(os.environ, {"XDG_CONFIG_HOME": config_home}), \
@@ -301,7 +303,7 @@ with patch.dict(os.environ, {"XDG_CONFIG_HOME": config_home}), \
      patch.object(indicator.GLib, "timeout_add", side_effect=timeout), \
      patch("builtins.print", side_effect=output):
   step(0, scenario)
-  step(20, lambda: errors.append(AssertionError("timed out")) or close_stdin())
+  step(8, lambda: errors.append(AssertionError("timed out")) or close_stdin())
   indicator.watch(None)
 assert not errors, errors
 print("ok - one input method is read once and again on a profile save, and several are polled for switches")

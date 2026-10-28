@@ -79,16 +79,19 @@ function availableScales(scales, width, height) {
     .map(function(candidate) { return candidate.value })
 }
 
-function brightnessName(percent) {
+// tr is an optional translate(key, english) from the QML side (I18n.t);
+// without it the English text stands, which is what the Node tests assert.
+function brightnessName(percent, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var p = Math.round(percent)
-  if (p >= 95) return "Sun blast"
-  if (p >= 80) return "Solar flare"
-  if (p >= 65) return "Golden hour"
-  if (p >= 45) return "Even day"
-  if (p >= 30) return "Soft glow"
-  if (p >= 20) return "Lamp light"
-  if (p >= 10) return "Candlelit"
-  return "Night owl"
+  if (p >= 95) return t("monitor.level.sunBlast", "Sun blast")
+  if (p >= 80) return t("monitor.level.solarFlare", "Solar flare")
+  if (p >= 65) return t("monitor.level.goldenHour", "Golden hour")
+  if (p >= 45) return t("monitor.level.evenDay", "Even day")
+  if (p >= 30) return t("monitor.level.softGlow", "Soft glow")
+  if (p >= 20) return t("monitor.level.lampLight", "Lamp light")
+  if (p >= 10) return t("monitor.level.candlelit", "Candlelit")
+  return t("monitor.level.nightOwl", "Night owl")
 }
 
 function parseDisplays(raw) {

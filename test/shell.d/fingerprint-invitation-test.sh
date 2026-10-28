@@ -49,6 +49,14 @@ echo "systemd-run:$*" >>"$TEST_LOG"
 EOF
 chmod +x "$test_bin/systemd-run"
 
+# The hook's strings come from the catalog through omarchy-i18n. Answering with
+# the key shows which string each install asked for, whatever the language.
+cat >"$test_bin/omarchy-i18n" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$1"
+EOF
+chmod +x "$test_bin/omarchy-i18n"
+
 # The profile marker is pinned away from the host's own so the wording under
 # test is the default install's unless a case says otherwise.
 run_invitation_hook() {
@@ -80,7 +88,9 @@ pass "fingerprint invitation waits for a reader and only runs once"
 
 # On a child install the print only ever unlocks the screen: sudo and system
 # prompts keep asking for the parent password, so the invitation says just that.
-grep -q 'Enable sudo and unlocking with your fingerprint\.' "$log_file" ||
+# The log names the catalog string each install asked for; the English catalog
+# shows what the kid reads.
+grep -q 'args:.* firstRun.fingerprintBody --exec' "$log_file" ||
   fail "fingerprint invitation promises sudo and unlocking on a default install"
 
 child_home=$(mktemp -d)
@@ -91,7 +101,9 @@ HOOK_HOME="$child_home" OMARCHY_PROFILE_FILE="$child_profile" run_invitation_hoo
 rm -rf "$child_home" "$child_profile"
 
 [[ $(grep -c '^notification$' "$log_file") -eq 1 ]] || fail "fingerprint invitation still notifies on a child install"
-grep -q 'Unlock with your fingerprint\.' "$log_file" || fail "fingerprint invitation on a child install offers unlocking only"
-! grep -q 'sudo' "$log_file" || fail "fingerprint invitation on a child install does not promise sudo"
+grep -q 'args:.* firstRun.fingerprintBodyChild --exec' "$log_file" || fail "fingerprint invitation on a child install asks for the unlocking-only string"
+child_body=$(jq -r '."firstRun.fingerprintBodyChild"' "$ROOT/default/i18n/en/cli.json")
+[[ $child_body == "Unlock with your fingerprint." ]] || fail "the child install's invitation reads as unlocking only" "$child_body"
+[[ $child_body != *sudo* ]] || fail "fingerprint invitation on a child install does not promise sudo"
 
 pass "fingerprint invitation drops the sudo promise on a child install"

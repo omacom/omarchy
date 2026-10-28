@@ -23,6 +23,11 @@
 # keyboard_input_method, keyboard_xkb_layout, username, password,
 # password_confirmation, parent_password, parent_password_confirmation,
 # full_name, email_address, hostname, timezone.
+#
+# Callers may also set OMARCHY_FORM_LANGUAGE (a language registry code for the
+# form's text), OMARCHY_FORM_KEYBOARD_DEFAULT (a layout label to preselect),
+# OMARCHY_FORM_TIMEZONE_DEFAULT (a timezone that beats the network's guess) and
+# OMARCHY_FORM_TIMEZONE_FALLBACK (one used only when that guess fails).
 
 OMARCHY_FORM_BACK=1
 OMARCHY_FORM_SIGNAL=130
@@ -40,7 +45,6 @@ Belarusian|by
 Belgian|be-latin1
 Bulgarian|bg-cp1251
 Chinese (Simplified, Pinyin)|us|pinyin
-Chinese (Traditional, Zhuyin)|us|chewing
 Croatian|croat
 Czech|cz
 Danish|dk-latin1
@@ -55,6 +59,7 @@ German|de
 German (Switzerland)|de_CH-latin1
 Greek|gr
 Hebrew|il
+Hong Kong (Cangjie)|us|cangjie5
 Hungarian|hu
 Icelandic|is-latin1
 Irish|ie
@@ -62,7 +67,7 @@ Italian|it
 Japanese|jp106|mozc
 Japanese (US keyboard)|us|mozc
 Kazakh|kazakh
-Korean|us|hangul|kr
+Korean|us|hangul|kr:kr104
 Kyrgyz|kyrgyz
 Lao|us||la
 Latvian|lv
@@ -80,16 +85,10 @@ Slovenian|slovene
 Spanish|es
 Spanish (Latin American)|la-latin1
 Swedish|sv-latin1
+Taiwan (Zhuyin)|us|chewing
 Tajik|tj_alt-UTF8
 Turkish|trq
 Ukrainian|ua'
-
-# The first question. Myself and My child pick the install profile (default,
-# child); Another owner defers the personal setup to the machine's first boot.
-# Labels lead and values follow, like the keyboard list.
-OMARCHY_COMPUTER_FOR_CHOICES=$'Myself|me
-My child|child
-Another owner|other'
 
 OMARCHY_USERNAME_PATTERN='^[a-z_][a-z0-9_-]*[$]?$'
 OMARCHY_RESERVED_USERNAMES='^(root|bin|daemon|mail|ftp|http|nobody|dbus|systemd-coredump|systemd-network|systemd-oom|systemd-journal-remote|systemd-resolve|systemd-timesync|tss|uuidd|alpm|git|avahi|cups|cups-browsed|lp|_talkd|polkitd|rtkit|qemu|brltty|gluster|rpc|libvirt-qemu|pcscd|nvidia-persistenced|sddm)$'
@@ -104,19 +103,57 @@ omarchy_username_taken() { return 1; }
 # by `status=$?`: one caller runs under `set -e`, where a cancelled prompt is a
 # failing assignment that would kill the script before the status is read.
 
+# Install media for one market can leave its keyboard and timezone choices for
+# a first-boot owner setup: plain KEY=value lines, read as data. The live
+# installer sets the same defaults in its environment instead.
+omarchy_form_defaults=${OMARCHY_FORM_DEFAULTS:-/etc/omarchy/form-defaults}
+if [[ -r $omarchy_form_defaults ]]; then
+  while IFS='=' read -r omarchy_form_key omarchy_form_value; do
+    case "$omarchy_form_key" in
+      KEYBOARD) : "${OMARCHY_FORM_KEYBOARD_DEFAULT:=$omarchy_form_value}" ;;
+      TIMEZONE) : "${OMARCHY_FORM_TIMEZONE_DEFAULT:=$omarchy_form_value}" ;;
+    esac
+  done <"$omarchy_form_defaults"
+  unset omarchy_form_key omarchy_form_value
+fi
+
+# The form's strings live in Omarchy's CLI catalogs, which the live ISO carries
+# too. The caller names the language in OMARCHY_FORM_LANGUAGE; English fills in.
+omarchy_form_i18n=${OMARCHY_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}/default/i18n
+
+omarchy_form_text() {
+  local language=${OMARCHY_FORM_LANGUAGE:-en} text
+  local -a catalogs=("$omarchy_form_i18n/en/cli.json")
+  [[ $language =~ ^[a-z]{2,3}(-[A-Z]{2})?$ && -r $omarchy_form_i18n/$language/cli.json ]] &&
+    catalogs=("$omarchy_form_i18n/$language/cli.json" "${catalogs[@]}")
+  text=$(jq -rn --arg key "$1" 'first(inputs | .[$key] // empty) // empty' "${catalogs[@]}" 2>/dev/null) || text=""
+  printf '%s' "${text:-$1}"
+}
+
+# The first question: who the computer is for. Myself and My child pick the
+# install profile (default, child); Another owner defers the personal setup to
+# the machine's first boot. The labels come from the catalog and the values
+# are fixed, so the installer and first-boot setup read the same answer in
+# every language.
 omarchy_prompt_computer_for() {
-  local choice status
-  choice=$(printf '%s\n' "$OMARCHY_COMPUTER_FOR_CHOICES" | cut -d'|' -f1 |
-    gum choose --height 5 --selected "Myself" --header "Who is this computer for?") && status=0 || status=$?
+  local rows choice status
+  rows=$(printf '%s|me\n%s|child\n%s|other\n' \
+    "$(omarchy_form_text setupForm.computerForMyself)" \
+    "$(omarchy_form_text setupForm.computerForChild)" \
+    "$(omarchy_form_text setupForm.computerForOther)")
+  choice=$(printf '%s\n' "$rows" | cut -d'|' -f1 |
+    gum choose --height 5 --selected "$(omarchy_form_text setupForm.computerForMyself)" --header "$(omarchy_form_text setupForm.computerForHeader)") && status=0 || status=$?
   ((status == 0)) || return $status
 
-  computer_for=$(printf '%s\n' "$OMARCHY_COMPUTER_FOR_CHOICES" | awk -F'|' -v c="$choice" '$1==c{print $2; exit}')
+  computer_for=$(printf '%s\n' "$rows" | awk -F'|' -v c="$choice" '$1==c{print $2; exit}')
+  [[ -n $computer_for ]] || return 1
 }
 
 omarchy_prompt_keyboard() {
-  local choice status
+  local choice status default=${OMARCHY_FORM_KEYBOARD_DEFAULT:-English (US)}
+  # gum splits --selected on commas, so "Chinese (Simplified, Pinyin)" needs them escaped.
   choice=$(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | cut -d'|' -f1 |
-    gum choose --height 10 --selected "English (US)" --header "Select keyboard layout") && status=0 || status=$?
+    gum choose --height 10 --selected "${default//,/\\,}" --header "$(omarchy_form_text setupForm.keyboardHeader)") && status=0 || status=$?
   ((status == 0)) || return $status
 
   local selection
@@ -131,8 +168,8 @@ omarchy_prompt_keyboard() {
 # preference survives separately for every user of the installed system.
 omarchy_persist_input_selection() {
   local target_root=${1:-} method=${keyboard_input_method:-none} layout=${keyboard_xkb_layout:-}
-  case "$method" in none | mozc | hangul | pinyin | chewing) ;; *) return 1 ;; esac
-  case "$layout" in "" | kr | la) ;; *) return 1 ;; esac
+  case "$method" in none | mozc | hangul | pinyin | chewing | cangjie5) ;; *) return 1 ;; esac
+  case "$layout" in "" | kr | kr:kr104 | la) ;; *) return 1 ;; esac
   mkdir -p "$target_root/etc/omarchy"
   printf 'INPUT_METHOD=%s\nXKB_LAYOUT=%s\n' "$method" "$layout" > "$target_root/etc/omarchy/input-method"
 }
@@ -140,19 +177,19 @@ omarchy_persist_input_selection() {
 omarchy_prompt_username() {
   local status
   while true; do
-    username=$(gum input --placeholder "Alphanumeric without spaces (like dhh)" --prompt.foreground="#845DF9" --prompt "Username> ") && status=0 || status=$?
+    username=$(gum input --placeholder "$(omarchy_form_text setupForm.usernamePlaceholder)" --prompt.foreground="#845DF9" --prompt "$(omarchy_form_text setupForm.usernamePrompt)") && status=0 || status=$?
     ((status == 0)) || return $status
 
     if [[ "$username" =~ $OMARCHY_USERNAME_PATTERN ]]; then
       if [[ "$username" =~ $OMARCHY_RESERVED_USERNAMES ]]; then
-        notice "Username is reserved for system" 1
+        notice "$(omarchy_form_text setupForm.usernameReserved)" 1
       elif omarchy_username_taken "$username"; then
-        notice "That username already exists on this machine" 1
+        notice "$(omarchy_form_text setupForm.usernameTaken)" 1
       else
         return 0
       fi
     else
-      notice "Username must be alphanumeric with no spaces" 1
+      notice "$(omarchy_form_text setupForm.usernameInvalid)" 1
     fi
   done
 }
@@ -160,25 +197,27 @@ omarchy_prompt_username() {
 # `kid` asks for a child install's login password: the same rules, but the
 # placeholder no longer promises root, which the parent password owns there.
 omarchy_prompt_password() {
-  local mode=${1:-} status
-  local label="Password> " placeholder="Used for user + root, and disk encryption when enabled"
+  local mode=${1:-} status label placeholder
   if [[ $mode == "kid" ]]; then
-    label="Kid password> "
-    placeholder="Used for login, unlocking, and disk encryption when enabled"
+    label=$(omarchy_form_text setupForm.kidPasswordPrompt)
+    placeholder=$(omarchy_form_text setupForm.kidPasswordPlaceholder)
+  else
+    label=$(omarchy_form_text setupForm.passwordPrompt)
+    placeholder=$(omarchy_form_text setupForm.passwordPlaceholder)
   fi
 
   while true; do
     password=$(gum input --placeholder "$placeholder" --prompt.foreground="#845DF9" --password --prompt "$label") && status=0 || status=$?
     ((status == 0)) || return $status
-    password_confirmation=$(gum input --placeholder "Must match the password you just typed" --prompt.foreground="#845DF9" --password --prompt "Confirm> ") && status=0 || status=$?
+    password_confirmation=$(gum input --placeholder "$(omarchy_form_text setupForm.confirmPlaceholder)" --prompt.foreground="#845DF9" --password --prompt "$(omarchy_form_text setupForm.confirmPrompt)") && status=0 || status=$?
     ((status == 0)) || return $status
 
     if [[ -n "$password" && "$password" == "$password_confirmation" ]]; then
       return 0
     elif [[ -z "$password" ]]; then
-      notice "Your password can't be blank!" 1
+      notice "$(omarchy_form_text setupForm.passwordBlank)" 1
     else
-      notice "Passwords didn't match!" 1
+      notice "$(omarchy_form_text setupForm.passwordMismatch)" 1
     fi
   done
 }
@@ -189,23 +228,24 @@ omarchy_prompt_password() {
 omarchy_prompt_parent_password() {
   local status
   while true; do
-    parent_password=$(gum input --placeholder "Asked by sudo, updates, and installs (keep it from the kid)" --prompt.foreground="#845DF9" --password --prompt "Parent password> ") && status=0 || status=$?
+    parent_password=$(gum input --placeholder "$(omarchy_form_text setupForm.parentPasswordPlaceholder)" --prompt.foreground="#845DF9" --password --prompt "$(omarchy_form_text setupForm.parentPasswordPrompt)") && status=0 || status=$?
     ((status == 0)) || return $status
-    parent_password_confirmation=$(gum input --placeholder "Must match the parent password you just typed" --prompt.foreground="#845DF9" --password --prompt "Confirm> ") && status=0 || status=$?
+    parent_password_confirmation=$(gum input --placeholder "$(omarchy_form_text setupForm.parentConfirmPlaceholder)" --prompt.foreground="#845DF9" --password --prompt "$(omarchy_form_text setupForm.confirmPrompt)") && status=0 || status=$?
     ((status == 0)) || return $status
 
     if [[ -z "$parent_password" ]]; then
-      notice "The parent password can't be blank!" 1
+      notice "$(omarchy_form_text setupForm.parentPasswordBlank)" 1
     elif [[ "$parent_password" != "$parent_password_confirmation" ]]; then
-      notice "Parent passwords didn't match!" 1
+      notice "$(omarchy_form_text setupForm.parentPasswordMismatch)" 1
     elif [[ -n "${password:-}" && "$parent_password" == "$password" ]]; then
-      notice "The parent password must differ from the kid password" 1
+      notice "$(omarchy_form_text setupForm.parentPasswordSameAsKid)" 1
     else
       return 0
     fi
   done
 }
 
+# Only ISO configurators from before omarchy-setup-git still call this.
 # Both fields are skippable with Return, so an empty value is a real answer and
 # only Esc/Ctrl+C end the prompt early.
 omarchy_prompt_identity() {
@@ -219,7 +259,7 @@ omarchy_prompt_identity() {
 omarchy_prompt_hostname() {
   local status
   while true; do
-    hostname=$(gum input --placeholder "Letters, digits, and dashes (or return for 'omarchy')" --prompt.foreground="#845DF9" --prompt "Hostname> ") && status=0 || status=$?
+    hostname=$(gum input --placeholder "$(omarchy_form_text setupForm.hostnamePlaceholder)" --prompt.foreground="#845DF9" --prompt "$(omarchy_form_text setupForm.hostnamePrompt)") && status=0 || status=$?
     ((status == 0)) || return $status
 
     if [[ -z $hostname ]]; then
@@ -228,7 +268,7 @@ omarchy_prompt_hostname() {
     elif [[ "$hostname" =~ $OMARCHY_HOSTNAME_PATTERN ]]; then
       return 0
     else
-      notice "Hostname must be 1-63 letters, digits, or dashes, and cannot start or end with a dash" 1
+      notice "$(omarchy_form_text setupForm.hostnameInvalid)" 1
     fi
   done
 }
@@ -237,12 +277,17 @@ omarchy_prompt_hostname() {
 # often; guard it or a `set -e` caller dies before the filter fallback.
 omarchy_prompt_timezone() {
   local guess status
-  guess=$(tzupdate -p 2>/dev/null) || guess=""
+  # A preset install media names its timezone; otherwise ask geo.omarchy.org,
+  # Omarchy's own lookup of where this network is, and failing that take the
+  # caller's fallback, like the language's capital.
+  guess=${OMARCHY_FORM_TIMEZONE_DEFAULT:-}
+  [[ -n $guess ]] || guess=$(curl -fsS --max-time 5 https://geo.omarchy.org/ 2>/dev/null | jq -r '.timezone // empty' 2>/dev/null) || guess=""
+  [[ -n $guess ]] || guess=${OMARCHY_FORM_TIMEZONE_FALLBACK:-}
 
   if [[ -n $guess ]]; then
-    timezone=$(timedatectl list-timezones | gum choose --height 10 --selected "$guess" --header "Timezone") && status=0 || status=$?
+    timezone=$(timedatectl list-timezones | gum choose --height 10 --selected "$guess" --header "$(omarchy_form_text setupForm.timezoneHeader)") && status=0 || status=$?
   else
-    timezone=$(timedatectl list-timezones | gum filter --height 10 --header "Timezone") && status=0 || status=$?
+    timezone=$(timedatectl list-timezones | gum filter --height 10 --header "$(omarchy_form_text setupForm.timezoneHeader)") && status=0 || status=$?
   fi
   ((status == 0)) || return $status
 

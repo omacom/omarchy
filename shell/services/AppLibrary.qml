@@ -176,7 +176,7 @@ Item {
     root.launchSerial++
     root.launchToplevelCount = root.toplevelCount()
     root.launchActiveToplevel = ToplevelManager.activeToplevel
-    root.launchOsdMessage = "Launching " + String(name || "application") + "…"
+    root.launchOsdMessage = name ? I18n.t("appLibrary.launching").arg(String(name)) : I18n.t("appLibrary.launchingApp")
     launchDelay.restart()
     launchTimeout.restart()
   }

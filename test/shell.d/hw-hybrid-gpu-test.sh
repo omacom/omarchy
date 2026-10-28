@@ -36,6 +36,23 @@ echo "lspci ran" >>"$LSPCI_LOG"
 exit 1
 STUB
 
+
+# The products bound supergfxctl queries at 1s/3s (plus a 1s kill-after);
+# shorten those bounds here instead of waiting them out against the
+# blocked stubs. Other durations pass through untouched.
+cat >"$fake_bin/timeout" <<'STUB'
+#!/bin/bash
+args=()
+for arg in "$@"; do
+  case $arg in
+    --kill-after=1s) arg="--kill-after=0.2s" ;;
+    1s | 3s) arg="0.2s" ;;
+  esac
+  args+=("$arg")
+done
+exec /usr/bin/timeout "${args[@]}"
+STUB
+
 chmod +x "$fake_bin"/*
 
 export LSPCI_LOG="$test_tmp/lspci.log"
