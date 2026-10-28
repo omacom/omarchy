@@ -15,7 +15,6 @@ NEXT_THEME_PATH="$HOME/.local/state/omarchy/current/next-theme"
 CURRENT_BACKGROUND_LINK="$HOME/.local/state/omarchy/current/background"
 THEME_BACKGROUND_STATE_PATH="$HOME/.local/state/omarchy/theme-backgrounds"
 BACKGROUND_TRANSITION_CACHE="$HOME/.cache/omarchy/background-transitions"
-BACKGROUND_INTRO_TOKEN_PATH="${XDG_RUNTIME_DIR:-/tmp}/omarchy-background-intro.token"
 THEME_SET_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
 THEME_SET_LOG="$HOME/.local/state/omarchy/theme-set.log"
 THEME_RETINT_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-retint.lock"
@@ -76,9 +75,11 @@ shell_ipc() {
   timeout 2 omarchy-shell "$@" >/dev/null 2>&1
 }
 
+# Wait, at most three seconds, while a shell call answers <pending>.
 wait_for_theme_intro() {
-  local method="$1" token="$2" pending="$3" deadline=$((SECONDS + 3))
-  while (( SECONDS < deadline )) && [[ $(omarchy-shell shell "$method" "$token" 2>/dev/null) == "$pending" ]]; do
+  local pending="$1" deadline=$((SECONDS + 3))
+  shift
+  while (( SECONDS < deadline )) && [[ $(omarchy-shell shell "$@" 2>/dev/null) == "$pending" ]]; do
     sleep 0.02
   done
 }
@@ -228,44 +229,19 @@ set_theme_background() {
       intro_prepared=true
     fi
     theme_id=$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH")
-    THEME_INTRO_TOKEN="$theme_id"
-    shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$theme_id" "$colors_payload" "$shell_payload" || \
-      shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
-    ln -nsf "$new_background" "$CURRENT_BACKGROUND_LINK"
-    (
-      # Played or not, the shell gets the new still: it still holds the old
-      # theme's path, which the theme swap above deleted, and loads it again
-      # when OWE hands the desktop back after the intro. While the intro plays
-      # the shell's background is suspended under it, so the swap is unseen.
-      # The subshell outlives the command, so OWE's report of an intro that
-      # ended early would land in the terminal after it has finished.
-      if [[ -n $THEME_BACKGROUND_INTRO ]]; then
-        omarchy-theme-bg-boot-intro --theme-switch "$new_background" "$theme_id" "$intro_prepared" >/dev/null 2>&1 || true
+    # With its cover up, the shell takes the rest: the new still under the
+    # cover, the intro if there is one, the reveal with the new palette, and
+    # Hyprland's reload once no video plays, since a reload pauses video.
+    if shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$theme_id" "$colors_payload" "$shell_payload"; then
+      ln -nsf "$new_background" "$CURRENT_BACKGROUND_LINK"
+      # The clip was found in the staged theme, which the swap renamed.
+      if shell_ipc shell playThemeIntro "$theme_id" "$new_background" "${THEME_BACKGROUND_INTRO/#$NEXT_THEME_PATH\//$CURRENT_THEME_PATH/}" "$intro_prepared"; then
+        THEME_INTRO_TOKEN="$theme_id"
+        return
       fi
-      if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$(readlink -f "$new_background")" &&
-        $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
-        shell_ipc background setInstant "$new_background" || true
-      fi
-      # A still without an intro, which only held the cover over a playing
-      # one, opens with the ordinary background cut once OWE hands back.
-      if [[ -n $THEME_BACKGROUND_INTRO ]]; then
-        shell_ipc shell finishThemeIntro "$theme_id" || true
-      else
-        shell_ipc shell cutThemeIntro "$theme_id" || shell_ipc shell finishThemeIntro "$theme_id" || true
-      fi
-      wait_for_theme_intro themeIntroStatus "$theme_id" "pending"
-      # Reloading Hyprland interrupts video presentation. Wait for playback,
-      # then serialize with theme selection so an old intro cannot reload
-      # the compositor during the next theme's video.
-      (
-        flock 9
-        if [[ $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
-          omarchy-restart-hyprctl
-        fi
-      ) 9>"$THEME_SET_LOCK"
-      [[ -z $OLD_BACKGROUND_SNAPSHOT ]] || rm -f "$OLD_BACKGROUND_SNAPSHOT"
-    ) 9>&- &
-    return
+      # A shell from before this handover only knows to drop the cover.
+      shell_ipc shell finishThemeIntro "$theme_id" || true
+    fi
   fi
   new_background_snapshot=""
   if [[ -n $PREPARED_BACKGROUND_SNAPSHOT && $PREPARED_BACKGROUND == "$new_background" ]]; then
@@ -425,11 +401,7 @@ flock 9
 # A current video frame only represents the screen after its opening fade.
 # Finish that short reveal before capturing the next outgoing cover.
 if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
-  wait_for_theme_intro themeIntroStatus "$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null)" "pending"
-  # A background change in the same theme names its intro with its own token.
-  if [[ -s $BACKGROUND_INTRO_TOKEN_PATH ]]; then
-    wait_for_theme_intro themeIntroStatus "$(<"$BACKGROUND_INTRO_TOKEN_PATH")" "pending"
-  fi
+  wait_for_theme_intro pending themeIntroBusy
 fi
 
 PREVIOUS_THEME_NAME=$(cat "$CURRENT_THEME_NAME_PATH" 2>/dev/null || true)
@@ -510,7 +482,7 @@ omarchy-theme-set-templates
 # Replacing the theme's still can cancel an active OWE intro even before the
 # background link changes. Present its cover before replacing either path.
 if [[ $THEME_BACKGROUND_COVER == "true" ]]; then
-  wait_for_theme_intro themeIntroCoverStatus "$(stat -Lc '%d:%i' "$NEXT_THEME_PATH")" "loading"
+  wait_for_theme_intro loading themeIntroCoverStatus "$(stat -Lc '%d:%i' "$NEXT_THEME_PATH")"
 fi
 
 # Swap next theme in as current
@@ -588,7 +560,7 @@ apply_other_theme_commands() {
   # Let an intro's wallpaper and bar finish their reveal before these compete
   # with video decoding and the shell's frame rendering.
   if [[ -n $THEME_INTRO_TOKEN ]]; then
-    wait_for_theme_intro themeIntroStatus "$THEME_INTRO_TOKEN" "pending"
+    wait_for_theme_intro pending themeIntroStatus "$THEME_INTRO_TOKEN"
   fi
 
   # Warm the background selector's thumbnails, which converts images on every

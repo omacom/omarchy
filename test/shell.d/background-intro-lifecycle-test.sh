@@ -68,3 +68,55 @@ if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding l
   fail "finish handoff fixture has no QML errors" "$output"
 fi
 pass "a finished switch keeps its cover until OWE hands back a decoded still"
+
+# BackgroundSwitch with the real intro lookup, a fake OWE and a fake Hyprland.
+require_command magick
+switch="$stage/switch"
+mkdir -p "$switch/services" "$switch/bin" "$switch/home/.local/state/omarchy/current" "$switch/media/intros"
+cp "$ROOT/shell/services/BackgroundIntro.qml" "$ROOT/shell/services/BackgroundSwitch.qml" "$switch/services/"
+ln -s "$ROOT/shell/Commons" "$switch/Commons"
+cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/switch-sequence.qml" "$switch/shell.qml"
+for name in old new plain other frame; do
+  magick -size 16x10 "xc:#$(printf '%06x' $((RANDOM * 512)))" "$switch/media/$name.png"
+done
+printf 'clip\n' >"$switch/media/intros/new.mp4"
+ln -s "$switch/media/old.png" "$switch/home/.local/state/omarchy/current/background"
+printf 'switch-session\n' >"$switch/home/.local/state/omarchy/background-intro.session-id"
+cat >"$switch/bin/owe" <<'SH'
+#!/bin/bash
+[[ $1 == render-status ]] && { echo '{"kind":"still","ready":true,"has_transition":false,"time_pos":-1}'; exit 0; }
+printf 'owe %s\n' "$*" >>"$SWITCH_LOG"
+case $1 in
+  intro) sleep 0.6; printf 'owe intro done\n' >>"$SWITCH_LOG" ;;
+  render) cp "$SWITCH_STAGE/frame.png" "$(jq -r .path <<<"$2")" ;;
+esac
+SH
+cat >"$switch/bin/hyprctl" <<'SH'
+#!/bin/bash
+echo '{"bool":true}'
+SH
+cat >"$switch/bin/omarchy-restart-hyprctl" <<'SH'
+#!/bin/bash
+printf 'reload\n' >>"$SWITCH_LOG"
+SH
+chmod +x "$switch/bin/"*
+touch "$switch/log"
+output=$(HOME="$switch/home" PATH="$switch/bin:$ROOT/bin:$PATH" OMARCHY_SESSION_ID=switch-session \
+  SWITCH_STAGE="$switch/media" SWITCH_LOG="$switch/log" timeout 15 quickshell -p "$switch" --no-color 2>&1) || fail "background switch fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "background switch assertions pass" "$output$(printf '\n--- log\n')$(cat "$switch/log")"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
+  fail "background switch fixture has no QML errors" "$output"
+fi
+log=$(<"$switch/log")
+clip="$switch/media/intros/new.mp4"
+# The prepared clip resumes; OWE re-reads the moved link for its final still.
+[[ $log == *"owe intro-prepare $clip"$'\n'"owe intro --start first-frame --refresh $clip"* ]] || fail "a background change prepares and plays its intro" "$log"
+# Nothing plays for a still without an intro of its own.
+(( $(grep -c "^owe intro --start" <<<"$log") == 2 )) || fail "only the two intros play" "$log"
+# A clip OWE could not prepare starts the ordinary way, and Hyprland reloads
+# only once it has ended.
+[[ $log == *"owe refresh"$'\n'"owe intro --start first-frame $clip"$'\n'"owe intro done"$'\n'"reload"* ]] || fail "a theme switch reloads Hyprland after its intro" "$log"
+(( $(grep -c '^reload$' <<<"$log") == 1 )) || fail "Hyprland reloads once, for the theme switch" "$log"
+snapshot=$(sed -n 's/.*SNAPSHOT //p' <<<"$output")
+[[ -n $snapshot && ! -e $snapshot ]] || fail "the playing frame's snapshot is removed once the cut has finished" "$snapshot"
+pass "background changes play intros, cut from a playing one, and reload Hyprland after a theme's intro"

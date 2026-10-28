@@ -35,6 +35,9 @@ Item {
   // same slanted cut as an ordinary background transition, not the intro fade.
   property bool themeCut: false
   property real themeCutProgress: 0
+  readonly property bool revealing: themeFade.running || themeCutReveal.running || startupFade.running
+  // The outgoing frame reached, or failed to reach, the screen.
+  signal coverPresented()
   readonly property var backgroundService: host && host.services ? host.firstPartyServiceFor("omarchy.background") : null
   readonly property bool backgroundActive: !!backgroundService && !backgroundService.suspended
   readonly property bool backgroundReady: backgroundActive && backgroundService.ready !== false
@@ -97,7 +100,8 @@ Item {
     themeFinishing = false
     framePoll.stop()
     themeFallback.stop()
-    if (themeToken) {
+    // A background change keeps the theme, so it hands over no palette.
+    if (themeToken && (themeColors || themeShell)) {
       Commons.Color.loadColors(Util.decodeBase64(themeColors))
       Commons.Color.loadShell(Util.decodeBase64(themeShell))
       Style.scheduleRefresh()
@@ -323,6 +327,8 @@ Item {
       property int coverFrames: 0
       readonly property bool coverReady: outgoingFrame.status === Image.Ready && coverFrames >= 2
       readonly property bool coverFailed: outgoingFrame.status === Image.Error
+      onCoverReadyChanged: root.coverPresented()
+      onCoverFailedChanged: root.coverPresented()
       screen: modelData
       visible: (!root.startupPending && root.cover) || root.themeBackground !== ""
       // Keep the window transparent throughout the fade. Paint the startup

@@ -24,6 +24,7 @@ ShellRoot {
   property AppLibrary appLibrary: AppLibrary { }
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
   property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
+  property BackgroundSwitch backgroundSwitch: BackgroundSwitch { intro: shell.bootIntro }
 
   property string home: Quickshell.env("HOME")
 
@@ -1753,14 +1754,21 @@ ShellRoot {
       shell.bootIntro.prepareTheme(fromPath, token, colorsB64, shellB64)
     }
 
-    function finishThemeIntro(token: string): void {
-      shell.bootIntro.finishTheme(token)
+    // A theme switch whose cover is up hands the rest over: the still, the
+    // intro if there is one, the reveal and Hyprland's reload.
+    function playThemeIntro(token: string, stillPath: string, introPath: string, prepared: string): string {
+      return shell.backgroundSwitch.play(token, stillPath, introPath, prepared)
     }
 
-    // A switch that only held the cover over a playing intro opens it with
-    // the ordinary background cut once OWE hands the desktop back.
-    function cutThemeIntro(token: string): void {
-      shell.bootIntro.finishTheme(token, true)
+    // omarchy-theme-bg-set's change, intro or not.
+    function switchBackground(path: string): string {
+      return shell.backgroundSwitch.switchTo(path)
+    }
+
+    // A cover is up or revealing, so the screen does not yet show a frame a
+    // new switch could capture as its own outgoing cover.
+    function themeIntroBusy(): string {
+      return shell.backgroundSwitch.busy ? "pending" : "ready"
     }
 
     function themeIntroStatus(token: string): string {

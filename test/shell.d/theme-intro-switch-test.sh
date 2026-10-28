@@ -47,11 +47,13 @@ STUB
 cat >"$commands/omarchy-shell" <<'STUB'
 #!/bin/bash
 printf 'shell: %s\n' "$*" >>"$TEST_LOG"
-if [[ $2 == "themeIntroCoverStatus" && -n ${TEST_COVER_LINK:-} ]]; then
-  printf 'cover checked on %s\n' "$(readlink "$TEST_COVER_LINK")" >>"$TEST_LOG"
+# A shell from before the handover knows neither call.
+if [[ $2 == "switchBackground" || $2 == "playThemeIntro" ]]; then
+  [[ ${TEST_OLD_SHELL:-false} != true ]] || exit 1
+  echo "ok"
 fi
 if [[ -n ${TEST_GATE_DIR:-} ]]; then
-  if [[ $2 == "themeIntroStatus" && ! -f $TEST_GATE_DIR/fade-ready ]]; then
+  if [[ $2 == "themeIntroBusy" && ! -f $TEST_GATE_DIR/fade-ready ]]; then
     if [[ ! -f $TEST_GATE_DIR/fade-waited ]]; then
       touch "$TEST_GATE_DIR/fade-waited"
       echo "pending"
@@ -107,179 +109,95 @@ set_theme() {
   HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_LOG="$log" \
     /bin/bash "$ROOT/bin/omarchy-theme-set" "$1" </dev/null >"$test_tmp/stdout" 2>"$test_tmp/stderr" || fail "theme selection completes" "$(cat "$test_tmp/stderr")"
 }
-wait_command() {
-  for attempt in {1..100}; do
-    grep -q "$1" "$log" && return 0
-    sleep 0.02
-  done
-  fail "theme selection reaches $1" "$(cat "$log")"
+
+# Once a theme switch has put up its cover, the shell sequences the rest:
+# BackgroundSwitch plays the intro, reveals the still and reloads Hyprland.
+road="$state/theme/backgrounds/2-road.webp"
+sky="$state/theme/backgrounds/1-sky.webp"
+clip="$state/theme/backgrounds/intros/2-road.mp4"
+handed_over() {
+  grep -Fxq "shell: shell playThemeIntro $(stat -Lc '%d:%i' "$state/theme") $1" "$log"
 }
 
 set_theme beta
-wait_command '^owe: intro '
-grep -Fxq "owe: intro --start first-frame --refresh $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "a theme switch plays the remembered background's matching prepared intro"
-[[ $(readlink "$state/background") == "$state/theme/backgrounds/2-road.webp" ]] || fail "the remembered background is selected"
+handed_over "$road $clip true" || fail "a theme switch hands the remembered background's prepared intro to the shell" "$(cat "$log")"
+[[ $(readlink "$state/background") == "$road" ]] || fail "the remembered background is selected"
 ! grep -qE '^shell: background (prepare|themeTransition)' "$log" || fail "an intro replaces the normal still transition"
+! grep -qE '^owe: intro ' "$log" || fail "the shell plays the intro, not the command"
+! grep -q '^hypr-reload$' "$log" || fail "the shell reloads Hyprland after the intro, not the command"
 [[ $(<"$home/.local/state/omarchy/background-intro.session-id") == already-consumed ]] || fail "a theme switch leaves login consumption unchanged"
-# The shell holds the old theme's still, whose path the swap deleted, and loads
-# it again when OWE hands the desktop back, so it gets the new one either way.
-wait_command "^shell: background setInstant $state/theme/backgrounds/2-road.webp\$"
-pass "switching themes plays the matching intro for the remembered background"
+pass "switching themes hands the remembered background's intro to the shell"
 
 set_theme beta
-[[ $(readlink "$state/background") == "$state/theme/backgrounds/1-sky.webp" ]] || fail "reselecting the current theme cycles its background"
+[[ $(readlink "$state/background") == "$sky" ]] || fail "reselecting the current theme cycles its background"
 grep -q '^shell: background themeTransition ' "$log" || fail "cycling to a background without an intro uses the normal still transition"
-! grep -q '^owe: intro ' "$log" || fail "cycling to a background without an intro plays none"
+! grep -q ' playThemeIntro ' "$log" || fail "cycling to a background without an intro plays none"
 set_theme beta
-wait_command '^owe: intro '
-grep -Fxq "owe: intro --start first-frame --refresh $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "cycling to a background with an intro plays it"
-wait_command '^hypr-reload$'
+handed_over "$road $clip true" || fail "cycling to a background with an intro plays it" "$(cat "$log")"
 OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme alpha
-! grep -q '^owe: intro ' "$log" || fail "theme refresh does not play an intro"
+! grep -q ' playThemeIntro ' "$log" || fail "theme refresh does not play an intro"
 pass "same-theme cycling plays the next background's intro and refresh keeps the still"
 
-printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/beta"
+printf '%s\n' "$road" >"$home/.local/state/omarchy/theme-backgrounds/beta"
 mkdir -p "$home/.local/state/omarchy/toggles"
 touch "$home/.local/state/omarchy/toggles/background-intros-off"
 set_theme beta
 grep -q '^shell: background themeTransition ' "$log" || fail "disabled intros use the normal still transition"
-! grep -q '^owe: intro ' "$log" || fail "disabled intros do not play on theme selection"
+! grep -q ' playThemeIntro ' "$log" || fail "disabled intros do not play on theme selection"
 rm "$home/.local/state/omarchy/toggles/background-intros-off"
-printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/alpha"
+printf '%s\n' "$road" >"$home/.local/state/omarchy/theme-backgrounds/alpha"
 TEST_ANIMATIONS=false set_theme alpha
 grep -q '^shell: background themeTransition ' "$log" || fail "disabled animations use the normal still transition"
-! grep -q '^owe: intro ' "$log" || fail "disabled animations do not play an intro"
+! grep -q ' playThemeIntro ' "$log" || fail "disabled animations do not play an intro"
 OMARCHY_THEME_HEADLESS=1 set_theme beta
-! grep -q '^owe: intro ' "$log" || fail "headless theme setup does not play an intro"
+! grep -q ' playThemeIntro ' "$log" || fail "headless theme setup does not play an intro"
 pass "theme intros respect the global toggle, disabled animations, and headless setup"
 
-# Alpha's remembered image must have a clip for these presentation checks.
-printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/alpha"
-TEST_OWE_FAIL=true set_theme alpha
-wait_command '^shell: background setInstant '
-wait_command '^hypr-reload$'
-! grep -q '^owe: intro ' "$log" || fail "an unavailable renderer falls back to the still"
-pass "unavailable OWE falls back to the selected still image"
+printf '%s\n' "$road" >"$home/.local/state/omarchy/theme-backgrounds/alpha"
+TEST_OWE_NO_PREPARE=true set_theme alpha
+handed_over "$road $clip false" || fail "a clip older OWE could not prepare starts the ordinary way" "$(cat "$log")"
+pass "older OWE keeps the ordinary intro startup path"
 
-printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/beta"
-release="$test_tmp/release"
-TEST_LIVE_FRAME=true TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$release" set_theme beta
-wait_command '^owe: intro '
+printf '%s\n' "$road" >"$home/.local/state/omarchy/theme-backgrounds/beta"
+TEST_LIVE_FRAME=true set_theme beta
 cover=$(awk '/^shell: shell prepareThemeIntro / { print $4; exit }' "$log")
 [[ -f $cover && $(<"$cover") == "live video frame" ]] || fail "an interrupted video supplies the outgoing cover instead of its final still"
-kill -0 "$(<"$test_tmp/intro.pid")" || fail "the fake renderer is still playing during the lock check"
-timeout 1 flock "$test_tmp/omarchy-theme-set.lock" true || fail "theme playback does not retain the theme selection lock"
-touch "$release"
-pass "interrupted playback uses its current frame and releases the theme selection lock"
-
-TEST_OWE_NO_PREPARE=true set_theme alpha
-wait_command '^owe: intro '
-grep -Fxq "owe: intro --start first-frame $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "older OWE uses the ordinary intro path"
-pass "older OWE keeps the ordinary intro startup path"
+pass "interrupted playback uses its current frame as the outgoing cover"
 
 gates="$test_tmp/gates"
 mkdir "$gates"
-TEST_GATE_DIR="$gates" TEST_STATE="$state" TEST_OLD_THEME=alpha set_theme beta
-wait_command '^owe: intro '
-[[ -f $gates/fade-waited && -f $gates/cover-waited && -f $gates/cover-ready ]] || fail "a rapid selection waits for the opening fade and replacement cover"
-[[ ! -f $gates/premature-swap ]] || fail "the outgoing fade and cover settle before replacing the active theme"
-pass "rapid switches present the outgoing video cover before replacing its still"
+TEST_GATE_DIR="$gates" TEST_STATE="$state" TEST_OLD_THEME=beta set_theme alpha
+[[ -f $gates/fade-waited && -f $gates/cover-waited && -f $gates/cover-ready ]] || fail "a rapid selection waits for the running reveal and its own cover"
+[[ ! -f $gates/premature-swap ]] || fail "the running reveal and the new cover settle before replacing the active theme"
+pass "rapid switches present the outgoing cover before replacing its still"
 
-# Earlier switches finish in the background, so the next one waits for them,
-# or a late reload of theirs reads as one during its intro.
-for attempt in {1..250}; do
-  pgrep -f "^/bin/bash $ROOT/bin/omarchy-theme-set (alpha|beta)\$" >/dev/null || break
-  sleep 0.02
-done
-release="$test_tmp/reload-release"
-TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$release" set_theme alpha
-wait_command '^owe: intro '
-! grep -q '^hypr-reload$' "$log" || fail "the compositor is not reloaded during intro playback"
-touch "$release"
-wait_command '^hypr-reload$'
-(( $(grep -c '^hypr-reload$' "$log") == 1 )) || fail "the compositor reloads once after playback"
-pass "theme intros defer the compositor reload until playback finishes"
-
-release="$test_tmp/superseded-release"
-TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$release" set_theme beta
-wait_command '^owe: intro '
-cover=$(awk '/^shell: shell prepareThemeIntro / { print $4; exit }' "$log")
-! grep -q '^hypr-reload$' "$log" || fail "the held intro has not reloaded the compositor"
-OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme alpha
-grep -q '^hypr-reload$' "$log" || fail "a theme refresh reloads the compositor immediately"
-touch "$release"
-for attempt in {1..100}; do
-  [[ -f $cover ]] || break
-  sleep 0.02
-done
-[[ ! -f $cover ]] || fail "the superseded intro finishes cleanup"
-(( $(grep -c '^hypr-reload$' "$log") == 1 )) || fail "the superseded intro cannot reload during a newer theme"
-pass "superseded intros do not reload the compositor"
+# A shell from before the handover only knows to drop the cover, so the switch
+# takes the ordinary transition and reloads Hyprland itself.
+TEST_OLD_SHELL=true set_theme beta
+grep -q '^shell: shell finishThemeIntro ' "$log" || fail "an older shell drops its cover"
+grep -q '^shell: background themeTransition ' "$log" || fail "an older shell takes the ordinary transition"
+grep -q '^hypr-reload$' "$log" || fail "an older shell's switch reloads Hyprland itself"
+pass "an older shell falls back to the ordinary theme transition"
 
 set_background() {
   : >"$log"
   HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_LOG="$log" \
     /bin/bash "$ROOT/bin/omarchy-theme-bg-set" "$1" </dev/null >"$test_tmp/stdout" 2>"$test_tmp/stderr" || fail "background selection completes" "$(cat "$test_tmp/stderr")"
 }
-set_background "$state/theme/backgrounds/1-sky.webp"
-grep -Fxq "shell: -q background set $state/theme/backgrounds/1-sky.webp" "$log" || fail "a background without an intro is set directly"
-! grep -q '^owe: intro ' "$log" || fail "a background without an intro plays none"
-set_background "$state/theme/backgrounds/2-road.webp"
-wait_command '^shell: shell finishThemeIntro '
-grep -Fxq "owe: intro --start first-frame --refresh $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "changing the background plays its matching prepared intro"
-# The outgoing still covers the desktop until the clip moves, then fades out,
-# so the gap before the clip's first frame is never shown.
-token=$(awk -v cover="$state/theme/backgrounds/1-sky.webp" '$1 == "shell:" && $3 == "prepareThemeIntro" && $4 == cover { print $5; exit }' "$log")
-[[ $token == background-* ]] || fail "the outgoing background covers the desktop during the intro" "$(cat "$log")"
-grep -Fxq "shell: background setInstant $state/theme/backgrounds/2-road.webp" "$log" || fail "the shell takes the new still under the cover"
-# OWE hands the desktop back to the shell when the clip ends, so the shell must
-# already hold the new still, or the old one flashes before it arrives.
-still_line=$(grep -n '^shell: background setInstant ' "$log" | head -1 | cut -d: -f1)
-intro_line=$(grep -n '^owe: intro --start ' "$log" | head -1 | cut -d: -f1)
-(( still_line < intro_line )) || fail "the shell takes the new still before the intro plays" "$(cat "$log")"
-grep -Fxq "shell: shell finishThemeIntro $token" "$log" || fail "the cover fades out once the intro is moving"
-[[ $(readlink "$state/background") == "$state/theme/backgrounds/2-road.webp" ]] || fail "the background with an intro is selected"
-set_background "$state/theme/backgrounds/2-road.webp"
-! grep -q '^owe: intro ' "$log" || fail "reselecting the current background plays no intro"
-pass "changing backgrounds plays the selected background's matching intro"
+set_background "$road"
+grep -Fxq "shell: shell switchBackground $road" "$log" || fail "a background change is handed to the shell" "$(cat "$log")"
+! grep -q '^shell: -q background set ' "$log" || fail "the shell, not the command, transitions the background"
+TEST_OLD_SHELL=true set_background "$sky"
+[[ $(readlink "$state/background") == "$sky" ]] || fail "without the shell's switch the command repoints the link"
+grep -Fxq "shell: -q background set $sky" "$log" || fail "without the shell's switch the background is set directly"
+pass "background changes go to the shell, or straight to the link without it"
 
-set_background "$state/theme/backgrounds/1-sky.webp"
-release="$test_tmp/background-release"
-TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$release" set_background "$state/theme/backgrounds/2-road.webp"
-wait_command '^owe: intro '
-intro_pid=$(<"$test_tmp/intro.pid")
-set_background "$state/theme/backgrounds/1-sky.webp"
-touch "$release"
-for attempt in {1..100}; do
-  kill -0 "$intro_pid" 2>/dev/null || break
-  sleep 0.02
-done
-sleep 0.1
-! grep -q '2-road' "$log" || fail "a superseded intro leaves the newer background in place"
-TEST_OWE_FAIL=true set_background "$state/theme/backgrounds/2-road.webp"
-wait_command '^shell: shell finishThemeIntro '
-grep -Fxq "shell: background setInstant $state/theme/backgrounds/2-road.webp" "$log" || fail "a failed intro fades the cover to the new still"
-pass "a superseded or failed background intro keeps the latest selection on screen"
-
-# A playing intro hides the shell's background, so the ordinary transition to a
-# still without an intro of its own would run unseen. The cover holds the
-# playing frame instead and opens with the same cut once OWE hands back.
-TEST_INTRO_PLAYING=true TEST_COVER_LINK="$state/background" set_background "$state/theme/backgrounds/1-sky.webp"
-wait_command '^shell: shell cutThemeIntro '
-# Repointing the link cancels the playing intro, so the cover is up first.
-[[ $(grep -m1 '^cover checked on ' "$log") == "cover checked on $state/theme/backgrounds/2-road.webp" ]] || fail "the cover is on screen before the link changes" "$(cat "$log")"
-! grep -q '^shell: shell finishThemeIntro ' "$log" || fail "a still without an intro opens with the cut, not the intro fade"
-grep -q '^shell: shell prepareThemeIntro ' "$log" || fail "a background change during an intro covers the playing frame"
-grep -Fxq "shell: background setInstant $state/theme/backgrounds/1-sky.webp" "$log" || fail "the still without an intro is set under the cover"
-! grep -qE '^owe: intro(-prepare)? ' "$log" || fail "a still without an intro plays none"
-! grep -q '^shell: -q background set ' "$log" || fail "no ordinary transition runs under the playing intro"
+# A playing intro hides the shell's background, so a theme switch to a still
+# without an intro hands the shell its cover to open with the ordinary cut.
 if [[ $(<"$state/theme.name") == alpha ]]; then next_theme=beta; else next_theme=alpha; fi
-printf '%s\n' "$state/theme/backgrounds/1-sky.webp" >"$home/.local/state/omarchy/theme-backgrounds/$next_theme"
+printf '%s\n' "$sky" >"$home/.local/state/omarchy/theme-backgrounds/$next_theme"
 TEST_INTRO_PLAYING=true set_theme "$next_theme"
-wait_command '^shell: shell cutThemeIntro '
-! grep -q '^shell: shell finishThemeIntro ' "$log" || fail "the theme's still without an intro opens with the cut, not the intro fade"
-grep -q '^shell: shell prepareThemeIntro ' "$log" || fail "a theme switch during an intro covers the playing frame"
-grep -Fxq "shell: background setInstant $state/theme/backgrounds/1-sky.webp" "$log" || fail "the theme's still without an intro is set under the cover"
+handed_over "$sky  false" || fail "a theme switch during an intro hands its cover over with no clip" "$(cat "$log")"
 ! grep -q '^shell: background themeTransition ' "$log" || fail "no ordinary transition runs under the playing intro"
 ! grep -qE '^owe: intro(-prepare)? ' "$log" || fail "the theme's still without an intro plays none"
-pass "switching to a still without an intro while one plays cuts from the playing frame"
+pass "a theme switch to a still without an intro while one plays keeps its cover"
