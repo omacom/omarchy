@@ -1787,7 +1787,14 @@ Item {
     color: "transparent"
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
-    WlrLayershell.layer: WlrLayer.Top
+    // Hyprland keeps a top-layer surface out of a fullscreen window's input
+    // only by a per-surface flag, and sets that flag back while the window
+    // stays fullscreen (a layer mapping or closing, a notification card
+    // timing out, is enough), so the bar would take the window's clicks. The
+    // bottom layer is always under the fullscreen window, for drawing and
+    // input alike.
+    readonly property bool underFullscreen: Hyprland.monitorFor(screen)?.activeWorkspace?.hasFullscreen ?? false
+    WlrLayershell.layer: underFullscreen ? WlrLayer.Bottom : WlrLayer.Top
 
     // Idle, only the strip takes input, so the clear expanse passes clicks
     // through to the windows and desktop below.
