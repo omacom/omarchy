@@ -521,6 +521,51 @@ function M.move_window_to_monitor(direction)
   end, "o.workspaces.move_window_to_monitor(" .. literal(direction) .. ")")
 end
 
+local function logical_size(monitor)
+  local width = math.floor(monitor.width / monitor.scale)
+  local height = math.floor(monitor.height / monitor.scale)
+
+  if (monitor.transform or 0) % 2 == 1 then
+    width, height = height, width
+  end
+
+  return width, height
+end
+
+local function off_monitor(window, monitor)
+  local width, height = logical_size(monitor)
+  local middle_x = window.at.x + window.size.x / 2
+  local middle_y = window.at.y + window.size.y / 2
+
+  return middle_x < monitor.x or middle_x >= monitor.x + width or middle_y < monitor.y or middle_y >= monitor.y + height
+end
+
+-- Hyprland parks an unplugged monitor's workspaces on a monitor still there, or
+-- on its headless FALLBACK output while none is, and moves each floating window
+-- by the difference between the two monitors' positions, or wraps it by the new
+-- monitor's size, without fitting it into the monitor it lands on
+-- (moveWorkspaceToMonitor, Hyprland 0.56). A window whose middle is off its
+-- monitor is centered there, each stepped from the last so a workspace brought
+-- back all at once does not leave every window on the one beneath it. Nothing
+-- is seen on FALLBACK or on a monitor being removed, so nothing is moved there:
+-- a window keeps its place for the monitor that comes back.
+local function bring_back_windows(gone)
+  local brought = 0
+
+  for _, window in ipairs(hl.get_windows()) do
+    local monitor = window.monitor
+
+    if window.floating and window.mapped and not window.hidden and not window.pinned and (window.fullscreen or 0) == 0
+      and monitor and monitor.width and not monitor.is_mirror and monitor.name ~= "FALLBACK" and monitor.name ~= gone
+      and off_monitor(window, monitor) then
+      hl.dispatch(hl.dsp.window.center({ window = window }))
+      local step = (brought % 5) * 24 - 48
+      hl.dispatch(hl.dsp.window.move({ x = step, y = step, relative = true, window = window }))
+      brought = brought + 1
+    end
+  end
+end
+
 -- Put every workspace whose monitor is plugged in back on it, and every monitor
 -- on a workspace of its own. `added` names a monitor that just arrived, which
 -- leaves whatever Hyprland put it on; `gone` one being removed.
@@ -665,6 +710,10 @@ function M.reconcile(added, gone)
     elseif focused_name and focused_name ~= gone and hl.get_monitor(focused_name) then
       hl.dispatch(hl.dsp.focus({ monitor = focused_name }))
     end
+  end
+
+  if added or gone then
+    bring_back_windows(gone)
   end
 end
 
