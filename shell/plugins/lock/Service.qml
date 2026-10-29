@@ -409,6 +409,9 @@ Item {
     failedAttempts += 1
     failureMessage = I18n.t("lock.authenticationFailed").arg(I18n.formatNumber(failedAttempts))
     runWake()
+    // The field is disabled while checking, so a Caps Lock release then never
+    // reached it. Ask again before the next attempt.
+    refreshCapsLock()
   }
 
   function startFingerprint() {
