@@ -69,6 +69,7 @@ linux-firmware-cirrus-dx13260
 
 # ASUS laptop support packages
 asus-proart-p14-speaker-firmware
+asus-zenbook-a16-audio
 
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2
