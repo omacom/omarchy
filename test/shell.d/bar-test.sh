@@ -34,6 +34,14 @@ assertEqual(bar.peeksAt({ x: 1200, y: 400 }, 600, true), true, 'a vertical bar o
 assertEqual(bar.peeksAt({ x: 10, y: 800 }, 600, true), false, 'a vertical bar keeps the peek shut below the clock')
 assertEqual(bar.peeksAt(null, 1000, false), false, 'no pointer opens no peek')
 
+// The bar drops its input under a real fullscreen window on its workspace, so
+// the window gets the clicks along the edge; a maximized one keeps the bar.
+const toplevel = (id, fullscreen) => ({ workspace: { id }, lastIpcObject: { fullscreen } })
+assertEqual(bar.fullscreenOn([toplevel(4, 0), toplevel(4, 2)], 4), true, 'a fullscreen window takes the bar edge')
+assertEqual(bar.fullscreenOn([toplevel(4, 1)], 4), false, 'a maximized window leaves the bar clickable')
+assertEqual(bar.fullscreenOn([toplevel(9, 2)], 4), false, 'fullscreen on another workspace leaves the bar clickable')
+assertEqual(bar.fullscreenOn([{ workspace: null, lastIpcObject: null }], 4), false, 'a toplevel without a workspace is ignored')
+
 // Beside a display notch, indicators right of the clock pull its end toward
 // the start as they reveal. A stationary pointer between the two ends has to
 // keep the peek open rather than close it, slide the clock back and reopen it.

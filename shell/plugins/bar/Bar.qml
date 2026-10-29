@@ -1799,19 +1799,11 @@ Item {
     WlrLayershell.layer: WlrLayer.Top
 
     // Whether the active workspace on this screen holds a real fullscreen
-    // window (mode bit 2; 1 is only maximized), which fades the bar out.
+    // window, which fades the bar out.
     readonly property bool underFullscreen: {
       var monitor = Hyprland.monitorFor(screen)
       var workspace = monitor ? monitor.activeWorkspace : null
-      if (!workspace) return false
-      var toplevels = Hyprland.toplevels.values
-      for (var i = 0; i < toplevels.length; i++) {
-        var toplevel = toplevels[i]
-        if (!toplevel.workspace || toplevel.workspace.id !== workspace.id) continue
-        var ipc = toplevel.lastIpcObject
-        if (ipc && (Number(ipc.fullscreen) & 2) !== 0) return true
-      }
-      return false
+      return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id)
     }
 
     // Idle, only the strip takes input, so the clear expanse passes clicks
