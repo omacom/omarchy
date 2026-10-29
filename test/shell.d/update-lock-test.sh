@@ -19,6 +19,7 @@ for command in omarchy-update omarchy-update-lock omarchy-update-stay-awake; do
 done
 sed -i \
   -e "s/omarchy-update\.lock/$update_lock_name/g" \
+  -e "s#/tmp/omarchy-update\.log#$test_tmp/omarchy-update.log#" \
   -e "s#state_dir=\"\$state_base/omarchy-update-stay-awake\"#state_dir=\"\$state_base/$stay_awake_dir_name\"#" \
   "$SUDO_TEST_ROOT/bin/omarchy-update" \
   "$SUDO_TEST_ROOT/bin/omarchy-update-lock" \
@@ -84,9 +85,12 @@ ln -s ../bin/systemd-inhibit "$SUDO_TEST_ROOT/mock/systemd-inhibit"
 # omarchy-update should hold the lock before snapshotting, so a second update
 # cannot even enter its pre-update snapshot.
 update_snapshot_marker="$test_tmp/update-snapshot-started"
-write_stub omarchy-snapshot 'echo started >"$TEST_MARKER"; sleep 0.8; exit 0'
+write_stub omarchy-snapshot 'echo "snapshot for $TEST_MARKER"; echo started >"$TEST_MARKER"; sleep 0.8; exit 0'
 
-OMARCHY_UPDATE_LOGGED=1 TEST_MARKER="$update_snapshot_marker" run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-first.out" 2>&1 &
+# Both updates start fresh, as a user would, through the real script(1): the
+# lock has to reach the first one through it, and the second has to stop at the
+# lock before script(1) opens, and truncates, the running update's transcript.
+TEST_MARKER="$update_snapshot_marker" run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y </dev/null >"$test_tmp/update-first.out" 2>&1 &
 update_pid=$!
 
 for _ in {1..50}; do
@@ -96,12 +100,13 @@ done
 [[ -f $update_snapshot_marker ]] || fail "first omarchy-update reached snapshot under lock"
 
 set +e
-OMARCHY_UPDATE_LOGGED=1 TEST_MARKER="$test_tmp/update-second-snapshot-started" run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-second.out" 2>&1
+TEST_MARKER="$test_tmp/update-second-snapshot-started" run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y </dev/null >"$test_tmp/update-second.out" 2>&1
 update_second_status=$?
 set -e
 
 wait "$update_pid"
 
+grep -q "snapshot for $update_snapshot_marker" "$test_tmp/omarchy-update.log" || fail "second omarchy-update left the running update's transcript alone"
 [[ $update_second_status -ne 0 ]] || fail "second omarchy-update exits non-zero while update lock is held"
 grep -q "already running" "$test_tmp/update-second.out" || fail "second omarchy-update reports held update lock"
 [[ ! -f $test_tmp/update-second-snapshot-started ]] || fail "second omarchy-update did not snapshot while lock was held"
