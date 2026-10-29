@@ -117,7 +117,8 @@ if FPRINTD_LIST=$'ListEnrolledFingers failed: timeout\n' LIST_STATUS=1 run_setup
   fail "a failed fprintd-list stops setup"
 fi
 ! grep -q '^fprintd-enroll' "$CALL_LOG" || fail "a failed fprintd-list does not enroll" "$(<"$CALL_LOG")"
-! grep -q '^sudo' "$CALL_LOG" || fail "a failed fprintd-list leaves PAM alone" "$(<"$CALL_LOG")"
+# Setup authenticates sudo before asking fprintd anything; nothing else runs as root.
+! grep -v -x 'sudo -n true' "$CALL_LOG" | grep -q '^sudo' || fail "a failed fprintd-list leaves PAM alone" "$(<"$CALL_LOG")"
 assert_pam_untouched "a failed fprintd-list leaves the lock screen alone"
 grep -q "fprintd-list tester" "$scratch/out" || fail "a failed fprintd-list says what to check" "$(<"$scratch/out")"
 pass "a failed fprintd-list stops before enrollment and says what to check"
