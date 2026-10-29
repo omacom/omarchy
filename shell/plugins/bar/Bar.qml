@@ -3167,14 +3167,18 @@ Item {
 
     HoverHandler { id: moduleHover }
 
-    // Drawn by the first slot of a pill, across the slots after it.
+    // Drawn by the first slot of a pill, across the slots after it. Slots sit
+    // at the start of their section across the bar, so the pill measures from
+    // the section: a first widget shorter than the rest would otherwise pull
+    // the whole pill off the bar's middle.
     Rectangle {
       readonly property int inset: root.pillInset
+      readonly property real across: slot.parent ? (root.vertical ? slot.parent.width : slot.parent.height) : (root.vertical ? slot.width : slot.height)
 
       visible: slot.pillSpan > 0
-      x: root.vertical ? inset : slot.pillGapLead
-      y: root.vertical ? slot.pillGapLead : Math.round((slot.height - height) / 2)
-      width: root.vertical ? slot.width - inset * 2 : slot.pillSpan - slot.pillGapLead - slot.pillGapTrail
+      x: root.vertical ? inset - slot.x : slot.pillGapLead
+      y: root.vertical ? slot.pillGapLead : Math.round((across - height) / 2) - slot.y
+      width: root.vertical ? across - inset * 2 : slot.pillSpan - slot.pillGapLead - slot.pillGapTrail
       height: root.vertical ? slot.pillSpan - slot.pillGapLead - slot.pillGapTrail : root.barSize - inset * 2
       radius: Math.min(Style.bar.pillRadius, Math.min(width, height) / 2)
       color: root.pillFill
