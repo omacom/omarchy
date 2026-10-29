@@ -53,6 +53,13 @@ cleanup_update() {
   exit "$status"
 }
 
+# script(1) truncates the transcript on open, so a second update stops here,
+# before it can wipe a running update's log. The lock itself is taken inside
+# the transcript, so a terminal that closes releases it with the update.
+if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]] && ! omarchy-update-lock held && ! omarchy-update-lock free; then
+  exit 1
+fi
+
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   # Keep an untrapped shell as the PTY session leader. If script disappears,
   # its hangup must reach the foreground prompt, not wait on our signal traps.
