@@ -46,12 +46,26 @@ done
 case "\$url" in
   *notfound*) printf '404: Not Found\n' >"\$dest"; exit 0 ;;
   *notimage*) printf 'this is not an image\n' >"\$dest"; exit 0 ;;
+  *transport*) printf 'curl: (7) fixture transport failure\n' >&2; exit 7 ;;
   *slow*) : >"$test_tmp/download-started"; sleep 2; cp "$test_tmp/icon.png" "\$dest"; exit 0 ;;
   *interrupt*) : >"$OMARCHY_TEST_DOWNLOADING"; sleep 5; cp "$test_tmp/icon.png" "\$dest"; exit 0 ;;
   *) cp "$test_tmp/icon.png" "\$dest"; exit 0 ;;
 esac
 SH
 chmod +x "$test_tmp/bin/curl"
+
+# The launcher indexes the fixed system pixmaps directory. Intercept only that
+# directory so the public installer can exercise the branch without reading or
+# writing the host's icon tree.
+cat >"$test_tmp/bin/find" <<'SH'
+#!/bin/bash
+if [[ ${OMARCHY_TEST_PIXMAP_FIND:-} == "true" && $1 == /usr/share/pixmaps ]]; then
+  printf '%s\n' "$OMARCHY_TEST_PIXMAP"
+  exit 0
+fi
+exec /usr/bin/find "$@"
+SH
+chmod +x "$test_tmp/bin/find"
 
 # The icon theme cache is refreshed when an icon lands, and the desktop
 # resolves the icon through that cache, so the test records the refreshes.
@@ -179,6 +193,18 @@ output=$(XDG_DATA_DIRS="$test_tmp/data" install_tui T9 true tile data-dir-icon 2
 [[ $output != *'No icon named'* ]] || fail "an icon in a configured data directory is found" "$output"
 pass "an icon in a configured data directory is found"
 
+# A transport failure remains visible to the TUI caller alongside its own
+# failure message, and does not leave a launcher or temporary download behind.
+output=$(install_tui T19 true tile "https://example.invalid/transport.png" 2>&1) && status=0 || status=$?
+(( status == 1 )) || fail "a downloader transport failure stops the install" "status $status: $output"
+[[ $output == *'curl: (7) fixture transport failure'* && $output == *'Error: Failed to download icon.'* ]] ||
+  fail "a downloader transport failure keeps its error output" "$output"
+[[ ! -e $icon_dir/t19.png && ! -e $(desktop_file T19) ]] ||
+  fail "a downloader transport failure writes no launcher or icon"
+leftovers=$(ls -A "$HOME/.local/share/icons" | grep -v '^hicolor$' || true)
+[[ -z $leftovers ]] || fail "a downloader transport failure leaves no temporary file behind" "$leftovers"
+pass "a downloader transport failure keeps its error output"
+
 # The system data directories are searched too, the ones the desktop searches
 # when the environment names no list of its own.
 # The name the launcher resolves has to be the name the file carries, so the
@@ -198,6 +224,28 @@ else
   [[ $output != *'No icon named'* ]] || fail "an icon the system provides is found" "$output"
   pass "the system data directories are searched"
 fi
+
+# The launcher indexes /usr/share/pixmaps on its own, beside the theme
+# directories its data directories hold, so a configured list of data
+# directories does not take that directory away from the lookup. The find stub
+# returns this fixture only when the helper asks for that literal system path.
+cp "$test_tmp/icon.png" "$test_tmp/pixmap-icon.png"
+output=$(OMARCHY_TEST_PIXMAP_FIND=true OMARCHY_TEST_PIXMAP="$test_tmp/pixmap-icon.png" \
+  XDG_DATA_DIRS="$test_tmp/data" install_tui T17 true tile pixmap-icon 2>&1) && status=0 || status=$?
+(( status == 0 )) || fail "an icon the system keeps in pixmaps still installs the launcher" "$output"
+[[ $output != *'No icon named'* ]] ||
+  fail "/usr/share/pixmaps is searched when the data directories are configured" "$output"
+pass "/usr/share/pixmaps is searched when the data directories are configured"
+
+# No other pixmaps directory is one the launcher indexes, so a file in one is
+# not an icon it can show, and the lookup does not count it as one.
+mkdir -p "$test_tmp/data/pixmaps"
+cp "$test_tmp/icon.png" "$test_tmp/data/pixmaps/data-dir-pixmap.png"
+output=$(XDG_DATA_DIRS="$test_tmp/data" install_tui T18 true tile data-dir-pixmap 2>&1) && status=0 || status=$?
+(( status == 0 )) || fail "a name only a data directory's pixmaps holds still installs the launcher" "$output"
+[[ $output == *'No icon named'* ]] ||
+  fail "a pixmaps directory the launcher does not index is not searched" "$output"
+pass "a pixmaps directory the launcher does not index is not searched"
 
 # The theme layout is four levels below the theme root, and an entry deeper
 # than that is not one the desktop resolves.
@@ -306,6 +354,11 @@ PATH="$OMARCHY_TEST_STUB_BIN:$PATH"
 export PATH
 source "$OMARCHY_PATH/install/helpers/icon.sh"
 mkdir -p "$OMARCHY_ICON_ROOT"
+# The stub writes the marker when a download starts and nothing removes it, so
+# a marker left behind by an earlier run would let this one signal before its
+# download began, and the case would pass without ever reaching the cleanup.
+rm -f "$OMARCHY_TEST_DOWNLOADING"
+[[ ! -e $OMARCHY_TEST_DOWNLOADING ]] || exit 3
 # The signal arrives the way a Ctrl-C does: to the whole process group, so
 # the shell that runs the download handles it. The script runs in its own
 # session, so the signal reaches nothing else.
@@ -324,7 +377,7 @@ for signal in INT TERM; do
   OMARCHY_TEST_SIGNAL="$signal" OMARCHY_TEST_STUB_BIN="$test_tmp/bin" \
     env --default-signal=INT,TERM setsid "$test_tmp/bin/omarchy-icon-interrupt-check" || status=$?
   [[ $status == $((128 + $(kill -l "$signal"))) ]] ||
-    fail "an interrupted download stops with the status of the signal" "$signal gave status $status"
+    fail "an interrupted download stops with the status of the signal" "$signal gave status $status (3 means its stale marker was not reset)"
 done
 # The check that follows the interrupt looks at the icon directory itself, so
 # it sees the leftovers whether the download stopped the shell or not.
@@ -332,6 +385,21 @@ leftovers=$(ls -A "$HOME/.local/share/icons" | grep -v '^hicolor$' || true)
 [[ -z $leftovers ]] ||
   fail "an interrupted download leaves no temporary file behind" "$leftovers"
 pass "an interrupted download leaves no temporary file behind"
+
+# The handler that removes the temporary file reads its name when the signal
+# arrives. A home directory that carries a dollar sign is a name the shell
+# would expand a second time if the path were spliced into the handler, so the
+# file it should have removed would survive.
+dollar_home="$test_tmp/ho\$me"
+status=0
+OMARCHY_TEST_SIGNAL=INT HOME="$dollar_home" OMARCHY_TEST_STUB_BIN="$test_tmp/bin" \
+  env --default-signal=INT,TERM setsid "$test_tmp/bin/omarchy-icon-interrupt-check" || status=$?
+[[ $status == 130 ]] ||
+  fail "an interrupt under a home with a dollar sign stops with the status of the signal" "$status"
+leftovers=$(ls -A "$dollar_home/.local/share/icons" 2>/dev/null | grep -v '^hicolor$' || true)
+[[ -z $leftovers ]] ||
+  fail "an interrupt under a home with a dollar sign leaves no temporary file behind" "$leftovers"
+pass "an interrupted download removes its file under a home with a dollar sign"
 
 # The download replaces the caller's own signal handlers and puts them back:
 # a command that already handles a signal must not lose it because it
@@ -343,24 +411,27 @@ cat >"$test_tmp/bin/omarchy-icon-helper-check" <<'SH'
 PATH="$OMARCHY_TEST_STUB_BIN:$PATH"
 export PATH
 source "$OMARCHY_PATH/install/helpers/icon.sh"
-trap 'exit 42' INT
+trap 'exit 42' "$OMARCHY_TEST_SIGNAL"
 mkdir -p "$OMARCHY_ICON_DIR"
 omarchy_icon_download "https://example.invalid/icon.png" "$OMARCHY_ICON_DIR/helper-check.png" >/dev/null || exit 2
-trap -p INT >"$OMARCHY_TEST_TRAPS" 2>&1
+trap -p "$OMARCHY_TEST_SIGNAL" >"$OMARCHY_TEST_TRAPS" 2>&1
 grep -q "exit 42" "$OMARCHY_TEST_TRAPS" || exit 1
 SH
 chmod +x "$test_tmp/bin/omarchy-icon-helper-check"
 # The check runs in its own session: a shell that inherits an ignored
 # interrupt cannot trap it at all, and the suite runner ignores the interrupt
 # in the commands it starts.
-status=0
-OMARCHY_TEST_TRAPS="$test_tmp/traps.txt" OMARCHY_TEST_STUB_BIN="$test_tmp/bin" \
-  env --default-signal=INT setsid "$test_tmp/bin/omarchy-icon-helper-check" || status=$?
-case $status in
-  0) pass "a download keeps the caller's signal handler" ;;
-  2) fail "a download keeps the caller's signal handler" "the download did not finish" ;;
-  *) fail "a download keeps the caller's signal handler" "$(cat "$test_tmp/traps.txt" 2>/dev/null)" ;;
-esac
+for signal in INT TERM; do
+  status=0
+  OMARCHY_TEST_SIGNAL="$signal" OMARCHY_TEST_TRAPS="$test_tmp/traps-$signal.txt" OMARCHY_TEST_STUB_BIN="$test_tmp/bin" \
+    env --default-signal=INT,TERM setsid "$test_tmp/bin/omarchy-icon-helper-check" || status=$?
+  case $status in
+    0) ;;
+    2) fail "a download keeps the caller's signal handler" "$signal download did not finish" ;;
+    *) fail "a download keeps the caller's signal handler" "$signal: $(cat "$test_tmp/traps-$signal.txt" 2>/dev/null)" ;;
+  esac
+done
+pass "a download keeps the caller's signal handler"
 
 # The web app installer downloads the icon the same guarded way: an icon URL
 # that answers with an image installs it, and one that answers with an error

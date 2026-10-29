@@ -77,11 +77,16 @@ omarchy_icon_download() {
   # handles a signal must not lose it because it downloaded an icon. The
   # captured text is the caller's own handler, read back from the shell, and
   # it is evaluated again to put it back.
+  #
+  # The handler body names the temporary file instead of holding its path: the
+  # body is read when the signal arrives, so a path spliced into it would be
+  # expanded a second time, and a home directory that carries a dollar sign
+  # would send the removal to another path and leave the file behind.
   local previous_int previous_term
   previous_int=$(trap -p INT)
   previous_term=$(trap -p TERM)
-  trap "rm -f \"$temp\"; exit $OMARCHY_ICON_INTERRUPT_STATUS" INT
-  trap "rm -f \"$temp\"; exit $OMARCHY_ICON_TERMINATE_STATUS" TERM
+  trap 'rm -f "$temp"; exit "$OMARCHY_ICON_INTERRUPT_STATUS"' INT
+  trap 'rm -f "$temp"; exit "$OMARCHY_ICON_TERMINATE_STATUS"' TERM
 
   if curl -fsSL --max-time "$OMARCHY_ICON_DOWNLOAD_TIMEOUT" -o "$temp" "$url" &&
     [[ -s $temp && $(file -b --mime-type "$temp") == image/* ]]; then
@@ -123,8 +128,13 @@ omarchy_icon_dirs() {
 
   printf '%s\n' "$HOME/.icons"
   for dir in "${data_dirs[@]}"; do
-    printf '%s\n' "$dir/icons" "$dir/pixmaps"
+    printf '%s\n' "$dir/icons"
   done
+  # The launcher indexes /usr/share/pixmaps on its own, even when a configured
+  # list of data directories replaces the defaults (AppLibrary.qml reads it
+  # beside the theme directories). It indexes no other pixmaps directory, so
+  # the lookup does not search one either.
+  printf '%s\n' /usr/share/pixmaps
 }
 
 # A bare name has to resolve to an icon the desktop environment can find, or
