@@ -82,7 +82,14 @@ cleanup_update() {
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "/tmp/omarchy-update.log"
+  # Keep the transcript private: the session's runtime dir, or a private temp
+  # file where there is none (sudo, chroot, cron).
+  if [[ -d ${XDG_RUNTIME_DIR:-} ]]; then
+    update_log="$XDG_RUNTIME_DIR/omarchy-update.log"
+  else
+    update_log=$(mktemp -t omarchy-update.XXXXXX) || exit 1
+  fi
+  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_LOG="$update_log" OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "$update_log"
 fi
 
 if ! omarchy-update-lock held; then
