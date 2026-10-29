@@ -46,7 +46,7 @@ ShellRoot {
         quitter.start()
       } else if (picture && picture.status === Image.Ready) {
         if (!root.reloading) {
-          Style.cornerRadius = 8
+          if (Style.cornerRadius !== 8) return
           picture.layer.enabledChanged.connect(function() {
             if (!picture.layer.enabled) root.dropped++
           })
