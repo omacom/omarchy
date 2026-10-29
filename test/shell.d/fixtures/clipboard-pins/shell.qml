@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import Quickshell
+import "Commons" as Commons
 
 ShellRoot {
   id: test
@@ -122,7 +123,7 @@ ShellRoot {
           check(clipboard.pinCount === 10, "UI permits ten pins")
           clipboard.addClipboardEntry({type: "text", text: "eleventh"})
           clipboard.togglePinDisplayIndex(10)
-          check(clipboard.pinCount === 10 && clipboard.statusMessage.indexOf("Unpin") >= 0, "UI reports pin limit")
+          check(clipboard.pinCount === 10 && findItem(clipboard, "clipboardFooterMessage").text.indexOf("Unpin") >= 0, "UI reports pin limit")
           clipboard.setFilter("eleventh")
           check(findItem(clipboard, "clipboardResults").model.count === 1, "search still finds ordinary entries")
         } else if (test.step === 8) {
@@ -156,7 +157,7 @@ ShellRoot {
           var requestPath = Quickshell.env("CLIPBOARD_PIN_REQUEST")
           check(failedClipboard.pinClipboardFile(requestPath) === "save-failed", "a real filesystem write failure is reported")
           check(failedClipboard.pinCount === 0 && failedClipboard.history.length === 1 && failedClipboard.history[0].text === "old", "failed saves leave pins and history unchanged")
-          check(failedClipboard.statusMessage.indexOf("Could not save") >= 0, "the panel explains the save failure")
+          check(findItem(failedClipboard, "clipboardFooterMessage").text.indexOf("Could not save") >= 0, "the panel explains the save failure")
           check(failedClipboard.pinClipboardFile(requestPath) === "save-failed", "retrying a failed save does not claim already-pinned")
           failedClipboard.loadHistory('[{"type":"text","text":"Pinned from a private request","pinned":true}]')
           check(failedClipboard.pinClipboardFile(requestPath) === "save-failed", "already-pinned also requires a successful save")
@@ -164,7 +165,7 @@ ShellRoot {
         } else if (test.step === 13) {
           failedClipboard.loadHistory('[{"type":"text","text":"old"}]')
           check(failedClipboard.pinClipboardFile(Quickshell.env("CLIPBOARD_PIN_REQUEST")) === "pinned", "retry succeeds when history is writable")
-          check(failedClipboard.pinCount === 1 && failedClipboard.statusMessage === "", "a successful retry publishes the pin and clears the error")
+          check(failedClipboard.pinCount === 1 && failedClipboard.statusMessageKey === "", "a successful retry publishes the pin and clears the error")
         } else if (test.step === 14) {
           failedClipboard.destroy()
           test.failedClipboard = Qt.createComponent("Clipboard.qml").createObject(host, {
@@ -189,6 +190,19 @@ ShellRoot {
         } else if (test.step === 18) {
           check(clipboard.historyReady && clipboard.history.length === 500, "unpinning at capacity saves history across restart")
           check(clipboard.history[0].text === "old pinned entry" && !clipboard.history[0].pinned, "the released entry survives restart without a pin")
+        } else if (test.step === 19) {
+          clipboard.statusMessageKey = "limit"
+          check(findItem(clipboard, "clipboardFooterMessage").text.indexOf("Unpin") >= 0, "pin limit starts in English")
+          Commons.I18n.languageFile.setText("fr")
+        } else if (test.step === 20) {
+          check(findItem(clipboard, "clipboardFooterMessage").text === "Limite 10", "pin limit updates when the language changes")
+          clipboard.statusMessageKey = "saveFailed"
+          check(findItem(clipboard, "clipboardFooterMessage").text === "Erreur", "save error uses the selected language")
+          clipboard.statusMessageKey = "saveFailedRetry"
+          check(findItem(clipboard, "clipboardFooterMessage").text === "Erreur, réessayez", "retry error uses the selected language")
+          Commons.I18n.languageFile.setText("en")
+        } else if (test.step === 21) {
+          check(findItem(clipboard, "clipboardFooterMessage").text.indexOf("Could not save") >= 0, "save error updates when the language changes")
         } else {
           running = false
           console.log("CLIPBOARD_PINS_QML_PASS")

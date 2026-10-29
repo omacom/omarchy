@@ -18,7 +18,7 @@ Item {
   property bool clearConfirmOpen: false
   property var history: []
   property bool historyReady: false
-  property string statusMessage: ""
+  property string statusMessageKey: ""
 
   property string historyPath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/clipboard-history.json"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
@@ -47,7 +47,7 @@ Item {
   function open(payloadJson) {
     root.opened = true
     root.filterText = ""
-    root.statusMessage = ""
+    root.statusMessageKey = ""
     root.selectedIndex = 0
     root.cursorActive = true
     root.disarmPointer()
@@ -97,7 +97,7 @@ Item {
 
   function finishPin(result) {
     if (result.status === "limit") {
-      root.statusMessage = Commons.I18n.t("clipboard.pinLimit").arg(Commons.I18n.formatNumber(ClipboardHistory.pinLimit))
+      root.statusMessageKey = "limit"
       return result.status
     }
     if (result.status !== "pinned" && result.status !== "unpinned" && result.status !== "already-pinned") return result.status
@@ -123,12 +123,12 @@ Item {
       stored.destroy()
     }
     if (!saved) {
-      root.statusMessage = Commons.I18n.t("clipboard.saveFailedRetry")
+      root.statusMessageKey = "saveFailedRetry"
       return false
     }
 
     root.history = nextHistory
-    root.statusMessage = ""
+    root.statusMessageKey = ""
     return true
   }
 
@@ -355,7 +355,7 @@ Item {
     onLoaded: root.loadHistory(text())
     onLoadFailed: root.loadHistory("[]")
     onFileChanged: reload()
-    onSaveFailed: root.statusMessage = Commons.I18n.t("clipboard.saveFailed")
+    onSaveFailed: root.statusMessageKey = "saveFailed"
   }
 
   // Reap watchers left behind by a previous shell instance, then start our
@@ -747,12 +747,18 @@ Item {
         }
 
         Text {
+          objectName: "clipboardFooterMessage"
           textFormat: Text.PlainText
           width: parent.width
           height: root.footerHeight
-          text: root.statusMessage || Commons.I18n.t("clipboard.pinShortcut")
+          text: {
+            if (root.statusMessageKey === "limit") return Commons.I18n.t("clipboard.pinLimit").arg(Commons.I18n.formatNumber(ClipboardHistory.pinLimit))
+            if (root.statusMessageKey === "saveFailedRetry") return Commons.I18n.t("clipboard.saveFailedRetry")
+            if (root.statusMessageKey === "saveFailed") return Commons.I18n.t("clipboard.saveFailed")
+            return Commons.I18n.t("clipboard.pinShortcut")
+          }
           color: root.foreground
-          opacity: root.statusMessage ? 1 : 0.58
+          opacity: root.statusMessageKey ? 1 : 0.58
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
           maximumLineCount: 2
