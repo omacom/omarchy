@@ -16,10 +16,10 @@ export OMARCHY_PATH="$ROOT"
 source "$ROOT/install/helpers/pacman.sh"
 
 platforms="x86 aarch64 aarch64-apple"
-# Apple Silicon has edge alone: its packages and Asahi ALARM are published for
-# edge only so far.
+# Apple Silicon has rc and edge: its stable template comes with the first Mac
+# stable release.
 channels_for() {
-  if [[ $1 == "aarch64-apple" ]]; then echo "edge"; else echo "stable rc edge"; fi
+  if [[ $1 == "aarch64-apple" ]]; then echo "rc edge"; else echo "stable rc edge"; fi
 }
 
 # ── the templates ────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ repos() {
 }
 for platform in $platforms; do
   templates=$(omarchy_pacman_templates "$platform")
-  for channel in stable rc; do
+  for channel in stable; do
     [[ $platform == "aarch64-apple" ]] || continue
     [[ ! -e $templates/pacman-$channel.conf && ! -e $templates/mirrorlist-$channel ]] ||
       fail "$platform has no $channel template or mirrorlist"
@@ -227,7 +227,7 @@ grep -F "step:cp $SUDO_TEST_ROOT/default/pacman/pacman-rc.conf " "$SUDO_TEST_LOG
 assert_boundary_cold "explicit override"
 pass "an explicit channel overrides the current channel without querying it"
 
-for channel in stable rc; do
+for channel in stable; do
   reset_boundary
   if SUDO_TEST_PLATFORM=aarch64-apple SUDO_TEST_CHANNEL=$channel refresh; then fail "aarch64-apple refuses current $channel without templates"; fi
   [[ -z $(events) ]] || fail "unsupported current channel changes nothing" "$(events)"
@@ -251,10 +251,10 @@ if refresh invalid; then fail "invalid explicit channel is refused"; fi
 assert_boundary_cold "invalid explicit channel"
 pass "an invalid explicit channel changes nothing"
 
-# A channel the platform has no template for (stable or rc on Apple Silicon),
-# or a machine whose platform can't be told, stops before anything changes.
+# A channel the platform has no template for (stable on Apple Silicon), or a
+# machine whose platform can't be told, stops before anything changes.
 for platform in aarch64-apple; do
-  for channel in stable rc; do
+  for channel in stable; do
     reset_boundary
     if SUDO_TEST_PLATFORM=$platform refresh "$channel"; then fail "$platform: $channel is refused"; fi
     [[ -z $(events) ]] || fail "$platform: $channel stops before anything" "$(events)"
