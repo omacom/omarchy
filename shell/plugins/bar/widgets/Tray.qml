@@ -21,6 +21,9 @@ BarWidget {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var pinnedIds: settings.pinned instanceof Array ? settings.pinned : []
   readonly property var hiddenIds: settings.hidden instanceof Array ? settings.hidden : []
+  // Where icons on neither list go: "drawer", or "visible" to keep them in
+  // the bar.
+  readonly property string unlisted: setting("unlisted", "drawer") === "visible" ? "visible" : "drawer"
   readonly property var pinnedItems: bucket("pinned")
   readonly property var drawerItems: bucket("drawer")
   readonly property var allItems: bucket("all")
@@ -39,7 +42,7 @@ BarWidget {
   readonly property var sectionShown: trayContent.item ? trayContent.item.sectionShown : null
   readonly property int sectionCount: bar && bar.layoutConfig && Array.isArray(bar.layoutConfig.tray) ? bar.layoutConfig.tray.length : 0
   readonly property real sectionExtent: sectionHost ? (vertical ? sectionHost.implicitHeight : sectionHost.implicitWidth) : 0
-  readonly property bool hasDrawer: allItems.length > 0 || sectionCount > 0 || barDragging
+  readonly property bool hasDrawer: TrayModel.showsChevron(drawerCount, sectionCount, barDragging, pinnedItems.length, allItems.length)
   readonly property int drawerExtent: drawerCount * trayItemExtent + Math.max(0, drawerCount - 1) * trayItemGap + sectionExtent
   // A widget being dragged along the bar opens the drawer, to show where it
   // can go, and so does any panel open from the tray or the tray section.
@@ -141,6 +144,13 @@ BarWidget {
     trayMenuOpen = false
   }
 
+  // Both cards hold the tray's one popout slot, and a card that closes gives
+  // it up, so the menu closes before the manager opens.
+  function openManager() {
+    trayMenuOpen = false
+    managePopupOpen = true
+  }
+
   function openTrayMenu(item, anchorItem, mouse) {
     if (!item || !item.menu) {
       var point = anchorItem.QsWindow.contentItem.mapFromItem(anchorItem, mouse.x, mouse.y)
@@ -181,9 +191,7 @@ BarWidget {
 
   function classifyItem(item) {
     var iid = String(item.id || "")
-    if (hiddenIds.indexOf(iid) !== -1) return "hidden"
-    if (pinnedIds.indexOf(iid) !== -1) return "pinned"
-    return "drawer"
+    return TrayModel.placement(hiddenIds.indexOf(iid) !== -1, pinnedIds.indexOf(iid) !== -1, unlisted)
   }
 
   function ownedByOmarchy(item) {
@@ -210,7 +218,7 @@ BarWidget {
   function persistTrayState(pinned, hidden) {
     if (!root.bar || !root.bar.shell || typeof root.bar.shell.updateEntryInline !== "function") return
     var id = root.moduleName || "omarchy.tray"
-    root.bar.shell.updateEntryInline(id, { id: id, pinned: pinned, hidden: hidden })
+    root.bar.shell.updateEntryInline(id, TrayModel.trayEntry(root.settings, pinned, hidden))
   }
 
   function togglePin(iid) {
@@ -468,7 +476,7 @@ BarWidget {
       }
 
       Text {
-        text: Commons.I18n.t("tray.help")
+        text: root.unlisted === "visible" ? Commons.I18n.t("tray.helpVisible") : Commons.I18n.t("tray.help")
         textFormat: Text.PlainText
         color: Qt.darker(root.foreground, 1.4)
         font.family: root.fontFamily
@@ -532,8 +540,11 @@ BarWidget {
             elide: Text.ElideRight
           }
 
+          // Every icon on neither list is in the bar already in visible
+          // mode, so there is nothing to pin.
           Button {
             id: rowPinBtn
+            visible: root.unlisted !== "visible"
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
             iconText: "\uf08d"
@@ -549,8 +560,8 @@ BarWidget {
           Button {
             id: rowHideBtn
             anchors.verticalCenter: parent.verticalCenter
-            anchors.right: rowPinBtn.left
-            anchors.rightMargin: Style.space(6)
+            anchors.right: rowPinBtn.visible ? rowPinBtn.left : parent.right
+            anchors.rightMargin: rowPinBtn.visible ? Style.space(6) : 0
             iconText: "\uf06e"
             text: rowRoot.isHidden ? Commons.I18n.t("tray.show") : Commons.I18n.t("tray.hide")
             foreground: root.foreground
@@ -812,6 +823,60 @@ BarWidget {
                   }
                 }
               }
+            }
+          }
+
+          // Every icon's menu ends in the way into the manager, since the
+          // chevron only shows while the drawer has something in it.
+          Item {
+            readonly property var rows: root.currentChildren ? root.currentChildren.values : []
+            visible: root.submenuDepth === 0 && rows.length > 0 && !rows[rows.length - 1].isSeparator
+            width: trayMenuColumn.width
+            implicitHeight: visible ? Style.space(11) : 0
+
+            Rectangle {
+              anchors.left: parent.left
+              anchors.leftMargin: Style.space(10)
+              anchors.right: parent.right
+              anchors.rightMargin: Style.space(10)
+              anchors.verticalCenter: parent.verticalCenter
+              height: 1
+              color: Commons.Color.popups.border
+              opacity: 0.45
+            }
+          }
+
+          Item {
+            visible: root.submenuDepth === 0
+            width: trayMenuColumn.width
+            implicitHeight: visible ? Style.space(30) : 0
+
+            Rectangle {
+              anchors.fill: parent
+              radius: Math.max(2, Style.cornerRadius)
+              color: manageMouse.containsMouse ? Style.hoverFillFor(root.foreground, root.foreground) : "transparent"
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.left: parent.left
+              anchors.leftMargin: Style.space(28)
+              anchors.right: parent.right
+              anchors.rightMargin: Style.space(10)
+              text: Commons.I18n.t("tray.manage")
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              elide: Text.ElideRight
+            }
+
+            MouseArea {
+              id: manageMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (!root.menuLevelSettling) root.openManager()
             }
           }
         }
