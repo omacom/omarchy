@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Omacloud, leaving your files and your storage as they are.
+# omarchy:requires-sudo=true
+
+set -e
+
+# Drop the package first, so a failed removal leaves sync exactly as it was.
+omarchy-pkg-drop omacloud
+
+# systemd keeps the unit loaded after its file is gone, so a running sync can
+# still be stopped, and disable still clears a link left in ~/.config by a
+# manual enable. Both outcomes are checked rather than assumed, since the
+# package is gone and there's nothing left to roll back to.
+stopped=true
+if systemctl --user -q is-active omacloud 2>/dev/null; then
+  systemctl --user stop omacloud || stopped=false
+fi
+systemctl --user disable omacloud 2>/dev/null || true
+systemctl --user daemon-reload 2>/dev/null || true
+
+# Only the links in .wants/.requires start a unit at login; a unit file of
+# the user's own next to them doesn't.
+links=$(find "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user" \( -path '*.wants/omacloud.service' -o -path '*.requires/omacloud.service' \) 2>/dev/null || true)
+
+if [[ $stopped == false || -n $links ]]; then
+  echo "Omacloud is uninstalled, but its sync isn't fully switched off:" >&2
+  if [[ $stopped == false ]]; then
+    echo "- It's still running. Stop it with: systemctl --user stop omacloud" >&2
+  fi
+  if [[ -n $links ]]; then
+    echo "- It can still start at login. Remove these links: rm" $links >&2
+  fi
+  exit 1
+fi
+
+echo ""
+echo "Omacloud has been removed."
+echo "Your files stay in your folders and in your storage, and ~/.config/omacloud keeps this computer's setup."
