@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Ghost, keeping every ghost home in place.
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# Stop the daemon and take the HUD out of the running shell first; the rm
+# covers a shell that is not running to answer. Ghost homes and state stay.
+systemctl --user disable --now ghostd.service 2>/dev/null || true
+omarchy-plugin-remove ferdousbhai.ghost --yes 2>/dev/null || true
+rm -f "$HOME/.config/omarchy/plugins/ferdousbhai.ghost"
+
+omarchy-pkg-drop ghost ghost-runtime
+
+echo ""
+echo "Ghost has been removed. Your ghosts, settings, and state remain, and installing it again picks them up."
