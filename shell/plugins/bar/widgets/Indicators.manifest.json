@@ -60,6 +60,11 @@
             "value": "StayAwake",
             "label": "Stay awake",
             "description": "Idle lock and screensaver override"
+          },
+          {
+            "value": "LiveWallpaper",
+            "label": "Live wallpaper",
+            "description": "Theme background loops"
           }
         ]
       },
