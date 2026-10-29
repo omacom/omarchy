@@ -128,3 +128,20 @@ ln -nsf "$CURRENT_THEME_PATH/backgrounds/first.png" "$CURRENT_BACKGROUND_LINK"
 choose_staged_theme_background
 [[ $CHOSEN_THEME_BACKGROUND == "$CURRENT_THEME_PATH/backgrounds/selected.mp4" ]] || fail "staged same-theme selection still cycles backgrounds"
 pass "staged same-theme selection still cycles backgrounds"
+
+# Run the actual interactive staging pipeline, with only compositor side
+# effects disabled, so template ordering is covered alongside selection.
+rm -rf "$NEXT_THEME_PATH"
+mkdir -p "$NEXT_THEME_PATH/backgrounds"
+cp "$ROOT/themes/tokyo-night/colors.toml" "$NEXT_THEME_PATH/colors.toml"
+printf '<svg xmlns="http://www.w3.org/2000/svg"><rect fill="{{ accent }}"/></svg>\n' >"$NEXT_THEME_PATH/backgrounds/1-art.svg.tpl"
+printf 'photo\n' >"$NEXT_THEME_PATH/backgrounds/2-photo.png"
+ln -nsf "$CURRENT_THEME_PATH/backgrounds/2-photo.png" "$CURRENT_BACKGROUND_LINK"
+background_transition_uses_snapshots() { return 1; }
+THEME_HEADLESS=0
+OMARCHY_THEME_SKIP_BACKGROUND=0
+export OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" HOME
+source <(sed -n '/^# Render generated wallpapers/,/^# Swap next theme/{ /^# Swap next theme/d; p; }' "$ROOT/bin/omarchy-theme-set")
+[[ -f $NEXT_THEME_PATH/backgrounds/1-art.svg ]] || fail "the staged background template is rendered"
+[[ $CHOSEN_THEME_BACKGROUND == "$CURRENT_THEME_PATH/backgrounds/1-art.svg" ]] || fail "interactive same-theme cycling includes newly generated SVG backgrounds"
+pass "interactive staging renders generated wallpapers before selecting the next background"
