@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Người dùng"
   },
-  "system.reboot-boot-menu": {
-    "label": "Khởi động lại vào Boot Menu"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Hiện % pin"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Ẩn % pin"
+  },
+  "appearance.windows": {
+    "label": "Cửa sổ"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Bật khoảng cách cửa sổ"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Tắt khoảng cách cửa sổ"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Bật tỷ lệ 1 cửa sổ"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Tắt tỷ lệ 1 cửa sổ"
+  },
+  "appearance.branding": {
+    "label": "Thương hiệu"
+  },
+  "appearance.animations-on": {
+    "label": "Bật hoạt ảnh"
+  },
+  "appearance.animations-off": {
+    "label": "Tắt hoạt ảnh"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Giữ máy thức"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Cho phép ngủ"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Bật thông báo"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Tắt thông báo"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Bật đèn đêm"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Tắt đèn đêm"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Bật bảo vệ màn hình"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Tắt bảo vệ màn hình"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Bật ghi sự cố"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Tắt ghi sự cố"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Bật màn hình laptop"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Tắt màn hình laptop"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Bật phản chiếu màn hình"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Tắt phản chiếu màn hình"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Chuyển sang GPU lai"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Chuyển sang GPU tích hợp"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Bật bàn di chuột"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Tắt bàn di chuột"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Bật màn hình cảm ứng"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Tắt màn hình cảm ứng"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
   }
 }

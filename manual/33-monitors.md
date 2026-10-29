@@ -18,7 +18,7 @@ local omarchy_monitor_scale = 1
 
 Changes to `GDK_SCALE` apply to applications started after the change (and GTK only honors whole numbers, so keep it at the nearest integer of your monitor scale). So make sure you quit the windows that you have that are oversized after the change (or close all windows with `Ctrl + Alt + Del`!).
 
-You can also quickly step through the major monitor scaling ratios (1x, 1.25x, 1.6x, 2x, 3x, 4x) using `Super + /` to go higher and `Super + Alt + /` to go lower. If you have the default configuration, these changes will also persist past reboot.
+You can also quickly step through the major monitor scaling ratios (1x, 1.25x, 1.6x, 2x, 3x, 4x) using `Super + /` to go higher and `Super + Alt + /` to go lower, or pick one from the monitor panel in the top bar. These change only the monitor you're focused on, so a laptop screen and an external display can each have their own scale. The choice is saved to `~/.config/hypr/monitors.lua` as an `hl.monitor` rule for that monitor, so it persists past reboot and takes precedence over `omarchy_monitor_scale`, which remains the scale for every monitor without a rule of its own. Since `GDK_SCALE` is one value for all screens, these changes set it from the monitor with the lowest scale, so X11 apps come out a little small on the denser screen rather than oversized on the other.
 
 ### Making text bigger or smaller
 

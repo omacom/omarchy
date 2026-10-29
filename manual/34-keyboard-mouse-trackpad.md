@@ -49,11 +49,24 @@ hl.config({
 
 ### Trackpad gestures
 
-You can also turn on [touchpad gestures](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), like swiping with three fingers to change workspaces:
+Swipe on the trackpad to move around the desktop:
+
+| Gesture | Action |
+| --- | --- |
+| Three fingers left / right | Previous / next workspace, including empty ones |
+| Three fingers up | Toggle the AI console |
+| Three fingers down | Open the Omarchy menu |
+| Four fingers left / right | Move the active window to the previous / next workspace |
+| Four fingers down | Toggle fullscreen |
+
+To change one, unset it in `~/.config/hypr/input.lua` before adding your own [touchpad gesture](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), since Hyprland won't take two gestures on the same fingers and direction:
 
 ```lua
-hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+hl.gesture({ fingers = 3, direction = "up", action = "unset" })
+hl.gesture({ fingers = 3, direction = "up", action = "fullscreen" })
 ```
+
+To turn all of Omarchy's gestures off, set `omarchy_default_gestures = false` near the top of `~/.config/hypr/hyprland.lua`, before Omarchy's defaults load.
 
 On Dell XPS laptops with a haptic touchpad, you can also set the click strength to low, mid, or high under _Trigger > Hardware > Touchpad Haptics_.
 

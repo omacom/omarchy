@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "ব্যবহারকারী"
   },
-  "system.reboot-boot-menu": {
-    "label": "বুট মেনুতে রিবুট"
+  "appearance.windows.gaps-on": {
+    "label": "উইন্ডো ফাঁক চালু"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "উইন্ডো ফাঁক বন্ধ"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-উইন্ডো অনুপাত চালু"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-উইন্ডো অনুপাত বন্ধ"
+  },
+  "appearance.branding": {
+    "label": "ব্র্যান্ডিং"
+  },
+  "appearance.animations-on": {
+    "label": "অ্যানিমেশন চালু"
+  },
+  "appearance.animations-off": {
+    "label": "অ্যানিমেশন বন্ধ"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "জেগে থাকুন"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "ঘুমাতে দিন"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "বিজ্ঞপ্তি চালু"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "বিজ্ঞপ্তি নীরব করুন"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "নাইটলাইট চালু"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "নাইটলাইট বন্ধ"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "স্ক্রিনসেভার চালু"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "স্ক্রিনসেভার বন্ধ"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "ক্র্যাশ ক্যাপচার চালু"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "ক্র্যাশ ক্যাপচার বন্ধ"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "ল্যাপটপ ডিসপ্লে চালু"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "ল্যাপটপ ডিসপ্লে বন্ধ"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "ডিসপ্লে মিররিং চালু"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "ব্যাটারি % দেখান"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "ব্যাটারি % লুকান"
+  },
+  "appearance.windows": {
+    "label": "উইন্ডো"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "ডিসপ্লে মিররিং বন্ধ"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "হাইব্রিড GPU-তে যান"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "ইন্টিগ্রেটেড GPU-তে যান"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "টাচপ্যাড চালু করুন"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "টাচপ্যাড বন্ধ করুন"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "টাচস্ক্রিন চালু করুন"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "টাচস্ক্রিন বন্ধ করুন"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "কার্নেল"
   }
 }

@@ -1,37 +1,43 @@
 # Trikčių šalinimas
 
-### Sugadinau sistemą naujinimu!
+### Sugadinau sistemą atnaujinimu!
 
-Pirmiausia pabandyk [atkurti savo sistemą](47-system-snapshots.md) į versiją prieš pastarąjį naujinimą. Jei tai neveikia, naudok `omarchy-debug`, kad pasidalytum savo problema #omarchy-help Discord. O jei visa tai nepavyksta, gali iš naujo įdiegti numatytąsias konfigūracijas ir paketus naudodamas `omarchy-reinstall`.
+Pirmiausia pabandykite [grąžinti ankstesnę sistemos versiją](47-system-snapshots.md) į tą, kuri buvo prieš pastarąjį atnaujinimą. Jei tai nepadeda, naudokite `omarchy-debug`, kad pasidalytumėte savo problema kanale #omarchy-help „Discord“ serveryje. O jei visa tai nepadeda, galite iš naujo įdiegti numatytąsias konfigūracijas ir paketus naudodami `omarchy-reinstall`.
 
 ### Kodėl kai kurios programos mano ekrane tokios didelės?
 
-Omarchy daro prielaidą, kad ekranas yra 2x didelės raiškos, todėl reikia `GDK_SCALE` nustatyti į 2 faile `~/.config/hypr/monitors.lua`. Bet jei esi 1x ekrane, gali `local omarchy_gdk_scale = 2` pakeisti į 1 (tada iš naujo paleisk bet kurią per didelę programą). Žr. [žinyną apie monitorius](33-monitors.md).
+Omarchy numato 2x didelės raiškos ekraną, todėl reikia, kad `~/.config/hypr/monitors.lua` faile `GDK_SCALE` būtų nustatytas į 2. Bet jei naudojate 1x ekraną, galite pakeisti `local omarchy_gdk_scale = 2` į 1 (o tada iš naujo paleisti visas per dideles programas). Žr. [monitorių vadovą](33-monitors.md).
 
-Spotify atveju gali naudoti `Ctrl + Minus`, kad sumažintum UI (ir `Ctrl + Plus`, kad ją padidintum).
+Programoje Spotify galite naudoti `Ctrl + Minus`, kad sumažintumėte sąsają (ir `Ctrl + Plus`, kad ją padidintumėte).
 
-### Mano Wi-Fi, Bluetooth, garsas ar jutiklinis kilimėlis tiesiog nustojo veikti
+### Kodėl nustojo veikti visi mano Super klavišo deriniai?
 
-Prieš perkraudamas, pabandyk kaltąją posistemę iš naujo paleisti atskirai. _Atnaujinti > Aparatinė įranga_ Omarchy meniu turi Wi-Fi, Bluetooth, Garsą ir Jutiklinį kilimėlį, o vienos iš jų perkrovimas ištaiso daugumą situacijų „prieš penkias minutes veikė" — Bluetooth ausines, kurios neprisijungia iš naujo, jutiklinį kilimėlį, kuris po pristabdymo mirė, garsą, kuris dingo atjungus monitorių.
+Kai kuriuose ASUS ROG ir TUF nešiojamuosiuose kompiuteriuose `Fn + Super` yra lengvai nepastebimas derinys, kuris perjungia programinės aparatinės įrangos Windows klavišo užraktą (skirtą žaidimams, kad netyčia neišeitumėte iš žaidimo). Ekrane niekas nerodo, kad tai įvyko. Kai užraktas įjungtas, Super apskritai nieko nesiunčia — todėl kiekvienas Omarchy derinys, naudojantis Super, tiesiog nustoja veikti, ir atrodo, kad sugedo Hyprland.
+
+Prieš lįsdami į `~/.config/hypr/`, vieną kartą paspauskite `Fn + Super`, o jei tai negrąžina Super, paspauskite jį dar kartą, kad nepaliktumėte įjungto užrakto. Tai nėra Fn užraktas, kuris keičia tik tai, ką daro F klavišų eilutė.
+
+### Mano Wi-Fi, Bluetooth, garsas arba jutiklinis kilimėlis tiesiog nustojo veikti
+
+Prieš perkraudami kompiuterį, pabandykite iš naujo paleisti tik sutrikusią posistemę. Omarchy meniu _Update > Hardware_ yra Wi-Fi, Bluetooth, Audio ir Trackpad, ir vienos iš jų paleidimas iš naujo išsprendžia daugumą situacijų „prieš penkias minutes veikė“ — Bluetooth ausines, kurios nenori prisijungti iš naujo, jutiklinį kilimėlį, kuris nustojo veikti po pristabdymo, garsą, kuris dingo atjungus monitorių.
 
 ### Kodėl mano išoriniai garsiakalbiai negroja?
 
-Tikriausiai todėl, kad jie nenustatyti kaip pagrindinė išvestis. Spustelėk garsiakalbio piktogramą dešinėje juostos pusėje ir ji atidarys garso iššokantį langą, kur gali pasirinkti išvesties įrenginį (ir taip pat maišyti kiekvienos programos garsus atskirai).
+Tikriausiai todėl, kad jie nenustatyti kaip pagrindinis išvesties įrenginys. Spustelėkite garsiakalbio piktogramą dešinėje juostos pusėje, ir atsidarys garsumo iššokantis langas, kuriame galėsite pasirinkti išvesties įrenginį (ir reguliuoti kiekvienos programos garsumą atskirai).
 
-### Mano nešiojamojo garsiakalbiai skamba keistai
+### Mano nešiojamojo kompiuterio garsiakalbiai skamba keistai
 
-Kai kuriuose nešiojamuosiuose Omarchy automatiškai pritaiko garsiakalbių derinimą, kuris pataiso įmontuotų garsiakalbių dažnių atsaką. `omarchy audio tuning status` pasako, ar tavo kompiuteryje kuris nors aktyvus, o `omarchy audio tuning off` jį išjungia, jei mieliau garsiakalbius girdi neapdorotus.
+Kai kuriuose nešiojamuosiuose kompiuteriuose Omarchy automatiškai pritaiko garsiakalbių sureguliavimą, kuris pakoreguoja įmontuotų garsiakalbių dažnių atsaką. `omarchy audio tuning status` parodys, ar toks sureguliavimas aktyvus jūsų kompiuteryje, o `omarchy audio tuning off` jį išjungs, jei verčiau norite girdėti neapdorotą garsiakalbių garsą.
 
-### Kodėl negaliu prisijungti ar sudo su savo slaptažodžiu?
+### Kodėl negaliu prisijungti ar naudoti sudo su savo slaptažodžiu?
 
-Tikriausiai jį per daug kartų įvedei neteisingai ir buvai užrakintas. Jei tai vyksta užrakinimo ekrane, gali paspausti `CTRL + ALT + F2`, kad paleistum naują TTY, kur gali prisijungti kaip root, tada paleisk `faillock --reset --user [your-username]`. Tai atstatys užrakinimą ir būsi pasiruošęs.
+Tikriausiai per daug kartų įvedėte jį neteisingai ir jūsų prieiga buvo užblokuota. Jei tai vyksta užrakto ekrane, galite paspausti `CTRL + ALT + F2`, kad paleistumėte naują TTY, kuriame galėsite prisijungti kaip root, tada paleiskite `faillock --reset --user [your-username]`. Tai atstatys blokavimą, ir galėsite tęsti.
 
-### Kodėl mano 1Password autorizavimo raginimai 1Password SSH Agent / CLI nepasirodo?
+### Kodėl nerodomi mano 1Password autorizacijos raginimai, skirti 1Password SSH Agent / CLI?
 
-Tai gali atsitikti dėl 2 priežasčių:
+Tai gali nutikti dėl 2 priežasčių:
 
-Kad atsirastų išsamus patvirtinimo raginimas, Settings > Advanced > Use Hardware Acceleration turi būti įjungta. _Pastaba: kad pradėtų veikti, reikia perkrovimo._
+Kad būtų rodomas išsamus patvirtinimo raginimas, Settings > Advanced > Use Hardware Acceleration turi būti įjungta. _Pastaba: Kad tai pradėtų veikti, reikia perkrauti kompiuterį._
 
  ![troubleshooting-1password](images/troubleshooting-1password.webp)
 
-Arba jei nuo įkrovos nepaleidai 1Password, raginimas nepasirodys.
+Arba jei po kompiuterio paleidimo dar nepaleidote 1Password, raginimas nepasirodys.

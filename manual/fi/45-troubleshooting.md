@@ -1,37 +1,43 @@
 # Vianmääritys
 
-### Rikoin järjestelmäni päivityksellä!
+### Riko järjestelmäni päivityksellä!
 
-Yritä ensin [palauttaa järjestelmäsi](47-system-snapshots.md) versioon ennen viimeistä päivitystäsi. Jos se ei toimi, käytä komentoa `omarchy-debug` jakaaksesi ongelmasi kanavalla #omarchy-help Discordissa. Ja jos kaikki se epäonnistuu, voit asentaa oletusmääritykset ja -paketit uudelleen komennolla `omarchy-reinstall`.
+Kokeile ensin [palauttaa järjestelmäsi](47-system-snapshots.md) versioon ennen viimeisintä päivitystäsi. Jos se ei toimi, käytä `omarchy-debug`-komentoa jakaaksesi ongelmasi #omarchy-help-kanavalla Discordissa. Ja jos kaikki muu epäonnistuu, voit asentaa oletusasetukset ja -paketit uudelleen käyttämällä `omarchy-reinstall`-komentoa.
 
-### Miksi jotkut sovellukset ovat niin suuria näytölläni?
+### Miksi jotkin sovellukset ovat niin suuria näytölläni?
 
-Omarchy olettaa 2x-korkearesoluutioisen näytön, mikä vaatii asetuksen `GDK_SCALE` arvoon 2 tiedostossa `~/.config/hypr/monitors.lua`. Mutta jos olet 1x-näytöllä, voit vaihtaa kohdan `local omarchy_gdk_scale = 2` arvoon 1 (ja käynnistää sitten uudelleen kaikki ylisuuret sovellukset). Katso [käyttöopasta näytöistä](33-monitors.md).
+Omarchy olettaa 2x korkean resoluution näytön, mikä edellyttää `GDK_SCALE`-arvon asettamista arvoon 2 tiedostossa `~/.config/hypr/monitors.lua`. Mutta jos käytät 1x-näyttöä, voit muuttaa `local omarchy_gdk_scale = 2` arvoon 1 (ja käynnistää sitten uudelleen kaikki liian suuret sovellukset). Katso [näyttöjä koskeva opas](33-monitors.md).
 
-Spotifyssa voit käyttää näppäimiä `Ctrl + Minus` käyttöliittymän pienentämiseen (ja `Ctrl + Plus` sen suurentamiseen).
+Spotifyssa voit käyttää `Ctrl + Minus` pienentääksesi käyttöliittymää (ja `Ctrl + Plus` suurentaaksesi sitä).
 
-### Wi-Fini, Bluetoothini, ääneni tai kosketuslevyni lakkasivat juuri toimimasta
+### Miksi kaikki Super-näppäinsidontani lakkasivat toimimasta?
 
-Ennen kuin käynnistät uudelleen, yritä käynnistää syyllinen osajärjestelmä uudelleen yksinään. Omarchy-valikon kohdassa _Päivitä > Laitteisto_ ovat Wi-Fi, Bluetooth, Audio ja Trackpad, ja yhden niistä uudelleenlataaminen selvittää suurimman osan ”toimi viisi minuuttia sitten” -tilanteista — Bluetooth-kuulokkeet, jotka eivät yhdisty uudelleen, kosketuslevy, joka kuoli lepotilan jälkeen, ääni, joka katosi, kun irrotit näytön.
+Joissakin ASUS ROG- ja TUF-kannettavissa `Fn + Super` on helposti huomaamatta jäävä yhdistelmä, joka kytkee laiteohjelmiston Windows-näppäimen lukituksen (tarkoitettu pelaamiseen, jotta et poistu pelistä vahingossa). Mikään näytöllä ei kerro, että näin tapahtui. Kun lukitus on päällä, Super ei lähetä mitään — joten jokainen Superia käyttävä Omarchy-sidonta lakkaa toimimasta, ja näyttää siltä, että Hyprland meni rikki.
+
+Paina `Fn + Super` kerran ennen kuin alat kaivella `~/.config/hypr/`-kansiota, ja jos se ei tuo Superia takaisin, paina sitä uudelleen, jotta et jätä lukitusta päälle. Tämä ei ole Fn-lukitus, joka muuttaa vain F-näppäinrivin toimintaa.
+
+### Wi-Fi, Bluetooth, ääni tai ohjauslevyni lakkasi juuri toimimasta
+
+Ennen kuin käynnistät koneen uudelleen, kokeile käynnistää viallinen alijärjestelmä uudelleen yksinään. Omarchy-valikon _Update > Hardware_ sisältää Wi-Fi, Bluetooth, Audio ja Trackpad, ja yhden niistä uudelleenlataaminen selvittää suurimman osan "se toimi viisi minuuttia sitten" -tilanteista — Bluetooth-kuulokkeet, jotka eivät yhdistä uudelleen, ohjauslevy, joka kuoli lepotilan jälkeen, ääni, joka katosi, kun irrotit näytön.
 
 ### Miksi ulkoiset kaiuttimeni eivät soi?
 
-Luultavasti siksi, että niitä ei ole asetettu ensisijaiseksi lähdöksi. Napsauta palkin oikealla puolella olevaa kaiutinkuvaketta, niin äänenvoimakkuuden ponnahdusikkuna avautuu ja voit valita lähtölaitteen (ja miksata myös sovelluskohtaisia äänenvoimakkuuksia).
+Todennäköisesti siksi, että niitä ei ole asetettu ensisijaiseksi ulostuloksi. Napsauta kaiutinkuvaketta palkin oikealla puolella, niin se avaa äänenvoimakkuuden ponnahdusikkunan, jossa voit valita ulostulolaitteen (ja miksata myös sovelluskohtaiset äänenvoimakkuudet).
 
-### Kannettavan kaiuttimet kuulostavat oudolta
+### Kannettavani kaiuttimet kuulostavat oudoilta
 
-Joissakin kannettavissa Omarchy soveltaa automaattisesti kaiutinviritystä, joka korjaa sisäänrakennettujen kaiuttimien taajuusvasteen. `omarchy audio tuning status` kertoo, onko sellainen käytössä koneellasi, ja `omarchy audio tuning off` poistaa sen käytöstä, jos haluat mieluummin kuulla kaiuttimet raakana.
+Joissakin kannettavissa Omarchy ottaa automaattisesti käyttöön kaiutinvirityksen, joka korjaa sisäänrakennettujen kaiuttimien taajuusvasteen. `omarchy audio tuning status` kertoo, onko sellainen aktiivinen koneellasi, ja `omarchy audio tuning off` kytkee sen pois, jos haluat mieluummin kuulla kaiuttimet raakana.
 
 ### Miksi en voi kirjautua sisään tai käyttää sudoa salasanallani?
 
-Kirjoitit sen luultavasti väärin liian monta kertaa ja lukkiuduit ulos. Jos näin tapahtuu lukitusruudulla, voit painaa `CTRL + ALT + F2` käynnistääksesi uuden TTY:n, jossa voit kirjautua rootina, ja aja sitten komento `faillock --reset --user [your-username]`. Se nollaa lukituksen, ja olet valmis.
+Kirjoitit sen luultavasti väärin liian monta kertaa ja jouduit lukituksi ulos. Jos tämä tapahtuu lukitusnäytöllä, voit painaa `CTRL + ALT + F2` käynnistääksesi uuden TTY:n, jossa voit kirjautua sisään root-käyttäjänä, ja ajaa sitten `faillock --reset --user [your-username]`. Se nollaa lukituksen, ja olet valmis jatkamaan.
 
-### Miksi 1Passwordin valtuutuskehotteeni 1Password SSH Agentille / CLI:lle eivät ilmesty?
+### Miksi 1Passwordin valtuutuskehotteet 1Password SSH Agent / CLI:lle eivät näy?
 
-Tätä voi tapahtua kahdesta syystä:
+Tämä voi tapahtua kahdesta syystä:
 
-Jotta monipuolinen hyväksyntäkehote ilmestyy, Settings > Advanced > Use Hardware Acceleration täytyy olla päällä. _Huomautus: Tämä vaatii uudelleenkäynnistyksen toimiakseen._
+Jotta monipuolinen hyväksymiskehote näkyisi, Settings > Advanced > Use Hardware Acceleration on kytkettävä päälle. _Huomautus: Tämä vaatii uudelleenkäynnistyksen alkaakseen toimia._
 
  ![troubleshooting-1password](images/troubleshooting-1password.webp)
 
-Tai jos et ole käynnistänyt 1Passwordia käynnistyksen jälkeen, kehote ei ilmesty.
+Tai jos et ole käynnistänyt 1Passwordia käynnistyksen jälkeen, kehote ei näy.

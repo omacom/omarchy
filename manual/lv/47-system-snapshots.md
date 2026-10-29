@@ -1,25 +1,27 @@
 # Sistēmas momentuzņēmumi
 
-Mēs momentuzņēmumus veidojam automātiski katrā Omarchy atjauninājumā, bet, ja vēlaties izveidot savējo, varat izmantot `omarchy-snapshot create`.
+Mēs automātiski izveidojam momentuzņēmumus katrā Omarchy atjauninājumā, bet, ja vēlaties izveidot savu, varat izmantot `omarchy-snapshot create`.
 
-Lai sāknētu un atjaunotu momentuzņēmumu, to atlasāt Limine sāknēšanas lādētājā. (Ja pašlaik sāknējaties tieši Omarchy atšifrēšanas ekrānā, vispirms BIOS būs jāizvēlas Limine kā sāknēšanas opcija).
+Lai sāknētu un atjaunotu momentuzņēmumu, izvēlieties to Limine sāknēšanas ielādētājā. (Ja pašlaik sāknējaties tieši Omarchy atšifrēšanas ekrānā, vispirms BIOS būs jāizvēlas Limine kā sāknēšanas opcija).
 
-Šajā ekrānā izvēlieties momentuzņēmumu, kurā vēlaties sāknēties, pēc datuma un versijas. Omarchy versiju momentuzņēmuma laikā var redzēt apakšējā kreisajā stūrī.
+Tajā ekrānā izvēlieties momentuzņēmumu, kurā vēlaties sāknēties, pēc datuma un versijas. Omarchy versiju momentuzņēmuma izveides laikā var redzēt apakšējā kreisajā stūrī.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Kad ieradīsieties iekšā, parādīsies paziņojums, ka esat sāknējamā momentuzņēmumā, un, noklikšķinot uz tā, sāksies atjaunošanas process. Alternatīvi varat izmantot `omarchy-snapshot restore`.
+Kad būsiet iekšā, parādīsies paziņojums, kas informēs, ka atrodaties sāknējamā momentuzņēmumā, un, ja uz tā noklikšķināsiet, sāksies atjaunošanas process. Varat arī izmantot `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Tas atjaunos jūsu saknes failu sistēmu, bet ne jūsu `/home`. Tāpēc tas der salauzta sistēmas atjauninājuma atgriešanai, bet ne zaudētu personisko failu atgūšanai.
+Tas atjaunos jūsu saknes failu sistēmu, bet ne jūsu `/home`. Tāpēc tas der bojāta sistēmas atjauninājuma atcelšanai, bet ne zaudētu personīgo failu atgūšanai.
 
-Tas nozīmē arī, ka jūsu direktorija `~/.config` tiek saglabāta tāda, kāda tā ir. Tāpēc, ja atgriežaties uz bibliotēkas vai lietojumprogrammas agrāku versiju, kas konfigurācijas failus glabā jaunā formātā, tas būs jākārto manuāli.
+Tas arī nozīmē, ka jūsu `~/.config` direktorijs paliek tāds, kāds tas ir. Tāpēc, ja atgriežaties pie vecākas bibliotēkas vai lietojumprogrammas versijas, kas konfigurācijas failus glabā jaunā formātā, jums tas būs jāatrisina pašam.
 
-_Piezīme: šī funkcija ir pieejama tikai instalācijās, kas izmanto Limine sāknēšanas lādētāju, kas ir noklusējums kopš Omarchy 2.0. Tā nav pieejama, ja esat uz GRUB vai systemd-boot._
+Tas pats attiecas uz paša Omarchy ierakstu par to, kuras migrācijas jau ir palaistas: tas atrodas jūsu mājas direktorijā, tāpēc tas pārdzīvo atjaunošanu. Migrācijas, kas palaistas pēc momentuzņēmuma izveides, paliek atzīmētas kā pabeigtas, lai gan to veiktās izmaiņas saknes failu sistēmā ir atceltas, un nākamais `omarchy update` tās vairs nepalaidīs vēlreiz. Tāpēc, ja pēc atjaunošanas atjaunināt vēlreiz un kaut kas, ko iepriekšējais atjauninājums bija iestatījis, joprojām trūkst, tas, visticamāk, ir iemesls.
+
+_Piezīme: Šī funkcija ir pieejama tikai instalācijās, kas izmanto Limine sāknēšanas ielādētāju, kas ir noklusējums kopš Omarchy 2.0. Tā nav pieejama, ja izmantojat GRUB vai systemd-boot._
 
 ### Sāknēšanas izvēlnes izlaišana
 
-Ja nekad neaiztiekat sāknēšanas izvēlni un vēlaties, lai iekārta dotos tieši uz atšifrēšanas ekrānu, Omarchy izvēlnē palaidiet _Iestatīšana > Tiešā palaišana_. Tas pievieno EFI ierakstu, kas norāda tieši uz Omarchy, tāpēc aparātprogrammatūra to sāknē, neapstājoties pie Limine.
+Ja nekad neaiztiekat sāknēšanas izvēlni un vēlaties, lai dators dotos tieši uz atšifrēšanas ekrānu, Omarchy izvēlnē palaidiet _Setup > Direct Boot_. Tas pievieno EFI ierakstu, kas norāda tieši uz Omarchy, tāpēc programmaparatūra to sāknē, neapstājoties pie Limine.
 
-Kompromiss ir augšā minētais: ar ieslēgtu tiešo sāknēšanu nokļūšana līdz momentuzņēmumam nozīmē vispirms BIOS sāknēšanas izvēlnē izvēlēties Limine. Palaidiet _Iestatīšana > Tiešā palaišana_ vēlreiz, lai noņemtu ierakstu un atgrieztos pie sāknēšanas caur Limine. Daža aparātprogrammatūra nemīl pielāgotus EFI ierakstus, tāpēc iestatīšana atsakās darboties uz American Megatrends un Apple aparātprogrammatūras.
+Kompromiss ir tas pats, kas minēts sākumā: ja tiešā sāknēšana ir ieslēgta, lai piekļūtu momentuzņēmumam, vispirms BIOS sāknēšanas izvēlnē jāizvēlas Limine. Palaidiet _Setup > Direct Boot_ vēlreiz, lai noņemtu ierakstu un atgrieztos pie sāknēšanas caur Limine. Daža programmaparatūra nelabvēlīgi izturas pret pielāgotiem EFI ierakstiem, tāpēc iestatīšana atsakās darboties American Megatrends un Apple programmaparatūrā.

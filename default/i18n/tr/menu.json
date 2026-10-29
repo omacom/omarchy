@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Kullanıcı"
   },
-  "system.reboot-boot-menu": {
-    "label": "Önyükleme Menüsüne Yeniden Başlat"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Pil Yüzdesini Göster"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Pil Yüzdesini Gizle"
+  },
+  "appearance.windows": {
+    "label": "Pencereler"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Pencere Boşlukları Açık"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Pencere Boşlukları Kapalı"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Tek Pencere Oranı Açık"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Tek Pencere Oranı Kapalı"
+  },
+  "appearance.branding": {
+    "label": "Markalama"
+  },
+  "appearance.animations-on": {
+    "label": "Animasyonlar Açık"
+  },
+  "appearance.animations-off": {
+    "label": "Animasyonlar Kapalı"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Uyanık Kal"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Uykuya İzin Ver"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Bildirimler Açık"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Bildirimleri Sessize Al"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Gece Işığı Açık"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Gece Işığı Kapalı"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Ekran Koruyucu Açık"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Ekran Koruyucu Kapalı"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Çökme Yakalama Açık"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Çökme Kaydını Kapat"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Dizüstü Ekranını Aç"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Dizüstü Ekranını Kapat"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Ekran Yansıtmayı Aç"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Ekran Yansıtmayı Kapat"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Hibrit GPU'ya Geç"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Tümleşik GPU'ya Geç"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Touchpad'i Etkinleştir"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Touchpad'i Devre Dışı Bırak"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Dokunmatik Ekranı Etkinleştir"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Dokunmatik Ekranı Devre Dışı Bırak"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Çekirdek"
   }
 }

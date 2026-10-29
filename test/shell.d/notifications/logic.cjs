@@ -4,7 +4,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), vm = requ
 const { URL } = require('node:url')
 const load = require('./loader.cjs')
 const S = load('Security'), M = load('Markup'), D = load('Detect'), Store = load('Store')
-const Layout = load('Layout'), Delivery = load('Delivery'), Settings = load('Settings'), Icons = load('Icons')
+const Layout = load('Layout'), Delivery = load('Delivery'), Icons = load('Icons')
 const snap = (n, key = 'k') => Store.snapshot(n, key, { Normal: 1 })
 
 // ---------------------------------------------------------------- URL policy
@@ -44,6 +44,10 @@ for (const body of ['<img src="file:///etc/passwd">', '<svg><image href="https:/
                     '<a href="https://paypal.com@evil.example">paypal.com</a>Your code is 1234'])
   assert.ok(!/<(?:img|svg|script|iframe|object|embed|style|font)\b|<a[^>]+onmouseover=|href="(?:qrc|image|javascript|file|data):/i
     .test(M.render(body)), body)
+
+// A bare URL is a link even beside formatting, but never inside the sender's own anchor.
+assert.equal(M.render('<b>Standup</b> https://example.com/x'), '<b>Standup</b> <a href="https://example.com/x">https://example.com/x</a>')
+assert.equal(M.render('<a href="https://example.com/">https://example.com/</a>'), '<a href="https://example.com/">https://example.com/</a>')
 
 { // Escaped sender markup must not leak into collapsed or restored previews.
   const body = 'Thread in #support: &lt;b&gt;Sam&lt;/b&gt;&lt;br/&gt;the preview is readable &amp; compact'
@@ -90,9 +94,13 @@ for (let i = 0; i < 1000; i++) {
   assert.equal(real.groupKey, 'web:app.slack.com')
   assert.equal(real.source, 'app.slack.com')
   assert.equal(id('Chromium', '<a href="https://evil.example/">bank.example</a>hi').source, 'evil.example', 'the href is the origin')
+  assert.equal(id('Brave Origin', '<a href="https://app.basecamp.com/">app.basecamp.com</a>\n\nKendall: hi').groupKey, 'web:app.basecamp.com')
   // A restored row cannot claim a site either unless it came from a browser.
   assert.equal(Store.restored({ key: 'r', app: 'Chat', source: 'bank.example' }).groupKey, 'app:chat')
   assert.equal(Store.restored({ key: 'r', app: 'Chromium', source: 'app.slack.com' }).groupKey, 'web:app.slack.com')
+  // An unnamed sender's toasts each stand alone rather than stacking.
+  for (const app of ['omarchy-action', 'notify-send'])
+    assert.notEqual(Store.restored({ key: 'a', app }).groupKey, Store.restored({ key: 'b', app }).groupKey, app)
 }
 
 { // `-i name` is an icon name, not a picture; only the strict charset is kept.
@@ -135,16 +143,14 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   }
 }
 
-{ // Restore recomputes link/meeting/phone from the text under today's policy,
-  // never trusting fields on the stored entry.
+{ // Restore recomputes the link from the text under today's policy, never
+  // trusting the field on the stored entry.
   const entry = body => ({ key: 'n1', app: 'Chat', summary: 'New message', body, rawBody: body, urgency: 1 })
-  const row = Store.restored(entry('Join https://meet.google.com/abc-defg-hij or call +44 7911 123456'))
+  const row = Store.restored(entry('Join https://meet.google.com/abc-defg-hij'))
   assert.equal(row.link, 'https://meet.google.com/abc-defg-hij')
-  assert.equal(row.meeting, true)
-  assert.equal(row.phone, '+44 7911 123456')
   assert.equal(row.restored, true)
-  const tampered = Store.restored({ ...entry('Nothing to see here'), link: 'https://evil.example/phish', meeting: true, phone: '+1 555 0100' })
-  assert.deepEqual([tampered.link, tampered.meeting, tampered.phone], ['', false, ''])
+  const tampered = Store.restored({ ...entry('Nothing to see here'), link: 'https://evil.example/phish' })
+  assert.equal(tampered.link, '')
   assert.equal(Store.restored(entry('See http://127.0.0.1/admin for details')).link, '')
 }
 
@@ -171,6 +177,21 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   const secret = Store.sanitiseForPersistence(snap({ appName: 'x', summary: 'Sign in', body: 'Your verification code is 482913',
     hints: { 'omarchy-exec-argv': shot, 'omarchy-glyph': '\u{f0306}' } }))
   assert.deepEqual([secret.execArgv, secret.glyph], ['', ''])
+}
+
+{ // --action buttons: up to three, each a label and an argv held to the click's rules.
+  const actions = JSON.stringify([{ label: 'Edit', argv: ['omasnap', '--file', '/tmp/a b.png'] },
+                                  { label: 'Copy path', argv: ['wl-copy', '--', '/tmp/a b.png'] }])
+  assert.equal(JSON.stringify(S.parseExecActions(actions)), actions)
+  const one = { label: 'Go', argv: ['true'] }
+  for (const bad of ['', '[]', '{}', JSON.stringify([one, one, one, one]), JSON.stringify([{ label: ' ', argv: ['true'] }]),
+                     JSON.stringify([{ label: 'Go', argv: ['-rf'] }]), JSON.stringify([{ label: 'Go' }]), JSON.stringify([one, 'x'])])
+    assert.equal(S.parseExecActions(bad), null, bad)
+  // Stored with the row, so a restored card keeps its buttons; redacted with a code.
+  const row = snap({ appName: 'omasnap', summary: 'Screenshot saved', hints: { 'omarchy-actions': actions } })
+  assert.equal(Store.restored(Store.sanitiseForPersistence(row)).execActions, actions)
+  const secret = snap({ appName: 'x', summary: 'Sign in', body: 'Your verification code is 482913', hints: { 'omarchy-actions': actions } })
+  assert.equal(Store.sanitiseForPersistence(secret).execActions, '')
 }
 
 { // Sender image paths: absolute, one spelling, bounded, and never a kernel interface or service state.
@@ -210,21 +231,16 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   // Only the browser is looked up among desktop entries: a fuzzy match on a
   // domain label is how mail.google.com would wear Google Contacts.
   same(Icons.candidates(Store.restored({ key: 'w', app: 'Google Chrome', appIcon: 'google-chrome', source: 'app.slack.com' })), {
-    overrides: ['app.slack.com', 'slack', 'google-chrome', 'web-app.slack.com'],
     themed: ['app.slack.com', 'slack', 'google-chrome'],
     entries: ['google-chrome', 'Google Chrome'] })
   // An app: its hint, then its source and name, as given and slugged; a name
   // with a space is no theme name.
   same(Icons.candidates(Store.restored({ key: 'a', app: 'Spotify', appIcon: 'spotify-client' })), {
-    overrides: ['spotify-client', 'spotify', 'app-spotify'],
     themed: ['spotify-client', 'Spotify', 'spotify'],
     entries: ['spotify-client', 'Spotify'] })
   // A hostname-looking app is not a site unless a browser lifted it.
   same(Icons.candidates({ app: 'example.com', source: 'example.com', groupKey: 'app:example-com' }).themed, ['example.com'])
-  same(Icons.candidates({}), { overrides: [], themed: [], entries: [] })
-  // Overrides: by slug, PNG first, any case, image formats only.
-  same(Icons.overrideMap(['slack.svg', 'slack.png', 'Spotify.PNG', 'notes.txt', '.png', 'x.jpg', 'x.ico', 'readme']),
-       { slack: 'slack.png', spotify: 'Spotify.PNG', x: 'x.jpg' })
+  same(Icons.candidates({}), { themed: [], entries: [] })
   assert.equal(Icons.slug('  Google Chrome!! '), 'google-chrome')
   assert.equal(Icons.slug('../../etc/passwd'), 'etc-passwd')
   // One-colour icons go by their freedesktop name, as a theme name or a file.
@@ -244,25 +260,32 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
 
 // ------------------------------------------------------------------ delivery
 {
-  const state = over => ({ doNotDisturb: false, globalSnoozed: false, sourceSnoozed: false, codesBypassQuiet: true, ...over })
-  for (const [row, over, expected] of [
-    [{ app: 'Slack', urgency: 1 }, {}, ''],
-    [{ app: 'Slack', urgency: 1 }, { doNotDisturb: true }, 'silenced'],
-    [{ app: 'Slack', urgency: 1 }, { globalSnoozed: true }, 'snoozed'],
-    [{ app: 'Slack', urgency: 1 }, { sourceSnoozed: true }, 'snoozed'],
-    [{ app: 'Slack', urgency: 2 }, { doNotDisturb: true }, 'silenced'],      // a branded critical does not punch through
-    [{ app: 'notify-send', urgency: 2 }, { doNotDisturb: true }, ''],
-    [{ app: 'notify-send', urgency: 1 }, { doNotDisturb: true }, 'silenced'],
-    [{ app: 'omarchy-action', urgency: 0 }, { globalSnoozed: true }, ''],
-    [{ app: 'Google', urgency: 1, code: '482913' }, { doNotDisturb: true }, ''],
-    [{ app: 'Google', urgency: 1, code: '482913' }, { doNotDisturb: true, codesBypassQuiet: false }, 'silenced'],
-  ]) assert.equal(Delivery.quietReason(row, state(over)), expected, JSON.stringify([row, over]))
+  for (const [row, dnd, expected] of [
+    [{ app: 'Slack', urgency: 1 }, false, ''],
+    [{ app: 'Slack', urgency: 1 }, true, 'silenced'],
+    [{ app: 'Slack', urgency: 2 }, true, 'silenced'],      // a branded critical does not punch through
+    [{ app: 'notify-send', urgency: 2 }, true, ''],
+    [{ app: 'notify-send', urgency: 1 }, true, 'silenced'],
+    [{ app: 'omarchy-action', urgency: 0 }, true, ''],
+    [{ app: 'Google', urgency: 1, code: '482913' }, true, ''],
+  ]) assert.equal(Delivery.quietReason(row, dnd), expected, JSON.stringify([row, dnd]))
+  // The number keys count buttons in the order the card draws them: codes, --action, the sender's.
+  const deeds = Delivery.deeds({ codes: '482913 771204', execActions: JSON.stringify([{ label: 'Edit', argv: ['omasnap'] }]) },
+                               [{ id: 'join', text: 'Join call' }])
+  assert.equal(JSON.stringify(Array.from(deeds, d => d.kind + ':' + d.value)), JSON.stringify(['code:482913', 'code:771204', 'exec:0', 'action:join']))
+  assert.equal(Delivery.deeds({}, []).length, 0)
   for (const [row, ephemeral] of [[{ app: 'notify-send' }, true], [{ app: 'omarchy-action' }, true],
                                   [{ app: 'Slack', transient: true }, true], [{ app: 'Slack' }, false]])
     assert.equal(Delivery.isEphemeral(row), ephemeral, row.app)
   assert.ok(Delivery.summaryStartsWithGlyph('\u{f009b}  Silenced'))
   assert.ok(!Delivery.summaryStartsWithGlyph('Silenced  notifications'))
   assert.ok(!Delivery.summaryStartsWithGlyph(''))
+  // Omarchy's marks share code points with Nerd Font devicons.
+  assert.ok(Delivery.omarchyGlyph(''))
+  assert.ok(Delivery.omarchyGlyph(''))
+  assert.ok(!Delivery.omarchyGlyph('\u{f048a}'))
+  assert.ok(!Delivery.omarchyGlyph(''))
+  assert.ok(!Delivery.omarchyGlyph(''))
 
   // The deck clears the bar only on the top and right edges it touches.
   const bar = { barHidden: false, barSize: 26, barSizeFor: name => name === 'notched' ? 40 : 26 }
@@ -272,35 +295,6 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.equal(Delivery.barThickness(null, 'plain', 28), 28)
   for (const [position, thickness, top, right] of [['top', 26, 36, 10], ['right', 40, 10, 50], ['bottom', 26, 10, 10], ['left', 26, 10, 10]])
     assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) }, { top, right }, position)
-}
-
-// ------------------------------------------------------------------ settings
-{ // Every key optional, every invalid value falls back.
-  const d = Settings.resolve(null)
-  assert.equal(d.stacking, 'source')
-  assert.equal(d.fullscreenOverlay, 'all')
-  assert.equal(d.edgeSpacing, null, 'unset edge spacing follows the theme gap')
-  assert.equal(d.allowDefaultActionOnCardClick, true)
-  assert.equal(d.codesBypassQuiet, null)
-  assert.deepEqual([...d.snoozeDurations], ['30', '60', '240', 'tomorrow'])
-  const r = Settings.resolve({ stacking: 'nope', fontScale: 500, edgeSpacing: '8', wakeHour: 0,
-                               snoozeDurations: ['15', 'bogus', '15', 'tomorrow'], historyHours: 7,
-                               clipboardTimeout: 90, codesBypassQuiet: false, displayName: 7 })
-  assert.equal(r.stacking, 'source')
-  assert.equal(r.fontScale, 200)
-  assert.equal(r.edgeSpacing, 8)
-  assert.equal(r.wakeHour, 0, 'midnight is a valid wake hour')
-  assert.deepEqual([...r.snoozeDurations], ['15', 'tomorrow'])
-  assert.equal(r.historyHours, 24)
-  assert.equal(r.clipboardTimeout, 90)
-  assert.equal(r.codesBypassQuiet, false)
-  assert.equal(r.displayName, '')
-  assert.deepEqual([...Settings.resolve({ snoozeDurations: [] }).snoozeDurations], [...d.snoozeDurations])
-  const now = new Date(2026, 9, 19, 22, 30).getTime()
-  assert.equal(Settings.snoozeSeconds('60', 8, now), 3600)
-  assert.equal(Settings.snoozeSeconds('tomorrow', 8, now), 9 * 3600 + 1800)
-  assert.equal(Settings.snoozeSeconds('tomorrow', 0, new Date(2026, 9, 19, 23, 58).getTime()), 600, 'never less than ten minutes')
-  assert.equal(Settings.snoozeSeconds('nope', 8, now), 0)
 }
 
 // --------------------------------------------------- Service.qml functions
@@ -334,25 +328,13 @@ function runIn(scope, ...names) {
   assert.deepEqual(calls, ['hl.dsp.focus({window = hl.get_window("address:0x123abc")})'])
 }
 
-{ // Snooze lengths from IPC are finite and bounded before anything changes.
-  const s = runIn({ maxSnoozeSeconds: 366 * 86400, Number, Math, isFinite }, 'snoozeMinutes')
-  for (const v of ['Infinity', '1e309', 'NaN', '-5', '0', '', 'abc']) assert.equal(s.snoozeMinutes(v, 60), 60, v)
-  assert.equal(s.snoozeMinutes('1e308', 60), 366 * 1440, 'capped, not overflowed')
-  assert.equal(s.snoozeMinutes('30', 60), 30)
-  assert.ok(/isFinite\(seconds\)/.test(fn('snoozeSource')) && /maxSnoozeSeconds/.test(fn('snoozeSource')), 'snoozeSource bounds its own input')
-}
-
-{ // The summary is plain text everywhere it is drawn.
-  const toast = fs.readFileSync(load.dir + '/Toast.qml', 'utf8'), title = toast.indexOf('id: title')
-  assert.ok(/Text\.PlainText/.test(toast.slice(toast.lastIndexOf('Text {', title), title)), 'the summary renders as plain text')
-}
-
 // Admission, close and replay run for real; only the ListModel, QObject
 // signals, the deferred event loop and external effects are faked.
-const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn', 'awayFrom', 'routeAround', 'rememberRecent', 'recentForPanel',
+const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
-  'finishClose', 'clearAll', 'clearDeck', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
 function newCapacityScope() {
@@ -365,27 +347,24 @@ function newCapacityScope() {
   const later = []
   const s = {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
-    maxLiveNotifications: 100, heights: {}, leaving: {}, layoutRevision: 0,
-    held: [], doNotDisturb: false, globalSnoozeUntil: 0,
-    recentRows: [], recentLimit: 20,
-    liveEntries: [], historyEntries: [], historyHours: 24, unsaved: {}, liveLoaded: false,
+    maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
+    arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
+    held: [], doNotDisturb: false,
+    liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
-    configuredDisplayName: 'fixture-display', deckDisplayName: '',
-    fullscreenAway: false, fullscreenScope: '', hyprRevision: 0,
+    deckDisplayName: '',
+    hyprRevision: 0,
     displayNames: ['fixture-display'], focusedDisplayName: 'fixture-display',
     Quickshell: { screens: [] }, Hyprland: { monitorFor: screen => screen.monitor },
-    snoozeRevision: 0, snoozes: {},
-    codesBypassQuiet: false, hideSettingsAction: false,
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
-    snoozedUntil: key => s.snoozes[key] || 0,
-    liveSnoozes: () => Object.keys(s.snoozes).map(key => ({ key })),
-    Security: S, Delivery, Store,
+    Security: S, Delivery, Store, Markup: M,
     NotificationUrgency: { Critical: 2, Normal: 1, Low: 0 },
     Qt: { callLater: f => later.push(f),
       md5: value => require('node:crypto').createHash('md5').update(value).digest('hex') },
-    Style: { space: n => n },
+    Style: { space: n => n, duration: n => n },
+    departureDeadline: { running: false, start() {}, restart() {} },
     holding: () => s.pointerHolding === true,
-    snapshot: () => ({}), deckHeight: 0, retarget: () => {}, layout: { placements: {} },
+    snapshot: () => ({}), deckHeight: 0, retarget: () => {}, land: () => {}, layout: { placements: {} },
   }
   // Bare QML properties and service-qualified accesses are the same object.
   s.service = s
@@ -429,30 +408,17 @@ function newCapacityScope() {
 }
 const summaries = rows => Array.from(rows, row => row.summary)
 
-{ // Route away from fullscreen outputs, but not merely maximised windows.
+{ // Step aside for fullscreen windows, but not merely maximised ones.
   const s = newCapacityScope()
   const game = { lastIpcObject: { fullscreen: 1, class: 'steam_app_31' } }
-  const work = { lastIpcObject: { fullscreen: 0, class: 'editor' } }
-  s.displayNames = ['game', 'work']
-  s.focusedDisplayName = 'game'
-  s.Quickshell.screens = [game, work].map((window, i) => ({
-    name: s.displayNames[i],
-    monitor: { activeWorkspace: { hasFullscreen: true, toplevels: { values: [window] } } },
-  }))
-  s.fullscreenAway = true
-  s.fullscreenScope = 'all'
-  assert.equal(s.routeAround('game'), 'game')
+  s.Quickshell.screens = [{ name: 'game',
+    monitor: { activeWorkspace: { hasFullscreen: true, toplevels: { values: [game] } } } }]
+  assert.equal(s.fullscreenOn('game'), false)
   game.lastIpcObject.fullscreen = 2
-  assert.equal(s.routeAround('game'), 'work')
-  work.lastIpcObject.fullscreen = 2
-  assert.equal(s.routeAround('game'), '')
-  s.fullscreenScope = 'steam'
-  assert.equal(s.routeAround('game'), 'work')
-  s.fullscreenAway = false
-  assert.equal(s.routeAround('game'), 'game')
+  assert.equal(s.fullscreenOn('game'), true)
 }
 
-{ // Rapid single dismissals must skip rows still playing their exit animation.
+{ // Rapid single dismissals must skip rows that are leaving but not yet removed.
   const s = newCapacityScope()
   assert.equal(s.dismissOne(), 'none')
   const senders = [1, 2, 3, 4].map(id => s.fakeNotification(id))
@@ -464,114 +430,156 @@ const summaries = rows => Array.from(rows, row => row.summary)
     assert.equal(s.leaving[key], 'dismissed', 'each press selects the next live card')
   }
   assert.equal(s.dismissOne(), 'none', 'departing cards are not dismissible')
-  assert.equal(s.toasts.count, 4, 'exit animations retain their model rows')
+  assert.equal(s.toasts.count, 4, 'leaving rows keep their model slots until the next tick')
   assert.equal(s.leaving[keys[0]], 'expired', 'dismissal preserves an earlier expiry')
-  for (const key of keys) s.finishClose(key, s.leaving[key])
-  assert.equal(s.toasts.count, 0)
+  s.drainCallLater()
+  assert.equal(s.toasts.count, 0, 'the next tick removes every leaving row')
+  assert.equal(Object.keys(s.leaving).length, 0)
   assert.equal(senders[3].expiries, 1)
   for (const sender of senders.slice(0, 3)) assert.equal(sender.dismissals, 1)
   for (const sender of senders) assert.equal(sender.closeAttempts, 1)
 }
 
-{ // Dismiss the visible deck, including across mode changes and exit animations.
-  function fixture(stacking, expanded, openDeck) {
-    const s = newCapacityScope()
-    Object.assign(s, { stacking, expanded, openDeck })
-    for (const [key, groupKey] of [['old', 'chat'], ['build', 'build'], ['new', 'chat']]) {
-      s.reserveLive(key)
-      s.toasts.insert(0, { key, groupKey })
-    }
-    Object.defineProperty(s, 'layout', { get: () => Layout.compute(
-      s.toasts.rows.filter(row => !s.leaving[row.key]),
-      { stacking: s.stacking, expanded: s.expanded, openDeck: s.openDeck }) })
-    return s
-  }
-  const leaving = s => Object.keys(s.leaving).sort()
-  const collapsed = fixture('source', false, '')
-  assert.equal(collapsed.clearDeck('dismissed'), 2)
-  assert.deepEqual(leaving(collapsed), ['new', 'old'])
-  // Departing rows remain in the model, but must not consume the next press.
-  assert.equal(collapsed.clearDeck('dismissed'), 1)
-  assert.deepEqual(leaving(collapsed), ['build', 'new', 'old'])
-  assert.equal(collapsed.clearDeck('dismissed'), 0)
-  const open = fixture('source', true, 'build')
-  assert.equal(open.clearDeck('dismissed'), 1)
-  assert.deepEqual(leaving(open), ['build'])
-  assert.equal(open.clearDeck('dismissed'), 2)
-  const all = fixture('all', true, 'chat')
-  assert.equal(all.clearDeck('dismissed'), 3)
-  const unmatched = fixture('source', true, 'all')
-  assert.equal(unmatched.clearDeck('dismissed'), 2)
-  assert.deepEqual(leaving(unmatched), ['new', 'old'])
+{ // Acting on the newest card dismisses it bare, presses its lone button, or picks among several.
+  const s = newCapacityScope()
+  const picking = []
+  s.startKeyboard = key => { picking.push(key); return true }
+  assert.equal(s.act(), 'none')
+  const bare = s.fakeNotification(1), single = s.fakeNotification(2), several = s.fakeNotification(3)
+  let pressed = 0
+  bare.actions = []
+  single.actions = [{ identifier: 'open', text: 'Open', invoke: () => { pressed += 1 } }]
+  several.actions = [{ identifier: 'reply', text: 'Reply' }, { identifier: 'archive', text: 'Archive' }]
+  s.admit(bare, single, several)
+  const [severalKey, singleKey, bareKey] = s.toasts.rows.map(row => row.key)
+  assert.equal(s.act(), 'ok')
+  assert.deepEqual(picking, [severalKey], 'several buttons hand that card the keyboard')
+  assert.equal(s.leaving[severalKey], undefined)
+  s.closeToast(severalKey, 'dismissed')
+  assert.equal(s.act(), 'ok')
+  assert.equal(pressed, 1, 'a lone button is pressed')
+  assert.equal(s.leaving[singleKey], 'activated')
+  assert.equal(s.act(), 'ok')
+  assert.equal(s.leaving[bareKey], 'dismissed', 'a card with no buttons is dismissed')
+
+  // A web notification's only action is its click: it opens rather than going away.
+  const web = s.fakeNotification(4)
+  let opened = 0
+  web.actions = [{ identifier: 'default', text: 'Activate', invoke: () => { opened += 1 } }]
+  s.admit(web)
+  const webKey = s.toasts.get(0).key
+  assert.equal(s.act(), 'ok')
+  assert.equal(opened, 1, 'a card whose one action is its click is clicked')
+  assert.equal(s.leaving[webKey], 'activated')
+
+  // Its click and a button make two things to choose from.
+  const both = s.fakeNotification(5)
+  both.actions = [{ identifier: 'default', text: 'Activate' }, { identifier: 'reply', text: 'Reply' }]
+  s.admit(both)
+  assert.equal(s.act(), 'ok')
+  assert.deepEqual(picking, [severalKey, s.toasts.get(0).key], 'a click and a button hand the card the keyboard')
+
+  // A native app with no actions at all still has its own window to go to.
+  const focused = []
+  s.Hyprland.toplevels = { values: [{ lastIpcObject: { class: 'signal', pid: 42, address: '0xabc' } }] }
+  s.Hyprland.dispatch = x => focused.push(x)
+  const native = s.fakeNotification(6)
+  native.actions = []
+  native.hints = { 'sender-pid': 42 }
+  s.admit(native)
+  assert.equal(s.act(), 'ok')
+  assert.equal(focused.length, 1, "a card from an app with a window open focuses that window")
+  assert.equal(s.leaving[s.toasts.get(0).key], 'activated')
 }
 
-{ // Expired notifications remain readable, newest first, without unbounded retention.
+{ // A clicked card rises out before it goes; a keypress clears every card with one jump.
   const s = newCapacityScope()
-  for (let i = 1; i <= 25; i++) {
-    s.admit(s.fakeNotification(i, 'Message ' + i))
-    s.finishClose(s.keyForOriginal(i), 'expired')
-  }
-  assert.equal(s.toasts.count, 0)
-  assert.deepEqual(summaries(s.recentRows), Array.from({ length: 20 }, (_, i) => 'Message ' + (25 - i)))
-}
-
-{ // Replacing a live sender updates one recent entry and moves it to the front.
-  const s = newCapacityScope()
-  const first = s.fakeNotification(1, 'First')
-  s.admit(first, s.fakeNotification(2, 'Second'))
-  first.replace({ summary: 'First updated', body: 'Latest text' })
+  s.admit(...[1, 2, 3].map(id => s.fakeNotification(id)))
+  let lands = 0, moves = 0
+  s.land = () => { lands += 1 }
+  s.retarget = () => { moves += 1 }
+  s.closeToast(s.toasts.get(0).key, 'dismissed')
   s.drainCallLater()
-  assert.deepEqual(summaries(s.recentRows), ['First updated', 'Second'])
-  assert.equal(s.recentRows[0].bodyLine, 'Latest text')
+  assert.equal(moves, 1)
+  assert.equal(s.toasts.count, 3, 'a clicked card keeps its row until its exit move finishes')
+  assert.equal(s.clearAll('dismissed', true), 3)
+  assert.equal(lands, 1)
+  s.drainCallLater()
+  assert.equal(s.toasts.count, 0, 'the jump takes the card already on its way out too')
 }
 
-{ // A code must not outlive its toast, even in source metadata used for filtering.
+{ // A card on its way out is passed over by the shortcuts, and goes on its own deadline
+  // however often an update restarts the scene.
+  const s = newCapacityScope()
+  s.admit(...[1, 2].map(id => s.fakeNotification(id)))
+  const [front, back] = s.toasts.rows.map(row => row.key)
+  const at = { y: 0, scale: 1, opacity: 1, height: 58 }
+  s.snapshot = () => ({ [front]: at, [back]: at })
+  s.closeToast(front, 'dismissed')
+  assert.equal(s.newestLive(), back, 'the activation shortcut must not run the departing card again')
+  s.finishDeparted(Date.now())
+  assert.equal(s.toasts.count, 2, 'the card rises out before it goes')
+  s.finishDeparted(Date.now() + 1000)
+  assert.deepEqual(s.toasts.rows.map(row => row.key), [back], 'its deadline removes it without the scene settling')
+}
+
+{ // A sender replacing a card during its exit brings it back instead of losing the update.
+  const s = newCapacityScope()
+  const sender = s.fakeNotification(1, 'Expiring')
+  s.admit(sender)
+  const key = s.keyForOriginal(1)
+  s.snapshot = () => ({ [key]: { y: 0, scale: 1, opacity: 1, height: 58 } })
+  s.closeToast(key, 'expired')
+  sender.replace({ summary: 'Still going', expireTimeout: 12345 })
+  s.drainCallLater()
+  s.finishDeparted(Date.now() + 1000)
+  assert.equal(s.toasts.count, 1)
+  assert.equal(s.toasts.get(0).summary, 'Still going')
+  assert.equal(sender.expiries, 0, 'the fresh notification must not be reported expired')
+}
+
+{ // A code must not outlive its toast, even in source metadata.
   const s = newCapacityScope()
   const code = s.fakeNotification(1, 'Your verification code is 938271')
   code.appName = 'Source 938271'
   s.admit(code)
-  const group = s.toasts.get(0).groupKey
   s.finishClose(s.keyForOriginal(1), 'expired')
-  assert.equal(s.recentForPanel(5)[0].bodyLine, '[redacted]')
-  assert.ok(Store.redacted(s.recentForPanel(5)[0]))
+  assert.ok(Store.redacted(s.historyEntries[0]))
   assert.ok(!Store.redacted({ summary: 'Verification notification', body: 'a real message' }))
-  assert.ok(!JSON.stringify(s.recentRows).includes('938271'))
-  s.snoozes[group] = 1
-  assert.equal(s.recentForPanel(5).length, 0)
+  assert.ok(!JSON.stringify(s.historyEntries).includes('938271'))
 }
 
-{ // Full quiet hides the entire recent list and held arrivals never backfill it.
+{ // The keyboard only selects cards that fit on screen: the deck does not scroll.
   const s = newCapacityScope()
-  s.admit(s.fakeNotification(1, 'Before quiet'))
-  s.doNotDisturb = true
-  s.handleNotification(s.fakeNotification(2, 'Silenced arrival'))
-  assert.equal(s.recentForPanel(5).length, 0)
-  s.doNotDisturb = false
-  s.globalSnoozeUntil = 1
-  s.handleNotification(s.fakeNotification(3, 'Global snooze arrival'))
-  assert.equal(s.recentForPanel(5).length, 0)
-  s.globalSnoozeUntil = 0
-  assert.deepEqual(summaries(s.recentForPanel(5)), ['Before quiet'])
-}
-
-{ // Filter before applying N, preserving other sources and restoring earlier rows on wake.
-  const s = newCapacityScope()
-  const snoozed = s.fakeNotification(2, 'Soon snoozed')
-  snoozed.appName = 'Noisy'
-  s.admit(s.fakeNotification(1, 'Other source'), snoozed)
-  const group = s.toasts.get(0).groupKey
-  s.snoozes[group] = 1
-  assert.deepEqual(summaries(s.recentForPanel(1)), ['Other source'])
-  const held = s.fakeNotification(3, 'Held arrival')
-  held.appName = 'Noisy'
-  s.handleNotification(held)
-  delete s.snoozes[group]
-  assert.deepEqual(summaries(s.recentForPanel(5)), ['Soon snoozed', 'Other source'])
-  s.snoozes[group] = 1
-  snoozed.replace({ summary: 'Updated while snoozed' })
-  s.drainCallLater()
-  delete s.snoozes[group]
-  assert.deepEqual(summaries(s.recentForPanel(5)), ['Other source'])
+  const other = s.fakeNotification(9, 'Other app')
+  other.appName = 'Other'
+  s.admit(other, ...[1, 2, 3, 4, 5].map(id => s.fakeNotification(id, 'Card ' + id)))
+  Object.assign(s, { Layout, gap: 6, targetDisplayName: 'fixture-display', marginsFor: () => ({ top: 10, right: 10 }),
+    Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] }, keyboardMode: true, keyboardRejected: {} })
+  runIn(s, 'layoutWith', 'reachable', 'moveSelection', 'keepSelectionInReach', 'keyboardOrder')
+  for (const row of s.toasts.rows) s.heights[row.key] = 100
+  Object.defineProperty(s, 'layout', { get: () => s.layoutWith(true, s.openDeck) })
+  s.selectCard = key => { s.keyboardKey = key; s.openDeck = Layout.groupKeyFor(s.toasts.get(s.rowIndexFor(key))) }
+  const summary = () => s.toasts.get(s.rowIndexFor(s.keyboardKey)).summary
+  s.selectCard(s.keyboardOrder()[0])
+  s.moveSelection(1)
+  // 300 tall, 10 down, 6 apart: two 100-tall cards fit, the third would end at 322...
+  assert.equal(summary(), 'Card 4')
+  // ...so Down skips the rest of that deck for the next one, which fits once it opens.
+  s.moveSelection(1)
+  assert.equal(summary(), 'Other app')
+  s.moveSelection(-1)
+  assert.equal(summary(), 'Card 4')
+  // A selected card that grows past the bottom (its buttons, its body) gives way.
+  const grown = s.keyboardKey
+  s.heights[grown] = 200
+  s.keepSelectionInReach()
+  assert.equal(summary(), 'Card 5')
+  // Its buttons hide again once it is not selected; Down passes it rather than
+  // landing on it and giving way again, forever.
+  s.heights[grown] = 100
+  s.moveSelection(1)
+  assert.equal(summary(), 'Other app')
 }
 
 for (const held of [true, false]) { // Capacity: at most 100 live senders, held or deferred.
@@ -701,13 +709,12 @@ for (const held of [true, false]) { // A cancelled pending card frees exactly on
   assert.equal(s.liveCount(), 0)
 }
 
-for (const quiet of ['silenced', 'snoozed']) { // Quiet closes a muted update; only Omarchy and bare notify-send critical get through.
+for (const holding of [false, true]) { // Silencing closes a muted update; only Omarchy and bare notify-send critical get through.
   const s = newCapacityScope()
-  s.pointerHolding = quiet === 'snoozed'
+  s.pointerHolding = holding
   const muted = s.fakeNotification(1, 'Before quiet')
   s.handleNotification(muted)
-  if (quiet === 'silenced') s.doNotDisturb = true
-  else s.snoozedUntil = () => 12345
+  s.doNotDisturb = true
   muted.replace({ summary: 'Quiet update' })
   s.releaseHeld()
   s.drainCallLater()
@@ -723,7 +730,7 @@ for (const quiet of ['silenced', 'snoozed']) { // Quiet closes a muted update; o
     s.handleNotification(n)
     s.releaseHeld()
     s.drainCallLater()
-    assert.equal(s.toasts.count - before, shows ? 1 : 0, quiet + ': ' + summary)
+    assert.equal(s.toasts.count - before, shows ? 1 : 0, (holding ? 'holding: ' : '') + summary)
     if (shows) assert.equal(s.toasts.get(0).summary, summary)
   }
 }
@@ -793,12 +800,13 @@ for (const replay of [false, true]) { // Replay and startup restore share held r
 
 { // Repeated replay creates distinct cards; restore cannot overwrite an admitted key.
   const s = newCapacityScope()
-  s.restoreRows([{ key: 'same', summary: 'Original' }], true)
-  s.restoreRows([{ key: 'same', summary: 'Replay' }], true)
-  s.restoreRows([{ key: 'same', summary: 'Stale startup' }], false)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Original' }], true)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Replay' }], true)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Stale startup' }], false)
   s.drainCallLater()
   assert.deepEqual(summaries(s.toasts.rows), ['Replay', 'Original'])
   assert.equal(new Set(s.toasts.rows.map(r => r.key)).size, 2)
+  assert.equal(new Set(s.toasts.rows.map(r => r.groupKey)).size, 2, 'the replayed card is its own deck')
 }
 
 { // Clearing pending rows cancels their callbacks even if replay reuses the exact key.
@@ -840,10 +848,10 @@ const plain = value => JSON.parse(JSON.stringify(value))
 // Arrays from the module's own realm compare by value.
 const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(expected), message)
 
-{ // A stored row keeps only its scalar fields: no codes, links, phones,
-  // images or derived text.
-  const saved = Store.persistable({ key: 'n1', app: 'Chat', summary: 'Hi', body: 'Call +44 7911 123456 or https://example.com',
-    code: '1234', codes: '1234', link: 'https://example.com', meeting: true, phone: '+44 7911 123456', image: '/tmp/a.png',
+{ // A stored row keeps only its scalar fields: no codes, links, images or
+  // derived text.
+  const saved = Store.persistable({ key: 'n1', app: 'Chat', summary: 'Hi', body: 'See https://example.com',
+    code: '1234', codes: '1234', link: 'https://example.com', image: '/tmp/a.png',
     bodyRich: '<b>x</b>', transient: true })
   eq(Object.keys(saved).sort(), [...Store.STORED].sort())
   assert.equal(saved.rawBody, '', 'a raw body the same as the body is not stored twice')
@@ -896,20 +904,13 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   assert.equal(huge.execArgv, '')
 }
 
-{ // History is newest first, capped, and only as old as historyHours allows.
+{ // History is newest first, capped, and kept for a day.
   const now = 1e6, entry = (key, age, reason = 'dismissed') => ({ key, closed_ts: now - age, closed_reason: reason })
   let history = []
-  for (let i = 0; i < 150; i++) history = Store.addHistory(history, entry('n' + i, 150 - i), 24, now)
+  for (let i = 0; i < 150; i++) history = Store.addHistory(history, entry('n' + i, 150 - i), now)
   assert.equal(history.length, 100)
   assert.equal(history[0].key, 'n149')
-  eq(Store.retain([entry('a', 60), entry('b', 3599), entry('c', 3601)], 1, now).map(e => e.key), ['a', 'b'])
-  eq(Store.retain([entry('a', 60)], 0, now), [])
-  eq(Store.addHistory([], entry('a', 0), 0, now), [], 'historyHours 0 keeps none')
-  assert.equal(Store.retain([entry('a', 25 * 3600)], 168, now).length, 1)
-  assert.equal(Store.retain([entry('a', 25 * 3600)], 5, now).length, 0, 'an unknown retention is the default day')
-  // Held back means quiet kept it off the screen.
-  const rows = [entry('a', 1, 'snoozed'), entry('b', 2, 'dismissed'), entry('c', 3, 'silenced'), entry('d', 4, 'snoozed')]
-  eq(Store.held(rows, 2).map(e => e.key), ['a', 'c'])
+  eq(Store.retain([entry('a', 60), entry('b', 24 * 3600 - 1), entry('c', 24 * 3600 + 1)], now).map(e => e.key), ['a', 'b'])
   assert.equal(Store.closedEntry({ key: 'x' }, 'Bad reason!', 1).closed_reason, '')
 }
 
@@ -938,9 +939,9 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   eq(Store.parseLive(' '.repeat(Store.LIVE_LIMIT * Store.LIVE_ROW_CHARS * 2 + 1) + '[{"key":"a"}]'), [],
                    'an oversized file is not parsed at all')
   const [row] = Store.parseLive(JSON.stringify([{ key: '__proto__', summary: 's', image: '/tmp/a.png', bodyRich: '<img src=x>',
-    link: 'https://evil.example/', meeting: true, phone: '+1 555 0100', urgency: 'high', ts: 'soon', glyph: '\n' }]))
-  eq([row.key, row.image, row.link, row.phone, row.urgency, row.ts, row.glyph, 'bodyRich' in row],
-                   ['__proto__', undefined, undefined, undefined, 1, 0, '', false])
+    link: 'https://evil.example/', urgency: 'high', ts: 'soon', glyph: '\n' }]))
+  eq([row.key, row.image, row.link, row.urgency, row.ts, row.glyph, 'bodyRich' in row],
+                   ['__proto__', undefined, undefined, 1, 0, '', false])
   assert.equal(Store.parseLive('[{"key":"a","summary":"first"},{"key":"a","summary":"second"}]').length, 1)
   // The previous engine's rows had no key; rows without a close time are not history.
   eq(Store.parseHistory('[{"id":7,"summary":"Legacy","timestamp":1},{"key":"n1","summary":"open"}]'), [])
@@ -961,22 +962,17 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   const restored = Store.restored(Store.parseLive(text)[0])
   eq([restored.restored, restored.duration, restored.execArgv, restored.glyph, restored.source],
                    [true, Store.RESTORE_GRACE, '["omarchy-update"]', '\u{f0954}', 'app.slack.com'])
-  assert.equal(Store.displayRows(history)[0].bodyLine, restored.bodyLine)
+  assert.equal(Store.normalise(history[0]).bodyLine, restored.bodyLine)
 }
 
 { // quiet.json keeps today's shape, and anything else in it is ignored.
-  const state = { snoozes: { 'web:app.slack.com': { until: 2e9, label: 'Slack', since: 1e9 } }, dnd: true, silencedSince: 5,
-                  codesBypassQuiet: false }
+  const state = { dnd: true }
   eq(Store.parseQuiet(Store.serialiseQuiet(state)), state)
   eq(JSON.parse(Store.serialiseQuiet(state)), state)
   for (const text of ['', 'nope', '[]', '"dnd"', 'null'])
     assert.equal(Store.parseQuiet(text), null, text)
-  const odd = Store.parseQuiet('{"snoozes":{"__proto__":{"until":1},"a":{"until":"x"},"b":null,"c":{"until":5,"label":7}},' +
-                               '"dnd":"yes","silencedSince":"later","codesBypassQuiet":"no"}')
-  eq(odd, { snoozes: { c: { until: 5, label: '7', since: 0 } }, dnd: false, silencedSince: 0, codesBypassQuiet: null })
-  assert.ok(!('until' in odd.snoozes), 'a __proto__ key cannot replace the prototype')
-  assert.equal(Store.legacyDnd('{"version":3,"dnd":true}'), true)
-  for (const text of ['', '{"dnd":"true"}', '[true]', 'garbage']) assert.equal(Store.legacyDnd(text), false, text)
+  const odd = Store.parseQuiet('{"snoozes":{"a":{"until":5}},"dnd":"yes","silencedSince":"later","codesBypassQuiet":"no"}')
+  eq(odd, { dnd: false })
 }
 
 { // The service: shown rows are saved live, closed ones move to history, quiet
@@ -993,14 +989,8 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   quiet.appName = 'notify-send'
   s.handleNotification(quiet)
   eq(s.historyEntries.map(e => e.summary + ':' + e.closed_reason), ['Silenced:silenced', 'Shown:expired'])
-  eq(Store.held(s.historyEntries, 10).map(e => e.summary), ['Silenced'])
   assert.equal(s.liveEntries.length, 0)
   assert.ok(s.unsaved.live && s.unsaved.history)
-  s.historyHours = 0
-  s.doNotDisturb = false
-  s.admit(s.fakeNotification(4, 'Unrecorded'))
-  s.finishClose(s.keyForOriginal(4), 'dismissed')
-  eq(s.historyEntries, [])
 }
 
 { // A pending card silenced before it showed leaves nothing to restore.

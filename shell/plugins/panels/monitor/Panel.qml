@@ -305,9 +305,11 @@ Panel {
     // hyprctl keyword is rejected under the Lua config ("non-legacy parsers"),
     // so drive the monitor through the hl.monitor eval API instead.
     var output = '"' + name.replace(/[\\"]/g, "\\$&") + '"'
+    // hl.monitor updates the existing rule. Keep its mode, position and scale
+    // when bringing the display back.
     var expr = enabled
       ? 'hl.monitor({ output = ' + output + ', disabled = true })'
-      : 'hl.monitor({ output = ' + output + ', disabled = false, mode = "preferred", position = "auto", scale = "auto" })'
+      : 'hl.monitor({ output = ' + output + ', disabled = false })'
     actionProc.command = ["hyprctl", "eval", expr]
     if (!actionProc.running) actionProc.running = true
   }

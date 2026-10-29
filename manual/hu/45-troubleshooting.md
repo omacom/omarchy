@@ -1,37 +1,43 @@
 # Hibaelhárítás
 
-### Egy frissítéssel tönkretettem a rendszerem!
+### Tönkretettem a rendszeremet egy frissítéssel!
 
-Először próbáld meg [visszaállítani a rendszered](47-system-snapshots.md) a legutóbbi frissítésed előtti verzióra. Ha ez nem működik, az `omarchy-debug` segítségével oszd meg a problémádat a Discord #omarchy-help csatornáján. És ha mindez kudarcot vall, az `omarchy-reinstall` használatával újratelepítheted az alapértelmezett konfigurációkat és csomagokat.
+Először próbáld meg [visszaállítani a rendszeredet](47-system-snapshots.md) a legutóbbi frissítésed előtti verzióra. Ha ez nem működik, használd az `omarchy-debug` parancsot, hogy megoszd a problémádat a Discordon a #omarchy-help csatornán. És ha minden kötél szakad, újratelepítheted az alapértelmezett konfigurációkat és csomagokat az `omarchy-reinstall` paranccsal.
 
-### Miért olyan nagy néhány alkalmazás a kijelzőmön?
+### Miért olyan nagyok egyes appok a kijelzőmön?
 
-Az Omarchy 2x nagy felbontású kijelzőt feltételez, amihez a `GDK_SCALE` értékét 2-re kell állítani a `~/.config/hypr/monitors.lua` fájlban. De ha 1x kijelzőn vagy, a `local omarchy_gdk_scale = 2` értéket 1-re változtathatod (majd indíts újra minden túlméretes alkalmazást). Lásd [a monitorokról szóló kézikönyvet](33-monitors.md).
+Az Omarchy 2x nagy felbontású kijelzőt feltételez, amihez a `GDK_SCALE` értékét 2-re kell állítani a `~/.config/hypr/monitors.lua` fájlban. De ha 1x kijelződ van, átírhatod a `local omarchy_gdk_scale = 2` értéket 1-re (majd indítsd újra minden olyan appot, ami túl nagy). Lásd [a kézikönyvet a monitorokról](33-monitors.md).
 
-A Spotify esetében a `Ctrl + Minus` kombinációval zsugoríthatod a felületet (és a `Ctrl + Plus` kombinációval nagyobbá teheted).
+Spotify esetén a `Ctrl + Minus` billentyűkombinációval kicsinyítheted a kezelőfelületet (a `Ctrl + Plus` billentyűkombinációval pedig nagyobbá teheted).
 
-### A Wi-Fim, Bluetoothom, hangom vagy érintőpadom egyszerűen leállt
+### Miért nem működnek hirtelen a Super billentyűs gyorsbillentyűim?
 
-Mielőtt újraindítasz, próbáld meg önmagában újraindítani a hibás alrendszert. Az Omarchy menü _Frissítés > Hardver_ pontjában van Wi-Fi, Bluetooth, Hang és Érintőpad, és ezek egyikének újratöltése az „öt perce még működött" helyzetek többségét megoldja — egy Bluetooth-headsetet, amely nem csatlakozik újra, egy érintőpadot, amely felfüggesztés után elhalt, hangot, amely eltűnt, amikor kihúztál egy monitort.
+Egyes ASUS ROG és TUF laptopokon a `Fn + Super` egy könnyen észrevétlenül lenyomható billentyűkombináció, ami egy firmware-es Windows-billentyűzárat kapcsol be és ki (játékhoz találták ki, hogy véletlenül se lépj ki egy játékból). Semmi sem jelzi a képernyőn, hogy ez megtörtént. Amíg a zár be van kapcsolva, a Super egyáltalán nem küld semmit — így minden Omarchy-gyorsbillentyű, ami Supert használ, egyszerűen nem működik, és úgy tűnik, mintha a Hyprland romlott volna el.
+
+Nyomd meg egyszer a `Fn + Super` billentyűkombinációt, mielőtt elkezdenél turkálni a `~/.config/hypr/` könyvtárban, és ha ettől nem tér vissza a Super, nyomd meg még egyszer, hogy ne hagyd bekapcsolva a zárat. Ez nem az Fn-zár, ami csak azt változtatja meg, hogyan működik az F-billentyűk sora.
+
+### Nem működik a Wi-Fi-m, a Bluetoothom, a hangom vagy az érintőpadom
+
+Mielőtt újraindítanád a gépet, próbáld meg önmagában újraindítani a problémás alrendszert. Az Omarchy menüben az _Update > Hardware_ alatt megtalálod a Wi-Fi, Bluetooth, Audio és Trackpad lehetőségeket, és ezek egyikének újratöltése megoldja a legtöbb „öt perce még működött” helyzetet — egy Bluetooth-headsetet, ami nem akar újracsatlakozni, egy érintőpadot, ami felfüggesztés után meghalt, vagy hangot, ami eltűnt, amikor kihúztál egy monitort.
 
 ### Miért nem szólnak a külső hangszóróim?
 
-Valószínűleg azért, mert nincsenek beállítva elsődleges kimenetként. Kattints a sáv jobb oldalán lévő hangszóróikonra, és megnyitja a hangerő-felugró ablakot, ahol kiválaszthatod a kimeneti eszközt (és alkalmazásonként keverheted a hangerőt is).
+Valószínűleg azért, mert nincsenek beállítva elsődleges kimenetként. Kattints a hangszóró ikonra a sáv jobb oldalán, és megnyílik a hangerő-felugró ablak, ahol kiválaszthatod a kimeneti eszközt (és appkonként keverheted a hangerőt is).
 
-### A laptopom hangszórói furcsán szólnak
+### Furcsán szólnak a laptopom hangszórói
 
-Néhány laptopon az Omarchy automatikusan alkalmaz egy hangszóró-hangolást, amely korrigálja a beépített hangszórók frekvenciaválaszát. Az `omarchy audio tuning status` megmondja, aktív-e egy a gépeden, az `omarchy audio tuning off` pedig kikapcsolja, ha inkább nyersen hallgatnád a hangszórókat.
+Egyes laptopokon az Omarchy automatikusan alkalmaz egy hangszóró-hangolást, ami korrigálja a beépített hangszórók frekvenciaválaszát. Az `omarchy audio tuning status` megmondja, aktív-e ilyen a gépeden, az `omarchy audio tuning off` pedig kikapcsolja, ha inkább nyersen szeretnéd hallani a hangszórókat.
 
-### Miért nem tudok bejelentkezni vagy sudózni a jelszavammal?
+### Miért nem tudok bejelentkezni vagy sudo-zni a jelszavammal?
 
-Valószínűleg túl sokszor írtad be rosszul, és kizártad magad. Ha ez a zárolási képernyőn történik, a `CTRL + ALT + F2` kombinációval új TTY-t indíthatsz, ahol rootként jelentkezhetsz be, majd futtathatod a `faillock --reset --user [your-username]` parancsot. Ez visszaállítja a kizárást, és máris mehetsz.
+Valószínűleg túl sokszor írtad be rosszul, és kizártad magad. Ha ez a zárolási képernyőn történik, nyomd meg a `CTRL + ALT + F2` billentyűkombinációt egy új TTY indításához, ahol bejelentkezhetsz root felhasználóként, majd futtasd a `faillock --reset --user [your-username]` parancsot. Ez visszaállítja a kizárást, és már mehetsz is tovább.
 
-### Miért nem jelennek meg az 1Password engedélyezési kéréseim az 1Password SSH Agenthez / CLI-hez?
+### Miért nem jelennek meg az 1Password engedélyezési felkérései az 1Password SSH Agent / CLI esetében?
 
-Ez 2 okból történhet:
+Ennek 2 oka lehet:
 
-Ahhoz, hogy a gazdag jóváhagyási kérés megjelenjen, a Settings > Advanced > Use Hardware Acceleration beállításnak bekapcsolva kell lennie. _Megjegyzés: Ennek működésbe lépéséhez újraindítás szükséges._
+Ahhoz, hogy a részletes jóváhagyási felkérés megjelenjen, a Settings > Advanced > Use Hardware Acceleration beállítást be kell kapcsolni. _Megjegyzés: Ennek működéséhez újraindítás szükséges._
 
  ![troubleshooting-1password](images/troubleshooting-1password.webp)
 
-Vagy ha nem indítottad el az 1Passwordöt a gép bekapcsolása óta, a kérés nem jelenik meg.
+Vagy ha a rendszerindítás óta nem indítottad el az 1Passwordot, a felkérés nem fog megjelenni.

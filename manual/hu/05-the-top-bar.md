@@ -1,117 +1,120 @@
 # A felső sáv
 
-A képernyőd tetején végigfutó csík az Omarchy sáv. Ez nem egy odacsavarozott állapotsáv, hanem az Omarchy shell része, annak az egyetlen hosszú futású Quickshell-folyamatnak a része, amely a menüt, az értesítéseket, az OSD-felugró ablakokat és a zárolási képernyőt is rajzolja. Ezért illeszkedik tökéletesen minden máshoz a témában, és ezért nyílik meg egy panel azonnal, ahelyett, hogy új appot indítana.
+A képernyőd tetején végigfutó csík az Omarchy sáv. Nem egy utólag felcsavarozott állapotsáv, hanem az Omarchy shell része, azé az egyetlen, hosszan futó Quickshell folyamaté, amely a menüt, az értesítéseket, az OSD felugrókat és a zárolási képernyőt is rajzolja. Ezért illeszkedik tökéletesen minden máshoz, és ezért nyílik meg egy panel azonnal, új alkalmazás indítása helyett.
 
-Ez az asztal egyetlen olyan része is, amely mindig a képernyőn van, ezért érdemes tudni, mit csinálnak azok a kis jelek mind.
+Ez az egyetlen része az asztalnak, amely mindig a képernyőn van, így érdemes tudni, mit csinálnak azok a kis jelek.
 
-## Mi van rajta alapértelmezetten
+## Mi van rajta alapértelmezés szerint
 
-A sávnak három szakasza van. A bal oldalon ül az Omarchy logó (a menüindító) és a munkaterület-jelzők. Középen kapod meg az állapotjelzőket, az órát, az Elsewhen világórát, az időjárást és egy Omarchy-frissítési jelvényt. A jobb oldalon: a billentyűzetkiosztás (ha egynél több van beállítva), a rendszertálca, az agentek, a bluetooth, a hálózat, a hang, a kijelző és az energia.
+A sávnak három szakasza van. Bal oldalon ül az Omarchy logó (a menüindító) és a munkaterület-jelzők. Középen kapod az állapotjelzőket, az órát, az Elsewhen-t (egy világórát), az időjárást és egy Omarchy-frissítési jelvényt. Jobb oldalon: a rendszertálca, a billentyűzetkiosztás (ha egynél több van beállítva), az ágensek, a bluetooth, a hálózat, a hang, a kijelző és az energia.
 
-Néhány közülük csak akkor jelenik meg, ha van mondanivalója. A billentyűzetkiosztás csak akkor jelenik meg, ha egynél több kiosztást állítottál be. A frissítési jelvény csak akkor jelenik meg, ha egy Omarchy-frissítés vár rád. Az agentek ikonja pedig akkor jelenik meg először, amikor az Omarchy AI-kódolási használatot talál a gépen (lásd az [AI-t](17-ai.md)).
+Néhány ezek közül csak akkor jelenik meg, ha van mondanivalója. A billentyűzetkiosztás csak akkor jelenik meg, ha egynél több kiosztást állítottál be. A frissítési jelvény csak akkor jelenik meg, ha Omarchy-frissítés vár rád. Az ágensek ikonja pedig akkor jelenik meg először, amikor az Omarchy AI coding használatot talál a gépen (lásd [MI](17-ai.md)).
 
 ## Kattintgatás
 
-Szinte minden widget csinál valamit bal, jobb és középső kattintásra, és több reagál a görgetésre is. Ezt a részt szokták az emberek kihagyni — a jobb és a középső gombokban rejtőzik sok jó dolog.
+Szinte minden widget csinál valamit bal, jobb és középső kattintásra, és több reagál a görgetésre is. Ezt szokták elszalasztani az emberek — a jobb és a középső gomb rejti a jó dolgok nagy részét.
 
 | Widget | Bal | Jobb | Középső / görgetés |
 | --- | --- | --- | --- |
 | Menü | Omarchy menü | Új terminál | — |
-| Munkaterületek | Fókusz arra a munkaterületre | — | Görgetés: következő/előző munkaterület |
-| Óra | Naptár-felugró ablak | A címkeformátum váltása | Középső: időzóna-választó |
-| Időjárás | Előrejelzés-felugró ablak | Teljes időjárás értesítésként | Középső: frissítés |
+| Munkaterületek | Az adott munkaterületre fókuszál ezen a monitoron | — | Görgetés: következő/előző munkaterület |
+| Óra | Naptár felugró | A címkeformátum váltása | Középső: időzóna-választó |
+| Időjárás | Előrejelzés felugró | Teljes időjárás értesítésként | Középső: frissítés |
 | Hang | Hangpanel | Némítás | Középső: panel · görgetés: hangerő |
 | Mikrofon | A mikrofon némítása | — | Középső: hangpanel · görgetés: bemeneti hangerő |
-| Hálózat | Hálózati panel | — | — |
-| Bluetooth | Bluetooth-panel | A rádió be-/kikapcsolása | — |
+| Hálózat | Hálózatpanel | — | — |
+| Bluetooth | Bluetooth panel | A rádió ki-/bekapcsolása | — |
 | Kijelző | Kijelzőpanel | — | Görgetés: fényerő |
-| Energia | Energiapanel | Az akku százalékának megjelenítése/elrejtése | — |
-| Média | Lejátszás/szünet | Borítókép-felugró ablak | Középső: következő · görgetés: előző/következő |
-| Agentek | Agentpanel | Az agented indítása | Középső: következő előfizetés |
-| Tálca | Hoverrel a fiók előhozása | Jobb kattintás a chevronon a kezeléshez | — |
+| Energia | Energiapanel | Az akkumulátorszázalék ki-/bekapcsolása | — |
+| Média | Lejátszás/szünet | Borítókép felugró | Középső: következő · görgetés: előző/következő |
+| Ágensek | Ágensek panel | Az ágensed indítása | Középső: következő előfizetés |
+| Tálca | Lebegtetés a fiók felfedéséhez | Jobb kattintás a chevronra a kezeléshez | — |
 | Omarchy-frissítés | A frissítés futtatása | — | — |
 
-Ebben a táblázatban nem minden van kint a sávodon a dobozból kivéve. A médiawidget (MPRIS now-playing, görgetődő szám- és előadócímmel) és a mikrofonwidget is beépített, de alapértelmezetten ki vannak kapcsolva — add hozzá őket, ha szeretnéd, az alábbiak szerint.
+A táblázatban szereplő dolgok közül nem minden van alapból a sávodon. A médiawidget (MPRIS most szóló, görgetődő számmal és előadóval) és a mikrofonwidget is be van építve, de alapértelmezés szerint ki van kapcsolva — add hozzá őket, ha akarod, az alábbiak szerint.
 
 ## A panelek
 
-Egy sávikonra kattintva panel nyílik meg, amely rendes felugró ablak csúszkákkal, listákkal és billentyűzetes navigációval, nem pedig egy eszköztipp. Mindegyikhez tartozik billentyűparancs is, így soha nem kell egy 16 pixeles jelre céloznod:
+Egy sávikonra kattintva panel nyílik, amely egy rendes felugró ablak csúszkákkal, listákkal és billentyűzetes navigációval, nem csak egy eszköztipp. Mindegyiknek van gyorsbillentyűje is, így sosem kell egy 16 képpontos jelet célba venned:
 
-| Billentyűparancs | Panel |
+| Gyorsbillentyű | Panel |
 | --- | --- |
 | `Super + Ctrl + A` | Hang |
-| `Super + Ctrl + W` | Hálózat |
+| `Super + Ctrl + N` | Hálózat |
 | `Super + Ctrl + B` | Bluetooth |
 | `Super + Ctrl + D` | Kijelző |
 | `Super + Ctrl + P` | Energia |
 | `Super + Ctrl + Alt + D` | Naptár |
 | `Super + Ctrl + Alt + E` | Világóra |
-| `Super + Ctrl + 1-9` | A jobb szakasz n-edik paneljének kapcsolása |
+| `Super + Ctrl + 1-9` | Az n-edik panel ki-/bekapcsolása a jobb oldali szakaszban |
 
-A panelek nem kiolvasók. Itt tudod tényleg elvégezni a dolgot:
+A panelek nem csak kijelzők. Itt tudod ténylegesen elvégezni a dolgot:
 
-- Az **Audio** panelen fő hangerőcsúszka, kimenetieszköz-választó és appenkénti keverő van, így lehalkíthatod azt az egyetlen böngészőfülön lévő dolgot anélkül, hogy minden máshoz hozzányúlnál.
-- A **Hálózat** panel Wi-Fi-t keres, mutatja a jelerősséget, csatlakozik, és lehetővé teszi DNS-szolgáltató választását.
-- A **Bluetooth** panel felsorolja az eszközeidet csatlakoztatás/leválasztás funkcióval és akkuszinttel.
-- Az **Energia** panel mutatja az akkustatisztikákat, váltja a teljesítményprofilokat (külön választást jegyez meg akkura és AC-re), és néhány rendszerinfót kiír.
-- A **Kijelző** panelen fényerőcsúszka, szövegméret, monitorméretezési előbeállítások vannak — és ha egynél több képernyőd van — monitoronkénti vezérlők. A mélyebb történetért lásd a [monitorokat](33-monitors.md).
-- Az **Óra** egy hónapos rácsot nyit ISO-hétszámokkal és hónap léptetéssel.
+- A **Hang** tartalmaz egy fő hangerőcsúszkát, egy kimeneti eszközválasztót és egy alkalmazásonkénti keverőt, így lehalkíthatod azt az egy böngészőlapot anélkül, hogy minden máshoz hozzányúlnál.
+- A **Hálózat** Wi-Fi-t keres, mutatja a jelerősséget, csatlakozik, és lehetővé teszi DNS-szolgáltató választását.
+- A **Bluetooth** kilistázza az eszközeidet csatlakozással/leválasztással és akkumulátorszintekkel.
+- Az **Energia** akkumulátorstatisztikákat mutat, energia-profilokat vált (külön választást jegyez meg akkumulátorra és AC-re), és némi rendszerinformációt ír ki.
+- A **Kijelző** tartalmaz egy fényerőcsúszkát, szövegméretet, monitor-méretezési előbeállításokat, és — ha egynél több képernyőd van — monitoronkénti vezérlőket. A mélyebb történetért lásd [monitorok](33-monitors.md).
+- Az **Óra** egy havi rácsot nyit ISO hétszámokkal és hónap léptetéssel.
+- A **Világóra** soronként egy várost tart, annak időjárásával és azzal, hogyan telik ott a nap. A keresés településeket is talál időzónák mellett, így Fort Lauderdale az Fort Lauderdale, és nem New York. Ha a felül lévő sor rossz várost nevez meg, kattints rá, és mondd meg, hol vagy; válassz valamit egy másik időzónában, és a rendszeróra is oda költözik, ami utazáskor jól jön. Lebegtesd az egeret egy város fölé, és kattints a személy gombra, hogy megmondd, ki lakik ott — egyszerű nevek, vagy `@` GitHub handle-ök, hogy az arcuk is megjelenjen.
 
-Minden panel fogadja a billentyűzetet és az egeret is: a nyilak mozognak, a Return aktivál, a Tab a szomszédos panelre lép, az Escape pedig bezár.
+Minden panel fogadja a billentyűzetet is az egér mellett: a nyilak mozognak, a Return aktivál, a Tab a szomszédos panelre lép, az Escape pedig bezár.
 
-A `Super + Ctrl + 1-9` a jobb szakaszban számolja a paneleket balról jobbra, kihagyva a tálcát, mivel annak nincs saját panelje. Így a szám megegyezik azzal az ikonnal, amelyre mutatnál.
+A `Super + Ctrl + 1-9` balról jobbra számolja a paneleket a jobb oldali szakaszban, kihagyva a tálcát, mivel annak nincs saját panelje. Így a szám ahhoz az ikonhoz tartozik, amelyre mutatnál.
 
 ### Tailscale és Dropbox
 
-Két további widget csak akkor jelenik meg a sávon, ha a megfelelő szolgáltatást a **Telepítés → Szolgáltatás** pontból telepíted, és mindkettőről érdemes tudni, mert többet tesznek, mint hogy állapotot jelentenek.
+Két további widget csak akkor jelenik meg a sávon, ha telepíted a hozzá tartozó szolgáltatást az **Install → Service** menüből, és mindkettőt érdemes ismerni, mert nem csak állapotot jelentenek.
 
-A **Tailscale** panel csatlakoztatja és leválasztja a tailnetet, vált a fiókok között, és kiválaszt egy exit node-ot (a saját gépeid és a Mullvad-régiók egyaránt megjelennek ezen a listán). Böngészni is lehet vele a gépeid között — és ha egyet kiválasztasz, az `s` fájlokat küld neki Taildroppal, amely a leggyorsabb módja annak, hogy egy fájlt a telefonodra vagy egy másik laptopra mozgass. A `c` másolja a gép IP-jét, az `n` a nevét és a `d` a teljes DNS-nevét. Minden gépsoron van küldés gomb is, ha inkább kattintanál. Terminálból ugyanez: `omarchy tailscale send <machine> [file...]`.
+A **Tailscale** panel csatlakoztatja és leválasztja a tailnetet, vált a fiókok között, és kilépési csomópontot választ (a saját gépeid és a Mullvad régiók is megjelennek azon a listán). Tallózza a gépeidet is — és ha egy ki van választva, az `s` fájlokat küld rá Taildrop segítségével, ami a leggyorsabb módja annak, hogy fájlt juttass a telefonodra vagy egy másik laptopra. A `c` másolja a gép IP-címét, az `n` a nevét, a `d` pedig a teljes DNS-nevét. Minden gépsoron van egy küldés gomb is, ha inkább kattintanál. Ugyanez a terminálból: `omarchy tailscale send <machine> [file...]`.
 
-A **Dropbox** panel kezeli a bejelentkezést, mutatja, mennyi tárhelyet használtál el, és felsorolja a nemrég szinkronizált fájlokat.
+A **Dropbox** panel kezeli a bejelentkezést, mutatja, mennyi tárhelyet használtál, és kilistázza a nemrég szinkronizált fájlokat.
 
-Bármelyik szolgáltatás eltávolítása leveszi a widgetjét a sávról.
+Bármelyik szolgáltatás eltávolítása leveszi a widgetét is a sávról.
 
 ## Jelzők
 
-A középen lévő kis fürt az indicators widget. Ezek állapotjelek olyan módokhoz, amelyeket bekapcsoltál: ne zavarjanak, éjszakai fény, egy sorban álló [emlékeztető](09-reminders.md), aktív képernyőfelvétel, ébren maradás és [diktálás](11-text-extraction-dictation.md). Kigyulladnak, amikor a mód aktív, máskülönben félreesők maradnak — vigyd az egeret az óra bal oldalához (függőleges sávon fölé), hogy beless az inaktívakba. Egy jelzőre kattintás be- és kikapcsolja azt a módot. Egy további csak állapotot mutat: egy távoli munkamenet pirosan világít, amíg valaki gliffen keresztül csatlakozik ehhez a géphez.
+A középen lévő kis csoport a jelzők widget. Ezek állapotjelek azokhoz a módokhoz, amelyeket bekapcsoltál: ne zavarjanak, éjszakai fény, egy sorban álló [emlékeztető](09-reminders.md), egy aktív képernyőfelvétel, ébren maradás, és [diktálás](11-text-extraction-dictation.md). Kigyulladnak, amikor a mód aktív, egyébként eltűnnek az útból — lebegtesd az egeret bárhol a sáv fölött, hogy meglesd az inaktívakat. Egy jelzőre kattintva ki-/bekapcsolod azt a módot. Még egy csak állapotot jelez: egy távoli munkamenet pirosan világít, amíg valaki csatlakozik ehhez a géphez gliff segítségével.
 
-Ha inkább mindig láthatóknak szeretnéd őket, állítsd az `alwaysShow` értékét `true`-ra a widgeten. És ha csak néhány érdekel közülük, sorold fel a kívántakat az `items` mezőben: `["Dnd", "Reminder", "NightLight"]`. Egynél több indicators widgeted is lehet, így a különböző szakaszok eltérő részhalmazokat mutathatnak.
+Ha inkább mindig láthatóak lennének, állítsd az `alwaysShow` értékét `true`-ra a widgeten. És ha csak néhányuk érdekel, sorold fel a kívántakat az `items` mezőben: `["Dnd", "Reminder", "NightLight"]`. Több jelzők widgeted is lehet, így a különböző szakaszok különböző részhalmazokat mutathatnak.
 
 ## A sáv átrendezése
 
-A sáv magától konfigurálódik. Nem kell konfigurációs fájlt nyitnod a dolgok elmozdításához.
+A sáv magát konfigurálja. Nem kell konfigurációs fájlt nyitnod ahhoz, hogy áthelyezd a dolgokat.
 
-Fogj meg egy üres foltot a sávon a középpont körül, és húzd egy másik képernyőél felé, és a sáv odamegy — bal, jobb, fent vagy lent mind működik, és minden widget alkalmazkodik (a függőleges sávok kompakt, csak ikonokat mutató formákra térnek vissza). Ugyanazt a húzást egy kattintás és tartás is elindítja. Kattints duplán ugyanazon az üres helyen, hogy a sáv hátterét átlátszóról üvegesre és átlátszatlanra ciklikusan váltsd. És bármelyik widgetet húzhatod az átrendezéséhez vagy egy másik szakaszba dobásához.
+Fogj meg egy üres foltot a sávon a közép körül, és húzd egy másik képernyőszél felé, és a sáv oda költözik — bal, jobb, fent vagy lent egyaránt működik, és minden widget alkalmazkodik (a függőleges sávok kompakt, csak ikonos formára váltanak vissza). A kattintva tartás ugyanezt a húzást indítja. Dupla bal kattintás ugyanazon az üres helyen végiglépteti a sáv hátterét átlátszóról üvegesre, majd átlátszatlanra. És húzz bármely widgetet az átrendezéséhez, vagy dobj át egy másik szakaszba; a többi widget szétcsúszik, hogy helyet csináljon ott, ahová érkezni fog.
 
-Egy widget, amelyet kéznél tartanál, de nem szeretnél mindig szem előtt tudni, mehet a tálca fiókjába is: húzd rá a tálcára, és a fiók kinyílik, hogy átvegye. Ott ül az appikonok után, megjelenik, valahányszor a fiók megjelenik, és nyitva tartja a fiókot, amíg a panelje nyitva van. Húzd vissza a sávra, hogy visszatedd.
+A sáv közepe egy doboz: ami benne van, egy csoportként középen marad, és a két oldalán lévő widgetek a széleiről lógnak le. Amíg egy widgetet húzol, a doboz körvonalként jelenik meg, vagy egy vonalként a sávon át, amikor üres, és bele is ejtheted, mellé is. Amikor egy ejtés a dobozba érkezne, a doboz megnő, hogy befogadja a widgetet.
 
-Ha inkább menüből választanál, a **Trigger → Appearance → Menu Bar** pontban ott a pozíció, a **Bar Background** pedig azt választja ki, hogyan rajzolódjon a sáv: **Opaque Bar**, **Glassy Bar** (átlátszó, a mögötte lévő elmosásával) vagy **Clear Bar**.
+Egy widget, amelyet szeretnél kéznél tartani, de nem mindig szem előtt, mehet a tálca fiókjába: húzd a tálcára, és a fiók kinyílik, hogy befogadja. Ott ül az alkalmazásikonok után, megjelenik, valahányszor a fiók megjelenik, és nyitva tartja a fiókját, amíg a panelje fent van. Húzd vissza a sávra, hogy visszategyed.
 
-Ugyanezekhez parancsok is tartoznak, amelyeket egy [dotfiles](31-dotfiles.md) beállításhoz szeretnél:
+Ha inkább menüből választanál, az **Appearance → Menu Bar** tartalmazza a pozíciót, a **Bar Background** pedig kiválasztja, hogyan rajzolódjon a sáv: **Opaque Bar**, **Glassy Bar** (átlátszó, a mögötte lévő elmosva), vagy **Clear Bar**.
+
+Ugyanezeknek parancsaik is vannak, ami egy [dotfiles](31-dotfiles.md) felálláshoz kell:
 
 ```bash
 omarchy bar position bottom
 omarchy bar background glassy  # opaque, glassy, none, or cycle
-omarchy bar move omarchy.clock --section center --index 0
+omarchy bar move omarchy.weather --section centerBegin --index 0
 omarchy bar move omarchy.bluetooth --section tray  # into the tray's drawer
 omarchy bar set omarchy.clock format "HH:mm"
 omarchy bar defaults          # back to the shipped layout
 ```
 
-Egy widget teljes hozzáadásához vagy eltávolításához használd a pluginparancsokat. Az `omarchy plugin list` minden widgetet kiír, amelyet a shell ismer, az azonosítójával együtt, majd:
+Egy widget teljes hozzáadásához vagy eltávolításához használd a plugin parancsokat. Az `omarchy plugin list` kiír minden widgetet, amelyet a shell ismer, az azonosítójával együtt, és aztán:
 
 ```bash
-omarchy plugin enable omarchy.media --section center
+omarchy plugin enable omarchy.media --section centerEnd
 omarchy plugin disable omarchy.weather
 ```
 
 ## A sáv elrejtése
 
-A `Super + Shift + Space` ki- és bekapcsolja a sávot a shell leállítása nélkül — a panelek és a billentyűparancsok tovább működnek, csak visszakapod a pixeleket. A menüben is ott van a **Trigger → Appearance → Menu Bar → Hide Bar** alatt.
+A `Super + Shift + Space` ki-/bekapcsolja a sávot a shell leölése nélkül — a panelek és a gyorsbillentyűk továbbra is működnek, csak visszakapod a képpontokat. A menüben is ott van az **Appearance → Menu Bar → Hide Bar** alatt.
 
 ## A konfigurációs fájl
 
-Mindez a `~/.config/omarchy/shell.json` fájlban tárolódik, a `bar` kulcs alatt. Íme egy kurtított változat:
+Mindez a `~/.config/omarchy/shell.json` fájlban tárolódik, a `bar` kulcs alatt. Íme egy rövidített változat:
 
 ```json
 {
@@ -119,20 +122,21 @@ Mindez a `~/.config/omarchy/shell.json` fájlban tárolódik, a `bar` kulcs alat
   "bar": {
     "position": "top",
     "background": "opaque",
-    "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [{ "id": "omarchy.menu" }, { "id": "omarchy.workspaces" }],
+      "centerBegin": [{ "id": "omarchy.indicators" }],
       "center": [{ "id": "omarchy.clock", "format": "HH:mm" }],
+      "centerEnd": [{ "id": "omarchy.weather" }],
       "right": [{ "id": "omarchy.audio" }, { "id": "omarchy.power" }]
     }
   }
 }
 ```
 
-Minden widget egyetlen bejegyzés a három layout-tömb egyikében, és a beállításai soron belül, azon a bejegyzésen ülnek — nincs külön beállításfájl és nincs `config` alobjektum. Az óra `format`, `formatAlt` (amire a jobb kattintás ciklusban vált) és `verticalFormat` értékei mind ott élnek a `{ "id": "omarchy.clock" }` bejegyzésen.
+Minden widget egy bejegyzés az öt elrendezési tömb egyikében, és a beállításai soron belül, azon a bejegyzésen ülnek — nincs külön beállításfájl, és nincs `config` alobjektum. Az óra `format`, `formatAlt` (amire a jobb kattintás léptet), és `verticalFormat` értéke mind ott él, közvetlenül a `{ "id": "omarchy.clock" }` bejegyzésen.
 
-A `centerAnchor` nevezi meg azt az egyetlen középső widgetet, amely a képernyő pontos közepére rögzül, a többi pedig körülötte. Így marad az óra halottan középen, még akkor is, amikor az időjárás és a frissítési jelvény jön és megy. Állítsd üres stringre, és a középső lista ehelyett csak csoportként középeződik.
+A `center` a doboz a sáv közepén: minden, ami benne van, egy csoportként a képernyő közepére kerül. A `centerBegin` és a `centerEnd` a doboz két oldaláról lóg le, így marad az óra holtpontosan középen, miközben az időjárás és a frissítési jelvény jön-megy. Tegyél egynél több widgetet a `center`-be, és együtt kerülnek középre; hagyd üresen, és a `centerBegin` és a `centerEnd` a sáv közepén találkozik.
 
-Egy érdemes beidegzendő szabály: **ha egyszer megvan a saját `shell.json` fájlod, az a mérvadó**. Amíg semmit sem szabtál testre, a shell az Omarchy alapértelmezett fájlját olvassa. Abban a pillanatban, amikor egy widgetet húzol, az `omarchy bar` parancsot futtatod, vagy magad szerkeszted a fájlt, a tiéd lesz — nincs mély egyesítés, így a jövőbeli Omarchy-kiadások új alapértelmezett widgetei nem jelennek meg automatikusan a sávodon. Az `omarchy bar defaults` bármikor visszaállítja a szállított kiosztást, amikor tiszta lapot szeretnél.
+Egy szabály, amelyet érdemes megjegyezni: **ha egyszer megvan a saját `shell.json` fájlod, az a mérvadó**. Amíg semmit nem szabtál testre, a shell az Omarchy alapértelmezett fájlját olvassa. Abban a pillanatban, hogy elhúzol egy widgetet, futtatod az `omarchy bar` parancsot, vagy magad szerkeszted a fájlt, a tiéd lesz — nincs mély összefésülés, így a jövőbeli Omarchy kiadások új alapértelmezett widgetjei nem jelennek meg automatikusan a sávodon. Az `omarchy bar defaults` visszaállítja a szállított elrendezést, amikor tiszta lappal akarsz indulni.
 
-Ugyanez a fájl a `bar` kulcson kívül, legfelső szinten az üresjárati időzítéseidet is tárolja: `idle.screensaver` és `idle.lock`, mindkettő másodpercben attól számítva, hogy mikor mentél üresjáratba. Így az alapértelmezett képernyővédő 150 másodpercnél kapcsol be, a zárolás pedig 300-nál.
+Ugyanez a fájl tartalmazza a tétlenségi időzítéseidet is a legfelső szinten, a `bar` kulcson kívül: `idle.screensaver` és `idle.lock`, mindkettő másodpercben mérve azóta, hogy tétlenné váltál. Így az alapértelmezett képernyővédő 150 másodpercnél kapcsol be, a zárolás pedig 300-nál.

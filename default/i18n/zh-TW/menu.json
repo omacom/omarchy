@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "使用者"
   },
-  "system.reboot-boot-menu": {
-    "label": "重新開機至開機選單"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "顯示電池 %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "隱藏電池 %"
+  },
+  "appearance.windows": {
+    "label": "視窗"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "開啟視窗間距"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "關閉視窗間距"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "開啟單窗比例"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "關閉單窗比例"
+  },
+  "appearance.branding": {
+    "label": "品牌"
+  },
+  "appearance.animations-on": {
+    "label": "開啟動畫"
+  },
+  "appearance.animations-off": {
+    "label": "關閉動畫"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "保持喚醒"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "允許睡眠"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "開啟通知"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "通知靜音"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "開啟夜燈"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "關閉夜燈"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "開啟螢幕保護"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "關閉螢幕保護"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "開啟當機擷取"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "關閉當機擷取"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "開啟筆電螢幕"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "關閉筆電螢幕"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "開啟螢幕鏡像"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "關閉鏡像顯示"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "切換至混合 GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "切換至內建 GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "啟用觸控板"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "停用觸控板"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "啟用觸控螢幕"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "停用觸控螢幕"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "核心"
   }
 }

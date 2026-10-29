@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "Utilizator"
   },
-  "system.reboot-boot-menu": {
-    "label": "Repornește în meniul de boot"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Dezactivează captura de blocări"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Pornește ecranul laptopului"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Oprește ecranul laptopului"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Activează oglindirea ecranului"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Dezactivează oglindirea ecranului"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Comută la GPU hibrid"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Comută la GPU integrat"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Activează touchpadul"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Dezactivează touchpadul"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Activează ecranul tactil"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Dezactivează ecranul tactil"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Arată % baterie"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Ascunde % baterie"
+  },
+  "appearance.windows": {
+    "label": "Ferestre"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Spații ferestre pornite"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Spații ferestre oprite"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Raport 1 fereastră pornit"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Raport 1 fereastră oprit"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.animations-on": {
+    "label": "Animații pornite"
+  },
+  "appearance.animations-off": {
+    "label": "Animații oprite"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Menține treaz"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Permite repausul"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Notificări pornite"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Silențiază notificările"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Lumină de noapte pornită"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Lumină de noapte oprită"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Economizor ecran pornit"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Economizor ecran oprit"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Captură blocări pornită"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
   }
 }

@@ -1,37 +1,43 @@
 # Odpravljanje težav
 
-### Pokvaril sem sistem s posodobitvijo!
+### S posodobitvijo sem pokvaril sistem!
 
-Najprej poskusite [vrniti sistem](47-system-snapshots.md) na različico pred vašo nedavno posodobitvijo. Če to ne deluje, uporabite `omarchy-debug`, da svojo težavo delite na #omarchy-help v Discordu. In če vse to odpove, lahko privzete konfiguracije in pakete znova namestite z `omarchy-reinstall`.
+Najprej poskusite [povrniti sistem](47-system-snapshots.md) na različico pred nedavno posodobitvijo. Če to ne deluje, uporabite `omarchy-debug`, da svojo težavo delite na #omarchy-help v Discordu. In če ne uspe nič od tega, lahko s pomočjo `omarchy-reinstall` znova namestite privzete konfiguracije in pakete.
 
-### Zakaj so nekatere aplikacije tako velike na mojem zaslonu?
+### Zakaj so nekatere aplikacije na mojem zaslonu tako velike?
 
-Omarchy predpostavlja zaslon visoke ločljivosti 2x, ki zahteva nastavitev `GDK_SCALE` na 2 v `~/.config/hypr/monitors.lua`. Če pa ste na zaslonu 1x, lahko spremenite `local omarchy_gdk_scale = 2` na 1 (in nato znova zaženete vsako aplikacijo, ki je prevelika). Glejte [priročnik o zaslonih](33-monitors.md).
+Omarchy predvideva zaslon z visoko ločljivostjo 2x, kar zahteva nastavitev `GDK_SCALE` na 2 v `~/.config/hypr/monitors.lua`. Če pa imate zaslon 1x, lahko `local omarchy_gdk_scale = 2` spremenite v 1 (in nato znova zaženete vse prevelike aplikacije). Glejte [priročnik o monitorjih](33-monitors.md).
 
-Za Spotify lahko uporabite `Ctrl + Minus`, da skrčite vmesnik (in `Ctrl + Plus`, da ga povečate).
+Pri Spotifyju lahko z `Ctrl + Minus` pomanjšate uporabniški vmesnik (z `Ctrl + Plus` pa ga povečate).
 
-### Moj Wi-Fi, Bluetooth, zvok ali sledilna ploščica je ravno prenehal delovati
+### Zakaj so vse moje bližnjice s tipko Super prenehale delovati?
 
-Preden znova zaženete, poskusite znova zagnati sam problematični podsistem. _Posodobi > Hardware_ v meniju Omarchy ima Wi-Fi, Bluetooth, Audio in Sledilna ploščica, ponovno nalaganje enega od teh odpravi večino situacij tipa »pet minut nazaj je delovalo« — slušalke Bluetooth, ki se nočejo znova povezati, sledilno ploščico, ki je odpovedala po Spanju, zvok, ki je izginil, ko ste odklopili zaslon.
+Pri nekaterih prenosnikih ASUS ROG in TUF je `Fn + Super` kombinacija, ki jo zlahka spregledate, saj preklopi zaklepanje tipke Windows v vdelani programski opremi (namenjeno igranju iger, da igre ne zapustite po nesreči). Na zaslonu vas nič ne opozori, da se je to zgodilo. Dokler je zaklepanje vklopljeno, Super ne odda ničesar — zato vse bližnjice v Omarchyju, ki uporabljajo Super, preprosto prenehajo delovati in videti je, kot da se je pokvaril Hyprland.
 
-### Zakaj moji zunanji zvočniki ne predvajajo?
+Enkrat pritisnite `Fn + Super`, preden se lotite brskanja po `~/.config/hypr/`, in če s tem Super ne začnete znova delovati, jo pritisnite še enkrat, da zaklepanja ne pustite vklopljenega. To ni Fn-lock, ki spremeni le delovanje vrstice tipk F.
 
-Verjetno zato, ker niso nastavljeni kot primarni izhod. Kliknite ikono zvočnika na desni strani vrstice in odprlo se bo pojavno okno za glasnost, kjer lahko izberete izhodno napravo (in tudi mešate glasnosti po aplikacijah).
+### Wi-Fi, Bluetooth, zvok ali sledilna ploščica so mi kar prenehali delovati
 
-### Zvočniki mojega prenosnika zvenijo narobe
+Preden znova zaženete računalnik, poskusite posebej znova zagnati problematični podsistem. _Update > Hardware_ v meniju Omarchy vsebuje Wi-Fi, Bluetooth, Audio in Trackpad, ponovni zagon enega od njih pa odpravi večino situacij tipa »pred petimi minutami je še delovalo« — slušalke Bluetooth, ki se nočejo znova povezati, sledilno ploščico, ki po zaustavitvi ne deluje več, zvok, ki je izginil, ko ste izklopili monitor.
 
-Na nekaterih prenosnikih Omarchy samodejno uporabi uglaševanje zvočnikov, ki popravi frekvenčni odziv vgrajenih zvočnikov. `omarchy audio tuning status` vam pove, ali je eno dejavno na vašem računalniku, `omarchy audio tuning off` pa ga izklopi, če raje poslušate zvočnike surove.
+### Zakaj moji zunanji zvočniki ne predvajajo zvoka?
+
+Verjetno zato, ker niso nastavljeni kot primarni izhod. Kliknite ikono zvočnika na desni strani vrstice in odprlo se bo pojavno okno za glasnost, v katerem lahko izberete izhodno napravo (in nastavite tudi glasnost za posamezne aplikacije).
+
+### Zvočniki na mojem prenosniku zvenijo čudno
+
+Na nekaterih prenosnikih Omarchy samodejno uporabi uglasitev zvočnikov, ki popravi frekvenčni odziv vgrajenih zvočnikov. `omarchy audio tuning status` vam pove, ali je na vašem računalniku katera aktivna, `omarchy audio tuning off` pa jo izklopi, če želite zvočnike raje slišati brez obdelave.
 
 ### Zakaj se ne morem prijaviti ali uporabiti sudo s svojim geslom?
 
-Verjetno ste ga prevečkrat vnesli napačno in se zaklenili. Če se to dogaja na zaklepanju zaslona, lahko pritisnete `CTRL + ALT + F2`, da zaženete nov TTY, kjer se lahko prijavite kot root, nato zaženete `faillock --reset --user [your-username]`. S tem ponastavite zaklepanje in ste pripravljeni.
+Verjetno ste ga prevečkrat vnesli narobe in ste ostali zaklenjeni zunaj. Če se to dogaja na zaklenjenem zaslonu, lahko pritisnete `CTRL + ALT + F2`, da zaženete nov TTY, v katerem se lahko prijavite kot root, nato pa zaženete `faillock --reset --user [your-username]`. S tem boste ponastavili zaklepanje in lahko nadaljujete.
 
-### Zakaj se moji pozivi za avtorizacijo 1Password za 1Password SSH Agent / CLI ne prikažejo?
+### Zakaj se mi ne prikažejo pozivi za avtorizacijo 1Password za 1Password SSH Agent / CLI?
 
-To se lahko zgodi iz 2 razlogov:
+Do tega lahko pride iz 2 razlogov:
 
-Da se prikaže bogat poziv za odobritev, mora biti Settings > Advanced > Use Hardware Acceleration vklopljeno. _Opomba: To zahteva ponovni zagon, da začne delovati._
+Da se prikaže obogateni poziv za odobritev, mora biti vklopljena možnost Settings > Advanced > Use Hardware Acceleration. _Opomba: Da začne delovati, je potreben ponovni zagon._
 
  ![troubleshooting-1password](images/troubleshooting-1password.webp)
 
-Ali če od zagona niste zagnali 1Password, se poziv ne bo prikazal.
+Ali pa poziv ne bo prikazan, če od zagona računalnika še niste zagnali aplikacije 1Password.
