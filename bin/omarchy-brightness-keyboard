@@ -25,17 +25,47 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
+state_dir="${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}"
+mkdir -m 700 -p "$state_dir" || exit 1
+if [[ -L $state_dir || ! -O $state_dir || $(stat -c '%a' "$state_dir") != "700" ]]; then
+  echo "Keyboard backlight state directory must be private and owned by the current user" >&2
+  exit 1
+fi
+state_file="$state_dir/omarchy-keyboard-backlight-$device"
+
+# Blank and wake run as separate processes, so a restore must wait for an in-flight off.
+exec {lock_fd}>>"$state_file.lock" || exit 1
+flock "$lock_fd" || exit 1
+
+current_brightness="$(brightnessctl -d "$device" get)" || exit 1
+hardware_brightness="$(cat "$candidate/brightness_hw_changed" 2>/dev/null || true)"
+if [[ -f $state_file && ( $direction == "off" || $direction == "restore" ) ]]; then
+  mapfile -t saved_brightness <"$state_file" || exit 1
+  # Hardware keys bypass this command. The last hardware value cannot detect a cycle back to the same value.
+  if [[ $current_brightness != "0" || ( -n $hardware_brightness && $hardware_brightness != "${saved_brightness[1]:-}" ) ]]; then
+    rm -f "$state_file" || exit 1
+  fi
+fi
+
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  if [[ ! -f $state_file ]]; then
+    printf '%s\n%s\n' "$current_brightness" "$hardware_brightness" >"$state_file" || {
+      rm -f "$state_file"
+      exit 1
+    }
+  fi
+  brightnessctl -d "$device" set 0 >/dev/null || exit 1
   exit 0
 elif [[ $direction == "restore" ]]; then
-  brightnessctl -rd "$device" >/dev/null
+  if [[ -f $state_file ]]; then
+    brightnessctl -d "$device" set "${saved_brightness[0]}" >/dev/null || exit 1
+    rm -f "$state_file" || exit 1
+  fi
   exit 0
 fi
 
 # Get current and max brightness to determine step size.
 max_brightness="$(brightnessctl -d "$device" max)"
-current_brightness="$(brightnessctl -d "$device" get)"
 
 # Calculate step as 10% of max brightness. Keyboards with many levels (e.g. 512)
 # need larger steps; keyboards with few levels (e.g. 3) fall back to step=1.
@@ -54,5 +84,7 @@ else
 fi
 
 # Set the new brightness.
-brightnessctl -d "$device" set "$new_brightness" >/dev/null
+brightnessctl -d "$device" set "$new_brightness" >/dev/null || exit 1
+rm -f "$state_file" || exit 1
+exec {lock_fd}>&-
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
