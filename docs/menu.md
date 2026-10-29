@@ -142,6 +142,10 @@ Adding a provider means adding an entry to the `providers` map in `Menu.qml`
 (script, icon, `actionFor`, optionally `volatile`) and pointing a submenu at
 it with `provider:`.
 
+## Asking the default agent
+
+A search query that opens with `!` is not a search: the rest of the line is a prompt for the default agent. `isAgentPromptQuery` and `agentPromptForQuery` in `MenuModel.js` own the parsing (a leading `!`, with or without a following space; the prompt is the trimmed remainder). While a `!` query is in the search line, `rebuildDisplay` in `Menu.qml` replaces the search results with the single `agent.prompt` row — the prompt under an "Ask agent" label, shell-quoted into an `omarchy-agent-prompt` action — and provider rows are not loaded for it. Picking the row closes the menu and launches the default agent in a terminal with that prompt. A bare `!` shows the row as a disabled hint until a prompt is typed. With no default agent chosen, `omarchy-agent` summons the `setup.default.agent` picker instead of launching, the same offer `--pick` makes.
+
 ## Driving the menu from the CLI
 
 `bin/omarchy-menu` is a thin wrapper over the standard plugin IPC surface:
