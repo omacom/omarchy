@@ -539,13 +539,9 @@ for failure in renderer cancel-render cancel-cover staging-move replacement name
   [[ $prepared_token == "$(stat -Lc '%d:%i' "$state/theme")" ]] || fail "publication preserves the prepared intro token"
   awk '$2 == "prepareThemeIntro" && NF == 6 { found = 1 } END { exit !found }' "$scratch/ipc" || fail "retry supplies both palette payloads"
   ! grep -q 'cancelThemeIntro' "$scratch/ipc" || fail "successful publication keeps the intro"
-  # Wait for the successful intro's detached cleanup before resetting the fixture.
-  for attempt in {1..100}; do
-    [[ -f $(cat "$state/prepared-cover") ]] || break
-    sleep 0.02
-  done
-  [[ ! -f $(cat "$state/prepared-cover") ]] || fail "successful retry finishes intro cleanup"
-  grep -Fxq "shell finishThemeIntro $prepared_token" "$scratch/ipc" || fail "retry finishes the published intro"
+  # The shell now owns playback and snapshot cleanup after publication.
+  grep -q "^shell playThemeIntro $prepared_token " "$scratch/ipc" || fail "retry hands the published intro to the shell"
+  [[ -f $(cat "$state/prepared-cover") ]] || fail "retry retains the cover for the shell's handoff"
   pass "$failure cancels the prepared intro before snapshot removal and permits a successful retry"
 done
 

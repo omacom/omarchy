@@ -241,3 +241,44 @@ pass "the upgrade snapshots first and pins root= around the kernel install"
 [[ $(run_upgrade_steps 1 1) != *"as_root systemctl reboot"* ]] ||
   fail "the upgrade never reboots into boot entries missing root="
 pass "the upgrade reboots on --reboot only when root= is confirmed in the boot entries"
+
+# The base list carries rtkit, which can make a running app with a zero
+# realtime budget realtime and get it killed. The repair that raises those
+# budgets and installs rtkit runs once the new omarchy package is in and before
+# any other package install, and a failed repair stops the upgrade.
+packages_body=$(function_body install_omarchy_quattro_packages)
+package_calls=$(mktemp)
+exercise_package_install() {
+  local repair_status=$1
+
+  : >"$package_calls"
+  (
+    log() { :; }
+    warn() { :; }
+    fail() { echo fail >>"$package_calls"; exit 1; }
+    mark_packages_explicit() { :; }
+    as_root() {
+      echo "$*" >>"$package_calls"
+      [[ $* != *omarchy-realtime-repair* ]] || return "$repair_status"
+    }
+    use_dev_packages=0
+    root_path=/usr/bin
+    eval "install_omarchy_quattro_packages() { $packages_body
+}"
+    install_omarchy_quattro_packages
+  )
+}
+
+exercise_package_install 0 || fail "Omarchy 4 upgrade installs its packages when the realtime repair succeeds"
+awk '/pacman -Syu/ { syu = NR } /omarchy-realtime-repair/ { repair = NR } /(^| )pacman -S / && !first { first = NR }
+  END { exit !(syu && repair && syu < repair && repair < first) }' "$package_calls" ||
+  fail "Omarchy 4 upgrade repairs realtime budgets after installing omarchy and before the base list" "$(cat "$package_calls")"
+pass "Omarchy 4 upgrade repairs realtime budgets after installing omarchy and before the base list"
+
+if exercise_package_install 1; then
+  fail "Omarchy 4 upgrade stops when the realtime repair fails"
+fi
+grep -qx fail "$package_calls" && ! grep -qE '(^| )pacman -S ' "$package_calls" ||
+  fail "Omarchy 4 upgrade installs nothing more once the realtime repair fails" "$(cat "$package_calls")"
+pass "Omarchy 4 upgrade stops before the base list when the realtime repair fails"
+rm -f "$package_calls"
