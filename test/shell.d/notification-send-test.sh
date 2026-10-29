@@ -48,7 +48,7 @@ hint_value() { # key -> variant value
 }
 
 # ---------------------------------------------------------------- happy path
-send --app-name custom-app -g K -u critical -i battery-caution -t 5000 \
+send --app-name custom-app --group crashes -g K -u critical -i battery-caution -t 5000 \
   "Download complete" "A body" --exec mpv -- "/tmp/a b.mp4"
 load
 
@@ -62,6 +62,7 @@ load
 [[ ${args[-1]} == "5000" ]] || fail "notification wrapper sets the expire timeout from -t" "${args[-1]}"
 [[ $(hint_value urgency) == "2" ]] || fail "notification wrapper maps critical urgency to 2"
 [[ $(hint_value omarchy-glyph) == "K" ]] || fail "notification wrapper sets the glyph hint"
+[[ $(hint_value omarchy-group) == "crashes" ]] || fail "notification wrapper sets the group hint"
 [[ $(hint_value omarchy-exec-argv) == '["mpv","--","/tmp/a b.mp4"]' ]] || fail "notification wrapper builds the click argv hint" "$(hint_value omarchy-exec-argv)"
 pass "notification wrapper issues a Notify call with app, icon, urgency, glyph, and click argv"
 
