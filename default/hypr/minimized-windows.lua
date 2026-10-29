@@ -50,10 +50,27 @@ function M.bring_back(window)
   end, { type = "oneshot", timeout = 400 })
 end
 
+-- Focus is reported while Hyprland is still showing the store, first for the
+-- window last focused there and then for the one asked for. Moving a window or
+-- closing the store from inside that leaves Hyprland to finish showing a store
+-- it no longer counts as shown: drawn over the screen with nothing to close it,
+-- and the other window brought back too. So the window holding focus once
+-- Hyprland is done is the one that comes back.
+local pending = false
+
 hl.on("window.active", function(window)
-  if in_store(window) then
-    M.bring_back(window)
+  if pending or not in_store(window) then
+    return
   end
+
+  pending = true
+  hl.timer(function()
+    pending = false
+    local active = hl.get_active_window()
+    if in_store(active) then
+      M.bring_back(active)
+    end
+  end, { type = "oneshot", timeout = 1 })
 end)
 
 return M
