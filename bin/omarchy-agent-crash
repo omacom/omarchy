@@ -49,4 +49,15 @@ mechanism, read the skill files directly and follow them instead:
 PROMPT
 )
 
-exec omarchy-agent --prompt "$prompt"
+# nf-md-robot_dead, escaped so this file reads without a Nerd Font.
+readonly CRASH_GLYPH=$'\U000f16a1'
+
+agent=$(omarchy-default-agent)
+if [[ -z $agent ]] || { omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; }; then
+  omarchy-notification-send -g "$CRASH_GLYPH" \
+    "$(omarchy-i18n crash.diagnosisUnavailable)" \
+    "$(omarchy-i18n crash.noDefaultAgent)"
+  exit 1
+else
+  exec omarchy-agent --prompt "$prompt"
+fi
