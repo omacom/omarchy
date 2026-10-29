@@ -1,0 +1,16 @@
+[Unit]
+Description=Keep clipboard contents after the source application closes
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=simple
+# Keep every offered format, but leave password-manager selections alone.
+# A failed transfer must not replace the source's clipboard with partial data.
+ExecStart=/usr/bin/wl-clip-persist --clipboard regular --ignore-event-on-error --all-mime-type-regex '^(?!x-kde-passwordManagerHint).+'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
