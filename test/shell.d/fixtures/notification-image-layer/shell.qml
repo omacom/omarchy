@@ -57,7 +57,7 @@ ShellRoot {
           // A DPR change changes sourceSize on the real Toast Image. Its
           // asynchronous reload must not destroy the effect while Qt is
           // walking the image's siblings to deliver that same DPR change.
-          picture.sourceSize = Qt.size(160, 160)
+          picture.sourceSize = Qt.size(picture.sourceSize.width + 1, picture.sourceSize.height + 1)
         } else {
           result.setText(JSON.stringify({ ok: root.loads > 0 && root.dropped === 0 && picture.layer.enabled,
                                           reloads: root.loads, disabledDuringReload: root.dropped }))
