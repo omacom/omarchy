@@ -8,7 +8,7 @@ units="$ROOT/default/systemd/user"
 timer="$units/omarchy-clock-resync.timer"
 service="$units/omarchy-clock-resync.service"
 first_run="$ROOT/install/user/first-run/enable-user-units.sh"
-migration="$ROOT/migrations/1792360285.sh"
+migration="$ROOT/migrations/1793288999.sh"
 
 # OnClockChange= is what makes the timer fire when CLOCK_REALTIME jumps against
 # CLOCK_MONOTONIC, which a resume from suspend does as well as a clock being set.
