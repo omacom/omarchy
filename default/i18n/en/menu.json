@@ -827,6 +827,9 @@
   "install.service.once": {
     "label": "ONCE"
   },
+  "install.service.cloudmail": {
+    "label": "Cloudmail"
+  },
   "install.service.bitwarden": {
     "label": "Bitwarden"
   },
@@ -1087,6 +1090,9 @@
   },
   "remove.service.tailscale": {
     "label": "Tailscale"
+  },
+  "remove.service.cloudmail": {
+    "label": "Cloudmail"
   },
   "remove.service.microsoft": {
     "label": "Microsoft"
