@@ -137,6 +137,8 @@
   "firstRun.updateTitle": "Update System",
   "firstRun.wifiBody": "Click to configure the wireless network.",
   "firstRun.wifiTitle": "Setup Wi-Fi",
+  "focus.dim": "Borderless windows with inactive dimming",
+  "focus.followTheme": "Window focus follows the theme",
   "font.cjkChanged": "Chinese, Japanese, and Korean glyph forms changed",
   "font.restartAppsToSeeChange": "Restart open apps to see the change",
   "font.restartToSeeChange": "You must restart %1 to see font change",
