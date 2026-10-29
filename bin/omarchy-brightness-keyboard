@@ -25,11 +25,22 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
+off_marker="${XDG_RUNTIME_DIR:-/tmp}/omarchy-keyboard-backlight-off"
+
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  # Save the restore level only on the first off; a repeat before the light is
+  # turned back on would save the 0 it already sits at over the real level and
+  # leave the keyboard dark after wake. The marker records that off is in
+  # effect and is cleared the moment the light changes or is restored, so a
+  # level the user dimmed to by hand (even 0) is still saved and restored.
+  if [[ ! -e $off_marker ]]; then
+    brightnessctl -sd "$device" set 0 >/dev/null || exit $?
+    touch "$off_marker"
+  fi
   exit 0
 elif [[ $direction == "restore" ]]; then
-  brightnessctl -rd "$device" >/dev/null
+  brightnessctl -rd "$device" >/dev/null || exit $?
+  rm -f "$off_marker"
   exit 0
 fi
 
@@ -53,6 +64,8 @@ else
   (( new_brightness < 0 )) && new_brightness=0
 fi
 
-# Set the new brightness.
-brightnessctl -d "$device" set "$new_brightness" >/dev/null
+# Set the new brightness. Clear the off marker only once the change lands, so a
+# failed write leaves the saved restore level and the off state intact.
+brightnessctl -d "$device" set "$new_brightness" >/dev/null || exit $?
+rm -f "$off_marker"
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
