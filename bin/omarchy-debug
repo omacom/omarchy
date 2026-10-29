@@ -28,7 +28,7 @@ done
 
 # The log carries root-only dmesg and the system journal, so keep it out of
 # world-readable /tmp: the session's runtime dir, or a private temp file.
-if [[ -d ${XDG_RUNTIME_DIR:-} ]]; then
+if [[ -d ${XDG_RUNTIME_DIR:-} && -O $XDG_RUNTIME_DIR ]]; then
   LOG_FILE="$XDG_RUNTIME_DIR/omarchy-debug.log"
 else
   LOG_FILE=$(mktemp -t omarchy-debug.XXXXXX) || exit 1

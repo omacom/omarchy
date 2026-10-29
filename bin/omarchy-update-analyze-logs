@@ -2,7 +2,9 @@
 
 # omarchy:summary=Check the update log for known failure conditions
 
-update_log=${OMARCHY_UPDATE_LOG:-${XDG_RUNTIME_DIR:-}/omarchy-update.log}
+# The updater that installs this command still writes the old /tmp transcript.
+update_log=${OMARCHY_UPDATE_LOG:-/tmp/omarchy-update.log}
+[[ -r $update_log ]] || exit 0
 
 # Check for initramfs generation failure
 if grep -q "Updating linux initcpios" "$update_log"; then
