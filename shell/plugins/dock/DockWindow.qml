@@ -60,6 +60,11 @@ PanelWindow {
   // Room inward of the dock for its menus and window lists: the tallest menu,
   // the apps button's, has five rows, and a window list up to listRows.
   readonly property int popupRoom: Style.spacing.popupRowHeight * Math.max(5, listRows) + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
+  // A window list grows with its titles up to this width.
+  readonly property int listMaxWidth: Style.space(360)
+  // A side dock opens its popups across the screen, so it leaves room for the
+  // widest window list rather than for the tallest one.
+  readonly property int popupDepth: vertical ? Math.max(popupRoom, listMaxWidth + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2) : popupRoom
   // Icons pop away from the screen edge.
   readonly property int popOrigin: position === "top" ? Item.Top
     : position === "left" ? Item.Left
@@ -265,7 +270,7 @@ PanelWindow {
     right: window.position !== "left"
   }
 
-  implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupRoom : 0
+  implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupDepth : 0
   implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + window.popupRoom
 
   mask: Region {
@@ -719,7 +724,7 @@ PanelWindow {
     }
 
     visible: window.listShown
-    width: Math.max(Style.space(160), Math.min(Style.space(360), listColumn.naturalWidth)) + padding * 2
+    width: Math.max(Style.space(160), Math.min(window.listMaxWidth, listColumn.naturalWidth)) + padding * 2
     height: Math.min(windows.length, window.listRows) * rowHeight + padding * 2
     x: window.popupX(window.listSlot, windowList)
     y: window.popupY(window.listSlot, windowList)
