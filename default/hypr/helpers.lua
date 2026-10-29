@@ -271,6 +271,18 @@ function o.notify(message)
   return "omarchy-notification-send -u low " .. shell_quote(message)
 end
 
+-- Whether this session renders on the CPU (llvmpipe or softpipe), as
+-- omarchy-hyprland-software-rendering marks it once Hyprland is up.
+function o.renders_on_cpu()
+  local runtime = os.getenv("XDG_RUNTIME_DIR")
+  local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
+  if not runtime or runtime == "" or not signature or signature == "" then
+    return false
+  end
+
+  return file_exists(runtime .. "/hypr/" .. signature .. "/omarchy-software-rendering")
+end
+
 -- What makes apps float on their own account, so a floating workspace can
 -- leave their floating to them: the class and title patterns of rules that
 -- float them, the tags rules float, and the patterns of rules that tag them.

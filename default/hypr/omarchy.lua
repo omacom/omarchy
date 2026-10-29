@@ -28,3 +28,6 @@ require("default.hypr.dictation-backend")
 
 -- Current theme overrides.
 require_optional.module("omarchy.current.theme.hyprland")
+
+-- Lighter defaults for a session that renders on the CPU, over the theme's.
+require("default.hypr.software-rendering")

@@ -26,6 +26,14 @@ The touchpad, touchscreen, and hybrid GPU switches live under _Trigger > Hardwar
 
 _Appearance_ holds the menu bar and animations, plus a few things that aren't `omarchy toggle` commands but behave the same: battery percentage in the bar, the default workspace layout, and under _Windows_, window gaps (`Super + Shift + Backspace`) and the 1-window square aspect (`Super + Ctrl + Backspace`).
 
+When Hyprland has no GPU to draw with and renders on the CPU instead (llvmpipe), as on Macs whose GPU isn't supported yet, in most virtual machines, or when a graphics driver fails to load, Omarchy turns off animations, blur and shadows for that session and tells you so with a notification. The _Appearance_ animations toggle can't bring them back then; to keep them anyway, add this to `~/.config/hypr/looknfeel.lua`:
+
+```lua
+hl.config({ animations = { enabled = true } })
+```
+
+Blur works the same way, with `hl.config({ decoration = { blur = { enabled = true } } })`.
+
 Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If you want to branch on one in a script, `omarchy-toggle-enabled` gives you an exit code instead of making you go looking:
 
 ```bash
