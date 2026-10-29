@@ -74,7 +74,8 @@ normalize_scale() {
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
-  local monitor_info="$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')"
+  local monitors_json="$(hyprctl monitors -j)"
+  local monitor_info="$(echo "$monitors_json" | jq -e -c '.[] | select(.focused == true)')"
   local active_monitor="$(echo "$monitor_info" | jq -r '.name')"
   local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
   local width="$(echo "$monitor_info" | jq -r '.width')"
@@ -89,27 +90,87 @@ set_scale() {
   fi
 
   local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
-  # GTK only honors integer GDK_SCALE values, so persist the nearest whole
-  # factor even when the monitor scale itself is fractional.
-  local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
+  # GDK_SCALE is one value for the whole session, so it follows the lowest
+  # monitor scale: XWayland apps end up a little small on denser screens rather
+  # than oversized on the others. GTK only honors integers, so round it.
+  local new_gdk_scale="$(echo "$monitors_json" | jq -r --arg name "$active_monitor" --argjson scale "$new_scale" '
+    [.[] | select(.disabled != true) | if .name == $name then $scale else .scale end]
+    | min | . + 0.5 | floor | if . < 1 then 1 else . end')"
   local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
-  # Persist to monitors.lua if the user still has Omarchy's generic catch-all
-  # defaults, so the scale survives reboots.
-  if [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
-    sed -i -E \
-      -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
-      -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
-      "$monitor_lua"
-  elif [[ -f $monitor_lua ]] && grep -Eq '^hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("auto"|[0-9.]+) \}\)' "$monitor_lua"; then
-    sed -i -E \
-      -e "s|^(hl\.monitor\(\{ output = \"\", mode = \"preferred\", position = \"auto\", scale = )([^ ]+)( \}\))|\\1${new_scale}\\3|" \
-      -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
-      "$monitor_lua"
+  persist_scale "$monitor_lua" "$active_monitor" "$new_scale" "$new_gdk_scale"
+}
+
+# Persist the scale as a rule for this monitor alone, so other monitors keep
+# theirs and the scale survives reboots. A rule already naming the monitor has
+# its scale updated in place. Otherwise one is added after Omarchy's catch-all,
+# which stays the default for monitors without a rule of their own. Only rules
+# written on one line with a plain scale value are edited; a config holding
+# anything else for these rules (a multi-line table, a scale expression, another
+# rule naming the monitor) is left alone rather than risk broken Lua or a second
+# rule competing with the user's own.
+persist_scale() {
+  local monitor_lua="$1"
+  local output="$2"
+  local scale="$3"
+  local gdk_scale="$4"
+  local target
+  local tmp
+
+  [[ -f $monitor_lua ]] || return 0
+
+  # Hyprland reloads on every write, so build the new file beside the real one
+  # and rename it into place, through any symlink, in one step.
+  target="$(readlink -f "$monitor_lua")"
+  tmp="$(mktemp "$target.XXXXXX")" || return 0
+  if ! awk -v output="$output" -v scale="$scale" '
+    function rule(name) { return "hl.monitor({ output = \"" name "\"," }
+    function whole_line() { return $0 ~ /\}\)[[:space:]]*(--.*)?$/ }
+    function names_output(    code, value) {
+      code = $0
+      sub(/--.*/, "", code)
+      if (!match(code, /output[[:space:]]*=[[:space:]]*"[^"]*"/)) return 0
+      value = substr(code, RSTART, RLENGTH)
+      sub(/^[^"]*"/, "", value)
+      sub(/"$/, "", value)
+      return value == output
+    }
+    names_output() {
+      if (updated || index($0, rule(output)) != 1 || !whole_line() ||
+        !match($0, /[{, ]scale = ("[^"]*"|[A-Za-z0-9_.]+) *[,}]/)) {
+        skip = 1
+        exit
+      }
+      tail = substr($0, RSTART, RLENGTH)
+      sub(/^[{, ]scale = ("[^"]*"|[A-Za-z0-9_.]+)/, "", tail)
+      $0 = substr($0, 1, RSTART) "scale = " scale tail substr($0, RSTART + RLENGTH)
+      updated = 1
+    }
+    !catch_all && index($0, rule("")) == 1 { catch_all = NR; catch_all_whole = whole_line() }
+    { lines[NR] = $0 }
+    END {
+      if (skip || (!updated && !(catch_all && catch_all_whole))) exit 1
+      for (i = 1; i <= NR; i++) {
+        print lines[i]
+        if (!updated && i == catch_all)
+          print "hl.monitor({ output = \"" output "\", mode = \"preferred\", position = \"auto\", scale = " scale " })"
+      }
+    }
+  ' "$target" >"$tmp"; then
+    rm -f "$tmp"
+    return 0
   fi
+
+  # GDK_SCALE is a single session-wide value, set from the lowest monitor scale.
+  sed -i -E \
+    -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${gdk_scale}|" \
+    -e 's|^hl\.env\("GDK_SCALE", "[^"]*"\)|hl.env("GDK_SCALE", "'"$gdk_scale"'")|' \
+    "$tmp"
+  chmod --reference="$target" "$tmp"
+  mv "$tmp" "$target"
 }
 
 scale_from_current() {

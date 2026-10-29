@@ -26,9 +26,6 @@ unset OMARCHY_UPDATE_USER_PATH
 # prompt below always belongs to this update, never to an earlier session.
 omarchy_security_install_sudo_cleanup_traps
 omarchy_security_revoke_sudo_timestamp || exit 1
-# Validate the no-update wrapper up front: the AUR phase depends on it. Every
-# other phase shares the one authorization, so it stays off PATH until then.
-omarchy_security_enable_no_update_sudo
 PATH="$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
 unset OMARCHY_SUDO_NO_UPDATE
 # Helpers that manage their own sudo boundary leave this authorization to us.
@@ -142,24 +139,21 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
 
   # Hooks and mise run with the caller's PATH so user-installed tools resolve.
   PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-hook" post-update
-  PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update-mise"
+  # Optional tool downloads must not skip boot verification or the reboot
+  # prompt after system packages have already been upgraded.
+  mise_updated=1
+  PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update-mise" || mise_updated=0
 
-  # AUR builds run third-party PKGBUILD code, so they go last and never see the
-  # update's authorization: revoke it, then authenticate each sudo call with
-  # the no-update wrapper, for yay and any bare sudo a PKGBUILD runs, so an AUR
-  # install prompts without caching anything.
-  end_update_authorization
-  PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$PATH" OMARCHY_SUDO_NO_UPDATE=1 omarchy-update-aur-pkgs
-  omarchy_security_revoke_sudo_timestamp
+  # AUR packages build against the upgraded system, so they go after it, and
+  # share the update's one authorization like every step before them.
+  omarchy-update-aur-pkgs
 
   # The last sudo-capable step: the boot files every package step left, AUR
   # packages' initramfs rebuilds included, must be shown to boot the updated
-  # system. It follows third-party build code, so it starts cold and, like AUR,
-  # authorizes one command through the no-update wrapper without a reusable
-  # timestamp. Until it passes, the update neither finishes nor offers a reboot.
+  # system. Until it passes, the update neither finishes nor offers a reboot.
   boot_verified=1
-  PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$PATH" OMARCHY_SUDO_NO_UPDATE=1 omarchy-update-boot || boot_verified=0
-  omarchy_security_revoke_sudo_timestamp
+  omarchy-update-boot || boot_verified=0
+  end_update_authorization
 
   # The sleep inhibitor covers AUR builds, hooks and mise as well; releasing it
   # needs no privilege because the held command already dropped to this user.
@@ -168,6 +162,10 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # Awake marker.
   omarchy-update-stay-awake stop
   update_stay_awake_stopped=1
+
+  if (( mise_updated == 0 )); then
+    echo -e "\e[33m\nSome mise tools could not be updated. Review the errors above and run 'omarchy update mise' to retry.\e[0m" >&2
+  fi
 
   if (( boot_verified )); then
     "$OMARCHY_PATH/bin/omarchy-update-restart" --reboot-only

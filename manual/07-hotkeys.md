@@ -27,8 +27,10 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Ctrl + Tab` | Jump to former workspace on the focused monitor |
 | `Super + Shift + 1/2/3/4` | Move window to workspace on the focused monitor |
 | `Super + Shift + Alt + 1/2/3/4` | Move window to workspace on the focused monitor without following |
-| `Super + S` / `Super + Grave` | Toggle scratchpad |
-| `Super + Alt + S` / `Super + Shift + Grave` | Move window to scratchpad |
+| `Super + S` | Toggle full scratchpad |
+| `Super + Alt + S` | Move window to full scratchpad |
+| `Super + Grave` | Toggle Quake console |
+| `Super + Shift + Grave` | Move window to Quake console |
 | `Super + Shift + Ctrl + Arrows` | Move window to the monitor in that direction |
 | `Super + Shift + Alt + Arrows` | Move workspace to the monitor in that direction |
 | `Super + Arrow`  | Move focus to window in direction of arrow, crossing to the monitor on that side at the screen's edge |
@@ -165,11 +167,12 @@ All capture options are also accessible under _Trigger > Capture_ in the Omarchy
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Dismiss latest notification  |
+| `Super + ,` | Act on latest notification: open it or press its only button, pick from its choices, or dismiss it when it has none  |
 | `Super + Shift + ,` | Dismiss all notifications |
-| `Super + Ctrl + ,` | Toggle silencing notifications  |
-| `Super + Alt + ,` | Invoke most recent notification  |
+| `Super + Ctrl + ,` | Control notifications with the keyboard  |
+| `Super + Alt + ,` | Dismiss latest notification  |
 | `Super + Shift + Alt + ,` | Open notification history  |
+| `Super + Ctrl + Alt + ,` | Toggle silencing notifications  |
 
 ## Style
 

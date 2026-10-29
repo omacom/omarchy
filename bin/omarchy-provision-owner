@@ -697,7 +697,7 @@ apply_keyboard() {
   fi
 }
 
-# The same username/password/name/email form as the ISO configurator's Step 2.
+# The same username/password form as the ISO configurator's Step 2.
 user_form() {
   step "Let's setup your user account..."
 
@@ -712,7 +712,6 @@ user_form() {
   fi
 
   omarchy_prompt_password || return $?
-  omarchy_prompt_identity || return $?
 
   # Hostname and timezone are deferred to first boot with the rest of the user
   # step: the deferred install seeds neutral placeholders (omarchy/UTC) and the
@@ -730,8 +729,6 @@ confirm_form() {
 Keyboard,${keyboard_label:-English (US)}
 Username,$username
 Password,$(printf "%${#password}s" | tr ' ' '*')
-Full name,${full_name:-[Skipped]}
-Email address,${email_address:-[Skipped]}
 Hostname,${hostname:-omarchy}
 Timezone,${timezone:-UTC}" |
     gum table -s "," -p | sed "s/^/${PADDING_LEFT_SPACES}/"
@@ -801,10 +798,9 @@ create_user() {
   if getent passwd "$username" >/dev/null; then
     # Resuming a partially-completed earlier attempt: refresh what the form
     # collected this time around.
-    usermod -aG "$(user_groups)" ${full_name:+-c "$full_name"} "$username"
+    usermod -aG "$(user_groups)" "$username"
   else
-    useradd -m -G "$(user_groups)" -s /bin/bash \
-      ${full_name:+-c "$full_name"} "$username"
+    useradd -m -G "$(user_groups)" -s /bin/bash "$username"
   fi
 
   printf '%s:%s\n' "$username" "$password" | chpasswd
@@ -962,8 +958,6 @@ finalize_user() {
     OMARCHY_PATH="$OMARCHY_PATH" \
     OMARCHY_INSTALL="$OMARCHY_PATH/install" \
     OMARCHY_SETUP_CONTEXT=provision-owner \
-    OMARCHY_USER_NAME="$full_name" \
-    OMARCHY_USER_EMAIL="$email_address" \
     OMARCHY_INSTALL_LOG_FILE="$LOG_FILE" \
     OMARCHY_LOG_TO_STDOUT=1 \
     "$OMARCHY_PATH/bin/omarchy-provision-user" --force --first-install

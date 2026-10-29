@@ -16,6 +16,9 @@ if _G.omarchy_default_bindings ~= false then
   require("default.hypr.bindings.dictation")
   require_optional.module("default.hypr.bindings.applications")
 end
+if _G.omarchy_default_gestures ~= false then
+  require("default.hypr.gestures")
+end
 require("default.hypr.envs")
 require("default.hypr.looknfeel")
 require("default.hypr.qconsole")

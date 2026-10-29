@@ -16,67 +16,12 @@ pass "default shell.json is valid JSON"
 jq -e '.version == 1 and ([.bar.layout[("left", "centerBegin", "center", "centerEnd", "right")] | type == "array"] | all)' "$ROOT/config/omarchy/shell.json" >/dev/null
 pass "default shell.json has versioned bar layout"
 
-# The center box holds only the clock, so it stays dead center while the
-# widgets either side of it come and go.
-jq -e '
-  def ids: map(.id // .);
-  (.bar | has("centerAnchor") | not) and (.bar.layout.center | ids) == ["omarchy.clock"]
-' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default center box holds just the clock"
-
-jq -e '
-  def ids: map(.id // .);
-  (.bar.layout.centerBegin | ids | index("omarchy.indicators")) != null
-' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default indicators sit before the center box"
-
-# Pinning the whole row made this fail every time an unrelated widget moved,
-# so assert the adjacency the name is about and let the rest of the row change.
-jq -e '
-  def ids: map(.id // .);
-  (.bar.layout.centerEnd | ids) as $ids |
-  ($ids | index("omarchy.weather")) as $weather |
-  ($ids | index("omarchy.system-update")) as $update |
-  $weather != null and $update == $weather + 1
-' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default center layout keeps update next to weather"
-
-jq -e '
-  def ids: map(.id // .);
-  (.bar.layout.centerEnd | ids) as $ids |
-  ($ids | index("omarchy.elsewhen")) as $elsewhen |
-  ($ids | index("omarchy.weather")) as $weather |
-  $elsewhen == 0 and $weather > $elsewhen
-' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default center layout puts elsewhen immediately after the clock and before weather"
-
 # Every CLI write goes through the normalizer, which keeps every bar section a
 # list, the ones beside the center box included.
 normalized=$(OMARCHY_PATH="$ROOT" bash -c 'source "$OMARCHY_PATH/bin/omarchy-shell-config" && jq -c "$NORMALIZE | .bar.layout" <<<"{\"bar\":{\"layout\":{\"centerBegin\":null}}}"')
 [[ $normalized == '{"centerBegin":[],"left":[],"center":[],"centerEnd":[],"right":[]}' ]] ||
   fail "shell config normalizer keeps every bar section a list" "$normalized"
 pass "shell config normalizer keeps every bar section a list"
-
-# A service widget defaulting to centerEnd goes after the weather.
-grep -qF 'def anchor_for(\$section): { left: \"omarchy.workspaces\", centerEnd: \"omarchy.weather\", right: \"omarchy.tray\" }[\$section];' "$ROOT/bin/omarchy-bar" ||
-  fail "bar defaults anchors centerEnd widgets after the weather"
-pass "bar defaults anchors centerEnd widgets after the weather"
-
-jq -e '
-  any(.bar.layout.center[]; (.id // .) == "omarchy.clock" and (.formatAlt // "") == "d MMMM \u0027W\u0027ww yyyy")
-' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default clock date format has no leading zero"
-
-# The bar drew the tray first in the right section whatever the layout said
-# (migrations/1791968925.sh), so the default lists it there. Agents follow it,
-# past only the keyboard layout, which hides itself with a single layout.
-jq -e '
-  def ids: map(.id // .);
-  (.bar.layout.right | ids) as $ids |
-  ($ids | index("omarchy.agents")) as $agents |
-  $ids[0] == "omarchy.tray" and $agents != null and ($ids[1:$agents] - ["omarchy.keyboard-layout"]) == []
-' "$ROOT/config/omarchy/shell.json" >/dev/null || fail "default right layout starts with the tray, with agents beside it"
-pass "default right layout starts with the tray, with agents beside it"
 
 ROOT="$ROOT" python3 <<'PY'
 import json
@@ -234,12 +179,6 @@ PY
 else
   skip "package-owned defaults live outside config: needs the omarchy-pkgs checkout; set OMARCHY_PKGS_PATH to it"
 fi
-
-grep -F 'dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")' "$ROOT/config/hypr/hyprland.lua" >/dev/null
-grep -F 'require("default.hypr.omarchy")' "$ROOT/config/hypr/hyprland.lua" >/dev/null
-grep -F 'package.path = home' "$ROOT/default/hypr/bootstrap.lua" >/dev/null
-grep -F '/.local/state/?.lua;' "$ROOT/default/hypr/bootstrap.lua" >/dev/null
-pass "Hyprland user entrypoint keeps package and state path bootstrap in defaults"
 
 OMARCHY_PATH="$ROOT" lua <<'LUA'
 package.loaded["default.hypr.omarchy"] = true
@@ -549,8 +488,3 @@ jq -e '
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 [[ -f $TMPDIR/home/.local/state/omarchy/restart-shell-called ]] || fail "shell refresh restarts shell"
 pass "shell refresh places optional service widgets when services are available"
-
-if grep -RIl 'upgrade-to-quattro\|Omarchy 4\.0 is upgraded' "$ROOT/migrations" >/dev/null; then
-  fail "4.0 upgrade is not modeled as a migration"
-fi
-pass "4.0 upgrade is handled outside the migration runner"

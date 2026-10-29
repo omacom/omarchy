@@ -24,10 +24,11 @@ ShellRoot {
     command: ["touch", Quickshell.env("INTRO_TEST_FRAME_READY")]
   }
 
-  Timer {
-    interval: 300
-    running: true
-    onTriggered: {
+  // Each step runs a set delay after the one before it ran, always in order;
+  // see switch-sequence.qml.
+  property int step: 0
+  readonly property var steps: [
+    { delay: 300, run: function() {
       test.check(intro.checked, "startup runs even when OWE left the background disabled for a video")
       test.services = ({ "omarchy.background": retainedBackground })
       intro.prepareTheme(Quickshell.env("INTRO_TEST_COVER"), "theme-one", Qt.btoa('background = "#123456"'), "")
@@ -36,25 +37,29 @@ ShellRoot {
       test.check(!Qt.colorEqual(Commons.Color.background, "#123456"), "the palette waits for OWE's first frame")
       intro.finishTheme("superseded-theme")
       test.check(intro.themeToken === "theme-one", "an older intro cannot release the pending handoff")
-    }
-  }
-  Timer {
-    interval: 500
-    running: true
-    onTriggered: {
+    } },
+    { delay: 200, run: function() {
       test.check(intro.cover, "the still stays covered while the launcher waits")
       test.check(intro.themeCoverStatus("theme-one") === "ready", "the outgoing cover is presented before the shell is hidden")
       retainedBackground.suspended = true
-    }
-  }
-  Timer {
-    interval: 600
-    running: true
-    onTriggered: {
+    } },
+    { delay: 100, run: function() {
       test.check(intro.themeToken === "theme-one", "a leftover renderer still stays covered until video is revealed")
       revealVideo.running = true
-      handoffDeadline = Date.now() + 3000
+      test.handoffDeadline = Date.now() + 3000
       handoff.start()
+    } }
+  ]
+  Timer {
+    interval: test.steps[0].delay
+    running: true
+    onTriggered: {
+      test.steps[test.step].run()
+      test.step++
+      if (test.step < test.steps.length) {
+        interval = test.steps[test.step].delay
+        start()
+      }
     }
   }
   property double handoffDeadline: 0

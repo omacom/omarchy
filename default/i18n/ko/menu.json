@@ -1160,7 +1160,130 @@
   "update.password.user": {
     "label": "사용자"
   },
-  "system.reboot-boot-menu": {
-    "label": "부트 메뉴로 재시작"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "배터리 % 표시"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "배터리 % 숨기기"
+  },
+  "appearance.windows": {
+    "label": "창"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "창 간격 켬"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "창 간격 끔"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1개 창 비율 켬"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1개 창 비율 끔"
+  },
+  "appearance.branding": {
+    "label": "브랜딩"
+  },
+  "appearance.animations-on": {
+    "label": "애니메이션 켬"
+  },
+  "appearance.animations-off": {
+    "label": "애니메이션 끔"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "깨어 있기"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "절전 허용"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "알림 켬"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "알림 무음"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "야간 조명 켬"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "야간 조명 끔"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "화면 보호기 켬"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "화면 보호기 끔"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "크래시 캡처 켬"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "크래시 캡처 끔"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "노트북 화면 켬"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "노트북 화면 끔"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "화면 미러링 켬"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "디스플레이 미러링 끄기"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "하이브리드 GPU로 전환"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "내장 GPU로 전환"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "터치패드 켜기"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "터치패드 끄기"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "터치스크린 켜기"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "터치스크린 끄기"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "커널"
   }
 }

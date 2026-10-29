@@ -1,12 +1,12 @@
 # ธีม
 
-Omarchy มาพร้อมธีมที่สวยงามยี่สิบสองธีม คุณสามารถเลือกใช้งานได้ผ่าน _สไตล์ > ธีม_ ในเมนู Omarchy (`Super + Space`) หรือกระโดดตรงไปยังตัวเลือกธีมโดยใช้ `Super + Ctrl + Shift + Space`
+Omarchy มาพร้อมธีมที่สวยงามถึงยี่สิบสองธีม คุณสามารถเลือกระหว่างธีมเหล่านี้ได้ผ่าน _รูปลักษณ์ > ธีม_ ใน Omarchy Menu (`Super + Space`) หรือกระโดดตรงไปยังตัวเลือกธีมได้โดยใช้ `Super + Ctrl + T`
 
-แต่ละธีมจัดสไตล์เดสก์ท็อป เทอร์มินัล neovim หน้าจอกิจกรรม (btop) Chromium และ Omarchy shell ทั้งหมด: แถบบน เมนู การแจ้งเตือน OSD และหน้าจอล็อก (สำหรับ Obsidian คุณต้องเลือกธีม Omarchy ด้วยตนเองผ่าน _Appearance > Themes_ ภายในแอป)
+แต่ละธีมจะจัดสไตล์ให้กับเดสก์ท็อป เทอร์มินัล neovim หน้าจอแสดงกิจกรรม (btop) Chromium และเชลล์ Omarchy ทั้งหมด: แถบบน เมนู การแจ้งเตือน OSD และหน้าจอล็อก (สำหรับ Obsidian คุณต้องเลือกธีม Omarchy ด้วยตัวเองผ่าน _รูปลักษณ์ > ธีม_ ภายในแอป)
 
-ธีมต่าง ๆ มีชุดภาพพื้นหลังที่คุณเลือกได้โดยใช้ `Super + Ctrl + Space`
+ธีมมีชุดภาพพื้นหลังที่คุณสามารถเลือกสลับใช้ได้โดยใช้ `Super + Ctrl + W`
 
-คุณค้นหาธีมเพิ่มเติมได้ที่ [หน้าธีมเพิ่มเติม](https://omarchy.org/themes/) หรือแม้แต่ [สร้างธีมของคุณเอง](43-making-your-own-theme.md)
+คุณสามารถค้นหาธีมเพิ่มเติมได้อีกบน [หน้าธีมเพิ่มเติม](https://omarchy.org/themes/) หรือแม้แต่ [สร้างธีมของคุณเอง](43-making-your-own-theme.md)
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### การปลดล็อก
 
-ธีมยังมีการออกแบบการปลดล็อกแบบกำหนดเองได้ ซึ่งใช้สำหรับกระบวนการถอดรหัสการบูต คุณสามารถเลือกแบบหนึ่งในนี้ภายใต้ _สไตล์ > ปลดล็อก_ พวกมันมีหน้าตาเช่นนี้:
+ธีมยังสามารถมีการออกแบบการปลดล็อกแบบกำหนดเองได้ ซึ่งใช้สำหรับกระบวนการถอดรหัสตอนบูต คุณสามารถเลือกแบบหนึ่งจากเหล่านี้ได้ภายใต้ _รูปลักษณ์ > ปลดล็อก_ หน้าตาของพวกมันเป็นแบบนี้:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

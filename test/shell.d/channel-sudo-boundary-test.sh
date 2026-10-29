@@ -71,10 +71,10 @@ for channel in stable rc edge dev; do
 done
 
 # Every aarch64 platform switches to each channel it has templates for, copying
-# its own: Apple Silicon to edge and dev, every other one to all four.
+# its own: Apple Silicon to rc, edge and dev, every other one to all four.
 for platform in aarch64 aarch64-apple; do
   case $platform in
-    aarch64-apple) templates=default/pacman/aarch64-apple channels="edge dev" ;;
+    aarch64-apple) templates=default/pacman/aarch64-apple channels="rc edge dev" ;;
     *) templates=default/pacman/aarch64 channels="stable rc edge dev" ;;
   esac
   for channel in $channels; do
@@ -91,16 +91,16 @@ for platform in aarch64 aarch64-apple; do
 done
 pass "aarch64 platforms switch to every channel they have templates for through their own templates"
 
-# Apple Silicon has edge templates alone: it refuses stable and rc before
-# anything changes.
-for channel in stable rc; do
+# Apple Silicon has no stable template yet: it refuses stable before anything
+# changes.
+for channel in stable; do
   reset_boundary
   if SUDO_TEST_PLATFORM=aarch64-apple run_channel "$channel"; then fail "aarch64-apple accepted $channel"; fi
   if grep -Eq '^step:|^sudo -N ' "$SUDO_TEST_LOG"; then fail "aarch64-apple $channel was refused before any change" "$(<"$SUDO_TEST_LOG")"; fi
   grep -q "Omarchy has no $channel channel for aarch64-apple" "$boundary_tmp/output" || fail "aarch64-apple $channel: the refusal says why" "$(<"$boundary_tmp/output")"
   assert_boundary_cold "aarch64-apple $channel"
 done
-pass "Apple Silicon refuses stable and rc before any change"
+pass "Apple Silicon refuses stable before any change"
 
 # A channel the platform has no template for stops before anything, the dev
 # confirmation included.
