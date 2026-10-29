@@ -55,9 +55,9 @@ cleanup_update() {
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
-  # Keep the transcript private: the session's runtime dir, or a private temp
-  # file where there is none (sudo, chroot, cron).
-  if [[ -d ${XDG_RUNTIME_DIR:-} ]]; then
+  # Keep the transcript private: our own runtime dir, or a private temp file
+  # where there is none (sudo, chroot, cron) or it is another user's (su).
+  if [[ -d ${XDG_RUNTIME_DIR:-} && -O $XDG_RUNTIME_DIR ]]; then
     update_log="$XDG_RUNTIME_DIR/omarchy-update.log"
   else
     update_log=$(mktemp -t omarchy-update.XXXXXX) || exit 1
