@@ -88,9 +88,13 @@ SH
 cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 printf 'hyprctl %s\n' "$*" >>"$FAKE_LOG"
-if [[ $* == "-j getoption animations:enabled" ]]; then
-  printf '{"option": "animations:enabled", "bool": %s, "set": true }\n' "$FAKE_ANIMATIONS"
-fi
+case $* in
+  "-j getoption animations:enabled") value=$FAKE_ANIMATIONS ;;
+  "-j getoption decoration:blur:enabled") value=${FAKE_BLUR:-false} ;;
+  "-j getoption decoration:shadow:enabled") value=${FAKE_SHADOW:-false} ;;
+  *) exit 0 ;;
+esac
+printf '{"option": "%s", "bool": %s, "set": true }\n' "${3:-}" "$value"
 SH
 cat >"$stub_bin/logger" <<'SH'
 #!/bin/bash
@@ -158,9 +162,23 @@ run_session_start 0 "llvmpipe (LLVM 23.1.4, 128 bits)" garbage
 if grep -q "^notify\|keeping the animations" "$log"; then
   fail "an unreadable animations setting is neither announced nor logged as an override" "$(cat "$log")"
 fi
-grep -Fq "logger -t omarchy -p user.debug Hyprland renders on the CPU (llvmpipe (LLVM 23.1.4, 128 bits)), but its animations setting couldn't be read" "$log" ||
+grep -Fq "logger -t omarchy -p user.debug Hyprland renders on the CPU (llvmpipe (LLVM 23.1.4, 128 bits)), but its animations, blur or shadows setting couldn't be read" "$log" ||
   fail "an unreadable animations setting is logged as such" "$(cat "$log")"
 pass "an unreadable animations setting after the reload is logged, not guessed"
+
+# Blur kept on in looknfeel.lua: no notice claiming it is off, and the journal
+# names exactly what the user kept.
+reset_session
+: >"$log"
+HOME="$test_tmp/home" PATH="$stub_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  XDG_RUNTIME_DIR="$runtime" HYPRLAND_INSTANCE_SIGNATURE="$signature" FAKE_LOG="$log" \
+  FAKE_STATUS=0 FAKE_RENDERER="llvmpipe (LLVM 23.1.4, 128 bits)" FAKE_ANIMATIONS=false FAKE_BLUR=true FAKE_SERVER_AFTER=0 \
+  "$ROOT/bin/omarchy-hyprland-software-rendering" 2>/dev/null
+if grep -q "^notify" "$log"; then
+  fail "no notice claims blur is off when the user kept it on" "$(cat "$log")"
+fi
+grep -Fq "keeping the blur ~/.config/hypr turns on" "$log" || fail "the journal names the setting the user kept" "$(cat "$log")"
+pass "a user who keeps blur on is not told it is off"
 
 # The shell that serves notifications can come up after the session is
 # marked; the notice waits for it rather than being lost.
