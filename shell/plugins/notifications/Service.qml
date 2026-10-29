@@ -1171,6 +1171,14 @@ Item {
   property var unsaved: ({})
 
   function storePut(row) {
+    // The transient hint asks to by-pass persistence: such a card is not
+    // restored after a restart or kept in history, and its sender sends it
+    // again when it still applies. An update that turns a card transient takes
+    // its stored row out.
+    if (row.transient) {
+      storeDrop(row.key)
+      return
+    }
     liveEntries = Store.putLive(liveEntries, Store.persistable(row))
     saveSoon("live")
   }
