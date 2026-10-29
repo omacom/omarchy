@@ -20,6 +20,14 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
+  // Coming back from a video, the layer fades in over OWE's last frames,
+  // which stay up until OWE parks, instead of cutting from wherever the
+  // video had moved to.
+  property real resumeOpacity: 1
+  onSuspendedChanged: {
+    resumeFade.stop()
+    resumeOpacity = suspended ? 1 : 0
+  }
   property string incomingBackground: ""
   property string oldBackground: ""
   // A theme switch names its next background before it has staged the rest of
@@ -323,6 +331,15 @@ Item {
   }
 
   NumberAnimation {
+    id: resumeFade
+    target: root
+    property: "resumeOpacity"
+    to: 1
+    duration: Style.duration(250)
+    easing.type: Easing.OutCubic
+  }
+
+  NumberAnimation {
     id: revealAnimation
     target: root
     property: "revealProgress"
@@ -374,6 +391,20 @@ Item {
       FrameAnimation {
         running: base.ready && panel.readyFrames < 2
         onTriggered: panel.readyFrames += 1
+      }
+
+      // A surface mapped this moment has drawn nothing yet, so the fade starts
+      // on its frames rather than when it is asked to show.
+      FrameAnimation {
+        running: panel.visible && base.ready && root.resumeOpacity < 1 && !resumeFade.running
+        onTriggered: if (currentFrame >= 2) resumeFade.restart()
+      }
+
+      // On the whole layer: a reveal draws its own frames over the base image.
+      Binding {
+        target: panel.contentItem
+        property: "opacity"
+        value: root.resumeOpacity
       }
 
       // Decode the wallpaper at the size this screen can show, not the size
