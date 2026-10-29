@@ -31,6 +31,9 @@ assertDeepEqual(
   'image picker parses rows and dedupes by file name'
 )
 
+assertEqual(picker.loadRows('/t/a.png\t/c/a.jpg\t3840x2160')[0].size, '3840x2160', 'image picker reads an image size column')
+assertEqual(picker.loadRows('/t/a.png\t/c/a.jpg\tbig')[0].size, undefined, 'image picker ignores a size that is not WIDTHxHEIGHT')
+
 assert(picker.itemMatches(images, 0, 'river'), 'image picker matches file names')
 assert(picker.itemMatches(images, 1, 'Gruvbox Dark'), 'image picker matches labels case-insensitively')
 assert(!picker.itemMatches(images, 2, 'river'), 'image picker rejects non-matching filters')
@@ -351,4 +354,64 @@ updateCtx.deleteSelectionPath = '/p/alpha.png'
 updateCtx.themeRows = 'new-rows'
 updateCtx.updateThemeRows('after-delete-rows')
 assertEqual(updateCtx.awaitingDeleteRefresh, false, 'the post-delete refresh loading rows releases the apply guard')
+
+// Views: Up and Down switch between image sets by running an Omarchy command.
+const viewFunctions = ['setViews', 'switchView', 'requestView', 'startView', 'loadView']
+  .map(name => imagePickerQml.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}`))[0])
+  .join('\n')
+const viewRoot = { requestActive: true, requestSerial: 4, filterText: 'x', loaded: null, views: [], viewCommand: [], viewIndex: 0, viewStep: 1,
+  showLabels: false, filterable: false, selectedImage: '',
+  get hasViews() { return this.views.length > 1 },
+  loadRows(rows) { this.loaded = rows } }
+const viewProc = { running: false, serial: 0, queuedSerial: 0 }
+const viewContext = { root: viewRoot, viewProc }
+require('vm').runInNewContext(`with (root) { ${viewFunctions}; root.setViews = setViews; root.switchView = switchView; root.requestView = requestView; root.startView = startView; root.loadView = loadView }`, viewContext)
+const views = [{ id: 'theme', title: 't' }, { id: 'all', title: 'a', labels: true, filterable: true }]
+
+viewRoot.setViews({ current: 'all', command: ['sh', '-c', 'id'], views })
+assertEqual(viewRoot.views.length, 0, 'views refuse a command that is not an Omarchy command')
+viewRoot.setViews({ current: 'all', command: ['omarchy-theme-bg-switcher', '--rows'], views })
+assertEqual(viewRoot.viewIndex, 1, 'views open on the current view')
+
+viewRoot.switchView(1)
+assertEqual(viewRoot.viewIndex, 0, 'Down wraps past the last view')
+assertDeepEqual(viewProc.command, ['omarchy-theme-bg-switcher', '--rows', 'theme'], 'a view runs its command with the view id')
+assert(viewProc.running && viewProc.serial === 4, 'switching starts the view command for this opening')
+viewRoot.switchView(-1)
+assert(viewProc.queuedSerial === 4 && viewRoot.viewIndex === 1, 'a switch while one loads is queued for the latest view')
+
+// The process-exit handler that starts a queued switch.
+const restartBody = imagePickerQml.match(/onRunningChanged: \{([\s\S]*?)\n    \}/)[1]
+const restart = require('vm').runInNewContext(`(function () { with (viewProc) { ${restartBody} } })`, viewContext)
+viewProc.running = false
+viewRoot.requestActive = false
+restart()
+assert(!viewProc.running && viewProc.queuedSerial === 0, 'a switch queued in a picker that has closed never starts')
+viewRoot.requestActive = true
+viewRoot.requestSerial = 5
+viewProc.running = true
+viewRoot.switchView(1)
+assertEqual(viewProc.serial, 4, 'a running command keeps the opening it started for, so its output is not taken for a later one')
+viewProc.running = false
+restart()
+assert(viewProc.running && viewProc.serial === 5, 'the queued switch starts for the current opening')
+viewRoot.switchView(-1)
+viewProc.running = false
+viewProc.queuedSerial = 0
+
+viewRoot.loadView('theme\n/themes/b.png\n/themes/a.png\t/c/a.jpg')
+assertEqual(viewRoot.loaded, null, 'output for a view already moved past is dropped')
+viewRoot.loadView('all\n/themes/b.png\n/themes/a.png\t/c/a.jpg\n/themes/b.png\t/c/b.jpg')
+assertEqual(viewRoot.selectedImage, '/themes/b.png', 'a view selects the image it names')
+assertEqual(viewRoot.loaded, '/themes/a.png\t/c/a.jpg\n/themes/b.png\t/c/b.jpg', 'a view loads the rows after it')
+assert(viewRoot.showLabels && viewRoot.filterable && viewRoot.filterText === '', 'a loaded view takes its labels and filter and clears the old filter')
+
+viewRoot.views = [{ id: 'theme' }, { id: 'all' }, { id: 'mine' }]
+viewRoot.viewIndex = 2
+viewRoot.viewStep = 1
+viewProc.running = false
+viewRoot.loaded = null
+viewRoot.loadView('mine\n\n')
+assertDeepEqual(viewRoot.views.map(view => view.id), ['theme', 'all'], 'a view that has emptied since opening is left out')
+assert(viewRoot.loaded === null && viewProc.running && viewProc.command.at(-1) === 'theme', 'Down past an emptied view moves on to the next one')
 JS

@@ -58,11 +58,14 @@ function loadRows(rows) {
     if (seen[fileName]) continue
     seen[fileName] = true
 
-    images.push({
+    var image = {
       filePath: path,
       fileName: fileName,
       thumbnailPath: columns[1] || path
-    })
+    }
+    // An optional third column is the image's own size, as WIDTHxHEIGHT.
+    if (/^[0-9]+x[0-9]+$/.test(columns[2] || "")) image.size = columns[2]
+    images.push(image)
   }
 
   return images

@@ -180,6 +180,24 @@ while IFS=$'\t' read -r row_image row_thumbnail; do
 done <<<"$rows"
 pass "image menu prints its rows for the shell to hold"
 
+# --sizes adds an image's own size from its header; a file that is no image
+# goes without, and the lazy path's pruning keeps the column.
+sized="$tmp/sized"
+mkdir -p "$sized"
+vips black "$sized/a.png" 3 2
+printf 'not-an-image' >"$sized/b.png"
+for lazy in "" --lazy-thumbnails; do
+  rows=$(PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$tmp/sized-cache$lazy" \
+    "$ROOT/bin/omarchy-menu-images" $lazy --sizes --print-rows "$sized")
+  [[ $(grep -F "$sized/a.png" <<<"$rows" | cut -f 3) == "3x2" ]] || fail "image menu adds an image's size ($lazy): $rows"
+  [[ $(grep -F "$sized/b.png" <<<"$rows" | cut -f 3) == "" ]] || fail "image menu leaves out the size it cannot read ($lazy)"
+done
+for attempt in {1..100}; do
+  (( $(find "$tmp/sized-cache--lazy-thumbnails" -name '*.jpg' 2>/dev/null | wc -l) == 2 )) && break
+  sleep 0.02
+done
+pass "image menu adds sizes only when asked and only where it can read them"
+
 # Block converters behind a gate: printing lazy rows must neither await them
 # nor start one process per image. Repeated refreshes share one worker pool.
 lazy_images="$tmp/lazy-images"
