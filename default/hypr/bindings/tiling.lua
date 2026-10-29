@@ -33,6 +33,13 @@ o.bind("SUPER + grave", "Toggle Quake console", hl.dsp.workspace.toggle_special(
 o.bind("SUPER + M", "Minimize window to the dock", "omarchy-hyprland-window-minimize")
 o.bind("SUPER + SHIFT + grave", "Move window to Quake console", hl.dsp.window.move({ workspace = "special:qconsole", follow = false }))
 
+-- Norwegian keyboards put | on the key below Esc instead of grave.
+local keyboard = require("default.hypr.keyboard")
+if (keyboard.selected().XKBLAYOUT or "us"):match("^[^,]*") == "no" then
+  o.bind("SUPER + bar", "Toggle Quake console", hl.dsp.workspace.toggle_special("qconsole"))
+  o.bind("SUPER + SHIFT + bar", "Move window to Quake console", hl.dsp.window.move({ workspace = "special:qconsole", follow = false }))
+end
+
 o.bind("SUPER + TAB", "Next workspace", hl.dsp.focus({ workspace = "m+1" }))
 o.bind("SUPER + SHIFT + TAB", "Previous workspace", hl.dsp.focus({ workspace = "m-1" }))
 o.bind("SUPER + CTRL + TAB", "Former workspace", hl.dsp.focus({ workspace = "previous_per_monitor" }))
