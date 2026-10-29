@@ -1,6 +1,6 @@
 # Notices
 
-Notifications land in the top-right corner of the focused display. You can also quickly access the date and time, battery status, and current weather using the hotkey notices.
+Notifications follow the bar on the focused display: top-right with a top bar, bottom-left with a left bar, and bottom-right with a bottom or right bar. Bottom notifications stack upward. You can also quickly access the date and time, battery status, and current weather using the hotkey notices.
 
 ## Notifications
 
