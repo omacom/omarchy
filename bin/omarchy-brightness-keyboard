@@ -25,11 +25,34 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
+# Marker tracks whether this command actually turned the backlight off, so a
+# later restore without a preceding off (e.g. screensaver dismiss, which wakes
+# via omarchy-system-wake without ever blanking the keyboard) is a no-op
+# instead of restoring a stale brightnessctl save.
+state_marker="${XDG_RUNTIME_DIR:-/tmp}/omarchy-keyboard-backlight-off"
+
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  current_brightness="$(brightnessctl -d "$device" get 2>/dev/null || echo 0)"
+  if (( current_brightness == 0 )); then
+    brightnessctl -d "$device" set 0 >/dev/null
+  else
+    brightnessctl -sd "$device" set 0 >/dev/null
+    touch "$state_marker"
+  fi
   exit 0
 elif [[ $direction == "restore" ]]; then
-  brightnessctl -rd "$device" >/dev/null
+  if [[ ! -f $state_marker ]]; then
+    exit 0
+  fi
+  current_brightness="$(brightnessctl -d "$device" get 2>/dev/null || echo 0)"
+  if (( current_brightness == 0 )); then
+    brightnessctl -rd "$device" >/dev/null
+    # brightnessctl -r exits 0 even when the write fails, so read back whether it landed.
+    current_brightness="$(brightnessctl -d "$device" get 2>/dev/null || echo 0)"
+  fi
+  if (( current_brightness != 0 )); then
+    rm -f "$state_marker"
+  fi
   exit 0
 fi
 
@@ -53,6 +76,9 @@ else
   (( new_brightness < 0 )) && new_brightness=0
 fi
 
-# Set the new brightness.
-brightnessctl -d "$device" set "$new_brightness" >/dev/null
+# Set the new brightness. A level chosen by hand, even 0, replaces the one a
+# blank saved for restore.
+if brightnessctl -d "$device" set "$new_brightness" >/dev/null; then
+  rm -f "$state_marker"
+fi
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
