@@ -82,7 +82,9 @@ It works well for controls or a terminal you want to interact with quickly witho
 
 Finally, there's a half-height Quake console that drops down over whatever workspace you're currently on. Toggle it with `Super + Grave`, and place a window there using `Super + Shift + Grave`.
 
-It opens with your default agent ready to go. While the console holds a single window, it drops down as a centered panel rather than spanning the screen. Put a second app on it and it goes back to the full width, so the two have room to sit side by side.
+It opens with your default agent ready to go. Run `omarchy default console terminal` for a plain terminal there instead, or name any command of your own — `omarchy default console omarchy-launch-tui btop` for a TUI, wrapper and all — and `omarchy default console agent` hands it back to the agent.
+
+While the console holds a single window, it drops down as a centered panel rather than spanning the screen. Put a second app on it and it goes back to the full width, so the two have room to sit side by side.
 
 To move a window off either the scratchpad or the console, send it directly to another workspace with something like `Super + Shift + 1`.
 
