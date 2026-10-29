@@ -143,7 +143,7 @@ function regroup(row) {
   var app = String(row.app || "")
   var source = String(row.source || "")
   if (app === "omarchy-action" || app === "notify-send") {
-    var group = slug(row.group)
+    var group = String(row.group || "")
     return group ? "group:" + group : "toast:" + String(row.key || "")
   }
   if (isBrowser(app) && source && source !== app && hostname(source)) return "web:" + hostname(source)
