@@ -10,7 +10,7 @@ When new releases are made, a circle arrow icon will appear to the right of your
 
 ### Four channels
 
-Omarchy is updated along four channels: stable, RC, edge, and dev. New installations start on the stable channel, which tracks the [official releases](https://github.com/omacom/omarchy/releases/), as well as the [stable Omarchy Arch mirror](https://github.com/omacom-io/omarchy-mirror) that's running one month behind the latest, so we can catch any new incompatibilities that require config changes before they cause problems for people.
+Omarchy is updated along four channels: stable, RC, edge, and dev. New installations start on the stable channel, except on Apple Silicon, which starts on edge until the first Mac stable release. Stable tracks the [official releases](https://github.com/omacom/omarchy/releases/), as well as the [stable Omarchy Arch mirror](https://github.com/omacom-io/omarchy-mirror) that's running one month behind the latest, so we can catch any new incompatibilities that require config changes before they cause problems for people.
 
 But if you'd like to help spot those potential issues, you can run on the edge channel. That'll keep your Omarchy packages tracking the latest development builds, and lets you update to the latest Arch packages as soon as they're available. You should only do this if you're experienced with Linux, and know how to recover a system that has problems.
 
@@ -19,6 +19,20 @@ Before any new major release, we'll be doing final validation using the RC chann
 Finally, there's the dev channel, which links Omarchy directly to a git checkout of the source code in `~/omarchy`, combined with the edge packages. You should only use this channel if you're an experienced Linux user, working directly on Omarchy, and willing to tolerate breakage.
 
 You can switch between channels using _Update > Channel_ from the Omarchy menu (or `omarchy-channel-set` in the terminal).
+
+### Release candidates on Apple Silicon
+
+Upstream Omarchy offers RC and edge on Apple Silicon. Stable is not available there yet. A release candidate is for testing: keep a working backup and a recovery path before switching.
+
+On an existing upstream Apple Silicon installation:
+
+1. Run _Update > Omarchy_ on the current channel first. The installed packages must include [Apple Silicon RC support](https://github.com/omacom/omarchy/pull/16986); the original 4.5.0 RC2 release predates that change.
+2. Choose _Update > Channel > RC_, or run `omarchy channel set rc`. The channel switch installs the channel's packages and runs the update. Complete any remaining prompts, then restart if requested.
+3. Run `omarchy channel current` to check that it reports `rc`.
+
+If the command reports that Apple Silicon has no RC channel, the installed build does not yet include that support. Wait for a package update containing the fix, then repeat the steps. A GitHub release tag alone does not update the packages or channel choices on your machine.
+
+These steps apply to upstream Omarchy. If your installation still uses the separate [Omarchy Mac fork](https://github.com/omacom/omarchy-mac) and its `[omarchy-aarch64]` repository, check that project's migration guidance before switching to upstream repositories. Its older updater uses a different package source.
 
 ### Switching kernels
 
@@ -38,4 +52,4 @@ If you ever have a problem after doing an update, you can rollback your system t
 
 ![bootloader](images/bootloader.webp)
 
-If somehow your configuration files have been corrupted, you can also perform an Omarchy reinstall using `omarchy reinstall` in the terminal. This will reinstall all the default Omarchy packages, put you on stable and downgrade any packages that are too new, and reset all the configuration files. Note that all your user config changes to the Omarchy defaults will be overwritten doing this!
+If somehow your configuration files have been corrupted, you can also perform an Omarchy reinstall using `omarchy reinstall` in the terminal. This will reinstall all the default Omarchy packages, put you on the platform's default channel (edge on Apple Silicon, stable elsewhere) and downgrade any packages that are too new, and reset all the configuration files. Note that all your user config changes to the Omarchy defaults will be overwritten doing this!
