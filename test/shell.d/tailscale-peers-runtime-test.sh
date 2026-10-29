@@ -17,7 +17,14 @@ const fs = require('fs')
 const [root, stage] = process.argv.slice(2)
 const source = root + '/shell/plugins/panels/tailscale/'
 let panel = fs.readFileSync(source + 'Panel.qml', 'utf8')
-panel = panel.replace('  id: root', '  id: root\n  property alias testService: tailscale\n  property alias testOfflineSwitch: offlineSwitch\n  property alias testKeys: keyCatcher')
+// The panel's content is built lazily, so its private IDs are exposed from
+// the content root and mirrored on the panel once the test builds it.
+panel = panel.replace('      id: keyCatcher\n', '      id: keyCatcher\n      property alias testOfflineSwitch: offlineSwitch\n')
+panel = panel.replace('  id: root', `  id: root
+  property alias testService: tailscale
+  function testEnsureContent() { return panel.ensureContent() }
+  readonly property Item testOfflineSwitch: panel.loadedContent ? panel.loadedContent.testOfflineSwitch : null
+  readonly property Item testKeys: panel.loadedContent`)
 fs.writeFileSync(stage + '/tailscale/Panel.qml', panel)
 // Disable automatic polling in the disposable fixture. Tests feed status into
 // the real parser; no daemon, account, routing or file-transfer command runs.

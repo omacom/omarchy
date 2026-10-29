@@ -1,0 +1,1289 @@
+{
+  "root": {
+    "label": "Gå"
+  },
+  "apps": {
+    "label": "Appar"
+  },
+  "learn": {
+    "label": "Lär"
+  },
+  "appearance": {
+    "label": "Utseende"
+  },
+  "trigger": {
+    "label": "Utlös"
+  },
+  "setup": {
+    "label": "Installation"
+  },
+  "install": {
+    "label": "Installera"
+  },
+  "remove": {
+    "label": "Ta bort"
+  },
+  "update": {
+    "label": "Uppdatera"
+  },
+  "about": {
+    "label": "Om"
+  },
+  "system": {
+    "label": "System"
+  },
+  "system.screensaver": {
+    "label": "Skärmsläckare"
+  },
+  "system.lock": {
+    "label": "Lås"
+  },
+  "system.suspend": {
+    "label": "Viloläge"
+  },
+  "system.hibernate": {
+    "label": "Dvala"
+  },
+  "system.logout": {
+    "label": "Logga ut"
+  },
+  "system.reboot": {
+    "label": "Starta om"
+  },
+  "system.shutdown": {
+    "label": "Stäng av"
+  },
+  "learn.keybindings": {
+    "label": "Tangentgenvägar"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Gemenskap"
+  },
+  "appearance.theme": {
+    "label": "Tema"
+  },
+  "appearance.background": {
+    "label": "Bakgrund"
+  },
+  "appearance.font": {
+    "label": "Typsnitt"
+  },
+  "appearance.top-bar": {
+    "label": "Menyfält"
+  },
+  "appearance.top-bar.hide": {
+    "label": "Dölj fält"
+  },
+  "appearance.top-bar.show": {
+    "label": "Visa fält"
+  },
+  "appearance.top-bar.position": {
+    "label": "Placera fält"
+  },
+  "appearance.top-bar.background": {
+    "label": "Fältbakgrund"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "Ogenomskinligt fält"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "Glasfält"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "Klart fält"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "Fältindikatorer"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "Klocka"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Söndag 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Söndag 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Söndag 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Söndag 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "sön 3 maj 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "sön 3 maj 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 maj V18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 maj V18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "Övre fält"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "Nedre fält"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "Vänsterfält"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "Högerfält"
+  },
+  "appearance.windows.corners": {
+    "label": "Fönsterhörn"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "Temahörn"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "Skarpa hörn"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "Rundade hörn"
+  },
+  "appearance.windows.transparency": {
+    "label": "Fönsteropacitet"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "Ogenomskinliga fönster"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "Genomskinliga fönster"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "Glasfönster"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Skärmsläckare"
+  },
+  "appearance.branding.about": {
+    "label": "Om"
+  },
+  "appearance.branding.about.text": {
+    "label": "Redigera text"
+  },
+  "appearance.branding.about.image": {
+    "label": "Från bild"
+  },
+  "appearance.branding.about.default": {
+    "label": "Återställ standard"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Redigera text"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Från bild"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Återställ standard"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Dölj dock automatiskt"
+  },
+  "appearance.dock.always-on": {
+    "label": "Alltid synlig dock"
+  },
+  "appearance.dock.position": {
+    "label": "Dockplacering"
+  },
+  "appearance.dock.position.top": {
+    "label": "Övre dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Nedre dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "Vänsterdock"
+  },
+  "appearance.dock.position.right": {
+    "label": "Högerdock"
+  },
+  "appearance.workspace-layout": {
+    "label": "Arbetsytelayout",
+    "title": "Standardlayout för arbetsyta"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "Kakling"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "Rullning"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "Flytande"
+  },
+  "appearance.unlock": {
+    "label": "Lås upp"
+  },
+  "trigger.toggle": {
+    "label": "Växla"
+  },
+  "trigger.emoji": {
+    "label": "Emoji"
+  },
+  "trigger.clipboard-history": {
+    "label": "Urklippshistorik"
+  },
+  "trigger.reminder": {
+    "label": "Påminnelse"
+  },
+  "trigger.capture": {
+    "label": "Fånga"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Skärmbild"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Stoppa skärminspelning"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Skärminspelning"
+  },
+  "trigger.capture.text": {
+    "label": "Text"
+  },
+  "trigger.capture.qr": {
+    "label": "QR-kod"
+  },
+  "trigger.capture.color": {
+    "label": "Färg"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Utan ljud"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "Med skrivbordsljud"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "Med skrivbords- + mikrofonljud"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "Med skrivbords- + mikrofonljud + webbkamera"
+  },
+  "trigger.transcode": {
+    "label": "Omkoda"
+  },
+  "trigger.share": {
+    "label": "Dela"
+  },
+  "trigger.hardware": {
+    "label": "Hårdvara"
+  },
+  "trigger.tests": {
+    "label": "Hastighetstest"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Styrplattehaptik"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "låg"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "medel"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "hög"
+  },
+  "trigger.reminder.set": {
+    "label": "Skapa en"
+  },
+  "trigger.reminder.show": {
+    "label": "Visa alla"
+  },
+  "trigger.reminder.clear": {
+    "label": "Rensa alla"
+  },
+  "trigger.share.clipboard": {
+    "label": "Urklipp"
+  },
+  "trigger.share.file": {
+    "label": "Fil"
+  },
+  "trigger.share.folder": {
+    "label": "Mapp"
+  },
+  "trigger.share.receive": {
+    "label": "Ta emot"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Nätverkshastighetstest"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Diskhastighetstest"
+  },
+  "setup.monitors": {
+    "label": "Skärmar"
+  },
+  "setup.keybindings": {
+    "label": "Tangentgenvägar"
+  },
+  "setup.input": {
+    "label": "Inmatning"
+  },
+  "setup.typing": {
+    "label": "Inmatning"
+  },
+  "setup.typing.keyboard": {
+    "label": "Tangentbordslayouter"
+  },
+  "setup.typing.input": {
+    "label": "Inmatningsmetoder"
+  },
+  "setup.language": {
+    "label": "Språk"
+  },
+  "setup.network": {
+    "label": "Nätverk"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "Anpassad"
+  },
+  "setup.network.qr": {
+    "label": "QR-kod"
+  },
+  "setup.default": {
+    "label": "Standarder"
+  },
+  "setup.default.agent": {
+    "label": "Agent",
+    "title": "Standardagent"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "Webbläsare",
+    "title": "Standardwebbläsare"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Diktering",
+    "title": "Standarddiktering"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Terminal",
+    "title": "Standardterminal"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Redigerare",
+    "title": "Standardredigerare"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Insticksmoduler"
+  },
+  "setup.plugin.enable": {
+    "label": "Aktivera plugin"
+  },
+  "setup.plugin.disable": {
+    "label": "Inaktivera plugin"
+  },
+  "setup.plugin.add": {
+    "label": "Lägg till plugin"
+  },
+  "setup.plugin.clone": {
+    "label": "Klona plugin"
+  },
+  "setup.plugin.remove": {
+    "label": "Ta bort plugin"
+  },
+  "setup.security": {
+    "label": "Säkerhet"
+  },
+  "setup.config": {
+    "label": "Konfiguration"
+  },
+  "setup.security.fingerprint": {
+    "label": "Fingeravtryck"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH-agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker utan sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Sudo utan lösenord"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "Direktstart"
+  },
+  "setup.reset": {
+    "label": "Återställ datorn"
+  },
+  "install.package": {
+    "label": "Paket"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "Tjänst"
+  },
+  "install.development": {
+    "label": "Utveckling"
+  },
+  "install.editor": {
+    "label": "Redigerare"
+  },
+  "install.style": {
+    "label": "Stil"
+  },
+  "install.style.theme": {
+    "label": "Tema"
+  },
+  "install.style.background": {
+    "label": "Bakgrund"
+  },
+  "install.style.font": {
+    "label": "Typsnitt"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Spel"
+  },
+  "install.browser": {
+    "label": "Webbläsare"
+  },
+  "install.webapp": {
+    "label": "Webbapp"
+  },
+  "install.terminal": {
+    "label": "Terminal"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Förinstaller"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Chromium-konto"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xbox-kontroller"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch-spelstartare"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Paket"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "Ta bort"
+  },
+  "remove.dictation": {
+    "label": "Diktering"
+  },
+  "remove.service": {
+    "label": "Tjänster",
+    "title": "Ta bort"
+  },
+  "remove.development": {
+    "label": "Utveckling",
+    "title": "Ta bort"
+  },
+  "remove.theme": {
+    "label": "Tema"
+  },
+  "remove.gaming": {
+    "label": "Spel",
+    "title": "Ta bort"
+  },
+  "remove.browser": {
+    "label": "Webbläsare",
+    "title": "Ta bort"
+  },
+  "remove.webapp": {
+    "label": "Webbapp"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Förinstaller"
+  },
+  "remove.security": {
+    "label": "Säkerhet",
+    "title": "Ta bort"
+  },
+  "remove.security.fingerprint": {
+    "label": "Fingeravtryck"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker utan sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xbox-kontroller (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Ta bort"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Ta bort"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Ta bort"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Kanal"
+  },
+  "update.config": {
+    "label": "Konfiguration",
+    "title": "Återställ till standard"
+  },
+  "update.themes": {
+    "label": "Extrateman"
+  },
+  "update.process": {
+    "label": "Process",
+    "title": "Starta om"
+  },
+  "update.hardware": {
+    "label": "Maskinvara",
+    "title": "Starta om"
+  },
+  "update.firmware": {
+    "label": "Fast programvara"
+  },
+  "update.password": {
+    "label": "Lösenord"
+  },
+  "update.timezone": {
+    "label": "Tidszon"
+  },
+  "update.time": {
+    "label": "Tid"
+  },
+  "update.channel.stable": {
+    "label": "Stabil"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Skal"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Skal"
+  },
+  "update.hardware.audio": {
+    "label": "Ljud"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Styrplatta"
+  },
+  "update.password.drive": {
+    "label": "Enhetskryptering"
+  },
+  "update.password.user": {
+    "label": "Användare"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Kraschloggning av"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Laptopskärm på"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Laptopskärm av"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Skärmspegling på"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Skärmspegling av"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Växla till hybrid-GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Växla till integrerad GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Aktivera styrplatta"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Inaktivera styrplatta"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Aktivera pekskärm"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Inaktivera pekskärm"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kärna"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Visa batteri %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Dölj batteri %"
+  },
+  "appearance.windows": {
+    "label": "Fönster"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Fönstermellanrum på"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Fönstermellanrum av"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-fönsterformat på"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-fönsterformat av"
+  },
+  "appearance.branding": {
+    "label": "Varumärke"
+  },
+  "appearance.animations-on": {
+    "label": "Animationer på"
+  },
+  "appearance.animations-off": {
+    "label": "Animationer av"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Håll vaken"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Tillåt viloläge"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Aviseringar på"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Tysta aviseringar"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nattljus på"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nattljus av"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Skärmsläckare på"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Skärmsläckare av"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Kraschinsamling på"
+  }
+}

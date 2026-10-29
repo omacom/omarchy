@@ -1,0 +1,477 @@
+import QtQuick
+import QtQuick.Layouts
+import qs.Commons
+import qs.Commons as Commons
+import qs.Ui
+import "Model.js" as Model
+import "Greetings.js" as Greet
+
+// One city: name, weather, the people there, date (or a local greeting on
+// hover) and the time, over its daylight strip. Drag the body to reorder,
+// click it to turn the globe there. Every toggle on the row flips the setting
+// for the whole list.
+Rectangle {
+  id: row
+
+  required property var modelData
+  required property int index
+  // The owning Panel: the row reads its clock, facts and drag state.
+  property var panel
+
+  readonly property color foreground: panel.foreground
+  readonly property color dim: panel.dim
+  readonly property color fainter: panel.fainter
+  readonly property string fontFamily: panel.fontFamily
+
+  readonly property var rowData: panel.clockRows[index]
+    || ({ ready: false, label: modelData.label, id: modelData.id })
+  readonly property bool ready: rowData.ready
+  readonly property var greeting: Greet.greeting(rowData.id, ready ? rowData.hour : 0)
+  readonly property bool removable: panel.clockRows.length > 1
+  readonly property bool dragged: panel.dragIndex === index
+  readonly property var people: modelData.people || []
+  readonly property bool editingPeople: panel.peopleEditIndex === index
+
+  // Lightest at midday, darkest at night, so the list dims into the small hours.
+  readonly property real dayFill: 0.10
+  readonly property real phaseFill: {
+    var p = ready ? rowData.phase : "day"
+    if (p === "day") return dayFill
+    if (p === "night") return 0.035
+    return 0.07
+  }
+  readonly property real hoverLift: 0.05
+
+  readonly property int pad: Style.space(15)
+  readonly property int stripGap: Style.space(9)
+
+  width: parent.width
+  // The top pad is measured to the cap height, not the line box, so the row
+  // looks as tall above the name as below the strip.
+  implicitHeight: (pad - panel.capGap) + rowLabels.implicitHeight + stripGap + strip.trackHeight + pad
+  radius: Style.cornerRadius
+  // Opaque: knocked-aside rows pass over one another and over the globe.
+  // Hover lifts a row from its own time of day. The picked city takes the
+  // brightest lifted fill whatever its time of day, so a night row picked by the
+  // arrow keys never reads darker than the daytime rows around it.
+  readonly property bool picked: panel.focusIndex === index && !panel.addSelected
+  readonly property bool lit: rowHover.hovered || picked
+  color: Model.mix(Commons.Color.popups.background, foreground,
+    picked ? dayFill + hoverLift : rowHover.hovered ? phaseFill + hoverLift : phaseFill)
+
+  // Transforms leave the Column's layout alone: the knock that clears the
+  // globe's way, then the drag offset.
+  transform: [
+    Translate {
+      x: Model.knockX(row.index, row.panel.zoom, Style.space(95))
+      y: Model.knockY(row.index, row.panel.zoom, row.panel.knockFall)
+    },
+    Rotation {
+      origin.x: row.width / 2
+      origin.y: row.height / 2
+      angle: Model.knockTilt(row.index, row.panel.zoom)
+    },
+    Scale {
+      origin.x: row.width / 2
+      origin.y: row.height / 2
+      xScale: Model.knockShrink(row.index, row.panel.zoom)
+      yScale: Model.knockShrink(row.index, row.panel.zoom)
+    },
+    Translate {
+      y: Model.rowShift(row.index, row.panel.dragIndex, row.panel.dragTarget,
+                        row.panel.dragOffset, row.panel.rowPitch)
+      // The dragged row follows the pointer one-to-one; the others ease aside.
+      Behavior on y {
+        enabled: !row.dragged
+        NumberAnimation { duration: Style.duration(130); easing.type: Easing.OutCubic }
+      }
+    }
+  ]
+  z: dragged ? 2 : lit ? 1 : 0
+  opacity: dragged ? 0.9 : 1
+  Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
+
+  HoverHandler { id: rowHover }
+
+  // The row body is the reorder grab; later siblings keep their own taps.
+  MouseArea {
+    id: grab
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.top: parent.top
+    anchors.bottom: strip.top
+    preventStealing: true
+    cursorShape: row.dragged ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+
+    property real pressY: 0
+    property bool armed: false
+    property int chipAtPress: Model.NO_CHIP
+
+    // Measured in the Column, which does not move; the row's own frame slides
+    // with the drag and would feed the offset back into itself.
+    function pointerY(mouse) { return grab.mapToItem(row.parent, 0, mouse.y).y }
+
+    function finish() {
+      armed = false
+      strip.dismissUnlessChanged(chipAtPress)
+    }
+
+    onPressed: function(mouse) {
+      pressY = pointerY(mouse)
+      armed = false
+      chipAtPress = strip.shownChip
+    }
+
+    onPositionChanged: function(mouse) {
+      var dy = pointerY(mouse) - pressY
+      // A few pixels of slack, so a click is never a reorder.
+      if (!armed) {
+        if (Math.abs(dy) < Style.space(4)) return
+        armed = true
+        row.panel.beginRowDrag(row.index, row.height + row.parent.spacing)
+      }
+      row.panel.moveRowDrag(dy)
+    }
+
+    onReleased: {
+      if (armed) row.panel.releaseRowDrag()
+      else row.panel.focusOn(row.index)
+      finish()
+    }
+    onCanceled: {
+      row.panel.cancelRowDrag()
+      finish()
+    }
+  }
+
+  Column {
+    id: rowLabels
+    anchors.left: parent.left
+    anchors.leftMargin: Style.spacing.rowPaddingX
+    anchors.right: timeBlock.left
+    anchors.rightMargin: Style.spacing.xl
+    anchors.top: parent.top
+    anchors.topMargin: row.pad - row.panel.capGap
+    spacing: Style.space(2)
+
+    // A layout so the name is what gives way when the line is tight.
+    RowLayout {
+      width: parent.width
+      spacing: Style.space(7)
+
+      // Caps the name at its unelided width; the Text's own implicitWidth
+      // shrinks as it elides, which would make the cap circular.
+      TextMetrics {
+        id: nameMetrics
+        font.family: row.fontFamily
+        font.pixelSize: Style.font.subtitle
+        font.weight: Font.DemiBold
+        text: row.rowData.label
+      }
+
+      Text {
+        Layout.fillWidth: true
+        Layout.maximumWidth: Math.ceil(nameMetrics.advanceWidth) + 2
+        Layout.minimumWidth: 0
+        Layout.alignment: Qt.AlignBaseline
+        textFormat: Text.PlainText
+        text: row.rowData.label
+        color: row.foreground
+        font.family: row.fontFamily
+        font.pixelSize: Style.font.subtitle
+        font.weight: Font.DemiBold
+        elide: Text.ElideRight
+      }
+
+      // Takes the slack, so the weather sits against the time column in every row.
+      Item {
+        Layout.fillWidth: true
+      }
+
+      Caption {
+        Layout.alignment: Qt.AlignBaseline
+        text: Model.tempLabel(row.panel.facts[Model.factsKey(row.rowData)], row.panel.units, row.panel.words)
+        visible: text !== ""
+        color: tempHover.hovered ? row.foreground : row.dim
+
+        HoverHandler {
+          id: tempHover
+          cursorShape: Qt.PointingHandCursor
+        }
+        TapHandler { onTapped: { row.panel.toggleUnits(); strip.dismissChips() } }
+      }
+
+      Caption {
+        Layout.alignment: Qt.AlignBaseline
+        text: row.panel.weatherGlyph(row.rowData)
+        visible: text !== ""
+        font.pixelSize: Style.font.bodySmall
+      }
+    }
+
+    // Who is here: faces, then names. City first, people under it.
+    RowLayout {
+      width: parent.width
+      spacing: Style.space(6)
+      visible: row.people.length > 0 && !row.editingPeople
+
+      Row {
+        // Overlapping, the way a group photo stands.
+        spacing: -Math.round(peopleNames.font.pixelSize * 0.3)
+        Layout.alignment: Qt.AlignVCenter
+
+        Repeater {
+          model: row.people.slice(0, 4)
+
+          Avatar {
+            required property var modelData
+            name: Model.personName(modelData, row.panel.profiles)
+            source: {
+              var profile = row.panel.profiles[Model.personHandle(modelData)]
+              return profile ? profile.avatar : ""
+            }
+            stamp: row.panel.profileStamp
+            size: Math.round(peopleNames.font.pixelSize * 1.45)
+            foreground: row.foreground
+            ground: row.color
+            fontFamily: row.fontFamily
+          }
+        }
+      }
+
+      Caption {
+        id: peopleNames
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        Layout.alignment: Qt.AlignVCenter
+        text: row.people.map(function(p) { return Model.personName(p, row.panel.profiles) }).join(", ")
+        color: row.dim
+        elide: Text.ElideRight
+      }
+    }
+
+    // Names, or @handles for a GitHub face; Return keeps them, Escape doesn't.
+    TextField {
+      id: peopleField
+      width: parent.width
+      visible: row.editingPeople
+      verticalPadding: Style.space(3)
+      font.pixelSize: Style.font.caption
+      font.family: row.fontFamily
+      foreground: row.foreground
+      placeholderText: Commons.I18n.t("elsewhen.peoplePlaceholder")
+      // Focused a beat later, as the city search does: in the same pass the
+      // field is not yet shown and the focus does not hold.
+      onVisibleChanged: if (visible) {
+        text = Model.peopleText(row.people)
+        cursorPosition = text.length
+        Qt.callLater(function() { if (peopleField.visible) peopleField.forceActiveFocus() })
+      }
+      // Leaving the field keeps what was typed, the way Return does.
+      onEditingFinished: if (row.editingPeople) row.panel.finishPeopleEdit(row.index, text)
+      Keys.onEscapePressed: row.panel.cancelPeopleEdit()
+    }
+
+    // The date, and the greeting in its place while hovered. Stacked in one
+    // slot so the row never changes size under the pointer.
+    Item {
+      width: parent.width
+      implicitHeight: dateLine.implicitHeight
+
+      // No greeting before the probe lands: a wrong one is worse than none.
+      readonly property bool greeting: row.ready && rowHover.hovered
+
+      Row {
+        id: dateLine
+        spacing: Style.spacing.sm
+        opacity: parent.greeting ? 0 : 1
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: Style.duration(110) } }
+
+        Caption {
+          text: row.ready ? row.rowData.date : "\u2026"
+          color: row.ready && row.rowData.dayLabel !== "" ? row.dim : row.fainter
+        }
+
+        Caption {
+          text: "\u00b7"
+          visible: row.ready && row.rowData.dayLabel !== ""
+          color: row.fainter
+        }
+
+        Caption {
+          text: row.ready ? row.rowData.dayLabel : ""
+          visible: text !== ""
+        }
+      }
+
+      Row {
+        spacing: Style.space(5)
+        opacity: parent.greeting ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: Style.duration(110) } }
+
+        // Non-Latin scripts fall back per character through fontconfig.
+        Caption {
+          text: row.greeting.text
+          color: row.foreground
+        }
+
+        // A pronunciation, not a translation; absent for Latin scripts.
+        Caption {
+          text: row.greeting.roman
+          visible: text !== ""
+          color: row.fainter
+        }
+      }
+    }
+  }
+
+  DaylightStrip {
+    id: strip
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.leftMargin: Style.spacing.rowPaddingX
+    anchors.rightMargin: Style.spacing.rowPaddingX
+    anchors.verticalCenter: parent.bottom
+    anchors.verticalCenterOffset: -(row.pad + trackHeight / 2)
+
+    ready: row.ready
+    offsetMinutes: row.ready ? row.rowData.offsetMinutes : 0
+    progress: row.ready ? row.rowData.progress : 0
+    fallbackLit: row.ready && row.rowData.lit
+    place: row.panel.facts[Model.factsKey(row.modelData)] || null
+    nowMs: row.panel.effectiveMs
+    hovered: rowHover.hovered
+    hour24: row.panel.hour24
+    words: row.panel.words
+    moonPhase: row.panel.moonPhase
+    foreground: row.foreground
+    fainter: row.fainter
+    daylightMarker: row.panel.daylightMarker
+    fontFamily: row.fontFamily
+
+    onScrubStarted: function(fraction) { row.panel.beginScrub(row.rowData, fraction) }
+    onScrubMoved: function(fraction) { row.panel.scrubTo(row.rowData, fraction) }
+    onScrubEnded: row.panel.endScrub()
+    onMoonShowRequested: row.panel.startMoonShow()
+  }
+
+  // The last city stays; removing it would leave no way back.
+  PanelActionButton {
+    id: removeButton
+    anchors.horizontalCenter: parent.right
+    anchors.horizontalCenterOffset: -Style.space(22) * 5 / 24
+    anchors.verticalCenter: parent.top
+    size: fontSize + (Style.space(22) - fontSize) * 0.85
+    radius: size / 2
+    color: Model.mix(Commons.Color.popups.background, row.foreground, _hot ? 0.24 : 0.14)
+    borderSpec: Border.flat(Model.mix(Commons.Color.popups.background, row.foreground, _hot ? 0.65 : 0.35), Style.space(1))
+    iconText: "\u00d7"
+    tooltipText: Commons.I18n.t("elsewhen.remove")
+    foreground: row.dim
+    hoverColor: row.foreground
+    fontFamily: row.fontFamily
+    fontSize: Style.font.bodySmall
+    enabled: row.removable
+    opacity: row.removable && (rowHover.hovered || removeButton._hot) ? 1 : 0
+    visible: opacity > 0
+    Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
+    onClicked: row.panel.removeCityAt(row.index)
+  }
+
+  // Beside the ×, or in its corner on the last row, where there is no ×.
+  PanelActionButton {
+    id: peopleButton
+    anchors.horizontalCenter: parent.right
+    anchors.horizontalCenterOffset: -Style.space(22) * 5 / 24
+      - (row.removable ? removeButton.size + Style.space(5) : 0)
+    anchors.verticalCenter: parent.top
+    size: removeButton.size
+    radius: size / 2
+    color: Model.mix(Commons.Color.popups.background, row.foreground, _hot ? 0.24 : 0.14)
+    borderSpec: Border.flat(Model.mix(Commons.Color.popups.background, row.foreground, _hot ? 0.65 : 0.35), Style.space(1))
+    iconText: "\udb80\udc14"  // account-plus
+    tooltipText: Commons.I18n.t("elsewhen.editPeople")
+    foreground: row.dim
+    hoverColor: row.foreground
+    fontFamily: row.fontFamily
+    fontSize: Style.font.caption
+    opacity: !row.editingPeople && (rowHover.hovered || peopleButton._hot) ? 1 : 0
+    visible: opacity > 0
+    Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
+    onClicked: row.panel.startPeopleEdit(row.index)
+  }
+
+  Column {
+    id: timeBlock
+    // One width for every row, so the labels beside it line up.
+    width: Math.max(row.panel.timeColumnWidth, implicitWidth)
+    anchors.right: parent.right
+    anchors.rightMargin: Style.spacing.rowPaddingX
+    anchors.verticalCenter: rowLabels.verticalCenter
+    spacing: Style.space(1)
+
+    // The hour is already the brightest thing on the row, so hover lifts the meridiem.
+    LinkRow {
+      id: timeLine
+      anchors.right: parent.right
+      spacing: Style.spacing.xs
+      onClicked: { row.panel.toggleHour24(); strip.dismissChips() }
+
+      Text {
+        id: bigTime
+        textFormat: Text.PlainText
+        text: row.ready ? row.rowData.time : "--:--"
+        color: row.foreground
+        font.family: row.fontFamily
+        font.pixelSize: Style.font.heading
+        font.weight: Font.DemiBold
+      }
+
+      Caption {
+        anchors.baseline: bigTime.baseline
+        text: row.rowData.meridiem || ""
+        visible: text !== ""
+        color: timeLine.hovered ? row.foreground : row.dim
+      }
+    }
+
+    LinkRow {
+      id: offsetLine
+      anchors.right: parent.right
+      spacing: Style.space(5)
+      visible: row.ready
+      onClicked: { row.panel.toggleOffsetMode(); strip.dismissChips() }
+
+      Caption {
+        text: row.ready ? row.rowData.abbr : ""
+        color: offsetLine.hovered ? row.dim : row.fainter
+      }
+
+      Caption {
+        text: row.panel.offsetTextFor(row.rowData)
+        visible: text !== ""
+        color: offsetLine.hovered ? row.foreground : row.fainter
+      }
+    }
+  }
+
+  component Caption: Text {
+    textFormat: Text.PlainText
+    color: row.dim
+    font.family: row.fontFamily
+    font.pixelSize: Style.font.caption
+  }
+
+  component LinkRow: Row {
+    id: link
+    signal clicked()
+    readonly property bool hovered: linkHover.hovered
+    HoverHandler {
+      id: linkHover
+      cursorShape: Qt.PointingHandCursor
+    }
+    TapHandler { onTapped: link.clicked() }
+  }
+}

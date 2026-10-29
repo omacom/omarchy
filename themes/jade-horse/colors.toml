@@ -1,0 +1,32 @@
+# Year of the Horse: jade palette
+mode = "dark"
+
+accent = "#8bcbb1"
+selection = "#2b5147"
+muted = "#64887b"
+
+background = "#142620"
+dark_background = "#0f1e19"
+darker_background = "#0a1713"
+lighter_background = "#203b31"
+
+foreground = "#dfede5"
+dark_foreground = "#91ad9f"
+light_foreground = "#bed6c9"
+bright_foreground = "#f0faf4"
+
+red = "#d88d91"
+yellow = "#c5cc91"
+orange = "#d2ab8d"
+green = "#8bcbb1"
+cyan = "#86c7c5"
+blue = "#96b7d0"
+magenta = "#b7a1c8"
+brown = "#7e8970"
+
+bright_red = "#e6a6aa"
+bright_yellow = "#dce1ac"
+bright_green = "#a7dfc5"
+bright_cyan = "#a2dcda"
+bright_blue = "#b0cde3"
+bright_magenta = "#cfbce0"

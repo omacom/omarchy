@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 copy_boundary_file bin/omarchy-update
 copy_boundary_file bin/omarchy-refresh-pacman
+copy_boundary_file bin/omarchy-apply-pacman
 # Replace the step symlink, preserving the real fixture dispatcher.
 rm "$SUDO_TEST_ROOT/bin/omarchy-update-aur-pkgs"
 copy_boundary_file bin/omarchy-update-aur-pkgs
@@ -20,18 +21,31 @@ for args in '-y' ''; do
   touch "$SUDO_TEST_CACHE"
   run_update $args || fail "update failed" "$(<"$boundary_tmp/output")"
   assert_boundary_cold "successful update"
-  grep -q '^sudo -N /usr/bin/true$' "$SUDO_TEST_LOG" || fail "update package helpers must use no-update sudo"
   python3 - "$SUDO_TEST_LOG" <<'PY'
 import sys
 s=open(sys.argv[1]).read().splitlines()
-positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-update-restart --services-only','step:yay','step:omarchy-hook post-update','step:omarchy-update-mise','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
+# A cached credential from before the update is revoked, then the update
+# authorizes exactly once before any step that could need sudo.
+assert s[0]=='sudo -k', s
+# Authorization runs a command (sudo -v prompts even with passwordless sudo).
+prune=s.index('step:omarchy-update-pkg-prune ')
+auth=s.index('sudo /usr/bin/true')
+assert auth < prune, s
+assert [l for l in s[:prune] if l.startswith('sudo ') and l not in ('sudo -k','sudo -h')]==['sudo /usr/bin/true'], s
+assert 'sudo -v' not in s, s
+positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-update-system-pkgs','step:omarchy-migrate','step:omarchy-update-restart --services-only','step:omarchy-hook post-update','step:omarchy-update-mise','step:yay','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
 assert positions==sorted(positions), s
-assert not any(line.startswith('sudo -N ') for line in s[positions[2]:]), s
+yay=positions[5]
+# Everything through AUR shares the one authorization: plain sudo, no revokes.
+assert not any(line=='sudo -k' or line.startswith('sudo -N ') for line in s[auth:yay+1]), s
+assert 'sudo /usr/bin/true' in s[auth:positions[0]+1], s
+# Nothing after AUR authorizes again, and the update ends cold.
+assert not any(line.startswith('sudo ') and line not in ('sudo -k','sudo -n /usr/bin/true') for line in s[yay:]), s
 PY
-  pass "update $args runs privileged phases before hooks and exits cold"
+  pass "update $args authorizes once for everything, AUR included, and exits cold"
 done
 
-for step in omarchy-update-system-pkgs yay omarchy-hook omarchy-update-mise; do
+for step in omarchy-update-system-pkgs yay omarchy-hook; do
   reset_boundary
   export SUDO_TEST_FAIL_STEP=$step
   if run_update -y; then fail "$step failure must fail the update"; fi
@@ -56,12 +70,6 @@ export SUDO_TEST_REVOKE_FAIL=1
 if run_update -y; then fail "failed initial revocation must fail the update"; fi
 if grep -q '^step:' "$SUDO_TEST_LOG"; then fail "failed revocation must precede update work"; fi
 pass "a failed cold start prevents update work"
-
-reset_boundary
-export SUDO_TEST_UNSUPPORTED=1
-if run_update -y; then fail "unsupported sudo must prevent mixed-trust work"; fi
-assert_boundary_cold "unsupported sudo"
-pass "unsupported sudo fails without running update steps"
 
 reset_boundary
 "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" stable >"$boundary_tmp/output" 2>&1 || fail "refresh failed" "$(<"$boundary_tmp/output")"

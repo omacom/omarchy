@@ -1,6 +1,12 @@
 #!/bin/bash
 
 # omarchy:summary=Launch a terminal in the active terminal's current directory
-# omarchy:args=[command...]
+# omarchy:args=[--pid=<terminal-pid>] [command...]
 
-exec setsid uwsm-app -- xdg-terminal-exec --dir="$(omarchy-cmd-terminal-cwd)" "$@"
+pid=""
+if [[ ${1:-} == --pid=* ]]; then
+  pid=${1#--pid=}
+  shift
+fi
+
+exec setsid uwsm-app -- xdg-terminal-exec --dir="$(omarchy-cmd-terminal-cwd "$pid")" "$@"

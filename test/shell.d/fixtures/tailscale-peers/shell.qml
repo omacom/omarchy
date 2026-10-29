@@ -1,6 +1,6 @@
 import QtQuick
 import Quickshell
-import qs.Commons
+import qs.Commons as Commons
 import "tailscale" as Tailscale
 
 ShellRoot {
@@ -35,10 +35,10 @@ ShellRoot {
             panel.settings = entry
           }
         }
-        property color foreground: Color.foreground
-        property color barForeground: Color.foreground
-        property color urgent: Color.urgent
-        property string fontFamily: Style.font.family
+        property color foreground: Commons.Color.foreground
+        property color barForeground: Commons.Color.foreground
+        property color urgent: Commons.Color.urgent
+        property string fontFamily: Commons.Style.font.family
         property string position: "top"
         property int barSize: 24
         property bool vertical: false
@@ -57,7 +57,10 @@ ShellRoot {
     interval: 100
     running: true
     onTriggered: {
+      panel.testEnsureContent()
       panel.testService.installed = true
+      // Fed statuses stand in for full fetches; light polls carry no peers.
+      panel.testService._statusFullPeers = true
       panel.testService.parseStatus(test.snapshot)
       Qt.callLater(defaultChecks)
     }
