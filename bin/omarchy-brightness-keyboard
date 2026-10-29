@@ -12,8 +12,9 @@ fi
 direction="${1:-up}"
 
 # Find keyboard backlight device (look for *kbd_backlight* pattern in leds class).
+leds_dir="${OMARCHY_SYS_ROOT:-/sys}/class/leds"
 device=""
-for candidate in /sys/class/leds/*kbd_backlight*; do
+for candidate in "$leds_dir"/*kbd_backlight*; do
   if [[ -e $candidate ]]; then
     device="$(basename "$candidate")"
     break
@@ -26,7 +27,12 @@ if [[ -z $device ]]; then
 fi
 
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  current_brightness=$(brightnessctl -d "$device" get 2>/dev/null)
+  if [[ $current_brightness =~ ^[0-9]+$ ]] && (( current_brightness > 0 )); then
+    brightnessctl -sd "$device" set 0 >/dev/null
+  else
+    brightnessctl -d "$device" set 0 >/dev/null
+  fi
   exit 0
 elif [[ $direction == "restore" ]]; then
   brightnessctl -rd "$device" >/dev/null
