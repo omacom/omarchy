@@ -8,11 +8,11 @@
   "learn": {
     "label": "கற்க"
   },
+  "appearance": {
+    "label": "தோற்றம்"
+  },
   "trigger": {
     "label": "தூண்டு"
-  },
-  "style": {
-    "label": "பாணி"
   },
   "setup": {
     "label": "அமைப்பு"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "சமூகம்"
   },
-  "trigger.appearance": {
-    "label": "தோற்றம்"
+  "appearance.theme": {
+    "label": "தீம்"
   },
-  "trigger.appearance.animations": {
-    "label": "அசைவூட்டங்கள்"
+  "appearance.background": {
+    "label": "பின்னணி"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "எழுத்துரு"
+  },
+  "appearance.top-bar": {
     "label": "மெனு பட்டை"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "பட்டையை மறை"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "பட்டையைக் காட்டு"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "பட்டை நிலை"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "பட்டை பின்னணி"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "ஒளிபுகா பட்டை"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "கண்ணாடி பட்டை"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "தெளிவான பட்டை"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "பட்டை குறிகாட்டிகள்"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "மின்கல சதவீதம்"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "கடிகாரம்"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "ஞாயிறு 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "ஞாயிறு 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "ஞாயிறு 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "ஞாயிறு 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "ஞாயிறு 3 மே 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "ஞாயிறு 3 மே 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 மே W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 மே W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "மேல் பட்டை"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "கீழ் பட்டை"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "இடது பட்டை"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "வலது பட்டை"
   },
-  "trigger.appearance.dock": {
-    "label": "டாக்"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "தானாக மறையும் Dock"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "எப்போதும் தெரியும் Dock"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Dock நிலை"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "மேல் Dock"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "கீழ் Dock"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "இடது Dock"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "வலது Dock"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "சாளர இடைவெளி"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "சாளர மூலைகள்"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "தீம் மூலைகள்"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "கூர்மையான மூலைகள்"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "வட்டமான மூலைகள்"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "சாளர ஒளிபுகாமை"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "ஒளிபுகா சாளரங்கள்"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "ஒளிபுகும் சாளரங்கள்"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "கண்ணாடி சாளரங்கள்"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1-சாளர விகிதம்"
+  "appearance.branding.screensaver": {
+    "label": "திரைசேமிப்பு"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "பற்றி"
+  },
+  "appearance.branding.about.text": {
+    "label": "உரையைத் திருத்து"
+  },
+  "appearance.branding.about.image": {
+    "label": "படத்திலிருந்து அமை"
+  },
+  "appearance.branding.about.default": {
+    "label": "இயல்புநிலையை மீட்டமை"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "உரையைத் திருத்து"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "படத்திலிருந்து அமை"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "இயல்புநிலையை மீட்டமை"
+  },
+  "appearance.dock": {
+    "label": "டாக்"
+  },
+  "appearance.dock.autohide": {
+    "label": "தானாக மறையும் Dock"
+  },
+  "appearance.dock.always-on": {
+    "label": "எப்போதும் தெரியும் Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Dock நிலை"
+  },
+  "appearance.dock.position.top": {
+    "label": "மேல் Dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "கீழ் Dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "இடது Dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "வலது Dock"
+  },
+  "appearance.workspace-layout": {
     "label": "பணியிட அமைப்பு",
     "title": "இயல்புநிலை பணியிட அமைப்பு"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "அடுக்குதல்"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "உருட்டுதல்"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "மிதக்கும்"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr தீம் ஒத்திசைவு"
+  "appearance.unlock": {
+    "label": "திற"
   },
   "trigger.toggle": {
     "label": "மாற்று"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "விழித்திரு"
-  },
-  "trigger.toggle.notifications": {
-    "label": "அறிவிப்புகள்"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "இரவு விளக்கு"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "திரைசேமிப்பு"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "செயலிழப்பு பதிவு"
   },
   "trigger.emoji": {
     "label": "எமோஜி"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "வேக சோதனை"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "மடிக்கணினி திரை"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "பிரதிபலிப்பு திரை"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "கலப்பின GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "தொடுதளம்"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "தொடுதள அதிர்வு"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "அதிகம்"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "தொடுதிரை"
   },
   "trigger.reminder.set": {
     "label": "ஒன்றை அமை"
@@ -368,45 +356,6 @@
   },
   "trigger.tests.disk-speedtest": {
     "label": "வட்டு வேக சோதனை"
-  },
-  "style.theme": {
-    "label": "தீம்"
-  },
-  "style.background": {
-    "label": "பின்னணி"
-  },
-  "style.unlock": {
-    "label": "திற"
-  },
-  "style.font": {
-    "label": "எழுத்துரு"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "திரைசேமிப்பு"
-  },
-  "style.about": {
-    "label": "பற்றி"
-  },
-  "style.about.text": {
-    "label": "உரையைத் திருத்து"
-  },
-  "style.about.image": {
-    "label": "படத்திலிருந்து அமை"
-  },
-  "style.about.default": {
-    "label": "இயல்புநிலையை மீட்டமை"
-  },
-  "style.screensaver.text": {
-    "label": "உரையைத் திருத்து"
-  },
-  "style.screensaver.image": {
-    "label": "படத்திலிருந்து அமை"
-  },
-  "style.screensaver.default": {
-    "label": "இயல்புநிலையை மீட்டமை"
   },
   "setup.monitors": {
     "label": "திரைகள்"
@@ -480,6 +429,9 @@
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -855,7 +807,7 @@
     "label": "JavaScript"
   },
   "install.development.go": {
-    "label": "செல்"
+    "label": "Go"
   },
   "install.development.php": {
     "label": "PHP"
@@ -1066,7 +1018,7 @@
     "title": "நீக்கு"
   },
   "remove.development.go": {
-    "label": "செல்"
+    "label": "Go"
   },
   "remove.development.php": {
     "label": "PHP",
@@ -1208,10 +1160,130 @@
   "update.password.user": {
     "label": "பயனர்"
   },
-  "system.reboot-boot-menu": {
-    "label": "துவக்க மெனுவுக்கு மறுதொடக்கம்"
+  "appearance.windows.gaps-on": {
+    "label": "சாளர இடைவெளி இயக்கு"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "appearance.windows.gaps-off": {
+    "label": "சாளர இடைவெளி முடக்கு"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-சாளர விகிதம் இயக்கு"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-சாளர விகிதம் முடக்கு"
+  },
+  "appearance.branding": {
+    "label": "பிராண்டிங்"
+  },
+  "appearance.animations-on": {
+    "label": "அனிமேஷன்கள் இயக்கு"
+  },
+  "appearance.animations-off": {
+    "label": "அனிமேஷன்கள் முடக்கு"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "விழித்திரு"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "தூங்க அனுமதி"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "அறிவிப்புகள் இயக்கு"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "அறிவிப்புகளை அமைதியாக்கு"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "இரவு விளக்கு இயக்கு"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "இரவு விளக்கு முடக்கு"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "ஸ்கிரீன்சேவர் இயக்கு"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "ஸ்கிரீன்சேவர் முடக்கு"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "செயலிழப்பு பதிவு இயக்கு"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "செயலிழப்பு பதிவு முடக்கு"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "மடிக்கணினி திரை இயக்கு"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "மடிக்கணினி திரை முடக்கு"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "திரை பிரதிபலிப்பு இயக்கு"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "காட்சி பிரதிபலிப்பை நிறுத்து"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "ஹைப்ரிட் GPU-க்கு மாறு"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "ஒருங்கிணைந்த GPU-க்கு மாறு"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "டச்பேடை இயக்கு"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "டச்பேடை முடக்கு"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "தொடுதிரையை இயக்கு"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "தொடுதிரையை முடக்கு"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "கர்னல்"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "பேட்டரி % காட்டு"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "பேட்டரி % மறை"
+  },
+  "appearance.windows": {
+    "label": "சாளரங்கள்"
   }
 }

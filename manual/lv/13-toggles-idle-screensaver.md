@@ -1,50 +1,50 @@
 # Pārslēgi, dīkstāve un ekrānsaudzētājs
 
-Daudz kas no tā, ko tu maini ikdienā, patiesībā nav iestatījums. Tas ir režīms, ko tu ieslēdz uz stundu un atkal izslēdz: nakts apgaismojums, kamēr tu strādā vēlu, netraucēt, kamēr tu prezentē, palikt nomodā, kamēr tu kaut ko skaties. Omarchy tos sauc par pārslēgiem, un tie visi darbojas vienādi — karstā taustiņa kombinācija, izvēlnes ieraksts un komanda, kas visi trāpa vienam un tam pašam slēdzim.
+Liela daļa no tā, ko tu ikdienā maini, īstenībā nav iestatījums. Tas ir režīms, ko uz stundu ieslēdz un pēc tam atkal izslēdz: nakts gaisma, kamēr vēlu strādā, netraucēt režīms, kamēr prezentē, palikšana nomodā, kamēr kaut ko skaties. Omarchy tos sauc par pārslēgiem, un tie visi darbojas vienādi — karstais taustiņš, izvēlnes ieraksts un komanda, tie visi trāpa vienam un tam pašam slēdzim.
 
 ### Pārslēgu izvēlne
 
-`Super + Ctrl + O` atver _Palaist > Pārslēgt_ tieši vai tu vari turp aiziet no Omarchy izvēlnes (`Super + Space`). Viss šajā sarakstā ir slēdzis, ko tu vari pārslēgt, nedomājot par to, kur dzīvo stāvoklis. Slēdži tam, kā darbvirsma izskatās, sēž tai blakus zem _Palaist > Izskats_.
+`Super + Ctrl + O` tieši atver _Aktivizētājs > Pārslēgs_, vai arī tu vari tur nokļūt no Omarchy izvēlnes (`Super + Space`). Viss šajā sarakstā ir slēdzis, ko vari pārslēgt, nedomājot par to, kur glabājas tā stāvoklis. Slēdži tam, kā izskatās darbvirsma, atrodas tam blakus, sadaļā _Izskats_.
 
-No termināla tie paši slēdži ir `omarchy toggle <thing>`. Palaid `omarchy toggle` atsevišķi, lai redzētu visu grupu.
+No termināļa tie paši slēdži ir `omarchy toggle <thing>`. Palaid `omarchy toggle` pašu par sevi, lai redzētu visu grupu.
 
-| Pārslēgs | Karstā taustiņa kombinācija | Komanda |
+| Pārslēgs | Karstais taustiņš | Komanda |
 | ------ | ------ | ------- |
-| Nakts apgaismojums | `Super + Ctrl + N` | `omarchy toggle nightlight` |
-| Klusināt paziņojumus | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
+| Nakts gaisma | — | `omarchy toggle nightlight` |
+| Apklusināt paziņojumus | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
 | Palikt nomodā (bez dīkstāves bloķēšanas) | `Super + Ctrl + I` | `omarchy toggle idle` |
-| Avāriju fiksēšana | — | `omarchy toggle crash-capture` |
+| Avāriju tveršana | — | `omarchy toggle crash-capture` |
 | Ekrānsaudzētājs | — | `omarchy toggle screensaver` |
-| [Herdr](https://herdr.dev) tēmu sinhronizācija | — | `omarchy toggle theme sync` |
-| Izvēlņu josla | `Super + Shift + Space` | `omarchy toggle bar` |
+| [Herdr](https://herdr.dev) motīva sinhronizācija | — | `omarchy toggle theme sync` |
+| Izvēļņu josla | `Super + Shift + Space` | `omarchy toggle bar` |
 | Skārienpaliktnis | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
 | Skārienekrāns | — | `omarchy toggle touchscreen` |
-| Iemidzināt | — | `omarchy toggle suspend` |
+| Iemidzināšana | — | `omarchy toggle suspend` |
 | Hibrīdais GPU | — | `omarchy toggle hybrid gpu` |
 
-Skārienpaliktņa, skārienekrāna un hibrīdā GPU slēdži dzīvo zem _Palaist > Aparatūra_ (`Super + Ctrl + H`), nevis zem Pārslēgt, jo tie parādās tikai tad, kad tev patiešām ir tā aparatūra. Skārienpaliktņa un skārienekrāna slēdži pārdzīvo Hyprland pārlādēšanu — atspējotās ierīces nosaukums tiek saglabāts mazā stāvokļa failā, ko Hyprland lasa startēšanas laikā, lai to atkal atspējotu.
+Skārienpaliktņa, skārienekrāna un hibrīdā GPU slēdži atrodas sadaļā _Aktivizētājs > Aparatūra_ (`Super + Ctrl + H`), nevis sadaļā Pārslēgs, jo tie parādās tikai tad, kad tev tiešām ir šāda aparatūra. Skārienpaliktņa un skārienekrāna slēdži izdzīvo pēc Hyprland pārlādēšanas — atspējotās ierīces nosaukums tiek saglabāts mazā stāvokļa failā, ko Hyprland nolasa startēšanas laikā, lai to atkal atspējotu.
 
-_Palaist > Izskats_ satur izvēlņu joslu un animācijas, kā arī dažas lietas, kas nav `omarchy toggle` komandas, bet uzvedas vienādi: baterijas procenti joslā, noklusējuma darbvietas izkārtojums, logu atstarpes (`Super + Shift + Backspace`) un 1 loga kvadrāta attiecība (`Super + Ctrl + Backspace`).
+_Izskats_ satur izvēļņu joslu un animācijas, kā arī dažas lietas, kas nav `omarchy toggle` komandas, bet darbojas tāpat: akumulatora procentuālo daudzumu joslā, noklusējuma darbvietas izkārtojumu un sadaļā _Logi_ — logu atstarpes (`Super + Shift + Backspace`) un 1 loga kvadrātisko malu attiecību (`Super + Ctrl + Backspace`).
 
-Lielākā daļa no tiem ir tikai karoga fails zem `~/.local/state/omarchy/toggles/`. Ja tu vēlies sazaroties uz viena skriptā, `omarchy-toggle-enabled` dod tev izejas kodu, nevis liek tev iet meklēt:
+Lielākā daļa no tiem ir vienkārši karodziņa fails zem `~/.local/state/omarchy/toggles/`. Ja vēlies skriptā no kāda no tiem sazaroties, `omarchy-toggle-enabled` iedod tev izejas kodu, nevis liek tev to pašam meklēt:
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-Karogi ir nosaukti izslēgtam stāvoklim — `screensaver-off`, `suspend-off`, `bar-off` —, tāpēc to klātbūtne nozīmē, ka funkcija ir atspējota.
+Karodziņi ir nosaukti izslēgtā stāvokļa vārdā — `screensaver-off`, `suspend-off`, `bar-off` — tāpēc to klātbūtne nozīmē, ka funkcija ir atspējota.
 
-### Rādītāji joslā
+### Indikatori joslā
 
-Kad režīms ir ieslēgts, tu iegūsti mazu zīmi augšējās joslas vidū blakus pulkstenim. Tas ir rādītāju logrīks, un tas satur diktēšanu, ekrāna ierakstīšanu, gaidošos atgādinājumus, nakts apgaismojumu, netraucēt un palikt nomodā.
+Kad režīms ir ieslēgts, augšējās joslas vidū blakus pulkstenim tu saņem mazu zīmi. Tas ir indikatoru logrīks, un tajā ir diktēšana, ekrāna ierakstīšana, gaidošie atgādinājumi, nakts gaisma, netraucēt režīms un palikšana nomodā.
 
-Neaktīvie rādītāji ir paslēpti. Novieto kursoru apgabalā ap tiem, un tie izbalē blāvi, tāpēc tu vari noklikšķināt uz viena, lai to ieslēgtu, nezinot tā karsto taustiņa kombināciju. Noklikšķinot uz aktīva, tas tiek izslēgts. Ja tu labāk vēlētos tos visus redzēt vienmēr, iestati `alwaysShow` uz `true` ierakstā `omarchy.indicators` failā `~/.config/omarchy/shell.json` — skat. [augšējā josla](05-the-top-bar.md), kā joslas logrīki tiek konfigurēti.
+Neaktīvie indikatori ir paslēpti. Novieto kursoru jebkur uz joslas, un tie parādās aptumšoti, lai tu varētu noklikšķināt uz kāda un to ieslēgt, nezinot tā karsto taustiņu. Noklikšķinot uz aktīva indikatora, tas atkal izslēdzas. Ja labprātāk tos visus redzētu visu laiku, iestati `alwaysShow` uz `true` ierakstam `omarchy.indicators` failā `~/.config/omarchy/shell.json` — skati [augšējo joslu](05-the-top-bar.md), lai uzzinātu, kā tiek konfigurēti joslas logrīki.
 
-### Nakts apgaismojums
+### Nakts gaisma
 
-`Super + Ctrl + N` sasilda ekrānu līdz 4000K, un, nospiežot to vēlreiz, tas tiek atjaunots uz 6500K. To darbina hyprsunset, ko pārslēgs tev startē, ja tas jau nedarbojas.
+Nakts gaisma sasilda ekrānu līdz 4000K, un atkārtota tās pārslēgšana atgriež to uz 6500K. Pārslēdz to no pārslēgu izvēlnes (`Super + Ctrl + O`) vai ar `omarchy toggle nightlight`. To darbina hyprsunset, ko pārslēgs tev startē, ja tas jau nedarbojas.
 
-Pēc noklusējuma hyprsunset ar tavu ekrānu nedara neko. `~/.config/hypr/hyprsunset.conf` nāk ar identitātes profilu tieši tāpēc, lai displejs paliktu neskarts, līdz tu palūdz siltumu. Ja tu labāk vēlētos, lai tas pārslēdzas pēc pulksteņa, aizstāj to ar laika profilu:
+Pēc noklusējuma hyprsunset tavam ekrānam vispār neko nedara. `~/.config/hypr/hyprsunset.conf` tiek piegādāts ar identitātes profilu tieši tāpēc, lai displejs paliktu neskarts, līdz tu palūdz siltumu. Ja labprātāk to pārslēgtu pēc pulksteņa, aizstāj to ar laika profilu:
 
 ```
 profile {
@@ -53,19 +53,19 @@ profile {
 }
 ```
 
-Pēc tam startē hyprsunset pieteikšanās laikā, pievienojot `o.launch_on_start("hyprsunset")` failam `~/.config/hypr/autostart.lua`. 4000K/6500K pāris, ko izmanto pārslēgs, ir fiksēts, tāpēc konfigurācijas fails ir vieta, kur doties, ja vēlies citu temperatūru.
+Tad startē hyprsunset piesakoties, pievienojot `o.launch_on_start("hyprsunset")` failam `~/.config/hypr/autostart.lua`. Pārslēga izmantotais 4000K/6500K pāris ir fiksēts, tāpēc konfigurācijas fails ir vieta, kurp doties, ja vēlies citu temperatūru.
 
 ### Netraucēt
 
-`Super + Ctrl + ,` klusina paziņojumus. Kamēr tas ir ieslēgts, neparādās nekādi paziņojumi, un pārsvītrota zvana rādītājs sēž joslā, lai atgādinātu tev, kāpēc darbvirsma ir kļuvusi klusa.
+`Super + Ctrl + Alt + ,` apklusina paziņojumus. Kamēr tas ir ieslēgts, neparādās nekādi uznirstošie paziņojumi, un joslā atrodas pārsvītrota zvana indikators, lai atgādinātu tev, kāpēc darbvirsma ir kļuvusi tik klusa.
 
-Tomēr nekas netiek pazaudēts. Klusināts paziņojums tiek ierakstīts tieši tavā paziņojumu vēsturē, kas ir tieši tas ieraksts, ko tu vēlies, kad atgriezies un brīnies, ko tu esi palaidis garām. Atver to ar `Super + Shift + Alt + ,`. Skat. [paziņojumi](10-notices.md) pārējam paziņojumu stāstam.
+Tomēr nekas netiek zaudēts. Apklusinātie paziņojumi tiek aizturēti: pēdējos dažus atgriez ekrānā ar `Super + Shift + Alt + ,`. Skati [paziņojumus](10-notices.md), lai uzzinātu pārējo.
 
-Divu veidu ziņojumi joprojām izlaužas cauri: paša Omarchy apstiprinājuma paziņojumi par kaut ko, ko tu tikko izdarīji ("Theme changed", "Screenshot saved"), un kritiski brīdinājumi, kas nosūtīti no komandrindas. Tērzēšanas lietotnes, kas visu atzīmē kā kritisku, lai piespiestu ceļu tavā priekšā, nekvalificējas.
+Divu veidu ziņojumi joprojām tiek cauri: paša Omarchy apstiprinājuma uznirstošie paziņojumi par kaut ko, ko tu tikko izdarīji ("Motīvs nomainīts", "Ekrānuzņēmums saglabāts"), un kritiski brīdinājumi, kas nosūtīti no komandrindas. Tērzēšanas lietotnes, kas visu atzīmē kā kritisku, lai piespiestu sev ceļu pie tevis, nekvalificējas.
 
 ### Dīkstāve
 
-Omarchy čaulai pieder dīkstāves uzvedība, un laiki ir augstākā līmeņa `idle` bloks failā `~/.config/omarchy/shell.json`:
+Omarchy čaula pārvalda dīkstāves uzvedību, un laiki ir augstākā līmeņa `idle` bloks failā `~/.config/omarchy/shell.json`:
 
 ```json
 {
@@ -77,26 +77,26 @@ Omarchy čaulai pieder dīkstāves uzvedība, un laiki ir augstākā līmeņa `i
 }
 ```
 
-Abi skaitļi ir sekundes, ko skaita no brīža, kad tu kļuvi dīkstāvē — nevis viens no otra. Tāpēc ar noklusējumiem ekrānsaudzētājs parādās pēc divarpus minūtēm un bloķēšanas ekrāns pārņem pēc piecām minūtēm neatkarīgi no tā, vai ekrānsaudzētājs darbojās. Saglabā failu, un čaula uzreiz uztver jaunos laikus.
+Abi skaitļi ir sekundes, kas skaitītas no brīža, kad tu kļuvi neaktīvs — nevis viens no otra. Tāpēc ar noklusējumiem ekrānsaudzētājs parādās pēc divarpus minūtēm un bloķēšanas ekrāns pārņem pēc piecām minūtēm neatkarīgi no tā, vai ekrānsaudzētājs darbojās vai ne. Saglabā failu, un čaula jaunos laikus uztver uzreiz.
 
-Ja tu aizvāc ekrānsaudzētāju pirms bloķēšanas termiņa, tas tiek uzskatīts par aktivitāti, un gaidošā bloķēšana tiek atcelta. Tevi nebloķē par to, ka uzmeti skatienu savai iekārtai.
+Ja tu atmet ekrānsaudzētāju pirms bloķēšanas termiņa, tas tiek uzskatīts par aktivitāti un gaidošā bloķēšana tiek atcelta. Tevi nebloķēs tikai tāpēc, ka esi uzmetis aci savai ierīcei.
 
-Lai pilnībā pārtrauktu bloķēšanu dīkstāvē, `Super + Ctrl + I` — vai `omarchy toggle idle` — ieslēdz palikšanu nomodā, un kafijas krūzes rādītājs parādās joslā. Tas ir tas, ko nospiest pirms garas prezentācijas vai būvējuma, ko tu vēlies skatīties. Nospied to vēlreiz, lai atgrieztos normālā režīmā. `omarchy toggle idle status` izdrukā pašreizējo stāvokli kā JSON, ja tev tas vajadzīgs no skripta.
+Lai pilnībā apturētu bloķēšanu dīkstāvē, `Super + Ctrl + I` — vai `omarchy toggle idle` — ieslēdz palikšanu nomodā, un joslā parādās kafijas tases indikators. Tas ir tas, kuru nospiest pirms garas prezentācijas vai būvējuma, kam vēlies sekot līdzi. Nospied to vēlreiz, lai atgrieztos pie normālā režīma. `omarchy toggle idle status` izdrukā pašreizējo stāvokli kā JSON, ja tev tas nepieciešams no skripta.
 
-Tas attiecas uz bloķēšanu un ekrānsaudzētāju, nevis barošanu. Iemidzināšanai un ziemas miegam ir sava iestatīšana [sistēmas miegs](36-system-sleep.md).
+Šeit runa ir par bloķēšanu un ekrānsaudzētāju, nevis par barošanu. Iemidzināšanai un hibernācijai ir sava iestatīšana sadaļā [sistēmas miegs](36-system-sleep.md).
 
 ### Ekrānsaudzētājs
 
-Omarchy ekrānsaudzētājs ir ASCII māksla, kas darbojas ar nejaušiem teksta efektiem, viena instance katram monitoram. Jebkurš taustiņš vai peles kustība iziet no tā.
+Omarchy ekrānsaudzētājs ir ASCII māksla, kas iet caur nejaušiem teksta efektiem, viena instance katram monitoram. Jebkurš taustiņš vai peles kustība to pārtrauc.
 
-Tu vari to startēt pēc pieprasījuma no _Sistēma > Ekrānsaudzētājs_ (`Super + Esc`), kas to piespiež parādīties pat tad, ja esi izslēdzis dīkstāves ekrānsaudzētāju. Pēc noklusējuma tam nav piesaistīta karstā taustiņa kombinācija.
+Tu vari to startēt pēc pieprasījuma no _Sistēma > Ekrānsaudzētājs_ (`Super + Esc`), kas to piespiedu kārtā parāda pat tad, ja esi izslēdzis dīkstāves ekrānsaudzētāju. Pēc noklusējuma tam nav piesaistīts neviens karstais taustiņš.
 
-`omarchy toggle screensaver` izslēdz dīkstāves ekrānsaudzētāju, ja tu labāk dotos tieši no darba uz bloķētu. Tam ir nepieciešams terminālis, ko tas zina, kā konfigurēt — Alacritty, Foot, Ghostty vai Kitty —, un tas tev tā pateiks, ja tavs noklusējuma terminālis ir kaut kas cits.
+`omarchy toggle screensaver` ir tas, kas izslēdz dīkstāves ekrānsaudzētāju, ja labprātāk no darba uzreiz pārietu uz bloķētu stāvokli. Jebkurš taustiņš, klikšķis, ritināšana vai peles kustība to aizver.
 
-Logo, ko tas zīmē, ir tavs, ko mainīt, zem _Stils > Ekrānsaudzētājs_. Augšupielādē png vai svg, un Omarchy to pārvērš ASCII. Skat. [zīmolvedība](41-branding.md).
+Logotips, ko tas zīmē, ir tavā ziņā maināms sadaļā _Izskats > Zīmols > Ekrānsaudzētājs_. Augšupielādē png vai svg, un Omarchy to pārvērtīs par ASCII. Skati [zīmolvedību](41-branding.md).
 
 ### Bloķēšanas ekrāns
 
-`Super + Ctrl + L` bloķē iekārtu. Tas palaiž bloķēšanas ekrānu no Omarchy čaulas, aptumšo displeju, atiestata tavu tastatūras izkārtojumu uz pirmo, lai tu nerakstītu paroli nepareizajā alfabētā, un — ja tev tas darbojas — izejot bloķē 1Password.
+`Super + Ctrl + L` bloķē ierīci. Tas palaiž bloķēšanas ekrānu no Omarchy čaulas, aptumšo displeju, atiestata tastatūras izkārtojumu uz pirmo, lai tu nerakstītu paroli nepareizā alfabētā, un — ja tev tas darbojas — izejot bloķē 1Password.
 
-Bloķēšanas ekrāns pieņem paroli, un tas pieņems arī pirkstu nospiedumu, kad tu būsi vienu iestatījis. Tas un citi autentificēšanās veidi ir apskatīti [aparatūras autentifikācija](37-hardware-authentication.md).
+Bloķēšanas ekrāns pieņem paroli, un tas pieņems arī pirksta nospiedumu, tiklīdz tu tādu būsi iestatījis. Tas un citi autentifikācijas veidi ir aprakstīti sadaļā [aparatūras autentifikācija](37-hardware-authentication.md).

@@ -2,11 +2,12 @@
 
 # omarchy:summary=Print the active Omarchy mirror and package channel
 
-if grep -q "https://stable-mirror.omarchy.org/" /etc/pacman.d/mirrorlist; then
+# Arch Linux ARM's mirrors are the same hosts with an arm- prefix.
+if grep -Eq "https://(arm-)?stable-mirror\.omarchy\.org/" /etc/pacman.d/mirrorlist; then
   mirror="stable"
-elif grep -q "https://rc-mirror.omarchy.org/" /etc/pacman.d/mirrorlist; then
+elif grep -Eq "https://(arm-)?rc-mirror\.omarchy\.org/" /etc/pacman.d/mirrorlist; then
   mirror="rc"
-elif grep -q "https://mirror.omarchy.org/" /etc/pacman.d/mirrorlist; then
+elif grep -Eq "https://(arm-)?mirror\.omarchy\.org/" /etc/pacman.d/mirrorlist; then
   mirror="edge"
 else
   mirror="unknown"

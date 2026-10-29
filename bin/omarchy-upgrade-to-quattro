@@ -804,6 +804,12 @@ install_omarchy_quattro_packages() {
   as_root env OMARCHY_UPDATE_PACMAN=1 pacman -Syu --needed --noconfirm --ask 4 --overwrite='*' "${core_packages[@]}"
   mark_packages_explicit "${core_packages[@]}"
 
+  # The base list carries rtkit, which can make a running app realtime under the
+  # zero realtime budget it took without rtkit, and the kernel kills it. The
+  # repair raises those budgets, then installs rtkit itself.
+  as_root env OMARCHY_PATH=/usr/share/omarchy PATH="$root_path" omarchy-realtime-repair ||
+    fail "Could not install rtkit without killing running apps. Fix the error above and rerun the upgrade."
+
   if [[ -f /usr/share/omarchy/install/omarchy-base.packages ]]; then
     log "Installing Omarchy quattro default package set"
     mapfile -t base_packages < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' /usr/share/omarchy/install/omarchy-base.packages)
@@ -1414,6 +1420,8 @@ apply_system_transition() {
   # root-equivalent, so it is opt-in now (Setup > Security > Sudoless Docker);
   # re-granting it on upgrade would silently undo that default for everyone.
 
+  # A channel's base list may still pick the stock power-profiles-daemon, whose
+  # powerprofilesctl runs mise's python3; the Omarchy build ships it fixed.
   if [[ -f /usr/bin/powerprofilesctl ]]; then
     as_root sed -i '/env python3/ c\#!/bin/python3' /usr/bin/powerprofilesctl || true
   fi
@@ -1993,7 +2001,7 @@ legacy_omarchy_backup="$HOME/.local/share/omarchy.omarchy-upgrade-to-quattro.$BA
 if [[ -d $legacy_omarchy_backup/themes && -d $legacy_omarchy_backup/.git ]]; then
   (
     cd "$legacy_omarchy_backup"
-    git ls-files --others -- 'themes/*/backgrounds/*' 2>/dev/null | while IFS= read -r bg_file; do
+    git ls-files -z --others -- 'themes/*/backgrounds/*' 2>/dev/null | while IFS= read -r -d '' bg_file; do
       theme_name=${bg_file#themes/}
       theme_name=${theme_name%%/*}
       mkdir -p "$HOME/.config/omarchy/backgrounds/$theme_name"
@@ -2073,6 +2081,10 @@ if command -v xdg-user-dirs-update >/dev/null 2>&1; then
   xdg-user-dirs-update --set TEMPLATES "$HOME" || true
   xdg-user-dirs-update --set PUBLICSHARE "$HOME" || true
   xdg-user-dirs-update --set DESKTOP "$HOME" || true
+  for dir in DOWNLOAD:Downloads PICTURES:Pictures VIDEOS:Videos DOCUMENTS:Documents MUSIC:Music; do
+    grep -q "^XDG_${dir%%:*}_DIR=" "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" 2>/dev/null ||
+      { mkdir -p "$HOME/${dir#*:}" && xdg-user-dirs-update --set "${dir%%:*}" "$HOME/${dir#*:}"; } || true
+  done
 fi
 rmdir "$HOME/Templates" "$HOME/Public" "$HOME/Desktop" 2>/dev/null || true
 touch "$HOME/.config/gtk-3.0/bookmarks"
@@ -2293,7 +2305,10 @@ fi
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
 fi
-if command -v xdg-settings >/dev/null 2>&1; then
+# A browser chosen on 3.x survives in the mimeapps.list the retire step kept, so
+# fill in Chromium only when that list resolves no browser at all.
+if command -v xdg-settings >/dev/null 2>&1 &&
+  [[ -z $(env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings get default-web-browser 2>/dev/null) ]]; then
   env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser chromium.desktop || true
 fi
 if command -v xdg-mime >/dev/null 2>&1; then

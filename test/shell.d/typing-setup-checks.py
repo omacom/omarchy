@@ -30,6 +30,8 @@ class TypingSetupTest(unittest.TestCase):
     self.assertEqual(catalog["us:colemak"], "English (US, Colemak)")
     self.assertEqual(catalog["ch"], "German (Switzerland)")
     self.assertEqual(catalog["la"], "Lao")
+    self.assertEqual(catalog["kr:kr104"], "Korean")
+    self.assertNotIn("kr", catalog)
     # Converted as the installer does.
     self.assertEqual(catalog["fr"], "French")
     self.assertEqual(catalog["bg:phonetic"], "Bulgarian")
@@ -44,6 +46,18 @@ class TypingSetupTest(unittest.TestCase):
                      [["keyboard-us", ""], ["mozc", "jp"]])
     self.assertEqual(typing.input_items([["keyboard-us", ""], ["mozc", "us"]], ["mozc"], {"mozc": "jp"}),
                      [["keyboard-us", ""], ["mozc", "us"]])
+
+  def test_positional_engines_added_under_dvorak_keep_qwerty_positions(self):
+    self.assertEqual(typing.input_items([["keyboard-us-dvorak", ""]], ["hangul", "pinyin"], {}, "us-dvorak"),
+                     [["keyboard-us-dvorak", ""], ["hangul", "us"], ["pinyin", ""]])
+
+  def test_a_new_leading_layout_redecides_only_omarchys_engine_overrides(self):
+    with tempfile.TemporaryDirectory() as temporary:
+      before = ("Default", "us", [["keyboard-us", ""], ["hangul", ""], ["chewing", "de"]])
+      after = ("Default", "us-dvorak", [["keyboard-us-dvorak", ""], ["hangul", "us"], ["chewing", "de"]])
+      with patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}), patch.object(typing.setup, "live_group", side_effect=[before, after]), patch.object(typing.setup, "run", return_value=""), patch.object(typing, "keyboard_selection", return_value=["us:dvorak"]), patch.object(typing.setup, "live_set") as setter:
+        typing.save_keyboard(["us:dvorak"])
+      setter.assert_called_once_with(*after)
 
   def test_input_deselection_keeps_keyboard_and_selected_overrides(self):
     items = [["keyboard-us", ""], ["mozc", "jp"], ["hangul", ""], ["custom", "de"]]
@@ -87,6 +101,24 @@ class TypingSetupTest(unittest.TestCase):
       save.assert_called_once_with(["hangul", "mozc"])
       typing.add_input("hangul")
       save.assert_called_once()
+
+  def test_a_cjk_language_adds_its_engine_only_to_a_keyboard_only_group(self):
+    with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}):
+      with patch.object(typing.setup, "live_group", return_value=("Default", "us", [["keyboard-us", ""]])), patch.object(typing, "save_inputs") as save:
+        typing.seed_language("mozc")
+      save.assert_called_once_with(["mozc"])
+      self.assertIn("Noto Sans CJK JP", (Path(temporary) / "fontconfig/conf.d/50-omarchy-input-method.conf").read_text())
+    with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}):
+      with patch.object(typing.setup, "live_group", return_value=("Default", "us", [["keyboard-us", ""], ["hangul", ""]])), patch.object(typing, "save_inputs") as save:
+        typing.seed_language("mozc")
+      save.assert_not_called()
+
+  def test_a_cjk_language_without_fcitx_still_seeds_its_glyph_forms(self):
+    with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}):
+      with patch.object(typing.setup, "live_group", side_effect=subprocess.CalledProcessError(1, "busctl")), patch("sys.stderr") as error:
+        typing.seed_language("pinyin")
+      self.assertIn("Setup > Typing > Input Methods", "".join(call.args[0] for call in error.write.call_args_list))
+      self.assertIn("Noto Sans CJK SC", (Path(temporary) / "fontconfig/conf.d/50-omarchy-input-method.conf").read_text())
 
   def test_failed_font_write_restores_the_input_group(self):
     before = [["keyboard-us", ""]]

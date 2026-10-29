@@ -1,6 +1,6 @@
 # Klávesnica, myš, trackpad
 
-Hyprland ti umožňuje konfigurovať všetky tvoje vstupy veľmi podrobne. Môžeš zmeniť opakovanie klávesnice tak, aby bolo nadzvukovo rýchle, alebo zariadiť, aby trackpad používal prirodzené posúvanie. Všetko to meníš v súbore `~/.config/hypr/input.lua`, ku ktorému sa dostaneš aj prostredníctvom _Nastavenie > Vstup_ v menu Omarchy (`Super + Space`). Čokoľvek tam nastavíš, nahradí predvolené nastavenia Omarchy.
+Hyprland vám umožňuje podrobne nakonfigurovať všetky vaše vstupy. Môžete nastaviť opakovanie kláves na nadzvukovú rýchlosť alebo na trackpade používať prirodzené posúvanie. Všetko zmeníte v `~/.config/hypr/input.lua`, kam sa dostanete aj cez _Setup > Input_ v menu Omarchy (`Super + Space`). Všetko, čo tam nastavíte, nahradí predvolené nastavenia Omarchy.
 
 Tu je príklad:
 
@@ -35,9 +35,9 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-Na wiki Hyprlandu pre vstupy môžeš [vidieť všetky možnosti vstupu](https://wiki.hypr.land/Configuring/Basics/Variables/#input).
+Na wiki Hyprlandu o vstupoch si môžete [pozrieť všetky možnosti vstupu](https://wiki.hypr.land/Configuring/Basics/Variables/#input).
 
-CapsLock funguje ako bežný Caps Lock a `Shift + CapsLock` je kláves compose pre [rýchle emoji](07-hotkeys.md#quick-emojis) a [ďalšie doplňovania](07-hotkeys.md#quick-completions). Ak by si chcel mať kláves compose inde, nahraď v `kb_options` reťazec `omarchy:shift_caps_compose`. Napríklad, toto presunie kláves compose na pravý Alt:
+CapsLock funguje ako bežný Caps Lock a `Shift + CapsLock` je kláves Compose pre [rýchle emoji](07-hotkeys.md#quick-emojis) a [ďalšie dokončovanie](07-hotkeys.md#quick-completions). Ak chcete mať kláves Compose radšej inde, nahraďte `omarchy:shift_caps_compose` v `kb_options`. Tento príklad napríklad presunie kláves Compose na Right Alt:
 
 ```lua
 hl.config({
@@ -47,33 +47,46 @@ hl.config({
 })
 ```
 
-### Gestá trackpadu
+### Gestá na trackpade
 
-Môžeš tiež zapnúť [gestá touchpadu](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), napríklad potiahnutie tromi prstami na zmenu pracovných plôch:
+Potiahnutím po trackpade sa môžete pohybovať po pracovnej ploche:
+
+| Gesture | Action |
+| --- | --- |
+| Three fingers left / right | Previous / next workspace, including empty ones |
+| Three fingers up | Toggle the AI console |
+| Three fingers down | Open the Omarchy menu |
+| Four fingers left / right | Move the active window to the previous / next workspace |
+| Four fingers down | Toggle fullscreen |
+
+Ak chcete niektoré gesto zmeniť, zrušte ho v `~/.config/hypr/input.lua` skôr, než pridáte vlastné [gesto na trackpade](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), pretože Hyprland neprijme dve gestá pre rovnaké prsty a smer:
 
 ```lua
-hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+hl.gesture({ fingers = 3, direction = "up", action = "unset" })
+hl.gesture({ fingers = 3, direction = "up", action = "fullscreen" })
 ```
 
-Na notebookoch Dell XPS s haptickým touchpadom môžeš tiež nastaviť silu kliknutia na nízku, strednú alebo vysokú v časti _Akcie > Hardvér > Haptika touchpadu_.
+Ak chcete vypnúť všetky gestá Omarchy, nastavte `omarchy_default_gestures = false` blízko začiatku súboru `~/.config/hypr/hyprland.lua`, ešte pred načítaním predvolených nastavení Omarchy.
 
-### Písanie v čínštine, japončine a iných jazykoch
+Na notebookoch Dell XPS s haptickým touchpadom môžete tiež nastaviť silu kliknutia na nízku, strednú alebo vysokú v časti _Trigger > Hardware > Touchpad Haptics_.
 
-Keď sa inštalátor opýta na tvoju klávesnicu, vyber japončinu, kórejčinu, čínštinu (zjednodušenú, Pinyin) alebo čínštinu (tradičnú, Zhuyin). Omarchy klávesnicu a zodpovedajúci vstupný engine nastaví automaticky, a to aj počas offline prvého spustenia. Japončina používa Mozc, kórejčina používa štandardný dvojznakový Hangul, zjednodušená čínština používa Pinyin a tradičná čínština používa štandardné rozloženie Zhuyin od Chewing. Japončina (klávesnica US) poskytuje Mozc s rozložením klávesnice US.
+### Písanie v čínštine, japončine a ďalších jazykoch
 
-Písanie sa začína v režime latinky. Stlačením `Super + I` budeš prechádzať nakonfigurovanými metódami vstupu a stlačením `Super + Shift + I` sa budeš vracať späť. Ťuknutím na samotný `Shift` vystúpiš z metódy vstupu ako Pinyin do latinkových písmen a opätovným ťuknutím sa vrátiš späť, tak ako to funguje v Sogou, Microsoft Pinyin a macOS; `Shift` plus písmeno stále napíše veľké písmeno. Na japonských klávesniciach kláves 全角/半角 prepína vstup, 変換 ho zapne a 無変換 ho vypne. Na rozložení kórejskej klávesnice dedikované klávesy 한/영 a 한자 prepínajú Hangul a prevádzajú na Hanja. `Ctrl + Space` zostáva dostupné pre Tmux a Herdr; `Shift + CapsLock` zostáva klávesom compose.
+Keď sa vás inštalátor spýta na klávesnicu, vyberte japončinu, kórejčinu, čínštinu (zjednodušenú, Pinyin), Taiwan (Zhuyin) alebo Hongkong (Cangjie). Omarchy automaticky nakonfiguruje klávesnicu a zodpovedajúci vstupný engine, a to aj počas offline nastavenia pri prvom spustení. Japončina používa Mozc, kórejčina používa štandardný dvojznakový Hangul, zjednodušená čínština používa Pinyin, Taiwan používa štandardné rozloženie Zhuyin od Chewing a Hongkong používa Cangjie s hongkonskými tvarmi znakov. Japončina (americká klávesnica) poskytuje Mozc s rozložením americkej klávesnice. Klávesy Hangul, Zhuyin a Cangjie zostávajú na svojich štandardných pozíciách, aj keď latinské písmená píšete s rozložením Dvorak, Colemak alebo AZERTY. Ak ste predtým pridali Hangul alebo Chewing, zrušte ich výber a znova ich vyberte v časti _Setup > Typing > Input Methods_, aby sa ich klávesy presunuli tam; engine, s ktorým už píšete, nechá Omarchy na pokoji.
 
-Indikátor klávesnice sa objaví napravo od lišty, keď máš viacero rozložení klávesnice alebo metód vstupu. Klikni naň, aby si prepol vstupné jazyky; japončina zobrazuje あ pre hiraganu. Ak chceš vybrať japonské znaky, prepni na japončinu, napíš slovo ako `nihongo` a potom dvakrát stlač medzerník (Space). Svoju voľbu potvrdíš stlačením Enter. Ak máš aj viacero rozložení klávesnice, klikni pravým tlačidlom myši na indikátor, aby si nimi prechádzal.
+Písanie sa začína v latinskom režime. Stlačením `Super + I` môžete prechádzať nakonfigurovanými metódami vstupu a stlačením `Super + Shift + I` môžete prechádzať späť. Ťuknutím na samotný `Shift` vystúpite z metódy vstupu, ako je Pinyin, do latinských písmen a ďalším ťuknutím sa vrátite späť, tak ako fungujú Sogou, Microsoft Pinyin a macOS; `Shift` plus písmeno stále napíše veľké písmeno. Na japonských klávesniciach prepína vstup 全角/半角, 変換 ho zapína a 無変換 ho vypína. Pri kórejčine prepína 한/영 Hangul a 한자 prevádza na Hanja, či už má vaša klávesnica vyhradené klávesy, alebo pre ne odosiela Right Alt a Right Ctrl, ako to robí mnoho notebookov, takže Right Alt a Right Ctrl tam nie sú obyčajné modifikátory; diktovanie stlačením a podržaním zostáva na F9. `Ctrl + Space` zostáva k dispozícii pre Tmux a Herdr; `Shift + CapsLock` zostáva klávesom Compose.
 
-Pomocou časti _Nastavenie > Písanie > Rozloženia klávesnice_ môžeš vybrať rozloženia, napríklad angličtinu a francúzštinu, z tých istých možností, ktoré sa ponúkajú počas inštalácie. Pomocou časti _Nastavenie > Písanie > Metódy vstupu_ môžeš vybrať, ktoré enginy skladania sú aktívne. Oba výbery sa otvárajú vnútri menu Omarchy s označením tvojich aktuálnych výberov. Možnosť prepneš kliknutím alebo stlačením Enter; každá zmena sa použije okamžite. Zrušenie výberu metódy vstupu ju odstráni z cyklu bez toho, aby ju odinštalovalo; klávesnica zostáva dostupná.
+Indikátor klávesnice sa zobrazí vpravo na paneli, keď máte viacero rozložení klávesnice alebo metód vstupu. Kliknutím naň môžete prepínať vstupné jazyky; japončina zobrazuje あ pre hiraganu. Ak chcete vybrať japonské znaky, prepnite na japončinu, napíšte slovo ako `nihongo` a potom dvakrát stlačte Space. Stlačením Enter výber potvrdíte. Ak máte aj viacero rozložení klávesnice, kliknutím pravým tlačidlom na indikátor ich môžete prechádzať.
 
-Spustením `omarchy setup keyboard` alebo `omarchy setup input` otvoríš tie isté výbery. Ak chceš pridať jeden jazyk z príkazového riadka, použi `omarchy setup input mozc`, `hangul`, `pinyin` alebo `chewing`. Tvoje vlastné klávesy na prepínanie sa zachovajú. Pre alternatívne rozloženia alebo klávesy enginu nainštaluj `fcitx5-configtool` pomocou `omarchy pkg add fcitx5-configtool` a spusti ho z terminálu. Výber vstupného jazyka nemení jazyk pracovnej plochy.
+Na výber rozložení, ako sú angličtina a francúzština, z rovnakých možností, aké sa ponúkajú počas inštalácie, použite _Setup > Typing > Keyboard Layouts_. Na výber aktívnych enginov na skladanie znakov použite _Setup > Typing > Input Methods_. Oba výbery sa otvoria v menu Omarchy s označenými vašimi aktuálnymi voľbami. Kliknutím alebo stlačením Enter voľbu prepnete; každá zmena sa uplatní okamžite. Zrušením výberu metódy vstupu ju odstránite z cyklu bez toho, aby ste ju odinštalovali; klávesnica zostane k dispozícii.
 
-Na prechádzanie metódami vstupu alebo rozloženiami klávesnice používaj `Super + I` a na opačnú cestu `Super + Shift + I`, takže s tromi nakonfigurovanými sa môžeš pohybovať medzi dvomi susedmi. Indikátor vstupu sa objaví napravo od lišty, len keď je nakonfigurovaná viac než jedna metóda vstupu alebo rozloženie. Táto skratka na pracovnej ploche funguje popri tvojich existujúcich klávesoch na prepínanie Fcitx; môžeš ju prepísať v súbore `~/.config/hypr/bindings.lua`. Vstupné enginy a sekvencie compose používajú službu [Fcitx5](https://fcitx-im.org/), ktorá už beží v každej relácii.
+Rovnaké výbery otvoríte spustením `omarchy setup keyboard` alebo `omarchy setup input`. Ak chcete z príkazového riadka pridať jeden jazyk, použite `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` alebo `cangjie5`. Quick, Boshiamy a Array sa dodávajú v rovnakom balíku ako Cangjie a zobrazujú sa vo výbere Input Methods. Vaše vlastné klávesy na prepínanie zostanú zachované. Ak chcete alternatívne rozloženia alebo klávesy enginov, nainštalujte `fcitx5-configtool` príkazom `omarchy pkg add fcitx5-configtool` a spustite ho z terminálu. Výber vstupného jazyka nezmení jazyk pracovnej plochy. Výber japončiny, kórejčiny alebo čínštiny v časti _Setup > Language_ pridá jej metódu vstupu, keď ešte žiadnu nemáte.
 
-### Použitie ALT ako SUPER
+Stlačením `Super + I` môžete prechádzať metódami vstupu alebo rozloženiami klávesnice a stlačením `Super + Shift + I` môžete prechádzať opačným smerom, takže s tromi nakonfigurovanými možnosťami sa môžete pohybovať medzi dvoma susedmi. Indikátor vstupu sa zobrazí vpravo na paneli len vtedy, keď je nakonfigurovaná viac ako jedna metóda vstupu alebo rozloženie. Táto väzba pracovnej plochy funguje popri vašich existujúcich klávesoch na prepínanie Fcitx; môžete ju prepísať v `~/.config/hypr/bindings.lua`. Vstupné enginy a sekvencie Compose používajú službu [Fcitx5](https://fcitx-im.org/), ktorá už beží v každej relácii.
 
-Na niektorých klávesniciach nie je pohodlné používať primárny meta kláves (kláves Windows/cmd) ako SUPER. Pomocou tejto zmeny to môžeš zmeniť na ALT:
+### Používanie ALT ako SUPER
+
+Na niektorých klávesniciach nie je pohodlné používať primárny meta kláves (kláves Windows/cmd) ako SUPER. Touto zmenou to môžete zmeniť na ALT:
 
 ```lua
 hl.config({

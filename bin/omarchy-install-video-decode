@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# omarchy:summary=Let mpv and Chromium decode video on the video chip of Snapdragon laptops
+
+set -euo pipefail
+
+# The Snapdragon video chip is a V4L2 decoder. mpv's auto-safe list leaves V4L2
+# decoders out, and Arch Linux ARM's Chromium only turns its V4L2 decoder on
+# with ANGLE on GLES and the AcceleratedVideoDecoder feature. Other machines
+# keep both programs' defaults.
+
+# mpv reads this after /etc/mpv/mpv.conf. A global hwdec the user set stays as
+# it is. One inside a profile only applies with that profile, so the fallback
+# still goes in, on top, where no [profile] section can catch it.
+setup_mpv() {
+  local conf=~/.config/mpv/mpv.conf
+  local comment="# Fall back to the Snapdragon video chip's decoder (Omarchy)"
+  local hwdec='hwdec=auto-safe,v4l2m2m-copy'
+
+  if [[ ! -s $conf ]]; then
+    mkdir -p ~/.config/mpv || return
+    printf '%s\n' "$comment" "$hwdec" >"$conf"
+  elif ! has_global_hwdec "$conf"; then
+    sed -i --follow-symlinks "1i $comment\n$hwdec" "$conf"
+  fi
+}
+
+# Options before the first [profile] and after a [default] line are global. A
+# profile line may end in a comment.
+has_global_hwdec() {
+  awk '
+    /^[[:space:]]*\[[^]]*\][[:space:]]*(#.*)?$/ { global = ($0 ~ /^[[:space:]]*\[default\][[:space:]]*(#.*)?$/); next }
+    global && /^[[:space:]]*hwdec[[:space:]]*=/ { found = 1 }
+    END { exit !found }
+  ' global=1 "$1"
+}
+
+# Chromium's launcher splits each line into arguments, so a switch can share a
+# line with others or end in a comment. Look for switches with comments removed.
+chromium_args() {
+  sed -E 's/(^|[[:space:]])#.*$//' "$1"
+}
+
+# Add a line, starting a new one first if the file doesn't end in a newline.
+append_line() {
+  if [[ -n $(tail -c1 "$1") ]]; then
+    echo >>"$1" || return
+  fi
+  printf '%s\n' "$2" >>"$1"
+}
+
+# A --use-angle the user set stays as it is.
+setup_chromium() {
+  local conf=~/.config/chromium-flags.conf
+  [[ -f $conf ]] || return 0
+
+  if ! chromium_args "$conf" | grep -E -- '(^|[[:space:]])--use-angle=' >/dev/null; then
+    append_line "$conf" '--use-angle=gles-egl' || return
+  fi
+
+  omarchy-chromium-add-feature AcceleratedVideoDecoder
+}
+
+if omarchy-hw-aarch64-qualcomm; then
+  # A config that can't be written for one program doesn't hold back the other.
+  # Running them under || turns set -e off inside, so each write returns its
+  # own failure.
+  status=0
+  setup_mpv || status=$?
+  setup_chromium || status=$?
+  exit "$status"
+fi
