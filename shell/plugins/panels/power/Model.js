@@ -109,19 +109,3 @@ function profileLabel(name, tr) {
   if (value === "performance") return t("power.profilePerformance", "Performance")
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    clampIndex: clampIndex,
-    selectProfileIndex: selectProfileIndex,
-    parseKeyValue: parseKeyValue,
-    parseProfiles: parseProfiles,
-    profileIcon: profileIcon,
-    batteryFraction: batteryFraction,
-    chargeThresholdActive: chargeThresholdActive,
-    batteryIcon: batteryIcon,
-    modeLabel: modeLabel,
-    profileLabel: profileLabel,
-    localizeReading: localizeReading
-  }
-}

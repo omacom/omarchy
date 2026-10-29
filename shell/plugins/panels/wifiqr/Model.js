@@ -28,10 +28,3 @@ function parseQrMatrix(lines) {
 
   return { rows: lines, size: size }
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    parseQrOutput: parseQrOutput,
-    parseQrMatrix: parseQrMatrix
-  }
-}

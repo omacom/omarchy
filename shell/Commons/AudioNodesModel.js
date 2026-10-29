@@ -85,12 +85,3 @@ function parseWpctlVolume(text) {
   if (!match) return null
   return { volume: parseFloat(match[1]), muted: !!match[2] }
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    isShellLevelMeter: isShellLevelMeter,
-    parsePlatformAudio: parsePlatformAudio,
-    platformHidesNode: platformHidesNode,
-    parseWpctlVolume: parseWpctlVolume
-  }
-}
