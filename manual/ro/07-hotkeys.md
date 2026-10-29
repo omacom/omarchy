@@ -1,39 +1,39 @@
-# Taste rapide
+# Scurtături de tastatură
 
-Poți vedea toate principalele combinații de taste cu `Super + K` (combinațiile Tmux cu `Super + Alt + K` și combinațiile Herdr cu `Super + Ctrl + K`).
+Poți vedea toate combinațiile principale de taste cu `Super + K` (combinațiile Tmux cu `Super + Alt + K` și combinațiile Herdr cu `Super + Ctrl + K`).
 
 ## Navigare
 
 | Tastă rapidă                  | Funcție              |
 | ----------------------- | --------------------- |
-| `Super + Space`           | Meniul Omarchy (aplicații și orice altceva)    |
+| `Super + Space`           | Meniul Omarchy (aplicații și tot restul)    |
 | `Super + Alt + Space` | Grila de aplicații |
 | `Super + Escape` | Meniul de sistem (suspendare, repornire etc.)  |
 | `Super + Ctrl + L` | Blochează computerul |
 | `Super + W` or `Super + Q` | Închide fereastra             |
 | `Ctrl + Alt + Del` | Închide toate ferestrele |
-| `Super + T`               | Comută fereastra între aranjare/plutire             |
+| `Super + T`               | Comută fereastra între aranjare și plutire             |
 | `Super + J` | Comută poziția ferestrei (orizontal/vertical) |
-| `Super + O`               | Comută fereastra în modul lipicios și plutitor |
+| `Super + O`               | Comută fereastra desprinsă în modul fix și plutitor |
 | `Super + L`               | Parcurge ciclic aspectele dwindle, scrolling și floating |
 | `Super + Alt + L`         | Parcurge ciclic aspectele în sens invers |
-| `Super + P`               | Comută stilul pseudo al ferestrei (natural vs. întins) |
-| `Super + F`                 | Intră în ecran complet              |
-| `Super + Alt + F`                 | Intră în lățime completă              |
-| `Super + Ctrl + F`                 | Intră în ecran complet în interiorul ferestrei              |
-| `Super + 1/2/3/4`         | Sari la un anumit spațiu de lucru de pe monitorul focalizat |
-| `Super + Tab` | Sari la următorul spațiu de lucru de pe monitorul focalizat |
-| `Super + Shift + Tab` | Sari la spațiul de lucru anterior de pe monitorul focalizat |
-| `Super + Ctrl + Tab` | Sari la spațiul de lucru anterior de pe monitorul focalizat |
-| `Super + Shift + 1/2/3/4` | Mută fereastra în spațiul de lucru de pe monitorul focalizat |
-| `Super + Shift + Alt + 1/2/3/4` | Mută fereastra în spațiul de lucru de pe monitorul focalizat fără a o urma |
+| `Super + P`               | Comută stilul de fereastră pseudo (natural vs. întins) |
+| `Super + F`                 | Intră pe tot ecranul              |
+| `Super + Alt + F`                 | Intră pe toată lățimea              |
+| `Super + Ctrl + F`                 | Intră pe tot ecranul în interiorul ferestrei              |
+| `Super + 1/2/3/4`         | Sari la un anumit spațiu de lucru de pe monitorul activ |
+| `Super + Tab` | Sari la următorul spațiu de lucru de pe monitorul activ |
+| `Super + Shift + Tab` | Sari la spațiul de lucru anterior de pe monitorul activ |
+| `Super + Ctrl + Tab` | Sari la fostul spațiu de lucru de pe monitorul activ |
+| `Super + Shift + 1/2/3/4` | Mută fereastra în spațiul de lucru de pe monitorul activ |
+| `Super + Shift + Alt + 1/2/3/4` | Mută fereastra în spațiul de lucru de pe monitorul activ fără să o urmezi |
 | `Super + S` | Comută scratchpad-ul complet |
 | `Super + Alt + S` | Mută fereastra în scratchpad-ul complet |
 | `Super + Grave` | Comută consola Quake |
 | `Super + Shift + Grave` | Mută fereastra în consola Quake |
-| `Super + Shift + Ctrl + Arrows` | Mută fereastra pe monitorul în direcția respectivă |
-| `Super + Shift + Alt + Arrows` | Mută spațiul de lucru pe monitorul în direcția respectivă |
-| `Super + Arrow`  | Mută focalizarea la fereastra în direcția săgeții, trecând pe monitorul din acea parte la marginea ecranului |
+| `Super + Shift + Ctrl + Arrows` | Mută fereastra pe monitorul din direcția respectivă |
+| `Super + Shift + Alt + Arrows` | Mută spațiul de lucru pe monitorul din direcția respectivă |
+| `Super + Arrow`  | Mută focalizarea pe fereastra în direcția săgeții, trecând pe monitorul din acea parte la marginea ecranului |
 | `Super + Shift + Arrow`  | Schimbă fereastra cu alta în direcția săgeții, inclusiv una de pe monitorul din acea parte |
 | `Super + Minus` | Extinde fereastra spre stânga |
 | `Super + Equal` | Micșorează fereastra spre stânga |
@@ -43,27 +43,27 @@ Poți vedea toate principalele combinații de taste cu `Super + K` (combinațiil
 | `Super + Ctrl + Minus/Equal` | Aceeași redimensionare în pași mai mari |
 | `Super + Alt + Home` | Salvează lățimea ferestrei |
 | `Super + Home` | Restabilește lățimea salvată a ferestrei |
-| `Super + Left Mouse` | Trage fereastra dintr-un loc în altul |
+| `Super + Left Mouse` | Trage fereastra oriunde |
 | `Super + Right Mouse` | Redimensionează fereastra |
-| `Super + Scroll Wheel` | Derulează prin spațiile de lucru de pe monitorul focalizat |
+| `Super + Scroll Wheel` | Derulează prin spațiile de lucru de pe monitorul activ |
 | `Super + G`               | Comută gruparea ferestrelor      |
-| `Super + Alt + G`               | Scoate fereastra din grupare      |
-| `Super + Alt + Tab`               | Parcurge ciclic ferestrele din grupare      |
-| `Super + Alt + Shift + Tab`               | Parcurge ciclic înapoi ferestrele din grupare      |
-| `Super + Alt + Scroll Wheel` | Parcurge ciclic ferestrele din grupare |
-| `Super + Alt + 1/2/3/4/5`               | Sari la o anumită fereastră din grupare      |
-| `Super + Alt + Arrow`  | Mută fereastra într-o grupare în direcția săgeții, inclusiv una de pe monitorul din acea parte |
-| `Super + Ctrl + Left/Right`  | Deplasează-te între ferestrele dintr-un grup de aranjare |
-| `Super + Ctrl + Z` | Apropie imaginea pe ecran (repetă pentru și mai mult zoom) |
-| `Super + Ctrl + Alt + Z` | Îndepărtează complet imaginea de pe ecran |
-| `Super + /` | Treci înainte prin opțiunile de scalare a monitorului |
-| `Super + Alt + /` | Treci înapoi prin opțiunile de scalare a monitorului |
-| `Alt + Tab` | Parcurge ciclic înainte ferestrele din spațiul de lucru activ |
-| `Alt + Shift + Tab` | Parcurge ciclic înapoi ferestrele din spațiul de lucru activ |
-| `Ctrl + Alt + Tab`| Parcurge ciclic focalizarea înainte prin monitoare |
-| `Ctrl + Alt + Shift + Tab`| Parcurge ciclic focalizarea înapoi prin monitoare |
+| `Super + Alt + G`               | Scoate fereastra din grup      |
+| `Super + Alt + Tab`               | Parcurge ciclic ferestrele din grup      |
+| `Super + Alt + Shift + Tab`               | Parcurge ciclic înapoi ferestrele din grup      |
+| `Super + Alt + Scroll Wheel` | Parcurge ciclic ferestrele din grup |
+| `Super + Alt + 1/2/3/4/5`               | Sari la o anumită fereastră din grup      |
+| `Super + Alt + Arrow`  | Mută fereastra în grup în direcția săgeții, inclusiv una de pe monitorul din acea parte |
+| `Super + Ctrl + Left/Right`  | Deplasează-te între ferestrele dintr-un grup alăturat |
+| `Super + Ctrl + Z` | Mărește imaginea de pe ecran (repetă pentru mai mult zoom) |
+| `Super + Ctrl + Alt + Z` | Micșorează complet imaginea de pe ecran |
+| `Super + /` | Avansează prin opțiunile de scalare a monitorului |
+| `Super + Alt + /` | Mergi înapoi prin opțiunile de scalare a monitorului |
+| `Alt + Tab` | Parcurge înainte ferestrele din spațiul de lucru activ |
+| `Alt + Shift + Tab` | Parcurge înapoi ferestrele din spațiul de lucru activ |
+| `Ctrl + Alt + Tab`| Parcurge înainte focalizarea între monitoare |
+| `Ctrl + Alt + Shift + Tab`| Parcurge înapoi focalizarea între monitoare |
 
-## Controale de sistem
+## Comenzi de sistem
 
 | Tastă rapidă                  | Funcție              |
 | ----------------------- | --------------------- |
@@ -73,14 +73,14 @@ Poți vedea toate principalele combinații de taste cu `Super + K` (combinațiil
 | `Super + Ctrl + D`           | Panoul de afișare    |
 | `Super + Ctrl + P`           | Panoul de alimentare    |
 | `Super + Ctrl + Alt + D`           | Panoul calendar    |
-| `Super + Ctrl + Alt + E`           | Panoul ceas mondial    |
+| `Super + Ctrl + Alt + E`           | Panoul ceasului mondial    |
 | `Super + Ctrl + 1-9`           | Comută panoul din bară după poziție    |
 | `Super + Ctrl + S` | Meniul de partajare (prin LocalSend) |
-| `Super + Ctrl + C` | Controale de captură (captură de ecran/înregistrare/selector) |
+| `Super + Ctrl + C` | Comenzi de captură (captură de ecran/înregistrare/selector) |
 | `Super + Ctrl + O` | Comută meniul |
 | `Super + Ctrl + H` | Meniul hardware |
-| `Super + Ctrl + E` | Selector de emoji |
-| `Super + Ctrl + .` | Transcodează fișiere media |
+| `Super + Ctrl + E` | Selectorul de emoji |
+| `Super + Ctrl + .` | Transcodează media |
 | `Super + Shift + Ctrl + A` | Alege un agent AI |
 
 ## Ajustări
@@ -91,10 +91,10 @@ Poți vedea toate principalele combinații de taste cu `Super + K` (combinațiil
 | `Shift + Brightness Down` | Luminozitate minimă a ecranului |
 | `Alt + Brightness Up/Down` | Modificări precise ale luminozității cu 1% |
 | `Alt + Volume Up/Down` | Modificări precise ale volumului cu 1% |
-| `Keyboard Brightness Up/Down` | Iluminarea de fundal a tastaturii mai puternică/mai slabă |
-| `Keyboard Backlight` | Parcurge ciclic nivelurile de iluminare de fundal a tastaturii |
-| `Alt + Play` | Pista următoare |
-| `Alt + Shift + Play` | Pista anterioară |
+| `Keyboard Brightness Up/Down` | Iluminarea tastaturii mai puternică/mai slabă |
+| `Keyboard Backlight` | Parcurge ciclic nivelurile de iluminare a tastaturii |
+| `Alt + Play` | Piesa următoare |
+| `Alt + Shift + Play` | Piesa anterioară |
 
 ## Lansarea aplicațiilor
 
@@ -106,7 +106,7 @@ Poți vedea toate principalele combinații de taste cu `Super + K` (combinațiil
 | `Super + Shift + Return`           | Browser    |
 | `Super + Shift + Alt + B`           | Browser (privat/incognito)    |
 | `Super + Shift + F`           | Manager de fișiere    |
-| `Super + Shift + Alt + F`           | Manager de fișiere în directorul de lucru curent al terminalului    |
+| `Super + Shift + Alt + F`           | Manager de fișiere în cwd-ul terminalului    |
 | `Super + Shift + M`           | Muzică (Spotify)    |
 | `Super + Shift + Alt + M`           | Muzică (cliamp)    |
 | `Super + Shift + /`           | Manager de parole (1password)    |
@@ -118,18 +118,18 @@ Poți vedea toate principalele combinații de taste cu `Super + K` (combinațiil
 | `Super + Shift + Alt + E`           | E-mail nou ([HEY](https://hey.com/))  |
 | `Super + Shift + A`           | AI (ChatGPT)  |
 | `Super + Shift + Alt + A`           | AI (Grok)  |
-| `Super + Shift + G`           | Mesagerie (Signal)  |
+| `Super + Shift + G`           | Messenger (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
 | `Super + Shift + S`           | Google Maps  |
-| `Super + Shift + Alt + G`           | Mesagerie (WhatsApp)  |
-| `Super + Shift + Ctrl + G`           | Mesagerie (Google)  |
+| `Super + Shift + Alt + G`           | Messenger (WhatsApp)  |
+| `Super + Shift + Ctrl + G`           | Messenger (Google)  |
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | Scris (Omawrite)  |
 | `Super + Shift + X`           | X |
 | `Super + Shift + Alt + X`           | X Compose |
 | `Super + Shift + Y`           | YouTube |
 
-Modifică/adaugă combinații în `~/.config/hypr/bindings.lua`.
+Schimbă/adaugă combinații în `~/.config/hypr/bindings.lua`.
 
 ## Clipboard universal
 
@@ -140,7 +140,7 @@ Modifică/adaugă combinații în `~/.config/hypr/bindings.lua`.
 | `Super + V`           | Lipește    |
 | `Super + Ctrl + V`           | Manager de clipboard    |
 
-De obicei, pe Linux, ai nevoie de `Ctrl + Shift + C/V` pentru a copia și lipi în terminal și de `Ctrl + C/V` pentru a face asta oriunde altundeva. Aceste taste rapide Omarchy pentru clipboard unificat funcționează peste tot.
+De obicei pe Linux, ai nevoie de `Ctrl + Shift + C/V` ca să copiezi și să lipești în terminal și de `Ctrl + C/V` ca să faci asta peste tot altundeva. Aceste scurtături unificate de clipboard din Omarchy funcționează peste tot.
 
 ## Captură
 
@@ -150,24 +150,24 @@ De obicei, pe Linux, ai nevoie de `Ctrl + Shift + C/V` pentru a copia și lipi �
 | `Super + Ctrl + Alt + C`            | Captură de ecran (aceeași captură, pentru tastaturi fără tasta Print Screen) |
 | `Super + Ctrl + C` | Meniul de captură |
 | `Alt + Print Screen`            | Înregistrare a ecranului                     |
-| `Super + Print Screen` | Selector de culori |
-| `Super + Ctrl + Print Screen` | Extragerea textului în clipboard |
-| `Super + Alt + [` | Micșorează suprapunerea webcam în timpul înregistrării |
-| `Super + Alt + ]` | Mărește suprapunerea webcam în timpul înregistrării |
-| `Alt + Shift + L` | Copiază URL-ul curent dintr-o webapp sau din Chromium |
+| `Super + Print Screen` | Selector de culoare |
+| `Super + Ctrl + Print Screen` | Extragere de text în clipboard |
+| `Super + Alt + [` | Micșorează suprapunerea webcamului în timpul înregistrării |
+| `Super + Alt + ]` | Mărește suprapunerea webcamului în timpul înregistrării |
+| `Alt + Shift + L` | Copiază URL-ul curent dintr-o aplicație web sau din Chromium |
 | `Alt + Shift + D` | Descarcă videoclipul de pe pagina curentă în `~/Videos` |
-| `Super + Ctrl + X` | Pornește/oprește dictarea (necesită _Setup > Defaults > Dictation_) |
+| `Super + Ctrl + X` | Pornește/oprește dictarea (necesită _Configurare > Valori implicite > Dictare_) |
 | `Right Alt` / `F9` | Dictare push-to-talk (necesită Voxtype sau Superwhisper) |
 
-În cazul înregistrărilor de ecran, tasta rapidă întreabă mai întâi ce sunet vrei, apoi începe înregistrarea. Apas-o din nou pentru a opri. Vezi [capturi de ecran și înregistrare](12-screenshots-recording.md) pentru detalii.
+La înregistrările de ecran, scurtătura te întreabă mai întâi ce audio vrei, apoi pornește înregistrarea. Apas-o din nou ca să oprești. Vezi [capturi de ecran și înregistrare](12-screenshots-recording.md) pentru detalii.
 
-Toate opțiunile de captură sunt accesibile și sub _Trigger > Capture_ în meniul Omarchy (`Super + Space`).
+Toate opțiunile de captură sunt accesibile și sub _Declanșator > Captură_ în meniul Omarchy (`Super + Space`).
 
 ## Notificări
 
 | Tastă rapidă                  | Funcție              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Acționează asupra celei mai recente notificări: deschide-o sau apasă singurul ei buton, alege dintre opțiunile ei sau închide-o când nu are niciuna  |
+| `Super + ,` | Acționează asupra celei mai recente notificări: deschide-o sau apasă singurul ei buton, alege dintre opțiunile ei sau închide-o când nu are niciunul  |
 | `Super + Shift + ,` | Închide toate notificările |
 | `Super + Ctrl + ,` | Controlează notificările cu tastatura  |
 | `Super + Alt + ,` | Închide cea mai recentă notificare  |
@@ -181,24 +181,24 @@ Toate opțiunile de captură sunt accesibile și sub _Trigger > Capture_ în men
 | `Super + Ctrl + T` | Alege o temă nouă (și `Super + Ctrl + Shift + Space`) |
 | `Super + Ctrl + W` | Alege fundalul temei (și `Super + Ctrl + Space`) |
 | `Super + Backspace` | Comută transparența pe o fereastră |
-| `Super + Ctrl + Backspace` | Comută aspectul pătrat pentru o singură fereastră |
+| `Super + Ctrl + Backspace` | Comută raportul pătrat pentru o singură fereastră |
 
-Imaginile de fundal suplimentare se află în `~/.config/omarchy/backgrounds/<theme name>`. Disponibil și prin _Install > Style > Background_ în meniul Omarchy.
+Imaginile suplimentare de fundal se află în `~/.config/omarchy/backgrounds/<theme name>`. Disponibile și prin _Instalare > Stil > Fundal_ în meniul Omarchy.
 
-Toate opțiunile de stil sunt accesibile și sub _Style_ în meniul Omarchy (`Super + Space`).
+Toate opțiunile de stil sunt accesibile și sub _Stil_ în meniul Omarchy (`Super + Space`).
 
 ## Comutatoare
 
 | Tastă rapidă                  | Funcție              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + I` | Comută blocarea la inactivitate |
-| `Super + Ctrl + Delete` | Comută pornirea/oprirea ecranului laptopului |
+| `Super + Ctrl + Delete` | Pornește/oprește ecranul laptopului |
 | `Super + Ctrl + Alt + Delete` | Comută oglindirea ecranului laptopului |
 | `Super + Shift + Space` | Comută bara de sus  |
-| `Shift + Mute` | Treci la următoarea ieșire audio |
-| `Shift + Play` | Treci la următoarea sursă media |
+| `Shift + Mute` | Comută la următoarea ieșire audio |
+| `Shift + Play` | Comută la următoarea sursă media |
 | `Super + Shift + Backspace` | Comută spațiile dintre ferestre |
-| `Super + Ctrl + Alt + F` | Comută desktopul în ecran complet (bara de sus + spațiile dintre ferestre) |
+| `Super + Ctrl + Alt + F` | Comută desktopul pe tot ecranul (bara de sus + spațiile dintre ferestre) |
 
 ## Mementouri
 
@@ -208,7 +208,7 @@ Toate opțiunile de stil sunt accesibile și sub _Style_ în meniul Omarchy (`Su
 | `Super + Ctrl + Alt + R` | Vezi toate mementourile  |
 | `Super + Ctrl + Shift + R` | Șterge toate mementourile  |
 
-## Mesaje
+## Afișări
 
 | Tastă rapidă                  | Funcție              |
 | ----------------------- | --------------------- |
@@ -218,7 +218,7 @@ Toate opțiunile de stil sunt accesibile și sub _Style_ în meniul Omarchy (`Su
 
 ## Tmux
 
-Tasta prefix este `Ctrl + Space` (`Ctrl + B` funcționează și ea). Poți schimba aceste combinații în `~/.config/tmux/tmux.conf`.
+Tasta prefix este `Ctrl + Space` (`Ctrl + B` funcționează de asemenea). Poți schimba aceste combinații în `~/.config/tmux/tmux.conf`.
 
 ### Panouri
 
@@ -227,7 +227,7 @@ Tasta prefix este `Ctrl + Space` (`Ctrl + B` funcționează și ea). Poți schim
 | `Prefix + v` | Împarte panoul alăturat (vertical) |
 | `Prefix + h` | Împarte panoul dedesubt (orizontal) |
 | `Prefix + x` | Închide panoul |
-| `Prefix + z` | Comută zoom-ul panoului (ecran complet) |
+| `Prefix + z` | Comută zoom-ul panoului (pe tot ecranul) |
 | `Alt + Enter` | Împarte panoul dedesubt (fără prefix) |
 | `Alt + Shift + Enter` | Împarte panoul alăturat (fără prefix) |
 | `Alt + Escape` | Închide panoul (fără prefix) |
@@ -256,7 +256,7 @@ Tasta prefix este `Ctrl + Space` (`Ctrl + B` funcționează și ea). Poți schim
 | `Prefix + P` | Sesiunea anterioară |
 | `Alt + Arrow Up/Down` | Deplasează-te între sesiuni |
 | `Prefix + s` | Listează sesiunile |
-| `Prefix + d` | Desprinde-te de sesiune |
+| `Prefix + d` | Detașează-te de sesiune |
 
 ### Modul de copiere (stil vi)
 
@@ -272,7 +272,7 @@ Tasta prefix este `Ctrl + Space` (`Ctrl + B` funcționează și ea). Poți schim
 | ----------------------- | --------------------- |
 | `Prefix + q` | Reîncarcă configurația |
 | `Prefix + ?` | Afișează combinațiile de taste Tmux |
-| `Prefix + :` | Prompt de comandă |
+| `Prefix + :` | Linie de comandă |
 
 ### Funcții de aspect Tmux
 
@@ -286,15 +286,15 @@ Aceste funcții trebuie rulate în interiorul unei sesiuni Tmux.
 
 ## Terminalul Ghostty
 
-Terminalul Ghostty se instalează folosind _Install > Terminal_ din meniul Omarchy.
+Terminalul Ghostty se instalează folosind _Instalare > Terminal_ prin meniul Omarchy.
 
 | Tastă rapidă                  | Funcție              |
 | ----------------------- | --------------------- |
-| `Ctrl + Shift + E` | Nouă împărțire dedesubt |
-| `Ctrl + Shift + O` | Nouă împărțire alăturată |
-| `Ctrl + Alt + Arrows` | Deplasează-te între împărțiri |
-| `Super + Ctrl + Shift + Arrows` | Redimensionează împărțirea cu 10 linii |
-| `Super + Ctrl + Shift + Alt + Arrows` | Redimensionează împărțirea cu 100 de linii |
+| `Ctrl + Shift + E` | Divizare nouă dedesubt |
+| `Ctrl + Shift + O` | Divizare nouă alături |
+| `Ctrl + Alt + Arrows` | Deplasează-te între divizări |
+| `Super + Ctrl + Shift + Arrows` | Redimensionează divizarea cu 10 linii |
+| `Super + Ctrl + Shift + Alt + Arrows` | Redimensionează divizarea cu 100 de linii |
 | `Ctrl + Shift + T` | Filă nouă  |
 | `Ctrl + Shift + Arrows` | Deplasează-te între file |
 | `Alt + Numbers` | Mergi la o anumită filă |
@@ -307,7 +307,7 @@ Terminalul Ghostty se instalează folosind _Install > Terminal_ din meniul Omarc
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Mergi la cale                     |
 | `Space`               | Previzualizează fișierul (săgețile navighează) |
-| `Backspace`      | Mergi înapoi cu un folder             |
+| `Alt + Up`       | Mergi sus la folderul părinte        |
 
 ## Neovim (cu lazyvim)
 
@@ -316,10 +316,10 @@ Terminalul Ghostty se instalează folosind _Install > Terminal_ din meniul Omarc
 | Tastă rapidă                   | Funcție                        |
 | ------------------------ | ------------------------------- |
 | `Space`                    | Afișează opțiunile de comandă            |
-| `Space Space`              | Deschide un fișier prin căutare fuzzy      |
+| `Space Space`              | Deschide fișierul prin căutare fuzzy      |
 | `Space E`                  | Comută bara laterală                  |
 | `Space G G`                | Afișează controalele git               |
-| `Space S G`                | Caută în conținutul fișierelor             |
+| `Space S G`                | Caută în conținutul fișierului             |
 | `Ctrl + W W`               | Sari între bara laterală și editor |
 | `Ctrl + Left/right arrow`  | Modifică dimensiunea barei laterale          |
 | `Shift + H`                      | Mergi la fila de fișier din stânga             |
@@ -337,44 +337,44 @@ Terminalul Ghostty se instalează folosind _Install > Terminal_ din meniul Omarc
 | `R`                        | Redenumește fișierul/directorul evidențiat     |
 | `?`                        | Afișează ajutorul pentru toate comenzile      |
 
-[Vezi toate tastele rapide Neovim configurate de LazyVim](https://www.lazyvim.org/keymaps).
+[Vezi toate scurtăturile Neovim configurate de LazyVim](https://www.lazyvim.org/keymaps).
 
-## Emoji rapide
+## Emojiuri rapide
 
-Poți folosi `Super + Ctrl + E` pentru a afișa un selector complet de emoji care va pune selecția în clipboard sau poți folosi aceste opțiuni de acces rapid.
+Poți folosi `Super + Ctrl + E` ca să afișezi un selector complet de emoji care va pune selecția în clipboard sau poți folosi aceste opțiuni de acces rapid.
 
 | Tastă rapidă       | EM | Indiciu       |
 | ------------ | -- | ---------- |
-| `Shift + CapsLock M S` | 😄 | zâmbet      |
-| `Shift + CapsLock M C` | 😂 | plâns        |
-| `Shift + CapsLock M L` | 😍 | dragoste       |
-| `Shift + CapsLock M V` | ✌️ | victorie    |
-| `Shift + CapsLock M H` | ❤️ | inimă      |
-| `Shift + CapsLock M Y` | 👍 | da        |
-| `Shift + CapsLock M N` | 👎 | nu         |
+| `Shift + CapsLock M S` | 😄 | smile      |
+| `Shift + CapsLock M C` | 😂 | cry        |
+| `Shift + CapsLock M L` | 😍 | love       |
+| `Shift + CapsLock M V` | ✌️ | victory    |
+| `Shift + CapsLock M H` | ❤️ | heart      |
+| `Shift + CapsLock M Y` | 👍 | yes        |
+| `Shift + CapsLock M N` | 👎 | no         |
 | `Shift + CapsLock M F` | 🖕 | fuck       |
-| `Shift + CapsLock M W` | 🤞 | dorință       |
+| `Shift + CapsLock M W` | 🤞 | wish       |
 | `Shift + CapsLock M R` | 🤘 | rock       |
-| `Shift + CapsLock M K` | 😘 | sărut       |
-| `Shift + CapsLock M E` | 🙄 | dat ochii peste cap    |
-| `Shift + CapsLock M I` | 😉 | clipit       |
-| `Shift + CapsLock M P` | 🙏 | rugăciune |
-| `Shift + CapsLock M D` | 🤤 | salivare      |
-| `Shift + CapsLock M M` | 💰 | bani      |
+| `Shift + CapsLock M K` | 😘 | kiss       |
+| `Shift + CapsLock M E` | 🙄 | eyeroll    |
+| `Shift + CapsLock M I` | 😉 | wink       |
+| `Shift + CapsLock M P` | 🙏 | pray |
+| `Shift + CapsLock M D` | 🤤 | drool      |
+| `Shift + CapsLock M M` | 💰 | money      |
 | `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
 | `Shift + CapsLock M T` | 🥂 | toast      |
 | `Shift + CapsLock M O` |👌 | ok |
-| `Shift + CapsLock M G` |👋 | salut |
-| `Shift + CapsLock M A` |💪 | braț |
-| `Shift + CapsLock M B` |🤯 | explozie |
+| `Shift + CapsLock M G` |👋 | greeting |
+| `Shift + CapsLock M A` |💪 | arm |
+| `Shift + CapsLock M B` |🤯 | blowing |
 
 ## Completări rapide
 
 | Tastă rapidă       | Completare       |
 | ------------ |  ---------- |
-| `Shift + CapsLock Space Space` | — (linie de pauză)   |
+| `Shift + CapsLock Space Space` | — (mdash)   |
 | `Shift + CapsLock Space N` | Numele tău (așa cum a fost introdus la configurare)  |
 | `Shift + CapsLock Space E` | E-mailul tău (așa cum a fost introdus la configurare)  |
 
-Poți adăuga mai multe pe cont propriu editând `~/.XCompose`, apoi rulând `omarchy-restart-xcompose` în terminal pentru ca modificările să fie preluate.
+Poți adăuga mai multe de-ale tale editând `~/.XCompose`, apoi rulând `omarchy-restart-xcompose` în terminal ca modificările să fie preluate.
