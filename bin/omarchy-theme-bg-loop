@@ -12,14 +12,12 @@ case ${1:-} in
     rm -f "$toggle"
     omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true
     omarchy-theme-bg-loop-apply
-    omarchy-notification-send "$(omarchy-i18n theme.backgroundLoops)" "$(omarchy-i18n common.enabled)"
     ;;
   disable)
     mkdir -p "$(dirname "$toggle")"
     touch "$toggle"
     omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true
     omarchy-theme-bg-loop-apply
-    omarchy-notification-send "$(omarchy-i18n theme.backgroundLoops)" "$(omarchy-i18n common.disabled)"
     ;;
   toggle)
     if [[ -f $toggle ]]; then
