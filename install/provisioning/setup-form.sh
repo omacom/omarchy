@@ -220,9 +220,15 @@ omarchy_prompt_hostname() {
 }
 
 # A fresh machine often hasn't joined a network yet, so the geo guess fails
-# often; guard it or a `set -e` caller dies before the filter fallback.
+# often; guard it or a `set -e` caller dies before the picker opens.
+#
+# The picker is always gum filter, so a city can be typed. The guess leads the
+# list with the search left empty: Enter takes it, and the first key typed
+# searches every zone. Neither --value nor --selected does this. --value puts
+# the guess in the search, so typing "london" searches "Europe/Amsterdamlondon".
+# At limit 1, --selected prints that entry even after another one was picked.
 omarchy_prompt_timezone() {
-  local guess status
+  local guess status zones
   # A preset install media names its timezone; otherwise ask geo.omarchy.org,
   # Omarchy's own lookup of where this network is, and failing that take the
   # caller's fallback, like the language's capital.
@@ -230,11 +236,12 @@ omarchy_prompt_timezone() {
   [[ -n $guess ]] || guess=$(curl -fsS --max-time 5 https://geo.omarchy.org/ 2>/dev/null | jq -r '.timezone // empty' 2>/dev/null) || guess=""
   [[ -n $guess ]] || guess=${OMARCHY_FORM_TIMEZONE_FALLBACK:-}
 
-  if [[ -n $guess ]]; then
-    timezone=$(timedatectl list-timezones | gum choose --height 10 --selected "$guess" --header "$(omarchy_form_text setupForm.timezoneHeader)") && status=0 || status=$?
-  else
-    timezone=$(timedatectl list-timezones | gum filter --height 10 --header "$(omarchy_form_text setupForm.timezoneHeader)") && status=0 || status=$?
+  zones=$(timedatectl list-timezones)
+  if [[ -n $guess && $guess != *$'\n'* && $'\n'$zones$'\n' == *$'\n'"$guess"$'\n'* ]]; then
+    zones=$(printf '%s\n' "$guess"; grep -vxF -- "$guess" <<<"$zones")
   fi
+
+  timezone=$(gum filter --height 10 --header "$(omarchy_form_text setupForm.timezoneHeader)" <<<"$zones") && status=0 || status=$?
   ((status == 0)) || return $status
 
   [[ -n $timezone ]] || timezone="UTC"

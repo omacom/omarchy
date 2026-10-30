@@ -75,10 +75,11 @@ hl.curve("quick", { type = "bezier", points = { { 0.15, 0 }, { 0.1, 1 } } })
 
 -- Same rules as the shell's motion (agents/skills/motion.md), with speed in tenths of a second:
 -- one strong ease-out, entrances within 250ms, exits about two thirds of that, no linear or ease-in.
+-- Window opening is the exception: at 250ms it felt rushed, so it keeps its earlier 410ms.
 hl.animation({ leaf = "global", enabled = true, speed = 2.5, bezier = "easeOutQuint" })
 hl.animation({ leaf = "border", enabled = true, speed = 1.5, bezier = "easeOutQuint" })
 hl.animation({ leaf = "windows", enabled = true, speed = 2.5, bezier = "easeOutQuint" })
-hl.animation({ leaf = "windowsIn", enabled = true, speed = 2.5, bezier = "easeOutQuint", style = "popin 95%" })
+hl.animation({ leaf = "windowsIn", enabled = true, speed = 4.1, bezier = "easeOutQuint", style = "popin 95%" })
 hl.animation({ leaf = "windowsOut", enabled = true, speed = 1.6, bezier = "easeOutQuint", style = "popin 95%" })
 hl.animation({ leaf = "fadeIn", enabled = true, speed = 1.8, bezier = "easeOutQuint" })
 hl.animation({ leaf = "fadeOut", enabled = true, speed = 1.2, bezier = "easeOutQuint" })

@@ -168,6 +168,8 @@ machine() {
     t14s-21n1-not-qualcomm) dmi product_name 21N10000US; FAKE_PLATFORM=aarch64 ;;
     t14-gen4) dmi product_name 21F60000US ;;
     yoga-slim7x) dmi product_name 83ED; FAKE_PLATFORM=aarch64-qualcomm ;;
+    zenbook-a16) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    zenbook-a16-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64 ;;
     xps13-ptl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
     xps13-wcl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Wildcat Lake [Intel Graphics]" ;;
     xps13-dx13261) xps13 DX13261; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
@@ -222,6 +224,7 @@ leaves=(
   hardware/surface.sh
   hardware/fix-surface-keyboard.sh
   hardware/lenovo/thinkpad-t14s-camera.sh
+  hardware/asus/fix-asus-zenbook-a16-speakers.sh
   hardware/dell-xps13-ptl-speaker-firmware.sh
   hardware/dell-xps13-sidecar-amps.sh
   user/hardware/fix-nouveau-cursor.sh
@@ -268,6 +271,10 @@ hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n1+unreadable|0
 hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n1-not-qualcomm|0
 hardware/lenovo/thinkpad-t14s-camera.sh|t14-gen4|0
 hardware/lenovo/thinkpad-t14s-camera.sh|yoga-slim7x|0
+hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16|0|pkg-add asus-zenbook-a16-audio
+hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16+unreadable|0
+hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16-not-qualcomm|0
+hardware/asus/fix-asus-zenbook-a16-speakers.sh|yoga-slim7x|0
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-ptl|0|pkg-add linux-firmware-cirrus-dx13260
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-ptl+unreadable|0
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-wcl|0

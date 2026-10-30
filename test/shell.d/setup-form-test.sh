@@ -37,7 +37,7 @@ EOF
 
 cat >"$tmp_dir/timedatectl" <<'EOF'
 #!/bin/bash
-printf '%s\n' UTC Europe/Copenhagen America/Chicago
+printf '%s\n' UTC Europe/Copenhagen America/Chicago Asia/Shanghai Europe/Warsaw
 EOF
 
 # Calls one prompt bare under `set -euo pipefail` — the shape that makes the
@@ -153,7 +153,7 @@ printf 'KEYBOARD=Chinese (Simplified, Pinyin)\nTIMEZONE=Asia/Shanghai\nOTHER=$(t
 OMARCHY_FORM_DEFAULTS="$tmp_dir/form-defaults" run_prompt omarchy_prompt_keyboard "0:Chinese (Simplified, Pinyin)"
 grep -qF -- '--selected Chinese (Simplified\, Pinyin)' "$GUM_ARGS" || fail "a first-boot owner setup takes the media's keyboard default" "$(cat "$GUM_ARGS")"
 OMARCHY_FORM_DEFAULTS="$tmp_dir/form-defaults" TZ_GUESS=Europe/Copenhagen run_prompt omarchy_prompt_timezone "0:Asia/Shanghai"
-grep -qF -- '--selected Asia/Shanghai' "$GUM_ARGS" || fail "a first-boot owner setup takes the media's timezone default" "$(cat "$GUM_ARGS")"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Asia/Shanghai" ]] || fail "a first-boot owner setup takes the media's timezone default" "$(cat "$tmp_dir/stdin.1")"
 [[ ! -e $tmp_dir/NEVER ]] || fail "form defaults are read as data"
 OMARCHY_FORM_DEFAULTS="$tmp_dir/form-defaults" OMARCHY_FORM_KEYBOARD_DEFAULT=Japanese run_prompt omarchy_prompt_keyboard "0:Japanese"
 grep -qF -- '--selected Japanese' "$GUM_ARGS" || fail "the live installer's environment wins over the file"
@@ -269,28 +269,51 @@ pass "the form's text comes from Omarchy's catalogs in the caller's language, En
 TZ_GUESS=Europe/Copenhagen run_prompt omarchy_prompt_timezone "0:Europe/Copenhagen"
 assert_status 0 "timezone prompt accepts the geo guess"
 [[ $(field timezone) == "Europe/Copenhagen" ]] || fail "timezone prompt keeps the chosen timezone"
-grep -qF -- '--selected Europe/Copenhagen' "$GUM_ARGS" || fail "timezone prompt preselects the geo guess"
+[[ $(head -n 1 "$GUM_ARGS") == filter* ]] || fail "timezone prompt can be searched with a guess" "$(cat "$GUM_ARGS")"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Europe/Copenhagen" ]] || fail "timezone prompt lists the geo guess first" "$(cat "$tmp_dir/stdin.1")"
+[[ $(grep -cxF Europe/Copenhagen "$tmp_dir/stdin.1") == 1 ]] || fail "timezone prompt lists the geo guess once" "$(cat "$tmp_dir/stdin.1")"
+# Typing must start a new search: --value would put the guess in front of
+# what the user types, and --selected would return the guess after a search.
+if grep -qE -- '--(value|selected)' "$GUM_ARGS"; then
+  fail "timezone prompt leaves the search empty and the pick to the user" "$(cat "$GUM_ARGS")"
+fi
 grep -qF UTC "$tmp_dir/stdin.1" || fail "timezone prompt offers the system timezone list"
 [[ $(sort -u "$tmp_dir/curl-urls") == "https://geo.omarchy.org/" ]] || fail "timezone prompt asks only geo.omarchy.org" "$(cat "$tmp_dir/curl-urls")"
-pass "timezone prompt preselects geo.omarchy.org's timezone when it answers"
+pass "timezone prompt offers geo.omarchy.org's timezone first when it answers"
 
 # An unnetworked first boot has no guess, and the fallback has to survive `set -e`
 run_prompt omarchy_prompt_timezone "0:America/Chicago"
 assert_status 0 "timezone prompt survives a failed geo guess"
 [[ $(field timezone) == "America/Chicago" ]] || fail "timezone prompt keeps the filtered timezone"
 [[ $(head -n 1 "$GUM_ARGS") == filter* ]] || fail "timezone prompt filters when there is no geo guess"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "UTC" ]] || fail "timezone prompt keeps the system order without a guess" "$(cat "$tmp_dir/stdin.1")"
 pass "timezone prompt falls back to filtering when the geo guess fails"
 
 OMARCHY_FORM_TIMEZONE_DEFAULT=Asia/Shanghai TZ_GUESS=Europe/Copenhagen run_prompt omarchy_prompt_timezone "0:Asia/Shanghai"
 assert_status 0 "a preset timezone prompt succeeds"
-grep -qF -- '--selected Asia/Shanghai' "$GUM_ARGS" || fail "install media can preset the timezone over the geo guess" "$(cat "$GUM_ARGS")"
-pass "install media can preselect the timezone, which stays a choice"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Asia/Shanghai" ]] || fail "install media can preset the timezone over the geo guess" "$(cat "$tmp_dir/stdin.1")"
+pass "install media can put its timezone first, which stays a choice"
+
+TZ_GUESS=Mars/Olympus run_prompt omarchy_prompt_timezone "0:UTC"
+assert_status 0 "a timezone prompt with an unknown guess succeeds"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "UTC" ]] || fail "timezone prompt keeps the system order for an unknown guess" "$(cat "$tmp_dir/stdin.1")"
+! grep -qxF Mars/Olympus "$tmp_dir/stdin.1" || fail "timezone prompt never offers a guess that is not a timezone" "$(cat "$tmp_dir/stdin.1")"
+OMARCHY_FORM_TIMEZONE_DEFAULT=$'Mars/Olympus\nUTC' run_prompt omarchy_prompt_timezone "0:UTC"
+! grep -qxF Mars/Olympus "$tmp_dir/stdin.1" || fail "timezone prompt matches the guess as one whole timezone" "$(cat "$tmp_dir/stdin.1")"
+OMARCHY_FORM_TIMEZONE_DEFAULT=$'Europe/Copenhagen\nAmerica/Chicago' run_prompt omarchy_prompt_timezone "0:UTC"
+assert_status 0 "a multiline timezone guess does not stop setup"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "UTC" ]] || fail "timezone prompt does not promote several zones as one guess" "$(cat "$tmp_dir/stdin.1")"
+OMARCHY_FORM_TIMEZONE_DEFAULT=$'UTC\nEurope/Copenhagen\nAmerica/Chicago\nAsia/Shanghai\nEurope/Warsaw' run_prompt omarchy_prompt_timezone "0:UTC"
+assert_status 0 "a guess containing the whole list does not stop setup"
+assert_returned "timezone prompt survives a guess containing the whole list under set -e"
+pass "timezone prompt offers only real timezones"
 
 OMARCHY_FORM_TIMEZONE_FALLBACK=Europe/Warsaw run_prompt omarchy_prompt_timezone "0:Europe/Warsaw"
 assert_status 0 "a timezone fallback prompt succeeds"
-grep -qF -- '--selected Europe/Warsaw' "$GUM_ARGS" || fail "the caller's fallback is preselected when the geo guess fails" "$(cat "$GUM_ARGS")"
+[[ $(head -n 1 "$GUM_ARGS") == filter* ]] || fail "timezone prompt can be searched with the caller's fallback" "$(cat "$GUM_ARGS")"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Europe/Warsaw" ]] || fail "the caller's fallback comes first when the geo guess fails" "$(cat "$tmp_dir/stdin.1")"
 OMARCHY_FORM_TIMEZONE_FALLBACK=Europe/Warsaw TZ_GUESS=Europe/Copenhagen run_prompt omarchy_prompt_timezone "0:Europe/Copenhagen"
-grep -qF -- '--selected Europe/Copenhagen' "$GUM_ARGS" || fail "the geo guess beats the caller's fallback" "$(cat "$GUM_ARGS")"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Europe/Copenhagen" ]] || fail "the geo guess beats the caller's fallback" "$(cat "$tmp_dir/stdin.1")"
 pass "a caller's timezone fallback stands in only when the geo guess fails"
 
 run_prompt omarchy_prompt_timezone "0:"
