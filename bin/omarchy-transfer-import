@@ -1,0 +1,830 @@
+#!/bin/bash
+
+# omarchy:summary=Restore packages, configs and files from a transfer archive
+# omarchy:args=[--dry-run] [--wifi] [--mode=smart|ask|overwrite|skip] [<archive>]
+# omarchy:examples=omarchy transfer import --dry-run ~/omarchy-transfer-laptop.tar.zst.age | omarchy transfer import --wifi --mode=ask /run/media/me/stick/omarchy-transfer-laptop.tar.zst
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+source omarchy-transfer-functions
+
+# Names are handled as raw bytes; the locale only matters for sort/comm/awk.
+export LC_ALL=C
+
+dry_run=false
+restore_wifi=false
+mode=smart
+archive=""
+
+usage() {
+  echo "Usage: omarchy-transfer-import [--dry-run] [--wifi] [--mode=smart|ask|overwrite|skip] [<archive>]"
+}
+
+while (( $# > 0 )); do
+  case $1 in
+    --dry-run) dry_run=true ;;
+    --wifi) restore_wifi=true ;;
+    --mode=*) mode=${1#--mode=} ;;
+    --mode)
+      (( $# > 1 )) || transfer_die "--mode needs a value"
+      mode=$2
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -*) transfer_die "Unknown option: $1" ;;
+    *)
+      [[ -z $archive ]] || transfer_die "Only one archive allowed"
+      archive=$1
+      ;;
+  esac
+  shift
+done
+
+case $mode in
+  smart|ask|overwrite|skip) ;;
+  *) transfer_die "Unknown mode '$mode' (use smart, ask, overwrite or skip)" ;;
+esac
+
+if (( EUID == 0 )); then
+  transfer_die "Run this as your normal user, not root (sudo is used where needed)"
+fi
+
+has_tty() {
+  { : </dev/tty; } 2>/dev/null
+}
+
+if omarchy-cmd-missing tar zstd cmp awk xargs find; then
+  transfer_die "Missing required commands (tar, zstd, cmp, awk, xargs, find)"
+fi
+
+# Archive selection
+
+find_archives() {
+  local dir file
+  for dir in /run/media/"$USER"/* "$HOME" "$HOME/Downloads"; do
+    [[ -d $dir ]] || continue
+    for file in "$dir"/omarchy-transfer-*.tar.zst*; do
+      if [[ -f $file && $file != *.part ]]; then
+        printf '%s\n' "$file"
+      fi
+    done
+  done
+}
+
+if [[ -z $archive ]]; then
+  has_tty || transfer_die "No archive given and no terminal to choose one"
+  mapfile -t found < <(find_archives)
+  (( ${#found[@]} > 0 )) || transfer_die "No transfer archive found on removable media, in ~ or in ~/Downloads; pass the path"
+  archive=$(gum choose --header "Choose the archive to restore" "${found[@]}") || transfer_die "No archive chosen"
+fi
+
+# shellcheck disable=SC2088
+case $archive in
+  "~") archive=$HOME ;;
+  "~/"*) archive=$HOME/${archive#"~/"} ;;
+esac
+
+[[ -f $archive && -r $archive ]] || transfer_die "Archive not found or not readable: $archive"
+
+if [[ $mode == ask && $dry_run == false ]] && ! has_tty; then
+  transfer_die "Mode 'ask' needs a terminal; use --mode=smart, overwrite or skip"
+fi
+
+encrypted=false
+magic=$(head -c 21 -- "$archive" 2>/dev/null | tr -d '\0' || true)
+if [[ $archive == *.age || $magic == "age-encryption.org/v1" ]]; then
+  encrypted=true
+  if omarchy-cmd-missing age; then
+    transfer_die "Missing required command: age (the archive is encrypted)"
+  fi
+fi
+
+archive_size=$(stat -c %s -- "$archive")
+
+# Stage
+
+base=${OMARCHY_TRANSFER_TMPDIR:-$HOME/.cache/omarchy}
+mkdir -p "$base"
+tmp=$(mktemp -d "$base/transfer-stage.XXXXXX")
+chmod 700 "$tmp"
+transfer_cleanup_register "$tmp"
+stage=$tmp/stage
+work=$tmp/work
+mkdir -m 700 "$stage" "$work"
+
+if [[ $dry_run == false ]]; then
+  free=$(df -B1 --output=avail -- "$base" | tail -n 1 | tr -d ' ')
+  if [[ $free =~ ^[0-9]+$ ]] && (( free < archive_size * 2 )); then
+    transfer_warn "Low disk space for staging: $(transfer_human "$free") free, archive is $(transfer_human "$archive_size") (about 2x needed)"
+  fi
+fi
+
+archive_stream() {
+  if [[ $encrypted == true ]]; then
+    age -d <"$archive" | zstd -dc -q
+  else
+    zstd -dc -q <"$archive"
+  fi
+}
+
+# Awk program: check the tar listing and, if $outf is set, write NUL-separated
+# type/size/link/relpath records for everything under home/.
+awk_listing=$(cat <<'AWK'
+function bad_(m) { print m > badf; nbad++ }
+function emit_s(y, s, l, r) {
+  if (outf != "") printf "%s%c%s%c%s%c%s%c", y, 0, s, 0, "L" l, 0, r, 0 > outf
+}
+function emit_ancestors(rel,   n, parts, i, p) {
+  n = split(rel, parts, "/")
+  p = ""
+  for (i = 1; i < n; i++) {
+    p = (i == 1) ? parts[i] : p "/" parts[i]
+    if (!(p in seen)) { seen[p] = 1; emit_s("d", 0, "", p) }
+  }
+}
+{
+  if (!match($0, /^[^ ]+ +[^ ]+ +[0-9]+ +[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] +[0-9:]+ /)) {
+    bad_("unreadable member: " $0)
+    next
+  }
+  head = substr($0, 1, RLENGTH)
+  rest = substr($0, RLENGTH + 1)
+  type = substr($0, 1, 1)
+  split(head, hf, / +/)
+  size = hf[3]
+  name = rest
+  link = ""
+  if (type == "h") { bad_("hard link member: " rest); next }
+  if (type != "-" && type != "d" && type != "l") { bad_("unsupported member type '" type "': " rest); next }
+  if (type == "l") {
+    i = index(rest, " -> ")
+    if (i > 0) { name = substr(rest, 1, i - 1); link = substr(rest, i + 4) }
+  }
+  sub(/^(\.\/)+/, "", name)
+  sub(/\/+$/, "", name)
+  if (name == "" || name == ".") next
+  if (name ~ /^\// || name ~ /(^|\/)\.\.(\/|$)/) { bad_("unsafe path: " name); next }
+  n = split(name, c, "/")
+  top = c[1]
+  if (top != "home" && top != "omarchy-transfer" && top != ".omarchy-transfer" && top != "wifi") { bad_("unexpected member: " name); next }
+  if (n == 1 && type != "d") { bad_("top-level member is not a directory: " name); next }
+  if ((top == "omarchy-transfer" || top == ".omarchy-transfer") && type == "l") { bad_("symlink among metadata: " name); next }
+  if (top == "wifi") {
+    if (type == "l") { bad_("symlink among Wi-Fi data: " name); next }
+    if (n >= 2 && c[2] != "networkmanager" && c[2] != "iwd") { bad_("unexpected Wi-Fi member: " name); next }
+  }
+  names[++cnt] = name
+  if (type == "l") links[name] = 1
+  if (top == "home" && n > 1) {
+    rel = substr(name, 6)
+    emit_ancestors(rel)
+    emit_s(type, size, link, rel)
+    if (type == "d") seen[rel] = 1
+  }
+}
+END {
+  for (k = 1; k <= cnt; k++) {
+    parts = split(names[k], seg, "/")
+    p = ""
+    for (j = 1; j < parts; j++) {
+      p = (j == 1) ? seg[j] : p "/" seg[j]
+      if (p in links) { bad_("member below symlink: " names[k]); break }
+    }
+  }
+}
+AWK
+)
+
+transfer_info "Reading $(basename -- "$archive") ($(transfer_human "$archive_size"))"
+
+mkfifo "$work/list.fifo"
+LC_ALL=C.UTF-8 tar -tvf - --numeric-owner --quoting-style=escape <"$work/list.fifo" >"$work/list.txt" 2>"$work/list.err" &
+list_pid=$!
+
+extract=(tar -C "$stage" -xpf - --no-same-owner --xattrs '--xattrs-include=user.*')
+if [[ $dry_run == true ]]; then
+  extract+=(--anchored --exclude=home --exclude="home/*" --exclude=wifi --exclude="wifi/*")
+fi
+
+
+# Keep reading after tar stops so the whole stream (and its checksum) is verified.
+extract_drain() {
+  local rc=0
+  "${extract[@]}" 2>"$work/extract.err" || rc=$?
+  cat >/dev/null
+  return "$rc"
+}
+
+set +e
+archive_stream | tee "$work/list.fifo" | extract_drain
+rcs=("${PIPESTATUS[@]}")
+wait "$list_pid"
+list_rc=$?
+set -e
+
+if (( rcs[0] != 0 )); then
+  if [[ $encrypted == true ]]; then
+    transfer_die "Could not read the archive (wrong passphrase, or it is corrupt or truncated); nothing was changed"
+  fi
+  transfer_die "Could not read the archive (corrupt or truncated); nothing was changed"
+fi
+
+# Validate every member before anything is installed.
+
+: >"$work/bad.txt"
+list_out=""
+if [[ $dry_run == true ]]; then
+  list_out=$work/s.nul
+  : >"$list_out"
+fi
+awk -v badf="$work/bad.txt" -v outf="$list_out" "$awk_listing" "$work/list.txt"
+if [[ -s $work/bad.txt ]]; then
+  head -n 5 "$work/bad.txt" >&2
+  transfer_die "Archive contains unsafe or unsupported members; refusing to import"
+fi
+
+if (( rcs[2] != 0 )); then
+  head -n 5 "$work/extract.err" >&2
+  transfer_die "Could not unpack the archive; nothing was changed"
+fi
+if (( list_rc != 0 )); then
+  head -n 5 "$work/list.err" >&2
+  transfer_die "Not a valid archive; nothing was changed"
+fi
+
+# New archives use omarchy-transfer/, older ones .omarchy-transfer/.
+metadir=$stage/omarchy-transfer
+[[ -d $metadir ]] || metadir=$stage/.omarchy-transfer
+meta=$metadir/meta
+if [[ ! -f $meta || -L $meta ]]; then
+  transfer_die "Not an Omarchy transfer archive (metadata is missing)"
+fi
+
+meta_get() {
+  sed -n "s/^$1=//;T;p;q" "$meta"
+}
+
+format=$(meta_get format)
+if [[ $format != "$TRANSFER_FORMAT" ]]; then
+  transfer_die "Unsupported archive format: ${format:-unknown} (expected $TRANSFER_FORMAT)"
+fi
+
+meta_host=$(meta_get host)
+meta_date=$(meta_get date)
+meta_home=$(meta_get home)
+meta_version=$(meta_get omarchy_version)
+local_version=$(omarchy-version 2>/dev/null || true)
+
+transfer_info "Archive from ${meta_host:-unknown host} (${meta_date:-unknown date}), Omarchy ${meta_version:-unknown}"
+if [[ -n $meta_home && $meta_home != "$HOME" ]]; then
+  transfer_warn "Archive was made in $meta_home, restoring into $HOME: absolute symlinks and configs may still point to the old path"
+fi
+if [[ -n $local_version && -n $meta_version && $local_version != "$meta_version" ]]; then
+  transfer_warn "Omarchy version differs: archive $meta_version, this system $local_version"
+fi
+if [[ $dry_run == true ]]; then
+  transfer_info "Dry run: nothing will be changed"
+fi
+
+if [[ $dry_run == false ]]; then
+  # Directories must be writable for the rename into $HOME; strip setuid/setgid.
+  find "$stage" -type d ! -perm -u+rwx -exec chmod u+rwx {} \; 2>/dev/null || true
+  find "$stage" ! -type l -perm /6000 -exec chmod ug-s {} + 2>/dev/null || true
+  : >"$work/s.nul"
+  if [[ -d $stage/home ]]; then
+    find "$stage/home" -mindepth 1 -printf '%y\0%s\0L%l\0%P\0' >"$work/s.nul"
+  fi
+fi
+
+# Classify all files in a few batch passes.
+
+awk_join=$(cat <<'AWK'
+BEGIN { RS = "\0" }
+function emit(c, r) { printf "%s%c%s%c", c, 0, r, 0 }
+function anc(rel,   n, parts, i, p) {
+  n = split(rel, parts, "/")
+  p = ""
+  for (i = 1; i < n; i++) {
+    p = (i == 1) ? parts[i] : p "/" parts[i]
+    if (p in newdir) return "new"
+    if (p in blk) return "blocked"
+  }
+  return ""
+}
+FILENAME == hfile {
+  k = (FNR - 1) % 5
+  if (k == 0) h_a = $0
+  else if (k == 1) h_b = $0
+  else if (k == 2) h_s = $0
+  else if (k == 3) h_l = substr($0, 2)
+  else { r = substr($0, 3); Hy[r] = h_a; HY[r] = h_b; Hs[r] = h_s; Hl[r] = h_l }
+  next
+}
+{
+  k = (FNR - 1) % 4
+  if (k == 0) sy = $0
+  else if (k == 1) ss = $0
+  else if (k == 2) sl = substr($0, 2)
+  else {
+    rel = $0
+    a = anc(rel)
+    if (a == "new") { if (sy != "d") au++; next }
+    if (a == "blocked") { if (sy != "d") bu++; next }
+    if (!(rel in Hy)) {
+      if (sy == "d") { newdir[rel] = 1; emit("addtree", rel) } else emit("add", rel)
+      next
+    }
+    hy = Hy[rel]
+    hY = HY[rel]
+    hdir = (hy == "d" || (hy == "l" && hY == "d"))
+    if (sy == "l" && hy == "l" && Hl[rel] == sl) { emit("same", rel); next }
+    if (sy == "d") { if (!hdir) { blk[rel] = 1; emit("blocked", rel) } next }
+    if (hdir) { emit("blockeddir", rel); next }
+    if (sy == "l") { emit("differ", rel); next }
+    if ((hy == "f" && Hs[rel] == ss) || (hy == "l" && hY == "f")) emit("cmp", rel)
+    else emit("differ", rel)
+  }
+}
+END { printf "add_under %d\nblocked_under %d\n", au, bu > cntf }
+AWK
+)
+
+awk_final=$(cat <<'AWK'
+BEGIN { RS = "\0" }
+function emit(c, r) { printf "%s%c%s%c", c, 0, r, 0 }
+FILENAME == pfile { p = $0; sub(/^\.\//, "", p); if (p != "") pr[p] = 1; next }
+FILENAME == cfile { if (FNR % 2) c = $0; else res[$0] = c; next }
+{
+  if (FNR % 2) { c = $0; next }
+  rel = $0
+  if (c == "cmp") {
+    if (dry == "yes") c = "same"
+    else c = (rel in res) ? res[rel] : "differ"
+  }
+  if (c == "same") { same++; next }
+  if (c == "differ") c = (rel in pr) ? "kept" : "cand"
+  emit(c, rel)
+}
+END { printf "same %d\n", same > cntf }
+AWK
+)
+
+classify() {
+  local jobs pristine=$metadir/pristine.list dry=no
+  jobs=$(nproc 2>/dev/null || echo 4)
+  : >"$work/h.nul"
+  if [[ -s $work/s.nul ]]; then
+    # shellcheck disable=SC2185
+    awk 'BEGIN { RS = "\0" } NR % 4 == 0 { printf "./%s%c", $0, 0 }' "$work/s.nul" |
+      (cd "$HOME" && find -files0-from - -maxdepth 0 -printf '%y\0%Y\0%s\0L%l\0%p\0' 2>/dev/null) >"$work/h.nul" || true
+  fi
+  awk -v hfile="$work/h.nul" -v cntf="$work/cnt1" "$awk_join" "$work/h.nul" "$work/s.nul" >"$work/c1.nul"
+  : >"$work/c2.nul"
+  if [[ $dry_run == true ]]; then
+    dry=yes
+  else
+    # Only equal-size pairs need a byte comparison; run them in parallel.
+    # shellcheck disable=SC2016
+    awk 'BEGIN { RS = "\0" } NR % 2 { c = $0; next } c == "cmp" { printf "%s%c", $0, 0 }' "$work/c1.nul" |
+      TS=$stage/home TH=$HOME xargs -0 -r -P "$jobs" -n 100 bash -c '
+        for r; do
+          if cmp -s -- "$TS/$r" "$TH/$r"; then
+            printf "same\0%s\0" "$r"
+          else
+            printf "differ\0%s\0" "$r"
+          fi
+        done' _ >"$work/c2.nul"
+  fi
+  : >"$work/p.nul"
+  if [[ -f $pristine && ! -L $pristine ]]; then
+    tr '\n' '\0' <"$pristine" >"$work/p.nul"
+  fi
+  awk -v pfile="$work/p.nul" -v cfile="$work/c2.nul" -v cntf="$work/cnt2" -v dry="$dry" "$awk_final" "$work/p.nul" "$work/c2.nul" "$work/c1.nul" >"$work/final.nul"
+}
+
+n_add=0 n_same=0 n_over=0 n_kept=0 n_kept_default=0 n_blocked=0
+n_differ=0
+failures=0
+conflicts=()
+overwritten=()
+blocked=()
+failed_pkgs=()
+unknown_pkgs=()
+epoch=$(date +%s)
+ask_all=""
+ASK_RESULT=""
+listed=0
+list_cap=200
+
+fail() {
+  transfer_warn "$1"
+  failures=$((failures + 1))
+}
+
+dry_list() {
+  if (( listed < list_cap )); then
+    printf '  %-10s %s\n' "$1" "$2"
+  elif (( listed == list_cap )); then
+    echo "  ... more entries not shown"
+  fi
+  listed=$((listed + 1))
+}
+
+addq=()
+addparent=""
+
+flush_adds() {
+  local f
+  if (( ${#addq[@]} > 0 )); then
+    if ! mv -- "${addq[@]}" "$HOME/${addparent:-.}/" 2>/dev/null; then
+      for f in "${addq[@]}"; do
+        if [[ -e $f || -L $f ]] && ! mv -- "$f" "$HOME/${addparent:-.}/"; then
+          fail "Could not install ${f#"$stage/home/"}"
+        fi
+      done
+    fi
+  fi
+  addq=()
+}
+
+queue_add() {
+  local rel=$1 parent=.
+  [[ $rel == */* ]] && parent=${rel%/*}
+  if [[ $parent != "$addparent" ]]; then
+    flush_adds
+    addparent=$parent
+  fi
+  addq+=("$stage/home/$rel")
+}
+
+default_unchanged() {
+  local src
+  src=$(transfer_default_source "$1") || return 1
+  [[ -f $src && -f $HOME/$1 && ! -L $stage/home/$1 ]] || return 1
+  cmp -s -- "$HOME/$1" "$src"
+}
+
+do_overwrite() {
+  local rel=$1 bak=$HOME/$1.bak.$epoch n=0
+  while [[ -e $bak || -L $bak ]]; do
+    n=$((n + 1))
+    bak=$HOME/$rel.bak.$epoch.$n
+  done
+  if ! mv -- "$HOME/$rel" "$bak"; then
+    fail "Could not back up $rel"
+    return 0
+  fi
+  if mv -- "$stage/home/$rel" "$HOME/$rel"; then
+    overwritten+=("$rel")
+    n_over=$((n_over + 1))
+  else
+    mv -- "$bak" "$HOME/$rel" || true
+    fail "Could not replace $rel"
+  fi
+}
+
+write_transfer() {
+  local rel=$1
+  if mv -f -- "$stage/home/$rel" "$HOME/$rel.transfer"; then
+    conflicts+=("$rel")
+  else
+    fail "Could not write $rel.transfer"
+  fi
+}
+
+show_diff() {
+  local rel=$1
+  if transfer_is_secret "$rel"; then
+    echo "  (secret file differs, content hidden)" >&2
+  elif [[ -f $HOME/$rel && -f $stage/home/$rel && ! -L $stage/home/$rel ]]; then
+    diff -u --label "current/$rel" --label "archive/$rel" -- "$HOME/$rel" "$stage/home/$rel" 2>&1 | head -n 80 >&2 || true
+  else
+    echo "  (file type differs)" >&2
+  fi
+}
+
+ask_decide() {
+  local rel=$1 ans
+  if [[ -n $ask_all ]]; then
+    ASK_RESULT=$ask_all
+    return 0
+  fi
+  show_diff "$rel"
+  while true; do
+    printf '%s: [o]verwrite (keeps .bak) / [s]kip / [A]ll overwrite / [N]one? ' "$rel" >&2
+    IFS= read -r -n1 ans </dev/tty || transfer_die "Cannot read an answer from the terminal"
+    echo >&2
+    case $ans in
+      o) ASK_RESULT=overwrite; return 0 ;;
+      s) ASK_RESULT=skip; return 0 ;;
+      A) ask_all=overwrite; ASK_RESULT=overwrite; return 0 ;;
+      N) ask_all=skip; ASK_RESULT=skip; return 0 ;;
+    esac
+  done
+}
+
+handle_differs() {
+  local class=$1 rel=$2 decision=conflict
+  case $mode in
+    skip)
+      n_kept=$((n_kept + 1))
+      return 0
+      ;;
+    overwrite) decision=overwrite ;;
+    ask)
+      ask_decide "$rel"
+      decision=$ASK_RESULT
+      ;;
+    smart)
+      if [[ $class == kept ]]; then
+        n_kept_default=$((n_kept_default + 1))
+        return 0
+      fi
+      if default_unchanged "$rel"; then decision=overwrite; fi
+      ;;
+  esac
+  case $decision in
+    overwrite) do_overwrite "$rel" ;;
+    skip) n_kept=$((n_kept + 1)) ;;
+    *) write_transfer "$rel" ;;
+  esac
+}
+
+process_final() {
+  local class rel
+  while IFS= read -r -d '' class && IFS= read -r -d '' rel; do
+    case $class in
+      add)
+        n_add=$((n_add + 1))
+        if [[ $dry_run == true ]]; then dry_list add "$rel"; else queue_add "$rel"; fi
+        ;;
+      addtree)
+        if [[ $dry_run == true ]]; then
+          dry_list add "$rel/"
+        else
+          flush_adds
+          if ! mv -- "$stage/home/$rel" "$HOME/$rel"; then
+            fail "Could not install $rel"
+          fi
+        fi
+        ;;
+      blocked|blockeddir)
+        n_blocked=$((n_blocked + 1))
+        blocked+=("$rel")
+        if [[ $dry_run == true ]]; then
+          dry_list blocked "$rel"
+        elif [[ $class == blocked ]]; then
+          transfer_warn "Skipping $rel: a file is in the way of a folder"
+        else
+          transfer_warn "Skipping $rel: a folder is in the way of a file"
+        fi
+        ;;
+      kept|cand)
+        n_differ=$((n_differ + 1))
+        if [[ $dry_run == true ]]; then
+          if [[ $mode == smart && $class == kept ]]; then
+            dry_list keep-new "$rel"
+          else
+            dry_list differs "$rel"
+          fi
+        else
+          handle_differs "$class" "$rel"
+        fi
+        ;;
+    esac
+  done <"$work/final.nul"
+  if [[ $dry_run == false ]]; then
+    flush_adds
+  fi
+}
+
+read_counts() {
+  local key val
+  while read -r key val; do
+    case $key in
+      add_under) n_add=$((n_add + val)) ;;
+      blocked_under) n_blocked=$((n_blocked + val)) ;;
+      same) n_same=$val ;;
+    esac
+  done <"$1"
+}
+
+transfer_info "Comparing files"
+classify
+read_counts "$work/cnt1"
+read_counts "$work/cnt2"
+process_final
+
+if [[ $dry_run == true ]]; then
+  transfer_info "Files: $n_add to add, $n_same unchanged (assumed from size, content not compared), $n_differ differ, $n_blocked blocked"
+fi
+
+# Packages
+
+lines() {
+  if (( $# > 0 )); then
+    printf '%s\n' "$@"
+  fi
+}
+
+clean_names() {
+  [[ -f $1 && ! -L $1 ]] || return 0
+  { grep -E '^[A-Za-z0-9@._+][A-Za-z0-9@._+-]*$' "$1" | grep -Ev -- '-debug$' | sort -u; } || true
+}
+
+install_pkgs() {
+  local fn=$1 half
+  shift
+  (( $# > 0 )) || return 0
+  if "$fn" "$@"; then
+    return 0
+  fi
+  if (( $# == 1 )); then
+    failed_pkgs+=("$1")
+    return 0
+  fi
+  half=$(( $# / 2 ))
+  install_pkgs "$fn" "${@:1:half}"
+  install_pkgs "$fn" "${@:half+1}"
+}
+
+restore_packages() {
+  local official=$metadir/packages-official.txt aur=$metadir/packages-aur.txt
+  local installed avail
+  local -a want missing todo unknown
+
+  if [[ ! -s $official && ! -s $aur ]]; then
+    return 0
+  fi
+  installed=$(pacman -Qq 2>/dev/null | sort -u || true)
+
+  mapfile -t want < <(clean_names "$official")
+  if (( ${#want[@]} > 0 )); then
+    mapfile -t missing < <(comm -23 <(lines "${want[@]}") <(printf '%s\n' "$installed"))
+    if (( ${#missing[@]} == 0 )); then
+      transfer_info "All official packages are already installed"
+    elif avail=$(pacman -Slq 2>/dev/null | sort -u) && [[ -n $avail ]]; then
+      mapfile -t todo < <(comm -12 <(lines "${missing[@]}") <(printf '%s\n' "$avail"))
+      mapfile -t unknown < <(comm -23 <(lines "${missing[@]}") <(printf '%s\n' "$avail"))
+      if (( ${#unknown[@]} > 0 )); then
+        unknown_pkgs+=("${unknown[@]}")
+        transfer_warn "Not in the official repositories, skipped (${#unknown[@]}): ${unknown[*]}"
+      fi
+      if (( ${#todo[@]} > 0 )); then
+        if [[ $dry_run == true ]]; then
+          transfer_info "Would install ${#todo[@]} official packages: ${todo[*]}"
+        else
+          transfer_info "Installing ${#todo[@]} official packages"
+          install_pkgs omarchy-pkg-add "${todo[@]}"
+        fi
+      fi
+    else
+      transfer_warn "Cannot read the package databases; official packages were not installed"
+      failed_pkgs+=("${missing[@]}")
+    fi
+  fi
+
+  mapfile -t want < <(clean_names "$aur")
+  if (( ${#want[@]} > 0 )); then
+    mapfile -t missing < <(comm -23 <(lines "${want[@]}") <(printf '%s\n' "$installed"))
+    if (( ${#missing[@]} == 0 )); then
+      transfer_info "All AUR packages are already installed"
+    elif omarchy-cmd-missing yay; then
+      transfer_warn "yay is not installed; AUR packages were not installed"
+      failed_pkgs+=("${missing[@]}")
+    elif [[ $dry_run == true ]]; then
+      transfer_info "Would install ${#missing[@]} AUR packages: ${missing[*]}"
+    else
+      transfer_info "Installing ${#missing[@]} AUR packages"
+      install_pkgs omarchy-pkg-aur-add "${missing[@]}"
+    fi
+  fi
+}
+
+restore_packages
+
+# Wi-Fi
+
+wifi_restored=0
+
+# Number of Wi-Fi files in the archive for a backend (or any backend if empty).
+wifi_count() {
+  local n
+  if [[ $dry_run == true ]]; then
+    n=$(grep -cE "^-[^ ]* .* wifi/${1:-[a-z]+}/" "$work/list.txt" || true)
+  else
+    n=$(find "$stage/wifi/${1:-}" -type f 2>/dev/null | wc -l || true)
+  fi
+  echo "${n:-0}"
+}
+
+restore_wifi_networks() {
+  local backend dest src f rel
+  if (( $(wifi_count "") == 0 )); then
+    if [[ $restore_wifi == true ]]; then
+      transfer_warn "--wifi given but the archive contains no Wi-Fi data (it needs wifi=yes and encryption at export)"
+    fi
+    return 0
+  fi
+  if [[ $restore_wifi == false ]]; then
+    transfer_info "The archive contains Wi-Fi networks; run again with --wifi to restore them"
+    return 0
+  fi
+
+  backend=$(transfer_wifi_backend)
+  case $backend in
+    networkmanager) dest=${OMARCHY_TRANSFER_NM_DIR:-/etc/NetworkManager/system-connections} ;;
+    iwd) dest=${OMARCHY_TRANSFER_IWD_DIR:-/var/lib/iwd} ;;
+    *)
+      fail "No running NetworkManager or iwd found; Wi-Fi networks were not restored"
+      return 0
+      ;;
+  esac
+  src=$stage/wifi/$backend
+  if (( $(wifi_count "$backend") == 0 )); then
+    fail "The archive has no Wi-Fi data for $backend (this system uses $backend); Wi-Fi networks were not restored"
+    return 0
+  fi
+
+  if [[ $dry_run == true ]]; then
+    transfer_info "Would restore $(wifi_count "$backend") Wi-Fi network files into $dest"
+    return 0
+  fi
+
+  transfer_info "Restoring Wi-Fi networks into $dest"
+  if ! sudo mkdir -p -- "$dest"; then
+    fail "Could not create $dest"
+    return 0
+  fi
+  while IFS= read -r -d '' f; do
+    rel=${f#"$src/"}
+    if [[ $rel == */* ]] && ! sudo mkdir -p -- "$dest/${rel%/*}"; then
+      fail "Could not create $dest/${rel%/*}"
+      continue
+    fi
+    if sudo install -m 600 -- "$f" "$dest/$rel"; then
+      wifi_restored=$((wifi_restored + 1))
+    else
+      fail "Could not restore Wi-Fi file $rel"
+    fi
+  done < <(find "$src" -type f -print0)
+
+  case $backend in
+    networkmanager) sudo nmcli connection reload || transfer_warn "Could not reload NetworkManager connections" ;;
+    iwd) sudo systemctl restart iwd || transfer_warn "Could not restart iwd" ;;
+  esac
+}
+
+restore_wifi_networks
+
+# Summary
+
+if (( ${#failed_pkgs[@]} > 0 )); then
+  fail "Packages not installed (${#failed_pkgs[@]}): ${failed_pkgs[*]}"
+fi
+
+echo
+if [[ $dry_run == true ]]; then
+  transfer_info "Dry run finished, nothing was changed"
+else
+  transfer_info "Summary"
+  echo "  added:        $n_add"
+  echo "  overwritten:  $n_over (originals saved as <name>.bak.$epoch)"
+  echo "  unchanged:    $n_same"
+  echo "  kept:         $((n_kept + n_kept_default)) ($n_kept_default because the archive copy was an old default)"
+  echo "  conflicts:    ${#conflicts[@]}"
+  echo "  blocked:      $n_blocked"
+  if (( wifi_restored > 0 )); then
+    echo "  wi-fi files:  $wifi_restored"
+  fi
+  echo "  failed:       $failures"
+  if (( ${#conflicts[@]} > 0 )); then
+    echo
+    echo "Your current version was kept; the archive version sits next to it as <name>.transfer:"
+    printf '  %s\n' "${conflicts[@]}"
+  fi
+  if (( n_blocked > 0 )); then
+    echo
+    echo "Skipped because something of another type is in the way:"
+    printf '  %s\n' "${blocked[@]}"
+  fi
+fi
+
+if [[ $dry_run == false ]]; then
+  if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && omarchy-cmd-present hyprctl; then
+    hyprctl reload >/dev/null || transfer_warn "hyprctl reload failed"
+  fi
+  if (( failures > 0 )); then
+    omarchy-notification-send "Transfer restore finished with problems" "$failures step(s) failed, see the terminal" || true
+  else
+    omarchy-notification-send "Transfer restore finished" "$n_add added, $n_over overwritten, ${#conflicts[@]} conflicts" || true
+  fi
+fi
+
+if (( failures > 0 )); then
+  exit 1
+fi

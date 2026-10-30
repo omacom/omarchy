@@ -20,6 +20,8 @@ Here's a list of the key files in `~/.config` and what they control:
 
 If you end up making a lot of changes to tweak your own setup, it's a good idea to backup all these dotfiles. [Stow is a great way to do that](https://www.youtube.com/watch?v=NoFiYOqnC4o).
 
+If you're only moving to a new install or disk, [`omarchy transfer`](52-transfer.md) carries these dotfiles along with your packages and personal files, without setting up a repository first.
+
 ### Starting your own apps with the session
 
 If you want something to run every time you log in — a sync daemon, a chat app, your own script — put it in `~/.config/hypr/autostart.lua`:
