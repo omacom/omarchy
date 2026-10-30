@@ -52,13 +52,29 @@ while read -r candidate; do
 done < <(upower -e 2>/dev/null | grep '/battery_')
 [[ -z $battery ]] && exit 0
 
-percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
-capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
-energy=$(awk '/^ *energy:/ { print $2; exit }' <<<"$battery_info")
-energy_full=$(awk '/energy-full:/ { print $2; exit }' <<<"$battery_info")
-upower_hours=$(awk '/time to (empty|full)/ { print ($5 ~ /^minute/ ? $4 / 60 : $4); exit }' <<<"$battery_info")
-power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
-native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
+percentage=""
+capacity=""
+energy=""
+energy_full=""
+upower_hours=""
+power_rate_raw=""
+native_path=""
+state=""
+threshold_start=""
+threshold_end=""
+
+eval "$(awk '
+  /percentage/ && !has_percentage { print "percentage=" int($2); has_percentage=1 }
+  /energy-full:/ && !has_capacity { printf "capacity=%d\nenergy_full=%s\n", $2, $2; has_capacity=1 }
+  /^ *energy:/ && !has_energy { print "energy=" $2; has_energy=1 }
+  /time to (empty|full)/ && !has_time { print "upower_hours=" ($5 ~ /^minute/ ? $4 / 60 : $4); has_time=1 }
+  /energy-rate/ && !has_rate { print "power_rate_raw=" $2; has_rate=1 }
+  /native-path/ && !has_path { print "native_path=\"" $2 "\""; has_path=1 }
+  /state/ && !has_state { print "state=\"" $2 "\""; has_state=1 }
+  /charge-start-threshold:/ && !has_tstart { gsub(/%/, "", $2); print "threshold_start=" int($2); has_tstart=1 }
+  /charge-end-threshold:/ && !has_tend { gsub(/%/, "", $2); print "threshold_end=" int($2); has_tend=1 }
+' <<<"$battery_info")"
+
 battery_path="$power_supply_path/$native_path"
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
@@ -74,15 +90,14 @@ fi
 
 # Some kernels sign power_now by direction (negative while discharging on
 # Apple Silicon); the state field already says which way it flows.
-power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
-  if (rate < 0) rate = -rate
-  rounded = sprintf("%.1f", rate)
+power_rate=""
+charge_idle=false
+eval "$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
+  abs_rate = rate < 0 ? -rate : rate
+  rounded = sprintf("%.1f", abs_rate)
   sub(/\.0$/, "", rounded)
-  print rounded
-}')
-state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+  printf "power_rate=%s\ncharge_idle=%s\n", rounded, (abs_rate <= 0.2 ? "true" : "false")
+}')"
 
 # Read the thresholds from the battery UPower resolved rather than a BAT* glob,
 # which misses every battery with another name.
@@ -121,11 +136,6 @@ for supply in "$power_supply_path"/*; do
     break
   fi
 done
-
-charge_idle=false
-if awk -v rate="${power_rate_raw:-0}" 'BEGIN { if (rate < 0) rate = -rate; exit !(rate <= 0.2) }'; then
-  charge_idle=true
-fi
 
 charge_holding=false
 if [[ $ac_online == "true" && -n $threshold_end ]]; then

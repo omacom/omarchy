@@ -6,6 +6,7 @@
 
 verbose=false
 internet_probe=1.1.1.1
+sys_class_net="${OMARCHY_SYS_CLASS_NET:-/sys/class/net}"
 
 case "${1:-}" in
   "")
@@ -29,14 +30,21 @@ print_status() {
     return
   fi
 
-  if [[ ! -d /sys/class/net/$device/wireless ]]; then
+  if [[ ! -d $sys_class_net/$device/wireless ]]; then
     printf 'ethernet\t%s\t\t\n' "$device"
     return
   fi
 
   nm=$(nmcli -t -f GENERAL.STATE,GENERAL.CONNECTION dev show "$device" 2>/dev/null)
-  state=$(awk -F: '$1 == "GENERAL.STATE" { print $2; exit }' <<<"$nm")
-  ssid=$(awk -F: '$1 == "GENERAL.CONNECTION" { print $2; exit }' <<<"$nm")
+  state=""
+  ssid=""
+  while IFS=: read -r key val; do
+    if [[ $key == "GENERAL.STATE" && -z $state ]]; then
+      state="$val"
+    elif [[ $key == "GENERAL.CONNECTION" && -z $ssid ]]; then
+      ssid="$val"
+    fi
+  done <<<"$nm"
   signal=$(nmcli -t -f IN-USE,SIGNAL dev wifi list ifname "$device" --rescan no 2>/dev/null | awk -F: '$1 == "*" { print $2; exit }')
   freq=$(iw dev "$device" link 2>/dev/null | awk '/freq:/ { print $2; exit }')
 
@@ -88,9 +96,7 @@ print_verbose() {
   route_json=$(ip -j route get "$internet_probe" 2>/dev/null)
   [[ -z $route_json ]] && return
 
-  iface=$(jq -r '.[0].dev // ""' <<<"$route_json" 2>/dev/null)
-  gw=$(jq -r '.[0].gateway // ""' <<<"$route_json" 2>/dev/null)
-  src=$(jq -r '.[0].prefsrc // ""' <<<"$route_json" 2>/dev/null)
+  IFS='|' read -r iface gw src < <(jq -r '(.[0].dev // "") + "|" + (.[0].gateway // "") + "|" + (.[0].prefsrc // "")' <<<"$route_json" 2>/dev/null)
 
   [[ -z $iface ]] && return
 
@@ -101,30 +107,32 @@ print_verbose() {
   printf 'prefix\t%s\n' "$prefix"
   printf 'gateway\t%s\n' "$gw"
 
-  if [[ -r /sys/class/net/$iface/statistics/rx_bytes ]]; then
-    printf 'rx_bytes\t%s\n' "$(cat /sys/class/net/$iface/statistics/rx_bytes)"
+  if [[ -r $sys_class_net/$iface/statistics/rx_bytes ]]; then
+    printf 'rx_bytes\t%s\n' "$(<$sys_class_net/$iface/statistics/rx_bytes)"
   fi
-  if [[ -r /sys/class/net/$iface/statistics/tx_bytes ]]; then
-    printf 'tx_bytes\t%s\n' "$(cat /sys/class/net/$iface/statistics/tx_bytes)"
+  if [[ -r $sys_class_net/$iface/statistics/tx_bytes ]]; then
+    printf 'tx_bytes\t%s\n' "$(<$sys_class_net/$iface/statistics/tx_bytes)"
   fi
 
-  if [[ -d /sys/class/net/$iface/wireless ]]; then
+  if [[ -d $sys_class_net/$iface/wireless ]]; then
     printf 'type\twifi\n'
 
     if omarchy-cmd-present iw; then
       link=$(iw dev "$iface" link 2>/dev/null)
 
       if [[ -n $link ]]; then
-        printf 'ssid\t%s\n' "$(awk '/SSID:/ { sub(/.*SSID: /, ""); print; exit }' <<<"$link")"
-        printf 'signal_dbm\t%s\n' "$(awk '/signal:/ { print $2; exit }' <<<"$link")"
-        printf 'freq\t%s\n' "$(awk '/freq:/ { print $2; exit }' <<<"$link")"
-        printf 'bitrate\t%s %s\n' "$(awk '/tx bitrate:/ { print $3; exit }' <<<"$link")" "$(awk '/tx bitrate:/ { print $4; exit }' <<<"$link")"
+        awk '
+          /SSID:/ && !s { sub(/.*SSID: /, ""); printf "ssid\t%s\n", $0; s=1 }
+          /signal:/ && !sig { printf "signal_dbm\t%s\n", $2; sig=1 }
+          /freq:/ && !f { printf "freq\t%s\n", $2; f=1 }
+          /tx bitrate:/ && !b { printf "bitrate\t%s %s\n", $3, $4; b=1 }
+        ' <<<"$link"
       fi
     fi
   else
     printf 'type\tethernet\n'
-    [[ -r /sys/class/net/$iface/speed ]] && printf 'speed\t%s\n' "$(cat /sys/class/net/$iface/speed)"
-    [[ -r /sys/class/net/$iface/duplex ]] && printf 'duplex\t%s\n' "$(cat /sys/class/net/$iface/duplex)"
+    [[ -r $sys_class_net/$iface/speed ]] && printf 'speed\t%s\n' "$(<$sys_class_net/$iface/speed)"
+    [[ -r $sys_class_net/$iface/duplex ]] && printf 'duplex\t%s\n' "$(<$sys_class_net/$iface/duplex)"
   fi
 
   print_ping_samples "$gw"
