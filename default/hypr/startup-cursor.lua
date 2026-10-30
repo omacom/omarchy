@@ -26,11 +26,17 @@ local function normal_path()
 end
 
 -- Hyprland polls cursor.invisible, so its first frames need a blank cursor too.
+-- The compositor environment survives Lua resets. Remember a completed reveal
+-- so a later reload with all monitors unplugged cannot look like a cold start.
+local instance = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
+local done_phase = instance and instance .. ":done"
+
 function omarchy_startup_cursor_restore(loaded)
   if not omarchy_startup_cursor_pending then return end
   local cursor = omarchy_startup_cursor
   if loaded then
     omarchy_startup_cursor_pending = false
+    if done_phase then hl.env("OMARCHY_STARTUP_CURSOR", done_phase) end
     hl.env("OMARCHY_STARTUP_CURSOR_SESSION", "")
     hl.env("OMARCHY_STARTUP_CURSOR_THEME", "")
     hl.config({ cursor = cursor.config })
@@ -58,7 +64,8 @@ hl.on("config.reloaded", function()
     local session = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
     local interrupted = session and os.getenv("OMARCHY_STARTUP_CURSOR_SESSION") == session
     recover = not cold and not interrupted and os.getenv("XCURSOR_THEME") == "omarchy-startup"
-    omarchy_startup_cursor_pending = cold or interrupted or recover
+    local completed = done_phase and os.getenv("OMARCHY_STARTUP_CURSOR") == done_phase
+    omarchy_startup_cursor_pending = (cold and not completed) or interrupted or recover
     if omarchy_startup_cursor_pending then
       local hyprcursor = hl.get_config("cursor.enable_hyprcursor")
       omarchy_startup_cursor = {
