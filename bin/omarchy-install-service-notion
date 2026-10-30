@@ -9,6 +9,14 @@ echo "Installing Notion..."
 omarchy-pkg-add flatpak
 flatpak --user install -y --from https://app.linux-packages.notion.com/notion.flatpakref
 
+echo "Adding Notion to the app launcher..."
+# Flatpak's per-user exports are not on XDG_DATA_DIRS in the uwsm session, so
+# link the exported desktop file and icons where the launcher scans them.
+exports="$HOME/.local/share/flatpak/exports/share"
+mkdir -p "$HOME/.local/share/applications" "$HOME/.local/share/icons/hicolor"
+ln -sf "$exports/applications/com.notion.app.desktop.notion.desktop" "$HOME/.local/share/applications/"
+cp -rsf "$exports/icons/hicolor/." "$HOME/.local/share/icons/hicolor/"
+
 echo "Opening Notion..."
 setsid uwsm-app -- flatpak run com.notion.app.desktop.notion >/dev/null 2>&1 &
 
