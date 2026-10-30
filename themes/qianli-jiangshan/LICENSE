@@ -1,0 +1,36 @@
+MIT License
+
+Copyright (c) 2026 Qianli Jiangshan contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Artwork notice
+
+The MIT license covers the theme palette and documentation.
+It does not relicense the historical artwork in backgrounds/ or preview.png.
+
+Artwork: Wang Ximeng, A Thousand Li of Rivers and Mountains (1113), ink and
+color on silk. Collection: The Palace Museum, Beijing.
+
+The wallpaper crops derive from Wikimedia Commons reproductions.
+"A Thousand Li of Rivers and Mountains Section 1.jpg" (Dale1 stolaf)
+is dedicated under CC0 1.0. The "1c Wang Ximeng..." and "1e Wang Ximeng..."
+sections (Eugene a) are identified by Commons as public-domain artwork and
+faithful PD-Art reproductions. See README.md for the exact source links and
+rights statements. No ownership of the historical painting is claimed.
