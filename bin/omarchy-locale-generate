@@ -25,7 +25,8 @@ if (( EUID != 0 )); then
 fi
 
 code=${1:-}
-if (( $# != 1 )) || [[ ! $code =~ ^[a-z]{2,3}(-[A-Za-z]{2})?$ ]]; then
+# A bracket range follows the locale's collation, not ASCII; compare in C.
+if (( $# != 1 )) || ! (LC_ALL=C; [[ $code =~ ^[a-z]{2,3}(-[A-Za-z]{2})?$ ]]); then
   echo "Usage: omarchy-locale-generate <code>" >&2
   exit 1
 fi
@@ -33,7 +34,7 @@ fi
 # The code only selects a locale from the registry; nothing the caller passes
 # reaches locale.gen or locale-gen itself.
 locale=$(jq -r --arg code "$code" '.[$code].locale // empty' "$registry")
-if [[ ! $locale =~ ^[a-z]{2,3}_[A-Z]{2}\.UTF-8$ ]]; then
+if ! (LC_ALL=C; [[ $locale =~ ^[a-z]{2,3}_[A-Z]{2}\.UTF-8$ ]]); then
   echo "Unknown language code: $code" >&2
   exit 1
 fi

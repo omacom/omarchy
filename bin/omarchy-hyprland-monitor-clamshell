@@ -14,7 +14,8 @@ INTERNAL=$(omarchy-hyprland-monitor-laptop)
 # INTERNAL is written into generated Lua and hyprctl eval/dispatch below, so a
 # name that is not a plain connector string could execute on the next reload.
 # Names come from hyprctl; a user-created headless output can carry anything.
-if [[ -n $INTERNAL && ! $INTERNAL =~ ^[A-Za-z0-9._-]+$ ]]; then
+# A bracket range follows the locale's collation, not ASCII; compare in C.
+if [[ -n $INTERNAL ]] && ! (LC_ALL=C; [[ $INTERNAL =~ ^[A-Za-z0-9._-]+$ ]]); then
   echo "Refusing unsafe internal monitor name" >&2
   exit 1
 fi
@@ -36,7 +37,7 @@ scales_match() {
 }
 
 lua_identifier() {
-  [[ $1 =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]
+  (LC_ALL=C; [[ $1 =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]])
 }
 
 # Value assigned by `local <name> = ...`, without its quotes or trailing comment.

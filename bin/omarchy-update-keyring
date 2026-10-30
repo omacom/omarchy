@@ -64,7 +64,8 @@ platform_keyrings=/usr/share/omarchy-platform/keyrings
 if [[ -f $platform_keyrings ]]; then
   while read -r keyring extra || [[ -n $keyring ]]; do
     [[ -n $keyring && $keyring != \#* ]] || continue
-    if [[ -n $extra || ! $keyring =~ ^[a-z0-9][a-z0-9@._+-]*-keyring$ ]]; then
+    # A bracket range follows the locale's collation, not ASCII; compare in C.
+    if [[ -n $extra ]] || ! (LC_ALL=C; [[ $keyring =~ ^[a-z0-9][a-z0-9@._+-]*-keyring$ ]]); then
       echo "Warning: skipping ${keyring}${extra:+ $extra} in $platform_keyrings: not a keyring package name" >&2
       continue
     fi
@@ -74,7 +75,7 @@ if [[ -f $platform_keyrings ]]; then
   done <"$platform_keyrings"
 fi
 echo -e "\e[32m\nUpdate Arch signing keys\e[0m"
-sudo pacman -Sy --needed --noconfirm "${keyrings[@]}" >/dev/null 2> >(grep -vE '^warning: [a-z0-9@._+-]+-keyring-[^ ]+ is up to date -- skipping$' >&2)
+sudo pacman -Sy --needed --noconfirm "${keyrings[@]}" >/dev/null 2> >(LC_ALL=C grep -vE '^warning: [a-z0-9@._+-]+-keyring-[^ ]+ is up to date -- skipping$' >&2)
 
 if omarchy-hw-aarch64 && ! alarm_key_trusted; then
   echo "Arch Linux ARM's signing key $alarm_key is still not trusted" >&2
