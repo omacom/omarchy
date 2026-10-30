@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Launch the default file manager determined by the XDG folder association
+# omarchy:args=[directory]
+
+desktop_id=$(omarchy-default-filemanager) || exit 1
+if [[ -z $desktop_id ]]; then
+  desktop_id="org.gnome.Nautilus.desktop"
+fi
+
+# Let UWSM resolve the desktop entry, its Exec field codes and terminal mode.
+exec setsid uwsm-app -- "$desktop_id" "${1:-$HOME}"
