@@ -22,11 +22,13 @@ touch "$root_dir/shell/shell.qml"
 display="test-display"
 calls="$test_tmp/qs-calls"
 
-# qs is the fallback: it logs its arguments and answers with the display it was
-# given, or hangs, or answers as a shell that is still starting.
+# qs is the fallback: it logs its arguments, also each one in brackets, and
+# answers with the display it was given, or hangs, or answers as a shell that
+# is still starting.
 cat >"$stub_bin/qs" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$QS_CALLS"
+printf '<%s>' "$@" >"$QS_CALLS.args"
 case $QS_MODE in
   hang) sleep 5 ;;
   starting) printf 'Not ready to accept queries yet.\n' ;;
@@ -129,6 +131,10 @@ output=$(shell_call media next extra-arg)
 [[ $(tail -n1 "$requests") == "media|next|extra-arg" ]] || fail "arguments travel as separate fields" "got: $(tail -n1 "$requests")"
 pass "the shell answers over its socket without starting qs ipc"
 
+shell_call shell setBarWidget w pinned '[]' '{}' >/dev/null
+[[ $(tail -n1 "$requests") == "shell|setBarWidget|w|pinned|[]|{}" ]] || fail "a JSON array travels over the socket as it is" "got: $(tail -n1 "$requests")"
+pass "a JSON array travels over the socket as it is"
+
 output=$(shell_call -q media next)
 [[ -z $output ]] || fail "quiet calls print nothing" "got: $output"
 pass "quiet calls over the socket print nothing"
@@ -176,6 +182,12 @@ rm -f "$socket"
 output=$(shell_call shell ping)
 [[ $output == "from-qs on $display" ]] || fail "without the socket calls go through qs ipc" "got: $output"
 pass "without the socket calls go through qs ipc"
+
+# qs ipc would read a bracketed argument as a list of arguments.
+shell_call shell setBarWidget w pinned '[]' '{}' >/dev/null
+[[ $(<"$calls.args") == "<ipc><-n><-p><$root_dir/shell><call><--><shell><setBarWidget><w><pinned>< []><{}>" ]] ||
+  fail "a JSON array reaches qs ipc as one argument" "$(<"$calls.args")"
+pass "a JSON array reaches qs ipc as one argument"
 
 # A call for a different display never reaches this shell's socket.
 printf 'ok' >"$mode"
