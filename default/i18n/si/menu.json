@@ -1,0 +1,1289 @@
+{
+  "root": {
+    "label": "යන්න"
+  },
+  "apps": {
+    "label": "යෙදුම්"
+  },
+  "learn": {
+    "label": "ඉගෙන ගන්න"
+  },
+  "appearance": {
+    "label": "පෙනුම"
+  },
+  "trigger": {
+    "label": "ක්‍රියාත්මක"
+  },
+  "setup": {
+    "label": "සැකසුම"
+  },
+  "install": {
+    "label": "ස්ථාපනය"
+  },
+  "remove": {
+    "label": "ඉවත් කරන්න"
+  },
+  "update": {
+    "label": "යාවත්කාලීන"
+  },
+  "about": {
+    "label": "ගැන"
+  },
+  "system": {
+    "label": "පද්ධතිය"
+  },
+  "system.screensaver": {
+    "label": "තිර ආරක්ෂකය"
+  },
+  "system.lock": {
+    "label": "අගුලු දාන්න"
+  },
+  "system.suspend": {
+    "label": "අත්හිටුවන්න"
+  },
+  "system.hibernate": {
+    "label": "ශිශිරතරණය"
+  },
+  "system.logout": {
+    "label": "ඉවත් වන්න"
+  },
+  "system.reboot": {
+    "label": "නැවත අරඹන්න"
+  },
+  "system.shutdown": {
+    "label": "වසන්න"
+  },
+  "learn.keybindings": {
+    "label": "යතුරු බන්ධන"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "ප්‍රජාව"
+  },
+  "appearance.theme": {
+    "label": "තේමාව"
+  },
+  "appearance.background": {
+    "label": "පසුබිම"
+  },
+  "appearance.font": {
+    "label": "ෆොන්ටය"
+  },
+  "appearance.top-bar": {
+    "label": "මෙනු තීරුව"
+  },
+  "appearance.top-bar.hide": {
+    "label": "තීරුව සඟවන්න"
+  },
+  "appearance.top-bar.show": {
+    "label": "තීරුව පෙන්වන්න"
+  },
+  "appearance.top-bar.position": {
+    "label": "තීරු පිහිටුම"
+  },
+  "appearance.top-bar.background": {
+    "label": "තීරු පසුබිම"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "අපාරදෘශ්‍ය තීරුව"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "වීදුරු තීරුව"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "පැහැදිලි තීරුව"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "තීරු දර්ශක"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "ඔරලෝසුව"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "ඉරිදා 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "ඉරිදා 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "ඉරිදා 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "ඉරිදා 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "ඉරි 3 මැයි 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "ඉරි 3 මැයි 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 මැයි W18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 මැයි W18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "ඉහළ තීරුව"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "පහළ තීරුව"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "වම් තීරුව"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "දකුණු තීරුව"
+  },
+  "appearance.windows.corners": {
+    "label": "කවුළු කොන්"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "තේමා කොන්"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "තියුණු කොන්"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "වටකුරු කොන්"
+  },
+  "appearance.windows.transparency": {
+    "label": "කවුළු අපාරදෘශ්‍යතාව"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "අපාරදෘශ්‍ය කවුළු"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "පාරදෘශ්‍ය කවුළු"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "වීදුරු කවුළු"
+  },
+  "appearance.branding.screensaver": {
+    "label": "තිර ආරක්ෂකය"
+  },
+  "appearance.branding.about": {
+    "label": "ගැන"
+  },
+  "appearance.branding.about.text": {
+    "label": "පෙළ සංස්කරණය"
+  },
+  "appearance.branding.about.image": {
+    "label": "රූපයෙන් සකසන්න"
+  },
+  "appearance.branding.about.default": {
+    "label": "පෙරනිමිය යළි පිහිටුවන්න"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "පෙළ සංස්කරණය"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "රූපයෙන් සකසන්න"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "පෙරනිමිය යළි පිහිටුවන්න"
+  },
+  "appearance.dock": {
+    "label": "ඩොක්"
+  },
+  "appearance.dock.autohide": {
+    "label": "Dock ස්වයං-සඟවන්න"
+  },
+  "appearance.dock.always-on": {
+    "label": "සැමවිට පෙනෙන Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Dock පිහිටුම"
+  },
+  "appearance.dock.position.top": {
+    "label": "ඉහළ Dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "පහළ Dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "වම් Dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "දකුණු Dock"
+  },
+  "appearance.workspace-layout": {
+    "label": "වැඩබිම් සැකැස්ම",
+    "title": "පෙරනිමි වැඩබිම් සැකැස්ම"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "ටයිල් කිරීම"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "අනුචලනය"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "පාවෙන"
+  },
+  "appearance.unlock": {
+    "label": "අගුලු හරින්න"
+  },
+  "trigger.toggle": {
+    "label": "සක්‍රිය/අක්‍රිය"
+  },
+  "trigger.emoji": {
+    "label": "ඉමෝජි"
+  },
+  "trigger.clipboard-history": {
+    "label": "ක්ලිප්බෝඩ් ඉතිහාසය"
+  },
+  "trigger.reminder": {
+    "label": "මතක්කිරීම"
+  },
+  "trigger.capture": {
+    "label": "ග්‍රහණය"
+  },
+  "trigger.capture.screenshot": {
+    "label": "තිර රුව"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "තිර පටිගත කිරීම නවත්වන්න"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "තිර පටිගත කිරීම"
+  },
+  "trigger.capture.text": {
+    "label": "පෙළ"
+  },
+  "trigger.capture.qr": {
+    "label": "QR කේතය"
+  },
+  "trigger.capture.color": {
+    "label": "වර්ණය"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "ශ්‍රව්‍ය නොමැතිව"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "ඩෙස්ක්ටොප් ශ්‍රව්‍යය සමඟ"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "ඩෙස්ක්ටොප් + මයික්‍රෝෆෝන ශ්‍රව්‍යය සමඟ"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "ඩෙස්ක්ටොප් + මයික්‍රෝෆෝන ශ්‍රව්‍යය + වෙබ්කැමය සමඟ"
+  },
+  "trigger.transcode": {
+    "label": "ට්‍රාන්ස්කෝඩ්"
+  },
+  "trigger.share": {
+    "label": "බෙදාගන්න"
+  },
+  "trigger.hardware": {
+    "label": "දෘඪාංග"
+  },
+  "trigger.tests": {
+    "label": "වේග පරීක්ෂණය"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "ටච්පෑඩ් හැප්ටික්ස්"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "අඩු"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "මැද"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "වැඩි"
+  },
+  "trigger.reminder.set": {
+    "label": "එකක් සකසන්න"
+  },
+  "trigger.reminder.show": {
+    "label": "සියල්ල පෙන්වන්න"
+  },
+  "trigger.reminder.clear": {
+    "label": "සියල්ල හිස් කරන්න"
+  },
+  "trigger.share.clipboard": {
+    "label": "ක්ලිප්බෝඩය"
+  },
+  "trigger.share.file": {
+    "label": "ගොනුව"
+  },
+  "trigger.share.folder": {
+    "label": "ෆෝල්ඩරය"
+  },
+  "trigger.share.receive": {
+    "label": "ලබාගන්න"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "ජාල වේග පරීක්ෂණය"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "තැටි වේග පරීක්ෂණය"
+  },
+  "setup.monitors": {
+    "label": "මොනිටර"
+  },
+  "setup.keybindings": {
+    "label": "යතුරු බන්ධන"
+  },
+  "setup.input": {
+    "label": "ආදානය"
+  },
+  "setup.typing": {
+    "label": "ටයිප් කිරීම"
+  },
+  "setup.typing.keyboard": {
+    "label": "යතුරුපුවරු සැකැස්ම්"
+  },
+  "setup.typing.input": {
+    "label": "ආදාන ක්‍රම"
+  },
+  "setup.language": {
+    "label": "භාෂාව"
+  },
+  "setup.network": {
+    "label": "ජාලය"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "අභිරුචි"
+  },
+  "setup.network.qr": {
+    "label": "QR කේතය"
+  },
+  "setup.default": {
+    "label": "පෙරනිමි"
+  },
+  "setup.default.agent": {
+    "label": "ඒජන්ට්",
+    "title": "පෙරනිමි Agent"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "බ්‍රවුසරය",
+    "title": "පෙරනිමි බ්‍රවුසරය"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "ඩික්ටේෂනය",
+    "title": "පෙරනිමි ඩික්ටේෂනය"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "ටර්මිනලය",
+    "title": "පෙරනිමි ටර්මිනලය"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "සංස්කාරකය",
+    "title": "පෙරනිමි සංස්කාරකය"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "ප්ලගීන"
+  },
+  "setup.plugin.enable": {
+    "label": "ප්ලගීනය සක්‍රිය කරන්න"
+  },
+  "setup.plugin.disable": {
+    "label": "ප්ලගීනය අක්‍රිය කරන්න"
+  },
+  "setup.plugin.add": {
+    "label": "ප්ලගීනය එක් කරන්න"
+  },
+  "setup.plugin.clone": {
+    "label": "ප්ලගීනය ක්ලෝන කරන්න"
+  },
+  "setup.plugin.remove": {
+    "label": "ප්ලගීනය ඉවත් කරන්න"
+  },
+  "setup.security": {
+    "label": "ආරක්ෂාව"
+  },
+  "setup.config": {
+    "label": "වින්‍යාසය"
+  },
+  "setup.security.fingerprint": {
+    "label": "ඇඟිලි සලකුණ"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Sudo රහිත Docker"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "මුරපද රහිත Sudo"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "සෘජු ආරම්භය"
+  },
+  "setup.reset": {
+    "label": "පරිගණකය යළි සකසන්න"
+  },
+  "install.package": {
+    "label": "පැකේජය"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "සේවාව"
+  },
+  "install.development": {
+    "label": "සංවර්ධනය"
+  },
+  "install.editor": {
+    "label": "සංස්කාරකය"
+  },
+  "install.style": {
+    "label": "විලාසය"
+  },
+  "install.style.theme": {
+    "label": "තේමාව"
+  },
+  "install.style.background": {
+    "label": "පසුබිම"
+  },
+  "install.style.font": {
+    "label": "ෆොන්ටය"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "ක්‍රීඩා"
+  },
+  "install.browser": {
+    "label": "බ්‍රවුසරය"
+  },
+  "install.webapp": {
+    "label": "වෙබ් යෙදුම"
+  },
+  "install.terminal": {
+    "label": "ටර්මිනලය"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "පෙර ස්ථාපිත"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Chromium ගිණුම"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xbox පාලක"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch ක්‍රීඩා දියත්කය"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "පැකේජය"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "ඉවත් කරන්න"
+  },
+  "remove.dictation": {
+    "label": "ඩික්ටේෂනය"
+  },
+  "remove.service": {
+    "label": "සේවා",
+    "title": "ඉවත් කරන්න"
+  },
+  "remove.development": {
+    "label": "සංවර්ධනය",
+    "title": "ඉවත් කරන්න"
+  },
+  "remove.theme": {
+    "label": "තේමාව"
+  },
+  "remove.gaming": {
+    "label": "ක්‍රීඩා",
+    "title": "ඉවත් කරන්න"
+  },
+  "remove.browser": {
+    "label": "බ්‍රවුසරය",
+    "title": "ඉවත් කරන්න"
+  },
+  "remove.webapp": {
+    "label": "වෙබ් යෙදුම"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "පෙර ස්ථාපිත"
+  },
+  "remove.security": {
+    "label": "ආරක්ෂාව",
+    "title": "ඉවත් කරන්න"
+  },
+  "remove.security.fingerprint": {
+    "label": "ඇඟිලි සලකුණ"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Sudo රහිත Docker"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xbox පාලක (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "ඉවත් කරන්න"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "ඉවත් කරන්න"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "ඉවත් කරන්න"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "නාලිකාව"
+  },
+  "update.config": {
+    "label": "වින්‍යාසය",
+    "title": "පෙරනිමියට යළි සකසන්න"
+  },
+  "update.themes": {
+    "label": "අමතර තේමා"
+  },
+  "update.process": {
+    "label": "ක්‍රියාවලිය",
+    "title": "නැවත අරඹන්න"
+  },
+  "update.hardware": {
+    "label": "දෘඪාංග",
+    "title": "නැවත අරඹන්න"
+  },
+  "update.firmware": {
+    "label": "ස්ථිරාංග"
+  },
+  "update.password": {
+    "label": "මුරපදය"
+  },
+  "update.timezone": {
+    "label": "වේලා කලාපය"
+  },
+  "update.time": {
+    "label": "වේලාව"
+  },
+  "update.channel.stable": {
+    "label": "ස්ථායි"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "ශ්‍රව්‍ය"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "ට්‍රැක්පෑඩය"
+  },
+  "update.password.drive": {
+    "label": "ධාවක සංකේතනය"
+  },
+  "update.password.user": {
+    "label": "පරිශීලකයා"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "ජනෙල හිඩැස් සක්‍රිය"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "ජනෙල හිඩැස් අක්‍රිය"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-ජනෙල අනුපාතය සක්‍රිය"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-ජනෙල අනුපාතය අක්‍රිය"
+  },
+  "appearance.branding": {
+    "label": "සන්නාමකරණය"
+  },
+  "appearance.animations-on": {
+    "label": "සජීවිකරණ සක්‍රිය"
+  },
+  "appearance.animations-off": {
+    "label": "සජීවිකරණ අක්‍රිය"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "අවදියෙන් සිටින්න"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "නින්දට ඉඩ දෙන්න"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "දැනුම්දීම් සක්‍රිය"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "දැනුම්දීම් නිහඬ කරන්න"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "රාත්‍රී ආලෝකය සක්‍රිය"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "රාත්‍රී ආලෝකය අක්‍රිය"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "තිර ආරක්ෂකය සක්‍රිය"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "තිර ආරක්ෂකය අක්‍රිය"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "බිඳවැටීම් ග්‍රහණය සක්‍රිය"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "බිඳවැටීම් ග්‍රහණය අක්‍රිය"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "ලැප්ටොප් තිරය සක්‍රිය"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "ලැප්ටොප් තිරය අක්‍රිය"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "තිර පිළිබිඹු කිරීම සක්‍රිය"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "බැටරි % පෙන්වන්න"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "බැටරි % සඟවන්න"
+  },
+  "appearance.windows": {
+    "label": "කවුළු"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "තිර දර්පණය අක්‍රිය කරන්න"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "දෙමුහුන් GPU වෙත මාරු වන්න"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "ඒකාබද්ධ GPU වෙත මාරු වන්න"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "ටච්පෑඩය සක්‍රිය කරන්න"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "ටච්පෑඩය අක්‍රිය කරන්න"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "ස්පර්ශ තිරය සක්‍රිය කරන්න"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "ස්පර්ශ තිරය අක්‍රිය කරන්න"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "කර්නලය"
+  }
+}

@@ -7,6 +7,7 @@ source "$(dirname "$0")/base-test.sh"
 require_command gcc
 require_command setpriv
 require_command unshare
+require_command pgrep
 
 if [[ ${OMARCHY_REMOVE_DEV_ENV_SECURITY_NS:-0} != "1" ]]; then
   outer_uid=$(id -u)
@@ -16,7 +17,7 @@ if [[ ${OMARCHY_REMOVE_DEV_ENV_SECURITY_NS:-0} != "1" ]]; then
   subgid_entry=$(awk -F: -v user="$outer_user" -v uid="$outer_uid" '($1 == user || $1 == uid) && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ && $3 >= 1000 { print $2 ":" $3; exit }' /etc/subgid)
 
   if [[ -z $subuid_entry || -z $subgid_entry ]]; then
-    pass "no subordinate uid/gid range covering test user 1000; skipping OCaml sudo namespace proof"
+    skip "no subordinate uid/gid range covering test user 1000; skipping OCaml sudo namespace proof"
     exit 0
   fi
   IFS=: read -r subuid subuid_count <<<"$subuid_entry"
@@ -32,7 +33,7 @@ if [[ ${OMARCHY_REMOVE_DEV_ENV_SECURITY_NS:-0} != "1" ]]; then
   if unshare "${namespace_args[@]}" /usr/bin/true; then
     exec unshare "${namespace_args[@]}" env OMARCHY_REMOVE_DEV_ENV_SECURITY_NS=1 bash "$0"
   else
-    pass "user/mount namespace setup unavailable; skipping OCaml sudo namespace proof"
+    skip "user/mount namespace setup unavailable; skipping OCaml sudo namespace proof"
     exit 0
   fi
 fi
@@ -58,10 +59,7 @@ cleanup() {
     kill -KILL -- "-$active_session" 2>/dev/null || kill -KILL "$active_session" 2>/dev/null || true
   fi
 
-  if [[ -s $test_home/attack.pid ]]; then
-    attack_pid=$(<"$test_home/attack.pid")
-    kill "$attack_pid" 2>/dev/null || true
-  fi
+  pkill -KILL -f "$stub_bin/attack" 2>/dev/null || true
 
   umount -l /usr/bin/sudo 2>/dev/null || true
   umount -l "$test_tmp" 2>/dev/null || true
@@ -141,15 +139,17 @@ chown 0:0 "$test_tmp/sudo"
 chmod 4755 "$test_tmp/sudo"
 mount --bind "$test_tmp/sudo" /usr/bin/sudo
 
+# The detached poller keeps trying until the test has seen it try after the
+# helper is done and tells it to stop.
 cat >"$stub_bin/attack" <<'STUB'
 #!/bin/bash
 
-printf '%s\n' "$$" >"$HOME/attack.pid"
-for _ in {1..200}; do
+for _ in {1..2000}; do
+  [[ -e $HOME/attack.stop ]] && break
   if /usr/bin/sudo -n -- /usr/bin/true 2>/dev/null; then
     exit 0
   fi
-  /usr/bin/sleep 0.005
+  /usr/bin/sleep 0.01
 done
 STUB
 
@@ -189,20 +189,39 @@ run_user() {
   setpriv --reuid=1000 --regid=1000 --clear-groups env -i "${base_env[@]}" "$@"
 }
 
-reset_case() {
-  if [[ -s $test_home/attack.pid ]]; then
-    attack_pid=$(<"$test_home/attack.pid")
-    kill "$attack_pid" 2>/dev/null || true
-  fi
-  : >"$event_log"
-  chown 1000:1000 "$event_log"
-  rm -f "$token" "$protected_target" "$test_home/attack.pid" "$test_home/ready"
+# Stops every detached poller and waits for it to go, so none of its attempts
+# land in the next case's log.
+stop_attackers() {
+  touch "$test_home/attack.stop"
+  for _ in {1..1000}; do
+    pgrep -f "$stub_bin/attack" >/dev/null || break
+    sleep 0.01
+  done
+  pkill -KILL -f "$stub_bin/attack" 2>/dev/null || true
+  rm -f "$test_home/attack.stop"
 }
 
-wait_for_attack() {
-  for _ in {1..240}; do
-    grep -q '^attack-' "$event_log" 2>/dev/null && return 0
-    sleep 0.005
+reset_case() {
+  stop_attackers
+  : >"$event_log"
+  chown 1000:1000 "$event_log"
+  rm -f "$token" "$protected_target" "$test_home/ready"
+}
+
+attack_attempts() {
+  grep -c '^attack-' "$event_log" 2>/dev/null || true
+}
+
+# Waits until the detached poller has tried sudo twice more: the second try
+# began after this was called. A poller that won root stops trying, and the
+# checks after this one report that.
+wait_for_fresh_attack() {
+  local before
+  before=$(attack_attempts)
+  for _ in {1..1000}; do
+    (( $(attack_attempts) >= before + 2 )) && return 0
+    grep -Fxq 'attack-reused-root' "$event_log" && return 0
+    sleep 0.01
   done
   return 1
 }
@@ -217,7 +236,8 @@ reset_case
 touch "$token"
 chown 0:0 "$token"
 run_user bash "$test_helper" ocaml
-wait_for_attack || fail "hostile opam did not exercise the detached sudo poller"
+wait_for_fresh_attack || fail "hostile opam did not exercise the detached sudo poller"
+stop_attackers
 [[ ! -e $protected_target ]] || fail "hostile opam reused root authorization"
 [[ ! -e $token ]] || fail "OCaml removal left a reusable sudo credential"
 assert_ocaml_invalidations "successful OCaml removal"
@@ -250,9 +270,9 @@ setpriv --reuid=1000 --regid=1000 --clear-groups \
 session=$!
 active_session=$session
 
-for _ in {1..200}; do
+for _ in {1..1000}; do
   [[ -e $test_home/ready ]] && break
-  sleep 0.005
+  sleep 0.01
 done
 [[ -e $test_home/ready ]] || fail "OCaml signal fixture did not become ready"
 kill -TERM -- "-$session" 2>/dev/null || kill -TERM "$session"
@@ -261,6 +281,8 @@ wait "$session"
 signal_status=$?
 set -e
 active_session=""
+wait_for_fresh_attack || fail "the detached opam child did not exercise sudo after termination"
+stop_attackers
 (( signal_status != 0 )) || fail "terminated OCaml removal unexpectedly succeeded"
 [[ ! -e $token ]] || fail "terminated OCaml removal left a reusable sudo credential"
 [[ ! -e $protected_target ]] || fail "detached opam child reused root after termination"

@@ -27,7 +27,8 @@ def _write_desktop_build_stamp(project_root, *, source_mode):
     home = Path(os.environ['HERMES_HOME'])
     assert project_root == home / 'hermes-agent'
     assert source_mode is False
-    assert (project_root / 'apps/desktop/release/linux-unpacked/resources/app.asar').is_file()
+    app_dir = os.environ.get('OMARCHY_TEST_APP_DIR', 'linux-unpacked')
+    assert (project_root / 'apps/desktop/release' / app_dir / 'resources/app.asar').is_file()
     (home / 'desktop-build-stamp.json').write_text('upstream build stamp')
     with (Path(os.environ['OMARCHY_TEST_ROOT']) / 'events').open('a') as log:
         log.write('build-stamp\n')
@@ -160,12 +161,17 @@ MOCK
 cat >"$test_tmp/bin/hermes-desktop" <<'MOCK'
 #!/bin/bash
 sleep 0.05
-native="$HERMES_HOME/hermes-agent/apps/desktop/release/linux-unpacked"
+native="$HERMES_HOME/hermes-agent/apps/desktop/release/${OMARCHY_TEST_APP_DIR:-linux-unpacked}"
 if [[ -x $native/Hermes && -f $native/resources/app.asar ]]; then
   printf 'launch\n' >>"$OMARCHY_TEST_ROOT/events"
 else
   printf 'launch-before-copy\n' >>"$OMARCHY_TEST_ROOT/events"
 fi
+MOCK
+# The scenarios are x86_64 unless one says otherwise, whatever the host is.
+cat >"$test_tmp/bin/omarchy-hw-aarch64" <<'MOCK'
+#!/bin/bash
+[[ ${OMARCHY_TEST_AARCH64:-0} == 1 ]]
 MOCK
 cat >"$test_tmp/bin/systemctl" <<'MOCK'
 #!/bin/bash
@@ -214,6 +220,10 @@ for name, target in (('omarchy-install-ai-hermes', scratch / 'installer'),
     script = (source / name).read_text()
     for original, replacement in substitutions.items():
         script = script.replace(original, replacement)
+    if name == 'omarchy-install-hermes-cli':
+        # The lock-wait and fetch-retry polls are 2s; the scenarios only
+        # need the waiting to happen, not its real duration.
+        script = script.replace('sleep 2', 'sleep 0.1')
     target.write_text(script)
     target.chmod(0o755)
 PY
@@ -222,7 +232,7 @@ new_home() {
   test_home="$test_tmp/$1"
   hermes_home="$test_home/.hermes"
   runtime="$hermes_home/hermes-agent"
-  native="$runtime/apps/desktop/release/linux-unpacked"
+  native="$runtime/apps/desktop/release/${OMARCHY_TEST_APP_DIR:-linux-unpacked}"
   mkdir -p "$test_home"
   rm -f "$test_tmp/package-installed"
   : >"$test_tmp/events"
@@ -355,7 +365,7 @@ for failure in copy race; do
     OMARCHY_TEST_COPY_RACE=1 run_installer && fail "concurrent native app stops publication"
     [[ -d $native && -z $(ls -A "$native") ]] || fail "concurrent empty app directory is preserved"
   fi
-  [[ -z $(find "${native%/*}" -maxdepth 1 -name '.linux-unpacked.*' -print) ]] || fail "owned staging directory is cleaned up"
+  [[ -z $(find "${native%/*}" -maxdepth 1 -name ".${native##*/}.*" -print) ]] || fail "owned staging directory is cleaned up"
   assert_stopped "publication failure prevents launch"
 done
 pass "failed copies and concurrent app creation preserve existing work and clean only staging"
@@ -681,6 +691,32 @@ OMARCHY_TEST_HOME="$hermes_home/PrOfIlEs/coder/../coder/" run_installer || fail 
 [[ -x $runtime/apps/desktop/release/linux-unpacked/Hermes ]] || fail "profile uses the canonical root runtime"
 grep -qxF "$hermes_home" "$test_tmp/install-args" || fail "canonical custom home reaches upstream installer"
 pass "custom profile paths normalize to the shared Hermes home"
+
+# electron-builder names the ARM app linux-arm64-unpacked, and that is where
+# `hermes update` rebuilds it, so an ARM machine is seeded there.
+export OMARCHY_TEST_AARCH64=1 OMARCHY_TEST_APP_DIR=linux-arm64-unpacked
+new_home arm
+run_installer || fail "ARM setup succeeds" "$(cat "$test_tmp/output")"
+[[ -x $native/Hermes && -f $native/resources/app.asar ]] || fail "ARM seeds the app under the name its rebuilds use"
+[[ ! -e $runtime/apps/desktop/release/linux-unpacked ]] || fail "ARM seeds no app under the x86_64 name"
+[[ -z $(find "${native%/*}" -maxdepth 1 -name ".${native##*/}.*" -print) ]] || fail "ARM staging directory is cleaned up"
+[[ $(tail -1 "$test_tmp/events") == launch ]] || fail "ARM opens the seeded app" "$(cat "$test_tmp/events")"
+run_cli --check || fail "--check finds the ARM seeded app"
+pass "ARM seeds the app under linux-arm64-unpacked"
+
+# An ARM machine seeded under the x86_64 name before this keeps that app
+# rather than gaining a second copy.
+unset OMARCHY_TEST_AARCH64 OMARCHY_TEST_APP_DIR
+new_home arm-seeded-before
+run_cli --now || fail "earlier ARM fixture sets up" "$(cat "$test_tmp/output")"
+export OMARCHY_TEST_AARCH64=1
+run_cli --check || fail "--check finds an ARM app seeded under the x86_64 name" "$(cat "$test_tmp/output")"
+: >"$test_tmp/events"
+run_cli --now || fail "--now accepts an ARM app seeded under the x86_64 name" "$(cat "$test_tmp/output")"
+[[ ! -s $test_tmp/events ]] || fail "an ARM app seeded under the x86_64 name is not set up again" "$(cat "$test_tmp/events")"
+[[ ! -e $runtime/apps/desktop/release/linux-arm64-unpacked ]] || fail "an ARM app seeded under the x86_64 name gains no second copy"
+unset OMARCHY_TEST_AARCH64
+pass "an ARM app seeded under the x86_64 name still counts"
 
 # New releases moved the stamp writer out of main. Keep the earlier cases on
 # the old layout and exercise a fresh installation with the relocated helper.

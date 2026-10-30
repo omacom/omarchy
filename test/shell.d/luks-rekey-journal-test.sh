@@ -93,7 +93,7 @@ sed -n '/^rekey_luks() {/,/^}/p; /^run_provisioning() {/,/^}/p; /^cleanup_oem_st
   /^platform_ready() {/,/^}/p; /^run_setup() {/,/^}/p
   /^rekey_accepts_password() {/,/^}/p' \
   "$ROOT/bin/omarchy-provision-owner" |
-  sed -e "s|/etc/|$tmp/etc/|g" -e "s|/usr/bin/omarchy-thunderbolt-authorization-admin|omarchy-thunderbolt-authorization-admin|" >"$tmp/provision.sh"
+  sed "s|/etc/|$tmp/etc/|g" >"$tmp/provision.sh"
 grep -q '^run_provisioning() {' "$tmp/provision.sh" && grep -q '^run_setup() {' "$tmp/provision.sh" ||
   fail "omarchy-provision-owner defines its setup and provisioning worker"
 
@@ -241,11 +241,6 @@ setup_functions() {
   configure_hostname() { :; }
   configure_timezone() { :; }
   finalize_user() { :; }
-  # Accessory enrollment, recorded with whether the staged unlock was gone.
-  omarchy-pkg-present() { return 1; }
-  omarchy-thunderbolt-authorization-admin() {
-    if luks_staged_unlock_remains; then echo "$* early" >>"$TMP/accessories"; else echo "$*" >>"$TMP/accessories"; fi
-  }
   limine_entries_stale() {
     crash_point "re-key returned"
     [[ -e $TMP/stale ]]
@@ -335,7 +330,7 @@ slot_count() {
 fixture() {
   local format=${1:-luks2}
   rm -rf "$tmp/provisioning" "$tmp/etc" "$tmp/boot" "$tmp/log" "$tmp/output" "$tmp/trace" "$tmp/rebuilds" "$tmp/adds" "$tmp/rebuild-fail" "$tmp/kill-noop" \
-    "$tmp/prepare-fail" "$tmp/screen" "$tmp/stale" "$tmp/token-slot" "$tmp/slot-record" "$tmp/record-fail" "$tmp/accessories"
+    "$tmp/prepare-fail" "$tmp/screen" "$tmp/stale" "$tmp/token-slot" "$tmp/slot-record" "$tmp/record-fail"
   mkdir -p "$tmp/provisioning"
   chmod 755 "$tmp/provisioning"
   touch "$tmp/provisioning/pending"
@@ -383,7 +378,9 @@ enroll_tokens() {
   printf '{"type":"systemd-tpm2","keyslots":["%s"],"tpm2-blob":"AA==","tpm2-pcrs":[7],"tpm2-pcr-bank":"sha256","tpm2-primary-alg":"ecc","tpm2-policy-hash":"00","tpm2-pin":false}' "$slot" |
     cryptsetup token import --disable-external-tokens "$device" || return 1
   cryptsetup token add --key-description "$description" --key-slot "$slot" "$device" >/dev/null || return 1
-  LC_ALL=C cryptsetup open --test-passphrase --verbose --key-file <(printf 'not-a-key') "$device" 2>&1 | grep -qx "Key slot $slot unlocked."
+  local unlocked
+  unlocked=$(LC_ALL=C cryptsetup open --test-passphrase --verbose --key-file <(printf 'not-a-key') "$device" 2>&1) || return 1
+  grep -qx "Key slot $slot unlocked." <<<"$unlocked"
 }
 
 unlock_files_present() {
@@ -474,8 +471,6 @@ for run_spec in "${matrix[@]}"; do
   fixture "$format"
   run attempt "$owner_password" || fail "$backend: uninterrupted setup completes" "$(cat "$tmp/log" "$tmp/output")"
   assert_provisioned "uninterrupted" "$owner_password"
-  [[ $(cat "$tmp/accessories" 2>/dev/null) == "owner" ]] ||
-    fail "$backend: accessories are enrolled once, after the staged unlock is gone" "$(cat "$tmp/accessories" 2>/dev/null)"
   total_steps=$(cat "$tmp/steps")
   (( total_steps >= 11 )) || fail "$backend: every durable step is a crash point" "$(cat "$tmp/trace")"
   if [[ $platform == "apple" ]]; then

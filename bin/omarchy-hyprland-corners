@@ -20,9 +20,9 @@ if (( $# == 0 )); then
 fi
 
 case $1 in
-  theme) LABEL="Corners follow the theme" ;;
-  sharp) LABEL="Sharp corners for all themes" ;;
-  rounded) LABEL="Rounded corners for all themes" ;;
+  theme) LABEL=$(omarchy-i18n corners.followTheme) ;;
+  sharp) LABEL=$(omarchy-i18n corners.sharp) ;;
+  rounded) LABEL=$(omarchy-i18n corners.rounded) ;;
   *)
     echo "Usage: omarchy-hyprland-corners [theme|sharp|rounded]" >&2
     exit 1
@@ -34,7 +34,7 @@ if [[ $1 != "theme" ]]; then
   mkdir -p "$TOGGLES_DIR" && cp "$OMARCHY_PATH/default/hypr/toggles/corners-$1.lua" "$TOGGLES_DIR/corners-$1.lua" || exit 1
 fi
 for mode in sharp rounded; do
-  [[ $mode == "$1" ]] || rm -f "$TOGGLES_DIR/corners-$mode.lua"
+  [[ $mode == "$1" ]] || rm -f "$TOGGLES_DIR/corners-$mode.lua" || exit 1
 done
 
 hyprctl reload >/dev/null || exit 1

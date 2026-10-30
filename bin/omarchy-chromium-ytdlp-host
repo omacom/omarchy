@@ -87,7 +87,7 @@ download_url() {
 
   # Don't show anything until yt-dlp confirms there's actually a video to grab.
   if ! yt-dlp --no-playlist --simulate --quiet --no-warnings --no-exec --no-exec-before-download -- "$url" >/dev/null 2>&1; then
-    omarchy-notification-send -u critical -g 󰅖 "No video found for download" "$url"
+    omarchy-notification-send -u critical -g 󰅖 "$(omarchy-i18n download.none)" "$url"
     exit 0
   fi
 
@@ -146,11 +146,14 @@ download_url() {
 
     # Best-effort: the download already succeeded, and under `set -e` a failed
     # toast would exit before the thumbnail cleanup below is ever scheduled.
+    # Open plays it, Cut takes it into Omacut; clicking the card plays it too.
     # `--` keeps mpv from parsing a leading-dash filename as an option; the path
-    # is one discrete argument, so it never reaches a shell.
-    omarchy-notification-send -g 󰄬 "Download complete" "$title" \
+    # is one discrete --with argument, so it never reaches a shell.
+    omarchy-notification-send -g 󰄬 "$(omarchy-i18n download.complete)" "$title" \
       -t 10000 --image "${preview:-$filepath}" \
-      --exec mpv -- "$filepath" || true
+      --action "$(omarchy-i18n download.open)" mpv -- \
+      --action "$(omarchy-i18n download.cut)" omacut \
+      --with "$filepath" || true
 
     # The shell loads the thumbnail into memory when the toast appears and never
     # re-reads the file, so the preview only has to outlive that load, not the
@@ -160,7 +163,7 @@ download_url() {
       rm -f "$preview"
     ) &
   else
-    omarchy-notification-send -u critical -g 󰅖 "Download failed" "$url"
+    omarchy-notification-send -u critical -g 󰅖 "$(omarchy-i18n download.failed)" "$url"
   fi
 
   exit 0

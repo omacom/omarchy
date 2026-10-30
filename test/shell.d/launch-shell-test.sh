@@ -26,6 +26,15 @@ mkdir -p "$fake_bin" "$shell_root/shell" "$launch_home/.local/state/omarchy/curr
 touch "$startup_wallpaper"
 ln -s "$startup_wallpaper" "$launch_home/.local/state/omarchy/current/background"
 
+# Run a scratch copy of the supervisor with its 1s relaunch backoff and
+# 0.5s compositor probe shortened; the scenarios only need the waiting
+# to happen, not its real duration. The backoff stays well above the
+# 0.05s launch poll below so the signal case lands inside it.
+launch_shell_bin="$test_tmp/omarchy-launch-shell"
+sed -e 's/^  sleep 1$/  sleep 0.3/' -e 's/sleep 0.5$/sleep 0.05/' \
+  "$ROOT/bin/omarchy-launch-shell" >"$launch_shell_bin"
+chmod +x "$launch_shell_bin"
+
 # Each launch consumes the next status from OMARCHY_TEST_QS_STATUSES; "run"
 # stands in for a healthy shell that keeps going until stopped.
 cat >"$fake_bin/quickshell" <<'SH'
@@ -104,7 +113,7 @@ launch_shell() {
   OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
   OMARCHY_TEST_HYPRCTL_MISSES="${3:-0}" \
   OMARCHY_TEST_HYPRCTL_MISS_COUNT="$hyprctl_misses" \
-    timeout 30 "$ROOT/bin/omarchy-launch-shell"
+    timeout 30 "$launch_shell_bin"
 }
 
 launches() {
@@ -159,7 +168,7 @@ OMARCHY_TEST_QS_STATUSES=$'255\n0' \
 OMARCHY_TEST_COMPOSITOR_GONE=0 \
 OMARCHY_TEST_LOGGER_LOG="$logger_log" \
 OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
-  "$ROOT/bin/omarchy-launch-shell" &
+  "$launch_shell_bin" &
 launch_pid=$!
 
 for (( waited = 0; waited < 100; waited++ )); do
@@ -188,7 +197,7 @@ OMARCHY_TEST_QS_STATUSES='run' \
 OMARCHY_TEST_COMPOSITOR_GONE=0 \
 OMARCHY_TEST_LOGGER_LOG="$logger_log" \
 OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
-  "$ROOT/bin/omarchy-launch-shell" &
+  "$launch_shell_bin" &
 launch_pid=$!
 
 for (( waited = 0; waited < 100; waited++ )); do
