@@ -362,6 +362,7 @@
   "update.continue": "Continue with update?",
   "update.hyprlandReboot": "Hyprland has been updated. Reboot?",
   "update.kernelReboot": "Linux kernel has been updated. Reboot?",
+  "update.nvidiaReboot": "NVIDIA driver has been updated. Reboot?",
   "update.ready": "Ready to update?",
   "update.rebootRequired": "Updates require reboot. Ready?",
   "update.removeOrphans": {
