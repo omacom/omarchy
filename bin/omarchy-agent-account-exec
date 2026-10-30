@@ -36,12 +36,15 @@ fi
 if ! agent_binary=$(type -P "$provider"); then
   # A mise dispatcher can exist before its CLI or first-run installer does.
   # Omarchy declares these agents, so installing one leaves the user's config
-  # alone. A user who removed the preinstalls selects it in their own config.
+  # alone. A user who opted out of Omarchy's tools gets nothing installed: a
+  # `mise use -g` here would write the tool into their config, which is exactly
+  # what opting out asked us not to do, and the run would then work anyway.
   export MISE_MINIMUM_RELEASE_AGE=0
   if omarchy-mise-default-tools declares "$provider"; then
     mise install --quiet "$provider"
   else
-    mise use -g --quiet "$provider"
+    echo "$provider: Omarchy's default tools are disabled, so it is not installed. Run 'omarchy-mise-default-tools enable' to use it." >&2
+    exit 1
   fi
   agent_binary=$(mise which "$provider")
 fi

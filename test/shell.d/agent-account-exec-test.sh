@@ -164,9 +164,9 @@ run_isolated env OMARCHY_TEST_AGENT_EXIT=42 claude >/dev/null || status=$?
 (( status == 42 )) || fail "account dispatch preserves the agent exit status" "$status"
 pass "account dispatch preserves the agent exit status"
 
-# A dispatcher alone must not prevent the CLI from being installed on first use.
-# Omarchy declares the agent, so installing it must leave the user's config
-# alone; without that declaration, the user's config selects it.
+# A user who opts out of Omarchy's tools asked us not to install them. The
+# dispatch path must respect that rather than write the agent into the user's
+# own mise config, which is the one file opting out is meant to keep clear.
 mv "$real_bin/grok" "$test_tmp/grok-fixture"
 cat >"$real_bin/mise" <<'SH'
 #!/bin/bash
@@ -191,9 +191,11 @@ output=$(run_isolated env OMARCHY_MISE_CONFIG_PATH="$declarations" OMARCHY_TEST_
 pass "a dispatcher without a CLI installs Omarchy's declared agent and uses the selected account"
 
 rm "$real_bin/grok"
-output=$(run_isolated env OMARCHY_MISE_CONFIG_PATH="$test_tmp/no-declarations.toml" OMARCHY_TEST_EXPECTED_INSTALL="use -g --quiet grok" grok)
-[[ $output == "$test_tmp/accounts/grok side" ]] || fail "a dispatcher without Omarchy's declaration selects the agent in the user config" "$output"
-pass "a dispatcher without Omarchy's declaration selects the agent in the user config"
+status=0
+output=$(run_isolated env OMARCHY_MISE_CONFIG_PATH="$test_tmp/no-declarations.toml" grok 2>&1) || status=$?
+(( status == 1 )) || fail "a dispatcher without Omarchy's declaration refuses to install the agent" "$status"
+[[ $output == *"Omarchy's default tools are disabled"* ]] || fail "opting out of Omarchy's tools explains why the agent did not start" "$output"
+pass "opting out of Omarchy's tools installs nothing and says so"
 
 rm "$real_bin/grok"
 status=0
