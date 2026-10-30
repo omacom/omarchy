@@ -25,7 +25,7 @@
       {
         "key": "refreshIntervalSec",
         "type": "integer",
-        "label": "Refresh interval (seconds)",
+        "label": "Refresh interval while open (seconds)",
         "min": 5,
         "max": 3600,
         "step": 5,
