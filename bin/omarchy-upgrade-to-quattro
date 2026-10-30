@@ -1302,6 +1302,7 @@ run_final_system_package_upgrade() {
     --overwrite '/etc/systemd/system/user@.service.d/10-faster-shutdown.conf' \
     --overwrite '/etc/systemd/system/docker.service.d/no-block-boot.conf' \
     --overwrite '/etc/systemd/system/plocate-updatedb.service.d/ac-only.conf' \
+    --overwrite '/etc/systemd/system/linux-modules-cleanup.service.d/10-omarchy.conf' \
     --overwrite '/etc/systemd/system.conf.d/20-omarchy-nofile.conf' \
     --overwrite '/etc/systemd/user.conf.d/20-omarchy-nofile.conf' \
     --overwrite '/usr/lib/systemd/system-sleep/unmount-fuse' \
