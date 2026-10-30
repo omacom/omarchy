@@ -2,3 +2,5 @@
 # both declared by /etc/mise/conf.d.
 mise reshim --system
 mise reshim
+
+omarchy-setup-grok-theme

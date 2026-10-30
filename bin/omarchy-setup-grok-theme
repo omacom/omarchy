@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# omarchy:summary=Default Grok to the terminal palette while preserving user choices
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# TOML parsing protects explicit choices, including dotted and quoted keys.
+# Validate the full resulting document before replacing an existing config.
+python3 - <<'PY'
+import copy
+import os
+from pathlib import Path
+import re
+import shutil
+import stat
+import tempfile
+import tomllib
+
+config = Path.home() / ".grok/config.toml"
+if config.is_symlink():
+    print("Grok config is a symlink; leaving it unchanged")
+    raise SystemExit(0)
+original = config.read_text() if config.exists() else ""
+data = tomllib.loads(original)
+expected = copy.deepcopy(data)
+changes = []
+ui = expected.setdefault("ui", {})
+if "theme" not in ui:
+    ui["theme"] = "terminal"
+    changes.append(("ui", "theme", '"terminal"'))
+if ui.get("theme") in ("terminal", "terminal-default", "transparent", "native"):
+    features = expected.setdefault("features", {})
+    if "terminal_theme" not in features:
+        features["terminal_theme"] = True
+        changes.append(("features", "terminal_theme", "true"))
+if not changes:
+    raise SystemExit(0)
+updated = original
+for section, key, value in changes:
+    heading = re.search(r"(?m)^\[" + section + r"\][ \t]*(?:#[^\n]*)?$", updated)
+    assignment = f"{key} = {value}\n"
+    if heading:
+        updated = updated[:heading.end()] + "\n" + assignment + updated[heading.end():]
+    else:
+        updated += f"\n[{section}]\n{assignment}"
+# A nonstandard table spelling or multiline string must never redirect an
+# inserted setting. Refuse rather than rewrite or silently lose user data.
+if tomllib.loads(updated) != expected:
+    raise SystemExit("Cannot safely add Grok theme defaults to this TOML layout")
+config.parent.mkdir(parents=True, exist_ok=True)
+if config.exists():
+    backup = config.with_name(config.name + ".before-omarchy-terminal-theme")
+    if not backup.exists():
+        shutil.copy2(config, backup)
+fd, staging = tempfile.mkstemp(prefix=".config.toml.", dir=config.parent)
+try:
+    with os.fdopen(fd, "w") as output:
+        output.write(updated)
+    if config.exists():
+        os.chmod(staging, stat.S_IMODE(config.stat().st_mode))
+    os.replace(staging, config)
+finally:
+    if os.path.exists(staging):
+        os.unlink(staging)
+PY
