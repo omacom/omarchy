@@ -22,6 +22,13 @@ Item {
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
+  property bool fingerprintTouching: false
+  property bool fingerprintMismatch: false
+  // True once this attempt has seen the sensor read a finger.
+  property bool fingerprintSawTouch: false
+  property string fingerPresenceExpect: ""
+  // The service fixture sets this false so it never opens the system bus.
+  property bool watchFingerPresence: true
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
   property int fingerprintUnreachedStreak: 0
@@ -190,6 +197,74 @@ Item {
     console.log("omarchy lock " + lastEventAt + " " + event)
   }
 
+  onLockRequestedChanged: syncFingerPresence()
+  onFingerprintConfiguredChanged: syncFingerPresence()
+  onWatchFingerPresenceChanged: syncFingerPresence()
+
+  function noteFingerPresenceLine(line) {
+    var step = FingerprintModel.fingerPresenceStep(fingerPresenceExpect, line)
+    fingerPresenceExpect = step.expect
+    if (step.touching !== true && step.touching !== false) return
+    if (fingerprintTouching === step.touching) return
+    fingerprintTouching = step.touching
+    console.log("omarchy lock finger-present=" + step.touching)
+    if (step.touching) {
+      fingerprintSawTouch = true
+      if (fingerprintMismatch) failureMessage = ""
+      fingerprintMismatch = false
+      holdDisplayForFinger()
+    } else {
+      releaseDisplayHold()
+    }
+  }
+
+  // pam_fprintd reports a miss as an error message and keeps the conversation
+  // open, so the attempt does not settle. The icon stays rejected until the
+  // next touch.
+  function noteFingerprintMismatch(text) {
+    fingerprintMismatch = true
+    var shown = String(text || "")
+    if (shown.length > 0) failureMessage = shown
+    logEvent("fingerprint-mismatch")
+  }
+
+  // A finger on the sensor is activity. Stop the idle blank while it is down.
+  // If the panel was already off, wake it, then stop the countdown runWake
+  // just armed so the hold lasts for the whole touch.
+  function holdDisplayForFinger() {
+    if (!lockRequested) return
+    var wasPaused = fingerprintPaused
+    idleBlankTimer.stop()
+    if (wasPaused) runWake()
+    idleBlankTimer.stop()
+  }
+
+  function releaseDisplayHold() {
+    if (!lockRequested || authenticatingPassword) return
+    armBlankTimer()
+  }
+
+  function clearFingerPresence() {
+    var wasTouching = fingerprintTouching
+    fingerprintTouching = false
+    fingerPresenceExpect = ""
+    if (wasTouching) releaseDisplayHold()
+  }
+
+  // dbus-monitor stays up only while this lock can scan. running is not
+  // bound, so a restart after it exits can set it without fighting a binding.
+  function syncFingerPresence() {
+    var wanted = lockRequested && fingerprintConfigured && watchFingerPresence
+    if (!wanted) {
+      fingerPresence.quickExits = 0
+      fingerPresenceRestart.stop()
+      if (fingerPresence.running) fingerPresence.running = false
+      else clearFingerPresence()
+      return
+    }
+    if (!fingerPresence.running && !fingerPresenceRestart.running) fingerPresence.running = true
+  }
+
   function resetAuthenticationState() {
     enteredPassword = ""
     pendingPassword = ""
@@ -197,6 +272,9 @@ Item {
     failedAttempts = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    fingerprintMismatch = false
+    fingerprintSawTouch = false
+    clearFingerPresence()
     fingerprintUnreachedStreak = 0
     fingerprintAttemptFastError = false
     fingerprintAttemptPromptedAtMs = 0
@@ -390,6 +468,7 @@ Item {
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
     fingerprintAuthenticating = true
+    fingerprintSawTouch = false
     fingerprintAttemptReachedDevice = false
     fingerprintAttemptFastError = false
     fingerprintAttemptPromptedAtMs = 0
@@ -424,6 +503,11 @@ Item {
   function settleFingerprintAttempt(deviceError) {
     if (!fingerprintAuthenticating) return
     fingerprintAuthenticating = false
+    var sawTouch = fingerprintSawTouch
+    fingerprintSawTouch = false
+    // A missed finger-present false must not leave the icon lit after the scan.
+    clearFingerPresence()
+    if (sawTouch && fingerprintAttemptReachedDevice) noteFingerprintMismatch("")
     fingerprintReachTimer.stop()
     if (!lockRequested || !fingerprintConfigured) return
 
@@ -512,6 +596,8 @@ Item {
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
         fingerprintUnavailable: root.fingerprintUnavailable
+        fingerprintTouching: root.fingerprintTouching
+        fingerprintMismatch: root.fingerprintMismatch
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -591,7 +677,8 @@ Item {
     user: root.userName
 
     onPamMessage: {
-      if (!messageIsError) root.noteFingerprintReachedDevice()
+      if (messageIsError) root.noteFingerprintMismatch(message)
+      else root.noteFingerprintReachedDevice()
     }
 
     onCompleted: function(result) {
@@ -728,6 +815,41 @@ Item {
     onExited: root.applyFingerprintProbe(fingerprintCheckStdout.text)
   }
 
+  // pam_fprintd owns the reader. finger-present is the enclave reading the
+  // finger (HoldStill). A second VerifyStart would take that claim.
+  Process {
+    id: fingerPresence
+    property real startedAt: 0
+    property int quickExits: 0
+    command: ["dbus-monitor", "--system", "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='net.reactivated.Fprint.Device'"]
+    environment: ({ LC_ALL: "C" })
+    onRunningChanged: {
+      if (running) {
+        startedAt = Date.now()
+        console.log("omarchy lock finger-watch started")
+        return
+      }
+      console.log("omarchy lock finger-watch stopped")
+      root.clearFingerPresence()
+      if (!root.lockRequested || !root.fingerprintConfigured || !root.watchFingerPresence) return
+      quickExits = Date.now() - startedAt < 1000 ? quickExits + 1 : 0
+      fingerPresenceRestart.interval = Math.min(60000, 1000 * Math.pow(2, Math.max(0, quickExits - 4)))
+      fingerPresenceRestart.restart()
+    }
+    stdout: SplitParser {
+      onRead: function(line) { root.noteFingerPresenceLine(line) }
+    }
+  }
+
+  // A bus restart or a missing dbus-monitor exits at once. Back off so that
+  // cannot spin for the whole lock. The first misses wait a second.
+  Timer {
+    id: fingerPresenceRestart
+    interval: 2000
+    repeat: false
+    onTriggered: if (root.lockRequested && root.fingerprintConfigured && root.watchFingerPresence && !fingerPresence.running) fingerPresence.running = true
+  }
+
   // Retries a probe that could not reach fprintd, paced like the attempt
   // retries so a daemon that stays unreachable is asked about ever less often.
   Timer {
@@ -776,9 +898,11 @@ Item {
         root.armBlankTimer()
         return
       }
-      // Only a password check in flight should hold the display up. The
-      // fingerprint PAM stays armed for the whole lock, so gating on
-      // `authenticating` here would keep the panel lit until unlock.
+      // A finger still on the sensor is activity, so the countdown waits
+      // until it lifts. The fingerprint PAM stays armed for the whole lock,
+      // so gating on `authenticating` here would keep the panel lit until
+      // unlock. A password check in flight holds the display on its own.
+      if (root.fingerprintTouching) return
       if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
     }
   }

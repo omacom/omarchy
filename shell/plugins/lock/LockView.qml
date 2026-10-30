@@ -12,6 +12,8 @@ Item {
   property int backgroundVersion: 0
   property bool fingerprintConfigured: false
   property bool fingerprintUnavailable: false
+  property bool fingerprintTouching: false
+  property bool fingerprintMismatch: false
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
@@ -30,6 +32,12 @@ Item {
   // Space to keep clear on each side of the field for the fingerprint icon
   // (icon width plus a gap) so the centered dots never run under it.
   readonly property real fingerprintReserve: fingerprintConfigured ? Math.round(fingerprintIcon.implicitWidth + 12) : 0
+  // finger-present is the sensor reading. The waiting icon stays the placeholder
+  // color. A scan uses the theme accent, and a rejected match uses urgent:
+  // lock.border-active and lock.text-error are the field outline, and a theme
+  // can set both to the same gray as the placeholder.
+  readonly property bool fingerprintScanning: fingerprintConfigured && !fingerprintUnavailable && fingerprintTouching
+  readonly property bool fingerprintRejected: fingerprintConfigured && !fingerprintUnavailable && !fingerprintTouching && fingerprintMismatch
   // Shrink the dots to fit once the password outgrows the field, so every
   // keystroke stays visible — otherwise long passwords clip with no feedback.
   readonly property real passwordDotScale: dotMetrics.advanceWidth > 0
@@ -224,7 +232,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.fingerprintConfigured
         text: root.fingerprintUnavailable ? "󰺱" : "󰈷"
-        color: root.fingerprintUnavailable ? Commons.Color.lock.textError : Commons.Color.lock.placeholder
+        color: root.fingerprintUnavailable ? Commons.Color.lock.textError : (root.fingerprintScanning ? Commons.Color.accent : (root.fingerprintRejected ? Commons.Color.urgent : Commons.Color.lock.placeholder))
         font.family: Style.font.family
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter
