@@ -3,6 +3,10 @@
 -- background itself from omarchy-theme-set-glass, which keeps their text crisp.
 require("default.hypr.glass")()
 
+-- Glassy windows are the one mode that wants blur behind windows, so undo the
+-- default no_blur set in windows.lua.
+o.window(".*", { no_blur = false })
+
 -- GTK apps fade as a whole, since GTK draws their backgrounds solid, and get
 -- their blur from the backdrop-filter Glassy adds to the user's gtk.css.
 o.window("org\\.gnome\\.Nautilus", { opacity = "0.75 0.75" })
