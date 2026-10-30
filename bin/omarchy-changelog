@@ -1,0 +1,152 @@
+#!/bin/bash
+
+# omarchy:summary=Browse the Omarchy release changelog
+
+set -euo pipefail
+
+# The presentation wrapper exports the current theme's gum styling, but a
+# direct `omarchy changelog` in a terminal inherits the login-time colors, so
+# refresh them here too.
+source omarchy-restart-gum
+
+releases_url="https://api.github.com/repos/omacom/omarchy/releases?per_page=100"
+cache_file="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/changelog-releases.json"
+
+# Fetch the release list and leave it in the cache. A release carries the tag,
+# its title, and the notes as the body, so the changelog is as current as the
+# last fetch and nothing has to be maintained in the repo. The cache only
+# serves the next run when GitHub cannot be reached.
+fetch_releases() {
+  local tmp pages json count page
+
+  mkdir -p "${cache_file%/*}"
+  tmp=$(mktemp "$cache_file.XXXXXX") || return 1
+  pages=$(mktemp) || { rm -f "$tmp"; return 1; }
+
+  # One page of 100 covers every release today; follow further pages so older
+  # notes do not fall off once the repository outgrows a page.
+  page=1
+  while :; do
+    if ! json=$(curl -fsSL --max-time 15 "$releases_url&page=$page") ||
+      ! jq -e 'type == "array"' >/dev/null <<<"$json"; then
+      rm -f "$tmp" "$pages"
+      return 1
+    fi
+    jq -c '.' <<<"$json" >>"$pages"
+    count=$(jq 'length' <<<"$json")
+    if (( count < 100 )); then
+      break
+    fi
+    page=$(( page + 1 ))
+  done
+
+  if ! jq -s 'add' "$pages" >"$tmp" || ! jq -e 'length > 0' "$tmp" >/dev/null; then
+    rm -f "$tmp" "$pages"
+    return 1
+  fi
+
+  mv "$tmp" "$cache_file"
+  rm -f "$pages"
+}
+
+offline=0
+if ! fetch_releases; then
+  if [[ -s $cache_file ]]; then
+    offline=1
+  else
+    echo "Could not fetch the Omarchy changelog from GitHub." >&2
+    exit 1
+  fi
+fi
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# Group the releases by feature version, so every page of the changelog holds
+# one vMAJOR.MINOR line with all of its patch and RC releases. The releases
+# endpoint answers newest first; the index keeps that order stable through the
+# grouping sort.
+jq '
+  to_entries
+  | map(select(.value.tag_name | test("^v[0-9]+\\.[0-9]+")))
+  | map(
+      (.value.tag_name | ltrimstr("v") | split("-")[0] | split(".")) as $parts
+      | { i: .key,
+          tag: .value.tag_name,
+          date: (.value.published_at // ""),
+          body: (.value.body // ""),
+          major: ($parts[0] | tonumber),
+          minor: ($parts[1] | tonumber) })
+  | sort_by(.major, .minor)
+  | group_by(.major, .minor)
+  | reverse
+  | map(sort_by(.i))
+' "$cache_file" >"$tmp/groups.json"
+group_count=$(jq 'length' "$tmp/groups.json")
+if (( group_count == 0 )); then
+  echo "No Omarchy releases found." >&2
+  exit 1
+fi
+
+locale=$(omarchy-language locale 2>/dev/null || true)
+if [[ -n $locale ]]; then
+  export LC_TIME=$locale
+fi
+
+declare -a options pages
+for (( g = 0; g < group_count; g++ )); do
+  group=$(jq -c ".[$g]" "$tmp/groups.json")
+  major=$(jq -r '.[0].major' <<<"$group")
+  minor=$(jq -r '.[0].minor' <<<"$group")
+  count=$(jq 'length' <<<"$group")
+  options+=("v$major.$minor ($(omarchy-i18n --count "$count" changelog.releases "$count"))")
+
+  page_md="$tmp/page-$g.md"
+  {
+    printf '# Omarchy v%s.%s\n\n' "$major" "$minor"
+    for (( r = 0; r < count; r++ )); do
+      tag=$(jq -r ".[$r].tag" <<<"$group")
+      date=$(jq -r ".[$r].date" <<<"$group")
+      if [[ -n $date ]]; then
+        formatted=$(date -d "$date" +%x 2>/dev/null) || formatted=$date
+        printf '## %s — %s\n\n' "$tag" "$formatted"
+      else
+        printf '## %s\n\n' "$tag"
+      fi
+      jq -r ".[$r].body" <<<"$group"
+      if (( r + 1 < count )); then
+        printf '\n---\n\n'
+      fi
+    done
+  } >"$page_md"
+
+  page_txt="$tmp/page-$g.txt"
+  gum format --type markdown <"$page_md" >"$page_txt"
+  pages+=("$page_txt")
+done
+
+if (( offline )); then
+  echo "$(omarchy-i18n changelog.offline)"
+  echo
+fi
+
+# Open on the newest release group, so reading the latest notes takes no pick;
+# q returns to the picker for the older versions.
+gum pager <"${pages[0]}"
+
+# One version group per pager page: pick a version, read it, quit the pager
+# with q to pick another, quit the picker to leave.
+while :; do
+  selection=$(gum choose --header "$(omarchy-i18n changelog.pick)" "${options[@]}") || exit 0
+
+  chosen=""
+  for (( g = 0; g < group_count; g++ )); do
+    if [[ ${options[g]} == $selection ]]; then
+      chosen=$g
+      break
+    fi
+  done
+  [[ -n $chosen ]] || exit 0
+
+  gum pager <"${pages[chosen]}"
+done
