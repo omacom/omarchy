@@ -114,6 +114,11 @@ else
   agent_install() {
     user_install && return
     if omarchy-mise-default-tools declares "$agent_tool"; then
+      # An installed tool needs no install: `mise install` would re-resolve its
+      # "latest" declaration and download a whole new release inside the menu
+      # action, with no window to show the minutes it takes (#16674). The
+      # declarations carry auto_update, so mise keeps the tool fresh itself.
+      agent_present && return
       if npm_backed "$agent_tool"; then
         mise install node "$agent_tool"
       else
