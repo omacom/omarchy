@@ -23,18 +23,22 @@ while IFS= read -r uri; do
   if [[ $uri == file://* ]]; then
     path="${uri#file://}"
     printf -v path '%b' "${path//%/\\x}"
-    [[ -d $path ]] && folders+=("${path%/}")
+    [[ $path != / ]] && path="${path%/}"
+    [[ -d $path ]] && folders+=("$path")
   fi
 done <<<"$open"
 
 folder=""
 
 for path in "${folders[@]}"; do
-  if [[ $path != "$HOME" && ${path##*/} == "$title" ]]; then
-    folder="$path"
+  if [[ $path == / ]]; then
+    # Nautilus titles the root folder "/" or a label such as "File System"
+    [[ $title == / || $title == "File System" || $title == "Computer" ]] && folder=$path && break
+  elif [[ $path != $HOME && ${path##*/} == $title ]]; then
+    folder=$path
     break
-  elif [[ $path == "$HOME" && ($title == "Home" || $title == "${HOME##*/}") ]]; then
-    folder="$path"
+  elif [[ $path == $HOME && ($title == "Home" || $title == ${HOME##*/}) ]]; then
+    folder=$path
   fi
 done
 
