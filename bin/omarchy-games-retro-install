@@ -6,6 +6,30 @@
 
 set -e
 
+desktop_string_escape() {
+  local value=$1
+
+  value=${value//\\/\\\\}
+  value=${value//$'\t'/\\t}
+  value=${value//$'\r'/\\r}
+  value=${value//$'\n'/\\n}
+  [[ $value == " "* ]] && value="\\s${value# }"
+
+  printf '%s' "$value"
+}
+
+desktop_exec_arg() {
+  local value=$1
+
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//\`/\\\`}
+  value=${value//\$/\\\$}
+  value=${value//%/%%}
+
+  printf '"%s"' "$value"
+}
+
 if (( $# == 0 )); then
   mapfile -t cores < <(omarchy-games-retro-cores)
 
@@ -53,12 +77,17 @@ desktop_dir="$HOME/.local/share/applications"
 desktop_file="$desktop_dir/$desktop_id.desktop"
 mkdir -p "$desktop_dir"
 
+name_field=$(desktop_string_escape "$desktop_name")
+comment_field=$(desktop_string_escape "Play $game_name with RetroArch")
+exec_command="retroarch -L $(desktop_exec_arg "$core_path") $(desktop_exec_arg "$game_path")"
+exec_field=$(desktop_string_escape "$exec_command")
+
 cat >"$desktop_file" <<EOF
 [Desktop Entry]
 Version=1.0
-Name=$desktop_name
-Comment=Play $game_name with RetroArch
-Exec=retroarch -L "$core_path" "$game_path"
+Name=$name_field
+Comment=$comment_field
+Exec=$exec_field
 Terminal=false
 Type=Application
 Icon=retro-gaming
