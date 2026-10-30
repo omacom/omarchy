@@ -531,6 +531,7 @@ visible_theme_commands=(
   omarchy-restart-opencode
   omarchy-restart-helix
   omarchy-theme-set-hunk
+  omarchy-theme-set-herdr-app
 )
 
 # Configs other apps read on their next refresh or launch: GTK, the browser
