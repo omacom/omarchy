@@ -460,16 +460,16 @@ binds[os.getenv("TEST_KEYS")]()
 LUA
 }
 
-if command -v lua >/dev/null; then
-  [[ $(universal_chord "SUPER + V" "terminal*") == "CTRL SHIFT V" ]] || fail "Super + V pastes with Ctrl + Shift + V in terminals"
-  pass "Super + V pastes with Ctrl + Shift + V in terminals"
+require_command lua
 
-  [[ $(universal_chord "SUPER + V" "terminal-clipboard*") == "CTRL SHIFT V" ]] || fail "Super + V pastes with Ctrl + Shift + V in terminal-clipboard windows"
-  pass "Super + V pastes with Ctrl + Shift + V in terminal-clipboard windows"
+[[ $(universal_chord "SUPER + V" "terminal*") == "CTRL SHIFT V" ]] || fail "Super + V pastes with Ctrl + Shift + V in terminals"
+pass "Super + V pastes with Ctrl + Shift + V in terminals"
 
-  [[ $(universal_chord "SUPER + C" "terminal-clipboard") == "CTRL SHIFT C" ]] || fail "Super + C copies with Ctrl + Shift + C in terminal-clipboard windows"
-  pass "Super + C copies with Ctrl + Shift + C in terminal-clipboard windows"
+[[ $(universal_chord "SUPER + V" "terminal-clipboard*") == "CTRL SHIFT V" ]] || fail "Super + V pastes with Ctrl + Shift + V in terminal-clipboard windows"
+pass "Super + V pastes with Ctrl + Shift + V in terminal-clipboard windows"
 
-  [[ $(universal_chord "SUPER + V" "chromium-based-browser*") == "CTRL V" ]] || fail "Super + V pastes with Ctrl + V outside terminals"
-  pass "Super + V pastes with Ctrl + V outside terminals"
-fi
+[[ $(universal_chord "SUPER + C" "terminal-clipboard") == "CTRL SHIFT C" ]] || fail "Super + C copies with Ctrl + Shift + C in terminal-clipboard windows"
+pass "Super + C copies with Ctrl + Shift + C in terminal-clipboard windows"
+
+[[ $(universal_chord "SUPER + V" "chromium-based-browser*") == "CTRL V" ]] || fail "Super + V pastes with Ctrl + V outside terminals"
+pass "Super + V pastes with Ctrl + V outside terminals"
