@@ -334,7 +334,7 @@ const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
   'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
-  'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
+  'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'windowForSource', 'mostRecent', 'brandsOf', 'wordIn', 'focusWindow',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
 function newCapacityScope() {
@@ -490,6 +490,36 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.equal(s.act(), 'ok')
   assert.equal(focused.length, 1, "a card from an app with a window open focuses that window")
   assert.equal(s.leaving[s.toasts.get(0).key], 'activated')
+}
+
+{ // Accepting a notification action does not guarantee Wayland window activation.
+  for (const [appName, wmClass, pid] of [
+    ['Slack', 'slack', 42], ['Slack', 'slack', 0],
+    ['Signal', 'signal', 42], ['Signal', 'signal', 0],
+    ['teams.microsoft.com', 'chrome-teams.microsoft.com__-Default', 0],
+  ]) {
+    const s = newCapacityScope(), calls = []
+    s.Hyprland.toplevels = { values: [{ lastIpcObject: { class: wmClass, pid: 42, address: '0xabc' } }] }
+    s.Hyprland.dispatch = command => calls.push(command)
+    const notification = s.fakeNotification(1)
+    Object.assign(notification, { appName, hints: { 'sender-pid': pid },
+      actions: [{ identifier: 'default', text: 'Open', invoke: () => calls.push('action') }] })
+    s.admit(notification)
+    s.activate(s.toasts.get(0).key)
+    assert.deepEqual(calls, ['action', 'hl.dsp.focus({window = hl.get_window("address:0xabc")})'],
+      'run the original action, then focus the identified sender regardless of app')
+    assert.equal(s.leaving[s.toasts.get(0).key], 'activated')
+  }
+
+  // A successful action with no matching window must not launch an unrelated URL.
+  const s = newCapacityScope(), calls = []
+  s.Security = { ...S, openExternalUrl: url => calls.push(url) }
+  const notification = s.fakeNotification(1)
+  notification.body = 'Read https://example.com/quoted'
+  notification.actions = [{ identifier: 'default', text: 'Open', invoke: () => calls.push('action') }]
+  s.admit(notification)
+  s.activate(s.toasts.get(0).key)
+  assert.deepEqual(calls, ['action'])
 }
 
 { // A clicked card rises out before it goes; a keypress clears every card with one jump.

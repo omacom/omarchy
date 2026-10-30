@@ -1075,15 +1075,18 @@ Item {
     }
 
     var handled = invokeSenderAction(key, "default")
-    if (!handled && row) {
-      // Source first, link last: a Slack message quoting a link is still a
-      // Slack notification, and that link is clickable in its text.
+    if (row) {
+      // A sender can accept its action without activating its Wayland window.
+      // Preserve the action, then focus its window; only launch a fallback if unhandled.
       var win = windowForPid(row.senderPid) || windowForSource(row.source)
       if (win) focusWindow(win)
-      else if (Markup.hostname(row.source))
-        Security.openExternalUrl("https://" + Markup.hostname(row.source) + "/")
-      else if (String(row.link || "")) Security.openExternalUrl(String(row.link))
-      else if (String(row.app || "")) Util.execArgv(["omarchy-hyprland-focus-app", String(row.app)])
+      else if (!handled) {
+        // Source first: a message quoting a link still belongs to its sender.
+        if (Markup.hostname(row.source))
+          Security.openExternalUrl("https://" + Markup.hostname(row.source) + "/")
+        else if (String(row.link || "")) Security.openExternalUrl(String(row.link))
+        else if (String(row.app || "")) Util.execArgv(["omarchy-hyprland-focus-app", String(row.app)])
+      }
     }
     closeToast(key, "activated", instant)
   }
