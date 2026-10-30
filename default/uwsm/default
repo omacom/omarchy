@@ -10,6 +10,13 @@ export TERMINAL=xdg-terminal-exec
 # Used by terminal programs to open files with the selected Omarchy default editor
 export EDITOR="omarchy-launch-editor --inline"
 
+# Hyprland 0.57 asks rtkit for realtime scheduling, which caps its main thread
+# at 200 ms of CPU without a break. A single slow kernel call (a monitor probe,
+# a wake from DPMS off, a busy Xwayland game) can cross that cap, and the kernel
+# then SIGKILLs the compositor before its SIGXCPU fallback can run. Remove once
+# hyprwm/Hyprland#16648 is fixed. Set HYPRLAND_NO_RT=0 to opt back in.
+export HYPRLAND_NO_RT=1
+
 # Use a custom directory for screenshots
 # export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Screenshots"
 
