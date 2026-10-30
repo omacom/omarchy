@@ -86,8 +86,8 @@ grep -Fxq 'pipewire-libcamera' "$ROOT/install/omarchy-aarch64-qualcomm.packages"
 grep -Fxq 'pipewire-libcamera' "$ROOT/install/omarchy-other.packages" || fail "the ISO can supply the camera backend offline"
 pass "Snapdragon installs get the PipeWire camera backend, new and existing"
 
-# At login WirePlumber waits for the media devices the seat hands out, and only
-# until this user can open them, so libcamera finds the camera.
+# At login on Snapdragon, WirePlumber waits for the media devices the seat hands
+# out, and only until this user can open them, so libcamera finds the camera.
 media="$test_tmp/media"
 mkdir -p "$media"
 cat >"$test_tmp/bin/udevadm" <<'STUB'
@@ -113,11 +113,14 @@ else
   (($(wait_for_camera) < 500)) || fail "WirePlumber does not wait for a media device the seat does not hand out"
   : >"$media/media0"
   chmod 000 "$media/media0"
+  rm "$OMARCHY_TEST_QUALCOMM"
+  (($(wait_for_camera) < 500)) || fail "other machines start WirePlumber without waiting"
+  touch "$OMARCHY_TEST_QUALCOMM"
   (sleep 1 && chmod 600 "$media/media0") >/dev/null 2>&1 &
   grant_pid=$!
   elapsed=$(wait_for_camera)
   wait "$grant_pid"
   grant_pid=""
   ((elapsed >= 900 && elapsed < 4000)) || fail "WirePlumber waits until the seat's camera opens" "waited ${elapsed} ms"
-  pass "WirePlumber waits for the seat's camera at login, and only for it"
+  pass "WirePlumber waits for the seat's camera at login, only on Snapdragon and only for it"
 fi
