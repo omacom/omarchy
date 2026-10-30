@@ -10,6 +10,10 @@ o.bind("SHIFT + XF86MonBrightnessDown", "Brightness minimum", "omarchy-brightnes
 o.bind("XF86KbdBrightnessUp", "Keyboard brightness up", "omarchy-brightness-keyboard up", { locked = true, repeating = true })
 o.bind("XF86KbdBrightnessDown", "Keyboard brightness down", "omarchy-brightness-keyboard down", { locked = true, repeating = true })
 o.bind("XF86KbdLightOnOff", "Keyboard backlight cycle", "omarchy-brightness-keyboard cycle", { locked = true })
+-- Keyboards with no backlight keys (Apple since 2021: F5/F6 are dictation and
+-- Do Not Disturb) reach the keyboard backlight with CTRL on the display keys.
+o.bind("CTRL + XF86MonBrightnessUp", "Keyboard brightness up", "omarchy-brightness-keyboard up", { locked = true, repeating = true })
+o.bind("CTRL + XF86MonBrightnessDown", "Keyboard brightness down", "omarchy-brightness-keyboard down", { locked = true, repeating = true })
 o.bind_toggle("XF86TouchpadToggle", "Toggle touchpad", "touchpad", { locked = true })
 o.bind("XF86TouchpadOn", "Enable touchpad", "omarchy-toggle-touchpad on", { locked = true })
 o.bind("XF86TouchpadOff", "Disable touchpad", "omarchy-toggle-touchpad off", { locked = true })
