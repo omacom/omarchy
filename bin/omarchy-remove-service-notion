@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Notion Flatpak app and its data.
+
+set -e
+
+if omarchy-cmd-present flatpak && flatpak info com.notion.app.desktop.notion &>/dev/null; then
+  flatpak uninstall -y --delete-data com.notion.app.desktop.notion
+fi
+
+echo ""
+echo "Notion has been removed."

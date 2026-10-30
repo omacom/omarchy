@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Install Notion as a Flatpak and open it.
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Installing Notion..."
+omarchy-pkg-add flatpak
+flatpak --user install -y --from https://app.linux-packages.notion.com/notion.flatpakref
+
+echo "Opening Notion..."
+setsid uwsm-app -- flatpak run com.notion.app.desktop.notion >/dev/null 2>&1 &
+
+echo ""
+echo "Notion has been installed. Updates arrive via 'flatpak --user update'."
