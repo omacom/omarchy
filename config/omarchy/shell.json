@@ -1,5 +1,8 @@
 {
   "version": 1,
+  "imagePicker": {
+    "wallpaperCaptions": false
+  },
   "idle": {
     "screensaver": 150,
     "lock": 300
