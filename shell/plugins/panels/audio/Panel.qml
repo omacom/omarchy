@@ -937,6 +937,7 @@ Panel {
               PanelSlider {
                 id: outputSlider
                 bar: root.bar
+                wheelEnabled: false
                 anchors.fill: parent
                 anchors.leftMargin: Style.space(6)
                 anchors.rightMargin: Style.space(6)
@@ -1036,6 +1037,7 @@ Panel {
                 PanelSlider {
                   id: inputSlider
                   bar: root.bar
+                  wheelEnabled: false
                   width: parent.width
                   minimum: 0
                   maximum: 1
@@ -1331,6 +1333,7 @@ Panel {
 
       PanelSlider {
         bar: root.bar
+        wheelEnabled: false
         width: parent.width
         minimum: 0
         maximum: 1.5

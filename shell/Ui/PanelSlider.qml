@@ -18,6 +18,8 @@ Item {
   property real trackHeight: Math.max(4, Math.round(Style.spacing.controlHeight * 0.11))
   property real knobSize: Math.max(14, Math.round(Style.spacing.controlHeight * 0.38))
   property real liveValue: value
+  // Off inside a list that scrolls, so the wheel reaches the list instead.
+  property bool wheelEnabled: true
 
   // macOS-style notches. When > 1, that many evenly-spaced tick marks are cut
   // into the track (drawn in the panel background color, so only the part
@@ -148,6 +150,10 @@ Item {
       root.liveValue = root.value
     }
     onWheel: function(wheel) {
+      if (!root.wheelEnabled) {
+        wheel.accepted = false
+        return
+      }
       var delta = wheel.angleDelta.y > 0 ? root.step : -root.step
       var next = Math.max(root.minimum, Math.min(root.maximum, root.liveValue + delta))
       if (root.integer) next = Math.round(next)
