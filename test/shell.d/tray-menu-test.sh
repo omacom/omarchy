@@ -7,12 +7,16 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 TMPDIR=""
 QS_PID=""
 MOCK_PID=""
+NO_MENU_PID=""
 
 cleanup() {
-  if [[ -n $MOCK_PID ]] && kill -0 "$MOCK_PID" 2>/dev/null; then
-    kill "$MOCK_PID" 2>/dev/null || true
-    wait "$MOCK_PID" 2>/dev/null || true
-  fi
+  local pid
+  for pid in "$MOCK_PID" "$NO_MENU_PID"; do
+    if [[ -n $pid ]] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+    fi
+  done
   if [[ -n $QS_PID ]] && kill -0 "$QS_PID" 2>/dev/null; then
     kill "$QS_PID" 2>/dev/null || true
     wait "$QS_PID" 2>/dev/null || true
@@ -90,3 +94,31 @@ if [[ ! -s $event_result ]]; then
 fi
 
 pass "tray menu sends DBusMenu clicked event"
+
+no_menu_ready="$TMPDIR/no-menu-ready"
+context_menu_result="$TMPDIR/context-menu"
+no_menu_log="$TMPDIR/mock-sni-no-menu.log"
+
+OMARCHY_TRAY_MENU_READY="$no_menu_ready" \
+OMARCHY_TRAY_CONTEXT_MENU_RESULT="$context_menu_result" \
+  python "$SHELL_TEST_DIR/fixtures/tray-menu-activation/mock-sni.py" >"$no_menu_log" 2>&1 &
+NO_MENU_PID=$!
+
+for _ in {1..50}; do
+  [[ -s $no_menu_ready ]] && break
+  sleep 0.1
+done
+
+if [[ ! -s $no_menu_ready ]]; then
+  sed -n '1,160p' "$no_menu_log" >&2
+  fail "mock StatusNotifierItem without a menu registers with the watcher"
+fi
+
+"$ROOT/bin/omarchy-tray-context-menu" omarchy-test-tray-no-menu
+
+if [[ ! -s $context_menu_result ]]; then
+  sed -n '1,160p' "$no_menu_log" >&2
+  fail "tray item without a D-Bus menu gets a ContextMenu call"
+fi
+
+pass "tray item without a D-Bus menu gets a ContextMenu call"

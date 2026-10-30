@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Open a tray item's own context menu at the cursor
+# omarchy:args=<item-id>
+# omarchy:hidden=true
+
+# Items without a D-Bus menu (Wine marks them Menu=/NO_DBUSMENU) only answer the SNI ContextMenu call, which Quickshell doesn't expose to QML.
+
+set -euo pipefail
+
+id=${1:?usage: omarchy-tray-context-menu <item-id>}
+
+items=$(busctl --user --json=short get-property org.kde.StatusNotifierWatcher /StatusNotifierWatcher \
+  org.kde.StatusNotifierWatcher RegisteredStatusNotifierItems | jq -r '.data[]')
+
+while IFS= read -r item; do
+  [[ -n $item ]] || continue
+  service=${item%%/*}
+  path=/${item#*/}
+
+  item_id=$(busctl --user --json=short get-property "$service" "$path" org.kde.StatusNotifierItem Id 2>/dev/null | jq -r .data) || continue
+  [[ $item_id == "$id" ]] || continue
+
+  read -r x y < <(hyprctl cursorpos | tr -d ,)
+  busctl --user call "$service" "$path" org.kde.StatusNotifierItem ContextMenu ii "$x" "$y"
+  exit 0
+done <<<"$items"
+
+echo "omarchy-tray-context-menu: no tray item with id $id" >&2
+exit 1
