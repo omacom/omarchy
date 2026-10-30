@@ -34,6 +34,9 @@ case "${1:-}" in
     exec {OMARCHY_UPDATE_LOCK_FD}>"$lock_path"
     if ! flock -n "$OMARCHY_UPDATE_LOCK_FD"; then
       echo "An Omarchy update is already running."
+      if [[ -f /tmp/omarchy-update.log ]]; then
+        echo "Follow it with: tail -f /tmp/omarchy-update.log"
+      fi
       exit 1
     fi
 
