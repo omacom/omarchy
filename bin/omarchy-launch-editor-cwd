@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Launch the default editor in the folder shown by the focused Files window
+
+if folder=$(omarchy-cmd-nautilus-cwd); then
+  cd "$folder"
+  exec omarchy-launch-editor "$folder"
+else
+  exec omarchy-launch-editor
+fi
