@@ -2,7 +2,7 @@
 #
 # Fingerprint setup must still reach PAM when a print is already enrolled, since
 # fprintd-enroll refuses a finger saved under another finger name as enroll-duplicate.
-# fprintd, sudo and omarchy-apply-lock are stubbed; they only record what setup asked for.
+# fprintd, sudo, omarchy-apply-lock and omarchy-lifecycle-dispatch are stubbed; they only record what setup asked for.
 
 set -euo pipefail
 
@@ -27,6 +27,9 @@ stub() {
 
 stub sudo '[[ $1 == fprintd-enroll ]] && exec "$@"; printf "sudo %s\n" "$*" >> "$CALL_LOG"'
 stub omarchy-hw-fingerprint 'exit 0'
+# No platform enable hook, so an Apple Silicon host with omarchy-mac installed
+# runs the same steps as every other host.
+stub omarchy-lifecycle-dispatch '[[ $1 == --resolve ]] || echo "lifecycle-dispatch $*" >> "$CALL_LOG"'
 # The lock screen PAM file comes from omarchy-apply-lock; the stub writes it where the redirected setup looks.
 stub omarchy-apply-lock 'echo apply-lock >> "$CALL_LOG"; touch "$SCRATCH/pam.d/omarchy-lock-fingerprint"'
 stub omarchy-pkg-missing 'exit 1'
