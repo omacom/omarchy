@@ -145,7 +145,7 @@ test entry points:
 
 - `./test/all` - aggregate runner for CLI and shell tests; it intentionally does not run graphical acceptance tests
 - `./test/cli` - CLI routing, command metadata, theme helpers, and safe dispatch coverage
-- `./test/shell` - all Omarchy shell tests under `test/shell.d/`
+- `./test/shell [name ...]` - all Omarchy shell tests under `test/shell.d/`; pass names (e.g. `./test/shell idle` or `./test/shell menu-test.sh`) to run focused files, or omit arguments to run the full phased suite
 
 How to run them without wasting runs:
 
