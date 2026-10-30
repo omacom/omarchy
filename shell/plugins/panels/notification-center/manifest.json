@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.notification-center",
+  "name": "Notification Center",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Shelved and timed-out notifications",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Panel.qml" },
+  "barWidget": {
+    "displayName": "Notifications",
+    "description": "Shelved and timed-out notifications",
+    "category": "System",
+    "allowMultiple": false
+  }
+}
