@@ -82,6 +82,11 @@ browser_policy_setup_parents_for() {
 # Links reach the browser through omarchy-browser.desktop, so the browser never
 # sees itself as the default. Hide its check and its button to become one, which
 # would rewrite mimeapps.list behind Omarchy's back.
+#
+# The captive portal sign-in window opens NetworkManager's plain-HTTP probe so
+# the portal can redirect it. HTTPS-First's balanced mode upgrades that to
+# https:// and, when a portal answers port 443 with "unreachable", shows the
+# error page instead of falling back, so the probe host is exempt from upgrades.
 browser_policy_install_defaults() {
   local policy_dir=$1
   local policies=${2:-$OMARCHY_PATH/default/chromium/policies/omarchy.json}
