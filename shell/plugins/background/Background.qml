@@ -122,6 +122,18 @@ Item {
     revealAnimation.stop()
     finishingTransition = false
 
+    // OWE draws a video background and fades the last still into it. That
+    // still stays on screen until OWE has the first frame and suspends this
+    // layer, so the desktop does not show an empty background meanwhile.
+    if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) {
+      if (incomingBackground) displayedBackground = incomingBackground
+      oldBackground = ""
+      incomingBackground = ""
+      preparedBackground = ""
+      revealProgress = 1
+      return
+    }
+
     // Video frames are not fed through the image-only reveal stack. Switching
     // instantly also avoids decoding two full videos during a transition.
     if (instant || !displayedBackground || isVideo(path) || isVideo(displayedBackground)) {
