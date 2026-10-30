@@ -1,0 +1,260 @@
+#!/bin/bash
+#
+# Asks the repositories whether they serve the package names a change adds to
+# install/*.packages, on every architecture that needs that list: the ones that
+# install it, and for install/omarchy-other.packages the ones whose offline
+# mirror carries it.
+#
+# A name no repository offers fails the whole `pacman -S` it shares with the
+# others, on the machine nobody tests, so omarchy-iso's builder refuses to ship
+# an ISO that still asks for one (builder/follow-renamed-packages.sh). That
+# refusal arrives in the nightly, hours after the merge, and knows only the
+# architecture it built: asus-zenbook-a16-audio, added to the shared list in
+# #17039, cost the x86_64 nightly its build.
+#
+# The lists are compared as the consumers read them, not as a diff: each file's
+# names before the change, against its names after. What a change adds is what
+# the other architectures have to be able to offer, and a comment or a
+# reordering adds nothing.
+#
+# install/omarchy-other.packages is not an install set. The installer pacstraps
+# the composed base list, and model-gated setup installs the rest by name, so
+# that file is what the ISO's offline mirror has to carry: both ISO builds need
+# every name in it, and Apple Silicon, installed from macOS, reads none of it.
+#
+# The manifests still carry names one architecture lacks on purpose (the T2
+# Macs' packages, say), each mapped in omarchy-iso's builder, and this must not
+# start red on those. So only names a change introduces are checked, and a name
+# in omarchy-x86_64-only.packages is left out of the other architectures, as
+# omarchy-pkg-defaults and the builder leave it out. Taking a name out of that
+# file makes it required there again, which is checked too.
+#
+# Usage: test/ci-packages <base-ref> [path-prefix]
+#
+# path-prefix goes in front of the file name in the annotation, for a caller
+# that checks out this repository in a subdirectory of the workspace.
+#
+# Needs git and pacman, and root for pacman's own sync. The repositories and
+# their order are omarchy-iso's configs/pacman-online-{edge,aarch64-edge}.conf
+# and omarchy's default/pacman/aarch64-apple/pacman-edge.conf.
+
+set -euo pipefail
+
+base=${1:?usage: test/ci-packages <base-ref> [path-prefix]}
+prefix=${2:-}
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+
+# A new branch pushed for the first time replaces no commit, and the pull
+# request it opens measures the change against its base.
+if [[ $base =~ ^0+$ ]]; then
+  echo "no base commit to compare against; nothing added to check"
+  exit 0
+fi
+
+# The architectures that need a list, by the list's name. omarchy-base is
+# installed everywhere, so all three need it. omarchy-other is carried by the
+# offline mirror of the two ISO builds only. Every ARM machine installs
+# omarchy-aarch64.packages before its platform's own list. Apple Silicon has
+# repositories of its own.
+arches_for() {
+  case ${1##*/} in
+  omarchy-base.packages) echo "x86_64 aarch64 aarch64-apple" ;;
+  omarchy-other.packages) echo "x86_64 aarch64" ;;
+  omarchy-x86_64-only.packages) echo x86_64 ;;
+  omarchy-aarch64-apple.packages) echo aarch64-apple ;;
+  omarchy-aarch64.packages) echo "aarch64 aarch64-apple" ;;
+  omarchy-aarch64*.packages) echo aarch64 ;;
+  *) return 1 ;;
+  esac
+}
+
+# Every entry a list holds, with the line it sits on, read the way
+# omarchy-pkg-defaults reads it: the comment from the first # onwards is
+# dropped and blank lines go. What is left is a package name as written. It is
+# not trimmed, because the consumers do not trim it and pacman cannot resolve a
+# name with spaces in it.
+name_lines() {
+  awk '{ name = $0; sub(/[[:space:]]*#.*$/, "", name)
+         if (name ~ /^[[:space:]]*$/) next
+         printf "%d\t%s\n", NR, name }' "$@"
+}
+
+names() {
+  name_lines "$@" | cut -f2-
+}
+
+names_at_base() {
+  (cd "$root" && git show "$base:$1" 2>/dev/null || true) |
+    sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d'
+}
+
+# name|url, in precedence order: pacman takes the first repository that carries
+# a name. The [platform] bundle an aarch64 build mounts at /packages pins
+# versions rather than names, so it is not one of these.
+repositories() {
+  case $1 in
+  x86_64)
+    echo "omarchy|https://pkgs.omarchy.org/edge/x86_64"
+    echo "core|https://mirror.omarchy.org/core/os/x86_64"
+    echo "extra|https://mirror.omarchy.org/extra/os/x86_64"
+    echo "multilib|https://mirror.omarchy.org/multilib/os/x86_64"
+    echo "arch-mact2|https://mirror.funami.tech/arch-mact2/os/x86_64"
+    ;;
+  aarch64)
+    echo "omarchy|https://pkgs.omarchy.org/edge/aarch64"
+    echo "core|https://arm-mirror.omarchy.org/aarch64/core"
+    echo "extra|https://arm-mirror.omarchy.org/aarch64/extra"
+    echo "alarm|https://arm-mirror.omarchy.org/aarch64/alarm"
+    echo "aur|https://arm-mirror.omarchy.org/aarch64/aur"
+    ;;
+  aarch64-apple)
+    # Never built by the ISO: the Mac installer installs these, and Asahi ALARM
+    # carries the kernel and firmware underneath them.
+    echo "omarchy|https://pkgs.omarchy.org/edge/aarch64"
+    echo "asahi-alarm|https://github.com/asahi-alarm/asahi-alarm/releases/download/aarch64"
+    echo "core|https://arm-mirror.omarchy.org/aarch64/core"
+    echo "extra|https://arm-mirror.omarchy.org/aarch64/extra"
+    echo "alarm|https://arm-mirror.omarchy.org/aarch64/alarm"
+    ;;
+  esac
+}
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+declare -A wanted=() required=() excluded=()
+declare -a report=()
+failed=0
+
+while IFS= read -r name; do
+  [[ -n $name ]] && excluded[$name]=1
+done < <(names "$root/install/omarchy-x86_64-only.packages" 2>/dev/null || true)
+
+for path in "$root"/install/*.packages; do
+  file=install/${path##*/}
+  if ! arches=$(arches_for "$file"); then
+    echo "::error file=$prefix$file::test/ci-packages has no architecture for this list; add one so its names are checked"
+    failed=1
+    continue
+  fi
+  before=$(names_at_base "$file")
+  declare -A seen=()
+  while IFS=$'\t' read -r line name; do
+    [[ -n $name ]] || continue
+    if [[ -n ${seen[$name]:-} ]]; then
+      continue
+    fi
+    seen[$name]=1
+    if [[ $name != "${name#"${name%%[![:space:]]*}"}" || $name != "${name%"${name##*[![:space:]]}"}" ]]; then
+      echo "::error file=$prefix$file,line=$line::'$name' has leading or trailing whitespace, which pacman cannot resolve"
+      failed=1
+      continue
+    fi
+    grep -Fxq -- "$name" <<<"$before" && continue
+    for arch in $arches; do
+      wanted[$arch]+="$file"$'\t'"$line"$'\t'"$name"$'\n'
+    done
+  done < <(name_lines "$path")
+  unset seen
+done
+
+# A name the change takes out of omarchy-x86_64-only.packages is one the other
+# architectures have to install from now on, though no list of theirs gained a
+# line. Only the shared lists reach them, so only those names can be affected.
+if [[ -f $root/install/omarchy-x86_64-only.packages ]]; then
+  shared=$(names "$root/install/omarchy-base.packages" "$root/install/omarchy-other.packages")
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    [[ -n ${excluded[$name]:-} ]] && continue
+    grep -Fxq -- "$name" <<<"$shared" || continue
+    required[aarch64]+="$name"$'\n'
+    required[aarch64-apple]+="$name"$'\n'
+  done < <(names_at_base install/omarchy-x86_64-only.packages)
+fi
+
+# The names one architecture serves, from a synced copy of its databases.
+served_names() {
+  local arch=$1 dir=$work/$1
+  mkdir -p "$dir"/{db,cache,gnupg,hooks}
+  touch "$dir/log"
+  {
+    echo "[options]"
+    echo "Architecture = ${arch%%-apple}"
+    # The repositories sign nothing this container holds a key for.
+    echo "SigLevel = Never"
+    echo "DBPath = $dir/db"
+    echo "CacheDir = $dir/cache"
+    echo "LogFile = $dir/log"
+    echo "GPGDir = $dir/gnupg"
+    echo "HookDir = $dir/hooks"
+    echo "ParallelDownloads = 5"
+    repositories "$arch" | while IFS='|' read -r name url; do
+      printf '\n[%s]\nServer = %s\n' "$name" "$url"
+    done
+  } >"$dir/pacman.conf"
+  # A mirror that drops one database must not read as a package that no
+  # repository serves: try again, and stop on the mirror instead.
+  local attempt
+  for attempt in 1 2 3; do
+    if pacman --config "$dir/pacman.conf" --noconfirm -Sy >/dev/null; then
+      break
+    elif ((attempt < 3)); then
+      echo "syncing the $arch databases failed, attempt $attempt of 3; trying again in 15 s"
+      sleep 15
+    else
+      echo "::error::test/ci-packages could not sync the $arch databases from the mirror"
+      exit 1
+    fi
+  done
+  pacman --config "$dir/pacman.conf" -Slq | sort -u
+}
+
+for arch in $(printf '%s\n' "${!wanted[@]}" "${!required[@]}" | sort -u); do
+  dir=$work/$arch
+  served=$(served_names "$arch")
+  while IFS=$'\t' read -r file line name; do
+    [[ -n $file ]] || continue
+    # omarchy-pkg-defaults and the ISO builder leave these out on every other
+    # architecture, so nothing there has to serve them.
+    if [[ $arch != x86_64 && -n ${excluded[$name]:-} ]]; then
+      continue
+    fi
+    grep -Fxq -- "$name" <<<"$served" && continue
+    # A group or a virtual name is not in -Slq; keep anything -Sp can still
+    # turn into a download, the test the ISO builder uses for the same reason.
+    pacman --config "$dir/pacman.conf" -Sp --print-format '%n' --noconfirm "$name" >/dev/null 2>&1 && continue
+    echo "::error file=$prefix$file,line=$line::no $arch repository serves '$name'"
+    report+=("$name ($arch), added to $file:$line")
+    failed=1
+  done <<<"${wanted[$arch]:-}"
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    grep -Fxq -- "$name" <<<"$served" && continue
+    pacman --config "$dir/pacman.conf" -Sp --print-format '%n' --noconfirm "$name" >/dev/null 2>&1 && continue
+    echo "::error::no $arch repository serves '$name', which omarchy-x86_64-only.packages no longer excludes"
+    report+=("$name ($arch), no longer excluded from install/omarchy-x86_64-only.packages")
+    failed=1
+  done <<<"${required[$arch]:-}"
+done
+
+if ((failed)); then
+  printf '\nNo repository serves, so the install fails on the machines that reach it:\n' >&2
+  printf '  %s\n' "${report[@]}" >&2
+  cat >&2 <<'MSG'
+
+A name belongs where its installation scope puts it:
+  omarchy-base.packages         every machine, so every architecture needs it
+  omarchy-aarch64.packages      every ARM machine
+  omarchy-aarch64-<family>      every machine of that family
+  omarchy-x86_64-only.packages  x86_64 alone, which the other architectures skip
+
+A package one model installs from guarded hardware setup stays in
+omarchy-other.packages, which the offline mirror carries and nothing installs
+as a set. When x86_64 has no build of it, name it in omarchy-iso's
+builder/build-iso.sh aarch64_only list in the same change, so that build stops
+asking for it.
+MSG
+  exit 1
+fi
+
+echo "every name this change adds is served on every architecture that installs it"

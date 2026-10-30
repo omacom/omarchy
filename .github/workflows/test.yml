@@ -116,3 +116,57 @@ jobs:
           path: out/
           if-no-files-found: ignore
           retention-days: 14
+
+  # The package names a change adds, against the repositories that must serve
+  # them. A name no repository offers stops the nightly ISO build hours later,
+  # on one architecture at a time; this answers on the pull request, in seconds,
+  # and builds nothing.
+  packages:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    env:
+      # Where the pull request branched from, or the commit a push replaced.
+      BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: src/omarchy
+          persist-credentials: false
+
+      - name: Fetch the base commit
+        run: |
+          # A new branch has no base commit to measure against.
+          [[ $BASE =~ ^0+$ ]] && exit 0
+          git -C src/omarchy fetch --no-tags --depth 1 origin "$BASE"
+
+      - name: Did the package lists change?
+        id: lists
+        run: |
+          if ! [[ $BASE =~ ^0+$ ]] && git -C src/omarchy diff --quiet "$BASE" HEAD -- 'install/*.packages'; then
+            echo "changed=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      # pacman lives in Arch's container, the same one the VM job runs QEMU in.
+      - name: Every added name is served on every architecture that installs it
+        if: steps.lists.outputs.changed == 'true'
+        run: |
+          docker run --rm -e BASE -v "$PWD:/w" -w /w ghcr.io/archlinux/archlinux:latest bash -euo pipefail -c '
+            # pacman 7 fails every sync on a kernel without Landlock, which
+            # these runners have; omarchy-iso does the same.
+            if ! grep -qw landlock /sys/kernel/security/lsm 2>/dev/null; then
+              printf "#!/bin/sh\nexec /usr/bin/pacman --disable-sandbox \"\$@\"\n" >/usr/local/bin/pacman
+              chmod 0755 /usr/local/bin/pacman
+            fi
+            if ! command -v git >/dev/null; then
+              for attempt in 1 2 3; do
+                if pacman -Sy --noconfirm --needed git >/dev/null; then break; fi
+                (( attempt < 3 )) || { echo "::error::the check container could not install git"; exit 1; }
+                sleep 15
+              done
+            fi
+            git config --global --add safe.directory /w/src/omarchy
+            src/omarchy/test/ci-packages "$BASE" src/omarchy/
+          '
+

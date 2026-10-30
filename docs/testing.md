@@ -30,6 +30,8 @@ the end and exits non-zero.
 
 Every pull request runs `./test/all` on a real Omarchy install (`.github/workflows/test.yml`): `test/ci-vm` boots the VM image of the current stable release, copies the checkout and omarchy-pkgs in, and runs the suite in the desktop session with `OMARCHY_PATH` at the checkout and its `bin/` first on `PATH`. The image is fetched from Cloudflare on every run, which measured faster than restoring it from the Actions cache. The job uploads every file's log.
 
+The same workflow runs a second job, `packages`, when a change touches `install/*.packages`. `test/ci-packages` takes the names the change adds and asks the repositories of every architecture that needs that list, whether it installs the list or carries it in the ISO's offline mirror, because a name no repository offers stops the ISO build hours later and only for the architecture it built.
+
 A new shell test only needs the right name: drop `<area>-test.sh` into
 `test/shell.d/` and `./test/shell` picks it up automatically. Shared fixtures
 live under `test/shell.d/fixtures/`.

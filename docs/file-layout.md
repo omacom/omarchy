@@ -386,9 +386,7 @@ Platform-specific setup asks `omarchy-hw-platform`, which prints `x86`, `aarch64
 
 An image built away from the machine it will run on names its target in a root-owned manifest, `/var/lib/omarchy/image/target` (`format=1`, `platform=<omarchy-hw-platform value>`, unknown keys ignored). While the root is being built rather than booted, the detector answers from the manifest and never reads the build host's device tree. The root counts as built when it shows it: no `/run/systemd/system`, PID 1's root is another one (a chroot), or PID 1 is not systemd (a PID namespace). A booted system always answers from its hardware, even with a manifest left behind, so no unit that asks the detector may use `PrivatePIDs=`. As root the detector restarts in an empty environment and ignores the fixture variables its tests use.
 
-The package lists the ISO pacstraps live at `install/omarchy-base.packages`
-and `install/omarchy-other.packages`; the ISO builder also reads them when
-constructing its offline mirror.
+The installer pacstraps `install/omarchy-base.packages`. `install/omarchy-other.packages` is not an install set: it lists what the ISO's offline mirror must carry, so guarded hardware setup can install a model's package offline. The ISO builder reads both when it constructs the mirror.
 
 A platform's default package set is the base list, then its architecture's additions, then its own: `install/omarchy-aarch64.packages` on every aarch64 platform, then `install/omarchy-<platform>.packages` when that platform has one (`install/omarchy-aarch64-apple.packages` on Apple Silicon, `install/omarchy-aarch64-qualcomm.packages` on Snapdragon, `install/omarchy-aarch64-n1x.packages` on the N1x, `install/omarchy-aarch64-gb10.packages` on the GB10). x86 installs the base list alone. `omarchy-pkg-defaults [platform]` prints the composed set, for the running machine by default (via `omarchy-hw-platform`, so an image build gets its target's set), and `omarchy-reinstall-pkgs` installs it.
 
