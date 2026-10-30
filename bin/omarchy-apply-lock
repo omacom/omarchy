@@ -26,9 +26,68 @@ as_root() {
   fi
 }
 
-echo "Configuring lock screen password authentication..."
+# Existing non-default files belong to their administrator or integration.
+# A symlink is also custom, including a dangling one; never follow it to write
+# or remove. Pass "text" and the expected body, or "file" and a source path.
+# A missing recovery parent is absent, not an error: install creates it.
+custom_file() {
+  as_root /usr/bin/python3 -I - "$1" "$2" "$3" <<'PYCODE'
+import os
+import stat
+import sys
 
-as_root tee /etc/pam.d/omarchy-lock-password >/dev/null <<'EOF'
+path, expected, mode = sys.argv[1:]
+try:
+    if mode not in ("text", "file"):
+        raise OSError("invalid configuration comparison")
+    parent = os.path.dirname(path)
+    try:
+        os.stat(parent)
+    except FileNotFoundError:
+        # PAM's directory is part of the system. A recovery directory is not.
+        if mode != "file":
+            raise
+        print("managed")
+        sys.exit(0)
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        print("managed")
+        sys.exit(0)
+    if not stat.S_ISREG(info.st_mode):
+        print("custom")
+        sys.exit(0)
+    if mode == "file":
+        with open(expected, "rb") as source_file:
+            expected_bytes = source_file.read()
+    else:
+        expected_bytes = (expected + "\n").encode()
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, "rb") as source:
+        current = os.fstat(source.fileno())
+        if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+            raise OSError("file changed during inspection")
+        print("managed" if source.read() == expected_bytes else "custom")
+except OSError as error:
+    kind = "lock recovery configuration" if mode == "file" else "lock PAM policy"
+    print("Could not inspect " + kind + ": " + str(error), file=sys.stderr)
+    sys.exit(2)
+PYCODE
+}
+
+# Recovery files ship with the fingerprint policy but are customized alone.
+inspect_recovery() {
+  if ! recovery_policy=$(custom_file "$1" "$2" file); then
+    echo "Could not inspect fingerprint recovery configuration; leaving it unchanged." >&2
+    exit 1
+  fi
+  if [[ $recovery_policy != "managed" && $recovery_policy != "custom" ]]; then
+    echo "Invalid fingerprint recovery inspection result." >&2
+    exit 1
+  fi
+}
+
+password_config=$(cat <<'EOF'
 #%PAM-1.0
 auth       required                    pam_faillock.so preauth silent deny=10 unlock_time=120
 -auth      [success=2 default=ignore]  pam_systemd_home.so
@@ -39,6 +98,27 @@ auth       required                    pam_env.so
 auth       required                    pam_faillock.so authsucc
 account    include                     system-local-login
 EOF
+)
+fingerprint_config=$(cat <<'EOF'
+#%PAM-1.0
+auth       required                    pam_fprintd.so
+account    include                     system-local-login
+EOF
+)
+
+if ! password_policy=$(custom_file /etc/pam.d/omarchy-lock-password "$password_config" text); then
+  echo "Could not inspect password authentication; leaving it unchanged." >&2
+  exit 1
+fi
+if [[ $password_policy == "custom" ]]; then
+  echo "Keeping custom lock screen password authentication."
+elif [[ $password_policy == "managed" ]]; then
+  echo "Configuring lock screen password authentication..."
+  printf '%s\n' "$password_config" | as_root tee /etc/pam.d/omarchy-lock-password >/dev/null
+else
+  echo "Invalid password policy inspection result." >&2
+  exit 1
+fi
 
 # Install resume recovery alongside fingerprint PAM, so setup and upgrades
 # cannot leave one configured without the other.
@@ -54,21 +134,45 @@ else
   fingerprint_status="no"
 fi
 
-if grep -qE '^[[:space:]]*-[[:space:]]*#[0-9]+:' <<< "$fingerprint_status"; then
+if ! fingerprint_policy=$(custom_file /etc/pam.d/omarchy-lock-fingerprint "$fingerprint_config" text); then
+  echo "Could not inspect fingerprint authentication; leaving it unchanged." >&2
+  exit 1
+fi
+if [[ $fingerprint_policy == "custom" ]]; then
+  echo "Keeping custom lock screen fingerprint authentication and recovery configuration."
+elif [[ $fingerprint_policy != "managed" ]]; then
+  echo "Invalid fingerprint policy inspection result." >&2
+  exit 1
+elif grep -qE '^[[:space:]]*-[[:space:]]*#[0-9]+:' <<< "$fingerprint_status"; then
   echo "Configuring lock screen fingerprint authentication..."
-  as_root install -Dm755 -o root -g root "$resume_hook_src" "$resume_hook_dst"
-  as_root install -Dm644 -o root -g root "$stop_timeout_src" "$stop_timeout_dst"
+  inspect_recovery "$resume_hook_dst" "$resume_hook_src"
+  if [[ $recovery_policy == "custom" ]]; then
+    echo "Keeping custom lock screen fingerprint recovery configuration."
+  else
+    as_root install -Dm755 -o root -g root "$resume_hook_src" "$resume_hook_dst"
+  fi
+  inspect_recovery "$stop_timeout_dst" "$stop_timeout_src"
+  if [[ $recovery_policy == "custom" ]]; then
+    echo "Keeping custom lock screen fingerprint recovery configuration."
+  else
+    as_root install -Dm644 -o root -g root "$stop_timeout_src" "$stop_timeout_dst"
+  fi
   as_root systemctl daemon-reload
-  as_root tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<'EOF'
-#%PAM-1.0
-auth       required                    pam_fprintd.so
-account    include                     system-local-login
-EOF
+  printf '%s\n' "$fingerprint_config" | as_root tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null
 elif [[ $fingerprint_status == "no" ]] || grep -qi 'has no fingers enrolled' <<< "$fingerprint_status"; then
-  as_root rm -f /etc/pam.d/omarchy-lock-fingerprint "$resume_hook_dst"
-  # Only reload when something was there: this branch also runs in the
-  # install chroot, where there is no systemd to reload.
-  if [[ -e $stop_timeout_dst ]]; then
+  as_root rm -f /etc/pam.d/omarchy-lock-fingerprint
+  inspect_recovery "$resume_hook_dst" "$resume_hook_src"
+  if [[ $recovery_policy == "custom" ]]; then
+    echo "Keeping custom lock screen fingerprint recovery configuration."
+  else
+    as_root rm -f "$resume_hook_dst"
+  fi
+  # Only reload when a managed drop-in was there: this branch also runs in
+  # the install chroot, where there is no systemd to reload.
+  inspect_recovery "$stop_timeout_dst" "$stop_timeout_src"
+  if [[ $recovery_policy == "custom" ]]; then
+    echo "Keeping custom lock screen fingerprint recovery configuration."
+  elif [[ -e $stop_timeout_dst ]]; then
     as_root rm -f "$stop_timeout_dst"
     as_root rmdir --ignore-fail-on-non-empty "$(dirname "$stop_timeout_dst")"
     as_root systemctl daemon-reload
