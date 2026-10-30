@@ -2,6 +2,11 @@
 
 o.window(".*", { suppress_event = "maximize" })
 
+-- Hold off idle while any window is fullscreen (2), so games from any launcher
+-- don't lock mid-play. Full width (maximized, 1) doesn't count. App rules below
+-- still override it.
+o.window({ fullscreen_state_internal = 2 }, { idle_inhibit = "fullscreen" })
+
 -- Fix some dragging issues with XWayland.
 o.window(
   {
