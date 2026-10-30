@@ -9,6 +9,8 @@ Item {
   property real value: 0
   property real minimum: 0
   property real maximum: 1
+  // Unused. Kept so cloned panels that still set it can load.
+  property real step: 0.05
   property bool integer: false
   property color trackColor: bar ? Style.selectedFillFor(bar.foreground, Commons.Color.accent) : "#333"
   property color fillColor: bar ? bar.foreground : Commons.Color.foreground
