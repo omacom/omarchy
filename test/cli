@@ -644,20 +644,58 @@ for binary in \
   pass "binary is executable: $binary"
 done
 
-while IFS= read -r binary_path; do
-  header=$(awk '
-    NR == 1 && /^#!/ { next }
-    /^[[:space:]]*$/ { if (seen) print; next }
-    /^[[:space:]]*#/ { seen=1; print; next }
-    { exit }
-  ' "$binary_path")
+ROOT="$ROOT" python3 <<'PY'
+import glob
+import os
+import re
+import sys
 
-  grep -q '^# omarchy:summary=' <<<"$header" || fail "metadata summary is present: $binary_path"
-  ! grep -q '^# omarchy:binary=' <<<"$header" || fail "metadata does not repeat inferred binary: $binary_path"
-  ! grep -q '^# omarchy:args=$' <<<"$header" || fail "metadata does not include empty args: $binary_path"
-  ! grep -Eq '^# omarchy:(legacy|usage|visibility|mutates|interactive)=' <<<"$header" || fail "metadata avoids removed fields: $binary_path"
-  ! grep -Eq '^# omarchy:requires-sudo=false$' <<<"$header" || fail "metadata omits false booleans: $binary_path"
-done < <(find "$ROOT/bin" -maxdepth 1 -type f -executable -name 'omarchy-*' | sort)
+root = os.environ['ROOT']
+bin_dir = os.path.join(root, 'bin')
+binaries = sorted([
+  entry.path for entry in os.scandir(bin_dir)
+  if entry.name.startswith('omarchy-') and entry.is_file() and os.access(entry.path, os.X_OK)
+])
+
+def fail(message):
+  print(f'not ok - {message}', file=sys.stderr)
+  sys.exit(1)
+
+if len(binaries) < 200:
+  fail(f'insufficient binaries discovered in {bin_dir} (found {len(binaries)})')
+
+for path in binaries:
+  with open(path, 'r', encoding='utf-8', errors='replace') as f:
+    lines = f.readlines()
+
+  header_lines = []
+  seen = False
+  for i, line in enumerate(lines):
+    if i == 0 and line.startswith('#!'):
+      continue
+    if re.match(r'^\s*$', line):
+      if seen:
+        header_lines.append(line)
+      continue
+    if re.match(r'^\s*#', line):
+      seen = True
+      header_lines.append(line)
+      continue
+    break
+
+  header = ''.join(header_lines)
+
+  if not re.search(r'^# omarchy:summary=', header, re.M):
+    fail(f'metadata summary is present: {path}')
+  if re.search(r'^# omarchy:binary=', header, re.M):
+    fail(f'metadata does not repeat inferred binary: {path}')
+  if re.search(r'^# omarchy:args=$', header, re.M):
+    fail(f'metadata does not include empty args: {path}')
+  if re.search(r'^# omarchy:(legacy|usage|visibility|mutates|interactive)=', header, re.M):
+    fail(f'metadata avoids removed fields: {path}')
+  if re.search(r'^# omarchy:requires-sudo=false$', header, re.M):
+    fail(f'metadata omits false booleans: {path}')
+PY
 pass "all executable bins have slim self-documenting metadata"
 
 make_tmpdir TMPDIR
