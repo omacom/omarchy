@@ -937,13 +937,11 @@ Panel {
               PanelSlider {
                 id: outputSlider
                 bar: root.bar
-                wheelEnabled: false
                 anchors.fill: parent
                 anchors.leftMargin: Style.space(6)
                 anchors.rightMargin: Style.space(6)
                 minimum: 0
                 maximum: 1
-                step: 0.05
                 value: root.outputVolume
                 opacity: root.outputMuted ? 0.5 : 1.0
                 enabled: !!root.sink
@@ -1037,11 +1035,9 @@ Panel {
                 PanelSlider {
                   id: inputSlider
                   bar: root.bar
-                  wheelEnabled: false
                   width: parent.width
                   minimum: 0
                   maximum: 1
-                  step: 0.05
                   value: root.inputVolume
                   opacity: root.inputMuted ? 0.5 : 1.0
                   enabled: !!root.source
@@ -1333,11 +1329,9 @@ Panel {
 
       PanelSlider {
         bar: root.bar
-        wheelEnabled: false
         width: parent.width
         minimum: 0
         maximum: 1.5
-        step: 0.05
         value: streamRow.streamVolume
         opacity: streamRow.streamMuted ? 0.5 : 1.0
 

@@ -9,7 +9,6 @@ Item {
   property real value: 0
   property real minimum: 0
   property real maximum: 1
-  property real step: 0.05
   property bool integer: false
   property color trackColor: bar ? Style.selectedFillFor(bar.foreground, Commons.Color.accent) : "#333"
   property color fillColor: bar ? bar.foreground : Commons.Color.foreground
@@ -18,13 +17,11 @@ Item {
   property real trackHeight: Math.max(4, Math.round(Style.spacing.controlHeight * 0.11))
   property real knobSize: Math.max(14, Math.round(Style.spacing.controlHeight * 0.38))
   property real liveValue: value
-  // Off inside a list that scrolls, so the wheel reaches the list instead.
-  property bool wheelEnabled: true
 
   // macOS-style notches. When > 1, that many evenly-spaced tick marks are cut
   // into the track (drawn in the panel background color, so only the part
   // crossing the track shows). Purely visual — snapping is the caller's job via
-  // `integer`/`step` or an index-based value. Default 0 leaves the track plain.
+  // `integer` or an index-based value. Default 0 leaves the track plain.
   property int tickCount: 0
   property color tickColor: bar ? bar.background : Commons.Color.background
 
@@ -148,18 +145,6 @@ Item {
       root.dragging = false
       root.released(root.liveValue)
       root.liveValue = root.value
-    }
-    onWheel: function(wheel) {
-      if (!root.wheelEnabled) {
-        wheel.accepted = false
-        return
-      }
-      var delta = wheel.angleDelta.y > 0 ? root.step : -root.step
-      var next = Math.max(root.minimum, Math.min(root.maximum, root.liveValue + delta))
-      if (root.integer) next = Math.round(next)
-      root.liveValue = next
-      root.moved(next)
-      root.released(next)
     }
   }
 }

@@ -646,7 +646,6 @@ Panel {
                 anchors.rightMargin: Style.space(6)
                 minimum: 1
                 maximum: 100
-                step: 1
                 value: root.brightnessPercent
                 integer: true
                 onMoved: function(v) { root.previewBrightness(v) }
@@ -721,7 +720,6 @@ Panel {
                 anchors.rightMargin: Style.space(6)
                 minimum: 0
                 maximum: root.textSizeStops.length - 1
-                step: 1
                 integer: true
                 tickCount: root.textSizeStops.length
                 value: root.currentTextIndex()
