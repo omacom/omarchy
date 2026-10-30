@@ -14,6 +14,8 @@ mkdir -p "$scratch/bin" "$scratch/etc/mkinitcpio.conf.d" "$scratch/etc/limine-en
 : > "$scratch/image_size"
 export CALL_LOG="$scratch/calls"
 export OMARCHY_PATH="$ROOT"
+# omarchy-sleep-disabled reads this, so a host with sleep turned off doesn't skip setup.
+export OMARCHY_SLEEP_CONFIG_DIR="$scratch/etc/systemd/sleep.conf.d"
 export PATH="$scratch/bin:$ROOT/bin:$PATH"
 
 cat > "$scratch/bin/sudo" <<'STUB'
