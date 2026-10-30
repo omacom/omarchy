@@ -34,7 +34,8 @@ for path in "${folders[@]}"; do
   if [[ $path == / ]]; then
     # Nautilus titles the root folder "/" or a label such as "File System"
     [[ $title == / || $title == "File System" || $title == "Computer" ]] && folder=$path && break
-  elif [[ $path != $HOME && ${path##*/} == $title ]]; then
+  # $title stays quoted: a literal match, so names like "project [old]" are not patterns
+  elif [[ $path != $HOME && ${path##*/} == "$title" ]]; then
     folder=$path
     break
   elif [[ $path == $HOME && ($title == "Home" || $title == ${HOME##*/}) ]]; then
