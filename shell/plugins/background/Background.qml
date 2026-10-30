@@ -41,6 +41,11 @@ Item {
   property bool finishingTransition: false
   property int backgroundVersion: 0
   property int reloadVersion: 0
+  // A theme switch replaces every file under the current theme, so its
+  // background can keep the previous theme's path (both name it
+  // 1-eyes-wide.webp, say) while holding another image. The base caches by
+  // URL, so the theme's background is loaded again under a new version.
+  property bool reloadOnDisplay: false
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
   property string pendingColorsRaw: ""
@@ -97,6 +102,12 @@ Item {
     setBackground(path, true)
   }
 
+  function displayBackground(path) {
+    if (reloadOnDisplay) reloadVersion += 1
+    reloadOnDisplay = false
+    displayedBackground = path
+  }
+
   function setBackground(path, instant) {
     if (instant) reloadVersion += 1
     transitionBackground("", path, path, instant, instant)
@@ -128,7 +139,7 @@ Item {
       oldBackground = ""
       incomingBackground = ""
       preparedBackground = ""
-      displayedBackground = finalPath
+      displayBackground(finalPath)
       revealProgress = 1
       return
     }
@@ -161,6 +172,7 @@ Item {
   }
 
   function transitionBackgroundWithTheme(fromPath, path, finalPath, colorsB64, shellB64) {
+    reloadOnDisplay = true
     transitionBackground(fromPath, path, finalPath, false, true)
     setPendingTheme(colorsB64, shellB64)
     if (!incomingBackground || revealProgress >= 1) applyPendingTheme()
@@ -326,7 +338,7 @@ Item {
     easing.type: Easing.OutCubic
     onFinished: {
       if (root.incomingBackground) {
-        root.displayedBackground = root.currentBackground || root.incomingBackground
+        root.displayBackground(root.currentBackground || root.incomingBackground)
         root.finishingTransition = true
       }
       root.revealProgress = 1
@@ -410,6 +422,7 @@ Item {
         anchors.fill: parent
         path: root.displayedBackground
         version: root.reloadVersion
+        versionKey: "background"
         cached: true
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)
