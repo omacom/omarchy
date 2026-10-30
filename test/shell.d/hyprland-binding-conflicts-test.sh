@@ -151,7 +151,9 @@ cat > "$stub_bin/omarchy-default-dictation" <<'SH'
 #!/bin/bash
 echo voxtype
 SH
-chmod +x "$stub_bin/omarchy-default-dictation"
+# The dictation keys are bound only once the selected backend is installed.
+printf '#!/bin/bash\nexit 0\n' > "$stub_bin/voxtype"
+chmod +x "$stub_bin/omarchy-default-dictation" "$stub_bin/voxtype"
 
 bindings=$(PATH="$stub_bin:$PATH" list_bindings "$home")
 [[ -n $bindings ]] || fail "default bindings load for the conflict check"

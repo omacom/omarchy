@@ -38,6 +38,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Lock screen   | `omarchy.lock`            | `service`               | `lock/Service.qml`                    |
 | OSD           | `omarchy.osd`             | `panel`                 | `osd/Osd.qml`                         |
 | Polkit agent  | `omarchy.polkit`          | `service`               | `polkit/PolkitAgent.qml`              |
+| Dock          | `omarchy.dock`            | `service`               | `dock/Dock.qml`                       |
 
 First-party bar-only widgets also carry manifests next to their QML files,
 e.g. `bar/widgets/Workspaces.manifest.json`. Rich popup widgets live in their
@@ -97,6 +98,12 @@ Theme-aware authentication dialog for privileged actions. It uses
 Quickshell's native `Quickshell.Services.Polkit.PolkitAgent` backend and
 runs inside the long-lived `omarchy-shell` process, replacing the old
 `polkit-gnome-authentication-agent-1` autostart.
+
+## Dock
+
+App dock shown on floating workspaces, and hidden on tiled ones and behind a fullscreen window. Floating is not a Hyprland layout, so the dock reads each workspace's mode through `omarchy-hyprland-workspace-layout-current`, caches it, and is told to read again over `omarchy-shell omarchy.dock refresh` by the layout commands. `omarchy-shell omarchy.dock apps` toggles its grid of every app.
+
+Its settings live in the `dock:` subtree of `shell.json`: `position` (`top`, `bottom`, `left` or `right`) and `pinned` (desktop ids). A `shell.json` without pins uses the defaults. `omarchy dock` sets both.
 
 ## Omarchy menu
 

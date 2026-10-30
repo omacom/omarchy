@@ -34,6 +34,10 @@ Omarchy is installed with encryption by default. It's the safe, responsible choi
 
 But in special circumstances, like remote Omarchy installs on protected computers or for throw-away installations without sensitive data, you may want to install without encryption. You can hit `Ctrl + C` on the disk formatting confirmation to switch to an encryption-less installation.
 
+### Language
+
+Omarchy speaks 50 languages — the same set as omarchy.org — and English is the default. To switch, open the Omarchy menu and go to _Setup > Language_, or run `omarchy language <code>` in a terminal (`omarchy language list` shows the codes). The menu, desktop, and Omarchy's own notifications change language immediately, and every application you open afterwards follows too. Apps that were already open switch once you restart them.
+
 ### Help if you're stuck
 
 If you get stuck, you can usually find someone willing to help in the _#omarchy-help_ channel on [the community Discord](https://omarchy.org/discord).

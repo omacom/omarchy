@@ -20,7 +20,7 @@ if [[ ${1:-} != "-y" && ( ! -t 0 || ! -t 1 ) ]]; then
   exit 0
 fi
 
-if [[ ${1:-} != "-y" ]] && ! gum confirm --default=false "Remove ${#orphans[@]} orphaned package(s)?"; then
+if [[ ${1:-} != "-y" ]] && ! gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n --count "${#orphans[@]}" update.removeOrphans "${#orphans[@]}")"; then
   echo "Keeping orphaned packages."
   echo
   exit 0
