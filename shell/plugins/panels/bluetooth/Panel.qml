@@ -669,6 +669,7 @@ Panel {
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
+    scrollOverflow: true
 
     content: PanelKeyCatcher {
       id: keyCatcher
@@ -718,6 +719,7 @@ Panel {
             visible: !!root.adapter
             checked: !!root.adapter && root.adapter.enabled
             hasCursor: root.headerHasCursor
+            onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
             foreground: root.bar.foreground
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
@@ -828,6 +830,7 @@ Panel {
           onCurrentIndexChanged: if (currentIndex >= 0) Qt.callLater(keepCurrentVisible)
           function keepCurrentVisible() {
             if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+            panel.ensureItemVisible(currentItem)
           }
 
           delegate: Item {
@@ -904,6 +907,7 @@ Panel {
     }
 
     readonly property bool rowSelected: root.cursorActive && root.focusSection === sectionName && root.selectedIndex === rowIndex
+    onRowSelectedChanged: if (rowSelected) Qt.callLater(function() { panel.ensureItemVisible(row) })
     readonly property bool forgetAvailable: (sectionName === "known" || sectionName === "connected") && !isDiscovered
     readonly property bool showForgetButton: forgetAvailable && (rowMouse.containsMouse || rowSelected)
 

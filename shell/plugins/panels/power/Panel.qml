@@ -307,6 +307,7 @@ Panel {
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
+    scrollOverflow: true
 
     content: PanelKeyCatcher {
       id: keyCatcher
@@ -504,6 +505,7 @@ Panel {
                 bordered: true
                 active: root.activeProfile === modelData
                 hasCursor: root.cursorActive && root.profileIndex === index
+                onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
