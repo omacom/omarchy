@@ -22,6 +22,10 @@ You start Spotify using `Super + Shift + M`. Like 1Password, the hotkey kicks of
 
 [Slack](https://slack.com/) is where a lot of teams do their chatting, both inside the company and with outside collaborators. Install it with _Install > Service > Slack_ from the Omarchy menu, and it'll open as soon as it's ready.
 
+## Notion
+
+[Notion](https://notion.com/) is the connected workspace for notes, docs, and projects. Install it with _Install > Service > Notion_ from the Omarchy menu, which installs Notion's official Linux desktop app as a Flatpak and opens it once it's ready. Updates arrive via `flatpak --user update`.
+
 ## Dropbox
 
 [Dropbox](https://www.dropbox.com/) is a great way to sync files between machines while keeping a backup in the cloud. To set it up, select _Install > Service > Dropbox_ from the Omarchy menu. Once it's running, hover the tray in the top right of the bar and right-click the Dropbox icon to finish the setup.
