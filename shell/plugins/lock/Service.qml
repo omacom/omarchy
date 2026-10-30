@@ -158,8 +158,8 @@ Item {
   }
 
   // Only definitive enrollment results may disable authentication.
-  function applyFingerprintProbe(text) {
-    var status = FingerprintModel.classifyProbe(text)
+  function applyFingerprintProbe(text, exitCode) {
+    var status = FingerprintModel.classifyProbe(text, exitCode)
     if (status === "unknown") {
       if (fingerprintConfigured) return
       fingerprintProbeStreak += 1
@@ -723,9 +723,9 @@ Item {
   // Keep fprintd errors distinguishable from an explicit empty enrollment.
   Process {
     id: fingerprintCheckProc
-    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1; then LC_ALL=C fprintd-list \"$USER\" 2>&1; else echo no; fi"]
+    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1; then LC_ALL=C timeout --kill-after=1s 5s fprintd-list \"$USER\" 2>&1; else echo no; fi"]
     stdout: StdioCollector { id: fingerprintCheckStdout; waitForEnd: true }
-    onExited: root.applyFingerprintProbe(fingerprintCheckStdout.text)
+    onExited: function(exitCode) { root.applyFingerprintProbe(fingerprintCheckStdout.text, exitCode) }
   }
 
   // Retries a probe that could not reach fprintd, paced like the attempt
