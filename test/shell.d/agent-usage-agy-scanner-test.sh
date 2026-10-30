@@ -88,3 +88,29 @@ PY
 record=$(run_collector "$home" agy)
 expect_jq "Antigravity collector counts a subagent's conversation as part of its parent" '{totalPrompts, totalSessions, todaySessions}' \
   '{"totalPrompts":3,"totalSessions":2,"todaySessions":2}' "$record"
+
+# When transcript.jsonl truncates content before <USER_SETTINGS_CHANGE>,
+# transcript_full.jsonl supplies the selected model; when a conversation
+# records no Model Selection change at all, cli.log supplies the startup
+# model override instead of filing tokens under unknown.
+mkdir -p "$agy_dir/brain/trunc-conv/.system_generated/logs" "$agy_dir/brain/log-conv/.system_generated/logs"
+cat >"$agy_dir/cli.log" <<EOF
+I1030 09:37:08.613219 293 model_config_manager.go:363] Propagating selected model override to backend: label="Gemini 4 Argon (Medium)"
+EOF
+cat >"$agy_dir/brain/trunc-conv/.system_generated/logs/transcript.jsonl" <<EOF
+{"step_index":0,"type":"USER_INPUT","content":"<SKILL>...</SKILL><truncated 9000 bytes>","truncated_fields":["content"],"created_at":"$timestamp"}
+{"step_index":1,"type":"PLANNER_RESPONSE","created_at":"$timestamp","input_tokens":40,"output_tokens":10}
+EOF
+cat >"$agy_dir/brain/trunc-conv/.system_generated/logs/transcript_full.jsonl" <<EOF
+{"step_index":0,"type":"USER_INPUT","content":"<SKILL>full</SKILL><USER_SETTINGS_CHANGE>The user changed setting \`Model Selection\` from None to Claude Opus 4.6 (Thinking).</USER_SETTINGS_CHANGE>","created_at":"$timestamp"}
+{"step_index":1,"type":"PLANNER_RESPONSE","created_at":"$timestamp","input_tokens":40,"output_tokens":10}
+EOF
+cat >"$agy_dir/brain/log-conv/.system_generated/logs/transcript.jsonl" <<EOF
+{"step_index":0,"type":"USER_INPUT","content":"Plain prompt without model change","created_at":"$timestamp"}
+{"step_index":1,"type":"PLANNER_RESPONSE","created_at":"$timestamp","input_tokens":25,"output_tokens":5}
+EOF
+
+record=$(run_collector "$home" agy)
+expect_jq "Antigravity collector reads truncated Model Selection from transcript_full.jsonl and falls back to cli.log" \
+  '{opus: .modelUsage["claude-opus-4.6-thinking"].inputTokens, argon: .modelUsage["gemini-4-argon-medium"].inputTokens, hasUnknown: (.modelUsage | has("unknown"))}' \
+  '{"opus":40,"argon":25,"hasUnknown":false}' "$record"

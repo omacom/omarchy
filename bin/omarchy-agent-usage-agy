@@ -554,6 +554,7 @@ def step_tokens(step):
 # way the picker shows it ("Gemini 3.8 Flash (High)"). Both fold to the same
 # key, so a conversation's tokens don't split across two spellings.
 MODEL_SELECTION = re.compile(r"Model Selection` (?:from .+? )?to (.+?)\.(?:\s|$|<)")
+MODEL_OVERRIDE_LOG = re.compile(r'Propagating selected model override to backend:\s*label="([^"]+)"')
 
 
 def model_key(name):
@@ -575,6 +576,25 @@ def selected_model(step):
     return ""
   match = MODEL_SELECTION.search(content)
   return model_key(match.group(1)) if match else ""
+
+
+# When a conversation never changes the model picker, agy records no Model
+# Selection block in its transcript, only the startup override in cli.log.
+def logged_model(root):
+  model = ""
+  log_dir = root / "log"
+  candidates = sorted(log_dir.glob("cli-*.log")) if log_dir.is_dir() else []
+  cli_log = root / "cli.log"
+  if cli_log.is_file():
+    candidates.append(cli_log)
+  for path in candidates[-5:]:
+    try:
+      text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+      continue
+    for match in MODEL_OVERRIDE_LOG.finditer(text):
+      model = model_key(match.group(1)) or model
+  return model
 
 
 def history_entries(root, problems):
@@ -690,23 +710,39 @@ def local_stats(root, problems=None):
     if conversation:
       stats.add_prompts(stats.today if local_day(modified) == stats.today else None, session_of(conversation), 0)
 
+  default_model = logged_model(root)
   for transcript in (root / "brain").glob("*/.system_generated/logs/transcript.jsonl"):
     try:
       lines = transcript.read_text(encoding="utf-8", errors="ignore").splitlines()
     except OSError:
       problems.append(str(transcript))
       continue
+    full_lines = None
     # The model a conversation runs on carries from step to step until a
     # step names another one.
-    current = ""
-    for line in lines:
+    current = default_model
+    for index, line in enumerate(lines):
       try:
         step = json.loads(line)
       except ValueError:
         continue
       if not isinstance(step, dict):
         continue
-      current = step_model(step) or selected_model(step) or current
+      picked = step_model(step) or selected_model(step)
+      if not picked and isinstance(step.get("truncated_fields"), list) and "content" in step["truncated_fields"]:
+        if full_lines is None:
+          try:
+            full_lines = (transcript.parent / "transcript_full.jsonl").read_text(encoding="utf-8", errors="ignore").splitlines()
+          except OSError:
+            full_lines = []
+        if index < len(full_lines):
+          try:
+            full_step = json.loads(full_lines[index])
+          except ValueError:
+            full_step = None
+          if isinstance(full_step, dict):
+            picked = selected_model(full_step)
+      current = picked or current
       tokens = step_tokens(step)
       if not tokens or not any(tokens):
         continue
