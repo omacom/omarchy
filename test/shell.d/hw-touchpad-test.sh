@@ -95,3 +95,27 @@ pass "an ordinary mouse is not mistaken for a touchpad"
 [[ -z $(detected "") ]] ||
   fail "no touchpad answers with an empty detection" "$(detected "")"
 pass "no touchpad answers with an empty detection"
+
+# Lenovo IdeaPad ELAN touchpad recovery check:
+# An ELAN touchscreen must not be mistaken for a touchpad, so a missing touchpad triggers recovery.
+has_touchpad_check() {
+  local class_path="${OMARCHY_INPUT_CLASS_PATH:-/sys/class/input}"
+  for dev in "$class_path"/event*; do
+    [[ -e $dev ]] || continue
+    if PATH="$stub_bin:$PATH" udevadm info --query=property "$dev" 2>/dev/null | grep -Fxq "ID_INPUT_TOUCHPAD=1"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+rm -rf "$input_class"
+event_device event20 "ELAN9008:00 04F3:2C82 Multi-Touch" "ID_INPUT_TOUCHSCREEN=1"
+! OMARCHY_INPUT_CLASS_PATH="$input_class" has_touchpad_check ||
+  fail "an ELAN touchscreen alone does not count as a touchpad"
+pass "an ELAN touchscreen alone does not satisfy the touchpad recovery check"
+
+event_device event21 "ELAN06FA:00 04F3:327E Touchpad" "ID_INPUT_TOUCHPAD=1"
+OMARCHY_INPUT_CLASS_PATH="$input_class" has_touchpad_check ||
+  fail "an ELAN touchpad satisfies the touchpad recovery check"
+pass "an ELAN touchpad satisfies the touchpad recovery check"
