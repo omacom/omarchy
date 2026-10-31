@@ -44,7 +44,10 @@ PanelWindow {
   readonly property bool autohide: !!dock && (dock.autohide || fullscreenMode === 1)
   property bool revealed: false
   readonly property bool menuOpen: menuItem !== null || settingsMenu
-  readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || insertIndex >= 0)
+  // A launcher opened from this dock keeps it out, as a taskbar stays under
+  // its start menu.
+  readonly property bool appsHere: !!dock && dock.appsOpen && dock.appsScreen === screen
+  readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || insertIndex >= 0 || appsHere)
   readonly property bool contentShown: shown && !tucked
 
   readonly property int gap: Style.spacing.xs
@@ -120,6 +123,22 @@ PanelWindow {
     if (window.autohide) hideTimer.restart()
   }
 
+  // What a launcher plugin is opened with: the screen, the dock's edge, and,
+  // while the dock is on screen, where it and its apps button are, in the
+  // screen's coordinates. They are reckoned where the dock comes out to, since
+  // an auto-hidden dock stays out while the launcher is open.
+  function launcherPayload() {
+    var payload = { screen: screen ? screen.name : "", position: window.position }
+    if (!window.shown) return payload
+    var at = window.origin()
+    var x = at.x + body.x + (window.position === "left" ? body.tuck : window.position === "right" ? -body.tuck : 0)
+    var y = at.y + body.y + (window.position === "top" ? body.tuck : window.position === "bottom" ? -body.tuck : 0)
+    var button = appsButton.mapToItem(body, 0, 0)
+    payload.dock = { x: x, y: y, width: body.width, height: body.height }
+    payload.button = { x: x + button.x, y: y + button.y, width: appsButton.width, height: appsButton.height }
+    return payload
+  }
+
   // The slot a point along the dock falls before, counting from the first app.
   function slotIndexAt(point) {
     var along = window.vertical ? point.y : point.x
@@ -138,6 +157,7 @@ PanelWindow {
     closeMenu()
     window.revealed = false
   }
+  onAppsHereChanged: if (!appsHere && window.autohide) hideTimer.restart()
   Component.onCompleted: if (dock) dock.readMode(workspaceId)
 
   function openMenu(item, slot) {
@@ -312,7 +332,7 @@ PanelWindow {
       anchors.centerIn: parent
       columns: window.vertical ? 1 : appRepeater.count + 1
 
-      AppsSlot {}
+      AppsSlot { id: appsButton }
 
       Repeater {
         id: appRepeater
@@ -361,11 +381,12 @@ PanelWindow {
 
     mouse.onClicked: function(event) {
       if (event.button === Qt.RightButton) {
+        if (window.dock) window.dock.closeApps()
         window.openSettingsMenu(appsSlot)
         return
       }
       window.closeMenu()
-      if (window.dock) window.dock.openApps()
+      if (window.dock) window.dock.toggleApps(window)
     }
 
     // A grid of app squares reads as "all apps" in any icon theme. Drawn
@@ -484,6 +505,7 @@ PanelWindow {
         appSlot.dragged = false
         return
       }
+      window.dock.closeApps()
       if (event.button === Qt.RightButton) {
         window.openMenu(appSlot.modelData, appSlot)
         return

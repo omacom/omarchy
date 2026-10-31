@@ -219,8 +219,38 @@ Item {
     for (var i = 0; i < windows.length; i++) windows[i].toplevel.close()
   }
 
-  function openApps() {
-    appGrid.open()
+  // A menu, panel or overlay plugin named under dock.launcher takes the apps
+  // button over, the way a start menu hangs from its taskbar: it is toggled
+  // from the button and from `omarchy-shell omarchy.dock apps`, and told where
+  // the button is. One that is not installed, is switched off, or is of
+  // another kind leaves the grid in its place.
+  readonly property string launcherId: typeof dockConfig.launcher === "string" ? dockConfig.launcher.trim() : ""
+  readonly property string launcher: {
+    var registry = shell ? shell.pluginRegistry : null
+    if (!root.launcherId || !registry) return ""
+    var id = registry.resolveEnabledId(root.launcherId)
+    return DockModel.isLauncher(registry.installedPlugins[id]) && registry.isEnabled(id) ? id : ""
+  }
+  readonly property bool appsOpen: root.launcher ? root.shell.isPluginOpen(root.launcher) : appGrid.opened
+  // The screen the apps were opened on from its dock, whose dock stays out
+  // while they are open. Opened any other way, they hold no dock out.
+  property var appsScreen: null
+  onAppsOpenChanged: if (!appsOpen) appsScreen = null
+
+  // From a screen's dock, or from the focused screen when there is none.
+  function toggleApps(window) {
+    if (!root.launcher) {
+      appGrid.toggle()
+      return
+    }
+    var payload = window ? window.launcherPayload() : {}
+    root.appsScreen = window ? window.screen : null
+    root.shell.toggle(root.launcher, JSON.stringify(payload))
+  }
+
+  // Using the dock for anything else puts the launcher away.
+  function closeApps() {
+    if (root.launcher && root.appsOpen) root.shell.hide(root.launcher)
   }
 
   readonly property var pinnedKeys: root.pendingPins || DockModel.pinnedIds(root.dockConfig, root.defaultDockConfig)
@@ -349,7 +379,16 @@ Item {
 
     // The layout commands call this after changing a workspace's mode.
     function refresh(): void { root.refresh() }
-    function apps(): void { appGrid.toggle() }
+    function apps(): void { root.toggleApps(root.dockOn(root.focusedScreen())) }
+  }
+
+  function focusedScreen() {
+    var monitor = Hyprland.focusedMonitor
+    var screens = Quickshell.screens
+    for (var i = 0; i < screens.length; i++) {
+      if (monitor && screens[i].name === monitor.name) return screens[i]
+    }
+    return null
   }
 
   // An app dragged out of the app grid: the grid holds the pointer and

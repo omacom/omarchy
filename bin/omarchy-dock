@@ -2,8 +2,8 @@
 
 # omarchy:summary=Configure the dock shown on floating workspaces
 # omarchy:group=dock
-# omarchy:args=position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
-# omarchy:examples=omarchy dock position left | omarchy dock pin org.gnome.Nautilus
+# omarchy:args=position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id> | launcher [<plugin-id>|grid]
+# omarchy:examples=omarchy dock position left | omarchy dock pin org.gnome.Nautilus | omarchy dock launcher grid
 
 set -euo pipefail
 
@@ -22,6 +22,10 @@ Usage: omarchy dock <command> [args...]
                                        them one per line when given none
   pin <desktop-id>                     Keep an app in the dock
   unpin <desktop-id>                   Remove an app from the dock
+  launcher [<plugin-id>|grid]          Menu plugin the apps button opens in
+                                       place of the app grid; grid puts the
+                                       grid back; prints the current one when
+                                       given none
 USAGE
 }
 
@@ -104,6 +108,24 @@ cmd_unpin() {
   echo "Unpinned $id from the dock"
 }
 
+cmd_launcher() {
+  if (( $# == 0 )); then
+    jq -r '.dock.launcher // "grid"' "$(source_file)"
+    return
+  fi
+
+  local id="$1"
+  (( $# == 1 )) || fail "launcher takes a single plugin id"
+  if [[ $id == "grid" ]]; then
+    commit "$NORMALIZE | del(.dock.launcher)"
+    echo "The apps button opens the app grid"
+  else
+    [[ $id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "launcher must be a plugin id or grid"
+    commit "$NORMALIZE | .dock.launcher = \$id" --arg id "$id"
+    echo "The apps button opens $id"
+  fi
+}
+
 command="${1:-}"
 (( $# > 0 )) && shift
 
@@ -113,6 +135,7 @@ case "$command" in
   pinned) cmd_pinned "$@" ;;
   pin) cmd_pin "$@" ;;
   unpin) cmd_unpin "$@" ;;
+  launcher) cmd_launcher "$@" ;;
   -h | --help | help) usage ;;
   *)
     usage >&2

@@ -1,5 +1,43 @@
 o.bind("SUPER + SPACE", "Omarchy menu", { menu = "root" })
 o.bind("SUPER + ALT + SPACE", "Apps", "omarchy-shell omarchy.dock apps")
+
+-- Tapping SUPER on its own opens the apps on a floating workspace, the way the
+-- Windows key opens the start menu, and every other workspace keeps SUPER a
+-- modifier and nothing more. A fullscreen window, such as a game or a VM, hides
+-- the dock and keeps the apps from opening over it.
+local workspace_modes = require("default.hypr.workspace-modes")
+
+-- Hyprland skips the release once a bound SUPER chord or scroll has run, or
+-- another key or button has been let go during the hold, but not when SUPER
+-- comes up first in a quick chord with an unbound key (SUPER down, X down,
+-- SUPER up). So a tap also needs SUPER to be the last key pressed before it is
+-- let go. Hyprland reports each key here before it handles the key's binds.
+local last_pressed, tapped = nil, false
+hl.on("input.keyboard.key", function(keycode, _, state)
+  if state == 1 then
+    last_pressed = keycode
+  else
+    tapped = keycode == last_pressed
+  end
+end)
+
+local function apps_on_floating_workspace()
+  if not tapped then
+    return
+  end
+  local workspace = hl.get_active_workspace()
+  local window = hl.get_active_window()
+  if window and (window.fullscreen or 0) >= 2 then
+    return
+  end
+  if workspace and workspace_modes.floating(workspace.id) then
+    hl.exec_cmd("omarchy-shell omarchy.dock apps")
+  end
+end
+
+o.bind_commands[apps_on_floating_workspace] = "omarchy-shell omarchy.dock apps"
+o.bind("SUPER + Super_L", "Apps on a floating workspace", apps_on_floating_workspace, { release = true })
+o.bind("SUPER + Super_R", "Apps on a floating workspace", apps_on_floating_workspace, { release = true })
 o.bind("SUPER + CTRL + E", "Emojis", { panel = "omarchy.emojis" })
 o.bind("SUPER + CTRL + C", "Capture menu", { menu = "capture" })
 o.bind("SUPER + CTRL + O", "Toggle menu", { menu = "toggle" })
