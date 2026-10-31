@@ -86,16 +86,27 @@ start() {
     return 1
   fi
 
-  local previous volume mute
+  local previous level_sink volume mute
   previous=$(timeout 2 pactl get-default-sink 2>/dev/null)
   if [[ -z $previous || $previous == "$sink_name" ]]; then
     previous=${sinks[0]}
   fi
+
   # The mix starts at the level of the output it replaces: a fresh sink would
   # otherwise come up at 100%, which is a nasty surprise in a pair of earbuds.
-  volume=$(LC_ALL=C timeout 2 pactl get-sink-volume "$previous" 2>/dev/null |
+  # A tuning sink is not where loudness lives -- its own volume is the level
+  # going *into* the processing, and the speakers behind it carry the level the
+  # user controls -- so resolve it the way the panel slider and the volume keys
+  # do, and read the physical sink.
+  level_sink=$(omarchy-audio-output-sink "$previous" 2>/dev/null)
+  if [[ -z $level_sink ]]; then
+    level_sink=$previous
+  fi
+  volume=$(LC_ALL=C timeout 2 pactl get-sink-volume "$level_sink" 2>/dev/null |
     sed -n 's/.*\/ *\([0-9]\+\)%.*/\1/p' | head -1)
-  mute=$(timeout 2 pactl get-sink-mute "$previous" 2>/dev/null | awk '{print $2}')
+  # pactl says "yes" only in the C locale; a translated session must not look
+  # unmuted when it is muted.
+  mute=$(LC_ALL=C timeout 2 pactl get-sink-mute "$level_sink" 2>/dev/null | awk '{print $2}')
 
   local slaves
   slaves=$(IFS=,; echo "${sinks[*]}")
