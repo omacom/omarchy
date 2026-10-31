@@ -256,9 +256,12 @@ Panel {
     var viewTop = flick.contentY
     var viewBottom = viewTop + flick.height
     var margin = 6
+    // Never past either end: the last row sits flush with the bottom when the
+    // panel fits, and a margin there would push the hero off the top.
+    var maxY = Math.max(0, flick.contentHeight - flick.height)
     if (top < viewTop + margin) flick.contentY = Math.max(0, top - margin)
     else if (bottom > viewBottom - margin)
-      flick.contentY = bottom + margin - flick.height
+      flick.contentY = Math.min(maxY, bottom + margin - flick.height)
   }
 
   function brightnessIpc(percent) {
