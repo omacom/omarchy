@@ -15,7 +15,6 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("omarchy-provision-first-run")
   hl.exec_cmd("omarchy-powerprofiles-init")
   hl.exec_cmd(o.launch("omarchy-hyprland-monitor-watch"))
-  hl.exec_cmd(o.launch("udiskie --automount --no-notify --no-tray"))
 
   -- Start the herdr server inside the graphical session so its panes inherit
   -- WAYLAND_DISPLAY. Otherwise the first SSH login from a remote herdr starts
