@@ -41,12 +41,13 @@ active_workspace() {
   hyprctl monitors -j | jq -r '.[] | select(.focused == true) | .activeWorkspace.id'
 }
 
-# Hidden group members and windows stacked at identical geometry collapse to
-# one rectangle: slurp cannot tell them apart, and duplicates would stall the
-# Tab cycle on the first copy.
+# Hyprland leaves covered siblings hidden=false when a workspace client is
+# fullscreen or maximized, but reports them as visible=false. Windows stacked
+# at identical geometry collapse to one rectangle: slurp cannot tell them
+# apart, and duplicates would stall the Tab cycle on the first copy.
 window_rects() {
   hyprctl clients -j | jq -r --arg ws "$(active_workspace)" \
-    '[.[] | select(.workspace.id == ($ws | tonumber) and .hidden != true) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"] | unique[]'
+    '[.[] | select(.workspace.id == ($ws | tonumber) and .visible == true) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"] | unique[]'
 }
 
 monitor_rects() {
