@@ -11,11 +11,47 @@ session_omarchy_path=$(systemctl --user show-environment 2>/dev/null | sed -n 's
 CONFIG_DIR="$session_omarchy_path/shell"
 [[ -f $CONFIG_DIR/shell.qml ]] || { echo "Omarchy shell config not found: $CONFIG_DIR" >&2; exit 1; }
 
-# Allow running from outside the session (e.g. over ssh) by deriving the
-# Hyprland instance signature from the newest instance runtime dir.
+# Whether an instance runtime dir belongs to a running compositor: Hyprland
+# records its PID on the first line of hyprland.lock.
+hyprland_alive() {
+  local pid comm
+
+  { read -r pid <"$1/hyprland.lock"; } 2>/dev/null || return 1
+  [[ $pid =~ ^[0-9]+$ ]] || return 1
+  { read -r comm <"/proc/$pid/comm"; } 2>/dev/null || return 1
+  [[ $comm == "Hyprland" ]]
+}
+
+# Allow running from outside the session (e.g. over ssh, or a terminal
+# multiplexer started before Hyprland) by finding the running instance.
+# Nested and crashed compositors leave their runtime dirs behind, so the
+# newest dir is not necessarily the live one.
+hypr_runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr"
 if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-  hypr_dir=$(find "${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -n 1 | cut -d' ' -f2-)
-  [[ -n $hypr_dir ]] && export HYPRLAND_INSTANCE_SIGNATURE=${hypr_dir##*/}
+  while read -r _ instance_dir; do
+    if hyprland_alive "$instance_dir"; then
+      export HYPRLAND_INSTANCE_SIGNATURE=${instance_dir##*/}
+      break
+    fi
+  done < <(find "$hypr_runtime_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -rn)
+fi
+
+# Quickshell only finds instances on the caller's Wayland display, so the
+# readiness and lock IPC below would never see the fresh shell from outside
+# the session. Hyprland records its display on the second line of the lock.
+if [[ -z ${WAYLAND_DISPLAY:-} && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  if { read -r _ && read -r session_display; } <"$hypr_runtime_dir/$HYPRLAND_INSTANCE_SIGNATURE/hyprland.lock" 2>/dev/null &&
+    [[ -n $session_display ]]; then
+    export WAYLAND_DISPLAY=$session_display
+  fi
+fi
+
+# The fresh shell is launched through Hyprland, so refuse before stopping the
+# running one when Hyprland cannot be reached: a restart that cannot launch
+# would otherwise leave the session with no shell at all.
+if ! hyprctl -j version >/dev/null 2>&1; then
+  echo "Cannot reach Hyprland to start a fresh Omarchy shell; leaving the running one." >&2
+  exit 1
 fi
 
 # Restarting a live lock client would kill the lock screen and strand the
@@ -95,7 +131,10 @@ done
 
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
-hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
+if ! hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null; then
+  echo "Hyprland did not accept the request to start the Omarchy shell." >&2
+  exit 1
+fi
 
 shell_ready=0
 # The shell answers once its plugins have loaded, which on a large bar is

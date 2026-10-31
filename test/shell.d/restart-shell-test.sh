@@ -7,10 +7,12 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 test_tmp=$(mktemp -d)
 restart_pid_one=""
 restart_pid_two=""
+hyprland_pid=""
 
 cleanup() {
   [[ -n $restart_pid_one ]] && kill "$restart_pid_one" 2>/dev/null || true
   [[ -n $restart_pid_two ]] && kill "$restart_pid_two" 2>/dev/null || true
+  [[ -n $hyprland_pid ]] && kill "$hyprland_pid" 2>/dev/null || true
   rm -rf "$test_tmp"
 }
 trap cleanup EXIT
@@ -37,7 +39,9 @@ printf '%s\n' "$*" >>"$OMARCHY_TEST_IPC_LOG"
 
 case "$*" in
   *'shell ping')
-    [[ $* == *"-p $OMARCHY_TEST_SESSION_PATH/shell"* ]] &&
+    # Quickshell only finds instances on the caller's Wayland display.
+    [[ -z ${OMARCHY_TEST_SHELL_DISPLAY:-} || ${WAYLAND_DISPLAY:-} == "$OMARCHY_TEST_SHELL_DISPLAY" ]] &&
+      [[ $* == *"-p $OMARCHY_TEST_SESSION_PATH/shell"* ]] &&
       grep -Fx '303' "$OMARCHY_TEST_QS_STATE" >/dev/null &&
       printf 'ok\n'
     ;;
@@ -78,6 +82,12 @@ SH
 
 cat >"$restart_bin/hyprctl" <<'SH'
 #!/bin/bash
+
+# A compositor that is gone refuses every request, as its socket would.
+if [[ -n ${OMARCHY_TEST_LIVE_SIGNATURE:-} && ${HYPRLAND_INSTANCE_SIGNATURE:-} != "$OMARCHY_TEST_LIVE_SIGNATURE" ]]; then
+  printf "Couldn't connect to the Hyprland socket. (4)\n"
+  exit 4
+fi
 
 if [[ ${1:-} == "-j" && ${2:-} == "monitors" ]]; then
   # Hyprland reports an active session lock as a reason the monitor cannot hand
@@ -271,3 +281,62 @@ grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null 
 [[ -f $restart_state.locked ]] || fail "lock recovery did not re-secure the session without notifications"
 grep -q "notification service did not become ready" "$test_tmp/dead-notifications.out" || fail "a missing notification service is not reported" "$(cat "$test_tmp/dead-notifications.out")"
 pass "restart recovers the lock even when the notification service never returns"
+
+# Run from outside the session, the restart finds the running Hyprland, not
+# the newest runtime dir: nested and crashed compositors leave theirs behind.
+# It also takes that compositor's Wayland display for its shell IPC.
+cp "$(command -v sleep)" "$test_tmp/Hyprland"
+"$test_tmp/Hyprland" 30 &
+hyprland_pid=$!
+mkdir -p "$runtime_dir/hypr/live-sig" "$runtime_dir/hypr/stale-sig"
+printf '%s\nwayland-1\n' "$hyprland_pid" >"$runtime_dir/hypr/live-sig/hyprland.lock"
+printf '999999\nwayland-2\n' >"$runtime_dir/hypr/stale-sig/hyprland.lock"
+touch -d '-1 hour' "$runtime_dir/hypr/live-sig"
+
+sleep 30 &
+restart_pid_one=$!
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+rm -f "$restart_state.locked"
+: >"$restart_log"
+
+env -u HYPRLAND_INSTANCE_SIGNATURE -u WAYLAND_DISPLAY \
+  PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_LIVE_SIGNATURE=live-sig \
+  OMARCHY_TEST_SHELL_DISPLAY=wayland-1 \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" >/dev/null 2>&1 ||
+  fail "restart from outside the session reaches the running Hyprland past a newer stale runtime dir"
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$restart_state") == 303 ]] || fail "restart from outside the session launches a fresh shell"
+pass "restart from outside the session finds the running Hyprland and its display, not the newest runtime dir"
+
+# With no running Hyprland to launch a fresh shell, the restart leaves the
+# running one alone instead of stopping it and waiting on a launch that
+# cannot happen.
+kill "$hyprland_pid" 2>/dev/null || true
+wait "$hyprland_pid" 2>/dev/null || true
+hyprland_pid=""
+: >"$restart_log"
+
+unreachable_error=$(env -u HYPRLAND_INSTANCE_SIGNATURE \
+  PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_LIVE_SIGNATURE=live-sig \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "restart without a reachable Hyprland reports failure"
+[[ $unreachable_error == *"Cannot reach Hyprland"* ]] || fail "restart without a reachable Hyprland explains why" "$unreachable_error"
+[[ ! -s $restart_log ]] || fail "restart without a reachable Hyprland leaves the running shell" "$(cat "$restart_log")"
+pass "restart leaves the running shell when Hyprland cannot be reached"
