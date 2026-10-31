@@ -85,28 +85,12 @@ layout=$(sed -n 's/^XKBLAYOUT=//p' <<<"$payload")
 
 # A non-Latin layout must not reach the initramfs: bundling vconsole.conf
 # makes Plymouth apply the layout at the LUKS prompt, and a passphrase is
-# Latin. migrations/1784476564.sh removed exactly this bundling, but it no-ops
-# when vconsole.conf carries no XKBLAYOUT — the shape every install this
-# migration repairs is in — so its repair may still be pending here. Remove
-# the bundling and rebuild before the layout below lands, or the next UKI
-# rebuild would reintroduce the lockout that migration exists to prevent.
-# Ordered before the write, so a cancelled sudo leaves the migration pending
-# with nothing applied rather than marked complete mid-repair.
+# Latin. A hooks file from before migrations/1784476564.sh (which no-ops
+# without an XKBLAYOUT) may still list it unconditionally, so drop that line
+# before the layout lands. The current image predates the layout, so no rebuild.
 if [[ ${layout%%,*} =~ ^(af|am|ara|bd|bg|by|et|ge|gr|il|in|iq|ir|kg|kh|kz|la|lk|mk|mm|mn|mv|np|rs|ru|sy|th|tj|ua)$ ]] &&
-  [[ -f $hooks_conf ]] && grep -Eq '^#?FILES\+=\(/etc/vconsole.conf\)$' "$hooks_conf"; then
-  # Disable the line first, because mkinitcpio sources this file during the
-  # rebuild itself. Only a successful rebuild drops it: limine-mkinitcpio
-  # failing leaves the line disabled, so the migration exits non-zero and the
-  # retry's guard still matches and rebuilds, instead of finding the line gone
-  # and completing while the old UKI still bundles the unsafe vconsole.conf.
-  sudo sed -i 's|^FILES+=(/etc/vconsole.conf)$|#FILES+=(/etc/vconsole.conf)|' "$hooks_conf"
-  if omarchy-cmd-present limine-mkinitcpio; then
-    if sudo limine-mkinitcpio; then
-      sudo sed -i '\|^#FILES+=(/etc/vconsole.conf)$|d' "$hooks_conf"
-    else
-      exit 1
-    fi
-  fi
+  [[ -f $hooks_conf ]] && grep -qx 'FILES+=(/etc/vconsole.conf)' "$hooks_conf"; then
+  sudo sed -i '\|^FILES+=(/etc/vconsole.conf)$|d' "$hooks_conf"
 fi
 
 # A variant left by the keymap this replaces must not survive the new layout:
@@ -124,4 +108,6 @@ done <<<"$payload"
 if grep -Eq "^[[:space:]]*($keys)[[:space:]]*=" "$vconsole"; then
   sudo sed -E -i "/^[[:space:]]*($keys)[[:space:]]*=/d" "$vconsole"
 fi
+# A last line without a newline would swallow the first key appended after it.
+[[ -z $(tail -c 1 "$vconsole") ]] || payload=$'\n'"$payload"
 printf '%s\n' "$payload" | sudo tee -a "$vconsole" >/dev/null
