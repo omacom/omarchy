@@ -36,7 +36,7 @@ Three layers populate `$HOME`:
    Arch's `useradd -m` copies that tree into a new user's `$HOME` at user
    creation. This is the only mechanism that touches a brand-new user's home
    for these files.
-2. **Finalize** — `omarchy-provision-user` (routed as `omarchy finalize
+2. **Finalize** — `omarchy-provision-user` (routed as `omarchy provision
    user`) runs once per user and handles the things `/etc/skel` can't do
    because they need `$HOME` expansion, the live `$OMARCHY_PATH`, or runtime
    detection of system state.
