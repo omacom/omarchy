@@ -1,0 +1,12 @@
+[Unit]
+Description=Recover Apple Broadcom Bluetooth after a warm reboot
+After=bluetooth.service systemd-udevd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-hw-apple-bluetooth-reset
+RemainAfterExit=yes
+TimeoutStartSec=60
+
+[Install]
+WantedBy=multi-user.target
