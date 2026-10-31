@@ -137,5 +137,30 @@ env.XCURSOR_THEME, env.OMARCHY_STARTUP_CURSOR_SESSION, gsettings = "", "old-sess
 events["config.reloaded"]()
 assert(omarchy_startup_cursor.xcursor == "default", "an ordinary boot without a cursor theme keeps the default alias instead of adopting GSettings")
 io.popen = popen
+
+-- `Hyprland --verify-config` loads the config with no instance signature; hl.env refuses nil.
+omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
+env.HYPRLAND_INSTANCE_SIGNATURE, env.XCURSOR_THEME, env.OMARCHY_STARTUP_CURSOR_SESSION = nil, "omarchy-startup", nil
+os.getenv = function(name)
+  if name == "HYPRLAND_INSTANCE_SIGNATURE" then return nil end
+  return env[name] or getenv(name)
+end
+local touched = {}
+local function trap(name, original)
+  local real = hl[name]
+  hl[name] = function(...) touched[#touched + 1] = name; return real(...) end
+  return real
+end
+local originals = {}
+for _, name in ipairs({ "env", "config", "timer", "exec_cmd", "get_monitors", "get_config" }) do originals[name] = trap(name) end
+monitors = {}
+dofile(os.getenv("ROOT") .. "/default/hypr/startup-cursor.lua")
+events["config.reloaded"]()
+assert(#touched == 0, "a config reload without an instance must not touch Hyprland: " .. table.concat(touched, ","))
+assert(omarchy_startup_cursor_pending == nil and omarchy_startup_cursor == nil, "a config reload without an instance must not create cursor state")
+assert(env.XCURSOR_THEME == "omarchy-startup" and env.OMARCHY_STARTUP_CURSOR_SESSION == nil, "a config reload without an instance must not write the environment")
+for name, original in pairs(originals) do hl[name] = original end
+os.getenv = getenv
 LUA
 pass "the first compositor frame starts blank and the reveal restores user cursor settings"
+pass "a config load without a Hyprland instance creates no cursor state, env writes or timers"
