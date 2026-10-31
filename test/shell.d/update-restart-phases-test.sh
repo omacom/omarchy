@@ -37,3 +37,19 @@ if grep -Eq "^(prompt:|step:omarchy-restart-|step:omarchy-system)" "$SUDO_TEST_L
   fail "unattended reboot phase prompted or performed service work"
 fi
 pass "unattended reboot phase reports a required reboot without prompting"
+
+# The service phase remains best-effort so hooks and boot verification still
+# run, but must never announce plugin success after a refused restart.
+rm "$SUDO_TEST_ROOT/bin/omarchy-restart-shell"
+cat >"$SUDO_TEST_ROOT/bin/omarchy-restart-shell" <<'STUB'
+#!/bin/bash
+echo "Refusing to restart Omarchy shell while the session is locked." >&2
+exit 1
+STUB
+chmod +x "$SUDO_TEST_ROOT/bin/omarchy-restart-shell"
+PATH="$SUDO_TEST_ROOT/bin:$PATH" "$SUDO_TEST_ROOT/bin/omarchy-update-restart" --services-only >"$boundary_tmp/output" 2>&1
+grep -q 'Shell restart did not complete' "$boundary_tmp/output" || fail "update surfaces an incomplete shell restart"
+if grep -q 'Shell startup loads are ready\|All plugins have been reloaded' "$boundary_tmp/output"; then
+  fail "update must not announce success before a successful shell restart"
+fi
+pass "update reports a refused shell restart without aborting later update phases"

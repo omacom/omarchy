@@ -41,6 +41,23 @@ case "$*" in
       grep -Fx '303' "$OMARCHY_TEST_QS_STATE" >/dev/null &&
       printf 'ok\n'
     ;;
+  *'shell startupStatus')
+    if [[ -n ${OMARCHY_TEST_STARTUP_CHECKS:-} ]]; then
+      checks=0
+      [[ ! -f $OMARCHY_TEST_STARTUP_CHECKS ]] || read -r checks <"$OMARCHY_TEST_STARTUP_CHECKS"
+      (( checks += 1 ))
+      printf '%s\n' "$checks" >"$OMARCHY_TEST_STARTUP_CHECKS"
+      if (( checks < 4 )); then
+        printf '%s\n' '{"state":"loading","pending":["barWidget:omarchy.elsewhen"]}'
+        exit 0
+      fi
+    fi
+    if [[ ${OMARCHY_TEST_PLUGIN_FAILURE:-0} == 1 ]]; then
+      printf '%s\n' '{"state":"failed","errors":[{"id":"omarchy.dock","error":"ShellIpc is not a type"}]}'
+    else
+      printf '%s\n' '{"state":"ready","warnings":[]}'
+    fi
+    ;;
   *'lock lock')
     touch "$OMARCHY_TEST_QS_STATE.locked"
     printf 'ok\n'
@@ -165,6 +182,7 @@ OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
 OMARCHY_TEST_IPC_LOG="$ipc_log" \
 OMARCHY_TEST_SESSION_PATH="$restart_root" \
 OMARCHY_TEST_TRANSIENT_ENV=leaked \
+OMARCHY_TEST_STARTUP_CHECKS="$test_tmp/startup-checks" \
 OMARCHY_TEST_NOTIFICATION_CHECKS="$test_tmp/notification-checks" \
   timeout 5 "$ROOT/bin/omarchy-restart-shell"
 
@@ -187,6 +205,8 @@ grep -F "ipc -n -p $restart_root/shell call -- shell ping" "$ipc_log" >/dev/null
 pass "restart replaces duplicate shell instances from the session checkout"
 [[ $(<"$test_tmp/notification-checks") == 4 ]] || fail "restart waits for the existing notification service after core IPC is ready"
 pass "restart waits for notification readiness before one-time update hooks"
+[[ $(<"$test_tmp/startup-checks") == 4 ]] || fail "restart waits for asynchronous startup loads after ping"
+pass "restart waits for asynchronous plugin loading"
 
 : >"$restart_log"
 printf '303\n' >"$restart_state"
@@ -271,3 +291,23 @@ grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null 
 [[ -f $restart_state.locked ]] || fail "lock recovery did not re-secure the session without notifications"
 grep -q "notification service did not become ready" "$test_tmp/dead-notifications.out" || fail "a missing notification service is not reported" "$(cat "$test_tmp/dead-notifications.out")"
 pass "restart recovers the lock even when the notification service never returns"
+
+# A responding root with a failed required plugin used to pass the restart.
+rm -f "$restart_state.locked"
+printf '303\n' >"$restart_state"
+if PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  OMARCHY_TEST_PLUGIN_FAILURE=1 \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" >"$test_tmp/failed-plugin.out" 2>&1; then
+  fail "restart must reject a responding shell with failed required plugins"
+fi
+grep -q 'omarchy.dock.*ShellIpc is not a type' "$test_tmp/failed-plugin.out" ||
+  fail "restart reports the failed plugin and QML diagnostic" "$(cat "$test_tmp/failed-plugin.out")"
+pass "restart distinguishes a usable shell from a responding IPC root"

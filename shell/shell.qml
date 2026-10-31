@@ -66,6 +66,59 @@ ShellRoot {
   property bool userConfigUnreadable: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
+  property bool pluginScanCompleted: false
+  property bool defaultsLoaded: false
+  property bool userConfigLoaded: false
+  property var pluginLoadErrors: ({})
+
+  function recordPluginLoadError(id, kind, detail) {
+    var next = Object.assign({}, pluginLoadErrors)
+    var key = kind + ":" + id
+    if (detail) next[key] = String(detail)
+    else delete next[key]
+    pluginLoadErrors = next
+  }
+
+  // A ping only proves the root IPC handler exists. Services are instantiated
+  // and widget components compiled separately, often after that handler answers.
+  // Only enabled first-party startup loads gate readiness; local plugin errors
+  // are returned separately so an incompatible extension cannot veto a restart.
+  function pluginStartupStatus() {
+    var pending = []
+    var errors = []
+    var warnings = []
+    if (!defaultsLoaded || !userConfigLoaded) pending.push("configuration")
+    if (!pluginScanCompleted || pluginRegistry.scanning || pluginReloading) pending.push("plugin discovery")
+    if (pending.length) return { state: "loading", pending: pending, errors: errors, warnings: warnings }
+
+    function inspect(id, kind, loaded, required) {
+      var detail = shell.pluginLoadErrors[kind + ":" + id]
+      if (detail) {
+        var entry = { id: id, kind: kind, error: detail }
+        if (required) errors.push(entry)
+        else warnings.push(entry)
+      } else if (!loaded && required) pending.push(kind + ":" + id)
+    }
+
+    if (!shell.bar) pending.push("bar")
+    var plugins = pluginRegistry.installedPlugins
+    for (var id in plugins) {
+      var manifest = plugins[id]
+      if (!pluginRegistry.isEnabled(id)) continue
+      var required = manifest.__isFirstParty === true
+      var points = manifest.entryPoints || {}
+      if (points.service)
+        inspect(id, "service", !!shell._services[id] || AuthServiceStore.has(id), required)
+      // Widgets outside the layout are merely catalog entries. A disabled or
+      // unused optional widget must not hold startup hostage.
+      if (points.barWidget && pluginRegistry.inBar(id)) {
+        var entry = shell.pluginWidgetComponents[id]
+        inspect(id, "barWidget", !!(entry && entry.component), required)
+      }
+    }
+    return { state: errors.length ? "failed" : (pending.length ? "loading" : "ready"),
+      pending: pending, errors: errors, warnings: warnings }
+  }
 
   Timer {
     id: localPluginReloadTimer
@@ -137,10 +190,11 @@ ShellRoot {
     path: shell.defaultsPath
     watchChanges: true
     printErrors: false
-    onLoaded: shell.loadDefaults(text())
+    onLoaded: { shell.loadDefaults(text()); shell.defaultsLoaded = true }
     onLoadFailed: function(error) {
       console.warn("default shell.json load failed: " + error + " path=" + shell.defaultsPath)
       shell.loadDefaults("")
+      shell.defaultsLoaded = true
     }
     onFileChanged: reload()
   }
@@ -151,8 +205,8 @@ ShellRoot {
     watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: shell.applyShellConfig()
-    onLoadFailed: function(error) { shell.applyShellConfig() }
+    onLoaded: { shell.applyShellConfig(); shell.userConfigLoaded = true }
+    onLoadFailed: function(error) { shell.applyShellConfig(); shell.userConfigLoaded = true }
     onFileChanged: reload()
   }
 
@@ -941,9 +995,11 @@ ShellRoot {
     var authenticationService = shell.isAuthenticationService(manifest, key)
     if (authenticationService && AuthServiceStore.has(key)) return null
 
+    shell.recordPluginLoadError(key, "service", "")
     var comp = Qt.createComponent(url, Component.PreferSynchronous)
     function finalize() {
       if (comp.status !== Component.Ready) {
+        shell.recordPluginLoadError(key, "service", comp.errorString())
         console.warn("service plugin load failed for " + key + ": " + comp.errorString())
         return
       }
@@ -952,6 +1008,7 @@ ShellRoot {
       // traversal walk between the host and credential-bearing QML.
       var inst = comp.createObject(manifest.__isFirstParty && !authenticationService ? serviceHost : null)
       if (!inst) {
+        shell.recordPluginLoadError(key, "service", comp.errorString() || "Component instantiation failed")
         console.warn("service plugin createObject returned null for", key)
         return
       }
@@ -1544,6 +1601,7 @@ ShellRoot {
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
+      shell.pluginScanCompleted = true
       if (shell.pluginReloadPending) {
         shell.pluginReloadPending = false
         shell.pluginReloading = false
@@ -1569,6 +1627,7 @@ ShellRoot {
     // asynchronous and syncPluginWidgets runs several times while the shell
     // starts, so without a marker the later passes cannot tell a load in
     // flight from one that never happened.
+    shell.recordPluginLoadError(registryKey, "barWidget", "")
     setPluginWidgetComponent(registryKey, { url: url, component: null })
 
     var comp = Qt.createComponent(url, Component.Asynchronous)
@@ -1577,6 +1636,7 @@ ShellRoot {
         shell.barWidgetRegistry.register(registryKey, comp, meta)
         shell.setPluginWidgetComponent(registryKey, { url: url, component: comp })
       } else if (comp.status === Component.Error) {
+        shell.recordPluginLoadError(registryKey, "barWidget", comp.errorString())
         console.warn("Plugin widget " + registryKey + " failed: " + comp.errorString())
         // Drop the claim so a later rescan can retry.
         shell.setPluginWidgetComponent(registryKey, null)
@@ -1749,6 +1809,10 @@ ShellRoot {
 
   ShellIpc {
     target: "shell"
+
+    function startupStatus(): string {
+      return JSON.stringify(shell.pluginStartupStatus())
+    }
 
     function prepareThemeIntro(fromPath: string, token: string, colorsB64: string, shellB64: string): void {
       shell.bootIntro.prepareTheme(fromPath, token, colorsB64, shellB64)

@@ -64,6 +64,9 @@ if [[ $mode != "--reboot-only" ]]; then
   # new files into old code. A restart failure (locked session, ssh, TTY) only
   # prints its reason: the next update or login gets a fresh shell anyway.
   echo -e "\e[32m\nRestarting shell\e[0m"
-  echo "All plugins have been reloaded"
-  omarchy-restart-shell || true
+  if omarchy-restart-shell; then
+    echo "Shell startup loads are ready"
+  else
+    echo "Shell restart did not complete. Review the errors above and run 'omarchy restart shell' to retry." >&2
+  fi
 fi

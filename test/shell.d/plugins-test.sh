@@ -211,4 +211,57 @@ if (publicManifestMatch) {
 }
 
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
+// Exercise the production readiness calculation, including the absence of a
+// component while asynchronous loading is in flight. No QML loading is mocked
+// here: this checks the status contract, not Qt's cache or component loader.
+const startupMatch = shellSource.match(/function pluginStartupStatus\(\) \{[\s\S]*?\n  \}/)
+assert(!!startupMatch, 'shell exposes plugin startup status separately from ping')
+const startup = {
+  defaultsLoaded: true, userConfigLoaded: true, pluginScanCompleted: true,
+  pluginReloading: false, bar: {}, _services: {}, pluginWidgetComponents: {},
+  pluginLoadErrors: {},
+  pluginRegistry: {
+    scanning: false,
+    installedPlugins: {
+      core: { __isFirstParty: true, entryPoints: { service: 'Service.qml' } },
+      clock: { __isFirstParty: true, entryPoints: { barWidget: 'Clock.qml' } },
+      unused: { __isFirstParty: true, entryPoints: { barWidget: 'Optional.qml' } },
+      local: { __isFirstParty: false, entryPoints: { service: 'Local.qml' } }
+    },
+    isEnabled: id => id !== 'disabled',
+    inBar: id => id === 'clock'
+  },
+  AuthServiceStore: { has: () => false }
+}
+startup.shell = startup
+require('vm').runInNewContext(startupMatch[0] + '\nthis.status = pluginStartupStatus', startup)
+assertEqual(startup.status().state, 'loading', 'ping does not imply startup loads are ready')
+startup._services.core = {}
+assert(startup.status().pending.includes('barWidget:clock'), 'asynchronous configured widget holds readiness')
+startup.pluginWidgetComponents.clock = { component: {} }
+assertEqual(startup.status().state, 'ready', 'unconfigured optional widgets do not hold readiness')
+startup.pluginLoadErrors['service:core'] = 'ShellIpc is not a type'
+assertEqual(startup.status().state, 'failed', 'required service errors fail readiness')
+assertEqual(startup.status().errors[0].error, 'ShellIpc is not a type', 'readiness retains the QML diagnostic')
+startup.pluginRegistry.isEnabled = id => id !== 'core'
+startup.pluginLoadErrors['service:local'] = 'incompatible local API'
+assertEqual(startup.status().state, 'ready', 'disabled first-party and broken third-party services do not veto readiness')
+assertEqual(startup.status().warnings[0].id, 'local', 'third-party load errors are reported separately')
+startup.pluginRegistry.scanning = true
+assertEqual(startup.status().state, 'loading', 'a rescan cannot expose a partial readiness verdict')
+
 JS
+
+# The reduced host runs the production loader and status functions against real
+# QML components, without a compositor, session bus service, or desktop cache.
+if command -v quickshell >/dev/null 2>&1; then
+  startup_tmp=$(mktemp -d -t omarchy-startup.XXXXXX)
+  trap 'rm -rf "$startup_tmp"' EXIT
+  if ! python3 "$SHELL_TEST_DIR/fixtures/plugin-startup-check.py" "$ROOT" "$startup_tmp"; then
+    cat "$startup_tmp/runtime.log" >&2
+    fail "real QML startup loading and diagnostics"
+  fi
+  pass "real QML startup loads report errors, exclusions, readiness, and usable IPC"
+else
+  skip "quickshell not installed; real QML startup loading checks"
+fi

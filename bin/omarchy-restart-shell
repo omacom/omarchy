@@ -98,9 +98,8 @@ done
 hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
 
 shell_ready=0
-# The shell answers once its plugins have loaded, which on a large bar is
-# well past ten seconds, so wait on a deadline rather than a fixed handful
-# of attempts.
+# Reach core IPC first so failsafe lock recovery remains independent of
+# unrelated plugin failures. Plugin readiness is checked after re-securing it.
 deadline=$((SECONDS + 60))
 while (( SECONDS < deadline )); do
   if OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell shell ping >/dev/null 2>&1; then
@@ -121,6 +120,30 @@ fi
 if (( relock )) && ! relock_session; then
   echo "Omarchy shell restarted, but the session lock was not re-secured." >&2
   exit 1
+fi
+
+# A fresh root answers ping before asynchronous first-party loads finish.
+# Keep a bounded wait, and retain the last report for actionable diagnostics.
+startup_status=""
+deadline=$((SECONDS + 60))
+while (( SECONDS < deadline )); do
+  startup_status=$(OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell shell startupStatus 2>/dev/null)
+  startup_state=$(jq -r '.state // empty' <<<"$startup_status" 2>/dev/null)
+  case $startup_state in
+    ready) break ;;
+    failed)
+      echo "Omarchy shell restarted, but required plugins failed to load: $startup_status" >&2
+      exit 1
+      ;;
+  esac
+  sleep 0.1
+done
+if [[ $startup_state != "ready" ]]; then
+  echo "Omarchy shell plugins did not become ready after restart: ${startup_status:-no startup status received}" >&2
+  exit 1
+fi
+if jq -e '.warnings | length > 0' <<<"$startup_status" >/dev/null 2>&1; then
+  echo "Omarchy shell restarted with third-party plugin errors: $startup_status" >&2
 fi
 
 # Core IPC answers before the notification plugin has registered its bus
