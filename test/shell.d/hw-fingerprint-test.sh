@@ -41,7 +41,10 @@ mkdir -p "$platform_root" "$tmp_dir/bin"
 platform_root_copy "$ROOT/bin/omarchy-hw-fingerprint" "$tmp_dir/bin/omarchy-hw-fingerprint" "$platform_root"
 
 hw_fingerprint() {
-  OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" "$tmp_dir/bin/omarchy-hw-fingerprint"
+  OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" \
+    OMARCHY_DEVICE_TREE="$tmp_dir/tree" \
+    OMARCHY_SEP_BIO="$tmp_dir/sep-bio" \
+    "$tmp_dir/bin/omarchy-hw-fingerprint"
 }
 
 assert_detects() {
@@ -161,3 +164,16 @@ write_sep 396400000 not-ready
 assert_detects "a USB reader found by vendor is detected while Touch ID reads not-ready"
 
 rm -f "$platform_root/fingerprint-readers"
+
+# M1 Touch ID: the enclave device plus an okay sensor node, with no USB reader
+# and no platform status file. The real machine's /dev/sep-bio is not consulted.
+write_usb_devices '1234:5678:Generic USB Device'
+rm -rf "$tmp_dir/tree" "$tmp_dir/sep-bio"
+mkdir -p "$tmp_dir/tree/soc/spi@1/fingerprint@0"
+printf 'apple,mesa-fingerprint\0' >"$tmp_dir/tree/soc/spi@1/fingerprint@0/compatible"
+printf 'okay\0' >"$tmp_dir/tree/soc/spi@1/fingerprint@0/status"
+assert_rejects "a sensor node without sep-bio is not detected"
+: >"$tmp_dir/sep-bio"
+assert_detects "sep-bio plus an okay mesa sensor is detected"
+printf 'disabled\0' >"$tmp_dir/tree/soc/spi@1/fingerprint@0/status"
+assert_rejects "sep-bio with a disabled sensor node is not detected"
