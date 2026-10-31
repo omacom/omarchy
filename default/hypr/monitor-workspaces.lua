@@ -26,15 +26,18 @@
 local paths = require("default.hypr.paths")
 
 local SLOTS = 10
-local STATE_DIR = paths.state_home .. "/omarchy"
-local STATE_FILE = STATE_DIR .. "/monitor-workspaces"
-local MERGED_FILE = STATE_DIR .. "/monitor-workspaces-merged"
+local STATE_DIR = paths.state_home .. "/omarchy/monitors"
+local STATE_FILE = STATE_DIR .. "/workspaces"
+local MERGED_FILE = STATE_DIR .. "/workspaces-merged"
 
 local M = { slots = SLOTS }
 
 -- Identity -> block, kept across sessions.
 local blocks = {}
 local written = nil
+
+-- Connector -> identity for the monitors plugged in now.
+local current = {}
 
 local function load_blocks()
   local file = io.open(STATE_FILE, "r")
@@ -43,9 +46,12 @@ local function load_blocks()
   end
 
   for line in file:lines() do
-    local block, identity = line:match("^(%d+)\t[^\t]*\t(.+)$")
+    local block, connector, identity = line:match("^(%d+)\t([^\t]*)\t(.+)$")
     if block then
       blocks[identity] = tonumber(block)
+      if connector ~= "" then
+        current[connector] = identity
+      end
     end
   end
 
@@ -166,10 +172,25 @@ local function connected(gone)
 end
 
 -- Make, model and serial. Two monitors that report the same, such as a pair
--- without serials, are told apart by connector order.
+-- without serials, are told apart by connector order when they first appear,
+-- and each keeps that identity while it stays plugged in, so unplugging one of
+-- the pair doesn't hand its block to the other.
 local function identities_of(monitors)
   local identities = {}
-  local seen = {}
+  local taken = {}
+
+  local function described(monitor)
+    local description = monitor.description or ""
+    return description ~= "" and description or monitor.name
+  end
+
+  for _, monitor in ipairs(monitors) do
+    local identity = current[monitor.name]
+    if identity and not taken[identity] and identity:gsub(" #%d+$", "") == described(monitor) then
+      identities[monitor.name] = identity
+      taken[identity] = true
+    end
+  end
 
   local ordered = {}
   for _, monitor in ipairs(monitors) do
@@ -178,16 +199,27 @@ local function identities_of(monitors)
   table.sort(ordered, function(left, right) return left.name < right.name end)
 
   for _, monitor in ipairs(ordered) do
-    local description = monitor.description or ""
-    local identity = description ~= "" and description or monitor.name
-    seen[identity] = (seen[identity] or 0) + 1
-    if seen[identity] > 1 then
-      identity = identity .. " #" .. seen[identity]
+    if not identities[monitor.name] then
+      local identity = described(monitor)
+      local count = 1
+      while taken[identity] do
+        count = count + 1
+        identity = described(monitor) .. " #" .. count
+      end
+      identities[monitor.name] = identity
+      taken[identity] = true
     end
-    identities[monitor.name] = identity
   end
 
+  current = identities
+
   return identities
+end
+
+-- Each connected monitor's identity, keyed by connector, for settings that
+-- belong to the physical monitor rather than the port (see monitor-settings).
+function M.identities()
+  return identities_of(connected())
 end
 
 local function free_block()
@@ -242,7 +274,8 @@ local function renumber(workspace, id)
   local old = workspace.id
   hl.dispatch(hl.dsp.workspace.change_id({ workspace = tostring(old), id = id }))
 
-  if merged[old] then
+  -- A record left under the new id belonged to a workspace that has gone.
+  if merged[old] or merged[id] then
     merged[id] = merged[old]
     merged[old] = nil
     save_merged()

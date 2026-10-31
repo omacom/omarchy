@@ -1,12 +1,12 @@
 # Mga Tema
 
-Ang Omarchy ay may kasamang dalawampu't dalawang magagandang tema. Maaari kang mamili sa pagitan ng mga ito sa pamamagitan ng _Estilo > Tema_ sa Menu ng Omarchy (`Super + Space`) o direktang tumalon sa tagapili ng tema gamit ang `Super + Ctrl + Shift + Space`.
+May dalawampu't dalawang magagandang tema ang Omarchy. Maaari kang pumili sa mga ito sa pamamagitan ng _Appearance > Theme_ sa Omarchy Menu (`Super + Space`) o dumiretso sa tagapili ng tema gamit ang `Super + Ctrl + T`.
 
-Bawat tema ay nag-i-istilo sa desktop, terminal, neovim, activity screen (btop), Chromium, at sa buong shell ng Omarchy: top bar, menu, mga notipikasyon, OSD, at lock screen. (Para sa Obsidian, kailangan mong manu-manong piliin ang tema ng Omarchy sa pamamagitan ng _Appearance > Themes_ sa loob ng app).
+Binibigyan ng estilo ng bawat tema ang desktop, terminal, neovim, activity screen (btop), Chromium, at ang buong Omarchy shell: top bar, menu, mga notification, OSD, at lock screen. (Para sa Obsidian, kailangan mong manu-manong piliin ang tema ng Omarchy sa pamamagitan ng _Appearance > Themes_ sa loob ng app).
 
-Ang mga tema ay may set ng mga background image na maaari mong pagpilian gamit ang `Super + Ctrl + Space`.
+May hanay ng mga background image ang mga tema na maaari mong pagpilian gamit ang `Super + Ctrl + W`.
 
-Makakahanap ka ng higit pang mga tema sa [pahina ng mga dagdag na tema](https://omarchy.org/themes/) o kahit [gumawa ng sarili mong tema](43-making-your-own-theme.md).
+Makakahanap ka pa ng mas maraming tema sa [pahina ng mga karagdagang tema](https://omarchy.org/themes/) o maaari ka pang [gumawa ng sarili mong tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Mga Unlock
 
-Ang mga tema ay maaari ring magkaroon ng custom na disenyo ng unlock, na ginagamit para sa proseso ng boot decryption. Maaari kang pumili ng isa sa mga ito sa ilalim ng _Estilo > I-unlock_. Ganito ang hitsura ng mga ito:
+Maaari ding magkaroon ang mga tema ng pasadyang disenyo ng unlock, na ginagamit para sa proseso ng decryption sa boot. Maaari kang pumili ng isa sa mga ito sa ilalim ng _Appearance > Unlock_. Ganito ang hitsura ng mga ito:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

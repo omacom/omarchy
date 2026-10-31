@@ -1,82 +1,83 @@
-# Seatanna Scáileáin & Taifeadadh
+# Gabhálacha Scáileáin & Taifeadadh
 
-Crochtar gach rud is féidir leat a ghlacadh den scáileán d'eochair Print Screen. Glacann eochair amháin léi féin pictiúr, agus glacann na modhnóirí taifeadadh, dath, nó an téacs taobh istigh de réigiún. Mura bhfuil eochair Print Screen ar bith ag do mhéarchlár, osclaíonn `Super + Ctrl + C` an tacar céanna mar roghchlár.
+Gach rud is féidir leat a thógáil den scáileán, tá sé ar fad ag brath ar eochair Print Screen. Tógann eochair amháin léi féin pictiúr, agus tógann na modhnóirí taifeadadh, dath, nó an téacs atá taobh istigh de réigiún. Mura bhfuil eochair Print Screen ar bith ag do mhéarchlár, tógann `Super + Ctrl + Alt + C` an gabháil scáileáin chéanna, agus osclaíonn `Super + Ctrl + C` an tacar iomlán mar roghchlár.
 
-| Eochair ghasta | Feidhm |
+| Eochair aicearra | Feidhm |
 | ------ | -------- |
-| `Print Screen` | Seat scáileáin |
-| `Alt + Print Screen` | Taifead scáileáin (nó stop an ceann atá ag rith) |
+| `Print Screen` | Gabháil scáileáin |
+| `Super + Ctrl + Alt + C` | Gabháil scáileáin |
+| `Alt + Print Screen` | Taifeadadh scáileáin (nó stop an ceann atá ar siúl) |
 | `Super + Print Screen` | Roghnóir datha |
-| `Super + Ctrl + Print Screen` | Asbhain téacs as réigiún |
+| `Super + Ctrl + Print Screen` | Bain téacs as réigiún |
 | `Super + Ctrl + C` | Roghchlár gabhála |
-| `Super + Ctrl + .` | Traschódáil pictiúr nó físeán |
+| `Super + Ctrl + .` | Traschódaigh pictiúr nó físeán |
 
-## Seatanna scáileáin
+## Gabhálacha scáileáin
 
-Buail `Print Screen` agus gabhann Omasnap an monatóir dírithe sula dtaispeántar a fhorleagan, mar sin ní aistríonn rud ar bith fút fad is a dhíríonn tú. Tarraing réigiún saorfhoirme, cliceáil fuinneog chun í a ghabháil, nó cliceáil spás oscailte chun an monatóir ar fad a ghabháil. Brúigh `S` sula dtarraingíonn tú chun réigiún scrollaithe a ghabháil. D'athraigh tú d'intinn? Buail `Print Screen` arís chun Omasnap a dhíbhe.
+Buail `Print Screen` (nó `Super + Ctrl + Alt + C`) agus gabhann Omasnap an monatóir atá faoi fhócas sula dtagann a fhorleagan i láthair, mar sin ní bhogann rud ar bith fút agus tú ag díriú. Tarraing réigiún saorfhoirme, cliceáil fuinneog chun í a ghabháil, nó cliceáil spás oscailte chun an monatóir iomlán a ghabháil. Brúigh `S` sula dtarraingíonn tú chun réigiún scrollála a ghabháil. D'athraigh tú d'intinn? Buail an eochair chéanna arís chun Omasnap a dhíbhe.
 
-Tar éis duit limistéar a roghnú, sábhálann Omasnap an ghabháil, cóipeálann sé chuig an ngearrthaisce í, agus taispeánann sé réamhamharc ar feadh 10 soicind. Úsáid cnaipe bioráin an réamhamhairc nó `Ctrl + P` chun í a choinneáil ar an scáileán, nó roghnaigh Edit chun í a anótáil.
+Tar éis duit limistéar a roghnú, sábhálann Omasnap an gabháil, cóipeálann sé chuig an ngearrthaisce í, agus taispeánann sé fógra lena mionsamhail, mar a dhéanann taifeadadh scáileáin sábháilte. Roghnaigh Open chun an seat sábháilte a fheiceáil i d'amharcóir íomhánna, nó Edit chun nótaí a chur leis.
 
-Is féidir leis an eagarthóir anótála saigheada, línte, cruthanna, buaicphointí, marcóirí uimhrithe, téacs, agus ceiltí slána a tharraingt; cuid den íomhá a bhearradh nó a ghearradh amach; a téacs a OCRáil; agus cúlra a chur leis. San eagarthóir, brúigh `Enter` chun an PNG críochnaithe a chóipeáil agus a shábháil, `Ctrl + C` chun í a chóipeáil gan sábháil, nó `Ctrl + S` chun í a shábháil gan chóipeáil.
+Is féidir leis an eagarthóir nótaí saigheada, línte, cruthanna, buaicphointí, marcóirí uimhrithe, téacs, agus ceilt shlán a tharraingt; cuid den íomhá a bhearradh nó a ghearradh amach; a téacs a OCR; agus cúlra a chur leis. San eagarthóir, brúigh `Enter` chun an PNG críochnaithe a chóipeáil agus a shábháil, `Ctrl + C` chun é a chóipeáil gan é a shábháil, nó `Ctrl + S` chun é a shábháil gan é a chóipeáil.
 
-Tuiteann seatanna scáileáin sábháilte i `~/Pictures/Screenshots` de réir réamhshocraithe, le hainm ar nós `screenshot-2026-08-13_14-22-05-firefox.png`. Socraigh `OMASNAP_SCREENSHOT_DIR` chun eolaire eile a úsáid — féach [na Ceisteanna Coitianta](46-faq.md) maidir le cá háit le hathróga timpeallachta seisiúin a chur. Cruthaíonn Omasnap an t-eolaire nuair a shábhálann sé an chéad seat. Socraigh `[output] autosave = false` i `~/.config/omasnap/omasnap.conf` chun sábháil uathoibríoch a dhíchumasú.
+Téann gabhálacha scáileáin sábháilte go dtí `~/Pictures/Screenshots` de réir réamhshocraithe, le hainm amhail `screenshot-2026-08-13_14-22-05-firefox.png`. Socraigh `OMASNAP_SCREENSHOT_DIR` chun eolaire eile a úsáid — féach [na Ceisteanna Coitianta](46-faq.md) chun a fháil amach cá gcuirtear athróga timpeallachta seisiúin. Cruthaíonn Omasnap an t-eolaire nuair a shábhálann sé an chéad seat. Socraigh `[output] autosave = false` in `~/.config/omasnap/omasnap.conf` chun sábháil uathoibríoch a dhíchumasú; ní chóipeáiltear na gabhálacha ansin ach amháin, agus taispeántar iad i réamhamharc ar feadh 10 soicind ar féidir leat a choinneáil ar an scáileán lena chnaipe pionnála nó le `Ctrl + P`.
 
-Ón teirminéal, osclaíonn `omarchy screenshot` an forleagan céanna, agus is féidir leat a mhodh tosaigh a roghnú: `omarchy capture screenshot region`, `windows`, `fullscreen`, nó `scroll`. Scipeálann an dara argóint `copy` nó `save` an réamhamharc agus seolann sí an seat go díreach chuig an gceann scríbe sin. Chun cur in eagar roimh aschur, úsáid `omarchy screenshot --editor=overlay` d'eagarthóir lánscáileáin nó `omarchy screenshot --editor=window` d'fhuinneog ar leith.
+Ón teirminéal, osclaíonn `omarchy screenshot` an forleagan céanna, agus is féidir leat a mhodh tosaigh a roghnú: `omarchy capture screenshot region`, `windows`, `fullscreen`, nó `scroll`. Cuireann an dara hargóint, `copy` nó `save`, an seat díreach chuig an gceann scríbe sin. Chun eagarthóireacht a dhéanamh roimh an aschur, úsáid `omarchy screenshot --editor=overlay` d'eagarthóir lánscáileáin nó `omarchy screenshot --editor=window` d'fhuinneog ar leith.
 
 ### An roghnóir a thiomáint ón méarchlár
 
-Fad is atá an roghnú suas, ní gá duit an luch a úsáid ar chor ar bith:
+Cé go bhfuil an roghnú suas, ní gá duit an luch a úsáid in aon chor:
 
 | Eochair | Feidhm |
 | --- | -------- |
-| `S` | Scoránaigh mód réigiúin scrollaithe |
-| `Super + Arrow keys` | Bog idir fhuinneoga i Mód Fuinneoige |
+| `S` | Scoránaigh mód réigiúin scrollála |
+| `Super + Arrow keys` | Bog idir fuinneoga i mód Window |
 | `Return` | Gabh an fhuinneog aibhsithe |
-| `Ctrl + A` | Gabh an monatóir dírithe iomlán |
-| `R` | Athchóirigh an réigiún deireanach a tarraingíodh sa seisiún seo |
+| `Ctrl + A` | Gabh an monatóir iomlán atá faoi fhócas |
+| `R` | Athchuir an réigiún deireanach a tarraingíodh sa seisiún seo |
 | `Esc` | Díbhe Omasnap |
 
-Ní bhíonn na ceangail seo ann ach fad is atá Omasnap oscailte, mar sin ní féidir leo imbhualadh le rud ar bith i do chumraíocht féin.
+Níl na ceangail seo ann ach amháin fad a bhíonn Omasnap ar oscailt, mar sin ní féidir leo teacht salach ar rud ar bith i do chumraíocht féin.
 
 ## Taifeadadh scáileáin
 
-Osclaíonn `Alt + Print Screen` _Spreag > Gabh > Taifead scáileáin_, a fhiafraíonn cad atá uait ar an bhfuaimrian: gan fuaim, fuaim deisce, deasc móide micreafón, nó deasc móide micreafón móide ceamara gréasáin. Ní thaispeántar an ceann deireanach sin ach má tá ceamara plugáilte isteach agat i ndáiríre. Roghnaigh ceann agus ligeann roghnóir taifeadta Omarchy duit réigiún a tharraingt nó fuinneog nó monatóir a chliceáil.
+Osclaíonn `Alt + Print Screen` _Trigger > Capture > Screenrecord_, a fhiafraíonn cad ba mhaith leat ar an bhfuaimrian: gan fuaim ar bith, fuaim an deisce, deasc móide micreafón, nó deasc móide micreafón móide ceamara gréasáin. Ní thaispeántar an ceann deireanach sin ach amháin má tá ceamara plugáilte isteach agat i ndáiríre. Roghnaigh ceann amháin agus ligeann roghnóir taifeadta Omarchy duit réigiún a tharraingt nó fuinneog nó monatóir a chliceáil.
 
-Ritheann an taifeadadh ar gpu-screen-recorder, a ionchódaíonn ar an GPU ag 60fps agus a thiteann ar ais go dtí an CPU más gá. Is MP4 i `~/Videos` an toradh, darb ainm `screenrecording-2026-08-13_14-22-05.mp4`. Socraigh `OMARCHY_SCREENRECORD_DIR` chun é sin a athrú — ach tabhair faoi deara go bhfuil an ceann seo, murab ionann is eolaire na seatanna scáileáin, riachtanach a bheith ann cheana, nó diúltaíonn an taifeadadh tosú.
+Ritheann an taifeadadh ar gpu-screen-recorder, a ionchódaíonn ar an GPU ag 60fps agus a thiteann siar ar an CPU más gá dó. Is é an toradh ná MP4 in `~/Videos`, darbh ainm `screenrecording-2026-08-13_14-22-05.mp4`. Socraigh `OMARCHY_SCREENRECORD_DIR` chun é sin a athrú — ach tabhair faoi deara, murab ionann agus eolaire na ngabhálacha scáileáin, go gcaithfidh an ceann seo a bheith ann cheana féin, nó diúltóidh an taifeadadh tosú.
 
-Fad is atá tú ag taifeadadh, taispeántar táscaire beag sa bharra. Cliceáil é chun stopadh. Is féidir leat stopadh le `Alt + Print Screen` arís freisin, nó leis an iontráil _Stop taifeadadh scáileáin_ faoi _Spreag > Gabh > Taifead scáileáin_, nach dtaispeántar ach fad is atá rud éigin ag taifeadadh i ndáiríre.
+Agus tú ag taifeadadh, tagann táscaire beag i láthair sa bharra. Cliceáil é chun stopadh. Is féidir leat stopadh freisin le `Alt + Print Screen` arís, nó leis an iontráil _Stop Screenrecording_ faoi _Trigger > Capture > Screenrecord_, nach dtagann i láthair ach amháin fad a bhíonn rud éigin á thaifeadadh i ndáiríre.
 
-Déanann stopadh beagán glantacháin sula dtugann sé an comhad duit: bearrtar an chéad fhráma, agus má tá fuaim ann normalaítear go -14 LUFS í agus an preab gabhála PipeWire ag an tús maolaithe amach. Ansin taispeántar fógra le mioníomhá ón taifeadadh. Cliceáil é chun an comhad a sheinm i mpv.
+Déanann an stopadh beagán glanta sula dtugann sé an comhad duit: bearrtar an chéad fhráma, agus má tá fuaim ann déantar í a normalú go -14 LUFS agus an pléasc gabhála PipeWire ag an tús ceart balbhaithe amach. Ansin tagann fógra i láthair le mionsamhail ón taifeadadh. Cliceáil é chun an comhad a sheinm in mpv.
 
-### Forleagan an cheamara gréasáin
+### An forleagan ceamara gréasáin
 
-Nuair a thaifeadann tú le ceamara gréasáin, taispeántar an ceamara mar fhuinneog phortráide ghreamaithe, bhearrtha i gcúinne bun ar dheis cibé rud atá á thaifeadadh agat. Má tá sé ina shuí ar bharr rud éigin atá uait, athraigh a mhéid ar an eitilt:
+Nuair a dhéanann tú taifeadadh le ceamara gréasáin, tagann an ceamara i láthair mar fhuinneog phortráide phionnáilte, bhearrtha sa chúinne íochtair ar dheis de cibé rud atá á thaifeadadh agat. Má tá sé ina shuí ar bharr rud éigin a theastaíonn uait, athraigh a mhéid ar an toirt:
 
-| Eochair ghasta | Feidhm |
+| Eochair aicearra | Feidhm |
 | ------ | -------- |
-| `Super + Alt + [` | Déan forleagan an cheamara níos lú |
-| `Super + Alt + ]` | Déan forleagan an cheamara níos mó |
+| `Super + Alt + [` | Déan forleagan an cheamara gréasáin níos lú |
+| `Super + Alt + ]` | Déan forleagan an cheamara gréasáin níos mó |
 
-Tá trí mhéid ann — beag, meánach, agus mór — agus céimníonn na heochracha gasta eatarthu. Is é meánach an réamhshocrú. Tá siad comhréireach leis an taifeadadh, mar sin tógann an ceamara an sciar céanna den fhráma cibé acu atá tú ag taifeadadh monatóir 1080p nó 6K. Agus má thaifead tú réigiún seachas taispeáint iomlán, ancaireann an forleagan le cúinne an réigiúin sin seachas cúinne an mhonatóra, mar sin fanann sé taobh istigh den seat.
+Tá trí mhéid ann — beag, meánach, agus mór — agus céimníonn na heochracha aicearra eatarthu. Is é an meánach an réamhshocrú. Tá siad comhréireach leis an taifeadadh, mar sin tógann an ceamara an sciar céanna den fhráma cibé an bhfuil tú ag taifeadadh monatóir 1080p nó monatóir 6K. Agus má thaifead tú réigiún seachas taispeáint iomlán, ancaireann an forleagan go cúinne an réigiúin sin seachas cúinne an mhonatóra, mar sin fanann sé taobh istigh den seat.
 
-Is féidir leat é a ghlaoch go díreach freisin le `omarchy-capture-webcam-resize small`, nó `reset` chun dul ar ais go meánach.
+Is féidir leat é a ghlaoch go díreach freisin le `omarchy-capture-webcam-resize small`, nó `reset` chun dul ar ais go dtí an meánach.
 
 ## Téacs, cóid QR, agus dathanna
 
-Roghnaíonn `Super + Ctrl + Print Screen` réigiún agus OCRálann sé chuig an ngearrthaisce é. Clúdaítear é sin i gceart in [Asbhaint Téacs & Deachtú](11-text-extraction-dictation.md).
+Roghnaíonn `Super + Ctrl + Print Screen` réigiún agus déanann sé OCR air chuig an ngearrthaisce. Tá sé sin clúdaithe i gceart in [Eastóscadh Téacs & Deachtú](11-text-extraction-dictation.md).
 
-Déanann _Spreag > Gabh > Cód QR_ an cleas céanna do chóid QR. Roghnaigh an réigiún ina bhfuil an cód, agus téann an luach díchódaithe chuig an ngearrthaisce. Ní lorgaíonn sé ach cóid QR — tá an nós ag ábhar scáileáin dlúth bréag-dearfach a dhéanamh mar bharrachód murach sin. Is fiú a bheith ar an eolas: téann an luach díchódaithe chuig an ngearrthaisce agus ní chuig áit ar bith eile. Ní phriontáiltear é, níl sé san fhógra, agus tá sé marcáilte íogair mar sin ní fhanann sé timpeall i [stair ghearrthaisce](08-unified-clipboard-history.md). Iompraíonn cóid QR rúin go rialta — an URI `otpauth://` taobh thiar de chód socraithe 2FA, mar shampla — agus níl tú ag iarraidh é sin i loga. Oibríonn greamú go breá fós.
+Déanann _Trigger > Capture > QR Code_ an cleas céanna le haghaidh cóid QR. Roghnaigh an réigiún ina bhfuil an cód, agus téann an luach díchódaithe chuig an ngearrthaisce. Ní lorgaíonn sé ach cóid QR — tá sé de nós ag ábhar dlúth scáileáin bréag-dearfach a dhéanamh mar bharrachód murach sin. Is fiú a fhios: téann an luach díchódaithe chuig an ngearrthaisce agus chuig áit ar bith eile. Ní phriontáiltear é, níl sé san fhógra, agus tá sé marcáilte mar rud íogair mar sin ní fhanann sé thart in [stair na gearrthaisce](08-unified-clipboard-history.md). Is gnách le cóid QR rúin a iompar — an URI `otpauth://` taobh thiar de chód socraithe 2FA, mar shampla — agus níor mhaith leat é sin i loga. Oibríonn greamú go breá fós.
 
-Iompaíonn `Super + Print Screen` (nó _Spreag > Gabh > Dath_) an cúrsóir ina bhraonaire. Cliceáil rud ar bith ar an scáileán agus tuirlingíonn an dath ar an ngearrthaisce. Brúigh an eochair ghasta arís chun tarraingt siar gan roghnú.
+Casann `Super + Print Screen` (nó _Trigger > Capture > Color_) an cúrsóir ina shúileog. Cliceáil rud ar bith ar an scáileán agus tiocfaidh an dath ar an ngearrthaisce. Brúigh an eochair aicearra arís chun tarraingt siar gan ceann a phiocadh.
 
-## Traschódáil sula roinneann tú
+## Traschódú sula roinneann tú
 
-Is minic a bhíonn taifeadadh scáileáin 4K nó HEIC amh de do ghuthán ró-mhór le seoladh go díreach. Socraíonn `Super + Ctrl + .` (nó _Spreag > Traschódáil_) é sin. Tairgeann sé roghnóir comhad doiléir duit thar `~/Pictures` agus `~/Videos`, ansin iarrann sé formáid agus méid.
+Is minic a bhíonn taifeadadh scáileáin 4K nó HEIC amh ó do ghuthán rómhór le cur díreach. Deisíonn `Super + Ctrl + .` (nó _Trigger > Transcode_) é sin. Cuireann sé roghnóir doiléir comhad ar fáil duit thar `~/Pictures` agus `~/Videos`, agus ansin fiafraíonn sé formáid agus méid díot.
 
-Téann pictiúir go jpg nó png ag ard, meánach, nó íseal, a chuireann uasteorainn leis an leithead ag 3160, 2160, agus 1080 picteilín. Téann físeáin go mp4 nó gif beochana ag 4k, 1080p, nó 720p. Scríobhtar an comhad tiontaithe in aice leis an mbunaidh leis an taifeach san ainm — `demo-1080p.mp4` — agus cóipeáiltear an chonair chuig an ngearrthaisce mar URI comhaid, mar sin is féidir leat é a ghreamú go díreach isteach in aip a ghlacann le titim comhad.
+Téann pictiúir go jpg nó png ag ard, meánach, nó íseal, a chuireann uasteorainn 3160, 2160, agus 1080 picteilín ar an leithead. Téann físeáin go mp4 nó gif beoite ag 4k, 1080p, nó 720p. Scríobhtar an comhad tiontaithe in aice leis an mbunchomhad agus an taifeach san ainm — `demo-1080p.mp4` — agus cóipeáiltear an cosán chuig an ngearrthaisce mar URI comhaid, mar sin is féidir leat é a ghreamú go díreach isteach in aip a ghlacann le comhaid a thiteann isteach.
 
-Oibríonn sé ón teirminéal freisin, má tá a fhios agat cheana cad atá uait: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Tá `omarchy transcode ascii` ann freisin, a iompaíonn íomhá ina healaín ASCII — is do [brandáil](41-branding.md) den chuid is mó atá an ceann sin.
+Oibríonn sé ón teirminéal freisin, má tá a fhios agat cheana féin cad ba mhaith leat: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Tá `omarchy transcode ascii` ann freisin, a chasann íomhá ina healaín ASCII — is don [bhrandáil](41-branding.md) is mó a úsáidtear an ceann sin.
 
-## É a sheoladh áit éigin
+## É a chur áit éigin
 
-Nuair atá an comhad agat, osclaíonn `Super + Ctrl + S` roghchlár Roinn agus seolann sé chuig gléas eile ar do líonra é trí LocalSend. Féach [GUIanna](22-guis.md) faoi sin.
+Nuair a bhíonn an comhad agat, osclaíonn `Super + Ctrl + S` an roghchlár Share agus cuireann sé chuig gléas eile ar do líonra é via LocalSend. Féach [GUIs](22-guis.md) chuige sin.

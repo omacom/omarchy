@@ -1,25 +1,27 @@
-# Systemsnapshots
+# Øyeblikksbilder av systemet
 
-Vi oppretter snapshots automatisk ved hver Omarchy-oppdatering, men skulle du ønske å lage dine egne, kan du bruke `omarchy-snapshot create`.
+Vi oppretter øyeblikksbilder automatisk ved hver Omarchy-oppdatering, men hvis du vil opprette ditt eget, kan du bruke `omarchy-snapshot create`.
 
-For å starte opp og gjenopprette et snapshot velger du det fra Limine-bootloaderen. (Hvis du for øyeblikket starter rett inn i Omarchy-dekrypteringsskjermen, må du først velge Limine som et oppstartsalternativ via BIOS-en).
+For å starte opp fra og gjenopprette et øyeblikksbilde velger du det fra Limine-oppstartslasteren. (Hvis du for øyeblikket starter rett inn på Omarchy-dekrypteringsskjermen, må du først velge Limine som oppstartsalternativ via BIOS).
 
-Fra den skjermen velger du snapshotet du vil starte opp i basert på dato og versjon. Versjonen av Omarchy på tidspunktet for snapshotet kan sees nederst i venstre hjørne.
+Fra den skjermen velger du øyeblikksbildet du vil starte opp fra, basert på dato og versjon. Versjonen av Omarchy på tidspunktet for øyeblikksbildet ser du nederst i venstre hjørne.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Når du ankommer inni, vil et varsel sprette opp og varsle deg om at du er i et oppstartbart snapshot, og hvis du klikker på det, starter gjenopprettingsprosessen. Alternativt kan du bruke `omarchy-snapshot restore`.
+Når du kommer inn, dukker det opp et varsel som forteller deg at du er i et oppstartbart øyeblikksbilde, og hvis du klikker på det, starter gjenopprettingsprosessen. Alternativt kan du bruke `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Dette vil gjenopprette rotfilsystemet ditt, men ikke `/home`. Så det fungerer for å angre en ødelagt systemoppdatering, men ikke for å gjenopprette tapte personlige filer.
+Dette gjenoppretter rotfilsystemet ditt, men ikke `/home`. Så det fungerer for å rulle tilbake en ødelagt systemoppdatering, men ikke for å gjenopprette tapte personlige filer.
 
-Dette betyr også at `~/.config`-mappen din beholdes som den er. Så hvis du ruller tilbake til en tidligere versjon av et bibliotek eller en applikasjon som lagrer konfigurasjonsfiler i et nytt format, må du ordne det manuelt.
+Dette betyr også at `~/.config`-mappen din blir værende som den er. Så hvis du ruller tilbake til en tidligere versjon av et bibliotek eller en applikasjon som lagrer konfigurasjonsfiler i et nytt format, må du ordne det manuelt.
 
-_Merk: Denne funksjonen er bare tilgjengelig på installasjoner som bruker Limine-bootloaderen, som har vært standard siden Omarchy 2.0. Den er ikke tilgjengelig hvis du er på GRUB eller systemd-boot._
+Det samme gjelder Omarchys egen oversikt over hvilke migreringer som allerede har kjørt: den ligger i hjemmemappen din, så den overlever gjenopprettingen. Migreringer som kjørte etter at øyeblikksbildet ble tatt, forblir markert som ferdige, selv om endringene de gjorde i rotfilsystemet har blitt rullet tilbake, og neste `omarchy update` vil ikke kjøre dem på nytt. Så hvis du oppdaterer igjen etter en gjenoppretting og noe en tidligere oppdatering hadde satt opp fortsatt mangler, er det den sannsynlige grunnen.
+
+_Merk: Denne funksjonen er bare tilgjengelig på installasjoner som bruker Limine-oppstartslasteren, som har vært standard siden Omarchy 2.0. Den er ikke tilgjengelig hvis du bruker GRUB eller systemd-boot._
 
 ### Hoppe over oppstartsmenyen
 
-Hvis du aldri rører oppstartsmenyen og bare vil at maskinen skal gå rett til dekrypteringsskjermen, kjør _Oppsett > Direkte oppstart_ i Omarchy-menyen. Det legger til en EFI-oppføring som peker direkte på Omarchy, så firmwaren starter den uten å stoppe ved Limine.
+Hvis du aldri bruker oppstartsmenyen og bare vil at maskinen skal gå rett til dekrypteringsskjermen, kjører du _Setup > Direct Boot_ i Omarchy-menyen. Det legger til en EFI-oppføring som peker direkte på Omarchy, slik at fastvaren starter den uten å stoppe ved Limine.
 
-Avveiningen er den som er nevnt øverst: med direkte oppstart på betyr det å komme til et snapshot at du først må velge Limine fra BIOS-oppstartsmenyen. Kjør _Oppsett > Direkte oppstart_ igjen for å fjerne oppføringen og gå tilbake til å starte opp gjennom Limine. Noen firmware tar ikke godt imot egendefinerte EFI-oppføringer, så oppsettet nekter å kjøre på American Megatrends- og Apple-firmware.
+Ulempen er den som er nevnt øverst: med direkte oppstart på betyr det å komme til et øyeblikksbilde at du først må velge Limine fra BIOS-oppstartsmenyen. Kjør _Setup > Direct Boot_ igjen for å fjerne oppføringen og gå tilbake til å starte via Limine. Noe fastvare liker ikke egendefinerte EFI-oppføringer, så oppsettet nekter å kjøre på fastvare fra American Megatrends og Apple.
