@@ -381,6 +381,7 @@ Item {
       _notePopoutCard: function(card) { root.notePopoutCard(card) },
       _popoutCardFor: function(owner) { return root.popoutCardFor(owner) },
       _targetBelongsToWindow: function(target, window) { return root.targetBelongsToWindow(target, window) },
+      _forwardBarClick: function(window, point, button) { return root.forwardBarClick(window, point, button) },
       _moduleWidgets: function(requestedId) {
         return String(requestedId || "") === String(moduleName || "")
           ? root.moduleWidgets(moduleName) : []
@@ -552,6 +553,25 @@ Item {
 
   function targetBelongsToWindow(target, window) {
     return !!target && !!window && targetWindow(target) === window
+  }
+
+  // Press the registered click target under `point` (bar-window coordinates)
+  // in `window`, across every plugin. Third-party panels only see their own
+  // clickTargets through PluginBarApi, so their outside-click handler calls
+  // this instead of searching the list itself.
+  function forwardBarClick(window, point, button) {
+    if (!window || !window.contentItem || !point) return false
+    for (var i = clickTargets.length - 1; i >= 0; i--) {
+      var target = clickTargets[i]
+      if (!target || !target.triggerPress || target.visible === false || target.opacity === 0 || !target.mapToItem) continue
+      if (!root.targetBelongsToWindow(target, window)) continue
+      var pos = window.itemPosition(target)
+      if (point.x >= pos.x && point.x <= pos.x + target.width && point.y >= pos.y && point.y <= pos.y + target.height) {
+        target.triggerPress(button)
+        return true
+      }
+    }
+    return false
   }
 
   function slotWindow(slot) {
