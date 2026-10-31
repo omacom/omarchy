@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Velocidade do disco"
   },
-  "setup.monitors": {
-    "label": "Ecrãs"
-  },
   "setup.keybindings": {
     "label": "Atalhos"
   },

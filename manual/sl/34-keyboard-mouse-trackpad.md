@@ -1,6 +1,6 @@
-# Tipkovnica, miška in sledilna ploščica
+# Tipkovnica, miška, sledilna ploščica
 
-Hyprland vam omogoča zelo podrobno konfiguracijo vseh vnosnih naprav. Hitrost ponavljanja tipkovnice lahko nastavite na nadzvočno hitrost ali pa za sledilno ploščico uporabite naravno drsenje. Vse to spremenite v `~/.config/hypr/input.lua`, do česar lahko pridete tudi prek _Nastavitve > Vnos_ v meniju Omarchy (`Super + Space`). Vse, kar tam nastavite, nadomesti privzete nastavitve Omarchy.
+Hyprland omogoča, da vse svoje vnose konfigurirate zelo podrobno. Ponovitev tipkovnice lahko nastavite na nadzvočno hitrost ali pa za sledilno ploščico uporabite naravno drsenje. Vse to spremenite v `~/.config/hypr/input.lua`, do česar lahko dostopate tudi prek _Nastavitve > Vnos_ v meniju Omarchy (`Super + Space`). Vse, kar tam nastavite, nadomesti privzete nastavitve Omarchy.
 
 Tukaj je primer:
 
@@ -35,9 +35,9 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-Vse možnosti vnosa [si lahko ogledate](https://wiki.hypr.land/Configuring/Basics/Variables/#input) na wikiju Hyprland za vnose.
+Vse možnosti za vnose si lahko [ogledate](https://wiki.hypr.land/Configuring/Basics/Variables/#input) na wikiju Hyprland za vnose.
 
-CapsLock deluje kot običajna tipka Caps Lock, `Shift + CapsLock` pa je tipka za sestavljanje za [hitre emojije](07-hotkeys.md#quick-emojis) in [druga dopolnjevanja](07-hotkeys.md#quick-completions). Če želite tipko za sestavljanje raje drugje, zamenjajte `omarchy:shift_caps_compose` v `kb_options`. Ta primer na primer premakne tipko za sestavljanje na Right Alt:
+CapsLock deluje kot običajna tipka Caps Lock, `Shift + CapsLock` pa je tipka compose za [hitre emojije](07-hotkeys.md#quick-emojis) in [druga dopolnjevanja](07-hotkeys.md#quick-completions). Če želite tipko compose raje drugje, v `kb_options` nadomestite `omarchy:shift_caps_compose`. Ta primer na primer premakne tipko compose na Right Alt:
 
 ```lua
 hl.config({
@@ -47,33 +47,46 @@ hl.config({
 })
 ```
 
-### Poteze na sledilni ploščici
+### Geste na sledilni ploščici
 
-Vklopite lahko tudi [poteze na sledilni ploščici](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), na primer podrsanje s tremi prsti za preklapljanje med delovnimi prostori:
+Podrsajte po sledilni ploščici, da se premikate po namizju:
+
+| Gesta | Dejanje |
+| --- | --- |
+| Trije prsti levo / desno | Prejšnje / naslednje delovno okolje, vključno s praznimi |
+| Trije prsti gor | Preklopi konzolo AI |
+| Trije prsti dol | Odpri meni Omarchy |
+| Štirje prsti levo / desno | Premakni aktivno okno na prejšnje / naslednje delovno okolje |
+| Štirje prsti dol | Preklopi celozaslonski način |
+
+Če želite katero spremeniti, jo v `~/.config/hypr/input.lua` razveljavite, preden dodate svojo [gesto na sledilni ploščici](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), saj Hyprland ne bo sprejel dveh gest z istim številom prstov in v isto smer:
 
 ```lua
-hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+hl.gesture({ fingers = 3, direction = "up", action = "unset" })
+hl.gesture({ fingers = 3, direction = "up", action = "fullscreen" })
 ```
 
-Na prenosnikih Dell XPS s haptično sledilno ploščico lahko pod _Sprožilec > Strojna oprema > Haptika sledilne ploščice_ nastavite tudi moč klika na nizko, srednjo ali visoko.
+Če želite izklopiti vse geste Omarchy, nastavite `omarchy_default_gestures = false` blizu vrha `~/.config/hypr/hyprland.lua`, preden se naložijo privzete nastavitve Omarchy.
+
+Pri prenosnikih Dell XPS s haptično sledilno ploščico lahko moč klika nastavite tudi na nizko, srednjo ali visoko pod _Sprožilec > Strojna oprema > Haptika sledilne ploščice_.
 
 ### Tipkanje v kitajščini, japonščini in drugih jezikih
 
-Ko vas namestitveni program vpraša po vaši tipkovnici, izberite japonsko, korejsko, kitajsko (poenostavljeno, Pinyin), tajvansko (Zhuyin) ali hongkonško (Cangjie). Omarchy samodejno konfigurira tipkovnico in ustrezni vnosni mehanizem, tudi med namestitvijo brez povezave ob prvem zagonu. Japonščina uporablja Mozc, korejščina standardno dvosklopno postavitev Hangul, poenostavljena kitajščina uporablja Pinyin, Tajvan uporablja standardno postavitev Zhuyin programa Chewing, Hongkong pa uporablja Cangjie s hongkonškimi oblikami znakov. Japanese (US keyboard) ponuja Mozc s postavitvijo tipkovnice US. Tipke Hangul, Zhuyin in Cangjie ostanejo na svojih standardnih položajih, tudi ko latinične črke tipkate z Dvorak, Colemak ali AZERTY. Če ste Hangul ali Chewing dodali že prej, ju pod _Nastavitve > Tipkanje > Metode vnosa_ odznačite in znova izberite, da se njune tipke premaknejo tja; Omarchy pusti mehanizem, s katerim že tipkate, pri miru.
+Ko vas namestitveni program vpraša po tipkovnici, izberite japonščino, korejščino, kitajščino (poenostavljeno, Pinyin), Tajvan (Zhuyin) ali Hongkong (Cangjie). Omarchy samodejno konfigurira tipkovnico in ustrezni vnosni mehanizem, tudi med namestitvijo brez povezave ob prvem zagonu. Japonščina uporablja Mozc, korejščina standardni dvosklopni Hangul, poenostavljena kitajščina uporablja Pinyin, Tajvan uporablja standardno razporeditev Zhuyin v Chewing, Hongkong pa Cangjie s hongkonškimi oblikami znakov. Japonščina (tipkovnica US) zagotavlja Mozc z ameriško razporeditvijo tipkovnice. Tipke Hangul, Zhuyin in Cangjie ostanejo na svojih standardnih mestih, tudi ko latinske črke tipkate z Dvorak, Colemak ali AZERTY. Če ste Hangul ali Chewing dodali že prej, ju pod _Nastavitve > Tipkanje > Načini vnosa_ odznačite in znova izberite, da se njune tipke premaknejo tja; Omarchy pusti mehanizem, s katerim že tipkate, pri miru.
 
-Tipkanje se začne v latiničnem načinu. Pritisnite `Super + I` za kroženje med konfiguriranimi metodami vnosa in `Super + Shift + I` za kroženje nazaj. Enkrat tapnite samo `Shift`, da iz metode vnosa, kot je Pinyin, stopite v latinične črke, in jo tapnite še enkrat, da se vrnete, tako kot delujejo Sogou, Microsoft Pinyin in macOS; `Shift` skupaj s črko še vedno vpiše veliko črko. Na japonskih tipkovnicah 全角/半角 preklopi vnos, 変換 ga vklopi, 無変換 pa ga izklopi. Pri korejščini 한/영 preklaplja Hangul, 한자 pa pretvori v Hanja, ne glede na to, ali ima vaša tipkovnica namenske tipke ali zanje pošilja Right Alt in Right Ctrl, kot to počnejo številni prenosniki, zato Right Alt in Right Ctrl tam nista običajna modifikatorja; narekovanje s pritiskom in govorjenjem ostane na F9. `Ctrl + Space` ostane na voljo za Tmux in Herdr; `Shift + CapsLock` ostane tipka za sestavljanje.
+Tipkanje se začne v latinskem načinu. Pritisnite `Super + I` za kroženje med konfiguriranimi načini vnosa in `Super + Shift + I` za kroženje nazaj. Pritisnite samo `Shift`, da iz načina vnosa, kot je Pinyin, preklopite na latinske črke, in jo pritisnite znova, da se vrnete, tako kot delujejo Sogou, Microsoft Pinyin in macOS; `Shift` skupaj s črko še vedno vpiše veliko črko. Na japonskih tipkovnicah 全角/半角 preklaplja vnos, 変換 ga vklopi in 無変換 ga izklopi. Pri korejščini 한/영 preklaplja Hangul, 한자 pa pretvarja v Hanja, ne glede na to, ali ima vaša tipkovnica namenske tipke ali zanje pošilja Right Alt in Right Ctrl, kot to počnejo številni prenosniki, zato Right Alt in Right Ctrl tam nista običajna modifikatorja; funkcija push-to-talk za narekovanje ostane na F9. `Ctrl + Space` ostane na voljo za Tmux in Herdr; `Shift + CapsLock` ostane tipka compose.
 
-Kazalnik tipkovnice se prikaže na desni strani vrstice, ko imate več postavitev tipkovnice ali metod vnosa. Kliknite ga za preklapljanje med vnosnimi jeziki; japonščina za hiragano prikazuje あ. Za izbiro japonskih znakov preklopite na japonščino, vtipkajte besedo, kot je `nihongo`, nato dvakrat pritisnite Space. Pritisnite Enter, da sprejmete svojo izbiro. Če imate tudi več postavitev tipkovnice, z desno tipko kliknite kazalnik za kroženje med njimi.
+Kazalnik tipkovnice se prikaže na desni strani vrstice, ko imate več razporeditev tipkovnice ali načinov vnosa. Kliknite ga, da preklopite jezike vnosa; japonščina za hiragano prikaže あ. Za izbire japonskih znakov preklopite na japonščino, vtipkajte besedo, kot je `nihongo`, nato dvakrat pritisnite Space. Pritisnite Enter, da sprejmete izbiro. Če imate tudi več razporeditev tipkovnice, z desno tipko kliknite kazalnik, da krožite med njimi.
 
-Uporabite _Nastavitve > Tipkanje > Postavitve tipkovnice_ za izbiro postavitev, kot sta English in French, med istimi izbirami, ki so na voljo med namestitvijo. Uporabite _Nastavitve > Tipkanje > Metode vnosa_ za izbiro, kateri mehanizmi za sestavljanje so dejavni. Oba izbirnika se odpreta znotraj menija Omarchy z označenimi vašimi trenutnimi izbirami. Kliknite ali pritisnite Enter za preklop izbire; vsaka sprememba začne veljati takoj. Odznačitev metode vnosa jo odstrani iz kroženja, ne da bi jo odstranila iz sistema; tipkovnica ostane na voljo.
+Uporabite _Nastavitve > Tipkanje > Razporeditve tipkovnice_, da izberete razporeditve, kot sta angleščina in francoščina, med istimi izbirami, ki so ponujene med namestitvijo. Uporabite _Nastavitve > Tipkanje > Načini vnosa_, da izberete, kateri mehanizmi za sestavljanje so aktivni. Oba izbirnika se odpreta v meniju Omarchy z označenimi vašimi trenutnimi izbirami. Kliknite ali pritisnite Enter, da preklopite izbiro; vsaka sprememba se uveljavi takoj. Če način vnosa odznačite, ga odstranite iz kroženja, ne da bi ga odstranili iz sistema; tipkovnica ostane na voljo.
 
-Zaženite `omarchy setup keyboard` ali `omarchy setup input`, da odprete ista izbirnika. Za dodajanje enega jezika iz ukazne vrstice uporabite `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` ali `cangjie5`. Quick, Boshiamy in Array so v istem paketu kot Cangjie in se pojavijo v izbirniku Metode vnosa. Vaše tipke za preklapljanje po meri se ohranijo. Za alternativne postavitve ali tipke mehanizmov namestite `fcitx5-configtool` z `omarchy pkg add fcitx5-configtool` in ga zaženite iz terminala. Izbira vnosnega jezika ne spremeni jezika namizja. Izbira japonščine, korejščine ali kitajščine pod _Nastavitve > Jezik_ doda njeno metodo vnosa, ko je še nimate nobene.
+Zaženite `omarchy setup keyboard` ali `omarchy setup input`, da odprete ista izbirnika. Če želite iz ukazne vrstice dodati en jezik, uporabite `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` ali `cangjie5`. Quick, Boshiamy in Array so v istem paketu kot Cangjie in se prikažejo v izbirniku načinov vnosa. Vaše prilagojene tipke za preklapljanje se ohranijo. Za alternativne razporeditve ali tipke mehanizmov namestite `fcitx5-configtool` z `omarchy pkg add fcitx5-configtool` in ga zaženite iz terminala. Izbira jezika vnosa ne spremeni jezika namizja. Če pod _Nastavitve > Jezik_ izberete japonščino, korejščino ali kitajščino, se njen način vnosa doda, ko ga še nimate.
 
-Uporabite `Super + I` za kroženje med metodami vnosa ali postavitvami tipkovnice in `Super + Shift + I` za vrnitev v drugo smer, tako da se lahko pri treh konfiguriranih premikate med dvema sosedoma. Kazalnik vnosa se prikaže na desni strani vrstice le, ko je konfiguriranih več kot ena metoda vnosa ali postavitev. Ta vezava na namizju deluje skupaj z vašimi obstoječimi tipkami za preklapljanje Fcitx; preglasite jo lahko v `~/.config/hypr/bindings.lua`. Vnosni mehanizmi in zaporedja za sestavljanje uporabljajo storitev [Fcitx5](https://fcitx-im.org/), ki že teče v vsaki seji.
+Uporabite `Super + I` za kroženje med načini vnosa ali razporeditvami tipkovnice in `Super + Shift + I` za vrnitev v drugo smer, tako da se lahko pri treh konfiguriranih premikate med dvema sosedoma. Kazalnik vnosa se prikaže na desni strani vrstice le, ko je konfiguriran več kot en način vnosa ali razporeditev. Ta vezava na namizju deluje skupaj z vašimi obstoječimi tipkami za preklapljanje Fcitx; preglasite jo lahko v `~/.config/hypr/bindings.lua`. Vnosni mehanizmi in zaporedja compose uporabljajo storitev [Fcitx5](https://fcitx-im.org/), ki že teče v vsaki seji.
 
-### Uporabite ALT kot SUPER
+### Uporaba ALT kot SUPER
 
-Na nekaterih tipkovnicah ni priročno uporabljati primarne metatipke (tipke Windows/cmd) kot SUPER. S to spremembo jo lahko namesto tega spremenite v ALT:
+Pri nekaterih tipkovnicah ni priročno uporabljati primarne meta tipke (tipke Windows/cmd) kot SUPER. Namesto tega lahko to s to spremembo spremenite na ALT:
 
 ```lua
 hl.config({

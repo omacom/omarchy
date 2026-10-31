@@ -1,15 +1,15 @@
 # Ozadja
 
-Vsaka tema ima svoj nabor ozadij, dodate pa lahko tudi svoja dodatna v `~/.config/omarchy/backgrounds/[theme]`. Če želite dodatno sliko ozadja dodati na primer temi nord, datoteko preprosto položite v `~/.config/omarchy/backgrounds/nord`.
+Vsaka tema ima svoj nabor ozadij, svoja dodatna pa lahko dodate v `~/.config/omarchy/backgrounds/[theme]`. Če želite dodati dodatno sliko ozadja, recimo, temi nord, datoteko preprosto položite v `~/.config/omarchy/backgrounds/nord`.
 
-Najlažje to naredite tako, da v meniju Omarchy Menu odprete _Namesti > Slog > Ozadje_. Odpre se mapa, v kateri so shranjena ozadja za to temo. Pritisnite `Super + Shift + F`, da zaženete še en upravljalnik datotek, poiščite svoje ozadje in ga kopirajte tja. Zdaj bo vključeno med ozadja, med katerimi lahko izbirate s `Super + Ctrl + W`.
+To najlažje storite tako, da v meniju Omarchy odprete _Install > Style > Background_. Odprla se bo mapa, v kateri so shranjena ozadja za to temo. Pritisnite `Super + Shift + F`, da zaženete še en upravitelj datotek, poiščite svoje ozadje in ga prekopirajte tja. Zdaj bo vključeno med ozadja, med katerimi lahko izbirate z `Super + Ctrl + W`.
 
-Ozadja so lahko videoposnetki in tudi mirujoče slike. V isto mapo položite datoteko `mp4`, `m4v`, `mov`, `webm`, `mkv` ali `avi` in pojavila se bo ob slikah. Videoposnetke predvaja pogon za ozadja OWE. Videoposnetek dekodira enkrat za vse zaslone, njegov zvok predvaja prek privzetega zvočnega izhoda in predvajanje ustavi, kadar ga ni mogoče videti. Video ozadje še vedno porabi veliko več energije kot mirujoče ozadje.
+Ozadja so lahko tudi videoposnetki, ne le statične slike. V isto mapo odložite datoteko `mp4`, `m4v`, `mov`, `webm`, `mkv` ali `avi` in prikazala se bo poleg slik. Videoposnetke predvaja pogon za ozadja OWE. Videoposnetek dekodira enkrat za vse zaslone, njegov zvok predvaja prek privzetega zvočnega izhoda, predvajanje pa ustavi, kadar ga ni mogoče videti. Video ozadje še vedno porabi precej več energije kot statično.
 
-Teme lahko vključujejo kratek uvod za mirujoče ozadje. Za `backgrounds/road.webp` je ujemajoči se videoposnetek v `backgrounds/intros/road.mp4`. Samodejno se predvaja ob zagonu in ob preklopu na temo z izbranim tem ozadjem, nato pa se vrne na mirujočo sliko. Uvodni videoposnetki se ne pojavijo v izbirniku ozadij in se nikoli ne predvajajo v zanki.
+Teme lahko vključujejo kratek uvod za statično ozadje. Za `backgrounds/road.webp` je pripadajoči videoposnetek shranjen na `backgrounds/intros/road.mp4`. Predvaja se samodejno ob zagonu, ob preklopu na temo s tem izbranim ozadjem in ob izbiri tega ozadja, nato pa se vrne na statično ozadje. Uvodni videoposnetki se ne prikažejo v izbirniku ozadij in se nikoli ne ponavljajo v zanki.
 
-Izklop možnosti _Videz > Animacije_ izklopi tudi uvode ozadij. Omarchy to privzeto naredi v virtualnem stroju. Ukaz `omarchy theme bg intro toggle` lahko uvode preklopi ločeno. Osvežitev teme ali izbira drugega ozadja znotraj iste teme uvoda ne predvaja.
+Izklop možnosti _Appearance > Animations_ izklopi tudi uvode ozadij. Omarchy to privzeto stori v navideznem stroju. Z ukazom `omarchy theme bg intro toggle` lahko uvode preklapljate ločeno. Osvežitev teme uvoda ne predvaja.
 
-Ogromno zbirko kul, skrbno izbranih ozadij najdete v repozitoriju [dharmx/walls](https://github.com/dharmx/walls).
+Ogromno zbirko kul skrbno izbranih ozadij najdete v [dharmx/walls](https://github.com/dharmx/walls).
 
-Zaklenjeni zaslon prikaže mirujoči okvir video ozadja, tako kot prikaže mirujoči okvir animiranega GIF-a.
+Zaklenjeni zaslon prikaže statični kader video ozadja, enako kot prikaže statični kader animiranega GIF-a.

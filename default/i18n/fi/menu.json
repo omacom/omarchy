@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Levyn nopeustesti"
   },
-  "setup.monitors": {
-    "label": "Näytöt"
-  },
   "setup.keybindings": {
     "label": "Pikanäppäimet"
   },

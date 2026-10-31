@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Jaribio la kasi ya diski"
   },
-  "setup.monitors": {
-    "label": "Skrini"
-  },
   "setup.keybindings": {
     "label": "Mikato ya vitufe"
   },

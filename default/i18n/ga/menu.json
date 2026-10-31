@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Tástáil luais diosca"
   },
-  "setup.monitors": {
-    "label": "Monatóirí"
-  },
   "setup.keybindings": {
     "label": "Naisc eochrach"
   },

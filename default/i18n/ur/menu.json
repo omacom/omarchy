@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "ڈسک رفتار ٹیسٹ"
   },
-  "setup.monitors": {
-    "label": "مانیٹرز"
-  },
   "setup.keybindings": {
     "label": "کلید شارٹ کٹ"
   },

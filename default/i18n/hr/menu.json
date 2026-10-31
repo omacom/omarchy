@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test brzine diska"
   },
-  "setup.monitors": {
-    "label": "Monitori"
-  },
   "setup.keybindings": {
     "label": "Prečaci"
   },

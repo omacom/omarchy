@@ -47,7 +47,8 @@ Item {
   }
 
   function runApply(temp) {
-    applyProcess.command = NightlightModel.applyCommand(temp)
+    // Even daylight tints the screen, so off also restores the identity matrix
+    applyProcess.command = NightlightModel.applyCommand(temp, temp === dayTemperature)
     applyProcess.running = true
   }
 

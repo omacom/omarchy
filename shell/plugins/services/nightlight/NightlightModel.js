@@ -13,10 +13,11 @@ function isNightlight(temperature) {
 
 // Starts this user's hyprsunset if needed, then applies the temperature.
 // Another user's hyprsunset controls a different Hyprland session.
-function applyCommand(temperature) {
+function applyCommand(temperature, resetIdentity) {
   return ["bash", "-lc",
     "pgrep -x -u \"$UID\" hyprsunset >/dev/null || { setsid uwsm-app -- hyprsunset >/dev/null 2>&1 & sleep 1; }; " +
-    "hyprctl hyprsunset temperature " + Number(temperature)]
+    "hyprctl hyprsunset temperature " + Number(temperature) +
+    (resetIdentity ? " && hyprctl hyprsunset identity" : "")]
 }
 
 if (typeof module !== "undefined") {

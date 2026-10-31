@@ -145,10 +145,10 @@ if DICTATION_EXIT=7 omarchy-install-dictation-superwhisper > "$test_tmp/output" 
 [[ $(cat "$config") == "voxtype" ]] || fail "failed shortcuts must preserve selection"
 omarchy-install-dictation-superwhisper
 [[ $(omarchy-default-dictation) == "superwhisper" ]] || fail "installer selects Superwhisper"
-jq -e '.shortcuts | .hold == "" and .toggle == "Alt+Space"' "$SHORTCUT_STATE" >/dev/null || fail "installer repairs conflicting hold-only profiles"
+jq -e '.shortcuts | .hold == "" and .toggle == "Ctrl+Alt+Space"' "$SHORTCUT_STATE" >/dev/null || fail "installer repairs conflicting hold-only profiles"
 printf '%s\n' '{"shortcuts":{"hold":"RightAlt","toggle":"RightSuper","cancel":"Escape"}}' > "$SHORTCUT_STATE"
 omarchy-install-dictation-superwhisper
-jq -e '.shortcuts | .hold == "" and .toggle == "Alt+Space"' "$SHORTCUT_STATE" >/dev/null || fail "installer repairs conflicting profiles with an existing toggle"
+jq -e '.shortcuts | .hold == "" and .toggle == "Ctrl+Alt+Space"' "$SHORTCUT_STATE" >/dev/null || fail "installer repairs conflicting profiles with an existing toggle"
 omarchy-install-dictation-superwhisper
 pass "Superwhisper installer owns setup and saves selection only after success"
 
@@ -223,30 +223,31 @@ o = {
     return not installed
   end,
   bind = function(...) table.insert(bindings, {...}) end,
-  bind_hold = function(keys, _, press, _, release, options)
-    table.insert(bindings, { keys, press, options })
-    table.insert(bindings, { keys, release, options })
+  bind_hold = function(keys, _, press, _, release)
+    table.insert(bindings, { keys, false, press })
+    table.insert(bindings, { keys, false, release })
   end,
 }
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "unconfigured dictation leaves application keys available")
 selected = "some-backend"
 dofile(root .. "/default/hypr/bindings/dictation.lua")
-assert(#bindings == 5, "any installed backend receives the same bindings")
 local function binds(keys, command)
   for _, binding in ipairs(bindings) do
-    if binding[1] == keys and binding[2] == command then return true end
+    if binding[1] == keys and binding[3] == command then return true end
   end
 end
-for _, keys in ipairs({ "F9", "ALT + Alt_R" }) do
-  assert(binds(keys, "omarchy-dictation start") and binds(keys, "omarchy-dictation stop"),
-    keys .. " starts dictation on press and stops it on release")
-end
+assert(#bindings == 3, "any installed backend receives Alt + Space and Right Alt, and nothing else")
+assert(binds("ALT + SPACE", "omarchy-dictation toggle"), "Alt + Space toggles dictation")
+assert(binds("ALT + Alt_R", "omarchy-dictation start") and binds("ALT + Alt_R", "omarchy-dictation stop"),
+  "Right Alt starts dictation on press and stops it on release")
+assert(o.dictation_installed(), "personal dictation keys see the installed backend")
 bindings, installed = {}, false
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "a selected backend that is not installed leaves application keys available")
+assert(not o.dictation_installed(), "personal dictation keys release their keys once the backend is gone")
 LUA
-pass "dictation shortcuts require an installed selection without limiting backend names"
+pass "Alt + Space toggles dictation and Right Alt records while held, once a backend is installed"
 
 # Fresh users receive the backend choice through the settings package's skel.
 cp "$ROOT/config/omarchy/defaults/dictation" "$config"

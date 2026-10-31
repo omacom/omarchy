@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "வட்டு வேக சோதனை"
   },
-  "setup.monitors": {
-    "label": "திரைகள்"
-  },
   "setup.keybindings": {
     "label": "விசைப்பிணைப்புகள்"
   },

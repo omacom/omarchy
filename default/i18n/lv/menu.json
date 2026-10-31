@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Diska ātruma tests"
   },
-  "setup.monitors": {
-    "label": "Monitori"
-  },
   "setup.keybindings": {
     "label": "Taustiņu saīsnes"
   },
