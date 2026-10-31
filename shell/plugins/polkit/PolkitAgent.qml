@@ -26,6 +26,9 @@ Item {
 
   property bool closing: false
   property bool submitted: false
+  // Enter was pressed before PAM asked for the password; the typed text stays
+  // in the field and is submitted as soon as PAM asks.
+  property bool submitQueued: false
   property string currentMessage: ""
   property string currentPrompt: ""
   property string currentSupplementary: ""
@@ -72,6 +75,7 @@ Item {
     failed = false
     errorFlash = false
     submitted = false
+    submitQueued = false
     passwordInput.text = ""
   }
 
@@ -93,6 +97,7 @@ Item {
     closeTimer.stop()
     closing = false
     submitted = false
+    submitQueued = false
     passwordInput.text = ""
     refreshLidState()
     syncFromFlow()
@@ -109,7 +114,12 @@ Item {
 
   function submitResponse() {
     var flow = polkitAgent.flow
-    if (!flow || !flow.isResponseRequired) return
+    if (!flow) return
+    if (!flow.isResponseRequired) {
+      submitQueued = passwordInput.text.length > 0
+      return
+    }
+    submitQueued = false
     submitted = true
     errorFlash = false
     flow.submit(passwordInput.text)
@@ -121,6 +131,7 @@ Item {
     var flow = polkitAgent.flow
     passwordInput.text = ""
     submitted = false
+    submitQueued = false
     closing = true
     closeTimer.restart()
     if (flow) flow.cancelAuthenticationRequest()
@@ -128,6 +139,7 @@ Item {
 
   function triggerFailureFeedback() {
     submitted = false
+    submitQueued = false
     errorFlash = true
     passwordInput.text = ""
     errorTimer.restart()
@@ -195,6 +207,10 @@ Item {
     function onIsResponseRequiredChanged() {
       root.syncFromFlow()
       if (!polkitAgent.flow || !polkitAgent.flow.isResponseRequired) passwordInput.text = ""
+      else if (root.submitQueued && passwordInput.text.length > 0) {
+        Qt.callLater(function() { if (root.submitQueued) root.submitResponse() })
+        return
+      }
       Qt.callLater(root.refocus)
     }
 
@@ -297,7 +313,8 @@ Item {
         spacing: Style.space(14)
 
         Text {
-          text: "\uf023"
+          textFormat: Text.PlainText
+          text: root.submitQueued ? "\uf252" : "\uf023"
           color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
           font.family: root.fontFamily
           font.pixelSize: Style.font.iconLarge
@@ -305,6 +322,14 @@ Item {
           height: root.fieldHeight
           horizontalAlignment: Text.AlignHCenter
           verticalAlignment: Text.AlignVCenter
+
+          SequentialAnimation on opacity {
+            running: root.submitQueued
+            loops: Animation.Infinite
+            alwaysRunToEnd: true
+            NumberAnimation { to: 0.25; duration: 500; easing.type: Easing.InOutQuad }
+            NumberAnimation { to: 1; duration: 500; easing.type: Easing.InOutQuad }
+          }
         }
 
         Item {
@@ -324,8 +349,8 @@ Item {
             echoMode: root.responseVisible ? TextInput.Normal : TextInput.Password
             passwordCharacter: "\u2022"
             color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
-            cursorVisible: activeFocus && !root.submitted && !root.errorFlash
-            readOnly: root.submitted || root.errorFlash
+            cursorVisible: activeFocus && !root.submitted && !root.submitQueued && !root.errorFlash
+            readOnly: root.submitted || root.submitQueued || root.errorFlash
             enabled: root.dialogVisible
             onAccepted: root.submitResponse()
             Keys.onPressed: function(event) {
