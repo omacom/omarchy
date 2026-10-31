@@ -122,7 +122,7 @@ authorize_keys_from_github() {
 prompt_for_github_user() {
   local username
 
-  username=$(gum input --prompt "GitHub username> " --placeholder "dhh") || exit 1
+  username=$(gum input --prompt "$(omarchy-i18n sshd.githubUserPrompt)" --placeholder "dhh") || exit 1
   if [[ -z $username ]]; then
     echo -e "\e[31mNo GitHub username given.\e[0m" >&2
     exit 1
@@ -134,13 +134,57 @@ prompt_for_github_user() {
 authorize_pasted_key() {
   local key
 
-  key=$(gum input --prompt "Public key> " --placeholder "ssh-ed25519 AAAA... user@host") || exit 1
+  key=$(gum input --prompt "$(omarchy-i18n sshd.publicKeyPrompt)" --placeholder "ssh-ed25519 AAAA... user@host") || exit 1
   if [[ -z $key ]]; then
     echo -e "\e[31mNo SSH key given.\e[0m" >&2
     exit 1
   fi
 
   authorize_key "$key" || exit 1
+}
+
+# Only called after a key is authorized. Disabling password authentication
+# before then could lock the owner out of the machine.
+disable_password_auth() {
+  local config=/etc/ssh/sshd_config.d/10-omarchy-hardening.conf
+  local effective_config
+
+  if [[ ! -s $AUTHORIZED_KEYS ]]; then
+    echo -e "\e[31mCannot disable SSH password authentication without an authorized key.\e[0m" >&2
+    return 1
+  fi
+
+  echo "Disabling SSH password authentication, now that a key is authorized..."
+  sudo install -Dm644 /dev/stdin "$config" <<'CONF'
+# Written by omarchy-setup-security-sshd once an SSH key was authorized.
+# Delete this file and reload sshd to allow password logins again.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+CONF
+
+  # Validate before reloading: a config sshd rejects would otherwise take the
+  # service down on its next restart, potentially stranding a remote owner.
+  if ! sudo sshd -t; then
+    echo -e "\e[31msshd rejected the hardening config; removing it and leaving passwords on.\e[0m" >&2
+    sudo rm -f "$config"
+    return 1
+  fi
+
+  # Syntax alone is insufficient because sshd uses the first value it reads for
+  # these settings. An earlier administrator rule could leave passwords enabled.
+  # Match keywords case-insensitively: OpenSSH 9.x dumps them lowercase, 10.x
+  # in CamelCase.
+  if ! effective_config=$(sudo sshd -T) ||
+    ! grep -qixF "passwordauthentication no" <<<"$effective_config" ||
+    ! grep -qixF "kbdinteractiveauthentication no" <<<"$effective_config"; then
+    echo -e "\e[31msshd did not apply the password-authentication restrictions; removing the ineffective config.\e[0m" >&2
+    sudo rm -f "$config"
+    return 1
+  fi
+
+  # Reload rather than restart so an administrator already connected keeps
+  # their session.
+  sudo systemctl reload sshd.service
 }
 
 echo -e "\e[32mSetting up SSH server access with key-based authentication.\n\e[0m"
@@ -154,12 +198,17 @@ if [[ -n $KEY ]]; then
 elif [[ -n $GITHUB_USER ]]; then
   authorize_keys_from_github "$GITHUB_USER"
 else
-  case $(gum choose "Grab key from GitHub" "Paste key manually" --header "How would you like to add your SSH key?") in
-  "Grab key from GitHub") prompt_for_github_user ;;
-  "Paste key manually") authorize_pasted_key ;;
+  from_github=$(omarchy-i18n sshd.keyFromGithub)
+  paste_key=$(omarchy-i18n sshd.keyPaste)
+  case $(gum choose "$from_github" "$paste_key" --header "$(omarchy-i18n sshd.howToAddKey)") in
+  "$from_github") prompt_for_github_user ;;
+  "$paste_key") authorize_pasted_key ;;
   *) exit 1 ;;
   esac
 fi
 
+disable_password_auth
+
 echo -e "\e[32m\nPerfect! The SSH server is running and your key is authorized.\e[0m"
+echo "Password logins are off; this machine now accepts authorized keys only."
 echo "You can now connect with: ssh $USER@$(hostname)"

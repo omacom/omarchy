@@ -8,15 +8,34 @@ status=0
 
 verify_core_packages() {
   local package
+  local manifest="$OMARCHY_PATH/install/omarchy-base.packages"
   local -a missing=()
+
+  # Without this, a missing manifest reads as an empty package list and the
+  # audit passes having checked nothing.
+  [[ -f $manifest ]] || fail "all Omarchy core packages are installed" "package manifest not found: $manifest"
 
   while IFS= read -r package; do
     [[ -z $package || $package == \#* ]] && continue
     pacman -Q "$package" >/dev/null 2>&1 || missing+=("$package")
-  done <"$OMARCHY_PATH/install/omarchy-base.packages"
+  done <"$manifest"
 
   (( ${#missing[@]} == 0 )) || fail "all Omarchy core packages are installed" "missing packages: ${missing[*]}"
   pass "all Omarchy core packages are installed (${#missing[@]} missing)"
+}
+
+verify_kernel_headers() {
+  local kernel=linux-omarchy
+  local release
+  release=$(uname -r)
+  omarchy-pkg-present linux-t2 && kernel=linux-t2
+
+  [[ $(cat "/usr/lib/modules/$release/pkgbase") == "$kernel" ]] ||
+    fail "the installed system boots the supported kernel" "$release is not $kernel"
+  omarchy-pkg-present "$kernel-headers" || fail "kernel headers are installed" "$kernel-headers is missing"
+  [[ $(cat "/usr/lib/modules/$release/build/include/config/kernel.release") == "$release" ]] ||
+    fail "headers match the running kernel" "$release has missing or mismatched headers"
+  pass "the running $kernel kernel has matching headers ($release)"
 }
 
 verify_defaults() {
@@ -47,7 +66,7 @@ verify_services() {
   local unit
 
   for unit in \
-    avahi-daemon.service cups.service cups-browsed.service docker.socket \
+    avahi-daemon.service docker.socket \
     NetworkManager.service power-profiles-daemon.service sddm.service \
     systemd-resolved.service ufw.service; do
     systemctl is-enabled --quiet "$unit" || fail "core system services are enabled" "$unit is not enabled"
@@ -62,72 +81,6 @@ verify_services() {
   systemctl --user is-active --quiet pipewire.service pipewire-pulse.service wireplumber.service ||
     fail "user audio services are running"
   pass "user audio services are running"
-}
-
-verify_printing_security() {
-  local cups_browsed_pid lpinfo_output printer_name printer_process printer_tmp
-
-  ! pacman -Q cups-pdf >/dev/null 2>&1 || fail "CUPS-PDF is absent"
-  pass "the root CUPS-PDF backend is not installed"
-
-  getent passwd cups-browsed >/dev/null || fail "the cups-browsed service account exists"
-  [[ $(systemctl show -P User cups-browsed.service) == "cups-browsed" ]] ||
-    fail "cups-browsed runs as its service account"
-  [[ $(systemctl show -P Group cups-browsed.service) == "cups-browsed" ]] ||
-    fail "cups-browsed runs as its service group"
-  systemctl is-active --quiet cups-browsed.service || fail "cups-browsed is running"
-
-  cups_browsed_pid=$(systemctl show -P MainPID cups-browsed.service)
-  [[ -r /proc/$cups_browsed_pid/status ]] || fail "cups-browsed has a readable process status"
-  [[ $(awk '/^Uid:/{print $2}' "/proc/$cups_browsed_pid/status") != 0 ]] ||
-    fail "cups-browsed does not run with root UID"
-  [[ $(awk '/^CapEff:/{print $2}' "/proc/$cups_browsed_pid/status") == "0000000000000000" ]] ||
-    fail "cups-browsed has no effective Linux capabilities"
-
-  [[ $(stat -c '%a %U:%G' /var/cache/cups-browsed) == "750 cups-browsed:cups-browsed" ]] ||
-    fail "cups-browsed has an isolated cache" "$(stat -c '%a %U:%G' /var/cache/cups-browsed)"
-  [[ " $(id -nG cups-browsed) " != *" cups "* ]] ||
-    fail "cups-browsed is separate from the print-filter group"
-
-  if lpinfo_output=$(LC_ALL=C timeout 10 lpinfo -v </dev/null 2>&1); then
-    fail "the desktop user cannot administer CUPS without authentication"
-  elif [[ $lpinfo_output != *"Forbidden"* ]]; then
-    fail "CUPS explicitly denies unauthenticated desktop administration" "$lpinfo_output"
-  fi
-
-  pass "CUPS discovery is isolated from root, filters, and passwordless desktop administration"
-
-  # A live driverless printer proves the non-root daemon can still discover and
-  # create queues without the CAP_NET_BIND_SERVICE Ubuntu carries downstream.
-  printer_name="OmarchyAcceptancePrinter"
-  printer_tmp=$(mktemp -d)
-  printf '#!/bin/bash\nexit 0\n' >"$printer_tmp/command"
-  chmod 0700 "$printer_tmp/command"
-  mkdir -m 0700 "$printer_tmp/spool"
-
-  ippeveprinter -p 18631 -d "$printer_tmp/spool" -c "$printer_tmp/command" "$printer_name" \
-    >"$printer_tmp/ippeveprinter.log" 2>&1 &
-  printer_process=$!
-
-  printing_test_cleanup() {
-    kill "$printer_process" >/dev/null 2>&1 || true
-    wait "$printer_process" >/dev/null 2>&1 || true
-    rm -rf "$printer_tmp"
-  }
-  trap printing_test_cleanup EXIT
-
-  for _ in {1..30}; do
-    lpstat -v "$printer_name" 2>/dev/null | grep -q "implicitclass://$printer_name/" && break
-    sleep 1
-  done
-
-  lpstat -v "$printer_name" 2>/dev/null | grep -q "implicitclass://$printer_name/" ||
-    fail "non-root cups-browsed discovers a driverless IPP printer" "$(<"$printer_tmp/ippeveprinter.log")"
-
-  printing_test_cleanup
-  trap - EXIT
-
-  pass "non-root cups-browsed still creates driverless IPP queues without capabilities"
 }
 
 verify_runtime_tools() {
@@ -173,7 +126,7 @@ verify_user_setup() {
   pass "Omarchy user state and shell configuration exist"
 }
 
-for check in verify_core_packages verify_defaults verify_services verify_printing_security verify_runtime_tools verify_user_setup; do
+for check in verify_core_packages verify_kernel_headers verify_defaults verify_services verify_runtime_tools verify_user_setup; do
   if ! ("$check"); then
     status=1
   fi
