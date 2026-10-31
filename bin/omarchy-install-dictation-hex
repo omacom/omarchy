@@ -5,7 +5,7 @@
 
 set -e
 
-omarchy-pkg-aur-add hex-bin
+omarchy-pkg-add hex-bin
 # Download the speech model here, with progress, instead of silently on first launch.
 hex model install
 systemctl --user enable hex.service
