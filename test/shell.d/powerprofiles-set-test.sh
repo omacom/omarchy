@@ -65,8 +65,8 @@ pass "power profile autodetect restores battery preference"
 
 rm "$tmp_dir/state/ac"
 ON_BATTERY=0 "$ROOT/bin/omarchy-powerprofiles-set"
-[[ $(tail -n 1 "$tmp_dir/calls") == "performance" ]] || fail "power profile uses performance as AC default"
-pass "power profile retains performance as AC default"
+[[ $(tail -n 1 "$tmp_dir/calls") == "balanced" ]] || fail "power profile uses balanced as AC default"
+pass "power profile retains balanced as AC default"
 
 "$ROOT/bin/omarchy-powerprofiles-set" ac power-saver
 "$ROOT/bin/omarchy-powerprofiles-init"
