@@ -241,6 +241,12 @@ ShellRoot {
       // The test's stubs hang the first blank; the second must still reach the display.
       service.runBlank()
       service.runBlank()
+
+      // They hang the first wake too: unlock must still get through, and input right after it is coalesced.
+      service.forceWake()
+      service.forceWake()
+      service.runWake()
+      service.runWake()
     } finally {
       service.lockRequested = false
       service.resetAuthenticationState()
