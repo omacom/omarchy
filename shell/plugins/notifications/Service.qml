@@ -1332,11 +1332,10 @@ Item {
       var row = Store.restored(rows[i])
       if (!row) continue
       if (liveKeys[row.key]) {
-        // Startup must not overwrite a newer live arrival. Replaying the same
-        // entry deliberately creates a separate card.
-        if (!replay) continue
-        row.key = nextKey()
-        row.groupKey = Markup.regroup(row)
+        // A live key never yields: startup must not overwrite a newer live
+        // arrival, and a replay must not stack a second copy of an entry
+        // that is already on screen.
+        continue
       }
       if (!reserveLive(row.key)) break
       showRow(row)

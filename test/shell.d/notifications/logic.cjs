@@ -798,15 +798,21 @@ for (const replay of [false, true]) { // Replay and startup restore share held r
   assert.equal(s.toasts.count, 2)
 }
 
-{ // Repeated replay creates distinct cards; restore cannot overwrite an admitted key.
+{ // Repeated replay never stacks a second copy; restore cannot overwrite an admitted key.
   const s = newCapacityScope()
   s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Original' }], true)
   s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Replay' }], true)
   s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Stale startup' }], false)
   s.drainCallLater()
-  assert.deepEqual(summaries(s.toasts.rows), ['Replay', 'Original'])
-  assert.equal(new Set(s.toasts.rows.map(r => r.key)).size, 2)
-  assert.equal(new Set(s.toasts.rows.map(r => r.groupKey)).size, 2, 'the replayed card is its own deck')
+  assert.deepEqual(summaries(s.toasts.rows), ['Original'])
+  assert.equal(s.liveCount(), 1)
+  // Once the shown copy expires, the same entry may be replayed again.
+  s.finishClose(s.toasts.get(0).key, 'expired')
+  s.drainCallLater()
+  assert.equal(s.liveCount(), 0)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Original' }], true)
+  s.drainCallLater()
+  assert.deepEqual(summaries(s.toasts.rows), ['Original'])
 }
 
 { // Clearing pending rows cancels their callbacks even if replay reuses the exact key.
