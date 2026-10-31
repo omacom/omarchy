@@ -26,8 +26,8 @@
   "appearance": {"icon":"󰏘","label":"Appearance","aliases":["style"]},
   "trigger": {"icon":"󱓞","label":"Trigger"},
   "setup": {"icon":"","label":"Setup","aliases":["settings"]},
-  "install": {"icon":"󰉉","label":"Install"},
-  "remove": {"icon":"󰭌","label":"Remove","aliases":["uninstall"]},
+  "install": {"icon":"󰉉","label":"Install","when":"[[ \" $(id -nG) \" != *' omarchy-child '* ]]"},
+  "remove": {"icon":"󰭌","label":"Remove","aliases":["uninstall"],"when":"[[ \" $(id -nG) \" != *' omarchy-child '* ]]"},
   "update": {"icon":"","label":"Update","aliases":["restart","refresh"]},
   "about": {"icon":"","label":"About","action":"omarchy-launch-about"},
   "system": {"icon":"","label":"System","aliases":["power-menu"]},
@@ -35,6 +35,7 @@
   // System
   "system.screensaver": {"icon":"󱄄","label":"Screensaver","action":"omarchy-launch-screensaver force"},
   "system.lock": {"icon":"","label":"Lock","action":"omarchy-system-lock"},
+  "system.switch-user": {"icon":"󰀙","label":"Switch User","when":"(( $(getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 && $7 !~ /(nologin|false)$/' | wc -l) > 1 ))","provider":"switch-users"},
   "system.suspend": {"icon":"󰒲","label":"Suspend","when":"! omarchy-toggle-enabled suspend-off && ! omarchy-sleep-disabled","action":"systemctl suspend"},
   "system.hibernate": {"icon":"󰤁","label":"Hibernate","when":"omarchy-hibernation-available && ! omarchy-sleep-disabled","action":"systemctl hibernate"},
   "system.logout": {"icon":"󰍃","label":"Logout","action":"omarchy-system logout"},
@@ -250,6 +251,8 @@
   "setup.plugin.add": {"icon":"󰖟","label":"Add Plugin","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-plugin-add'"},
   "setup.plugin.clone": {"icon":"󰆏","label":"Clone Plugin","action":"omarchy-menu-plugin clone"},
   "setup.plugin.remove": {"icon":"󰭌","label":"Remove Plugin","when":"compgen -G \"$HOME/.config/omarchy/plugins/*/manifest.json\"","action":"omarchy-menu-plugin remove"},
+  "setup.users": {"icon":"","label":"Users","provider":"users"},
+  "setup.users.add": {"icon":"","label":"Add","when":"[[ \" $(id -nG) \" == *' wheel '* ]]","action":"omarchy-user-add"},
   "setup.security": {"icon":"","label":"Security"},
   "setup.config": {"icon":"","label":"Config"},
   "setup.security.fingerprint": {"icon":"󰈷","label":"Fingerprint","when":"omarchy-hw-fingerprint","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-fingerprint"},
@@ -458,5 +461,4 @@
   "update.hardware.bluetooth": {"icon":"󰂯","label":"Bluetooth","action":"omarchy-launch-floating-terminal-with-presentation omarchy-restart-bluetooth"},
   "update.hardware.trackpad": {"icon":"󰟸","label":"Trackpad","action":"omarchy-launch-floating-terminal-with-presentation omarchy-restart-trackpad"},
   "update.password.drive": {"icon":"","label":"Drive Encryption","action":"omarchy-launch-floating-terminal-with-presentation omarchy-drive-password"},
-  "update.password.user": {"icon":"","label":"User","action":"omarchy-launch-floating-terminal-with-presentation passwd"},
 }

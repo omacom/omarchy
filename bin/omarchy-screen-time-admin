@@ -1,0 +1,216 @@
+#!/bin/bash
+
+# omarchy:summary=Daily screen time limits: on/off, which accounts are limited, and grants from a terminal
+# omarchy:args=<on|off|status|add|remove|grant|config> ...
+# omarchy:examples=sudo omarchy-screen-time-admin on | sudo omarchy-screen-time-admin add emma | sudo omarchy-screen-time-admin grant emma 15
+# omarchy:requires-sudo=true
+
+# The adult's side of screen time, run from an adult's own account through
+# sudo. Everything here is root's on purpose: whether the daemon runs, and
+# which accounts are limited. An account joins the roster with `add`, which
+# also puts it in the omarchy-screen-time group the sudoers grant keys on;
+# omarchy-user-helper does that when it creates a child. Day-to-day grants in
+# the bar take a grown-up's password instead.
+set -euo pipefail
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-screen-time-admin on
+       omarchy-screen-time-admin off
+       omarchy-screen-time-admin status
+       omarchy-screen-time-admin add NAME [--profile PROFILE]
+       omarchy-screen-time-admin remove NAME
+       omarchy-screen-time-admin grant NAME MINUTES
+       omarchy-screen-time-admin config <get|set FILE>
+
+on/off    Start or stop the daemon that counts, warns and locks. Off keeps
+          the profiles, the roster and the history.
+status    The daemon, the roster with each account's profile, and what is
+          left today for each.
+add       Put an account under a profile (the active one unless --profile
+          says otherwise) and let it talk to the daemon. remove undoes it.
+grant     Hand out (or with a negative number take away) minutes from the
+          terminal, without a password.
+config    The profiles as JSON, to read or to replace wholesale. The roster
+          is managed by add and remove, not here.
+
+In the bar, the controls take the password of any account in wheel.
+USAGE
+}
+
+fail() {
+  echo "omarchy-screen-time-admin: $*" >&2
+  exit 1
+}
+
+case "${1:-}" in
+  -h | --help) usage; exit 0 ;;
+  "") usage >&2; exit 1 ;;
+esac
+
+if ((EUID != 0)); then
+  exec sudo "$0" "$@"
+fi
+
+source omarchy-screen-time-lib
+
+UNIT=omarchy-screen-time.service
+
+# The starting point: an hour on school days, ninety minutes at the weekend,
+# bedtime on, nothing to earn and no agreement until an adult switches them
+# on. Written only when there is no config yet.
+seed_config() {
+  [[ -f $ST_CONFIG ]] && return 0
+  st_jq -n '
+    default_config |
+    .active_profile = "kids" |
+    .profiles = {kids: (default_profile | .name = "Kids" | .blocked_periods[0].enabled = true)}' | st_save_config
+}
+
+ensure_group() {
+  getent group "$ST_GROUP" >/dev/null || groupadd --system "$ST_GROUP"
+}
+
+account_exists() { getent passwd "$1" >/dev/null; }
+valid_name() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
+
+edit_config() {
+  # $1: a jq filter over the current config. Saves the result, sanitized.
+  local filter=$1
+  NEW=$(st_config | st_jq "$filter")
+  st_with_lock save_new
+}
+save_new() { printf '%s' "$NEW" | st_save_config; }
+
+cmd_on() {
+  ensure_group
+  seed_config
+  st_private_dir "$ST_ETC" 0700
+  st_private_dir "$ST_STATE" 0700
+  systemctl enable --quiet --now "$UNIT"
+  echo "screen time is on: $(systemctl is-active "$UNIT")"
+  if [[ -z $(st_managed_users) ]]; then
+    echo "no account is limited yet: sudo omarchy-screen-time-admin add NAME"
+  fi
+}
+
+cmd_off() {
+  systemctl disable --now "$UNIT" >/dev/null 2>&1 || true
+  rm -rf "$ST_RUN"
+  echo "screen time is off. The profiles, the roster and the history remain in $ST_ETC and $ST_STATE."
+}
+
+cmd_status() {
+  local active
+  active=$(systemctl is-active "$UNIT" 2>/dev/null || true)
+  echo "daemon:   ${active:-inactive}"
+  echo "profiles: $(st_config | jq -r '[.profiles | to_entries[] | "\(.key) (\(.value.name))"] | join(", ")')"
+  local user uid status
+  st_config | jq -r '.users | to_entries[] | "\(.key)\t\(.value.profile)"' | while IFS=$'\t' read -r user profile; do
+    uid=$(st_uid_of "$user" || true)
+    if [[ -z $uid ]]; then
+      echo "account:  $user -> $profile (no such account on this machine)"
+      continue
+    fi
+    if [[ -r $ST_RUN/$uid/status.json ]]; then
+      status=$(jq -r '"\(.phase), \(.remaining_seconds / 60 | floor) min left of \((.budget_seconds + .granted_seconds + .earned_seconds) / 60 | floor)"' "$ST_RUN/$uid/status.json")
+    else
+      status="no status yet"
+    fi
+    echo "account:  $user -> $profile: $status"
+  done
+}
+
+cmd_add() {
+  local name=${1:-} profile=""
+  shift || true
+  while (($#)); do
+    case $1 in
+      --profile) profile=${2:-}; shift 2 ;;
+      *) fail "unknown option $1" ;;
+    esac
+  done
+  [[ -n $name ]] || { usage >&2; exit 1; }
+  valid_name "$name" || fail "$name is not a valid account name"
+  account_exists "$name" || fail "no account named $name"
+  ensure_group
+  seed_config
+  if [[ -n $profile ]]; then
+    st_config | jq -e --arg p "$profile" '.profiles | has($p)' >/dev/null || fail "no profile named $profile"
+  fi
+  NAME=$name P=${profile:-} edit_config '.users[$ENV.NAME] = {profile: (if $ENV.P == "" then .active_profile else $ENV.P end)}'
+  usermod -aG "$ST_GROUP" "$name"
+  st_tell_shell_enrolled "$(st_uid_of "$name")"
+  echo "$name is limited under profile $(st_config | jq -r --arg n "$name" '.users[$n].profile')"
+  if [[ $(systemctl is-active "$UNIT" 2>/dev/null || true) != active ]]; then
+    echo "the daemon is not running: sudo omarchy-screen-time-admin on"
+  fi
+}
+
+cmd_remove() {
+  local name=${1:-}
+  [[ -n $name ]] || { usage >&2; exit 1; }
+  valid_name "$name" || fail "$name is not a valid account name"
+  NAME=$name edit_config 'del(.users[$ENV.NAME])'
+  gpasswd -d "$name" "$ST_GROUP" >/dev/null 2>&1 || true
+  local uid
+  uid=$(st_uid_of "$name" || true)
+  [[ -n $uid ]] && rm -rf "$ST_RUN/$uid"
+  echo "$name is no longer limited. Their history remains in $ST_STATE/users."
+}
+
+cmd_grant() {
+  local name=${1:-} minutes=${2:-}
+  [[ -n $name && -n $minutes ]] || { usage >&2; exit 1; }
+  valid_name "$name" || fail "$name is not a valid account name"
+  [[ $minutes =~ ^-?[0-9]{1,3}$ ]] && ((minutes >= -600 && minutes <= 600)) || fail "minutes is a number between -600 and 600"
+  local uid config pf key profile now daykey budget
+  uid=$(st_uid_of "$name") || fail "no account named $name"
+  config=$(st_config)
+  jq -e --arg u "$name" '.users | has($u)' <<<"$config" >/dev/null || fail "$name is not limited"
+  pf=$(st_jq --arg u "$name" 'profile_for($u)' <<<"$config")
+  key=$(jq -r .key <<<"$pf"); profile=$(jq -c .profile <<<"$pf")
+  now=$(st_now); daykey=$(st_day_key "$now")
+  budget=$(jq --arg d "$(st_weekday_key "$now")" '.budget_minutes[$d] * 60' <<<"$profile")
+  grant_day() {
+    local day rt
+    day=$(st_load_day "$uid" "$daykey" "$budget" "$key" | st_jq --argjson m "$minutes" --argjson now "$now" '
+      .granted_seconds += $m * 60 | .ledger += [{t: $now, kind: "grant", seconds: ($m * 60), meta: {by: "parent", via: "terminal"}}]')
+    rt=$(st_load_runtime "$uid" | jq --argjson left "$(st_jq 'day_remaining' <<<"$day")" '
+      if $left > 0 then .blocked_since = null | .lock_after = null | .lock_count = 0 | .last_lock_ok = false | .lock_failures = 0 else . end')
+    printf '%s' "$day" | st_save_day "$uid"
+    printf '%s' "$rt" | st_save_runtime "$uid"
+    st_status_json "$uid" "$name" "$now" "$key" "$profile" "$day" "$rt" | st_publish "$uid" status.json
+    st_poke_daemon
+    echo "$name: $(st_human_time "$(st_jq '[day_remaining, 0] | max' <<<"$day")") left today"
+  }
+  st_with_lock grant_day
+}
+
+cmd_config() {
+  case ${1:-} in
+    get) st_config | jq . ;;
+    set)
+      local src=${2:-} incoming
+      [[ -n $src ]] || { usage >&2; exit 1; }
+      if [[ $src == - ]]; then incoming=$(cat); else incoming=$(cat "$src"); fi
+      jq -e 'type == "object"' <<<"$incoming" >/dev/null 2>&1 || fail "that is not a JSON object"
+      INCOMING=$incoming edit_config '($ENV.INCOMING | fromjson) + {users}'
+      st_poke_daemon
+      echo "the profiles are replaced"
+      ;;
+    *) usage >&2; exit 1 ;;
+  esac
+}
+
+cmd=$1; shift
+case $cmd in
+  on) cmd_on ;;
+  off) cmd_off ;;
+  status) cmd_status ;;
+  add) cmd_add "$@" ;;
+  remove) cmd_remove "$@" ;;
+  grant) cmd_grant "$@" ;;
+  config) cmd_config "$@" ;;
+  *) echo "Unknown command: $cmd" >&2; usage >&2; exit 1 ;;
+esac

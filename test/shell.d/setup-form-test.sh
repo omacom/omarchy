@@ -206,12 +206,13 @@ pass "username prompt propagates Esc and Ctrl+C without dying under set -e"
 
 # Password
 
-run_prompt omarchy_prompt_password "0:one" "0:two" "0:" "0:" "0:s3cret" "0:s3cret"
+run_prompt omarchy_prompt_password "0:one" "0:two" "0:" "0:" "0:short" "0:short" "0:s3cret" "0:s3cret"
 assert_status 0 "password prompt accepts a confirmed password"
 [[ $(field password) == "s3cret" ]] || fail "password prompt keeps the confirmed password"
 assert_notices "password prompt explains each rejection" "Passwords didn't match!
-Your password can't be blank!"
-pass "password prompt rejects mismatched and blank passwords"
+Your password can't be blank!
+Your password must be at least 6 characters!"
+pass "password prompt rejects mismatched, blank and short passwords"
 
 run_prompt omarchy_prompt_password "0:s3cret" "1:"
 assert_status "$OMARCHY_FORM_BACK" "password prompt reports Esc on the confirmation as back"

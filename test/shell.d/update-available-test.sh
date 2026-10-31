@@ -211,3 +211,14 @@ grep -Fx 'omarchy-dev-checkout 1 new commit on origin/quattro' "$stdout" >/dev/n
   fail "update checker reports cached dev commits after a fetch failure" "$(cat "$stdout")"
 [[ ! -s $stderr ]] || fail "update checker keeps dev fetch failures quiet" "$(cat "$stderr")"
 pass "update checker uses cached dev state when fetching is unavailable"
+
+# A child's account can't run an update, so it is never offered one.
+child_bin=$(mktemp -d)
+printf '#!/bin/bash\necho "kid omarchy-child"\n' >"$child_bin/id"
+chmod +x "$child_bin/id"
+if PATH="$child_bin:$PATH" OMARCHY_PATH=/usr/share/omarchy "$ROOT/bin/omarchy-update-available" >/dev/null; then
+  rm -rf "$child_bin"
+  fail "a child's account is never offered an update"
+fi
+rm -rf "$child_bin"
+pass "a child's account is never offered an update"

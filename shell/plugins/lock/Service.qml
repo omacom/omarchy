@@ -572,16 +572,55 @@ Item {
     onPamMessage: root.respondToPasswordPrompt()
 
     onCompleted: function(result) {
+      var typed = root.pendingPassword
       root.authenticatingPassword = false
       root.pendingPassword = ""
 
       if (!root.lockRequested) return
       if (result === PamResult.Success) root.finishUnlock()
+      else if (root.childAccount && typed.length > 0) root.checkAdultPassword(typed)
       else root.handlePasswordFailure()
     }
 
     onError: function(error) {
       root.handlePasswordFailure()
+    }
+  }
+
+  // A child's lock screen also opens with a grown-up's password, so a parent
+  // can get into the child's session. The helper answers through the child's
+  // NOPASSWD grant, rate-limited, after the child's own password was refused;
+  // the password goes over stdin, never argv.
+  property bool childAccount: false
+
+  Process {
+    command: ["id", "-nG"]
+    running: true
+    stdout: StdioCollector {
+      onStreamFinished: root.childAccount = (" " + String(text || "").trim() + " ").indexOf(" omarchy-child ") !== -1
+    }
+  }
+
+  function checkAdultPassword(password) {
+    authenticatingPassword = true
+    adultCheck.secret = password
+    adultCheck.running = true
+  }
+
+  Process {
+    id: adultCheck
+    property string secret: ""
+    command: ["/usr/bin/sudo", "-n", "/usr/bin/omarchy-user-helper", "adult-check"]
+    stdinEnabled: true
+    onStarted: {
+      write(secret + "\n")
+      secret = ""
+    }
+    onExited: function(exitCode) {
+      root.authenticatingPassword = false
+      if (!root.lockRequested) return
+      if (exitCode === 0) root.finishUnlock()
+      else root.handlePasswordFailure()
     }
   }
 

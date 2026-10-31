@@ -1,0 +1,945 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Provide the account, disk slot and journal functions behind omarchy-user-helper
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "omarchy-user-functions is an internal function library." >&2
+  exit 64
+fi
+
+# Every account's password is also its own LUKS key slot on the system disk,
+# recorded in the slot map so boot can tell who unlocked it (plans/users.md).
+# Passwords live in variables and reach other programs on stdin or through
+# process substitution, never argv; never trace them.
+
+: "${USERS_DIR:=/etc/omarchy/users}"
+: "${USERS_JOURNAL:=/var/lib/omarchy/users/journal}"
+: "${USERS_LOCK:=/run/lock/omarchy-users.lock}"
+: "${USERS_SHADOW:=/etc/shadow}"
+: "${USERS_SUDOERS_DIR:=/etc/sudoers.d}"
+: "${USERS_SDDM_CONF:=/etc/sddm.conf}"
+: "${USERS_LIFECYCLE_DISPATCH:=/usr/bin/omarchy-lifecycle-dispatch}"
+: "${USERS_REFUSAL_DELAY:=3}"
+: "${USERS_RATE_DIR:=/run/omarchy-users}"
+: "${USERS_BLOCKED_DIR:=/etc/omarchy/blocked-apps}"
+: "${USERS_BLOCKED_DEFAULT:=/usr/share/omarchy/default/omarchy/child-blocked-apps}"
+: "${USERS_APPS_APPLY:=/usr/bin/omarchy-user-apps-apply}"
+: "${USERS_REBUILD_BOOT:=limine-mkinitcpio}"
+: "${USERS_SCREEN_TIME_ADMIN:=/usr/bin/omarchy-screen-time-admin}"
+: "${USERS_WEB_DIR:=/etc/omarchy/web-allowlist}"
+: "${USERS_WEB_APPLY:=/usr/bin/omarchy-web-allowlist-apply}"
+: "${USERS_THEME_SETTINGS:=/etc/omarchy/theme-collections}"
+: "${USERS_THEME_COLLECTIONS:=/usr/share/omarchy/default/omarchy/theme-collections}"
+: "${USERS_FAILLOCK:=faillock}"
+
+USERS_SLOT_MAP=$USERS_DIR/slots
+USERS_ROOT_HOLDER=$USERS_DIR/root
+USERS_MIN_PASSWORD=6
+USERS_DESKTOP_ID='^[A-Za-z0-9._+ -]+$'
+USERS_ADULT_GROUP=wheel
+USERS_CHILD_GROUP=omarchy-child
+
+users_say() {
+  printf '%s\n' "$*" >&2
+}
+
+users_valid_name() {
+  [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]
+}
+
+# People's accounts: the UID range useradd gives them and a login shell.
+users_accounts() {
+  getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 && $7 !~ /(nologin|false)$/ { print $1 }'
+}
+
+users_exists() {
+  users_accounts | grep -qx -- "$1"
+}
+
+users_in_group() {
+  id -nG -- "$1" 2>/dev/null | tr ' ' '\n' | grep -qx -- "$2"
+}
+
+users_role() {
+  if users_in_group "$1" "$USERS_ADULT_GROUP"; then
+    echo adult
+  elif users_in_group "$1" "$USERS_CHILD_GROUP"; then
+    echo child
+  else
+    echo limited
+  fi
+}
+
+users_adults() {
+  local user
+  for user in $(users_accounts); do
+    [[ $(users_role "$user") != "adult" ]] || echo "$user"
+  done
+}
+
+users_shadow_hash() {
+  awk -F: -v user="$1" '$1 == user { print $2; exit }' "$USERS_SHADOW"
+}
+
+# The hash travels in the environment, which only root can read for a root
+# process, and the password on stdin.
+users_password_matches_hash() {
+  local password=$1 hash=$2
+  [[ $hash == \$* ]] || return 1
+  printf '%s' "$password" | USERS_HASH=$hash perl -e 'local $/; my $p = <STDIN>; my $h = $ENV{USERS_HASH}; exit(crypt($p, $h) eq $h ? 0 : 1)'
+}
+
+users_password_matches() {
+  users_password_matches_hash "$1" "$(users_shadow_hash "$2")"
+}
+
+# The account whose password this is, as the disk prompt finds one by its key
+# slot. Accounts share no password, so there is at most one.
+users_password_owner() {
+  local password=$1 user
+  for user in $(users_accounts); do
+    if users_password_matches "$password" "$user"; then
+      echo "$user"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Whether the account has failed logins on record; a locked account always
+# does. Counts as yes when faillock cannot say.
+users_has_failed_logins() {
+  local tally
+  tally=$("$USERS_FAILLOCK" --user "$1" 2>/dev/null) || return 0
+  [[ -n $(awk 'NR > 2 && NF' <<<"$tally") ]]
+}
+
+# Changes whenever the account's shadow password does, without holding it.
+users_fingerprint() {
+  users_shadow_hash "$1" | sha256sum | cut -c1-16
+}
+
+# One chpasswd run commits every line in one write of shadow, so an account
+# and root never end up holding different passwords.
+users_set_passwords() {
+  local password=$1
+  shift
+  local user
+  for user in "$@"; do
+    printf '%s:%s\n' "$user" "$password"
+  done | chpasswd
+}
+
+# An autologin in /etc/sddm.conf outranks every drop-in, so the one
+# omarchy-login-select writes could not turn it off.
+users_foreign_autologin() {
+  [[ -f $USERS_SDDM_CONF ]] || return 1
+  awk '/^\[/ { section = $0 } section == "[Autologin]" && /^[ \t]*User[ \t]*=[ \t]*[^ \t]/ { found = 1 } END { exit !found }' "$USERS_SDDM_CONF"
+}
+
+# --- The system disk ---------------------------------------------------------
+
+# The LUKS partition beneath /, or nothing when / is not encrypted. Fails when
+# it cannot tell, as omarchy-drive-password does.
+users_root_luks_device() {
+  local root_source ancestry device
+  root_source=$(findmnt -no SOURCE /) && [[ -n $root_source ]] || return 1
+  ancestry=$(lsblk -nsrpo NAME,TYPE,FSTYPE "${root_source%%[*}") || return 1
+  device=$(awk '$3 == "crypto_LUKS" { print $1; exit }' <<<"$ancestry")
+  if [[ -n $device ]]; then
+    readlink -f "$device"
+  elif awk '$2 == "crypt" { found = 1 } END { exit !found }' <<<"$ancestry"; then
+    return 1
+  fi
+}
+
+# Platforms whose boot checks want every kept key slot recorded (Apple
+# Silicon) cannot take a slot for another person until their boot package
+# records one; adding it anyway would fail that check at the next boot.
+users_slot_recorder_present() {
+  local out status=0
+  # Resolved means a recorder is printed; x86 resolves to nothing, and a
+  # machine without its platform's boot package exits 3.
+  out=$("$USERS_LIFECYCLE_DISPATCH" --resolve luks-slots 2>/dev/null) || status=$?
+  (( status == 0 )) && [[ -n $out ]]
+}
+
+# Sets USERS_DRIVE (empty when / is not encrypted) and USERS_UUID.
+users_load_drive() {
+  USERS_DRIVE=$(users_root_luks_device) || {
+    users_say "Could not tell whether the system disk is encrypted."
+    return 1
+  }
+  USERS_UUID=-
+  if [[ -n $USERS_DRIVE ]]; then
+    USERS_UUID=$(cryptsetup luksUUID "$USERS_DRIVE") && [[ -n $USERS_UUID ]] || {
+      users_say "Could not read the system disk's UUID."
+      return 1
+    }
+  fi
+}
+
+users_encrypted() {
+  [[ -n ${USERS_DRIVE:-} ]]
+}
+
+# The slot the password opens. Returns 2 when it opens none. Tokens are tried
+# before the key and report their own slot, so allow only a token type no token
+# has.
+users_slot_of() {
+  local out status=0
+  out=$(printf '%s' "$1" | LC_ALL=C cryptsetup open --test-passphrase --verbose --token-type passphrase-only --key-file - "$USERS_DRIVE" 2>&1) || status=$?
+  (( status == 0 )) || return "$status"
+  grep -o 'Key slot [0-9]* unlocked' <<<"$out" | grep -o '[0-9]*' | head -1
+}
+
+# Whether the password opens that one slot. Returns 2 when it doesn't.
+users_slot_opens() {
+  printf '%s' "$1" | cryptsetup open --test-passphrase --token-type passphrase-only --key-slot "$2" --key-file - "$USERS_DRIVE" >/dev/null 2>&1
+}
+
+users_drive_slots() {
+  local dump
+  dump=$(cryptsetup luksDump "$USERS_DRIVE") || return 1
+  awk '
+    /^[^ \t]/ { keyslots = ($0 == "Keyslots:") }
+    keyslots && /^ +[0-9]+: luks2/ { sub(":", "", $1); print $1 }
+    /^Key Slot [0-9]+: ENABLED/ { sub(":", "", $3); print $3 }' <<<"$dump" | paste -sd, -
+}
+
+# 0 when the slot holds a key, 1 when it doesn't, 2 when the disk can't be read.
+users_slot_enabled() {
+  local slots
+  slots=$(users_drive_slots) || return 2
+  [[ ,$slots, == *",$1,"* ]]
+}
+
+users_free_slot() {
+  local slots slot last=31
+  slots=$(users_drive_slots) || return 1
+  cryptsetup isLuks --type luks2 "$USERS_DRIVE" || last=7
+  for (( slot = 0; slot <= last; slot++ )); do
+    if [[ ,$slots, != *",$slot,"* ]]; then
+      echo "$slot"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Puts NEW in SLOT, chosen and journaled beforehand so an interrupted run
+# knows which slot to take back, authorised by CURRENT, and succeeds once NEW
+# opens it.
+users_add_slot() {
+  local slot=$1 current=$2 new=$3 opened
+  local -a pbkdf=(--iter-time 2000)
+  if cryptsetup isLuks --type luks2 "$USERS_DRIVE"; then
+    pbkdf+=(--pbkdf argon2id)
+  fi
+  printf '%s\n%s' "$current" "$new" |
+    bash -c 'IFS= read -r current; drive=$1; shift; exec cryptsetup luksAddKey -q "$@" --key-file <(printf "%s" "$current") "$drive" <(cat)' bash "$USERS_DRIVE" --key-slot "$slot" "${pbkdf[@]}" || return 1
+  opened=$(users_slot_of "$new") || return 1
+  [[ $opened == "$slot" ]]
+}
+
+# Batch mode needs no remaining key, so an interrupted change can be finished
+# by a run that never saw the passwords. A disk that can't be read is a
+# failure, never a slot already gone.
+users_kill_slot() {
+  local status=0
+  users_slot_enabled "$1" || status=$?
+  if (( status == 1 )); then
+    return 0
+  elif (( status != 0 )); then
+    return 1
+  fi
+  cryptsetup luksKillSlot -q "$USERS_DRIVE" "$1"
+}
+
+# --- Durable files -------------------------------------------------------------
+
+# Makes DIR with MODE. A missing parent is made 755, never with the helper's
+# umask 077: a private /etc/omarchy would hide every person's settings under
+# it from their own session.
+users_make_dir() {
+  local dir=$1 mode=$2
+  [[ -d ${dir%/*} ]] || users_make_dir "${dir%/*}" 755 || return 1
+  [[ -d $dir ]] || mkdir "$dir" || return 1
+  chmod "$mode" "$dir"
+}
+
+# A directory every session reads, under a parent every session can reach.
+users_make_public_dir() {
+  users_make_dir "${1%/*}" 755 && users_make_dir "$1" 755
+}
+
+# Written whole, synced, then renamed and the directory synced, so a power cut
+# leaves the old file or the new one, never a LUKS change without the record
+# that explains it.
+users_write_atomically() {
+  local target=$1 tmp
+  users_make_dir "${target%/*}" 700 || return 1
+  tmp=$(mktemp "${target%/*}/.${target##*/}.XXXXXX") || return 1
+  if cat >"$tmp" && chmod 600 "$tmp" && sync "$tmp" && mv -f "$tmp" "$target"; then
+    sync "${target%/*}"
+  else
+    rm -f "$tmp"
+    return 1
+  fi
+}
+
+users_remove_durably() {
+  rm -f "$1" && sync "${1%/*}" 2>/dev/null || [[ ! -e $1 ]]
+}
+
+# --- The slot map --------------------------------------------------------------
+
+# One line per account: <LUKS UUID> <slot> <uid> <user> <shadow fingerprint>.
+
+users_map_lines() {
+  [[ -f $USERS_SLOT_MAP ]] && cat "$USERS_SLOT_MAP"
+  true
+}
+
+users_map_field() {
+  users_map_lines | awk -v user="$1" -v field="$2" '$4 == user { print $field; exit }'
+}
+
+users_map_slot() {
+  users_map_field "$1" 2
+}
+
+users_map_user_for_slot() {
+  users_map_lines | awk -v uuid="$1" -v slot="$2" '$1 == uuid && $2 == slot { print $4; exit }'
+}
+
+users_map_set() {
+  local user=$1 slot=$2 uid
+  uid=$(id -u -- "$user") || return 1
+  { users_map_lines | awk -v user="$user" '$4 != user'
+    printf '%s %s %s %s %s\n' "$USERS_UUID" "$slot" "$uid" "$user" "$(users_fingerprint "$user")"
+  } | users_write_atomically "$USERS_SLOT_MAP"
+}
+
+users_map_remove() {
+  [[ -n $(users_map_slot "$1") ]] || return 0
+  users_map_lines | awk -v user="$1" '$4 != user' | users_write_atomically "$USERS_SLOT_MAP"
+}
+
+# The map is trusted only whole: every line for this disk, no slot or account
+# twice, every account still there under its uid.
+users_map_valid() {
+  local uuid slot uid user fp
+  local -A slots=() names=()
+  while read -r uuid slot uid user fp; do
+    [[ $uuid == "$USERS_UUID" && $slot =~ ^[0-9]+$ && -n $fp ]] || return 1
+    [[ -z ${slots[$slot]:-} && -z ${names[$user]:-} ]] || return 1
+    [[ $(id -u -- "$user" 2>/dev/null) == "$uid" ]] || return 1
+    slots[$slot]=1
+    names[$user]=1
+  done < <(users_map_lines)
+}
+
+users_in_sync() {
+  [[ -n $(users_map_slot "$1") && $(users_map_field "$1" 5) == "$(users_fingerprint "$1")" ]]
+}
+
+# --- The journal ---------------------------------------------------------------
+
+# Records the operation, the account, the disk, slot numbers, a fingerprint of
+# the account's password before the change, and the phase; never key material.
+
+users_journal_get() {
+  [[ -f $USERS_JOURNAL ]] || return 1
+  awk -F= -v key="$1" '$1 == key { print substr($0, length(key) + 2); exit }' "$USERS_JOURNAL"
+}
+
+users_journal_put() {
+  local key value
+  local -A updates=()
+  while (( $# )); do
+    updates[$1]=$2
+    shift 2
+  done
+  { if [[ -f $USERS_JOURNAL ]]; then
+      while IFS='=' read -r key value; do
+        [[ -n ${updates[$key]+set} ]] || printf '%s=%s\n' "$key" "$value"
+      done <"$USERS_JOURNAL"
+    fi
+    for key in "${!updates[@]}"; do
+      printf '%s=%s\n' "$key" "${updates[$key]}"
+    done
+  } | users_write_atomically "$USERS_JOURNAL"
+}
+
+users_journal_clear() {
+  users_remove_durably "$USERS_JOURNAL"
+}
+
+users_journal_pending() {
+  [[ -f $USERS_JOURNAL ]]
+}
+
+# --- Root's password ---------------------------------------------------------
+
+# Root's password is the installer owner's. The holder file names whose it is,
+# so changing that person's password changes root's, and deleting them hands
+# root to the adult who deleted them.
+
+users_root_holder() {
+  [[ -f $USERS_ROOT_HOLDER ]] && cat "$USERS_ROOT_HOLDER"
+  true
+}
+
+users_set_root_holder() {
+  printf '%s\n' "$1" | users_write_atomically "$USERS_ROOT_HOLDER"
+}
+
+# The first change records the caller as root's holder when root's password is
+# theirs.
+users_adopt_root_holder() {
+  local caller=$1 password=$2
+  [[ -z $(users_root_holder) ]] || return 0
+  if users_password_matches_hash "$password" "$(users_shadow_hash root)"; then
+    users_set_root_holder "$caller"
+  fi
+}
+
+# --- Rules ---------------------------------------------------------------------
+
+users_ensure_wheel_grant() {
+  local file=$USERS_SUDOERS_DIR/00-omarchy-wheel
+  [[ ! -f $file ]] || return 0
+  echo "%wheel ALL=(ALL:ALL) ALL" >"$file.tmp" && chmod 440 "$file.tmp" && mv -f "$file.tmp" "$file"
+}
+
+# Every password is a disk key and picks its account, so it must be long
+# enough and nobody else's: no other account's login password, and no key
+# slot at all on the disk. An old password left in a slot no longer matches
+# any hash but still opens it, and a second copy of a password in a new slot
+# would outlive the one the map records.
+users_check_new_password() {
+  local password=$1 except_user=$2 user status=0
+  if [[ $password == *$'\n'* ]]; then
+    users_say "A password can't contain a line break."
+    return 1
+  elif (( ${#password} < USERS_MIN_PASSWORD )); then
+    users_say "The password must be at least $USERS_MIN_PASSWORD characters."
+    return 1
+  fi
+  for user in $(users_accounts); do
+    [[ $user != "$except_user" ]] || continue
+    if users_password_matches "$password" "$user"; then
+      users_refuse_taken
+      return 1
+    fi
+  done
+  if users_encrypted; then
+    users_slot_of "$password" >/dev/null || status=$?
+    if (( status == 0 )); then
+      users_refuse_taken
+      return 1
+    elif (( status != 2 )); then
+      users_say "Could not check the password against the system disk."
+      return 1
+    fi
+  fi
+}
+
+# Saying a password is taken says it is somebody's. The disk prompt says as
+# much at every boot, so the delay only keeps this from being any cheaper.
+users_refuse_taken() {
+  sleep "$USERS_REFUSAL_DELAY"
+  users_say "That password already unlocks this computer. Choose a different one."
+}
+
+# The caller's own password, proving they are who sudo says. Once the map
+# knows them, the password that opens their own slot proves it, which is also
+# how someone whose login password was changed outside Setup > Users gets
+# back in step. The first time, it must be their login password and open a
+# slot nobody else holds, which then becomes theirs.
+users_authenticate() {
+  local caller=$1 password=$2 mapped slot status=0 holder
+  if ! users_encrypted; then
+    users_password_matches "$password" "$caller" && return 0
+    sleep "$USERS_REFUSAL_DELAY"
+    users_say "That isn't $caller's password."
+    return 1
+  fi
+
+  mapped=$(users_map_slot "$caller")
+  if [[ -n $mapped ]]; then
+    users_slot_opens "$password" "$mapped" || status=$?
+    if (( status == 0 )); then
+      return 0
+    elif (( status == 2 )); then
+      sleep "$USERS_REFUSAL_DELAY"
+      users_say "That isn't the password that unlocks this computer for $caller."
+    else
+      users_say "Could not check the password against the system disk."
+    fi
+    return 1
+  fi
+
+  if ! users_password_matches "$password" "$caller"; then
+    sleep "$USERS_REFUSAL_DELAY"
+    users_say "That isn't $caller's password."
+    return 1
+  fi
+  slot=$(users_slot_of "$password") || status=$?
+  if (( status == 2 )); then
+    users_say "$caller's password doesn't open the system disk."
+    return 1
+  elif (( status != 0 )); then
+    users_say "Could not check the password against the system disk."
+    return 1
+  fi
+  holder=$(users_map_user_for_slot "$USERS_UUID" "$slot")
+  if [[ -n $holder ]]; then
+    users_say "$caller's password opens $holder's key slot."
+    return 1
+  fi
+  users_map_set "$caller" "$slot"
+}
+
+users_require_adult() {
+  if [[ $(users_role "$1") != "adult" ]]; then
+    users_say "Only a grown-up's account can do that."
+    return 1
+  fi
+}
+
+# --- Operations ----------------------------------------------------------------
+
+# Each operation journals its phase before every step that changes something,
+# keeping old access until its replacement is proven, so users_finish can roll
+# an interrupted one back (before the account took the new password) or
+# forward (after). Whether the account took it is read from shadow itself, by
+# its fingerprint, not from the phase.
+
+users_add() {
+  local caller=$1 role=$2 name=$3 password=$4 caller_password=$5 slot=- groups
+  if ! users_valid_name "$name"; then
+    users_say "Use lowercase letters, digits, - and _ for the name, starting with a letter."
+    return 1
+  elif getent passwd "$name" >/dev/null || getent group "$name" >/dev/null; then
+    users_say "There is already a user or group named $name."
+    return 1
+  fi
+  case $role in
+    adult) groups=$USERS_ADULT_GROUP ;;
+    child) groups=$USERS_CHILD_GROUP ;;
+    *) users_say "A user is an adult or a child."; return 1 ;;
+  esac
+  if users_foreign_autologin; then
+    users_say "$USERS_SDDM_CONF logs someone in automatically, which would open their desktop whoever starts the computer. Remove its [Autologin] User= first."
+    return 1
+  fi
+  if users_encrypted && users_slot_recorder_present; then
+    users_say "This machine's boot checks can't take a second person's disk password yet."
+    return 1
+  fi
+  users_authenticate "$caller" "$caller_password" || return 1
+  users_require_adult "$caller" || return 1
+  users_check_new_password "$password" "" || return 1
+  if users_encrypted; then
+    slot=$(users_free_slot) || { users_say "The system disk has no free key slot."; return 1; }
+  fi
+  users_adopt_root_holder "$caller" "$caller_password" || return 1
+  users_ensure_wheel_grant || return 1
+  getent group "$groups" >/dev/null || groupadd -r "$groups" || return 1
+
+  users_journal_put op add user "$name" role "$role" uuid "$USERS_UUID" slot "$slot" phase account || return 1
+  useradd -m -G "$groups" -s /bin/bash "$name" || { users_finish; return 1; }
+  users_journal_put old_fp "$(users_fingerprint "$name")" phase key || return 1
+  if [[ $slot != "-" ]] && ! users_add_slot "$slot" "$caller_password" "$password"; then
+    users_say "Could not add $name's password to the system disk."
+    users_finish
+    return 1
+  fi
+  users_set_passwords "$password" "$name" || { users_finish; return 1; }
+  users_journal_put phase shadow || return 1
+  users_finish || return 1
+  users_ensure_boot_records_slot
+}
+
+# What a child starts with, done inside the add's journal so an interrupted
+# add finishes it too: screen time with its default limits, and the shipped
+# apps a child neither sees nor runs. Both for the grown-ups to change later.
+users_setup_child() {
+  local name=$1
+  "$USERS_SCREEN_TIME_ADMIN" on >/dev/null && "$USERS_SCREEN_TIME_ADMIN" add "$name" >/dev/null || {
+    users_say "Could not put $name under screen time."
+    return 1
+  }
+  if [[ ! -f $USERS_BLOCKED_DIR/$name && -f $USERS_BLOCKED_DEFAULT ]]; then
+    grep -v '^#' "$USERS_BLOCKED_DEFAULT" | users_write_blocked "$name" && "$USERS_APPS_APPLY" || {
+      users_say "Could not block the apps a child starts without for $name."
+      return 1
+    }
+  fi
+}
+
+# A child's own password change says whether a password is somebody else's,
+# so it would be a way to test guesses at a grown-up's; three tries an hour,
+# counted whether or not they go through, keeps it no faster than the lock.
+users_password_self_allowed() {
+  local uid state now recent
+  uid=$(id -u -- "$1") || return 1
+  users_make_dir "$USERS_RATE_DIR" 700 || return 1
+  state=$USERS_RATE_DIR/password-self-$uid
+  now=$(date +%s)
+  recent=$([[ -f $state ]] && awk -v since=$(( now - 3600 )) '$1 > since' "$state")
+  if (( $(grep -c . <<<"$recent") >= 3 )); then
+    users_say "That's three password changes this hour. Try again later, or ask a grown-up."
+    return 1
+  fi
+  { [[ -n $recent ]] && printf '%s\n' "$recent"; echo "$now"; } >"$state"
+}
+
+users_password() {
+  local caller=$1 name=$2 password=$3 caller_password=$4 slot=- old_slot=- accounts
+  users_exists "$name" || { users_say "There is no user named $name."; return 1; }
+  if [[ $name == "$caller" && $(users_role "$caller") == "child" ]]; then
+    users_password_self_allowed "$caller" || return 1
+  fi
+  users_authenticate "$caller" "$caller_password" || return 1
+  if [[ $name != "$caller" ]]; then
+    users_require_adult "$caller" || return 1
+  fi
+  if users_password_matches "$password" "$name"; then
+    users_say "That's already $name's password."
+    return 1
+  fi
+  users_check_new_password "$password" "$name" || return 1
+  if users_encrypted; then
+    old_slot=$(users_map_slot "$name")
+    old_slot=${old_slot:--}
+    slot=$(users_free_slot) || { users_say "The system disk has no free key slot."; return 1; }
+  fi
+  users_adopt_root_holder "$caller" "$caller_password" || return 1
+  accounts=$name
+  [[ $(users_root_holder) != "$name" ]] || accounts="$name root"
+
+  users_journal_put op password user "$name" uuid "$USERS_UUID" slot "$slot" old_slot "$old_slot" old_fp "$(users_fingerprint "$name")" phase key || return 1
+  if [[ $slot != "-" ]] && ! users_add_slot "$slot" "$caller_password" "$password"; then
+    users_say "Could not add the new password to the system disk."
+    users_finish
+    return 1
+  fi
+  # shellcheck disable=SC2086 # the account and, for root's holder, root
+  users_set_passwords "$password" $accounts || { users_finish; return 1; }
+  users_journal_put phase shadow || return 1
+  users_finish
+}
+
+users_delete() {
+  local caller=$1 name=$2 caller_password=$3 delete_home=$4 adults slot handoff
+  users_exists "$name" || { users_say "There is no user named $name."; return 1; }
+  users_authenticate "$caller" "$caller_password" || return 1
+  users_require_adult "$caller" || return 1
+  if [[ $name == "$caller" ]]; then
+    users_say "You can't delete the account you're signed in as."
+    return 1
+  fi
+  adults=$(users_adults | grep -cvx -- "$name" || true)
+  if (( adults == 0 )); then
+    users_say "$name is the last grown-up's account, and someone must be able to look after this computer."
+    return 1
+  fi
+  users_adopt_root_holder "$caller" "$caller_password" || return 1
+  # Root is handed over before anything is removed, so it never keeps a
+  # deleted person's password, and journaled first, so a run that stops part
+  # way is finished with root locked rather than with the holder file wrong.
+  handoff=-
+  [[ $(users_root_holder) != "$name" ]] || handoff=$caller
+  slot=$(users_map_slot "$name")
+  users_journal_put op delete user "$name" uid "$(id -u -- "$name")" uuid "$USERS_UUID" slot "${slot:--}" home "$delete_home" root_to "$handoff" phase handoff || return 1
+  if [[ $handoff != "-" ]]; then
+    users_set_passwords "$caller_password" root && users_set_root_holder "$caller" || { users_finish; return 1; }
+  fi
+  users_journal_put phase remove || return 1
+  users_finish
+}
+
+# The account took the new password when its shadow entry changed since the
+# journal recorded it.
+users_took_new_password() {
+  getent passwd "$1" >/dev/null && [[ $(users_fingerprint "$1") != "$(users_journal_get old_fp)" ]]
+}
+
+users_end_sessions() {
+  loginctl terminate-user "$1" 2>/dev/null || true
+  pkill -KILL -u "$1" 2>/dev/null || true
+}
+
+# Finishes whatever the journal says was under way, and succeeds once nothing
+# is.
+users_finish() {
+  local op user slot old_slot phase uid uuid
+  users_journal_pending || return 0
+  op=$(users_journal_get op)
+  user=$(users_journal_get user)
+  slot=$(users_journal_get slot)
+  old_slot=$(users_journal_get old_slot)
+  phase=$(users_journal_get phase)
+  uuid=$(users_journal_get uuid)
+
+  if [[ $uuid != "$USERS_UUID" ]]; then
+    users_say "The users journal records a change on another disk ($uuid); remove $USERS_JOURNAL once you've checked that disk."
+    return 1
+  fi
+
+  case $op:$phase in
+    add:account)
+      if getent passwd "$user" >/dev/null; then
+        userdel -r "$user" || return 1
+      fi
+      users_journal_clear
+      ;;
+    add:key)
+      if users_took_new_password "$user"; then
+        users_journal_put phase shadow && users_finish
+        return
+      fi
+      if [[ $slot != "-" ]]; then
+        users_kill_slot "$slot" || return 1
+      fi
+      if getent passwd "$user" >/dev/null; then
+        userdel -r "$user" || return 1
+      fi
+      users_journal_clear
+      ;;
+    add:shadow)
+      if [[ $slot != "-" ]]; then
+        users_map_set "$user" "$slot" || return 1
+      fi
+      if [[ $(users_journal_get role) == "child" ]]; then
+        users_setup_child "$user" || return 1
+      fi
+      users_journal_clear
+      ;;
+    password:key)
+      if users_took_new_password "$user"; then
+        users_journal_put phase shadow && users_finish
+        return
+      fi
+      # The new password may have reached the disk but not the account: back
+      # to the old one everywhere.
+      if [[ $slot != "-" ]]; then
+        users_kill_slot "$slot" || return 1
+      fi
+      users_journal_clear
+      ;;
+    password:shadow)
+      if [[ $slot != "-" ]]; then
+        users_map_set "$user" "$slot" || return 1
+        if [[ $old_slot != "-" ]]; then
+          users_kill_slot "$old_slot" || return 1
+        fi
+      fi
+      users_journal_clear
+      ;;
+    delete:handoff)
+      # Whether root took the new holder's password is not known, and this run
+      # never had it: root is locked until that holder's next password change,
+      # which sets it again.
+      local root_to
+      root_to=$(users_journal_get root_to)
+      if [[ $root_to != "-" ]]; then
+        usermod -L root && users_set_root_holder "$root_to" || return 1
+        users_say "Root's password was locked while handing it to $root_to; it returns with their next password change."
+      fi
+      users_journal_put phase remove && users_finish
+      return
+      ;;
+    delete:remove)
+      # Locked first, so nobody can sign in again while the rest goes.
+      if getent passwd "$user" >/dev/null; then
+        usermod -L -e 1 "$user" || return 1
+        users_end_sessions "$user"
+      fi
+      users_map_remove "$user" || return 1
+      if [[ $slot != "-" ]]; then
+        users_kill_slot "$slot" || return 1
+      fi
+      # Their blocked list goes, and with it the ACLs naming them, while the
+      # name still resolves.
+      if [[ -f $USERS_BLOCKED_DIR/$user ]]; then
+        rm -f "$USERS_BLOCKED_DIR/$user" && "$USERS_APPS_APPLY" || return 1
+      fi
+      rm -f "$USERS_THEME_SETTINGS/$user" || return 1
+      # Their web allowlist too, whose rules match their uid, which a later
+      # account can be given.
+      if [[ -f $USERS_WEB_DIR/$user ]]; then
+        rm -f "$USERS_WEB_DIR/$user" && "$USERS_WEB_APPLY" || return 1
+      fi
+      "$USERS_SCREEN_TIME_ADMIN" remove "$user" >/dev/null 2>&1 || true
+      uid=$(users_journal_get uid)
+      if [[ $uid =~ ^[0-9]+$ ]]; then
+        rm -f "$USERS_SUDOERS_DIR/99-omarchy-nopasswd-$uid" "$USERS_SUDOERS_DIR/99-omarchy-permanent-nopasswd-$uid" || return 1
+      fi
+      if getent passwd "$user" >/dev/null; then
+        if [[ $(users_journal_get home) == "yes" ]]; then
+          userdel -r "$user" || return 1
+        else
+          userdel "$user" || return 1
+        fi
+      fi
+      users_journal_clear
+      ;;
+    *)
+      users_say "The users journal records an unknown change ($op, $phase)."
+      return 1
+      ;;
+  esac
+}
+
+# --- Boot ------------------------------------------------------------------------
+
+# The boot image picks up the hook that records which key slot unlocked the
+# disk once Setup > Users exists (00-omarchy-hooks.conf), so it is rebuilt the
+# first time someone is added to an encrypted machine. Until it is, every boot
+# with more than one person shows the login screen, which is safe.
+users_ensure_boot_records_slot() {
+  local marker=$USERS_DIR/boot-records-slot
+  users_encrypted && [[ ! -f $marker ]] || return 0
+  users_say "Updating the boot image so the computer knows whose password unlocked it..."
+  if "$USERS_REBUILD_BOOT" >/dev/null 2>&1; then
+    : | users_write_atomically "$marker"
+  else
+    users_say "Could not update the boot image; until it is, the login screen asks who is signing in."
+  fi
+}
+
+# --- Blocked apps ----------------------------------------------------------------
+
+# The desktop ids on stdin become NAME's blocked list, which their session
+# reads to hide them and omarchy-user-apps-apply enforces.
+users_write_blocked() {
+  local name=$1 id tmp
+  users_make_public_dir "$USERS_BLOCKED_DIR" || return 1
+  tmp=$(mktemp "$USERS_BLOCKED_DIR/.$name.XXXXXX") || return 1
+  while read -r id; do
+    [[ -z $id ]] && continue
+    if [[ ! $id =~ $USERS_DESKTOP_ID ]]; then
+      rm -f "$tmp"
+      users_say "'$id' isn't an app id."
+      return 1
+    fi
+    printf '%s\n' "${id%.desktop}"
+  done | sort -u >"$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$USERS_BLOCKED_DIR/$name" || {
+    rm -f "$tmp"
+    return 1
+  }
+}
+
+users_apps() {
+  local caller=$1 name=$2 caller_password=$3
+  users_exists "$name" || { users_say "There is no user named $name."; return 1; }
+  users_authenticate "$caller" "$caller_password" || return 1
+  users_require_adult "$caller" || return 1
+  users_write_blocked "$name" || return 1
+  "$USERS_APPS_APPLY" || { users_say "Saved $name's blocked apps, but could not stop all of them running."; return 1; }
+}
+
+# --- Theme collections -------------------------------------------------------------
+
+# The collections on stdin (general, or a shipped collection such as kids)
+# become the ones NAME's theme picker offers.
+users_themes() {
+  local caller=$1 name=$2 caller_password=$3 collection tmp
+  local -a picked=()
+  users_exists "$name" || { users_say "There is no user named $name."; return 1; }
+  users_authenticate "$caller" "$caller_password" || return 1
+  users_require_adult "$caller" || return 1
+  while read -r collection; do
+    [[ -z $collection ]] && continue
+    if [[ $collection != "general" && ! ( $collection =~ ^[a-z0-9-]+$ && -f $USERS_THEME_COLLECTIONS/$collection ) ]]; then
+      users_say "There is no theme collection called '$collection'."
+      return 1
+    fi
+    picked+=("$collection")
+  done
+  (( ${#picked[@]} )) || { users_say "Pick at least one theme collection."; return 1; }
+  users_make_public_dir "$USERS_THEME_SETTINGS" || return 1
+  tmp=$(mktemp "$USERS_THEME_SETTINGS/.$name.XXXXXX") || return 1
+  printf '%s\n' "${picked[@]}" | sort -u >"$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$USERS_THEME_SETTINGS/$name" || {
+    rm -f "$tmp"
+    return 1
+  }
+}
+
+# --- A grown-up's password on a child's lock screen ------------------------------
+
+# A child's lock screen, and the screen time controls in their session, accept
+# any adult's password, so a parent can get into a child's locked session or
+# hand out minutes. This is the one check both use. Answered only for a child, one attempt at a time, and after five misses not at all for two
+# minutes, doubling up to an hour, so it is no cheaper a guess than the login
+# screen. Every answer goes to the auth log.
+users_adult_check() {
+  local caller=$1 password=$2 uid fd status=0
+  if [[ $(users_role "$caller") != "child" ]]; then
+    users_say "Only a child's lock screen takes a grown-up's password."
+    return 1
+  fi
+  uid=$(id -u -- "$caller") || return 1
+  users_make_dir "$USERS_RATE_DIR" 700 || return 1
+  exec {fd}>>"$USERS_RATE_DIR/adult-check-$uid.lock" && flock -x "$fd" || return 1
+  users_adult_check_locked "$caller" "$password" "$uid" || status=$?
+  exec {fd}>&-
+  return "$status"
+}
+
+users_adult_check_locked() {
+  local caller=$1 password=$2 uid=$3 state failures=0 until=0 now adult wait
+  state=$USERS_RATE_DIR/adult-check-$uid
+  [[ -f $state ]] && read -r failures until <"$state"
+  [[ $failures =~ ^[0-9]+$ && $until =~ ^[0-9]+$ ]] || { failures=0; until=0; }
+  now=$(date +%s)
+  USERS_RETRY_IN=0
+  if (( until > now )); then
+    USERS_RETRY_IN=$(( until - now ))
+    logger -p auth.notice -t omarchy-user-helper "refused a grown-up's password in $caller's session: locked out" 2>/dev/null || true
+    sleep "$USERS_REFUSAL_DELAY"
+    return 1
+  fi
+
+  for adult in $(users_adults); do
+    if users_password_matches "$password" "$adult"; then
+      rm -f "$state"
+      # When, for screen time: an unlock at zero by a grown-up earns the room
+      # to hand out minutes, one by the child does not.
+      date +%s >"$USERS_RATE_DIR/adult-unlock-$uid"
+      logger -p auth.notice -t omarchy-user-helper "accepted $adult's password in $caller's session" 2>/dev/null || true
+      return 0
+    fi
+  done
+
+  failures=$(( failures + 1 ))
+  if (( failures >= 5 )); then
+    wait=$(( 120 << (failures - 5 > 5 ? 5 : failures - 5) ))
+    (( wait <= 3600 )) || wait=3600
+    until=$(( now + wait ))
+  fi
+  printf '%s %s\n' "$failures" "$until" >"$state"
+  logger -p auth.notice -t omarchy-user-helper "refused a grown-up's password in $caller's session" 2>/dev/null || true
+  sleep "$USERS_REFUSAL_DELAY"
+  return 1
+}
+
+# --- Listing -------------------------------------------------------------------
+
+# user role sync, one per line; sync is "yes", "no", or "-" on an unencrypted
+# disk.
+users_list() {
+  local user sync
+  for user in $(users_accounts); do
+    sync=-
+    if users_encrypted; then
+      if users_in_sync "$user"; then sync=yes; else sync=no; fi
+    fi
+    printf '%s %s %s\n' "$user" "$(users_role "$user")" "$sync"
+  done
+}

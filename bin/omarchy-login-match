@@ -1,0 +1,60 @@
+#!/bin/bash -p
+
+# omarchy:hidden=true
+# omarchy:summary=End a login attempt whose password belongs to another account, from SDDM's PAM stack, as root
+
+# The login screen asks for a password alone and tries each account in turn,
+# as the disk prompt does (plans/users.md). This runs first in SDDM's auth
+# stack, as `[success=die default=ignore]`: it succeeds, ending the attempt,
+# only when the password is another account's, so trying the wrong account
+# first costs neither pam_unix's delay nor a failed-login strike. A password
+# that is nobody's, and any failure of this script, fall through to the usual
+# stack and count as before.
+
+if [[ $- != *p* && ${BASH_SOURCE[0]} == "$0" ]]; then
+  exit 1
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 1
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 1
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  omarchy_security_require_privileged_bash_startup || exit 1
+  omarchy_security_sanitize_bash_environment "$0" "$@" || exit 1
+fi
+
+set -uo pipefail
+set +x
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin
+umask 077
+
+unset "${!USERS_@}" "${!APPS_@}"
+source "${security_entrypoint%/*}/omarchy-user-functions" || exit 1
+
+(( EUID == 0 )) && [[ ${PAM_TYPE:-} == auth ]] || exit 1
+user=${PAM_USER:-}
+users_valid_name "$user" || exit 1
+
+# pam_exec's expose_authtok hands over the password ending in a NUL.
+password=""
+IFS= read -r -d '' password || [[ -n $password ]] || exit 1
+
+# A stalled lookup must not hold every login: past the deadline this ends
+# nonzero, which leaves the attempt to the usual stack.
+( sleep 10; pkill -KILL -P $$; kill -KILL $$ ) 2>/dev/null &
+watchdog=$!
+
+# Only an owner with no failed logins on record ends the attempt early. A
+# locked owner's password then takes the same slow refusal as any wrong one,
+# so a fast refusal never tells a guesser what a lockout is hiding.
+match() {
+  local owner
+  users_password_matches "$password" "$user" && return 1
+  owner=$(users_password_owner "$password") || return 1
+  [[ $owner != "$user" ]] && ! users_has_failed_logins "$owner"
+}
+
+match
+status=$?
+kill "$watchdog" 2>/dev/null
+exit "$status"

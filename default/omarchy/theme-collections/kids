@@ -1,0 +1,19 @@
+# The Kids theme collection, by directory name, in the order the first one
+# installed becomes a child's theme at first login. The themes are #12488's.
+# Setup > Users > (person) > Themes picks which collections each person's
+# picker offers; General is every theme in no collection.
+cozy-night
+paper-harbor
+weather-parade
+lantern-menagerie
+far-horizon
+small-wonders
+dino-dawn
+tidepool-workshop
+fossil-field-notes
+festival-loom
+pocket-arcade
+kinetic-zine
+signal-garden
+night-transit
+bubblegum

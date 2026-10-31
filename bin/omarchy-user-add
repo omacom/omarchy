@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Add a grown-up or a child to this computer
+# omarchy:args=[adult|child] [NAME]
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+set +x
+
+source "$OMARCHY_PATH/install/helpers/user-prompts.sh"
+user_start
+
+role=${1:-}
+name=${2:-}
+
+if [[ -z $role ]]; then
+  choice=$(user_choose "$(omarchy-i18n users.addWho)" "$(omarchy-i18n users.adult)" "$(omarchy-i18n users.child)") || exit 1
+  if [[ $choice == "$(omarchy-i18n users.child)" ]]; then role=child; else role=adult; fi
+fi
+if [[ $role != "adult" && $role != "child" ]]; then
+  echo "Usage: omarchy-user-add [adult|child] [NAME]" >&2
+  exit 1
+fi
+
+while [[ -z $name ]]; do
+  name=$(user_input "$(omarchy-i18n users.name)") || exit 1
+  if [[ -n $name && ! $name =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
+    user_problem "$(omarchy-i18n users.nameRules)"
+    name=""
+  fi
+done
+
+password=$(user_prompt_new_password "$(omarchy-i18n users.passwordFor "$name")") || exit 1
+mine=$(user_prompt_own_password "$(omarchy-i18n users.yourPassword)") || exit 1
+
+# Adding someone rebuilds the boot image, which takes a while.
+user_say "$(omarchy-i18n users.adding "$name")"
+printf '%s\n%s\n' "$mine" "$password" | user_helper "$(omarchy-i18n users.added "$name")" add "$role" "$name"

@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Choose the theme collections a person's picker offers
+# omarchy:args=NAME
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+set +x
+
+source "$OMARCHY_PATH/install/helpers/user-prompts.sh"
+user_start
+
+name=${1:-}
+[[ -n $name ]] || { echo "Usage: omarchy-user-themes NAME" >&2; exit 1; }
+
+collections=(general)
+for file in "$OMARCHY_PATH"/default/omarchy/theme-collections/*; do
+  [[ -f $file ]] && collections+=("${file##*/}")
+done
+label() { echo "${1^}"; }
+
+# What the picker offers them now: their setting, or Kids for a child and
+# everything for anyone else.
+current=()
+if [[ -f /etc/omarchy/theme-collections/$name ]]; then
+  mapfile -t current </etc/omarchy/theme-collections/"$name"
+elif omarchy-user-list | grep -q "^$name child"; then
+  current=(kids)
+else
+  current=("${collections[@]}")
+fi
+
+labels=()
+for collection in "${collections[@]}"; do labels+=("$(label "$collection")"); done
+selected=()
+for collection in "${current[@]}"; do selected+=("$(label "$collection")"); done
+chosen=$(user_choose_many "$(omarchy-i18n users.themesFor "$name")" "${labels[@]}" -- "${selected[@]}") || exit 0
+[[ -n $chosen ]] || { user_problem "$(omarchy-i18n users.pickACollection)"; exit 1; }
+
+mine=$(user_prompt_own_password "$(omarchy-i18n users.yourPassword)") || exit 1
+{ printf '%s\n' "$mine"; tr '[:upper:]' '[:lower:]' <<<"$chosen"; } | user_helper "$(omarchy-i18n users.themesSet "$name")" themes "$name"

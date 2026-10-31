@@ -386,10 +386,33 @@ var enterpriseConnectScript =
   "u=$(uuidgen); IFS= read -r pw;" +
   " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$u\"" +
   " wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
-  " 802-1x.identity \"$2\" 802-1x.auth-timeout 8 >/dev/null" +
+  " 802-1x.identity \"$2\" 802-1x.auth-timeout 8 ${3:+connection.permissions \"$3\"} >/dev/null" +
   " && printf 'set 802-1x.password %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
   " && nmcli connection up uuid \"$u\"" +
   " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
+
+// A child's new network belongs to them alone (connection.permissions), which
+// NetworkManager lets any active user create; a network for everyone needs an
+// administrator, whose password must not be asked in a child's session. The
+// password reaches nmcli as the enterprise one does, over stdin.
+var ownConnectScript =
+  "u=$(uuidgen); IFS= read -r pw;" +
+  " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$u\"" +
+  " connection.permissions \"user:$USER\" ${2:+wifi-sec.key-mgmt \"$2\"} >/dev/null" +
+  " && { [ -z \"$pw\" ] || printf 'set wifi-sec.psk %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null; }" +
+  " && nmcli connection up uuid \"$u\"" +
+  " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
+
+// The key management a child's own network is created with, "" for an open
+// one, or null for a kind left to the shared path (WEP, LEAP, Suite-B).
+function ownKeyMgmt(security, types) {
+  var t = types || {}
+  if (security === t.Open) return ""
+  if (security === t.Owe) return "owe"
+  if (security === t.Sae) return "sae"
+  if (security === t.WpaPsk || security === t.Wpa2Psk) return "wpa-psk"
+  return null
+}
 
 function networkFailureReason(reason, needsCredentials, reasons, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
@@ -444,6 +467,8 @@ if (typeof module !== "undefined") {
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
+    ownConnectScript: ownConnectScript,
+    ownKeyMgmt: ownKeyMgmt,
     canForgetNetwork: canForgetNetwork,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,

@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Delete a person's account from this computer
+# omarchy:args=NAME [--delete-home]
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+set +x
+
+source "$OMARCHY_PATH/install/helpers/user-prompts.sh"
+user_start
+
+name=${1:-}
+home_flag=()
+if [[ -z $name || $# -gt 2 || ( $# -eq 2 && $2 != "--delete-home" ) ]]; then
+  echo "Usage: omarchy-user-delete NAME [--delete-home]" >&2
+  exit 1
+fi
+
+if (( $# == 2 )); then
+  home_flag=(--delete-home)
+else
+  choice=$(user_choose "$(omarchy-i18n users.confirmDelete "$name")" "$(omarchy-i18n users.cancel)" "$(omarchy-i18n users.delete)") || exit 1
+  [[ $choice == "$(omarchy-i18n users.delete)" ]] || exit 1
+  # Keeping the files comes first; dismissing the menu stops the deletion.
+  choice=$(user_choose "$(omarchy-i18n users.deleteHome "$name")" "$(omarchy-i18n users.keepFiles)" "$(omarchy-i18n users.deleteFiles)") || exit 1
+  [[ $choice == "$(omarchy-i18n users.deleteFiles)" ]] && home_flag=(--delete-home)
+fi
+
+mine=$(user_prompt_own_password "$(omarchy-i18n users.yourPassword)") || exit 1
+printf '%s\n' "$mine" | user_helper "$(omarchy-i18n users.deleted "$name")" delete "$name" "${home_flag[@]}"

@@ -1,0 +1,11 @@
+# Apps a new child's account neither sees nor runs, by desktop id, until a
+# grown-up changes their list under Setup > Users. Everything else installed
+# is theirs. These are web apps, so they are hidden rather than locked: they
+# run through the browser, which a child keeps.
+Basecamp
+Discord
+Google Messages
+HEY
+WhatsApp
+X
+Zoom
