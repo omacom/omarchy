@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the Omarchy palette to OpenCode 2
+# omarchy:args=[--activate]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+activate=0
+case ${1:-} in
+  --activate) activate=1 ;;
+  "") ;;
+  -h | --help) echo "Usage: omarchy-theme-set-opencode [--activate]"; exit 0 ;;
+  *) echo "Usage: omarchy-theme-set-opencode [--activate]" >&2; exit 1 ;;
+esac
+(( $# <= 1 )) || exit 1
+
+config_dir="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}"
+source_theme="$HOME/.local/state/omarchy/current/theme/opencode.json"
+[[ -d $config_dir || $activate == 1 ]] || exit 0
+if [[ ! -f $source_theme ]]; then
+  if (( activate )); then
+    echo "OpenCode palette missing; refresh the Omarchy theme first." >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+mkdir -p "$config_dir/themes" "$config_dir/omarchy-theme"
+tmp=$(mktemp "$config_dir/themes/omarchy.json.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+cp "$source_theme" "$tmp"
+mv "$tmp" "$config_dir/themes/omarchy.json"
+ln -sfn "$OMARCHY_PATH/config/opencode/omarchy-theme/tui.js" "$config_dir/omarchy-theme/tui.js"
+
+cli_config="$config_dir/cli.json"
+if [[ ! -f $cli_config ]]; then
+  # Do not preempt OpenCode's one-time migration of legacy TUI preferences.
+  # The first ordinary theme sync after migration registers this adapter.
+  if [[ -f $config_dir/tui.json || -f $config_dir/tui.jsonc ]]; then
+    exit 0
+  fi
+fi
+tmp=$(mktemp "$cli_config.XXXXXX")
+config_source="$cli_config"
+[[ -f $config_source ]] || config_source=/dev/null
+if ! jq -s --arg plugin "$config_dir/omarchy-theme" --arg legacy "$config_dir/tui-plugins/omarchy-theme.ts" --argjson activate "$activate" '
+  (.[0] // {}) |
+  if $activate == 1 then .theme = ((.theme // {}) + {name: "omarchy"}) else . end |
+  .plugins = (((.plugins // []) | map(select(. != $legacy and . != $plugin))) + [$plugin])
+' "$config_source" >"$tmp"; then
+  exit 1
+fi
+mv "$tmp" "$cli_config"
