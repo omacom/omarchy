@@ -237,7 +237,6 @@
   "dropbox.monthsAgo": "há %1 meses",
   "dropbox.noFiles": "Nenhum arquivo sincronizado encontrado.",
   "dropbox.notInstalled": "A CLI do Dropbox não está instalada",
-  "dropbox.openedLogin": "Login do Dropbox aberto",
   "dropbox.pauseSyncing": "Pausar sincronização",
   "dropbox.phrase1": "Arquivando arquivos",
   "dropbox.phrase10": "Catalogando caos",
