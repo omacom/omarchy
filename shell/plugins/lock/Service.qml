@@ -869,6 +869,14 @@ Item {
   ShellIpc {
     target: "lock"
 
+    // Opening the lid can restore DPMS without a suspend or screen-count
+    // change. Resume retries just as keyboard activity does in that case.
+    function wake(): string {
+      if (!root.lockRequested) return "unlocked"
+      root.runWake()
+      return "ok"
+    }
+
     function lock(): string {
       if (!root.passwordPamConfigured) return "missing-pam"
       // omarchy-system-sleep-lock asks for the lock before every suspend.
