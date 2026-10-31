@@ -14,6 +14,17 @@ autostart="$config_home/autostart/prlcc.desktop"
 autostart_source="$OMARCHY_PATH/default/parallels/prlcc.desktop"
 units=(omarchy-parallels.service omarchy-parallels-agent.service omarchy-parallels-helper@.service)
 
+acquire_setup_lock() {
+  # Keep the lock outside the state directory that off removes.
+  local previous_umask
+  mkdir -p "$state_home/omarchy"
+  previous_umask=$(umask)
+  umask 077
+  exec {setup_lock_fd}>>"$state_home/omarchy/parallels.lock"
+  umask "$previous_umask"
+  flock "$setup_lock_fd"
+}
+
 stop_stock_agent() {
   if systemctl --user is-active --quiet app-prlcc@autostart.service; then
     systemctl --user stop app-prlcc@autostart.service
@@ -78,6 +89,7 @@ case $action in
     fi
     ;;
   off)
+    acquire_setup_lock
     disable_compatibility
     echo "Parallels display resizing: off"
     ;;
@@ -94,6 +106,8 @@ case $action in
       echo "Run this command from the Omarchy desktop with XWayland enabled." >&2
       exit 1
     fi
+
+    acquire_setup_lock
 
     # Never replace a user's unit overrides with these defaults.
     for unit in "${units[@]}"; do

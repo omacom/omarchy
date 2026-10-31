@@ -236,6 +236,21 @@ cat >"$stub_bin/omarchy-cmd-present" <<'SH'
 #!/bin/bash
 [[ ${TEST_MISSING_TOOLS:-0} == "0" ]]
 SH
+cat >"$stub_bin/install" <<'SH'
+#!/bin/bash
+if [[ -n ${TEST_INSTALL_GATE:-} ]]; then
+  : >"$TEST_INSTALL_GATE/entered"
+  IFS= read -r release <"$TEST_INSTALL_GATE/release"
+fi
+exec /usr/bin/install "$@"
+SH
+cat >"$stub_bin/flock" <<'SH'
+#!/bin/bash
+if [[ ${TEST_RACE_ACTOR:-} == "off" ]]; then
+  : >"$TEST_RACE_GATE/off-lock-attempt"
+fi
+exec /usr/bin/flock "$@"
+SH
 cat >"$stub_bin/systemctl" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$TEST_CALLS"
@@ -261,6 +276,9 @@ case "$*" in
     fi
     ;;
   '--user disable --now omarchy-parallels.service')
+    if [[ ${TEST_RACE_ACTOR:-} == "off" ]]; then
+      : >"$TEST_RACE_GATE/off-mutation"
+    fi
     # Disabling can fail before a failed activation has linked any unit.
     [[ -f $TEST_SERVICES/feature ]] || exit 1
     rm -f "$TEST_SERVICES/feature"
@@ -335,10 +353,12 @@ pass "activation failures roll back even when the new service cannot be disabled
 reset_fixture
 mkdir -p "$fixture_home/config/systemd/user"
 printf '[Service]\nExecStart=my-custom-agent\n' >"$fixture_home/config/systemd/user/omarchy-parallels.service"
+cp "$fixture_home/config/systemd/user/omarchy-parallels.service" "$test_tmp/custom-unit"
 if run_setup on >"$test_tmp/custom-unit.log" 2>&1; then
   fail "activation refuses custom unit overrides"
 fi
-[[ ! -s $calls && ! -d $fixture_home/state ]] || fail "custom unit leaves services and state unchanged"
+[[ ! -s $calls && ! -d $fixture_home/state/omarchy/parallels ]] || fail "custom unit leaves services and managed backup state unchanged"
+cmp -s "$test_tmp/custom-unit" "$fixture_home/config/systemd/user/omarchy-parallels.service" || fail "custom unit contents are preserved"
 pass "custom systemd units are preserved before activation"
 
 reset_fixture
@@ -351,3 +371,65 @@ fi
 cmp -s "$test_tmp/edited.desktop" "$fixture_home/config/autostart/prlcc.desktop" || fail "edited autostart is preserved"
 cmp -s "$test_tmp/original.desktop" "$fixture_home/state/omarchy/parallels/original-autostart" || fail "original backup remains available"
 pass "disabling preserves an autostart override edited after activation"
+
+# Pause a real repeated activation at its filesystem boundary, then overlap
+# deactivation. Pass-through flock exposes its wait point without replacing
+# the real OS lock; the assertion is the user's restored startup file.
+reset_fixture
+run_setup on
+python3 - "$ROOT" "$stub_bin" "$fixture_home" "$fixture_state" "$calls" "$test_tmp" <<'PY'
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import time
+
+root, binaries, home, services, calls, directory = map(Path, sys.argv[1:])
+gate = directory / "race"
+gate.mkdir()
+fifo = gate / "release"
+os.mkfifo(fifo)
+release_descriptor = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
+environment = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(home / "config"),
+  XDG_STATE_HOME=str(home / "state"), OMARCHY_PATH=str(root), DISPLAY=":0",
+  WAYLAND_DISPLAY="wayland-test", HYPRLAND_INSTANCE_SIGNATURE="fixture",
+  TEST_SERVICES=str(services), TEST_CALLS=str(calls), TEST_RACE_GATE=str(gate),
+  PATH=f"{binaries}:{root}/bin:{os.environ['PATH']}")
+command = [str(root / "bin/omarchy-hyprland-parallels")]
+workers = []
+
+def wait_for(predicate):
+  deadline = time.monotonic() + 5
+  while not predicate():
+    assert time.monotonic() < deadline, "concurrent command did not reach its test barrier"
+    time.sleep(0.01)
+
+try:
+  with (gate / "on.log").open("w") as on_log, (gate / "off.log").open("w") as off_log:
+    activation = subprocess.Popen(command + ["on"], env=dict(environment,
+      TEST_INSTALL_GATE=str(gate), TEST_RACE_ACTOR="on"), stdout=on_log,
+      stderr=subprocess.STDOUT, start_new_session=True)
+    workers.append(activation)
+    wait_for(lambda: gate.joinpath("entered").exists())
+    deactivation = subprocess.Popen(command + ["off"], env=dict(environment,
+      TEST_RACE_ACTOR="off"), stdout=off_log, stderr=subprocess.STDOUT, start_new_session=True)
+    workers.append(deactivation)
+    wait_for(lambda: gate.joinpath("off-mutation").exists() or gate.joinpath("off-lock-attempt").exists())
+    if gate.joinpath("off-mutation").exists():
+      assert deactivation.wait(timeout=5) == 0
+    os.write(release_descriptor, b"continue\n")
+    assert activation.wait(timeout=5) == 0, (gate / "on.log").read_text()
+    assert deactivation.wait(timeout=5) == 0, (gate / "off.log").read_text()
+  original = directory.joinpath("original.desktop").read_bytes()
+  restored = home.joinpath("config/autostart/prlcc.desktop").read_bytes()
+  assert restored == original, "concurrent on/off lost the original Tools startup file"
+  assert not services.joinpath("feature").exists(), "deactivation did not remain effective"
+finally:
+  os.close(release_descriptor)
+  for worker in workers:
+    if worker.poll() is None:
+      os.killpg(worker.pid, signal.SIGKILL)
+      worker.wait(timeout=5)
+PY
+pass "overlapping activation and deactivation preserve the original startup file"
