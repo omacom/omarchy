@@ -126,6 +126,7 @@ Item {
     if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) return
 
     revealAnimation.stop()
+    revealGraceTimer.stop()
     finishingTransition = false
 
     // Video frames are not fed through the image-only reveal stack. Switching
@@ -172,14 +173,49 @@ Item {
     if (!incomingBackground || revealProgress >= 1) applyPendingTheme()
   }
 
+  // Every screen slides together, so the reveal waits until each one has
+  // decoded its incoming frame. A screen that cannot decode in time, or at
+  // all, does not hold the others past a short grace; it joins the running
+  // reveal once its frame is ready.
   function startReveal(panel) {
     if (!incomingBackground) return
-    panel.maskReady = true
-    if (revealStartedVersion === backgroundVersion) return
+    if (revealStartedVersion === backgroundVersion) {
+      panel.maskReady = true
+      return
+    }
+    for (var other of backgrounds.instances) {
+      if (!other.incomingReady()) {
+        revealGraceTimer.start()
+        return
+      }
+    }
+    beginReveal()
+  }
+
+  function beginReveal() {
+    if (!incomingBackground || revealStartedVersion === backgroundVersion) return
+    revealGraceTimer.stop()
     revealStartedVersion = backgroundVersion
+    for (var panel of backgrounds.instances) {
+      if (panel.incomingReady()) panel.maskReady = true
+    }
     applyPendingTheme()
     revealAnimation.restart()
   }
+
+  // The incoming frame stays over the base until the base has drawn the new
+  // background on every screen. Ending it when the first screen is ready
+  // left a larger screen, still decoding, black for a moment.
+  function maybeFinishTransition() {
+    if (!finishingTransition || !ready) return
+    incomingBackground = ""
+    oldBackground = ""
+    preparedBackground = ""
+    finishingTransition = false
+    pruneNativeSizes()
+  }
+
+  onReadyChanged: maybeFinishTransition()
 
   function prepareBackground(path) {
     path = String(path || "").trim()
@@ -316,6 +352,13 @@ Item {
   }
 
   Timer {
+    id: revealGraceTimer
+    interval: 250
+    repeat: false
+    onTriggered: root.beginReveal()
+  }
+
+  Timer {
     id: pendingThemeFallbackTimer
     interval: 300
     repeat: false
@@ -339,6 +382,9 @@ Item {
         root.finishingTransition = true
       }
       root.revealProgress = 1
+      // A base already holding the new background stays ready, so no
+      // change of ready would end the transition.
+      Qt.callLater(root.maybeFinishTransition)
     }
   }
 
@@ -368,6 +414,11 @@ Item {
       updatesEnabled: true
 
       property bool maskReady: false
+      // A function, not a binding: onStatusChanged can run before a binding
+      // on the same status has caught up.
+      function incomingReady() {
+        return root.incomingBackground !== "" && incomingFrame.status === Image.Ready
+      }
       property int readyFrames: 0
       readonly property bool backgroundReady: base.ready && readyFrames >= 2
 
@@ -398,11 +449,9 @@ Item {
       }
 
       function maybeStartReveal() {
-        if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
-        if (incomingFrame.status !== Image.Ready) return
+        if (!incomingReady() || root.revealProgress >= 1 || maskReady) return
         Qt.callLater(function() {
-          if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
-          if (incomingFrame.status !== Image.Ready) return
+          if (!incomingReady() || root.revealProgress >= 1 || maskReady) return
           root.startReveal(panel)
         })
       }
@@ -423,16 +472,7 @@ Item {
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)
         onFailedChanged: if (failed) root.recoverBackground(path)
-        onReadyChanged: {
-          panel.readyFrames = 0
-          if (ready && root.finishingTransition) {
-            root.incomingBackground = ""
-            root.oldBackground = ""
-            root.preparedBackground = ""
-            root.finishingTransition = false
-            root.pruneNativeSizes()
-          }
-        }
+        onReadyChanged: panel.readyFrames = 0
       }
 
       Image {
@@ -455,7 +495,9 @@ Item {
         id: incomingLayer
         anchors.fill: parent
         visible: root.incomingBackground !== "" && incomingFrame.status === Image.Ready && (root.revealProgress >= 1 || panel.maskReady)
-        layer.enabled: root.incomingBackground !== "" && root.revealProgress < 1
+        // The mask stays on until the base takes over: turning the layer off
+        // as the reveal ends redraws the frame unmasked mid-transition.
+        layer.enabled: root.incomingBackground !== "" && panel.maskReady
         layer.smooth: true
         layer.effect: MultiEffect {
           maskEnabled: true
