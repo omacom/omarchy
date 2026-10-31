@@ -980,6 +980,12 @@ Panel {
                 height: implicitHeight
                 hasCursor: layoutRow.hasCursor
               }
+
+              // The pointer on the map takes the shared cursor, as every row does,
+              // so h/l afterwards moves the shown display instead of the last row.
+              HoverHandler {
+                onHoveredChanged: if (hovered) root.pointAt("layout", 0)
+              }
             }
           }
         }
