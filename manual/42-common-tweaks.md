@@ -6,7 +6,15 @@ If you screw something up, you can restore individual configs to their original 
 
 ### Reveal all tray icons all the time
 
-By default, tray icons, like Dropbox, 1password, or Steam, are hidden behind the tray expander arrow, which reveals them when you hover it. If you'd like to have them exposed all the time, right-click the expander arrow to open the tray icon manager, then pin the icons you want to keep visible (you can also hide the ones you never want to see).
+By default, tray icons, like Dropbox, 1password, or Steam, are hidden behind the tray expander arrow, which reveals them when you hover it. To keep every icon in the bar instead, including those of apps you install later, run:
+
+```bash
+omarchy bar set omarchy.tray unlisted visible
+```
+
+The arrow then shows only while the drawer has something in it, such as a widget you dragged there. Set it back to `drawer` for the default.
+
+To choose icon by icon, pick **Manage tray icons** at the end of any tray icon's right-click menu (or right-click the arrow) and pin the icons you want to keep visible. You can hide the ones you never want to see there too, in either mode.
 
 ### Rounded window corners
 
