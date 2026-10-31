@@ -102,7 +102,7 @@
   "default.browserSet": "%1 is now the default browser",
   "default.editorSet": "%1 is now the default editor",
   "default.terminalSet": "%1 is now the default terminal",
-  "dictation.hint": "Hold Right Alt or F9 to dictate (or toggle with Super + Ctrl + X).",
+  "dictation.hint": "Hold Right Alt to dictate, or toggle with Alt + Space.",
   "dictation.installVoxtype": "Install Voxtype + AI model (~150MB) to enable dictation?",
   "dictation.superwhisperReady": "Superwhisper Dictation Ready",
   "dictation.voxtypeReady": "Voxtype Dictation Ready",
