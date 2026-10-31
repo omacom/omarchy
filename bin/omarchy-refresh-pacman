@@ -1,25 +1,9 @@
-#!/bin/bash -p
+#!/bin/bash
 
 # omarchy:summary=Overwrite the package configuration for /etc/pacman with the Omarchy default of using its dedicated mirrors and repositories, then update all packages.
 # omarchy:requires-sudo=true
 
-if [[ $- != *p* ]]; then
-  echo "Refusing an unsafe Bash startup." >&2
-  exit 126
-fi
-
-security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
-source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
-omarchy_security_require_privileged_bash_startup || exit 126
 set -e
-omarchy_security_sanitize_bash_environment "$0" "$@"
-omarchy_security_require_source_root "$0"
-# Channel switching calls this behind its own sanitized PATH and hands the
-# caller's original path over the same way the updater receives it.
-user_path=${OMARCHY_UPDATE_USER_PATH:-$PATH}
-unset OMARCHY_UPDATE_USER_PATH
-omarchy_security_install_signal_exit_traps
-export PATH="$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
 
 channel="${1:-}"
 if [[ -n $channel && $channel != "stable" && $channel != "rc" && $channel != "edge" ]]; then
@@ -67,8 +51,8 @@ rm -rf "$rendered"
 
 # Allow user customization of /etc/pacman.conf before the upgrade runs, so
 # custom repositories and IgnorePkg entries shape the downgrade-capable
-# transaction below. Hooks run with the caller's PATH so user tools resolve.
-PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-hook" pre-refresh-pacman
+# transaction below.
+omarchy-hook pre-refresh-pacman
 
 # Stable and rc publish omarchy and omarchy-settings; the -dev pair is edge's.
 # A stable or rc repository can still list an old -dev build (stable's listed

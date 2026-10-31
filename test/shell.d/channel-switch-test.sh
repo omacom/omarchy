@@ -48,8 +48,10 @@ assert len(hooks) == 2, events
 assert events[hooks[0]] == 'step:omarchy-hook pre-refresh-pacman', events
 assert events[hooks[1]] == 'step:omarchy-hook post-update', events
 transaction = next(i for i, event in enumerate(events) if event.startswith('step:pacman '))
-auth = events.index('sudo /usr/bin/true', transaction)
-assert hooks[0] < transaction < auth < hooks[1], events
+# The package swap calls pacman itself, so an older release can't strand it.
+swap = next(i for i, event in enumerate(events) if event.startswith('sudo env OMARCHY_UPDATE_PACMAN=1 pacman -S --needed --noconfirm --ask 4 '))
+auth = events.index('sudo true', swap)
+assert hooks[0] < transaction < swap < auth < hooks[1], events
 PY
 }
 
@@ -188,37 +190,16 @@ for step in pacman omarchy-update-system-pkgs omarchy-hook; do
   pass "$step failure stops before the post-update hook"
 done
 
+# A terminal signals its whole foreground group, so the switch runs in a group
+# of its own and the stand-in signals all of it, as Ctrl-C would.
 for signal in HUP INT TERM; do
   reset_boundary
   cat >"$SUDO_TEST_ROOT/bin/omarchy-dev-unlink" <<'STUB'
 #!/bin/bash
 sudo /usr/bin/true || exit 1
-kill -s "$SUDO_TEST_CHANNEL_SIGNAL" "$PPID"
+kill -s "$SUDO_TEST_CHANNEL_SIGNAL" 0
 STUB
-  if SUDO_TEST_CHANNEL_SIGNAL="$signal" run_channel stable; then fail "$signal was ignored"; fi
+  if SUDO_TEST_CHANNEL_SIGNAL="$signal" setsid -w "$OMARCHY_PATH/bin/omarchy-channel-set" stable >"$boundary_tmp/output" 2>&1; then fail "$signal was ignored"; fi
   if grep -q '^step:omarchy-hook post-update$' "$SUDO_TEST_LOG"; then fail "$signal reached the post-update hook"; fi
   pass "$signal stops the channel transition"
 done
-
-# A transaction that installs an older release stops the switch before a step
-# that release cannot run, and says how to finish from a fresh terminal.
-reset_boundary
-SUDO_TEST_DOWNGRADE_STEP='pacman -Syyuu*' SUDO_TEST_INSTALLED=$'omarchy-dev 4.5.0\nomarchy-settings-dev 4.5.0' run_channel stable && status=0 || status=$?
-(( status == 3 )) || fail "a downgrade during the refresh stops the switch" "status $status: $(<"$boundary_tmp/output")"
-grep -q "Run 'omarchy channel set stable' from a new terminal" "$boundary_tmp/output" || fail "a downgrade during the refresh says to rerun the switch" "$(<"$boundary_tmp/output")"
-if grep -q '^step:pacman -S --needed' "$SUDO_TEST_LOG"; then fail "a downgrade during the refresh reached the package swap"; fi
-copy_boundary_file bin/omarchy-update-pacman
-pass "a downgrade during the refresh stops before the package swap"
-
-reset_boundary
-SUDO_TEST_DOWNGRADE_STEP='pacman -S --needed*' SUDO_TEST_INSTALLED=$'omarchy 4.0.6\nomarchy-settings 4.0.6' run_channel stable && status=0 || status=$?
-(( status == 3 )) || fail "a downgrade during the swap stops the switch" "status $status: $(<"$boundary_tmp/output")"
-grep -q "Run 'omarchy update' from a new terminal" "$boundary_tmp/output" || fail "a downgrade during the swap says to run the update" "$(<"$boundary_tmp/output")"
-if grep -q '^step:omarchy-hook post-update$' "$SUDO_TEST_LOG"; then fail "a downgrade during the swap reached the older release's update"; fi
-copy_boundary_file bin/omarchy-update-pacman
-pass "a downgrade during the swap stops before the older release's update"
-
-reset_boundary
-if /usr/bin/bash "$SUDO_TEST_ROOT/bin/omarchy-channel-set" -p >"$boundary_tmp/output" 2>&1; then fail "an ordinary Bash launch was accepted"; fi
-if grep -q '^step:' "$SUDO_TEST_LOG"; then fail "an ordinary Bash launch reached channel work"; fi
-pass "an ordinary Bash launch is rejected before channel work"

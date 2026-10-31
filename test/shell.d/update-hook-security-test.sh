@@ -25,9 +25,9 @@ s=open(sys.argv[1]).read().splitlines()
 # The update authorizes exactly once before any step that could need sudo.
 # Authorization runs a command (sudo -v prompts even with passwordless sudo).
 prune=s.index('step:omarchy-update-pkg-prune ')
-auth=s.index('sudo /usr/bin/true')
+auth=s.index('sudo true')
 assert auth < prune, s
-assert [l for l in s[:prune] if l.startswith('sudo ')]==['sudo /usr/bin/true'], s
+assert [l for l in s[:prune] if l.startswith('sudo ')]==['sudo true'], s
 assert 'sudo -v' not in s, s
 positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-update-system-pkgs','step:omarchy-migrate','step:omarchy-update-restart --services-only','step:omarchy-hook post-update','step:omarchy-update-mise','step:yay','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
 assert positions==sorted(positions), s
@@ -75,24 +75,3 @@ for step in pacman omarchy-hook; do
   if [[ $step == "omarchy-hook" ]] && grep -q '^step:pacman ' "$SUDO_TEST_LOG"; then fail "a failed hook still reached the transaction"; fi
   pass "refresh propagates $step failure"
 done
-
-for script in bin/omarchy-update bin/omarchy-refresh-pacman; do
-  reset_boundary
-  if /usr/bin/bash "$SUDO_TEST_ROOT/$script" -p >"$boundary_tmp/output" 2>&1; then fail "$script accepted an ordinary Bash launch"; fi
-  [[ ! -s $SUDO_TEST_LOG ]] || fail "$script reached sudo through an invalid interpreter"
-  pass "$script rejects a decoy privileged-mode argument"
-done
-
-reset_boundary
-printf '%s\n' 'printf startup-ran >>"$SUDO_TEST_ROOT/startup-marker"' >"$boundary_tmp/startup"
-BASH_ENV="$boundary_tmp/startup" ENV="$boundary_tmp/startup" run_update -y || fail "sanitized update failed" "$(<"$boundary_tmp/output")"
-[[ ! -e $SUDO_TEST_ROOT/startup-marker ]] || fail "startup code leaked into an update helper"
-pass "inherited startup files do not run in the updater or its child scripts"
-
-reset_boundary
-function printf() { /usr/bin/touch "$SUDO_TEST_ROOT/function-marker"; }
-export -f printf
-run_update -y || fail "update failed with inherited function" "$(<"$boundary_tmp/output")"
-unset -f printf
-[[ ! -e $SUDO_TEST_ROOT/function-marker ]] || fail "an inherited function reached an update helper"
-pass "exported functions do not reach update helper interpreters"

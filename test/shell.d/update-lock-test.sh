@@ -283,7 +283,7 @@ pass "omarchy-update restores only its own Stay Awake state before restart handl
 # Model package replacement while the existing updater is still running:
 # start writes the old two-field state; the transaction installs the real new
 # helper, whose stop must clean that state before reboot handling.
-cp "$stub_bin/omarchy-update-stay-awake" "$test_tmp/inhibitor-after-upgrade"
+/usr/bin/cp "$stub_bin/omarchy-update-stay-awake" "$test_tmp/inhibitor-after-upgrade"
 write_stub omarchy-update-stay-awake '
 set -e
 [[ $1 == "start" ]]

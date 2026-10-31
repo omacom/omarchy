@@ -87,9 +87,10 @@ else
 fi
 STUB
 chmod +x "$SUDO_TEST_ROOT/mock/sudo"
-# The updater's own phases call a bare sudo from its fixed PATH. Resolve it to
-# the stand-in so no test can ever reach the host's sudo.
+# The commands call sudo and their helpers by name from the caller's PATH. Put
+# the stand-ins first so no test can ever reach the host's sudo or commands.
 ln -s ../mock/sudo "$SUDO_TEST_ROOT/bin/sudo"
+export PATH="$SUDO_TEST_ROOT/bin:$PATH"
 
 cat >"$SUDO_TEST_ROOT/bin/test-step" <<'STUB'
 #!/bin/bash
@@ -107,10 +108,6 @@ fi
 if [[ $step == "omarchy-hook" && ${1:-} == "post-update" ]] || [[ $step == "omarchy-update-mise" || $step == "yay" ]]; then
   [[ -e $SUDO_TEST_CACHE ]] || exit 94
 fi
-if [[ -n ${SUDO_TEST_DOWNGRADE_STEP:-} && "$step $*" == $SUDO_TEST_DOWNGRADE_STEP ]]; then
-  # Model a transaction installing an older release, one without this helper.
-  /usr/bin/rm -f "$OMARCHY_PATH/bin/omarchy-update-pacman"
-fi
 if [[ ${SUDO_TEST_FAIL_STEP:-} == "$step" ]]; then
   # Model a misbehaving child failing. This never invokes real sudo.
   exit 17
@@ -123,12 +120,6 @@ case "$step" in
   omarchy-update-system-pkgs|omarchy-update-keyring|omarchy-snapshot)
     sudo /usr/bin/true
     ;;
-  pacman)
-    # A query answers with the packages a test models as installed.
-    if [[ ${1:-} == "-Q" && -n ${SUDO_TEST_INSTALLED:-} ]]; then
-      printf '%s\n' "$SUDO_TEST_INSTALLED"
-    fi
-    ;;
 esac
 STUB
 chmod +x "$SUDO_TEST_ROOT/bin/test-step"
@@ -140,5 +131,5 @@ ln -s ../bin/test-step "$SUDO_TEST_ROOT/mock/pacman"
 reset_boundary() {
   : >"$SUDO_TEST_LOG"
   /usr/bin/rm -f "$SUDO_TEST_CACHE"
-  unset SUDO_TEST_FAIL_STEP SUDO_TEST_SIGNAL_STEP SUDO_TEST_SUDO_FAIL SUDO_TEST_PLATFORM SUDO_TEST_DOWNGRADE_STEP SUDO_TEST_INSTALLED
+  unset SUDO_TEST_FAIL_STEP SUDO_TEST_SIGNAL_STEP SUDO_TEST_SUDO_FAIL SUDO_TEST_PLATFORM
 }

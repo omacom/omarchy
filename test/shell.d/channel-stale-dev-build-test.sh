@@ -62,7 +62,7 @@ STUB
 chmod +x "$SUDO_TEST_ROOT/bin/pacman"
 
 checkout="$SUDO_TEST_HOME/omarchy"
-cp -a "$SUDO_TEST_ROOT" "$checkout"
+/usr/bin/cp -a "$SUDO_TEST_ROOT" "$checkout"
 mkdir -p "$checkout/.git" "$checkout/shell"
 
 for source in edge dev; do
@@ -80,6 +80,9 @@ for source in edge dev; do
     fi
     grep -Fxq 'step:pacman -S --needed --noconfirm --ask 4 omarchy omarchy-settings' "$SUDO_TEST_LOG" ||
       fail "$source to $channel: the switch installs omarchy and omarchy-settings" "$(<"$SUDO_TEST_LOG")$(<"$boundary_tmp/output")"
+    # The swap calls pacman itself, so a release without this tree's helpers can't strand it.
+    grep -Fxq 'sudo env OMARCHY_UPDATE_PACMAN=1 pacman -S --needed --noconfirm --ask 4 omarchy omarchy-settings' "$SUDO_TEST_LOG" ||
+      fail "$source to $channel: the swap runs pacman as root directly" "$(<"$SUDO_TEST_LOG")"
     [[ $(<"$SUDO_TEST_INSTALLED_FILE") == $'omarchy 4.0.5-1\nomarchy-settings 4.0.5-1' ]] ||
       fail "$source to $channel: the machine ends on the release" "$(<"$SUDO_TEST_INSTALLED_FILE")"
     (( status == 0 )) || fail "$source to $channel: the switch completes (exit $status)" "$(<"$boundary_tmp/output")"

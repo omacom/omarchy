@@ -181,24 +181,29 @@ wait_dead "$valid_pid" || fail "valid inhibitor identity is stopped"
 [[ ! -e $state_dir ]] || fail "valid state is cleaned after stop"
 pass "valid XDG runtime uses private atomic inhibitor state"
 
-# Without a terminal, the inhibitor reuses a cached authorization, such as the
-# update's own, non-interactively instead of asking again through polkit.
-sudo_events="$test_tmp/sudo-events"
-: >"$sudo_events"
-SUDO_EVENT_LOG="$sudo_events" run_helper start </dev/null
-SUDO_EVENT_LOG="$sudo_events" run_helper stop </dev/null
-grep -q -- '^sudo -n -b -- ' "$sudo_events" || fail "inhibitor without a terminal did not reuse sudo" "$(<"$sudo_events")"
-! grep -qx pkexec "$sudo_events" || fail "inhibitor without a terminal asked polkit" "$(<"$sudo_events")"
-! grep -qx 'sudo -k' "$sudo_events" || fail "inhibitor revoked the caller's authorization" "$(<"$sudo_events")"
-pass "inhibitor without a terminal reuses a cached authorization instead of polkit"
+# Root holds the inhibitor directly, so only other accounts authenticate.
+if (( EUID == 0 )); then
+  skip "inhibitor authentication paths do not apply to root"
+else
+  # Without a terminal, the inhibitor reuses a cached authorization, such as the
+  # update's own, non-interactively instead of asking again through polkit.
+  sudo_events="$test_tmp/sudo-events"
+  : >"$sudo_events"
+  SUDO_EVENT_LOG="$sudo_events" run_helper start </dev/null
+  SUDO_EVENT_LOG="$sudo_events" run_helper stop </dev/null
+  grep -q -- '^sudo -n -b -- ' "$sudo_events" || fail "inhibitor without a terminal did not reuse sudo" "$(<"$sudo_events")"
+  ! grep -qx pkexec "$sudo_events" || fail "inhibitor without a terminal asked polkit" "$(<"$sudo_events")"
+  ! grep -qx 'sudo -k' "$sudo_events" || fail "inhibitor revoked the caller's authorization" "$(<"$sudo_events")"
+  pass "inhibitor without a terminal reuses a cached authorization instead of polkit"
 
-# With nothing cached it asks through polkit rather than failing.
-: >"$sudo_events"
-SUDO_COLD=1 SUDO_EVENT_LOG="$sudo_events" run_helper start </dev/null
-SUDO_COLD=1 SUDO_EVENT_LOG="$sudo_events" run_helper stop </dev/null
-grep -qx pkexec "$sudo_events" || fail "inhibitor without a terminal or cached authorization did not use polkit" "$(<"$sudo_events")"
-! grep -q -- '^sudo -n -b ' "$sudo_events" || fail "inhibitor ran sudo without an authorization" "$(<"$sudo_events")"
-pass "inhibitor without a terminal or cached authorization uses polkit"
+  # With nothing cached it asks through polkit rather than failing.
+  : >"$sudo_events"
+  SUDO_COLD=1 SUDO_EVENT_LOG="$sudo_events" run_helper start </dev/null
+  SUDO_COLD=1 SUDO_EVENT_LOG="$sudo_events" run_helper stop </dev/null
+  grep -qx pkexec "$sudo_events" || fail "inhibitor without a terminal or cached authorization did not use polkit" "$(<"$sudo_events")"
+  ! grep -q -- '^sudo -n -b ' "$sudo_events" || fail "inhibitor ran sudo without an authorization" "$(<"$sudo_events")"
+  pass "inhibitor without a terminal or cached authorization uses polkit"
+fi
 
 permissive_runtime="$test_tmp/permissive-runtime"
 mkdir -m 755 "$permissive_runtime"

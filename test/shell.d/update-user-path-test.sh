@@ -12,7 +12,7 @@ cat >"$SUDO_TEST_ROOT/bin/script" <<'STUB'
 #!/bin/bash
 printf 'logged-reexec\n' >>"$SUDO_TEST_LOG"
 [[ $1 == "-qefc" ]] || exit 90
-exec /usr/bin/bash -p -c "$2"
+exec /usr/bin/bash -c "$2"
 STUB
 rm "$SUDO_TEST_ROOT/bin/omarchy-update-lock"
 cat >"$SUDO_TEST_ROOT/bin/omarchy-update-lock" <<'STUB'
@@ -46,7 +46,7 @@ done
 
 for entry in fresh logged locked; do
   reset_boundary
-  unset OMARCHY_UPDATE_LOGGED OMARCHY_UPDATE_USER_PATH SUDO_TEST_LOCKED
+  unset OMARCHY_UPDATE_LOGGED SUDO_TEST_LOCKED
   case "$entry" in
     logged) export OMARCHY_UPDATE_LOGGED=1 ;;
     locked) export OMARCHY_UPDATE_LOGGED=1 SUDO_TEST_LOCKED=1 ;;

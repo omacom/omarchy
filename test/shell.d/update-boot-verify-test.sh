@@ -41,13 +41,12 @@ boot_package "$tmp/unverified" 1
 mkdir -p "$tmp/none" "$tmp/older/usr/lib/omarchy/mac-boot" "$tmp/older/var/lib/pacman/local/omarchy-mac-boot-20260921-10"
 
 # omarchy update -y on platform $1 with the boot package in lifecycle root $2.
-# The update's own PATH is fixed, so the platform's uname goes beside the
-# stubbed steps.
+# The platform's uname goes beside the stubbed steps, first on the PATH.
 run_update() {
   local platform=$1 lifecycle=$2
   reset_boundary
   rm -f "$tmp/boot-ran"
-  cp "$tmp/$platform/bin/uname" "$SUDO_TEST_ROOT/bin/uname"
+  /usr/bin/cp "$tmp/$platform/bin/uname" "$SUDO_TEST_ROOT/bin/uname"
   status=0
   OMARCHY_PROC_ROOT="$tmp/$platform/proc" OMARCHY_LIFECYCLE_ROOT="$lifecycle" \
     "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$tmp/out" 2>"$tmp/err" || status=$?
