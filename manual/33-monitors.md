@@ -60,6 +60,16 @@ You can also checkout [Hyprmon](https://github.com/erans/hyprmon/), if you'd lik
 
 Monitor brightness is controlled by the dedicated function keys for brightness up/down. If you hold down shift while pressing these, you'll go to maximum or minimum brightness. The keys control the display you're focused on, so external monitors that speak DDC/CI are adjusted the same way as the laptop screen.
 
+### Resizing a Parallels virtual machine
+
+After installing Parallels Tools from the Parallels Desktop menu, run `omarchy hyprland parallels on` inside the Omarchy desktop to make the guest follow the VM window size. It starts with your graphical session and applies display changes without rewriting `~/.config/hypr/monitors.lua`. Monitor scaling controls continue to set your preferred scale; when a window size needs rounding to whole logical pixels, that preference is retained for the next compatible size.
+
+This is an opt-in compatibility integration for Parallels Tools' GNOME/KDE-specific Wayland display backend. The display agent runs through XWayland, while clipboard, drag-and-drop, and shared-profile helpers retain their Wayland backend. It is inactive on other hardware and does not install Parallels Tools.
+
+Use `omarchy hyprland parallels status` to check it and `omarchy hyprland parallels off` to stop it and restore the previous Tools startup. A custom `prlcc.desktop` is backed up before enabling the integration and restored when disabling it. If that override is edited while the integration is enabled, disabling leaves the edited file and its backup in place instead of overwriting them.
+
+If startup repeatedly fails, the services stop retrying instead of continuing in the background. After fixing the cause shown by `journalctl --user -u omarchy-parallels.service`, run `omarchy hyprland parallels on` again to retry.
+
 ### Apple Displays
 
 If you're using an Apple display, the regular keyboard brightness keys will also automatically work, if you're focused on the Apple display. This is done through the `asdcontrol` command.

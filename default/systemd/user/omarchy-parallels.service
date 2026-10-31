@@ -1,0 +1,23 @@
+[Unit]
+Description=Apply Parallels display requests to Hyprland
+StartLimitIntervalSec=300
+StartLimitBurst=3
+After=graphical-session.target wayland-session-waitenv.service omarchy-parallels-agent.service
+PartOf=graphical-session.target
+Requires=omarchy-parallels-agent.service
+Wants=omarchy-parallels-helper@prlcp.service omarchy-parallels-helper@prldnd.service omarchy-parallels-helper@prlshprof.service
+ConditionEnvironment=HYPRLAND_INSTANCE_SIGNATURE
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionFileIsExecutable=/usr/bin/prlcc
+
+[Service]
+Type=notify
+TimeoutStartSec=20
+TimeoutStopSec=10
+ExecCondition=/usr/bin/env omarchy-hw-parallels
+ExecStart=/usr/bin/env omarchy-hyprland-parallels --watch
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
