@@ -81,3 +81,23 @@ used=$(
 missing=$(comm -13 <(echo "$declared") <(echo "$used"))
 [[ -z $missing ]] || fail "every notifications IPC method callers use is declared" "missing: $missing"
 pass "every notifications IPC method callers use is declared"
+
+# Reload the real Toast image as a change in device pixel ratio would. Qt's
+# DPR walk may still hold its effect sibling, so it must survive Loading.
+require_quickshell "notification image reload"
+qml_fixture_scratch
+trap 'rm -rf "$tmp"; qml_fixture_cleanup' EXIT
+# Style reads rounding asynchronously, including after config reloads. Give
+# this fixture a fixed rounded theme rather than racing the real desktop.
+cat >"$QML_FIXTURE_TMP/bin/hyprctl" <<'STUB'
+#!/bin/bash
+if [[ $* == "-j getoption decoration:rounding" ]]; then
+  printf '{"int":8}\n'
+else
+  exec /usr/bin/hyprctl "$@"
+fi
+STUB
+chmod +x "$QML_FIXTURE_TMP/bin/hyprctl"
+image="$QML_FIXTURE_TMP/photo.svg"
+printf '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="red"/></svg>' >"$image"
+OMARCHY_NOTIFICATION_TEST_IMAGE="$image" run_qml_fixture notification-image-layer "notification image keeps its effect through a reload" Ui Commons plugins
