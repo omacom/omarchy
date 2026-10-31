@@ -16,7 +16,11 @@ setup_pam_config() {
   # fixed /usr/bin path the omarchy package always provides, so the gate keeps
   # working across package installs and dev-link — the latter overlays
   # $OMARCHY_PATH trees but leaves /usr/bin untouched.
-  local fprintd_gate="auth      [success=1 default=ignore] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-closed"
+  #
+  # The gate exits 1 whenever the lid is open, which is the answer, not an
+  # error, so quiet_log keeps pam_exec from logging every open-lid sudo and
+  # polkit prompt to the journal as a failure.
+  local fprintd_gate="auth      [success=1 default=ignore] pam_exec.so quiet quiet_log /usr/bin/omarchy-hw-laptop-closed"
 
   # Configure sudo
   if ! grep -q pam_fprintd.so /etc/pam.d/sudo; then
