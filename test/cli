@@ -601,6 +601,14 @@ cp -r "$BG_TMPDIR/walls" "$BG_HOME/.config/omarchy/backgrounds/bg-cycle-test"
 [[ $(cycle_backgrounds) == "a.jpg b.jpg c.jpg a.jpg" ]] || fail "background cycling advances through a real backgrounds directory"
 pass "background cycling advances through a real backgrounds directory"
 
+rm -r "$BG_HOME/.config/omarchy/backgrounds/bg-cycle-test" "$BG_HOME/.local/state/omarchy/current/background"
+mkdir "$BG_HOME/.config/omarchy/backgrounds/bg-cycle-test"
+printf 'x' >"$BG_HOME/.config/omarchy/backgrounds/bg-cycle-test/a.jpg"
+printf 'x' >"$BG_HOME/.config/omarchy/backgrounds/bg-cycle-test/b.jpg"
+ln -s a.jpg "$BG_HOME/.config/omarchy/backgrounds/bg-cycle-test/a-alias.jpg"
+[[ $(cycle_backgrounds) == "a.jpg b.jpg a.jpg b.jpg" ]] || fail "background cycling passes a file reached by two names"
+pass "background cycling passes a file reached by two names"
+
 make_tmpdir BG_THEME_TMPDIR
 mkdir -p "$BG_THEME_TMPDIR/.config/omarchy/backgrounds" "$BG_THEME_TMPDIR/walls"
 for background_name in 1-one 2-two; do
