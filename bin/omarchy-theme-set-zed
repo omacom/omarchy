@@ -209,8 +209,10 @@ if [[ -f $CURRENT_THEME_DIR/zed.json ]]; then
     echo "The current Zed theme is invalid or does not define an Omarchy theme" >&2
     exit 1
   fi
-  mkdir -p "$ZED_CONFIG_DIR/themes" || exit 1
-  cp "$CURRENT_THEME_DIR/zed.json" "$ZED_CONFIG_DIR/themes/omarchy.json" || exit 1
+  mkdir -p "$ZED_CONFIG_DIR/themes" "$HOME/.local/state/omarchy/zed" || exit 1
+  # Setup and theme changes can try to install the same theme concurrently.
+  flock "$HOME/.local/state/omarchy/zed/settings.lock" \
+    cp "$CURRENT_THEME_DIR/zed.json" "$ZED_CONFIG_DIR/themes/omarchy.json" || exit 1
   native_theme_ready=true
 elif [[ $action == "select" ]]; then
   echo "The current Omarchy theme has no Zed theme; refresh it first" >&2
