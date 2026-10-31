@@ -1060,63 +1060,18 @@ Panel {
               [270, Commons.I18n.t("monitor.rotate270")]
             ]
 
-            delegate: RotateRow {
+            delegate: PopupMenuRow {
               required property var modelData
 
               text: modelData[1]
               checked: root.rotateMenuTransform === modelData[0] / 90
-              onTriggered: root.setRotation(root.rotateMenuName, modelData[0])
+              onTriggered: {
+                root.setRotation(root.rotateMenuName, modelData[0])
+                root.closeRotateMenu()
+              }
             }
           }
         }
-      }
-    }
-  }
-
-  // A row of the layout map's rotate menu, like the dock's menu rows.
-  component RotateRow: Rectangle {
-    id: row
-
-    property string text: ""
-    property bool checked: false
-    signal triggered()
-
-    width: parent ? parent.width : 0
-    height: Style.spacing.popupRowHeight
-    radius: Style.cornerRadius
-    color: rowMouse.containsMouse ? Style.hoverFill : "transparent"
-
-    Text {
-      anchors.verticalCenter: parent.verticalCenter
-      anchors.left: parent.left
-      anchors.leftMargin: Style.spacing.controlPaddingX
-      textFormat: Text.PlainText
-      text: row.text
-      color: Commons.Color.popups.text
-      font.family: Style.font.family
-      font.pixelSize: Style.font.body
-    }
-
-    Text {
-      visible: row.checked
-      anchors.verticalCenter: parent.verticalCenter
-      anchors.right: parent.right
-      anchors.rightMargin: Style.spacing.controlPaddingX
-      textFormat: Text.PlainText
-      text: "✓"
-      color: Commons.Color.accent
-      font.family: Style.font.family
-      font.pixelSize: Style.font.body
-    }
-
-    MouseArea {
-      id: rowMouse
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      onClicked: {
-        row.triggered()
-        root.closeRotateMenu()
       }
     }
   }
