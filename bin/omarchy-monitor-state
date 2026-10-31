@@ -38,4 +38,4 @@ brightness_json=$(for file in "$brightness_dir"/*; do
 done | jq -R -n '[inputs | split("\t") | select(.[1] | test("^[0-9]+$")) | {(.[0]): (.[1] | tonumber)}] | add // {}')
 
 printf '%s\n' "$monitors_json" | jq -c --argjson brightness "$brightness_json" \
-  '[.[] | {name, make, model, enabled:(.disabled != true), focused:(.focused == true), width, height, scale, x, y, transform, mirrorOf, availableModes:(.availableModes // []), brightness:($brightness[.name] // null)}]'
+  '[.[] | {name, make, model, enabled:(.disabled != true), focused:(.focused == true), width, height, refreshRate, scale, x, y, transform, mirrorOf, availableModes:(.availableModes // []), brightness:($brightness[.name] // null)}]'
