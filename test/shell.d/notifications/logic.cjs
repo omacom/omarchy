@@ -328,6 +328,18 @@ function runIn(scope, ...names) {
   assert.deepEqual(calls, ['hl.dsp.focus({window = hl.get_window("address:0x123abc")})'])
 }
 
+{ // An app name of several words finds the class that ends in them, and only that.
+  // The decoy was focused last, so it would win any match it wrongly made.
+  const windows = ['telegram-desktop-notes', 'org.telegram.desktop', 'brave-browser', 'desktop']
+    .map((c, i) => ({ lastIpcObject: { class: c, title: '', address: '0x' + (i + 1), pid: 0, focusHistoryID: i } }))
+  const s = runIn({ Hyprland: { toplevels: { values: windows } } }, 'openWindows', 'mostRecent', 'windowForSource')
+  const at = name => (s.windowForSource(name) || {}).wmClass
+  assert.equal(at('Telegram Desktop'), 'org.telegram.desktop')
+  assert.equal(at('Brave Browser'), 'brave-browser')
+  assert.equal(at('Desktop'), 'desktop')
+  assert.equal(at('Notes Desktop'), undefined)
+}
+
 // Admission, close and replay run for real; only the ListModel, QObject
 // signals, the deferred event loop and external effects are faked.
 const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
