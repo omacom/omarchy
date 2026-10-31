@@ -41,7 +41,7 @@ fi
 # locale.gen spells some entries without the codeset (hi_IN UTF-8).
 base=${locale%.UTF-8}
 if grep -qE "^#$base(\.UTF-8)? UTF-8" "$locale_gen" 2>/dev/null; then
-  sed -i -E "s/^#($base(\.UTF-8)? UTF-8)/\1/" "$locale_gen"
+  sed -i --follow-symlinks -E "s/^#($base(\.UTF-8)? UTF-8)/\1/" "$locale_gen"
 elif ! grep -qE "^$base(\.UTF-8)? UTF-8" "$locale_gen" 2>/dev/null; then
   echo "$locale UTF-8" >>"$locale_gen"
 fi

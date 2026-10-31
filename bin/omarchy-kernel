@@ -76,7 +76,7 @@ write_boot_order() {
     [[ $pattern == "$kernel" ]] || order+=", $pattern"
   done
 
-  sed -i -E -e '/^[[:space:]]*BOOT_ORDER[[:space:]]*=/d' -e '$a\' "$LIMINE_CONF" &&
+  sed -i --follow-symlinks -E -e '/^[[:space:]]*BOOT_ORDER[[:space:]]*=/d' -e '$a\' "$LIMINE_CONF" &&
     printf 'BOOT_ORDER="%s"\n' "$order" >>"$LIMINE_CONF"
 }
 

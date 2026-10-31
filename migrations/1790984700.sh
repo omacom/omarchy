@@ -9,5 +9,5 @@ if [[ ! -f $dropin ]] || ! grep -q 'efi_reclaim_reserved=58G@8G,3968M@67712M' "$
   exit 0
 fi
 
-sudo sed -i 's/efi_reclaim_reserved=58G@8G,3968M@67712M/efi_reclaim_reserved=58G@8G/' "$dropin"
+sudo sed -i --follow-symlinks 's/efi_reclaim_reserved=58G@8G,3968M@67712M/efi_reclaim_reserved=58G@8G/' "$dropin"
 sudo limine-mkinitcpio

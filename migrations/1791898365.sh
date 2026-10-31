@@ -29,15 +29,15 @@ set_timeout=""
 added_quiet=""
 if ! sudo grep -Eqi '^[[:space:]]*timeout:' "$limine_conf"; then
   if sudo grep -Eqi '^[[:space:]]*#timeout:' "$limine_conf"; then
-    sudo sed -i -E 's/^[[:space:]]*#timeout:.*/timeout: 1/I' "$limine_conf"
+    sudo sed -i --follow-symlinks -E 's/^[[:space:]]*#timeout:.*/timeout: 1/I' "$limine_conf"
   else
-    sudo sed -i '1i timeout: 1' "$limine_conf"
+    sudo sed -i --follow-symlinks '1i timeout: 1' "$limine_conf"
   fi
   set_timeout=1
 fi
 
 if ! sudo grep -Eqi '^[[:space:]]*quiet:' "$limine_conf"; then
-  sudo sed -i -E '/^[[:space:]]*timeout:/I a quiet: yes' "$limine_conf"
+  sudo sed -i --follow-symlinks -E '/^[[:space:]]*timeout:/I a quiet: yes' "$limine_conf"
   added_quiet=1
 fi
 
