@@ -27,8 +27,50 @@ fi
 
 # Change gnome icon theme color
 GNOME_ICONS_THEME=$HOME/.local/state/omarchy/current/theme/icons.theme
+icon_theme="Yaru-blue"
 if [[ -f $GNOME_ICONS_THEME ]]; then
-  gsettings set org.gnome.desktop.interface icon-theme "$(<$GNOME_ICONS_THEME)"
-else
-  gsettings set org.gnome.desktop.interface icon-theme "Yaru-blue"
+  icon_theme=$(<$GNOME_ICONS_THEME)
+fi
+
+icon_dirs=()
+if [[ -n ${OMARCHY_ICONS_DIR:-} ]]; then
+  icon_dirs+=("$OMARCHY_ICONS_DIR")
+fi
+icon_dirs+=(
+  "${XDG_DATA_HOME:-$HOME/.local/share}/icons"
+  "$HOME/.icons"
+)
+IFS=: read -ra data_dirs <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+for d in "${data_dirs[@]}"; do
+  [[ -n $d ]] && icon_dirs+=("$d/icons")
+done
+
+icon_theme_exists() {
+  local name="$1"
+  [[ -n $name ]] || return 1
+  local dir
+  for dir in "${icon_dirs[@]}"; do
+    [[ -f "$dir/$name/index.theme" ]] && return 0
+  done
+  return 1
+}
+
+if ! icon_theme_exists "$icon_theme"; then
+  fallback=""
+  if [[ $mode == "light" ]]; then
+    candidates=(Yaru Yaru-dark hicolor)
+  else
+    candidates=(Yaru-dark Yaru hicolor)
+  fi
+  for cand in "${candidates[@]}"; do
+    if icon_theme_exists "$cand"; then
+      fallback="$cand"
+      break
+    fi
+  done
+  icon_theme="$fallback"
+fi
+
+if [[ -n $icon_theme ]]; then
+  gsettings set org.gnome.desktop.interface icon-theme "$icon_theme"
 fi
