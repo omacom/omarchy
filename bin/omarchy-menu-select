@@ -109,24 +109,32 @@ done_file=$(mktemp)
 rm -f "$done_file"
 trap 'rm -f "$selection_file" "$done_file"' EXIT
 
-options_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${options[@]}")
-selected_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${selected[@]}")
-payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
-  my $payload = {
-    mode => "select",
-    prompt => decode("UTF-8", $ARGV[0]),
-    options => decode_json($ARGV[1]),
-    multiple => $ARGV[6] ? JSON::PP::true : JSON::PP::false,
-    selected => decode_json($ARGV[7]),
-    onChange => decode_json($ARGV[8]),
-    changeKey => $ARGV[9],
-    selectionFile => decode("UTF-8", $ARGV[2]),
-    doneFile => decode("UTF-8", $ARGV[3])
-  };
-  $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
-  $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
-  print encode_json($payload)
-' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$multiple" "$selected_json" "$on_change" "$change_key")
+# Options and selections travel as positional args after --, split by count,
+# so option text that looks like a jq flag survives untouched.
+payload=$(jq -nc \
+  --arg prompt "$prompt" \
+  --arg selectionFile "$selection_file" \
+  --arg doneFile "$done_file" \
+  --arg width "$menu_width" \
+  --arg maxHeight "$menu_maxheight" \
+  --arg changeKey "$change_key" \
+  --argjson multiple "$multiple" \
+  --argjson onChange "$on_change" \
+  --argjson optionCount "${#options[@]}" '
+  {
+    mode: "select",
+    prompt: $prompt,
+    options: $ARGS.positional[:$optionCount],
+    multiple: ($multiple == 1),
+    selected: $ARGS.positional[$optionCount:],
+    onChange: $onChange,
+    changeKey: $changeKey,
+    selectionFile: $selectionFile,
+    doneFile: $doneFile
+  }
+  + if $width != "" then { width: ($width | tonumber | floor) } else {} end
+  + if $maxHeight != "" then { maxHeight: ($maxHeight | tonumber | floor) } else {} end
+' --args -- "${options[@]}" "${selected[@]}")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null || exit 2
 
