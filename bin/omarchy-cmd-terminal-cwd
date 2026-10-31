@@ -74,6 +74,25 @@ descendants() {
   done
 }
 
+# The shells the terminal started, each leading its own session on the terminal's pty. A shell
+# any other app spawned, like a browser's download helper, does not, so that app answers nothing.
+terminal_sessions() {
+  local children_file children child stat session tty_nr
+
+  for children_file in /proc/"$1"/task/*/children; do
+    [[ -r $children_file ]] || continue
+    read -ra children <"$children_file" || true
+    for child in "${children[@]}"; do
+      read -r stat 2>/dev/null <"/proc/$child/stat" || continue
+      read -r _ _ _ session tty_nr _ <<<"${stat##*) }"
+      if (( session == child && tty_nr != 0 )); then
+        echo "$child"
+        descendants "$child"
+      fi
+    done
+  done
+}
+
 kitty_cwd() {
   local socket="$XDG_RUNTIME_DIR/omarchy-kitty-$1"
 
@@ -156,7 +175,7 @@ terminal_tree_cwd() {
         shell_cwd=$pid_cwd
       fi
     fi
-  done < <(descendants "$1")
+  done < <(terminal_sessions "$1")
 
   # The waiting shell answers when its foreground job's directory is unreadable,
   # as a sudo command's is. A shell with no terminal answers only when nothing

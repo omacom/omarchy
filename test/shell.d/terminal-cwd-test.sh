@@ -254,6 +254,28 @@ resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
 actual:   $resolved"
 pass "a window that is not a terminal falls back to home"
 
+# A browser keeps a helper shell in Downloads, with no terminal or session of its own.
+mkdir -p "$test_tmp/Downloads"
+start_headless_window bash -c "cd '$test_tmp/Downloads' && bash -c 'sleep 300; :' & wait"
+sleep 1
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
+[[ $resolved == "$fallback_home" ]] ||
+  fail "a focused app that is not a terminal opens a new terminal in HOME, not its helper shell's directory" "expected: $fallback_home
+actual:   $resolved"
+pass "a focused app that is not a terminal opens a new terminal in HOME, not its helper shell's directory"
+
+# The same browser started from a terminal's shell: its helper shares that pty,
+# but only the shell leads a session.
+browser_pidfile="$test_tmp/browser.pid"
+start_terminal_window "cd '$test_tmp/foreground' && exec bash -c \"echo \\\$\\\$ >'$browser_pidfile'; (cd '$test_tmp/Downloads' && bash -c 'sleep 300; :') & wait\""
+wait_for_file "$browser_pidfile" || fail "the browser started from a terminal starts"
+sleep 1
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$(<"$browser_pidfile")")
+[[ $resolved == "$fallback_home" ]] ||
+  fail "an app started from a terminal, sharing its pty, still opens a new terminal in HOME" "expected: $fallback_home
+actual:   $resolved"
+pass "an app started from a terminal, sharing its pty, still opens a new terminal in HOME"
+
 # kitty answers over its own socket, before the process tree is walked.
 mkdir -p "$test_tmp/kitty-pane"
 cat >"$mock_bin/kitten" <<'SH'

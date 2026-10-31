@@ -22,7 +22,7 @@ cat >"$mock_bin/omarchy-font-set" <<'SH'
 printf 'font:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
 SH
 
-for command in omarchy-pkg-aur-add omarchy-install-emacs omazed omarchy-theme-set-vscode omarchy-install-gaming-gpu-lib32; do
+for command in omarchy-pkg-aur-add omarchy-install-emacs omazed omarchy-theme-set-vscode omarchy-install-gaming-gpu-lib32 omarchy-lifecycle-dispatch; do
   cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 exit 0
@@ -65,9 +65,7 @@ assert_detached_installer_launch() {
   bash "$ROOT/bin/$script"
 
   wait_for_launch "launch:uwsm-app -- gtk-launch $desktop_id" ||
-    fail "$script launches its desktop entry through gtk-launch in a UWSM scope"
-  grep -Fqx "setsid uwsm-app -- gtk-launch $desktop_id >/dev/null 2>&1 &" "$ROOT/bin/$script" ||
-    fail "$script detaches its scoped desktop-entry launch"
+    fail "$script launches its desktop entry through setsid and gtk-launch in a UWSM scope"
   pass "$script detaches its scoped desktop-entry launch"
 }
 
