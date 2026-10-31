@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# omarchy:summary=Fire the hyprland-config hook with the config files changed since the last Hyprland config reload.
+# omarchy:hidden=true
+
+set -euo pipefail
+
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/hyprland-config"
+SNAPSHOT="$STATE_DIR/snapshot"
+LOCK="$STATE_DIR/lock"
+
+mkdir -p "$STATE_DIR"
+
+# Serialize overlapping reloads, so each one reads a complete snapshot and no two
+# race on the temporary file. The lock releases when this script exits.
+exec 9>"$LOCK"
+flock 9
+
+declare -A old_hashes=()
+declare -A new_hashes=()
+changed=()
+
+snapshot_exists=0
+[[ -f $SNAPSHOT ]] && snapshot_exists=1
+
+if (( snapshot_exists )); then
+  while IFS='=' read -r name hash; do
+    [[ -n $name ]] && old_hashes["$name"]=$hash
+  done <"$SNAPSHOT"
+fi
+
+shopt -s nullglob
+for file in "$CONFIG_DIR"/*.lua; do
+  # Skip broken symlinks: the glob lists them, but hashing them would fail under
+  # set -e and leave the snapshot stale.
+  [[ -f $file ]] || continue
+  name=$(basename "$file")
+  new_hashes["$name"]=$(sha256sum "$file" | cut -d' ' -f1)
+done
+
+# The first run only establishes the baseline; with no earlier snapshot there is
+# nothing to diff against yet.
+if (( snapshot_exists )); then
+  # Compare by full filename key, so `bindings.lua` never matches `mybindings.lua`.
+  # Walking the sorted union of old and new names reports added and removed files
+  # too, in a deterministic order.
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    if [[ ${new_hashes[$name]:-} != "${old_hashes[$name]:-}" ]]; then
+      changed+=("${name%.lua}")
+    fi
+  done < <(printf '%s\n' "${!old_hashes[@]}" "${!new_hashes[@]}" | sort -u)
+fi
+
+: >"$SNAPSHOT.tmp"
+for name in "${!new_hashes[@]}"; do
+  printf '%s=%s\n' "$name" "${new_hashes[$name]}"
+done >"$SNAPSHOT.tmp"
+mv "$SNAPSHOT.tmp" "$SNAPSHOT"
+
+# Release and close the lock before firing the hook: a user hook that starts a
+# background program would otherwise hand that process the open descriptor and
+# keep later reloads waiting on it.
+flock -u 9
+exec 9>&-
+
+csv=$(IFS=,; printf '%s' "${changed[*]}")
+omarchy-hook hyprland-config "$csv"
