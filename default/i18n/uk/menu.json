@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Тест швидкості диска"
   },
-  "setup.monitors": {
-    "label": "Монітори"
-  },
   "setup.keybindings": {
     "label": "Сполучення клавіш"
   },

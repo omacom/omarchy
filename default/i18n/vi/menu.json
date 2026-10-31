@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Kiểm tra tốc độ đĩa"
   },
-  "setup.monitors": {
-    "label": "Màn hình"
-  },
   "setup.keybindings": {
     "label": "Phím tắt"
   },

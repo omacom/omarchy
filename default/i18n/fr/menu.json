@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test débit disque"
   },
-  "setup.monitors": {
-    "label": "Écrans"
-  },
   "setup.keybindings": {
     "label": "Raccourcis clavier"
   },

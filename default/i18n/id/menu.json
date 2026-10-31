@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Uji Kecepatan Disk"
   },
-  "setup.monitors": {
-    "label": "Monitor"
-  },
   "setup.keybindings": {
     "label": "Pintasan Tombol"
   },

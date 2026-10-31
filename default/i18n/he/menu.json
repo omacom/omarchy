@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "בדיקת מהירות דיסק"
   },
-  "setup.monitors": {
-    "label": "מסכים"
-  },
   "setup.keybindings": {
     "label": "קיצורי מקלדת"
   },

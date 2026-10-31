@@ -2,42 +2,42 @@
 
 ### Pokvario sam sustav ažuriranjem!
 
-Prvo pokušajte [vratiti sustav](47-system-snapshots.md) na verziju prije nedavnog ažuriranja. Ako to ne uspije, pomoću `omarchy-debug` podijelite svoj problem na #omarchy-help u Discordu. A ako sve to ne uspije, možete ponovno instalirati zadane konfiguracije i pakete pomoću `omarchy-reinstall`.
+Najprije pokušajte [vratiti sustav](47-system-snapshots.md) na verziju prije nedavnog ažuriranja. Ako to ne uspije, upotrijebite `omarchy-debug` da svoj problem podijelite na kanalu #omarchy-help na Discordu. A ako ni to ne uspije, zadane konfiguracije i pakete možete ponovno instalirati pomoću `omarchy-reinstall`.
 
-### Zašto su neke aplikacije tako velike na mom zaslonu?
+### Zašto su neke aplikacije tako velike na mojem zaslonu?
 
-Omarchy pretpostavlja 2x zaslon visoke razlučivosti, što zahtijeva postavljanje `GDK_SCALE` na 2 u `~/.config/hypr/monitors.lua`. No ako ste na 1x zaslonu, možete promijeniti `local omarchy_gdk_scale = 2` u 1 (a zatim ponovno pokrenite svaku aplikaciju koja je prevelika). Pogledajte [priručnik o monitorima](33-monitors.md).
+Omarchy pretpostavlja 2x zaslon visoke razlučivosti pa postavlja `GDK_SCALE` na 2 dok ne odaberete mjerilo na ploči za monitor. Ako imate 1x zaslon, a GTK ili X11 aplikacije ispadnu prevelike, odaberite 1x za njega na ploči za monitor ili dodajte `hl.env("GDK_SCALE", "1")` u `~/.config/hypr/monitors.lua` (a zatim ponovno pokrenite svaku aplikaciju koja je prevelika). Pogledajte [priručnik o monitorima](33-monitors.md).
 
-Za Spotify možete koristiti `Ctrl + Minus` za smanjivanje sučelja (i `Ctrl + Plus` za povećavanje).
+Za Spotify možete upotrijebiti `Ctrl + Minus` za smanjivanje korisničkog sučelja (i `Ctrl + Plus` za povećavanje).
 
-### Zašto su sve moje kombinacije tipki sa Super prestale raditi?
+### Zašto su sve moje prečice s tipkom Super prestale raditi?
 
-Na nekim prijenosnim računalima ASUS ROG i TUF, `Fn + Super` lako je previdjeti kao kombinaciju koja uključuje i isključuje zaključavanje Windows tipke u firmveru (namijenjeno za igranje, da slučajno ne izađete iz igre). Ništa na zaslonu ne govori vam da se to dogodilo. Dok je zaključavanje uključeno, Super uopće ništa ne šalje — pa svaka Omarchy kombinacija koja koristi Super jednostavno prestane raditi i izgleda kao da se Hyprland pokvario.
+Na nekim prijenosnim računalima ASUS ROG i TUF `Fn + Super` kombinacija je koju je lako previdjeti, a njome se uključuje i isključuje firmversko zaključavanje tipke Windows (namijenjeno igranju da slučajno ne izađete iz igre). Ništa na zaslonu ne govori vam da se to dogodilo. Dok je zaključavanje uključeno, Super ne šalje baš ništa — pa svaka Omarchy prečica koja upotrebljava Super jednostavno prestane raditi i izgleda kao da se Hyprland pokvario.
 
-Pritisnite `Fn + Super` jednom prije nego što počnete kopati po `~/.config/hypr/`, a ako to ne vrati Super, pritisnite je ponovno da ne ostavite zaključavanje uključeno. To nije Fn-lock, koji mijenja samo ono što radi red F-tipki.
+Pritisnite `Fn + Super` jednom prije nego što počnete kopati po `~/.config/hypr/`, a ako vam to ne vrati Super, pritisnite je ponovno da zaključavanje ne ostane uključeno. To nije Fn-lock, koji mijenja samo što radi red F-tipki.
 
-### Moj Wi-Fi, Bluetooth, zvuk ili trackpad upravo je prestao raditi
+### Moji Wi-Fi, Bluetooth, zvuk ili trackpad upravo su prestali raditi
 
-Prije ponovnog pokretanja pokušajte zasebno ponovno pokrenuti podsustav koji stvara probleme. _Update > Hardware_ u izborniku Omarchy ima Wi-Fi, Bluetooth, Audio i Trackpad, a ponovno učitavanje jednog od njih rješava većinu situacija tipa „radilo je prije pet minuta“ — Bluetooth slušalice koje se ne žele ponovno povezati, trackpad koji je prestao raditi nakon suspendiranja, zvuk koji je nestao kad ste isključili monitor.
+Prije ponovnog pokretanja računala pokušajte samostalno ponovno pokrenuti problematični podsustav. U Omarchy izborniku pod _Update > Hardware_ nalaze se Wi-Fi, Bluetooth, Audio i Trackpad, a ponovno učitavanje jednog od njih rješava većinu situacija tipa „radilo je prije pet minuta“ — Bluetooth slušalice koje se neće ponovno povezati, trackpad koji je prestao raditi nakon suspendiranja, zvuk koji je nestao kad ste isključili monitor.
 
 ### Zašto moji vanjski zvučnici ne sviraju?
 
-Vjerojatno zato što nisu postavljeni kao primarni izlaz. Kliknite ikonu zvučnika na desnoj strani trake i otvorit će se skočni prozor za glasnoću u kojem možete odabrati izlazni uređaj (i miješati glasnoću za svaku aplikaciju).
+Vjerojatno zato što nisu postavljeni kao primarni izlaz. Kliknite ikonu zvučnika na desnoj strani trake i otvorit će se skočni prozor za glasnoću u kojem možete odabrati izlazni uređaj (i podešavati glasnoću za svaku aplikaciju zasebno).
 
-### Zvučnici mog prijenosnog računala zvuče čudno
+### Zvučnici mojeg prijenosnog računala zvuče čudno
 
-Na nekim prijenosnim računalima Omarchy automatski primjenjuje ugađanje zvučnika koje ispravlja frekvencijski odziv ugrađenih zvučnika. `omarchy audio tuning status` govori vam je li neko ugađanje aktivno na vašem računalu, a `omarchy audio tuning off` isključuje ga ako radije želite čuti zvučnike bez obrade.
+Na nekim prijenosnim računalima Omarchy automatski primjenjuje podešavanje zvučnika koje ispravlja frekvencijski odziv ugrađenih zvučnika. `omarchy audio tuning status` govori vam je li neko podešavanje aktivno na vašem računalu, a `omarchy audio tuning off` isključuje ga ako zvučnike radije slušate bez ikakve obrade.
 
-### Zašto se ne mogu prijaviti ili koristiti sudo svojom lozinkom?
+### Zašto se ne mogu prijaviti ni koristiti sudo sa svojom lozinkom?
 
-Vjerojatno ste je previše puta pogrešno upisali i zaključali ste se van. Ako se to događa na zaslonu za zaključavanje, možete pritisnuti `CTRL + ALT + F2` za pokretanje novog TTY-ja u kojem se možete prijaviti kao root, zatim pokrenuti `faillock --reset --user [your-username]`. To će poništiti zaključavanje i spremni ste za dalje.
+Vjerojatno ste je previše puta pogrešno upisali pa ste zaključani. Ako se to događa na zaključanom zaslonu, možete pritisnuti `CTRL + ALT + F2` da pokrenete novi TTY na kojem se možete prijaviti kao root, a zatim pokrenuti `faillock --reset --user [your-username]`. Time ćete poništiti zaključavanje i možete nastaviti.
 
-### Zašto se ne pojavljuju moji upiti za autorizaciju 1Passworda za 1Password SSH Agent / CLI?
+### Zašto se moji upiti za autorizaciju aplikacije 1Password za 1Password SSH Agent / CLI ne pojavljuju?
 
 To se može dogoditi iz 2 razloga:
 
-Da bi se pojavio bogati upit za odobrenje, Settings > Advanced > Use Hardware Acceleration mora biti uključen. _Napomena: Da bi počelo raditi, potrebno je ponovno pokretanje._
+Da bi se pojavio bogati upit za odobrenje, opcija Settings > Advanced > Use Hardware Acceleration mora biti uključena. _Napomena: Da bi počela raditi, potrebno je ponovno pokretanje računala._
 
  ![troubleshooting-1password](images/troubleshooting-1password.webp)
 
-Ili ako niste pokrenuli 1Password od pokretanja sustava, upit se neće pojaviti.
+Ili, ako od pokretanja računala niste pokrenuli 1Password, upit se neće pojaviti.

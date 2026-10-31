@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Lemez sebességteszt"
   },
-  "setup.monitors": {
-    "label": "Monitorok"
-  },
   "setup.keybindings": {
     "label": "Billentyűk"
   },

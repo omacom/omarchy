@@ -1,69 +1,68 @@
 # Monitorji
 
-Omarchy privzeto predpostavlja, da uporabljaš zaslon razreda retina, ki podpira skaliranje 2x. To potrebuješ, če želiš tiste lepe, ostre programerske pisave. Za to so optimizirani skoraj vsi novi vrhunski prenosniki z zasloni visoke ločljivosti. To bi želel uporabljati na 27" 5K [Apple Studio Display](https://www.apple.com/studio-display/)/[ProArt PA27JCV](https://www.asus.com/us/displays-desktops/monitors/proart/proart-display-5k-pa27jcv/)/[Samsung S9](https://www.samsung.com/us/computing/monitors/5k/27-viewfinity-s9-5k-monitor-with-thunderbolt-4-matte-display-and-smart-features-ls27c900panxza/)/[Kuycon G27P](https://kuycon.us/monitors/G27P/) ali 32" 6K [Apple XDR](https://www.apple.com/pro-display-xdr/)/[ProArt PA32QCV](https://www.asus.com/displays-desktops/monitors/proart/proart-display-6k-pa32qcv/)/[Kuycon G32P](https://kuycon.us/monitors/G32P/).
+Omarchy privzema, da privzeto uporabljaš zaslon razreda retina z 2-kratno zmogljivostjo. To potrebuješ, da dobiš tiste lepe, ostre programerske pisave. Za to so optimizirani skoraj vsi novi vrhunski prenosniki z zasloni visoke ločljivosti. To bi želel uporabljati na 27" 5K [Apple Studio Display](https://www.apple.com/studio-display/)/[ProArt PA27JCV](https://www.asus.com/us/displays-desktops/monitors/proart/proart-display-5k-pa27jcv/)/[Samsung S9](https://www.samsung.com/us/computing/monitors/5k/27-viewfinity-s9-5k-monitor-with-thunderbolt-4-matte-display-and-smart-features-ls27c900panxza/)/[Kuycon G27P](https://kuycon.us/monitors/G27P/) ali 32" 6K [Apple XDR](https://www.apple.com/pro-display-xdr/)/[ProArt PA32QCV](https://www.asus.com/displays-desktops/monitors/proart/proart-display-6k-pa32qcv/)/[Kuycon G32P](https://kuycon.us/monitors/G32P/).
 
-Toda če ne uporabljaš zaslona s PPI 218 ali več, boš želel spremeniti nastavitve monitorja. Če imaš na primer 27" ali 32" 4K, lahko uporabiš delno skaliranje tako, da odpreš `~/.config/hypr/monitors.lua` (prek _Nastavitve > Monitorji_ v meniju Omarchy) in preklopiš na priporočilo za to kombinacijo:
-
-```lua
-local omarchy_gdk_scale = 2
-local omarchy_monitor_scale = 1.6
-```
-
-Če uporabljaš zaslon 1080p ali 1440p, boš verjetno želel uporabiti skaliranje 1x, zato lahko uporabiš:
+Če pa ne uporabljaš zaslona s PPI 218 ali več, boš želel spremeniti nastavitve monitorja. Če imaš na primer 27" ali 32" 4K, lahko zanj izbereš delno merilo na plošči za monitorje v zgornji vrstici ali nastaviš privzeto za vsak monitor tako, da odpreš `~/.config/hypr/monitors.lua` in preklopiš na priporočilo za to kombinacijo:
 
 ```lua
-local omarchy_gdk_scale = 1
-local omarchy_monitor_scale = 1
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1.6 })
 ```
 
-Spremembe `GDK_SCALE` veljajo za aplikacije, zagnane po spremembi (GTK pa upošteva samo cela števila, zato naj ostane pri celem številu, najbližjem skaliranju tvojega monitorja). Zato obvezno zapri okna, ki so po spremembi prevelika (ali zapri vsa okna s `Ctrl + Alt + Del`!).
+Če uporabljaš zaslon 1080p ali 1440p, boš verjetno želel uporabiti kar merilo 1x, enako za aplikacije GTK in X11, zato lahko uporabiš:
 
-Med glavnimi razmerji skaliranja monitorja (1x, 1.25x, 1.6x, 2x, 3x, 4x) lahko hitro prehajaš tudi z `Super + /` za višje in `Super + Alt + /` za nižje, ali pa eno izbereš na plošči monitorja v zgornji vrstici. Te spremembe vplivajo samo na monitor, na katerega si osredotočen, zato imata lahko zaslon prenosnika in zunanji zaslon vsak svoje skaliranje. Izbira se shrani v `~/.config/hypr/monitors.lua` kot pravilo `hl.monitor` za ta monitor, zato ostane tudi po ponovnem zagonu in ima prednost pred `omarchy_monitor_scale`, ki ostane skaliranje za vsak monitor brez lastnega pravila. Ker je `GDK_SCALE` ena vrednost za vse zaslone, ga te spremembe nastavijo glede na monitor z najnižjim skaliranjem, zato aplikacije X11 na gostejšem zaslonu izpadejo nekoliko majhne, namesto da bi bile na drugem prevelike.
+```lua
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
+hl.env("GDK_SCALE", "1")
+```
 
-### Povečevanje ali pomanjševanje besedila
+Spremembe `GDK_SCALE` veljajo za aplikacije, zagnane po spremembi (GTK pa upošteva samo cela števila, zato ga ohrani na celem številu, najbližjem merilu tvojega monitorja). Zato poskrbi, da zapreš okna, ki jih imaš in so po spremembi prevelika (ali zapri vsa okna s `Ctrl + Alt + Del`!).
 
-Skaliranje monitorja spremeni velikost vsega. Če želiš večje ali manjše samo _besedilo_, je za to ena sama nastavitev:
+Hitro lahko tudi preklapljaš med glavnimi razmerji merila monitorja (1x, 1.25x, 1.6x, 2x, 3x, 4x) s `Super + /` za višje in `Super + Alt + /` za nižje ali enega izbereš na plošči za monitorje v zgornji vrstici. Te spremenijo samo monitor, na katerega si osredotočen, zato imata zaslon prenosnika in zunanji zaslon lahko vsak svoje merilo. Plošča nastavi tudi ločljivost vsakega monitorja. Tvoje izbire so za ta fizični monitor shranjene v `~/.local/state/omarchy/monitors/settings`, zato se ohranijo po ponovnem zagonu in spremljajo monitor do vrat ali postaje, na katero ga priključiš naslednjič. Imajo prednost pred vsakim pravilom za isti monitor v `~/.config/hypr/monitors.lua`, ki ga Omarchy nikoli ne ureja. Ker je `GDK_SCALE` ena vrednost za vse zaslone, ga izbrano merilo nastavi glede na monitor z najnižjim merilom, zato so aplikacije X11 na gostejšem zaslonu videti malo premajhne in ne prevelike na drugem.
+
+### Povečanje ali pomanjšanje besedila
+
+Merilo monitorja spremeni velikost vsega. Če želiš le večje ali manjše _besedilo_, obstaja za to en sam gumb:
 
 ```
 omarchy display text size 14
 ```
 
-Ta sprejme velikost v slikovnih pikah med 9 in 20 ter skupaj premakne lupino Omarchy, aplikacije GTK in tvoj terminal, tako da celotno namizje ostane v sorazmerju. Zaženi jo brez argumenta, da vidiš, na čem si, z `omarchy display text size reset` pa se vrneš na privzeto vrednost. Foot je edini zaostajalec: svoje konfiguracije ne more znova naložiti, zato terminali, ki že tečejo, obdržijo staro velikost, dokler ne odpreš novega.
+Ta sprejme velikost v pikslih med 9 in 20 ter hkrati premakne lupino Omarchy, aplikacije GTK in tvoj terminal, tako da celotno namizje ostane v sorazmerju. Zaženi ga brez argumenta, da vidiš, kje si, in `omarchy display text size reset`, da se vrneš na privzeto. Foot je edini zaostanek: nima načina za ponovno nalaganje svoje konfiguracije, zato terminali, ki že tečejo, ohranijo staro velikost, dokler ne odpreš novega.
 
 ### Razširitev in zrcaljenje zaslonov prenosnika
 
-Ko na prenosnik priključiš zunanji zaslon, se prikaz samodejno razširi. To pa lahko spremeniš v zrcaljenje prek _Sprožilec > Strojna oprema_ v meniju Omarchy ali s `Super + Ctrl + Alt + Delete`. To je še posebej priročno, če je ta zunanji zaslon projektor in želiš med delom nekaj pokazati.
+Ko na prenosnik priključiš zunanji zaslon, se zaslon samodejno razširi. Lahko pa to spremeniš v zrcaljenje s pomočjo _Trigger > Hardware_ v meniju Omarchy ali `Super + Ctrl + Alt + Delete`. To je še posebej koristno, če je ta zunanji zaslon projektor in želiš med delom nekaj pokazati.
 
-Ko uporabljaš razširitev, se ob zaprtju pokrova prenosnika notranji zaslon samodejno izklopi. Ob odprtju pokrova se znova vklopi. To lahko nadziraš tudi ročno prek _Sprožilec > Strojna oprema_ v meniju Omarchy ali s `Super + Ctrl + Delete`.
+Ko razširjaš, bo zapiranje pokrova na prenosniku samodejno izklopilo notranji zaslon. Odprtje pokrova ga bo spet vklopilo. To lahko upravljaš tudi ročno s pomočjo _Trigger > Hardware_ v meniju Omarchy ali `Super + Ctrl + Delete`.
 
-### Razporeditev več zaslonov
+### Razporejanje več zaslonov
 
-Hyprland odlično deluje z več zasloni. Več o tem, kako jih razporediti, preberi v [dokumentaciji Hyprland o monitorjih](https://wiki.hypr.land/Configuring/Basics/Monitors/). V Omarchyju gredo te nastavitve v `~/.config/hypr/monitors.lua` kot vnosi `hl.monitor` — datoteka vsebuje zakomentirane primere za pripenjanje določenega monitorja na ločljivost, položaj in zasuk.
+Hyprland odlično deluje z več zasloni. Plošča za monitorje v zgornji vrstici jih nariše tam, kjer sedijo: povleci enega ob stran drugega, da ga premakneš tja, razporeditev pa se shrani skupaj z drugimi nastavitvami vsakega monitorja. Za vse, česar plošča ne pokriva, preberi več o tem, kako jih postaviti, v [dokumentaciji Hyprland o monitorjih](https://wiki.hypr.land/Configuring/Basics/Monitors/). V Omarchyju te vneseš v `~/.config/hypr/monitors.lua` kot vnose `hl.monitor` — datoteka je opremljena s komentiranimi primeri za pripenjanje določenega monitorja na ločljivost, položaj in vrtenje.
 
-Vsak monitor ima svojih delovnih prostorov od 1 do 10, zato `Super + 1` vedno pomeni prvi delovni prostor monitorja, na katerem si. V ozadju Hyprland delovne prostore vseeno številči čez vse monitorje: zaslon tvojega prenosnika (ali prvi monitor) dobi 1–10, naslednji monitor 11–20 in tako naprej, vsak monitor pa obdrži svoj blok ob vsakem priklopu. Ta števila uporabi, če pišeš [pravila za delovne prostore](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) ali pravila za okna za določen monitor, tako da je delovni prostor 12 drugi delovni prostor tvojega drugega monitorja. `~/.local/state/omarchy/monitor-workspaces` navaja, kateri blok ima vsak monitor.
+Vsak monitor ima svojih delovnih prostorov 1 do 10, zato `Super + 1` vedno pomeni prvi delovni prostor monitorja, na katerem si. Za kulisami Hyprland še vedno številči delovne prostore čez vse monitorje: zaslon tvojega prenosnika (ali prvi monitor) dobi 1–10, naslednji monitor 11–20 in tako naprej, vsak monitor pa obdrži svoj blok vsakič, ko ga priključiš. Te številke uporabi, če pišeš [pravila za delovne prostore](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) ali pravila za okna za določen monitor, tako da je delovni prostor 12 drugi delovni prostor tvojega drugega monitorja. `~/.local/state/omarchy/monitors/workspaces` navaja, kateri blok ima vsak monitor.
 
-Smerne tipke delujejo čez monitorje, ki si v tvoji postavitvi delijo rob. Zasloni, ki se dotikajo samo v kotu ali imajo med seboj vrzel, niso sosedje, zato za premik med njimi uporabi `Ctrl + Alt + Tab`.
+Smerne tipke delujejo čez monitorje, ki si delijo rob v tvoji postavitvi. Zasloni, ki se dotikajo samo v kotu ali med katerimi je vrzel, nista soseda, zato za premik med njimi uporabi `Ctrl + Alt + Tab`.
 
 | Bližnjica | Čez monitorje |
 | --- | --- |
 | `Super + Arrow` | Premakne fokus na monitor na tisti strani, ko v tisti smeri ni več nobenega okna |
 | `Super + Shift + Arrow` | Zamenja z oknom na monitorju na tisti strani |
 | `Super + Alt + Arrow` | Premakne okno v skupino na monitorju na tisti strani |
-| `Super + Shift + Ctrl + Arrow` | Premakne okno na monitor na tisti strani, na delovni prostor, ki ga ta prikazuje |
+| `Super + Shift + Ctrl + Arrow` | Premakne okno na monitor na tisti strani, na delovni prostor, ki ga prikazuje |
 | `Super + Shift + Alt + Arrow` | Premakne delovni prostor na monitor na tisti strani in obdrži njegovo številko, če je prosta |
 | `Ctrl + Alt + Tab` / `Ctrl + Alt + Shift + Tab` | Premakne fokus na naslednji ali prejšnji monitor, ne glede na postavitev |
 | `Super + 1-0`, `Super + Tab`, `Super + Scroll Wheel` | Ostanejo na monitorju, na katerem si |
 
-Oglej si tudi [Hyprmon](https://github.com/erans/hyprmon/), če želiš TUI, ki ti pomaga pri postavljanju več zaslonov.
+Ogledaš si lahko tudi [Hyprmon](https://github.com/erans/hyprmon/), če želiš TUI, ki ti bo pomagal pri postavljanju več zaslonov.
 
-### Nadzor svetlosti
+### Upravljanje svetlosti
 
-Svetlost monitorja nadziraš z namenskima funkcijskima tipkama za povečanje/zmanjšanje svetlosti. Če med pritiskanjem teh tipk držiš Shift, greš na največjo ali najmanjšo svetlost. Tipke nadzirajo zaslon, na katerega si osredotočen, zato se zunanji monitorji, ki govorijo DDC/CI, prilagajajo enako kot zaslon prenosnika.
+Svetlost monitorja se upravlja z namenskima funkcijskima tipkama za povečanje/zmanjšanje svetlosti. Če med pritiskanjem teh tipk držiš shift, boš šel na največjo ali najmanjšo svetlost. Tipke upravljajo zaslon, na katerega si osredotočen, zato se zunanji monitorji, ki govorijo DDC/CI, prilagajajo enako kot zaslon prenosnika.
 
 ### Zasloni Apple
 
-Če uporabljaš zaslon Apple, bodo običajne tipke za svetlost na tipkovnici samodejno delovale tudi zanj, če si osredotočen na zaslon Apple. To poteka prek ukaza `asdcontrol`.
+Če uporabljaš zaslon Apple, bodo običajne tipke za svetlost na tipkovnici samodejno delovale tudi, če si osredotočen na zaslon Apple. To se naredi z ukazom `asdcontrol`.
 
-Upoštevaj, da boš pri uporabi zaslona Apple 6K XDR v izpisu `hyprctl monitors` morda videl fantomski zaslon. Izklopiš ga lahko z nečim podobnim kot `hl.monitor({ output = "DP-2", disabled = true })` prek _Nastavitve > Monitorji_.
+Upoštevaj, da boš, če uporabljaš zaslon Apple 6K XDR, na seznamu `hyprctl monitors` morda videl fantomski zaslon. To lahko izklopiš z nečim, kot je `hl.monitor({ output = "DP-2", disabled = true })` v `~/.config/hypr/monitors.lua`.
 
-Na napravah Intel se na zaslone Apple poveži z običajnim kablom Thunderbolt. Na drugih napravah brez Thunderbolta boš običajno moral uporabiti [kabel DP + USB-A -> USB-C](https://www.amazon.com/dp/B0BNX7MS6N), da bo delovalo.
+Na računalnikih Intel moraš zaslone Apple povezovati z običajnim kablom Thunderbolt. Na drugih računalnikih brez Thunderbolta boš, da bo delovalo, običajno moral uporabiti [kabel DP + USB-A -> USB-C](https://www.amazon.com/dp/B0BNX7MS6N).
