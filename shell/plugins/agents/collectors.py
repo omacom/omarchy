@@ -39,7 +39,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter
-from compression import zstd
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator, NamedTuple
@@ -2434,10 +2433,16 @@ def _codex_rollout_files(root: Path) -> list[Path]:
   return [path for path in paths if not (path.name.endswith(".zst") and path.with_suffix("") in paths)]
 
 
+# What reading a rollout can fail with: a truncated or damaged .zst too.
+_CODEX_READ_ERRORS = (OSError, EOFError) + (() if zstd is None else (zstd.ZstdError,))
+
+
 def _codex_open(path: Path) -> Any:
-  if path.name.endswith(".zst"):
-    return zstd.open(path, "rb")
-  return path.open("rb")
+  if not path.name.endswith(".zst"):
+    return path.open("rb")
+  if zstd is None:
+    raise OSError(f"no zstd support in this Python to read {path}")
+  return zstd.open(path, "rb")
 
 
 def read_codex_rollout(path: Path, stat_result: os.stat_result, previous: dict[str, Any] | None = None, native: bool = False) -> dict[str, Any]:
@@ -2631,8 +2636,7 @@ def read_codex_rollout(path: Path, stat_result: os.stat_result, previous: dict[s
           "model": current_model, "meta": seen_meta, "typed": typed, "pending": list(pending_prompts),
           "total": previous_total_usage, "records": seen_records, "responses": sorted(seen_responses), "done": done,
         }
-  except (OSError, EOFError, zstd.ZstdError):
-    # A truncated or damaged .zst is a rollout that couldn't be read.
+  except _CODEX_READ_ERRORS:
     record["mtime"] = None
     resumable = False
   # A prompt no request answered yet, or ever, was put to the last model.
