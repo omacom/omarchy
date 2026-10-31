@@ -58,6 +58,8 @@ run_logged "$OMARCHY_INSTALL/hardware/lenovo/yoga-slim7x.sh"
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/thinkpad-t14s-camera.sh"
 run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-pro-11.sh"
 
+run_logged "$OMARCHY_INSTALL/hardware/hp/fix-victus-lid-wlan.sh"
+
 run_logged "$OMARCHY_INSTALL/hardware/fix-bcm43xx.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-surface-keyboard.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-yt6801-ethernet-adapter.sh"
