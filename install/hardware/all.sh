@@ -5,6 +5,7 @@ run_logged "$OMARCHY_INSTALL/hardware/surface.sh"
 run_logged "$OMARCHY_INSTALL/hardware/gb10/sleep.sh"
 run_logged "$OMARCHY_INSTALL/hardware/nvidia/dgx-spark-boot.sh"
 
+run_logged "$OMARCHY_INSTALL/hardware/memory-watermark.sh"
 run_logged "$OMARCHY_INSTALL/hardware/network.sh"
 run_logged "$OMARCHY_INSTALL/hardware/set-wireless-regdom.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-fkeys.sh"
