@@ -3,18 +3,42 @@
 # omarchy:summary=Reset the trackpad by unbinding and rebinding its driver.
 # omarchy:requires-sudo=true
 
-for dev in /sys/bus/i2c/drivers/i2c_hid_acpi/i2c-*; do
-  [[ -e $dev ]] || continue
-  I2C_DEVICE=$(basename "$dev")
-  echo "Resetting $I2C_DEVICE via i2c_hid_acpi unbind/rebind..."
-  echo "$I2C_DEVICE" | sudo tee /sys/bus/i2c/drivers/i2c_hid_acpi/unbind > /dev/null
-  sleep 1
-  echo "$I2C_DEVICE" | sudo tee /sys/bus/i2c/drivers/i2c_hid_acpi/bind > /dev/null
-  echo "Done"
+i2c_drivers="${OMARCHY_I2C_DRIVERS_PATH:-/sys/bus/i2c/drivers}"
+found=false
+failed=false
+
+# elan_i2c binds only ELAN touchpads (and a TrackPoint wired through one), so
+# everything under it is one to reset.
+for driver in i2c_hid_acpi elan_i2c; do
+  for dev in "$i2c_drivers/$driver"/i2c-*; do
+    [[ -e $dev ]] || continue
+    found=true
+    I2C_DEVICE=$(basename "$dev")
+    echo "Resetting $I2C_DEVICE via $driver unbind/rebind..."
+    if echo "$I2C_DEVICE" | sudo tee "$i2c_drivers/$driver/unbind" > /dev/null &&
+      sleep 1 &&
+      echo "$I2C_DEVICE" | sudo tee "$i2c_drivers/$driver/bind" > /dev/null; then
+      echo "Done"
+    else
+      echo "Failed to reset $I2C_DEVICE" >&2
+      failed=true
+    fi
+  done
 done
 
 # Also try THC path
 if lsmod | grep -q intel_quicki2c; then
+  found=true
   echo "Reloading intel_quicki2c..."
-  sudo modprobe -r intel_quicki2c && sudo modprobe intel_quicki2c
+  if ! sudo modprobe -r intel_quicki2c || ! sudo modprobe intel_quicki2c; then
+    echo "Failed to reload intel_quicki2c" >&2
+    failed=true
+  fi
+fi
+
+if [[ $found == "false" ]]; then
+  echo "No trackpad found on i2c_hid_acpi, elan_i2c or intel_quicki2c to reset." >&2
+  exit 1
+elif [[ $failed == "true" ]]; then
+  exit 1
 fi
