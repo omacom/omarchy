@@ -277,8 +277,8 @@ BarWidget {
         fixedWidth: root.vertical ? root.barSize : Style.space(20)
         fixedHeight: root.barSize
         onPressed: function() {
-          if (shown) root.cycleLayout()
-          else root.focusWorkspace(modelData)
+          if (shown && root.bar && root.bar.cycleLayoutOnClick) root.cycleLayout()
+          else if (!shown) root.focusWorkspace(modelData)
         }
         onWheelMoved: function(delta) { root.scrollWorkspaces(delta) }
       }

@@ -2,7 +2,7 @@
 
 # omarchy:summary=Configure the bar and its widget layout
 # omarchy:group=bar
-# omarchy:args=use <id> | reset | defaults | position [top|bottom|left|right] | background [opaque|glassy|none|cycle] | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement] | get <id> <key>
+# omarchy:args=use <id> | reset | defaults | position [top|bottom|left|right] | background [opaque|glassy|none|cycle] | clicks [background|layout] [on|off] | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement] | get <id> <key>
 # omarchy:examples=omarchy bar use local.neon-bar | omarchy bar put omarchy.keyboard-layout --after omarchy.clock | omarchy bar move omarchy.weather --section centerBegin --index 0 | omarchy bar set omarchy.clock format HH:mm
 
 set -euo pipefail
@@ -23,6 +23,12 @@ Usage: omarchy bar <command> [args...]
                                        behind the bar blurred, cycle steps
                                        none, glassy, opaque; prints the
                                        current one when given none
+  clicks [background|layout] [on|off]
+                                       The bar's click cycles: a double-click
+                                       on empty bar space steps the background,
+                                       and a press on the active workspace
+                                       number cycles that workspace's layout;
+                                       prints both when given none
   put <id> [placement]                 Put a widget on the bar, leaving one
                                        that is already there where it is
   move <id> [placement]                Move a widget within or between sections
@@ -255,6 +261,50 @@ cmd_background() {
   echo "Bar background set to $background"
 }
 
+# The two click cycles: double-clicking empty bar space steps the background
+# around, and pressing the active workspace number cycles the workspace's
+# layout. Both stay on unless the user says otherwise; the commands and the
+# menu work either way.
+click_state() {
+  if [[ $(jq -r --arg key "$1" '.bar.clicks[$key] == false' "$(source_file)") == true ]]; then
+    echo off
+  else
+    echo on
+  fi
+}
+
+cmd_clicks() {
+  if (( $# == 0 )); then
+    printf 'background %s\n' "$(click_state background)"
+    printf 'layout %s\n' "$(click_state layout)"
+    return
+  fi
+
+  local what="$1" action="${2:-}"
+  (( $# <= 2 )) || fail "clicks takes background or layout and on or off"
+
+  if [[ $what =~ ^(on|off)$ ]]; then
+    (( $# == 1 )) || fail "clicks takes a single value"
+    action="$what"
+    what="both"
+  fi
+
+  [[ $what =~ ^(background|layout|both)$ ]] || fail "clicks must be background, layout, or on/off"
+  [[ $action =~ ^(on|off)$ ]] || fail "clicks $what must be on or off"
+
+  local value=true
+  if [[ $action == off ]]; then
+    value=false
+  fi
+  if [[ $what == both ]]; then
+    commit "$NORMALIZE | .bar.clicks.background = $value | .bar.clicks.layout = $value"
+    echo "Bar clicks turned $action"
+  else
+    commit "$NORMALIZE | .bar.clicks.$what = $value"
+    echo "Bar $what clicks turned $action"
+  fi
+}
+
 # The older on/off form of the background, kept for scripts and dotfiles:
 # transparent is none, and not transparent is opaque.
 cmd_transparent() {
@@ -475,6 +525,9 @@ case "$command" in
     ;;
   background)
     cmd_background "$@"
+    ;;
+  clicks)
+    cmd_clicks "$@"
     ;;
   # Internal: the shell runs this when it loads a bar background, so one set
   # by editing shell.json gets its blur too.

@@ -73,6 +73,11 @@ Item {
   property bool centerHoverRevealSuppressed: false
   property int barConfigSerial: 0
   property string position: "top"
+  // The bar's two click cycles, off through the user's bar.clicks: the
+  // empty-space double-click steps the background, and a press on the active
+  // workspace number cycles that workspace's layout.
+  property bool cycleBackgroundOnClick: true
+  property bool cycleLayoutOnClick: true
   // Resolves through fontconfig at paint time (Style.font.family defaults
   // to "monospace"), so changing the system font (via `omarchy-font-set`)
   // updates the bar without a reload.
@@ -239,6 +244,7 @@ Item {
     api.vertical = Qt.binding(function() { return root.vertical })
     api.barSize = Qt.binding(function() { return root.barSize })
     api.transparent = Qt.binding(function() { return root.transparent })
+    api.cycleLayoutOnClick = Qt.binding(function() { return root.cycleLayoutOnClick })
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
     api.centerSectionRevealHeld = Qt.binding(function() { return root.centerSectionRevealHeld })
     api._centerHoverRevealSuppressed = Qt.binding(function() { return root.centerHoverRevealSuppressed })
@@ -811,6 +817,11 @@ Item {
     // moves and whatever its settings, so a config write builds just the
     // widgets it adds (layoutWidgets).
     layoutConfig = normalizeLayout(config.layout)
+    // Only an explicit false turns a click cycle off; a config from before
+    // the clicks key keeps both.
+    var clicks = Util.isPlainObject(config.clicks) ? config.clicks : ({})
+    cycleBackgroundOnClick = clicks.background !== false
+    cycleLayoutOnClick = clicks.layout !== false
     barConfigSerial++
   }
 
@@ -2542,7 +2553,7 @@ Item {
         suppressClick = false
         return
       }
-      if (mouse.button === Qt.LeftButton) {
+      if (mouse.button === Qt.LeftButton && root.cycleBackgroundOnClick) {
         root.cycleBackground()
         mouse.accepted = true
       }
