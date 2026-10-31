@@ -39,12 +39,19 @@ end
 
 local function workspace_numbered(id)
   for _, workspace in ipairs(world.workspaces) do
-    if workspace.id == id then return workspace end
+    if id ~= nil and (workspace.id == id or workspace.name == id) then return workspace end
   end
 end
 
 local function create(id, monitor)
   local workspace = { id = id, monitor = monitor }
+  world.workspaces[#world.workspaces + 1] = workspace
+  return workspace
+end
+
+-- A named workspace has no id, as on Hyprland 0.57.
+function create_named(name, monitor)
+  local workspace = { name = name, monitor = monitor }
   world.workspaces[#world.workspaces + 1] = workspace
   return workspace
 end
@@ -99,7 +106,7 @@ function workspace_object(workspace)
   if not workspace then return nil end
   return setmetatable({}, { __index = function(_, key)
     if key == "id" then return workspace.id end
-    if key == "name" then return tostring(workspace.id) end
+    if key == "name" then return workspace.name or tostring(workspace.id) end
     if key == "special" then return false end
     if key == "windows" then return windows_on(workspace.id) end
     if key == "monitor" then return monitor_object(monitor_named(workspace.monitor)) end
@@ -618,3 +625,18 @@ hl.dispatch(m.move_to_monitor("u"))
 check(world.windows["0xa"].workspace == 11 and world.focused == "DP-1", "a move toward no monitor did something")
 ' || fail "a window moves to the monitor in a direction, and nowhere when there is none"
 pass "a window moves to the monitor in a direction, and nowhere when there is none"
+
+run_lua named '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+create_named("name:B", "DP-1")
+monitor_named("DP-1").active = "name:B"
+world.focused = "eDP-1"
+window("0xa", 2)
+local m = load_module()
+local ok, err = pcall(world.handlers["hyprland.start"])
+check(ok, "reconcile failed with a named workspace: " .. tostring(err))
+check(on(2) == "eDP-1", "a numbered workspace was not placed")
+check(shows("DP-1") == "name:B", "the monitor left its named workspace: " .. tostring(shows("DP-1")))
+' || fail "a named workspace does not break reconcile and its monitor stays on it"
+pass "a named workspace does not break reconcile and its monitor stays on it"
