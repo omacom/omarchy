@@ -32,3 +32,27 @@ assertEqual(
   'dropbox file metadata includes relative time and folder'
 )
 JS
+
+# Dropbox status.py must not call dropbox-cli when the user is not linked,
+# because `dropbox-cli status` mints a new cli_link_nonce on every call and
+# invalidates the login URL while the user is authenticating in a browser.
+TMP_HOME=$(mktemp -d)
+TMP_BIN="$TMP_HOME/bin"
+CALL_LOG="$TMP_HOME/dropbox-cli-calls.txt"
+trap 'rm -rf "$TMP_HOME"' EXIT
+
+mkdir -p "$TMP_BIN"
+cat > "$TMP_BIN/dropbox-cli" <<'FAKE'
+#!/bin/bash
+printf '%s\n' "$*" >> "${DROPBOX_CLI_LOG:?}"
+exit 0
+FAKE
+chmod +x "$TMP_BIN/dropbox-cli"
+
+HOME="$TMP_HOME" PATH="$TMP_BIN:$PATH" DROPBOX_CLI_LOG="$CALL_LOG" \
+  python3 "$ROOT/shell/plugins/panels/dropbox/status.py" >/dev/null
+
+if [[ -e $CALL_LOG ]]; then
+  fail "status.py called dropbox-cli for an unlinked account"
+fi
+pass "status.py avoids dropbox-cli status when unauthenticated"
