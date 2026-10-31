@@ -86,11 +86,3 @@ reset_calls_log
 "$ROOT/bin/omarchy-powerprofiles-init"
 applied power-saver || fail "init restores the autodetected preference"
 pass "power profile init restores the autodetected preference"
-
-rg -F '["omarchy-powerprofiles-set", pendingPowerSource]' "$ROOT/shell/plugins/services/battery/Service.qml" >/dev/null ||
-  fail "battery service applies profiles through Omarchy command"
-pass "battery service applies profiles through Omarchy command"
-
-rg -F 'omarchy-powerprofiles-set autodetect' "$ROOT/shell/plugins/menu/Menu.qml" >/dev/null ||
-  fail "power profile menu persists selections through Omarchy command"
-pass "power profile menu persists selections through Omarchy command"

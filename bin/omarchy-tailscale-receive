@@ -59,20 +59,21 @@ claim_path() {
 announce() {
   local path="$1"
   local name="${path##*/}"
-  local args=("Received $name" "Saved to ${dir/#$HOME/~}")
+  # Taildrop only accepts files from your own devices, so an image previews like
+  # any other app's notification image. The send glyph stays as the fallback for
+  # an image that doesn't load and the mark for everything else. Naming the app
+  # stacks a batch of files into one deck rather than a toast apiece.
+  local args=("$(omarchy-i18n tailscale.received "$name")" "$(omarchy-i18n tailscale.savedTo "${dir/#$HOME/"~"}")" --app-name Taildrop -u critical -g 󰒊)
 
   case "${name,,}" in
   *.png | *.jpg | *.jpeg | *.gif | *.webp | *.avif | *.bmp | *.tif | *.tiff)
     args+=(--image "$path")
     ;;
-  *)
-    args+=(-g 󰒊)
-    ;;
   esac
 
   # Announcing is best-effort: the file is already delivered, and under `set -e`
   # a notification outage would otherwise kill the long-running receiver.
-  omarchy-notification-send "${args[@]}" --exec "$(printf 'xdg-open %q' "$path")" || true
+  omarchy-notification-send "${args[@]}" --exec xdg-open "$path" || true
 }
 
 deliver() {

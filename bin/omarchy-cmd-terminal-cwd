@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # omarchy:summary=Print the current working directory of the active terminal window
+# omarchy:args=[terminal-pid]
 # omarchy:hidden=true
 
-terminal_pid=$(hyprctl activewindow | awk '/pid:/ {print $2}')
+terminal_pid=${1:-$(hyprctl activewindow | awk '/pid:/ {print $2}')}
 kitty_socket="$XDG_RUNTIME_DIR/omarchy-kitty-$terminal_pid"
 cwd=""
 
@@ -11,7 +12,16 @@ if [[ -S $kitty_socket ]]; then
   cwd=$(kitten @ --to "unix:$kitty_socket" ls --match "state:focused" 2>/dev/null |
     jq -r '.[].tabs[].windows[].cwd // empty')
 else
-  shell_pid=$(pgrep -P "$terminal_pid" | tail -n1)
+  # The newest child, as pgrep -P | tail -n1 found it, read from the kernel's
+  # child lists: pgrep scans all of /proc on every new terminal.
+  shell_pid=""
+  for children_file in /proc/"$terminal_pid"/task/*/children; do
+    [[ -r $children_file ]] || continue
+    read -ra children <"$children_file" || true
+    for child in "${children[@]}"; do
+      (( child > ${shell_pid:-0} )) && shell_pid=$child
+    done
+  done
 
   if [[ -n $shell_pid ]]; then
     cwd=$(readlink -f "/proc/$shell_pid/cwd" 2>/dev/null)
