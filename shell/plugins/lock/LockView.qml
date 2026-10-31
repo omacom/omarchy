@@ -150,6 +150,16 @@ Item {
         verticalAlignment: TextInput.AlignVCenter
         horizontalAlignment: TextInput.AlignHCenter
         activeFocusOnPress: true
+        // The field is the only thing on this screen that takes keys, so take
+        // focus back whenever it is lost while input is on. Across a suspend
+        // the seat drops its keyboard, Qt clears the lock window's focus, and
+        // on resume Qt never re-activates the window even though Hyprland
+        // re-sends wl_keyboard.enter (QWaylandInputDevice::Keyboard's
+        // destructor bypasses QWaylandDisplay's focus bookkeeping), so typing
+        // went nowhere until a click. A disabled spell (checking a password)
+        // is left alone: Qt restores focus itself when the field re-enables.
+        // Once Qt keeps focus across a suspend this never fires.
+        onActiveFocusChanged: if (!activeFocus && root.inputEnabled && enabled) Qt.callLater(root.forcePasswordFocus)
         clip: true
         enabled: root.inputEnabled && !root.authenticatingPassword
         readOnly: root.authenticatingPassword
