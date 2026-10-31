@@ -8,6 +8,15 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
   omarchy-webapp-remove-all
   omarchy-tui-remove-all
 
+  podman_launcher="$HOME/.local/share/applications/io.podman_desktop.PodmanDesktop.desktop"
+  if [[ -f $podman_launcher ]] && grep -qx 'Exec=omarchy-launch-podman' "$podman_launcher"; then
+    rm -f "$podman_launcher"
+  fi
+  podman_tui_launcher="$HOME/.local/share/applications/Podman TUI.desktop"
+  if [[ -f $podman_tui_launcher ]] && grep -qx 'Exec=omarchy-launch-podman-tui' "$podman_tui_launcher"; then
+    rm -f "$podman_tui_launcher"
+  fi
+
   mkdir -p ~/.local/state/omarchy
   touch ~/.local/state/omarchy/preinstalls-removed
   hyprctl reload
@@ -46,6 +55,8 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     pinta \
     obsidian \
     moonlight-qt \
+    podman-desktop \
+    podman-tui \
     omacut \
     monologue \
     omacalc \

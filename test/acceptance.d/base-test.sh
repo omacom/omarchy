@@ -42,8 +42,15 @@ screen_contains() {
     rm -f "$snapshot"
     return 1
   fi
-  tesseract "$snapshot" stdout --psm 11 2>/dev/null | grep -Fi -- "$text" >/dev/null
-  local status=$?
+  local status=0
+  if ! tesseract "$snapshot" stdout --psm 11 2>/dev/null | grep -Fi -- "$text" >/dev/null; then
+    # Small, dim placeholders can disappear from sparse-text detection even
+    # though the prompt is visible. Resample a native capture before retrying;
+    # this preserves different glyph edges than grim's scaled capture.
+    timeout 10 grim "$snapshot" 2>/dev/null || { rm -f "$snapshot"; return 1; }
+    magick "$snapshot" -resize 200% "$snapshot"
+    tesseract "$snapshot" stdout --psm 11 2>/dev/null | grep -Fi -- "$text" >/dev/null || status=1
+  fi
   rm -f "$snapshot"
   return $status
 }
