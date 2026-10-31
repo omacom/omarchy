@@ -96,14 +96,20 @@ def main():
   quota = PLAN_QUOTAS.get(plan.lower(), 0)
   authenticated = account_path != "" and Path(account_path).exists()
 
-  running = False
-  status_text = "Not installed"
-  if dropbox_cli:
+  if not dropbox_cli:
+    running = False
+    status_text = "Not installed"
+  elif authenticated:
     status_exit, status_output = command_output([dropbox_cli, "status"])
     status_text = status_output if status_exit == 0 and status_output else "Stopped"
     lowered = status_text.lower()
     stopped = "not running" in lowered or "isn't running" in lowered or lowered == "stopped"
     running = status_exit == 0 and status_output != "" and not stopped
+  else:
+    # Don't poll `dropbox-cli status` while unlinked: each call mints a new
+    # cli_link_nonce, which invalidates the login URL opened by the user.
+    running = False
+    status_text = "Not authenticated"
 
   used, files = scan_dropbox(account_path, limit) if authenticated else (0, [])
   usage_percent = (used / quota * 100) if quota > 0 else 0
