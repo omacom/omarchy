@@ -37,6 +37,8 @@ run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-proart-p14-speakers.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-a16-speakers.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-n1x-gpu-memory.sh"
 
+run_logged "$OMARCHY_INSTALL/hardware/getac/fix-v110g3-touchpad.sh"
+
 run_logged "$OMARCHY_INSTALL/hardware/framework/qmk-hid.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-spi-keyboard.sh"
