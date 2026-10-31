@@ -6,7 +6,21 @@
 monitors_json=$(hyprctl monitors all -j)
 focused_monitor=$(printf '%s\n' "$monitors_json" | jq -r '[.[] | select(.focused == true)][0].name // ""')
 
-{ omarchy-brightness-display --monitor "$focused_monitor" 2>/dev/null; echo; } | head -n 1
+# Read every enabled display's brightness at once: a DDC read takes a moment
+# per monitor, so one after another they'd add up.
+brightness_dir=$(mktemp -d)
+trap 'rm -rf "$brightness_dir"' EXIT
+while read -r name; do
+  [[ $name =~ ^[A-Za-z0-9._-]+$ ]] || continue
+  { omarchy-brightness-display --monitor "$name" 2>/dev/null; echo; } | head -n 1 >"$brightness_dir/$name" &
+done < <(printf '%s\n' "$monitors_json" | jq -r '.[] | select(.disabled != true) | .name')
+wait
+
+if [[ -n $focused_monitor && -f $brightness_dir/$focused_monitor ]]; then
+  cat "$brightness_dir/$focused_monitor"
+else
+  echo
+fi
 
 printf '%s\n' "$monitors_json" | jq -r '
   def internal: test("^(eDP|LVDS|DSI)-");
@@ -19,5 +33,9 @@ printf '%s\n' "$monitors_json" | jq -r '
 printf '%s\n' "$focused_monitor"
 omarchy-hyprland-monitor-scaling 2>/dev/null || echo
 
-printf '%s\n' "$monitors_json" | jq -c \
-  '[.[] | {name, enabled:(.disabled != true), focused:(.focused == true), width, height}]'
+brightness_json=$(for file in "$brightness_dir"/*; do
+  [[ -f $file ]] && printf '%s\t%s\n' "${file##*/}" "$(<"$file")"
+done | jq -R -n '[inputs | split("\t") | select(.[1] | test("^[0-9]+$")) | {(.[0]): (.[1] | tonumber)}] | add // {}')
+
+printf '%s\n' "$monitors_json" | jq -c --argjson brightness "$brightness_json" \
+  '[.[] | {name, make, model, enabled:(.disabled != true), focused:(.focused == true), width, height, scale, x, y, transform, mirrorOf, availableModes:(.availableModes // []), brightness:($brightness[.name] // null)}]'

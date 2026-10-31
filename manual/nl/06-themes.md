@@ -1,12 +1,12 @@
 # Thema's
 
-Omarchy wordt geleverd met tweeëntwintig prachtige thema's. Je kunt ertussen kiezen via _Stijl > Thema_ in het Omarchy-menu (`Super + Space`) of direct naar de themakiezer springen met `Super + Ctrl + Shift + Space`.
+Omarchy wordt geleverd met tweeëntwintig prachtige thema's. Je kunt ertussen kiezen via _Appearance > Theme_ in het Omarchy Menu (`Super + Space`) of direct naar de themakiezer springen met `Super + Ctrl + T`.
 
-Elk thema stijlt het bureaublad, de terminal, neovim, het activiteitenscherm (btop), Chromium en de volledige Omarchy-shell: bovenbalk, menu, meldingen, OSD en het vergrendelscherm. (Voor Obsidian moet je het Omarchy-thema handmatig selecteren via _Appearance > Themes_ in de app).
+Elk thema geeft stijl aan het bureaublad, de terminal, neovim, het activiteitenscherm (btop), Chromium en de volledige Omarchy-shell: bovenbalk, menu, meldingen, OSD en het vergrendelscherm. (Voor Obsidian moet je het Omarchy-thema handmatig selecteren via _Appearance > Themes_ in de app).
 
-Thema's hebben een set achtergrondafbeeldingen waaruit je kunt kiezen met `Super + Ctrl + Space`.
+Thema's hebben een set achtergrondafbeeldingen waaruit je kunt kiezen met `Super + Ctrl + W`.
 
-Je kunt nog meer thema's vinden op [de pagina met extra thema's](https://omarchy.org/themes/) of zelfs [je eigen thema maken](43-making-your-own-theme.md).
+Je vindt nog meer thema's op [de pagina met extra thema's](https://omarchy.org/themes/) of je kunt zelfs [je eigen thema maken](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Ontgrendelingen
 
-Thema's kunnen ook een aangepast ontgrendelingsontwerp hebben, dat wordt gebruikt voor het opstart-ontsleutelingsproces. Je kunt er een selecteren onder _Stijl > Ontgrendelen_. Ze zien er zo uit:
+Thema's kunnen ook een aangepast ontgrendelingsontwerp hebben, dat wordt gebruikt voor het ontsleutelingsproces tijdens het opstarten. Je kunt er een selecteren onder _Appearance > Unlock_. Ze zien er zo uit:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

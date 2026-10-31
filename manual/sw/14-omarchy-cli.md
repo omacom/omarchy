@@ -1,10 +1,10 @@
-# CLI ya Omarchy
+# Omarchy CLI
 
-Omarchy kwa kawaida hudhibitiwa kupitia mikato ya vitufe na menyu ya Omarchy (`Super + Space`). Lakini unaweza pia kuidhibiti kupitia CLI ya `omarchy`. Hii inasaidia hasa unapokuwa na ajenti wa AI anayefanya kazi nawe katika kubinafsisha au kusanidi.
+Omarchy kwa kawaida hudhibitiwa kupitia njia za mkato za kibodi na menyu ya Omarchy (`Super + Space`). Lakini pia unaweza kuudhibiti kupitia CLI ya `omarchy`. Hii ni muhimu sana unapokuwa na agent ya AI inayofanya kazi pamoja nawe kwenye ubinafsishaji au usanidi.
 
-CLI ina ufikiaji wa zana zote za ndani zinazotumiwa kupitia menyu na vinginevyo. Unaweza kuona kila kinachopatikana kwa kuendesha `omarchy` katika terminali.
+CLI ina ufikiaji wa zana zote za ndani zinazotumika kupitia menyu na vinginevyo. Unaweza kuona kila kinachopatikana kwa kuendesha `omarchy` kwenye terminal.
 
-Inaonekana kama hivi:
+Inaonekana kitu kama hiki:
 
 ```
 ~ ❯ omarchy
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-Na unaweza kuchimba zaidi katika kila kundi:
+Na unaweza kuchimba zaidi katika kila kikundi:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Kila amri huchukua `--help` pia, iwe unauliza kundi zima (`omarchy capture --help`) au amri moja (`omarchy capture screenshot --help`).
+Kila amri pia inakubali `--help`, iwe unauliza kikundi kizima (`omarchy capture --help`) au amri moja (`omarchy capture screenshot --help`).
 
-### Kufungua menyu kutoka terminali
+### Kufungua menyu kutoka kwenye terminal
 
-Menyu ya Omarchy inaweza pia kuandikwa kwa hati, ambayo ni muhimu kwa mikato yako mwenyewe ya vitufe. `omarchy menu` huifungua kwenye mzizi, na unaweza kuruka moja kwa moja hadi hatua yoyote katika mti kwa kuitaja: `omarchy menu summon style.theme` huenda moja kwa moja hadi kichaguzi cha mandhari, `omarchy menu toggle system` hufungua menyu ya mfumo na kuifunga tena ikiwa tayari iko wazi, na `omarchy menu close` huiweka mbali.
+Menyu ya Omarchy pia inaweza kuendeshwa kwa script, jambo ambalo ni muhimu kwa keybindings zako mwenyewe. `omarchy menu` huifungua katika mzizi, na unaweza kuruka moja kwa moja hadi sehemu yoyote kwenye mti kwa kuitaja: `omarchy menu summon appearance.theme` huenda moja kwa moja hadi kichaguzi cha mandhari, `omarchy menu toggle system` hufungua menyu ya mfumo na kuifunga tena ikiwa tayari iko wazi, na `omarchy menu close` huifunga.

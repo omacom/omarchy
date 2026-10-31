@@ -26,9 +26,9 @@
 local paths = require("default.hypr.paths")
 
 local SLOTS = 10
-local STATE_DIR = paths.state_home .. "/omarchy"
-local STATE_FILE = STATE_DIR .. "/monitor-workspaces"
-local MERGED_FILE = STATE_DIR .. "/monitor-workspaces-merged"
+local STATE_DIR = paths.state_home .. "/omarchy/monitors"
+local STATE_FILE = STATE_DIR .. "/workspaces"
+local MERGED_FILE = STATE_DIR .. "/workspaces-merged"
 
 local M = { slots = SLOTS }
 
@@ -214,6 +214,12 @@ local function identities_of(monitors)
   current = identities
 
   return identities
+end
+
+-- Each connected monitor's identity, keyed by connector, for settings that
+-- belong to the physical monitor rather than the port (see monitor-settings).
+function M.identities()
+  return identities_of(connected())
 end
 
 local function free_block()

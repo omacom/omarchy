@@ -447,9 +447,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk Speed Test"
   },
-  "setup.monitors": {
-    "label": "Monitors"
-  },
   "setup.keybindings": {
     "label": "Keybindings"
   },
@@ -499,11 +496,17 @@
   "setup.default.agent.agy": {
     "label": "Antigravity"
   },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
   "setup.default.agent.claude": {
     "label": "Claude"
   },
   "setup.default.agent.codex": {
     "label": "Codex"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
   },
   "setup.default.agent.copilot": {
     "label": "Copilot"
@@ -514,14 +517,32 @@
   "setup.default.agent.cursor-agent": {
     "label": "Cursor CLI"
   },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
   "setup.default.agent.grok": {
     "label": "Grok"
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
   },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
   "setup.default.agent.kimi": {
     "label": "Kimi"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -540,6 +561,9 @@
   },
   "setup.default.agent.pi": {
     "label": "Pi"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
   },
   "setup.default.browser": {
     "label": "Browser",
@@ -661,6 +685,9 @@
   },
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
+  },
+  "setup.config.git": {
+    "label": "Git"
   },
   "setup.config.hyprland": {
     "label": "Hyprland"

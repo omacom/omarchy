@@ -1,12 +1,12 @@
 # تھیمز
 
-Omarchy بائیس خوبصورت تھیمز کے ساتھ آتا ہے۔ آپ Omarchy Menu (`Super + Space`) میں _اسٹائل > Theme_ کے ذریعے ان کے درمیان انتخاب کر سکتے ہیں یا `Super + Ctrl + Shift + Space` استعمال کر کے براہ راست تھیم سلیکٹر پر جا سکتے ہیں۔
+Omarchy بائیس خوبصورت تھیمز کے ساتھ آتا ہے۔ آپ Omarchy Menu (`Super + Space`) میں _ظاہری شکل > تھیم_ کے ذریعے ان میں سے انتخاب کر سکتے ہیں یا `Super + Ctrl + T` استعمال کر کے براہ راست تھیم سلیکٹر پر جا سکتے ہیں۔
 
-ہر تھیم ڈیسک ٹاپ، ٹرمینل، neovim، ایکٹیوٹی اسکرین (btop)، Chromium، اور پورے Omarchy shell کو اسٹائل کرتا ہے: اوپری بار، مینیو، نوٹیفکیشنز، OSD اور لاک اسکرین۔ (Obsidian کے لیے، آپ کو ایپ کے اندر _Appearance > Themes_ کے ذریعے دستی طور پر Omarchy تھیم منتخب کرنا ہو گا)۔
+ہر تھیم ڈیسک ٹاپ، ٹرمینل، neovim، ایکٹیویٹی اسکرین (btop)، Chromium، اور پوری Omarchy شیل کو اسٹائل کرتی ہے: ٹاپ بار، مینیو، نوٹیفکیشنز، OSD، اور لاک اسکرین۔ (Obsidian کے لیے، آپ کو ایپ کے اندر _ظاہری شکل > تھیمز_ کے ذریعے Omarchy تھیم دستی طور پر منتخب کرنی ہوگی)۔
 
-تھیمز میں پس منظر کی تصاویر کا ایک سیٹ ہوتا ہے جن کے درمیان آپ `Super + Ctrl + Space` استعمال کر کے انتخاب کر سکتے ہیں۔
+تھیمز میں پس منظر کی تصاویر کا ایک سیٹ ہوتا ہے جن میں سے آپ `Super + Ctrl + W` استعمال کر کے انتخاب کر سکتے ہیں۔
 
-آپ [اضافی تھیمز کے صفحے](https://omarchy.org/themes/) پر اور بھی تھیمز تلاش کر سکتے ہیں یا یہاں تک کہ [اپنی تھیم خود بنا سکتے ہیں](43-making-your-own-theme.md)۔
+آپ [اضافی تھیمز والے صفحے](https://omarchy.org/themes/) پر مزید تھیمز تلاش کر سکتے ہیں یا [اپنی خود کی تھیم بھی بنا سکتے ہیں](43-making-your-own-theme.md)۔
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### ان لاکس
 
-تھیمز میں کسٹم ان لاک ڈیزائن بھی ہو سکتا ہے، جو بوٹ ڈکرپشن کے عمل کے لیے استعمال ہوتا ہے۔ آپ ان میں سے ایک _اسٹائل > Unlock_ کے نیچے منتخب کر سکتے ہیں۔ یہ اس طرح نظر آتے ہیں:
+تھیمز میں اپنی مرضی کا ان لاک ڈیزائن بھی ہو سکتا ہے، جو بوٹ ڈکرپشن کے عمل کے لیے استعمال ہوتا ہے۔ آپ ان میں سے ایک کو _ظاہری شکل > ان لاک_ کے تحت منتخب کر سکتے ہیں۔ وہ ایسے دکھائی دیتے ہیں:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

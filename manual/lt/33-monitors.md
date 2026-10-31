@@ -1,55 +1,68 @@
 # Monitoriai
 
-Omarchy pagal nutylėjimą daro prielaidą, kad veiki su 2x pajėgiu retina klasės ekranu. To tau reikia, kad gautum tuos gražius, ryškius programuotojų šriftus. Būtent tam yra optimizuota beveik visi nauji aukščiausios klasės nešiojamieji kompiuteriai su aukštos raiškos ekranais. Būtent tai norėtum paleisti su 27" 5K [Apple Studio Display](https://www.apple.com/studio-display/)/[ProArt PA27JCV](https://www.asus.com/us/displays-desktops/monitors/proart/proart-display-5k-pa27jcv/)/[Samsung S9](https://www.samsung.com/us/computing/monitors/5k/27-viewfinity-s9-5k-monitor-with-thunderbolt-4-matte-display-and-smart-features-ls27c900panxza/)/[Kuycon G27P](https://kuycon.us/monitors/G27P/) arba 32" 6K [Apple XDR](https://www.apple.com/pro-display-xdr/)/[ProArt PA32QCV](https://www.asus.com/displays-desktops/monitors/proart/proart-display-6k-pa32qcv/)/[Kuycon G32P](https://kuycon.us/monitors/G32P/).
+Omarchy pagal numatytuosius nustatymus daro prielaidą, kad naudojate 2x galintį retina klasės ekraną. Tai jums reikia, kad gautumėte tuos gražius, ryškius programuotojų šriftus. Tam optimizuoti beveik visi nauji premium klasės nešiojamieji kompiuteriai su didelės raiškos ekranais. Tai norėtumėte naudoti su 27" 5K [Apple Studio Display](https://www.apple.com/studio-display/)/[ProArt PA27JCV](https://www.asus.com/us/displays-desktops/monitors/proart/proart-display-5k-pa27jcv/)/[Samsung S9](https://www.samsung.com/us/computing/monitors/5k/27-viewfinity-s9-5k-monitor-with-thunderbolt-4-matte-display-and-smart-features-ls27c900panxza/)/[Kuycon G27P](https://kuycon.us/monitors/G27P/) arba 32" 6K [Apple XDR](https://www.apple.com/pro-display-xdr/)/[ProArt PA32QCV](https://www.asus.com/displays-desktops/monitors/proart/proart-display-6k-pa32qcv/)/[Kuycon G32P](https://kuycon.us/monitors/G32P/).
 
-Bet jei nedirbi su ekranu, kurio PPI yra 218 ar daugiau, norėsi pakeisti monitoriaus nuostatas. Pavyzdžiui, jei turi 27" arba 32" 4K, gali naudoti trupmeninį mastelį atverdamas `~/.config/hypr/monitors.lua` (per _Nuostatos > Monitoriai_ Omarchy meniu) ir perjungdamas į rekomendaciją tam deriniui:
-
-```lua
-local omarchy_gdk_scale = 2
-local omarchy_monitor_scale = 1.6
-```
-
-Jei naudoji 1080p arba 1440p ekraną, greičiausiai tiesiog norėsi naudoti 1x mastelį, tad gali naudoti:
+Bet jei nenaudojate ekrano, kurio PPI yra 218 ar didesnis, norėsite pakeisti monitoriaus nustatymus. Pavyzdžiui, jei turite 27" arba 32" 4K, galite jam parinkti trupmeninį mastelį monitorių skydelyje viršutinėje juostoje arba nustatyti numatytąjį visiems monitoriams atidarę `~/.config/hypr/monitors.lua` ir perjungę į tam deriniui skirtą rekomendaciją:
 
 ```lua
-local omarchy_gdk_scale = 1
-local omarchy_monitor_scale = 1
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1.6 })
 ```
 
-`GDK_SCALE` pakeitimai pritaikomi programoms, paleistoms po pakeitimo (o GTK gerbia tik sveikus skaičius, tad laikyk jį ties artimiausiu tavo monitoriaus mastelio sveiku skaičiumi). Tad būtinai uždaryk langus, kurie po pakeitimo yra per dideli (arba uždaryk visus langus su `Ctrl + Alt + Del`!).
+Jei naudojate 1080p arba 1440p ekraną, greičiausiai tiesiog norėsite naudoti 1x mastelį, ir tą patį GTK ir X11 programoms, todėl galite naudoti:
 
-Taip pat gali greitai pereiti per pagrindinius monitoriaus mastelio santykius (1x, 1.25x, 1.6x, 2x, 3x, 4x) naudodamas `Super + /`, kad eitum aukščiau, ir `Super + Alt + /`, kad eitum žemiau. Jei turi numatytąją konfigūraciją, šie pakeitimai taip pat išliks po perkrovimo.
+```lua
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
+hl.env("GDK_SCALE", "1")
+```
 
-### Padaryti tekstą didesnį arba mažesnį
+`GDK_SCALE` pakeitimai taikomi programoms, paleistoms po pakeitimo (o GTK priima tik sveikuosius skaičius, todėl palikite jį ties artimiausiu sveikuoju skaičiumi jūsų monitoriaus masteliui). Todėl būtinai uždarykite langus, kurie po pakeitimo yra per dideli (arba uždarykite visus langus su `Ctrl + Alt + Del`!).
 
-Monitoriaus mastelis keičia visko dydį. Jei viskas, ko nori, yra didesnis arba mažesnis _tekstas_, tam yra viena rankenėlė:
+Taip pat galite greitai peržengti per pagrindinius monitoriaus mastelio santykius (1x, 1.25x, 1.6x, 2x, 3x, 4x) naudodami `Super + /`, kad padidintumėte, ir `Super + Alt + /`, kad sumažintumėte, arba pasirinkti vieną monitorių skydelyje viršutinėje juostoje. Šie pakeitimai keičia tik monitorių, kuriame esate sufokusavę, todėl nešiojamojo kompiuterio ekranas ir išorinis ekranas gali turėti kiekvienas savo mastelį. Skydelyje taip pat nustatoma kiekvieno monitoriaus raiška. Jūsų pasirinkimai tam fiziniam monitoriui išsaugomi `~/.local/state/omarchy/monitors/settings`, todėl jie išlieka po perkrovimo ir seka monitorių į bet kurį prievadą ar doką, į kurį jis bus prijungtas kitą kartą. Jie turi pirmenybę prieš bet kurią tam pačiam monitoriui skirtą taisyklę `~/.config/hypr/monitors.lua`, kurio Omarchy niekada neredaguoja. Kadangi `GDK_SCALE` yra viena reikšmė visiems ekranams, pasirinktas mastelis nustatomas pagal monitorių su mažiausiu masteliu, todėl X11 programos tankesniame ekrane bus šiek tiek mažos, o ne per didelės kitame.
+
+### Teksto didinimas arba mažinimas
+
+Monitoriaus mastelis keičia visko dydį. Jei norite tik didesnio ar mažesnio _teksto_, tam yra vienintelis reguliatorius:
 
 ```
 omarchy display text size 14
 ```
 
-Tai priima pikselių dydį nuo 9 iki 20 ir kartu perkelia Omarchy shell, GTK programas ir tavo terminalą, tad visas darbalaukis išlieka proporcingas. Paleisk jį be argumento, kad pamatytum, kur esi, ir `omarchy display text size reset`, kad sugrįžtum prie numatytojo. Foot yra vienintelis atsilikėlis: jis neturi būdo iš naujo įkelti savo konfigūracijos, tad veikiantys terminalai išlaiko savo seną dydį, kol atversi naują.
+Galima nurodyti dydį pikseliais nuo 9 iki 20, ir jis kartu perkelia Omarchy apvalkalą, GTK programas ir jūsų terminalą, todėl visas darbalaukis lieka proporcingas. Paleiskite jį be argumento, kad pamatytumėte, kur esate, ir `omarchy display text size reset`, kad grįžtumėte prie numatytojo. Foot yra vienintelis atsilikėlis: jis neturi būdo iš naujo įkelti savo konfigūracijos, todėl veikiantys terminalai išlaikys seną dydį, kol atidarysite naują.
 
-### Nešiojamojo kompiuterio ekranų pratęsimas ir dubliavimas
+### Nešiojamojo kompiuterio ekranų išplėtimas ir dubliavimas
 
-Kai prijungi išorinį ekraną prie savo nešiojamojo, ekranas automatiškai pratęsiamas. Bet gali tai pakeisti į dubliavimą vietoj to, naudodamas _Veiksmai > Aparatinė įranga_ Omarchy meniu arba `Super + Ctrl + Alt + Delete`. Tai ypač naudinga, jei tas išorinis ekranas yra projektorius, o tu nori ką nors rodyti dirbdamas.
+Kai prijungiate išorinį ekraną prie nešiojamojo kompiuterio, ekranas automatiškai išplečiamas. Bet tai galite pakeisti į dubliavimą naudodami _Trigger > Hardware_ Omarchy meniu arba `Super + Ctrl + Alt + Delete`. Tai ypač naudinga, jei tas išorinis ekranas yra projektorius ir norite ką nors rodyti dirbdami.
 
-Kai pratęsia, nešiojamojo dangtelio uždarymas automatiškai išjungs vidinį ekraną. Dangtelio atidarymas jį vėl įjungs. Tai taip pat gali valdyti rankiniu būdu naudodamas _Veiksmai > Aparatinė įranga_ Omarchy meniu arba `Super + Ctrl + Delete`.
+Kai išplečiate, nešiojamojo kompiuterio dangčio uždarymas automatiškai išjungs vidinį ekraną. Dangčio atidarymas jį vėl įjungs. Tai taip pat galite valdyti rankiniu būdu naudodami _Trigger > Hardware_ Omarchy meniu arba `Super + Ctrl + Delete`.
 
 ### Kelių ekranų išdėstymas
 
-Hyprland puikiai veikia su keliais ekranais. Daugiau apie tai, kaip juos išdėstyti, skaityk [Hyprland monitoriaus dokumentacijoje](https://wiki.hypr.land/Configuring/Basics/Monitors/). Taip pat gali [susieti konkrečias darbo sritis su konkrečiais monitoriais](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/). Omarchy atveju šios taisyklės dedamos į `~/.config/hypr/monitors.lua` kaip `hl.monitor` įrašai — failas pristatomas su komentuotais pavyzdžiais, kaip prikabinti konkretų monitorių prie raiškos, padėties ir pasukimo.
+Hyprland puikiai veikia su keliais ekranais. Monitorių skydelis viršutinėje juostoje nupiešia juos ten, kur jie stovi: vilkite vieną prie kito šono, kad perkeltumėte jį ten, ir išdėstymas išsaugomas kartu su kitais kiekvieno monitoriaus nustatymais. Visa, ko skydelis neapima, daugiau apie tai, kaip juos išdėstyti, skaitykite [Hyprland monitorių dokumentacijoje](https://wiki.hypr.land/Configuring/Basics/Monitors/). Omarchy sistemoje jie įrašomi į `~/.config/hypr/monitors.lua` kaip `hl.monitor` įrašai — failas pateikiamas su komentuotais pavyzdžiais, kaip konkretų monitorių priskirti raiškai, pozicijai ir pasukimui.
 
-Taip pat gali pažvelgti į [Hyprmon](https://github.com/erans/hyprmon/), jei norėtum TUI, padedančios tau su kelių ekranų išdėstymu.
+Kiekvienas monitorius turi savo darbo sritis nuo 1 iki 10, todėl `Super + 1` visada reiškia pirmąją monitoriaus, kuriame esate, darbo sritį. Užkulisiuose Hyprland vis tiek numeruoja darbo sritis visuose monitoriuose: jūsų nešiojamojo kompiuterio ekranas (arba pirmasis monitorius) gauna 1–10, kitas monitorius 11–20 ir taip toliau, o kiekvienas monitorius išlaiko savo bloką kiekvieną kartą jį prijungus. Naudokite tuos numerius, jei rašote [darbo sričių taisykles](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) arba langų taisykles konkrečiam monitoriui, todėl 12 darbo sritis yra antroji jūsų antrojo monitoriaus darbo sritis. `~/.local/state/omarchy/monitors/workspaces` išvardija, kurį bloką turi kiekvienas monitorius.
+
+Rodyklių klavišai veikia tarp monitorių, kurie jūsų išdėstyme turi bendrą kraštinę. Ekranai, kurie liečia tik kampu arba tarp kurių yra tarpas, nėra kaimynai, todėl jiems perjungti naudokite `Ctrl + Alt + Tab`.
+
+| Spartusis klavišas | Tarp monitorių |
+| --- | --- |
+| `Super + Arrow` | Perkelia fokusą į tos pusės monitorių, kai ta kryptimi nebelieka nė vieno lango |
+| `Super + Shift + Arrow` | Sukeičia vietomis su langu tos pusės monitoriuje |
+| `Super + Alt + Arrow` | Perkelia langą į grupę tos pusės monitoriuje |
+| `Super + Shift + Ctrl + Arrow` | Perkelia langą į tos pusės monitorių, į darbo sritį, kurią jis rodo |
+| `Super + Shift + Alt + Arrow` | Perkelia darbo sritį į tos pusės monitorių, išlaikydama jos numerį, jei jis laisvas |
+| `Ctrl + Alt + Tab` / `Ctrl + Alt + Shift + Tab` | Perkelia fokusą į kitą arba ankstesnį monitorių, nepaisant išdėstymo |
+| `Super + 1-0`, `Super + Tab`, `Super + Scroll Wheel` | Lieka monitoriuje, kuriame esate |
+
+Taip pat galite išbandyti [Hyprmon](https://github.com/erans/hyprmon/), jei norite TUI, padedančios išdėstyti kelis ekranus.
 
 ### Ryškumo valdymas
 
-Monitoriaus ryškumas kontroliuojamas tam skirtais funkcijos klavišais ryškumui didinti/mažinti. Jei juos spausdamas laikai nuspaudęs shift, nueisi iki maksimalaus arba minimalaus ryškumo. Klavišai kontroliuoja ekraną, į kurį esi sutelkęs dėmesį, tad išoriniai monitoriai, kalbantys DDC/CI, koreguojami taip pat kaip nešiojamojo ekranas.
+Monitoriaus ryškumas valdomas specialiais funkcijų klavišais ryškumui didinti ir mažinti. Jei spaudžiant juos laikysite nuspaudę shift, pasieksite maksimalų arba minimalų ryškumą. Klavišai valdo ekraną, kuriame esate sufokusavę, todėl išoriniai monitoriai, kalbantys DDC/CI, reguliuojami taip pat kaip nešiojamojo kompiuterio ekranas.
 
 ### Apple ekranai
 
-Jei naudoji Apple ekraną, įprasti klaviatūros ryškumo klavišai taip pat automatiškai veiks, jei esi sutelkęs dėmesį į Apple ekraną. Tai daroma per komandą `asdcontrol`.
+Jei naudojate Apple ekraną, įprasti klaviatūros ryškumo klavišai taip pat automatiškai veiks, jei esate sufokusavę Apple ekraną. Tai atliekama per `asdcontrol` komandą.
 
-Atmink, kad jei naudoji Apple 6K XDR ekraną, gali matyti fantominį ekraną savo `hyprctl monitors` sąraše. Gali jį išjungti, pavyzdžiui, su `hl.monitor({ output = "DP-2", disabled = true })` per _Nuostatos > Monitoriai_.
+Atkreipkite dėmesį, kad jei naudojate Apple 6K XDR ekraną, `hyprctl monitors` sąraše galite matyti fantominį ekraną. Jį galite išjungti kažkuo panašiu į `hl.monitor({ output = "DP-2", disabled = true })` faile `~/.config/hypr/monitors.lua`.
 
-Intel mašinose prie Apple ekranų turėtum jungtis naudodamas įprastą Thunderbolt laidą. Kitose mašinose be Thunderbolt, kad tai veiktų, paprastai turėsi naudoti [DP + USB-A -> USB-C laidą](https://www.amazon.com/dp/B0BNX7MS6N).
+Intel kompiuteriuose prie Apple ekranų turėtumėte jungtis naudodami įprastą Thunderbolt kabelį. Kituose kompiuteriuose be Thunderbolt paprastai turėsite naudoti [DP + USB-A -> USB-C kabelį](https://www.amazon.com/dp/B0BNX7MS6N), kad tai veiktų.

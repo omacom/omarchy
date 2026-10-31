@@ -84,13 +84,8 @@ case "$name" in
     if [[ ${1:-} == -n ]]; then shift; fi
     if [[ ${1:-} == -N || ${1:-} == -kn ]]; then shift; fi
     if [[ ${1:-} == -- ]]; then shift; fi
-    if [[ ${TEST_MIGRATION:-0} == 1 ]]; then
-      [[ ${TEST_NO_SUDO:-0} != 1 ]] || exit 1
-      TEST_EUID=0 /usr/bin/bash -p "$@"
-    else
-      [[ ${2:-} != __status ]] || exit "${TEST_STATUS:-3}"
-      [[ ${2:-} != __enable || ${TEST_ENABLE_FAIL:-0} != 1 ]] || exit 1
-    fi
+    [[ ${2:-} != __status ]] || exit "${TEST_STATUS:-3}"
+    [[ ${2:-} != __enable || ${TEST_ENABLE_FAIL:-0} != 1 ]] || exit 1
     ;;
   gum)
     if [[ $1 == choose ]]; then
