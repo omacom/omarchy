@@ -6,6 +6,8 @@ A lot of laptops come with a fingerprint sensor to do authentication. You can us
 
 That'll install the fingerprint package, collect your print, verify it, and you'll be set to go using your fingerprint to unlock from the lock screen (which you can trigger with `Super + Ctrl + L`), enter sudo mode, and authorize system prompts.
 
+Dell Latitude and Precision laptops that ship a Broadcom ControlVault 3 reader show up as USB `0a5c:5843` (the Latitude 5540 is one of these; the same chip also uses `5842`, `5844`, and `5845`). That reader does not work with the usual fingerprint library. Setup installs Broadcom's driver for it instead. The first time, the reader may spend a couple of minutes updating its own firmware. Leave the machine on until it asks for your finger.
+
 Once the lock screen has turned the display off, the sensor rests to save power, so wake the screen with any key or the touchpad before touching it.
 
 When your laptop lid is closed, the fingerprint prompt is automatically skipped, so you go straight to the password prompt instead of waiting on a sensor you can't reach. If you otherwise need to work on an external keyboard that doesn't have a sensor, just hit `CTRL + C`, when you're prompted for your fingerprint during `sudo`.

@@ -56,6 +56,117 @@ EOF
   fi
 }
 
+install_controlvault3_driver() {
+  # Broadcom ControlVault 3 (USB 0a5c:5842-5845) is the fingerprint reader in
+  # the Dell Latitude 5540 and the rest of that generation. libfprint has no
+  # driver for it. The open one (libfprint !620) is still unmerged and needs
+  # Broadcom's firmware either way. The driver that enrolls is Broadcom's
+  # proprietary TOD plugin, published for x86_64 only, and it only loads into
+  # libfprint-tod. That build conflicts with libfprint and with the pinned
+  # libfprint-git every other reader uses, so it has to be its own transaction.
+  if ! omarchy-hw-x86; then
+    echo -e "\e[31mThe ControlVault 3 fingerprint driver is only available on x86_64.\e[0m" >&2
+    exit 1
+  fi
+  # One list for the missing check, the install, and the registration check.
+  # A name added in only one of those three would skip verification.
+  local packages=(fprintd usbutils libfprint-tod libfprint-2-tod1-broadcom)
+  if omarchy-pkg-missing "${packages[@]}"; then
+    # A machine that already has the driver can enroll offline. The AUR is
+    # only needed for the download, so check it after the packages.
+    if ! omarchy-pkg-aur-accessible; then
+      echo -e "\e[31mThe ControlVault 3 driver is on the AUR, which is unreachable right now.\e[0m" >&2
+      exit 1
+    fi
+    echo "Installing the ControlVault 3 fingerprint driver..."
+    # --useask accepts replacing libfprint or libfprint-git. --noconfirm alone
+    # answers that prompt with N, which leaves the reader on a library that
+    # cannot see it. --pgpfetch imports the TOD library's signed-tag key.
+    # --sudoloop keeps sudo alive through the build.
+    yay -S --needed --noconfirm --useask --pgpfetch --sudoloop -- "${packages[@]}"
+    # yay can exit 0 without pacman registering the package. Name the one that
+    # is missing instead of continuing into a confusing enrollment failure.
+    local pkg
+    for pkg in "${packages[@]}"; do
+      if ! pacman -Q -- "$pkg" &>/dev/null; then
+        echo -e "\033[31mError: Package '$pkg' did not install\033[0m" >&2
+        exit 1
+      fi
+    done
+  fi
+}
+
+prepare_controlvault3() {
+  # The first open flashes ControlVault firmware inside fprintd's startup,
+  # before the daemon claims its bus name. systemd's 90s start timeout killed
+  # that on a Latitude 5540 after the write, during the chip reset. A longer
+  # start bound lets the flash finish, including a later one. A wedged reader
+  # can now delay pam_fprintd, and the password behind it, for 4 minutes
+  # instead of 90. Leave TimeoutStopSec alone: 10-stop-timeout.conf sets it to
+  # 3s so a stuck reader cannot block suspend, and this later drop-in would
+  # override that if it set the same key.
+  local dropin=/etc/systemd/system/fprintd.service.d/20-controlvault-start-timeout.conf
+  local first_start=0
+  if [[ ! -f $dropin ]] || ! grep -q '^TimeoutStartSec=240$' "$dropin"; then
+    # The long warning follows this drop-in being written, not the firmware
+    # version. A later plugin update can still flash on a rerun that only
+    # prints "Checking the reader." The 240s start budget covers that flash.
+    first_start=1
+    sudo mkdir -p /etc/systemd/system/fprintd.service.d
+    sudo tee "$dropin" >/dev/null <<'EOF'
+# The first open flashes ControlVault firmware inside fprintd's startup.
+# The default start timeout kills the daemon mid-write.
+[Service]
+TimeoutStartSec=240
+EOF
+    sudo systemctl daemon-reload
+  fi
+  # The first restart is the firmware flash. It blocks until fprintd claims
+  # its bus name, then the open leaves the device half-initialized until a
+  # second start. That second restart waits until the daemon is active.
+  # Restarting a start still in progress SIGKILLs it after the 3s stop
+  # timeout, in the middle of a firmware write. A retry can land in that
+  # window: the job belongs to systemd, so leaving setup does not stop it.
+  # Idle exit passes through deactivating too. The list waits out the same
+  # 240s budget, so it does not give up while that first start is running.
+  if (( first_start )); then
+    echo "Checking the reader. The first time can take a couple of minutes while its firmware updates. Leave the laptop on."
+  else
+    echo "Checking the reader."
+  fi
+  # is-active exits nonzero for activating, inactive, and failed alike
+  # (inactive exits 3). The printed name is what distinguishes them.
+  # --quiet would throw that name away, and a later edit that adds it
+  # would restart a firmware write.
+  local state
+  state=$(sudo systemctl is-active fprintd || true)
+  if [[ $state == "deactivating" ]]; then
+    # A start or a restart would replace this stop. Idle exit uses the same
+    # state, not only a kill. The stop timeout is 3s; wait past it, then
+    # restart even if the name has not changed.
+    local waited=0
+    while [[ $state == "deactivating" ]] && (( waited < 5 )); do
+      sleep 1
+      state=$(sudo systemctl is-active fprintd || true)
+      waited=$((waited + 1))
+    done
+  fi
+  if [[ $state == "activating" ]]; then
+    # Join the start already in progress. A restart would stop it, and the
+    # 3s stop timeout would SIGKILL a firmware write.
+    sudo systemctl start fprintd || echo "The reader service is still starting. Enrollment will wait for it."
+  else
+    # active has to be restarted: start would leave the running daemon as it
+    # is, and the open leaves the device half-initialized until a second
+    # start. inactive and failed are not mid-write.
+    sudo systemctl restart fprintd || echo "The reader service is still starting. Enrollment will wait for it."
+  fi
+  timeout 240 fprintd-list "$USER" || true
+  if sudo systemctl is-active --quiet fprintd; then
+    sudo systemctl restart fprintd || echo "The reader service is still starting. Enrollment will wait for it."
+  fi
+}
+
 # A property of fprintd's default reader, such as its name or scan-type ("press"
 # for a sensor that takes separate touches, "swipe" for one that reads a moving
 # finger). Empty when fprintd can't be asked.
@@ -146,13 +257,18 @@ if ! omarchy-hw-fingerprint; then
   exit 1
 fi
 
-# libfprint-git tracks upstream ahead of the Arch release, so a new reader only
-# needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
-# --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
-# one transaction, so a failed install leaves the existing driver in place.
-if omarchy-pkg-missing libfprint-git fprintd usbutils; then
-  echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
+if omarchy-hw-fingerprint-controlvault3; then
+  install_controlvault3_driver
+  prepare_controlvault3
+else
+  # libfprint-git tracks upstream ahead of the Arch release, so a new reader only
+  # needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
+  # --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
+  # one transaction, so a failed install leaves the existing driver in place.
+  if omarchy-pkg-missing libfprint-git fprintd usbutils; then
+    echo "Installing required packages..."
+    sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
+  fi
 fi
 
 # Enroll first fingerprint
