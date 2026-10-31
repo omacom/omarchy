@@ -51,6 +51,7 @@ The arrow keys work across monitors that share an edge in your layout. Screens t
 | `Super + Alt + Arrow` | Moves the window into a group on the monitor on that side |
 | `Super + Shift + Ctrl + Arrow` | Moves the window to the monitor on that side, onto the workspace it's showing |
 | `Super + Shift + Alt + Arrow` | Moves the workspace to the monitor on that side, keeping its number if it's free |
+| `Super + Shift + Ctrl + Alt + Arrow` | Trades the workspace for the one the monitor on that side shows, each taking the other's number when their slots match |
 | `Ctrl + Alt + Tab` / `Ctrl + Alt + Shift + Tab` | Moves focus to the next or previous monitor, whatever the layout |
 | `Super + 1-0`, `Super + Tab`, `Super + Scroll Wheel` | Stay on the monitor you're on |
 

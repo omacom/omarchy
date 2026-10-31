@@ -207,6 +207,15 @@ hl = {
           end
         end
       end,
+      swap_monitors = function(spec)
+        return function()
+          local first, second = monitor_named(spec.monitor1), monitor_named(spec.monitor2)
+          if not first or not second then error("Monitor not found") end
+          workspace_numbered(first.active).monitor, workspace_numbered(second.active).monitor = second.name, first.name
+          first.active, second.active = second.active, first.active
+          world.swaps = world.swaps + 1
+        end
+      end,
     },
     window = {
       move = function(spec)
@@ -618,3 +627,144 @@ hl.dispatch(m.move_to_monitor("u"))
 check(world.windows["0xa"].workspace == 11 and world.focused == "DP-1", "a move toward no monitor did something")
 ' || fail "a window moves to the monitor in a direction, and nowhere when there is none"
 pass "a window moves to the monitor in a direction, and nowhere when there is none"
+
+run_lua swap '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.neighbours = { ["eDP-1"] = { u = "DP-1" }, ["DP-1"] = { d = "eDP-1" } }
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "DP-1"
+window("0xb", 11)
+world.focused = "eDP-1"
+
+hl.dispatch(m.swap_with_monitor("u"))
+check(on(1) == "eDP-1" and world.windows["0xb"].workspace == 1, "the workspace from above did not take the laptop'"'"'s number: " .. world.windows["0xb"].workspace)
+check(on(11) == "DP-1" and world.windows["0xa"].workspace == 11, "the laptop'"'"'s workspace did not take the number above: " .. world.windows["0xa"].workspace)
+check(shows("eDP-1") == 1 and shows("DP-1") == 11, "the monitors do not show the traded workspaces")
+check(world.focused == "DP-1", "focus did not follow the workspace that went")
+check(o.bind_expressions[m.swap_with_monitor("d")] == "o.workspaces.swap_with_monitor(\"d\")", "the menu can replay it")
+
+-- Different slots: each keeps its slot in the block it joins where that is
+-- free, and takes the first free one where it is not.
+world.focused = "eDP-1"
+hl.dispatch(hl.dsp.focus({ workspace = "3" }))
+window("0xc", 3)
+hl.dispatch(m.swap_with_monitor("u"))
+check(world.windows["0xc"].workspace == 13 and on(13) == "DP-1", "the third workspace did not become the third above: " .. world.windows["0xc"].workspace)
+check(world.windows["0xa"].workspace == 2 and on(2) == "eDP-1", "the workspace from above did not take the laptop'"'"'s first free slot, its own being taken: " .. world.windows["0xa"].workspace)
+
+-- Nothing is above the top monitor: no error, and nothing moves.
+world.focused = "DP-1"
+hl.dispatch(m.swap_with_monitor("u"))
+check(world.windows["0xc"].workspace == 13 and world.focused == "DP-1", "a swap toward no monitor did something")
+' || fail "swapping with the monitor in a direction trades the workspaces and their numbers"
+pass "swapping with the monitor in a direction trades the workspaces and their numbers"
+
+run_lua swap-merged '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+plug("DP-2", 2, "XENEON", 21)
+world.neighbours = { ["eDP-1"] = { u = "DP-2" }, ["DP-2"] = { d = "eDP-1" } }
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xb", 12)
+world.focused = "eDP-1"
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+check(world.windows["0xb"].workspace == 2 and on(2) == "eDP-1", "the workspace joined the laptop'"'"'s")
+
+-- Swapped by hand, it belongs where it was put, and does not go home.
+hl.dispatch(hl.dsp.focus({ workspace = "2" }))
+hl.dispatch(m.swap_with_monitor("u"))
+check(world.windows["0xb"].workspace == 22 and on(22) == "DP-2", "the swapped workspace did not join the block above: " .. world.windows["0xb"].workspace)
+
+plug("DP-3", 3, "LG", 3)
+world.handlers["monitor.added"]({ name = "DP-3" })
+check(world.windows["0xb"].workspace == 22 and on(22) == "DP-2", "the swapped workspace went home anyway: " .. world.windows["0xb"].workspace)
+' || fail "a swapped workspace stays where it was put when its monitor returns"
+pass "a swapped workspace stays where it was put when its monitor returns"
+
+run_lua swap-full '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.neighbours = { ["eDP-1"] = { u = "DP-1" }, ["DP-1"] = { d = "eDP-1" } }
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "DP-1"
+for id = 11, 20 do window("0x" .. id, id) end
+monitor_named("DP-1").active = 12
+world.focused = "eDP-1"
+
+-- The block above is full, and the slots differ: the workspace going up can
+-- only take the number the other one leaves.
+hl.dispatch(m.swap_with_monitor("u"))
+check(world.windows["0x12"].workspace == 2 and on(2) == "eDP-1", "the workspace from above did not take its slot on the laptop: " .. world.windows["0x12"].workspace)
+check(world.windows["0xa"].workspace == 12 and on(12) == "DP-1", "the workspace sent up did not take the number the other left: " .. world.windows["0xa"].workspace)
+check(on(1) == nil, "a workspace is still numbered 1")
+' || fail "a swap into a full block takes the number the other workspace left"
+pass "a swap into a full block takes the number the other workspace left"
+
+run_lua swap-guest '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+plug("DP-2", 2, "XENEON", 21)
+world.neighbours = { ["eDP-1"] = { u = "DP-1" }, ["DP-1"] = { d = "eDP-1" } }
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "DP-1"
+for id = 11, 20 do window("0x" .. id, id) end
+unplug("DP-2")
+world.handlers["monitor.removed"]({ name = "DP-2" })
+-- A workspace of the unplugged monitor waits as a guest on the full one.
+world.focused = "DP-1"
+window("0xg", 21)
+world.workspaces[#world.workspaces].monitor = "DP-1"
+monitor_named("DP-1").active = 21
+world.focused = "eDP-1"
+
+hl.dispatch(m.swap_with_monitor("u"))
+check(world.windows["0xg"].workspace == 2 and on(2) == "eDP-1", "the guest did not join the laptop'"'"'s block: " .. world.windows["0xg"].workspace)
+check(world.windows["0xa"].workspace == 1 and on(1) == "DP-1", "with no room above, the workspace sent up did not keep its own number: " .. world.windows["0xa"].workspace)
+for _, workspace in ipairs(hl.get_workspaces()) do
+  check(workspace.id <= 30, "a workspace was left under a spare number: " .. workspace.id)
+end
+' || fail "a swap into a block with no room leaves the workspace under its own number"
+pass "a swap into a block with no room leaves the workspace under its own number"
+
+run_lua swap-no-room '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+plug("DP-2", 2, "XENEON", 21)
+world.neighbours = { ["eDP-1"] = { u = "DP-1" }, ["DP-1"] = { d = "eDP-1" } }
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+for id = 1, 10 do window("0x" .. id, id) end
+world.focused = "DP-1"
+for id = 11, 20 do window("0x" .. id, id) end
+unplug("DP-2")
+world.handlers["monitor.removed"]({ name = "DP-2" })
+-- Both blocks are full, and the laptop shows a guest of the unplugged monitor.
+world.focused = "eDP-1"
+window("0xg", 21)
+world.workspaces[#world.workspaces].monitor = "eDP-1"
+monitor_named("eDP-1").active = 21
+
+hl.dispatch(m.swap_with_monitor("u"))
+check(world.windows["0xg"].workspace == 21 and on(21) == "DP-1", "the guest did not go up under its own number: " .. world.windows["0xg"].workspace)
+check(world.windows["0x11"].workspace == 11 and on(11) == "eDP-1", "the workspace from above did not keep its number: " .. world.windows["0x11"].workspace)
+for _, workspace in ipairs(hl.get_workspaces()) do
+  check(workspace.id <= 30, "a workspace was left under a spare number: " .. workspace.id)
+end
+check(world.focused == "DP-1", "focus did not follow the workspace that went")
+' || fail "a swap with no room on either side trades the workspaces and keeps their numbers"
+pass "a swap with no room on either side trades the workspaces and keeps their numbers"

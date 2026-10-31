@@ -363,16 +363,18 @@ local function reclaim(monitor, id)
   settle(away, monitors, assign(monitors))
 end
 
--- Renumber a workspace into a block, keeping its slot when that one is free and
--- taking the first free one otherwise. False when all ten are taken.
-local function adopt(workspace, block)
-  local wanted = block * SLOTS + (workspace.id - 1) % SLOTS + 1
-  local candidates = { wanted }
-  for slot = 1, SLOTS do
-    candidates[#candidates + 1] = block * SLOTS + slot
+-- Renumber a workspace into a block under a slot, taking the first free one
+-- when that is taken. False when all ten are.
+local function adopt_slot(workspace, block, slot)
+  local candidates = { block * SLOTS + slot }
+  for candidate = 1, SLOTS do
+    candidates[#candidates + 1] = block * SLOTS + candidate
   end
 
   for _, id in ipairs(candidates) do
+    if id == workspace.id then
+      return true
+    end
     if not hl.get_workspace(id) then
       renumber(workspace, id)
       return true
@@ -380,6 +382,12 @@ local function adopt(workspace, block)
   end
 
   return false
+end
+
+-- Renumber a workspace into a block, keeping its slot when that one is free and
+-- taking the first free one otherwise. False when all ten are taken.
+local function adopt(workspace, block)
+  return adopt_slot(workspace, block, (workspace.id - 1) % SLOTS + 1)
 end
 
 -- The first free id after the highest of a block in use, as Niri appends an
@@ -508,6 +516,92 @@ function M.move_to_monitor(direction)
     -- workspace that moved.
     hl.dispatch(hl.dsp.focus({ workspace = tostring(moved.id) }))
   end, "o.workspaces.move_to_monitor(" .. literal(direction) .. ")")
+end
+
+-- Whether a block has a number with no workspace under it.
+local function has_room(block)
+  for slot = 1, SLOTS do
+    if not hl.get_workspace(block * SLOTS + slot) then
+      return true
+    end
+  end
+  return false
+end
+
+-- A free id past every monitor's block, for a workspace to wait under while
+-- two trade numbers.
+local function spare_id()
+  local highest = 0
+  for _, block in pairs(blocks) do
+    if block > highest then
+      highest = block
+    end
+  end
+
+  local id = (highest + 1) * SLOTS + 1
+  while hl.get_workspace(id) do
+    id = id + 1
+  end
+  return id
+end
+
+-- Trade the active workspace for the one the monitor in a direction shows.
+-- Each joins the block of the monitor it lands on under its own slot when that
+-- is free, which is the other's old number when their slots match, and the
+-- first free one otherwise. Focus follows the workspace that went.
+function M.swap_with_monitor(direction)
+  return action(function()
+    local from = hl.get_active_monitor()
+    local target = hl.get_monitor(direction)
+    if not from or not target then
+      return
+    end
+
+    local here, there = from.active_workspace, target.active_workspace
+    if not regular(here) or not regular(there) then
+      return
+    end
+    local a, b = here.id, there.id
+
+    hl.dispatch(hl.dsp.workspace.swap_monitors({ monitor1 = from.name, monitor2 = target.name }))
+
+    -- Swapped by hand, each belongs where it was put, as in Niri.
+    if merged[a] or merged[b] then
+      merged[a], merged[b] = nil, nil
+      save_merged()
+    end
+
+    local by_connector = assign(connected())
+    local block_a, block_b = by_connector[target.name], by_connector[from.name]
+    if block_a and block_b then
+      -- Each joins the block it lands on when there is a number for it there:
+      -- its own already, a free one, or the one the other leaves, which two
+      -- trading their own blocks' numbers always have. With none it keeps its
+      -- number and stays a guest, as one no block has room for does.
+      local trade = block_of_id(a) == block_b and block_of_id(b) == block_a
+      local joining_a = trade or block_of_id(a) == block_a or has_room(block_a)
+      local joining_b = trade or block_of_id(b) == block_b or has_room(block_b)
+      joining_a = joining_a or (joining_b and block_of_id(b) == block_a)
+      joining_b = joining_b or (joining_a and block_of_id(a) == block_b)
+
+      -- The one going over waits under a spare number so the other can take
+      -- the number it left: the one it wants when their slots match, and the
+      -- only free one when the block is otherwise full.
+      local slot_a, slot_b = (a - 1) % SLOTS + 1, (b - 1) % SLOTS + 1
+      local spare = spare_id()
+      if joining_a then
+        renumber(hl.get_workspace(a), spare)
+      end
+      if joining_b then
+        adopt_slot(hl.get_workspace(b), block_b, slot_b)
+      end
+      if joining_a then
+        adopt_slot(hl.get_workspace(spare), block_a, slot_a)
+      end
+    end
+
+    hl.dispatch(hl.dsp.focus({ monitor = target.name }))
+  end, "o.workspaces.swap_with_monitor(" .. literal(direction) .. ")")
 end
 
 -- Move the focused window onto the workspace the monitor in that direction
