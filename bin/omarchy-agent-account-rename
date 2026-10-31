@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# omarchy:summary=Rename a Claude, Codex, or Grok subscription account
+# omarchy:args=[claude|codex|grok] <account> <name>
+# omarchy:examples=omarchy agent account rename primary Hey | omarchy agent account rename codex side Side project
+
+set -uo pipefail
+
+# The provider can be left out when it's your default agent:
+# `omarchy agent account rename primary Hey`.
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
+  default=$(omarchy-default-agent)
+  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
+fi
+
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]] || (( $# < 3 )); then
+  echo "Usage: omarchy-agent-account-rename [claude|codex|grok] <account> <name>" >&2
+  exit 1
+fi
+
+account=$(omarchy-agent-account-state rename "$@") || exit 1
+echo "Renamed to $(jq -r .label <<<"$account"). Switch to it with: omarchy agent account use $(jq -r .id <<<"$account")"
+# The panel reads account names from the usage record.
+omarchy-agent-usage-update --limits-only "$1" >/dev/null 2>&1 &

@@ -1,0 +1,1289 @@
+{
+  "root": {
+    "label": "מעבר"
+  },
+  "apps": {
+    "label": "אפליקציות"
+  },
+  "learn": {
+    "label": "למידה"
+  },
+  "appearance": {
+    "label": "מראה"
+  },
+  "trigger": {
+    "label": "הפעלה"
+  },
+  "setup": {
+    "label": "הגדרה"
+  },
+  "install": {
+    "label": "התקנה"
+  },
+  "remove": {
+    "label": "הסרה"
+  },
+  "update": {
+    "label": "עדכון"
+  },
+  "about": {
+    "label": "אודות"
+  },
+  "system": {
+    "label": "מערכת"
+  },
+  "system.screensaver": {
+    "label": "שומר מסך"
+  },
+  "system.lock": {
+    "label": "נעילה"
+  },
+  "system.suspend": {
+    "label": "השהיה"
+  },
+  "system.hibernate": {
+    "label": "תרדמת"
+  },
+  "system.logout": {
+    "label": "התנתקות"
+  },
+  "system.reboot": {
+    "label": "הפעלה מחדש"
+  },
+  "system.shutdown": {
+    "label": "כיבוי"
+  },
+  "learn.keybindings": {
+    "label": "קיצורי מקלדת"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "קהילה"
+  },
+  "appearance.theme": {
+    "label": "ערכת נושא"
+  },
+  "appearance.background": {
+    "label": "רקע"
+  },
+  "appearance.font": {
+    "label": "גופן"
+  },
+  "appearance.top-bar": {
+    "label": "שורת תפריט"
+  },
+  "appearance.top-bar.hide": {
+    "label": "הסתרת שורה"
+  },
+  "appearance.top-bar.show": {
+    "label": "הצגת שורה"
+  },
+  "appearance.top-bar.position": {
+    "label": "מיקום שורה"
+  },
+  "appearance.top-bar.background": {
+    "label": "רקע שורה"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "שורה אטומה"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "שורה זכוכיתית"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "שורה שקופה"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "מחווני שורה"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "שעון"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "ראשון 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "ראשון 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "ראשון 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "ראשון 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "יום א' 3 במאי 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "יום א' 3 במאי 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 במאי שבוע 18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 במאי שבוע 18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "שורה עליונה"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "שורה תחתונה"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "שורה שמאלית"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "שורה ימנית"
+  },
+  "appearance.windows.corners": {
+    "label": "פינות חלון"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "פינות לפי ערכה"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "פינות חדות"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "פינות מעוגלות"
+  },
+  "appearance.windows.transparency": {
+    "label": "אטימות חלון"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "חלונות אטומים"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "חלונות שקופים"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "חלונות זכוכיתיים"
+  },
+  "appearance.branding.screensaver": {
+    "label": "שומר מסך"
+  },
+  "appearance.branding.about": {
+    "label": "אודות"
+  },
+  "appearance.branding.about.text": {
+    "label": "עריכת טקסט"
+  },
+  "appearance.branding.about.image": {
+    "label": "הגדרה מתמונה"
+  },
+  "appearance.branding.about.default": {
+    "label": "שחזור ברירת מחדל"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "עריכת טקסט"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "הגדרה מתמונה"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "שחזור ברירת מחדל"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "הסתרת Dock אוטומטית"
+  },
+  "appearance.dock.always-on": {
+    "label": "Dock תמיד מוצג"
+  },
+  "appearance.dock.position": {
+    "label": "מיקום Dock"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock עליון"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock תחתון"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock שמאלי"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock ימני"
+  },
+  "appearance.workspace-layout": {
+    "label": "פריסת סביבת עבודה",
+    "title": "פריסת סביבת עבודה כברירת מחדל"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "ריצוף"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "גלילה"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "צף"
+  },
+  "appearance.unlock": {
+    "label": "ביטול נעילה"
+  },
+  "trigger.toggle": {
+    "label": "החלפה"
+  },
+  "trigger.emoji": {
+    "label": "אמוג'י"
+  },
+  "trigger.clipboard-history": {
+    "label": "היסטוריית לוח"
+  },
+  "trigger.reminder": {
+    "label": "תזכורת"
+  },
+  "trigger.capture": {
+    "label": "לכידה"
+  },
+  "trigger.capture.screenshot": {
+    "label": "צילום מסך"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "עצירת הקלטת מסך"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "הקלטת מסך"
+  },
+  "trigger.capture.text": {
+    "label": "טקסט"
+  },
+  "trigger.capture.qr": {
+    "label": "קוד QR"
+  },
+  "trigger.capture.color": {
+    "label": "צבע"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "ללא שמע"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "עם שמע שולחן עבודה"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "עם שמע שולחן עבודה + מיקרופון"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "עם שמע שולחן עבודה + מיקרופון + מצלמת רשת"
+  },
+  "trigger.transcode": {
+    "label": "המרה"
+  },
+  "trigger.share": {
+    "label": "שיתוף"
+  },
+  "trigger.hardware": {
+    "label": "חומרה"
+  },
+  "trigger.tests": {
+    "label": "בדיקת מהירות"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "רטט משטח מגע"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "נמוך"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "בינוני"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "גבוה"
+  },
+  "trigger.reminder.set": {
+    "label": "קביעת תזכורת"
+  },
+  "trigger.reminder.show": {
+    "label": "הצגת הכול"
+  },
+  "trigger.reminder.clear": {
+    "label": "ניקוי הכול"
+  },
+  "trigger.share.clipboard": {
+    "label": "לוח"
+  },
+  "trigger.share.file": {
+    "label": "קובץ"
+  },
+  "trigger.share.folder": {
+    "label": "תיקייה"
+  },
+  "trigger.share.receive": {
+    "label": "קבלה"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "בדיקת מהירות רשת"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "בדיקת מהירות דיסק"
+  },
+  "setup.monitors": {
+    "label": "מסכים"
+  },
+  "setup.keybindings": {
+    "label": "קיצורי מקלדת"
+  },
+  "setup.input": {
+    "label": "קלט"
+  },
+  "setup.typing": {
+    "label": "הקלדה"
+  },
+  "setup.typing.keyboard": {
+    "label": "פריסות מקלדת"
+  },
+  "setup.typing.input": {
+    "label": "שיטות קלט"
+  },
+  "setup.language": {
+    "label": "שפה"
+  },
+  "setup.network": {
+    "label": "רשת"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "מותאם אישית"
+  },
+  "setup.network.qr": {
+    "label": "קוד QR"
+  },
+  "setup.default": {
+    "label": "ברירות מחדל"
+  },
+  "setup.default.agent": {
+    "label": "סוכן",
+    "title": "סוכן ברירת מחדל"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "דפדפן",
+    "title": "דפדפן ברירת מחדל"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "הכתבה",
+    "title": "הכתבת ברירת מחדל"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "מסוף",
+    "title": "מסוף ברירת מחדל"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "עורך",
+    "title": "עורך ברירת מחדל"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "תוספים"
+  },
+  "setup.plugin.enable": {
+    "label": "הפעלת תוסף"
+  },
+  "setup.plugin.disable": {
+    "label": "כיבוי תוסף"
+  },
+  "setup.plugin.add": {
+    "label": "הוספת תוסף"
+  },
+  "setup.plugin.clone": {
+    "label": "שיבוט תוסף"
+  },
+  "setup.plugin.remove": {
+    "label": "הסרת תוסף"
+  },
+  "setup.security": {
+    "label": "אבטחה"
+  },
+  "setup.config": {
+    "label": "תצורה"
+  },
+  "setup.security.fingerprint": {
+    "label": "טביעת אצבע"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "סוכן SSH"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker ללא sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "sudo ללא סיסמה"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "אתחול ישיר"
+  },
+  "setup.reset": {
+    "label": "איפוס מחשב"
+  },
+  "install.package": {
+    "label": "חבילה"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "שירות"
+  },
+  "install.development": {
+    "label": "פיתוח"
+  },
+  "install.editor": {
+    "label": "עורך"
+  },
+  "install.style": {
+    "label": "סגנון"
+  },
+  "install.style.theme": {
+    "label": "ערכת נושא"
+  },
+  "install.style.background": {
+    "label": "רקע"
+  },
+  "install.style.font": {
+    "label": "גופן"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "משחקים"
+  },
+  "install.browser": {
+    "label": "דפדפן"
+  },
+  "install.webapp": {
+    "label": "אפליקציית רשת"
+  },
+  "install.terminal": {
+    "label": "מסוף"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "התקנות מראש"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "חשבון Chromium"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "בקרי Xbox"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "משגר משחקי RetroArch"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "חבילה"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "הסרה"
+  },
+  "remove.dictation": {
+    "label": "הכתבה"
+  },
+  "remove.service": {
+    "label": "שירותים",
+    "title": "הסרה"
+  },
+  "remove.development": {
+    "label": "פיתוח",
+    "title": "הסרה"
+  },
+  "remove.theme": {
+    "label": "ערכת נושא"
+  },
+  "remove.gaming": {
+    "label": "משחקים",
+    "title": "הסרה"
+  },
+  "remove.browser": {
+    "label": "דפדפן",
+    "title": "הסרה"
+  },
+  "remove.webapp": {
+    "label": "אפליקציית רשת"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "התקנות מראש"
+  },
+  "remove.security": {
+    "label": "אבטחה",
+    "title": "הסרה"
+  },
+  "remove.security.fingerprint": {
+    "label": "טביעת אצבע"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker ללא sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "בקרי Xbox (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "הסרה"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "הסרה"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "הסרה"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "ערוץ"
+  },
+  "update.config": {
+    "label": "תצורה",
+    "title": "איפוס לברירת מחדל"
+  },
+  "update.themes": {
+    "label": "ערכות נוספות"
+  },
+  "update.process": {
+    "label": "תהליך",
+    "title": "הפעלה מחדש"
+  },
+  "update.hardware": {
+    "label": "חומרה",
+    "title": "הפעלה מחדש"
+  },
+  "update.firmware": {
+    "label": "קושחה"
+  },
+  "update.password": {
+    "label": "סיסמה"
+  },
+  "update.timezone": {
+    "label": "אזור זמן"
+  },
+  "update.time": {
+    "label": "שעה"
+  },
+  "update.channel.stable": {
+    "label": "יציב"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "שמע"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "משטח מגע"
+  },
+  "update.password.drive": {
+    "label": "הצפנת כונן"
+  },
+  "update.password.user": {
+    "label": "משתמש"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "מרווחי חלונות פעילים"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "מרווחי חלונות כבויים"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "יחס חלון יחיד פעיל"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "יחס חלון יחיד כבוי"
+  },
+  "appearance.branding": {
+    "label": "מיתוג"
+  },
+  "appearance.animations-on": {
+    "label": "אנימציות פעילות"
+  },
+  "appearance.animations-off": {
+    "label": "אנימציות כבויות"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "הישאר ער"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "אפשר שינה"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "התראות פעילות"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "השתק התראות"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "תאורת לילה פעילה"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "תאורת לילה כבויה"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "שומר מסך פעיל"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "שומר מסך כבוי"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "לכידת קריסות פעילה"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "לכידת קריסות כבויה"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "מסך מחשב נייד פעיל"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "מסך מחשב נייד כבוי"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "שיקוף מסך פעיל"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "הצג אחוזי סוללה"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "הסתר אחוזי סוללה"
+  },
+  "appearance.windows": {
+    "label": "חלונות"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "כיבוי שיקוף מסך"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "מעבר ל-GPU היברידי"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "מעבר ל-GPU משולב"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "הפעלת משטח מגע"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "השבתת משטח מגע"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "הפעלת מסך מגע"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "השבתת מסך מגע"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "ליבה"
+  }
+}
