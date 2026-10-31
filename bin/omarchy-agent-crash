@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Diagnose a crashed process with the default coding agent
-# omarchy:args=<pid> [comm] [exe] [signal]
-# omarchy:examples=omarchy agent crash 1516893
+# omarchy:args=[--again] <pid> [comm] [exe] [signal]
+# omarchy:examples=omarchy agent crash 1516893 | omarchy agent crash --again 1516893 brave
 
 # Clicked from a "Process crashed:" notification, or run by hand against any PID
 # in `coredumpctl list`. The method lives in the diagnose-crash skill so it is
@@ -11,7 +11,15 @@
 
 set -euo pipefail
 
-pid=${1:?usage: omarchy-agent-crash <pid> [comm] [exe] [signal]}
+# --again starts a diagnosis even though one of the same program is under way:
+# the action on the toast that says so, so a stale guard is never a dead end.
+again=false
+if [[ ${1:-} == "--again" ]]; then
+  again=true
+  shift
+fi
+
+pid=${1:?usage: omarchy-agent-crash [--again] <pid> [comm] [exe] [signal]}
 
 if [[ ! $pid =~ ^[0-9]+$ ]]; then
   echo "Not a PID: $pid" >&2
@@ -49,4 +57,91 @@ mechanism, read the skill files directly and follow them instead:
 PROMPT
 )
 
-exec omarchy-agent --prompt "$prompt"
+# Refused here, before anything is stamped, rather than left to omarchy-agent:
+# from a toast click its error goes nowhere, and a stamp for a diagnosis that
+# never started would refuse every click for the cooldown.
+agent=$(omarchy-default-agent)
+if [[ -z $agent ]]; then
+  omarchy-notification-send "$(omarchy-i18n crash.noAgent "$comm")" "$(omarchy-i18n crash.noAgentChoose)"
+  echo "Choose default agent with: omarchy default agent <name>" >&2
+  exit 1
+fi
+if omarchy-cmd-missing "$agent"; then
+  omarchy-notification-send "$(omarchy-i18n crash.noAgent "$comm")" "$(omarchy-i18n crash.noAgentInstalled "$agent")"
+  echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
+  exit 1
+fi
+
+# Marks everything the agent runs, the agent included, so a crash it causes is
+# announced without offering yet another diagnosis. The start time rides along
+# so the watcher stops honouring it after OMARCHY_CRASH_DIAGNOSIS_MAX_SECONDS:
+# a program the agent left running still carries it next week.
+now=$EPOCHSECONDS
+marker="$pid:$now"
+
+# One diagnosis per program at a time. Keyed on the name the toast announced,
+# reduced as omarchy-crash-watch reduces it so a name can't reach outside the
+# stamp directory, and stamped at dispatch with one marker line per diagnosis,
+# which is what the watcher checks before offering another. A diagnosis started
+# anyway is added beside the one already there, never in its place, so the
+# first keeps its guard however the two finish. Under way means any line
+# started within the cooldown, or within the maximum while a process of ours
+# still carries that line's marker. A hand-run with only a PID names no
+# program, so it is neither held back nor holds anything back.
+stamps="$HOME/.local/state/omarchy/crash-diagnosis"
+stamp=
+cooldown=${OMARCHY_CRASH_DIAGNOSIS_COOLDOWN_SECONDS:-600}
+max=${OMARCHY_CRASH_DIAGNOSIS_MAX_SECONDS:-3600}
+if [[ -n ${2:-} ]]; then
+  name=${comm##*/}
+  [[ -n $name && $name != "-" && $name != "." && $name != ".." ]] || name=unknown
+  stamp="$stamps/$name"
+fi
+
+under_way=false
+if [[ -n $stamp ]]; then
+  # Two clicks at once must not both find no stamp, so the check and the stamp
+  # are taken under a lock, beside the directory since any name inside it could
+  # be a program's. A click that finds it held is one racing another dispatch.
+  # A lock that can't be opened only costs the guard, not the diagnosis.
+  mkdir -p "$stamps" 2>/dev/null || true
+  if exec {lock}>>"$stamps.lock" 2>/dev/null; then
+    flock -n "$lock" || under_way=true
+  fi
+
+  # Each line is judged by its own start, not the file's mtime, so adding one
+  # never refreshes another. Lines past the maximum, malformed, or from the
+  # future after the clock stepped back hold nothing, and are dropped when the
+  # stamp is next written.
+  kept=()
+  if [[ -f $stamp ]]; then
+    while IFS= read -r line || [[ -n $line ]]; do
+      [[ $line =~ ^[0-9]+:([0-9]+)$ ]] || continue
+      age=$((now - 10#${BASH_REMATCH[1]}))
+      ((age >= 0 && age < max)) || continue
+      [[ $line == "$marker" ]] || kept+=("$line")
+      [[ $under_way == "true" || $again == "true" ]] && continue
+      if ((age < cooldown)) || grep -qszxF -- "OMARCHY_CRASH_DIAGNOSIS=$line" /proc/[0-9]*/environ; then
+        under_way=true
+      fi
+    done 2>/dev/null <"$stamp" || true
+  fi
+fi
+
+if [[ $under_way == "true" ]]; then
+  omarchy-notification-send "$(omarchy-i18n crash.alreadyDiagnosing "$name")" "$(omarchy-i18n crash.alreadyDiagnosingBody)" \
+    --exec omarchy-agent-crash --again "$pid" "$comm" "$exe" "$signal"
+else
+  # A stamp that can't be written only costs the guard, not the diagnosis.
+  if [[ -n $stamp ]]; then
+    { printf '%s\n' "${kept[@]}" "$marker" >"$stamp"; } 2>/dev/null || true
+  fi
+
+  # Released before the agent starts, or the lock would ride into its terminal
+  # and hold for the whole diagnosis.
+  if [[ -n ${lock:-} ]]; then
+    exec {lock}>&-
+  fi
+
+  OMARCHY_CRASH_DIAGNOSIS=$marker exec omarchy-agent --prompt "$prompt"
+fi

@@ -21,16 +21,65 @@ readonly dedupe_seconds=${OMARCHY_CRASH_DEDUPE_SECONDS:-60}
 # Extended regex of process names never worth announcing.
 readonly ignore_pattern=${OMARCHY_CRASH_IGNORE:-}
 
+# omarchy-agent-crash stamps a program here when it sends it for diagnosis,
+# and neither it nor this watcher offers another diagnosis of it while that one
+# is under way: always for the cooldown, and after it for as long as something
+# still carries that diagnosis's marker, up to the maximum. Each diagnosis of a
+# program, one started anyway included, keeps its own line in the stamp. The
+# investigation can crash the program again, and each of those would otherwise
+# chain a fresh agent. The maximum also bounds the marker itself, so a program
+# the agent left running is offered again when it crashes next week. The same
+# base as the crash-ignore flags, so this and the click handler always agree.
+readonly diagnosis_cooldown_seconds=${OMARCHY_CRASH_DIAGNOSIS_COOLDOWN_SECONDS:-600}
+readonly diagnosis_max_seconds=${OMARCHY_CRASH_DIAGNOSIS_MAX_SECONDS:-3600}
+readonly diagnosis_stamps="$HOME/.local/state/omarchy/crash-diagnosis"
+
+# Whether any diagnosis stamped for a program is still under way. The stamp
+# holds one line per diagnosis, the marker it carries, whose start time is what
+# ages it: within the cooldown it is under way, and after it while a process of
+# ours still carries that marker, the agent or something it started.
+diagnosis_under_way() {
+  local stamp="$diagnosis_stamps/$1" now=$2 line age
+
+  [[ -f $stamp ]] || return 1
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line =~ ^[0-9]+:([0-9]+)$ ]] || continue
+    age=$((now - 10#${BASH_REMATCH[1]}))
+    # A line from the future, after the clock stepped back, is not under way.
+    ((age >= 0 && age < diagnosis_max_seconds)) || continue
+    ((age < diagnosis_cooldown_seconds)) && return 0
+    grep -qszxF -- "OMARCHY_CRASH_DIAGNOSIS=$line" /proc/[0-9]*/environ && return 0
+  done 2>/dev/null <"$stamp"
+  return 1
+}
+
 declare -A last_notified
 
 announce() {
-  local comm=$1 pid=$2 exe=$3 signal=$4
+  local comm=$1 pid=$2 exe=$3 signal=$4 held=${5:-}
 
   # The shell owns org.freedesktop.Notifications, so a shell crash takes the
   # notification server down with it and a toast sent into that gap is lost.
   # Wait for the restarted shell to claim the name again: the crash least
   # likely to be delivered is the one most worth reporting.
   omarchy-notification-wait || return 1
+
+  # A crash that should not start another diagnosis is still announced, with
+  # why in place of the offer and nothing to run on a click. Held by a reason
+  # word rather than its text, so a failed lookup can't turn it into an offer.
+  if [[ -n $held ]]; then
+    local why
+    case $held in
+      caused) why=$(omarchy-i18n crash.crashedDuringDiagnosis) ;;
+      *) why=$(omarchy-i18n crash.alreadySentForDiagnosis) ;;
+    esac
+    omarchy-notification-send \
+      --urgency critical \
+      --glyph "$CRASH_GLYPH" \
+      "$(omarchy-i18n crash.processCrashed "$comm")" \
+      "$why"
+    return
+  fi
 
   # --exec rather than a libnotify action: the shell runs clicks from its own
   # hint and never emits ActionInvoked. Keeps the default "omarchy-action" app
@@ -45,20 +94,42 @@ announce() {
     --exec omarchy-agent-crash "$pid" "$comm" "$exe" "$signal"
 }
 
-# -n 0 so a restart does not re-announce crashes already dealt with.
-journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
+# -n 0 so a restart does not re-announce crashes already dealt with. The crashed
+# process's environment is usually over 4 KiB, which -o json turns into null
+# unless --all is given; --output-fields then keeps --all from also passing
+# through the maps, the backtrace and, with Storage=journal, the core itself.
+#
+# --output-fields drops every field it does not name, silently: a field read
+# below must be added here too (COREDUMP_USER_UNIT, say, for #15001), or it
+# arrives missing on every crash.
+journalctl -f -n 0 -o json --all \
+  --output-fields=_UID,COREDUMP_COMM,COREDUMP_PID,COREDUMP_EXE,COREDUMP_SIGNAL_NAME,COREDUMP_ENVIRON \
+  "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
   while IFS= read -r entry; do
     # A dash for a field that is empty as well as one that is missing: tab is
     # IFS whitespace, so an empty field collapses into the next delimiter and
     # every field after it shifts along one. A process can set its own comm to
     # nothing, and that crash used to be read as somebody else's and dropped.
-    IFS=$'\t' read -r uid comm pid exe signal < <(
+    #
+    # marked is when the diagnosis began whose marker the crashed process
+    # inherited from omarchy-agent-crash (the agent itself, or something it
+    # ran), or a dash for none. Anchored to a line start, so a variable whose
+    # value merely mentions the marker does not count. The journal hands over
+    # an environment holding any byte that is not printable UTF-8 (a PS1 with
+    # its escapes is enough) as an array of byte values, so that is decoded
+    # first rather than read as no environment at all.
+    IFS=$'\t' read -r uid comm pid exe signal marked < <(
       jq -r 'def field: if . == null or . == "" then "-" else . end;
              [(._UID | field),
               (.COREDUMP_COMM | field),
               (.COREDUMP_PID | field),
               (.COREDUMP_EXE | field),
-              (.COREDUMP_SIGNAL_NAME | field)] | @tsv' <<<"$entry" 2>/dev/null
+              (.COREDUMP_SIGNAL_NAME | field),
+              (.COREDUMP_ENVIRON
+               | (if type == "array" then (map(select(type == "number")) | implode) else . end)
+               | if type == "string"
+                 then ([capture("(^|\n)OMARCHY_CRASH_DIAGNOSIS=[0-9]+:(?<epoch>[0-9]+)(\n|$)")][0].epoch // "-")
+                 else "-" end)] | @tsv' <<<"$entry" 2>/dev/null
     )
 
     [[ $pid =~ ^[0-9]+$ ]] || continue
@@ -102,8 +173,18 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     now=$EPOCHSECONDS
     (((now - ${last_notified[$name]:-0}) < dedupe_seconds)) && continue
 
+    # Never chain a diagnosis off a diagnosis: not for a crash it caused, and
+    # not for a program whose diagnosis is under way, which also catches a
+    # reproduction launched outside the marked environment.
+    held=
+    if [[ $marked =~ ^[0-9]+$ ]] && ((now - marked >= 0 && now - marked < diagnosis_max_seconds)); then
+      held=caused
+    elif diagnosis_under_way "$name" "$now"; then
+      held=under-way
+    fi
+
     # Only a delivered toast starts the dedupe window. A failed send that
     # counted would suppress the rest of a crash loop for a minute, and
     # `journalctl -n 0` never replays what was missed.
-    announce "$name" "$pid" "$exe" "$signal" && last_notified[$name]=$now
+    announce "$name" "$pid" "$exe" "$signal" "$held" && last_notified[$name]=$now
   done
