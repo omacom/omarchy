@@ -1860,8 +1860,8 @@ Item {
 
       visible: root.tooltipShown && root.tooltipTarget !== null && root.tooltipText !== "" && root.targetBelongsToWindow(root.tooltipTarget, barWindow)
       color: "transparent"
-      implicitWidth: Math.ceil(tooltipBubble.implicitWidth)
-      implicitHeight: Math.ceil(tooltipBubble.implicitHeight)
+      implicitWidth: Math.ceil(tooltipBubble.implicitWidth) + 2 * Style.spacing.hairline
+      implicitHeight: Math.ceil(tooltipBubble.implicitHeight) + 2 * Style.spacing.hairline
 
       anchor {
         id: tooltipAnchor
@@ -1899,6 +1899,8 @@ Item {
 
       BorderSurface {
         id: tooltipBubble
+        anchors.fill: parent
+        anchors.margins: Style.spacing.hairline
         implicitWidth: tooltipLabel.implicitWidth + 20
         implicitHeight: tooltipLabel.implicitHeight + 14
         color: Commons.Color.tooltip.background
