@@ -46,6 +46,11 @@ if [[ -z $agent ]]; then
   exit 1
 fi
 
+# An agent installed by its own first run, not through omarchy-default-agent,
+# has no skill links until the next update; a launch is the earliest moment
+# to give it them. One agent only, so this costs a few stats.
+omarchy-agent-skills-link "$agent"
+
 # OpenClaw's launcher sets OpenClaw up when the package became the seed before
 # this user's OpenClaw moved, so with the package a missing command is its to fix.
 if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then

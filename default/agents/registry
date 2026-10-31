@@ -1,0 +1,35 @@
+# Where each coding agent reads personal skills. One line per agent that
+# omarchy-default-agent offers: its command name, the variable that moves its
+# home (- for none), that home (~ is $HOME; - when it reads no home folder),
+# and whether it also reads ~/.agents/skills. Skills live at <home>/skills.
+#
+# Each line was checked on 2026-10-27 with scripts/agent-skill-paths.sh; the
+# evidence per agent is in omacom/omarchy#16775. An agent that reads
+# ~/.agents/skills gets Omarchy's skills there and nowhere else, so it does
+# not list each one twice.
+#
+# agent         home-variable         home                 reads-agents-skills
+claude          CLAUDE_CONFIG_DIR     ~/.claude            no
+codex           CODEX_HOME            ~/.codex             yes
+pi              PI_CODING_AGENT_DIR   ~/.pi/agent          yes
+omp             -                     ~/.omp/agent         yes
+opencode        -                     ~/.config/opencode   no
+ori             -                     -                    no
+crush           -                     ~/.config/crush      yes
+grok            GROK_HOME             ~/.grok              yes
+openclaw        -                     ~/.openclaw          no
+agy             -                     ~/.gemini/config     no
+hermes          HERMES_HOME           ~/.hermes            no
+copilot         -                     ~/.copilot           yes
+muse            -                     -                    yes
+cursor-agent    -                     ~/.cursor            yes
+kimi            -                     ~/.kimi-code         yes
+qwen            -                     ~/.qwen              yes
+dsh             -                     -                    yes
+mcode           -                     ~/.minimax           no
+kiro-cli        -                     ~/.kiro              no
+freebuff        -                     -                    yes
+kilo            -                     ~/.kilo              yes
+devin           -                     ~/.config/devin      yes
+amp             -                     ~/.config/agents     yes
+commandcode     -                     ~/.commandcode       yes

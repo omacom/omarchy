@@ -2052,13 +2052,9 @@ done
 repair_sleep_lock_unit_override
 install_bash_startup
 
-mkdir -p "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.pi/agent/skills"
-if [[ -d $root/default/agents/skills/omarchy ]]; then
-  ln -sfn "$root/default/agents/skills/omarchy" "$HOME/.agents/skills/omarchy"
-  ln -sfn "$root/default/agents/skills/omarchy" "$HOME/.claude/skills/omarchy"
-  ln -sfn "$root/default/agents/skills/omarchy" "$HOME/.codex/skills/omarchy"
-  ln -sfn "$root/default/agents/skills/omarchy" "$HOME/.pi/agent/skills/omarchy"
-fi
+# Skill links follow default/agents/registry; the helper is the checkout's,
+# since the installed Omarchy is still the one being replaced.
+OMARCHY_PATH=$root "$root/bin/omarchy-agent-skills-link"
 
 mkdir -p "$HOME/.local/state/omarchy/toggles/hypr"
 if [[ -f $root/default/hypr/toggles/flags.lua ]]; then
