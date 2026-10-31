@@ -676,7 +676,6 @@ Panel {
                   fontFamily: root.bar.fontFamily
                   horizontalPadding: Style.spacing.sm
                   verticalPadding: Style.spacing.controlPaddingY
-                  bordered: true
 
                   active: root.currentIndex === index
                   hasCursor: root.cursorActive && root.focusSection === "displays" && root.selectedIndex === index
@@ -834,10 +833,14 @@ Panel {
             foreground: root.bar.foreground
           }
 
+          // A slider row is padded by half a control gap above and below inside
+          // its cursor box, so rows of pills take the same room to keep every
+          // section's rhythm even.
           Column {
             visible: root.current !== null && root.current.scales.length > 0
             width: parent.width
-            spacing: Style.space(10)
+            spacing: Style.space(6) + Math.round(Style.spacing.controlGap / 2)
+            bottomPadding: Math.round(Style.spacing.controlGap / 2)
 
             PanelSectionHeader {
               text: Commons.I18n.t("monitor.scale")
@@ -873,7 +876,8 @@ Panel {
           Column {
             visible: root.current !== null && root.current.resolutions.length > 0
             width: parent.width
-            spacing: Style.space(10)
+            spacing: Style.space(6) + Math.round(Style.spacing.controlGap / 2)
+            bottomPadding: Math.round(Style.spacing.controlGap / 2)
 
             Item {
               width: parent.width
@@ -934,7 +938,7 @@ Panel {
           Column {
             visible: root.layoutRects.length > 1
             width: parent.width
-            spacing: Style.space(10)
+            spacing: Style.space(6)
 
             PanelSectionHeader {
               text: Commons.I18n.t("monitor.layout")
@@ -942,18 +946,24 @@ Panel {
               fontFamily: root.bar.fontFamily
             }
 
+            // Padded like a slider row, around a map as tall as the arrangement.
             CursorSurface {
               id: layoutRow
               width: parent.width
-              height: Style.space(120)
+              height: layoutMap.implicitHeight + Style.spacing.controlGap
               hasCursor: root.cursorActive && root.focusSection === "layout"
               onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(layoutRow)
               foreground: root.bar.foreground
               outline: true
 
               LayoutMap {
-                anchors.fill: parent
-                anchors.margins: Style.space(10)
+                id: layoutMap
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.leftMargin: Style.space(6)
+                anchors.rightMargin: Style.space(6)
+                anchors.verticalCenter: parent.verticalCenter
+                height: implicitHeight
               }
 
               HoverHandler {
@@ -1037,8 +1047,10 @@ Panel {
       b.h = Math.max(1, bottom - b.y)
       return b
     }
-    // Room around the arrangement for a display dragged past its edge.
-    readonly property real ratio: Math.min(width * 0.8 / bounds.w, height * 0.8 / bounds.h)
+    // Room either side for a display dragged past the arrangement's edge, and
+    // no taller than a slider row or two.
+    readonly property real ratio: Math.min(width * 0.8 / bounds.w, Style.space(100) / bounds.h)
+    implicitHeight: bounds.h * ratio
     readonly property real offsetX: (width - bounds.w * ratio) / 2
     readonly property real offsetY: (height - bounds.h * ratio) / 2
 
