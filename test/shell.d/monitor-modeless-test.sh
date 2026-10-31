@@ -75,7 +75,9 @@ if [[ ${1:-} == "monitors" && ${2:-} == "all" && ${3:-} == "-j" ]]; then
   [[ -f $OMARCHY_TEST_HYPRCTL_FAIL_FLAG ]] && exit 4
   cat "$OMARCHY_TEST_MONITORS_FILE"
 elif [[ ${1:-} == "reload" ]]; then
-  printf 'reload\n' >>"$OMARCHY_TEST_RELOAD_LOG"
+  # The width the monitor had when the reload was asked for, so a test can
+  # tell a recovery reload made at 0x0 from the one made after the mode came.
+  printf 'reload %s\n' "$(jq -r '.[0].width // ""' "$OMARCHY_TEST_MONITORS_FILE" 2>/dev/null)" >>"$OMARCHY_TEST_RELOAD_LOG"
   [[ -f $OMARCHY_TEST_RECOVERED_MONITORS ]] &&
     cp "$OMARCHY_TEST_RECOVERED_MONITORS" "$OMARCHY_TEST_MONITORS_FILE"
 fi
@@ -200,16 +202,18 @@ await_reloads() {
   return 1
 }
 
-# The watcher reloads until the monitor reports a mode, then stops. It has to
-# stop on its own: powering the monitor on fires no event to stop it.
+# The watcher reloads until the monitor reports a mode, reloads once more so
+# clients learn its size (#14422), then stops. It has to stop on its own:
+# powering the monitor on fires no event to stop it.
 printf '%s' '[{"name":"DP-1","width":0,"height":0,"disabled":false}]' >"$monitors_file"
 printf '%s' '[{"name":"DP-1","width":2560,"height":1440,"disabled":false}]' >"$recovered"
 start_watcher
 
 await_reloads 1 || fail "a monitor with no mode is reloaded at startup"
+await_reloads 2 || fail "a recovered monitor gets one more reload so clients see its size" "$(<"$reload_log")"
 sleep 0.6
-(( $(reloads) == 1 )) || fail "recovery stops once the monitor reports a mode" "$(<"$reload_log")"
-pass "recovery reloads until the monitor comes back, then stops on its own"
+(( $(reloads) == 2 )) || fail "recovery stops once the monitor reports a mode" "$(<"$reload_log")"
+pass "recovery reloads until the monitor comes back, once more for its size, then stops on its own"
 
 # A reload lands a monitor at 0x0 the same way a boot does, and no hotplug
 # follows. The watcher's own recovery reload comes back through this event too,
@@ -218,7 +222,7 @@ printf '%s' '[{"name":"DP-1","width":0,"height":0,"disabled":false}]' >"$monitor
 rm -f "$recovered"
 printf 'configreloaded>>\n' >&"$events_fd"
 
-await_reloads 2 || fail "a monitor left at 0x0 by a reload is recovered"
+await_reloads 3 || fail "a monitor left at 0x0 by a reload is recovered"
 pass "a monitor left at 0x0 by a reload is recovered"
 
 before=$(reloads)
@@ -230,6 +234,27 @@ sleep 1
 (( $(reloads) - before <= 2 )) ||
   fail "an echoed configreloaded does not stack a second recovery loop" "$before -> $(reloads)"
 pass "an echoed configreloaded does not stack a second recovery loop"
+
+stop_watcher
+
+# The mode can arrive on its own, after the last reload was made at 0x0, which
+# is what a KVM switch does. That reload left clients with the 0x0 size, so one
+# follows once the mode is there.
+printf '%s' '[{"name":"DP-1","width":0,"height":0,"disabled":false}]' >"$monitors_file"
+rm -f "$recovered"
+start_watcher
+await_reloads 1 || fail "a monitor arriving at 0x0 is reloaded"
+printf '%s' '[{"name":"DP-1","width":2560,"height":1440,"disabled":false}]' >"$monitors_file"
+# The loop may still make one more reload at 0x0 before it sees the mode, so
+# what counts is the reloads made with the mode there: exactly one, and last.
+for (( waited = 0; waited < 100; waited++ )); do
+  grep -qx 'reload 2560' "$reload_log" && break
+  sleep 0.05
+done
+sleep 0.6
+(( $(grep -cx 'reload 2560' "$reload_log") == 1 )) && [[ $(tail -n 1 "$reload_log") == "reload 2560" ]] ||
+  fail "a mode that arrives on its own gets one reload after it, then recovery stops" "$(<"$reload_log")"
+pass "a mode that arrives on its own gets one reload after it, then recovery stops"
 
 stop_watcher
 
