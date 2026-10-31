@@ -71,6 +71,10 @@ cat >"$fontconfig_file" <<XML
 </fontconfig>
 XML
 
+if ! omarchy-font-set-zed "$font_name"; then
+  echo "Could not sync the font to Zed" >&2
+fi
+
 omarchy-restart-shell
 
 if pgrep -x ghostty >/dev/null; then

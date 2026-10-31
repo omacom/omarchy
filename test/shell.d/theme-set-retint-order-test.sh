@@ -175,7 +175,7 @@ rm -f "$test_tmp/release"
 (sleep 0.3; touch "$test_tmp/release") &
 OMARCHY_THEME_WAIT=1 OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme beta
 wait
-for command in omarchy-theme-set-browser omarchy-hook; do
+for command in omarchy-theme-set-browser omarchy-theme-set-zed omarchy-hook; do
   grep -qx "$command" "$log" || fail "OMARCHY_THEME_WAIT=1 returns only after $command" "$(cat "$log")"
 done
 grep -q 'Theme retint failed: omarchy-theme-set-vscode' "$test_tmp/stderr" || fail "a waited-for failure is named on stderr"

@@ -13,6 +13,12 @@ mkdir -p "$(dirname "$kitty_config")" "$test_dir/bin"
 for command in pkill omarchy-restart-shell omarchy-hook omarchy-notification-send; do
   printf '#!/bin/bash\nexit 0\n' >"$test_dir/bin/$command"
 done
+cat >"$test_dir/bin/omarchy-font-set-zed" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$TEST_ZED_FONT_LOG"
+exit "${TEST_ZED_FONT_STATUS:-0}"
+SH
+export TEST_ZED_FONT_LOG="$test_dir/zed-font.log"
 printf '#!/bin/bash\nexit 1\n' >"$test_dir/bin/pgrep"
 printf '#!/bin/bash\nprintf "Test Font\\n"\n' >"$test_dir/bin/fc-list"
 printf '#!/bin/bash\nexit 0\n' >"$test_dir/bin/kitty"
@@ -36,6 +42,7 @@ cp "$ROOT/config/kitty/kitty.conf" "$kitty_config"
 output=$(run_command omarchy-display-text-size)
 [[ $output == *"terminal font: 9 pt"* ]] || fail "size report accounts for inherited Kitty default"
 run_command omarchy-font-set 'Test Font'
+grep -Fxq 'Test Font' "$TEST_ZED_FONT_LOG" || fail "font command syncs the selected font to Zed"
 run_command omarchy-display-text-size 16
 grep -qx 'font_family Test Font' "$kitty_config" || fail "font command creates family override"
 run_command omarchy-font-set Font
@@ -48,6 +55,12 @@ run_command omarchy-display-text-size 18
 run_command omarchy-display-text-size reset
 grep -qx 'font_size 9.0' "$kitty_config" || fail "size reset restores default"
 pass "font controls add and update overrides in the minimal template"
+
+TEST_ZED_FONT_STATUS=1 run_command omarchy-font-set 'Test Font' 2>"$test_dir/zed-font-error" ||
+  fail "a Zed font sync failure does not stop the system font change"
+grep -q 'Could not sync the font to Zed' "$test_dir/zed-font-error" ||
+  fail "a Zed font sync failure is reported"
+pass "a Zed font sync failure does not stop the system font change"
 
 rm "$kitty_config"
 output=$(run_command omarchy-display-text-size)

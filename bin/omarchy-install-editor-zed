@@ -2,10 +2,13 @@
 
 # omarchy:summary=Install Zed Editor and configure it with the current Omarchy theme
 
+set -e
+
 echo "Installing Zed Editor..."
-omarchy-pkg-add zed omazed
+omarchy-pkg-add zed
 
 # Apply Omarchy theme to Zed
-omazed setup
+omarchy-theme-set-zed --select
+omarchy-font-set-zed --enable "$(omarchy-font-current)"
 
 setsid uwsm-app -- gtk-launch dev.zed.Zed >/dev/null 2>&1 &

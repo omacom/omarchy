@@ -1,0 +1,224 @@
+#!/bin/bash
+
+# omarchy:summary=Sync Omarchy theme and font to Zed
+# omarchy:args=[--select|--font <font-name>]
+# omarchy:hidden=true
+
+CURRENT_THEME_DIR="$HOME/.local/state/omarchy/current/theme"
+ZED_CONFIG_DIR="$HOME/.config/zed"
+ZED_SETTINGS_PATH="$ZED_CONFIG_DIR/settings.json"
+
+update_settings() {
+  local action="$1"
+  local native_theme_ready="$2"
+  local font_name="${3:-}"
+  local lock_fd status
+
+  # Theme and font changes can run together; serialize our settings edits so
+  # each one sees the other's changes before updating the file.
+  mkdir -p "$HOME/.local/state/omarchy/zed" || return 1
+  exec {lock_fd}>"$HOME/.local/state/omarchy/zed/settings.lock" || return 1
+  flock "$lock_fd" || return 1
+  if [[ ! -f $ZED_SETTINGS_PATH ]]; then
+    (
+      umask 077
+      printf '{}\n' >"$ZED_SETTINGS_PATH"
+    ) || return 1
+  fi
+
+  python3 - "$ZED_SETTINGS_PATH" "$action" "$native_theme_ready" "$font_name" <<'PY'
+import json
+import re
+import sys
+
+path, action, native_theme_ready, font_name = sys.argv[1:]
+property_name = "buffer_font_family" if action == "font" else "theme"
+try:
+    with open(path, encoding="utf-8", newline="") as settings_file:
+        text = settings_file.read()
+except (OSError, UnicodeError) as error:
+    print(f"Could not read Zed settings: {error}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    token_pattern = re.compile(r'"(?:\\.|[^"\\])*"|//[^\r\n]*|/\*.*?\*/|[{}\[\],]', re.DOTALL)
+    trivia_pattern = re.compile(r'(?:\s+|//[^\r\n]*(?:\r\n|\r|\n|$)|/\*.*?\*/)*', re.DOTALL)
+
+    def skip_trivia(position):
+        return trivia_pattern.match(text, position).end()
+
+    # Validate JSONC without changing offsets into the original text. This also
+    # lets raw_decode find the end of nested values containing comments.
+    clean = list(text)
+    if clean and clean[0] == "\ufeff":
+        clean[0] = " "
+    for token in token_pattern.finditer(text):
+        if token.group().startswith(("//", "/*")):
+            for index in range(token.start(), token.end()):
+                if clean[index] not in "\r\n":
+                    clean[index] = " "
+    clean_text = "".join(clean)
+    for token in token_pattern.finditer(clean_text):
+        if token.group() == ",":
+            next_character = token.end()
+            while next_character < len(clean) and clean[next_character] in " \t\r\n":
+                next_character += 1
+            if next_character < len(clean) and clean[next_character] in "}]":
+                clean[token.start()] = " "
+    clean_text = "".join(clean)
+
+    class SettingsObject(dict):
+        def __init__(self, pairs):
+            super().__init__(pairs)
+            seen = set()
+            self.duplicates = set()
+            for key, _ in pairs:
+                if key in seen:
+                    self.duplicates.add(key)
+                seen.add(key)
+
+    def reject_constant(value):
+        raise ValueError(f"invalid JSON constant: {value}")
+
+    decoder = json.JSONDecoder(object_pairs_hook=SettingsObject, parse_constant=reject_constant)
+    settings = decoder.decode(clean_text)
+    if not isinstance(settings, SettingsObject):
+        raise ValueError("settings root is not an object")
+    if property_name in settings.duplicates:
+        raise ValueError(f"settings contain multiple {property_name} entries")
+
+    root_start = skip_trivia(1 if text.startswith("\ufeff") else 0)
+    if root_start >= len(text) or text[root_start] != "{":
+        raise ValueError("settings root is not an object")
+
+    start = end = None
+    pairs = {"{": "}", "[": "]"}
+    stack = []
+    for token in token_pattern.finditer(text):
+        value = token.group()
+        if value.startswith(("//", "/*")):
+            continue
+        if value in pairs:
+            stack.append(value)
+            continue
+        if stack and value == pairs[stack[-1]]:
+            stack.pop()
+            continue
+        if stack != ["{"] or not value.startswith('"') or json.loads(value) != property_name:
+            continue
+
+        colon = skip_trivia(token.end())
+        if colon >= len(text) or text[colon] != ":":
+            continue
+        start = skip_trivia(colon + 1)
+        if start >= len(text):
+            raise ValueError("missing settings value")
+        _, end = decoder.raw_decode(clean_text, start)
+        break
+
+    if action in ("select", "font"):
+        replacement = json.dumps("Omarchy" if action == "select" else font_name, ensure_ascii=False)
+        if start is None:
+            next_token = skip_trivia(root_start + 1)
+            if next_token >= len(text):
+                raise ValueError("unterminated settings root")
+            comma = "" if text[next_token] == "}" else ","
+            newline = "\r\n" if "\r\n" in text else "\n"
+            entry = f"{newline}  {json.dumps(property_name)}: {replacement}{comma}"
+            updated = text[: root_start + 1] + entry + text[root_start + 1 :]
+        else:
+            updated = text[:start] + replacement + text[end:]
+    elif start is None:
+        sys.exit(0)
+    else:
+        replacements = [
+            (token.start(), token.end())
+            for token in token_pattern.finditer(text, start, end)
+            if token.group().startswith('"') and json.loads(token.group()) == "Omazed"
+        ]
+        if not replacements:
+            sys.exit(0)
+        if native_theme_ready != "true":
+            raise ValueError("native Zed theme is not ready")
+        updated = text
+        for left, right in reversed(replacements):
+            updated = updated[:left] + '"Omarchy"' + updated[right:]
+except (ValueError, json.JSONDecodeError) as error:
+    print(f"Could not update Zed settings: {error}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    # Zed watches the file itself, so replacing it would break its watcher.
+    with open(path, "r+", encoding="utf-8", newline="") as settings_file:
+        if settings_file.read() != text:
+            raise ValueError("settings changed while updating")
+        if updated != text:
+            settings_file.seek(0)
+            settings_file.write(updated)
+            settings_file.truncate()
+except (OSError, UnicodeError, ValueError) as error:
+    print(f"Could not update Zed settings: {error}", file=sys.stderr)
+    sys.exit(1)
+PY
+  status=$?
+  exec {lock_fd}>&-
+  return "$status"
+}
+
+if omarchy-cmd-missing zed && omarchy-cmd-missing zeditor && [[ ! -d $ZED_CONFIG_DIR ]]; then
+  exit 0
+fi
+
+action=${1:-sync}
+native_theme_ready=false
+font_name=""
+
+case $action in
+  sync) ;;
+  --select) action=select ;;
+  --migrate) action=migrate ;;
+  --font)
+    if (( $# != 2 )) || [[ -z $2 ]]; then
+      echo "Usage: omarchy-theme-set-zed --font <font-name>" >&2
+      exit 1
+    fi
+    action=font
+    font_name=$2
+    ;;
+  *) echo "Usage: omarchy-theme-set-zed [--select|--font <font-name>]" >&2; exit 1 ;;
+esac
+
+if [[ $action == "font" ]]; then
+  mkdir -p "$ZED_CONFIG_DIR" || exit 1
+  update_settings "$action" "$native_theme_ready" "$font_name"
+  exit $?
+fi
+
+if [[ -f $CURRENT_THEME_DIR/zed.json ]]; then
+  if grep -Fq '{{' "$CURRENT_THEME_DIR/zed.json"; then
+    echo "The current Zed theme has unresolved color placeholders" >&2
+    exit 1
+  fi
+  if ! jq -e -s 'length == 1 and (.[0] | any(.themes[]?; .name == "Omarchy" and (.appearance == "light" or .appearance == "dark") and (.style | type == "object")))' "$CURRENT_THEME_DIR/zed.json" >/dev/null; then
+    echo "The current Zed theme is invalid or does not define an Omarchy theme" >&2
+    exit 1
+  fi
+  mkdir -p "$ZED_CONFIG_DIR/themes" "$HOME/.local/state/omarchy/zed" || exit 1
+  # Setup and theme changes can try to install the same theme concurrently.
+  flock "$HOME/.local/state/omarchy/zed/settings.lock" \
+    cp "$CURRENT_THEME_DIR/zed.json" "$ZED_CONFIG_DIR/themes/omarchy.json" || exit 1
+  native_theme_ready=true
+elif [[ $action == "select" ]]; then
+  echo "The current Omarchy theme has no Zed theme; refresh it first" >&2
+  exit 1
+elif [[ $action == "sync" ]]; then
+  exit 0
+fi
+
+[[ $action == "sync" ]] && exit 0
+
+if [[ $action == "migrate" && ! -f $ZED_SETTINGS_PATH ]]; then
+  exit 0
+fi
+
+update_settings "$action" "$native_theme_ready"
