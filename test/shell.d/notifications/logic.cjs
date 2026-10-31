@@ -334,8 +334,15 @@ const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
   'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
-  'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
+  'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'windowForSource', 'mostRecent', 'brandsOf', 'wordIn', 'focusWindow',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
+
+// A regex property of Service.qml, as source text.
+function property(name) {
+  const m = source.match(new RegExp('property var ' + name + ':\\s*/(.*)/\\s*$', 'm'))
+  if (!m) throw new Error('Service.qml has no regex ' + name)
+  return m[1]
+}
 
 function newCapacityScope() {
   const toasts = { rows: [],
@@ -357,6 +364,8 @@ function newCapacityScope() {
     displayNames: ['fixture-display'], focusedDisplayName: 'fixture-display',
     Quickshell: { screens: [] }, Hyprland: { monitorFor: screen => screen.monitor },
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
+    browserClasses: new RegExp(property('browserClasses')), browserSuffix: new RegExp(property('browserSuffix')),
+    genericLabels: { www: 1, app: 1, web: 1, my: 1, m: 1, mail: 1, com: 1, org: 1, net: 1, io: 1, co: 1, dev: 1, ai: 1, so: 1, site: 1, uk: 1 },
     Security: S, Delivery, Store, Markup: M,
     NotificationUrgency: { Critical: 2, Normal: 1, Low: 0 },
     Qt: { callLater: f => later.push(f),
@@ -1036,6 +1045,20 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   assert.ok(s.toasts.rows.filter(r => r.restored).every(r => r.duration === Store.RESTORE_GRACE))
   s.loadLive('[]')
   assert.equal(s.liveEntries.length, 100, 'a second load event is ignored')
+}
+
+{ // Edge windows: its classes are microsoft-edge and msedge-<appid>-<profile>,
+  // and its title suffix has a zero-width space in "Microsoft Edge".
+  const s = newCapacityScope()
+  const windows = [
+    { wmClass: 'msedge-cifhbcnohmdccbgoicgdjpfamggdegmo-Default', title: 'Microsoft Teams (PWA) - Chat | Microsoft Teams', address: '0x1', focusOrder: 1 },
+    { wmClass: 'microsoft-edge', title: 'Inbox - Outlook - Microsoft\u200b Edge', address: '0x2', focusOrder: 2 },
+    { wmClass: 'microsoft-edge', title: 'Weather - Microsoft\u200b Edge', address: '0x3', focusOrder: 3 }]
+  s.openWindows = () => windows
+  assert.equal(s.windowForSource('teams.cloud.microsoft').address, '0x1')
+  assert.equal(s.windowForSource('outlook.office.com').address, '0x2')
+  s.openWindows = () => [windows[2]]
+  assert.equal(s.windowForSource('news.microsoft.com'), null, 'the browser name is not part of the title')
 }
 
 console.log('notification logic: passed')
