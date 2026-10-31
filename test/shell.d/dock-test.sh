@@ -128,6 +128,8 @@ const answer = mode => { while (proc.running) { streamFinished(dock, mode); proc
 dock.refresh(); answer('floating')
 dock.refresh()
 assertEqual(dock.modes[1], 'floating', 'a refresh keeps a floating workspace on its dock while it reads the mode again')
+answer('dwindle')
+assertEqual(dock.modes[1], 'dwindle', 'the mode read again replaces the kept one')
 hyprland.workspaces.values.pop()
 dock.refresh()
 assertEqual(dock.modes[2], undefined, 'a refresh drops the mode of a workspace that is gone')
