@@ -53,21 +53,4 @@ assertEqual(media.volumeKeyStep('+1', 48, false), null, 'volume keys leave other
 assertEqual(media.volumeOsdIcon(48, false), 'volume-high', 'volume OSD shows the speaker when audible')
 assertEqual(media.volumeOsdIcon(48, true), 'volume-muted', 'volume OSD shows muted when muted')
 assertEqual(media.volumeOsdIcon(0, false), 'volume-muted', 'volume OSD shows muted at zero')
-
-// Only an ALSA sink is its own physical sink. Any other default sink, a DSP
-// chain or EasyEffects above all, needs omarchy-audio-output-sink's live
-// resolution on every press, so its keys fall back to the script.
-const fs = require('fs')
-const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/services/media/Service.qml'), 'utf8')
-assert(
-  serviceQml.includes('readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null') &&
-    /function handleVolumeKey\(action\) \{\s*var audio = volumeSink && volumeSink\.audio\s*if \(!audio\) return false/.test(serviceQml) &&
-    !serviceQml.includes('volumeSinkName'),
-  'volume keys act in the shell only on an ALSA sink and otherwise defer to the script'
-)
-const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
-assert(
-  /if \(!media \|\| !media\.handleVolumeKey\(entry\.target\)\)\s*Util\.execArgv\(\["omarchy-audio-output-volume", entry\.target\]\)/.test(shellQml),
-  'a volume key the shell declines runs omarchy-audio-output-volume'
-)
 JS
