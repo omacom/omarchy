@@ -878,6 +878,11 @@ Panel {
           }
 
           // ---------- Resolution ----------
+          PanelSeparator {
+            visible: root.current !== null && root.current.resolutions.length > 0
+            foreground: root.bar.foreground
+          }
+
           // The pills only carry short names, so the exact mode sits by the header.
           Column {
             visible: root.current !== null && root.current.resolutions.length > 0
