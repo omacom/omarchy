@@ -21,11 +21,29 @@ if [[ -z $mime || -z $path ]]; then
   exit 1
 fi
 
+terminal_focused() {
+  local class
+
+  class=$(hyprctl activewindow -j 2>/dev/null | jq -r ".class // empty" 2>/dev/null) || return 1
+  [[ -n $class ]] || return 1
+
+  class=${class,,}
+  [[ $class == *term* || $class == *foot* || $class == *kitty* || $class == *ghostty* || $class == *alacritty* || $class == *wezterm* || $class == *konsole* || $class == *tilix* ]]
+}
+
 [[ -r $path ]] || exit 1
 
 wl-copy --type "$mime" < "$path"
 
 if [[ $copy_only == "true" ]]; then
+  exit
+fi
+
+# Terminals only accept text, so pasting an image into one silently drops it.
+# When the focused window is a terminal, type the file path instead.
+if [[ $mime == image/* ]] && terminal_focused; then
+  sleep 0.15
+  wtype "$path" 2>/dev/null || true
   exit
 fi
 
