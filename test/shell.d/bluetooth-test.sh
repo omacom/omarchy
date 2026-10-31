@@ -108,6 +108,8 @@ trap 'rm -rf "$device_tmp"' EXIT
 mock_bin="$device_tmp/bin"
 mkdir -p "$mock_bin"
 export POWERED_FILE="$device_tmp/powered"
+export BREDR_FILE="$device_tmp/bredr"
+export DISCOVERING_FILE="$device_tmp/discovering"
 
 cat >"$mock_bin/bluetoothctl" <<'SH'
 #!/bin/bash
@@ -121,6 +123,37 @@ if [[ $1 == "show" ]]; then
   state="$POWERED_FILE"
   [[ -n ${2:-} && -f "$POWERED_FILE.$2" ]] && state="$POWERED_FILE.$2"
   printf '\tPowered: %s\n' "$(cat "$state")"
+  if [[ -n ${MOCK_DISCOVERING:-} ]]; then
+    reads=$(cat "$DISCOVERING_FILE" 2>/dev/null || echo 0)
+    reads=$((reads + 1))
+    echo "$reads" >"$DISCOVERING_FILE"
+    if (( reads <= MOCK_DISCOVERING )); then
+      printf '\tDiscovering: yes\n'
+      printf 'discovering yes\n' >>"$BLUETOOTHCTL_LOG"
+    else
+      printf '\tDiscovering: no\n'
+      printf 'discovering no\n' >>"$BLUETOOTHCTL_LOG"
+    fi
+  fi
+fi
+[[ $* == *" scan on"* ]] && { [[ -f "$BREDR_FILE" ]] || rm -f "$BREDR_FILE.count"; touch "$BREDR_FILE"; }
+if [[ $1 == "info" ]]; then
+  if [[ -f "$BREDR_FILE" && -n ${BREDR_DELAY:-} ]]; then
+    reads=$(cat "$BREDR_FILE.count" 2>/dev/null || echo 0)
+    reads=$((reads + 1))
+    echo "$reads" >"$BREDR_FILE.count"
+    if (( reads > BREDR_DELAY )); then
+      printf '\tClass: 0x00240418\n'
+      printf 'class\n' >>"$BLUETOOTHCTL_LOG"
+    else
+      printf '\tName: Mock Device\n'
+    fi
+  elif [[ -f "$BREDR_FILE" || -n ${MOCK_CLASS:-} ]]; then
+    printf '\tClass: 0x00240418\n'
+    printf 'class\n' >>"$BLUETOOTHCTL_LOG"
+  else
+    printf '\tName: Mock Device\n'
+  fi
 fi
 exit 0
 SH
@@ -219,6 +252,26 @@ pass "bluetooth lifts the block before connecting"
 grep -qx "connect AA:BB:CC:DD:EE:FF" "$unpowered_log" ||
   fail "bluetooth connects once the adapter is up" "$(cat "$unpowered_log")"
 pass "bluetooth connects once the adapter is up"
+
+# AirPods advertise over BLE before BlueZ has a BR/EDR record. Pairing in that
+# state fails, so the helper has to wait for a dual-mode inquiry to add Class:.
+bredr_log=$(rm -f "$BREDR_FILE"; BREDR_DELAY=3 OMARCHY_BLUETOOTH_BREDR_WAIT_SECONDS=5 bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+awk '/^class$/{class=NR} /^pair AA:BB:CC:DD:EE:FF$/{pair=NR} END{exit !(class && pair && class < pair)}' "$bredr_log" ||
+  fail "bluetooth waits for BR/EDR discovery before pairing" "$(cat "$bredr_log")"
+pass "bluetooth waits for BR/EDR discovery before pairing"
+
+# The panel owns discovery while it is open. If it stops before Class: arrives,
+# the helper has to start its own scan instead of waiting on a dead session.
+borrowed_log=$(rm -f "$BREDR_FILE" "$DISCOVERING_FILE"; MOCK_DISCOVERING=2 OMARCHY_BLUETOOTH_BREDR_WAIT_SECONDS=5 bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+awk '/^discovering no$/{stop=NR} /--timeout 20 scan on/{scan=NR} END{exit !(stop && scan && stop < scan)}' "$borrowed_log" ||
+  fail "bluetooth starts its own scan when borrowed discovery stops" "$(cat "$borrowed_log")"
+pass "bluetooth starts its own scan when borrowed discovery stops"
+
+# A device that already has a BR/EDR record has nothing to wait for.
+known_log=$(rm -f "$BREDR_FILE"; MOCK_CLASS=1 bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+grep -q -- '--timeout 20 scan on' "$known_log" &&
+  fail "bluetooth does not scan for a device with a BR/EDR record" "$(cat "$known_log")"
+pass "bluetooth pairs a device with a BR/EDR record without a scan"
 
 # Blocking hits every radio at once, so the read has to span them too. A bare
 # bluetoothctl show reports the default controller and misses a powered dongle.
