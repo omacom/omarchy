@@ -1,6 +1,6 @@
-# Příkazový řádek
+# Výzva terminálu
 
-Omarchy se ve výchozím nastavení dodává s minimálním příkazovým řádkem [Starship](https://starship.rs/). Takhle si svůj příkazový řádek rád ponechávám. Nepotřebuji znát uživatele, protože jsem to vždycky já, a nepotřebuji znát čas, protože je vždy nahoře.
+Omarchy používá jednoduchou výzvu terminálu [Starship](https://starship.rs/). Takhle ji mám nejradši. Uživatelské jméno nepotřebuji, protože jsem to vždycky já, a čas také ne, protože ho vidím nahoře na liště.
 
  ![prompt](images/prompt.webp)
 

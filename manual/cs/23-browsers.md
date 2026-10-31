@@ -6,7 +6,7 @@ Pokud vám Chromium nevyhovuje, nejste na něm zaseknutí. V části _Instalovat
 
 ## Nastavení jednoho jako výchozího
 
-Instalace prohlížeče ho nepovýší. Jakmile je v počítači, přejděte do části _Nastavení > Výchozí > Prohlížeč_ a vyberte ho — nabídka uvádí pouze prohlížeče, které máte skutečně nainstalované, a aktuální výchozí označí zaškrtnutím.
+Samotná instalace prohlížeč nenastaví jako výchozí. Až bude nainstalovaný, vyberte ho v části _Nastavení > Výchozí > Prohlížeč_. Nabídka zobrazuje pouze nainstalované prohlížeče a aktuální výchozí označuje zaškrtnutím.
 
 Z terminálu to je:
 
@@ -24,13 +24,13 @@ Prohlížeče z rodiny Chromia (samotné Chromium, Chrome, Edge a Brave) jsou do
 
 **Download Video** uchopí video přehrávané na stránce, na kterou se díváte, pomocí klávesové zkratky `Alt + Shift + D`. URL předá programu [yt-dlp](https://github.com/yt-dlp/yt-dlp), takže funguje na mnohem více webech než YouTube, a stahování skončí v adresáři `~/Videos`. Průběh se zobrazuje ve stejném zobrazování na obrazovce, které používá hlasitost a jas, a aktualizuje se na místě namísto hromadění oznámení. Nastavte proměnnou `OMARCHY_YTDLP_DIR`, pokud byste raději, aby soubory směřovaly jinam — kde umístit proměnné prostředí, najdete v části [FAQ](46-faq.md).
 
-Obě rozšíření komunikují s Omarchy prostřednictvím malého nativního hostitele zasílání zpráv, který se pro vás nainstaluje společně s prohlížečem. To je část, díky které video z webové stránky skončí ve vašem domovském adresáři a URL skončí ve správci schránky, což běžné rozšíření samo o sobě nedokáže.
+Obě rozšíření komunikují s Omarchy prostřednictvím malého pomocného programu, který se nainstaluje společně s prohlížečem. Díky němu lze video z webové stránky uložit do vašeho domovského adresáře a URL předat správci schránky. Samotné rozšíření tyto možnosti nemá.
 
 Jsou k dispozici pouze pro rodinu Chromia. Firefox a Zen je nedostanou.
 
 ## Firefox a Zen
 
-Firefox a Zen pocházejí z jiné rodiny, takže se jim dostává jiného zacházení: Omarchy nainstaluje soubor zásad pro rozumná výchozí nastavení a přepne je do nativního režimu Wayland, což chcete kvůli zlomkovému škálování a plynulému posouvání trackpadem.
+Firefox a Zen pocházejí z jiné rodiny, takže se jim dostává jiného zacházení: Omarchy nainstaluje soubor zásad pro rozumná výchozí nastavení a přepne je do nativního režimu Wayland, což chcete kvůli zlomkovému škálování a plynulému posouvání touchpadem.
 
 Nedostanou výše uvedená rozšíření pro Chromium a Omarchy na ně nepoužije motiv, takže tyto části zážitku si musíte nastavit sami.
 

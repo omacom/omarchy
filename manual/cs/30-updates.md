@@ -30,7 +30,7 @@ Vaše balíčky nejsou to jediné, co zastarává. Mnoho laptopů a periferií d
 
 ### Varování před přímými aktualizacemi přes pacman/yay
 
-Pokud už Arch znáte, možná vás bude lákat prostě si sami spustit `pacman -Syu` nebo `yay -Syu`, ale pokud to uděláte, přijdete o snímek, migrace a aktualizace konfigurace, které Omarchy spouští společně s novými balíčky. Proto Omarchy přímou aktualizaci systému ve skutečnosti zastaví a místo toho vás odkáže na `omarchy update`. (Pokud opravdu víte, co děláte, ochrana vám řekne, jak ji pro jednu transakci obejít.)
+Pokud jste již s Archem seznámeni, možná budete v pokušení jednoduše spustit sami příkaz `pacman -Syu` nebo `yay -Syu`, ale pokud to uděláte, přijdete o snímek, migrace a aktualizace konfigurace, které Omarchy spouští společně s novými balíčky. To je důvod, proč Omarchy ve skutečnosti zastaví přímou aktualizaci systému a nasměruje vás místo toho na příkaz `omarchy update`. (Pokud skutečně víte, co děláte, ochranná kontrola vám řekne, jak ji obejít pro jednu transakci.)
 
 ### Vrácení špatných aktualizací
 

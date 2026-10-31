@@ -40,7 +40,7 @@ Volba _Akce > Test rychlosti > Test rychlosti disku_ měří aktuální rychlost
 
 ### Proč se nemohu v Chromiu přihlásit ke svému účtu Google?
 
-Čistě otevřená sestava Chromia se nedodává s přihlašovacími údaji OAuth, které Google pro přihlášení k účtu vyžaduje. V nabídce Omarchy spusťte volbu _Instalovat > Service > Chromium Account_, čímž je přidáte, restartujte prohlížeč a přihlášení proběhne.
+Čistě otevřená sestava Chromia se nedodává s přihlašovacími údaji OAuth, které Google pro přihlášení k účtu vyžaduje. V nabídce Omarchy spusťte volbu _Instalovat > Služba > Účet Chromium_, čímž je přidáte, restartujte prohlížeč a přihlášení proběhne.
 
 ### Jak přidám tiskárnu?
 

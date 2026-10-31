@@ -6,7 +6,7 @@ Poté budou přístupné prostřednictvím spouštěče aplikací (`Super + Spac
 
 Pokud si přejete webovou aplikaci odebrat, stačí přejít do části _Odebrat > Webová aplikace_ v nabídce Omarchy.
 
-Nejlepší je, pokud se před používáním zkratek pro webové aplikace přihlásíte do všech svých účtů pomocí běžného prohlížeče. Tenký rám obálky s 1passwordem dobře nefunguje, takže je jednodušší být přihlášen přímo jako první.
+Před používáním webových aplikací se přihlaste ke svým účtům v běžném prohlížeči. Zjednodušená okna webových aplikací si s 1Password příliš nerozumí, proto je snazší přihlásit se předem.
 
 Všechny klávesové zkratky pro tyto webové aplikace lze změnit v souboru `~/.config/hypr/bindings.lua`.
 

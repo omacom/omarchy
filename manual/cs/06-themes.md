@@ -1,8 +1,8 @@
 # Motivy
 
-Omarchy přichází s dvaadvaceti krásnými motivy. Vybírat mezi nimi můžete přes _Vzhled > Motiv_ v Omarchy Menu (`Super + Space`) nebo přejít rovnou na výběr motivu pomocí `Super + Ctrl + T`.
+Omarchy přichází s dvaadvaceti krásnými motivy. Vybírat mezi nimi můžete přes _Vzhled > Motiv_ v nabídce Omarchy (`Super + Space`) nebo přejít rovnou na výběr motivu pomocí `Super + Ctrl + T`.
 
-Každý motiv upravuje vzhled plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého shellu Omarchy: horní lišty, nabídky, oznámení, OSD a zamykací obrazovky. (U Obsidianu musíte motiv Omarchy vybrat ručně přes _Vzhled > Motivy_ uvnitř aplikace).
+Každý motiv upravuje vzhled plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého shellu Omarchy: horní lišty, nabídky, oznámení, OSD a zamykací obrazovky. (U Obsidianu musíte motiv Omarchy vybrat ručně přes _Appearance > Themes_ uvnitř aplikace).
 
 Motivy mají sadu obrázků na pozadí, mezi kterými můžete vybírat pomocí `Super + Ctrl + W`.
 
@@ -67,7 +67,7 @@ _White_
 
 ### Odemknutí
 
-Motivy mohou mít také vlastní design odemknutí, který se používá pro proces dešifrování při spouštění. Jeden z nich si můžete vybrat pod _Vzhled > Odemknutí_. Vypadají takto:
+Motivy mohou mít také vlastní design odemknutí, který se používá pro proces dešifrování při spouštění. Jeden z nich si můžete vybrat pod _Vzhled > Obrazovka odemykání_. Vypadají takto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

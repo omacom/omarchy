@@ -259,7 +259,7 @@
     "label": "Plovoucí"
   },
   "appearance.unlock": {
-    "label": "Odemknout"
+    "label": "Obrazovka odemykání"
   },
   "trigger.toggle": {
     "label": "Přepnout"
@@ -603,7 +603,7 @@
     "label": "Editor"
   },
   "install.style": {
-    "label": "Styl"
+    "label": "Vzhled"
   },
   "install.style.theme": {
     "label": "Motiv"

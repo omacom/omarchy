@@ -30,7 +30,7 @@ U některých notebooků Omarchy automaticky používá ladění reproduktorů, 
 
 ### Proč se nemůžu přihlásit ani použít sudo se svým heslem?
 
-Pravděpodobně jste ho příliš mnohokrát zadali špatně a systém vás zablokoval. Pokud se to děje na zamykací obrazovce, můžete stisknout `CTRL + ALT + F2`, čímž spustíte nové TTY, kde se můžete přihlásit jako root, a pak spustit `faillock --reset --user [your-username]`. Tím blokování resetujete a můžete pokračovat.
+Pravděpodobně jste ho zadali příliš mnohokrát nesprávně a systém vás zamkl. Pokud se to děje na zamykací obrazovce, můžete stiskem `CTRL + ALT + F2` spustit nový TTY, kde se přihlásíte jako root, a poté spustit příkaz `faillock --reset --user [your-username]`. Tím zrušíte zablokování přihlášení a můžete pokračovat.
 
 ### Proč se mi nezobrazují autorizační výzvy 1Password pro 1Password SSH Agent / CLI?
 

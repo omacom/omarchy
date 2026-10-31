@@ -1,6 +1,6 @@
 # Snímky obrazovky a nahrávání
 
-Vše, co můžete sebrat z obrazovky, visí na klávese Print Screen. Samotná klávesa pořídí obrázek a modifikátory pořídí nahrávku, barvu nebo text uvnitř oblasti. Pokud vaše klávesnice klávesu Print Screen vůbec nemá, `Super + Ctrl + Alt + C` pořídí stejný snímek obrazovky a `Super + Ctrl + C` otevře celou sadu jako nabídku.
+Klávesa Print Screen slouží k pořizování snímků i dalším způsobům zachycení obsahu obrazovky. Samotná pořídí snímek, v kombinaci s dalšími klávesami spustí nahrávání, vybere barvu nebo zkopíruje text z oblasti. Pokud vaše klávesnice klávesu Print Screen nemá, `Super + Ctrl + Alt + C` pořídí stejný snímek a `Super + Ctrl + C` otevře nabídku všech těchto funkcí.
 
 | Klávesová zkratka | Funkce |
 | ------ | -------- |
@@ -18,7 +18,7 @@ Stiskněte `Print Screen` (nebo `Super + Ctrl + Alt + C`) a Omasnap zachytí zam
 
 Po výběru oblasti Omasnap zachycení uloží, zkopíruje ho do schránky a zobrazí oznámení s jeho miniaturu, stejně jako to dělá uložené nahrávání obrazovky. Zvolte Open, abyste uložený snímek zobrazili v prohlížeči obrázků, nebo Edit, abyste ho anotovali.
 
-Editor anotací umí kreslit šipky, čáry, tvary, zvýraznění, číslované značky, text a bezpečné redakce; oříznout nebo vyříznout část obrázku; provést OCR jeho textu; a přidat pozadí. V editoru stiskněte `Enter` pro zkopírování a uložení hotového PNG, `Ctrl + C` pro jeho zkopírování bez uložení nebo `Ctrl + S` pro jeho uložení bez kopírování.
+Editor snímků obrazovky nabízí šipky, čáry, tvary, zvýraznění, číslované značky, text i bezpečné začernění citlivých údajů. Umožňuje také oříznout obrázek, vyříznout jeho část, rozpoznat text pomocí OCR nebo přidat pozadí. Klávesa `Enter` hotový PNG zkopíruje i uloží, `Ctrl + C` ho pouze zkopíruje a `Ctrl + S` pouze uloží.
 
 Uložené snímky obrazovky končí ve výchozím nastavení v `~/Pictures/Screenshots`, s názvem jako `screenshot-2026-08-13_14-22-05-firefox.png`. Nastavte `OMASNAP_SCREENSHOT_DIR`, abyste použili jiný adresář — viz [časté dotazy](46-faq.md), kam umístit proměnné prostředí relace. Omasnap adresář vytvoří, když ukládá první snímek. Nastavte `[output] autosave = false` v `~/.config/omasnap/omasnap.conf`, abyste zakázali automatické ukládání; zachycení jsou pak pouze kopírována a zobrazena v náhledu po dobu 10 sekund, který můžete nechat na obrazovce pomocí jeho tlačítka pro připnutí nebo `Ctrl + P`.
 
@@ -47,7 +47,7 @@ Nahrávání běží na gpu-screen-recorder, který kóduje na GPU při 60fps a 
 
 Když nahráváte, objeví se v liště malý indikátor. Klikněte na něj pro zastavení. Můžete také zastavit znovu pomocí `Alt + Print Screen` nebo pomocí položky _Stop Screenrecording_ pod _Trigger > Capture > Screenrecord_, která se zobrazí pouze tehdy, když něco skutečně nahrává.
 
-Zastavení provede trochu úklidu, než vám předá soubor: první snímek se ořízne, a pokud je přítomen zvuk, je normalizován na -14 LUFS, přičemž prasknutí zachytávání PipeWire na úplném začátku je ztlumeno. Pak se objeví oznámení s miniaturu z nahrávky. Klikněte na něj, abyste soubor přehráli v mpv.
+Po zastavení se z nahrávky odstraní první snímek. Pokud obsahuje zvuk, jeho hlasitost se normalizuje na -14 LUFS a ztlumí se lupnutí při zahájení záznamu přes PipeWire. Potom se zobrazí oznámení s náhledem nahrávky. Kliknutím na něj nahrávku přehrajete v mpv.
 
 ### Překryvná vrstva webkamery
 
@@ -74,7 +74,7 @@ _Trigger > Capture > QR Code_ dělá stejný trik pro QR kódy. Vyberte oblast s
 
 Nahrávka obrazovky ve 4K nebo syrové HEIC z vašeho telefonu je často příliš velká na to, abyste ji jen tak poslali. `Super + Ctrl + .` (nebo _Trigger > Transcode_) to napraví. Nabídne vám fuzzy výběr souboru nad `~/Pictures` a `~/Videos`, pak se zeptá na formát a velikost.
 
-Obrázky jdou do jpg nebo png ve vysoké, střední nebo nízké kvalitě, které omezují šířku na 3160, 2160 a 1080 pixelů. Videa jdou do mp4 nebo animovaného gif v 4k, 1080p nebo 720p. Převedený soubor je zapsán vedle originálu s rozlišením v názvu — `demo-1080p.mp4` — a cesta je zkopírována do schránky jako souborové URI, takže ji můžete vložit přímo do aplikace, která přijímá přetažení souborů.
+Obrázky jdou do jpg nebo png ve vysoké, střední nebo nízké kvalitě, které omezují šířku na 3160, 2160 a 1080 pixelů. Videa jdou do mp4 nebo animovaného gifu ve 4k, 1080p nebo 720p. Převedený soubor se zapíše vedle originálu s rozlišením v názvu — `demo-1080p.mp4` — a cesta se zkopíruje do schránky jako URI souboru, takže ho můžete vložit přímo do aplikace, která podporuje přetažení souborů.
 
 Funguje to i z terminálu, pokud už víte, co chcete: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Existuje také `omarchy transcode ascii`, které promění obrázek v ASCII art — to je většinou pro [branding](41-branding.md).
 

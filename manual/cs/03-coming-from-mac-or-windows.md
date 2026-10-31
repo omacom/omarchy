@@ -10,7 +10,7 @@ Váš reflex na Spotlight, Raycast nebo nabídku Start se stává `Super + Space
 
 ### Není tu žádný dock ani ikony na ploše
 
-Nic, na co kliknout pro spuštění věcí, žádné ikony k uspořádání na ploše. Aplikace se spouštějí klávesovou zkratkou (`Super + Return` pro terminál, `Super + Shift + Return` pro prohlížeč a `Super + K` pro seznam všeho, co je namapované) nebo z nabídky. Jediným trvalým prvkem uživatelského rozhraní je [horní lišta](05-the-top-bar.md), která pokrývá to, co pro vás dřív dělaly lišta nabídek, systémová lišta a Centrum oznámení — a téměř každý widget na ní něco dělá při kliknutí levým, pravým i prostředním tlačítkem.
+Není na co klikat pro spouštění věcí, žádné ikony k uspořádání na ploše. Aplikace se spouštějí klávesovou zkratkou (`Super + Return` pro terminál, `Super + Shift + Return` pro prohlížeč a `Super + K` pro seznam všeho, co je namapováno) nebo z nabídky. Jediným trvalým prvkem uživatelského rozhraní je [horní lišta](05-the-top-bar.md), která pokrývá to, co pro vás dříve dělaly lišta nabídek, systémová lišta a Centrum oznámení — a téměř každý widget na ní dělá něco při levém, pravém a prostředním kliknutí.
 
 ### Okna se umisťují sama
 

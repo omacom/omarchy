@@ -23,7 +23,7 @@ hl.config({
 
 ### Odebrání mezer mezi okny
 
-Na displejích notebooků někteří lidé nechtějí plýtvat ani jedním pixelem na mezery mezi okny (nebo dokonce na horní panel, který lze přepnout zkratkou `Super + Shift + Space`). Všechny mezery a ohraničení můžete vypnout zkratkou `Super + Shift + Backspace`, nebo je odstranit natrvalo odstraněním komentářů v této části souboru `~/.config/hypr/looknfeel.lua`:
+Na displejích notebooků někteří lidé nechtějí plýtvat ani jedním pixelem na mezery mezi okny (nebo dokonce na horní lištu, kterou lze přepnout zkratkou `Super + Shift + Space`). Všechny mezery a ohraničení můžete vypnout zkratkou `Super + Shift + Backspace`, nebo je odstranit natrvalo odstraněním komentářů v této části souboru `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({

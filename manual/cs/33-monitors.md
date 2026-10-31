@@ -18,23 +18,23 @@ local omarchy_monitor_scale = 1
 
 Změny `GDK_SCALE` se projeví u aplikací spuštěných po změně (a GTK respektuje pouze celá čísla, takže ho ponechte na nejbližším celém čísle vašeho škálování monitoru). Po změně tedy nezapomeňte ukončit okna, která máte nadměrně velká (nebo zavřete všechna okna pomocí `Ctrl + Alt + Del`!).
 
-Pomocí `Super + /` můžete také rychle procházet hlavní poměry škálování monitoru (1x, 1.25x, 1.6x, 2x, 3x, 4x) směrem nahoru a pomocí `Super + Alt + /` směrem dolů, nebo si jeden vybrat z panelu monitoru v horní liště. Ty mění pouze monitor, na který jste zaměřeni, takže obrazovka notebooku a externí displej mohou mít každý své vlastní škálování. Volba se uloží do `~/.config/hypr/monitors.lua` jako pravidlo `hl.monitor` pro daný monitor, takže přetrvá i po restartu a má přednost před `omarchy_monitor_scale`, které zůstává škálováním pro každý monitor bez vlastního pravidla. Protože `GDK_SCALE` je jedna hodnota pro všechny obrazovky, tyto změny ji nastavují podle monitoru s nejnižším škálováním, takže aplikace X11 vyjdou na hustší obrazovce trochu malé, místo aby byly na té druhé nadměrně velké.
+Pomocí `Super + /` můžete také rychle procházet hlavní poměry škálování monitoru (1x, 1.25x, 1.6x, 2x, 3x, 4x) směrem nahoru a pomocí `Super + Alt + /` směrem dolů, nebo si jeden vybrat na panelu monitoru v horní liště. Změna se týká jen aktivního monitoru, takže obrazovka notebooku a externí displej mohou mít každý své vlastní škálování. Volba se pro daný monitor uloží do `~/.config/hypr/monitors.lua` jako pravidlo `hl.monitor`, takže přežije restart a má přednost před `omarchy_monitor_scale`, které zůstává škálováním pro každý monitor bez vlastního pravidla. Protože `GDK_SCALE` má jednu hodnotu pro všechny obrazovky, nastavuje se při těchto změnách podle monitoru s nejnižším škálováním. Aplikace X11 tak budou na obrazovce s vyšší hustotou pixelů trochu menší, místo aby byly na té druhé příliš velké.
 
 ### Zvětšení nebo zmenšení textu
 
-Škálování monitoru mění velikost všeho. Pokud chcete jen větší nebo menší _text_, je na to jediný ovladač:
+Škálování monitoru mění velikost všeho. Pokud chcete jen větší nebo menší _text_, stačí jeden příkaz:
 
 ```
 omarchy display text size 14
 ```
 
-Ten přijímá velikost v pixelech od 9 do 20 a mění společně shell Omarchy, aplikace GTK i váš terminál, takže celá pracovní plocha zůstane v poměru. Spusťte ho bez argumentu, abyste viděli, kde se nacházíte, a `omarchy display text size reset` pro návrat k výchozímu nastavení. Foot je jediný opozdilec: nemá způsob, jak znovu načíst svou konfiguraci, takže spuštěné terminály si ponechají svou starou velikost, dokud neotevřete nový.
+Ten přijímá velikost v pixelech mezi 9 a 20 a mění velikost textu současně v shellu Omarchy, aplikacích GTK a terminálu, aby celé pracovní prostředí zůstalo sladěné. Spusťte ho bez argumentu, abyste viděli, kde se nacházíte, a příkazem `omarchy display text size reset` se vraťte k výchozímu nastavení. Foot je jediný opozdilec: nemá způsob, jak svou konfiguraci načíst znovu, takže běžící terminály si uchovají svou starou velikost, dokud neotevřete nový.
 
 ### Rozšíření a zrcadlení displejů notebooku
 
-Když připojíte k notebooku externí obrazovku, displej se automaticky rozšíří. Můžete to ale změnit na zrcadlení pomocí _Spouštěče > Hardware_ v nabídce Omarchy nebo `Super + Ctrl + Alt + Delete`. To je obzvlášť užitečné, pokud je tou externí obrazovkou projektor a chcete něco ukazovat při práci.
+Když k notebooku připojíte externí obrazovku, displej se automaticky rozšíří. Místo toho to ale můžete změnit na zrcadlení pomocí _Akce > Hardware_ v nabídce Omarchy nebo `Super + Ctrl + Alt + Delete`. To je obzvlášť užitečné, pokud je tou externí obrazovkou projektor a chcete během práce něco ukazovat.
 
-Když používáte rozšíření, zavření víka notebooku automaticky vypne interní obrazovku. Otevření víka ji znovu zapne. Můžete to také ovládat ručně pomocí _Spouštěče > Hardware_ v nabídce Omarchy nebo `Super + Ctrl + Delete`.
+Když máte plochu rozšířenou, zavřením víka notebooku se vnitřní obrazovka automaticky vypne. Otevřením víka se zase zapne. Můžete to také ovládat ručně pomocí _Akce > Hardware_ v nabídce Omarchy nebo `Super + Ctrl + Delete`.
 
 ### Uspořádání více obrazovek
 

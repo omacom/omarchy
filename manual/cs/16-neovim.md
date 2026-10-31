@@ -1,6 +1,6 @@
 # Neovim
 
-[Neovim](https://neovim.io/) je moderní implementace [editoru vi](<https://en.wikipedia.org/wiki/Vi_(text_editor)>) vytvořeného Billem Joyem už v roce 1976. Je to modální editor, kde jsou režim vkládání a příkazový režim oddělené, a je to docela superschopnost, jakmile se naučíte i jen podmnožinu neuvěřitelně hluboké sady klávesových příkazů. Ale je to také pořádná křivka učení!
+[Neovim](https://neovim.io/) je moderní implementace [editoru vi](<https://en.wikipedia.org/wiki/Vi_(text_editor)>) vytvořeného Billem Joyem už v roce 1976. Je to modální editor, kde jsou režim vkládání a příkazový režim oddělené, a je to docela superschopnost, jakmile se naučíte i jen podmnožinu neuvěřitelně hluboké sady klávesových příkazů. Počítejte ale s tím, že naučit se ho ovládat zabere čas!
 
 Pokud jste v úpravách ve stylu vimu úplně noví, doporučuji podívat se na [sérii ThePrimeagen Vim As Your Editor](https://www.youtube.com/watch?v=X6AR2RMB5tE&list=PLm323Lc7iSW_wuxqmKx_xxNtJC_hJbQ7R) na YouTube. Ta vás naučí základy. Jen vězte, že na rozdíl od podobnějších mainstreamových editorů vám bude trvat déle, než získáte základní zběhlost ve vimu. Ale jakmile ji získáte, odměna je také větší.
 

@@ -1,10 +1,10 @@
 # Hraní her
 
-Omarchy není jen pro _pRoDUkTiViTu_, je také pro zábavu, a co je zábavnější než hraní her? Omarchy je dodávána s celou sadou herních možností — Steam a RetroArch pro nativní a retro hraní, Battle.net, Lutris a Heroic pro obchody mimo Steam, Moonlight pro streamování z počítače, Xbox Cloud Gaming + NVIDIA GeForce NOW pro cloud, plus věčně zelený Minecraft.
+Omarchy není jen pro _pRoDUkTiViTu_, je také pro zábavu, a co je zábavnější než hraní her? Omarchy nabízí celou řadu možností, jak hrát — Steam a RetroArch pro nativní a retro hraní, Battle.net, Lutris a Heroic pro obchody mimo Steam, Moonlight pro streamování z počítače, Xbox Cloud Gaming + NVIDIA GeForce NOW pro cloud, plus nestárnoucí Minecraft.
 
-Díky neuvěřitelné práci společnosti Valve na [vrstvě kompatibility proton](https://en.wikipedia.org/wiki/Proton_(software)) nyní existuje v Linuxu desítky tisíc hratelných moderních her. A víte, že [Steam Deck](https://store.steampowered.com/steamdeck/) ve skutečnosti používá Arch!
+Díky neuvěřitelné práci společnosti Valve na [vrstvě kompatibility Proton](https://en.wikipedia.org/wiki/Proton_(software)) se dnes na Linuxu dají hrát desítky tisíc moderních her. A víte, že [Steam Deck](https://store.steampowered.com/steamdeck/) ve skutečnosti používá Arch!
 
-Všechny instalační programy pro hraní her žijí v části _Instalovat > Hry_ v nabídce Omarchy (`Super + Space`). Pokud vůbec někdy budete chtít jeden vrátit zpět, použijte část _Odebrat > Hry_.
+Všechny možnosti instalace her najdete v nabídce Omarchy v části _Instalovat > Hry_ (`Super + Space`). Pokud chcete některou z nich zase odebrat, použijte _Odebrat > Hry_.
 
 ## Steam
 
@@ -56,13 +56,13 @@ Stejně jako u Steamu mějte na paměti, že po přihlášení nebo spuštění 
 
 ## Ovladače Xbox
 
-Nainstalujte podporu pro ovladače Xbox přes Bluetooth výběrem položky _Instalovat > Hry > Ovladače Xbox_ z nabídky Omarchy (`Super + Space`). Spárujte ovladače prostřednictvím Bluetooth (`Super + Ctrl + B`) a budou fungovat ve všech vašich hrách. Toto nepotřebujete, pokud ovladač připojujete jen pevně kabelem USB-C.
+Nainstalujte podporu pro ovladače Xbox přes Bluetooth výběrem položky _Instalovat > Hry > Ovladače Xbox_ z nabídky Omarchy (`Super + Space`). Spárujte ovladače prostřednictvím Bluetooth (`Super + Ctrl + B`) a budou fungovat ve všech vašich hrách. Toto nepotřebujete, pokud ovladač připojujete pouze kabelem USB-C.
 
 ## Moonlight (streamování her z počítače)
 
 [klient Moonlight](https://github.com/moonlight-stream/moonlight-qt) je s Omarchy předinstalovaný, takže můžete okamžitě streamovat hry z počítače se systémem Windows, na kterém běží služba [Sunshine](https://app.lizardbyte.dev/Sunshine/). Moonlight spusťte prostřednictvím klávesové zkratky `Super + Space`.
 
-Pokud jsou počítač s Omarchy i vzdálený herní počítač pevně připojené, je zážitek k nerozeznání od místního hraní. Zvyšte rozlišení na nativní, nastavte obnovovací frekvenci na 120 Hz a maximalizujte přenosovou rychlost — toto je nejlepší způsob, jak v Linuxu hrát konkurenční střílečky, například Fortnite.
+Pokud jsou počítač s Omarchy i vzdálený herní počítač připojené k síti kabelem, je zážitek k nerozeznání od místního hraní. Zvyšte rozlišení na nativní, nastavte obnovovací frekvenci na 120 Hz a maximalizujte přenosovou rychlost — toto je nejlepší způsob, jak v Linuxu hrát soutěžní střílečky, například Fortnite.
 
 Počítač s Omarchy můžete také proměnit v hostitele spuštěním příkazu `omarchy install service sunshine`, který nainstaluje Sunshine a otevře streamovací porty Moonlight pro vaši LAN a Tailscale.
 
@@ -76,10 +76,10 @@ Nainstalujte [Battle.net](https://eu.shop.battle.net/en-us) výběrem položky _
 
 Nainstalujte [Lutris](https://lutris.net/) výběrem položky _Instalovat > Hry > Lutris_ z nabídky Omarchy (`Super + Space`). Lutris je způsob, jak hrát hry pro Windows z obchodů, jako jsou EA a Ubisoft Connect, které výše nemají vlastní instalační program.
 
-Instalace je trochu roztřesená a občas vypadá, jako by se nic nedělo — prostě buďte trpěliví, na pozadí to pracuje.
+Instalace se může občas zadrhávat a chvílemi to vypadá, že se nic neděje. Buďte trpěliví, na pozadí stále pracuje.
 
 ## Spouštěč Heroic (Epic Games)
 
-Nainstalujte [spouštěč Heroic](https://heroicgameslauncher.com/) výběrem položky _Instalovat > Hry > Heroic (Epic Games)_ z nabídky Omarchy (`Super + Space`). Heroic umožňuje spouštět tituly z Epic Games, například OddSparks, které se nespoléhají na protipodvádění — plus hry z GOG a Amazon Prime Gaming. Bohužel to znamená žádný Fortnite a žádný Rocket League — dokud Tim Sweeney nepřejde do Linuxu, toto je nejdál, kam se dostaneme.
+Nainstalujte [spouštěč Heroic](https://heroicgameslauncher.com/) výběrem položky _Instalovat > Hry > Heroic (Epic Games)_ z nabídky Omarchy (`Super + Space`). Heroic umožňuje spouštět tituly z Epic Games, například OddSparks, které nevyžadují ochranu proti podvádění — plus hry z GOG a Amazon Prime Gaming. Bohužel to znamená žádný Fortnite a žádný Rocket League — dokud Tim Sweeney nepřejde do Linuxu, toto je nejdál, kam se dostaneme.
 
-Stejně jako Lutris může při instalaci her působit pomale a roztřeseně. Dejte mu čas.
+Stejně jako u Lutrisu může být instalace her pomalá a občas se zadrhnout. Dejte jí čas.

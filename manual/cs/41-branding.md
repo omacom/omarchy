@@ -16,7 +16,7 @@ Poté nastavení použijte pomocí `omarchy plymouth set '#1d2021' '#ebdbb2' log
 
 ### Spořič obrazovky
 
-Logo použité pro spořič obrazovky můžete změnit v _Vzhled > Branding > Spořič obrazovky_. Je to ASCII logo, takže můžete text upravovat přímo, ale můžete mu také předat obrázek png nebo svg a my ho převedeme do ASCII. Vypadá to docela cool.
+Logo používané pro spořič obrazovky můžete změnit v části _Vzhled > Branding > Spořič obrazovky_. Jde o logo ve formě ASCII, takže můžete text přímo upravovat, ale můžete mu předat také obrázek png nebo svg a my ho převedeme na ASCII. Vypadá to docela dobře.
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
@@ -28,7 +28,7 @@ V tomto menu jsou tři položky:
 
 ### Obrazovka O aplikaci
 
-Stejné tři možnosti jsou v _Vzhled > Branding > O aplikaci_ pro obrazovku _O aplikaci_, kterou získáte z menu Omarchy, a fungují identicky — soubor je `~/.config/omarchy/branding/about.txt` a okno O aplikaci se po každé změně objeví. Kresba pro O aplikaci se převádí do menší velikosti než ta pro spořič obrazovky, protože se musí vejít do okna, místo aby vyplnila celý displej.
+Stejné tři volby se nacházejí v části _Vzhled > Branding > O aplikaci_ pro obrazovku _O aplikaci_, kterou vyvoláte z nabídky Omarchy, a fungují totožně — soubor je `~/.config/omarchy/branding/about.txt` a okno O aplikaci se po každé změně zobrazí. Kresba na obrazovce O aplikaci se převádí na menší velikost než u spořiče obrazovky, protože se musí vejít do okna, nikoli vyplnit displej.
 
 Dokud je okno otevřené, každých pár sekund se přes kresbu přežene zelený záblesk a pak ji zase nechá v klidu. Vaše vlastní kresba ho dostane také, pokud je každý znak v ní široký jeden sloupec — a všechno, co vytvoří _Nastavit z obrázku_, takové je. Kresba sestavená z emoji nebo znaků s dvojitou šířkou místo toho zůstává v klidu, a stejně tak obrazovka, pokud si ponecháte vlastní konfiguraci fastfetch: nehybné logo v těchto případech znamená, že se animace drží stranou, nikoli že selhává, protože posunutí záblesku přes ně by zbytek řádku dostalo na špatné místo.
 

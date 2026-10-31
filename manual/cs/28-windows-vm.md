@@ -30,7 +30,7 @@ Adresář `~/Windows` ve vašem domovském adresáři se automaticky sdílí s v
 
 Tyto známé domovské cesty zůstávají na svých vlastních souborových systémech. Mohou být také symbolickými odkazy na adresáře, které vlastníte, což je užitečné, když virtuální disk žije na větší jednotce. Instalační program měří volné místo v souborovém systému, který skutečně obsahuje adresář `~/.windows`, nikoli nutně souborový systém obsahující váš domovský adresář.
 
-Disk a sdílené cesty uchovávejte jako samostatné, nepřekrývající se adresáře. Odebrání záměrně vyprázdní adresář disku, ale zachová sdílený adresář. Bezprostředně před odstraněním Omarchy provede ohraničenou kontrolu uzavření a odmítne cokoli odebrat, pokud tato kontrola vyprší nebo nedokáže prokázat, že jsou oba stromy oddělené.
+Virtuální disk a sdílené soubory uchovávejte v oddělených adresářích, jejichž adresářové stromy se nepřekrývají. Při odebrání se vyprázdní adresář virtuálního disku, ale sdílený adresář zůstane zachovaný. Těsně před smazáním Omarchy znovu ověří, že se tyto stromy nepřekrývají. Pokud se to nepodaří prokázat nebo kontrola překročí časový limit, odmítne cokoli smazat.
 
 Před spuštěním virtuálního počítače Omarchy oba tyto adresáře otevře a připne a poté přesné inode adresářů připojí vazebným připojením na soukromé kotvy pro jednotlivé uživatele v části `/var/lib/omarchy/windows/mounts`. Docker vidí pouze tyto kotvy chráněné rootem. Tím se zachovávají vlastní umístění disku a zároveň se zabraňuje tomu, aby jiný proces běžící pod vaším účtem vyměnil zkontrolovanou cestu předtím, než ji privilegovaný kontejner spotřebuje. Stávající disk a sdílené adresáře se během migrace zpřísní do režimu `0700`, aby jiné místní účty nemohly procházet jejich obsah.
 
@@ -38,11 +38,11 @@ Porty virtuálního počítače jsou vázány pouze na localhost, takže nic ve 
 
 ## Omezení a licencování
 
-S tímto nastavením není k dispozici propust pro GPU, takže není vhodné pro hraní her ani úpravy videa. Je to skvělý způsob, jak spouštět Microsoft Office nebo cokoli jiného, co naprosto musíte mít.
+S tímto nastavením není k dispozici přímé předání GPU, takže není vhodné pro hraní her ani úpravy videa. Je to skvělý způsob, jak spouštět Microsoft Office nebo cokoli jiného, co naprosto musíte mít.
 
 Nainstalovaná verze je Windows 11 Pro, neaktivovaná. K používání funkcí vázaných na licenci budete potřebovat vlastní licenční klíč.
 
-Pokud byl tento počítač dodán s Windows, je klíč OEM i po instalaci Omarchy stále ve firmwaru. Vytiskněte ho příkazem `omarchy windows key`. Tento klíč je vázán na tento počítač — aktivuje systém Windows přeinstalovaný na tomto hardwaru, ale obvykle neaktivuje virtuální počítač.
+Pokud byl tento počítač dodán s Windows, je klíč OEM i po instalaci Omarchy stále ve firmwaru. Zobrazíte ho příkazem `omarchy windows key`. Tento klíč je vázán na tento počítač — aktivuje systém Windows přeinstalovaný na tomto hardwaru, ale obvykle neaktivuje virtuální počítač.
 
 Přidělení prostředků můžete později změnit opětovným spuštěním příkazu `omarchy-windows-vm install`, který na základě vašich odpovědí přepíše konfiguraci virtuálního počítače. Samotný soubor compose nyní žije v umístění `/var/lib/omarchy/windows/docker-compose.yml` a vlastní ho root — to je záměrné, aby ho proces běžící pod vaším účtem nemohl přepsat a nechat privilegovaný počáteční proces připojit celý váš disk do kontejneru. Pokud ho potřebujete ručně upravit (například pro připojení zařízení USB), upravte ho pomocí `sudo` a všechny možnosti najděte v projektu [Dockur Windows](https://github.com/dockur/windows).
 

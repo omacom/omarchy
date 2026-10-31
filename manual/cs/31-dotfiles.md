@@ -2,16 +2,16 @@
 
 Omarchy se konfiguruje především prostřednictvím takzvaných dotfiles, které žijí v adresáři `~/.config`. Ty jsou považovány za vaše soubory pro vaše změny. Soubory, které žijí v adresáři `/usr/share/omarchy`, patří samotné Omarchy a neměli byste se v nich šťourat. Pokud potřebujete cokoli v adresáři `/usr/share/omarchy` změnit, měli byste místo toho přepsat hodnotu v adresáři `~/.config`.
 
-Klíčové konfigurace lze upravovat přímo z nabídky Omarchy (`Super + Space`), například _Nastavení > Monitory_, _Nastavení > Klávesové zkratky_, _Nastavení > Vstup_ a _Nastavení > Config > [file]_. Když to uděláte tímto způsobem, každý proces, který po úpravách konfigurace potřebuje restartovat automaticky, se restartuje poté, co zavřete editor (ve výchozím nastavení Neovim — `:wq`, pamatujte! — ale to můžete změnit v části _Nastavení > Výchozí > Editor_).
+Klíčové konfigurace lze upravovat přímo z nabídky Omarchy (`Super + Space`), například _Nastavení > Monitory_, _Nastavení > Klávesové zkratky_, _Nastavení > Vstup_ a _Nastavení > Konfigurace > [soubor]_. Když to uděláte tímto způsobem, každý proces, který po úpravách konfigurace potřebuje restartovat automaticky, se restartuje poté, co zavřete editor (ve výchozím nastavení Neovim — `:wq`, pamatujte! — ale to můžete změnit v části _Nastavení > Výchozí > Editor_).
 
 Tady je seznam klíčových souborů v adresáři `~/.config` a toho, co ovládají:
 
-| File                  | Účel              |
+| Soubor                  | Účel              |
 | ----------------------- | --------------------- |
 | `~/.config/hypr/hyprland.lua` | Hlavní konfigurace Hyprlandu. Načítá výchozí nastavení Omarchy plus vaše soubory pro přepsání níže. [Další informace o konfiguracích Hyprlandu](https://wiki.hypr.land/Configuring/).  |
 | `~/.config/hypr/bindings.lua` | Vaše vlastní klávesové zkratky a přepsání výchozích nastavení. |
 | `~/.config/hypr/monitors.lua` | Ovládá vaše monitory, rozlišení a polohu. |
-| `~/.config/hypr/input.lua` | Ovládá rozložení vaší klávesnice, nastavení myši a trackpadu. |
+| `~/.config/hypr/input.lua` | Ovládá rozložení vaší klávesnice, nastavení myši a touchpadu. |
 | `~/.config/hypr/looknfeel.lua` | Ovládá mezery, rámečky, animace a zbytek vzhledu. |
 | `~/.config/hypr/autostart.lua` | Ovládá další procesy spuštěné se relací. |
 | `~/.config/omarchy/shell.json` | Ovládá shell Omarchy: polohu panelu, rozložení a widgety, plus časy spořiče obrazovky, zamykání a nečinnosti. |
@@ -32,20 +32,20 @@ Tím se příkaz spustí jako součást relace, takže při odhlášení se zase
 
 ### Spouštění skriptů při systémových událostech
 
-Omarchy spouští háčky v několika okamžicích a můžete na ně zavěsit vlastní skripty. Žijí v adresáři `~/.config/omarchy/hooks/<event>.d/`, jeden adresář pro každou událost, a každý spustitelný soubor v něm se spustí, když událost nastane:
+Omarchy umí při určitých systémových událostech spouštět vaše skripty. Ukládají se do adresáře `~/.config/omarchy/hooks/<event>.d/`, každá událost má vlastní podadresář. Když událost nastane, spustí se všechny spustitelné soubory v příslušném adresáři:
 
-| Event | Kdy běží |
+| Událost | Kdy běží |
 | ----- | ------------ |
 | `post-boot` | Hned po spuštění pracovního prostředí |
 | `post-update` | Ke konci příkazu `omarchy update`, po balíčcích, migracích a restartech služeb, před aktualizací nástrojů mise |
 | `pre-refresh-pacman` | Poté, co příkaz `omarchy refresh pacman` znovu synchronizuje konfiguraci balíčků, předtím, než balíčky aktualizuje; přepnutí kanálu ho spustí během stejného kroku obnovení |
 | `theme-set` | Po změně motivu (název motivu v proměnné `$1`) |
 | `font-set` | Po změně písma (název písma v proměnné `$1`) |
-| `battery-low` | Když je baterie vybitá (procenta v proměnné `$1`) |
+| `battery-low` | Při nízkém nabití baterie (procenta v proměnné `$1`) |
 
-Háček `pre-refresh-pacman` je místo, kam patří vlastní repozitáře nebo řádky `IgnorePkg`, protože běží před transakcí balíčků. Oba háčky související s aktualizací běží pod vaším uživatelem poté, co Omarchy vymaže oprávnění sudo z mezipaměti, takže háček používající `sudo` potřebuje vlastní oprávnění a může si vyžádat vaše heslo.
+Do skriptu `pre-refresh-pacman` patří vlastní repozitáře nebo řádky `IgnorePkg`, protože se spouští před aktualizací balíčků. Oba skripty související s aktualizací běží pod vaším uživatelským účtem poté, co Omarchy zruší uložené ověření sudo. Pokud tedy skript používá `sudo`, musí si oprávnění vyžádat sám a může vás požádat o heslo.
 
-Každý z těchto adresářů již obsahuje soubor `.sample` ukazující tvar háčku — odeberte příponu `.sample` z názvu, abyste ho uvedli do provozu. Chcete-li nainstalovat skript, který jste napsali jinde, použijte příkaz `omarchy hook install post-boot ~/my-hook`, který ho zkopíruje a udělá z něho spustitelný soubor.
+Každý z těchto adresářů již obsahuje soubor `.sample` s ukázkou skriptu — odeberte příponu `.sample` z názvu, abyste ho uvedli do provozu. Chcete-li nainstalovat skript, který jste napsali jinde, použijte příkaz `omarchy hook install post-boot ~/my-hook`, který ho zkopíruje a udělá z něho spustitelný soubor.
 
 ### Přidávání vlastních položek nabídky
 
@@ -78,4 +78,4 @@ Pokud trváte na hackování vnitřních souborů Omarchy, přepněte na kanál 
 
 ### Resetování jakýchkoli změn
 
-Pokud nakonec uděláte v konfiguracích nepořádek, můžete je vždy vrátit do výchozích nastavení v části _Aktualizovat > Config_ v nabídce Omarchy. Nebo spuštěním příkazu `omarchy reinstall configs`, který vše resetuje.
+Pokud nakonec uděláte v konfiguracích nepořádek, můžete je vždy vrátit do výchozích nastavení v části _Aktualizovat > Konfigurace_ v nabídce Omarchy. Nebo spuštěním příkazu `omarchy reinstall configs`, který vše resetuje.

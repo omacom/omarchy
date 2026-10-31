@@ -24,7 +24,7 @@ Obsidian spustíte pomocí `Super + Shift + O`. Chcete-li používat synchroniza
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) je vlastní, naprosto jednoduchá aplikace Omarchy na psaní v Markdownu. Žádné trezory, žádné pluginy, jen vy a slova.
+[Omawrite](https://github.com/omacom-io/omawrite) je vlastní, zcela jednoduchá aplikace Omarchy pro psaní v Markdownu. Žádné trezory, žádné pluginy, jen vy a slova.
 
 Omawrite spustíte pomocí `Super + Shift + W`.
 

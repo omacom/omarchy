@@ -8,7 +8,7 @@ Na této obrazovce si podle data a verze vyberte snímek, do kterého chcete nab
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Jakmile se dostanete dovnitř, vyskočí na vás oznámení, že jste v bootovatelném snímku, a když na něj kliknete, spustí se proces obnovy. Případně můžete použít `omarchy-snapshot restore`.
+Až se do systému dostanete, zobrazí se oznámení, které vás informuje, že systém běží ze snímku, a kliknutím na něj zahájíte proces obnovení. Případně můžete použít příkaz `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
