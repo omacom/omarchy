@@ -1,0 +1,99 @@
+#!/bin/bash
+
+# omarchy:summary=Stop charging below full to protect battery health, remembered across reboots
+# omarchy:args=<on|off|toggle|status>
+
+# UPower owns the limit. EnableChargeThreshold writes the kernel's
+# charge_control thresholds, or switches charge_types to Long_Life on laptops
+# that only offer a charging mode, saves the choice under /var/lib/upower, and
+# reapplies it on every boot. Its polkit action lets the active session change
+# it without a password, so nothing here needs root.
+#
+# The percentages stay UPower's too: the model's hwdb CHARGE_LIMIT, or the
+# 75-80% default. A laptop with two batteries gets the same answer on both,
+# since a limit on one pack alone protects nothing.
+
+UPOWER=org.freedesktop.UPower
+DEVICE=$UPOWER.Device
+
+# ChargeThresholdSettingsSupported bit for a real end-of-charge percentage. Without
+# it the laptop stops by charging mode, and the firmware picks the stopping point.
+END_THRESHOLD_SETTING=2
+
+property() {
+  busctl get-property "$UPOWER" "$1" "$DEVICE" "$2" 2>/dev/null | awk '{print $2}'
+}
+
+batteries() {
+  local device
+
+  for device in $(upower -e 2>/dev/null | grep '/battery_'); do
+    [[ $(property "$device" ChargeThresholdSupported) == "true" ]] && echo "$device"
+  done
+}
+
+enabled() {
+  local device
+
+  for device in "${devices[@]}"; do
+    [[ $(property "$device" ChargeThresholdEnabled) == "true" ]] || return 1
+  done
+}
+
+set_limit() {
+  local device
+
+  for device in "${devices[@]}"; do
+    busctl call "$UPOWER" "$device" "$DEVICE" EnableChargeThreshold b "$1" >/dev/null || return 1
+  done
+}
+
+# Prints "on" or "off", then the stopping percentage when the laptop has one the
+# user can rely on.
+status() {
+  local state=off end=""
+
+  if enabled; then
+    state=on
+  fi
+
+  if (( $(property "${devices[0]}" ChargeThresholdSettingsSupported) & END_THRESHOLD_SETTING )); then
+    end=$(property "${devices[0]}" ChargeEndThreshold)
+  fi
+
+  echo "$state${end:+ $end}"
+}
+
+case "${1:-}" in
+  on | off | toggle | status) ;;
+  *)
+    echo "Usage: omarchy-battery-charge-limit <on|off|toggle|status>" >&2
+    exit 1
+    ;;
+esac
+
+mapfile -t devices < <(batteries)
+
+if (( ${#devices[@]} == 0 )); then
+  echo "omarchy-battery-charge-limit: no battery that supports a charge limit" >&2
+  exit 1
+fi
+
+case "$1" in
+  on)
+    set_limit true
+    ;;
+  off)
+    set_limit false
+    ;;
+  toggle)
+    if enabled; then
+      set_limit false
+    else
+      set_limit true
+    fi
+    ;;
+  status)
+    status
+    ;;
+esac
