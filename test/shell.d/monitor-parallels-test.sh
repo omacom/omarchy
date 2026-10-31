@@ -332,13 +332,17 @@ cmp -s "$test_tmp/original.desktop" "$fixture_home/config/autostart/prlcc.deskto
 pass "repeated activation preserves the original autostart and restores it on disable"
 
 reset_fixture
-cp "$test_tmp/original.desktop" "$test_tmp/autostart-target"
+symlink_target="$test_tmp/autostart-[target]*"
+cp "$test_tmp/original.desktop" "$symlink_target"
 rm "$fixture_home/config/autostart/prlcc.desktop"
-ln -s "$test_tmp/autostart-target" "$fixture_home/config/autostart/prlcc.desktop"
+ln -s "$symlink_target" "$fixture_home/config/autostart/prlcc.desktop"
 run_setup on
-cmp -s "$test_tmp/original.desktop" "$test_tmp/autostart-target" || fail "autostart symlink target is unchanged"
+cmp -s "$test_tmp/original.desktop" "$symlink_target" || fail "autostart symlink target is unchanged"
 run_setup off
-[[ $(readlink "$fixture_home/config/autostart/prlcc.desktop") == "$test_tmp/autostart-target" ]] || fail "autostart symlink is restored"
+case $(readlink "$fixture_home/config/autostart/prlcc.desktop") in
+  "$symlink_target") ;;
+  *) fail "autostart symlink is restored" ;;
+esac
 pass "activation replaces a symlink without modifying its target"
 
 for stage in link enable inactive; do
