@@ -39,4 +39,10 @@ EOF
   cat > /etc/mkinitcpio.conf.d/nvidia.conf <<'EOF'
 MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
 EOF
+
+  # Create /dev/nvidia-modeset at boot, so containerized games can present on hybrid laptops
+  install -Dm644 "$OMARCHY_PATH/default/udev/nvidia-modeset.rules" /etc/udev/rules.d/61-nvidia-modeset.rules
+  # An image's first boot runs this after coldplug, so replay the GPU's bind for the new rule
+  udevadm control --reload 2>/dev/null || true
+  udevadm trigger --action=bind --subsystem-match=pci --attr-match=vendor=0x10de --attr-match='class=0x03*' 2>/dev/null || true
 fi
