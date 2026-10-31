@@ -135,6 +135,27 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
+-- Read once per config load; these are the install's exclusions, not the
+-- current region. Ordinary o.bind calls remain available for user overrides.
+local preinstalls_skipped = nil
+
+function o.bind_preinstalled(keys, description, dispatcher, options)
+  if preinstalls_skipped == nil then
+    preinstalls_skipped = {}
+    local file = io.open(paths.state_home .. "/omarchy/preinstalls-skipped", "r")
+    if file then
+      for name in file:lines() do
+        preinstalls_skipped[name] = true
+      end
+      file:close()
+    end
+  end
+
+  if not preinstalls_skipped[description] then
+    o.bind(keys, description, dispatcher, options)
+  end
+end
+
 function o.bind(keys, description, dispatcher, options)
   local opts = options or {}
 

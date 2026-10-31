@@ -1,0 +1,9 @@
+# Regional package requirements, not an install instruction. No runtime or ISO
+# consumer installs this list yet; packages must be supplied separately.
+wechat-bin
+linuxqq
+wps-office-cn
+dingtalk-bin
+feishu-bin
+# Used when the regional default-font profile is also present.
+maplemono-nf-cn
