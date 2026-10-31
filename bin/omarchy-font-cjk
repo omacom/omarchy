@@ -14,7 +14,7 @@ case "${1:-}" in
 "")
   variant=""
   if [[ -f $preference ]]; then
-    variant=$(sed -n 's|.*<family>Noto Sans CJK \([A-Z]*\)</family>.*|\1|p' "$preference" | head -n 1)
+    variant=$(LC_ALL=C sed -n 's|.*<family>Noto Sans CJK \([A-Z]*\)</family>.*|\1|p' "$preference" | head -n 1)
   fi
   variant=${variant,,}
   echo "${variant:-default}"
