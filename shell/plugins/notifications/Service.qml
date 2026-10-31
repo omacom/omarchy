@@ -1041,10 +1041,16 @@ Item {
     // labels and native classes, never shorter than four characters.
     var slug = name.replace(/[^a-z0-9]+/g, "")
     if (slug.length < 4) return null
+    // Several words also match a class ending in them: "Telegram Desktop" is
+    // org.telegram.desktop, "Brave Browser" brave-browser.
+    var words = name.split(/[^a-z0-9]+/).filter(function(w) { return w })
+    var tail = words.length > 1 ? "." + words.join(".") : ""
     found = []
     for (i = 0; i < windows.length; i++) {
       var lower = windows[i].wmClass.toLowerCase()
       if (lower === slug) { found.push(windows[i]); continue }
+      var dotted = "." + lower.replace(/[^a-z0-9]+/g, ".")
+      if (tail && dotted.slice(-tail.length) === tail) { found.push(windows[i]); continue }
       if (lower.indexOf("chrome-") !== 0) continue
       var labels = lower.substring(7).split("__")[0].split(".")
       for (var l = 0; l < labels.length; l++)
