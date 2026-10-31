@@ -88,6 +88,8 @@ step() { echo "prompt" >>"$tmp/screen"; }
 notice() { echo "notice: \$1" >>"$tmp/screen"; }
 log_step() { echo "\$1" >>"\$LOG_FILE"; }
 confirm_reboot() { exit 5; }
+systemctl() { echo "systemctl \$*" >>"$tmp/calls"; }
+disable_console_hold() { echo "disable_console_hold" >>"$tmp/calls"; }
 omarchy_prompt_keyboard() {
   local answer
   answer=\$("$stub_bin/next-mode" "$tmp/answers")
@@ -213,6 +215,53 @@ assert_asked_again "loadkeys fails" "loadkeys could not load keymap dk"
 [[ $(grep -c '^systemd-firstboot' "$tmp/calls") == 1 ]] || fail "a layout the console refused is not persisted" "$(cat "$tmp/calls")"
 assert_layout dk "after loadkeys failed once"
 pass "a layout loadkeys refuses is asked for again"
+
+# Scroll Lock is the console's Hold key, and every keymap load brings it back,
+# so it is voided again after each attempt, the failed ones included.
+fresh_root
+answers 'Danish|dk' 'Danish|dk'
+echo fail >"$tmp/list-modes"
+form || fail "a failed attempt, then the retry" "$(cat "$tmp/screen" "$tmp/log")"
+[[ $(grep -c '^disable_console_hold$' "$tmp/calls") == 2 ]] ||
+  fail "Hold is voided after the failed attempt and the one that took" "$(cat "$tmp/calls")"
+[[ $(tail -n2 "$tmp/calls") == $'systemctl start systemd-vconsole-setup.service\ndisable_console_hold' ]] ||
+  fail "Hold is voided last, after the queued keymap reload has run" "$(cat "$tmp/calls")"
+pass "Hold is voided after every keyboard attempt, once the keymap reloads have run"
+
+hold_bin=$tmp/hold-bin
+mkdir -p "$hold_bin"
+cat >"$hold_bin/tty" <<SH
+#!/bin/bash
+[[ -e "$tmp/no-tty" ]] && { echo "not a tty"; exit 1; }
+echo /dev/tty1
+SH
+cat >"$hold_bin/dumpkeys" <<'SH'
+#!/bin/bash
+printf '%s\n' 'keymaps 0-2,8' \
+  'keycode   1 = Escape           Escape           Escape           Meta_Escape' \
+  'keycode  70 = Scroll_Lock      Show_Memory      Show_State       Scroll_Lock'
+SH
+cat >"$hold_bin/loadkeys" <<SH
+#!/bin/bash
+cat >"$tmp/loaded"
+SH
+chmod +x "$hold_bin"/*
+sed -n '/^disable_console_hold() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" >"$tmp/hold.sh"
+grep -q '^disable_console_hold() {' "$tmp/hold.sh" || fail "omarchy-provision-owner defines disable_console_hold"
+
+rm -f "$tmp/no-tty" "$tmp/loaded"
+PATH="$hold_bin:$PATH" bash -c "source '$tmp/hold.sh' && disable_console_hold" ||
+  fail "disable_console_hold succeeds on a console"
+[[ $(<"$tmp/loaded") == $'keymaps 0-2,8\nkeycode  70 = VoidSymbol      Show_Memory      Show_State       VoidSymbol' ]] ||
+  fail "every Hold entry, in every column, is voided and nothing else is loaded" "$(cat "$tmp/loaded" 2>&1)"
+
+rm -f "$tmp/loaded"
+touch "$tmp/no-tty"
+PATH="$hold_bin:$PATH" bash -c "source '$tmp/hold.sh' && disable_console_hold" ||
+  fail "disable_console_hold succeeds off a console"
+[[ ! -e $tmp/loaded ]] || fail "off a virtual console no keymap is loaded" "$(cat "$tmp/loaded")"
+rm -f "$tmp/no-tty"
+pass "disable_console_hold voids Scroll Lock in every column of the console keymap"
 
 fresh_root
 answers 'Danish|dk' 'Danish|dk'
