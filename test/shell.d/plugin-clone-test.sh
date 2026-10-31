@@ -49,7 +49,7 @@ clone_plugin() {
       }
     }
   }'
-  HOME="$TMPDIR/home" USER=tester OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  HOME="$TMPDIR/home" USER="${CLONE_USER:-tester}" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
     FAKE_CALLS="$CALLS" OMARCHY_TEST_ROOT="$ROOT" \
     FAKE_SHELL_CONFIG="${FAKE_CLONE_CONFIG:-$default_config}" \
     omarchy-plugin-clone "$@"
@@ -172,6 +172,20 @@ fi
 [[ ! -e $TMPDIR/home/.config/omarchy/plugins/tester.weather ]] ||
   fail "rejected custom id leaves a clone behind"
 pass "clone derives the personal id from the username"
+
+for user in omarchy omarchy.dev; do
+  : >"$CALLS"
+  CLONE_USER=$user clone_plugin omarchy.weather >/dev/null
+  [[ ! -e $TMPDIR/home/.config/omarchy/plugins/$user.weather ]] ||
+    fail "user $user clones into the reserved omarchy namespace"
+  jq -e '.id == "local.weather" and .omarchy.clonedFrom == "omarchy.weather"' \
+    "$TMPDIR/home/.config/omarchy/plugins/local.weather/manifest.json" >/dev/null ||
+    fail "user $user does not get a local clone id"
+  grep -qx 'omarchy-plugin-enable local.weather' "$CALLS" ||
+    fail "user $user does not get the clone enabled"
+  rm -rf "$TMPDIR/home/.config/omarchy/plugins/local.weather"
+done
+pass "a username in the omarchy namespace clones outside it"
 
 if clone_plugin omarchy.weather --replace >/dev/null 2>&1; then
   fail "clone still accepts bar layout actions"
