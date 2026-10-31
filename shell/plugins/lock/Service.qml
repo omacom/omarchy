@@ -61,6 +61,28 @@ Item {
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  property string usbTarget: ""
+  property string usbApplied: ""
+  property string usbInFlight: ""
+  property int usbGeneration: 0
+  property int usbInFlightGeneration: 0
+  property bool usbFailureReported: false
+  readonly property bool usbPolicyReady: usbTarget !== "lock" || usbApplied === "lock"
+
+  function requestUsbPolicy(action) {
+    usbGeneration++
+    usbTarget = action
+    usbApplied = ""
+    startUsbPolicy()
+  }
+
+  function startUsbPolicy() {
+    if (usbPolicyProc.running || usbTarget === "" || usbApplied === usbTarget) return
+    usbInFlight = usbTarget
+    usbInFlightGeneration = usbGeneration
+    usbPolicyProc.command = [omarchyPath + "/bin/omarchy-usb-lock-session", usbInFlight]
+    usbPolicyProc.running = true
+  }
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
 
@@ -222,6 +244,7 @@ Item {
 
     resetAuthenticationState()
     lockRequested = true
+    requestUsbPolicy("lock")
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
@@ -244,6 +267,7 @@ Item {
     resetAuthenticationState()
     idleBlankTimer.stop()
     sessionLock.locked = false
+    requestUsbPolicy("unlock")
     logEvent("unlocked")
     runWake()
   }
@@ -749,6 +773,8 @@ Item {
 
       // A lock taken while this was in flight is this shell's own.
       root.strandedLock = exitCode === 0 && !root.currentlyLocked()
+      // Release inherited USB policy only after the compositor confirms no lock.
+      if (exitCode === 1 && !root.currentlyLocked()) root.requestUsbPolicy("unlock")
       root.recoverStrandedLock()
     }
   }
@@ -866,6 +892,47 @@ Item {
     checkStrandedLock()
   }
 
+  Process {
+    id: usbPolicyProc
+    stdout: StdioCollector { id: usbPolicyOutput; waitForEnd: true }
+    onExited: function(exitCode) {
+      // Setup can enable protection while an older disabled request is still
+      // returning "off". Its acknowledgement cannot satisfy the new request.
+      if (root.usbInFlightGeneration !== root.usbGeneration) {
+        Qt.callLater(root.startUsbPolicy)
+        return
+      }
+      var reply = usbPolicyOutput.text.trim()
+      var expected = root.usbInFlight === "lock" ? "locked" : "unlocked"
+      if (exitCode === 0 && (reply === expected || reply === "off")) {
+        root.usbApplied = root.usbInFlight
+        root.usbFailureReported = false
+      } else {
+        root.logEvent("usb-policy-failed:" + root.usbInFlight)
+        if (!root.usbFailureReported) {
+          root.usbFailureReported = true
+          usbFailureNotice.running = true
+        }
+      }
+      // Serialize rapid lock/unlock requests. A late completion cannot cancel
+      // a newer lock or authorize devices on a recovered, still-locked screen.
+      if (root.usbTarget !== root.usbInFlight) Qt.callLater(root.startUsbPolicy)
+      else if (root.usbApplied !== root.usbTarget) usbPolicyRetry.restart()
+    }
+  }
+
+  Timer {
+    id: usbPolicyRetry
+    interval: 2000
+    onTriggered: root.startUsbPolicy()
+  }
+
+  Process {
+    id: usbFailureNotice
+    command: [omarchyPath + "/bin/omarchy-notification-send", "-u", "critical",
+      I18n.t("lock.usbPolicyFailedTitle"), I18n.t("lock.usbPolicyFailedBody")]
+  }
+
   ShellIpc {
     target: "lock"
 
@@ -881,6 +948,11 @@ Item {
       return root.currentlyLocked() ? "true" : "false"
     }
 
+    function refreshUsbPolicy(): string {
+      root.requestUsbPolicy(root.currentlyLocked() ? "lock" : "unlock")
+      return "ok"
+    }
+
     function status(): string {
       return JSON.stringify({
         locked: root.currentlyLocked(),
@@ -888,6 +960,8 @@ Item {
         pending: root.pendingSessionLock,
         sessionLocked: sessionLock.locked,
         secure: sessionLock.secure,
+        usbPolicyReady: root.usbPolicyReady,
+        usbPolicyApplied: root.usbApplied === root.usbTarget,
         realScreens: root.realScreenCount(),
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,

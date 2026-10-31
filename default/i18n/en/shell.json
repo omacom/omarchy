@@ -295,6 +295,8 @@
   "lock.checking": "Checking…",
   "lock.enterPassword": "Enter Password",
   "lock.fingerprintUnavailable": "Fingerprint reader unavailable",
+  "lock.usbPolicyFailedBody": "The screen lock still works. USB/Thunderbolt policy will retry; check the services before relying on it.",
+  "lock.usbPolicyFailedTitle": "Device lock policy could not be applied",
   "media.mediaSource": "Media source",
   "media.next": "Next",
   "media.nothingPlaying": "Nothing playing",
