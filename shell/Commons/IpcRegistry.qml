@@ -31,13 +31,25 @@ Singleton {
     return names
   }
 
+  // Both functions replace the list and do not change it in place, so each
+  // binding that calls holds() sees the change.
   function register(handler) {
-    if (handlers.indexOf(handler) === -1) handlers.push(handler)
+    if (handlers.indexOf(handler) === -1) handlers = handlers.concat([handler])
   }
 
   function unregister(handler) {
     var index = handlers.indexOf(handler)
-    if (index !== -1) handlers.splice(index, 1)
+    if (index !== -1) handlers = handlers.filter(function(other) { return other !== handler })
+  }
+
+  // True when handler is the first live, active handler of its target in the
+  // list. ShellIpc enables only that handler.
+  function holds(handler) {
+    for (var i = 0; i < handlers.length; i++) {
+      var other = handlers[i]
+      if (other && other.active && other.target === handler.target) return other === handler
+    }
+    return false
   }
 
   function handlerFor(target) {
