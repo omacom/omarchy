@@ -47,6 +47,7 @@ cat >"$tmp/reset" <<'SH'
 set -euo pipefail
 source "$TMP/functions"
 TOP_MNT=$TMP/top
+ESP_MNT=$TMP/esp-mount
 NEXT_NAME=@omarchy-reset-next
 PROVISIONING_DIR=/var/lib/omarchy/provisioning
 LOG_FILE=$TMP/reset.log
@@ -204,17 +205,16 @@ grep -qx 'chroot /usr/bin/limine-update' "$tmp/calls" || fail "x86: limine-updat
 ! grep -q '^reset-' "$tmp/calls" || fail "x86: no boot-package entrypoint runs" "$(cat "$tmp/calls")"
 pass "x86: dispatch is a no-op and the generic Limine UKI path resets the machine"
 
-# A failed activation on the generic path puts the previous root back and
-# revokes the throwaway slot. The ESP already holds the factory root's UKI, so
-# the screen says to rebuild the boot files rather than claiming nothing changed.
+# A failed activation on the generic path puts the previous root back,
+# restores its boot files on the ESP and revokes the throwaway slot.
 fixture
 touch "$tmp/activate-fail"
 if run reset x86; then fail "x86: a failed activation fails the reset"; fi
 untouched || fail "x86: a failed activation puts the previous root back and revokes the throwaway slot" "$(ls "$tmp/top"; cat "$tmp/slots")"
 ! grep -q '^reset-' "$tmp/calls" || fail "x86: a failed activation runs no boot-package entrypoint" "$(cat "$tmp/calls")"
-grep -q "run 'sudo limine-update' before rebooting" "$tmp/screen" ||
-  fail "x86: a failed activation says the boot files need rebuilding" "$(cat "$tmp/screen")"
-pass "x86: a failed activation puts the previous root back, revokes the throwaway slot and says to rebuild the boot files"
+grep -q 'the current root is back at @' "$tmp/screen" && grep -q "Restored this system's boot files" "$tmp/screen" ||
+  fail "x86: a failed activation says the current root is back and its boot files restored" "$(cat "$tmp/screen")"
+pass "x86: a failed activation puts the previous root back, restores its boot files and revokes the throwaway slot"
 
 # Apple: the boot package prepares and verifies the factory root before the
 # throwaway slot exists, and gets the key only once the factory root is active.

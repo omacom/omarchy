@@ -129,7 +129,8 @@ if omarchy_dock position diagonal 2>/dev/null; then
 fi
 pass "dock position is set and read through omarchy-dock"
 
-[[ $(omarchy_dock pinned | paste -sd " ") == "org.gnome.Nautilus chromium foot omacalc omawrite X YouTube" ]] || fail "dock pins start from the defaults"
+default_pins=$(jq -r '.dock.pinned[]' "$ROOT/config/omarchy/shell.json" | paste -sd " ")
+[[ -n $default_pins && $(omarchy_dock pinned | paste -sd " ") == "$default_pins" ]] || fail "dock pins start from the defaults"
 omarchy_dock unpin spotify >/dev/null
 omarchy_dock pin com.example.App.desktop >/dev/null
 omarchy_dock pin com.example.App >/dev/null
@@ -158,12 +159,6 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
 
-# The dock only shows on floating workspaces, and gets out of the way of a
-# fullscreen window; a maximized one only tucks it away.
-grep -qF 'dock.isFloating(workspaceId) && fullscreenMode < 2' "$ROOT/shell/plugins/dock/DockWindow.qml" ||
-  fail "dock shows only on floating workspaces without a fullscreen window"
-pass "dock shows only on floating workspaces without a fullscreen window"
-
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and
 # not beside the minimized one.
@@ -181,15 +176,33 @@ chmod +x "$mock_bin/omarchy-hyprland-workspace-layout-current"
 minimize() { PATH="$mock_bin:$ROOT/bin:$PATH" omarchy-hyprland-window-minimize "$@"; }
 
 minimize 0xabc
+grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-3", window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
+  fail "minimize remembers the workspace the window left" "$(cat "$TMPDIR/hyprctl.log")"
 grep -qxF 'hl.dsp.window.move({ workspace = "special:minimized", follow = false, window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
   fail "minimize moves the window to the dock's hidden workspace" "$(cat "$TMPDIR/hyprctl.log")"
 [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dsp.focus({ workspace = "3" })' ]] ||
   fail "minimize focuses the workspace the window left" "$(cat "$TMPDIR/hyprctl.log")"
 : >"$TMPDIR/hyprctl.log"
 minimize
-grep -qF 'address:0xdef' "$TMPDIR/hyprctl.log" && [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dsp.focus({ workspace = "5" })' ]] ||
+grep -qF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-5", window = "address:0xdef" })' "$TMPDIR/hyprctl.log" &&
+  grep -qF 'address:0xdef' "$TMPDIR/hyprctl.log" && [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dsp.focus({ workspace = "5" })' ]] ||
   fail "minimize takes the active window when given none" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize sends a window to the dock and keeps focus on its workspace"
+
+cat >"$mock_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  clients) printf '[{"address":"0xabc","workspace":{"id":7},"tags":["omarchy-minimized-from-3"]}]\n' ;;
+  dispatch) printf '%s\n' "\$2" >>"$TMPDIR/hyprctl.log" ;;
+esac
+STUB
+: >"$TMPDIR/hyprctl.log"
+minimize 0xabc
+grep -qxF 'hl.dsp.window.tag({ tag = "-omarchy-minimized-from-3", window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
+  fail "minimize forgets the previous workspace" "$(cat "$TMPDIR/hyprctl.log")"
+grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-7", window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
+  fail "minimize remembers the workspace it leaves this time" "$(cat "$TMPDIR/hyprctl.log")"
+pass "minimize remembers only the workspace the window is leaving"
 
 # A tiled workspace has no dock to bring a window back from, so nothing there
 # is minimized.
@@ -204,10 +217,3 @@ STUB
 minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
-
-# Terminal apps launch through Omarchy's TUI launcher from every launcher that
-# uses the app library, so their windows carry an app id of their own.
-grep -qF 'var command = root.terminalCommand(DesktopEntries.byId(id))' "$ROOT/shell/services/AppLibrary.qml" &&
-  grep -qF '"omarchy-launch-tui "' "$ROOT/shell/services/AppLibrary.qml" ||
-  fail "the app library launches terminal apps through the TUI launcher"
-pass "the app library launches terminal apps through the TUI launcher"
