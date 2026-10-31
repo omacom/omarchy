@@ -7,6 +7,14 @@ logo.image = Image("logo.png");
 logo.sprite = Sprite(logo.image);
 logo.sprite.SetOpacity(1);
 
+# Progress is drawn as the logo filling from the bottom up. The fill sprite
+# holds a bottom-anchored slice of the logo; the logo behind it dims to act as
+# the track the slice fills in.
+fill.sprite = Sprite();
+fill.sprite.SetOpacity(0);
+
+global.track_opacity = 0.25;
+
 # Use these to adjust the progress bar timing
 global.fake_progress_limit = 0.7;  # Target percentage for fake progress (0.0 to 1.0)
 global.fake_progress_duration = 15.0;  # Duration in seconds to reach limit
@@ -50,8 +58,8 @@ fun refresh_callback() {
     # Calculate fake progress based on eased ratio
     global.fake_progress = eased_ratio * global.fake_progress_limit;
 
-    # Update progress bar with fake progress
-    update_progress_bar(global.fake_progress);
+    # Update the fill with fake progress
+    update_progress_fill(global.fake_progress);
   }
 }
 
@@ -59,27 +67,33 @@ Plymouth.SetRefreshFunction(refresh_callback);
 
 #----------------------------------------- Helper Functions --------------------------------
 
-fun update_progress_bar(progress) {
+fun update_progress_fill(progress) {
   # Only update if progress is moving forward
   if (progress > global.max_progress) {
     global.max_progress = progress;
-
-    width = Math.Int(progress_bar.original_image.GetWidth() * progress);
-    if (width < 1) width = 1;  # Ensure minimum width of 1 pixel
-
-    progress_bar.image = progress_bar.original_image.Scale(width, progress_bar.original_image.GetHeight());
-    progress_bar.sprite.SetImage(progress_bar.image);
+    position_fill();
   }
 }
 
-fun show_progress_bar() {
-  progress_box.sprite.SetOpacity(1);
-  progress_bar.sprite.SetOpacity(1);
+# Crop the logo to its bottom global.max_progress and anchor that slice to the
+# logo's bottom edge, so the fill rises as progress grows.
+fun position_fill() {
+  height = Math.Int(logo.image.GetHeight() * global.max_progress);
+  if (height < 1) height = 1;  # Ensure minimum height of 1 pixel
+
+  top = logo.image.GetHeight() - height;
+  fill.sprite.SetImage(logo.image.Crop(0, top, logo.image.GetWidth(), height));
+  fill.sprite.SetPosition(logo.sprite.GetX(), logo.sprite.GetY() + top, 1);
 }
 
-fun hide_progress_bar() {
-  progress_box.sprite.SetOpacity(0);
-  progress_bar.sprite.SetOpacity(0);
+fun show_progress_fill() {
+  logo.sprite.SetOpacity(global.track_opacity);
+  fill.sprite.SetOpacity(1);
+}
+
+fun hide_progress_fill() {
+  logo.sprite.SetOpacity(1);
+  fill.sprite.SetOpacity(0);
 }
 
 fun show_password_dialog() {
@@ -142,7 +156,7 @@ fun display_normal_callback() {
 
   # Only show progress bar for boot and resume modes
   if ((mode == "boot" || mode == "resume") && global.password_shown == 1) {
-    show_progress_bar();
+    show_progress_fill();
     start_fake_progress();
   }
 }
@@ -152,7 +166,7 @@ fun display_password_callback(prompt, bullets) {
 
   # Stop fake progress when password dialog appears
   stop_fake_progress();
-  hide_progress_bar();
+  hide_progress_fill();
   show_password_dialog();
 
   # Clear all bullets first
@@ -181,16 +195,7 @@ fun display_password_callback(prompt, bullets) {
 Plymouth.SetDisplayNormalFunction(display_normal_callback);
 Plymouth.SetDisplayPasswordFunction(display_password_callback);
 
-#----------------------------------------- Progress Bar --------------------------------
-
-progress_box.image = Image("progress_box.png");
-progress_box.sprite = Sprite(progress_box.image);
-progress_box.sprite.SetOpacity(0);
-
-progress_bar.original_image = Image("progress_bar.png");
-progress_bar.sprite = Sprite();
-progress_bar.image = progress_bar.original_image.Scale(1, progress_bar.original_image.GetHeight());
-progress_bar.sprite.SetOpacity(0);
+#----------------------------------------- Progress --------------------------------
 
 fun progress_callback(duration, progress) {
   # Track when fake progress starts
@@ -204,7 +209,7 @@ fun progress_callback(duration, progress) {
   # Use real progress once its unfrozen and exceeds fake progress
   if (duration > global.fake_progress_start_time && progress > global.fake_progress) {
     stop_fake_progress();
-    update_progress_bar(progress);
+    update_progress_fill(progress);
   }
 }
 
@@ -212,7 +217,7 @@ Plymouth.SetBootProgressFunction(progress_callback);
 
 #----------------------------------------- Layout --------------------------------
 
-# Center the logo, dialogue and progress bar for the current window size
+# Center the logo and dialogue for the current window size
 fun layout() {
   global.layout_width = Window.GetWidth();
   global.layout_height = Window.GetHeight();
@@ -232,13 +237,11 @@ fun layout() {
     position_bullet(index);
   }
 
-  progress_box.x = global.layout_width / 2 - progress_box.image.GetWidth() / 2;
-  progress_box.y = entry.y + entry.image.GetHeight() / 2 - progress_box.image.GetHeight() / 2;
-  progress_box.sprite.SetPosition(progress_box.x, progress_box.y, 0);
-
-  progress_bar.x = global.layout_width / 2 - progress_bar.original_image.GetWidth() / 2;
-  progress_bar.y = progress_box.y + (progress_box.image.GetHeight() - progress_bar.original_image.GetHeight()) / 2;
-  progress_bar.sprite.SetPosition(progress_bar.x, progress_bar.y, 1);
+  # The fill tracks the logo, so it only needs repositioning once the logo has
+  # moved and some progress is already drawn.
+  if (global.max_progress > 0.0) {
+    position_fill();
+  }
 }
 
 layout();
