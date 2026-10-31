@@ -58,6 +58,15 @@ for platform in aarch64-apple aarch64 x86; do
 done
 pass "each platform composes the base, architecture and platform lists"
 
+# The x86 installer supplies these outside the base list. ARM images must
+# explicitly select PipeWire's JACK provider alongside apps that depend on jack.
+for platform in aarch64 aarch64-apple; do
+  for package in pipewire-jack gst-plugin-pipewire; do
+    grep -Fxq "$package" "$work/$platform.packages" || fail "$platform: the default audio stack includes $package"
+  done
+done
+pass "ARM defaults include the PipeWire JACK and GStreamer integrations"
+
 # A hardware family's own list joins only that family's set, after the base and
 # architecture lists; plain aarch64 composes the others alone.
 tree="$work/tree"
