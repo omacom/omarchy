@@ -30,18 +30,8 @@ if [[ ! $output =~ ^[A-Za-z0-9._-]+$ || ! $scale =~ ^[0-9]+([.][0-9]+)?$ ]] ||
   exit 1
 fi
 
-state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
-settings="$state_dir/monitors/settings"
-
-# The monitor's identity as monitor-workspaces names it, which also tells two
-# of the same model apart; its description when that file hasn't seen the
-# connector yet.
-identity=$(awk -F'\t' -v connector="$output" '$2 == connector { print $3; exit }' "$state_dir/monitors/workspaces" 2>/dev/null)
-if [[ -z $identity ]]; then
-  identity=$(hyprctl monitors -j | jq -r --arg name "$output" '.[] | select(.name == $name) | .description // empty')
-fi
-identity="${identity:-$output}"
-identity="${identity//[$'\t\n']/ }"
+settings="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/monitors/settings"
+identity=$(omarchy-hyprland-monitor-identity "$output")
 
 mkdir -p "${settings%/*}"
 touch "$settings"

@@ -8,6 +8,7 @@ CLAMSHELL_FLAG="$TOGGLES_DIR/internal-monitor-clamshell.lua"
 MANUAL_DISABLE_FLAG="$TOGGLES_DIR/internal-monitor-disable.lua"
 SCALE_STATE="$TOGGLES_DIR/internal-monitor-scale"
 MONITOR_LUA="$HOME/.config/hypr/monitors.lua"
+MONITOR_SETTINGS="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/monitors/settings"
 
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
 
@@ -94,9 +95,28 @@ configured_internal_monitor_value() {
   configured_monitor_value "$INTERNAL" "$1"
 }
 
+# The panel's mode, position or scale as chosen in the display panel, which
+# default/hypr/monitor-settings.lua applies over monitors.lua, so it settles the
+# value before anything written there.
+saved_internal_monitor_value() {
+  [[ -n $INTERNAL && -f $MONITOR_SETTINGS ]] || return 0
+  local field identity
+
+  case "$1" in
+  mode) field=1 ;;
+  position) field=2 ;;
+  scale) field=3 ;;
+  *) return 0 ;;
+  esac
+
+  identity=$(omarchy-hyprland-monitor-identity "$INTERNAL")
+  awk -F'\t' -v identity="$identity" -v field="$field" '$4 == identity { print $field; exit }' "$MONITOR_SETTINGS"
+}
+
 configured_monitor_scale() {
   local scale
-  scale=$(configured_internal_monitor_value scale)
+  scale=$(saved_internal_monitor_value scale)
+  [[ -n $scale ]] || scale=$(configured_internal_monitor_value scale)
   # An internal rule that names a scale settles it, even when the name resolves
   # to nothing usable. Only a rule that names none at all defers to the catch-all,
   # which is the scale Omarchy has always applied for that config.
@@ -161,7 +181,8 @@ read_monitor_scale() {
 
 read_monitor_position() {
   local position
-  position=$(configured_internal_monitor_value position)
+  position=$(saved_internal_monitor_value position)
+  [[ -n $position ]] || position=$(configured_internal_monitor_value position)
   if [[ $position =~ ^[-[:alnum:]_.+]+$ ]]; then
     echo "$position"
     return
@@ -174,9 +195,12 @@ enable_internal_output() {
   [[ -n $INTERNAL ]] || return 0
   local scale="${1:-}"
   local position
+  local mode
   local enable=""
   [[ -n $scale ]] || scale=$(read_monitor_scale)
   position=$(read_monitor_position)
+  mode=$(saved_internal_monitor_value mode)
+  [[ $mode =~ ^[0-9]+x[0-9]+(@[0-9.]+)?$ ]] || mode="preferred"
   # A panel turned off from the Display panel is a runtime rule carrying
   # disabled = true and no flag, and an update of its mode, position and scale
   # leaves that in force. Say disabled = false only while no external display
@@ -184,7 +208,7 @@ enable_internal_output() {
   # this recovers from (#16307). Otherwise the choice to run elsewhere stands,
   # and this is reached every two seconds by the docked poll.
   omarchy-hw-external-monitors || other_output_enabled || enable="disabled = false, "
-  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", ${enable}mode = \"preferred\", position = \"$position\", scale = $scale })" >/dev/null 2>&1 || true
+  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", ${enable}mode = \"$mode\", position = \"$position\", scale = $scale })" >/dev/null 2>&1 || true
 }
 
 sync_internal_scale() {
