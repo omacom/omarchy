@@ -406,9 +406,16 @@ local function append_slot(block)
   return nil
 end
 
+-- The bar names its monitor. After a hotplug its window can still hold the
+-- screen that went away, so the name reaches here as one Hyprland no longer
+-- has, or as its FALLBACK stand-in, and a click on a slot would do nothing
+-- (#16351). A name that finds no monitor falls back to the focused one.
 local function target_monitor(name)
   if name then
-    return hl.get_monitor(name)
+    local monitor = hl.get_monitor(name)
+    if monitor then
+      return monitor
+    end
   end
 
   return hl.get_active_monitor()
