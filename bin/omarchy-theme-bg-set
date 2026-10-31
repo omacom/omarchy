@@ -21,6 +21,14 @@ fi
 exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
 flock 9
 
+# A playing theme loop stands for its still, so picking that still again
+# changes nothing, as it wouldn't with the still on screen.
+SELECTED=$(omarchy-shell shell selectedBackground 2>/dev/null)
+[[ -n $SELECTED ]] || SELECTED=$(readlink "$CURRENT_BACKGROUND_LINK")
+if [[ $SELECTED == */backgrounds/loops/* && $(realpath "$(omarchy-theme-bg-loop-apply --still "$SELECTED")") == "$BACKGROUND" ]]; then
+  exit 0
+fi
+
 INTRO=$(omarchy-theme-bg-boot-intro --resolve-enabled "$BACKGROUND")
 
 # Serialize with omarchy-theme-bg-loop-apply, so a loop it starts in the

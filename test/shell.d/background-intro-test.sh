@@ -416,6 +416,12 @@ startup=$(HOME="$loop_home" "$ROOT/bin/omarchy-theme-bg-loop-apply" --still-only
 [[ $startup == "$background" ]] || fail "a shell starting up on a still keeps it" "$startup"
 pass "a shell starting up begins from the loop's still"
 
+# Picking the still of the loop that plays changes nothing.
+: >"$command_log"
+HOME="$loop_home" PATH="$command_bin:$PATH" COMMAND_LOG="$command_log" SELECTED="$loop" "$ROOT/bin/omarchy-theme-bg-set" "$background"
+[[ -z $(<"$command_log") ]] || fail "picking the still of the playing loop changes nothing" "$(<"$command_log")"
+pass "picking the still of the playing loop changes nothing"
+
 # Picking a still hands the shell the still, which it may queue, and the loop
 # follows only under the settings of that moment.
 : >"$command_log"
