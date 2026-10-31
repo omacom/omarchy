@@ -24,6 +24,13 @@ if [[ -z $browser_exec ]]; then
   exit 1
 fi
 
+# Persist the theme before startup; theme changes refresh an already-running
+# Vivaldi through the live channel, without doing that work on every link open.
+if [[ $browser_exec == *vivaldi* ]] &&
+  ! pgrep -u "$UID" -x 'vivaldi|vivaldi-bin' >/dev/null 2>&1; then
+  "$OMARCHY_PATH/default/vivaldi/vivaldi-theme-refresh" || true
+fi
+
 # Only a private launch needs the browser's flag, and probing a Firefox-family
 # browser's --help starts the whole binary, so ordinary launches skip it and
 # leave their arguments as they are.
