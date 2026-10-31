@@ -1,0 +1,202 @@
+#!/usr/bin/python3
+# omarchy:summary=Detect whether Hyprland renders on the CPU (llvmpipe or softpipe) instead of a GPU
+# omarchy:args=[--print]
+"""Exit 0 when the session's GL renderer is a software rasterizer, 1 when it
+is a GPU, and 2 when the renderer can't be read. --print also writes the GL
+renderer's name.
+
+Mesa falls back to llvmpipe when it has no driver for the GPU behind the
+display: Macs whose GPU Asahi doesn't drive, most VMs, or a GPU driver that
+failed to load. Hyprland classifies its own renderer the same way (the names
+below are the ones it matches since hyprwm/Hyprland#16343) but exposes that to
+neither config nor hyprctl, so ask Mesa directly, on the DRM device the running
+compositor holds open, which makes Mesa pick the same driver Hyprland got.
+"""
+
+import ctypes
+import glob
+import os
+import re
+import sys
+
+SOFTWARE_RENDERERS = ("llvmpipe", "softpipe", "software rasterizer")
+
+EGL_PLATFORM_GBM_KHR = 0x31D7
+EGL_OPENGL_ES_API = 0x30A0
+EGL_CONTEXT_MAJOR_VERSION = 0x3098
+EGL_NONE = 0x3038
+GL_RENDERER = 0x1F01
+
+
+def is_software(renderer):
+    lowered = renderer.lower()
+    return any(name in lowered for name in SOFTWARE_RENDERERS)
+
+
+def node_number(node):
+    digits = re.search(r"(\d+)$", os.path.basename(node))
+    return int(digits.group(1)) if digits else sys.maxsize
+
+
+def primary_card(cards, sysfs, environ):
+    # Aquamarine's primary GPU: the first AQ_DRM_DEVICES entry when that is
+    # set, otherwise the card firmware booted on (boot_vga).
+    configured = environ.get("AQ_DRM_DEVICES", "").split(":")[0]
+    if configured:
+        for card in cards:
+            if os.path.realpath(card) == os.path.realpath(configured):
+                return card
+    for card in cards:
+        try:
+            with open(f"{sysfs}/{os.path.basename(card)}/device/boot_vga") as boot_vga:
+                if boot_vga.read().strip() == "1":
+                    return card
+        except OSError:
+            continue
+    return None
+
+
+def render_node_of(card, sysfs):
+    try:
+        entries = os.listdir(f"{sysfs}/{os.path.basename(card)}/device/drm")
+    except OSError:
+        return None
+    render_nodes = sorted((entry for entry in entries if entry.startswith("renderD")), key=node_number)
+    return f"/dev/dri/{render_nodes[0]}" if render_nodes else None
+
+
+def pick_node(nodes, sysfs="/sys/class/drm", environ=os.environ):
+    # Hyprland renders on its primary GPU's render node when it has one, and on
+    # the display node when it doesn't (a display-only KMS driver). A
+    # display-only primary, as on Apple Silicon, renders on the one render
+    # node there is.
+    render_nodes = sorted((node for node in nodes if os.path.basename(node).startswith("renderD")), key=node_number)
+    cards = sorted((node for node in nodes if os.path.basename(node).startswith("card")), key=node_number)
+    primary = primary_card(cards, sysfs, environ)
+    if primary:
+        primary_render = render_node_of(primary, sysfs)
+        if primary_render in render_nodes:
+            return primary_render
+    if render_nodes:
+        return render_nodes[0]
+    if primary:
+        return primary
+    return cards[0] if cards else None
+
+
+def compositor_nodes():
+    """The DRM nodes the running Hyprland holds open, or None outside a
+    Hyprland session. Inside one, an empty list means Hyprland hasn't written
+    its lock or opened its device yet: too early to tell, not a reason to
+    guess another device."""
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    signature = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    if not runtime or not signature:
+        return None
+
+    try:
+        with open(f"{runtime}/hypr/{signature}/hyprland.lock") as lock:
+            pid = int(lock.readline())
+    except (OSError, ValueError):
+        return []
+
+    nodes = set()
+    try:
+        fds = os.listdir(f"/proc/{pid}/fd")
+    except OSError:
+        return []
+    for fd in fds:
+        try:
+            target = os.readlink(f"/proc/{pid}/fd/{fd}")
+        except OSError:
+            continue
+        if target.startswith("/dev/dri/"):
+            nodes.add(target)
+    return list(nodes)
+
+
+def gl_renderer(node):
+    egl = ctypes.CDLL("libEGL.so.1")
+    gbm = ctypes.CDLL("libgbm.so.1")
+    gles = ctypes.CDLL("libGLESv2.so.2")
+
+    gbm.gbm_create_device.restype = ctypes.c_void_p
+    gbm.gbm_create_device.argtypes = [ctypes.c_int]
+    gbm.gbm_device_destroy.argtypes = [ctypes.c_void_p]
+    egl.eglGetPlatformDisplay.restype = ctypes.c_void_p
+    egl.eglGetPlatformDisplay.argtypes = [ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p]
+    egl.eglInitialize.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+    egl.eglBindAPI.argtypes = [ctypes.c_uint]
+    egl.eglCreateContext.restype = ctypes.c_void_p
+    egl.eglCreateContext.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int)]
+    egl.eglMakeCurrent.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+    egl.eglDestroyContext.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    egl.eglTerminate.argtypes = [ctypes.c_void_p]
+    gles.glGetString.restype = ctypes.c_char_p
+    gles.glGetString.argtypes = [ctypes.c_uint]
+
+    fd = os.open(node, os.O_RDWR | os.O_CLOEXEC)
+    # Mesa writes "failed to open /dev/dri/renderD128" and the like straight
+    # to stderr while it hunts for a GPU, which is the normal course on a
+    # machine without one. Only the answer matters here.
+    saved_stderr = os.dup(2)
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, 2)
+    os.close(devnull)
+    device = display = context = None
+    try:
+        device = gbm.gbm_create_device(fd)
+        if not device:
+            return None
+        display = egl.eglGetPlatformDisplay(EGL_PLATFORM_GBM_KHR, device, None)
+        if not display or not egl.eglInitialize(display, None, None):
+            return None
+        if not egl.eglBindAPI(EGL_OPENGL_ES_API):
+            return None
+        # Surfaceless and configless, as Hyprland's own context is.
+        attributes = (ctypes.c_int * 3)(EGL_CONTEXT_MAJOR_VERSION, 2, EGL_NONE)
+        context = egl.eglCreateContext(display, None, None, attributes)
+        if not context or not egl.eglMakeCurrent(display, None, None, context):
+            return None
+        renderer = gles.glGetString(GL_RENDERER)
+        return renderer.decode(errors="replace") if renderer else None
+    finally:
+        if display:
+            egl.eglMakeCurrent(display, None, None, None)
+            if context:
+                egl.eglDestroyContext(display, context)
+            egl.eglTerminate(display)
+        if device:
+            gbm.gbm_device_destroy(device)
+        os.close(fd)
+        os.dup2(saved_stderr, 2)
+        os.close(saved_stderr)
+
+
+def main(argv):
+    if argv not in ([], ["--print"]):
+        print("Usage: omarchy-hw-software-rendering [--print]", file=sys.stderr)
+        return 2
+
+    nodes = compositor_nodes()
+    if nodes is None:
+        nodes = glob.glob("/dev/dri/*")
+    node = pick_node(nodes)
+    if not node:
+        return 2
+
+    try:
+        renderer = gl_renderer(node)
+    except (OSError, AttributeError):
+        # A missing library or entry point: no Mesa to ask.
+        renderer = None
+    if not renderer:
+        return 2
+
+    if argv:
+        print(renderer)
+    return 0 if is_software(renderer) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

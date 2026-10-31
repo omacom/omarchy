@@ -39,6 +39,8 @@
   "agents.switchedBody": "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.",
   "animations.disabled": "Animations disabled",
   "animations.enabled": "Animations enabled",
+  "animations.softwareRendering": "Animations off without a GPU",
+  "animations.softwareRenderingBody": "No GPU in use, so animations, blur and shadows are off.",
   "audio.micMuted": "Microphone muted",
   "audio.micOn": "Microphone on",
   "audio.noDevices": "No audio devices found",
