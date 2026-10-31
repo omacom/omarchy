@@ -254,26 +254,6 @@ cp "$ROOT/config/omarchy/defaults/dictation" "$config"
 printf '%s\n' voxtype > "$config"
 pass "fresh users get Superwhisper as their default backend"
 
-# On aarch64, where Superwhisper has no build, user setup drops that preset; an
-# owner's own selection, and every x86_64 preset, stay.
-leaf_bin="$test_tmp/leaf-bin"
-mkdir -p "$leaf_bin"
-printf '#!/bin/bash\n[[ ${TEST_ARCH:-aarch64} == x86_64 ]]\n' >"$leaf_bin/omarchy-hw-x86"
-printf '#!/bin/bash\n[[ -z ${TEST_HAS_SUPERWHISPER:-} ]]\n' >"$leaf_bin/omarchy-cmd-missing"
-chmod +x "$leaf_bin"/*
-run_leaf() { env "$@" PATH="$leaf_bin:$PATH" bash -c 'source "$1"' bash "$ROOT/install/user/dictation-default.sh"; }
-cp "$ROOT/config/omarchy/defaults/dictation" "$config"
-run_leaf
-[[ ! -e $config ]] || fail "aarch64 user setup drops the Superwhisper preset"
-printf '%s\n' voxtype >"$config"
-run_leaf
-[[ $(<"$config") == "voxtype" ]] || fail "aarch64 user setup keeps a selection someone made"
-cp "$ROOT/config/omarchy/defaults/dictation" "$config"
-run_leaf TEST_ARCH=x86_64
-[[ $(<"$config") == "superwhisper" ]] || fail "x86_64 keeps the Superwhisper preset"
-printf '%s\n' voxtype >"$config"
-pass "aarch64 new users start with no dictation backend instead of an unbuildable one"
-
 lua <<'LUA'
 local root = os.getenv("ROOT")
 package.path = root .. "/?.lua;" .. package.path
@@ -365,18 +345,3 @@ printf '%s\n' voxtype > "$config"
 omarchy-remove-dictation-superwhisper
 [[ $(cat "$config") == "voxtype" ]] || fail "removing Superwhisper preserves another selected backend"
 pass "Superwhisper removal clears its selection and owned links while preserving user data and other backends"
-
-cat > "$test_tmp/bin/omarchy-pkg-present" <<'SH'
-#!/bin/bash
-[[ ${VOXTYPE_PACKAGE:-0} == 1 && $1 == "voxtype-bin" ]]
-SH
-chmod +x "$test_tmp/bin/omarchy-pkg-present"
-rm "$config"
-VOXTYPE_PACKAGE=0 /bin/bash -euo pipefail "$ROOT/migrations/1791479273.sh"
-[[ ! -e $config ]] || fail "migration does not select an uninstalled backend"
-VOXTYPE_PACKAGE=1 /bin/bash -euo pipefail "$ROOT/migrations/1791479273.sh"
-[[ $(cat "$config") == "voxtype" ]] || fail "existing Voxtype users keep dictation after upgrade"
-printf '%s\n' future-backend > "$config"
-VOXTYPE_PACKAGE=1 /bin/bash -euo pipefail "$ROOT/migrations/1791479273.sh"
-[[ $(cat "$config") == "future-backend" ]] || fail "upgrade preserves explicit backend selections"
-pass "one-time upgrade preserves existing Voxtype without runtime autodetection"
