@@ -508,7 +508,13 @@ Panel {
   }, connectivityChecksEnabled)
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
-  readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
+  // Off is not just another way to be disconnected: the bar and the panel say
+  // so, the way the Bluetooth icon does.
+  readonly property bool wifiOff: networkManagerAvailable && !Networking.wifiEnabled
+  // A wired link still shows as connected; anything else reads as off at once,
+  // even while NetworkManager is still tearing the Wi-Fi link down.
+  readonly property bool wifiOffShown: wifiOff && kind !== "ethernet"
+  readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity, wifiOff)
   // Keyed on the device rather than the SSID: on an OWE transition-mode
   // network the listed network comes and goes with every scan while the link
   // stays up, and a real network switch already passes through "disconnected".
@@ -1089,6 +1095,9 @@ Panel {
       : (root.restricted ? Commons.I18n.t("network.limitedAccess") : "")
 
     onPressed: function(b) {
+      // Right-click switches the radio, as on the Bluetooth icon. Without a
+      // Wi-Fi radio it opens the panel like a left-click.
+      if (b === Qt.RightButton && root.canToggleWifi) { root.toggleNetwork(); return }
       if (root.opened) root.close()
       // open() is enough: onOpenedChanged runs refresh(true), which defers the
       // PHY scan past the first frame. The bare refresh() that used to follow
@@ -1316,6 +1325,7 @@ Panel {
             width: parent.width
 
             readonly property string title: {
+              if (root.wifiOffShown) return "Wi-Fi"
               // The HTTP restriction does not undo association. Show the live
               // SSID even before route/details polling has returned anything.
               if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
@@ -1338,6 +1348,7 @@ Panel {
             textFormat: Text.PlainText
             width: parent.width
             text: {
+              if (root.wifiOffShown) return Commons.I18n.t("network.turnedOff")
               // The sign-in button right below already says what a portal needs.
               if (root.hasCaptivePortal) return ""
               if (root.restricted) return Commons.I18n.t("network.limitedAccessHeader")
