@@ -95,6 +95,10 @@ cat >"$switch/bin/hyprctl" <<'SH'
 #!/bin/bash
 echo '{"bool":true}'
 SH
+cat >"$switch/bin/omarchy-theme-bg-loop-apply" <<'SH'
+#!/bin/bash
+printf 'apply\n' >>"$SWITCH_LOG.apply"
+SH
 cat >"$switch/bin/omarchy-restart-hyprctl" <<'SH'
 #!/bin/bash
 printf 'reload\n' >>"$SWITCH_LOG"
@@ -102,11 +106,12 @@ SH
 chmod +x "$switch/bin/"*
 touch "$switch/log"
 output=$(HOME="$switch/home" PATH="$switch/bin:$ROOT/bin:$PATH" OMARCHY_SESSION_ID=switch-session \
-  SWITCH_STAGE="$switch/media" SWITCH_LOG="$switch/log" timeout 15 quickshell -p "$switch" --no-color 2>&1) || fail "background switch fixture exits cleanly" "$output"
+  SWITCH_STAGE="$switch/media" SWITCH_LOG="$switch/log" timeout 18 quickshell -p "$switch" --no-color 2>&1) || fail "background switch fixture exits cleanly" "$output"
 [[ $output == *"RESULT pass"* ]] || fail "background switch assertions pass" "$output$(printf '\n--- log\n')$(cat "$switch/log")"
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
   fail "background switch fixture has no QML errors" "$output"
 fi
+[[ -s $switch/log.apply ]] || fail "a loop swap that waited runs again once the change settles" "$output"
 log=$(<"$switch/log")
 clip="$switch/media/intros/new.mp4"
 # A background change's clip starts once OWE has re-read the moved link.

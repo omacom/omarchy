@@ -35,6 +35,8 @@ Item {
   // A selection made while an earlier change is still covered or revealing
   // waits for it, since its outgoing frame would miss that change's cover.
   property string queuedPath: ""
+  // A loop swap that arrived while something else was changing.
+  property bool replaceWaiting: false
   // A theme switch reloads Hyprland once no intro plays: a reload pauses
   // video presentation.
   property bool reloadPending: false
@@ -81,12 +83,16 @@ Item {
 
   // omarchy-theme-bg-loop-apply's swap of a still for its theme loop, or of
   // a loop back for its still. It holds only while what it read is still
-  // what the shell shows and nothing else is changing; a change that is
-  // under way starts the loop itself once it settles.
+  // what the shell shows and nothing else is changing; a swap that has to
+  // wait runs again once that change settles.
   function replace(from, to) {
     if (!intro || !backgroundService) return "unavailable"
     // Moving the link cancels a playing intro.
-    if (busy || queuedPath || playProc.running || backgroundService.currentBackground !== from) return "stale"
+    if (busy || queuedPath || playProc.running || intro.startupRunning) {
+      replaceWaiting = true
+      return "stale"
+    }
+    if (backgroundService.currentBackground !== from) return "stale"
     link(to)
     backgroundService.setBackground(to, false)
     return "ok"
@@ -192,9 +198,10 @@ Item {
     if (queuedPath) {
       Quickshell.execDetached(["omarchy-theme-bg-set", queuedPath])
       queuedPath = ""
-    } else if (token && !playProc.running) {
+    } else if ((token || replaceWaiting) && !playProc.running && !intro.startupRunning) {
       // The cover comes down while the clip still plays; the change ends on
       // its still once the clip is over, which is where its theme loop begins.
+      replaceWaiting = false
       Quickshell.execDetached(["omarchy-theme-bg-loop-apply"])
     }
   }
@@ -210,6 +217,7 @@ Item {
       Qt.callLater(root.settle)
     }
     function onRevealingChanged() { Qt.callLater(root.settle) }
+    function onStartupRunningChanged() { Qt.callLater(root.settle) }
   }
 
   // A theme switch holds this lock while it stages, and may start an intro
