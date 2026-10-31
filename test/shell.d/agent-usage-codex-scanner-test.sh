@@ -399,6 +399,17 @@ record = codex()
 expect("Codex counts compact pi replies on its provider or API, an id reused at another time, a fork once, and compact opencode rows",
        [record["todayTotalTokens"], record["todayPrompts"], record["totalSessions"]], [43, 4, 2], record)
 
+# A Pi transcript can be partially written or use a timestamp unit this
+# collector does not understand. Skip that entry without losing a valid
+# neighbor from the same file or the other sources in the scan.
+write_pi_session(root / "malformed.jsonl", [
+  compact("bad-time", "openai-codex", 999, timestamp=1.7e18),
+  compact("after-bad-time", "openai-codex", 6),
+])
+record = codex("--force")
+expect("Codex skips a Pi entry with an out-of-range timestamp and keeps scanning",
+       [record["todayTotalTokens"], record["todayPrompts"], record["totalSessions"]], [49, 5, 3], record)
+
 # ------------------------------------------------------------- scan cache
 
 new_home()

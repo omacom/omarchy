@@ -278,6 +278,37 @@ expect("Grok's tokens by model keep cached input apart", record["modelUsage"], {
   "grok-4.7-build": {"inputTokens": 300, "outputTokens": 60, "cacheReadInputTokens": 900, "cacheCreationInputTokens": 5},
 }, record)
 
+# Partially written or newer session values cost only the bad field or row.
+# A valid turn in that session, and one after a malformed model bucket, still
+# count; an out-of-range summary time does not abort the collector.
+sandbox()
+signed_in(grok_home())
+now = iso_in(0)
+sessions = grok_home() / "sessions" / "%2Fhome%2Fme"
+summary(grok_home(), "bad-summary", now, "3.0")
+write_json(sessions / "bad-summary" / "usage.json", {"turns": [
+  {"endedAt": now, "modelUsage": {"grok-survivor": {"inputTokens": 20, "outputTokens": 5}}},
+]})
+summary(grok_home(), "bad-usage", now, 1)
+write_json(sessions / "bad-usage" / "usage.json", {"turns": [
+  {"endedAt": now, "modelUsage": {
+    "grok-malformed": {"inputTokens": "12.5"},
+    "grok-after-bad": {"inputTokens": 50},
+  }},
+]})
+summary(grok_home(), "bad-time", "0001-01-01T00:00:00+00:00", 1)
+record = grok()
+expect("Grok skips malformed session values without losing valid neighboring usage", {
+  "sessions": record["totalSessions"], "prompts": record["totalPrompts"], "tokens": record["todayTotalTokens"],
+  "survivor": record["modelUsage"]["grok-survivor"], "after": record["modelUsage"]["grok-after-bad"],
+  "malformed": record["modelUsage"]["grok-malformed"],
+}, {
+  "sessions": 2, "prompts": 2, "tokens": 75,
+  "survivor": {"inputTokens": 20, "outputTokens": 5, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0},
+  "after": {"inputTokens": 50, "outputTokens": 0, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0},
+  "malformed": {"inputTokens": 0, "outputTokens": 0, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0},
+}, record)
+
 # A fork repeats its source's turns verbatim ahead of its own, as `grok -r
 # <id> --fork-session` leaves its usage.json; each turn counts once. A
 # subagent's turns are tokens spent, but no prompts typed.
