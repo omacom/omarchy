@@ -65,16 +65,21 @@ Item {
 
   // ------------------------------------------------------------- the bar
   //
-  // The deck hangs from the top-right corner, so it clears the bar only when
-  // the bar is on the top or right edge and visible.
+  // Keep the deck beside the bar; scene offsets measure inward from that edge.
   readonly property var barRef: shell && shell.bar ? shell.bar : null
   readonly property string barPosition: barRef ? String(barRef.position || "top") : "top"
   readonly property bool barVertical: barPosition === "left" || barPosition === "right"
+  readonly property bool growUp: barPosition !== "top"
+  readonly property bool onLeft: barPosition === "left"
   readonly property int defaultBarSize: barVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
   function marginsFor(screenName) {
     return Delivery.deckMargins(barPosition, Delivery.barThickness(barRef, screenName, defaultBarSize), Style.gapsOut)
   }
   readonly property int notificationWidth: Style.space(380)
+
+  function cardY(offset, height) {
+    return Delivery.cardY(offset, height, deckHeight, growUp)
+  }
 
   // ---------------------------------------------------- fullscreen windows
   //
@@ -333,8 +338,8 @@ Item {
     stopKeyboard()
   }
 
-  // The deck does not scroll, so a card that would open below the bottom of
-  // the screen is out of reach, for the keyboard as for the pointer.
+  // The deck does not scroll, so a card that would open beyond the opposite
+  // screen edge is out of reach, for the keyboard as for the pointer.
   function reachable(key) {
     var at = rowIndexFor(key)
     if (at < 0) return false
@@ -344,7 +349,8 @@ Item {
     for (var s = 0; s < Quickshell.screens.length; s++)
       if (String(Quickshell.screens[s].name) === targetDisplayName) screen = Quickshell.screens[s]
     if (!screen) return true
-    var room = screen.height - marginsFor(targetDisplayName).top - gap
+    var margins = marginsFor(targetDisplayName)
+    var room = screen.height - margins.top - margins.bottom - gap
     return place.y + (place.height || Style.space(58)) <= room
   }
 
@@ -392,10 +398,14 @@ Item {
     var selected = keyboardKey
     if (key === Qt.Key_Escape) {
       stopKeyboard()
-    } else if (key === Qt.Key_Down || key === Qt.Key_J || key === Qt.Key_Tab) {
+    } else if (key === Qt.Key_Tab) {
       moveSelection(1)
-    } else if (key === Qt.Key_Up || key === Qt.Key_K || key === Qt.Key_Backtab) {
+    } else if (key === Qt.Key_Backtab) {
       moveSelection(-1)
+    } else if (key === Qt.Key_Down || key === Qt.Key_J) {
+      moveSelection(growUp ? -1 : 1)
+    } else if (key === Qt.Key_Up || key === Qt.Key_K) {
+      moveSelection(growUp ? 1 : -1)
     } else if (key === Qt.Key_Return || key === Qt.Key_Enter) {
       stopKeyboard()
       activate(selected)
@@ -442,7 +452,8 @@ Item {
   readonly property int arriveDuration: 250
   readonly property int leaveDuration: 200
   property int sceneDuration: arriveDuration
-  // How far a card drops in from, and rises by on its way out.
+  // Distance from the anchored edge on arrival and departure. Drawing mirrors
+  // these inward offsets for a bottom deck, including mid-animation snapshots.
   readonly property real travel: Style.space(24)
 
   property real t: 1                 // 0..1, eased, shared by every card
@@ -1513,7 +1524,9 @@ Item {
       exclusionMode: ExclusionMode.Ignore
 
       // Constant width and full height, so the buffer is allocated once.
-      anchors { top: true; bottom: true; right: true }
+      anchors { top: true; bottom: true }
+      anchors.left: service.onLeft
+      anchors.right: !service.onLeft
       implicitWidth: clipper.width + Style.space(10)
 
       mask: Region { item: surface.showingNotifications ? deck : null }
@@ -1528,18 +1541,22 @@ Item {
       Item {
         id: clipper
         visible: surface.showingNotifications
-        anchors.right: parent.right
+        anchors.left: service.onLeft ? parent.left : undefined
+        anchors.right: service.onLeft ? undefined : parent.right
         anchors.top: parent.top
+        anchors.bottom: parent.bottom
         anchors.topMargin: surface.margins.top
+        anchors.bottomMargin: surface.margins.bottom
         // Room for the arrival's scale animation, and the gap from the edge.
         readonly property int motionInset: Style.spacing.sm
-        width: service.notificationWidth + motionInset + surface.margins.right
-        height: deck.y + deck.height + motionInset
+        width: service.notificationWidth + motionInset
+               + (service.onLeft ? surface.margins.left : surface.margins.right)
         clip: true
 
         Item {
           id: deck
-          x: clipper.motionInset
+          x: service.onLeft ? surface.margins.left : clipper.motionInset
+          y: service.growUp ? clipper.height - height : 0
           width: service.notificationWidth
           height: service.deckHeight
 
@@ -1564,7 +1581,8 @@ Item {
                 var pl = places[key]
                 if (pl.hidden || pl.leaving) continue
                 var h = pl.height || Style.space(58)
-                if (y >= pl.y && y <= pl.y + h) { found = key; break }
+                var top = service.cardY(pl.y, h)
+                if (y >= top && y <= top + h) { found = key; break }
               }
               service.hoverKey = found
             }
@@ -1600,8 +1618,9 @@ Item {
                 var first = decks[i].rows[0]
                 var place = service.layout.placements[first.key]
                 if (!place) continue
-                var top = place.y
-                var bottom = top + (service.heights[first.key] || Style.space(58))
+                var h = place.height || Style.space(58)
+                var top = service.cardY(place.y, h)
+                var bottom = top + h
                 if (mouse.y >= top - Style.space(6) && mouse.y <= bottom + Style.space(6)) {
                   // Opening another deck would hide the keyboard's card.
                   if (service.keyboardMode && decks[i].key !== service.openDeck) service.stopKeyboard()
