@@ -194,3 +194,68 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+# A coarse backlight, max_brightness 15 as on an Apple panel driven by
+# acpi_video0, rounding percentages the way brightnessctl does: a percentage
+# becomes round(percent / 100 * max), floored at --min-value, so 1% is raw 0.
+export BACKLIGHT_STATE="$test_tmp/backlight"
+cat >"$mock_bin/brightnessctl" <<'SH'
+#!/bin/bash
+printf 'brightnessctl %s\n' "$*" >>"$CALL_LOG"
+max=15
+min=0
+args=()
+while (( $# > 0 )); do
+  case "$1" in
+  -n*)
+    min=${1#-n}
+    [[ -n $min ]] || min=1
+    shift
+    ;;
+  -d)
+    shift 2
+    ;;
+  -m | -q)
+    shift
+    ;;
+  *)
+    args+=("$1")
+    shift
+    ;;
+  esac
+done
+current=$(<"$BACKLIGHT_STATE")
+if [[ ${args[0]:-} == "set" ]]; then
+  value=${args[1]}
+  if [[ $value == *% ]]; then
+    value=${value%\%}
+    current=$(( (value * max + 50) / 100 ))
+  else
+    current=$value
+  fi
+  (( current < min )) && current=$min
+  (( current > max )) && current=$max
+  printf '%s\n' "$current" >"$BACKLIGHT_STATE"
+fi
+printf 'mock_backlight,backlight,%s,%s%%,%s\n' "$current" "$(( (current * 200 + max) / (2 * max) ))" "$max"
+SH
+chmod +x "$mock_bin/brightnessctl"
+
+printf '6\n' >"$BACKLIGHT_STATE"
+run_brightness --no-osd --monitor eDP-1 +5%
+(( $(<"$BACKLIGHT_STATE") == 7 )) || fail "brightness up steps a coarse backlight" "raw: $(<"$BACKLIGHT_STATE")"
+run_brightness --no-osd --monitor eDP-1 5%-
+(( $(<"$BACKLIGHT_STATE") == 6 )) || fail "brightness down steps a coarse backlight" "raw: $(<"$BACKLIGHT_STATE")"
+pass "the brightness keys step a coarse backlight"
+
+printf '1\n' >"$BACKLIGHT_STATE"
+run_brightness --no-osd --monitor eDP-1 5%-
+(( $(<"$BACKLIGHT_STATE") == 1 )) || fail "brightness down keeps a coarse backlight lit" "raw: $(<"$BACKLIGHT_STATE")"
+run_brightness --no-osd --monitor eDP-1 1%
+(( $(<"$BACKLIGHT_STATE") == 1 )) || fail "brightness minimum keeps a coarse backlight lit" "raw: $(<"$BACKLIGHT_STATE")"
+pass "the brightness floor keeps a coarse backlight lit"
+
+printf '0\n' >"$BACKLIGHT_STATE"
+run_brightness --no-osd --monitor eDP-1 +5%
+(( $(<"$BACKLIGHT_STATE") == 1 )) || fail "brightness up leaves a coarse backlight that is off" "raw: $(<"$BACKLIGHT_STATE")"
+pass "brightness up leaves a coarse backlight that is off"
