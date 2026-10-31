@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set a Hyprland monitor's resolution (the focused one by default)
+# omarchy:args=[--monitor NAME] [WIDTHxHEIGHT[@RATE]]
+# omarchy:examples=omarchy hyprland monitor resolution | omarchy hyprland monitor resolution 3840x2160 | omarchy hyprland monitor resolution --monitor DP-2 2560x1440@144
+
+usage() {
+  echo "Usage: omarchy-hyprland-monitor-resolution [--monitor NAME] [WIDTHxHEIGHT[@RATE]]"
+}
+
+# Hyprland only accepts scales where the mode divides into whole logical
+# pixels (in 1/120 steps), so clean scales are divisors of gcd(w*120, h*120).
+# Round the scale up to the nearest clean value for the new mode.
+clean_scale() {
+  awk -v scale="$1" -v width="$2" -v height="$3" '
+    function gcd(a, b, t) { while (b) { t = a % b; a = b; b = t } return a }
+    BEGIN {
+      g = gcd(width * 120, height * 120)
+      k = int(scale * 120 + 0.5)
+      if (k > g) k = g
+      while (g % k != 0) k++
+      printf "%g\n", k / 120
+    }'
+}
+
+if [[ ${1:-} == "--monitor" ]]; then
+  if [[ -z ${2:-} ]]; then
+    usage >&2
+    exit 1
+  fi
+  monitor_name="$2"
+  shift 2
+fi
+
+if [[ -n ${monitor_name:-} ]]; then
+  monitor_info=$(hyprctl monitors -j | jq -e -c --arg name "$monitor_name" '.[] | select(.name == $name)')
+else
+  monitor_info=$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')
+fi
+
+if [[ -z $monitor_info ]]; then
+  echo "No such monitor: ${monitor_name:-focused}" >&2
+  exit 1
+fi
+
+if [[ -z ${1:-} ]]; then
+  jq -r '"\(.width)x\(.height)"' <<<"$monitor_info"
+  exit 0
+fi
+
+if [[ $1 == "-h" || $1 == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ ! $1 =~ ^([0-9]+x[0-9]+)(@([0-9]+([.][0-9]+)?))?$ ]]; then
+  usage >&2
+  exit 1
+fi
+size="${BASH_REMATCH[1]}"
+rate="${BASH_REMATCH[3]}"
+
+active_monitor=$(jq -r '.name' <<<"$monitor_info")
+
+# active_monitor is written into the Lua string eval'd below, so only a plain
+# connector name may pass; a hostile output name could execute otherwise.
+if [[ ! $active_monitor =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "Refusing unsafe monitor name" >&2
+  exit 1
+fi
+
+# Only accept what the monitor advertises. Without a rate, take the fastest one
+# the size supports.
+mode=$(jq -r --arg size "$size" --arg rate "$rate" '
+  [.availableModes[]
+    | capture("^(?<size>[0-9]+x[0-9]+)@(?<rate>[0-9.]+)Hz$")
+    | select(.size == $size)
+    | select($rate == "" or ((.rate | tonumber) - ($rate | tonumber) | fabs) < 0.01)]
+  | max_by(.rate | tonumber) // empty
+  | "\(.size)@\(.rate | tonumber | . * 100 | round / 100)"' <<<"$monitor_info")
+
+if [[ -z $mode ]]; then
+  echo "$active_monitor does not support $1" >&2
+  exit 1
+fi
+
+old_scale=$(jq -r '.scale' <<<"$monitor_info")
+old_size=$(jq -r '"\(.width)x\(.height)"' <<<"$monitor_info")
+scale=$(clean_scale "$old_scale" "${size%x*}" "${size#*x}")
+
+# Beside other monitors it keeps its place, and the layout closes up around its
+# new size. Alone, Hyprland places it.
+others=$(hyprctl monitors -j | jq --arg name "$active_monitor" '[.[] | select(.name != $name)] | length')
+if (( others > 0 )); then
+  position=$(jq -r '"\(.x)x\(.y)"' <<<"$monitor_info")
+else
+  position="auto"
+fi
+
+hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"$mode\", position = \"$position\", scale = $scale })" >/dev/null
+omarchy-hyprland-monitor-persist "$active_monitor" "$scale" "$mode"
+if (( others > 0 )); then
+  omarchy-hyprland-monitor-layout --resized "$active_monitor" "$old_size" "$old_scale" "$size" "$scale"
+fi

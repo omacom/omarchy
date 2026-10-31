@@ -1,19 +1,24 @@
 #!/bin/bash
 
-# omarchy:summary=Show, set, or adjust focused Hyprland monitor scaling
-# omarchy:args=[up|down|SCALE]
-# omarchy:examples=omarchy hyprland monitor scaling | omarchy hyprland monitor scaling 1.6 | omarchy hyprland monitor scaling up | omarchy hyprland monitor scaling down
+# omarchy:summary=Show, set, or adjust a Hyprland monitor's scaling (the focused one by default)
+# omarchy:args=[--monitor NAME] [up|down|SCALE]
+# omarchy:examples=omarchy hyprland monitor scaling | omarchy hyprland monitor scaling 1.6 | omarchy hyprland monitor scaling up | omarchy hyprland monitor scaling --monitor DP-2 2
 
 SCALES=(1 1.25 1.6 2 3 4)
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
-SCALE_LOG="$STATE_DIR/monitor-scaling.log"
+SCALE_LOG="$STATE_DIR/monitors/scaling"
 
 usage() {
-  echo "Usage: omarchy-hyprland-monitor-scaling [up|down|SCALE]"
+  echo "Usage: omarchy-hyprland-monitor-scaling [--monitor NAME] [up|down|SCALE]"
 }
 
-focused_monitor_scale() {
-  hyprctl monitors -j | jq -er '.[] | select(.focused == true) | .scale'
+# The monitor named with --monitor, else the focused one.
+target_monitor_info() {
+  if [[ -n $MONITOR_NAME ]]; then
+    hyprctl monitors -j | jq -e -c --arg name "$MONITOR_NAME" '.[] | select(.name == $name)'
+  else
+    hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)'
+  fi
 }
 
 cmdline_for_pid() {
@@ -33,7 +38,7 @@ audit_scale_change() {
   local parent_cmd
   local grandparent_cmd
 
-  mkdir -p "$STATE_DIR" || return 0
+  mkdir -p "${SCALE_LOG%/*}" || return 0
 
   grandparent_pid=$(ps -o ppid= -p "$parent_pid" 2>/dev/null | tr -d ' ')
   parent_cmd=$(cmdline_for_pid "$parent_pid")
@@ -74,8 +79,7 @@ normalize_scale() {
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
-  local monitors_json="$(hyprctl monitors -j)"
-  local monitor_info="$(echo "$monitors_json" | jq -e -c '.[] | select(.focused == true)')"
+  local monitor_info="$(target_monitor_info)"
   local active_monitor="$(echo "$monitor_info" | jq -r '.name')"
   local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
   local width="$(echo "$monitor_info" | jq -r '.width')"
@@ -90,87 +94,24 @@ set_scale() {
   fi
 
   local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
-  # GDK_SCALE is one value for the whole session, so it follows the lowest
-  # monitor scale: XWayland apps end up a little small on denser screens rather
-  # than oversized on the others. GTK only honors integers, so round it.
-  local new_gdk_scale="$(echo "$monitors_json" | jq -r --arg name "$active_monitor" --argjson scale "$new_scale" '
-    [.[] | select(.disabled != true) | if .name == $name then $scale else .scale end]
-    | min | . + 0.5 | floor | if . < 1 then 1 else . end')"
-  local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
-  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
-  audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
-
-  persist_scale "$monitor_lua" "$active_monitor" "$new_scale" "$new_gdk_scale"
-}
-
-# Persist the scale as a rule for this monitor alone, so other monitors keep
-# theirs and the scale survives reboots. A rule already naming the monitor has
-# its scale updated in place. Otherwise one is added after Omarchy's catch-all,
-# which stays the default for monitors without a rule of their own. Only rules
-# written on one line with a plain scale value are edited; a config holding
-# anything else for these rules (a multi-line table, a scale expression, another
-# rule naming the monitor) is left alone rather than risk broken Lua or a second
-# rule competing with the user's own.
-persist_scale() {
-  local monitor_lua="$1"
-  local output="$2"
-  local scale="$3"
-  local gdk_scale="$4"
-  local target
-  local tmp
-
-  [[ -f $monitor_lua ]] || return 0
-
-  # Hyprland reloads on every write, so build the new file beside the real one
-  # and rename it into place, through any symlink, in one step.
-  target="$(readlink -f "$monitor_lua")"
-  tmp="$(mktemp "$target.XXXXXX")" || return 0
-  if ! awk -v output="$output" -v scale="$scale" '
-    function rule(name) { return "hl.monitor({ output = \"" name "\"," }
-    function whole_line() { return $0 ~ /\}\)[[:space:]]*(--.*)?$/ }
-    function names_output(    code, value) {
-      code = $0
-      sub(/--.*/, "", code)
-      if (!match(code, /output[[:space:]]*=[[:space:]]*"[^"]*"/)) return 0
-      value = substr(code, RSTART, RLENGTH)
-      sub(/^[^"]*"/, "", value)
-      sub(/"$/, "", value)
-      return value == output
-    }
-    names_output() {
-      if (updated || index($0, rule(output)) != 1 || !whole_line() ||
-        !match($0, /[{, ]scale = ("[^"]*"|[A-Za-z0-9_.]+) *[,}]/)) {
-        skip = 1
-        exit
-      }
-      tail = substr($0, RSTART, RLENGTH)
-      sub(/^[{, ]scale = ("[^"]*"|[A-Za-z0-9_.]+)/, "", tail)
-      $0 = substr($0, 1, RSTART) "scale = " scale tail substr($0, RSTART + RLENGTH)
-      updated = 1
-    }
-    !catch_all && index($0, rule("")) == 1 { catch_all = NR; catch_all_whole = whole_line() }
-    { lines[NR] = $0 }
-    END {
-      if (skip || (!updated && !(catch_all && catch_all_whole))) exit 1
-      for (i = 1; i <= NR; i++) {
-        print lines[i]
-        if (!updated && i == catch_all)
-          print "hl.monitor({ output = \"" output "\", mode = \"preferred\", position = \"auto\", scale = " scale " })"
-      }
-    }
-  ' "$target" >"$tmp"; then
-    rm -f "$tmp"
-    return 0
+  # Beside other monitors it keeps its place, and the layout closes up around
+  # its new size. Alone, Hyprland places it.
+  local others="$(hyprctl monitors -j | jq --arg name "$active_monitor" '[.[] | select(.name != $name)] | length')"
+  local position
+  if (( others > 0 )); then
+    position="$(echo "$monitor_info" | jq -r '"\(.x)x\(.y)"')"
+  else
+    position="auto"
   fi
 
-  # GDK_SCALE is a single session-wide value, set from the lowest monitor scale.
-  sed -i -E \
-    -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${gdk_scale}|" \
-    -e 's|^hl\.env\("GDK_SCALE", "[^"]*"\)|hl.env("GDK_SCALE", "'"$gdk_scale"'")|' \
-    "$tmp"
-  chmod --reference="$target" "$tmp"
-  mv "$tmp" "$target"
+  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"$position\", scale = $new_scale })" >/dev/null
+  audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
+
+  omarchy-hyprland-monitor-persist "$active_monitor" "$new_scale"
+  if (( others > 0 )); then
+    omarchy-hyprland-monitor-layout --resized "$active_monitor" "${width}x${height}" "$current_scale" "${width}x${height}" "$new_scale"
+  fi
 }
 
 scale_from_current() {
@@ -232,20 +173,35 @@ scale_from_current() {
     }'
 }
 
+MONITOR_NAME=""
+if [[ ${1:-} == "--monitor" ]]; then
+  if [[ -z ${2:-} ]]; then
+    usage >&2
+    exit 1
+  fi
+  MONITOR_NAME="$2"
+  shift 2
+fi
+
+if [[ ${1:-} != "-h" && ${1:-} != "--help" ]] && ! target_monitor_info >/dev/null; then
+  echo "No such monitor: ${MONITOR_NAME:-focused}" >&2
+  exit 1
+fi
+
 case "${1:-}" in
 "")
-  focused_monitor_scale | normalize_scale
+  target_monitor_info | jq -r '.scale' | normalize_scale
   ;;
 -h | --help)
   usage
   ;;
 up)
-  monitor_info=$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')
+  monitor_info=$(target_monitor_info)
   set_scale "$(echo "$monitor_info" | jq -r '.scale' | scale_from_current next \
     "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')")" "up"
   ;;
 down)
-  monitor_info=$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')
+  monitor_info=$(target_monitor_info)
   set_scale "$(echo "$monitor_info" | jq -r '.scale' | scale_from_current previous \
     "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')")" "down"
   ;;
