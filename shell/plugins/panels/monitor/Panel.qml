@@ -113,6 +113,9 @@ Panel {
     return list
   }
 
+  // Arranging displays only means something with two or more of them.
+  readonly property bool showLayout: layoutRects.length > 1
+
   function displayGlyph(entry) {
     return entry && entry.builtIn ? "󰌢" : "󰍹"
   }
@@ -169,7 +172,7 @@ Panel {
     if (current && current.scales.length > 0) list.push("scale")
     if (current && current.resolutions.length > 0) list.push("resolution")
     if (current && current.refreshes.length > 0) list.push("refresh")
-    if (layoutRects.length > 0) list.push("layout")
+    if (showLayout) list.push("layout")
     return list
   }
 
@@ -1050,12 +1053,12 @@ Panel {
           // ---------- Layout ----------
           // Shown for a single display too: right-clicking it is how it's rotated.
           PanelSeparator {
-            visible: root.layoutRects.length > 0
+            visible: root.showLayout
             foreground: root.bar.foreground
           }
 
           Column {
-            visible: root.layoutRects.length > 0
+            visible: root.showLayout
             width: parent.width
             spacing: Style.space(6)
 
