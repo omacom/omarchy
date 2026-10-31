@@ -47,6 +47,11 @@ o.bind("SUPER + SHIFT + CTRL + RIGHT", "Move window to right monitor", o.workspa
 o.bind("SUPER + SHIFT + CTRL + UP", "Move window to up monitor", o.workspaces.move_window_to_monitor("u"))
 o.bind("SUPER + SHIFT + CTRL + DOWN", "Move window to down monitor", o.workspaces.move_window_to_monitor("d"))
 
+o.bind("SUPER + CTRL + ALT + LEFT", "Focus left monitor", o.workspaces.focus_monitor("l"))
+o.bind("SUPER + CTRL + ALT + RIGHT", "Focus right monitor", o.workspaces.focus_monitor("r"))
+o.bind("SUPER + CTRL + ALT + UP", "Focus up monitor", o.workspaces.focus_monitor("u"))
+o.bind("SUPER + CTRL + ALT + DOWN", "Focus down monitor", o.workspaces.focus_monitor("d"))
+
 o.bind("SUPER + SHIFT + LEFT", "Swap window to the left", hl.dsp.window.swap({ direction = "l" }))
 o.bind("SUPER + SHIFT + RIGHT", "Swap window to the right", hl.dsp.window.swap({ direction = "r" }))
 o.bind("SUPER + SHIFT + UP", "Swap window up", hl.dsp.window.swap({ direction = "u" }))

@@ -510,6 +510,17 @@ function M.move_to_monitor(direction)
   end, "o.workspaces.move_to_monitor(" .. literal(direction) .. ")")
 end
 
+-- Focus the monitor in a direction, whatever it shows. Super + Arrows walks the
+-- windows first and only crosses over at the edge.
+function M.focus_monitor(direction)
+  return action(function()
+    local target = hl.get_monitor(direction)
+    if target then
+      hl.dispatch(hl.dsp.focus({ monitor = target.name }))
+    end
+  end, "o.workspaces.focus_monitor(" .. literal(direction) .. ")")
+end
+
 -- Move the focused window onto the workspace the monitor in that direction
 -- shows, and follow it there.
 function M.move_window_to_monitor(direction)

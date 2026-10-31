@@ -618,3 +618,22 @@ hl.dispatch(m.move_to_monitor("u"))
 check(world.windows["0xa"].workspace == 11 and world.focused == "DP-1", "a move toward no monitor did something")
 ' || fail "a window moves to the monitor in a direction, and nowhere when there is none"
 pass "a window moves to the monitor in a direction, and nowhere when there is none"
+
+run_lua focus_monitor '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.neighbours = { ["eDP-1"] = { u = "DP-1" }, ["DP-1"] = { d = "eDP-1" } }
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+
+hl.dispatch(m.focus_monitor("u"))
+check(world.focused == "DP-1", "focus did not go to the monitor above")
+check(shows("DP-1") == 11 and shows("eDP-1") == 1, "a workspace moved along with the focus")
+check(o.bind_expressions[m.focus_monitor("d")] == "o.workspaces.focus_monitor(\"d\")", "the menu can replay it")
+
+-- Nothing is above the top monitor: no error, and focus stays.
+hl.dispatch(m.focus_monitor("u"))
+check(world.focused == "DP-1", "focus went somewhere with no monitor above")
+' || fail "focus moves to the monitor in a direction, and stays when there is none"
+pass "focus moves to the monitor in a direction, and stays when there is none"
