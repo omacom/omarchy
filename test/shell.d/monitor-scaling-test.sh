@@ -194,3 +194,12 @@ grep -Fx 'local omarchy_gdk_scale = 1' "$monitor_lua" >/dev/null || fail "monito
 OMARCHY_TEST_MONITOR_SCALE=4 OMARCHY_TEST_OTHER_MONITOR_SCALE=3 run_scaling 2
 grep -Fx 'local omarchy_gdk_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling lowers GDK scale to the newly lowest monitor"
 pass "monitor scaling sets GDK scale from the lowest monitor"
+
+# Asserting a position on scale change re-places the monitor (#7326).
+write_monitor_config
+run_scaling 1.25
+grep -F 'scale = 1.25' "$eval_out" >/dev/null || fail "monitor scaling re-declares the monitor at 1.25x"
+if grep -F 'position' "$eval_out" >/dev/null; then
+  fail "monitor scaling must not assert a position"
+fi
+pass "monitor scaling leaves position to the existing declaration"
