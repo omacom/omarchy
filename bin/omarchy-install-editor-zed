@@ -9,5 +9,6 @@ omarchy-pkg-add zed
 
 # Apply Omarchy theme to Zed
 omarchy-theme-set-zed --select
+omarchy-font-set-zed --enable "$(omarchy-font-current)"
 
 setsid uwsm-app -- gtk-launch dev.zed.Zed >/dev/null 2>&1 &

@@ -35,6 +35,17 @@ printf 'zed:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
 exit "${OMARCHY_TEST_ZED_STATUS:-0}"
 SH
 
+cat >"$mock_bin/omarchy-font-current" <<'SH'
+#!/bin/bash
+echo 'Test Mono'
+SH
+
+cat >"$mock_bin/omarchy-font-set-zed" <<'SH'
+#!/bin/bash
+printf 'zed-font:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
+exit "${OMARCHY_TEST_ZED_FONT_STATUS:-0}"
+SH
+
 cat >"$mock_bin/setsid" <<'SH'
 #!/bin/bash
 printf 'launch:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
@@ -80,12 +91,13 @@ assert_detached_installer_launch omarchy-install-editor-vscode code
 assert_detached_installer_launch omarchy-install-editor-zed dev.zed.Zed
 grep -Fxq 'pkg:zed' "$OMARCHY_TEST_LOG" || fail "Zed installer installs Zed without Omazed"
 grep -Fxq 'zed:--select' "$OMARCHY_TEST_LOG" || fail "Zed installer selects the native theme"
+grep -Fxq 'zed-font:--enable Test Mono' "$OMARCHY_TEST_LOG" || fail "Zed installer enables the current Omarchy font"
 
 : >"$OMARCHY_TEST_LOG"
 if OMARCHY_TEST_PKG_STATUS=1 bash "$ROOT/bin/omarchy-install-editor-zed"; then
   fail "Zed installer reports package installation failure"
 fi
-if grep -Eq '^(zed:|launch:)' "$OMARCHY_TEST_LOG"; then
+if grep -Eq '^(zed:|zed-font:|launch:)' "$OMARCHY_TEST_LOG"; then
   fail "Zed installer does not configure or launch after package installation failure"
 fi
 : >"$OMARCHY_TEST_LOG"
@@ -95,7 +107,14 @@ fi
 if grep -q '^launch:' "$OMARCHY_TEST_LOG"; then
   fail "Zed installer does not launch after theme selection failure"
 fi
-pass "Zed installer stops when installation or theme selection fails"
+: >"$OMARCHY_TEST_LOG"
+if OMARCHY_TEST_ZED_FONT_STATUS=1 bash "$ROOT/bin/omarchy-install-editor-zed"; then
+  fail "Zed installer reports font selection failure"
+fi
+if grep -q '^launch:' "$OMARCHY_TEST_LOG"; then
+  fail "Zed installer does not launch after font selection failure"
+fi
+pass "Zed installer stops when installation, theme, or font selection fails"
 
 assert_detached_installer_launch omarchy-install-gaming-heroic heroic
 assert_detached_installer_launch omarchy-install-gaming-steam steam

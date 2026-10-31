@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the system monospace font to Zed
+# omarchy:args=[--enable] <font-name>
+# omarchy:hidden=true
+
+enable=false
+if [[ ${1:-} == "--enable" ]]; then
+  enable=true
+  shift
+fi
+
+if (( $# != 1 )) || [[ -z $1 ]]; then
+  echo "Usage: omarchy-font-set-zed [--enable] <font-name>" >&2
+  exit 1
+fi
+
+font_sync_marker="$HOME/.local/state/omarchy/zed/font-sync"
+if [[ $enable != "true" && ! -f $font_sync_marker ]]; then
+  exit 0
+fi
+
+if omarchy-cmd-missing zed && omarchy-cmd-missing zeditor && [[ ! -d $HOME/.config/zed ]]; then
+  exit 0
+fi
+
+omarchy-theme-set-zed --font "$1" || exit 1
+if [[ $enable == "true" ]]; then
+  mkdir -p "${font_sync_marker%/*}" || exit 1
+  touch "$font_sync_marker" || exit 1
+fi
