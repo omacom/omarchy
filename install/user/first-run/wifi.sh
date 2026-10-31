@@ -1,6 +1,6 @@
 notify_update() {
   omarchy-notification-send -u critical -g  "$(omarchy-i18n firstRun.updateTitle)" "$(omarchy-i18n firstRun.updateBody)" \
-    --exec omarchy-launch-floating-terminal-with-presentation omarchy-update
+    --exec omarchy-launch-update
 }
 
 # Something for omarchy-update to install: any repository package, Omarchy's
