@@ -56,8 +56,16 @@ BarWidget {
       root.bar.shell.updateEntryInline(root.moduleName, entry)
   }
 
+  // Day and month names follow the Omarchy language, not the system locale,
+  // which only catches up at the next login.
+  readonly property var formatLocale: Qt.locale(I18n.formatLocale)
+
+  // The ISO week goes in as a literal, so its digits are localized here the
+  // way Qt localizes the rest of the format.
   function formatted(date) {
-    return Qt.formatDateTime(date, activeFormat.replace(/ww/g, Model.isoWeekLiteral(date.getFullYear(), date.getMonth(), date.getDate())))
+    var week = Model.isoWeekLiteral(date.getFullYear(), date.getMonth(), date.getDate())
+    week = week.split("").map(function(digit) { return I18n.formatNumber(digit) }).join("")
+    return date.toLocaleString(root.formatLocale, activeFormat.replace(/ww/g, week))
   }
 
   // ---- Calendar popup. Shape contract for shell.summon/hide/toggle
@@ -153,7 +161,10 @@ BarWidget {
     fixedHeight: root.vertical ? root.verticalLines.length * Style.bar.iconSlot : -1
     horizontalMargin: 8.75
     verticalPadding: 8.75
-    tooltipText: "Right-click to toggle format"
+    tooltipText: I18n.t("clock.toggleFormat")
+    // The clock is text to read, not an icon to press, so a click never
+    // shrinks it; the format it cycles to, or the panel it opens, is feedback.
+    pressFeedbackButtons: Qt.NoButton
 
     onPressed: function(b) {
       if (b === Qt.RightButton) root.cycleFormat()
