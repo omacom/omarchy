@@ -136,6 +136,8 @@
   "trigger.toggle.screensaver-off": {"icon":"󱄄","label":"Screensaver Off","when":"! omarchy-toggle-enabled screensaver-off","action":"omarchy-toggle-screensaver"},
   "trigger.toggle.crash-capture-on": {"icon":"󱚡","label":"Crash Capture On","when":"omarchy-toggle-enabled crash-capture-off","action":"omarchy-toggle-crash-capture"},
   "trigger.toggle.crash-capture-off": {"icon":"󱚡","label":"Crash Capture Off","when":"! omarchy-toggle-enabled crash-capture-off","action":"omarchy-toggle-crash-capture"},
+  "trigger.toggle.low-latency-audio-on": {"icon":"󰋋","label":"Low Latency Audio On","when":"! omarchy-toggle-low-latency-audio --status","action":"omarchy-toggle-low-latency-audio"},
+  "trigger.toggle.low-latency-audio-off": {"icon":"󰋋","label":"Low Latency Audio Off","when":"omarchy-toggle-low-latency-audio --status","action":"omarchy-toggle-low-latency-audio"},
   "trigger.emoji": {"icon":"","label":"Emoji","aliases":["emoji","emojis"],"action":"omarchy-menu-emoji"},
   "trigger.clipboard-history": {"icon":"󰅇","label":"Clipboard History","action":"omarchy-shell shell summon omarchy.clipboard"},
   "trigger.reminder": {"icon":"󰢌","label":"Reminder","aliases":["reminder"]},
