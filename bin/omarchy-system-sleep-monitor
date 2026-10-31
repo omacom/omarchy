@@ -19,9 +19,14 @@ consume_sleep_events() {
 monitor_sleep_events() {
   local monitor_fd monitor_pid status
 
+  # Unprivileged clients cannot use new-style monitoring (BecomeMonitor) on
+  # the system bus by design, so dbus-monitor always logs a notice and falls
+  # back to eavesdropping. The fallback works fine for this broadcast signal,
+  # so drop only that known-benign notice and keep all other diagnostics.
   coproc SLEEP_EVENTS {
     exec dbus-monitor --system \
-      "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"
+      "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'" \
+      2> >(grep -v "unable to enable new-style monitoring" >&2)
   }
   monitor_fd=${SLEEP_EVENTS[0]}
   monitor_pid=$SLEEP_EVENTS_PID
