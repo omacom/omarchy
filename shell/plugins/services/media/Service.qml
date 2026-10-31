@@ -223,9 +223,10 @@ Item {
     }))
   }
 
-  function scheduleOsd(actionLabel, iconName, player, waitForTrackChange, beforeTrackSignature) {
+  function scheduleOsd(action, actionLabel, iconName, player, waitForTrackChange, beforeTrackSignature) {
     if (waitForTrackChange) {
       pendingTrackOsd = {
+        action: action,
         actionLabel: actionLabel,
         iconName: iconName,
         player: player,
@@ -267,7 +268,7 @@ Item {
 
     // positionChanged also fires on routine refreshes, and some players seek to
     // zero before the next track arrives: only previous returning to the start counts.
-    if (pending.actionLabel !== "Previous" || player.playbackState === MprisPlaybackState.Stopped) return
+    if (pending.action !== "previous" || player.playbackState === MprisPlaybackState.Stopped) return
     if (player.position < 1) trackRestartTimer.restart()
   }
 
@@ -424,7 +425,7 @@ Item {
 
     if (handled && key) preferredPlayerKey = key
     if (showFeedback !== false)
-      scheduleOsd(actionLabel, iconName, player, handled && (action === "next" || action === "previous"), beforeTrackSignature)
+      scheduleOsd(action, actionLabel, iconName, player, handled && (action === "next" || action === "previous"), beforeTrackSignature)
     return handled
   }
 
