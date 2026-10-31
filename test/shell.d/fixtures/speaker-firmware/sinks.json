@@ -1,0 +1,15 @@
+[
+  {
+    "name": "alsa_output.pci-0000_00_1f.3-platform-sof_sdw.HiFi__Speaker__sink",
+    "state": "SUSPENDED",
+    "mute": false,
+    "properties": {
+      "device.api": "alsa",
+      "device.bus": "pci",
+      "alsa.card": "0",
+      "alsa.components": "HDA:80862823,80860101,00100000 cfg-amp:3 iec61937-pcm:7,6,5 mic:cs42l43-dmic spk:cs35l56-bridge"
+    },
+    "active_port": "[Out] Speaker",
+    "ports": [{"name": "[Out] Speaker", "type": "Speaker", "availability": "availability unknown"}]
+  }
+]
