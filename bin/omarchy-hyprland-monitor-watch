@@ -25,6 +25,15 @@ sync_clamshell_after_monitor_change() {
   ) &
 }
 
+# A connected internal panel left without modes is a driver limit (#15538), not
+# an unpowered monitor, so no reload brings it back. Names the panels when every
+# modeless monitor is internal.
+modeless_internal_panels() {
+  hyprctl monitors all -j 2>/dev/null | jq -er '
+    [.[] | select(.disabled != true and (.width == 0 or .height == 0)) | .name] |
+    select(length > 0 and all(test("^(eDP|LVDS|DSI)-"))) | join(" ")' 2>/dev/null
+}
+
 # Powering the monitor on fires no DRM hotplug, and forcing a re-probe needs
 # root, so only a reload re-reads the EDID and only a reload reveals whether it
 # worked. Back off: the machine can sit like this all night. The lock keeps one
@@ -34,7 +43,7 @@ recover_modeless() {
   (
     flock -w 1 9 || exit 0
 
-    local delay=3 state reloaded unanswered=0
+    local delay=3 state reloaded unanswered=0 internal_reloads=0 panels
 
     while true; do
       omarchy-hyprland-monitor-modeless
@@ -48,11 +57,22 @@ recover_modeless() {
       (( state == 2 )) && (( ++unanswered > 20 )) && break
       (( state == 0 )) && unanswered=0
 
+      # Five reloads span the backoff up to its one-minute ceiling.
+      if (( state == 0 )) && panels=$(modeless_internal_panels); then
+        if (( internal_reloads >= 5 )); then
+          echo "Internal panel $panels still has no mode after $internal_reloads reloads; giving up" >&2
+          break
+        fi
+      else
+        internal_reloads=0
+      fi
+
       reloaded=0
       # Reloading into half-replaced package config is what the guard prevents.
       if (( state == 0 )) && ! omarchy-hyprland-reload-guard paused; then
         hyprctl reload >/dev/null 2>&1 || true
         reloaded=1
+        [[ -n ${panels:-} ]] && (( internal_reloads++ ))
       fi
 
       sleep "$delay"
