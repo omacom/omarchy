@@ -2,7 +2,7 @@
   "files": [
     {
       "path": "AGENTS.md",
-      "description": "Contributor contract: style, command naming, the runtime environment (OMARCHY_PATH is always set in the session), platform names, helper commands and tests. CLAUDE.md only imports this file."
+      "description": "Contributor contract: style, command naming, the runtime environment (OMARCHY_PATH is always set in the session), platform names, helper commands and tests."
     },
     {
       "path": "agents/skills/command-metadata.md",
