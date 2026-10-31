@@ -114,6 +114,8 @@
   "audio.level.silenced": "Silenced",
   "audio.level.steadyGroove": "Steady groove",
   "audio.level.whisper": "Whisper",
+  "audio.media": "MEDIA",
+  "audio.mediaUntitled": "Media",
   "audio.mute": "Mute",
   "audio.output": "OUTPUT",
   "audio.sources": "SOURCES",

@@ -20,6 +20,85 @@ Panel {
   readonly property var mprisPlayers: Mpris.players ? Mpris.players.values : []
   readonly property var mediaService: bar?.shell?.firstPartyServiceFor("omarchy.media")
   readonly property var activeMediaPlayer: mediaService ? mediaService.activePlayer : null
+  readonly property var mediaLive: currentMediaLive()
+  readonly property string liveMediaTitle: mediaLive ? mediaLive.title : ""
+  readonly property string liveMediaArtist: mediaLive ? mediaLive.artist : ""
+  property var mediaCache: Model.emptyMediaCache()
+  readonly property var mediaPlayerKeys: mediaService
+    ? mediaService.players.map(function(player) { return String(mediaService.playerKey(player) || "") })
+    : []
+  readonly property var mediaShown: Model.mediaPresentation(mediaCache, mediaLive, mediaPlayerKeys)
+  readonly property bool mediaVisible: mediaShown.visible
+  readonly property string effectiveMediaTitle: mediaShown.title
+  readonly property string effectiveMediaArtist: mediaShown.artist
+  readonly property bool effectiveMediaPlaying: mediaShown.playing
+  readonly property bool effectiveMediaCanGoPrevious: mediaShown.canGoPrevious
+  readonly property bool effectiveMediaCanPlayPause: mediaShown.canPlayPause
+  readonly property bool effectiveMediaCanGoNext: mediaShown.canGoNext
+  readonly property bool mediaTargetAvailable: mediaShown.targetAvailable
+  readonly property var mediaControlState: mediaVisible ? ({
+    canGoPrevious: effectiveMediaCanGoPrevious,
+    canTogglePlaying: effectiveMediaCanPlayPause,
+    canGoNext: effectiveMediaCanGoNext
+  }) : null
+
+  function applyMediaTimer(timer, command) {
+    if (command === "restart") timer.restart()
+    else if (command === "stop") timer.stop()
+  }
+
+  function currentMediaLive() {
+    return Model.mediaLiveState(
+      activeMediaPlayer,
+      mediaService && activeMediaPlayer ? mediaService.playerKey(activeMediaPlayer) : ""
+    )
+  }
+
+  // The handoff decisions live in Model.mediaHandoffStep; this applies them.
+  // It reads the player directly, since a handler can run before mediaLive's
+  // binding catches up with the change that triggered it.
+  function stepMediaHandoff(event) {
+    var result = Model.mediaHandoffStep(mediaCache, currentMediaLive(), event)
+    applyMediaTimer(mediaMetadataCommitTimer, result.commitTimer)
+    applyMediaTimer(mediaMetadataClearTimer, result.clearTimer)
+    if (result.cache !== mediaCache) mediaCache = result.cache
+  }
+
+  function normalizeMediaControl() {
+    if (!mediaVisible) {
+      if (focusSection === "media") { focusSection = "output"; selectedIndex = -1 }
+      return
+    }
+    if (focusSection === "media" && !Model.mediaActionEnabled(mediaControlState, mediaActions[mediaControlIndex]))
+      mediaControlIndex = Model.firstEnabledMediaControl(mediaControlState)
+  }
+
+  function mediaActionTargetKey() {
+    return mediaService ? mediaShown.targetKey : ""
+  }
+
+  onMediaVisibleChanged: normalizeMediaControl()
+  onMediaTargetAvailableChanged: normalizeMediaControl()
+  onLiveMediaTitleChanged: stepMediaHandoff("sync")
+  onLiveMediaArtistChanged: stepMediaHandoff("sync")
+  onActiveMediaPlayerChanged: {
+    stepMediaHandoff("sync")
+    normalizeMediaControl()
+  }
+
+  Connections {
+    target: root.activeMediaPlayer
+    function refreshStateAndNormalize() {
+      root.stepMediaHandoff("refresh")
+      root.normalizeMediaControl()
+    }
+    function onIsPlayingChanged() { refreshStateAndNormalize() }
+    function onCanGoPreviousChanged() { refreshStateAndNormalize() }
+    function onCanGoNextChanged() { refreshStateAndNormalize() }
+    function onCanPlayChanged() { refreshStateAndNormalize() }
+    function onCanPauseChanged() { refreshStateAndNormalize() }
+    function onCanTogglePlayingChanged() { refreshStateAndNormalize() }
+  }
 
   // Nodes of a platform's audio processing, which are neither devices nor apps,
   // stay out of every list (AudioNodes.platformHides). Most machines have none.
@@ -224,6 +303,8 @@ Panel {
   property string focusSection: "output"
   property int selectedIndex: -1
   property bool cursorActive: false
+  property int mediaControlIndex: 1
+  readonly property var mediaActions: Model.mediaActionNames()
 
   // "header" is a virtual section for the hero output mute toggle; it sits
   // above the output section so the speaker can be muted from the keyboard.
@@ -244,6 +325,7 @@ Panel {
     : "transparent"
 
   function sectionCount(section) {
+    if (section === "media") return 1
     if (section === "output") return displayAudioSinks.length
     if (section === "input") return displayAudioSources.length
     if (section === "streams") return displayAudioStreams.length
@@ -251,6 +333,7 @@ Panel {
   }
 
   function sectionVisible(section) {
+    if (section === "media") return mediaVisible
     if (section === "output") return true
     if (section === "input") return displayAudioSources.length > 0 || !!source
     if (section === "streams") return displayAudioStreams.length > 0
@@ -258,6 +341,7 @@ Panel {
   }
 
   function sectionHasSlider(section) {
+    if (section === "media") return false
     if (section === "output") return true
     if (section === "input") return !!source
     return false  // stream rows carry their own sliders inline; not a section-level slider
@@ -267,6 +351,7 @@ Panel {
   // (e.g. no input devices) doesn't leave the cursor pointing at it.
   readonly property var visibleSections: {
     var list = []
+    if (sectionVisible("media")) list.push("media")
     if (sectionVisible("output")) list.push("output")
     if (sectionVisible("input")) list.push("input")
     if (sectionVisible("streams")) list.push("streams")
@@ -277,13 +362,32 @@ Panel {
     var sections = visibleSections
     if (sections.length === 0) return
     if (focusSection === "header") {
-      if (delta > 0) { focusSection = sections[0]; selectedIndex = sectionHasSlider(sections[0]) ? -1 : 0 }
+      if (delta > 0) {
+        focusSection = sections[0]
+        selectedIndex = sectionHasSlider(focusSection) ? -1 : 0
+        if (focusSection === "media") mediaControlIndex = Model.firstEnabledMediaControl(mediaControlState)
+      }
       return
     }
     var sIdx = sections.indexOf(focusSection)
-    if (sIdx < 0) { focusSection = sections[0]; selectedIndex = sectionHasSlider(focusSection) ? -1 : 0; return }
+    if (sIdx < 0) {
+      focusSection = sections[0]
+      selectedIndex = sectionHasSlider(focusSection) ? -1 : 0
+      if (focusSection === "media") mediaControlIndex = Model.firstEnabledMediaControl(mediaControlState)
+      return
+    }
 
     var idx = selectedIndex
+    if (focusSection === "media") {
+      var mediaIndex = sections.indexOf("media")
+      if (delta > 0 && mediaIndex < sections.length - 1) {
+        focusSection = sections[mediaIndex + 1]
+        selectedIndex = sectionHasSlider(focusSection) ? -1 : 0
+      } else if (delta < 0) {
+        focusSection = "header"
+      }
+      return
+    }
     var max = sectionCount(focusSection) - 1  // last device index
     var hasSlider = sectionHasSlider(focusSection)
     var floor = hasSlider ? -1 : 0  // -1 = slider row
@@ -294,6 +398,7 @@ Panel {
       if (sIdx < sections.length - 1) {
         focusSection = sections[sIdx + 1]
         selectedIndex = sectionHasSlider(focusSection) ? -1 : 0
+        if (focusSection === "media") mediaControlIndex = Model.firstEnabledMediaControl(mediaControlState)
       }
     } else {
       if (idx > floor) { selectedIndex = idx - 1; return }
@@ -302,6 +407,7 @@ Panel {
         focusSection = sections[sIdx - 1]
         var prevMax = sectionCount(focusSection) - 1
         selectedIndex = prevMax >= 0 ? prevMax : (sectionHasSlider(focusSection) ? -1 : 0)
+        if (focusSection === "media") mediaControlIndex = Model.firstEnabledMediaControl(mediaControlState)
       } else {
         focusSection = "header"
       }
@@ -322,6 +428,7 @@ Panel {
     var next = (current + delta + sections.length) % sections.length
     focusSection = sections[next]
     selectedIndex = sectionHasSlider(focusSection) ? -1 : 0
+    if (focusSection === "media") mediaControlIndex = Model.firstEnabledMediaControl(mediaControlState)
     cursorActive = true
   }
 
@@ -332,6 +439,10 @@ Panel {
   // — the cursor is on a discrete row, not on the slider, and silently
   // moving the global slider would surprise the user.
   function adjustVolume(delta) {
+    if (focusSection === "media") {
+      mediaControlIndex = Model.nextEnabledMediaControl(mediaControlState, mediaControlIndex, delta > 0 ? 1 : -1)
+      return
+    }
     if (focusSection === "output" && selectedIndex === -1) {
       setOutputVolume(outputVolume + delta)
       return
@@ -349,6 +460,13 @@ Panel {
   // Enter/Space: activate whatever the cursor is on.
   function activateCursor() {
     if (focusSection === "header") { toggleAllMuted(); return }
+    if (focusSection === "media") {
+      if (!mediaVisible || !mediaService) return
+      var action = mediaActions[mediaControlIndex]
+      if (Model.mediaActionEnabled(mediaControlState, action))
+        mediaService.runAction(action, false, mediaActionTargetKey())
+      return
+    }
     if (focusSection === "output") {
       if (selectedIndex === -1) { toggleOutputMute(); return }
       var sink = nodeFor(displayAudioSinks[selectedIndex])
@@ -463,6 +581,12 @@ Panel {
     if (sections.indexOf(focusSection) < 0) {
       focusSection = visibleSections[0]
       selectedIndex = sectionHasSlider(focusSection) ? -1 : 0
+      if (focusSection === "media") mediaControlIndex = Model.firstEnabledMediaControl(mediaControlState)
+      return
+    }
+    if (focusSection === "media") {
+      if (!mediaVisible) { focusSection = "output"; selectedIndex = -1 }
+      mediaControlIndex = Math.max(0, Math.min(2, mediaControlIndex))
       return
     }
     var count = sectionCount(focusSection)
@@ -725,13 +849,30 @@ Panel {
     onTriggered: root.resolveVolumeSink()
   }
 
-  Component.onCompleted: root.resolveVolumeSink()
+  Component.onCompleted: {
+    root.resolveVolumeSink()
+    root.stepMediaHandoff("sync")
+  }
 
   Timer {
     id: audioModelRefreshTimer
     interval: 75
     repeat: false
     onTriggered: root.refreshDisplayAudioModels()
+  }
+
+  Timer {
+    id: mediaMetadataCommitTimer
+    interval: Model.mediaHandoffDelays().commit
+    repeat: false
+    onTriggered: root.stepMediaHandoff("commit")
+  }
+
+  Timer {
+    id: mediaMetadataClearTimer
+    interval: Model.mediaHandoffDelays().clear
+    repeat: false
+    onTriggered: root.stepMediaHandoff("clearExpired")
   }
 
   BarIconButton {
@@ -888,11 +1029,41 @@ Panel {
             }
           }
 
-          // ---- Output devices ----
+          // ---- Media controls ----
           PanelSeparator {
             foreground: root.bar.foreground
           }
 
+          MediaSection {
+            id: mediaSection
+            visible: root.mediaVisible
+            bar: root.bar
+            actions: root.mediaActions
+            displayTitle: root.effectiveMediaTitle
+            displayArtist: root.effectiveMediaArtist
+            displayPlaying: root.effectiveMediaPlaying
+            displayCanGoPrevious: root.effectiveMediaCanGoPrevious
+            displayCanPlayPause: root.effectiveMediaCanPlayPause
+            displayCanGoNext: root.effectiveMediaCanGoNext
+            cursorActive: root.cursorActive && root.focusSection === "media"
+            cursorIndex: root.mediaControlIndex
+            onControlHovered: function(index) {
+              root.cursorActive = true
+              root.focusSection = "media"
+              root.mediaControlIndex = index
+            }
+            onActionRequested: function(action) {
+              if (root.mediaService)
+                root.mediaService.runAction(action, false, root.mediaActionTargetKey())
+            }
+          }
+
+          PanelSeparator {
+            visible: root.mediaVisible
+            foreground: root.bar.foreground
+          }
+
+          // ---- Output devices ----
           Column {
             width: parent.width
             spacing: Style.space(6)
