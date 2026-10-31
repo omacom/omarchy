@@ -114,7 +114,7 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Shift + /`           | Password manager (1password)    |
 | `Super + Shift + Q`           | Calculator (Omacalc)    |
 | `Super + Shift + T`           | Activity (btop)    |
-| `Super + Shift + N`           | Editor (Neovim)  |
+| `Super + Shift + N`           | Editor (Neovim), in the folder shown by a focused file manager  |
 | `Super + Shift + C`           | Calendar ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | Email ([HEY](https://hey.com/))  |
 | `Super + Shift + Alt + E`           | New email ([HEY](https://hey.com/))  |
