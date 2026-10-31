@@ -172,7 +172,10 @@ battery_full=false
 if [[ $state == "fully-charged" ]]; then
   battery_full=true
 elif [[ $ac_online == "true" ]] && (( percentage >= 100 )); then
-  battery_full=true
+  # A load bigger than the adapter drains a battery that still reads 100%.
+  if [[ $state != "discharging" || $charge_idle == "true" ]]; then
+    battery_full=true
+  fi
 fi
 
 parts=("$(omarchy-i18n battery.statusLabel "$percentage")")
