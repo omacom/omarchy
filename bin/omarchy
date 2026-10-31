@@ -423,6 +423,52 @@ command_takes_only_flags() {
   done
 }
 
+# A command documenting no operand at all (only flags, or nothing) cannot
+# interpret a bare word left over after it. Under a group parent such a word is
+# a mistyped subcommand, not an argument: `omarchy update firmwre` must not run
+# a full update with the typo silently ignored.
+command_takes_no_operand() {
+  local key="$1"
+  local token=""
+  local tokens=()
+
+  read -r -a tokens <<<"${COMMAND_ARGS[$key]}"
+  for token in "${tokens[@]}"; do
+    [[ $token == -* || $token == "[-"* ]] || return 1
+  done
+}
+
+# Sets UNKNOWN_SUBCOMMAND and succeeds when a group parent has no operand for
+# these leftovers and the first word among them is not a flag. A `--` closes the
+# option list, so the words after it belong to the command by the caller's own
+# declaration and are never treated as a mistyped subcommand.
+find_unknown_subcommand() {
+  local key="$1"
+  shift
+  local args=("$@")
+  local index=0
+
+  group_has_child_commands "${COMMAND_BINARY[$key]#omarchy-}" || return 1
+  command_takes_no_operand "$key" || return 1
+
+  for (( index = 0; index < ${#args[@]}; index++ )); do
+    [[ ${args[index]} == "--" ]] && return 1
+    [[ ${args[index]} == -* ]] && continue
+    UNKNOWN_SUBCOMMAND=$(join_words " " "${args[@]:index}")
+    return 0
+  done
+
+  return 1
+}
+
+report_unknown_subcommand() {
+  local route="$1"
+
+  echo "Unknown Omarchy command: $route $UNKNOWN_SUBCOMMAND" >&2
+  echo "Run '$route --help' to see its subcommands." >&2
+  return 127
+}
+
 load_group_commands() {
   local group="$1"
   local file=""
@@ -1053,6 +1099,16 @@ dispatch_fast_or_help() {
       fi
     fi
 
+    if [[ -z $key ]]; then
+      load_command_by_binary "$DIRECT_RESOLVED_BINARY"
+      key="${BINARY_TO_KEY[$DIRECT_RESOLVED_BINARY]}"
+    fi
+
+    if [[ -n $key ]] && find_unknown_subcommand "$key" "${remaining[@]}"; then
+      report_unknown_subcommand "$DIRECT_RESOLVED_ROUTE"
+      return 127
+    fi
+
     exec "$binary_path" "${remaining[@]}"
   fi
 
@@ -1114,6 +1170,11 @@ dispatch_or_help() {
         show_command_help "$key"
       fi
       return 0
+    fi
+
+    if find_unknown_subcommand "$key" "${remaining[@]}"; then
+      report_unknown_subcommand "$RESOLVED_ROUTE"
+      return 127
     fi
 
     exec "$binary_path" "${remaining[@]}"
