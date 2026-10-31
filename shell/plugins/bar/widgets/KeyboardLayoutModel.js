@@ -117,15 +117,32 @@ function inputLabel(state, fallback) {
   return labels[state.current] || shortLabel(state.language || state.name, {})
 }
 
-function inputTooltip(state, layout, multipleLayouts) {
-  if (!state || !state.methods || state.methods.length < 2)
-    return layout + (multipleLayouts ? " · Super + I" : "")
-  var name = state.current && state.current.indexOf("keyboard-") === 0 ? layout : (state.name || layout)
-  return name.replace(/^Keyboard - /, "") + " · Super + I"
+// The label says nothing of Caps Lock beyond its badge, so the tooltip spells
+// it out between the name and the shortcut.
+function inputTooltip(state, layout, multipleLayouts, capsLock, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var multipleInputs = !!(state && state.methods && state.methods.length > 1)
+  var engine = multipleInputs && state.current && state.current.indexOf("keyboard-") !== 0
+  var parts = [String(engine ? (state.name || layout) : layout).replace(/^Keyboard - /, "")]
+  if (capsLock) parts.push(t("bar.capsLockOn", "Caps Lock on"))
+  if (multipleInputs || multipleLayouts) parts.push("Super + I")
+  return parts.join(" · ")
 }
 
-function showIndicator(layoutLabel, multipleLayouts, multipleInputs) {
-  return multipleInputs || (layoutLabel !== "" && multipleLayouts)
+// Hyprland reports the lock per keyboard, and pressing Caps Lock on one
+// keyboard gives the seat no event that would make it the one the label
+// describes. Any typed keyboard holding the lock means the next capitals are a
+// keypress away, so that lights the badge.
+function capsLockOn(typed) {
+  return (typed || []).some(function (keyboard) {
+    return !!keyboard && keyboard.capsLock === true
+  })
+}
+
+// A seat with one layout and one input method keeps the widget hidden, except
+// while Caps Lock is on, which is then the one thing the label has to say.
+function showIndicator(layoutLabel, multipleLayouts, multipleInputs, capsLock) {
+  return multipleInputs || (layoutLabel !== "" && (multipleLayouts || !!capsLock))
 }
 
 function layoutIndex(keyboard) {
@@ -141,6 +158,7 @@ if (typeof module !== "undefined") {
     shortLabel: shortLabel,
     inputLabel: inputLabel,
     inputTooltip: inputTooltip,
+    capsLockOn: capsLockOn,
     showIndicator: showIndicator
   }
 }

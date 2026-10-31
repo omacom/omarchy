@@ -4,6 +4,7 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import qs.Ui
 import qs.Commons
+import qs.Commons as Commons
 import "KeyboardLayoutModel.js" as KeyboardLayoutModel
 
 BarWidget {
@@ -19,6 +20,8 @@ BarWidget {
   // naming one that has been unplugged.
   property string keyboardName: ""
   property string typedKeyboardName: ""
+  // Whether the keyboard the label describes has Caps Lock on.
+  property bool capsLock: false
   // Whether the last reading left the seat's shape in doubt.
   property bool keyboardUnresolved: false
   // Nothing to read or switch on the single-layout install most people run, so
@@ -37,7 +40,7 @@ BarWidget {
   // one layout and one input method never does, so it's read on first need.
   property bool layoutsRead: false
   property bool briefsRequested: false
-  readonly property bool needsBriefs: layoutsRead && (multipleLayouts || multipleInputs)
+  readonly property bool needsBriefs: layoutsRead && (multipleLayouts || multipleInputs || capsLock)
   onNeedsBriefsChanged: loadBriefs()
 
   function loadBriefs() {
@@ -177,6 +180,7 @@ BarWidget {
           if (typed.length === 0) {
             root.layoutFull = ""
             root.keyboardName = ""
+            root.capsLock = false
           }
           return
         }
@@ -194,6 +198,7 @@ BarWidget {
                                .map(k => String(k.name || ""))
                                .filter(name => name !== "")
         root.layoutFull = kb.active_keymap
+        root.capsLock = KeyboardLayoutModel.capsLockOn(typed)
       }
     }
   }
@@ -240,6 +245,13 @@ BarWidget {
     function onChanged() { root.refresh() }
   }
 
+  // Caps Lock changes nothing Hyprland announces, so the Hyprland binding on
+  // its release asks for a reading instead (see Commons/CapsLock.qml).
+  Connections {
+    target: CapsLock
+    function onToggled() { root.refresh() }
+  }
+
   // Ask again until a first reading lands, so a query that failed at login
   // still recovers, and while a reading has left the seat's shape in doubt. A
   // settled seat has neither, and is left alone rather than spawning hyprctl
@@ -251,9 +263,20 @@ BarWidget {
     onTriggered: root.refresh()
   }
 
-  visible: inputLabel !== "" && KeyboardLayoutModel.showIndicator(layoutLabel, multipleLayouts, multipleInputs)
+  visible: inputLabel !== "" && KeyboardLayoutModel.showIndicator(layoutLabel, multipleLayouts, multipleInputs, capsLock)
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
+
+  // Caps Lock fills the label with the accent and turns its text to the
+  // background, whichever input mode it shows, 한 and あ included.
+  Rectangle {
+    anchors.centerIn: button
+    width: button.labelWidth + Style.spaceReal(3) * 2
+    height: Style.bar.badgeHeight
+    radius: Style.bar.badgeRadius
+    color: Commons.Color.accent
+    visible: root.capsLock && button.labelWidth > 0
+  }
 
   WidgetButton {
     id: button
@@ -262,7 +285,8 @@ BarWidget {
     text: root.inputLabel
     fontSize: Style.font.caption
     horizontalMargin: 6
-    tooltipText: KeyboardLayoutModel.inputTooltip(root.inputState, root.layoutFull, root.multipleLayouts)
+    foreground: root.capsLock ? Commons.Color.background : (root.bar ? root.bar.barForeground : Commons.Color.foreground)
+    tooltipText: KeyboardLayoutModel.inputTooltip(root.inputState, root.layoutFull, root.multipleLayouts, root.capsLock, I18n.t)
     onPressed: function(button) {
       if (root.multipleInputs && button === Qt.LeftButton) {
         InputMethodState.cycle()
