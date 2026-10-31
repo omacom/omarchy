@@ -164,7 +164,7 @@ Panel {
     list.push("textsize")
     if (current && current.scales.length > 0) list.push("scale")
     if (current && current.resolutions.length > 0) list.push("resolution")
-    if (layoutRects.length > 1) list.push("layout")
+    if (layoutRects.length > 0) list.push("layout")
     return list
   }
 
@@ -978,13 +978,14 @@ Panel {
           }
 
           // ---------- Layout ----------
+          // Shown for a single display too: right-clicking it is how it's rotated.
           PanelSeparator {
-            visible: root.layoutRects.length > 1
+            visible: root.layoutRects.length > 0
             foreground: root.bar.foreground
           }
 
           Column {
-            visible: root.layoutRects.length > 1
+            visible: root.layoutRects.length > 0
             width: parent.width
             spacing: Style.space(6)
 
