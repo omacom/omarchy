@@ -156,7 +156,14 @@ function o.rebind(keys, description, dispatcher, options)
   o.bind(keys, description, dispatcher, options)
 end
 
+-- A leading [rules] prefix, up to the first ] as Hyprland reads it, belongs to
+-- the exec dispatcher, so keep it in front of uwsm-app, which would run it.
 function o.launch(command)
+  local rules, rest = command:match("^%s*(%[[^%]]*%])%s*(.*)$")
+  if rules then
+    return rules .. " uwsm-app -- " .. rest
+  end
+
   return "uwsm-app -- " .. command
 end
 
