@@ -86,6 +86,15 @@
   "appearance.background": {
     "label": "Background"
   },
+  "appearance.background.theme": {
+    "label": "Theme"
+  },
+  "appearance.background.screensaver": {
+    "label": "Screensaver"
+  },
+  "appearance.background.amiga": {
+    "label": "Amiga Demos"
+  },
   "appearance.font": {
     "label": "Font"
   },
@@ -237,13 +246,19 @@
     "label": "Restore Default"
   },
   "appearance.branding.screensaver.text": {
-    "label": "Edit Text"
+    "label": "Set Animated Text"
   },
   "appearance.branding.screensaver.image": {
     "label": "Set From Image"
   },
+  "appearance.branding.screensaver.amiga": {
+    "label": "Set Amiga Demos"
+  },
   "appearance.branding.screensaver.default": {
     "label": "Restore Default"
+  },
+  "appearance.branding.screensaver.preview": {
+    "label": "Preview"
   },
   "appearance.dock": {
     "label": "Dock"

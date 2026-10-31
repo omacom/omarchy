@@ -246,6 +246,26 @@ assert(
   fs.rmSync(home, { recursive: true, force: true })
 }
 
+// Native choices preserve the approved names, order and selection behavior.
+assertDeepEqual(defaultItems.filter(item => item.parent === 'appearance.background').map(item => item.label),
+  ['Theme', 'Screensaver', 'Amiga Demos'], 'Background offers the three native choices')
+assert(defaultById['appearance.background'].kind === 'menu'
+    && !defaultById['appearance.background'].action, 'Background opens a submenu')
+assert(defaultById['appearance.background.screensaver'].action === 'omarchy-ambient start screensaver'
+    && defaultById['appearance.background.amiga'].action === 'omarchy-ambient start amiga',
+  'live background choices start the intended source')
+assertDeepEqual(defaultItems.filter(item => item.parent === 'appearance.branding.screensaver').map(item => item.label),
+  ['Set Animated Text', 'Set From Image', 'Set Amiga Demos', 'Preview', 'Restore Default'],
+  'Screensaver preserves the approved actions and order')
+assert(defaultById['appearance.branding.screensaver.amiga'].action === 'omarchy-ambient screensaver --set amiga'
+    && defaultById['appearance.branding.screensaver.amiga'].checked.includes('== amiga'),
+  'the selected Amiga screensaver is marked')
+assert(!defaultById['install.style.ambient'] && !defaultById['remove.ambient']
+    && !defaultById['appearance.live-background'], 'Ambient has no separate install or background menu')
+assert(defaultItems.filter(item => item.parent === 'appearance.background'
+    || item.parent === 'appearance.branding.screensaver').every(item => !item.when),
+  'native choices are always available')
+
 // The dock only appears on floating workspaces, so its settings only show
 // there. Ask bash, against a stubbed layout for the active workspace.
 {
