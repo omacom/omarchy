@@ -9,6 +9,8 @@ TextInput {
 
   // Sees every key first; whatever it leaves unaccepted is typed here.
   property Item keyHandler: null
+  // Compositor NumLock. When false, keypad Home/arrows stay navigation.
+  property bool compositorNumLock: true
 
   focus: true
   clip: true
@@ -16,14 +18,14 @@ TextInput {
   Keys.forwardTo: keyHandler ? [keyHandler] : []
   // Alt and Super chords are shortcuts, never text. Keypad digits that arrive
   // as navigation keys with empty text (Qt NumLock desync) are typed here when
-  // the panel left them unaccepted — and in the menu, before navigation.
+  // the panel left them unaccepted and the compositor reports NumLock on.
   Keys.onPressed: function(event) {
     if (event.modifiers & (Qt.AltModifier | Qt.MetaModifier)) {
       event.accepted = true
       return
     }
     if (root.readOnly) return
-    var digit = KeypadDigits.digitFor(event.key, event.modifiers, event.text)
+    var digit = KeypadDigits.digitFor(event.key, event.modifiers, event.text, root.compositorNumLock)
     if (digit !== null) {
       root.insert(root.length, digit)
       event.accepted = true
