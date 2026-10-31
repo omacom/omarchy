@@ -235,8 +235,9 @@ The shell exposes these tokens to QML via three singletons in
   by the launcher outside shell QML.
 - `Style` — structural tokens (`cornerRadius`), shared interactive
   state tokens/helpers, spacing (`Style.spacing.*` / `Style.space(px)`),
-  the type scale (`Style.font.*`), and bar dimensions
-  (`Style.bar.sizeHorizontal` / `Style.bar.sizeVertical`).
+  the type scale (`Style.font.*`), bar dimensions
+  (`Style.bar.sizeHorizontal` / `Style.bar.sizeVertical`), and motion:
+  `Style.duration(ms)`, which every animation length goes through and which returns 0 when `omarchy toggle animations` has turned Hyprland's animations off (`Style.reduceMotion`), and `Style.easeOut`, the strong ease-out curve (`cubic-bezier(0.23, 1, 0.32, 1)`) for movement and entrances, used as `easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut`. [`agents/skills/motion.md`](../agents/skills/motion.md) has the rules for using them.
 - `Border` — border-spec helpers for QML surfaces. Use with
   `BorderSurface` from `qs.Ui` when a border should honor shell theme
   gradients or per-side widths. `Commons.Color.<section>.border` is only the

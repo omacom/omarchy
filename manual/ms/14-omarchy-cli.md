@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy biasanya dikawal melalui kekunci panas dan menu Omarchy (`Super + Space`). Tetapi anda juga boleh mengawalnya melalui CLI `omarchy`. Ini amat membantu apabila anda meminta ejen AI bekerja dengan anda mengenai penyesuaian atau konfigurasi.
+Omarchy biasanya dikawal melalui kekunci pintas dan menu Omarchy (`Super + Space`). Tetapi anda juga boleh mengawalnya melalui CLI `omarchy`. Ini amat membantu apabila anda meminta ejen AI bekerjasama dengan anda untuk penyesuaian atau konfigurasi.
 
-CLI mempunyai akses kepada semua perkakasan dalaman yang digunakan melalui menu dan sebaliknya. Anda boleh melihat semua yang tersedia dengan menjalankan `omarchy` dalam terminal.
+CLI ini mempunyai akses kepada semua perkakas dalaman yang digunakan melalui menu dan juga sebaliknya. Anda boleh melihat semua yang tersedia dengan menjalankan `omarchy` dalam terminal.
 
-Ia kelihatan seperti ini:
+Ia kelihatan lebih kurang seperti ini:
 
 ```
 ~ ❯ omarchy
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-Dan anda boleh menyelami lebih mendalam pada setiap kumpulan:
+Dan anda boleh menyelami setiap kumpulan dengan lebih mendalam:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Setiap arahan juga mengambil `--help`, sama ada anda bertanya keseluruhan kumpulan (`omarchy capture --help`) atau satu arahan (`omarchy capture screenshot --help`).
+Setiap arahan juga menerima `--help`, sama ada anda bertanya kepada keseluruhan kumpulan (`omarchy capture --help`) atau satu arahan sahaja (`omarchy capture screenshot --help`).
 
 ### Membuka menu dari terminal
 
-Menu Omarchy juga boleh diskrip, yang berguna untuk ikatan kekunci anda sendiri. `omarchy menu` membukanya pada akar, dan anda boleh melompat terus ke mana-mana titik dalam pokok dengan menamainya: `omarchy menu summon style.theme` pergi terus ke pemilih Tema, `omarchy menu toggle system` membuka menu Sistem dan menutupnya semula jika ia sudah dipaparkan, dan `omarchy menu close` menyimpannya.
+Menu Omarchy juga boleh diskrip, yang berguna untuk ikatan kekunci anda sendiri. `omarchy menu` membukanya pada peringkat akar, dan anda boleh melompat terus ke mana-mana titik dalam pepohon dengan menamakannya: `omarchy menu summon appearance.theme` terus pergi ke pemilih tema, `omarchy menu toggle system` membuka menu sistem dan menutupnya semula jika ia sudah terbuka, dan `omarchy menu close` menyimpannya.

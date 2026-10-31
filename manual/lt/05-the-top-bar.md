@@ -1,117 +1,120 @@
 # Viršutinė juosta
 
-Juosta palei jūsų ekrano viršų yra Omarchy juosta. Tai ne primontuota būsenos juosta, o Omarchy apvalkalo dalis — vieno ilgai veikiančio Quickshell proceso, kuris taip pat piešia meniu, pranešimus, OSD iškylančius langus ir užrakinimo ekraną. Štai kodėl ji puikiai dera prie viso kito ir kodėl skydelis atsidaro akimirksniu, o ne sukuria naują programą.
+Juosta jūsų ekrano viršuje yra „Omarchy“ juosta. Tai ne primontuota būsenos juosta, o „Omarchy“ apvalkalo dalis — to paties vieno ilgai veikiančio „Quickshell“ proceso, kuris taip pat piešia meniu, pranešimus, OSD iškylančiuosius langus ir užrakinimo ekraną. Štai kodėl ji puikiai dera su visa kita ir kodėl skydelis atsidaro akimirksniu, užuot paleidęs naują programą.
 
-Tai taip pat vienintelė darbalaukio dalis, kuri visada yra ekrane, todėl verta žinoti, ką daro visi tie maži glifai.
+Tai taip pat vienintelė darbalaukio dalis, kuri visada matoma ekrane, todėl verta žinoti, ką daro visi tie maži glifai.
 
 ## Kas joje yra pagal numatytuosius nustatymus
 
-Juosta turi tris dalis. Kairėje yra Omarchy logotipas (meniu leistuvas) ir darbo sričių indikatoriai. Centre gaunate būsenos indikatorius, laikrodį, Elsewhen (pasaulio laikrodį), orus ir Omarchy atnaujinimo ženklelį. Dešinėje: klaviatūros išdėstymas (kai sukonfigūruota daugiau nei viena), sistemos dėklas, agentai, bluetooth, tinklas, garsas, ekranas ir maitinimas.
+Juosta turi tris skyrius. Kairėje yra „Omarchy“ logotipas (meniu paleidimo priemonė) ir darbo sričių indikatoriai. Centre matote būsenos indikatorius, laikrodį, „Elsewhen“ (pasaulio laikrodį), orą ir „Omarchy“ naujinio ženklelį. Dešinėje: sistemos dėklas, klaviatūros išdėstymas (kai sukonfigūruotas daugiau nei vienas), agentai, „Bluetooth“, tinklas, garsas, ekranas ir maitinimas.
 
-Keletas iš jų pasirodo tik tada, kai turi ką pasakyti. Klaviatūros išdėstymas pasirodo tik jei sukonfigūravote daugiau nei vieną išdėstymą. Atnaujinimo ženklelis pasirodo tik kai laukia Omarchy atnaujinimas. O agentų piktograma pasirodo pirmą kartą, kai Omarchy randa AI programavimo naudojimą kompiuteryje (žr. [AI](17-ai.md)).
+Keli iš jų pasirodo tik tada, kai turi ką pasakyti. Klaviatūros išdėstymas pasirodo tik tada, jei sukonfigūravote daugiau nei vieną išdėstymą. Naujinio ženklelis pasirodo tik tada, kai laukia „Omarchy“ naujinys. O agentų piktograma pasirodo pirmą kartą, kai „Omarchy“ aptinka DI programavimo naudojimą kompiuteryje (žr. [DI](17-ai.md)).
 
-## Spaudinėjimas
+## Ką daro spustelėjimai
 
-Beveik kiekvienas valdiklis kažką daro paspaudus kairiuoju, dešiniuoju ir viduriniu mygtuku, o keli reaguoja į slinkimą. Tai dalis, kurios žmonės nepastebi — dešinysis ir vidurinis mygtukai yra ten, kur slepiasi daug gerų dalykų.
+Beveik kiekvienas valdiklis ką nors daro spustelėjus kairiuoju, dešiniuoju ir viduriniuoju mygtuku, o keli reaguoja į slinkimą. Tai dalis, kurią žmonės praleidžia — dešiniajame ir viduriniajame mygtukuose slepiasi daug gerų dalykų.
 
-| Valdiklis | Kairysis | Dešinysis | Vidurinis / slinkimas |
+| Valdiklis | Kairysis | Dešinysis | Vidurinis / slinktis |
 | --- | --- | --- | --- |
-| Meniu | Omarchy meniu | Naujas terminalas | — |
-| Darbo sritys | Sufokusuoti tą darbo sritį | — | Slinkimas: kita / ankstesnė darbo sritis |
-| Laikrodis | Kalendoriaus iškylantis langas | Keisti žymos formatą cikliškai | Vidurinis: laiko juostos parinkiklis |
-| Oras | Prognozės iškylantis langas | Pilnas oras kaip pranešimas | Vidurinis: atnaujinti |
-| Garsas | Garso skydelis | Nutildyti | Vidurinis: skydelis · slinkimas: garsumas |
-| Mikrofonas | Nutildyti mikrofoną | — | Vidurinis: garso skydelis · slinkimas: įvesties garsumas |
+| Meniu | „Omarchy“ meniu | Naujas terminalas | — |
+| Darbo sritys | Fokusuoti tą darbo sritį šiame monitoriuje | — | Slinktis: kita / ankstesnė darbo sritis |
+| Laikrodis | Kalendoriaus iškylantysis langas | Cikliškai perjungti žymos formatą | Vidurinis: laiko juostos pasirinkimas |
+| Oras | Prognozės iškylantysis langas | Išsami orų prognozė kaip pranešimas | Vidurinis: atnaujinti |
+| Garsas | Garso skydelis | Nutildyti | Vidurinis: skydelis · slinktis: garsumas |
+| Mikrofonas | Nutildyti mikrofoną | — | Vidurinis: garso skydelis · slinktis: įvesties garsumas |
 | Tinklas | Tinklo skydelis | — | — |
-| Bluetooth | Bluetooth skydelis | Perjungti radiją | — |
-| Ekranas | Ekrano skydelis | — | Slinkimas: ryškumas |
-| Maitinimas | Maitinimo skydelis | Perjungti akumuliatoriaus procentus | — |
-| Medija | Leisti / pristabdyti | Viršelio iškylantis langas | Vidurinis: kitas · slinkimas: ankstesnis / kitas |
+| „Bluetooth“ | „Bluetooth“ skydelis | Perjungti radiją | — |
+| Ekranas | Ekrano skydelis | — | Slinktis: ryškumas |
+| Maitinimas | Maitinimo skydelis | Perjungti baterijos procentinę dalį | — |
+| Medija | Leisti / pristabdyti | Viršelio paveikslėlio iškylantysis langas | Vidurinis: kita · slinktis: ankstesnė / kita |
 | Agentai | Agentų skydelis | Paleisti jūsų agentą | Vidurinis: kita prenumerata |
-| Dėklas | Užveskite, kad atidengtumėte stalčių | Dešinysis ant ševrono, kad valdytumėte | — |
-| Omarchy atnaujinimas | Paleisti atnaujinimą | — | — |
+| Dėklas | Užvesti pelę, kad atsidarytų stalčius | Dešinysis ant ševrono, kad tvarkytumėte | — |
+| „Omarchy“ naujinys | Vykdyti naujinį | — | — |
 
-Ne viskas iš tos lentelės iš karto yra jūsų juostoje. Medijos valdiklis (MPRIS dabar leidžiama, su slenkančiu kūriniu ir atlikėju) ir mikrofono valdiklis abu yra įmontuoti, bet pagal numatytuosius nustatymus išjungti — pridėkite juos, jei jų norite, kaip aprašyta toliau.
+Ne viskas, kas yra toje lentelėje, iš karto yra jūsų juostoje. Medijos valdiklis (MPRIS dabar leidžiamas įrašas su slenkančiu kūriniu ir atlikėju) ir mikrofono valdiklis abu yra integruoti, bet pagal numatytuosius nustatymus išjungti — pridėkite juos, jei norite, kaip aprašyta toliau.
 
 ## Skydeliai
 
-Spustelėjus juostos piktogramą atsidaro skydelis, kuris yra tikras iškylantis langas su slankikliais, sąrašais ir naršymu klaviatūra, o ne patarimas. Kiekvienas taip pat turi spartųjį klavišą, todėl niekada nereikia taikyti į 16 pikselių glifą:
+Spustelėjus juostos piktogramą atsidaro skydelis, kuris yra tikras iškylantysis langas su slankikliais, sąrašais ir naršymu klaviatūra, o ne patarimas. Kiekvienas jų taip pat turi spartųjį klavišą, todėl niekada nereikia taikytis į 16 pikselių glifą:
 
 | Spartusis klavišas | Skydelis |
 | --- | --- |
 | `Super + Ctrl + A` | Garsas |
-| `Super + Ctrl + W` | Tinklas |
-| `Super + Ctrl + B` | Bluetooth |
+| `Super + Ctrl + N` | Tinklas |
+| `Super + Ctrl + B` | „Bluetooth“ |
 | `Super + Ctrl + D` | Ekranas |
 | `Super + Ctrl + P` | Maitinimas |
 | `Super + Ctrl + Alt + D` | Kalendorius |
 | `Super + Ctrl + Alt + E` | Pasaulio laikrodis |
-| `Super + Ctrl + 1-9` | Perjungti n-tąjį skydelį dešinėje dalyje |
+| `Super + Ctrl + 1-9` | Perjungti n-ąjį skydelį dešiniajame skyriuje |
 
-Skydeliai nėra rodmenys. Juose iš tikrųjų atliekate veiksmą:
+Skydeliai nėra vien rodmenys. Juose iš tikrųjų atliekate veiksmą:
 
-- **Garsas** turi pagrindinio garsumo slankiklį, išvesties įrenginio parinkiklį ir maišytuvą atskiroms programoms, tad galite pritildyti tą vieną naršyklės skirtuką neliesdami viso kito.
-- **Tinklas** ieško Wi-Fi, rodo signalo stiprumą, jungiasi ir leidžia pasirinkti DNS tiekėją.
-- **Bluetooth** išvardija jūsų įrenginius su prijungimu / atjungimu ir akumuliatoriaus lygiais.
-- **Maitinimas** rodo akumuliatoriaus statistiką, perjungia maitinimo profilius (jis prisimena atskirą pasirinkimą akumuliatoriui ir AC) ir atspausdina šiek tiek sistemos informacijos.
-- **Ekranas** turi ryškumo slankiklį, teksto dydį, monitoriaus mastelio išankstinius nustatymus ir — kai turite daugiau nei vieną ekraną — atskirų monitorių valdiklius. Žr. [monitorius](33-monitors.md) gilesnei istorijai.
+- **Garsas** turi pagrindinio garsumo slankiklį, išvesties įrenginio pasirinkimą ir atskirą maišytuvą kiekvienai programai, todėl galite pritildyti tą vieną naršyklės skirtuką neliesdami viso kito.
+- **Tinklas** ieško „Wi-Fi“, rodo signalo stiprumą, prisijungia ir leidžia pasirinkti DNS teikėją.
+- **„Bluetooth“** išvardija jūsų įrenginius su prisijungimu / atsijungimu ir baterijos lygiais.
+- **Maitinimas** rodo baterijos statistiką, perjungia maitinimo profilius (jis prisimena atskirą pasirinkimą baterijai ir AC) ir pateikia šiek tiek sistemos informacijos.
+- **Ekranas** turi ryškumo slankiklį, teksto dydį, monitoriaus mastelio išankstinius nustatymus ir — kai turite daugiau nei vieną ekraną — atskirus valdiklius kiekvienam monitoriui. Išsamesnę istoriją žr. [monitoriai](33-monitors.md).
 - **Laikrodis** atidaro mėnesio tinklelį su ISO savaičių numeriais ir mėnesių perjungimu.
+- **Pasaulio laikrodis** laiko po eilutę kiekvienam miestui, su jo oru ir tuo, kaip jam einasi diena. Paieška randa ir miestelius, ir laiko juostas, todėl Fort Lauderdale yra Fort Lauderdale, o ne New York. Jei viršuje esančioje eilutėje nurodytas neteisingas miestas, spustelėkite ją ir pasakykite, kur esate; pasirinkite vietą kitoje laiko juostoje ir sistemos laikrodis taip pat persikels ten, o tai patogu keliaujant. Užveskite pelę ant miesto ir spustelėkite asmens mygtuką, kad pasakytumėte, kas ten gyvena — paprastus vardus arba `@` „GitHub“ pseudonimus, kad kartu atkeliautų ir jų veidai.
 
-Kiekvienas skydelis priima ir klaviatūrą, ir pelę: rodyklės juda, Return aktyvuoja, Tab pereina į kaimyninį skydelį, o Escape uždaro.
+Kiekvienas skydelis valdomas ir klaviatūra, ir pele: rodyklės juda, Return aktyvina, Tab pereina į gretimą skydelį, o Escape uždaro.
 
-`Super + Ctrl + 1-9` skaičiuoja skydelius iš kairės į dešinę dešinėje dalyje, praleidžiant dėklą, nes jis neturi savo skydelio. Taigi skaičius atitinka piktogramą, į kurią taikytumėte.
+`Super + Ctrl + 1-9` skaičiuoja skydelius iš kairės į dešinę dešiniajame skyriuje, praleisdamas dėklą, nes jis neturi savo skydelio. Taigi skaičius atitinka piktogramą, į kurią rody tumėte.
 
-### Tailscale ir Dropbox
+### „Tailscale“ ir „Dropbox“
 
-Dar du valdikliai juostoje pasirodo tik įdiegus atitinkamą paslaugą iš **Įdiegti → Paslauga**, ir abu verta žinoti, nes jie daro daugiau nei praneša būseną.
+Dar du valdikliai juostoje pasirodo tik tada, kai įdiegiate atitinkamą paslaugą iš **Install → Service**, ir abu verta žinoti, nes jie daro daugiau nei tik praneša būseną.
 
-**Tailscale** skydelis prijungia ir atjungia tailnet, perjungia paskyras ir pasirenka išėjimo mazgą (tame sąraše rodomi ir jūsų paties kompiuteriai, ir Mullvad regionai). Jis taip pat naršo jūsų kompiuterius — ir kai vienas pasirinktas, `s` siunčia jam failus per Taildrop, o tai yra greičiausias būdas perkelti failą į jūsų telefoną ar kitą nešiojamąjį kompiuterį. `c` nukopijuoja kompiuterio IP, `n` jo pavadinimą, o `d` jo pilną DNS pavadinimą. Kiekvienoje kompiuterio eilutėje taip pat yra siuntimo mygtukas, jei mieliau spustelėtumėte. Tas pats iš terminalo yra `omarchy tailscale send <machine> [file...]`.
+**„Tailscale“** skydelis prijungia ir atjungia tailnet, perjungia paskyras ir pasirenka išėjimo mazgą (tame sąraše rodomi ir jūsų pačių kompiuteriai, ir „Mullvad“ regionai). Jis taip pat naršo jūsų kompiuterius — ir kai vienas pasirinktas, `s` siunčia į jį failus per „Taildrop“, o tai greičiausias būdas perkelti failą į telefoną ar kitą nešiojamąjį kompiuterį. `c` kopijuoja kompiuterio IP, `n` — jo pavadinimą, o `d` — jo visą DNS pavadinimą. Kiekvienoje kompiuterio eilutėje taip pat yra siuntimo mygtukas, jei mieliau spustelėsite. Tas pats iš terminalo yra `omarchy tailscale send <machine> [file...]`.
 
-**Dropbox** skydelis tvarko prisijungimą, rodo, kiek saugyklos naudojate, ir išvardija neseniai sinchronizuotus failus.
+**„Dropbox“** skydelis tvarko prisijungimą, rodo, kiek saugyklos išnaudojote, ir išvardija neseniai sinchronizuotus failus.
 
-Pašalinus bet kurią paslaugą, jos valdiklis nuo juostos pašalinamas.
+Pašalinus bet kurią paslaugą, jos valdiklis taip pat dings iš juostos.
 
 ## Indikatoriai
 
-Maža grupė centre yra indikatorių valdiklis. Tai būsenos glifai režimams, kuriuos įjungėte: netrukdyti, naktinė šviesa, eilėje laukiantis [priminimas](09-reminders.md), aktyvus ekrano įrašas, nemiegoti ir [diktavimas](11-text-extraction-dictation.md). Jie užsidega, kai režimas aktyvus, o kitu atveju nesimaišo — užveskite į kairę nuo laikrodžio (virš jo vertikalioje juostoje), kad pažvelgtumėte į neaktyvius. Spustelėjus indikatorių, tas režimas perjungiamas. Dar vienas yra tik būsena: nuotolinė sesija šviečia raudonai, kol kas nors per gliff yra prisijungęs prie šio kompiuterio.
+Maža grupelė centre yra indikatorių valdiklis. Tai būsenos glifai režimams, kuriuos įjungėte: netrukdyti, nakties šviesa, eilėje laukiantis [priminimas](09-reminders.md), aktyvus ekrano įrašymas, nemiegojimas ir [diktavimas](11-text-extraction-dictation.md). Jie užsižiebia, kai režimas aktyvus, o kitu atveju nesimaišo — užveskite pelę bet kur ant juostos, kad žvilgtelėtumėte į neaktyvius. Spustelėjus indikatorių, tas režimas perjungiamas. Dar vienas yra tik būsenos: nuotolinė sesija šviečia raudonai, kol kas nors yra prisijungęs prie šio kompiuterio per gliff.
 
-Jei mieliau norėtumėte, kad jie visada būtų matomi, valdiklyje nustatykite `alwaysShow` į `true`. O jei jums rūpi tik kai kurie iš jų, išvardykite norimus `items`: `["Dnd", "Reminder", "NightLight"]`. Galite turėti daugiau nei vieną indikatorių valdiklį, todėl skirtingos dalys gali rodyti skirtingus poaibius.
+Jei mieliau norėtumėte, kad jie visada būtų matomi, valdiklyje nustatykite `alwaysShow` į `true`. O jei jums rūpi tik kai kurie iš jų, išvardykite norimus `items`: `["Dnd", "Reminder", "NightLight"]`. Galite turėti daugiau nei vieną indikatorių valdiklį, todėl skirtingi skyriai gali rodyti skirtingus pogrupius.
 
 ## Juostos pertvarkymas
 
-Juosta susikonfigūruoja pati. Jums nereikia atidaryti konfigūracijos failo, kad perkeltumėte dalykus.
+Juosta konfigūruojasi pati. Jums nereikia atidaryti konfigūracijos failo, kad ką nors perkeltumėte.
 
-Suimkite tuščią juostos lopinėlį aplink centrą ir vilkite jį link kito ekrano krašto, ir juosta persikels ten — kairė, dešinė, viršus ar apačia visi veikia, o kiekvienas valdiklis prisitaiko (vertikalios juostos pereina prie kompaktiškų, tik piktograminių formų). Spustelėjimas ir laikymas pradeda tą patį vilkimą. Dukart spustelėkite kairiuoju mygtuku tą pačią tuščią vietą, kad cikliškai pakeistumėte juostos foną iš skaidraus į stiklinį ir į nepermatomą. Ir vilkite bet kurį valdiklį, kad jį pertvarkytumėte arba įmestumėte į kitą dalį.
+Suimkite tuščią juostos lopinėlį aplink centrą ir vilkite jį link kito ekrano krašto, ir juosta persikels ten — veikia kairė, dešinė, viršus ir apačia, o kiekvienas valdiklis prisitaiko (vertikalios juostos grįžta prie kompaktiškų, tik piktogramas rodančių formų). Tas pats vilkimas prasideda spustelėjus ir palaikius. Dukart spustelėkite kairiuoju mygtuku tą pačią tuščią vietą, kad cikliškai perjungtumėte juostos foną iš skaidraus į stiklinį į neskaidrų. Ir vilkite bet kurį valdiklį, kad pakeistumėte jo tvarką arba įmestumėte jį į kitą skyrių; kiti valdikliai prasiskirs, kad padarytų vietos ten, kur jis nusileis.
 
-Valdiklis, kurį norite turėti šalia, bet ne visada matyti, gali keliauti į dėklo stalčių: nutempkite jį ant dėklo, ir stalčius atsivers jį priimdamas. Ten jis būna už programų piktogramų, pasirodo kaskart, kai pasirodo stalčius, ir laiko stalčių atidarytą, kol rodomas jo skydelis. Norėdami grąžinti, nutempkite jį atgal į juostą.
+Juostos vidurys yra dėžutė: kas joje yra, lieka centre kaip viena grupė, o valdikliai abiejose jos pusėse kabo ant jos kraštų. Kol velkate valdiklį, dėžutė rodoma kaip kontūras arba, kai ji tuščia, kaip linija per juostą, ir galite numesti į ją arba šalia jos. Kai numetimas atsidurtų dėžutėje, dėžutė padidėja, kad priimtų valdiklį.
 
-Jei mieliau rinktumėtės iš meniu, **Veiksmai → Išvaizda → Meniu juosta** turi padėtį, o **Juostos fonas** pasirenka, kaip juosta piešiama: **Nepermatoma juosta**, **Stiklinė juosta** (permatoma, su sulietu tuo, kas yra už jos) arba **Skaidri juosta**.
+Valdiklis, kurį norite turėti po ranka, bet ne visada matomą, gali keliauti į dėklo stalčių: vilkite jį ant dėklo ir stalčius atsidarys, kad jį priimtų. Jis ten yra po programų piktogramų, pasirodo visada, kai pasirodo stalčius, ir laiko savo stalčių atidarytą, kol jo skydelis atidarytas. Vilkite jį atgal ant juostos, kad grąžintumėte.
 
-Tie patys dalykai turi komandas, o tai yra tai, ko norite [dotfiles](31-dotfiles.md) sąrankai:
+Jei mieliau renkatės iš meniu, **Appearance → Menu Bar** turi padėtį, o **Bar Background** pasirenka, kaip juosta piešiama: **Opaque Bar**, **Glassy Bar** (permatoma, o tai, kas už jos, sulieta) arba **Clear Bar**.
+
+Tie patys dalykai turi komandas, o būtent to norite [dotfiles](31-dotfiles.md) sąrankai:
 
 ```bash
 omarchy bar position bottom
 omarchy bar background glassy  # opaque, glassy, none, or cycle
-omarchy bar move omarchy.clock --section center --index 0
+omarchy bar move omarchy.weather --section centerBegin --index 0
 omarchy bar move omarchy.bluetooth --section tray  # into the tray's drawer
 omarchy bar set omarchy.clock format "HH:mm"
 omarchy bar defaults          # back to the shipped layout
 ```
 
-Norėdami visiškai pridėti arba pašalinti valdiklį, naudokite papildinių komandas. `omarchy plugin list` atspausdina kiekvieną valdiklį, kurį žino apvalkalas, su jo id, o tada:
+Norėdami visiškai pridėti arba pašalinti valdiklį, naudokite papildinių komandas. `omarchy plugin list` išspausdina kiekvieną valdiklį, kurį žino apvalkalas, su jo id, o tada:
 
 ```bash
-omarchy plugin enable omarchy.media --section center
+omarchy plugin enable omarchy.media --section centerEnd
 omarchy plugin disable omarchy.weather
 ```
 
 ## Juostos slėpimas
 
-`Super + Shift + Space` perjungia juostą išjungtą ir atgal neužmušant apvalkalo — skydeliai ir spartieji klavišai toliau veikia, tiesiog susigrąžinate pikselius. Tai taip pat yra meniu po **Veiksmai → Išvaizda → Meniu juosta → Slėpti juostą**.
+`Super + Shift + Space` išjungia ir vėl įjungia juostą nenužudydamas apvalkalo — skydeliai ir spartieji klavišai toliau veikia, jūs tiesiog atgaunate pikselius. Tai taip pat yra meniu, skiltyje **Appearance → Menu Bar → Hide Bar**.
 
 ## Konfigūracijos failas
 
-Visa tai saugoma `~/.config/omarchy/shell.json`, po `bar` raktu. Štai apkarpyta versija:
+Visa tai saugoma `~/.config/omarchy/shell.json`, po `bar` raktu. Štai sutrumpinta versija:
 
 ```json
 {
@@ -119,20 +122,21 @@ Visa tai saugoma `~/.config/omarchy/shell.json`, po `bar` raktu. Štai apkarpyta
   "bar": {
     "position": "top",
     "background": "opaque",
-    "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [{ "id": "omarchy.menu" }, { "id": "omarchy.workspaces" }],
+      "centerBegin": [{ "id": "omarchy.indicators" }],
       "center": [{ "id": "omarchy.clock", "format": "HH:mm" }],
+      "centerEnd": [{ "id": "omarchy.weather" }],
       "right": [{ "id": "omarchy.audio" }, { "id": "omarchy.power" }]
     }
   }
 }
 ```
 
-Kiekvienas valdiklis yra vienas įrašas viename iš trijų išdėstymo masyvų, o jo nuostatos yra tame įraše — nėra atskiro nuostatų failo ir nėra `config` poobjekto. Laikrodžio `format`, `formatAlt` (į ką cikliškai pereina dešinysis spustelėjimas) ir `verticalFormat` visi gyvena ten pat ant `{ "id": "omarchy.clock" }`.
+Kiekvienas valdiklis yra vienas įrašas viename iš penkių išdėstymo masyvų, o jo nustatymai yra tame pačiame įraše — nėra atskiro nustatymų failo ir nėra `config` poobjekčio. Laikrodžio `format`, `formatAlt` (į ką perjungia dešinysis spustelėjimas) ir `verticalFormat` visi yra ten pat, ant `{ "id": "omarchy.clock" }`.
 
-`centerAnchor` įvardija vieną centrinį valdiklį, kuris prisegamas prie tikslaus ekrano centro, o kiti jį supa iš šonų. Taip laikrodis lieka pačiame centre, net kai ateina ir išeina oras ir atnaujinimo ženklelis. Nustatykite jį į tuščią eilutę ir centro sąrašas tiesiog centruojamas kaip grupė.
+`center` yra dėžutė juostos viduryje: viskas joje yra centruojama ekrane kaip viena grupė. `centerBegin` ir `centerEnd` kabo abiejose dėžutės pusėse, todėl laikrodis lieka pačiame centre net tada, kai orai ir naujinio ženklelis ateina ir išeina. Įdėkite daugiau nei vieną valdiklį į `center` ir jie bus centruojami kartu; palikite jį tuščią ir `centerBegin` bei `centerEnd` susitiks juostos viduryje.
 
-Viena taisyklė, kurią verta įsisavinti: **kai turite savo `shell.json`, jis yra kanoninis**. Kol nieko nepritaikote, apvalkalas skaito Omarchy numatytąjį failą. Kai tik nutempiate valdiklį, paleidžiate `omarchy bar` arba patys redaguojate failą, jis priklauso jums — nėra gilaus sujungimo, todėl nauji numatytieji valdikliai būsimuose Omarchy leidimuose jūsų juostoje automatiškai nepasirodys. `omarchy bar defaults` grąžina pristatytą išdėstymą, kai tik norite švaraus lapo.
+Viena taisyklė, kurią verta įsisavinti: **kai turite savo `shell.json`, jis yra kanoninis**. Kol nieko nepritaikote, apvalkalas skaito numatytąjį „Omarchy“ failą. Vos tik nuvelkate valdiklį, paleidžiate `omarchy bar` arba patys redaguojate failą, jis tampa jūsų — nėra gilaus sujungimo, todėl nauji numatytieji valdikliai būsimose „Omarchy“ laidose automatiškai jūsų juostoje nepasirodys. `omarchy bar defaults` grąžina pristatytą išdėstymą, kai tik norite švaraus lapo.
 
-Tame pačiame faile taip pat yra jūsų tuščiosios eigos laikai aukščiausiame lygyje, už `bar` rakto: `idle.screensaver` ir `idle.lock`, abu sekundėmis nuo to, kai nuėjote į tuščiąją eigą. Taigi numatytoji ekrano užsklanda įsijungia po 150 sekundžių, o užraktas po 300.
+Tame pačiame faile taip pat yra jūsų neveiklumo laikai aukščiausiame lygyje, už `bar` rakto ribų: `idle.screensaver` ir `idle.lock`, abu sekundėmis nuo tada, kai tapote neaktyvūs. Taigi numatytoji ekrano užsklanda įsijungia po 150 sekundžių, o užraktas — po 300.

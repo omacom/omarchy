@@ -1,37 +1,40 @@
-# קיצורי מקלדת
+# מקשי קיצור
 
-אפשר לראות את כל שיוכי המקלדת העיקריים עם `Super + K` (שיוכי Tmux עם `Super + Alt + K` ושיוכי Herdr עם `Super + Ctrl + K`).
+אפשר לראות את כל שיוכי המקשים העיקריים עם `Super + K` (שיוכי Tmux עם `Super + Alt + K` ושיוכי Herdr עם `Super + Ctrl + K`).
 
 ## ניווט
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | תפריט Omarchy (אפליקציות וכל השאר)    |
 | `Super + Alt + Space` | רשת אפליקציות |
 | `Super + Escape` | תפריט מערכת (השהיה, הפעלה מחדש וכו')  |
 | `Super + Ctrl + L` | נעילת המחשב |
-| `Super + W` או `Super + Q` | סגירת חלון             |
+| `Super + W` or `Super + Q` | סגירת חלון             |
 | `Ctrl + Alt + Del` | סגירת כל החלונות |
-| `Super + T`               | החלפת חלון בין ריצוף לצף             |
+| `Super + T`               | מעבר של חלון בין ריצוף/ציפה             |
 | `Super + J` | החלפת מיקום חלון (אופקי/אנכי) |
-| `Super + O`               | החלפת הוצאת חלון לדביק וצף |
-| `Super + L`               | מעבר במחזוריות בין פריסות dwindle, גלילה וצף |
-| `Super + Alt + L`         | מעבר במחזוריות בין הפריסות בסדר הפוך |
-| `Super + P`               | החלפת סגנון חלון פסאודו (טבעי מול מתיחה) |
+| `Super + O`               | החלפת חלון קופץ למצב דביק וצף |
+| `Super + L`               | מעבר מחזורי בין פריסות dwindle, scrolling ו-floating |
+| `Super + Alt + L`         | מעבר מחזורי בין הפריסות בסדר הפוך |
+| `Super + P`               | החלפת סגנון חלון מדומה (טבעי מול מתוח) |
 | `Super + F`                 | מעבר למסך מלא              |
 | `Super + Alt + F`                 | מעבר לרוחב מלא              |
 | `Super + Ctrl + F`                 | מעבר למסך מלא בתוך חלון              |
-| `Super + 1/2/3/4`         | קפיצה לסביבת עבודה ספציפית     |
-| `Super + Tab` | קפיצה לסביבת העבודה הבאה |
-| `Super + Shift + Tab` | קפיצה לסביבת העבודה הקודמת |
-| `Super + Ctrl + Tab` | קפיצה לסביבת העבודה הקודמת בהיסטוריה |
-| `Super + Shift + 1/2/3/4` | העברת חלון לסביבת עבודה |
-| `Super + Shift + Alt + 1/2/3/4` | העברת חלון לסביבת עבודה בלי לעקוב |
-| `Super + S` / `Super + Grave` | החלפת לוח טיוטה |
-| `Super + Alt + S` / `Super + Shift + Grave` | העברת חלון ללוח טיוטה |
-| `Super + Shift + Alt + Arrows` | העברת סביבות עבודה למסך כיווני |
-| `Super + Arrow`  | העברת מיקוד לחלון בכיוון החץ              |
-| `Super + Shift + Arrow`  | החלפת חלון עם אחר בכיוון החץ     |
+| `Super + 1/2/3/4`         | קפיצה לסביבת עבודה מסוימת במסך הממוקד |
+| `Super + Tab` | קפיצה לסביבת העבודה הבאה במסך הממוקד |
+| `Super + Shift + Tab` | קפיצה לסביבת העבודה הקודמת במסך הממוקד |
+| `Super + Ctrl + Tab` | קפיצה לסביבת העבודה הקודמת שהייתה בשימוש במסך הממוקד |
+| `Super + Shift + 1/2/3/4` | העברת חלון לסביבת עבודה במסך הממוקד |
+| `Super + Shift + Alt + 1/2/3/4` | העברת חלון לסביבת עבודה במסך הממוקד בלי לעקוב אחריו |
+| `Super + S` | החלפת משטח טיוטה מלא |
+| `Super + Alt + S` | העברת חלון למשטח הטיוטה המלא |
+| `Super + Grave` | החלפת קונסולת Quake |
+| `Super + Shift + Grave` | העברת חלון לקונסולת Quake |
+| `Super + Shift + Ctrl + Arrows` | העברת חלון למסך שבכיוון הזה |
+| `Super + Shift + Alt + Arrows` | העברת סביבת עבודה למסך שבכיוון הזה |
+| `Super + Arrow`  | העברת המוקד לחלון בכיוון החץ, עם מעבר למסך שבצד הזה בקצה המסך |
+| `Super + Shift + Arrow`  | החלפת חלון עם חלון אחר בכיוון החץ, כולל חלון במסך שבצד הזה |
 | `Super + Minus` | הרחבת חלון שמאלה |
 | `Super + Equal` | כיווץ חלון שמאלה |
 | `Super + Shift + Minus` | כיווץ חלון למעלה |
@@ -39,251 +42,256 @@
 | `Super + Alt + Minus/Equal` | אותו שינוי גודל בצעדים קטנים יותר |
 | `Super + Ctrl + Minus/Equal` | אותו שינוי גודל בצעדים גדולים יותר |
 | `Super + Alt + Home` | שמירת רוחב חלון |
-| `Super + Home` | שחזור רוחב חלון שמור |
-| `Super + Left Mouse` | גרירת חלון סביב |
+| `Super + Home` | שחזור רוחב החלון השמור |
+| `Super + Left Mouse` | גרירת חלון |
 | `Super + Right Mouse` | שינוי גודל חלון |
-| `Super + Scroll Wheel` | גלילה דרך סביבות עבודה |
+| `Super + Scroll Wheel` | גלילה בין סביבות עבודה במסך הממוקד |
 | `Super + G`               | החלפת קיבוץ חלונות      |
-| `Super + Alt + G`               | הוצאת חלון מקיבוץ      |
-| `Super + Alt + Tab`               | מעבר במחזוריות בין חלונות בקיבוץ      |
-| `Super + Alt + Shift + Tab`               | מעבר אחורה במחזוריות בין חלונות בקיבוץ      |
-| `Super + Alt + 1/2/3/4/5`               | קפיצה לחלון ספציפי בקיבוץ      |
-| `Super + Alt + Arrow`  | העברת חלון לקיבוץ בכיוון החץ  |
+| `Super + Alt + G`               | הוצאת חלון מהקיבוץ      |
+| `Super + Alt + Tab`               | מעבר מחזורי בין חלונות בקיבוץ      |
+| `Super + Alt + Shift + Tab`               | מעבר מחזורי לאחור בין חלונות בקיבוץ      |
+| `Super + Alt + Scroll Wheel` | מעבר מחזורי בין חלונות בקיבוץ |
+| `Super + Alt + 1/2/3/4/5`               | קפיצה לחלון מסוים בקיבוץ      |
+| `Super + Alt + Arrow`  | העברת חלון לתוך הקיבוץ בכיוון החץ, כולל חלון במסך שבצד הזה |
 | `Super + Ctrl + Left/Right`  | מעבר בין חלונות בתוך קבוצת ריצוף |
-| `Super + Ctrl + Z` | התקרבות למסך (חזרה להתקרבות נוספת) |
-| `Super + Ctrl + Alt + Z` | התרחקות מלאה מהמסך |
-| `Super + /` | צעד קדימה דרך אפשרויות קנה מידה למסך |
-| `Super + Alt + /` | צעד אחורה דרך אפשרויות קנה מידה למסך |
-| `Alt + Tab` | מעבר קדימה במחזוריות בין חלונות בסביבת העבודה הפעילה |
-| `Alt + Shift + Tab` | מעבר אחורה במחזוריות בין חלונות בסביבת העבודה הפעילה |
-| `Ctrl + Alt + Tab`| מעבר מיקוד קדימה בין מסכים |
-| `Ctrl + Alt + Shift + Tab`| מעבר מיקוד אחורה בין מסכים |
+| `Super + Ctrl + Z` | הגדלת תצוגת המסך (חזרה להגדלה נוספת) |
+| `Super + Ctrl + Alt + Z` | הקטנת תצוגת המסך באופן מלא |
+| `Super + /` | מעבר קדימה בין אפשרויות קנה המידה של המסך |
+| `Super + Alt + /` | מעבר לאחור בין אפשרויות קנה המידה של המסך |
+| `Alt + Tab` | מעבר מחזורי קדימה בין חלונות בסביבת העבודה הפעילה |
+| `Alt + Shift + Tab` | מעבר מחזורי לאחור בין חלונות בסביבת העבודה הפעילה |
+| `Ctrl + Alt + Tab`| מעבר מחזורי של המוקד קדימה בין מסכים |
+| `Ctrl + Alt + Shift + Tab`| מעבר מחזורי של המוקד לאחור בין מסכים |
 
-## פקדי מערכת
+מקשי הקיצור לשינוי גודל משתמשים במקשים הפיזיים `code:20` ו-`code:21` (ב-XKB ‏`<AE11>` ו-`<AE12>`), בלי קשר לתווים המודפסים על המקלדת. במקלדות US המקשים האלה הם `-` ו-`=`; במקלדות יפניות (JIS) הם `-` ו-`^`; במקלדות ספרדיות הם `'` ו-`¡`. ב-JIS, ‏`Super + ^` הוא `Super + Equal`, בעוד `Super + Shift + -` (שמקליד `=`) הוא `Super + Shift + Minus`.
 
-| קיצור מקלדת                  | פונקציה              |
+## בקרות מערכת
+
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + A`           | פנל שמע    |
-| `Super + Ctrl + B`           | פנל Bluetooth    |
-| `Super + Ctrl + W`           | פנל Wifi/רשת    |
-| `Super + Ctrl + D`           | פנל תצוגה    |
-| `Super + Ctrl + P`           | פנל כוח    |
-| `Super + Ctrl + Alt + D`           | פנל לוח שנה    |
-| `Super + Ctrl + Alt + E`           | פנל שעון עולם    |
-| `Super + Ctrl + 1-9`           | החלפת פנל שורה לפי מיקום    |
-| `Super + Ctrl + S` | תפריט שיתוף (באמצעות LocalSend) |
-| `Super + Ctrl + T`           | פעילות (btop)    |
-| `Super + Ctrl + C` | פקדי לכידה (צילום מסך/הקלטה/בורר) |
-| `Super + Ctrl + O` | תפריט החלפה |
+| `Super + Ctrl + A`           | לוח שמע    |
+| `Super + Ctrl + B`           | לוח Bluetooth    |
+| `Super + Ctrl + N`           | לוח Wi-Fi/רשת    |
+| `Super + Ctrl + D`           | לוח תצוגה    |
+| `Super + Ctrl + P`           | לוח חשמל    |
+| `Super + Ctrl + Alt + D`           | לוח לוח שנה    |
+| `Super + Ctrl + Alt + E`           | לוח שעון עולמי    |
+| `Super + Ctrl + 1-9`           | החלפת לוח בסרגל לפי מיקום    |
+| `Super + Ctrl + S` | תפריט שיתוף (דרך LocalSend) |
+| `Super + Ctrl + C` | בקרות לכידה (צילום מסך/הקלטה/בורר) |
+| `Super + Ctrl + O` | החלפת תפריט |
 | `Super + Ctrl + H` | תפריט חומרה |
-| `Super + Ctrl + Q` | מחשבון |
-| `Super + Ctrl + E` | בורר אמוג'י |
+| `Super + Ctrl + E` | בורר אימוג'ים |
 | `Super + Ctrl + .` | המרת מדיה |
 | `Super + Shift + Ctrl + A` | בחירת סוכן AI |
 
 ## התאמות
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Shift + Brightness Up` | בהירות מסך מרבית |
 | `Shift + Brightness Down` | בהירות מסך מזערית |
 | `Alt + Brightness Up/Down` | שינויי בהירות מדויקים של 1% |
-| `Alt + Volume Up/Down` | שינויי עוצמה מדויקים של 1% |
-| `Keyboard Brightness Up/Down` | תאורת מקלדת בהירה/מעומעמת יותר |
-| `Keyboard Backlight` | מעבר בין רמות תאורת המקלדת |
+| `Alt + Volume Up/Down` | שינויי עוצמת קול מדויקים של 1% |
+| `Keyboard Brightness Up/Down` | תאורת מקלדת חזקה/חלשה יותר |
+| `Keyboard Backlight` | מעבר מחזורי בין רמות תאורת המקלדת |
 | `Alt + Play` | הרצועה הבאה |
 | `Alt + Shift + Play` | הרצועה הקודמת |
 
 ## הפעלת אפליקציות
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Return`           | טרמינל    |
-| `Super + Alt + Return` | טרמינל Tmux |
+| `Super + Return`           | מסוף    |
+| `Super + Alt + Return` | מסוף Tmux |
 | `Super + Ctrl + Return` | Herdr (מנהל סוכנים) |
 | `Super + Shift + Return`           | דפדפן    |
 | `Super + Shift + Alt + B`           | דפדפן (פרטי/גלישה בסתר)    |
 | `Super + Shift + F`           | מנהל קבצים    |
-| `Super + Shift + Alt + F`           | מנהל קבצים בספריית הטרמינל הנוכחית    |
+| `Super + Shift + Alt + F`           | מנהל קבצים בתיקיית העבודה הנוכחית של המסוף    |
 | `Super + Shift + M`           | מוזיקה (Spotify)    |
 | `Super + Shift + Alt + M`           | מוזיקה (cliamp)    |
 | `Super + Shift + /`           | מנהל סיסמאות (1password)    |
+| `Super + Shift + Q`           | מחשבון (Omacalc)    |
+| `Super + Shift + T`           | פעילות (btop)    |
 | `Super + Shift + N`           | עורך (Neovim)  |
 | `Super + Shift + C`           | לוח שנה ([HEY](https://hey.com/))  |
-| `Super + Shift + E`           | דואר אלקטרוני ([HEY](https://hey.com/))  |
-| `Super + Shift + Alt + E`           | דואר אלקטרוני חדש ([HEY](https://hey.com/))  |
+| `Super + Shift + E`           | דוא"ל ([HEY](https://hey.com/))  |
+| `Super + Shift + Alt + E`           | דוא"ל חדש ([HEY](https://hey.com/))  |
 | `Super + Shift + A`           | AI (ChatGPT)  |
 | `Super + Shift + Alt + A`           | AI (Grok)  |
-| `Super + Shift + G`           | מסנג'ר (Signal)  |
+| `Super + Shift + G`           | הודעות (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
 | `Super + Shift + S`           | Google Maps  |
-| `Super + Shift + Alt + G`           | מסנג'ר (WhatsApp)  |
-| `Super + Shift + Ctrl + G`           | מסנג'ר (Google)  |
+| `Super + Shift + Alt + G`           | הודעות (WhatsApp)  |
+| `Super + Shift + Ctrl + G`           | הודעות (Google)  |
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | כתיבה (Omawrite)  |
 | `Super + Shift + X`           | X |
 | `Super + Shift + Alt + X`           | X Compose |
 | `Super + Shift + Y`           | YouTube |
 
-שנו/הוסיפו שיוכים ב-`~/.config/hypr/bindings.lua`.
+אפשר לשנות/להוסיף שיוכים ב-`~/.config/hypr/bindings.lua`.
 
-## לוח אוניברסלי
+## לוח גזירים אוניברסלי
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
+| `Super + A`           | בחירת הכל באפליקציות שתומכות ב-`Ctrl + A`    |
 | `Super + C`           | העתקה    |
-| `Super + X`           | גזירה (לא בטרמינל)    |
+| `Super + X`           | גזירה (לא במסוף)    |
 | `Super + V`           | הדבקה    |
-| `Super + Ctrl + V`           | מנהל לוח    |
+| `Super + Ctrl + V`           | מנהל לוח גזירים    |
 
-בדרך כלל ב-Linux, צריך את `Ctrl + Shift + C/V` כדי להעתיק ולהדביק בטרמינל ואת `Ctrl + C/V` כדי לעשות זאת בכל מקום אחר. קיצורי הלוח המאוחדים האלה של Omarchy עובדים בכל מקום.
+בדרך כלל ב-Linux, צריך `Ctrl + Shift + C/V` כדי להעתיק ולהדביק במסוף ו-`Ctrl + C/V` כדי לעשות זאת בכל מקום אחר. מקשי הקיצור המאוחדים האלה של Omarchy ללוח הגזירים עובדים בכל מקום.
 
 ## לכידה
 
-| קיצור מקלדת              | פונקציה                       |
+| Hotkey              | Function                       |
 | ------------------- | ------------------------------ |
-| `Super + Ctrl + C` | תפריט לכידה (למקלדות בלי כפתור PrintScr) |
 | `Print Screen`            | צילום מסך                      |
+| `Super + Ctrl + Alt + C`            | צילום מסך (אותו צילום, למקלדות בלי מקש Print Screen) |
+| `Super + Ctrl + C` | תפריט לכידה |
 | `Alt + Print Screen`            | הקלטת מסך                     |
-| `Super + Print Screen` | בורר צבע |
-| `Super + Ctrl + Print Screen` | חילוץ טקסט ללוח |
-| `Super + Alt + [` | הקטנת שכבת-העל של מצלמת הרשת בזמן הקלטה |
-| `Super + Alt + ]` | הגדלת שכבת-העל של מצלמת הרשת בזמן הקלטה |
-| `Alt + Shift + L` | העתקת כתובת ה-URL הנוכחית מאפליקציית רשת או מ-Chromium |
-| `Alt + Shift + D` | הורדת הווידאו בדף הנוכחי ל-`~/Videos` |
-| `Super + Ctrl + X` | התחלת/עצירת הכתבה (דורש את _הגדרה > ברירות מחדל > הכתבה_) |
-| `Right Alt` / `F9` | הכתבת לחץ-לדיבור (דורש את Voxtype או את Superwhisper) |
+| `Super + Print Screen` | בורר צבעים |
+| `Super + Ctrl + Print Screen` | חילוץ טקסט ללוח הגזירים |
+| `Super + Alt + [` | הקטנת שכבת מצלמת הרשת בזמן הקלטה |
+| `Super + Alt + ]` | הגדלת שכבת מצלמת הרשת בזמן הקלטה |
+| `Alt + Shift + L` | העתקת ה-URL הנוכחי מאפליקציית רשת או מ-Chromium |
+| `Alt + Shift + D` | הורדת הסרטון שבדף הנוכחי אל `~/Videos` |
+| `Super + Ctrl + X` | התחלה/עצירה של הכתבה (דורש _הגדרות > ברירות מחדל > הכתבה_) |
+| `Right Alt` / `F9` | הכתבה בלחיצה-ודיבור (דורש Voxtype או Superwhisper) |
 
-עם הקלטות מסך, קיצור המקלדת שואל קודם איזה שמע תרצו, ואחר כך מתחיל להקליט. לחצו שוב כדי לעצור. ראו [צילומי מסך והקלטה](12-screenshots-recording.md) לפרטים.
+בהקלטות מסך, מקש הקיצור שואל תחילה איזה שמע ברצונך להקליט, ואז מתחיל בהקלטה. לחץ עליו שוב כדי לעצור. ראה [צילומי מסך והקלטה](12-screenshots-recording.md) לפרטים.
 
 כל אפשרויות הלכידה נגישות גם תחת _הפעלה > לכידה_ בתפריט Omarchy (`Super + Space`).
 
 ## התראות
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + ,` | ביטול ההתראה האחרונה  |
-| `Super + Shift + ,` | ביטול כל ההתראות |
-| `Super + Ctrl + ,` | החלפת השתקת התראות  |
-| `Super + Alt + ,` | הפעלת ההתראה האחרונה ביותר  |
-| `Super + Shift + Alt + ,` | פתיחת היסטוריית התראות  |
+| `Super + ,` | פעולה על ההתראה האחרונה: פתיחתה או לחיצה על הכפתור היחיד שלה, בחירה מהאפשרויות שלה, או סגירתה כשאין לה כאלה  |
+| `Super + Shift + ,` | סגירת כל ההתראות |
+| `Super + Ctrl + ,` | שליטה בהתראות עם המקלדת  |
+| `Super + Alt + ,` | סגירת ההתראה האחרונה  |
+| `Super + Shift + Alt + ,` | פתיחת היסטוריית ההתראות  |
+| `Super + Ctrl + Alt + ,` | החלפת השתקת התראות  |
 
 ## סגנון
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Shift + Space` | בחירת ערכת נושא חדשה  |
-| `Super + Ctrl + Space` | בחירת רקע ערכת נושא |
-| `Super + Backspace` | החלפת שקיפות על חלון |
-| `Super + Ctrl + Backspace` | החלפת היבט ריבוע של חלון בודד |
+| `Super + Ctrl + T` | בחירת ערכת נושא חדשה (גם `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | בחירת רקע לערכת הנושא (גם `Super + Ctrl + Space`) |
+| `Super + Backspace` | החלפת שקיפות בחלון |
+| `Super + Ctrl + Backspace` | החלפת יחס ריבועי לחלון יחיד |
 
-תמונות רקע נוספות חיות ב-`~/.config/omarchy/backgrounds/<theme name>`. זמינות גם באמצעות _התקנה > סגנון > רקע_ בתפריט Omarchy.
+תמונות רקע נוספות נמצאות ב-`~/.config/omarchy/backgrounds/<theme name>`. זמין גם דרך _התקנה > סגנון > רקע_ בתפריט Omarchy.
 
 כל אפשרויות הסגנון נגישות גם תחת _סגנון_ בתפריט Omarchy (`Super + Space`).
 
-## החלפות
+## מתגים
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | החלפת נעילה בסרק |
-| `Super + Ctrl + N` | החלפת טמפרטורת תצוגת לילה |
-| `Super + Ctrl + Delete` | החלפת תצוגת מחשב נייד דלוקה/כבויה |
-| `Super + Ctrl + Alt + Delete` | החלפת שיקוף תצוגת מחשב נייד |
-| `Super + Shift + Space` | החלפת שורת התפריט  |
-| `Shift + Mute` | מעבר לפלט השמע הבא |
+| `Super + Ctrl + I` | החלפת נעילה במצב סרק |
+| `Super + Ctrl + Delete` | הדלקה/כיבוי של צג המחשב הנייד |
+| `Super + Ctrl + Alt + Delete` | החלפת שיקוף צג המחשב הנייד |
+| `Super + Shift + Space` | החלפת הסרגל העליון  |
+| `Shift + Mute` | מעבר ליציאת השמע הבאה |
 | `Shift + Play` | מעבר למקור המדיה הבא |
 | `Super + Shift + Backspace` | החלפת מרווחי חלונות |
-| `Super + Ctrl + Alt + F` | החלפת שולחן עבודה במסך מלא (שורת תפריט + מרווחי חלונות) |
+| `Super + Ctrl + Alt + F` | החלפת שולחן עבודה במסך מלא (סרגל עליון + מרווחי חלונות) |
 
 ## תזכורות
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + R` | קביעת תזכורת  |
-| `Super + Ctrl + Alt + R` | צפייה בכל התזכורות  |
+| `Super + Ctrl + R` | הגדרת תזכורת  |
+| `Super + Ctrl + Alt + R` | הצגת כל התזכורות  |
 | `Super + Ctrl + Shift + R` | ניקוי כל התזכורות  |
 
 ## הודעות
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Alt + T` | הצגת שעה כהתראה  |
-| `Super + Ctrl + Alt + B` | הצגת סוללה כהתראה  |
-| `Super + Ctrl + Alt + W` | החלפת מזג אוויר כהתראה  |
+| `Super + Ctrl + Alt + T` | הצגת השעה כהתראה  |
+| `Super + Ctrl + Alt + B` | הצגת הסוללה כהתראה  |
+| `Super + Ctrl + Alt + W` | החלפת מזג האוויר כהתראה  |
 
 ## Tmux
 
-מקש הקידומת הוא `Ctrl + Space` (`Ctrl + B` גם עובד). אפשר לשנות שיוכים אלה ב-`~/.config/tmux/tmux.conf`.
+מקש הקידומת הוא `Ctrl + Space` (גם `Ctrl + B` עובד). אפשר לשנות שיוכים אלה ב-`~/.config/tmux/tmux.conf`.
 
 ### חלוניות
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + v` | פיצול חלונית לצד (אנכי) |
 | `Prefix + h` | פיצול חלונית למטה (אופקי) |
-| `Prefix + x` | הריגת חלונית |
+| `Prefix + x` | סגירת חלונית |
 | `Prefix + z` | החלפת הגדלת חלונית (מסך מלא) |
 | `Alt + Enter` | פיצול חלונית למטה (בלי קידומת) |
 | `Alt + Shift + Enter` | פיצול חלונית לצד (בלי קידומת) |
-| `Alt + Escape` | הריגת חלונית (בלי קידומת) |
+| `Alt + Escape` | סגירת חלונית (בלי קידומת) |
 | `Ctrl + Alt + Arrows` | מעבר בין חלוניות |
 | `Ctrl + Alt + Shift + Arrows` | שינוי גודל חלוניות |
 
 ### חלונות
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | חלון חדש |
-| `Prefix + k` | הריגת חלון |
+| `Prefix + k` | סגירת חלון |
 | `Prefix + r` | שינוי שם חלון |
-| `Alt + 1-9` | מעבר לחלון ספציפי |
+| `Alt + 1-9` | מעבר לחלון מסוים |
 | `Alt + Arrow Left/Right` | מעבר בין חלונות |
-| `Alt + Shift + Arrow Left/Right` | העברת חלון שמאלה/ימינה |
+| `Alt + Shift + Arrow Left/Right` | הזזת חלון שמאלה/ימינה |
 
-### מושבים
+### הפעלות
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Prefix + C` | מושב חדש |
-| `Prefix + K` | הריגת מושב |
-| `Prefix + R` | שינוי שם מושב |
-| `Prefix + N` | המושב הבא |
-| `Prefix + P` | המושב הקודם |
-| `Alt + Arrow Up/Down` | מעבר בין מושבים |
-| `Prefix + s` | רשימת מושבים |
-| `Prefix + d` | ניתוק ממושב |
+| `Prefix + C` | הפעלה חדשה |
+| `Prefix + K` | סגירת הפעלה |
+| `Prefix + R` | שינוי שם הפעלה |
+| `Prefix + N` | ההפעלה הבאה |
+| `Prefix + P` | ההפעלה הקודמת |
+| `Alt + Arrow Up/Down` | מעבר בין הפעלות |
+| `Prefix + s` | רשימת הפעלות |
+| `Prefix + d` | ניתוק מההפעלה |
 
 ### מצב העתקה (בסגנון vi)
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Prefix + [` | כניסה למצב העתקה |
-| `v` | תחילת בחירה (במצב העתקה) |
-| `y` | העתקת בחירה (במצב העתקה) |
+| `v` | התחלת בחירה (במצב העתקה) |
+| `y` | העתקת הבחירה (במצב העתקה) |
 
 ### כללי
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Prefix + q` | טעינת הגדרות מחדש |
-| `Prefix + ?` | הצגת שיוכי מקשים של Tmux |
+| `Prefix + q` | טעינה מחדש של התצורה |
+| `Prefix + ?` | הצגת שיוכי המקשים של Tmux |
 | `Prefix + :` | שורת פקודה |
 
-### פונקציות פריסת Tmux
+### פונקציות פריסה של Tmux
 
-יש להריץ פונקציות אלה בתוך מושב Tmux.
+יש להריץ פונקציות אלה בתוך הפעלת Tmux.
 
-| פקודה | פונקציה |
+| Command | Function |
 | ------- | -------- |
-| `tdl <ai> [<second_ai>]` | יצירת פריסת פיתוח עם עורך, AI וטרמינל |
-| `tdlm <ai> [<second_ai>]` | יצירת פריסת פיתוח לכל תת-ספרייה |
+| `tdl <ai> [<second_ai>]` | יצירת פריסת פיתוח עם עורך, AI ומסוף |
+| `tdlm <ai> [<second_ai>]` | יצירת פריסת פיתוח לכל תת-תיקייה |
 | `tsl <count> <command>` | יצירת פריסת נחיל מרובת חלוניות |
 
-## טרמינל Ghostty
+## מסוף Ghostty
 
-טרמינל Ghostty מותקן באמצעות _התקנה > טרמינל_ דרך תפריט Omarchy.
+מסוף Ghostty מותקן באמצעות _התקנה > מסוף_ דרך תפריט Omarchy.
 
-| קיצור מקלדת                  | פונקציה              |
+| Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Ctrl + Shift + E` | פיצול חדש למטה |
 | `Ctrl + Shift + O` | פיצול חדש לצד |
@@ -292,86 +300,84 @@
 | `Super + Ctrl + Shift + Alt + Arrows` | שינוי גודל פיצול ב-100 שורות |
 | `Ctrl + Shift + T` | לשונית חדשה  |
 | `Ctrl + Shift + Arrows` | מעבר בין לשוניות |
-| `Alt + Numbers` | מעבר ללשונית ספציפית |
+| `Alt + Numbers` | מעבר ללשונית מסוימת |
 | `Shift + Pg Up/Down` | גלילת ההיסטוריה |
 | `Ctrl + Left mouse` | פתיחת קישור בדפדפן |
 
 ## מנהל קבצים
 
-| קיצור מקלדת              | פונקציה                       |
+| Hotkey              | Function                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | מעבר לנתיב                     |
-| `Space`               | תצוגה מקדימה לקובץ (חצים מנווטים) |
-| `Backspace`      | חזרה תיקייה אחת אחורה             |
+| `Space`               | תצוגה מקדימה של קובץ (החצים מנווטים) |
+| `Alt + Up`       | מעבר למעלה לתיקיית האב        |
 
 ## Neovim (עם lazyvim)
 
 ### ניווט
 
-| קיצור מקלדת                   | פונקציה                        |
+| Hotkey                   | Function                        |
 | ------------------------ | ------------------------------- |
 | `Space`                    | הצגת אפשרויות פקודה            |
-| `Space Space`              | פתיחת קובץ באמצעות חיפוש מטושטש      |
-| `Space E`                  | החלפת סרגל צד                  |
-| `Space G G`                | הצגת פקדי git               |
-| `Space S G`                | חיפוש בתוכן קבצים             |
+| `Space Space`              | פתיחת קובץ דרך חיפוש מקורב      |
+| `Space E`                  | החלפת סרגל הצד                  |
+| `Space G G`                | הצגת בקרות git               |
+| `Space S G`                | חיפוש בתוכן קובץ             |
 | `Ctrl + W W`               | קפיצה בין סרגל הצד לעורך |
 | `Ctrl + Left/right arrow`  | שינוי גודל סרגל הצד          |
-| `Shift + H`                      | מעבר ללשונית קובץ שמאלית             |
-| `Shift + L`                      | מעבר ללשונית קובץ ימנית            |
+| `Shift + H`                      | מעבר ללשונית הקובץ השמאלית             |
+| `Shift + L`                      | מעבר ללשונית הקובץ הימנית            |
 | `Space B D`                | סגירת לשונית קובץ                  |
 
-### בזמן שבסרגל הצד
+### בתוך סרגל הצד
 
-| קיצור מקלדת                   | פונקציה                        |
+| Hotkey                   | Function                        |
 | ------------------------ | ------------------------------- |
-| `A`                        | הוספת קובץ חדש בספריית האב      |
-| `Shift + A`                | הוספת תת-ספרייה חדשה בספריית האב    |
-| `D`                        | מחיקת קובץ/ספרייה מודגשים     |
-| `M`                        | העברת קובץ/ספרייה מודגשים       |
-| `R`                        | שינוי שם קובץ/ספרייה מודגשים     |
+| `A`                        | הוספת קובץ חדש בתיקיית האב      |
+| `Shift + A`                | הוספת תת-תיקייה חדשה בתיקיית האב    |
+| `D`                        | מחיקת הקובץ/התיקייה המודגשים     |
+| `M`                        | העברת הקובץ/התיקייה המודגשים       |
+| `R`                        | שינוי שם הקובץ/התיקייה המודגשים     |
 | `?`                        | הצגת עזרה לכל הפקודות      |
 
-[ראו את כל קיצורי המקלדת של Neovim שהוגדרו על ידי LazyVim](https://www.lazyvim.org/keymaps).
+[ראה את כל מקשי הקיצור של Neovim שמוגדרים על ידי LazyVim](https://www.lazyvim.org/keymaps).
 
-## אמוג'ים מהירים
+## אימוג'ים מהירים
 
-אפשר להשתמש ב-`Super + Ctrl + E` כדי להציג בורר אמוג'י שלם שישים את הבחירה על הלוח או שאפשר להשתמש באפשרויות הגישה המהירה האלה.
+אפשר להשתמש ב-`Super + Ctrl + E` כדי להציג בורר אימוג'ים מלא שיניח את הבחירה על לוח הגזירים, או להשתמש באפשרויות הגישה המהירה האלה.
 
-| קיצור מקלדת       | EM | רמז       |
+| Hotkey       | EM | Clue       |
 | ------------ | -- | ---------- |
-| `Shift + CapsLock M S` | 😄 | smile      |
-| `Shift + CapsLock M C` | 😂 | cry        |
-| `Shift + CapsLock M L` | 😍 | love       |
-| `Shift + CapsLock M V` | ✌️ | victory    |
-| `Shift + CapsLock M H` | ❤️ | heart      |
-| `Shift + CapsLock M Y` | 👍 | yes        |
-| `Shift + CapsLock M N` | 👎 | no         |
-| `Shift + CapsLock M F` | 🖕 | fuck       |
-| `Shift + CapsLock M W` | 🤞 | wish       |
-| `Shift + CapsLock M R` | 🤘 | rock       |
-| `Shift + CapsLock M K` | 😘 | kiss       |
-| `Shift + CapsLock M E` | 🙄 | eyeroll    |
-| `Shift + CapsLock M I` | 😉 | wink       |
-| `Shift + CapsLock M P` | 🙏 | pray |
-| `Shift + CapsLock M D` | 🤤 | drool      |
-| `Shift + CapsLock M M` | 💰 | money      |
-| `Shift + CapsLock M X` | 🎉 | xellebrate |
+| `Shift + CapsLock M S` | 😄 | חיוך      |
+| `Shift + CapsLock M C` | 😂 | בכי        |
+| `Shift + CapsLock M L` | 😍 | אהבה       |
+| `Shift + CapsLock M V` | ✌️ | ניצחון    |
+| `Shift + CapsLock M H` | ❤️ | לב      |
+| `Shift + CapsLock M Y` | 👍 | כן        |
+| `Shift + CapsLock M N` | 👎 | לא         |
+| `Shift + CapsLock M F` | 🖕 | פאק       |
+| `Shift + CapsLock M W` | 🤞 | משאלה       |
+| `Shift + CapsLock M R` | 🤘 | רוק       |
+| `Shift + CapsLock M K` | 😘 | נשיקה       |
+| `Shift + CapsLock M E` | 🙄 | גלגול עיניים    |
+| `Shift + CapsLock M I` | 😉 | קריצה       |
+| `Shift + CapsLock M P` | 🙏 | תפילה |
+| `Shift + CapsLock M D` | 🤤 | ריור      |
+| `Shift + CapsLock M M` | 💰 | כסף      |
+| `Shift + CapsLock M X` | 🎉 | חגיגה |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
-| `Shift + CapsLock M T` | 🥂 | toast      |
-| `Shift + CapsLock M O` |👌 | ok |
-| `Shift + CapsLock M G` |👋 | greeting |
-| `Shift + CapsLock M A` |💪 | arm |
-| `Shift + CapsLock M B` |🤯 | blowing |
+| `Shift + CapsLock M T` | 🥂 | הרמת כוסית      |
+| `Shift + CapsLock M O` |👌 | בסדר |
+| `Shift + CapsLock M G` |👋 | ברכה |
+| `Shift + CapsLock M A` |💪 | זרוע |
+| `Shift + CapsLock M B` |🤯 | פיצוץ |
 
 ## השלמות מהירות
 
-| קיצור מקלדת       | השלמה       |
+| Hotkey       | Completion       |
 | ------------ |  ---------- |
-| `Shift + CapsLock Space Space` | — (mdash)   |
-| `Shift + CapsLock Space N` | שמכם (כפי שהוזן בהגדרה)  |
-| `Shift + CapsLock Space E` | הדואר האלקטרוני שלכם (כפי שהוזן בהגדרה)  |
+| `Shift + CapsLock Space Space` | — (קו מפריד ארוך)   |
+| `Shift + CapsLock Space N` | השם שלך (כפי שהוזן בהגדרה)  |
+| `Shift + CapsLock Space E` | הדוא"ל שלך (כפי שהוזן בהגדרה)  |
 
-אפשר להוסיף עוד משלכם על ידי עריכת `~/.XCompose`, ואחר כך הרצת `omarchy-restart-xcompose` בטרמינל כדי שהשינויים ייקלטו.
-
-
+אפשר להוסיף עוד משלך על ידי עריכת `~/.XCompose`, ואז הרצת `omarchy-restart-xcompose` במסוף כדי שהשינויים ייקלטו.

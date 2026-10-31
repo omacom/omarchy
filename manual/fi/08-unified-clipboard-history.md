@@ -1,24 +1,27 @@
 # Yhtenäinen leikepöytä ja historia
 
-Linuxissa tarvitset yleensä pääätteessä kopiointiin ja liittämiseen yhdistelmän `Ctrl + Shift + C/V` ja kaikkialla muualla yhdistelmän `Ctrl + C/V`. Siihen on vaikea tottua kaikilla, jotka eivät ole syntyneet ja kasvaneet Linuxin parissa! Samoin Super-näppäimestä Ctrl-näppäimeen vaihtaminen, jos tulet Macista.
+Yleensä Linuxissa tarvitset terminaalissa kopioimiseen ja liittämiseen `Ctrl + Shift + C/V` ja kaikkialla muualla `Ctrl + C/V`. Siihen on vaikea tottua kenelle tahansa, joka ei ole syntynyt ja kasvanut Linuxin parissa! Samoin on vaihtamisen laita Superista Ctrliin, jos tulet Macista.
 
-Omarchy ratkaisee molemmat ongelmat yhtenäisillä leikepöydän pikanäppäimillä, jotka toimivat (melkein) kaikkialla. Ne ovat:
+Omarchy ratkaisee molemmat ongelmat yhtenäisillä leikepöydän pikanäppäimillä, jotka toimivat (lähes) kaikkialla. Ne ovat:
 
 | Pikanäppäin | Komento |
 | ------- | ----------- |
+| Super + A | Valitse kaikki |
 | Super + C | Kopioi |
 | Super + X | Leikkaa |
 | Super + V | Liitä |
 | Super + Ctrl + V | Leikepöydän historia |
 
-_Huomaa, että useimmat agenttiharnessit käyttävät yhdistelmää `Ctrl + V` kuvien liittämiseen, mutta yhdistelmää `Super + V` tekstin liittämiseen._
+_Huomaa, että useimmat agenttivaljaat käyttävät kuvien liittämiseen `Ctrl + V`, mutta tekstin liittämiseen `Super + V`._
+
+Käytä `Super + A` ja sitten `Super + C` kopioidaksesi kaiken kohdistettuna olevassa tekstikentässä tai muussa sovelluksessa, joka tukee näppäinyhdistelmää `Ctrl + A`. Terminaalissa `Ctrl + A` siirtyy komentorivin alkuun sen sijaan, että se valitsisi sen tekstin.
 
 ### Leikepöydän historia
 
-Leikepöydän historian tarjoaa Omarchyn kuori, ja se toimii sekä tekstille että kuville. Käynnistät sen yhdistelmällä `Super + Ctrl + V`, valitset merkintäsi Enterillä, ja se sijoitetaan sitten leikepöydälle valmiina liitettäväksi yhdistelmällä `Super + V`.
+Leikepöydän historian tarjoaa Omarchy shell, ja se toimii sekä tekstille että kuville. Käynnistät sen näppäimillä `Super + Ctrl + V`, valitset kohteesi Return-näppäimellä, ja se asetetaan leikepöydälle valmiiksi liitettäväksi näppäimillä `Super + V`.
 
  ![clipboard-history](images/clipboard-history.webp)
 
-Voit myös hakea historiasta vain alkamalla kirjoittaa:
+Voit myös hakea historiasta yksinkertaisesti alkamalla kirjoittaa:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)
