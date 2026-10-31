@@ -14,9 +14,14 @@ for name in workspaces workspaces-merged; do
   fi
 done
 
-# The scaling log is history, kept ahead of any entries written since.
+# The scaling log is history, kept ahead of any entries written since. A copy
+# that fails stops the migration before anything is replaced or deleted.
 if [[ -f $state_dir/monitor-scaling.log ]]; then
-  cat "$state_dir/monitor-scaling.log" "$state_dir/monitors/scaling" 2>/dev/null >"$state_dir/monitors/scaling.tmp" || true
-  mv "$state_dir/monitors/scaling.tmp" "$state_dir/monitors/scaling"
-  rm -f "$state_dir/monitor-scaling.log"
+  if [[ -f $state_dir/monitors/scaling ]]; then
+    cat "$state_dir/monitor-scaling.log" "$state_dir/monitors/scaling" >"$state_dir/monitors/scaling.tmp"
+    mv "$state_dir/monitors/scaling.tmp" "$state_dir/monitors/scaling"
+    rm -f "$state_dir/monitor-scaling.log"
+  else
+    mv "$state_dir/monitor-scaling.log" "$state_dir/monitors/scaling"
+  fi
 fi
