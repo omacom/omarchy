@@ -63,12 +63,22 @@ battery_path="$power_supply_path/$native_path"
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when available so the open panel stays live.
-if [[ -r $battery_path/power_now ]]; then
-  power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
-elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
+# Some ACPI batteries (HP Spectre x360) list power_now and current_now but fail
+# every read with ENODEV, so go by what a read returns, not the permission bit,
+# and keep UPower's rate when nothing comes back.
+power_now=""
+current_now=""
+voltage_now=""
+[[ ! -r $battery_path/power_now ]] || power_now=$(cat "$battery_path/power_now" 2>/dev/null)
+[[ ! -r $battery_path/current_now ]] || current_now=$(cat "$battery_path/current_now" 2>/dev/null)
+[[ ! -r $battery_path/voltage_now ]] || voltage_now=$(cat "$battery_path/voltage_now" 2>/dev/null)
+
+if [[ -n $power_now ]]; then
+  power_rate_raw=$(awk -v microwatts="$power_now" 'BEGIN { print microwatts / 1000000 }')
+elif [[ -n $current_now && -n $voltage_now ]]; then
   power_rate_raw=$(awk \
-    -v microamps="$(<"$battery_path/current_now")" \
-    -v microvolts="$(<"$battery_path/voltage_now")" \
+    -v microamps="$current_now" \
+    -v microvolts="$voltage_now" \
     'BEGIN { print microamps * microvolts / 1000000000000 }')
 fi
 

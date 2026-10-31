@@ -160,6 +160,18 @@ danish_time=$(OMARCHY_LANGUAGE_FILE="$tmp_dir/language" OMARCHY_POWER_SUPPLY_PAT
 grep -Fx $'time\t1 t 30 min' <<<"$danish_time" >/dev/null || fail "battery status durations follow the Omarchy language" "$danish_time"
 pass "battery status reads in the Omarchy language"
 
+# A battery that lists power_now and current_now but fails every read keeps
+# UPower's rate. A directory stands in for the ENODEV attribute: it passes -r
+# yet cannot be read as a file.
+rm "$hold_dir/power/BAT0/power_now"
+mkdir "$hold_dir/power/BAT0/power_now" "$hold_dir/power/BAT0/current_now"
+printf '17556000\n' >"$hold_dir/power/BAT0/voltage_now"
+sed -i 's/energy-rate:          0.1 W/energy-rate:          21.5336 W/' "$hold_dir/bin/upower"
+unreadable_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell 2>&1)
+grep -Fx $'rate\t21.5W' <<<"$unreadable_output" >/dev/null || fail "an unreadable power_now falls back to UPower's rate" "$unreadable_output"
+pass "battery status keeps UPower's rate when sysfs power cannot be read"
+rmdir "$hold_dir/power/BAT0/power_now" "$hold_dir/power/BAT0/current_now"
+
 # A full battery says so, with no time to count and no 0W draw.
 cat >"$hold_dir/bin/upower" <<'STUB'
 #!/bin/bash
