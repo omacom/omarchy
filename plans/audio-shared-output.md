@@ -33,7 +33,7 @@ omarchy_combined_output  (virtual Audio/Sink, default)
         └──────────────► alsa_output.<card>    (speakers / headset B)
 ```
 
-- **Creation** (`on`): list available physical sinks, require at least two, remember the current default and its volume in `$XDG_RUNTIME_DIR/omarchy-audio-output-combine.previous`, load `module-combine-sink` with `sink_name` and `slaves`, carry the current volume and mute onto it, then select it through `omarchy-audio-output-set-default` so playing streams move onto the mix.
+- **Creation** (`on`): list available physical sinks, require at least two, remember the current default in `$XDG_RUNTIME_DIR/omarchy-audio-output-combine.previous`, load `module-combine-sink` with `sink_name` and `slaves`, carry the volume and mute of the physical sink the previous output really uses (a speaker tuning is resolved through `omarchy-audio-output-sink`, as the volume keys do), then select it through `omarchy-audio-output-set-default` so playing streams move onto the mix.
 - **Removal** (`off`): unload the module by its PulseAudio module id. If the default output was the combined sink, restore the remembered output (or the first remaining physical sink). A default the user changed in the meantime is left alone.
 - **State** is the module itself. Presence of the module is "on"; no daemon, no polling, no persistent config. The state file only carries the output to restore.
 - **Panel state** comes from PipeWire: the combined sink appears in `Pipewire.nodes`, and the row reads that. No extra process is started while the panel is closed.
@@ -51,12 +51,13 @@ omarchy_combined_output  (virtual Audio/Sink, default)
 ## UX
 
 - Audio panel, under the output list: a row with the speaker glyph, **Play on all outputs**, and a switch. Click the row, press Return on it, or click the switch.
+- A toggle that fails says why: the panel keeps the switch on what PipeWire reports and sends a notification with the command's diagnostic.
 - The row only exists when it can do something, so the panel stays unchanged on a laptop with one output.
 - The combined sink shows up in other applications' output pickers as `omarchy_combined_output`.
 
 ## Testing
 
-- `test/shell.d/audio-pactl-test.sh`: the existing `pactl` stub gains module state. Cases cover filtering (virtual and unavailable sinks left out, the tuning sink standing in for fronted speakers), creation with the right slave list, idempotent `on`, `status`, removal and restore, and the one-output refusal.
+- `test/shell.d/audio-pactl-test.sh`: the existing `pactl` stub gains module, default-sink, volume and mute state, and answers `get-sink-mute` in a translated form unless the caller asks for the C locale. Cases cover filtering (virtual and unavailable sinks left out, the tuning sink standing in for fronted speakers), creation with the right slave list, idempotent `on`, `status`, removal and restore, the one-output refusal, mute inheritance in a translated session, and copying the speaker level rather than the tuning's when a tuning is selected.
 - `test/shell.d/audio-test.sh`: the panel model helpers (`isCombineSink`, `hasCombineSink`, `isShareableSink`, `shareableSinks`) are asserted against plain node shapes.
 - `test/shell.d/i18n-test.sh` runs unchanged: one new English shell key, no untranslated literal in QML.
 - Visual: open the audio panel with two outputs and check the row, cursor, and switch; capture before/after with `omarchy capture screenshot`.

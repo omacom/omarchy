@@ -36,13 +36,7 @@ cat >"$work/bin/pactl" <<'SH'
 printf '%s pactl %s\n' "${LC_ALL:-unset}" "$*" >>"$CALLS"
 case "$*" in
   "list sink-inputs")
-    cat <<'OUT'
-Sink Input #42
-	Sink: 10
-	Properties:
-		application.name = "Firefox"
-		node.name = "Firefox"
-OUT
+    cat "$SINK_INPUTS"
     ;;
   "-f json list sinks")
     cat "$SINKS_JSON"
@@ -51,10 +45,27 @@ OUT
     cat "$DEFAULT_SINK"
     ;;
   "get-sink-volume "*)
-    echo "Volume: front-left: 32768 /  50% / -18.06 dB"
+    case "${*:2}" in
+      *omarchy_speaker_tuning*)
+        echo "Volume: front-left: 65536 / 100% / 0.00 dB,   front-right: 65536 / 100% / 0.00 dB"
+        ;;
+      *speakers*)
+        echo "Volume: front-left: 19660 /  30% / -30.03 dB,   front-right: 19660 /  30% / -30.03 dB"
+        ;;
+      *)
+        echo "Volume: front-left: 32768 /  50% / -18.06 dB,   front-right: 32768 /  50% / -18.06 dB"
+        ;;
+    esac
     ;;
   "get-sink-mute "*)
-    cat "$PREVIOUS_MUTE"
+    # pactl answers in the caller's language; only the C locale says "yes".
+    if [[ ${LC_ALL:-} == "C" ]]; then
+      cat "$PREVIOUS_MUTE"
+    elif grep -q 'yes' "$PREVIOUS_MUTE"; then
+      echo "Stumm: ja"
+    else
+      echo "Stumm: nein"
+    fi
     ;;
   "set-default-sink "*)
     echo "${*:2}" >"$DEFAULT_SINK"
@@ -90,10 +101,18 @@ export CALLS="$work/calls" SOURCES="$work/sources" SINKS="$work/sinks" OUTPUTS="
 export SINKS_JSON="$work/sinks.json" SHORT_SINKS="$work/short-sinks"
 export DEFAULT_SINK="$work/default-sink" MODULES="$work/modules"
 export TUNING_FRONTED="$work/tuning-fronted" PREVIOUS_MUTE="$work/previous-mute"
+export SINK_INPUTS="$work/sink-inputs"
 export XDG_RUNTIME_DIR="$work/runtime"
 mkdir -p "$XDG_RUNTIME_DIR"
 : >"$TUNING_FRONTED"
 echo "Mute: no" >"$PREVIOUS_MUTE"
+cat >"$SINK_INPUTS" <<'OUT'
+Sink Input #42
+	Sink: 10
+	Properties:
+		application.name = "Firefox"
+		node.name = "Firefox"
+OUT
 export PATH="$work/bin:$ROOT/bin:$PATH"
 
 cat >"$SINKS_JSON" <<'OUT'
@@ -281,6 +300,13 @@ OUT
   echo "bluez_output.headset" >"$DEFAULT_SINK"
   : >"$TUNING_FRONTED"
   echo "Mute: no" >"$PREVIOUS_MUTE"
+  cat >"$SINK_INPUTS" <<'OUT'
+Sink Input #42
+	Sink: 10
+	Properties:
+		application.name = "Firefox"
+		node.name = "Firefox"
+OUT
   rm -f "$XDG_RUNTIME_DIR/omarchy-audio-output-combine.previous"
 }
 
@@ -320,6 +346,27 @@ omarchy-audio-output-combine on
 grep -q ' pactl set-sink-mute omarchy_combined_output 1$' "$CALLS" ||
   fail 'combine carries the mute of the output it replaces' "$(calls)"
 pass 'combine carries the mute of the output it replaces'
+
+# A tuning sink is not where loudness lives: its own level is what goes *into*
+# the processing, and the speakers behind it carry the level the user controls.
+# Sharing copies that speaker level, the same one the panel slider shows.
+reset_combine
+echo "omarchy_speaker_tuning" >"$DEFAULT_SINK"
+echo "alsa_output.speakers" >"$TUNING_FRONTED"
+printf '1\talsa_output.speakers\tPipeWire\ts32le 2ch 48000Hz\tRUNNING\n2\tomarchy_speaker_tuning\tPipeWire\tfloat32le 2ch 48000Hz\tRUNNING\n3\tbluez_output.headset\tPipeWire\ts16le 2ch 48000Hz\tRUNNING\n' >"$SHORT_SINKS"
+cat >"$SINK_INPUTS" <<'OUT'
+Sink Input #71
+	Sink: 1
+	Properties:
+		node.name = "omarchy_speaker_tuning_output"
+OUT
+: >"$CALLS"
+omarchy-audio-output-combine on
+grep -qx 'C pactl get-sink-volume alsa_output.speakers' "$CALLS" ||
+  fail 'combine reads the level of the speakers behind a tuning' "$(calls)"
+grep -q 'pactl set-sink-volume omarchy_combined_output 30%$' "$CALLS" ||
+  fail 'combine copies the speaker level, not the tuning level' "$(calls)"
+pass 'combine copies the level of the speakers behind a tuning'
 
 reset_combine
 omarchy-audio-output-combine toggle
