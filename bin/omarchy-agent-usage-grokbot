@@ -1,0 +1,173 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Grok Bot usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Grok Bot usage into one display-ready JSON record.
+
+Grok Bot runs on a Cursor account, but its weekly allowance is metered apart
+from Cursor's own plan: the dashboard's GetSandUsageStatus RPC (Sand is Grok
+Bot's internal name) says how much of this week's included usage is gone and
+when it resets. It is asked as the same account the Cursor collector reads,
+found the same way, so the two never describe different people. Grok Bot
+keeps nothing countable on disk, so the record carries the limit alone, and
+an account without a Grok Bot allowance gives an unused record, which the
+panel skips. The agents panel only ever reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+import urllib.request
+from datetime import datetime, timezone
+from typing import Any
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  account_key,
+  base_record,
+  cursor_token,
+  emit,
+  finite,
+  open_json,
+  token_lapsed,
+)
+
+AGENT_ID = "grokbot"
+AGENT_NAME = "Grok Bot"
+AUTH_HELP = "Sign in to the Cursor editor, or run `cursor-agent login`, with your Grok Bot account."
+USAGE_URL = "https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus"
+
+
+def parse_time(value: Any) -> datetime | None:
+  try:
+    parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+  except ValueError:
+    return None
+  return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+# ------------------------------------------------------------------ limit
+
+
+def fetch_status(token: str) -> dict[str, Any]:
+  request = urllib.request.Request(
+    USAGE_URL,
+    data=b"{}",
+    headers={
+      "Content-Type": "application/json",
+      "Connect-Protocol-Version": "1",
+      "Authorization": f"Bearer {token}",
+      "x-cursor-client-type": "cli",
+    },
+    method="POST",
+  )
+  status = open_json(request, timeout=15)
+  if not isinstance(status, dict):
+    raise ValueError("not an object")
+  return status
+
+
+# The answer is protobuf JSON, which leaves out a field holding zero or
+# false: no included limit means no Grok Bot allowance on this account, and
+# a week with nothing used yet has no percentage at all.
+def weekly_limits(status: dict[str, Any]) -> list[dict[str, Any]]:
+  if status.get("hasNonZeroIncludedLimit") is not True:
+    return []
+  resets = parse_time(status.get("nextResetTimestampUtc"))
+  return [{
+    "label": "Weekly",
+    "percent": max(0.0, min(1.0, finite(status.get("usagePercent")) / 100)),
+    "resetsAt": resets.isoformat() if resets else "",
+  }]
+
+
+def collect(force: bool = False) -> dict[str, Any]:
+  record = base_record(AGENT_ID, AGENT_NAME, hasPromptStats=False)
+  # Without a sign-in there is no telling whether this account has Grok Bot
+  # at all, so the machine reads as not using it; the Cursor collector is the
+  # one that asks for a sign-in.
+  token = cursor_token()
+  if not token:
+    return record
+
+  cache = LimitsCache(AGENT_ID, account_key(token))
+  # A kept week that has ended is a fresh allowance, so it comes back at zero
+  # with no reset time until a check says when the next one ends. One with no
+  # known end is kept as it is.
+  kept = cache.limits
+  fetched_at = cache.fetched_at
+  kept_tier = str(cache.data.get("tierLabel") or "")
+
+  # A panel opened and shut repeatedly must not turn into a request per
+  # flick, so an answer this recent is the answer, even one saying the
+  # account has no Grok Bot.
+  if cache.fresh(force, allow_empty=True):
+    record.update(ready=bool(kept), tierLabel=kept_tier, limits=kept, limitsFetchedAt=fetched_at)
+    return record
+
+  retry = False
+  if token_lapsed(token):
+    status = "Limits paused"
+    detail = "Cursor's access token has lapsed. Open the Cursor editor, or run `cursor-agent`, to renew it; signing in again is not needed."
+  else:
+    try:
+      answer = fetch_status(token)
+      limits = weekly_limits(answer)
+    except HttpError as error:
+      if error.status in (401, 403):
+        status, detail = "Sign-in expired", "Cursor refused the saved sign-in. " + AUTH_HELP
+      elif error.status:
+        status, detail = "", f"Cursor's dashboard returned status {error.status}."
+      # No route, no DNS, refused, reset or timed out: nothing answered, so
+      # the panel tries again soon.
+      elif error.transport:
+        status, detail, retry = "", "Couldn't reach Cursor's dashboard. Retrying shortly.", True
+      # A reply cut short or one that isn't the expected JSON came from a
+      # server that answered.
+      else:
+        status, detail = "", "Cursor's dashboard sent a reply that couldn't be read."
+    except (ValueError, TypeError, AttributeError):
+      status, detail = "", "Cursor's dashboard sent a reply that couldn't be read."
+    else:
+      tier = str(answer.get("grokPlanLabel") or "")
+      # The cache only backs later runs; failing to keep it never costs this
+      # run's live answer.
+      record.update(ready=bool(limits), tierLabel=tier, limits=limits, limitsFetchedAt=cache.save(limits, tierLabel=tier))
+      return record
+
+  # A failed check keeps the last good limit, marked stale so the panel
+  # gives its age on hover. With nothing kept the record stays unused, so a
+  # Cursor account that never had Grok Bot doesn't appear on a blip.
+  record.update(
+    ready=bool(kept),
+    tierLabel=kept_tier if kept else "",
+    usageStatusText=status or ("" if kept else "Grok Bot limits unavailable"),
+    authHelpText=detail + (" Showing the last known limit." if kept else ""),
+    limits=kept,
+    limitsStale=True,
+    limitsFetchedAt=fetched_at if kept else 0,
+  )
+  if retry:
+    record["retryAdvised"] = True
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the Grok Bot usage record as JSON")
+  parser.add_argument("--force", action="store_true")
+  # Grok Bot has no local scan to reuse, so a near-limit refresh is a normal
+  # run; the flag keeps the invocation every collector takes.
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+  emit(collect(force=args.force))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
