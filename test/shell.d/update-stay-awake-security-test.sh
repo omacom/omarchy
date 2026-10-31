@@ -452,10 +452,10 @@ elif sys.argv[2] == 'idle-temporary':
     anchor = '  temporary=$(mktemp "$state_dir/.${state_file##*/}.XXXXXXXX") || return 1'
     edits = [(anchor, anchor + '\n  if [[ $state_file == "$idle_owner_file" ]]; then ' + pause + '; fi')]
 elif sys.argv[2] == 'idle':
-    anchor = '''printf '%s\\n' "$idle_owner" >"$stay_awake_state"'''
+    anchor = '  write_idle_state "$idle_owner"'
     edits = [(anchor, '{ ' + anchor + ' && { ' + pause + '; }; }')]
 else:
-    anchor = '  if [[ ! -f $stay_awake_state ]]; then'
+    anchor = '  claim_idle_state "$idle_owner" || return 1'
     edits = [(anchor, '  ' + pause + '\n' + anchor)]
 for old, new in edits:
     assert s.count(old) == 1, old
