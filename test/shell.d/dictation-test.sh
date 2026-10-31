@@ -145,10 +145,10 @@ if DICTATION_EXIT=7 omarchy-install-dictation-superwhisper > "$test_tmp/output" 
 [[ $(cat "$config") == "voxtype" ]] || fail "failed shortcuts must preserve selection"
 omarchy-install-dictation-superwhisper
 [[ $(omarchy-default-dictation) == "superwhisper" ]] || fail "installer selects Superwhisper"
-jq -e '.shortcuts | .hold == "" and .toggle == "Alt+Space"' "$SHORTCUT_STATE" >/dev/null || fail "installer repairs conflicting hold-only profiles"
+jq -e '.shortcuts | .hold == "" and .toggle == "Ctrl+Alt+Space"' "$SHORTCUT_STATE" >/dev/null || fail "installer repairs conflicting hold-only profiles"
 printf '%s\n' '{"shortcuts":{"hold":"RightAlt","toggle":"RightSuper","cancel":"Escape"}}' > "$SHORTCUT_STATE"
 omarchy-install-dictation-superwhisper
-jq -e '.shortcuts | .hold == "" and .toggle == "Alt+Space"' "$SHORTCUT_STATE" >/dev/null || fail "installer repairs conflicting profiles with an existing toggle"
+jq -e '.shortcuts | .hold == "" and .toggle == "Ctrl+Alt+Space"' "$SHORTCUT_STATE" >/dev/null || fail "installer repairs conflicting profiles with an existing toggle"
 omarchy-install-dictation-superwhisper
 pass "Superwhisper installer owns setup and saves selection only after success"
 
@@ -212,41 +212,60 @@ pass "selection updates are atomic for concurrent readers"
 
 lua <<'LUA'
 local root = os.getenv("ROOT")
-local selected, installed, bindings = nil, true, {}
+local selected, installed, bindings, commands, timers = nil, true, {}, {}, {}
 io.popen = function(command)
   assert(command == "omarchy-default-dictation 2>/dev/null")
   return { read = function() return selected end, close = function() end }
 end
+hl = {
+  exec_cmd = function(command) table.insert(commands, command) end,
+  timer = function(callback) table.insert(timers, callback) end,
+}
 o = {
   cmd_missing = function(command)
     assert(command == selected)
     return not installed
   end,
-  bind = function(...) table.insert(bindings, {...}) end,
-  bind_hold = function(keys, _, press, _, release, options)
-    table.insert(bindings, { keys, press, options })
-    table.insert(bindings, { keys, release, options })
+  bind = function(keys) table.insert(bindings, { keys }) end,
+  bind_hold = function(keys, _, press, _, release)
+    bindings[keys] = { press = press, release = release }
+    table.insert(bindings, { keys })
   end,
 }
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "unconfigured dictation leaves application keys available")
 selected = "some-backend"
 dofile(root .. "/default/hypr/bindings/dictation.lua")
-assert(#bindings == 5, "any installed backend receives the same bindings")
-local function binds(keys, command)
-  for _, binding in ipairs(bindings) do
-    if binding[1] == keys and binding[2] == command then return true end
+assert(#bindings == 2 and bindings["ALT + SPACE"] and bindings["ALT + Alt_R"], "any installed backend gets Alt + Space and Right Alt, and nothing else")
+
+local function run(action)
+  if type(action) == "function" then action() else hl.exec_cmd(action) end
+end
+local function expect(steps, expected, description)
+  commands = {}
+  for _, step in ipairs(steps) do
+    if step == "timer" then
+      for _, callback in ipairs(timers) do callback() end
+      timers = {}
+    else
+      run(bindings[step[1]][step[2]])
+    end
   end
+  assert(table.concat(commands, ",") == expected, description .. ": " .. table.concat(commands, ","))
 end
-for _, keys in ipairs({ "F9", "ALT + Alt_R" }) do
-  assert(binds(keys, "omarchy-dictation start") and binds(keys, "omarchy-dictation stop"),
-    keys .. " starts dictation on press and stops it on release")
-end
+local space, right = "ALT + SPACE", "ALT + Alt_R"
+expect({ { space, "press" }, "timer", { space, "release" } }, "omarchy-dictation start,omarchy-dictation stop", "holding Alt + Space records until release")
+expect({ { space, "press" }, { space, "release" } }, "omarchy-dictation start", "tapping Alt + Space keeps recording")
+expect({ { space, "press" }, { space, "release" } }, "omarchy-dictation stop", "the next Alt + Space press finishes a tapped recording")
+expect({ { right, "press" }, { right, "release" } }, "omarchy-dictation start,omarchy-dictation stop", "Right Alt records while held")
+expect({ { right, "press" }, { space, "press" }, { space, "release" }, { right, "release" }, { space, "press" } },
+  "omarchy-dictation start,omarchy-dictation start,omarchy-dictation stop,omarchy-dictation start",
+  "releasing Right Alt ends a recording Alt + Space joined, so the next press starts afresh")
 bindings, installed = {}, false
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "a selected backend that is not installed leaves application keys available")
 LUA
-pass "dictation shortcuts require an installed selection without limiting backend names"
+pass "Alt + Space records while held or until pressed again after a tap, and Right Alt records while held"
 
 # Fresh users receive the backend choice through the settings package's skel.
 cp "$ROOT/config/omarchy/defaults/dictation" "$config"
