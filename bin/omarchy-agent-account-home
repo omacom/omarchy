@@ -13,6 +13,13 @@ registry="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/accounts/${1:-}.j
 if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
   echo "Usage: omarchy-agent-account-home <claude|codex|grok>" >&2
   exit 1
+fi
+
+# A running session pins its home, including an empty value for Main. Claude's
+# implicit default also selects ~/.claude.json, so Main must stay implicit.
+account_pin="OMARCHY_AGENT_${1^^}_HOME"
+if [[ -v $account_pin ]]; then
+  printf '%s' "${!account_pin}"
 elif [[ -f $registry ]]; then
   exec omarchy-agent-account-state home "$1"
 fi

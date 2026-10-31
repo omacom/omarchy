@@ -98,6 +98,17 @@ mapfile -t leftovers < <(
 # the moved files inactive for nothing.
 ((${#leftovers[@]} == $(grep -c ' exists in filesystem' "$errors"))) || exit 1
 
+# A platform whose boot package owns the boot chain may also have files no
+# package owns that it can't do without (written by its image or installer).
+# Its boot package vouches for the takeover or refuses it, and the files stay.
+# Where the platform registers none, nothing resolves and nothing asks for root.
+takeover=$(omarchy-lifecycle-dispatch --resolve update-takeover) || exit 1
+if [[ -n $takeover ]] && ! sudo omarchy-lifecycle-dispatch update-takeover "${leftovers[@]}"; then
+  echo -e "\e[33m\nThis platform keeps these files, so the upgrade can't take them over:\e[0m" >&2
+  printf '  %s\n' "${leftovers[@]}" >&2
+  exit 1
+fi
+
 echo -e "\e[33m\nTaking over files pacman doesn't own yet:\e[0m"
 for path in "${leftovers[@]}"; do
   sudo mkdir -p "$replaced${path%/*}"

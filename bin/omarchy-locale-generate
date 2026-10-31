@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Generate the system locale for an Omarchy language
+# omarchy:args=<code>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Runs as root through the passwordless rule in etc/sudoers.d/omarchy-locale-generate,
+# which names each registry code as the whole argument. Under sudo's
+# secure_path a dev link prepends a user-writable checkout bin/ to PATH, and
+# every helper this calls by bare name (grep, sed, locale-gen) is a system
+# tool, so pin PATH to trusted system directories while holding root.
+if (( EUID == 0 )); then
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+fi
+
+# Root reads only the packaged registry and the real locale.gen; the
+# overrides are for unprivileged tests (same convention as omarchy-language).
+registry=/usr/share/omarchy/default/i18n/locales.json
+locale_gen=/etc/locale.gen
+if (( EUID != 0 )); then
+  registry=${OMARCHY_LOCALE_REGISTRY:-$registry}
+  locale_gen=${OMARCHY_LOCALE_GEN:-$locale_gen}
+fi
+
+code=${1:-}
+if (( $# != 1 )) || [[ ! $code =~ ^[a-z]{2,3}(-[A-Za-z]{2})?$ ]]; then
+  echo "Usage: omarchy-locale-generate <code>" >&2
+  exit 1
+fi
+
+# The code only selects a locale from the registry; nothing the caller passes
+# reaches locale.gen or locale-gen itself.
+locale=$(jq -r --arg code "$code" '.[$code].locale // empty' "$registry")
+if [[ ! $locale =~ ^[a-z]{2,3}_[A-Z]{2}\.UTF-8$ ]]; then
+  echo "Unknown language code: $code" >&2
+  exit 1
+fi
+
+# locale.gen spells some entries without the codeset (hi_IN UTF-8).
+base=${locale%.UTF-8}
+if grep -qE "^#$base(\.UTF-8)? UTF-8" "$locale_gen" 2>/dev/null; then
+  sed -i -E "s/^#($base(\.UTF-8)? UTF-8)/\1/" "$locale_gen"
+elif ! grep -qE "^$base(\.UTF-8)? UTF-8" "$locale_gen" 2>/dev/null; then
+  echo "$locale UTF-8" >>"$locale_gen"
+fi
+locale-gen "$locale" >/dev/null
