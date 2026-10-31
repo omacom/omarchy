@@ -62,6 +62,7 @@ brightness_display="$test_tmp/copy/omarchy-brightness-display"
 platform_root_copy "$ROOT/bin/omarchy-brightness-display" "$brightness_display" "$platform_root"
 sed -i "s|/sys/class/drm|$test_tmp/drm|g" "$brightness_display"
 grep -qF "$test_tmp/drm/card" "$brightness_display" || fail "omarchy-brightness-display reads DRM connectors from the fixture"
+sed -i "s|/sys/class/backlight|$test_tmp/backlight|g" "$brightness_display"
 
 run_brightness() {
   CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" \
@@ -194,3 +195,27 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+# The gmux backlight ignores DPMS, so a blank holds it at zero and the wake
+# sends the saved level back, even when the gmux reset its level before a
+# second blank and when a key press has already lit the panel.
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+[[ $1 == "monitors" ]] && printf '%s\n' '[{"name":"eDP-1","disabled":false,"dpmsStatus":true}]'
+exit 0
+SH
+mkdir -p "$test_tmp/backlight/gmux_backlight"
+printf '14478\n' >"$test_tmp/backlight/gmux_backlight/brightness"
+: >"$call_log"
+run_brightness off
+[[ $(<"$runtime_dir/omarchy-brightness-display-gmux") == "14478" ]] || fail "a blank saves the gmux level"
+grep -qxF 'brightnessctl -d gmux_backlight set 0' "$call_log" || fail "a blank turns the gmux backlight off"
+printf '8000\n' >"$test_tmp/backlight/gmux_backlight/brightness"
+run_brightness off
+[[ $(<"$runtime_dir/omarchy-brightness-display-gmux") == "14478" ]] || fail "a second blank keeps the saved gmux level"
+run_brightness on
+grep -qxF 'brightnessctl -d gmux_backlight set 14478' "$call_log" || fail "the wake restores the gmux level"
+grep -qF 'action = "enable"' "$call_log" && fail "the wake of a lit panel skips the DPMS enable"
+[[ ! -e $runtime_dir/omarchy-brightness-display-gmux ]] || fail "the wake clears the saved gmux level"
+pass "a blank holds the gmux backlight at zero and the wake restores it"
