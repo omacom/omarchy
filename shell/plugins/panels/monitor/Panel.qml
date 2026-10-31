@@ -32,51 +32,48 @@ Panel {
   property string monitorScale: ""
   property string displaysJson: ""
   property var displays: []
-  property int enabledDisplayCount: 0
 
-  // The display whose tab is open. Each open starts on the focused one.
+  // The display the panel is showing. Each open starts on the focused one.
   property string selectedName: ""
 
   // Carry sub-notch touchpad deltas between wheel events.
   property real wheelAccumulator: 0
 
   // Cursor model shared by keyboard and mouse. Sections, top to bottom:
-  //   "textsize"   - single slider row, selectedIndex = -1 sentinel
-  //                  (mirrors Audio's slider rows).
-  //   "tabs"       - one tab per display; h/l opens the next one. Only
-  //                  present with more than one display.
-  // The open display's rows:
-  //   "power"      - its on/off switch; only present with more than one display.
-  //   "brightness" - its brightness slider, the same -1 sentinel; only present
-  //                  when its brightness can be controlled.
-  //   "scale"      - its scale presets, while it's on.
-  //   "resolution" - the resolutions it advertises, while it's on and has more
-  //                  than one to offer.
-  //   "layout"     - the arrangement of the displays that are on; h/l moves the
-  //                  open one to the left or right of the rest.
+  //   "displays"   - the display picker in the hero; h/l shows the next one.
+  //                  Only present with more than one display.
+  // The shown display's rows:
+  //   "brightness" - its brightness slider, selectedIndex = -1 sentinel
+  //                  (mirrors Audio's slider rows); only present when its
+  //                  brightness can be controlled.
+  //   "scale"      - its scale presets.
+  //   "resolution" - the resolutions it advertises, when it has more than one
+  //                  to offer.
+  // Then the settings every display shares:
+  //   "textsize"   - single slider row, the same -1 sentinel.
+  //   "layout"     - the arrangement of the displays; h/l moves the shown one
+  //                  to the left or right of the rest.
   // Every section is one row: j/k steps between them, h/l moves a slider or
   // walks a row of pills, identical to bluetooth's header.
   // Mouse hover on a target updates root state via the components' `hovered`
   // signal so keyboard cursor and pointer share one highlight.
   readonly property var scalePresets: ["1", "1.25", "1.6", "2", "3", "4"]
-  // One entry per display, in Hyprland's order: the scales its mode can reach
-  // and the resolutions it offers, both empty while it's off. Brightness stays
-  // out of it, in brightnessLevels, so a slider moving doesn't rebuild the tabs.
+  // One entry per display that's on, in Hyprland's order, with the scales its
+  // mode can reach and the resolutions it offers. Brightness stays out of it,
+  // in brightnessLevels, so a slider moving doesn't rebuild the picker.
   readonly property var segments: {
     var list = []
     for (var i = 0; i < displays.length; i++) {
       var display = displays[i]
-      if (!display || !display.name) continue
-      var on = !!display.enabled && display.width > 0
+      if (!display || !display.name || !display.enabled || !(display.width > 0)) continue
       // Matched here, on the plain arrays: once they're handed through a QML
       // property they're no longer ones Array.isArray accepts.
-      var scales = on ? Model.availableScales(scalePresets, display.width, display.height) : []
-      var resolutions = on ? Model.resolutionOptions(display.availableModes, display.width, display.height) : []
+      var scales = Model.availableScales(scalePresets, display.width, display.height)
+      var resolutions = Model.resolutionOptions(display.availableModes, display.width, display.height)
       list.push({
         name: display.name,
         title: Model.displayTitle(display, Commons.I18n.t("monitor.builtInDisplay")),
         builtIn: /^(eDP|LVDS|DSI)-/.test(display.name),
-        enabled: !!display.enabled,
         focused: !!display.focused,
         width: display.width,
         height: display.height,
@@ -86,16 +83,10 @@ Panel {
         resolutions: resolutions.length > 1 ? resolutions : []
       })
     }
-    // Two of the same monitor share a title, so their tabs add the connector.
-    for (var j = 0; j < list.length; j++) {
-      var twins = list.filter(function(entry) { return entry.title === list[j].title })
-      if (twins.length > 1) list[j].tabTitle = list[j].title + " " + list[j].name
-      else list[j].tabTitle = list[j].title
-    }
     return list
   }
 
-  // The open tab's display: the one chosen, else the focused one, else the first.
+  // The shown display: the one picked, else the focused one, else the first.
   readonly property var current: {
     var fallback = null
     for (var i = 0; i < segments.length; i++) {
@@ -117,6 +108,10 @@ Panel {
       list.push(Model.logicalRect(display))
     }
     return list
+  }
+
+  function displayGlyph(entry) {
+    return entry && entry.builtIn ? "󰌢" : "󰍹"
   }
 
   // A lone slider, held at the -1 sentinel.
@@ -164,33 +159,34 @@ Panel {
   }
 
   readonly property var visibleSections: {
-    var list = ["textsize"]
-    if (segments.length > 1) list.push("tabs", "power")
-    if (current && current.enabled) {
+    var list = []
+    if (segments.length > 1) list.push("displays")
+    if (current) {
       if (currentBrightness >= 0) list.push("brightness")
       if (current.scales.length > 0) list.push("scale")
       if (current.resolutions.length > 0) list.push("resolution")
     }
+    list.push("textsize")
     if (layoutRects.length > 1) list.push("layout")
     return list
   }
 
   function sectionCount(section) {
-    if (section === "tabs") return segments.length
+    if (section === "displays") return segments.length
     if (section === "scale") return current ? current.scales.length : 0
     if (section === "resolution") return current ? current.resolutions.length : 0
-    if (section === "power" || section === "layout") return 1
+    if (section === "layout") return 1
     return 0  // sliders: only the sentinel at -1
   }
 
   function sectionFirstIndex(section) {
     if (isSliderSection(section)) return -1
-    if (section === "tabs") return Math.max(0, currentIndex)
+    if (section === "displays") return Math.max(0, currentIndex)
     return 0
   }
 
-  // Where the keyboard lands on open: the focused display's brightness, else
-  // its scale, else the first row there is.
+  // Where the keyboard lands on open: the shown display's brightness, else its
+  // scale, else the first row there is.
   function landingSection() {
     var sections = visibleSections
     var preferred = ["brightness", "scale"]
@@ -209,17 +205,17 @@ Panel {
     selectedIndex = sectionFirstIndex(focusSection)
   }
 
-  // h/l: a slider moves, the tabs open the next display, a row of pills walks
-  // its pills, and the layout moves the open display to that side.
+  // h/l: a slider moves, the picker shows the next display, a row of pills
+  // walks its pills, and the layout moves the shown display to that side.
   function moveCursorH(delta) {
     if (focusSection === "brightness") {
       if (current) adjustBrightness(current.name, delta * 5)
     } else if (focusSection === "textsize") {
       adjustTextSize(delta)
-    } else if (focusSection === "tabs") {
-      var tab = Math.max(0, Math.min(segments.length - 1, currentIndex + delta))
-      selectDisplay(segments[tab].name)
-      selectedIndex = tab
+    } else if (focusSection === "displays") {
+      var next = Math.max(0, Math.min(segments.length - 1, currentIndex + delta))
+      selectDisplay(segments[next].name)
+      selectedIndex = next
     } else if (focusSection === "scale" || focusSection === "resolution") {
       selectedIndex = Math.max(0, Math.min(sectionCount(focusSection) - 1, selectedIndex + delta))
     } else if (focusSection === "layout" && current) {
@@ -229,12 +225,11 @@ Panel {
 
   function activateCursor() {
     if (!current) return
-    if (focusSection === "power") toggleDisplay(current.name, current.enabled)
-    else if (focusSection === "scale" && selectedIndex >= 0 && selectedIndex < current.scales.length)
+    if (focusSection === "scale" && selectedIndex >= 0 && selectedIndex < current.scales.length)
       setScale(current.name, current.scales[selectedIndex])
     else if (focusSection === "resolution" && selectedIndex >= 0 && selectedIndex < current.resolutions.length)
       setResolution(current.name, current.resolutions[selectedIndex])
-    // brightness, text size, tabs and layout: moving is the action.
+    // The picker, sliders and layout: moving is the action.
   }
 
   function clampCursor() {
@@ -364,7 +359,7 @@ Panel {
     return Model.brightnessName(percent, Commons.I18n.t)
   }
 
-  // Only take the list when it changed: a new one rebuilds the tabs and the
+  // Only take the list when it changed: a new one rebuilds the picker and the
   // layout, which would drop a hover or a drag in progress on each poll.
   function updateDisplays(displaysJson) {
     if (displaysJson === root.displaysJson) return
@@ -378,23 +373,6 @@ Panel {
     }
     root.brightnessLevels = levels
     root.displays = parsed.displays
-    root.enabledDisplayCount = parsed.enabledDisplayCount
-  }
-
-  function toggleDisplay(name, enabled) {
-    if (!name) return
-    if (enabled && root.enabledDisplayCount <= 1) return
-
-    // hyprctl keyword is rejected under the Lua config ("non-legacy parsers"),
-    // so drive the monitor through the hl.monitor eval API instead.
-    var output = '"' + name.replace(/[\\"]/g, "\\$&") + '"'
-    // hl.monitor updates the existing rule. Keep its mode, position and scale
-    // when bringing the display back.
-    var expr = enabled
-      ? 'hl.monitor({ output = ' + output + ', disabled = true })'
-      : 'hl.monitor({ output = ' + output + ', disabled = false })'
-    actionProc.command = ["hyprctl", "eval", expr]
-    if (!actionProc.running) actionProc.running = true
   }
 
   function setScale(name, scale) {
@@ -419,7 +397,7 @@ Panel {
 
   // ---- Text size (shell base font + GTK text-scaling, via one CLI) ----
   // One size for the whole session: the shell font, GTK and the terminals each
-  // take a single value, so unlike the tabs below it isn't per display.
+  // take a single value, so unlike the rows above it isn't per display.
   function nearestTextStop(px) {
     var best = 0
     var bestDist = 1e9
@@ -626,15 +604,15 @@ Panel {
           width: scrollArea.availableWidth
           spacing: Style.space(14)
 
-          // ---------- Hero: display icon · title/status ----------
+          // ---------- Hero: the shown display, and the picker ----------
           Item {
             width: parent.width
-            implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight)
+            implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, picker.implicitHeight)
 
             Text {
               id: heroIcon
               textFormat: Text.PlainText
-              text: root.displays.length > 1 ? "󰍺" : "󰍹"
+              text: root.displayGlyph(root.current)
               color: root.bar.foreground
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.display
@@ -646,12 +624,13 @@ Panel {
               id: heroLabels
               anchors.left: heroIcon.right
               anchors.leftMargin: Style.space(14)
-              anchors.right: parent.right
+              anchors.right: picker.visible ? picker.left : parent.right
+              anchors.rightMargin: Style.space(8)
               anchors.verticalCenter: parent.verticalCenter
               spacing: Style.space(2)
 
               Text {
-                text: Commons.I18n.t("monitor.display")
+                text: root.current ? root.current.title : Commons.I18n.t("monitor.display")
                 textFormat: Text.PlainText
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
@@ -661,7 +640,7 @@ Panel {
                 width: parent.width
               }
 
-              // The open display's mood.
+              // The shown display's mood.
               Text {
                 id: heroLabel
                 textFormat: Text.PlainText
@@ -675,6 +654,208 @@ Panel {
                 font.letterSpacing: 1.2
                 elide: Text.ElideRight
                 width: parent.width
+              }
+            }
+
+            // One button per display, named in its tooltip; the shown one is lit.
+            Row {
+              id: picker
+              visible: root.segments.length > 1
+              spacing: Style.spacing.xs
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+
+              Repeater {
+                model: root.segments
+
+                Button {
+                  id: pick
+                  required property var modelData
+                  required property int index
+
+                  iconText: root.displayGlyph(modelData)
+                  tooltipText: modelData.title + " · " + modelData.name
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  horizontalPadding: Style.spacing.sm
+                  verticalPadding: Style.spacing.controlPaddingY
+                  bordered: true
+
+                  active: root.currentIndex === index
+                  hasCursor: root.cursorActive && root.focusSection === "displays" && root.selectedIndex === index
+                  onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(pick)
+
+                  onClicked: root.selectDisplay(modelData.name)
+                  onHovered: function(isHovered) { if (isHovered) root.pointAt("displays", pick.index) }
+                }
+              }
+            }
+          }
+
+          // ---------- Brightness ----------
+          PanelSeparator {
+            visible: root.currentBrightness >= 0
+            foreground: root.bar.foreground
+          }
+
+          Column {
+            visible: root.currentBrightness >= 0
+            width: parent.width
+            spacing: Style.space(6)
+
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(brightnessHeader.implicitHeight, brightnessPercent.implicitHeight)
+
+              PanelSectionHeader {
+                id: brightnessHeader
+                text: Commons.I18n.t("monitor.brightness")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                id: brightnessPercent
+                textFormat: Text.PlainText
+                text: Commons.I18n.formatNumber(Math.round(brightnessSlider.dragging ? brightnessSlider.liveValue : root.currentBrightness)) + "%"
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(6)
+                anchors.verticalCenter: parent.verticalCenter
+              }
+            }
+
+            CursorSurface {
+              id: brightnessRow
+              width: parent.width
+              height: brightnessSlider.implicitHeight + Style.spacing.controlGap
+              hasCursor: root.cursorActive && root.focusSection === "brightness" && root.selectedIndex === -1
+              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(brightnessRow)
+              foreground: root.bar.foreground
+              outline: true
+
+              PanelSlider {
+                id: brightnessSlider
+                bar: root.bar
+                anchors.fill: parent
+                anchors.leftMargin: Style.space(6)
+                anchors.rightMargin: Style.space(6)
+                minimum: 1
+                maximum: 100
+                step: 1
+                value: Math.max(1, root.currentBrightness)
+                integer: true
+                onMoved: function(v) { if (root.current) root.previewBrightness(root.current.name, v) }
+                onReleased: function(v) {
+                  brightnessDebounce.stop()
+                  if (root.current) root.setDisplayBrightness(root.current.name, v)
+                }
+              }
+
+              HoverHandler {
+                onHoveredChanged: if (hovered) root.pointAt("brightness", -1)
+              }
+            }
+          }
+
+          // ---------- Scale ----------
+          PanelSeparator {
+            visible: root.current !== null && root.current.scales.length > 0
+            foreground: root.bar.foreground
+          }
+
+          Column {
+            visible: root.current !== null && root.current.scales.length > 0
+            width: parent.width
+            spacing: Style.space(10)
+
+            PanelSectionHeader {
+              text: Commons.I18n.t("monitor.scale")
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+            }
+
+            Grid {
+              id: scaleGrid
+              width: parent.width
+              columns: Math.max(1, root.current ? root.current.scales.length : 1)
+              spacing: Style.spacing.xs
+
+              readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
+
+              Repeater {
+                model: root.current ? root.current.scales : []
+
+                ScalePill {
+                  required property string modelData
+                  required property int index
+
+                  scaleValue: modelData
+                  scaleIndex: index
+                  width: scaleGrid.cellWidth
+                }
+              }
+            }
+          }
+
+          // ---------- Resolution ----------
+          // The pills only carry short names, so the exact mode sits by the header.
+          Column {
+            visible: root.current !== null && root.current.resolutions.length > 0
+            width: parent.width
+            spacing: Style.space(10)
+
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(resolutionHeader.implicitHeight, resolutionCurrent.implicitHeight)
+
+              PanelSectionHeader {
+                id: resolutionHeader
+                text: Commons.I18n.t("monitor.resolution")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                id: resolutionCurrent
+                textFormat: Text.PlainText
+                text: root.current ? root.current.current.replace("x", "×") : ""
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(6)
+                anchors.verticalCenter: parent.verticalCenter
+              }
+            }
+
+            Grid {
+              id: resolutionGrid
+              width: parent.width
+              columns: Math.max(1, root.current ? root.current.resolutions.length : 1)
+              spacing: Style.spacing.xs
+
+              readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
+
+              Repeater {
+                model: root.current ? root.current.resolutions : []
+
+                ResolutionPill {
+                  required property string modelData
+                  required property int index
+
+                  resolution: modelData
+                  resolutionIndex: index
+                  width: resolutionGrid.cellWidth
+                }
               }
             }
           }
@@ -743,257 +924,6 @@ Panel {
 
               HoverHandler {
                 onHoveredChanged: if (hovered) root.pointAt("textsize", -1)
-              }
-            }
-          }
-
-          PanelSeparator {
-            foreground: root.bar.foreground
-          }
-
-          // ---------- Tabs: one per display ----------
-          Grid {
-            id: tabRow
-            visible: root.segments.length > 1
-            width: parent.width
-            columns: Math.max(1, root.segments.length)
-            spacing: Style.spacing.xs
-
-            readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
-
-            Repeater {
-              model: root.segments
-
-              Button {
-                id: tab
-                required property var modelData
-                required property int index
-
-                width: tabRow.cellWidth
-                text: modelData.tabTitle
-                iconText: modelData.builtIn ? "󰌢" : "󰍹"
-                fontSize: Style.font.caption
-                foreground: root.bar.foreground
-                fontFamily: root.bar.fontFamily
-                horizontalPadding: Style.spacing.sm
-                verticalPadding: Style.spacing.controlPaddingY
-                bordered: true
-                opacity: modelData.enabled ? 1.0 : 0.6
-
-                active: root.currentIndex === index
-                hasCursor: root.cursorActive && root.focusSection === "tabs" && root.selectedIndex === index
-                onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(tab)
-
-                onClicked: root.selectDisplay(modelData.name)
-                onHovered: function(isHovered) { if (isHovered) root.pointAt("tabs", tab.index) }
-              }
-            }
-          }
-
-          // ---------- The open display ----------
-          // What it is and how it runs, with its on/off switch.
-          Item {
-            visible: root.current !== null
-            width: parent.width
-            implicitHeight: Math.max(currentLabels.implicitHeight, powerSwitch.visible ? powerSwitch.implicitHeight : 0)
-
-            Column {
-              id: currentLabels
-              anchors.left: parent.left
-              anchors.leftMargin: Style.space(6)
-              anchors.right: powerSwitch.visible ? powerSwitch.left : parent.right
-              anchors.rightMargin: Style.space(8)
-              anchors.verticalCenter: parent.verticalCenter
-              spacing: Style.space(2)
-
-              // With one display there's no tab to name it, so it names itself.
-              Text {
-                visible: root.segments.length === 1
-                width: parent.width
-                textFormat: Text.PlainText
-                text: root.current ? root.current.title : ""
-                color: root.bar.foreground
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.body
-                font.bold: true
-                elide: Text.ElideRight
-              }
-
-              Text {
-                width: parent.width
-                textFormat: Text.PlainText
-                text: {
-                  var display = root.current
-                  if (!display) return ""
-                  var detail = display.enabled && display.width > 0
-                    ? display.name + " · " + display.current.replace("x", "×")
-                    : display.name
-                  // Focus only says something when there's another display it could be on.
-                  return display.focused && root.enabledDisplayCount > 1
-                    ? Commons.I18n.t("monitor.displayFocused").arg(detail)
-                    : detail
-                }
-                color: Qt.darker(root.bar.foreground, 1.4)
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-                elide: Text.ElideRight
-              }
-            }
-
-            // Turning the last display off would leave nothing to turn it back
-            // on from, so its switch stays on and dimmed. Sized to the text
-            // beside it, like the network panel's band switch.
-            ToggleSwitch {
-              id: powerSwitch
-              readonly property bool canToggle: root.current !== null && (!root.current.enabled || root.enabledDisplayCount > 1)
-              visible: root.segments.length > 1
-              trackHeight: Math.round(Style.font.body * 1.2)
-              checked: root.current !== null && root.current.enabled
-              opacity: canToggle ? 1.0 : 0.45
-              hasCursor: root.cursorActive && root.focusSection === "power"
-              foreground: root.bar.foreground
-              anchors.right: parent.right
-              anchors.verticalCenter: parent.verticalCenter
-              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(powerSwitch)
-              onHovered: function(on) { if (on) root.pointAt("power", 0) }
-              onToggled: if (root.current) root.toggleDisplay(root.current.name, root.current.enabled)
-            }
-          }
-
-          // ---------- Brightness ----------
-          Column {
-            visible: root.current !== null && root.current.enabled && root.currentBrightness >= 0
-            width: parent.width
-            spacing: Style.space(6)
-
-            Item {
-              width: parent.width
-              implicitHeight: Math.max(brightnessHeader.implicitHeight, brightnessPercent.implicitHeight)
-
-              PanelSectionHeader {
-                id: brightnessHeader
-                text: Commons.I18n.t("monitor.brightness")
-                foreground: root.bar.foreground
-                fontFamily: root.bar.fontFamily
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-              }
-
-              Text {
-                id: brightnessPercent
-                textFormat: Text.PlainText
-                text: Commons.I18n.formatNumber(Math.round(brightnessSlider.dragging ? brightnessSlider.liveValue : root.currentBrightness)) + "%"
-                color: Qt.darker(root.bar.foreground, 1.4)
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-                anchors.right: parent.right
-                anchors.rightMargin: Style.space(6)
-                anchors.verticalCenter: parent.verticalCenter
-              }
-            }
-
-            CursorSurface {
-              id: brightnessRow
-              width: parent.width
-              height: brightnessSlider.implicitHeight + Style.spacing.controlGap
-              hasCursor: root.cursorActive && root.focusSection === "brightness" && root.selectedIndex === -1
-              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(brightnessRow)
-              foreground: root.bar.foreground
-              outline: true
-
-              PanelSlider {
-                id: brightnessSlider
-                bar: root.bar
-                anchors.fill: parent
-                anchors.leftMargin: Style.space(6)
-                anchors.rightMargin: Style.space(6)
-                minimum: 1
-                maximum: 100
-                step: 1
-                value: Math.max(1, root.currentBrightness)
-                integer: true
-                onMoved: function(v) { if (root.current) root.previewBrightness(root.current.name, v) }
-                onReleased: function(v) {
-                  brightnessDebounce.stop()
-                  if (root.current) root.setDisplayBrightness(root.current.name, v)
-                }
-              }
-
-              HoverHandler {
-                onHoveredChanged: if (hovered) root.pointAt("brightness", -1)
-              }
-            }
-          }
-
-          // ---------- Scale ----------
-          Column {
-            visible: root.current !== null && root.current.scales.length > 0
-            width: parent.width
-            spacing: Style.space(10)
-
-            PanelSectionHeader {
-              text: Commons.I18n.t("monitor.scale")
-              foreground: root.bar.foreground
-              fontFamily: root.bar.fontFamily
-            }
-
-            Grid {
-              id: scaleGrid
-              width: parent.width
-              columns: Math.max(1, root.current ? root.current.scales.length : 1)
-              spacing: Style.spacing.xs
-
-              readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
-
-              Repeater {
-                model: root.current ? root.current.scales : []
-
-                ScalePill {
-                  required property string modelData
-                  required property int index
-
-                  scaleValue: modelData
-                  scaleIndex: index
-                  width: scaleGrid.cellWidth
-                }
-              }
-            }
-          }
-
-          // ---------- Resolution ----------
-          // The pills only carry short names; the exact mode is in the line above.
-          Column {
-            visible: root.current !== null && root.current.resolutions.length > 0
-            width: parent.width
-            spacing: Style.space(10)
-
-            PanelSectionHeader {
-              text: Commons.I18n.t("monitor.resolution")
-              foreground: root.bar.foreground
-              fontFamily: root.bar.fontFamily
-            }
-
-            Grid {
-              id: resolutionGrid
-              width: parent.width
-              columns: Math.max(1, root.current ? root.current.resolutions.length : 1)
-              spacing: Style.spacing.xs
-
-              readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
-
-              Repeater {
-                model: root.current ? root.current.resolutions : []
-
-                ResolutionPill {
-                  required property string modelData
-                  required property int index
-
-                  resolution: modelData
-                  resolutionIndex: index
-                  width: resolutionGrid.cellWidth
-                }
               }
             }
           }
@@ -1088,7 +1018,7 @@ Panel {
 
   // The displays drawn where they sit, at their relative sizes. Drag one
   // against another's side to move it there; it lines up with that display's
-  // start, center or end when dropped near one. Clicking one opens its tab.
+  // start, center or end when dropped near one. Clicking one shows it above.
   component LayoutMap: Item {
     id: map
 

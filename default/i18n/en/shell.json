@@ -316,7 +316,6 @@
   "monitor.brightness": "BRIGHTNESS",
   "monitor.builtInDisplay": "Built-in Display",
   "monitor.display": "Display",
-  "monitor.displayFocused": "%1 · focused",
   "monitor.fixedBrightness": "FIXED BRIGHTNESS",
   "monitor.layout": "LAYOUT",
   "monitor.level.candlelit": "Candlelit",
