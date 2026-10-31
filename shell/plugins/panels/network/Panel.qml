@@ -677,14 +677,15 @@ Panel {
 
   // Prefer a connected device: a machine can expose several NICs of the
   // same type (e.g. an idle onboard port alongside the active adapter),
-  // and the first-enumerated one may be carrierless.
+  // and the first-enumerated one may be carrierless. A radio running a hotspot
+  // is connected but is not the uplink, so a second radio's station wins.
   function findDevice(type) {
     var devices = networkDevices || []
     var fallback = null
     for (var i = 0; i < devices.length; i++) {
       var device = devices[i]
       if (!device || device.type !== type) continue
-      if (device.connected) return device
+      if (device.connected && device.mode !== WifiDeviceMode.AccessPoint) return device
       if (!fallback) fallback = device
     }
     return fallback

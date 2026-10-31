@@ -118,6 +118,22 @@ ShellRoot {
 
   function hotspotChecks() {
     check(panel.kind === "disconnected" && !panel.testApPoll.running, "a connected hotspot has no uplink, so it shows disconnected")
+    NetworkMock.devices = { values: [NetworkMock.wifi, station] }
+    Qt.callLater(stationBesideHotspotChecks)
+  }
+
+  QtObject {
+    id: station
+    property int type: DeviceType.Wifi
+    property int mode: WifiDeviceMode.Station
+    property string name: "test-wifi-2"
+    property bool connected: true
+    property bool scannerEnabled: false
+    property var networks: test.listed
+  }
+
+  function stationBesideHotspotChecks() {
+    check(panel.wifiDevice === station && panel.kind === "wifi", "a station on a second radio is the uplink, not the hotspot listed before it")
     if (!failed) console.log("RESULT pass")
     done.start()
   }
