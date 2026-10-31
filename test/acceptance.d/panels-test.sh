@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/panel-keyboard-context.sh"
 
 WEATHER_FILE="$HOME/.local/state/omarchy/settings/weather.json"
 weather_backup=$(mktemp)
@@ -91,6 +92,7 @@ fi
 omarchy-shell shell summon omarchy.bluetooth >/dev/null
 wait_until "panel keyboard navigation starts on bluetooth" 15 screen_contains "Bluetooth"
 screenshot "success-panel-navigation-01-bluetooth"
+assert_panel_keyboard_context
 wtype -k Tab
 sleep 2
 wait_until "Tab keeps a shell panel open" 15 layer_present "omarchy-keyboard-panel"
@@ -98,9 +100,9 @@ screenshot "success-panel-navigation-02-next"
 hide_panels
 wait_until "keyboard-navigated panel closes" 15 layer_absent "omarchy-keyboard-panel"
 
-# Reopening during the fade keeps the layer surface mapped. Verify the focus
-# prime reacquires compositor keyboard focus instead of relying on map-time
-# OnDemand behavior, which would leave Escape in the previously focused app.
+# Keep the immediate hide/re-summon check. Disabled animations or IPC latency
+# can unmap the panel between calls; panel-reopen-test.sh separately verifies
+# a positive-duration fade reopen with no intervening unmap.
 omarchy-shell shell summon omarchy.bluetooth >/dev/null
 wait_until "focus-prime panel opens" 15 layer_present "omarchy-keyboard-panel"
 if (( $(hyprctl -j monitors | jq length) == 1 )); then
@@ -112,6 +114,7 @@ omarchy-shell shell summon omarchy.bluetooth >/dev/null
 wait_until "focus-prime panel reopens" 15 layer_present "omarchy-keyboard-panel"
 sleep 1
 screenshot "success-panel-focus-prime-reopened"
+assert_panel_keyboard_context
 wtype -k Escape
 wait_until "Escape closes a panel reopened during fade" 15 layer_absent "omarchy-keyboard-panel"
 
