@@ -4,11 +4,11 @@
 # older NVIDIA GPUs, leaving the mouse pointer invisible under Hyprland.
 # Skip the fix when the proprietary driver was configured: supported GPUs can
 # still use nouveau during installation before switching drivers on reboot.
+source "$OMARCHY_PATH/install/helpers/pci-sysfs.sh"
+
 nvidia_config="${OMARCHY_NVIDIA_MODPROBE_CONFIG:-/etc/modprobe.d/nvidia.conf}"
 
-if [[ ! -f $nvidia_config ]] &&
-  omarchy-cmd-present lspci &&
-  LC_ALL=C lspci -k | grep -qi 'Kernel driver in use: nouveau'; then
+if [[ ! -f $nvidia_config ]] && omarchy-pci-driver nouveau; then
   looknfeel="$HOME/.config/hypr/looknfeel.lua"
 
   if [[ -f $looknfeel ]] && ! grep -q 'no_hardware_cursors' "$looknfeel"; then
