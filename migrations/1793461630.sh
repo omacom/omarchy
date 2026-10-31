@@ -5,16 +5,12 @@ mkdir -p "$state_dir/monitors"
 
 # The blocks give every monitor back its own workspaces when it's plugged in,
 # and the merged list sends an unplugged monitor's workspaces home when it
-# returns, which an update in the middle of a session must not forget. A config
-# reload after the update may already have carried either over, reading the old
-# file and writing the new one; then the old one only needs to go.
+# returns, which an update in the middle of a session must not forget. The old
+# files win: anything a config reload wrote under monitors/ before this ran
+# started from nothing.
 for name in workspaces workspaces-merged; do
   if [[ -f $state_dir/monitor-$name ]]; then
-    if [[ -f $state_dir/monitors/$name ]]; then
-      rm -f "$state_dir/monitor-$name"
-    else
-      mv "$state_dir/monitor-$name" "$state_dir/monitors/$name"
-    fi
+    mv -f "$state_dir/monitor-$name" "$state_dir/monitors/$name"
   fi
 done
 
