@@ -37,6 +37,7 @@ ENABLE_PLACEMENT=()
 
 select_bar_widget_placement() {
   local id="$1"
+  local plugins="$2"
   local section
   local default_section
   local source_id
@@ -47,7 +48,7 @@ select_bar_widget_placement() {
     "$PLUGINS_DIR/$id/manifest.json" >/dev/null 2>&1 || return 0
 
   # Enabling a clone swaps it into its source's slot, which a section would move it out of.
-  # $plugins is the list that discovered it, so a second lookup cannot disagree, and it reads clonedFrom as the registry does.
+  # The list that discovered it reads clonedFrom as the registry does, so it cannot disagree about the source.
   source_id=$(jq -r --arg id "$id" 'first(.[] | select(.id == $id) | .clonedFrom) // empty' <<<"$plugins")
   if [[ -n $source_id ]] &&
     jq -e --arg id "$source_id" 'any(.[]; .id == $id and .enabled)' <<<"$plugins" >/dev/null; then
@@ -179,7 +180,7 @@ if [[ $enable_after == true ]]; then
     sleep 0.05
   done
   (( discovered )) || fail "plugin '$id' is not known"
-  select_bar_widget_placement "$id"
+  select_bar_widget_placement "$id" "$plugins"
   omarchy-plugin-enable "$id" "${ENABLE_PLACEMENT[@]}"
 else
   echo "Enable it later with: omarchy plugin enable $id"
