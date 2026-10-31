@@ -12,6 +12,9 @@
 -- the panel wins over a rule written there and a reload settles on it in one
 -- go. Applied again when a monitor arrives, skipping one that already runs as
 -- saved, so plugging it back in doesn't reconfigure it for nothing.
+--
+-- Setting omarchy_monitor_panel_settings = false in hypr/monitors.lua leaves
+-- that file alone in charge, GDK_SCALE included.
 
 local paths = require("default.hypr.paths")
 
@@ -21,6 +24,10 @@ local M = {}
 
 local function load()
   local settings = {}
+  if _G.omarchy_monitor_panel_settings == false then
+    return settings
+  end
+
   local file = io.open(STATE_FILE, "r")
   if not file then
     return settings

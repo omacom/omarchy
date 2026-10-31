@@ -276,4 +276,9 @@ printf '%s\t%s\t%s\t%s\n' "2560x1600@60" "640x1440" "1.6" "eDP-1" >"$settings_fi
 expect_sync "clamshell recovery keeps the scale chosen in the display panel" 1.6 - '!scale = ' <<<"$internal_config"
 expect_sync "clamshell recovery brings the panel back as chosen in the display panel" off - \
   'mode = "2560x1600@60", position = "640x1440", scale = 1.6' <<<"$internal_config"
+
+# With the panel's choices switched off, monitors.lua alone decides.
+expect_sync "clamshell recovery follows monitors.lua when the panel's choices are off" off - \
+  'mode = "preferred", position = "0x0", scale = 1.25' <<<"omarchy_monitor_panel_settings = false
+$internal_config"
 rm -f "$settings_file"

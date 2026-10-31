@@ -1,10 +1,15 @@
 -- Scale, resolution and arrangement are set from the monitor panel in the top
 -- bar and saved for each monitor in ~/.local/state/omarchy/monitors/settings.
 -- This file is for what the panel doesn't cover, and it loads after Omarchy's
--- defaults. A choice made in the panel still wins for that monitor.
+-- defaults. A choice made in the panel still wins for that monitor, unless the
+-- panel's choices are switched off below.
 --
 -- See https://wiki.hypr.land/Configuring/Basics/Monitors/
 -- List current monitors and supported resolutions with: hyprctl monitors all
+
+-- Ignore the monitor panel's saved choices, so this file alone sets every
+-- monitor. The panel's changes then last only until Hyprland reloads.
+-- omarchy_monitor_panel_settings = false
 
 -- Scale every monitor without a choice of its own (Omarchy picks "auto").
 -- hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1.6 })

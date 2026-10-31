@@ -113,6 +113,18 @@ check(env.GDK_SCALE == "1", "sets GDK_SCALE from the saved scale, got " .. tostr
 ' || fail "monitor settings update GDK_SCALE without touching monitors"
 pass "monitor settings update GDK_SCALE without touching monitors"
 
+# Switched off in monitors.lua, the saved settings are left alone entirely.
+printf '%s\t%s\t%s\t%s\n' "1920x1200@60" "0x0" "1" "LG Display 0x0804" >"$settings"
+run_lua '
+plug("eDP-1", "LG Display 0x0804", { width = 2880, height = 1800, refresh_rate = 120, scale = 2, x = 0, y = 0 })
+omarchy_monitor_panel_settings = false
+load_module()
+handlers["monitor.added"]({ name = "eDP-1" })
+o.monitor_settings.update_gdk_scale()
+check(#applied == 0 and env.GDK_SCALE == nil, "applies nothing with the panel'"'"'s choices off")
+' || fail "monitor settings stay out of the way when switched off in monitors.lua"
+pass "monitor settings stay out of the way when switched off in monitors.lua"
+
 # Until something is saved, monitors.lua alone decides, GDK_SCALE included.
 rm -f "$settings"
 run_lua '
