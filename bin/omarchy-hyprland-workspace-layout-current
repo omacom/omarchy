@@ -5,7 +5,7 @@
 
 if [[ -n $1 ]]; then
   WORKSPACE_ID=$1
-  TILED_LAYOUT=$(hyprctl workspaces -j | jq -r --arg id "$WORKSPACE_ID" 'first(.[] | select((.id | tostring) == $id) | .tiledLayout) // empty')
+  TILED_LAYOUT=$(hyprctl workspaces -j | jq -r --arg id "$WORKSPACE_ID" 'first(.[] | select((.id | tostring) == $id or .name == $id) | .tiledLayout) // empty')
 else
   read -r WORKSPACE_ID TILED_LAYOUT < <(hyprctl activeworkspace -j | jq -r '"\(.id) \(.tiledLayout // "")"')
 fi
@@ -13,15 +13,20 @@ fi
 MODES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts"
 
 # Hyprland only reports the tiled layout, and floating is not one, so the mode is
-# read back from the file omarchy-hyprland-workspace-layout-toggle wrote. Files
-# saved before floating existed name no mode, and a workspace without a mode of
-# its own follows the default layout.
+# read back from the file omarchy-hyprland-workspace-layout-toggle wrote. Regular
+# workspaces are named by id and special ones by their "special:name" reference;
+# files saved before floating existed name no mode, and a regular workspace
+# without a mode of its own follows the default layout. A floating default never
+# reaches special workspaces, so one without a mode of its own reports the tiled
+# layout Hyprland shows on it.
 if [[ $WORKSPACE_ID =~ ^[0-9]+$ ]] && (( WORKSPACE_ID >= 1 )); then
   MODE=$(sed -n 's/.*mode = "\([a-z]*\)".*/\1/p' "$MODES_DIR/$WORKSPACE_ID.lua" 2>/dev/null)
 
   if [[ -z $MODE && -f $MODES_DIR/default.lua ]]; then
     MODE=$(omarchy-hyprland-workspace-layout-default)
   fi
+elif [[ $WORKSPACE_ID =~ ^special:[A-Za-z0-9_-]+$ ]]; then
+  MODE=$(sed -n 's/.*mode = "\([a-z]*\)".*/\1/p' "$MODES_DIR/$WORKSPACE_ID.lua" 2>/dev/null)
 fi
 
 MODE=${MODE:-$TILED_LAYOUT}
