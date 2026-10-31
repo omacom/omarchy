@@ -62,9 +62,15 @@ if [[ -f ~/.config/ghostty/config ]]; then
 fi
 
 if [[ -f ~/.config/foot/foot.ini ]]; then
+  # Preserve the primary font's size, not a fallback's; Omarchy ships 9 when none is present.
+  # The primary font ends at the first unescaped comma, since families are written escaped below.
+  foot_size="$(sed -n 's/^font=\(\\.\|[^,\\]\)*:size=\([0-9.]\+\).*/\2/p' ~/.config/foot/foot.ini | head -1)"
+  if [[ -z $foot_size ]]; then
+    foot_size=9
+  fi
   # Foot reads a fontconfig pattern, where -, comma and colon end the family.
   foot_font_name=$(printf '%s' "$font_name" | sed 's/[-,:]/\\&/g; s/[\\&/]/\\&/g')
-  sed -i "s/^font=.*/font=$foot_font_name:size=9/g" ~/.config/foot/foot.ini
+  sed -i "s/^font=.*/font=$foot_font_name:size=$foot_size/g" ~/.config/foot/foot.ini
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
@@ -90,12 +96,12 @@ XML
 
 omarchy-restart-shell
 
-if pgrep -x ghostty; then
-  omarchy-notification-send -g  "You must restart Ghostty to see font change"
+if pgrep -x ghostty >/dev/null; then
+  omarchy-notification-send -g  "$(omarchy-i18n font.restartToSeeChange Ghostty)"
 fi
 
-if pgrep -x foot; then
-  omarchy-notification-send -g  "You must restart Foot to see font change"
+if pgrep -x foot >/dev/null; then
+  omarchy-notification-send -g  "$(omarchy-i18n font.restartToSeeChange Foot)"
 fi
 
 omarchy-hook font-set "$font_name"

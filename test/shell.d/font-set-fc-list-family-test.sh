@@ -7,7 +7,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 mkdir -p "$test_tmp/bin" "$test_tmp/home/.config/foot"
-printf 'font=Old Font:size=9\n' >"$test_tmp/home/.config/foot/foot.ini"
+printf 'font=Old Font:size=12\n' >"$test_tmp/home/.config/foot/foot.ini"
 
 # Decode the actual query with fontconfig itself and print it as fc-list does,
 # escaped unless a format is asked for. Only an exact installed family is
@@ -36,6 +36,8 @@ for family in "Test Mono" "Test-Mono" "Test, Mono" "Test: Mono" "Test, Mono: Sty
   foot_font=$(sed -n 's/^font=//p' "$test_tmp/home/.config/foot/foot.ini")
   [[ $(fc-pattern -f '%{family}' "$foot_font") == "$family" ]] ||
     fail "font-set writes a foot pattern that names the family" "$foot_font"
+  [[ $foot_font == *:size=12 ]] ||
+    fail "font-set keeps foot's size after an escaped family" "$foot_font"
   pass "font-set looks up the exact family: $family"
 done
 
