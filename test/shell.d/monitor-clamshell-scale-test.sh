@@ -4,6 +4,10 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+require_command jq
+require_command lua
+require_command python3
+
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
@@ -20,17 +24,37 @@ cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 if [[ $1 == "monitors" && $2 == "all" && $3 == "-j" ]]; then
-  other=""
-  [[ -n ${OMARCHY_TEST_OTHER_OUTPUT:-} ]] && other=$(printf ',{"name":"%s","disabled":false,"scale":1}' "$OMARCHY_TEST_OTHER_OUTPUT")
-  if [[ ${OMARCHY_TEST_INTERNAL_DISABLED:-false} == "true" ]]; then
-    printf '[{"name":"eDP-1","disabled":true,"scale":null}%s]' "$other"
+  # A real `hyprctl monitors all -j` lists every output, not just the
+  # internal one -- keep an external entry in the array so selection-by-name
+  # is exercised the same way it is in production, for every case below.
+  external=$(printf '{"name":"%s","make":"%s","model":"%s","serial":"%s","disabled":false,"scale":1,"refreshRate":60,"transform":%s,"x":%s,"y":0,"width":%s,"height":%s}' \
+    "${OMARCHY_TEST_EXTERNAL_NAME:-HDMI-A-1}" "${OMARCHY_TEST_EXTERNAL_MAKE-Samsung Electric Company}" \
+    "${OMARCHY_TEST_EXTERNAL_MODEL-LF24T35}" "${OMARCHY_TEST_EXTERNAL_SERIAL-HX5X721467}" \
+    "${OMARCHY_TEST_EXTERNAL_TRANSFORM:-0}" "${OMARCHY_TEST_EXTERNAL_X:-1920}" \
+    "${OMARCHY_TEST_EXTERNAL_WIDTH:-1920}" "${OMARCHY_TEST_EXTERNAL_HEIGHT:-1080}")
+  if [[ -n ${OMARCHY_TEST_OTHER_OUTPUT:-} ]]; then
+    external=$(printf '{"name":"%s","disabled":false,"scale":1}' "$OMARCHY_TEST_OTHER_OUTPUT")
+  fi
+  # More outputs, as ready-made JSON objects joined by commas.
+  [[ -z ${OMARCHY_TEST_EXTRA_EXTERNALS:-} ]] || external="$external,$OMARCHY_TEST_EXTRA_EXTERNALS"
+  # A real reload re-enables the panel once the clamshell flag is gone, at
+  # whatever position the catch-all rule gave it.
+  if [[ ${OMARCHY_TEST_INTERNAL_DISABLED:-false} == "true" && ! -f $OMARCHY_TEST_RELOADED ]]; then
+    printf '[%s,{"name":"eDP-1","disabled":true,"scale":null,"x":null,"y":null}]' "$external"
   else
-    printf '[{"name":"eDP-1","disabled":false,"scale":%s}%s]' "${OMARCHY_TEST_INTERNAL_SCALE:-2}" "$other"
+    scale="${OMARCHY_TEST_INTERNAL_SCALE:-2}"
+    if [[ -n ${OMARCHY_TEST_APPLIED_SCALE:-} && -f $OMARCHY_TEST_APPLIED_MARKER ]]; then
+      scale="$OMARCHY_TEST_APPLIED_SCALE"
+    fi
+    printf '[%s,{"name":"eDP-1","disabled":false,"scale":%s,"refreshRate":60,"transform":0,"width":1920,"height":1080,"x":%s,"y":%s}]' \
+      "$external" "$scale" "${OMARCHY_TEST_INTERNAL_X:-0}" "${OMARCHY_TEST_INTERNAL_Y:-0}"
   fi
 elif [[ $1 == "eval" ]]; then
   printf '%s\n' "$2" >>"$OMARCHY_TEST_HYPRCTL_EVAL_LOG"
+  touch "$OMARCHY_TEST_APPLIED_MARKER"
 elif [[ $1 == "reload" ]]; then
   printf 'reload\n' >>"$OMARCHY_TEST_HYPRCTL_EVAL_LOG"
+  touch "$OMARCHY_TEST_RELOADED"
 elif [[ $1 == "dispatch" ]]; then
   printf 'dispatch %s\n' "$2" >>"$OMARCHY_TEST_HYPRCTL_EVAL_LOG"
 else
@@ -75,9 +99,15 @@ remember_scale() {
   printf '%s\n' "$1" >"$scale_state"
 }
 
+export OMARCHY_PATH="$ROOT"
+
 run_clamshell() {
+  rm -f "$test_tmp/reloaded" "$test_tmp/applied" "$state_dir/internal-monitor-clamshell.lua"
+
   HOME="$home_dir" \
     PATH="$stub_bin:$PATH" \
+    OMARCHY_TEST_RELOADED="$test_tmp/reloaded" \
+    OMARCHY_TEST_APPLIED_MARKER="$test_tmp/applied" \
     OMARCHY_TEST_HYPRCTL_EVAL_LOG="$eval_log" \
     OMARCHY_TEST_INTERNAL_SCALE="${OMARCHY_TEST_INTERNAL_SCALE:-2}" \
     OMARCHY_TEST_INTERNAL_DISABLED="${OMARCHY_TEST_INTERNAL_DISABLED:-false}" \
@@ -178,6 +208,68 @@ expect_sync "clamshell recovery falls back to the default scale" off - 'scale = 
 
 expect_sync "clamshell recovery uses configured internal monitor rule" off - 'position = "0x0"' 'scale = 1.25' <<<"$internal_config"
 
+# Scale correction of a panel that is already on keeps its place, instead of
+# sending it to the end of the layout with "auto".
+printf '%s\n' 'hl.monitor({ output = "", mode = "preferred", scale = 1.5 })' >"$monitor_lua"
+
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=3 OMARCHY_TEST_INTERNAL_X=0 run_clamshell
+grep -F 'scale = 1.5' "$eval_log" >/dev/null || fail "a live scale correction applies the configured scale"
+grep -F 'position = "0x0"' "$eval_log" >/dev/null || fail "a live scale correction keeps the panel's live position"
+pass "a live scale correction keeps the panel where it is"
+
+printf '%s\n' 'hl.monitor({ output = "eDP-1", mode = "1280x720", position = "auto", scale = 1.5 })' >"$monitor_lua"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=3 run_clamshell
+HOME="$home_dir" lua - "$eval_log" <<'LUA'
+local calls = 0
+hl = {
+  get_monitor = function() return { width = 1280, height = 720, refresh_rate = 60, transform = 1 } end,
+  monitor = function(rule)
+    calls = calls + 1
+    assert(rule.mode == "1280x720@60.00000", "scale correction preserves the active mode")
+    assert(rule.transform == 1, "scale correction preserves the active rotation")
+  end,
+}
+dofile(arg[1])
+assert(calls == 1, "scale correction must emit one panel rule")
+LUA
+pass "moving or scaling a panel preserves its configured mode and rotation"
+printf '%s\n' 'hl.monitor({ output = "", mode = "preferred", scale = 1.5 })' >"$monitor_lua"
+
+# ...unless the new scale widens it into a neighbor: a 1920px panel at scale 3
+# is 640 wide, and at scale 1.5 it is 1280, past an external at 700.
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=3 OMARCHY_TEST_INTERNAL_X=0 OMARCHY_TEST_EXTERNAL_X=700 run_clamshell
+grep -F 'scale = 1.5' "$eval_log" >/dev/null || fail "an overlapping scale correction still applies the scale"
+grep -F 'position = "auto"' "$eval_log" >/dev/null || fail "a scale correction that would overlap falls back to auto"
+! grep -F 'position = "0x0"' "$eval_log" >/dev/null || fail "a scale correction never reapplies a position that would overlap"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=3 OMARCHY_TEST_INTERNAL_X=0 OMARCHY_TEST_EXTERNAL_X=1400 run_clamshell
+grep -F 'position = "0x0"' "$eval_log" >/dev/null || fail "a scale correction that still fits keeps the position"
+pass "a scale correction falls back to auto when the wider panel would overlap"
+
+# Hyprland can snap a requested scale down, growing the panel beyond the fit
+# predicted from that request. Check the geometry it actually applied too.
+printf '%s\n' 'hl.monitor({ output = "", scale = 1.669, position = "auto" })' >"$monitor_lua"
+for external_x in 1151 1152; do
+  : >"$eval_log"
+  OMARCHY_TEST_INTERNAL_SCALE=3 OMARCHY_TEST_APPLIED_SCALE=1.6666666 \
+    OMARCHY_TEST_INTERNAL_X=0 OMARCHY_TEST_EXTERNAL_X="$external_x" run_clamshell
+  lua - "$eval_log" "$external_x" <<'LUA'
+local rules = {}
+hl = {
+  get_monitor = function() return { width = 1920, height = 1080, refresh_rate = 60, transform = 0 } end,
+  monitor = function(rule) rules[#rules + 1] = rule end,
+}
+dofile(arg[1])
+local final = assert(rules[#rules], "scale correction must emit a panel rule")
+local expected = arg[2] == "1151" and "auto" or "0x0"
+assert(final.position == expected, "snapped scale must fit at the final position")
+LUA
+done
+pass "scale correction checks the applied scale and allows touching edges without overlap"
+
 # A rule referencing a local resolves to the local's value, not the literal name.
 expect_sync "clamshell recovery resolves omarchy_monitor_scale variable reference" off - 'scale = 1.5' <<'LUA'
 local omarchy_gdk_scale = 1.5
@@ -258,10 +350,26 @@ done
 # this every two seconds.
 OMARCHY_TEST_OTHER_OUTPUT=FALLBACK \
   expect_sync "clamshell recovery turns a panel-disabled display back on once nothing external is connected" off - \
-  'hl.monitor({ output = "eDP-1", disabled = false, mode = "preferred", position = "0x0", scale = 1.25 })' <<<"$internal_config"
+  'disabled = false' 'position = "0x0"' 'scale = 1.25' <<<"$internal_config"
+lua - "$eval_log" <<'LUA'
+local calls = 0
+hl = {
+  get_monitor = function() return nil end,
+  monitor = function(rule)
+    calls = calls + 1
+    assert(rule.disabled == false, "an unplugged panel must be enabled")
+    assert(rule.mode == "preferred", "an absent panel needs a preferred mode")
+    assert(rule.position == "0x0" and rule.scale == 1.25, "recovery preserves configured geometry")
+  end,
+}
+dofile(arg[1])
+assert(calls == 1, "unplug recovery must emit one panel rule")
+LUA
 OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=DP-1 \
   expect_sync "clamshell recovery leaves a panel-disabled display off while an external display is connected" off - \
   'scale = 1.25' '!disabled = false' <<<"$internal_config"
 OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=HEADLESS-1 \
   expect_sync "clamshell recovery leaves a panel-disabled display off while a headless output is enabled" off - \
   'scale = 1.25' '!disabled = false' <<<"$internal_config"
+
+OMARCHY_PATH="$ROOT" python3 "$SHELL_TEST_DIR/fixtures/monitor-clamshell-layout.py"
